@@ -22,8 +22,6 @@ import {
   RouteToApp,
 } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
 import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
-import { AppSubKind } from 'shared/services';
-import { getAppUriScheme } from 'shared/services/apps';
 
 /** Returns a URL that opens the web app in the browser. */
 export function getWebAppLaunchUrl({
@@ -74,7 +72,7 @@ export function getAwsIcLaunchUrl({
   roleName: string;
 }) {
   const { publicAddr, subKind } = app;
-  if (subKind !== AppSubKind.AwsIcAccount) {
+  if (subKind !== 'aws_ic_account') {
     return '';
   }
   return `${publicAddr}&role_name=${roleName}`;
@@ -111,18 +109,6 @@ export function isMcp(app: App): boolean {
 }
 
 /**
- * doesMcpAppSupportGateway returns true for MCP servers that supports local
- * proxy gateway. Currently only MCP servers with streamable HTTP transport
- * support the gateway.
- */
-export function doesMcpAppSupportGateway(app: App): boolean {
-  return (
-    app.endpointUri.startsWith('mcp+http://') ||
-    app.endpointUri.startsWith('mcp+https://')
-  );
-}
-
-/**
  * Returns address with protocol which is an app protocol + a public address.
  * If the public address is empty, it falls back to the endpoint URI.
  *
@@ -131,18 +117,14 @@ export function doesMcpAppSupportGateway(app: App): boolean {
 export function getAppAddrWithProtocol(source: App): string {
   const { publicAddr, endpointUri } = source;
 
-  const scheme = getAppUriScheme(endpointUri);
   const isTcp = endpointUri && endpointUri.startsWith('tcp://');
   const isCloud = endpointUri && endpointUri.startsWith('cloud://');
-  const isMcp = scheme.startsWith('mcp+');
   let addrWithProtocol = endpointUri;
   if (publicAddr) {
     if (isCloud) {
       addrWithProtocol = `cloud://${publicAddr}`;
     } else if (isTcp) {
       addrWithProtocol = `tcp://${publicAddr}`;
-    } else if (isMcp) {
-      addrWithProtocol = `${scheme}://${publicAddr}`;
     } else {
       // publicAddr for Identity Center account app is a URL with scheme.
       addrWithProtocol = publicAddr.startsWith('https://')

@@ -21,13 +21,11 @@ import {
   SetStateAction,
   useCallback,
   useEffect,
-  useEffectEvent,
   useRef,
   useState,
 } from 'react';
 
-import { Logger } from 'design/logger';
-import type { ToastNotificationItem } from 'shared/components/ToastNotification';
+import type { NotificationItem } from 'shared/components/Notification';
 import { Attempt } from 'shared/hooks/useAsync';
 import { ClipboardData, TdpClient } from 'shared/libs/tdp';
 import { isAbortError } from 'shared/utils/error';
@@ -37,11 +35,6 @@ declare global {
     showDirectoryPicker: () => Promise<FileSystemDirectoryHandle>;
   }
 }
-
-const supportsClipboardChangeEvent =
-  navigator.clipboard && 'onclipboardchange' in navigator.clipboard;
-
-const logger = new Logger('DesktopSession');
 
 export default function useDesktopSession(
   tdpClient: TdpClient,
@@ -53,7 +46,6 @@ export default function useDesktopSession(
 ) {
   const encoder = useRef(new TextEncoder());
   const latestClipboardDigest = useRef('');
-  const triggeredClipboardPermissionsCheck = useRef(false);
   const [directorySharingState, setDirectorySharingState] = useState<{
     directorySelected: boolean;
   }>({ directorySelected: false });
@@ -88,66 +80,27 @@ export default function useDesktopSession(
       setClipboardSharingState
     );
 
-    if (supportsClipboardChangeEvent) {
-      navigator.clipboard.addEventListener(
-        'clipboardchange',
-        handleNativeClipboardChange
-      );
-    }
-
     return () => {
       clearReadListenerPromise.then(clearReadListener => clearReadListener());
       clearWriteListenerPromise.then(clearWriteListener =>
         clearWriteListener()
       );
-      if (supportsClipboardChangeEvent) {
-        navigator.clipboard.removeEventListener(
-          'clipboardchange',
-          handleNativeClipboardChange
-        );
-      }
     };
   }, []);
 
-  const [alerts, setAlerts] = useState<ToastNotificationItem[]>([]);
-  const onRemoveAlert = useCallback((id: string) => {
+  const [alerts, setAlerts] = useState<NotificationItem[]>([]);
+  const onRemoveAlert = (id: string) => {
     setAlerts(prevState => prevState.filter(alert => alert.id !== id));
-  }, []);
-  const addAlert = useCallback((alert: Omit<ToastNotificationItem, 'id'>) => {
+  };
+  const addAlert = useCallback((alert: Omit<NotificationItem, 'id'>) => {
     setAlerts(prevState => [
       ...prevState,
       { ...alert, id: crypto.randomUUID() },
     ]);
   }, []);
 
-  const handleNativeClipboardChange = useEffectEvent(() => {
-    logger.info('Native clipboardchange event received, syncing clipboard');
-    void sendLocalClipboardToRemote();
-  });
-
-  function onTransientUserActivation() {
-    // Fallback for Chromium versions without the native clipboardchange event.
-    // In browsers with native support, still trigger one read on the first user
-    // action so the browser shows the clipboard prompt before remote-to-local
-    // clipboard writes.
-    if (!supportsClipboardChangeEvent) {
-      void sendLocalClipboardToRemote();
-      return;
-    }
-
-    if (triggeredClipboardPermissionsCheck.current) {
-      return;
-    }
-
-    triggeredClipboardPermissionsCheck.current = true;
-    void sendLocalClipboardToRemote();
-  }
-
   async function sendLocalClipboardToRemote() {
     if (!(await sysClipboardGuard(clipboardSharing, 'read'))) {
-      logger.warn(
-        'Skipping clipboard sync: local clipboard read is not allowed'
-      );
       return;
     }
     const text = await navigator.clipboard.readText();
@@ -161,23 +114,19 @@ export default function useDesktopSession(
   }
 
   async function onClipboardData(clipboardData: ClipboardData) {
-    if (!clipboardData.data) {
-      return;
-    }
-    if (!(await sysClipboardGuard(clipboardSharing, 'write'))) {
-      logger.warn(
-        'Skipping clipboard sync: local clipboard write is not allowed'
+    if (
+      clipboardData.data &&
+      (await sysClipboardGuard(clipboardSharing, 'write'))
+    ) {
+      await navigator.clipboard.writeText(clipboardData.data);
+      latestClipboardDigest.current = await sha256Digest(
+        clipboardData.data,
+        encoder.current
       );
-      return;
     }
-    await navigator.clipboard.writeText(clipboardData.data);
-    latestClipboardDigest.current = await sha256Digest(
-      clipboardData.data,
-      encoder.current
-    );
   }
 
-  const onShareDirectory = useCallback(async () => {
+  const onShareDirectory = async () => {
     try {
       await tdpClient.shareDirectory();
       setDirectorySharingState({
@@ -198,7 +147,7 @@ export default function useDesktopSession(
         },
       });
     }
-  }, [tdpClient, addAlert]);
+  };
 
   /** Clears sharing state. */
   const clearSharing = useCallback(() => {
@@ -215,7 +164,7 @@ export default function useDesktopSession(
     alerts,
     onRemoveAlert,
     addAlert,
-    onTransientUserActivation,
+    sendLocalClipboardToRemote,
     onClipboardData,
   };
 }

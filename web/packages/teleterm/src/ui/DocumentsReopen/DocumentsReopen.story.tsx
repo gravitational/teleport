@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
+
 import { DocumentsReopen } from './DocumentsReopen';
 
 export default {
@@ -24,47 +26,55 @@ export default {
 
 export const Story = () => {
   return (
-    <DocumentsReopen
-      rootClusterUri="/clusters/foo.cloud.gravitational.io"
-      numberOfDocuments={8}
-      onConfirm={() => {}}
-      onDiscard={() => {}}
-    />
+    <MockAppContextProvider>
+      <DocumentsReopen
+        rootClusterUri="/clusters/foo.cloud.gravitational.io"
+        numberOfDocuments={8}
+        onConfirm={() => {}}
+        onDiscard={() => {}}
+      />
+    </MockAppContextProvider>
   );
 };
 
 export const OneTab = () => {
   return (
-    <DocumentsReopen
-      rootClusterUri="/clusters/foo.cloud.gravitational.io"
-      numberOfDocuments={1}
-      onConfirm={() => {}}
-      onDiscard={() => {}}
-    />
+    <MockAppContextProvider>
+      <DocumentsReopen
+        rootClusterUri="/clusters/foo.cloud.gravitational.io"
+        numberOfDocuments={1}
+        onConfirm={() => {}}
+        onDiscard={() => {}}
+      />
+    </MockAppContextProvider>
   );
 };
 
 export const LongClusterName = () => {
   return (
-    <DocumentsReopen
-      rootClusterUri="/clusters/foo.bar.baz.quux.cloud.gravitational.io"
-      numberOfDocuments={42}
-      onConfirm={() => {}}
-      onDiscard={() => {}}
-    />
+    <MockAppContextProvider>
+      <DocumentsReopen
+        rootClusterUri="/clusters/foo.bar.baz.quux.cloud.gravitational.io"
+        numberOfDocuments={42}
+        onConfirm={() => {}}
+        onDiscard={() => {}}
+      />
+    </MockAppContextProvider>
   );
 };
 
 export const LongContinuousClusterName = () => {
   return (
-    <DocumentsReopen
-      rootClusterUri={`/clusters/${Array(10)
-        .fill(['foo', 'bar', 'baz', 'quux'], 0)
-        .flat()
-        .join('')}`}
-      numberOfDocuments={680}
-      onConfirm={() => {}}
-      onDiscard={() => {}}
-    />
+    <MockAppContextProvider>
+      <DocumentsReopen
+        rootClusterUri={`/clusters/${Array(10)
+          .fill(['foo', 'bar', 'baz', 'quux'], 0)
+          .flat()
+          .join('')}`}
+        numberOfDocuments={680}
+        onConfirm={() => {}}
+        onDiscard={() => {}}
+      />
+    </MockAppContextProvider>
   );
 };

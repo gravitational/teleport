@@ -41,7 +41,7 @@ test('fetchJoinToken with an empty request properly sets defaults', () => {
       suggested_agent_matcher_labels: {},
       suggested_labels: {},
     },
-    undefined,
+    null,
     undefined
   );
 });
@@ -66,7 +66,7 @@ test('fetchJoinToken request fields are set as requested', () => {
       suggested_agent_matcher_labels: { env: ['dev'] },
       suggested_labels: {},
     },
-    undefined,
+    null,
     undefined
   );
 });

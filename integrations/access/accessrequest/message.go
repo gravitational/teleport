@@ -23,9 +23,9 @@ import (
 	"net/url"
 	"slices"
 	"strings"
+	"text/template"
 	"time"
 
-	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
@@ -44,24 +44,10 @@ const (
 )
 
 var reviewReplyTemplate = template.Must(template.New("review reply").Parse(
-	`{{.Author}} reviewed the request at {{.CreatedTime}}.
+	`{{.Author}} reviewed the request at {{.Created.Format .TimeFormat}}.
 Resolution: {{.ProposedStateEmoji}} {{.ProposedState}}.
-{{if .Reason}}Reason: {{.Reason}}{{end}}`,
+{{if .Reason}}Reason: {{.Reason}}.{{end}}`,
 ))
-
-func MsgTitle(reqData pd.AccessRequestData) string {
-	requestBase := "Role"
-	if len(reqData.Resources) > 0 {
-		requestBase = "Resource"
-	}
-	titleText := fmt.Sprintf("You have a new %s Request", requestBase)
-	if reqData.RequestKind == types.AccessRequestKind_LONG_TERM.String() {
-		titleText += " (long-term access)"
-	}
-	titleText += ":\n"
-
-	return titleText
-}
 
 func MsgStatusText(tag pd.ResolutionTag, reason string) string {
 	var statusEmoji string
@@ -152,12 +138,12 @@ func MsgReview(review types.AccessReview) (string, error) {
 		types.AccessReview
 		ProposedState      string
 		ProposedStateEmoji string
-		CreatedTime        string
+		TimeFormat         string
 	}{
 		review,
 		review.ProposedState.String(),
 		proposedStateEmoji,
-		review.Created.Format(time.RFC822),
+		time.RFC822,
 	})
 	if err != nil {
 		return "", trace.Wrap(err)

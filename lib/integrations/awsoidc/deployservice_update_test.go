@@ -30,8 +30,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
-	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestGenerateServiceWithTaskDefinition(t *testing.T) {
@@ -165,7 +164,7 @@ func TestUpdateDeployServices(t *testing.T) {
 	semVer := teleport.SemVer()
 	semVer.PreRelease = ""
 	teleportVersion := semVer.String()
-	log := logtest.With("test", t.Name())
+	log := utils.NewSlogLoggerForTests().With("test", t.Name())
 
 	t.Run("only legacy service present", func(t *testing.T) {
 		m := &mockDeployServiceClient{
@@ -192,7 +191,6 @@ func TestUpdateDeployServices(t *testing.T) {
 		}
 
 		err := UpdateDeployService(ctx, m, log, UpdateServiceRequest{
-			TeleportBuildType:   modules.BuildOSS,
 			TeleportClusterName: clusterName,
 			TeleportVersionTag:  teleportVersion,
 			OwnershipTags:       ownershipTags,
@@ -229,7 +227,6 @@ func TestUpdateDeployServices(t *testing.T) {
 		}
 
 		err := UpdateDeployService(ctx, m, log, UpdateServiceRequest{
-			TeleportBuildType:   modules.BuildOSS,
 			TeleportClusterName: clusterName,
 			TeleportVersionTag:  teleportVersion,
 			OwnershipTags:       ownershipTags,
@@ -288,7 +285,6 @@ func TestUpdateDeployServices(t *testing.T) {
 		}
 
 		err := UpdateDeployService(ctx, m, log, UpdateServiceRequest{
-			TeleportBuildType:   modules.BuildOSS,
 			TeleportClusterName: clusterName,
 			TeleportVersionTag:  teleportVersion,
 			OwnershipTags:       ownershipTags,
@@ -359,7 +355,6 @@ func TestUpdateDeployServices(t *testing.T) {
 		}
 
 		err := UpdateDeployService(ctx, m, log, UpdateServiceRequest{
-			TeleportBuildType:   modules.BuildOSS,
 			TeleportClusterName: clusterName,
 			TeleportVersionTag:  teleportVersion,
 			OwnershipTags:       ownershipTags,
@@ -383,7 +378,6 @@ func TestUpdateDeployServices(t *testing.T) {
 		m := &mockDeployServiceClient{}
 
 		err := UpdateDeployService(ctx, m, log, UpdateServiceRequest{
-			TeleportBuildType:   modules.BuildOSS,
 			TeleportClusterName: clusterName,
 			TeleportVersionTag:  teleportVersion,
 			OwnershipTags:       ownershipTags,

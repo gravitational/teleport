@@ -4,7 +4,6 @@ description: Protect Kubernetes clusters with granular role-based access control
 template: doc-page
 tags:
  - zero-trust
- - infrastructure-identity
 ---
 
 import DocHero, { DocHeroProps } from "@site/src/components/Pages/Landing/DocHero";
@@ -85,19 +84,19 @@ Log in with SSO and securely access enrolled Kubernetes clusters. Manage access 
       title: "Azure Kubernetes Service (AKS) auto-discovery",
       description: "Automatically discover any AKS cluster and enroll it in Teleport.",
       iconComponent: azureSvg,
-      href: "../auto-discovery/kubernetes/aks-discovery/"
+      href: "../auto-discovery/kubernetes/azure/"
     },
     {
       title: "Elastic Kubernetes Service (EKS) auto-discovery",
       description: "Automatically discover any EKS cluster and enroll it in Teleport",
       iconComponent: awsSvg,
-      href: "../auto-discovery/kubernetes/eks-discovery/"
+      href: "../auto-discovery/kubernetes/aws/"
     },
     {
       title: "Google Kubernetes Engine (GKE) auto-discovery",
       description: "Automatically register your GKE clusters with Teleport",
       iconComponent: gcpSvg,
-      href: "../auto-discovery/kubernetes/gke-discovery/"
+      href: "../auto-discovery/kubernetes/google-cloud/"
     },
   ]}
 />

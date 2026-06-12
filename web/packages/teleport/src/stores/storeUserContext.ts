@@ -44,10 +44,6 @@ export default class StoreUserContext extends Store<UserContext> {
     return this.state.cluster.authVersion;
   }
 
-  getClusterPublicUrl() {
-    return this.state.cluster.publicURL;
-  }
-
   getEventAccess() {
     return this.state.acl.events;
   }
@@ -172,10 +168,6 @@ export default class StoreUserContext extends Store<UserContext> {
     return this.state.acl.fileTransferAccess;
   }
 
-  isWebTerminalCopyBlocked() {
-    return this.state.acl.webTerminalClipboardMode === 'no-copy';
-  }
-
   // hasPrereqAccessToAddAgents checks if user meets the prerequisite
   // access to add an agent:
   //  - user should be able to create provisioning tokens
@@ -271,10 +263,6 @@ export default class StoreUserContext extends Store<UserContext> {
     return this.state.acl.botInstances;
   }
 
-  getInstancesAccess() {
-    return this.state.acl.instances;
-  }
-
   getContactsAccess() {
     return this.state.acl.contacts;
   }
@@ -289,37 +277,5 @@ export default class StoreUserContext extends Store<UserContext> {
 
   geClientIpRestrictionAccess() {
     return this.state.acl.clientIpRestriction;
-  }
-
-  getAutoUpdateConfigAccess() {
-    return this.state.acl.autoUpdateConfig;
-  }
-
-  getAutoUpdateVersionAccess() {
-    return this.state.acl.autoUpdateVersion;
-  }
-
-  getAutoUpdateAgentRolloutAccess() {
-    return this.state.acl.autoUpdateAgentRollout;
-  }
-
-  getAutoUpdateAgentReportAccess() {
-    return this.state.acl.autoUpdateAgentReport;
-  }
-
-  getInferencePolicyAccess() {
-    return this.state.acl.inferencePolicy;
-  }
-
-  getInferenceModelAccess() {
-    return this.state.acl.inferenceModel;
-  }
-
-  getInferenceSecretAccess() {
-    return this.state.acl.inferenceSecret;
-  }
-
-  getBeamAccess() {
-    return this.state.acl.beam;
   }
 }

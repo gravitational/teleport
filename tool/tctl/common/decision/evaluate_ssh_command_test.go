@@ -21,7 +21,9 @@ import (
 	"context"
 	"testing"
 
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/gravitational/teleport"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
@@ -31,7 +33,6 @@ import (
 func TestEvaluateSSH(t *testing.T) {
 	tests := []struct {
 		name     string
-		format   string
 		response *decisionpb.EvaluateSSHAccessResponse
 	}{
 		{
@@ -48,17 +49,19 @@ func TestEvaluateSSH(t *testing.T) {
 			},
 		},
 		{
-			name:   "permitted",
-			format: teleport.YAML,
+			name: "permitted",
 			response: &decisionpb.EvaluateSSHAccessResponse{
 				Decision: &decisionpb.EvaluateSSHAccessResponse_Permit{
 					Permit: &decisionpb.SSHAccessPermit{
 						Metadata: &decisionpb.PermitMetadata{
 							PdpVersion: teleport.Version,
 						},
-						ForwardAgent:    true,
-						X11Forwarding:   true,
-						PortForwardMode: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_LOCAL,
+						Logins:                []string{"llama", "beast"},
+						ForwardAgent:          true,
+						MaxSessionTtl:         durationpb.New(10),
+						PortForwarding:        false,
+						ClientIdleTimeout:     1000,
+						DisconnectExpiredCert: true,
 					},
 				},
 			},
@@ -67,28 +70,20 @@ func TestEvaluateSSH(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			cmd := decision.EvaluateSSHCommand{}
+
 			var output bytes.Buffer
+			cmd.Initialize(kingpin.New("tctl", "test").Command("decision", ""), &output)
 
-			cmd := decision.EvaluateSSHCommand{
-				Output:   &output,
-				Username: "alice",
-				ServerID: "server",
-				Login:    "root",
-				Format:   test.format,
-			}
-
-			clt := fakeClient{
-				clusterName: "cluster",
-				decisionClient: fakeDecisionServiceClient{
-					sshResponse: test.response,
-				},
+			clt := fakeDecisionServiceClient{
+				sshResponse: test.response,
 			}
 
 			err := cmd.Run(context.Background(), clt)
 			require.NoError(t, err, "evaluating SSH access failed")
 
 			var expected bytes.Buffer
-			err = decision.WriteProto(&expected, test.format, test.response)
+			err = decision.WriteProtoJSON(&expected, test.response)
 			require.NoError(t, err, "marshaling expected output failed")
 			require.Equal(t, output.String(), expected.String(), "output did not match")
 		})

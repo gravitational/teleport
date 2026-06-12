@@ -81,23 +81,10 @@ spec:
                 nullable: true
                 properties:
                   roles:
-                    description: roles are the names of roles to be granted to users.
+                    description: roles are the roles that are granted to users who
+                      are members of the Access List.
                     items:
                       type: string
-                    nullable: true
-                    type: array
-                  scoped_roles:
-                    description: scoped_roles are scoped roles to be granted to users.
-                    items:
-                      properties:
-                        role:
-                          description: role is the name of the scoped role to be granted.
-                          type: string
-                        scope:
-                          description: scope is the scope the role will be assigned
-                            at. It must be an assignable scope of the role.
-                          type: string
-                      type: object
                     nullable: true
                     type: array
                   traits:
@@ -105,7 +92,8 @@ spec:
                       items:
                         type: string
                       type: array
-                    description: traits are the traits to be granted to users.
+                    description: traits are the traits that are granted to users who
+                      are members of the Access List.
                     type: object
                 type: object
               membership_requires:
@@ -137,23 +125,10 @@ spec:
                 nullable: true
                 properties:
                   roles:
-                    description: roles are the names of roles to be granted to users.
+                    description: roles are the roles that are granted to users who
+                      are members of the Access List.
                     items:
                       type: string
-                    nullable: true
-                    type: array
-                  scoped_roles:
-                    description: scoped_roles are scoped roles to be granted to users.
-                    items:
-                      properties:
-                        role:
-                          description: role is the name of the scoped role to be granted.
-                          type: string
-                        scope:
-                          description: scope is the scope the role will be assigned
-                            at. It must be an assignable scope of the role.
-                          type: string
-                      type: object
                     nullable: true
                     type: array
                   traits:
@@ -161,7 +136,8 @@ spec:
                       items:
                         type: string
                       type: array
-                    description: traits are the traits to be granted to users.
+                    description: traits are the traits that are granted to users who
+                      are members of the Access List.
                     type: object
                 type: object
               owners:
@@ -214,9 +190,10 @@ spec:
                   List.
                 type: string
               type:
-                description: type can be an empty string which denotes a regular Access
-                  List, "scim" which represents an Access List created from SCIM group
-                  or "static" for Access Lists managed by IaC tools.
+                description: type can be currently "dynamic" (the default if empty
+                  string) which denotes a regular Access List, "scim" which represents
+                  an Access List created from SCIM group or "static" for Access Lists
+                  managed by IaC tools.
                 type: string
             type: object
           status:

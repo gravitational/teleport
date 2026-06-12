@@ -19,6 +19,7 @@
 package keygen
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -37,7 +38,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/cryptosuites"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/sshca"
 )
 
@@ -62,16 +62,10 @@ func checkCertExpiry(t *testing.T, cert []byte, clock clockwork.Clock, before, a
 	require.Equal(t, validBefore.Unix(), clock.Now().UTC().Add(after).Unix())
 }
 
-func setupAuthSuite() (*authSuite, error) {
+func setupAuthSuite(ctx context.Context) *authSuite {
 	clock := clockwork.NewFakeClockAt(time.Now().UTC())
-
-	authority, err := New(Config{Now: clock.Now, BuildType: modules.BuildOSS})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	return &authSuite{
-		A: authority,
+		A: New(ctx, SetClock(clock)),
 		Keygen: func() ([]byte, []byte, error) {
 			privateKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 			if err != nil {
@@ -80,14 +74,13 @@ func setupAuthSuite() (*authSuite, error) {
 			return privateKey.PrivateKeyPEM(), privateKey.MarshalSSHPublicKey(), nil
 		},
 		Clock: clock,
-	}, nil
+	}
 }
 
 func TestGenerateKeypairEmptyPass(t *testing.T) {
 	t.Parallel()
 
-	suite, err := setupAuthSuite()
-	require.NoError(t, err)
+	suite := setupAuthSuite(context.Background())
 
 	priv, pub, err := suite.Keygen()
 	require.NoError(t, err)
@@ -103,9 +96,7 @@ func TestGenerateKeypairEmptyPass(t *testing.T) {
 func TestGenerateHostCert(t *testing.T) {
 	t.Parallel()
 
-	suite, err := setupAuthSuite()
-	require.NoError(t, err)
-
+	suite := setupAuthSuite(context.Background())
 	priv, pub, err := suite.Keygen()
 	require.NoError(t, err)
 
@@ -131,9 +122,7 @@ func TestGenerateHostCert(t *testing.T) {
 func TestGenerateUserCert(t *testing.T) {
 	t.Parallel()
 
-	suite, err := setupAuthSuite()
-	require.NoError(t, err)
-
+	suite := setupAuthSuite(context.Background())
 	priv, pub, err := suite.Keygen()
 	require.NoError(t, err)
 
@@ -310,8 +299,7 @@ func TestGenerateUserCert(t *testing.T) {
 func TestBuildPrincipals(t *testing.T) {
 	t.Parallel()
 
-	suite, err := setupAuthSuite()
-	require.NoError(t, err)
+	suite := setupAuthSuite(context.Background())
 
 	caPrivateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
 	require.NoError(t, err)
@@ -414,8 +402,7 @@ func TestBuildPrincipals(t *testing.T) {
 func TestUserCertCompatibility(t *testing.T) {
 	t.Parallel()
 
-	suite, err := setupAuthSuite()
-	require.NoError(t, err)
+	suite := setupAuthSuite(context.Background())
 
 	caKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
 	require.NoError(t, err)

@@ -47,6 +47,7 @@ export function useReviewAccessRequest({
 
   const { localClusterUri: clusterUri, rootClusterUri } = useWorkspaceContext();
   const loggedInUser = useWorkspaceLoggedInUser();
+  const assumed = ctx.clustersService.getAssumedRequests(rootClusterUri);
 
   const retry = useCallback(
     <T>(action: () => Promise<T>) => retryWithRelogin(ctx, clusterUri, action),
@@ -57,13 +58,13 @@ export function useReviewAccessRequest({
     useCallback(
       () =>
         retry(async () => {
-          const { response } = await ctx.tshd.getAccessRequest({
-            clusterUri: rootClusterUri,
-            accessRequestId: requestId,
-          });
-          return makeUiAccessRequest(response.request);
+          const request = await ctx.clustersService.getAccessRequest(
+            rootClusterUri,
+            requestId
+          );
+          return makeUiAccessRequest(request);
         }),
-      [ctx.tshd, requestId, retry, rootClusterUri]
+      [ctx.clustersService, requestId, retry, rootClusterUri]
     )
   );
   const [deleteRequestAttempt, runDeleteRequest] = useAsync(() =>
@@ -118,7 +119,7 @@ export function useReviewAccessRequest({
 
   function getFlags(request: AccessRequest): RequestFlags {
     if (loggedInUser) {
-      return getRequestFlags(request, loggedInUser);
+      return getRequestFlags(request, loggedInUser, assumed);
     }
     return undefined;
   }
@@ -163,11 +164,12 @@ export function useReviewAccessRequest({
 
 function getRequestFlags(
   request: AccessRequest,
-  user: tsh.LoggedInUser
+  user: tsh.LoggedInUser,
+  assumedMap: Record<string, tsh.AccessRequest>
 ): RequestFlags {
   const ownRequest = request.user === user.name;
   const canAssume = ownRequest && request.state === 'APPROVED';
-  const isAssumed = !!user.activeRequests.includes(request.id);
+  const isAssumed = !!assumedMap[request.id];
   const canDelete = true;
 
   const reviewed = request.reviews.find(r => r.author === user.name);

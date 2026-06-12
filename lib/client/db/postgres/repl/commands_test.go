@@ -92,7 +92,7 @@ func TestCommands(t *testing.T) {
 		},
 		"?": {
 			repl: &REPL{commands: availableCmds},
-			assertCommandReply: func(t require.TestingT, val any, _ ...any) {
+			assertCommandReply: func(t require.TestingT, val interface{}, _ ...interface{}) {
 				for cmd := range availableCmds {
 					require.Contains(t, val, cmd, "expected \\? command to include information about \\%s", cmd)
 				}
@@ -104,7 +104,7 @@ func TestCommands(t *testing.T) {
 				Username:    "username",
 				Database:    "database",
 			}},
-			assertCommandReply: func(t require.TestingT, val any, _ ...any) {
+			assertCommandReply: func(t require.TestingT, val interface{}, _ ...interface{}) {
 				require.Contains(t, val, "service", "expected \\session command to contain service name")
 				require.Contains(t, val, "username", "expected \\session command to contain username")
 				require.Contains(t, val, "database", "expected \\session command to contain database name")

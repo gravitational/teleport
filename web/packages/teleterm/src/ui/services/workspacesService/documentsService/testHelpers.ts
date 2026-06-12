@@ -44,7 +44,6 @@ export function makeDocumentCluster(
       resourceKinds: [],
       search: '',
       advancedSearchEnabled: false,
-      statuses: [],
     },
     ...props,
   };
@@ -66,7 +65,6 @@ export function makeDocumentGatewayDatabase(
     status: '',
     targetSubresourceName: gw.targetSubresourceName,
     origin: 'connection_list',
-    autoUserProvisioning: undefined,
     ...props,
   };
 }
@@ -87,7 +85,6 @@ export function makeDocumentGatewayApp(
     status: '',
     targetSubresourceName: gw.targetSubresourceName,
     origin: 'connection_list',
-    autoUserProvisioning: undefined,
     ...props,
   };
 }
@@ -105,8 +102,8 @@ export function makeDocumentPtySession(
 }
 
 export function makeDocumentTshNode(
-  props?: Partial<types.DocumentTshNode>
-): types.DocumentTshNode {
+  props?: Partial<types.DocumentTshNodeWithServerId>
+): types.DocumentTshNodeWithServerId {
   return {
     kind: 'doc.terminal_tsh_node',
     uri: '/docs/terminal_tsh_node',
@@ -117,7 +114,6 @@ export function makeDocumentTshNode(
     leafClusterId: '',
     origin: 'connection_list',
     serverId: '1234abcd-1234-abcd-1234-abcd1234abcd',
-    login: 'alice',
     ...props,
   };
 }

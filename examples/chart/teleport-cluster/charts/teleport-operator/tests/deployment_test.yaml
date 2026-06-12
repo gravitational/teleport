@@ -98,7 +98,7 @@ tests:
           path: spec.template.spec.containers[0].env
           content:
             name: SSL_CERT_FILE
-            value: /etc/teleport-tls-ca/helm-lint-existing-tls-secret-key-name
+            value: /etc/teleport-tls-ca/ca.pem
 
   - it: mounts tokens through projected volumes
     values:

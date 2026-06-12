@@ -228,9 +228,9 @@ impl FilesystemBackend {
                     .create_options
                     .contains(efs::CreateOptions::FILE_DIRECTORY_FILE)
                 {
-                    if req.create_disposition == efs::CreateDisposition::FILE_OPEN_IF
-                        || req.create_disposition == efs::CreateDisposition::FILE_CREATE
-                    {
+                    if req.create_disposition.intersects(
+                        efs::CreateDisposition::FILE_OPEN_IF | efs::CreateDisposition::FILE_CREATE,
+                    ) {
                         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L252
                         self.tdp_sd_create(req, tdp::FileType::Directory)?;
                         return Ok(());
@@ -901,7 +901,7 @@ impl FilesystemBackend {
                 completion_id: rdp_req.device_io_request.completion_id,
                 directory_id: rdp_req.device_io_request.device_id,
                 path: file.path.clone(),
-                end_of_file: cast_length("tdp_sd_truncate", "end_of_file", eof.end_of_file)?,
+                end_of_file: cast_length("tdp_sd_truncate", "end_of_file", end_of_file)?,
             })?;
 
             self.pending_sd_truncate_resp_handlers.insert(
@@ -1332,12 +1332,11 @@ impl FilesystemBackend {
     ) -> PduResult<()> {
         // See https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L187-L228
         let information = if io_status != efs::NtStatus::SUCCESS
-            || matches!(
-                device_create_request.create_disposition,
+            || device_create_request.create_disposition.intersects(
                 efs::CreateDisposition::FILE_SUPERSEDE
                     | efs::CreateDisposition::FILE_OPEN
                     | efs::CreateDisposition::FILE_CREATE
-                    | efs::CreateDisposition::FILE_OVERWRITE
+                    | efs::CreateDisposition::FILE_OVERWRITE,
             ) {
             Ok(efs::Information::FILE_SUPERSEDED)
         } else if device_create_request.create_disposition == efs::CreateDisposition::FILE_OPEN_IF {
@@ -1783,7 +1782,7 @@ impl FileCacheObject {
 /// FileCacheObject is used as an iterator for the implementation of
 /// IRP_MJ_DIRECTORY_CONTROL, which requires that we iterate through
 /// all the files of a directory one by one. In this case, the directory
-/// is the FileCacheObject itself, with its own fso field representing
+/// is the FileCacheObject itself, with it's own fso field representing
 /// the directory, and its contents being represented by tdp::FileSystemObject's
 /// in its contents field.
 ///

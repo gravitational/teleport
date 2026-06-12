@@ -222,7 +222,7 @@ func TestWorkloadIdentityService_SignX509SVIDs(t *testing.T) {
 			client, err := srv.NewClient(authtest.TestUser(tt.user))
 			require.NoError(t, err)
 
-			res, err := machineidv1pb.NewWorkloadIdentityServiceClient(client.GetConnection()).
+			res, err := client.WorkloadIdentityServiceClient().
 				SignX509SVIDs(ctx, tt.req)
 			tt.requireError(t, err)
 			if tt.assertResponse != nil {
@@ -295,7 +295,7 @@ func TestWorkloadIdentityService_SignJWTSVIDs(t *testing.T) {
 		PublicAddrs: []string{"teleport.example.com"},
 	})
 	require.NoError(t, err)
-	_, err = srv.Auth().UpsertProxyServer(ctx, proxy)
+	err = srv.Auth().UpsertProxy(ctx, proxy)
 	require.NoError(t, err)
 	wantIssuer := "https://teleport.example.com/workload-identity"
 
@@ -393,7 +393,7 @@ func TestWorkloadIdentityService_SignJWTSVIDs(t *testing.T) {
 			client, err := srv.NewClient(authtest.TestUser(tt.user))
 			require.NoError(t, err)
 
-			res, err := machineidv1pb.NewWorkloadIdentityServiceClient(client.GetConnection()).
+			res, err := client.WorkloadIdentityServiceClient().
 				SignJWTSVIDs(ctx, tt.req)
 			tt.requireError(t, err)
 			if tt.assertResponse != nil {

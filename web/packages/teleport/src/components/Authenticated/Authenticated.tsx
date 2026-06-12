@@ -30,8 +30,6 @@ import cfg from 'teleport/config';
 import { StyledIndicator } from 'teleport/Main';
 import { ApiError } from 'teleport/services/api/parseError';
 import { storageService } from 'teleport/services/storageService';
-import userService from 'teleport/services/user';
-import { getUserPreferences } from 'teleport/services/userPreferences';
 import session from 'teleport/services/websession';
 
 import { ErrorDialog } from './ErrorDialogue';
@@ -63,15 +61,6 @@ const Authenticated: React.FC<PropsWithChildren> = ({ children }) => {
         session.clearBrowserSession(true /* rememberLocation */);
         return;
       }
-
-      // Prefetch user context and preferences. We do this here to speed up the initial load by fetching them concurrently.
-      userService.fetchUserContext().catch(err => {
-        // We merely log any error here, however if this fails, the actual UserContext component will attempt again and handle errors and show the error banner.
-        logger.error('Failed to prefetch user context', err);
-      });
-      getUserPreferences().catch(err => {
-        logger.error('Failed to prefetch user preferences', err);
-      });
 
       try {
         const result = await session.validateCookieAndSession();
@@ -201,10 +190,9 @@ function stashAppLauncherFragmentIfPresent() {
   if (!hash) {
     return;
   }
-  const matched = matchPath(
-    { path: cfg.routes.appLauncher, end: false },
-    pathname
-  );
+  const matched = matchPath(pathname, {
+    path: cfg.routes.appLauncher,
+  });
   if (!matched) {
     return;
   }

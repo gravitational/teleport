@@ -19,10 +19,8 @@
 package sshagent
 
 import (
-	"context"
 	"errors"
 	"io"
-	"log/slog"
 	"net"
 	"os"
 	"os/user"
@@ -30,10 +28,10 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // Server is an SSH agent server implementation.
@@ -44,8 +42,7 @@ type Server struct {
 	Dir      string
 }
 
-// NewServer returns a new [Server]. The agent getter must be safe to call
-// concurrently.
+// NewServer returns a new [Server].
 func NewServer(agentClient ClientGetter) *Server {
 	return &Server{getAgent: agentClient}
 }
@@ -80,39 +77,50 @@ func (a *Server) Serve() error {
 	if a.listener == nil {
 		return trace.BadParameter("Serve needs a Listen call first")
 	}
-
-	ctx := context.Background()
-	var tempDelay time.Duration // how long to sleep on temporary accept failure
+	var tempDelay time.Duration // how long to sleep on accept failure
 	for {
 		conn, err := a.listener.Accept()
 		if err != nil {
-			// same logic as net/http.Server.Serve
-			if t := *new(interface{ Temporary() bool }); errors.As(err, &t) && t.Temporary() {
-				tempDelay = min(max(5*time.Millisecond, tempDelay*2), time.Second)
-				slog.ErrorContext(ctx, "Got temporary accept error, backing off", "delay_time", tempDelay.String(), "error", err)
-				time.Sleep(tempDelay)
-				continue
+			var neterr net.Error
+			if !errors.As(err, &neterr) {
+				return trace.Wrap(err, "unknown error")
 			}
-			if utils.IsUseOfClosedNetworkError(err) {
+			if utils.IsUseOfClosedNetworkError(neterr) {
 				return nil
 			}
-			return trace.Wrap(err)
+			if !neterr.Timeout() {
+				log.WithError(err).Error("Got non-timeout error.")
+				return trace.Wrap(err)
+			}
+			if tempDelay == 0 {
+				tempDelay = 5 * time.Millisecond
+			} else {
+				tempDelay *= 2
+			}
+			if max := 1 * time.Second; tempDelay > max {
+				tempDelay = max
+			}
+			log.WithError(err).Errorf("Got timeout error (will sleep %v).", tempDelay)
+			time.Sleep(tempDelay)
+			continue
 		}
 		tempDelay = 0
 
+		// get an agent instance for serving this conn
+		instance, err := a.getAgent()
+		if err != nil {
+			log.WithError(err).Error("Failed to get agent.")
+			return trace.Wrap(err)
+		}
+
+		// serve agent protocol against conn in a
+		// separate goroutine.
 		go func() {
-			defer conn.Close()
-
-			// get an agent instance for serving this conn
-			instance, err := a.getAgent()
-			if err != nil {
-				slog.ErrorContext(ctx, "Failed to get agent", "error", err)
-				return
-			}
 			defer instance.Close()
-
-			if err := agent.ServeAgent(instance, conn); err != nil && !errors.Is(err, io.EOF) {
-				slog.ErrorContext(ctx, "Serving agent terminated unexpectedly", "error", err)
+			if err := agent.ServeAgent(instance, conn); err != nil {
+				if !errors.Is(err, io.EOF) {
+					log.Error(err)
+				}
 			}
 		}()
 	}
@@ -122,9 +130,7 @@ func (a *Server) Serve() error {
 func (a *Server) Close() error {
 	var errors []error
 	if a.listener != nil {
-		slog.DebugContext(context.Background(), "AgentServer is closing",
-			"listen_addr", logutils.StringerAttr(a.listener.Addr()),
-		)
+		log.Debugf("AgentServer(%v) is closing", a.listener.Addr())
 		if err := a.listener.Close(); err != nil {
 			errors = append(errors, trace.ConvertSystemError(err))
 		}

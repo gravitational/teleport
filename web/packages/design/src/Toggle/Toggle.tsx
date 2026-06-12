@@ -26,7 +26,6 @@ export function Toggle({
   disabled,
   className,
   size = 'small',
-  ref,
 }: {
   isToggled: boolean;
   onToggle: () => void;
@@ -34,10 +33,9 @@ export function Toggle({
   disabled?: boolean;
   className?: string;
   size?: 'small' | 'large';
-  ref?: React.ForwardedRef<HTMLLabelElement>;
 }) {
   return (
-    <StyledWrapper disabled={disabled} className={className} ref={ref}>
+    <StyledWrapper disabled={disabled} className={className}>
       <StyledInput
         checked={isToggled}
         onChange={onToggle}

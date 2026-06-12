@@ -17,15 +17,14 @@
  */
 
 import { QueryClientProvider } from '@tanstack/react-query';
+import { setupServer } from 'msw/node';
 import { PropsWithChildren } from 'react';
 
 import darkTheme from 'design/theme/themes/darkTheme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
-  enableMswServer,
   render,
   screen,
-  server,
   testQueryClient,
   waitForElementToBeRemoved,
 } from 'design/utils/testing';
@@ -40,17 +39,25 @@ import {
 
 import { InstancesPanel } from './InstancesPanel';
 
-enableMswServer();
+const server = setupServer();
+
+beforeAll(() => {
+  server.listen();
+});
 
 afterEach(async () => {
+  server.resetHandlers();
   await testQueryClient.resetQueries();
+
   jest.clearAllMocks();
 });
+
+afterAll(() => server.close());
 
 describe('InstancesPanel', () => {
   it('should show a fetch error state', async () => {
     withFetchError();
-    render(<InstancesPanel botName="test-bot" onItemSelected={jest.fn()} />, {
+    render(<InstancesPanel botName="test-bot" />, {
       wrapper: makeWrapper(),
     });
     await waitForLoading();
@@ -60,7 +67,7 @@ describe('InstancesPanel', () => {
 
   it('should show a no permissions state', async () => {
     withFetchError();
-    render(<InstancesPanel botName="test-bot" onItemSelected={jest.fn()} />, {
+    render(<InstancesPanel botName="test-bot" />, {
       wrapper: makeWrapper({
         customAcl: makeAcl({
           botInstances: {
@@ -81,7 +88,7 @@ describe('InstancesPanel', () => {
   it('renders instance items', async () => {
     withFetchSuccess();
 
-    render(<InstancesPanel botName="test-bot" onItemSelected={jest.fn()} />, {
+    render(<InstancesPanel botName="test-bot" />, {
       wrapper: makeWrapper(),
     });
     await waitForLoading();
@@ -100,23 +107,20 @@ const waitForLoading = async () => {
 
 function withFetchSuccess() {
   server.use(
-    listBotInstancesSuccess(
-      {
-        bot_instances: [
-          {
-            bot_name: 'ansible-worker',
-            instance_id: 'c11250e0-00c2-4f52-bcdf-b367f80b9461',
-            active_at_latest: '2025-07-22T10:54:00Z',
-            host_name_latest: 'svr-lon-01-ab23cd',
-            join_method_latest: 'github',
-            os_latest: 'linux',
-            version_latest: '4.4.16',
-          },
-        ],
-        next_page_token: '',
-      },
-      'v1'
-    )
+    listBotInstancesSuccess({
+      bot_instances: [
+        {
+          bot_name: 'ansible-worker',
+          instance_id: 'c11250e0-00c2-4f52-bcdf-b367f80b9461',
+          active_at_latest: '2025-07-22T10:54:00Z',
+          host_name_latest: 'svr-lon-01-ab23cd',
+          join_method_latest: 'github',
+          os_latest: 'linux',
+          version_latest: '4.4.16',
+        },
+      ],
+      next_page_token: '',
+    })
   );
 }
 

@@ -1,0 +1,133 @@
+// Copyright 2024 Gravitational, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.autoupdate.v1;
+
+import "google/protobuf/empty.proto";
+import "teleport/autoupdate/v1/autoupdate.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1;autoupdate";
+
+// AutoUpdateService provides an API to manage autoupdates.
+service AutoUpdateService {
+  // GetAutoUpdateConfig gets the current autoupdate config singleton.
+  rpc GetAutoUpdateConfig(GetAutoUpdateConfigRequest) returns (AutoUpdateConfig);
+
+  // CreateAutoUpdateConfig creates a new AutoUpdateConfig.
+  rpc CreateAutoUpdateConfig(CreateAutoUpdateConfigRequest) returns (AutoUpdateConfig);
+
+  // CreateAutoUpdateConfig updates AutoUpdateConfig singleton.
+  rpc UpdateAutoUpdateConfig(UpdateAutoUpdateConfigRequest) returns (AutoUpdateConfig);
+
+  // UpsertAutoUpdateConfig creates a new AutoUpdateConfig or replaces an existing AutoUpdateConfig.
+  rpc UpsertAutoUpdateConfig(UpsertAutoUpdateConfigRequest) returns (AutoUpdateConfig);
+
+  // DeleteAutoUpdateConfig hard deletes the specified AutoUpdateConfig.
+  rpc DeleteAutoUpdateConfig(DeleteAutoUpdateConfigRequest) returns (google.protobuf.Empty);
+
+  // GetAutoUpdateVersion gets the current autoupdate version singleton.
+  rpc GetAutoUpdateVersion(GetAutoUpdateVersionRequest) returns (AutoUpdateVersion);
+
+  // CreateAutoUpdateVersion creates a new AutoUpdateVersion.
+  rpc CreateAutoUpdateVersion(CreateAutoUpdateVersionRequest) returns (AutoUpdateVersion);
+
+  // UpdateAutoUpdateVersion updates AutoUpdateVersion singleton.
+  rpc UpdateAutoUpdateVersion(UpdateAutoUpdateVersionRequest) returns (AutoUpdateVersion);
+
+  // UpsertAutoUpdateVersion creates a new AutoUpdateVersion or replaces an existing AutoUpdateVersion.
+  rpc UpsertAutoUpdateVersion(UpsertAutoUpdateVersionRequest) returns (AutoUpdateVersion);
+
+  // DeleteAutoUpdateVersion hard deletes the specified AutoUpdateVersionRequest.
+  rpc DeleteAutoUpdateVersion(DeleteAutoUpdateVersionRequest) returns (google.protobuf.Empty);
+
+  // GetAutoUpdateVersion gets the current autoupdate version singleton.
+  rpc GetAutoUpdateAgentRollout(GetAutoUpdateAgentRolloutRequest) returns (AutoUpdateAgentRollout);
+
+  // CreateAutoUpdateAgentRollout creates a new AutoUpdateAgentRollout.
+  rpc CreateAutoUpdateAgentRollout(CreateAutoUpdateAgentRolloutRequest) returns (AutoUpdateAgentRollout);
+
+  // UpdateAutoUpdateAgentRollout updates AutoUpdateAgentRollout singleton.
+  rpc UpdateAutoUpdateAgentRollout(UpdateAutoUpdateAgentRolloutRequest) returns (AutoUpdateAgentRollout);
+
+  // UpsertAutoUpdateAgentRollout creates a new AutoUpdateAgentRollout or replaces an existing AutoUpdateAgentRollout.
+  rpc UpsertAutoUpdateAgentRollout(UpsertAutoUpdateAgentRolloutRequest) returns (AutoUpdateAgentRollout);
+
+  // DeleteAutoUpdateAgentRollout hard deletes the specified AutoUpdateAgentRolloutRequest.
+  rpc DeleteAutoUpdateAgentRollout(DeleteAutoUpdateAgentRolloutRequest) returns (google.protobuf.Empty);
+}
+
+// Request for GetAutoUpdateConfig.
+message GetAutoUpdateConfigRequest {}
+
+// Request for CreateAutoUpdateConfig.
+message CreateAutoUpdateConfigRequest {
+  AutoUpdateConfig config = 1;
+}
+
+// Request for UpdateAutoUpdateConfig.
+message UpdateAutoUpdateConfigRequest {
+  AutoUpdateConfig config = 1;
+}
+
+// Request for UpsertAutoUpdateConfig.
+message UpsertAutoUpdateConfigRequest {
+  AutoUpdateConfig config = 1;
+}
+
+// Request for DeleteAutoUpdateConfig.
+message DeleteAutoUpdateConfigRequest {}
+
+// Request for GetAutoUpdateVersion.
+message GetAutoUpdateVersionRequest {}
+
+// Request for CreateAutoUpdateVersion.
+message CreateAutoUpdateVersionRequest {
+  AutoUpdateVersion version = 1;
+}
+
+// Request for UpdateAutoUpdateConfig.
+message UpdateAutoUpdateVersionRequest {
+  AutoUpdateVersion version = 1;
+}
+
+// Request for UpsertAutoUpdateVersion.
+message UpsertAutoUpdateVersionRequest {
+  AutoUpdateVersion version = 1;
+}
+
+// Request for DeleteAutoUpdateVersion.
+message DeleteAutoUpdateVersionRequest {}
+
+// Request for GetAutoUpdateAgentRollout.
+message GetAutoUpdateAgentRolloutRequest {}
+
+// Request for CreateAutoUpdateAgentRollout.
+message CreateAutoUpdateAgentRolloutRequest {
+  AutoUpdateAgentRollout rollout = 1;
+}
+
+// Request for UpdateAutoUpdateConfig.
+message UpdateAutoUpdateAgentRolloutRequest {
+  AutoUpdateAgentRollout rollout = 1;
+}
+
+// Request for UpsertAutoUpdateAgentRollout.
+message UpsertAutoUpdateAgentRolloutRequest {
+  AutoUpdateAgentRollout rollout = 1;
+}
+
+// Request for DeleteAutoUpdateAgentRollout.
+message DeleteAutoUpdateAgentRolloutRequest {}

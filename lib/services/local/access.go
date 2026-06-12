@@ -20,33 +20,33 @@ package local
 
 import (
 	"context"
-	"iter"
 	"log/slog"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/local/generic"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // AccessService manages roles
 type AccessService struct {
 	backend.Backend
-	logger *slog.Logger
+	log *logrus.Entry
 }
 
 // NewAccessService returns new access service instance
 func NewAccessService(backend backend.Backend) *AccessService {
 	return &AccessService{
 		Backend: backend,
-		logger:  slog.With(teleport.ComponentKey, "AccessService"),
+		log:     logrus.WithFields(logrus.Fields{teleport.ComponentKey: "AccessService"}),
 	}
 }
 
@@ -103,58 +103,77 @@ func (s *AccessService) ListRoles(ctx context.Context, req *proto.ListRolesReque
 
 	startKey := backend.ExactKey(rolesPrefix)
 	if req.StartKey != "" {
-		startKey = roleKey(req.StartKey)
+		startKey = backend.NewKey(rolesPrefix, req.StartKey, paramsPrefix)
 	}
 
-	var resp proto.ListRolesResponse
-	for item, err := range s.Backend.Items(ctx, backend.ItemsParams{
-		StartKey: startKey,
-		EndKey:   backend.RangeEnd(backend.ExactKey(rolesPrefix)),
-	}) {
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+	endKey := backend.RangeEnd(backend.ExactKey(rolesPrefix))
 
-		if !item.Key.HasSuffix(backend.NewKey(paramsPrefix)) {
-			// Item represents a different resource type in the
-			// same namespace.
-			continue
-		}
+	var roles []*types.RoleV6
+	if err := backend.IterateRange(ctx, s.Backend, startKey, endKey, limit+1, func(items []backend.Item) (stop bool, err error) {
+		for _, item := range items {
+			if len(roles) > limit {
+				return true, nil
+			}
 
-		role, err := services.UnmarshalRoleV6(
-			item.Value,
-			services.WithExpires(item.Expires),
-			services.WithRevision(item.Revision),
-		)
-		if err != nil {
-			s.logger.WarnContext(ctx, "Failed to unmarshal role",
-				"key", item.Key,
-				"error", err,
+			if !item.Key.HasSuffix(backend.NewKey(paramsPrefix)) {
+				// Item represents a different resource type in the
+				// same namespace.
+				continue
+			}
+
+			role, err := services.UnmarshalRoleV6(
+				item.Value,
+				services.WithExpires(item.Expires),
+				services.WithRevision(item.Revision),
 			)
-			continue
+			if err != nil {
+				s.log.Warnf("Failed to unmarshal role at %q: %v", item.Key, err)
+				continue
+			}
+
+			// if a filter was provided, skip roles that fail to match.
+			if req.Filter != nil && !req.Filter.Match(role) {
+				continue
+			}
+
+			roles = append(roles, role)
 		}
 
-		// if a filter was provided, skip roles that fail to match.
-		if req.Filter != nil && !req.Filter.Match(role) {
-			continue
-		}
-
-		if len(resp.Roles) >= limit {
-			resp.NextKey = role.GetName()
-			return &resp, nil
-		}
-
-		resp.Roles = append(resp.Roles, role)
+		return len(roles) > limit, nil
+	}); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	return &resp, nil
+	var nextKey string
+	if len(roles) > limit {
+		nextKey = roles[limit].GetName()
+		roles = roles[:limit]
+	}
+
+	return &proto.ListRolesResponse{
+		Roles:   roles,
+		NextKey: nextKey,
+	}, nil
 }
 
 // CreateRole creates a new role.
 func (s *AccessService) CreateRole(ctx context.Context, role types.Role) (types.Role, error) {
-	item, err := roleToBackendItem(role)
+	err := services.ValidateRoleName(role)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	rev := role.GetRevision()
+	value, err := services.MarshalRole(role)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	item := backend.Item{
+		Key:      backend.NewKey(rolesPrefix, role.GetName(), paramsPrefix),
+		Value:    value,
+		Expires:  role.Expiry(),
+		Revision: rev,
 	}
 
 	lease, err := s.Create(ctx, item)
@@ -167,9 +186,22 @@ func (s *AccessService) CreateRole(ctx context.Context, role types.Role) (types.
 
 // UpdateRole updates an existing role.
 func (s *AccessService) UpdateRole(ctx context.Context, role types.Role) (types.Role, error) {
-	item, err := roleToBackendItem(role)
+	err := services.ValidateRoleName(role)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	rev := role.GetRevision()
+	value, err := services.MarshalRole(role)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	item := backend.Item{
+		Key:      backend.NewKey(rolesPrefix, role.GetName(), paramsPrefix),
+		Value:    value,
+		Expires:  role.Expiry(),
+		Revision: rev,
 	}
 
 	lease, err := s.ConditionalUpdate(ctx, item)
@@ -182,9 +214,22 @@ func (s *AccessService) UpdateRole(ctx context.Context, role types.Role) (types.
 
 // UpsertRole creates or overwrites an existing role.
 func (s *AccessService) UpsertRole(ctx context.Context, role types.Role) (types.Role, error) {
-	item, err := roleToBackendItem(role)
+	err := services.ValidateRoleName(role)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	rev := role.GetRevision()
+	value, err := services.MarshalRole(role)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	item := backend.Item{
+		Key:      backend.NewKey(rolesPrefix, role.GetName(), paramsPrefix),
+		Value:    value,
+		Expires:  role.Expiry(),
+		Revision: rev,
 	}
 
 	lease, err := s.Put(ctx, item)
@@ -195,33 +240,12 @@ func (s *AccessService) UpsertRole(ctx context.Context, role types.Role) (types.
 	return role, nil
 }
 
-// AppendPutRoleActions adds conditional actions to an atomic write to create
-// or update a role.
-func (s *AccessService) AppendPutRoleActions(
-	actions []backend.ConditionalAction,
-	role types.Role,
-	condition backend.Condition,
-) ([]backend.ConditionalAction, error) {
-	if err := services.ValidateRole(role); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	item, err := roleToBackendItem(role)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return append(actions, backend.ConditionalAction{
-		Key:       item.Key,
-		Condition: condition,
-		Action:    backend.Put(item),
-	}), nil
-}
-
 // GetRole returns a role by name
 func (s *AccessService) GetRole(ctx context.Context, name string) (types.Role, error) {
 	if name == "" {
 		return nil, trace.BadParameter("missing role name")
 	}
-	item, err := s.Get(ctx, roleKey(name))
+	item, err := s.Get(ctx, backend.NewKey(rolesPrefix, name, paramsPrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			// This error message format should be kept in sync with web/packages/teleport/src/services/api/api.isRoleNotFoundError
@@ -238,27 +262,13 @@ func (s *AccessService) DeleteRole(ctx context.Context, name string) error {
 	if name == "" {
 		return trace.BadParameter("missing role name")
 	}
-	err := s.Delete(ctx, roleKey(name))
+	err := s.Delete(ctx, backend.NewKey(rolesPrefix, name, paramsPrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound("role %q is not found", name)
 		}
 	}
 	return trace.Wrap(err)
-}
-
-// AppendDeleteRoleActions adds conditional actions to an atomic write to
-// delete a role.
-func (s *AccessService) AppendDeleteRoleActions(
-	actions []backend.ConditionalAction,
-	name string,
-	condition backend.Condition,
-) ([]backend.ConditionalAction, error) {
-	return append(actions, backend.ConditionalAction{
-		Key:       roleKey(name),
-		Condition: condition,
-		Action:    backend.Delete(),
-	}), nil
 }
 
 // GetLock gets a lock by name.
@@ -302,63 +312,85 @@ func matchLock(lock types.Lock, filter *types.LockFilter, now time.Time) (types.
 
 // GetLocks gets all/in-force locks that match at least one of the targets when specified.
 func (s *AccessService) GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error) {
-	filter := &types.LockFilter{
-		InForceOnly: inForceOnly,
-		Targets:     make([]*types.LockTarget, 0, len(targets)),
+	startKey := backend.ExactKey(locksPrefix)
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	for _, tgt := range targets {
-		filter.Targets = append(filter.Targets, &tgt)
-	}
-
-	return stream.Collect(s.RangeLocks(ctx, "", "", filter))
-}
-
-// RangeLocks returns locks within the range [start, end) matching a given filter.
-func (s *AccessService) RangeLocks(ctx context.Context, start, end string, filter *types.LockFilter) iter.Seq2[types.Lock, error] {
-	startKey := backend.NewKey(locksPrefix, start)
-	endKey := backend.RangeEnd(backend.NewKey(locksPrefix))
-	if end != "" {
-		endKey = backend.NewKey(locksPrefix, end).ExactKey()
-	}
-
-	mapFn := func(item backend.Item) (types.Lock, bool) {
-		lock, err := services.UnmarshalLock(item.Value,
-			services.WithExpires(item.Expires),
-			services.WithRevision(item.Revision))
+	out := []types.Lock{}
+	for _, item := range result.Items {
+		lock, err := services.UnmarshalLock(item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 		if err != nil {
-			slog.WarnContext(ctx, "Failed to unmarshal lock",
-				"key", item.Key,
-				"error", err,
-			)
-			return nil, false
+			return nil, trace.Wrap(err)
 		}
-
-		return matchLock(lock, filter, s.Clock().Now())
+		if inForceOnly && !lock.IsInForce(s.Clock().Now()) {
+			continue
+		}
+		// If no targets specified, return all of the found/in-force locks.
+		if len(targets) == 0 {
+			out = append(out, lock)
+			continue
+		}
+		// Otherwise, use the targets as filters.
+		for _, target := range targets {
+			if target.Match(lock) {
+				out = append(out, lock)
+				break
+			}
+		}
 	}
-
-	return stream.TakeWhile(
-		stream.FilterMap(
-			s.Backend.Items(
-				ctx,
-				backend.ItemsParams{
-					StartKey: startKey,
-					EndKey:   endKey,
-				},
-			),
-			mapFn,
-		),
-		func(lock types.Lock) bool {
-			// The range is not inclusive of the end key, so return early
-			// if the end has been reached.
-			return end == "" || lock.GetName() < end
-		},
-	)
+	return out, nil
 }
 
 // ListLocks returns a page of locks matching a filter
-func (s *AccessService) ListLocks(ctx context.Context, limit int, startKey string, filter *types.LockFilter) ([]types.Lock, string, error) {
-	return generic.CollectPageAndCursor(s.RangeLocks(ctx, startKey, "", filter), limit, types.Lock.GetName)
+func (s *AccessService) ListLocks(ctx context.Context, limit int, start string, filter *types.LockFilter) ([]types.Lock, string, error) {
+	// Adjust page size, so it can't be too large.
+	if limit <= 0 || limit > defaults.DefaultChunkSize {
+		limit = defaults.DefaultChunkSize
+	}
+
+	startKey := backend.NewKey(locksPrefix, start)
+	endKey := backend.RangeEnd(backend.NewKey(locksPrefix))
+
+	out := make([]types.Lock, 0, limit)
+	var nextPage string
+
+	if err := backend.IterateRange(
+		ctx,
+		s,
+		startKey,
+		endKey,
+		limit+1,
+		func(items []backend.Item) (bool, error) {
+			for _, item := range items {
+				lock, err := services.UnmarshalLock(item.Value,
+					services.WithRevision(item.Revision),
+					services.WithExpires(item.Expires))
+				if err != nil {
+					slog.WarnContext(ctx, "Failed to unmarshal lock",
+						"key", logutils.StringerAttr(item.Key),
+						"error", err)
+					continue
+				}
+
+				if _, match := matchLock(lock, filter, s.Clock().Now()); !match {
+					continue
+				}
+
+				if len(out) >= limit {
+					nextPage = lock.GetName()
+					return true, nil
+				} else {
+					out = append(out, lock)
+				}
+			}
+			return false, nil
+		}); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return out, nextPage, nil
 }
 
 // UpsertLock upserts a lock.
@@ -473,30 +505,3 @@ const (
 	paramsPrefix = "params"
 	locksPrefix  = "locks"
 )
-
-// roleKey returns the backend key for a role with the given name.
-func roleKey(roleName string) backend.Key {
-	return backend.NewKey(rolesPrefix, roleName, paramsPrefix)
-}
-
-// roleToBackendItem converts a role to a backend item for storage.
-// It validates the role name before conversion.
-func roleToBackendItem(role types.Role) (backend.Item, error) {
-	if err := services.ValidateRoleName(role); err != nil {
-		return backend.Item{}, trace.Wrap(err)
-	}
-
-	value, err := services.MarshalRole(role)
-	if err != nil {
-		return backend.Item{}, trace.Wrap(err)
-	}
-
-	item := backend.Item{
-		Key:      roleKey(role.GetName()),
-		Value:    value,
-		Expires:  role.Expiry(),
-		Revision: role.GetRevision(),
-	}
-
-	return item, nil
-}

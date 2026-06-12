@@ -87,15 +87,8 @@ type DatabaseAdminUser struct {
 
 // OracleOptions are additional Oracle options.
 type OracleOptions struct {
-	// AuditUser is the name of the Oracle database user that should be used to access
-	// the internal audit trail.
+	// AuditUser is the Oracle database user privilege to access internal Oracle audit trail.
 	AuditUser string
-	// RetryCount is the maximum number of times to retry connecting to a
-	// host upon failure.
-	RetryCount int32
-	// ShuffleHostnames, when true, randomizes the order of hosts to connect to from
-	// the provided list.
-	ShuffleHostnames bool
 }
 
 // CheckAndSetDefaults validates the database proxy configuration.
@@ -163,9 +156,6 @@ func (d *Database) ToDatabase() (types.Database, error) {
 			ElastiCache: types.ElastiCache{
 				ReplicationGroupID: d.AWS.ElastiCache.ReplicationGroupID,
 			},
-			ElastiCacheServerless: types.ElastiCacheServerless{
-				CacheName: d.AWS.ElastiCacheServerless.CacheName,
-			},
 			MemoryDB: types.MemoryDB{
 				ClusterName: d.AWS.MemoryDB.ClusterName,
 			},
@@ -177,10 +167,6 @@ func (d *Database) ToDatabase() (types.Database, error) {
 		GCP: types.GCPCloudSQL{
 			ProjectID:  d.GCP.ProjectID,
 			InstanceID: d.GCP.InstanceID,
-			AlloyDB: types.AlloyDB{
-				EndpointType:     d.GCP.AlloyDB.EndpointType,
-				EndpointOverride: d.GCP.AlloyDB.EndpointOverride,
-			},
 		},
 		DynamicLabels: types.LabelsToV2(d.DynamicLabels),
 		AD: types.AD{
@@ -202,9 +188,7 @@ func (d *Database) ToDatabase() (types.Database, error) {
 
 func convOracleOptions(o OracleOptions) types.OracleOptions {
 	return types.OracleOptions{
-		AuditUser:        o.AuditUser,
-		RetryCount:       o.RetryCount,
-		ShuffleHostnames: o.ShuffleHostnames,
+		AuditUser: o.AuditUser,
 	}
 }
 
@@ -238,8 +222,6 @@ type DatabaseAWS struct {
 	RDS DatabaseAWSRDS
 	// ElastiCache contains ElastiCache specific settings.
 	ElastiCache DatabaseAWSElastiCache
-	// ElastiCacheServerless contains ElastiCacheServerless specific settings.
-	ElastiCacheServerless DatabaseAWSElastiCacheServerless
 	// MemoryDB contains MemoryDB specific settings.
 	MemoryDB DatabaseAWSMemoryDB
 	// SecretStore contains settings for managing secrets.
@@ -284,12 +266,6 @@ type DatabaseAWSElastiCache struct {
 	ReplicationGroupID string
 }
 
-// DatabaseAWSElastiCacheServerless contains settings for ElastiCache Serverless databases.
-type DatabaseAWSElastiCacheServerless struct {
-	// CacheName is the ElastiCache Serverless cache name.
-	CacheName string
-}
-
 // DatabaseAWSMemoryDB contains settings for MemoryDB databases.
 type DatabaseAWSMemoryDB struct {
 	// ClusterName is the MemoryDB cluster name.
@@ -310,16 +286,6 @@ type DatabaseGCP struct {
 	ProjectID string
 	// InstanceID is the Cloud SQL instance ID.
 	InstanceID string
-	// AlloyDB contains AlloyDB specific settings.
-	AlloyDB DatabaseGCPAlloyDB
-}
-
-// DatabaseGCPAlloyDB contains GCP specific settings for AlloyDB databases.
-type DatabaseGCPAlloyDB struct {
-	// EndpointType is the database endpoint type to use.
-	EndpointType string
-	// EndpointOverride is an override of endpoint address to use.
-	EndpointOverride string
 }
 
 // DatabaseAD contains database Active Directory configuration.

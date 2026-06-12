@@ -18,7 +18,6 @@
 
 import { Integration, IntegrationKind } from 'teleport/services/integrations';
 
-import { DeleteAwsOidcIntegrationDialog } from '../DeleteAwsOidcIntegrationDialog';
 import { EditAwsOidcIntegrationDialog } from '../EditAwsOidcIntegrationDialog';
 import { DeleteIntegrationDialog } from '../RemoveIntegrationDialog';
 import {
@@ -45,16 +44,6 @@ export function IntegrationOperations({
   edit,
   remove,
 }: Props<EditableIntegrationFields>) {
-  if (operation === 'delete' && integration.kind === IntegrationKind.AwsOidc) {
-    return (
-      <DeleteAwsOidcIntegrationDialog
-        integration={integration}
-        close={close}
-        remove={remove}
-      />
-    );
-  }
-
   if (operation === 'delete') {
     return (
       <DeleteIntegrationDialog

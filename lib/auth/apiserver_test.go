@@ -37,8 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-// TODO(noah): In a separate PR soon, nuke this test. We cover this elsewhere
-// much better. This test awkwardly skips some important layers.
 func TestUpsertServer(t *testing.T) {
 	t.Parallel()
 
@@ -95,7 +93,7 @@ func TestUpsertServer(t *testing.T) {
 				Version:  types.V2,
 				Kind:     types.KindAuthServer,
 			},
-			assertErr: require.Error,
+			assertErr: require.NoError,
 		},
 		{
 			desc: "unknown",
@@ -109,6 +107,7 @@ func TestUpsertServer(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 			// Set up backend to upsert servers into.
@@ -135,10 +134,8 @@ func TestUpsertServer(t *testing.T) {
 				require.NoError(t, err)
 				allServers = append(allServers, servers...)
 			}
-			//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 			addServers(s.GetAuthServers())
 			addServers(s.GetNodes(ctx, apidefaults.Namespace))
-			//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 			addServers(s.GetProxies())
 			require.Empty(t, cmp.Diff(allServers, []types.Server{tt.wantServer}, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 		})

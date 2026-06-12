@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import type { JSX } from 'react';
-
 import { Flex } from 'design';
 
 import { BaseView } from '../flow';
@@ -167,7 +165,7 @@ export function Navigation<T>({
   startWithIcon,
 }: NavigationProps<T>) {
   return (
-    <Flex minWidth={0} width="100%">
+    <Flex>
       {startWithIcon && (
         <StepsContainer>
           <StepTitle css={{ fontWeight: 'bold' }}>
@@ -176,9 +174,7 @@ export function Navigation<T>({
           </StepTitle>
         </StepsContainer>
       )}
-      <Flex flex={1} css="overflow-x: auto;">
-        <StepList views={views} currentStep={currentStep} />
-      </Flex>
+      <StepList views={views} currentStep={currentStep} />
     </Flex>
   );
 }

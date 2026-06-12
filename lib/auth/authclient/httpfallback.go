@@ -22,10 +22,11 @@ import (
 	"context"
 	"encoding/json"
 	"net/url"
+	"strings"
 
 	"github.com/gravitational/trace"
 
-	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -33,56 +34,29 @@ import (
 // httpfallback.go holds endpoints that have been converted to gRPC
 // but still need http fallback logic in the old client.
 
-// ValidateTrustedCluster is called by the proxy on behalf of a cluster that
-// wishes to join another as a leaf cluster.
-func (c *Client) ValidateTrustedCluster(ctx context.Context, validateRequest *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {
-	protoReq, err := validateRequest.ToProto()
-	if err != nil {
-		return nil, trace.Wrap(err, "converting native ValidateTrustedClusterRequest to proto")
-	}
-	protoResp, err := c.APIClient.ValidateTrustedCluster(ctx, protoReq)
-	if err != nil {
-		if trace.IsNotImplemented(err) {
-			return c.HTTPClient.validateTrustedCluster(ctx, validateRequest)
+// GetReverseTunnels returns the list of created reverse tunnels
+// TODO(noah): DELETE IN 18.0.0
+func (c *Client) GetReverseTunnels(ctx context.Context) ([]types.ReverseTunnel, error) {
+	var rcs []types.ReverseTunnel
+	pageToken := ""
+	for {
+		page, nextToken, err := c.APIClient.ListReverseTunnels(ctx, 0, pageToken)
+		if err != nil {
+			if trace.IsNotImplemented(err) {
+				return c.getReverseTunnelsLegacy(ctx)
+			}
+			return nil, trace.Wrap(err)
 		}
-		return nil, trace.Wrap(err, "calling ValidateTrustedCluster on gRPC client")
+		rcs = append(rcs, page...)
+		if nextToken == "" {
+			return rcs, nil
+		}
+		pageToken = nextToken
 	}
-	return ValidateTrustedClusterResponseFromProto(protoResp), nil
 }
 
-// TODO(noah): DELETE IN 21.0.0
-func (c *HTTPClient) validateTrustedCluster(ctx context.Context, validateRequest *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {
-	validateRequestRaw, err := validateRequest.ToRaw()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	out, err := c.PostJSON(ctx, c.Endpoint("trustedclusters", "validate"), validateRequestRaw)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var validateResponseRaw ValidateTrustedClusterResponseRaw
-	err = json.Unmarshal(out.Bytes(), &validateResponseRaw)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	validateResponse, err := validateResponseRaw.ToNative()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return validateResponse, nil
-}
-
-// GetAuthServers returns the list of auth servers registered in the cluster.
-//
-// Deprecated: Prefer paginated variant [APIClient.ListAuthServers].
-//
-// TODO(kiosion): DELETE IN 21.0.0
-func (c *HTTPClient) GetAuthServers() ([]types.Server, error) {
-	out, err := c.Get(context.TODO(), c.Endpoint("authservers"), url.Values{})
+func (c *Client) getReverseTunnelsLegacy(ctx context.Context) ([]types.ReverseTunnel, error) {
+	out, err := c.Get(ctx, c.Endpoint("reversetunnels"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -90,111 +64,104 @@ func (c *HTTPClient) GetAuthServers() ([]types.Server, error) {
 	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	re := make([]types.Server, len(items))
+	tunnels := make([]types.ReverseTunnel, len(items))
 	for i, raw := range items {
-		server, err := services.UnmarshalServer(raw, types.KindAuthServer)
+		tunnel, err := services.UnmarshalReverseTunnel(raw)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		re[i] = server
+		tunnels[i] = tunnel
 	}
-	return re, nil
+	return tunnels, nil
 }
 
-// UpsertProxyServerWithoutReturn registers a proxy server heartbeat. It calls
-// the gRPC PresenceService and falls back to the legacy HTTP endpoint if the
-// server does not yet implement the gRPC RPC. The upserted proxy server is not
-// returned because the HTTP fallback path cannot provide it; once the fallback
-// is removed in v20 this can be replaced with a method that returns the
-// upserted server.
-//
-// TODO(noah): DELETE IN v20.0.0
-func (c *Client) UpsertProxyServerWithoutReturn(ctx context.Context, s types.Server) error {
-	serverV2, ok := s.(*types.ServerV2)
-	if !ok {
-		return trace.BadParameter("unsupported proxy server type %T", s)
-	}
-	_, err := c.APIClient.PresenceServiceClient().UpsertProxyServer(ctx, &presencev1.UpsertProxyServerRequest{
-		Server: serverV2,
-	})
+// UpsertReverseTunnel upserts a reverse tunnel
+// TODO: DELETE IN 18.0.0
+func (c *Client) UpsertReverseTunnel(ctx context.Context, tunnel types.ReverseTunnel) error {
+	_, err := c.APIClient.UpsertReverseTunnel(ctx, tunnel)
 	if err == nil {
 		return nil
 	}
 	if !trace.IsNotImplemented(err) {
 		return trace.Wrap(err)
 	}
-	return c.HTTPClient.upsertProxyServerLegacy(ctx, s)
+	return c.upsertReverseTunnelLegacy(context.Background(), tunnel)
 }
 
-// upsertProxyServerLegacy registers a proxy server heartbeat via the legacy
-// HTTP endpoint.
-//
-// TODO(noah): DELETE IN v20.0.0
-func (c *HTTPClient) upsertProxyServerLegacy(ctx context.Context, s types.Server) error {
-	data, err := services.MarshalServer(s)
+type upsertReverseTunnelRawReq struct {
+	ReverseTunnel json.RawMessage `json:"reverse_tunnel"`
+}
+
+func (c *Client) upsertReverseTunnelLegacy(ctx context.Context, tunnel types.ReverseTunnel) error {
+	data, err := services.MarshalReverseTunnel(tunnel)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	args := &upsertServerRawReq{
-		Server: data,
+	args := &upsertReverseTunnelRawReq{
+		ReverseTunnel: data,
 	}
-	_, err = c.PostJSON(ctx, c.Endpoint("proxies"), args)
+	_, err = c.PostJSON(ctx, c.Endpoint("reversetunnels"), args)
 	return trace.Wrap(err)
 }
 
-// DeleteProxyServer deletes a proxy server heartbeat by name. It calls the
-// gRPC PresenceService and falls back to the legacy HTTP endpoint if the
-// server does not yet implement the gRPC RPC.
-//
-// TODO(noah): DELETE IN v20.0.0
-func (c *Client) DeleteProxyServer(ctx context.Context, name string) error {
-	_, err := c.APIClient.PresenceServiceClient().DeleteProxyServer(ctx, &presencev1.DeleteProxyServerRequest{
-		Name: name,
-	})
+// DeleteReverseTunnel deletes reverse tunnel by name
+// TODO(noah): DELETE IN 18.0.0
+func (c *Client) DeleteReverseTunnel(ctx context.Context, name string) error {
+	err := c.APIClient.DeleteReverseTunnel(ctx, name)
 	if err == nil {
 		return nil
 	}
 	if !trace.IsNotImplemented(err) {
 		return trace.Wrap(err)
 	}
-	return c.HTTPClient.deleteProxyServerLegacy(ctx, name)
+	return c.deleteReverseTunnelLegacy(ctx, name)
 }
 
-// deleteProxyServerLegacy deletes proxy by name via the legacy HTTP endpoint.
-//
-// TODO(noah): DELETE IN v20.0.0
-func (c *HTTPClient) deleteProxyServerLegacy(ctx context.Context, name string) error {
-	if name == "" {
-		return trace.BadParameter("missing parameter name")
+func (c *Client) deleteReverseTunnelLegacy(ctx context.Context, domainName string) error {
+	// this is to avoid confusing error in case if domain empty for example
+	// HTTP route will fail producing generic not found error
+	// instead we catch the error here
+	if strings.TrimSpace(domainName) == "" {
+		return trace.BadParameter("empty domain name")
 	}
-	_, err := c.Delete(ctx, c.Endpoint("proxies", name))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+	_, err := c.Delete(ctx, c.Endpoint("reversetunnels", domainName))
+	return trace.Wrap(err)
 }
 
-// GetProxies returns the list of auth servers registered in the cluster.
-//
-// Deprecated: Prefer paginated variant [APIClient.ListProxyServers].
-//
-// TODO(kiosion): DELETE IN 21.0.0
-func (c *HTTPClient) GetProxies() ([]types.Server, error) {
-	out, err := c.Get(context.TODO(), c.Endpoint("proxies"), url.Values{})
+// RegisterUsingToken calls the auth service API to register a new node using a
+// registration token which was previously issued via CreateToken/UpsertToken.
+func (c *Client) RegisterUsingToken(
+	ctx context.Context, req *types.RegisterUsingTokenRequest,
+) (*proto.Certs, error) {
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	certs, err := c.APIClient.RegisterUsingToken(ctx, req)
+	if err == nil {
+		return certs, nil
+	}
+	if !trace.IsNotImplemented(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	return c.registerUsingTokenLegacy(ctx, req)
+}
+
+func (c *HTTPClient) registerUsingTokenLegacy(
+	ctx context.Context, req *types.RegisterUsingTokenRequest,
+) (*proto.Certs, error) {
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out, err := c.PostJSON(ctx, c.Endpoint("tokens", "register"), req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var items []json.RawMessage
-	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
+
+	var certs proto.Certs
+	if err := json.Unmarshal(out.Bytes(), &certs); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	re := make([]types.Server, len(items))
-	for i, raw := range items {
-		server, err := services.UnmarshalServer(raw, types.KindProxy)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		re[i] = server
-	}
-	return re, nil
+
+	return &certs, nil
 }

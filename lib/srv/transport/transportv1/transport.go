@@ -22,12 +22,12 @@ import (
 	"context"
 	"errors"
 	"io"
-	"log/slog"
 	"net"
 	"net/netip"
 	"sync"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh/agent"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
@@ -35,22 +35,21 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport"
-	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
-	"github.com/gravitational/teleport/api/types"
 	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
 	"github.com/gravitational/teleport/lib/agentless"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // Dialer is the interface that groups basic dialing methods.
 type Dialer interface {
 	DialSite(ctx context.Context, cluster string, clientSrcAddr, clientDstAddr net.Addr) (net.Conn, error)
-	DialHost(ctx context.Context, scopePin *scopesv1.Pin, clientSrcAddr, clientDstAddr net.Addr, host, port, cluster string, clusterAccessChecker func(types.RemoteCluster) error, agentGetter sshagent.ClientGetter, singer agentless.SignerCreator) (net.Conn, error)
-	DialWindowsDesktop(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, desktopName, cluster string, clusterAccessChecker func(types.RemoteCluster) error) (net.Conn, error)
+	DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, cluster string, checker services.AccessChecker, agentGetter sshagent.ClientGetter, singer agentless.SignerCreator) (net.Conn, error)
+	DialWindowsDesktop(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, desktopName, cluster string, checker services.AccessChecker) (net.Conn, error)
 }
 
 // ConnectionMonitor monitors authorized connections and terminates them when
@@ -65,11 +64,11 @@ type ServerConfig struct {
 	// to run in FIPS mode.
 	FIPS bool
 	// Logger provides a mechanism to log output.
-	Logger *slog.Logger
+	Logger logrus.FieldLogger
 	// Dialer is used to establish remote connections.
 	Dialer Dialer
 	// SignerFn is used to create an [ssh.Signer] for an authenticated connection.
-	SignerFn func(ctx context.Context, authzCtx *authz.ScopedContext, clusterName string) (agentless.SignerCreator, error)
+	SignerFn func(authzCtx *authz.Context, clusterName string) agentless.SignerCreator
 	// ConnectionMonitor is used to monitor the connection for activity and terminate it
 	// when conditions are met.
 	ConnectionMonitor ConnectionMonitor
@@ -80,7 +79,7 @@ type ServerConfig struct {
 	agentGetterFn func(rw io.ReadWriter) sshagent.ClientGetter
 
 	// authzContextFn used by tests to inject an access checker
-	authzContextFn func(info credentials.AuthInfo) (*authz.ScopedContext, error)
+	authzContextFn func(info credentials.AuthInfo) (*authz.Context, error)
 }
 
 // CheckAndSetDefaults ensures required parameters are set
@@ -95,7 +94,7 @@ func (c *ServerConfig) CheckAndSetDefaults() error {
 	}
 
 	if c.Logger == nil {
-		c.Logger = slog.With(teleport.ComponentKey, "transport")
+		c.Logger = utils.NewLogger().WithField(teleport.ComponentKey, "transport")
 	}
 
 	if c.agentGetterFn == nil {
@@ -105,20 +104,13 @@ func (c *ServerConfig) CheckAndSetDefaults() error {
 	}
 
 	if c.authzContextFn == nil {
-		c.authzContextFn = func(info credentials.AuthInfo) (*authz.ScopedContext, error) {
-			identityInfo, ok := info.(interface {
-				ScopedAuthzContext() (ctx *authz.ScopedContext, ok bool)
-			})
+		c.authzContextFn = func(info credentials.AuthInfo) (*authz.Context, error) {
+			identityInfo, ok := info.(auth.IdentityInfo)
 			if !ok {
 				return nil, trace.AccessDenied("client is not authenticated")
 			}
 
-			ctx, ok := identityInfo.ScopedAuthzContext()
-			if !ok {
-				return nil, trace.AccessDenied("missing required authz context")
-			}
-
-			return ctx, nil
+			return identityInfo.AuthContext, nil
 		}
 	}
 
@@ -254,7 +246,7 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 			req, err := stream.Recv()
 			if err != nil {
 				if !utils.IsOKNetworkError(err) && !errors.Is(err, context.Canceled) && status.Code(err) != codes.Canceled {
-					s.cfg.Logger.ErrorContext(ctx, "ssh stream terminated unexpectedly", "error", err)
+					s.cfg.Logger.Errorf("ssh stream terminated unexpectedly: %v", err)
 				}
 
 				return
@@ -269,7 +261,7 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 			case *transportv1pb.ProxySSHRequest_Agent:
 				agentStream.incomingC <- frame.Agent.Payload
 			default:
-				s.cfg.Logger.ErrorContext(ctx, "received unexpected ssh frame", "frame", logutils.TypeAttr(frame))
+				s.cfg.Logger.Errorf("received unexpected ssh frame: %T", frame)
 				continue
 			}
 		}
@@ -293,25 +285,8 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 		return trace.Wrap(err, "retrieving destination address; listener address %q, client source address %q", s.cfg.LocalAddr.String(), p.Addr.String())
 	}
 
-	signer, err := s.cfg.SignerFn(ctx, authzContext, req.DialTarget.Cluster)
-	if err != nil {
-		return trace.Wrap(err, "setting up SSH credentials for cluster %q", req.DialTarget.Cluster)
-	}
-
-	checkAccessToRemoteCluster := func(types.RemoteCluster) error {
-		return trace.AccessDenied("scoped identities do not support cross-cluster access")
-	}
-
-	if unscopedCtx, ok := authzContext.UnscopedContext(); ok {
-		checkAccessToRemoteCluster = unscopedCtx.Checker.CheckAccessToRemoteCluster
-	}
-
-	var scopePin *scopesv1.Pin
-	if pin, ok := authzContext.CheckerContext.ScopePin(); ok {
-		scopePin = pin
-	}
-
-	hostConn, err := s.cfg.Dialer.DialHost(ctx, scopePin, p.Addr, clientDst, host, port, req.DialTarget.Cluster, checkAccessToRemoteCluster, s.cfg.agentGetterFn(agentStreamRW), signer)
+	signer := s.cfg.SignerFn(authzContext, req.DialTarget.Cluster)
+	hostConn, err := s.cfg.Dialer.DialHost(ctx, p.Addr, clientDst, host, port, req.DialTarget.Cluster, authzContext.Checker, s.cfg.agentGetterFn(agentStreamRW), signer)
 	if err != nil {
 		// Return ambiguous errors unadorned so that clients can detect them easily.
 		if errors.Is(err, teleport.ErrNodeIsAmbiguous) {
@@ -333,17 +308,9 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 
 	// monitor the user connection
 	conn := streamutils.NewConn(sshStreamRW, p.Addr, targetAddr)
-	var monitorCtx context.Context
-	var userConn net.Conn
-	if unscopedCtx, ok := authzContext.UnscopedContext(); ok {
-		monitorCtx, userConn, err = s.cfg.ConnectionMonitor.MonitorConn(ctx, unscopedCtx, conn)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	} else {
-		// TODO(fspmarshall/scopes): implement connection monitoring for scoped identities
-		userConn = conn
-		monitorCtx = ctx
+	monitorCtx, userConn, err := s.cfg.ConnectionMonitor.MonitorConn(ctx, authzContext, conn)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	// send back the cluster details to alert the other side that
@@ -459,14 +426,9 @@ func (s *Service) ProxyWindowsDesktopSession(stream transportv1pb.TransportServi
 		return trace.BadParameter("failed to find peer")
 	}
 
-	scopedAuthzContext, err := s.cfg.authzContextFn(p.AuthInfo)
+	authzContext, err := s.cfg.authzContextFn(p.AuthInfo)
 	if err != nil {
 		return trace.Wrap(err)
-	}
-
-	authzContext, ok := scopedAuthzContext.UnscopedContext()
-	if !ok {
-		return trace.AccessDenied("scoped identities are not supported for windows desktop connections")
 	}
 
 	// Wait for the first request to arrive with the dial request.
@@ -491,7 +453,7 @@ func (s *Service) ProxyWindowsDesktopSession(stream transportv1pb.TransportServi
 		return trace.Wrap(err, "could get not client destination address; listener address %q, client source address %q", s.cfg.LocalAddr.String(), p.Addr.String())
 	}
 
-	serviceConn, err := s.cfg.Dialer.DialWindowsDesktop(ctx, p.Addr, clientDst, desktopName, cluster, authzContext.Checker.CheckAccessToRemoteCluster)
+	serviceConn, err := s.cfg.Dialer.DialWindowsDesktop(ctx, p.Addr, clientDst, desktopName, cluster, authzContext.Checker)
 	if err != nil {
 		return trace.Wrap(err, "failed to dial target desktop")
 	}

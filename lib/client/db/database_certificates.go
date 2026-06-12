@@ -32,11 +32,12 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 type CertificateSigner interface {
-	GetClusterName(ctx context.Context) (types.ClusterName, error)
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 	GenerateDatabaseCert(context.Context, *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error)
 	Ping(context.Context) (proto.PingResponse, error)
@@ -75,7 +76,7 @@ func GenerateDatabaseServerCertificates(ctx context.Context, req GenerateDatabas
 
 	subject := pkix.Name{CommonName: req.Principals[0]}
 
-	clusterNameType, err := req.ClusterAPI.GetClusterName(ctx)
+	clusterNameType, err := req.ClusterAPI.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

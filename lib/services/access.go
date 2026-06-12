@@ -21,14 +21,12 @@ package services
 import (
 	"context"
 	"fmt"
-	"iter"
 	"strings"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/backend"
 )
 
 // LockGetter is a service that gets locks.
@@ -38,7 +36,6 @@ type LockGetter interface {
 	// GetLocks gets all/in-force locks that match at least one of the targets when specified.
 	GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error)
 	ListLocks(ctx context.Context, limit int, startKey string, filter *types.LockFilter) ([]types.Lock, string, error)
-	RangeLocks(ctx context.Context, start, end string, filter *types.LockFilter) iter.Seq2[types.Lock, error]
 }
 
 // Access service manages roles and permissions.
@@ -53,6 +50,8 @@ type Access interface {
 	UpdateRole(ctx context.Context, role types.Role) (types.Role, error)
 	// UpsertRole creates or updates role.
 	UpsertRole(ctx context.Context, role types.Role) (types.Role, error)
+	// DeleteAllRoles deletes all roles.
+	DeleteAllRoles(ctx context.Context) error
 	// GetRole returns role by name.
 	GetRole(ctx context.Context, name string) (types.Role, error)
 	// DeleteRole deletes role by name.
@@ -63,29 +62,10 @@ type Access interface {
 	UpsertLock(context.Context, types.Lock) error
 	// DeleteLock deletes a lock.
 	DeleteLock(context.Context, string) error
+	// DeleteAllLocks deletes all/in-force locks.
+	DeleteAllLocks(context.Context) error
 	// ReplaceRemoteLocks replaces the set of locks associated with a remote cluster.
 	ReplaceRemoteLocks(ctx context.Context, clusterName string, locks []types.Lock) error
-}
-
-// AccessInternal extends the Access interface with auth-specific internal methods.
-type AccessInternal interface {
-	Access
-
-	// AppendPutRoleActions adds conditional actions to an atomic write to create
-	// or update a role.
-	AppendPutRoleActions(
-		actions []backend.ConditionalAction,
-		role types.Role,
-		condition backend.Condition,
-	) ([]backend.ConditionalAction, error)
-
-	// AppendDeleteRoleActions adds conditional actions to an atomic write to
-	// delete a role.
-	AppendDeleteRoleActions(
-		actions []backend.ConditionalAction,
-		name string,
-		condition backend.Condition,
-	) ([]backend.ConditionalAction, error)
 }
 
 var dynamicLabelsErrorMessage = fmt.Sprintf("labels with %q prefix are not allowed in deny rules", types.TeleportDynamicLabelPrefix)

@@ -1,11 +1,9 @@
 ---
 title: Machine & Workload Identity Architecture
-sidebar_label: Machine & Workload Identity
 description: How Teleport Machine & Workload Identity works.
 tags:
  - conceptual
  - mwi
- - infrastructure-identity
 ---
 
 This section provides an overview of Teleport Machine & Workload Identity's
@@ -84,7 +82,7 @@ it is executed. This consists of:
   impersonated).
 
 For more detail about the configuration options, see
-[the reference.](../machine-workload-identity/machine-workload-identity.mdx)
+[the reference.](../machine-id/machine-id.mdx)
 
 On initial load, `tbot` uses the configured join method to obtain a set of
 credentials for the bot user from the Teleport Auth Service. It can then use
@@ -141,7 +139,7 @@ match. If they do not match, then the bot user is automatically locked. This
 means that if certificates are stolen, and attempted to be renewed whilst the
 bot is still running, the next renewal will render them useless.
 
-### Dynamic join tokens (e.g. AWS IAM)
+### Dynamic join tokens (e.g AWS IAM)
 
 - These tokens rely on an external authority that allows the bot to prove it is
   allowed to join the cluster. The name of the token identifies the Token

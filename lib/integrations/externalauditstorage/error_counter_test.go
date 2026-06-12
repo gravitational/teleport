@@ -37,7 +37,8 @@ import (
 
 func TestErrorCounter(t *testing.T) {
 	t.Parallel()
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	testError := errors.New("test error")
 	badError := errors.New(strings.Repeat("bad test error\r\n", 1000))
@@ -50,7 +51,7 @@ func TestErrorCounter(t *testing.T) {
 		expectAlerts []alert
 	}{
 		{
-			desc: "recording upload errors alert",
+			desc: "upload errors alert",
 			steps: []testStep{
 				{
 					action: func(pack *testPack) {
@@ -67,114 +68,12 @@ func TestErrorCounter(t *testing.T) {
 			}},
 		},
 		{
-			desc: "recording download errors alert",
+			desc: "download errors alert",
 			steps: []testStep{
 				{
 					action: func(pack *testPack) {
-						pack.errHandler.StreamSessionRecording(ctx, "")
-						pack.successHandler.StreamSessionRecording(ctx, "")
-					},
-					repeat: 10,
-				},
-			},
-			err: testError,
-			expectAlerts: []alert{{
-				name:    sessionDownloadFailureClusterAlert,
-				message: fmt.Sprintf(sessionDownloadFailureClusterAlertMsgTemplate, testError),
-			}},
-		},
-		{
-			desc: "summary upload errors alert",
-			steps: []testStep{
-				{
-					action: func(pack *testPack) {
-						pack.errHandler.UploadSummary(ctx, "", nil)
-						pack.successHandler.UploadSummary(ctx, "", nil)
-					},
-					repeat: 10,
-				},
-			},
-			err: testError,
-			expectAlerts: []alert{{
-				name:    sessionUploadFailureClusterAlert,
-				message: fmt.Sprintf(sessionUploadFailureClusterAlertMsgTemplate, testError),
-			}},
-		},
-		{
-			desc: "summary download errors alert",
-			steps: []testStep{
-				{
-					action: func(pack *testPack) {
-						pack.errHandler.StreamSessionSummary(ctx, "")
-						pack.successHandler.StreamSessionSummary(ctx, "")
-					},
-					repeat: 10,
-				},
-			},
-			err: testError,
-			expectAlerts: []alert{{
-				name:    sessionDownloadFailureClusterAlert,
-				message: fmt.Sprintf(sessionDownloadFailureClusterAlertMsgTemplate, testError),
-			}},
-		},
-		{
-			desc: "metadata upload errors alert",
-			steps: []testStep{
-				{
-					action: func(pack *testPack) {
-						pack.errHandler.UploadMetadata(ctx, "", nil)
-						pack.successHandler.UploadMetadata(ctx, "", nil)
-					},
-					repeat: 10,
-				},
-			},
-			err: testError,
-			expectAlerts: []alert{{
-				name:    sessionUploadFailureClusterAlert,
-				message: fmt.Sprintf(sessionUploadFailureClusterAlertMsgTemplate, testError),
-			}},
-		},
-		{
-			desc: "metadata download errors alert",
-			steps: []testStep{
-				{
-					action: func(pack *testPack) {
-						pack.errHandler.StreamSessionMetadata(ctx, "")
-						pack.successHandler.StreamSessionMetadata(ctx, "")
-					},
-					repeat: 10,
-				},
-			},
-			err: testError,
-			expectAlerts: []alert{{
-				name:    sessionDownloadFailureClusterAlert,
-				message: fmt.Sprintf(sessionDownloadFailureClusterAlertMsgTemplate, testError),
-			}},
-		},
-		{
-			desc: "thumbnail upload errors alert",
-			steps: []testStep{
-				{
-					action: func(pack *testPack) {
-						pack.errHandler.UploadThumbnail(ctx, "", nil)
-						pack.successHandler.UploadThumbnail(ctx, "", nil)
-					},
-					repeat: 10,
-				},
-			},
-			err: testError,
-			expectAlerts: []alert{{
-				name:    sessionUploadFailureClusterAlert,
-				message: fmt.Sprintf(sessionUploadFailureClusterAlertMsgTemplate, testError),
-			}},
-		},
-		{
-			desc: "thumbnail download errors alert",
-			steps: []testStep{
-				{
-					action: func(pack *testPack) {
-						pack.errHandler.StreamSessionThumbnail(ctx, "")
-						pack.successHandler.StreamSessionThumbnail(ctx, "")
+						pack.errHandler.Download(ctx, "", nil)
+						pack.successHandler.Download(ctx, "", nil)
 					},
 					repeat: 10,
 				},
@@ -284,6 +183,7 @@ func TestErrorCounter(t *testing.T) {
 			}},
 		},
 	} {
+		tc := tc
 		t.Run(tc.desc, func(t *testing.T) {
 			t.Parallel()
 			alertService := newFakeAlertService()
@@ -375,73 +275,6 @@ func (h *errorHandler) Upload(ctx context.Context, sessionID session.ID, reader 
 	return "", h.err
 }
 
-func (h *errorHandler) UploadSummary(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	return "", h.err
-}
-
-func (h *errorHandler) UploadMetadata(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	return "", h.err
-}
-
-func (h *errorHandler) UploadThumbnail(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	return "", h.err
-}
-
-func (h *errorHandler) StreamSessionRecording(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
-	return nil, h.err
-}
-
-func (h *errorHandler) StreamSessionSummary(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
-	return nil, h.err
-}
-
-func (h *errorHandler) StreamSessionMetadata(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
-	return nil, h.err
-}
-
-func (h *errorHandler) StreamSessionThumbnail(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
-	return nil, h.err
-}
-
-// bodyErrorHandler is a handler whose Download succeeds (returns a ReadCloser)
-// but whose body returns readErr when Read is called.
-type bodyErrorHandler struct {
-	readErr error
-	events.MultipartHandler
-}
-
-func (h *bodyErrorHandler) StreamSessionRecording(_ context.Context, _ session.ID) (io.ReadCloser, error) {
-	return io.NopCloser(errorReader{h.readErr}), nil
-}
-
-// errorReader is an io.Reader that always returns a fixed error.
-type errorReader struct{ err error }
-
-func (e errorReader) Read(_ []byte) (int, error) { return 0, e.err }
-
-// TestDownloadBodyReadError verifies that an error returned while reading the
-// body of a successful Download call is still counted as a download failure
-// and eventually raises a cluster alert.
-func TestDownloadBodyReadError(t *testing.T) {
-	t.Parallel()
-	ctx := t.Context()
-
-	readErr := errors.New("read body error")
-	alertService := newFakeAlertService()
-	counter := NewErrorCounter(alertService)
-	handler := counter.WrapSessionHandler(&bodyErrorHandler{readErr: readErr})
-
-	for range 4 {
-		rc, err := handler.StreamSessionRecording(ctx, "")
-		assert.NoError(t, err, "Download call itself must succeed")
-		_, readErr := io.ReadAll(rc)
-		assert.Error(t, readErr, "reading the body must fail")
-		rc.Close()
-	}
-
-	counter.sync(ctx)
-
-	assert.Equal(t, map[string]string{
-		sessionDownloadFailureClusterAlert: fmt.Sprintf(sessionDownloadFailureClusterAlertMsgTemplate, readErr),
-	}, alertService.alerts)
+func (h *errorHandler) Download(ctx context.Context, sessionID session.ID, writer io.Writer) error {
+	return h.err
 }

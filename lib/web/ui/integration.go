@@ -49,70 +49,6 @@ type IntegrationAWSOIDCSpec struct {
 	Audience string `json:"audience,omitempty"`
 }
 
-// IntegrationAWSRASpec contain the specific fields for the `aws-ra` subkind integration.
-type IntegrationAWSRASpec struct {
-	// TrustAnchorARN is the IAM Roles Anywhere Trust Anchor ARN associated with the integration.
-	TrustAnchorARN string `json:"trustAnchorARN"`
-
-	// ProfileSyncConfig contains the Profile sync configuration.
-	ProfileSyncConfig AWSRAProfileSync `json:"profileSyncConfig"`
-}
-
-// IntegrationAzureOIDCSpec contain the specific fields for the `azure-oidc` subkind integration.
-type IntegrationAzureOIDCSpec struct {
-	// TenantID specifies the ID of Entra Tenant (Directory) of this integration.
-	TenantID string `json:"tenantId"`
-	// ClientID specifies the ID of Azure enterprise application (client)
-	// associated with this integration.
-	ClientID string `json:"clientId"`
-	// ManagedIdentity contains the Azure managed identity details.
-	ManagedIdentity *IntegrationAzureManagedIdentitySpec `json:"managedIdentity,omitempty"`
-}
-
-// IntegrationAzureManagedIdentitySpec contains the Azure managed identity details.
-type IntegrationAzureManagedIdentitySpec struct {
-	// Region is the Azure region where the managed identity was created.
-	Region string `json:"region,omitempty"`
-	// ResourceGroup is the Azure resource group containing the managed identity.
-	ResourceGroup string `json:"resourceGroup,omitempty"`
-}
-
-// AWSRAProfileSync contains the configuration for the AWS Roles Anywhere Profile Sync.
-type AWSRAProfileSync struct {
-	// Enabled indicates if the Profile Sync is enabled.
-	Enabled bool `json:"enabled"`
-
-	// ProfileARN is the ARN of the IAM Roles Anywhere Profile that is used to sync profiles.
-	ProfileARN string `json:"profileArn"`
-
-	// RoleARN is the ARN of the IAM Role that is used to sync profiles.
-	RoleARN string `json:"roleArn"`
-
-	// ProfileNameFilters are the filters applied to the profiles.
-	// Only matching profiles will be synchronized as application servers.
-	// If empty, no filtering is applied.
-	//
-	// Filters can be globs, for example:
-	//
-	//	profile*
-	//	*name*
-	//
-	// Or regexes if they're prefixed and suffixed with ^ and $, for example:
-	//
-	//	^profile.*$
-	//	^.*name.*$
-	ProfileNameFilters []string `json:"filters"`
-}
-
-// CheckAndSetDefaults for the aws oidc integration spec.
-func (r *IntegrationAWSRASpec) CheckAndSetDefaults() error {
-	if r.TrustAnchorARN == "" {
-		return trace.BadParameter("missing awsra.trustAnchorArn field")
-	}
-
-	return nil
-}
-
 // IntegrationGitHub contains the specific fields for the `github` subkind integration.
 type IntegrationGitHub struct {
 	Organization string `json:"organization"`
@@ -137,41 +73,12 @@ type IntegrationWithSummary struct {
 	*Integration
 	// UnresolvedUserTasks contains the count of unresolved user tasks related to this integration.
 	UnresolvedUserTasks int `json:"unresolvedUserTasks"`
-	// UserTasks contains the list of unresolved user tasks related to this integration.
-	UserTasks []UserTask `json:"userTasks,omitempty"`
 	// AWSEC2 contains the summary for the AWS EC2 resources for this integration.
-	AWSEC2 ResourceTypeSummary `json:"awsec2"`
+	AWSEC2 ResourceTypeSummary `json:"awsec2,omitempty"`
 	// AWSRDS contains the summary for the AWS RDS resources and agents for this integration.
-	AWSRDS ResourceTypeSummary `json:"awsrds"`
+	AWSRDS ResourceTypeSummary `json:"awsrds,omitempty"`
 	// AWSEKS contains the summary for the AWS EKS resources for this integration.
-	AWSEKS ResourceTypeSummary `json:"awseks"`
-	// AzureVM contains the summary for the AzureVM resources for this integration.
-	AzureVM ResourceTypeSummary `json:"azurevm"`
-
-	// RolesAnywhereProfileSync contains the summary for the AWS Roles Anywhere Profile Sync.
-	RolesAnywhereProfileSync *RolesAnywhereProfileSync `json:"rolesAnywhereProfileSync,omitempty"`
-
-	// IsManagedByTerraform indicates if this integration was created by Terraform.
-	// This is set when the label "teleport.dev/iac" has the value "terraform".
-	IsManagedByTerraform bool `json:"isManagedByTerraform"`
-}
-
-// BriefSummary contains gathered information about an integration surfaced in the UI.
-type BriefSummary struct {
-	// UnresolvedUserTasks contains the list of open user tasks associated with this integration
-	UnresolvedUserTasks []UserTask `json:"unresolvedUserTasks"`
-	// ResourcesCount show the count of resources found, enrolled, and failed from this integration
-	ResourcesCount *ResourcesCount `json:"resourcesCount,omitempty"`
-}
-
-// ResourcesCount contains counts of resources by status.
-type ResourcesCount struct {
-	// Found is the count of resources discovered
-	Found int `json:"found"`
-	// Enrolled is the count of resources found and enrolled to the cluster
-	Enrolled int `json:"enrolled"`
-	// Failed is the count of resources that were found but failed to be enrolled
-	Failed int `json:"failed"`
+	AWSEKS ResourceTypeSummary `json:"awseks,omitempty"`
 }
 
 // ResourceTypeSummary contains the summary of the enrollment rules and found resources by the integration.
@@ -191,12 +98,6 @@ type ResourceTypeSummary struct {
 	ResourcesEnrollmentSuccess int `json:"resourcesEnrollmentSuccess,omitempty"`
 	// DiscoverLastSync contains the time when this integration tried to auto-enroll resources.
 	DiscoverLastSync *time.Time `json:"discoverLastSync,omitempty"`
-	// SyncStart is when the current or most recent discovery scan started.
-	SyncStart *time.Time `json:"syncStart,omitempty"`
-	// SyncEnd is when the most recent discovery scan ended.
-	SyncEnd *time.Time `json:"syncEnd,omitempty"`
-	// PollIntervalSeconds is the interval in seconds between discovery scans.
-	PollIntervalSeconds int `json:"pollIntervalSeconds,omitempty"`
 	// UnresolvedUserTasks contains the count of unresolved user tasks related to this integration and resource type.
 	UnresolvedUserTasks int `json:"unresolvedUserTasks,omitempty"`
 	// ECSDatabaseServiceCount is the total number of DatabaseServices that were deployed into Amazon ECS.
@@ -204,48 +105,21 @@ type ResourceTypeSummary struct {
 	ECSDatabaseServiceCount int `json:"ecsDatabaseServiceCount,omitempty"`
 }
 
-// RolesAnywhereProfileSync contains the summary for the AWS Roles Anywhere Profile Sync.
-type RolesAnywhereProfileSync struct {
-	// Enabled indicates whether the profile sync is enabled.
-	Enabled bool `json:"enabled"`
-
-	// Status is the string representation of the profile sync status.
-	// Either ERROR or SUCCESS.
-	Status string `json:"status,omitempty"`
-	// ErrorMessage is the error message from the last sync when the Status is ERROR.
-	ErrorMessage string `json:"errorMessage,omitempty"`
-
-	// SyncedProfiles is the number of profiles that were imported into Teleport.
-	SyncedProfiles int `json:"syncedProfiles,omitempty"`
-
-	// SyncStartTime is the time when the profile sync started.
-	SyncStartTime time.Time `json:"syncStartTime,omitempty"`
-	// SyncEndTime is the time when the profile sync ended.
-	SyncEndTime time.Time `json:"syncEndTime,omitempty"`
-}
-
 // IntegrationDiscoveryRule describes a discovery rule associated with an integration.
 type IntegrationDiscoveryRule struct {
 	// ResourceType indicates the type of resource that this rule targets.
-	// This is the same value that is set in DiscoveryConfig.[AWS|Azure].<Matcher>.Types
-	// Example: ec2, rds, eks, vm
+	// This is the same value that is set in DiscoveryConfig.AWS.<Matcher>.Types
+	// Example: ec2, rds, eks
 	ResourceType string `json:"resourceType,omitempty"`
 	// Region where this rule applies to.
 	Region string `json:"region,omitempty"`
 	// LabelMatcher is the set of labels that are used to filter the resources before trying to auto-enroll them.
 	LabelMatcher []ui.Label `json:"labelMatcher,omitempty"`
-	// ResourceGroups is the set of Azure resource group matchers
-	ResourceGroups []string `json:"resourceGroups,omitempty"`
-	// Subscriptions is the set of Azure subscription id matchers
-	Subscriptions []string `json:"subscriptions,omitempty"`
 	// DiscoveryConfig is the name of the DiscoveryConfig that created this rule.
 	DiscoveryConfig string `json:"discoveryConfig,omitempty"`
 	// LastSync contains the time when this rule was used.
 	// If empty, it indicates that the rule is not being used.
 	LastSync *time.Time `json:"lastSync,omitempty"`
-	// KubeAppDiscovery indicates whether Kubernetes App Discovery is enabled.
-	// Only set for EKS resource types.
-	KubeAppDiscovery *bool `json:"kubeAppDiscovery,omitempty"`
 }
 
 // IntegrationDiscoveryRules contains the list of discovery rules for a given Integration.
@@ -264,14 +138,8 @@ type Integration struct {
 	SubKind string `json:"subKind,omitempty"`
 	// AWSOIDC contains the fields for `aws-oidc` subkind integration.
 	AWSOIDC *IntegrationAWSOIDCSpec `json:"awsoidc,omitempty"`
-	// AWSRA contains the fields for `aws-ra` subkind integration.
-	AWSRA *IntegrationAWSRASpec `json:"awsra,omitempty"`
-	// AzureOIDC contains the fields for `azure-oidc` subkind integration.
-	AzureOIDC *IntegrationAzureOIDCSpec `json:"azureoidc,omitempty"`
 	// GitHub contains the fields for `github` subkind integration.
 	GitHub *IntegrationGitHub `json:"github,omitempty"`
-	// IsManagedByTerraform indicates if this integration was created by Terraform.
-	IsManagedByTerraform bool `json:"isManagedByTerraform"`
 }
 
 // CheckAndSetDefaults for the create request.
@@ -298,10 +166,6 @@ func (r *Integration) CheckAndSetDefaults() error {
 		}
 		if err := types.ValidateGitHubOrganizationName(r.GitHub.Organization); err != nil {
 			return trace.Wrap(err)
-		}
-	case types.IntegrationSubKindAWSRolesAnywhere:
-		if r.AWSRA == nil {
-			return trace.BadParameter("missing spec for AWS Roles Anywhere integration")
 		}
 	}
 
@@ -334,22 +198,6 @@ func (r *CreateIntegrationRequest) CheckAndSetDefaults() error {
 			return trace.BadParameter("missing OAuth secret for GitHub integration")
 		}
 	}
-	if r.SubKind == types.IntegrationSubKindAWSRolesAnywhere {
-		if r.AWSRA == nil {
-			return trace.BadParameter("missing awsra field")
-		}
-		if r.AWSRA.TrustAnchorARN == "" {
-			return trace.BadParameter("missing awsra.trustAnchorArn field")
-		}
-		if r.AWSRA.ProfileSyncConfig.Enabled {
-			if r.AWSRA.ProfileSyncConfig.ProfileARN == "" {
-				return trace.BadParameter("missing awsra.profileSync.profileArn field")
-			}
-			if r.AWSRA.ProfileSyncConfig.RoleARN == "" {
-				return trace.BadParameter("missing awsra.profileSync.roleArn field")
-			}
-		}
-	}
 	return nil
 }
 
@@ -357,8 +205,6 @@ func (r *CreateIntegrationRequest) CheckAndSetDefaults() error {
 type UpdateIntegrationRequest struct {
 	// AWSOIDC contains the fields for `aws-oidc` subkind integration.
 	AWSOIDC *IntegrationAWSOIDCSpec `json:"awsoidc,omitempty"`
-	// AWSRA contains the fields for `aws-ra` subkind integration.
-	AWSRA *IntegrationAWSRASpec `json:"awsra,omitempty"`
 	// OAuth contains OAuth settings.
 	OAuth *IntegrationOAuthCredentials `json:"oauth,omitempty"`
 }
@@ -367,11 +213,6 @@ type UpdateIntegrationRequest struct {
 func (r *UpdateIntegrationRequest) CheckAndSetDefaults() error {
 	if r.AWSOIDC != nil {
 		if err := r.AWSOIDC.CheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	if r.AWSRA != nil {
-		if err := r.AWSRA.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -394,8 +235,6 @@ type IntegrationsListResponse struct {
 	Items []*Integration `json:"items"`
 	// NextKey is the position to resume listing events.
 	NextKey string `json:"nextKey"`
-	// Summaries are abbreviated details about the integration.
-	Summaries map[string]*BriefSummary `json:"summaries,omitempty"`
 }
 
 // MakeIntegrations creates a UI list of Integrations.
@@ -413,17 +252,13 @@ func MakeIntegrations(igs []types.Integration) ([]*Integration, error) {
 	return uiList, nil
 }
 
-const IaCTerraformLabel = "terraform"
-
 // MakeIntegration creates a UI Integration representation.
 func MakeIntegration(ig types.Integration) (*Integration, error) {
 	ret := &Integration{
 		Name:    ig.GetName(),
 		SubKind: ig.GetSubKind(),
 	}
-	if val, ok := ig.GetLabel(types.CreatedByIaCLabel); ok && val == IaCTerraformLabel {
-		ret.IsManagedByTerraform = true
-	}
+
 	switch ig.GetSubKind() {
 	case types.IntegrationSubKindAWSOIDC:
 		var s3Bucket string
@@ -444,26 +279,6 @@ func MakeIntegration(ig types.Integration) (*Integration, error) {
 			IssuerS3Prefix: s3Prefix,
 			Audience:       ig.GetAWSOIDCIntegrationSpec().Audience,
 		}
-	case types.IntegrationSubKindAzureOIDC:
-		spec := ig.GetAzureOIDCIntegrationSpec()
-		if spec == nil {
-			return nil, trace.BadParameter("missing spec for Azure OIDC integrations")
-		}
-
-		azureSpec := &IntegrationAzureOIDCSpec{
-			TenantID: spec.TenantID,
-			ClientID: spec.ClientID,
-		}
-		region, _ := ig.GetLabel(types.AzureManagedIdentityRegionLabel)
-		resourceGroup, _ := ig.GetLabel(types.AzureManagedIdentityResourceGroupLabel)
-		if region != "" || resourceGroup != "" {
-			azureSpec.ManagedIdentity = &IntegrationAzureManagedIdentitySpec{
-				Region:        region,
-				ResourceGroup: resourceGroup,
-			}
-		}
-		ret.AzureOIDC = azureSpec
-
 	case types.IntegrationSubKindGitHub:
 		spec := ig.GetGitHubIntegrationSpec()
 		if spec == nil {
@@ -471,21 +286,6 @@ func MakeIntegration(ig types.Integration) (*Integration, error) {
 		}
 		ret.GitHub = &IntegrationGitHub{
 			Organization: spec.Organization,
-		}
-
-	case types.IntegrationSubKindAWSRolesAnywhere:
-		spec := ig.GetAWSRolesAnywhereIntegrationSpec()
-		if spec == nil {
-			return nil, trace.BadParameter("missing spec for AWS Roles Anywhere integrations")
-		}
-		ret.AWSRA = &IntegrationAWSRASpec{
-			TrustAnchorARN: spec.TrustAnchorARN,
-			ProfileSyncConfig: AWSRAProfileSync{
-				Enabled:            spec.ProfileSyncConfig.Enabled,
-				ProfileARN:         spec.ProfileSyncConfig.ProfileARN,
-				RoleARN:            spec.ProfileSyncConfig.RoleARN,
-				ProfileNameFilters: spec.ProfileSyncConfig.ProfileNameFilters,
-			},
 		}
 	}
 
@@ -681,6 +481,25 @@ type AWSOIDCListEKSClustersResponse struct {
 	NextToken string `json:"nextToken,omitempty"`
 }
 
+// AWSOIDCListEC2Request is a request to ListEC2s using the AWS OIDC Integration.
+type AWSOIDCListEC2Request struct {
+	// Region is the AWS Region.
+	Region string `json:"region"`
+	// NextToken is the token to be used to fetch the next page.
+	// If empty, the first page is fetched.
+	NextToken string `json:"nextToken"`
+}
+
+// AWSOIDCListEC2Response contains a list of Servers and a next token if more pages are available.
+type AWSOIDCListEC2Response struct {
+	// Servers contains the page of Servers
+	Servers []Server `json:"servers"`
+
+	// NextToken is used for pagination.
+	// If non-empty, it can be used to request the next page.
+	NextToken string `json:"nextToken,omitempty"`
+}
+
 // AWSOIDCListSecurityGroupsRequest is a request to ListSecurityGroups using the AWS OIDC Integration.
 type AWSOIDCListSecurityGroupsRequest struct {
 	// Region is the AWS Region.
@@ -772,6 +591,78 @@ type AWSOIDCRequiredVPCSResponse struct {
 	VPCMapOfSubnets map[string][]string `json:"vpcMapOfSubnets"`
 }
 
+// AWSOIDCListEC2ICERequest is a request to ListEC2ICEs using the AWS OIDC Integration.
+type AWSOIDCListEC2ICERequest struct {
+	// Region is the AWS Region.
+	Region string `json:"region"`
+	// VPCID is the VPC to filter EC2 Instance Connect Endpoints.
+	// Deprecated: use VPCIDs instead.
+	VPCID string `json:"vpcId"`
+	// VPCIDs is a list of VPCs to filter EC2 Instance Connect Endpoints.
+	VPCIDs []string `json:"vpcIds"`
+	// NextToken is the token to be used to fetch the next page.
+	// If empty, the first page is fetched.
+	NextToken string `json:"nextToken"`
+}
+
+// AWSOIDCListEC2ICEResponse contains a list of AWS Instance Connect Endpoints and a next token if more pages are available.
+type AWSOIDCListEC2ICEResponse struct {
+	// EC2ICEs contains the page of Endpoints
+	EC2ICEs []awsoidc.EC2InstanceConnectEndpoint `json:"ec2Ices"`
+
+	// DashboardLink is the URL for AWS Web Console that lists all the Endpoints for the queries VPCs.
+	DashboardLink string `json:"dashboardLink,omitempty"`
+
+	// NextToken is used for pagination.
+	// If non-empty, it can be used to request the next page.
+	NextToken string `json:"nextToken,omitempty"`
+}
+
+// AWSOIDCDeployEC2ICERequest is a request to create an AWS EC2 Instance Connect Endpoint.
+type AWSOIDCDeployEC2ICERequest struct {
+	// Region is the AWS Region.
+	Region string `json:"region"`
+	// Endpoints is a list of endpoinst to create.
+	Endpoints []AWSOIDCDeployEC2ICERequestEndpoint `json:"endpoints"`
+
+	// SubnetID is the subnet id for the EC2 Instance Connect Endpoint.
+	// Deprecated: use Endpoints instead.
+	SubnetID string `json:"subnetId"`
+	// SecurityGroupIDs is the list of SecurityGroups to apply to the Endpoint.
+	// If not specified, the Endpoint will receive the default SG for the Subnet's VPC.
+	// Deprecated: use Endpoints instead.
+	SecurityGroupIDs []string `json:"securityGroupIds"`
+}
+
+// AWSOIDCDeployEC2ICERequestEndpoint is a single Endpoint that should be created.
+type AWSOIDCDeployEC2ICERequestEndpoint struct {
+	// SubnetID is the subnet id for the EC2 Instance Connect Endpoint.
+	SubnetID string `json:"subnetId"`
+	// SecurityGroupIDs is the list of SecurityGroups to apply to the Endpoint.
+	// If not specified, the Endpoint will receive the default SG for the Subnet's VPC.
+	SecurityGroupIDs []string `json:"securityGroupIds"`
+}
+
+// AWSOIDCDeployEC2ICEResponse is the response after creating an AWS EC2 Instance Connect Endpoint.
+type AWSOIDCDeployEC2ICEResponse struct {
+	// Name is the name of the endpoint that was created.
+	// If multiple endpoints were created, this will contain all of them joined by a `,`.
+	// Eg, eice-1,eice-2
+	// Deprecated: use Endpoints instead.
+	Name string `json:"name"`
+
+	// Endpoints is a list of created endpoints
+	Endpoints []AWSOIDCDeployEC2ICEResponseEndpoint `json:"endpoints"`
+}
+
+// AWSOIDCDeployEC2ICEResponseEndpoint describes a single endpoint that was created.
+type AWSOIDCDeployEC2ICEResponseEndpoint struct {
+	// Name is the EC2 Instance Connect Endpoint name.
+	Name string `json:"name"`
+	// SubnetID is the subnet where this endpoint was created.
+	SubnetID string `json:"subnetId"`
+}
+
 // AWSOIDCPingResponse contains the result of the Ping request.
 // This response contains meta information about the current state of the Integration.
 type AWSOIDCPingResponse struct {
@@ -795,46 +686,4 @@ type AWSOIDCPingRequest struct {
 type AWSOIDCCreateAWSAppAccessRequest struct {
 	// Labels added to the app server resource that will be created.
 	Labels map[string]string `json:"labels"`
-}
-
-// AWSRolesAnywherePingRequest contains ping request fields.
-type AWSRolesAnywherePingRequest struct {
-	// TrustAnchorARN is the ARN of the IAM Roles Anywhere Trust Anchor.
-	TrustAnchorARN string `json:"trustAnchorArn"`
-	// SyncProfileARN is the ARN of the IAM Roles Anywhere Profile that is used to sync profiles.
-	SyncProfileARN string `json:"syncProfileArn"`
-	// SyncRoleARN is the ARN of the IAM Role that is used to sync profiles.
-	SyncRoleARN string `json:"syncRoleArn"`
-}
-
-// AWSRolesAnywherePingResponse contains the result of the Ping request.
-// This response contains meta information about the current state of the Integration.
-type AWSRolesAnywherePingResponse struct {
-	// ProfileCount is the number of IAM Roles Anywhere Profiles that can be accessed by the Integration.
-	// Profiles that are disabled or don't have any IAM Role associated with them are not counted.
-	ProfileCount int `json:"profileCount"`
-	// AccountID number of the account that owns or contains the calling entity.
-	AccountID string `json:"accountId"`
-	// ARN associated with the calling entity.
-	ARN string `json:"arn"`
-	// UserID is the unique identifier of the calling entity.
-	UserID string `json:"userId"`
-}
-
-// AWSRolesAnywhereListProfilesRequest contains the request to list Roles Anywhere Profiles.
-type AWSRolesAnywhereListProfilesRequest struct {
-	// Filters are the filters applied to the profiles.
-	// Only matching profiles will be synchronized as application servers.
-	// If empty, no filtering is applied.
-	//
-	// Filters can be globs, for example:
-	//
-	//	profile*
-	//	*name*
-	//
-	// Or regexes if they're prefixed and suffixed with ^ and $, for example:
-	//
-	//	^profile.*$
-	//	^.*name.*$
-	Filters []string `json:"filters"`
 }

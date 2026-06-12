@@ -19,14 +19,13 @@
 package clusters
 
 import (
-	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
-	"log/slog"
 	"sort"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
@@ -48,12 +47,12 @@ func (c *Cluster) SyncAuthPreference(ctx context.Context) (*webclient.WebConfigA
 	}
 	pingResponseJSON, err := json.Marshal(pingResponse)
 	if err != nil {
-		c.Logger.DebugContext(ctx, "Could not marshal ping response to JSON", "error", err)
+		c.Log.WithError(err).Debugln("Could not marshal ping response to JSON")
 	} else {
-		c.Logger.DebugContext(ctx, "Got ping response", "response", string(pingResponseJSON))
+		c.Log.WithField("response", string(pingResponseJSON)).Debugln("Got ping response")
 	}
 
-	if err := SaveProfileAndPreserveSiteName(c.clusterClient, false); err != nil {
+	if err := c.clusterClient.SaveProfile(false); err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
@@ -137,12 +136,20 @@ func (c *Cluster) updateClientFromPingResponse(ctx context.Context) (*webclient.
 		return nil, trace.Wrap(err)
 	}
 
-	c.clusterClient.KeyTTL = cmp.Or(c.clusterClient.KeyTTL, pingResp.Auth.DefaultSessionTTL.Duration(), defaults.CertDuration)
+	if c.clusterClient.KeyTTL == 0 {
+		c.clusterClient.KeyTTL = pingResp.Auth.DefaultSessionTTL.Duration()
+	}
+	// todo(lxea): DELETE IN v15 where the auth is guaranteed to
+	// send us a valid MaxSessionTTL or the auth is guaranteed to
+	// interpret 0 duration as the auth's default
+	if c.clusterClient.KeyTTL == 0 {
+		c.clusterClient.KeyTTL = defaults.CertDuration
+	}
 
 	return pingResp, nil
 }
 
-type SSHLoginFunc func(context.Context, *keys.PrivateKey) (*authclient.CLILoginResponse, error)
+type SSHLoginFunc func(context.Context, *keys.PrivateKey) (*authclient.SSHLoginResponse, error)
 
 func (c *Cluster) login(ctx context.Context, sshLoginFunc client.SSHLoginFunc) error {
 	// TODO(alex-kovoy): SiteName needs to be reset if trying to login to a cluster with
@@ -187,18 +194,17 @@ func (c *Cluster) login(ctx context.Context, sshLoginFunc client.SSHLoginFunc) e
 }
 
 func (c *Cluster) localMFALogin(user, password string) client.SSHLoginFunc {
-	return func(ctx context.Context, keyRing *client.KeyRing) (*authclient.CLILoginResponse, error) {
+	return func(ctx context.Context, keyRing *client.KeyRing) (*authclient.SSHLoginResponse, error) {
 		sshLogin, err := c.clusterClient.NewSSHLogin(keyRing)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
 		response, err := client.SSHAgentMFALogin(ctx, client.SSHLoginMFA{
-			SSHLogin:               sshLogin,
-			User:                   user,
-			Password:               password,
-			MFAPromptConstructor:   c.clusterClient.NewMFAPrompt,
-			MFACeremonyConstructor: c.clusterClient.NewRedirectorMFACeremony,
+			SSHLogin:             sshLogin,
+			User:                 user,
+			Password:             password,
+			MFAPromptConstructor: c.clusterClient.NewMFAPrompt,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -212,7 +218,7 @@ func (c *Cluster) ssoLogin(providerType, providerName string) client.SSHLoginFun
 }
 
 func (c *Cluster) passwordlessLogin(stream api.TerminalService_LoginPasswordlessServer) client.SSHLoginFunc {
-	return func(ctx context.Context, keyRing *client.KeyRing) (*authclient.CLILoginResponse, error) {
+	return func(ctx context.Context, keyRing *client.KeyRing) (*authclient.SSHLoginResponse, error) {
 		sshLogin, err := c.clusterClient.NewSSHLogin(keyRing)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -221,7 +227,7 @@ func (c *Cluster) passwordlessLogin(stream api.TerminalService_LoginPasswordless
 		response, err := client.SSHAgentPasswordlessLogin(ctx, client.SSHLoginPasswordless{
 			SSHLogin:                sshLogin,
 			AuthenticatorAttachment: c.clusterClient.AuthenticatorAttachment,
-			CustomPrompt:            newPwdlessLoginPrompt(ctx, c.Logger, stream),
+			CustomPrompt:            newPwdlessLoginPrompt(ctx, c.Log, stream),
 			WebauthnLogin:           c.clusterClient.WebauthnLogin,
 		})
 		if err != nil {
@@ -233,11 +239,11 @@ func (c *Cluster) passwordlessLogin(stream api.TerminalService_LoginPasswordless
 
 // pwdlessLoginPrompt is a implementation for wancli.LoginPrompt for teleterm passwordless logins.
 type pwdlessLoginPrompt struct {
-	log    *slog.Logger
+	log    *logrus.Entry
 	Stream api.TerminalService_LoginPasswordlessServer
 }
 
-func newPwdlessLoginPrompt(ctx context.Context, log *slog.Logger, stream api.TerminalService_LoginPasswordlessServer) *pwdlessLoginPrompt {
+func newPwdlessLoginPrompt(ctx context.Context, log *logrus.Entry, stream api.TerminalService_LoginPasswordlessServer) *pwdlessLoginPrompt {
 	return &pwdlessLoginPrompt{
 		log:    log,
 		Stream: stream,
@@ -277,7 +283,7 @@ func (p *pwdlessLoginPrompt) ackTouch() error {
 	// The current gRPC message type switch in teleterm client code will reject
 	// any new message types, making this difficult to add without breaking
 	// older clients.
-	p.log.DebugContext(context.Background(), "Detected security key tap")
+	p.log.Debug("Detected security key tap")
 	return nil
 }
 

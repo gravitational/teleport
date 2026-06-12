@@ -20,17 +20,16 @@ package local
 
 import (
 	"context"
-	"iter"
 	"log/slog"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/local/generic"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // KubernetesService manages kubernetes resources in the backend.
@@ -49,56 +48,68 @@ func NewKubernetesService(backend backend.Backend) *KubernetesService {
 
 // GetKubernetesClusters returns all kubernetes cluster resources.
 func (s *KubernetesService) GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error) {
-	out, err := stream.Collect(s.RangeKubernetesClusters(ctx, "", ""))
-
+	startKey := backend.ExactKey(kubernetesPrefix)
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	return out, nil
+	kubeClusters := make([]types.KubeCluster, len(result.Items))
+	for i, item := range result.Items {
+		cluster, err := services.UnmarshalKubeCluster(item.Value,
+			services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		kubeClusters[i] = cluster
+	}
+	return kubeClusters, nil
 }
 
 // ListKubernetesClusters returns a page of registered kubernetes clusters.
 func (s *KubernetesService) ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error) {
-	return generic.CollectPageAndCursor(s.RangeKubernetesClusters(ctx, start, ""), limit, types.KubeCluster.GetName)
-}
-
-// RangeKubernetesClusters returns kubernetes clusters within the range [start, end).
-func (s *KubernetesService) RangeKubernetesClusters(ctx context.Context, start, end string) iter.Seq2[types.KubeCluster, error] {
-	mapFn := func(item backend.Item) (types.KubeCluster, bool) {
-		cluster, err := services.UnmarshalKubeCluster(item.Value,
-			services.WithExpires(item.Expires),
-			services.WithRevision(item.Revision))
-		if err != nil {
-			s.logger.WarnContext(ctx, "Failed to unmarshal kubernetes cluster",
-				"key", item.Key,
-				"error", err,
-			)
-			return nil, false
-		}
-		return cluster, true
+	// Adjust page size, so it can't be too large.
+	if limit <= 0 || limit > defaults.DefaultChunkSize {
+		limit = defaults.DefaultChunkSize
 	}
 
 	kubernetesKey := backend.NewKey(kubernetesPrefix)
 	startKey := kubernetesKey.AppendKey(backend.KeyFromString(start))
 	endKey := backend.RangeEnd(kubernetesKey)
-	if end != "" {
-		endKey = kubernetesKey.AppendKey(backend.KeyFromString(end)).ExactKey()
+
+	out := make([]types.KubeCluster, 0, limit)
+	var nextPage string
+
+	if err := backend.IterateRange(
+		ctx,
+		s.Backend,
+		startKey,
+		endKey,
+		limit+1,
+		func(items []backend.Item) (bool, error) {
+			for _, item := range items {
+				kube, err := services.UnmarshalKubeCluster(item.Value,
+					services.WithRevision(item.Revision),
+					services.WithExpires(item.Expires))
+				if err != nil {
+					slog.WarnContext(ctx, "Failed to unmarshal kubernetes cluster",
+						"key", logutils.StringerAttr(item.Key),
+						"error", err)
+					continue
+				}
+
+				if len(out) >= limit {
+					nextPage = kube.GetName()
+					return true, nil
+				} else {
+					out = append(out, kube)
+				}
+			}
+			return false, nil
+		}); err != nil {
+		return nil, "", trace.Wrap(err)
 	}
 
-	return stream.TakeWhile(
-		stream.FilterMap(
-			s.Backend.Items(ctx, backend.ItemsParams{
-				StartKey: startKey,
-				EndKey:   endKey,
-			}),
-			mapFn,
-		),
-		func(cluster types.KubeCluster) bool {
-			// The range is not inclusive of the end key, so return early
-			// if the end has been reached.
-			return end == "" || cluster.GetName() < end
-		})
+	return out, nextPage, nil
 }
 
 // GetKubernetesCluster returns the specified kubernetes cluster resource.

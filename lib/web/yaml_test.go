@@ -67,16 +67,6 @@ spec:
 version: v2
 `
 
-const invalidRoleYamlUnknownField = `kind: role
-version: v8
-metadata:
-  name: test-bad
-spec:
-  allow:
-    kubernetes_group:
-      - "system:masters"
-`
-
 func getAccessMonitoringRuleResource() *accessmonitoringrulesv1.AccessMonitoringRule {
 	return &accessmonitoringrulesv1.AccessMonitoringRule{
 		Kind:    types.KindAccessMonitoringRule,
@@ -207,11 +197,6 @@ func TestYAMLParse_Errors(t *testing.T) {
 			desc: "invalid empty yaml",
 			yaml: "",
 			kind: types.KindAccessMonitoringRule,
-		},
-		{
-			desc: "role with unknown field",
-			yaml: invalidRoleYamlUnknownField,
-			kind: types.KindRole,
 		},
 	}
 

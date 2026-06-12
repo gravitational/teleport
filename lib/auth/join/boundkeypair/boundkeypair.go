@@ -32,6 +32,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth/join"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/sshutils"
 )
@@ -60,30 +61,9 @@ type KeyHistory struct {
 	Entries []KeyHistoryEntry `json:"entries"`
 }
 
-// ClientParams contains optional parameters host processes (tbot, teleport
-// agents, etc) may expose as user config values.
-type ClientParams struct {
-	// RegistrationSecret is a one-time secret used to authenticate an initial
-	// join when a public key has not been preregistered.
-	RegistrationSecret string
-
-	// PreviousJoinState is the join state from a previous auth attempt, if any.
-	// This is unset for first-time joins or when static keys are in use.
-	PreviousJoinState []byte
-}
-
-// ClientState is the minimal interface needed to generate joining parameters.
-type ClientState interface {
-	UpdateFromRegisterResult(boundPublicKey []byte, joinState []byte) error
-	Store(ctx context.Context) error
-	GetSigner(pubKey []byte) (crypto.Signer, error)
-	RequestNewKeypair(ctx context.Context, getSuite cryptosuites.GetSuiteFunc) (crypto.Signer, error)
-	GetClientParams(registrationSecret string) *ClientParams
-}
-
-// FSClientState contains state parameters stored on disk needed to complete the
+// ClientState contains state parameters stored on disk needed to complete the
 // bound keypair join process.
-type FSClientState struct {
+type ClientState struct {
 	mu sync.Mutex
 	fs FS
 
@@ -110,38 +90,48 @@ type FSClientState struct {
 	KeyHistory []KeyHistoryEntry
 }
 
-func (c *FSClientState) RequestNewKeypair(ctx context.Context, getSuite cryptosuites.GetSuiteFunc) (crypto.Signer, error) {
-	signer, err := c.GenerateKeypair(ctx, getSuite)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Make sure to store the intermediate state. We don't want to risk
-	// losing a private key if an error occurs between here and the end
-	// of the join process, but also don't want to force
-	// `GenerateKeypair()` to trigger a `Store()` on every call, so it's
-	// reasonably done here.
-	if err := c.Store(ctx); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return signer, nil
-}
-
-func (c *FSClientState) GetClientParams(registrationSecret string) *ClientParams {
+// ToJoinParams creates joining parameters for use with `join.Register()` from
+// this client state.
+func (c *ClientState) ToJoinParams(initialJoinSecret string) *join.BoundKeypairParams {
 	if len(c.JoinStateBytes) > 0 {
-		registrationSecret = ""
+		// This identity has been bound, so don't pass along the join secret (if
+		// any)
+		initialJoinSecret = ""
 	}
 
-	return &ClientParams{
-		RegistrationSecret: registrationSecret,
-		PreviousJoinState:  c.JoinStateBytes,
+	return &join.BoundKeypairParams{
+		PreviousJoinState: c.JoinStateBytes,
+		InitialJoinSecret: initialJoinSecret,
+		GetSigner: func(pubKey string) (crypto.Signer, error) {
+			return c.SignerForPublicKey([]byte(pubKey))
+		},
+		RequestNewKeypair: func(ctx context.Context, getSuite cryptosuites.GetSuiteFunc) (crypto.Signer, error) {
+			signer, err := c.GenerateKeypair(ctx, getSuite)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			// Make sure to store the intermediate state. We don't want to risk
+			// losing a private key if an error occurs between here and the end
+			// of the join process, but also don't want to force
+			// `GenerateKeypair()` to trigger a `Store()` on every call, so it's
+			// reasonably done here.
+			if err := c.Store(ctx); err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			return signer, nil
+		},
 	}
 }
 
 // UpdateFromRegisterResult updates this client state from the register result.
-func (c *FSClientState) UpdateFromRegisterResult(boundPublicKey []byte, joinState []byte) error {
-	signer, err := c.GetSigner(boundPublicKey)
+func (c *ClientState) UpdateFromRegisterResult(result *join.RegisterResult) error {
+	if result.BoundKeypair == nil {
+		return trace.BadParameter("register result is missing bound keypair parameters")
+	}
+
+	signer, err := c.SignerForPublicKey([]byte(result.BoundKeypair.BoundPublicKey))
 	if err != nil {
 		return trace.Wrap(err, "fetching key requested by auth")
 	}
@@ -155,13 +145,13 @@ func (c *FSClientState) UpdateFromRegisterResult(boundPublicKey []byte, joinStat
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.JoinStateBytes = joinState
+	c.JoinStateBytes = result.BoundKeypair.JoinState
 
 	return nil
 }
 
 // ToPublicKeyBytes returns the active public key in ssh authorized_keys format.
-func (c *FSClientState) ToPublicKeyBytes() ([]byte, error) {
+func (c *ClientState) ToPublicKeyBytes() ([]byte, error) {
 	sshPubKey, err := ssh.NewPublicKey(c.PrivateKey.Public())
 	if err != nil {
 		return nil, trace.Wrap(err, "creating ssh public key")
@@ -182,9 +172,9 @@ func pubKeyEqual(a, b crypto.PublicKey) (bool, error) {
 	return aEq.Equal(b), nil
 }
 
-// GetSigner attempts to resolve a signer for the given public key
+// SignerForPublicKey attempts to resolve a signer for the given public key
 // encoded in authorized_keys format.
-func (c *FSClientState) GetSigner(authorizedKeysBytes []byte) (crypto.Signer, error) {
+func (c *ClientState) SignerForPublicKey(authorizedKeysBytes []byte) (crypto.Signer, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -195,9 +185,12 @@ func (c *FSClientState) GetSigner(authorizedKeysBytes []byte) (crypto.Signer, er
 
 	// Check the active key first, if available.
 	if c.PrivateKey != nil {
-		activePubKey := c.PrivateKey.Public()
+		activePubKeyBytes, err := c.ToPublicKeyBytes()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 
-		equal, err := pubKeyEqual(desiredPubKey, activePubKey)
+		equal, err := pubKeyEqual(desiredPubKey, activePubKeyBytes)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		} else if equal {
@@ -236,7 +229,7 @@ func (c *FSClientState) GetSigner(authorizedKeysBytes []byte) (crypto.Signer, er
 
 // GenerateKeypair generates a new keypair, adds it to the key history, and
 // returns the resulting signer signer.
-func (c *FSClientState) GenerateKeypair(ctx context.Context, getSuite cryptosuites.GetSuiteFunc) (crypto.Signer, error) {
+func (c *ClientState) GenerateKeypair(ctx context.Context, getSuite cryptosuites.GetSuiteFunc) (crypto.Signer, error) {
 	key, err := cryptosuites.GenerateKey(ctx, getSuite, cryptosuites.BoundKeypairJoining)
 	if err != nil {
 		return nil, trace.Wrap(err, "generating keypair")
@@ -244,7 +237,7 @@ func (c *FSClientState) GenerateKeypair(ctx context.Context, getSuite cryptosuit
 
 	privateKeyBytes, err := keys.MarshalPrivateKey(key)
 	if err != nil {
-		return nil, trace.Wrap(err, "marshaling private key")
+		return nil, trace.Wrap(err, "marshallng private key")
 	}
 
 	// prepend the new key to the top of the list for faster lookup
@@ -273,7 +266,7 @@ func (c *FSClientState) GenerateKeypair(ctx context.Context, getSuite cryptosuit
 // signer's public key, per its `Equals` implementation. Note that
 // `StoreClientState` still must be called after this to commit the changes to
 // the storage backend.
-func (c *FSClientState) SetActiveKey(signer crypto.Signer) error {
+func (c *ClientState) SetActiveKey(signer crypto.Signer) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -296,7 +289,7 @@ func (c *FSClientState) SetActiveKey(signer crypto.Signer) error {
 
 	privateKeyBytes, err := keys.MarshalPrivateKey(key.Signer)
 	if err != nil {
-		return trace.Wrap(err, "marshaling private key")
+		return trace.Wrap(err, "marshallng private key")
 	}
 
 	sshPubKey, err := ssh.NewPublicKey(key.Public())
@@ -361,7 +354,7 @@ func parseKeyHistory(data []byte) (KeyHistory, error) {
 // a keypair has been pregenerated, no prior join state will exist, and the
 // join state will be empty; any corresponding errors while reading nonexistent
 // join state documents will be ignored.
-func LoadClientState(ctx context.Context, fs FS) (*FSClientState, error) {
+func LoadClientState(ctx context.Context, fs FS) (*ClientState, error) {
 	privateKeyBytes, err := fs.Read(ctx, PrivateKeyPath)
 	if err != nil {
 		return nil, trace.Wrap(err, "reading private key")
@@ -407,7 +400,7 @@ func LoadClientState(ctx context.Context, fs FS) (*FSClientState, error) {
 		}}
 	}
 
-	return &FSClientState{
+	return &ClientState{
 		fs: fs,
 
 		PrivateKey:      pk,
@@ -419,7 +412,7 @@ func LoadClientState(ctx context.Context, fs FS) (*FSClientState, error) {
 
 // StoreClientState writes bound keypair client state to the given filesystem
 // wrapper. Public keys and join state will only be written if
-func (c *FSClientState) Store(ctx context.Context) error {
+func (c *ClientState) Store(ctx context.Context) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -463,7 +456,7 @@ func (c *FSClientState) Store(ctx context.Context) error {
 // i.e. a new keypair that has not been registered with Auth, and no prior join
 // state. Join attempts using registration secrets should instead use
 // `NewEmptyClientState`, which does not immediately generate a keypair.
-func NewUnboundClientState(ctx context.Context, fs FS, getSuite cryptosuites.GetSuiteFunc) (*FSClientState, error) {
+func NewUnboundClientState(ctx context.Context, fs FS, getSuite cryptosuites.GetSuiteFunc) (*ClientState, error) {
 	key, err := cryptosuites.GenerateKey(ctx, getSuite, cryptosuites.BoundKeypairJoining)
 	if err != nil {
 		return nil, trace.Wrap(err, "generating keypair")
@@ -471,7 +464,7 @@ func NewUnboundClientState(ctx context.Context, fs FS, getSuite cryptosuites.Get
 
 	privateKeyBytes, err := keys.MarshalPrivateKey(key)
 	if err != nil {
-		return nil, trace.Wrap(err, "marshaling private key")
+		return nil, trace.Wrap(err, "marshallng private key")
 	}
 
 	sshPubKey, err := ssh.NewPublicKey(key.Public())
@@ -493,7 +486,7 @@ func NewUnboundClientState(ctx context.Context, fs FS, getSuite cryptosuites.Get
 		},
 	}
 
-	return &FSClientState{
+	return &ClientState{
 		fs: fs,
 
 		PrivateKeyBytes: privateKeyBytes,
@@ -503,78 +496,11 @@ func NewUnboundClientState(ctx context.Context, fs FS, getSuite cryptosuites.Get
 	}, nil
 }
 
-// NewEmptyFSClientState creates a new ClientState with no existing active
-// private key or key history. This is only appropriate when a registration
-// secret should be used.
-func NewEmptyFSClientState(fs FS) *FSClientState {
-	return &FSClientState{
+// NewEmptyClientState creates a new ClientState with no existing active private
+// key or key history. This is only appropriate when a registration secret
+// should be used.
+func NewEmptyClientState(fs FS) *ClientState {
+	return &ClientState{
 		fs: fs,
-	}
-}
-
-// StaticClientState is a client state backed by an immutable private key. It
-// does not interact with the filesystem and  does not support rotation.
-type StaticClientState struct {
-	privateKeyBytes []byte
-}
-
-func (s *StaticClientState) GetSigner(expectPubKey []byte) (crypto.Signer, error) {
-	desiredPubKey, err := sshutils.CryptoPublicKey(expectPubKey)
-	if err != nil {
-		return nil, trace.Wrap(err, "parsing expected public key")
-	}
-
-	privateKey, err := keys.ParsePrivateKey(s.privateKeyBytes)
-	if err != nil {
-		return nil, trace.Wrap(err, "parsing configured static private key")
-	}
-
-	pubKey := privateKey.Public()
-
-	equal, err := pubKeyEqual(desiredPubKey, pubKey)
-	if err != nil {
-		return nil, trace.Wrap(err, "comparing public keys")
-	} else if !equal {
-		return nil, trace.BadParameter("configured static private key does match the value requested by the server, cannot continue")
-	}
-
-	// Return the internal signer since `jose.NewSigner` does type checking
-	return privateKey.Signer, nil
-}
-
-func (s *StaticClientState) UpdateFromRegisterResult(boundPublicKey []byte, joinState []byte) error {
-	// TODO: We could parse the returned join state JWT and examine the recovery
-	// mode claim to log a warning if it is anything but `insecure`.
-
-	// no-op: any new active key would fail during the rotation attempt, and
-	// if join state is required due to a misconfigured join, we should fail
-	// ASAP rather update join state in memory and fail on restart
-	return nil
-}
-
-func (s *StaticClientState) Store(ctx context.Context) error {
-	// no-op. don't bother logging anything since there's nothing that can be
-	// done.
-	return nil
-}
-
-func (s *StaticClientState) RequestNewKeypair(ctx context.Context, getSuite cryptosuites.GetSuiteFunc) (crypto.Signer, error) {
-	return nil, trace.BadParameter("static private keys do not support automatic rotation, `rotate_after` must be unset in the token to continue")
-}
-
-func (s *StaticClientState) GetClientParams(registrationSecret string) *ClientParams {
-	if registrationSecret != "" {
-		slog.WarnContext(context.Background(), "A registration secret was specified while using a static private key and will be ignored")
-	}
-
-	// No client params for static keys.
-	return &ClientParams{}
-}
-
-// NewStaticClientState returns a client state implementation backed by a static
-// private key. The private key must be PEM encoded.
-func NewStaticClientState(privateKeyBytes []byte) *StaticClientState {
-	return &StaticClientState{
-		privateKeyBytes: privateKeyBytes,
 	}
 }

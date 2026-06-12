@@ -15,13 +15,13 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-import { useNavigate } from 'react-router';
+import { useHistory } from 'react-router';
 
 import { Alert } from 'design';
 import { ArrowForward, BellRinging } from 'design/Icon';
 
 import cfg from 'teleport/config';
-import { AwsResource } from 'teleport/Integrations/status/AwsOidc/Cards/StatCard';
+import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
 import { IntegrationKind } from 'teleport/services/integrations';
 
 export function TaskAlert({
@@ -35,7 +35,7 @@ export function TaskAlert({
   kind?: IntegrationKind;
   taskType?: AwsResource;
 }) {
-  const navigate = useNavigate();
+  const history = useHistory();
   if (pendingTasksCount == 0) {
     return null;
   }
@@ -52,7 +52,7 @@ export function TaskAlert({
             <ArrowForward size={18} ml={2} />
           </>
         ),
-        onClick: () => navigate(cfg.getIntegrationTasksRoute(kind, name)),
+        onClick: () => history.push(cfg.getIntegrationTasksRoute(kind, name)),
       }}
     >
       {pendingTasksCount} pending tasks

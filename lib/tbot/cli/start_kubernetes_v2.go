@@ -25,9 +25,9 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/services/k8s"
-	"github.com/gravitational/teleport/lib/utils/parse"
 )
 
 // KubernetesV2Command implements `tbot start kubernetes` and
@@ -46,7 +46,7 @@ type KubernetesV2Command struct {
 	KubernetesClusterLabels []string
 }
 
-// NewKubernetesV2Command initializes the command and flags for kubernetes outputs
+// NewKubernetesCommand initializes the command and flags for kubernetes outputs
 // and returns a struct to contain the parse result.
 func NewKubernetesV2Command(parentCmd *kingpin.CmdClause, action MutatorAction, mode CommandMode) *KubernetesV2Command {
 	cmd := parentCmd.Command("kubernetes/v2", fmt.Sprintf("%s tbot with a Kubernetes V2 output.", mode)).Alias("k8s/v2")
@@ -81,7 +81,7 @@ func (c *KubernetesV2Command) ApplyConfig(cfg *config.BotConfig, l *slog.Logger)
 	}
 
 	for _, s := range c.KubernetesClusterLabels {
-		labels, err := parse.LabelSelectorSpec(s)
+		labels, err := client.ParseLabelSpec(s)
 		if err != nil {
 			return trace.Wrap(err)
 		}

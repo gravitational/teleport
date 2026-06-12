@@ -33,7 +33,6 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/export"
-	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 // mockTeleportEventWatcher is Teleport client mock
@@ -60,7 +59,7 @@ func (c *mockTeleportEventWatcher) setSearchEventsError(err error) {
 	c.mockSearchErr = err
 }
 
-func (c *mockTeleportEventWatcher) SearchEvents(ctx context.Context, fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string, search string) ([]events.AuditEvent, string, error) {
+func (c *mockTeleportEventWatcher) SearchEvents(ctx context.Context, fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]events.AuditEvent, string, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -106,7 +105,7 @@ func (c *mockTeleportEventWatcher) StreamSessionEvents(ctx context.Context, sess
 }
 
 func (c *mockTeleportEventWatcher) SearchUnstructuredEvents(ctx context.Context, fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]*auditlogpb.EventUnstructured, string, error) {
-	events, lastKey, err := c.SearchEvents(ctx, fromUTC, toUTC, namespace, eventTypes, limit, order, startKey, "")
+	events, lastKey, err := c.SearchEvents(ctx, fromUTC, toUTC, namespace, eventTypes, limit, order, startKey)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -138,9 +137,14 @@ func (c *mockTeleportEventWatcher) Close() error {
 }
 
 func newTeleportEventWatcher(t *testing.T, eventsClient TeleportSearchEventsClient, startTime time.Time, skipEventTypesRaw []string, exportFn func(context.Context, *TeleportEvent) error) *LegacyEventsWatcher {
-	skipEventTypes := set.New(skipEventTypesRaw...)
+	skipEventTypes := map[string]struct{}{}
+	for _, eventType := range skipEventTypesRaw {
+		skipEventTypes[eventType] = struct{}{}
+	}
 
-	cursor := LegacyCursorValues{WindowStartTime: startTime}
+	cursor := LegacyCursorValues{
+		WindowStartTime: startTime,
+	}
 
 	return NewLegacyEventsWatcher(&StartCmdConfig{
 		IngestConfig: IngestConfig{

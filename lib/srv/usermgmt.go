@@ -35,13 +35,10 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-	apiconstants "github.com/gravitational/teleport/api/constants"
-	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/session/host"
+	"github.com/gravitational/teleport/lib/utils/host"
 )
 
 type HostUsersOpt = func(hostUsers *HostUserManagement)
@@ -157,7 +154,7 @@ type userCloser struct {
 }
 
 func (u *userCloser) Close() error {
-	teleportGroup, err := u.backend.LookupGroup(apiconstants.TeleportDropGroup)
+	teleportGroup, err := u.backend.LookupGroup(types.TeleportDropGroup)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -188,21 +185,9 @@ func (*HostSudoersNotImplemented) RemoveSudoers(name string) error {
 	return trace.NotImplemented("host sudoers functionality not implemented on this platform")
 }
 
-type upsertHostUserOptions struct {
-	takeOwnership bool
-}
-
-type UpsertHostUserOption func(*upsertHostUserOptions)
-
-func TakeOwnershipIfUserExists(b bool) UpsertHostUserOption {
-	return func(o *upsertHostUserOptions) {
-		o.takeOwnership = b
-	}
-}
-
 type HostUsers interface {
 	// UpsertUser creates a temporary Teleport user in the TeleportDropGroup
-	UpsertUser(name string, hostRoleInfo *decisionpb.HostUsersInfo, opts ...UpsertHostUserOption) (io.Closer, error)
+	UpsertUser(name string, hostRoleInfo services.HostUsersInfo) (io.Closer, error)
 	// DeleteUser deletes a temporary Teleport user only if they are
 	// in a specified group
 	DeleteUser(name string, gid string) error
@@ -291,7 +276,7 @@ var errUnmanagedUser = errors.New("user not managed by teleport")
 // errStaticConversion is returned when attempting to convert a managed host user to or from a static host user
 var errStaticConversion = errors.New("managed host users can not be converted to or from a static host user")
 
-func (u *HostUserManagement) updateUser(hostUser HostUser, ui *decisionpb.HostUsersInfo) error {
+func (u *HostUserManagement) updateUser(hostUser HostUser, ui services.HostUsersInfo) error {
 	ctx := u.ctx
 	log := u.log.With(
 		"host_username", hostUser.Name,
@@ -300,8 +285,8 @@ func (u *HostUserManagement) updateUser(hostUser HostUser, ui *decisionpb.HostUs
 		"gid", hostUser.GID,
 	)
 
-	if ui.Mode == decisionpb.HostUserMode_HOST_USER_MODE_KEEP {
-		_, hasKeepGroup := hostUser.Groups[apiconstants.TeleportKeepGroup]
+	if ui.Mode == services.HostUserModeKeep {
+		_, hasKeepGroup := hostUser.Groups[types.TeleportKeepGroup]
 		if !hasKeepGroup {
 			home, err := u.backend.GetDefaultHomeDirectory(hostUser.Name)
 			if err != nil {
@@ -347,25 +332,25 @@ func (u *HostUserManagement) resolveGID(username string, groups []string, gid st
 	return "", nil
 }
 
-func (u *HostUserManagement) createUser(name string, ui *decisionpb.HostUsersInfo) error {
+func (u *HostUserManagement) createUser(name string, ui services.HostUsersInfo) error {
 	log := u.log.With(
 		"host_username", name,
 		"mode", ui.Mode,
-		"uid", ui.Uid,
+		"uid", ui.UID,
 		"shell", ui.Shell,
 	)
 
-	log.DebugContext(u.ctx, "Attempting to create host user", "gid", ui.Gid)
+	log.DebugContext(u.ctx, "Attempting to create host user", "gid", ui.GID)
 
 	var err error
 	userOpts := host.UserOpts{
-		UID:   ui.Uid,
-		GID:   ui.Gid,
+		UID:   ui.UID,
+		GID:   ui.GID,
 		Shell: ui.Shell,
 	}
 
 	switch ui.Mode {
-	case decisionpb.HostUserMode_HOST_USER_MODE_KEEP, decisionpb.HostUserMode_HOST_USER_MODE_STATIC:
+	case services.HostUserModeKeep, services.HostUserModeStatic:
 		userOpts.Home, err = u.backend.GetDefaultHomeDirectory(name)
 		if err != nil {
 			return trace.Wrap(err)
@@ -373,13 +358,13 @@ func (u *HostUserManagement) createUser(name string, ui *decisionpb.HostUsersInf
 	}
 
 	err = u.doWithUserLock(func(_ types.SemaphoreLease) error {
-		if ui.Mode == decisionpb.HostUserMode_HOST_USER_MODE_DROP {
+		if ui.Mode == services.HostUserModeDrop {
 			if err := u.storage.UpsertHostUserInteractionTime(u.ctx, name, time.Now()); err != nil {
 				return trace.Wrap(err)
 			}
 		}
 
-		userOpts.GID, err = u.resolveGID(name, ui.Groups, ui.Gid)
+		userOpts.GID, err = u.resolveGID(name, ui.Groups, ui.GID)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -435,18 +420,13 @@ type HostUser struct {
 }
 
 // UpsertUser creates a temporary Teleport user in the TeleportDropGroup
-func (u *HostUserManagement) UpsertUser(name string, ui *decisionpb.HostUsersInfo, opts ...UpsertHostUserOption) (io.Closer, error) {
+func (u *HostUserManagement) UpsertUser(name string, ui services.HostUsersInfo) (io.Closer, error) {
 	log := u.log.With(
 		"host_username", name,
 		"mode", ui.Mode,
-		"uid", ui.Uid,
-		"gid", ui.Gid,
+		"uid", ui.UID,
+		"gid", ui.GID,
 	)
-
-	var options upsertHostUserOptions
-	for _, opt := range opts {
-		opt(&options)
-	}
 
 	log.DebugContext(u.ctx, "Attempting to upsert host user")
 	hostUser, err := u.getHostUser(name)
@@ -455,7 +435,7 @@ func (u *HostUserManagement) UpsertUser(name string, ui *decisionpb.HostUsersInf
 	}
 
 	log.DebugContext(u.ctx, "Resolving groups for user")
-	groups, err := ResolveGroups(log, hostUser, ui, options.takeOwnership)
+	groups, err := ResolveGroups(log, hostUser, ui)
 	if err != nil {
 		if errors.Is(err, errStaticConversion) {
 			log.DebugContext(u.ctx, "Aborting host user creation, can't convert between auto-provisioned and static host users.",
@@ -476,11 +456,10 @@ func (u *HostUserManagement) UpsertUser(name string, ui *decisionpb.HostUsersInf
 		return nil, trace.Wrap(err)
 	}
 
-	ui = apiutils.CloneProtoMsg(ui)
 	ui.Groups = groups
 
 	var closer io.Closer
-	if ui.Mode == decisionpb.HostUserMode_HOST_USER_MODE_DROP {
+	if ui.Mode == services.HostUserModeDrop {
 		closer = &userCloser{
 			username: name,
 			users:    u,
@@ -523,8 +502,6 @@ func (u *HostUserManagement) UpsertUser(name string, ui *decisionpb.HostUsersInf
 	return closer, nil
 }
 
-const userLeaseDuration = time.Second * 20
-
 func (u *HostUserManagement) doWithUserLock(f func(types.SemaphoreLease) error) error {
 	lock, err := services.AcquireSemaphoreWithRetry(u.ctx,
 		services.AcquireSemaphoreWithRetryConfig{
@@ -538,7 +515,7 @@ func (u *HostUserManagement) doWithUserLock(f func(types.SemaphoreLease) error) 
 				Step: time.Second * 5,
 				Max:  time.Minute,
 			},
-			TTL: userLeaseDuration,
+			TTL: 20 * time.Second,
 		})
 
 	if err != nil {
@@ -580,51 +557,42 @@ func isUnknownGroupError(err error, groupName string) bool {
 		strings.HasSuffix(err.Error(), syscall.ESRCH.Error())
 }
 
-// DeleteAllUsers removes all temporary users in the [apiconstants.TeleportDropGroup]
+// DeleteAllUsers removes all temporary users in the [types.TeleportDropGroup]
 // without any active sessions.
 func (u *HostUserManagement) DeleteAllUsers() error {
 	users, err := u.backend.GetAllUsers()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	teleportGroup, err := u.backend.LookupGroup(apiconstants.TeleportDropGroup)
+	teleportGroup, err := u.backend.LookupGroup(types.TeleportDropGroup)
 	if err != nil {
-		if isUnknownGroupError(err, apiconstants.TeleportDropGroup) {
-			u.log.DebugContext(u.ctx, "Target group not found, not deleting users", "group", apiconstants.TeleportDropGroup)
+		if isUnknownGroupError(err, types.TeleportDropGroup) {
+			u.log.DebugContext(u.ctx, "Target group not found, not deleting users", "group", types.TeleportDropGroup)
 			return nil
 		}
 		return trace.Wrap(err)
 	}
 	var errs []error
-	u.doWithUserLock(func(l types.SemaphoreLease) error {
-		for _, name := range users {
-			if time.Until(l.Expires) < userLeaseDuration/2 {
-				l.Expires = time.Now().Add(userLeaseDuration / 2)
-				if err := u.storage.KeepAliveSemaphoreLease(u.ctx, l); err != nil {
-					u.log.DebugContext(u.ctx, "Failed to keep alive host user lease", "error", err)
-				}
-			}
-
-			lt, err := u.storage.GetHostUserInteractionTime(u.ctx, name)
-			if err != nil {
-				u.log.DebugContext(u.ctx, "Failed to find user login time", "host_username", name, "error", err)
-				continue
-			}
-
+	for _, name := range users {
+		lt, err := u.storage.GetHostUserInteractionTime(u.ctx, name)
+		if err != nil {
+			u.log.DebugContext(u.ctx, "Failed to find user login time", "host_username", name, "error", err)
+			continue
+		}
+		u.doWithUserLock(func(l types.SemaphoreLease) error {
 			if time.Since(lt) < u.userGrace {
 				// small grace period in order to avoid deleting users
 				// in-between them starting their SSH session and
 				// entering the shell
-				continue
+				return nil
 			}
+			errs = append(errs, u.DeleteUser(name, teleportGroup.Gid))
 
-			if err := u.DeleteUser(name, teleportGroup.Gid); err != nil {
-				errs = append(errs, err)
-			}
-		}
-
-		return nil
-	})
+			l.Expires = time.Now().Add(time.Second * 10)
+			u.storage.KeepAliveSemaphoreLease(u.ctx, l)
+			return nil
+		})
+	}
 	return trace.NewAggregate(errs...)
 }
 
@@ -739,7 +707,7 @@ func (u *HostUserManagement) getHostUser(username string) (*HostUser, error) {
 	}, trace.NewAggregate(groupErrs...)
 }
 
-func ResolveGroups(logger *slog.Logger, hostUser *HostUser, ui *decisionpb.HostUsersInfo, takeOwnership bool) ([]string, error) {
+func ResolveGroups(logger *slog.Logger, hostUser *HostUser, ui services.HostUsersInfo) ([]string, error) {
 	// converting to a map since we need deduplication and arbitrary lookups
 	groups := make(map[string]struct{}, len(ui.Groups))
 	for _, group := range ui.Groups {
@@ -747,23 +715,23 @@ func ResolveGroups(logger *slog.Logger, hostUser *HostUser, ui *decisionpb.HostU
 	}
 
 	// because teleport-keep migration requires adding the group to host_groups, we need to note that before wiping the teleport system groups
-	_, hasExplicitKeepGroup := groups[apiconstants.TeleportKeepGroup]
+	_, hasExplicitKeepGroup := groups[types.TeleportKeepGroup]
 
 	// only one teleport system group should be resolved for a given user, so we remove any of them that might occur within the configured host
 	// groups since we'll compute the correct group below
-	delete(groups, apiconstants.TeleportKeepGroup)
-	delete(groups, apiconstants.TeleportDropGroup)
-	delete(groups, apiconstants.TeleportStaticGroup)
+	delete(groups, types.TeleportKeepGroup)
+	delete(groups, types.TeleportDropGroup)
+	delete(groups, types.TeleportStaticGroup)
 
 	// if we assign a teleport group, it will always coincide with the mode we're currently in, so we can compute it right away
 	teleportGroup := ""
 	switch ui.Mode {
-	case decisionpb.HostUserMode_HOST_USER_MODE_DROP:
-		teleportGroup = apiconstants.TeleportDropGroup
-	case decisionpb.HostUserMode_HOST_USER_MODE_KEEP:
-		teleportGroup = apiconstants.TeleportKeepGroup
-	case decisionpb.HostUserMode_HOST_USER_MODE_STATIC:
-		teleportGroup = apiconstants.TeleportStaticGroup
+	case services.HostUserModeDrop:
+		teleportGroup = types.TeleportDropGroup
+	case services.HostUserModeKeep:
+		teleportGroup = types.TeleportKeepGroup
+	case services.HostUserModeStatic:
+		teleportGroup = types.TeleportStaticGroup
 	}
 
 	log := logger.With("teleport_group", teleportGroup)
@@ -774,15 +742,15 @@ func ResolveGroups(logger *slog.Logger, hostUser *HostUser, ui *decisionpb.HostU
 		// 2. We reconcile an existing managed user
 		// 3. We migrate an existing unmanaged user
 		// functionally, there's no difference between 2 and 3 so if we check against all failure modes we can handle all other cases at once
-		_, hasDropGroup := hostUser.Groups[apiconstants.TeleportDropGroup]
-		_, hasKeepGroup := hostUser.Groups[apiconstants.TeleportKeepGroup]
+		_, hasDropGroup := hostUser.Groups[types.TeleportDropGroup]
+		_, hasKeepGroup := hostUser.Groups[types.TeleportKeepGroup]
 
-		migrateStaticUser := takeOwnership && ui.Mode == decisionpb.HostUserMode_HOST_USER_MODE_STATIC
-		migrateKeepUser := hasExplicitKeepGroup && ui.Mode == decisionpb.HostUserMode_HOST_USER_MODE_KEEP
+		migrateStaticUser := ui.TakeOwnership && ui.Mode == services.HostUserModeStatic
+		migrateKeepUser := hasExplicitKeepGroup && ui.Mode == services.HostUserModeKeep
 
 		managedUser := hasKeepGroup || hasDropGroup
-		_, staticUser := hostUser.Groups[apiconstants.TeleportStaticGroup]
-		inStaticMode := ui.Mode == decisionpb.HostUserMode_HOST_USER_MODE_STATIC
+		_, staticUser := hostUser.Groups[types.TeleportStaticGroup]
+		inStaticMode := ui.Mode == services.HostUserModeStatic
 
 		if (inStaticMode && managedUser) || (!inStaticMode && staticUser) {
 			return nil, trace.Wrap(errStaticConversion)

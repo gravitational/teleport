@@ -34,7 +34,6 @@ import {
 import { cloneAbortSignal } from 'teleterm/services/tshd/cloneableClient';
 import { UserPreferences } from 'teleterm/services/tshd/types';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
 import { ClusterUri, routing } from 'teleterm/ui/uri';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 
@@ -60,13 +59,6 @@ export function useUserPreferences(clusterUri: ClusterUri): {
     // we pass an empty array, so pinning is enabled by default
     pinnedResources: { resourceIds: [] },
   });
-  const isClusterConnected = useStoreSelector(
-    'clustersService',
-    useCallback(
-      state => state.clusters.get(clusterUri)?.connected || false,
-      [clusterUri]
-    )
-  );
 
   const [initialFetchAttempt, runInitialFetchAttempt] = useAsync(
     useCallback(
@@ -122,10 +114,7 @@ export function useUserPreferences(clusterUri: ClusterUri): {
     const fetchPreferences = async () => {
       if (
         initialFetchAttempt.status === '' &&
-        supersededInitialFetchAttempt.status === '' &&
-        // DocumentCluster is rendered by default for every workspace. isClusterConnected prevents
-        // the doc from attempting to fetch user prefs when the cluster is offline.
-        isClusterConnected
+        supersededInitialFetchAttempt.status === ''
       ) {
         const [prefs, error] = await runInitialFetchAttempt();
         if (!error) {
@@ -143,7 +132,6 @@ export function useUserPreferences(clusterUri: ClusterUri): {
     runInitialFetchAttempt,
     updateUnifiedResourcePreferencesStateAndWorkspace,
     initialFetchAttempt.status,
-    isClusterConnected,
   ]);
 
   const hasUpdateSupersededInitialFetch =

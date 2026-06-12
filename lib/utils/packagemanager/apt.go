@@ -96,7 +96,7 @@ func NewAPT(cfg *APTConfig) (*APT, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	httpClient, err := defaults.HTTPClient(defaults.UseProxyFromEnvironment())
+	httpClient, err := defaults.HTTPClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -159,9 +159,9 @@ requires access to a file system and network ports.
 
 ### Configuration
 
-Teleport processes read their configuration from a local file path, which is
-`/etc/teleport.yaml` by default. Make sure this file path is mounted to your
-Teleport container.
+While Teleport's default configuration path is `/etc/teleport.yaml`, the Docker
+image is configured to read from `/etc/teleport/teleport.yaml`. Mount your 
+configuration directory to `/etc/teleport` in the container so Teleport can find it.
 
 ### Data directory
 
@@ -194,14 +194,14 @@ proxy_service:
     cert_file: /my/path/cert.pem
 ```
 
-See the Teleport [Configuration Reference](../../reference/deployment/config.mdx) for whether a
+See the Teleport [Configuration Reference](../../reference/config.mdx) for whether a
 field you would like to assign requires a file path.
 
 ### Ports
 
 A single Teleport process can run multiple services, each of which listens on a
 specific set of ports depending on your configuration. See our [Networking
-Reference](../../reference/deployment/networking.mdx#ports) for the ports on your Teleport
+Reference](../../reference/networking.mdx#ports) for the ports on your Teleport
 container to expose.
 
 ### Extracting certificates from distroless images

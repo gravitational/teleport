@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -111,7 +110,7 @@ func verifyDeviceExtensions(
 	username string,
 	params VerifyTrustedDeviceModeParams,
 ) error {
-	enforcementMode := dtconfig.GetEnforcementMode(dt, modules.GetModules())
+	enforcementMode := dtconfig.GetEnforcementMode(dt)
 
 	if err := VerifyTrustedDeviceMode(enforcementMode, params); err != nil {
 		slog.DebugContext(ctx, "Device Trust: denied access for unidentified device", "user", username)

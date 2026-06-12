@@ -18,7 +18,7 @@
 
 import { formatRelative } from 'date-fns';
 import { Fragment, useEffect, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router';
+import { useHistory, useLocation } from 'react-router';
 
 import { Button, Label as Pill } from 'design';
 import { Danger } from 'design/Alert';
@@ -40,11 +40,8 @@ import { DeleteLockDialogue } from './DeleteLockDialogue';
 
 export function Locks() {
   const ctx = useTeleport();
-  const navigate = useNavigate();
-  const location = useLocation() as {
-    pathname: string;
-    state?: { createdLocks?: Lock[] };
-  };
+  const history = useHistory();
+  const location = useLocation<{ createdLocks: Lock[] }>();
   const { attempt, run } = useAttempt();
   const [locks, setLocks] = useState<Lock[]>([]);
   const [lockToDelete, setLockToDelete] = useState<Lock>();
@@ -64,7 +61,7 @@ export function Locks() {
               updatedLocks.push(lock);
             }
           });
-          navigate(location.pathname, { replace: true, state: {} }); // Clear loc state afterwards.
+          history.replace({ state: {} }); // Clear loc state afterwards.
         }
         setLocks(updatedLocks);
       })

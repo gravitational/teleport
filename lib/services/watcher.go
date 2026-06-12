@@ -31,13 +31,10 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
-	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -247,7 +244,7 @@ func (p *resourceWatcher) hasStaleView() bool {
 // runWatchLoop runs a watch loop.
 func (p *resourceWatcher) runWatchLoop() {
 	for {
-		p.Logger.Log(p.ctx, logutils.TraceLevel, "Starting watch.")
+		p.Logger.DebugContext(p.ctx, "Starting watch.")
 		err := p.watch()
 
 		select {
@@ -409,10 +406,7 @@ func NewProxyWatcher(ctx context.Context, cfg ProxyWatcherConfig) (*GenericWatch
 		ResourceKind:          types.KindProxy,
 		ResourceKey:           types.Server.GetName,
 		ResourceGetter: func(ctx context.Context) ([]types.Server, error) {
-			return clientutils.CollectWithFallback(ctx, proxyGetter.ListProxyServers, func(context.Context) ([]types.Server, error) {
-				//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
-				return proxyGetter.GetProxies()
-			})
+			return proxyGetter.GetProxies()
 		},
 		ResourcesC:                          cfg.ProxiesC,
 		ResourceDiffer:                      cfg.ProxyDiffer,
@@ -490,116 +484,6 @@ func NewAppWatcher(ctx context.Context, cfg AppWatcherConfig) (*GenericWatcher[t
 	return w, trace.Wrap(err)
 }
 
-type AppServersWatcherConfig struct {
-	AppServersGetter
-	ResourceWatcherConfig
-}
-
-// CheckAndSetDefaults checks parameters and sets default values.
-func (cfg *AppServersWatcherConfig) CheckAndSetDefaults() error {
-	if err := cfg.ResourceWatcherConfig.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if cfg.MaxStaleness == 0 {
-		const appServerMaxStaleness = time.Minute
-		cfg.MaxStaleness = appServerMaxStaleness
-	}
-
-	if cfg.AppServersGetter == nil {
-		getter, ok := cfg.Client.(AppServersGetter)
-		if !ok {
-			return trace.BadParameter("missing parameter AppServersGetter and Client not usable as AppServersGetter")
-		}
-		cfg.AppServersGetter = getter
-	}
-
-	return nil
-}
-
-func NewAppServersWatcher(ctx context.Context, cfg AppServersWatcherConfig) (*GenericWatcher[types.AppServer, readonly.AppServer], error) {
-	if err := cfg.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	w, err := NewGenericResourceWatcher(ctx, GenericWatcherConfig[types.AppServer, readonly.AppServer]{
-		ResourceWatcherConfig: cfg.ResourceWatcherConfig,
-		ResourceKind:          types.KindAppServer,
-		ResourceKey: func(resource types.AppServer) string {
-			// host IDs are guaranteed to not contain "/"
-			return resource.GetHostID() + "/" + resource.GetName()
-		},
-		DeleteKey: func(r types.Resource) string {
-			// the host ID is stored in metadata.description in app server delete events
-			return r.GetMetadata().Description + "/" + r.GetName()
-		},
-		ResourceGetter: func(ctx context.Context) ([]types.AppServer, error) {
-			return cfg.AppServersGetter.GetApplicationServers(ctx, apidefaults.Namespace)
-		},
-		DisableUpdateBroadcast: true,
-		CloneFunc:              types.AppServer.Copy,
-		ReadOnlyFunc: func(resource types.AppServer) readonly.AppServer {
-			return resource
-		},
-	})
-
-	return w, trace.Wrap(err)
-}
-
-type DatabaseServerWatcherConfig struct {
-	DatabaseServersGetter
-	ResourceWatcherConfig
-}
-
-// CheckAndSetDefaults checks parameters and sets default values.
-func (cfg *DatabaseServerWatcherConfig) CheckAndSetDefaults() error {
-	if err := cfg.ResourceWatcherConfig.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if cfg.MaxStaleness == 0 {
-		const databaseServerMaxStaleness = time.Minute
-		cfg.MaxStaleness = databaseServerMaxStaleness
-	}
-
-	if cfg.DatabaseServersGetter == nil {
-		getter, ok := cfg.Client.(DatabaseServersGetter)
-		if !ok {
-			return trace.BadParameter("missing parameter DatabaseServersGetter and Client not usable as DatabaseServersGetter")
-		}
-		cfg.DatabaseServersGetter = getter
-	}
-
-	return nil
-}
-
-func NewDatabaseServerWatcher(ctx context.Context, cfg DatabaseServerWatcherConfig) (*GenericWatcher[types.DatabaseServer, readonly.DatabaseServer], error) {
-	if err := cfg.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	w, err := NewGenericResourceWatcher(ctx, GenericWatcherConfig[types.DatabaseServer, readonly.DatabaseServer]{
-		ResourceWatcherConfig: cfg.ResourceWatcherConfig,
-		ResourceKind:          types.KindDatabaseServer,
-		ResourceKey: func(r types.DatabaseServer) string {
-			// the host ID is guaranteed not to contain "/"
-			return r.GetHostID() + "/" + r.GetName()
-		},
-		DeleteKey: func(r types.Resource) string {
-			// database servers put the host ID in the description in delete events
-			return r.GetMetadata().Description + "/" + r.GetName()
-		},
-		ResourceGetter: func(ctx context.Context) ([]types.DatabaseServer, error) {
-			return cfg.DatabaseServersGetter.GetDatabaseServers(ctx, apidefaults.Namespace)
-		},
-		DisableUpdateBroadcast: true,
-		CloneFunc:              types.DatabaseServer.Copy,
-		ReadOnlyFunc:           readonly.NewDatabaseServer,
-	})
-
-	return w, trace.Wrap(err)
-}
-
 // KubeServerWatcherConfig is an KubeServerWatcher configuration.
 type KubeServerWatcherConfig struct {
 	// KubernetesServerGetter is responsible for fetching kube_server resources.
@@ -651,7 +535,11 @@ func NewKubeClusterWatcher(ctx context.Context, cfg KubeClusterWatcherConfig) (*
 		ResourceWatcherConfig: cfg.ResourceWatcherConfig,
 		ResourceKind:          types.KindKubernetesCluster,
 		ResourceGetter: func(ctx context.Context) ([]types.KubeCluster, error) {
-			return iterstream.Collect(getter.RangeKubernetesClusters(ctx, "", ""))
+			return clientutils.CollectWithFallback(
+				ctx,
+				getter.ListKubernetesClusters,
+				getter.GetKubernetesClusters,
+			)
 		},
 		ResourceKey: types.KubeCluster.GetName,
 		ResourcesC:  cfg.KubeClustersC,
@@ -688,12 +576,27 @@ func NewDynamicWindowsDesktopWatcher(ctx context.Context, cfg DynamicWindowsDesk
 	w, err := NewGenericResourceWatcher(ctx, GenericWatcherConfig[types.DynamicWindowsDesktop, readonly.DynamicWindowsDesktop]{
 		ResourceWatcherConfig: cfg.ResourceWatcherConfig,
 		ResourceKind:          types.KindDynamicWindowsDesktop,
-		ResourceGetter: pagerFn[types.DynamicWindowsDesktop](
-			getter.ListDynamicWindowsDesktops,
-		).getAll,
+		ResourceGetter: func(ctx context.Context) ([]types.DynamicWindowsDesktop, error) {
+			var desktops []types.DynamicWindowsDesktop
+			next := ""
+			for {
+				d, token, err := getter.ListDynamicWindowsDesktops(ctx, defaults.MaxIterationLimit, next)
+				if err != nil {
+					return nil, err
+				}
+				desktops = append(desktops, d...)
+				if token == "" {
+					break
+				}
+				next = token
+			}
+			return desktops, nil
+		},
 		ResourceKey: types.DynamicWindowsDesktop.GetName,
 		ResourcesC:  cfg.DynamicWindowsDesktopsC,
-		CloneFunc:   types.DynamicWindowsDesktop.Copy,
+		CloneFunc: func(resource types.DynamicWindowsDesktop) types.DynamicWindowsDesktop {
+			return resource.Copy()
+		},
 		ReadOnlyFunc: func(resource types.DynamicWindowsDesktop) readonly.DynamicWindowsDesktop {
 			return resource
 		},
@@ -710,11 +613,6 @@ type GenericWatcherConfig[T any, R any] struct {
 	ResourceDiffer func(old, new T) bool
 	// ResourceKey defines how the resources should be keyed.
 	ResourceKey func(resource T) string
-	// DeleteKey defines how a deleted resource key is derived. A delete event
-	// typically sends a stripped down resource representation with an underlying
-	// type of [types.ResourceHeader].
-	// If unspecified the key will be derived from the resource.Description + resource.GetName
-	DeleteKey func(types.Resource) string
 	// ResourcesC is a channel used to report the current resource set. It receives
 	// a fresh list at startup and subsequently a list of all known resources
 	// whenever an addition or deletion is detected.
@@ -732,10 +630,6 @@ type GenericWatcherConfig[T any, R any] struct {
 	ResourceWatcherConfig
 	// ResourceKind specifies the kind of resource the watcher is monitoring.
 	ResourceKind string
-	// ResourceFilter is an optional filter that is applied on the backend when
-	// watching for resources. Only resources matching the filter will be sent
-	// to the watcher.
-	ResourceFilter map[string]string
 	// RequireResourcesForInitialBroadcast indicates whether an update should be
 	// performed if the initial set of resources is empty.
 	RequireResourcesForInitialBroadcast bool
@@ -744,9 +638,6 @@ type GenericWatcherConfig[T any, R any] struct {
 	// [GenericWatcher.CurrentResourcesWithFilter] manually to retrieve the active
 	// resource set.
 	DisableUpdateBroadcast bool
-	// LoadSecrets specifies whether sensitive data will be loaded into memory.
-	// This is only applicable to certain types like [types.CertAuthority].
-	LoadSecrets bool
 }
 
 // CheckAndSetDefaults checks parameters and sets default values.
@@ -878,11 +769,7 @@ type genericCollector[T any, R any] struct {
 
 // resourceKinds specifies the resource kind to watch.
 func (g *genericCollector[T, R]) resourceKinds() []types.WatchKind {
-	return []types.WatchKind{{
-		Kind:        g.ResourceKind,
-		LoadSecrets: g.LoadSecrets,
-		Filter:      g.ResourceFilter,
-	}}
+	return []types.WatchKind{{Kind: g.ResourceKind}}
 }
 
 // getResources gets the list of current resources.
@@ -981,20 +868,13 @@ func (g *genericCollector[T, R]) processEventsAndUpdateCurrent(ctx context.Conte
 		switch event.Type {
 		case types.OpDelete:
 			// On delete events, the server description is populated with the host ID.
-			key := event.Resource.GetMetadata().Description + event.Resource.GetName()
-			if g.DeleteKey != nil {
-				key = g.DeleteKey(event.Resource)
-			}
-			delete(g.current, key)
+			delete(g.current, event.Resource.GetMetadata().Description+event.Resource.GetName())
 			// Always broadcast when a resource is deleted.
 			updated = true
 		case types.OpPut:
-			resource, err := types.ConvertResource[T](event.Resource)
-			if err != nil {
-				g.Logger.WarnContext(ctx, "Failed to convert event resource",
-					"resource", event.Resource.GetKind(),
-					"error", err,
-				)
+			resource, ok := event.Resource.(T)
+			if !ok {
+				g.Logger.WarnContext(ctx, "Received unexpected type", "resource", event.Resource.GetKind())
 				continue
 			}
 
@@ -1149,11 +1029,6 @@ func (p *lockCollector) Subscribe(ctx context.Context, targets ...types.LockTarg
 // CheckLockInForce returns an AccessDenied error if there is a lock in force
 // matching at least one of the targets.
 func (p *lockCollector) CheckLockInForce(mode constants.LockingMode, targets ...types.LockTarget) error {
-	if len(targets) == 0 {
-		// A lock can't match any targets if there are no targets.
-		return nil
-	}
-
 	p.currentRW.RLock()
 	defer p.currentRW.RUnlock()
 	if p.isStale && mode == constants.LockingModeStrict {
@@ -1169,6 +1044,9 @@ func (p *lockCollector) findLockInForceUnderMutex(targets []types.LockTarget) ty
 	for _, lock := range p.current {
 		if !lock.IsInForce(p.Clock.Now()) {
 			continue
+		}
+		if len(targets) == 0 {
+			return lock
 		}
 		for _, target := range targets {
 			if target.Match(lock) {
@@ -1214,7 +1092,6 @@ func (p *lockCollector) getResourcesAndUpdateCurrent(ctx context.Context) error 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	newCurrent := map[string]types.Lock{}
 	for _, lock := range locks {
 		newCurrent[lock.GetName()] = lock
@@ -1329,10 +1206,6 @@ type CertAuthorityWatcherConfig struct {
 	AuthorityGetter
 	// Types restricts which cert authority types are retrieved via the AuthorityGetter.
 	Types []types.CertAuthType
-	// LoadKeys determines whether private keys will be included.
-	LoadKeys bool
-	// ResourceC receives an up-to-date list of all cert authority resources.
-	ResourceC chan []types.CertAuthority
 }
 
 // CheckAndSetDefaults checks parameters and sets default values.
@@ -1353,47 +1226,8 @@ func (cfg *CertAuthorityWatcherConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// NewCertAuthorityWatcher returns a new cert authority watcher instance.
-func NewCertAuthorityWatcher(ctx context.Context, cfg CertAuthorityWatcherConfig) (*GenericWatcher[types.CertAuthority, readonly.CertAuthority], error) {
-	if err := cfg.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	getter := cfg.AuthorityGetter
-	w, err := NewGenericResourceWatcher(ctx, GenericWatcherConfig[types.CertAuthority, readonly.CertAuthority]{
-		ResourceKind:          types.KindCertAuthority,
-		ResourceWatcherConfig: cfg.ResourceWatcherConfig,
-		ResourceGetter: func(ctx context.Context) ([]types.CertAuthority, error) {
-			var cas []types.CertAuthority
-			for _, t := range cfg.Types {
-				innerCAs, err := getter.GetCertAuthorities(ctx, t, cfg.LoadKeys)
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				cas = append(cas, innerCAs...)
-			}
-			return cas, nil
-		},
-		ResourceKey: func(resource types.CertAuthority) string {
-			return resource.GetSubKind() + "/" + resource.GetName()
-		},
-		DeleteKey: func(resource types.Resource) string {
-			return resource.GetSubKind() + "/" + resource.GetName()
-		},
-		ResourcesC: cfg.ResourceC,
-		CloneFunc:  types.CertAuthority.Clone,
-		ReadOnlyFunc: func(resource types.CertAuthority) readonly.CertAuthority {
-			return resource
-		},
-		LoadSecrets: cfg.LoadKeys,
-	})
-	return w, trace.Wrap(err)
-}
-
-// DeprecatedNewCertAuthorityWatcher returns a new instance of CertAuthorityWatcher.
-//
-// Deprecated: This has been replaced by NewCertAuthorityWatcher which uses the
-// newer generic watcher under the hood.
-func DeprecatedNewCertAuthorityWatcher(ctx context.Context, cfg CertAuthorityWatcherConfig) (*CertAuthorityWatcher, error) {
+// NewCertAuthorityWatcher returns a new instance of CertAuthorityWatcher.
+func NewCertAuthorityWatcher(ctx context.Context, cfg CertAuthorityWatcherConfig) (*CertAuthorityWatcher, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1551,7 +1385,7 @@ func (c *caCollector) processEventsAndUpdateCurrent(ctx context.Context, events 
 			}
 
 			authority, ok := c.cas[ca.GetType()][ca.GetName()]
-			if ok && authority.IsEqual(ca) {
+			if ok && CertAuthoritiesEquivalent(authority, ca) {
 				continue
 			}
 
@@ -1938,15 +1772,27 @@ type GitServerWatcherConfig struct {
 // NewGitServerWatcher returns a new instance of Git server watcher.
 func NewGitServerWatcher(ctx context.Context, cfg GitServerWatcherConfig) (*GenericWatcher[types.Server, readonly.Server], error) {
 	if cfg.GitServerGetter == nil {
-		return nil, trace.BadParameter("GitServerGetter must be provided")
+		return nil, trace.BadParameter("NodesGetter must be provided")
 	}
 
 	w, err := NewGenericResourceWatcher(ctx, GenericWatcherConfig[types.Server, readonly.Server]{
 		ResourceWatcherConfig: cfg.ResourceWatcherConfig,
 		ResourceKind:          types.KindGitServer,
-		ResourceGetter: pagerFn[types.Server](
-			cfg.GitServerGetter.ListGitServers,
-		).getAll,
+		ResourceGetter: func(ctx context.Context) (all []types.Server, err error) {
+			var page []types.Server
+			var token string
+			for {
+				page, token, err = cfg.GitServerGetter.ListGitServers(ctx, apidefaults.DefaultChunkSize, token)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				all = append(all, page...)
+				if token == "" {
+					break
+				}
+			}
+			return all, nil
+		},
 		ResourceKey:            types.Server.GetName,
 		DisableUpdateBroadcast: !cfg.EnableUpdateBroadcast,
 		CloneFunc:              types.Server.DeepCopy,
@@ -1955,70 +1801,4 @@ func NewGitServerWatcher(ctx context.Context, cfg GitServerWatcherConfig) (*Gene
 		},
 	})
 	return w, trace.Wrap(err)
-}
-
-// HealthCheckConfigWatcherConfig is the config for the health_check_config
-// watcher.
-type HealthCheckConfigWatcherConfig struct {
-	// Reader is used to fetch health check config resources.
-	Reader HealthCheckConfigReader
-	// ResourcesC receives up-to-date list of all health check config resources.
-	ResourcesC chan []*healthcheckconfigv1.HealthCheckConfig
-	// ResourceWatcherConfig is the resource watcher configuration.
-	ResourceWatcherConfig ResourceWatcherConfig
-}
-
-// HealthCheckConfigWatcher monitors health_check_config resources.
-type HealthCheckConfigWatcher = GenericWatcher[
-	*healthcheckconfigv1.HealthCheckConfig,
-	*healthcheckconfigv1.HealthCheckConfig,
-]
-
-// NewHealthCheckConfigWatcher returns a new instance of health check config
-// watcher.
-func NewHealthCheckConfigWatcher(
-	ctx context.Context,
-	cfg HealthCheckConfigWatcherConfig,
-) (*HealthCheckConfigWatcher, error) {
-	if cfg.Reader == nil {
-		return nil, trace.BadParameter("Reader must be provided")
-	}
-
-	w, err := NewGenericResourceWatcher(ctx, GenericWatcherConfig[
-		*healthcheckconfigv1.HealthCheckConfig,
-		*healthcheckconfigv1.HealthCheckConfig,
-	]{
-		ResourceWatcherConfig: cfg.ResourceWatcherConfig,
-		ResourceKind:          types.KindHealthCheckConfig,
-		ResourceGetter: pagerFn[*healthcheckconfigv1.HealthCheckConfig](
-			cfg.Reader.ListHealthCheckConfigs,
-		).getAll,
-		ResourceKey: func(resource *healthcheckconfigv1.HealthCheckConfig) string {
-			return resource.GetMetadata().GetName()
-		},
-		ResourcesC: cfg.ResourcesC,
-		CloneFunc:  apiutils.CloneProtoMsg[*healthcheckconfigv1.HealthCheckConfig],
-		ReadOnlyFunc: func(resource *healthcheckconfigv1.HealthCheckConfig) *healthcheckconfigv1.HealthCheckConfig {
-			return resource
-		},
-	})
-	return w, trace.Wrap(err)
-}
-
-type pagerFn[T any] func(ctx context.Context, limit int, startKey string) ([]T, string, error)
-
-func (fn pagerFn[T]) getAll(ctx context.Context) ([]T, error) {
-	var out []T
-	var token string
-	for {
-		page, nextToken, err := fn(ctx, apidefaults.DefaultChunkSize, token)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		out = append(out, page...)
-		if nextToken == "" {
-			return out, nil
-		}
-		token = nextToken
-	}
 }

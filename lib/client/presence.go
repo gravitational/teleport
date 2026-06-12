@@ -77,7 +77,7 @@ func RunPresenceTask(ctx context.Context, term io.Writer, maintainer PresenceMai
 	}
 
 	presenceCeremony := &mfa.Ceremony{
-		MFACeremonyConstructor: baseCeremony.MFACeremonyConstructor,
+		SSOMFACeremonyConstructor: baseCeremony.SSOMFACeremonyConstructor,
 		PromptConstructor: func(opts ...mfa.PromptOpt) mfa.Prompt {
 			return mfa.PromptFunc(func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
 				// Replace normal output with terminal messages specific to moderated sessions.
@@ -99,10 +99,9 @@ func RunPresenceTask(ctx context.Context, term io.Writer, maintainer PresenceMai
 			req := &proto.PresenceMFAChallengeSend{
 				Request: &proto.PresenceMFAChallengeSend_ChallengeRequest{
 					ChallengeRequest: &proto.PresenceMFAChallengeRequest{
-						SessionID:                sessionID,
-						SSOClientRedirectURL:     chalReq.SSOClientRedirectURL,
-						BrowserMFATSHRedirectURL: chalReq.BrowserMFATSHRedirectURL,
-						ProxyAddress:             chalReq.ProxyAddress,
+						SessionID:            sessionID,
+						SSOClientRedirectURL: chalReq.SSOClientRedirectURL,
+						ProxyAddress:         chalReq.ProxyAddress,
 					},
 				},
 			}

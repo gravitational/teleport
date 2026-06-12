@@ -42,20 +42,5 @@ func (a *AccessGraphAWSSync) CheckAndSetDefaults() error {
 			return trace.BadParameter("discovery service does not support region %q", region)
 		}
 	}
-
-	if a.CloudTrailLogs != nil {
-		if a.CloudTrailLogs.SQSQueue == "" {
-			return trace.BadParameter("discovery service requires SQS queue for CloudTrail logs")
-		}
-		if a.CloudTrailLogs.Region == "" {
-			return trace.BadParameter("discovery service requires Region for CloudTrail logs")
-		}
-	}
-
 	return nil
-}
-
-// IsEqual determines if two resources are equivalent to one another.
-func (a *AccessGraphAWSSync) IsEqual(other *AccessGraphAWSSync) bool {
-	return deriveTeleportEqualAccessGraphAWSSync(a, other)
 }

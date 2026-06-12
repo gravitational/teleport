@@ -16,11 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import '@testing-library/jest-dom';
 import { screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
+import '@testing-library/jest-dom';
+import 'jest-canvas-mock';
 
-import { act, CurrentPath, render } from 'design/utils/testing';
+import { act, render } from 'design/utils/testing';
 
 import { ContextProvider } from 'teleport';
 import ConsoleCtx from 'teleport/Console/consoleContext';
@@ -34,9 +35,18 @@ import type { Session } from 'teleport/services/session';
 import { DocumentDb } from './DocumentDb';
 
 // Mock Terminal component to avoid WebGL errors in jsdom
-jest.mock('teleport/Console/DocumentSsh/Terminal', () => ({
-  Terminal: jest.fn(() => <div data-testid="terminal">Terminal Mock</div>),
-}));
+jest.mock('teleport/Console/DocumentSsh/Terminal', () => {
+  // oxlint-disable-next-line typescript/no-require-imports
+  const React = require('react');
+  return {
+    Terminal: React.forwardRef((_props: any, ref: any) => {
+      React.useImperativeHandle(ref, () => ({
+        focus: jest.fn(),
+      }));
+      return <div data-testid="terminal">Terminal Mock</div>;
+    }),
+  };
+});
 
 const mockDatabase = {
   kind: 'db' as const,
@@ -141,7 +151,7 @@ test('should keep the document at the connect URL after connecting', async () =>
           <DocumentDb doc={connectDoc} visible={true} />
         </ConsoleContextProvider>
       </ContextProvider>
-      <CurrentPath testId="location-display" />
+      <LocationDisplay />
     </MemoryRouter>
   );
 
@@ -153,6 +163,12 @@ test('should keep the document at the connect URL after connecting', async () =>
 
   expect(screen.getByTestId('location-display')).toHaveTextContent(connectUrl);
 });
+
+const LocationDisplay = () => {
+  const location = useLocation();
+
+  return <div data-testid="location-display">{location.pathname}</div>;
+};
 
 function getContexts() {
   const ctx = createTeleportContext();

@@ -25,7 +25,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"io"
-	"log/slog"
 	"net"
 	"slices"
 	"strings"
@@ -35,6 +34,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -47,7 +47,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/dbutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // ProxyConfig  is the configuration for an ALPN proxy server.
@@ -59,7 +58,7 @@ type ProxyConfig struct {
 	// Router contains definition of protocol routing and handlers description.
 	Router *Router
 	// Log is used for logging.
-	Log *slog.Logger
+	Log logrus.FieldLogger
 	// Clock is a clock to override in tests, set to real time clock
 	// by default
 	Clock clockwork.Clock
@@ -130,7 +129,10 @@ func ExtractMySQLEngineVersion(fn func(ctx context.Context, conn net.Conn) error
 			}
 			// The version should never be longer than 255 characters including
 			// the prefix, but better to be safe.
-			versionEnd := min(len(alpn), 255)
+			versionEnd := 255
+			if len(alpn) < versionEnd {
+				versionEnd = len(alpn)
+			}
 
 			mysqlVersionBase64 := alpn[mysqlVerStart:versionEnd]
 			mysqlVersionBytes, err := base64.StdEncoding.DecodeString(mysqlVersionBase64)
@@ -242,7 +244,7 @@ type HandlerFunc func(ctx context.Context, conn net.Conn) error
 type Proxy struct {
 	cfg                ProxyConfig
 	supportedProtocols []common.Protocol
-	log                *slog.Logger
+	log                logrus.FieldLogger
 
 	// mu guards cancel
 	mu     sync.Mutex
@@ -258,7 +260,7 @@ func (c *ProxyConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("listener missing")
 	}
 	if c.Log == nil {
-		c.Log = slog.With(teleport.ComponentKey, "alpn:proxy")
+		c.Log = logrus.WithField(teleport.ComponentKey, "alpn:proxy")
 	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
@@ -343,16 +345,16 @@ func (p *Proxy) Serve(ctx context.Context) error {
 			// https://github.com/gravitational/teleport/blob/master/lib/sshutils/server.go#L397
 			if err := p.handleConn(ctx, clientConn, nil, common.ConnHandlerSourceListener); err != nil {
 				if cerr := clientConn.Close(); cerr != nil && !utils.IsOKNetworkError(cerr) {
-					p.log.WarnContext(ctx, "Failed to close client connection", "error", cerr)
+					p.log.WithError(cerr).Warnf("Failed to close client connection.")
 				}
 				switch {
 				case trace.IsBadParameter(err):
-					p.log.WarnContext(ctx, "Failed to handle client connection", "error", err)
+					p.log.Warnf("Failed to handle client connection: %v", err)
 				case utils.IsOKNetworkError(err):
 				case isConnRemoteError(err):
-					p.log.DebugContext(ctx, "Connection rejected by client", "error", err, "remote_addr", clientConn.RemoteAddr())
+					p.log.WithField("remote_addr", clientConn.RemoteAddr()).Debugf("Connection rejected by client: %v", err)
 				default:
-					p.log.WarnContext(ctx, "Failed to handle client connection", "error", err)
+					p.log.WithError(err).Warnf("Failed to handle client connection.")
 				}
 			}
 		}()
@@ -432,7 +434,7 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn, defaultOver
 	// We try to do quick early IP pinning check, if possible, and stop it on the proxy, without going further.
 	// It's based only on client cert. Client can still fail full IP pinning check later if their role now requires
 	// IP pinning but cert isn't pinned.
-	if err := p.checkCertIPPinning(ctx, tlsConn); err != nil {
+	if err := p.checkCertIPPinning(tlsConn); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -444,7 +446,7 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn, defaultOver
 
 	isDatabaseConnection, err := dbutils.IsDatabaseConnection(tlsConn.ConnectionState())
 	if err != nil {
-		p.log.DebugContext(ctx, "Failed to check if connection is database connection", "error", err)
+		p.log.WithError(err).Debug("Failed to check if connection is database connection.")
 	}
 	if isDatabaseConnection {
 		return trace.Wrap(p.handleDatabaseConnection(ctx, handlerConn, connInfo))
@@ -452,7 +454,7 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn, defaultOver
 	return trace.Wrap(handlerDesc.handle(ctx, handlerConn, connInfo))
 }
 
-func (p *Proxy) checkCertIPPinning(ctx context.Context, tlsConn *tls.Conn) error {
+func (p *Proxy) checkCertIPPinning(tlsConn *tls.Conn) error {
 	state := tlsConn.ConnectionState()
 
 	if len(state.PeerCertificates) == 0 {
@@ -471,10 +473,10 @@ func (p *Proxy) checkCertIPPinning(ctx context.Context, tlsConn *tls.Conn) error
 
 	if identity.PinnedIP != "" && (clientIP != identity.PinnedIP || port == "0") {
 		if port == "0" {
-			p.log.DebugContext(ctx, "pinned IP doesn't match observed client IP",
-				"client_ip", clientIP,
-				"pinned_ip", identity.PinnedIP,
-			)
+			p.log.WithFields(logrus.Fields{
+				"client_ip": clientIP,
+				"pinned_ip": identity.PinnedIP,
+			}).Debug(authz.ErrIPPinningMismatch.Error())
 		}
 		return trace.Wrap(authz.ErrIPPinningMismatch)
 	}
@@ -499,7 +501,7 @@ func (p *Proxy) handlePingConnection(ctx context.Context, conn *tls.Conn) utils.
 				err := pingConn.WritePing()
 				if err != nil {
 					if !utils.IsOKNetworkError(err) {
-						p.log.WarnContext(ctx, "Failed to write ping message", "error", err)
+						p.log.WithError(err).Warn("Failed to write ping message")
 					}
 
 					return
@@ -578,7 +580,7 @@ func (p *Proxy) databaseHandlerWithTLSTermination(ctx context.Context, conn net.
 	tlsConn := tls.Server(conn, p.cfg.IdentityTLSConfig)
 	if err := tlsConn.SetReadDeadline(p.cfg.Clock.Now().Add(p.cfg.ReadDeadline)); err != nil {
 		if err := tlsConn.Close(); err != nil {
-			p.log.ErrorContext(ctx, "Failed to close TLS connection", "error", err)
+			p.log.WithError(err).Error("Failed to close TLS connection.")
 		}
 		return trace.Wrap(err)
 	}
@@ -587,14 +589,14 @@ func (p *Proxy) databaseHandlerWithTLSTermination(ctx context.Context, conn net.
 	}
 	if err := tlsConn.SetReadDeadline(time.Time{}); err != nil {
 		if err := tlsConn.Close(); err != nil {
-			p.log.ErrorContext(ctx, "Failed to close TLS connection", "error", err)
+			p.log.WithError(err).Error("Failed to close TLS connection.")
 		}
 		return trace.Wrap(err)
 	}
 
 	isDatabaseConnection, err := dbutils.IsDatabaseConnection(tlsConn.ConnectionState())
 	if err != nil {
-		p.log.DebugContext(ctx, "Failed to check if connection is database connection", "error", err)
+		p.log.WithError(err).Debug("Failed to check if connection is database connection.")
 	}
 	if !isDatabaseConnection {
 		return trace.BadParameter("not database connection")
@@ -669,7 +671,9 @@ func (p *Proxy) MakeConnectionHandler(defaultOverride *tls.Config, connSource co
 		if err := p.handleConn(ctx, conn, defaultOverride, connSource); err != nil {
 			// Make sure we close the connection on error.
 			if cerr := conn.Close(); cerr != nil && !utils.IsOKNetworkError(cerr) {
-				p.log.WarnContext(ctx, "Failed to close client connection", "error", cerr, "remote_addr", logutils.StringerAttr(conn.RemoteAddr()))
+				p.log.WithError(cerr).
+					WithField("remote_addr", conn.RemoteAddr().String()).
+					Warn("Failed to close client connection")
 			}
 			// Still return the error for caller to report/log.
 			return trace.Wrap(err)

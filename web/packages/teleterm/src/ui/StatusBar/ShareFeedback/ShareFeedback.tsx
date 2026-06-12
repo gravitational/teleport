@@ -26,7 +26,7 @@ import { ShareFeedbackForm } from './ShareFeedbackForm';
 import { useShareFeedback } from './useShareFeedback';
 
 export function ShareFeedback() {
-  const buttonRef = useRef<HTMLButtonElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>();
   const {
     submitFeedbackAttempt,
     formValues,
@@ -44,7 +44,7 @@ export function ShareFeedback() {
         css={`
           position: relative;
         `}
-        ref={buttonRef}
+        setRef={buttonRef}
         title="Share feedback"
         size="small"
         onClick={openShareFeedback}

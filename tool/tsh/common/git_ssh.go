@@ -47,13 +47,13 @@ type gitSSHCommand struct {
 
 func newGitSSHCommand(parent *kingpin.CmdClause) *gitSSHCommand {
 	cmd := &gitSSHCommand{
-		CmdClause: parent.Command("ssh", "Proxy Git commands using SSH.").Hidden(),
+		CmdClause: parent.Command("ssh", "Proxy Git commands using SSH").Hidden(),
 	}
 
 	cmd.Flag("github-org", "GitHub organization.").Required().StringVar(&cmd.gitHubOrg)
-	cmd.Arg("[user@]host", "Remote hostname and the login to use.").Required().StringVar(&cmd.userHost)
-	cmd.Arg("command", "Command to execute on a remote host.").StringsVar(&cmd.command)
-	cmd.Flag("option", "OpenSSH options in the format used in the configuration file.").Short('o').AllowDuplicate().StringsVar(&cmd.options)
+	cmd.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cmd.userHost)
+	cmd.Arg("command", "Command to execute on a remote host").StringsVar(&cmd.command)
+	cmd.Flag("option", "OpenSSH options in the format used in the configuration file").Short('o').AllowDuplicate().StringsVar(&cmd.options)
 	return cmd
 }
 

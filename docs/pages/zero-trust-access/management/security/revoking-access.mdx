@@ -3,7 +3,6 @@ title: Revoking Access
 description: Learn how to revoke access before Teleport certificates expire
 tags:
  - platform-wide
- - resiliency
 ---
 
 Teleport's approach to using short-lived certificates for all infrastructure
@@ -20,7 +19,7 @@ that the newly generated CA certificate is uploaded to your entire fleet of
 OpenSSH servers. This can be a disruptive change, especially in environments
 that lack automation, so proceed with caution.
 
-See the [CA rotations guide](ca-rotation.mdx) for more details on
+See the [CA rotations guide](../operations/ca-rotation.mdx) for more details on
 how to execute the procedure.
 
 ## Locks
@@ -29,7 +28,7 @@ Teleport locks allow you to permanently or temporarily revoke access to a number
 of different "targets". Supported lock targets include: specific users, roles,
 servers, desktops, or MFA devices. For Machine & Workload Identity bots, this
 additionally includes the join token name (for delegated join methods) and the
-bot instance UUID. After you create a lock, all existing sessions where the lock
+bot instance UUID. After you create a lock, all existing sessions where the loc
 applies are terminated and new sessions are rejected while the lock remains in
 force.
 

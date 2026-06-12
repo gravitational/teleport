@@ -23,9 +23,9 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/services/workloadidentity"
-	"github.com/gravitational/teleport/lib/utils/parse"
 )
 
 // WorkloadIdentityJWTCommand implements `tbot start workload-identity-jwt` and
@@ -59,11 +59,11 @@ func NewWorkloadIdentityJWTCommand(parentCmd *kingpin.CmdClause, action MutatorA
 
 	cmd.Flag(
 		"name-selector",
-		"The name of the workload identity to issue. Mutually exclusive with --label-selector.",
+		"The name of the workload identity to issue",
 	).StringVar(&c.NameSelector)
 	cmd.Flag(
 		"label-selector",
-		"A label-based selector for which workload identities to issue. Multiple labels can be provided using ','. Mutually exclusive with --name-selector.",
+		"A label-based selector for which workload identities to issue. Multiple labels can be provided using ','.",
 	).StringVar(&c.LabelSelector)
 	cmd.Flag(
 		"audience",
@@ -95,7 +95,7 @@ func (c *WorkloadIdentityJWTCommand) ApplyConfig(cfg *config.BotConfig, l *slog.
 	case c.NameSelector != "":
 		svc.Selector.Name = c.NameSelector
 	case c.LabelSelector != "":
-		labels, err := parse.LabelSelectorSpec(c.LabelSelector)
+		labels, err := client.ParseLabelSpec(c.LabelSelector)
 		if err != nil {
 			return trace.Wrap(err, "parsing --label-selector")
 		}

@@ -23,16 +23,16 @@ import (
 	"io/fs"
 	"net"
 	"os"
-	"os/user"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 	"gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/ssh"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
@@ -67,14 +67,6 @@ type Profile struct {
 
 	// MongoProxyAddr is the host:port the Mongo proxy can be accessed at.
 	MongoProxyAddr string `yaml:"mongo_proxy_addr,omitempty"`
-
-	// RelayAddr is the relay in use specified at login time, or "none" if use
-	// of a relay is explicitly disabled.
-	RelayAddr string `yaml:"relay_addr,omitempty"`
-
-	// DefaultRelayAddr is the cluster-specified address of the relay in use, to
-	// be used if RelayAddr is unspecified. Set at login time.
-	DefaultRelayAddr string `yaml:"default_relay_addr,omitempty"`
 
 	// Username is the Teleport username for the client.
 	Username string `yaml:"user,omitempty"`
@@ -136,9 +128,6 @@ type Profile struct {
 	// with WebProxyAddr, to determine if a webpage is safe to open. Currently used by Teleport
 	// Connect in the proxy host allow list.
 	SSOHost string `yaml:"sso_host,omitempty"`
-
-	// Scope is the target scope that credentials are pinned to, if any.
-	Scope string `yaml:"scope,omitempty"`
 }
 
 // Copy returns a shallow copy of p, or nil if p is nil.
@@ -180,7 +169,7 @@ func (p *Profile) TLSConfig() (*tls.Config, error) {
 
 // Expiry returns the credential expiry.
 func (p *Profile) Expiry() (time.Time, bool) {
-	certPEMBlock, err := p.TLSCert()
+	certPEMBlock, err := os.ReadFile(p.TLSCertPath())
 	if err != nil {
 		return time.Time{}, false
 	}
@@ -189,12 +178,6 @@ func (p *Profile) Expiry() (time.Time, bool) {
 		return time.Time{}, false
 	}
 	return cert.NotAfter, true
-}
-
-// TLSCert returns the profile's TLS certificate.
-func (p *Profile) TLSCert() ([]byte, error) {
-	certPEMBlock, err := os.ReadFile(p.TLSCertPath())
-	return certPEMBlock, trace.Wrap(err)
 }
 
 // RequireKubeLocalProxy returns true if this profile indicates a local proxy
@@ -261,33 +244,32 @@ func certPoolFromLegacyCAFile(p *Profile) (*x509.CertPool, error) {
 }
 
 // SSHClientConfig returns the profile's associated SSHClientConfig.
-func (p *Profile) SSHClientConfig() (ssh.ClientConfig, error) {
+func (p *Profile) SSHClientConfig() (*ssh.ClientConfig, error) {
 	cert, err := os.ReadFile(p.SSHCertPath())
 	if err != nil {
-		return ssh.ClientConfig{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	sshCert, err := sshutils.ParseCertificate(cert)
 	if err != nil {
-		return ssh.ClientConfig{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	caCerts, err := os.ReadFile(p.KnownHostsPath())
 	if err != nil {
-		return ssh.ClientConfig{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	priv, err := keys.LoadPrivateKey(p.UserSSHKeyPath())
 	if err != nil {
-		return ssh.ClientConfig{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	sshConfig, err := sshutils.ProxyClientSSHConfig(sshCert, priv, caCerts)
+	ssh, err := sshutils.ProxyClientSSHConfig(sshCert, priv, caCerts)
 	if err != nil {
-		return ssh.ClientConfig{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-
-	return sshConfig, nil
+	return ssh, nil
 }
 
 // SetCurrentProfileName attempts to set the current profile name.
@@ -351,7 +333,7 @@ func UserHomeDir() (string, bool) {
 		return home, true
 	}
 	// Fall back to the user lookup.
-	if u, err := user.Current(); err == nil && u.HomeDir != "" {
+	if u, err := utils.CurrentUser(); err == nil && u.HomeDir != "" {
 		return u.HomeDir, true
 	}
 	return "", false
@@ -396,10 +378,6 @@ func profileFromFile(filePath string) (*Profile, error) {
 	// Older versions of tsh did not always store the cluster name in the
 	// profile. If no cluster name is found, fallback to the name of the profile
 	// for backward compatibility.
-	//
-	// TODO(gzdunek): A profile name is not the same thing as a site name, and they differ when the proxy hostname is different
-	// from the cluster name.
-	// Instead, tsh should be able to handle an empty site name, or this default should be changed.
 	if p.SiteName == "" {
 		p.SiteName = p.Name()
 	}

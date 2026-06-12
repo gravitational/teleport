@@ -90,6 +90,16 @@ function ClusterState(props: {
   queryParams: DocumentClusterQueryParams;
   docUri: uri.DocumentUri;
 }) {
+  if (!props.rootCluster.connected) {
+    return (
+      <RequiresLogin
+        clusterName={props.clusterName}
+        syncCluster={props.syncCluster}
+        clusterSyncAttempt={props.clusterSyncAttempt}
+      />
+    );
+  }
+
   if (!props.cluster) {
     return <NotFound clusterName={props.clusterName} />;
   }
@@ -112,6 +122,24 @@ function ClusterState(props: {
         queryParams={props.queryParams}
       />
     </Layout>
+  );
+}
+
+function RequiresLogin(props: {
+  clusterName: string;
+  syncCluster(): void;
+  clusterSyncAttempt: Attempt<void>;
+}) {
+  return (
+    <PrintState
+      clusterName={props.clusterName}
+      clusterState="Cluster is offline."
+      action={{
+        attempt: props.clusterSyncAttempt,
+        label: 'Connect',
+        run: props.syncCluster,
+      }}
+    />
   );
 }
 

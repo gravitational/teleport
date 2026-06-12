@@ -22,7 +22,6 @@ import (
 	"bytes"
 	"log/slog"
 	"net"
-	"os"
 	"strconv"
 	"testing"
 	"time"
@@ -39,15 +38,9 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
-
-func TestMain(m *testing.M) {
-	logtest.InitLogger(testing.Verbose)
-	os.Exit(m.Run())
-}
 
 type testYAMLCase[T any] struct {
 	name string
@@ -80,16 +73,12 @@ func testYAML[T any](t *testing.T, tests []testYAMLCase[T]) {
 }
 
 type checkAndSetDefaulter interface {
-	CheckAndSetDefaults(scoped bool) error
+	CheckAndSetDefaults() error
 }
 
 type testCheckAndSetDefaultsCase[T checkAndSetDefaulter] struct {
 	name string
 	in   func() T
-
-	// scoped indicates that CheckAndSetDefaults should be called with
-	// scoped set to true.
-	scoped bool
 
 	// want specifies the desired state of the checkAndSetDefaulter after
 	// check and set defaults has been run. If want is nil, the Output is
@@ -104,7 +93,7 @@ func testCheckAndSetDefaults[T checkAndSetDefaulter](t *testing.T, tests []testC
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := tt.in()
-			err := got.CheckAndSetDefaults(tt.scoped)
+			err := got.CheckAndSetDefaults()
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
 				return
@@ -160,8 +149,10 @@ func makeBot(t *testing.T, client *authclient.Client, name string, roles ...stri
 
 func defaultTestServerOpts(log *slog.Logger) testenv.TestServerOptFunc {
 	return func(o *testenv.TestServersOpts) error {
-		testenv.WithClusterName("root")(o)
-		testenv.WithConfig(func(cfg *servicecfg.Config) {
+		if err := testenv.WithClusterName("root")(o); err != nil {
+			return err
+		}
+		if err := testenv.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Logger = log
 			cfg.Proxy.PublicAddrs = []utils.NetAddr{
 				{AddrNetwork: "tcp", Addr: net.JoinHostPort("localhost", strconv.Itoa(cfg.Proxy.WebAddr.Port(0)))},
@@ -169,8 +160,9 @@ func defaultTestServerOpts(log *slog.Logger) testenv.TestServerOptFunc {
 			cfg.Proxy.TunnelPublicAddrs = []utils.NetAddr{
 				cfg.Proxy.ReverseTunnelListenAddr,
 			}
-		})(o)
-
+		})(o); err != nil {
+			return err
+		}
 		return nil
 	}
 }

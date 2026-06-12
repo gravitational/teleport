@@ -19,7 +19,6 @@ package delay
 import (
 	"sync/atomic"
 	"testing"
-	"testing/synctest"
 	"time"
 
 	"github.com/jonboulle/clockwork"
@@ -29,11 +28,8 @@ import (
 )
 
 func TestMultiBasics(t *testing.T) {
-	t.Parallel()
-	synctest.Test(t, testMultiBasics)
-}
-func testMultiBasics(t *testing.T) {
 	const interval = time.Millisecond * 20
+	t.Parallel()
 
 	multi := NewMulti[int](MultiParams{
 		FixedInterval: interval,
@@ -45,10 +41,9 @@ func testMultiBasics(t *testing.T) {
 	for i := 1; i <= 10; i++ {
 		// add a subinterval
 		multi.Add(i)
-		time.Sleep(time.Nanosecond)
 	}
 
-	for i := range 30 {
+	for i := 0; i < 30; i++ {
 		now := <-multi.Elapsed()
 		require.Equal(t, i%10+1, multi.Tick(now))
 	}
@@ -59,7 +54,7 @@ func testMultiBasics(t *testing.T) {
 	}
 
 	// verify that remaining subintervals are still being serviced
-	for i := range 30 {
+	for i := 0; i < 30; i++ {
 		k := 10
 		if i%2 == 0 {
 			k = 9
@@ -87,33 +82,11 @@ func testMultiBasics(t *testing.T) {
 	case <-time.After(interval * 3):
 		t.Fatal("timeout waiting for re-added delay to fire")
 	}
-
-	time.Sleep(interval / 2)
-	multi.Add(42)
-	added42 := time.Now()
-
-	elapsed := <-multi.Elapsed()
-	require.Equal(t, added42.Add(interval/2), elapsed)
-	require.Equal(t, 777, multi.Tick(elapsed))
-
-	time.Sleep(interval / 2)
-	multi.Reset(42)
-	reset42 := time.Now()
-
-	elapsed = <-multi.Elapsed()
-	require.Equal(t, reset42.Add(interval/2), elapsed)
-	require.Equal(t, 777, multi.Tick(elapsed))
-
-	elapsed = <-multi.Elapsed()
-	require.Equal(t, reset42.Add(interval), elapsed)
-	require.Equal(t, 42, multi.Tick(elapsed))
 }
 
 func TestMultiJitter(t *testing.T) {
 	t.Parallel()
-	synctest.Test(t, testMultiJitter)
-}
-func testMultiJitter(t *testing.T) {
+
 	var jitterCalled atomic.Bool
 	fakeJitter := func(d time.Duration) time.Duration {
 		jitterCalled.Store(true)
@@ -125,11 +98,11 @@ func testMultiJitter(t *testing.T) {
 		Jitter:        fakeJitter,
 	})
 
-	for i := range 10 {
+	for i := 0; i < 10; i++ {
 		multi.Add(i + 1)
 	}
 
-	for range 10 {
+	for i := 0; i < 10; i++ {
 		select {
 		case now := <-multi.Elapsed():
 			multi.Tick(now)

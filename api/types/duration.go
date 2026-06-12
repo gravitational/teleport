@@ -57,7 +57,7 @@ func (d *Duration) UnmarshalJSON(data []byte) error {
 		*d = Duration(0)
 		return nil
 	}
-	out, err := ParseDuration(stringVar)
+	out, err := parseDuration(stringVar)
 	if err != nil {
 		return trace.BadParameter("%s", err)
 	}
@@ -81,7 +81,7 @@ func (d *Duration) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		*d = Duration(0)
 		return nil
 	}
-	out, err := ParseDuration(stringVar)
+	out, err := parseDuration(stringVar)
 	if err != nil {
 		return trace.BadParameter("%s", err)
 	}
@@ -165,12 +165,12 @@ var unitMap = map[string]int64{
 	"y":  int64(time.Hour * 24 * 365),
 }
 
-// ParseDuration parses a duration string.
+// parseDuration parses a duration string.
 // A duration string is a possibly signed sequence of
 // decimal numbers, each with optional fraction and a unit suffix,
 // such as "300ms", "-1.5h" or "2h45m".
 // Valid time units are "ns", "us" (or "µs"), "ms", "s", "m", "h".
-func ParseDuration(s string) (Duration, error) {
+func parseDuration(s string) (Duration, error) {
 	// [-+]?([0-9]*(\.[0-9]*)?[a-z]+)+
 	orig := s
 	var d int64

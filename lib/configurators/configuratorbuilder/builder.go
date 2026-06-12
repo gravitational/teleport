@@ -19,8 +19,6 @@
 package configuratorbuilder
 
 import (
-	"context"
-
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/config"
@@ -31,7 +29,7 @@ import (
 
 // BuildConfigurators reads the configuration and returns a list of
 // configurators. Configurators that are "empty" are not returned.
-func BuildConfigurators(ctx context.Context, flags configurators.BootstrapFlags) ([]configurators.Configurator, error) {
+func BuildConfigurators(flags configurators.BootstrapFlags) ([]configurators.Configurator, error) {
 	fileConfig, err := config.ReadFromFile(flags.ConfigPath)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -41,7 +39,7 @@ func BuildConfigurators(ctx context.Context, flags configurators.BootstrapFlags)
 		return nil, trace.Wrap(err)
 	}
 
-	awsConfigurator, err := aws.NewAWSConfigurator(ctx, aws.ConfiguratorConfig{
+	awsConfigurator, err := aws.NewAWSConfigurator(aws.ConfiguratorConfig{
 		Flags:         flags,
 		ServiceConfig: serviceCfg,
 	})

@@ -36,6 +36,8 @@ import (
 
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/httplib/csrf"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
 	websession "github.com/gravitational/teleport/lib/web/session"
 	"github.com/gravitational/teleport/lib/web/ui"
@@ -48,19 +50,6 @@ type WebClientPack struct {
 	webCookie   string
 	bearerToken string
 	clusterName string
-}
-
-// Renew Creates a copy of WebClient with renewed credentials.
-// This can be used to assume a particular web session, like in
-// the case of JIT Access Request role assumption.
-func (w *WebClientPack) WithNewCredentials(token, cookie string) *WebClientPack {
-	return &WebClientPack{
-		webCookie:   cookie,
-		bearerToken: token,
-		clt:         w.clt,
-		host:        w.host,
-		clusterName: w.clusterName,
-	}
 }
 
 // LoginWebClient receives the host url, the username and a password.
@@ -81,7 +70,15 @@ func LoginWebClient(t *testing.T, host, username, password string) *WebClientPac
 	req, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewBuffer(csReq))
 	require.NoError(t, err, "Creating session request for user %q", username)
 
+	// Attach CSRF token in cookie and header.
+	csrfToken, err := utils.CryptoRandomHex(32)
+	require.NoError(t, err)
+	req.AddCookie(&http.Cookie{
+		Name:  csrf.CookieName,
+		Value: csrfToken,
+	})
 	req.Header.Set("Content-Type", "application/json; charset=utf-8")
+	req.Header.Set(csrf.HeaderName, csrfToken)
 
 	// Issue request.
 	client := &http.Client{

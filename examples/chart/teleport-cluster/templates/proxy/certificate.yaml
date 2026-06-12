@@ -4,9 +4,9 @@
   {{- $domainList := list (required "clusterName is required in chartValues when certManager is enabled" $proxy.clusterName) -}}
   {{- $domainList := append $domainList (printf "*.%s" (required "clusterName is required in chartValues when certManager is enabled" $proxy.clusterName)) -}}
   {{- /* If the config option is enabled and at least one publicAddr is set, append all public addresses to the list of dnsNames */ -}}
-  {{- if and $proxy.highAvailability.certManager.addPublicAddrs (gt (len $proxy.publicAddr) 0) -}}
+  {{- if and $proxy.highAvailability.certManager.addPublicAddrs (gt (len .Values.publicAddr) 0) -}}
     {{- /* Trim ports from all public addresses if present */ -}}
-    {{- range $proxy.publicAddr -}}
+    {{- range .Values.publicAddr -}}
       {{- $address := . -}}
       {{- if (contains ":" $address) -}}
         {{- $split := split ":" $address -}}

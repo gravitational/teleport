@@ -17,7 +17,6 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ReactNode } from 'react';
 
 import {
   Alert,
@@ -36,14 +35,12 @@ import {
   CanvasRendererRef,
 } from 'shared/components/CanvasRenderer';
 import { Latency } from 'shared/components/LatencyDiagnostic';
-import type { ToastNotificationItem } from 'shared/components/ToastNotification';
 import {
   Attempt,
   makeEmptyAttempt,
   makeSuccessAttempt,
   useAsync,
 } from 'shared/hooks/useAsync';
-import { useLocalStorage } from 'shared/hooks/useLocalStorage';
 import {
   ButtonState,
   ScrollAxis,
@@ -53,6 +50,7 @@ import {
 import { TdpError } from 'shared/libs/tdp/client';
 
 import { InputHandler } from './InputHandler';
+import TopBar from './TopBar';
 import useDesktopSession, {
   clipboardSharingMessage,
   directorySharingPossible,
@@ -62,6 +60,8 @@ import useDesktopSession, {
 
 export interface DesktopSessionProps {
   client: TdpClient;
+  /** Username for display purposes. */
+  username: string;
   /** Desktop name for display purposes. */
   desktop: string;
   aclAttempt: Attempt<{
@@ -77,46 +77,21 @@ export interface DesktopSessionProps {
    */
   customConnectionState?(args: { retry(): void }): React.ReactElement;
   hasAnotherSession(): Promise<boolean>;
-  /**
-   * Keyboard layout identifier for desired layout on remote session
-   * Spec can be found here: https://learn.microsoft.com/en-us/globalization/windows-keyboard-layouts
-   */
-  keyboardLayout?: number;
-  renderControls(props: DesktopSessionControlsRenderProps): ReactNode;
-}
-
-export interface DesktopSessionControlsRenderProps {
-  canShareDirectory: boolean;
-  isSharingDirectory: boolean;
-  isSharingClipboard: boolean;
-  clipboardSharingMessage: string;
-  onShareDirectory: VoidFunction;
-  onCtrlAltDel: VoidFunction;
-  onDisconnect: VoidFunction;
-  alerts: ToastNotificationItem[];
-  onRemoveAlert(id: string): void;
-  isConnected: boolean;
-  latencyStats: Latency;
-  hiDpiEnabled: boolean;
-  onToggleHiDpi: VoidFunction;
-  screenIsHiDpi: boolean;
-  hiDpiSupported: boolean;
 }
 
 export function DesktopSession({
   client,
-  desktop,
   aclAttempt,
+  username,
+  desktop,
   hasAnotherSession,
   customConnectionState,
-  keyboardLayout = 0,
-  renderControls,
   browserSupportsSharing,
 }: DesktopSessionProps) {
   const {
     directorySharingState,
     onClipboardData,
-    onTransientUserActivation,
+    sendLocalClipboardToRemote,
     clipboardSharingState,
     clearSharing,
     onShareDirectory,
@@ -124,34 +99,9 @@ export function DesktopSession({
     onRemoveAlert,
     addAlert,
   } = useDesktopSession(client, aclAttempt, browserSupportsSharing);
+
   const [tdpConnectionStatus, setTdpConnectionStatus] =
     useState<TdpConnectionStatus>({ status: '' });
-  const [hiDpiSettings, setHiDpiSettings] = useLocalStorage<
-    Record<string, boolean>
-  >(
-    'grv_teleport_desktop_hidpi', // manually written here as we cannot import from teleport
-    {}
-  );
-  const isHiDpi = hiDpiSettings[desktop] ?? false;
-  const setIsHiDpi = useCallback(
-    (value: boolean) => {
-      setHiDpiSettings(prev => ({ ...prev, [desktop]: value }));
-    },
-    [desktop, setHiDpiSettings]
-  );
-
-  // Track devicePixelRatio so the HiDPI screen indicator updates
-  // when the window is dragged between displays with different DPRs.
-  const [devicePixelRatio, setDevicePixelRatio] = useState(
-    window.devicePixelRatio
-  );
-  useEffect(() => {
-    const mql = window.matchMedia(`(resolution: ${devicePixelRatio}dppx)`);
-    const onChange = () => setDevicePixelRatio(window.devicePixelRatio);
-    mql.addEventListener('change', onChange);
-    return () => mql.removeEventListener('change', onChange);
-  }, [devicePixelRatio]);
-  const screenIsHiDpi = devicePixelRatio > 1;
 
   const inputHandler = useRef(new InputHandler());
   useEffect(() => {
@@ -277,32 +227,11 @@ export function DesktopSession({
     if (!shouldConnect) {
       return;
     }
-    client
-      .connect({
-        keyboardLayout,
-        screenSpec: canvasRendererRef.current.getSize(),
-      })
-      .catch(handleConnectionClose);
+    void client.connect(canvasRendererRef.current.getSize());
     return () => {
       client.shutdown();
     };
-  }, [client, shouldConnect, keyboardLayout]);
-
-  // When the HiDPI toggle changes, send the updated scale to the server.
-  const prevIsHiDpi = useRef(isHiDpi);
-  useEffect(() => {
-    if (prevIsHiDpi.current === isHiDpi) {
-      return;
-    }
-
-    prevIsHiDpi.current = isHiDpi;
-
-    const size = canvasRendererRef.current?.getSize();
-
-    if (size) {
-      client.resize(size);
-    }
-  }, [isHiDpi, client]);
+  }, [client, shouldConnect]);
 
   function handleKeyDown(e: React.KeyboardEvent) {
     inputHandler.current.handleInputEvent({
@@ -319,7 +248,7 @@ export function DesktopSession({
       // Opportunistically sync local clipboard to remote while
       // transient user activation is in effect.
       // https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/readText#security
-      onTransientUserActivation();
+      sendLocalClipboardToRemote();
     }
   }
 
@@ -335,45 +264,14 @@ export function DesktopSession({
     inputHandler.current.onFocusOut();
   }
 
-  function scaleEvent(e: React.MouseEvent<HTMLCanvasElement>) {
+  function handleMouseMove(e: React.MouseEvent) {
     const rect = e.currentTarget.getBoundingClientRect();
-    const canvas = e.currentTarget;
-
-    const scale = Math.min(
-      1,
-      rect.width / canvas.width,
-      rect.height / canvas.height
-    );
-
-    const renderedWidth = canvas.width * scale;
-    const renderedHeight = canvas.height * scale;
-
-    // calculate offset from center
-    const offsetX = (rect.width - renderedWidth) / 2;
-    const offsetY = (rect.height - renderedHeight) / 2;
-
-    const x = Math.round((e.clientX - rect.left - offsetX) / scale);
-    const y = Math.round((e.clientY - rect.top - offsetY) / scale);
-
-    const inBounds = x >= 0 && y >= 0 && x < canvas.width && y < canvas.height;
-
-    return { x, y, inBounds };
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    client.sendMouseMove(x, y);
   }
 
-  function handleMouseMove(e: React.MouseEvent<HTMLCanvasElement>) {
-    const scaled = scaleEvent(e);
-
-    if (scaled.inBounds) {
-      client.sendMouseMove(scaled.x, scaled.y);
-    }
-  }
-
-  function handleMouseDown(e: React.MouseEvent<HTMLCanvasElement>) {
-    const scaled = scaleEvent(e);
-    if (!scaled.inBounds) {
-      return;
-    }
-
+  function handleMouseDown(e: React.MouseEvent) {
     inputHandler.current.handleInputEvent({
       cli: client,
       e: e.nativeEvent,
@@ -383,10 +281,10 @@ export function DesktopSession({
     // Opportunistically sync local clipboard to remote while
     // transient user activation is in effect.
     // https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/readText#security
-    onTransientUserActivation();
+    sendLocalClipboardToRemote();
   }
 
-  function handleMouseUp(e: React.MouseEvent<HTMLCanvasElement>) {
+  function handleMouseUp(e: React.MouseEvent) {
     inputHandler.current.handleInputEvent({
       cli: client,
       e: e.nativeEvent,
@@ -435,23 +333,6 @@ export function DesktopSession({
     customConnectionState?.({ retry: onRetry })
   );
 
-  const controlsProps: DesktopSessionControlsRenderProps = {
-    canShareDirectory: directorySharingPossible(directorySharingState),
-    isSharingDirectory: isSharingDirectory(directorySharingState),
-    isSharingClipboard: isSharingClipboard(clipboardSharingState),
-    clipboardSharingMessage: clipboardSharingMessage(clipboardSharingState),
-    onShareDirectory,
-    onCtrlAltDel: handleCtrlAltDel,
-    onDisconnect: () => client.shutdown(),
-    alerts,
-    onRemoveAlert,
-    isConnected: screenState.state === 'canvas-visible',
-    latencyStats,
-    hiDpiEnabled: isHiDpi,
-    onToggleHiDpi: () => setIsHiDpi(!isHiDpi),
-    screenIsHiDpi,
-    hiDpiSupported: client.hidpiSupported,
-  };
   return (
     <Flex
       flexDirection="column"
@@ -462,7 +343,22 @@ export function DesktopSession({
         height: 100%;
       `}
     >
-      {renderControls(controlsProps)}
+      <TopBar
+        isConnected={screenState.state === 'canvas-visible'}
+        onDisconnect={() => {
+          client.shutdown();
+        }}
+        userHost={`${username} on ${desktop}`}
+        canShareDirectory={directorySharingPossible(directorySharingState)}
+        isSharingDirectory={isSharingDirectory(directorySharingState)}
+        isSharingClipboard={isSharingClipboard(clipboardSharingState)}
+        clipboardSharingMessage={clipboardSharingMessage(clipboardSharingState)}
+        onShareDirectory={onShareDirectory}
+        onCtrlAltDel={handleCtrlAltDel}
+        alerts={alerts}
+        onRemoveAlert={onRemoveAlert}
+        latency={latencyStats}
+      />
 
       {/* The UI states below (except the loading indicator) take up space.*/}
       {/* They're hidden while the canvas is visible, so when `connect()` reads the screen size, */}
@@ -497,7 +393,6 @@ export function DesktopSession({
         onMouseWheel={handleMouseWheel}
         onContextMenu={handleContextMenu}
         onResize={client.resize}
-        isHiDpi={isHiDpi}
       />
     </Flex>
   );

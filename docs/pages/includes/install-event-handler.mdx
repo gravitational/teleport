@@ -1,0 +1,70 @@
+<Tabs>
+<TabItem label="Linux">
+
+The Event Handler plugin is provided in `amd64` and `arm64` binaries for downloading.
+Replace `ARCH` with your required version.
+
+```code
+$ curl -L -O https://cdn.teleport.dev/teleport-event-handler-v(=teleport.version=)-linux-<Var name="ARCH" />-bin.tar.gz
+$ tar -zxvf teleport-event-handler-v(=teleport.version=)-linux-<Var name="ARCH" />-bin.tar.gz
+$ sudo ./teleport-event-handler/install
+```
+
+</TabItem>
+
+<TabItem label="macOS">
+
+The Event Handler plugin is provided in `amd64` and `arm64` binaries for downloading.
+Replace `ARCH` with your required version.
+
+```code
+$ curl -L -O https://cdn.teleport.dev/teleport-event-handler-v(=teleport.version=)-darwin-<Var name="ARCH" />-bin.tar.gz
+$ tar -zxvf teleport-event-handler-v(=teleport.version=)-darwin-<Var name="ARCH" />-bin.tar.gz
+$ sudo ./teleport-event-handler/install
+```
+
+</TabItem>
+
+<TabItem label="Docker">
+Ensure that you have Docker installed and running.
+
+```code
+$ docker pull public.ecr.aws/gravitational/teleport-plugin-event-handler:(=teleport.version=)
+```
+
+</TabItem>
+
+<TabItem label="Helm">
+
+To allow Helm to install charts that are hosted in the Teleport Helm repository, use `helm repo add`:
+
+```code
+$ helm repo add teleport (=teleport.helm_repo_url=)
+```
+
+To update the cache of charts from the remote repository, run `helm repo update`:
+
+```code
+$ helm repo update
+```
+
+</TabItem>
+<TabItem label="Build via Go">
+
+You will need Go >= (=teleport.golang=) installed.
+
+Run the following commands on your Universal Forwarder host:
+
+```code
+$ git clone https://github.com/gravitational/teleport.git --depth 1 -b branch/v(=teleport.major_version=)
+$ cd teleport/integrations/event-handler
+$ make build
+```
+
+The resulting executable will have the name `event-handler`. To follow the
+rest of this guide, rename this file to `teleport-event-handler` and move it
+to `/usr/local/bin`.
+
+</TabItem>
+</Tabs>
+

@@ -19,23 +19,17 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
-	"log/slog"
 	"net/url"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/distribution/reference"
-	"github.com/go-logr/logr"
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -43,7 +37,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	"github.com/gravitational/teleport/api/client/webclient"
@@ -53,35 +47,19 @@ import (
 	podmaintenance "github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/maintenance"
 	"github.com/gravitational/teleport/lib/automaticupgrades/maintenance"
 	"github.com/gravitational/teleport/lib/automaticupgrades/version"
-	"github.com/gravitational/teleport/lib/autoupdate/agent"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-var scheme = runtime.NewScheme()
+var (
+	scheme = runtime.NewScheme()
+)
 
 func init() {
 	utilruntime.Must(appsv1.AddToScheme(scheme))
 	utilruntime.Must(v1.AddToScheme(scheme))
 }
 
-var extraFields = []string{logutils.LevelField, logutils.ComponentField, logutils.TimestampField}
-
 func main() {
 	ctx := ctrl.SetupSignalHandler()
-
-	// Setup early logger, using INFO level by default.
-	slogLogger, slogLeveler, _, err := logutils.Initialize(logutils.Config{
-		Severity:    slog.LevelInfo.String(),
-		Format:      "json",
-		ExtraFields: extraFields,
-	})
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to initialize logs: %v\n", err)
-		os.Exit(1)
-	}
-
-	logger := logr.FromSlogHandler(slogLogger.Handler())
-	ctrl.SetLogger(logger)
 
 	var agentName string
 	var agentNamespace string
@@ -95,7 +73,6 @@ func main() {
 	var insecureNoResolve bool
 	var disableLeaderElection bool
 	var credSource string
-	var logLevel string
 	var proxyAddress string
 	var updateGroup string
 
@@ -117,16 +94,14 @@ func main() {
 			img.DockerCredentialSource, img.GoogleCredentialSource, img.AmazonCredentialSource, img.NoCredentialSource,
 		),
 	)
-	flag.StringVar(&logLevel, "log-level", "INFO", "Log level (DEBUG, INFO, WARN, ERROR).")
+
+	opts := zap.Options{
+		Development: false,
+	}
+	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 
-	// Now that we parsed the flags, we can tune the log level.
-	var lvl slog.Level
-	if err := (&lvl).UnmarshalText([]byte(logLevel)); err != nil {
-		ctrl.Log.Error(err, "Failed to parse log level", "level", logLevel)
-		os.Exit(1)
-	}
-	slogLeveler.Set(lvl)
+	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
 	// Validate configuration.
 	if agentName == "" {
@@ -170,20 +145,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// The updater is only designed to work with a single deployment or statefulset.
-	// Pre-fetch the ID if it already exists, so that we can use it to lookup versions.
-	// This logic could be moved into the reconciler, but it would require refactoring
-	// all version getter implementations to accept an ID dynamically in GetVersion.
-	updateID, err := getUpdateID(ctx, mgr, kclient.ObjectKey{
-		Namespace: agentNamespace,
-		Name:      agentName + "-updater",
-	})
-	if err != nil {
-		ctrl.Log.Error(err, "failed to get updater ID, exiting")
-		os.Exit(1)
-	}
-	ctrl.Log.Info("update ID and group are set", "update_id", updateID, "update_group", updateGroup)
-
 	// Craft the version getter and update triggers based on the configuration (use RFD-109 APIs, RFD-184, or both).
 	var criticalUpdateTriggers []maintenance.Trigger
 	var plannedMaintenanceTriggers []maintenance.Trigger
@@ -198,7 +159,6 @@ func main() {
 			Context:     ctx,
 			ProxyAddr:   proxyAddress,
 			UpdateGroup: updateGroup,
-			UpdateID:    updateID.String(),
 		})
 		if err != nil {
 			ctrl.Log.Error(err, "failed to create proxy client, exiting")
@@ -270,7 +230,7 @@ func main() {
 	case insecureNoVerify:
 		ctrl.Log.Info("INSECURE: Image validation disabled")
 		imageValidators = append(imageValidators, img.NewInsecureValidator("insecure always verified", kc))
-	case kubeversionupdater.Version().PreRelease != "":
+	case kubeversionupdater.SemVersion != nil && kubeversionupdater.SemVersion.PreRelease != "":
 		ctrl.Log.Info("This is a pre-release updater version, the key used to sign dev and pre-release builds of Teleport will be trusted.")
 		validator, err := img.NewCosignSingleKeyValidator(teleportStageOCIPubKey, "staging cosign signature validator", kc)
 		if err != nil {
@@ -301,18 +261,9 @@ func main() {
 		baseImage,
 	)
 
-	statusWriter := controller.StatusWriter{
-		Client:       mgr.GetClient(),
-		Scheme:       mgr.GetScheme(),
-		UpdateID:     updateID,
-		UpdateGroup:  updateGroup,
-		ProxyAddress: proxyAddress,
-	}
-
 	// Controller registration
 	deploymentController := controller.DeploymentVersionUpdater{
 		VersionUpdater: versionUpdater,
-		StatusWriter:   statusWriter,
 		Client:         mgr.GetClient(),
 		Scheme:         mgr.GetScheme(),
 	}
@@ -324,7 +275,6 @@ func main() {
 
 	statefulsetController := controller.StatefulSetVersionUpdater{
 		VersionUpdater: versionUpdater,
-		StatusWriter:   statusWriter,
 		Client:         mgr.GetClient(),
 		Scheme:         mgr.GetScheme(),
 	}
@@ -349,48 +299,4 @@ func main() {
 		ctrl.Log.Error(err, "failed to start manager, exiting")
 		os.Exit(1)
 	}
-}
-
-// getUpdateID returns the update ID from the updater configmap, creating it if it does not exist.
-func getUpdateID(ctx context.Context, mgr manager.Manager, ref kclient.ObjectKey) (uuid.UUID, error) {
-	// This should always succeed after two tries, as a conflict between read/create
-	// will always be resolved on the final read.
-	for range 2 {
-		var updateID uuid.UUID
-		var updateYAML v1.ConfigMap
-		err := mgr.GetAPIReader().Get(ctx, ref, &updateYAML)
-		if apierrors.IsNotFound(err) {
-			updateID, err = uuid.NewRandom()
-			if err != nil {
-				return uuid.Nil, trace.Wrap(err, "failed to generate updater ID")
-			}
-			updateYAML = v1.ConfigMap{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: ref.Namespace,
-					Name:      ref.Name,
-				},
-				Data: map[string]string{
-					agent.BinaryName + ".id": updateID.String(),
-				},
-			}
-			if err = mgr.GetClient().Create(ctx, &updateYAML); err != nil {
-				if apierrors.IsAlreadyExists(err) {
-					ctrl.Log.Info("retrying updater configmap read due to conflict")
-					continue
-				}
-				return uuid.Nil, trace.Wrap(err, "failed to persist updater configmap")
-			}
-			ctrl.Log.Info("generated new updater ID", "id", updateID)
-			return updateID, nil
-		}
-		if err != nil {
-			return uuid.Nil, trace.Wrap(err, "failed to retrieve updater configmap")
-		}
-		updateID, err = uuid.Parse(updateYAML.Data[agent.BinaryName+".id"])
-		if err != nil {
-			ctrl.Log.Error(err, "updater configmap is malformed, canary deployment may fail", "configmap", updateYAML)
-		}
-		return updateID, nil // proceed with empty UUID instead of crashing or deleting user data
-	}
-	return uuid.Nil, trace.Errorf("failing due to multiple conflicts")
 }

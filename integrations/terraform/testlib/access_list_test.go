@@ -35,9 +35,9 @@ type nextAuditDateComparer struct {
 	nextAuditDate time.Time
 }
 
-func (c *nextAuditDateComparer) CaptureNextAuditDate(name string) resource.TestCheckFunc {
+func (c *nextAuditDateComparer) CaptureNextAuditDate(ctx context.Context, name string) resource.TestCheckFunc {
 	return func(state *terraform.State) error {
-		al, err := c.client.AccessListClient().GetAccessList(context.TODO(), name)
+		al, err := c.client.AccessListClient().GetAccessList(ctx, name)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -46,9 +46,9 @@ func (c *nextAuditDateComparer) CaptureNextAuditDate(name string) resource.TestC
 	}
 }
 
-func (c *nextAuditDateComparer) TestNextAuditDateUnchanged(name string) resource.TestCheckFunc {
+func (c *nextAuditDateComparer) TestNextAuditDateUnchanged(ctx context.Context, name string) resource.TestCheckFunc {
 	return func(state *terraform.State) error {
-		al, err := c.client.AccessListClient().GetAccessList(context.TODO(), name)
+		al, err := c.client.AccessListClient().GetAccessList(ctx, name)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -60,14 +60,14 @@ func (c *nextAuditDateComparer) TestNextAuditDateUnchanged(name string) resource
 	}
 }
 
-func (s *TerraformSuiteEnterprise) TestAccessList() {
+func (s *TerraformSuiteEnterprise) TestAccessList(ctx context.Context) {
 	require.True(s.T(),
 		s.teleportFeatures.GetAdvancedAccessWorkflows(),
 		"Test requires Advanced Access Workflows",
 	)
 
 	checkAccessListDestroyed := func(state *terraform.State) error {
-		_, err := s.client.AccessListClient().GetAccessList(context.TODO(), "test")
+		_, err := s.client.AccessListClient().GetAccessList(ctx, "test")
 		if trace.IsNotFound(err) {
 			return nil
 		}
@@ -91,7 +91,7 @@ func (s *TerraformSuiteEnterprise) TestAccessList() {
 					resource.TestCheckResourceAttr(name, "spec.membership_requires.roles.0", "minion"),
 					resource.TestCheckResourceAttr(name, "spec.grants.roles.0", "crane-operator"),
 					resource.TestCheckResourceAttr(name, "spec.audit.recurrence.frequency", "3"),
-					auditDateChecker.CaptureNextAuditDate("test"),
+					auditDateChecker.CaptureNextAuditDate(ctx, "test"),
 				),
 			},
 			{
@@ -104,7 +104,7 @@ func (s *TerraformSuiteEnterprise) TestAccessList() {
 					resource.TestCheckResourceAttr(name, "spec.grants.traits.0.key", "allowed-machines"),
 					resource.TestCheckResourceAttr(name, "spec.grants.traits.0.values.0", "crane"),
 					resource.TestCheckResourceAttr(name, "spec.grants.traits.0.values.1", "forklift"),
-					auditDateChecker.TestNextAuditDateUnchanged("test"),
+					auditDateChecker.TestNextAuditDateUnchanged(ctx, "test"),
 				),
 			},
 			{
@@ -115,7 +115,8 @@ func (s *TerraformSuiteEnterprise) TestAccessList() {
 				Config: s.getFixture("access_list_2_expiring.tf"),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(name, "header.metadata.expires", "2038-01-01T00:00:00Z"),
-					auditDateChecker.TestNextAuditDateUnchanged("test"),
+					auditDateChecker.TestNextAuditDateUnchanged(ctx,
+						"test"),
 				),
 			},
 			{

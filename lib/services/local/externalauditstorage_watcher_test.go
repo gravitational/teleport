@@ -34,7 +34,8 @@ import (
 
 func TestClusterExternalAuditWatcher(t *testing.T) {
 	t.Parallel()
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	bk, err := memory.New(memory.Config{
 		Context: ctx,
@@ -144,7 +145,8 @@ func TestClusterExternalAuditWatcher(t *testing.T) {
 // ExternalAuditWatcher can recover from the underlying backend watcher closing.
 func TestClusterExternalAuditWatcher_WatcherClosed(t *testing.T) {
 	t.Parallel()
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	bk, err := memory.New(memory.Config{
 		Context: ctx,

@@ -15,6 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+import 'jest-canvas-mock';
 import { within } from '@testing-library/react';
 import { mockIntersectionObserver } from 'jsdom-testing-mocks';
 
@@ -26,7 +27,6 @@ import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 import { makeApp, makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import { App } from 'teleterm/ui/App';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
-import { routing } from 'teleterm/ui/uri';
 
 beforeAll(() => {
   Logger.init(new NullService());
@@ -68,7 +68,6 @@ test.each(tests)(
     const user = userEvent.setup();
     const ctx = new MockAppContext();
     const rootCluster = makeRootCluster();
-    ctx.addRootCluster(rootCluster, { noActivate: true });
     ctx.configService.set('usageReporting.enabled', false);
 
     jest.spyOn(ctx.tshd, 'listUnifiedResources').mockReturnValue(
@@ -80,6 +79,11 @@ test.each(tests)(
             requiresRequest: false,
           },
         ],
+      })
+    );
+    jest.spyOn(ctx.tshd, 'listRootClusters').mockReturnValue(
+      new MockedUnaryCall({
+        clusters: [rootCluster],
       })
     );
     jest.spyOn(ctx.vnet, 'getServiceInfo').mockReturnValue(
@@ -94,9 +98,7 @@ test.each(tests)(
 
     render(<App ctx={ctx} />);
 
-    await user.click(
-      await screen.findByText(routing.parseClusterName(rootCluster.uri))
-    );
+    await user.click(await screen.findByText(rootCluster.name));
     act(mio.enterAll);
 
     expect(
@@ -160,7 +162,6 @@ test.each(tests)(
     const user = userEvent.setup();
     const ctx = new MockAppContext();
     const rootCluster = makeRootCluster();
-    ctx.addRootCluster(rootCluster, { noActivate: true });
     ctx.configService.set('usageReporting.enabled', false);
     ctx.statePersistenceService.putState({
       ...ctx.statePersistenceService.getState(),
@@ -178,6 +179,11 @@ test.each(tests)(
         ],
       })
     );
+    jest.spyOn(ctx.tshd, 'listRootClusters').mockReturnValue(
+      new MockedUnaryCall({
+        clusters: [rootCluster],
+      })
+    );
     jest.spyOn(ctx.vnet, 'getServiceInfo').mockReturnValue(
       new MockedUnaryCall({
         appDnsZones: [proxyHostname(rootCluster.proxyHost)],
@@ -190,9 +196,7 @@ test.each(tests)(
 
     render(<App ctx={ctx} />);
 
-    await user.click(
-      await screen.findByText(routing.parseClusterName(rootCluster.uri))
-    );
+    await user.click(await screen.findByText(rootCluster.name));
     act(mio.enterAll);
 
     expect(
@@ -236,9 +240,13 @@ test('launching VNet for the first time from the connections panel does not open
   const user = userEvent.setup();
   const ctx = new MockAppContext();
   const rootCluster = makeRootCluster();
-  ctx.addRootCluster(rootCluster, { noActivate: true });
   ctx.configService.set('usageReporting.enabled', false);
 
+  jest.spyOn(ctx.tshd, 'listRootClusters').mockReturnValue(
+    new MockedUnaryCall({
+      clusters: [rootCluster],
+    })
+  );
   jest.spyOn(ctx.vnet, 'getServiceInfo').mockReturnValue(
     new MockedUnaryCall({
       appDnsZones: [proxyHostname(rootCluster.proxyHost)],
@@ -251,9 +259,7 @@ test('launching VNet for the first time from the connections panel does not open
 
   render(<App ctx={ctx} />);
 
-  await user.click(
-    await screen.findByText(routing.parseClusterName(rootCluster.uri))
-  );
+  await user.click(await screen.findByText(rootCluster.name));
   act(mio.enterAll);
 
   // Start VNet.

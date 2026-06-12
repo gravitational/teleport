@@ -20,16 +20,16 @@
 
 import { QueryClientProvider } from '@tanstack/react-query';
 import { UserEvent } from '@testing-library/user-event';
+import { createMemoryHistory } from 'history';
+import { setupServer } from 'msw/node';
 import { PropsWithChildren } from 'react';
-import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
+import { MemoryRouter, Route, Router } from 'react-router';
 
 import darkTheme from 'design/theme/themes/darkTheme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
-  enableMswServer,
   render,
   screen,
-  server,
   testQueryClient,
   userEvent,
   waitFor,
@@ -65,12 +65,20 @@ import {
 
 import { BotDetails } from './BotDetails';
 
-enableMswServer();
+const server = setupServer();
+
+beforeAll(() => {
+  server.listen();
+});
 
 afterEach(async () => {
+  server.resetHandlers();
   await testQueryClient.resetQueries();
+
   jest.clearAllMocks();
 });
+
+afterAll(() => server.close());
 
 describe('BotDetails', () => {
   it('should show a page error state', async () => {
@@ -94,19 +102,22 @@ describe('BotDetails', () => {
   });
 
   it('should allow back navigation', async () => {
+    const history = createMemoryHistory({
+      initialEntries: ['/web/bot/test-bot-name'],
+    });
+    history.goBack = jest.fn();
+
     withFetchSuccess();
     withFetchJoinTokensSuccess();
     withFetchInstancesSuccess();
     withListLocksSuccess();
-    const { user } = renderComponent();
+    const { user } = renderComponent({ history });
     await waitForLoadingBot();
 
     const backButton = screen.getByLabelText('back');
     await user.click(backButton);
 
-    expect(screen.getByTestId('current-pathname')).toHaveTextContent(
-      cfg.getBotsRoute()
-    );
+    expect(history.goBack).toHaveBeenCalledTimes(1);
   });
 
   it('should show page title', async () => {
@@ -238,40 +249,6 @@ describe('BotDetails', () => {
         'Multi-factor authentication is required to view join tokens'
       )
     ).toBeInTheDocument();
-  });
-
-  it('should allow an instance to be selected', async () => {
-    withFetchSuccess();
-    withFetchJoinTokensSuccess();
-    withFetchInstancesSuccess();
-    withListLocksSuccess();
-    const { user } = renderComponent();
-    await waitForLoadingBot();
-    await waitForLoadingTokens();
-
-    const instanceSection = screen
-      .getByRole('heading', { name: 'Active Instances' })
-      .closest('section');
-
-    const firstItem = within(instanceSection!).getByText(
-      'c11250e0-00c2-4f52-bcdf-b367f80b9461'
-    );
-
-    await user.click(firstItem);
-
-    expect(screen.getByTestId('current-pathname')).toHaveTextContent(
-      cfg.routes.botInstances
-    );
-    const search = new URLSearchParams(
-      screen.getByTestId('current-search').textContent ?? ''
-    );
-    expect(search.get('query')).toBe('spec.bot_name == "ansible-worker"');
-    expect(search.get('is_advanced')).toBe('1');
-    expect(search.get('sort_field')).toBe('active_at_latest');
-    expect(search.get('sort_dir')).toBe('DESC');
-    expect(search.get('selected')).toBe(
-      'ansible-worker/c11250e0-00c2-4f52-bcdf-b367f80b9461'
-    );
   });
 
   describe('should show bot join tokens empty message', () => {
@@ -601,6 +578,11 @@ describe('BotDetails', () => {
 
   describe('Delete', () => {
     it('should show an overflow option to delete the bot', async () => {
+      const history = createMemoryHistory({
+        initialEntries: ['/web/bot/test-bot-name'],
+      });
+      history.replace = jest.fn();
+
       withFetchSuccess();
       withFetchJoinTokensSuccess();
       withFetchInstancesSuccess();
@@ -608,7 +590,7 @@ describe('BotDetails', () => {
         locks: [],
       });
       withDeleteBotSuccess();
-      const { user } = renderComponent();
+      const { user } = renderComponent({ history });
       await waitForLoadingBot();
 
       const overflowButton = screen.getByTestId('overflow-btn-open');
@@ -633,9 +615,8 @@ describe('BotDetails', () => {
         { timeout: 5000 }
       );
 
-      expect(screen.getByTestId('current-pathname')).toHaveTextContent(
-        '/web/bots'
-      );
+      expect(history.replace).toHaveBeenCalledTimes(1);
+      expect(history.replace).toHaveBeenLastCalledWith('/web/bots');
     });
 
     it('should disable the delete action if no permissions', async () => {
@@ -749,29 +730,17 @@ async function inputMaxSessionDuration(user: UserEvent, duration: string) {
 }
 
 const renderComponent = (options?: {
+  history?: ReturnType<typeof createMemoryHistory>;
   customAcl?: ReturnType<typeof makeAcl>;
 }) => {
   const user = userEvent.setup();
   return {
     ...render(<BotDetails />, {
-      wrapper: makeWrapper({
-        customAcl: options?.customAcl,
-      }),
+      wrapper: makeWrapper(options),
     }),
     user,
   };
 };
-
-function LocationState() {
-  const location = useLocation();
-
-  return (
-    <>
-      <div data-testid="current-pathname">{location.pathname}</div>
-      <div data-testid="current-search">{location.search}</div>
-    </>
-  );
-}
 
 const waitForLoadingBot = async () => {
   await waitForElementToBeRemoved(() => screen.queryByTestId('loading-bot'));
@@ -822,23 +791,20 @@ const withFetchJoinTokensOutdatedProxy = () => {
 
 function withFetchInstancesSuccess() {
   server.use(
-    listBotInstancesSuccess(
-      {
-        bot_instances: [
-          {
-            bot_name: 'ansible-worker',
-            instance_id: 'c11250e0-00c2-4f52-bcdf-b367f80b9461',
-            active_at_latest: '2025-07-22T10:54:00Z',
-            host_name_latest: 'svr-lon-01-ab23cd',
-            join_method_latest: 'github',
-            os_latest: 'linux',
-            version_latest: '4.4.16',
-          },
-        ],
-        next_page_token: '',
-      },
-      'v1'
-    )
+    listBotInstancesSuccess({
+      bot_instances: [
+        {
+          bot_name: 'ansible-worker',
+          instance_id: 'c11250e0-00c2-4f52-bcdf-b367f80b9461',
+          active_at_latest: '2025-07-22T10:54:00Z',
+          host_name_latest: 'svr-lon-01-ab23cd',
+          join_method_latest: 'github',
+          os_latest: 'linux',
+          version_latest: '4.4.16',
+        },
+      ],
+      next_page_token: '',
+    })
   );
 }
 
@@ -891,8 +857,14 @@ function withDeleteBotSuccess() {
   server.use(deleteBotSuccess());
 }
 
-function makeWrapper(options: { customAcl?: ReturnType<typeof makeAcl> }) {
+function makeWrapper(options?: {
+  history?: ReturnType<typeof createMemoryHistory>;
+  customAcl?: ReturnType<typeof makeAcl>;
+}) {
   const {
+    history = createMemoryHistory({
+      initialEntries: ['/web/bot/test-bot-name'],
+    }),
     customAcl = makeAcl({
       bots: {
         ...defaultAccess,
@@ -920,30 +892,20 @@ function makeWrapper(options: { customAcl?: ReturnType<typeof makeAcl> }) {
         edit: true,
       },
     }),
-  } = options;
+  } = options ?? {};
   return ({ children }: PropsWithChildren) => {
     const ctx = createTeleportContext({
       customAcl,
     });
     return (
-      <MemoryRouter initialEntries={['/web/bot/test-bot-name']}>
+      <MemoryRouter>
         <QueryClientProvider client={testQueryClient}>
           <ConfiguredThemeProvider theme={darkTheme}>
             <ContextProvider ctx={ctx}>
               <InfoGuidePanelProvider>
-                <LocationState />
-                <Routes>
-                  <Route path={cfg.routes.bot} element={children} />
-                  <Route path={cfg.routes.bots} element={<div>Bots</div>} />
-                  <Route
-                    path={cfg.routes.botInstances}
-                    element={<div>Bot Instances</div>}
-                  />
-                  <Route
-                    path={cfg.routes.joinTokens}
-                    element={<div>Join Tokens</div>}
-                  />
-                </Routes>
+                <Router history={history}>
+                  <Route path={cfg.routes.bot}>{children}</Route>
+                </Router>
               </InfoGuidePanelProvider>
             </ContextProvider>
           </ConfiguredThemeProvider>

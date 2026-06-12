@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Meta } from '@storybook/react-vite';
 import { useState } from 'react';
 
 import { Flex } from 'design';
@@ -25,29 +24,15 @@ import Validation from 'shared/components/Validation';
 import { wait } from 'shared/utils/wait';
 
 import { requiredField } from '../Validation/rules';
-import {
-  FieldSelectAsync as FieldSelectAsyncComp,
-  FieldSelect as FieldSelectComp,
-} from './FieldSelect';
+import { FieldSelect, FieldSelectAsync } from './FieldSelect';
 import {
   FieldSelectCreatable,
   FieldSelectCreatableAsync,
 } from './FieldSelectCreatable';
 
-type StoryProps = {
-  readOnly?: boolean;
-  isDisabled?: boolean;
+export default {
+  title: 'Shared/FieldSelect',
 };
-
-const meta: Meta<StoryProps> = {
-  title: 'Shared',
-  component: FieldSelect,
-  args: {
-    readOnly: false,
-    isDisabled: false,
-  },
-};
-export default meta;
 
 function noPenguinsAllowed(opt: Option) {
   return () =>
@@ -63,12 +48,9 @@ function noPenguinsAllowedInArray(opt: Option[]) {
       : { valid: false, message: 'No penguins allowed' };
 }
 
-export function FieldSelect(props: StoryProps) {
+export function Default() {
   const [selectedOption, setSelectedOption] = useState<Option>(OPTIONS[0]);
-  const [selectedOptions, setSelectedOptions] = useState<readonly Option[]>([
-    OPTIONS[0],
-    OPTIONS[1],
-  ]);
+  const [selectedOptions, setSelectedOptions] = useState<readonly Option[]>([]);
   return (
     <Validation>
       {({ validator }) => {
@@ -78,35 +60,29 @@ export function FieldSelect(props: StoryProps) {
         }
         return (
           <Flex flexDirection="column">
-            <FieldSelectComp
+            <FieldSelect
               label="FieldSelect with search"
               onChange={option => setSelectedOption(option)}
               value={selectedOption}
               isSearchable
               options={OPTIONS}
               helperText="And a helper text"
-              isDisabled={props.isDisabled}
-              readOnly={props.readOnly}
             />
-            <FieldSelectComp
+            <FieldSelect
               label="FieldSelect with validation rule"
               onChange={option => setSelectedOption(option)}
               rule={noPenguinsAllowed}
               value={selectedOption}
               options={OPTIONS}
-              isDisabled={props.isDisabled}
-              readOnly={props.readOnly}
             />
-            <FieldSelectComp
+            <FieldSelect
               label="FieldSelect, multi-select"
               isMulti
               options={OPTIONS}
               value={selectedOptions}
               onChange={setSelectedOptions}
-              isDisabled={props.isDisabled}
-              readOnly={props.readOnly}
             />
-            <FieldSelectComp
+            <FieldSelect
               label="FieldSelect, multi-select, required, with tooltip"
               isMulti
               options={OPTIONS}
@@ -115,10 +91,8 @@ export function FieldSelect(props: StoryProps) {
               rule={requiredField('Field is required')}
               required
               toolTipContent="I'm a tooltip."
-              isDisabled={props.isDisabled}
-              readOnly={props.readOnly}
             />
-            <FieldSelectAsyncComp
+            <FieldSelectAsync
               label="FieldSelectAsync with search"
               onChange={option => setSelectedOption(option)}
               value={selectedOption}
@@ -128,10 +102,8 @@ export function FieldSelect(props: StoryProps) {
                 return OPTIONS.filter(o => o.label.includes(input));
               }}
               noOptionsMessage={() => 'No options'}
-              isDisabled={props.isDisabled}
-              readOnly={props.readOnly}
             />
-            <FieldSelectAsyncComp
+            <FieldSelectAsync
               label="FieldSelectAsync with search and validation rule"
               onChange={option => setSelectedOption(option)}
               rule={noPenguinsAllowed}
@@ -142,10 +114,8 @@ export function FieldSelect(props: StoryProps) {
                 return OPTIONS.filter(o => o.label.includes(input));
               }}
               noOptionsMessage={() => 'No options'}
-              isDisabled={props.isDisabled}
-              readOnly={props.readOnly}
             />
-            <FieldSelectAsyncComp
+            <FieldSelectAsync
               label="FieldSelectAsync with error"
               onChange={undefined}
               value={undefined}
@@ -155,10 +125,8 @@ export function FieldSelect(props: StoryProps) {
                 throw new Error('Network error');
               }}
               noOptionsMessage={() => 'No options'}
-              isDisabled={props.isDisabled}
-              readOnly={props.readOnly}
             />
-            <FieldSelectAsyncComp
+            <FieldSelectAsync
               label="Empty FieldSelectAsync"
               onChange={undefined}
               value={undefined}
@@ -168,8 +136,6 @@ export function FieldSelect(props: StoryProps) {
                 return [];
               }}
               noOptionsMessage={() => 'No options'}
-              isDisabled={props.isDisabled}
-              readOnly={props.readOnly}
             />
             <FieldSelectCreatable
               label="FieldSelectCreatable, multi-select"
@@ -178,8 +144,6 @@ export function FieldSelect(props: StoryProps) {
               value={selectedOptions}
               isSearchable
               options={OPTIONS}
-              isDisabled={props.isDisabled}
-              readOnly={props.readOnly}
             />
             <FieldSelectCreatable
               label="FieldSelectCreatable, multi-select, with validation rule"
@@ -189,8 +153,6 @@ export function FieldSelect(props: StoryProps) {
               value={selectedOptions}
               isSearchable
               options={OPTIONS}
-              isDisabled={props.isDisabled}
-              readOnly={props.readOnly}
             />
             <FieldSelectCreatableAsync
               label="FieldSelectCreatableAsync, multi-select"
@@ -204,8 +166,6 @@ export function FieldSelect(props: StoryProps) {
                 return OPTIONS.filter(o => o.label.includes(input));
               }}
               noOptionsMessage={() => 'No options'}
-              isDisabled={props.isDisabled}
-              readOnly={props.readOnly}
             />
           </Flex>
         );
@@ -214,6 +174,8 @@ export function FieldSelect(props: StoryProps) {
   );
 }
 
+Default.storyName = 'FieldSelect';
+
 const OPTIONS = [
   { value: 'mac', label: 'Mac' },
   {
@@ -221,5 +183,4 @@ const OPTIONS = [
     label: 'Windows',
   },
   { value: 'linux', label: 'Linux' },
-  { value: 'mobile', label: 'Mobile' },
 ];

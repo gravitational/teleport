@@ -23,6 +23,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"strings"
+	"sync"
 
 	"github.com/gravitational/trace"
 )
@@ -38,51 +39,39 @@ type Anonymizer interface {
 	// AnonymizeNonEmpty anonymizes the given string into bytes if the string is
 	// nonempty, otherwise returns an empty slice.
 	AnonymizeNonEmpty(s string) []byte
-}
 
-var _ AnonymizationKeyProvider = (AnonymizationKeyString)("")
-
-// AnonymizationKeyString is a simple implementation of AnonymizationKeyProvider that uses a string as the key.
-type AnonymizationKeyString string
-
-func (h AnonymizationKeyString) GetAnonymizationKey() []byte {
-	return []byte(h)
-}
-
-func (h AnonymizationKeyString) InitializeAnonymizationKey() error {
-	return nil
+	// SetAnonymizationKey updates the underlying anonymization key.
+	SetAnonymizationKey(k []byte)
 }
 
 // HMACAnonymizer implements anonymization using HMAC
 type HMACAnonymizer struct {
 	// key is the HMAC key
-	keyProvider AnonymizationKeyProvider
+	key []byte
+	mu  sync.RWMutex
 }
 
 var _ Anonymizer = (*HMACAnonymizer)(nil)
 
-type AnonymizationKeyProvider interface {
-	// InitializeAnonymizationKey initializes the anonymization key if needed.
-	InitializeAnonymizationKey() error
-	// GetHMACAnonymizerKey returns the HMAC anonymizer key.
-	GetAnonymizationKey() []byte
+func (a *HMACAnonymizer) SetAnonymizationKey(k []byte) {
+	a.mu.Lock()
+	a.key = k
+	a.mu.Unlock()
 }
 
 // NewHMACAnonymizer returns a new HMAC-based anonymizer
-func NewHMACAnonymizer(keyProvider AnonymizationKeyProvider) (*HMACAnonymizer, error) {
-	if err := keyProvider.InitializeAnonymizationKey(); err != nil {
-		return nil, trace.Wrap(err, "failed to initialize anonymization key")
-	}
-	key := keyProvider.GetAnonymizationKey()
-	if strings.TrimSpace(string(key)) == "" {
+func NewHMACAnonymizer(key string) (*HMACAnonymizer, error) {
+	if strings.TrimSpace(key) == "" {
 		return nil, trace.BadParameter("HMAC key must not be empty")
 	}
-	return &HMACAnonymizer{keyProvider: keyProvider}, nil
+	return &HMACAnonymizer{key: []byte(key)}, nil
 }
 
 // Anonymize anonymizes the provided data using HMAC
 func (a *HMACAnonymizer) Anonymize(data []byte) string {
-	k := a.keyProvider.GetAnonymizationKey()
+	a.mu.RLock()
+	k := a.key
+	a.mu.RUnlock()
 
 	h := hmac.New(sha256.New, k)
 	h.Write(data)
@@ -100,7 +89,9 @@ func (a *HMACAnonymizer) AnonymizeNonEmpty(s string) []byte {
 		return nil
 	}
 
-	k := a.keyProvider.GetAnonymizationKey()
+	a.mu.RLock()
+	k := a.key
+	a.mu.RUnlock()
 
 	h := hmac.New(sha256.New, k)
 	h.Write([]byte(s))

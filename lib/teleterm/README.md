@@ -72,9 +72,8 @@ our codebase.
 
 ## tsh directory
 
-Starting with Teleport 18.5.0, Teleport Connect uses the same `$TSH_HOME` directory as `tsh`.
-
-Prior releases use a separate tsh home directory.
+At the moment, Connect uses a separate tsh home directory but we plan to [make Connect use the
+default one](https://github.com/gravitational/webapps.e/issues/295).
 
 ## URI
 

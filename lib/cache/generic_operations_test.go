@@ -18,296 +18,132 @@ package cache
 
 import (
 	"context"
-	"fmt"
 	"testing"
-	"time"
 
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/header"
-	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
-func TestGenericListerPageClipEnd(t *testing.T) {
+func TestGetter(t *testing.T) {
 	t.Parallel()
-
-	tests := []struct {
-		name     string
-		page     []string
-		next     string
-		end      string
-		want     []string
-		wantNext string
-	}{
-		{
-			name:     "end unspecified, return as is",
-			page:     []string{"a", "b"},
-			next:     "c",
-			want:     []string{"a", "b"},
-			wantNext: "c",
-		},
-		{
-			name:     "end token found in page",
-			page:     []string{"a", "b", "c"},
-			end:      "b",
-			next:     "d",
-			want:     []string{"a"},
-			wantNext: "",
-		},
-		{
-			name:     "next token unaffected when no end found",
-			page:     []string{"a", "b"},
-			end:      "c",
-			next:     "c",
-			want:     []string{"a", "b"},
-			wantNext: "c",
-		},
-		{
-			name:     "end was before page",
-			page:     []string{"b", "c", "d"},
-			end:      "a",
-			next:     "e",
-			want:     []string{},
-			wantNext: "",
-		},
-	}
-	for _, tt := range tests {
-		g := genericLister[string, string]{
-			nextToken: func(s string) string { return s },
-		}
-
-		t.Run(tt.name, func(t *testing.T) {
-			page, next := g.clipEnd(tt.page, tt.next, tt.end)
-			assert.Empty(t, cmp.Diff(tt.want, page))
-			assert.Equal(t, tt.wantNext, next)
-		})
-	}
-}
-
-func TestGenericListerRangeWithFallback(t *testing.T) {
-	t.Parallel()
-
-	p, err := newPack(t, ForProxy)
-	require.NoError(t, err)
+	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
 
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-p.eventsC:
-				// Discard events to avoid blocking the test.
-			}
-		}
-	}()
-
-	newResource := func(name string) (types.Application, error) {
-		return types.NewAppV3(types.Metadata{
-			Name: name,
-		}, types.AppSpecV3{
-			URI: "localhost",
+	store := newStore(
+		types.KindRole,
+		func(role types.Role) types.Role {
+			return role
+		},
+		map[string]func(types.Role) string{
+			"default": types.Role.GetName,
 		})
-	}
 
-	var expected []types.Application
-	for i := range 9 {
-		name := fmt.Sprintf("app-%d", i)
-		r, err := newResource(name)
-		require.NoError(t, err)
-		require.NoError(t, p.apps.CreateApp(t.Context(), r))
-		expected = append(expected, r)
-	}
+	require.NoError(t, store.put(&types.RoleV6{Metadata: types.Metadata{Name: "a"}}))
 
-	// Wait for cache
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		items, _ := p.cache.GetApps(ctx)
-		assert.Len(t, items, len(expected))
-	}, 15*time.Second, 100*time.Millisecond)
-
-	tests := []struct {
-		name            string
-		start           string
-		end             string
-		cacheOk         bool
-		upstreamList    func(context.Context, int, string) ([]types.Application, string, error)
-		defaultPageSize int
-		fallbackGetter  func(context.Context) ([]types.Application, error)
-		want            []types.Application
-		wantErr         string
-	}{
-		{
-			name:            "base case with small pages to force depagination",
-			upstreamList:    p.apps.ListApps,
-			fallbackGetter:  p.apps.GetApps,
-			defaultPageSize: 2,
-			cacheOk:         true,
-			want:            expected,
+	var upstreamRead bool
+	g := genericGetter[types.Role, string]{
+		cache: p.cache,
+		index: "default",
+		upstreamGet: func(ctx context.Context, s string) (types.Role, error) {
+			upstreamRead = true
+			return &types.RoleV6{Metadata: types.Metadata{Name: "upstream-" + s}}, nil
 		},
-		{
-			name:            "upstream lister",
-			upstreamList:    p.apps.ListApps,
-			fallbackGetter:  p.apps.GetApps,
-			defaultPageSize: 2,
-			cacheOk:         false,
-			want:            expected,
-		},
-		{
-			name:            "upstream large page respects ends with large page",
-			upstreamList:    p.apps.ListApps,
-			fallbackGetter:  p.apps.GetApps,
-			end:             "app-9",
-			defaultPageSize: 100,
-			cacheOk:         false,
-			want:            expected[:9],
-		},
-		{
-			name:            "upstream lister with bounds",
-			upstreamList:    p.apps.ListApps,
-			fallbackGetter:  p.apps.GetApps,
-			defaultPageSize: 5,
-			start:           "app-1",
-			end:             "app-9",
-			cacheOk:         false,
-			want:            expected[1:9],
-		},
-		{
-			name:            "upstream lister with start",
-			upstreamList:    p.apps.ListApps,
-			fallbackGetter:  p.apps.GetApps,
-			defaultPageSize: 5,
-			start:           "app-1",
-			cacheOk:         false,
-			want:            expected[1:],
-		},
-		{
-			name:            "upstream lister with end",
-			upstreamList:    p.apps.ListApps,
-			fallbackGetter:  p.apps.GetApps,
-			defaultPageSize: 5,
-			end:             "app-9",
-			cacheOk:         false,
-			want:            expected[:9],
-		},
-		{
-			name: "upstream fallback",
-			upstreamList: func(ctx context.Context, i int, s string) ([]types.Application, string, error) {
-				return nil, "", trace.NotImplemented("")
+		collection: &collection[types.Role, string]{
+			store: store,
+			fetcher: func(ctx context.Context, loadSecrets bool) ([]types.Role, error) {
+				return []types.Role{
+					&types.RoleV6{Metadata: types.Metadata{Name: "a"}},
+					&types.RoleV6{Metadata: types.Metadata{Name: "b"}},
+					&types.RoleV6{Metadata: types.Metadata{Name: "c"}},
+				}, nil
 			},
-			fallbackGetter:  p.apps.GetApps,
-			defaultPageSize: 2,
-			cacheOk:         false,
-			want:            expected,
-		},
-		{
-			name: "upstream fallback not supported when start and end given",
-			upstreamList: func(ctx context.Context, i int, s string) ([]types.Application, string, error) {
-				return nil, "", trace.NotImplemented("not implemented")
-			},
-			fallbackGetter: p.apps.GetApps,
-			start:          "app-1",
-			end:            "app-9",
-			cacheOk:        false,
-			wantErr:        "not implemented",
-		},
-		{
-			name: "upstream fallback not supported when start given",
-			upstreamList: func(ctx context.Context, i int, s string) ([]types.Application, string, error) {
-				return nil, "", trace.NotImplemented("not implemented")
-			},
-			fallbackGetter: p.apps.GetApps,
-			start:          "app-1",
-			cacheOk:        false,
-			wantErr:        "not implemented",
-		},
-		{
-			name: "upstream fallback not supported when end given",
-			upstreamList: func(ctx context.Context, i int, s string) ([]types.Application, string, error) {
-				return nil, "", trace.NotImplemented("not implemented")
-			},
-			fallbackGetter: p.apps.GetApps,
-			end:            "app-9",
-			cacheOk:        false,
-			wantErr:        "not implemented",
-		},
-		{
-			name: "fallback fail",
-			upstreamList: func(ctx context.Context, i int, s string) ([]types.Application, string, error) {
-				return nil, "", trace.NotImplemented("")
-			},
-			fallbackGetter:  func(ctx context.Context) ([]types.Application, error) { return nil, trace.BadParameter("oops") },
-			defaultPageSize: 2,
-			cacheOk:         false,
-			wantErr:         "oops",
-		},
-		{
-			name: "upstream list other fail",
-			upstreamList: func(ctx context.Context, i int, s string) ([]types.Application, string, error) {
-				return nil, "", trace.BadParameter("upstream failed")
-			},
-			fallbackGetter: p.apps.GetApps,
-			cacheOk:        false,
-			wantErr:        "upstream failed",
-		},
-		{
-			name: "no fallback set, forward error",
-			upstreamList: func(ctx context.Context, i int, s string) ([]types.Application, string, error) {
-				return nil, "", trace.NotImplemented("not implemented")
-			},
-			cacheOk: false,
-			wantErr: "not implemented",
-		},
-		{
-			name: "fallback disabled after first item yields",
-			upstreamList: func(ctx context.Context, i int, token string) ([]types.Application, string, error) {
-				switch token {
-				case "":
-					return p.apps.ListApps(ctx, i, token)
-				default:
-					return nil, "", trace.NotImplemented("not implemented")
+			headerTransform: func(hdr *types.ResourceHeader) types.Role {
+				return &types.RoleV6{
+					Kind:    hdr.Kind,
+					Version: hdr.Version,
+					Metadata: types.Metadata{
+						Name: hdr.Metadata.Name,
+					},
 				}
 			},
-			defaultPageSize: 2,
-			fallbackGetter:  p.apps.GetApps,
-			cacheOk:         false,
-			want:            expected[:2], // Collect yields first 2 items
-			wantErr:         "not implemented",
+			watch: types.WatchKind{Kind: types.KindRole},
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			l := genericLister[types.Application, appIndex]{
-				cache:      p.cache,
-				collection: p.cache.collections.apps,
-				index:      appNameIndex,
-				nextToken:  types.Application.GetName,
+	out, err := g.get(context.Background(), "a")
+	require.NoError(t, err)
+	assert.Equal(t, "a", out.GetName())
+	assert.False(t, upstreamRead)
 
-				defaultPageSize: tt.defaultPageSize,
-				upstreamList:    tt.upstreamList,
-				fallbackGetter:  tt.fallbackGetter,
-			}
+	p.cache.ok = false
 
-			p.cache.ok = tt.cacheOk
-			got, err := stream.Collect(l.RangeWithFallback(context.Background(), tt.start, tt.end))
+	out, err = g.get(context.Background(), "a")
+	require.NoError(t, err)
+	assert.Equal(t, "upstream-a", out.GetName())
+	assert.True(t, upstreamRead)
+}
 
-			if tt.wantErr != "" {
-				require.ErrorContains(t, err, tt.wantErr)
-			} else {
-				require.NoError(t, err)
-			}
+func TestLister(t *testing.T) {
+	t.Parallel()
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
 
-			require.Empty(t, cmp.Diff(tt.want, got,
-				cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-				cmpopts.IgnoreFields(header.Metadata{}, "Revision")))
+	store := newStore(
+		types.KindRole,
+		func(role types.Role) types.Role {
+			return role
+		},
+		map[string]func(types.Role) string{
+			"default": types.Role.GetName,
 		})
+
+	require.NoError(t, store.put(&types.RoleV6{Metadata: types.Metadata{Name: "a"}}))
+
+	var upstreamRead bool
+	g := genericLister[types.Role, string]{
+		cache: p.cache,
+		index: "default",
+		upstreamList: func(ctx context.Context, limit int, start string) ([]types.Role, string, error) {
+			upstreamRead = true
+			return []types.Role{&types.RoleV6{Metadata: types.Metadata{Name: "upstream-role"}}}, "", nil
+		},
+		collection: &collection[types.Role, string]{
+			store: store,
+			fetcher: func(ctx context.Context, loadSecrets bool) ([]types.Role, error) {
+				return []types.Role{
+					&types.RoleV6{Metadata: types.Metadata{Name: "a"}},
+					&types.RoleV6{Metadata: types.Metadata{Name: "b"}},
+					&types.RoleV6{Metadata: types.Metadata{Name: "c"}},
+				}, nil
+			},
+			headerTransform: func(hdr *types.ResourceHeader) types.Role {
+				return &types.RoleV6{
+					Kind:    hdr.Kind,
+					Version: hdr.Version,
+					Metadata: types.Metadata{
+						Name: hdr.Metadata.Name,
+					},
+				}
+			},
+			watch: types.WatchKind{Kind: types.KindRole},
+		},
 	}
+
+	out, next, err := g.list(context.Background(), 10, "")
+	require.NoError(t, err)
+	require.Len(t, out, 1)
+	assert.Equal(t, "a", out[0].GetName())
+	assert.Empty(t, next)
+	assert.False(t, upstreamRead)
+
+	p.cache.ok = false
+
+	out, next, err = g.list(context.Background(), 10, "")
+	require.NoError(t, err)
+	require.Len(t, out, 1)
+	assert.Equal(t, "upstream-role", out[0].GetName())
+	assert.Empty(t, next)
+	assert.True(t, upstreamRead)
 }

@@ -28,6 +28,7 @@ import {
   H3,
   Indicator,
   Label,
+  LabelState,
   Text,
 } from 'design';
 import Table from 'design/DataTable';
@@ -37,23 +38,18 @@ import {
   ChevronCircleDown,
   CircleCheck,
   CircleCross,
-  Key,
 } from 'design/Icon';
-import { Status, StatusDot, StatusKind } from 'design/Status';
+import { LabelKind } from 'design/LabelState/LabelState';
 import { TeleportGearIcon } from 'design/SVGIcon';
 import { HoverTooltip } from 'design/Tooltip';
-import ResourcesRequested from 'shared/components/AccessRequests/ReviewRequests/RequestView/ResourcesRequested';
 import { Attempt, hasFinished } from 'shared/hooks/useAsync';
 import {
   AccessRequest,
   AccessRequestReview,
   AccessRequestReviewer,
   canAssumeNow,
-  hasResourceConstraints,
-  RequestKind,
   RequestState,
   Resource,
-  WithResourceConstraints,
 } from 'shared/services/accessRequests';
 
 import type {
@@ -64,10 +60,7 @@ import {
   getAssumeStartTimeTooltipText,
   PromotedMessage,
 } from '../../Shared/Shared';
-import {
-  formatAWSRoleARNForDisplay,
-  getFormattedDurationTxt,
-} from '../../Shared/utils';
+import { getFormattedDurationTxt } from '../../Shared/utils';
 import { formattedName } from '../formattedName';
 import { RequestDelete } from './RequestDelete';
 import RequestReview from './RequestReview';
@@ -117,11 +110,11 @@ export function RequestView({
   }
 
   if (fetchRequestAttempt.status === 'error') {
-    return <Alert kind="danger">{fetchRequestAttempt.statusText}</Alert>;
+    return <Alert kind="danger" children={fetchRequestAttempt.statusText} />;
   }
 
   if (assumeRoleAttempt.status === 'error') {
-    return <Alert kind="danger">{assumeRoleAttempt.statusText}</Alert>;
+    return <Alert kind="danger" children={assumeRoleAttempt.statusText} />;
   }
 
   const request =
@@ -216,6 +209,7 @@ export function RequestView({
                   state={request.state}
                   mr={3}
                   px={3}
+                  py={1}
                   style={{ fontWeight: 'bold' }}
                 />
                 <H3>
@@ -230,38 +224,20 @@ export function RequestView({
                     >
                       {request.user}
                     </Text>
-                    {request.requestKind === RequestKind.LongTerm ? (
-                      <>
-                        <Text
-                          mr={2}
-                          typography="body3"
-                          style={{
-                            flexShrink: 0,
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          is requesting permanent access to resources:
-                        </Text>
-                        <ResourcesRequested resources={request.resources} />
-                      </>
-                    ) : (
-                      <>
-                        <Text
-                          mr={2}
-                          typography="body3"
-                          style={{
-                            flexShrink: 0,
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          is requesting roles:
-                        </Text>
-                        <RolesRequested roles={request.roles} />
-                        <Text typography="body3">
-                          for {requestedAccessTime}, starting {startingTime}
-                        </Text>
-                      </>
-                    )}
+                    <Text
+                      mr={2}
+                      typography="body3"
+                      style={{
+                        flexShrink: 0,
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      is requesting roles:
+                    </Text>
+                    <RolesRequested roles={request.roles} />
+                    <Text typography="body3">
+                      for {requestedAccessTime}, starting {startingTime}
+                    </Text>
                   </Flex>
                 </H3>
               </Flex>
@@ -444,7 +420,7 @@ export function Timestamp({
           )
         ) : (
           <span>
-            {verb} this request to permanent access with access list{' '}
+            {verb} this request to long-term access with access list{' '}
             <b>{promotedAccessListTitle}</b> {createdDuration}
           </span>
         )}
@@ -452,59 +428,6 @@ export function Timestamp({
     </Flex>
   );
 }
-
-const AWSConstraintChip = ({ label }: { label: string }) => {
-  return (
-    <Flex
-      flexDirection="row"
-      justifyContent="center"
-      alignItems="center"
-      gap={2}
-      px={3}
-      py={2}
-      backgroundColor={'spotBackground.0'}
-      borderRadius="999px"
-      title={label}
-    >
-      <Key size="small" />
-      <Text typography="body3">{formatAWSRoleARNForDisplay(label)}</Text>
-    </Flex>
-  );
-};
-
-const AwsConsoleConstraintsList = <R extends object>({
-  resource,
-}: {
-  resource: WithResourceConstraints<'aws_console', R>;
-}) => {
-  return (
-    <Flex flexDirection="column" gap={2} mt={2}>
-      <Text bold>Role ARNs</Text>
-      <Flex flexDirection="row" gap={2} flexWrap="wrap">
-        {resource.constraints.aws_console.role_arns.map(arn => (
-          <AWSConstraintChip key={arn} label={arn} />
-        ))}
-      </Flex>
-    </Flex>
-  );
-};
-
-const SshConstraintsList = <R extends object>({
-  resource,
-}: {
-  resource: WithResourceConstraints<'ssh', R>;
-}) => {
-  return (
-    <Flex flexDirection="column" gap={2} mt={2}>
-      <Text bold>SSH Logins</Text>
-      <Flex flexDirection="row" gap={2} flexWrap="wrap">
-        {resource.constraints.ssh.logins.map(login => (
-          <AWSConstraintChip key={login} label={login} />
-        ))}
-      </Flex>
-    </Flex>
-  );
-};
 
 function Comment({
   author,
@@ -517,34 +440,6 @@ function Comment({
   createdDuration: string;
   resources?: Resource[];
 }) {
-  const data = resources?.map(resource => ({
-    ...resource.id,
-    ...resource.details,
-    name: resource.details?.friendlyName || formattedName(resource),
-    constraints: resource.constraints,
-  }));
-
-  const renderConstraints = (r: NonNullable<typeof data>[number]) => {
-    if (hasResourceConstraints(r, 'aws_console')) {
-      return <AwsConsoleConstraintsList resource={r} />;
-    }
-    if (hasResourceConstraints(r, 'ssh')) {
-      return <SshConstraintsList resource={r} />;
-    }
-    return null;
-  };
-
-  const renderAfter = (r: NonNullable<typeof data>[number]) =>
-    r.constraints ? (
-      <tr style={{ borderTop: 'none' }} data-render-after-row>
-        <td colSpan={3}>
-          <Flex flexDirection="column" gap={1} mt={-2}>
-            {renderConstraints(r)}
-          </Flex>
-        </td>
-      </tr>
-    ) : null;
-
   return (
     <Box
       border="1px solid"
@@ -557,11 +452,11 @@ function Comment({
         <Text typography="body3">{createdDuration}</Text>
       </Flex>
       {comment && (
-        <Box p={3} bg="levels.elevated" css="white-space: pre-wrap;">
+        <Box p={3} bg="levels.elevated">
           {comment}
         </Box>
       )}
-      {!!data?.length && (
+      {resources?.length > 0 && (
         <Box
           pt={comment ? 0 : 3}
           pl={3}
@@ -573,8 +468,11 @@ function Comment({
           bg="levels.elevated"
         >
           <StyledTable
-            data={data}
-            row={{ renderAfter }}
+            data={resources.map(resource => ({
+              ...resource.id,
+              ...resource.details,
+              name: resource.details?.friendlyName || formattedName(resource),
+            }))}
             columns={[
               {
                 key: 'clusterName',
@@ -599,7 +497,12 @@ function Comment({
 
 function Reviewers({ reviewers }: { reviewers: AccessRequestReviewer[] }) {
   const $reviewers = reviewers.map((reviewer, index) => {
-    let dotKind: StatusKind = stateToStatusKind(reviewer.state);
+    let kind: LabelKind = 'warning';
+    if (reviewer.state === 'APPROVED' || reviewer.state === 'PROMOTED') {
+      kind = 'success';
+    } else if (reviewer.state === 'DENIED') {
+      kind = 'danger';
+    }
 
     return (
       <Flex
@@ -628,7 +531,15 @@ function Reviewers({ reviewers }: { reviewers: AccessRequestReviewer[] }) {
         >
           {reviewer.name}
         </Text>
-        <StatusDot kind={dotKind} />
+        <LabelState
+          kind={kind}
+          width="10px"
+          p={0}
+          style={{
+            minHeight: '10px',
+            minWidth: '10px',
+          }}
+        />
       </Flex>
     );
   });
@@ -668,33 +579,29 @@ function Reviewers({ reviewers }: { reviewers: AccessRequestReviewer[] }) {
   );
 }
 
-function stateToStatusKind(state: RequestState): StatusKind {
+function StateLabel(props: { state: RequestState; [key: string]: any }) {
+  const { state, ...styles } = props;
   switch (state) {
     case 'APPROVED':
     case 'PROMOTED':
-      return 'success';
+      return (
+        <LabelState kind="success" {...styles}>
+          {state}
+        </LabelState>
+      );
     case 'DENIED':
-      return 'danger';
-    case 'NONE':
+      return (
+        <LabelState kind="danger" {...styles}>
+          {state}
+        </LabelState>
+      );
     case 'PENDING':
-    case 'APPLIED':
-    case '':
-      return 'warning';
-    default:
-      state satisfies never;
-      return 'warning';
+      return (
+        <LabelState kind="warning" {...styles}>
+          {state}
+        </LabelState>
+      );
   }
-}
-
-function StateLabel(props: { state: RequestState; [key: string]: any }) {
-  const { state, ...styles } = props;
-  let kind: StatusKind = stateToStatusKind(state);
-
-  return (
-    <Status kind={kind} variant="filled" icon={false} {...styles}>
-      {state}
-    </Status>
-  );
 }
 
 function Reviews({ reviews }: { reviews: AccessRequestReview[] }) {
@@ -757,16 +664,6 @@ const StyledTable = styled(Table)`
 
   & > tbody > tr > td {
     vertical-align: middle;
-  }
-
-  // Handle hovering/focusing constraint rows / their parent row the same.
-  tr:hover:has(+ [data-render-after-row]) + [data-render-after-row],
-  tr:focus-visible:has(+ [data-render-after-row]) + [data-render-after-row],
-  [data-render-after-row]:hover,
-  [data-render-after-row]:focus-visible,
-  tr:has(+ [data-render-after-row]:hover),
-  tr:has(+ [data-render-after-row]:focus-visible) {
-    background-color: ${({ theme }) => theme.colors.levels.surface};
   }
 ` as typeof Table;
 

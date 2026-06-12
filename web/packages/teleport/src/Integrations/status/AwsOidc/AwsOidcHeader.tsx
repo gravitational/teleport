@@ -16,14 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Link as InternalLink } from 'react-router';
+import { Link as InternalLink } from 'react-router-dom';
 
 import { ButtonText, Flex, Text } from 'design';
 import { Plugs } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
 
 import cfg from 'teleport/config';
-import { AwsResource } from 'teleport/Integrations/status/AwsOidc/Cards/StatCard';
+import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
 import { Integration } from 'teleport/services/integrations';
 
 export function AwsOidcHeader({

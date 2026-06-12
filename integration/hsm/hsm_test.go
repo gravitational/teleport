@@ -22,7 +22,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net"
 	"os"
 	"os/exec"
@@ -44,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -53,13 +53,9 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	// Enable verbose logging for HSM tests.
-	logtest.InitLogger(func() bool { return true })
-
 	// Enable HSM feature.
 	// This is safe to do here, as all tests in this package require HSM to be
 	// enabled.
@@ -75,7 +71,7 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func newHSMAuthConfig(t *testing.T, storageConfig *backend.Config, log *slog.Logger, clock clockwork.Clock) *servicecfg.Config {
+func newHSMAuthConfig(t *testing.T, storageConfig *backend.Config, log utils.Logger, clock clockwork.Clock) *servicecfg.Config {
 	config := newAuthConfig(t, log, clock)
 	config.Auth.StorageConfig = *storageConfig
 	config.Auth.KeyStore = HSMTestConfig(t)
@@ -100,27 +96,25 @@ func liteBackendConfig(t *testing.T) *backend.Config {
 func TestHSMRotation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	log := logtest.With(teleport.ComponentKey, "TestHSMRotation")
+	log := utils.NewLoggerForTests()
 
-	log.DebugContext(ctx, "starting auth server")
+	log.Debug("TestHSMRotation: starting auth server")
 	authConfig := newHSMAuthConfig(t, liteBackendConfig(t), log, clockwork.NewRealClock())
 	auth1, err := newTeleportService(ctx, authConfig, "auth1")
 	require.NoError(t, err)
 	allServices := teleportServices{auth1}
 
 	t.Cleanup(func() {
-		assert.NoError(t, auth1.process.GetAuthServer().GetKeyStore().DeleteUnusedKeys(ctx, nil),
-			"failed to delete hsm keys during test cleanup")
-		assert.NoError(t, auth1.cleanup())
+		require.NoError(t, auth1.process.GetAuthServer().GetKeyStore().DeleteUnusedKeys(ctx, nil))
 	})
 
 	// start a proxy to make sure it can get creds at each stage of rotation
-	log.DebugContext(ctx, "starting proxy")
+	log.Debug("TestHSMRotation: starting proxy")
 	proxy, err := newTeleportService(ctx, newProxyConfig(t, auth1.authAddr(t), log, clockwork.NewRealClock()), "proxy")
 	require.NoError(t, err)
 	allServices = append(allServices, proxy)
 
-	log.DebugContext(ctx, "sending rotation request init")
+	log.Debug("TestHSMRotation: sending rotation request init")
 	require.NoError(t, allServices.waitingForNewEvent(ctx, service.TeleportPhaseChangeEvent, func() error {
 		return trace.Wrap(auth1.process.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 			Type:        types.HostCA,
@@ -129,7 +123,7 @@ func TestHSMRotation(t *testing.T) {
 		}))
 	}))
 
-	log.DebugContext(ctx, "sending rotation request update_clients")
+	log.Debug("TestHSMRotation: sending rotation request update_clients")
 	require.NoError(t, allServices.waitingForNewEvent(ctx, service.TeleportCredentialsUpdatedEvent, func() error {
 		return trace.Wrap(auth1.process.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 			Type:        types.HostCA,
@@ -138,7 +132,7 @@ func TestHSMRotation(t *testing.T) {
 		}))
 	}))
 
-	log.DebugContext(ctx, "sending rotation request update_servers")
+	log.Debug("TestHSMRotation: sending rotation request update_servers")
 	require.NoError(t, allServices.waitingForNewEvent(ctx, service.TeleportCredentialsUpdatedEvent, func() error {
 		return trace.Wrap(auth1.process.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 			Type:        types.HostCA,
@@ -147,7 +141,7 @@ func TestHSMRotation(t *testing.T) {
 		}))
 	}))
 
-	log.DebugContext(ctx, "sending rotation request standby")
+	log.Debug("TestHSMRotation: sending rotation request standby")
 	require.NoError(t, allServices.waitingForNewEvent(ctx, service.TeleportCredentialsUpdatedEvent, func() error {
 		return trace.Wrap(auth1.process.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 			Type:        types.HostCA,
@@ -157,11 +151,10 @@ func TestHSMRotation(t *testing.T) {
 	}))
 }
 
-func getAdminClient(ctx context.Context, authDataDir string, authAddr string) (*authclient.Client, error) {
-	identity, err := storage.ReadLocalIdentityForRole(
-		ctx,
+func getAdminClient(authDataDir string, authAddr string) (*authclient.Client, error) {
+	identity, err := storage.ReadLocalIdentity(
 		filepath.Join(authDataDir, teleport.ComponentProcess),
-		types.RoleAdmin)
+		state.IdentityID{Role: types.RoleAdmin})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -183,12 +176,12 @@ func getAdminClient(ctx context.Context, authDataDir string, authAddr string) (*
 
 func testAdminClient(t *testing.T, authDataDir string, authAddr string) {
 	f := func() error {
-		clt, err := getAdminClient(t.Context(), authDataDir, authAddr)
+		clt, err := getAdminClient(authDataDir, authAddr)
 		if err != nil {
 			return err
 		}
 		defer clt.Close()
-		_, err = clt.GetClusterName(t.Context())
+		_, err = clt.GetClusterName()
 		return err
 	}
 	// We might be hitting a load balancer in front of two auths, running
@@ -204,31 +197,30 @@ func testAdminClient(t *testing.T, authDataDir string, authAddr string) {
 		return
 	}
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		require.NoError(t, f())
-		require.NoError(t, f())
+		assert.NoError(t, f())
+		assert.NoError(t, f())
 	}, 10*time.Second, 250*time.Millisecond, "admin client failed test call to GetClusterName")
 }
 
 // Tests multiple CA rotations and rollbacks with 2 HSM auth servers in an HA configuration
 func TestHSMDualAuthRotation(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SKIP_VERSION_UPGRADE_CHECK", "1")
-	ctx := t.Context()
-	log := logtest.With(teleport.ComponentKey, "TestHSMDualAuthRotation")
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	log := utils.NewLoggerForTests()
 	storageConfig := liteBackendConfig(t)
 
 	// start a cluster with 1 auth server
-	log.DebugContext(ctx, "Starting auth server 1")
+	log.Debug("TestHSMDualAuthRotation: Starting auth server 1")
 	auth1Config := newHSMAuthConfig(t, storageConfig, log, clockwork.NewRealClock())
 	auth1, err := newTeleportService(ctx, auth1Config, "auth1")
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		assert.NoError(t, auth1.process.GetAuthServer().GetKeyStore().DeleteUnusedKeys(ctx, nil),
+		require.NoError(t, auth1.process.GetAuthServer().GetKeyStore().DeleteUnusedKeys(ctx, nil),
 			"failed to delete hsm keys during test cleanup")
-		assert.NoError(t, auth1.cleanup())
 	})
 	authServices := teleportServices{auth1}
 
-	log.DebugContext(ctx, "Starting load balancer")
+	log.Debug("TestHSMDualAuthRotation: Starting load balancer")
 	lb, err := utils.NewLoadBalancer(
 		ctx,
 		*utils.MustParseAddr(net.JoinHostPort("localhost", "0")),
@@ -237,17 +229,15 @@ func TestHSMDualAuthRotation(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, lb.Listen())
 	go lb.Serve()
-	t.Cleanup(func() { assert.NoError(t, lb.Close()) })
+	t.Cleanup(func() { require.NoError(t, lb.Close()) })
 
 	// add a new auth server
-	log.DebugContext(ctx, "Starting auth server 2")
+	log.Debug("TestHSMDualAuthRotation: Starting auth server 2")
 	auth2Config := newHSMAuthConfig(t, storageConfig, log, clockwork.NewRealClock())
 	auth2, err := newTeleportService(ctx, auth2Config, "auth2")
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		assert.NoError(t, auth1.process.GetAuthServer().GetKeyStore().DeleteUnusedKeys(ctx, nil),
-			"failed to delete hsm keys during test cleanup")
-		assert.NoError(t, auth2.cleanup())
+		require.NoError(t, auth2.process.GetAuthServer().GetKeyStore().DeleteUnusedKeys(ctx, nil))
 	})
 	authServices = append(authServices, auth2)
 
@@ -293,7 +283,7 @@ func TestHSMDualAuthRotation(t *testing.T) {
 
 	// do a full rotation
 	for _, stage := range stages {
-		log.DebugContext(ctx, "Sending rotate request", "phase", stage.targetPhase)
+		log.Debugf("TestHSMDualAuthRotation: Sending rotate request %s", stage.targetPhase)
 		require.NoError(t, stage.verify(func() error {
 			return auth1.process.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 				Type:        types.HostCA,
@@ -314,7 +304,7 @@ func TestHSMDualAuthRotation(t *testing.T) {
 
 	// Do another full rotation from the new auth server
 	for _, stage := range stages {
-		log.DebugContext(ctx, "Sending rotate request", "phase", stage.targetPhase)
+		log.Debugf("TestHSMDualAuthRotation: Sending rotate request %s", stage.targetPhase)
 		require.NoError(t, stage.verify(func() error {
 			return auth2.process.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 				Type:        types.HostCA,
@@ -380,7 +370,7 @@ func TestHSMDualAuthRotation(t *testing.T) {
 		},
 	}
 	for _, stage := range stages {
-		log.DebugContext(ctx, "Sending rotate request", "phase", stage.targetPhase)
+		log.Debugf("TestHSMDualAuthRotation: Sending rotate request %s", stage.targetPhase)
 
 		require.NoError(t, stage.verify(func() error {
 			return auth1.process.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
@@ -395,24 +385,19 @@ func TestHSMDualAuthRotation(t *testing.T) {
 
 // Tests a dual-auth server migration from raw keys to HSM keys
 func TestHSMMigrate(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SKIP_VERSION_UPGRADE_CHECK", "1")
-	ctx := t.Context()
-	log := logtest.With(teleport.ComponentKey, "TestHSMMigrate")
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	log := utils.NewLoggerForTests()
 	storageConfig := liteBackendConfig(t)
 
 	// start a dual auth non-hsm cluster
-	log.DebugContext(ctx, "Starting auth server 1")
+	log.Debug("TestHSMMigrate: Starting auth server 1")
 	auth1Config := newHSMAuthConfig(t, storageConfig, log, clockwork.NewRealClock())
 	auth1Config.Auth.KeyStore = servicecfg.KeystoreConfig{}
 	auth2Config := newHSMAuthConfig(t, storageConfig, log, clockwork.NewRealClock())
 	auth2Config.Auth.KeyStore = servicecfg.KeystoreConfig{}
 	auth1, err := newTeleportService(ctx, auth1Config, "auth1")
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		assert.NoError(t, auth1.process.GetAuthServer().GetKeyStore().DeleteUnusedKeys(ctx, nil),
-			"failed to delete hsm keys during test cleanup")
-		assert.NoError(t, auth1.cleanup())
-	})
 	auth2, err := newTeleportService(ctx, auth2Config, "auth2")
 	require.NoError(t, err)
 
@@ -421,7 +406,7 @@ func TestHSMMigrate(t *testing.T) {
 	auth1Config.Auth.ListenAddr = auth1.authAddr(t)
 	auth2Config.Auth.ListenAddr = auth2.authAddr(t)
 
-	log.DebugContext(ctx, "Starting load balancer")
+	log.Debug("TestHSMMigrate: Starting load balancer")
 	lb, err := utils.NewLoadBalancer(
 		ctx,
 		*utils.MustParseAddr(net.JoinHostPort("localhost", "0")),
@@ -431,7 +416,7 @@ func TestHSMMigrate(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, lb.Listen())
 	go lb.Serve()
-	t.Cleanup(func() { assert.NoError(t, lb.Close()) })
+	t.Cleanup(func() { require.NoError(t, lb.Close()) })
 
 	testClient := func(t *testing.T) {
 		testAdminClient(t, auth1Config.DataDir, lb.Addr().String())
@@ -495,7 +480,7 @@ func TestHSMMigrate(t *testing.T) {
 
 	// Do a full rotation to get HSM keys for auth1 into the CA.
 	for _, stage := range stages {
-		log.DebugContext(ctx, "Sending rotate request", "phase", stage.targetPhase)
+		log.Debugf("TestHSMMigrate: Sending rotate request %s", stage.targetPhase)
 		require.NoError(t, stage.verify(func() error {
 			return auth1.process.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 				Type:        types.HostCA,
@@ -531,7 +516,7 @@ func TestHSMMigrate(t *testing.T) {
 
 	// Do another full rotation to get HSM keys for auth2 into the CA.
 	for _, stage := range stages {
-		log.DebugContext(ctx, "Sending rotate request", "phase", stage.targetPhase)
+		log.Debugf("TestHSMMigrate: Sending rotate request %s", stage.targetPhase)
 		require.NoError(t, stage.verify(func() error {
 			return auth2.process.GetAuthServer().RotateCertAuthority(ctx, types.RotateRequest{
 				Type:        types.HostCA,
@@ -548,10 +533,10 @@ func TestHSMMigrate(t *testing.T) {
 func TestHSMRevert(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	ctx := t.Context()
-	log := logtest.With(teleport.ComponentKey, "TestHSMRevert")
+	log := utils.NewLoggerForTests()
 
 	// Start auth with an HSM attached and generate HSM keys.
-	log.DebugContext(ctx, "starting auth server")
+	log.Debug("TestHSMRevert: starting auth server")
 	authConfig := newHSMAuthConfig(t, liteBackendConfig(t), log, clock)
 	hsmAuth, err := newTeleportService(ctx, authConfig, "auth1")
 	require.NoError(t, err)
@@ -560,7 +545,6 @@ func TestHSMRevert(t *testing.T) {
 	t.Cleanup(func() {
 		assert.NoError(t, hsmAuth.process.GetAuthServer().GetKeyStore().DeleteUnusedKeys(ctx, nil),
 			"failed to delete hsm keys during test cleanup")
-		assert.NoError(t, hsmAuth.cleanup())
 	})
 
 	// Switch config back to default (software) and restart.
@@ -595,7 +579,7 @@ func TestHSMRevert(t *testing.T) {
 			types.RotationPhaseUpdateServers,
 			types.RotationPhaseStandby,
 		} {
-			log.DebugContext(ctx, "sending rotation request", "phase", targetPhase, "ca", caType)
+			log.Debugf("TestHSMRevert: sending rotation request %v for CA %v", targetPhase, caType)
 			if caType == types.HostCA {
 				expectedEvent := service.TeleportCredentialsUpdatedEvent
 				if targetPhase == types.RotationPhaseInit {

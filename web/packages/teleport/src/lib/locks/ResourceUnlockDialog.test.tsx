@@ -16,18 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { createMemoryHistory } from 'history';
+import { setupServer } from 'msw/node';
 import {
   ComponentPropsWithoutRef,
   MouseEventHandler,
   PropsWithChildren,
 } from 'react';
+import { Router } from 'react-router';
 
 import {
-  enableMswServer,
   Providers,
   render,
   screen,
-  server,
   testQueryClient,
   userEvent,
   waitFor,
@@ -43,12 +44,20 @@ import {
 
 import { ResourceUnlockDialog } from './ResourceUnlockDialog';
 
-enableMswServer();
+const server = setupServer();
+
+beforeAll(() => {
+  server.listen();
+});
 
 afterEach(async () => {
+  server.resetHandlers();
   await testQueryClient.resetQueries();
+
   jest.clearAllMocks();
 });
+
+afterAll(() => server.close());
 
 describe('ResourceUnlockDialog', () => {
   it('should cancel', async () => {
@@ -184,7 +193,7 @@ describe('ResourceUnlockDialog', () => {
 });
 
 function renderComponent(
-  options?: { initialEntries?: string[] } & Pick<
+  options?: { history?: ReturnType<typeof createMemoryHistory> } & Pick<
     Partial<ComponentPropsWithoutRef<typeof ResourceUnlockDialog>>,
     'onCancel' | 'onComplete' | 'onGoToLocksForTesting'
   >
@@ -210,13 +219,15 @@ function renderComponent(
   };
 }
 
-function makeWrapper(options?: { initialEntries?: string[] }) {
-  const { initialEntries = ['/'] } = options ?? {};
+function makeWrapper(options?: {
+  history?: ReturnType<typeof createMemoryHistory>;
+}) {
+  const { history = createMemoryHistory() } = options ?? {};
   const ctx = createTeleportContext();
   return (props: PropsWithChildren) => (
     <Providers>
-      <TeleportProviderBasic teleportCtx={ctx} initialEntries={initialEntries}>
-        {props.children}
+      <TeleportProviderBasic teleportCtx={ctx}>
+        <Router history={history}>{props.children}</Router>
       </TeleportProviderBasic>
     </Providers>
   );

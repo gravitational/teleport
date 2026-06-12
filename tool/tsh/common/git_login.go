@@ -44,8 +44,8 @@ func newGitLoginCommand(parent *kingpin.CmdClause) *gitLoginCommand {
 	// single Git server configured anyway so do a "list" op then use the
 	// organization from that Git server. If more than one Git servers are
 	// found, prompt the user to pick one.
-	cmd.Flag("github-org", "GitHub organization.").Required().StringVar(&cmd.gitHubOrganization)
-	cmd.Flag("force", "Force a login.").BoolVar(&cmd.force)
+	cmd.Flag("github-org", "GitHub organization").Required().StringVar(&cmd.gitHubOrganization)
+	cmd.Flag("force", "Force a login").BoolVar(&cmd.force)
 	return cmd
 }
 
@@ -117,40 +117,8 @@ func doGitHubOAuthFlow(cf *CLIConf, org string) error {
 		return trace.Wrap(err)
 	}
 
-	// Capture active requests before starting the OAuth flow.
-	profile, err := cf.ProfileStatus()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = client.RetryWithRelogin(
-		cf.Context,
-		tc,
-		func() error {
-			return tc.ReissueWithGitHubOAuth(cf.Context, org)
-		},
-		client.WithAfterLoginHook(func() error {
-			// Update profile if a re-login is performed.
-			profile, err = cf.ProfileStatus()
-			return trace.Wrap(err)
-		}),
-	)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Ideally active requests should be handled during the OAuth flow in one
-	// shot but that complicates the OAuth flow by a lot. For now, we work
-	// around this by manually reissuing the request IDs after the oauth flow.
-	// The oauth flow is usually only a one time login anyway so we don't expect
-	// this happen often.
-	if len(profile.ActiveRequests) > 0 {
-		// Send to stderr in case called by `git`.
-		fmt.Fprintln(cf.Stderr(), "Reissuing certificates for access requests ...")
-		var emptyDropRequests []string
-		if err := reissueWithRequests(cf, tc, profile.ActiveRequests, emptyDropRequests); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	return nil
+	err = client.RetryWithRelogin(cf.Context, tc, func() error {
+		return tc.ReissueWithGitHubOAuth(cf.Context, org)
+	})
+	return trace.Wrap(err)
 }

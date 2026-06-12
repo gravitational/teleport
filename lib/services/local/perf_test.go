@@ -63,6 +63,9 @@ func BenchmarkGetNodes(b *testing.B) {
 
 		// run the sub benchmark
 		b.Run(name, func(sb *testing.B) {
+
+			sb.StopTimer() // stop timer while running setup
+
 			// configure the backend instance
 			var bk backend.Backend
 			var err error
@@ -83,7 +86,11 @@ func BenchmarkGetNodes(b *testing.B) {
 			// seed the test nodes
 			insertNodes(ctx, b, svc, tt.nodes)
 
+			sb.StartTimer() // restart timer for benchmark operations
+
 			benchmarkGetNodes(ctx, sb, svc, tt.nodes)
+
+			sb.StopTimer() // stop timer to exclude deferred cleanup
 		})
 	}
 }
@@ -92,10 +99,10 @@ func BenchmarkGetNodes(b *testing.B) {
 func insertNodes(ctx context.Context, b *testing.B, svc services.Presence, nodeCount int) {
 	const labelCount = 10
 	labels := make(map[string]string, labelCount)
-	for i := range labelCount {
+	for i := 0; i < labelCount; i++ {
 		labels[fmt.Sprintf("label-key-%d", i)] = fmt.Sprintf("label-val-%d", i)
 	}
-	for i := range nodeCount {
+	for i := 0; i < nodeCount; i++ {
 		name, addr := fmt.Sprintf("node-%d", i), fmt.Sprintf("node%d.example.com", i)
 		node := &types.ServerV2{
 			Kind:    types.KindNode,
@@ -118,7 +125,7 @@ func insertNodes(ctx context.Context, b *testing.B, svc services.Presence, nodeC
 func benchmarkGetNodes(ctx context.Context, b *testing.B, svc services.Presence, nodeCount int) {
 	var nodes []types.Server
 	var err error
-	for b.Loop() {
+	for i := 0; i < b.N; i++ {
 		nodes, err = svc.GetNodes(ctx, apidefaults.Namespace)
 		require.NoError(b, err)
 	}

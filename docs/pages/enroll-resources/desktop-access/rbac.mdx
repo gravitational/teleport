@@ -1,11 +1,9 @@
 ---
 title: Role-Based Access Control for Desktops
-sidebar_label: Access Controls
 description: Role-based access control (RBAC) for desktops protected by Teleport.
 tags:
  - conceptual
  - zero-trust
- - privileged-access
 ---
 
 Teleport's RBAC allows administrators to set up granular access policies for
@@ -188,24 +186,6 @@ discovery:
 
 For a desktop with a `location` attribute of `Oakland`, Teleport would apply a
 label with key `ldap/location` and value `Oakland`.
-
-You can also specify a set of static labels that apply to all hosts discovered
-via this policy:
-
-```yaml
-windows_desktop_service:
-  enabled: true
-  discovery_configs:
-    - base_dn: 'OU=Engineering,OU=Servers,DC=example,DC=com'
-      labels:
-        team: engineering
-    - base_dn: 'OU=Sales,OU=Servers,DC=example,DC=com'
-      labels:
-         team: sales
-```
-
-In this example, all hosts in the Engineering OU would have `team: engineering`
-while the hosts in the Sales OU would have `team: sales`.
 
 ## Logins
 

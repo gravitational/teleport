@@ -20,23 +20,20 @@ package auth
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/join/spacelift"
+	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/spacelift"
 )
 
-// GetSpaceliftIDTokenValidator returns the server's currently configured
-// Spacelift OIDC token validator.
-func (a *Server) GetSpaceliftIDTokenValidator() spacelift.Validator {
-	return a.spaceliftIDTokenValidator
-}
-
-// SetSpaceliftIDTokenValidator sets the current Spacelift OIDC token validator,
-// used in tests.
-func (a *Server) SetSpaceliftIDTokenValidator(validator spacelift.Validator) {
-	a.spaceliftIDTokenValidator = validator
+type spaceliftIDTokenValidator interface {
+	Validate(
+		ctx context.Context, domain string, token string,
+	) (*spacelift.IDTokenClaims, error)
 }
 
 func (a *Server) checkSpaceliftJoinRequest(
@@ -44,13 +41,75 @@ func (a *Server) checkSpaceliftJoinRequest(
 	req *types.RegisterUsingTokenRequest,
 	pt types.ProvisionToken,
 ) (*spacelift.IDTokenClaims, error) {
-	claims, err := spacelift.CheckIDToken(ctx, a.modules, &spacelift.CheckIDTokenParams{
-		ProvisionToken: pt,
-		IDToken:        []byte(req.IDToken),
-		Validator:      a.spaceliftIDTokenValidator,
-	})
+	if req.IDToken == "" {
+		return nil, trace.BadParameter("id_token not provided for spacelift join request")
+	}
+	token, ok := pt.(*types.ProvisionTokenV2)
+	if !ok {
+		return nil, trace.BadParameter("spacelift join method only supports ProvisionTokenV2, '%T' was provided", pt)
+	}
 
-	// Attempt to return any claims along with the error, used to improve audit
-	// logging on failed join attempts.
-	return claims, trace.Wrap(err)
+	if modules.GetModules().BuildType() != modules.BuildEnterprise {
+		return nil, fmt.Errorf(
+			"spacelift joining: %w",
+			ErrRequiresEnterprise,
+		)
+	}
+
+	claims, err := a.spaceliftIDTokenValidator.Validate(
+		ctx, token.Spec.Spacelift.Hostname, req.IDToken,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	log.WithFields(logrus.Fields{
+		"claims": claims,
+		"token":  pt.GetName(),
+	}).Info("Spacelift run trying to join cluster")
+
+	return claims, trace.Wrap(checkSpaceliftAllowRules(token, claims))
+}
+
+func checkSpaceliftAllowRules(token *types.ProvisionTokenV2, claims *spacelift.IDTokenClaims) error {
+	globCheck := func(want string, got string) (bool, error) {
+		if token.Spec.Spacelift.EnableGlobMatching {
+			return joinRuleGlobMatch(want, got)
+		}
+		if want == "" {
+			return true, nil
+		}
+		return want == got, nil
+	}
+
+	// If a single rule passes, accept the IDToken
+	for i, rule := range token.Spec.Spacelift.Allow {
+		// Please consider keeping these field validators in the same order they
+		// are defined within the ProvisionTokenSpecV2Spacelift proto spec.
+		spaceIDMatch, err := globCheck(rule.SpaceID, claims.SpaceID)
+		if err != nil {
+			return trace.Wrap(err, "evaluating rule (%d) space_id glob match", i)
+		}
+		if !spaceIDMatch {
+			continue
+		}
+		callerIDMatch, err := globCheck(rule.CallerID, claims.CallerID)
+		if err != nil {
+			return trace.Wrap(err, "evaluating rule (%d) caller_id glob match", i)
+		}
+		if !callerIDMatch {
+			continue
+		}
+		if rule.CallerType != "" && claims.CallerType != rule.CallerType {
+			continue
+		}
+		if rule.Scope != "" && claims.Scope != rule.Scope {
+			continue
+		}
+
+		// All provided rules met.
+		return nil
+	}
+
+	return trace.AccessDenied("id token claims did not match any allow rules")
 }

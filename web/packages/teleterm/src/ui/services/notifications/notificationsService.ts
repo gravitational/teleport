@@ -17,20 +17,19 @@
  */
 
 import type {
-  ToastNotificationItem,
-  ToastNotificationItemContent,
-} from 'shared/components/ToastNotification';
+  NotificationItem,
+  NotificationItemContent,
+} from 'shared/components/Notification';
 
 import { ImmutableStore } from 'teleterm/ui/services/immutableStore';
 import { unique } from 'teleterm/ui/utils/uid';
 
-export type NotificationContent = ToastNotificationItemContent & {
+export type NotificationContent = NotificationItemContent & {
   key?: NotificationKey;
 };
 export type NotificationKey = string | (string | number)[];
 
-type State = Map<string, ToastNotificationItem>;
-
+type State = Map<string, NotificationItem>;
 export class NotificationsService extends ImmutableStore<State> {
   state: State = new Map();
 
@@ -96,7 +95,7 @@ export class NotificationsService extends ImmutableStore<State> {
     });
   }
 
-  getNotifications(): ToastNotificationItem[] {
+  getNotifications(): NotificationItem[] {
     return [...this.state.values()];
   }
 
@@ -105,7 +104,7 @@ export class NotificationsService extends ImmutableStore<State> {
   }
 
   private notify(
-    options: Omit<ToastNotificationItem, 'id'> & { key?: NotificationKey }
+    options: Omit<NotificationItem, 'id'> & { key?: NotificationKey }
   ): string {
     const id = options.key
       ? typeof options.key === 'string'

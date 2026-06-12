@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2025  Gravitational, Inc.
+ * Copyright (C) 2023  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -18,57 +18,68 @@
 
 import { defineConfig, devices } from '@playwright/test';
 
-// Default to localhost:3080/web/login if START_URL is not defined.
-const baseURL = process.env.START_URL || 'http://localhost:3080/web/login';
-
-const browserList = (process.env.E2E_BROWSERS || 'chromium').split(',');
-
-const browserDevices: Record<string, object> = {
-  chromium: { ...devices['Desktop Chrome'], channel: 'chromium' },
-  firefox: { ...devices['Desktop Firefox'] },
-  webkit: { ...devices['Desktop Safari'] },
-};
-
+/**
+ * See https://playwright.dev/docs/test-configuration.
+ */
 export default defineConfig({
   testDir: './tests',
-  timeout: 20_000,
+  /* Run tests in files in parallel */
   fullyParallel: true,
+  /* Fail the build on CI if you accidentally left test.only in the source code. */
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 1 : 0,
+  /* Retry on CI only */
+  retries: process.env.CI ? 2 : 0,
+  /* Opt out of parallel tests on CI. */
   workers: process.env.CI ? 1 : undefined,
-  globalSetup: './global-setup.ts',
-  reporter: [
-    ['html', { open: 'never' }],
-    ['json', { outputFile: 'test-results/results.json' }],
-  ],
-
+  /* Reporter to use. See https://playwright.dev/docs/test-reporters */
+  reporter: 'html',
+  /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
-    ignoreHTTPSErrors: true,
-    baseURL,
+    /* Base URL to use in actions like `await page.goto('/')`. */
+    baseURL: process.env.CI ? 'https://teleport:3080': 'https://localhost:3080',
+
+    /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: 'on-first-retry',
-    screenshot: 'only-on-failure',
+    /* Ignore HTTPS errors during navigation - helps with self-generated certificates setup */
+    ignoreHTTPSErrors: true,
   },
 
+  /* Configure projects for major browsers */
   projects: [
-    ...browserList.flatMap(browser => [
-      {
-        name: `${browser}:authenticated`,
-        testDir: './tests/web/authenticated',
-        use: { ...browserDevices[browser] },
-      },
-      {
-        name: `${browser}:unauthenticated`,
-        testDir: './tests/web/unauthenticated',
-        use: { ...browserDevices[browser] },
-      },
-    ]),
-
     {
-      name: 'connect',
-      // Enables interacting with Web UI from Connect test flows.
-      use: browserDevices.chromium,
-      testDir: './tests/connect',
-      workers: 1,
+      name: 'chromium',
+      use: { ...devices['Desktop Chrome'] },
     },
+
+    // {
+    //   name: 'firefox',
+    //   use: { ...devices['Desktop Firefox'] },
+    // },
+    //
+    // {
+    //   name: 'webkit',
+    //   use: { ...devices['Desktop Safari'] },
+    // },
+
+    /* Test against mobile viewports. */
+    // {
+    //   name: 'Mobile Chrome',
+    //   use: { ...devices['Pixel 5'] },
+    // },
+    // {
+    //   name: 'Mobile Safari',
+    //   use: { ...devices['iPhone 12'] },
+    // },
+
+    /* Test against branded browsers. */
+    // {
+    //   name: 'Microsoft Edge',
+    //   use: { ...devices['Desktop Edge'], channel: 'msedge' },
+    // },
+
+    // {
+    //   name: 'Google Chrome',
+    //   use: { ...devices['Desktop Chrome'], channel: 'chrome' },
+    // },
   ],
 });

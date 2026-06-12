@@ -23,7 +23,9 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/secreports"
 	"github.com/gravitational/teleport/lib/backend"
@@ -44,6 +46,7 @@ var (
 
 // SecReportsService is the local implementation of the SecReports service.
 type SecReportsService struct {
+	log                              logrus.FieldLogger
 	clock                            clockwork.Clock
 	auditQuerySvc                    *generic.Service[*secreports.AuditQuery]
 	securityReportSvc                *generic.Service[*secreports.Report]
@@ -96,6 +99,7 @@ func NewSecReportsService(backend backend.Backend, clock clockwork.Clock) (*SecR
 	}
 
 	return &SecReportsService{
+		log:                              logrus.WithFields(logrus.Fields{teleport.ComponentKey: "secreports:local-service"}),
 		clock:                            clock,
 		auditQuerySvc:                    auditQuerySvc,
 		securityReportSvc:                securityReportSvc,
@@ -120,6 +124,12 @@ func (s *SecReportsService) GetSecurityAuditQueries(ctx context.Context) ([]*sec
 func (s *SecReportsService) GetSecurityReports(ctx context.Context) ([]*secreports.Report, error) {
 	reports, err := s.securityReportSvc.GetResources(ctx)
 	return reports, trace.Wrap(err)
+}
+
+// GetSecurityReportsStates returns security report states.
+func (s *SecReportsService) GetSecurityReportsStates(ctx context.Context) ([]*secreports.ReportState, error) {
+	states, err := s.securityReportStateSvc.GetResources(ctx)
+	return states, trace.Wrap(err)
 }
 
 // GetSecurityAuditQuery returns audit query by name.

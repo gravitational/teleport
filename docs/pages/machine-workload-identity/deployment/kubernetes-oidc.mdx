@@ -5,7 +5,6 @@ sidebar_label: Kubernetes (OIDC)
 tags:
  - how-to
  - mwi
- - infrastructure-identity
 ---
 
 This guide shows you how to deploy the Machine & Workload Identity agent,
@@ -21,7 +20,7 @@ deployment. It writes output credentials to a Kubernetes secret, which can then
 be mounted in the pods that need to use the credentials. While `tbot` can also
 run as a sidecar within the same pod as the service that needs to use the
 credentials it generates, we recommend running `tbot` as a standalone deployment
-due to the limited support Kubernetes has for sidecars.
+due the limited support Kubernetes has for sidecars.
 
 In this guide, we demonstrate the `kubernetes` join method using its OIDC
 support, in which `tbot` proves its identity to the Teleport Auth Service by
@@ -67,8 +66,8 @@ possible.
 
 ## Prerequisites
 
-- A running Teleport cluster, version 18.1.5 or above.
-- The `tsh` and `tctl` clients, version 18.1.5 or above.
+- A Teleport cluster running at least version 17.7.3 or 18.1.5
+- The `tsh` and `tctl` clients, running at least version 17.7.3 or 18.1.5
 - (!docs/pages/includes/tctl.mdx!)
 - A Kubernetes cluster with support for Token Request Projection (which
   graduated to a generally available feature in Kubernetes 1.20).
@@ -82,7 +81,7 @@ The examples in this guide will install a `tbot` deployment in the `default`
 Namespace of the Kubernetes cluster. Adjust references to `default` to the
 Namespace you wish to use.
 
-## Step 1/4. Verify support for Service Account Issuer Discovery
+## Step 1/5. Verify support for Service Account Issuer Discovery
 
 Before continuing, verify that your Kubernetes cluster can issue tokens that
 Teleport will be able to verify. To do so, we'll want to perform the following
@@ -157,14 +156,14 @@ Refer to your cloud provider documentation to enable this feature, including:
 
 If your provider does not support this feature, consider using either [Static
 JWKS joining](./kubernetes.mdx) or an [alternative Teleport join
-method](../../reference/deployment/join-methods.mdx) better suited to your cloud provider.
+method](../../reference/join-methods.mdx) better suited to your cloud provider.
 </Admonition>
 
-## Step 2/4. Create a Bot
+## Step 2/5. Create a Bot
 
 (!docs/pages/includes/machine-id/create-a-bot.mdx!)
 
-## Step 3/4. Create a join token
+## Step 3/5. Create a join token
 
 Next, a join token needs to be configured. This will be used by `tbot` to join
 the cluster, and will require the issuer URL determined in Step 1.
@@ -203,7 +202,7 @@ Use `tctl` to apply this file:
 $ tctl create -f bot-token.yaml
 ```
 
-## Step 4/4. Create a `tbot` deployment
+## Step 4/5. Create a `tbot` deployment
 
 Now, you'll deploy `tbot` to your Kubernetes cluster using the Teleport `tbot`
 Helm chart. This will be configured using values provided to the Helm CLI tool.
@@ -254,7 +253,7 @@ $ kubectl logs deployment/tbot
 
 With this complete, `tbot` is now successfully deployed to your cluster.
 
-## Next step: configure infrastructure access
+## Step 5/5. Configure services
 
 By default, the `tbot` Helm chart is configured to write an identity file to a
 Kubernetes Secret called `tbot-out` in the namespace where `tbot` has been
@@ -297,11 +296,13 @@ type of service using the `services` value of the Helm chart and setting
 Follow one of the [access guides](../access-guides/access-guides.mdx) to find
 out more about how to configure `tbot` for your use case.
 
-## Further reading
+## Next steps
 
 - Explore the [Helm chart configuration reference](../../reference/helm-reference/tbot.mdx).
-- Read the [configuration reference](../../reference/machine-workload-identity/configuration.mdx) to explore
-  all the available configuration options.
-- [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../../reference/machine-workload-identity/telemetry.mdx)
+- Follow the [access guides](../access-guides/access-guides.mdx) to finish
+configuring `tbot` for your environment.
+- Read the [configuration reference](../../reference/machine-id/configuration.mdx) to explore
+all the available configuration options.
+- [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../../reference/machine-id/telemetry.mdx)
 
 [said]: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/#service-account-issuer-discovery

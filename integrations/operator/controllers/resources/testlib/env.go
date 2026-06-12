@@ -20,25 +20,28 @@ package testlib
 
 import (
 	"context"
-	"log/slog"
 	"math/rand/v2"
 	"os"
-	"reflect"
+	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
-	"github.com/go-logr/logr"
 	"github.com/google/uuid"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap/zapcore"
 	core "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/rest"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/config"
+	"sigs.k8s.io/controller-runtime/pkg/envtest"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
@@ -46,20 +49,28 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integration/helpers"
-	apiresources "github.com/gravitational/teleport/integrations/operator/apis/resources"
+	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
+	resourcesv2 "github.com/gravitational/teleport/integrations/operator/apis/resources/v2"
+	resourcesv3 "github.com/gravitational/teleport/integrations/operator/apis/resources/v3"
+	resourcesv5 "github.com/gravitational/teleport/integrations/operator/apis/resources/v5"
 	"github.com/gravitational/teleport/integrations/operator/controllers"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
-	"github.com/gravitational/teleport/lib/scopes"
-	"github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 // scheme is our own test-specific scheme to avoid using the global
 // unprotected scheme.Scheme that triggers the race detector
 var scheme = controllers.Scheme
+
+func init() {
+	utilruntime.Must(core.AddToScheme(scheme))
+	utilruntime.Must(resourcesv1.AddToScheme(scheme))
+	utilruntime.Must(resourcesv2.AddToScheme(scheme))
+	utilruntime.Must(resourcesv3.AddToScheme(scheme))
+	utilruntime.Must(resourcesv5.AddToScheme(scheme))
+}
 
 func createNamespaceForTest(t *testing.T, kc kclient.Client) *core.Namespace {
 	ns := &core.Namespace{
@@ -72,6 +83,11 @@ func createNamespaceForTest(t *testing.T, kc kclient.Client) *core.Namespace {
 	return ns
 }
 
+func deleteNamespaceForTest(t *testing.T, kc kclient.Client, ns *core.Namespace) {
+	err := kc.Delete(context.Background(), ns)
+	require.NoError(t, err)
+}
+
 func ValidRandomResourceName(prefix string) string {
 	const letters = "abcdefghijklmnopqrstuvwxyz1234567890"
 	b := make([]byte, 5)
@@ -81,8 +97,8 @@ func ValidRandomResourceName(prefix string) string {
 	return prefix + string(b)
 }
 
-func defaultTeleportServiceConfig(t *testing.T, insecureMode bool, scopesFeatures scopes.Features) (*helpers.TeleInstance, string) {
-	testModules := &modulestest.Modules{
+func defaultTeleportServiceConfig(t *testing.T) (*helpers.TeleInstance, string) {
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
@@ -90,26 +106,22 @@ func defaultTeleportServiceConfig(t *testing.T, insecureMode bool, scopesFeature
 				entitlements.SAML: {Enabled: true},
 			},
 		},
-	}
+	})
 
 	teleportServer := helpers.NewInstance(t, helpers.InstanceConfig{
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    helpers.Loopback,
-		Logger:      slog.Default(),
-		Modules:     testModules,
+		Log:         logrus.StandardLogger(),
 	})
 
 	rcConf := servicecfg.MakeDefaultConfig()
-	rcConf.Modules = testModules
-	rcConf.ScopesFeatures = scopesFeatures
 	rcConf.DataDir = t.TempDir()
 	rcConf.Auth.Enabled = true
 	rcConf.Proxy.Enabled = true
 	rcConf.Proxy.DisableWebInterface = true
 	rcConf.SSH.Enabled = true
 	rcConf.Version = "v2"
-	rcConf.InsecureMode = insecureMode
 
 	roleName := ValidRandomResourceName("role-")
 	unrestricted := []string{"list", "create", "read", "update", "delete"}
@@ -117,14 +129,11 @@ func defaultTeleportServiceConfig(t *testing.T, insecureMode bool, scopesFeature
 		Allow: types.RoleConditions{
 			// the operator has wildcard noe labs to be able to see them
 			// but has no login allowed, so it cannot SSH into them
-			NodeLabels:     types.Labels{"*": []string{"*"}},
-			AppLabels:      types.Labels{"*": []string{"*"}},
-			DatabaseLabels: types.Labels{"*": []string{"*"}},
+			NodeLabels: types.Labels{"*": []string{"*"}},
 			Rules: []types.Rule{
 				types.NewRule(types.KindRole, unrestricted),
 				types.NewRule(types.KindUser, unrestricted),
 				types.NewRule(types.KindAuthConnector, unrestricted),
-				types.NewRule(types.KindLock, unrestricted),
 				types.NewRule(types.KindLoginRule, unrestricted),
 				types.NewRule(types.KindToken, unrestricted),
 				types.NewRule(types.KindOktaImportRule, unrestricted),
@@ -133,19 +142,6 @@ func defaultTeleportServiceConfig(t *testing.T, insecureMode bool, scopesFeature
 				types.NewRule(types.KindTrustedCluster, unrestricted),
 				types.NewRule(types.KindBot, unrestricted),
 				types.NewRule(types.KindWorkloadIdentity, unrestricted),
-				types.NewRule(types.KindAutoUpdateConfig, unrestricted),
-				types.NewRule(types.KindAutoUpdateVersion, unrestricted),
-				types.NewRule(types.KindApp, unrestricted),
-				types.NewRule(types.KindDatabase, unrestricted),
-				types.NewRule(types.KindInferenceModel, unrestricted),
-				types.NewRule(types.KindInferencePolicy, unrestricted),
-				types.NewRule(types.KindInferenceSecret, unrestricted),
-				types.NewRule(types.KindRetrievalModel, unrestricted),
-				types.NewRule(types.KindAccessMonitoringRule, unrestricted),
-				types.NewRule(types.KindSAMLIdPServiceProvider, unrestricted),
-				types.NewRule(types.KindScopedToken, unrestricted),
-				types.NewRule(access.KindScopedRole, unrestricted),
-				types.NewRule(access.KindScopedRoleAssignment, unrestricted),
 			},
 		},
 	})
@@ -192,12 +188,6 @@ type TestSetup struct {
 	OperatorCancel           context.CancelFunc
 	OperatorName             string
 	stepByStepReconciliation bool
-	log                      *slog.Logger
-	TeleportServer           *helpers.TeleInstance
-	ResourceName             string
-	Context                  context.Context
-	InsecureMode             bool
-	ScopesFeatures           scopes.Features
 }
 
 // StartKubernetesOperator creates and start a new operator
@@ -207,9 +197,6 @@ func (s *TestSetup) StartKubernetesOperator(t *testing.T) {
 		s.StopKubernetesOperator()
 	}
 
-	if s.K8sRestConfig == nil {
-		require.FailNow(t, "K8sRestConfig is required to start the operator, you cannot run a full test against a fake cluster.")
-	}
 	k8sManager, err := ctrl.NewManager(s.K8sRestConfig, ctrl.Options{
 		Scheme:  scheme,
 		Metrics: metricsserver.Options{BindAddress: "0"},
@@ -222,20 +209,12 @@ func (s *TestSetup) StartKubernetesOperator(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	slogLogger := s.log
-	if slogLogger == nil {
-		slogLogger = logtest.NewLogger()
-	}
-
-	logger := logr.FromSlogHandler(slogLogger.Handler())
-	ctrl.SetLogger(logger)
-	setupLog := logger.WithName("setup")
+	setupLog := ctrl.Log.WithName("setup")
+	ctrl.SetLogger(zap.New(zap.UseDevMode(true), zap.Level(zapcore.DebugLevel)))
 
 	pong, err := s.TeleportClient.Ping(context.Background())
 	require.NoError(t, err)
-
-	const scoped = false
-	err = resources.SetupAllControllers(setupLog, k8sManager, s.TeleportClient, pong.ServerFeatures, scoped)
+	err = resources.SetupAllControllers(setupLog, k8sManager, s.TeleportClient, pong.ServerFeatures)
 	require.NoError(t, err)
 
 	ctx, ctxCancel := context.WithCancel(context.Background())
@@ -269,8 +248,7 @@ func setupTeleportClient(t *testing.T, setup *TestSetup) {
 
 	// Start a Teleport server for the test and set up a client connected to
 	// that server.
-	teleportServer, operatorName := defaultTeleportServiceConfig(t, setup.InsecureMode, setup.ScopesFeatures)
-	setup.TeleportServer = teleportServer
+	teleportServer, operatorName := defaultTeleportServiceConfig(t)
 	require.NoError(t, teleportServer.Start())
 	setup.TeleportClient = clientForTeleport(t, teleportServer, operatorName)
 	setup.OperatorName = operatorName
@@ -293,61 +271,41 @@ func WithTeleportClient(clt *client.Client) TestOption {
 	}
 }
 
-func WithInsecureMode() TestOption {
-	return func(setup *TestSetup) {
-		setup.InsecureMode = true
-	}
-}
-
-func WithScopesFeatures(features scopes.Features) TestOption {
-	return func(setup *TestSetup) {
-		setup.ScopesFeatures = features
-	}
-}
-
 func StepByStep(setup *TestSetup) {
 	setup.stepByStepReconciliation = true
 }
 
-// WithResourceName makes the test resource name static instead of letting the test generate a random one.
-// This is used if the resource name much match a specific pattern, or a fixture that was created beforehand
-// (e.g. trusted cluster).
-func WithResourceName(resourceName string) TestOption {
-	return func(setup *TestSetup) {
-		setup.ResourceName = resourceName
+// SetupTestEnv creates a Kubernetes server, a teleport server and starts the operator
+func SetupTestEnv(t *testing.T, opts ...TestOption) *TestSetup {
+	// Hack to get the path of this file in order to find the crd path no matter
+	// where this is called from.
+	_, thisFileName, _, _ := runtime.Caller(0)
+	crdPath := filepath.Join(filepath.Dir(thisFileName), "..", "..", "..", "config", "crd", "bases")
+	testEnv := &envtest.Environment{
+		CRDDirectoryPaths:     []string{crdPath},
+		ErrorIfCRDPathMissing: true,
 	}
-}
 
-// SetupFakeKubeTestEnv is like SetupTestEnv but creates a fake Kubernetes
-// cluster by using controller-runtime's fake package.
-// This is way faster than using testEnv to spin up a full kube test cluster
-// on every test.
-// This does not support tests starting a full controller manager and can only be
-// used with Synchronous tests.
-func SetupFakeKubeTestEnv(t *testing.T, opts ...TestOption) *TestSetup {
-	builder := fake.NewClientBuilder()
-	builder.WithScheme(scheme)
-	// Every CR kind must be registered as "WithStatusSubresource" so he fake client implements
-	// the status updates properly.
-	customScheme, err := apiresources.NewScheme()
+	cfg, err := testEnv.Start()
 	require.NoError(t, err)
-	knownTypes := customScheme.AllKnownTypes()
-	for _, reflectType := range knownTypes {
-		reflectValue := reflect.New(reflectType).Interface()
-		obj, ok := reflectValue.(kclient.Object)
-		if !ok {
-			continue
-		}
-		builder.WithStatusSubresource(obj)
-	}
-	k8sClient := builder.Build()
+	require.NotNil(t, cfg)
+
+	k8sClient, err := kclient.New(cfg, kclient.Options{Scheme: scheme})
+	require.NoError(t, err)
+	require.NotNil(t, k8sClient)
+
 	ns := createNamespaceForTest(t, k8sClient)
 
+	t.Cleanup(func() {
+		deleteNamespaceForTest(t, k8sClient, ns)
+		err = testEnv.Stop()
+		require.NoError(t, err)
+	})
+
 	setup := &TestSetup{
-		Context:      t.Context(),
-		K8sClient:    k8sClient,
-		Namespace:    ns,
-		ResourceName: ValidRandomResourceName("resource-"),
+		K8sClient:     k8sClient,
+		Namespace:     ns,
+		K8sRestConfig: cfg,
 	}
 
 	for _, opt := range opts {
@@ -355,6 +313,15 @@ func SetupFakeKubeTestEnv(t *testing.T, opts ...TestOption) *TestSetup {
 	}
 
 	setupTeleportClient(t, setup)
+
+	// If the test wants to do step by step reconciliation, we don't start
+	// an operator in the background.
+	if !setup.stepByStepReconciliation {
+		setup.StartKubernetesOperator(t)
+		t.Cleanup(func() {
+			setup.StopKubernetesOperator()
+		})
+	}
 
 	return setup
 }

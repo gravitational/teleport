@@ -50,8 +50,6 @@ import { UpdateHeadlessAuthenticationStateRequest } from "./service_pb";
 import { ReportUsageEventRequest } from "./usage_events_pb";
 import { FileTransferProgress } from "./service_pb";
 import { FileTransferRequest } from "./service_pb";
-import { ClearStaleClusterClientsResponse } from "./service_pb";
-import { ClearStaleClusterClientsRequest } from "./service_pb";
 import { LogoutRequest } from "./service_pb";
 import { LoginPasswordlessResponse } from "./service_pb";
 import { LoginPasswordlessRequest } from "./service_pb";
@@ -66,10 +64,9 @@ import { Gateway } from "./gateway_pb";
 import { CreateGatewayRequest } from "./service_pb";
 import { ListGatewaysResponse } from "./service_pb";
 import { ListGatewaysRequest } from "./service_pb";
+import { RemoveClusterRequest } from "./service_pb";
 import { Cluster } from "./cluster_pb";
 import { AddClusterRequest } from "./service_pb";
-import { ListKubernetesServersResponse } from "./service_pb";
-import { ListKubernetesServersRequest } from "./service_pb";
 import { ListKubernetesResourcesResponse } from "./service_pb";
 import { ListKubernetesResourcesRequest } from "./service_pb";
 import { GetSuggestedAccessListsResponse } from "./service_pb";
@@ -89,8 +86,10 @@ import { GetAccessRequestResponse } from "./service_pb";
 import { GetAccessRequestRequest } from "./service_pb";
 import { GetAccessRequestsResponse } from "./service_pb";
 import { GetAccessRequestsRequest } from "./service_pb";
-import { ListDatabaseServersResponse } from "./service_pb";
-import { ListDatabaseServersRequest } from "./service_pb";
+import { GetServersResponse } from "./service_pb";
+import { GetServersRequest } from "./service_pb";
+import { ListDatabaseUsersResponse } from "./service_pb";
+import { ListDatabaseUsersRequest } from "./service_pb";
 import { StartHeadlessWatcherResponse } from "./service_pb";
 import { StartHeadlessWatcherRequest } from "./service_pb";
 import { ListLeafClustersRequest } from "./service_pb";
@@ -142,11 +141,20 @@ export interface ITerminalService extends grpc.UntypedServiceImplementation {
      */
     startHeadlessWatcher: grpc.handleUnaryCall<StartHeadlessWatcherRequest, StartHeadlessWatcherResponse>;
     /**
-     * ListDatabaseServers lists allowed users for the given database based on the role set.
+     * ListDatabaseUsers lists allowed users for the given database based on the role set.
      *
-     * @generated from protobuf rpc: ListDatabaseServers(teleport.lib.teleterm.v1.ListDatabaseServersRequest) returns (teleport.lib.teleterm.v1.ListDatabaseServersResponse);
+     * @generated from protobuf rpc: ListDatabaseUsers(teleport.lib.teleterm.v1.ListDatabaseUsersRequest) returns (teleport.lib.teleterm.v1.ListDatabaseUsersResponse);
      */
-    listDatabaseServers: grpc.handleUnaryCall<ListDatabaseServersRequest, ListDatabaseServersResponse>;
+    listDatabaseUsers: grpc.handleUnaryCall<ListDatabaseUsersRequest, ListDatabaseUsersResponse>;
+    /**
+     * GetServers returns filtered, sorted, and paginated servers
+     *
+     * Deprecated: Use ListUnifiedResources instead.
+     *
+     * @deprecated
+     * @generated from protobuf rpc: GetServers(teleport.lib.teleterm.v1.GetServersRequest) returns (teleport.lib.teleterm.v1.GetServersResponse);
+     */
+    getServers: grpc.handleUnaryCall<GetServersRequest, GetServersResponse>;
     /**
      * GetAccessRequests lists filtered AccessRequests
      *
@@ -209,17 +217,17 @@ export interface ITerminalService extends grpc.UntypedServiceImplementation {
      */
     listKubernetesResources: grpc.handleUnaryCall<ListKubernetesResourcesRequest, ListKubernetesResourcesResponse>;
     /**
-     * Lists Kubernetes servers.
-     *
-     * @generated from protobuf rpc: ListKubernetesServers(teleport.lib.teleterm.v1.ListKubernetesServersRequest) returns (teleport.lib.teleterm.v1.ListKubernetesServersResponse);
-     */
-    listKubernetesServers: grpc.handleUnaryCall<ListKubernetesServersRequest, ListKubernetesServersResponse>;
-    /**
      * AddCluster adds a cluster to profile
      *
      * @generated from protobuf rpc: AddCluster(teleport.lib.teleterm.v1.AddClusterRequest) returns (teleport.lib.teleterm.v1.Cluster);
      */
     addCluster: grpc.handleUnaryCall<AddClusterRequest, Cluster>;
+    /**
+     * RemoveCluster removes a cluster from profile
+     *
+     * @generated from protobuf rpc: RemoveCluster(teleport.lib.teleterm.v1.RemoveClusterRequest) returns (teleport.lib.teleterm.v1.EmptyResponse);
+     */
+    removeCluster: grpc.handleUnaryCall<RemoveClusterRequest, EmptyResponse>;
     /**
      * ListGateways lists gateways
      *
@@ -295,19 +303,11 @@ export interface ITerminalService extends grpc.UntypedServiceImplementation {
      */
     loginPasswordless: grpc.handleBidiStreamingCall<LoginPasswordlessRequest, LoginPasswordlessResponse>;
     /**
-     * Logs the user out of the cluster and cleans up associated resources.
-     * Optionally removes the profile.
-     * This operation is idempotent and can be safely invoked multiple times.
+     * ClusterLogin logs out a user from cluster
      *
      * @generated from protobuf rpc: Logout(teleport.lib.teleterm.v1.LogoutRequest) returns (teleport.lib.teleterm.v1.EmptyResponse);
      */
     logout: grpc.handleUnaryCall<LogoutRequest, EmptyResponse>;
-    /**
-     * Closes root and leaf cluster clients that use outdated TLS certificates.
-     *
-     * @generated from protobuf rpc: ClearStaleClusterClients(teleport.lib.teleterm.v1.ClearStaleClusterClientsRequest) returns (teleport.lib.teleterm.v1.ClearStaleClusterClientsResponse);
-     */
-    clearStaleClusterClients: grpc.handleUnaryCall<ClearStaleClusterClientsRequest, ClearStaleClusterClientsResponse>;
     /**
      * TransferFile sends a request to download/upload a file
      *
@@ -470,15 +470,25 @@ export const terminalServiceDefinition: grpc.ServiceDefinition<ITerminalService>
         responseSerialize: value => Buffer.from(StartHeadlessWatcherResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(StartHeadlessWatcherRequest.toBinary(value))
     },
-    listDatabaseServers: {
-        path: "/teleport.lib.teleterm.v1.TerminalService/ListDatabaseServers",
-        originalName: "ListDatabaseServers",
+    listDatabaseUsers: {
+        path: "/teleport.lib.teleterm.v1.TerminalService/ListDatabaseUsers",
+        originalName: "ListDatabaseUsers",
         requestStream: false,
         responseStream: false,
-        responseDeserialize: bytes => ListDatabaseServersResponse.fromBinary(bytes),
-        requestDeserialize: bytes => ListDatabaseServersRequest.fromBinary(bytes),
-        responseSerialize: value => Buffer.from(ListDatabaseServersResponse.toBinary(value)),
-        requestSerialize: value => Buffer.from(ListDatabaseServersRequest.toBinary(value))
+        responseDeserialize: bytes => ListDatabaseUsersResponse.fromBinary(bytes),
+        requestDeserialize: bytes => ListDatabaseUsersRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(ListDatabaseUsersResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(ListDatabaseUsersRequest.toBinary(value))
+    },
+    getServers: {
+        path: "/teleport.lib.teleterm.v1.TerminalService/GetServers",
+        originalName: "GetServers",
+        requestStream: false,
+        responseStream: false,
+        responseDeserialize: bytes => GetServersResponse.fromBinary(bytes),
+        requestDeserialize: bytes => GetServersRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(GetServersResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(GetServersRequest.toBinary(value))
     },
     getAccessRequests: {
         path: "/teleport.lib.teleterm.v1.TerminalService/GetAccessRequests",
@@ -580,16 +590,6 @@ export const terminalServiceDefinition: grpc.ServiceDefinition<ITerminalService>
         responseSerialize: value => Buffer.from(ListKubernetesResourcesResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(ListKubernetesResourcesRequest.toBinary(value))
     },
-    listKubernetesServers: {
-        path: "/teleport.lib.teleterm.v1.TerminalService/ListKubernetesServers",
-        originalName: "ListKubernetesServers",
-        requestStream: false,
-        responseStream: false,
-        responseDeserialize: bytes => ListKubernetesServersResponse.fromBinary(bytes),
-        requestDeserialize: bytes => ListKubernetesServersRequest.fromBinary(bytes),
-        responseSerialize: value => Buffer.from(ListKubernetesServersResponse.toBinary(value)),
-        requestSerialize: value => Buffer.from(ListKubernetesServersRequest.toBinary(value))
-    },
     addCluster: {
         path: "/teleport.lib.teleterm.v1.TerminalService/AddCluster",
         originalName: "AddCluster",
@@ -599,6 +599,16 @@ export const terminalServiceDefinition: grpc.ServiceDefinition<ITerminalService>
         requestDeserialize: bytes => AddClusterRequest.fromBinary(bytes),
         responseSerialize: value => Buffer.from(Cluster.toBinary(value)),
         requestSerialize: value => Buffer.from(AddClusterRequest.toBinary(value))
+    },
+    removeCluster: {
+        path: "/teleport.lib.teleterm.v1.TerminalService/RemoveCluster",
+        originalName: "RemoveCluster",
+        requestStream: false,
+        responseStream: false,
+        responseDeserialize: bytes => EmptyResponse.fromBinary(bytes),
+        requestDeserialize: bytes => RemoveClusterRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(EmptyResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(RemoveClusterRequest.toBinary(value))
     },
     listGateways: {
         path: "/teleport.lib.teleterm.v1.TerminalService/ListGateways",
@@ -699,16 +709,6 @@ export const terminalServiceDefinition: grpc.ServiceDefinition<ITerminalService>
         requestDeserialize: bytes => LogoutRequest.fromBinary(bytes),
         responseSerialize: value => Buffer.from(EmptyResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(LogoutRequest.toBinary(value))
-    },
-    clearStaleClusterClients: {
-        path: "/teleport.lib.teleterm.v1.TerminalService/ClearStaleClusterClients",
-        originalName: "ClearStaleClusterClients",
-        requestStream: false,
-        responseStream: false,
-        responseDeserialize: bytes => ClearStaleClusterClientsResponse.fromBinary(bytes),
-        requestDeserialize: bytes => ClearStaleClusterClientsRequest.fromBinary(bytes),
-        responseSerialize: value => Buffer.from(ClearStaleClusterClientsResponse.toBinary(value)),
-        requestSerialize: value => Buffer.from(ClearStaleClusterClientsRequest.toBinary(value))
     },
     transferFile: {
         path: "/teleport.lib.teleterm.v1.TerminalService/TransferFile",

@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -29,7 +30,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/session"
@@ -181,8 +181,11 @@ func StreamEmpty(t *testing.T, handler events.MultipartHandler) {
 
 	require.NoError(t, stream.Complete(ctx))
 
-	_, err = handler.StreamSessionRecording(ctx, sid)
-	require.True(t, trace.IsNotFound(err))
+	f, err := os.CreateTemp("", string(sid))
+	require.NoError(t, err)
+	defer os.Remove(f.Name())
+
+	require.True(t, trace.IsNotFound(handler.Download(ctx, sid, f)))
 }
 
 // StreamWithParameters tests stream upload and subsequent download and reads the results
@@ -201,10 +204,6 @@ func StreamWithParameters(t *testing.T, handler events.MultipartHandler, params 
 		MinUploadBytes:    params.MinUploadBytes,
 		ConcurrentUploads: params.ConcurrentUploads,
 		ForceFlush:        forceFlush,
-		RetryConfig: &retryutils.LinearConfig{
-			Step: time.Millisecond * 10,
-			Max:  time.Millisecond * 500,
-		},
 	})
 	require.NoError(t, err)
 
@@ -240,12 +239,18 @@ func StreamWithParameters(t *testing.T, handler events.MultipartHandler, params 
 	err = stream.Complete(ctx)
 	require.NoError(t, err)
 
-	rc, err := handler.StreamSessionRecording(ctx, sid)
+	f, err := os.CreateTemp("", string(sid))
 	require.NoError(t, err)
-	defer rc.Close()
+	defer os.Remove(f.Name())
+	defer f.Close()
 
-	reader := events.NewProtoReader(rc, nil)
+	err = handler.Download(ctx, sid, f)
+	require.NoError(t, err)
 
+	_, err = f.Seek(0, 0)
+	require.NoError(t, err)
+
+	reader := events.NewProtoReader(f)
 	out, err := reader.ReadAll(ctx)
 	require.NoError(t, err)
 
@@ -269,10 +274,6 @@ func StreamResumeWithParameters(t *testing.T, handler events.MultipartHandler, p
 		Uploader:          handler,
 		MinUploadBytes:    params.MinUploadBytes,
 		ConcurrentUploads: params.ConcurrentUploads,
-		RetryConfig: &retryutils.LinearConfig{
-			Step: time.Millisecond * 10,
-			Max:  time.Millisecond * 500,
-		},
 	})
 	require.NoError(t, err)
 
@@ -305,12 +306,18 @@ func StreamResumeWithParameters(t *testing.T, handler events.MultipartHandler, p
 	err = stream.Complete(ctx)
 	require.NoError(t, err, "Complete after resume should succeed")
 
-	rc, err := handler.StreamSessionRecording(ctx, sid)
+	f, err := os.CreateTemp("", string(sid))
 	require.NoError(t, err)
-	defer rc.Close()
+	defer os.Remove(f.Name())
+	defer f.Close()
 
-	reader := events.NewProtoReader(rc, nil)
+	err = handler.Download(ctx, sid, f)
+	require.NoError(t, err)
 
+	_, err = f.Seek(0, 0)
+	require.NoError(t, err)
+
+	reader := events.NewProtoReader(f)
 	out, err := reader.ReadAll(ctx)
 	require.NoError(t, err)
 

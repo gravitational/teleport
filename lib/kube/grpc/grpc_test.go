@@ -22,13 +22,12 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"log/slog"
 	"net"
-	"slices"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -41,7 +40,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
-	"github.com/gravitational/teleport/lib/authz"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
@@ -93,15 +91,7 @@ func TestListKubernetesResources(t *testing.T) {
 				// override the role to allow access to all kube resources.
 				r.SetKubeResources(
 					types.Allow,
-					[]types.KubernetesResource{
-						{
-							Kind:      types.Wildcard,
-							Name:      types.Wildcard,
-							Namespace: types.Wildcard,
-							Verbs:     []string{types.Wildcard},
-							APIGroup:  types.Wildcard,
-						},
-					},
+					[]types.KubernetesResource{{Kind: types.Wildcard, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}}},
 				)
 			},
 		},
@@ -121,7 +111,7 @@ func TestListKubernetesResources(t *testing.T) {
 				// set the role to allow searching as fullAccessRole.
 				role.SetSearchAsRoles(types.Allow, []string{fullAccessRole.GetName()})
 				// restrict querying to pods only
-				role.SetRequestKubernetesResources(types.Allow, []types.RequestKubernetesResource{{Kind: "namespaces"}, {Kind: "pods"}})
+				role.SetRequestKubernetesResources(types.Allow, []types.RequestKubernetesResource{{Kind: "namespace"}, {Kind: "pod"}})
 			},
 		},
 	)
@@ -140,7 +130,7 @@ func TestListKubernetesResources(t *testing.T) {
 				// set the role to allow searching as fullAccessRole.
 				role.SetSearchAsRoles(types.Allow, []string{fullAccessRole.GetName()})
 				// restrict querying to secrets only
-				role.SetRequestKubernetesResources(types.Allow, []types.RequestKubernetesResource{{Kind: "secrets"}})
+				role.SetRequestKubernetesResources(types.Allow, []types.RequestKubernetesResource{{Kind: "secret"}})
 
 			},
 		},
@@ -566,7 +556,7 @@ func TestListKubernetesResources(t *testing.T) {
 						Kind:    types.KindKubeClusterRole,
 						Version: "v1",
 						Metadata: types.Metadata{
-							Name:      "cr-nginx-1",
+							Name:      "nginx-1",
 							Namespace: "default",
 						},
 						Spec: types.KubernetesResourceSpecV1{},
@@ -575,7 +565,7 @@ func TestListKubernetesResources(t *testing.T) {
 						Kind:    types.KindKubeClusterRole,
 						Version: "v1",
 						Metadata: types.Metadata{
-							Name:      "cr-nginx-2",
+							Name:      "nginx-2",
 							Namespace: "default",
 						},
 						Spec: types.KubernetesResourceSpecV1{},
@@ -584,7 +574,7 @@ func TestListKubernetesResources(t *testing.T) {
 						Kind:    types.KindKubeClusterRole,
 						Version: "v1",
 						Metadata: types.Metadata{
-							Name:      "cr-test",
+							Name:      "test",
 							Namespace: "default",
 						},
 						Spec: types.KubernetesResourceSpecV1{},
@@ -595,6 +585,7 @@ func TestListKubernetesResources(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			_, restCfg := testCtx.GenTestKubeClientTLSCert(t, tt.args.user.GetName(), "")
@@ -620,9 +611,8 @@ func TestListKubernetesResources(t *testing.T) {
 			tt.assertErr(t, err)
 			if tt.want != nil {
 				for _, want := range tt.want.Resources {
-					isClusterWide := slices.Contains(types.KubernetesClusterWideResourceKinds, want.Kind)
 					// fill in defaults
-					err := want.CheckAndSetDefaults(!isClusterWide)
+					err := want.CheckAndSetDefaults()
 					require.NoError(t, err)
 				}
 			}
@@ -644,14 +634,12 @@ func initGRPCServer(t *testing.T, testCtx *TestContext, listener net.Listener) {
 	// adds authentication information to the context
 	// and passes it to the API server
 	authMiddleware := &auth.Middleware{
-		Middleware: authz.Middleware{
-			ClusterName:   clusterName,
-			AcceptedUsage: []string{teleport.UsageKubeOnly},
-		},
-		Limiter: limiter,
+		ClusterName:   clusterName,
+		Limiter:       limiter,
+		AcceptedUsage: []string{teleport.UsageKubeOnly},
 	}
 
-	tlsConf := copyAndConfigureTLS(tlsConfig, testCtx.AuthClient, clusterName)
+	tlsConf := copyAndConfigureTLS(tlsConfig, logrus.New(), testCtx.AuthClient, clusterName)
 	creds, err := auth.NewTransportCredentials(auth.TransportCredentialsConfig{
 		TransportCredentials: credentials.NewTLS(tlsConf),
 		UserGetter:           authMiddleware,
@@ -705,7 +693,7 @@ func initGRPCServer(t *testing.T, testCtx *TestContext, listener net.Listener) {
 
 // copyAndConfigureTLS can be used to copy and modify an existing *tls.Config
 // for Teleport application proxy servers.
-func copyAndConfigureTLS(config *tls.Config, accessPoint authclient.AccessCache, clusterName string) *tls.Config {
+func copyAndConfigureTLS(config *tls.Config, log logrus.FieldLogger, accessPoint authclient.AccessCache, clusterName string) *tls.Config {
 	tlsConfig := config.Clone()
 
 	// Require clients to present a certificate
@@ -715,7 +703,7 @@ func copyAndConfigureTLS(config *tls.Config, accessPoint authclient.AccessCache,
 	// client's certificate to verify the chain presented. If the client does not
 	// pass in the cluster name, this functions pulls back all CA to try and
 	// match the certificate presented against any CA.
-	tlsConfig.GetConfigForClient = authclient.WithClusterCAs(tlsConfig.Clone(), accessPoint, clusterName, slog.Default())
+	tlsConfig.GetConfigForClient = authclient.WithClusterCAs(tlsConfig.Clone(), accessPoint, clusterName, log)
 
 	return tlsConfig
 }

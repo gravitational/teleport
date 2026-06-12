@@ -24,7 +24,6 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"errors"
-	"log/slog"
 	"net"
 	"net/http"
 	"sync"
@@ -33,6 +32,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -43,7 +43,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/defaults"
-	kuberelay "github.com/gravitational/teleport/lib/kube/relay"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -86,11 +85,8 @@ type KubeMiddleware struct {
 	clock clockwork.Clock
 	// headless controls whether proxy is working in headless login mode.
 	headless bool
-	// relay signals that the local proxy is routing requests to the kube
-	// forwarder of a relay with the given address rather than of a proxy.
-	relay bool
 
-	logger       *slog.Logger
+	logger       logrus.FieldLogger
 	closeContext context.Context
 
 	// isCertReissuingRunning is used to only ever have one concurrent cert reissuing session requiring user input.
@@ -106,13 +102,8 @@ type KubeMiddlewareConfig struct {
 	CertReissuer KubeCertReissuer
 	Headless     bool
 	Clock        clockwork.Clock
-	Logger       *slog.Logger
+	Logger       logrus.FieldLogger
 	CloseContext context.Context
-
-	// Relay signals that the middleware should provide the appropriate SNI
-	// override to connect to the Kube forwarder of a Relay rather than the one
-	// of a Proxy.
-	Relay bool
 }
 
 // NewKubeMiddleware creates a new KubeMiddleware.
@@ -124,7 +115,6 @@ func NewKubeMiddleware(cfg KubeMiddlewareConfig) LocalProxyHTTPMiddleware {
 		clock:        cfg.Clock,
 		logger:       cfg.Logger,
 		closeContext: cfg.CloseContext,
-		relay:        cfg.Relay,
 	}
 }
 
@@ -137,7 +127,7 @@ func (m *KubeMiddleware) CheckAndSetDefaults() error {
 		m.clock = clockwork.NewRealClock()
 	}
 	if m.logger == nil {
-		m.logger = slog.With(teleport.ComponentKey, "local_proxy_kube")
+		m.logger = logrus.WithField(teleport.ComponentKey, "local_proxy_kube")
 	}
 	if m.closeContext == nil {
 		return trace.BadParameter("missing close context")
@@ -155,12 +145,12 @@ func initKubeCodecs() serializer.CodecFactory {
 	return serializer.NewCodecFactory(kubeScheme)
 }
 
-func writeKubeError(ctx context.Context, rw http.ResponseWriter, kubeError *apierrors.StatusError, logger *slog.Logger) {
+func writeKubeError(rw http.ResponseWriter, kubeError *apierrors.StatusError, logger logrus.FieldLogger) {
 	kubeCodecs := initKubeCodecs()
 	status := kubeError.Status()
 	errorBytes, err := runtime.Encode(kubeCodecs.LegacyCodec(), &status)
 	if err != nil {
-		logger.WarnContext(ctx, "Failed to encode Kube status error", "error", err)
+		logger.Warnf("Failed to encode Kube status error: %v.", err)
 		trace.WriteError(rw, trace.Wrap(kubeError))
 	}
 
@@ -168,7 +158,7 @@ func writeKubeError(ctx context.Context, rw http.ResponseWriter, kubeError *apie
 	rw.WriteHeader(int(status.Code))
 
 	if _, err := rw.Write(errorBytes); err != nil {
-		logger.WarnContext(ctx, "Failed to write Kube error", "error", err)
+		logger.Warnf("Failed to write Kube error: %v.", err)
 	}
 }
 
@@ -192,7 +182,7 @@ func (m *KubeMiddleware) resolveClusterKey(req *http.Request) (teleportCluster, 
 func (m *KubeMiddleware) HandleRequest(rw http.ResponseWriter, req *http.Request) bool {
 	teleportCluster, kubeCluster, err := m.resolveClusterKey(req)
 	if err != nil {
-		m.logger.WarnContext(req.Context(), "Invalid kube local proxy request", "path", req.URL.Path, "error", err)
+		m.logger.WithError(err).Warnf("Invalid kube local proxy request: %v", req.URL.Path)
 		trace.WriteError(rw, trace.Wrap(err))
 		return true
 	}
@@ -209,7 +199,7 @@ func (m *KubeMiddleware) HandleRequest(rw http.ResponseWriter, req *http.Request
 	if err != nil {
 		// If user input is required we return an error that will try to get user attention to the local proxy
 		if errors.Is(err, ErrUserInputRequired) {
-			writeKubeError(req.Context(), rw, &apierrors.StatusError{
+			writeKubeError(rw, &apierrors.StatusError{
 				ErrStatus: metav1.Status{
 					TypeMeta: metav1.TypeMeta{
 						Kind:       "Status",
@@ -223,30 +213,12 @@ func (m *KubeMiddleware) HandleRequest(rw http.ResponseWriter, req *http.Request
 			}, m.logger)
 			return true
 		}
-		m.logger.WarnContext(req.Context(), "Failed to reissue certificate",
-			"teleport_cluster", teleportCluster,
-			"kube_cluster", kubeCluster,
-		)
+		m.logger.WithError(err).Warnf("Failed to reissue certificate for teleport cluster %v kube cluster %v", teleportCluster, kubeCluster)
 		trace.WriteError(rw, trace.Wrap(err))
 		return true
 	}
 
 	return false
-}
-
-// GetServerName implements [LocalProxyHTTPMiddleware].
-// In relay mode it returns the per-cluster SNI the upstream relay uses to identify the target kube cluster.
-func (m *KubeMiddleware) GetServerName(req *http.Request) (string, bool, error) {
-	if !m.relay {
-		// if we're not connecting to a Relay we should use the standard SNI
-		// configured in the LocalProxy
-		return "", false, nil
-	}
-	tc, kc, err := m.resolveClusterKey(req)
-	if err != nil {
-		return "", false, trace.Wrap(err)
-	}
-	return kuberelay.FullSNIForKubeCluster(tc, kc), true, nil
 }
 
 // getCert looks up the per-cluster client cert to use for an outbound kube
@@ -272,13 +244,13 @@ func (m *KubeMiddleware) getCertForRequest(req *http.Request) (tls.Certificate, 
 	return m.getCert(tc, kc)
 }
 
-// GetClientCerts implements [LocalProxyHTTPMiddleware].
-func (m *KubeMiddleware) GetClientCerts(req *http.Request) ([]tls.Certificate, bool, error) {
+// OverwriteClientCerts overwrites the client certs used for upstream connection.
+func (m *KubeMiddleware) OverwriteClientCerts(req *http.Request) ([]tls.Certificate, error) {
 	cert, err := m.getCertForRequest(req)
 	if err != nil {
-		return nil, false, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	return []tls.Certificate{cert}, true, nil
+	return []tls.Certificate{cert}, nil
 }
 
 // ErrUserInputRequired returned when user's input required to relogin and/or reissue new certificate.
@@ -289,7 +261,7 @@ var ErrUserInputRequired = errors.New("user input required")
 func (m *KubeMiddleware) reissueCertIfExpired(ctx context.Context, cert tls.Certificate, teleportCluster, kubeCluster string) error {
 	needsReissue := false
 	if len(cert.Certificate) == 0 {
-		m.logger.InfoContext(ctx, "missing TLS certificate, attempting to reissue a new one")
+		m.logger.Info("missing TLS certificate, attempting to reissue a new one")
 		needsReissue = true
 	} else {
 		x509Cert, err := utils.TLSCertLeaf(cert)

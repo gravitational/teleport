@@ -34,7 +34,6 @@ import (
 	"github.com/gravitational/teleport"
 	common "github.com/gravitational/teleport/lib/autoupdate"
 	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
-	_ "github.com/gravitational/teleport/lib/fipscheck"
 	"github.com/gravitational/teleport/lib/modules"
 	libutils "github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -51,19 +50,15 @@ Find out more at https://goteleport.com/docs/upgrading/agent-managed-updates`
 const (
 	// proxyServerEnvVar allows the proxy server address to be specified via env var.
 	proxyServerEnvVar = "TELEPORT_PROXY"
-	// installDirEnvVar specifies the Teleport install directory.
-	installDirEnvVar = "TELEPORT_INSTALL_DIR"
-	// pathEnvVar specifies the Teleport PATH for binary symlinks.
-	pathEnvVar = "TELEPORT_PATH"
 	// updateGroupEnvVar allows the update group to be specified via env var.
 	updateGroupEnvVar = "TELEPORT_UPDATE_GROUP"
 	// updateVersionEnvVar specifies the Teleport version.
 	updateVersionEnvVar = "TELEPORT_UPDATE_VERSION"
 	// updateFlagsEnvVar specifies Teleport version flags.
 	updateFlagsEnvVar = "TELEPORT_UPDATE_FLAGS"
-
 	// updateLockTimeout is the duration commands will wait for update to complete before failing.
 	updateLockTimeout = 10 * time.Minute
+
 	// notUpToDateExitCode is returned by `teleport-update status --is-up-to-date` if Teleport is not up-to-date.
 	notUpToDateExitCode = 3
 )
@@ -99,8 +94,6 @@ type cliConfig struct {
 	Insecure bool
 	// StatusWithExitCode makes the status command return different exit codes depending on the update status.
 	StatusWithExitCode bool
-	// SetupTbot specifies whether tbot should be managed.
-	SetupTbot bool
 }
 
 func Run(args []string) int {
@@ -115,9 +108,9 @@ func Run(args []string) int {
 	app.Flag("log-format", "Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.").
 		Default(libutils.LogFormatText).EnumVar(&ccfg.LogFormat, libutils.LogFormatJSON, libutils.LogFormatText)
 	app.Flag("install-suffix", "Suffix for creating an agent installation outside of the default $PATH. Note: this changes the default data directory.").
-		Short('i').Envar(common.InstallSuffixEnvVar).StringVar(&ccfg.InstallSuffix)
+		Short('i').StringVar(&ccfg.InstallSuffix)
 	app.Flag("install-dir", "Directory containing Teleport installations.").
-		Hidden().Envar(installDirEnvVar).StringVar(&ccfg.InstallDir)
+		Hidden().StringVar(&ccfg.InstallDir)
 	app.Flag("insecure", "Insecure mode disables certificate verification. Do not use in production.").
 		BoolVar(&ccfg.Insecure)
 
@@ -132,10 +125,10 @@ func Run(args []string) int {
 		Short('g').Envar(updateGroupEnvVar).StringVar(&ccfg.Group)
 	enableCmd.Flag("base-url", "Base URL used to override the Teleport download URL.").
 		Short('b').Envar(common.BaseURLEnvVar).StringVar(&ccfg.BaseURL)
-	enableCmd.Flag("overwrite", "Allow existing installed binaries and services to be overwritten.").
+	enableCmd.Flag("overwrite", "Allow existing installed Teleport binaries to be overwritten.").
 		Short('o').BoolVar(&ccfg.AllowOverwrite)
 	enableCmd.Flag("allow-proxy-conflict", "Allow proxy addresses in teleport.yaml and update.yaml to conflict.").
-		Envar(common.AllowProxyConflictEnvVar).BoolVar(&ccfg.AllowProxyConflict)
+		BoolVar(&ccfg.AllowProxyConflict)
 	enableCmd.Flag("force-version", "Force the provided version instead of using the version provided by the Teleport cluster.").
 		Hidden().Short('f').Envar(updateVersionEnvVar).StringVar(&ccfg.ForceVersion)
 	enableCmd.Flag("force-flag", "Force the provided version flags instead of using the version flags provided by the Teleport cluster.").
@@ -143,9 +136,7 @@ func Run(args []string) int {
 	enableCmd.Flag("self-setup", "Use the current teleport-update binary to create systemd service config for managed updates.").
 		Hidden().BoolVar(&ccfg.SelfSetup)
 	enableCmd.Flag("path", "Directory to link the active Teleport installation's binaries into.").
-		Hidden().Envar(pathEnvVar).StringVar(&ccfg.Path)
-	enableCmd.Flag("selinux-ssh", "Install an SELinux module to constrain Teleport SSH.").
-		Hidden().Envar(autoupdate.SetupSELinuxSSHEnvVar).IsSetByUser(&ccfg.SELinuxSSHChanged).BoolVar(&ccfg.SELinuxSSH)
+		Hidden().StringVar(&ccfg.Path)
 
 	disableCmd := app.Command("disable", "Disable agent managed updates. Does not affect the active installation of Teleport.")
 
@@ -156,7 +147,7 @@ func Run(args []string) int {
 		Short('g').Envar(updateGroupEnvVar).StringVar(&ccfg.Group)
 	pinCmd.Flag("base-url", "Base URL used to override the Teleport download URL.").
 		Short('b').Envar(common.BaseURLEnvVar).StringVar(&ccfg.BaseURL)
-	pinCmd.Flag("overwrite", "Allow existing installed binaries and services to be overwritten.").
+	pinCmd.Flag("overwrite", "Allow existing installed Teleport binaries to be overwritten.").
 		Short('o').BoolVar(&ccfg.AllowOverwrite)
 	pinCmd.Flag("allow-proxy-conflict", "Allow proxy addresses in teleport.yaml and update.yaml to conflict.").
 		BoolVar(&ccfg.AllowProxyConflict)
@@ -167,9 +158,7 @@ func Run(args []string) int {
 	pinCmd.Flag("self-setup", "Use the current teleport-update binary to create systemd service config for managed updates.").
 		Hidden().BoolVar(&ccfg.SelfSetup)
 	pinCmd.Flag("path", "Directory to link the active Teleport installation's binaries into.").
-		Hidden().Envar(pathEnvVar).StringVar(&ccfg.Path)
-	pinCmd.Flag("selinux-ssh", "Install an SELinux module to constrain Teleport SSH.").
-		Hidden().Envar(autoupdate.SetupSELinuxSSHEnvVar).IsSetByUser(&ccfg.SELinuxSSHChanged).BoolVar(&ccfg.SELinuxSSH)
+		Hidden().StringVar(&ccfg.Path)
 
 	unpinCmd := app.Command("unpin", "Unpin the current version, allowing it to be updated.")
 
@@ -194,10 +183,6 @@ func Run(args []string) int {
 		Envar(autoupdate.SetupVersionEnvVar).StringVar(&ccfg.ForceVersion)
 	setupCmd.Flag("flag", "Use the provided flags to generate configuration files.").
 		Envar(autoupdate.SetupFlagsEnvVar).StringsVar(&ccfg.ForceFlags)
-	setupCmd.Flag("selinux-ssh", "Install the SELinux module for Teleport SSH.").
-		Hidden().Envar(autoupdate.SetupSELinuxSSHEnvVar).BoolVar(&ccfg.SELinuxSSH)
-	setupCmd.Flag("tbot", "Setup a systemd service for tbot.").
-		Envar(autoupdate.SetupTbotEnvVar).BoolVar(&ccfg.SetupTbot)
 
 	statusCmd := app.Command("status", "Show Teleport agent auto-update status.")
 	statusCmd.Flag("err-if-should-update-now",
@@ -208,7 +193,7 @@ func Run(args []string) int {
 	uninstallCmd.Flag("force", "Force complete uninstallation of Teleport, even if there is no packaged version of Teleport to revert to.").
 		Short('f').BoolVar(&ccfg.ForceUninstall)
 
-	libutils.UpdateAppUsageTemplate(app)
+	libutils.UpdateAppUsageTemplate(app, args)
 	command, err := app.Parse(args)
 	if err != nil {
 		app.Usage(args)
@@ -493,10 +478,7 @@ func cmdSetup(ctx context.Context, ccfg *cliConfig) error {
 	}
 	flags := common.NewInstallFlagsFromStrings(ccfg.ForceFlags)
 	rev := autoupdate.NewRevision(ccfg.ForceVersion, flags)
-	err = updater.Setup(ctx, ccfg.Path, rev, autoupdate.SetupFeatures{
-		SELinuxSSH: ccfg.SELinuxSSH,
-		Tbot:       ccfg.SetupTbot,
-	}, ccfg.Reload)
+	err = updater.Setup(ctx, ccfg.Path, rev, ccfg.Reload)
 	if err != nil {
 		return trace.Wrap(err)
 	}

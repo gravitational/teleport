@@ -33,10 +33,12 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authtest"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -83,7 +85,7 @@ func (m *mockMessagingBot) FetchRecipient(ctx context.Context, recipient string)
 
 func (m *mockMessagingBot) SupportedApps() []common.App {
 	return []common.App{
-		NewApp(),
+		NewApp(m),
 	}
 }
 
@@ -117,7 +119,7 @@ func TestAccessListReminders_Single(t *testing.T) {
 
 	clock := clockwork.NewFakeClockAt(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC))
 
-	authServer := newTestAuth(t, modulestest.OSSModules())
+	authServer := newTestAuth(t)
 
 	bot := &mockMessagingBot{
 		recipients: map[string]*common.Recipient{
@@ -204,77 +206,18 @@ func TestAccessListReminders_Single(t *testing.T) {
 	}
 }
 
-func TestAccessListReminders_NoneForNonReviewable(t *testing.T) {
-	t.Parallel()
-
-	clock := clockwork.NewFakeClockAt(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC))
-
-	authServer := newTestAuth(t, modulestest.OSSModules())
-
-	bot := &mockMessagingBot{
-		recipients: map[string]*common.Recipient{
-			"static-owner": {Name: "static-owner", ID: "static-owner"},
+func TestAccessListReminders_Batched(t *testing.T) {
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Identity: {Enabled: true},
+			},
 		},
-	}
-	app := common.NewApp(&mockPluginConfig{client: authServer, bot: bot}, "test-plugin")
-	app.Clock = clock
-	ctx := context.Background()
-	go func() {
-		app.Run(ctx)
-	}()
-
-	ready, err := app.WaitReady(ctx)
-	require.NoError(t, err)
-	require.True(t, ready)
-
-	t.Cleanup(func() {
-		app.Terminate()
-		<-app.Done()
-		require.NoError(t, app.Err())
 	})
 
-	for _, typ := range []accesslist.Type{
-		accesslist.SCIM,
-		accesslist.Static,
-	} {
-		t.Run(string(typ), func(t *testing.T) {
-			const testAccessListName = "test-non-reviewable-access-list"
-
-			// Clean up the AccessList. A single one has to be reused, otherwise:
-			// cluster has reached its limit for creating access lists, please contact
-			// the cluster administrator
-			err := authServer.DeleteAccessList(ctx, testAccessListName)
-			require.True(t, err == nil || trace.IsNotFound(err), "err = %s", err)
-
-			nonReviewableAccessList, err := accesslist.NewAccessList(header.Metadata{
-				Name: testAccessListName,
-			}, accesslist.Spec{
-				Type:   typ,
-				Title:  "test static access list",
-				Owners: []accesslist.Owner{{Name: "static-owner"}},
-				Grants: accesslist.Grants{
-					Roles: []string{"role"},
-				},
-				Audit: accesslist.Audit{},
-			})
-			require.NoError(t, err)
-
-			accessLists := []*accesslist.AccessList{nonReviewableAccessList}
-
-			// No notifications for today
-			advanceAndLookForRecipients(t, bot, authServer, clock, 0, accessLists)
-
-			// Advance by one week, expect no notifications.
-			advanceAndLookForRecipients(t, bot, authServer, clock, oneDay*7, accessLists)
-		})
-	}
-}
-
-func TestAccessListReminders_Batched(t *testing.T) {
-	t.Parallel()
 	clock := clockwork.NewFakeClockAt(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC))
 
-	authServer := newTestAuth(t, modulestest.EnterpriseModules())
+	authServer := newTestAuth(t)
 
 	bot := &mockMessagingBot{
 		recipients: map[string]*common.Recipient{
@@ -363,7 +306,7 @@ func TestAccessListReminders_BadClient(t *testing.T) {
 
 	clock := clockwork.NewFakeClockAt(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC))
 
-	authServer := newTestAuth(t, modulestest.OSSModules())
+	authServer := newTestAuth(t)
 
 	// Use this mock client so that we can force ListAccessLists to return an error.
 	client := &mockClient{
@@ -408,7 +351,7 @@ func TestAccessListReminders_NotImplemented(t *testing.T) {
 
 	clock := clockwork.NewFakeClockAt(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC))
 
-	authServer := newTestAuth(t, modulestest.OSSModules())
+	authServer := newTestAuth(t)
 
 	// Use this mock client so that we can force ListAccessLists to return an error.
 	// The error we force is NotImplemented, which should not cause the app to crash.
@@ -435,8 +378,7 @@ func TestAccessListReminders_NotImplemented(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, ready)
 
-	err = clock.BlockUntilContext(ctx, 1)
-	require.NoError(t, err)
+	clock.BlockUntil(1)
 	clock.Advance(3 * time.Hour)
 
 	// ensure ListAccessLists was called only once, and app returns no error on termination
@@ -477,12 +419,11 @@ func advanceAndLookForRecipients(t *testing.T,
 	require.ElementsMatch(t, expectedRecipients, bot.getLastRecipients())
 }
 
-func newTestAuth(t *testing.T, m *modulestest.Modules) *auth.Server {
+func newTestAuth(t *testing.T) *auth.Server {
 	server, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
-			Dir:     t.TempDir(),
-			Clock:   clockwork.NewFakeClock(),
-			Modules: m,
+			Dir:   t.TempDir(),
+			Clock: clockwork.NewFakeClock(),
 			AuthPreferenceSpec: &types.AuthPreferenceSpecV2{
 				SecondFactor: constants.SecondFactorOn,
 				Webauthn: &types.Webauthn{

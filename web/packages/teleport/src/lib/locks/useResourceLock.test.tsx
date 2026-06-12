@@ -18,9 +18,10 @@
 
 import { QueryClientProvider } from '@tanstack/react-query';
 import { renderHook, waitFor } from '@testing-library/react';
+import { setupServer } from 'msw/node';
 import { PropsWithChildren } from 'react';
 
-import { enableMswServer, server, testQueryClient } from 'design/utils/testing';
+import { testQueryClient } from 'design/utils/testing';
 
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { TeleportProviderBasic } from 'teleport/mocks/providers';
@@ -34,12 +35,20 @@ import {
 
 import { useResourceLock } from './useResourceLock';
 
-enableMswServer();
+const server = setupServer();
+
+beforeAll(() => {
+  server.listen();
+});
 
 afterEach(async () => {
+  server.resetHandlers();
   await testQueryClient.resetQueries();
+
   jest.clearAllMocks();
 });
+
+afterAll(() => server.close());
 
 describe('useResourceLock', () => {
   it('returns locks (empty)', async () => {

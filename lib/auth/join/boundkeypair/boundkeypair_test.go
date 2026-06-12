@@ -20,16 +20,12 @@ package boundkeypair
 
 import (
 	"context"
-	"crypto"
-	"strings"
 	"testing"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 )
 
@@ -82,13 +78,13 @@ func TestClientState(t *testing.T) {
 	expectWrites := 3
 
 	// Simulate writes up to the key history recording length.
-	for i := range KeyHistoryLength - 1 {
+	for i := 0; i < KeyHistoryLength-1; i++ {
 		// We should still be able to load the original signer (< KeyHistoryLength)
-		_, err := state.GetSigner(firstKey)
+		_, err := state.SignerForPublicKey(firstKey)
 		require.NoError(t, err)
 
 		// Similarly, the previous key should still be accessible.
-		_, err = state.GetSigner(prevKey)
+		_, err = state.SignerForPublicKey(prevKey)
 		require.NoError(t, err)
 
 		prevKey = state.PrivateKey.MarshalSSHPublicKey()
@@ -126,59 +122,6 @@ func TestClientState(t *testing.T) {
 	require.NoError(t, err)
 
 	// Try to load the original key again; it should fail.
-	_, err = state.GetSigner(firstKey)
+	_, err = state.SignerForPublicKey(firstKey)
 	require.Error(t, err)
-}
-
-func TestStaticClientState(t *testing.T) {
-	getSuite := cryptosuites.StaticAlgorithmSuite(types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1)
-	key, err := cryptosuites.GenerateKey(t.Context(), getSuite, cryptosuites.BoundKeypairJoining)
-	require.NoError(t, err)
-
-	keyEq, ok := key.Public().(interface {
-		Equal(x crypto.PublicKey) bool
-	})
-	require.True(t, ok)
-
-	sshPubKey, err := ssh.NewPublicKey(key.Public())
-	require.NoError(t, err)
-
-	publicKeyBytes := ssh.MarshalAuthorizedKey(sshPubKey)
-	publicKeyString := strings.TrimSpace(string(publicKeyBytes))
-
-	wrongKey, err := cryptosuites.GenerateKey(t.Context(), getSuite, cryptosuites.BoundKeypairJoining)
-	require.NoError(t, err)
-
-	wrongSSHPubKey, err := ssh.NewPublicKey(wrongKey.Public())
-	require.NoError(t, err)
-	wrongPublicKeyBytes := ssh.MarshalAuthorizedKey(wrongSSHPubKey)
-	wrongPublicKeyString := strings.TrimSpace(string(wrongPublicKeyBytes))
-
-	privateKeyBytes, err := keys.MarshalPrivateKey(key)
-	require.NoError(t, err)
-
-	static := NewStaticClientState(privateKeyBytes)
-
-	params := static.GetClientParams("test")
-	require.Empty(t, params.RegistrationSecret, "registration secret must not be passed through")
-	require.Empty(t, params.PreviousJoinState, "previous join state must always be empty")
-
-	signer, err := static.GetSigner([]byte(publicKeyString))
-	require.NoError(t, err)
-
-	// We should actually retrieve a signer for the public key we requested
-	require.True(t, keyEq.Equal(signer.Public()))
-
-	_, err = static.GetSigner([]byte(wrongPublicKeyString))
-	require.ErrorContains(t, err, "configured static private key does match the value requested by the server")
-
-	invalidSigner, err := static.RequestNewKeypair(t.Context(), getSuite)
-	require.Nil(t, invalidSigner)
-	require.ErrorContains(t, err, "static private keys do not support automatic rotation")
-
-	// no-op, but shouldn't return an error
-	require.NoError(t, static.Store(t.Context()))
-
-	// no-op, but shouldn't return an error
-	require.NoError(t, static.UpdateFromRegisterResult(nil, nil))
 }

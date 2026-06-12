@@ -5,8 +5,6 @@ sidebar_label: GCP VM
 tags:
  - how-to
  - mwi
- - infrastructure-identity
- - google-cloud
 ---
 
 This guide explains how to deploy the Machine & Workload Identity agent, `tbot`,
@@ -138,7 +136,7 @@ Replace:
 
 - `example.teleport.sh:443` with the address of your Teleport Proxy or
   Auth Service. Prefer using the address of a Teleport Proxy.
-- `example-bot` with the name of the token you created in the third step.
+- `example-bot` with the name of the token you created in the second step.
 - `/opt/machine-id` with a path to a directory where `tbot` should write the
   short-lived credentials. Ensure that the user `tbot` is running and has the
   appropriate permissions to create this directory.
@@ -156,7 +154,7 @@ On the host where you have deployed `tbot`, run the following, replacing
 path to the `identity` file within your configured directory:
 
 ```code
-$ tsh --proxy example.teleport.sh:443 -i /opt/machine-id/identity status
+$ tsh --proxy example.teleport.sh:443 -i /opt/machine-id/identity status                                                                                                                                                                                                                                         127 ↵
 > Profile URL:        https://example.teleport.sh:443
 Logged in as:       bot-example
 Cluster:            example.teleport.sh
@@ -177,6 +175,6 @@ and replace the example `identity` service you configured in this guide.
 
 - Follow the [access guides](../access-guides/access-guides.mdx) to finish configuring `tbot` for
   your environment.
-- Read the [configuration reference](../../reference/machine-workload-identity/configuration.mdx) to explore
+- Read the [configuration reference](../../reference/machine-id/configuration.mdx) to explore
   all the available configuration options.
-- [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../../reference/machine-workload-identity/telemetry.mdx)
+- [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../../reference/machine-id/telemetry.mdx)

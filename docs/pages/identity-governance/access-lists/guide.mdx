@@ -1,12 +1,9 @@
 ---
 title: Getting Started with Access Lists
-sidebar_label: Getting Started
 description: Learn how to use Access Lists to manage and audit long lived access to Teleport resources.
 tags:
  - get-started
  - identity-governance
- - privileged-access
-enterprise: Identity Governance
 ---
 
 {/* lint disable page-structure remark-lint */}
@@ -26,23 +23,16 @@ This guide will help you:
 ## Step 1/4. Setting up the Application Service on the cluster for testing
 
 One of the easiest ways to get resources on the cluster for testing is to set up a Teleport Application Service
-instance with the debugging application enabled. To do this:
+instance with the debugging application enabled. To do this, add the following config to your `teleport.yaml`
+configuration:
 
-1. Add the following config to your `teleport.yaml` configuration:
+```yaml
+app_service:
+  enabled: true
+  debug_app: true
+```
 
-   ```yaml
-   app_service:
-     enabled: true
-     debug_app: true
-   ```
-
-1. Restart Teleport:
-
-   ```code
-   $ sudo systemctl reload teleport
-   ```
-
-The "dumper" app should show up in the resource list.
+And restart Teleport. The "dumper" app should show up in the resource list.
 
 ![Debug app](../../../img/access-controls/access-lists/debug-app.png)
 
@@ -93,9 +83,7 @@ Finally, click "Create Access List" at the bottom of the page.
 Again, login as the test user. When logging in now, you should now see the dumper application contained within
 the cluster, and should be able to interact with it as expected.
 
-## Next steps
+## Next Steps
 
-- Read [Creating Access Lists with
-  IaC](../../zero-trust-access/infrastructure-as-code/managing-resources/access-list.mdx) for instructions on managing Access Lists with the Teleport Terraform provider and Kubernetes operator.
 - Familiarize yourself with the CLI tooling available for managing Access Lists in the [reference](../../reference/access-controls/access-lists.mdx).
 - Learn how to work with nested Access Lists in the [nested Access Lists guide](./nested-access-lists.mdx).

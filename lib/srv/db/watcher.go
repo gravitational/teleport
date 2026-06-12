@@ -20,13 +20,12 @@ package db
 
 import (
 	"context"
-	"log/slog"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	discovery "github.com/gravitational/teleport/lib/srv/discovery/common"
@@ -41,14 +40,11 @@ func (s *Server) startReconciler(ctx context.Context) error {
 	reconciler, err := services.NewReconciler(services.ReconcilerConfig[types.Database]{
 		Matcher:             s.matcher,
 		GetCurrentResources: s.getResources,
-		CompareResources: func(d1, d2 types.Database) int {
-			return services.EqualFromBool(d1.IsEqual(d2))
-		},
-		GetNewResources: s.monitoredDatabases.getLocked,
-		OnCreate:        s.onCreate,
-		OnUpdate:        s.onUpdate,
-		OnDelete:        s.onDelete,
-		Logger:          s.log.With("kind", types.KindDatabase),
+		GetNewResources:     s.monitoredDatabases.getLocked,
+		OnCreate:            s.onCreate,
+		OnUpdate:            s.onUpdate,
+		OnDelete:            s.onDelete,
+		Logger:              s.log.With("kind", types.KindDatabase),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -117,16 +113,11 @@ func (s *Server) startResourceWatcher(ctx context.Context) (*services.GenericWat
 // startCloudWatcher starts fetching cloud databases according to the
 // selectors and register/unregister them appropriately.
 func (s *Server) startCloudWatcher(ctx context.Context) error {
-	awsFetchers, err := s.cfg.AWSDatabaseFetcherFactory.MakeFetchers(ctx, s.cfg.AWSMatchers, "" /* discovery config */)
+	awsFetchers, err := dbfetchers.MakeAWSFetchers(ctx, s.cfg.CloudClients, s.cfg.AWSMatchers, "" /* discovery config */)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	azureFetchers, err := dbfetchers.MakeAzureFetchers(ctx, func(ctx context.Context, integration string) (azure.Clients, error) {
-		if integration != "" {
-			return nil, trace.NotImplemented("db_service discovery does not support Azure OIDC authentication; use discovery_service instead.")
-		}
-		return s.cfg.AzureClients, nil
-	}, s.cfg.AzureMatchers, "" /* discovery config */)
+	azureFetchers, err := dbfetchers.MakeAzureFetchers(s.cfg.CloudClients, s.cfg.AzureMatchers, "" /* discovery config */)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -139,7 +130,7 @@ func (s *Server) startCloudWatcher(ctx context.Context) error {
 
 	watcher, err := discovery.NewWatcher(ctx, discovery.WatcherConfig{
 		FetchersFn: discovery.StaticFetchers(allFetchers),
-		Logger:     slog.With(teleport.ComponentKey, "watcher:cloud"),
+		Log:        logrus.WithField(teleport.ComponentKey, "watcher:cloud"),
 		Origin:     types.OriginCloud,
 	})
 	if err != nil {

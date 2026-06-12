@@ -94,7 +94,7 @@ class TeleportContext implements types.Context {
   // The caller of this function provides the try/catch
   // block.
   // preferences are needed in TeleportContextE, but not in TeleportContext.
-  // eslint-disable-next-line no-unused-vars
+  // eslint-disable-next-line unused-imports/no-unused-vars
   async init(preferences: UserPreferences) {
     const user = await userService.fetchUserContext();
     this.storeUser.setState(user);
@@ -110,8 +110,6 @@ class TeleportContext implements types.Context {
     }
 
     if (user.acl.accessGraph.list) {
-      storageService.resetAccessGraphEnabled();
-
       // If access graph is enabled, check what features are enabled and store them in local storage.
       // We await this so it is done by the time the page renders, otherwise the local storage event
       // wouldn't trigger a re-render and Policy could end up not being displayed until the navigation
@@ -225,23 +223,8 @@ class TeleportContext implements types.Context {
       gitServers:
         userContext.getGitServersAccess().list &&
         userContext.getGitServersAccess().read,
-      readBotInstances: userContext.getBotInstancesAccess().read,
       listBotInstances: userContext.getBotInstancesAccess().list,
-      readInstances: userContext.getInstancesAccess().read,
-      listInstances: userContext.getInstancesAccess().list,
       listWorkloadIdentities: userContext.getWorkloadIdentityAccess().list,
-      readAutoUpdateConfig: userContext.getAutoUpdateConfigAccess().read,
-      readAutoUpdateVersion: userContext.getAutoUpdateVersionAccess().read,
-      readAutoUpdateAgentRollout:
-        userContext.getAutoUpdateAgentRolloutAccess().read,
-      listAutoUpdateAgentReport:
-        userContext.getAutoUpdateAgentReportAccess().list,
-      sessionSummaries:
-        userContext.getInferencePolicyAccess().list ||
-        userContext.getInferenceModelAccess().list ||
-        userContext.getInferenceSecretAccess().list,
-      listBeam: userContext.getBeamAccess().list,
-      readBeam: userContext.getBeamAccess().read,
     };
   }
 }
@@ -285,18 +268,8 @@ export const disabledFeatureFlags: types.FeatureFlags = {
   editBots: false,
   removeBots: false,
   gitServers: false,
-  readBotInstances: false,
   listBotInstances: false,
-  readInstances: false,
-  listInstances: false,
   listWorkloadIdentities: false,
-  readAutoUpdateConfig: false,
-  readAutoUpdateVersion: false,
-  readAutoUpdateAgentRollout: false,
-  listAutoUpdateAgentReport: false,
-  sessionSummaries: false,
-  listBeam: false,
-  readBeam: false,
 };
 
 export default TeleportContext;

@@ -333,7 +333,7 @@ func TestProxyHTTPConnection(t *testing.T) {
 
 	lw := NewMuxListenerWrapper(l, suite.serverListener)
 
-	mustStartHTTPServer(lw)
+	mustStartHTTPServer(t, lw)
 
 	suite.router = NewRouter()
 	suite.router.Add(HandlerDecs{
@@ -364,7 +364,7 @@ func TestProxyMakeConnectionHandler(t *testing.T) {
 
 	// Create a HTTP server and register the listener to ALPN server.
 	lw := NewMuxListenerWrapper(nil, suite.serverListener)
-	mustStartHTTPServer(lw)
+	mustStartHTTPServer(t, lw)
 
 	suite.router = NewRouter()
 	suite.router.Add(HandlerDecs{
@@ -660,7 +660,7 @@ func TestMatchMySQLConn(t *testing.T) {
 	tests := []struct {
 		name    string
 		protos  []string
-		version any
+		version interface{}
 	}{
 		{
 			name:    "success",
@@ -738,6 +738,7 @@ func TestProxyPingConnections(t *testing.T) {
 	suite.Start(t)
 
 	for _, protocol := range common.ProtocolsWithPingSupport {
+		protocol := protocol
 		t.Run(string(protocol), func(t *testing.T) {
 			t.Parallel()
 

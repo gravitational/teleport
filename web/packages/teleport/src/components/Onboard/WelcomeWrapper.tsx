@@ -53,17 +53,13 @@ const OnboardWrapper = styled.div`
   // z-index -2 will place the image behind the black transparent/blur effect
   z-index: -2;
 
-  background: ${props =>
-    props.theme.type === 'dark'
-      ? `url('${cloudCity}')`
-      : props.theme.colors.levels.deep};
+  background: url('${cloudCity}');
   -webkit-background-size: cover;
   -moz-background-size: cover;
   -o-background-size: cover;
   background-size: cover;
 
-  // Dark theme only: dim the cloud-city image with a translucent overlay
-  // Light theme uses a solid canvas color and doesn't need this.
+  // leveraging pseudo element for opacity/blur
   &::after {
     content: '';
     top: 0;
@@ -75,9 +71,8 @@ const OnboardWrapper = styled.div`
     z-index: -1;
 
     background-color: black;
-    opacity: ${props => (props.theme.type === 'dark' ? 0.25 : 0)};
-    backdrop-filter: ${props =>
-      props.theme.type === 'dark' ? 'blur(17.5px)' : 'none'};
+    opacity: 0.25;
+    backdrop-filter: blur(17.5px);
   }
 `;
 

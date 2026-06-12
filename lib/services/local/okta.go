@@ -24,7 +24,9 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
@@ -41,6 +43,7 @@ const (
 
 // OktaService manages Okta resources in the Backend.
 type OktaService struct {
+	log           logrus.FieldLogger
 	clock         clockwork.Clock
 	importRuleSvc *generic.Service[types.OktaImportRule]
 	assignmentSvc *generic.Service[types.OktaAssignment]
@@ -73,6 +76,7 @@ func NewOktaService(b backend.Backend, clock clockwork.Clock) (*OktaService, err
 	}
 
 	return &OktaService{
+		log:           logrus.WithFields(logrus.Fields{teleport.ComponentKey: "okta:local-service"}),
 		clock:         clock,
 		importRuleSvc: importRuleSvc,
 		assignmentSvc: assignmentSvc,
@@ -162,18 +166,6 @@ func (o *OktaService) CreateOktaAssignment(ctx context.Context, assignment types
 // UpdateOktaAssignment updates an existing Okta assignment resource.
 func (o *OktaService) UpdateOktaAssignment(ctx context.Context, assignment types.OktaAssignment) (types.OktaAssignment, error) {
 	updated, err := o.assignmentSvc.UpdateResource(ctx, assignment)
-	return updated, trace.Wrap(err)
-}
-
-// UpsertOktaAssignment upsert the Okta assignment resource, creating it if it doesn't exist or updating it if it does.
-func (o *OktaService) UpsertOktaAssignment(ctx context.Context, assignment types.OktaAssignment) (types.OktaAssignment, error) {
-	upserted, err := o.assignmentSvc.UpsertResource(ctx, assignment)
-	return upserted, trace.Wrap(err)
-}
-
-// ConditionalUpdateOktaAssignment updates an existing Okta assignment resource, protected by optimistic locking.
-func (o *OktaService) ConditionalUpdateOktaAssignment(ctx context.Context, assignment types.OktaAssignment) (types.OktaAssignment, error) {
-	updated, err := o.assignmentSvc.ConditionalUpdateResource(ctx, assignment)
 	return updated, trace.Wrap(err)
 }
 

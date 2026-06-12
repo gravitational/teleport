@@ -26,16 +26,12 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
-	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
-	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/authcatest"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils/set"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func fetchEvent(t *testing.T, w types.Watcher, timeout time.Duration) types.Event {
@@ -59,11 +55,12 @@ func newTestContext(t *testing.T) context.Context {
 	return ctx
 }
 
-func unwrapResource153[T types.Resource153](t *testing.T, r types.Resource) T {
-	u, ok := r.(types.Resource153UnwrapperT[T])
+func unwrapResource153[T any](t *testing.T, r types.Resource) T {
+	u, ok := r.(types.Resource153Unwrapper)
 	require.True(t, ok, "expected event to implement Resource153Unwrapper")
 
-	dst := u.UnwrapT()
+	dst, ok := u.Unwrap().(T)
+	require.True(t, ok, "expected event to cast to %T", dst)
 	return dst
 }
 
@@ -87,18 +84,15 @@ func TestWatchers(t *testing.T) {
 			kind: types.KindCertAuthority,
 			causeEvents: func(subtestCtx context.Context, subtestT *testing.T, backend backend.Backend) {
 				// GIVEN an empty backend, WHEN I create 3 new CAs
-				userCA, err := authcatest.NewCA(types.UserCA, "example.com")
-				require.NoError(t, err)
-				hostCA, err := authcatest.NewCA(types.HostCA, "example.com")
-				require.NoError(t, err)
-				hostCARemote, err := authcatest.NewCA(types.HostCA, "remote.com")
-				require.NoError(t, err)
+				userCA := NewTestCA(types.UserCA, "example.com")
+				hostCA := NewTestCA(types.HostCA, "example.com")
+				hostCARemote := NewTestCA(types.HostCA, "remote.com")
 				require.NoError(subtestT, CreateResources(subtestCtx, backend, userCA, hostCA, hostCARemote))
 			},
 			validateEvents: func(subtestCtx context.Context, subtestT *testing.T, watcher types.Watcher) {
 				// EXPECT that we receive at least 3 events notifying us of the
 				// CA creations
-				gotCertAuthIDSet := set.New[types.CertAuthID]()
+				gotCertAuthIDSet := utils.NewSet[types.CertAuthID]()
 				for range 3 {
 					event := fetchEvent(subtestT, watcher, fetchTimeout)
 
@@ -124,12 +118,9 @@ func TestWatchers(t *testing.T) {
 			filter: types.CertAuthorityFilter{types.HostCA: "example.com"}.IntoMap(),
 			causeEvents: func(subtestCtx context.Context, subtestT *testing.T, backend backend.Backend) {
 				// GIVEN an empty backend, WHEN I create some new CAs
-				userCA, err := authcatest.NewCA(types.UserCA, "example.com")
-				require.NoError(t, err)
-				hostCA, err := authcatest.NewCA(types.HostCA, "example.com")
-				require.NoError(t, err)
-				hostCARemote, err := authcatest.NewCA(types.HostCA, "remote.com")
-				require.NoError(t, err)
+				userCA := NewTestCA(types.UserCA, "example.com")
+				hostCA := NewTestCA(types.HostCA, "example.com")
+				hostCARemote := NewTestCA(types.HostCA, "remote.com")
 				require.NoError(subtestT, CreateResources(subtestCtx, backend, userCA, hostCA, hostCARemote))
 			},
 			validateEvents: func(subtestCtx context.Context, subtestT *testing.T, watcher types.Watcher) {
@@ -211,171 +202,6 @@ func TestWatchers(t *testing.T) {
 				principalState := unwrapResource153[*provisioningv1.PrincipalState](subtestT, event.Resource)
 				require.NotNil(t, principalState.Spec)
 				require.Equal(subtestT, "foocorp", principalState.Spec.DownstreamId)
-			},
-		},
-		{
-			name: "linux desktop PUT",
-			kind: types.KindLinuxDesktop,
-			causeEvents: func(subtestCtx context.Context, subtestT *testing.T, backend backend.Backend) {
-				// GIVEN an empty backend, WHEN I create a new Linux desktop
-				svc, err := NewLinuxDesktopService(backend)
-				require.NoError(subtestT, err)
-
-				desktop := &linuxdesktopv1.LinuxDesktop{
-					Kind:    types.KindLinuxDesktop,
-					Version: types.V1,
-					Metadata: &headerv1.Metadata{
-						Name: "desktop-1",
-						Labels: map[string]string{
-							"env":  "test",
-							"team": "engineering",
-						},
-					},
-					Spec: &linuxdesktopv1.LinuxDesktopSpec{
-						Addr:     "127.0.0.1:22",
-						Hostname: "test-host",
-					},
-				}
-
-				_, err = svc.CreateLinuxDesktop(subtestCtx, desktop)
-				require.NoError(subtestT, err)
-			},
-			validateEvents: func(subtestCtx context.Context, subtestT *testing.T, watcher types.Watcher) {
-				// EXPECT that the watcher gets an event notifying us about the creation
-				event := fetchEvent(t, watcher, fetchTimeout)
-				require.Equal(t, types.OpPut, event.Type)
-
-				// EXPECT that the resource attached to the event is a Linux desktop
-				desktop := unwrapResource153[*linuxdesktopv1.LinuxDesktop](subtestT, event.Resource)
-				require.Equal(subtestT, "desktop-1", desktop.Metadata.Name)
-				require.Equal(subtestT, "127.0.0.1:22", desktop.Spec.Addr)
-				require.Equal(subtestT, "test-host", desktop.Spec.Hostname)
-				require.Equal(subtestT, map[string]string{
-					"env":  "test",
-					"team": "engineering",
-				}, desktop.Metadata.Labels)
-			},
-		},
-		{
-			name: "linux desktop DELETE",
-			kind: types.KindLinuxDesktop,
-			init: func(subtestCtx context.Context, subtestT *testing.T, backend backend.Backend) {
-				// GIVEN an existing Linux desktop
-				svc, err := NewLinuxDesktopService(backend)
-				require.NoError(subtestT, err)
-
-				desktop := &linuxdesktopv1.LinuxDesktop{
-					Kind:    types.KindLinuxDesktop,
-					Version: types.V1,
-					Metadata: &headerv1.Metadata{
-						Name: "desktop-to-delete",
-						Labels: map[string]string{
-							"env": "staging",
-						},
-					},
-					Spec: &linuxdesktopv1.LinuxDesktopSpec{
-						Addr:     "192.168.1.10:22",
-						Hostname: "delete-me",
-					},
-				}
-
-				_, err = svc.CreateLinuxDesktop(subtestCtx, desktop)
-				require.NoError(subtestT, err)
-			},
-			causeEvents: func(subtestCtx context.Context, subtestT *testing.T, backend backend.Backend) {
-				// WHEN I delete the Linux desktop
-				svc, err := NewLinuxDesktopService(backend)
-				require.NoError(subtestT, err)
-				require.NoError(subtestT, svc.DeleteLinuxDesktop(subtestCtx, "desktop-to-delete"))
-			},
-			validateEvents: func(subtestCtx context.Context, subtestT *testing.T, watcher types.Watcher) {
-				// EXPECT to receive a DELETE event
-				event := fetchEvent(t, watcher, fetchTimeout)
-				require.Equal(t, types.OpDelete, event.Type)
-
-				// EXPECT that the event targets our pre-created desktop
-				m := event.Resource.GetMetadata()
-				require.Equal(subtestT, "desktop-to-delete", m.Name)
-
-				// EXPECT that the resource is a ResourceHeader with the correct kind
-				require.Equal(subtestT, types.KindLinuxDesktop, event.Resource.GetKind())
-			},
-		},
-		{
-			name: "validated MFA challenge PUT",
-			kind: types.KindValidatedMFAChallenge,
-			causeEvents: func(subtestCtx context.Context, subtestT *testing.T, bk backend.Backend) {
-				svc, err := NewMFAService(bk)
-				require.NoError(subtestT, err)
-
-				_, err = svc.CreateValidatedMFAChallenge(
-					subtestCtx,
-					"leaf.example.com",
-					mfav2.ValidatedMFAChallenge_builder{
-						Kind:    types.KindValidatedMFAChallenge,
-						Version: types.V1,
-						Metadata: &headerv1.Metadata{
-							Name: "test-challenge",
-						},
-						Spec: mfav2.ValidatedMFAChallengeSpec_builder{
-							Payload: mfav2.SessionIdentifyingPayload_builder{
-								SshSessionId: []byte("session-id"),
-							}.Build(),
-							SourceCluster: "root.example.com",
-							TargetCluster: "leaf.example.com",
-							Username:      "alice",
-						}.Build(),
-					}.Build(),
-				)
-				require.NoError(subtestT, err)
-			},
-			validateEvents: func(subtestCtx context.Context, subtestT *testing.T, watcher types.Watcher) {
-				event := fetchEvent(subtestT, watcher, fetchTimeout)
-				require.Equal(subtestT, types.OpPut, event.Type)
-
-				chal, err := types.ConvertResource[*mfav2.ValidatedMFAChallenge](event.Resource)
-				require.NoError(subtestT, err)
-				require.Equal(subtestT, "test-challenge", chal.GetMetadata().GetName())
-				require.Equal(subtestT, "leaf.example.com", chal.GetSpec().GetTargetCluster())
-			},
-		},
-		{
-			name: "validated MFA challenge DELETE",
-			kind: types.KindValidatedMFAChallenge,
-			init: func(subtestCtx context.Context, subtestT *testing.T, bk backend.Backend) {
-				svc, err := NewMFAService(bk)
-				require.NoError(subtestT, err)
-
-				_, err = svc.CreateValidatedMFAChallenge(subtestCtx, "leaf.example.com", mfav2.ValidatedMFAChallenge_builder{
-					Kind:    types.KindValidatedMFAChallenge,
-					Version: types.V1,
-					Metadata: &headerv1.Metadata{
-						Name: "test-challenge",
-					},
-					Spec: mfav2.ValidatedMFAChallengeSpec_builder{
-						Payload: mfav2.SessionIdentifyingPayload_builder{
-							SshSessionId: []byte("session-id"),
-						}.Build(),
-						SourceCluster: "root.example.com",
-						TargetCluster: "leaf.example.com",
-						Username:      "alice",
-					}.Build(),
-				}.Build())
-				require.NoError(subtestT, err)
-			},
-			causeEvents: func(subtestCtx context.Context, subtestT *testing.T, bk backend.Backend) {
-				err := bk.Delete(subtestCtx, backend.NewKey(types.KindValidatedMFAChallenge, "leaf.example.com", "test-challenge"))
-				require.NoError(subtestT, err)
-			},
-			validateEvents: func(subtestCtx context.Context, subtestT *testing.T, watcher types.Watcher) {
-				event := fetchEvent(subtestT, watcher, fetchTimeout)
-				require.Equal(subtestT, types.OpDelete, event.Type)
-
-				chal, err := types.ConvertResource[*mfav2.ValidatedMFAChallenge](event.Resource)
-				require.NoError(subtestT, err)
-				require.Equal(subtestT, types.KindValidatedMFAChallenge, chal.GetKind())
-				require.Equal(subtestT, "test-challenge", chal.GetMetadata().GetName())
-				require.Equal(subtestT, "leaf.example.com", chal.GetSpec().GetTargetCluster())
 			},
 		},
 	}

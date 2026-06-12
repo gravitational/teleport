@@ -27,11 +27,12 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
+	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 )
 
@@ -114,15 +115,7 @@ func newJobWithEvents(events types.Events, config Config, fn EventFunc, watchIni
 			return nil
 		})
 
-		retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
-			Driver: retryutils.NewExponentialDriver(20 * time.Millisecond),
-			First:  20 * time.Millisecond,
-			Max:    5 * time.Second,
-			Jitter: retryutils.HalfJitter,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
+		bk := backoff.NewDecorr(20*time.Millisecond, 5*time.Second, clockwork.NewRealClock())
 
 		log := logger.Get(ctx)
 		for {
@@ -137,26 +130,24 @@ func newJobWithEvents(events types.Events, config Config, fn EventFunc, watchIni
 				if config.FailFast {
 					return trace.WrapWithMessage(err, "Connection problem detected. Exiting as fail fast is on.")
 				}
-				log.ErrorContext(ctx, "Connection problem detected, attempting to reconnect", "error", err)
+				log.WithError(err).Error("Connection problem detected. Attempting to reconnect.")
 			case errors.Is(err, io.EOF):
 				if config.FailFast {
 					return trace.WrapWithMessage(err, "Watcher stream closed. Exiting as fail fast is on.")
 				}
-				log.ErrorContext(ctx, "Watcher stream closed attempting to reconnect", "error", err)
+				log.WithError(err).Error("Watcher stream closed. Attempting to reconnect.")
 			case lib.IsCanceled(err):
-				log.DebugContext(ctx, "Watcher context is canceled")
+				log.Debug("Watcher context is canceled")
 				return trace.Wrap(err)
 			default:
-				log.ErrorContext(ctx, "Watcher event loop failed", "error", err)
+				log.WithError(err).Error("Watcher event loop failed")
 				return trace.Wrap(err)
 			}
 
 			// To mitigate a potentially aggressive retry loop, we wait
-			select {
-			case <-retry.After():
-			case <-ctx.Done():
-				log.DebugContext(ctx, "Watcher context was canceled while waiting before a reconnection")
-				return trace.Wrap(ctx.Err())
+			if err := bk.Do(ctx); err != nil {
+				log.Debug("Watcher context was canceled while waiting before a reconnection")
+				return trace.Wrap(err)
 			}
 		}
 	})
@@ -171,7 +162,7 @@ func (job job) watchEvents(ctx context.Context) error {
 	}
 	defer func() {
 		if err := watcher.Close(); err != nil {
-			logger.Get(ctx).ErrorContext(ctx, "Failed to close a watcher", "error", err)
+			logger.Get(ctx).WithError(err).Error("Failed to close a watcher")
 		}
 	}()
 
@@ -179,7 +170,7 @@ func (job job) watchEvents(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	logger.Get(ctx).DebugContext(ctx, "Watcher connected")
+	logger.Get(ctx).Debug("Watcher connected")
 	job.SetReady(true)
 
 	for {
@@ -262,7 +253,7 @@ func (job job) eventLoop(ctx context.Context) error {
 			event := *eventPtr
 			resource := event.Resource
 			if resource == nil {
-				log.ErrorContext(ctx, "received an event with empty resource field")
+				log.Error("received an event with empty resource field")
 			}
 			key := eventKey{kind: resource.GetKind(), name: resource.GetName()}
 			if queue, loaded := queues[key]; loaded {

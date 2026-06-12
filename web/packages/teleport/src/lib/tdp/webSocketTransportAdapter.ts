@@ -52,9 +52,7 @@ export async function adaptWebSocketToTdpTransport(
         logger.info('WebSocket is not open, cannot send message.');
         return;
       }
-      // ArrayBufferLike includes SharedArrayBuffer, but WebSocket.send() in TypeScript 7 only
-      // accepts ArrayBuffer. SharedArrayBuffer is never used here.
-      socket.send(data as string | ArrayBuffer);
+      socket.send(data);
     },
     onMessage: callback => {
       const handler = (e: MessageEvent) => {

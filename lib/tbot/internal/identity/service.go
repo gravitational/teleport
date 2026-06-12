@@ -37,12 +37,12 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/auth/join"
 	"github.com/gravitational/teleport/lib/auth/join/boundkeypair"
 	"github.com/gravitational/teleport/lib/auth/state"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
@@ -50,7 +50,6 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -64,7 +63,6 @@ type Config struct {
 
 	TTL             time.Duration
 	RenewalInterval time.Duration
-	Leeway          time.Duration
 
 	FIPS bool
 
@@ -72,8 +70,6 @@ type Config struct {
 	ReloadCh       <-chan struct{}
 	ClientBuilder  *client.Builder
 	StatusReporter readyz.Reporter
-
-	Scoped bool
 }
 
 func (cfg *Config) CheckAndSetDefaults() error {
@@ -323,23 +319,6 @@ func (s *Service) Initialize(ctx context.Context) error {
 			return trace.Wrap(err, "joining with token")
 		}
 	} else {
-		// If identity is loaded from disk, we need to validate it has the
-		// correct scoped-ness. This catches the case where a user changes the
-		// tbot scoped-ness setting for a pre-existing install of `tbot`.
-		//
-		// Rather than forcing a rejoin, we force a hard exit here to encourage
-		// the user to re-assess what they are doing.
-		if identScope, err := checkScopeCorrectness(
-			loadedIdent.TLSIdentity,
-			s.cfg.Scoped,
-		); err != nil {
-			return trace.BadParameter(
-				"bot identity loaded from storage has scoped %v, but scope config set to %v. change tbot scope configuration or delete the bot storage directory",
-				identScope != "",
-				s.cfg.Scoped,
-			)
-		}
-
 		if valid {
 			// If the identity is valid (not expired), try to renew it.
 			newIdentity, err = renewIdentity(ctx, s.log, s.cfg, s.clientBuilder, loadedIdent)
@@ -447,10 +426,7 @@ func (s *Service) Run(ctx context.Context) error {
 
 			if err := s.renew(ctx, storageDestination); err == nil {
 				s.unblockWaiters()
-				s.cfg.StatusReporter.Report(readyz.Healthy)
 				break
-			} else {
-				s.log.ErrorContext(ctx, "Failed to renew bot identity", "error", err)
 			}
 		}
 	}
@@ -567,29 +543,13 @@ func renewIdentity(
 		return newIdentity, nil
 	}
 
-	// Note: This leeway cap check is simpler than app/db tunnel services as the
-	// main renewal loop is, well, a loop, and will not attempt to renew more
-	// often than the configured renewal interval.
-	leeway := cfg.Leeway
-	if leeway >= cfg.TTL {
-		log.WarnContext(ctx, "leeway is greater than credential lifetime and "+
-			"will be ignored, be aware of potential failures due to clock drift",
-			"credential_ttl", cfg.TTL,
-			"configured_leeway", cfg.Leeway,
-		)
-		leeway = 0
-	}
-
 	// Note: This simple expiration check is probably not the best possible
 	// solution to determine when to discard an existing identity: the client
 	// could have severe clock drift, or there could be non-expiry related
 	// reasons that an identity should be thrown out. We may improve this
-	// discard logic in the future if we determine we're still creating excess
+	// discard logic in the future if we determine we're still creating  excess
 	// bot instances.
-	// To allow users to manually compensate for clock drift if e.g. using very
-	// tight renewal/TTL values, we expose a configurable leeway to trigger
-	// modestly early renewal.
-	now := time.Now().Add(leeway)
+	now := time.Now()
 	if expiry, ok := facade.Expiry(); !ok || now.After(expiry) {
 		slog.WarnContext(
 			ctx,
@@ -604,7 +564,6 @@ func renewIdentity(
 			"expiry", expiry,
 			"ttl", cfg.TTL,
 			"renewal_interval", cfg.RenewalInterval,
-			"leeway", cfg.Leeway,
 		)
 
 		newIdentity, err := botIdentityFromToken(ctx, log, cfg, nil)
@@ -686,43 +645,6 @@ func botIdentityFromAuth(
 	return newIdentity, nil
 }
 
-func initBoundKeypairClientState(
-	ctx context.Context,
-	log *slog.Logger,
-	cfg Config,
-	joinSecret string,
-) (boundkeypair.ClientState, error) {
-	staticKey, err := cfg.Onboarding.BoundKeypair.StaticPrivateKeyBytes()
-	if err != nil {
-		log.WarnContext(
-			ctx,
-			"Could not load the configured bound keypair static key, will attempt to fall back to a standard filesystem keypair",
-			"error", err,
-		)
-	} else if staticKey != nil {
-		log.InfoContext(ctx, "A static keypair was configured and will be used instead of mutable internal key storage")
-		return boundkeypair.NewStaticClientState(staticKey), nil
-	}
-
-	adapter := destination.NewBoundkeypairDestinationAdapter(cfg.Destination)
-	state, err := boundkeypair.LoadClientState(ctx, adapter)
-	if trace.IsNotFound(err) && joinSecret != "" {
-		log.InfoContext(ctx, "No existing client state found, will attempt "+
-			"to join with provided registration secret")
-		state = boundkeypair.NewEmptyFSClientState(adapter)
-	} else if err != nil {
-		log.ErrorContext(ctx, "Could not complete bound keypair joining as "+
-			"no local credentials are available and no registration secret "+
-			"was provided. To continue, either generate a keypair with "+
-			"`tbot keypair create` and register it with Teleport, or "+
-			"generate a registration secret in Teleport and provide it with "+
-			"the `--registration-secret` flag.")
-		return nil, trace.Wrap(err, "loading bound keypair client state")
-	}
-
-	return state, nil
-}
-
 // botIdentityFromToken uses a join token to request a bot identity from an auth
 // server using auth.Register.
 //
@@ -751,14 +673,13 @@ func botIdentityFromToken(
 	}
 
 	expires := time.Now().Add(cfg.TTL)
-	params := joinclient.JoinParams{
+	params := join.RegisterParams{
 		Token: token,
 		ID: state.IdentityID{
 			Role: types.RoleBot,
 		},
 		JoinMethod: cfg.Onboarding.JoinMethod,
 		Expires:    &expires,
-		Log:        log,
 
 		// Below options are effectively ignored if AuthClient is not-nil
 		Insecure:           cfg.Connection.Insecure,
@@ -789,35 +710,55 @@ func botIdentityFromToken(
 		return nil, trace.BadParameter("unsupported address kind: %v", cfg.Connection.AddressKind)
 	}
 
+	// Only set during bound keypair joining, but used both before and after.
+	var boundKeypairState *boundkeypair.ClientState
+
 	switch params.JoinMethod {
 	case types.JoinMethodAzure:
-		params.AzureParams = joinclient.AzureParams{
+		params.AzureParams = join.AzureParams{
 			ClientID: cfg.Onboarding.Azure.ClientID,
 		}
 	case types.JoinMethodTerraformCloud:
 		params.TerraformCloudAudienceTag = cfg.Onboarding.Terraform.AudienceTag
 	case types.JoinMethodGitLab:
-		params.GitlabParams = joinclient.GitlabParams{
+		params.GitlabParams = join.GitlabParams{
 			EnvVarName: cfg.Onboarding.Gitlab.TokenEnvVarName,
 		}
 	case types.JoinMethodBoundKeypair:
-		joinSecret, err := cfg.Onboarding.BoundKeypair.RegistrationSecret()
-		if err != nil {
-			return nil, trace.Wrap(err, "loading registration secret from disk")
-		}
-		params.BoundKeypairRegistrationSecret = joinSecret
+		joinSecret := cfg.Onboarding.BoundKeypair.RegistrationSecret
 
-		params.BoundKeypairState, err = initBoundKeypairClientState(ctx, log, cfg, joinSecret)
-		if err != nil {
-			return nil, trace.Wrap(err, "initializing bound keypair client state")
+		adapter := destination.NewBoundkeypairDestinationAdapter(cfg.Destination)
+		boundKeypairState, err = boundkeypair.LoadClientState(ctx, adapter)
+		if trace.IsNotFound(err) && joinSecret != "" {
+			log.InfoContext(ctx, "No existing client state found, will attempt "+
+				"to join with provided registration secret")
+			boundKeypairState = boundkeypair.NewEmptyClientState(adapter)
+		} else if err != nil {
+			log.ErrorContext(ctx, "Could not complete bound keypair joining as "+
+				"no local credentials are available and no registration secret "+
+				"was provided. To continue, either generate a keypair with "+
+				"`tbot keypair create` and register it with Teleport, or "+
+				"generate a registration secret on Teleport and provide it with"+
+				"the `--registration-secret` flag.")
+			return nil, trace.Wrap(err, "loading bound keypair client state")
 		}
-	case types.JoinMethodKubernetes:
-		params.KubernetesTokenPath = cfg.Onboarding.Kubernetes.TokenPath
+
+		params.BoundKeypairParams = boundKeypairState.ToJoinParams(joinSecret)
 	}
 
-	result, err := joinclient.Join(ctx, params)
+	result, err := join.Register(ctx, params)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if boundKeypairState != nil {
+		if err := boundKeypairState.UpdateFromRegisterResult(result); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if err := boundKeypairState.Store(ctx); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	privateKeyPEM, err := keys.MarshalPrivateKey(result.PrivateKey)
@@ -836,38 +777,5 @@ func botIdentityFromToken(
 		PublicKeyBytes:  ssh.MarshalAuthorizedKey(sshPub),
 		TokenHashBytes:  []byte(tokenHash),
 	}, result.Certs)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if _, err := checkScopeCorrectness(
-		ident.TLSIdentity,
-		cfg.Scoped,
-	); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return ident, nil
-}
-
-// checkScopeCorrectness returns an error if the presented identity is:
-// - Scoped, but tbot is not running in scoped mode.
-// - Unscoped, but tbot is running in scoped mode.
-func checkScopeCorrectness(tlsIdent *tlsca.Identity, scoped bool) (string, error) {
-	identScoped := tlsIdent.ScopePin != nil && tlsIdent.ScopePin.Scope != ""
-	identScope := ""
-	if identScoped {
-		identScope = tlsIdent.ScopePin.Scope
-	}
-	if identScoped && !scoped {
-		return identScope, trace.BadParameter(
-			"received scoped identity upon join, but tbot is not configured in scoped mode",
-		)
-	}
-	if !identScoped && scoped {
-		return identScope, trace.BadParameter(
-			"received unscoped identity upon join, but tbot is configured in scoped mode",
-		)
-	}
-	return identScope, nil
+	return ident, trace.Wrap(err)
 }

@@ -17,6 +17,5 @@
  */
 
 import { processRedirectUri } from './processRedirectUri';
-import { validateClientRedirect } from './urlValidation';
 
-export { processRedirectUri, validateClientRedirect };
+export { processRedirectUri };

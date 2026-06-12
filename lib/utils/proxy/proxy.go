@@ -25,21 +25,23 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
-	"github.com/gravitational/teleport/api/ssh"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentConnectProxy)
+var log = logrus.WithFields(logrus.Fields{
+	teleport.ComponentKey: teleport.ComponentConnectProxy,
+})
 
 // A Dialer is a means for a client to establish a SSH connection.
 type Dialer interface {
 	// Dial establishes a client connection to a SSH server.
-	Dial(ctx context.Context, network string, addr string, config ssh.ClientConfig) (*tracessh.Client, error)
+	Dial(ctx context.Context, network string, addr string, config *ssh.ClientConfig) (*tracessh.Client, error)
 
 	// DialTimeout acts like Dial but takes a timeout.
 	DialTimeout(ctx context.Context, network, address string, timeout time.Duration) (net.Conn, error)
@@ -54,7 +56,7 @@ type directDial struct {
 }
 
 // Dial returns traced SSH client connection
-func (d directDial) Dial(ctx context.Context, network string, addr string, config ssh.ClientConfig) (*tracessh.Client, error) {
+func (d directDial) Dial(ctx context.Context, network string, addr string, config *ssh.ClientConfig) (*tracessh.Client, error) {
 	conn, err := d.DialTimeout(ctx, network, addr, config.Timeout)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -62,7 +64,7 @@ func (d directDial) Dial(ctx context.Context, network string, addr string, confi
 
 	// Works around the case when net.DialWithTimeout succeeds, but key exchange hangs.
 	// Setting deadline on connection prevents this case from happening
-	return ssh.NewClient(ctx, conn, addr, config)
+	return tracessh.NewClientWithTimeout(ctx, conn, addr, config)
 }
 
 // DialTimeout acts like Dial but takes a timeout.
@@ -117,14 +119,14 @@ func (d proxyDial) DialTimeout(ctx context.Context, network, address string, tim
 
 // Dial first connects to a proxy, then uses the connection to establish a new
 // SSH connection.
-func (d proxyDial) Dial(ctx context.Context, network string, addr string, config ssh.ClientConfig) (*tracessh.Client, error) {
+func (d proxyDial) Dial(ctx context.Context, network string, addr string, config *ssh.ClientConfig) (*tracessh.Client, error) {
 	// Build a proxy connection first.
 	pconn, err := d.DialTimeout(ctx, network, addr, config.Timeout)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	c, err := ssh.NewClient(ctx, pconn, addr, config)
+	c, err := tracessh.NewClientWithTimeout(ctx, pconn, addr, config)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -181,15 +183,13 @@ func DialerFromEnvironment(addr string, opts ...DialerOptionFunc) Dialer {
 	// If no proxy settings are in environment return regular ssh dialer,
 	// otherwise return a proxy dialer.
 	if proxyURL == nil {
-		log.DebugContext(context.Background(), "No proxy set in environment, returning direct dialer")
+		log.Debugf("No proxy set in environment, returning direct dialer.")
 		return directDial{
 			alpnDialer:        options.alpnDialer,
 			proxyHeaderGetter: options.proxyHeaderGetter,
 		}
 	}
-	log.DebugContext(context.Background(), "Found proxy in environment, returning proxy dialer",
-		"proxy_url", logutils.StringerAttr(proxyURL),
-	)
+	log.Debugf("Found proxy %q in environment, returning proxy dialer.", proxyURL)
 	return proxyDial{
 		proxyURL:          proxyURL,
 		insecure:          options.insecureSkipTLSVerify,

@@ -20,10 +20,8 @@ package service
 
 import (
 	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -46,7 +44,6 @@ func (process *TeleportProcess) shouldInitDatabases() bool {
 
 func (process *TeleportProcess) initDatabases() {
 	process.RegisterWithAuthServer(types.RoleDatabase, DatabasesIdentityEvent)
-	process.ExpectService(teleport.ComponentDatabase)
 	process.RegisterCriticalFunc("db.init", process.initDatabaseService)
 }
 
@@ -104,16 +101,15 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 
 	clusterName := conn.ClusterName()
 	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
-		ClusterName:    clusterName,
-		AccessPoint:    accessPoint,
-		LockWatcher:    lockWatcher,
-		Logger:         process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentDatabase, process.id)),
-		ScopesFeatures: process.scopesFeatures,
+		ClusterName: clusterName,
+		AccessPoint: accessPoint,
+		LockWatcher: lockWatcher,
+		Logger:      process.log.WithField(teleport.ComponentKey, teleport.Component(teleport.ComponentDatabase, process.id)),
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	tlsConfig, err := process.ServerTLSConfig(conn)
+	tlsConfig, err := conn.ServerTLSConfig(process.Config.CipherSuites)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -139,10 +135,10 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		AccessPoint:    accessPoint,
 		LockWatcher:    lockWatcher,
 		Clock:          process.Config.Clock,
-		ServerID:       conn.HostUUID(),
+		ServerID:       process.Config.HostUUID,
 		Emitter:        asyncEmitter,
 		EmitterContext: process.ExitContext(),
-		Logger:         process.logger,
+		Logger:         process.log,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -160,7 +156,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		Limiter:              connLimiter,
 		GetRotation:          process.GetRotation,
 		Hostname:             process.Config.Hostname,
-		HostID:               conn.HostUUID(),
+		HostID:               process.Config.HostUUID,
 		Databases:            databases,
 		CloudLabels:          process.cloudLabels,
 		ResourceMatchers:     process.Config.Databases.ResourceMatchers,
@@ -187,22 +183,16 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	agentPool, err := reversetunnel.NewAgentPool(
 		process.ExitContext(),
 		reversetunnel.AgentPoolConfig{
-			InsecureMode: process.Config.InsecureMode,
-			Component:    teleport.ComponentDatabase,
-			HostUUID:     conn.HostID(),
-			Resolver:     tunnelAddrResolver,
-			Client:       conn.Client,
-			Server:       dbService,
-			AccessPoint:  conn.Client,
-			PublicKeyAuth: apissh.PublicKeyAuthConfig{
-				Signers: func() ([]ssh.Signer, error) {
-					return conn.ClientSigners(), nil
-				},
-			},
-			Cluster:                  clusterName,
-			FIPS:                     process.Config.FIPS,
-			ConnectedProxyGetter:     proxyGetter,
-			StaleConnTimeoutDisabled: reversetunnel.IsAgentStaleConnTimeoutDisabledByEnv(),
+			Component:            teleport.ComponentDatabase,
+			HostUUID:             conn.HostID(),
+			Resolver:             tunnelAddrResolver,
+			Client:               conn.Client,
+			Server:               dbService,
+			AccessPoint:          conn.Client,
+			AuthMethods:          conn.ClientAuthMethods(),
+			Cluster:              clusterName,
+			FIPS:                 process.Config.FIPS,
+			ConnectedProxyGetter: proxyGetter,
 		})
 	if err != nil {
 		return trace.Wrap(err)
@@ -217,7 +207,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	}()
 
 	// Execute this when the process running database proxy service exits.
-	process.OnExit("db.stop", func(payload any) {
+	process.OnExit("db.stop", func(payload interface{}) {
 		if dbService != nil {
 			if payload == nil {
 				logger.InfoContext(process.ExitContext(), "Shutting down immediately.")

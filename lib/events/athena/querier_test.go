@@ -97,7 +97,7 @@ func TestSearchEvents(t *testing.T) {
 
 	sliceOfDummyEvents := func(noOfEvents int) []apievents.AuditEvent {
 		out := make([]apievents.AuditEvent, 0, noOfEvents)
-		for range noOfEvents {
+		for i := 0; i < noOfEvents; i++ {
 			out = append(out, &apievents.AppCreate{
 				Metadata: apievents.Metadata{
 					ID:   uuid.NewString(),
@@ -188,57 +188,6 @@ func TestSearchEvents(t *testing.T) {
 			},
 		},
 		{
-			name: "query with search terms",
-			searchParams: &events.SearchEventsRequest{
-				From:   fromUTC,
-				To:     toUTC,
-				Limit:  100,
-				Search: "Root ALICE",
-			},
-			queryResultsResps: singleCallResults(100),
-			check: func(t *testing.T, mock *mockAthenaExecutor, paginationKey string) {
-				t.Helper()
-				wantSingleCallToAthena(t, mock)
-				wantQuery(t, mock, selectFromPrefix+whereTimeRange+
-					` AND strpos(lower(event_data), ?) > 0 AND strpos(lower(event_data), ?) > 0 ORDER BY event_time ASC, uid ASC LIMIT 100;`)
-				wantQueryParams(t, mock, append(timeRangeParams, "'root'", "'alice'")...)
-			},
-		},
-		{
-			name: "query with apostrophe in search term",
-			searchParams: &events.SearchEventsRequest{
-				From:   fromUTC,
-				To:     toUTC,
-				Limit:  100,
-				Search: "O'Connor",
-			},
-			queryResultsResps: singleCallResults(100),
-			check: func(t *testing.T, mock *mockAthenaExecutor, paginationKey string) {
-				t.Helper()
-				wantSingleCallToAthena(t, mock)
-				wantQuery(t, mock, selectFromPrefix+whereTimeRange+
-					` AND strpos(lower(event_data), ?) > 0 ORDER BY event_time ASC, uid ASC LIMIT 100;`)
-				wantQueryParams(t, mock, append(timeRangeParams, "'o''connor'")...)
-			},
-		},
-		{
-			name: "query with wildcard characters in search term",
-			searchParams: &events.SearchEventsRequest{
-				From:   fromUTC,
-				To:     toUTC,
-				Limit:  100,
-				Search: "alice_admin svc%prod",
-			},
-			queryResultsResps: singleCallResults(100),
-			check: func(t *testing.T, mock *mockAthenaExecutor, paginationKey string) {
-				t.Helper()
-				wantSingleCallToAthena(t, mock)
-				wantQuery(t, mock, selectFromPrefix+whereTimeRange+
-					` AND strpos(lower(event_data), ?) > 0 AND strpos(lower(event_data), ?) > 0 ORDER BY event_time ASC, uid ASC LIMIT 100;`)
-				wantQueryParams(t, mock, append(timeRangeParams, "'alice_admin'", "'svc%prod'")...)
-			},
-		},
-		{
 			name: "session id",
 			searchSessionParams: &events.SearchSessionEventsRequest{
 				From:      fromUTC,
@@ -250,8 +199,8 @@ func TestSearchEvents(t *testing.T) {
 			check: func(t *testing.T, mock *mockAthenaExecutor, paginationKey string) {
 				wantSingleCallToAthena(t, mock)
 				wantQuery(t, mock, selectFromPrefix+whereTimeRange+
-					` AND session_id = ? AND event_type IN (?,?,?,?) ORDER BY event_time ASC, uid ASC LIMIT 100;`)
-				wantQueryParams(t, mock, append(timeRangeParams, "'9762a4fe-ac4b-47b5-ba4f-5f70d065849a'", "'session.end'", "'windows.desktop.session.end'", "'db.session.end'", "'app.session.chunk'")...)
+					` AND session_id = ? AND event_type IN (?,?,?) ORDER BY event_time ASC, uid ASC LIMIT 100;`)
+				wantQueryParams(t, mock, append(timeRangeParams, "'9762a4fe-ac4b-47b5-ba4f-5f70d065849a'", "'session.end'", "'windows.desktop.session.end'", "'db.session.end'")...)
 			},
 		},
 		{
@@ -911,15 +860,7 @@ func Test_querier_fetchResults(t *testing.T) {
 			}
 			gotEvents, gotKeyset, err := q.fetchResults(context.Background(), "queryid", tt.limit, tt.condition)
 			require.NoError(t, err)
-
-			want := make([]events.EventFields, 0, len(tt.wantEvents))
-			for _, event := range tt.wantEvents {
-				fields, err := events.ToEventFields(event)
-				require.NoError(t, err)
-				want = append(want, fields)
-			}
-
-			require.Empty(t, cmp.Diff(want, gotEvents, cmpopts.EquateEmpty(),
+			require.Empty(t, cmp.Diff(tt.wantEvents, gotEvents, cmpopts.EquateEmpty(),
 				// Expect the database query to be trimmed
 				cmpopts.IgnoreFields(apievents.DatabaseSessionQuery{}, "DatabaseQuery")))
 			require.Equal(t, tt.wantKeyset, gotKeyset)
@@ -928,9 +869,7 @@ func Test_querier_fetchResults(t *testing.T) {
 }
 
 func mustEventToKey(t *testing.T, in apievents.AuditEvent) string {
-	fields, err := events.ToEventFields(in)
-	require.NoError(t, err)
-	ks, err := eventToKeyset(fields)
+	ks, err := eventToKeyset(in)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1053,44 +992,42 @@ func Test_querier_streamEventsFromChunk(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// add event parquets (in one .parquet file) to mock S3 getter
-			payloads, err := auditEventsToParquet(tt.events)
-			require.NoError(t, err)
+		// add event parquets (in one .parquet file) to mock S3 getter
+		payloads, err := auditEventsToParquet(tt.events)
+		require.NoError(t, err)
 
-			buf := new(bytes.Buffer)
-			writer := parquet.NewGenericWriter[eventParquet](buf)
-			_, err = writer.Write(payloads)
-			require.NoError(t, err)
-			require.NoError(t, writer.Close())
+		buf := new(bytes.Buffer)
+		writer := parquet.NewGenericWriter[eventParquet](buf)
+		_, err = writer.Write(payloads)
+		require.NoError(t, err)
+		require.NoError(t, writer.Close())
 
-			key := fmt.Sprintf("%s/%s/%s.parquet", prefix, date, chunkID)
-			file := filepath.Join(bucketName, key)
-			mockS3 := &mockS3Getter{
-				files: map[string][]byte{
-					file: buf.Bytes(),
-				},
-			}
+		key := fmt.Sprintf("%s/%s/%s.parquet", prefix, date, chunkID)
+		file := filepath.Join(bucketName, key)
+		mockS3 := &mockS3Getter{
+			files: map[string][]byte{
+				file: buf.Bytes(),
+			},
+		}
 
-			q := &querier{
-				querierConfig: querierConfig{
-					tablename:        tableName,
-					locationS3Bucket: bucketName,
-					locationS3Prefix: prefix,
-					logger:           slog.Default(),
-					tracer:           tracing.NoopTracer(teleport.ComponentAthena),
-				},
-				s3Getter: mockS3,
-			}
+		q := &querier{
+			querierConfig: querierConfig{
+				tablename:        tableName,
+				locationS3Bucket: bucketName,
+				locationS3Prefix: prefix,
+				logger:           slog.Default(),
+				tracer:           tracing.NoopTracer(teleport.ComponentAthena),
+			},
+			s3Getter: mockS3,
+		}
 
-			eventStream := q.streamEventsFromChunk(t.Context(), date, chunkID)
-			eventParquets, err := stream.Collect(eventStream)
-			require.NoError(t, err)
-			require.Len(t, eventParquets, len(payloads))
-			for i, e := range eventParquets {
-				require.Equal(t, payloads[i].UID, e.UID)
-			}
-		})
+		eventStream := q.streamEventsFromChunk(t.Context(), date, chunkID)
+		eventParquets, err := stream.Collect(eventStream)
+		require.NoError(t, err)
+		require.Len(t, eventParquets, len(payloads))
+		for i, e := range eventParquets {
+			require.Equal(t, payloads[i].UID, e.UID)
+		}
 	}
 }
 

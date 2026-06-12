@@ -69,7 +69,7 @@ An SSH server implementation that allows users to execute commands on remote
 machines while taking advantage of Teleport's built-in access controls,
 auditing, and session recording. The SSH service is enabled by default.
 
-Read more about the [Teleport SSH Service](./enroll-resources/server-access/server-access.mdx).
+Read more about the [Teleport SSH Service](./enroll-resources/server-access/introduction.mdx).
 
 ### Teleport Kubernetes Service
 
@@ -111,7 +111,7 @@ Service](./enroll-resources/desktop-access/introduction.mdx).
 
 ### Teleport Jamf Service
 
-The Jamf Service integrates with Jamf to enroll trusted devices for macOS endpoints. 
+The Jamf Service integrates with Jamf to enrolls trusted devices for macOS endpoints. 
 Before a user is granted access, Teleport checks the device's compliance status with Jamf. 
 This service is ideal for organizations that need to verify macOS device posture as part of 
 their access control strategy, ensuring only trusted devices are allowed to connect. 
@@ -122,7 +122,7 @@ their access control strategy, ensuring only trusted devices are allowed to conn
 Provides internal diagnostics, exposing metrics, performance profiling tools, and debugging endpoints. 
 It is designed for measuring performance, troubleshooting scenarios, and enabling operators to change the logging level without restarting teleport. 
 This can be helpful for analyzing bottlenecks, or diagnosing unexpected behavior in a controlled environment. The debug service is exposed locally by default.
-[Read more about the Debug Service](zero-trust-access/management/diagnostics/troubleshooting.mdx#step-13-enable-verbose-logging).
+[Read more about the Debug Service](zero-trust-access/management/admin/troubleshooting.mdx#step-13-enable-verbose-logging).
 
 ## Agent
 
@@ -180,7 +180,7 @@ advanced security needs, such as support for Federal Information Processing
 Standards (FIPS) and a hardware security module (HSM). Teleport Enterprise
 includes a support agreement with Teleport.
 
-[Read the documentation](installation/self-hosted/self-hosted.mdx) on
+[Read the documentation](zero-trust-access/deploy-a-cluster/deploy-a-cluster.mdx) on
 self-hosting Teleport.
 
 ### Teleport Community Edition
@@ -194,7 +194,7 @@ A **configuration resource** is a document stored on the **Teleport Auth
 Service** backend that specifies settings for your **Teleport cluster**.
 Examples include **roles**, **local users**, and **authentication connectors**
 
-Read more in our [resource reference](reference/infrastructure-as-code/teleport-resources/teleport-resources.mdx).
+Read more in our [resource reference](./reference/resources.mdx).
 
 ### Role
 
@@ -203,15 +203,9 @@ privileges within a cluster. Teleport's role-based access control (RBAC) is
 restrictive by default, and a user needs explicit permissions before they can
 access a resource or perform management tasks on a cluster.
 
-Read our [guide to Teleport roles](zero-trust-access/rbac-get-started/role-templates.mdx).
+Read our [guide to Teleport roles](zero-trust-access/access-controls/guides/role-templates.mdx).
 
 ### Teleport users
-
-A Teleport user is an identity, whether of an AI agent, human, or machine, that
-is registered with a Teleport cluster. The **Teleport Auth Service** verifies
-that a client or service attempting to connect has a valid Teleport-issued
-certificate. It then uses the subject of the certificate—including its username
-and Teleport roles—to authorize the user.
 
 Teleport allows for two kinds of users:
 
@@ -222,16 +216,14 @@ Teleport allows for two kinds of users:
   solution, Teleport issues a certificate for the user and creates a temporary
   **local user** that is valid for the lifetime of the certificate.
 
-Only humans can authenticate as SSO users. Humans, machines and AI agents can
-authenticate as local users. Machines and AI agents join a cluster using a
-Machine and Workload Identity join token. See the [Machine & Workload Identity
-introduction](machine-workload-identity/introduction.mdx) for how Machine &
-Workload Identity works.
+Ultimately, a Teleport user is the subject of a certificate issued by the
+**Teleport Auth Service**. The Auth Service verifies that a client or service
+attempting to connect has a valid Teleport-issued certificate. It then uses the
+subject of the certificate—including its username and Teleport roles—to
+authorize the user.
 
-Read more:
-- [Local users](reference/access-controls/authentication.mdx)
-- [How SSO authentication works in Teleport](zero-trust-access/sso/sso.mdx)
-- [Teleport user types](reference/access-controls/user-types.mdx)
+Read more about [local users](reference/access-controls/authentication.mdx) and how [SSO
+authentication works in Teleport](zero-trust-access/sso/sso.mdx).
 
 ### Authentication connector
 
@@ -246,12 +238,12 @@ Teleport allows you to configure a **trusted cluster relationship** between a
 **root cluster** and one or more **leaf clusters** that trust the root cluster
 certificate authority. The trust relationship between the root and leaf clusters
 enables users authenticated in the root cluster to access resources
-in the leaf cluster. The root and leaf cluster operate independently with their own
+in leaf cluster. The root and leaf cluster operate independently with their own
 users, roles, and resources, but the trust relationship allows users with certain roles
 in the root cluster to be mapped to roles and permissions defined in the leaf cluster.
 
 For more information about how to configure a trust relationship between clusters,
-see [Configure Trusted Clusters](zero-trust-access/management/trustedclusters.mdx). For an overview of the architecture used in a trusted cluster relationship, see [Trusted Cluster Architecture](reference/architecture/trustedclusters.mdx).
+see [Configure Trusted Clusters](zero-trust-access/management/admin/trustedclusters.mdx). For an overview of the architecture used in a trusted cluster relationship, see [Trusted Cluster Architecture](reference/architecture/trustedclusters.mdx).
 
 ## Teleport clients
 

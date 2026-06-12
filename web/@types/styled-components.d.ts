@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import 'react';
 import { CSSProp } from 'styled-components';
+import 'react';
 
 import { Theme } from 'design/theme/themes/types';
 

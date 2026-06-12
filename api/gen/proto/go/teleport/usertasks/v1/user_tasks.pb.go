@@ -18,8 +18,6 @@
 // 	protoc        (unknown)
 // source: teleport/usertasks/v1/user_tasks.proto
 
-//go:build !protoopaque
-
 package usertasksv1
 
 import (
@@ -28,6 +26,7 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
+	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -44,7 +43,7 @@ const (
 // a UserTask is created to let the user know that something failed on a set of instances.
 // The user can then mark the task as resolved after following the recommendation/fixing steps.
 type UserTask struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// The kind of resource represented.
 	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	// Mandatory field for all resources. Not populated for this resource type.
@@ -84,6 +83,11 @@ func (x *UserTask) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UserTask.ProtoReflect.Descriptor instead.
+func (*UserTask) Descriptor() ([]byte, []int) {
+	return file_teleport_usertasks_v1_user_tasks_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *UserTask) GetKind() string {
@@ -128,96 +132,9 @@ func (x *UserTask) GetStatus() *UserTaskStatus {
 	return nil
 }
 
-func (x *UserTask) SetKind(v string) {
-	x.Kind = v
-}
-
-func (x *UserTask) SetSubKind(v string) {
-	x.SubKind = v
-}
-
-func (x *UserTask) SetVersion(v string) {
-	x.Version = v
-}
-
-func (x *UserTask) SetMetadata(v *v1.Metadata) {
-	x.Metadata = v
-}
-
-func (x *UserTask) SetSpec(v *UserTaskSpec) {
-	x.Spec = v
-}
-
-func (x *UserTask) SetStatus(v *UserTaskStatus) {
-	x.Status = v
-}
-
-func (x *UserTask) HasMetadata() bool {
-	if x == nil {
-		return false
-	}
-	return x.Metadata != nil
-}
-
-func (x *UserTask) HasSpec() bool {
-	if x == nil {
-		return false
-	}
-	return x.Spec != nil
-}
-
-func (x *UserTask) HasStatus() bool {
-	if x == nil {
-		return false
-	}
-	return x.Status != nil
-}
-
-func (x *UserTask) ClearMetadata() {
-	x.Metadata = nil
-}
-
-func (x *UserTask) ClearSpec() {
-	x.Spec = nil
-}
-
-func (x *UserTask) ClearStatus() {
-	x.Status = nil
-}
-
-type UserTask_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// The kind of resource represented.
-	Kind string
-	// Mandatory field for all resources. Not populated for this resource type.
-	SubKind string
-	// The version of the resource being represented.
-	Version string
-	// Common metadata that all resources share.
-	Metadata *v1.Metadata
-	// The configured properties of UserTask.
-	Spec *UserTaskSpec
-	// The current status for this UserTask.
-	Status *UserTaskStatus
-}
-
-func (b0 UserTask_builder) Build() *UserTask {
-	m0 := &UserTask{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Kind = b.Kind
-	x.SubKind = b.SubKind
-	x.Version = b.Version
-	x.Metadata = b.Metadata
-	x.Spec = b.Spec
-	x.Status = b.Status
-	return m0
-}
-
 // UserTaskSpec contains the properties of the UserTask.
 type UserTaskSpec struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// Integration is the integration name that originated this task.
 	Integration string `protobuf:"bytes,1,opt,name=integration,proto3" json:"integration,omitempty"`
 	// TaskType indicates the type of task.
@@ -239,12 +156,9 @@ type UserTaskSpec struct {
 	DiscoverEks *DiscoverEKS `protobuf:"bytes,6,opt,name=discover_eks,json=discoverEks,proto3" json:"discover_eks,omitempty"`
 	// DiscoverRDS contains the AWS RDS databases that failed to auto enroll into the cluster.
 	// Present when TaskType is discover-rds.
-	DiscoverRds *DiscoverRDS `protobuf:"bytes,7,opt,name=discover_rds,json=discoverRds,proto3" json:"discover_rds,omitempty"`
-	// DiscoverAzureVM contains the Azure VMs that failed to auto enroll into the cluster.
-	// Present when TaskType is discover-azure-vm.
-	DiscoverAzureVm *DiscoverAzureVM `protobuf:"bytes,8,opt,name=discover_azure_vm,json=discoverAzureVm,proto3" json:"discover_azure_vm,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	DiscoverRds   *DiscoverRDS `protobuf:"bytes,7,opt,name=discover_rds,json=discoverRds,proto3" json:"discover_rds,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *UserTaskSpec) Reset() {
@@ -270,6 +184,11 @@ func (x *UserTaskSpec) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UserTaskSpec.ProtoReflect.Descriptor instead.
+func (*UserTaskSpec) Descriptor() ([]byte, []int) {
+	return file_teleport_usertasks_v1_user_tasks_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *UserTaskSpec) GetIntegration() string {
@@ -321,137 +240,9 @@ func (x *UserTaskSpec) GetDiscoverRds() *DiscoverRDS {
 	return nil
 }
 
-func (x *UserTaskSpec) GetDiscoverAzureVm() *DiscoverAzureVM {
-	if x != nil {
-		return x.DiscoverAzureVm
-	}
-	return nil
-}
-
-func (x *UserTaskSpec) SetIntegration(v string) {
-	x.Integration = v
-}
-
-func (x *UserTaskSpec) SetTaskType(v string) {
-	x.TaskType = v
-}
-
-func (x *UserTaskSpec) SetIssueType(v string) {
-	x.IssueType = v
-}
-
-func (x *UserTaskSpec) SetState(v string) {
-	x.State = v
-}
-
-func (x *UserTaskSpec) SetDiscoverEc2(v *DiscoverEC2) {
-	x.DiscoverEc2 = v
-}
-
-func (x *UserTaskSpec) SetDiscoverEks(v *DiscoverEKS) {
-	x.DiscoverEks = v
-}
-
-func (x *UserTaskSpec) SetDiscoverRds(v *DiscoverRDS) {
-	x.DiscoverRds = v
-}
-
-func (x *UserTaskSpec) SetDiscoverAzureVm(v *DiscoverAzureVM) {
-	x.DiscoverAzureVm = v
-}
-
-func (x *UserTaskSpec) HasDiscoverEc2() bool {
-	if x == nil {
-		return false
-	}
-	return x.DiscoverEc2 != nil
-}
-
-func (x *UserTaskSpec) HasDiscoverEks() bool {
-	if x == nil {
-		return false
-	}
-	return x.DiscoverEks != nil
-}
-
-func (x *UserTaskSpec) HasDiscoverRds() bool {
-	if x == nil {
-		return false
-	}
-	return x.DiscoverRds != nil
-}
-
-func (x *UserTaskSpec) HasDiscoverAzureVm() bool {
-	if x == nil {
-		return false
-	}
-	return x.DiscoverAzureVm != nil
-}
-
-func (x *UserTaskSpec) ClearDiscoverEc2() {
-	x.DiscoverEc2 = nil
-}
-
-func (x *UserTaskSpec) ClearDiscoverEks() {
-	x.DiscoverEks = nil
-}
-
-func (x *UserTaskSpec) ClearDiscoverRds() {
-	x.DiscoverRds = nil
-}
-
-func (x *UserTaskSpec) ClearDiscoverAzureVm() {
-	x.DiscoverAzureVm = nil
-}
-
-type UserTaskSpec_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// Integration is the integration name that originated this task.
-	Integration string
-	// TaskType indicates the type of task.
-	// Examples: discover-ec2, discover-rds, discover-eks
-	TaskType string
-	// IssueType is an identifier for the type of issue that happened.
-	// Example for discover-ec2: SSM_AGENT_NOT_AVAILABLE
-	IssueType string
-	// State indicates the task state.
-	// When the task is created, it starts with OPEN.
-	// Users can mark it as RESOLVED.
-	// If the issue happens again (eg, new discover iteration faces the same error), it will move to OPEN again.
-	State string
-	// DiscoverEC2 contains the AWS EC2 instances that failed to auto enroll into the cluster.
-	// Present when TaskType is discover-ec2.
-	DiscoverEc2 *DiscoverEC2
-	// DiscoverEKS contains the AWS EKS clusters that failed to auto enroll into the cluster.
-	// Present when TaskType is discover-eks.
-	DiscoverEks *DiscoverEKS
-	// DiscoverRDS contains the AWS RDS databases that failed to auto enroll into the cluster.
-	// Present when TaskType is discover-rds.
-	DiscoverRds *DiscoverRDS
-	// DiscoverAzureVM contains the Azure VMs that failed to auto enroll into the cluster.
-	// Present when TaskType is discover-azure-vm.
-	DiscoverAzureVm *DiscoverAzureVM
-}
-
-func (b0 UserTaskSpec_builder) Build() *UserTaskSpec {
-	m0 := &UserTaskSpec{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Integration = b.Integration
-	x.TaskType = b.TaskType
-	x.IssueType = b.IssueType
-	x.State = b.State
-	x.DiscoverEc2 = b.DiscoverEc2
-	x.DiscoverEks = b.DiscoverEks
-	x.DiscoverRds = b.DiscoverRds
-	x.DiscoverAzureVm = b.DiscoverAzureVm
-	return m0
-}
-
 // UserTaskStatus contains the current status for the UserTask.
 type UserTaskStatus struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// LastStateChange is the timestamp when the UserTask state was last modified.
 	LastStateChange *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=last_state_change,json=lastStateChange,proto3" json:"last_state_change,omitempty"`
 	unknownFields   protoimpl.UnknownFields
@@ -483,6 +274,11 @@ func (x *UserTaskStatus) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use UserTaskStatus.ProtoReflect.Descriptor instead.
+func (*UserTaskStatus) Descriptor() ([]byte, []int) {
+	return file_teleport_usertasks_v1_user_tasks_proto_rawDescGZIP(), []int{2}
+}
+
 func (x *UserTaskStatus) GetLastStateChange() *timestamppb.Timestamp {
 	if x != nil {
 		return x.LastStateChange
@@ -490,39 +286,9 @@ func (x *UserTaskStatus) GetLastStateChange() *timestamppb.Timestamp {
 	return nil
 }
 
-func (x *UserTaskStatus) SetLastStateChange(v *timestamppb.Timestamp) {
-	x.LastStateChange = v
-}
-
-func (x *UserTaskStatus) HasLastStateChange() bool {
-	if x == nil {
-		return false
-	}
-	return x.LastStateChange != nil
-}
-
-func (x *UserTaskStatus) ClearLastStateChange() {
-	x.LastStateChange = nil
-}
-
-type UserTaskStatus_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// LastStateChange is the timestamp when the UserTask state was last modified.
-	LastStateChange *timestamppb.Timestamp
-}
-
-func (b0 UserTaskStatus_builder) Build() *UserTaskStatus {
-	m0 := &UserTaskStatus{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.LastStateChange = b.LastStateChange
-	return m0
-}
-
 // DiscoverEC2 contains the instances that failed to auto-enroll into the cluster.
 type DiscoverEC2 struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// Instances maps an instance id to the result of enrolling that instance into teleport.
 	Instances map[string]*DiscoverEC2Instance `protobuf:"bytes,1,rep,name=instances,proto3" json:"instances,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	// AccountID is the AWS Account ID for the instances.
@@ -564,6 +330,11 @@ func (x *DiscoverEC2) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use DiscoverEC2.ProtoReflect.Descriptor instead.
+func (*DiscoverEC2) Descriptor() ([]byte, []int) {
+	return file_teleport_usertasks_v1_user_tasks_proto_rawDescGZIP(), []int{3}
+}
+
 func (x *DiscoverEC2) GetInstances() map[string]*DiscoverEC2Instance {
 	if x != nil {
 		return x.Instances
@@ -599,58 +370,9 @@ func (x *DiscoverEC2) GetInstallerScript() string {
 	return ""
 }
 
-func (x *DiscoverEC2) SetInstances(v map[string]*DiscoverEC2Instance) {
-	x.Instances = v
-}
-
-func (x *DiscoverEC2) SetAccountId(v string) {
-	x.AccountId = v
-}
-
-func (x *DiscoverEC2) SetRegion(v string) {
-	x.Region = v
-}
-
-func (x *DiscoverEC2) SetSsmDocument(v string) {
-	x.SsmDocument = v
-}
-
-func (x *DiscoverEC2) SetInstallerScript(v string) {
-	x.InstallerScript = v
-}
-
-type DiscoverEC2_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// Instances maps an instance id to the result of enrolling that instance into teleport.
-	Instances map[string]*DiscoverEC2Instance
-	// AccountID is the AWS Account ID for the instances.
-	AccountId string
-	// Region is the AWS Region where Teleport failed to enroll EC2 instances.
-	Region string
-	// SSMDocument is the Amazon Systems Manager SSM Document name that was used to install teleport on the instance.
-	// In Amazon console, the document is at:
-	// https://REGION.console.aws.amazon.com/systems-manager/documents/SSM_DOCUMENT/description
-	SsmDocument string
-	// InstallerScript is the Teleport installer script that was used to install teleport on the instance.
-	InstallerScript string
-}
-
-func (b0 DiscoverEC2_builder) Build() *DiscoverEC2 {
-	m0 := &DiscoverEC2{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Instances = b.Instances
-	x.AccountId = b.AccountId
-	x.Region = b.Region
-	x.SsmDocument = b.SsmDocument
-	x.InstallerScript = b.InstallerScript
-	return m0
-}
-
 // DiscoverEC2Instance contains the result of enrolling an AWS EC2 Instance.
 type DiscoverEC2Instance struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// InstanceID is the EC2 Instance ID that uniquely identifies the instance.
 	InstanceId string `protobuf:"bytes,1,opt,name=instance_id,json=instanceId,proto3" json:"instance_id,omitempty"`
 	// Name is the instance Name.
@@ -692,6 +414,11 @@ func (x *DiscoverEC2Instance) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DiscoverEC2Instance.ProtoReflect.Descriptor instead.
+func (*DiscoverEC2Instance) Descriptor() ([]byte, []int) {
+	return file_teleport_usertasks_v1_user_tasks_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *DiscoverEC2Instance) GetInstanceId() string {
@@ -736,76 +463,9 @@ func (x *DiscoverEC2Instance) GetSyncTime() *timestamppb.Timestamp {
 	return nil
 }
 
-func (x *DiscoverEC2Instance) SetInstanceId(v string) {
-	x.InstanceId = v
-}
-
-func (x *DiscoverEC2Instance) SetName(v string) {
-	x.Name = v
-}
-
-func (x *DiscoverEC2Instance) SetInvocationUrl(v string) {
-	x.InvocationUrl = v
-}
-
-func (x *DiscoverEC2Instance) SetDiscoveryConfig(v string) {
-	x.DiscoveryConfig = v
-}
-
-func (x *DiscoverEC2Instance) SetDiscoveryGroup(v string) {
-	x.DiscoveryGroup = v
-}
-
-func (x *DiscoverEC2Instance) SetSyncTime(v *timestamppb.Timestamp) {
-	x.SyncTime = v
-}
-
-func (x *DiscoverEC2Instance) HasSyncTime() bool {
-	if x == nil {
-		return false
-	}
-	return x.SyncTime != nil
-}
-
-func (x *DiscoverEC2Instance) ClearSyncTime() {
-	x.SyncTime = nil
-}
-
-type DiscoverEC2Instance_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// InstanceID is the EC2 Instance ID that uniquely identifies the instance.
-	InstanceId string
-	// Name is the instance Name.
-	// Might be empty, if the instance doesn't have the Name tag.
-	Name string
-	// InvocationURL is the URL that points to the invocation.
-	// Empty if there was an error before installing the
-	InvocationUrl string
-	// DiscoveryConfig is the discovery config name that originated this instance enrollment.
-	DiscoveryConfig string
-	// DiscoveryGroup is the DiscoveryGroup name that originated this task.
-	DiscoveryGroup string
-	// SyncTime is the timestamp when the error was produced.
-	SyncTime *timestamppb.Timestamp
-}
-
-func (b0 DiscoverEC2Instance_builder) Build() *DiscoverEC2Instance {
-	m0 := &DiscoverEC2Instance{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.InstanceId = b.InstanceId
-	x.Name = b.Name
-	x.InvocationUrl = b.InvocationUrl
-	x.DiscoveryConfig = b.DiscoveryConfig
-	x.DiscoveryGroup = b.DiscoveryGroup
-	x.SyncTime = b.SyncTime
-	return m0
-}
-
 // DiscoverEKS contains the clusters that failed to auto-enroll into the cluster.
 type DiscoverEKS struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// Clusters maps a cluster name to the result of enrolling that cluster into teleport.
 	Clusters map[string]*DiscoverEKSCluster `protobuf:"bytes,1,rep,name=clusters,proto3" json:"clusters,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	// AccountID is the AWS Account ID for the cluster.
@@ -843,6 +503,11 @@ func (x *DiscoverEKS) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use DiscoverEKS.ProtoReflect.Descriptor instead.
+func (*DiscoverEKS) Descriptor() ([]byte, []int) {
+	return file_teleport_usertasks_v1_user_tasks_proto_rawDescGZIP(), []int{5}
+}
+
 func (x *DiscoverEKS) GetClusters() map[string]*DiscoverEKSCluster {
 	if x != nil {
 		return x.Clusters
@@ -871,49 +536,9 @@ func (x *DiscoverEKS) GetAppAutoDiscover() bool {
 	return false
 }
 
-func (x *DiscoverEKS) SetClusters(v map[string]*DiscoverEKSCluster) {
-	x.Clusters = v
-}
-
-func (x *DiscoverEKS) SetAccountId(v string) {
-	x.AccountId = v
-}
-
-func (x *DiscoverEKS) SetRegion(v string) {
-	x.Region = v
-}
-
-func (x *DiscoverEKS) SetAppAutoDiscover(v bool) {
-	x.AppAutoDiscover = v
-}
-
-type DiscoverEKS_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// Clusters maps a cluster name to the result of enrolling that cluster into teleport.
-	Clusters map[string]*DiscoverEKSCluster
-	// AccountID is the AWS Account ID for the cluster.
-	AccountId string
-	// Region is the AWS Region where Teleport failed to enroll EKS Clusters.
-	Region string
-	// AppAutoDiscover indicates whether the Kubernetes agent should auto enroll HTTP services as Teleport Apps.
-	AppAutoDiscover bool
-}
-
-func (b0 DiscoverEKS_builder) Build() *DiscoverEKS {
-	m0 := &DiscoverEKS{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Clusters = b.Clusters
-	x.AccountId = b.AccountId
-	x.Region = b.Region
-	x.AppAutoDiscover = b.AppAutoDiscover
-	return m0
-}
-
 // DiscoverEKSCluster contains the result of enrolling an AWS EKS Cluster.
 type DiscoverEKSCluster struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// Name is the cluster Name.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// DiscoveryConfig is the discovery config name that originated this cluster enrollment.
@@ -951,6 +576,11 @@ func (x *DiscoverEKSCluster) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use DiscoverEKSCluster.ProtoReflect.Descriptor instead.
+func (*DiscoverEKSCluster) Descriptor() ([]byte, []int) {
+	return file_teleport_usertasks_v1_user_tasks_proto_rawDescGZIP(), []int{6}
+}
+
 func (x *DiscoverEKSCluster) GetName() string {
 	if x != nil {
 		return x.Name
@@ -979,60 +609,9 @@ func (x *DiscoverEKSCluster) GetSyncTime() *timestamppb.Timestamp {
 	return nil
 }
 
-func (x *DiscoverEKSCluster) SetName(v string) {
-	x.Name = v
-}
-
-func (x *DiscoverEKSCluster) SetDiscoveryConfig(v string) {
-	x.DiscoveryConfig = v
-}
-
-func (x *DiscoverEKSCluster) SetDiscoveryGroup(v string) {
-	x.DiscoveryGroup = v
-}
-
-func (x *DiscoverEKSCluster) SetSyncTime(v *timestamppb.Timestamp) {
-	x.SyncTime = v
-}
-
-func (x *DiscoverEKSCluster) HasSyncTime() bool {
-	if x == nil {
-		return false
-	}
-	return x.SyncTime != nil
-}
-
-func (x *DiscoverEKSCluster) ClearSyncTime() {
-	x.SyncTime = nil
-}
-
-type DiscoverEKSCluster_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// Name is the cluster Name.
-	Name string
-	// DiscoveryConfig is the discovery config name that originated this cluster enrollment.
-	DiscoveryConfig string
-	// DiscoveryGroup is the DiscoveryGroup name that originated this task.
-	DiscoveryGroup string
-	// SyncTime is the timestamp when the error was produced.
-	SyncTime *timestamppb.Timestamp
-}
-
-func (b0 DiscoverEKSCluster_builder) Build() *DiscoverEKSCluster {
-	m0 := &DiscoverEKSCluster{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Name = b.Name
-	x.DiscoveryConfig = b.DiscoveryConfig
-	x.DiscoveryGroup = b.DiscoveryGroup
-	x.SyncTime = b.SyncTime
-	return m0
-}
-
 // DiscoverRDS contains the databases that failed to auto-enroll into teleport.
 type DiscoverRDS struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// Databases maps a database resource id to the result of enrolling that database into teleport.
 	// For RDS Aurora Clusters, this is the DBClusterIdentifier.
 	// For other RDS databases, this is the DBInstanceIdentifier.
@@ -1070,6 +649,11 @@ func (x *DiscoverRDS) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use DiscoverRDS.ProtoReflect.Descriptor instead.
+func (*DiscoverRDS) Descriptor() ([]byte, []int) {
+	return file_teleport_usertasks_v1_user_tasks_proto_rawDescGZIP(), []int{7}
+}
+
 func (x *DiscoverRDS) GetDatabases() map[string]*DiscoverRDSDatabase {
 	if x != nil {
 		return x.Databases
@@ -1091,44 +675,9 @@ func (x *DiscoverRDS) GetRegion() string {
 	return ""
 }
 
-func (x *DiscoverRDS) SetDatabases(v map[string]*DiscoverRDSDatabase) {
-	x.Databases = v
-}
-
-func (x *DiscoverRDS) SetAccountId(v string) {
-	x.AccountId = v
-}
-
-func (x *DiscoverRDS) SetRegion(v string) {
-	x.Region = v
-}
-
-type DiscoverRDS_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// Databases maps a database resource id to the result of enrolling that database into teleport.
-	// For RDS Aurora Clusters, this is the DBClusterIdentifier.
-	// For other RDS databases, this is the DBInstanceIdentifier.
-	Databases map[string]*DiscoverRDSDatabase
-	// AccountID is the AWS Account ID for the database.
-	AccountId string
-	// Region is the AWS Region where Teleport failed to enroll RDS databases.
-	Region string
-}
-
-func (b0 DiscoverRDS_builder) Build() *DiscoverRDS {
-	m0 := &DiscoverRDS{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Databases = b.Databases
-	x.AccountId = b.AccountId
-	x.Region = b.Region
-	return m0
-}
-
 // DiscoverRDSDatabase contains the result of enrolling an AWS RDS database.
 type DiscoverRDSDatabase struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// Name is the database identifier.
 	// For RDS Aurora Clusters, this is the DBClusterIdentifier.
 	// For other RDS databases, this is the DBInstanceIdentifier.
@@ -1173,6 +722,11 @@ func (x *DiscoverRDSDatabase) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use DiscoverRDSDatabase.ProtoReflect.Descriptor instead.
+func (*DiscoverRDSDatabase) Descriptor() ([]byte, []int) {
+	return file_teleport_usertasks_v1_user_tasks_proto_rawDescGZIP(), []int{8}
+}
+
 func (x *DiscoverRDSDatabase) GetName() string {
 	if x != nil {
 		return x.Name
@@ -1215,333 +769,6 @@ func (x *DiscoverRDSDatabase) GetSyncTime() *timestamppb.Timestamp {
 	return nil
 }
 
-func (x *DiscoverRDSDatabase) SetName(v string) {
-	x.Name = v
-}
-
-func (x *DiscoverRDSDatabase) SetIsCluster(v bool) {
-	x.IsCluster = v
-}
-
-func (x *DiscoverRDSDatabase) SetEngine(v string) {
-	x.Engine = v
-}
-
-func (x *DiscoverRDSDatabase) SetDiscoveryConfig(v string) {
-	x.DiscoveryConfig = v
-}
-
-func (x *DiscoverRDSDatabase) SetDiscoveryGroup(v string) {
-	x.DiscoveryGroup = v
-}
-
-func (x *DiscoverRDSDatabase) SetSyncTime(v *timestamppb.Timestamp) {
-	x.SyncTime = v
-}
-
-func (x *DiscoverRDSDatabase) HasSyncTime() bool {
-	if x == nil {
-		return false
-	}
-	return x.SyncTime != nil
-}
-
-func (x *DiscoverRDSDatabase) ClearSyncTime() {
-	x.SyncTime = nil
-}
-
-type DiscoverRDSDatabase_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// Name is the database identifier.
-	// For RDS Aurora Clusters, this is the DBClusterIdentifier.
-	// For other RDS databases, this is the DBInstanceIdentifier.
-	Name string
-	// IsCluster indicates whether this database is a cluster or a single instance.
-	IsCluster bool
-	// Engine indicates the engine name for this RDS.
-	// Eg, aurora-postgresql, postgresql
-	Engine string
-	// DiscoveryConfig is the discovery config name that originated this database enrollment.
-	DiscoveryConfig string
-	// DiscoveryGroup is the DiscoveryGroup name that originated this task.
-	DiscoveryGroup string
-	// SyncTime is the timestamp when the error was produced.
-	SyncTime *timestamppb.Timestamp
-}
-
-func (b0 DiscoverRDSDatabase_builder) Build() *DiscoverRDSDatabase {
-	m0 := &DiscoverRDSDatabase{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Name = b.Name
-	x.IsCluster = b.IsCluster
-	x.Engine = b.Engine
-	x.DiscoveryConfig = b.DiscoveryConfig
-	x.DiscoveryGroup = b.DiscoveryGroup
-	x.SyncTime = b.SyncTime
-	return m0
-}
-
-// DiscoverAzureVM contains the VMs that failed to auto-enroll into the cluster.
-type DiscoverAzureVM struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// Instances maps a VM ID to the result of enrolling that VM into teleport.
-	Instances map[string]*DiscoverAzureVMInstance `protobuf:"bytes,1,rep,name=instances,proto3" json:"instances,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	// SubscriptionID is the Azure Subscription ID for the VMs.
-	SubscriptionId string `protobuf:"bytes,2,opt,name=subscription_id,json=subscriptionId,proto3" json:"subscription_id,omitempty"`
-	// ResourceGroup is the Azure Resource Group where VMs are located.
-	ResourceGroup string `protobuf:"bytes,3,opt,name=resource_group,json=resourceGroup,proto3" json:"resource_group,omitempty"`
-	// Region is the Azure Region where Teleport failed to enroll VMs.
-	Region        string `protobuf:"bytes,4,opt,name=region,proto3" json:"region,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *DiscoverAzureVM) Reset() {
-	*x = DiscoverAzureVM{}
-	mi := &file_teleport_usertasks_v1_user_tasks_proto_msgTypes[9]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *DiscoverAzureVM) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*DiscoverAzureVM) ProtoMessage() {}
-
-func (x *DiscoverAzureVM) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_usertasks_v1_user_tasks_proto_msgTypes[9]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-func (x *DiscoverAzureVM) GetInstances() map[string]*DiscoverAzureVMInstance {
-	if x != nil {
-		return x.Instances
-	}
-	return nil
-}
-
-func (x *DiscoverAzureVM) GetSubscriptionId() string {
-	if x != nil {
-		return x.SubscriptionId
-	}
-	return ""
-}
-
-func (x *DiscoverAzureVM) GetResourceGroup() string {
-	if x != nil {
-		return x.ResourceGroup
-	}
-	return ""
-}
-
-func (x *DiscoverAzureVM) GetRegion() string {
-	if x != nil {
-		return x.Region
-	}
-	return ""
-}
-
-func (x *DiscoverAzureVM) SetInstances(v map[string]*DiscoverAzureVMInstance) {
-	x.Instances = v
-}
-
-func (x *DiscoverAzureVM) SetSubscriptionId(v string) {
-	x.SubscriptionId = v
-}
-
-func (x *DiscoverAzureVM) SetResourceGroup(v string) {
-	x.ResourceGroup = v
-}
-
-func (x *DiscoverAzureVM) SetRegion(v string) {
-	x.Region = v
-}
-
-type DiscoverAzureVM_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// Instances maps a VM ID to the result of enrolling that VM into teleport.
-	Instances map[string]*DiscoverAzureVMInstance
-	// SubscriptionID is the Azure Subscription ID for the VMs.
-	SubscriptionId string
-	// ResourceGroup is the Azure Resource Group where VMs are located.
-	ResourceGroup string
-	// Region is the Azure Region where Teleport failed to enroll VMs.
-	Region string
-}
-
-func (b0 DiscoverAzureVM_builder) Build() *DiscoverAzureVM {
-	m0 := &DiscoverAzureVM{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Instances = b.Instances
-	x.SubscriptionId = b.SubscriptionId
-	x.ResourceGroup = b.ResourceGroup
-	x.Region = b.Region
-	return m0
-}
-
-// DiscoverAzureVMInstance contains the result of enrolling an Azure VM.
-type DiscoverAzureVMInstance struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// VM ID is the Azure VM ID that uniquely identifies the virtual machine.
-	VmId string `protobuf:"bytes,1,opt,name=vm_id,json=vmId,proto3" json:"vm_id,omitempty"`
-	// Resource ID allows locating the VM in resource hierarchy.
-	ResourceId string `protobuf:"bytes,2,opt,name=resource_id,json=resourceId,proto3" json:"resource_id,omitempty"`
-	// Name is the VM name.
-	Name string `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
-	// DiscoveryConfig is the discovery config name that originated this VM enrollment.
-	DiscoveryConfig string `protobuf:"bytes,4,opt,name=discovery_config,json=discoveryConfig,proto3" json:"discovery_config,omitempty"`
-	// DiscoveryGroup is the DiscoveryGroup name that originated this task.
-	DiscoveryGroup string `protobuf:"bytes,5,opt,name=discovery_group,json=discoveryGroup,proto3" json:"discovery_group,omitempty"`
-	// SyncTime is the timestamp when the error was produced.
-	SyncTime      *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=sync_time,json=syncTime,proto3" json:"sync_time,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *DiscoverAzureVMInstance) Reset() {
-	*x = DiscoverAzureVMInstance{}
-	mi := &file_teleport_usertasks_v1_user_tasks_proto_msgTypes[10]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *DiscoverAzureVMInstance) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*DiscoverAzureVMInstance) ProtoMessage() {}
-
-func (x *DiscoverAzureVMInstance) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_usertasks_v1_user_tasks_proto_msgTypes[10]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-func (x *DiscoverAzureVMInstance) GetVmId() string {
-	if x != nil {
-		return x.VmId
-	}
-	return ""
-}
-
-func (x *DiscoverAzureVMInstance) GetResourceId() string {
-	if x != nil {
-		return x.ResourceId
-	}
-	return ""
-}
-
-func (x *DiscoverAzureVMInstance) GetName() string {
-	if x != nil {
-		return x.Name
-	}
-	return ""
-}
-
-func (x *DiscoverAzureVMInstance) GetDiscoveryConfig() string {
-	if x != nil {
-		return x.DiscoveryConfig
-	}
-	return ""
-}
-
-func (x *DiscoverAzureVMInstance) GetDiscoveryGroup() string {
-	if x != nil {
-		return x.DiscoveryGroup
-	}
-	return ""
-}
-
-func (x *DiscoverAzureVMInstance) GetSyncTime() *timestamppb.Timestamp {
-	if x != nil {
-		return x.SyncTime
-	}
-	return nil
-}
-
-func (x *DiscoverAzureVMInstance) SetVmId(v string) {
-	x.VmId = v
-}
-
-func (x *DiscoverAzureVMInstance) SetResourceId(v string) {
-	x.ResourceId = v
-}
-
-func (x *DiscoverAzureVMInstance) SetName(v string) {
-	x.Name = v
-}
-
-func (x *DiscoverAzureVMInstance) SetDiscoveryConfig(v string) {
-	x.DiscoveryConfig = v
-}
-
-func (x *DiscoverAzureVMInstance) SetDiscoveryGroup(v string) {
-	x.DiscoveryGroup = v
-}
-
-func (x *DiscoverAzureVMInstance) SetSyncTime(v *timestamppb.Timestamp) {
-	x.SyncTime = v
-}
-
-func (x *DiscoverAzureVMInstance) HasSyncTime() bool {
-	if x == nil {
-		return false
-	}
-	return x.SyncTime != nil
-}
-
-func (x *DiscoverAzureVMInstance) ClearSyncTime() {
-	x.SyncTime = nil
-}
-
-type DiscoverAzureVMInstance_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// VM ID is the Azure VM ID that uniquely identifies the virtual machine.
-	VmId string
-	// Resource ID allows locating the VM in resource hierarchy.
-	ResourceId string
-	// Name is the VM name.
-	Name string
-	// DiscoveryConfig is the discovery config name that originated this VM enrollment.
-	DiscoveryConfig string
-	// DiscoveryGroup is the DiscoveryGroup name that originated this task.
-	DiscoveryGroup string
-	// SyncTime is the timestamp when the error was produced.
-	SyncTime *timestamppb.Timestamp
-}
-
-func (b0 DiscoverAzureVMInstance_builder) Build() *DiscoverAzureVMInstance {
-	m0 := &DiscoverAzureVMInstance{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.VmId = b.VmId
-	x.ResourceId = b.ResourceId
-	x.Name = b.Name
-	x.DiscoveryConfig = b.DiscoveryConfig
-	x.DiscoveryGroup = b.DiscoveryGroup
-	x.SyncTime = b.SyncTime
-	return m0
-}
-
 var File_teleport_usertasks_v1_user_tasks_proto protoreflect.FileDescriptor
 
 const file_teleport_usertasks_v1_user_tasks_proto_rawDesc = "" +
@@ -1553,7 +780,7 @@ const file_teleport_usertasks_v1_user_tasks_proto_rawDesc = "" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x128\n" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x127\n" +
 	"\x04spec\x18\x05 \x01(\v2#.teleport.usertasks.v1.UserTaskSpecR\x04spec\x12=\n" +
-	"\x06status\x18\x06 \x01(\v2%.teleport.usertasks.v1.UserTaskStatusR\x06status\"\xab\x03\n" +
+	"\x06status\x18\x06 \x01(\v2%.teleport.usertasks.v1.UserTaskStatusR\x06status\"\xd7\x02\n" +
 	"\fUserTaskSpec\x12 \n" +
 	"\vintegration\x18\x01 \x01(\tR\vintegration\x12\x1b\n" +
 	"\ttask_type\x18\x02 \x01(\tR\btaskType\x12\x1d\n" +
@@ -1562,8 +789,7 @@ const file_teleport_usertasks_v1_user_tasks_proto_rawDesc = "" +
 	"\x05state\x18\x04 \x01(\tR\x05state\x12E\n" +
 	"\fdiscover_ec2\x18\x05 \x01(\v2\".teleport.usertasks.v1.DiscoverEC2R\vdiscoverEc2\x12E\n" +
 	"\fdiscover_eks\x18\x06 \x01(\v2\".teleport.usertasks.v1.DiscoverEKSR\vdiscoverEks\x12E\n" +
-	"\fdiscover_rds\x18\a \x01(\v2\".teleport.usertasks.v1.DiscoverRDSR\vdiscoverRds\x12R\n" +
-	"\x11discover_azure_vm\x18\b \x01(\v2&.teleport.usertasks.v1.DiscoverAzureVMR\x0fdiscoverAzureVm\"X\n" +
+	"\fdiscover_rds\x18\a \x01(\v2\".teleport.usertasks.v1.DiscoverRDSR\vdiscoverRds\"X\n" +
 	"\x0eUserTaskStatus\x12F\n" +
 	"\x11last_state_change\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\x0flastStateChange\"\xcd\x02\n" +
 	"\vDiscoverEC2\x12O\n" +
@@ -1614,70 +840,59 @@ const file_teleport_usertasks_v1_user_tasks_proto_rawDesc = "" +
 	"\x06engine\x18\x03 \x01(\tR\x06engine\x12)\n" +
 	"\x10discovery_config\x18\x04 \x01(\tR\x0fdiscoveryConfig\x12'\n" +
 	"\x0fdiscovery_group\x18\x05 \x01(\tR\x0ediscoveryGroup\x127\n" +
-	"\tsync_time\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\bsyncTime\"\xbc\x02\n" +
-	"\x0fDiscoverAzureVM\x12S\n" +
-	"\tinstances\x18\x01 \x03(\v25.teleport.usertasks.v1.DiscoverAzureVM.InstancesEntryR\tinstances\x12'\n" +
-	"\x0fsubscription_id\x18\x02 \x01(\tR\x0esubscriptionId\x12%\n" +
-	"\x0eresource_group\x18\x03 \x01(\tR\rresourceGroup\x12\x16\n" +
-	"\x06region\x18\x04 \x01(\tR\x06region\x1al\n" +
-	"\x0eInstancesEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x12D\n" +
-	"\x05value\x18\x02 \x01(\v2..teleport.usertasks.v1.DiscoverAzureVMInstanceR\x05value:\x028\x01\"\xf0\x01\n" +
-	"\x17DiscoverAzureVMInstance\x12\x13\n" +
-	"\x05vm_id\x18\x01 \x01(\tR\x04vmId\x12\x1f\n" +
-	"\vresource_id\x18\x02 \x01(\tR\n" +
-	"resourceId\x12\x12\n" +
-	"\x04name\x18\x03 \x01(\tR\x04name\x12)\n" +
-	"\x10discovery_config\x18\x04 \x01(\tR\x0fdiscoveryConfig\x12'\n" +
-	"\x0fdiscovery_group\x18\x05 \x01(\tR\x0ediscoveryGroup\x127\n" +
 	"\tsync_time\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\bsyncTimeBVZTgithub.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1;usertasksv1b\x06proto3"
 
-var file_teleport_usertasks_v1_user_tasks_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
+var (
+	file_teleport_usertasks_v1_user_tasks_proto_rawDescOnce sync.Once
+	file_teleport_usertasks_v1_user_tasks_proto_rawDescData []byte
+)
+
+func file_teleport_usertasks_v1_user_tasks_proto_rawDescGZIP() []byte {
+	file_teleport_usertasks_v1_user_tasks_proto_rawDescOnce.Do(func() {
+		file_teleport_usertasks_v1_user_tasks_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_usertasks_v1_user_tasks_proto_rawDesc), len(file_teleport_usertasks_v1_user_tasks_proto_rawDesc)))
+	})
+	return file_teleport_usertasks_v1_user_tasks_proto_rawDescData
+}
+
+var file_teleport_usertasks_v1_user_tasks_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_teleport_usertasks_v1_user_tasks_proto_goTypes = []any{
-	(*UserTask)(nil),                // 0: teleport.usertasks.v1.UserTask
-	(*UserTaskSpec)(nil),            // 1: teleport.usertasks.v1.UserTaskSpec
-	(*UserTaskStatus)(nil),          // 2: teleport.usertasks.v1.UserTaskStatus
-	(*DiscoverEC2)(nil),             // 3: teleport.usertasks.v1.DiscoverEC2
-	(*DiscoverEC2Instance)(nil),     // 4: teleport.usertasks.v1.DiscoverEC2Instance
-	(*DiscoverEKS)(nil),             // 5: teleport.usertasks.v1.DiscoverEKS
-	(*DiscoverEKSCluster)(nil),      // 6: teleport.usertasks.v1.DiscoverEKSCluster
-	(*DiscoverRDS)(nil),             // 7: teleport.usertasks.v1.DiscoverRDS
-	(*DiscoverRDSDatabase)(nil),     // 8: teleport.usertasks.v1.DiscoverRDSDatabase
-	(*DiscoverAzureVM)(nil),         // 9: teleport.usertasks.v1.DiscoverAzureVM
-	(*DiscoverAzureVMInstance)(nil), // 10: teleport.usertasks.v1.DiscoverAzureVMInstance
-	nil,                             // 11: teleport.usertasks.v1.DiscoverEC2.InstancesEntry
-	nil,                             // 12: teleport.usertasks.v1.DiscoverEKS.ClustersEntry
-	nil,                             // 13: teleport.usertasks.v1.DiscoverRDS.DatabasesEntry
-	nil,                             // 14: teleport.usertasks.v1.DiscoverAzureVM.InstancesEntry
-	(*v1.Metadata)(nil),             // 15: teleport.header.v1.Metadata
-	(*timestamppb.Timestamp)(nil),   // 16: google.protobuf.Timestamp
+	(*UserTask)(nil),              // 0: teleport.usertasks.v1.UserTask
+	(*UserTaskSpec)(nil),          // 1: teleport.usertasks.v1.UserTaskSpec
+	(*UserTaskStatus)(nil),        // 2: teleport.usertasks.v1.UserTaskStatus
+	(*DiscoverEC2)(nil),           // 3: teleport.usertasks.v1.DiscoverEC2
+	(*DiscoverEC2Instance)(nil),   // 4: teleport.usertasks.v1.DiscoverEC2Instance
+	(*DiscoverEKS)(nil),           // 5: teleport.usertasks.v1.DiscoverEKS
+	(*DiscoverEKSCluster)(nil),    // 6: teleport.usertasks.v1.DiscoverEKSCluster
+	(*DiscoverRDS)(nil),           // 7: teleport.usertasks.v1.DiscoverRDS
+	(*DiscoverRDSDatabase)(nil),   // 8: teleport.usertasks.v1.DiscoverRDSDatabase
+	nil,                           // 9: teleport.usertasks.v1.DiscoverEC2.InstancesEntry
+	nil,                           // 10: teleport.usertasks.v1.DiscoverEKS.ClustersEntry
+	nil,                           // 11: teleport.usertasks.v1.DiscoverRDS.DatabasesEntry
+	(*v1.Metadata)(nil),           // 12: teleport.header.v1.Metadata
+	(*timestamppb.Timestamp)(nil), // 13: google.protobuf.Timestamp
 }
 var file_teleport_usertasks_v1_user_tasks_proto_depIdxs = []int32{
-	15, // 0: teleport.usertasks.v1.UserTask.metadata:type_name -> teleport.header.v1.Metadata
+	12, // 0: teleport.usertasks.v1.UserTask.metadata:type_name -> teleport.header.v1.Metadata
 	1,  // 1: teleport.usertasks.v1.UserTask.spec:type_name -> teleport.usertasks.v1.UserTaskSpec
 	2,  // 2: teleport.usertasks.v1.UserTask.status:type_name -> teleport.usertasks.v1.UserTaskStatus
 	3,  // 3: teleport.usertasks.v1.UserTaskSpec.discover_ec2:type_name -> teleport.usertasks.v1.DiscoverEC2
 	5,  // 4: teleport.usertasks.v1.UserTaskSpec.discover_eks:type_name -> teleport.usertasks.v1.DiscoverEKS
 	7,  // 5: teleport.usertasks.v1.UserTaskSpec.discover_rds:type_name -> teleport.usertasks.v1.DiscoverRDS
-	9,  // 6: teleport.usertasks.v1.UserTaskSpec.discover_azure_vm:type_name -> teleport.usertasks.v1.DiscoverAzureVM
-	16, // 7: teleport.usertasks.v1.UserTaskStatus.last_state_change:type_name -> google.protobuf.Timestamp
-	11, // 8: teleport.usertasks.v1.DiscoverEC2.instances:type_name -> teleport.usertasks.v1.DiscoverEC2.InstancesEntry
-	16, // 9: teleport.usertasks.v1.DiscoverEC2Instance.sync_time:type_name -> google.protobuf.Timestamp
-	12, // 10: teleport.usertasks.v1.DiscoverEKS.clusters:type_name -> teleport.usertasks.v1.DiscoverEKS.ClustersEntry
-	16, // 11: teleport.usertasks.v1.DiscoverEKSCluster.sync_time:type_name -> google.protobuf.Timestamp
-	13, // 12: teleport.usertasks.v1.DiscoverRDS.databases:type_name -> teleport.usertasks.v1.DiscoverRDS.DatabasesEntry
-	16, // 13: teleport.usertasks.v1.DiscoverRDSDatabase.sync_time:type_name -> google.protobuf.Timestamp
-	14, // 14: teleport.usertasks.v1.DiscoverAzureVM.instances:type_name -> teleport.usertasks.v1.DiscoverAzureVM.InstancesEntry
-	16, // 15: teleport.usertasks.v1.DiscoverAzureVMInstance.sync_time:type_name -> google.protobuf.Timestamp
-	4,  // 16: teleport.usertasks.v1.DiscoverEC2.InstancesEntry.value:type_name -> teleport.usertasks.v1.DiscoverEC2Instance
-	6,  // 17: teleport.usertasks.v1.DiscoverEKS.ClustersEntry.value:type_name -> teleport.usertasks.v1.DiscoverEKSCluster
-	8,  // 18: teleport.usertasks.v1.DiscoverRDS.DatabasesEntry.value:type_name -> teleport.usertasks.v1.DiscoverRDSDatabase
-	10, // 19: teleport.usertasks.v1.DiscoverAzureVM.InstancesEntry.value:type_name -> teleport.usertasks.v1.DiscoverAzureVMInstance
-	20, // [20:20] is the sub-list for method output_type
-	20, // [20:20] is the sub-list for method input_type
-	20, // [20:20] is the sub-list for extension type_name
-	20, // [20:20] is the sub-list for extension extendee
-	0,  // [0:20] is the sub-list for field type_name
+	13, // 6: teleport.usertasks.v1.UserTaskStatus.last_state_change:type_name -> google.protobuf.Timestamp
+	9,  // 7: teleport.usertasks.v1.DiscoverEC2.instances:type_name -> teleport.usertasks.v1.DiscoverEC2.InstancesEntry
+	13, // 8: teleport.usertasks.v1.DiscoverEC2Instance.sync_time:type_name -> google.protobuf.Timestamp
+	10, // 9: teleport.usertasks.v1.DiscoverEKS.clusters:type_name -> teleport.usertasks.v1.DiscoverEKS.ClustersEntry
+	13, // 10: teleport.usertasks.v1.DiscoverEKSCluster.sync_time:type_name -> google.protobuf.Timestamp
+	11, // 11: teleport.usertasks.v1.DiscoverRDS.databases:type_name -> teleport.usertasks.v1.DiscoverRDS.DatabasesEntry
+	13, // 12: teleport.usertasks.v1.DiscoverRDSDatabase.sync_time:type_name -> google.protobuf.Timestamp
+	4,  // 13: teleport.usertasks.v1.DiscoverEC2.InstancesEntry.value:type_name -> teleport.usertasks.v1.DiscoverEC2Instance
+	6,  // 14: teleport.usertasks.v1.DiscoverEKS.ClustersEntry.value:type_name -> teleport.usertasks.v1.DiscoverEKSCluster
+	8,  // 15: teleport.usertasks.v1.DiscoverRDS.DatabasesEntry.value:type_name -> teleport.usertasks.v1.DiscoverRDSDatabase
+	16, // [16:16] is the sub-list for method output_type
+	16, // [16:16] is the sub-list for method input_type
+	16, // [16:16] is the sub-list for extension type_name
+	16, // [16:16] is the sub-list for extension extendee
+	0,  // [0:16] is the sub-list for field type_name
 }
 
 func init() { file_teleport_usertasks_v1_user_tasks_proto_init() }
@@ -1691,7 +906,7 @@ func file_teleport_usertasks_v1_user_tasks_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_usertasks_v1_user_tasks_proto_rawDesc), len(file_teleport_usertasks_v1_user_tasks_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   15,
+			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

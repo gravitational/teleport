@@ -5,8 +5,6 @@ sidebar_position: 6
 tags:
  - how-to
  - identity-governance
- - access-risks
-enterprise: Identity Governance
 ---
 
 Access Monitoring allows users to understand and analyze the access patterns in a Teleport cluster.
@@ -23,7 +21,7 @@ Users are able to write their own custom access monitoring queries by querying t
 
 ## Prerequisites
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
-- For self-hosted Teleport the [Amazon Athena Backend](../reference/deployment/backends.mdx) is required.
+- For self-hosted Teleport the [Amazon Athena Backend](../reference/backends.mdx) is required.
 
 
 ### Configuration
@@ -94,7 +92,7 @@ Below, you can find the IAM permissions that allow the Auth Service to execute A
       ],
       "Effect": "Allow",
       "Resource": [
-        "arn:aws:s3:::audit-transient/results/*",
+        "arn:aws:s3::::audit-transient/results/*",
         "arn:aws:s3:::audit-long-term/report_results/*"
       ]
     },
@@ -319,7 +317,7 @@ The report allows to identify the following weak security events:
 ### Database sessions with weak security
 
 The following query identifies database sessions with weak security
-such as sessions with missing Access Requests, MFA, impersonation, and trusted device identification.
+such as as sessions with missing Access Requests, MFA, impersonation, and trusted device identification.
 
 ```sql
 SELECT
@@ -351,7 +349,7 @@ ORDER BY
 ### SSH sessions with weak security
 
 The following query identifies SSH sessions with weak security,
-such as sessions with missing Access Requests, MFA, impersonation, and trusted device identification.
+such as as sessions with missing Access Requests, MFA, impersonation, and trusted device identification.
 
 ```sql
 SELECT
@@ -499,7 +497,7 @@ ORDER BY
     event_date
 ```
 
-**Suggestion:**  Use short-lived tokens to reduce risk of compromise or [delegated](../reference/deployment/join-methods.mdx) joining when possible.
+**Suggestion:**  Use short-lived tokens to reduce risk of compromise or [delegated](../reference/join-methods.mdx) joining when possible.
 
 ### Root SSH sessions
 

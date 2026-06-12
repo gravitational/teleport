@@ -17,10 +17,11 @@
  */
 
 import { within } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router';
+import { MemoryRouter } from 'react-router';
 
 import { render, screen, userEvent, waitFor } from 'design/utils/testing';
 
+import { Route } from 'teleport/components/Router';
 import cfg from 'teleport/config';
 import { Agents } from 'teleport/Integrations/status/AwsOidc/Details/Agents';
 import { integrationService } from 'teleport/services/integrations';
@@ -61,12 +62,10 @@ test('renders service name & labels from response', async () => {
         `/web/integrations/status/aws-oidc/some-name/resources/rds?tab=agents`,
       ]}
     >
-      <Routes>
-        <Route
-          path={cfg.routes.integrationStatusResources}
-          element={<Agents />}
-        />
-      </Routes>
+      <Route
+        path={cfg.routes.integrationStatusResources}
+        render={() => <Agents />}
+      />
     </MemoryRouter>
   );
 

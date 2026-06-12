@@ -2,6 +2,7 @@
   "compilerOptions": {
     "allowSyntheticDefaultImports": true,
     "allowJs": true,
+    "baseUrl": ".",
     "useDefineForClassFields": true,
     "esModuleInterop": true,
     "importHelpers": true,
@@ -12,7 +13,6 @@
     "moduleResolution": "bundler",
     "lib": ["dom", "dom.iterable", "esnext"],
     "jsx": "react-jsx",
-    "strict": false,
     "strictBindCallApply": true,
     "noImplicitThis": true,
     "noEmitHelpers": true,

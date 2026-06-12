@@ -16,20 +16,24 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import crypto from 'node:crypto';
-import path from 'node:path';
+/* oxlint-disable typescript/no-require-imports */
 
-import { configure as configureTestingLibrary } from '@testing-library/react';
-import failOnConsole from 'jest-fail-on-console';
-import { configMocks } from 'jsdom-testing-mocks';
-import { act } from 'react';
+import 'whatwg-fetch';
+
+const crypt = require('crypto');
+const path = require('path');
+
+const {
+  configure: configureTestingLibrary,
+} = require('@testing-library/react');
+const failOnConsole = require('jest-fail-on-console');
+const { configMocks } = require('jsdom-testing-mocks');
+const { act } = require('react');
 
 configMocks({ act });
 
 let entFailOnConsoleIgnoreList = [];
 try {
-  // Cannot do `await import` yet here.
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   entFailOnConsoleIgnoreList = require('../../../../e/web/testsWithIgnoredConsole');
 } catch (err) {
   // Ignore errors related to teleport.e not being present. This allows OSS users and OSS CI to run
@@ -41,9 +45,7 @@ try {
 
 Object.defineProperty(globalThis, 'crypto', {
   value: {
-    randomUUID: () => crypto.randomUUID(),
-    getRandomValues: (arr =>
-      crypto.getRandomValues(arr)) as typeof crypto.getRandomValues,
+    randomUUID: () => crypt.randomUUID(),
   },
 });
 

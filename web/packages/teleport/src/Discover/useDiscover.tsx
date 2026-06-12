@@ -17,7 +17,7 @@
  */
 
 import React, { useCallback, useContext, useEffect, useState } from 'react';
-import { Location, useLocation } from 'react-router';
+import { useHistory, useLocation } from 'react-router';
 
 import { useInfoGuide } from 'shared/components/SlidingSidePanel/InfoGuide';
 
@@ -32,6 +32,7 @@ import type { Database } from 'teleport/services/databases';
 import { DiscoveryConfig } from 'teleport/services/discovery';
 import type {
   AwsRdsDatabase,
+  Ec2InstanceConnectEndpoint,
   IntegrationAwsOidc,
   Regions,
 } from 'teleport/services/integrations';
@@ -136,7 +137,8 @@ export function DiscoverProvider({
   eViewConfigs = [],
   updateFlow,
 }: React.PropsWithChildren<DiscoverProviderProps>) {
-  const location = useLocation() as Location<DiscoverUrlLocationState>;
+  const history = useHistory();
+  const location = useLocation<DiscoverUrlLocationState>();
   const { infoGuideConfig, setInfoGuideConfig } = useInfoGuide();
 
   const [currentStep, setCurrentStep] = useState(0);
@@ -211,13 +213,13 @@ export function DiscoverProvider({
       // Emit abort event upon unmounting from going back or
       // forward to a non-discover route or upon exiting from
       // the exit prompt.
-      if (location.pathname !== cfg.routes.discover) {
+      if (history.location.pathname !== cfg.routes.discover) {
         emitAbortOrSuccessEvent();
       }
 
       window.removeEventListener('beforeunload', emitAbortOrSuccessEvent);
     };
-  }, [eventState, location.pathname, emitEvent]);
+  }, [eventState, history.location.pathname, emitEvent]);
 
   useEffect(() => {
     if (location.state?.discover) {
@@ -297,7 +299,7 @@ export function DiscoverProvider({
     // We still want to emit an event if user clicked on an
     // unguided link to gather data on which unguided resource
     // is most popular.
-    if (resource.unguidedLink || resource.guidedLink || resource.isDialog) {
+    if (resource.unguidedLink || resource.isDialog) {
       emitEvent(
         { stepStatus: DiscoverEventStatus.Success },
         {
@@ -553,6 +555,7 @@ export type AutoDiscovery = {
 // that needs to be preserved throughout the flow.
 export type NodeMeta = BaseMeta & {
   node: Node;
+  ec2Ices?: Ec2InstanceConnectEndpoint[];
 };
 
 export type DatabaseServiceDeploy =

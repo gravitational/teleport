@@ -20,13 +20,11 @@ package local
 
 import (
 	"context"
-	"errors"
-	"log/slog"
-	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -44,21 +42,20 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/devicetrust"
-	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
 )
 
 // EventsService implements service to watch for events
 type EventsService struct {
-	logger  *slog.Logger
+	*logrus.Entry
 	backend backend.Backend
 }
 
 // NewEventsService returns new events service instance
 func NewEventsService(b backend.Backend) *EventsService {
 	return &EventsService{
-		logger:  slog.With(teleport.ComponentKey, "Events"),
+		Entry:   logrus.WithFields(logrus.Fields{teleport.ComponentKey: "Events"}),
 		backend: b,
 	}
 }
@@ -87,8 +84,6 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newProvisionTokenParser()
 		case types.KindStaticTokens:
 			parser = newStaticTokensParser()
-		case types.KindStaticScopedTokens:
-			parser = newStaticScopedTokenParser()
 		case types.KindClusterAuditConfig:
 			parser = newClusterAuditConfigParser()
 		case types.KindClusterNetworkingConfig:
@@ -115,10 +110,6 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newNamespaceParser(kind.Name)
 		case types.KindRole:
 			parser = newRoleParser()
-		case scopedaccess.KindScopedRole:
-			parser = newScopedRoleParser()
-		case scopedaccess.KindScopedRoleAssignment:
-			parser = newScopedRoleAssignmentParser()
 		case types.KindUser:
 			parser = newUserParser()
 		case types.KindNode:
@@ -142,10 +133,10 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = p
 		case types.KindAppServer:
 			parser = newAppServerV3Parser()
-		case types.KindBeam:
-			parser = newBeamParser()
 		case types.KindWebSession:
 			switch kind.SubKind {
+			case types.KindSAMLIdPSession:
+				parser = newSAMLIdPSessionParser(kind.LoadSecrets)
 			case types.KindSnowflakeSession:
 				parser = newSnowflakeSessionParser(kind.LoadSecrets)
 			case types.KindAppSession:
@@ -184,8 +175,6 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newWindowsDesktopsParser()
 		case types.KindDynamicWindowsDesktop:
 			parser = newDynamicWindowsDesktopsParser()
-		case types.KindLinuxDesktop:
-			parser = newLinuxDesktopsParser()
 		case types.KindInstaller:
 			parser = newInstallerParser()
 		case types.KindKubernetesCluster:
@@ -194,8 +183,6 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newCrownJewelParser()
 		case types.KindPlugin:
 			parser = newPluginParser(kind.LoadSecrets)
-		case types.KindSAMLConnector:
-			parser = newSAMLConnectorParser(kind.LoadSecrets)
 		case types.KindSAMLIdPServiceProvider:
 			parser = newSAMLIDPServiceProviderParser()
 		case types.KindUserGroup:
@@ -265,38 +252,14 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newIdentityCenterPrincipalAssignmentParser()
 		case types.KindIdentityCenterAccountAssignment:
 			parser = newIdentityCenterAccountAssignmentParser()
+		case types.KindWorkloadIdentity:
+			parser = newWorkloadIdentityParser()
 		case types.KindPluginStaticCredentials:
 			parser = newPluginStaticCredentialsParser()
 		case types.KindGitServer:
 			parser = newGitServerParser()
-		case types.KindWorkloadIdentity:
-			parser = newWorkloadIdentityParser()
 		case types.KindWorkloadIdentityX509Revocation:
 			parser = newWorkloadIdentityX509RevocationParser()
-		case types.KindHealthCheckConfig:
-			parser = newHealthCheckConfigParser()
-		case types.KindRecordingEncryption:
-			parser = newRecordingEncryptionParser()
-		case types.KindRotatedKey:
-			parser = newRotatedKeyParser()
-		case types.KindRelayServer:
-			parser = newRelayServerParser()
-		case types.KindScopedToken:
-			parser = newScopedTokenParser()
-		case types.KindAppAuthConfig:
-			parser = newAppAuthConfigParser()
-		case types.KindInferenceModel:
-			parser = newInferenceModelParser()
-		case types.KindInferencePolicy:
-			parser = newInferencePolicyParser()
-		case types.KindInferenceSecret:
-			parser = newInferenceSecretParser()
-		case types.KindRetrievalModel:
-			parser = newRetrievalModelParser()
-		case types.KindCertAuthorityOverride:
-			parser = newCertAuthorityOverrideParser()
-		case types.KindValidatedMFAChallenge:
-			parser = newValidatedMFAChallengeParser()
 		default:
 			if watch.AllowPartialSuccess {
 				continue
@@ -330,13 +293,13 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return newWatcher(w, e.logger, parsers, validKinds), nil
+	return newWatcher(w, e.Entry, parsers, validKinds), nil
 }
 
-func newWatcher(backendWatcher backend.Watcher, l *slog.Logger, parsers []resourceParser, kinds []types.WatchKind) *watcher {
+func newWatcher(backendWatcher backend.Watcher, l *logrus.Entry, parsers []resourceParser, kinds []types.WatchKind) *watcher {
 	w := &watcher{
 		backendWatcher: backendWatcher,
-		logger:         l,
+		Entry:          l,
 		parsers:        parsers,
 		eventsC:        make(chan types.Event),
 		kinds:          kinds,
@@ -346,7 +309,7 @@ func newWatcher(backendWatcher backend.Watcher, l *slog.Logger, parsers []resour
 }
 
 type watcher struct {
-	logger         *slog.Logger
+	*logrus.Entry
 	parsers        []resourceParser
 	backendWatcher backend.Watcher
 	eventsC        chan types.Event
@@ -367,10 +330,6 @@ func (w *watcher) parseEvent(e backend.Event) ([]types.Event, []error) {
 		if p.match(e.Item.Key) {
 			resource, err := p.parse(e)
 			if err != nil {
-				if eo := parseEventOverrideError(nil); errors.As(err, &eo) {
-					events = append(events, eo...)
-					continue
-				}
 				errs = append(errs, trace.Wrap(err))
 				continue
 			}
@@ -397,7 +356,7 @@ func (w *watcher) forwardEvents() {
 				// node events as well, and there could be no
 				// handler registered for nodes, only for namespaces
 				if !trace.IsNotFound(err) {
-					w.logger.WarnContext(context.Background(), "failed parsing event", "error", err)
+					w.Warning(trace.DebugReport(err))
 				}
 			}
 			for _, c := range converted {
@@ -430,20 +389,13 @@ func (w *watcher) Close() error {
 // resourceParser is an interface
 // for parsing resource from backend byte event stream
 type resourceParser interface {
-	// parse parses resource from the backend event; if the returned error is a
-	// parseEventOverrideError then the returned resource is ignored and the
-	// events in the parseEventOverrideError will be added to the generated
-	// events instead.
+	// parse parses resource from the backend event
 	parse(event backend.Event) (types.Resource, error)
 	// match returns true if event key matches
 	match(key backend.Key) bool
 	// prefixes returns prefixes to watch
 	prefixes() []backend.Key
 }
-
-type parseEventOverrideError []types.Event
-
-func (p parseEventOverrideError) Error() string { return "parseEventOverrideError" }
 
 // baseParser is a partial implementation of resourceParser for the most common
 // resource types (stored under a static prefix).
@@ -460,7 +412,12 @@ func (p baseParser) prefixes() []backend.Key {
 }
 
 func (p baseParser) match(key backend.Key) bool {
-	return slices.ContainsFunc(p.matchPrefixes, key.HasPrefix)
+	for _, prefix := range p.matchPrefixes {
+		if key.HasPrefix(prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 func newCertAuthorityParser(loadSecrets bool, filter map[string]string) *certAuthorityParser {
@@ -1060,7 +1017,7 @@ func (p *roleParser) parse(event backend.Event) (types.Resource, error) {
 
 		return &types.ResourceHeader{
 			Kind:    types.KindRole,
-			Version: types.V8,
+			Version: types.V7,
 			Metadata: types.Metadata{
 				Name:      strings.TrimPrefix(name, backend.SeparatorString),
 				Namespace: apidefaults.Namespace,
@@ -1075,98 +1032,6 @@ func (p *roleParser) parse(event backend.Event) (types.Resource, error) {
 			return nil, trace.Wrap(err)
 		}
 		return resource, nil
-	default:
-		return nil, trace.BadParameter("event %v is not supported", event.Type)
-	}
-}
-
-func newScopedRoleParser() *scopedRoleParser {
-	return &scopedRoleParser{
-		baseParser: newBaseParser(scopedRoleWatchPrefix()),
-	}
-}
-
-type scopedRoleParser struct {
-	baseParser
-}
-
-func (p *scopedRoleParser) parse(event backend.Event) (types.Resource, error) {
-	switch event.Type {
-	case types.OpDelete:
-		name := strings.TrimPrefix(event.Item.Key.TrimPrefix(scopedRoleWatchPrefix()).String(), backend.SeparatorString)
-		if name == "" || strings.Contains(name, "/") {
-			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
-		}
-		return &types.ResourceHeader{
-			Kind: scopedaccess.KindScopedRole,
-			Metadata: types.Metadata{
-				Name: name,
-			},
-		}, nil
-	case types.OpPut:
-		role, err := scopedRoleFromItem(&event.Item)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return types.Resource153ToLegacy(role), nil
-	default:
-		return nil, trace.BadParameter("event %v is not supported", event.Type)
-	}
-}
-
-func newScopedRoleAssignmentParser() *scopedRoleAssignmentParser {
-	return &scopedRoleAssignmentParser{
-		baseParser: newBaseParser(scopedRoleAssignmentWatchPrefix()),
-	}
-}
-
-type scopedRoleAssignmentParser struct {
-	baseParser
-}
-
-func (p *scopedRoleAssignmentParser) parse(event backend.Event) (types.Resource, error) {
-	switch event.Type {
-	case types.OpDelete:
-		components := event.Item.Key.TrimPrefix(scopedRoleAssignmentWatchPrefix()).Components()
-		name := ""
-		subKind := ""
-		switch len(components) {
-		case 1:
-			name = components[0]
-		case 2:
-			name = components[0]
-			subKind = components[1]
-		default:
-			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
-		}
-		if name == "" {
-			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
-		}
-		if subKind == scopedaccess.SubKindMaterialized {
-			// Materialized assignments are filtered out from backend events in
-			// case a future version persists materialized assignments to the
-			// backend.
-			return nil, nil
-		}
-		return &types.ResourceHeader{
-			Kind:    scopedaccess.KindScopedRoleAssignment,
-			SubKind: subKind,
-			Metadata: types.Metadata{
-				Name: name,
-			},
-		}, nil
-	case types.OpPut:
-		assignment, err := scopedRoleAssignmentFromItem(&event.Item)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if assignment.GetSubKind() == scopedaccess.SubKindMaterialized {
-			// Materialized assignments are filtered out from backend events in
-			// case a future version persists materialized assignments to the
-			// backend.
-			return nil, nil
-		}
-		return types.Resource153ToLegacy(assignment), nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
@@ -1520,6 +1385,18 @@ func (p *appServerV3Parser) parse(event backend.Event) (types.Resource, error) {
 		)
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newSAMLIdPSessionParser(loadSecrets bool) *webSessionParser {
+	return &webSessionParser{
+		baseParser:  newBaseParser(backend.NewKey(samlIdPPrefix, sessionsPrefix)),
+		loadSecrets: loadSecrets,
+		hdr: types.ResourceHeader{
+			Kind:    types.KindWebSession,
+			SubKind: types.KindSAMLIdPSession,
+			Version: types.V2,
+		},
 	}
 }
 
@@ -2045,11 +1922,16 @@ func (p *networkRestrictionsParser) match(key backend.Key) bool {
 func (p *networkRestrictionsParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
+		name := event.Item.Key.TrimPrefix(backend.NewKey(restrictionsPrefix, network)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
 		return &types.ResourceHeader{
 			Kind:    types.KindNetworkRestrictions,
 			Version: types.V1,
 			Metadata: types.Metadata{
-				Name:      types.MetaNameNetworkRestrictions,
+				Name:      strings.TrimPrefix(name, backend.SeparatorString),
 				Namespace: apidefaults.Namespace,
 			},
 		}, nil
@@ -2175,46 +2057,6 @@ func (p *windowsDesktopsParser) parse(event backend.Event) (types.Resource, erro
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
 		)
-	default:
-		return nil, trace.BadParameter("event %v is not supported", event.Type)
-	}
-}
-
-func newLinuxDesktopsParser() *linuxDesktopParser {
-	return &linuxDesktopParser{
-		baseParser: newBaseParser(backend.NewKey(linuxDesktopKey)),
-	}
-}
-
-type linuxDesktopParser struct {
-	baseParser
-}
-
-func (p *linuxDesktopParser) parse(event backend.Event) (types.Resource, error) {
-	switch event.Type {
-	case types.OpDelete:
-		name := event.Item.Key.TrimPrefix(backend.NewKey(linuxDesktopKey)).String()
-		if name == "" {
-			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
-		}
-
-		return &types.ResourceHeader{
-			Kind:    types.KindLinuxDesktop,
-			Version: types.V1,
-			Metadata: types.Metadata{
-				Name:      strings.TrimPrefix(name, backend.SeparatorString),
-				Namespace: apidefaults.Namespace,
-			},
-		}, nil
-	case types.OpPut:
-		r, err := services.UnmarshalLinuxDesktop(event.Item.Value,
-			services.WithExpires(event.Item.Expires),
-			services.WithRevision(event.Item.Revision),
-		)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return types.ProtoResource153ToLegacy(r), nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
@@ -3187,7 +3029,7 @@ func WaitForEvent(ctx context.Context, watcher types.Watcher, m EventMatcher, cl
 				return res, nil
 			}
 			if !trace.IsCompareFailed(err) {
-				slog.DebugContext(ctx, "Failed to match event", "error", err)
+				logrus.WithError(err).Debug("Failed to match event.")
 			}
 		case <-watcher.Done():
 			// Watcher closed, probably due to a network error.

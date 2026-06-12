@@ -21,7 +21,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { http, HttpResponse } from 'msw';
 import { initialize, mswLoader } from 'msw-storybook-addon';
 import { ComponentType, PropsWithChildren } from 'react';
-import { sb } from 'storybook/test';
 
 import Box from '../packages/design/src/Box';
 import { bblpTheme, darkTheme, lightTheme } from '../packages/design/src/theme';
@@ -73,8 +72,6 @@ initialize(
     }),
   ]
 );
-
-sb.mock(import('../packages/teleport/src/services/recordings/metadata.ts'));
 
 history.init();
 
@@ -150,12 +147,7 @@ const preview: Preview = {
     controls: { expanded: true, disableSaveFromUI: true },
   },
   argTypes: { userContext: { table: { disable: true } } },
-  loaders: [
-    mswLoader,
-    () => {
-      queryClient.clear();
-    },
-  ],
+  loaders: [mswLoader],
   decorators: [
     (Story, meta) => (
       <QueryClientProvider client={queryClient}>

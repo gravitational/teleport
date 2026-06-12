@@ -4,7 +4,6 @@ description: Protect applications with Teleport by deploying the Teleport Applic
 template: doc-page
 tags:
  - zero-trust
- - infrastructure-identity
 ---
 
 import DocHero from "@site/src/components/Pages/Landing/DocHero";
@@ -57,10 +56,6 @@ import questionSvg from "@site/src/components/Icon/svg/question2.svg";
 Teleport provides secure access to applications and cloud provider APIs with RBAC, audit logging, and just-in-time access. 
 
 The Teleport Application Service enables secure connections to private networks, supports Teleport JWTs for authentication, and provides guidance on app enrollment and access control configuration.
-
-Note that it is also possible to secure applications with Teleport Identity
-Governance by setting up Teleport as an IdP. See [Using the Teleport SAML
-IdP](../../identity-governance/idps/usage/usage.mdx).
 </DocHero>
 
 <UseCasesList
@@ -76,17 +71,17 @@ IdP](../../identity-governance/idps/usage/usage.mdx).
     {
       title: "Web apps",
       description: "Connect a web application to manage and control access, set up RBAC, audit logging and more.",
-      href: "./protect-apps/connecting-apps/",
+      href: "./guides/connecting-apps/",
     }, 
     {
       title: "TCP apps",
       description: "Connect to services not natively supported by Teleport, like SMTP servers and databases.",
-      href: "./protect-apps/tcp/",
+      href: "./guides/tcp/",
     },
     {
       title: "REST APIs",
       description: "Use Teleport to access REST APIs with tools like curl or Postman.",
-      href: "./protect-apps/api-access/",
+      href: "./guides/api-access/",
     },
   ]}
 />
@@ -99,7 +94,7 @@ IdP](../../identity-governance/idps/usage/usage.mdx).
     {
       title: "Dynamic app registration",
       description: "Admin can register new apps without updating static configuration files.",
-      href: "./configuration/dynamic-registration/",
+      href: "./guides/dynamic-registration/",
     },
     {
       title: "JWT authentication",

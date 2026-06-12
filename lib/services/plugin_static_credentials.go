@@ -80,7 +80,6 @@ func UnmarshalPluginStaticCredentials(data []byte, opts ...MarshalOption) (types
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	var h types.MessageWithHeader
 	// every field but one is unknown to [types.MessageWithHeader] so this
 	// unmarshal must discard unknown fields

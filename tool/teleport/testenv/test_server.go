@@ -27,6 +27,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -42,17 +43,19 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils/hostid"
+	"github.com/gravitational/teleport/tool/teleport/common"
 )
 
 const (
@@ -64,6 +67,13 @@ const (
 const StaticToken = "test-static-token"
 
 func init() {
+	// If the test is re-executing itself, execute the command that comes over
+	// the pipe. Used to test tsh ssh and tsh scp commands.
+	if srv.IsReexec() {
+		common.Run(common.Options{Args: os.Args[1:]})
+		return
+	}
+
 	modules.SetModules(&cliModules{})
 }
 
@@ -102,8 +112,7 @@ func NewTeleportProcess(dataDir string, opts ...TestServerOptFunc) (_ *service.T
 
 	cfg.Hostname = "server01"
 	cfg.DataDir = dataDir
-	cfg.Logger = logtest.NewLogger()
-
+	cfg.Logger = utils.NewSlogLoggerForTests()
 	authAddr, err := newTCPListener(service.ListenerAuth, &cfg.FileDescriptors)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -398,12 +407,6 @@ func WithLogger(log *slog.Logger) TestServerOptFunc {
 	})
 }
 
-func WithScopesFeatures(features scopes.Features) TestServerOptFunc {
-	return WithConfig(func(cfg *servicecfg.Config) {
-		cfg.ScopesFeatures = features
-	})
-}
-
 // WithProxyKube enables the Proxy Kube listener with a random address.
 func WithProxyKube() TestServerOptFunc {
 	return func(o *TestServersOpts) error {
@@ -461,16 +464,8 @@ func StartDummyHTTPServer(name string) *httptest.Server {
 
 type cliModules struct{}
 
-func (p *cliModules) GenerateLongTermResourceGrouping(_ context.Context, _ modules.AccessResourcesGetter, _ types.AccessRequest) (*types.LongTermResourceGrouping, error) {
-	return &types.LongTermResourceGrouping{}, nil
-}
-
 func (p *cliModules) GenerateAccessRequestPromotions(_ context.Context, _ modules.AccessResourcesGetter, _ types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
 	return &types.AccessRequestAllowedPromotions{}, nil
-}
-
-func (p *cliModules) GenerateAccessRequestSuggestedReviewers(_ context.Context, _ modules.AccessResourcesGetter, _ types.AccessRequest) ([]string, error) {
-	return []string{}, nil
 }
 
 func (p *cliModules) GetSuggestedAccessLists(ctx context.Context, _ *tlsca.Identity, _ modules.AccessListSuggestionClient, _ modules.AccessListAndMembersGetter, _ string) ([]*accesslist.AccessList, error) {
@@ -515,13 +510,13 @@ func (p *cliModules) Features() modules.Features {
 	}
 }
 
-// IsFIPSBuild checks if the binary was compiled in FIPS140 mode.
-func (p *cliModules) IsFIPSBuild() bool {
+// IsBoringBinary checks if the binary was compiled with BoringCrypto.
+func (p *cliModules) IsBoringBinary() bool {
 	return false
 }
 
 // AttestHardwareKey attests a hardware key.
-func (p *cliModules) AttestHardwareKey(_ context.Context, _ any, _ *hardwarekey.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (*keys.AttestationData, error) {
+func (p *cliModules) AttestHardwareKey(_ context.Context, _ interface{}, _ *hardwarekey.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (*keys.AttestationData, error) {
 	return nil, trace.NotFound("no attestation data for the given key")
 }
 
@@ -543,10 +538,14 @@ func (p *cliModules) SetFeatures(f modules.Features) {
 // NewTeleportProcess.
 func NewDefaultAuthClient(process *service.TeleportProcess) (*authclient.Client, error) {
 	cfg := process.Config
-	identity, err := storage.ReadLocalIdentityForRole(
-		process.GracefulExitContext(),
+	hostUUID, err := hostid.ReadFile(process.Config.DataDir)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	identity, err := storage.ReadLocalIdentity(
 		filepath.Join(cfg.DataDir, teleport.ComponentProcess),
-		types.RoleAdmin,
+		state.IdentityID{Role: types.RoleAdmin, HostUUID: hostUUID},
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)

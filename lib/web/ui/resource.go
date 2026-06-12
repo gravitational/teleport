@@ -42,9 +42,6 @@ type ResourceItem struct {
 	Description string `json:"description,omitempty"`
 	// Content is resource yaml content.
 	Content string `json:"content"`
-	// Object is the resource itself (the non string format).
-	// Supported for roles.
-	Object types.Resource `json:"object,omitempty"`
 }
 
 // NewResourceItem creates UI objects for a resource.
@@ -69,16 +66,18 @@ func NewResourceItem(resource types.Resource) (*ResourceItem, error) {
 }
 
 // NewRoles creates resource item for each role.
-func NewRoles(roles []types.Role, includeRoleObject bool) ([]ResourceItem, error) {
+func NewRoles(roles []types.Role) ([]ResourceItem, error) {
 	items := make([]ResourceItem, 0, len(roles))
 	for _, role := range roles {
+		// filter out system roles from web UI
+		// TODO(gzdunek): DELETE IN 17.0.0: We filter out the roles in the auth server.
+		if types.IsSystemResource(role) {
+			continue
+		}
+
 		item, err := NewResourceItem(role)
 		if err != nil {
 			return nil, trace.Wrap(err)
-		}
-
-		if includeRoleObject {
-			item.Object = role
 		}
 
 		items = append(items, *item)

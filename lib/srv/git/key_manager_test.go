@@ -30,7 +30,6 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
-	apissh "github.com/gravitational/teleport/api/ssh"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -38,7 +37,7 @@ import (
 )
 
 func TestKeyManager_verify_github(t *testing.T) {
-	ctx, cancel := context.WithCancel(t.Context())
+	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
 	bk, err := memory.New(memory.Config{})
@@ -54,10 +53,8 @@ func TestKeyManager_verify_github(t *testing.T) {
 	// Prep mock servers and point things to them.
 	// If TELEPORT_GIT_TEST_REAL_GITHUB=true, use local SSH agent to connect
 	// against "github.com:22".
-	var (
-		targetAddress  string
-		signerCallback func() ([]ssh.Signer, error)
-	)
+	var clientAuth []ssh.AuthMethod
+	var targetAddress string
 	githubServerKeys := newGitHubKeyDownloader()
 	switch os.Getenv("TELEPORT_GIT_TEST_REAL_GITHUB") {
 	case "true", "1":
@@ -68,14 +65,11 @@ func TestKeyManager_verify_github(t *testing.T) {
 		require.NoError(t, err)
 		defer sock.Close()
 		agentClient := agent.NewClient(sock)
-		signerCallback = agentClient.Signers
+		clientAuth = append(clientAuth, ssh.PublicKeysCallback(agentClient.Signers))
 	default:
 		mockGitHubSSHServer := newMockGitHostingService(t, caSigner)
 		targetAddress = mockGitHubSSHServer.Addr()
 		githubServerKeys.apiEndpoint = newMockGitHubMetaAPIServer(t, mockGitHubSSHServer.hostKey).URL
-		signerCallback = func() ([]ssh.Signer, error) {
-			return []ssh.Signer{mockSigner{}}, nil
-		}
 	}
 
 	m, err := NewKeyManager(&KeyManagerConfig{
@@ -93,15 +87,13 @@ func TestKeyManager_verify_github(t *testing.T) {
 	t.Run("connect and verify", func(t *testing.T) {
 		hostKeyCallback, err := m.HostKeyCallback(githubServer)
 		require.NoError(t, err)
-		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			conn, err := apissh.Dial(ctx, "tcp", targetAddress, apissh.ClientConfig{
-				User: "git",
-				PublicKeyAuth: apissh.PublicKeyAuthConfig{
-					Signers: signerCallback,
-				},
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+			conn, err := ssh.Dial("tcp", targetAddress, &ssh.ClientConfig{
+				User:            "git",
+				Auth:            clientAuth,
 				HostKeyCallback: hostKeyCallback,
 			})
-			require.NoError(t, err)
+			assert.NoError(collect, err)
 			if conn != nil {
 				conn.Close()
 			}
@@ -122,8 +114,4 @@ func TestKeyManager_verify_github(t *testing.T) {
 		_, err := m.HostKeyCallback(unsupported)
 		require.Error(t, err)
 	})
-}
-
-type mockSigner struct {
-	ssh.Signer
 }

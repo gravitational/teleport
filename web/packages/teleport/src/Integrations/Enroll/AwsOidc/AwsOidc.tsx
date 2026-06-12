@@ -16,17 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Link as InternalRouteLink } from 'react-router';
+import { Link as InternalRouteLink } from 'react-router-dom';
 import styled from 'styled-components';
 
 import { Box, ButtonPrimary, ButtonSecondary, Flex, Link, Text } from 'design';
 import * as Icons from 'design/Icon';
 import FieldInput from 'shared/components/FieldInput';
 import Validation from 'shared/components/Validation';
-import {
-  requiredIamRoleName,
-  requiredIntegrationName,
-} from 'shared/components/Validation/rules';
+import { requiredIamRoleName } from 'shared/components/Validation/rules';
 
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 import cfg from 'teleport/config';
@@ -66,15 +63,19 @@ export function AwsOidc() {
         credentials when performing operations automatically such as when
         connecting{' '}
         <RouteLink
-          to={`${cfg.routes.root}/discover`}
-          state={{ searchKeywords: 'ec2' }}
+          to={{
+            pathname: `${cfg.routes.root}/discover`,
+            state: { searchKeywords: 'ec2' },
+          }}
         >
           AWS EC2
         </RouteLink>{' '}
         or{' '}
         <RouteLink
-          to={`${cfg.routes.root}/discover`}
-          state={{ searchKeywords: 'rds' }}
+          to={{
+            pathname: `${cfg.routes.root}/discover`,
+            state: { searchKeywords: 'rds' },
+          }}
         >
           AWS RDS
         </RouteLink>{' '}
@@ -111,14 +112,13 @@ export function AwsOidc() {
               <Box width="600px">
                 <FieldInput
                   autoFocus={true}
-                  rule={requiredIntegrationName}
                   value={integrationConfig.name}
                   label="Give this AWS integration a name"
                   placeholder="Integration Name"
                   onChange={e =>
                     setIntegrationConfig({
                       ...integrationConfig,
-                      name: e.target.value.trim(),
+                      name: e.target.value,
                     })
                   }
                   disabled={!!scriptUrl}
@@ -131,7 +131,7 @@ export function AwsOidc() {
                   onChange={e =>
                     setIntegrationConfig({
                       ...integrationConfig,
-                      roleName: e.target.value.trim(),
+                      roleName: e.target.value,
                     })
                   }
                   disabled={!!scriptUrl}

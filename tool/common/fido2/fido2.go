@@ -25,7 +25,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"os"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -33,6 +32,7 @@ import (
 	"github.com/go-webauthn/webauthn/protocol/webauthncbor"
 	"github.com/go-webauthn/webauthn/protocol/webauthncose"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 )
@@ -50,14 +50,14 @@ func NewCommand(app *kingpin.Application) *Command {
 		Attobj: &AttobjCommand{},
 	}
 
-	f2 := app.Command("fido2", "FIDO2 commands.").Hidden()
+	f2 := app.Command("fido2", "FIDO2 commands").Hidden()
 
-	diag := f2.Command("diag", "Run FIDO2 diagnostics.").Hidden()
+	diag := f2.Command("diag", "Run FIDO2 diagnostics").Hidden()
 	root.Diag.CmdClause = diag
 
-	attObj := f2.Command("attobj", "Parse a stored attestation object.").Hidden()
+	attObj := f2.Command("attobj", "Parse a stored attestation object").Hidden()
 	attObj.
-		Arg("att-obj", "Attestation object encoded in base64 standard or RawURL.").
+		Arg("att-obj", "Attestation object encoded in base64 standard or RawURL").
 		Required().
 		StringVar(&root.Attobj.attObjB64)
 	root.Attobj.CmdClause = attObj
@@ -152,7 +152,7 @@ func (c *AttobjCommand) Run() error {
 
 	// Print attestation certificates.
 	if x5c, ok := ao.AttStatement["x5c"]; ok {
-		if x5cArray, ok := x5c.([]any); ok {
+		if x5cArray, ok := x5c.([]interface{}); ok {
 			for i, certI := range x5cArray {
 				certDER, ok := certI.([]byte)
 				if !ok {
@@ -161,10 +161,7 @@ func (c *AttobjCommand) Run() error {
 
 				cert, err := x509.ParseCertificate(certDER)
 				if err != nil {
-					slog.WarnContext(context.Background(), "Failed to parse X.509 from x5c, continuing",
-						"index", i,
-						"error", err,
-					)
+					log.WithError(err).Warnf("Failed to parse X.509 from x5c[%v], continuing", i)
 					continue
 				}
 

@@ -32,8 +32,8 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestExpiryBasic(t *testing.T) {
@@ -192,7 +192,7 @@ func TestExpiryPendingGracePeriod(t *testing.T) {
 func setupExpiryService(t *testing.T) (*Service, *auth.Server, *eventstest.MockRecorderEmitter) {
 	t.Helper()
 
-	logger := logtest.NewLogger()
+	logger := utils.NewSlogLoggerForTests()
 	emitter := &eventstest.MockRecorderEmitter{}
 
 	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{

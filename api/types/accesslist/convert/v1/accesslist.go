@@ -48,8 +48,8 @@ func FromProto(msg *accesslistv1.AccessList, opts ...AccessListOption) (*accessl
 		Audit:              convertAuditFromProto(spec.GetAudit()),
 		MembershipRequires: convertRequiresFromProto(spec.GetMembershipRequires()),
 		OwnershipRequires:  convertRequiresFromProto(spec.GetOwnershipRequires()),
-		Grants:             ConvertGrantsFromProto(spec.GetGrants()),
-		OwnerGrants:        ConvertGrantsFromProto(spec.GetOwnerGrants()),
+		Grants:             convertGrantsFromProto(spec.GetGrants()),
+		OwnerGrants:        convertGrantsFromProto(spec.GetOwnerGrants()),
 	}
 
 	accessList, err := accesslist.NewAccessList(metadata, accessListSpec)
@@ -84,8 +84,8 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 			Audit:              convertAuditToProto(accessList.Spec.Audit),
 			MembershipRequires: convertRequiresToProto(accessList.Spec.MembershipRequires),
 			OwnershipRequires:  convertRequiresToProto(accessList.Spec.OwnershipRequires),
-			Grants:             ConvertGrantsToProto(accessList.Spec.Grants),
-			OwnerGrants:        ConvertGrantsToProto(accessList.Spec.OwnerGrants),
+			Grants:             convertGrantsToProto(accessList.Spec.Grants),
+			OwnerGrants:        convertGrantsToProto(accessList.Spec.OwnerGrants),
 		},
 		Status: convertStatusToProto(&accessList.Status),
 	}
@@ -139,32 +139,13 @@ func convertOwnersFromProto(protoOwners []*accesslistv1.AccessListOwner) []acces
 	return owners
 }
 
-func ConvertGrantsFromProto(protoGrants *accesslistv1.AccessListGrants) accesslist.Grants {
+func convertGrantsFromProto(protoGrants *accesslistv1.AccessListGrants) accesslist.Grants {
 	if protoGrants == nil {
 		return accesslist.Grants{}
 	}
 	return accesslist.Grants{
-		Roles:       protoGrants.GetRoles(),
-		Traits:      traitv1.FromProto(protoGrants.GetTraits()),
-		ScopedRoles: convertScopedRoleGrantsFromProto(protoGrants.GetScopedRoles()),
-	}
-}
-
-func convertScopedRoleGrantsFromProto(scopedRoleGrants []*accesslistv1.ScopedRoleGrant) []accesslist.ScopedRoleGrant {
-	if scopedRoleGrants == nil {
-		return nil
-	}
-	out := make([]accesslist.ScopedRoleGrant, len(scopedRoleGrants))
-	for i, scopedRoleGrant := range scopedRoleGrants {
-		out[i] = convertScopedRoleGrantFromProto(scopedRoleGrant)
-	}
-	return out
-}
-
-func convertScopedRoleGrantFromProto(scopedRoleGrant *accesslistv1.ScopedRoleGrant) accesslist.ScopedRoleGrant {
-	return accesslist.ScopedRoleGrant{
-		Role:  scopedRoleGrant.GetRole(),
-		Scope: scopedRoleGrant.GetScope(),
+		Roles:  protoGrants.GetRoles(),
+		Traits: traitv1.FromProto(protoGrants.GetTraits()),
 	}
 }
 
@@ -238,7 +219,6 @@ func convertStatusToProto(status *accesslist.Status) *accesslistv1.AccessListSta
 		OwnerOf:                status.OwnerOf,
 		MemberOf:               status.MemberOf,
 		CurrentUserAssignments: toCurrentUserAssignmentsProto(status.CurrentUserAssignments),
-		UserAssignments:        toUserAssignmentsProto(status.UserAssignments),
 	}
 }
 
@@ -254,7 +234,6 @@ func fromStatusProto(msg *accesslistv1.AccessList) *accesslist.Status {
 		OwnerOf:                protoStatus.GetOwnerOf(),
 		MemberOf:               protoStatus.GetMemberOf(),
 		CurrentUserAssignments: fromCurrentUserAssignmentsProto(protoStatus.GetCurrentUserAssignments()),
-		UserAssignments:        fromUserAssignmentsProto(protoStatus.GetUserAssignments()),
 	}
 }
 
@@ -276,31 +255,11 @@ func toCurrentUserAssignmentsProto(assignments *accesslist.CurrentUserAssignment
 	}
 }
 
-func toUserAssignmentsProto(assignments *accesslist.UserAssignments) *accesslistv1.UserAssignments {
-	if assignments == nil {
-		return nil
-	}
-	return &accesslistv1.UserAssignments{
-		OwnershipType:  assignments.OwnershipType,
-		MembershipType: assignments.MembershipType,
-	}
-}
-
 func fromCurrentUserAssignmentsProto(assignments *accesslistv1.CurrentUserAssignments) *accesslist.CurrentUserAssignments {
 	if assignments == nil {
 		return nil
 	}
 	return &accesslist.CurrentUserAssignments{
-		OwnershipType:  assignments.GetOwnershipType(),
-		MembershipType: assignments.GetMembershipType(),
-	}
-}
-
-func fromUserAssignmentsProto(assignments *accesslistv1.UserAssignments) *accesslist.UserAssignments {
-	if assignments == nil {
-		return nil
-	}
-	return &accesslist.UserAssignments{
 		OwnershipType:  assignments.GetOwnershipType(),
 		MembershipType: assignments.GetMembershipType(),
 	}
@@ -313,34 +272,15 @@ func convertOwnersToProto(owners []accesslist.Owner) []*accesslistv1.AccessListO
 	return protoOwners
 }
 
-func ConvertGrantsToProto(grants accesslist.Grants) *accesslistv1.AccessListGrants {
+func convertGrantsToProto(grants accesslist.Grants) *accesslistv1.AccessListGrants {
 	return &accesslistv1.AccessListGrants{
-		Roles:       grants.Roles,
-		Traits:      traitv1.ToProto(grants.Traits),
-		ScopedRoles: convertScopedRolesToProto(grants.ScopedRoles),
-	}
-}
-
-func convertScopedRolesToProto(scopedRoleGrants []accesslist.ScopedRoleGrant) []*accesslistv1.ScopedRoleGrant {
-	if scopedRoleGrants == nil {
-		return nil
-	}
-	out := make([]*accesslistv1.ScopedRoleGrant, len(scopedRoleGrants))
-	for i, scopedRoleGrant := range scopedRoleGrants {
-		out[i] = toScopedRoleGrantProto(scopedRoleGrant)
-	}
-	return out
-}
-
-func toScopedRoleGrantProto(scopedRoleGrant accesslist.ScopedRoleGrant) *accesslistv1.ScopedRoleGrant {
-	return &accesslistv1.ScopedRoleGrant{
-		Role:  scopedRoleGrant.Role,
-		Scope: scopedRoleGrant.Scope,
+		Roles:  grants.Roles,
+		Traits: traitv1.ToProto(grants.Traits),
 	}
 }
 
 func convertAuditToProto(audit accesslist.Audit) *accesslistv1.AccessListAudit {
-	if audit == (accesslist.Audit{}) {
+	if audit.Recurrence.Frequency == 0 && audit.NextAuditDate.IsZero() && audit.Notifications.Start == 0 {
 		return nil
 	}
 

@@ -21,16 +21,14 @@
 // 	protoc        (unknown)
 // source: teleport/lib/teleterm/v1/cluster.proto
 
-//go:build !protoopaque
-
 package teletermv1
 
 import (
 	types "github.com/gravitational/teleport/api/types"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
-	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
+	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -86,6 +84,11 @@ func (x ShowResources) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
+// Deprecated: Use ShowResources.Descriptor instead.
+func (ShowResources) EnumDescriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_cluster_proto_rawDescGZIP(), []int{0}
+}
+
 // UserType indicates whether the user was created through an SSO provider or in Teleport itself.
 // Only present when detailed information is queried from the auth server.
 type LoggedInUser_UserType int32
@@ -132,9 +135,14 @@ func (x LoggedInUser_UserType) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
+// Deprecated: Use LoggedInUser_UserType.Descriptor instead.
+func (LoggedInUser_UserType) EnumDescriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_cluster_proto_rawDescGZIP(), []int{1, 0}
+}
+
 // Cluster describes cluster fields.
 type Cluster struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// uri is the cluster resource URI.
 	// For root clusters, it has the form of /clusters/:rootClusterId where rootClusterId is the
 	// name of the profile, that is the hostname of the proxy used to connect to the root cluster.
@@ -143,9 +151,7 @@ type Cluster struct {
 	// For leaf clusters, it has the form of /clusters/:rootClusterId/leaves/:leafClusterId where
 	// leafClusterId is equal to the name property of the cluster.
 	Uri string `protobuf:"bytes,1,opt,name=uri,proto3" json:"uri,omitempty"`
-	// name is the site name of Teleport cluster.
-	// Only present in root clusters if the user has logged in (the name comes from the certificate).
-	// Always available for leaf clusters.
+	// name is used throughout the Teleport Connect codebase as the cluster name.
 	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	// proxy_host is address of the proxy used to connect to this cluster.
 	// Always includes port number. Present only for root clusters.
@@ -206,6 +212,11 @@ func (x *Cluster) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Cluster.ProtoReflect.Descriptor instead.
+func (*Cluster) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_cluster_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *Cluster) GetUri() string {
@@ -292,147 +303,9 @@ func (x *Cluster) GetSsoHost() string {
 	return ""
 }
 
-func (x *Cluster) SetUri(v string) {
-	x.Uri = v
-}
-
-func (x *Cluster) SetName(v string) {
-	x.Name = v
-}
-
-func (x *Cluster) SetProxyHost(v string) {
-	x.ProxyHost = v
-}
-
-func (x *Cluster) SetConnected(v bool) {
-	x.Connected = v
-}
-
-func (x *Cluster) SetLeaf(v bool) {
-	x.Leaf = v
-}
-
-func (x *Cluster) SetLoggedInUser(v *LoggedInUser) {
-	x.LoggedInUser = v
-}
-
-func (x *Cluster) SetFeatures(v *Features) {
-	x.Features = v
-}
-
-func (x *Cluster) SetAuthClusterId(v string) {
-	x.AuthClusterId = v
-}
-
-func (x *Cluster) SetProxyVersion(v string) {
-	x.ProxyVersion = v
-}
-
-func (x *Cluster) SetShowResources(v ShowResources) {
-	x.ShowResources = v
-}
-
-func (x *Cluster) SetProfileStatusError(v string) {
-	x.ProfileStatusError = v
-}
-
-func (x *Cluster) SetSsoHost(v string) {
-	x.SsoHost = v
-}
-
-func (x *Cluster) HasLoggedInUser() bool {
-	if x == nil {
-		return false
-	}
-	return x.LoggedInUser != nil
-}
-
-func (x *Cluster) HasFeatures() bool {
-	if x == nil {
-		return false
-	}
-	return x.Features != nil
-}
-
-func (x *Cluster) ClearLoggedInUser() {
-	x.LoggedInUser = nil
-}
-
-func (x *Cluster) ClearFeatures() {
-	x.Features = nil
-}
-
-type Cluster_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// uri is the cluster resource URI.
-	// For root clusters, it has the form of /clusters/:rootClusterId where rootClusterId is the
-	// name of the profile, that is the hostname of the proxy used to connect to the root cluster.
-	// rootClusterId is not equal to the name of the root cluster.
-	//
-	// For leaf clusters, it has the form of /clusters/:rootClusterId/leaves/:leafClusterId where
-	// leafClusterId is equal to the name property of the cluster.
-	Uri string
-	// name is the site name of Teleport cluster.
-	// Only present in root clusters if the user has logged in (the name comes from the certificate).
-	// Always available for leaf clusters.
-	Name string
-	// proxy_host is address of the proxy used to connect to this cluster.
-	// Always includes port number. Present only for root clusters.
-	//
-	// Example: "teleport-14-ent.example.com:3090"
-	ProxyHost string
-	// connected indicates if connection to the cluster can be established, that is if we have a
-	// cert for the cluster that hasn't expired
-	Connected bool
-	// leaf indicates if this is a leaf cluster
-	Leaf bool
-	// logged_in_user is present if the user has logged in to the cluster at least once, even
-	// if the cert has since expired. If the cluster was added to the app but the
-	// user is yet to log in, logged_in_user is not present.
-	LoggedInUser *LoggedInUser
-	// features describes the auth servers features.
-	// Only present when detailed information is queried from the auth server.
-	Features *Features
-	// auth_cluster_id is the unique cluster ID that is set once
-	// during the first auth server startup.
-	// Only present when detailed information is queried from the auth server.
-	AuthClusterId string
-	// ProxyVersion is the cluster proxy's service version.
-	// Only present when detailed information is queried from the proxy server.
-	ProxyVersion string
-	// show_resources tells if the cluster can show requestable resources on the resources page.
-	// Controlled by the cluster config.
-	ShowResources ShowResources
-	// profile_status_error is set if there was an error when reading the profile.
-	// This allows the app to be usable, when one or more profiles cannot be read.
-	ProfileStatusError string
-	// sso_host is the host of the SSO provider used to log in.
-	SsoHost string
-}
-
-func (b0 Cluster_builder) Build() *Cluster {
-	m0 := &Cluster{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Uri = b.Uri
-	x.Name = b.Name
-	x.ProxyHost = b.ProxyHost
-	x.Connected = b.Connected
-	x.Leaf = b.Leaf
-	x.LoggedInUser = b.LoggedInUser
-	x.Features = b.Features
-	x.AuthClusterId = b.AuthClusterId
-	x.ProxyVersion = b.ProxyVersion
-	x.ShowResources = b.ShowResources
-	x.ProfileStatusError = b.ProfileStatusError
-	x.SsoHost = b.SsoHost
-	return m0
-}
-
 // LoggedInUser describes a logged-in user
 type LoggedInUser struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// name is the user name
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// roles is the user roles
@@ -453,10 +326,8 @@ type LoggedInUser struct {
 	IsDeviceTrusted bool `protobuf:"varint,9,opt,name=is_device_trusted,json=isDeviceTrusted,proto3" json:"is_device_trusted,omitempty"`
 	// Indicates whether access may be hindered by the lack of a trusted device.
 	TrustedDeviceRequirement types.TrustedDeviceRequirement `protobuf:"varint,10,opt,name=trusted_device_requirement,json=trustedDeviceRequirement,proto3,enum=types.TrustedDeviceRequirement" json:"trusted_device_requirement,omitempty"`
-	// Expiration time of the certificate.
-	ValidUntil    *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=valid_until,json=validUntil,proto3" json:"valid_until,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	unknownFields            protoimpl.UnknownFields
+	sizeCache                protoimpl.SizeCache
 }
 
 func (x *LoggedInUser) Reset() {
@@ -482,6 +353,11 @@ func (x *LoggedInUser) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LoggedInUser.ProtoReflect.Descriptor instead.
+func (*LoggedInUser) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_cluster_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *LoggedInUser) GetName() string {
@@ -547,122 +423,9 @@ func (x *LoggedInUser) GetTrustedDeviceRequirement() types.TrustedDeviceRequirem
 	return types.TrustedDeviceRequirement(0)
 }
 
-func (x *LoggedInUser) GetValidUntil() *timestamppb.Timestamp {
-	if x != nil {
-		return x.ValidUntil
-	}
-	return nil
-}
-
-func (x *LoggedInUser) SetName(v string) {
-	x.Name = v
-}
-
-func (x *LoggedInUser) SetRoles(v []string) {
-	x.Roles = v
-}
-
-func (x *LoggedInUser) SetAcl(v *ACL) {
-	x.Acl = v
-}
-
-func (x *LoggedInUser) SetActiveRequests(v []string) {
-	x.ActiveRequests = v
-}
-
-func (x *LoggedInUser) SetSuggestedReviewers(v []string) {
-	x.SuggestedReviewers = v
-}
-
-func (x *LoggedInUser) SetRequestableRoles(v []string) {
-	x.RequestableRoles = v
-}
-
-func (x *LoggedInUser) SetUserType(v LoggedInUser_UserType) {
-	x.UserType = v
-}
-
-func (x *LoggedInUser) SetIsDeviceTrusted(v bool) {
-	x.IsDeviceTrusted = v
-}
-
-func (x *LoggedInUser) SetTrustedDeviceRequirement(v types.TrustedDeviceRequirement) {
-	x.TrustedDeviceRequirement = v
-}
-
-func (x *LoggedInUser) SetValidUntil(v *timestamppb.Timestamp) {
-	x.ValidUntil = v
-}
-
-func (x *LoggedInUser) HasAcl() bool {
-	if x == nil {
-		return false
-	}
-	return x.Acl != nil
-}
-
-func (x *LoggedInUser) HasValidUntil() bool {
-	if x == nil {
-		return false
-	}
-	return x.ValidUntil != nil
-}
-
-func (x *LoggedInUser) ClearAcl() {
-	x.Acl = nil
-}
-
-func (x *LoggedInUser) ClearValidUntil() {
-	x.ValidUntil = nil
-}
-
-type LoggedInUser_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// name is the user name
-	Name string
-	// roles is the user roles
-	Roles []string
-	// acl is a user access control list.
-	// It is available only after the cluster details are fetched, as it is not stored on disk.
-	Acl *ACL
-	// active_requests is an array of request-id strings of active requests
-	ActiveRequests []string
-	// suggested_reviewers for the given user.
-	// Only present when detailed information is queried from the auth server.
-	SuggestedReviewers []string
-	// requestable_roles for the given user.
-	// Only present when detailed information is queried from the auth server.
-	RequestableRoles []string
-	UserType         LoggedInUser_UserType
-	// Indicates if the profile contains all required device extensions.
-	IsDeviceTrusted bool
-	// Indicates whether access may be hindered by the lack of a trusted device.
-	TrustedDeviceRequirement types.TrustedDeviceRequirement
-	// Expiration time of the certificate.
-	ValidUntil *timestamppb.Timestamp
-}
-
-func (b0 LoggedInUser_builder) Build() *LoggedInUser {
-	m0 := &LoggedInUser{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Name = b.Name
-	x.Roles = b.Roles
-	x.Acl = b.Acl
-	x.ActiveRequests = b.ActiveRequests
-	x.SuggestedReviewers = b.SuggestedReviewers
-	x.RequestableRoles = b.RequestableRoles
-	x.UserType = b.UserType
-	x.IsDeviceTrusted = b.IsDeviceTrusted
-	x.TrustedDeviceRequirement = b.TrustedDeviceRequirement
-	x.ValidUntil = b.ValidUntil
-	return m0
-}
-
 // ACL is the access control list of the user
 type ACL struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// auth_connectors defines access to auth.connectors
 	AuthConnectors *ResourceAccess `protobuf:"bytes,2,opt,name=auth_connectors,json=authConnectors,proto3" json:"auth_connectors,omitempty"`
 	// Roles defines access to roles
@@ -722,6 +485,11 @@ func (x *ACL) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ACL.ProtoReflect.Descriptor instead.
+func (*ACL) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_cluster_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *ACL) GetAuthConnectors() *ResourceAccess {
@@ -836,276 +604,9 @@ func (x *ACL) GetClipboardSharingEnabled() bool {
 	return false
 }
 
-func (x *ACL) SetAuthConnectors(v *ResourceAccess) {
-	x.AuthConnectors = v
-}
-
-func (x *ACL) SetRoles(v *ResourceAccess) {
-	x.Roles = v
-}
-
-func (x *ACL) SetUsers(v *ResourceAccess) {
-	x.Users = v
-}
-
-func (x *ACL) SetTrustedClusters(v *ResourceAccess) {
-	x.TrustedClusters = v
-}
-
-func (x *ACL) SetEvents(v *ResourceAccess) {
-	x.Events = v
-}
-
-func (x *ACL) SetTokens(v *ResourceAccess) {
-	x.Tokens = v
-}
-
-func (x *ACL) SetServers(v *ResourceAccess) {
-	x.Servers = v
-}
-
-func (x *ACL) SetApps(v *ResourceAccess) {
-	x.Apps = v
-}
-
-func (x *ACL) SetDbs(v *ResourceAccess) {
-	x.Dbs = v
-}
-
-func (x *ACL) SetKubeservers(v *ResourceAccess) {
-	x.Kubeservers = v
-}
-
-func (x *ACL) SetAccessRequests(v *ResourceAccess) {
-	x.AccessRequests = v
-}
-
-func (x *ACL) SetRecordedSessions(v *ResourceAccess) {
-	x.RecordedSessions = v
-}
-
-func (x *ACL) SetActiveSessions(v *ResourceAccess) {
-	x.ActiveSessions = v
-}
-
-func (x *ACL) SetReviewRequests(v bool) {
-	x.ReviewRequests = v
-}
-
-func (x *ACL) SetDirectorySharingEnabled(v bool) {
-	x.DirectorySharingEnabled = v
-}
-
-func (x *ACL) SetClipboardSharingEnabled(v bool) {
-	x.ClipboardSharingEnabled = v
-}
-
-func (x *ACL) HasAuthConnectors() bool {
-	if x == nil {
-		return false
-	}
-	return x.AuthConnectors != nil
-}
-
-func (x *ACL) HasRoles() bool {
-	if x == nil {
-		return false
-	}
-	return x.Roles != nil
-}
-
-func (x *ACL) HasUsers() bool {
-	if x == nil {
-		return false
-	}
-	return x.Users != nil
-}
-
-func (x *ACL) HasTrustedClusters() bool {
-	if x == nil {
-		return false
-	}
-	return x.TrustedClusters != nil
-}
-
-func (x *ACL) HasEvents() bool {
-	if x == nil {
-		return false
-	}
-	return x.Events != nil
-}
-
-func (x *ACL) HasTokens() bool {
-	if x == nil {
-		return false
-	}
-	return x.Tokens != nil
-}
-
-func (x *ACL) HasServers() bool {
-	if x == nil {
-		return false
-	}
-	return x.Servers != nil
-}
-
-func (x *ACL) HasApps() bool {
-	if x == nil {
-		return false
-	}
-	return x.Apps != nil
-}
-
-func (x *ACL) HasDbs() bool {
-	if x == nil {
-		return false
-	}
-	return x.Dbs != nil
-}
-
-func (x *ACL) HasKubeservers() bool {
-	if x == nil {
-		return false
-	}
-	return x.Kubeservers != nil
-}
-
-func (x *ACL) HasAccessRequests() bool {
-	if x == nil {
-		return false
-	}
-	return x.AccessRequests != nil
-}
-
-func (x *ACL) HasRecordedSessions() bool {
-	if x == nil {
-		return false
-	}
-	return x.RecordedSessions != nil
-}
-
-func (x *ACL) HasActiveSessions() bool {
-	if x == nil {
-		return false
-	}
-	return x.ActiveSessions != nil
-}
-
-func (x *ACL) ClearAuthConnectors() {
-	x.AuthConnectors = nil
-}
-
-func (x *ACL) ClearRoles() {
-	x.Roles = nil
-}
-
-func (x *ACL) ClearUsers() {
-	x.Users = nil
-}
-
-func (x *ACL) ClearTrustedClusters() {
-	x.TrustedClusters = nil
-}
-
-func (x *ACL) ClearEvents() {
-	x.Events = nil
-}
-
-func (x *ACL) ClearTokens() {
-	x.Tokens = nil
-}
-
-func (x *ACL) ClearServers() {
-	x.Servers = nil
-}
-
-func (x *ACL) ClearApps() {
-	x.Apps = nil
-}
-
-func (x *ACL) ClearDbs() {
-	x.Dbs = nil
-}
-
-func (x *ACL) ClearKubeservers() {
-	x.Kubeservers = nil
-}
-
-func (x *ACL) ClearAccessRequests() {
-	x.AccessRequests = nil
-}
-
-func (x *ACL) ClearRecordedSessions() {
-	x.RecordedSessions = nil
-}
-
-func (x *ACL) ClearActiveSessions() {
-	x.ActiveSessions = nil
-}
-
-type ACL_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// auth_connectors defines access to auth.connectors
-	AuthConnectors *ResourceAccess
-	// Roles defines access to roles
-	Roles *ResourceAccess
-	// Users defines access to users.
-	Users *ResourceAccess
-	// trusted_clusters defines access to trusted clusters
-	TrustedClusters *ResourceAccess
-	// Events defines access to audit logs
-	Events *ResourceAccess
-	// Tokens defines access to tokens.
-	Tokens *ResourceAccess
-	// Servers defines access to servers.
-	Servers *ResourceAccess
-	// apps defines access to application servers
-	Apps *ResourceAccess
-	// dbs defines access to database servers.
-	Dbs *ResourceAccess
-	// kubeservers defines access to kubernetes servers.
-	Kubeservers *ResourceAccess
-	// access_requests defines access to access requests
-	AccessRequests *ResourceAccess
-	// recorded_sessions defines access to recorded sessions.
-	RecordedSessions *ResourceAccess
-	// active_sessions defines access to active sessions.
-	ActiveSessions *ResourceAccess
-	// review_requests defines the ability to review requests
-	ReviewRequests bool
-	// Indicates whether the user can share a local directory with the remote machine during desktop sessions.
-	DirectorySharingEnabled bool
-	// Indicates whether the user can share their clipboard with the remote machine during desktop sessions.
-	ClipboardSharingEnabled bool
-}
-
-func (b0 ACL_builder) Build() *ACL {
-	m0 := &ACL{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.AuthConnectors = b.AuthConnectors
-	x.Roles = b.Roles
-	x.Users = b.Users
-	x.TrustedClusters = b.TrustedClusters
-	x.Events = b.Events
-	x.Tokens = b.Tokens
-	x.Servers = b.Servers
-	x.Apps = b.Apps
-	x.Dbs = b.Dbs
-	x.Kubeservers = b.Kubeservers
-	x.AccessRequests = b.AccessRequests
-	x.RecordedSessions = b.RecordedSessions
-	x.ActiveSessions = b.ActiveSessions
-	x.ReviewRequests = b.ReviewRequests
-	x.DirectorySharingEnabled = b.DirectorySharingEnabled
-	x.ClipboardSharingEnabled = b.ClipboardSharingEnabled
-	return m0
-}
-
 // ResourceAccess describes access verbs
 type ResourceAccess struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// list determines "list" access
 	List bool `protobuf:"varint,1,opt,name=list,proto3" json:"list,omitempty"`
 	// read determines "read" access
@@ -1145,6 +646,11 @@ func (x *ResourceAccess) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ResourceAccess.ProtoReflect.Descriptor instead.
+func (*ResourceAccess) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_cluster_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *ResourceAccess) GetList() bool {
@@ -1189,63 +695,9 @@ func (x *ResourceAccess) GetUse() bool {
 	return false
 }
 
-func (x *ResourceAccess) SetList(v bool) {
-	x.List = v
-}
-
-func (x *ResourceAccess) SetRead(v bool) {
-	x.Read = v
-}
-
-func (x *ResourceAccess) SetEdit(v bool) {
-	x.Edit = v
-}
-
-func (x *ResourceAccess) SetCreate(v bool) {
-	x.Create = v
-}
-
-func (x *ResourceAccess) SetDelete(v bool) {
-	x.Delete = v
-}
-
-func (x *ResourceAccess) SetUse(v bool) {
-	x.Use = v
-}
-
-type ResourceAccess_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// list determines "list" access
-	List bool
-	// read determines "read" access
-	Read bool
-	// edit determines "edit" access
-	Edit bool
-	// create determines "create" access
-	Create bool
-	// delete determines "delete" access
-	Delete bool
-	// use determines "use" access
-	Use bool
-}
-
-func (b0 ResourceAccess_builder) Build() *ResourceAccess {
-	m0 := &ResourceAccess{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.List = b.List
-	x.Read = b.Read
-	x.Edit = b.Edit
-	x.Create = b.Create
-	x.Delete = b.Delete
-	x.Use = b.Use
-	return m0
-}
-
 // Features describes the auth servers features
 type Features struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// advanced_access_workflows enables search-based access requests
 	AdvancedAccessWorkflows bool `protobuf:"varint,1,opt,name=advanced_access_workflows,json=advancedAccessWorkflows,proto3" json:"advanced_access_workflows,omitempty"`
 	// is_usage_based_billing determines if the cloud user subscription is usage-based (pay-as-you-go).
@@ -1279,6 +731,11 @@ func (x *Features) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use Features.ProtoReflect.Descriptor instead.
+func (*Features) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_cluster_proto_rawDescGZIP(), []int{4}
+}
+
 func (x *Features) GetAdvancedAccessWorkflows() bool {
 	if x != nil {
 		return x.AdvancedAccessWorkflows
@@ -1293,37 +750,11 @@ func (x *Features) GetIsUsageBasedBilling() bool {
 	return false
 }
 
-func (x *Features) SetAdvancedAccessWorkflows(v bool) {
-	x.AdvancedAccessWorkflows = v
-}
-
-func (x *Features) SetIsUsageBasedBilling(v bool) {
-	x.IsUsageBasedBilling = v
-}
-
-type Features_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// advanced_access_workflows enables search-based access requests
-	AdvancedAccessWorkflows bool
-	// is_usage_based_billing determines if the cloud user subscription is usage-based (pay-as-you-go).
-	IsUsageBasedBilling bool
-}
-
-func (b0 Features_builder) Build() *Features {
-	m0 := &Features{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.AdvancedAccessWorkflows = b.AdvancedAccessWorkflows
-	x.IsUsageBasedBilling = b.IsUsageBasedBilling
-	return m0
-}
-
 var File_teleport_lib_teleterm_v1_cluster_proto protoreflect.FileDescriptor
 
 const file_teleport_lib_teleterm_v1_cluster_proto_rawDesc = "" +
 	"\n" +
-	"&teleport/lib/teleterm/v1/cluster.proto\x12\x18teleport.lib.teleterm.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a6teleport/legacy/types/trusted_device_requirement.proto\"\xf8\x03\n" +
+	"&teleport/lib/teleterm/v1/cluster.proto\x12\x18teleport.lib.teleterm.v1\x1a6teleport/legacy/types/trusted_device_requirement.proto\"\xf8\x03\n" +
 	"\aCluster\x12\x10\n" +
 	"\x03uri\x18\x01 \x01(\tR\x03uri\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x1d\n" +
@@ -1338,7 +769,7 @@ const file_teleport_lib_teleterm_v1_cluster_proto_rawDesc = "" +
 	" \x01(\tR\fproxyVersion\x12N\n" +
 	"\x0eshow_resources\x18\v \x01(\x0e2'.teleport.lib.teleterm.v1.ShowResourcesR\rshowResources\x120\n" +
 	"\x14profile_status_error\x18\f \x01(\tR\x12profileStatusError\x12\x19\n" +
-	"\bsso_host\x18\r \x01(\tR\assoHost\"\xe7\x04\n" +
+	"\bsso_host\x18\r \x01(\tR\assoHost\"\xaa\x04\n" +
 	"\fLoggedInUser\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
 	"\x05roles\x18\x02 \x03(\tR\x05roles\x12/\n" +
@@ -1349,9 +780,7 @@ const file_teleport_lib_teleterm_v1_cluster_proto_rawDesc = "" +
 	"\tuser_type\x18\b \x01(\x0e2/.teleport.lib.teleterm.v1.LoggedInUser.UserTypeR\buserType\x12*\n" +
 	"\x11is_device_trusted\x18\t \x01(\bR\x0fisDeviceTrusted\x12]\n" +
 	"\x1atrusted_device_requirement\x18\n" +
-	" \x01(\x0e2\x1f.types.TrustedDeviceRequirementR\x18trustedDeviceRequirement\x12;\n" +
-	"\vvalid_until\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"validUntil\"M\n" +
+	" \x01(\x0e2\x1f.types.TrustedDeviceRequirementR\x18trustedDeviceRequirement\"M\n" +
 	"\bUserType\x12\x19\n" +
 	"\x15USER_TYPE_UNSPECIFIED\x10\x00\x12\x13\n" +
 	"\x0fUSER_TYPE_LOCAL\x10\x01\x12\x11\n" +
@@ -1390,6 +819,18 @@ const file_teleport_lib_teleterm_v1_cluster_proto_rawDesc = "" +
 	"\x1aSHOW_RESOURCES_REQUESTABLE\x10\x01\x12\"\n" +
 	"\x1eSHOW_RESOURCES_ACCESSIBLE_ONLY\x10\x02BTZRgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1b\x06proto3"
 
+var (
+	file_teleport_lib_teleterm_v1_cluster_proto_rawDescOnce sync.Once
+	file_teleport_lib_teleterm_v1_cluster_proto_rawDescData []byte
+)
+
+func file_teleport_lib_teleterm_v1_cluster_proto_rawDescGZIP() []byte {
+	file_teleport_lib_teleterm_v1_cluster_proto_rawDescOnce.Do(func() {
+		file_teleport_lib_teleterm_v1_cluster_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_lib_teleterm_v1_cluster_proto_rawDesc), len(file_teleport_lib_teleterm_v1_cluster_proto_rawDesc)))
+	})
+	return file_teleport_lib_teleterm_v1_cluster_proto_rawDescData
+}
+
 var file_teleport_lib_teleterm_v1_cluster_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
 var file_teleport_lib_teleterm_v1_cluster_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_teleport_lib_teleterm_v1_cluster_proto_goTypes = []any{
@@ -1401,7 +842,6 @@ var file_teleport_lib_teleterm_v1_cluster_proto_goTypes = []any{
 	(*ResourceAccess)(nil),              // 5: teleport.lib.teleterm.v1.ResourceAccess
 	(*Features)(nil),                    // 6: teleport.lib.teleterm.v1.Features
 	(types.TrustedDeviceRequirement)(0), // 7: types.TrustedDeviceRequirement
-	(*timestamppb.Timestamp)(nil),       // 8: google.protobuf.Timestamp
 }
 var file_teleport_lib_teleterm_v1_cluster_proto_depIdxs = []int32{
 	3,  // 0: teleport.lib.teleterm.v1.Cluster.logged_in_user:type_name -> teleport.lib.teleterm.v1.LoggedInUser
@@ -1410,25 +850,24 @@ var file_teleport_lib_teleterm_v1_cluster_proto_depIdxs = []int32{
 	4,  // 3: teleport.lib.teleterm.v1.LoggedInUser.acl:type_name -> teleport.lib.teleterm.v1.ACL
 	1,  // 4: teleport.lib.teleterm.v1.LoggedInUser.user_type:type_name -> teleport.lib.teleterm.v1.LoggedInUser.UserType
 	7,  // 5: teleport.lib.teleterm.v1.LoggedInUser.trusted_device_requirement:type_name -> types.TrustedDeviceRequirement
-	8,  // 6: teleport.lib.teleterm.v1.LoggedInUser.valid_until:type_name -> google.protobuf.Timestamp
-	5,  // 7: teleport.lib.teleterm.v1.ACL.auth_connectors:type_name -> teleport.lib.teleterm.v1.ResourceAccess
-	5,  // 8: teleport.lib.teleterm.v1.ACL.roles:type_name -> teleport.lib.teleterm.v1.ResourceAccess
-	5,  // 9: teleport.lib.teleterm.v1.ACL.users:type_name -> teleport.lib.teleterm.v1.ResourceAccess
-	5,  // 10: teleport.lib.teleterm.v1.ACL.trusted_clusters:type_name -> teleport.lib.teleterm.v1.ResourceAccess
-	5,  // 11: teleport.lib.teleterm.v1.ACL.events:type_name -> teleport.lib.teleterm.v1.ResourceAccess
-	5,  // 12: teleport.lib.teleterm.v1.ACL.tokens:type_name -> teleport.lib.teleterm.v1.ResourceAccess
-	5,  // 13: teleport.lib.teleterm.v1.ACL.servers:type_name -> teleport.lib.teleterm.v1.ResourceAccess
-	5,  // 14: teleport.lib.teleterm.v1.ACL.apps:type_name -> teleport.lib.teleterm.v1.ResourceAccess
-	5,  // 15: teleport.lib.teleterm.v1.ACL.dbs:type_name -> teleport.lib.teleterm.v1.ResourceAccess
-	5,  // 16: teleport.lib.teleterm.v1.ACL.kubeservers:type_name -> teleport.lib.teleterm.v1.ResourceAccess
-	5,  // 17: teleport.lib.teleterm.v1.ACL.access_requests:type_name -> teleport.lib.teleterm.v1.ResourceAccess
-	5,  // 18: teleport.lib.teleterm.v1.ACL.recorded_sessions:type_name -> teleport.lib.teleterm.v1.ResourceAccess
-	5,  // 19: teleport.lib.teleterm.v1.ACL.active_sessions:type_name -> teleport.lib.teleterm.v1.ResourceAccess
-	20, // [20:20] is the sub-list for method output_type
-	20, // [20:20] is the sub-list for method input_type
-	20, // [20:20] is the sub-list for extension type_name
-	20, // [20:20] is the sub-list for extension extendee
-	0,  // [0:20] is the sub-list for field type_name
+	5,  // 6: teleport.lib.teleterm.v1.ACL.auth_connectors:type_name -> teleport.lib.teleterm.v1.ResourceAccess
+	5,  // 7: teleport.lib.teleterm.v1.ACL.roles:type_name -> teleport.lib.teleterm.v1.ResourceAccess
+	5,  // 8: teleport.lib.teleterm.v1.ACL.users:type_name -> teleport.lib.teleterm.v1.ResourceAccess
+	5,  // 9: teleport.lib.teleterm.v1.ACL.trusted_clusters:type_name -> teleport.lib.teleterm.v1.ResourceAccess
+	5,  // 10: teleport.lib.teleterm.v1.ACL.events:type_name -> teleport.lib.teleterm.v1.ResourceAccess
+	5,  // 11: teleport.lib.teleterm.v1.ACL.tokens:type_name -> teleport.lib.teleterm.v1.ResourceAccess
+	5,  // 12: teleport.lib.teleterm.v1.ACL.servers:type_name -> teleport.lib.teleterm.v1.ResourceAccess
+	5,  // 13: teleport.lib.teleterm.v1.ACL.apps:type_name -> teleport.lib.teleterm.v1.ResourceAccess
+	5,  // 14: teleport.lib.teleterm.v1.ACL.dbs:type_name -> teleport.lib.teleterm.v1.ResourceAccess
+	5,  // 15: teleport.lib.teleterm.v1.ACL.kubeservers:type_name -> teleport.lib.teleterm.v1.ResourceAccess
+	5,  // 16: teleport.lib.teleterm.v1.ACL.access_requests:type_name -> teleport.lib.teleterm.v1.ResourceAccess
+	5,  // 17: teleport.lib.teleterm.v1.ACL.recorded_sessions:type_name -> teleport.lib.teleterm.v1.ResourceAccess
+	5,  // 18: teleport.lib.teleterm.v1.ACL.active_sessions:type_name -> teleport.lib.teleterm.v1.ResourceAccess
+	19, // [19:19] is the sub-list for method output_type
+	19, // [19:19] is the sub-list for method input_type
+	19, // [19:19] is the sub-list for extension type_name
+	19, // [19:19] is the sub-list for extension extendee
+	0,  // [0:19] is the sub-list for field type_name
 }
 
 func init() { file_teleport_lib_teleterm_v1_cluster_proto_init() }

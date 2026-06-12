@@ -51,7 +51,7 @@ func TestPostgresErrors(t *testing.T) {
 		{
 			name:    "connection refused error",
 			pingErr: errors.New("failed to connect to `host=127.0.0.1 user=postgres database=postgres`: server error (: connection refused (SQLSTATE ))"),
-			errCheck: func(tt require.TestingT, err error, i ...any) {
+			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
 				require.True(tt, p.IsConnectionRefusedError(err))
 			},
 		},
@@ -60,7 +60,7 @@ func TestPostgresErrors(t *testing.T) {
 			pingErr: &pgconn.PgError{
 				Code: pgerrcode.InvalidCatalogName,
 			},
-			errCheck: func(tt require.TestingT, err error, i ...any) {
+			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
 				require.True(tt, p.IsInvalidDatabaseNameError(err))
 			},
 		},
@@ -69,7 +69,7 @@ func TestPostgresErrors(t *testing.T) {
 			pingErr: &pgconn.PgError{
 				Code: pgerrcode.InvalidAuthorizationSpecification,
 			},
-			errCheck: func(tt require.TestingT, err error, i ...any) {
+			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
 				require.True(tt, p.IsInvalidDatabaseUserError(err))
 			},
 		},

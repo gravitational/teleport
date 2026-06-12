@@ -17,6 +17,7 @@
 package desktop
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -55,6 +56,7 @@ func TestGetDirectory(t *testing.T) {
 
 	access, err := session.GetDirectoryAccess()
 	require.NoError(t, err)
-	_, err = access.Stat("")
+	resolvedPath, err := filepath.EvalSymlinks(path)
 	require.NoError(t, err)
+	require.Equal(t, resolvedPath, access.basePath)
 }

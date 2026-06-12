@@ -17,8 +17,11 @@
 package vnet
 
 import (
+	"cmp"
 	"context"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -27,9 +30,6 @@ import (
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/mgr"
-
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/windowsservice"
 )
 
 const (
@@ -122,23 +122,76 @@ func startService(ctx context.Context, cfg *windowsAdminProcessConfig) (*mgr.Ser
 
 // ServiceMain runs the Windows VNet admin service.
 func ServiceMain() error {
-	closeLogger, err := windowsservice.InitSlogEventLogger(eventSource)
-	if err != nil {
-		return trace.Wrap(err)
+	if err := setupServiceLogger(); err != nil {
+		return trace.Wrap(err, "setting up logger for service")
 	}
-	logger := slog.With(teleport.ComponentKey, teleport.Component("vnet", "windows-service"))
-
-	err = windowsservice.Run(&windowsservice.RunConfig{
-		Name:    serviceName,
-		Handler: &handler{},
-		Logger:  logger,
-	})
-	return trace.NewAggregate(err, closeLogger())
+	if err := svc.Run(serviceName, &windowsService{}); err != nil {
+		return trace.Wrap(err, "running Windows service")
+	}
+	return nil
 }
 
-type handler struct{}
+// windowsService implements [svc.Handler].
+type windowsService struct{}
 
-func (w *handler) Execute(ctx context.Context, args []string) error {
+// Execute implements [svc.Handler.Execute], the GoDoc is copied below.
+//
+// Execute will be called by the package code at the start of the service, and
+// the service will exit once Execute completes.  Inside Execute you must read
+// service change requests from [requests] and act accordingly. You must keep
+// service control manager up to date about state of your service by writing
+// into [status] as required.  args contains service name followed by argument
+// strings passed to the service.
+// You can provide service exit code in exitCode return parameter, with 0 being
+// "no error". You can also indicate if exit code, if any, is service specific
+// or not by using svcSpecificEC parameter.
+func (s *windowsService) Execute(args []string, requests <-chan svc.ChangeRequest, status chan<- svc.Status) (svcSpecificEC bool, exitCode uint32) {
+	const cmdsAccepted = svc.AcceptStop // Interrogate is always accepted and there is no const for it.
+	status <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	errCh := make(chan error)
+	go func() { errCh <- s.run(ctx, args) }()
+
+	var terminateTimedOut <-chan time.Time
+loop:
+	for {
+		select {
+		case request := <-requests:
+			switch request.Cmd {
+			case svc.Interrogate:
+				state := svc.Running
+				if ctx.Err() != nil {
+					state = svc.StopPending
+				}
+				status <- svc.Status{State: state, Accepts: cmdsAccepted}
+			case svc.Stop:
+				slog.InfoContext(ctx, "Received stop command, shutting down service")
+				// Cancel the context passed to s.run to terminate the
+				// networking stack.
+				cancel()
+				terminateTimedOut = cmp.Or(terminateTimedOut, time.After(terminateTimeout))
+				status <- svc.Status{State: svc.StopPending}
+			}
+		case <-terminateTimedOut:
+			slog.ErrorContext(ctx, "Networking stack failed to terminate within timeout, exiting process",
+				slog.Duration("timeout", terminateTimeout))
+			exitCode = 1
+			break loop
+		case err := <-errCh:
+			slog.ErrorContext(ctx, "Windows VNet service terminated", "error", err)
+			if err != nil {
+				exitCode = 1
+			}
+			break loop
+		}
+	}
+	status <- svc.Status{State: svc.Stopped, Win32ExitCode: exitCode}
+	return false, exitCode
+}
+
+func (s *windowsService) run(ctx context.Context, args []string) error {
 	var cfg windowsAdminProcessConfig
 	app := kingpin.New(serviceName, "Teleport VNet Windows Service")
 	serviceCmd := app.Command("vnet-service", "Start the VNet service.")
@@ -156,4 +209,29 @@ func (w *handler) Execute(ctx context.Context, args []string) error {
 		return trace.Wrap(err, "running admin process")
 	}
 	return nil
+}
+
+func setupServiceLogger() error {
+	logFile, err := serviceLogFile()
+	if err != nil {
+		return trace.Wrap(err, "creating log file for service")
+	}
+	slog.SetDefault(slog.New(slog.NewTextHandler(logFile, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	})))
+	return nil
+}
+
+func serviceLogFile() (*os.File, error) {
+	// TODO(nklaassen): find a better path for Windows service logs.
+	exePath, err := os.Executable()
+	if err != nil {
+		return nil, trace.Wrap(err, "getting current executable path")
+	}
+	dir := filepath.Dir(exePath)
+	logFile, err := os.Create(filepath.Join(dir, "logs.txt"))
+	if err != nil {
+		return nil, trace.Wrap(err, "creating log file")
+	}
+	return logFile, nil
 }

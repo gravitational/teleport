@@ -30,7 +30,7 @@ func (c *Client) PerformMFACeremony(ctx context.Context, challengeRequest *proto
 	mfaCeremony := &mfa.Ceremony{
 		CreateAuthenticateChallenge: c.CreateAuthenticateChallenge,
 		PromptConstructor:           c.c.MFAPromptConstructor,
-		MFACeremonyConstructor:      c.c.MFACeremonyConstructor,
+		SSOMFACeremonyConstructor:   c.c.SSOMFACeremonyConstructor,
 	}
 	return mfaCeremony.Run(ctx, challengeRequest, promptOpts...)
 }

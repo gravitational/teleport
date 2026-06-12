@@ -20,7 +20,6 @@ package lite
 
 import (
 	"context"
-	"net/url"
 	"os"
 	"testing"
 	"time"
@@ -31,12 +30,12 @@ import (
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/clocki"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	logtest.InitLogger(testing.Verbose)
+	utils.InitLoggerForTests()
 	os.Exit(m.Run())
 }
 
@@ -74,15 +73,7 @@ func TestLite(t *testing.T) {
 }
 
 func TestConnectionURIGeneration(t *testing.T) {
-	params := url.Values{}
-	params.Add("_pragma", "busy_timeout(0)")
-	params.Add("_pragma", "journal_mode(WAL)")
-	params.Add("_txlock", "immediate")
-
-	p := params.Encode()
-
-	fileNameAndParams := "/sqlite.db?" + p
-
+	fileNameAndParams := "/sqlite.db?_busy_timeout=0&_txlock=immediate"
 	tests := []struct {
 		name     string
 		path     string
@@ -105,10 +96,7 @@ func TestConnectionURIGeneration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			conf := Config{
-				Path:    tt.path,
-				Journal: "WAL",
-			}
+			conf := Config{Path: tt.path}
 			require.Equal(t, tt.expected, conf.ConnectionURI())
 		})
 	}

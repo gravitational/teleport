@@ -17,7 +17,7 @@
  */
 
 import React, { useRef, useState } from 'react';
-import { useLocation, useNavigate, useParams } from 'react-router';
+import { useHistory, useLocation, useParams } from 'react-router';
 import styled, { useTheme } from 'styled-components';
 
 import { Alert } from 'design/Alert/Alert';
@@ -41,9 +41,8 @@ import Menu from 'design/Menu/Menu';
 import MenuItem from 'design/Menu/MenuItem';
 import Text from 'design/Text';
 import { HoverTooltip } from 'design/Tooltip/HoverTooltip';
-import { CopyButton } from 'shared/components/CopyButton/CopyButton';
 import { InfoGuideButton } from 'shared/components/SlidingSidePanel/InfoGuide/InfoGuide';
-import { traitDescriptions } from 'shared/components/TraitsEditor/TraitsEditor';
+import { CopyButton } from 'shared/components/UnifiedResources/shared/CopyButton';
 
 import {
   FeatureBox,
@@ -56,7 +55,7 @@ import { ResourceLockIndicator } from 'teleport/lib/locks/ResourceLockIndicator'
 import { ResourceUnlockDialog } from 'teleport/lib/locks/ResourceUnlockDialog';
 import { useResourceLock } from 'teleport/lib/locks/useResourceLock';
 import { isAdminActionRequiresMfaError } from 'teleport/services/api/api';
-import { BotInstanceSummary } from 'teleport/services/bot/types';
+import { traitsPreset } from 'teleport/Users/UserAddEdit/TraitsEditor';
 import useTeleport from 'teleport/useTeleport';
 
 import { DeleteDialog } from '../Delete/DeleteDialog';
@@ -70,9 +69,11 @@ import { Panel } from './Panel';
 
 export function BotDetails() {
   const ctx = useTeleport();
-  const navigate = useNavigate();
+  const history = useHistory();
   const location = useLocation();
-  const { botName = '' } = useParams<{ botName: string }>();
+  const params = useParams<{
+    botName: string;
+  }>();
   const [isEditing, setEditing] = useState(false);
   const [showLockConfirmation, setShowLockConfirmation] = useState(false);
   const [showUnlockConfirmation, setShowUnlockConfirmation] = useState(false);
@@ -83,16 +84,13 @@ export function BotDetails() {
   const hasEditPermission = flags.editBots;
   const hasDeletePermission = flags.removeBots;
 
-  const { data, error, isSuccess, isError, isLoading } = useGetBot(
-    { botName },
-    {
-      enabled: hasReadPermission,
-      staleTime: 30_000, // Keep data in the cache for 30 seconds
-    }
-  );
+  const { data, error, isSuccess, isError, isLoading } = useGetBot(params, {
+    enabled: hasReadPermission,
+    staleTime: 30_000, // Keep data in the cache for 30 seconds
+  });
 
   const targetKind = 'user';
-  const targetName = `bot-${botName}`;
+  const targetName = `bot-${params.botName}`;
 
   const {
     isLocked,
@@ -107,9 +105,9 @@ export function BotDetails() {
   const handleBackPress = () => {
     // If location.key is unset, or 'default', this is the first history entry in-app in the session.
     if (!location.key || location.key === 'default') {
-      navigate(cfg.getBotsRoute());
+      history.push(cfg.getBotsRoute());
     } else {
-      navigate(-1);
+      history.goBack();
     }
   };
 
@@ -122,7 +120,7 @@ export function BotDetails() {
   };
 
   const handleViewAllTokensClicked = () => {
-    navigate(cfg.getJoinTokensRoute());
+    history.push(cfg.getJoinTokensRoute());
   };
 
   const handleLock = () => {
@@ -139,18 +137,7 @@ export function BotDetails() {
 
   const handleDeleteComplete = () => {
     setShowDeleteConfirmation(false);
-    navigate(cfg.getBotsRoute(), { replace: true });
-  };
-
-  const handleInstanceSelected = (instance: BotInstanceSummary) => {
-    const path = cfg.getBotInstancesRoute({
-      selectedItemId: `${instance.bot_name}/${instance.instance_id}`,
-      isAdvancedQuery: true,
-      query: `spec.bot_name == "${instance.bot_name}"`,
-      sortField: 'active_at_latest',
-      sortDir: 'DESC',
-    });
-    navigate(path);
+    history.replace(cfg.getBotsRoute());
   };
 
   return (
@@ -219,7 +206,7 @@ export function BotDetails() {
       ) : undefined}
 
       {isSuccess && data === null ? (
-        <Alert kind="warning">Bot {botName} does not exist</Alert>
+        <Alert kind="warning">Bot {params.botName} does not exist</Alert>
       ) : undefined}
 
       {!hasReadPermission ? (
@@ -254,7 +241,7 @@ export function BotDetails() {
                     overflow={'hidden'}
                   >
                     <MonoText>{data.name}</MonoText>
-                    <CopyButton value={data.name} />
+                    <CopyButton name={data.name} />
                   </Flex>
                   <GridLabel>Description</GridLabel>
                   <span>{data.description || '-'}</span>
@@ -327,10 +314,7 @@ export function BotDetails() {
             />
           </ColumnContainer>
           <ColumnContainer maxWidth={400}>
-            <InstancesPanel
-              botName={botName}
-              onItemSelected={handleInstanceSelected}
-            />
+            <InstancesPanel botName={params.botName} />
           </ColumnContainer>
 
           {isEditing ? (
@@ -368,7 +352,7 @@ export function BotDetails() {
                 setShowLockConfirmation(true);
                 setShowDeleteConfirmation(false);
               }}
-              botName={botName}
+              botName={params.botName}
               showLockAlternative={!isLocked}
             />
           ) : undefined}
@@ -450,6 +434,22 @@ const LabelText = styled(Text).attrs({
 const EmptyText = styled(Text)`
   color: ${p => p.theme.colors.text.muted};
 `;
+
+const traitDescriptions: { [key in (typeof traitsPreset)[number]]: string } = {
+  aws_role_arns: 'List of allowed AWS role ARNS',
+  azure_identities: 'List of Azure identities',
+  db_names: 'List of allowed database names',
+  db_roles: 'List of allowed database roles',
+  db_users: 'List of allowed database users',
+  gcp_service_accounts: 'List of GCP service accounts',
+  kubernetes_groups: 'List of allowed Kubernetes groups',
+  kubernetes_users: 'List of allowed Kubernetes users',
+  logins: 'List of allowed logins',
+  windows_logins: 'List of allowed Windows logins',
+  host_user_gid: 'The group ID to use for auto-host-users',
+  host_user_uid: 'The user ID to use for auto-host-users',
+  github_orgs: 'List of allowed GitHub organizations for git command proxy',
+};
 
 function Trait(props: { traitName: string }) {
   const theme = useTheme();
@@ -642,7 +642,7 @@ function OverflowMenu(props: {
   return (
     <div>
       <FilledButtonIcon
-        ref={anchorElRef}
+        setRef={anchorElRef}
         intent="neutral"
         onClick={() => {
           setIsOpen(true);

@@ -35,11 +35,10 @@ import (
 	"google.golang.org/grpc/peer"
 
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	logtest.InitLogger(testing.Verbose)
+	utils.InitLoggerForTests()
 	os.Exit(m.Run())
 }
 
@@ -64,31 +63,31 @@ func TestRateLimiter(t *testing.T) {
 		})
 	require.NoError(t, err)
 
-	for range 20 {
+	for i := 0; i < 20; i++ {
 		require.NoError(t, limiter.RegisterRequest("token1"))
 	}
-	for range 20 {
+	for i := 0; i < 20; i++ {
 		require.NoError(t, limiter.RegisterRequest("token2"))
 	}
 
 	require.Error(t, limiter.RegisterRequest("token1"))
 
 	clock.Advance(10 * time.Millisecond)
-	for range 10 {
+	for i := 0; i < 10; i++ {
 		require.NoError(t, limiter.RegisterRequest("token1"))
 	}
 	require.Error(t, limiter.RegisterRequest("token1"))
 
 	clock.Advance(10 * time.Millisecond)
-	for range 10 {
+	for i := 0; i < 10; i++ {
 		require.NoError(t, limiter.RegisterRequest("token1"))
 	}
-	require.True(t, trace.IsLimitExceeded(limiter.RegisterRequest("token1")))
+	require.Error(t, limiter.RegisterRequest("token1"))
 
 	clock.Advance(10 * time.Millisecond)
 	// the second rate is full
 	err = nil
-	for range 10 {
+	for i := 0; i < 10; i++ {
 		err = limiter.RegisterRequest("token1")
 		if err != nil {
 			break
@@ -100,7 +99,7 @@ func TestRateLimiter(t *testing.T) {
 	// Now the second rate has free space
 	require.NoError(t, limiter.RegisterRequest("token1"))
 	err = nil
-	for range 15 {
+	for i := 0; i < 15; i++ {
 		err = limiter.RegisterRequest("token1")
 		if err != nil {
 			break
@@ -172,14 +171,14 @@ func TestLimiter_StreamServerInterceptor(t *testing.T) {
 		ctx: ctx,
 	}
 	info := &grpc.StreamServerInfo{}
-	handler := func(srv any, stream grpc.ServerStream) error { return nil }
+	handler := func(srv interface{}, stream grpc.ServerStream) error { return nil }
 
 	// pass at least once
 	err = limiter.StreamServerInterceptor(nil, ss, info, handler)
 	require.NoError(t, err)
 
 	// should eventually fail, not testing the limiter behavior here
-	for range 10 {
+	for i := 0; i < 10; i++ {
 		err = limiter.StreamServerInterceptor(nil, ss, info, handler)
 		if err != nil {
 			break
@@ -286,7 +285,7 @@ func TestListener(t *testing.T) {
 
 			// open connections without closing to enforce limits
 			conns := make([]net.Conn, 0, connLimit)
-			for i := range connLimit {
+			for i := 0; i < connLimit; i++ {
 				conn, err := ln.Accept()
 				test.acceptAssertion(t, i, conn, err)
 
@@ -317,7 +316,7 @@ func TestListener(t *testing.T) {
 
 			// open connections again after closing to
 			// ensure that closing reset limits
-			for i := range 5 {
+			for i := 0; i < 5; i++ {
 				conn, err := ln.Accept()
 				test.acceptAssertion(t, i, conn, err)
 
@@ -421,30 +420,13 @@ func TestNoRates_Middleware(t *testing.T) {
 	}
 }
 
-func TestNoRates_IsRateLimited(t *testing.T) {
-	t.Parallel()
-
-	limiter, err := NewRateLimiter(Config{})
-	require.NoError(t, err)
-
-	// With no rates configured, IsRateLimited should always return false.
-	require.False(t, limiter.IsRateLimited("token1"))
-
-	// RegisterRequest is a no-op, so even after many calls the token
-	// should not appear rate-limited.
-	for range 100 {
-		require.NoError(t, limiter.RegisterRequest("token1"))
-	}
-	require.False(t, limiter.IsRateLimited("token1"))
-}
-
 func TestNoRates_UnaryServerInterceptor(t *testing.T) {
 	t.Parallel()
 
 	limiter, err := NewLimiter(Config{})
 	require.NoError(t, err)
 
-	ctx := peer.NewContext(t.Context(), &peer.Peer{Addr: mockAddr{}})
+	ctx := peer.NewContext(context.Background(), &peer.Peer{Addr: mockAddr{}})
 	serverInfo := &grpc.UnaryServerInfo{FullMethod: "/method"}
 	handler := func(context.Context, any) (any, error) { return "ok", nil }
 
@@ -464,7 +446,7 @@ func TestNoRates_StreamServerInterceptor(t *testing.T) {
 	limiter, err := NewLimiter(Config{})
 	require.NoError(t, err)
 
-	ctx := peer.NewContext(t.Context(), &peer.Peer{Addr: mockAddr{}})
+	ctx := peer.NewContext(context.Background(), &peer.Peer{Addr: mockAddr{}})
 	ss := mockServerStream{ctx: ctx}
 	info := &grpc.StreamServerInfo{}
 	handler := func(srv any, stream grpc.ServerStream) error { return nil }
@@ -536,48 +518,6 @@ func TestNoRates_MiddlewareWithMaxConnections(t *testing.T) {
 	for range 100 {
 		mustServeAndReceiveStatusCode(t, handler, http.StatusAccepted)
 	}
-}
-
-func TestRateLimiter_IsRateLimited(t *testing.T) {
-	t.Parallel()
-
-	clock := clockwork.NewFakeClock()
-	limiter, err := NewRateLimiter(Config{
-		Clock: clock,
-		Rates: []Rate{
-			{
-				Period:  time.Minute,
-				Average: 10,
-				Burst:   10,
-			},
-		},
-	})
-	require.NoError(t, err)
-	require.False(t, limiter.IsRateLimited("token1"))
-
-	// Consume some tokens but not all
-	for range 5 {
-		require.NoError(t, limiter.RegisterRequest("token1"))
-	}
-
-	require.False(t, limiter.IsRateLimited("token1"))
-
-	// Consume the rest of the tokens
-	for range 4 {
-		require.NoError(t, limiter.RegisterRequest("token1"))
-	}
-	require.False(t, limiter.IsRateLimited("token1"))
-
-	// Consume the last token
-	require.NoError(t, limiter.RegisterRequest("token1"))
-	// Now token1 should be rate limited
-	require.True(t, limiter.IsRateLimited("token1"))
-	// token2 should not be rate limited
-	require.False(t, limiter.IsRateLimited("token2"))
-
-	clock.Advance(time.Minute)
-	// After time passes, token1 should not be rate limited anymore
-	require.False(t, limiter.IsRateLimited("token1"))
 }
 
 // TestIndependentLimiters verifies that two Limiter instances

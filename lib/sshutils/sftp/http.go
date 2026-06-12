@@ -32,14 +32,15 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/session/sftputils"
 )
 
+type contextKey string
+
 const (
-	// EnvModeratedSessionID is an optional env var parameter sent during SCP requests to specify which moderated session
+	// ModeratedSessionID is an optional parameter sent during SCP requests to specify which moderated session
 	// to check for valid FileTransferRequests
 	// used as a value in the file transfer context and env var for exec session
-	EnvModeratedSessionID = "TELEPORT_MODERATED_SESSION_ID"
+	ModeratedSessionID contextKey = "TELEPORT_MODERATED_SESSION_ID"
 )
 
 var errDirsNotSupported = trace.BadParameter("directories are not supported when transferring files over HTTP")
@@ -72,7 +73,7 @@ func (h *httpFS) ReadDir(_ string) ([]fs.FileInfo, error) {
 	return nil, errDirsNotSupported
 }
 
-func (h *httpFS) Open(path string) (sftputils.File, error) {
+func (h *httpFS) Open(path string) (File, error) {
 	if h.reader == nil {
 		return nil, trace.BadParameter("missing reader")
 	}
@@ -86,7 +87,7 @@ func (h *httpFS) Open(path string) (sftputils.File, error) {
 	}, nil
 }
 
-func (h *httpFS) Create(p string, size int64) (sftputils.File, error) {
+func (h *httpFS) Create(p string, size int64) (File, error) {
 	filename := path.Base(p)
 	contentLength := strconv.FormatInt(size, 10)
 	header := h.writer.Header()
@@ -107,7 +108,7 @@ func (h *httpFS) Create(p string, size int64) (sftputils.File, error) {
 	}, nil
 }
 
-func (h *httpFS) OpenFile(p string, flags int) (sftputils.File, error) {
+func (h *httpFS) OpenFile(p string, flags int) (File, error) {
 	switch flags & 3 {
 	case os.O_RDWR:
 		return nil, trace.BadParameter("read-write files not supported for http")
@@ -174,13 +175,6 @@ func (h *httpFS) Getwd() (string, error) {
 
 func (h *httpFS) RealPath(path string) (string, error) {
 	return path, nil
-}
-
-func (h *httpFS) Close() error {
-	if h.reader != nil {
-		return trace.Wrap(h.reader.Close())
-	}
-	return nil
 }
 
 type nopWriteCloser struct {

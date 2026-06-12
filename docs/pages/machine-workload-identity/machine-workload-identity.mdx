@@ -1,10 +1,9 @@
 ---
 title: "Teleport Machine & Workload Identity"
-description: "Includes guides for Machine & Workload Identity, which replaces static secrets with secure, short-lived identities for machines and workloads."
+description: "Replace static secrets with secure, short-lived identities for machines and workloads."
 template: "landing-page"
 tags:
  - mwi
- - infrastructure-identity
 ---
 
 import LandingHero, { LandingHeroProps } from '@site/src/components/Pages/Landing/LandingHero';
@@ -34,7 +33,6 @@ import appWindowSvg from "@site/src/components/Icon/teleport-svg/app-window.svg"
 import certificateSvg from "@site/src/components/Icon/teleport-svg/certificate.svg";
 import cloudSvg from "@site/src/components/Icon/teleport-svg/cloud.svg";
 import teleportSvg from "@site/src/components/Icon/teleport-svg/teleport.svg";
-import githubSvg from "@site/src/components/Icon/svg/github.svg";
 
 <LandingHero
   title="Machine & Workload Identity"
@@ -129,12 +127,6 @@ The following steps will help you get started with Machine and Workload Identity
       iconComponent: gcpSvg,
     },
     {
-      title: 'GitHub Actions',
-      href: './deployment/github-actions/',
-      iconColor: '#0000001A',
-      iconComponent: githubSvg,
-    },
-    {
       title: 'Gitlab CI',
       href: './deployment/gitlab/',
       iconColor: '#FF99001A',
@@ -155,6 +147,12 @@ The following steps will help you get started with Machine and Workload Identity
     {
       title: 'Linux',
       href: './deployment/linux/',
+      iconColor: '#FF99001A',
+      iconComponent: linuxSvg,
+    },
+    {
+      title: 'Linux (TPM)',
+      href: './deployment/linux-tpm/',
       iconColor: '#FF99001A',
       iconComponent: linuxSvg,
     }, 

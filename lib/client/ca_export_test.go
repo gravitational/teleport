@@ -29,8 +29,6 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 
@@ -44,8 +42,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/fixtures"
-	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 type mockAuthClient struct {
@@ -86,9 +82,10 @@ func (m *mockIntegrationsClient) ExportIntegrationCertAuthorities(ctx context.Co
 	}, nil
 }
 
-func TestExportAllAuthorities(t *testing.T) {
+func TestExportAuthorities(t *testing.T) {
 	t.Parallel()
 
+	ctx := context.Background()
 	const localClusterName = "localcluster"
 
 	testAuth, err := authtest.NewAuthServer(authtest.AuthServerConfig{
@@ -96,7 +93,7 @@ func TestExportAllAuthorities(t *testing.T) {
 		Dir:         t.TempDir(),
 	})
 	require.NoError(t, err, "failed to create authtest.NewAuthServer")
-	t.Cleanup(func() { assert.NoError(t, testAuth.Close()) })
+	t.Cleanup(func() { require.NoError(t, testAuth.Close()) })
 
 	validateTLSCertificateDERFunc := func(t *testing.T, s string) {
 		cert, err := x509.ParseCertificate([]byte(s))
@@ -131,47 +128,20 @@ func TestExportAllAuthorities(t *testing.T) {
 		require.NotNil(t, privKey, "x509.ParsePKCS8PrivateKey returned a nil key")
 	}
 
-	mockedAuthClient := &mockAuthClient{
-		server: testAuth.AuthServer,
+	validateGitHubCAFunc := func(t *testing.T, s string) {
+		require.Contains(t, s, fixtures.SSHCAPublicKey)
 	}
 
-	t.Run(`"tls-user-der" and "windows" are distinct`, func(t *testing.T) {
-		t.Parallel()
-		ctx := t.Context()
-
-		userExports, err := ExportAllAuthorities(ctx, mockedAuthClient, ExportAuthoritiesRequest{
-			AuthType: "tls-user-der",
-		})
-		require.NoError(t, err)
-		require.Len(t, userExports, 1)
-
-		windowsExports, err := ExportAllAuthorities(ctx, mockedAuthClient, ExportAuthoritiesRequest{
-			AuthType: "windows",
-		})
-		require.NoError(t, err)
-		require.Len(t, windowsExports, 1)
-
-		// "tls-user-der" and "windows" are distinct, which is always true in a
-		// fresh cluster.
-		// Formats are validated by the test table below.
-		assert.NotEqual(t,
-			userExports, windowsExports,
-			`Exports from "tls-user-der" and "windows" must be distinct`)
-
-		// "windows" export matches the Windows CA.
-		windowsCA, err := testAuth.AuthServer.GetCertAuthority(ctx, types.CertAuthID{
-			Type:       types.WindowsCA,
-			DomainName: localClusterName,
-		}, false /* loadKeys */)
-		require.NoError(t, err)
-		cert := windowsCA.GetActiveKeys().TLS[0].Cert
-		block, _ := pem.Decode(cert)
-		require.NotEmpty(t, block, "pem.Decode() failed")
-		certDER := block.Bytes
-		assert.Equal(t,
-			certDER, windowsExports[0].Data,
-			`Exported "windows" certificate doesn't match the WindowsCA certificate`)
-	})
+	mockedAuthClient := &mockAuthClient{
+		server: testAuth.AuthServer,
+		integrationsClient: mockIntegrationsClient{
+			caKeySet: &types.CAKeySet{
+				SSH: []*types.SSHKeyPair{{
+					PublicKey: []byte(fixtures.SSHCAPublicKey),
+				}},
+			},
+		},
+	}
 
 	for _, tt := range []struct {
 		name            string
@@ -225,15 +195,6 @@ func TestExportAllAuthorities(t *testing.T) {
 			assertSecrets:   validatePrivateKeyPEMFunc,
 		},
 		{
-			name: "tls-user-der",
-			req: ExportAuthoritiesRequest{
-				AuthType: "tls-user-der",
-			},
-			errorCheck:      require.NoError,
-			assertNoSecrets: validateTLSCertificateDERFunc,
-			assertSecrets:   validateECDSAPrivateKeyDERFunc,
-		},
-		{
 			name: "windows",
 			req: ExportAuthoritiesRequest{
 				AuthType: "windows",
@@ -247,7 +208,7 @@ func TestExportAllAuthorities(t *testing.T) {
 			req: ExportAuthoritiesRequest{
 				AuthType: "invalid",
 			},
-			errorCheck: func(tt require.TestingT, err error, i ...any) {
+			errorCheck: func(tt require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(tt, err, `"invalid" authority type is not supported`)
 			},
 		},
@@ -330,22 +291,21 @@ func TestExportAllAuthorities(t *testing.T) {
 			assertSecrets:   validateRSAPrivateKeyDERFunc,
 		},
 		{
-			name: "aws iam roles anywhere",
+			name: "github missing integration",
 			req: ExportAuthoritiesRequest{
-				AuthType: "awsra",
+				AuthType: "github",
 			},
-			errorCheck:      require.NoError,
-			assertNoSecrets: validateTLSCertificatePEMFunc,
-			assertSecrets:   validatePrivateKeyPEMFunc,
+			errorCheck: require.Error,
 		},
 		{
-			name: "app-client",
+			name: "github",
 			req: ExportAuthoritiesRequest{
-				AuthType: "app-client",
+				AuthType:    "github",
+				Integration: "my-github",
 			},
 			errorCheck:      require.NoError,
-			assertNoSecrets: validateTLSCertificatePEMFunc,
-			assertSecrets:   validatePrivateKeyPEMFunc,
+			assertNoSecrets: validateGitHubCAFunc,
+			skipSecrets:     true, // not supported for GitHub
 		},
 	} {
 		runTest := func(
@@ -353,8 +313,6 @@ func TestExportAllAuthorities(t *testing.T) {
 			exportFunc func(context.Context, authclient.ClientI, ExportAuthoritiesRequest) ([]*ExportedAuthority, error),
 			assertFunc func(t *testing.T, output string),
 		) {
-			ctx := t.Context()
-
 			authorities, err := exportFunc(ctx, mockedAuthClient, tt.req)
 			tt.errorCheck(t, err)
 			if err != nil {
@@ -383,122 +341,9 @@ func TestExportAllAuthorities(t *testing.T) {
 	}
 }
 
-func TestExportAllAuthorities_additionalKeys(t *testing.T) {
-	t.Parallel()
-
-	const clusterName = "zarq"
-	testAuth, err := authtest.NewAuthServer(authtest.AuthServerConfig{
-		ClusterName: clusterName,
-		Dir:         t.TempDir(),
-	})
-	require.NoError(t, err)
-	t.Cleanup(func() { assert.NoError(t, testAuth.Close()) })
-
-	authServer := testAuth.AuthServer
-	ctx := t.Context()
-
-	const caType = types.UserCA
-	ca, err := authServer.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       caType,
-		DomainName: clusterName,
-	}, true /* loadKeys */)
-	require.NoError(t, err)
-
-	makeNewTLSKey := func(t *testing.T) *types.TLSKeyPair {
-		t.Helper()
-
-		const ttl = 1 * time.Hour // Arbitrary. Actual CA TTLs are much larger.
-		keyPEM, certPEM, err := tlsca.GenerateSelfSignedCA(
-			pkix.Name{
-				Organization: []string{clusterName},
-				CommonName:   clusterName,
-			},
-			nil /* dnsNames */, ttl)
-		require.NoError(t, err)
-
-		return &types.TLSKeyPair{
-			Cert:    certPEM,
-			Key:     keyPEM,
-			KeyType: types.PrivateKeyType_RAW,
-		}
-	}
-
-	kp1 := makeNewTLSKey(t)
-
-	// Make sure multiple keys exist in both active and additionalTrusted sets.
-	aks := ca.GetActiveKeys()
-	aks.TLS = append(aks.TLS,
-		makeNewTLSKey(t),
-		&types.TLSKeyPair{Cert: kp1.Cert}, // Cert without Key.
-		// 3 entries total (existing + new + cert only)
-	)
-	require.NoError(t, ca.SetActiveKeys(aks))
-	tks := ca.GetAdditionalTrustedKeys()
-	tks.TLS = append(tks.TLS,
-		makeNewTLSKey(t),
-		makeNewTLSKey(t),
-		// 2 entries total (both new)
-	)
-	require.NoError(t, ca.SetAdditionalTrustedKeys(tks))
-
-	// Update CA with new keys.
-	_, err = authServer.UpdateCertAuthority(ctx, ca)
-	require.NoError(t, err)
-
-	var wantCerts, wantKeys []*ExportedAuthority
-	for _, keySet := range [][]*types.TLSKeyPair{aks.TLS, tks.TLS} {
-		for _, kp := range keySet {
-			wantCerts = append(wantCerts, &ExportedAuthority{Data: kp.Cert})
-			if len(kp.Key) > 0 {
-				wantKeys = append(wantKeys, &ExportedAuthority{Data: kp.Key})
-			}
-		}
-	}
-	// Sanity check.
-	require.Len(t, wantCerts, 5, "Unexpected number of wanted certs")
-	require.Len(t, wantKeys, 4, "Unexpected number of wanted keys")
-
-	authClient := &mockAuthClient{
-		server: authServer,
-	}
-
-	exportReq := ExportAuthoritiesRequest{
-		AuthType: "tls-user", // UserCA TLS certificates in PEM form.
-	}
-
-	tests := []struct {
-		name       string
-		exportFunc func(context.Context, authclient.ClientI, ExportAuthoritiesRequest) ([]*ExportedAuthority, error)
-		want       []*ExportedAuthority
-	}{
-		{
-			name:       "certs",
-			exportFunc: ExportAllAuthorities,
-			want:       wantCerts,
-		},
-		{
-			name:       "secrets",
-			exportFunc: ExportAllAuthoritiesSecrets,
-			want:       wantKeys,
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-
-			ctx := t.Context()
-			got, err := test.exportFunc(ctx, authClient, exportReq)
-			require.NoError(t, err)
-			if diff := cmp.Diff(test.want, got); diff != "" {
-				t.Errorf("Export mismatch (-want +got)\n%s", diff)
-			}
-		})
-	}
-}
-
 // Tests a scenario similar to
 // https://github.com/gravitational/teleport/issues/35444.
-func TestExportAllAuthorities_multipleActiveKeys(t *testing.T) {
+func TestExportAllAuthorities_mutipleActiveKeys(t *testing.T) {
 	t.Parallel()
 
 	softwareKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
@@ -592,6 +437,7 @@ func TestExportAllAuthorities_multipleActiveKeys(t *testing.T) {
 		clusterName:     clusterName,
 		certAuthorities: []types.CertAuthority{userCA},
 	}
+	ctx := context.Background()
 
 	tests := []struct {
 		name                    string
@@ -613,9 +459,9 @@ func TestExportAllAuthorities_multipleActiveKeys(t *testing.T) {
 			},
 		},
 		{
-			name: "tls-user-der",
+			name: "windows",
 			req: &ExportAuthoritiesRequest{
-				AuthType: "tls-user-der",
+				AuthType: "windows",
 			},
 			wantPublic: []*ExportedAuthority{
 				{Data: softKeyDER.Cert},
@@ -636,8 +482,6 @@ func TestExportAllAuthorities_multipleActiveKeys(t *testing.T) {
 				exportAllFunc func(context.Context, authclient.ClientI, ExportAuthoritiesRequest) ([]*ExportedAuthority, error),
 				want []*ExportedAuthority,
 			) {
-				ctx := t.Context()
-
 				got, err := exportAllFunc(ctx, authClient, *test.req)
 				require.NoError(t, err, "exportAllFunc errored")
 				if diff := cmp.Diff(want, got); diff != "" {
@@ -675,7 +519,7 @@ func (m *multiCAAuthClient) GetCertAuthority(_ context.Context, id types.CertAut
 			return ca, nil
 		}
 	}
-	return nil, trace.NotFound("not found")
+	return nil, nil
 }
 
 func (m *multiCAAuthClient) PerformMFACeremony(
@@ -685,96 +529,4 @@ func (m *multiCAAuthClient) PerformMFACeremony(
 ) (*clientpb.MFAAuthenticateResponse, error) {
 	// Skip MFA ceremonies.
 	return nil, &mfa.ErrMFANotRequired
-}
-
-func TestExportIntegrationAuthorities(t *testing.T) {
-	t.Parallel()
-
-	testAuth, err := authtest.NewAuthServer(authtest.AuthServerConfig{
-		ClusterName: "localcluster",
-		Dir:         t.TempDir(),
-	})
-	require.NoError(t, err)
-	t.Cleanup(func() { assert.NoError(t, testAuth.Close()) })
-
-	fingerprint, err := sshutils.AuthorizedKeyFingerprint([]byte(fixtures.SSHCAPublicKey))
-	require.NoError(t, err)
-
-	mockedAuthClient := &mockAuthClient{
-		server: testAuth.AuthServer,
-		integrationsClient: mockIntegrationsClient{
-			caKeySet: &types.CAKeySet{
-				SSH: []*types.SSHKeyPair{{
-					PublicKey: []byte(fixtures.SSHCAPublicKey),
-				}},
-			},
-		},
-	}
-
-	for _, tc := range []struct {
-		name        string
-		req         ExportIntegrationAuthoritiesRequest
-		checkError  require.ErrorAssertionFunc
-		checkOutput func(*testing.T, []*ExportedAuthority)
-	}{
-		{
-			name: "missing integration",
-			req: ExportIntegrationAuthoritiesRequest{
-				AuthType: "github",
-			},
-			checkError: require.Error,
-		},
-		{
-			name: "unknown type",
-			req: ExportIntegrationAuthoritiesRequest{
-				AuthType:    "unknown",
-				Integration: "integration",
-			},
-			checkError: require.Error,
-		},
-		{
-			name: "github",
-			req: ExportIntegrationAuthoritiesRequest{
-				AuthType:    "github",
-				Integration: "integration",
-			},
-			checkError: require.NoError,
-			checkOutput: func(t *testing.T, authorities []*ExportedAuthority) {
-				require.Len(t, authorities, 1)
-				require.Contains(t, string(authorities[0].Data), fixtures.SSHCAPublicKey)
-			},
-		},
-		{
-			name: "matching fingerprint",
-			req: ExportIntegrationAuthoritiesRequest{
-				AuthType:         "github",
-				Integration:      "integration",
-				MatchFingerprint: fingerprint,
-			},
-			checkError: require.NoError,
-			checkOutput: func(t *testing.T, authorities []*ExportedAuthority) {
-				require.Len(t, authorities, 1)
-				require.Contains(t, string(authorities[0].Data), fixtures.SSHCAPublicKey)
-			},
-		},
-		{
-			name: "no matching fingerprint",
-			req: ExportIntegrationAuthoritiesRequest{
-				AuthType:         "github",
-				Integration:      "integration",
-				MatchFingerprint: "something-does-not-match",
-			},
-			checkError: require.Error,
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			ctx := t.Context()
-
-			authorities, err := ExportIntegrationAuthorities(ctx, mockedAuthClient, tc.req)
-			tc.checkError(t, err)
-			if tc.checkOutput != nil {
-				tc.checkOutput(t, authorities)
-			}
-		})
-	}
 }

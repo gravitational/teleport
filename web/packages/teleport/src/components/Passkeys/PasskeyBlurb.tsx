@@ -19,10 +19,8 @@
 import Box from 'design/Box';
 
 import { PasskeyIcons } from 'teleport/components/Passkeys';
-import cfg from 'teleport/config';
 
 export function PasskeyBlurb() {
-  const productName = cfg.beamsUi ? 'Beams' : 'Teleport';
   return (
     <Box
       border={1}
@@ -32,9 +30,8 @@ export function PasskeyBlurb() {
     >
       <PasskeyIcons />
       <p>
-        {productName} supports passkeys, a password replacement that validates
-        your identity using touch, facial recognition, a device password, or a
-        PIN.
+        Teleport supports passkeys, a password replacement that validates your
+        identity using touch, facial recognition, a device password, or a PIN.
       </p>
       <p style={{ marginBottom: 0 }}>
         Passkeys can be used to sign in as a simple and secure alternative to

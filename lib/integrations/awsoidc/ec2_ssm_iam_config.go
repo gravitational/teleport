@@ -22,15 +22,13 @@ import (
 	"context"
 	"io"
 
-	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/types"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
-	config "github.com/gravitational/teleport/lib/cloud/aws/config"
 	"github.com/gravitational/teleport/lib/cloud/provisioning"
 	"github.com/gravitational/teleport/lib/cloud/provisioning/awsactions"
 	"github.com/gravitational/teleport/lib/utils/aws/iamutils"
@@ -57,7 +55,6 @@ type EC2SSMIAMConfigureRequest struct {
 
 	// SSMDocumentName is the SSM Document to be created.
 	// This document calls the installer scripts in the target host.
-	// Empty if using a pre-existing document.
 	SSMDocumentName string
 
 	// ProxyPublicURL is Proxy's Public URL.
@@ -95,6 +92,10 @@ func (r *EC2SSMIAMConfigureRequest) CheckAndSetDefaults() error {
 
 	if r.IntegrationRoleEC2SSMPolicy == "" {
 		r.IntegrationRoleEC2SSMPolicy = defaultPolicyNameForEC2SSM
+	}
+
+	if r.SSMDocumentName == "" {
+		return trace.BadParameter("ssm document name is required")
 	}
 
 	if r.ProxyPublicURL == "" {
@@ -136,7 +137,7 @@ func NewEC2SSMConfigureClient(ctx context.Context, region string) (EC2SSMConfigu
 		return nil, trace.BadParameter("region is required")
 	}
 
-	cfg, err := config.LoadDefaultConfig(ctx, awsconfig.WithRegion(region))
+	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -150,9 +151,6 @@ func NewEC2SSMConfigureClient(ctx context.Context, region string) (EC2SSMConfigu
 
 // ConfigureEC2SSM creates the required resources in AWS to enable EC2 Auto Discover using script mode..
 // It creates an inline policy with the following permissions:
-//
-// Action: List AWS Regions.
-//   - account:ListRegions
 //
 // Action: List EC2 instances where teleport is going to be installed.
 //   - ec2:DescribeInstances
@@ -184,26 +182,21 @@ func ConfigureEC2SSM(ctx context.Context, clt EC2SSMConfigureClient, req EC2SSMI
 		return trace.Wrap(err)
 	}
 
-	actions := []provisioning.Action{*putRolePolicy}
-
-	// SSM Document creation only happens when the user specifies a custom name.
-	// The AWSSSMDocumentRunShellScript SSM Document (AWS-RunShellScript) already exists in all accounts.
-	mustCreateDoc := req.SSMDocumentName != "" && req.SSMDocumentName != types.AWSSSMDocumentRunShellScript
-	if mustCreateDoc {
-		content := awslib.EC2DiscoverySSMDocument(req.ProxyPublicURL,
-			awslib.WithInsecureSkipInstallPathRandomization(req.insecureSkipInstallPathRandomization),
-		)
-		tags := defaultResourceCreationTags(req.ClusterName, req.IntegrationName)
-		createDoc, err := awsactions.CreateDocument(clt, req.SSMDocumentName, content, ssmtypes.DocumentTypeCommand, ssmtypes.DocumentFormatYaml, tags)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		actions = append(actions, *createDoc)
+	content := awslib.EC2DiscoverySSMDocument(req.ProxyPublicURL,
+		awslib.WithInsecureSkipInstallPathRandomization(req.insecureSkipInstallPathRandomization),
+	)
+	tags := defaultResourceCreationTags(req.ClusterName, req.IntegrationName)
+	createDoc, err := awsactions.CreateDocument(clt, req.SSMDocumentName, content, ssmtypes.DocumentTypeCommand, ssmtypes.DocumentFormatYaml, tags)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	return trace.Wrap(provisioning.Run(ctx, provisioning.OperationConfig{
-		Name:        "ec2-ssm-iam",
-		Actions:     actions,
+		Name: "ec2-ssm-iam",
+		Actions: []provisioning.Action{
+			*putRolePolicy,
+			*createDoc,
+		},
 		AutoConfirm: req.AutoConfirm,
 		Output:      req.stdout,
 	}))

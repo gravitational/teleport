@@ -22,8 +22,8 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"os"
 	"slices"
-	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -41,117 +41,27 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/export"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // UploadDownload tests uploads and downloads
 func UploadDownload(t *testing.T, handler events.MultipartHandler) {
 	val := "hello, how is it going? this is the uploaded file"
-	ctx := t.Context()
 	id := session.NewID()
-
-	_, err := handler.Upload(ctx, id, strings.NewReader(val))
+	_, err := handler.Upload(t.Context(), id, bytes.NewBuffer([]byte(val)))
 	require.NoError(t, err)
 
-	// Attempt to overwrite an existing file. This should fail.
-	_, err = handler.Upload(ctx, id, strings.NewReader("impostor"))
-	require.Error(t, err)
-
-	rc, err := handler.StreamSessionRecording(ctx, id)
+	f, err := os.CreateTemp("", string(id))
 	require.NoError(t, err)
-	defer rc.Close()
+	defer os.Remove(f.Name())
+	defer f.Close()
 
-	data, err := io.ReadAll(rc)
-	require.NoError(t, err)
-	require.Equal(t, val, string(data))
-}
-
-// UploadDownloadSummary tests summary uploads and downloads
-func UploadDownloadSummary(t *testing.T, handler events.MultipartHandler) {
-	ctx := t.Context()
-	id := session.NewID()
-
-	_, err := handler.UploadPendingSummary(ctx, id, strings.NewReader("pending summary"))
+	err = handler.Download(t.Context(), id, f)
 	require.NoError(t, err)
 
-	pendingRC, err := handler.StreamSessionSummary(ctx, id)
-	require.NoError(t, err)
-	pendingData, err := io.ReadAll(pendingRC)
-	require.NoError(t, pendingRC.Close())
-	require.NoError(t, err)
-	assert.Equal(t, "pending summary", string(pendingData))
-
-	// Override previous pending state.
-	_, err = handler.UploadPendingSummary(ctx, id, strings.NewReader("updated pending summary"))
+	_, err = f.Seek(0, 0)
 	require.NoError(t, err)
 
-	// Download the pending version.
-	pendingRC2, err := handler.StreamSessionSummary(ctx, id)
-	require.NoError(t, err)
-	pendingData2, err := io.ReadAll(pendingRC2)
-	require.NoError(t, pendingRC2.Close())
-	require.NoError(t, err)
-	assert.Equal(t, "updated pending summary", string(pendingData2))
-
-	// Upload the final version.
-	_, err = handler.UploadSummary(ctx, id, strings.NewReader("final summary"))
-	require.NoError(t, err)
-
-	// Attempt to overwrite an existing file. This should fail.
-	_, err = handler.UploadSummary(ctx, id, strings.NewReader("impostor"))
-	require.Error(t, err)
-
-	// Download the final version.
-	finalRC, err := handler.StreamSessionSummary(ctx, id)
-	require.NoError(t, err)
-	finalData, err := io.ReadAll(finalRC)
-	require.NoError(t, finalRC.Close())
-	require.NoError(t, err)
-	assert.Equal(t, "final summary", string(finalData))
-
-	// Upload one more file, this time right to the final state (test if it's
-	// possible to upload one without a pending state).
-	id2 := session.NewID()
-	_, err = handler.UploadSummary(ctx, id2, strings.NewReader("final summary 2"))
-	require.NoError(t, err)
-
-	// Download the final version of the second file.
-	finalRC2, err := handler.StreamSessionSummary(ctx, id2)
-	require.NoError(t, err)
-	finalData2, err := io.ReadAll(finalRC2)
-	require.NoError(t, finalRC2.Close())
-	require.NoError(t, err)
-	assert.Equal(t, "final summary 2", string(finalData2))
-}
-
-// UploadDownloadMetadata tests metadata uploads and downloads
-func UploadDownloadMetadata(t *testing.T, handler events.MultipartHandler) {
-	val := "this is the metadata file"
-	id := session.NewID()
-	_, err := handler.UploadMetadata(t.Context(), id, bytes.NewBuffer([]byte(val)))
-	require.NoError(t, err)
-
-	rc, err := handler.StreamSessionMetadata(t.Context(), id)
-	require.NoError(t, err)
-	defer rc.Close()
-
-	data, err := io.ReadAll(rc)
-	require.NoError(t, err)
-	require.Equal(t, string(data), val)
-}
-
-// UploadDownloadThumbnail tests thumbnail uploads and downloads
-func UploadDownloadThumbnail(t *testing.T, handler events.MultipartHandler) {
-	val := "thumbnail"
-	id := session.NewID()
-	_, err := handler.UploadThumbnail(t.Context(), id, bytes.NewBuffer([]byte(val)))
-	require.NoError(t, err)
-
-	rc, err := handler.StreamSessionThumbnail(t.Context(), id)
-	require.NoError(t, err)
-	defer rc.Close()
-
-	data, err := io.ReadAll(rc)
+	data, err := io.ReadAll(f)
 	require.NoError(t, err)
 	require.Equal(t, string(data), val)
 }
@@ -160,7 +70,12 @@ func UploadDownloadThumbnail(t *testing.T, handler events.MultipartHandler) {
 func DownloadNotFound(t *testing.T, handler events.MultipartHandler) {
 	id := session.NewID()
 
-	_, err := handler.StreamSessionRecording(t.Context(), id)
+	f, err := os.CreateTemp("", string(id))
+	require.NoError(t, err)
+	defer os.Remove(f.Name())
+	defer f.Close()
+
+	err = handler.Download(t.Context(), id, f)
 	require.True(t, trace.IsNotFound(err))
 }
 
@@ -225,13 +140,13 @@ func (s *EventsSuite) EventExport(t *testing.T) {
 			for events.Next() {
 				eventCount++
 			}
-			require.NoError(t, events.Done())
+			assert.NoError(t, events.Done())
 		}
 
-		require.NoError(t, chunks.Done())
+		assert.NoError(t, chunks.Done())
 
-		require.Equal(t, 1, chunkCount)
-		require.Equal(t, 4, eventCount)
+		assert.Equal(t, 1, chunkCount)
+		assert.Equal(t, 4, eventCount)
 	}, 30*time.Second, 500*time.Millisecond)
 
 	// add more events that should end up in a new chunk
@@ -268,13 +183,13 @@ func (s *EventsSuite) EventExport(t *testing.T) {
 			for events.Next() {
 				eventCount++
 			}
-			require.NoError(t, events.Done())
+			assert.NoError(t, events.Done())
 		}
 
-		require.NoError(t, chunks.Done())
+		assert.NoError(t, chunks.Done())
 
-		require.Equal(t, 2, chunkCount)
-		require.Equal(t, 8, eventCount)
+		assert.Equal(t, 2, chunkCount)
+		assert.Equal(t, 8, eventCount)
 	}, 30*time.Second, 500*time.Millisecond)
 
 	// generate a random chunk and verify that it is not found
@@ -363,9 +278,9 @@ func (s *EventsSuite) EventPagination(t *testing.T) {
 			StartKey: checkpoint,
 		})
 
-		require.NoError(t, err)
-		require.Len(t, arr, 4)
-		require.Empty(t, checkpoint)
+		assert.NoError(t, err)
+		assert.Len(t, arr, 4)
+		assert.Empty(t, checkpoint)
 	}, 30*time.Second, 500*time.Millisecond)
 
 	for _, name := range names {
@@ -472,7 +387,7 @@ func (s *EventsSuite) EventPagination(t *testing.T) {
 	}
 
 Outer:
-	for range names {
+	for i := 0; i < len(names); i++ {
 		arr, checkpoint, err = s.Log.SearchEvents(ctx, events.SearchEventsRequest{
 			From:     baseTime2,
 			To:       baseTime2.Add(time.Second),
@@ -498,57 +413,6 @@ Outer:
 
 		t.Fatalf("unexpected event: %#v", event)
 	}
-}
-
-func (s *EventsSuite) SearchEventsBySearchTerm(t *testing.T) {
-	ctx := t.Context()
-	baseTime := time.Now().UTC()
-
-	testUsers := []string{"alice-search-target", "bob-search-target"}
-	for i, user := range testUsers {
-		err := s.Log.EmitAuditEvent(ctx, &apievents.UserLogin{
-			Method:       events.LoginMethodSAML,
-			Status:       apievents.Status{Success: true},
-			UserMetadata: apievents.UserMetadata{User: user},
-			Metadata: apievents.Metadata{
-				ID:   uuid.NewString(),
-				Type: events.UserLoginEvent,
-				Time: baseTime.Add(time.Second * time.Duration(i)),
-			},
-		})
-		require.NoError(t, err)
-	}
-
-	if s.QueryDelay != 0 {
-		time.Sleep(s.QueryDelay)
-	}
-
-	searchAndAssertUsers := func(search string, wantUsers ...string) {
-		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			history, _, err := s.Log.SearchEvents(ctx, events.SearchEventsRequest{
-				From:   baseTime.Add(-1 * time.Minute),
-				To:     baseTime.Add(time.Hour),
-				Limit:  100,
-				Order:  types.EventOrderAscending,
-				Search: search,
-			})
-			require.NoError(t, err)
-
-			gotUsers := make([]string, 0, len(history))
-			for _, event := range history {
-				loginEvent, ok := event.(*apievents.UserLogin)
-				require.True(t, ok)
-				gotUsers = append(gotUsers, loginEvent.User)
-			}
-
-			require.ElementsMatch(t, wantUsers, gotUsers)
-		}, 30*time.Second, 500*time.Millisecond)
-	}
-
-	searchAndAssertUsers("alice-search-target", "alice-search-target")
-	searchAndAssertUsers("search-target alice", "alice-search-target")
-	searchAndAssertUsers("search-target", "alice-search-target", "bob-search-target")
-	searchAndAssertUsers("search-target carol")
 }
 
 // SessionEventsCRUD covers session events
@@ -581,8 +445,8 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 			Limit: 100,
 			Order: types.EventOrderAscending,
 		})
-		require.NoError(t, err)
-		require.Len(t, history, 1)
+		assert.NoError(t, err)
+		assert.Len(t, history, 1)
 	}, 30*time.Second, 500*time.Millisecond)
 
 	// start the session and emit data stream to it and wrap it up
@@ -618,10 +482,6 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 		UserMetadata: apievents.UserMetadata{
 			Login: "bob",
 		},
-		ServerMetadata: apievents.ServerMetadata{
-			ServerNamespace: "telport",
-			ServerLabels:    map[string]string{"env": "prod"},
-		},
 		SessionMetadata: apievents.SessionMetadata{
 			SessionID: string(sessionID),
 		},
@@ -638,8 +498,8 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 			Order: types.EventOrderAscending,
 		})
 
-		require.NoError(t, err)
-		require.Len(t, history, 3)
+		assert.NoError(t, err)
+		assert.Len(t, history, 3)
 	}, 30*time.Second, 500*time.Millisecond)
 
 	require.Equal(t, events.SessionStartEvent, history[1].GetType())
@@ -661,35 +521,12 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 		}}
 	}
 
-	withServerLabelsExpr := func(key, value string) *types.WhereExpr {
-		return &types.WhereExpr{
-			And: types.WhereExpr2{
-				L: &types.WhereExpr{
-					CanView: &types.WhereNoExpr{},
-				},
-				R: &types.WhereExpr{
-					Equals: types.WhereExpr2{
-						L: &types.WhereExpr{
-							MapRef: &types.WhereExpr2{
-								L: &types.WhereExpr{Field: "server_labels"},
-								R: &types.WhereExpr{Literal: key},
-							},
-						},
-						R: &types.WhereExpr{Literal: value},
-					},
-				},
-			},
-		}
-	}
-
 	history, _, err = s.Log.SearchSessionEvents(ctx, events.SearchSessionEventsRequest{
 		From:  s.Clock.Now().UTC().Add(-1 * time.Hour),
 		To:    s.Clock.Now().UTC().Add(2 * time.Hour),
 		Limit: 100,
 		Order: types.EventOrderAscending,
-		Cond: &utils.ToFieldsConditionConfig{
-			Expr: withParticipant("alice"),
-		},
+		Cond:  withParticipant("alice"),
 	})
 	require.NoError(t, err)
 	require.Len(t, history, 1)
@@ -699,48 +536,7 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 		To:    s.Clock.Now().UTC().Add(2 * time.Hour),
 		Limit: 100,
 		Order: types.EventOrderAscending,
-		Cond: &utils.ToFieldsConditionConfig{
-			Expr: withParticipant("cecile"),
-		},
-	})
-	require.NoError(t, err)
-	require.Empty(t, history)
-
-	history, _, err = s.Log.SearchSessionEvents(ctx, events.SearchSessionEventsRequest{
-		From:  s.Clock.Now().UTC().Add(-1 * time.Hour),
-		To:    s.Clock.Now().UTC().Add(2 * time.Hour),
-		Limit: 100,
-		Order: types.EventOrderAscending,
-		Cond: &utils.ToFieldsConditionConfig{
-			Expr:    withServerLabelsExpr("env", "prod"),
-			CanView: func(f utils.Fields) bool { return true },
-		},
-	})
-	require.NoError(t, err)
-	require.Len(t, history, 1)
-
-	history, _, err = s.Log.SearchSessionEvents(ctx, events.SearchSessionEventsRequest{
-		From:  s.Clock.Now().UTC().Add(-1 * time.Hour),
-		To:    s.Clock.Now().UTC().Add(2 * time.Hour),
-		Limit: 100,
-		Order: types.EventOrderAscending,
-		Cond: &utils.ToFieldsConditionConfig{
-			Expr:    withServerLabelsExpr("env", "prod"),
-			CanView: func(f utils.Fields) bool { return false },
-		},
-	})
-	require.NoError(t, err)
-	require.Empty(t, history)
-
-	history, _, err = s.Log.SearchSessionEvents(ctx, events.SearchSessionEventsRequest{
-		From:  s.Clock.Now().UTC().Add(-1 * time.Hour),
-		To:    s.Clock.Now().UTC().Add(2 * time.Hour),
-		Limit: 100,
-		Order: types.EventOrderAscending,
-		Cond: &utils.ToFieldsConditionConfig{
-			Expr:    withServerLabelsExpr("env", "dev"),
-			CanView: func(f utils.Fields) bool { return true },
-		},
+		Cond:  withParticipant("cecile"),
 	})
 	require.NoError(t, err)
 	require.Empty(t, history)

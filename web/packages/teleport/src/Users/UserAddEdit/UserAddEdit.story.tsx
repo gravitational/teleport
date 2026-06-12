@@ -19,14 +19,13 @@
 import type { StoryObj } from '@storybook/react-vite';
 import { delay } from 'msw';
 
-import type { TraitsOption } from 'shared/components/TraitsEditor';
-
 import { TeleportProviderBasic } from 'teleport/mocks/providers';
 import type { RoleResource } from 'teleport/services/resources';
 import { AllUserTraits } from 'teleport/services/user';
 import { successGetRoles } from 'teleport/test/helpers/roles';
 import { handleUpdateUser } from 'teleport/test/helpers/users';
 
+import type { TraitsOption } from './TraitsEditor';
 import { UserAddEdit } from './UserAddEdit';
 
 export default {

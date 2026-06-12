@@ -3,10 +3,9 @@ title: "Securing Access to Cloud APIs"
 sidebar_position: 2
 sidebar_label: Cloud APIs
 template: doc-page
-description: "Use Teleport to achieve secure access to your cloud-based APIs."
+description: "Use Teleport to achieve secure access to your your cloud-based APIs."
 tags:
  - zero-trust
- - infrastructure-identity
 ---
 import EnrollmentMethods, { Method } from "@site/src/components/Pages/Landing/EnrollmentMethods/EnrollmentMethods";
 
@@ -26,16 +25,11 @@ Track every change with granular audit logs and enable Just-in-Time access so te
   description="Centralize AWS access for the console, APIs, CLI, and SDKs. Authenticated users can be mapped directly to AWS roles."
   icon={awsSvg}
   >
-    <Method title="AWS Console and CLI access with IAM Roles Anywhere" href="./aws-console-roles-anywhere/">
-      **Recommended when:**
-        - Full compatibility with AWS CLI, SDKs, or Terraform is required. 
-        - You want to manage access without additional infrastructure.
-    </Method>
     <Method title="AWS Console and CLI access via Teleport Application Service" href="./aws-console/">
       **Recommended when:**
         - Full API audit for all requests is required. 
     </Method>
-    <Method title="AWS Console and CLI with OIDC integration" href="./awsoidc-integration-console/">
+    <Method title="AWS Console and CLI with OIDC integration" href="../../../zero-trust-access/management/guides/awsoidc-integration-console/">
       **Recommended when:**
         - Full API audit for all requests is required.
         - Your Teleport cluster is publicly accessible.
@@ -55,7 +49,7 @@ Track every change with granular audit logs and enable Just-in-Time access so te
         - Full API audit for all requests is required.
         - Teleport Application Service is deployed on Azure Kubernetes Service (AKS).
     </Method>
-    <Method title="Azure Portal and CLI access with Teleport as IdP" href="../../../identity-governance/idps/usage/saml-microsoft-entra-external-id/">
+    <Method title="Azure Portal and CLI access with Teleport as IdP" href="../../../identity-governance/idps/saml-microsoft-entra-external-id/">
       **Recommended when:**
         - Azure Portal is required.
         - Full compatibility with Azure client tools is required.
@@ -69,7 +63,7 @@ Track every change with granular audit logs and enable Just-in-Time access so te
       **Recommended when:**
         - Full API audit for all requests is required.
     </Method>
-    <Method title="Google Cloud Web Console and API access with Teleport as IdP" href="../../../identity-governance/idps/usage/saml-gcp-workforce-identity-federation/">
+    <Method title="Google Cloud Web Console and API access with Teleport as IdP" href="../../../identity-governance/idps/saml-gcp-workforce-identity-federation/">
       **Recommended when:**
         - Google Cloud Web Console is required.
         - Full compatibility with Google Cloud tools is required.

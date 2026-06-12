@@ -65,7 +65,7 @@ type Destination interface {
 
 	// MarshalYAML enables the yaml package to correctly marshal the Destination
 	// as YAML including the type header.
-	MarshalYAML() (any, error)
+	MarshalYAML() (interface{}, error)
 
 	// IsPersistent indicates whether this destination is persistent.
 	// This is true for most production destinations, but will be false for

@@ -30,23 +30,18 @@ describe('services/auth', () => {
   const email = 'user@example.com';
 
   test('login()', async () => {
-    jest.spyOn(api, 'postWithOptions').mockResolvedValue({});
+    jest.spyOn(api, 'post').mockResolvedValue({});
 
     await auth.login(email, password, '');
-    expect(api.postWithOptions).toHaveBeenCalledWith(
-      cfg.api.webSessionPath,
-      expect.objectContaining({
-        data: {
-          user: email,
-          pass: password,
-          second_factor_token: '',
-        },
-      })
-    );
+    expect(api.post).toHaveBeenCalledWith(cfg.api.webSessionPath, {
+      user: email,
+      pass: password,
+      second_factor_token: '',
+    });
   });
 
   test('login() OTP', async () => {
-    jest.spyOn(api, 'postWithOptions').mockResolvedValue({});
+    jest.spyOn(api, 'post').mockResolvedValue({});
     const data = {
       user: email,
       pass: password,
@@ -54,10 +49,7 @@ describe('services/auth', () => {
     };
 
     await auth.login(email, password, 'xxx');
-    expect(api.postWithOptions).toHaveBeenCalledWith(
-      cfg.api.webSessionPath,
-      expect.objectContaining({ data })
-    );
+    expect(api.post).toHaveBeenCalledWith(cfg.api.webSessionPath, data);
   });
 
   test('resetPassword()', async () => {

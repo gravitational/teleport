@@ -157,19 +157,14 @@ spec:
       - name: "teleport"
         image: '{{ if $auth.enterprise }}{{ $auth.enterpriseImage }}{{ else }}{{ $auth.image }}{{ end }}:{{ include "teleport-cluster.version" . }}'
         imagePullPolicy: {{ $auth.imagePullPolicy }}
-        {{- $gomemlimit := include "teleport-cluster.gomemlimit" $auth }}
-        {{- if or $auth.extraEnv $auth.tls.existingCASecretName $gomemlimit }}
+        {{- if or $auth.extraEnv $auth.tls.existingCASecretName }}
         env:
-        {{- if $gomemlimit }}
-        - name: GOMEMLIMIT
-          value: {{ $gomemlimit | quote }}
-        {{- end }}
         {{- if (gt (len $auth.extraEnv) 0) }}
           {{- toYaml $auth.extraEnv | nindent 8 }}
         {{- end }}
         {{- if $auth.tls.existingCASecretName }}
         - name: SSL_CERT_FILE
-          value: "/etc/teleport-tls-ca/{{ required "tls.existingCASecretKeyName must be set if tls.existingCASecretName is set in chart values" .Values.tls.existingCASecretKeyName }}" 
+          value: /etc/teleport-tls-ca/ca.pem
         {{- end }}
         {{- end }}
         args:

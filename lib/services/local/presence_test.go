@@ -22,9 +22,7 @@ import (
 	gocmp "cmp"
 	"context"
 	"fmt"
-	"maps"
 	"slices"
-	"strconv"
 	"testing"
 	"time"
 
@@ -33,22 +31,17 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	gproto "google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
-	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 // TestApplicationServersCRUD verifies backend operations on app servers.
@@ -57,11 +50,11 @@ func TestApplicationServersCRUD(t *testing.T) {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
-	backend, err := memory.New(memory.Config{
+	backend, err := lite.NewWithConfig(ctx, lite.Config{
+		Path:  t.TempDir(),
 		Clock: clock,
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = backend.Close() })
 
 	presence := NewPresenceService(backend)
 
@@ -163,11 +156,11 @@ func TestDatabaseServersCRUD(t *testing.T) {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
-	backend, err := memory.New(memory.Config{
+	backend, err := lite.NewWithConfig(ctx, lite.Config{
+		Path:  t.TempDir(),
 		Clock: clock,
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = backend.Close() })
 
 	presence := NewPresenceService(backend)
 
@@ -243,153 +236,13 @@ func TestDatabaseServersCRUD(t *testing.T) {
 	require.Empty(t, out)
 }
 
-func mustCreateDatabaseServer(t *testing.T, dbName string) types.DatabaseServer {
-	t.Helper()
-	server, err := types.NewDatabaseServerV3(types.Metadata{
-		Name: dbName,
-	}, types.DatabaseServerSpecV3{
-		HostID:   uuid.New().String(),
-		Hostname: "localhost",
-		Database: mustCreateDatabase(t, dbName, defaults.ProtocolPostgres, "localhost:5432"),
-	})
-	require.NoError(t, err)
-	return server
-}
-
-func TestRangeDatabaseServersWithName(t *testing.T) {
-	t.Parallel()
-	ctx := t.Context()
-
-	bk, err := memory.New(memory.Config{})
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = bk.Close() })
-
-	presence := NewPresenceService(bk)
-
-	t.Run("ParameterValidation", func(t *testing.T) {
-		_, err = iterstream.Collect(presence.RangeDatabaseServersWithName(ctx, ""))
-		require.ErrorAs(t, err, new(*trace.BadParameterError))
-	})
-
-	server1 := mustCreateDatabaseServer(t, "shared-db")
-	server2 := mustCreateDatabaseServer(t, "shared-db")
-	server3 := mustCreateDatabaseServer(t, "standalone-db")
-
-	for _, s := range []types.DatabaseServer{server1, server2, server3} {
-		_, err := presence.UpsertDatabaseServer(ctx, s)
-		require.NoError(t, err)
-	}
-
-	t.Run("MultipleServersSameDatabase", func(t *testing.T) {
-		servers, err := iterstream.Collect(presence.RangeDatabaseServersWithName(ctx, "shared-db"))
-		require.NoError(t, err)
-		require.Len(t, servers, 2)
-		for _, s := range servers {
-			require.Equal(t, "shared-db", s.GetDatabase().GetName())
-		}
-	})
-
-	t.Run("SingleServerForDatabase", func(t *testing.T) {
-		servers, err := iterstream.Collect(presence.RangeDatabaseServersWithName(ctx, "standalone-db"))
-		require.NoError(t, err)
-		require.Len(t, servers, 1)
-		require.Equal(t, "standalone-db", servers[0].GetDatabase().GetName())
-	})
-
-	t.Run("NoServersForDatabase", func(t *testing.T) {
-		servers, err := iterstream.Collect(presence.RangeDatabaseServersWithName(ctx, "nonexistent-db"))
-		require.NoError(t, err)
-		require.Empty(t, servers)
-	})
-
-	t.Run("DeletedServersNotReturned", func(t *testing.T) {
-		err := presence.DeleteDatabaseServer(ctx, server1.GetNamespace(), server1.GetHostID(), server1.GetName())
-		require.NoError(t, err)
-
-		servers, err := iterstream.Collect(presence.RangeDatabaseServersWithName(ctx, "shared-db"))
-		require.NoError(t, err)
-		require.Len(t, servers, 1)
-		require.Equal(t, server2.GetHostID(), servers[0].GetHostID())
-	})
-}
-
-func mustCreateKubernetesServer(t *testing.T, clusterName string) types.KubeServer {
-	t.Helper()
-	cluster, err := types.NewKubernetesClusterV3(types.Metadata{
-		Name: clusterName,
-	}, types.KubernetesClusterSpecV3{})
-	require.NoError(t, err)
-
-	server, err := types.NewKubernetesServerV3FromCluster(cluster, "localhost", uuid.New().String())
-	require.NoError(t, err)
-	return server
-}
-
-func TestRangeKubernetesServersWithName(t *testing.T) {
-	t.Parallel()
-	ctx := t.Context()
-
-	bk, err := memory.New(memory.Config{})
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = bk.Close() })
-
-	presence := NewPresenceService(bk)
-
-	t.Run("ParameterValidation", func(t *testing.T) {
-		_, err = iterstream.Collect(presence.RangeKubernetesServersWithName(ctx, ""))
-		require.ErrorAs(t, err, new(*trace.BadParameterError))
-	})
-
-	server1 := mustCreateKubernetesServer(t, "shared-cluster")
-	server2 := mustCreateKubernetesServer(t, "shared-cluster")
-	server3 := mustCreateKubernetesServer(t, "standalone-cluster")
-
-	for _, s := range []types.KubeServer{server1, server2, server3} {
-		_, err := presence.UpsertKubernetesServer(ctx, s)
-		require.NoError(t, err)
-	}
-
-	t.Run("MultipleServersSameCluster", func(t *testing.T) {
-		servers, err := iterstream.Collect(presence.RangeKubernetesServersWithName(ctx, "shared-cluster"))
-		require.NoError(t, err)
-		require.Len(t, servers, 2)
-		for _, s := range servers {
-			require.Equal(t, "shared-cluster", s.GetCluster().GetName())
-		}
-	})
-
-	t.Run("SingleServerForCluster", func(t *testing.T) {
-		servers, err := iterstream.Collect(presence.RangeKubernetesServersWithName(ctx, "standalone-cluster"))
-		require.NoError(t, err)
-		require.Len(t, servers, 1)
-		require.Equal(t, "standalone-cluster", servers[0].GetCluster().GetName())
-	})
-
-	t.Run("NoServersForCluster", func(t *testing.T) {
-		servers, err := iterstream.Collect(presence.RangeKubernetesServersWithName(ctx, "nonexistent-cluster"))
-		require.NoError(t, err)
-		require.Empty(t, servers)
-	})
-
-	t.Run("DeletedServersNotReturned", func(t *testing.T) {
-		err := presence.DeleteKubernetesServer(ctx, server1.GetHostID(), server1.GetName())
-		require.NoError(t, err)
-
-		servers, err := iterstream.Collect(presence.RangeKubernetesServersWithName(ctx, "shared-cluster"))
-		require.NoError(t, err)
-		require.Len(t, servers, 1)
-		require.Equal(t, server2.GetHostID(), servers[0].GetHostID())
-	})
-}
-
 func TestNodeCRUD(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	backend, err := memory.New(memory.Config{})
+	lite, err := lite.NewWithConfig(ctx, lite.Config{Path: t.TempDir()})
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = backend.Close() })
 
-	presence := NewPresenceService(backend)
+	presence := NewPresenceService(lite)
 
 	node1, err := types.NewServerWithLabels("node1", types.KindNode, types.ServerSpecV2{}, nil)
 	require.NoError(t, err)
@@ -728,47 +581,18 @@ func TestListResources(t *testing.T) {
 				return desktopService.DeleteAllWindowsDesktops(ctx)
 			},
 		},
-		"GitServer": {
-			resourceType: types.KindGitServer,
-			createResourceFunc: func(ctx context.Context, presence *PresenceService, name string, labels map[string]string) error {
-				gitServerService, err := NewGitServerService(presence.Backend)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-
-				gitServer, err := types.NewGitHubServer(types.GitHubServerMetadata{
-					Organization: "my-org",
-					Integration:  "my-org",
-				})
-				if err != nil {
-					return trace.Wrap(err)
-				}
-				gitServer.SetName(name)
-				newLabels := gitServer.GetLabels()
-				maps.Copy(newLabels, labels)
-				gitServer.SetStaticLabels(newLabels)
-
-				_, err = gitServerService.UpsertGitServer(ctx, gitServer)
-				return trace.Wrap(err)
-			},
-			deleteAllResourcesFunc: func(ctx context.Context, presence *PresenceService) error {
-				gitServerService, err := NewGitServerService(presence.Backend)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-				return gitServerService.DeleteAllGitServers(ctx)
-			},
-		},
 	}
 
 	for testName, test := range tests {
+		testName := testName
+		test := test
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
-			backend, err := memory.New(memory.Config{
+			backend, err := lite.NewWithConfig(ctx, lite.Config{
+				Path:  t.TempDir(),
 				Clock: clock,
 			})
 			require.NoError(t, err)
-			t.Cleanup(func() { _ = backend.Close() })
 
 			presence := NewPresenceService(backend)
 
@@ -789,13 +613,13 @@ func TestListResources(t *testing.T) {
 			totalResources := totalWithLabels + totalWithoutLabels
 
 			// with labels
-			for i := range totalWithLabels {
+			for i := 0; i < totalWithLabels; i++ {
 				err = test.createResourceFunc(ctx, presence, fmt.Sprintf("foo-%d", i), labels)
 				require.NoError(t, err)
 			}
 
 			// without labels
-			for i := range totalWithoutLabels {
+			for i := 0; i < totalWithoutLabels; i++ {
 				err = test.createResourceFunc(ctx, presence, fmt.Sprintf("foo-label-%d", i), map[string]string{})
 				require.NoError(t, err)
 			}
@@ -901,11 +725,11 @@ func TestListResources_Helpers(t *testing.T) {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 	namespace := apidefaults.Namespace
-	bend, err := memory.New(memory.Config{
+	bend, err := lite.NewWithConfig(ctx, lite.Config{
+		Path:  t.TempDir(),
 		Clock: clock,
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = bend.Close() })
 	presence := NewPresenceService(bend)
 
 	tests := []struct {
@@ -947,6 +771,7 @@ func TestListResources_Helpers(t *testing.T) {
 			Limit:        5,
 		}
 		for _, tc := range tests {
+			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 				resp, err := tc.fetch(req)
@@ -959,7 +784,7 @@ func TestListResources_Helpers(t *testing.T) {
 	})
 
 	// Add some test servers.
-	for range 20 {
+	for i := 0; i < 20; i++ {
 		server := NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", namespace)
 		_, err = presence.UpsertNode(ctx, server)
 		require.NoError(t, err)
@@ -977,6 +802,7 @@ func TestListResources_Helpers(t *testing.T) {
 			Limit:        -1,
 		}
 		for _, tc := range tests {
+			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 				_, err := tc.fetch(req)
@@ -992,6 +818,7 @@ func TestListResources_Helpers(t *testing.T) {
 			Limit:        int32(len(nodes)),
 		}
 		for _, tc := range tests {
+			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 				resp, err := tc.fetch(req)
@@ -1007,6 +834,7 @@ func TestListResources_Helpers(t *testing.T) {
 
 	t.Run("test first, middle, last fetching", func(t *testing.T) {
 		for _, tc := range tests {
+			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 				// First fetch.
@@ -1066,6 +894,7 @@ func TestListResources_Helpers(t *testing.T) {
 			SearchKeywords: []string{targetVal},
 		}
 		for _, tc := range tests {
+			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 				resp, err := tc.fetch(req)
@@ -1083,11 +912,11 @@ func TestFakePaginate_TotalCount(t *testing.T) {
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 	namespace := apidefaults.Namespace
-	bend, err := memory.New(memory.Config{
+	bend, err := lite.NewWithConfig(ctx, lite.Config{
+		Path:  t.TempDir(),
 		Clock: clock,
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = bend.Close() })
 	presence := NewPresenceService(bend)
 
 	// Add some control servers.
@@ -1104,7 +933,7 @@ func TestFakePaginate_TotalCount(t *testing.T) {
 	require.NoError(t, err)
 
 	// Add some test servers.
-	for range 10 {
+	for i := 0; i < 10; i++ {
 		server := NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", namespace)
 		_, err = presence.UpsertNode(ctx, server)
 		require.NoError(t, err)
@@ -1143,6 +972,7 @@ func TestFakePaginate_TotalCount(t *testing.T) {
 		}
 
 		for _, tc := range tests {
+			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 				req := FakePaginateParams{
@@ -1208,75 +1038,12 @@ func TestFakePaginate_TotalCount(t *testing.T) {
 	})
 }
 
-// TestFakePaginateWithScopes ensures that a resource scope can be used to
-// paginate resources with duplicate names.
-func TestFakePaginateWithScopes(t *testing.T) {
-	t.Parallel()
-	clock := clockwork.NewFakeClock()
-	bend, err := memory.New(memory.Config{
-		Clock: clock,
-	})
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = bend.Close() })
-
-	makeScope := func(i int) string {
-		a := byte('a')
-		z := byte('z')
-		mod := int(z - a)
-		return fmt.Sprintf("/%c%c", a+byte(i/mod), a+byte(i%mod))
-	}
-	newKubeCluster := func(i int) *types.KubernetesClusterV3 {
-		kubeCluster, err := types.NewKubernetesClusterV3(
-			types.Metadata{
-				Name: "cluster",
-				// we use the revision to easily tell the resources apart
-				Revision: strconv.Itoa(i),
-			},
-			types.KubernetesClusterSpecV3{},
-			types.KubeClusterWithScope(makeScope(i)),
-		)
-		require.NoError(t, err)
-		return kubeCluster
-	}
-
-	clusterCount := 100
-	// all kube clusters have the same name, so the only way to
-	// correctly paginate them is by scope
-	resources := make([]types.ResourceWithLabels, clusterCount)
-	for i := range clusterCount {
-		resources[i] = newKubeCluster(i)
-	}
-
-	for _, pageSize := range []int{1, 2, 3, 5, 8, 13, 21} {
-		startKey := ""
-		count := 0
-		for range clusterCount/pageSize + 1 {
-			res, err := FakePaginate(resources, FakePaginateParams{
-				ResourceType: types.KindKubernetesCluster,
-				Limit:        int32(pageSize),
-				Kinds:        []string{types.KindKubernetesCluster},
-				StartKey:     startKey,
-			})
-			require.NoError(t, err)
-			for _, r := range res.Resources {
-				assert.Equal(t, strconv.Itoa(count), r.GetRevision())
-				count++
-			}
-			startKey = res.NextKey
-			if startKey == "" {
-				break
-			}
-		}
-		require.Equal(t, clusterCount, count)
-	}
-}
-
 func TestPresenceService_CancelSemaphoreLease(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	bk, err := memory.New(memory.Config{})
+	bk, err := lite.New(ctx, backend.Params{"path": t.TempDir()})
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = bk.Close() })
+	t.Cleanup(func() { require.NoError(t, bk.Close()) })
 	presence := NewPresenceService(bk)
 
 	maxLeases := 5
@@ -1320,12 +1087,13 @@ func TestPresenceService_CancelSemaphoreLease(t *testing.T) {
 	// cancellations are honored
 	errCh := make(chan error, maxLeases)
 	for _, l := range leases {
+		l := l
 		go func() {
 			errCh <- presence.CancelSemaphoreLease(ctx, *l)
 		}()
 	}
 
-	for range maxLeases {
+	for i := 0; i < maxLeases; i++ {
 		err := <-errCh
 		require.NoError(t, err)
 	}
@@ -1356,11 +1124,11 @@ func TestListResources_DuplicateResourceFilterByLabel(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	backend, err := memory.New(memory.Config{
+	backend, err := lite.NewWithConfig(ctx, lite.Config{
+		Path:  t.TempDir(),
 		Clock: clockwork.NewFakeClock(),
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = backend.Close() })
 
 	presence := NewPresenceService(backend)
 
@@ -1383,7 +1151,7 @@ func TestListResources_DuplicateResourceFilterByLabel(t *testing.T) {
 			name: "KindDatabaseServer",
 			kind: types.KindDatabaseServer,
 			insertResources: func() {
-				for i := range names {
+				for i := 0; i < len(names); i++ {
 					db, err := types.NewDatabaseServerV3(types.Metadata{
 						Name: fmt.Sprintf("name-%v", i),
 					}, types.DatabaseServerSpecV3{
@@ -1410,7 +1178,7 @@ func TestListResources_DuplicateResourceFilterByLabel(t *testing.T) {
 			name: "KindAppServer",
 			kind: types.KindAppServer,
 			insertResources: func() {
-				for i := range names {
+				for i := 0; i < len(names); i++ {
 					server, err := types.NewAppServerV3(types.Metadata{
 						Name: fmt.Sprintf("name-%v", i),
 					}, types.AppServerSpecV3{
@@ -1433,7 +1201,7 @@ func TestListResources_DuplicateResourceFilterByLabel(t *testing.T) {
 			name: "KindKubernetesCluster",
 			kind: types.KindKubernetesCluster,
 			insertResources: func() {
-				for i := range names {
+				for i := 0; i < len(names); i++ {
 
 					kube, err := types.NewKubernetesClusterV3(
 						types.Metadata{
@@ -1481,9 +1249,10 @@ func TestServerInfoCRUD(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	bk, err := memory.New(memory.Config{})
+	bk, err := lite.New(ctx, backend.Params{"path": t.TempDir()})
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = bk.Close() })
+	t.Cleanup(func() { require.NoError(t, bk.Close()) })
+
 	presence := NewPresenceService(bk)
 
 	serverInfoA, err := types.NewServerInfo(types.Metadata{
@@ -1571,10 +1340,10 @@ func TestPresenceService_ListReverseTunnels(t *testing.T) {
 	require.Empty(t, rcs)
 
 	// Create a few remote clusters
-	for i := range 10 {
+	for i := 0; i < 10; i++ {
 		rc, err := types.NewReverseTunnel(fmt.Sprintf("rt-%d", i), []string{"example.com:443"})
 		require.NoError(t, err)
-		_, err = presenceService.UpsertReverseTunnel(ctx, rc)
+		err = presenceService.UpsertReverseTunnel(ctx, rc)
 		require.NoError(t, err)
 	}
 
@@ -1588,7 +1357,7 @@ func TestPresenceService_ListReverseTunnels(t *testing.T) {
 	// behaves correctly.
 	rcs = []types.ReverseTunnel{}
 	pageToken = ""
-	for i := range 10 {
+	for i := 0; i < 10; i++ {
 		var got []types.ReverseTunnel
 		got, pageToken, err = presenceService.ListReverseTunnels(ctx, 1, pageToken)
 		require.NoError(t, err)
@@ -1624,7 +1393,7 @@ func TestPresenceService_UpsertReverseTunnel(t *testing.T) {
 	require.NoError(t, err)
 
 	// Upsert a reverse tunnel
-	got, err := presenceService.UpsertReverseTunnel(ctx, rt)
+	got, err := presenceService.UpsertReverseTunnelV2(ctx, rt)
 	require.NoError(t, err)
 	// Check that the returned resource is the same as the one we upserted
 	require.Empty(t, cmp.Diff(rt, got, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
@@ -1633,91 +1402,6 @@ func TestPresenceService_UpsertReverseTunnel(t *testing.T) {
 	fetched, err := presenceService.GetReverseTunnel(ctx, rt.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(got, fetched))
-}
-
-func TestPresenceService_RelayServer(t *testing.T) {
-	t.Parallel()
-	ctx := t.Context()
-
-	bk, err := memory.New(memory.Config{})
-	require.NoError(t, err)
-	defer bk.Close()
-
-	var p *PresenceService
-	require.NotPanics(t, func() {
-		p = NewPresenceService(bk)
-	})
-
-	_, err = p.UpsertRelayServer(ctx, nil)
-	require.ErrorAs(t, err, new(*trace.BadParameterError))
-
-	relayA := &presencev1.RelayServer{
-		Kind:    types.KindRelayServer,
-		SubKind: "",
-		Version: types.V1,
-		Metadata: &headerv1.Metadata{
-			Name: "a",
-		},
-	}
-
-	upsertedA, err := p.UpsertRelayServer(ctx, gproto.CloneOf(relayA))
-	require.NoError(t, err)
-	require.NotNil(t, upsertedA.GetMetadata())
-
-	diffOpts := []cmp.Option{
-		protocmp.Transform(),
-		protocmp.IgnoreFields((*headerv1.Metadata)(nil), "revision"),
-	}
-
-	require.Empty(t, cmp.Diff(relayA, upsertedA, diffOpts...))
-
-	gottenA, err := p.GetRelayServer(ctx, "a")
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(relayA, gottenA, diffOpts...))
-
-	_, err = p.GetRelayServer(ctx, "b")
-	require.ErrorAs(t, err, new(*trace.NotFoundError))
-
-	err = p.DeleteRelayServer(ctx, "a")
-	require.NoError(t, err)
-
-	_, err = p.GetRelayServer(ctx, "a")
-	require.ErrorAs(t, err, new(*trace.NotFoundError))
-	err = p.DeleteRelayServer(ctx, "a")
-	require.ErrorAs(t, err, new(*trace.NotFoundError))
-
-	relayB := &presencev1.RelayServer{
-		Kind:    types.KindRelayServer,
-		SubKind: "",
-		Version: types.V1,
-		Metadata: &headerv1.Metadata{
-			Name: "b",
-		},
-	}
-
-	_, err = p.UpsertRelayServer(ctx, gproto.CloneOf(relayA))
-	require.NoError(t, err)
-	_, err = p.UpsertRelayServer(ctx, gproto.CloneOf(relayB))
-	require.NoError(t, err)
-
-	listedRelays, nextPageToken, err := p.ListRelayServers(ctx, 0, "")
-	require.NoError(t, err)
-	require.Empty(t, nextPageToken)
-	require.Len(t, listedRelays, 2)
-	require.Empty(t, cmp.Diff(relayA, listedRelays[0], diffOpts...))
-	require.Empty(t, cmp.Diff(relayB, listedRelays[1], diffOpts...))
-
-	shortList, nextPageToken, err := p.ListRelayServers(ctx, 1, "")
-	require.NoError(t, err)
-	require.Equal(t, "b", nextPageToken)
-	require.Len(t, shortList, 1)
-	require.Empty(t, cmp.Diff(relayA, shortList[0], diffOpts...))
-
-	shortList, nextPageToken, err = p.ListRelayServers(ctx, 1, "b")
-	require.NoError(t, err)
-	require.Empty(t, nextPageToken)
-	require.Len(t, shortList, 1)
-	require.Empty(t, cmp.Diff(relayB, shortList[0], diffOpts...))
 }
 
 func TestPresenceService_ListSemaphores(t *testing.T) {
@@ -1886,4 +1570,91 @@ func TestPresenceService_ListSemaphores(t *testing.T) {
 		}
 	})
 
+}
+
+// TestListSemaphores_SkipsUnmarshalErrorsHittingPageBoundary guards against a regression where hitting a page boundary with a malformed backend item would
+// return less items than the page limit and no next token. This would cause callers to miss resources and fail to paginate properly when malformed items are present in the backend.
+func TestListSemaphores_SkipsUnmarshalErrorsHittingPageBoundary(t *testing.T) {
+	ctx := t.Context()
+
+	const pageLimit = 64
+	const numberOfPages = 5
+
+	clock := clockwork.NewFakeClock()
+	mem, err := memory.New(memory.Config{
+		Context: t.Context(),
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service := NewPresenceService(mem)
+
+	var allExpected []types.Semaphore
+
+	createResource := func(name string) {
+		request := types.AcquireSemaphoreRequest{
+			SemaphoreKind: "test",
+			SemaphoreName: name,
+			MaxLeases:     5,
+			Expires:       time.Now().Add(time.Hour),
+			Holder:        "test",
+		}
+		lease, err := service.AcquireSemaphore(ctx, request)
+		require.NoError(t, err)
+
+		sem := &types.SemaphoreV3{
+			SubKind: request.SemaphoreKind,
+			Metadata: types.Metadata{
+				Name: request.SemaphoreName,
+			},
+			Spec: types.SemaphoreSpecV3{
+				Leases: []types.SemaphoreLeaseRef{{
+					LeaseID: lease.LeaseID,
+					Expires: lease.Expires,
+					Holder:  request.Holder,
+				}},
+			}}
+		sem.CheckAndSetDefaults()
+
+		allExpected = append(allExpected, sem)
+	}
+
+	createMalformedEntry := func(name string) {
+		_, err := mem.Put(ctx, backend.Item{
+			Key:   backend.NewKey(semaphoresPrefix, name),
+			Value: []byte("not-valid-json"),
+		})
+		require.NoError(t, err)
+	}
+
+	for i := range pageLimit * numberOfPages {
+		key := fmt.Sprintf("r%d", i)
+		if i%2 == 0 {
+			createMalformedEntry(key)
+		} else {
+			createResource(key)
+		}
+	}
+
+	page1, next, err := service.ListSemaphores(ctx, pageLimit, "", nil)
+	require.NoError(t, err)
+	require.Len(t, page1, pageLimit)
+	require.NotEmpty(t, next)
+
+	page2, next, err := service.ListSemaphores(ctx, pageLimit, next, nil)
+	require.NoError(t, err)
+	require.Len(t, page2, pageLimit)
+	require.NotEmpty(t, next)
+
+	page3, next, err := service.ListSemaphores(ctx, pageLimit, next, nil)
+	require.NoError(t, err)
+	require.Len(t, page3, pageLimit/2)
+	require.Empty(t, next)
+
+	allActual := append(append(page1, page2...), page3...)
+	require.Empty(t, cmp.Diff(allExpected, allActual,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Expires"),
+		cmpopts.SortSlices(func(a, b types.Semaphore) bool { return a.GetName() < b.GetName() }),
+	))
 }

@@ -18,7 +18,6 @@ package accesslist
 
 import (
 	"encoding/json"
-	"slices"
 	"strings"
 	"time"
 
@@ -41,6 +40,8 @@ const (
 	ThreeMonths ReviewFrequency = 3
 	SixMonths   ReviewFrequency = 6
 	OneYear     ReviewFrequency = 12
+
+	twoWeeks = 24 * time.Hour * 14
 )
 
 func (r ReviewFrequency) String() string {
@@ -142,9 +143,9 @@ type AccessList struct {
 
 // Spec is the specification for an access list.
 type Spec struct {
-	// Type can be an empty string which denotes a regular Access List, "scim" which represents
-	// an Access List created from SCIM group or "static" for Access Lists managed by IaC
-	// tools.
+	// Type can be currently "dynamic" (the default if empty string) which denotes a regular
+	// Access List, "scim" which represents an Access List created from SCIM group or "static"
+	// for Access Lists managed by IaC tools.
 	Type Type `json:"type" yaml:"type"`
 
 	// Title is a plaintext short description of the access list.
@@ -190,36 +191,34 @@ const (
 	// Static Access Lists are supposed to be managed with the IaC tools like Terraform. Audit
 	// reviews are not supported for them and the ownership is optional.
 	Static Type = "static"
-	// SCIM Access Lists are created with the SCIM integration. Ownership is optional.
+	// SCIM Access Lists are created with the SCIM integration. Audit reviews are not supported
+	// for them and the ownership is optional.
 	SCIM Type = "scim"
 )
 
-// AllTypes is a slice of all currently supported access list types.
-var AllTypes = []Type{DeprecatedDynamic, Default, Static, SCIM}
+func validateType(t Type) error {
+	switch t {
+	case DeprecatedDynamic, Default, Static, SCIM:
+		return nil
+	default:
+		return trace.BadParameter("unknown access_list type %q", t)
+	}
+}
 
 // IsReviewable returns true if the AccessList type supports the audit reviews in the web UI.
 func (t Type) IsReviewable() bool {
 	switch t {
-	case DeprecatedDynamic, Default, SCIM:
+	case DeprecatedDynamic, Default:
 		return true
 	default:
 		return false
 	}
 }
 
-// Equals checks if the Type is equal to another.
-func (t Type) Equals(other Type) bool {
-	return t == other
-}
-
 // Owner is an owner of an access list.
 type Owner struct {
 	// Name is the username of the owner.
 	Name string `json:"name" yaml:"name"`
-
-	// Title is the title of an owner if it is of type MEMBERSHIP_KIND_LIST.
-	// This is only populated by the proxy when fetching an access list and its members for the web UI
-	Title string `json:"title" yaml:"title"`
 
 	// Description is the plaintext description of the owner and why they are an owner.
 	Description string `json:"description" yaml:"description"`
@@ -230,22 +229,6 @@ type Owner struct {
 	// MembershipKind describes the kind of ownership,
 	// either "MEMBERSHIP_KIND_USER" or "MEMBERSHIP_KIND_LIST".
 	MembershipKind string `json:"membership_kind" yaml:"membership_kind"`
-}
-
-// IsMembershipKindUser returns true if the owner is of kind user.
-// All types expect "MEMBERSHIP_KIND_LIST" are treated as "MEMBERSHIP_KIND_USER".
-func (o *Owner) IsMembershipKindUser() bool {
-	return isMembershipKindUser(o.MembershipKind)
-}
-
-func isMembershipKindUser(membershipKind string) bool {
-	switch membershipKind {
-	case MembershipKindUnspecified, MembershipKindUser, "":
-		return true
-	default:
-		// In case if MembershipKind was extended.
-		return false
-	}
 }
 
 // Audit describes the audit configuration for an access list.
@@ -291,17 +274,6 @@ func (r *Requires) IsEmpty() bool {
 	return len(r.Roles) == 0 && len(r.Traits) == 0
 }
 
-// Clone returns a deep copy of the [Requires]
-func (r *Requires) Clone() Requires {
-	if r == nil {
-		return Requires{}
-	}
-	return Requires{
-		Roles:  slices.Clone(r.Roles),
-		Traits: r.Traits.Clone(),
-	}
-}
-
 // Grants describes what access is granted by membership to the access list.
 type Grants struct {
 	// Roles are the roles that are granted to users who are members of the access list.
@@ -309,31 +281,6 @@ type Grants struct {
 
 	// Traits are the traits that are granted to users who are members of the access list.
 	Traits trait.Traits `json:"traits" yaml:"traits"`
-
-	// ScopedRoles are the scoped roels that are granted to users who are
-	// members of the access list.
-	ScopedRoles []ScopedRoleGrant `json:"scoped_roles" yaml:"scoped_roles"`
-}
-
-// Clone returns a copy of the Grants.
-func (grants *Grants) Clone() Grants {
-	if grants == nil {
-		return Grants{}
-	}
-	return Grants{
-		Roles:       slices.Clone(grants.Roles),
-		Traits:      grants.Traits.Clone(),
-		ScopedRoles: slices.Clone(grants.ScopedRoles),
-	}
-}
-
-// ScopedRoleGrant describes a scoped role granted at a specific scope.
-type ScopedRoleGrant struct {
-	// Role is the name of the scoped role to be granted.
-	Role string `json:"role" yaml:"role"`
-	// Scope is the scope the role will be assigned at. It must be an assignable
-	// scope of the role.
-	Scope string `json:"scope" yaml:"scope"`
 }
 
 // Status contains dynamic fields calculated during retrieval.
@@ -350,8 +297,6 @@ type Status struct {
 
 	// CurrentUserAssignments describes the current user's ownership and membership in the access list.
 	CurrentUserAssignments *CurrentUserAssignments `json:"-" yaml:"-"`
-	// UserAssignments describes the requested user's ownership and membership assignment types in the access list.
-	UserAssignments *UserAssignments `json:"-" yaml:"-"`
 }
 
 // CurrentUserAssignments describes the current user's ownership and membership status in the access list.
@@ -372,24 +317,6 @@ func (c *CurrentUserAssignments) IsOwner() bool {
 	return c.OwnershipType != accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED
 }
 
-// UserAssignments describes the requested user's ownership and membership assignment types in the access list.
-type UserAssignments struct {
-	// OwnershipType represents the requested user's ownership type (explicit, inherited, or none) in the access list.
-	OwnershipType accesslistv1.AccessListUserAssignmentType `json:"ownership_type" yaml:"ownership_type"`
-	// MembershipType represents the requested user's membership type (explicit, inherited, or none) in the access list.
-	MembershipType accesslistv1.AccessListUserAssignmentType `json:"membership_type" yaml:"membership_type"`
-}
-
-// IsMember returns true if the MembershipType is either explicit or inherited.
-func (u *UserAssignments) IsMember() bool {
-	return u.MembershipType != accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED
-}
-
-// IsOwner returns true if the OwnershipType is either explicit or inherited.
-func (u *UserAssignments) IsOwner() bool {
-	return u.OwnershipType != accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED
-}
-
 // NewAccessList will create a new access list.
 func NewAccessList(metadata header.Metadata, spec Spec) (*AccessList, error) {
 	accessList := &AccessList{
@@ -404,8 +331,7 @@ func NewAccessList(metadata header.Metadata, spec Spec) (*AccessList, error) {
 	return accessList, nil
 }
 
-// CheckAndSetDefaults performs very basic validation and populates empty fields with default
-// values. The main validation part is performed before the storage.
+// CheckAndSetDefaults validates fields and populates empty fields with default values.
 func (a *AccessList) CheckAndSetDefaults() error {
 	a.SetKind(types.KindAccessList)
 	a.SetVersion(types.V1)
@@ -419,26 +345,49 @@ func (a *AccessList) CheckAndSetDefaults() error {
 		a.Spec.Type = Default
 	}
 
+	if err := validateType(a.Spec.Type); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if a.Spec.Title == "" {
 		return trace.BadParameter("access list title required")
 	}
 
-	if a.IsReviewable() {
-		if a.Spec.Audit.Recurrence.Frequency == 0 {
-			a.Spec.Audit.Recurrence.Frequency = SixMonths
+	switch a.Spec.Type {
+	case Static, SCIM:
+		// SCIM and Static access lists can have empty owners, as they are managed by external systems.
+	default:
+		if len(a.Spec.Owners) == 0 {
+			return trace.BadParameter("owners are missing")
 		}
-		if a.Spec.Audit.Recurrence.DayOfMonth == 0 {
-			a.Spec.Audit.Recurrence.DayOfMonth = FirstDayOfMonth
-		}
-		if a.Spec.Audit.NextAuditDate.IsZero() {
-			if err := a.setInitialAuditDate(clockwork.NewRealClock()); err != nil {
-				return trace.Wrap(err, "setting initial audit date")
-			}
-		}
-		if a.Spec.Audit.Notifications.Start == 0 {
-			twoWeeks := 24 * time.Hour * 14
-			a.Spec.Audit.Notifications.Start = twoWeeks
-		}
+	}
+
+	if a.Spec.Audit.Recurrence.Frequency == 0 {
+		a.Spec.Audit.Recurrence.Frequency = SixMonths
+	}
+
+	switch a.Spec.Audit.Recurrence.Frequency {
+	case OneMonth, ThreeMonths, SixMonths, OneYear:
+	default:
+		return trace.BadParameter("recurrence frequency is an invalid value")
+	}
+
+	if a.Spec.Audit.Recurrence.DayOfMonth == 0 {
+		a.Spec.Audit.Recurrence.DayOfMonth = FirstDayOfMonth
+	}
+
+	switch a.Spec.Audit.Recurrence.DayOfMonth {
+	case FirstDayOfMonth, FifteenthDayOfMonth, LastDayOfMonth:
+	default:
+		return trace.BadParameter("recurrence day of month is an invalid value")
+	}
+
+	if a.Spec.Audit.NextAuditDate.IsZero() {
+		a.setInitialAuditDate(clockwork.NewRealClock())
+	}
+
+	if a.Spec.Audit.Notifications.Start == 0 {
+		a.Spec.Audit.Notifications.Start = twoWeeks
 	}
 
 	// Deduplicate owners. The backend will currently prevent this, but it's possible that access lists
@@ -474,16 +423,6 @@ func (a *AccessList) GetOwners() []Owner {
 // SetOwners sets the owners of the access list.
 func (a *AccessList) SetOwners(owners []Owner) {
 	a.Spec.Owners = owners
-}
-
-// SetOwnerGrants sets the owner grants of the access list.
-func (a *AccessList) SetOwnerGrants(grants Grants) {
-	a.Spec.OwnerGrants = grants
-}
-
-// SetMemberGrants sets the member grants of the access list.
-func (a *AccessList) SetMemberGrants(grants Grants) {
-	a.Spec.Grants = grants
 }
 
 // GetMembershipRequires returns the membership requires configuration from the access list.
@@ -524,14 +463,11 @@ func (a *AccessList) MatchSearch(values []string) bool {
 	return types.MatchSearch(fieldVals, values, nil)
 }
 
-// Clone returns a copy of the list.
-func (a *AccessList) Clone() *AccessList {
-	if a == nil {
-		return nil
-	}
-	out := &AccessList{}
-	deriveDeepCopyAccessList(out, a)
-	return out
+// CloneResource returns a copy of the resource as types.ResourceWithLabels.
+func (a *AccessList) CloneResource() types.ResourceWithLabels {
+	var copy *AccessList
+	utils.StrictObjectToStruct(a, &copy)
+	return copy
 }
 
 func (a *Audit) UnmarshalJSON(data []byte) error {
@@ -637,11 +573,7 @@ func (a *AccessList) IsReviewable() bool {
 }
 
 // SelectNextReviewDate will select the next review date for the access list.
-func (a *AccessList) SelectNextReviewDate() (time.Time, error) {
-	if !a.IsReviewable() {
-		return time.Time{}, trace.BadParameter("access_list %q is not reviewable", a.GetName())
-	}
-
+func (a *AccessList) SelectNextReviewDate() time.Time {
 	numMonths := int(a.Spec.Audit.Recurrence.Frequency)
 	dayOfMonth := int(a.Spec.Audit.Recurrence.DayOfMonth)
 
@@ -656,127 +588,15 @@ func (a *AccessList) SelectNextReviewDate() (time.Time, error) {
 	nextDate := time.Date(currentReviewDate.Year(), currentReviewDate.Month()+time.Month(numMonths), dayOfMonth,
 		0, 0, 0, 0, time.UTC)
 
-	return nextDate, nil
+	return nextDate
 }
 
 // setInitialAuditDate sets the NextAuditDate for a newly created AccessList.
 // The function is extracted from CheckAndSetDefaults for the sake of testing
 // (we need to pass a fake clock).
-func (a *AccessList) setInitialAuditDate(clock clockwork.Clock) (err error) {
+func (a *AccessList) setInitialAuditDate(clock clockwork.Clock) {
 	// We act as if the AccessList just got reviewed (we just created it, so
 	// we're pretty sure of what it does) and pick the next review date.
 	a.Spec.Audit.NextAuditDate = clock.Now()
-	a.Spec.Audit.NextAuditDate, err = a.SelectNextReviewDate()
-	return trace.Wrap(err)
-}
-
-// EqualAccessListsOption is a functional option for configuring
-// the behavior of EqualAccessLists.
-type EqualAccessListsOption func(*equalAccessListsConfig)
-
-type equalAccessListsConfig struct {
-	skipClone     bool
-	resetFieldsFn func(*AccessList)
-}
-
-// WithSkipClone configures EqualAccessLists to skip cloning
-// and directly mutate the input access lists. Use this option only when you're
-// certain the input access lists can be safely modified (e.g., they're already
-// clones or will be discarded after comparison).
-func WithSkipClone() EqualAccessListsOption {
-	return func(c *equalAccessListsConfig) {
-		c.skipClone = true
-	}
-}
-
-// WithIgnoreEphemeralFields configures EqualAccessLists to reset ephemeral
-// fields before comparison. Ephemeral fields are those managed by reconcilers
-// or the backend and should typically be ignored when comparing access lists.
-//
-// The following fields are reset:
-//   - Metadata.Revision: Managed by the backend
-//   - Status: Contains dynamically calculated fields (member counts, assignments, etc.)
-//   - Owner.IneligibleStatus: Managed by the IneligibleStatusReconciler
-//
-// Note: This option causes the input access lists to be cloned (unless WithSkipClone
-// is also used) to avoid modifying the originals.
-func WithIgnoreEphemeralFields() EqualAccessListsOption {
-	return func(c *equalAccessListsConfig) {
-		c.resetFieldsFn = resetEphemeralFieldsAccessList
-	}
-}
-
-// WithIgnoreOktaUserManagedFields configures EqualAccessLists to ignore the
-// Spec fields that users are permitted to override on an Okta-originated
-// Access List, in addition to all ephemeral fields (see WithIgnoreEphemeralFields).
-//
-// On Access Lists with Origin=Okta, the Okta plugin is the source of truth for
-// most of the Spec, but the following fields remain user-editable and are
-// therefore ignored here:
-//   - Spec.Owners: owners are assigned in Teleport, not mirrored from Okta.
-//   - Spec.MembershipRequires: membership role/trait requirements are a
-//     Teleport-side policy.
-//   - Spec.OwnershipRequires: ownership role/trait requirements are a
-//     Teleport-side policy.
-//   - Spec.Audit: review cadence and notifications are configured in Teleport.
-//
-// Use this option to check whether a proposed update to an Okta-originated
-// Access List only touches user-editable fields; if EqualAccessLists returns
-// true under this option, the modification is within the allowed set.
-//
-// Note: This option causes the input access lists to be cloned (unless WithSkipClone
-// is also used) to avoid modifying the originals.
-func WithIgnoreOktaUserManagedFields() EqualAccessListsOption {
-	return func(c *equalAccessListsConfig) {
-		c.resetFieldsFn = func(a *AccessList) {
-			if a == nil {
-				return
-			}
-			resetEphemeralFieldsAccessList(a)
-			a.Spec.Owners = nil
-			a.Spec.MembershipRequires = Requires{}
-			a.Spec.OwnershipRequires = Requires{}
-			a.Spec.Audit = Audit{}
-		}
-	}
-}
-
-// EqualAccessLists compares two access lists for semantic equality.
-//
-// By default, this function performs a standard equality check. Use WithIgnoreEphemeralFields()
-// to ignore ephemeral fields that are managed by reconcilers or the backend.
-//
-// By default, this function clones the input access lists before comparison to avoid
-// modifying the originals. Use WithSkipClone() to skip cloning if the inputs can be
-// safely modified (e.g., when inputs are already clones or will be discarded after comparison).
-func EqualAccessLists(a, b *AccessList, opts ...EqualAccessListsOption) bool {
-	cfg := equalAccessListsConfig{}
-	for _, opt := range opts {
-		opt(&cfg)
-	}
-
-	if !cfg.skipClone {
-		a = a.Clone()
-		b = b.Clone()
-	}
-
-	if cfg.resetFieldsFn != nil {
-		cfg.resetFieldsFn(a)
-		cfg.resetFieldsFn(b)
-	}
-
-	return deriveTeleportEqualAccessList(a, b)
-}
-
-// resetEphemeralFieldsAccessList clears ephemeral fields that should be
-// ignored when comparing access lists.
-func resetEphemeralFieldsAccessList(a *AccessList) {
-	if a == nil {
-		return
-	}
-	a.Metadata.Revision = ""
-	a.Status = Status{}
-	for i := range a.Spec.Owners {
-		a.Spec.Owners[i].IneligibleStatus = ""
-	}
+	a.Spec.Audit.NextAuditDate = a.SelectNextReviewDate()
 }

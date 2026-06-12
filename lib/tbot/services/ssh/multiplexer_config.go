@@ -41,26 +41,18 @@ type MultiplexerConfig struct {
 	// EnableResumption controls whether to enable session resumption for the
 	// SSH proxy.
 	// Call `SessionResumptionEnabled` to get the value with defaults applied.
-	EnableResumption *bool `yaml:"enable_resumption,omitempty"`
+	EnableResumption *bool `yaml:"enable_resumption"`
 	// ProxyTemplatesPath is the path to the directory containing the templates
 	// for the SSH proxy.
 	// This field is optional, if not provided, no templates will be used.
 	// This file is loaded once on start, so changes to the templates will
 	// require a restart of tbot.
-	ProxyTemplatesPath string `yaml:"proxy_templates_path,omitempty"`
+	ProxyTemplatesPath string `yaml:"proxy_templates_path"`
 	// ProxyCommand is the base command to configure OpenSSH to invoke to
 	// connect to the SSH multiplexer. The path to the socket and the target
 	// will be automatically appended.
 	// Optional: If not provided, it will default to the `tbot` binary.
 	ProxyCommand []string `yaml:"proxy_command,omitempty"`
-	// RelayAddress specifies the address of a relay transport server to use for
-	// all the SSH connections going through this mux.
-	RelayAddress string `yaml:"relay_server,omitempty"`
-
-	// DelegationSessionID optionally identifies the delegation session the
-	// generated credentials will be associated with, enabling the bot to act
-	// on a (human) user's behalf.
-	DelegationSessionID string `yaml:"delegation_session_id,omitempty"`
 
 	// CredentialLifetime contains configuration for how long credentials will
 	// last and the frequency at which they'll be renewed.
@@ -111,10 +103,7 @@ func (o *MultiplexerConfig) UnmarshalConfig(ctx bot.UnmarshalConfigContext, node
 	return nil
 }
 
-func (s *MultiplexerConfig) CheckAndSetDefaults(scoped bool) error {
-	if scoped {
-		return trace.BadParameter("service type %q is not supported in scoped mode", MultiplexerServiceType)
-	}
+func (s *MultiplexerConfig) CheckAndSetDefaults() error {
 	if s.Destination == nil {
 		return trace.BadParameter("destination: must be specified")
 	}

@@ -29,7 +29,7 @@ const (
 	// sessionKeyDir is a sub-directory where session keys are stored
 	sessionKeyDir = "keys"
 	// sshDirSuffix is the suffix of a sub-directory where SSH certificates are stored.
-	SSHDirSuffix = "-ssh"
+	sshDirSuffix = "-ssh"
 	// fileNameKnownHosts is a file where known hosts are stored.
 	fileNameKnownHosts = "known_hosts"
 	// FileExtTLSCertLegacy is the legacy suffix/extension of a file where a TLS cert is stored.
@@ -61,9 +61,6 @@ const (
 	windowsDesktopDirSuffix = "-windowsdesktop"
 	// kubeConfigSuffix is the suffix of a kubeconfig file stored under the keys directory.
 	kubeConfigSuffix = "-kubeconfig"
-	// accessGraphSuffix is the suffix of a user's Access Graph TLS certificate
-	// used to authenticate directly to the proxy for Access Graph API queries.
-	accessGraphSuffix = "-access-graph"
 	// fileNameKubeCredLock is file name of lockfile used to prevent excessive login attempts.
 	fileNameKubeCredLock = "kube_credentials.lock"
 	// casDir is the directory name for where clusters certs are stored.
@@ -105,7 +102,6 @@ const (
 //    │   ├── certs.pem                --> TLS CA certs for the Teleport CA
 //    │   ├── foo.key                  --> TLS Private Key for user "foo"
 //    │   ├── foo.crt                  --> TLS client certificate for Auth Server
-//    │   ├── foo-access-graph.crt     --> TLS client certificate for Access Graph (direct proxy communication)
 //    │   ├── foo                      --> SSH Private Key for user "foo"
 //    │   ├── foo.pub                  --> SSH Public Key
 //    │   ├── foo.ppk                  --> PuTTY PPK-formatted keypair for user "foo"
@@ -219,14 +215,6 @@ func TLSCertPath(baseDir, proxy, username string) string {
 	return filepath.Join(ProxyKeyDir(baseDir, proxy), username+FileExtTLSCert)
 }
 
-// AccessGraphTLSCertPath returns the path to the user's Access Graph TLS
-// certificate for the given proxy.
-//
-// <baseDir>/keys/<proxy>/<username>-access-graph.crt
-func AccessGraphTLSCertPath(baseDir, proxy, username string) string {
-	return filepath.Join(ProxyKeyDir(baseDir, proxy), username+accessGraphSuffix+FileExtTLSCert)
-}
-
 // TLSCertPathLegacy returns the legacy path used in Teleport 16.x and older to the
 // users's TLS certificate for the given proxy.
 //
@@ -269,7 +257,7 @@ func TLSCAsPathCluster(baseDir, proxy, cluster string) string {
 //
 // <baseDir>/keys/<proxy>/<username>-ssh
 func SSHDir(baseDir, proxy, username string) string {
-	return filepath.Join(ProxyKeyDir(baseDir, proxy), username+SSHDirSuffix)
+	return filepath.Join(ProxyKeyDir(baseDir, proxy), username+sshDirSuffix)
 }
 
 // PPKFilePath returns the path to the user's PuTTY PPK-formatted keypair

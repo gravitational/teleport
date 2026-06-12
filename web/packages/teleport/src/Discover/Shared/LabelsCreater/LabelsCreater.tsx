@@ -21,7 +21,7 @@ import React from 'react';
 import { Box, ButtonIcon, Flex, Text } from 'design';
 import * as Icons from 'design/Icon';
 import { inputGeometry } from 'design/Input/Input';
-import { ButtonWithAddIcon } from 'shared/components/ButtonWithAddIcon';
+import { ButtonTextWithAddIcon } from 'shared/components/ButtonTextWithAddIcon';
 import FieldInput from 'shared/components/FieldInput';
 import { useValidation, Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
@@ -188,7 +188,7 @@ export function LabelsCreater({
           );
         })}
       </Box>
-      <ButtonWithAddIcon
+      <ButtonTextWithAddIcon
         label={labels.length === 0 ? 'Add a Label' : 'Add Another Label'}
         onClick={addLabel}
         disabled={disableBtns}

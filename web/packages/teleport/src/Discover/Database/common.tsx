@@ -17,7 +17,6 @@
  */
 
 import { Box, Mark, Label as Pill } from 'design';
-import { makeLabelTag } from 'design/formatters';
 import * as Icons from 'design/Icon';
 import { P } from 'design/Text/Text';
 
@@ -82,7 +81,7 @@ export const Labels = ({
           </P>
           <Box mb={3}>
             {dbLabels.map((label, index) => {
-              const labelText = makeLabelTag(label);
+              const labelText = `${label.name}: ${label.value}`;
               return (
                 <Pill
                   key={`${label.name}${label.value}${index}`}

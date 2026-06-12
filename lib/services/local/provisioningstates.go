@@ -125,21 +125,15 @@ func (ss *ProvisioningStateService) GetProvisioningState(ctx context.Context, do
 // ListProvisioningStates fetches a page of provisioning state records from the supplied
 // downstream
 func (ss *ProvisioningStateService) ListProvisioningStates(ctx context.Context, downstreamID services.DownstreamID, pageSize int, pageToken string) ([]*provisioningv1.PrincipalState, string, error) {
-	resp, nextPage, err := ss.ListProvisioningStates2(ctx, downstreamID, pageSize, pageToken)
+	resp, nextPage, err := ss.service.WithPrefix(string(downstreamID)).ListResources(ctx, pageSize, pageToken)
 	if err != nil {
 		return nil, "", trace.Wrap(err, "listing provisioning state records")
 	}
 	return resp, nextPage, nil
 }
 
-// ListProvisioningStates fetches a page of provisioning state records from the supplied
-// downstream
 func (ss *ProvisioningStateService) ListProvisioningStates2(ctx context.Context, downstreamID services.DownstreamID, pageSize int, pageToken string) ([]*provisioningv1.PrincipalState, string, error) {
-	resp, nextPage, err := ss.service.WithPrefix(string(downstreamID)).ListResources(ctx, pageSize, pageToken)
-	if err != nil {
-		return nil, "", trace.Wrap(err, "listing provisioning state records")
-	}
-	return resp, nextPage, nil
+	return ss.ListProvisioningStates(ctx, downstreamID, pageSize, pageToken)
 }
 
 // ListProvisioningStatesForAllDownstreams lists all provisioning state records for all

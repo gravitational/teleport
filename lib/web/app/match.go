@@ -26,39 +26,111 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
-	"github.com/gravitational/teleport/lib/services/readonly"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+// Getter returns a list of registered apps and the local cluster name.
+type Getter interface {
+	// GetApplicationServers returns registered application servers.
+	GetApplicationServers(context.Context, string) ([]types.AppServer, error)
+
+	// GetClusterName returns cluster name
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+}
 
 // MatchUnshuffled will match a list of applications with the passed in matcher
 // function. Matcher functions that can match on public address and name are
 // available.
-func MatchUnshuffled(ctx context.Context, cluster reversetunnelclient.Cluster, fn Matcher) ([]types.AppServer, error) {
-	watcher, err := cluster.AppServerWatcher()
+func MatchUnshuffled(ctx context.Context, authClient Getter, fn Matcher) ([]types.AppServer, error) {
+	servers, err := authClient.GetApplicationServers(ctx, defaults.Namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	servers, err := watcher.CurrentResourcesWithFilter(ctx, fn)
-	return servers, trace.Wrap(err)
+	var as []types.AppServer
+	for _, server := range servers {
+		if fn(ctx, server) {
+			as = append(as, server)
+		}
+	}
+
+	return as, nil
 }
 
-// Matcher allows matching on different properties of an app server.
-type Matcher func(readonly.AppServer) bool
+// MatchOne will match a single AppServer with the provided matcher function.
+// If no AppServer are matched, it will return an error.
+func MatchOne(ctx context.Context, authClient Getter, fn Matcher) (types.AppServer, error) {
+	servers, err := authClient.GetApplicationServers(ctx, defaults.Namespace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	for _, server := range servers {
+		if fn(ctx, server) {
+			return server, nil
+		}
+	}
+
+	return nil, trace.NotFound("couldn't match any types.AppServer")
+}
+
+// Matcher allows matching on different properties of an application.
+type Matcher func(context.Context, types.AppServer) bool
 
 // MatchPublicAddr matches on the public address of an application.
 func MatchPublicAddr(publicAddr string) Matcher {
-	return func(appServer readonly.AppServer) bool {
+	return func(_ context.Context, appServer types.AppServer) bool {
 		return appServer.GetApp().GetPublicAddr() == publicAddr
 	}
 }
 
 // MatchName matches on the name of an application.
 func MatchName(name string) Matcher {
-	return func(appServer readonly.AppServer) bool {
+	return func(_ context.Context, appServer types.AppServer) bool {
 		return appServer.GetApp().GetName() == name
+	}
+}
+
+// MatchHealthy tries to establish a connection with the server using the
+// `dialAppServer` function. The app server is matched if the function call
+// doesn't return any error.
+func MatchHealthy(proxyClient reversetunnelclient.Tunnel, clusterName string) Matcher {
+	return func(ctx context.Context, appServer types.AppServer) bool {
+		// Redirected apps don't need to be dialed, as the proxy will redirect to them.
+		if redirectInsteadOfForward(appServer) {
+			return true
+		}
+
+		// Apps that use the Integration should use its credentials which are obtained in Proxy.
+		// There's no need for an ApplicationService in this scenario.
+		if appServer.GetApp().GetIntegration() != "" {
+			return true
+		}
+
+		conn, err := dialAppServer(ctx, proxyClient, clusterName, appServer)
+		if err != nil {
+			return false
+		}
+
+		conn.Close()
+		return true
+	}
+}
+
+// MatchAll matches if all the Matcher functions return true.
+func MatchAll(matchers ...Matcher) Matcher {
+	return func(ctx context.Context, appServer types.AppServer) bool {
+		for _, fn := range matchers {
+			if !fn(ctx, appServer) {
+				return false
+			}
+		}
+
+		return true
 	}
 }
 
@@ -70,16 +142,15 @@ func MatchName(name string) Matcher {
 // cluster, this method will always return "acme" running within the root
 // cluster. Always supply public address and cluster name to deterministically
 // resolve an application.
-func ResolveFQDN(ctx context.Context, clusterGetter reversetunnelclient.ClusterGetter, localClusterName string, proxyDNSNames []string, fqdn string) (types.AppServer, string, error) {
-	clusterClient, err := clusterGetter.Cluster(ctx, localClusterName)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
+func ResolveFQDN(ctx context.Context, clt Getter, tunnel reversetunnelclient.Tunnel, proxyDNSNames []string, fqdn string) (types.AppServer, string, error) {
 	// Try and match FQDN to public address of application within cluster.
-	servers, err := MatchUnshuffled(ctx, clusterClient, MatchPublicAddr(fqdn))
+	servers, err := MatchUnshuffled(ctx, clt, MatchPublicAddr(fqdn))
 	if err == nil && len(servers) > 0 {
-		return servers[rand.N(len(servers))], localClusterName, nil
+		clusterName, err := clt.GetClusterName()
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		return servers[rand.N(len(servers))], clusterName.GetClusterName(), nil
 	}
 
 	proxyPublicAddr := utils.FindMatchingProxyDNS(fqdn, proxyDNSNames)
@@ -90,12 +161,17 @@ func ResolveFQDN(ctx context.Context, clusterGetter reversetunnelclient.ClusterG
 
 	// Loop over all clusters and try and match application name to an
 	// application within the cluster. This also includes the local cluster.
-	clusterClients, err := clusterGetter.Clusters(ctx)
+	clusterClients, err := tunnel.GetSites()
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 	for _, clusterClient := range clusterClients {
-		servers, err = MatchUnshuffled(ctx, clusterClient, MatchName(appName))
+		authClient, err := clusterClient.CachingAccessPoint()
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
+		servers, err = MatchUnshuffled(ctx, authClient, MatchName(appName))
 		if err == nil && len(servers) > 0 {
 			return servers[rand.N(len(servers))], clusterClient.GetName(), nil
 		}

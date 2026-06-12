@@ -19,6 +19,7 @@
 package proxy
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"io"
@@ -37,7 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/automaticupgrades/constants"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func createProxyWithChannels(t *testing.T, channels automaticupgrades.Channels) string {
@@ -48,7 +49,7 @@ func createProxyWithChannels(t *testing.T, channels automaticupgrades.Channels) 
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    helpers.Loopback,
-		Logger:      logtest.NewLogger(),
+		Log:         utils.NewLoggerForTests(),
 	}
 	cfg.Listeners = helpers.SingleProxyPortSetup(t, &cfg.Fds)
 	rc := helpers.NewInstance(t, cfg)
@@ -110,7 +111,8 @@ func NewServerMock(path string) *ServerMock {
 
 func TestVersionServer(t *testing.T) {
 	// Test setup
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	testVersion := "v12.2.6"
 	testVersionMajorTooHigh := "v99.1.3"
@@ -196,6 +198,7 @@ func TestVersionServer(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			channelUrl, err := url.Parse(
 				fmt.Sprintf("https://%s/v1/webapi/automaticupgrades/channel/%s/version", proxyAddr, tt.channel),
@@ -218,7 +221,8 @@ func TestVersionServer(t *testing.T) {
 }
 func TestDefaultVersionServer(t *testing.T) {
 	// Test setup
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	channels := automaticupgrades.Channels{}
 
@@ -247,6 +251,7 @@ func TestDefaultVersionServer(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			channelUrl, err := url.Parse(
 				fmt.Sprintf("https://%s/v1/webapi/automaticupgrades/channel/%s/version", proxyAddr, tt.channel),

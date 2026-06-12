@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	logutil "github.com/gravitational/teleport/lib/utils/log"
@@ -204,7 +205,7 @@ func (a *Server) VerifyAccountRecovery(ctx context.Context, req *proto.VerifyAcc
 		return nil, trace.AccessDenied("%s", verifyRecoveryBadAuthnErrMsg)
 	}
 
-	if err := a.verifyUserToken(ctx, startToken, authclient.UserTokenTypeRecoveryStart); err != nil {
+	if err := a.verifyUserToken(startToken, authclient.UserTokenTypeRecoveryStart); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -298,7 +299,7 @@ func (a *Server) CompleteAccountRecovery(ctx context.Context, req *proto.Complet
 		return trace.AccessDenied("%s", completeRecoveryGenericErrMsg)
 	}
 
-	if err := a.verifyUserToken(ctx, approvedToken, authclient.UserTokenTypeRecoveryApproved); err != nil {
+	if err := a.verifyUserToken(approvedToken, authclient.UserTokenTypeRecoveryApproved); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -397,7 +398,7 @@ func (a *Server) CreateAccountRecoveryCodes(ctx context.Context, req *proto.Crea
 		return nil, trace.AccessDenied("only local users may create recovery codes")
 	}
 
-	if err := a.verifyUserToken(ctx, token, authclient.UserTokenTypeRecoveryApproved, authclient.UserTokenTypePrivilege); err != nil {
+	if err := a.verifyUserToken(token, authclient.UserTokenTypeRecoveryApproved, authclient.UserTokenTypePrivilege); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -422,7 +423,7 @@ func (a *Server) GetAccountRecoveryToken(ctx context.Context, req *proto.GetAcco
 		return nil, trace.AccessDenied("access denied")
 	}
 
-	if err := a.verifyUserToken(ctx, token, authclient.UserTokenTypeRecoveryStart, authclient.UserTokenTypeRecoveryApproved); err != nil {
+	if err := a.verifyUserToken(token, authclient.UserTokenTypeRecoveryStart, authclient.UserTokenTypeRecoveryApproved); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -490,7 +491,7 @@ func (a *Server) generateAndUpsertRecoveryCodes(ctx context.Context, username st
 // isAccountRecoveryAllowed gets cluster auth configuration and check if cloud, local auth
 // and second factor is allowed, which are required for account recovery.
 func (a *Server) isAccountRecoveryAllowed(ctx context.Context) error {
-	if !a.modules.Features().RecoveryCodes {
+	if !modules.GetModules().Features().RecoveryCodes {
 		return trace.AccessDenied("account recovery is only available for Teleport enterprise")
 	}
 
@@ -515,7 +516,7 @@ func (a *Server) isAccountRecoveryAllowed(ctx context.Context) error {
 func generateRecoveryCodes() ([]string, error) {
 	tokenList := make([]string, 0, numOfRecoveryCodes)
 
-	for range numOfRecoveryCodes {
+	for i := 0; i < numOfRecoveryCodes; i++ {
 		wordIDs := make([]uint16, numWordsInRecoveryCode)
 		if err := binary.Read(rand.Reader, binary.NativeEndian, wordIDs); err != nil {
 			return nil, trace.Wrap(err)

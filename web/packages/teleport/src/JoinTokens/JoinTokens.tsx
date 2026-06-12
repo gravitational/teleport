@@ -43,7 +43,6 @@ import Dialog, {
 } from 'design/Dialog';
 import { Warning } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
-import { CopyButton } from 'shared/components/CopyButton/CopyButton';
 import { MenuButton } from 'shared/components/MenuAction';
 import {
   InfoExternalTextLink,
@@ -51,6 +50,7 @@ import {
   InfoParagraph,
   ReferenceLinks,
 } from 'shared/components/SlidingSidePanel/InfoGuide';
+import { CopyButton } from 'shared/components/UnifiedResources/shared/CopyButton';
 import { Attempt, useAsync } from 'shared/hooks/useAsync';
 
 import { useTeleport } from 'teleport';
@@ -100,9 +100,7 @@ export const JoinTokens = () => {
   }
 
   function updateTokenList(token: JoinToken): JoinToken[] {
-    let items = joinTokensAttempt.data?.items
-      ? [...joinTokensAttempt.data.items]
-      : [];
+    let items = [...joinTokensAttempt.data.items];
     if (creatingToken) {
       items.push(token);
     } else {
@@ -137,7 +135,7 @@ export const JoinTokens = () => {
         status: 'success',
         statusText: '',
         data: {
-          items: joinTokensAttempt.data?.items.filter(t => t.id !== token),
+          items: joinTokensAttempt.data.items.filter(t => t.id !== token),
         },
       });
       setTokenToDelete(null);
@@ -192,7 +190,6 @@ export const JoinTokens = () => {
               data={joinTokensAttempt.data.items}
               row={{
                 getStyle: getRowStyle,
-                getKey: token => token.id,
               }}
               columns={[
                 {
@@ -252,8 +249,7 @@ export const JoinTokens = () => {
                           token.method === 'iam' ||
                           token.method === 'gcp' ||
                           token.method === 'token' ||
-                          (token.method === 'github' && token.github) ||
-                          (token.method === 'gitlab' && token.gitlab)
+                          (token.method === 'github' && token.github)
                         ) {
                           setEditingToken(token);
                           return;
@@ -303,7 +299,7 @@ export const JoinTokens = () => {
             setDeleteTokenAttempt({
               status: 'success',
               statusText: '',
-              data: undefined,
+              data: null,
             });
             setTokenToDelete(null);
           }}
@@ -385,7 +381,7 @@ const NameCell = ({ token }: { token: JoinToken }) => {
             visibility: ${hovered ? 'visible' : 'hidden'};
           `}
         >
-          <CopyButton value={id} />
+          <CopyButton name={id} />
         </Box>
       </Flex>
     </Cell>

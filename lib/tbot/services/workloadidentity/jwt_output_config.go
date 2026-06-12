@@ -64,10 +64,7 @@ func (o *JWTOutputConfig) Init(ctx context.Context) error {
 }
 
 // CheckAndSetDefaults checks the WorkloadIdentityJWTService values and sets any defaults.
-func (o *JWTOutputConfig) CheckAndSetDefaults(scoped bool) error {
-	if scoped {
-		return trace.BadParameter("service type %q is not supported in scoped mode", JWTOutputServiceType)
-	}
+func (o *JWTOutputConfig) CheckAndSetDefaults() error {
 	if o.Destination == nil {
 		return trace.BadParameter("no destination configured for output")
 	}

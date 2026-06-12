@@ -16,14 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { AppSubKind } from 'shared/services';
-import { AwsRole, getAppUriScheme } from 'shared/services/apps';
+import { AwsRole } from 'shared/services/apps';
 
 import cfg from 'teleport/config';
 
-import { App, CloudInstance, PermissionSet } from './types';
-
-const cloudProtocol = 'cloud://';
+import { App, AppSubKind, PermissionSet } from './types';
 
 function getLaunchUrl({
   fqdn,
@@ -37,10 +34,9 @@ function getLaunchUrl({
   publicAddr: string;
 }) {
   if (useAnyProxyPublicAddr) {
-    if (!fqdn) {
-      return '';
-    }
-    return cfg.getAppLauncherRoute({ fqdn });
+    return cfg.getAppLauncherRoute({
+      fqdn,
+    });
   }
 
   if (publicAddr && clusterId && fqdn) {
@@ -68,8 +64,6 @@ export default function makeApp(json: any): App {
     samlAppPreset,
     subKind,
     samlAppLaunchUrls,
-    mcp,
-    supportedFeatureIds,
   } = json;
 
   const launchUrl = getLaunchUrl({
@@ -84,20 +78,15 @@ export default function makeApp(json: any): App {
   const userGroups = json.userGroups || [];
   const permissionSets: PermissionSet[] = json.permissionSets || [];
 
-  const scheme = getAppUriScheme(uri);
-  const isTcp = scheme === 'tcp';
-  const isCloud = scheme === 'cloud';
-  const isMcp = scheme.startsWith('mcp+');
+  const isTcp = !!uri && uri.startsWith('tcp://');
+  const isCloud = !!uri && uri.startsWith('cloud://');
 
   let addrWithProtocol = uri;
   if (publicAddr) {
     if (isCloud) {
-      addrWithProtocol = `${cloudProtocol}${publicAddr}`;
+      addrWithProtocol = `cloud://${publicAddr}`;
     } else if (isTcp) {
       addrWithProtocol = `tcp://${publicAddr}`;
-    } else if (isMcp) {
-      // Not used anywhere yet.
-      addrWithProtocol = `${scheme}://${publicAddr}`;
     } else if (subKind === AppSubKind.AwsIcAccount) {
       /** publicAddr for Identity Center account app is a URL with scheme. */
       addrWithProtocol = publicAddr;
@@ -105,29 +94,12 @@ export default function makeApp(json: any): App {
       addrWithProtocol = `https://${publicAddr}`;
     }
   }
-
-  if (useAnyProxyPublicAddr && fqdn) {
+  if (useAnyProxyPublicAddr) {
     addrWithProtocol = `https://${fqdn}`;
   }
   let samlAppSsoUrl = '';
   if (samlApp) {
     samlAppSsoUrl = `${cfg.baseUrl}/enterprise/saml-idp/login/${name}`;
-  }
-
-  let cloudInstance: CloudInstance;
-  if (isCloud) {
-    // Cloud instance app URI format is "cloud://<cloud>"
-    // eg: "cloud://GCP"
-    const splittedUri = uri.split(cloudProtocol);
-    if (splittedUri.length > 1) {
-      const gotCloudInstance = splittedUri[1];
-      for (const cloudEnumVal of Object.values(CloudInstance)) {
-        if (cloudEnumVal === gotCloudInstance) {
-          cloudInstance = gotCloudInstance;
-          break;
-        }
-      }
-    }
   }
 
   return {
@@ -157,8 +129,5 @@ export default function makeApp(json: any): App {
     integration,
     permissionSets,
     samlAppLaunchUrls,
-    mcp,
-    cloudInstance,
-    supportedFeatureIds,
   };
 }

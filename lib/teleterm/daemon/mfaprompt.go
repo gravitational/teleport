@@ -27,7 +27,6 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/trail"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
@@ -73,11 +72,10 @@ func (s *Service) promptAppMFA(ctx context.Context, in *api.PromptMFARequest) (*
 func (p *mfaPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
 	promptOTP := chal.TOTP != nil
 	promptWebauthn := chal.WebauthnChallenge != nil && p.cfg.WebauthnSupported
-	promptSSO := chal.SSOChallenge != nil && p.cfg.CallbackCeremony != nil
-	promptBrowserMfa := chal.BrowserMFAChallenge != nil && p.cfg.CallbackCeremony != nil
+	promptSSO := chal.SSOChallenge != nil && p.cfg.SSOMFACeremony != nil
 
 	// No prompt to run, no-op.
-	if !promptOTP && !promptWebauthn && !promptSSO && !promptBrowserMfa {
+	if !promptOTP && !promptWebauthn && !promptSSO {
 		return &proto.MFAAuthenticateResponse{}, nil
 	}
 
@@ -96,18 +94,14 @@ func (p *mfaPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 		return resp, trace.Wrap(err)
 	}
 
-	return libmfa.HandleConcurrentMFAPrompts(ctx, chal, appPrompt, p.maybePromptWebauthn, p.maybePromptBrowserOrSSO)
+	return libmfa.HandleConcurrentMFAPrompts(ctx, chal, appPrompt, p.maybePromptWebauthn, p.maybePromptSSO)
 }
 
 // promptApp handles the client modal, cancellation, and TOTP.
-//
-//nolint:staticcheck // TODO(danielashare): Delete when Browser MFA has migrated to mfav2.
 func (p *mfaPrompt) promptApp(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
 	promptOTP := chal.TOTP != nil
 	promptWebauthn := chal.WebauthnChallenge != nil && p.cfg.WebauthnSupported
-	promptSSO := chal.SSOChallenge != nil && p.cfg.CallbackCeremony != nil
-	promptBrowserMfa := chal.BrowserMFAChallenge != nil && p.cfg.CallbackCeremony != nil
-	scope := p.cfg.Extensions.GetScope()
+	promptSSO := chal.SSOChallenge != nil && p.cfg.SSOMFACeremony != nil
 
 	var ssoChallenge *api.SSOChallenge
 	if promptSSO {
@@ -119,21 +113,12 @@ func (p *mfaPrompt) promptApp(ctx context.Context, chal *proto.MFAAuthenticateCh
 		}
 	}
 
-	var browserMfaChallenge *mfav1.BrowserMFAChallenge
-	if promptBrowserMfa {
-		browserMfaChallenge = &mfav1.BrowserMFAChallenge{
-			RequestId: chal.BrowserMFAChallenge.RequestId,
-		}
-	}
-
 	resp, err := p.promptAppMFA(ctx, &api.PromptMFARequest{
-		ClusterUri:    p.resourceURI.GetClusterURI().String(),
-		Reason:        p.cfg.PromptReason,
-		Totp:          promptOTP,
-		Webauthn:      promptWebauthn,
-		Sso:           ssoChallenge,
-		Browser:       browserMfaChallenge,
-		PerSessionMfa: scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+		ClusterUri: p.resourceURI.GetClusterURI().String(),
+		Reason:     p.cfg.PromptReason,
+		Totp:       promptOTP,
+		Webauthn:   promptWebauthn,
+		Sso:        ssoChallenge,
 	})
 	if err != nil {
 		return nil, trail.FromGRPC(err)
@@ -160,12 +145,12 @@ func (p *mfaPrompt) maybePromptWebauthn(ctx context.Context, chal *proto.MFAAuth
 	return resp, nil
 }
 
-// Prompt Browser/SSO if it's a supported method.
-func (p *mfaPrompt) maybePromptBrowserOrSSO(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-	if (chal.SSOChallenge == nil && chal.BrowserMFAChallenge == nil) || p.cfg.CallbackCeremony == nil {
+// Prompt SSO if it's a supported method.
+func (p *mfaPrompt) maybePromptSSO(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+	if chal.SSOChallenge == nil || p.cfg.SSOMFACeremony == nil {
 		return nil, nil
 	}
 
-	resp, err := p.cfg.CallbackCeremony.Run(ctx, chal)
+	resp, err := p.cfg.SSOMFACeremony.Run(ctx, chal)
 	return resp, trace.Wrap(err)
 }

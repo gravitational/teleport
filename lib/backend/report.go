@@ -21,7 +21,6 @@ package backend
 import (
 	"context"
 	"errors"
-	"iter"
 	"log/slog"
 	"slices"
 	"strings"
@@ -81,8 +80,6 @@ func (r *ReporterConfig) CheckAndSetDefaults() error {
 }
 
 var _ Backend = (*Reporter)(nil)
-var _ BatchDeleter = (*Reporter)(nil)
-var _ BatchPutter = (*Reporter)(nil)
 
 // Reporter wraps a Backend implementation and reports
 // statistics about the backend operations
@@ -219,39 +216,6 @@ func (s *Reporter) GetRange(ctx context.Context, startKey, endKey Key, limit int
 	return res, err
 }
 
-func (s *Reporter) Items(ctx context.Context, params ItemsParams) iter.Seq2[Item, error] {
-	ctx, span := s.Tracer.Start(
-		ctx,
-		"backend/Items",
-		oteltrace.WithAttributes(
-			attribute.Int("limit", params.Limit),
-			attribute.String("start_key", params.StartKey.String()),
-			attribute.String("end_key", params.EndKey.String()),
-		),
-	)
-	defer span.End()
-
-	return func(yield func(Item, error) bool) {
-		var count int
-		defer func() {
-			s.trackRequest(ctx, types.OpGet, params.StartKey, params.EndKey)
-			s.streamingRequests.Inc()
-			s.reads.Add(float64(count))
-
-		}()
-		for item, err := range s.Backend.Items(ctx, params) {
-			if err != nil {
-				s.streamingRequestsFailed.Inc()
-			}
-
-			count++
-			if !yield(item, err) || err != nil {
-				return
-			}
-		}
-	}
-}
-
 // Create creates item if it does not exist
 func (s *Reporter) Create(ctx context.Context, i Item) (*Lease, error) {
 	ctx, span := s.Tracer.Start(
@@ -304,32 +268,6 @@ func (s *Reporter) Put(ctx context.Context, i Item) (*Lease, error) {
 	}
 	s.trackRequest(ctx, types.OpPut, i.Key, Key{})
 	return lease, err
-}
-
-// PutBatch puts multiple values into backend.
-func (s *Reporter) PutBatch(ctx context.Context, items []Item) ([]string, error) {
-	ctx, span := s.Tracer.Start(
-		ctx,
-		"backend/PutBatch",
-		oteltrace.WithAttributes(
-			attribute.Int("batch_size", len(items)),
-		),
-	)
-	defer span.End()
-
-	start := s.Clock().Now()
-	revisions, err := PutBatch(ctx, s.Backend, items)
-	s.batchWriteLatencies.Observe(s.Clock().Since(start).Seconds())
-	s.batchWriteRequests.Inc()
-	if err != nil {
-		s.batchWriteRequestsFailed.Inc()
-	} else {
-		s.writes.Add(float64(len(items)))
-	}
-	for _, item := range items {
-		s.trackRequest(ctx, types.OpPut, item.Key, Key{})
-	}
-	return revisions, err
 }
 
 // Update updates value in the backend
@@ -545,32 +483,6 @@ func (s *Reporter) AtomicWrite(ctx context.Context, condacts []ConditionalAction
 		s.writes.Add(float64(writeTotal))
 	}
 	return
-}
-
-// DeleteBatch deletes multiple keys from the backend.
-func (s *Reporter) DeleteBatch(ctx context.Context, keys []Key) error {
-	ctx, span := s.Tracer.Start(
-		ctx,
-		"backend/DeleteBatch",
-		oteltrace.WithAttributes(
-			attribute.Int("batch_size", len(keys)),
-		),
-	)
-	defer span.End()
-
-	start := s.Clock().Now()
-	err := DeleteBatch(ctx, s.Backend, keys)
-	s.batchWriteLatencies.Observe(s.Clock().Since(start).Seconds())
-	s.batchWriteRequests.Inc()
-	if err != nil {
-		s.batchWriteRequestsFailed.Inc()
-	} else {
-		s.writes.Add(float64(len(keys)))
-	}
-	for _, key := range keys {
-		s.trackRequest(ctx, types.OpDelete, key, Key{})
-	}
-	return err
 }
 
 // DeleteRange deletes range of items

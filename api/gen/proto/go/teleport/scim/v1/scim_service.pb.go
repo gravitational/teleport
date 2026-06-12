@@ -18,8 +18,6 @@
 // 	protoc        (unknown)
 // source: teleport/scim/v1/scim_service.proto
 
-//go:build !protoopaque
-
 package scimv1
 
 import (
@@ -29,6 +27,7 @@ import (
 	structpb "google.golang.org/protobuf/types/known/structpb"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
+	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -41,7 +40,7 @@ const (
 
 // ListSCIMResourcesRequest represents a request to fetch multiple resources
 type ListSCIMResourcesRequest struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// Target describes the set of requested by the client, by integration and
 	// resource type.
 	Target *RequestTarget `protobuf:"bytes,1,opt,name=target,proto3" json:"target,omitempty"`
@@ -79,6 +78,11 @@ func (x *ListSCIMResourcesRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use ListSCIMResourcesRequest.ProtoReflect.Descriptor instead.
+func (*ListSCIMResourcesRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_scim_v1_scim_service_proto_rawDescGZIP(), []int{0}
+}
+
 func (x *ListSCIMResourcesRequest) GetTarget() *RequestTarget {
 	if x != nil {
 		return x.Target
@@ -100,66 +104,9 @@ func (x *ListSCIMResourcesRequest) GetFilter() string {
 	return ""
 }
 
-func (x *ListSCIMResourcesRequest) SetTarget(v *RequestTarget) {
-	x.Target = v
-}
-
-func (x *ListSCIMResourcesRequest) SetPage(v *Page) {
-	x.Page = v
-}
-
-func (x *ListSCIMResourcesRequest) SetFilter(v string) {
-	x.Filter = v
-}
-
-func (x *ListSCIMResourcesRequest) HasTarget() bool {
-	if x == nil {
-		return false
-	}
-	return x.Target != nil
-}
-
-func (x *ListSCIMResourcesRequest) HasPage() bool {
-	if x == nil {
-		return false
-	}
-	return x.Page != nil
-}
-
-func (x *ListSCIMResourcesRequest) ClearTarget() {
-	x.Target = nil
-}
-
-func (x *ListSCIMResourcesRequest) ClearPage() {
-	x.Page = nil
-}
-
-type ListSCIMResourcesRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// Target describes the set of requested by the client, by integration and
-	// resource type.
-	Target *RequestTarget
-	// Page is an optional request to retrieve a page of results. Returns all
-	// appropriate results if not set.
-	Page *Page
-	// Filter is an optional filter to apply to any retrieved results.
-	Filter string
-}
-
-func (b0 ListSCIMResourcesRequest_builder) Build() *ListSCIMResourcesRequest {
-	m0 := &ListSCIMResourcesRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Target = b.Target
-	x.Page = b.Page
-	x.Filter = b.Filter
-	return m0
-}
-
 // GetSCIMResourceRequest describes a request to fetch a specific resource
 type GetSCIMResourceRequest struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// Target is the owner, type and ID if the resource targeted by the request.
 	Target        *RequestTarget `protobuf:"bytes,1,opt,name=target,proto3" json:"target,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -191,6 +138,11 @@ func (x *GetSCIMResourceRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use GetSCIMResourceRequest.ProtoReflect.Descriptor instead.
+func (*GetSCIMResourceRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_scim_v1_scim_service_proto_rawDescGZIP(), []int{1}
+}
+
 func (x *GetSCIMResourceRequest) GetTarget() *RequestTarget {
 	if x != nil {
 		return x.Target
@@ -198,40 +150,10 @@ func (x *GetSCIMResourceRequest) GetTarget() *RequestTarget {
 	return nil
 }
 
-func (x *GetSCIMResourceRequest) SetTarget(v *RequestTarget) {
-	x.Target = v
-}
-
-func (x *GetSCIMResourceRequest) HasTarget() bool {
-	if x == nil {
-		return false
-	}
-	return x.Target != nil
-}
-
-func (x *GetSCIMResourceRequest) ClearTarget() {
-	x.Target = nil
-}
-
-type GetSCIMResourceRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// Target is the owner, type and ID if the resource targeted by the request.
-	Target *RequestTarget
-}
-
-func (b0 GetSCIMResourceRequest_builder) Build() *GetSCIMResourceRequest {
-	m0 := &GetSCIMResourceRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Target = b.Target
-	return m0
-}
-
 // CreateSCIMResourceRequest contains a request for the SCIM server to create a
 // new resource
 type CreateSCIMResourceRequest struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// Target is the owner & type of the resource targeted by the request.
 	Target *RequestTarget `protobuf:"bytes,1,opt,name=target,proto3" json:"target,omitempty"`
 	// Resource describes the resource to be created
@@ -265,6 +187,11 @@ func (x *CreateSCIMResourceRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use CreateSCIMResourceRequest.ProtoReflect.Descriptor instead.
+func (*CreateSCIMResourceRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_scim_v1_scim_service_proto_rawDescGZIP(), []int{2}
+}
+
 func (x *CreateSCIMResourceRequest) GetTarget() *RequestTarget {
 	if x != nil {
 		return x.Target
@@ -279,57 +206,9 @@ func (x *CreateSCIMResourceRequest) GetResource() *Resource {
 	return nil
 }
 
-func (x *CreateSCIMResourceRequest) SetTarget(v *RequestTarget) {
-	x.Target = v
-}
-
-func (x *CreateSCIMResourceRequest) SetResource(v *Resource) {
-	x.Resource = v
-}
-
-func (x *CreateSCIMResourceRequest) HasTarget() bool {
-	if x == nil {
-		return false
-	}
-	return x.Target != nil
-}
-
-func (x *CreateSCIMResourceRequest) HasResource() bool {
-	if x == nil {
-		return false
-	}
-	return x.Resource != nil
-}
-
-func (x *CreateSCIMResourceRequest) ClearTarget() {
-	x.Target = nil
-}
-
-func (x *CreateSCIMResourceRequest) ClearResource() {
-	x.Resource = nil
-}
-
-type CreateSCIMResourceRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// Target is the owner & type of the resource targeted by the request.
-	Target *RequestTarget
-	// Resource describes the resource to be created
-	Resource *Resource
-}
-
-func (b0 CreateSCIMResourceRequest_builder) Build() *CreateSCIMResourceRequest {
-	m0 := &CreateSCIMResourceRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Target = b.Target
-	x.Resource = b.Resource
-	return m0
-}
-
 // UpdateSCIMResourceRequest describes an update to a given resource
 type UpdateSCIMResourceRequest struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// Target is the owner, type and ID if the resource targeted by the request.
 	Target *RequestTarget `protobuf:"bytes,1,opt,name=target,proto3" json:"target,omitempty"`
 	// Resource is a representation of the updated resource that the server needs
@@ -364,6 +243,11 @@ func (x *UpdateSCIMResourceRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use UpdateSCIMResourceRequest.ProtoReflect.Descriptor instead.
+func (*UpdateSCIMResourceRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_scim_v1_scim_service_proto_rawDescGZIP(), []int{3}
+}
+
 func (x *UpdateSCIMResourceRequest) GetTarget() *RequestTarget {
 	if x != nil {
 		return x.Target
@@ -378,59 +262,10 @@ func (x *UpdateSCIMResourceRequest) GetResource() *Resource {
 	return nil
 }
 
-func (x *UpdateSCIMResourceRequest) SetTarget(v *RequestTarget) {
-	x.Target = v
-}
-
-func (x *UpdateSCIMResourceRequest) SetResource(v *Resource) {
-	x.Resource = v
-}
-
-func (x *UpdateSCIMResourceRequest) HasTarget() bool {
-	if x == nil {
-		return false
-	}
-	return x.Target != nil
-}
-
-func (x *UpdateSCIMResourceRequest) HasResource() bool {
-	if x == nil {
-		return false
-	}
-	return x.Resource != nil
-}
-
-func (x *UpdateSCIMResourceRequest) ClearTarget() {
-	x.Target = nil
-}
-
-func (x *UpdateSCIMResourceRequest) ClearResource() {
-	x.Resource = nil
-}
-
-type UpdateSCIMResourceRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// Target is the owner, type and ID if the resource targeted by the request.
-	Target *RequestTarget
-	// Resource is a representation of the updated resource that the server needs
-	// to conform with
-	Resource *Resource
-}
-
-func (b0 UpdateSCIMResourceRequest_builder) Build() *UpdateSCIMResourceRequest {
-	m0 := &UpdateSCIMResourceRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Target = b.Target
-	x.Resource = b.Resource
-	return m0
-}
-
 // DeleteSCIMResourceRequest describes a request to delete a SCIM-mananged
 // resource
 type DeleteSCIMResourceRequest struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// Target is the owner, type and ID if the resource targeted by the request.
 	Target        *RequestTarget `protobuf:"bytes,1,opt,name=target,proto3" json:"target,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -462,6 +297,11 @@ func (x *DeleteSCIMResourceRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use DeleteSCIMResourceRequest.ProtoReflect.Descriptor instead.
+func (*DeleteSCIMResourceRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_scim_v1_scim_service_proto_rawDescGZIP(), []int{4}
+}
+
 func (x *DeleteSCIMResourceRequest) GetTarget() *RequestTarget {
 	if x != nil {
 		return x.Target
@@ -469,42 +309,12 @@ func (x *DeleteSCIMResourceRequest) GetTarget() *RequestTarget {
 	return nil
 }
 
-func (x *DeleteSCIMResourceRequest) SetTarget(v *RequestTarget) {
-	x.Target = v
-}
-
-func (x *DeleteSCIMResourceRequest) HasTarget() bool {
-	if x == nil {
-		return false
-	}
-	return x.Target != nil
-}
-
-func (x *DeleteSCIMResourceRequest) ClearTarget() {
-	x.Target = nil
-}
-
-type DeleteSCIMResourceRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// Target is the owner, type and ID if the resource targeted by the request.
-	Target *RequestTarget
-}
-
-func (b0 DeleteSCIMResourceRequest_builder) Build() *DeleteSCIMResourceRequest {
-	m0 := &DeleteSCIMResourceRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Target = b.Target
-	return m0
-}
-
 // Resource represents an arbitrary SCIM resource, as per RFC7643
 // Section 3.1.
 //
 // See https://datatracker.ietf.org/doc/html/rfc7643#section-3.1
 type Resource struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
 	Schemas       []string               `protobuf:"bytes,1,rep,name=schemas,proto3" json:"schemas,omitempty"`
 	Id            string                 `protobuf:"bytes,2,opt,name=id,proto3" json:"id,omitempty"`
 	ExternalId    string                 `protobuf:"bytes,3,opt,name=external_id,json=externalId,proto3" json:"external_id,omitempty"`
@@ -537,6 +347,11 @@ func (x *Resource) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Resource.ProtoReflect.Descriptor instead.
+func (*Resource) Descriptor() ([]byte, []int) {
+	return file_teleport_scim_v1_scim_service_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *Resource) GetSchemas() []string {
@@ -574,75 +389,11 @@ func (x *Resource) GetAttributes() *structpb.Struct {
 	return nil
 }
 
-func (x *Resource) SetSchemas(v []string) {
-	x.Schemas = v
-}
-
-func (x *Resource) SetId(v string) {
-	x.Id = v
-}
-
-func (x *Resource) SetExternalId(v string) {
-	x.ExternalId = v
-}
-
-func (x *Resource) SetMeta(v *Meta) {
-	x.Meta = v
-}
-
-func (x *Resource) SetAttributes(v *structpb.Struct) {
-	x.Attributes = v
-}
-
-func (x *Resource) HasMeta() bool {
-	if x == nil {
-		return false
-	}
-	return x.Meta != nil
-}
-
-func (x *Resource) HasAttributes() bool {
-	if x == nil {
-		return false
-	}
-	return x.Attributes != nil
-}
-
-func (x *Resource) ClearMeta() {
-	x.Meta = nil
-}
-
-func (x *Resource) ClearAttributes() {
-	x.Attributes = nil
-}
-
-type Resource_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	Schemas    []string
-	Id         string
-	ExternalId string
-	Meta       *Meta
-	Attributes *structpb.Struct
-}
-
-func (b0 Resource_builder) Build() *Resource {
-	m0 := &Resource{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Schemas = b.Schemas
-	x.Id = b.Id
-	x.ExternalId = b.ExternalId
-	x.Meta = b.Meta
-	x.Attributes = b.Attributes
-	return m0
-}
-
 // Meta holds resource metadata as per RFC7643 Section 3.1.
 //
 // See https://datatracker.ietf.org/doc/html/rfc7643#section-3.1
 type Meta struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
 	ResourceType  string                 `protobuf:"bytes,1,opt,name=resource_type,json=resourceType,proto3" json:"resource_type,omitempty"`
 	Created       *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=created,proto3" json:"created,omitempty"`
 	Modified      *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=modified,proto3" json:"modified,omitempty"`
@@ -675,6 +426,11 @@ func (x *Meta) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Meta.ProtoReflect.Descriptor instead.
+func (*Meta) Descriptor() ([]byte, []int) {
+	return file_teleport_scim_v1_scim_service_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *Meta) GetResourceType() string {
@@ -712,76 +468,12 @@ func (x *Meta) GetVersion() string {
 	return ""
 }
 
-func (x *Meta) SetResourceType(v string) {
-	x.ResourceType = v
-}
-
-func (x *Meta) SetCreated(v *timestamppb.Timestamp) {
-	x.Created = v
-}
-
-func (x *Meta) SetModified(v *timestamppb.Timestamp) {
-	x.Modified = v
-}
-
-func (x *Meta) SetLocation(v string) {
-	x.Location = v
-}
-
-func (x *Meta) SetVersion(v string) {
-	x.Version = v
-}
-
-func (x *Meta) HasCreated() bool {
-	if x == nil {
-		return false
-	}
-	return x.Created != nil
-}
-
-func (x *Meta) HasModified() bool {
-	if x == nil {
-		return false
-	}
-	return x.Modified != nil
-}
-
-func (x *Meta) ClearCreated() {
-	x.Created = nil
-}
-
-func (x *Meta) ClearModified() {
-	x.Modified = nil
-}
-
-type Meta_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	ResourceType string
-	Created      *timestamppb.Timestamp
-	Modified     *timestamppb.Timestamp
-	Location     string
-	Version      string
-}
-
-func (b0 Meta_builder) Build() *Meta {
-	m0 := &Meta{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.ResourceType = b.ResourceType
-	x.Created = b.Created
-	x.Modified = b.Modified
-	x.Location = b.Location
-	x.Version = b.Version
-	return m0
-}
-
 // ResourceList encapsulates a list of resources as per RFC7644
 // Section 3.4.2
 //
 // See https://datatracker.ietf.org/doc/html/rfc7644#section-3.4.2
 type ResourceList struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
 	TotalResults  int32                  `protobuf:"varint,1,opt,name=total_results,json=totalResults,proto3" json:"total_results,omitempty"`
 	StartIndex    int32                  `protobuf:"varint,2,opt,name=start_index,json=startIndex,proto3" json:"start_index,omitempty"`
 	ItemsPerPage  int32                  `protobuf:"varint,3,opt,name=items_per_page,json=itemsPerPage,proto3" json:"items_per_page,omitempty"`
@@ -815,6 +507,11 @@ func (x *ResourceList) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use ResourceList.ProtoReflect.Descriptor instead.
+func (*ResourceList) Descriptor() ([]byte, []int) {
+	return file_teleport_scim_v1_scim_service_proto_rawDescGZIP(), []int{7}
+}
+
 func (x *ResourceList) GetTotalResults() int32 {
 	if x != nil {
 		return x.TotalResults
@@ -843,46 +540,10 @@ func (x *ResourceList) GetResources() []*Resource {
 	return nil
 }
 
-func (x *ResourceList) SetTotalResults(v int32) {
-	x.TotalResults = v
-}
-
-func (x *ResourceList) SetStartIndex(v int32) {
-	x.StartIndex = v
-}
-
-func (x *ResourceList) SetItemsPerPage(v int32) {
-	x.ItemsPerPage = v
-}
-
-func (x *ResourceList) SetResources(v []*Resource) {
-	x.Resources = v
-}
-
-type ResourceList_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	TotalResults int32
-	StartIndex   int32
-	ItemsPerPage int32
-	Resources    []*Resource
-}
-
-func (b0 ResourceList_builder) Build() *ResourceList {
-	m0 := &ResourceList{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.TotalResults = b.TotalResults
-	x.StartIndex = b.StartIndex
-	x.ItemsPerPage = b.ItemsPerPage
-	x.Resources = b.Resources
-	return m0
-}
-
 // RequestTarget describes the target resource set of a given request. Common to
 // all request types.
 type RequestTarget struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// Authorization is the contents of the HTTP Authorization header supplied by
 	// the SCIM client, used to authenticate the request against the targeted
 	// interation.
@@ -924,6 +585,11 @@ func (x *RequestTarget) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use RequestTarget.ProtoReflect.Descriptor instead.
+func (*RequestTarget) Descriptor() ([]byte, []int) {
+	return file_teleport_scim_v1_scim_service_proto_rawDescGZIP(), []int{8}
+}
+
 func (x *RequestTarget) GetAuthorization() string {
 	if x != nil {
 		return x.Authorization
@@ -952,53 +618,9 @@ func (x *RequestTarget) GetResourceId() string {
 	return ""
 }
 
-func (x *RequestTarget) SetAuthorization(v string) {
-	x.Authorization = v
-}
-
-func (x *RequestTarget) SetPluginId(v string) {
-	x.PluginId = v
-}
-
-func (x *RequestTarget) SetResourceType(v string) {
-	x.ResourceType = v
-}
-
-func (x *RequestTarget) SetResourceId(v string) {
-	x.ResourceId = v
-}
-
-type RequestTarget_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// Authorization is the contents of the HTTP Authorization header supplied by
-	// the SCIM client, used to authenticate the request against the targeted
-	// interation.
-	Authorization string
-	// PluginID is the name of the integration to interact with
-	PluginId string
-	// ResourceType is the name of the type of resource to interact with.
-	// Expecting either "User" or "Group"
-	ResourceType string
-	// ResourceID is the name of a specific resource to interact with. If blank,
-	// treat the request as a bulk query
-	ResourceId string
-}
-
-func (b0 RequestTarget_builder) Build() *RequestTarget {
-	m0 := &RequestTarget{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Authorization = b.Authorization
-	x.PluginId = b.PluginId
-	x.ResourceType = b.ResourceType
-	x.ResourceId = b.ResourceId
-	return m0
-}
-
 // Page represents an optional range to set in GET request
 type Page struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
 	StartIndex    uint64                 `protobuf:"varint,1,opt,name=start_index,json=startIndex,proto3" json:"start_index,omitempty"`
 	Count         uint64                 `protobuf:"varint,2,opt,name=count,proto3" json:"count,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1030,6 +652,11 @@ func (x *Page) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use Page.ProtoReflect.Descriptor instead.
+func (*Page) Descriptor() ([]byte, []int) {
+	return file_teleport_scim_v1_scim_service_proto_rawDescGZIP(), []int{9}
+}
+
 func (x *Page) GetStartIndex() uint64 {
 	if x != nil {
 		return x.StartIndex
@@ -1042,135 +669,6 @@ func (x *Page) GetCount() uint64 {
 		return x.Count
 	}
 	return 0
-}
-
-func (x *Page) SetStartIndex(v uint64) {
-	x.StartIndex = v
-}
-
-func (x *Page) SetCount(v uint64) {
-	x.Count = v
-}
-
-type Page_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	StartIndex uint64
-	Count      uint64
-}
-
-func (b0 Page_builder) Build() *Page {
-	m0 := &Page{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.StartIndex = b.StartIndex
-	x.Count = b.Count
-	return m0
-}
-
-// PatchSCIMResourceRequest describes a SCIM PATCH operation as per RFC 7644
-// Section 3.5.2. The PATCH operation allows modifying a resource with a set of
-// change operations, enabling partial updates without replacing the entire
-// resource.
-//
-// See https://datatracker.ietf.org/doc/html/rfc7644#section-3.5.2
-type PatchSCIMResourceRequest struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// Target identifies the resource to patch
-	Target *RequestTarget `protobuf:"bytes,1,opt,name=target,proto3" json:"target,omitempty"`
-	// Payload is the SCIM PATCH Request payload containing the Operations array
-	// and schemas as defined in RFC 7644 Section 3.5.2.
-	Payload       *structpb.Struct `protobuf:"bytes,2,opt,name=payload,proto3" json:"payload,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *PatchSCIMResourceRequest) Reset() {
-	*x = PatchSCIMResourceRequest{}
-	mi := &file_teleport_scim_v1_scim_service_proto_msgTypes[10]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *PatchSCIMResourceRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*PatchSCIMResourceRequest) ProtoMessage() {}
-
-func (x *PatchSCIMResourceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scim_v1_scim_service_proto_msgTypes[10]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-func (x *PatchSCIMResourceRequest) GetTarget() *RequestTarget {
-	if x != nil {
-		return x.Target
-	}
-	return nil
-}
-
-func (x *PatchSCIMResourceRequest) GetPayload() *structpb.Struct {
-	if x != nil {
-		return x.Payload
-	}
-	return nil
-}
-
-func (x *PatchSCIMResourceRequest) SetTarget(v *RequestTarget) {
-	x.Target = v
-}
-
-func (x *PatchSCIMResourceRequest) SetPayload(v *structpb.Struct) {
-	x.Payload = v
-}
-
-func (x *PatchSCIMResourceRequest) HasTarget() bool {
-	if x == nil {
-		return false
-	}
-	return x.Target != nil
-}
-
-func (x *PatchSCIMResourceRequest) HasPayload() bool {
-	if x == nil {
-		return false
-	}
-	return x.Payload != nil
-}
-
-func (x *PatchSCIMResourceRequest) ClearTarget() {
-	x.Target = nil
-}
-
-func (x *PatchSCIMResourceRequest) ClearPayload() {
-	x.Payload = nil
-}
-
-type PatchSCIMResourceRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// Target identifies the resource to patch
-	Target *RequestTarget
-	// Payload is the SCIM PATCH Request payload containing the Operations array
-	// and schemas as defined in RFC 7644 Section 3.5.2.
-	Payload *structpb.Struct
-}
-
-func (b0 PatchSCIMResourceRequest_builder) Build() *PatchSCIMResourceRequest {
-	m0 := &PatchSCIMResourceRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Target = b.Target
-	x.Payload = b.Payload
-	return m0
 }
 
 var File_teleport_scim_v1_scim_service_proto protoreflect.FileDescriptor
@@ -1222,19 +720,27 @@ const file_teleport_scim_v1_scim_service_proto_rawDesc = "" +
 	"\x04Page\x12\x1f\n" +
 	"\vstart_index\x18\x01 \x01(\x04R\n" +
 	"startIndex\x12\x14\n" +
-	"\x05count\x18\x02 \x01(\x04R\x05count\"\x86\x01\n" +
-	"\x18PatchSCIMResourceRequest\x127\n" +
-	"\x06target\x18\x01 \x01(\v2\x1f.teleport.scim.v1.RequestTargetR\x06target\x121\n" +
-	"\apayload\x18\x02 \x01(\v2\x17.google.protobuf.StructR\apayload2\xbd\x04\n" +
+	"\x05count\x18\x02 \x01(\x04R\x05count2\xe0\x03\n" +
 	"\vSCIMService\x12_\n" +
 	"\x11ListSCIMResources\x12*.teleport.scim.v1.ListSCIMResourcesRequest\x1a\x1e.teleport.scim.v1.ResourceList\x12W\n" +
 	"\x0fGetSCIMResource\x12(.teleport.scim.v1.GetSCIMResourceRequest\x1a\x1a.teleport.scim.v1.Resource\x12]\n" +
 	"\x12CreateSCIMResource\x12+.teleport.scim.v1.CreateSCIMResourceRequest\x1a\x1a.teleport.scim.v1.Resource\x12]\n" +
 	"\x12UpdateSCIMResource\x12+.teleport.scim.v1.UpdateSCIMResourceRequest\x1a\x1a.teleport.scim.v1.Resource\x12Y\n" +
-	"\x12DeleteSCIMResource\x12+.teleport.scim.v1.DeleteSCIMResourceRequest\x1a\x16.google.protobuf.Empty\x12[\n" +
-	"\x11PatchSCIMResource\x12*.teleport.scim.v1.PatchSCIMResourceRequest\x1a\x1a.teleport.scim.v1.ResourceBLZJgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1;scimv1b\x06proto3"
+	"\x12DeleteSCIMResource\x12+.teleport.scim.v1.DeleteSCIMResourceRequest\x1a\x16.google.protobuf.EmptyBLZJgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1;scimv1b\x06proto3"
 
-var file_teleport_scim_v1_scim_service_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
+var (
+	file_teleport_scim_v1_scim_service_proto_rawDescOnce sync.Once
+	file_teleport_scim_v1_scim_service_proto_rawDescData []byte
+)
+
+func file_teleport_scim_v1_scim_service_proto_rawDescGZIP() []byte {
+	file_teleport_scim_v1_scim_service_proto_rawDescOnce.Do(func() {
+		file_teleport_scim_v1_scim_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_scim_v1_scim_service_proto_rawDesc), len(file_teleport_scim_v1_scim_service_proto_rawDesc)))
+	})
+	return file_teleport_scim_v1_scim_service_proto_rawDescData
+}
+
+var file_teleport_scim_v1_scim_service_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_teleport_scim_v1_scim_service_proto_goTypes = []any{
 	(*ListSCIMResourcesRequest)(nil),  // 0: teleport.scim.v1.ListSCIMResourcesRequest
 	(*GetSCIMResourceRequest)(nil),    // 1: teleport.scim.v1.GetSCIMResourceRequest
@@ -1246,10 +752,9 @@ var file_teleport_scim_v1_scim_service_proto_goTypes = []any{
 	(*ResourceList)(nil),              // 7: teleport.scim.v1.ResourceList
 	(*RequestTarget)(nil),             // 8: teleport.scim.v1.RequestTarget
 	(*Page)(nil),                      // 9: teleport.scim.v1.Page
-	(*PatchSCIMResourceRequest)(nil),  // 10: teleport.scim.v1.PatchSCIMResourceRequest
-	(*structpb.Struct)(nil),           // 11: google.protobuf.Struct
-	(*timestamppb.Timestamp)(nil),     // 12: google.protobuf.Timestamp
-	(*emptypb.Empty)(nil),             // 13: google.protobuf.Empty
+	(*structpb.Struct)(nil),           // 10: google.protobuf.Struct
+	(*timestamppb.Timestamp)(nil),     // 11: google.protobuf.Timestamp
+	(*emptypb.Empty)(nil),             // 12: google.protobuf.Empty
 }
 var file_teleport_scim_v1_scim_service_proto_depIdxs = []int32{
 	8,  // 0: teleport.scim.v1.ListSCIMResourcesRequest.target:type_name -> teleport.scim.v1.RequestTarget
@@ -1261,29 +766,25 @@ var file_teleport_scim_v1_scim_service_proto_depIdxs = []int32{
 	5,  // 6: teleport.scim.v1.UpdateSCIMResourceRequest.resource:type_name -> teleport.scim.v1.Resource
 	8,  // 7: teleport.scim.v1.DeleteSCIMResourceRequest.target:type_name -> teleport.scim.v1.RequestTarget
 	6,  // 8: teleport.scim.v1.Resource.meta:type_name -> teleport.scim.v1.Meta
-	11, // 9: teleport.scim.v1.Resource.attributes:type_name -> google.protobuf.Struct
-	12, // 10: teleport.scim.v1.Meta.created:type_name -> google.protobuf.Timestamp
-	12, // 11: teleport.scim.v1.Meta.modified:type_name -> google.protobuf.Timestamp
+	10, // 9: teleport.scim.v1.Resource.attributes:type_name -> google.protobuf.Struct
+	11, // 10: teleport.scim.v1.Meta.created:type_name -> google.protobuf.Timestamp
+	11, // 11: teleport.scim.v1.Meta.modified:type_name -> google.protobuf.Timestamp
 	5,  // 12: teleport.scim.v1.ResourceList.resources:type_name -> teleport.scim.v1.Resource
-	8,  // 13: teleport.scim.v1.PatchSCIMResourceRequest.target:type_name -> teleport.scim.v1.RequestTarget
-	11, // 14: teleport.scim.v1.PatchSCIMResourceRequest.payload:type_name -> google.protobuf.Struct
-	0,  // 15: teleport.scim.v1.SCIMService.ListSCIMResources:input_type -> teleport.scim.v1.ListSCIMResourcesRequest
-	1,  // 16: teleport.scim.v1.SCIMService.GetSCIMResource:input_type -> teleport.scim.v1.GetSCIMResourceRequest
-	2,  // 17: teleport.scim.v1.SCIMService.CreateSCIMResource:input_type -> teleport.scim.v1.CreateSCIMResourceRequest
-	3,  // 18: teleport.scim.v1.SCIMService.UpdateSCIMResource:input_type -> teleport.scim.v1.UpdateSCIMResourceRequest
-	4,  // 19: teleport.scim.v1.SCIMService.DeleteSCIMResource:input_type -> teleport.scim.v1.DeleteSCIMResourceRequest
-	10, // 20: teleport.scim.v1.SCIMService.PatchSCIMResource:input_type -> teleport.scim.v1.PatchSCIMResourceRequest
-	7,  // 21: teleport.scim.v1.SCIMService.ListSCIMResources:output_type -> teleport.scim.v1.ResourceList
-	5,  // 22: teleport.scim.v1.SCIMService.GetSCIMResource:output_type -> teleport.scim.v1.Resource
-	5,  // 23: teleport.scim.v1.SCIMService.CreateSCIMResource:output_type -> teleport.scim.v1.Resource
-	5,  // 24: teleport.scim.v1.SCIMService.UpdateSCIMResource:output_type -> teleport.scim.v1.Resource
-	13, // 25: teleport.scim.v1.SCIMService.DeleteSCIMResource:output_type -> google.protobuf.Empty
-	5,  // 26: teleport.scim.v1.SCIMService.PatchSCIMResource:output_type -> teleport.scim.v1.Resource
-	21, // [21:27] is the sub-list for method output_type
-	15, // [15:21] is the sub-list for method input_type
-	15, // [15:15] is the sub-list for extension type_name
-	15, // [15:15] is the sub-list for extension extendee
-	0,  // [0:15] is the sub-list for field type_name
+	0,  // 13: teleport.scim.v1.SCIMService.ListSCIMResources:input_type -> teleport.scim.v1.ListSCIMResourcesRequest
+	1,  // 14: teleport.scim.v1.SCIMService.GetSCIMResource:input_type -> teleport.scim.v1.GetSCIMResourceRequest
+	2,  // 15: teleport.scim.v1.SCIMService.CreateSCIMResource:input_type -> teleport.scim.v1.CreateSCIMResourceRequest
+	3,  // 16: teleport.scim.v1.SCIMService.UpdateSCIMResource:input_type -> teleport.scim.v1.UpdateSCIMResourceRequest
+	4,  // 17: teleport.scim.v1.SCIMService.DeleteSCIMResource:input_type -> teleport.scim.v1.DeleteSCIMResourceRequest
+	7,  // 18: teleport.scim.v1.SCIMService.ListSCIMResources:output_type -> teleport.scim.v1.ResourceList
+	5,  // 19: teleport.scim.v1.SCIMService.GetSCIMResource:output_type -> teleport.scim.v1.Resource
+	5,  // 20: teleport.scim.v1.SCIMService.CreateSCIMResource:output_type -> teleport.scim.v1.Resource
+	5,  // 21: teleport.scim.v1.SCIMService.UpdateSCIMResource:output_type -> teleport.scim.v1.Resource
+	12, // 22: teleport.scim.v1.SCIMService.DeleteSCIMResource:output_type -> google.protobuf.Empty
+	18, // [18:23] is the sub-list for method output_type
+	13, // [13:18] is the sub-list for method input_type
+	13, // [13:13] is the sub-list for extension type_name
+	13, // [13:13] is the sub-list for extension extendee
+	0,  // [0:13] is the sub-list for field type_name
 }
 
 func init() { file_teleport_scim_v1_scim_service_proto_init() }
@@ -1297,7 +798,7 @@ func file_teleport_scim_v1_scim_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_scim_v1_scim_service_proto_rawDesc), len(file_teleport_scim_v1_scim_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   11,
+			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

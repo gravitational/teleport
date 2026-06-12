@@ -15,12 +15,12 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 //go:build darwin
+// +build darwin
 
 package dns
 
 import (
 	"context"
-	"log/slog"
 	"net"
 	"testing"
 
@@ -40,9 +40,9 @@ func TestOSUpstreamNameservers(t *testing.T) {
 	t.Cleanup(cancel)
 
 	resolver := &stubResolver{}
-	upstreams, err := NewOSUpstreamNameserverSource(slog.Default())
+	upstreams, err := NewOSUpstreamNameserverSource()
 	require.NoError(t, err)
-	server, err := NewServer(resolver, upstreams, slog.Default())
+	server, err := NewServer(resolver, upstreams)
 	require.NoError(t, err)
 
 	conn, err := net.ListenUDP("udp", udpLocalhost)

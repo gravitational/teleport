@@ -1,11 +1,9 @@
 ---
 title: Database Discovery
-sidebar_label: Databases
 description: Detailed guides for configuring database discovery.
 tags:
  - conceptual
  - zero-trust
- - infrastructure-identity
 ---
 
 Teleport can be configured to discover databases automatically and register
@@ -14,7 +12,7 @@ them with your Teleport cluster.
 ## Supported clouds
 
 - [AWS](aws.mdx): Discovery for AWS databases.
-- [Azure](../../database-access/enrollment/azure/azure.mdx): Discovery for Azure databases.
+- [Azure](../../database-access/enroll-azure-databases/enroll-azure-databases.mdx): Discovery for Azure databases.
 {/* TODO(gavin): Add an Azure discovery guide and permission reference */}
 
 ## Architecture overview
@@ -92,10 +90,9 @@ discovery_service:
       # 'rdsproxy' - Amazon RDS Proxy databases.
       # 'redshift' - Amazon Redshift databases.
       # 'redshift-serverless' - Amazon Redshift Serverless databases.
-      # 'elasticache' - Amazon ElastiCache Redis and Valkey databases.
-      # 'elasticache-serverless' - Amazon ElastiCache Serverless Redis or Valkey databases.
+      # 'elasticache' - Amazon ElastiCache Redis databases.
       # 'memorydb' - Amazon MemoryDB Redis databases.
-      # 'opensearch' - Amazon OpenSearch databases.
+      # 'opensearch' - Amazon OpenSearch Redis databases.
       # 'docdb' - Amazon DocumentDB databases.
     - types: ["rds"]
       # AWS regions to search for resources from
@@ -152,7 +149,7 @@ Here's how it works in detail:
 
 For more information about Discovery Service configuration, refer to
 [one of the guides above](#supported-clouds) or the
-[Discovery Service Config File Reference](../../../reference/deployment/config.mdx).
+[Discovery Service Config File Reference](../../../reference/config.mdx).
 
 ## How the Database Service works
 

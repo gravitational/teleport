@@ -19,9 +19,7 @@
 package utils
 
 import (
-	"context"
 	"fmt"
-	"log/slog"
 	"net"
 	"net/url"
 	"strconv"
@@ -29,6 +27,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	apiutils "github.com/gravitational/teleport/api/utils"
 )
@@ -111,13 +110,13 @@ func (a *NetAddr) Network() string {
 }
 
 // MarshalYAML defines how a network address should be marshaled to a string
-func (a *NetAddr) MarshalYAML() (any, error) {
+func (a *NetAddr) MarshalYAML() (interface{}, error) {
 	url := url.URL{Scheme: a.AddrNetwork, Host: a.Addr, Path: a.Path}
 	return strings.TrimLeft(url.String(), "/"), nil
 }
 
 // UnmarshalYAML defines how a string can be unmarshalled into a network address
-func (a *NetAddr) UnmarshalYAML(unmarshal func(any) error) error {
+func (a *NetAddr) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var addr string
 	err := unmarshal(&addr)
 	if err != nil {
@@ -291,7 +290,7 @@ func GuessHostIP() (ip net.IP, err error) {
 	for _, iface := range ifaces {
 		ifadrs, err := iface.Addrs()
 		if err != nil {
-			slog.WarnContext(context.Background(), "Unable to get addresses for interface", "interface", iface.Name, "error", err)
+			log.Warn(err)
 		} else {
 			adrs = append(adrs, ifadrs...)
 		}

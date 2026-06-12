@@ -29,11 +29,11 @@ import (
 
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/test"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestMain(m *testing.M) {
-	logtest.InitLogger(testing.Verbose)
+	utils.InitLoggerForTests()
 	os.Exit(m.Run())
 }
 
@@ -43,7 +43,6 @@ func TestStreams(t *testing.T) {
 
 	handler, err := NewHandler(Config{
 		Directory: dir,
-		OpenFile:  os.OpenFile,
 	})
 	require.NoError(t, err)
 	defer handler.Close()
@@ -55,7 +54,6 @@ func TestStreams(t *testing.T) {
 		var completeCount atomic.Uint64
 		handler, err := NewHandler(Config{
 			Directory: dir,
-			OpenFile:  os.OpenFile,
 			OnBeforeComplete: func(ctx context.Context, upload events.StreamUpload) error {
 				if completeCount.Add(1) <= 1 {
 					return trace.ConnectionProblem(nil, "simulate failure %v", completeCount.Load())
@@ -70,9 +68,6 @@ func TestStreams(t *testing.T) {
 	})
 	t.Run("UploadDownload", func(t *testing.T) {
 		test.UploadDownload(t, handler)
-	})
-	t.Run("UploadDownloadSummary", func(t *testing.T) {
-		test.UploadDownloadSummary(t, handler)
 	})
 	t.Run("DownloadNotFound", func(t *testing.T) {
 		test.DownloadNotFound(t, handler)

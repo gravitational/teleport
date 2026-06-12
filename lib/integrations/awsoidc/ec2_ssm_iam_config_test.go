@@ -108,24 +108,13 @@ func TestEC2SSMIAMConfigReqDefaults(t *testing.T) {
 			errCheck: badParameterCheck,
 		},
 		{
-			name: "missing ssm document is not an issue because users might want to use a pre-defined one",
+			name: "missing ssm document",
 			req: func() EC2SSMIAMConfigureRequest {
 				req := baseReq()
 				req.SSMDocumentName = ""
 				return req
 			},
-			errCheck: require.NoError,
-			expected: EC2SSMIAMConfigureRequest{
-				Region:                      "us-east-1",
-				IntegrationRole:             "integrationrole",
-				IntegrationRoleEC2SSMPolicy: "EC2DiscoverWithSSM",
-				SSMDocumentName:             "",
-				ProxyPublicURL:              "https://proxy.example.com",
-				ClusterName:                 "my-cluster",
-				IntegrationName:             "my-integration",
-				AccountID:                   "123456789012",
-				AutoConfirm:                 true,
-			},
+			errCheck: badParameterCheck,
 		},
 		{
 			name: "missing proxy url",
@@ -191,7 +180,6 @@ func TestEC2SSMIAMConfig(t *testing.T) {
 		mockExistingSSMDocs []string
 		req                 func() EC2SSMIAMConfigureRequest
 		errCheck            require.ErrorAssertionFunc
-		validateDocs        func(t *testing.T, docs map[string][]ssmtypes.Tag)
 	}{
 		{
 			name:                "valid",
@@ -200,14 +188,6 @@ func TestEC2SSMIAMConfig(t *testing.T) {
 			mockExistingRoles:   []string{"integrationrole"},
 			mockExistingSSMDocs: []string{},
 			errCheck:            require.NoError,
-			validateDocs: func(t *testing.T, docs map[string][]ssmtypes.Tag) {
-				require.Contains(t, docs, "MyDoc")
-				require.ElementsMatch(t, []ssmtypes.Tag{
-					{Key: aws.String("teleport.dev/cluster"), Value: aws.String("my-cluster")},
-					{Key: aws.String("teleport.dev/integration"), Value: aws.String("my-integration")},
-					{Key: aws.String("teleport.dev/origin"), Value: aws.String("integration_awsoidc")},
-				}, docs["MyDoc"])
-			},
 		},
 		{
 			name:                "integration role does not exist",
@@ -233,36 +213,6 @@ func TestEC2SSMIAMConfig(t *testing.T) {
 			mockExistingSSMDocs: []string{},
 			errCheck:            badParameterCheck,
 		},
-		{
-			name: "skips doc creation when document is not set",
-			req: func() EC2SSMIAMConfigureRequest {
-				baseReq := baseReq()
-				baseReq.SSMDocumentName = ""
-				return baseReq
-			},
-			mockAccountID:       "123456789012",
-			mockExistingRoles:   []string{"integrationrole"},
-			mockExistingSSMDocs: []string{},
-			errCheck:            require.NoError,
-			validateDocs: func(t *testing.T, docs map[string][]ssmtypes.Tag) {
-				require.Empty(t, docs)
-			},
-		},
-		{
-			name: "skips doc creation when document is well known pre-defined document (it exists already in the account)",
-			req: func() EC2SSMIAMConfigureRequest {
-				baseReq := baseReq()
-				baseReq.SSMDocumentName = "AWS-RunShellScript"
-				return baseReq
-			},
-			mockAccountID:       "123456789012",
-			mockExistingRoles:   []string{"integrationrole"},
-			mockExistingSSMDocs: []string{},
-			errCheck:            require.NoError,
-			validateDocs: func(t *testing.T, docs map[string][]ssmtypes.Tag) {
-				require.Empty(t, docs)
-			},
-		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			clt := mockEC2SSMIAMConfigClient{
@@ -272,8 +222,13 @@ func TestEC2SSMIAMConfig(t *testing.T) {
 
 			err := ConfigureEC2SSM(ctx, &clt, tt.req())
 			tt.errCheck(t, err)
-			if tt.validateDocs != nil {
-				tt.validateDocs(t, clt.existingDocs)
+			if err == nil {
+				require.Contains(t, clt.existingDocs, tt.req().SSMDocumentName)
+				require.ElementsMatch(t, []ssmtypes.Tag{
+					{Key: aws.String("teleport.dev/cluster"), Value: aws.String("my-cluster")},
+					{Key: aws.String("teleport.dev/integration"), Value: aws.String("my-integration")},
+					{Key: aws.String("teleport.dev/origin"), Value: aws.String("integration_awsoidc")},
+				}, clt.existingDocs[tt.req().SSMDocumentName])
 			}
 		})
 	}
@@ -328,9 +283,6 @@ func (m *mockEC2SSMIAMConfigClient) PutRolePolicy(ctx context.Context, params *i
 func (m *mockEC2SSMIAMConfigClient) CreateDocument(ctx context.Context, params *ssm.CreateDocumentInput, optFns ...func(*ssm.Options)) (*ssm.CreateDocumentOutput, error) {
 	if m.existingDocs == nil {
 		m.existingDocs = make(map[string][]ssmtypes.Tag)
-	}
-	if aws.ToString(params.Name) == "AWS-RunShellScript" {
-		return nil, &ssmtypes.ValidationException{}
 	}
 	if _, ok := m.existingDocs[aws.ToString(params.Name)]; ok {
 		return nil, &ssmtypes.DocumentAlreadyExists{}

@@ -34,6 +34,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -42,6 +43,7 @@ import (
 )
 
 func TestAzure(t *testing.T) {
+	lib.SetInsecureDevMode(true)
 	tmpHomePath := t.TempDir()
 
 	connector := mockConnector(t)
@@ -52,7 +54,6 @@ func TestAzure(t *testing.T) {
 		testserver.WithClusterName("localhost"),
 		testserver.WithBootstrap(connector, user, azureRole),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
-			cfg.InsecureMode = true
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			cfg.Apps.Enabled = true
 			cfg.Apps.Apps = []servicecfg.App{
@@ -85,8 +86,8 @@ func TestAzure(t *testing.T) {
 
 	getEnvValue := func(cmdEnv []string, key string) string {
 		for _, env := range cmdEnv {
-			if after, ok := strings.CutPrefix(env, key+"="); ok {
-				return after
+			if strings.HasPrefix(env, key+"=") {
+				return strings.TrimPrefix(env, key+"=")
 			}
 		}
 		return ""
@@ -254,7 +255,7 @@ func Test_getAzureIdentityFromFlags(t *testing.T) {
 			requestedIdentity: "",
 			profileIdentities: []string{"id1", "id2"},
 			want:              "",
-			wantErr: func(t require.TestingT, err error, i ...any) {
+			wantErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "multiple Azure identities available, choose one with --azure-identity flag")
 			},
 		},
@@ -263,7 +264,7 @@ func Test_getAzureIdentityFromFlags(t *testing.T) {
 			requestedIdentity: "",
 			profileIdentities: []string{},
 			want:              "",
-			wantErr: func(t require.TestingT, err error, i ...any) {
+			wantErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "no Azure identities available, check your permissions")
 			},
 		},
@@ -287,7 +288,7 @@ func Test_getAzureIdentityFromFlags(t *testing.T) {
 			requestedIdentity: "id3",
 			profileIdentities: []string{"id1", "id2"},
 			want:              "",
-			wantErr: func(t require.TestingT, err error, i ...any) {
+			wantErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "failed to find the identity matching \"id3\"")
 			},
 		},
@@ -319,7 +320,7 @@ func Test_getAzureIdentityFromFlags(t *testing.T) {
 			requestedIdentity: "ID3",
 			profileIdentities: []string{"id1", "id2"},
 			want:              "",
-			wantErr: func(t require.TestingT, err error, i ...any) {
+			wantErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "failed to find the identity matching \"ID3\"")
 			},
 		},
@@ -349,7 +350,7 @@ func Test_getAzureIdentityFromFlags(t *testing.T) {
 				"/subscriptions/1111111/resourcegroups/mygroup/providers/microsoft.managedidentity/userassignedidentities/id1",
 			},
 			want: "",
-			wantErr: func(t require.TestingT, err error, i ...any) {
+			wantErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "provided identity \"id1\" is ambiguous, please specify full identity name")
 			},
 		},
@@ -379,7 +380,7 @@ func Test_getAzureIdentityFromFlags(t *testing.T) {
 				"/subscriptions/1111111/resourcegroups/mygroup/providers/microsoft.managedidentity/userassignedidentities/id1",
 			},
 			want: "",
-			wantErr: func(t require.TestingT, err error, i ...any) {
+			wantErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "provided identity \"ID1\" is ambiguous, please specify full identity name")
 			},
 		},
@@ -393,7 +394,7 @@ func Test_getAzureIdentityFromFlags(t *testing.T) {
 				"/subscriptions/1111111/resourcegroups/mygroup/providers/microsoft.managedidentity/userassignedidentities/idX",
 			},
 			want: "",
-			wantErr: func(t require.TestingT, err error, i ...any) {
+			wantErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "failed to find the identity matching \"id3\"")
 			},
 		},
@@ -437,14 +438,14 @@ func Test_getAzureTokenSecret(t *testing.T) {
 		{
 			name:        "MSI_ENDPOINT with invalid prefix",
 			msiEndpoint: "dummy",
-			wantErr: func(t require.TestingT, err error, i ...any) {
+			wantErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, `"MSI_ENDPOINT" environment variable not empty, but doesn't start with "https://azure-msi.teleport.dev/" as expected`)
 			},
 		},
 		{
 			name:        "MSI_ENDPOINT without secret",
 			msiEndpoint: "https://" + types.TeleportAzureMSIEndpoint + "/",
-			wantErr: func(t require.TestingT, err error, i ...any) {
+			wantErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "MSI secret cannot be empty")
 			},
 		},
@@ -458,7 +459,7 @@ func Test_getAzureTokenSecret(t *testing.T) {
 		{
 			name:           "IDENTITY_HEADER present without endpoint",
 			identityHeader: "secret",
-			wantErr: func(t require.TestingT, err error, i ...any) {
+			wantErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, `IDENTITY_HEADER`)
 			},
 		},

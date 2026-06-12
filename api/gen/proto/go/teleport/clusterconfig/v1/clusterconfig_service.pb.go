@@ -18,8 +18,6 @@
 // 	protoc        (unknown)
 // source: teleport/clusterconfig/v1/clusterconfig_service.proto
 
-//go:build !protoopaque
-
 package clusterconfigv1
 
 import (
@@ -27,6 +25,7 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
+	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -39,7 +38,7 @@ const (
 
 // Request for GetClusterNetworkingConfig
 type GetClusterNetworkingConfigRequest struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -69,21 +68,14 @@ func (x *GetClusterNetworkingConfigRequest) ProtoReflect() protoreflect.Message 
 	return mi.MessageOf(x)
 }
 
-type GetClusterNetworkingConfigRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-}
-
-func (b0 GetClusterNetworkingConfigRequest_builder) Build() *GetClusterNetworkingConfigRequest {
-	m0 := &GetClusterNetworkingConfigRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	return m0
+// Deprecated: Use GetClusterNetworkingConfigRequest.ProtoReflect.Descriptor instead.
+func (*GetClusterNetworkingConfigRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_clusterconfig_v1_clusterconfig_service_proto_rawDescGZIP(), []int{0}
 }
 
 // Request for UpdateClusterNetworkingConfig
 type UpdateClusterNetworkingConfigRequest struct {
-	state                protoimpl.MessageState           `protogen:"hybrid.v1"`
+	state                protoimpl.MessageState           `protogen:"open.v1"`
 	ClusterNetworkConfig *types.ClusterNetworkingConfigV2 `protobuf:"bytes,1,opt,name=cluster_network_config,json=clusterNetworkConfig,proto3" json:"cluster_network_config,omitempty"`
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache
@@ -114,6 +106,11 @@ func (x *UpdateClusterNetworkingConfigRequest) ProtoReflect() protoreflect.Messa
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use UpdateClusterNetworkingConfigRequest.ProtoReflect.Descriptor instead.
+func (*UpdateClusterNetworkingConfigRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_clusterconfig_v1_clusterconfig_service_proto_rawDescGZIP(), []int{1}
+}
+
 func (x *UpdateClusterNetworkingConfigRequest) GetClusterNetworkConfig() *types.ClusterNetworkingConfigV2 {
 	if x != nil {
 		return x.ClusterNetworkConfig
@@ -121,38 +118,9 @@ func (x *UpdateClusterNetworkingConfigRequest) GetClusterNetworkConfig() *types.
 	return nil
 }
 
-func (x *UpdateClusterNetworkingConfigRequest) SetClusterNetworkConfig(v *types.ClusterNetworkingConfigV2) {
-	x.ClusterNetworkConfig = v
-}
-
-func (x *UpdateClusterNetworkingConfigRequest) HasClusterNetworkConfig() bool {
-	if x == nil {
-		return false
-	}
-	return x.ClusterNetworkConfig != nil
-}
-
-func (x *UpdateClusterNetworkingConfigRequest) ClearClusterNetworkConfig() {
-	x.ClusterNetworkConfig = nil
-}
-
-type UpdateClusterNetworkingConfigRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	ClusterNetworkConfig *types.ClusterNetworkingConfigV2
-}
-
-func (b0 UpdateClusterNetworkingConfigRequest_builder) Build() *UpdateClusterNetworkingConfigRequest {
-	m0 := &UpdateClusterNetworkingConfigRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.ClusterNetworkConfig = b.ClusterNetworkConfig
-	return m0
-}
-
 // Request for UpsertClusterNetworkingConfig
 type UpsertClusterNetworkingConfigRequest struct {
-	state                protoimpl.MessageState           `protogen:"hybrid.v1"`
+	state                protoimpl.MessageState           `protogen:"open.v1"`
 	ClusterNetworkConfig *types.ClusterNetworkingConfigV2 `protobuf:"bytes,1,opt,name=cluster_network_config,json=clusterNetworkConfig,proto3" json:"cluster_network_config,omitempty"`
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache
@@ -183,6 +151,11 @@ func (x *UpsertClusterNetworkingConfigRequest) ProtoReflect() protoreflect.Messa
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use UpsertClusterNetworkingConfigRequest.ProtoReflect.Descriptor instead.
+func (*UpsertClusterNetworkingConfigRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_clusterconfig_v1_clusterconfig_service_proto_rawDescGZIP(), []int{2}
+}
+
 func (x *UpsertClusterNetworkingConfigRequest) GetClusterNetworkConfig() *types.ClusterNetworkingConfigV2 {
 	if x != nil {
 		return x.ClusterNetworkConfig
@@ -190,38 +163,9 @@ func (x *UpsertClusterNetworkingConfigRequest) GetClusterNetworkConfig() *types.
 	return nil
 }
 
-func (x *UpsertClusterNetworkingConfigRequest) SetClusterNetworkConfig(v *types.ClusterNetworkingConfigV2) {
-	x.ClusterNetworkConfig = v
-}
-
-func (x *UpsertClusterNetworkingConfigRequest) HasClusterNetworkConfig() bool {
-	if x == nil {
-		return false
-	}
-	return x.ClusterNetworkConfig != nil
-}
-
-func (x *UpsertClusterNetworkingConfigRequest) ClearClusterNetworkConfig() {
-	x.ClusterNetworkConfig = nil
-}
-
-type UpsertClusterNetworkingConfigRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	ClusterNetworkConfig *types.ClusterNetworkingConfigV2
-}
-
-func (b0 UpsertClusterNetworkingConfigRequest_builder) Build() *UpsertClusterNetworkingConfigRequest {
-	m0 := &UpsertClusterNetworkingConfigRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.ClusterNetworkConfig = b.ClusterNetworkConfig
-	return m0
-}
-
 // Request for ResetClusterNetworkingConfig
 type ResetClusterNetworkingConfigRequest struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -251,21 +195,14 @@ func (x *ResetClusterNetworkingConfigRequest) ProtoReflect() protoreflect.Messag
 	return mi.MessageOf(x)
 }
 
-type ResetClusterNetworkingConfigRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-}
-
-func (b0 ResetClusterNetworkingConfigRequest_builder) Build() *ResetClusterNetworkingConfigRequest {
-	m0 := &ResetClusterNetworkingConfigRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	return m0
+// Deprecated: Use ResetClusterNetworkingConfigRequest.ProtoReflect.Descriptor instead.
+func (*ResetClusterNetworkingConfigRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_clusterconfig_v1_clusterconfig_service_proto_rawDescGZIP(), []int{3}
 }
 
 // Request for GetSessionRecordingConfig
 type GetSessionRecordingConfigRequest struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -295,21 +232,14 @@ func (x *GetSessionRecordingConfigRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-type GetSessionRecordingConfigRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-}
-
-func (b0 GetSessionRecordingConfigRequest_builder) Build() *GetSessionRecordingConfigRequest {
-	m0 := &GetSessionRecordingConfigRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	return m0
+// Deprecated: Use GetSessionRecordingConfigRequest.ProtoReflect.Descriptor instead.
+func (*GetSessionRecordingConfigRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_clusterconfig_v1_clusterconfig_service_proto_rawDescGZIP(), []int{4}
 }
 
 // Request for UpdateSessionRecordingConfig
 type UpdateSessionRecordingConfigRequest struct {
-	state                  protoimpl.MessageState          `protogen:"hybrid.v1"`
+	state                  protoimpl.MessageState          `protogen:"open.v1"`
 	SessionRecordingConfig *types.SessionRecordingConfigV2 `protobuf:"bytes,1,opt,name=session_recording_config,json=sessionRecordingConfig,proto3" json:"session_recording_config,omitempty"`
 	unknownFields          protoimpl.UnknownFields
 	sizeCache              protoimpl.SizeCache
@@ -340,6 +270,11 @@ func (x *UpdateSessionRecordingConfigRequest) ProtoReflect() protoreflect.Messag
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use UpdateSessionRecordingConfigRequest.ProtoReflect.Descriptor instead.
+func (*UpdateSessionRecordingConfigRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_clusterconfig_v1_clusterconfig_service_proto_rawDescGZIP(), []int{5}
+}
+
 func (x *UpdateSessionRecordingConfigRequest) GetSessionRecordingConfig() *types.SessionRecordingConfigV2 {
 	if x != nil {
 		return x.SessionRecordingConfig
@@ -347,38 +282,9 @@ func (x *UpdateSessionRecordingConfigRequest) GetSessionRecordingConfig() *types
 	return nil
 }
 
-func (x *UpdateSessionRecordingConfigRequest) SetSessionRecordingConfig(v *types.SessionRecordingConfigV2) {
-	x.SessionRecordingConfig = v
-}
-
-func (x *UpdateSessionRecordingConfigRequest) HasSessionRecordingConfig() bool {
-	if x == nil {
-		return false
-	}
-	return x.SessionRecordingConfig != nil
-}
-
-func (x *UpdateSessionRecordingConfigRequest) ClearSessionRecordingConfig() {
-	x.SessionRecordingConfig = nil
-}
-
-type UpdateSessionRecordingConfigRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	SessionRecordingConfig *types.SessionRecordingConfigV2
-}
-
-func (b0 UpdateSessionRecordingConfigRequest_builder) Build() *UpdateSessionRecordingConfigRequest {
-	m0 := &UpdateSessionRecordingConfigRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.SessionRecordingConfig = b.SessionRecordingConfig
-	return m0
-}
-
 // Request for UpsertSessionRecordingConfig
 type UpsertSessionRecordingConfigRequest struct {
-	state                  protoimpl.MessageState          `protogen:"hybrid.v1"`
+	state                  protoimpl.MessageState          `protogen:"open.v1"`
 	SessionRecordingConfig *types.SessionRecordingConfigV2 `protobuf:"bytes,1,opt,name=session_recording_config,json=sessionRecordingConfig,proto3" json:"session_recording_config,omitempty"`
 	unknownFields          protoimpl.UnknownFields
 	sizeCache              protoimpl.SizeCache
@@ -409,6 +315,11 @@ func (x *UpsertSessionRecordingConfigRequest) ProtoReflect() protoreflect.Messag
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use UpsertSessionRecordingConfigRequest.ProtoReflect.Descriptor instead.
+func (*UpsertSessionRecordingConfigRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_clusterconfig_v1_clusterconfig_service_proto_rawDescGZIP(), []int{6}
+}
+
 func (x *UpsertSessionRecordingConfigRequest) GetSessionRecordingConfig() *types.SessionRecordingConfigV2 {
 	if x != nil {
 		return x.SessionRecordingConfig
@@ -416,38 +327,9 @@ func (x *UpsertSessionRecordingConfigRequest) GetSessionRecordingConfig() *types
 	return nil
 }
 
-func (x *UpsertSessionRecordingConfigRequest) SetSessionRecordingConfig(v *types.SessionRecordingConfigV2) {
-	x.SessionRecordingConfig = v
-}
-
-func (x *UpsertSessionRecordingConfigRequest) HasSessionRecordingConfig() bool {
-	if x == nil {
-		return false
-	}
-	return x.SessionRecordingConfig != nil
-}
-
-func (x *UpsertSessionRecordingConfigRequest) ClearSessionRecordingConfig() {
-	x.SessionRecordingConfig = nil
-}
-
-type UpsertSessionRecordingConfigRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	SessionRecordingConfig *types.SessionRecordingConfigV2
-}
-
-func (b0 UpsertSessionRecordingConfigRequest_builder) Build() *UpsertSessionRecordingConfigRequest {
-	m0 := &UpsertSessionRecordingConfigRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.SessionRecordingConfig = b.SessionRecordingConfig
-	return m0
-}
-
 // Request for ResetSessionRecordingConfig
 type ResetSessionRecordingConfigRequest struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -477,21 +359,14 @@ func (x *ResetSessionRecordingConfigRequest) ProtoReflect() protoreflect.Message
 	return mi.MessageOf(x)
 }
 
-type ResetSessionRecordingConfigRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-}
-
-func (b0 ResetSessionRecordingConfigRequest_builder) Build() *ResetSessionRecordingConfigRequest {
-	m0 := &ResetSessionRecordingConfigRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	return m0
+// Deprecated: Use ResetSessionRecordingConfigRequest.ProtoReflect.Descriptor instead.
+func (*ResetSessionRecordingConfigRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_clusterconfig_v1_clusterconfig_service_proto_rawDescGZIP(), []int{7}
 }
 
 // Request for GetAuthPreference
 type GetAuthPreferenceRequest struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -521,21 +396,14 @@ func (x *GetAuthPreferenceRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-type GetAuthPreferenceRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-}
-
-func (b0 GetAuthPreferenceRequest_builder) Build() *GetAuthPreferenceRequest {
-	m0 := &GetAuthPreferenceRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	return m0
+// Deprecated: Use GetAuthPreferenceRequest.ProtoReflect.Descriptor instead.
+func (*GetAuthPreferenceRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_clusterconfig_v1_clusterconfig_service_proto_rawDescGZIP(), []int{8}
 }
 
 // Request for UpdateAuthPreference
 type UpdateAuthPreferenceRequest struct {
-	state          protoimpl.MessageState  `protogen:"hybrid.v1"`
+	state          protoimpl.MessageState  `protogen:"open.v1"`
 	AuthPreference *types.AuthPreferenceV2 `protobuf:"bytes,1,opt,name=auth_preference,json=authPreference,proto3" json:"auth_preference,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
@@ -566,6 +434,11 @@ func (x *UpdateAuthPreferenceRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use UpdateAuthPreferenceRequest.ProtoReflect.Descriptor instead.
+func (*UpdateAuthPreferenceRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_clusterconfig_v1_clusterconfig_service_proto_rawDescGZIP(), []int{9}
+}
+
 func (x *UpdateAuthPreferenceRequest) GetAuthPreference() *types.AuthPreferenceV2 {
 	if x != nil {
 		return x.AuthPreference
@@ -573,38 +446,9 @@ func (x *UpdateAuthPreferenceRequest) GetAuthPreference() *types.AuthPreferenceV
 	return nil
 }
 
-func (x *UpdateAuthPreferenceRequest) SetAuthPreference(v *types.AuthPreferenceV2) {
-	x.AuthPreference = v
-}
-
-func (x *UpdateAuthPreferenceRequest) HasAuthPreference() bool {
-	if x == nil {
-		return false
-	}
-	return x.AuthPreference != nil
-}
-
-func (x *UpdateAuthPreferenceRequest) ClearAuthPreference() {
-	x.AuthPreference = nil
-}
-
-type UpdateAuthPreferenceRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	AuthPreference *types.AuthPreferenceV2
-}
-
-func (b0 UpdateAuthPreferenceRequest_builder) Build() *UpdateAuthPreferenceRequest {
-	m0 := &UpdateAuthPreferenceRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.AuthPreference = b.AuthPreference
-	return m0
-}
-
 // Request for UpsertAuthPreference
 type UpsertAuthPreferenceRequest struct {
-	state          protoimpl.MessageState  `protogen:"hybrid.v1"`
+	state          protoimpl.MessageState  `protogen:"open.v1"`
 	AuthPreference *types.AuthPreferenceV2 `protobuf:"bytes,1,opt,name=auth_preference,json=authPreference,proto3" json:"auth_preference,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
@@ -635,6 +479,11 @@ func (x *UpsertAuthPreferenceRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use UpsertAuthPreferenceRequest.ProtoReflect.Descriptor instead.
+func (*UpsertAuthPreferenceRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_clusterconfig_v1_clusterconfig_service_proto_rawDescGZIP(), []int{10}
+}
+
 func (x *UpsertAuthPreferenceRequest) GetAuthPreference() *types.AuthPreferenceV2 {
 	if x != nil {
 		return x.AuthPreference
@@ -642,38 +491,9 @@ func (x *UpsertAuthPreferenceRequest) GetAuthPreference() *types.AuthPreferenceV
 	return nil
 }
 
-func (x *UpsertAuthPreferenceRequest) SetAuthPreference(v *types.AuthPreferenceV2) {
-	x.AuthPreference = v
-}
-
-func (x *UpsertAuthPreferenceRequest) HasAuthPreference() bool {
-	if x == nil {
-		return false
-	}
-	return x.AuthPreference != nil
-}
-
-func (x *UpsertAuthPreferenceRequest) ClearAuthPreference() {
-	x.AuthPreference = nil
-}
-
-type UpsertAuthPreferenceRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	AuthPreference *types.AuthPreferenceV2
-}
-
-func (b0 UpsertAuthPreferenceRequest_builder) Build() *UpsertAuthPreferenceRequest {
-	m0 := &UpsertAuthPreferenceRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.AuthPreference = b.AuthPreference
-	return m0
-}
-
 // Request for ResetAuthPreference
 type ResetAuthPreferenceRequest struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -703,21 +523,14 @@ func (x *ResetAuthPreferenceRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-type ResetAuthPreferenceRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-}
-
-func (b0 ResetAuthPreferenceRequest_builder) Build() *ResetAuthPreferenceRequest {
-	m0 := &ResetAuthPreferenceRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	return m0
+// Deprecated: Use ResetAuthPreferenceRequest.ProtoReflect.Descriptor instead.
+func (*ResetAuthPreferenceRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_clusterconfig_v1_clusterconfig_service_proto_rawDescGZIP(), []int{11}
 }
 
 // Request for GetClusterAuditConfig
 type GetClusterAuditConfigRequest struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -747,21 +560,14 @@ func (x *GetClusterAuditConfigRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-type GetClusterAuditConfigRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-}
-
-func (b0 GetClusterAuditConfigRequest_builder) Build() *GetClusterAuditConfigRequest {
-	m0 := &GetClusterAuditConfigRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	return m0
+// Deprecated: Use GetClusterAuditConfigRequest.ProtoReflect.Descriptor instead.
+func (*GetClusterAuditConfigRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_clusterconfig_v1_clusterconfig_service_proto_rawDescGZIP(), []int{12}
 }
 
 // Request for GetClusterAccessGraphConfig
 type GetClusterAccessGraphConfigRequest struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -791,21 +597,14 @@ func (x *GetClusterAccessGraphConfigRequest) ProtoReflect() protoreflect.Message
 	return mi.MessageOf(x)
 }
 
-type GetClusterAccessGraphConfigRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-}
-
-func (b0 GetClusterAccessGraphConfigRequest_builder) Build() *GetClusterAccessGraphConfigRequest {
-	m0 := &GetClusterAccessGraphConfigRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	return m0
+// Deprecated: Use GetClusterAccessGraphConfigRequest.ProtoReflect.Descriptor instead.
+func (*GetClusterAccessGraphConfigRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_clusterconfig_v1_clusterconfig_service_proto_rawDescGZIP(), []int{13}
 }
 
 // Response for GetClusterAccessGraphConfig
 type GetClusterAccessGraphConfigResponse struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// access_graph holds the information about Access Graph service.
 	AccessGraph   *AccessGraphConfig `protobuf:"bytes,1,opt,name=access_graph,json=accessGraph,proto3" json:"access_graph,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -837,6 +636,11 @@ func (x *GetClusterAccessGraphConfigResponse) ProtoReflect() protoreflect.Messag
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use GetClusterAccessGraphConfigResponse.ProtoReflect.Descriptor instead.
+func (*GetClusterAccessGraphConfigResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_clusterconfig_v1_clusterconfig_service_proto_rawDescGZIP(), []int{14}
+}
+
 func (x *GetClusterAccessGraphConfigResponse) GetAccessGraph() *AccessGraphConfig {
 	if x != nil {
 		return x.AccessGraph
@@ -844,39 +648,9 @@ func (x *GetClusterAccessGraphConfigResponse) GetAccessGraph() *AccessGraphConfi
 	return nil
 }
 
-func (x *GetClusterAccessGraphConfigResponse) SetAccessGraph(v *AccessGraphConfig) {
-	x.AccessGraph = v
-}
-
-func (x *GetClusterAccessGraphConfigResponse) HasAccessGraph() bool {
-	if x == nil {
-		return false
-	}
-	return x.AccessGraph != nil
-}
-
-func (x *GetClusterAccessGraphConfigResponse) ClearAccessGraph() {
-	x.AccessGraph = nil
-}
-
-type GetClusterAccessGraphConfigResponse_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// access_graph holds the information about Access Graph service.
-	AccessGraph *AccessGraphConfig
-}
-
-func (b0 GetClusterAccessGraphConfigResponse_builder) Build() *GetClusterAccessGraphConfigResponse {
-	m0 := &GetClusterAccessGraphConfigResponse{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.AccessGraph = b.AccessGraph
-	return m0
-}
-
 // Request for GetAccessGraphSettings
 type GetAccessGraphSettingsRequest struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -906,21 +680,14 @@ func (x *GetAccessGraphSettingsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-type GetAccessGraphSettingsRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-}
-
-func (b0 GetAccessGraphSettingsRequest_builder) Build() *GetAccessGraphSettingsRequest {
-	m0 := &GetAccessGraphSettingsRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	return m0
+// Deprecated: Use GetAccessGraphSettingsRequest.ProtoReflect.Descriptor instead.
+func (*GetAccessGraphSettingsRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_clusterconfig_v1_clusterconfig_service_proto_rawDescGZIP(), []int{15}
 }
 
 // Request for CreateAccessGraphSettings
 type CreateAccessGraphSettingsRequest struct {
-	state               protoimpl.MessageState `protogen:"hybrid.v1"`
+	state               protoimpl.MessageState `protogen:"open.v1"`
 	AccessGraphSettings *AccessGraphSettings   `protobuf:"bytes,1,opt,name=access_graph_settings,json=accessGraphSettings,proto3" json:"access_graph_settings,omitempty"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
@@ -951,6 +718,11 @@ func (x *CreateAccessGraphSettingsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use CreateAccessGraphSettingsRequest.ProtoReflect.Descriptor instead.
+func (*CreateAccessGraphSettingsRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_clusterconfig_v1_clusterconfig_service_proto_rawDescGZIP(), []int{16}
+}
+
 func (x *CreateAccessGraphSettingsRequest) GetAccessGraphSettings() *AccessGraphSettings {
 	if x != nil {
 		return x.AccessGraphSettings
@@ -958,38 +730,9 @@ func (x *CreateAccessGraphSettingsRequest) GetAccessGraphSettings() *AccessGraph
 	return nil
 }
 
-func (x *CreateAccessGraphSettingsRequest) SetAccessGraphSettings(v *AccessGraphSettings) {
-	x.AccessGraphSettings = v
-}
-
-func (x *CreateAccessGraphSettingsRequest) HasAccessGraphSettings() bool {
-	if x == nil {
-		return false
-	}
-	return x.AccessGraphSettings != nil
-}
-
-func (x *CreateAccessGraphSettingsRequest) ClearAccessGraphSettings() {
-	x.AccessGraphSettings = nil
-}
-
-type CreateAccessGraphSettingsRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	AccessGraphSettings *AccessGraphSettings
-}
-
-func (b0 CreateAccessGraphSettingsRequest_builder) Build() *CreateAccessGraphSettingsRequest {
-	m0 := &CreateAccessGraphSettingsRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.AccessGraphSettings = b.AccessGraphSettings
-	return m0
-}
-
 // Request for UpdateAccessGraphSettings
 type UpdateAccessGraphSettingsRequest struct {
-	state               protoimpl.MessageState `protogen:"hybrid.v1"`
+	state               protoimpl.MessageState `protogen:"open.v1"`
 	AccessGraphSettings *AccessGraphSettings   `protobuf:"bytes,1,opt,name=access_graph_settings,json=accessGraphSettings,proto3" json:"access_graph_settings,omitempty"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
@@ -1020,6 +763,11 @@ func (x *UpdateAccessGraphSettingsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use UpdateAccessGraphSettingsRequest.ProtoReflect.Descriptor instead.
+func (*UpdateAccessGraphSettingsRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_clusterconfig_v1_clusterconfig_service_proto_rawDescGZIP(), []int{17}
+}
+
 func (x *UpdateAccessGraphSettingsRequest) GetAccessGraphSettings() *AccessGraphSettings {
 	if x != nil {
 		return x.AccessGraphSettings
@@ -1027,38 +775,9 @@ func (x *UpdateAccessGraphSettingsRequest) GetAccessGraphSettings() *AccessGraph
 	return nil
 }
 
-func (x *UpdateAccessGraphSettingsRequest) SetAccessGraphSettings(v *AccessGraphSettings) {
-	x.AccessGraphSettings = v
-}
-
-func (x *UpdateAccessGraphSettingsRequest) HasAccessGraphSettings() bool {
-	if x == nil {
-		return false
-	}
-	return x.AccessGraphSettings != nil
-}
-
-func (x *UpdateAccessGraphSettingsRequest) ClearAccessGraphSettings() {
-	x.AccessGraphSettings = nil
-}
-
-type UpdateAccessGraphSettingsRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	AccessGraphSettings *AccessGraphSettings
-}
-
-func (b0 UpdateAccessGraphSettingsRequest_builder) Build() *UpdateAccessGraphSettingsRequest {
-	m0 := &UpdateAccessGraphSettingsRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.AccessGraphSettings = b.AccessGraphSettings
-	return m0
-}
-
 // Request for UpsertAccessGraphSettings
 type UpsertAccessGraphSettingsRequest struct {
-	state               protoimpl.MessageState `protogen:"hybrid.v1"`
+	state               protoimpl.MessageState `protogen:"open.v1"`
 	AccessGraphSettings *AccessGraphSettings   `protobuf:"bytes,1,opt,name=access_graph_settings,json=accessGraphSettings,proto3" json:"access_graph_settings,omitempty"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
@@ -1089,6 +808,11 @@ func (x *UpsertAccessGraphSettingsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use UpsertAccessGraphSettingsRequest.ProtoReflect.Descriptor instead.
+func (*UpsertAccessGraphSettingsRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_clusterconfig_v1_clusterconfig_service_proto_rawDescGZIP(), []int{18}
+}
+
 func (x *UpsertAccessGraphSettingsRequest) GetAccessGraphSettings() *AccessGraphSettings {
 	if x != nil {
 		return x.AccessGraphSettings
@@ -1096,38 +820,9 @@ func (x *UpsertAccessGraphSettingsRequest) GetAccessGraphSettings() *AccessGraph
 	return nil
 }
 
-func (x *UpsertAccessGraphSettingsRequest) SetAccessGraphSettings(v *AccessGraphSettings) {
-	x.AccessGraphSettings = v
-}
-
-func (x *UpsertAccessGraphSettingsRequest) HasAccessGraphSettings() bool {
-	if x == nil {
-		return false
-	}
-	return x.AccessGraphSettings != nil
-}
-
-func (x *UpsertAccessGraphSettingsRequest) ClearAccessGraphSettings() {
-	x.AccessGraphSettings = nil
-}
-
-type UpsertAccessGraphSettingsRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	AccessGraphSettings *AccessGraphSettings
-}
-
-func (b0 UpsertAccessGraphSettingsRequest_builder) Build() *UpsertAccessGraphSettingsRequest {
-	m0 := &UpsertAccessGraphSettingsRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.AccessGraphSettings = b.AccessGraphSettings
-	return m0
-}
-
 // Request for ResetAccessGraphSettings
 type ResetAccessGraphSettingsRequest struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1157,60 +852,9 @@ func (x *ResetAccessGraphSettingsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-type ResetAccessGraphSettingsRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-}
-
-func (b0 ResetAccessGraphSettingsRequest_builder) Build() *ResetAccessGraphSettingsRequest {
-	m0 := &ResetAccessGraphSettingsRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	return m0
-}
-
-// Request for GetClusterName
-type GetClusterNameRequest struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *GetClusterNameRequest) Reset() {
-	*x = GetClusterNameRequest{}
-	mi := &file_teleport_clusterconfig_v1_clusterconfig_service_proto_msgTypes[20]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GetClusterNameRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GetClusterNameRequest) ProtoMessage() {}
-
-func (x *GetClusterNameRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_clusterconfig_v1_clusterconfig_service_proto_msgTypes[20]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-type GetClusterNameRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-}
-
-func (b0 GetClusterNameRequest_builder) Build() *GetClusterNameRequest {
-	m0 := &GetClusterNameRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	return m0
+// Deprecated: Use ResetAccessGraphSettingsRequest.ProtoReflect.Descriptor instead.
+func (*ResetAccessGraphSettingsRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_clusterconfig_v1_clusterconfig_service_proto_rawDescGZIP(), []int{19}
 }
 
 var File_teleport_clusterconfig_v1_clusterconfig_service_proto protoreflect.FileDescriptor
@@ -1247,8 +891,7 @@ const file_teleport_clusterconfig_v1_clusterconfig_service_proto_rawDesc = "" +
 	"\x15access_graph_settings\x18\x01 \x01(\v2..teleport.clusterconfig.v1.AccessGraphSettingsR\x13accessGraphSettings\"\x86\x01\n" +
 	" UpsertAccessGraphSettingsRequest\x12b\n" +
 	"\x15access_graph_settings\x18\x01 \x01(\v2..teleport.clusterconfig.v1.AccessGraphSettingsR\x13accessGraphSettings\"!\n" +
-	"\x1fResetAccessGraphSettingsRequest\"\x17\n" +
-	"\x15GetClusterNameRequest2\xd0\x13\n" +
+	"\x1fResetAccessGraphSettingsRequest2\xf6\x12\n" +
 	"\x14ClusterConfigService\x12|\n" +
 	"\x1aGetClusterNetworkingConfig\x12<.teleport.clusterconfig.v1.GetClusterNetworkingConfigRequest\x1a .types.ClusterNetworkingConfigV2\x12\x82\x01\n" +
 	"\x1dUpdateClusterNetworkingConfig\x12?.teleport.clusterconfig.v1.UpdateClusterNetworkingConfigRequest\x1a .types.ClusterNetworkingConfigV2\x12\x82\x01\n" +
@@ -1268,10 +911,21 @@ const file_teleport_clusterconfig_v1_clusterconfig_service_proto_rawDesc = "" +
 	"\x19CreateAccessGraphSettings\x12;.teleport.clusterconfig.v1.CreateAccessGraphSettingsRequest\x1a..teleport.clusterconfig.v1.AccessGraphSettings\x12\x88\x01\n" +
 	"\x19UpdateAccessGraphSettings\x12;.teleport.clusterconfig.v1.UpdateAccessGraphSettingsRequest\x1a..teleport.clusterconfig.v1.AccessGraphSettings\x12\x88\x01\n" +
 	"\x19UpsertAccessGraphSettings\x12;.teleport.clusterconfig.v1.UpsertAccessGraphSettingsRequest\x1a..teleport.clusterconfig.v1.AccessGraphSettings\x12\x86\x01\n" +
-	"\x18ResetAccessGraphSettings\x12:.teleport.clusterconfig.v1.ResetAccessGraphSettingsRequest\x1a..teleport.clusterconfig.v1.AccessGraphSettings\x12X\n" +
-	"\x0eGetClusterName\x120.teleport.clusterconfig.v1.GetClusterNameRequest\x1a\x14.types.ClusterNameV2B^Z\\github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1;clusterconfigv1b\x06proto3"
+	"\x18ResetAccessGraphSettings\x12:.teleport.clusterconfig.v1.ResetAccessGraphSettingsRequest\x1a..teleport.clusterconfig.v1.AccessGraphSettingsB^Z\\github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1;clusterconfigv1b\x06proto3"
 
-var file_teleport_clusterconfig_v1_clusterconfig_service_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
+var (
+	file_teleport_clusterconfig_v1_clusterconfig_service_proto_rawDescOnce sync.Once
+	file_teleport_clusterconfig_v1_clusterconfig_service_proto_rawDescData []byte
+)
+
+func file_teleport_clusterconfig_v1_clusterconfig_service_proto_rawDescGZIP() []byte {
+	file_teleport_clusterconfig_v1_clusterconfig_service_proto_rawDescOnce.Do(func() {
+		file_teleport_clusterconfig_v1_clusterconfig_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_clusterconfig_v1_clusterconfig_service_proto_rawDesc), len(file_teleport_clusterconfig_v1_clusterconfig_service_proto_rawDesc)))
+	})
+	return file_teleport_clusterconfig_v1_clusterconfig_service_proto_rawDescData
+}
+
+var file_teleport_clusterconfig_v1_clusterconfig_service_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
 var file_teleport_clusterconfig_v1_clusterconfig_service_proto_goTypes = []any{
 	(*GetClusterNetworkingConfigRequest)(nil),    // 0: teleport.clusterconfig.v1.GetClusterNetworkingConfigRequest
 	(*UpdateClusterNetworkingConfigRequest)(nil), // 1: teleport.clusterconfig.v1.UpdateClusterNetworkingConfigRequest
@@ -1293,26 +947,24 @@ var file_teleport_clusterconfig_v1_clusterconfig_service_proto_goTypes = []any{
 	(*UpdateAccessGraphSettingsRequest)(nil),     // 17: teleport.clusterconfig.v1.UpdateAccessGraphSettingsRequest
 	(*UpsertAccessGraphSettingsRequest)(nil),     // 18: teleport.clusterconfig.v1.UpsertAccessGraphSettingsRequest
 	(*ResetAccessGraphSettingsRequest)(nil),      // 19: teleport.clusterconfig.v1.ResetAccessGraphSettingsRequest
-	(*GetClusterNameRequest)(nil),                // 20: teleport.clusterconfig.v1.GetClusterNameRequest
-	(*types.ClusterNetworkingConfigV2)(nil),      // 21: types.ClusterNetworkingConfigV2
-	(*types.SessionRecordingConfigV2)(nil),       // 22: types.SessionRecordingConfigV2
-	(*types.AuthPreferenceV2)(nil),               // 23: types.AuthPreferenceV2
-	(*AccessGraphConfig)(nil),                    // 24: teleport.clusterconfig.v1.AccessGraphConfig
-	(*AccessGraphSettings)(nil),                  // 25: teleport.clusterconfig.v1.AccessGraphSettings
-	(*types.ClusterAuditConfigV2)(nil),           // 26: types.ClusterAuditConfigV2
-	(*types.ClusterNameV2)(nil),                  // 27: types.ClusterNameV2
+	(*types.ClusterNetworkingConfigV2)(nil),      // 20: types.ClusterNetworkingConfigV2
+	(*types.SessionRecordingConfigV2)(nil),       // 21: types.SessionRecordingConfigV2
+	(*types.AuthPreferenceV2)(nil),               // 22: types.AuthPreferenceV2
+	(*AccessGraphConfig)(nil),                    // 23: teleport.clusterconfig.v1.AccessGraphConfig
+	(*AccessGraphSettings)(nil),                  // 24: teleport.clusterconfig.v1.AccessGraphSettings
+	(*types.ClusterAuditConfigV2)(nil),           // 25: types.ClusterAuditConfigV2
 }
 var file_teleport_clusterconfig_v1_clusterconfig_service_proto_depIdxs = []int32{
-	21, // 0: teleport.clusterconfig.v1.UpdateClusterNetworkingConfigRequest.cluster_network_config:type_name -> types.ClusterNetworkingConfigV2
-	21, // 1: teleport.clusterconfig.v1.UpsertClusterNetworkingConfigRequest.cluster_network_config:type_name -> types.ClusterNetworkingConfigV2
-	22, // 2: teleport.clusterconfig.v1.UpdateSessionRecordingConfigRequest.session_recording_config:type_name -> types.SessionRecordingConfigV2
-	22, // 3: teleport.clusterconfig.v1.UpsertSessionRecordingConfigRequest.session_recording_config:type_name -> types.SessionRecordingConfigV2
-	23, // 4: teleport.clusterconfig.v1.UpdateAuthPreferenceRequest.auth_preference:type_name -> types.AuthPreferenceV2
-	23, // 5: teleport.clusterconfig.v1.UpsertAuthPreferenceRequest.auth_preference:type_name -> types.AuthPreferenceV2
-	24, // 6: teleport.clusterconfig.v1.GetClusterAccessGraphConfigResponse.access_graph:type_name -> teleport.clusterconfig.v1.AccessGraphConfig
-	25, // 7: teleport.clusterconfig.v1.CreateAccessGraphSettingsRequest.access_graph_settings:type_name -> teleport.clusterconfig.v1.AccessGraphSettings
-	25, // 8: teleport.clusterconfig.v1.UpdateAccessGraphSettingsRequest.access_graph_settings:type_name -> teleport.clusterconfig.v1.AccessGraphSettings
-	25, // 9: teleport.clusterconfig.v1.UpsertAccessGraphSettingsRequest.access_graph_settings:type_name -> teleport.clusterconfig.v1.AccessGraphSettings
+	20, // 0: teleport.clusterconfig.v1.UpdateClusterNetworkingConfigRequest.cluster_network_config:type_name -> types.ClusterNetworkingConfigV2
+	20, // 1: teleport.clusterconfig.v1.UpsertClusterNetworkingConfigRequest.cluster_network_config:type_name -> types.ClusterNetworkingConfigV2
+	21, // 2: teleport.clusterconfig.v1.UpdateSessionRecordingConfigRequest.session_recording_config:type_name -> types.SessionRecordingConfigV2
+	21, // 3: teleport.clusterconfig.v1.UpsertSessionRecordingConfigRequest.session_recording_config:type_name -> types.SessionRecordingConfigV2
+	22, // 4: teleport.clusterconfig.v1.UpdateAuthPreferenceRequest.auth_preference:type_name -> types.AuthPreferenceV2
+	22, // 5: teleport.clusterconfig.v1.UpsertAuthPreferenceRequest.auth_preference:type_name -> types.AuthPreferenceV2
+	23, // 6: teleport.clusterconfig.v1.GetClusterAccessGraphConfigResponse.access_graph:type_name -> teleport.clusterconfig.v1.AccessGraphConfig
+	24, // 7: teleport.clusterconfig.v1.CreateAccessGraphSettingsRequest.access_graph_settings:type_name -> teleport.clusterconfig.v1.AccessGraphSettings
+	24, // 8: teleport.clusterconfig.v1.UpdateAccessGraphSettingsRequest.access_graph_settings:type_name -> teleport.clusterconfig.v1.AccessGraphSettings
+	24, // 9: teleport.clusterconfig.v1.UpsertAccessGraphSettingsRequest.access_graph_settings:type_name -> teleport.clusterconfig.v1.AccessGraphSettings
 	0,  // 10: teleport.clusterconfig.v1.ClusterConfigService.GetClusterNetworkingConfig:input_type -> teleport.clusterconfig.v1.GetClusterNetworkingConfigRequest
 	1,  // 11: teleport.clusterconfig.v1.ClusterConfigService.UpdateClusterNetworkingConfig:input_type -> teleport.clusterconfig.v1.UpdateClusterNetworkingConfigRequest
 	2,  // 12: teleport.clusterconfig.v1.ClusterConfigService.UpsertClusterNetworkingConfig:input_type -> teleport.clusterconfig.v1.UpsertClusterNetworkingConfigRequest
@@ -1332,29 +984,27 @@ var file_teleport_clusterconfig_v1_clusterconfig_service_proto_depIdxs = []int32
 	17, // 26: teleport.clusterconfig.v1.ClusterConfigService.UpdateAccessGraphSettings:input_type -> teleport.clusterconfig.v1.UpdateAccessGraphSettingsRequest
 	18, // 27: teleport.clusterconfig.v1.ClusterConfigService.UpsertAccessGraphSettings:input_type -> teleport.clusterconfig.v1.UpsertAccessGraphSettingsRequest
 	19, // 28: teleport.clusterconfig.v1.ClusterConfigService.ResetAccessGraphSettings:input_type -> teleport.clusterconfig.v1.ResetAccessGraphSettingsRequest
-	20, // 29: teleport.clusterconfig.v1.ClusterConfigService.GetClusterName:input_type -> teleport.clusterconfig.v1.GetClusterNameRequest
-	21, // 30: teleport.clusterconfig.v1.ClusterConfigService.GetClusterNetworkingConfig:output_type -> types.ClusterNetworkingConfigV2
-	21, // 31: teleport.clusterconfig.v1.ClusterConfigService.UpdateClusterNetworkingConfig:output_type -> types.ClusterNetworkingConfigV2
-	21, // 32: teleport.clusterconfig.v1.ClusterConfigService.UpsertClusterNetworkingConfig:output_type -> types.ClusterNetworkingConfigV2
-	21, // 33: teleport.clusterconfig.v1.ClusterConfigService.ResetClusterNetworkingConfig:output_type -> types.ClusterNetworkingConfigV2
-	22, // 34: teleport.clusterconfig.v1.ClusterConfigService.GetSessionRecordingConfig:output_type -> types.SessionRecordingConfigV2
-	22, // 35: teleport.clusterconfig.v1.ClusterConfigService.UpdateSessionRecordingConfig:output_type -> types.SessionRecordingConfigV2
-	22, // 36: teleport.clusterconfig.v1.ClusterConfigService.UpsertSessionRecordingConfig:output_type -> types.SessionRecordingConfigV2
-	22, // 37: teleport.clusterconfig.v1.ClusterConfigService.ResetSessionRecordingConfig:output_type -> types.SessionRecordingConfigV2
-	23, // 38: teleport.clusterconfig.v1.ClusterConfigService.GetAuthPreference:output_type -> types.AuthPreferenceV2
-	23, // 39: teleport.clusterconfig.v1.ClusterConfigService.UpdateAuthPreference:output_type -> types.AuthPreferenceV2
-	23, // 40: teleport.clusterconfig.v1.ClusterConfigService.UpsertAuthPreference:output_type -> types.AuthPreferenceV2
-	23, // 41: teleport.clusterconfig.v1.ClusterConfigService.ResetAuthPreference:output_type -> types.AuthPreferenceV2
-	26, // 42: teleport.clusterconfig.v1.ClusterConfigService.GetClusterAuditConfig:output_type -> types.ClusterAuditConfigV2
-	14, // 43: teleport.clusterconfig.v1.ClusterConfigService.GetClusterAccessGraphConfig:output_type -> teleport.clusterconfig.v1.GetClusterAccessGraphConfigResponse
-	25, // 44: teleport.clusterconfig.v1.ClusterConfigService.GetAccessGraphSettings:output_type -> teleport.clusterconfig.v1.AccessGraphSettings
-	25, // 45: teleport.clusterconfig.v1.ClusterConfigService.CreateAccessGraphSettings:output_type -> teleport.clusterconfig.v1.AccessGraphSettings
-	25, // 46: teleport.clusterconfig.v1.ClusterConfigService.UpdateAccessGraphSettings:output_type -> teleport.clusterconfig.v1.AccessGraphSettings
-	25, // 47: teleport.clusterconfig.v1.ClusterConfigService.UpsertAccessGraphSettings:output_type -> teleport.clusterconfig.v1.AccessGraphSettings
-	25, // 48: teleport.clusterconfig.v1.ClusterConfigService.ResetAccessGraphSettings:output_type -> teleport.clusterconfig.v1.AccessGraphSettings
-	27, // 49: teleport.clusterconfig.v1.ClusterConfigService.GetClusterName:output_type -> types.ClusterNameV2
-	30, // [30:50] is the sub-list for method output_type
-	10, // [10:30] is the sub-list for method input_type
+	20, // 29: teleport.clusterconfig.v1.ClusterConfigService.GetClusterNetworkingConfig:output_type -> types.ClusterNetworkingConfigV2
+	20, // 30: teleport.clusterconfig.v1.ClusterConfigService.UpdateClusterNetworkingConfig:output_type -> types.ClusterNetworkingConfigV2
+	20, // 31: teleport.clusterconfig.v1.ClusterConfigService.UpsertClusterNetworkingConfig:output_type -> types.ClusterNetworkingConfigV2
+	20, // 32: teleport.clusterconfig.v1.ClusterConfigService.ResetClusterNetworkingConfig:output_type -> types.ClusterNetworkingConfigV2
+	21, // 33: teleport.clusterconfig.v1.ClusterConfigService.GetSessionRecordingConfig:output_type -> types.SessionRecordingConfigV2
+	21, // 34: teleport.clusterconfig.v1.ClusterConfigService.UpdateSessionRecordingConfig:output_type -> types.SessionRecordingConfigV2
+	21, // 35: teleport.clusterconfig.v1.ClusterConfigService.UpsertSessionRecordingConfig:output_type -> types.SessionRecordingConfigV2
+	21, // 36: teleport.clusterconfig.v1.ClusterConfigService.ResetSessionRecordingConfig:output_type -> types.SessionRecordingConfigV2
+	22, // 37: teleport.clusterconfig.v1.ClusterConfigService.GetAuthPreference:output_type -> types.AuthPreferenceV2
+	22, // 38: teleport.clusterconfig.v1.ClusterConfigService.UpdateAuthPreference:output_type -> types.AuthPreferenceV2
+	22, // 39: teleport.clusterconfig.v1.ClusterConfigService.UpsertAuthPreference:output_type -> types.AuthPreferenceV2
+	22, // 40: teleport.clusterconfig.v1.ClusterConfigService.ResetAuthPreference:output_type -> types.AuthPreferenceV2
+	25, // 41: teleport.clusterconfig.v1.ClusterConfigService.GetClusterAuditConfig:output_type -> types.ClusterAuditConfigV2
+	14, // 42: teleport.clusterconfig.v1.ClusterConfigService.GetClusterAccessGraphConfig:output_type -> teleport.clusterconfig.v1.GetClusterAccessGraphConfigResponse
+	24, // 43: teleport.clusterconfig.v1.ClusterConfigService.GetAccessGraphSettings:output_type -> teleport.clusterconfig.v1.AccessGraphSettings
+	24, // 44: teleport.clusterconfig.v1.ClusterConfigService.CreateAccessGraphSettings:output_type -> teleport.clusterconfig.v1.AccessGraphSettings
+	24, // 45: teleport.clusterconfig.v1.ClusterConfigService.UpdateAccessGraphSettings:output_type -> teleport.clusterconfig.v1.AccessGraphSettings
+	24, // 46: teleport.clusterconfig.v1.ClusterConfigService.UpsertAccessGraphSettings:output_type -> teleport.clusterconfig.v1.AccessGraphSettings
+	24, // 47: teleport.clusterconfig.v1.ClusterConfigService.ResetAccessGraphSettings:output_type -> teleport.clusterconfig.v1.AccessGraphSettings
+	29, // [29:48] is the sub-list for method output_type
+	10, // [10:29] is the sub-list for method input_type
 	10, // [10:10] is the sub-list for extension type_name
 	10, // [10:10] is the sub-list for extension extendee
 	0,  // [0:10] is the sub-list for field type_name
@@ -1373,7 +1023,7 @@ func file_teleport_clusterconfig_v1_clusterconfig_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_clusterconfig_v1_clusterconfig_service_proto_rawDesc), len(file_teleport_clusterconfig_v1_clusterconfig_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   21,
+			NumMessages:   20,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

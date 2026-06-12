@@ -15,10 +15,10 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-
 import { Meta, StoryObj } from '@storybook/react-vite';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Route, Routes } from 'react-router';
+import { createMemoryHistory } from 'history';
+import { MemoryRouter, Route, Router } from 'react-router';
 
 import Box from 'design/Box';
 
@@ -133,13 +133,10 @@ export const HappyWithEmpty: Story = {
           tokens: [],
         }),
         mfaAuthnChallengeSuccess(),
-        listBotInstancesSuccess(
-          {
-            bot_instances: [],
-            next_page_token: '',
-          },
-          'v1'
-        ),
+        listBotInstancesSuccess({
+          bot_instances: [],
+          next_page_token: '',
+        }),
         successGetRoles({
           startKey: '',
           items: Array.from({ length: 10 }, (_, k) => k).map(r => ({
@@ -174,24 +171,21 @@ export const HappyWithTypical: Story = {
           tokens: ['kubernetes'],
         }),
         mfaAuthnChallengeSuccess(),
-        listBotInstancesSuccess(
-          {
-            bot_instances: [
-              {
-                bot_name: 'bot-1',
-                instance_id: '6570dbf1-3530-4e13-a8c7-497bb9927994',
-                active_at_latest: new Date().toISOString(),
-                host_name_latest:
-                  'my-svc.my-namespace.svc.cluster-domain.example',
-                join_method_latest: 'kubernetes',
-                os_latest: 'linux',
-                version_latest: '18.1.0',
-              },
-            ],
-            next_page_token: '',
-          },
-          'v1'
-        ),
+        listBotInstancesSuccess({
+          bot_instances: [
+            {
+              bot_name: 'bot-1',
+              instance_id: '6570dbf1-3530-4e13-a8c7-497bb9927994',
+              active_at_latest: new Date().toISOString(),
+              host_name_latest:
+                'my-svc.my-namespace.svc.cluster-domain.example',
+              join_method_latest: 'kubernetes',
+              os_latest: 'linux',
+              version_latest: '18.1.0',
+            },
+          ],
+          next_page_token: '',
+        }),
         successGetRoles({
           startKey: '',
           items: Array.from({ length: 10 }, (_, k) => k).map(r => ({
@@ -243,25 +237,22 @@ export const HappyWithLongValues: Story = {
           ],
         }),
         mfaAuthnChallengeSuccess(),
-        listBotInstancesSuccess(
-          {
-            bot_instances: [
-              {
-                bot_name: '',
-                instance_id:
-                  '04241a2a66b904241a2a66b904241a2a66b904241a2a66b904241a2a66b9',
-                host_name_latest:
-                  'hotnamehotnamehotnamehotnamehotnamehotnamehotnamehotnamehotname',
-                active_at_latest: '2025-01-01T00:00:00Z',
-                join_method_latest: 'github',
-                os_latest: 'linux',
-                version_latest: '17.2.6-04241a2',
-              },
-            ],
-            next_page_token: '',
-          },
-          'v1'
-        ),
+        listBotInstancesSuccess({
+          bot_instances: [
+            {
+              bot_name: '',
+              instance_id:
+                '04241a2a66b904241a2a66b904241a2a66b904241a2a66b904241a2a66b9',
+              host_name_latest:
+                'hotnamehotnamehotnamehotnamehotnamehotnamehotnamehotnamehotname',
+              active_at_latest: '2025-01-01T00:00:00Z',
+              join_method_latest: 'github',
+              os_latest: 'linux',
+              version_latest: '17.2.6-04241a2',
+            },
+          ],
+          next_page_token: '',
+        }),
         successGetRoles({
           startKey: '',
           items: ['access', 'editor', 'terraform-provider'].map(r => ({
@@ -557,15 +548,6 @@ export const WithNoBotReadPermission: Story = {
   },
 };
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      refetchOnWindowFocus: false,
-      retry: false,
-    },
-  },
-});
-
 function Wrapper(props?: {
   hasBotsRead?: boolean;
   hasBotsEdit?: boolean;
@@ -586,6 +568,10 @@ function Wrapper(props?: {
     hasLocksMutatePermission = true,
     hasLocksDeletePermission = true,
   } = props ?? {};
+
+  const history = createMemoryHistory({
+    initialEntries: ['/web/bot/ansible-worker'],
+  });
 
   const customAcl = makeAcl({
     bots: {
@@ -621,21 +607,26 @@ function Wrapper(props?: {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <TeleportProviderBasic
-        teleportCtx={ctx}
-        initialEntries={['/web/bot/ansible-worker']}
-      >
-        <Routes>
-          <Route
-            path={cfg.routes.bot}
-            element={
+      <MemoryRouter>
+        <TeleportProviderBasic teleportCtx={ctx}>
+          <Router history={history}>
+            <Route path={cfg.routes.bot}>
               <Box height={820} overflow={'auto'}>
                 <BotDetails />
               </Box>
-            }
-          />
-        </Routes>
-      </TeleportProviderBasic>
+            </Route>
+          </Router>
+        </TeleportProviderBasic>
+      </MemoryRouter>
     </QueryClientProvider>
   );
 }
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      retry: false,
+    },
+  },
+});

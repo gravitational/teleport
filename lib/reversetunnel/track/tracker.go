@@ -92,7 +92,6 @@ type Proxy struct {
 	Name       string
 	Group      string
 	Generation uint64
-	TTL        time.Duration
 
 	expiry time.Time
 }

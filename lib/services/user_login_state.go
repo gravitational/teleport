@@ -31,10 +31,9 @@ import (
 type UserLoginStatesGetter interface {
 	// GetUserLoginStates returns the all user login state resources.
 	GetUserLoginStates(context.Context) ([]*userloginstate.UserLoginState, error)
+
 	// GetUserLoginState returns the specified user login state resource.
 	GetUserLoginState(context.Context, string) (*userloginstate.UserLoginState, error)
-	// ListUserLoginStates returns a paginated list of user login state resources.
-	ListUserLoginStates(ctx context.Context, pageSize int, nextToken string) ([]*userloginstate.UserLoginState, string, error)
 }
 
 // UserLoginStates is the interface for managing with user login states.
@@ -102,10 +101,10 @@ type UserOrLoginStateGetter interface {
 	UserGetter
 }
 
-// GetUserOrLoginState will return the given user login state or if not found, the user itself.
+// GetUserOrLoginState will return the given user or the login state associated with the user.
 func GetUserOrLoginState(ctx context.Context, getter UserOrLoginStateGetter, username string) (UserState, error) {
 	uls, err := getter.GetUserLoginState(ctx, username)
-	if err != nil && !trace.IsNotFound(err) && !trace.IsAccessDenied(err) {
+	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
 

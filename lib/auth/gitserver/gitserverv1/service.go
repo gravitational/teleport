@@ -56,7 +56,7 @@ type Config struct {
 	// Log is the slog logger.
 	Log *slog.Logger
 	// ProxyPublicAddrGetter gets the public proxy address.
-	ProxyPublicAddrGetter func(context.Context) string
+	ProxyPublicAddrGetter func() string
 	// GitHubAuthRequestCreator is a callback to create the prepared request in
 	// the backend.
 	GitHubAuthRequestCreator GitHubAuthRequestCreator

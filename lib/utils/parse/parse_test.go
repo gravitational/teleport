@@ -22,46 +22,9 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
-
-func TestParseLabels(t *testing.T) {
-	// simplest case:
-	m, err := LabelSelectorSpec("key=value")
-	require.NotNil(t, m)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(m, map[string]string{
-		"key": "value",
-	}))
-
-	// multiple values:
-	m, err = LabelSelectorSpec(`type="database";" role"=master,ver="mongoDB v1,2"`)
-	require.NotNil(t, m)
-	require.NoError(t, err)
-	require.Len(t, m, 3)
-	require.Equal(t, "master", m["role"])
-	require.Equal(t, "database", m["type"])
-	require.Equal(t, "mongoDB v1,2", m["ver"])
-
-	// multiple and unicode:
-	m, err = LabelSelectorSpec(`服务器环境=测试,操作系统类别=Linux,机房=华北`)
-	require.NoError(t, err)
-	require.NotNil(t, m)
-	require.Len(t, m, 3)
-	require.Equal(t, "测试", m["服务器环境"])
-	require.Equal(t, "Linux", m["操作系统类别"])
-	require.Equal(t, "华北", m["机房"])
-
-	// invalid specs
-	m, err = LabelSelectorSpec(`type="database,"role"=master,ver="mongoDB v1,2"`)
-	require.Nil(t, m)
-	require.Error(t, err)
-	m, err = LabelSelectorSpec(`type="database",role,master`)
-	require.Nil(t, m)
-	require.Error(t, err)
-}
 
 // TestVariable tests variable parsing
 func TestVariable(t *testing.T) {
@@ -248,10 +211,10 @@ func TestVariable(t *testing.T) {
 func TestInterpolate(t *testing.T) {
 	t.Parallel()
 
-	errCheckIsNotFound := func(tt require.TestingT, err error, i ...any) {
+	errCheckIsNotFound := func(tt require.TestingT, err error, i ...interface{}) {
 		require.True(tt, trace.IsNotFound(err), "expected not found error, got %v", err)
 	}
-	errCheckIsBadParameter := func(tt require.TestingT, err error, i ...any) {
+	errCheckIsBadParameter := func(tt require.TestingT, err error, i ...interface{}) {
 		require.True(tt, trace.IsBadParameter(err), "expected bad parameter error, got %v", err)
 	}
 	type result struct {
@@ -281,12 +244,6 @@ func TestInterpolate(t *testing.T) {
 			in:     "{{external.baz}}",
 			traits: map[string][]string{"foo": {"a", "b"}, "bar": {"c"}},
 			res:    result{errCheck: errCheckIsNotFound, values: []string{}},
-		},
-		{
-			title:  "legacy user.name trait alias",
-			in:     "{{user.name}}",
-			traits: map[string][]string{"name": {"alice-from-trait"}},
-			res:    result{values: []string{"alice-from-trait"}},
 		},
 		{
 			title:  "traits with prefix and suffix",
@@ -349,41 +306,6 @@ func TestInterpolate(t *testing.T) {
 			require.Equal(t, tt.res.values, values)
 		})
 	}
-}
-
-func TestInterpolateWithUser(t *testing.T) {
-	t.Parallel()
-
-	expr, err := NewTraitsTemplateExpression("hello-{{user.metadata.name}}")
-	require.NoError(t, err)
-
-	noVarValidation := func(string, string) error {
-		return nil
-	}
-
-	values, err := expr.InterpolateWithUser(noVarValidation, "alice", nil)
-	require.NoError(t, err)
-	require.Equal(t, []string{"hello-alice"}, values)
-
-	_, err = expr.InterpolateWithUser(noVarValidation, "", nil)
-	require.True(t, trace.IsNotFound(err), "expected not found error, got %v", err)
-}
-
-func TestInterpolateWithUserPreservesLegacyUserNameTrait(t *testing.T) {
-	t.Parallel()
-
-	expr, err := NewTraitsTemplateExpression("hello-{{user.name}}")
-	require.NoError(t, err)
-
-	noVarValidation := func(string, string) error {
-		return nil
-	}
-
-	values, err := expr.InterpolateWithUser(noVarValidation, "alice", map[string][]string{
-		"name": {"alice-from-trait"},
-	})
-	require.NoError(t, err)
-	require.Equal(t, []string{"hello-alice-from-trait"}, values)
 }
 
 // TestVarValidation tests that vars are validated during interpolation.

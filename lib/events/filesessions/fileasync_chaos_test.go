@@ -43,9 +43,7 @@ func TestChaosUpload(t *testing.T) {
 	ctx := t.Context()
 
 	eventsC := make(chan events.UploadEvent, 100)
-	memUploader := eventstest.NewMemoryUploader(eventstest.MemoryUploaderConfig{
-		EventsC: eventsC,
-	})
+	memUploader := eventstest.NewMemoryUploader(eventsC)
 	streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
 		Uploader:       memUploader,
 		MinUploadBytes: 1024,
@@ -113,9 +111,7 @@ func TestChaosUpload(t *testing.T) {
 	go uploader.Serve(ctx)
 	defer uploader.Close()
 
-	fileStreamer, err := NewStreamer(StreamerConfig{
-		Dir: scanDir,
-	})
+	fileStreamer, err := NewStreamer(scanDir)
 	require.NoError(t, err)
 
 	parallelStreams := 20
@@ -125,7 +121,7 @@ func TestChaosUpload(t *testing.T) {
 		err    error
 	}
 	streamsCh := make(chan streamState, parallelStreams)
-	for range parallelStreams {
+	for i := 0; i < parallelStreams; i++ {
 		go func() {
 			inEvents := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 4096})
 			sid := inEvents[0].(events.SessionMetadataGetter).GetSessionID()
@@ -155,7 +151,7 @@ func TestChaosUpload(t *testing.T) {
 
 	// wait for all streams to be completed
 	streams := make(map[string]streamState)
-	for range parallelStreams {
+	for i := 0; i < parallelStreams; i++ {
 		select {
 		case status := <-streamsCh:
 			require.NoError(t, status.err)
@@ -167,7 +163,7 @@ func TestChaosUpload(t *testing.T) {
 
 	require.Len(t, streams, parallelStreams)
 
-	for range parallelStreams {
+	for i := 0; i < parallelStreams; i++ {
 		select {
 		case event := <-eventsC:
 			require.NoError(t, event.Error)

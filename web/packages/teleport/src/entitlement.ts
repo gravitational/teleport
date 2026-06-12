@@ -18,15 +18,11 @@
 
 // entitlement list should be 1:1 with EntitlementKinds in entitlements/entitlements.go
 type entitlement =
-  | 'AccessGraph'
-  | 'AccessGraphDemoMode'
   | 'AccessLists'
   | 'AccessMonitoring'
   | 'AccessRequests'
-  | 'ActivityCenter'
+  | 'AccessGraphDemoMode'
   | 'App'
-  | 'Beams'
-  | 'ClientIPRestrictions'
   | 'CloudAuditLogRetention'
   | 'DB'
   | 'Desktop'
@@ -44,24 +40,20 @@ type entitlement =
   | 'Policy'
   | 'SAML'
   | 'SessionLocks'
-  | 'SessionSummaries'
   | 'UnrestrictedManagedUpdates'
   | 'UpsellAlert'
-  | 'UsageReporting';
+  | 'UsageReporting'
+  | 'ClientIPRestrictions';
 
 export const defaultEntitlements: Record<
   entitlement,
   { enabled: boolean; limit: number }
 > = {
-  AccessGraph: { enabled: false, limit: 0 },
-  AccessGraphDemoMode: { enabled: false, limit: 0 },
   AccessLists: { enabled: false, limit: 0 },
   AccessMonitoring: { enabled: false, limit: 0 },
+  AccessGraphDemoMode: { enabled: false, limit: 0 },
   AccessRequests: { enabled: false, limit: 0 },
-  ActivityCenter: { enabled: false, limit: 0 },
   App: { enabled: false, limit: 0 },
-  Beams: { enabled: false, limit: 0 },
-  ClientIPRestrictions: { enabled: false, limit: 0 },
   CloudAuditLogRetention: { enabled: false, limit: 0 },
   DB: { enabled: false, limit: 0 },
   Desktop: { enabled: false, limit: 0 },
@@ -79,8 +71,8 @@ export const defaultEntitlements: Record<
   Policy: { enabled: false, limit: 0 },
   SAML: { enabled: false, limit: 0 },
   SessionLocks: { enabled: false, limit: 0 },
-  SessionSummaries: { enabled: false, limit: 0 },
   UnrestrictedManagedUpdates: { enabled: false, limit: 0 },
   UpsellAlert: { enabled: false, limit: 0 },
   UsageReporting: { enabled: false, limit: 0 },
+  ClientIPRestrictions: { enabled: false, limit: 0 },
 };

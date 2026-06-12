@@ -21,16 +21,13 @@ package userloginstate
 import (
 	"context"
 	"fmt"
-	"log/slog"
-	"maps"
-	"slices"
-	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -38,9 +35,9 @@ import (
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/accesslists"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -53,7 +50,7 @@ type AccessListsAndLockGetter interface {
 // GeneratorConfig is the configuration for the user login state generator.
 type GeneratorConfig struct {
 	// Log is a logger to use for the generator.
-	Log *slog.Logger
+	Log *logrus.Entry
 
 	// AccessLists is a service for retrieving access lists and locks from the backend.
 	AccessLists AccessListsAndLockGetter
@@ -69,9 +66,6 @@ type GeneratorConfig struct {
 
 	// Emitter is the emitter for audit events.
 	Emitter apievents.Emitter
-
-	// Cloud indicates if Teleport is running in Cloud.
-	Cloud bool
 }
 
 // UsageEventsClient is an interface that allows for submitting usage events to Posthog.
@@ -97,7 +91,7 @@ func (g *GeneratorConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing audit event emitter")
 	}
 
-	if g.Cloud {
+	if modules.GetModules().Features().Cloud {
 		if g.UsageEvents == nil {
 			return trace.BadParameter("missing usage events")
 		}
@@ -114,7 +108,7 @@ func (g *GeneratorConfig) CheckAndSetDefaults() error {
 
 // Generator will generate a user login state from a user.
 type Generator struct {
-	log         *slog.Logger
+	log         *logrus.Entry
 	accessLists AccessListsAndLockGetter
 	access      services.Access
 	usageEvents UsageEventsClient
@@ -138,14 +132,8 @@ func NewGenerator(config GeneratorConfig) (*Generator, error) {
 	}, nil
 }
 
-// GeneratePureULS is a variant of user login state generation that emits no usage events and ignores any existing user login state
-// in the backend. Used for auditing/introspection purposes.
-func (g *Generator) GeneratePureULS(ctx context.Context, user types.User) (*userloginstate.UserLoginState, error) {
-	return g.generate(ctx, user, nil, true)
-}
-
 // Generate will generate the user login state for the given user.
-func (g *Generator) generate(ctx context.Context, user types.User, ulsService services.UserLoginStates, pure bool) (*userloginstate.UserLoginState, error) {
+func (g *Generator) Generate(ctx context.Context, user types.User, ulsService services.UserLoginStates) (*userloginstate.UserLoginState, error) {
 	var originalTraits map[string][]string
 	var traits map[string][]string
 	var githubIdentity *userloginstate.ExternalIdentity
@@ -153,8 +141,8 @@ func (g *Generator) generate(ctx context.Context, user types.User, ulsService se
 		originalTraits = make(map[string][]string, len(user.GetTraits()))
 		traits = make(map[string][]string, len(user.GetTraits()))
 		for k, v := range user.GetTraits() {
-			originalTraits[k] = slices.Clone(v)
-			traits[k] = slices.Clone(v)
+			originalTraits[k] = utils.CopyStrings(v)
+			traits[k] = utils.CopyStrings(v)
 		}
 	}
 
@@ -166,35 +154,18 @@ func (g *Generator) generate(ctx context.Context, user types.User, ulsService se
 		}
 	}
 
-	var samlIdentities []userloginstate.ExternalIdentity
-	if !pure {
-		connector := user.GetCreatedBy().Connector
-		if connector != nil && connector.Type == constants.SAML {
-			samlIdentities = []userloginstate.ExternalIdentity{
-				{
-					ConnectorID:   connector.ID,
-					UserID:        connector.Identity,
-					Username:      connector.Identity,
-					GrantedRoles:  slices.Clone(user.GetRoles()),
-					GrantedTraits: maps.Clone(traits),
-				},
-			}
-		}
-	}
-
 	// Create a new empty user login state.
 	uls, err := userloginstate.New(
 		header.Metadata{
 			Name:   user.GetName(),
 			Labels: user.GetAllLabels(),
 		}, userloginstate.Spec{
-			OriginalRoles:  slices.Clone(user.GetRoles()),
+			OriginalRoles:  utils.CopyStrings(user.GetRoles()),
 			OriginalTraits: originalTraits,
-			Roles:          slices.Clone(user.GetRoles()),
+			Roles:          utils.CopyStrings(user.GetRoles()),
 			Traits:         traits,
 			UserType:       user.GetUserType(),
 			GitHubIdentity: githubIdentity,
-			SAMLIdentities: samlIdentities,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -206,10 +177,11 @@ func (g *Generator) generate(ctx context.Context, user types.User, ulsService se
 		return nil, trace.Wrap(err)
 	}
 
-	if !pure {
-		if err := updatePreservedAttributes(ctx, uls, ulsService); err != nil {
-			return nil, trace.Wrap(err)
-		}
+	// Preserve states like GitHub identities across logins.
+	// TODO(greedy52) implement a way to remove the identity or find a way to
+	// avoid keeping the identity forever.
+	if err := g.maybePreserveGitHubIdentity(ctx, uls, ulsService); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// Clean up the user login state after generating it.
@@ -217,10 +189,10 @@ func (g *Generator) generate(ctx context.Context, user types.User, ulsService se
 		return nil, trace.Wrap(err)
 	}
 
-	if g.usageEvents != nil && !pure {
+	if g.usageEvents != nil {
 		// Emit the usage event metadata.
 		if err := g.emitUsageEvent(ctx, user, uls, inheritedRoles, inheritedTraits); err != nil {
-			g.log.DebugContext(ctx, "Error emitting usage event during user login state generation, skipping", "error", err)
+			g.log.WithError(err).Debug("Error emitting usage event during user login state generation, skipping")
 		}
 	}
 
@@ -229,129 +201,140 @@ func (g *Generator) generate(ctx context.Context, user types.User, ulsService se
 
 // addAccessListsToState will add the user's applicable access lists to the user login state after validating them, returning any inherited roles and traits.
 func (g *Generator) addAccessListsToState(ctx context.Context, user types.User, state *userloginstate.UserLoginState) (inheritedRoles []string, inheritedTraits map[string][]string, err error) {
-	locks, err := clientutils.CollectWithFallback(
-		ctx,
-		func(ctx context.Context, limit int, start string) ([]types.Lock, string, error) {
-			return g.accessLists.ListLocks(ctx, limit, start, &types.LockFilter{
-				InForceOnly: true,
-				Targets:     []*types.LockTarget{{User: user.GetName()}},
-			})
-		},
-		func(ctx context.Context) ([]types.Lock, error) {
-			// TODO(okraport): DELETE IN v21
-			const inForceOnlyTrue = true
-			return g.accessLists.GetLocks(ctx, inForceOnlyTrue, types.LockTarget{
-				User: user.GetName(),
-			})
-		},
-	)
+	accessLists, err := g.accessLists.GetAccessLists(ctx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
-	}
-	if len(locks) > 0 {
-		return inheritedRoles, inheritedTraits, nil
 	}
 
 	var allInheritedRoles []string
 	allInheritedTraits := make(map[string][]string)
-	applyHierarchy := func(hierarchy []*accesslist.AccessList, accessListName string, ownerHierarchy bool) error {
-		if len(hierarchy) == 0 {
-			return nil
-		}
-		inheritedRoles, inheritedTraits, err := g.applyGrantsAcrossACLs(ctx, hierarchy, accessListName, user, state, ownerHierarchy)
+
+	for _, accessList := range accessLists {
+		// Grants are inherited if the user is a member of the access list, explicitly or via inheritance.
+		inheritedRoles, inheritedTraits, err := g.handleAccessListMembership(ctx, user, accessList, state)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, nil, trace.Wrap(err)
 		}
 		allInheritedRoles = append(allInheritedRoles, inheritedRoles...)
 		for k, values := range inheritedTraits {
 			allInheritedTraits[k] = append(allInheritedTraits[k], values...)
 		}
-		return nil
+
+		// OwnerGrants are inherited if the user is an owner of the access list, explicitly or via inheritance.
+		inheritedRoles, inheritedTraits, err = g.handleAccessListOwnership(ctx, user, accessList, state)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		allInheritedRoles = append(allInheritedRoles, inheritedRoles...)
+		for k, values := range inheritedTraits {
+			allInheritedTraits[k] = append(allInheritedTraits[k], values...)
+		}
 	}
 
-	h, err := accesslists.NewHierarchy(accesslists.HierarchyConfig{
-		AccessListsService: g.accessLists,
-		Clock:              g.clock,
-	})
+	return allInheritedRoles, allInheritedTraits, nil
+}
+
+// handleAccessListMembership validates the access list and applies the grants and traits from the access list to the user if they are a member of the access list.
+// If the access list is invalid (because it references a non-existent role, for example,
+// then it will not be applied.
+func (g *Generator) handleAccessListMembership(ctx context.Context, user types.User, accessList *accesslist.AccessList, state *userloginstate.UserLoginState) ([]string, map[string][]string, error) {
+	var inheritedRoles []string
+	inheritedTraits := make(map[string][]string)
+
+	membershipKind, err := accesslists.IsAccessListMember(ctx, user, accessList, g.accessLists, g.accessLists, g.clock)
+	// Return early if there was an error or the user isn't a member of the access list.
+	if err != nil || membershipKind == accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED {
+		// Log any error besides user being locked.
+		if err != nil && !accesslists.IsUserLocked(err) {
+			g.log.WithError(err).Warn("checking access list membership")
+		}
+		return inheritedRoles, inheritedTraits, nil
+	}
+
+	// Validate that all the roles in the access list exist.
+	missingRoles, err := g.identifyMissingRoles(ctx, accessList.Spec.Grants.Roles)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	for acl, err := range clientutils.Resources(ctx, g.accessLists.ListAccessLists) {
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-		memberOf, ownerOf, err := h.GetHierarchyForUser(ctx, acl, user)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-		// Grants are inherited if the user is a member of the access list, explicitly or via inheritance.
-		if err := applyHierarchy(memberOf, acl.GetName(), false); err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-		// OwnerGrants are inherited if the user is an owner of the access list, explicitly or via inheritance.
-		if err := applyHierarchy(ownerOf, acl.GetName(), true); err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
+	// If there are any missing roles, then we cannot apply the access list.
+	// Emit an audit event and return early.
+	// This flow is designed to skip the entire access list rather than processing individual roles within it.
+	// This approach ensures that access lists are treated as cohesive units of access control. Partial
+	// application of an access list could result in unintended permission configurations, potentially leading
+	// to security vulnerabilities or unpredictable behavior.
+	if missingRoles != nil {
+		g.emitSkippedAccessListEvent(ctx, accessList.Spec.Title, missingRoles, user.GetName())
+		return nil, nil, nil
 	}
-	return allInheritedRoles, allInheritedTraits, nil
-}
 
-func (g *Generator) applyGrantsAcrossACLs(ctx context.Context, acls []*accesslist.AccessList, baseName string, user types.User, state *userloginstate.UserLoginState, owner bool) (inheritedRoles []string, inheritedTraits map[string][]string, err error) {
-	inheritedTraits = make(map[string][]string)
-	for _, acl := range acls {
-		grants := selectGrants(acl, owner)
-		missing, err := g.identifyMissingRoles(ctx, grants.Roles)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-		if len(missing) > 0 {
-			// If there are any missing roles, then we cannot apply the access list.
-			// Emit an audit event and skip the access list.
-			// This flow is designed to skip the entire access list rather than processing individual roles within it.
-			// This approach ensures that access lists are treated as cohesive units of access control. Partial
-			// application of an access list could result in unintended permission configurations, potentially leading
-			// to security vulnerabilities or unpredictable behavior.
-			g.emitSkippedAccessListEvent(ctx, acl.Spec.Title, missing, user.GetName())
-			continue
-		}
-		g.grantRolesAndTraits(grants, state)
-		if acl.GetName() == baseName {
-			continue
-		}
-		inheritedRoles = append(inheritedRoles, grants.Roles...)
-		for k, values := range grants.Traits {
+	g.grantRolesAndTraits(accessList.Spec.Grants, state)
+	if membershipKind == accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_INHERITED {
+		inheritedRoles = append(inheritedRoles, accessList.Spec.Grants.Roles...)
+		for k, values := range accessList.Spec.Grants.Traits {
 			inheritedTraits[k] = append(inheritedTraits[k], values...)
 		}
 	}
+
 	return inheritedRoles, inheritedTraits, nil
 }
 
-func selectGrants(acl *accesslist.AccessList, owner bool) accesslist.Grants {
-	if owner {
-		return acl.Spec.OwnerGrants
+// handleAccessListOwnership validates the access list and applies the grants and traits from the access list to the user if they are an owner of the access list.
+// If the access list is invalid (because it references a non-existent role, for example,
+// then it will not be applied.
+func (g *Generator) handleAccessListOwnership(ctx context.Context, user types.User, accessList *accesslist.AccessList, state *userloginstate.UserLoginState) ([]string, map[string][]string, error) {
+	var inheritedRoles []string
+	inheritedTraits := make(map[string][]string)
+
+	ownershipType, err := accesslists.IsAccessListOwner(ctx, user, accessList, g.accessLists, g.accessLists, g.clock)
+	// Return early if there was an error or the user isn't an owner of the access list.
+	if err != nil || ownershipType == accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED {
+		// Log any error besides user being locked.
+		if err != nil && !accesslists.IsUserLocked(err) {
+			g.log.WithError(err).Warn("checking access list ownership")
+		}
+		return inheritedRoles, inheritedTraits, nil
 	}
-	return acl.Spec.Grants
+
+	// Validate that all the roles in the access list exist.
+	missingRoles, err := g.identifyMissingRoles(ctx, accessList.Spec.OwnerGrants.Roles)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	// If there are any missing roles, then we cannot apply the access list.
+	// Emit an audit event and return early.
+	// This flow is designed to skip the entire access list rather than processing individual roles within it.
+	// This approach ensures that access lists are treated as cohesive units of access control. Partial
+	// application of an access list could result in unintended permission configurations, potentially leading
+	// to security vulnerabilities or unpredictable behavior.
+	if missingRoles != nil {
+		g.emitSkippedAccessListEvent(ctx, accessList.Spec.Title, missingRoles, user.GetName())
+		return nil, nil, nil
+	}
+
+	g.grantRolesAndTraits(accessList.Spec.OwnerGrants, state)
+	if ownershipType == accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_INHERITED {
+		inheritedRoles = append(inheritedRoles, accessList.Spec.OwnerGrants.Roles...)
+		for k, values := range accessList.Spec.OwnerGrants.Traits {
+			inheritedTraits[k] = append(inheritedTraits[k], values...)
+		}
+	}
+
+	return inheritedRoles, inheritedTraits, nil
 }
 
 // grantRolesAndTraits will append the roles and traits from the provided Grants to the UserLoginState,
 // returning inherited roles and traits if AccessListUserAssignmentType is inherited.
 func (g *Generator) grantRolesAndTraits(grants accesslist.Grants, state *userloginstate.UserLoginState) {
 	state.Spec.Roles = append(state.Spec.Roles, grants.Roles...)
-	state.Spec.AccessListRoles = append(state.Spec.AccessListRoles, grants.Roles...)
 
-	if len(grants.Traits) > 0 {
-		if state.Spec.Traits == nil {
-			state.Spec.Traits = map[string][]string{}
-		}
-		if state.Spec.AccessListTraits == nil {
-			state.Spec.AccessListTraits = map[string][]string{}
-		}
+	if state.Spec.Traits == nil && len(grants.Traits) > 0 {
+		state.Spec.Traits = map[string][]string{}
 	}
 
 	for k, values := range grants.Traits {
 		state.Spec.Traits[k] = append(state.Spec.Traits[k], values...)
-		state.Spec.AccessListTraits[k] = append(state.Spec.AccessListTraits[k], values...)
 	}
 }
 
@@ -362,20 +345,23 @@ func (g *Generator) postProcess(ctx context.Context, state *userloginstate.UserL
 	for k, v := range state.Spec.Traits {
 		state.Spec.Traits[k] = utils.Deduplicate(v)
 	}
-	state.Spec.AccessListRoles = utils.Deduplicate(state.Spec.AccessListRoles)
-	for k, v := range state.Spec.AccessListTraits {
-		state.Spec.AccessListTraits[k] = utils.Deduplicate(v)
+
+	// If there are no roles, don't bother filtering out non-existent roles
+	if len(state.Spec.Roles) == 0 {
+		return nil
 	}
 
 	// Make sure all the roles exist. If they don't, error out.
+	var existingRoles []string
 	for _, role := range state.Spec.Roles {
-		if _, err := g.access.GetRole(ctx, role); err != nil {
-			if trace.IsNotFound(err) {
-				return trace.Wrap(types.ErrNonExistingRoleAssigned)
-			}
+		_, err := g.access.GetRole(ctx, role)
+		if err == nil {
+			existingRoles = append(existingRoles, role)
+		} else {
 			return trace.Wrap(err)
 		}
 	}
+	state.Spec.Roles = existingRoles
 
 	return nil
 }
@@ -433,60 +419,32 @@ func (g *Generator) emitUsageEvent(ctx context.Context, user types.User, state *
 	return nil
 }
 
-// updatePreservedAttributes that should be preserved in user login state across logins.
-func updatePreservedAttributes(ctx context.Context, uls *userloginstate.UserLoginState, ulsService services.UserLoginStates) error {
-	existingULS, err := ulsService.GetUserLoginState(ctx, uls.GetName())
-	if trace.IsNotFound(err) {
+func (g *Generator) maybePreserveGitHubIdentity(ctx context.Context, uls *userloginstate.UserLoginState, ulsService services.UserLoginStates) error {
+	// Use the new one.
+	if uls.Spec.GitHubIdentity != nil {
 		return nil
-	} else if err != nil {
+	}
+
+	// Find the old state if exists.
+	oldUls, err := ulsService.GetUserLoginState(ctx, uls.GetName())
+	if err != nil {
+		if trace.IsNotFound(err) {
+			return nil
+		}
 		return trace.Wrap(err)
 	}
-	if len(uls.GetGithubIdentities()) == 0 {
-		uls.SetGithubIdentities(existingULS.GetGithubIdentities())
+	if oldUls.Spec.GitHubIdentity != nil {
+		uls.Spec.GitHubIdentity = oldUls.Spec.GitHubIdentity
 	}
-	// We need to preserve SAML identity as user may log in using another auth connector and
-	// overwrite roles and traits mapped from the previous connector. The information about
-	// other connectors may be needed to calculate access to provider-specific resources like
-	// Okta. See https://github.com/gravitational/teleport.e/pull/7168.
-	preserveSAMLIdentities(uls, existingULS)
 	return nil
-}
-
-// preserveSAMLIdentities merges SAML identities from u2 to u1.
-func preserveSAMLIdentities(dst, src *userloginstate.UserLoginState) {
-	ids1 := dst.Spec.SAMLIdentities
-	ids2 := src.Spec.SAMLIdentities
-
-	for _, id2 := range ids2 {
-		ok := slices.ContainsFunc(ids1, func(id1 userloginstate.ExternalIdentity) bool {
-			return id1.ConnectorID == id2.ConnectorID
-		})
-		if !ok {
-			ids1 = append(ids1, id2)
-		}
-	}
-	slices.SortFunc(ids1, func(x, y userloginstate.ExternalIdentity) int {
-		return strings.Compare(x.ConnectorID, y.ConnectorID)
-	})
-
-	dst.Spec.SAMLIdentities = ids1
 }
 
 // Refresh will take the user and update the user login state in the backend.
 func (g *Generator) Refresh(ctx context.Context, user types.User, ulsService services.UserLoginStates) (*userloginstate.UserLoginState, error) {
-	uls, err := g.generate(ctx, user, ulsService, false)
+	uls, err := g.Generate(ctx, user, ulsService)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// Set the full state directly on the user object.
-	// We cannot rely Upsert/Get User login state because the next webhook that calls GetUserLogin
-	// might receive stale data.
-	// Instead of using Upsert/Get calls to pass the object through the login hooks chain,
-	// the login hook updates the user object directly.
-	// TODO(smallinsky): Consider removing the user login state approach entirely, as it currently only mirrors the user state.
-	user.SetRoles(uls.GetRoles())
-	user.SetTraits(uls.GetTraits())
 
 	uls, err = ulsService.UpsertUserLoginState(ctx, uls)
 	return uls, trace.Wrap(err)
@@ -541,6 +499,6 @@ func (g *Generator) emitSkippedAccessListEvent(ctx context.Context, accessListNa
 			UserMessage: "access list skipped because it references non-existent role(s)",
 		},
 	}); err != nil {
-		g.log.WarnContext(ctx, "Failed to emit access list skipped warning audit event", "error", err)
+		g.log.WithError(err).Warn("Failed to emit access list skipped warning audit event.")
 	}
 }

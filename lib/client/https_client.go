@@ -83,9 +83,9 @@ type WebClient struct {
 //
 // If these conditions are not met, then the plain-HTTP fallback is not allowed,
 // and a the HTTPS failure will be considered final.
-func (w *WebClient) PostJSONWithFallback(ctx context.Context, endpoint string, val any, allowHTTPFallback bool) (*roundtrip.Response, error) {
+func (w *WebClient) PostJSONWithFallback(ctx context.Context, endpoint string, val interface{}, allowHTTPFallback bool) (*roundtrip.Response, error) {
 	// First try HTTPS and see how that goes
-	log.DebugContext(ctx, "Attempting request", "endpoint", endpoint)
+	log.Debugf("Attempting %s", endpoint)
 	resp, httpsErr := w.Client.PostJSON(ctx, endpoint, val)
 	if httpsErr == nil {
 		// If all went well, then we don't need to do anything else - just return
@@ -117,19 +117,15 @@ func (w *WebClient) PostJSONWithFallback(ctx context.Context, endpoint string, v
 	// re-write the endpoint to try HTTP
 	u.Scheme = "http"
 	endpoint = u.String()
-	log.WarnContext(ctx, "Request for falling back to PLAIN HTTP", "endpoint", endpoint)
+	log.Warnf("Request for %s/%s falling back to PLAIN HTTP", u.Host, u.Path)
 	return httplib.ConvertResponse(w.Client.PostJSON(ctx, endpoint, val))
 }
 
-func (w *WebClient) PostJSON(ctx context.Context, endpoint string, val any) (*roundtrip.Response, error) {
+func (w *WebClient) PostJSON(ctx context.Context, endpoint string, val interface{}) (*roundtrip.Response, error) {
 	return httplib.ConvertResponse(w.Client.PostJSON(ctx, endpoint, val))
 }
 
-func (w *WebClient) PostWithFormData(ctx context.Context, endpoint string, val url.Values) (*roundtrip.Response, error) {
-	return httplib.ConvertResponse(w.Client.PostForm(ctx, endpoint, val))
-}
-
-func (w *WebClient) PutJSON(ctx context.Context, endpoint string, val any) (*roundtrip.Response, error) {
+func (w *WebClient) PutJSON(ctx context.Context, endpoint string, val interface{}) (*roundtrip.Response, error) {
 	return httplib.ConvertResponse(w.Client.PutJSON(ctx, endpoint, val))
 }
 

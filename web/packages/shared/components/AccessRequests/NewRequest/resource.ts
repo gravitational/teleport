@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// eslint-disable-next-line no-restricted-imports -- FIXME
+// oxlint-disable-next-line no-restricted-imports
 import { ResourceIdKind } from 'teleport/services/agents';
-// eslint-disable-next-line no-restricted-imports -- FIXME
+// oxlint-disable-next-line no-restricted-imports
 import { KubeResourceKind } from 'teleport/services/kube';
 
 /** Available request kinds for resource-based and role-based access requests. */
@@ -44,7 +44,6 @@ export function getEmptyResourceState(): ResourceMap {
     kube_cluster: {},
     user_group: {},
     windows_desktop: {},
-    linux_desktop: {},
     role: {},
     saml_idp_service_provider: {},
     namespace: {},

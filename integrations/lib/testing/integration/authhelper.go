@@ -80,12 +80,11 @@ func (a *MinimalAuthHelper) StartServer(t *testing.T) *client.Client {
 
 	server, err := authtest.NewTestTLSServer(authtest.TLSServerConfig{
 		APIConfig: &auth.APIConfig{
-			AuthServer:       authServer.AuthServer,
-			Authorizer:       authServer.Authorizer,
-			ScopedAuthorizer: authServer.ScopedAuthorizer,
-			AuditLog:         authServer.AuditLog,
-			Emitter:          authServer.AuditLog,
-			PluginRegistry:   a.PluginRegistry,
+			AuthServer:     authServer.AuthServer,
+			Authorizer:     authServer.Authorizer,
+			AuditLog:       authServer.AuditLog,
+			Emitter:        authServer.AuditLog,
+			PluginRegistry: a.PluginRegistry,
 		},
 		AuthServer:    authServer,
 		AcceptedUsage: authServer.AcceptedUsage,
@@ -130,7 +129,7 @@ type userCerts struct {
 func (a *MinimalAuthHelper) getUserCerts(t *testing.T, user types.User) userCerts {
 	authServer := a.server.Auth()
 
-	clusterName, err := authServer.GetClusterName(t.Context())
+	clusterName, err := authServer.GetClusterName()
 	require.NoError(t, err)
 	// Get user certs
 	userKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
@@ -161,7 +160,7 @@ func (a *MinimalAuthHelper) getUserCerts(t *testing.T, user types.User) userCert
 // It builds TLS client credentials for the given user.
 func (a *MinimalAuthHelper) CredentialsForUser(t *testing.T, ctx context.Context, user types.User) client.Credentials {
 	auth := a.server.Auth()
-	clusterName, err := auth.GetClusterName(ctx)
+	clusterName, err := auth.GetClusterName()
 	require.NoError(t, err)
 
 	certs := a.getUserCerts(t, user)
@@ -192,7 +191,7 @@ func (a *MinimalAuthHelper) CredentialsForUser(t *testing.T, ctx context.Context
 // It signs an identity, write it to a temporary directory, and returns its path.
 func (a *MinimalAuthHelper) SignIdentityForUser(t *testing.T, ctx context.Context, user types.User) string {
 	auth := a.server.Auth()
-	clusterName, err := auth.GetClusterName(ctx)
+	clusterName, err := auth.GetClusterName()
 	require.NoError(t, err)
 
 	certs := a.getUserCerts(t, user)

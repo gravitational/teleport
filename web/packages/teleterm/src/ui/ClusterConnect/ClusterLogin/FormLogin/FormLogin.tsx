@@ -31,7 +31,7 @@ import type { PrimaryAuthType } from 'shared/services';
 
 import { Platform } from 'teleterm/mainProcess/types';
 import { AppUpdateEvent } from 'teleterm/services/appUpdater';
-import { WidgetView } from 'teleterm/ui/AppUpdater';
+import { ClusterGetter, WidgetView } from 'teleterm/ui/AppUpdater';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
 import { outermostPadding } from '../../spacing';
@@ -85,6 +85,7 @@ export default function LoginForm(props: Props) {
     onInstall: () => props.quitAndInstallAppUpdate(),
     platform: props.platform,
     onMore: () => props.switchToAppUpdateDetails(),
+    clusterGetter: props.clusterGetter,
   };
   const ssoEnabled = authProviders?.length > 0;
 
@@ -348,6 +349,7 @@ export type Props = {
   checkForAppUpdates(): Promise<void>;
   quitAndInstallAppUpdate(): void;
   changeAppUpdatesManagingCluster(clusterUri: RootClusterUri): Promise<void>;
+  clusterGetter: ClusterGetter;
 };
 
 const OutermostPadding = styled(Box).attrs({ px: outermostPadding })``;

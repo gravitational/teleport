@@ -33,10 +33,10 @@ import (
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
-func (h *Handler) getUserGroups(_ http.ResponseWriter, r *http.Request, params httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
+func (h *Handler) getUserGroups(_ http.ResponseWriter, r *http.Request, params httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (any, error) {
 	// Get a client to the Auth Server with the logged in user's identity. The
 	// identity of the logged in user is used to fetch the list of nodes.
-	clt, err := sctx.GetUserClient(r.Context(), cluster)
+	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -57,7 +57,7 @@ func (h *Handler) getUserGroups(_ http.ResponseWriter, r *http.Request, params h
 		UseSearchAsRoles: true,
 	})
 	if err != nil {
-		h.logger.DebugContext(r.Context(), "Unable to fetch applications while listing user groups, unable to display associated applications", "error", err)
+		h.log.Debugf("Unable to fetch applications while listing user groups, unable to display associated applications: %v", err)
 	}
 
 	appServerLookup := make(map[string]types.AppServer, len(appServers))
@@ -71,7 +71,7 @@ func (h *Handler) getUserGroups(_ http.ResponseWriter, r *http.Request, params h
 		for _, appName := range userGroup.GetApplications() {
 			app := appServerLookup[appName]
 			if app == nil {
-				h.logger.DebugContext(r.Context(), "Unable to find application when creating user groups, skipping", "app", appName)
+				h.log.Debugf("Unable to find application %s when creating user groups, skipping", appName)
 				continue
 			}
 			apps = append(apps, app.GetApp())

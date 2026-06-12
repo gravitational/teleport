@@ -21,16 +21,17 @@ package discovery
 import (
 	"context"
 	"log/slog"
-	"maps"
 	"testing"
-	"testing/synctest"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
-	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
+	eksTypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+	eksV1 "github.com/aws/aws-sdk-go/service/eks"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -46,40 +47,33 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/automaticupgrades/version"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	libutils "github.com/gravitational/teleport/lib/utils"
 )
 
 func TestServer_getKubeFetchers(t *testing.T) {
 	eks1, err := fetchers.NewEKSFetcher(fetchers.EKSFetcherConfig{
-		ClientGetter: &mockFetchersClients{},
-		Matcher: types.AWSMatcher{
-			Regions: []string{"region1"},
-			Tags:    types.Labels{"l1": []string{"v1"}},
-		},
+		ClientGetter: &cloud.TestCloudClients{STS: &mocks.STSMock{}},
+		FilterLabels: types.Labels{"l1": []string{"v1"}},
+		Region:       "region1",
 	})
 	require.NoError(t, err)
 	eks2, err := fetchers.NewEKSFetcher(fetchers.EKSFetcherConfig{
-		ClientGetter: &mockFetchersClients{},
-		Matcher: types.AWSMatcher{
-			Regions:     []string{"region1"},
-			Tags:        types.Labels{"l1": []string{"v1"}},
-			Integration: "aws1",
-		},
-	})
+		ClientGetter: &cloud.TestCloudClients{STS: &mocks.STSMock{}},
+		FilterLabels: types.Labels{"l1": []string{"v1"}},
+		Region:       "region1",
+		Integration:  "aws1"})
 	require.NoError(t, err)
 	eks3, err := fetchers.NewEKSFetcher(fetchers.EKSFetcherConfig{
-		ClientGetter: &mockFetchersClients{},
-		Matcher: types.AWSMatcher{
-			Regions:     []string{"region1"},
-			Tags:        types.Labels{"l1": []string{"v1"}},
-			Integration: "aws1",
-		},
-	})
+		ClientGetter: &cloud.TestCloudClients{STS: &mocks.STSMock{}},
+		FilterLabels: types.Labels{"l1": []string{"v1"}},
+		Region:       "region1",
+		Integration:  "aws1"})
 	require.NoError(t, err)
 
 	aks1, err := fetchers.NewAKSFetcher(fetchers.AKSFetcherConfig{
@@ -138,12 +132,6 @@ func TestServer_getKubeFetchers(t *testing.T) {
 	}
 }
 
-func staticKubeAgentVersionGetter(t *testing.T) version.Getter {
-	getter, err := version.NewStaticGetter("1.2.3", nil)
-	require.NoError(t, err)
-	return getter
-}
-
 func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 	const (
 		mainDiscoveryGroup = "main"
@@ -153,67 +141,25 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 		testCAData         = "VGVzdENBREFUQQ=="
 	)
 
-	// Create and start test auth server.
-	testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
-		Dir: t.TempDir(),
-	})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
-
-	awsOIDCIntegration, err := types.NewIntegrationAWSOIDC(types.Metadata{
-		Name: "integration1",
-	}, &types.AWSOIDCIntegrationSpecV1{
-		RoleARN: roleArn,
-	})
-	require.NoError(t, err)
-
-	// Upsert a fake proxy to ensure we have a public address to use for the
-	// AWS OIDC integration.
-	proxy, err := types.NewServer("proxy", types.KindProxy, types.ServerSpecV2{
-		PublicAddrs: []string{"teleport.example.com"},
-	})
-	require.NoError(t, err)
-
-	_, err = testAuthServer.AuthServer.UpsertProxyServer(t.Context(), proxy)
-	require.NoError(t, err)
-
-	testAuthServer.AuthServer.IntegrationsTokenGenerator = &mockIntegrationsTokenGenerator{
-		proxies: nil,
-		integrations: map[string]types.Integration{
-			awsOIDCIntegration.GetName(): awsOIDCIntegration,
-		},
-	}
-
-	ctx := context.Background()
-	tlsServer, err := testAuthServer.NewTestTLSServer()
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
-	_, err = tlsServer.Auth().CreateIntegration(ctx, awsOIDCIntegration)
-	require.NoError(t, err)
-
-	fakeConfigProvider := mocks.AWSConfigProvider{
-		OIDCIntegrationClient: tlsServer.Auth(),
-	}
-
-	testEKSClusters := []ekstypes.Cluster{
+	testEKSClusters := []eksTypes.Cluster{
 		{
 			Name:                 aws.String("eks-cluster1"),
 			Arn:                  aws.String("arn:aws:eks:eu-west-1:accountID:cluster/cluster1"),
 			Tags:                 map[string]string{"env": "prod", "location": "eu-west-1"},
-			CertificateAuthority: &ekstypes.Certificate{Data: aws.String(testCAData)},
-			Status:               ekstypes.ClusterStatusActive,
+			CertificateAuthority: &eksTypes.Certificate{Data: aws.String(testCAData)},
+			Status:               eksTypes.ClusterStatusActive,
 		},
 		{
 			Name:                 aws.String("eks-cluster2"),
 			Arn:                  aws.String("arn:aws:eks:eu-west-1:accountID:cluster/cluster2"),
 			Tags:                 map[string]string{"env": "prod", "location": "eu-west-1"},
-			CertificateAuthority: &ekstypes.Certificate{Data: aws.String(testCAData)},
-			Status:               ekstypes.ClusterStatusActive,
+			CertificateAuthority: &eksTypes.Certificate{Data: aws.String(testCAData)},
+			Status:               eksTypes.ClusterStatusActive,
 		},
 	}
 
-	getDc := func(t *testing.T) *discoveryconfig.DiscoveryConfig {
-		dc, err := discoveryconfig.NewDiscoveryConfig(
+	getDc := func() *discoveryconfig.DiscoveryConfig {
+		dc, _ := discoveryconfig.NewDiscoveryConfig(
 			header.Metadata{Name: uuid.NewString()},
 			discoveryconfig.Spec{
 				DiscoveryGroup: mainDiscoveryGroup,
@@ -226,11 +172,10 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 				},
 			},
 		)
-		require.NoError(t, err)
 		return dc
 	}
 
-	clusterFinder := func(clusterName string) *ekstypes.Cluster {
+	clusterFinder := func(clusterName string) *eksTypes.Cluster {
 		for _, c := range testEKSClusters {
 			if aws.ToString(c.Name) == clusterName {
 				return &c
@@ -278,7 +223,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 		{
 			name: "no clusters in auth server, discover two clusters from EKS",
 			discoveryConfig: func(t *testing.T) *discoveryconfig.DiscoveryConfig {
-				return getDc(t)
+				return getDc()
 			},
 			accessPoint: func(t *testing.T, authServer *auth.Server, authClient authclient.ClientI) authclient.DiscoveryAccessPoint {
 				return &accessPointWrapper{
@@ -294,7 +239,6 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 				{
 					Types:       []string{"eks"},
 					Regions:     []string{"eu-west-1"},
-					Tags:        types.Labels{types.Wildcard: {types.Wildcard}},
 					Integration: "integration1",
 				},
 			},
@@ -307,7 +251,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 			name:                "one cluster in auth server, discover one cluster from EKS and ignore another one",
 			existingKubeServers: []types.KubeServer{mustConvertEKSToKubeServerV1(t, eksMockClusters[0], "resourceID", mainDiscoveryGroup)},
 			discoveryConfig: func(t *testing.T) *discoveryconfig.DiscoveryConfig {
-				return getDc(t)
+				return getDc()
 			},
 			accessPoint: func(t *testing.T, authServer *auth.Server, authClient authclient.ClientI) authclient.DiscoveryAccessPoint {
 				return &accessPointWrapper{
@@ -325,7 +269,6 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 				{
 					Types:       []string{"eks"},
 					Regions:     []string{"eu-west-1"},
-					Tags:        types.Labels{types.Wildcard: {types.Wildcard}},
 					Integration: "integration1",
 				},
 			},
@@ -338,7 +281,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 			name:                "one non-matching cluster in auth server, discover two cluster from EKS",
 			existingKubeServers: []types.KubeServer{mustConvertEKSToKubeServerV1(t, eksMockClusters[2], "resourceID", mainDiscoveryGroup)},
 			discoveryConfig: func(t *testing.T) *discoveryconfig.DiscoveryConfig {
-				return getDc(t)
+				return getDc()
 			},
 			accessPoint: func(t *testing.T, authServer *auth.Server, authClient authclient.ClientI) authclient.DiscoveryAccessPoint {
 				return &accessPointWrapper{
@@ -356,7 +299,6 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 				{
 					Types:       []string{"eks"},
 					Regions:     []string{"eu-west-1"},
-					Tags:        types.Labels{types.Wildcard: {types.Wildcard}},
 					Integration: "integration1",
 				},
 			},
@@ -369,112 +311,126 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			synctest.Test(t, func(t *testing.T) {
-				ctx := t.Context()
-				// Create and start test auth server.
-				testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
-					Dir: t.TempDir(),
-				})
-				require.NoError(t, err)
-				t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
+			testCloudClients := &cloud.TestCloudClients{
+				STS: &mocks.STSMock{},
+				EKS: &mockEKSAPI{
+					clusters: eksMockClusters[:2],
+				},
+			}
 
-				tlsServer, err := testAuthServer.NewTestTLSServer(authtest.WithBufconnListener())
-				require.NoError(t, err)
-				t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
+			ctx := context.Background()
+			// Create and start test auth server.
+			testAuthServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+				Dir: t.TempDir(),
+			})
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
 
-				// Auth client for discovery service.
-				identity := authtest.TestServerID(types.RoleDiscovery, "hostID")
-				authClient, err := tlsServer.NewClient(identity)
-				require.NoError(t, err)
-				t.Cleanup(func() { require.NoError(t, authClient.Close()) })
+			tlsServer, err := testAuthServer.NewTestTLSServer()
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
 
-				integration, err := types.NewIntegrationAWSOIDC(
-					types.Metadata{Name: "integration1"},
-					&types.AWSOIDCIntegrationSpecV1{
-						RoleARN: "arn:aws:iam::123456789012:role/IntegrationRole",
+			// Auth client for discovery service.
+			identity := authtest.TestServerID(types.RoleDiscovery, "hostID")
+			authClient, err := tlsServer.NewClient(identity)
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, authClient.Close()) })
+
+			integration, err := types.NewIntegrationAWSOIDC(
+				types.Metadata{Name: "integration1"},
+				&types.AWSOIDCIntegrationSpecV1{
+					RoleARN: "arn:aws:iam::123456789012:role/IntegrationRole",
+				},
+			)
+			require.NoError(t, err)
+
+			testAuthServer.AuthServer.IntegrationsTokenGenerator = &mockIntegrationsTokenGenerator{
+				proxies: nil,
+				integrations: map[string]types.Integration{
+					integration.GetName(): integration,
+				},
+			}
+
+			_, err = tlsServer.Auth().CreateIntegration(ctx, integration)
+			require.NoError(t, err)
+
+			for _, kubeCluster := range tc.existingKubeClusters {
+				err := tlsServer.Auth().CreateKubernetesCluster(ctx, kubeCluster)
+				require.NoError(t, err)
+			}
+
+			for _, kubeServer := range tc.existingKubeServers {
+				_, err := tlsServer.Auth().UpsertKubernetesServer(ctx, kubeServer)
+				require.NoError(t, err)
+			}
+
+			reporter := &mockUsageReporter{}
+
+			tlsServer.Auth().SetUsageReporter(reporter)
+			discServer, err := New(
+				authz.ContextWithUser(ctx, identity.I),
+				&Config{
+					CloudClients:     testCloudClients,
+					ClusterFeatures:  func() proto.Features { return proto.Features{} },
+					KubernetesClient: fake.NewSimpleClientset(),
+					AccessPoint:      tc.accessPoint(t, tlsServer.Auth(), authClient),
+					Matchers: Matchers{
+						AWS: tc.awsMatchers,
 					},
-				)
-				require.NoError(t, err)
-
-				testAuthServer.AuthServer.IntegrationsTokenGenerator = &mockIntegrationsTokenGenerator{
-					proxies: nil,
-					integrations: map[string]types.Integration{
-						integration.GetName(): integration,
-					},
-				}
-
-				_, err = tlsServer.Auth().CreateIntegration(ctx, integration)
-				require.NoError(t, err)
-
-				for _, kubeCluster := range tc.existingKubeClusters {
-					err := tlsServer.Auth().CreateKubernetesCluster(ctx, kubeCluster)
-					require.NoError(t, err)
-				}
-
-				for _, kubeServer := range tc.existingKubeServers {
-					_, err := tlsServer.Auth().UpsertKubernetesServer(ctx, kubeServer)
-					require.NoError(t, err)
-				}
-
-				reporter := &mockUsageReporter{}
-
-				tlsServer.Auth().SetUsageReporter(reporter)
-				discServer, err := New(
-					authz.ContextWithUser(ctx, identity.I),
-					&Config{
-						AWSFetchersClients: &mockFetchersClients{
-							AWSConfigProvider: fakeConfigProvider,
-							eksClusters:       eksMockClusters[:2],
-						},
-						ClusterFeatures:        func() proto.Features { return proto.Features{} },
-						kubeAgentVersionGetter: staticKubeAgentVersionGetter(t),
-						KubernetesClient:       fake.NewClientset(),
-						AccessPoint:            tc.accessPoint(t, tlsServer.Auth(), authClient),
-						Matchers: Matchers{
-							AWS: tc.awsMatchers,
-						},
-						Emitter:        authClient,
-						Log:            logtest.NewLogger(),
-						DiscoveryGroup: mainDiscoveryGroup,
-					})
-
-				require.NoError(t, err)
-
-				if tc.discoveryConfig != nil {
-					dc := tc.discoveryConfig(t)
-					_, err := tlsServer.Auth().DiscoveryConfigs.CreateDiscoveryConfig(ctx, dc)
-					require.NoError(t, err)
-				}
-				synctest.Wait()
-
-				t.Cleanup(func() {
-					discServer.Stop()
+					Emitter:        authClient,
+					Log:            libutils.NewSlogLoggerForTests(),
+					LegacyLogger:   logrus.New(),
+					DiscoveryGroup: mainDiscoveryGroup,
 				})
-				go discServer.Start()
 
-				synctest.Wait()
+			require.NoError(t, err)
 
+			if tc.discoveryConfig != nil {
+				dc := tc.discoveryConfig(t)
+				_, err := tlsServer.Auth().DiscoveryConfigs.CreateDiscoveryConfig(ctx, dc)
+				require.NoError(t, err)
+
+				// Wait for the DiscoveryConfig to be added to the dynamic fetchers
+				require.Eventually(t, func() bool {
+					discServer.muDynamicKubeFetchers.RLock()
+					defer discServer.muDynamicKubeFetchers.RUnlock()
+					return len(discServer.dynamicKubeFetchers) > 0
+				}, 1*time.Second, 100*time.Millisecond)
+			}
+
+			t.Cleanup(func() {
+				discServer.Stop()
+			})
+			go discServer.Start()
+
+			require.Eventually(t, func() bool {
 				kubeServers, err := tlsServer.Auth().GetKubernetesServers(ctx)
 				require.NoError(t, err)
 
-				require.Len(t, kubeServers, len(tc.expectedServersToExistInAuth), "number of kube servers in auth server does not match expected")
-
-				k1 := types.KubeServers(kubeServers).ToMap()
-				k2 := types.KubeServers(tc.expectedServersToExistInAuth).ToMap()
-				for k := range k1 {
-					require.True(t, k1[k].IsEqual(k2[k]), "kube server in auth server does not match expected")
+				if len(kubeServers) == len(tc.expectedServersToExistInAuth) {
+					k1 := types.KubeServers(kubeServers).ToMap()
+					k2 := types.KubeServers(tc.expectedServersToExistInAuth).ToMap()
+					for k := range k1 {
+						if services.CompareResources(k1[k], k2[k]) != services.Equal {
+							return false
+						}
+					}
+					return true
 				}
-			})
+
+				return false
+			}, 315*time.Second, 200*time.Millisecond)
 		})
 	}
 }
 
-func mustConvertEKSToKubeServerV1(t *testing.T, eksCluster *ekstypes.Cluster, resourceID, _ string) types.KubeServer {
-	eksCluster.Tags[types.OriginLabel] = types.OriginCloud
-	eksCluster.Tags[types.InternalResourceIDLabel] = resourceID
+func mustConvertEKSToKubeServerV1(t *testing.T, eksCluster *eksV1.Cluster, resourceID, discoveryGroup string) types.KubeServer {
+	eksCluster.Tags[types.OriginLabel] = aws.String(types.OriginCloud)
+	eksCluster.Tags[types.InternalResourceIDLabel] = aws.String(resourceID)
 
 	kubeCluster, err := common.NewKubeClusterFromAWSEKS(aws.ToString(eksCluster.Name), aws.ToString(eksCluster.Arn), eksCluster.Tags)
 	assert.NoError(t, err)
@@ -487,11 +443,13 @@ func mustConvertEKSToKubeServerV1(t *testing.T, eksCluster *ekstypes.Cluster, re
 	return kubeServer
 }
 
-func mustConvertEKSToKubeServerV2(t *testing.T, eksCluster *ekstypes.Cluster, resourceID, _ string) types.KubeServer {
-	eksTags := make(map[string]string, len(eksCluster.Tags))
-	maps.Copy(eksTags, eksCluster.Tags)
-	eksTags[types.OriginLabel] = types.OriginCloud
-	eksTags[types.InternalResourceIDLabel] = resourceID
+func mustConvertEKSToKubeServerV2(t *testing.T, eksCluster *eksTypes.Cluster, resourceID, discoveryGroup string) types.KubeServer {
+	eksTags := make(map[string]*string, len(eksCluster.Tags))
+	for k, v := range eksCluster.Tags {
+		eksTags[k] = aws.String(v)
+	}
+	eksTags[types.OriginLabel] = aws.String(types.OriginCloud)
+	eksTags[types.InternalResourceIDLabel] = aws.String(resourceID)
 
 	kubeCluster, err := common.NewKubeClusterFromAWSEKS(aws.ToString(eksCluster.Name), aws.ToString(eksCluster.Arn), eksTags)
 	assert.NoError(t, err)
@@ -521,8 +479,9 @@ func (a *accessPointWrapper) EnrollEKSClusters(ctx context.Context, req *integra
 }
 
 type mockIntegrationsTokenGenerator struct {
-	proxies      []types.Server
-	integrations map[string]types.Integration
+	proxies         []types.Server
+	integrations    map[string]types.Integration
+	tokenCallsCount int
 }
 
 // GetIntegration returns the specified integration resources.
@@ -539,13 +498,9 @@ func (m *mockIntegrationsTokenGenerator) GetProxies() ([]types.Server, error) {
 	return m.proxies, nil
 }
 
-// ListProxyServers returns a paginated list of registered proxies.
-func (m *mockIntegrationsTokenGenerator) ListProxyServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
-	return m.proxies, "", nil
-}
-
 // GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
 func (m *mockIntegrationsTokenGenerator) GenerateAWSOIDCToken(ctx context.Context, integration string) (string, error) {
+	m.tokenCallsCount++
 	return uuid.NewString(), nil
 }
 
@@ -555,16 +510,16 @@ func (m *mockIntegrationsTokenGenerator) GenerateAzureOIDCToken(ctx context.Cont
 }
 
 type mockEnrollEKSClusterClient struct {
-	createAccessEntry          func(context.Context, *eks.CreateAccessEntryInput, ...func(*eks.Options)) (*eks.CreateAccessEntryOutput, error)
-	associateAccessPolicy      func(context.Context, *eks.AssociateAccessPolicyInput, ...func(*eks.Options)) (*eks.AssociateAccessPolicyOutput, error)
-	listAccessEntries          func(context.Context, *eks.ListAccessEntriesInput, ...func(*eks.Options)) (*eks.ListAccessEntriesOutput, error)
-	deleteAccessEntry          func(context.Context, *eks.DeleteAccessEntryInput, ...func(*eks.Options)) (*eks.DeleteAccessEntryOutput, error)
-	describeCluster            func(context.Context, *eks.DescribeClusterInput, ...func(*eks.Options)) (*eks.DescribeClusterOutput, error)
-	getCallerIdentity          func(context.Context, *sts.GetCallerIdentityInput, ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
-	checkAgentAlreadyInstalled func(context.Context, genericclioptions.RESTClientGetter, *slog.Logger) (bool, error)
-	installKubeAgent           func(context.Context, *ekstypes.Cluster, string, string, string, genericclioptions.RESTClientGetter, *slog.Logger, awsoidc.EnrollEKSClustersRequest) error
-	createToken                func(context.Context, types.ProvisionToken) error
-	genEKSAuthToken            func(ctx context.Context, clusterName string) (string, error)
+	createAccessEntry           func(context.Context, *eks.CreateAccessEntryInput, ...func(*eks.Options)) (*eks.CreateAccessEntryOutput, error)
+	associateAccessPolicy       func(context.Context, *eks.AssociateAccessPolicyInput, ...func(*eks.Options)) (*eks.AssociateAccessPolicyOutput, error)
+	listAccessEntries           func(context.Context, *eks.ListAccessEntriesInput, ...func(*eks.Options)) (*eks.ListAccessEntriesOutput, error)
+	deleteAccessEntry           func(context.Context, *eks.DeleteAccessEntryInput, ...func(*eks.Options)) (*eks.DeleteAccessEntryOutput, error)
+	describeCluster             func(context.Context, *eks.DescribeClusterInput, ...func(*eks.Options)) (*eks.DescribeClusterOutput, error)
+	getCallerIdentity           func(context.Context, *sts.GetCallerIdentityInput, ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
+	checkAgentAlreadyInstalled  func(context.Context, genericclioptions.RESTClientGetter, *slog.Logger) (bool, error)
+	installKubeAgent            func(context.Context, *eksTypes.Cluster, string, string, string, genericclioptions.RESTClientGetter, *slog.Logger, awsoidc.EnrollEKSClustersRequest) error
+	createToken                 func(context.Context, types.ProvisionToken) error
+	presignGetCallerIdentityURL func(ctx context.Context, clusterName string) (string, error)
 }
 
 func (m *mockEnrollEKSClusterClient) CreateAccessEntry(ctx context.Context, params *eks.CreateAccessEntryInput, optFns ...func(*eks.Options)) (*eks.CreateAccessEntryOutput, error) {
@@ -616,7 +571,7 @@ func (m *mockEnrollEKSClusterClient) CheckAgentAlreadyInstalled(ctx context.Cont
 	return false, nil
 }
 
-func (m *mockEnrollEKSClusterClient) InstallKubeAgent(ctx context.Context, eksCluster *ekstypes.Cluster, proxyAddr, joinToken, resourceId string, kubeconfig genericclioptions.RESTClientGetter, log *slog.Logger, req awsoidc.EnrollEKSClustersRequest) error {
+func (m *mockEnrollEKSClusterClient) InstallKubeAgent(ctx context.Context, eksCluster *eksTypes.Cluster, proxyAddr, joinToken, resourceId string, kubeconfig genericclioptions.RESTClientGetter, log *slog.Logger, req awsoidc.EnrollEKSClustersRequest) error {
 	if m.installKubeAgent != nil {
 		return m.installKubeAgent(ctx, eksCluster, proxyAddr, joinToken, resourceId, kubeconfig, log, req)
 	}
@@ -630,9 +585,9 @@ func (m *mockEnrollEKSClusterClient) CreateToken(ctx context.Context, token type
 	return nil
 }
 
-func (m *mockEnrollEKSClusterClient) GenEKSAuthToken(ctx context.Context, clusterName string) (string, error) {
-	if m.genEKSAuthToken != nil {
-		return m.genEKSAuthToken(ctx, clusterName)
+func (m *mockEnrollEKSClusterClient) PresignGetCallerIdentityURL(ctx context.Context, clusterName string) (string, error) {
+	if m.presignGetCallerIdentityURL != nil {
+		return m.presignGetCallerIdentityURL(ctx, clusterName)
 	}
 	return "", nil
 }

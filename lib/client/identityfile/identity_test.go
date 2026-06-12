@@ -81,6 +81,7 @@ func newClientKeyRing(t *testing.T, modifiers ...func(*tlsca.Identity)) *client.
 
 	ff, tc, err := newSelfSignedCA(privateKey)
 	require.NoError(t, err)
+	keygen := testauthority.New()
 
 	clock := clockwork.NewRealClock()
 	identity := tlsca.Identity{
@@ -107,7 +108,7 @@ func newClientKeyRing(t *testing.T, modifiers ...func(*tlsca.Identity)) *client.
 	caSigner, err := ssh.NewSignerFromKey(signer)
 	require.NoError(t, err)
 
-	certificate, err := testauthority.GenerateUserCert(sshca.UserCertificateRequest{
+	certificate, err := keygen.GenerateUserCert(sshca.UserCertificateRequest{
 		CASigner:      caSigner,
 		PublicUserKey: ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
 		Identity: sshca.Identity{

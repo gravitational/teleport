@@ -102,10 +102,12 @@ export function makeProps(
     shouldSkipVersionCheck: false,
     disableVersionCheck: () => {},
     platform: 'darwin',
-    currentVersion: '14.7.2',
     changeAppUpdatesManagingCluster: async () => {},
     checkForAppUpdates: async () => {},
     downloadAppUpdate: async () => {},
+    clusterGetter: {
+      findCluster: () => undefined,
+    },
     quitAndInstallAppUpdate: async () => {},
     cancelAppUpdateDownload: async () => {},
     appUpdateEvent: {
@@ -149,6 +151,7 @@ export function makeProps(
     props.appUpdateEvent = {
       kind: 'update-available',
       update: {
+        updateKind: 'upgrade',
         version: '19.0.0',
         files: [
           {
@@ -159,7 +162,6 @@ export function makeProps(
         path: '',
         releaseDate: '',
         sha512: '',
-        requiresUacPrompt: false,
       },
       autoDownload: true,
       autoUpdatesStatus: {

@@ -20,7 +20,7 @@ package provider
 import (
 	"context"
 
-	{{ if or (not .IsPlainStruct) .RequestWrapper }}
+	{{ if not .IsPlainStruct }}
     {{- protoImport . }}
     {{- end }}
 	"github.com/gravitational/trace"
@@ -57,60 +57,22 @@ func (r dataSourceTeleport{{.Name}}Type) NewDataSource(_ context.Context, p tfsd
 
 // Read reads teleport {{.Name}}
 func (r dataSourceTeleport{{.Name}}) Read(ctx context.Context, req tfsdk.ReadDataSourceRequest, resp *tfsdk.ReadDataSourceResponse) {
-	{{ if .IDPrefix -}}
-	{{ $idPrefixPath := slice (split (toSnake .IDPrefix) ".") 1 -}}
-	{{ $root := index $idPrefixPath 0 -}}
-	{{ $atNames := slice $idPrefixPath 1 -}}
-	var idPrefix types.String
-	diags := req.Config.GetAttribute(ctx, path.Root("{{ $root }}"){{ range $atNames }}.AtName("{{ . }}"){{ end }}, &idPrefix)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	{{ end -}}
 	var id types.String
-	diags {{ if not .IDPrefix }}:{{ end }}= req.Config.GetAttribute(ctx, path.Root({{ if .ConvertPackagePath }}"header").AtName({{ end }}"metadata").AtName("name"), &id)
+	{{- if .ConvertPackagePath}}
+	diags := req.Config.GetAttribute(ctx, path.Root("header").AtName("metadata").AtName("name"), &id)
+	{{- else }}
+	diags := req.Config.GetAttribute(ctx, path.Root("metadata").AtName("name"), &id)
+	{{- end}}
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-{{- if .DefaultSubKind}}
-	var subKind types.String
-	diags = req.Config.GetAttribute(ctx, path.Root("sub_kind"), &subKind)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-	if subKind.Value == "" {
-		subKind.Value = {{.DefaultSubKind}}
-	}
-{{- end}}
-{{- if .RequestWrapper}}
 
-	{{.VarName}}GetResp, err := r.p.Client.{{.GetMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.GetRequest}}{
-		Name: id.Value,
-		{{- if .DefaultSubKind}}
-		SubKind: subKind.Value,
-		{{- end}}
-		{{- if ne .WithSecrets ""}}
-		WithSecrets: {{.WithSecrets}},
-		{{- end}}
-	})
-{{- else}}
-
-	{{.VarName}}I, err := r.p.Client.{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}{{if .IDPrefix}}idPrefix.Value, {{end}}id.Value{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
-{{- end}}
+	{{.VarName}}I, err := r.p.Client.{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}id.Value{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", trace.Wrap(err), "{{.Kind}}"))
 		return
 	}
-{{- if .RequestWrapper}}
-    {{- if .RequestWrapper.ReturnsUnwrappedResource }}
-	{{.VarName}}I := {{.VarName}}GetResp
-	{{- else }}
-	{{.VarName}}I := {{.VarName}}GetResp.Get{{.RequestWrapper.RequestResourceField}}()
-	{{- end}}
-{{- end}}
 
 	var state types.Object
 	resp.Diagnostics.Append(req.Config.Get(ctx, &state)...)
@@ -124,17 +86,13 @@ func (r dataSourceTeleport{{.Name}}) Read(ctx context.Context, req tfsdk.ReadDat
 	// https://developer.hashicorp.com/terraform/plugin/framework/acctests#no-id-found-in-attributes
 	v, ok := state.Attrs["id"]
 	if !ok || v.IsNull() {
-		{{- if .IDPrefix }}
-		state.Attrs["id"] = types.String{Value: formatID(idPrefix.Value, id.Value)}
-		{{- else }}
 		state.Attrs["id"] = id
-		{{- end }}
 	}
 
 	{{if .IsPlainStruct -}}
 	{{.VarName}} := {{.VarName}}I
 	{{else if .ConvertPackagePath -}}
-	{{.VarName}} := convert.{{ if .ConvertToProtoFunc }}{{.ConvertToProtoFunc}}{{ else }}ToProto{{ end }}({{.VarName}}I)
+	{{.VarName}} := convert.ToProto({{.VarName}}I)
 	{{else}}
 	{{.VarName}} := {{.VarName}}I.(*{{.ProtoPackage}}.{{.TypeName}})
 	{{- end}}

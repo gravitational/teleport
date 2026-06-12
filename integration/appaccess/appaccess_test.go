@@ -22,7 +22,6 @@ import (
 	"bufio"
 	"context"
 	"crypto/tls"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -34,21 +33,21 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
-	mcpserver "github.com/mark3labs/mcp-go/server"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
+	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/mcptest"
 	"github.com/gravitational/teleport/lib/web/app"
 )
 
@@ -57,27 +56,7 @@ import (
 // It allows to make the entire cluster set up once, instead of per test,
 // which speeds things up significantly.
 func TestAppAccess(t *testing.T) {
-	// Enable MCP test servers.
-	sseServerURL := mcptest.MustStartSSETestServer(t)
-	streamableHTTPServer := mcpserver.NewTestStreamableHTTPServer(mcptest.NewServer())
-	streamableHTTPServerURL := fmt.Sprintf("mcp+%s/mcp", streamableHTTPServer.URL)
-	t.Cleanup(streamableHTTPServer.Close)
-
-	extraApps := []servicecfg.App{
-		{
-			Name: "test-sse",
-			URI:  "mcp+sse+" + sseServerURL,
-		},
-		{
-			Name: "test-http",
-			URI:  streamableHTTPServerURL,
-		},
-	}
-
-	// Reusing the pack as much as we can.
-	pack := SetupWithOptions(t, AppTestOptions{
-		ExtraRootApps: extraApps,
-	})
+	pack := Setup(t)
 
 	t.Run("Forward", bind(pack, testForward))
 	t.Run("Websockets", bind(pack, testWebsockets))
@@ -90,9 +69,6 @@ func TestAppAccess(t *testing.T) {
 	t.Run("JWT", bind(pack, testJWT))
 	t.Run("NoHeaderOverrides", bind(pack, testNoHeaderOverrides))
 	t.Run("AuditEvents", bind(pack, testAuditEvents))
-
-	// MCP access tests.
-	t.Run("MCP", bind(pack, testMCP))
 
 	// This test should go last because it stops/starts app servers.
 	t.Run("TestAppServersHA", bind(pack, testServersHA))
@@ -160,6 +136,7 @@ func testForward(p *Pack, t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 			status, body, err := p.MakeRequest(tt.inCookies, http.MethodGet, "/")
@@ -221,6 +198,7 @@ func testWebsockets(p *Pack, t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 			body, err := p.makeWebsocketRequest(tt.inCookies, "/")
@@ -271,6 +249,7 @@ func testForwardModes(p *Pack, t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 			status, body, err := p.MakeRequest(tt.inCookies, http.MethodGet, "/")
@@ -284,6 +263,14 @@ func testForwardModes(p *Pack, t *testing.T) {
 // testClientCert tests mutual TLS authentication flow with application
 // access typically used in CLI by curl and other clients.
 func testClientCert(p *Pack, t *testing.T) {
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.App: {Enabled: true},
+			},
+		},
+	})
 	evilUser, _ := p.CreateUser(t)
 	rootWs := p.CreateAppSession(t, CreateAppSessionParams{
 		Username:      p.username,
@@ -378,6 +365,7 @@ func testClientCert(p *Pack, t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 			status, body, err := p.makeRequestWithClientCert(tt.inTLSConfig, http.MethodGet, "/")
@@ -825,6 +813,7 @@ func TestTCP(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		test := test
 		t.Run(test.description, func(t *testing.T) {
 			t.Parallel()
 
@@ -1075,7 +1064,7 @@ func testServersHA(p *Pack, t *testing.T) {
 	}
 
 	// asserts that the response has error.
-	responseWithError := func(t *assert.CollectT, status int, err error) {
+	responseWithError := func(t *testing.T, status int, err error) {
 		if status > 0 {
 			require.NoError(t, err)
 			require.Equal(t, http.StatusFound, status)
@@ -1085,7 +1074,7 @@ func testServersHA(p *Pack, t *testing.T) {
 		require.Error(t, err)
 	}
 	// asserts that the response has no errors.
-	responseWithoutError := func(t *assert.CollectT, status int, err error) {
+	responseWithoutError := func(t *testing.T, status int, err error) {
 		if status > 0 {
 			require.NoError(t, err)
 			require.Equal(t, http.StatusOK, status)
@@ -1095,14 +1084,12 @@ func testServersHA(p *Pack, t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	makeRequests := func(t *testing.T, pack *Pack, httpCookies, wsCookies []*http.Cookie, responseAssertion func(*assert.CollectT, int, error)) {
-		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			status, _, err := pack.MakeRequest(httpCookies, http.MethodGet, "/")
-			responseAssertion(t, status, err)
+	makeRequests := func(t *testing.T, pack *Pack, httpCookies, wsCookies []*http.Cookie, responseAssertion func(*testing.T, int, error)) {
+		status, _, err := pack.MakeRequest(httpCookies, http.MethodGet, "/")
+		responseAssertion(t, status, err)
 
-			_, err = pack.makeWebsocketRequest(wsCookies, "/")
-			responseAssertion(t, 0, err)
-		}, 10*time.Second, 200*time.Millisecond)
+		_, err = pack.makeWebsocketRequest(wsCookies, "/")
+		responseAssertion(t, 0, err)
 	}
 
 	for name, test := range testCases {

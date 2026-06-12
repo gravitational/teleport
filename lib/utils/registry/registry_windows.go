@@ -19,13 +19,12 @@
 package registry
 
 import (
-	"context"
 	"errors"
-	"log/slog"
 	"os"
 	"strconv"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/sys/windows/registry"
 )
 
@@ -35,17 +34,14 @@ func GetOrCreateRegistryKey(name string) (registry.Key, error) {
 	reg, err := registry.OpenKey(registry.CURRENT_USER, name, registry.QUERY_VALUE|registry.CREATE_SUB_KEY|registry.SET_VALUE)
 	switch {
 	case errors.Is(err, os.ErrNotExist):
-		slog.DebugContext(context.Background(), "Registry key doesn't exist, trying to create it", "key_name", name)
+		log.Debugf("Registry key %v doesn't exist, trying to create it", name)
 		reg, _, err = registry.CreateKey(registry.CURRENT_USER, name, registry.QUERY_VALUE|registry.CREATE_SUB_KEY|registry.SET_VALUE)
 		if err != nil {
-			slog.DebugContext(context.Background(), "Can't create registry key",
-				"key_name", name,
-				"error", err,
-			)
+			log.Debugf("Can't create registry key %v: %v", name, err)
 			return reg, err
 		}
 	case err != nil:
-		slog.ErrorContext(context.Background(), "registry.OpenKey returned error", "error", err)
+		log.Errorf("registry.OpenKey returned error: %v", err)
 		return reg, err
 	default:
 		return reg, nil
@@ -57,20 +53,12 @@ func GetOrCreateRegistryKey(name string) (registry.Key, error) {
 func WriteDword(k registry.Key, name string, value string) error {
 	dwordValue, err := strconv.ParseUint(value, 10, 32)
 	if err != nil {
-		slog.DebugContext(context.Background(), "Failed to convert value to uint32",
-			"value", value,
-			"error", err,
-		)
+		log.Debugf("Failed to convert value %v to uint32: %v", value, err)
 		return trace.Wrap(err)
 	}
 	err = k.SetDWordValue(name, uint32(dwordValue))
 	if err != nil {
-		slog.DebugContext(context.Background(), "Failed to write dword to registry key",
-			"name", name,
-			"value", value,
-			"key_name", k,
-			"error", err,
-		)
+		log.Debugf("Failed to write dword %v: %v to registry key %v: %v", name, value, k, err)
 		return trace.Wrap(err)
 	}
 	return nil
@@ -80,12 +68,7 @@ func WriteDword(k registry.Key, name string, value string) error {
 func WriteString(k registry.Key, name string, value string) error {
 	err := k.SetStringValue(name, value)
 	if err != nil {
-		slog.DebugContext(context.Background(), "Failed to write string to registry key",
-			"name", name,
-			"value", value,
-			"key_name", k,
-			"error", err,
-		)
+		log.Debugf("Failed to write string %v: %v to registry key %v: %v", name, value, k, err)
 		return trace.Wrap(err)
 	}
 	return nil
@@ -95,12 +78,7 @@ func WriteString(k registry.Key, name string, value string) error {
 func WriteMultiString(k registry.Key, name string, values []string) error {
 	err := k.SetStringsValue(name, values)
 	if err != nil {
-		slog.DebugContext(context.Background(), "Failed to write strings to registry key",
-			"name", name,
-			"values", values,
-			"key_name", k,
-			"error", err,
-		)
+		log.Debugf("Failed to write strings %v: %v to registry key %v: %v", name, values, k, err)
 		return trace.Wrap(err)
 	}
 	return nil

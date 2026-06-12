@@ -29,24 +29,23 @@ import (
 	"encoding/pem"
 	"fmt"
 	"strconv"
+	"text/template"
 
-	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/entitlements"
-	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/subca"
+	"github.com/gravitational/teleport/lib/auth/windows"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/winpki"
 )
 
 // GenerateWindowsDesktopCert generates client certificate for Windows RDP
 // authentication.
 func (a *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.WindowsDesktopCertRequest) (*proto.WindowsDesktopCertResponse, error) {
-	if !a.modules.Features().GetEntitlement(entitlements.Desktop).Enabled {
+	if !modules.GetModules().Features().GetEntitlement(entitlements.Desktop).Enabled {
 		return nil, trace.AccessDenied(
 			"this Teleport cluster is not licensed for desktop access, please contact the cluster administrator")
 	}
@@ -60,64 +59,24 @@ func (a *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	clusterName, err := a.GetClusterName(ctx)
+	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	caID := types.CertAuthID{
-		Type:       types.WindowsCA,
+	userCA, err := a.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.UserCA,
 		DomainName: clusterName.GetClusterName(),
-	}
-	if !req.SupportsWindowsCA {
-		var callerID string
-		if ig, err := authz.UserFromContext(ctx); err == nil {
-			callerID = ig.GetIdentity().Username
-		}
-		a.logger.WarnContext(ctx,
-			""+
-				"Windows Desktop Service caller does not support the WindowsCA. "+
-				"Issuing certificates using the UserCA.",
-			"caller_id", callerID,
-		)
-		caID.Type = types.UserCA
-	}
-	ca, err := a.GetCertAuthority(ctx, caID, true)
+	}, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	caCert, signer, err := a.GetKeyStore().GetTLSCertAndSigner(ctx, ca)
+	caCert, signer, err := a.GetKeyStore().GetTLSCertAndSigner(ctx, userCA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// Calculate CA override.
-	subCAResolver, err := a.loadCAOverrideResolverForCA(ctx, ca)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	overrideResult, err := subCAResolver.CalculateOverride(subca.Certificate{PEM: caCert})
-	if err != nil {
-		return nil, trace.Wrap(err, "calculate CA override")
-	}
-	caCert = overrideResult.CACertificate.PEM
-
 	tlsCA, err := tlsca.FromCertAndSigner(caCert, signer)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	// Our CSR may contains non-standard subject OIDs that
-	// we need to preserve, but de-serializing the CSR puts those fields
-	// in csr.Subject.Names which is ignored when re-serializing
-	// (See documentation on Names and ExtraNames fields of [pkix.Name])
-	// Copy the Names -> ExtraNames but be warned - The values in `ExtraNames`
-	// take precedence over standard Subject values (CommonName, Country, Organization, etc.)
-	// in the pkix.Name struct. If you modified any of these values after parsing the CSR,
-	// those modifications will be LOST upon cert generation.
-	// If you need to modify the original CSR's subject in this function, then we must
-	// take care to prune standard OIDs for these fields from csr.Subject.Names first.
-	if len(csr.Subject.Names) > 0 {
-		csr.Subject.ExtraNames = csr.Subject.Names
 	}
 
 	// See https://docs.microsoft.com/en-us/troubleshoot/windows-server/windows-security/enabling-smart-card-logon-third-party-certification-authorities
@@ -139,10 +98,7 @@ func (a *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 	// by the client because the CDP is based on the identity of the issuer, which is
 	// necessary in order to support clusters with multiple issuing certs (HSMs).
 	if req.CRLDomain != "" {
-		cdp, err := winpki.CRLDistributionPoint(req.CRLDomain, caID.Type, tlsCA, true)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+		cdp := windows.CRLDistributionPoint(req.CRLDomain, types.UserCA, tlsCA, true)
 		certReq.CRLDistributionPoints = []string{cdp}
 	} else if req.CRLEndpoint != "" {
 		// Legacy clients will specify CRL endpoint instead of CRL domain.
@@ -153,7 +109,7 @@ func (a *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 
 	certReq.ExtraExtensions = append(certReq.ExtraExtensions, pkix.Extension{
 		Id:    tlsca.LicenseOID,
-		Value: []byte(a.modules.BuildType()),
+		Value: []byte(modules.GetModules().BuildType()),
 	}, pkix.Extension{
 		Id:    tlsca.DesktopsLimitExceededOID,
 		Value: []byte(strconv.FormatBool(limitExceeded)),
@@ -163,15 +119,14 @@ func (a *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 		return nil, trace.Wrap(err)
 	}
 	return &proto.WindowsDesktopCertResponse{
-		Cert:       cert,
-		CaOverride: overrideResult.ToClientOverrideDetailsProto(),
+		Cert: cert,
 	}, nil
 }
 
 // desktopAccessConfigureScript is the script that will run on the windows
 // machine and configure Active Directory
 //
-//go:embed windows-configure-ad.ps1
+//go:embed windows/configure-ad.ps1
 var desktopAccessScriptConfigure string
 var DesktopAccessScriptConfigure = template.Must(template.New("desktop-access-configure-ad").Parse(desktopAccessScriptConfigure))
 
@@ -183,7 +138,7 @@ func (a *Server) GetDesktopBootstrapScript(ctx context.Context) (*proto.DesktopB
 
 	certAuthority, err := a.GetCertAuthority(
 		ctx,
-		types.CertAuthID{Type: types.WindowsCA, DomainName: clusterName},
+		types.CertAuthID{Type: types.UserCA, DomainName: clusterName},
 		false,
 	)
 	if err != nil {

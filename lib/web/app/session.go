@@ -21,13 +21,13 @@ package app
 import (
 	"context"
 	"math/rand/v2"
-	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -42,54 +42,40 @@ type session struct {
 	tr *transport
 }
 
-// getIdentityFromWebSession parses the TLS certificate from the web session and
-// extracts the user identity from its subject.
-func getIdentityFromWebSession(ws types.WebSession) (*tlsca.Identity, error) {
+// newSession creates a new session.
+func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session, error) {
+	// Extract the identity of the user.
 	certificate, err := tlsca.ParseCertificatePEM(ws.GetTLSCert())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	identity, err := tlsca.FromSubject(certificate.Subject, certificate.NotAfter)
-	return identity, trace.Wrap(err)
-}
-
-// newSession creates a new session.
-func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session, error) {
-	// Extract the identity of the user.
-	identity, err := getIdentityFromWebSession(ws)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Query the cluster this application is running in to find the public
 	// address and cluster name pair which will be encoded into the certificate.
-	clusterClient, err := h.c.ClusterGetter.Cluster(ctx, identity.RouteToApp.ClusterName)
+	clusterClient, err := h.c.ProxyClient.GetSite(identity.RouteToApp.ClusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	accessPoint, err := clusterClient.CachingAccessPoint()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	servers, err := MatchUnshuffled(
 		ctx,
-		clusterClient,
-		MatchPublicAddr(identity.RouteToApp.PublicAddr),
+		accessPoint,
+		appServerMatcher(h.c.ProxyClient, identity.RouteToApp.PublicAddr, identity.RouteToApp.ClusterName),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	if len(servers) == 0 {
 		return nil, trace.NotFound("failed to match applications")
-	}
-
-	// Match healthy servers. Having a list of only healthy
-	// servers helps the transport fail before the request is forwarded to a
-	// server (in cases where there are no healthy servers). This process might
-	// take an additional time to execute, but since it is cached, only a few
-	// requests need to perform it.
-	servers = slices.DeleteFunc(servers, func(appServer types.AppServer) bool {
-		return !isAppServerDialable(ctx, clusterClient, appServer)
-	})
-	if len(servers) == 0 {
-		return nil, trace.NotFound("all app servers unhealthy")
 	}
 
 	rand.Shuffle(len(servers), func(i, j int) {
@@ -98,9 +84,9 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session
 
 	// Create a rewriting transport that will be used to forward requests.
 	transport, err := newTransport(&transportConfig{
-		log:                   h.logger,
+		log:                   h.log,
 		clock:                 h.c.Clock,
-		clusterGetter:         h.c.ClusterGetter,
+		proxyClient:           h.c.ProxyClient,
 		accessPoint:           h.c.AccessPoint,
 		cipherSuites:          h.c.CipherSuites,
 		identity:              identity,
@@ -123,7 +109,7 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session
 		reverseproxy.WithPassHostHeader(),
 		reverseproxy.WithFlushInterval(100*time.Millisecond),
 		reverseproxy.WithRoundTripper(transport),
-		reverseproxy.WithLogger(h.logger),
+		reverseproxy.WithLogger(h.log),
 		reverseproxy.WithErrorHandler(h.handleForwardError),
 		reverseproxy.WithRewriter(hr),
 	)
@@ -135,4 +121,20 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session
 		ws:  ws,
 		tr:  transport,
 	}, nil
+}
+
+// appServerMatcher returns a Matcher function used to find which AppServer can
+// handle the application requests.
+func appServerMatcher(proxyClient reversetunnelclient.Tunnel, publicAddr string, clusterName string) Matcher {
+	// Match healthy and PublicAddr servers. Having a list of only healthy
+	// servers helps the transport fail before the request is forwarded to a
+	// server (in cases where there are no healthy servers). This process might
+	// take an additional time to execute, but since it is cached, only a few
+	// requests need to perform it.
+	return MatchAll(
+		MatchPublicAddr(publicAddr),
+		// NOTE: Try to leave this matcher as the last one to dial only the
+		// application servers that match the requested application.
+		MatchHealthy(proxyClient, clusterName),
+	)
 }

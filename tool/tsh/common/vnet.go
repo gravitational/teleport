@@ -47,7 +47,7 @@ func newVnetCommand(app *kingpin.Application) *vnetCommand {
 	cmd := &vnetCommand{
 		CmdClause: app.Command("vnet", "Start Teleport VNet, a virtual network for TCP application access."),
 	}
-	cmd.Flag("diag", "Run diagnostics after starting VNet.").Hidden().BoolVar(&cmd.runDiag)
+	cmd.Flag("diag", "Run diagnostics after starting VNet").Hidden().BoolVar(&cmd.runDiag)
 	return cmd
 }
 

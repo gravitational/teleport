@@ -16,16 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useState, type JSX } from 'react';
+import { useEffect, useState } from 'react';
 import styled from 'styled-components';
 
 import { Flex } from 'design';
 import InputSearch from 'design/DataTable/InputSearch';
 import { PageIndicatorText } from 'design/DataTable/Pager/PageIndicatorText';
-import { FlexProps } from 'design/Flex/Flex';
 import { AdvancedSearchToggle } from 'shared/components/AdvancedSearchToggle';
 
-// eslint-disable-next-line no-restricted-imports -- FIXME
+// oxlint-disable-next-line no-restricted-imports
 import { ResourceFilter } from 'teleport/services/agents';
 
 export function SearchPanel({
@@ -36,16 +35,14 @@ export function SearchPanel({
   disableSearch,
   hideAdvancedSearch,
   extraChildren,
-  mb = 3,
 }: {
   updateQuery?: (s: string) => void;
   updateSearch: (s: string) => void;
   pageIndicators?: { from: number; to: number; total: number };
   filter: ResourceFilter;
-  disableSearch?: boolean;
+  disableSearch: boolean;
   hideAdvancedSearch?: boolean;
   extraChildren?: JSX.Element;
-  mb?: FlexProps['mb'];
 }) {
   const [query, setQuery] = useState(filter.search || filter.query || '');
   const [isAdvancedSearch, setIsAdvancedSearch] = useState(!!filter.query);
@@ -75,7 +72,7 @@ export function SearchPanel({
       justifyContent="space-between"
       alignItems="center"
       width="100%"
-      mb={mb}
+      mb={3}
     >
       <Flex style={{ width: '100%' }} alignItems="center">
         <StyledFlex

@@ -58,7 +58,7 @@ export function TopBar(props: {
 const Grid = styled(Flex).attrs({ gap: 3, py: 2, px: 3 })`
   background: ${props => props.theme.colors.levels.surface};
   width: 100%;
-  height: ${p => p.theme.topBarHeight[1]}px;
+  height: 56px;
   align-items: center;
   justify-content: space-between;
 `;

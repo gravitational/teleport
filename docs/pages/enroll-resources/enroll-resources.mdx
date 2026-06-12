@@ -20,7 +20,6 @@ import linuxServersSvg from "@site/src/components/Icon/teleport-svg/linux-server
 import databaseSvg from "@site/src/components/Icon/teleport-svg/database-access.svg";
 import kubernetesClustersSvg from "@site/src/components/Icon/teleport-svg/kubernetes-clusters.svg";
 import windowsDesktopsSvg from "@site/src/components/Icon/teleport-svg/windows-desktops.svg";
-import mcpAndAiSvg from "@site/src/components/Icon/teleport-svg/mcp-and-ai.svg";
 
 <LandingHero
   title="Enroll Resources"
@@ -44,7 +43,7 @@ import mcpAndAiSvg from "@site/src/components/Icon/teleport-svg/mcp-and-ai.svg";
 >
 Teleport protects infrastructure resources such as servers, databases, and Kubernetes clusters by enforcing strong access controls and auditability. Once a resource is enrolled with Teleport, you can manage access to it using the Teleport role-based access control (RBAC) system, allowing you to define which users or teams can connect and what actions they are permitted to perform.
 - [Learn about Teleport Agents](../reference/architecture/agents.mdx)
-- [Restrict access to resources with RBAC](../zero-trust-access/rbac-get-started/rbac-get-started.mdx)
+- [Restrict access to resources with RBAC](../zero-trust-access/access-controls/access-controls.mdx)
 </LandingHero>
 
 <EnrollmentMethods>
@@ -64,17 +63,17 @@ tagLists={
           },
           {
             name: "Web apps",
-            href: "./application-access/protect-apps/connecting-apps/",
+            href: "./application-access/guides/connecting-apps/",
             icon: "appWindow",
           },
           {
             name: "TCP apps",
-            href: "./application-access/protect-apps/tcp/",
+            href: "./application-access/guides/tcp/",
             icon: "tcp",
           },
           {
             name: "more",
-            href: "./application-access/configuration/",
+            href: "./application-access/guides/",
             arrow: true,
           }
         ]
@@ -95,17 +94,17 @@ tagLists={
         [
           {
             name: "AWS",
-            href: "./database-access/enrollment/aws/",
+            href: "./database-access/enroll-aws-databases/",
             icon: "aws",
           },
           {
             name: "Azure",
-            href: "./database-access/enrollment/azure/",
+            href: "./database-access/enroll-azure-databases/",
             icon: "azure",
           },
          {
             name: "Google Cloud",
-            href: "./database-access/enrollment/google-cloud/",
+            href: "./database-access/enroll-google-cloud-databases/",
             icon: "googleCloud",
           },
           {
@@ -199,35 +198,6 @@ tagLists={
 }
 >
 Streamline SSH access, reduce configuration overhead, and provide auditability.
-</Method>
-<Method
-title="MCP Servers"
-icon={mcpAndAiSvg}
-href="./mcp-access/"
-tagLists={
-  [
-    {
-      title: "MCP Server Guides",
-      tags:
-        [
-          {
-            name: "Get Started Guide",
-            href: "./mcp-access/getting-started/",
-          },
-          {
-            name: "Configure MCP clients",
-            href: "./mcp-access/rbac/",
-          },
-          {
-            name: "DB access for MCP",
-            href: "../connect-your-client/model-context-protocol/database-access/",
-          },
-        ]
-    },
-  ]
-}
->
-Secure the vibes with access controls and auditability for all Model Context Protocol access.
 </Method>
 </EnrollmentMethods>
 

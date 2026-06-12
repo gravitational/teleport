@@ -26,7 +26,6 @@ import (
 	"context"
 	"crypto"
 	"crypto/x509"
-	"iter"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -36,7 +35,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 )
 
@@ -67,31 +65,8 @@ type UsersService interface {
 	GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error)
 	// ListUsers returns a page of users.
 	ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)
-}
-
-// IdentityInternal extends the Identity interface with auth-specific internal methods.
-type IdentityInternal interface {
-	Identity
-
-	// AppendPutUserParamsActions adds conditional actions to an atomic write to
-	// create or update the user params resource (without secrets, mfa devices).
-	AppendPutUserParamsActions(
-		actions []backend.ConditionalAction,
-		user types.User,
-		condition backend.Condition,
-	) ([]backend.ConditionalAction, error)
-
-	// AppendDeleteUserParamsActions adds conditional actions to an atomic write
-	// to delete the user params resource.
-	//
-	// Note: the returned actions will NOT delete the user's password, MFA devices,
-	// etc. so is only really suitable for bot users, in most cases you should use
-	// DeleteUser instead.
-	AppendDeleteUserParamsActions(
-		actions []backend.ConditionalAction,
-		user string,
-		condition backend.Condition,
-	) ([]backend.ConditionalAction, error)
+	// DeleteAllUsers deletes all users
+	DeleteAllUsers(ctx context.Context) error
 }
 
 // Identity is responsible for managing user entries and external identities
@@ -216,9 +191,6 @@ type Identity interface {
 	// ListOIDCConnectors returns a page of valid registered connectors.
 	// withSecrets adds or removes client secret from return results.
 	ListOIDCConnectors(ctx context.Context, limit int, start string, withSecrets bool) ([]types.OIDCConnector, string, error)
-	// RangeOIDCConnectors returns valid registered connectors within the range [start, end).
-	// withSecrets adds or removes client secret from return results.
-	RangeOIDCConnectors(ctx context.Context, start, end string, withSecrets bool) iter.Seq2[types.OIDCConnector, error]
 
 	// CreateOIDCAuthRequest creates new auth request
 	CreateOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest, ttl time.Duration) error
@@ -250,9 +222,6 @@ type Identity interface {
 	// ListSAMLConnectorsWithOptions returns a page of valid registered connectors.
 	// withSecrets adds or removes client secret from return results.
 	ListSAMLConnectorsWithOptions(ctx context.Context, limit int, start string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) ([]types.SAMLConnector, string, error)
-	// RangeSAMLConnectorsWithOptions returns valid registered connectors within the range [start, end).
-	// withSecrets adds or removes client secret from return results.
-	RangeSAMLConnectorsWithOptions(ctx context.Context, start, end string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) iter.Seq2[types.SAMLConnector, error]
 
 	// CreateSAMLAuthRequest creates new auth request
 	CreateSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest, ttl time.Duration) error
@@ -278,9 +247,6 @@ type Identity interface {
 	// ListGithubConnectors returns a page of valid registered Github connectors.
 	// withSecrets adds or removes client secret from return results.
 	ListGithubConnectors(ctx context.Context, limit int, start string, withSecrets bool) ([]types.GithubConnector, string, error)
-	// RangeGithubConnectors returns valid registered Github connectors within the range [start, end).
-	// withSecrets adds or removes client secret from return results.
-	RangeGithubConnectors(ctx context.Context, start, end string, withSecrets bool) iter.Seq2[types.GithubConnector, error]
 
 	// GetGithubConnector returns a Github connector by its name
 	GetGithubConnector(ctx context.Context, name string, withSecrets bool) (types.GithubConnector, error)
@@ -294,34 +260,15 @@ type Identity interface {
 	// GetGithubAuthRequest retrieves Github auth request by the token
 	GetGithubAuthRequest(ctx context.Context, stateToken string) (*types.GithubAuthRequest, error)
 
-	// UpsertMFASessionData creates or updates MFA session data in
-	// storage, for the purpose of later verifying an MFA authentication attempt.
-	// MFA session data is expected to expire according to backend settings.
-	// Used for both SSO and Browser MFA.
-	UpsertMFASessionData(ctx context.Context, sd *MFASessionData) error
-
-	// GetMFASessionData retrieves SSO or Browser MFA session data by ID.
-	GetMFASessionData(ctx context.Context, sessionID string) (*MFASessionData, error)
-
-	// DeleteMFASessionData deletes SSO or Browser MFA session data by ID.
-	DeleteMFASessionData(ctx context.Context, sessionID string) error
-
-	// TODO(danielashare): Remove deprecated *SSOMFASessionData functions once teleport.e is using the new functions
 	// UpsertSSOMFASessionData creates or updates SSO MFA session data in
-	// storage, for the purpose of later verifying an SSO MFA authentication
-	// attempt.
-	//
-	// Deprecated: use UpsertMFASessionData.
+	// storage, for the purpose of later verifying an MFA authentication attempt.
+	// SSO MFA session data is expected to expire according to backend settings.
 	UpsertSSOMFASessionData(ctx context.Context, sd *SSOMFASessionData) error
 
 	// GetSSOMFASessionData retrieves SSO MFA session data by ID.
-	//
-	// Deprecated: use GetMFASessionData.
 	GetSSOMFASessionData(ctx context.Context, sessionID string) (*SSOMFASessionData, error)
 
 	// DeleteSSOMFASessionData deletes SSO MFA session data by ID.
-	//
-	// Deprecated: use DeleteMFASessionData.
 	DeleteSSOMFASessionData(ctx context.Context, sessionID string) error
 
 	// CreateUserToken creates a new user token.
@@ -330,8 +277,8 @@ type Identity interface {
 	// DeleteUserToken deletes a user token.
 	DeleteUserToken(ctx context.Context, tokenID string) error
 
-	// ListUserTokens returns a page of user tokens.
-	ListUserTokens(ctx context.Context, limit int, startKey string) ([]types.UserToken, string, error)
+	// GetUserTokens returns all user tokens.
+	GetUserTokens(ctx context.Context) ([]types.UserToken, error)
 
 	// GetUserToken returns a user token by id.
 	GetUserToken(ctx context.Context, tokenID string) (types.UserToken, error)
@@ -363,29 +310,24 @@ type Identity interface {
 	AppSession
 	// SnowflakeSession defines Snowflake session features.
 	SnowflakeSession
+	// SAMLIdPSession defines SAML IdP session features.
+	SAMLIdPSession
 }
 
-// AppSessionReader defines application session features available to remote clients.
-type AppSessionReader interface {
+// AppSession defines application session features.
+type AppSession interface {
 	// GetAppSession gets an application web session.
 	GetAppSession(context.Context, types.GetAppSessionRequest) (types.WebSession, error)
 	// ListAppSessions gets a paginated list of application web sessions.
 	ListAppSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error)
+	// UpsertAppSession upserts an application web session.
+	UpsertAppSession(context.Context, types.WebSession) error
 	// DeleteAppSession removes an application web session.
 	DeleteAppSession(context.Context, types.DeleteAppSessionRequest) error
 	// DeleteAllAppSessions removes all application web sessions.
 	DeleteAllAppSessions(context.Context) error
 	// DeleteUserAppSessions deletes all user’s application sessions.
 	DeleteUserAppSessions(ctx context.Context, req *proto.DeleteUserAppSessionsRequest) error
-}
-
-// AppSession defines application session features.
-type AppSession interface {
-	AppSessionReader
-	// UpdateAppSession updates an existing application web session if the revisions match.
-	UpdateAppSession(context.Context, types.WebSession) error
-	// UpsertAppSession upserts an application web session.
-	UpsertAppSession(context.Context, types.WebSession) error
 }
 
 // SnowflakeSession defines Snowflake session features.
@@ -396,14 +338,28 @@ type SnowflakeSession interface {
 	GetSnowflakeSessions(context.Context) ([]types.WebSession, error)
 	// ListSnowflakeSessions returns a page of Snowflake web sessions.
 	ListSnowflakeSessions(ctx context.Context, limit int, start string) ([]types.WebSession, string, error)
-	// RangeSnowflakeSessions returns Snowflake web sessions within the range [start, end).
-	RangeSnowflakeSessions(ctx context.Context, start, end string) iter.Seq2[types.WebSession, error]
 	// UpsertSnowflakeSession upserts a Snowflake web session.
 	UpsertSnowflakeSession(context.Context, types.WebSession) error
 	// DeleteSnowflakeSession removes a Snowflake web session.
 	DeleteSnowflakeSession(context.Context, types.DeleteSnowflakeSessionRequest) error
 	// DeleteAllSnowflakeSessions removes all Snowflake web sessions.
 	DeleteAllSnowflakeSessions(context.Context) error
+}
+
+// SAMLIdPSession defines SAML IdP session features.
+type SAMLIdPSession interface {
+	// GetSAMLIdPSession gets a SAML IdP session.
+	GetSAMLIdPSession(context.Context, types.GetSAMLIdPSessionRequest) (types.WebSession, error)
+	// ListSAMLIdPSessions gets a paginated list of SAML IdP sessions.
+	ListSAMLIdPSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error)
+	// UpsertSAMLIdPSession upserts a SAML IdP session.
+	UpsertSAMLIdPSession(context.Context, types.WebSession) error
+	// DeleteSAMLIdPSession removes a SAML IdP session.
+	DeleteSAMLIdPSession(context.Context, types.DeleteSAMLIdPSessionRequest) error
+	// DeleteAllSAMLIdPSessions removes all SAML IdP sessions.
+	DeleteAllSAMLIdPSessions(context.Context) error
+	// DeleteUserSAMLIdPSessions deletes all of a user's SAML IdP sessions.
+	DeleteUserSAMLIdPSessions(ctx context.Context, user string) error
 }
 
 // HeadlessAuthenticationService is responsible for headless authentication resource management

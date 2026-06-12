@@ -20,35 +20,36 @@ package services
 
 import (
 	"context"
-	"iter"
 
 	"github.com/gravitational/trace"
 
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
-	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/modules"
 )
 
-// ClusterNameGetter is a service that gets the cluster name from the backend.
-type ClusterNameGetter interface {
-	// GetClusterName gets types.ClusterName from the backend.
-	GetClusterName(ctx context.Context) (types.ClusterName, error)
-}
-
 // ClusterConfiguration stores the cluster configuration in the backend. All
 // the resources modified by this interface can only have a single instance
 // in the backend.
 type ClusterConfiguration interface {
-	ClusterNameGetter
+	// GetClusterName gets types.ClusterName from the backend.
+	GetClusterName(opts ...MarshalOption) (types.ClusterName, error)
+	// SetClusterName sets services.ClusterName on the backend.
+	SetClusterName(types.ClusterName) error
+	// UpsertClusterName upserts cluster name
+	UpsertClusterName(types.ClusterName) error
+
+	// DeleteClusterName deletes cluster name resource
+	DeleteClusterName() error
 
 	// GetStaticTokens gets services.StaticTokens from the backend.
-	GetStaticTokens(context.Context) (types.StaticTokens, error)
+	GetStaticTokens() (types.StaticTokens, error)
 	// SetStaticTokens sets services.StaticTokens on the backend.
 	SetStaticTokens(types.StaticTokens) error
 	// DeleteStaticTokens deletes static tokens resource
 	DeleteStaticTokens() error
+
 	// GetUIConfig gets the proxy service UI config from the backend
 	GetUIConfig(context.Context) (types.UIConfig, error)
 	// SetUIConfig sets the proxy service UI config from the backend
@@ -104,11 +105,6 @@ type ClusterConfiguration interface {
 
 	// GetInstallers gets all installer scripts from the backend
 	GetInstallers(context.Context) ([]types.Installer, error)
-	// ListInstallers returns a page of installer script resources.
-	ListInstallers(ctx context.Context, limit int, start string) ([]types.Installer, string, error)
-	// RangeInstallers returns installer script resources within the range [start, end).
-	RangeInstallers(ctx context.Context, start, end string) iter.Seq2[types.Installer, error]
-
 	// GetInstaller gets the installer script from the backend
 	GetInstaller(ctx context.Context, name string) (types.Installer, error)
 	// SetInstaller sets the installer script in the backend
@@ -141,14 +137,6 @@ type ClusterConfiguration interface {
 // auth-specific methods.
 type ClusterConfigurationInternal interface {
 	ClusterConfiguration
-	StaticScopedTokenService
-
-	// SetClusterName sets services.ClusterName on the backend.
-	SetClusterName(types.ClusterName) error
-	// UpsertClusterName upserts cluster name
-	UpsertClusterName(types.ClusterName) error
-	// DeleteClusterName deletes cluster name resource
-	DeleteClusterName() error
 
 	// AppendCheckAuthPreferenceActions appends some atomic write actions to the
 	// given slice that will check that the currently stored cluster auth
@@ -157,18 +145,6 @@ type ClusterConfigurationInternal interface {
 	// applied should be the same backend used by the
 	// ClusterConfigurationInternal.
 	AppendCheckAuthPreferenceActions(actions []backend.ConditionalAction, revision string) ([]backend.ConditionalAction, error)
-}
-
-// StaticScopedTokenService is the interface for interacting with the cluster's
-// [*joiningv1.StaticScopedTokens].
-type StaticScopedTokenService interface {
-	// GetStaticScopedTokens gets [*joiningv1.StaticScopedTokens] from the backend.
-	GetStaticScopedTokens(context.Context) (*joiningv1.StaticScopedTokens, error)
-	// SetStaticScopedTokens sets [*joiningv1.StaticScopedTokens] to the backend.
-	SetStaticScopedTokens(context.Context, *joiningv1.StaticScopedTokens) error
-	// DeleteStaticScopedTokens deletes the [*joiningv1.StaticScopedTokens] resource resource
-	// from the backend
-	DeleteStaticScopedTokens(context.Context) error
 }
 
 // ValidateAuthPreference performs checks that should happen before persisting a

@@ -78,10 +78,9 @@ export const FileTransferRequests = () => {
 
   useEffect(() => {
     // Wait a little for the DocumentSshWrapper to register listeners.
-    const timerId = setTimeout(() => {
+    setTimeout(() => {
       tty.emit(EventType.FILE_TRANSFER_REQUEST, fileTransferRequest);
     }, 50);
-    return () => clearTimeout(timerId);
   }, [tty]);
 
   return <DocumentSshWrapper ctx={ctx} consoleCtx={consoleCtx} doc={doc} />;

@@ -17,43 +17,37 @@
  */
 
 import React from 'react';
-import { MemoryRouter, Route, Routes } from 'react-router';
+import { MemoryRouter } from 'react-router';
 
 import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import { ContextProvider } from 'teleport';
+import { Route } from 'teleport/components/Router';
 import {
   awsOidcStatusContext,
   AwsOidcStatusContextState,
 } from 'teleport/Integrations/status/AwsOidc/useAwsOidcStatus';
 import { createTeleportContext } from 'teleport/mocks/contexts';
-import { Acl } from 'teleport/services/user';
 
 export const MockAwsOidcStatusProvider = ({
   children,
   value,
   initialEntries,
   path,
-  customAcl,
 }: {
   children?: React.ReactNode;
   value: AwsOidcStatusContextState;
   path: string;
   initialEntries?: string[];
-  customAcl?: Acl;
 }) => {
-  const ctx = customAcl
-    ? createTeleportContext({ customAcl })
-    : createTeleportContext();
+  const ctx = createTeleportContext();
 
   return (
     <MemoryRouter initialEntries={initialEntries}>
       <ContextProvider ctx={ctx}>
         <InfoGuidePanelProvider>
           <awsOidcStatusContext.Provider value={value}>
-            <Routes>
-              <Route path={path || '*'} element={<>{children}</>} />
-            </Routes>
+            <Route path={path} render={() => <>{children}</>} />
           </awsOidcStatusContext.Provider>
         </InfoGuidePanelProvider>
       </ContextProvider>

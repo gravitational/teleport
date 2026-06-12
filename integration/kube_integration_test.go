@@ -27,7 +27,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -42,6 +41,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/http2"
@@ -71,14 +71,17 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/integration/kube"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/defaults"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -86,7 +89,6 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/web"
 	"github.com/gravitational/teleport/lib/web/terminal"
 )
@@ -106,7 +108,7 @@ type KubeSuite struct {
 	kubeConfig *rest.Config
 
 	// log defines the test-specific logger
-	log *slog.Logger
+	log utils.Logger
 }
 
 func newKubeSuite(t *testing.T) *KubeSuite {
@@ -119,7 +121,7 @@ func newKubeSuite(t *testing.T) *KubeSuite {
 	}
 	require.NotEmpty(t, suite.kubeConfigPath, "This test requires path to valid kubeconfig.")
 	var err error
-	suite.priv, suite.pub, err = testauthority.GenerateKeyPair()
+	suite.priv, suite.pub, err = testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	suite.me, err = user.Current()
@@ -169,7 +171,7 @@ type kubeIntegrationTest func(t *testing.T, suite *KubeSuite)
 
 func (s *KubeSuite) bind(test kubeIntegrationTest) func(t *testing.T) {
 	return func(t *testing.T) {
-		s.log = logtest.NewLogger()
+		s.log = utils.NewLoggerForTests()
 		os.RemoveAll(profile.FullProfilePath(""))
 		t.Cleanup(func() { s.log = nil })
 		test(t, s)
@@ -207,7 +209,7 @@ func testExec(t *testing.T, suite *KubeSuite, pinnedIP string, clientError strin
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Logger:      suite.log,
+		Log:         suite.log,
 	})
 
 	username := suite.me.Username
@@ -223,7 +225,7 @@ func testExec(t *testing.T, suite *KubeSuite, pinnedIP string, clientError strin
 			},
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: "pods", Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}, APIGroup: types.Wildcard,
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
 				},
 			},
 		},
@@ -423,7 +425,7 @@ func testKubeDeny(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Logger:      suite.log,
+		Log:         suite.log,
 	})
 
 	username := suite.me.Username
@@ -436,7 +438,7 @@ func testKubeDeny(t *testing.T, suite *KubeSuite) {
 			KubeUsers:  kubeUsers,
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: "pods", Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}, APIGroup: types.Wildcard,
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
 				},
 			},
 		},
@@ -480,7 +482,7 @@ func testKubePortForward(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Logger:      suite.log,
+		Log:         suite.log,
 	})
 
 	username := suite.me.Username
@@ -494,7 +496,7 @@ func testKubePortForward(t *testing.T, suite *KubeSuite) {
 			},
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: "pods", Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}, APIGroup: types.Wildcard,
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
 				},
 			},
 		},
@@ -607,7 +609,7 @@ func testKubePortForwardPodDisconnect(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Logger:      suite.log,
+		Log:         suite.log,
 	})
 
 	username := suite.me.Username
@@ -621,7 +623,7 @@ func testKubePortForwardPodDisconnect(t *testing.T, suite *KubeSuite) {
 			},
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: "pods", Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}, APIGroup: types.Wildcard,
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
 				},
 			},
 		},
@@ -700,9 +702,7 @@ func testKubePortForwardPodDisconnect(t *testing.T, suite *KubeSuite) {
 				// Setup port-forwarding configuration.
 				listener, err := net.Listen("tcp", "localhost:0")
 				require.NoError(t, err)
-				t.Cleanup(func() {
-					require.NoError(t, listener.Close())
-				})
+				t.Cleanup(func() { require.NoError(t, listener.Close()) })
 				localPort := listener.Addr().(*net.TCPAddr).Port
 				forwarder, err := tt.builder(proxyClientConfig, kubePortForwardArgs{
 					ports:        []string{fmt.Sprintf("%d:80", localPort)},
@@ -774,7 +774,7 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Logger:      suite.log,
+		Log:         suite.log,
 	})
 
 	// main cluster has a role and user called main-kube
@@ -789,7 +789,7 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 			},
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: "pods", Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}, APIGroup: types.Wildcard,
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
 				},
 			},
 		},
@@ -805,15 +805,16 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Logger:      suite.log,
+		Log:         suite.log,
 	})
 
-	mainConf.InsecureMode = true
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
 	mainConf.Proxy.Kube.Enabled = true
 	err = main.CreateEx(t, nil, mainConf)
 	require.NoError(t, err)
 
-	auxConf.InsecureMode = true
 	err = aux.CreateEx(t, nil, auxConf)
 	require.NoError(t, err)
 
@@ -834,7 +835,7 @@ func testKubeTrustedClustersClientCert(t *testing.T, suite *KubeSuite) {
 			},
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: "pods", Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}, APIGroup: types.Wildcard,
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
 				},
 			},
 		},
@@ -1046,7 +1047,7 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Logger:      suite.log,
+		Log:         suite.log,
 	})
 
 	// main cluster has a role and user called main-kube
@@ -1061,7 +1062,7 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 			},
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: "pods", Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}, APIGroup: types.Wildcard,
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
 				},
 			},
 		},
@@ -1077,10 +1078,12 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Logger:      suite.log,
+		Log:         suite.log,
 	})
 
-	mainConf.InsecureMode = true
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
 	// route all the traffic to the aux cluster
 	mainConf.Proxy.Kube.Enabled = true
 	// ClusterOverride forces connection to be routed
@@ -1089,7 +1092,6 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 	err = main.CreateEx(t, nil, mainConf)
 	require.NoError(t, err)
 
-	auxConf.InsecureMode = true
 	err = aux.CreateEx(t, nil, auxConf)
 	require.NoError(t, err)
 
@@ -1110,7 +1112,7 @@ func testKubeTrustedClustersSNI(t *testing.T, suite *KubeSuite) {
 			KubeGroups: auxKubeGroups,
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: "pods", Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}, APIGroup: types.Wildcard,
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
 				},
 			},
 		},
@@ -1315,7 +1317,8 @@ func testKubeDisconnect(t *testing.T, suite *KubeSuite) {
 			options: types.RoleOptions{
 				ClientIdleTimeout: types.NewDuration(500 * time.Millisecond),
 			},
-			verifyError: errorContains("Client exceeded idle timeout of"),
+			disconnectTimeout: 2 * time.Second,
+			verifyError:       errorContains("Client exceeded idle timeout of"),
 		},
 		{
 			name: "expired cert",
@@ -1323,7 +1326,8 @@ func testKubeDisconnect(t *testing.T, suite *KubeSuite) {
 				DisconnectExpiredCert: types.NewBool(true),
 				MaxSessionTTL:         types.NewDuration(3 * time.Second),
 			},
-			verifyError: errorContains("client certificate expire"),
+			disconnectTimeout: 6 * time.Second,
+			verifyError:       errorContains("client certificate expire"),
 		},
 	}
 
@@ -1348,7 +1352,7 @@ func runKubeDisconnectTest(t *testing.T, suite *KubeSuite, tc disconnectTestCase
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Logger:      suite.log,
+		Log:         suite.log,
 	})
 
 	username := suite.me.Username
@@ -1363,7 +1367,7 @@ func runKubeDisconnectTest(t *testing.T, suite *KubeSuite, tc disconnectTestCase
 			},
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: "pods", Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}, APIGroup: types.Wildcard,
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
 				},
 			},
 		},
@@ -1428,17 +1432,11 @@ func runKubeDisconnectTest(t *testing.T, suite *KubeSuite, tc disconnectTestCase
 	}, 5*time.Second, 10*time.Millisecond, "Failed to get shell prompt. "+
 		"If this fails, the exec command is likely hanging and never reaching the kind cluster")
 
-	// Connection timeouts are determined by the last packet observed on the exec
-	// stream, not just the last input sent by the client. For Kubernetes exec
-	// sessions, shell output and protocol traffic can keep the connection active,
-	// so under load we can't predict exactly when the timeout will occur. Use a
-	// conservative timeout of 1 minute.
-	disconnectTimeout := time.Minute
-
 	// lets type something followed by "enter" and then hang the session
 	require.NoError(t, enterInput(sessionCtx, term, "echo boring platypus\r\n", ".*boring platypus.*"))
+	time.Sleep(tc.disconnectTimeout)
 	select {
-	case <-time.After(disconnectTimeout):
+	case <-time.After(tc.disconnectTimeout):
 		t.Fatalf("timeout waiting for session to exit")
 	case <-sessionCtx.Done():
 		// session closed
@@ -1455,7 +1453,7 @@ func testKubeTransportProtocol(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Logger:      suite.log,
+		Log:         suite.log,
 	})
 
 	username := suite.me.Username
@@ -1469,7 +1467,7 @@ func testKubeTransportProtocol(t *testing.T, suite *KubeSuite) {
 			},
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: "pods", Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}, APIGroup: types.Wildcard,
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
 				},
 			},
 		},
@@ -1547,16 +1545,23 @@ func testKubeTransportProtocol(t *testing.T, suite *KubeSuite) {
 
 // TODO: test against tsh kubectl
 func testKubeEphemeralContainers(t *testing.T, suite *KubeSuite) {
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.K8s: {Enabled: true},
+			},
+		},
+	})
+
 	tconf := suite.teleKubeConfig(Host)
-	tconf.Modules = modulestest.EnterpriseModules()
 	teleport := helpers.NewInstance(t, helpers.InstanceConfig{
 		ClusterName: helpers.Site,
 		HostID:      helpers.HostID,
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Logger:      suite.log,
-		Modules:     tconf.Modules,
+		Log:         suite.log,
 	})
 
 	username := suite.me.Username
@@ -1572,11 +1577,10 @@ func testKubeEphemeralContainers(t *testing.T, suite *KubeSuite) {
 			},
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind:      "pods",
+					Kind:      types.KindKubePod,
 					Name:      types.Wildcard,
 					Namespace: types.Wildcard,
 					Verbs:     []string{types.Wildcard},
-					APIGroup:  types.Wildcard,
 				},
 			},
 		},
@@ -1841,7 +1845,7 @@ func testKubeExecWeb(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Logger:      suite.log,
+		Log:         suite.log,
 	})
 
 	// Setup user and role.
@@ -1858,7 +1862,7 @@ func testKubeExecWeb(t *testing.T, suite *KubeSuite) {
 			},
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: types.Wildcard, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}, APIGroup: types.Wildcard,
+					Kind: types.Wildcard, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
 				},
 			},
 		},
@@ -1956,7 +1960,7 @@ func testKubeExecWeb(t *testing.T, suite *KubeSuite) {
 
 		ws := openWebsocketAndReadSession(t, endpoint, req)
 
-		wsStream := terminal.NewWStream(t.Context(), ws, logtest.NewLogger(), nil)
+		wsStream := terminal.NewWStream(t.Context(), ws, suite.log, nil)
 
 		// Check for the expected string in the output.
 		findTextInReader(t, wsStream, testNamespace, time.Second*2)
@@ -1977,7 +1981,7 @@ func testKubeExecWeb(t *testing.T, suite *KubeSuite) {
 
 		ws := openWebsocketAndReadSession(t, endpoint, req)
 
-		wsStream := terminal.NewWStream(t.Context(), ws, logtest.NewLogger(), nil)
+		wsStream := terminal.NewWStream(t.Context(), ws, suite.log, nil)
 
 		// Read first prompt from the server.
 		readData := make([]byte, 255)
@@ -2024,7 +2028,8 @@ type sessionMetadataResponse struct {
 // teleKubeConfig sets up teleport with kubernetes turned on
 func (s *KubeSuite) teleKubeConfig(hostname string) *servicecfg.Config {
 	tconf := servicecfg.MakeDefaultConfig()
-	tconf.Logger = s.log
+	tconf.Console = nil
+	tconf.Log = s.log
 	tconf.SSH.Enabled = false
 	tconf.Proxy.DisableWebInterface = true
 	tconf.Proxy.DisableDatabaseProxy = true
@@ -2048,7 +2053,8 @@ func (s *KubeSuite) teleKubeConfig(hostname string) *servicecfg.Config {
 // teleAuthConfig sets up teleport with Auth turned on
 func (s *KubeSuite) teleAuthConfig() *servicecfg.Config {
 	tconf := servicecfg.MakeDefaultConfig()
-	tconf.Logger = s.log
+	tconf.Console = nil
+	tconf.Log = s.log
 	tconf.PollingPeriod = 500 * time.Millisecond
 	tconf.Testing.ClientTimeout = time.Second
 	tconf.Testing.ShutdownTimeout = 2 * tconf.Testing.ClientTimeout
@@ -2339,7 +2345,7 @@ func testKubeJoin(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Logger:      suite.log,
+		Log:         suite.log,
 	})
 
 	// fooey
@@ -2359,7 +2365,7 @@ func testKubeJoin(t *testing.T, suite *KubeSuite) {
 			},
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: "pods", Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}, APIGroup: types.Wildcard,
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
 				},
 			},
 		},
@@ -2550,13 +2556,13 @@ func testKubeJoin(t *testing.T, suite *KubeSuite) {
 
 	// validate that the output from both messages above is
 	// written to the participant stdout in the expected order.
-	require.NoError(t, waitForOutput(t.Context(), participantStdoutR, "hi from peer"))
+	require.NoError(t, waitForOutput(t.Context(), suite.log, participantStdoutR, "hi from peer"))
 
 	// type "hi from term" followed by "enter" to broadcast data
 	// to all participants.
 	term.Type("\aecho \"hi from term\"\n\r")
 
-	require.NoError(t, waitForOutput(t.Context(), participantStdoutR, "hi from term"))
+	require.NoError(t, waitForOutput(t.Context(), suite.log, participantStdoutR, "hi from term"))
 
 	// send exit command to close the session
 	term.Type("\aexit 0\n\r")
@@ -2580,11 +2586,14 @@ func testKubeJoin(t *testing.T, suite *KubeSuite) {
 	}
 }
 
-func waitForOutput(ctx context.Context, r ReaderWithDeadline, expected string) error {
-	var out strings.Builder
-	chunk := make([]byte, int64(len(expected)*2))
+func waitForOutput(ctx context.Context, logger utils.Logger, r ReaderWithDeadline, expected string) error {
+	var prev string
+	out := make([]byte, int64(len(expected)*3))
 	defer func() {
-		slog.DebugContext(ctx, "waitForOutput final read", "output", removeSpace(out.String()), "expected", expected)
+		logger.WithFields(logrus.Fields{
+			"output":   prev,
+			"expected": expected,
+		}).Debug("waitForOutput final read")
 	}()
 	for {
 		select {
@@ -2599,26 +2608,29 @@ func waitForOutput(ctx context.Context, r ReaderWithDeadline, expected string) e
 				return trace.Wrap(err)
 			}
 		}
-		n, err := r.Read(chunk)
-		out.Write(chunk[:n])
+		n, err := r.Read(out)
+		outStr := removeSpace(string(out[:n]))
 
-		normalized := removeSpace(out.String())
-		slog.DebugContext(ctx, "waitForOutput read", "output", normalized, "expected", expected)
+		prev += outStr
+		logger.WithFields(logrus.Fields{
+			"output":   prev,
+			"expected": expected,
+		}).Debug("waitForOutput read")
 
 		// Check for [expected] before checking the error,
 		// as it's valid for n > 0 even when there is an error.
 		// The [expected] is checked against the current and previous
 		// output to account for scenarios where the [expected] is split
-		// across 2+ reads. While we try to prevent this by reading
+		// across two reads. While we try to prevent this by reading
 		// twice the length of [expected] there are no guarantees the
-		// whole thing will arrive in a single read since there is no
-		// minimum chunk length.
-		if n > 0 && strings.Contains(normalized, expected) {
+		// whole thing will arrive in a single read.
+		if n > 0 && strings.Contains(prev, expected) {
 			return nil
 		}
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
 	}
 }
 
@@ -2640,7 +2652,7 @@ func testKubeJoinWeb(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Logger:      suite.log,
+		Log:         suite.log,
 	})
 
 	hostUsername := suite.me.Username
@@ -2659,7 +2671,7 @@ func testKubeJoinWeb(t *testing.T, suite *KubeSuite) {
 			},
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: "pods", Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}, APIGroup: types.Wildcard,
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
 				},
 			},
 		},
@@ -2937,7 +2949,7 @@ func testExecNoAuth(t *testing.T, suite *KubeSuite) {
 		NodeName:    Host,
 		Priv:        suite.priv,
 		Pub:         suite.pub,
-		Logger:      suite.log,
+		Log:         suite.log,
 	})
 
 	adminUsername := "admin"
@@ -2953,7 +2965,7 @@ func testExecNoAuth(t *testing.T, suite *KubeSuite) {
 			},
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: "pods", Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}, APIGroup: types.Wildcard,
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
 				},
 			},
 		},
@@ -2972,7 +2984,7 @@ func testExecNoAuth(t *testing.T, suite *KubeSuite) {
 			},
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: "pods", Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}, APIGroup: types.Wildcard,
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard},
 				},
 			},
 			RequireSessionJoin: []*types.SessionRequirePolicy{

@@ -22,7 +22,6 @@ import ReactSelect, {
   DropdownIndicatorProps,
   GroupBase,
   MultiValueRemoveProps,
-  Props as ReactSelectProps,
 } from 'react-select';
 import ReactSelectAsync from 'react-select/async';
 import ReactSelectCreatableAsync from 'react-select/async-creatable';
@@ -55,33 +54,22 @@ export default function Select<
     closeMenuOnSelect = true,
     components,
     customProps,
-    ref,
-    readOnly,
     ...restOfProps
   } = props;
   return (
-    <StyledSelect
-      selectSize={size}
-      hasError={hasError}
-      elevated={elevated}
-      ref={ref}
-      readOnly={readOnly}
-    >
+    <StyledSelect selectSize={size} hasError={hasError} elevated={elevated}>
       <ReactSelect<Opt, IsMulti, Group>
-        components={{
-          ...defaultComponents,
-          ...components,
-          ...readOnlyComponents(readOnly),
-        }}
+        components={{ ...defaultComponents, ...components }}
         menuPlacement="auto"
         className="react-select-container"
         classNamePrefix="react-select"
+        isClearable={false}
+        isSearchable={true}
         closeMenuOnSelect={closeMenuOnSelect}
         placeholder="Select..."
         styles={stylesConfig}
         customProps={{ size, ...customProps }}
         {...restOfProps}
-        {...readOnlyAttributes(readOnly)}
       />
     </StyledSelect>
   );
@@ -97,23 +85,12 @@ export function SelectAsync<
     hasError = false,
     components,
     customProps,
-    ref,
-    readOnly,
     ...restOfProps
   } = props;
   return (
-    <StyledSelect
-      selectSize={size}
-      hasError={hasError}
-      ref={ref}
-      readOnly={readOnly}
-    >
+    <StyledSelect selectSize={size} hasError={hasError}>
       <ReactSelectAsync<Opt, IsMulti, Group>
-        components={{
-          ...defaultComponents,
-          ...components,
-          ...readOnlyComponents(readOnly),
-        }}
+        components={{ ...defaultComponents, ...components }}
         className="react-select-container"
         classNamePrefix="react-select"
         isClearable={false}
@@ -124,7 +101,6 @@ export function SelectAsync<
         placeholder="Select..."
         customProps={{ size, ...customProps }}
         {...restOfProps}
-        {...readOnlyAttributes(readOnly)}
       />
     </StyledSelect>
   );
@@ -141,29 +117,17 @@ export function SelectCreatable<
     stylesConfig,
     components,
     customProps,
-    ref,
-    readOnly,
     ...restOfProps
   } = props;
   return (
-    <StyledSelect
-      selectSize={size}
-      hasError={hasError}
-      ref={ref}
-      readOnly={readOnly}
-    >
+    <StyledSelect selectSize={size} hasError={hasError}>
       <CreatableSelect<Opt, IsMulti, Group>
-        components={{
-          ...defaultComponents,
-          ...components,
-          ...readOnlyComponents(readOnly),
-        }}
+        components={{ ...defaultComponents, ...components }}
         className="react-select-container"
         classNamePrefix="react-select"
         styles={stylesConfig}
         customProps={{ size, ...customProps }}
         {...restOfProps}
-        {...readOnlyAttributes(readOnly)}
       />
     </StyledSelect>
   );
@@ -180,23 +144,12 @@ export function SelectCreatableAsync<
     stylesConfig,
     components,
     customProps,
-    ref,
-    readOnly,
     ...restOfProps
   } = props;
   return (
-    <StyledSelect
-      selectSize={size}
-      hasError={hasError}
-      ref={ref}
-      readOnly={readOnly}
-    >
+    <StyledSelect selectSize={size} hasError={hasError}>
       <ReactSelectCreatableAsync<Opt, IsMulti, Group>
-        components={{
-          ...defaultComponents,
-          ...components,
-          ...readOnlyComponents(readOnly),
-        }}
+        components={{ ...defaultComponents, ...components }}
         className="react-select-container"
         classNamePrefix="react-select"
         styles={stylesConfig}
@@ -207,7 +160,6 @@ export function SelectCreatableAsync<
         defaultMenuIsOpen={false}
         customProps={{ size, ...customProps }}
         {...restOfProps}
-        {...readOnlyAttributes(readOnly)}
       />
     </StyledSelect>
   );
@@ -286,43 +238,6 @@ function error({ hasError, theme }: { hasError?: boolean; theme: Theme }) {
   };
 }
 
-function readOnlyComponents(readOnly: boolean) {
-  if (!readOnly) {
-    return {};
-  }
-  return {
-    // removes dropdown icon
-    DropdownIndicator: () => null,
-    // removes the x button on multi values
-    MultiValueRemove: () => null,
-  };
-}
-
-function readOnlyAttributes(
-  readOnly: boolean
-): Pick<
-  ReactSelectProps,
-  | 'isSearchable'
-  | 'isClearable'
-  | 'openMenuOnClick'
-  | 'openMenuOnFocus'
-  | 'menuIsOpen'
-> {
-  if (!readOnly) {
-    return {};
-  }
-  return {
-    // prevents typing and cursor blink
-    isSearchable: false,
-    // removes the x button on control
-    isClearable: false,
-    // the rest prevents menu from opening in any way
-    openMenuOnClick: false,
-    openMenuOnFocus: false,
-    menuIsOpen: false,
-  };
-}
-
 /**
  * Don't use directly. If you need to apply a custom style to a dropdown, just
  * apply it to a regular Select component.
@@ -332,7 +247,6 @@ const StyledSelect = styled.div<{
   hasError?: boolean;
   elevated?: boolean;
   isDisabled?: boolean;
-  readOnly?: boolean;
 }>`
   .react-select-container {
     box-sizing: border-box;
@@ -368,20 +282,14 @@ const StyledSelect = styled.div<{
           : props.theme.colors.text.slightlyMuted};
     }
     &:hover {
-      border: 1px solid
-        ${props =>
-          props.readOnly
-            ? props.theme.colors.interactive.tonal.neutral[2]
-            : props.theme.colors.text.muted};
-      cursor: ${p => (p.isDisabled || p.readOnly ? 'not-allowed' : 'pointer')};
+      border: 1px solid ${props => props.theme.colors.text.muted};
+      cursor: pointer;
     }
   }
 
   .react-select__control--is-focused {
     border-color: ${props =>
-      props.readOnly
-        ? props.theme.colors.interactive.tonal.neutral[2]
-        : props.theme.colors.interactive.solid.primary.default};
+      props.theme.colors.interactive.solid.primary.default};
     cursor: pointer;
 
     .react-select__dropdown-indicator {
@@ -390,9 +298,7 @@ const StyledSelect = styled.div<{
 
     &:hover {
       border-color: ${props =>
-        props.readOnly
-          ? props.theme.colors.interactive.tonal.neutral[2]
-          : props.theme.colors.interactive.solid.primary.default};
+        props.theme.colors.interactive.solid.primary.default};
     }
   }
 
@@ -413,9 +319,6 @@ const StyledSelect = styled.div<{
       props.theme.colors.interactive.tonal.neutral[0]};
     border-radius: 1000px;
     padding: 0 0 0 12px;
-    // this is required and adds the padding that is lost
-    // when readOnly removes the remove button
-    ${props => (props.readOnly ? 'padding-right: 12px;' : ``)}
     overflow: hidden;
 
     /* 

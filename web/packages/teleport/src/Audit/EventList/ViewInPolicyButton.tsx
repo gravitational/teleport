@@ -17,7 +17,7 @@
  */
 
 import { useMemo } from 'react';
-import { NavLink } from 'react-router';
+import { NavLink } from 'react-router-dom';
 
 import { ButtonBorder } from 'design';
 

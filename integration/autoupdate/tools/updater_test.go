@@ -22,7 +22,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -60,20 +59,6 @@ func TestUpdate(t *testing.T) {
 
 	matchVersion(t, string(out), testVersions[0])
 
-	// Require that the re-execution fast path does not work with a different
-	// requested version.
-	cmd = exec.CommandContext(ctx, tshPath, "version")
-	cmd.Env = append(
-		os.Environ(),
-		teleportToolsVersion+"="+testVersions[1],
-		updater.TestRequireFastReExecOnly+"=true",
-	)
-	_, err = cmd.Output()
-	var exitErr *exec.ExitError
-	require.ErrorAs(t, err, &exitErr)
-	require.Equal(t, tools.FastReExecOnlyExitCode, exitErr.ExitCode())
-	require.Contains(t, string(exitErr.Stderr), tools.FastReExecOnlyErrorMessage)
-
 	// Execute version command again with setting the new version which must
 	// trigger re-execution of the same command after downloading requested version.
 	cmd = exec.CommandContext(ctx, tshPath, "version")
@@ -85,20 +70,6 @@ func TestUpdate(t *testing.T) {
 	require.NoError(t, err)
 
 	matchVersion(t, string(out), testVersions[1])
-
-	// Require that we successfully hit the fast path for re-execution after the
-	// first time.
-	cmd = exec.CommandContext(ctx, tshPath, "version")
-	cmd.Env = append(
-		os.Environ(),
-		teleportToolsVersion+"="+testVersions[1],
-		updater.TestRequireFastReExecOnly+"=true",
-	)
-	out, err = cmd.Output()
-	require.NoError(t, err)
-
-	matchVersion(t, string(out), testVersions[1])
-
 }
 
 // TestUpdateDifferentOSArch verifies the update logic for matching operating system
@@ -212,18 +183,14 @@ func TestUpdateInterruptSignal(t *testing.T) {
 	t.Setenv(types.HomeEnvVar, t.TempDir())
 
 	var output bytes.Buffer
-	multiOut := io.MultiWriter(&output, os.Stdout)
-	cmd := newCommand(tshPath, "version")
-	cmd.Stdout = multiOut
-	cmd.Stderr = multiOut
+	cmd := exec.Command(tshPath, "version")
+	cmd.Stdout = &output
+	cmd.Stderr = &output
 	cmd.Env = append(
 		os.Environ(),
 		fmt.Sprintf("%s=%s", teleportToolsVersion, testVersions[1]),
 	)
 	err := cmd.Start()
-	if err != nil {
-		t.Log(output.String())
-	}
 	require.NoError(t, err, "failed to start updater")
 	pid := cmd.Process.Pid
 
@@ -246,10 +213,7 @@ func TestUpdateInterruptSignal(t *testing.T) {
 		require.Fail(t, "failed to wait till the download is started")
 	case <-lock:
 		time.Sleep(100 * time.Millisecond)
-		t.Logf("sending signal to updater, pid: %d, test pid: %d", pid, os.Getpid())
-		err := sendInterrupt(pid)
-		require.NoError(t, err, "failed to send signal to updater")
-		time.Sleep(100 * time.Millisecond)
+		require.NoError(t, sendInterrupt(pid))
 		lock <- struct{}{}
 	}
 
@@ -262,10 +226,6 @@ func TestUpdateInterruptSignal(t *testing.T) {
 		require.NoError(t, err)
 	}
 	assert.Contains(t, output.String(), "Update progress:")
-
-	matches := pattern.FindStringSubmatch(output.String())
-	require.Len(t, matches, 2)
-	require.Equal(t, testVersions[0], matches[1])
 }
 
 // TestUpdateForOSSBuild verifies the update logic for AGPL editions of Teleport requires
@@ -285,9 +245,6 @@ func TestUpdateForOSSBuild(t *testing.T) {
 		fmt.Sprintf("%s=%s", teleportToolsVersion, testVersions[1]),
 	)
 	out, err := cmd.Output()
-	if err != nil {
-		t.Log(string(out))
-	}
 	require.NoError(t, err)
 
 	matchVersion(t, string(out), testVersions[0])

@@ -28,11 +28,11 @@ import (
 func TestHMACAnonymizer(t *testing.T) {
 	t.Parallel()
 
-	a, err := NewHMACAnonymizer(AnonymizationKeyString(" "))
+	a, err := NewHMACAnonymizer(" ")
 	require.ErrorAs(t, err, new(*trace.BadParameterError))
 	require.Nil(t, a)
 
-	a, err = NewHMACAnonymizer(AnonymizationKeyString("key"))
+	a, err = NewHMACAnonymizer("key")
 	require.NoError(t, err)
 	require.NotNil(t, a)
 

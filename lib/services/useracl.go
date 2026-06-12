@@ -22,8 +22,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/entitlements"
-	"github.com/gravitational/teleport/lib/modules"
 )
 
 type ResourceAccess struct {
@@ -110,8 +108,6 @@ type UserACL struct {
 	Bots ResourceAccess `json:"bots"`
 	// BotInstances defines access to manage bot instances
 	BotInstances ResourceAccess `json:"botInstances"`
-	// Instances defines access to manage instances
-	Instances ResourceAccess `json:"instances"`
 	// AccessMonitoringRule defines access to manage access monitoring rule resources.
 	AccessMonitoringRule ResourceAccess `json:"accessMonitoringRule"`
 	// CrownJewel defines access to manage CrownJewel resources.
@@ -124,30 +120,12 @@ type UserACL struct {
 	Contact ResourceAccess `json:"contact"`
 	// FileTransferAccess defines the ability to perform remote file operations via SCP or SFTP
 	FileTransferAccess bool `json:"fileTransferAccess"`
-	// WebTerminalClipboardMode determines clipboard behavior in the Web UI terminal.
-	WebTerminalClipboardMode types.WebTerminalClipboardMode `json:"webTerminalClipboardMode,omitempty"`
 	// GitServers defines access to Git servers.
 	GitServers ResourceAccess `json:"gitServers"`
 	// WorkloadIdentity defines access to Workload Identity
 	WorkloadIdentity ResourceAccess `json:"workloadIdentity"`
 	// ClientIPRestriction defines access to Cloud IP Restrictions
 	ClientIPRestriction ResourceAccess `json:"clientIpRestriction"`
-	// InferenceModel defines access to session summaries inference model.
-	InferenceModel ResourceAccess `json:"inferenceModel"`
-	// InferencePolicy defines access to session summaries inference policy.
-	InferencePolicy ResourceAccess `json:"inferencePolicy"`
-	// InferenceSecret defines access to session summaries inference secret.
-	InferenceSecret ResourceAccess `json:"inferenceSecret"`
-	// AutoUpdateConfig defines access to autoupdate config.
-	AutoUpdateConfig ResourceAccess `json:"autoUpdateConfig"`
-	// AutoUpdateVersion defines access to autoupdate version.
-	AutoUpdateVersion ResourceAccess `json:"autoUpdateVersion"`
-	// AutoUpdateAgentRollout defines access to autoupdate agent rollout.
-	AutoUpdateAgentRollout ResourceAccess `json:"autoUpdateAgentRollout"`
-	// AutoUpdateAgentReport defines access to autoupdate agent reports.
-	AutoUpdateAgentReport ResourceAccess `json:"autoUpdateAgentReport"`
-	// Beam defines access to Beams
-	Beam ResourceAccess `json:"beam"`
 }
 
 func hasAccess(roleSet RoleSet, ctx *Context, kind string, verbs ...string) bool {
@@ -239,7 +217,6 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 	externalAuditStorage := newAccess(userRoles, ctx, types.KindExternalAuditStorage)
 	bots := newAccess(userRoles, ctx, types.KindBot)
 	botInstances := newAccess(userRoles, ctx, types.KindBotInstance)
-	instances := newAccess(userRoles, ctx, types.KindInstance)
 	crownJewelAccess := newAccess(userRoles, ctx, types.KindCrownJewel)
 	userTasksAccess := newAccess(userRoles, ctx, types.KindUserTask)
 	reviewRequests := userRoles.MaybeCanReviewRequests()
@@ -260,72 +237,51 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 		clientIPRestrictions = newAccess(userRoles, ctx, types.KindClientIPRestriction)
 	}
 
-	autoUpdateConfig := newAccess(userRoles, ctx, types.KindAutoUpdateConfig)
-	autoUpdateVersion := newAccess(userRoles, ctx, types.KindAutoUpdateVersion)
-	autoUpdateAgentRollout := newAccess(userRoles, ctx, types.KindAutoUpdateAgentRollout)
-	autoUpdateAgentReport := newAccess(userRoles, ctx, types.KindAutoUpdateAgentReport)
-
-	beamsEntitlement := modules.GetProtoEntitlement(&features, entitlements.Beams)
-	var beam ResourceAccess
-	if beamsEntitlement.Enabled {
-		beam = newAccess(userRoles, ctx, types.KindBeam)
-	}
-
 	return UserACL{
-		AccessRequests:           requestAccess,
-		AppServers:               appServerAccess,
-		DBServers:                dbServerAccess,
-		DB:                       dbAccess,
-		ReviewRequests:           reviewRequests,
-		KubeServers:              kubeServerAccess,
-		Desktops:                 desktopAccess,
-		AuthConnectors:           authConnectors,
-		TrustedClusters:          trustedClusterAccess,
-		RecordedSessions:         recordedSessionAccess,
-		ActiveSessions:           activeSessionAccess,
-		Roles:                    roleAccess,
-		Events:                   eventAccess,
-		Users:                    userAccess,
-		Tokens:                   tokenAccess,
-		Nodes:                    nodeAccess,
-		Billing:                  billingAccess,
-		ConnectionDiagnostic:     cnDiagnosticAccess,
-		Clipboard:                clipboard,
-		DesktopSessionRecording:  desktopSessionRecording,
-		DirectorySharing:         directorySharing,
-		Download:                 download,
-		License:                  license,
-		Plugins:                  pluginsAccess,
-		Integrations:             integrationsAccess,
-		UserTasks:                userTasksAccess,
-		DiscoveryConfig:          discoveryConfigsAccess,
-		DeviceTrust:              deviceTrust,
-		Locks:                    lockAccess,
-		SAMLIdpServiceProvider:   samlIdpServiceProviderAccess,
-		AccessList:               accessListAccess,
-		AuditQuery:               auditQuery,
-		SecurityReport:           securityReports,
-		ExternalAuditStorage:     externalAuditStorage,
-		AccessGraph:              accessGraphAccess,
-		Bots:                     bots,
-		BotInstances:             botInstances,
-		Instances:                instances,
-		AccessMonitoringRule:     accessMonitoringRules,
-		CrownJewel:               crownJewelAccess,
-		AccessGraphSettings:      accessGraphSettings,
-		Contact:                  contact,
-		FileTransferAccess:       fileTransferAccess,
-		WebTerminalClipboardMode: userRoles.GetWebTerminalClipboardMode(),
-		GitServers:               gitServersAccess,
-		WorkloadIdentity:         workloadIdentity,
-		ClientIPRestriction:      clientIPRestrictions,
-		InferenceModel:           newAccess(userRoles, ctx, types.KindInferenceModel),
-		InferencePolicy:          newAccess(userRoles, ctx, types.KindInferencePolicy),
-		InferenceSecret:          newAccess(userRoles, ctx, types.KindInferenceSecret),
-		AutoUpdateConfig:         autoUpdateConfig,
-		AutoUpdateVersion:        autoUpdateVersion,
-		AutoUpdateAgentRollout:   autoUpdateAgentRollout,
-		AutoUpdateAgentReport:    autoUpdateAgentReport,
-		Beam:                     beam,
+		AccessRequests:          requestAccess,
+		AppServers:              appServerAccess,
+		DBServers:               dbServerAccess,
+		DB:                      dbAccess,
+		ReviewRequests:          reviewRequests,
+		KubeServers:             kubeServerAccess,
+		Desktops:                desktopAccess,
+		AuthConnectors:          authConnectors,
+		TrustedClusters:         trustedClusterAccess,
+		RecordedSessions:        recordedSessionAccess,
+		ActiveSessions:          activeSessionAccess,
+		Roles:                   roleAccess,
+		Events:                  eventAccess,
+		Users:                   userAccess,
+		Tokens:                  tokenAccess,
+		Nodes:                   nodeAccess,
+		Billing:                 billingAccess,
+		ConnectionDiagnostic:    cnDiagnosticAccess,
+		Clipboard:               clipboard,
+		DesktopSessionRecording: desktopSessionRecording,
+		DirectorySharing:        directorySharing,
+		Download:                download,
+		License:                 license,
+		Plugins:                 pluginsAccess,
+		Integrations:            integrationsAccess,
+		UserTasks:               userTasksAccess,
+		DiscoveryConfig:         discoveryConfigsAccess,
+		DeviceTrust:             deviceTrust,
+		Locks:                   lockAccess,
+		SAMLIdpServiceProvider:  samlIdpServiceProviderAccess,
+		AccessList:              accessListAccess,
+		AuditQuery:              auditQuery,
+		SecurityReport:          securityReports,
+		ExternalAuditStorage:    externalAuditStorage,
+		AccessGraph:             accessGraphAccess,
+		Bots:                    bots,
+		BotInstances:            botInstances,
+		AccessMonitoringRule:    accessMonitoringRules,
+		CrownJewel:              crownJewelAccess,
+		AccessGraphSettings:     accessGraphSettings,
+		Contact:                 contact,
+		FileTransferAccess:      fileTransferAccess,
+		GitServers:              gitServersAccess,
+		WorkloadIdentity:        workloadIdentity,
+		ClientIPRestriction:     clientIPRestrictions,
 	}
 }

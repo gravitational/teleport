@@ -17,31 +17,23 @@
  */
 
 import { FeatureBox } from 'teleport/components/Layout';
-import { Redirect, useParams } from 'teleport/components/Router';
+import { Route, Switch } from 'teleport/components/Router';
 import cfg from 'teleport/config';
 
 import { BotFlowType } from '../types';
-import { GitHubActionsK8s } from './GitHubActionsK8s/GitHubActionsK8s';
-import GitHubActionsSshFlow from './GitHubActionsSsh';
+import { AddBotsPicker } from './AddBotsPicker';
+import GitHubActionsFlow from './GitHubActions';
 
 export function AddBots() {
-  const { type } = useParams<{ type?: string }>();
-
-  if (type === BotFlowType.GitHubActionsSsh) {
-    return (
-      <FeatureBox>
-        <GitHubActionsSshFlow />
-      </FeatureBox>
-    );
-  }
-
-  if (type === BotFlowType.GitHubActionsK8s) {
-    return (
-      <FeatureBox>
-        <GitHubActionsK8s />
-      </FeatureBox>
-    );
-  }
-
-  return <Redirect to={`${cfg.getIntegrationEnrollRoute()}?tags=bot`} />;
+  return (
+    <FeatureBox>
+      <Switch>
+        <Route
+          path={cfg.getBotsNewRoute(BotFlowType.GitHubActions)}
+          component={GitHubActionsFlow}
+        />
+        <Route path={cfg.getBotsNewRoute()} component={AddBotsPicker} />
+      </Switch>
+    </FeatureBox>
+  );
 }

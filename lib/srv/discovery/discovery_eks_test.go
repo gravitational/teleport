@@ -1,6 +1,6 @@
 /*
  * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
+ * Copyright (C) 2025  Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -29,7 +29,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
+	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
@@ -46,10 +46,11 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	libutils "github.com/gravitational/teleport/lib/utils"
 )
 
 func discoveryConfigWithAWSMatchers(t *testing.T, discoveryGroup string, m ...types.AWSMatcher) *discoveryconfig.DiscoveryConfig {
@@ -95,17 +96,10 @@ func TestDiscoveryServerEKS(t *testing.T) {
 	matcherWithoutAppDiscovery := awsMatcherForEKS(t, integrationName)
 	discoveryConfigWithAndWithoutAppDiscovery := discoveryConfigWithAWSMatchers(t, defaultDiscoveryGroup, matcherWithAppDiscovery, matcherWithoutAppDiscovery)
 
-	awsOIDCIntegration, err := types.NewIntegrationAWSOIDC(types.Metadata{
-		Name: integrationName,
-	}, &types.AWSOIDCIntegrationSpecV1{
-		RoleARN: "arn:aws:iam::123456789012:role/teleport",
-	})
-	require.NoError(t, err)
-
 	for _, tt := range []struct {
 		name                      string
 		emitter                   *mockEmitter
-		eksClusters               []*ekstypes.Cluster
+		cloudClients              *cloud.TestCloudClients
 		eksEnroller               eksClustersEnroller
 		discoveryConfig           *discoveryconfig.DiscoveryConfig
 		staticMatchers            Matchers
@@ -115,21 +109,26 @@ func TestDiscoveryServerEKS(t *testing.T) {
 	}{
 		{
 			name: "multiple EKS clusters failed to autoenroll and user tasks are created",
-			eksClusters: []*ekstypes.Cluster{
-				{
-					Name:   aws.String("cluster01"),
-					Arn:    aws.String("arn:aws:eks:us-west-2:123456789012:cluster/cluster01"),
-					Status: ekstypes.ClusterStatusActive,
-					Tags: map[string]string{
-						"RunDiscover": "Please",
-					},
-				},
-				{
-					Name:   aws.String("cluster02"),
-					Arn:    aws.String("arn:aws:eks:us-west-2:123456789012:cluster/cluster02"),
-					Status: ekstypes.ClusterStatusActive,
-					Tags: map[string]string{
-						"RunDiscover": "Please",
+			cloudClients: &cloud.TestCloudClients{
+				STS: &mocks.STSMock{},
+				EKS: &mocks.EKSMock{
+					Clusters: []*eks.Cluster{
+						{
+							Name:   aws.String("cluster01"),
+							Arn:    aws.String("arn:aws:eks:us-west-2:123456789012:cluster/cluster01"),
+							Status: aws.String(eks.ClusterStatusActive),
+							Tags: map[string]*string{
+								"RunDiscover": aws.String("Please"),
+							},
+						},
+						{
+							Name:   aws.String("cluster02"),
+							Arn:    aws.String("arn:aws:eks:us-west-2:123456789012:cluster/cluster02"),
+							Status: aws.String(eks.ClusterStatusActive),
+							Tags: map[string]*string{
+								"RunDiscover": aws.String("Please"),
+							},
+						},
 					},
 				},
 			},
@@ -182,21 +181,26 @@ func TestDiscoveryServerEKS(t *testing.T) {
 		},
 		{
 			name: "multiple EKS clusters with different KubeAppDiscovery setting failed to autoenroll and user tasks are created",
-			eksClusters: []*ekstypes.Cluster{
-				{
-					Name:   aws.String("cluster01"),
-					Arn:    aws.String("arn:aws:eks:us-west-2:123456789012:cluster/cluster01"),
-					Status: ekstypes.ClusterStatusActive,
-					Tags: map[string]string{
-						"RunDiscover": "Please",
-					},
-				},
-				{
-					Name:   aws.String("cluster02"),
-					Arn:    aws.String("arn:aws:eks:us-west-2:123456789012:cluster/cluster02"),
-					Status: ekstypes.ClusterStatusActive,
-					Tags: map[string]string{
-						"RunDiscover": "Please",
+			cloudClients: &cloud.TestCloudClients{
+				STS: &mocks.STSMock{},
+				EKS: &mocks.EKSMock{
+					Clusters: []*eks.Cluster{
+						{
+							Name:   aws.String("cluster01"),
+							Arn:    aws.String("arn:aws:eks:us-west-2:123456789012:cluster/cluster01"),
+							Status: aws.String(eks.ClusterStatusActive),
+							Tags: map[string]*string{
+								"RunDiscover": aws.String("Please"),
+							},
+						},
+						{
+							Name:   aws.String("cluster02"),
+							Arn:    aws.String("arn:aws:eks:us-west-2:123456789012:cluster/cluster02"),
+							Status: aws.String(eks.ClusterStatusActive),
+							Tags: map[string]*string{
+								"RunDiscover": aws.String("Please"),
+							},
+						},
 					},
 				},
 			},
@@ -248,13 +252,7 @@ func TestDiscoveryServerEKS(t *testing.T) {
 			t.Parallel()
 
 			synctest.Test(t, func(t *testing.T) {
-				ctx := t.Context()
-				fakeConfigProvider := mocks.AWSConfigProvider{
-					AWSConfig: &aws.Config{},
-					OIDCIntegrationClient: &mocks.FakeOIDCIntegrationClient{
-						Integration: awsOIDCIntegration,
-					},
-				}
+				ctx, cancel := context.WithCancel(t.Context())
 
 				bk, err := memory.New(memory.Config{})
 				require.NoError(t, err)
@@ -269,17 +267,13 @@ func TestDiscoveryServerEKS(t *testing.T) {
 				}
 
 				server, err := New(ctx, &Config{
-					AWSConfigProvider: &fakeConfigProvider,
-					AWSFetchersClients: &mockFetchersClients{
-						AWSConfigProvider: fakeConfigProvider,
-						eksClusters:       tt.eksClusters,
-					},
+					CloudClients:    tt.cloudClients,
 					ClusterFeatures: func() proto.Features { return proto.Features{} },
 					AccessPoint:     mockAccessPoint,
 					Matchers:        Matchers{},
 					Emitter:         tt.emitter,
 					DiscoveryGroup:  defaultDiscoveryGroup,
-					Log:             logtest.NewLogger(),
+					Log:             libutils.NewSlogLoggerForTests(),
 				})
 				require.NoError(t, err)
 
@@ -290,6 +284,9 @@ func TestDiscoveryServerEKS(t *testing.T) {
 
 				// Wait for the discovery server to complete one iteration of discovering resources
 				synctest.Wait()
+
+				// Start server shutdown.
+				cancel()
 
 				// Discovery usage events are reported.
 				require.NotEmpty(t, mockAccessPoint.usageEvents)
@@ -305,17 +302,11 @@ func TestDiscoveryServerEKS(t *testing.T) {
 type mockAuthServer struct {
 	authclient.DiscoveryAccessPoint
 
-	discoveryConfigSemaphore sync.Mutex
+	storeDiscoveryConfigs map[string]*discoveryconfig.DiscoveryConfig
+	storeUserTasks        map[string]*usertasksv1.UserTask
 
-	storeDiscoveryConfigs   map[string]*discoveryconfig.DiscoveryConfig
-	storeDiscoveryConfigsMu sync.RWMutex
-
-	storeUserTasks   map[string]*usertasksv1.UserTask
-	storeUserTasksMu sync.RWMutex
-
-	events        types.Events
-	usageEvents   []*proto.SubmitUsageEventRequest
-	usageEventsMu sync.Mutex
+	events      types.Events
+	usageEvents []*proto.SubmitUsageEventRequest
 
 	enrollEKSClusters func(context.Context, *integrationpb.EnrollEKSClustersRequest, ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error)
 }
@@ -365,23 +356,15 @@ func (m *mockAuthServer) Ping(context.Context) (proto.PingResponse, error) {
 }
 
 func (m *mockAuthServer) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error {
-	m.usageEventsMu.Lock()
-	defer m.usageEventsMu.Unlock()
 	m.usageEvents = append(m.usageEvents, req)
 	return nil
 }
 
 func (m *mockAuthServer) ListDiscoveryConfigs(ctx context.Context, pageSize int, nextKey string) ([]*discoveryconfig.DiscoveryConfig, string, error) {
-	m.storeDiscoveryConfigsMu.RLock()
-	defer m.storeDiscoveryConfigsMu.RUnlock()
-
 	return slices.Collect(maps.Values(m.storeDiscoveryConfigs)), "", nil
 }
 
 func (m *mockAuthServer) UpdateDiscoveryConfigStatus(ctx context.Context, name string, status discoveryconfig.Status) (*discoveryconfig.DiscoveryConfig, error) {
-	m.storeDiscoveryConfigsMu.Lock()
-	defer m.storeDiscoveryConfigsMu.Unlock()
-
 	dc, ok := m.storeDiscoveryConfigs[name]
 	if !ok {
 		return nil, trace.NotFound("discovery config %q not found", name)
@@ -446,20 +429,16 @@ func (m *mockAuthServer) EnrollEKSClusters(ctx context.Context, req *integration
 }
 
 func (m *mockAuthServer) AcquireSemaphore(ctx context.Context, params types.AcquireSemaphoreRequest) (*types.SemaphoreLease, error) {
-	m.discoveryConfigSemaphore.Lock()
 	return &types.SemaphoreLease{
 		Expires: time.Now().Add(10 * time.Minute),
 	}, nil
 }
 
 func (m *mockAuthServer) CancelSemaphoreLease(ctx context.Context, lease types.SemaphoreLease) error {
-	m.discoveryConfigSemaphore.Unlock()
 	return nil
 }
 
 func (m *mockAuthServer) GetUserTask(ctx context.Context, name string) (*usertasksv1.UserTask, error) {
-	m.storeUserTasksMu.RLock()
-	defer m.storeUserTasksMu.RUnlock()
 	if task, ok := m.storeUserTasks[name]; ok {
 		return task, nil
 	}
@@ -467,19 +446,8 @@ func (m *mockAuthServer) GetUserTask(ctx context.Context, name string) (*usertas
 }
 
 func (m *mockAuthServer) UpsertUserTask(ctx context.Context, req *usertasksv1.UserTask) (*usertasksv1.UserTask, error) {
-	m.storeUserTasksMu.Lock()
-	defer m.storeUserTasksMu.Unlock()
 	m.storeUserTasks[req.GetMetadata().GetName()] = req
 	return req, nil
-}
-
-func (m *mockAuthServer) GetDiscoveryConfig(ctx context.Context, name string) (*discoveryconfig.DiscoveryConfig, error) {
-	m.storeDiscoveryConfigsMu.RLock()
-	defer m.storeDiscoveryConfigsMu.RUnlock()
-	if dc, ok := m.storeDiscoveryConfigs[name]; ok {
-		return dc.Clone(), nil
-	}
-	return nil, trace.NotFound("discovery config %q not found", name)
 }
 
 type mockEKSClusterEnroller struct {

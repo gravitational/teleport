@@ -19,7 +19,6 @@
 package integrationv1
 
 import (
-	"context"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -31,7 +30,6 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/jwt"
-	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -223,10 +221,9 @@ func TestRBAC(t *testing.T) {
 	awsoidService, err := NewAWSOIDCService(&AWSOIDCServiceConfig{
 		IntegrationService:    resourceSvc,
 		Authorizer:            resourceSvc.authorizer,
-		ProxyPublicAddrGetter: func(context.Context) string { return "128.0.0.1" },
+		ProxyPublicAddrGetter: func() string { return "128.0.0.1" },
 		Cache:                 backend,
 		TokenCreator:          backend,
-		Modules:               modulestest.OSSModules(),
 	})
 	require.NoError(t, err)
 
@@ -245,6 +242,18 @@ func TestRBAC(t *testing.T) {
 		userCtx := authorizerForDummyUser(t, ctx, role, localClient)
 
 		for _, tt := range []endpointSubtest{
+			{
+				name: "ListEICE",
+				fn: func() error {
+					_, err := awsoidService.ListEICE(userCtx, &integrationv1.ListEICERequest{
+						Integration: integrationName,
+						Region:      "my-region",
+						VpcIds:      []string{"vpc-123"},
+						NextToken:   "",
+					})
+					return err
+				},
+			},
 			{
 				name: "ListDatabases",
 				fn: func() error {
@@ -340,6 +349,18 @@ func TestRBAC(t *testing.T) {
 		userCtx := authorizerForDummyUser(t, ctx, role, localClient)
 
 		for _, tt := range []endpointSubtest{
+			{
+				name: "ListEICE",
+				fn: func() error {
+					_, err := awsoidService.ListEICE(userCtx, &integrationv1.ListEICERequest{
+						Integration: integrationName,
+						Region:      "my-region",
+						VpcIds:      []string{"vpc-123"},
+						NextToken:   "",
+					})
+					return err
+				},
+			},
 			{
 				name: "ListDatabases",
 				fn: func() error {

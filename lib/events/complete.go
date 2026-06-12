@@ -22,6 +22,7 @@ import (
 	"cmp"
 	"context"
 	"log/slog"
+	"os"
 	"time"
 
 	"github.com/google/uuid"
@@ -33,8 +34,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/auth/recordingmetadata"
-	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/interval"
@@ -67,12 +66,6 @@ type UploadCompleterConfig struct {
 	Clock clockwork.Clock
 	// ClusterName identifies the originating teleport cluster
 	ClusterName string
-	// SessionSummarizerProvider is a provider of the session summarizer service.
-	// It can be nil or provide a nil summarizer if summarization is not needed.
-	// The summarizer itself summarizes session recordings.
-	SessionSummarizerProvider *summarizer.SessionSummarizerProvider
-	// RecordingMetadataProvider is a provider of the recording metadata service.
-	RecordingMetadataProvider *recordingmetadata.Provider
 	// EnsureSessionEndEvent determines whether or not the UploadCompleter should
 	// detect missing session end events and attempt to emit them.
 	EnsureSessionEndEvent bool
@@ -100,12 +93,6 @@ func (cfg *UploadCompleterConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
-	}
-	if cfg.RecordingMetadataProvider == nil {
-		cfg.RecordingMetadataProvider = &recordingmetadata.Provider{}
-	}
-	if cfg.SessionSummarizerProvider == nil {
-		cfg.SessionSummarizerProvider = &summarizer.SessionSummarizerProvider{}
 	}
 	return nil
 }
@@ -193,7 +180,10 @@ func (u *UploadCompleter) PerformPeriodicCheck(ctx context.Context) {
 	// If configured with a server ID, then acquire a semaphore prior to completing uploads.
 	// This is used for auth's upload completer and ensures that multiple auth servers do not
 	// attempt to complete the same uploads at the same time.
-	if u.cfg.ServerID != "" && u.cfg.Semaphores != nil {
+	// TODO(zmb3): remove the env var check once the semaphore is proven to be reliable
+	if u.cfg.Semaphores != nil && os.Getenv("TELEPORT_DISABLE_UPLOAD_COMPLETER_SEMAPHORE") == "" {
+		u.log.DebugContext(ctx, "acquiring semaphore in order to complete uploads", "server_id", u.cfg.ServerID)
+
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
@@ -351,7 +341,7 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 }
 
 func (u *UploadCompleter) ensureSessionEndEvent(ctx context.Context, uploadData UploadMetadata) error {
-	sessionEndEvent, err := FindOrRecoverSessionEnd(
+	_, err := FindOrRecoverSessionEnd(
 		ctx,
 		FindOrRecoverSessionEndConfig{
 			ClusterName: u.cfg.ClusterName,
@@ -365,65 +355,5 @@ func (u *UploadCompleter) ensureSessionEndEvent(ctx context.Context, uploadData 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	// For PTY and Desktop sessions, process recording metadata.
-	recordingMetadata := u.cfg.RecordingMetadataProvider.Service()
-	if startTime, duration, sessionType := metadataParamsForSessionEnd(sessionEndEvent); duration > 0 {
-		if err := recordingMetadata.ProcessSessionRecording(ctx, uploadData.SessionID, sessionType, startTime, duration); err != nil {
-			slog.WarnContext(ctx, "Failed to process session recording metadata", "error", err)
-		}
-	} else if sessionType == recordingmetadata.SessionTypeTTY || sessionType == recordingmetadata.SessionTypeDesktop {
-		slog.WarnContext(ctx, "Session start or end time is not set, skipping recording metadata processing")
-	}
-
-	summarizer := u.cfg.SessionSummarizerProvider.SessionSummarizer()
-	switch o := sessionEndEvent.(type) {
-	case *apievents.SessionEnd:
-		err = summarizer.SummarizeSSH(ctx, o)
-	case *apievents.DatabaseSessionEnd:
-		err = summarizer.SummarizeDatabase(ctx, o)
-	}
-	if err != nil {
-		slog.WarnContext(ctx, "Failed to summarize upload", "error", err)
-		return trace.Wrap(err)
-	}
 	return nil
-}
-
-func transformedUsername(u apievents.UserMetadata, localCluster string) string {
-	return services.UsernameForCluster(
-		services.UsernameForClusterConfig{
-			User:              u.User,
-			OriginClusterName: u.UserClusterName,
-			LocalClusterName:  localCluster,
-		},
-	)
-}
-
-// metadataParamsForSessionEnd returns the duration and session type used to
-// gate and parameterize recording metadata generation for a session end event.
-// Returns (>0, sessionType) for sessions whose recordings should be processed
-// (SSH/PTY and Windows Desktop). Returns (-1, sessionType) when the session is
-// eligible but its start or end time is missing, signaling the caller to warn.
-// Returns (0, SessionTypeUnspecified) for session types that don't produce
-// recording metadata.
-func metadataParamsForSessionEnd(sessionEnd apievents.AuditEvent) (time.Time, time.Duration, recordingmetadata.SessionType) {
-	switch evt := sessionEnd.(type) {
-	case *apievents.SessionEnd:
-		if evt.EndTime.IsZero() || evt.StartTime.IsZero() {
-			return time.Time{}, -1, recordingmetadata.SessionTypeTTY
-		}
-		return evt.StartTime, evt.EndTime.Sub(evt.StartTime), recordingmetadata.SessionTypeTTY
-	case *apievents.DatabaseSessionEnd:
-		if evt.EndTime.IsZero() || evt.StartTime.IsZero() {
-			return time.Time{}, -1, recordingmetadata.SessionTypeUnspecified
-		}
-		return evt.StartTime, evt.EndTime.Sub(evt.StartTime), recordingmetadata.SessionTypeUnspecified
-	case *apievents.WindowsDesktopSessionEnd:
-		if evt.EndTime.IsZero() || evt.StartTime.IsZero() {
-			return time.Time{}, -1, recordingmetadata.SessionTypeDesktop
-		}
-		return evt.StartTime, evt.EndTime.Sub(evt.StartTime), recordingmetadata.SessionTypeDesktop
-	}
-	return time.Time{}, 0, recordingmetadata.SessionTypeUnspecified
 }

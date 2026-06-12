@@ -19,14 +19,13 @@
 package typical
 
 import (
-	"context"
-	"log/slog"
 	"os"
 	"strconv"
 	"sync/atomic"
 
 	"github.com/gravitational/trace"
 	lru "github.com/hashicorp/golang-lru/v2"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -57,7 +56,7 @@ type CachedParser[TEnv, TResult any] struct {
 	Parser[TEnv, TResult]
 	cache        *lru.Cache[string, Expression[TEnv, TResult]]
 	evictedCount atomic.Uint32
-	logger       *slog.Logger
+	logger       logger
 }
 
 // NewCachedParser creates a cached predicate expression parser with the given specification.
@@ -73,7 +72,7 @@ func NewCachedParser[TEnv, TResult any](spec ParserSpec[TEnv], opts ...ParserOpt
 	return &CachedParser[TEnv, TResult]{
 		Parser: *parser,
 		cache:  cache,
-		logger: slog.Default(),
+		logger: logrus.StandardLogger(),
 	}, nil
 }
 
@@ -89,9 +88,12 @@ func (c *CachedParser[TEnv, TResult]) Parse(expression string) (Expression[TEnv,
 		return nil, trace.Wrap(err)
 	}
 	if evicted := c.cache.Add(expression, parsedExpr); evicted && c.evictedCount.Add(1)%logAfterEvictions == 0 {
-		c.logger.InfoContext(context.Background(), "entries have been evicted from the predicate expression cache, consider increasing TELEPORT_EXPRESSION_CACHE_SIZE",
-			"eviction_count", logAfterEvictions,
-		)
+		c.logger.Infof("%d entries have been evicted from the predicate expression cache, consider increasing TELEPORT_EXPRESSION_CACHE_SIZE",
+			logAfterEvictions)
 	}
 	return parsedExpr, nil
+}
+
+type logger interface {
+	Infof(fmt string, args ...any)
 }

@@ -37,9 +37,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/profile"
-	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
@@ -48,7 +46,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -67,11 +64,8 @@ func newTestAuthority(t *testing.T) testAuthority {
 	require.NoError(t, err)
 
 	clock := clockwork.NewFakeClock()
-	authority, err := testauthority.NewKeygen(modules.BuildOSS, clock.Now)
-	require.NoError(t, err)
-
 	return testAuthority{
-		keygen:       authority,
+		keygen:       testauthority.NewWithClock(clock),
 		tlsCA:        tlsCA,
 		trustedCerts: trustedCerts,
 		clock:        clock,
@@ -145,33 +139,6 @@ func (s *testAuthority) signKeyRing(t *testing.T, keyRing *KeyRing, makeExpired 
 	}
 }
 
-// signAccessGraphCert mints an Access Graph TLS certificate that mirrors the
-// production identity (usage=UsageAccessGraphAPIOnly + a WebSessionID), signed
-// by the same CA and bound to the keyRing's TLS key.
-func (s *testAuthority) signAccessGraphCert(t *testing.T, keyRing *KeyRing, makeExpired bool) []byte {
-	t.Helper()
-	ttl := 20 * time.Minute
-	if makeExpired {
-		ttl = -ttl
-	}
-	identity := tlsca.Identity{
-		Username:     keyRing.Username,
-		Groups:       []string{"access"},
-		Usage:        []string{teleport.UsageAccessGraphAPIOnly},
-		WebSessionID: "access-graph-session-id",
-	}
-	subject, err := identity.Subject()
-	require.NoError(t, err)
-	cert, err := s.tlsCA.GenerateCertificate(tlsca.CertificateRequest{
-		Clock:     s.clock,
-		PublicKey: keyRing.TLSPrivateKey.Public(),
-		Subject:   subject,
-		NotAfter:  s.clock.Now().UTC().Add(ttl),
-	})
-	require.NoError(t, err)
-	return cert
-}
-
 func newSelfSignedCA(privateKey []byte, cluster string) (*tlsca.CertAuthority, authclient.TrustedCerts, error) {
 	priv, err := keys.ParsePrivateKey(privateKey)
 	if err != nil {
@@ -238,6 +205,7 @@ func TestClientStore(t *testing.T) {
 		"software key": softKeyRing,
 		"hardware key": hardKeyRing,
 	} {
+		keyRing := keyRing
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
@@ -291,7 +259,6 @@ func TestClientStore(t *testing.T) {
 					WebProxyAddr: net.JoinHostPort(idx.ProxyHost, "3080"),
 					SiteName:     idx.ClusterName,
 					Username:     idx.Username,
-					Scope:        "/production",
 				}
 				err = clientStore.SaveProfile(profile, true)
 				require.NoError(t, err)
@@ -322,7 +289,6 @@ func TestClientStore(t *testing.T) {
 
 				otherProfile := profile.Copy()
 				otherProfile.WebProxyAddr = "other.example.com:3080"
-				otherProfile.Scope = "/staging"
 				err = clientStore.SaveProfile(otherProfile, false)
 				require.NoError(t, err)
 
@@ -338,140 +304,14 @@ func TestClientStore(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				currentStatus, otherStatuses, err := clientStore.FullProfileStatus("")
+				currentStatus, otherStatuses, err := clientStore.FullProfileStatus()
 				require.NoError(t, err)
 				require.Equal(t, expectStatus, currentStatus)
 				require.Len(t, otherStatuses, 1)
 				require.Equal(t, expectOtherStatus, otherStatuses[0])
-
-				// Test passing the active profile in the parameter.
-				currentStatus, otherStatuses, err = clientStore.FullProfileStatus("other.example.com")
-				require.NoError(t, err)
-				require.Equal(t, expectOtherStatus, currentStatus)
-				require.Len(t, otherStatuses, 1)
-				require.Equal(t, expectStatus, otherStatuses[0])
-				require.Equal(t, currentStatus.ScopePin, expectOtherStatus.ScopePin)
 			})
 		})
 	}
-}
-
-func TestClientStore_accessGraphCertValidation(t *testing.T) {
-	t.Parallel()
-	a := newTestAuthority(t)
-
-	t.Run("absent cert is ignored", func(t *testing.T) {
-		t.Parallel()
-		testEachClientStore(t, func(t *testing.T, clientStore *Store) {
-			idx := KeyRingIndex{"test.proxy.com", "bob", "root"}
-			keyRing := a.makeSignedKeyRing(t, idx, false)
-			require.NoError(t, clientStore.AddKeyRing(keyRing))
-
-			retrieved, err := clientStore.GetKeyRing(idx, WithAllCerts...)
-			require.NoError(t, err)
-			require.Nil(t, retrieved.AccessGraphTLSCert)
-		})
-	})
-
-	t.Run("valid cert round-trips", func(t *testing.T) {
-		t.Parallel()
-		testEachClientStore(t, func(t *testing.T, clientStore *Store) {
-			idx := KeyRingIndex{"test.proxy.com", "bob", "root"}
-			keyRing := a.makeSignedKeyRing(t, idx, false)
-			keyRing.AccessGraphTLSCert = a.signAccessGraphCert(t, keyRing, false)
-			require.NoError(t, clientStore.AddKeyRing(keyRing))
-
-			retrieved, err := clientStore.GetKeyRing(idx, WithAllCerts...)
-			require.NoError(t, err)
-			require.Equal(t, keyRing.AccessGraphTLSCert, retrieved.AccessGraphTLSCert)
-
-			// The retrieved cert should carry the AccessGraph usage in its
-			// identity, confirming we really round-tripped the AccessGraph
-			// cert (not the main TLS cert).
-			parsed, err := retrieved.AccessGraphTLSCertificate()
-			require.NoError(t, err)
-			agIdentity, err := tlsca.FromSubject(parsed.Subject, parsed.NotAfter)
-			require.NoError(t, err)
-			require.Equal(t, []string{teleport.UsageAccessGraphAPIOnly}, agIdentity.Usage)
-		})
-	})
-
-	t.Run("unparseable cert is rejected", func(t *testing.T) {
-		t.Parallel()
-		testEachClientStore(t, func(t *testing.T, clientStore *Store) {
-			idx := KeyRingIndex{"test.proxy.com", "bob", "root"}
-			keyRing := a.makeSignedKeyRing(t, idx, false)
-			keyRing.AccessGraphTLSCert = []byte("not a certificate")
-			require.NoError(t, clientStore.AddKeyRing(keyRing))
-
-			_, err := clientStore.GetKeyRing(idx, WithAllCerts...)
-			require.Error(t, err)
-		})
-	})
-
-	// Expired AccessGraph certs are returned as-is, matching the main TLSCert
-	// contract (see keystore.go: "we may be returning expired certificates
-	// here, that is okay. If a certificate is expired, it's the responsibility
-	// of the TeleportClient to perform cleanup").
-	t.Run("expired cert round-trips", func(t *testing.T) {
-		t.Parallel()
-		testEachClientStore(t, func(t *testing.T, clientStore *Store) {
-			idx := KeyRingIndex{"test.proxy.com", "bob", "root"}
-			keyRing := a.makeSignedKeyRing(t, idx, false)
-			keyRing.AccessGraphTLSCert = a.signAccessGraphCert(t, keyRing, true /*makeExpired*/)
-			require.NoError(t, clientStore.AddKeyRing(keyRing))
-
-			retrieved, err := clientStore.GetKeyRing(idx, WithAllCerts...)
-			require.NoError(t, err)
-			require.Equal(t, keyRing.AccessGraphTLSCert, retrieved.AccessGraphTLSCert)
-
-			notAfter, err := retrieved.AccessGraphTLSCertValidBefore()
-			require.NoError(t, err)
-			require.True(t, notAfter.Before(a.clock.Now()),
-				"test setup: AccessGraph cert should be expired relative to the auth clock")
-		})
-	})
-}
-
-func TestPartialProfileStatusScope(t *testing.T) {
-	t.Parallel()
-
-	t.Run("nil ScopePin when profile has no scope", func(t *testing.T) {
-		t.Parallel()
-		testEachClientStore(t, func(t *testing.T, clientStore *Store) {
-			p := &profile.Profile{
-				WebProxyAddr: "noscope.example.com:3080",
-				SiteName:     "root",
-				Username:     "alice",
-			}
-			err := clientStore.SaveProfile(p, true)
-			require.NoError(t, err)
-
-			// No key ring saved — ReadProfileStatus should return partial status.
-			status, err := clientStore.ReadProfileStatus(p.Name())
-			require.NoError(t, err)
-			require.Nil(t, status.ScopePin)
-		})
-	})
-
-	t.Run("ScopePin set when profile has scope", func(t *testing.T) {
-		t.Parallel()
-		testEachClientStore(t, func(t *testing.T, clientStore *Store) {
-			p := &profile.Profile{
-				WebProxyAddr: "scoped.example.com:3080",
-				SiteName:     "root",
-				Username:     "alice",
-				Scope:        "/production",
-			}
-			err := clientStore.SaveProfile(p, true)
-			require.NoError(t, err)
-
-			status, err := clientStore.ReadProfileStatus(p.Name())
-			require.NoError(t, err)
-			require.NotNil(t, status.ScopePin)
-			require.Equal(t, "/production", status.ScopePin.Scope)
-		})
-	})
 }
 
 // TestProxySSHConfig tests proxy client SSH config function
@@ -552,17 +392,17 @@ func TestProxySSHConfig(t *testing.T) {
 		require.NoError(t, srv.Start())
 		defer srv.Close()
 
-		clt, err := apissh.Dial(t.Context(), "tcp", srv.Addr(), clientConfig)
+		clt, err := ssh.Dial("tcp", srv.Addr(), clientConfig)
 		require.NoError(t, err)
 		defer clt.Close()
 
 		// Call new session to initiate opening new channel. This should get
 		// rejected and fail.
-		_, err = clt.NewSession(t.Context())
+		_, err = clt.NewSession()
 		require.Error(t, err)
 		require.Equal(t, 1, int(called.Load()))
 
-		_, spub, err := testauthority.GenerateKeyPair()
+		_, spub, err := testauthority.New().GenerateKeyPair()
 		require.NoError(t, err)
 		caPub22, _, _, _, err := ssh.ParseAuthorizedKey(spub)
 		require.NoError(t, err)
@@ -577,7 +417,7 @@ func TestProxySSHConfig(t *testing.T) {
 		require.NoError(t, err)
 
 		// ssh server cert doesn't match second-host user known host thus connection should fail.
-		_, err = apissh.Dial(t.Context(), "tcp", srv.Addr(), clientConfig)
+		_, err = ssh.Dial("tcp", srv.Addr(), clientConfig)
 		require.Error(t, err)
 	})
 }
@@ -631,7 +471,7 @@ func BenchmarkLoadKeysToKubeFromStore(b *testing.B) {
 	}
 
 	kubeClusterNames := make([]string, 0, 10)
-	for i := range 10 {
+	for i := 0; i < 10; i++ {
 		kubeClusterName := fmt.Sprintf("kubecluster-%d", i)
 		keyRing.KubeTLSCredentials[kubeClusterName] = kubeCred
 		kubeClusterNames = append(kubeClusterNames, kubeClusterName)
@@ -641,7 +481,7 @@ func BenchmarkLoadKeysToKubeFromStore(b *testing.B) {
 	require.NoError(b, err)
 
 	b.Run("LoadKeysToKubeFromStore", func(b *testing.B) {
-		for b.Loop() {
+		for i := 0; i < b.N; i++ {
 			var wg sync.WaitGroup
 			wg.Add(len(kubeClusterNames))
 			for _, kubeClusterName := range kubeClusterNames {
@@ -663,13 +503,19 @@ func BenchmarkLoadKeysToKubeFromStore(b *testing.B) {
 	// Compare against a naive GetKeyRing call which loads the key and cert for
 	// all active kube clusters, not just the one requested.
 	b.Run("GetKeyRing", func(b *testing.B) {
-		for b.Loop() {
+		for i := 0; i < b.N; i++ {
+			var wg sync.WaitGroup
+			wg.Add(len(kubeClusterNames))
 			for _, kubeClusterName := range kubeClusterNames {
-				keyRing, err := fsKeyStore.GetKeyRing(keyRing.KeyRingIndex, nil /*hwks*/, WithKubeCerts{})
-				require.NoError(b, err)
-				require.NotNil(b, keyRing.KubeTLSCredentials[kubeClusterName].PrivateKey)
-				require.NotEmpty(b, keyRing.KubeTLSCredentials[kubeClusterName].Cert)
+				go func() {
+					defer wg.Done()
+					keyRing, err := fsKeyStore.GetKeyRing(keyRing.KeyRingIndex, nil /*hwks*/, WithKubeCerts{})
+					require.NoError(b, err)
+					require.NotNil(b, keyRing.KubeTLSCredentials[kubeClusterName].PrivateKey)
+					require.NotEmpty(b, keyRing.KubeTLSCredentials[kubeClusterName].Cert)
+				}()
 			}
+			wg.Wait()
 		}
 	})
 }

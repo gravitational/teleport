@@ -4,7 +4,6 @@ description: Provides guides on Teleport Identity Governance.
 template: "landing-page"
 tags:
  - identity-governance
-enterprise: Identity Governance
 ---
 
 import LandingHero from '@site/src/components/Pages/Landing/LandingHero';
@@ -69,67 +68,51 @@ import jamfProSvg from "@site/src/components/Icon/teleport-svg/jamf-pro.svg";
     {
       title: "Okta",
       description: "Sync Okta users, apps, and groups with Teleport",
-      href: "./integrations/okta/",
+      href: "./okta/",
       iconColor: "#0000001A",
       iconComponent: oktaSvg,
     },
     {
       title: "Microsoft Entra ID",
       description: "Sync Entra ID users and groups to Teleport",
-      href: "./integrations/entra-id/",
+      href: "./entra-id/",
       iconColor: "#0078D41A",
       iconComponent: msEntraIdSvg,
     },
     {
       title: "Slack",
       description: "Post Access Requests to your organization's Slack workspace",
-      href: "./access-requests/plugins/slack/",
+      href: "./access-request-plugins/ssh-approval-slack/",
       iconColor: "#ECB22E1A",
       iconComponent: slackSvg,
     },
     {
       title: "Jira",
       description: "Manage Access Requests as Jira issues",
-      href: "./access-requests/plugins/jira/",
+      href: "./access-request-plugins/ssh-approval-jira/",
       iconColor: "#0078D41A",
       iconComponent: jiraSvg,
     },
     {
       title: "PagerDuty",
       description: "Manage Access Requests through PagerDuty incidents",
-      href: "./access-requests/plugins/pagerduty/",
+      href: "./access-request-plugins/ssh-approval-pagerduty/",
       iconColor: "#06AC381A",
       iconComponent: pagerDutySvg,
     },
     {
-      title: "Terraform",
-      description: "Manage team Access Lists with Infrastructure as Code (IaC) using Terraform",
-      href: "../zero-trust-access/infrastructure-as-code/managing-resources/access-list/",
-      iconColor: "#512FC91A",
-      iconComponent: terraformSvg,
-    },
-    {
       title: "AWS Identity Center",
       description: "Organize and manage users' short- and long-term access to AWS accounts and permissions",
-      href: "./integrations/aws-iam-identity-center/",
+      href: "./aws-iam-identity-center/",
       iconColor: "#EA43351A",
       iconComponent: awsIdentityCenterSvg,
     },
     {
       title: "Access Request plugins",
-      href: "./access-requests/plugins/",
+      href: "./access-request-plugins/",
       iconComponent: arrowRightSvg,
     },
   ]}
-    additionalLinks={{
-      title: "Set up your first integration:",
-      links: [
-        {
-          title: "Getting started: Integrate with your IdP(s)",
-          href: "./integrations/"
-        },
-      ]
-  }}
 />
 
 <Integrations
@@ -141,21 +124,21 @@ import jamfProSvg from "@site/src/components/Icon/teleport-svg/jamf-pro.svg";
     {
       title: "Azure Portal & CLI",
       description: "Integrate the Teleport SAML IdP with Microsoft Entra External ID",
-      href: "./idps/usage/saml-microsoft-entra-external-id/",
+      href: "./idps/saml-microsoft-entra-external-id/",
       iconColor: "#0000001A",
       iconComponent: msEntraIdSvg,
     },
     {
       title: "Google Cloud Console & API",
       description: "Use Google Cloud Workforce Identity Federation to provision access",
-      href: "./idps/usage/saml-gcp-workforce-identity-federation/",
+      href: "./idps/saml-gcp-workforce-identity-federation/",
       iconColor: "#34A8530D",
       iconComponent: gcpSvg,
     },
     {
       title: "Grafana",
       description: "Configure employee access to Grafana Enterprise instances",
-      href: "./idps/usage/saml-grafana/",
+      href: "./idps/saml-grafana/",
       iconColor: "#F15B2A0D",
       iconComponent: grafanaSvg,
     },

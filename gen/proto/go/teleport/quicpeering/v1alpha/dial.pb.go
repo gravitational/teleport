@@ -20,8 +20,6 @@
 // 	protoc        (unknown)
 // source: teleport/quicpeering/v1alpha/dial.proto
 
-//go:build !protoopaque
-
 package quicpeeringv1alpha
 
 import (
@@ -30,6 +28,7 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
+	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -45,7 +44,7 @@ const (
 // protobuf binary format, prefixed by its length encoded as a little endian
 // 32-bit unsigned integer.
 type DialRequest struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// The target agent for the connection attempt; should be "<host id>.<cluster name>".
 	TargetHostId string `protobuf:"bytes,1,opt,name=target_host_id,json=targetHostId,proto3" json:"target_host_id,omitempty"`
 	// The type of the connection as defined by api/types.TunnelType ("node",
@@ -67,9 +66,7 @@ type DialRequest struct {
 	// and authentication check. If set, all other fields are functionally
 	// ignored, although nonce and timestamp should still be set so they can be
 	// logged.
-	Ping bool `protobuf:"varint,7,opt,name=ping,proto3" json:"ping,omitempty"`
-	// The scope the target must belong to.
-	TargetScope   string `protobuf:"bytes,8,opt,name=target_scope,json=targetScope,proto3" json:"target_scope,omitempty"`
+	Ping          bool `protobuf:"varint,7,opt,name=ping,proto3" json:"ping,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -97,6 +94,11 @@ func (x *DialRequest) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DialRequest.ProtoReflect.Descriptor instead.
+func (*DialRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_quicpeering_v1alpha_dial_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *DialRequest) GetTargetHostId() string {
@@ -148,125 +150,9 @@ func (x *DialRequest) GetPing() bool {
 	return false
 }
 
-func (x *DialRequest) GetTargetScope() string {
-	if x != nil {
-		return x.TargetScope
-	}
-	return ""
-}
-
-func (x *DialRequest) SetTargetHostId(v string) {
-	x.TargetHostId = v
-}
-
-func (x *DialRequest) SetConnectionType(v string) {
-	x.ConnectionType = v
-}
-
-func (x *DialRequest) SetSource(v *Addr) {
-	x.Source = v
-}
-
-func (x *DialRequest) SetDestination(v *Addr) {
-	x.Destination = v
-}
-
-func (x *DialRequest) SetTimestamp(v *timestamppb.Timestamp) {
-	x.Timestamp = v
-}
-
-func (x *DialRequest) SetNonce(v uint64) {
-	x.Nonce = v
-}
-
-func (x *DialRequest) SetPing(v bool) {
-	x.Ping = v
-}
-
-func (x *DialRequest) SetTargetScope(v string) {
-	x.TargetScope = v
-}
-
-func (x *DialRequest) HasSource() bool {
-	if x == nil {
-		return false
-	}
-	return x.Source != nil
-}
-
-func (x *DialRequest) HasDestination() bool {
-	if x == nil {
-		return false
-	}
-	return x.Destination != nil
-}
-
-func (x *DialRequest) HasTimestamp() bool {
-	if x == nil {
-		return false
-	}
-	return x.Timestamp != nil
-}
-
-func (x *DialRequest) ClearSource() {
-	x.Source = nil
-}
-
-func (x *DialRequest) ClearDestination() {
-	x.Destination = nil
-}
-
-func (x *DialRequest) ClearTimestamp() {
-	x.Timestamp = nil
-}
-
-type DialRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// The target agent for the connection attempt; should be "<host id>.<cluster name>".
-	TargetHostId string
-	// The type of the connection as defined by api/types.TunnelType ("node",
-	// "app", "kube"...).
-	ConnectionType string
-	// The source of the connection, the network address of the user for whom the
-	// connection is being tunneled, as seen from the proxy sending the request.
-	Source *Addr
-	// The destination of the connection, used as a weak hint and as something to
-	// put in the "local address" of the connection object handled by the agent.
-	Destination *Addr
-	// The time of the client, must be provided and within 5 minutes of the local
-	// server time for 0-RTT requests.
-	Timestamp *timestamppb.Timestamp
-	// A random id for each dial request, must be provided and unique among dial
-	// requests recently received by the server.
-	Nonce uint64
-	// The ping flag should be set if the request is actually for a reachability
-	// and authentication check. If set, all other fields are functionally
-	// ignored, although nonce and timestamp should still be set so they can be
-	// logged.
-	Ping bool
-	// The scope the target must belong to.
-	TargetScope string
-}
-
-func (b0 DialRequest_builder) Build() *DialRequest {
-	m0 := &DialRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.TargetHostId = b.TargetHostId
-	x.ConnectionType = b.ConnectionType
-	x.Source = b.Source
-	x.Destination = b.Destination
-	x.Timestamp = b.Timestamp
-	x.Nonce = b.Nonce
-	x.Ping = b.Ping
-	x.TargetScope = b.TargetScope
-	return m0
-}
-
 // A stringy Go net.Addr. Can be converted to and from a lib/utils.NetAddr.
 type Addr struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// Likely always "tcp".
 	Network string `protobuf:"bytes,1,opt,name=network,proto3" json:"network,omitempty"`
 	// Depending on the network, likely "<ip address>:<port>".
@@ -300,6 +186,11 @@ func (x *Addr) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use Addr.ProtoReflect.Descriptor instead.
+func (*Addr) Descriptor() ([]byte, []int) {
+	return file_teleport_quicpeering_v1alpha_dial_proto_rawDescGZIP(), []int{1}
+}
+
 func (x *Addr) GetNetwork() string {
 	if x != nil {
 		return x.Network
@@ -314,37 +205,11 @@ func (x *Addr) GetAddr() string {
 	return ""
 }
 
-func (x *Addr) SetNetwork(v string) {
-	x.Network = v
-}
-
-func (x *Addr) SetAddr(v string) {
-	x.Addr = v
-}
-
-type Addr_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// Likely always "tcp".
-	Network string
-	// Depending on the network, likely "<ip address>:<port>".
-	Addr string
-}
-
-func (b0 Addr_builder) Build() *Addr {
-	m0 := &Addr{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Network = b.Network
-	x.Addr = b.Addr
-	return m0
-}
-
 // Sent from the server to the client as a response to a DialRequest. The
 // message is likewise sent in protobuf binary format, prefixed by its length
 // encoded as a little endian uint32.
 type DialResponse struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// The success or failure of the dial. If the dial is successful, the stream
 	// will continue with the data of the connection.
 	Status        *status.Status `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
@@ -377,6 +242,11 @@ func (x *DialResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use DialResponse.ProtoReflect.Descriptor instead.
+func (*DialResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_quicpeering_v1alpha_dial_proto_rawDescGZIP(), []int{2}
+}
+
 func (x *DialResponse) GetStatus() *status.Status {
 	if x != nil {
 		return x.Status
@@ -384,42 +254,11 @@ func (x *DialResponse) GetStatus() *status.Status {
 	return nil
 }
 
-func (x *DialResponse) SetStatus(v *status.Status) {
-	x.Status = v
-}
-
-func (x *DialResponse) HasStatus() bool {
-	if x == nil {
-		return false
-	}
-	return x.Status != nil
-}
-
-func (x *DialResponse) ClearStatus() {
-	x.Status = nil
-}
-
-type DialResponse_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// The success or failure of the dial. If the dial is successful, the stream
-	// will continue with the data of the connection.
-	Status *status.Status
-}
-
-func (b0 DialResponse_builder) Build() *DialResponse {
-	m0 := &DialResponse{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Status = b.Status
-	return m0
-}
-
 var File_teleport_quicpeering_v1alpha_dial_proto protoreflect.FileDescriptor
 
 const file_teleport_quicpeering_v1alpha_dial_proto_rawDesc = "" +
 	"\n" +
-	"'teleport/quicpeering/v1alpha/dial.proto\x12\x1cteleport.quicpeering.v1alpha\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x17google/rpc/status.proto\"\xe5\x02\n" +
+	"'teleport/quicpeering/v1alpha/dial.proto\x12\x1cteleport.quicpeering.v1alpha\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x17google/rpc/status.proto\"\xc2\x02\n" +
 	"\vDialRequest\x12$\n" +
 	"\x0etarget_host_id\x18\x01 \x01(\tR\ftargetHostId\x12'\n" +
 	"\x0fconnection_type\x18\x02 \x01(\tR\x0econnectionType\x12:\n" +
@@ -427,13 +266,24 @@ const file_teleport_quicpeering_v1alpha_dial_proto_rawDesc = "" +
 	"\vdestination\x18\x04 \x01(\v2\".teleport.quicpeering.v1alpha.AddrR\vdestination\x128\n" +
 	"\ttimestamp\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\ttimestamp\x12\x14\n" +
 	"\x05nonce\x18\x06 \x01(\x06R\x05nonce\x12\x12\n" +
-	"\x04ping\x18\a \x01(\bR\x04ping\x12!\n" +
-	"\ftarget_scope\x18\b \x01(\tR\vtargetScope\"4\n" +
+	"\x04ping\x18\a \x01(\bR\x04ping\"4\n" +
 	"\x04Addr\x12\x18\n" +
 	"\anetwork\x18\x01 \x01(\tR\anetwork\x12\x12\n" +
 	"\x04addr\x18\x02 \x01(\tR\x04addr\":\n" +
 	"\fDialResponse\x12*\n" +
 	"\x06status\x18\x01 \x01(\v2\x12.google.rpc.StatusR\x06statusB`Z^github.com/gravitational/teleport/gen/proto/go/teleport/quicpeering/v1alpha;quicpeeringv1alphab\x06proto3"
+
+var (
+	file_teleport_quicpeering_v1alpha_dial_proto_rawDescOnce sync.Once
+	file_teleport_quicpeering_v1alpha_dial_proto_rawDescData []byte
+)
+
+func file_teleport_quicpeering_v1alpha_dial_proto_rawDescGZIP() []byte {
+	file_teleport_quicpeering_v1alpha_dial_proto_rawDescOnce.Do(func() {
+		file_teleport_quicpeering_v1alpha_dial_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_quicpeering_v1alpha_dial_proto_rawDesc), len(file_teleport_quicpeering_v1alpha_dial_proto_rawDesc)))
+	})
+	return file_teleport_quicpeering_v1alpha_dial_proto_rawDescData
+}
 
 var file_teleport_quicpeering_v1alpha_dial_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_teleport_quicpeering_v1alpha_dial_proto_goTypes = []any{

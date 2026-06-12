@@ -28,14 +28,11 @@ import (
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	apimachinerytypes "k8s.io/apimachinery/pkg/types"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/gravitational/teleport/api/types"
 	resourcesv3 "github.com/gravitational/teleport/integrations/operator/apis/resources/v3"
 	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
-	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/secretlookup"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
 )
@@ -131,36 +128,29 @@ func (g *oidcTestingPrimitives) CompareTeleportAndKubernetesResource(tResource t
 
 func TestOIDCConnectorCreation(t *testing.T) {
 	test := &oidcTestingPrimitives{}
-	testlib.ResourceCreationSynchronousTest(t, resources.NewOIDCConnectorReconciler, test)
-}
-
-func TestOIDCConnectorDeletion(t *testing.T) {
-	test := &oidcTestingPrimitives{}
-	testlib.ResourceDeletionSynchronousTest(t, resources.NewOIDCConnectorReconciler, test)
+	testlib.ResourceCreationTest[types.OIDCConnector, *resourcesv3.TeleportOIDCConnector](t, test)
 }
 
 func TestOIDCConnectorDeletionDrift(t *testing.T) {
 	test := &oidcTestingPrimitives{}
-	testlib.ResourceDeletionDriftSynchronousTest(t, resources.NewOIDCConnectorReconciler, test)
+	testlib.ResourceDeletionDriftTest[types.OIDCConnector, *resourcesv3.TeleportOIDCConnector](t, test)
 }
 
 func TestOIDCConnectorUpdate(t *testing.T) {
 	test := &oidcTestingPrimitives{}
-	testlib.ResourceUpdateTestSynchronous(t, resources.NewOIDCConnectorReconciler, test)
+	testlib.ResourceUpdateTest[types.OIDCConnector, *resourcesv3.TeleportOIDCConnector](t, test)
 }
 
 func TestOIDCConnectorSecretLookup(t *testing.T) {
 	test := &oidcTestingPrimitives{}
-	setup := testlib.SetupFakeKubeTestEnv(t)
+	setup := testlib.SetupTestEnv(t)
 	test.Init(setup)
 	ctx := context.Background()
 
 	crName := validRandomResourceName("oidc")
 	secretName := validRandomResourceName("oidc-secret")
 	secretKey := "client-secret"
-	googleSecretKey := "google-service-account"
 	secretValue := validRandomResourceName("secret-value")
-	googleSecretValue := `{"name": "projects/PROJECT-ID/service-accounts/SERVICEACCOUNT"}`
 
 	secret := &v1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
@@ -170,11 +160,8 @@ func TestOIDCConnectorSecretLookup(t *testing.T) {
 				secretlookup.AllowLookupAnnotation: crName,
 			},
 		},
-		// Real kube servers convert stringData into data.
-		// The fake client does not, so we must use Data instead.
-		Data: map[string][]byte{
-			secretKey:       []byte(secretValue),
-			googleSecretKey: []byte(googleSecretValue),
+		StringData: map[string]string{
+			secretKey: secretValue,
 		},
 		Type: v1.SecretTypeOpaque,
 	}
@@ -190,33 +177,14 @@ func TestOIDCConnectorSecretLookup(t *testing.T) {
 	}
 
 	oidc.Spec.ClientSecret = "secret://" + secretName + "/" + secretKey
-	oidc.Spec.GoogleServiceAccount = "secret://" + secretName + "/" + googleSecretKey
-	oidc.Spec.GoogleAdminEmail = "this-is-required-for-gcp-sa@example.com"
-	require.NoError(t, kubeClient.Create(ctx, oidc))
 
-	reconciler, err := resources.NewOIDCConnectorReconciler(kubeClient, setup.TeleportClient)
-	require.NoError(t, err)
-	// Test execution: Kick off the reconciliation.
-	req := reconcile.Request{
-		NamespacedName: apimachinerytypes.NamespacedName{
-			Namespace: setup.Namespace.Name,
-			Name:      crName,
-		},
-	}
-	// First reconciliation should set the finalizer and exit.
-	_, err = reconciler.Reconcile(ctx, req)
-	require.NoError(t, err)
-	// Second reconciliation should create the Teleport resource.
-	// In a real cluster we should receive the event of our own finalizer change
-	// and this wakes us for a second round.
-	_, err = reconciler.Reconcile(ctx, req)
-	require.NoError(t, err)
+	require.NoError(t, kubeClient.Create(ctx, oidc))
 
 	testlib.FastEventually(t, func() bool {
 		oidc, err := test.GetTeleportResource(ctx, crName)
 		if err != nil {
 			return false
 		}
-		return oidc.GetClientSecret() == secretValue && oidc.GetGoogleServiceAccount() == googleSecretValue
+		return oidc.GetClientSecret() == secretValue
 	})
 }

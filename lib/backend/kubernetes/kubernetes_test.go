@@ -19,6 +19,7 @@
 package kubernetes
 
 import (
+	"context"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -83,7 +84,7 @@ func TestBackend_Exists(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := t.Context()
+			ctx := context.Background()
 
 			// set namespace env variable
 			if len(tt.fields.namespace) > 0 {
@@ -95,7 +96,7 @@ func TestBackend_Exists(t *testing.T) {
 				t.Setenv(teleportReplicaNameEnv, tt.fields.replicaName)
 			}
 
-			k8sClient := fake.NewClientset(tt.fields.objects...)
+			k8sClient := fake.NewSimpleClientset(tt.fields.objects...)
 			b, err := NewWithClient(ctx, k8sClient)
 			if err != nil && !tt.wantErr {
 				require.NoError(t, err)
@@ -222,7 +223,7 @@ func TestBackend_Get(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := t.Context()
+			ctx := context.Background()
 
 			if len(tt.fields.namespace) > 0 {
 				t.Setenv(NamespaceEnv, tt.fields.namespace)
@@ -232,7 +233,7 @@ func TestBackend_Get(t *testing.T) {
 				t.Setenv(teleportReplicaNameEnv, tt.fields.replicaName)
 			}
 
-			k8sClient := fake.NewClientset(tt.fields.objects...)
+			k8sClient := fake.NewSimpleClientset(tt.fields.objects...)
 			b, err := NewWithClient(ctx, k8sClient)
 			require.NoError(t, err)
 
@@ -300,7 +301,7 @@ func TestBackend_Put(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx := t.Context()
+			ctx := context.Background()
 
 			// set namespace env var
 			if len(tt.fields.namespace) > 0 {
@@ -315,7 +316,7 @@ func TestBackend_Put(t *testing.T) {
 			for _, o := range tt.fields.objects {
 				o.(*corev1.Secret).ResourceVersion = "1"
 			}
-			k8sClient := fake.NewClientset(tt.fields.objects...)
+			k8sClient := fake.NewSimpleClientset(tt.fields.objects...)
 
 			b, err := NewWithClient(ctx, k8sClient)
 			require.NoError(t, err)
@@ -370,7 +371,6 @@ func TestBackend_Put(t *testing.T) {
 			got, err := b.getSecret(ctx)
 			require.NoError(t, err)
 			got.ResourceVersion = tt.want.ResourceVersion // ignore resource version
-			got.ManagedFields = tt.want.ManagedFields     // ignore ManagedFields
 			require.Equal(t, tt.want, got)
 		})
 	}

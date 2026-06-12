@@ -19,8 +19,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/teleport/api/constants"
 )
 
 func TestAWSMatcherCheckAndSetDefaults(t *testing.T) {
@@ -31,7 +29,6 @@ func TestAWSMatcherCheckAndSetDefaults(t *testing.T) {
 	for _, tt := range []struct {
 		name     string
 		in       *AWSMatcher
-		preTest  func(t *testing.T)
 		errCheck require.ErrorAssertionFunc
 		expected *AWSMatcher
 	}{
@@ -136,20 +133,12 @@ func TestAWSMatcherCheckAndSetDefaults(t *testing.T) {
 			errCheck: isBadParameterErr,
 		},
 		{
-			name: "wildcard is valid for the ec2 type",
+			name: "wildcard is invalid for regions",
 			in: &AWSMatcher{
-				Types:   []string{"ec2"},
+				Types:   []string{"ec2", "rds"},
 				Regions: []string{"*"},
 			},
-			errCheck: require.NoError,
-		},
-		{
-			name: "wildcard is valid for the ec2 type",
-			in: &AWSMatcher{
-				Types:   []string{"ec2"},
-				Regions: []string{"*"},
-			},
-			errCheck: require.NoError,
+			errCheck: isBadParameterErr,
 		},
 		{
 			name: "invalid type",
@@ -185,14 +174,6 @@ func TestAWSMatcherCheckAndSetDefaults(t *testing.T) {
 				Regions: []string{"eu-west-2"},
 			},
 			errCheck: isBadParameterErr,
-		},
-		{
-			name: "wildcard region is valid for ec2 type",
-			in: &AWSMatcher{
-				Types:   []string{"ec2"},
-				Regions: []string{"*"},
-			},
-			errCheck: require.NoError,
 		},
 		{
 			name: "no region",
@@ -240,9 +221,18 @@ func TestAWSMatcherCheckAndSetDefaults(t *testing.T) {
 				Tags: Labels{
 					"*": []string{"*"},
 				},
+				Params: &InstallerParams{
+					JoinMethod:      "iam",
+					JoinToken:       "aws-discovery-iam-token",
+					InstallTeleport: true,
+					ScriptName:      "default-installer",
+					SSHDConfig:      "/etc/ssh/sshd_config",
+					EnrollMode:      InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
+				},
 				AssumeRole: &AssumeRole{
 					ExternalID: "id123",
 				},
+				SSM: &AWSSSM{DocumentName: "TeleportDiscoveryInstaller"},
 			},
 		},
 		{
@@ -275,10 +265,6 @@ func TestAWSMatcherCheckAndSetDefaults(t *testing.T) {
 				Types:       []string{"ec2"},
 				Regions:     []string{"eu-west-2"},
 				Integration: "my-integration",
-			},
-			preTest: func(t *testing.T) {
-				// Enable EICE for this test.
-				t.Setenv(constants.UnstableEnableEICEEnvVar, "true")
 			},
 			errCheck: require.NoError,
 			expected: &AWSMatcher{
@@ -362,199 +348,13 @@ func TestAWSMatcherCheckAndSetDefaults(t *testing.T) {
 			},
 			errCheck: isBadParameterErr,
 		},
-		{
-			name: "eice enroll mode is disabled",
-			in: &AWSMatcher{
-				Types:       []string{"ec2"},
-				Regions:     []string{"eu-west-2"},
-				Integration: "my-integration",
-				Params: &InstallerParams{
-					EnrollMode: InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_EICE,
-				},
-			},
-			errCheck: isBadParameterErr,
-		},
-		{
-			name: "invalid proxy settings",
-			in: &AWSMatcher{
-				Types:   []string{"ec2"},
-				Regions: []string{"us-east-1"},
-				Params: &InstallerParams{
-					HTTPProxySettings: &HTTPProxySettings{
-						HTTPProxy: "not a valid url",
-					},
-				},
-			},
-			errCheck: isBadParameterErr,
-		},
-		{
-			name: "valid organization matcher",
-			in: &AWSMatcher{
-				Types:   []string{"ec2"},
-				Regions: []string{"us-east-1"},
-				AssumeRole: &AssumeRole{
-					RoleName: "MyRole",
-				},
-				Organization: &AWSOrganizationMatcher{
-					OrganizationID: "o-123",
-					OrganizationalUnits: &AWSOrganizationUnitsMatcher{
-						Include: []string{"ou-123"},
-						Exclude: []string{"ou-456"},
-					},
-				},
-			},
-			errCheck: require.NoError,
-		},
-		{
-			name: "valid organization matcher, but missing assume role",
-			in: &AWSMatcher{
-				Types:   []string{"ec2"},
-				Regions: []string{"us-east-1"},
-				Organization: &AWSOrganizationMatcher{
-					OrganizationID: "o-123",
-					OrganizationalUnits: &AWSOrganizationUnitsMatcher{
-						Include: []string{"ou-123"},
-						Exclude: []string{"ou-456"},
-					},
-				},
-			},
-			errCheck: isBadParameterErr,
-		},
-		{
-			name: "organizational units set, but missing org id",
-			in: &AWSMatcher{
-				Types:   []string{"ec2"},
-				Regions: []string{"us-east-1"},
-				AssumeRole: &AssumeRole{
-					RoleARN: "MyRole",
-				},
-				Organization: &AWSOrganizationMatcher{
-					OrganizationalUnits: &AWSOrganizationUnitsMatcher{
-						Include: []string{"ou-123"},
-						Exclude: []string{"ou-456"},
-					},
-				},
-			},
-			errCheck: isBadParameterErr,
-		},
-		{
-			name: "eks matcher with integration does not trigger EICE logic",
-			in: &AWSMatcher{
-				Types:       []string{"eks"},
-				Regions:     []string{"us-east-1"},
-				Integration: "my-integration",
-			},
-			errCheck: require.NoError,
-			expected: &AWSMatcher{
-				Types:       []string{"eks"},
-				Regions:     []string{"us-east-1"},
-				Integration: "my-integration",
-				Tags: Labels{
-					"*": []string{"*"},
-				},
-			},
-		},
-		{
-			name: "eks matcher with valid setup_access_for_arn",
-			in: &AWSMatcher{
-				Types:             []string{"eks"},
-				Regions:           []string{"us-east-1"},
-				SetupAccessForARN: "arn:aws:iam::123456789012:role/my-role",
-			},
-			errCheck: require.NoError,
-			expected: &AWSMatcher{
-				Types:             []string{"eks"},
-				Regions:           []string{"us-east-1"},
-				SetupAccessForARN: "arn:aws:iam::123456789012:role/my-role",
-				Tags: Labels{
-					"*": []string{"*"},
-				},
-			},
-		},
-		{
-			name: "ec2 matcher with setup_access_for_arn fails",
-			in: &AWSMatcher{
-				Types:             []string{"ec2"},
-				Regions:           []string{"us-east-1"},
-				SetupAccessForARN: "arn:aws:iam::123456789012:role/my-role",
-			},
-			errCheck: isBadParameterErr,
-		},
-		{
-			name: "eks matcher does not get install params or ssm defaults",
-			in: &AWSMatcher{
-				Types:   []string{"eks"},
-				Regions: []string{"us-east-1"},
-			},
-			errCheck: require.NoError,
-			expected: &AWSMatcher{
-				Types:   []string{"eks"},
-				Regions: []string{"us-east-1"},
-				Tags: Labels{
-					"*": []string{"*"},
-				},
-			},
-		},
-		{
-			name: "mixed ec2 and eks matcher gets install params and ssm defaults",
-			in: &AWSMatcher{
-				Types:   []string{"ec2", "eks"},
-				Regions: []string{"us-east-1"},
-			},
-			errCheck: require.NoError,
-			expected: &AWSMatcher{
-				Types:   []string{"ec2", "eks"},
-				Regions: []string{"us-east-1"},
-				Tags: Labels{
-					"*": []string{"*"},
-				},
-				Params: &InstallerParams{
-					JoinMethod:      "iam",
-					JoinToken:       "aws-discovery-iam-token",
-					InstallTeleport: true,
-					ScriptName:      "default-installer",
-					SSHDConfig:      "/etc/ssh/sshd_config",
-					EnrollMode:      InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
-				},
-				SSM: &AWSSSM{DocumentName: "TeleportDiscoveryInstaller"},
-			},
-		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.preTest != nil {
-				tt.preTest(t)
-			}
 			err := tt.in.CheckAndSetDefaults()
 			tt.errCheck(t, err)
 			if tt.expected != nil {
 				require.Equal(t, tt.expected, tt.in)
 			}
-		})
-	}
-}
-
-func TestAWSOrganizationMatcherIsEmpty(t *testing.T) {
-	tests := []struct {
-		name     string
-		matcher  *AWSOrganizationMatcher
-		expected bool
-	}{
-		{
-			name:     "nil matcher",
-			matcher:  nil,
-			expected: true,
-		},
-		{
-			name:     "empty matcher",
-			matcher:  &AWSOrganizationMatcher{},
-			expected: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := tt.matcher.IsEmpty()
-			require.Equal(t, tt.expected, result)
 		})
 	}
 }

@@ -32,9 +32,8 @@ func TestProxyServiceConfig_YAML(t *testing.T) {
 		{
 			name: "full",
 			in: ProxyServiceConfig{
-				Name:                "foo",
-				Listen:              "tcp://0.0.0.0:3621",
-				DelegationSessionID: "8a50ba48-2fad-4c2c-a8ce-f48bc18db9ee",
+				Name:   "foo",
+				Listen: "tcp://0.0.0.0:3621",
 				CredentialLifetime: bot.CredentialLifetime{
 					TTL:             1 * time.Minute,
 					RenewalInterval: 30 * time.Second,
@@ -73,16 +72,6 @@ func TestProxyServiceConfig_CheckAndSetDefaults(t *testing.T) {
 				}
 			},
 			wantErr: "parsing listen",
-		},
-		{
-			name:   "scoped",
-			scoped: true,
-			in: func() *ProxyServiceConfig {
-				return &ProxyServiceConfig{
-					Listen: "tcp://0.0.0.0:3621",
-				}
-			},
-			wantErr: "is not supported in scoped mode",
 		},
 	}
 	testCheckAndSetDefaults(t, tests)

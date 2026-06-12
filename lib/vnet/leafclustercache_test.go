@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
@@ -52,9 +51,6 @@ func (c *testLeafClusterClient) ClusterName() string                { return "ro
 func (c *testLeafClusterClient) RootClusterName() string            { return "root" }
 func (c *testLeafClusterClient) SessionSSHKeyRing(ctx context.Context, user string, target client.NodeDetails) (*client.KeyRing, bool, error) {
 	panic("not implemented")
-}
-func (c *testLeafClusterClient) PerformSessionMFACeremony(ctx context.Context, sessionID []byte) (string, error) {
-	return "", trace.NotImplemented("not implemented")
 }
 
 func TestGetLeafClustersUncached(t *testing.T) {

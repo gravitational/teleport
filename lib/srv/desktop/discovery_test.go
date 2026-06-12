@@ -20,7 +20,6 @@ package desktop
 
 import (
 	"context"
-	"crypto/tls"
 	"errors"
 	"io"
 	"log/slog"
@@ -34,13 +33,13 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -69,8 +68,13 @@ func TestDiscoveryLDAPFilter(t *testing.T) {
 		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
-			s := new(WindowsService)
-			filter := s.ldapSearchFilter(test.filters)
+			s := &WindowsService{
+				cfg: WindowsServiceConfig{
+					DiscoveryLDAPFilters: test.filters,
+				},
+			}
+
+			filter := s.ldapSearchFilter()
 			_, err := ldap.CompileFilter(filter)
 			test.assert(t, err)
 		})
@@ -90,11 +94,12 @@ func TestAppliesLDAPLabels(t *testing.T) {
 		"quux":                {""},
 	})
 
-	s := new(WindowsService)
-	s.applyLabelsFromLDAP(entry, l, &servicecfg.LDAPDiscoveryConfig{
-		BaseDN:          "*",
-		LabelAttributes: []string{"bar"},
-	})
+	s := &WindowsService{
+		cfg: WindowsServiceConfig{
+			DiscoveryLDAPAttributeLabels: []string{"bar"},
+		},
+	}
+	s.applyLabelsFromLDAP(entry, l)
 
 	// check default labels
 	require.Equal(t, types.OriginDynamic, l[types.OriginLabel])
@@ -109,22 +114,6 @@ func TestAppliesLDAPLabels(t *testing.T) {
 	// check custom labels
 	require.Equal(t, "baz", l["ldap/bar"])
 	require.Empty(t, l["ldap/quux"])
-}
-
-func TestDNToDomain(t *testing.T) {
-	for _, test := range []struct {
-		dn, domain string
-	}{
-		{"CN=Computers,DC=child,DC=root,DC=zac,DC=local", "child.root.zac.local"},
-		{"CN=me,OU=Engineering,OU=Users,OU=DevGroup,DC=domain,DC=ad,DC=example,DC=com", "domain.ad.example.com"},
-		{"CN=me,OU=Engineering,OU=Users,OU=DevGroup,dC=domain,Dc=ad,dc=example,DC=com", "domain.ad.example.com"},
-		{"", ""},
-		{"CN=me,OU=Engineering,OU=Users,OU=DevGroup", ""},
-	} {
-		t.Run(test.dn, func(t *testing.T) {
-			require.Equal(t, test.domain, dnToDomain(test.dn))
-		})
-	}
 }
 
 func TestLabelsDomainControllers(t *testing.T) {
@@ -158,7 +147,7 @@ func TestLabelsDomainControllers(t *testing.T) {
 	} {
 		t.Run(test.desc, func(t *testing.T) {
 			l := make(map[string]string)
-			s.applyLabelsFromLDAP(test.entry, l, new(servicecfg.LDAPDiscoveryConfig))
+			s.applyLabelsFromLDAP(test.entry, l)
 
 			b, _ := strconv.ParseBool(l[types.DiscoveryLabelWindowsIsDomainController])
 			test.assert(t, b)
@@ -569,16 +558,14 @@ func TestLDAPReconcilerDoesNotDeleteDynamicDesktops(t *testing.T) {
 		s := &WindowsService{
 			closeCtx: t.Context(),
 			cfg: WindowsServiceConfig{
-				Heartbeat:         HeartbeatConfig{HostUUID: hostUUID},
-				Logger:            slog.New(slog.DiscardHandler),
-				Clock:             clockwork.NewRealClock(),
-				AccessPoint:       client,
-				AuthClient:        client,
-				DiscoveryInterval: 5 * time.Minute,
+				Heartbeat:   HeartbeatConfig{HostUUID: hostUUID},
+				Logger:      slog.New(slog.DiscardHandler),
+				Clock:       clockwork.NewRealClock(),
+				AccessPoint: client,
+				AuthClient:  client,
 			},
-			ldapTLSConfig:          new(tls.Config),
-			ldapTLSConfigExpiresAt: time.Now().Add(24 * time.Hour),
-			lastDiscoveryResults:   map[string]types.WindowsDesktop{},
+
+			lastDiscoveryResults: map[string]types.WindowsDesktop{},
 		}
 
 		// Create a desktop registered via the dynamic registration API
@@ -638,21 +625,15 @@ func TestLDAPDiscoveryFailurePreservesDesktops(t *testing.T) {
 		s := &WindowsService{
 			closeCtx: t.Context(),
 			cfg: WindowsServiceConfig{
-				Heartbeat:         HeartbeatConfig{HostUUID: hostUUID},
-				Logger:            slog.New(slog.DiscardHandler),
-				Clock:             clockwork.NewRealClock(),
-				AccessPoint:       client,
-				AuthClient:        client,
-				DiscoveryInterval: 5 * time.Minute,
+				Heartbeat:   HeartbeatConfig{HostUUID: hostUUID},
+				Logger:      slog.New(slog.DiscardHandler),
+				Clock:       clockwork.NewRealClock(),
+				AccessPoint: client,
+				AuthClient:  client,
 			},
-
-			// pre-cache a TLS config so we don't ask auth to issue a real cert
-			// (there isn't a real LDAP server here to connect to)
-			ldapTLSConfig:          new(tls.Config),
-			ldapTLSConfigExpiresAt: time.Now().Add(24 * time.Hour),
 		}
 
-		originalExpiry := time.Now().Add(s.cfg.DiscoveryInterval * 3)
+		originalExpiry := time.Now().Add(apidefaults.ServerAnnounceTTL * 3)
 
 		// Populate last discovery results with some desktops
 		lastDiscoveryResults := map[string]types.WindowsDesktop{}
@@ -697,7 +678,7 @@ func TestLDAPDiscoveryFailurePreservesDesktops(t *testing.T) {
 
 			// Verify the TTL was updated
 			actualExpiry := desktops[0].Expiry()
-			require.Equal(t, 3*s.cfg.DiscoveryInterval, actualExpiry.Sub(preReconcile))
+			require.Equal(t, 3*apidefaults.ServerAnnounceTTL, actualExpiry.Sub(preReconcile))
 		}
 	})
 }

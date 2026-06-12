@@ -36,7 +36,7 @@ test('renders ec2 impacts', async () => {
     issueType: 'ec2-ssm-invocation-failure',
     title: 'ec2 ssm invocation failure',
     description:
-      'Teleport failed to access the SSM Agent to auto enroll the instance.\nSome instances failed to communicate with the AWS Systems Manager service to execute the install script.\n\nUsually this happens when:\n\n**Missing policies**\n\nThe IAM Role used by the integration might be missing some required permissions.\nEnsure the following actions are allowed in the IAM Role used by the integration:\n- `account:ListRegions`\n- `ec2:DescribeInstances`\n- `ssm:DescribeInstanceInformation`\n- `ssm:GetCommandInvocation`\n- `ssm:ListCommandInvocations`\n- `ssm:SendCommand`\n\n**SSM Document is invalid**\n\nTeleport uses an SSM Document to run an installation script.\nIf the document is changed or removed, it might no longer work.',
+      'Teleport failed to access the SSM Agent to auto enroll the instance.\nSome instances failed to communicate with the AWS Systems Manager service to execute the install script.\n\nUsually this happens when:\n\n**Missing policies**\n\nThe IAM Role used by the integration might be missing some required permissions.\nEnsure the following actions are allowed in the IAM Role used by the integration:\n- `ec2:DescribeInstances`\n- `ssm:DescribeInstanceInformation`\n- `ssm:GetCommandInvocation`\n- `ssm:ListCommandInvocations`\n- `ssm:SendCommand`\n\n**SSM Document is invalid**\n\nTeleport uses an SSM Document to run an installation script.\nIf the document is changed or removed, it might no longer work.',
     discoverEks: undefined,
     discoverRds: undefined,
     discoverEc2: {
@@ -189,11 +189,6 @@ test('renders rds impacts', async () => {
     header: ['Name'],
     rows: [['i-016e32a5882f5ee81'], ['i-065818031835365cc']],
   });
-  const link = screen.getByRole('link', { name: 'IAM authentication' });
-  expect(link).toHaveAttribute(
-    'href',
-    'https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.html'
-  );
   jest.resetAllMocks();
 });
 

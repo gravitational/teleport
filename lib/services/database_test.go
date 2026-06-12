@@ -33,24 +33,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// TestDatabaseUnmarshalTLSModes verifies database resource unmarshalling for both string and integer representation of DatabaseTLSMode enum.
-func TestDatabaseUnmarshalTLSModes(t *testing.T) {
-	const databaseYAML = `---
-kind: db
-version: v3
-metadata:
-  name: test-database
-  description: "Test description"
-  labels:
-    env: dev
-spec:
-  protocol: "postgres"
-  uri: "localhost:5432"
-  tls:
-    mode: %v
-  ca_cert: |-
-%v`
-
+// TestDatabaseUnmarshal verifies a database resource can be unmarshaled.
+func TestDatabaseUnmarshal(t *testing.T) {
 	t.Parallel()
 	tlsModes := map[string]types.DatabaseTLSMode{
 		"":            types.DatabaseTLSMode_VERIFY_FULL,
@@ -76,14 +60,14 @@ spec:
 			caCert := indent(fixtures.TLSCACertPEM, 4)
 
 			// verify it works with string tls mode.
-			data, err := utils.ToJSON(fmt.Appendf(nil, databaseYAML, tlsModeName, caCert))
+			data, err := utils.ToJSON([]byte(fmt.Sprintf(databaseYAML, tlsModeName, caCert)))
 			require.NoError(t, err)
 			actual, err := UnmarshalDatabase(data)
 			require.NoError(t, err)
 			require.Empty(t, cmp.Diff(expected, actual))
 
 			// verify it works with integer tls mode.
-			data, err = utils.ToJSON(fmt.Appendf(nil, databaseYAML, int32(tlsModeValue), caCert))
+			data, err = utils.ToJSON([]byte(fmt.Sprintf(databaseYAML, int32(tlsModeValue), caCert)))
 			require.NoError(t, err)
 			actual, err = UnmarshalDatabase(data)
 			require.NoError(t, err)
@@ -508,14 +492,6 @@ func TestValidateDatabase(t *testing.T) {
 			},
 			expectError: false,
 		},
-		{
-			inputName: "valid-alloy-db",
-			inputSpec: types.DatabaseSpecV3{
-				Protocol: defaults.ProtocolPostgres,
-				URI:      "alloydb://projects/my-project-123456/locations/europe-west1/clusters/my-cluster/instances/my-instance",
-			},
-			expectError: false,
-		},
 	}
 
 	for _, test := range tests {
@@ -557,48 +533,6 @@ func TestValidateSQLServerDatabaseURI(t *testing.T) {
 	}
 }
 
-func TestValidateOracleURI(t *testing.T) {
-	tests := []struct {
-		name    string
-		uri     string
-		wantErr string
-	}{
-		{
-			name: "single",
-			uri:  "host1:2484",
-		},
-		{
-			name: "multiple",
-			uri:  "host1:2484,host2:2484",
-		},
-		{
-			name:    "invalid empty",
-			uri:     "",
-			wantErr: `invalid empty part of URI ""`,
-		},
-		{
-			name:    "invalid one of",
-			uri:     "host1:2484,host2,host3:1234",
-			wantErr: `address host2: missing port in address`,
-		},
-		{
-			name:    "empty one of",
-			uri:     "host1:2484,,",
-			wantErr: `invalid empty part of URI "host1:2484,,"`,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := validateOracleURI(tt.uri)
-			if tt.wantErr == "" {
-				require.NoError(t, err)
-			} else {
-				require.ErrorContains(t, err, tt.wantErr)
-			}
-		})
-	}
-}
-
 // indent returns the string where each line is indented by the specified
 // number of spaces.
 func indent(s string, spaces int) string {
@@ -609,3 +543,19 @@ func indent(s string, spaces int) string {
 	}
 	return strings.Join(lines, "\n")
 }
+
+var databaseYAML = `---
+kind: db
+version: v3
+metadata:
+  name: test-database
+  description: "Test description"
+  labels:
+    env: dev
+spec:
+  protocol: "postgres"
+  uri: "localhost:5432"
+  tls:
+    mode: %v
+  ca_cert: |-
+%v`

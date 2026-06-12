@@ -39,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
-	tctlmfa "github.com/gravitational/teleport/tool/tctl/common/mfa"
 )
 
 // InitFunc initiates connection to auth service, makes ping request and return the client instance.
@@ -50,11 +49,10 @@ type InitFunc func(ctx context.Context) (client *authclient.Client, close func(c
 // GetInitFunc wraps lazy loading auth init function for commands which requires the auth client.
 func GetInitFunc(ccf tctlcfg.GlobalCLIFlags, cfg *servicecfg.Config) InitFunc {
 	return func(ctx context.Context) (*authclient.Client, func(context.Context), error) {
-		resolved, err := tctlcfg.ApplyConfig(&ccf, cfg)
+		clientConfig, err := tctlcfg.ApplyConfig(&ccf, cfg)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		clientConfig := resolved.Auth
 
 		resolver, err := reversetunnelclient.CachingResolver(
 			ctx,
@@ -84,7 +82,6 @@ func GetInitFunc(ccf tctlcfg.GlobalCLIFlags, cfg *servicecfg.Config) InitFunc {
 
 		client, err := authclient.Connect(ctx, clientConfig)
 		if err != nil {
-			slog.WarnContext(ctx, "failed to connect to auth server", "error", err)
 			if utils.IsUntrustedCertErr(err) {
 				err = trace.WrapWithMessage(err, utils.SelfSignedCertsMsg)
 			}
@@ -100,20 +97,13 @@ func GetInitFunc(ccf tctlcfg.GlobalCLIFlags, cfg *servicecfg.Config) InitFunc {
 			return nil, nil, trace.NewAggregate(err, client.Close())
 		}
 		proxyAddr := resp.ProxyPublicAddr
-		mfaOpts, err := tctlmfa.ParseMFAMode(ccf.MFAMode)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
 		client.SetMFAPromptConstructor(func(opts ...mfa.PromptOpt) mfa.Prompt {
 			promptCfg := libmfa.NewPromptConfig(proxyAddr, opts...)
-			promptCfg.AuthenticatorAttachment = mfaOpts.AuthenticatorAttachment
 			return libmfa.NewCLIPrompt(&libmfa.CLIPromptConfig{
-				PromptConfig:  *promptCfg,
-				PreferSSO:     mfaOpts.PreferSSO,
-				PreferBrowser: mfaOpts.PreferBrowser,
+				PromptConfig: *promptCfg,
 			})
 		})
-		client.SetMFACeremonyConstructor(func(ctx context.Context) (mfa.CallbackCeremony, error) {
+		client.SetSSOMFACeremonyConstructor(func(ctx context.Context) (mfa.SSOMFACeremony, error) {
 			rdConfig := sso.RedirectorConfig{
 				ProxyAddr: proxyAddr,
 			}

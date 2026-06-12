@@ -57,6 +57,7 @@ func TestWorkloadIdentity(t *testing.T) {
 		newResource: func(s string) (*workloadidentityv1pb.WorkloadIdentity, error) {
 			return newWorkloadIdentity(s), nil
 		},
+
 		create: func(ctx context.Context, item *workloadidentityv1pb.WorkloadIdentity) error {
 			_, err := p.workloadIdentity.CreateWorkloadIdentity(ctx, item)
 			return trace.Wrap(err)
@@ -67,11 +68,12 @@ func TestWorkloadIdentity(t *testing.T) {
 		deleteAll: func(ctx context.Context) error {
 			return p.workloadIdentity.DeleteAllWorkloadIdentities(ctx)
 		},
+
 		cacheList: func(ctx context.Context, pageSize int, pageToken string) ([]*workloadidentityv1pb.WorkloadIdentity, string, error) {
-			return p.cache.ListWorkloadIdentities(ctx, pageSize, pageToken, nil)
+			return p.cache.ListWorkloadIdentities(ctx, 0, "", nil)
 		},
 		cacheGet: p.cache.GetWorkloadIdentity,
-	})
+	}, withSkipPaginationTest())
 }
 
 // TestWorkloadIdentityCacheSorting tests that cache items are sorted.

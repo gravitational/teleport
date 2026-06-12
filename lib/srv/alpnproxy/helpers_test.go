@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -43,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 type Suite struct {
@@ -125,7 +125,7 @@ func (s *Suite) CreateProxyServer(t *testing.T) *Proxy {
 		Listener:          s.serverListener,
 		WebTLSConfig:      tlsConfig,
 		Router:            s.router,
-		Log:               logtest.NewLogger(),
+		Log:               logrus.New(),
 		AccessPoint:       s.accessPoint,
 		IdentityTLSConfig: tlsConfig,
 		ClusterName:       "root",
@@ -153,7 +153,6 @@ func (s *Suite) Start(t *testing.T) {
 }
 
 func mustGenSelfSignedCert(t *testing.T) *tlsca.CertAuthority {
-	t.Helper()
 	caKey, caCert, err := tlsca.GenerateSelfSignedCA(pkix.Name{
 		CommonName: "localhost",
 	}, []string{"localhost"}, defaults.CATTL)
@@ -184,7 +183,6 @@ func withClock(clock clockwork.Clock) signOptionsFunc {
 type signOptionsFunc func(o *signOptions)
 
 func mustGenCertSignedWithCA(t *testing.T, ca *tlsca.CertAuthority, opts ...signOptionsFunc) tls.Certificate {
-	t.Helper()
 	options := signOptions{
 		identity: tlsca.Identity{Username: "test-user"},
 		clock:    clockwork.NewRealClock(),
@@ -220,7 +218,6 @@ func mustGenCertSignedWithCA(t *testing.T, ca *tlsca.CertAuthority, opts ...sign
 }
 
 func mustReadFromConnection(t *testing.T, conn net.Conn, want string) {
-	t.Helper()
 	require.NoError(t, conn.SetReadDeadline(time.Now().Add(time.Second*5)))
 	buff, err := io.ReadAll(conn)
 	require.NoError(t, err)
@@ -229,13 +226,11 @@ func mustReadFromConnection(t *testing.T, conn net.Conn, want string) {
 }
 
 func mustCloseConnection(t *testing.T, conn net.Conn) {
-	t.Helper()
 	err := conn.Close()
 	require.NoError(t, err)
 }
 
 func mustCreateLocalListener(t *testing.T) net.Listener {
-	t.Helper()
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -245,7 +240,6 @@ func mustCreateLocalListener(t *testing.T) net.Listener {
 }
 
 func mustCreateCertGenListener(t *testing.T, ca tls.Certificate) net.Listener {
-	t.Helper()
 	listener, err := NewCertGenListener(CertGenListenerConfig{
 		ListenAddr: "localhost:0",
 		CA:         ca,
@@ -259,26 +253,23 @@ func mustCreateCertGenListener(t *testing.T, ca tls.Certificate) net.Listener {
 }
 
 func mustSuccessfullyCallHTTPSServer(t *testing.T, addr string, client http.Client) {
-	t.Helper()
 	mustCallHTTPSServerAndReceiveCode(t, addr, client, http.StatusOK)
 }
 
 func mustCallHTTPSServerAndReceiveCode(t *testing.T, addr string, client http.Client, expectStatusCode int) {
-	t.Helper()
 	resp, err := client.Get(fmt.Sprintf("https://%s", addr))
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	require.Equal(t, expectStatusCode, resp.StatusCode)
 }
 
-func mustStartHTTPServer(l net.Listener) {
+func mustStartHTTPServer(t *testing.T, l net.Listener) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {})
 	go http.Serve(l, mux)
 }
 
 func mustStartLocalProxy(t *testing.T, config LocalProxyConfig) {
-	t.Helper()
 	lp, err := NewLocalProxy(config)
 	require.NoError(t, err)
 	t.Cleanup(func() {

@@ -21,7 +21,6 @@ package internal
 import (
 	"context"
 	"fmt"
-	"os"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -30,13 +29,8 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 )
-
-func TestMain(m *testing.M) {
-	logtest.InitLogger(testing.Verbose)
-	os.Exit(m.Run())
-}
 
 func Test_RunOnInterval(t *testing.T) {
 	t.Parallel()
@@ -45,7 +39,7 @@ func Test_RunOnInterval(t *testing.T) {
 	t.Cleanup(cancel)
 
 	taskCh := make(chan struct{}, 3)
-	log := logtest.NewLogger()
+	log := utils.NewSlogLoggerForTests()
 	clock := clockwork.NewFakeClock()
 	cfg := RunOnIntervalConfig{
 		Name:  "test",
@@ -67,7 +61,7 @@ func Test_RunOnInterval(t *testing.T) {
 	}()
 
 	// Wait for three iterations to have been completed.
-	for range 3 {
+	for i := 0; i < 3; i++ {
 		<-taskCh
 		clock.Advance(time.Minute * 11)
 	}
@@ -85,7 +79,7 @@ func Test_RunOnInterval_failureExit(t *testing.T) {
 
 	callCount := atomic.Int64{}
 
-	log := logtest.NewLogger()
+	log := utils.NewSlogLoggerForTests()
 	testErr := fmt.Errorf("test error")
 	cfg := RunOnIntervalConfig{
 		Name:  "test",

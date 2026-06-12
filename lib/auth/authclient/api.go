@@ -21,7 +21,6 @@ package authclient
 import (
 	"context"
 	"io"
-	"iter"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -29,7 +28,6 @@ import (
 
 	"github.com/gravitational/teleport/api/client/gitserver"
 	"github.com/gravitational/teleport/api/client/proto"
-	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	accessmonitoringrules "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
@@ -37,9 +35,7 @@ import (
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
-	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
-	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
@@ -59,14 +55,9 @@ type Announcer interface {
 	// for the specified duration with second resolution if it's >= 1 second
 	UpsertNode(ctx context.Context, s types.Server) (*types.KeepAlive, error)
 
-	// UpsertProxyServerWithoutReturn registers proxy presence, permanently if
-	// ttl is 0 or for the specified duration with second resolution if it's
-	// >= 1 second. The upserted server is not returned because the HTTP
-	// fallback path cannot provide it.
-	//
-	// TODO(noah): DELETE IN v20.0.0 — replace with a returning variant once the
-	// HTTP fallback is removed.
-	UpsertProxyServerWithoutReturn(ctx context.Context, s types.Server) error
+	// UpsertProxy registers proxy presence, permanently if ttl is 0 or
+	// for the specified duration with second resolution if it's >= 1 second
+	UpsertProxy(ctx context.Context, s types.Server) error
 
 	// UpsertAuthServer registers auth server presence, permanently if ttl is 0 or
 	// for the specified duration with second resolution if it's >= 1 second
@@ -135,7 +126,7 @@ type ReadNodeAccessPoint interface {
 	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
-	GetClusterName(ctx context.Context) (types.ClusterName, error)
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 
 	// GetClusterAuditConfig returns cluster audit configuration.
 	GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error)
@@ -155,6 +146,12 @@ type ReadNodeAccessPoint interface {
 	// GetRoles returns a list of roles
 	GetRoles(ctx context.Context) ([]types.Role, error)
 
+	// GetNamespaces returns a list of namespaces
+	GetNamespaces() ([]types.Namespace, error)
+
+	// GetNamespace returns namespace by name
+	GetNamespace(name string) (*types.Namespace, error)
+
 	// GetNetworkRestrictions returns networking restrictions for restricted shell to enforce
 	GetNetworkRestrictions(ctx context.Context) (types.NetworkRestrictions, error)
 }
@@ -167,9 +164,6 @@ type NodeAccessPoint interface {
 
 	// accessPoint provides common access point functionality
 	accessPoint
-
-	// ScopedRoleReader returns a read-only scoped role client.
-	ScopedRoleReader() services.ScopedRoleReader
 }
 
 // ReadProxyAccessPoint is a read only API interface implemented by a certificate authority (CA) to be
@@ -179,10 +173,6 @@ type NodeAccessPoint interface {
 type ReadProxyAccessPoint interface {
 	// Closer closes all the resources
 	io.Closer
-
-	// HealthCheckConfigReader defines methods for fetching health check config
-	// resources.
-	services.HealthCheckConfigReader
 
 	// NewWatcher returns a new event watcher.
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
@@ -194,7 +184,7 @@ type ReadProxyAccessPoint interface {
 	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
-	GetClusterName(ctx context.Context) (types.ClusterName, error)
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 
 	// GetClusterAuditConfig returns cluster audit configuration.
 	GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error)
@@ -223,6 +213,12 @@ type ReadProxyAccessPoint interface {
 	// GetUser returns a services.User for this cluster.
 	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
 
+	// GetNamespaces returns a list of namespaces
+	GetNamespaces() ([]types.Namespace, error)
+
+	// GetNamespace returns namespace by name
+	GetNamespace(name string) (*types.Namespace, error)
+
 	// GetNode returns a node by name and namespace.
 	GetNode(ctx context.Context, namespace, name string) (types.Server, error)
 
@@ -230,27 +226,13 @@ type ReadProxyAccessPoint interface {
 	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
 
 	// GetProxies returns a list of proxy servers registered in the cluster
-	//
-	// Deprecated: Prefer paginated variant [ListProxyServers].
-	//
-	// TODO(kiosion): DELETE IN 21.0.0
 	GetProxies() ([]types.Server, error)
 
-	// ListProxyServers returns a paginated list of proxy servers registered in the cluster
-	ListProxyServers(ctx context.Context, pageSize int, nextToken string) ([]types.Server, string, error)
-
 	// GetAuthServers returns a list of auth servers registered in the cluster
-	//
-	// Deprecated: Prefer paginated variant [ListAuthServers].
-	//
-	// TODO(kiosion): DELETE IN 21.0.0
 	GetAuthServers() ([]types.Server, error)
 
-	// ListAuthServers returns a paginated list of auth servers registered in the cluster
-	ListAuthServers(ctx context.Context, pageSize int, nextToken string) ([]types.Server, string, error)
-
-	// ListReverseTunnels returns a list of reverse tunnels with pagination.
-	ListReverseTunnels(ctx context.Context, pageSize int, nextToken string) ([]types.ReverseTunnel, string, error)
+	// GetReverseTunnels returns  a list of reverse tunnels
+	GetReverseTunnels(ctx context.Context) ([]types.ReverseTunnel, error)
 
 	// GetAllTunnelConnections returns all tunnel connections
 	GetAllTunnelConnections(opts ...services.MarshalOption) ([]types.TunnelConnection, error)
@@ -266,9 +248,6 @@ type ReadProxyAccessPoint interface {
 
 	// ListApps returns a page of application resources.
 	ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error)
-
-	// Apps returns application resources within the range [start, end).
-	Apps(ctx context.Context, start, end string) iter.Seq2[types.Application, error]
 
 	// GetApp returns the specified application resource.
 	GetApp(ctx context.Context, name string) (types.Application, error)
@@ -308,14 +287,10 @@ type ReadProxyAccessPoint interface {
 	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
 
 	// GetDatabases returns all database resources.
-	// Deprecated: Prefer paginated variant such as [ListDatabases] or [RangeDatabases]
 	GetDatabases(ctx context.Context) ([]types.Database, error)
 
 	// ListDatabases returns a page of database resources.
 	ListDatabases(ctx context.Context, limit int, startKey string) ([]types.Database, string, error)
-
-	// RangeDatabases returns database resources within the range [start, end).
-	RangeDatabases(ctx context.Context, start, end string) iter.Seq2[types.Database, error]
 
 	// GetDatabase returns the specified database resource.
 	GetDatabase(ctx context.Context, name string) (types.Database, error)
@@ -332,8 +307,6 @@ type ReadProxyAccessPoint interface {
 	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
 	// ListKubernetesClusters returns a page of registered kubernetes clusters.
 	ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error)
-	// RangeKubernetesClusters returns kubernetes clusters within the range [start, end).
-	RangeKubernetesClusters(ctx context.Context, start, end string) iter.Seq2[types.KubeCluster, error]
 	// GetKubernetesCluster returns the specified kubernetes cluster resource.
 	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
 
@@ -342,6 +315,9 @@ type ReadProxyAccessPoint interface {
 
 	// ListSAMLIdPServiceProviders returns a paginated list of all SAML IdP service provider resources.
 	ListSAMLIdPServiceProviders(context.Context, int, string) ([]types.SAMLIdPServiceProvider, string, error)
+
+	// GetSAMLIdPSession gets a SAML IdP session.
+	GetSAMLIdPSession(context.Context, types.GetSAMLIdPSessionRequest) (types.WebSession, error)
 
 	// ListUserGroups returns a paginated list of user group resources.
 	ListUserGroups(ctx context.Context, pageSize int, nextKey string) ([]types.UserGroup, string, error)
@@ -360,11 +336,6 @@ type ReadProxyAccessPoint interface {
 
 	// GitServerReadOnlyClient returns the read-only client for Git servers.
 	GitServerReadOnlyClient() gitserver.ReadOnlyClient
-
-	// GetRelayServer returns the relay server heartbeat with a given name.
-	GetRelayServer(ctx context.Context, name string) (*presencev1.RelayServer, error)
-	// ListRelayServers returns a paginated list of relay server heartbeats.
-	ListRelayServers(ctx context.Context, pageSize int, pageToken string) (_ []*presencev1.RelayServer, nextPageToken string, _ error)
 
 	// ListIntegrations returns a paginated list of all integration resources.
 	ListIntegrations(ctx context.Context, pageSize int, nextToken string) ([]types.Integration, string, error)
@@ -386,38 +357,6 @@ type ProxyAccessPoint interface {
 
 	// accessPoint provides common access point functionality
 	accessPoint
-
-	// ScopedRoleReader returns a read-only scoped role client.
-	ScopedRoleReader() services.ScopedRoleReader
-}
-
-// ReadRelayAccessPoint is a read only API interface to be used by a Relay
-// service.
-//
-// NOTE: This interface must be a subset of the [*cache.Cache] methods usable in the
-// cache configured by [cache.ForRelay].
-type ReadRelayAccessPoint interface {
-	io.Closer
-	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
-
-	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool) (types.CertAuthority, error)
-	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
-
-	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
-
-	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
-
-	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
-
-	GetRelayServer(ctx context.Context, name string) (*presencev1.RelayServer, error)
-
-	GetRole(ctx context.Context, name string) (types.Role, error)
-
-	GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error)
-
-	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
-
-	GetKubernetesServers(ctx context.Context) ([]types.KubeServer, error)
 }
 
 // ReadRemoteProxyAccessPoint is a read only API interface implemented by a certificate authority (CA) to be
@@ -438,7 +377,7 @@ type ReadRemoteProxyAccessPoint interface {
 	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
-	GetClusterName(ctx context.Context) (types.ClusterName, error)
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 
 	// GetClusterAuditConfig returns cluster audit configuration.
 	GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error)
@@ -458,6 +397,12 @@ type ReadRemoteProxyAccessPoint interface {
 	// GetRoles returns a list of roles
 	GetRoles(ctx context.Context) ([]types.Role, error)
 
+	// GetNamespaces returns a list of namespaces
+	GetNamespaces() ([]types.Namespace, error)
+
+	// GetNamespace returns namespace by name
+	GetNamespace(name string) (*types.Namespace, error)
+
 	// GetNode returns a node by name and namespace.
 	GetNode(ctx context.Context, namespace, name string) (types.Server, error)
 
@@ -465,24 +410,13 @@ type ReadRemoteProxyAccessPoint interface {
 	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
 
 	// GetProxies returns a list of proxy servers registered in the cluster
-	//
-	// Deprecated: Prefer paginated variant [ListProxyServers].
-	//
-	// TODO(kiosion): DELETE IN 21.0.0
 	GetProxies() ([]types.Server, error)
 
-	// ListProxyServers returns a paginated list of proxy servers registered in the cluster
-	ListProxyServers(ctx context.Context, pageSize int, nextToken string) ([]types.Server, string, error)
-
 	// GetAuthServers returns a list of auth servers registered in the cluster
-	//
-	// Deprecated: Prefer paginated variant [ListAuthServers].
-	//
-	// TODO(kiosion): DELETE IN 21.0.0
 	GetAuthServers() ([]types.Server, error)
 
-	// ListAuthServers returns a paginated list of auth servers registered in the cluster
-	ListAuthServers(ctx context.Context, pageSize int, nextToken string) ([]types.Server, string, error)
+	// GetReverseTunnels returns  a list of reverse tunnels
+	GetReverseTunnels(ctx context.Context) ([]types.ReverseTunnel, error)
 
 	// GetAllTunnelConnections returns all tunnel connections
 	GetAllTunnelConnections(opts ...services.MarshalOption) ([]types.TunnelConnection, error)
@@ -512,15 +446,6 @@ type ReadRemoteProxyAccessPoint interface {
 	GetWindowsDesktopService(ctx context.Context, name string) (types.WindowsDesktopService, error)
 }
 
-// RelayAccessPoint is the top-level access point interface required by a Relay service.
-type RelayAccessPoint interface {
-	// ReadRelayAccessPoint provides methods to read data
-	ReadRelayAccessPoint
-
-	// ScopedRoleReader returns a read-only scoped role client.
-	ScopedRoleReader() services.ScopedRoleReader
-}
-
 // RemoteProxyAccessPoint is an API interface implemented by a certificate authority (CA) to be
 // used by a teleport.ComponentProxy.
 type RemoteProxyAccessPoint interface {
@@ -529,11 +454,6 @@ type RemoteProxyAccessPoint interface {
 
 	// accessPoint provides common access point functionality
 	accessPoint
-
-	// ScopedRoleReader returns a read-only scoped role client.
-	// TODO(fspmarshall/scopes): remove the need for this. this is only here to satisfy the common
-	// interface used by lib/srv components. scoped access is not support for cross-cluster operations.
-	ScopedRoleReader() services.ScopedRoleReader
 }
 
 // ReadKubernetesAccessPoint is an API interface implemented by a certificate authority (CA) to be
@@ -543,10 +463,6 @@ type RemoteProxyAccessPoint interface {
 type ReadKubernetesAccessPoint interface {
 	// Closer closes all the resources
 	io.Closer
-
-	// HealthCheckConfigReader defines methods for fetching health check config
-	// resources.
-	services.HealthCheckConfigReader
 
 	// NewWatcher returns a new event watcher.
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
@@ -558,7 +474,7 @@ type ReadKubernetesAccessPoint interface {
 	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
-	GetClusterName(ctx context.Context) (types.ClusterName, error)
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 
 	// GetClusterAuditConfig returns cluster audit configuration.
 	GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error)
@@ -581,6 +497,12 @@ type ReadKubernetesAccessPoint interface {
 	// GetRoles returns a list of roles
 	GetRoles(ctx context.Context) ([]types.Role, error)
 
+	// GetNamespaces returns a list of namespaces
+	GetNamespaces() ([]types.Namespace, error)
+
+	// GetNamespace returns namespace by name
+	GetNamespace(name string) (*types.Namespace, error)
+
 	// GetKubernetesServers returns a list of kubernetes servers registered in the cluster
 	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
 
@@ -598,8 +520,6 @@ type ReadKubernetesAccessPoint interface {
 	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
 	// ListKubernetesClusters returns a page of registered kubernetes clusters.
 	ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error)
-	// RangeKubernetesClusters returns kubernetes clusters within the range [start, end).
-	RangeKubernetesClusters(ctx context.Context, start, end string) iter.Seq2[types.KubeCluster, error]
 	// GetKubernetesCluster returns the specified kubernetes cluster resource.
 	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
 }
@@ -612,9 +532,6 @@ type KubernetesAccessPoint interface {
 
 	// accessPoint provides common access point functionality
 	accessPoint
-
-	// ScopedRoleReader returns a read-only scoped role client.
-	ScopedRoleReader() services.ScopedRoleReader
 }
 
 // ReadAppsAccessPoint is a read only API interface implemented by a certificate authority (CA) to be
@@ -635,7 +552,7 @@ type ReadAppsAccessPoint interface {
 	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
-	GetClusterName(ctx context.Context) (types.ClusterName, error)
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 
 	// GetClusterAuditConfig returns cluster audit configuration.
 	GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error)
@@ -659,23 +576,19 @@ type ReadAppsAccessPoint interface {
 	GetRoles(ctx context.Context) ([]types.Role, error)
 
 	// GetProxies returns a list of proxy servers registered in the cluster
-	//
-	// Deprecated: Prefer paginated variant [ListProxyServers].
-	//
-	// TODO(kiosion): DELETE IN 21.0.0
 	GetProxies() ([]types.Server, error)
 
-	// ListProxyServers returns a paginated list of proxy servers registered in the cluster
-	ListProxyServers(ctx context.Context, pageSize int, nextToken string) ([]types.Server, string, error)
+	// GetNamespaces returns a list of namespaces
+	GetNamespaces() ([]types.Namespace, error)
+
+	// GetNamespace returns namespace by name
+	GetNamespace(name string) (*types.Namespace, error)
 
 	// GetApps returns all application resources.
 	GetApps(ctx context.Context) ([]types.Application, error)
 
 	// ListApps returns a page of application resources.
 	ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error)
-
-	// Apps returns application resources within the range [start, end).
-	Apps(ctx context.Context, start, end string) iter.Seq2[types.Application, error]
 
 	// GetApp returns the specified application resource.
 	GetApp(ctx context.Context, name string) (types.Application, error)
@@ -699,10 +612,6 @@ type ReadDatabaseAccessPoint interface {
 	// Closer closes all the resources
 	io.Closer
 
-	// HealthCheckConfigReader defines methods for reading health check config
-	// resources.
-	services.HealthCheckConfigReader
-
 	// NewWatcher returns a new event watcher.
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 
@@ -713,7 +622,7 @@ type ReadDatabaseAccessPoint interface {
 	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
-	GetClusterName(ctx context.Context) (types.ClusterName, error)
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 
 	// GetClusterAuditConfig returns cluster audit configuration.
 	GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error)
@@ -739,15 +648,17 @@ type ReadDatabaseAccessPoint interface {
 	// GetProxies returns a list of proxy servers registered in the cluster
 	GetProxies() ([]types.Server, error)
 
+	// GetNamespaces returns a list of namespaces
+	GetNamespaces() ([]types.Namespace, error)
+
+	// GetNamespace returns namespace by name
+	GetNamespace(name string) (*types.Namespace, error)
+
 	// GetDatabases returns all database resources.
-	// Deprecated: Prefer paginated variant such as [ListDatabases] or [RangeDatabases]
 	GetDatabases(ctx context.Context) ([]types.Database, error)
 
 	// ListDatabases returns a page of database resources.
 	ListDatabases(ctx context.Context, limit int, startKey string) ([]types.Database, string, error)
-
-	// RangeDatabases returns database resources within the range [start, end).
-	RangeDatabases(ctx context.Context, start, end string) iter.Seq2[types.Database, error]
 
 	// GetDatabase returns the specified database resource.
 	GetDatabase(ctx context.Context, name string) (types.Database, error)
@@ -770,8 +681,6 @@ type DatabaseAccessPoint interface {
 type ReadWindowsDesktopAccessPoint interface {
 	// Closer closes all the resources
 	io.Closer
-	// SubCAServiceGetter reads CA override resources.
-	services.SubCAServiceGetter
 
 	// NewWatcher returns a new event watcher.
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
@@ -783,7 +692,7 @@ type ReadWindowsDesktopAccessPoint interface {
 	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
-	GetClusterName(ctx context.Context) (types.ClusterName, error)
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 
 	// GetClusterAuditConfig returns cluster audit configuration.
 	GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error)
@@ -805,6 +714,12 @@ type ReadWindowsDesktopAccessPoint interface {
 
 	// GetRoles returns a list of roles
 	GetRoles(ctx context.Context) ([]types.Role, error)
+
+	// GetNamespaces returns a list of namespaces
+	GetNamespaces() ([]types.Namespace, error)
+
+	// GetNamespace returns namespace by name
+	GetNamespace(name string) (*types.Namespace, error)
 
 	// ListWindowsDesktops returns Windows desktop hosts.
 	ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error)
@@ -832,61 +747,6 @@ type WindowsDesktopAccessPoint interface {
 	accessPoint
 }
 
-// ReadLinuxDesktopAccessPoint is an API interface implemented by a certificate authority (CA) to be
-// used by a teleport.ComponentLinuxDesktop.
-//
-// NOTE: This interface must match the resources replicated in cache.ForLinuxDesktop.
-type ReadLinuxDesktopAccessPoint interface {
-	// Closer closes all the resources
-	io.Closer
-
-	// NewWatcher returns a new event watcher.
-	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
-
-	// GetCertAuthority returns cert authority by id
-	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
-
-	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
-
-	// GetClusterName gets the name of the cluster from the backend.
-	GetClusterName(ctx context.Context) (types.ClusterName, error)
-
-	// GetClusterAuditConfig returns cluster audit configuration.
-	GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error)
-
-	// GetClusterNetworkingConfig returns cluster networking configuration.
-	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
-
-	// GetAuthPreference returns the cluster authentication configuration.
-	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
-
-	// GetSessionRecordingConfig returns session recording configuration.
-	GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error)
-
-	// GetUser returns a services.User for this cluster.
-	GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error)
-
-	// GetRole returns role by name
-	GetRole(ctx context.Context, name string) (types.Role, error)
-
-	// GetRoles returns a list of roles
-	GetRoles(ctx context.Context) ([]types.Role, error)
-
-	// ListLinuxDesktops returns Linux desktop hosts.
-	ListLinuxDesktops(ctx context.Context, pageSize int, pageToken string) ([]*linuxdesktopv1.LinuxDesktop, string, error)
-}
-
-// LinuxDesktopAccessPoint is an API interface implemented by a certificate authority (CA) to be
-// used by a teleport.ComponentLinuxDesktop.
-type LinuxDesktopAccessPoint interface {
-	// ReadLinuxDesktopAccessPoint provides methods to read data
-	ReadLinuxDesktopAccessPoint
-
-	// accessPoint provides common access point functionality
-	accessPoint
-}
-
 // ReadDiscoveryAccessPoint is a read only API interface to be
 // used by a teleport.ComponentDiscovery.
 //
@@ -905,7 +765,13 @@ type ReadDiscoveryAccessPoint interface {
 	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
-	GetClusterName(ctx context.Context) (types.ClusterName, error)
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
+
+	// GetNamespaces returns a list of namespaces
+	GetNamespaces() ([]types.Namespace, error)
+
+	// GetNamespace returns namespace by name
+	GetNamespace(name string) (*types.Namespace, error)
 
 	// GetNodes returns a list of registered servers for this cluster.
 	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
@@ -915,20 +781,14 @@ type ReadDiscoveryAccessPoint interface {
 	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
 	// ListKubernetesClusters returns a page of registered kubernetes clusters.
 	ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error)
-	// RangeKubernetesClusters returns kubernetes clusters within the range [start, end).
-	RangeKubernetesClusters(ctx context.Context, start, end string) iter.Seq2[types.KubeCluster, error]
 	// GetKubernetesServers returns all registered kubernetes servers.
 	GetKubernetesServers(ctx context.Context) ([]types.KubeServer, error)
 
 	// GetDatabases returns all database resources.
-	// Deprecated: Prefer paginated variant such as [ListDatabases] or [RangeDatabases]
 	GetDatabases(ctx context.Context) ([]types.Database, error)
 
 	// ListDatabases returns a page of database resources.
 	ListDatabases(ctx context.Context, limit int, startKey string) ([]types.Database, string, error)
-
-	// RangeDatabases returns database resources within the range [start, end).
-	RangeDatabases(ctx context.Context, start, end string) iter.Seq2[types.Database, error]
 
 	// GetDatabase returns a database resource with the given name if it exists.
 	GetDatabase(ctx context.Context, name string) (types.Database, error)
@@ -939,27 +799,17 @@ type ReadDiscoveryAccessPoint interface {
 	// ListApps returns a page of application resources.
 	ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error)
 
-	// Apps returns application resources within the range [start, end).
-	Apps(ctx context.Context, start, end string) iter.Seq2[types.Application, error]
-
 	// GetApp returns the specified application resource.
 	GetApp(ctx context.Context, name string) (types.Application, error)
 
-	// DiscoveryConfigsGetter lists and reads discovery config resources.
-	services.DiscoveryConfigsGetter
+	// ListDiscoveryConfigs returns a paginated list of Discovery Config resources.
+	ListDiscoveryConfigs(ctx context.Context, pageSize int, nextKey string) ([]*discoveryconfig.DiscoveryConfig, string, error)
 
 	// GetIntegration returns the specified integration resource.
 	GetIntegration(ctx context.Context, name string) (types.Integration, error)
 
 	// GetProxies returns a list of registered proxies.
-	//
-	// Deprecated: Prefer paginated variant [ListProxyServers].
-	//
-	// TODO(kiosion): DELETE IN 21.0.0
 	GetProxies() ([]types.Server, error)
-
-	// ListProxyServers returns a paginated list of proxy servers registered in the cluster
-	ListProxyServers(ctx context.Context, pageSize int, nextToken string) ([]types.Server, string, error)
 
 	// GetUserTask gets a single User Task by its name.
 	GetUserTask(ctx context.Context, name string) (*usertasksv1.UserTask, error)
@@ -1033,14 +883,7 @@ type ReadOktaAccessPoint interface {
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 
 	// GetProxies returns a list of proxy servers registered in the cluster
-	//
-	// Deprecated: Prefer paginated variant [ListProxyServers].
-	//
-	// TODO(kiosion): DELETE IN 21.0.0
 	GetProxies() ([]types.Server, error)
-
-	// ListProxyServers returns a paginated list of proxy servers registered in the cluster
-	ListProxyServers(ctx context.Context, pageSize int, nextToken string) ([]types.Server, string, error)
 
 	// GetAuthPreference returns the cluster authentication configuration.
 	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
@@ -1083,9 +926,6 @@ type ReadOktaAccessPoint interface {
 
 	// ListLocks returns a page of locks matching a filter.
 	ListLocks(ctx context.Context, limit int, startKey string, filter *types.LockFilter) ([]types.Lock, string, error)
-
-	// RangeLocks returns locks within the range [start, end) matching a filter.
-	RangeLocks(ctx context.Context, start, end string, filter *types.LockFilter) iter.Seq2[types.Lock, error]
 }
 
 // OktaAccessPoint is a read caching interface used by an Okta component.
@@ -1144,11 +984,6 @@ type OktaAccessPoint interface {
 
 	// DeleteLock deletes a given lock
 	DeleteLock(ctx context.Context, name string) error
-
-	// ConditionalUpdateOktaAssignment updates an Okta assignment, protected by optimistic locking.
-	ConditionalUpdateOktaAssignment(ctx context.Context, assignment types.OktaAssignment) (types.OktaAssignment, error)
-	// UpsertOktaAssignment creates or updates an Okta assignment resource.
-	UpsertOktaAssignment(ctx context.Context, assignment types.OktaAssignment) (types.OktaAssignment, error)
 }
 
 // AccessCache is a subset of the interface working on the certificate authorities
@@ -1169,7 +1004,7 @@ type AccessCache interface {
 	GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
-	GetClusterName(ctx context.Context) (types.ClusterName, error)
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 }
 
 // Cache is a subset of the auth interface handling
@@ -1181,11 +1016,14 @@ type Cache interface {
 	// NewWatcher returns a new event watcher.
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 
+	// GetReverseTunnels returns  a list of reverse tunnels
+	GetReverseTunnels(ctx context.Context) ([]types.ReverseTunnel, error)
+
 	// ListReverseTunnels returns a paginated list of reverse tunnels.
 	ListReverseTunnels(ctx context.Context, pageSize int, pageToken string) ([]types.ReverseTunnel, string, error)
 
 	// GetClusterName returns cluster name
-	GetClusterName(ctx context.Context) (types.ClusterName, error)
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 
 	// GetClusterAuditConfig returns cluster audit configuration.
 	GetClusterAuditConfig(ctx context.Context) (types.ClusterAuditConfig, error)
@@ -1199,6 +1037,12 @@ type Cache interface {
 	// GetSessionRecordingConfig returns session recording configuration.
 	GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error)
 
+	// GetNamespaces returns a list of namespaces
+	GetNamespaces() ([]types.Namespace, error)
+
+	// GetNamespace returns namespace by name
+	GetNamespace(name string) (*types.Namespace, error)
+
 	// GetNode returns a node by name and namespace.
 	GetNode(ctx context.Context, namespace, name string) (types.Server, error)
 
@@ -1206,24 +1050,10 @@ type Cache interface {
 	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
 
 	// GetProxies returns a list of proxy servers registered in the cluster
-	//
-	// Deprecated: Prefer paginated variant [ListProxyServers].
-	//
-	// TODO(kiosion): DELETE IN 21.0.0
 	GetProxies() ([]types.Server, error)
 
-	// ListProxyServers returns a paginated list of proxy servers registered in the cluster
-	ListProxyServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error)
-
 	// GetAuthServers returns a list of auth servers registered in the cluster
-	//
-	// Deprecated: Prefer paginated variant [ListAuthServers].
-	//
-	// TODO(kiosion): DELETE IN 21.0.0
 	GetAuthServers() ([]types.Server, error)
-
-	// ListAuthServers returns a paginated list of auth servers registered in the cluster
-	ListAuthServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error)
 
 	// GetCertAuthority returns cert authority by id
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
@@ -1258,9 +1088,6 @@ type Cache interface {
 	// ListApps returns a page of application resources.
 	ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error)
 
-	// Apps returns application resources within the range [start, end).
-	Apps(ctx context.Context, startKey, endKey string) iter.Seq2[types.Application, error]
-
 	// GetApp returns the specified application resource.
 	GetApp(ctx context.Context, name string) (types.Application, error)
 
@@ -1282,8 +1109,8 @@ type Cache interface {
 	// ListSnowflakeSessions returns a page of Snowflake session resources.
 	ListSnowflakeSessions(ctx context.Context, limit int, startKey string) ([]types.WebSession, string, error)
 
-	// RangeSnowflakeSessions returns Snowflake session resources within the range [start, end).
-	RangeSnowflakeSessions(ctx context.Context, start, end string) iter.Seq2[types.WebSession, error]
+	// GetSAMLIdPSession gets a SAML IdP session.
+	GetSAMLIdPSession(context.Context, types.GetSAMLIdPSessionRequest) (types.WebSession, error)
 
 	// GetWebSession gets a web session for the given request
 	GetWebSession(context.Context, types.GetWebSessionRequest) (types.WebSession, error)
@@ -1300,9 +1127,6 @@ type Cache interface {
 	// GetKubernetesServers returns a list of kubernetes servers registered in the cluster
 	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
 
-	// RangeKubernetesServersWithName returns an iterator over kubernetes servers for a given cluster name.
-	RangeKubernetesServersWithName(ctx context.Context, clusterName string) iter.Seq2[types.KubeServer, error]
-
 	// ListKubernetesWaitingContainers lists Kubernetes ephemeral
 	// containers that are waiting to be created until moderated
 	// session conditions are met.
@@ -1316,18 +1140,11 @@ type Cache interface {
 	// GetDatabaseServers returns all registered database proxy servers.
 	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
 
-	// RangeDatabaseServersWithName returns an iterator over database proxy servers for a given database name.
-	RangeDatabaseServersWithName(ctx context.Context, databaseName string) iter.Seq2[types.DatabaseServer, error]
-
 	// GetDatabases returns all database resources.
-	// Deprecated: Prefer paginated variant such as [ListDatabases] or [RangeDatabases]
 	GetDatabases(ctx context.Context) ([]types.Database, error)
 
 	// ListDatabases returns a page of database resources.
 	ListDatabases(ctx context.Context, limit int, startKey string) ([]types.Database, string, error)
-
-	// RangeDatabases returns database resources within the range [start, end).
-	RangeDatabases(ctx context.Context, start, end string) iter.Seq2[types.Database, error]
 
 	// GetDatabase returns the specified database resource.
 	GetDatabase(ctx context.Context, name string) (types.Database, error)
@@ -1350,14 +1167,11 @@ type Cache interface {
 	// ListDynamicWindowsDesktops returns all registered dynamic Windows desktop.
 	ListDynamicWindowsDesktops(ctx context.Context, pageSize int, pageToken string) ([]types.DynamicWindowsDesktop, string, error)
 
-	// GetLinuxDesktop returns registered Linux desktop by name.
-	GetLinuxDesktop(ctx context.Context, name string) (*linuxdesktopv1.LinuxDesktop, error)
-
-	// ListLinuxDesktops returns all registered Linux desktop.
-	ListLinuxDesktops(ctx context.Context, pageSize int, nextToken string) ([]*linuxdesktopv1.LinuxDesktop, string, error)
-
 	// GetStaticTokens gets the list of static tokens used to provision nodes.
-	GetStaticTokens(ctx context.Context) (types.StaticTokens, error)
+	GetStaticTokens() (types.StaticTokens, error)
+
+	// GetTokens returns all active (non-expired) provisioning tokens
+	GetTokens(ctx context.Context) ([]types.ProvisionToken, error)
 
 	// GetToken finds and returns token by ID
 	GetToken(ctx context.Context, token string) (types.ProvisionToken, error)
@@ -1381,12 +1195,6 @@ type Cache interface {
 	// services.LockWatcher that provides the necessary freshness guarantees.
 	ListLocks(ctx context.Context, limit int, startKey string, filter *types.LockFilter) ([]types.Lock, string, error)
 
-	// RangeLocks returns locks within the range [start, end).
-	// NOTE: This method is intentionally available only for the auth server
-	// cache, the other Teleport components should make use of
-	// services.LockWatcher that provides the necessary freshness guarantees.
-	RangeLocks(ctx context.Context, start, end string, filter *types.LockFilter) iter.Seq2[types.Lock, error]
-
 	// ListResources returns a paginated list of resources.
 	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 	// ListWindowsDesktops returns a paginated list of windows desktops.
@@ -1402,17 +1210,11 @@ type Cache interface {
 
 	// GetInstallers gets all the installer resources.
 	GetInstallers(ctx context.Context) ([]types.Installer, error)
-	// ListInstallers returns a page of installer script resources.
-	ListInstallers(ctx context.Context, limit int, start string) ([]types.Installer, string, error)
-	// RangeInstallers returns installer script resources within the range [start, end).
-	RangeInstallers(ctx context.Context, start, end string) iter.Seq2[types.Installer, error]
 
 	// GetKubernetesClusters returns all kubernetes cluster resources.
 	GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster, error)
 	// ListKubernetesClusters returns a page of registered kubernetes clusters.
 	ListKubernetesClusters(ctx context.Context, limit int, start string) ([]types.KubeCluster, string, error)
-	// RangeKubernetesClusters returns kubernetes clusters within the range [start, end).
-	RangeKubernetesClusters(ctx context.Context, start, end string) iter.Seq2[types.KubeCluster, error]
 	// GetKubernetesCluster returns the specified kubernetes cluster resource.
 	GetKubernetesCluster(ctx context.Context, name string) (types.KubeCluster, error)
 
@@ -1435,8 +1237,6 @@ type Cache interface {
 	GetAccessLists(context.Context) ([]*accesslist.AccessList, error)
 	// ListAccessLists returns a paginated list of access lists.
 	ListAccessLists(context.Context, int, string) ([]*accesslist.AccessList, string, error)
-	// ListAccessListsV2 returns a paginated list of access lists.
-	ListAccessListsV2(context.Context, *accesslistv1.ListAccessListsV2Request) ([]*accesslist.AccessList, string, error)
 	// GetAccessList returns the specified access list resource.
 	GetAccessList(context.Context, string) (*accesslist.AccessList, error)
 
@@ -1448,9 +1248,6 @@ type Cache interface {
 	ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
 	// GetAccessListMember returns the specified access list member resource.
 	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
-
-	// GetAccessListOwners returns a list of owners for a particular access list.
-	GetAccessListOwners(ctx context.Context, accessList string) ([]*accesslist.Owner, error)
 
 	// ListAccessListReviews will list access list reviews for a particular access list.
 	ListAccessListReviews(ctx context.Context, accessList string, pageSize int, pageToken string) (reviews []*accesslist.Review, nextToken string, err error)
@@ -1477,7 +1274,7 @@ type Cache interface {
 	// GetAccessMonitoringRule returns the specified access monitoring rule.
 	GetAccessMonitoringRule(ctx context.Context, name string) (*accessmonitoringrules.AccessMonitoringRule, error)
 	// ListAccessMonitoringRulesWithFilter returns a paginated list of access monitoring rules.
-	ListAccessMonitoringRulesWithFilter(ctx context.Context, req *accessmonitoringrules.ListAccessMonitoringRulesWithFilterRequest) ([]*accessmonitoringrules.AccessMonitoringRule, string, error)
+	ListAccessMonitoringRulesWithFilter(ctx context.Context, pageSize int, nextToken string, subjects []string, notificationName string) ([]*accessmonitoringrules.AccessMonitoringRule, string, error)
 
 	// DatabaseObjectsGetter defines methods for fetching database objects.
 	services.DatabaseObjectsGetter
@@ -1538,46 +1335,17 @@ type Cache interface {
 	// GetPluginStaticCredentialsByLabels will get a list of plugin static credentials resource by matching labels.
 	GetPluginStaticCredentialsByLabels(ctx context.Context, labels map[string]string) ([]types.PluginStaticCredentials, error)
 
-	// PluginGetter defines methods for fetching plugins.
-	services.PluginGetter
-
 	// GitServerGetter defines methods for fetching Git servers.
 	services.GitServerGetter
-
-	// HealthCheckConfigReader defines methods for fetching health check config
-	// resources.
-	services.HealthCheckConfigReader
-
-	// GetRelayServer returns the relay server heartbeat with a given name.
-	GetRelayServer(ctx context.Context, name string) (*presencev1.RelayServer, error)
-	// ListRelayServers returns a paginated list of relay server heartbeats.
-	ListRelayServers(ctx context.Context, pageSize int, pageToken string) (_ []*presencev1.RelayServer, nextPageToken string, _ error)
 
 	// GetBotInstance returns the specified BotInstance resource.
 	GetBotInstance(ctx context.Context, botName, instanceID string) (*machineidv1.BotInstance, error)
 
 	// ListBotInstances returns a page of BotInstance resources.
-	ListBotInstances(ctx context.Context, pageSize int, lastToken string, options *services.ListBotInstancesRequestOptions) ([]*machineidv1.BotInstance, string, error)
+	ListBotInstances(ctx context.Context, botName string, pageSize int, lastToken string, search string, sort *types.SortBy) ([]*machineidv1.BotInstance, string, error)
 
 	// ListProvisionTokens returns a paginated list of provision tokens.
 	ListProvisionTokens(ctx context.Context, pageSize int, pageToken string, anyRoles types.SystemRoles, botName string) ([]types.ProvisionToken, string, error)
-
-	// UserLoginStatesGetter defines methods for fetching user login states.
-	services.UserLoginStatesGetter
-
-	// DiscoveryConfigsGetter defines methods for fetching discovery configs.
-	services.DiscoveryConfigsGetter
-
-	// AppAuthConfigGetter defines methods for fetching app auth configs.
-	services.AppAuthConfigReader
-
-	// SummarizerServiceGetter defines methods for fetching summarizer resources.
-	services.SummarizerServiceGetter
-	// BeamReader defines methods for reading beam resources.
-	services.BeamReader
-
-	// SubCAServiceGetter reads CertAuthorityOverride resources.
-	services.SubCAServiceGetter
 }
 
 type NodeWrapper struct {
@@ -1592,12 +1360,6 @@ func NewNodeWrapper(base NodeAccessPoint, cache ReadNodeAccessPoint) NodeAccessP
 		accessPoint:         base,
 		ReadNodeAccessPoint: cache,
 	}
-}
-
-func (w *NodeWrapper) ScopedRoleReader() services.ScopedRoleReader {
-	// TODO(fspmarshall/scopes): implement caching for scoped roles
-	// on node agents.
-	return w.NoCache.ScopedRoleReader()
 }
 
 // Close closes all associated resources
@@ -1621,43 +1383,10 @@ func NewProxyWrapper(base ProxyAccessPoint, cache ReadProxyAccessPoint) ProxyAcc
 	}
 }
 
-func (w *ProxyWrapper) ScopedRoleReader() services.ScopedRoleReader {
-	// TODO(fspmarshall/scopes): implement caching for scoped roles
-	// on proxies.
-	return w.NoCache.ScopedRoleReader()
-}
-
 // Close closes all associated resources
 func (w *ProxyWrapper) Close() error {
 	err := w.NoCache.Close()
 	err2 := w.ReadProxyAccessPoint.Close()
-	return trace.NewAggregate(err, err2)
-}
-
-// RelayWrapper is a wrapper around a RelayAccessPoint that manages delegation
-// of read and write operations between a cached and non-cached access point.
-type RelayWrapper struct {
-	ReadRelayAccessPoint
-	NoCache RelayAccessPoint
-}
-
-// NewRelayWrapper creates a new RelayWrapper from the provided cache and upstream.
-func NewRelayWrapper(base RelayAccessPoint, cache ReadRelayAccessPoint) RelayAccessPoint {
-	return &RelayWrapper{
-		NoCache:              base,
-		ReadRelayAccessPoint: cache,
-	}
-}
-
-// ScopedRoleReader returns the scoped role reader from the non-cached access point.
-func (w *RelayWrapper) ScopedRoleReader() services.ScopedRoleReader {
-	return w.NoCache.ScopedRoleReader()
-}
-
-// Close closes all associated resources
-func (w *RelayWrapper) Close() error {
-	err := w.NoCache.Close()
-	err2 := w.ReadRelayAccessPoint.Close()
 	return trace.NewAggregate(err, err2)
 }
 
@@ -1673,10 +1402,6 @@ func NewRemoteProxyWrapper(base RemoteProxyAccessPoint, cache ReadRemoteProxyAcc
 		accessPoint:                base,
 		ReadRemoteProxyAccessPoint: cache,
 	}
-}
-
-func (w *RemoteProxyWrapper) ScopedRoleReader() services.ScopedRoleReader {
-	return w.NoCache.ScopedRoleReader()
 }
 
 // Close closes all associated resources
@@ -1698,12 +1423,6 @@ func NewKubernetesWrapper(base KubernetesAccessPoint, cache ReadKubernetesAccess
 		accessPoint:               base,
 		ReadKubernetesAccessPoint: cache,
 	}
-}
-
-func (w *KubernetesWrapper) ScopedRoleReader() services.ScopedRoleReader {
-	// TODO(fspmarshall/scopes): implement caching for scoped roles
-	// on kube agents.
-	return w.NoCache.ScopedRoleReader()
 }
 
 // Close closes all associated resources
@@ -1773,27 +1492,6 @@ func NewWindowsDesktopWrapper(base WindowsDesktopAccessPoint, cache ReadWindowsD
 func (w *WindowsDesktopWrapper) Close() error {
 	err := w.NoCache.Close()
 	err2 := w.ReadWindowsDesktopAccessPoint.Close()
-	return trace.NewAggregate(err, err2)
-}
-
-type LinuxDesktopWrapper struct {
-	ReadLinuxDesktopAccessPoint
-	accessPoint
-	NoCache LinuxDesktopAccessPoint
-}
-
-func NewLinuxDesktopWrapper(base LinuxDesktopAccessPoint, cache ReadLinuxDesktopAccessPoint) LinuxDesktopAccessPoint {
-	return &LinuxDesktopWrapper{
-		NoCache:                     base,
-		accessPoint:                 base,
-		ReadLinuxDesktopAccessPoint: cache,
-	}
-}
-
-// Close closes all associated resources
-func (w *LinuxDesktopWrapper) Close() error {
-	err := w.NoCache.Close()
-	err2 := w.ReadLinuxDesktopAccessPoint.Close()
 	return trace.NewAggregate(err, err2)
 }
 
@@ -1886,12 +1584,6 @@ func (w *DiscoveryWrapper) Ping(ctx context.Context) (proto.PingResponse, error)
 // UpdateDiscoveryConfigStatus updates the status of a discovery config.
 func (w *DiscoveryWrapper) UpdateDiscoveryConfigStatus(ctx context.Context, name string, status discoveryconfig.Status) (*discoveryconfig.DiscoveryConfig, error) {
 	return w.NoCache.UpdateDiscoveryConfigStatus(ctx, name, status)
-}
-
-// GetDiscoveryConfig retrieves a discovery config by name.
-// This method is not cached to ensure that updating the DiscoveryConfig Status does not use (possibly) stale cache data.
-func (w *DiscoveryWrapper) GetDiscoveryConfig(ctx context.Context, name string) (*discoveryconfig.DiscoveryConfig, error) {
-	return w.NoCache.GetDiscoveryConfig(ctx, name)
 }
 
 // UpserUserTask creates or updates an User Task.
@@ -1989,16 +1681,6 @@ func (w *OktaWrapper) DeleteOktaAssignment(ctx context.Context, name string) err
 // DeleteApplicationServer removes specified application server.
 func (w *OktaWrapper) DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error {
 	return w.NoCache.DeleteApplicationServer(ctx, namespace, hostID, name)
-}
-
-// UpsertOktaAssignment creates or updates an Okta assignment resource.
-func (w *OktaWrapper) UpsertOktaAssignment(ctx context.Context, item types.OktaAssignment) (types.OktaAssignment, error) {
-	return w.NoCache.UpsertOktaAssignment(ctx, item)
-}
-
-// ConditionalUpdateOktaAssignment updates an Okta assignment resource, protected by optimistic locking.
-func (w *OktaWrapper) ConditionalUpdateOktaAssignment(ctx context.Context, item types.OktaAssignment) (types.OktaAssignment, error) {
-	return w.NoCache.ConditionalUpdateOktaAssignment(ctx, item)
 }
 
 // GetLocks fetches locks that target a given set of resources

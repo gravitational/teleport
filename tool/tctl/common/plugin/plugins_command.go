@@ -21,10 +21,8 @@ package plugin
 import (
 	"context"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
-	"os"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
@@ -53,7 +51,6 @@ type pluginInstallArgs struct {
 	entraID entraArgs
 	netIQ   netIQArgs
 	awsIC   awsICInstallArgs
-	github  githubArgs
 }
 
 type pluginEditArgs struct {
@@ -88,23 +85,12 @@ type PluginsCommand struct {
 	delete      pluginDeleteArgs
 	edit        pluginEditArgs
 	rotateCreds pluginRotateCredsArgs
-
-	// optional input and output buffer
-	// for tests.
-	stdin  io.Reader
-	stdout io.Writer
 }
 
 // Initialize creates the plugins command and subcommands
 func (p *PluginsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	p.config = config
 	p.dryRun = true
-	if p.stdin == nil {
-		p.stdin = os.Stdin
-	}
-	if p.stdout == nil {
-		p.stdout = os.Stdout
-	}
 
 	pluginsCommand := app.Command("plugins", "Manage Teleport plugins.").Hidden()
 
@@ -126,7 +112,6 @@ func (p *PluginsCommand) initInstall(parent *kingpin.CmdClause, config *servicec
 	p.initInstallEntra(p.install.cmd)
 	p.initInstallNetIQ(p.install.cmd)
 	p.initInstallAWSIC(p.install.cmd)
-	p.initInstallGithub(p.install.cmd)
 }
 
 func (p *PluginsCommand) initDelete(parent *kingpin.CmdClause) {
@@ -252,8 +237,6 @@ func (p *PluginsCommand) TryRun(ctx context.Context, cmd string, clientFunc comm
 		commandFunc = p.InstallNetIQ
 	case p.install.awsIC.cmd.FullCommand():
 		commandFunc = p.InstallAWSIC
-	case p.install.github.cmd.FullCommand():
-		commandFunc = p.InstallGithub
 	case p.delete.cmd.FullCommand():
 		commandFunc = p.Delete
 	case p.edit.awsIC.cmd.FullCommand():

@@ -21,15 +21,17 @@ package integration
 import (
 	"context"
 	"fmt"
-	"log/slog"
+	"io"
 	"os"
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -38,15 +40,13 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/integration/helpers"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
-	"github.com/gravitational/teleport/lib/cloud/aws/config"
 	cloudimds "github.com/gravitational/teleport/lib/cloud/imds"
 	cloudaws "github.com/gravitational/teleport/lib/cloud/imds/aws"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -54,6 +54,13 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
+
+func newSilentLogger() utils.Logger {
+	logger := utils.NewLoggerForTests()
+	logger.SetLevel(logrus.PanicLevel)
+	logger.SetOutput(io.Discard)
+	return logger
+}
 
 func newNodeConfig(t *testing.T, tokenName string, joinMethod types.JoinMethod) *servicecfg.Config {
 	config := servicecfg.MakeDefaultConfig()
@@ -65,7 +72,7 @@ func newNodeConfig(t *testing.T, tokenName string, joinMethod types.JoinMethod) 
 	config.Auth.Enabled = false
 	config.Proxy.Enabled = false
 	config.DataDir = t.TempDir()
-	config.Logger = slog.New(slog.DiscardHandler)
+	config.Log = newSilentLogger()
 	config.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	config.InstanceMetadataClient = cloudimds.NewDisabledIMDSClient()
 	config.DebugService.Enabled = false
@@ -88,7 +95,7 @@ func newProxyConfig(t *testing.T, authAddr utils.NetAddr, tokenName string, join
 
 	config.DataDir = t.TempDir()
 	config.SetAuthServerAddress(authAddr)
-	config.Logger = slog.New(slog.DiscardHandler)
+	config.Log = newSilentLogger()
 	config.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	config.InstanceMetadataClient = cloudimds.NewDisabledIMDSClient()
 	return config
@@ -118,12 +125,11 @@ func newAuthConfig(t *testing.T, clock clockwork.Clock) *servicecfg.Config {
 	config.Auth.StaticTokens, err = types.NewStaticTokens(types.StaticTokensSpecV2{
 		StaticTokens: []types.ProvisionTokenV1{},
 	})
-	config.Auth.Clock = clock
 	require.NoError(t, err)
 	config.Proxy.Enabled = false
 	config.SSH.Enabled = false
 	config.Clock = clock
-	config.Logger = slog.New(slog.DiscardHandler)
+	config.Log = newSilentLogger()
 	config.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	config.InstanceMetadataClient = cloudimds.NewDisabledIMDSClient()
 	config.DebugService.Enabled = false
@@ -193,6 +199,7 @@ func TestEC2NodeJoin(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, authSvc.Close()) })
 
 	authServer := authSvc.GetAuthServer()
+	authServer.SetClock(clock)
 
 	err = authServer.UpsertToken(ctx, token)
 	require.NoError(t, err)
@@ -261,7 +268,7 @@ func TestIAMNodeJoin(t *testing.T) {
 	require.NoError(t, err)
 
 	// sanity check there are no proxies to start with
-	proxies, err := stream.Collect(clientutils.Resources(ctx, authServer.ListProxyServers))
+	proxies, err := authServer.GetProxies()
 	require.NoError(t, err)
 	require.Empty(t, proxies)
 
@@ -275,10 +282,14 @@ func TestIAMNodeJoin(t *testing.T) {
 
 	// the proxy should eventually join the cluster and heartbeat
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		proxies, err := stream.Collect(clientutils.Resources(ctx, authServer.ListProxyServers))
-		require.NoError(t, err)
-		require.NotEmpty(t, proxies)
+		proxies, err := authServer.GetProxies()
+		assert.NoError(t, err)
+		assert.NotEmpty(t, proxies)
 	}, 10*time.Second, 50*time.Millisecond, "waiting for proxy to join cluster")
+	// InsecureDevMode needed for node to trust proxy
+	wasInsecureDevMode := lib.IsInsecureDevMode()
+	t.Cleanup(func() { lib.SetInsecureDevMode(wasInsecureDevMode) })
+	lib.SetInsecureDevMode(true)
 
 	// sanity check there are no nodes to start with
 	nodes, err := authServer.GetNodes(ctx, apidefaults.Namespace)
@@ -289,7 +300,6 @@ func TestIAMNodeJoin(t *testing.T) {
 	// connecting to the proxy
 	nodeConfig := newNodeConfig(t, tokenName, types.JoinMethodIAM)
 	nodeConfig.ProxyServer = proxyConfig.Proxy.WebAddr
-	nodeConfig.InsecureMode = true
 	nodeSvc, err := service.NewTeleport(nodeConfig)
 	require.NoError(t, err)
 	require.NoError(t, nodeSvc.Start())
@@ -298,8 +308,8 @@ func TestIAMNodeJoin(t *testing.T) {
 	// the node should eventually join the cluster and heartbeat
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		nodes, err := authServer.GetNodes(ctx, apidefaults.Namespace)
-		require.NoError(t, err)
-		require.NotEmpty(t, nodes)
+		assert.NoError(t, err)
+		assert.NotEmpty(t, nodes)
 	}, 10*time.Second, 50*time.Millisecond, "waiting for node to join cluster")
 }
 
@@ -342,7 +352,7 @@ func TestEC2Labels(t *testing.T) {
 		},
 	}
 	tconf := servicecfg.MakeDefaultConfig()
-	tconf.Logger = slog.New(slog.DiscardHandler)
+	tconf.Log = newSilentLogger()
 	tconf.DataDir = t.TempDir()
 	tconf.Auth.Enabled = true
 	tconf.Proxy.Enabled = true
@@ -398,18 +408,18 @@ func TestEC2Labels(t *testing.T) {
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		var err error
 		nodes, err = authServer.GetNodes(ctx, tconf.SSH.Namespace)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		apps, err = authServer.GetApplicationServers(ctx, tconf.SSH.Namespace)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		databases, err = authServer.GetDatabaseServers(ctx, tconf.SSH.Namespace)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		kubes, err = authServer.GetKubernetesServers(ctx)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
-		require.Len(t, nodes, 1)
-		require.Len(t, apps, 1)
-		require.Len(t, databases, 1)
-		require.Len(t, kubes, 1)
+		assert.Len(t, nodes, 1)
+		assert.Len(t, apps, 1)
+		assert.Len(t, databases, 1)
+		assert.Len(t, kubes, 1)
 	}, 10*time.Second, time.Second)
 
 	tagName := fmt.Sprintf("%s/Name", labels.AWSLabelNamespace)
@@ -417,40 +427,40 @@ func TestEC2Labels(t *testing.T) {
 	// Check that EC2 labels were applied.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		node, err := authServer.GetNode(ctx, tconf.SSH.Namespace, nodes[0].GetName())
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		_, nodeHasLabel := node.GetAllLabels()[tagName]
-		require.True(t, nodeHasLabel)
+		assert.True(t, nodeHasLabel)
 
 		apps, err := authServer.GetApplicationServers(ctx, tconf.SSH.Namespace)
-		require.NoError(t, err)
-		require.Len(t, apps, 1)
+		assert.NoError(t, err)
+		assert.Len(t, apps, 1)
 
 		app := apps[0].GetApp()
 		_, appHasLabel := app.GetAllLabels()[tagName]
-		require.True(t, appHasLabel)
+		assert.True(t, appHasLabel)
 
 		databases, err := authServer.GetDatabaseServers(ctx, tconf.SSH.Namespace)
-		require.NoError(t, err)
-		require.Len(t, databases, 1)
+		assert.NoError(t, err)
+		assert.Len(t, databases, 1)
 
 		database := databases[0].GetDatabase()
 		_, dbHasLabel := database.GetAllLabels()[tagName]
-		require.True(t, dbHasLabel)
+		assert.True(t, dbHasLabel)
 
 		kubeResources, err := apiclient.GetResourcesWithFilters(
 			context.Background(), authServer,
 			proto.ListResourcesRequest{ResourceType: types.KindKubeServer},
 		)
-		require.NoError(t, err)
-		require.Len(t, kubeResources, 1)
+		assert.NoError(t, err)
+		assert.Len(t, kubeResources, 1)
 
 		kubeServers, err := types.ResourcesWithLabels(kubeResources).AsKubeServers()
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		kube := kubeServers[0].GetCluster()
 		_, kubeHasLabel := kube.GetStaticLabels()[tagName]
-		require.True(t, kubeHasLabel)
+		assert.True(t, kubeHasLabel)
 	}, 10*time.Second, time.Second)
 }
 
@@ -467,7 +477,7 @@ func TestEC2Hostname(t *testing.T) {
 		},
 	}
 	tconf := servicecfg.MakeDefaultConfig()
-	tconf.Logger = slog.New(slog.DiscardHandler)
+	tconf.Log = newSilentLogger()
 	tconf.DataDir = t.TempDir()
 	tconf.Auth.Enabled = true
 	tconf.Proxy.Enabled = true

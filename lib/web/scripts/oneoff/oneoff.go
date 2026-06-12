@@ -23,8 +23,8 @@ import (
 	_ "embed"
 	"slices"
 	"strings"
+	"text/template"
 
-	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api"
@@ -146,8 +146,7 @@ func (p *OneOffScriptParams) CheckAndSetDefaults() error {
 
 	switch p.TeleportCommandPrefix {
 	case PrefixSUDO:
-		// add -E to preserve environment variables set before executing the script.
-		p.TeleportCommandPrefix = p.binSudo + " -E"
+		p.TeleportCommandPrefix = p.binSudo
 	case "":
 	default:
 		return trace.BadParameter("invalid command prefix %q, only %v are supported", p.TeleportCommandPrefix, allowedCommandPrefix)

@@ -16,24 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { AppSubKind } from 'shared/services';
 import { AwsRole } from 'shared/services/apps';
-import { ComponentFeatureID } from 'shared/utils/componentFeatures';
 
 import { ResourceLabel } from 'teleport/services/agents';
 import type { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
-
-/**
- * Describes what cloud instance the app was discovered from.
- *
- * Values are same consts used in backend and letter casing matters:
- * https://github.com/gravitational/teleport/blob/095e8e7b12d7be546c34eb15e4e562693cc81338/api/types/constants.go#L947
- */
-export enum CloudInstance {
-  Azure = 'Azure',
-  Gcp = 'GCP',
-  Aws = 'AWS',
-}
 
 export interface App {
   kind: 'app';
@@ -51,11 +37,6 @@ export interface App {
   awsConsole: boolean;
   requiresRequest?: boolean;
   isTcp?: boolean;
-  /**
-   * This field is equivalent to `isCloud` field but this field
-   * specifies what cloud instance is used.
-   */
-  cloudInstance?: CloudInstance;
   isCloud?: boolean;
   // addrWithProtocol can either be a public address or
   // if public address wasn't defined, fallback to uri
@@ -80,19 +61,10 @@ export interface App {
    */
   permissionSets?: PermissionSet[];
   /**
-   * samlAppLaunchUrl contains service provider specific authentication
+   * SamlAppLaunchUrl contains service provider specific authentication
    * endpoints where user should be launched to start SAML authentication.
    */
   samlAppLaunchUrls?: SamlAppLaunchUrl[];
-  /**
-   * mcp contains MCP server specific configurations.
-   */
-  mcp?: AppMCP;
-  /**
-   * supportedFeatureIds contains component feature IDs supported by
-   * both the App and all required back-end components.
-   */
-  supportedFeatureIds?: ComponentFeatureID[];
 }
 
 export type UserGroupAndDescription = {
@@ -101,35 +73,21 @@ export type UserGroupAndDescription = {
 };
 
 /** AppSubKind defines names of SubKind for App resource. */
-export {
-  /*
-   * @deprecated Import AppSubKind from 'shared/services' instead.
-   */
-  AppSubKind,
-} from 'shared/services';
+export enum AppSubKind {
+  AwsIcAccount = 'aws_ic_account',
+}
 
 /**
  * PermissionSet defines an AWS IAM Identity Center permission set that
  * is available to an App.
  */
 export type PermissionSet = {
-  /*
-   * name is a friendly permission set name
-   * eg: AdministratorAccess
-   */
+  /** name is a permission set name */
   name: string;
-  /*
-   * arn is a permission set ARN
-   * starts with "arn:aws:sso:::"
-   */
+  /** arn is a permission set ARN */
   arn: string;
-  /*
-   * assignmentId is an account assignment ID.
-   * It is found in the format <awsAccountID>--<friendly-name>
-   * eg: 1234--AdministratorAccess
-   */
+  /** assignmentId is an account assignment ID. */
   assignmentId: string;
-  requiresRequest?: boolean;
 };
 
 /**
@@ -141,19 +99,4 @@ export type SamlAppLaunchUrl = {
   url: string;
   /* friendly name of the URL. */
   friendlyName?: string;
-};
-
-/**
- * AppMCP contains MCP server specific configurations.
- */
-export type AppMCP = {
-  /** Command to launch stdio-based MCP servers. */
-  command: string;
-  /** Args to execute with the command. */
-  args?: string[];
-  /**
-   * The host user account under which the command will be
-   * executed. Required for stdio-based MCP servers.
-   */
-  runAsHostUser: string;
 };

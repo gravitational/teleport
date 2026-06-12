@@ -51,8 +51,6 @@ type JoinToken struct {
 	GCP *types.ProvisionTokenSpecV2GCP `json:"gcp,omitempty"`
 	// GitHub-specific configuration for the join method.
 	Github *types.ProvisionTokenSpecV2GitHub `json:"github,omitempty"`
-	// GitLab-specific configuration for the join method.
-	Gitlab *types.ProvisionTokenSpecV2GitLab `json:"gitlab,omitempty"`
 	// Content is resource yaml content.
 	Content string `json:"content"`
 }
@@ -74,7 +72,7 @@ func MakeJoinToken(token types.ProvisionToken) (*JoinToken, error) {
 		IsStatic:      token.IsStatic(),
 		IsCloudSystem: isCloudSystem,
 		Method:        token.GetJoinMethod(),
-		Allow:         token.GetAWSAllowRules(),
+		Allow:         token.GetAllowRules(),
 		Content:       string(content[:]),
 	}
 
@@ -84,10 +82,6 @@ func MakeJoinToken(token types.ProvisionToken) (*JoinToken, error) {
 
 	if uiToken.Method == types.JoinMethodGitHub {
 		uiToken.Github = token.GetGithubRules()
-	}
-
-	if uiToken.Method == types.JoinMethodGitLab {
-		uiToken.Gitlab = token.GetGitlabRules()
 	}
 
 	return uiToken, nil

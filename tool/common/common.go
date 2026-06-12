@@ -19,17 +19,15 @@
 package common
 
 import (
-	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
-	"log/slog"
 	"sort"
 	"strings"
 
-	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -38,7 +36,6 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // ExitCodeError wraps an exit code as an error.
@@ -84,18 +81,11 @@ func (e *SessionsCollection) WriteText(w io.Writer) error {
 		case *events.DatabaseSessionEnd:
 			id = session.GetSessionID()
 			typ = session.DatabaseProtocol
-			participants = strings.Join(session.Participants, ", ")
+			participants = session.GetUser()
 			target = session.DatabaseName
 			timestamp = session.GetTime().Format(constants.HumanDateFormatSeconds)
-		case *events.AppSessionChunk:
-			id = session.GetSessionChunkID()
-			typ = "app-chunk"
-			participants = session.User
-			target = cmp.Or(session.AppName, session.AppURI)
-			timestamp = session.GetTime().Format(constants.HumanDateFormatSeconds)
-
 		default:
-			slog.WarnContext(context.Background(), "unsupported event type: expected SessionEnd, WindowsDesktopSessionEnd, DatabaseSessionEnd or AppSessionChunk", "event_type", logutils.TypeAttr(event))
+			log.Warn(trace.BadParameter("unsupported event type: expected SessionEnd, WindowsDesktopSessionEnd or DatabaseSessionEnd: got: %T", event))
 			continue
 		}
 
@@ -196,17 +186,6 @@ func FormatLabels(labels map[string]string, verbose bool) string {
 	return strings.Join(append(result, namespaced...), ",")
 }
 
-// FormatMultiValueLabels formats labels that have multiple values as a map
-// where each key has only one formatted value, then that map is formatted with
-// FormatLabels as above.
-func FormatMultiValueLabels(labels map[string][]string, verbose bool) string {
-	ll := make(map[string]string, len(labels))
-	for key, values := range labels {
-		ll[key] = fmt.Sprintf("%v", values)
-	}
-	return FormatLabels(ll, verbose)
-}
-
 // FormatResourceName returns the resource's name or its name as originally
 // discovered in the cloud by the Teleport Discovery Service.
 // In verbose mode, it always returns the resource name.
@@ -223,50 +202,6 @@ func FormatResourceName(r types.ResourceWithLabels, verbose bool) string {
 	return r.GetName()
 }
 
-// FormatResourceAccessID returns the provided ResourceAccessID in its string form,
-// appending constraints when present.
-func FormatResourceAccessID(rid types.ResourceAccessID) string {
-	resourceIDString := types.ResourceIDToString(rid.GetResourceID())
-	constraintsString := ""
-
-	if c := rid.GetConstraints(); c != nil && c.GetDetails() != nil {
-		switch d := c.GetDetails().(type) {
-		case *types.ResourceConstraints_AwsConsole:
-			if d.AwsConsole == nil {
-				break
-			}
-			constraintsString = fmt.Sprintf("role_arns=%s", strings.Join(d.AwsConsole.RoleArns, ","))
-		}
-	}
-
-	if constraintsString != "" {
-		return fmt.Sprintf("%s (%s)", resourceIDString, constraintsString)
-	}
-
-	return resourceIDString
-}
-
-// FormatResourceAccessIDs returns the provided ResourceAccessIDs in string form,
-// appending constraints to each when present. Uses JSON.Marshal to
-// ensure proper handling for any IDs containing commas/quotes.
-func FormatResourceAccessIDs(rids []types.ResourceAccessID) (string, error) {
-	out := ""
-
-	if len(rids) > 0 {
-		resourceIDStrings := make([]string, 0, len(rids))
-		for _, rid := range rids {
-			resourceIDStrings = append(resourceIDStrings, FormatResourceAccessID(rid))
-		}
-		bytes, err := json.Marshal(resourceIDStrings)
-		if err != nil {
-			return "", trace.Wrap(err, "failed to marshal ResourceAccessIDs")
-		}
-		out = string(bytes)
-	}
-
-	return out, nil
-}
-
 // GetDiscoveredResourceName returns the resource original name discovered in
 // the cloud by the Teleport Discovery Service.
 func GetDiscoveredResourceName(r types.ResourceWithLabels) (discoveredName string, ok bool) {
@@ -280,46 +215,4 @@ func SetDiscoveredResourceName(r types.ResourceWithLabels, discoveredName string
 	labels := r.GetStaticLabels()
 	labels[types.DiscoveredNameLabel] = discoveredName
 	r.SetStaticLabels(labels)
-}
-
-// FormatDefault formats a zero value with its default, or if the value is not
-// zero it just returns the value.
-func FormatDefault[T comparable](val, defaultVal T) string {
-	var zero T
-	if val == zero {
-		return fmt.Sprintf("%v (default)", defaultVal)
-	}
-	return fmt.Sprintf("%v", val)
-}
-
-// FormatAllowedEntities returns a human-readable string describing the allowed
-// entities, optionally including a list of denied entities as exceptions.
-func FormatAllowedEntities(allowed []string, denied []string) string {
-	if len(allowed) == 0 {
-		return "(none)"
-	}
-	if len(denied) == 0 {
-		return fmt.Sprintf("%v", allowed)
-	}
-	return fmt.Sprintf("%v, except: %v", allowed, denied)
-}
-
-// PrintJSONIndent prints provided value in JSON with default indentation.
-func PrintJSONIndent(w io.Writer, v any) error {
-	out, err := utils.FastMarshalIndent(v, "", "  ")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = fmt.Fprintln(w, string(out))
-	return trace.Wrap(err)
-}
-
-// PrintYAML prints provided value in YAML.
-func PrintYAML(w io.Writer, v any) error {
-	out, err := yaml.Marshal(v)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = fmt.Fprintln(w, string(out))
-	return trace.Wrap(err)
 }

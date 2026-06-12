@@ -52,7 +52,7 @@ export const VnetConnectionItem = (props: {
     onRun: props.openVnetPanel,
   });
 
-  const ref = useRef<HTMLLIElement>(null);
+  const ref = useRef<HTMLLIElement>();
 
   useEffect(() => {
     scrollIntoViewIfActive(ref.current);
@@ -114,7 +114,6 @@ const VnetConnectionItemBase = forwardRef<
     diagnosticsAttempt,
     getDisabledDiagnosticsReason,
     showDiagWarningIndicator,
-    installTimeRequirementsCheck,
   } = useVnetContext();
   const { close: closeConnectionsPanel } = useConnectionsContext();
   const rootClusterUri = useStoreSelector(
@@ -123,9 +122,7 @@ const VnetConnectionItemBase = forwardRef<
   );
   const isUserInWorkspace = !!rootClusterUri;
   const isProcessing =
-    startAttempt.status === 'processing' ||
-    stopAttempt.status === 'processing' ||
-    installTimeRequirementsCheck.status === 'unknown';
+    startAttempt.status === 'processing' || stopAttempt.status === 'processing';
   const disabledDiagnosticsReason =
     getDisabledDiagnosticsReason(diagnosticsAttempt);
   const indicatorStatus: ConnectionStatus = useMemo(() => {
@@ -133,7 +130,6 @@ const VnetConnectionItemBase = forwardRef<
     if (
       startAttempt.status === 'error' ||
       stopAttempt.status === 'error' ||
-      installTimeRequirementsCheck.status === 'failed' ||
       (status.value === 'stopped' &&
         status.reason.value === 'unexpected-shutdown')
     ) {
@@ -149,13 +145,7 @@ const VnetConnectionItemBase = forwardRef<
     }
 
     return 'on';
-  }, [
-    startAttempt,
-    stopAttempt,
-    status,
-    showDiagWarningIndicator,
-    installTimeRequirementsCheck,
-  ]);
+  }, [startAttempt, stopAttempt, status, showDiagWarningIndicator]);
 
   const onEnterPress = (event: React.KeyboardEvent) => {
     if (
@@ -371,7 +361,6 @@ const VnetConnectionItemBase = forwardRef<
                 key={toggleVnetButtonKey}
                 size="small"
                 width={toggleVnetButtonWidth}
-                disabled={installTimeRequirementsCheck.status === 'failed'}
                 title=""
                 onClick={e => {
                   e.stopPropagation();
@@ -384,7 +373,6 @@ const VnetConnectionItemBase = forwardRef<
               <ButtonIcon
                 key={toggleVnetButtonKey}
                 title="Start VNet"
-                disabled={installTimeRequirementsCheck.status === 'failed'}
                 onClick={e => {
                   e.stopPropagation();
                   start();

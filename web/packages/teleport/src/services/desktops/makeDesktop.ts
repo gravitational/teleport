@@ -16,16 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import type { Desktop } from './types';
+import type { Desktop, WindowsDesktopService } from './types';
 
 export function makeDesktop(json): Desktop {
-  const { os, name, addr, host_id, requiresRequest, kind } = json;
+  const { os, name, addr, host_id, requiresRequest } = json;
 
   const labels = json.labels || [];
   const logins = json.logins || [];
 
   return {
-    kind,
+    kind: 'windows_desktop',
     os,
     name,
     addr,
@@ -33,5 +33,19 @@ export function makeDesktop(json): Desktop {
     host_id,
     logins,
     requiresRequest,
+  };
+}
+
+export function makeDesktopService(json): WindowsDesktopService {
+  const { name, hostname, addr } = json;
+
+  const labels = json.labels || [];
+
+  return {
+    kind: 'windows_desktop_service',
+    hostname,
+    addr,
+    labels,
+    name,
   };
 }

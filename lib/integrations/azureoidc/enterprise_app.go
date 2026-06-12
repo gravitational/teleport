@@ -27,7 +27,6 @@ import (
 
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/msgraph"
-	"github.com/gravitational/teleport/lib/msgraph/models"
 )
 
 // nonGalleryAppTemplateID is a constant for the special application template ID in Microsoft Graph,
@@ -98,7 +97,7 @@ func SetupEnterpriseApp(ctx context.Context, proxyPublicAddr string, authConnect
 		r.Reset()
 		var err error
 
-		assignment := &models.AppRoleAssignment{}
+		assignment := &msgraph.AppRoleAssignment{}
 		assignment.PrincipalID = &spID
 		assignment.ResourceID = &msGraphResourceID
 		assignment.AppRoleID = &appRoleID
@@ -106,7 +105,7 @@ func SetupEnterpriseApp(ctx context.Context, proxyPublicAddr string, authConnect
 		// There are  some eventual consistency shenanigans instantiating enteprise applications,
 		// where assigning app roles may temporarily return "not found" for the newly-created App ID.
 		// Retry a few times to remediate.
-		for i := range maxRetries {
+		for i := 0; i < maxRetries; i++ {
 			slog.DebugContext(ctx, "assign app role", "role_id", appRoleID, "attempt", i)
 			_, err = graphClient.GrantAppRoleToServicePrincipal(ctx, spID, assignment)
 			if err != nil {
@@ -143,7 +142,7 @@ func SetupEnterpriseApp(ctx context.Context, proxyPublicAddr string, authConnect
 
 // createFederatedAuthCredential creates a new federated (OIDC) auth credential for the given Entra application.
 func createFederatedAuthCredential(ctx context.Context, graphClient *msgraph.Client, appObjectID string, proxyPublicAddr string) error {
-	credential := &models.FederatedIdentityCredential{}
+	credential := &msgraph.FederatedIdentityCredential{}
 	name := "teleport-oidc"
 	audiences := []string{azureDefaultJWTAudience}
 	subject := azureSubject

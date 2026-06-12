@@ -24,9 +24,6 @@
 //! - Structs for passing between the two (those prefixed with the `#[repr(C)]` macro
 //!   and whose name begins with `CGO`)
 
-// bring in rdp-decoder to export its unmangled symbols in the staticlib
-extern crate rdp_decoder as _;
-
 use crate::client::global::get_client_handle;
 use crate::client::Client;
 use crate::rdpdr::tdp::SharedDirectoryAnnounce;
@@ -37,8 +34,8 @@ use rdpdr::path::UnixPath;
 use rdpdr::tdp::{
     FileSystemObject, FileType, SharedDirectoryAcknowledge, SharedDirectoryCreateResponse,
     SharedDirectoryDeleteResponse, SharedDirectoryInfoResponse, SharedDirectoryListResponse,
-    SharedDirectoryMoveResponse, SharedDirectoryReadResponse, SharedDirectoryRemove,
-    SharedDirectoryTruncateResponse, SharedDirectoryWriteResponse, TdpErrCode,
+    SharedDirectoryMoveResponse, SharedDirectoryReadResponse, SharedDirectoryTruncateResponse,
+    SharedDirectoryWriteResponse, TdpErrCode,
 };
 use std::ffi::CString;
 use std::fmt::Debug;
@@ -125,12 +122,10 @@ pub unsafe extern "C" fn client_run(cgo_handle: CgoHandle, params: CGOConnectPar
             kdc_addr: kdc,
             screen_width: params.screen_width,
             screen_height: params.screen_height,
-            screen_scale: params.screen_scale,
             allow_clipboard: params.allow_clipboard,
             allow_directory_sharing: params.allow_directory_sharing,
             show_desktop_wallpaper: params.show_desktop_wallpaper,
             client_id: params.client_id,
-            keyboard_layout: params.keyboard_layout,
         },
     ) {
         Ok(res) => CGOResult {
@@ -257,26 +252,6 @@ pub unsafe extern "C" fn client_handle_tdp_sd_announce(
         cgo_handle,
         "client_handle_tdp_sd_announce",
         move |client_handle| client_handle.handle_tdp_sd_announce(sd_announce),
-    )
-}
-
-/// client_handle_tdp_sd_remove removes a drive that has been redirected over RDP
-///
-///
-/// # Safety
-///
-/// `cgo_handle` must be a valid handle.
-///
-#[no_mangle]
-pub unsafe extern "C" fn client_handle_tdp_sd_remove(
-    cgo_handle: CgoHandle,
-    sd_remove: CGOSharedDirectoryRemove,
-) -> CGOErrCode {
-    let sd_remove = SharedDirectoryRemove::from(sd_remove);
-    handle_operation(
-        cgo_handle,
-        "client_handle_tdp_sd_remove",
-        move |client_handle| client_handle.handle_tdp_sd_remove(sd_remove),
     )
 }
 
@@ -510,12 +485,11 @@ pub unsafe extern "C" fn client_write_screen_resize(
     cgo_handle: CgoHandle,
     width: u32,
     height: u32,
-    scale: u32,
 ) -> CGOErrCode {
     handle_operation(
         cgo_handle,
         "client_write_screen_resize",
-        move |client_handle| client_handle.write_screen_resize(width, height, scale),
+        move |client_handle| client_handle.write_screen_resize(width, height),
     )
 }
 
@@ -534,12 +508,10 @@ pub struct CGOConnectParams {
     key_der: *mut u8,
     screen_width: u16,
     screen_height: u16,
-    screen_scale: u16,
     allow_clipboard: bool,
     allow_directory_sharing: bool,
     show_desktop_wallpaper: bool,
     client_id: [u32; 4],
-    keyboard_layout: u32,
 }
 
 /// CGOKeyboardEvent is a CGO-compatible version of KeyboardEvent that we pass back to Go.
@@ -626,11 +598,6 @@ pub struct CGOSharedDirectoryAnnounce {
 }
 
 pub type CGOSharedDirectoryAcknowledge = SharedDirectoryAcknowledge;
-
-#[repr(C)]
-pub struct CGOSharedDirectoryRemove {
-    pub directory_id: u32,
-}
 
 #[repr(C)]
 pub struct CGOSharedDirectoryInfoRequest {
@@ -762,7 +729,7 @@ pub struct CGOSharedDirectoryTruncateRequest {
     pub completion_id: u32,
     pub directory_id: u32,
     pub path: *const c_char,
-    pub end_of_file: u64,
+    pub end_of_file: u32,
 }
 
 pub type CGOSharedDirectoryTruncateResponse = SharedDirectoryTruncateResponse;

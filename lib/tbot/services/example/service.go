@@ -31,8 +31,8 @@ import (
 
 // ServiceBuilder returns an example service builder.
 func ServiceBuilder(cfg *Config) bot.ServiceBuilder {
-	buildFn := func(deps bot.ServiceDependencies) (bot.Service, error) {
-		if err := cfg.CheckAndSetDefaults(deps.Scoped); err != nil {
+	buildFn := func(bot.ServiceDependencies) (bot.Service, error) {
+		if err := cfg.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return &Service{cfg: cfg}, nil

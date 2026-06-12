@@ -37,7 +37,7 @@ export interface CanvasRendererRef {
   setResolution(resolution: { width: number; height: number }): void;
   clear(): void;
   focus(): void;
-  getSize(): { width: number; height: number; scale: number };
+  getSize(): { width: number; height: number };
 }
 
 export const CanvasRenderer = forwardRef<
@@ -57,15 +57,9 @@ export const CanvasRenderer = forwardRef<
      * This function is called whenever the canvas is resized,
      * with a debounced delay of 250 ms to optimize performance.
      */
-    onResize?(e: { width: number; height: number; scale: number }): void;
+    onResize?(e: { width: number; height: number }): void;
     /** Hides the element without changing the layout of a document. */
     hidden?: boolean;
-    /**
-     * When true, reports the native device pixel ratio as the scale factor,
-     * causing the server to render at the display's native resolution.
-     * When false, the scale is always 100 (1x).
-     */
-    isHiDpi?: boolean;
     style?: CSSProperties;
   }
 >((props, ref) => {
@@ -81,29 +75,13 @@ export const CanvasRenderer = forwardRef<
     onResize,
   } = props;
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const pngRendererRef = useRef<{
-    pushFrame: (frame: PngFrame) => void;
-    stop: () => void;
-  }>(null);
-  const isHiDpiRef = useRef(props.isHiDpi ?? false);
-  isHiDpiRef.current = props.isHiDpi ?? false;
-
-  function getScale(): number {
-    const dpr = isHiDpiRef.current ? window.devicePixelRatio || 1 : 1;
-    return Math.round(dpr * 100);
-  }
-
-  useEffect(() => {
-    const pngRenderer = makePngFrameRenderer(canvasRef.current);
-    pngRendererRef.current = pngRenderer;
-    return () => pngRenderer.stop();
-  }, []);
 
   useImperativeHandle(ref, () => {
+    const renderPngFrame = makePngFrameRenderer(canvasRef.current);
     const renderBimapFrame = makeBitmapFrameRenderer(canvasRef.current);
     return {
       setPointer: pointer => setPointer(canvasRef.current, pointer),
-      renderPngFrame: frame => pngRendererRef.current?.pushFrame(frame),
+      renderPngFrame: frame => renderPngFrame(frame),
       renderBitmapFrame: frame => renderBimapFrame(frame),
       setResolution: ({ width, height }) => {
         const canvas = canvasRef.current;
@@ -119,20 +97,15 @@ export const CanvasRenderer = forwardRef<
       getSize: () => {
         const rect = canvasRef.current.getBoundingClientRect();
         return {
-          width: Math.round(rect.width),
           height: Math.round(rect.height),
-          scale: getScale(),
+          width: Math.round(rect.width),
         };
       },
     };
   }, []);
 
   useEffect(() => {
-    if (
-      !onResize ||
-      // Only send resize events when the canvas is visible (i.e. the connection is active).
-      props.hidden
-    ) {
+    if (!onResize) {
       return;
     }
 
@@ -142,7 +115,6 @@ export const CanvasRenderer = forwardRef<
         debouncedOnResize({
           height: Math.round(entry.contentRect.height),
           width: Math.round(entry.contentRect.width),
-          scale: getScale(),
         });
       }
     });
@@ -152,39 +124,7 @@ export const CanvasRenderer = forwardRef<
       debouncedOnResize.cancel();
       observer.disconnect();
     };
-  }, [onResize, props.hidden]);
-
-  // When the window moves between displays with different devicePixelRatios
-  // (e.g. HiDPI to non-HiDPI), ResizeObserver won't fire because the CSS
-  // dimensions haven't changed. Listen for DPR changes and trigger a resize.
-  useEffect(() => {
-    if (!onResize || props.hidden || !isHiDpiRef.current) {
-      return;
-    }
-
-    let currentDpr = window.devicePixelRatio;
-    let mql = window.matchMedia(`(resolution: ${currentDpr}dppx)`);
-
-    const handler = () => {
-      currentDpr = window.devicePixelRatio;
-      // Re-listen for the next change.
-      mql.removeEventListener('change', handler);
-      mql = window.matchMedia(`(resolution: ${currentDpr}dppx)`);
-      mql.addEventListener('change', handler);
-
-      const rect = canvasRef.current?.getBoundingClientRect();
-      if (rect) {
-        onResize({
-          width: Math.round(rect.width),
-          height: Math.round(rect.height),
-          scale: getScale(),
-        });
-      }
-    };
-
-    mql.addEventListener('change', handler);
-    return () => mql.removeEventListener('change', handler);
-  }, [onResize, props.hidden, props.isHiDpi]);
+  }, [onResize]);
 
   // Wheel events must be registered on a ref because React's onWheel
   // uses a passive listener, so handlers are not able to call of e.preventDefault() on it.
@@ -244,11 +184,10 @@ function setPointer(canvas: HTMLCanvasElement, pointer: Pointer): void {
   cursor
     .getContext('2d', { colorSpace: pointer.data.colorSpace })
     .putImageData(pointer.data, 0, 0);
-  let scale = 1;
   if (pointer.data.width > 32 || pointer.data.height > 32) {
     // scale the cursor down to at most 32px - max size fully supported by browsers
     const resized = document.createElement('canvas');
-    scale = Math.min(32 / cursor.width, 32 / cursor.height);
+    const scale = Math.min(32 / cursor.width, 32 / cursor.height);
     resized.width = cursor.width * scale;
     resized.height = cursor.height * scale;
 
@@ -259,22 +198,20 @@ function setPointer(canvas: HTMLCanvasElement, pointer: Pointer): void {
     context.drawImage(cursor, 0, 0);
     cursor = resized;
   }
-  canvas.style.cursor = `url(${cursor.toDataURL()}) ${Math.round(pointer.hotspot_x * scale)} ${Math.round(pointer.hotspot_y * scale)}, auto`;
+  canvas.style.cursor = `url(${cursor.toDataURL()}) ${pointer.hotspot_x} ${pointer.hotspot_y}, auto`;
 }
 
 //TODO(gzdunek): renderBuffer is called  even when the buffer is empty.
 // This causes the function to run in a loop, 60 times per second
 // (actually x2 because we have two frame renderers).
 // Fix it in the both renderers, check if it improves performance.
-function makePngFrameRenderer(canvas: HTMLCanvasElement): {
-  pushFrame: (frame: PngFrame) => void;
-  stop: () => void;
-} {
+function makePngFrameRenderer(
+  canvas: HTMLCanvasElement
+): (frame: PngFrame) => void {
   const ctx = canvas.getContext('2d');
 
   // Buffered rendering logic
   let pngBuffer: PngFrame[] = [];
-  let rafId: number;
 
   const renderBuffer = () => {
     if (pngBuffer.length) {
@@ -284,14 +221,11 @@ function makePngFrameRenderer(canvas: HTMLCanvasElement): {
       }
       pngBuffer = [];
     }
-    rafId = requestAnimationFrame(renderBuffer);
+    requestAnimationFrame(renderBuffer);
   };
-  rafId = requestAnimationFrame(renderBuffer);
+  requestAnimationFrame(renderBuffer);
 
-  return {
-    pushFrame: frame => pngBuffer.push(frame),
-    stop: () => cancelAnimationFrame(rafId),
-  };
+  return frame => pngBuffer.push(frame);
 }
 
 function makeBitmapFrameRenderer(
@@ -299,5 +233,21 @@ function makeBitmapFrameRenderer(
 ): (frame: BitmapFrame) => void {
   const ctx = canvas.getContext('2d');
 
-  return frame => ctx.putImageData(frame.image_data, frame.left, frame.top);
+  // Buffered rendering logic
+  let bitmapBuffer: BitmapFrame[] = [];
+  const renderBuffer = () => {
+    if (bitmapBuffer.length) {
+      for (let i = 0; i < bitmapBuffer.length; i++) {
+        if (bitmapBuffer[i].image_data.data.length != 0) {
+          const bmpFrame = bitmapBuffer[i];
+          ctx.putImageData(bmpFrame.image_data, bmpFrame.left, bmpFrame.top);
+        }
+      }
+      bitmapBuffer = [];
+    }
+    requestAnimationFrame(renderBuffer);
+  };
+  requestAnimationFrame(renderBuffer);
+
+  return frame => bitmapBuffer.push(frame);
 }

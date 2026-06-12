@@ -23,7 +23,6 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/utils"
@@ -32,16 +31,16 @@ import (
 var parseTestCases = []struct {
 	name     string
 	in       string
-	dest     Target
+	dest     Destination
 	errCheck require.ErrorAssertionFunc
 }{
 	{
 		name: "full spec of the remote destination",
 		in:   "root@remote.host:/etc/nginx.conf",
-		dest: Target{
+		dest: Destination{
 			Login: "root",
-			Addr: &utils.NetAddr{
-				Addr:        "remote.host:8080",
+			Host: &utils.NetAddr{
+				Addr:        "remote.host",
 				AddrNetwork: "tcp",
 			},
 			Path: "/etc/nginx.conf",
@@ -50,9 +49,9 @@ var parseTestCases = []struct {
 	{
 		name: "spec with just the remote host",
 		in:   "remote.host:/etc/nginx.co:nf",
-		dest: Target{
-			Addr: &utils.NetAddr{
-				Addr:        "remote.host:8080",
+		dest: Destination{
+			Host: &utils.NetAddr{
+				Addr:        "remote.host",
 				AddrNetwork: "tcp",
 			},
 			Path: "/etc/nginx.co:nf",
@@ -61,9 +60,9 @@ var parseTestCases = []struct {
 	{
 		name: "ipv6 remote destination address",
 		in:   "[::1]:/etc/nginx.co:nf",
-		dest: Target{
-			Addr: &utils.NetAddr{
-				Addr:        "[::1]:8080",
+		dest: Destination{
+			Host: &utils.NetAddr{
+				Addr:        "[::1]",
 				AddrNetwork: "tcp",
 			},
 			Path: "/etc/nginx.co:nf",
@@ -72,10 +71,10 @@ var parseTestCases = []struct {
 	{
 		name: "full spec of the remote destination using ipv4 address",
 		in:   "root@123.123.123.123:/var/www/html/",
-		dest: Target{
+		dest: Destination{
 			Login: "root",
-			Addr: &utils.NetAddr{
-				Addr:        "123.123.123.123:8080",
+			Host: &utils.NetAddr{
+				Addr:        "123.123.123.123",
 				AddrNetwork: "tcp",
 			},
 			Path: "/var/www/html/",
@@ -84,10 +83,10 @@ var parseTestCases = []struct {
 	{
 		name: "target location using wildcard",
 		in:   "myusername@myremotehost.com:/home/hope/*",
-		dest: Target{
+		dest: Destination{
 			Login: "myusername",
-			Addr: &utils.NetAddr{
-				Addr:        "myremotehost.com:8080",
+			Host: &utils.NetAddr{
+				Addr:        "myremotehost.com",
 				AddrNetwork: "tcp",
 			},
 			Path: "/home/hope/*",
@@ -96,10 +95,10 @@ var parseTestCases = []struct {
 	{
 		name: "complex login",
 		in:   "complex@example.com@remote.com:/anything.txt",
-		dest: Target{
+		dest: Destination{
 			Login: "complex@example.com",
-			Addr: &utils.NetAddr{
-				Addr:        "remote.com:8080",
+			Host: &utils.NetAddr{
+				Addr:        "remote.com",
 				AddrNetwork: "tcp",
 			},
 			Path: "/anything.txt",
@@ -108,10 +107,10 @@ var parseTestCases = []struct {
 	{
 		name: "implicit user's home directory",
 		in:   "root@remote.host:",
-		dest: Target{
+		dest: Destination{
 			Login: "root",
-			Addr: &utils.NetAddr{
-				Addr:        "remote.host:8080",
+			Host: &utils.NetAddr{
+				Addr:        "remote.host",
 				AddrNetwork: "tcp",
 			},
 			Path: ".",
@@ -120,9 +119,9 @@ var parseTestCases = []struct {
 	{
 		name: "no login and '@' in path",
 		in:   "remote.host:/some@file",
-		dest: Target{
-			Addr: &utils.NetAddr{
-				Addr:        "remote.host:8080",
+		dest: Destination{
+			Host: &utils.NetAddr{
+				Addr:        "remote.host",
 				AddrNetwork: "tcp",
 			},
 			Path: "/some@file",
@@ -131,9 +130,9 @@ var parseTestCases = []struct {
 	{
 		name: "no login, '@' and ':' in path",
 		in:   "remote.host:/some@remote:file",
-		dest: Target{
-			Addr: &utils.NetAddr{
-				Addr:        "remote.host:8080",
+		dest: Destination{
+			Host: &utils.NetAddr{
+				Addr:        "remote.host",
 				AddrNetwork: "tcp",
 			},
 			Path: "/some@remote:file",
@@ -142,10 +141,10 @@ var parseTestCases = []struct {
 	{
 		name: "complex login, IPv6 addr and ':' in path",
 		in:   "complex@user@[::1]:/remote:file",
-		dest: Target{
+		dest: Destination{
 			Login: "complex@user",
-			Addr: &utils.NetAddr{
-				Addr:        "[::1]:8080",
+			Host: &utils.NetAddr{
+				Addr:        "[::1]",
 				AddrNetwork: "tcp",
 			},
 			Path: "/remote:file",
@@ -154,10 +153,10 @@ var parseTestCases = []struct {
 	{
 		name: "filename with timestamp",
 		in:   "user@server.com:/tmp/user-2022-03-10T09:49:23-98cd2a03/file.txt",
-		dest: Target{
+		dest: Destination{
 			Login: "user",
-			Addr: &utils.NetAddr{
-				Addr:        "server.com:8080",
+			Host: &utils.NetAddr{
+				Addr:        "server.com",
 				AddrNetwork: "tcp",
 			},
 			Path: "/tmp/user-2022-03-10T09:49:23-98cd2a03/file.txt",
@@ -166,10 +165,10 @@ var parseTestCases = []struct {
 	{
 		name: "filename with '@' suffix",
 		in:   "user@server:file@",
-		dest: Target{
+		dest: Destination{
 			Login: "user",
-			Addr: &utils.NetAddr{
-				Addr:        "server:8080",
+			Host: &utils.NetAddr{
+				Addr:        "server",
 				AddrNetwork: "tcp",
 			},
 			Path: "file@",
@@ -178,10 +177,10 @@ var parseTestCases = []struct {
 	{
 		name: "filename with IPv6 address",
 		in:   "user@server:file[::1]name",
-		dest: Target{
+		dest: Destination{
 			Login: "user",
-			Addr: &utils.NetAddr{
-				Addr:        "server:8080",
+			Host: &utils.NetAddr{
+				Addr:        "server",
 				AddrNetwork: "tcp",
 			},
 			Path: "file[::1]name",
@@ -190,10 +189,10 @@ var parseTestCases = []struct {
 	{
 		name: "IPv6 address and filename with IPv6 address",
 		in:   "user@[::1]:file[::1]name",
-		dest: Target{
+		dest: Destination{
 			Login: "user",
-			Addr: &utils.NetAddr{
-				Addr:        "[::1]:8080",
+			Host: &utils.NetAddr{
+				Addr:        "[::1]",
 				AddrNetwork: "tcp",
 			},
 			Path: "file[::1]name",
@@ -202,68 +201,61 @@ var parseTestCases = []struct {
 	{
 		name: "IPv6 address and filename with IPv6 address and '@'s",
 		in:   "user@[::1]:file@[::1]@name",
-		dest: Target{
+		dest: Destination{
 			Login: "user",
-			Addr: &utils.NetAddr{
-				Addr:        "[::1]:8080",
+			Host: &utils.NetAddr{
+				Addr:        "[::1]",
 				AddrNetwork: "tcp",
 			},
 			Path: "file@[::1]@name",
 		},
 	},
 	{
-		name: "path only",
-		in:   "path/to/somewhere",
-		dest: Target{
-			Path: "path/to/somewhere",
-		},
-	},
-	{
 		name: "missing path",
 		in:   "user@server",
-		errCheck: func(t require.TestingT, err error, i ...any) {
-			require.EqualError(t, err, fmt.Sprintf("%q is missing a path, use form [[user@]host:]path", i[0]))
+		errCheck: func(t require.TestingT, err error, i ...interface{}) {
+			require.EqualError(t, err, fmt.Sprintf("%q is missing a path, use form [user@]host:[path]", i[0]))
 		},
 	},
 	{
 		name: "missing host",
 		in:   "user@:/foo",
-		errCheck: func(t require.TestingT, err error, i ...any) {
-			require.EqualError(t, err, fmt.Sprintf("%q is missing a host, use form [[user@]host:]path", i[0]))
+		errCheck: func(t require.TestingT, err error, i ...interface{}) {
+			require.EqualError(t, err, fmt.Sprintf("%q is missing a host, use form [user@]host:[path]", i[0]))
 		},
 	},
 	{
 		name: "invalid IPv6 addr, only one colon",
 		in:   "[user]@[:",
-		errCheck: func(t require.TestingT, err error, i ...any) {
+		errCheck: func(t require.TestingT, err error, i ...interface{}) {
 			require.EqualError(t, err, fmt.Sprintf("%q has an invalid host, host cannot contain '[' unless it is an IPv6 address", i[0]))
 		},
 	},
 	{
 		name: "invalid IPv6 addr, only one colon",
 		in:   "[user]@[::1:file",
-		errCheck: func(t require.TestingT, err error, i ...any) {
+		errCheck: func(t require.TestingT, err error, i ...interface{}) {
 			require.EqualError(t, err, fmt.Sprintf("%q has an invalid host, host cannot contain '[' or ':' unless it is an IPv6 address", i[0]))
 		},
 	},
 	{
 		name: "missing path with IPv6 addr",
 		in:   "[user]@[::1]",
-		errCheck: func(t require.TestingT, err error, i ...any) {
-			require.EqualError(t, err, fmt.Sprintf("%q is missing a path, use form [[user@]host:]path", i[0]))
+		errCheck: func(t require.TestingT, err error, i ...interface{}) {
+			require.EqualError(t, err, fmt.Sprintf("%q is missing a path, use form [user@]host:[path]", i[0]))
 		},
 	},
 }
 
-func TestParseTarget(t *testing.T) {
+func TestParseDestination(t *testing.T) {
 	t.Parallel()
 
 	for _, tt := range parseTestCases {
 		t.Run(tt.name, func(t *testing.T) {
-			resp, err := ParseTarget(tt.in, 8080)
+			resp, err := ParseDestination(tt.in)
 			if tt.errCheck == nil {
 				require.NoError(t, err)
-				require.Empty(t, cmp.Diff(resp, tt.dest))
+				require.Empty(t, cmp.Diff(resp, &tt.dest))
 			} else {
 				tt.errCheck(t, err, tt.in)
 			}
@@ -271,64 +263,14 @@ func TestParseTarget(t *testing.T) {
 	}
 }
 
-func FuzzParseTarget(f *testing.F) {
+func FuzzParseDestination(f *testing.F) {
 	for _, tt := range parseTestCases {
 		f.Add(tt.in)
 	}
 
 	f.Fuzz(func(t *testing.T, input string) {
-		_, _ = ParseTarget(input, 8080)
+		_, _ = ParseDestination(input)
 	})
-}
-
-func TestParseSources(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name            string
-		inputSources    []string
-		assert          assert.ErrorAssertionFunc
-		expectedSources Sources
-	}{
-		{
-			name:         "ok one source",
-			inputSources: []string{"alice@foo:/path/to/thing"},
-			assert:       assert.NoError,
-			expectedSources: Sources{
-				Login: "alice",
-				Addr:  utils.MustParseAddr("foo:8080"),
-				Paths: []string{"/path/to/thing"},
-			},
-		},
-		{
-			name:         "ok multiple sources",
-			inputSources: []string{"alice@foo:/path/one", "alice@foo:/path/two"},
-			assert:       assert.NoError,
-			expectedSources: Sources{
-				Login: "alice",
-				Addr:  utils.MustParseAddr("foo:8080"),
-				Paths: []string{"/path/one", "/path/two"},
-			},
-		},
-		{
-			name:   "no sources",
-			assert: assert.Error,
-		},
-		{
-			name:         "sources from different hosts",
-			inputSources: []string{"alice@foo:/path", "/local/path"},
-			assert:       assert.Error,
-		},
-		{
-			name:         "sources with different logins",
-			inputSources: []string{"alice@foo:/path/one", "bob@foo:/path/two"},
-			assert:       assert.Error,
-		},
-	}
-	for _, tc := range tests {
-		sources, err := ParseSources(tc.inputSources, 8080)
-		tc.assert(t, err)
-		assert.Equal(t, tc.expectedSources, sources)
-	}
 }
 
 func TestIsRemotePath(t *testing.T) {

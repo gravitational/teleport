@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/durationpb"
 
+	apiclient "github.com/gravitational/teleport/api/client"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/tbot/bot"
@@ -181,7 +182,7 @@ func labelsToSelectors(in map[string][]string) []*workloadidentityv1pb.LabelSele
 func IssueJWTWorkloadIdentity(
 	ctx context.Context,
 	log *slog.Logger,
-	clt authClient,
+	clt *apiclient.Client,
 	workloadIdentity bot.WorkloadIdentitySelector,
 	audiences []string,
 	ttl time.Duration,

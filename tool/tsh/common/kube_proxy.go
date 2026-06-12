@@ -24,13 +24,14 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"text/template"
 	"time"
 
-	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"k8s.io/client-go/tools/clientcmd"
@@ -42,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
+	kubeclient "github.com/gravitational/teleport/lib/client/kube"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
@@ -62,8 +64,6 @@ type proxyKubeCommand struct {
 	labels              string
 	predicateExpression string
 	exec                bool
-	execCmd             string   // Command to execute when --exec is enabled
-	execArgs            []string // Arguments for the command
 }
 
 func newProxyKubeCommand(parent *kingpin.CmdClause) *proxyKubeCommand {
@@ -75,10 +75,9 @@ func newProxyKubeCommand(parent *kingpin.CmdClause) *proxyKubeCommand {
 	c.Arg("kube-cluster", "Name of the Kubernetes cluster to proxy. Check 'tsh kube ls' for a list of available clusters. If not specified, all clusters previously logged in through `tsh kube login` will be used.").StringsVar(&c.kubeClusters)
 	c.Flag("as", "Configure custom Kubernetes user impersonation.").StringVar(&c.impersonateUser)
 	c.Flag("as-groups", "Configure custom Kubernetes group impersonation.").StringsVar(&c.impersonateGroups)
-	// kube-namespace exists for backwards compatibility.
-	c.Flag("kube-namespace", "Configure the default Kubernetes namespace.").Hidden().StringVar(&c.namespace)
-	c.Flag("namespace", "Configure the default Kubernetes namespace.").Short('n').StringVar(&c.namespace)
-	c.Flag("port", "Specifies the source port used by the proxy listener.").Short('p').StringVar(&c.port)
+	// TODO (tigrato): move this back to namespace once teleport drops the namespace flag.
+	c.Flag("kube-namespace", "Configure the default Kubernetes namespace.").Short('n').StringVar(&c.namespace)
+	c.Flag("port", "Specifies the source port used by the proxy listener").Short('p').StringVar(&c.port)
 	c.Flag("format", envVarFormatFlagDescription()).Short('f').Default(envVarDefaultFormat()).EnumVar(&c.format, envVarFormats...)
 	c.Flag("labels", labelHelp).StringVar(&c.labels)
 	c.Flag("query", queryHelp).StringVar(&c.predicateExpression)
@@ -88,8 +87,6 @@ func newProxyKubeCommand(parent *kingpin.CmdClause) *proxyKubeCommand {
 		Default(kubeconfig.ContextName("{{.ClusterName}}", "{{.KubeName}}")).
 		StringVar(&c.overrideContextName)
 	c.Flag("exec", "Run the proxy in the background and reexec into a new shell with $KUBECONFIG already pointed to our config file.").BoolVar(&c.exec)
-	c.Flag("exec-cmd", "Command to execute when --exec is enabled. If not specified, defaults to $SHELL or /bin/bash. Implicitly enables exec mode.").StringVar(&c.execCmd)
-	c.Flag("exec-arg", "Arguments to pass to the executed command (can be specified multiple times).").StringsVar(&c.execArgs)
 	return c
 }
 
@@ -97,11 +94,6 @@ func (c *proxyKubeCommand) run(cf *CLIConf) error {
 	cf.Labels = c.labels
 	cf.PredicateExpression = c.predicateExpression
 	cf.SiteName = c.siteName
-
-	// Validate flag combinations
-	if len(c.execArgs) > 0 && c.execCmd == "" {
-		return trace.BadParameter("cannot use --exec-arg without --exec-cmd")
-	}
 
 	if len(c.kubeClusters) > 1 || cf.Labels != "" || cf.PredicateExpression != "" {
 		err := kubeconfig.CheckContextOverrideTemplate(c.overrideContextName)
@@ -131,8 +123,8 @@ func (c *proxyKubeCommand) run(cf *CLIConf) error {
 	defer localProxy.Close()
 
 	// re-exec into a new shell with $KUBECONFIG already pointed to our config file
-	// if --exec flag is set, --exec-cmd is provided, or headless mode is enabled.
-	reexecIntoShell := cf.Headless || c.exec || c.execCmd != ""
+	// if --exec flag is set or headless mode is enabled.
+	reexecIntoShell := cf.Headless || c.exec
 	if err := c.printTemplate(cf.Stdout(), reexecIntoShell, localProxy); err != nil {
 		return trace.Wrap(err)
 	}
@@ -143,11 +135,8 @@ func (c *proxyKubeCommand) run(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 		go localProxy.Start(cf.Context)
-
-		command := getExecCommand(c.execCmd)
 		cmd := &exec.Cmd{
 			Path: "test",
-			Args: append([]string{command}, c.execArgs...),
 			Env:  []string{"KUBECONFIG=" + localProxy.KubeConfigPath()},
 		}
 		return trace.Wrap(cf.RunCommand(cmd))
@@ -156,7 +145,7 @@ func (c *proxyKubeCommand) run(cf *CLIConf) error {
 	if reexecIntoShell {
 		// If headless, run proxy in the background and reexec into a new shell with $KUBECONFIG already pointed to
 		// our config file
-		return trace.Wrap(runHeadlessKubeProxy(cf, localProxy, c.execCmd, c.execArgs))
+		return trace.Wrap(runHeadlessKubeProxy(cf, localProxy))
 	} else {
 		// Write kubeconfig to a file and start local proxy in regular mode
 		if err := localProxy.WriteKubeConfig(); err != nil {
@@ -166,19 +155,7 @@ func (c *proxyKubeCommand) run(cf *CLIConf) error {
 	}
 }
 
-// getExecCommand returns the command to execute for the kube proxy shell.
-// Priority: 1) provided command, 2) SHELL env var, 3) /bin/bash
-func getExecCommand(command string) string {
-	if command == "" {
-		command = "/bin/bash"
-		if shell, ok := os.LookupEnv("SHELL"); ok {
-			command = shell
-		}
-	}
-	return command
-}
-
-func runHeadlessKubeProxy(cf *CLIConf, localProxy *kubeLocalProxy, command string, args []string) error {
+func runHeadlessKubeProxy(cf *CLIConf, localProxy *kubeLocalProxy) error {
 	// Getting context with cancel function, so we could stop shell process if localProxy stops.
 	ctx, cancel := context.WithCancel(cf.Context)
 
@@ -195,7 +172,7 @@ func runHeadlessKubeProxy(cf *CLIConf, localProxy *kubeLocalProxy, command strin
 		lpErrChan <- localProxy.Start(ctx)
 	}()
 
-	err = reexecToShell(ctx, configBytes, command, args)
+	err = reexecToShell(ctx, configBytes)
 	err = trace.NewAggregate(err, localProxy.Close())
 	_, _ = fmt.Fprint(cf.Stdout(), "Local proxy for Kubernetes is closed.\n")
 	err = trace.NewAggregate(err, <-lpErrChan)
@@ -273,7 +250,7 @@ func (c *proxyKubeCommand) prepare(cf *CLIConf, tc *client.TeleportClient) (*cli
 	}
 
 	// Use logged-in clusters.
-	clusters := kubeconfig.LocalProxyClustersFromDefaultConfig(defaultConfig, tc.WebProxyHost(), tc.KubeClusterAddr())
+	clusters := kubeconfig.LocalProxyClustersFromDefaultConfig(defaultConfig, tc.KubeClusterAddr())
 	if len(clusters) == 0 {
 		return nil, nil, trace.BadParameter("%s", errorMsg)
 	}
@@ -288,7 +265,7 @@ func (c *proxyKubeCommand) printPrepare(cf *CLIConf, title string, clusters kube
 	for _, cluster := range clusters {
 		contextName, err := kubeconfig.ContextNameFromTemplate(c.overrideContextName, cluster.TeleportCluster, cluster.KubeCluster)
 		if err != nil {
-			logger.WarnContext(cf.Context, "Failed to generate context name", "error", err)
+			slog.WarnContext(cf.Context, "Failed to generate context name.", "error", err)
 			contextName = kubeconfig.ContextName(cluster.TeleportCluster, cluster.KubeCluster)
 		}
 		table.AddRow([]string{cluster.TeleportCluster, cluster.KubeCluster, contextName})
@@ -298,11 +275,11 @@ func (c *proxyKubeCommand) printPrepare(cf *CLIConf, title string, clusters kube
 
 func (c *proxyKubeCommand) printTemplate(w io.Writer, isReexec bool, localProxy *kubeLocalProxy) error {
 	if isReexec {
-		return trace.Wrap(proxyKubeHeadlessTemplate.Execute(w, map[string]any{
+		return trace.Wrap(proxyKubeHeadlessTemplate.Execute(w, map[string]interface{}{
 			"multipleContexts": len(localProxy.kubeconfig.Contexts) > 1,
 		}))
 	}
-	return trace.Wrap(proxyKubeTemplate.Execute(w, map[string]any{
+	return trace.Wrap(proxyKubeTemplate.Execute(w, map[string]interface{}{
 		"addr":           localProxy.GetAddr(),
 		"format":         c.format,
 		"randomPort":     c.port == "",
@@ -373,47 +350,25 @@ func makeKubeLocalProxy(cf *CLIConf, tc *client.TeleportClient, clusters kubecon
 		Certs:        certs,
 		CertReissuer: kubeProxy.getCertReissuer(tc),
 		Headless:     cf.Headless,
-		Logger:       logger,
+		Logger:       log,
 		CloseContext: cf.Context,
-		Relay:        tc.RelayAddr != "",
 	})
 
-	if tc.RelayAddr != "" {
-		localProxy, err := alpnproxy.NewLocalProxy(
-			alpnproxy.LocalProxyConfig{
-				RemoteProxyAddr: tc.RelayAddr,
-				// connectivity to a relay is secured by internal CAs, the
-				// insecure option makes no sense
-				InsecureSkipVerify: false,
-				Listener:           lpListener,
-				ParentContext:      cf.Context,
-				// the relay does not support TLS terminators
-				ALPNConnUpgradeRequired: false,
-			},
-			alpnproxy.WithHTTPMiddleware(kubeMiddleware),
-			alpnproxy.WithClusterCAs(cf.Context, tc.RootClusterCACertPool),
-		)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		kubeProxy.localProxy = localProxy
-	} else {
-		localProxy, err := alpnproxy.NewLocalProxy(
-			makeBasicLocalProxyConfig(cf.Context, tc, lpListener, cf.InsecureSkipVerify),
-			alpnproxy.WithHTTPMiddleware(kubeMiddleware),
-			alpnproxy.WithSNI(client.GetKubeTLSServerName(tc.WebProxyHost())),
-			alpnproxy.WithClusterCAs(cf.Context, tc.RootClusterCACertPool),
-		)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		kubeProxy.localProxy = localProxy
+	localProxy, err := alpnproxy.NewLocalProxy(
+		makeBasicLocalProxyConfig(cf.Context, tc, lpListener, cf.InsecureSkipVerify),
+		alpnproxy.WithHTTPMiddleware(kubeMiddleware),
+		alpnproxy.WithSNI(client.GetKubeTLSServerName(tc.WebProxyHost())),
+		alpnproxy.WithClusterCAs(cf.Context, tc.RootClusterCACertPool),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+	kubeProxy.localProxy = localProxy
 
 	kubeProxy.forwardProxy, err = alpnproxy.NewKubeForwardProxy(alpnproxy.KubeForwardProxyConfig{
 		CloseContext: cf.Context,
 		ListenPort:   port,
-		ForwardAddr:  lpListener.Addr().String(),
+		ForwardAddr:  localProxy.GetAddr(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -479,7 +434,6 @@ func (k *kubeLocalProxy) createKubeConfig(defaultConfig *clientcmdapi.Config, ov
 		return nil, trace.BadParameter("empty default config")
 	}
 	values := &kubeconfig.LocalProxyValues{
-		TeleportProfileName:     k.tc.WebProxyHost(),
 		TeleportKubeClusterAddr: k.tc.KubeClusterAddr(),
 		LocalProxyURL:           "http://" + k.GetAddr(),
 		LocalProxyCAs:           map[string][]byte{},
@@ -541,7 +495,7 @@ func loadKubeUserCerts(ctx context.Context, tc *client.TeleportClient, clusters 
 		if key := kubeKeys[cluster.TeleportCluster]; key != nil {
 			cert, err := kubeCertFromKeyRing(key, cluster.KubeCluster)
 			if err == nil {
-				logger.DebugContext(ctx, "Client cert loaded from keystore for cluster", "cluster", cluster)
+				log.Debugf("Client cert loaded from keystore for %v.", cluster)
 				certs.Add(cluster.TeleportCluster, cluster.KubeCluster, cert)
 				continue
 			}
@@ -556,7 +510,7 @@ func loadKubeUserCerts(ctx context.Context, tc *client.TeleportClient, clusters 
 			return nil, trace.Wrap(err)
 		}
 
-		logger.DebugContext(ctx, "Client cert issued for cluster", "cluster", cluster)
+		log.Debugf("Client cert issued for %v.", cluster)
 		certs.Add(cluster.TeleportCluster, cluster.KubeCluster, cert)
 	}
 	return certs, nil
@@ -641,6 +595,23 @@ func issueKubeCert(ctx context.Context, tc *client.TeleportClient, clusterClient
 		},
 	)
 	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+
+	// Make sure the cert is allowed to access the cluster.
+	// At this point we already know that the user has access to the cluster
+	// via the RBAC rules, but we also need to make sure that the user has
+	// access to the cluster with at least one kubernetes_user or kubernetes_group
+	// defined.
+	rootClusterName, err := tc.RootClusterName(ctx)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+	if err := kubeclient.CheckIfCertsAreAllowedToAccessCluster(
+		result.KeyRing,
+		rootClusterName,
+		teleportCluster,
+		kubeCluster); err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 

@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/athena"
 	athenaTypes "github.com/aws/aws-sdk-go-v2/service/athena/types"
 	"github.com/aws/aws-sdk-go-v2/service/glue"
@@ -54,7 +55,6 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend/memory"
-	awsconfig "github.com/gravitational/teleport/lib/cloud/aws/config"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/test"
 	"github.com/gravitational/teleport/lib/observability/tracing"
@@ -156,17 +156,6 @@ func TestIntegrationAthenaEventPagination(t *testing.T) {
 	})
 }
 
-func TestIntegrationAthenaSearchEventsBySearchTerm(t *testing.T) {
-	t.Run("sns", func(t *testing.T) {
-		const bypassSNSFalse = false
-		testIntegrationAthenaSearchEventsBySearchTerm(t, bypassSNSFalse)
-	})
-	t.Run("sqs", func(t *testing.T) {
-		const bypassSNSTrue = true
-		testIntegrationAthenaSearchEventsBySearchTerm(t, bypassSNSTrue)
-	})
-}
-
 func testIntegrationAthenaEventPagination(t *testing.T, bypassSNS bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
@@ -182,22 +171,6 @@ func testIntegrationAthenaEventPagination(t *testing.T, bypassSNS bool) {
 	}
 
 	eventsSuite.EventPagination(t)
-}
-
-func testIntegrationAthenaSearchEventsBySearchTerm(t *testing.T, bypassSNS bool) {
-	ctx := t.Context()
-	ac := SetupAthenaContext(t, ctx, AthenaContextConfig{BypassSNS: bypassSNS})
-	auditLogger := &EventuallyConsistentAuditLogger{
-		Inner: ac.log,
-		// Additional 5s is used to compensate for uploading parquet on s3.
-		QueryDelay: ac.batcherInterval + 5*time.Second,
-	}
-	eventsSuite := test.EventsSuite{
-		Log:   auditLogger,
-		Clock: ac.clock,
-	}
-
-	eventsSuite.SearchEventsBySearchTerm(t)
 }
 
 func TestIntegrationAthenaLargeEvents(t *testing.T) {
@@ -385,17 +358,6 @@ func (e *EventuallyConsistentAuditLogger) SearchSessionEvents(ctx context.Contex
 		e.emitWasAfterLastDelay = false
 	}
 	return e.Inner.SearchSessionEvents(ctx, req)
-}
-
-func (e *EventuallyConsistentAuditLogger) SearchUnstructuredEvents(ctx context.Context, req events.SearchEventsRequest) ([]*auditlogpb.EventUnstructured, string, error) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if e.emitWasAfterLastDelay {
-		time.Sleep(e.QueryDelay)
-		// clear emit delay
-		e.emitWasAfterLastDelay = false
-	}
-	return e.Inner.SearchUnstructuredEvents(ctx, req)
 }
 
 func (e *EventuallyConsistentAuditLogger) Close() error {

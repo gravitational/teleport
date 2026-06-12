@@ -37,8 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
@@ -114,7 +112,7 @@ loop:
 			return frameCount, ctx.Err()
 		case evt, more := <-evts:
 			if !more {
-				logger.WarnContext(ctx, "reached end of stream before seeing session end event")
+				log.Warnln("reached end of stream before seeing session end event")
 				break loop
 			}
 
@@ -137,16 +135,16 @@ loop:
 			case *apievents.SessionStart:
 				return frameCount, trace.BadParameter("only desktop recordings can be exported")
 			case *apievents.DesktopRecording:
-				msg, err := legacy.Decode(bytes.NewBuffer(evt.Message))
+				msg, err := tdp.Decode(evt.Message)
 				if err != nil {
-					logger.WarnContext(ctx, "failed to decode desktop recording message", "error", err)
+					log.Warnf("failed to decode desktop recording message: %v", err)
 					break loop
 				}
 
 				switch msg := msg.(type) {
-				case legacy.RDPFastPathPDU:
+				case tdp.RDPFastPathPDU:
 					fastPathReceived = true
-				case legacy.ClientScreenSpec:
+				case tdp.ClientScreenSpec:
 					if screen != nil {
 						return frameCount, trace.BadParameter("invalid recording: received multiple screen specs")
 					}
@@ -155,7 +153,7 @@ loop:
 					// Note: this works because we don't currently support resizing
 					// the window during a session. If this changes, we'd have to
 					// find the maximum window size first.
-					logger.DebugContext(ctx, "allocating screen size", "width", msg.Width, "height", msg.Height)
+					log.Debugf("allocating %dx%d screen", msg.Width, msg.Height)
 					width, height = int32(msg.Width), int32(msg.Height)
 					screen = image.NewNRGBA(image.Rectangle{
 						Min: image.Pt(0, 0),
@@ -167,7 +165,7 @@ loop:
 						return frameCount, trace.Wrap(err)
 					}
 
-				case legacy.PNGFrame, legacy.PNG2Frame:
+				case tdp.PNGFrame, tdp.PNG2Frame:
 					if screen == nil {
 						return frameCount, trace.BadParameter("this session is missing required start metadata")
 					}
@@ -198,15 +196,12 @@ loop:
 				delta := evt.DelayMilliseconds - lastEmitted
 				framesToEmit := int64(float64(delta) / frameDelayMillis)
 				if framesToEmit > 0 {
-					logger.DebugContext(ctx, "emitting frames",
-						"last_event_ms", delta,
-						"frames_to_emit", framesToEmit,
-					)
+					log.Debugf("%dms since last frame, emitting %d frames", delta, framesToEmit)
 					buf.Reset()
 					if err := jpeg.Encode(buf, screen, nil); err != nil {
 						return frameCount, trace.Wrap(err)
 					}
-					for range int(framesToEmit) {
+					for i := 0; i < int(framesToEmit); i++ {
 						err := movie.AddFrame(buf.Bytes())
 						if errors.Is(err, mjpeg.ErrTooLarge) {
 							// this file can't get any larger - time to open a new file
@@ -236,7 +231,7 @@ loop:
 				}
 
 			default:
-				logger.DebugContext(ctx, "got unexpected audit event", "event", logutils.TypeAttr(evt))
+				log.Debugf("got unexpected audit event %T", evt)
 			}
 		}
 	}
@@ -257,9 +252,9 @@ loop:
 
 func imgFromPNGMessage(msg tdp.Message) (image.Image, error) {
 	switch msg := msg.(type) {
-	case legacy.PNG2Frame:
+	case tdp.PNG2Frame:
 		return png.Decode(bytes.NewReader(msg.Data()))
-	case legacy.PNGFrame:
+	case tdp.PNGFrame:
 		return msg.Img, nil
 	default:
 		// this should never happen based on what we pass at the call site
@@ -269,14 +264,14 @@ func imgFromPNGMessage(msg tdp.Message) (image.Image, error) {
 
 func rectFromPNGMessage(msg tdp.Message) image.Rectangle {
 	switch msg := msg.(type) {
-	case legacy.PNG2Frame:
+	case tdp.PNG2Frame:
 		return image.Rect(
 			// add one to bottom and right dimension, as RDP
 			// bounds are inclusive
 			int(msg.Left()), int(msg.Top()),
 			int(msg.Right()+1), int(msg.Bottom()+1),
 		)
-	case legacy.PNGFrame:
+	case tdp.PNGFrame:
 		return msg.Img.Bounds()
 	default:
 		// this should never happen based on what we pass at the call site

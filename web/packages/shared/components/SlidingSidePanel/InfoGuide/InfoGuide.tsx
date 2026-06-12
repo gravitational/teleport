@@ -20,7 +20,7 @@ import React, { PropsWithChildren } from 'react';
 import styled from 'styled-components';
 
 import { Box, Button, ButtonIcon, Flex, H3, Link, Text } from 'design';
-import { Cross, Info, NewTab } from 'design/Icon';
+import { Cross, Info } from 'design/Icon';
 import {
   InfoGuideConfig,
   useInfoGuide,
@@ -157,10 +157,7 @@ export const ReferenceLinks = ({ links }: { links: ReferenceLink[] }) => (
       {links.map(link => (
         <InfoLinkLi key={link.href}>
           <Link target="_blank" href={link.href}>
-            <Flex>
-              {link.title}
-              <NewTab size="small" ml={1} />
-            </Flex>
+            {link.title}
           </Link>
         </InfoLinkLi>
       ))}

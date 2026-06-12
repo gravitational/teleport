@@ -136,15 +136,8 @@ export const formatters: Formatters = {
   [eventCodes.ACCESS_REQUEST_CREATED]: {
     type: 'access_request.create',
     desc: 'Access Request Created',
-    format: ({ id, state, RequestedResourceAccessIDs }) => {
-      if (RequestedResourceAccessIDs?.length) {
-        const resources = RequestedResourceAccessIDs.map(
-          r => `${r.id.kind}/${r.id.name}`
-        ).join(', ');
-        return `Access request [${id}] for [${resources}] has been created and is ${state}`;
-      }
-      return `Access request [${id}] has been created and is ${state}`;
-    },
+    format: ({ id, state }) =>
+      `Access request [${id}] has been created and is ${state}`,
   },
   [eventCodes.ACCESS_REQUEST_UPDATED]: {
     type: 'access_request.update',
@@ -1457,13 +1450,6 @@ export const formatters: Formatters = {
       return `Upgrade Window Start updated to [${upgrade_window_start}] by user [${user}]`;
     },
   },
-  [eventCodes.ENVIRONMENT_PROFILE_UPDATED]: {
-    type: 'environmentprofile.update',
-    desc: 'Environment Profile Updated',
-    format: ({ user, environment_profile }) => {
-      return `Environment profile updated to [${environment_profile}] by user [${user}]`;
-    },
-  },
   [eventCodes.SESSION_RECORDING_ACCESS]: {
     type: 'session.recording.access',
     desc: 'Session Recording Accessed',
@@ -1483,20 +1469,6 @@ export const formatters: Formatters = {
     desc: 'SSM Command Execution Failed',
     format: ({ account_id, instance_id, region, command_id }) => {
       return `SSM Command with ID [${command_id}] failed during execution on EC2 Instance [${instance_id}] on AWS Account [${account_id}] in [${region}]`;
-    },
-  },
-  [eventCodes.AZURERUN_SUCCESS]: {
-    type: 'azure.run',
-    desc: 'Azure Run Command Executed',
-    format: ({ vm_name, subscription_id, resource_group, region, status }) => {
-      return `Azure Run Command was successfully executed on VM [${vm_name}] in resource group [${resource_group}] on subscription [${subscription_id}] in [${region}]: [${status}]`;
-    },
-  },
-  [eventCodes.AZURERUN_FAIL]: {
-    type: 'azure.run',
-    desc: 'Azure Run Command Failed',
-    format: ({ vm_name, subscription_id, resource_group, region, status }) => {
-      return `Azure Run Command failed on VM [${vm_name}] in resource group [${resource_group}] on subscription [${subscription_id}] in [${region}]: [${status}]`;
     },
   },
   [eventCodes.BOT_JOIN]: {
@@ -1938,11 +1910,6 @@ export const formatters: Formatters = {
     }) =>
       `Access path for ${affected_resource_kind || 'Node'} [${affected_resource_name}/${affected_resource_source}] changed`,
   },
-  [eventCodes.ACCESS_GRAPH_SETTINGS_UPDATE]: {
-    type: 'access_graph_settings.update',
-    desc: 'Access Graph Settings Updated',
-    format: ({ user }) => `User [${user}] updated the access graph settings`,
-  },
   [eventCodes.SPANNER_RPC]: {
     type: 'db.session.spanner.rpc',
     desc: 'Spanner RPC',
@@ -2171,29 +2138,6 @@ export const formatters: Formatters = {
       return `Stable UNIX user for username [${username}] was created`;
     },
   },
-  [eventCodes.AWS_IC_RESOURCE_SYNC_SUCCESS]: {
-    type: 'aws_identity_center.resource_sync.success',
-    desc: 'AWS IAM Identity Center Resource Sync Completed',
-    format: ({
-      total_user_groups,
-      total_accounts,
-      total_account_assignments,
-      total_permission_sets,
-    }) => {
-      // user groups only imported once.
-      if (total_user_groups > 0) {
-        return `User group synchronization successfully completed [groups: ${total_user_groups}]`;
-      }
-      return `Periodic synchronization successfully completed [accounts: ${total_accounts}, account assignments: ${total_account_assignments}, permission sets: ${total_permission_sets}]`;
-    },
-  },
-  [eventCodes.AWS_IC_RESOURCE_SYNC_FAILURE]: {
-    type: 'aws_identity_center.resource_sync.failed',
-    desc: 'AWS IAM Identity Center Resource Sync Failed',
-    format: ({ message }) => {
-      return message;
-    },
-  },
   [eventCodes.AUTOUPDATE_CONFIG_CREATE]: {
     type: 'auto_update_config.create',
     desc: 'Automatic Update Config Created',
@@ -2236,27 +2180,6 @@ export const formatters: Formatters = {
       return `User ${user} deleted the Automatic Update Version`;
     },
   },
-  [eventCodes.HEALTH_CHECK_CONFIG_CREATE]: {
-    type: 'health_check_config.create',
-    desc: 'Health Check Config Created',
-    format: ({ user, name }) => {
-      return `User [${user}] created a health check config [${name}]`;
-    },
-  },
-  [eventCodes.HEALTH_CHECK_CONFIG_UPDATE]: {
-    type: 'health_check_config.update',
-    desc: 'Health Check Config Updated',
-    format: ({ user, name }) => {
-      return `User [${user}] updated a health check config [${name}]`;
-    },
-  },
-  [eventCodes.HEALTH_CHECK_CONFIG_DELETE]: {
-    type: 'health_check_config.delete',
-    desc: 'Health Check Config Deleted',
-    format: ({ user, name }) => {
-      return `User [${user}] deleted a health check config [${name}]`;
-    },
-  },
   [eventCodes.AUTOUPDATE_AGENT_ROLLOUT_TRIGGER]: {
     type: 'auto_update_agent_rollout.trigger',
     desc: 'Automatic Update Agent Rollout Triggered',
@@ -2276,85 +2199,6 @@ export const formatters: Formatters = {
     desc: 'Automatic Update Agent Rollout Rollback',
     format: ({ user, groups }) => {
       return `User ${user} rolled back the autoupdate rollout groups ${groups}`;
-    },
-  },
-  [eventCodes.MCP_SESSION_START]: {
-    type: 'mcp.session.start',
-    desc: 'MCP Session Started',
-    format: event => {
-      const { user, app_name } = event;
-      return `User [${user}] has connected to MCP server [${app_name}]`;
-    },
-  },
-  [eventCodes.MCP_SESSION_END]: {
-    type: 'mcp.session.end',
-    desc: 'MCP Session Ended',
-    format: event => {
-      const { user, app_name } = event;
-      return `User [${user}] has disconnected from MCP server [${app_name}]`;
-    },
-  },
-  [eventCodes.MCP_SESSION_END_FAILURE]: {
-    type: 'mcp.session.end',
-    desc: 'MCP Session End Failure',
-    format: event => {
-      const { user, app_name } = event;
-      return `User [${user}] failed to disconnect from MCP server [${app_name}]`;
-    },
-  },
-  [eventCodes.MCP_SESSION_REQUEST]: {
-    type: 'mcp.session.request',
-    desc: 'MCP Session Request',
-    format: ({ user, app_name, message }) => {
-      if (message.params?.name) {
-        return `User [${user}] sent an MCP request [${message.method}] for [${message.params.name}] to MCP server [${app_name}]`;
-      }
-      return `User [${user}] sent an MCP request [${message.method}] to MCP server [${app_name}]`;
-    },
-  },
-  [eventCodes.MCP_SESSION_REQUEST_FAILURE]: {
-    type: 'mcp.session.request',
-    desc: 'MCP Session Request Failure',
-    format: ({ user, app_name, message }) => {
-      if (message.params?.name) {
-        return `User [${user}] failed to send an MCP request [${message.method}] for [${message.params.name}] to MCP server [${app_name}]`;
-      }
-      return `User [${user}] failed to send an MCP request [${message.method}] to MCP server [${app_name}]`;
-    },
-  },
-  [eventCodes.MCP_SESSION_NOTIFICATION]: {
-    type: 'mcp.session.notification',
-    desc: 'MCP Session Notification',
-    format: ({ user, app_name, message }) => {
-      return `User [${user}] sent an MCP notification [${message.method}] to MCP server [${app_name}]`;
-    },
-  },
-  [eventCodes.MCP_SESSION_NOTIFICATION_FAILURE]: {
-    type: 'mcp.session.notification',
-    desc: 'MCP Session Notification Failure',
-    format: ({ user, app_name, message }) => {
-      return `User [${user}] failed to send an MCP notification [${message.method}] to MCP server [${app_name}]`;
-    },
-  },
-  [eventCodes.MCP_SESSION_LISTEN_SSE_STREAM]: {
-    type: 'mcp.session.listen_sse_stream',
-    desc: 'MCP Session Listen',
-    format: ({ user, app_name }) => {
-      return `User [${user}] has started listening events from MCP server [${app_name}]`;
-    },
-  },
-  [eventCodes.MCP_SESSION_LISTEN_SSE_STREAM_FAILURE]: {
-    type: 'mcp.session.listen_sse_stream',
-    desc: 'MCP Session Listen Failure',
-    format: ({ user, app_name }) => {
-      return `User [${user}] failed to listen events from MCP server [${app_name}]`;
-    },
-  },
-  [eventCodes.MCP_SESSION_INVALID_HTTP_REQUEST]: {
-    type: 'mcp.session.invalid_http_request',
-    desc: 'MCP Session Invalid Request',
-    format: ({ user, app_name }) => {
-      return `User [${user}] attempted to send an invalid request to MCP server [${app_name}]`;
     },
   },
   [eventCodes.BOUND_KEYPAIR_RECOVERY]: {
@@ -2442,18 +2286,6 @@ export const formatters: Formatters = {
     format: ({ integration, resource_type, teleport_id, external_id }) =>
       `Deleting [${integration}] [${resource_type}] [${external_id}] / [${teleport_id}] failed`,
   },
-  [eventCodes.SCIM_RESOURCE_PATCH]: {
-    type: 'scim.patch',
-    desc: 'SCIM Patch Succeeded',
-    format: ({ integration, resource_type, teleport_id, external_id }) =>
-      `Patching Teleport [${resource_type}] [${teleport_id}] from [${integration}][${resource_type}] [${external_id}] succeeded`,
-  },
-  [eventCodes.SCIM_RESOURCE_PATCH_FAILURE]: {
-    type: 'scim.patch',
-    desc: 'SCIM Patch Failed',
-    format: ({ integration, resource_type, teleport_id, external_id }) =>
-      `Patching Teleport [${resource_type}] [${teleport_id}] from [${integration}][${resource_type}] [${external_id}] failed`,
-  },
   [eventCodes.CLIENT_IP_RESTRICTIONS_UPDATE]: {
     type: 'cir.update',
     desc: 'Client IP Restrictions update',
@@ -2462,218 +2294,6 @@ export const formatters: Formatters = {
         ? `User [${user}] updated the Client IP Restrictions allowlist to [${client_ip_restrictions}].`
         : `User [${user}] has failed to update  Client IP Restrictions.`,
   },
-  [eventCodes.APPAUTHCONFIG_CREATE]: {
-    type: 'app_auth_config.create',
-    desc: 'App Auth Config created',
-    format: ({ user, name }) => {
-      return `User [${user}] created the app auth config [${name}]`;
-    },
-  },
-  [eventCodes.APPAUTHCONFIG_UPDATE]: {
-    type: 'app_auth_config.update',
-    desc: 'App Auth Config updated',
-    format: ({ user, name }) => {
-      return `User [${user}] updated the app auth config [${name}]`;
-    },
-  },
-  [eventCodes.APPAUTHCONFIG_DELETE]: {
-    type: 'app_auth_config.delete',
-    desc: 'App Auth Config deleted',
-    format: ({ user, name }) => {
-      return `User [${user}] deleted the app auth config [${name}]`;
-    },
-  },
-  [eventCodes.APPAUTHCONFIG_VERIFY_SUCCESS]: {
-    type: 'app_auth_config.verify.success',
-    desc: 'App authentication succeeded',
-    format: ({ user, app_name, app_auth_config }) => {
-      return `User [${user}] authenticated to app [${app_name}] using [${app_auth_config}] auth`;
-    },
-  },
-  [eventCodes.APPAUTHCONFIG_VERIFY_FAILURE]: {
-    type: 'app_auth_config.verify.failure',
-    desc: 'App authentication failed',
-    format: ({ error, app_auth_config }) => {
-      return `App authentication using [${app_auth_config}] failed: ${error}`;
-    },
-  },
-  [eventCodes.VNET_CONFIG_CREATE]: {
-    type: 'vnet.config.create',
-    desc: 'VNet config created',
-    format: ({ user }) => {
-      return `User [${user}] created the VNet config`;
-    },
-  },
-  [eventCodes.VNET_CONFIG_UPDATE]: {
-    type: 'vnet.config.update',
-    desc: 'VNet config updated',
-    format: ({ user }) => {
-      return `User [${user}] updated the VNet config`;
-    },
-  },
-  [eventCodes.VNET_CONFIG_DELETE]: {
-    type: 'vnet.config.delete',
-    desc: 'VNet config deleted',
-    format: ({ user }) => {
-      return `User [${user}] deleted the VNet config`;
-    },
-  },
-  [eventCodes.WORKLOAD_CLUSTER_CREATE]: {
-    type: 'workload_cluster.create',
-    desc: 'Workload Cluster Created',
-    format: ({ name, user }) =>
-      `Workload Cluster [${name}] was created by [${user}]`,
-  },
-  [eventCodes.WORKLOAD_CLUSTER_CREATE_FAILURE]: {
-    type: 'workload_cluster.create',
-    desc: 'Workload Cluster Create Failed',
-    format: ({ name, user }) =>
-      `Workload Cluster [${name}] create failed by [${user}]`,
-  },
-  [eventCodes.WORKLOAD_CLUSTER_UPDATE]: {
-    type: 'workload_cluster.update',
-    desc: 'Workload Cluster Updated',
-    format: ({ name, user }) =>
-      `Workload Cluster [${name}] was updated by [${user}]`,
-  },
-  [eventCodes.WORKLOAD_CLUSTER_UPDATE_FAILURE]: {
-    type: 'workload_cluster.update',
-    desc: 'Workload Cluster Update Failed',
-    format: ({ name, user }) =>
-      `Workload Cluster [${name}] update failed by [${user}]`,
-  },
-  [eventCodes.WORKLOAD_CLUSTER_DELETE]: {
-    type: 'workload_cluster.delete',
-    desc: 'Workload Cluster Deleted',
-    format: ({ name, user }) =>
-      `Workload Cluster [${name}] was deleted by [${user}]`,
-  },
-  [eventCodes.WORKLOAD_CLUSTER_DELETE_FAILURE]: {
-    type: 'workload_cluster.delete',
-    desc: 'Workload Cluster Delete Failed',
-    format: ({ name, user }) =>
-      `Workload Cluster [${name}] delete failed by [${user}]`,
-  },
-  [eventCodes.INFERENCE_MODEL_CREATE]: {
-    type: 'inference_model.create',
-    desc: 'Inference Model Created',
-    format: ({ name, user }) =>
-      `Inference Model [${name}] was created by [${user}]`,
-  },
-  [eventCodes.INFERENCE_MODEL_UPDATE]: {
-    type: 'inference_model.update',
-    desc: 'Inference Model Updated',
-    format: ({ name, user }) =>
-      `Inference Model [${name}] was updated by [${user}]`,
-  },
-  [eventCodes.INFERENCE_MODEL_DELETE]: {
-    type: 'inference_model.delete',
-    desc: 'Inference Model Deleted',
-    format: ({ name, user }) =>
-      `Inference Model [${name}] was deleted by [${user}]`,
-  },
-  [eventCodes.INFERENCE_SECRET_CREATE]: {
-    type: 'inference_secret.create',
-    desc: 'Inference Secret Created',
-    format: ({ name, user }) =>
-      `Inference Secret [${name}] was created by [${user}]`,
-  },
-  [eventCodes.INFERENCE_SECRET_UPDATE]: {
-    type: 'inference_secret.update',
-    desc: 'Inference Secret Updated',
-    format: ({ name, user }) =>
-      `Inference Secret [${name}] was updated by [${user}]`,
-  },
-  [eventCodes.INFERENCE_SECRET_DELETE]: {
-    type: 'inference_secret.delete',
-    desc: 'Inference Secret Deleted',
-    format: ({ name, user }) =>
-      `Inference Secret [${name}] was deleted by [${user}]`,
-  },
-  [eventCodes.INFERENCE_POLICY_CREATE]: {
-    type: 'inference_policy.create',
-    desc: 'Inference Policy Created',
-    format: ({ name, user }) =>
-      `Inference Policy [${name}] was created by [${user}]`,
-  },
-  [eventCodes.INFERENCE_POLICY_UPDATE]: {
-    type: 'inference_policy.update',
-    desc: 'Inference Policy Updated',
-    format: ({ name, user }) =>
-      `Inference Policy [${name}] was updated by [${user}]`,
-  },
-  [eventCodes.INFERENCE_POLICY_DELETE]: {
-    type: 'inference_policy.delete',
-    desc: 'Inference Policy Deleted',
-    format: ({ name, user }) =>
-      `Inference Policy [${name}] was deleted by [${user}]`,
-  },
-  [eventCodes.RETRIEVAL_MODEL_CREATE]: {
-    type: 'retrieval_model.create',
-    desc: 'Retrieval Model Created',
-    format: ({ name, user }) =>
-      `Retrieval Model [${name}] was created by [${user}]`,
-  },
-  [eventCodes.RETRIEVAL_MODEL_UPDATE]: {
-    type: 'retrieval_model.update',
-    desc: 'Retrieval Model Updated',
-    format: ({ name, user }) =>
-      `Retrieval Model [${name}] was updated by [${user}]`,
-  },
-  [eventCodes.RETRIEVAL_MODEL_DELETE]: {
-    type: 'retrieval_model.delete',
-    desc: 'Retrieval Model Deleted',
-    format: ({ name, user }) =>
-      `Retrieval Model [${name}] was deleted by [${user}]`,
-  },
-  [eventCodes.SESSION_SUMMARIZED]: {
-    type: 'session.summarized',
-    desc: 'Session Summarized',
-    format: ({ sid, session_type, model_name }) =>
-      `Session summary for ${session_type || 'session'} [${sid}] was summarized${model_name ? ` using [${model_name}]` : ''}`,
-  },
-  [eventCodes.SESSION_SUMMARIZED_FAILURE]: {
-    type: 'session.summarized',
-    desc: 'Session Summarization Failed',
-    format: ({ sid, session_type, model_name }) =>
-      `Session summary for ${session_type || 'session'} [${sid}] failed to be summarized${model_name ? ` using [${model_name}]` : ''}`,
-  },
-  [eventCodes.CERT_AUTH_OVERRIDE_CREATE]: {
-    type: 'cert_auth_override.create',
-    desc: 'Certificate Authority Override Created',
-    format: ({ user, name, success }) => {
-      return success
-        ? `User [${user}] created a Certificate Authority Override [${name}]`
-        : `User [${user}] failed to create a Certificate Authority Override [${name}]`;
-    },
-  },
-  [eventCodes.CERT_AUTH_OVERRIDE_UPDATE]: {
-    type: 'cert_auth_override.update',
-    desc: 'Certificate Authority Override Updated',
-    format: ({ user, name, success }) => {
-      return success
-        ? `User [${user}] updated a Certificate Authority Override [${name}]`
-        : `User [${user}] failed to update a Certificate Authority Override [${name}]`;
-    },
-  },
-  [eventCodes.CERT_AUTH_OVERRIDE_UPSERT]: {
-    type: 'cert_auth_override.upsert',
-    desc: 'Certificate Authority Override Upserted',
-    format: ({ user, name, success }) => {
-      return success
-        ? `User [${user}] upserted a Certificate Authority Override [${name}]`
-        : `User [${user}] failed to upsert a Certificate Authority Override [${name}]`;
-    },
-  },
-  [eventCodes.CERT_AUTH_OVERRIDE_DELETE]: {
-    type: 'cert_auth_override.delete',
-    desc: 'Certificate Authority Override Deleted',
-    format: ({ user, name, success }) => {
-      return success
-        ? `User [${user}] deleted a Certificate Authority Override [${name}]`
-        : `User [${user}] failed to delete a Certificate Authority Override [${name}]`;
-    },
-  },
 };
 
 const unknownFormatter = {
@@ -2681,35 +2301,9 @@ const unknownFormatter = {
   format: () => 'Unknown',
 };
 
-// MFA flow types are defined in api/proto/teleport/legacy/types/events/events.proto.
-const mfaFlowTypeLabels: Record<number, string> = {
-  0: 'UNSPECIFIED',
-  1: 'PER_SESSION_CERTIFICATE',
-  2: 'IN_BAND',
-};
-
-// TODO(cthach): DELETE IN v20.0 once the only supported MFA flow_type is IN_BAND.
-function formatRawEventForUI(json: any): any {
-  // For MFA events, convert the flow_type from a number to a human readable string.
-  if (
-    json?.code == eventCodes.CREATE_MFA_AUTH_CHALLENGE ||
-    json?.code == eventCodes.VALIDATE_MFA_AUTH_RESPONSE
-  ) {
-    return {
-      ...json,
-      flow_type: mfaFlowTypeLabels[json.flow_type] ?? json.flow_type,
-    };
-  }
-
-  return json;
-}
-
 export default function makeEvent(json: any): Event {
   // lookup event formatter by code
   const formatter = formatters[json.code as EventCode] || unknownFormatter;
-
-  const raw = formatRawEventForUI(json);
-
   return {
     codeDesc:
       typeof formatter.desc === 'function'
@@ -2718,9 +2312,10 @@ export default function makeEvent(json: any): Event {
     message: formatter.format(json as any),
     id: getId(json),
     code: json.code,
+    eventIndex: json.ei,
     user: json.user,
     time: new Date(json.time),
-    raw: raw,
+    raw: json,
   };
 }
 

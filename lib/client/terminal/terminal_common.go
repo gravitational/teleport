@@ -23,12 +23,14 @@ import (
 	"sync"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-var log = logutils.NewPackageLogger(teleport.ComponentKey, teleport.ComponentClient)
+var log = logrus.WithFields(logrus.Fields{
+	teleport.ComponentKey: teleport.ComponentClient,
+})
 
 // ResizeEvent is emitted when a terminal window is resized.
 type ResizeEvent struct{}
@@ -37,22 +39,22 @@ type ResizeEvent struct{}
 type StopEvent struct{}
 
 type signalEmitter struct {
-	subscribers      []chan any
+	subscribers      []chan interface{}
 	subscribersMutex sync.Mutex
 }
 
 // Subscribe creates a channel that will receive terminal events.
-func (e *signalEmitter) Subscribe() chan any {
+func (e *signalEmitter) Subscribe() chan interface{} {
 	e.subscribersMutex.Lock()
 	defer e.subscribersMutex.Unlock()
 
-	ch := make(chan any)
+	ch := make(chan interface{})
 	e.subscribers = append(e.subscribers, ch)
 
 	return ch
 }
 
-func (e *signalEmitter) writeEvent(event any) {
+func (e *signalEmitter) writeEvent(event interface{}) {
 	e.subscribersMutex.Lock()
 	defer e.subscribersMutex.Unlock()
 

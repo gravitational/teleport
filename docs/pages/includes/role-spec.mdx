@@ -1,6 +1,6 @@
 ```yaml
 kind: role
-version: v8
+version: v7
 metadata:
   name: example
   description: This is an example role.
@@ -132,6 +132,13 @@ spec:
     # best_effort_drop (try to drop the user at session end, if it doesn't
     # succeed, fallback to disabling it).
     create_db_user_mode: keep
+    # Specifies role specific options for identity provider access.
+    idp:
+      # Specifies role specific options for SAML identity provider access.
+      saml:
+        # Specifies whether this role has access to the SAML identity provider.
+        # Defaults to true.
+        enabled: true
 
   # The allow section declares a list of resource/verb combinations that are
   # allowed for the users of this role. By default, nothing is allowed.
@@ -197,7 +204,7 @@ spec:
     kubernetes_labels:
       # A user can only access prod environments
       'env': 'prod'
-      # User can access any region in us-west, e.g. us-west-1, us-west-2
+      # User can access any region in us-west, e.g us-west-1, us-west-2
       'region': 'us-west-*'
       # Regular expressions start with ^ and end with $.
       # Teleport uses Go's regular expression syntax:
@@ -211,15 +218,31 @@ spec:
     kubernetes_resources:
         # The resource kind. Teleport currently supports:
         # - * (all resources)
-        # - <arbitrary string> (Resource plural name, e.g. pods, deployments, cronjobs, mycustomresources)
+        # - pod
+        # - secret
+        # - configmap
+        # - namespace
+        # - service
+        # - serviceaccount
+        # - kube_node
+        # - persistentvolume
+        # - persistentvolumeclaim
+        # - deployment
+        # - replicaset
+        # - statefulset
+        # - daemonset
+        # - clusterrole
+        # - kube_role
+        # - clusterrolebinding
+        # - rolebinding
+        # - cronjob
+        # - job
+        # - certificatesigningrequest
+        # - ingress
       - kind: '*'
-        # The resource name of the Kubernetes cluster in which to allow access
-        # to the resources you specify with 'name' and 'kind'.
-        api_group: '*'
         # The name of the Kubernetes namespace in which to allow access the
         # resources you specify with 'name' and 'kind'.
-        # The wildcard character '*' matches any sequence of characters for namespaced
-        # resource. If set, global resources will not match.
+        # The wildcard character '*' matches any sequence of characters.
         # If the value begins with '^' and ends with '$', the Kubernetes
         # Service will treat it as a regular expression.
         namespace: '*'
@@ -283,7 +306,7 @@ spec:
     app_labels:
       # A user can only access prod environments
       'env': 'prod'
-      # User can access any region in us-west, e.g. us-west-1, us-west-2
+      # User can access any region in us-west, e.g us-west-1, us-west-2
       'region': 'us-west-*'
       # Regular expressions start with ^ and end with $.
       # Teleport uses Go's regular expression syntax:
@@ -312,13 +335,6 @@ spec:
       'env': 'prod'
       'team': '{{external.team}}'
 
-    # beam_labels: a user with this role will be allowed to manage Beam
-    # resources with labels matching below.
-    #
-    # Supports role templating with traits.
-    beam_labels:
-      'teleport.internal/beam/owner': 'user@example.com'
-
     # node_labels_expression has the same purpose as node_labels but
     # supports predicate expressions to configure custom logic.
     # A user with this role will be allowed to access nodes if they are in the
@@ -338,7 +354,6 @@ spec:
     windows_desktop_labels_expression: 'labels["env"] == "staging"'
     group_labels_expression: 'labels["env"] == "staging"'
     workload_identity_labels_expression: 'labels["env"] == "staging"'
-    beam_labels_expression: 'labels["env"] == "staging"'
 
     # aws_role_arns allows a user with this role to assume AWS roles when
     # accessing AWS console using UI or AWS API using CLI
@@ -377,7 +392,7 @@ spec:
       # listed in preview_as_roles when reviewing Resource Access Requests
       preview_as_roles: ['dbadmin']
 
-    # request allows a user to request roles matching
+    # request allows a user user request roles matching
     # expressions below
     request:
       # the 'roles' list can be a mixture of literals and wildcard matchers
@@ -401,9 +416,6 @@ spec:
         # is required for all Access Requests requesting roles or resources allowed by
         # this role. It applies only to users who have this role assigned.
         mode: "optional"
-        # 'prompt' is a custom message prompted to the user for the requested roles or resources searchable
-	      # as other roles. This is only applied to the requested roles and resources specifying the prompt.
-        prompt: I am a reason prompt specific to a requested role or resource
 
       # thresholds specifies minimum amount of approvers and deniers,
       # defaults to 1 for both (enterprise-only)
@@ -502,22 +514,6 @@ spec:
       # List of GitHub organizations the user has access to.
     - orgs:
       - my-org
-
-    # mcp: defines MCP servers related permissions.
-    mcp:
-      # tools: list of tools allowed for this role.
-      #
-      # No tools are allowed if not specified.
-      # Each entry can be a literal string, a glob pattern, or a regular
-      # expression (must start with '^' and end with '$'). A wildcard '*' allows
-      # all tools.
-      # This value field also supports variable interpolation.
-      tools:
-      - search-files
-      - slack_*
-      - ^(get|list|read).*$
-      - "{{internal.mcp_tools}}"
-      - "{{external.mcp_tools}}"
 
     # rules allow a user holding this role to modify other resources
     # matching the expressions below

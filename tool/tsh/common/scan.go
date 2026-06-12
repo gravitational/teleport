@@ -57,11 +57,7 @@ type scanKeysCommand struct {
 
 func newScanKeysCommand(parent *kingpin.CmdClause) *scanKeysCommand {
 	c := &scanKeysCommand{CmdClause: parent.Command("keys", "Scan the local machine for SSH private keys and report findings to Teleport.")}
-	c.Flag("dirs", fmt.Sprintf("Directories to scan. Defaults to %s on %s, %s on %s, and %s on %s.",
-		"/home/", "Linux",
-		"/Users/", "macOS",
-		`C:\Users\`, "Windows",
-	)).StringsVar(&c.dirs)
+	c.Flag("dirs", "Directories to scan.").Default(defaultDirValues()).StringsVar(&c.dirs)
 	c.Flag("skip-paths", "Paths to directories or files to skip. Supports for matching patterns.").StringsVar(&c.skipPaths)
 	return c
 }
@@ -81,7 +77,7 @@ func defaultDirValues() string {
 
 func (c *scanKeysCommand) run(cf *CLIConf) error {
 	if len(c.dirs) == 0 {
-		c.dirs = []string{defaultDirValues()}
+		return trace.BadParameter("no directories to scan")
 	}
 
 	if cf.Proxy == "" {
@@ -177,7 +173,7 @@ func collectPrivateKeys(privateKeys []secretsscanner.SSHPrivateKey) []*accessgra
 func splitCommaSeparatedSlice(s []string) []string {
 	var result []string
 	for _, entry := range s {
-		for split := range strings.SplitSeq(entry, ",") {
+		for _, split := range strings.Split(entry, ",") {
 			result = append(result, strings.TrimSpace(split))
 		}
 	}

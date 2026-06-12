@@ -17,7 +17,6 @@ limitations under the License.
 package types
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -261,45 +260,6 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			desc: "iam method with aws_organization_id",
-			token: &ProvisionTokenV2{
-				Metadata: Metadata{
-					Name: "test",
-				},
-				Spec: ProvisionTokenSpecV2{
-					Roles:      []SystemRole{RoleNode},
-					JoinMethod: "iam",
-					Allow: []*TokenRule{
-						{
-							AWSOrganizationID: "o-123abcd",
-						},
-					},
-				},
-			},
-			wantErr: false,
-		},
-		{
-			desc: "iam method with aws_organization_id and organizational unit matchers",
-			token: &ProvisionTokenV2{
-				Metadata: Metadata{
-					Name: "test",
-				},
-				Spec: ProvisionTokenSpecV2{
-					Roles:      []SystemRole{RoleNode},
-					JoinMethod: "iam",
-					Allow: []*TokenRule{
-						{
-							AWSOrganizationID: "o-123abcd",
-							AWSOrganizationalUnits: &AWSOrganizationUnitsMatcher{
-								Include: []string{"*"},
-							},
-						},
-					},
-				},
-			},
-			wantErr: false,
-		},
-		{
 			desc: "github valid",
 			token: &ProvisionTokenV2{
 				Metadata: Metadata{
@@ -312,44 +272,6 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 						Allow: []*ProvisionTokenSpecV2GitHub_Rule{
 							{
 								Sub: "foo",
-							},
-						},
-					},
-				},
-			},
-		},
-		{
-			desc: "github valid enterprise only",
-			token: &ProvisionTokenV2{
-				Metadata: Metadata{
-					Name: "test",
-				},
-				Spec: ProvisionTokenSpecV2{
-					Roles:      []SystemRole{RoleNode},
-					JoinMethod: JoinMethodGitHub,
-					GitHub: &ProvisionTokenSpecV2GitHub{
-						Allow: []*ProvisionTokenSpecV2GitHub_Rule{
-							{
-								Enterprise: "my-enterprise",
-							},
-						},
-					},
-				},
-			},
-		},
-		{
-			desc: "github valid enterprise_id only",
-			token: &ProvisionTokenV2{
-				Metadata: Metadata{
-					Name: "test",
-				},
-				Spec: ProvisionTokenSpecV2{
-					Roles:      []SystemRole{RoleNode},
-					JoinMethod: JoinMethodGitHub,
-					GitHub: &ProvisionTokenSpecV2GitHub{
-						Allow: []*ProvisionTokenSpecV2GitHub_Rule{
-							{
-								EnterpriseID: "123456",
 							},
 						},
 					},
@@ -640,26 +562,6 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			desc: "kubernetes: too many parts in service account name",
-			token: &ProvisionTokenV2{
-				Metadata: Metadata{
-					Name: "test",
-				},
-				Spec: ProvisionTokenSpecV2{
-					Roles:      []SystemRole{RoleNode},
-					JoinMethod: JoinMethodKubernetes,
-					Kubernetes: &ProvisionTokenSpecV2Kubernetes{
-						Allow: []*ProvisionTokenSpecV2Kubernetes_Rule{
-							{
-								ServiceAccount: "too:many:parts",
-							},
-						},
-					},
-				},
-			},
-			wantErr: true,
-		},
-		{
 			desc: "kubernetes: allow rule blank",
 			token: &ProvisionTokenV2{
 				Metadata: Metadata{
@@ -671,87 +573,6 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 					Kubernetes: &ProvisionTokenSpecV2Kubernetes{
 						Allow: []*ProvisionTokenSpecV2Kubernetes_Rule{
 							{},
-						},
-					},
-				},
-			},
-			wantErr: true,
-		},
-		{
-			desc: "kubernetes: valid service_account_name and service_account_namespace",
-			token: &ProvisionTokenV2{
-				Metadata: Metadata{
-					Name: "test",
-				},
-				Spec: ProvisionTokenSpecV2{
-					Roles:      []SystemRole{RoleNode},
-					JoinMethod: JoinMethodKubernetes,
-					Kubernetes: &ProvisionTokenSpecV2Kubernetes{
-						Allow: []*ProvisionTokenSpecV2Kubernetes_Rule{
-							{
-								ServiceAccountName:      "my-sa",
-								ServiceAccountNamespace: "my-ns",
-							},
-						},
-					},
-				},
-			},
-		},
-		{
-			desc: "kubernetes: valid service_account, service_account_name, and service_account_namespace",
-			token: &ProvisionTokenV2{
-				Metadata: Metadata{
-					Name: "test",
-				},
-				Spec: ProvisionTokenSpecV2{
-					Roles:      []SystemRole{RoleNode},
-					JoinMethod: JoinMethodKubernetes,
-					Kubernetes: &ProvisionTokenSpecV2Kubernetes{
-						Allow: []*ProvisionTokenSpecV2Kubernetes_Rule{
-							{
-								ServiceAccount:          "my-ns:my-sa",
-								ServiceAccountName:      "my-sa",
-								ServiceAccountNamespace: "my-ns",
-							},
-						},
-					},
-				},
-			},
-		},
-		{
-			desc: "kubernetes: service_account_name without service_account_namespace",
-			token: &ProvisionTokenV2{
-				Metadata: Metadata{
-					Name: "test",
-				},
-				Spec: ProvisionTokenSpecV2{
-					Roles:      []SystemRole{RoleNode},
-					JoinMethod: JoinMethodKubernetes,
-					Kubernetes: &ProvisionTokenSpecV2Kubernetes{
-						Allow: []*ProvisionTokenSpecV2Kubernetes_Rule{
-							{
-								ServiceAccountName: "my-sa",
-							},
-						},
-					},
-				},
-			},
-			wantErr: true,
-		},
-		{
-			desc: "kubernetes: service_account_namespace without service_account_name",
-			token: &ProvisionTokenV2{
-				Metadata: Metadata{
-					Name: "test",
-				},
-				Spec: ProvisionTokenSpecV2{
-					Roles:      []SystemRole{RoleNode},
-					JoinMethod: JoinMethodKubernetes,
-					Kubernetes: &ProvisionTokenSpecV2Kubernetes{
-						Allow: []*ProvisionTokenSpecV2Kubernetes_Rule{
-							{
-								ServiceAccountNamespace: "my-ns",
-							},
 						},
 					},
 				},
@@ -1530,64 +1351,6 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			desc: "azure success with subscription",
-			token: &ProvisionTokenV2{
-				Metadata: Metadata{
-					Name: "test",
-				},
-				Spec: ProvisionTokenSpecV2{
-					Roles:      []SystemRole{RoleNode},
-					JoinMethod: JoinMethodAzure,
-					Azure: &ProvisionTokenSpecV2Azure{
-						Allow: []*ProvisionTokenSpecV2Azure_Rule{
-							{
-								Subscription: "00000000-0000-0000-0000-000000000001",
-							},
-						},
-					},
-				},
-			},
-			wantErr: false,
-		},
-		{
-			desc: "azure success with tenant only",
-			token: &ProvisionTokenV2{
-				Metadata: Metadata{
-					Name: "test",
-				},
-				Spec: ProvisionTokenSpecV2{
-					Roles:      []SystemRole{RoleNode},
-					JoinMethod: JoinMethodAzure,
-					Azure: &ProvisionTokenSpecV2Azure{
-						Allow: []*ProvisionTokenSpecV2Azure_Rule{
-							{
-								Tenant: "00000000-0000-0000-0000-000000000002",
-							},
-						},
-					},
-				},
-			},
-			wantErr: false,
-		},
-		{
-			desc: "azure missing subscription and tenant",
-			token: &ProvisionTokenV2{
-				Metadata: Metadata{
-					Name: "test",
-				},
-				Spec: ProvisionTokenSpecV2{
-					Roles:      []SystemRole{RoleNode},
-					JoinMethod: JoinMethodAzure,
-					Azure: &ProvisionTokenSpecV2Azure{
-						Allow: []*ProvisionTokenSpecV2Azure_Rule{
-							{},
-						},
-					},
-				},
-			},
-			wantErr: true,
-		},
-		{
 			desc: "azure devops success",
 			token: &ProvisionTokenV2{
 				Metadata: Metadata{
@@ -1733,177 +1496,6 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 			},
 			wantErr: false,
 		},
-		{
-			desc: "env0 success",
-			token: &ProvisionTokenV2{
-				Metadata: Metadata{
-					Name: "test",
-				},
-				Spec: ProvisionTokenSpecV2{
-					Roles:      []SystemRole{RoleNode},
-					JoinMethod: JoinMethodEnv0,
-					Env0: &ProvisionTokenSpecV2Env0{
-						Allow: []*ProvisionTokenSpecV2Env0_Rule{
-							{
-								OrganizationID:  "organization-id",
-								ProjectID:       "project-id",
-								ProjectName:     "project-name",
-								TemplateID:      "template-id",
-								TemplateName:    "template-name",
-								EnvironmentID:   "environment-id",
-								EnvironmentName: "environment-name",
-								WorkspaceName:   "workspace-name",
-								DeploymentType:  "deployment-type",
-								DeployerEmail:   "deployer-email",
-								Env0Tag:         "custom-tag",
-							},
-						},
-					},
-				},
-			},
-			expected: &ProvisionTokenV2{
-				Kind:    "token",
-				Version: "v2",
-				Metadata: Metadata{
-					Name:      "test",
-					Namespace: "default",
-				},
-				Spec: ProvisionTokenSpecV2{
-					Roles:      []SystemRole{RoleNode},
-					JoinMethod: JoinMethodEnv0,
-					Env0: &ProvisionTokenSpecV2Env0{
-						Allow: []*ProvisionTokenSpecV2Env0_Rule{
-							{
-								OrganizationID:  "organization-id",
-								ProjectID:       "project-id",
-								ProjectName:     "project-name",
-								TemplateID:      "template-id",
-								TemplateName:    "template-name",
-								EnvironmentID:   "environment-id",
-								EnvironmentName: "environment-name",
-								WorkspaceName:   "workspace-name",
-								DeploymentType:  "deployment-type",
-								DeployerEmail:   "deployer-email",
-								Env0Tag:         "custom-tag",
-							},
-						},
-					},
-				},
-			},
-			wantErr: false,
-		},
-		{
-			desc: "env0 multiple rules - success",
-			token: &ProvisionTokenV2{
-				Metadata: Metadata{
-					Name: "test",
-				},
-				Spec: ProvisionTokenSpecV2{
-					Roles:      []SystemRole{RoleNode},
-					JoinMethod: JoinMethodEnv0,
-					Env0: &ProvisionTokenSpecV2Env0{
-						Allow: []*ProvisionTokenSpecV2Env0_Rule{
-							{
-								OrganizationID: "organization-id",
-								ProjectID:      "project-id",
-							},
-							{
-								OrganizationID: "organization-id",
-								ProjectName:    "project-name",
-							},
-						},
-					},
-				},
-			},
-			expected: &ProvisionTokenV2{
-				Kind:    "token",
-				Version: "v2",
-				Metadata: Metadata{
-					Name:      "test",
-					Namespace: "default",
-				},
-				Spec: ProvisionTokenSpecV2{
-					Roles:      []SystemRole{RoleNode},
-					JoinMethod: JoinMethodEnv0,
-					Env0: &ProvisionTokenSpecV2Env0{
-						Allow: []*ProvisionTokenSpecV2Env0_Rule{
-							{
-								OrganizationID: "organization-id",
-								ProjectID:      "project-id",
-							},
-							{
-								OrganizationID: "organization-id",
-								ProjectName:    "project-name",
-							},
-						},
-					},
-				},
-			},
-			wantErr: false,
-		},
-		{
-			desc: "env0 missing organization",
-			token: &ProvisionTokenV2{
-				Metadata: Metadata{
-					Name: "test",
-				},
-				Spec: ProvisionTokenSpecV2{
-					Roles:      []SystemRole{RoleNode},
-					JoinMethod: JoinMethodEnv0,
-					Env0: &ProvisionTokenSpecV2Env0{
-						Allow: []*ProvisionTokenSpecV2Env0_Rule{
-							{
-								ProjectName:  "test",
-								TemplateName: "test",
-							},
-						},
-					},
-				},
-			},
-			wantErr: true,
-		},
-		{
-			desc: "env0 missing project",
-			token: &ProvisionTokenV2{
-				Metadata: Metadata{
-					Name: "test",
-				},
-				Spec: ProvisionTokenSpecV2{
-					Roles:      []SystemRole{RoleNode},
-					JoinMethod: JoinMethodEnv0,
-					Env0: &ProvisionTokenSpecV2Env0{
-						Allow: []*ProvisionTokenSpecV2Env0_Rule{
-							{
-								OrganizationID: "test",
-								TemplateName:   "test",
-							},
-						},
-					},
-				},
-			},
-			wantErr: true,
-		},
-		{
-			desc: "oracle too many instance IDs",
-			token: &ProvisionTokenV2{
-				Metadata: Metadata{
-					Name: "test",
-				},
-				Spec: ProvisionTokenSpecV2{
-					Roles:      []SystemRole{RoleNode},
-					JoinMethod: JoinMethodOracle,
-					Oracle: &ProvisionTokenSpecV2Oracle{
-						Allow: []*ProvisionTokenSpecV2Oracle_Rule{
-							{
-								Tenancy:   "ocid.tenancy.oc1..mytentant",
-								Instances: genOCIDs(101),
-							},
-						},
-					},
-				},
-			},
-			wantErr: true,
-		},
 	}
 
 	for _, tc := range testcases {
@@ -1923,14 +1515,6 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 			}
 		})
 	}
-}
-
-func genOCIDs(count int) []string {
-	out := make([]string, count)
-	for i := range count {
-		out[i] = fmt.Sprintf("ocid.instance.oc1.region.%d", i)
-	}
-	return out
 }
 
 func TestProvisionTokenV2_GetSafeName(t *testing.T) {

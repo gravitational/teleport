@@ -22,7 +22,6 @@ import {
   Button,
   ButtonBorder,
   ButtonPrimary,
-  ButtonPrimaryBorder,
   ButtonSecondary,
   ButtonText,
   ButtonWarning,
@@ -47,10 +46,8 @@ import Menu, { MenuItem, MenuItemIcon } from './Menu';
 import { Pill } from './Pill';
 import Popover from './Popover';
 import { ResourceIcon } from './ResourceIcon';
-import { Status } from './Status';
 import { StepSlider } from './StepSlider';
 import { SyncStamp } from './SyncStamp';
-import { Tag } from './Tag';
 import Text, {
   H1,
   H2,
@@ -70,7 +67,6 @@ import TopNav from './TopNav';
 export { AnimatedProgressBar } from './AnimatedProgressBar';
 export {
   Alert,
-  Status,
   Banner,
   Box,
   Button,
@@ -78,7 +74,6 @@ export {
   ButtonIcon,
   ButtonLink,
   ButtonPrimary,
-  ButtonPrimaryBorder,
   ButtonSecondary,
   ButtonSelect,
   ButtonText,
@@ -115,7 +110,6 @@ export {
   Subtitle2,
   Subtitle3,
   SyncStamp,
-  Tag,
   Text,
   TextArea,
   Toggle,

@@ -23,16 +23,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net/url"
 	"os"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -65,17 +64,14 @@ type UserCommand struct {
 	allowedAzureIdentities    []string
 	allowedGCPServiceAccounts []string
 	allowedRoles              []string
-	allowedMCPTools           []string
 	hostUserUID               string
 	hostUserUIDProvided       bool
 	hostUserGID               string
 	hostUserGIDProvided       bool
-	defaultRelayAddr          string
-	defaultRelayAddrProvided  bool
 
 	ttl time.Duration
 
-	// format is the output format, e.g. text, json, or yaml.
+	// format is the output format, e.g. text or json
 	format string
 
 	userAdd           *kingpin.CmdClause
@@ -107,15 +103,13 @@ func (u *UserCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 	u.userAdd.Flag("gcp-service-accounts", "List of allowed GCP service accounts for the new user").StringsVar(&u.allowedGCPServiceAccounts)
 	u.userAdd.Flag("host-user-uid", "UID for auto provisioned host users to use").IsSetByUser(&u.hostUserUIDProvided).StringVar(&u.hostUserUID)
 	u.userAdd.Flag("host-user-gid", "GID for auto provisioned host users to use").IsSetByUser(&u.hostUserGIDProvided).StringVar(&u.hostUserGID)
-	u.userAdd.Flag("mcp-tools", "List of allowed MCP tools for the new user").StringsVar(&u.allowedMCPTools)
-	u.userAdd.Flag("default-relay-addr", "Relay address that clients should use by default").StringVar(&u.defaultRelayAddr)
 
 	u.userAdd.Flag("roles", "List of roles for the new user to assume").Required().StringsVar(&u.allowedRoles)
 
 	u.userAdd.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v, maximum is %v",
 		defaults.SignupTokenTTL, defaults.MaxSignupTokenTTL)).
 		Default(fmt.Sprintf("%v", defaults.SignupTokenTTL)).DurationVar(&u.ttl)
-	u.userAdd.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&u.format, teleport.Text, teleport.JSON, teleport.YAML)
+	u.userAdd.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&u.format)
 	u.userAdd.Alias(AddUserHelp)
 
 	u.userUpdate = users.Command("update", "Update user account.")
@@ -144,11 +138,9 @@ func (u *UserCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 		StringsVar(&u.allowedGCPServiceAccounts)
 	u.userUpdate.Flag("set-host-user-uid", "UID for auto provisioned host users to use. Value can be reset by providing an empty string").IsSetByUser(&u.hostUserUIDProvided).StringVar(&u.hostUserUID)
 	u.userUpdate.Flag("set-host-user-gid", "GID for auto provisioned host users to use. Value can be reset by providing an empty string").IsSetByUser(&u.hostUserGIDProvided).StringVar(&u.hostUserGID)
-	u.userUpdate.Flag("set-mcp-tools", "List of allowed MCP tools for the user, replaces current allowed MCP tools.").StringsVar(&u.allowedMCPTools)
-	u.userUpdate.Flag("set-default-relay-addr", "Relay address that clients should use by default. Value can be reset by providing an empty string").IsSetByUser(&u.defaultRelayAddrProvided).StringVar(&u.defaultRelayAddr)
 
 	u.userList = users.Command("ls", "Lists all user accounts.")
-	u.userList.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&u.format, teleport.Text, teleport.JSON, teleport.YAML)
+	u.userList.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&u.format)
 
 	u.userDelete = users.Command("rm", "Deletes user accounts.").Alias("del")
 	u.userDelete.Arg("logins", "Comma-separated list of user logins to delete").
@@ -159,7 +151,7 @@ func (u *UserCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 	u.userResetPassword.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v, maximum is %v",
 		defaults.ChangePasswordTokenTTL, defaults.MaxChangePasswordTokenTTL)).
 		Default(fmt.Sprintf("%v", defaults.ChangePasswordTokenTTL)).DurationVar(&u.ttl)
-	u.userResetPassword.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&u.format, teleport.Text, teleport.JSON, teleport.YAML)
+	u.userResetPassword.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&u.format)
 }
 
 // TryRun takes the CLI command as an argument (like "users add") and executes it.
@@ -237,12 +229,10 @@ func (u *UserCommand) printResetPasswordToken(token types.UserToken, messageForm
 	switch strings.ToLower(u.format) {
 	case teleport.JSON:
 		err = printTokenAsJSON(token)
-	case teleport.YAML:
-		err = printTokenAsYAML(token)
 	case teleport.Text:
 		err = printTokenAsText(token, messageFormat)
 	default:
-		err = trace.BadParameter("unknown format %q", u.format)
+		err = printTokenAsText(token, messageFormat)
 	}
 
 	if err != nil {
@@ -307,11 +297,6 @@ func (u *UserCommand) Add(ctx context.Context, client *authclient.Client) error 
 		constants.TraitGCPServiceAccounts: gcpServiceAccounts,
 		constants.TraitHostUserUID:        {u.hostUserUID},
 		constants.TraitHostUserGID:        {u.hostUserGID},
-		constants.TraitMCPTools:           flattenSlice(u.allowedMCPTools),
-	}
-
-	if u.defaultRelayAddr != "" {
-		traits[constants.TraitDefaultRelayAddr] = []string{u.defaultRelayAddr}
 	}
 
 	user, err := types.NewUser(u.login)
@@ -360,7 +345,7 @@ func (u *UserCommand) Add(ctx context.Context, client *authclient.Client) error 
 // ["one", "two", "three"]
 func flattenSlice(slice []string) (retval []string) {
 	for i := range slice {
-		for role := range strings.SplitSeq(slice[i], ",") {
+		for _, role := range strings.Split(slice[i], ",") {
 			retval = append(retval, strings.TrimSpace(role))
 		}
 	}
@@ -374,10 +359,6 @@ func printTokenAsJSON(token types.UserToken) error {
 	}
 	fmt.Print(string(out))
 	return nil
-}
-
-func printTokenAsYAML(token types.UserToken) error {
-	return trace.Wrap(utils.WriteYAML(os.Stdout, token), "failed to marshal reset password token")
 }
 
 func printTokenAsText(token types.UserToken, messageFormat string) error {
@@ -442,8 +423,10 @@ func (u *UserCommand) Update(ctx context.Context, client *authclient.Client) err
 	}
 	if len(u.allowedDatabaseRoles) > 0 {
 		dbRoles := flattenSlice(u.allowedDatabaseRoles)
-		if slices.Contains(dbRoles, types.Wildcard) {
-			return trace.BadParameter("database role can't be a wildcard")
+		for _, role := range dbRoles {
+			if role == types.Wildcard {
+				return trace.BadParameter("database role can't be a wildcard")
+			}
 		}
 		user.SetDatabaseRoles(dbRoles)
 		updateMessages["database roles"] = dbRoles
@@ -493,28 +476,13 @@ func (u *UserCommand) Update(ctx context.Context, client *authclient.Client) err
 		updateMessages["Host user GID"] = []string{u.hostUserGID}
 	}
 
-	if len(u.allowedMCPTools) > 0 {
-		mcpTools := flattenSlice(u.allowedMCPTools)
-		user.SetMCPTools(mcpTools)
-		updateMessages["MCP tools"] = mcpTools
-	}
-
-	if u.defaultRelayAddrProvided {
-		user.SetDefaultRelayAddr(u.defaultRelayAddr)
-		updateMessages["default relay address"] = []string{u.defaultRelayAddr}
-	}
-
 	if len(updateMessages) == 0 {
 		return trace.BadParameter("Nothing to update. Please provide at least one --set flag.")
 	}
 
 	for _, roleName := range user.GetRoles() {
 		if _, err := client.GetRole(ctx, roleName); err != nil {
-			slog.WarnContext(ctx, "Error checking role when upserting user",
-				"role", roleName,
-				"user", user.GetName(),
-				"error", err,
-			)
+			log.Warnf("Error checking role %q when upserting user %q: %v", roleName, user.GetName(), err)
 		}
 	}
 	if _, err := client.UpsertUser(ctx, user); err != nil {
@@ -534,8 +502,7 @@ func (u *UserCommand) List(ctx context.Context, client *authclient.Client) error
 		return trace.Wrap(err)
 	}
 
-	switch u.format {
-	case teleport.Text:
+	if u.format == teleport.Text {
 		if len(users) == 0 {
 			fmt.Println("No users found")
 			return nil
@@ -547,18 +514,11 @@ func (u *UserCommand) List(ctx context.Context, client *authclient.Client) error
 			})
 		}
 		fmt.Println(t.AsBuffer().String())
-	case teleport.JSON:
+	} else {
 		err := utils.WriteJSONArray(os.Stdout, users)
 		if err != nil {
 			return trace.Wrap(err, "failed to marshal users")
 		}
-	case teleport.YAML:
-		err := utils.WriteYAML(os.Stdout, users)
-		if err != nil {
-			return trace.Wrap(err, "failed to marshal users")
-		}
-	default:
-		return trace.BadParameter("unknown format %q", u.format)
 	}
 	return nil
 }
@@ -566,7 +526,7 @@ func (u *UserCommand) List(ctx context.Context, client *authclient.Client) error
 // Delete deletes teleport user(s). User IDs are passed as a comma-separated
 // list in UserCommand.login
 func (u *UserCommand) Delete(ctx context.Context, client *authclient.Client) error {
-	for l := range strings.SplitSeq(u.login, ",") {
+	for _, l := range strings.Split(u.login, ",") {
 		if err := client.DeleteUser(ctx, l); err != nil {
 			return trace.Wrap(err)
 		}

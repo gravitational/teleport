@@ -20,64 +20,65 @@ package reversetunnelclient
 
 import (
 	"context"
-	"log/slog"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// RemoteClusterGetter is an interface that defines GetRemoteCluster method
-type RemoteClusterGetter interface {
+// ClusterGetter is an interface that defines GetRemoteCluster method
+type ClusterGetter interface {
 	// GetRemoteCluster returns a remote cluster by name
 	GetRemoteCluster(ctx context.Context, clusterName string) (types.RemoteCluster, error)
 }
 
-// NewClusterGetterWithRoles returns new ClusterGetter wrapper that authorizes
-// access to queried clusters.
-func NewClusterGetterWithRoles(clusterGetter ClusterGetter, localCluster string, clusterAccessChecker func(types.RemoteCluster) error, remoteClusterGetter RemoteClusterGetter) *ClusterGetterWithRoles {
-	return &ClusterGetterWithRoles{
-		clusterGetter:        clusterGetter,
-		localCluster:         localCluster,
-		clusterAccessChecker: clusterAccessChecker,
-		remoteClusterGetter:  remoteClusterGetter,
+// NewTunnelWithRoles returns new authorizing tunnel
+func NewTunnelWithRoles(tunnel Tunnel, localCluster string, accessChecker services.AccessChecker, access ClusterGetter) *TunnelWithRoles {
+	return &TunnelWithRoles{
+		tunnel:        tunnel,
+		localCluster:  localCluster,
+		accessChecker: accessChecker,
+		access:        access,
 	}
 }
 
-// ClusterGetterWithRoles authorizes requests
-type ClusterGetterWithRoles struct {
-	clusterGetter ClusterGetter
+// TunnelWithRoles authorizes requests
+type TunnelWithRoles struct {
+	tunnel Tunnel
 
 	localCluster string
 
-	// clusterAccessChecker is used to check RBAC permissions.
-	clusterAccessChecker func(types.RemoteCluster) error
+	// accessChecker is used to check RBAC permissions.
+	accessChecker services.AccessChecker
 
-	remoteClusterGetter RemoteClusterGetter
+	access ClusterGetter
 }
 
-// Clusters returns all connected Teleport clusters.
-func (t *ClusterGetterWithRoles) Clusters(ctx context.Context) ([]Cluster, error) {
-	clusters, err := t.clusterGetter.Clusters(ctx)
+// GetSites returns a list of connected remote sites
+func (t *TunnelWithRoles) GetSites() ([]RemoteSite, error) {
+	ctx := context.TODO()
+	clusters, err := t.tunnel.GetSites()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	out := make([]Cluster, 0, len(clusters))
+	out := make([]RemoteSite, 0, len(clusters))
 	for _, cluster := range clusters {
 		if t.localCluster == cluster.GetName() {
 			out = append(out, cluster)
 			continue
 		}
-		rc, err := t.remoteClusterGetter.GetRemoteCluster(ctx, cluster.GetName())
+		rc, err := t.access.GetRemoteCluster(ctx, cluster.GetName())
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				return nil, trace.Wrap(err)
 			}
-			slog.WarnContext(ctx, "Skipping dangling cluster, no remote cluster resource found", "cluster", cluster.GetName())
+			logrus.Warningf("Skipping dangling cluster %q, no remote cluster resource found.", cluster.GetName())
 			continue
 		}
-		if err := t.clusterAccessChecker(rc); err != nil {
+		if err := t.accessChecker.CheckAccessToRemoteCluster(rc); err != nil {
 			if !trace.IsAccessDenied(err) {
 				return nil, trace.Wrap(err)
 			}
@@ -88,20 +89,21 @@ func (t *ClusterGetterWithRoles) Clusters(ctx context.Context) ([]Cluster, error
 	return out, nil
 }
 
-// Cluster returns a cluster matching the provided clusterName
-func (t *ClusterGetterWithRoles) Cluster(ctx context.Context, clusterName string) (Cluster, error) {
-	cluster, err := t.clusterGetter.Cluster(ctx, clusterName)
+// GetSite returns remote site this node belongs to
+func (t *TunnelWithRoles) GetSite(clusterName string) (RemoteSite, error) {
+	ctx := context.TODO()
+	cluster, err := t.tunnel.GetSite(clusterName)
 	if err != nil {
 		return nil, utils.OpaqueAccessDenied(err)
 	}
 	if t.localCluster == cluster.GetName() {
 		return cluster, nil
 	}
-	rc, err := t.remoteClusterGetter.GetRemoteCluster(ctx, clusterName)
+	rc, err := t.access.GetRemoteCluster(ctx, clusterName)
 	if err != nil {
 		return nil, utils.OpaqueAccessDenied(err)
 	}
-	if err := t.clusterAccessChecker(rc); err != nil {
+	if err := t.accessChecker.CheckAccessToRemoteCluster(rc); err != nil {
 		return nil, utils.OpaqueAccessDenied(err)
 	}
 	return cluster, nil

@@ -30,13 +30,13 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
 
 func TestInstallSystemdCmd(t *testing.T) {
 	ctx := context.Background()
-	log := logtest.NewLogger()
+	log := utils.NewSlogLoggerForTests()
 
 	// Create pre-existing file to test --force
 	preExistingDir := t.TempDir()

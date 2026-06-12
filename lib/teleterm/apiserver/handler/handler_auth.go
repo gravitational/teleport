@@ -26,7 +26,6 @@ import (
 	"github.com/gravitational/teleport"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -61,7 +60,7 @@ func (s *Handler) Login(ctx context.Context, req *api.LoginRequest) (*api.EmptyR
 	// Clear the cache after login, not before.
 	// During a re-login, another thread might try to retrieve a client from the cache.
 	// Because the cache is empty, it could initialize a new client using the previous certificate.
-	if err = s.DaemonService.ClearStaleCachedClientsForRoot(cluster.URI); err != nil {
+	if err = s.DaemonService.ClearCachedClientsForRoot(cluster.URI); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -103,20 +102,13 @@ func (s *Handler) LoginPasswordless(stream api.TerminalService_LoginPasswordless
 	// Clear the cache after login, not before.
 	// During a re-login, another thread might try to retrieve a client from the cache.
 	// Because the cache is empty, it could initialize a new client using the previous certificate.
-	err = s.DaemonService.ClearStaleCachedClientsForRoot(cluster.URI)
+	err = s.DaemonService.ClearCachedClientsForRoot(cluster.URI)
 	return trace.Wrap(err)
 }
 
-// Logout logs the user out of the cluster and cleans up associated resources.
-// Optionally removes the profile.
-// This operation is idempotent and can be safely invoked multiple times.
+// Logout logs a user out from a cluster
 func (s *Handler) Logout(ctx context.Context, req *api.LogoutRequest) (*api.EmptyResponse, error) {
-	clusterURI, err := uri.Parse(req.GetClusterUri())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err = s.DaemonService.ClusterLogout(ctx, clusterURI, req.RemoveProfile); err != nil {
+	if err := s.DaemonService.ClusterLogout(ctx, req.ClusterUri); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

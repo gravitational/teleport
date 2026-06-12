@@ -24,9 +24,9 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"text/template"
 	"time"
 
-	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/go-resty/resty/v2"
 	"github.com/google/go-querystring/query"
 	"github.com/gravitational/trace"
@@ -62,7 +62,7 @@ type Jira struct {
 }
 
 var descriptionTemplate = template.Must(template.New("description").Parse(
-	`User *{{.User}}* requested an access on *{{.CreatedTime}}* with the following roles:
+	`User *{{.User}}* requested an access on *{{.Created.Format .TimeFormat}}* with the following roles:
 {{range .Roles}}
 * {{ . }}
 {{end}}
@@ -73,7 +73,7 @@ Request ID: *{{.ID}}*
 {{if .RequestLink}}To approve or deny the request, proceed to {{.RequestLink}}{{end}}`,
 ))
 var reviewCommentTemplate = template.Must(template.New("review comment").Parse(
-	`*{{.Author}}* reviewed the request at *{{.CreatedTime}}*.
+	`*{{.Author}}* reviewed the request at *{{.Created.Format .TimeFormat}}*.
 Resolution: *{{.ProposedState}}*.
 {{if .Reason}}Reason: {{.Reason}}.{{end}}`,
 ))
@@ -125,7 +125,7 @@ func NewJiraClient(conf JiraConfig, clusterName, teleportProxyAddr string, statu
 					defer cancel()
 
 					if err := statusSink.Emit(ctx, status); err != nil {
-						log.ErrorContext(ctx, "Error while emitting Jira plugin status", "error", err)
+						log.WithError(err).Errorf("Error while emitting Jira plugin status: %v", err)
 					}
 				}
 
@@ -199,7 +199,7 @@ func (j *Jira) HealthCheck(ctx context.Context) error {
 		}
 	}
 
-	log.DebugContext(ctx, "Checking out Jira project")
+	log.Debug("Checking out Jira project...")
 	var project Project
 	_, err = j.client.NewRequest().
 		SetContext(ctx).
@@ -209,12 +209,9 @@ func (j *Jira) HealthCheck(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	log.DebugContext(ctx, "Found Jira project",
-		"project", project.Key,
-		"project_name", project.Name,
-	)
+	log.Debugf("Found project %q named %q", project.Key, project.Name)
 
-	log.DebugContext(ctx, "Checking out Jira project permissions")
+	log.Debug("Checking out Jira project permissions...")
 	queryOptions, err := query.Values(GetMyPermissionsQueryOptions{
 		ProjectKey:  j.project,
 		Permissions: jiraRequiredPermissions,
@@ -291,12 +288,12 @@ func (j *Jira) buildIssueDescription(reqID string, reqData RequestData) (string,
 	var builder strings.Builder
 	err := descriptionTemplate.Execute(&builder, struct {
 		ID          string
-		CreatedTime string
+		TimeFormat  string
 		RequestLink string
 		RequestData
 	}{
 		reqID,
-		reqData.Created.Format(time.RFC822),
+		time.RFC822,
 		requestLink,
 		reqData,
 	})
@@ -336,11 +333,11 @@ func (j *Jira) AddIssueReviewComment(ctx context.Context, id string, review type
 	err := reviewCommentTemplate.Execute(&builder, struct {
 		types.AccessReview
 		ProposedState string
-		CreatedTime   string
+		TimeFormat    string
 	}{
 		review,
 		review.ProposedState.String(),
-		review.Created.Format(time.RFC822),
+		time.RFC822,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -436,7 +433,7 @@ func (j *Jira) ResolveIssue(ctx context.Context, issueID string, resolution Reso
 	if err2 := trace.Wrap(j.TransitionIssue(ctx, issue.ID, transition.ID)); err2 != nil {
 		return trace.NewAggregate(err1, err2)
 	}
-	logger.Get(ctx).DebugContext(ctx, "Successfully moved the issue to the target status", "target_status", toStatus)
+	logger.Get(ctx).Debugf("Successfully moved the issue to the status %q", toStatus)
 
 	return trace.Wrap(err1)
 }
@@ -460,7 +457,7 @@ func (j *Jira) AddResolutionComment(ctx context.Context, id string, resolution R
 		SetBody(CommentInput{Body: builder.String()}).
 		Post("rest/api/2/issue/{issueID}/comment")
 	if err == nil {
-		logger.Get(ctx).DebugContext(ctx, "Successfully added a resolution comment to the issue")
+		logger.Get(ctx).Debug("Successfully added a resolution comment to the issue")
 	}
 	return trace.Wrap(err)
 }

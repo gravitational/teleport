@@ -17,7 +17,6 @@
  */
 
 import React, { useState } from 'react';
-import { Link } from 'react-router';
 import styled, { useTheme } from 'styled-components';
 import { color, ColorProps, style } from 'styled-system';
 
@@ -47,8 +46,7 @@ export type AlertKind =
   | 'success'
   | 'outline-danger'
   | 'outline-info'
-  | 'outline-warn'
-  | 'cta';
+  | 'outline-warn';
 
 const alertBorder = (
   props: ThemedAlertProps
@@ -78,11 +76,6 @@ const alertBorder = (
       return {
         border: theme.borders[1],
         borderColor: theme.colors.text.disabled,
-      };
-    case 'cta':
-      return {
-        border: theme.borders[2],
-        borderColor: theme.colors.interactive.solid.primary.default,
       };
   }
 };
@@ -115,10 +108,6 @@ const backgroundColor = (
       return {
         background: theme.colors.interactive.tonal.neutral[0],
       };
-    case 'cta':
-      return {
-        background: 'inherit',
-      };
   }
 };
 
@@ -148,30 +137,13 @@ interface Props<K> {
  */
 export interface Action {
   content: React.ReactNode;
-  /**
-   * a link that takes user out of the app (new tab)
-   */
   href?: string;
-  /**
-   * a link that takes you to a different route within the app
-   */
-  linkTo?: string;
-  /**
-   * Adds persistent client side routing state to the next location
-   * defined by field "linkTo".
-   */
-  linkState?: any;
   onClick?: (event: React.MouseEvent) => void;
 }
 
 export interface AlertProps
   extends Props<AlertKind>, SpaceProps, WidthProps, ColorProps {
   linkColor?: string;
-  /**
-   * If specified, the alert's contents will wrap for narrower screens
-   * or vertical layouts.
-   */
-  wrapContents?: boolean;
 }
 
 interface ThemedAlertProps extends AlertPropsWithRequiredKind {
@@ -205,10 +177,9 @@ export const Alert = ({
   bg,
   onDismiss,
   alignItems = 'center',
-  wrapContents = false,
   ...otherProps
 }: AlertProps) => {
-  const alertIconSize = 'small';
+  const alertIconSize = kind === 'neutral' ? 'large' : 'small';
   const [dismissed, setDismissed] = useState(false);
 
   const onDismissClick = () => {
@@ -222,12 +193,8 @@ export const Alert = ({
 
   return (
     <OuterContainer bg={bg} kind={kind} {...otherProps}>
-      <InnerContainer
-        kind={kind}
-        alignItems={alignItems}
-        wrapContents={wrapContents}
-      >
-        <IconContainer kind={kind} wrapContents={wrapContents}>
+      <InnerContainer kind={kind} alignItems={alignItems}>
+        <IconContainer kind={kind}>
           <StatusIcon
             kind={iconKind(kind)}
             customIcon={icon}
@@ -242,7 +209,6 @@ export const Alert = ({
             // Thanks to it, each error line is nicely indented with tab,
             //  instead od being treated as a one, long line.
             white-space: pre-wrap;
-            flex-shrink: ${wrapContents ? 0 : 1};
           `}
         >
           <Text typography="h3">{children}</Text>
@@ -255,7 +221,6 @@ export const Alert = ({
           dismissible={dismissible}
           dismissed={dismissed}
           onDismiss={onDismissClick}
-          wrapContents={wrapContents}
         />
       </InnerContainer>
     </OuterContainer>
@@ -285,18 +250,13 @@ const OuterContainer = styled.div<AlertPropsWithRequiredKind>`
 
 /** Renders a transparent color overlay. */
 const InnerContainer = styled.div<
-  Pick<
-    WithRequired<AlertProps, 'kind' | 'alignItems'>,
-    'kind' | 'alignItems' | 'wrapContents'
-  >
+  Pick<WithRequired<AlertProps, 'kind' | 'alignItems'>, 'kind' | 'alignItems'>
 >`
   padding: 12px 16px;
   overflow: auto;
   word-break: break-word;
   display: flex;
   align-items: ${p => p.alignItems};
-  gap: ${p => (p.wrapContents ? p.theme.space[3] : 0)}px;
-  flex-wrap: ${p => (p.wrapContents ? 'wrap' : 'initial')};
 
   ${backgroundColor}
 `;
@@ -339,34 +299,15 @@ const iconContainerStyles = ({
     case 'neutral':
       return {
         color: theme.colors.text.main,
-        background: theme.colors.interactive.tonal.neutral[0],
-        padding: `${theme.space[2]}px`,
-      };
-    case 'cta':
-      return {
-        color: theme.colors.text.primaryInverse,
-        background: theme.colors.interactive.solid.primary.default,
-        padding: `${theme.space[2]}px`,
+        background: 'none',
       };
   }
 };
 
-const IconContainer = styled.div<{ kind: AlertKind; wrapContents?: boolean }>`
+const IconContainer = styled.div<{ kind: AlertKind }>`
   border-radius: 50%;
   line-height: 0;
-
-  ${p =>
-    p.wrapContents
-      ? `
-  align-self: flex-start;
-  margin-right: 0;
-  margin-top: ${p.theme.space[1]}px;
-  flex-shrink: 0;
-  flex-grow: 0;
-`
-      : `
-  margin-right: ${p.theme.space[3]}px;
-`}
+  margin-right: ${p => p.theme.space[3]}px;
 
   ${iconContainerStyles}
 `;
@@ -374,7 +315,7 @@ const IconContainer = styled.div<{ kind: AlertKind; wrapContents?: boolean }>`
 const primaryButtonProps = (
   kind: AlertKind | BannerKind
 ): { fill: ButtonFill; intent: ButtonIntent } => {
-  return kind === 'neutral' || kind === 'cta'
+  return kind === 'neutral'
     ? { fill: 'filled', intent: 'primary' }
     : { fill: 'border', intent: 'neutral' };
 };
@@ -386,7 +327,6 @@ const ActionButtons = ({
   dismissible,
   dismissed,
   onDismiss,
-  wrapContents,
 }: {
   kind: AlertKind | BannerKind;
   primaryAction?: Action;
@@ -394,22 +334,17 @@ const ActionButtons = ({
   dismissible?: boolean;
   dismissed: boolean;
   onDismiss: () => void;
-  wrapContents?: boolean;
 }) => {
   if (!(primaryAction || secondaryAction || dismissible)) return;
 
   return (
-    <Flex
-      ml={wrapContents ? 7 : 5}
-      gap={2}
-      flexBasis={wrapContents ? '100%' : 'auto'}
-    >
+    <Flex ml={5} gap={2}>
       {primaryAction && (
         <ActionButton {...primaryButtonProps(kind)} action={primaryAction} />
       )}
       {secondaryAction && (
         <ActionButton
-          fill={kind === 'neutral' ? 'filled' : 'minimal'}
+          fill="minimal"
           intent="neutral"
           action={secondaryAction}
         />
@@ -425,7 +360,7 @@ const ActionButtons = ({
 
 /** Renders either a regular or a link button, depending on the action. */
 export const ActionButton = ({
-  action: { href, content, onClick, linkTo, linkState },
+  action: { href, content, onClick },
   fill,
   intent,
   inputAlignment = false,
@@ -438,36 +373,33 @@ export const ActionButton = ({
   inputAlignment?: boolean;
   disabled?: boolean;
   title?: string;
-}) => {
-  const sharedProps = {
-    fill,
-    intent,
-    onClick,
-    disabled,
-    title,
-    // Prevent props being passed to underlying React element
-    // and removes "React does not recognize <field> on a DOM element"
-    // error.
-    $inputAlignment: inputAlignment,
-  };
-
-  if (href) {
-    return (
-      <Button {...sharedProps} as="a" href={href} target="_blank">
-        {content}
-      </Button>
-    );
-  }
-
-  if (linkTo) {
-    return (
-      <Button {...sharedProps} as={Link} to={linkTo} state={linkState}>
-        {content}
-      </Button>
-    );
-  }
-  return <Button {...sharedProps}>{content}</Button>;
-};
+}) =>
+  href ? (
+    <Button
+      as="a"
+      href={href}
+      target="_blank"
+      fill={fill}
+      intent={intent}
+      onClick={onClick}
+      inputAlignment={inputAlignment}
+      disabled={disabled}
+      title={title}
+    >
+      {content}
+    </Button>
+  ) : (
+    <Button
+      fill={fill}
+      intent={intent}
+      onClick={onClick}
+      inputAlignment={inputAlignment}
+      disabled={disabled}
+      title={title}
+    >
+      {content}
+    </Button>
+  );
 
 export const Danger = (props: AlertProps) => <Alert kind="danger" {...props} />;
 export const Info = (props: AlertProps) => <Alert kind="info" {...props} />;
@@ -606,7 +538,6 @@ const iconKind = (kind: AlertKind | BannerKind): StatusKind => {
     case 'outline-info':
       return 'info';
     case 'primary':
-    case 'cta':
       return 'neutral';
     default:
       return kind;

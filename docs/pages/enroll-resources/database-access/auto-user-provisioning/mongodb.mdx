@@ -1,11 +1,9 @@
 ---
 title: MongoDB Automatic User Provisioning 
-sidebar_label: MongoDB
 description: Configure automatic user provisioning for MongoDB.
 tags:
  - how-to
  - zero-trust
- - infrastructure-identity
 ---
 
 {/* lint disable page-structure remark-lint */}
@@ -16,7 +14,7 @@ tags:
 
 - A Teleport cluster.
 - A self-hosted MongoDB database enrolled with your Teleport cluster. Follow
-  the [Teleport documentation](../enrollment/self-hosted/mongodb-self-hosted.mdx) to learn how
+  the [Teleport documentation](../enroll-self-hosted-databases/mongodb-self-hosted.mdx) to learn how
   to enroll your database.
   Your MongoDB database must have Role-Based Access Control (RBAC) enabled by
   setting
@@ -91,15 +89,14 @@ db.getSiblingDB("$external").runCommand({
 
 ## Step 2/3. Configure a Teleport role
 
-To specify the database roles a user should be assigned within the database, use
-the `db_roles` role option. To create the role below, open a file called
-`db-user-creator.yaml`:
+To specify the database roles a user should be assigned within the database,
+use the `db_roles` role option:
 
 ```yaml
 kind: role
 version: v7
 metadata:
-  name: db-user-creator
+  name: auto-db-users
 spec:
   options:
     # create_db_user_mode enables automatic user provisioning for matching databases
@@ -116,12 +113,6 @@ spec:
     - "myCustomRole@db2"
     - "{{internal.db_roles}}"
     - "{{external.db_roles}}"
-```
-
-Apply your change:
-
-```code
-$ tctl create -f db-user-creator.yaml
 ```
 
 (!docs/pages/includes/database-access/auto-user-provisioning/db_users_ignored.mdx!)
@@ -147,6 +138,6 @@ Users created within the database will:
 
 ## Next steps
 - Learn more about MongoDB [built-in roles](https://www.mongodb.com/docs/manual/reference/built-in-roles/) and [User-Defined Roles](https://www.mongodb.com/docs/manual/core/security-user-defined-roles/).
-- Connect using your [GUI database client](../../../connect-your-client/third-party/gui-clients.mdx).
-- Learn about [role templating](../../../zero-trust-access/rbac-get-started/role-templates.mdx).
+- Connect using your [GUI database client](../../../connect-your-client/gui-clients.mdx).
+- Learn about [role templating](../../../zero-trust-access/access-controls/guides/role-templates.mdx).
 - Read automatic user provisioning [RFD](https://github.com/gravitational/teleport/blob/master/rfd/0113-automatic-database-users.md).

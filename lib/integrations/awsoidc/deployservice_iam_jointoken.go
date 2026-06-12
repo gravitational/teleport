@@ -86,7 +86,7 @@ func (u *upsertIAMJoinTokenRequest) CheckAndSetDefaults() error {
 	}
 
 	if u.accountID == "" {
-		return trace.BadParameter("account id is required")
+		return trace.BadParameter("accound id is required")
 	}
 
 	if u.region == "" {
@@ -186,14 +186,14 @@ func updateTokenIAMJoin(ctx context.Context, req upsertIAMJoinTokenRequest, rule
 	uniqueRoles := utils.Deduplicate(allRoles)
 	existingToken.SetRoles(uniqueRoles)
 
-	for _, rule := range existingToken.GetAWSAllowRules() {
+	for _, rule := range existingToken.GetAllowRules() {
 		if rule.AWSAccount == req.accountID && rule.AWSARN == req.awsARN {
 
 			return nil, trace.AlreadyExists("rule already exists")
 		}
 	}
 
-	existingToken.SetAllowRules(append(existingToken.GetAWSAllowRules(), rule))
+	existingToken.SetAllowRules(append(existingToken.GetAllowRules(), rule))
 
 	return existingToken, nil
 }

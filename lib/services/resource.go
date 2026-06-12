@@ -33,13 +33,9 @@ import (
 
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
-	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
-	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -171,8 +167,6 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindUser, nil
 	case types.KindCertAuthority, "cert_authorities", "cas":
 		return types.KindCertAuthority, nil
-	case types.KindCertAuthorityOverride, "cert_authority_overrides", "ca_override", "ca_overrides":
-		return types.KindCertAuthorityOverride, nil
 	case types.KindReverseTunnel, "reverse_tunnels", "rts":
 		return types.KindReverseTunnel, nil
 	case types.KindTrustedCluster, "tc", "cluster", "clusters":
@@ -291,28 +285,6 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindWorkloadIdentityX509IssuerOverride, nil
 	case types.KindSigstorePolicy, "sigstorepolicy", "sigstore_policies", "sigstorepolicies":
 		return types.KindSigstorePolicy, nil
-	case types.KindHealthCheckConfig, types.KindHealthCheckConfig + "s", "hcc":
-		return types.KindHealthCheckConfig, nil
-	case scopedaccess.KindScopedRole, scopedaccess.KindScopedRole + "s", "scopedrole", "scopedroles":
-		return scopedaccess.KindScopedRole, nil
-	case scopedaccess.KindScopedRoleAssignment, scopedaccess.KindScopedRoleAssignment + "s", "scopedroleassignment", "scopedroleassignments", "sra":
-		return scopedaccess.KindScopedRoleAssignment, nil
-	case types.KindInferenceModel, "inference_models":
-		return types.KindInferenceModel, nil
-	case types.KindInferenceSecret, "inference_secrets":
-		return types.KindInferenceSecret, nil
-	case types.KindInferencePolicy, "inference_policies":
-		return types.KindInferencePolicy, nil
-	case types.KindRetrievalModel:
-		return types.KindRetrievalModel, nil
-	case types.KindRelayServer, types.KindRelayServer + "s":
-		return types.KindRelayServer, nil
-	case types.KindAppAuthConfig, types.KindAppAuthConfig + "s", "aac":
-		return types.KindAppAuthConfig, nil
-	case types.KindWorkloadCluster, types.KindWorkloadCluster + "s":
-		return types.KindWorkloadCluster, nil
-	case scopedaccess.KindScopedToken, scopedaccess.KindScopedToken + "s", "scopedtoken", "scopedtokens":
-		return scopedaccess.KindScopedToken, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }
@@ -795,60 +767,6 @@ func init() {
 		}
 		return types.Resource153ToLegacy(v), nil
 	})
-	// add health_check_config to tctl get all
-	RegisterResourceMarshaler(types.KindHealthCheckConfig, func(resource types.Resource, opts ...MarshalOption) ([]byte, error) {
-		wrapper, ok := resource.(types.Resource153UnwrapperT[*healthcheckconfigv1.HealthCheckConfig])
-		if !ok {
-			return nil, trace.BadParameter("expected health check config, got %T", resource)
-		}
-		bytes, err := MarshalHealthCheckConfig(wrapper.UnwrapT(), opts...)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return bytes, nil
-	})
-	// support health_check_config --bootstrap and --apply-on-startup
-	RegisterResourceUnmarshaler(types.KindHealthCheckConfig, func(data []byte, options ...MarshalOption) (types.Resource, error) {
-		cfg, err := UnmarshalHealthCheckConfig(data, options...)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return types.Resource153ToLegacy(cfg), nil
-	})
-	RegisterResourceUnmarshaler(types.KindWorkloadIdentity, func(bytes []byte, option ...MarshalOption) (types.Resource, error) {
-		cfg, err := CollectOptions(option)
-		if err != nil {
-			return nil, err
-		}
-		wid := &workloadidentityv1.WorkloadIdentity{}
-		if err := (protojson.UnmarshalOptions{DiscardUnknown: !cfg.DisallowUnknown}).Unmarshal(bytes, wid); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return types.Resource153ToLegacy(wid), nil
-	})
-
-	RegisterResourceMarshaler(types.KindCertAuthorityOverride, func(resource types.Resource, opts ...MarshalOption) ([]byte, error) {
-		unwrapper, ok := resource.(types.Resource153UnwrapperT[*subcav1.CertAuthorityOverride])
-		if !ok {
-			return nil, trace.BadParameter("expected wrapped CertAuthorityOverride resource, got %T", resource)
-		}
-		caOverride := unwrapper.UnwrapT()
-		if caOverride == nil {
-			return nil, trace.BadParameter("nil CertAuthorityOverride resource")
-		}
-		bytes, err := MarshalCertAuthorityOverride(caOverride, opts...)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return bytes, nil
-	})
-	RegisterResourceUnmarshaler(types.KindCertAuthorityOverride, func(bytes []byte, opts ...MarshalOption) (types.Resource, error) {
-		caOverride, err := UnmarshalCertAuthorityOverride(bytes, opts...)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return types.ProtoResource153ToLegacy(caOverride), nil
-	})
 }
 
 // CheckAndSetDefaults calls [r.CheckAndSetDefaults] if r implements the method.
@@ -1031,26 +949,6 @@ func UnmarshalProtoResource[T ProtoResourcePtr[U], U any](data []byte, opts ...M
 		resource.GetMetadata().Expires = timestamppb.New(cfg.Expires)
 	}
 	return resource, nil
-}
-
-// UnmarshalProtoResourceArray unmarshals an array of ProtoResources from JSON using [UnmarshalProtoResource] on each
-// individual element.
-func UnmarshalProtoResourceArray[T ProtoResourcePtr[U], U any](data []byte, opts ...MarshalOption) ([]T, error) {
-	var msgs []json.RawMessage
-	if err := json.Unmarshal(data, &msgs); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	resources := make([]T, 0, len(msgs))
-	for _, msg := range msgs {
-		resource, err := UnmarshalProtoResource[T](msg, opts...)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		resources = append(resources, resource)
-	}
-
-	return resources, nil
 }
 
 // FastMarshalProtoResourceDeprecated marshals a ProtoResource to JSON using [utils.FastMarshal] and respecting [opts].

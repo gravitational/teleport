@@ -16,65 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { ComponentProps } from 'react';
+import React from 'react';
 
 import { Icon } from 'design/Icon';
-import { LabelKind } from 'design/Label';
-import { LabelButtonWithIcon } from 'design/Label/LabelButtonWithIcon';
 import { ResourceIconName } from 'design/ResourceIcon';
-import { TargetHealth } from 'gen-proto-ts/teleport/lib/teleterm/v1/target_health_pb';
-import { AppSubKind, NodeSubKind } from 'shared/services';
+import { NodeSubKind } from 'shared/services';
 import { DbProtocol } from 'shared/services/databases';
-import type { ComponentFeatureID } from 'shared/utils/componentFeatures';
 
-// eslint-disable-next-line no-restricted-imports -- FIXME
+// oxlint-disable-next-line no-restricted-imports
 import { ResourceLabel } from 'teleport/services/agents';
-// eslint-disable-next-line no-restricted-imports -- FIXME
-import { AppMCP, PermissionSet } from 'teleport/services/apps';
-
-import { SortOrder } from '../Controls/SortMenu';
-
-// "mixed" indicates the resource has a mix of health
-// statuses. This can happen when multiple agents proxy the same resource.
-export type ResourceHealthStatus =
-  | 'healthy'
-  | 'unhealthy'
-  | 'unknown'
-  | 'mixed';
-
-const resourceHealthStatuses = new Set<ResourceHealthStatus>([
-  'healthy',
-  'unhealthy',
-  'unknown',
-  'mixed',
-]);
-
-export function isResourceHealthStatus(
-  status: unknown
-): status is ResourceHealthStatus {
-  return (
-    typeof status === 'string' &&
-    resourceHealthStatuses.has(status as ResourceHealthStatus)
-  );
-}
-
-export function makeTargetHealth(
-  t: TargetHealth | undefined
-): ResourceTargetHealth | undefined {
-  if (!t) return undefined;
-  return {
-    status: t.status as ResourceHealthStatus,
-    error: t.error,
-    message: t.message,
-  };
-}
-
-export type ResourceTargetHealth = {
-  status: ResourceHealthStatus;
-  // additional information meant for user.
-  message?: string;
-  error?: string;
-};
+// oxlint-disable-next-line no-restricted-imports
+import { AppSubKind, PermissionSet } from 'teleport/services/apps';
 
 export type UnifiedResourceApp = {
   kind: 'app';
@@ -89,8 +41,6 @@ export type UnifiedResourceApp = {
   requiresRequest?: boolean;
   subKind?: AppSubKind;
   permissionSets?: PermissionSet[];
-  mcp?: AppMCP;
-  supportedFeatureIds?: ComponentFeatureID[];
 };
 
 export interface UnifiedResourceDatabase {
@@ -101,7 +51,6 @@ export interface UnifiedResourceDatabase {
   protocol: DbProtocol;
   labels: ResourceLabel[];
   requiresRequest?: boolean;
-  targetHealth?: ResourceTargetHealth;
 }
 
 export interface UnifiedResourceNode {
@@ -113,7 +62,6 @@ export interface UnifiedResourceNode {
   tunnel: boolean;
   subKind: NodeSubKind;
   requiresRequest?: boolean;
-  supportedFeatureIds?: ComponentFeatureID[];
 }
 
 export interface UnifiedResourceKube {
@@ -121,11 +69,10 @@ export interface UnifiedResourceKube {
   name: string;
   labels: ResourceLabel[];
   requiresRequest?: boolean;
-  targetHealth?: ResourceTargetHealth;
 }
 
 export type UnifiedResourceDesktop = {
-  kind: 'windows_desktop' | 'linux_desktop';
+  kind: 'windows_desktop';
   os: 'windows' | 'linux' | 'darwin';
   name: string;
   addr: string;
@@ -159,17 +106,15 @@ export type UnifiedResourceUi = {
   ActionButton: React.ReactElement;
 };
 
-export type UnifiedResourceDefinition =
-  | UnifiedResourceApp
-  | UnifiedResourceDatabase
-  | UnifiedResourceNode
-  | UnifiedResourceKube
-  | UnifiedResourceDesktop
-  | UnifiedResourceUserGroup
-  | UnifiedResourceGitServer;
-
 export type SharedUnifiedResource = {
-  resource: UnifiedResourceDefinition;
+  resource:
+    | UnifiedResourceApp
+    | UnifiedResourceDatabase
+    | UnifiedResourceNode
+    | UnifiedResourceKube
+    | UnifiedResourceDesktop
+    | UnifiedResourceUserGroup
+    | UnifiedResourceGitServer;
   ui: UnifiedResourceUi;
 };
 
@@ -180,45 +125,26 @@ export type UnifiedResourcesQueryParams = {
   search?: string;
   sort?: {
     fieldName: string;
-    dir: SortOrder;
+    dir: 'ASC' | 'DESC';
   };
   pinnedOnly?: boolean;
-  statuses?: ResourceHealthStatus[];
   // TODO(bl-nero): Remove this once filters are expressed as advanced search.
   kinds?: string[];
   includedResourceMode?: IncludedResourceMode;
 };
-
 export interface UnifiedResourceViewItem {
   name: string;
-  labels: ResourceLabel[];
+  labels: {
+    name: string;
+    value: string;
+  }[];
   primaryIconName: ResourceIconName;
   SecondaryIcon: typeof Icon;
   ActionButton: React.ReactElement;
   cardViewProps: CardViewSpecificProps;
   listViewProps: ListViewSpecificProps;
   requiresRequest?: boolean;
-  status?: ResourceHealthStatus;
 }
-
-export type VisibleFilterPanelFields = {
-  checkbox: boolean;
-  clusterOpts: boolean;
-  healthStatusOpts: boolean;
-  resourceTypeOpts: boolean;
-  resourceAvailabilityOpts: boolean;
-  collapseLabelBtn: boolean;
-};
-
-export type VisibleResourceItemFields = {
-  checkbox: boolean;
-  pin: boolean;
-  copy: boolean;
-  /**
-   * If false, removes any hover state.
-   */
-  hoverState: boolean;
-};
 
 export enum PinningSupport {
   Supported = 'Supported',
@@ -239,69 +165,22 @@ export type IncludedResourceMode =
   | 'requestable'
   | 'accessible';
 
-/**
- * The return value after processing a label.
- */
-export type ProcessedLabel = {
-  kind: LabelKind;
-};
-
-/**
- * If this field is not provided, the default config will be:
- * - No icon, just text label
- * - Label kind is "secondary"
- * - No hover states
- */
-export type ResourceLabelConfig = Omit<
-  ComponentProps<typeof LabelButtonWithIcon>,
-  'children'
-> & {
-  /**
-   * Provide an optional callback against a label
-   * to change appearance of the label e.g:
-   * if the label is determined to be selected by
-   * the caller, then provide a LabelKind that
-   * makes it apparent it's been "selected".
-   */
-  processLabel?(label: ResourceLabel): ProcessedLabel;
-};
-
 export type ResourceItemProps = {
+  name: string;
+  primaryIconName: ResourceIconName;
+  SecondaryIcon: typeof Icon;
+  cardViewProps: CardViewSpecificProps;
+  listViewProps: ListViewSpecificProps;
+  labels: ResourceLabel[];
+  ActionButton: React.ReactElement;
   onLabelClick?: (label: ResourceLabel) => void;
   pinResource: () => void;
   selectResource: () => void;
   selected: boolean;
   pinned: boolean;
+  requiresRequest?: boolean;
   pinningSupport: PinningSupport;
   expandAllLabels: boolean;
-  viewItem: UnifiedResourceViewItem;
-  onShowStatusInfo(): void;
-  /**
-   * True, when the InfoGuideSidePanel is opened.
-   * Used as a flag to render different styling.
-   */
-  showingStatusInfo: boolean;
-  /**
-   * Defaults to showing all fields.
-   * When specified, only fields with `true` value are shown.
-   */
-  visibleInputFields?: VisibleResourceItemFields;
-  /**
-   * resourceLabelConfig provides a way to custom handle resource labels.
-   *
-   * Look up the type to see the default behaviors if fields are not
-   * provided.
-   */
-  resourceLabelConfig?: ResourceLabelConfig;
-  /**
-   * Controls rendering of a check icon at the top right corner of cards
-   * and right next to resource name for list view rows.
-   *
-   * If a boolean, applies to all resources uniformly.
-   * If a function, called per resource with its labels to determine
-   * whether the icon should be shown.
-   */
-  showResourceSelectedIcon?: boolean | ((labels: ResourceLabel[]) => boolean);
 };
 
 // Props that are needed for the Card view.
@@ -338,59 +217,6 @@ export type ResourceViewProps = {
   onPinResource: (resourceId: string) => void;
   pinningSupport: PinningSupport;
   isProcessing: boolean;
-  mappedResources: {
-    item: UnifiedResourceViewItem;
-    key: string;
-    onShowStatusInfo(): void;
-    showingStatusInfo: boolean;
-  }[];
+  mappedResources: { item: UnifiedResourceViewItem; key: string }[];
   expandAllLabels: boolean;
-  /**
-   * Defaults to showing all fields.
-   * When specified, only fields with `true` value are shown.
-   */
-  visibleInputFields?: VisibleResourceItemFields;
-  /**
-   * resourceLabelConfig provides a way to custom handle resource labels.
-   *
-   * Look up the type to see the default behaviors if fields are not
-   * provided.
-   */
-  resourceLabelConfig?: ResourceLabelConfig;
-  /**
-   * Controls rendering of a check icon at the top right corner of cards
-   * and right next to resource name for list view rows for all
-   * resources.
-   *
-   * If a boolean, applies to all resources uniformly.
-   * If a function, called per resource with its labels to determine
-   * whether the icon should be shown.
-   */
-  showResourceSelectedIcon?: boolean | ((labels: ResourceLabel[]) => boolean);
 };
-
-/**
- * DatabaseServer (db_server) describes a database heartbeat signal
- * reported from an agent (db_service) that is proxying
- * the database.
- */
-export type DatabaseServer = {
-  kind: 'db_server';
-  hostname: string;
-  hostId: string;
-  targetHealth?: ResourceTargetHealth;
-};
-
-/**
- * KubeServer (kube_server) describes a Kube heartbeat signal
- * reported from an agent (kubernetes_service) that is proxying
- * the Kubernetes cluster.
- */
-export type KubeServer = {
-  kind: 'kube_server';
-  hostname: string;
-  hostId: string;
-  targetHealth?: ResourceTargetHealth;
-};
-
-export type SharedResourceServer = DatabaseServer | KubeServer;

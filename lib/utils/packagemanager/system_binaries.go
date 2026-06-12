@@ -19,8 +19,7 @@ package packagemanager
 // BinariesLocation contains all the required external binaries used when installing teleport.
 // Used for testing.
 type BinariesLocation struct {
-	Systemctl  string
-	Journalctl string
+	Systemctl string
 
 	AptGet string
 	AptKey string
@@ -40,10 +39,6 @@ type BinariesLocation struct {
 func (bi *BinariesLocation) CheckAndSetDefaults() {
 	if bi.Systemctl == "" {
 		bi.Systemctl = "systemctl"
-	}
-
-	if bi.Journalctl == "" {
-		bi.Journalctl = "journalctl"
 	}
 
 	if bi.AptGet == "" {

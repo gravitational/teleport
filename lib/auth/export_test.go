@@ -18,6 +18,7 @@ package auth
 
 import (
 	"context"
+	"crypto"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
@@ -27,6 +28,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
 	"google.golang.org/grpc/credentials"
@@ -38,13 +40,14 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/join/oracle"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/circleci"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/inventory"
-	"github.com/gravitational/teleport/lib/join/boundkeypair"
-	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tpm"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -72,8 +75,7 @@ const (
 	MaxUserAgentLen = maxUserAgentLen
 	ForwardedTag    = forwardedTag
 
-	SAMLCertExpiryTimeframe = samlCertExpiryTimeframe
-	SAMLCertExpiryAlertID   = samlCertExpiryAlertIDPrefix
+	AzureAccessTokenAudience = azureAccessTokenAudience
 )
 
 var (
@@ -82,13 +84,9 @@ var (
 	ErrDeleteRoleAccessList = errDeleteRoleAccessList
 
 	CreateAuditStreamAcceptedTotalMetric = createAuditStreamAcceptedTotalMetric
-)
 
-func ServerWithModules(mt *modulestest.Modules) *Server {
-	return &Server{
-		modules: mt,
-	}
-}
+	AWSRSA2048CertBytes = awsRSA2048CertBytes
+)
 
 func (a *Server) VerifyRecoveryCode(ctx context.Context, username string, recoveryCode []byte) (errResult error) {
 	return a.verifyRecoveryCode(ctx, username, recoveryCode)
@@ -98,8 +96,8 @@ func (a *Server) CreateRecoveryToken(ctx context.Context, username, tokenType st
 	return a.createRecoveryToken(ctx, username, tokenType, usage)
 }
 
-func (a *Server) NewUserToken(ctx context.Context, req authclient.CreateUserTokenRequest) (types.UserToken, error) {
-	return a.newUserToken(ctx, req)
+func (a *Server) NewUserToken(req authclient.CreateUserTokenRequest) (types.UserToken, error) {
+	return a.newUserToken(req)
 }
 
 func CreatePrivilegeToken(ctx context.Context, srv *Server, username, tokenKind string) (*types.UserTokenV3, error) {
@@ -191,11 +189,69 @@ func (a *Server) ResetPassword(ctx context.Context, username string) error {
 	return a.resetPassword(ctx, username)
 }
 
-func (a *Server) SetCreateBoundKeypairValidator(validator boundkeypair.CreateBoundKeypairValidator) {
-	a.createBoundKeypairValidator = validator
+func (a *Server) SetHTTPClientForAWSSTS(clt utils.HTTPDoClient) {
+	a.httpClientForAWSSTS = clt
 }
 
-func (a *Server) AuthenticateUserLogin(ctx context.Context, req authclient.AuthenticateUserRequest) (services.UserState, *services.ScopedAccessCheckerContext, error) {
+func (a *Server) SetJWKSValidator(clt JWKSValidator) {
+	a.k8sJWKSValidator = clt
+}
+
+func (a *Server) SetAzureDevopsIDTokenValidator(validator azureDevopsIDTokenValidator) {
+	a.azureDevopsIDTokenValidator = validator
+}
+
+func (a *Server) SetBitbucketIDTokenValidator(validator bitbucketIDTokenValidator) {
+	a.bitbucketIDTokenValidator = validator
+}
+
+func (a *Server) SetCircleCITokenValidate(validator func(ctx context.Context, organizationID, token string) (*circleci.IDTokenClaims, error)) {
+	a.circleCITokenValidate = validator
+}
+
+func (a *Server) SetGCPIDTokenValidator(validator gcpIDTokenValidator) {
+	a.gcpIDTokenValidator = validator
+}
+
+func (a *Server) SetGitlabIDTokenValidator(validator gitlabIDTokenValidator) {
+	a.gitlabIDTokenValidator = validator
+}
+
+func (a *Server) SetK8sTokenReviewValidator(validator k8sTokenReviewValidator) {
+	a.k8sTokenReviewValidator = validator
+}
+
+func (a *Server) SetSpaceliftIDTokenValidator(validator spaceliftIDTokenValidator) {
+	a.spaceliftIDTokenValidator = validator
+}
+
+func (a *Server) SetTerraformIDTokenValidator(validator terraformCloudIDTokenValidator) {
+	a.terraformIDTokenValidator = validator
+}
+
+func (a *Server) SetTPMValidator(validator func(ctx context.Context, log *slog.Logger, params tpm.ValidateParams) (*tpm.ValidatedTPM, error)) {
+	a.tpmValidator = validator
+}
+
+func (a *Server) SetGHAIDTokenValidator(validator ghaIDTokenValidator) {
+	a.ghaIDTokenValidator = validator
+}
+
+func (a *Server) SetGHAIDTokenJWKSValidator(validator ghaIDTokenJWKSValidator) {
+	a.ghaIDTokenJWKSValidator = validator
+}
+
+type BoundKeypairValidator = boundKeypairValidator
+
+type CreateBoundKeypairValidator func(subject string, clusterName string, publicKey crypto.PublicKey) (BoundKeypairValidator, error)
+
+func (a *Server) SetCreateBoundKeypairValidator(validator CreateBoundKeypairValidator) {
+	a.createBoundKeypairValidator = func(subject, clusterName string, publicKey crypto.PublicKey) (boundKeypairValidator, error) {
+		return validator(subject, clusterName, publicKey)
+	}
+}
+
+func (a *Server) AuthenticateUserLogin(ctx context.Context, req authclient.AuthenticateUserRequest) (services.UserState, services.AccessChecker, error) {
 	return a.authenticateUserLogin(ctx, req)
 }
 
@@ -215,24 +271,28 @@ func FormatGithubURL(host string, path string) string {
 	return formatGithubURL(host, path)
 }
 
-func CheckGithubOrgSSOSupport(ctx context.Context, conn types.GithubConnector, userTeams []GithubTeamResponse, buildType string, orgCache *utils.FnCache, client httpRequester) error {
-	return checkGithubOrgSSOSupport(ctx, conn, userTeams, buildType, orgCache, client)
+func CheckGithubOrgSSOSupport(ctx context.Context, conn types.GithubConnector, userTeams []GithubTeamResponse, orgCache *utils.FnCache, client httpRequester) error {
+	return checkGithubOrgSSOSupport(ctx, conn, userTeams, orgCache, client)
 }
 
 func ChangeUserAuthentication(ctx context.Context, a *Server, req *proto.ChangeUserAuthenticationRequest) (types.User, error) {
 	return a.changeUserAuthentication(ctx, req)
 }
 
-func CreatePresetUsers(ctx context.Context, buildType string, um PresetUsers) error {
-	return createPresetUsers(ctx, buildType, um)
+func ValidateOracleJoinToken(token types.ProvisionToken) error {
+	return validateOracleJoinToken(token)
 }
 
-func CreatePresetRoles(ctx context.Context, buildType string, um PresetRoleManager) error {
-	return createPresetRoles(ctx, buildType, um)
+func CreatePresetUsers(ctx context.Context, um PresetUsers) error {
+	return createPresetUsers(ctx, um)
 }
 
-func GetPresetUsers(buildType string) []types.User {
-	return getPresetUsers(buildType)
+func CreatePresetRoles(ctx context.Context, um PresetRoleManager) error {
+	return createPresetRoles(ctx, um)
+}
+
+func GetPresetUsers() []types.User {
+	return getPresetUsers()
 }
 
 func CreatePresetDatabaseObjectImportRule(ctx context.Context, rules services.DatabaseObjectImportRules) error {
@@ -243,17 +303,16 @@ func ValidServerHostname(hostname string) bool {
 	return validServerHostname(hostname)
 }
 
-func FormatAccountName(ctx context.Context, s proxyDomainGetter, username string, authHostname string) (string, error) {
-	return formatAccountName(ctx, s, username, authHostname)
+func FormatAccountName(s proxyDomainGetter, username string, authHostname string) (string, error) {
+	return formatAccountName(s, username, authHostname)
 }
 
 func ConfigureCAsForTrustedCluster(tc types.TrustedCluster, cas []types.CertAuthority) {
 	configureCAsForTrustedCluster(tc, cas)
 }
 
-// UpdateAccessRequestWithAdditionalReviewers updates the access request with the suggested reviewers.
-func UpdateAccessRequestWithAdditionalReviewers(ctx context.Context, req types.AccessRequest, suggestedReviewers []string) {
-	updateAccessRequestWithAdditionalReviewers(req, suggestedReviewers)
+func UpdateAccessRequestWithAdditionalReviewers(ctx context.Context, req types.AccessRequest, accessLists services.AccessListsGetter, promotions *types.AccessRequestAllowedPromotions) {
+	updateAccessRequestWithAdditionalReviewers(ctx, req, accessLists, promotions)
 }
 
 func EncodeProquint(x uint16) string {
@@ -275,14 +334,6 @@ func NewServerWithRoles(srv *Server, alog events.AuditLogSessionStreamer, authzC
 		authServer: srv,
 		alog:       alog,
 		context:    authzContext,
-	}
-}
-
-func NewScopedServerWithRoles(srv *Server, alog events.AuditLogSessionStreamer, scopedContext *authz.ScopedContext) *ServerWithRoles {
-	return &ServerWithRoles{
-		authServer:    srv,
-		alog:          alog,
-		scopedContext: scopedContext,
 	}
 }
 
@@ -312,8 +363,12 @@ func TrimUserAgent(userAgent string) string {
 	return trimUserAgent(userAgent)
 }
 
+func IsAllowedDomain(cn string, domains []string) bool {
+	return isAllowedDomain(cn, domains)
+}
+
 func GetSnowflakeJWTParams(ctx context.Context, accountName, userName string, publicKey []byte) (string, string) {
-	return getSnowflakeJWTParams(ctx, accountName, userName, publicKey)
+	return getSnowflakeJWTParams(accountName, userName, publicKey)
 }
 
 func FilterExtensions(ctx context.Context, logger *slog.Logger, extensions []pkix.Extension, oids ...asn1.ObjectIdentifier) []pkix.Extension {
@@ -324,8 +379,16 @@ func PopulateGithubClaims(user *GithubUserResponse, teams []GithubTeamResponse) 
 	return populateGithubClaims(user, teams)
 }
 
-func ValidateGithubAuthCallbackHelper(ctx context.Context, m GitHubManager, diagCtx *SSODiagContext, q url.Values, emitter apievents.Emitter, logger *slog.Logger) (*authclient.GithubAuthResponse, error) {
-	return validateGithubAuthCallbackHelper(ctx, m, diagCtx, q, emitter, logger)
+func ValidateGithubAuthCallbackHelper(ctx context.Context, m GitHubManager, diagCtx *SSODiagContext, q url.Values, emitter apievents.Emitter) (*authclient.GithubAuthResponse, error) {
+	return validateGithubAuthCallbackHelper(ctx, m, diagCtx, q, emitter)
+}
+
+func IsGCPZoneInLocation(rawLocation, rawZone string) bool {
+	return isGCPZoneInLocation(rawLocation, rawZone)
+}
+
+func JoinRuleGlobMatch(want string, got string) (bool, error) {
+	return joinRuleGlobMatch(want, got)
 }
 
 func FormatHeaderFromMap(m map[string]string) http.Header {
@@ -336,14 +399,56 @@ func CheckHeaders(headers http.Header, challenge string, clock clockwork.Clock) 
 	return checkHeaders(headers, challenge, clock)
 }
 
+func CheckOracleAllowRules(claims oracle.Claims, token string, allowRules []*types.ProvisionTokenSpecV2Oracle_Rule) error {
+	return checkOracleAllowRules(claims, token, allowRules)
+}
+
 type GitHubManager = githubManager
+type AWSIdentity = awsIdentity
+type AttestedData = attestedData
+type SignedAttestedData = signedAttestedData
+type JWKSValidator = k8sJWKSValidator
+type AzureRegisterOption = azureRegisterOption
+type AzureRegisterConfig = azureRegisterConfig
+type AzureVMClientGetter = vmClientGetter
+type AzureVerifyTokenFunc = azureVerifyTokenFunc
+type AccessTokenClaims = accessTokenClaims
+type EC2Client = ec2Client
+type EC2ClientKey = ec2ClientKey
+type IAMRegisterOption = iamRegisterOption
+
+func WithAzureCerts(certs []*x509.Certificate) AzureRegisterOption {
+	return func(cfg *AzureRegisterConfig) {
+		cfg.certificateAuthorities = certs
+	}
+}
+
+func WithAzureVerifyFunc(verify azureVerifyTokenFunc) AzureRegisterOption {
+	return func(cfg *AzureRegisterConfig) {
+		cfg.verify = verify
+	}
+}
+
+func WithAzureVMClientGetter(getVMClient vmClientGetter) AzureRegisterOption {
+	return func(cfg *AzureRegisterConfig) {
+		cfg.getVMClient = getVMClient
+	}
+}
+
+func WithFIPS(b bool) iamRegisterOption {
+	return withFips(b)
+}
+
+func WithAuthVersion(v *semver.Version) iamRegisterOption {
+	return withAuthVersion(v)
+}
+
+func WithAzureIssuerHTTPClient(httpClient utils.HTTPDoClient) AzureRegisterOption {
+	return func(cfg *AzureRegisterConfig) {
+		cfg.issuerHTTPClient = httpClient
+	}
+}
 
 func (s *TLSServer) GRPCServer() *GRPCServer {
 	return s.grpcServer
-}
-
-type MigrateWindowsCAParams = migrateWindowsCAParams
-
-func MigrateWindowsCA(ctx context.Context, params MigrateWindowsCAParams) error {
-	return migrateWindowsCA(ctx, params)
 }

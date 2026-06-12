@@ -59,6 +59,7 @@ func TestTeleportOIDCConnectorSpec_MarshalJSON(t *testing.T) {
 		},
 	}
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			result, err := json.Marshal(tc.spec)
 			require.NoError(t, err)
@@ -94,6 +95,7 @@ func TestTeleportOIDCConnectorSpec_UnmarshalJSON(t *testing.T) {
 		},
 	}
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			var spec TeleportOIDCConnectorSpec
 			require.NoError(t, json.Unmarshal([]byte(tc.inputJSON), &spec))

@@ -21,14 +21,14 @@ package database
 import (
 	"context"
 	"errors"
-	"log/slog"
+	"fmt"
 	"net"
-	"strconv"
 	"strings"
 
 	"github.com/go-mysql-org/go-mysql/client"
 	"github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/lib/defaults"
 )
@@ -60,7 +60,7 @@ func (p *MySQLPinger) Ping(ctx context.Context, params PingParams) error {
 	}
 
 	var nd net.Dialer
-	addr := net.JoinHostPort(params.Host, strconv.Itoa(params.Port))
+	addr := fmt.Sprintf("%s:%d", params.Host, params.Port)
 	conn, err := client.ConnectWithDialer(ctx, "tcp", addr,
 		params.Username,
 		"", // no password, we're dialing into a tunnel.
@@ -73,7 +73,7 @@ func (p *MySQLPinger) Ping(ctx context.Context, params PingParams) error {
 
 	defer func() {
 		if err := conn.Quit(); err != nil {
-			slog.InfoContext(context.Background(), "Failed to close connection in MySQLPinger.Ping", "error", err)
+			logrus.WithError(err).Info("Failed to close connection in MySQLPinger.Ping")
 		}
 	}()
 

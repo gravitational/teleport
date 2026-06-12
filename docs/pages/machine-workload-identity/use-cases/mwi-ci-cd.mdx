@@ -3,10 +3,8 @@ title: CI/CD with Machine & Workload Identity
 description: Use Machine & Workload Identity to replace static secrets in CI/CD pipelines for accessing servers, databases, Kubernetes clusters and applications.
 sidebar_label: CI/CD
 tags:
- - ci-cd
  - conceptual
  - mwi
- - infrastructure-identity
 ---
 
 Teleport Machine & Workload Identity eliminates the need for long-lived static secrets in CI/CD pipelines by issuing short-lived 
@@ -18,37 +16,37 @@ certificates at runtime. Teleport natively integrates with many CI/CD providers 
   tiles={[
     {
       icon: <Icon name="azureDevops" size="xl" />,
-      to: "../../deployment/azure-devops",
+      to: "../deployment/azure-devops",
       name: "Azure DevOps",
     },
     {
       icon: <Icon name="bitbucket" size="xl" />,
-      to: "../../deployment/bitbucket",
+      to: "../deployment/bitbucket",
       name: "Bitbucket Pipelines",
     },
     {
       icon: <Icon name="circleci" size="xl" />,
-      to: "../../deployment/circleci",
+      to: "../deployment/circleci",
       name: "CircleCI",
     },
     {
       icon: <Icon name="gitlab" size="xl" />,
-      to: "../../deployment/gitlab",
+      to: "../deployment/gitlab",
       name: "GitLab CI",
     },
     {
       icon: <Icon name="githubActions" size="xl" />,
-      to: "../../deployment/github-actions",
+      to: "../deployment/github-actions",
       name: "GitHub Actions",
     },
     {
       icon: <Icon name="jenkins" size="xl" />,
-      to: "../../deployment/jenkins",
+      to: "../deployment/jenkins",
       name: "Jenkins",
     },
     {
       icon: <Icon name="spacelift" size="xl" />,
-      to: "../../../zero-trust-access/infrastructure-as-code/terraform-provider/spacelift",
+      to: "../../zero-trust-access/infrastructure-as-code/terraform-provider/spacelift",
       name: "Spacelift",
     }
   ]}
@@ -88,5 +86,5 @@ API endpoints and full audit visibility.
 
 - [Architecture](../../reference/architecture/machine-id-architecture.mdx): A technical deep-dive into how Machine &
   Workload Identity works.
-- [Reference](../../reference/machine-workload-identity/machine-workload-identity.mdx): Complete documentation of available
+- [Reference](../../reference/machine-id/machine-id.mdx): Complete documentation of available
   configuration options.

@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2025  Gravitational, Inc.
+ * Copyright (C) 2025 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -17,8 +17,6 @@
  */
 
 import {
-  isResourceHealthStatus,
-  ResourceHealthStatus,
   UnifiedResourceApp,
   UnifiedResourceDatabase,
   UnifiedResourceDesktop,
@@ -28,26 +26,6 @@ import {
   UnifiedResourceUserGroup,
 } from './types';
 import { generateUnifiedResourceKey } from './UnifiedResources';
-
-test('isResourceStatus', () => {
-  const validStatuses: ResourceHealthStatus[] = [
-    'healthy',
-    'unhealthy',
-    'unknown',
-    'mixed',
-  ];
-  const statuses = [
-    'healthy',
-    'random',
-    'unhealthy',
-    'llama',
-    'unknown',
-    '',
-    'mixed',
-  ];
-
-  expect(statuses.filter(isResourceHealthStatus)).toEqual(validStatuses);
-});
 
 describe('generateUnifiedResourceKey', () => {
   test('generates key for node resource using hostname/id/kind format', () => {

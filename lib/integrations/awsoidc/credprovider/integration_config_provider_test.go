@@ -30,12 +30,13 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 )
 
 const (
 	integrationName = "test-integration1"
-	awsRegion       = "eu-central-1"
+	awsRegion       = " eu-central-1"
 	testUser        = "test-user"
 )
 
@@ -92,11 +93,7 @@ func (d *depsMock) GetProxies() ([]types.Server, error) {
 	return d.proxies, nil
 }
 
-func (d *depsMock) ListProxyServers(context.Context, int, string) ([]types.Server, string, error) {
-	return d.proxies, "", nil
-}
-
-func (d *depsMock) GetClusterName(_ context.Context) (types.ClusterName, error) {
+func (d *depsMock) GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error) {
 	return types.NewClusterName(types.ClusterNameSpecV2{ClusterName: "teleport.example.com", ClusterID: "cluster-id"})
 }
 
@@ -144,7 +141,7 @@ func newDepsMock(t *testing.T) *depsMock {
 
 func newCertAuthority(t *testing.T, caType types.CertAuthType, domain string) types.CertAuthority {
 	t.Helper()
-	publicKey, privateKey, err := testauthority.GenerateJWT()
+	publicKey, privateKey, err := testauthority.New().GenerateJWT()
 	require.NoError(t, err)
 	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:        caType,

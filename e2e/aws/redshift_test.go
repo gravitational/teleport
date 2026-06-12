@@ -24,13 +24,12 @@ import (
 	"testing"
 	"time"
 
-	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud/aws/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -118,6 +117,8 @@ func testRedshiftCluster(t *testing.T) {
 		// everything as part of test cleanup, regardless of what the test
 		// actually created successfully.
 		for _, stmt := range []string{
+			// reassign ownership of teleport-auto-user to the master user so that test admins can be dropped
+			fmt.Sprintf(`ALTER ROLE "teleport-auto-user" OWNER TO %q;`, conn.pool.Config().ConnConfig.User),
 			fmt.Sprintf("DROP SCHEMA %q CASCADE", testSchema),
 			fmt.Sprintf("DROP USER IF EXISTS %q", autoUserKeep),
 			fmt.Sprintf("DROP USER IF EXISTS %q", autoUserDrop),
@@ -183,6 +184,7 @@ func testRedshiftCluster(t *testing.T) {
 			},
 		},
 	} {
+		test := test
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			t.Run("connect", func(t *testing.T) {
@@ -216,7 +218,7 @@ func connectAsRedshiftClusterAdmin(t *testing.T, ctx context.Context, clusterID 
 func getRedshiftAdminInfo(t *testing.T, ctx context.Context, clusterID string) dbUserLogin {
 	t.Helper()
 	cfg, err := config.LoadDefaultConfig(ctx,
-		awsconfig.WithRegion(mustGetEnv(t, awsRegionEnv)),
+		config.WithRegion(mustGetEnv(t, awsRegionEnv)),
 	)
 	require.NoError(t, err)
 	clt := redshift.NewFromConfig(cfg)

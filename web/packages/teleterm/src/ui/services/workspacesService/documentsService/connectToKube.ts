@@ -34,11 +34,7 @@ export async function connectToKube(
     origin: telemetry.origin,
   });
 
-  const { isAtDesiredWorkspace } =
-    await ctx.workspacesService.setActiveWorkspace(rootClusterUri);
-  if (!isAtDesiredWorkspace) {
-    return;
-  }
+  await ctx.workspacesService.setActiveWorkspace(rootClusterUri);
   documentsService.add(doc);
   documentsService.open(doc.uri);
 }

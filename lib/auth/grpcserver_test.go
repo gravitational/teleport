@@ -47,23 +47,17 @@ import (
 	otlpcommonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 	otlpresourcev1 "go.opentelemetry.io/proto/otlp/resource/v1"
 	otlptracev1 "go.opentelemetry.io/proto/otlp/trace/v1"
-	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
-	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
-	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
-	vnetv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/mfa"
@@ -72,7 +66,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/autoupdate"
 	"github.com/gravitational/teleport/api/types/installers"
-	"github.com/gravitational/teleport/api/types/vnet"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -87,12 +80,8 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
-	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
-	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
-	"github.com/gravitational/teleport/lib/scopes"
-	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/server/installer"
@@ -240,7 +229,7 @@ func TestMFADeviceManagement(t *testing.T) {
 						},
 					}
 				},
-				checkAuthErr: func(t require.TestingT, err error, i ...any) {
+				checkAuthErr: func(t require.TestingT, err error, i ...interface{}) {
 					require.Error(t, err)
 					require.True(t, trace.IsAccessDenied(err))
 				},
@@ -269,7 +258,7 @@ func TestMFADeviceManagement(t *testing.T) {
 						},
 					}
 				},
-				checkRegisterErr: func(t require.TestingT, err error, i ...any) {
+				checkRegisterErr: func(t require.TestingT, err error, i ...interface{}) {
 					require.Error(t, err)
 					require.True(t, trace.IsBadParameter(err))
 				},
@@ -567,11 +556,10 @@ func TestMFADeviceManagement_SSO(t *testing.T) {
 	testDeleteMFADevice(ctx, t, userClient, mfaDeleteTestOpts{
 		deviceName:  "saml",
 		authHandler: passkeyWebAuthnHandler,
-		checkErr: func(t require.TestingT, err error, _ ...any) {
+		checkErr: func(t require.TestingT, err error, _ ...interface{}) {
 			assert.ErrorAs(t, err, new(*trace.BadParameterError))
 			assert.ErrorContains(t, err, "cannot delete ephemeral SSO MFA device")
-		},
-	},
+		}},
 	)
 
 	// Last non-SSO, passwordless device can be deleted now.
@@ -979,17 +967,17 @@ func TestCreateAppSession_deviceExtensions(t *testing.T) {
 	}
 }
 
-func TestCreateAppSession_allowedResourceAccessIDs(t *testing.T) {
-	t.Parallel()
-	ctx := t.Context()
-	testServer := newTestTLSServer(t, withModules(&modulestest.Modules{
+func TestCreateAppSession_allowedResourceIDs(t *testing.T) {
+	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.App: {Enabled: true},
 			},
 		},
-	}))
+	})
+	ctx := context.Background()
+	testServer := newTestTLSServer(t)
 	authServer := testServer.Auth()
 
 	user, _, err := authtest.CreateUserAndRole(authServer, "teleport-user", []string{"teleport-user"}, nil)
@@ -1008,21 +996,11 @@ func TestCreateAppSession_allowedResourceAccessIDs(t *testing.T) {
 	_, err = authServer.UpsertApplicationServer(ctx, appServer)
 	require.NoError(t, err)
 
-	wantResourceAccessIDs := []types.ResourceAccessID{
+	wantResourceIDs := []types.ResourceID{
 		{
-			Id: types.ResourceID{
-				ClusterName: testServer.ClusterName(),
-				Kind:        types.KindApp,
-				Name:        "someapp",
-			},
-			Constraints: &types.ResourceConstraints{
-				Version: types.V1,
-				Details: &types.ResourceConstraints_AwsConsole{
-					AwsConsole: &types.AWSConsoleResourceConstraints{
-						RoleArns: []string{"arn:aws:iam::123456789012:role/someapprole"},
-					},
-				},
-			},
+			ClusterName: testServer.ClusterName(),
+			Kind:        types.KindApp,
+			Name:        "someapp",
 		},
 	}
 
@@ -1032,19 +1010,19 @@ func TestCreateAppSession_allowedResourceAccessIDs(t *testing.T) {
 		assertCert func(t *testing.T, cert *x509.Certificate)
 	}{
 		{
-			name: "identity with no AllowedResourceAccessIDs",
+			name: "identity with no AllowedResourceIDs",
 		},
 		{
-			name: "identity with AllowedResourceAccessIDs",
+			name: "identity with AllowedResourceIDs",
 			modifyUser: func(u *authtest.TestIdentity) {
 				lu := u.I.(authz.LocalUser)
-				lu.Identity.AllowedResourceAccessIDs = wantResourceAccessIDs
+				lu.Identity.AllowedResourceIDs = wantResourceIDs
 				u.I = lu
 			},
 			assertCert: func(t *testing.T, cert *x509.Certificate) {
 				gotIdentity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
 				require.NoError(t, err)
-				require.Empty(t, cmp.Diff(wantResourceAccessIDs, gotIdentity.AllowedResourceAccessIDs, protocmp.Transform()))
+				require.Empty(t, cmp.Diff(wantResourceIDs, gotIdentity.AllowedResourceIDs, protocmp.Transform()))
 			},
 		},
 	}
@@ -1101,7 +1079,6 @@ func TestGenerateUserCerts_deviceExtensions(t *testing.T) {
 		name       string
 		modifyUser func(u *authtest.TestIdentity)
 		assertCert func(t *testing.T, cert *x509.Certificate)
-		usage      proto.UserCertsRequest_CertUsage
 	}{
 		{
 			name: "no device extensions",
@@ -1155,11 +1132,18 @@ func TestGenerateUserCerts_deviceExtensions(t *testing.T) {
 }
 
 func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
-	t.Parallel()
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise, // required for Device Trust.
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.App: {Enabled: true},
+			},
+		},
+	})
 
-	testServer := newTestTLSServer(t, withModules(modulestest.EnterpriseModules()))
+	testServer := newTestTLSServer(t)
 
-	ctx := t.Context()
+	ctx := context.Background()
 	clock := testServer.Clock()
 	clusterName := testServer.ClusterName()
 	authServer := testServer.Auth()
@@ -1432,11 +1416,13 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 
 // Test that device trust is required for a user registering their first MFA device.
 func TestRegisterFirstDevice_deviceAuthz(t *testing.T) {
-	t.Parallel()
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise, // required for Device Trust.
+	})
 
-	testServer := newTestTLSServer(t, withModules(modulestest.EnterpriseModules()))
+	testServer := newTestTLSServer(t)
 
-	ctx := t.Context()
+	ctx := context.Background()
 	authServer := testServer.Auth()
 
 	// Create a user for testing.
@@ -1558,9 +1544,13 @@ func mustCreateDatabase(t *testing.T, name, protocol, uri string) *types.Databas
 }
 
 func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
-	t.Parallel()
-	ctx := t.Context()
-	srv := newTestTLSServer(t, withModules(modulestest.EnterpriseModules()))
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise, // required for IP pinning.
+		TestFeatures:  modules.GetModules().Features(),
+	})
+
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
 	clock := srv.Clock()
 	userCertTTL := 12 * time.Hour
 	userCertExpires := clock.Now().Add(userCertTTL)
@@ -1634,49 +1624,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 	appServer, err := types.NewAppServerV3FromApp(app, "app-a", "app-a")
 	require.NoError(t, err)
 	_, err = srv.Auth().UpsertApplicationServer(ctx, appServer)
-	require.NoError(t, err)
-
-	// Roles Anywhere set up.
-	srv.Auth().AWSRolesAnywhereCreateSessionOverride = func(ctx context.Context, req createsession.CreateSessionRequest) (*createsession.CreateSessionResponse, error) {
-		return &createsession.CreateSessionResponse{
-			Version:         1,
-			AccessKeyID:     "aki",
-			SecretAccessKey: "sak",
-			SessionToken:    "st",
-			Expiration:      "2025-06-25T12:07:02.474135Z",
-		}, nil
-	}
-	awsRAIntegration := "ra-integration"
-	ig, err := types.NewIntegrationAWSRA(types.Metadata{Name: awsRAIntegration}, &types.AWSRAIntegrationSpecV1{
-		TrustAnchorARN: "arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/ExampleTrustAnchor",
-		ProfileSyncConfig: &types.AWSRolesAnywhereProfileSyncConfig{
-			ProfileARN: "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/uuid2",
-			RoleARN:    "arn:aws:iam::123456789012:role/SyncRole",
-		},
-	})
-	require.NoError(t, err)
-	_, err = srv.Auth().Integrations.CreateIntegration(ctx, ig)
-	require.NoError(t, err)
-
-	awsAppUsingRolesAnywhere, err := types.NewAppServerV3(types.Metadata{
-		Name: "app-roles-anywhere",
-	}, types.AppServerSpecV3{
-		HostID: srv.Auth().ServerID,
-		App: &types.AppV3{Metadata: types.Metadata{
-			Name: "app-roles-anywhere",
-		}, Spec: types.AppSpecV3{
-			URI:         constants.AWSConsoleURL,
-			Integration: awsRAIntegration,
-			AWS: &types.AppAWS{
-				RolesAnywhereProfile: &types.AppAWSRolesAnywhereProfile{
-					ProfileARN: "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/12345678-1234-1234-1234-123456789012",
-				},
-			},
-			PublicAddr: "example.com",
-		}},
-	})
-	require.NoError(t, err)
-	_, err = srv.Auth().UpsertApplicationServer(ctx, awsAppUsingRolesAnywhere)
 	require.NoError(t, err)
 
 	leaf, err := types.NewRemoteCluster("leaf")
@@ -1877,7 +1824,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 				},
 				mfaAllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
 				authnHandler:  registered.webAuthHandler,
-				verifyErr: func(t require.TestingT, err error, i ...any) {
+				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
 					require.ErrorContains(t, err, "the given webauthn session allows reuse, but reuse is not permitted in this context")
 				},
 			},
@@ -1898,7 +1845,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 				},
 				mfaAllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
 				authnHandler:  registered.webAuthHandler,
-				verifyErr: func(t require.TestingT, err error, i ...any) {
+				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
 					require.ErrorContains(t, err, "can only request database certificates")
 				},
 			},
@@ -1961,7 +1908,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					require.NoError(t, srv.Auth().Services.DeleteWebauthnSessionData(ctx, user.GetName(), "login"))
 					return resp
 				},
-				verifyErr: func(t require.TestingT, err error, i ...any) {
+				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
 					require.ErrorIs(t, err, &mfa.ErrExpiredReusableMFAResponse)
 				},
 			},
@@ -2149,36 +2096,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 			},
 		},
 		{
-			desc: "aws app using roles anywhere should not limit ttl to 1m",
-			opts: generateUserSingleUseCertsTestOpts{
-				initReq: &proto.UserCertsRequest{
-					TLSPublicKey: tlsPub,
-					Username:     user.GetName(),
-					// Expiration should be adjusted to user cert ttl, but not to single user cert TTL (1min).
-					Expires: clock.Now().Add(1000 * time.Hour),
-					Usage:   proto.UserCertsRequest_App,
-					RouteToApp: proto.RouteToApp{
-						Name:       "app-roles-anywhere",
-						AWSRoleARN: "arn:aws:iam::123456789012:role/MyRole",
-					},
-					RequesterName: proto.UserCertsRequest_TSH_APP_AWS_CREDENTIALPROCESS,
-				},
-				authnHandler: registered.webAuthHandler,
-				verifyErr:    require.NoError,
-				verifyCert: func(t *testing.T, c *proto.Certs) {
-					cert, err := tlsca.ParseCertificatePEM(c.TLS)
-					require.NoError(t, err)
-					require.Equal(t, userCertExpires, cert.NotAfter)
-					identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
-					require.NoError(t, err)
-					require.Equal(t, webDevID, identity.MFAVerified)
-					require.Equal(t, userCertExpires, identity.PreviousIdentityExpires)
-					require.Equal(t, []string{teleport.UsageAppsOnly}, identity.Usage)
-					require.NotEmpty(t, identity.RouteToApp.AWSCredentialProcessCredentials)
-				},
-			},
-		},
-		{
 			desc: "desktops",
 			opts: generateUserSingleUseCertsTestOpts{
 				initReq: &proto.UserCertsRequest{
@@ -2223,7 +2140,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					Usage:        proto.UserCertsRequest_All,
 					NodeName:     "node-a",
 				},
-				verifyErr: func(t require.TestingT, err error, i ...any) {
+				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
 					require.ErrorContains(t, err, "all purposes")
 				},
 			},
@@ -2244,7 +2161,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					// Return no challenge response.
 					return &proto.MFAAuthenticateResponse{}
 				},
-				verifyErr: func(t require.TestingT, err error, i ...any) {
+				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
 					require.ErrorContains(t, err, "unknown or missing MFAAuthenticateResponse")
 				},
 			},
@@ -2353,7 +2270,7 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 					// Return no challenge response.
 					return &proto.MFAAuthenticateResponse{}
 				},
-				verifyErr: func(t require.TestingT, err error, i ...any) {
+				verifyErr: func(t require.TestingT, err error, i ...interface{}) {
 					require.ErrorContains(t, err, "unknown or missing MFAAuthenticateResponse")
 				},
 			},
@@ -2494,105 +2411,6 @@ func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
 				},
 			},
 		},
-		{
-			desc: "fail - ssh using totp",
-			opts: generateUserSingleUseCertsTestOpts{
-				initReq: &proto.UserCertsRequest{
-					SSHPublicKey: sshPub,
-					Username:     user.GetName(),
-					// This expiry is longer than allowed, should be
-					// automatically adjusted.
-					Expires:  clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
-					Usage:    proto.UserCertsRequest_SSH,
-					NodeName: "node-a",
-					SSHLogin: "role",
-				},
-				authnHandler: registered.totpAuthHandler,
-				verifyErr: func(t require.TestingT, err error, i ...any) {
-					require.ErrorContains(t, err, "per-session MFA is not satisfied by OTP devices")
-				},
-			},
-		},
-		{
-			desc: "fail - k8s using totp",
-			opts: generateUserSingleUseCertsTestOpts{
-				initReq: &proto.UserCertsRequest{
-					TLSPublicKey: tlsPub,
-					Username:     user.GetName(),
-					// This expiry is longer than allowed, should be
-					// automatically adjusted.
-					Expires:           clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
-					Usage:             proto.UserCertsRequest_Kubernetes,
-					KubernetesCluster: "kube-b",
-				},
-				authnHandler: registered.totpAuthHandler,
-				verifyErr: func(t require.TestingT, err error, i ...any) {
-					require.ErrorContains(t, err, "per-session MFA is not satisfied by OTP devices")
-				},
-			},
-		},
-		{
-			desc: "fail - db using totp",
-			opts: generateUserSingleUseCertsTestOpts{
-				initReq: &proto.UserCertsRequest{
-					TLSPublicKey: tlsPub,
-					Username:     user.GetName(),
-					// This expiry is longer than allowed, should be
-					// automatically adjusted.
-					Expires: clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
-					Usage:   proto.UserCertsRequest_Database,
-					RouteToDatabase: proto.RouteToDatabase{
-						ServiceName: "db-a",
-						Database:    "db-a",
-					},
-				},
-				authnHandler: registered.totpAuthHandler,
-				verifyErr: func(t require.TestingT, err error, i ...any) {
-					require.ErrorContains(t, err, "per-session MFA is not satisfied by OTP devices")
-				},
-			},
-		},
-		{
-			desc: "fail - app using totp",
-			opts: generateUserSingleUseCertsTestOpts{
-				initReq: &proto.UserCertsRequest{
-					TLSPublicKey: tlsPub,
-					Username:     user.GetName(),
-					// This expiry is longer than allowed, should be
-					// automatically adjusted.
-					Expires: clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
-					Usage:   proto.UserCertsRequest_App,
-					RouteToApp: proto.RouteToApp{
-						Name: "app-a",
-					},
-				},
-				authnHandler: registered.totpAuthHandler,
-				verifyErr: func(t require.TestingT, err error, i ...any) {
-					require.ErrorContains(t, err, "per-session MFA is not satisfied by OTP devices")
-				},
-			},
-		},
-		{
-			desc: "fail - desktops using totp",
-			opts: generateUserSingleUseCertsTestOpts{
-				initReq: &proto.UserCertsRequest{
-					TLSPublicKey: tlsPub,
-					Username:     user.GetName(),
-					// This expiry is longer than allowed, should be
-					// automatically adjusted.
-					Expires: clock.Now().Add(2 * teleport.UserSingleUseCertTTL),
-					Usage:   proto.UserCertsRequest_WindowsDesktop,
-					RouteToWindowsDesktop: proto.RouteToWindowsDesktop{
-						WindowsDesktop: "desktop",
-						Login:          "role",
-					},
-				},
-				authnHandler: registered.totpAuthHandler,
-				verifyErr: func(t require.TestingT, err error, i ...any) {
-					require.ErrorContains(t, err, "per-session MFA is not satisfied by OTP devices")
-				},
-			},
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
@@ -2653,12 +2471,14 @@ var requireMFATypes = []types.RequireMFAType{
 }
 
 func TestIsMFARequired(t *testing.T) {
-	t.Parallel()
+	testModules := modulestest.Modules{
+		TestBuildType:       modules.BuildEnterprise,
+		MockAttestationData: &keys.AttestationData{},
+	}
+	modulestest.SetTestModules(t, testModules)
 
-	ctx := t.Context()
-
-	testModules := modulestest.EnterpriseModules()
-	srv := newTestTLSServer(t, withModules(testModules))
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
 
 	// Register an SSH node.
 	node := &types.ServerV2{
@@ -2689,6 +2509,7 @@ func TestIsMFARequired(t *testing.T) {
 			require.NoError(t, err)
 
 			for _, roleRequireMFAType := range requireMFATypes {
+				roleRequireMFAType := roleRequireMFAType
 				t.Run(fmt.Sprintf("role=%v", roleRequireMFAType.String()), func(t *testing.T) {
 					user, err := types.NewUser(roleRequireMFAType.String())
 					require.NoError(t, err)
@@ -2709,13 +2530,9 @@ func TestIsMFARequired(t *testing.T) {
 					mfaVerifiedByHardwareKey := role.GetPrivateKeyPolicy().MFAVerified() || authPref.GetPrivateKeyPolicy().MFAVerified()
 					if mfaVerifiedByHardwareKey {
 						// Set attestated key policy to the most restrictive hardware key MFA is required.
-						testModules.MockAttestationData = &keys.AttestationData{
-							PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouchAndPIN,
-						}
+						testModules.MockAttestationData.PrivateKeyPolicy = keys.PrivateKeyPolicyHardwareKeyTouchAndPIN
 					} else {
-						testModules.MockAttestationData = &keys.AttestationData{
-							PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKey,
-						}
+						testModules.MockAttestationData.PrivateKeyPolicy = keys.PrivateKeyPolicyHardwareKey
 					}
 
 					cl, err := srv.NewClient(authtest.TestUser(user.GetName()))
@@ -2836,10 +2653,10 @@ func TestIsMFARequired_unauthorized(t *testing.T) {
 }
 
 func TestIsMFARequired_nodeMatch(t *testing.T) {
-	t.Parallel()
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 
-	ctx := t.Context()
-	srv := newTestTLSServer(t, withModules(modulestest.EnterpriseModules()))
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
 
 	// Register an SSH node.
 	node, err := types.NewServerWithLabels(uuid.NewString(), types.KindNode, types.ServerSpecV2{
@@ -2916,6 +2733,7 @@ func TestIsMFARequired_nodeMatch(t *testing.T) {
 			want: proto.MFARequired_MFA_REQUIRED_NO,
 		},
 	} {
+		tc := tc
 		t.Run(tc.desc, func(t *testing.T) {
 			t.Parallel()
 
@@ -3140,7 +2958,7 @@ func TestGenerateHostCerts(t *testing.T) {
 	clt, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 
-	priv, pub, err := testauthority.GenerateKeyPair()
+	priv, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	pubTLS, err := authtest.PrivateKeyToPublicKeyTLS(priv)
@@ -3188,7 +3006,8 @@ func TestInstanceCertAndControlStream(t *testing.T) {
 	const assertionID = "test-assertion"
 	const serverID = "test-server"
 	t.Parallel()
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	srv := newTestTLSServer(t)
 
@@ -3202,7 +3021,7 @@ func TestInstanceCertAndControlStream(t *testing.T) {
 	require.NoError(t, err)
 	defer clt.Close()
 
-	priv, pub, err := testauthority.GenerateKeyPair()
+	priv, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	pubTLS, err := authtest.PrivateKeyToPublicKeyTLS(priv)
@@ -3260,16 +3079,16 @@ func TestInstanceCertAndControlStream(t *testing.T) {
 	require.NoError(t, err)
 	defer stream.Close()
 
-	err = stream.Send(ctx, &proto.UpstreamInventoryHello{
+	err = stream.Send(ctx, proto.UpstreamInventoryHello{
 		ServerID: serverID,
 		Version:  teleport.Version,
-		Services: types.SystemRoles(roles).StringSlice(),
+		Services: roles,
 	})
 	require.NoError(t, err)
 
 	select {
 	case msg := <-stream.Recv():
-		_, ok := msg.(*proto.DownstreamInventoryHello)
+		_, ok := msg.(proto.DownstreamInventoryHello)
 		require.True(t, ok)
 	case <-time.After(time.Second * 5):
 		t.Fatalf("timeout waiting for downstream hello")
@@ -3296,9 +3115,9 @@ func TestInstanceCertAndControlStream(t *testing.T) {
 	// wait for the ping
 	select {
 	case msg := <-stream.Recv():
-		ping, ok := msg.(*proto.DownstreamInventoryPing)
+		ping, ok := msg.(proto.DownstreamInventoryPing)
 		require.True(t, ok)
-		err = stream.Send(ctx, &proto.UpstreamInventoryPong{
+		err = stream.Send(ctx, proto.UpstreamInventoryPong{
 			ID: ping.ID,
 		})
 		require.NoError(t, err)
@@ -3556,7 +3375,7 @@ func TestLocksCRUD(t *testing.T) {
 
 	lock2, err := types.NewLock("lock2", types.LockSpecV2{
 		Target: types.LockTarget{
-			ServerID: "node",
+			Node: "node",
 		},
 		Message: "node compromised",
 	})
@@ -3613,28 +3432,7 @@ func TestLocksCRUD(t *testing.T) {
 
 			require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, append(page1, page2...),
 				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
-		})
-		t.Run("RangeLocks", func(t *testing.T) {
-			t.Parallel()
-			locks, err := iterstream.Collect(clt.RangeLocks(ctx, "", "", nil))
-			require.NoError(t, err)
-			require.Len(t, locks, 2)
-			require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
-				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-			_, page2Start, _ := clt.ListLocks(ctx, 1, "", nil)
-
-			page1, err := iterstream.Collect(clt.RangeLocks(ctx, "", page2Start, nil))
-			require.NoError(t, err)
-			require.Len(t, page1, 1)
-			require.Empty(t, cmp.Diff([]types.Lock{lock1}, page1,
-				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
-
-			page2, err := iterstream.Collect(clt.RangeLocks(ctx, page2Start, "", nil))
-			require.NoError(t, err)
-			require.Len(t, page2, 1)
-			require.Empty(t, cmp.Diff([]types.Lock{lock2}, page2,
-				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 		})
 		t.Run("GetLocks with targets", func(t *testing.T) {
 			t.Parallel()
@@ -3682,28 +3480,6 @@ func TestLocksCRUD(t *testing.T) {
 			locks, next, err = clt.ListLocks(ctx, 0, "", newLockFilter(false, roleTarget))
 			require.NoError(t, err)
 			require.Empty(t, next)
-			require.Empty(t, locks)
-		})
-		t.Run("RangeLocks with targets", func(t *testing.T) {
-			t.Parallel()
-			// Match both locks with the targets.
-			locks, err := iterstream.Collect(clt.RangeLocks(ctx, "", "", newLockFilter(false, lock1.Target(), lock2.Target())))
-			require.NoError(t, err)
-			require.Len(t, locks, 2)
-			require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, locks,
-				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
-
-			// Match only one of the locks.
-			roleTarget := types.LockTarget{Role: "role-A"}
-			locks, err = iterstream.Collect(clt.RangeLocks(ctx, "", "", newLockFilter(false, lock1.Target(), roleTarget)))
-			require.NoError(t, err)
-			require.Len(t, locks, 1)
-			require.Empty(t, cmp.Diff([]types.Lock{lock1}, locks,
-				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
-
-			// Match none of the locks.
-			locks, err = iterstream.Collect(clt.RangeLocks(ctx, "", "", newLockFilter(false, roleTarget)))
-			require.NoError(t, err)
 			require.Empty(t, locks)
 		})
 		t.Run("GetLock", func(t *testing.T) {
@@ -3857,13 +3633,6 @@ func TestAppsCRUD(t *testing.T) {
 	require.Empty(t, out)
 	require.Empty(t, next)
 
-	var iterOut []types.Application
-	for app, err := range clt.Apps(ctx, "", "") {
-		require.NoError(t, err)
-		iterOut = append(iterOut, app)
-	}
-	require.Empty(t, iterOut)
-
 	// Create both apps.
 	err = clt.CreateApp(ctx, app1)
 	require.NoError(t, err)
@@ -3883,15 +3652,6 @@ func TestAppsCRUD(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 	require.Empty(t, next)
-
-	iterOut = nil
-	for app, err := range clt.Apps(ctx, "", "") {
-		require.NoError(t, err)
-		iterOut = append(iterOut, app)
-	}
-	require.Empty(t, cmp.Diff([]types.Application{app1, app2}, iterOut,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-	))
 
 	// Fetch a specific app.
 	app, err := clt.GetApp(ctx, app2.GetName())
@@ -3934,15 +3694,6 @@ func TestAppsCRUD(t *testing.T) {
 	))
 	require.Empty(t, next)
 
-	iterOut = nil
-	for app, err := range clt.Apps(ctx, "", "") {
-		require.NoError(t, err)
-		iterOut = append(iterOut, app)
-	}
-	require.Empty(t, cmp.Diff([]types.Application{app2}, iterOut,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-	))
-
 	// Try to delete an app that doesn't exist.
 	err = clt.DeleteApp(ctx, "doesnotexist")
 	require.ErrorAs(t, err, new(*trace.NotFoundError))
@@ -3960,14 +3711,7 @@ func TestAppsCRUD(t *testing.T) {
 	require.Empty(t, out)
 	require.Empty(t, next)
 
-	iterOut = nil
-	for app, err := range clt.Apps(ctx, "", "") {
-		require.NoError(t, err)
-		iterOut = append(iterOut, app)
-	}
-	require.Empty(t, iterOut)
-
-	_, err = srv.Auth().UpsertProxyServer(ctx, &types.ServerV2{
+	err = srv.Auth().UpsertProxy(ctx, &types.ServerV2{
 		Kind: types.KindProxy,
 		Metadata: types.Metadata{
 			Name: "proxy",
@@ -4105,7 +3849,7 @@ func TestAppServersCRUD(t *testing.T) {
 	require.Empty(t, resources.Resources)
 
 	t.Run("App server with an app that has a public address matching a proxy address should fail", func(t *testing.T) {
-		_, err = srv.Auth().UpsertProxyServer(ctx, &types.ServerV2{
+		err = srv.Auth().UpsertProxy(ctx, &types.ServerV2{
 			Kind: types.KindProxy,
 			Metadata: types.Metadata{
 				Name: "proxy",
@@ -4413,7 +4157,7 @@ func TestServerInfoCRUD(t *testing.T) {
 		require.Empty(t, serverInfos)
 	}
 
-	requireResourcesEqual := func(t *testing.T, expected, actual any) {
+	requireResourcesEqual := func(t *testing.T, expected, actual interface{}) {
 		require.Empty(t, cmp.Diff(expected, actual, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 	}
 
@@ -4661,6 +4405,8 @@ func TestListResources(t *testing.T) {
 	}
 
 	for name, test := range testCases {
+		name := name
+		test := test
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
@@ -4811,10 +4557,6 @@ func TestCustomRateLimiting(t *testing.T) {
 	t.Run("unauthenticated CreateAuthenticateChallenge", func(t *testing.T) {
 		synctest.Test(t, synctestCustomRateLimitingUnauthenticatedCreateAuthenticateChallenge)
 	})
-
-	t.Run("ResolveSSHTarget", func(t *testing.T) {
-		synctest.Test(t, synctestCustomRateLimitingResolveSSHTarget)
-	})
 }
 
 func synctestCustomRateLimitingUnauthenticatedCreateAuthenticateChallenge(t *testing.T) {
@@ -4880,68 +4622,6 @@ func synctestCustomRateLimitingUnauthenticatedCreateAuthenticateChallenge(t *tes
 	}
 }
 
-func synctestCustomRateLimitingResolveSSHTarget(t *testing.T) {
-	ctx := t.Context()
-
-	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
-		Dir: t.TempDir(),
-	})
-	require.NoError(t, err)
-	defer as.Close()
-
-	unlimitedSrv, err := as.NewTestTLSServer(
-		authtest.WithBufconnListener(),
-	)
-	require.NoError(t, err)
-	defer unlimitedSrv.Close()
-
-	unlimitedClt, err := unlimitedSrv.NewClient(authtest.TestAdmin())
-	require.NoError(t, err)
-	defer unlimitedClt.Close()
-
-	_, err = unlimitedClt.ResolveSSHTarget(ctx, new(proto.ResolveSSHTargetRequest))
-	require.ErrorAs(t, err, new(*trace.BadParameterError))
-	_, err = unlimitedClt.ResolveSSHTarget(ctx, new(proto.ResolveSSHTargetRequest))
-	require.ErrorAs(t, err, new(*trace.BadParameterError))
-	_, err = unlimitedClt.ResolveSSHTarget(ctx, new(proto.ResolveSSHTargetRequest))
-	require.ErrorAs(t, err, new(*trace.BadParameterError))
-	_, err = unlimitedClt.ResolveSSHTarget(ctx, new(proto.ResolveSSHTargetRequest))
-	require.ErrorAs(t, err, new(*trace.BadParameterError))
-
-	limitedSrv, err := as.NewTestTLSServer(
-		authtest.WithBufconnListener(),
-		func(c *authtest.TLSServerConfig) {
-			l := 2.0
-			c.APIConfig.ResolveSSHTargetRateLimit = &l
-		},
-	)
-	require.NoError(t, err)
-	defer limitedSrv.Close()
-
-	limitedClt, err := limitedSrv.NewClient(authtest.TestAdmin())
-	require.NoError(t, err)
-	defer limitedClt.Close()
-
-	_, err = limitedClt.ResolveSSHTarget(ctx, new(proto.ResolveSSHTargetRequest))
-	require.ErrorAs(t, err, new(*trace.BadParameterError))
-	_, err = limitedClt.ResolveSSHTarget(ctx, new(proto.ResolveSSHTargetRequest))
-	require.ErrorAs(t, err, new(*trace.BadParameterError))
-	errC := make(chan error, 1)
-	go func() {
-		_, err := limitedClt.ResolveSSHTarget(ctx, new(proto.ResolveSSHTargetRequest))
-		errC <- err
-	}()
-
-	synctest.Wait()
-
-	require.Empty(t, errC)
-
-	time.Sleep(time.Second)
-	synctest.Wait()
-
-	require.ErrorAs(t, <-errC, new(*trace.BadParameterError))
-}
-
 type mockAuthorizer struct {
 	ctx *authz.Context
 	err error
@@ -5003,7 +4683,7 @@ func TestExport(t *testing.T) {
 	}
 
 	validateTaggedSpans := func(forwardedFor string) require.ValueAssertionFunc {
-		return func(t require.TestingT, i any, i2 ...any) {
+		return func(t require.TestingT, i interface{}, i2 ...interface{}) {
 			require.NotEmpty(t, i)
 			resourceSpans, ok := i.([]*otlptracev1.ResourceSpans)
 			require.True(t, ok)
@@ -5166,11 +4846,11 @@ func TestExport(t *testing.T) {
 		{
 			name:     "failure to forward spans",
 			identity: authtest.TestBuiltin(types.RoleNode),
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.ErrorIs(t, trail.FromGRPC(trace.Unwrap(err)), uploadErr)
 			},
-			uploadedAssertion: func(t require.TestingT, i any, i2 ...any) {
+			uploadedAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
 				require.NotNil(t, i)
 				require.Len(t, i, 1)
 			},
@@ -5194,6 +4874,7 @@ func TestExport(t *testing.T) {
 	}
 
 	for _, tt := range cases {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -5240,7 +4921,13 @@ func TestExport(t *testing.T) {
 // request if the calling user does not have permissions to create or update
 // a SAML connector.
 func TestSAMLValidation(t *testing.T) {
-	t.Parallel()
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.SAML: {Enabled: true},
+			},
+		},
+	})
 
 	// minimal entity_descriptor to pass validation. not actually valid
 	const minimalEntityDescriptor = `
@@ -5287,16 +4974,10 @@ func TestSAMLValidation(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 
-			server := newTestTLSServer(t, withModules(&modulestest.Modules{
-				TestFeatures: modules.Features{
-					Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-						entitlements.SAML: {Enabled: true},
-					},
-				},
-			}))
+			server := newTestTLSServer(t)
 			// Create an http server to serve the entity descriptor url
 			entityServerCalled := false
 			entityServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -5441,41 +5122,20 @@ func TestGRPCServer_GetInstallers(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			t.Run("GetInstallers", func(t *testing.T) {
-				outputInstallerList, err := grpc.GetInstallers(ctx, &emptypb.Empty{})
-				require.NoError(t, err)
-				outputInstallers := make(map[string]string, len(tc.expectedInstallers))
-				for _, installer := range outputInstallerList.Installers {
-					outputInstallers[installer.GetName()] = installer.GetScript()
-				}
+			outputInstallerList, err := grpc.GetInstallers(ctx, &emptypb.Empty{})
+			require.NoError(t, err)
+			outputInstallers := make(map[string]string, len(tc.expectedInstallers))
+			for _, installer := range outputInstallerList.Installers {
+				outputInstallers[installer.GetName()] = installer.GetScript()
+			}
 
-				require.Equal(t, tc.expectedInstallers, outputInstallers)
-			})
-
-			t.Run("ListInstallers", func(t *testing.T) {
-				// no limits, returns all
-				outputInstallerList, err := grpc.ListInstallers(ctx, &proto.ListInstallersRequest{})
-				require.NoError(t, err)
-				outputInstallers := make(map[string]string, len(tc.expectedInstallers))
-				for _, installer := range outputInstallerList.Installers {
-					outputInstallers[installer.GetName()] = installer.GetScript()
-				}
-
-				require.Equal(t, tc.expectedInstallers, outputInstallers)
-
-				page1Resp, err := grpc.ListInstallers(ctx, &proto.ListInstallersRequest{PageSize: 1})
-				require.NoError(t, err)
-				page2Resp, err := grpc.ListInstallers(ctx, &proto.ListInstallersRequest{PageToken: page1Resp.GetNextPageToken()})
-				require.NoError(t, err)
-
-				require.Equal(t, outputInstallerList.Installers, append(page1Resp.Installers, page2Resp.Installers...))
-			})
+			require.Equal(t, tc.expectedInstallers, outputInstallers)
 		})
 	}
 }
 
 func TestRoleVersions(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_ALLOW_OLD_CLIENTS", "yes")
+	t.Parallel()
 	srv := newTestTLSServer(t)
 
 	newRole := func(name string, version string, spec types.RoleSpecV6) types.Role {
@@ -5641,8 +5301,6 @@ func TestRoleVersions(t *testing.T) {
 						// and ignore it in the role diff.
 						if tc.expectDowngraded {
 							require.NotEmpty(t, gotRole.GetMetadata().Labels[types.TeleportDowngradedLabel])
-						} else {
-							require.Empty(t, gotRole.GetMetadata().Labels[types.TeleportDowngradedLabel])
 						}
 					}
 					checkErr := func(err error) {
@@ -5673,21 +5331,6 @@ func TestRoleVersions(t *testing.T) {
 							break
 						}
 						require.True(t, foundTestRole, "GetRoles result does not include expected role")
-					}
-
-					// Test ListRoles
-					listRoles, err := client.ListRoles(ctx, &proto.ListRolesRequest{})
-					checkErr(err)
-					if !tc.expectError {
-						foundTestRole := false
-						for _, gotRole := range listRoles.Roles {
-							if gotRole.GetName() == tc.inputRole.GetName() {
-								checkRole(gotRole)
-								foundTestRole = true
-								break
-							}
-						}
-						require.True(t, foundTestRole, "ListRoles result does not include expected role")
 					}
 
 					ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
@@ -5829,122 +5472,19 @@ func TestUpsertApplicationServerOrigin(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// TestApplicationServerHeartbeatLowercase asserts the gRPC handler
-// plumbs NormalizeAppServerForHeartbeat through to the backend write
-// for a legacy agent's mixed-case heartbeat.
-func TestApplicationServerHeartbeatLowercase(t *testing.T) {
-	t.Parallel()
-
-	ctx := t.Context()
-	server := newTestTLSServer(t)
-	agent := authtest.TestBuiltin(types.RoleApp)
-	client, err := server.NewClient(agent)
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, client.Close()) })
-
-	app, err := types.NewAppV3(types.Metadata{Name: "MixedCaseApp"}, types.AppSpecV3{
-		URI: "http://localhost:8080",
-	})
-	require.NoError(t, err)
-	appServer, err := types.NewAppServerV3FromApp(app, "localhost", "host-id")
-	require.NoError(t, err)
-
-	_, err = client.UpsertApplicationServer(ctx, appServer)
-	require.NoError(t, err)
-
-	stored, err := client.GetApplicationServers(ctx, apidefaults.Namespace)
-	require.NoError(t, err)
-	require.Len(t, stored, 1)
-	require.Equal(t, "mixedcaseapp", stored[0].GetApp().GetName())
-	require.Equal(t, "mixedcaseapp", stored[0].GetName())
-}
-
-// TestServerUpsertApplicationServerValidates asserts
-// (*Server).UpsertApplicationServer validates rather than relying on
-// the gRPC handler. Moving validation up would re-open the
-// inventory-stream bypass.
-func TestServerUpsertApplicationServerValidates(t *testing.T) {
-	t.Parallel()
-
-	ctx := t.Context()
-	srv := newTestTLSServer(t)
-
-	bad, err := types.NewAppV3(types.Metadata{Name: "MixedCase"}, types.AppSpecV3{
-		URI: "http://localhost:8080",
-	})
-	require.NoError(t, err)
-	badServer, err := types.NewAppServerV3FromApp(bad, "localhost", "host-id-direct")
-	require.NoError(t, err)
-
-	_, err = srv.Auth().UpsertApplicationServer(ctx, badServer)
-	require.ErrorContains(t, err, "must be a valid DNS name")
-}
-
-// TestApplicationAdminPathsRejectMixedCase asserts CreateApp,
-// UpdateApp, and UpsertApplicationServer all reject mixed-case names
-// for admin callers (the heartbeat-role normalize gate does not
-// apply).
-func TestApplicationAdminPathsRejectMixedCase(t *testing.T) {
-	t.Parallel()
-
-	ctx := t.Context()
-	server := newTestTLSServer(t)
-	admin := authtest.TestAdmin()
-	client, err := server.NewClient(admin)
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, client.Close()) })
-
-	t.Run("CreateApp", func(t *testing.T) {
-		app, err := types.NewAppV3(types.Metadata{Name: "MyApp"}, types.AppSpecV3{
-			URI: "http://localhost:8080",
-		})
-		require.NoError(t, err)
-		err = client.CreateApp(ctx, app)
-		require.ErrorContains(t, err, "must be a valid DNS name")
-	})
-
-	t.Run("UpdateApp", func(t *testing.T) {
-		seeded, err := types.NewAppV3(types.Metadata{Name: "myapp"}, types.AppSpecV3{
-			URI: "http://localhost:8080",
-		})
-		require.NoError(t, err)
-		require.NoError(t, client.CreateApp(ctx, seeded))
-
-		bad, err := types.NewAppV3(types.Metadata{Name: "MyApp"}, types.AppSpecV3{
-			URI: "http://localhost:8080",
-		})
-		require.NoError(t, err)
-		err = client.UpdateApp(ctx, bad)
-		require.ErrorContains(t, err, "must be a valid DNS name")
-	})
-
-	t.Run("UpsertApplicationServer", func(t *testing.T) {
-		app, err := types.NewAppV3(types.Metadata{Name: "MyApp"}, types.AppSpecV3{
-			URI: "http://localhost:8080",
-		})
-		require.NoError(t, err)
-		appServer, err := types.NewAppServerV3FromApp(app, "localhost", "host-id-admin")
-		require.NoError(t, err)
-		_, err = client.UpsertApplicationServer(ctx, appServer)
-		require.ErrorContains(t, err, "must be a valid DNS name")
-	})
-}
-
 func TestGetAccessGraphConfig(t *testing.T) {
-	t.Parallel()
-
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Policy: {Enabled: true},
+			},
+		},
+	})
 	server := newTestTLSServer(t,
 		withAccessGraphConfig(auth.AccessGraphConfig{
 			Enabled: true,
 			CA:      []byte("ca"),
 			Address: "addr",
-		}),
-		withModules(&modulestest.Modules{
-			TestFeatures: modules.Features{
-				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-					entitlements.Policy: {Enabled: true},
-				},
-			},
 		}),
 	)
 	user, _, err := authtest.CreateUserAndRole(server.Auth(), "test", []string{"role"}, nil)
@@ -6002,62 +5542,19 @@ func TestGetAccessGraphConfig(t *testing.T) {
 	}
 }
 
-func TestGetVnetConfig(t *testing.T) {
-	t.Parallel()
-	server := newTestTLSServer(t)
-	user, _, err := authtest.CreateUserAndRole(server.Auth(), "test", []string{"role"}, nil)
-	require.NoError(t, err)
-
-	// Create newConfig.
-	newConfig, err := vnet.NewVnetConfig(&vnetv1pb.VnetConfigSpec{
-		Ipv4CidrRange:  vnet.DefaultIPv4CIDRRange,
-		CustomDnsZones: []*vnetv1pb.CustomDNSZone{{Suffix: "example.com"}},
-	})
-	require.NoError(t, err)
-	createdConfig, err := server.Auth().CreateVnetConfig(t.Context(), newConfig)
-	require.NoError(t, err)
-
-	// Verify that a regular user is able to fetch the config.
-	identity := authz.LocalUser{
-		Username: user.GetName(),
-	}
-	client, err := server.NewClient(authtest.TestIdentity{I: identity})
-	require.NoError(t, err)
-	actualConfig, err := client.GetVnetConfig(t.Context())
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(createdConfig, actualConfig, protocmp.Transform()))
-}
-
 func TestCreateAuditStreamLimit(t *testing.T) {
-	synctest.Test(t, synctestCreateAuditStreamLimit)
-}
-func synctestCreateAuditStreamLimit(t *testing.T) {
-	const inflightLimit = 5
+	const N = 5
+	t.Setenv("TELEPORT_UNSTABLE_CREATEAUDITSTREAM_INFLIGHT_LIMIT", fmt.Sprintf("%d", N))
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
-		Dir: t.TempDir(),
-	})
-	require.NoError(t, err)
-	defer as.Close()
-
-	server, err := as.NewTestTLSServer(
-		authtest.WithBufconnListener(),
-		func(c *authtest.TLSServerConfig) {
-			n := inflightLimit
-			c.APIConfig.CreateAuditStreamInflightLimit = &n
-		},
-	)
-	require.NoError(t, err)
-	defer server.Close()
-
+	server := newTestTLSServer(t)
 	clt, err := server.NewClient(authtest.TestServerID(types.RoleNode, uuid.NewString()))
 	require.NoError(t, err)
-	defer clt.Close()
 
 	// HACK(espadolini): we're piggybacking on the prometheus counter which
-	// can't change while this test is running (this is a synctest test that's not
+	// can't change while this test is running (we set an envvar, so we can't be
 	// running in parallel with other tests) but it's still pretty awful, and
 	// it'd be much better to actually check that the streams were accepted by
 	// the server; unfortunately, the CreateAuditStream stream doesn't actually
@@ -6070,1084 +5567,19 @@ func synctestCreateAuditStreamLimit(t *testing.T) {
 	}
 	currentAcceptedTotal := getAcceptedTotal()
 
-	for range inflightLimit {
+	for i := 0; i < N; i++ {
 		stream, err := clt.CreateAuditStream(ctx, session.NewID())
 		require.NoError(t, err)
-		defer stream.Close(ctx)
+		t.Cleanup(func() { stream.Close(ctx) })
 	}
 
-	synctest.Wait()
-	require.EqualValues(t, currentAcceptedTotal+inflightLimit, getAcceptedTotal())
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		assert.EqualValues(t, currentAcceptedTotal+N, getAcceptedTotal())
+	}, time.Second, 100*time.Millisecond)
 
 	ac := proto.NewAuthServiceClient(clt.APIClient.GetConnection())
 	stream, err := ac.CreateAuditStream(ctx)
 	require.NoError(t, err)
 	_, err = stream.Recv()
 	require.ErrorAs(t, err, new(*trace.ConnectionProblemError))
-}
-
-func TestRoleVersionV8ToV7Downgrade(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_ALLOW_OLD_CLIENTS", "yes")
-
-	srv := newTestTLSServer(t)
-
-	newRole := func(name string, version string, spec types.RoleSpecV6) types.Role {
-		role, err := types.NewRoleWithVersion(name, version, spec)
-		require.NoError(t, err)
-		return role
-	}
-
-	testRole1 := newRole("test_role_1", types.V8, types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			Rules: []types.Rule{
-				types.NewRule(types.KindRole, services.RW()),
-			},
-		},
-	})
-	downgradev7comptibleK8sResourcesRole := newRole("downgrade_v7_compatible_k8s_resources", types.V8, types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			KubernetesResources: []types.KubernetesResource{
-				{
-					// Full wildcard has the same behavior in v7 and v8, so we can keep it.
-					Kind:      types.Wildcard,
-					Name:      types.Wildcard,
-					Namespace: types.Wildcard,
-					Verbs:     []string{types.Wildcard},
-					APIGroup:  types.Wildcard,
-				},
-				{
-					Kind:      "pods",
-					Name:      types.Wildcard,
-					Namespace: types.Wildcard,
-					Verbs:     []string{types.Wildcard},
-					APIGroup:  types.Wildcard,
-				},
-				{
-					Kind:      "ingresses",
-					Name:      types.Wildcard,
-					Namespace: types.Wildcard,
-					Verbs:     []string{types.Wildcard},
-					APIGroup:  "networking.k8s.io",
-				},
-				{
-					Kind:      "deployments",
-					Name:      types.Wildcard,
-					Namespace: types.Wildcard,
-					Verbs:     []string{types.Wildcard},
-					APIGroup:  "apps",
-				},
-			},
-		},
-		Deny: types.RoleConditions{
-			KubernetesResources: []types.KubernetesResource{
-				{
-					Kind:      "pods",
-					Name:      types.Wildcard,
-					Namespace: types.Wildcard,
-					Verbs:     []string{types.Wildcard},
-					APIGroup:  types.Wildcard,
-				},
-				{
-					Kind:      "ingresses",
-					Name:      types.Wildcard,
-					Namespace: types.Wildcard,
-					Verbs:     []string{types.Wildcard},
-					APIGroup:  "networking.k8s.io",
-				},
-				{
-					Kind:      "deployments",
-					Name:      types.Wildcard,
-					Namespace: types.Wildcard,
-					Verbs:     []string{types.Wildcard},
-					APIGroup:  "apps",
-				},
-			},
-		},
-	})
-	downgradev7incompatibleK8sResourcesRole := newRole("downgrade_v7_incompatible_k8s_resources", types.V8, types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			KubernetesResources: []types.KubernetesResource{
-				{
-					Kind:      "crontabs",
-					Name:      types.Wildcard,
-					Namespace: types.Wildcard,
-					Verbs:     []string{types.Wildcard},
-					APIGroup:  types.Wildcard,
-				},
-				{
-					Kind:      "crontabs",
-					Name:      types.Wildcard,
-					Namespace: types.Wildcard,
-					Verbs:     []string{types.Wildcard},
-					APIGroup:  "stable.example.com",
-				},
-			},
-		},
-		Deny: types.RoleConditions{
-			KubernetesResources: []types.KubernetesResource{
-				{
-					Kind:      "crontabs",
-					Name:      types.Wildcard,
-					Namespace: types.Wildcard,
-					Verbs:     []string{types.Wildcard},
-					APIGroup:  types.Wildcard,
-				},
-			},
-		},
-	})
-	downgradev7incompatibleNamespace := newRole("downgrade_v7_incompatible_namespace", types.V8, types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			KubernetesResources: []types.KubernetesResource{
-				{
-					Kind:  "namespaces",
-					Name:  "foo",
-					Verbs: []string{types.Wildcard},
-				},
-			},
-		},
-	})
-	downgradev7incompatibleNamespacedWildcard := newRole("downgrade_v7_incompatible_namespaced_wildcard", types.V8, types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			KubernetesResources: []types.KubernetesResource{
-				{
-					// In v17, this would also grant access to cluster-wide resources, so we need to reject.
-					Kind:      types.Wildcard,
-					Name:      "foo",
-					Namespace: "bar",
-					Verbs:     []string{"get"},
-					APIGroup:  types.Wildcard,
-				},
-			},
-		},
-	})
-	downgradev7incompatibleClusterWideWildcard := newRole("downgrade_v7_incompatible_cluster_wide_wildcard", types.V8, types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			KubernetesResources: []types.KubernetesResource{
-				{
-					// In v17, this wasn't supported.
-					Kind:      types.Wildcard,
-					Name:      "bar",
-					Namespace: "", // Cluster wide.
-					Verbs:     []string{"get"},
-					APIGroup:  types.Wildcard,
-				},
-			},
-		},
-	})
-	downgradev7mixedK8sResourcesRole := newRole("downgrade_v7_mixed_k8s_resources2", types.V8, types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			KubernetesResources: []types.KubernetesResource{
-				{
-					Kind:      "pods",
-					Name:      types.Wildcard,
-					Namespace: types.Wildcard,
-					Verbs:     []string{types.Wildcard},
-					APIGroup:  types.Wildcard,
-				},
-				{
-					Kind:      "crontabs",
-					Name:      types.Wildcard,
-					Namespace: types.Wildcard,
-					Verbs:     []string{types.Wildcard},
-					APIGroup:  types.Wildcard,
-				},
-				{
-					Kind:      types.Wildcard,
-					Name:      types.Wildcard,
-					Namespace: types.Wildcard,
-					Verbs:     []string{types.Wildcard},
-					APIGroup:  types.Wildcard,
-				},
-			},
-		},
-		Deny: types.RoleConditions{
-			KubernetesResources: []types.KubernetesResource{
-				{
-					Kind:      "pods",
-					Name:      types.Wildcard,
-					Namespace: types.Wildcard,
-					Verbs:     []string{types.Wildcard},
-					APIGroup:  types.Wildcard,
-				},
-				{
-					Kind:      "crontabs",
-					Name:      types.Wildcard,
-					Namespace: types.Wildcard,
-					Verbs:     []string{types.Wildcard},
-					APIGroup:  "stable.example.com",
-				},
-				{
-					Kind:      "deployments",
-					Name:      types.Wildcard,
-					Namespace: types.Wildcard,
-					Verbs:     []string{types.Wildcard},
-					APIGroup:  types.Wildcard,
-				},
-			},
-		},
-	})
-	downgradev7ValidAccessRequest := newRole("downgrade_v7_valid_access_request", types.V8, types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			Request: &types.AccessRequestConditions{
-				SearchAsRoles: []string{"test_role_1"},
-				KubernetesResources: []types.RequestKubernetesResource{
-					{
-						Kind: "pods",
-					},
-					{
-						Kind:     "clusterroles",
-						APIGroup: "rbac.authorization.k8s.io",
-					},
-					{
-						Kind:     "deployments",
-						APIGroup: "*",
-					},
-				},
-			},
-		},
-		Deny: types.RoleConditions{
-			Request: &types.AccessRequestConditions{
-				SearchAsRoles: []string{"test_role_1"},
-				KubernetesResources: []types.RequestKubernetesResource{
-					{
-						Kind: "pods",
-					},
-					{
-						Kind:     "clusterroles",
-						APIGroup: "rbac.authorization.k8s.io",
-					},
-					{
-						Kind:     "deployments",
-						APIGroup: "*",
-					},
-				},
-			},
-		},
-	})
-
-	downgradeInvalidAccessRequestAllow := newRole("downgrade_v7_invalid_access_request_allow", types.V8, types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			Request: &types.AccessRequestConditions{
-				SearchAsRoles: []string{"test_role_1"},
-				KubernetesResources: []types.RequestKubernetesResource{
-					{
-						Kind:     "crontabs",
-						APIGroup: "stable.example.com",
-					},
-				},
-			},
-		},
-	})
-	downgradeInvalidAccessRequestDeny := newRole("downgrade_v7_invalid_access_request_deny", types.V8, types.RoleSpecV6{
-		Deny: types.RoleConditions{
-			Request: &types.AccessRequestConditions{
-				SearchAsRoles: []string{"test_role_1"},
-				KubernetesResources: []types.RequestKubernetesResource{
-					{
-						Kind:     "crontabs",
-						APIGroup: "stable.example.com",
-					},
-				},
-			},
-		},
-	})
-
-	user, err := authtest.CreateUser(context.Background(), srv.Auth(), "user",
-		testRole1,
-		downgradev7comptibleK8sResourcesRole,
-		downgradev7incompatibleK8sResourcesRole,
-		downgradev7incompatibleNamespace,
-		downgradev7incompatibleNamespacedWildcard,
-		downgradev7incompatibleClusterWideWildcard,
-		downgradev7mixedK8sResourcesRole,
-		downgradev7ValidAccessRequest,
-		downgradeInvalidAccessRequestAllow,
-		downgradeInvalidAccessRequestDeny,
-	)
-	require.NoError(t, err)
-
-	client, err := srv.NewClient(authtest.TestUser(user.GetName()))
-	require.NoError(t, err)
-
-	for _, tc := range []struct {
-		desc             string
-		clientVersions   []string
-		inputRole        types.Role
-		expectedRole     types.Role
-		expectDowngraded bool
-	}{
-		{
-			desc: "up to date",
-			clientVersions: []string{
-				"18.0.0-aa", api.Version, "",
-			},
-			inputRole:    testRole1,
-			expectedRole: testRole1,
-		},
-		{
-			desc: "downgrade v7 compatible k8s resources",
-			clientVersions: []string{
-				"17.2.7",
-			},
-			inputRole: downgradev7comptibleK8sResourcesRole,
-			expectedRole: newRole(downgradev7comptibleK8sResourcesRole.GetName(), types.V7, types.RoleSpecV6{
-				Allow: types.RoleConditions{
-					KubernetesResources: []types.KubernetesResource{
-						{
-							Kind:      types.Wildcard,
-							Name:      types.Wildcard,
-							Namespace: types.Wildcard,
-							Verbs:     []string{types.Wildcard},
-						},
-						{
-							Kind:      types.KindKubePod,
-							Name:      types.Wildcard,
-							Namespace: types.Wildcard,
-							Verbs:     []string{types.Wildcard},
-						},
-						{
-							Kind:      types.KindKubeIngress,
-							Name:      types.Wildcard,
-							Namespace: types.Wildcard,
-							Verbs:     []string{types.Wildcard},
-						},
-						{
-							Kind:      types.KindKubeDeployment,
-							Name:      types.Wildcard,
-							Namespace: types.Wildcard,
-							Verbs:     []string{types.Wildcard},
-						},
-					},
-				},
-				Deny: types.RoleConditions{
-					KubernetesResources: []types.KubernetesResource{
-						{
-							Kind:      types.KindKubePod,
-							Name:      types.Wildcard,
-							Namespace: types.Wildcard,
-							Verbs:     []string{types.Wildcard},
-						},
-						{
-							Kind:      types.KindKubeIngress,
-							Name:      types.Wildcard,
-							Namespace: types.Wildcard,
-							Verbs:     []string{types.Wildcard},
-						},
-						{
-							Kind:      types.KindKubeDeployment,
-							Name:      types.Wildcard,
-							Namespace: types.Wildcard,
-							Verbs:     []string{types.Wildcard},
-						},
-					},
-				},
-				Options: types.RoleOptions{
-					IDP: &types.IdPOptions{
-						SAML: &types.IdPSAMLOptions{
-							Enabled: types.NewBoolOption(false),
-						},
-					},
-				},
-			}),
-			expectDowngraded: true,
-		},
-		{
-			desc: "downgrade v7 incompatible k8s resources",
-			clientVersions: []string{
-				"17.2.7",
-			},
-			inputRole: downgradev7incompatibleK8sResourcesRole,
-			expectedRole: newRole(downgradev7incompatibleK8sResourcesRole.GetName(), types.V7, types.RoleSpecV6{
-				Allow: types.RoleConditions{
-					KubernetesResources: nil,
-				},
-				Deny: types.RoleConditions{
-					KubernetesLabels: types.Labels{
-						types.Wildcard: {types.Wildcard},
-					},
-					KubernetesResources: []types.KubernetesResource{
-						{
-							Kind:      types.Wildcard,
-							Name:      types.Wildcard,
-							Namespace: types.Wildcard,
-							Verbs:     []string{types.Wildcard},
-						},
-					},
-				},
-				Options: types.RoleOptions{
-					IDP: &types.IdPOptions{
-						SAML: &types.IdPSAMLOptions{
-							Enabled: types.NewBoolOption(false),
-						},
-					},
-				},
-			}),
-			expectDowngraded: true,
-		},
-		{
-			desc: "downgrade v7 incompatible k8s namespaces kind",
-			clientVersions: []string{
-				"17.2.7",
-			},
-			inputRole: downgradev7incompatibleNamespace,
-			expectedRole: newRole(downgradev7incompatibleNamespace.GetName(), types.V7, types.RoleSpecV6{
-				Allow: types.RoleConditions{
-					KubernetesResources: nil,
-				},
-				Deny: types.RoleConditions{
-					KubernetesLabels: types.Labels{
-						types.Wildcard: {types.Wildcard},
-					},
-					KubernetesResources: []types.KubernetesResource{
-						{
-							Kind:      types.Wildcard,
-							Name:      types.Wildcard,
-							Namespace: types.Wildcard,
-							Verbs:     []string{types.Wildcard},
-						},
-					},
-				},
-				Options: types.RoleOptions{
-					IDP: &types.IdPOptions{
-						SAML: &types.IdPSAMLOptions{
-							Enabled: types.NewBoolOption(false),
-						},
-					},
-				},
-			}),
-			expectDowngraded: true,
-		},
-		{
-			desc: "downgrade v7 incompatible k8s namespaced wildcard kind",
-			clientVersions: []string{
-				"17.2.7",
-			},
-			inputRole: downgradev7incompatibleNamespacedWildcard,
-			expectedRole: newRole(downgradev7incompatibleNamespacedWildcard.GetName(), types.V7, types.RoleSpecV6{
-				Allow: types.RoleConditions{
-					KubernetesResources: nil,
-				},
-				Deny: types.RoleConditions{
-					KubernetesLabels: types.Labels{
-						types.Wildcard: {types.Wildcard},
-					},
-					KubernetesResources: []types.KubernetesResource{
-						{
-							Kind:      types.Wildcard,
-							Name:      types.Wildcard,
-							Namespace: types.Wildcard,
-							Verbs:     []string{types.Wildcard},
-						},
-					},
-				},
-				Options: types.RoleOptions{
-					IDP: &types.IdPOptions{
-						SAML: &types.IdPSAMLOptions{
-							Enabled: types.NewBoolOption(false),
-						},
-					},
-				},
-			}),
-			expectDowngraded: true,
-		},
-		{
-			desc: "downgrade v7 incompatible k8s cluster wide wildcard kind",
-			clientVersions: []string{
-				"17.2.7",
-			},
-			inputRole: downgradev7incompatibleClusterWideWildcard,
-			expectedRole: newRole(downgradev7incompatibleClusterWideWildcard.GetName(), types.V7, types.RoleSpecV6{
-				Allow: types.RoleConditions{
-					KubernetesResources: nil,
-				},
-				Deny: types.RoleConditions{
-					KubernetesLabels: types.Labels{
-						types.Wildcard: {types.Wildcard},
-					},
-					KubernetesResources: []types.KubernetesResource{
-						{
-							Kind:      types.Wildcard,
-							Name:      types.Wildcard,
-							Namespace: types.Wildcard,
-							Verbs:     []string{types.Wildcard},
-						},
-					},
-				},
-				Options: types.RoleOptions{
-					IDP: &types.IdPOptions{
-						SAML: &types.IdPSAMLOptions{
-							Enabled: types.NewBoolOption(false),
-						},
-					},
-				},
-			}),
-			expectDowngraded: true,
-		},
-		{
-			desc: "downgrade v7 mixed k8s resources",
-			clientVersions: []string{
-				"17.2.7",
-			},
-			inputRole: downgradev7mixedK8sResourcesRole,
-			expectedRole: newRole(downgradev7mixedK8sResourcesRole.GetName(), types.V7, types.RoleSpecV6{
-				Allow: types.RoleConditions{
-					KubernetesResources: nil,
-				},
-				Deny: types.RoleConditions{
-					KubernetesLabels: types.Labels{
-						types.Wildcard: {types.Wildcard},
-					},
-					KubernetesResources: []types.KubernetesResource{
-						{
-							Kind:      types.Wildcard,
-							Name:      types.Wildcard,
-							Namespace: types.Wildcard,
-							Verbs:     []string{types.Wildcard},
-						},
-					},
-				},
-				Options: types.RoleOptions{
-					IDP: &types.IdPOptions{
-						SAML: &types.IdPSAMLOptions{
-							Enabled: types.NewBoolOption(false),
-						},
-					},
-				},
-			}),
-			expectDowngraded: true,
-		},
-		{
-			desc: "downgrade role version to v7",
-			clientVersions: []string{
-				"17.2.7",
-			},
-			inputRole: testRole1,
-			expectedRole: newRole(testRole1.GetName(), types.V7, types.RoleSpecV6{
-				Allow: types.RoleConditions{
-					Rules: []types.Rule{
-						types.NewRule(types.KindRole, services.RW()),
-					},
-				},
-				Options: types.RoleOptions{
-					IDP: &types.IdPOptions{
-						SAML: &types.IdPSAMLOptions{
-							Enabled: types.NewBoolOption(false),
-						},
-					},
-				},
-			}),
-			expectDowngraded: true,
-		},
-		{
-			desc: "downgrade valid access request role version to v7",
-			clientVersions: []string{
-				"17.2.7",
-			},
-			inputRole: downgradev7ValidAccessRequest,
-			expectedRole: newRole(downgradev7ValidAccessRequest.GetName(), types.V7, types.RoleSpecV6{
-				Allow: types.RoleConditions{
-					Request: &types.AccessRequestConditions{
-						SearchAsRoles: []string{"test_role_1"},
-						KubernetesResources: []types.RequestKubernetesResource{
-							{
-								Kind: types.KindKubePod,
-							},
-							{
-								Kind: types.KindKubeClusterRole,
-							},
-							{
-								Kind: types.KindKubeDeployment,
-							},
-						},
-					},
-				},
-				Deny: types.RoleConditions{
-					Request: &types.AccessRequestConditions{
-						SearchAsRoles: []string{"test_role_1"},
-						KubernetesResources: []types.RequestKubernetesResource{
-							{
-								Kind: types.KindKubePod,
-							},
-							{
-								Kind: types.KindKubeClusterRole,
-							},
-							{
-								Kind: types.KindKubeDeployment,
-							},
-						},
-					},
-				},
-
-				Options: types.RoleOptions{
-					IDP: &types.IdPOptions{
-						SAML: &types.IdPSAMLOptions{
-							Enabled: types.NewBoolOption(false),
-						},
-					},
-				},
-			}),
-			expectDowngraded: true,
-		},
-		{
-			desc: "downgrade invalid access request allow role version to v7",
-			clientVersions: []string{
-				"17.2.7",
-			},
-			inputRole: downgradeInvalidAccessRequestAllow,
-			expectedRole: newRole(downgradeInvalidAccessRequestAllow.GetName(), types.V7, types.RoleSpecV6{
-				Allow: types.RoleConditions{
-					Request: &types.AccessRequestConditions{
-						SearchAsRoles:       []string{"test_role_1"},
-						KubernetesResources: nil,
-					},
-				},
-				Deny: types.RoleConditions{
-					KubernetesLabels: types.Labels{
-						types.Wildcard: {types.Wildcard},
-					},
-					KubernetesResources: []types.KubernetesResource{
-						{
-							Kind:      types.Wildcard,
-							Name:      types.Wildcard,
-							Namespace: types.Wildcard,
-							Verbs:     []string{types.Wildcard},
-						},
-					},
-					Request: &types.AccessRequestConditions{
-						KubernetesResources: []types.RequestKubernetesResource{
-							{
-								Kind: types.Wildcard,
-							},
-						},
-					},
-				},
-
-				Options: types.RoleOptions{
-					IDP: &types.IdPOptions{
-						SAML: &types.IdPSAMLOptions{
-							Enabled: types.NewBoolOption(false),
-						},
-					},
-				},
-			}),
-			expectDowngraded: true,
-		},
-		{
-			desc: "downgrade invalid access request deny role version to v7",
-			clientVersions: []string{
-				"17.2.7",
-			},
-			inputRole: downgradeInvalidAccessRequestDeny,
-			expectedRole: newRole(downgradeInvalidAccessRequestDeny.GetName(), types.V7, types.RoleSpecV6{
-				Deny: types.RoleConditions{
-					KubernetesLabels: types.Labels{
-						types.Wildcard: {types.Wildcard},
-					},
-					KubernetesResources: []types.KubernetesResource{
-						{
-							Kind:      types.Wildcard,
-							Name:      types.Wildcard,
-							Namespace: types.Wildcard,
-							Verbs:     []string{types.Wildcard},
-						},
-					},
-					Request: &types.AccessRequestConditions{
-						SearchAsRoles: []string{"test_role_1"},
-						KubernetesResources: []types.RequestKubernetesResource{
-							{
-								Kind: types.Wildcard,
-							},
-						},
-					},
-				},
-
-				Options: types.RoleOptions{
-					IDP: &types.IdPOptions{
-						SAML: &types.IdPSAMLOptions{
-							Enabled: types.NewBoolOption(false),
-						},
-					},
-				},
-			}),
-			expectDowngraded: true,
-		},
-	} {
-		t.Run(tc.desc, func(t *testing.T) {
-			for _, clientVersion := range tc.clientVersions {
-				t.Run(clientVersion, func(t *testing.T) {
-					// Setup client metadata.
-					ctx := context.Background()
-					if clientVersion == "" {
-						ctx = context.WithValue(ctx, metadata.DisableInterceptors{}, struct{}{})
-					} else {
-						ctx = metadata.AddMetadataToContext(ctx, map[string]string{
-							metadata.VersionKey: clientVersion,
-						})
-					}
-
-					checkRole := func(gotRole types.Role) {
-						t.Helper()
-
-						require.Empty(t, cmp.Diff(tc.expectedRole, gotRole,
-							cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Labels")))
-						// The downgraded label value won't match exactly because it
-						// includes the client version, so just check it's not empty
-						// and ignore it in the role diff.
-						if tc.expectDowngraded {
-							require.NotEmpty(t, gotRole.GetMetadata().Labels[types.TeleportDowngradedLabel])
-							require.Contains(t, gotRole.GetMetadata().Labels[types.TeleportDowngradedLabel], "Role V8 is only supported")
-							require.Contains(t, gotRole.GetMetadata().Labels[types.TeleportDowngradedLabel], "SAML IdP will be disabled")
-						} else {
-							require.Empty(t, gotRole.GetMetadata().Labels[types.TeleportDowngradedLabel])
-						}
-					}
-
-					// Test GetRole
-					gotRole, err := client.GetRole(ctx, tc.inputRole.GetName())
-					require.NoError(t, err)
-					checkRole(gotRole)
-
-					// Test GetRoles.
-					gotRoles, err := client.GetRoles(ctx)
-					require.NoError(t, err)
-					foundTestRole := false
-					for _, gotRole := range gotRoles {
-						if gotRole.GetName() != tc.inputRole.GetName() {
-							continue
-						}
-						checkRole(gotRole)
-						foundTestRole = true
-						break
-					}
-					require.True(t, foundTestRole, "GetRoles result does not include expected role")
-
-					ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-					defer cancel()
-
-					// Test WatchEvents.
-					watcher, err := client.NewWatcher(ctx, types.Watch{Name: "roles", Kinds: []types.WatchKind{{Kind: types.KindRole}}})
-					require.NoError(t, err)
-					defer watcher.Close()
-
-					// Swallow the init event.
-					e := <-watcher.Events()
-					require.Equal(t, types.OpInit, e.Type)
-
-					// Re-upsert the role so that the watcher sees it, do this
-					// on the auth server directly to avoid the
-					// TeleportDowngradedLabel check in ServerWithRoles.
-					tc.inputRole, err = srv.Auth().UpsertRole(ctx, tc.inputRole)
-					require.NoError(t, err)
-					gotRole, err = func() (types.Role, error) {
-						for {
-							select {
-							case <-watcher.Done():
-								return nil, watcher.Error()
-							case e := <-watcher.Events():
-								if gotRole, ok := e.Resource.(types.Role); ok && gotRole.GetName() == tc.inputRole.GetName() {
-									return gotRole, nil
-								}
-							}
-						}
-					}()
-					require.NoError(t, err)
-					checkRole(gotRole)
-
-					// Try to re-upsert the role we got. If it was
-					// downgraded, it should be rejected due to the
-					// TeleportDowngradedLabel.
-					if _, err := client.UpsertRole(ctx, gotRole); tc.expectDowngraded {
-						require.Error(t, err)
-					} else {
-						require.NoError(t, err)
-					}
-				})
-			}
-		})
-	}
-}
-
-func TestGRPCServingStatus(t *testing.T) {
-	t.Parallel()
-	ctx := t.Context()
-	srv := newTestTLSServer(t)
-	defer srv.Close()
-
-	authClient, err := srv.NewClient(authtest.TestServerID(types.RoleNode, uuid.NewString()))
-	require.NoError(t, err)
-	defer authClient.Close()
-
-	srv.TLSServer.SetServingStatus("", grpc_health_v1.HealthCheckResponse_SERVING)
-	healthClient := grpc_health_v1.NewHealthClient(authClient.GetConnection())
-	resp, err := healthClient.Check(ctx, &grpc_health_v1.HealthCheckRequest{
-		Service: "",
-	})
-	require.NoError(t, err)
-	require.Equal(t, grpc_health_v1.HealthCheckResponse_SERVING, resp.Status)
-
-	srv.TLSServer.SetServingStatus("", grpc_health_v1.HealthCheckResponse_NOT_SERVING)
-	resp, err = healthClient.Check(ctx, &grpc_health_v1.HealthCheckRequest{
-		Service: "",
-	})
-	require.NoError(t, err)
-	require.Equal(t, grpc_health_v1.HealthCheckResponse_NOT_SERVING, resp.Status)
-}
-
-func TestGenerateUserCerts_accessGraphUsage(t *testing.T) {
-	t.Parallel()
-	ctx := t.Context()
-	testServer := newTestTLSServer(t, withModules(&modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise, // required for Device Trust.
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Policy: {Enabled: true},
-			},
-		},
-	}))
-
-	// Create an user without access Graph access
-	userWithoutAccessGraph, _, err := authtest.CreateUserAndRole(testServer.Auth(), "non_ag_user", []string{"non_ag_user"}, nil)
-	require.NoError(t, err, "CreateUserAndRole failed")
-
-	// Create an user with access Graph access
-	userWithAccessGraph, _, err := authtest.CreateUserAndRole(testServer.Auth(), "ag_user", []string{"non_ag_user"}, []types.Rule{types.NewRule(types.KindAccessGraph, []string{types.Wildcard})})
-	require.NoError(t, err, "CreateUserAndRole failed")
-
-	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
-	require.NoError(t, err, "GenerateKeyWithAlgorithm failed")
-	publicKeyPEM, err := keys.MarshalPublicKey(key.Public())
-	require.NoError(t, err, "MarshalPublicKey failed")
-
-	tests := []struct {
-		name       string
-		username   string
-		nodeName   string
-		assertErr  require.ErrorAssertionFunc
-		assertCert func(t *testing.T, cert *x509.Certificate)
-		usage      proto.UserCertsRequest_CertUsage
-		purpose    proto.UserCertsRequest_CertPurpose
-	}{
-		{
-			name:     "no without access graph access ",
-			username: userWithoutAccessGraph.GetName(),
-			assertErr: func(t require.TestingT, err error, _ ...any) {
-				require.True(t, trace.IsAccessDenied(err), "error is not trace access denied error")
-			},
-		},
-		{
-			name:      "user with access graph access",
-			username:  userWithAccessGraph.GetName(),
-			assertErr: require.NoError,
-			assertCert: func(t *testing.T, cert *x509.Certificate) {
-				gotIdentity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
-				require.NoError(t, err, "FromSubject failed")
-
-				require.Contains(t, gotIdentity.Usage, teleport.UsageAccessGraphAPIOnly, "access graph usage not included")
-
-				require.NotEmpty(t, gotIdentity.WebSessionID, "session ID is empty")
-
-				data, err := testServer.Auth().GetWebSession(ctx, types.GetWebSessionRequest{
-					User:      gotIdentity.Username,
-					SessionID: gotIdentity.WebSessionID,
-				})
-				require.NoError(t, err)
-				require.NotNil(t, data, "session data is nil")
-				require.NotEmpty(t, data.GetTLSCert(), "session data TLS cert is empty")
-				require.NotEmpty(t, data.GetTLSPriv(), "session data TLS priv is empty")
-			},
-		},
-		{
-			name:      "user with access single use cert",
-			username:  userWithAccessGraph.GetName(),
-			assertErr: require.NoError,
-			purpose:   proto.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS,
-			assertCert: func(t *testing.T, cert *x509.Certificate) {
-				gotIdentity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
-				require.NoError(t, err, "FromSubject failed")
-
-				require.Contains(t, gotIdentity.Usage, teleport.UsageAccessGraphAPIOnly, "access graph usage not included")
-
-				require.NotEmpty(t, gotIdentity.WebSessionID, "session ID is empty")
-				data, err := testServer.Auth().GetWebSession(ctx, types.GetWebSessionRequest{
-					User:      gotIdentity.Username,
-					SessionID: gotIdentity.WebSessionID,
-				})
-				require.NoError(t, err)
-				require.NotNil(t, data, "session data is nil")
-				require.NotEmpty(t, data.GetTLSCert(), "session data TLS cert is empty")
-				require.NotEmpty(t, data.GetTLSPriv(), "session data TLS priv is empty")
-			},
-		},
-		{
-			name:      "user with access single use cert with node fails",
-			username:  userWithAccessGraph.GetName(),
-			assertErr: require.Error,
-			nodeName:  "abc",
-			purpose:   proto.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS,
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			u := authtest.TestUser(test.username)
-
-			userClient, err := testServer.NewClient(u)
-			require.NoError(t, err, "NewClient failed")
-
-			resp, err := userClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
-				TLSPublicKey: publicKeyPEM,
-				Username:     test.username,
-				Expires:      testServer.Clock().Now().Add(1 * time.Hour),
-				Usage:        proto.UserCertsRequest_AccessGraphAPI,
-				Purpose:      test.purpose,
-				NodeName:     test.nodeName,
-			})
-			test.assertErr(t, err)
-			if resp == nil {
-				return
-			}
-
-			block, _ := pem.Decode(resp.TLS)
-			require.NotNil(t, block, "Decode failed")
-			gotCert, err := x509.ParseCertificate(block.Bytes)
-			require.NoError(t, err, "ParserCertificate failed")
-
-			if test.assertCert != nil {
-				test.assertCert(t, gotCert)
-			}
-		})
-	}
-}
-
-func TestGenerateUserCertsScopedBot(t *testing.T) {
-	t.Parallel()
-	testServer := newTestTLSServer(t, withScopesFeatures(scopes.Features{Enabled: true}), withModules(&modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise, // required for Device Trust.
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Policy: {Enabled: true},
-			},
-		},
-	}))
-	adminClient, err := testServer.NewClient(authtest.TestAdmin())
-	require.NoError(t, err)
-
-	cases := []struct {
-		name     string
-		botName  string
-		scope    string
-		internal bool
-		expect   func(t *testing.T, err error)
-	}{
-		{
-			name:     "internal scoped",
-			botName:  "scoped_internal",
-			internal: true,
-			scope:    "/test",
-			expect: func(t *testing.T, err error) {
-				require.Error(t, err)
-				require.True(t, trace.IsAccessDenied(err))
-				require.Contains(t, err.Error(), "scoped bots can not generate user certs")
-
-			},
-		},
-		{
-			name:    "scoped bot",
-			botName: "scoped_bot",
-			scope:   "/test",
-			expect: func(t *testing.T, err error) {
-				require.Error(t, err)
-				require.True(t, trace.IsAccessDenied(err))
-				require.Contains(t, err.Error(), "scoped bots can not generate user certs")
-			},
-		},
-		{
-			name:     "internal unscoped",
-			botName:  "internal",
-			internal: true,
-		},
-		{
-			name:    "unscoped",
-			botName: "unscoped",
-		},
-	}
-
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			ctx := t.Context()
-			bot, err := adminClient.BotServiceClient().CreateBot(ctx, &machineidv1.CreateBotRequest{
-				Bot: &machineidv1.Bot{
-					Kind:    types.KindBot,
-					Version: types.V1,
-					Metadata: &headerv1.Metadata{
-						Name: c.botName,
-					},
-					Scope: c.scope,
-					Spec:  &machineidv1.BotSpec{},
-				},
-			})
-			require.NoError(t, err)
-
-			ident := authtest.TestBot(c.botName, c.internal)
-			if c.scope != "" {
-				scopedSvc := adminClient.ScopedAccessServiceClient()
-				roleResp, err := scopedSvc.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
-					Role: &scopedaccessv1.ScopedRole{
-						Kind:    scopedaccess.KindScopedRole,
-						Version: types.V1,
-						Metadata: &headerv1.Metadata{
-							Name: c.botName + "-role",
-						},
-						Scope: c.scope,
-						Spec: &scopedaccessv1.ScopedRoleSpec{
-							AssignableScopes: []string{c.scope},
-						},
-					},
-				})
-				require.NoError(t, err)
-
-				sra, err := testServer.Auth().ScopedAccess().CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
-					Assignment: &scopedaccessv1.ScopedRoleAssignment{
-						Kind:    scopedaccess.KindScopedRoleAssignment,
-						SubKind: scopedaccess.SubKindDynamic,
-						Version: types.V1,
-						Metadata: &headerv1.Metadata{
-							Name: uuid.NewString(),
-						},
-						Scope: c.scope,
-						Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
-							BotName:  bot.GetMetadata().GetName(),
-							BotScope: c.scope,
-							Assignments: []*scopedaccessv1.Assignment{
-								{Role: roleResp.GetRole().GetMetadata().GetName(), Scope: c.scope},
-							},
-						},
-					},
-				})
-				require.NoError(t, err)
-
-				waitForSRACache(t, testServer, sra)
-				ident = authtest.TestScopedBot(c.botName, c.scope, c.internal)
-			}
-
-			client, err := testServer.NewClient(ident)
-			require.NoError(t, err)
-			t.Cleanup(func() { _ = client.Close() })
-
-			_, sshPub, _, _ := newSSHAndTLSKeyPairs(t)
-			_, err = client.GenerateUserCerts(ctx, proto.UserCertsRequest{
-				SSHPublicKey:   sshPub,
-				Username:       ident.GetUsername(),
-				Expires:        time.Now().Add(time.Hour),
-				RouteToCluster: testServer.ClusterName(),
-				NodeName:       "mynode",
-				Usage:          proto.UserCertsRequest_SSH,
-				SSHLogin:       "llama",
-			})
-			if c.expect != nil {
-				c.expect(t, err)
-			} else {
-				require.NoError(t, err)
-			}
-		})
-	}
 }

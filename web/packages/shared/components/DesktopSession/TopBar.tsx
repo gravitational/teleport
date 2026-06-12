@@ -17,14 +17,12 @@
  */
 
 import { useTheme } from 'styled-components';
-import styled from 'styled-components';
 
 import { Flex, Text, TopNav } from 'design';
 import { Clipboard, FolderShared } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
-import { SessionSettings } from 'shared/components/DesktopSession/SessionSettings';
 import { LatencyDiagnostic } from 'shared/components/LatencyDiagnostic';
-import type { ToastNotificationItem } from 'shared/components/ToastNotification';
+import type { NotificationItem } from 'shared/components/Notification';
 
 import ActionMenu from './ActionMenu';
 import { AlertDropdown } from './AlertDropdown';
@@ -43,10 +41,6 @@ export default function TopBar(props: Props) {
     onRemoveAlert,
     isConnected,
     latency,
-    hiDpiEnabled,
-    onToggleHiDpi,
-    screenIsHiDpi,
-    hiDpiSupported,
   } = props;
   const theme = useTheme();
 
@@ -81,16 +75,7 @@ export default function TopBar(props: Props) {
           <HoverTooltip tipContent={clipboardSharingMessage} placement="bottom">
             <Clipboard style={primaryOnTrue(isSharingClipboard)} />
           </HoverTooltip>
-          {!!alerts?.length && (
-            <AlertDropdown alerts={alerts} onRemoveAlert={onRemoveAlert} />
-          )}
-          <Divider />
-          <SessionSettings
-            hiDpiEnabled={hiDpiEnabled}
-            onToggleHiDpi={onToggleHiDpi}
-            screenIsHiDpi={screenIsHiDpi}
-            hiDpiSupported={hiDpiSupported}
-          />
+          <AlertDropdown alerts={alerts} onRemoveAlert={onRemoveAlert} />
           <ActionMenu
             onDisconnect={onDisconnect}
             showShareDirectory={canShareDirectory && !isSharingDirectory}
@@ -125,22 +110,11 @@ type Props = {
   onDisconnect: VoidFunction;
   onShareDirectory: VoidFunction;
   onCtrlAltDel: VoidFunction;
-  alerts: ToastNotificationItem[];
+  alerts: NotificationItem[];
   isConnected: boolean;
-  hiDpiEnabled: boolean;
-  onToggleHiDpi: VoidFunction;
-  screenIsHiDpi: boolean;
-  hiDpiSupported: boolean;
   onRemoveAlert(id: string): void;
   latency: {
     client: number;
     server: number;
   };
 };
-
-const Divider = styled.div`
-  width: 1px;
-  height: 24px;
-  background-color: ${p => p.theme.colors.interactive.tonal.neutral[2]};
-  margin-right: -${p => p.theme.space[1]}px; // avoid large visual gap between divider and next icon
-`;

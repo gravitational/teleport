@@ -115,7 +115,7 @@ func TestSingleCertRouting(t *testing.T) {
 				KubeUsers:  roleKubeUsers,
 				KubeGroups: roleKubeGroups,
 				SetupRoleFunc: func(r types.Role) {
-					r.SetKubeResources(types.Deny, []types.KubernetesResource{{Kind: "pods", Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}, APIGroup: types.Wildcard}})
+					r.SetKubeResources(types.Deny, []types.KubernetesResource{{Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}}})
 				},
 			},
 			assert: func(t *testing.T, restConfig *rest.Config) {
@@ -143,7 +143,7 @@ func TestSingleCertRouting(t *testing.T) {
 				KubeUsers:  roleKubeUsers,
 				KubeGroups: roleKubeGroups,
 				SetupRoleFunc: func(r types.Role) {
-					r.SetKubeResources(types.Allow, []types.KubernetesResource{{Kind: "pods", Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}, APIGroup: types.Wildcard}})
+					r.SetKubeResources(types.Allow, []types.KubernetesResource{{Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}}})
 					r.SetOptions(types.RoleOptions{
 						RequireMFAType: types.RequireMFAType_SESSION,
 					})
@@ -155,7 +155,7 @@ func TestSingleCertRouting(t *testing.T) {
 			assert: func(t *testing.T, restConfig *rest.Config) {
 				client := pathRoutedKubeClient(t, restConfig, clusterName, "a")
 				_, err = client.CoreV1().Pods(metav1.NamespaceDefault).Get(context.Background(), "foo", metav1.GetOptions{})
-				require.ErrorContains(t, err, "[00] access denied")
+				require.ErrorContains(t, err, "kubernetes cluster \"a\" not found")
 			},
 		},
 		{
@@ -165,7 +165,7 @@ func TestSingleCertRouting(t *testing.T) {
 				KubeUsers:  roleKubeUsers,
 				KubeGroups: roleKubeGroups,
 				SetupRoleFunc: func(r types.Role) {
-					r.SetKubeResources(types.Allow, []types.KubernetesResource{{Kind: "pods", Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}, APIGroup: types.Wildcard}})
+					r.SetKubeResources(types.Allow, []types.KubernetesResource{{Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard, Verbs: []string{types.Wildcard}}})
 					r.SetOptions(types.RoleOptions{
 						RequireMFAType: types.RequireMFAType_SESSION,
 					})

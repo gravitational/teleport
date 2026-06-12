@@ -19,13 +19,11 @@ package workloadidentityv1_test
 import (
 	"context"
 	"crypto"
-	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/base64"
 	"encoding/json"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"math/big"
@@ -35,16 +33,13 @@ import (
 	"slices"
 	"strings"
 	"testing"
-	"testing/synctest"
 	"time"
 
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -62,29 +57,20 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/api/utils/tlsutils"
-	apiworkloadidentity "github.com/gravitational/teleport/api/workloadidentity"
+	"github.com/gravitational/teleport/integrations/lib/testing/fakejoin"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
-	"github.com/gravitational/teleport/lib/auth/keystore"
+	"github.com/gravitational/teleport/lib/auth/join"
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
 	"github.com/gravitational/teleport/lib/auth/state"
-	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
-	"github.com/gravitational/teleport/lib/join/joinclient"
 	libjwt "github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/oidc/fakeissuer"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
-	"github.com/gravitational/teleport/lib/utils/testutils/grpctest"
 )
 
 func TestMain(m *testing.M) {
@@ -121,21 +107,18 @@ func newTestTLSServer(t testing.TB, opts ...authtest.TestTLSServerOption) (*auth
 type issuanceTestPack struct {
 	srv                     *authtest.TLSServer
 	eventRecorder           *eventstest.MockRecorderEmitter
-	clock                   *clockwork.FakeClock
+	clock                   clockwork.Clock
 	sigstorePolicyEvaluator *mockSigstorePolicyEvaluator
 
-	issuer              string
-	spiffeX509CAPool    *x509.CertPool
-	spiffeJWTSigner     crypto.Signer
-	spiffeJWTSignerKID  string
-	appClientX509CAPool *x509.CertPool
+	issuer             string
+	spiffeX509CAPool   *x509.CertPool
+	spiffeJWTSigner    crypto.Signer
+	spiffeJWTSignerKID string
 }
 
 func newIssuanceTestPack(t *testing.T, ctx context.Context) *issuanceTestPack {
 	srv, eventRecorder := newTestTLSServer(t)
 	clock := srv.Auth().GetClock()
-	fakeClock, ok := clock.(*clockwork.FakeClock)
-	require.True(t, ok, "expected to be a clockwork.FakeClock but got %T", clock)
 
 	// Upsert a fake proxy to ensure we have a public address to use for the
 	// issuer.
@@ -143,7 +126,7 @@ func newIssuanceTestPack(t *testing.T, ctx context.Context) *issuanceTestPack {
 		PublicAddrs: []string{"teleport.example.com"},
 	})
 	require.NoError(t, err)
-	_, err = srv.Auth().UpsertProxyServer(ctx, proxy)
+	err = srv.Auth().UpsertProxy(ctx, proxy)
 	require.NoError(t, err)
 	wantIssuer := "https://teleport.example.com/workload-identity"
 
@@ -165,14 +148,6 @@ func newIssuanceTestPack(t *testing.T, ctx context.Context) *issuanceTestPack {
 	require.NoError(t, err)
 	kid, err := libjwt.KeyID(jwtSigner.Public())
 	require.NoError(t, err)
-	// Fetch X509 AppClient CA for validation of signature later
-	appClientX509CA, err := srv.Auth().GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.AppClientCA,
-		DomainName: srv.ClusterName(),
-	}, false)
-	require.NoError(t, err)
-	appClientX509CAPool, err := services.CertPool(appClientX509CA)
-	require.NoError(t, err)
 
 	sigstorePolicyEvaluator := newMockSigstorePolicyEvaluator(t)
 	srv.Auth().SetSigstorePolicyEvaluator(sigstorePolicyEvaluator)
@@ -180,13 +155,12 @@ func newIssuanceTestPack(t *testing.T, ctx context.Context) *issuanceTestPack {
 	return &issuanceTestPack{
 		srv:                     srv,
 		eventRecorder:           eventRecorder,
-		clock:                   fakeClock,
+		clock:                   clock,
 		sigstorePolicyEvaluator: sigstorePolicyEvaluator,
 		issuer:                  wantIssuer,
 		spiffeX509CAPool:        spiffeX509CAPool,
 		spiffeJWTSigner:         jwtSigner,
 		spiffeJWTSignerKID:      kid,
-		appClientX509CAPool:     appClientX509CAPool,
 	}
 }
 
@@ -282,7 +256,7 @@ func TestIssueWorkloadIdentityE2E(t *testing.T) {
 		},
 	}
 
-	k8s, err := fakeissuer.NewKubernetesSigner(tp.clock)
+	k8s, err := fakejoin.NewKubernetesSigner(tp.clock)
 	require.NoError(t, err)
 	jwks, err := k8s.GetMarshaledJWKS()
 	require.NoError(t, err)
@@ -328,7 +302,7 @@ func TestIssueWorkloadIdentityE2E(t *testing.T) {
 	require.NoError(t, err)
 
 	// With the basic setup complete, we can now "fake" a join.
-	botCerts, err := joinclient.Join(ctx, joinclient.JoinParams{
+	botCerts, err := join.Register(ctx, join.RegisterParams{
 		Token:      token.GetName(),
 		JoinMethod: types.JoinMethodKubernetes,
 		ID: state.IdentityID{
@@ -736,10 +710,8 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 							Code: libevents.SPIFFESVIDIssuedSuccessCode,
 						},
 						UserMetadata: events.UserMetadata{
-							User:            wildcardAccess.GetName(),
-							UserKind:        events.UserKind_USER_KIND_HUMAN,
-							UserRoles:       wildcardAccess.GetRoles(),
-							UserClusterName: tp.srv.ClusterName(),
+							User:     wildcardAccess.GetName(),
+							UserKind: events.UserKind_USER_KIND_HUMAN,
 						},
 						SPIFFEID:                 "spiffe://localhost/example/dog/default/bar",
 						SVIDType:                 "jwt",
@@ -908,10 +880,8 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 							Code: libevents.SPIFFESVIDIssuedSuccessCode,
 						},
 						UserMetadata: events.UserMetadata{
-							User:            wildcardAccess.GetName(),
-							UserKind:        events.UserKind_USER_KIND_HUMAN,
-							UserRoles:       wildcardAccess.GetRoles(),
-							UserClusterName: tp.srv.ClusterName(),
+							User:     wildcardAccess.GetName(),
+							UserKind: events.UserKind_USER_KIND_HUMAN,
 						},
 						SPIFFEID:                 "spiffe://localhost/example/dog/default/bar",
 						SVIDType:                 "x509",
@@ -1030,10 +1000,8 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 							Code: libevents.SPIFFESVIDIssuedSuccessCode,
 						},
 						UserMetadata: events.UserMetadata{
-							User:            wildcardAccess.GetName(),
-							UserKind:        events.UserKind_USER_KIND_HUMAN,
-							UserRoles:       wildcardAccess.GetRoles(),
-							UserClusterName: tp.srv.ClusterName(),
+							User:     wildcardAccess.GetName(),
+							UserKind: events.UserKind_USER_KIND_HUMAN,
 						},
 						SPIFFEID:                 "spiffe://localhost/foo",
 						SVIDType:                 "x509",
@@ -1307,7 +1275,7 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 					attrs.Kubernetes.Namespace = "not-default"
 				}),
 			},
-			requireErr: func(t require.TestingT, err error, i ...any) {
+			requireErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
@@ -1323,7 +1291,7 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 				},
 				WorkloadAttrs: workloadAttrs(nil),
 			},
-			requireErr: func(t require.TestingT, err error, i ...any) {
+			requireErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
@@ -1339,7 +1307,7 @@ func TestIssueWorkloadIdentity(t *testing.T) {
 				},
 				WorkloadAttrs: workloadAttrs(nil),
 			},
-			requireErr: func(t require.TestingT, err error, i ...any) {
+			requireErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsNotFound(err))
 			},
 		},
@@ -1481,7 +1449,7 @@ func TestIssueWorkloadIdentities(t *testing.T) {
 	require.NoError(t, err)
 
 	// Make enough to trip the "too many" error
-	for i := range 12 {
+	for i := 0; i < 12; i++ {
 		_, err := tp.srv.Auth().CreateWorkloadIdentity(ctx, &workloadidentityv1pb.WorkloadIdentity{
 			Kind:    types.KindWorkloadIdentity,
 			Version: types.V1,
@@ -1655,7 +1623,7 @@ func TestIssueWorkloadIdentities(t *testing.T) {
 				},
 				WorkloadAttrs: workloadAttrs(nil),
 			},
-			requireErr: func(t require.TestingT, err error, i ...any) {
+			requireErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "number of identities that would be issued exceeds maximum permitted (max = 10), use more specific labels")
 			},
 		},
@@ -1673,348 +1641,6 @@ func TestIssueWorkloadIdentities(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestIssueTeleportWorkloadIdentity(t *testing.T) {
-	t.Parallel()
-
-	const appServiceID = "test-server"
-	const appName = "panel"
-	ctx := t.Context()
-	tp := newIssuanceTestPack(t, ctx)
-	clusterName := tp.srv.ClusterName()
-
-	// Register an application.
-	app, err := types.NewAppV3(types.Metadata{
-		Name: appName,
-	}, types.AppSpecV3{
-		URI:        "localhost",
-		PublicAddr: appName + "." + clusterName,
-	})
-	require.NoError(t, err)
-	server, err := types.NewAppServerV3FromApp(app, "app", appServiceID)
-	require.NoError(t, err)
-	_, err = tp.srv.Auth().UpsertApplicationServer(t.Context(), server)
-	require.NoError(t, err)
-
-	// This alice is the one accessing the Teleport resource.
-	alice, _, err := authtest.CreateUserAndRole(
-		tp.srv.Auth(),
-		"alice",
-		[]string{},
-		[]types.Rule{
-			types.NewRule(
-				types.KindApp,
-				[]string{types.VerbRead, types.VerbList},
-			),
-		},
-		authtest.WithRoleMutator(func(role types.Role) {
-			role.SetAppLabels(types.Allow, types.Labels{
-				"*": []string{"*"},
-			})
-		}),
-	)
-	require.NoError(t, err)
-
-	// To create an expired session, we issue the cert, and the advance the clock.
-	aliceExpiredClt, err := tp.srv.NewClient(authtest.TestUser(alice.GetName()))
-	require.NoError(t, err)
-	aliceExpiredSessionCertBytes, aliceSessionExpiresAt := createAppSessionCertBytes(t, aliceExpiredClt, appName, alice.GetName())
-	// Add a bit more time to "escape" the clock skew condition.
-	tp.clock.Advance(tp.clock.Until(aliceSessionExpiresAt) + 10*time.Minute)
-
-	aliceClt, err := tp.srv.NewClient(authtest.TestUser(alice.GetName()))
-	require.NoError(t, err)
-	aliceSessionCertBytes, aliceSessionExpirity := createAppSessionCertBytes(t, aliceClt, appName, alice.GetName())
-	require.True(t, aliceSessionExpirity.After(tp.clock.Now()))
-
-	appServiceClt, err := tp.srv.NewClient(authtest.TestServerID(types.RoleApp, appServiceID))
-	require.NoError(t, err)
-	// This app service is not serving the requested app.
-	nonServingAppServiceClt, err := tp.srv.NewClient(authtest.TestServerID(types.RoleApp, "random-host-id"))
-	require.NoError(t, err)
-
-	// Generate a keypair to generate x509 SVIDs for.
-	workloadKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
-	require.NoError(t, err)
-	workloadKeyPubBytes, err := x509.MarshalPKIXPublicKey(workloadKey.Public())
-	require.NoError(t, err)
-
-	// Those clients are used by the test cases.
-	userClt, err := tp.srv.NewClient(authtest.TestAdmin())
-	require.NoError(t, err)
-	otherServiceClt, err := tp.srv.NewClient(authtest.TestBuiltin(types.RoleDatabase))
-	require.NoError(t, err)
-
-	for name, tc := range map[string]struct {
-		clt        *authclient.Client
-		req        *workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest
-		expectErr  require.ErrorAssertionFunc
-		expectResp require.ValueAssertionFunc
-	}{
-		"app service generates workload identity for a session": {
-			clt: appServiceClt,
-			req: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest{
-				Credential: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_X509SvidParams{
-					X509SvidParams: &workloadidentityv1pb.X509SVIDParams{
-						PublicKey: workloadKeyPubBytes,
-					},
-				},
-				Usage: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_AppAccess{
-					AppAccess: &workloadidentityv1pb.AppAccessUsage{
-						UserCertificate: aliceSessionCertBytes,
-					},
-				},
-			},
-			expectErr: require.NoError,
-			expectResp: func(tt require.TestingT, i1 any, i2 ...any) {
-				resp, _ := i1.(*workloadidentityv1pb.IssueTeleportWorkloadIdentityResponse)
-				// Check X509 cert actually included and signed.
-				cert, err := x509.ParseCertificate(resp.Credential.GetX509Svid().GetCert())
-				require.NoError(tt, err)
-				// Check included public key matches
-				require.Equal(tt, workloadKey.Public(), cert.PublicKey)
-				_, err = cert.Verify(x509.VerifyOptions{
-					// Must be signed by AppClient CA
-					Roots:       tp.appClientX509CAPool,
-					CurrentTime: tp.srv.Auth().GetClock().Now(),
-				})
-				require.NoError(tt, err)
-				// Check SPIFFE ID contains the trusted domain, and app name.
-				require.Len(tt, cert.URIs, 1, "certificate doesn't contain SPIFFE ID")
-				spiffeID, err := spiffeid.FromString(cert.URIs[0].String())
-				require.NoError(tt, err)
-				require.Len(t, cert.URIs, 1)
-				td, err := spiffeid.TrustDomainFromString(
-					apiworkloadidentity.NewInternalAppTrustDomain(tp.srv.ClusterName()),
-				)
-				require.NoError(tt, err)
-				require.True(tt, spiffeID.MemberOf(td), "expected the returned SPIFFE ID %q to be part of internal trust domain %q", spiffeID, td)
-			},
-		},
-		"other service cannot generate workload identity for app access": {
-			clt: otherServiceClt,
-			req: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest{
-				Credential: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_X509SvidParams{
-					X509SvidParams: &workloadidentityv1pb.X509SVIDParams{
-						PublicKey: workloadKeyPubBytes,
-					},
-				},
-				Usage: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_AppAccess{
-					AppAccess: &workloadidentityv1pb.AppAccessUsage{
-						UserCertificate: aliceSessionCertBytes,
-					},
-				},
-			},
-			expectErr: func(tt require.TestingT, err error, i ...any) {
-				require.ErrorContains(tt, err, "only app services can issue workload identity for app access", i...)
-			},
-			expectResp: require.Nil,
-		},
-		"app service not serving app cannot generate workload identity for requested session": {
-			clt: nonServingAppServiceClt,
-			req: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest{
-				Credential: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_X509SvidParams{
-					X509SvidParams: &workloadidentityv1pb.X509SVIDParams{
-						PublicKey: workloadKeyPubBytes,
-					},
-				},
-				Usage: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_AppAccess{
-					AppAccess: &workloadidentityv1pb.AppAccessUsage{
-						UserCertificate: aliceSessionCertBytes,
-					},
-				},
-			},
-			expectErr: func(tt require.TestingT, err error, i ...any) {
-				require.ErrorContains(tt, err, "unable to locate app", i...)
-			},
-			expectResp: require.Nil,
-		},
-		"app service generates workload identity for an expired session": {
-			clt: appServiceClt,
-			req: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest{
-				Credential: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_X509SvidParams{
-					X509SvidParams: &workloadidentityv1pb.X509SVIDParams{
-						PublicKey: workloadKeyPubBytes,
-					},
-				},
-				Usage: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_AppAccess{
-					AppAccess: &workloadidentityv1pb.AppAccessUsage{
-						UserCertificate: aliceExpiredSessionCertBytes,
-					},
-				},
-			},
-			expectErr: func(tt require.TestingT, err error, i ...any) {
-				require.ErrorContains(tt, err, "certificate has expired", i...)
-			},
-			expectResp: require.Nil,
-		},
-		"users cannot request the RPC": {
-			clt: userClt,
-			req: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest{
-				Credential: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_X509SvidParams{
-					X509SvidParams: &workloadidentityv1pb.X509SVIDParams{
-						PublicKey: workloadKeyPubBytes,
-					},
-				},
-				Usage: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_AppAccess{
-					AppAccess: &workloadidentityv1pb.AppAccessUsage{
-						UserCertificate: aliceSessionCertBytes,
-					},
-				},
-			},
-			expectErr: func(tt require.TestingT, err error, i ...any) {
-				require.ErrorContains(tt, err, "only app services can issue workload identity for app access", i...)
-			},
-			expectResp: require.Nil,
-		},
-	} {
-		t.Run(name, func(t *testing.T) {
-			c := workloadidentityv1pb.NewWorkloadIdentityIssuanceServiceClient(
-				tc.clt.GetConnection(),
-			)
-
-			res, err := c.IssueTeleportWorkloadIdentity(ctx, tc.req)
-			tc.expectErr(t, err)
-			tc.expectResp(t, res)
-		})
-	}
-}
-
-// TestIssueTeleportWorkloadIdentityRejectsExpiredUserCA given an app access
-// workload identity request with an expired UserCA certificate, the server must
-// reject the request.
-func TestIssueTeleportWorkloadIdentityRejectsExpiredUserCA(t *testing.T) {
-	const appServiceID = "test-server"
-	const appName = "panel"
-
-	ctx := t.Context()
-	tp := newIssuanceTestPack(t, ctx)
-	clusterName := tp.srv.ClusterName()
-
-	app, err := types.NewAppV3(types.Metadata{
-		Name: appName,
-	}, types.AppSpecV3{
-		URI:        "localhost",
-		PublicAddr: appName + "." + clusterName,
-	})
-	require.NoError(t, err)
-	server, err := types.NewAppServerV3FromApp(app, "app", appServiceID)
-	require.NoError(t, err)
-	_, err = tp.srv.Auth().UpsertApplicationServer(t.Context(), server)
-	require.NoError(t, err)
-
-	// This alice is the one accessing the Teleport resource.
-	alice, _, err := authtest.CreateUserAndRole(
-		tp.srv.Auth(),
-		"alice",
-		[]string{},
-		[]types.Rule{
-			types.NewRule(
-				types.KindApp,
-				[]string{types.VerbRead, types.VerbList},
-			),
-		},
-		authtest.WithRoleMutator(func(role types.Role) {
-			role.SetAppLabels(types.Allow, types.Labels{
-				"*": []string{"*"},
-			})
-		}),
-	)
-	require.NoError(t, err)
-
-	aliceClt, err := tp.srv.NewClient(authtest.TestUser(alice.GetName()))
-	require.NoError(t, err)
-
-	// Important: create the app session cert while the User CA is still valid.
-	aliceSessionCertBytes, _ := createAppSessionCertBytes(t, aliceClt, appName, alice.GetName())
-
-	sessionCert, err := x509.ParseCertificate(aliceSessionCertBytes)
-	require.NoError(t, err)
-	require.True(t, tp.clock.Now().After(sessionCert.NotBefore))
-	require.True(t, tp.clock.Now().Before(sessionCert.NotAfter))
-
-	appServiceClt, err := tp.srv.NewClient(authtest.TestServerID(types.RoleApp, appServiceID))
-	require.NoError(t, err)
-
-	workloadKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
-	require.NoError(t, err)
-	workloadKeyPubBytes, err := x509.MarshalPKIXPublicKey(workloadKey.Public())
-	require.NoError(t, err)
-
-	c := workloadidentityv1pb.NewWorkloadIdentityIssuanceServiceClient(appServiceClt.GetConnection())
-
-	// Here we ensure the certificate is OK and returns without errors.
-	res, err := c.IssueTeleportWorkloadIdentity(ctx, &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest{
-		Credential: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_X509SvidParams{
-			X509SvidParams: &workloadidentityv1pb.X509SVIDParams{
-				PublicKey: workloadKeyPubBytes,
-			},
-		},
-		Usage: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_AppAccess{
-			AppAccess: &workloadidentityv1pb.AppAccessUsage{
-				UserCertificate: aliceSessionCertBytes,
-			},
-		},
-	})
-	require.NoError(t, err)
-	require.NotNil(t, res)
-
-	// Now replace the trusted User CA cert with an expired cert using the same key.
-	userCA, err := tp.srv.Auth().GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.UserCA,
-		DomainName: clusterName,
-	}, true)
-	require.NoError(t, err)
-
-	activeKeys := userCA.GetActiveKeys()
-	userCATLSKey := activeKeys.TLS[0]
-
-	oldUserCACert, err := tlsca.ParseCertificatePEM(userCATLSKey.Cert)
-	require.NoError(t, err)
-
-	userCASigner, err := keys.ParsePrivateKey(userCATLSKey.Key)
-	require.NoError(t, err)
-
-	expiredUserCACert := *oldUserCACert
-	expiredUserCACert.NotBefore = tp.clock.Now().Add(-2 * time.Hour)
-	expiredUserCACert.NotAfter = tp.clock.Now().Add(-time.Minute)
-
-	expiredUserCADER, err := x509.CreateCertificate(
-		rand.Reader,
-		&expiredUserCACert,
-		&expiredUserCACert,
-		userCASigner.Public(),
-		userCASigner,
-	)
-	require.NoError(t, err)
-
-	userCATLSKey.Cert = pem.EncodeToMemory(&pem.Block{
-		Type:  "CERTIFICATE",
-		Bytes: expiredUserCADER,
-	})
-	activeKeys.TLS[0] = userCATLSKey
-	require.NoError(t, userCA.SetActiveKeys(activeKeys))
-	require.NoError(t, tp.srv.Auth().UpsertCertAuthority(ctx, userCA))
-
-	// This time, the UserCA is expected to be expired, meaning it should fail
-	// the certificate verification.
-	res, err = c.IssueTeleportWorkloadIdentity(ctx, &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest{
-		Credential: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_X509SvidParams{
-			X509SvidParams: &workloadidentityv1pb.X509SVIDParams{
-				PublicKey: workloadKeyPubBytes,
-			},
-		},
-		Usage: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_AppAccess{
-			AppAccess: &workloadidentityv1pb.AppAccessUsage{
-				UserCertificate: aliceSessionCertBytes,
-			},
-		},
-	})
-
-	require.ErrorContains(t, err, "requestor provided an invalid certificate")
-	require.ErrorContains(t, err, "certificate has expired")
-	require.Nil(t, res)
 }
 
 func TestResourceService_CreateWorkloadIdentity(t *testing.T) {
@@ -2098,10 +1724,8 @@ func TestResourceService_CreateWorkloadIdentity(t *testing.T) {
 					Name: "new",
 				},
 				UserMetadata: events.UserMetadata{
-					User:            authorizedUser.GetName(),
-					UserKind:        events.UserKind_USER_KIND_HUMAN,
-					UserRoles:       authorizedUser.GetRoles(),
-					UserClusterName: srv.ClusterName(),
+					User:     authorizedUser.GetName(),
+					UserKind: events.UserKind_USER_KIND_HUMAN,
 				},
 			},
 		},
@@ -2122,7 +1746,7 @@ func TestResourceService_CreateWorkloadIdentity(t *testing.T) {
 					},
 				},
 			},
-			requireError: func(t require.TestingT, err error, i ...any) {
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsAlreadyExists(err))
 			},
 		},
@@ -2143,7 +1767,7 @@ func TestResourceService_CreateWorkloadIdentity(t *testing.T) {
 					},
 				},
 			},
-			requireError: func(t require.TestingT, err error, i ...any) {
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsBadParameter(err))
 				require.ErrorContains(t, err, "spec.spiffe.id: is required")
 			},
@@ -2165,7 +1789,7 @@ func TestResourceService_CreateWorkloadIdentity(t *testing.T) {
 					},
 				},
 			},
-			requireError: func(t require.TestingT, err error, i ...any) {
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
@@ -2290,10 +1914,8 @@ func TestResourceService_DeleteWorkloadIdentity(t *testing.T) {
 					Name: preExisting.GetMetadata().GetName(),
 				},
 				UserMetadata: events.UserMetadata{
-					User:            authorizedUser.GetName(),
-					UserKind:        events.UserKind_USER_KIND_HUMAN,
-					UserRoles:       authorizedUser.GetRoles(),
-					UserClusterName: srv.ClusterName(),
+					User:     authorizedUser.GetName(),
+					UserKind: events.UserKind_USER_KIND_HUMAN,
 				},
 			},
 		},
@@ -2303,7 +1925,7 @@ func TestResourceService_DeleteWorkloadIdentity(t *testing.T) {
 			req: &workloadidentityv1pb.DeleteWorkloadIdentityRequest{
 				Name: "i-do-not-exist",
 			},
-			requireError: func(t require.TestingT, err error, i ...any) {
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsNotFound(err))
 			},
 		},
@@ -2313,7 +1935,7 @@ func TestResourceService_DeleteWorkloadIdentity(t *testing.T) {
 			req: &workloadidentityv1pb.DeleteWorkloadIdentityRequest{
 				Name: "",
 			},
-			requireError: func(t require.TestingT, err error, i ...any) {
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsBadParameter(err))
 				require.ErrorContains(t, err, "name: must be non-empty")
 			},
@@ -2324,7 +1946,7 @@ func TestResourceService_DeleteWorkloadIdentity(t *testing.T) {
 			req: &workloadidentityv1pb.DeleteWorkloadIdentityRequest{
 				Name: "unauthorized",
 			},
-			requireError: func(t require.TestingT, err error, i ...any) {
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
@@ -2424,7 +2046,7 @@ func TestResourceService_GetWorkloadIdentity(t *testing.T) {
 			req: &workloadidentityv1pb.GetWorkloadIdentityRequest{
 				Name: "i-do-not-exist",
 			},
-			requireError: func(t require.TestingT, err error, i ...any) {
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsNotFound(err))
 			},
 		},
@@ -2434,7 +2056,7 @@ func TestResourceService_GetWorkloadIdentity(t *testing.T) {
 			req: &workloadidentityv1pb.GetWorkloadIdentityRequest{
 				Name: "",
 			},
-			requireError: func(t require.TestingT, err error, i ...any) {
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsBadParameter(err))
 				require.ErrorContains(t, err, "name: must be non-empty")
 			},
@@ -2445,7 +2067,7 @@ func TestResourceService_GetWorkloadIdentity(t *testing.T) {
 			req: &workloadidentityv1pb.GetWorkloadIdentityRequest{
 				Name: "unauthorized",
 			},
-			requireError: func(t require.TestingT, err error, i ...any) {
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
@@ -2504,7 +2126,7 @@ func TestResourceService_ListWorkloadIdentities(t *testing.T) {
 	// Create a pre-existing workload identities
 	// Two complete pages of ten, plus one incomplete page of nine
 	created := []*workloadidentityv1pb.WorkloadIdentity{}
-	for i := range 29 {
+	for i := 0; i < 29; i++ {
 		r, err := srv.Auth().CreateWorkloadIdentity(
 			ctx,
 			&workloadidentityv1pb.WorkloadIdentity{
@@ -2666,10 +2288,8 @@ func TestResourceService_UpdateWorkloadIdentity(t *testing.T) {
 					Name: preExisting.GetMetadata().GetName(),
 				},
 				UserMetadata: events.UserMetadata{
-					User:            authorizedUser.GetName(),
-					UserKind:        events.UserKind_USER_KIND_HUMAN,
-					UserRoles:       authorizedUser.GetRoles(),
-					UserClusterName: srv.ClusterName(),
+					User:     authorizedUser.GetName(),
+					UserKind: events.UserKind_USER_KIND_HUMAN,
 				},
 			},
 		},
@@ -2682,7 +2302,7 @@ func TestResourceService_UpdateWorkloadIdentity(t *testing.T) {
 					WorkloadIdentity: preExisting2,
 				}
 			})(),
-			requireError: func(t require.TestingT, err error, i ...any) {
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsCompareFailed(err))
 			},
 		},
@@ -2703,7 +2323,7 @@ func TestResourceService_UpdateWorkloadIdentity(t *testing.T) {
 					},
 				},
 			},
-			requireError: func(t require.TestingT, err error, i ...any) {
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 			},
 		},
@@ -2713,7 +2333,7 @@ func TestResourceService_UpdateWorkloadIdentity(t *testing.T) {
 			req: &workloadidentityv1pb.UpdateWorkloadIdentityRequest{
 				WorkloadIdentity: preExisting,
 			},
-			requireError: func(t require.TestingT, err error, i ...any) {
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
@@ -2833,10 +2453,8 @@ func TestResourceService_UpsertWorkloadIdentity(t *testing.T) {
 					Name: "new",
 				},
 				UserMetadata: events.UserMetadata{
-					User:            authorizedUser.GetName(),
-					UserKind:        events.UserKind_USER_KIND_HUMAN,
-					UserRoles:       authorizedUser.GetRoles(),
-					UserClusterName: srv.ClusterName(),
+					User:     authorizedUser.GetName(),
+					UserKind: events.UserKind_USER_KIND_HUMAN,
 				},
 			},
 		},
@@ -2857,7 +2475,7 @@ func TestResourceService_UpsertWorkloadIdentity(t *testing.T) {
 					},
 				},
 			},
-			requireError: func(t require.TestingT, err error, i ...any) {
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsBadParameter(err))
 				require.ErrorContains(t, err, "spec.spiffe.id: is required")
 			},
@@ -2879,7 +2497,7 @@ func TestResourceService_UpsertWorkloadIdentity(t *testing.T) {
 					},
 				},
 			},
-			requireError: func(t require.TestingT, err error, i ...any) {
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
@@ -3015,10 +2633,8 @@ func TestRevocationService_CreateWorkloadIdentityX509Revocation(t *testing.T) {
 					Name: "aa",
 				},
 				UserMetadata: events.UserMetadata{
-					User:            authorizedUser.GetName(),
-					UserKind:        events.UserKind_USER_KIND_HUMAN,
-					UserRoles:       authorizedUser.GetRoles(),
-					UserClusterName: srv.ClusterName(),
+					User:     authorizedUser.GetName(),
+					UserKind: events.UserKind_USER_KIND_HUMAN,
 				},
 				Reason: "compromised",
 			},
@@ -3029,7 +2645,7 @@ func TestRevocationService_CreateWorkloadIdentityX509Revocation(t *testing.T) {
 			req: &workloadidentityv1pb.CreateWorkloadIdentityX509RevocationRequest{
 				WorkloadIdentityX509Revocation: preExisting,
 			},
-			requireError: func(t require.TestingT, err error, i ...any) {
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsAlreadyExists(err))
 			},
 		},
@@ -3050,7 +2666,7 @@ func TestRevocationService_CreateWorkloadIdentityX509Revocation(t *testing.T) {
 					},
 				},
 			},
-			requireError: func(t require.TestingT, err error, i ...any) {
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsBadParameter(err))
 				require.ErrorContains(t, err, "spec.reason: is required")
 			},
@@ -3072,7 +2688,7 @@ func TestRevocationService_CreateWorkloadIdentityX509Revocation(t *testing.T) {
 					},
 				},
 			},
-			requireError: func(t require.TestingT, err error, i ...any) {
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
@@ -3197,10 +2813,8 @@ func TestRevocationService_DeleteWorkloadIdentityX509Revocation(t *testing.T) {
 					Name: preExisting.GetMetadata().GetName(),
 				},
 				UserMetadata: events.UserMetadata{
-					User:            authorizedUser.GetName(),
-					UserRoles:       authorizedUser.GetRoles(),
-					UserClusterName: srv.ClusterName(),
-					UserKind:        events.UserKind_USER_KIND_HUMAN,
+					User:     authorizedUser.GetName(),
+					UserKind: events.UserKind_USER_KIND_HUMAN,
 				},
 			},
 		},
@@ -3210,7 +2824,7 @@ func TestRevocationService_DeleteWorkloadIdentityX509Revocation(t *testing.T) {
 			req: &workloadidentityv1pb.DeleteWorkloadIdentityX509RevocationRequest{
 				Name: "i-do-not-exist",
 			},
-			requireError: func(t require.TestingT, err error, i ...any) {
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsNotFound(err))
 			},
 		},
@@ -3220,7 +2834,7 @@ func TestRevocationService_DeleteWorkloadIdentityX509Revocation(t *testing.T) {
 			req: &workloadidentityv1pb.DeleteWorkloadIdentityX509RevocationRequest{
 				Name: "",
 			},
-			requireError: func(t require.TestingT, err error, i ...any) {
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsBadParameter(err))
 				require.ErrorContains(t, err, "name: must be non-empty")
 			},
@@ -3231,7 +2845,7 @@ func TestRevocationService_DeleteWorkloadIdentityX509Revocation(t *testing.T) {
 			req: &workloadidentityv1pb.DeleteWorkloadIdentityX509RevocationRequest{
 				Name: "unauthorized",
 			},
-			requireError: func(t require.TestingT, err error, i ...any) {
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
@@ -3331,7 +2945,7 @@ func TestRevocationService_GetWorkloadIdentityX509Revocation(t *testing.T) {
 			req: &workloadidentityv1pb.GetWorkloadIdentityX509RevocationRequest{
 				Name: "i-do-not-exist",
 			},
-			requireError: func(t require.TestingT, err error, i ...any) {
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsNotFound(err))
 			},
 		},
@@ -3341,7 +2955,7 @@ func TestRevocationService_GetWorkloadIdentityX509Revocation(t *testing.T) {
 			req: &workloadidentityv1pb.GetWorkloadIdentityX509RevocationRequest{
 				Name: "",
 			},
-			requireError: func(t require.TestingT, err error, i ...any) {
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsBadParameter(err))
 				require.ErrorContains(t, err, "name: must be non-empty")
 			},
@@ -3352,7 +2966,7 @@ func TestRevocationService_GetWorkloadIdentityX509Revocation(t *testing.T) {
 			req: &workloadidentityv1pb.GetWorkloadIdentityX509RevocationRequest{
 				Name: "unauthorized",
 			},
-			requireError: func(t require.TestingT, err error, i ...any) {
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
@@ -3411,7 +3025,7 @@ func TestRevocationService_ListWorkloadIdentityX509Revocations(t *testing.T) {
 	// Create a pre-existing workload identitie revocations
 	// Two complete pages of ten, plus one incomplete page of nine
 	created := []*workloadidentityv1pb.WorkloadIdentityX509Revocation{}
-	for i := range 29 {
+	for i := 0; i < 29; i++ {
 		r, err := srv.Auth().CreateWorkloadIdentityX509Revocation(
 			ctx,
 			&workloadidentityv1pb.WorkloadIdentityX509Revocation{
@@ -3577,10 +3191,8 @@ func TestRevocationService_UpdateWorkloadIdentityX509Revocation(t *testing.T) {
 					Name: preExisting.GetMetadata().GetName(),
 				},
 				UserMetadata: events.UserMetadata{
-					User:            authorizedUser.GetName(),
-					UserKind:        events.UserKind_USER_KIND_HUMAN,
-					UserRoles:       authorizedUser.GetRoles(),
-					UserClusterName: srv.ClusterName(),
+					User:     authorizedUser.GetName(),
+					UserKind: events.UserKind_USER_KIND_HUMAN,
 				},
 				Reason: "compromised",
 			},
@@ -3594,7 +3206,7 @@ func TestRevocationService_UpdateWorkloadIdentityX509Revocation(t *testing.T) {
 					WorkloadIdentityX509Revocation: preExisting2,
 				}
 			})(),
-			requireError: func(t require.TestingT, err error, i ...any) {
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsCompareFailed(err))
 			},
 		},
@@ -3615,7 +3227,7 @@ func TestRevocationService_UpdateWorkloadIdentityX509Revocation(t *testing.T) {
 					},
 				},
 			},
-			requireError: func(t require.TestingT, err error, i ...any) {
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 			},
 		},
@@ -3625,7 +3237,7 @@ func TestRevocationService_UpdateWorkloadIdentityX509Revocation(t *testing.T) {
 			req: &workloadidentityv1pb.UpdateWorkloadIdentityX509RevocationRequest{
 				WorkloadIdentityX509Revocation: preExisting,
 			},
-			requireError: func(t require.TestingT, err error, i ...any) {
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
@@ -3745,10 +3357,8 @@ func TestRevocationService_UpsertWorkloadIdentityX509Revocation(t *testing.T) {
 					Name: "aabbccdd",
 				},
 				UserMetadata: events.UserMetadata{
-					User:            authorizedUser.GetName(),
-					UserKind:        events.UserKind_USER_KIND_HUMAN,
-					UserRoles:       authorizedUser.GetRoles(),
-					UserClusterName: srv.ClusterName(),
+					User:     authorizedUser.GetName(),
+					UserKind: events.UserKind_USER_KIND_HUMAN,
 				},
 				Reason: "compromised",
 			},
@@ -3769,7 +3379,7 @@ func TestRevocationService_UpsertWorkloadIdentityX509Revocation(t *testing.T) {
 					},
 				},
 			},
-			requireError: func(t require.TestingT, err error, i ...any) {
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsBadParameter(err))
 				require.ErrorContains(t, err, "spec.reason: is required")
 			},
@@ -3791,7 +3401,7 @@ func TestRevocationService_UpsertWorkloadIdentityX509Revocation(t *testing.T) {
 					},
 				},
 			},
-			requireError: func(t require.TestingT, err error, i ...any) {
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
 		},
@@ -3848,251 +3458,181 @@ func TestRevocationService_UpsertWorkloadIdentityX509Revocation(t *testing.T) {
 
 func TestRevocationService_CRL(t *testing.T) {
 	t.Parallel()
-
-	synctest.Test(t, func(t *testing.T) {
-		// == Setup ==
-		//
-		// Because this test depends on the "testing/synctest" package we can't
-		// use the newTestTLSServer helper, as it binds real listeners which
-		// aren't covered by synctest's "bubble". Instead, we must call the
-		// endpoint method directly, so we have to set up all of the service's
-		// dependencies ourselves.
-		backend, err := memory.New(memory.Config{})
-		require.NoError(t, err)
-
-		store, err := local.NewWorkloadIdentityX509RevocationService(backend)
-		require.NoError(t, err)
-
-		clusterConfigService, err := local.NewClusterConfigurationService(backend)
-		require.NoError(t, err)
-
-		authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{})
-		require.NoError(t, err)
-
-		_, err = clusterConfigService.CreateAuthPreference(t.Context(), authPreference)
-		require.NoError(t, err)
-
-		clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
-			ClusterName: "test.teleport.sh",
-			ClusterID:   uuid.NewString(),
-		})
-		require.NoError(t, err)
-
-		keys, err := keystore.NewManager(
-			t.Context(),
-			&servicecfg.KeystoreConfig{},
-			&keystore.Options{
-				ClusterName:          clusterName,
-				AuthPreferenceGetter: clusterConfigService,
-			},
-		)
-		require.NoError(t, err)
-
-		tlsKeyPair, err := keys.NewTLSKeyPair(t.Context(), clusterName.GetClusterName(), cryptosuites.SPIFFECATLS)
-		require.NoError(t, err)
-
-		tlsCACert, err := tlsca.ParseCertificatePEM(tlsKeyPair.Cert)
-		require.NoError(t, err)
-
-		jwtKeyPair, err := keys.NewJWTKeyPair(t.Context(), cryptosuites.SPIFFECAJWT)
-		require.NoError(t, err)
-
-		ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
-			Type:        types.SPIFFECA,
-			ClusterName: clusterName.GetClusterName(),
-			ActiveKeys: types.CAKeySet{
-				TLS: []*types.TLSKeyPair{tlsKeyPair},
-				JWT: []*types.JWTKeyPair{jwtKeyPair},
-			},
-		})
-		require.NoError(t, err)
-
-		caService := local.NewCAService(backend)
-		err = caService.CreateCertAuthority(t.Context(), ca)
-		require.NoError(t, err)
-
-		service, err := workloadidentityv1.NewRevocationService(&workloadidentityv1.RevocationServiceConfig{
-			Store: store,
-			Authorizer: authz.AuthorizerFunc(func(context.Context) (*authz.Context, error) {
-				return &authz.Context{}, nil
-			}),
-			Emitter:             &eventstest.MockAuditLog{},
-			EventsWatcher:       local.NewEventsService(backend),
-			ClusterName:         clusterName.GetClusterName(),
-			KeyStore:            keys,
-			Logger:              logtest.NewLogger(),
-			CertAuthorityGetter: caService,
-		})
-		require.NoError(t, err)
-		go service.RunCRLSigner(t.Context())
-
-		// == Helper Methods ==
-		checkCRL := func(
-			t *testing.T,
-			crlBytes []byte,
-			wantEntries []x509.RevocationListEntry,
-		) {
-			t.Helper()
-			require.NotEmpty(t, crlBytes)
-
-			// Expect a DER encoded CRL directly (e.g no PEM)
-			parsed, err := x509.ParseRevocationList(crlBytes)
-			require.NoError(t, err)
-
-			// Check CRL has a valid signature
-			require.NoError(t, parsed.CheckSignatureFrom(tlsCACert))
-
-			diff := cmp.Diff(
-				wantEntries,
-				parsed.RevokedCertificateEntries,
-				cmp.Comparer(func(a, b *big.Int) bool {
-					return a.Cmp(b) == 0
-				}),
-				cmpopts.IgnoreFields(x509.RevocationListEntry{}, "Raw"),
-				cmpopts.SortSlices(func(a, b x509.RevocationListEntry) bool {
-					return a.SerialNumber.Cmp(b.SerialNumber) < 0
-				}),
-			)
-			require.Empty(t, diff)
+	revocationsEventCh := make(chan struct{})
+	fakeClock := clockwork.NewFakeClock()
+	srv, _ := newTestTLSServer(t, func(config *authtest.TLSServerConfig) {
+		config.APIConfig.MutateRevocationsServiceConfig = func(config *workloadidentityv1.RevocationServiceConfig) {
+			config.RevocationsEventProcessedCh = revocationsEventCh
+			config.Clock = fakeClock
 		}
+	})
+	ctx := context.Background()
 
-		revokedAt := time.Now()
-		createRevocation := func(t *testing.T, name string) {
-			t.Helper()
+	authorizedUser, _, err := authtest.CreateUserAndRole(
+		srv.Auth(),
+		"authorized",
+		[]string{},
+		[]types.Rule{
+			{
+				Resources: []string{types.KindWorkloadIdentityX509Revocation},
+				Verbs: []string{
+					types.VerbRead,
+					types.VerbList,
+					types.VerbCreate,
+					types.VerbUpdate,
+					types.VerbDelete,
+				},
+			},
+		})
+	require.NoError(t, err)
+	authorizedClient, err := srv.NewClient(authtest.TestUser(authorizedUser.GetName()))
+	require.NoError(t, err)
+	revocationsClient := authorizedClient.WorkloadIdentityRevocationServiceClient()
 
-			_, err := store.CreateWorkloadIdentityX509Revocation(
-				t.Context(),
-				&workloadidentityv1pb.WorkloadIdentityX509Revocation{
+	// Fetch the SPIFFE CA so we can validate CRL signature.
+	ca, err := srv.Auth().GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.SPIFFECA,
+		DomainName: srv.ClusterName(),
+	}, false)
+	require.NoError(t, err)
+	caCert, err := tlsca.ParseCertificatePEM(ca.GetActiveKeys().TLS[0].Cert)
+	require.NoError(t, err)
+
+	checkCRL := func(
+		t *testing.T,
+		crlBytes []byte,
+		wantEntries []x509.RevocationListEntry,
+	) {
+		require.NotEmpty(t, crlBytes)
+
+		// Expect a DER encoded CRL directly (e.g no PEM)
+		parsed, err := x509.ParseRevocationList(crlBytes)
+		require.NoError(t, err)
+
+		// Check CRL has a valid signature
+		require.NoError(t, parsed.CheckSignatureFrom(caCert))
+
+		diff := cmp.Diff(
+			wantEntries,
+			parsed.RevokedCertificateEntries,
+			cmp.Comparer(func(a, b *big.Int) bool {
+				return a.Cmp(b) == 0
+			}),
+			cmpopts.IgnoreFields(x509.RevocationListEntry{}, "Raw"),
+			cmpopts.SortSlices(func(a, b x509.RevocationListEntry) bool {
+				return a.SerialNumber.Cmp(b.SerialNumber) < 0
+			}),
+		)
+		require.Empty(t, diff)
+	}
+
+	revokedAt := srv.Clock().Now()
+	createRevocation := func(t *testing.T, name string) {
+		_, err = revocationsClient.CreateWorkloadIdentityX509Revocation(
+			ctx,
+			&workloadidentityv1pb.CreateWorkloadIdentityX509RevocationRequest{
+				WorkloadIdentityX509Revocation: &workloadidentityv1pb.WorkloadIdentityX509Revocation{
 					Kind:    types.KindWorkloadIdentityX509Revocation,
 					Version: types.V1,
 					Metadata: &headerv1.Metadata{
 						Name:    name,
-						Expires: timestamppb.New(time.Now().Add(time.Hour)),
+						Expires: timestamppb.New(srv.Clock().Now().Add(time.Hour)),
 					},
 					Spec: &workloadidentityv1pb.WorkloadIdentityX509RevocationSpec{
 						Reason:    "compromised",
 						RevokedAt: timestamppb.New(revokedAt),
 					},
 				},
-			)
-			require.NoError(t, err)
-
-			// Wait for the revocation event to be processed.
-			synctest.Wait()
+			},
+		)
+		require.NoError(t, err)
+		// Wait for the revocation event to be processed.
+		select {
+		case <-time.After(5 * time.Second):
+			t.Fatalf("timed out waiting for revocation event to be processed")
+		case <-revocationsEventCh:
 		}
-
-		deleteRevocation := func(t *testing.T, name string) {
-			t.Helper()
-
-			err := store.DeleteWorkloadIdentityX509Revocation(t.Context(), name)
-			require.NoError(t, err)
-
-			// Wait for the revocation event to be processed.
-			synctest.Wait()
+	}
+	deleteRevocation := func(t *testing.T, name string) {
+		_, err = revocationsClient.DeleteWorkloadIdentityX509Revocation(
+			ctx,
+			&workloadidentityv1pb.DeleteWorkloadIdentityX509RevocationRequest{
+				Name: name,
+			},
+		)
+		require.NoError(t, err)
+		// Wait for the revocation event to be processed.
+		select {
+		case <-time.After(5 * time.Second):
+			t.Fatalf("timed out waiting for revocation event to be processed")
+		case <-revocationsEventCh:
 		}
+	}
 
-		// == Test Logic ==
-		ctx, cancel := context.WithCancel(t.Context())
-		t.Cleanup(cancel)
-		stream := grpctest.NewServerStream[workloadidentityv1pb.StreamSignedCRLResponse](ctx)
+	// Fetch the initial, empty, CRL
+	stream, err := revocationsClient.StreamSignedCRL(
+		ctx, &workloadidentityv1pb.StreamSignedCRLRequest{},
+	)
+	require.NoError(t, err)
+	res, err := stream.Recv()
+	require.NoError(t, err)
+	checkCRL(t, res.Crl, nil)
 
-		rpcErrCh := make(chan error, 1)
-		go func() {
-			rpcErrCh <- service.StreamSignedCRL(
-				&workloadidentityv1pb.StreamSignedCRLRequest{},
-				stream,
-			)
-		}()
-
-		// Fetch the initial, empty, CRL
-		res, err := stream.Recv()
-		require.NoError(t, err)
-		checkCRL(t, res.Crl, nil)
-
-		// Create new revocations
-		createRevocation(t, "ff")
-		createRevocation(t, "aa")
-
-		t.Log("Advancing fake clock to pass debounce period")
-		time.Sleep(6 * time.Second)
-
-		// The client should now receive a new CRL
-		res, err = stream.Recv()
-		require.NoError(t, err)
-		checkCRL(t, res.Crl, []x509.RevocationListEntry{
-			{
-				SerialNumber:   big.NewInt(170),
-				RevocationTime: revokedAt,
-			},
-			{
-				SerialNumber:   big.NewInt(255),
-				RevocationTime: revokedAt,
-			},
-		})
-
-		// Add another revocation, delete one revocation
-		createRevocation(t, "bb")
-		deleteRevocation(t, "aa")
-
-		t.Log("Advancing fake clock to pass debounce period")
-		time.Sleep(6 * time.Second)
-
-		// The client should now receive a new CRL
-		res, err = stream.Recv()
-		require.NoError(t, err)
-		checkCRL(t, res.Crl, []x509.RevocationListEntry{
-			{
-				SerialNumber:   big.NewInt(255),
-				RevocationTime: revokedAt,
-			},
-			{
-				SerialNumber:   big.NewInt(187),
-				RevocationTime: revokedAt,
-			},
-		})
-
-		// Delete all remaining CRL
-		deleteRevocation(t, "bb")
-		deleteRevocation(t, "ff")
-
-		t.Log("Advancing fake clock to pass debounce period")
-		time.Sleep(6 * time.Second)
-
-		// The client should now receive a new CRL
-		res, err = stream.Recv()
-		require.NoError(t, err)
-		checkCRL(t, res.Crl, nil)
-
-		// Wait ten minutes to see if the periodic CRL is sent.
-		t.Log("Advancing fake clock to pass the periodic timer")
-		time.Sleep(11 * time.Minute)
-
-		res, err = stream.Recv()
-		require.NoError(t, err)
-		checkCRL(t, res.Crl, nil)
-
-		// Cancel the RPC context and check it didn't return an error.
-		cancel()
-		require.NoError(t, <-rpcErrCh)
+	// Create new revocations
+	createRevocation(t, "ff")
+	createRevocation(t, "aa")
+	fakeClock.BlockUntil(2)
+	t.Log("Advancing fake clock to pass debounce period")
+	fakeClock.Advance(6 * time.Second)
+	// The client should now receive a new CRL
+	res, err = stream.Recv()
+	require.NoError(t, err)
+	checkCRL(t, res.Crl, []x509.RevocationListEntry{
+		{
+			SerialNumber:   big.NewInt(170),
+			RevocationTime: revokedAt,
+		},
+		{
+			SerialNumber:   big.NewInt(255),
+			RevocationTime: revokedAt,
+		},
 	})
-}
 
-// createAppSessionCertBytes creates an app session and returns the session
-// certificate.
-func createAppSessionCertBytes(t *testing.T, clt *authclient.Client, appName, username string) ([]byte, time.Time) {
-	t.Helper()
-
-	clusterName, err := clt.GetClusterName(t.Context())
+	// Add another revocation, delete one revocation
+	createRevocation(t, "bb")
+	deleteRevocation(t, "aa")
+	fakeClock.BlockUntil(2)
+	t.Log("Advancing fake clock to pass debounce period")
+	fakeClock.Advance(6 * time.Second)
+	// The client should now receive a new CRL
+	res, err = stream.Recv()
 	require.NoError(t, err)
-
-	aliceSession, err := clt.CreateAppSession(t.Context(), &apiproto.CreateAppSessionRequest{
-		AppName:     appName,
-		Username:    username,
-		PublicAddr:  appName + "." + clusterName.GetClusterName(),
-		ClusterName: clusterName.GetClusterName(),
+	checkCRL(t, res.Crl, []x509.RevocationListEntry{
+		{
+			SerialNumber:   big.NewInt(255),
+			RevocationTime: revokedAt,
+		},
+		{
+			SerialNumber:   big.NewInt(187),
+			RevocationTime: revokedAt,
+		},
 	})
+
+	// Delete all remaining CRL
+	deleteRevocation(t, "bb")
+	deleteRevocation(t, "ff")
+	fakeClock.BlockUntil(2)
+	t.Log("Advancing fake clock to pass debounce period")
+	fakeClock.Advance(6 * time.Second)
+	// The client should now receive a new CRL
+	res, err = stream.Recv()
 	require.NoError(t, err)
-	cert, err := tlsutils.ParseCertificatePEM(aliceSession.GetTLSCert())
+	checkCRL(t, res.Crl, nil)
+
+	// Wait ten minutes to see if the periodic CRL is sent.
+	t.Log("Advancing fake clock to pass the periodic timer")
+	fakeClock.Advance(11 * time.Minute)
+	res, err = stream.Recv()
 	require.NoError(t, err)
-	return cert.Raw, aliceSession.Expiry()
+	checkCRL(t, res.Crl, nil)
 }

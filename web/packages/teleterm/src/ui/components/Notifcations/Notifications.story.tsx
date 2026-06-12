@@ -18,11 +18,11 @@
 
 import { useState } from 'react';
 
-import { ButtonPrimary, Flex } from 'design';
 import type {
-  ToastNotificationItem,
-  ToastNotificationSeverity,
-} from 'shared/components/ToastNotification';
+  NotificationItem,
+  NotificationSeverity,
+} from '@gravitational/shared/components/Notification';
+import { ButtonPrimary, Flex } from 'design';
 
 import { unique } from 'teleterm/ui/utils/uid';
 
@@ -32,8 +32,8 @@ export default {
   title: 'Teleterm/components/Notifications',
 };
 
-function useToastNotifications() {
-  const [items, setItems] = useState<ToastNotificationItem[]>([]);
+function useNotifications() {
+  const [items, setItems] = useState<NotificationItem[]>([]);
 
   function removeItem(id: string) {
     setItems(prevItems => prevItems.filter(item => item.id !== id));
@@ -43,9 +43,9 @@ function useToastNotifications() {
 }
 
 export const TitleAndDescriptionContent = () => {
-  const { setItems, removeItem, items } = useToastNotifications();
+  const { setItems, removeItem, items } = useNotifications();
 
-  function notify(severity: ToastNotificationSeverity) {
+  function notify(severity: NotificationSeverity) {
     setItems(prevItems => [
       ...prevItems,
       {
@@ -77,9 +77,9 @@ export const TitleAndDescriptionContent = () => {
 };
 
 export const StringContent = () => {
-  const { setItems, removeItem, items } = useToastNotifications();
+  const { setItems, removeItem, items } = useNotifications();
 
-  function notify(severity: ToastNotificationSeverity) {
+  function notify(severity: NotificationSeverity) {
     setItems(prevItems => [
       ...prevItems,
       {

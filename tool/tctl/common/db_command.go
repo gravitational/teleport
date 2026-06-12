@@ -21,8 +21,8 @@ package common
 import (
 	"context"
 	"os"
+	"text/template"
 
-	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
@@ -34,7 +34,6 @@ import (
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/parse"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
@@ -92,7 +91,7 @@ func (c *DBCommand) TryRun(ctx context.Context, cmd string, clientFunc commoncli
 // ListDatabases prints the list of database proxies that have recently sent
 // heartbeats to the cluster.
 func (c *DBCommand) ListDatabases(ctx context.Context, clt *authclient.Client) error {
-	labels, err := parse.LabelSelectorSpec(c.labels)
+	labels, err := libclient.ParseLabelSpec(c.labels)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -113,7 +112,7 @@ func (c *DBCommand) ListDatabases(ctx context.Context, clt *authclient.Client) e
 	coll := &databaseServerCollection{servers: servers}
 	switch c.format {
 	case teleport.Text:
-		return trace.Wrap(coll.WriteText(os.Stdout, c.verbose))
+		return trace.Wrap(coll.writeText(os.Stdout, c.verbose))
 	case teleport.JSON:
 		return trace.Wrap(coll.writeJSON(os.Stdout))
 	case teleport.YAML:
@@ -131,7 +130,7 @@ Generate the configuration and start a Teleport agent using it:
 > teleport db configure create \
    --token={{.token}} \{{range .ca_pins}}
    --ca-pin={{.}} \{{end}}
-   --proxy={{.proxy_server}} \
+   --proxy={{.auth_server}} \
    --name={{.db_name}} \
    --protocol={{.db_protocol}} \
    --uri={{.db_uri}} \

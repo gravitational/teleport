@@ -20,7 +20,6 @@ package generic
 
 import (
 	"context"
-	"iter"
 	"log/slog"
 	"strings"
 	"time"
@@ -30,7 +29,6 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -68,11 +66,10 @@ type ServiceConfig[T any] struct {
 	// If set to 0, the default interval of 250ms will be used.
 	// WARNING: If set to a negative value, the RunWhileLocked function will retry immediately.
 	RunWhileLockedRetryInterval time.Duration
-	// NameKeyFunc optionally allows resources to have composite and/or customized
-	// key names. The resulting resource name is still prefixed by the
-	// BackendPrefix.
-	// If unset the item name is created via `BackendPrefix.AppendKey(name)`.
-	NameKeyFunc func() backend.Key
+	// NameKeyFunc optionally allows resources to have a custom key suffix, by
+	// transforming the name of the resource or the input given to methods that
+	// take a resource name. If unset, the name is used without changes.
+	NameKeyFunc func(name string) string
 }
 
 func (c *ServiceConfig[T]) CheckAndSetDefaults() error {
@@ -104,23 +101,17 @@ func (c *ServiceConfig[T]) CheckAndSetDefaults() error {
 	return nil
 }
 
-// Immutable service state, created on NewService and copied by WithX methods.
-type serviceState[T Resource] struct {
+// Service is a generic service for interacting with resources in the backend.
+type Service[T Resource] struct {
 	backend                     backend.Backend
 	resourceKind                string
 	pageLimit                   uint
+	backendPrefix               backend.Key
 	marshalFunc                 MarshalFunc[T]
 	unmarshalFunc               UnmarshalFunc[T]
 	validateFunc                func(T) error
 	runWhileLockedRetryInterval time.Duration
-}
-
-// Service is a generic service for interacting with resources in the backend.
-type Service[T Resource] struct {
-	*serviceState[T]
-
-	backendPrefix backend.Key
-	nameKeyFunc   func() backend.Key
+	nameKeyFunc                 func(name string) string
 }
 
 // NewService will return a new generic service with the given config. This will
@@ -131,17 +122,15 @@ func NewService[T Resource](cfg *ServiceConfig[T]) (*Service[T], error) {
 	}
 
 	return &Service[T]{
-		serviceState: &serviceState[T]{
-			backend:                     cfg.Backend,
-			resourceKind:                cfg.ResourceKind,
-			pageLimit:                   cfg.PageLimit,
-			marshalFunc:                 cfg.MarshalFunc,
-			unmarshalFunc:               cfg.UnmarshalFunc,
-			validateFunc:                cfg.ValidateFunc,
-			runWhileLockedRetryInterval: cfg.RunWhileLockedRetryInterval,
-		},
-		backendPrefix: cfg.BackendPrefix,
-		nameKeyFunc:   cfg.NameKeyFunc,
+		backend:                     cfg.Backend,
+		resourceKind:                cfg.ResourceKind,
+		pageLimit:                   cfg.PageLimit,
+		backendPrefix:               cfg.BackendPrefix,
+		marshalFunc:                 cfg.MarshalFunc,
+		unmarshalFunc:               cfg.UnmarshalFunc,
+		validateFunc:                cfg.ValidateFunc,
+		runWhileLockedRetryInterval: cfg.RunWhileLockedRetryInterval,
+		nameKeyFunc:                 cfg.NameKeyFunc,
 	}, nil
 }
 
@@ -150,34 +139,16 @@ func (s *Service[T]) WithPrefix(parts ...string) *Service[T] {
 	if len(parts) == 0 {
 		return s
 	}
-	s2 := s.clone()
-	s2.backendPrefix = s.backendPrefix.AppendKey(backend.NewKey(parts...))
-	return s2
+	s2 := *s
+	s2.backendPrefix = s2.backendPrefix.AppendKey(backend.NewKey(parts...))
+	return &s2
 }
 
-// WithNameKeyFunc creates a service copy with a distinct NameKeyFunc.
-func (s *Service[T]) WithNameKeyFunc(f func() backend.Key) *Service[T] {
-	s2 := s.clone()
-	s2.nameKeyFunc = f
-	return s2
-}
-
-func (s *Service[T]) clone() *Service[T] {
-	return &Service[T]{
-		serviceState:  s.serviceState,
-		backendPrefix: s.backendPrefix,
-		nameKeyFunc:   s.nameKeyFunc,
-	}
-}
-
-func (s *Service[T]) resourceKey(name string) backend.Key {
-	var suffix backend.Key
+func (s *Service[T]) nameKey(name string) string {
 	if s.nameKeyFunc != nil {
-		suffix = s.nameKeyFunc()
-	} else {
-		suffix = backend.NewKey(name)
+		return s.nameKeyFunc(name)
 	}
-	return s.MakeKey(suffix)
+	return name
 }
 
 // CountResources will return a count of all resources in the prefix range.
@@ -186,18 +157,13 @@ func (s *Service[T]) CountResources(ctx context.Context) (uint, error) {
 	rangeEnd := backend.RangeEnd(rangeStart)
 
 	count := uint(0)
-	for _, err := range s.backend.Items(ctx, backend.ItemsParams{
-		StartKey: rangeStart,
-		EndKey:   rangeEnd,
-	}) {
-		if err != nil {
-			return 0, trace.Wrap(err)
-		}
+	err := backend.IterateRange(ctx, s.backend, rangeStart, rangeEnd, int(s.pageLimit),
+		func(items []backend.Item) (stop bool, err error) {
+			count += uint(len(items))
+			return false, nil
+		})
 
-		count++
-	}
-
-	return count, nil
+	return count, trace.Wrap(err)
 }
 
 // GetResources returns a list of all resources.
@@ -225,46 +191,6 @@ func (s *Service[T]) GetResources(ctx context.Context) ([]T, error) {
 	return out, nil
 }
 
-// Resources returns a stream of resources within the range [startKey, endKey).
-// If endKey is empty, iteration continues to the end of the prefix range.
-//
-// This method can be used to implement RangeFoo.
-func (s *Service[T]) Resources(ctx context.Context, startKey, endKey string) iter.Seq2[T, error] {
-	params := backend.ItemsParams{
-		StartKey: s.backendPrefix.AppendKey(backend.KeyFromString(startKey)),
-	}
-	if endKey != "" {
-		params.EndKey = s.backendPrefix.AppendKey(backend.KeyFromString(endKey)).ExactKey()
-	} else {
-		// Defaults to end of range if not specified.
-		params.EndKey = backend.RangeEnd(s.backendPrefix.ExactKey())
-	}
-
-	mapFn := func(item backend.Item) (T, bool) {
-		resource, err := s.unmarshalFunc(item.Value,
-			services.WithExpires(item.Expires),
-			services.WithRevision(item.Revision))
-		if err != nil {
-			// unmarshal errors are logged and skipped
-			slog.WarnContext(ctx, "skipping resource due to unmarshal error", "error", err, "key", logutils.StringerAttr(item.Key))
-			return *new(T), false
-		}
-		return resource, true
-	}
-
-	return stream.TakeWhile(
-		stream.FilterMap(s.backend.Items(ctx, params), mapFn),
-		func(r T) bool {
-			// We promise the consumers of this function that the returned
-			// results an exclusive of the endkey but the underlying Items
-			// method returns us a stream that's inclusive of the end key - so
-			// if the user has provided us an end-key, we manually filter them
-			// out to convert from inclusive to exclusive.
-			return endKey == "" || r.GetName() < endKey
-		},
-	)
-}
-
 // ListResources returns a paginated list of resources.
 func (s *Service[T]) ListResources(ctx context.Context, pageSize int, pageToken string) ([]T, string, error) {
 	resources, _, nextKey, err := s.listResourcesReturnNextResourceWithKey(ctx, pageSize, pageToken)
@@ -279,85 +205,103 @@ func (s *Service[T]) ListResourcesReturnNextResource(ctx context.Context, pageSi
 }
 
 func (s *Service[T]) listResourcesReturnNextResourceWithKey(ctx context.Context, pageSize int, pageToken string) ([]T, *T, string, error) {
+	rangeStart := s.backendPrefix.AppendKey(backend.KeyFromString(pageToken))
+	rangeEnd := backend.RangeEnd(s.backendPrefix.ExactKey())
+
 	// Adjust page size, so it can't be too large.
 	if pageSize <= 0 || pageSize > int(s.pageLimit) {
 		pageSize = int(s.pageLimit)
 	}
 
-	var out []T
-	for item, err := range s.backend.Items(ctx, backend.ItemsParams{
-		StartKey: s.backendPrefix.AppendKey(backend.KeyFromString(pageToken)),
-		EndKey:   backend.RangeEnd(s.backendPrefix.ExactKey()),
-		Limit:    pageSize + 1,
-	}) {
-		if err != nil {
-			return nil, nil, "", trace.Wrap(err)
-		}
+	out := make([]T, 0, pageSize)
+	var next *T
+	var nextKey string
 
-		resource, err := s.unmarshalFunc(item.Value,
-			services.WithExpires(item.Expires),
-			services.WithRevision(item.Revision))
-		if err != nil {
-			// unmarshal errors are logged and skipped
-			slog.WarnContext(ctx, "skipping resource due to unmarshal error", "error", err, "key", logutils.StringerAttr(item.Key))
-			continue
-		}
+	if err := backend.IterateRange(
+		ctx,
+		s.backend,
+		rangeStart,
+		rangeEnd,
+		pageSize+1,
+		func(items []backend.Item) (bool, error) {
+			for _, item := range items {
+				resource, err := s.unmarshalFunc(item.Value,
+					services.WithRevision(item.Revision),
+					services.WithExpires(item.Expires))
+				if err != nil {
+					slog.WarnContext(ctx, "skipping resource due to unmarshal error", "error", err, "key", logutils.StringerAttr(item.Key))
+					continue
+				}
 
-		if len(out) == pageSize {
-			nextKey := strings.TrimPrefix(item.Key.TrimPrefix(s.backendPrefix).String(), string(backend.Separator))
-			return out, &resource, nextKey, nil
-		}
-
-		out = append(out, resource)
+				if len(out) >= pageSize {
+					next = &resource
+					nextKey = strings.TrimPrefix(item.Key.TrimPrefix(s.backendPrefix).String(), string(backend.Separator))
+					return true, nil
+				} else {
+					out = append(out, resource)
+				}
+			}
+			return false, nil
+		}); err != nil {
+		return nil, nil, "", trace.Wrap(err)
 	}
 
-	return out, nil, "", nil
+	return out, next, nextKey, nil
 }
 
 // ListResourcesWithFilter returns a paginated list of resources that match the given filter.
 func (s *Service[T]) ListResourcesWithFilter(ctx context.Context, pageSize int, pageToken string, matcher func(T) bool) ([]T, string, error) {
+	rangeStart := s.backendPrefix.AppendKey(backend.KeyFromString(pageToken))
+	rangeEnd := backend.RangeEnd(s.backendPrefix.ExactKey())
 
 	// Adjust page size, so it can't be too large.
 	if pageSize <= 0 || pageSize > int(s.pageLimit) {
 		pageSize = int(s.pageLimit)
 	}
 
-	var out []T
-	for item, err := range s.backend.Items(ctx, backend.ItemsParams{
-		StartKey: s.backendPrefix.AppendKey(backend.KeyFromString(pageToken)),
-		EndKey:   backend.RangeEnd(s.backendPrefix.ExactKey()),
-	}) {
-		if err != nil {
-			return nil, "", trace.Wrap(err)
-		}
-
-		resource, err := s.unmarshalFunc(item.Value,
-			services.WithExpires(item.Expires),
-			services.WithRevision(item.Revision))
-		if err != nil {
-			// unmarshal errors are logged and skipped
-			slog.WarnContext(ctx, "skipping resource due to unmarshal error", "error", err, "key", logutils.StringerAttr(item.Key))
-			continue
-		}
-
-		if !matcher(resource) {
-			continue
-		}
-
-		if len(out) == pageSize {
-			nextKey := strings.TrimPrefix(item.Key.TrimPrefix(s.backendPrefix).String(), string(backend.Separator))
-			return out, nextKey, nil
-		}
-
-		out = append(out, resource)
+	var resources []T
+	var lastKey backend.Key
+	if err := backend.IterateRange(
+		ctx,
+		s.backend,
+		rangeStart,
+		rangeEnd,
+		pageSize+1,
+		func(items []backend.Item) (bool, error) {
+			for _, item := range items {
+				resource, err := s.unmarshalFunc(item.Value,
+					services.WithRevision(item.Revision),
+					services.WithExpires(item.Expires))
+				if err != nil {
+					slog.WarnContext(ctx, "skipping resource due to unmarshal error", "error", err, "key", logutils.StringerAttr(item.Key))
+					continue
+				}
+				if matcher(resource) {
+					lastKey = item.Key
+					resources = append(resources, resource)
+					if len(resources) >= pageSize+1 {
+						return true, nil
+					}
+				}
+			}
+			return false, nil
+		}); err != nil {
+		return nil, "", trace.Wrap(err)
 	}
 
-	return out, "", nil
+	var nextKey string
+	if len(resources) > pageSize {
+		nextKey = strings.TrimPrefix(lastKey.TrimPrefix(s.backendPrefix).String(), string(backend.Separator))
+		// Truncate the last item that was used to determine next row existence.
+		resources = resources[:pageSize]
+	}
+
+	return resources, nextKey, nil
 }
 
 // GetResource returns the specified resource.
 func (s *Service[T]) GetResource(ctx context.Context, name string) (resource T, err error) {
-	item, err := s.backend.Get(ctx, s.resourceKey(name))
+	item, err := s.backend.Get(ctx, s.MakeKey(backend.NewKey(s.nameKey(name))))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return resource, trace.NotFound("%s %q doesn't exist", s.resourceKind, name)
@@ -365,7 +309,8 @@ func (s *Service[T]) GetResource(ctx context.Context, name string) (resource T, 
 		return resource, trace.Wrap(err)
 	}
 	resource, err = s.unmarshalFunc(item.Value,
-		services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+		services.WithExpires(item.Expires),
+		services.WithRevision(item.Revision))
 	return resource, trace.Wrap(err)
 }
 
@@ -467,7 +412,7 @@ func (s *Service[T]) UpsertResource(ctx context.Context, resource T) (T, error) 
 
 // DeleteResource removes the specified resource.
 func (s *Service[T]) DeleteResource(ctx context.Context, name string) error {
-	err := s.backend.Delete(ctx, s.resourceKey(name))
+	err := s.backend.Delete(ctx, s.MakeKey(backend.NewKey(s.nameKey(name))))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return trace.NotFound("%s %q doesn't exist", s.resourceKind, name)
@@ -486,7 +431,7 @@ func (s *Service[T]) DeleteAllResources(ctx context.Context) error {
 // UpdateAndSwapResource will get the resource from the backend, modify it, and swap the new value into the backend.
 func (s *Service[T]) UpdateAndSwapResource(ctx context.Context, name string, modify func(T) error) (T, error) {
 	var t T
-	existingItem, err := s.backend.Get(ctx, s.resourceKey(name))
+	existingItem, err := s.backend.Get(ctx, s.MakeKey(backend.NewKey(s.nameKey(name))))
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return t, trace.NotFound("%s %q doesn't exist", s.resourceKind, name)
@@ -495,7 +440,8 @@ func (s *Service[T]) UpdateAndSwapResource(ctx context.Context, name string, mod
 	}
 
 	resource, err := s.unmarshalFunc(existingItem.Value,
-		services.WithExpires(existingItem.Expires), services.WithRevision(existingItem.Revision))
+		services.WithExpires(existingItem.Expires),
+		services.WithRevision(existingItem.Revision))
 	if err != nil {
 		return t, trace.Wrap(err)
 	}
@@ -539,7 +485,7 @@ func (s *Service[T]) MakeBackendItem(resource T, _ ...any) (backend.Item, error)
 		return backend.Item{}, trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:      s.resourceKey(resource.GetName()),
+		Key:      s.MakeKey(backend.NewKey(s.nameKey(resource.GetName()))),
 		Value:    value,
 		Revision: rev,
 	}

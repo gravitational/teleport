@@ -76,7 +76,7 @@ export interface UserLoginEvent {
      */
     requiredPrivateKeyPolicy: string;
     /**
-     * UserOrigin specifies the origin of the user specified in user_name.
+     * UserOrigin specifies the origin of this user account.
      *
      * PostHog property: tp.user_origin
      *
@@ -164,13 +164,6 @@ export interface ResourceCreateEvent {
      * @generated from protobuf field: prehog.v1alpha.DiscoveredDatabaseMetadata database = 4;
      */
     database?: DiscoveredDatabaseMetadata;
-    /**
-     * discovery_config_name is the anonymized name of the DiscoveryConfig that triggered discovery.
-     * Empty for teleport.yaml matcher configuration.
-     *
-     * @generated from protobuf field: string discovery_config_name = 5;
-     */
-    discoveryConfigName: string;
 }
 /**
  * DiscoveredDatabaseMetadata contains additional database information.
@@ -300,13 +293,6 @@ export interface SessionStartEvent {
      * @generated from protobuf field: prehog.v1alpha.SessionStartGitMetadata git = 7;
      */
     git?: SessionStartGitMetadata;
-    /**
-     * if session_type == "app_mcp" the mcp struct contains additional information
-     * about the MCP session.
-     *
-     * @generated from protobuf field: prehog.v1alpha.SessionStartMCPMetadata mcp = 8;
-     */
-    mcp?: SessionStartMCPMetadata;
 }
 /**
  * SessionStartDatabaseMetadata contains additional information about database session.
@@ -415,49 +401,6 @@ export interface SessionStartGitMetadata {
      * @generated from protobuf field: string git_service = 2;
      */
     gitService: string;
-}
-/**
- * SessionStartMCPMetadata contains additional information about an MCP session.
- *
- * @generated from protobuf message prehog.v1alpha.SessionStartMCPMetadata
- */
-export interface SessionStartMCPMetadata {
-    /**
-     * Transport type of the MCP server. Value from types.GetMCPServerTransportType.
-     *
-     * @generated from protobuf field: string transport = 1;
-     */
-    transport: string;
-    /**
-     * MCP protocol version like "2025-06-18".
-     *
-     * @generated from protobuf field: string protocol_version = 2;
-     */
-    protocolVersion: string;
-    /**
-     * Indicates the client used on the session, e.g "claude-ai".
-     *
-     * @generated from protobuf field: string client_name = 3;
-     */
-    clientName: string;
-    /**
-     * Indicates the server used on the session, e.g "example-servers/everything".
-     *
-     * @generated from protobuf field: string server_name = 4;
-     */
-    serverName: string;
-    /**
-     * Indicates how the MCP session is authorized between MCP client and Teleport.
-     *
-     * @generated from protobuf field: string ingress_auth_type = 5;
-     */
-    ingressAuthType: string;
-    /**
-     * Indicates how the MCP session is authorized between Teleport and remote MCP server.
-     *
-     * @generated from protobuf field: string egress_auth_type = 6;
-     */
-    egressAuthType: string;
 }
 /**
  * the issuance of a user certificate from the user CA
@@ -1812,18 +1755,6 @@ export interface AccessListMetadata {
      * @generated from protobuf field: string id = 1;
      */
     id: string;
-    /**
-     * anonymized
-     *
-     * @generated from protobuf field: string user_name = 2;
-     */
-    userName: string;
-    /**
-     * Describes the sessions preset.
-     *
-     * @generated from protobuf field: prehog.v1alpha.AccessListPreset preset = 3;
-     */
-    preset: AccessListPreset;
 }
 /**
  * AccessListCreate is an event that is emitted when an access list is created.
@@ -2171,110 +2102,6 @@ export interface UIIntegrationEnrollStepEvent {
      * @generated from protobuf field: prehog.v1alpha.IntegrationEnrollStepStatus status = 3;
      */
     status?: IntegrationEnrollStepStatus;
-}
-/**
- * UIIntegrationEnrollSectionOpenEvent is emitted when the user opens or expands
- * a section (e.g. "Advanced Options") in an integration setup wizard.
- *
- * @generated from protobuf message prehog.v1alpha.UIIntegrationEnrollSectionOpenEvent
- */
-export interface UIIntegrationEnrollSectionOpenEvent {
-    /**
-     * Metadata of the event.
-     *
-     * @generated from protobuf field: prehog.v1alpha.IntegrationEnrollMetadata metadata = 1;
-     */
-    metadata?: IntegrationEnrollMetadata;
-    /**
-     * Step where the section was opened.
-     *
-     * @generated from protobuf field: prehog.v1alpha.IntegrationEnrollStep step = 2;
-     */
-    step: IntegrationEnrollStep;
-    /**
-     * Section that was opened.
-     *
-     * @generated from protobuf field: prehog.v1alpha.IntegrationEnrollSection section = 3;
-     */
-    section: IntegrationEnrollSection;
-}
-/**
- * UIIntegrationEnrollFieldCompleteEvent is emitted when the user completes a
- * field in an integration setup wizard.
- *
- * @generated from protobuf message prehog.v1alpha.UIIntegrationEnrollFieldCompleteEvent
- */
-export interface UIIntegrationEnrollFieldCompleteEvent {
-    /**
-     * Metadata of the event.
-     *
-     * @generated from protobuf field: prehog.v1alpha.IntegrationEnrollMetadata metadata = 1;
-     */
-    metadata?: IntegrationEnrollMetadata;
-    /**
-     * Step where the field was completed.
-     *
-     * @generated from protobuf field: prehog.v1alpha.IntegrationEnrollStep step = 2;
-     */
-    step: IntegrationEnrollStep;
-    /**
-     * Field that was completed.
-     *
-     * @generated from protobuf field: prehog.v1alpha.IntegrationEnrollField field = 3;
-     */
-    field: IntegrationEnrollField;
-}
-/**
- * UIIntegrationEnrollCodeCopyEvent is emitted when the user copies generated
- * IaC (e.g. Terraform) code in an integration setup wizard.
- *
- * @generated from protobuf message prehog.v1alpha.UIIntegrationEnrollCodeCopyEvent
- */
-export interface UIIntegrationEnrollCodeCopyEvent {
-    /**
-     * Metadata of the event.
-     *
-     * @generated from protobuf field: prehog.v1alpha.IntegrationEnrollMetadata metadata = 1;
-     */
-    metadata?: IntegrationEnrollMetadata;
-    /**
-     * Step where the code was copied.
-     *
-     * @generated from protobuf field: prehog.v1alpha.IntegrationEnrollStep step = 2;
-     */
-    step: IntegrationEnrollStep;
-    /**
-     * Type of code that was copied.
-     *
-     * @generated from protobuf field: prehog.v1alpha.IntegrationEnrollCodeType type = 3;
-     */
-    type: IntegrationEnrollCodeType;
-}
-/**
- * UIIntegrationEnrollLinkClickEvent is emitted when the user clicks a link to
- * documentation, etc. in an integration setup wizard.
- *
- * @generated from protobuf message prehog.v1alpha.UIIntegrationEnrollLinkClickEvent
- */
-export interface UIIntegrationEnrollLinkClickEvent {
-    /**
-     * Metadata of the event.
-     *
-     * @generated from protobuf field: prehog.v1alpha.IntegrationEnrollMetadata metadata = 1;
-     */
-    metadata?: IntegrationEnrollMetadata;
-    /**
-     * Step where the link was clicked.
-     *
-     * @generated from protobuf field: prehog.v1alpha.IntegrationEnrollStep step = 2;
-     */
-    step: IntegrationEnrollStep;
-    /**
-     * Link that was clicked.
-     *
-     * @generated from protobuf field: string link = 3;
-     */
-    link: string;
 }
 /**
  * EditorChangeEvent is an event that is emitted when a user role set changes resulting in
@@ -2693,69 +2520,6 @@ export interface UIAccessGraphCrownJewelDiffViewEvent {
     affectedResourceType: string;
 }
 /**
- * UIPageViewEvent is emitted when a user views a page in the Teleport UI.
- *
- * @generated from protobuf message prehog.v1alpha.UIPageViewEvent
- */
-export interface UIPageViewEvent {
-    /**
-     * anonymized
-     *
-     * @generated from protobuf field: string user_name = 1;
-     */
-    userName: string;
-    /**
-     * path is the route template of the page viewed, e.g. "/web/cluster/:clusterId/usage-summary"
-     *
-     * @generated from protobuf field: string path = 2;
-     */
-    path: string;
-    /**
-     * utm_source identifies the channel that drove the visit (e.g. "email")
-     *
-     * @generated from protobuf field: string utm_source = 3;
-     */
-    utmSource: string;
-    /**
-     * utm_campaign identifies the specific campaign (e.g. "overage_80")
-     *
-     * @generated from protobuf field: string utm_campaign = 4;
-     */
-    utmCampaign: string;
-}
-/**
- * UIUsageReportingAlertCtaClickEvent is emitted when a user clicks the CTA button in
- * a usage reporting alert (e.g. an overage notification).
- *
- * @generated from protobuf message prehog.v1alpha.UIUsageReportingAlertCtaClickEvent
- */
-export interface UIUsageReportingAlertCtaClickEvent {
-    /**
-     * anonymized
-     *
-     * @generated from protobuf field: string user_name = 1;
-     */
-    userName: string;
-    /**
-     * alert identifies the alert that was clicked (e.g. "overage_80", "overage_90", "overage_100")
-     *
-     * @generated from protobuf field: string alert = 2;
-     */
-    alert: string;
-    /**
-     * utm_source identifies the channel that drove the visit (e.g. "email")
-     *
-     * @generated from protobuf field: string utm_source = 3;
-     */
-    utmSource: string;
-    /**
-     * utm_campaign identifies the specific campaign (e.g. "overage_80")
-     *
-     * @generated from protobuf field: string utm_campaign = 4;
-     */
-    utmCampaign: string;
-}
-/**
  * AccessGraphCrownJewelCreateEvent is emitted when a user creates an Access Graph's
  * Crown Jewel Resource.
  *
@@ -3041,570 +2805,19 @@ export interface UserTaskStateEvent {
      * @generated from protobuf field: int32 instances_count = 4;
      */
     instancesCount: number;
-    /**
-     * discovery_config_name is the anonymized name of the DiscoveryConfig used when
-     * the issue was created.
-     *
-     * PostHog property: tp.usertask.discovery_config_name
-     *
-     * @generated from protobuf field: string discovery_config_name = 5;
-     */
-    discoveryConfigName: string;
 }
 /**
- * AccessRequestCreateEvent is emitted when an Access Request is created.
+ * AccessRequestEvent emitted for Access Request audit events.
  *
- * PostHog event: tp.access_request.create
- *
- * @generated from protobuf message prehog.v1alpha.AccessRequestCreateEvent
+ * @generated from protobuf message prehog.v1alpha.AccessRequestEvent
  */
-export interface AccessRequestCreateEvent {
+export interface AccessRequestEvent {
     /**
      * Teleport user name. Anonymized.
      *
      * @generated from protobuf field: string user_name = 1;
      */
     userName: string;
-    /**
-     * resource_kinds specifies the kind of resources requested.
-     *
-     * PostHog property: tp.access_request.resource_kinds.
-     *
-     * @generated from protobuf field: repeated string resource_kinds = 2;
-     */
-    resourceKinds: string[];
-}
-/**
- * AccessRequestReviewEvent is emitted when an Access Request is reviewed.
- *
- * PostHog event: tp.access_request.review
- *
- * @generated from protobuf message prehog.v1alpha.AccessRequestReviewEvent
- */
-export interface AccessRequestReviewEvent {
-    /**
-     * Teleport user name. Anonymized.
-     *
-     * @generated from protobuf field: string user_name = 1;
-     */
-    userName: string;
-    /**
-     * resource_kinds specifies the kind of resources requested.
-     *
-     * PostHog property: tp.access_request.resource_kinds.
-     *
-     * @generated from protobuf field: repeated string resource_kinds = 2;
-     */
-    resourceKinds: string[];
-    /**
-     * is_bot_reviewed indicates whether the access request was automatically
-     * reviewed by a bot.
-     *
-     * PostHog property: tp.access_request.is_bot_reviewed.
-     *
-     * @generated from protobuf field: bool is_bot_reviewed = 3;
-     */
-    isBotReviewed: boolean;
-    /**
-     * proposed_state specifies the proposed state of the access request review.
-     *
-     * PostHog property: tp.access_request.proposed_state.
-     *
-     * @generated from protobuf field: prehog.v1alpha.AccessRequestReviewEvent.ProposedState proposed_state = 4;
-     */
-    proposedState: AccessRequestReviewEvent_ProposedState;
-}
-/**
- * ProposedState specifies the proposed state of an access request review.
- *
- * @generated from protobuf enum prehog.v1alpha.AccessRequestReviewEvent.ProposedState
- */
-export enum AccessRequestReviewEvent_ProposedState {
-    /**
-     * PROPOSED_STATE_UNSPECIFIED is an unspecified access request state.
-     *
-     * @generated from protobuf enum value: PROPOSED_STATE_UNSPECIFIED = 0;
-     */
-    UNSPECIFIED = 0,
-    /**
-     * PROPOSED_STATE_APPROVED specifies the approved access request state.
-     *
-     * @generated from protobuf enum value: PROPOSED_STATE_APPROVED = 1;
-     */
-    APPROVED = 1,
-    /**
-     * PROPOSED_STATE_DENIED specifies the denied access request state.
-     *
-     * @generated from protobuf enum value: PROPOSED_STATE_DENIED = 2;
-     */
-    DENIED = 2
-}
-/**
- * SessionSummaryAccessEvent is emitted when the user accesses a session
- * summary.
- *
- * PostHog event: tp.session.summary.access
- *
- * @generated from protobuf message prehog.v1alpha.SessionSummaryAccessEvent
- */
-export interface SessionSummaryAccessEvent {
-    /**
-     * session_type is type of the session, should be
-     * "ssh"/"k8s"/"db"/"desktop" (matching the values for
-     * api/types.SessionKind).
-     *
-     * PostHog property: tp.session_type
-     *
-     * @generated from protobuf field: string session_type = 1;
-     */
-    sessionType: string;
-    /**
-     * user_name is the anonymized Teleport username, 32 bytes (HMAC-SHA-256)
-     * encoded in base64.
-     *
-     * PostHog property: tp.user_name
-     *
-     * @generated from protobuf field: string user_name = 2;
-     */
-    userName: string;
-    /**
-     * resource_name is the anonymized resource name, 32 bytes (HMAC-SHA-256)
-     * encoded in base64.
-     *
-     * PostHog property: tp.resource_name
-     *
-     * @generated from protobuf field: string resource_name = 3;
-     */
-    resourceName: string;
-    /**
-     * Indicates this event was generated by a Machine ID bot user or a human.
-     *
-     * @generated from protobuf field: prehog.v1alpha.UserKind user_kind = 4;
-     */
-    userKind: UserKind;
-}
-/**
- * SessionSummaryCreateEvent is emitted when the session summarizer tries to
- * summarize a session.
- *
- * PostHog event: tp.session.summary.create
- *
- * @generated from protobuf message prehog.v1alpha.SessionSummaryCreateEvent
- */
-export interface SessionSummaryCreateEvent {
-    /**
-     * session_type is type of the session, should be
-     * "ssh"/"k8s"/"db"/"desktop" (matching the values for
-     * api/types.SessionKind).
-     *
-     * PostHog property: tp.session_type
-     *
-     * @generated from protobuf field: string session_type = 1;
-     */
-    sessionType: string;
-    /**
-     * provider is the AI provider used for the session summary.
-     * Should be "bedrock" or "openai".
-     *
-     * PostHog property: tp.ai.provider
-     *
-     * @generated from protobuf field: string provider = 2;
-     */
-    provider: string;
-    /**
-     * total_input_tokens is number of total tokens consumed during the summary.
-     *
-     * PostHog property: tp.ai.input_tokens
-     *
-     * @generated from protobuf field: uint64 total_input_tokens = 3;
-     */
-    totalInputTokens: bigint;
-    /**
-     * total_output_tokens is number of total output tokens generated during the summary.
-     *
-     * PostHog property: tp.ai.output_tokens
-     *
-     * @generated from protobuf field: uint64 total_output_tokens = 4;
-     */
-    totalOutputTokens: bigint;
-    /**
-     * success indicates whether the session summary was successfully created.
-     *
-     * @generated from protobuf field: bool success = 5;
-     */
-    success: boolean;
-    /**
-     * resource_name is the anonymized resource name, 32 bytes (HMAC-SHA-256)
-     * encoded in base64.
-     *
-     * PostHog property: tp.resource_name
-     *
-     * @generated from protobuf field: string resource_name = 6;
-     */
-    resourceName: string;
-    /**
-     * is_cloud_default_model indicates whether the session summary was generated using
-     * the cloud default model.
-     *
-     * PostHog property: tp.ai.default_model
-     *
-     * @generated from protobuf field: bool is_cloud_default_model = 7;
-     */
-    isCloudDefaultModel: boolean;
-    /**
-     * has_stored_embeddings indicates whether the cluster is configured to store
-     * embeddings for session summaries.
-     *
-     * PostHog property: tp.ai.has_stored_embeddings
-     *
-     * @generated from protobuf field: bool has_stored_embeddings = 8;
-     */
-    hasStoredEmbeddings: boolean;
-}
-/**
- * SessionSummarySearchEvent is emitted when a user runs a session summary
- * search query.
- *
- * PostHog event: tp.session.summary.search
- *
- * @generated from protobuf message prehog.v1alpha.SessionSummarySearchEvent
- */
-export interface SessionSummarySearchEvent {
-    /**
-     * user_name is the anonymized Teleport username, 32 bytes (HMAC-SHA-256)
-     * encoded in base64.
-     *
-     * PostHog property: tp.user_name
-     *
-     * @generated from protobuf field: string user_name = 1;
-     */
-    userName: string;
-    /**
-     * Indicates this event was generated by a Machine ID bot user or a human.
-     *
-     * @generated from protobuf field: prehog.v1alpha.UserKind user_kind = 2;
-     */
-    userKind: UserKind;
-    /**
-     * query_count is the number of free-text search queries included in the
-     * request.
-     *
-     * PostHog property: tp.session.summary.search.query_count
-     *
-     * @generated from protobuf field: uint64 query_count = 3;
-     */
-    queryCount: bigint;
-    /**
-     * has_filters indicates whether the request included any non-text filters.
-     *
-     * PostHog property: tp.session.summary.search.has_filters
-     *
-     * @generated from protobuf field: bool has_filters = 4;
-     */
-    hasFilters: boolean;
-}
-/**
- * DiscoveryConfigEvent is emitted when a DiscoveryConfig resource is created, updated, or deleted.
- *
- * PostHog event: tp.discovery.config
- *
- * @generated from protobuf message prehog.v1alpha.DiscoveryConfigEvent
- */
-export interface DiscoveryConfigEvent {
-    /**
-     * action is the operation performed on the DiscoveryConfig.
-     *
-     * @generated from protobuf field: prehog.v1alpha.DiscoveryConfigAction action = 1;
-     */
-    action: DiscoveryConfigAction;
-    /**
-     * discovery_config_name is the anonymized name of the DiscoveryConfig.
-     *
-     * @generated from protobuf field: string discovery_config_name = 2;
-     */
-    discoveryConfigName: string;
-    /**
-     * resource_types is the list of resource types configured for discovery (e.g., "ec2", "rds", "eks").
-     *
-     * @generated from protobuf field: repeated string resource_types = 3;
-     */
-    resourceTypes: string[];
-    /**
-     * cloud_providers is the list of cloud providers the config has matchers for.
-     *
-     * @generated from protobuf field: repeated string cloud_providers = 4;
-     */
-    cloudProviders: string[];
-    /**
-     * creation_method specifies the flow used to create the config ("iac" or "guided")
-     *
-     * @generated from protobuf field: string creation_method = 5;
-     */
-    creationMethod: string;
-}
-/**
- * IdentitySecurityGraphSizeEvent is emitted by Access Graph whenever the access graph
- * for a provider is updated.
- *
- * @generated from protobuf message prehog.v1alpha.IdentitySecurityGraphSizeEvent
- */
-export interface IdentitySecurityGraphSizeEvent {
-    /**
-     * provider is the system containing the identities and resources being counted.
-     * It is one of teleport, aws, azure, entra, gitlab, github, netiq or okta.
-     *
-     * @generated from protobuf field: string provider = 1;
-     */
-    provider: string;
-    /**
-     * total_identities is the number of identities in the graph.
-     *
-     * @generated from protobuf field: uint64 total_identities = 2;
-     */
-    totalIdentities: bigint;
-    /**
-     * total_resources is the number of resources in the graph.
-     *
-     * @generated from protobuf field: uint64 total_resources = 3;
-     */
-    totalResources: bigint;
-}
-/**
- * IdentitySecurityAuditLogsIngestedEvent tracks the count of log entries ingested by
- * identity activity center.
- *
- * @generated from protobuf message prehog.v1alpha.IdentitySecurityAuditLogsIngestedEvent
- */
-export interface IdentitySecurityAuditLogsIngestedEvent {
-    /**
-     * provider is the system emitting audit logs. It is one of
-     * teleport, cloudtrail, kubernetes, github or okta.
-     *
-     * @generated from protobuf field: string provider = 1;
-     */
-    provider: string;
-    /**
-     * logs_ingested is a count of log entries ingested into Identity Security.
-     *
-     * @generated from protobuf field: uint64 logs_ingested = 2;
-     */
-    logsIngested: bigint;
-}
-/**
- * AccessListStepStatus contains fields that track a particular step outcome.
- *
- * @generated from protobuf message prehog.v1alpha.AccessListStepStatus
- */
-export interface AccessListStepStatus {
-    /**
-     * Indicates the step outcome.
-     *
-     * @generated from protobuf field: prehog.v1alpha.AccessListStatus status = 1;
-     */
-    status: AccessListStatus;
-    /**
-     * Contains error details in case of Error Status.
-     *
-     * @generated from protobuf field: string error = 2;
-     */
-    error: string;
-}
-/**
- * UIAccessListDefineAccessEvent is emitted when user is finished with the step
- * that defines access to resources.
- *
- * @generated from protobuf message prehog.v1alpha.UIAccessListDefineAccessEvent
- */
-export interface UIAccessListDefineAccessEvent {
-    /**
-     * @generated from protobuf field: prehog.v1alpha.AccessListMetadata metadata = 1;
-     */
-    metadata?: AccessListMetadata;
-    /**
-     * @generated from protobuf field: prehog.v1alpha.AccessListStepStatus status = 2;
-     */
-    status?: AccessListStepStatus;
-}
-/**
- * UIAccessListDefineIdentitiesEvent is emitted when user is finished with the
- * step that defines resource identities/principals.
- *
- * @generated from protobuf message prehog.v1alpha.UIAccessListDefineIdentitiesEvent
- */
-export interface UIAccessListDefineIdentitiesEvent {
-    /**
-     * @generated from protobuf field: prehog.v1alpha.AccessListMetadata metadata = 1;
-     */
-    metadata?: AccessListMetadata;
-    /**
-     * @generated from protobuf field: prehog.v1alpha.AccessListStepStatus status = 2;
-     */
-    status?: AccessListStepStatus;
-}
-/**
- * UIAccessListDefineBasicInfoEvent is emitted when user is finished with the step
- * that defines basic info of an access list (title, desc, etc).
- *
- * @generated from protobuf message prehog.v1alpha.UIAccessListDefineBasicInfoEvent
- */
-export interface UIAccessListDefineBasicInfoEvent {
-    /**
-     * @generated from protobuf field: prehog.v1alpha.AccessListMetadata metadata = 1;
-     */
-    metadata?: AccessListMetadata;
-    /**
-     * @generated from protobuf field: prehog.v1alpha.AccessListStepStatus status = 2;
-     */
-    status?: AccessListStepStatus;
-}
-/**
- * UIAccessListDefineMembersEvent is emitted when user is finished with the
- * step that defines access list members.
- *
- * @generated from protobuf message prehog.v1alpha.UIAccessListDefineMembersEvent
- */
-export interface UIAccessListDefineMembersEvent {
-    /**
-     * @generated from protobuf field: prehog.v1alpha.AccessListMetadata metadata = 1;
-     */
-    metadata?: AccessListMetadata;
-    /**
-     * @generated from protobuf field: prehog.v1alpha.AccessListStepStatus status = 2;
-     */
-    status?: AccessListStepStatus;
-}
-/**
- * UIAccessListDefineOwnersEvent is emitted when user is finished with the
- * step that defines access list owners.
- *
- * @generated from protobuf message prehog.v1alpha.UIAccessListDefineOwnersEvent
- */
-export interface UIAccessListDefineOwnersEvent {
-    /**
-     * @generated from protobuf field: prehog.v1alpha.AccessListMetadata metadata = 1;
-     */
-    metadata?: AccessListMetadata;
-    /**
-     * @generated from protobuf field: prehog.v1alpha.AccessListStepStatus status = 2;
-     */
-    status?: AccessListStepStatus;
-}
-/**
- * UIAccessListStartEvent is emitted when user is at the guide selection page
- * or when directed straight to the first step.
- *
- * @generated from protobuf message prehog.v1alpha.UIAccessListStartEvent
- */
-export interface UIAccessListStartEvent {
-    /**
-     * @generated from protobuf field: prehog.v1alpha.AccessListMetadata metadata = 1;
-     */
-    metadata?: AccessListMetadata;
-    /**
-     * @generated from protobuf field: prehog.v1alpha.AccessListStepStatus status = 2;
-     */
-    status?: AccessListStepStatus;
-}
-/**
- * UIAccessListCustomEvent is emitted when user completes non wizard
- * flow (old way of creating access list).
- *
- * @generated from protobuf message prehog.v1alpha.UIAccessListCustomEvent
- */
-export interface UIAccessListCustomEvent {
-    /**
-     * @generated from protobuf field: prehog.v1alpha.AccessListMetadata metadata = 1;
-     */
-    metadata?: AccessListMetadata;
-    /**
-     * @generated from protobuf field: prehog.v1alpha.AccessListStepStatus status = 2;
-     */
-    status?: AccessListStepStatus;
-}
-/**
- * UIAccessListIntegrateEvent is emitted when a user leaves the wizard
- * to enroll an integration by clicking on a CTA button in the wizard.
- *
- * @generated from protobuf message prehog.v1alpha.UIAccessListCompleteEvent
- */
-export interface UIAccessListCompleteEvent {
-    /**
-     * @generated from protobuf field: prehog.v1alpha.AccessListMetadata metadata = 1;
-     */
-    metadata?: AccessListMetadata;
-    /**
-     * @generated from protobuf field: prehog.v1alpha.AccessListStepStatus status = 2;
-     */
-    status?: AccessListStepStatus;
-    /**
-     * True if the user completed wizard by choosing terraform script over
-     * creating access list via web UI.
-     *
-     * @generated from protobuf field: bool preferred_terraform = 3;
-     */
-    preferredTerraform: boolean;
-}
-/**
- * UIAccessListIntegrateOktaEvent is emitted when a user leaves the wizard
- * to enroll an integration by clicking on a CTA button in the wizard.
- *
- * @generated from protobuf message prehog.v1alpha.UIAccessListIntegrateEvent
- */
-export interface UIAccessListIntegrateEvent {
-    /**
-     * @generated from protobuf field: prehog.v1alpha.AccessListMetadata metadata = 1;
-     */
-    metadata?: AccessListMetadata;
-    /**
-     * @generated from protobuf field: prehog.v1alpha.AccessListIntegrate integrate = 2;
-     */
-    integrate: AccessListIntegrate;
-}
-/**
- * UIInteractionEvent is emitted when a user interacts with a configurable view within a page.
- *
- * PostHog event: tp.ui.interaction
- *
- * @generated from protobuf message prehog.v1alpha.UIInteractionEvent
- */
-export interface UIInteractionEvent {
-    /**
-     * anonymized Teleport username, 32 bytes (HMAC-SHA-256) encoded in base64; it
-     * can be the username of a bot user rather than of a regular user
-     *
-     * PostHog property: tp.user_name
-     *
-     * @generated from protobuf field: string user_name = 1;
-     */
-    userName: string;
-    /**
-     * path is the route template of the page viewed, e.g. "/web/summary/mau"
-     *
-     * PostHog property: tp.ui_interaction.path
-     *
-     * @generated from protobuf field: string path = 2;
-     */
-    path: string;
-    /**
-     * page_id is a stable identifier for the page that does not change when the
-     * route template changes, e.g. "observability_graph"
-     *
-     * PostHog property: tp.ui_interaction.page_id
-     *
-     * @generated from protobuf field: string page_id = 3;
-     */
-    pageId: string;
-    /**
-     * params holds arbitrary key/value config for the interaction, e.g.
-     * view="custom", graph="bar", scope="tenant", granularity="day"
-     *
-     * PostHog properties: tp.ui_interaction.<key> for each entry
-     *
-     * @generated from protobuf field: map<string, string> params = 4;
-     */
-    params: {
-        [key: string]: string;
-    };
 }
 /**
  * @generated from protobuf message prehog.v1alpha.SubmitEventRequest
@@ -4201,149 +3414,17 @@ export interface SubmitEventRequest {
          */
         uiIntegrationEnrollStepEvent: UIIntegrationEnrollStepEvent;
     } | {
-        oneofKind: "accessRequestCreate";
+        oneofKind: "accessRequestCreateEvent";
         /**
-         * @generated from protobuf field: prehog.v1alpha.AccessRequestCreateEvent access_request_create = 99;
+         * @generated from protobuf field: prehog.v1alpha.AccessRequestEvent access_request_create_event = 97;
          */
-        accessRequestCreate: AccessRequestCreateEvent;
+        accessRequestCreateEvent: AccessRequestEvent;
     } | {
-        oneofKind: "accessRequestReview";
+        oneofKind: "accessRequestReviewEvent";
         /**
-         * @generated from protobuf field: prehog.v1alpha.AccessRequestReviewEvent access_request_review = 100;
+         * @generated from protobuf field: prehog.v1alpha.AccessRequestEvent access_request_review_event = 98;
          */
-        accessRequestReview: AccessRequestReviewEvent;
-    } | {
-        oneofKind: "uiIntegrationEnrollSectionOpenEvent";
-        /**
-         * @generated from protobuf field: prehog.v1alpha.UIIntegrationEnrollSectionOpenEvent ui_integration_enroll_section_open_event = 101;
-         */
-        uiIntegrationEnrollSectionOpenEvent: UIIntegrationEnrollSectionOpenEvent;
-    } | {
-        oneofKind: "uiIntegrationEnrollFieldCompleteEvent";
-        /**
-         * @generated from protobuf field: prehog.v1alpha.UIIntegrationEnrollFieldCompleteEvent ui_integration_enroll_field_complete_event = 102;
-         */
-        uiIntegrationEnrollFieldCompleteEvent: UIIntegrationEnrollFieldCompleteEvent;
-    } | {
-        oneofKind: "uiIntegrationEnrollCodeCopyEvent";
-        /**
-         * @generated from protobuf field: prehog.v1alpha.UIIntegrationEnrollCodeCopyEvent ui_integration_enroll_code_copy_event = 103;
-         */
-        uiIntegrationEnrollCodeCopyEvent: UIIntegrationEnrollCodeCopyEvent;
-    } | {
-        oneofKind: "uiIntegrationEnrollLinkClickEvent";
-        /**
-         * @generated from protobuf field: prehog.v1alpha.UIIntegrationEnrollLinkClickEvent ui_integration_enroll_link_click_event = 104;
-         */
-        uiIntegrationEnrollLinkClickEvent: UIIntegrationEnrollLinkClickEvent;
-    } | {
-        oneofKind: "sessionSummaryCreateEvent";
-        /**
-         * @generated from protobuf field: prehog.v1alpha.SessionSummaryCreateEvent session_summary_create_event = 105;
-         */
-        sessionSummaryCreateEvent: SessionSummaryCreateEvent;
-    } | {
-        oneofKind: "sessionSummaryAccessEvent";
-        /**
-         * @generated from protobuf field: prehog.v1alpha.SessionSummaryAccessEvent session_summary_access_event = 106;
-         */
-        sessionSummaryAccessEvent: SessionSummaryAccessEvent;
-    } | {
-        oneofKind: "discoveryConfig";
-        /**
-         * @generated from protobuf field: prehog.v1alpha.DiscoveryConfigEvent discovery_config = 107;
-         */
-        discoveryConfig: DiscoveryConfigEvent;
-    } | {
-        oneofKind: "identitySecurityGraphSizeEvent";
-        /**
-         * @generated from protobuf field: prehog.v1alpha.IdentitySecurityGraphSizeEvent identity_security_graph_size_event = 108;
-         */
-        identitySecurityGraphSizeEvent: IdentitySecurityGraphSizeEvent;
-    } | {
-        oneofKind: "identitySecurityAuditLogsIngestedEvent";
-        /**
-         * @generated from protobuf field: prehog.v1alpha.IdentitySecurityAuditLogsIngestedEvent identity_security_audit_logs_ingested_event = 109;
-         */
-        identitySecurityAuditLogsIngestedEvent: IdentitySecurityAuditLogsIngestedEvent;
-    } | {
-        oneofKind: "uiAccessListDefineAccessEvent";
-        /**
-         * @generated from protobuf field: prehog.v1alpha.UIAccessListDefineAccessEvent ui_access_list_define_access_event = 110;
-         */
-        uiAccessListDefineAccessEvent: UIAccessListDefineAccessEvent;
-    } | {
-        oneofKind: "uiAccessListDefineIdentitiesEvent";
-        /**
-         * @generated from protobuf field: prehog.v1alpha.UIAccessListDefineIdentitiesEvent ui_access_list_define_identities_event = 111;
-         */
-        uiAccessListDefineIdentitiesEvent: UIAccessListDefineIdentitiesEvent;
-    } | {
-        oneofKind: "uiAccessListDefineBasicInfoEvent";
-        /**
-         * @generated from protobuf field: prehog.v1alpha.UIAccessListDefineBasicInfoEvent ui_access_list_define_basic_info_event = 112;
-         */
-        uiAccessListDefineBasicInfoEvent: UIAccessListDefineBasicInfoEvent;
-    } | {
-        oneofKind: "uiAccessListDefineMembersEvent";
-        /**
-         * @generated from protobuf field: prehog.v1alpha.UIAccessListDefineMembersEvent ui_access_list_define_members_event = 113;
-         */
-        uiAccessListDefineMembersEvent: UIAccessListDefineMembersEvent;
-    } | {
-        oneofKind: "uiAccessListDefineOwnersEvent";
-        /**
-         * @generated from protobuf field: prehog.v1alpha.UIAccessListDefineOwnersEvent ui_access_list_define_owners_event = 114;
-         */
-        uiAccessListDefineOwnersEvent: UIAccessListDefineOwnersEvent;
-    } | {
-        oneofKind: "uiAccessListStartEvent";
-        /**
-         * @generated from protobuf field: prehog.v1alpha.UIAccessListStartEvent ui_access_list_start_event = 115;
-         */
-        uiAccessListStartEvent: UIAccessListStartEvent;
-    } | {
-        oneofKind: "uiAccessListCompleteEvent";
-        /**
-         * @generated from protobuf field: prehog.v1alpha.UIAccessListCompleteEvent ui_access_list_complete_event = 116;
-         */
-        uiAccessListCompleteEvent: UIAccessListCompleteEvent;
-    } | {
-        oneofKind: "uiAccessListIntegrateEvent";
-        /**
-         * @generated from protobuf field: prehog.v1alpha.UIAccessListIntegrateEvent ui_access_list_integrate_event = 117;
-         */
-        uiAccessListIntegrateEvent: UIAccessListIntegrateEvent;
-    } | {
-        oneofKind: "uiAccessListCustomEvent";
-        /**
-         * @generated from protobuf field: prehog.v1alpha.UIAccessListCustomEvent ui_access_list_custom_event = 118;
-         */
-        uiAccessListCustomEvent: UIAccessListCustomEvent;
-    } | {
-        oneofKind: "uiPageView";
-        /**
-         * @generated from protobuf field: prehog.v1alpha.UIPageViewEvent ui_page_view = 119;
-         */
-        uiPageView: UIPageViewEvent;
-    } | {
-        oneofKind: "uiUsageReportingAlertCtaClick";
-        /**
-         * @generated from protobuf field: prehog.v1alpha.UIUsageReportingAlertCtaClickEvent ui_usage_reporting_alert_cta_click = 120;
-         */
-        uiUsageReportingAlertCtaClick: UIUsageReportingAlertCtaClickEvent;
-    } | {
-        oneofKind: "sessionSummarySearchEvent";
-        /**
-         * @generated from protobuf field: prehog.v1alpha.SessionSummarySearchEvent session_summary_search_event = 121;
-         */
-        sessionSummarySearchEvent: SessionSummarySearchEvent;
-    } | {
-        oneofKind: "uiInteraction";
-        /**
-         * @generated from protobuf field: prehog.v1alpha.UIInteractionEvent ui_interaction = 122;
-         */
-        uiInteraction: UIInteractionEvent;
+        accessRequestReviewEvent: AccessRequestEvent;
     } | {
         oneofKind: undefined;
     };
@@ -4382,7 +3463,7 @@ export interface HelloTeleportResponse {
 /**
  * UserOrigin is the origin of a user account.
  * Keep the values in sync with UserOrigin enum defined in
- * Teleport OSS repository.
+ * API events and prehogv1.
  *
  * @generated from protobuf enum prehog.v1alpha.UserOrigin
  */
@@ -4707,19 +3788,7 @@ export enum DiscoverResource {
     /**
      * @generated from protobuf enum value: DISCOVER_RESOURCE_APPLICATION_AWS_CONSOLE = 41;
      */
-    APPLICATION_AWS_CONSOLE = 41,
-    /**
-     * @generated from protobuf enum value: DISCOVER_RESOURCE_MCP_STDIO = 42;
-     */
-    MCP_STDIO = 42,
-    /**
-     * @generated from protobuf enum value: DISCOVER_RESOURCE_MCP_SSE = 43;
-     */
-    MCP_SSE = 43,
-    /**
-     * @generated from protobuf enum value: DISCOVER_RESOURCE_MCP_STREAMABLE_HTTP = 44;
-     */
-    MCP_STREAMABLE_HTTP = 44
+    APPLICATION_AWS_CONSOLE = 41
 }
 /**
  * DiscoverStatus represents a Discover Step outcome.
@@ -4820,11 +3889,7 @@ export enum CTA {
     /**
      * @generated from protobuf enum value: CTA_OKTA_SCIM = 13;
      */
-    CTA_OKTA_SCIM = 13,
-    /**
-     * @generated from protobuf enum value: CTA_USAGE_REPORT = 14;
-     */
-    CTA_USAGE_REPORT = 14
+    CTA_OKTA_SCIM = 13
 }
 /**
  * IntegrationEnrollKind represents the types of integration that
@@ -4948,23 +4013,7 @@ export enum IntegrationEnrollKind {
     /**
      * @generated from protobuf enum value: INTEGRATION_ENROLL_KIND_MACHINE_ID_ARGOCD = 28;
      */
-    MACHINE_ID_ARGOCD = 28,
-    /**
-     * @generated from protobuf enum value: INTEGRATION_ENROLL_KIND_MACHINE_ID_GITHUB_ACTIONS_KUBERNETES = 29;
-     */
-    MACHINE_ID_GITHUB_ACTIONS_KUBERNETES = 29,
-    /**
-     * @generated from protobuf enum value: INTEGRATION_ENROLL_KIND_AWS_CLOUD = 30;
-     */
-    AWS_CLOUD = 30,
-    /**
-     * @generated from protobuf enum value: INTEGRATION_ENROLL_KIND_AZURE_CLOUD = 31;
-     */
-    AZURE_CLOUD = 31,
-    /**
-     * @generated from protobuf enum value: INTEGRATION_ENROLL_KIND_GOOGLE_CLOUD = 32;
-     */
-    GOOGLE_CLOUD = 32
+    MACHINE_ID_ARGOCD = 28
 }
 /**
  * IntegrationEnrollStep defines inner configuration steps
@@ -5012,31 +4061,7 @@ export enum IntegrationEnrollStep {
     /**
      * @generated from protobuf enum value: INTEGRATION_ENROLL_STEP_GITHUBRA_CREATE_ROLE = 8;
      */
-    GITHUBRA_CREATE_ROLE = 8,
-    /**
-     * MWIGHAK8S denotes the MWI GitHub Actions + Kubernetes wizard.
-     *
-     * @generated from protobuf enum value: INTEGRATION_ENROLL_STEP_MWIGHAK8S_CONNECT_GITHUB = 9;
-     */
-    MWIGHAK8S_CONNECT_GITHUB = 9,
-    /**
-     * @generated from protobuf enum value: INTEGRATION_ENROLL_STEP_MWIGHAK8S_CONFIGURE_ACCESS = 10;
-     */
-    MWIGHAK8S_CONFIGURE_ACCESS = 10,
-    /**
-     * @generated from protobuf enum value: INTEGRATION_ENROLL_STEP_MWIGHAK8S_SETUP_WORKFLOW = 11;
-     */
-    MWIGHAK8S_SETUP_WORKFLOW = 11,
-    /**
-     * @generated from protobuf enum value: INTEGRATION_ENROLL_STEP_MWIGHAK8S_WELCOME = 12;
-     */
-    MWIGHAK8S_WELCOME = 12,
-    /**
-     * General integration setup steps
-     *
-     * @generated from protobuf enum value: INTEGRATION_ENROLL_STEP_VERIFY_INTEGRATION = 13;
-     */
-    VERIFY_INTEGRATION = 13
+    GITHUBRA_CREATE_ROLE = 8
 }
 /**
  * IntegrationEnrollStatusCode defines status code for an integration enroll step.
@@ -5075,118 +4100,6 @@ export enum IntegrationEnrollStatusCode {
      * @generated from protobuf enum value: INTEGRATION_ENROLL_STATUS_CODE_ABORTED = 4;
      */
     ABORTED = 4
-}
-/**
- * IntegrationEnrollSection identifies a section the user opened or expanded in
- * an integration setup wizard.
- *
- * @generated from protobuf enum prehog.v1alpha.IntegrationEnrollSection
- */
-export enum IntegrationEnrollSection {
-    /**
-     * @generated from protobuf enum value: INTEGRATION_ENROLL_SECTION_UNSPECIFIED = 0;
-     */
-    UNSPECIFIED = 0,
-    /**
-     * MWIGHAK8S denotes the MWI GitHub Actions + Kubernetes wizard.
-     *
-     * @generated from protobuf enum value: INTEGRATION_ENROLL_SECTION_MWIGHAK8S_GITHUB_ADVANCED_OPTIONS = 1;
-     */
-    MWIGHAK8S_GITHUB_ADVANCED_OPTIONS = 1,
-    /**
-     * @generated from protobuf enum value: INTEGRATION_ENROLL_SECTION_MWIGHAK8S_KUBERNETES_LABEL_PICKER = 2;
-     */
-    MWIGHAK8S_KUBERNETES_LABEL_PICKER = 2,
-    /**
-     * @generated from protobuf enum value: INTEGRATION_ENROLL_SECTION_MWIGHAK8S_KUBERNETES_ADVANCED_OPTIONS = 3;
-     */
-    MWIGHAK8S_KUBERNETES_ADVANCED_OPTIONS = 3,
-    /**
-     * @generated from protobuf enum value: INTEGRATION_ENROLL_SECTION_MWIGHAK8S_KUBERNETES_RESOURCE_RULE_PICKER = 4;
-     */
-    MWIGHAK8S_KUBERNETES_RESOURCE_RULE_PICKER = 4
-}
-/**
- * IntegrationEnrollField identifies a field the user completed in an integration
- * setup wizard.
- *
- * @generated from protobuf enum prehog.v1alpha.IntegrationEnrollField
- */
-export enum IntegrationEnrollField {
-    /**
-     * @generated from protobuf enum value: INTEGRATION_ENROLL_FIELD_UNSPECIFIED = 0;
-     */
-    UNSPECIFIED = 0,
-    /**
-     * MWIGHAK8S denotes the MWI GitHub Actions + Kubernetes wizard.
-     *
-     * @generated from protobuf enum value: INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_REPOSITORY_URL = 1;
-     */
-    MWIGHAK8S_GITHUB_REPOSITORY_URL = 1,
-    /**
-     * @generated from protobuf enum value: INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_BRANCH = 2;
-     */
-    MWIGHAK8S_GITHUB_BRANCH = 2,
-    /**
-     * @generated from protobuf enum value: INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_WORKFLOW = 3;
-     */
-    MWIGHAK8S_GITHUB_WORKFLOW = 3,
-    /**
-     * @generated from protobuf enum value: INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_ENVIRONMENT = 4;
-     */
-    MWIGHAK8S_GITHUB_ENVIRONMENT = 4,
-    /**
-     * @generated from protobuf enum value: INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_REF = 5;
-     */
-    MWIGHAK8S_GITHUB_REF = 5,
-    /**
-     * @generated from protobuf enum value: INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_ENTERPRISE_SLUG = 6;
-     */
-    MWIGHAK8S_GITHUB_ENTERPRISE_SLUG = 6,
-    /**
-     * @generated from protobuf enum value: INTEGRATION_ENROLL_FIELD_MWIGHAK8S_GITHUB_ENTERPRISE_STATIC_JWKS = 7;
-     */
-    MWIGHAK8S_GITHUB_ENTERPRISE_STATIC_JWKS = 7,
-    /**
-     * @generated from protobuf enum value: INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_LABELS = 8;
-     */
-    MWIGHAK8S_KUBERNETES_LABELS = 8,
-    /**
-     * @generated from protobuf enum value: INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_GROUPS = 9;
-     */
-    MWIGHAK8S_KUBERNETES_GROUPS = 9,
-    /**
-     * @generated from protobuf enum value: INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_USERS = 10;
-     */
-    MWIGHAK8S_KUBERNETES_USERS = 10,
-    /**
-     * @generated from protobuf enum value: INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_RESOURCE_RULES = 11;
-     */
-    MWIGHAK8S_KUBERNETES_RESOURCE_RULES = 11,
-    /**
-     * @generated from protobuf enum value: INTEGRATION_ENROLL_FIELD_MWIGHAK8S_KUBERNETES_CLUSTER_NAME = 12;
-     */
-    MWIGHAK8S_KUBERNETES_CLUSTER_NAME = 12
-}
-/**
- * IntegrationEnrollCodeType identifies the type of code that was copied in an
- * integration setup wizard.
- *
- * @generated from protobuf enum prehog.v1alpha.IntegrationEnrollCodeType
- */
-export enum IntegrationEnrollCodeType {
-    /**
-     * @generated from protobuf enum value: INTEGRATION_ENROLL_CODE_TYPE_UNSPECIFIED = 0;
-     */
-    UNSPECIFIED = 0,
-    /**
-     * @generated from protobuf enum value: INTEGRATION_ENROLL_CODE_TYPE_TERRAFORM = 1;
-     */
-    TERRAFORM = 1,
-    /**
-     * @generated from protobuf enum value: INTEGRATION_ENROLL_CODE_TYPE_GITHUB_ACTIONS_YAML = 2;
-     */
-    GITHUB_ACTIONS_YAML = 2
 }
 /**
  * EditorChangeStatus is the possible value of an EditorChangeEvent event status
@@ -5277,102 +4190,6 @@ export enum LicenseLimit {
      * @generated from protobuf enum value: LICENSE_LIMIT_DEVICE_TRUST_TEAM_USAGE = 2 [deprecated = true];
      */
     DEVICE_TRUST_TEAM_USAGE = 2
-}
-/**
- * DiscoveryConfigAction is the action performed on a DiscoveryConfig.
- *
- * @generated from protobuf enum prehog.v1alpha.DiscoveryConfigAction
- */
-export enum DiscoveryConfigAction {
-    /**
-     * @generated from protobuf enum value: DISCOVERY_CONFIG_ACTION_UNSPECIFIED = 0;
-     */
-    UNSPECIFIED = 0,
-    /**
-     * @generated from protobuf enum value: DISCOVERY_CONFIG_ACTION_CREATE = 1;
-     */
-    CREATE = 1,
-    /**
-     * @generated from protobuf enum value: DISCOVERY_CONFIG_ACTION_UPDATE = 2;
-     */
-    UPDATE = 2,
-    /**
-     * @generated from protobuf enum value: DISCOVERY_CONFIG_ACTION_DELETE = 3;
-     */
-    DELETE = 3
-}
-/**
- * AccessListStatus represents a access list wizard step outcome.
- *
- * @generated from protobuf enum prehog.v1alpha.AccessListStatus
- */
-export enum AccessListStatus {
-    /**
-     * @generated from protobuf enum value: ACCESS_LIST_STATUS_UNSPECIFIED = 0;
-     */
-    UNSPECIFIED = 0,
-    /**
-     * The user tried to complete the action and it succeeded.
-     * e.g. going to next step,
-     *
-     * @generated from protobuf enum value: ACCESS_LIST_STATUS_SUCCESS = 1;
-     */
-    SUCCESS = 1,
-    /**
-     * The user skipped the action (some steps may be optional).
-     *
-     * @generated from protobuf enum value: ACCESS_LIST_STATUS_SKIPPED = 2;
-     */
-    SKIPPED = 2,
-    /**
-     * The user tried to complete the action and it failed.
-     *
-     * @generated from protobuf enum value: ACCESS_LIST_STATUS_ERROR = 3;
-     */
-    ERROR = 3,
-    /**
-     * The user did not complete the action and left the wizard.
-     *
-     * @generated from protobuf enum value: ACCESS_LIST_STATUS_ABORTED = 4;
-     */
-    ABORTED = 4
-}
-/**
- * AccessListPreset represents the access list preset type.
- *
- * @generated from protobuf enum prehog.v1alpha.AccessListPreset
- */
-export enum AccessListPreset {
-    /**
-     * @generated from protobuf enum value: ACCESS_LIST_PRESET_UNSPECIFIED = 0;
-     */
-    UNSPECIFIED = 0,
-    /**
-     * @generated from protobuf enum value: ACCESS_LIST_PRESET_SHORT_TERM = 1;
-     */
-    SHORT_TERM = 1,
-    /**
-     * @generated from protobuf enum value: ACCESS_LIST_PRESET_LONG_TERM = 2;
-     */
-    LONG_TERM = 2
-}
-/**
- * AccessListIntegrate describes what integration user
- * was interested in.
- *
- * @generated from protobuf enum prehog.v1alpha.AccessListIntegrate
- */
-export enum AccessListIntegrate {
-    /**
-     * @generated from protobuf enum value: ACCESS_LIST_INTEGRATE_UNSPECIFIED = 0;
-     */
-    UNSPECIFIED = 0,
-    /**
-     * User wants to integrate Okta or is coming from Okta.
-     *
-     * @generated from protobuf enum value: ACCESS_LIST_INTEGRATE_OKTA = 1;
-     */
-    OKTA = 1
 }
 // @generated message type with reflection information, may provide speed optimized methods
 class UserLoginEvent$Type extends MessageType<UserLoginEvent> {
@@ -5578,8 +4395,7 @@ class ResourceCreateEvent$Type extends MessageType<ResourceCreateEvent> {
             { no: 1, name: "resource_type", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "resource_origin", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "cloud_provider", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 4, name: "database", kind: "message", T: () => DiscoveredDatabaseMetadata },
-            { no: 5, name: "discovery_config_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 4, name: "database", kind: "message", T: () => DiscoveredDatabaseMetadata }
         ]);
     }
     create(value?: PartialMessage<ResourceCreateEvent>): ResourceCreateEvent {
@@ -5587,7 +4403,6 @@ class ResourceCreateEvent$Type extends MessageType<ResourceCreateEvent> {
         message.resourceType = "";
         message.resourceOrigin = "";
         message.cloudProvider = "";
-        message.discoveryConfigName = "";
         if (value !== undefined)
             reflectionMergePartial<ResourceCreateEvent>(this, message, value);
         return message;
@@ -5608,9 +4423,6 @@ class ResourceCreateEvent$Type extends MessageType<ResourceCreateEvent> {
                     break;
                 case /* prehog.v1alpha.DiscoveredDatabaseMetadata database */ 4:
                     message.database = DiscoveredDatabaseMetadata.internalBinaryRead(reader, reader.uint32(), options, message.database);
-                    break;
-                case /* string discovery_config_name */ 5:
-                    message.discoveryConfigName = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -5636,9 +4448,6 @@ class ResourceCreateEvent$Type extends MessageType<ResourceCreateEvent> {
         /* prehog.v1alpha.DiscoveredDatabaseMetadata database = 4; */
         if (message.database)
             DiscoveredDatabaseMetadata.internalBinaryWrite(message.database, writer.tag(4, WireType.LengthDelimited).fork(), options).join();
-        /* string discovery_config_name = 5; */
-        if (message.discoveryConfigName !== "")
-            writer.tag(5, WireType.LengthDelimited).string(message.discoveryConfigName);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -5777,8 +4586,7 @@ class SessionStartEvent$Type extends MessageType<SessionStartEvent> {
             { no: 4, name: "desktop", kind: "message", T: () => SessionStartDesktopMetadata },
             { no: 5, name: "user_kind", kind: "enum", T: () => ["prehog.v1alpha.UserKind", UserKind, "USER_KIND_"] },
             { no: 6, name: "app", kind: "message", T: () => SessionStartAppMetadata },
-            { no: 7, name: "git", kind: "message", T: () => SessionStartGitMetadata },
-            { no: 8, name: "mcp", kind: "message", T: () => SessionStartMCPMetadata }
+            { no: 7, name: "git", kind: "message", T: () => SessionStartGitMetadata }
         ]);
     }
     create(value?: PartialMessage<SessionStartEvent>): SessionStartEvent {
@@ -5816,9 +4624,6 @@ class SessionStartEvent$Type extends MessageType<SessionStartEvent> {
                 case /* prehog.v1alpha.SessionStartGitMetadata git */ 7:
                     message.git = SessionStartGitMetadata.internalBinaryRead(reader, reader.uint32(), options, message.git);
                     break;
-                case /* prehog.v1alpha.SessionStartMCPMetadata mcp */ 8:
-                    message.mcp = SessionStartMCPMetadata.internalBinaryRead(reader, reader.uint32(), options, message.mcp);
-                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -5852,9 +4657,6 @@ class SessionStartEvent$Type extends MessageType<SessionStartEvent> {
         /* prehog.v1alpha.SessionStartGitMetadata git = 7; */
         if (message.git)
             SessionStartGitMetadata.internalBinaryWrite(message.git, writer.tag(7, WireType.LengthDelimited).fork(), options).join();
-        /* prehog.v1alpha.SessionStartMCPMetadata mcp = 8; */
-        if (message.mcp)
-            SessionStartMCPMetadata.internalBinaryWrite(message.mcp, writer.tag(8, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -6117,93 +4919,6 @@ class SessionStartGitMetadata$Type extends MessageType<SessionStartGitMetadata> 
  * @generated MessageType for protobuf message prehog.v1alpha.SessionStartGitMetadata
  */
 export const SessionStartGitMetadata = new SessionStartGitMetadata$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class SessionStartMCPMetadata$Type extends MessageType<SessionStartMCPMetadata> {
-    constructor() {
-        super("prehog.v1alpha.SessionStartMCPMetadata", [
-            { no: 1, name: "transport", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "protocol_version", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 3, name: "client_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 4, name: "server_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 5, name: "ingress_auth_type", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 6, name: "egress_auth_type", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
-        ]);
-    }
-    create(value?: PartialMessage<SessionStartMCPMetadata>): SessionStartMCPMetadata {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.transport = "";
-        message.protocolVersion = "";
-        message.clientName = "";
-        message.serverName = "";
-        message.ingressAuthType = "";
-        message.egressAuthType = "";
-        if (value !== undefined)
-            reflectionMergePartial<SessionStartMCPMetadata>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: SessionStartMCPMetadata): SessionStartMCPMetadata {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* string transport */ 1:
-                    message.transport = reader.string();
-                    break;
-                case /* string protocol_version */ 2:
-                    message.protocolVersion = reader.string();
-                    break;
-                case /* string client_name */ 3:
-                    message.clientName = reader.string();
-                    break;
-                case /* string server_name */ 4:
-                    message.serverName = reader.string();
-                    break;
-                case /* string ingress_auth_type */ 5:
-                    message.ingressAuthType = reader.string();
-                    break;
-                case /* string egress_auth_type */ 6:
-                    message.egressAuthType = reader.string();
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: SessionStartMCPMetadata, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* string transport = 1; */
-        if (message.transport !== "")
-            writer.tag(1, WireType.LengthDelimited).string(message.transport);
-        /* string protocol_version = 2; */
-        if (message.protocolVersion !== "")
-            writer.tag(2, WireType.LengthDelimited).string(message.protocolVersion);
-        /* string client_name = 3; */
-        if (message.clientName !== "")
-            writer.tag(3, WireType.LengthDelimited).string(message.clientName);
-        /* string server_name = 4; */
-        if (message.serverName !== "")
-            writer.tag(4, WireType.LengthDelimited).string(message.serverName);
-        /* string ingress_auth_type = 5; */
-        if (message.ingressAuthType !== "")
-            writer.tag(5, WireType.LengthDelimited).string(message.ingressAuthType);
-        /* string egress_auth_type = 6; */
-        if (message.egressAuthType !== "")
-            writer.tag(6, WireType.LengthDelimited).string(message.egressAuthType);
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message prehog.v1alpha.SessionStartMCPMetadata
- */
-export const SessionStartMCPMetadata = new SessionStartMCPMetadata$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class UserCertificateIssuedEvent$Type extends MessageType<UserCertificateIssuedEvent> {
     constructor() {
@@ -9433,16 +8148,12 @@ export const AssistActionEvent = new AssistActionEvent$Type();
 class AccessListMetadata$Type extends MessageType<AccessListMetadata> {
     constructor() {
         super("prehog.v1alpha.AccessListMetadata", [
-            { no: 1, name: "id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "user_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 3, name: "preset", kind: "enum", T: () => ["prehog.v1alpha.AccessListPreset", AccessListPreset, "ACCESS_LIST_PRESET_"] }
+            { no: 1, name: "id", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<AccessListMetadata>): AccessListMetadata {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.id = "";
-        message.userName = "";
-        message.preset = 0;
         if (value !== undefined)
             reflectionMergePartial<AccessListMetadata>(this, message, value);
         return message;
@@ -9454,12 +8165,6 @@ class AccessListMetadata$Type extends MessageType<AccessListMetadata> {
             switch (fieldNo) {
                 case /* string id */ 1:
                     message.id = reader.string();
-                    break;
-                case /* string user_name */ 2:
-                    message.userName = reader.string();
-                    break;
-                case /* prehog.v1alpha.AccessListPreset preset */ 3:
-                    message.preset = reader.int32();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -9476,12 +8181,6 @@ class AccessListMetadata$Type extends MessageType<AccessListMetadata> {
         /* string id = 1; */
         if (message.id !== "")
             writer.tag(1, WireType.LengthDelimited).string(message.id);
-        /* string user_name = 2; */
-        if (message.userName !== "")
-            writer.tag(2, WireType.LengthDelimited).string(message.userName);
-        /* prehog.v1alpha.AccessListPreset preset = 3; */
-        if (message.preset !== 0)
-            writer.tag(3, WireType.Varint).int32(message.preset);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -10402,254 +9101,6 @@ class UIIntegrationEnrollStepEvent$Type extends MessageType<UIIntegrationEnrollS
  */
 export const UIIntegrationEnrollStepEvent = new UIIntegrationEnrollStepEvent$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class UIIntegrationEnrollSectionOpenEvent$Type extends MessageType<UIIntegrationEnrollSectionOpenEvent> {
-    constructor() {
-        super("prehog.v1alpha.UIIntegrationEnrollSectionOpenEvent", [
-            { no: 1, name: "metadata", kind: "message", T: () => IntegrationEnrollMetadata },
-            { no: 2, name: "step", kind: "enum", T: () => ["prehog.v1alpha.IntegrationEnrollStep", IntegrationEnrollStep, "INTEGRATION_ENROLL_STEP_"] },
-            { no: 3, name: "section", kind: "enum", T: () => ["prehog.v1alpha.IntegrationEnrollSection", IntegrationEnrollSection, "INTEGRATION_ENROLL_SECTION_"] }
-        ]);
-    }
-    create(value?: PartialMessage<UIIntegrationEnrollSectionOpenEvent>): UIIntegrationEnrollSectionOpenEvent {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.step = 0;
-        message.section = 0;
-        if (value !== undefined)
-            reflectionMergePartial<UIIntegrationEnrollSectionOpenEvent>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UIIntegrationEnrollSectionOpenEvent): UIIntegrationEnrollSectionOpenEvent {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* prehog.v1alpha.IntegrationEnrollMetadata metadata */ 1:
-                    message.metadata = IntegrationEnrollMetadata.internalBinaryRead(reader, reader.uint32(), options, message.metadata);
-                    break;
-                case /* prehog.v1alpha.IntegrationEnrollStep step */ 2:
-                    message.step = reader.int32();
-                    break;
-                case /* prehog.v1alpha.IntegrationEnrollSection section */ 3:
-                    message.section = reader.int32();
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: UIIntegrationEnrollSectionOpenEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* prehog.v1alpha.IntegrationEnrollMetadata metadata = 1; */
-        if (message.metadata)
-            IntegrationEnrollMetadata.internalBinaryWrite(message.metadata, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
-        /* prehog.v1alpha.IntegrationEnrollStep step = 2; */
-        if (message.step !== 0)
-            writer.tag(2, WireType.Varint).int32(message.step);
-        /* prehog.v1alpha.IntegrationEnrollSection section = 3; */
-        if (message.section !== 0)
-            writer.tag(3, WireType.Varint).int32(message.section);
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message prehog.v1alpha.UIIntegrationEnrollSectionOpenEvent
- */
-export const UIIntegrationEnrollSectionOpenEvent = new UIIntegrationEnrollSectionOpenEvent$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class UIIntegrationEnrollFieldCompleteEvent$Type extends MessageType<UIIntegrationEnrollFieldCompleteEvent> {
-    constructor() {
-        super("prehog.v1alpha.UIIntegrationEnrollFieldCompleteEvent", [
-            { no: 1, name: "metadata", kind: "message", T: () => IntegrationEnrollMetadata },
-            { no: 2, name: "step", kind: "enum", T: () => ["prehog.v1alpha.IntegrationEnrollStep", IntegrationEnrollStep, "INTEGRATION_ENROLL_STEP_"] },
-            { no: 3, name: "field", kind: "enum", T: () => ["prehog.v1alpha.IntegrationEnrollField", IntegrationEnrollField, "INTEGRATION_ENROLL_FIELD_"] }
-        ]);
-    }
-    create(value?: PartialMessage<UIIntegrationEnrollFieldCompleteEvent>): UIIntegrationEnrollFieldCompleteEvent {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.step = 0;
-        message.field = 0;
-        if (value !== undefined)
-            reflectionMergePartial<UIIntegrationEnrollFieldCompleteEvent>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UIIntegrationEnrollFieldCompleteEvent): UIIntegrationEnrollFieldCompleteEvent {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* prehog.v1alpha.IntegrationEnrollMetadata metadata */ 1:
-                    message.metadata = IntegrationEnrollMetadata.internalBinaryRead(reader, reader.uint32(), options, message.metadata);
-                    break;
-                case /* prehog.v1alpha.IntegrationEnrollStep step */ 2:
-                    message.step = reader.int32();
-                    break;
-                case /* prehog.v1alpha.IntegrationEnrollField field */ 3:
-                    message.field = reader.int32();
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: UIIntegrationEnrollFieldCompleteEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* prehog.v1alpha.IntegrationEnrollMetadata metadata = 1; */
-        if (message.metadata)
-            IntegrationEnrollMetadata.internalBinaryWrite(message.metadata, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
-        /* prehog.v1alpha.IntegrationEnrollStep step = 2; */
-        if (message.step !== 0)
-            writer.tag(2, WireType.Varint).int32(message.step);
-        /* prehog.v1alpha.IntegrationEnrollField field = 3; */
-        if (message.field !== 0)
-            writer.tag(3, WireType.Varint).int32(message.field);
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message prehog.v1alpha.UIIntegrationEnrollFieldCompleteEvent
- */
-export const UIIntegrationEnrollFieldCompleteEvent = new UIIntegrationEnrollFieldCompleteEvent$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class UIIntegrationEnrollCodeCopyEvent$Type extends MessageType<UIIntegrationEnrollCodeCopyEvent> {
-    constructor() {
-        super("prehog.v1alpha.UIIntegrationEnrollCodeCopyEvent", [
-            { no: 1, name: "metadata", kind: "message", T: () => IntegrationEnrollMetadata },
-            { no: 2, name: "step", kind: "enum", T: () => ["prehog.v1alpha.IntegrationEnrollStep", IntegrationEnrollStep, "INTEGRATION_ENROLL_STEP_"] },
-            { no: 3, name: "type", kind: "enum", T: () => ["prehog.v1alpha.IntegrationEnrollCodeType", IntegrationEnrollCodeType, "INTEGRATION_ENROLL_CODE_TYPE_"] }
-        ]);
-    }
-    create(value?: PartialMessage<UIIntegrationEnrollCodeCopyEvent>): UIIntegrationEnrollCodeCopyEvent {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.step = 0;
-        message.type = 0;
-        if (value !== undefined)
-            reflectionMergePartial<UIIntegrationEnrollCodeCopyEvent>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UIIntegrationEnrollCodeCopyEvent): UIIntegrationEnrollCodeCopyEvent {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* prehog.v1alpha.IntegrationEnrollMetadata metadata */ 1:
-                    message.metadata = IntegrationEnrollMetadata.internalBinaryRead(reader, reader.uint32(), options, message.metadata);
-                    break;
-                case /* prehog.v1alpha.IntegrationEnrollStep step */ 2:
-                    message.step = reader.int32();
-                    break;
-                case /* prehog.v1alpha.IntegrationEnrollCodeType type */ 3:
-                    message.type = reader.int32();
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: UIIntegrationEnrollCodeCopyEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* prehog.v1alpha.IntegrationEnrollMetadata metadata = 1; */
-        if (message.metadata)
-            IntegrationEnrollMetadata.internalBinaryWrite(message.metadata, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
-        /* prehog.v1alpha.IntegrationEnrollStep step = 2; */
-        if (message.step !== 0)
-            writer.tag(2, WireType.Varint).int32(message.step);
-        /* prehog.v1alpha.IntegrationEnrollCodeType type = 3; */
-        if (message.type !== 0)
-            writer.tag(3, WireType.Varint).int32(message.type);
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message prehog.v1alpha.UIIntegrationEnrollCodeCopyEvent
- */
-export const UIIntegrationEnrollCodeCopyEvent = new UIIntegrationEnrollCodeCopyEvent$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class UIIntegrationEnrollLinkClickEvent$Type extends MessageType<UIIntegrationEnrollLinkClickEvent> {
-    constructor() {
-        super("prehog.v1alpha.UIIntegrationEnrollLinkClickEvent", [
-            { no: 1, name: "metadata", kind: "message", T: () => IntegrationEnrollMetadata },
-            { no: 2, name: "step", kind: "enum", T: () => ["prehog.v1alpha.IntegrationEnrollStep", IntegrationEnrollStep, "INTEGRATION_ENROLL_STEP_"] },
-            { no: 3, name: "link", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
-        ]);
-    }
-    create(value?: PartialMessage<UIIntegrationEnrollLinkClickEvent>): UIIntegrationEnrollLinkClickEvent {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.step = 0;
-        message.link = "";
-        if (value !== undefined)
-            reflectionMergePartial<UIIntegrationEnrollLinkClickEvent>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UIIntegrationEnrollLinkClickEvent): UIIntegrationEnrollLinkClickEvent {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* prehog.v1alpha.IntegrationEnrollMetadata metadata */ 1:
-                    message.metadata = IntegrationEnrollMetadata.internalBinaryRead(reader, reader.uint32(), options, message.metadata);
-                    break;
-                case /* prehog.v1alpha.IntegrationEnrollStep step */ 2:
-                    message.step = reader.int32();
-                    break;
-                case /* string link */ 3:
-                    message.link = reader.string();
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: UIIntegrationEnrollLinkClickEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* prehog.v1alpha.IntegrationEnrollMetadata metadata = 1; */
-        if (message.metadata)
-            IntegrationEnrollMetadata.internalBinaryWrite(message.metadata, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
-        /* prehog.v1alpha.IntegrationEnrollStep step = 2; */
-        if (message.step !== 0)
-            writer.tag(2, WireType.Varint).int32(message.step);
-        /* string link = 3; */
-        if (message.link !== "")
-            writer.tag(3, WireType.LengthDelimited).string(message.link);
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message prehog.v1alpha.UIIntegrationEnrollLinkClickEvent
- */
-export const UIIntegrationEnrollLinkClickEvent = new UIIntegrationEnrollLinkClickEvent$Type();
-// @generated message type with reflection information, may provide speed optimized methods
 class EditorChangeEvent$Type extends MessageType<EditorChangeEvent> {
     constructor() {
         super("prehog.v1alpha.EditorChangeEvent", [
@@ -11556,148 +10007,6 @@ class UIAccessGraphCrownJewelDiffViewEvent$Type extends MessageType<UIAccessGrap
  */
 export const UIAccessGraphCrownJewelDiffViewEvent = new UIAccessGraphCrownJewelDiffViewEvent$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class UIPageViewEvent$Type extends MessageType<UIPageViewEvent> {
-    constructor() {
-        super("prehog.v1alpha.UIPageViewEvent", [
-            { no: 1, name: "user_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "path", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 3, name: "utm_source", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 4, name: "utm_campaign", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
-        ]);
-    }
-    create(value?: PartialMessage<UIPageViewEvent>): UIPageViewEvent {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.userName = "";
-        message.path = "";
-        message.utmSource = "";
-        message.utmCampaign = "";
-        if (value !== undefined)
-            reflectionMergePartial<UIPageViewEvent>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UIPageViewEvent): UIPageViewEvent {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* string user_name */ 1:
-                    message.userName = reader.string();
-                    break;
-                case /* string path */ 2:
-                    message.path = reader.string();
-                    break;
-                case /* string utm_source */ 3:
-                    message.utmSource = reader.string();
-                    break;
-                case /* string utm_campaign */ 4:
-                    message.utmCampaign = reader.string();
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: UIPageViewEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* string user_name = 1; */
-        if (message.userName !== "")
-            writer.tag(1, WireType.LengthDelimited).string(message.userName);
-        /* string path = 2; */
-        if (message.path !== "")
-            writer.tag(2, WireType.LengthDelimited).string(message.path);
-        /* string utm_source = 3; */
-        if (message.utmSource !== "")
-            writer.tag(3, WireType.LengthDelimited).string(message.utmSource);
-        /* string utm_campaign = 4; */
-        if (message.utmCampaign !== "")
-            writer.tag(4, WireType.LengthDelimited).string(message.utmCampaign);
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message prehog.v1alpha.UIPageViewEvent
- */
-export const UIPageViewEvent = new UIPageViewEvent$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class UIUsageReportingAlertCtaClickEvent$Type extends MessageType<UIUsageReportingAlertCtaClickEvent> {
-    constructor() {
-        super("prehog.v1alpha.UIUsageReportingAlertCtaClickEvent", [
-            { no: 1, name: "user_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "alert", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 3, name: "utm_source", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 4, name: "utm_campaign", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
-        ]);
-    }
-    create(value?: PartialMessage<UIUsageReportingAlertCtaClickEvent>): UIUsageReportingAlertCtaClickEvent {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.userName = "";
-        message.alert = "";
-        message.utmSource = "";
-        message.utmCampaign = "";
-        if (value !== undefined)
-            reflectionMergePartial<UIUsageReportingAlertCtaClickEvent>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UIUsageReportingAlertCtaClickEvent): UIUsageReportingAlertCtaClickEvent {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* string user_name */ 1:
-                    message.userName = reader.string();
-                    break;
-                case /* string alert */ 2:
-                    message.alert = reader.string();
-                    break;
-                case /* string utm_source */ 3:
-                    message.utmSource = reader.string();
-                    break;
-                case /* string utm_campaign */ 4:
-                    message.utmCampaign = reader.string();
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: UIUsageReportingAlertCtaClickEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* string user_name = 1; */
-        if (message.userName !== "")
-            writer.tag(1, WireType.LengthDelimited).string(message.userName);
-        /* string alert = 2; */
-        if (message.alert !== "")
-            writer.tag(2, WireType.LengthDelimited).string(message.alert);
-        /* string utm_source = 3; */
-        if (message.utmSource !== "")
-            writer.tag(3, WireType.LengthDelimited).string(message.utmSource);
-        /* string utm_campaign = 4; */
-        if (message.utmCampaign !== "")
-            writer.tag(4, WireType.LengthDelimited).string(message.utmCampaign);
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message prehog.v1alpha.UIUsageReportingAlertCtaClickEvent
- */
-export const UIUsageReportingAlertCtaClickEvent = new UIUsageReportingAlertCtaClickEvent$Type();
-// @generated message type with reflection information, may provide speed optimized methods
 class AccessGraphCrownJewelCreateEvent$Type extends MessageType<AccessGraphCrownJewelCreateEvent> {
     constructor() {
         super("prehog.v1alpha.AccessGraphCrownJewelCreateEvent", []);
@@ -12225,8 +10534,7 @@ class UserTaskStateEvent$Type extends MessageType<UserTaskStateEvent> {
             { no: 1, name: "task_type", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "issue_type", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "state", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 4, name: "instances_count", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
-            { no: 5, name: "discovery_config_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 4, name: "instances_count", kind: "scalar", T: 5 /*ScalarType.INT32*/ }
         ]);
     }
     create(value?: PartialMessage<UserTaskStateEvent>): UserTaskStateEvent {
@@ -12235,7 +10543,6 @@ class UserTaskStateEvent$Type extends MessageType<UserTaskStateEvent> {
         message.issueType = "";
         message.state = "";
         message.instancesCount = 0;
-        message.discoveryConfigName = "";
         if (value !== undefined)
             reflectionMergePartial<UserTaskStateEvent>(this, message, value);
         return message;
@@ -12256,9 +10563,6 @@ class UserTaskStateEvent$Type extends MessageType<UserTaskStateEvent> {
                     break;
                 case /* int32 instances_count */ 4:
                     message.instancesCount = reader.int32();
-                    break;
-                case /* string discovery_config_name */ 5:
-                    message.discoveryConfigName = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -12284,9 +10588,6 @@ class UserTaskStateEvent$Type extends MessageType<UserTaskStateEvent> {
         /* int32 instances_count = 4; */
         if (message.instancesCount !== 0)
             writer.tag(4, WireType.Varint).int32(message.instancesCount);
-        /* string discovery_config_name = 5; */
-        if (message.discoveryConfigName !== "")
-            writer.tag(5, WireType.LengthDelimited).string(message.discoveryConfigName);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -12298,22 +10599,20 @@ class UserTaskStateEvent$Type extends MessageType<UserTaskStateEvent> {
  */
 export const UserTaskStateEvent = new UserTaskStateEvent$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class AccessRequestCreateEvent$Type extends MessageType<AccessRequestCreateEvent> {
+class AccessRequestEvent$Type extends MessageType<AccessRequestEvent> {
     constructor() {
-        super("prehog.v1alpha.AccessRequestCreateEvent", [
-            { no: 1, name: "user_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "resource_kinds", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ }
+        super("prehog.v1alpha.AccessRequestEvent", [
+            { no: 1, name: "user_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
-    create(value?: PartialMessage<AccessRequestCreateEvent>): AccessRequestCreateEvent {
+    create(value?: PartialMessage<AccessRequestEvent>): AccessRequestEvent {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.userName = "";
-        message.resourceKinds = [];
         if (value !== undefined)
-            reflectionMergePartial<AccessRequestCreateEvent>(this, message, value);
+            reflectionMergePartial<AccessRequestEvent>(this, message, value);
         return message;
     }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AccessRequestCreateEvent): AccessRequestCreateEvent {
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AccessRequestEvent): AccessRequestEvent {
         let message = target ?? this.create(), end = reader.pos + length;
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
@@ -12321,9 +10620,6 @@ class AccessRequestCreateEvent$Type extends MessageType<AccessRequestCreateEvent
                 case /* string user_name */ 1:
                     message.userName = reader.string();
                     break;
-                case /* repeated string resource_kinds */ 2:
-                    message.resourceKinds.push(reader.string());
-                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -12335,13 +10631,10 @@ class AccessRequestCreateEvent$Type extends MessageType<AccessRequestCreateEvent
         }
         return message;
     }
-    internalBinaryWrite(message: AccessRequestCreateEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+    internalBinaryWrite(message: AccessRequestEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
         /* string user_name = 1; */
         if (message.userName !== "")
             writer.tag(1, WireType.LengthDelimited).string(message.userName);
-        /* repeated string resource_kinds = 2; */
-        for (let i = 0; i < message.resourceKinds.length; i++)
-            writer.tag(2, WireType.LengthDelimited).string(message.resourceKinds[i]);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -12349,1150 +10642,9 @@ class AccessRequestCreateEvent$Type extends MessageType<AccessRequestCreateEvent
     }
 }
 /**
- * @generated MessageType for protobuf message prehog.v1alpha.AccessRequestCreateEvent
+ * @generated MessageType for protobuf message prehog.v1alpha.AccessRequestEvent
  */
-export const AccessRequestCreateEvent = new AccessRequestCreateEvent$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class AccessRequestReviewEvent$Type extends MessageType<AccessRequestReviewEvent> {
-    constructor() {
-        super("prehog.v1alpha.AccessRequestReviewEvent", [
-            { no: 1, name: "user_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "resource_kinds", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
-            { no: 3, name: "is_bot_reviewed", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
-            { no: 4, name: "proposed_state", kind: "enum", T: () => ["prehog.v1alpha.AccessRequestReviewEvent.ProposedState", AccessRequestReviewEvent_ProposedState, "PROPOSED_STATE_"] }
-        ]);
-    }
-    create(value?: PartialMessage<AccessRequestReviewEvent>): AccessRequestReviewEvent {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.userName = "";
-        message.resourceKinds = [];
-        message.isBotReviewed = false;
-        message.proposedState = 0;
-        if (value !== undefined)
-            reflectionMergePartial<AccessRequestReviewEvent>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AccessRequestReviewEvent): AccessRequestReviewEvent {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* string user_name */ 1:
-                    message.userName = reader.string();
-                    break;
-                case /* repeated string resource_kinds */ 2:
-                    message.resourceKinds.push(reader.string());
-                    break;
-                case /* bool is_bot_reviewed */ 3:
-                    message.isBotReviewed = reader.bool();
-                    break;
-                case /* prehog.v1alpha.AccessRequestReviewEvent.ProposedState proposed_state */ 4:
-                    message.proposedState = reader.int32();
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: AccessRequestReviewEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* string user_name = 1; */
-        if (message.userName !== "")
-            writer.tag(1, WireType.LengthDelimited).string(message.userName);
-        /* repeated string resource_kinds = 2; */
-        for (let i = 0; i < message.resourceKinds.length; i++)
-            writer.tag(2, WireType.LengthDelimited).string(message.resourceKinds[i]);
-        /* bool is_bot_reviewed = 3; */
-        if (message.isBotReviewed !== false)
-            writer.tag(3, WireType.Varint).bool(message.isBotReviewed);
-        /* prehog.v1alpha.AccessRequestReviewEvent.ProposedState proposed_state = 4; */
-        if (message.proposedState !== 0)
-            writer.tag(4, WireType.Varint).int32(message.proposedState);
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message prehog.v1alpha.AccessRequestReviewEvent
- */
-export const AccessRequestReviewEvent = new AccessRequestReviewEvent$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class SessionSummaryAccessEvent$Type extends MessageType<SessionSummaryAccessEvent> {
-    constructor() {
-        super("prehog.v1alpha.SessionSummaryAccessEvent", [
-            { no: 1, name: "session_type", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "user_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 3, name: "resource_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 4, name: "user_kind", kind: "enum", T: () => ["prehog.v1alpha.UserKind", UserKind, "USER_KIND_"] }
-        ]);
-    }
-    create(value?: PartialMessage<SessionSummaryAccessEvent>): SessionSummaryAccessEvent {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.sessionType = "";
-        message.userName = "";
-        message.resourceName = "";
-        message.userKind = 0;
-        if (value !== undefined)
-            reflectionMergePartial<SessionSummaryAccessEvent>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: SessionSummaryAccessEvent): SessionSummaryAccessEvent {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* string session_type */ 1:
-                    message.sessionType = reader.string();
-                    break;
-                case /* string user_name */ 2:
-                    message.userName = reader.string();
-                    break;
-                case /* string resource_name */ 3:
-                    message.resourceName = reader.string();
-                    break;
-                case /* prehog.v1alpha.UserKind user_kind */ 4:
-                    message.userKind = reader.int32();
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: SessionSummaryAccessEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* string session_type = 1; */
-        if (message.sessionType !== "")
-            writer.tag(1, WireType.LengthDelimited).string(message.sessionType);
-        /* string user_name = 2; */
-        if (message.userName !== "")
-            writer.tag(2, WireType.LengthDelimited).string(message.userName);
-        /* string resource_name = 3; */
-        if (message.resourceName !== "")
-            writer.tag(3, WireType.LengthDelimited).string(message.resourceName);
-        /* prehog.v1alpha.UserKind user_kind = 4; */
-        if (message.userKind !== 0)
-            writer.tag(4, WireType.Varint).int32(message.userKind);
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message prehog.v1alpha.SessionSummaryAccessEvent
- */
-export const SessionSummaryAccessEvent = new SessionSummaryAccessEvent$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class SessionSummaryCreateEvent$Type extends MessageType<SessionSummaryCreateEvent> {
-    constructor() {
-        super("prehog.v1alpha.SessionSummaryCreateEvent", [
-            { no: 1, name: "session_type", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "provider", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 3, name: "total_input_tokens", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
-            { no: 4, name: "total_output_tokens", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
-            { no: 5, name: "success", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
-            { no: 6, name: "resource_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 7, name: "is_cloud_default_model", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
-            { no: 8, name: "has_stored_embeddings", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
-        ]);
-    }
-    create(value?: PartialMessage<SessionSummaryCreateEvent>): SessionSummaryCreateEvent {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.sessionType = "";
-        message.provider = "";
-        message.totalInputTokens = 0n;
-        message.totalOutputTokens = 0n;
-        message.success = false;
-        message.resourceName = "";
-        message.isCloudDefaultModel = false;
-        message.hasStoredEmbeddings = false;
-        if (value !== undefined)
-            reflectionMergePartial<SessionSummaryCreateEvent>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: SessionSummaryCreateEvent): SessionSummaryCreateEvent {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* string session_type */ 1:
-                    message.sessionType = reader.string();
-                    break;
-                case /* string provider */ 2:
-                    message.provider = reader.string();
-                    break;
-                case /* uint64 total_input_tokens */ 3:
-                    message.totalInputTokens = reader.uint64().toBigInt();
-                    break;
-                case /* uint64 total_output_tokens */ 4:
-                    message.totalOutputTokens = reader.uint64().toBigInt();
-                    break;
-                case /* bool success */ 5:
-                    message.success = reader.bool();
-                    break;
-                case /* string resource_name */ 6:
-                    message.resourceName = reader.string();
-                    break;
-                case /* bool is_cloud_default_model */ 7:
-                    message.isCloudDefaultModel = reader.bool();
-                    break;
-                case /* bool has_stored_embeddings */ 8:
-                    message.hasStoredEmbeddings = reader.bool();
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: SessionSummaryCreateEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* string session_type = 1; */
-        if (message.sessionType !== "")
-            writer.tag(1, WireType.LengthDelimited).string(message.sessionType);
-        /* string provider = 2; */
-        if (message.provider !== "")
-            writer.tag(2, WireType.LengthDelimited).string(message.provider);
-        /* uint64 total_input_tokens = 3; */
-        if (message.totalInputTokens !== 0n)
-            writer.tag(3, WireType.Varint).uint64(message.totalInputTokens);
-        /* uint64 total_output_tokens = 4; */
-        if (message.totalOutputTokens !== 0n)
-            writer.tag(4, WireType.Varint).uint64(message.totalOutputTokens);
-        /* bool success = 5; */
-        if (message.success !== false)
-            writer.tag(5, WireType.Varint).bool(message.success);
-        /* string resource_name = 6; */
-        if (message.resourceName !== "")
-            writer.tag(6, WireType.LengthDelimited).string(message.resourceName);
-        /* bool is_cloud_default_model = 7; */
-        if (message.isCloudDefaultModel !== false)
-            writer.tag(7, WireType.Varint).bool(message.isCloudDefaultModel);
-        /* bool has_stored_embeddings = 8; */
-        if (message.hasStoredEmbeddings !== false)
-            writer.tag(8, WireType.Varint).bool(message.hasStoredEmbeddings);
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message prehog.v1alpha.SessionSummaryCreateEvent
- */
-export const SessionSummaryCreateEvent = new SessionSummaryCreateEvent$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class SessionSummarySearchEvent$Type extends MessageType<SessionSummarySearchEvent> {
-    constructor() {
-        super("prehog.v1alpha.SessionSummarySearchEvent", [
-            { no: 1, name: "user_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "user_kind", kind: "enum", T: () => ["prehog.v1alpha.UserKind", UserKind, "USER_KIND_"] },
-            { no: 3, name: "query_count", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
-            { no: 4, name: "has_filters", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
-        ]);
-    }
-    create(value?: PartialMessage<SessionSummarySearchEvent>): SessionSummarySearchEvent {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.userName = "";
-        message.userKind = 0;
-        message.queryCount = 0n;
-        message.hasFilters = false;
-        if (value !== undefined)
-            reflectionMergePartial<SessionSummarySearchEvent>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: SessionSummarySearchEvent): SessionSummarySearchEvent {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* string user_name */ 1:
-                    message.userName = reader.string();
-                    break;
-                case /* prehog.v1alpha.UserKind user_kind */ 2:
-                    message.userKind = reader.int32();
-                    break;
-                case /* uint64 query_count */ 3:
-                    message.queryCount = reader.uint64().toBigInt();
-                    break;
-                case /* bool has_filters */ 4:
-                    message.hasFilters = reader.bool();
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: SessionSummarySearchEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* string user_name = 1; */
-        if (message.userName !== "")
-            writer.tag(1, WireType.LengthDelimited).string(message.userName);
-        /* prehog.v1alpha.UserKind user_kind = 2; */
-        if (message.userKind !== 0)
-            writer.tag(2, WireType.Varint).int32(message.userKind);
-        /* uint64 query_count = 3; */
-        if (message.queryCount !== 0n)
-            writer.tag(3, WireType.Varint).uint64(message.queryCount);
-        /* bool has_filters = 4; */
-        if (message.hasFilters !== false)
-            writer.tag(4, WireType.Varint).bool(message.hasFilters);
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message prehog.v1alpha.SessionSummarySearchEvent
- */
-export const SessionSummarySearchEvent = new SessionSummarySearchEvent$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class DiscoveryConfigEvent$Type extends MessageType<DiscoveryConfigEvent> {
-    constructor() {
-        super("prehog.v1alpha.DiscoveryConfigEvent", [
-            { no: 1, name: "action", kind: "enum", T: () => ["prehog.v1alpha.DiscoveryConfigAction", DiscoveryConfigAction, "DISCOVERY_CONFIG_ACTION_"] },
-            { no: 2, name: "discovery_config_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 3, name: "resource_types", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
-            { no: 4, name: "cloud_providers", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ },
-            { no: 5, name: "creation_method", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
-        ]);
-    }
-    create(value?: PartialMessage<DiscoveryConfigEvent>): DiscoveryConfigEvent {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.action = 0;
-        message.discoveryConfigName = "";
-        message.resourceTypes = [];
-        message.cloudProviders = [];
-        message.creationMethod = "";
-        if (value !== undefined)
-            reflectionMergePartial<DiscoveryConfigEvent>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: DiscoveryConfigEvent): DiscoveryConfigEvent {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* prehog.v1alpha.DiscoveryConfigAction action */ 1:
-                    message.action = reader.int32();
-                    break;
-                case /* string discovery_config_name */ 2:
-                    message.discoveryConfigName = reader.string();
-                    break;
-                case /* repeated string resource_types */ 3:
-                    message.resourceTypes.push(reader.string());
-                    break;
-                case /* repeated string cloud_providers */ 4:
-                    message.cloudProviders.push(reader.string());
-                    break;
-                case /* string creation_method */ 5:
-                    message.creationMethod = reader.string();
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: DiscoveryConfigEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* prehog.v1alpha.DiscoveryConfigAction action = 1; */
-        if (message.action !== 0)
-            writer.tag(1, WireType.Varint).int32(message.action);
-        /* string discovery_config_name = 2; */
-        if (message.discoveryConfigName !== "")
-            writer.tag(2, WireType.LengthDelimited).string(message.discoveryConfigName);
-        /* repeated string resource_types = 3; */
-        for (let i = 0; i < message.resourceTypes.length; i++)
-            writer.tag(3, WireType.LengthDelimited).string(message.resourceTypes[i]);
-        /* repeated string cloud_providers = 4; */
-        for (let i = 0; i < message.cloudProviders.length; i++)
-            writer.tag(4, WireType.LengthDelimited).string(message.cloudProviders[i]);
-        /* string creation_method = 5; */
-        if (message.creationMethod !== "")
-            writer.tag(5, WireType.LengthDelimited).string(message.creationMethod);
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message prehog.v1alpha.DiscoveryConfigEvent
- */
-export const DiscoveryConfigEvent = new DiscoveryConfigEvent$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class IdentitySecurityGraphSizeEvent$Type extends MessageType<IdentitySecurityGraphSizeEvent> {
-    constructor() {
-        super("prehog.v1alpha.IdentitySecurityGraphSizeEvent", [
-            { no: 1, name: "provider", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "total_identities", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
-            { no: 3, name: "total_resources", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ }
-        ]);
-    }
-    create(value?: PartialMessage<IdentitySecurityGraphSizeEvent>): IdentitySecurityGraphSizeEvent {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.provider = "";
-        message.totalIdentities = 0n;
-        message.totalResources = 0n;
-        if (value !== undefined)
-            reflectionMergePartial<IdentitySecurityGraphSizeEvent>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: IdentitySecurityGraphSizeEvent): IdentitySecurityGraphSizeEvent {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* string provider */ 1:
-                    message.provider = reader.string();
-                    break;
-                case /* uint64 total_identities */ 2:
-                    message.totalIdentities = reader.uint64().toBigInt();
-                    break;
-                case /* uint64 total_resources */ 3:
-                    message.totalResources = reader.uint64().toBigInt();
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: IdentitySecurityGraphSizeEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* string provider = 1; */
-        if (message.provider !== "")
-            writer.tag(1, WireType.LengthDelimited).string(message.provider);
-        /* uint64 total_identities = 2; */
-        if (message.totalIdentities !== 0n)
-            writer.tag(2, WireType.Varint).uint64(message.totalIdentities);
-        /* uint64 total_resources = 3; */
-        if (message.totalResources !== 0n)
-            writer.tag(3, WireType.Varint).uint64(message.totalResources);
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message prehog.v1alpha.IdentitySecurityGraphSizeEvent
- */
-export const IdentitySecurityGraphSizeEvent = new IdentitySecurityGraphSizeEvent$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class IdentitySecurityAuditLogsIngestedEvent$Type extends MessageType<IdentitySecurityAuditLogsIngestedEvent> {
-    constructor() {
-        super("prehog.v1alpha.IdentitySecurityAuditLogsIngestedEvent", [
-            { no: 1, name: "provider", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "logs_ingested", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ }
-        ]);
-    }
-    create(value?: PartialMessage<IdentitySecurityAuditLogsIngestedEvent>): IdentitySecurityAuditLogsIngestedEvent {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.provider = "";
-        message.logsIngested = 0n;
-        if (value !== undefined)
-            reflectionMergePartial<IdentitySecurityAuditLogsIngestedEvent>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: IdentitySecurityAuditLogsIngestedEvent): IdentitySecurityAuditLogsIngestedEvent {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* string provider */ 1:
-                    message.provider = reader.string();
-                    break;
-                case /* uint64 logs_ingested */ 2:
-                    message.logsIngested = reader.uint64().toBigInt();
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: IdentitySecurityAuditLogsIngestedEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* string provider = 1; */
-        if (message.provider !== "")
-            writer.tag(1, WireType.LengthDelimited).string(message.provider);
-        /* uint64 logs_ingested = 2; */
-        if (message.logsIngested !== 0n)
-            writer.tag(2, WireType.Varint).uint64(message.logsIngested);
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message prehog.v1alpha.IdentitySecurityAuditLogsIngestedEvent
- */
-export const IdentitySecurityAuditLogsIngestedEvent = new IdentitySecurityAuditLogsIngestedEvent$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class AccessListStepStatus$Type extends MessageType<AccessListStepStatus> {
-    constructor() {
-        super("prehog.v1alpha.AccessListStepStatus", [
-            { no: 1, name: "status", kind: "enum", T: () => ["prehog.v1alpha.AccessListStatus", AccessListStatus, "ACCESS_LIST_STATUS_"] },
-            { no: 2, name: "error", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
-        ]);
-    }
-    create(value?: PartialMessage<AccessListStepStatus>): AccessListStepStatus {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.status = 0;
-        message.error = "";
-        if (value !== undefined)
-            reflectionMergePartial<AccessListStepStatus>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AccessListStepStatus): AccessListStepStatus {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* prehog.v1alpha.AccessListStatus status */ 1:
-                    message.status = reader.int32();
-                    break;
-                case /* string error */ 2:
-                    message.error = reader.string();
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: AccessListStepStatus, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* prehog.v1alpha.AccessListStatus status = 1; */
-        if (message.status !== 0)
-            writer.tag(1, WireType.Varint).int32(message.status);
-        /* string error = 2; */
-        if (message.error !== "")
-            writer.tag(2, WireType.LengthDelimited).string(message.error);
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message prehog.v1alpha.AccessListStepStatus
- */
-export const AccessListStepStatus = new AccessListStepStatus$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class UIAccessListDefineAccessEvent$Type extends MessageType<UIAccessListDefineAccessEvent> {
-    constructor() {
-        super("prehog.v1alpha.UIAccessListDefineAccessEvent", [
-            { no: 1, name: "metadata", kind: "message", T: () => AccessListMetadata },
-            { no: 2, name: "status", kind: "message", T: () => AccessListStepStatus }
-        ]);
-    }
-    create(value?: PartialMessage<UIAccessListDefineAccessEvent>): UIAccessListDefineAccessEvent {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        if (value !== undefined)
-            reflectionMergePartial<UIAccessListDefineAccessEvent>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UIAccessListDefineAccessEvent): UIAccessListDefineAccessEvent {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* prehog.v1alpha.AccessListMetadata metadata */ 1:
-                    message.metadata = AccessListMetadata.internalBinaryRead(reader, reader.uint32(), options, message.metadata);
-                    break;
-                case /* prehog.v1alpha.AccessListStepStatus status */ 2:
-                    message.status = AccessListStepStatus.internalBinaryRead(reader, reader.uint32(), options, message.status);
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: UIAccessListDefineAccessEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* prehog.v1alpha.AccessListMetadata metadata = 1; */
-        if (message.metadata)
-            AccessListMetadata.internalBinaryWrite(message.metadata, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
-        /* prehog.v1alpha.AccessListStepStatus status = 2; */
-        if (message.status)
-            AccessListStepStatus.internalBinaryWrite(message.status, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message prehog.v1alpha.UIAccessListDefineAccessEvent
- */
-export const UIAccessListDefineAccessEvent = new UIAccessListDefineAccessEvent$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class UIAccessListDefineIdentitiesEvent$Type extends MessageType<UIAccessListDefineIdentitiesEvent> {
-    constructor() {
-        super("prehog.v1alpha.UIAccessListDefineIdentitiesEvent", [
-            { no: 1, name: "metadata", kind: "message", T: () => AccessListMetadata },
-            { no: 2, name: "status", kind: "message", T: () => AccessListStepStatus }
-        ]);
-    }
-    create(value?: PartialMessage<UIAccessListDefineIdentitiesEvent>): UIAccessListDefineIdentitiesEvent {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        if (value !== undefined)
-            reflectionMergePartial<UIAccessListDefineIdentitiesEvent>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UIAccessListDefineIdentitiesEvent): UIAccessListDefineIdentitiesEvent {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* prehog.v1alpha.AccessListMetadata metadata */ 1:
-                    message.metadata = AccessListMetadata.internalBinaryRead(reader, reader.uint32(), options, message.metadata);
-                    break;
-                case /* prehog.v1alpha.AccessListStepStatus status */ 2:
-                    message.status = AccessListStepStatus.internalBinaryRead(reader, reader.uint32(), options, message.status);
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: UIAccessListDefineIdentitiesEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* prehog.v1alpha.AccessListMetadata metadata = 1; */
-        if (message.metadata)
-            AccessListMetadata.internalBinaryWrite(message.metadata, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
-        /* prehog.v1alpha.AccessListStepStatus status = 2; */
-        if (message.status)
-            AccessListStepStatus.internalBinaryWrite(message.status, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message prehog.v1alpha.UIAccessListDefineIdentitiesEvent
- */
-export const UIAccessListDefineIdentitiesEvent = new UIAccessListDefineIdentitiesEvent$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class UIAccessListDefineBasicInfoEvent$Type extends MessageType<UIAccessListDefineBasicInfoEvent> {
-    constructor() {
-        super("prehog.v1alpha.UIAccessListDefineBasicInfoEvent", [
-            { no: 1, name: "metadata", kind: "message", T: () => AccessListMetadata },
-            { no: 2, name: "status", kind: "message", T: () => AccessListStepStatus }
-        ]);
-    }
-    create(value?: PartialMessage<UIAccessListDefineBasicInfoEvent>): UIAccessListDefineBasicInfoEvent {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        if (value !== undefined)
-            reflectionMergePartial<UIAccessListDefineBasicInfoEvent>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UIAccessListDefineBasicInfoEvent): UIAccessListDefineBasicInfoEvent {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* prehog.v1alpha.AccessListMetadata metadata */ 1:
-                    message.metadata = AccessListMetadata.internalBinaryRead(reader, reader.uint32(), options, message.metadata);
-                    break;
-                case /* prehog.v1alpha.AccessListStepStatus status */ 2:
-                    message.status = AccessListStepStatus.internalBinaryRead(reader, reader.uint32(), options, message.status);
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: UIAccessListDefineBasicInfoEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* prehog.v1alpha.AccessListMetadata metadata = 1; */
-        if (message.metadata)
-            AccessListMetadata.internalBinaryWrite(message.metadata, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
-        /* prehog.v1alpha.AccessListStepStatus status = 2; */
-        if (message.status)
-            AccessListStepStatus.internalBinaryWrite(message.status, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message prehog.v1alpha.UIAccessListDefineBasicInfoEvent
- */
-export const UIAccessListDefineBasicInfoEvent = new UIAccessListDefineBasicInfoEvent$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class UIAccessListDefineMembersEvent$Type extends MessageType<UIAccessListDefineMembersEvent> {
-    constructor() {
-        super("prehog.v1alpha.UIAccessListDefineMembersEvent", [
-            { no: 1, name: "metadata", kind: "message", T: () => AccessListMetadata },
-            { no: 2, name: "status", kind: "message", T: () => AccessListStepStatus }
-        ]);
-    }
-    create(value?: PartialMessage<UIAccessListDefineMembersEvent>): UIAccessListDefineMembersEvent {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        if (value !== undefined)
-            reflectionMergePartial<UIAccessListDefineMembersEvent>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UIAccessListDefineMembersEvent): UIAccessListDefineMembersEvent {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* prehog.v1alpha.AccessListMetadata metadata */ 1:
-                    message.metadata = AccessListMetadata.internalBinaryRead(reader, reader.uint32(), options, message.metadata);
-                    break;
-                case /* prehog.v1alpha.AccessListStepStatus status */ 2:
-                    message.status = AccessListStepStatus.internalBinaryRead(reader, reader.uint32(), options, message.status);
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: UIAccessListDefineMembersEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* prehog.v1alpha.AccessListMetadata metadata = 1; */
-        if (message.metadata)
-            AccessListMetadata.internalBinaryWrite(message.metadata, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
-        /* prehog.v1alpha.AccessListStepStatus status = 2; */
-        if (message.status)
-            AccessListStepStatus.internalBinaryWrite(message.status, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message prehog.v1alpha.UIAccessListDefineMembersEvent
- */
-export const UIAccessListDefineMembersEvent = new UIAccessListDefineMembersEvent$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class UIAccessListDefineOwnersEvent$Type extends MessageType<UIAccessListDefineOwnersEvent> {
-    constructor() {
-        super("prehog.v1alpha.UIAccessListDefineOwnersEvent", [
-            { no: 1, name: "metadata", kind: "message", T: () => AccessListMetadata },
-            { no: 2, name: "status", kind: "message", T: () => AccessListStepStatus }
-        ]);
-    }
-    create(value?: PartialMessage<UIAccessListDefineOwnersEvent>): UIAccessListDefineOwnersEvent {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        if (value !== undefined)
-            reflectionMergePartial<UIAccessListDefineOwnersEvent>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UIAccessListDefineOwnersEvent): UIAccessListDefineOwnersEvent {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* prehog.v1alpha.AccessListMetadata metadata */ 1:
-                    message.metadata = AccessListMetadata.internalBinaryRead(reader, reader.uint32(), options, message.metadata);
-                    break;
-                case /* prehog.v1alpha.AccessListStepStatus status */ 2:
-                    message.status = AccessListStepStatus.internalBinaryRead(reader, reader.uint32(), options, message.status);
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: UIAccessListDefineOwnersEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* prehog.v1alpha.AccessListMetadata metadata = 1; */
-        if (message.metadata)
-            AccessListMetadata.internalBinaryWrite(message.metadata, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
-        /* prehog.v1alpha.AccessListStepStatus status = 2; */
-        if (message.status)
-            AccessListStepStatus.internalBinaryWrite(message.status, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message prehog.v1alpha.UIAccessListDefineOwnersEvent
- */
-export const UIAccessListDefineOwnersEvent = new UIAccessListDefineOwnersEvent$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class UIAccessListStartEvent$Type extends MessageType<UIAccessListStartEvent> {
-    constructor() {
-        super("prehog.v1alpha.UIAccessListStartEvent", [
-            { no: 1, name: "metadata", kind: "message", T: () => AccessListMetadata },
-            { no: 2, name: "status", kind: "message", T: () => AccessListStepStatus }
-        ]);
-    }
-    create(value?: PartialMessage<UIAccessListStartEvent>): UIAccessListStartEvent {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        if (value !== undefined)
-            reflectionMergePartial<UIAccessListStartEvent>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UIAccessListStartEvent): UIAccessListStartEvent {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* prehog.v1alpha.AccessListMetadata metadata */ 1:
-                    message.metadata = AccessListMetadata.internalBinaryRead(reader, reader.uint32(), options, message.metadata);
-                    break;
-                case /* prehog.v1alpha.AccessListStepStatus status */ 2:
-                    message.status = AccessListStepStatus.internalBinaryRead(reader, reader.uint32(), options, message.status);
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: UIAccessListStartEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* prehog.v1alpha.AccessListMetadata metadata = 1; */
-        if (message.metadata)
-            AccessListMetadata.internalBinaryWrite(message.metadata, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
-        /* prehog.v1alpha.AccessListStepStatus status = 2; */
-        if (message.status)
-            AccessListStepStatus.internalBinaryWrite(message.status, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message prehog.v1alpha.UIAccessListStartEvent
- */
-export const UIAccessListStartEvent = new UIAccessListStartEvent$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class UIAccessListCustomEvent$Type extends MessageType<UIAccessListCustomEvent> {
-    constructor() {
-        super("prehog.v1alpha.UIAccessListCustomEvent", [
-            { no: 1, name: "metadata", kind: "message", T: () => AccessListMetadata },
-            { no: 2, name: "status", kind: "message", T: () => AccessListStepStatus }
-        ]);
-    }
-    create(value?: PartialMessage<UIAccessListCustomEvent>): UIAccessListCustomEvent {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        if (value !== undefined)
-            reflectionMergePartial<UIAccessListCustomEvent>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UIAccessListCustomEvent): UIAccessListCustomEvent {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* prehog.v1alpha.AccessListMetadata metadata */ 1:
-                    message.metadata = AccessListMetadata.internalBinaryRead(reader, reader.uint32(), options, message.metadata);
-                    break;
-                case /* prehog.v1alpha.AccessListStepStatus status */ 2:
-                    message.status = AccessListStepStatus.internalBinaryRead(reader, reader.uint32(), options, message.status);
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: UIAccessListCustomEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* prehog.v1alpha.AccessListMetadata metadata = 1; */
-        if (message.metadata)
-            AccessListMetadata.internalBinaryWrite(message.metadata, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
-        /* prehog.v1alpha.AccessListStepStatus status = 2; */
-        if (message.status)
-            AccessListStepStatus.internalBinaryWrite(message.status, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message prehog.v1alpha.UIAccessListCustomEvent
- */
-export const UIAccessListCustomEvent = new UIAccessListCustomEvent$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class UIAccessListCompleteEvent$Type extends MessageType<UIAccessListCompleteEvent> {
-    constructor() {
-        super("prehog.v1alpha.UIAccessListCompleteEvent", [
-            { no: 1, name: "metadata", kind: "message", T: () => AccessListMetadata },
-            { no: 2, name: "status", kind: "message", T: () => AccessListStepStatus },
-            { no: 3, name: "preferred_terraform", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
-        ]);
-    }
-    create(value?: PartialMessage<UIAccessListCompleteEvent>): UIAccessListCompleteEvent {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.preferredTerraform = false;
-        if (value !== undefined)
-            reflectionMergePartial<UIAccessListCompleteEvent>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UIAccessListCompleteEvent): UIAccessListCompleteEvent {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* prehog.v1alpha.AccessListMetadata metadata */ 1:
-                    message.metadata = AccessListMetadata.internalBinaryRead(reader, reader.uint32(), options, message.metadata);
-                    break;
-                case /* prehog.v1alpha.AccessListStepStatus status */ 2:
-                    message.status = AccessListStepStatus.internalBinaryRead(reader, reader.uint32(), options, message.status);
-                    break;
-                case /* bool preferred_terraform */ 3:
-                    message.preferredTerraform = reader.bool();
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: UIAccessListCompleteEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* prehog.v1alpha.AccessListMetadata metadata = 1; */
-        if (message.metadata)
-            AccessListMetadata.internalBinaryWrite(message.metadata, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
-        /* prehog.v1alpha.AccessListStepStatus status = 2; */
-        if (message.status)
-            AccessListStepStatus.internalBinaryWrite(message.status, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
-        /* bool preferred_terraform = 3; */
-        if (message.preferredTerraform !== false)
-            writer.tag(3, WireType.Varint).bool(message.preferredTerraform);
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message prehog.v1alpha.UIAccessListCompleteEvent
- */
-export const UIAccessListCompleteEvent = new UIAccessListCompleteEvent$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class UIAccessListIntegrateEvent$Type extends MessageType<UIAccessListIntegrateEvent> {
-    constructor() {
-        super("prehog.v1alpha.UIAccessListIntegrateEvent", [
-            { no: 1, name: "metadata", kind: "message", T: () => AccessListMetadata },
-            { no: 2, name: "integrate", kind: "enum", T: () => ["prehog.v1alpha.AccessListIntegrate", AccessListIntegrate, "ACCESS_LIST_INTEGRATE_"] }
-        ]);
-    }
-    create(value?: PartialMessage<UIAccessListIntegrateEvent>): UIAccessListIntegrateEvent {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.integrate = 0;
-        if (value !== undefined)
-            reflectionMergePartial<UIAccessListIntegrateEvent>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UIAccessListIntegrateEvent): UIAccessListIntegrateEvent {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* prehog.v1alpha.AccessListMetadata metadata */ 1:
-                    message.metadata = AccessListMetadata.internalBinaryRead(reader, reader.uint32(), options, message.metadata);
-                    break;
-                case /* prehog.v1alpha.AccessListIntegrate integrate */ 2:
-                    message.integrate = reader.int32();
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: UIAccessListIntegrateEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* prehog.v1alpha.AccessListMetadata metadata = 1; */
-        if (message.metadata)
-            AccessListMetadata.internalBinaryWrite(message.metadata, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
-        /* prehog.v1alpha.AccessListIntegrate integrate = 2; */
-        if (message.integrate !== 0)
-            writer.tag(2, WireType.Varint).int32(message.integrate);
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message prehog.v1alpha.UIAccessListIntegrateEvent
- */
-export const UIAccessListIntegrateEvent = new UIAccessListIntegrateEvent$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class UIInteractionEvent$Type extends MessageType<UIInteractionEvent> {
-    constructor() {
-        super("prehog.v1alpha.UIInteractionEvent", [
-            { no: 1, name: "user_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "path", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 3, name: "page_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 4, name: "params", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "scalar", T: 9 /*ScalarType.STRING*/ } }
-        ]);
-    }
-    create(value?: PartialMessage<UIInteractionEvent>): UIInteractionEvent {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.userName = "";
-        message.path = "";
-        message.pageId = "";
-        message.params = {};
-        if (value !== undefined)
-            reflectionMergePartial<UIInteractionEvent>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UIInteractionEvent): UIInteractionEvent {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* string user_name */ 1:
-                    message.userName = reader.string();
-                    break;
-                case /* string path */ 2:
-                    message.path = reader.string();
-                    break;
-                case /* string page_id */ 3:
-                    message.pageId = reader.string();
-                    break;
-                case /* map<string, string> params */ 4:
-                    this.binaryReadMap4(message.params, reader, options);
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    private binaryReadMap4(map: UIInteractionEvent["params"], reader: IBinaryReader, options: BinaryReadOptions): void {
-        let len = reader.uint32(), end = reader.pos + len, key: keyof UIInteractionEvent["params"] | undefined, val: UIInteractionEvent["params"][any] | undefined;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case 1:
-                    key = reader.string();
-                    break;
-                case 2:
-                    val = reader.string();
-                    break;
-                default: throw new globalThis.Error("unknown map entry field for field prehog.v1alpha.UIInteractionEvent.params");
-            }
-        }
-        map[key ?? ""] = val ?? "";
-    }
-    internalBinaryWrite(message: UIInteractionEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* string user_name = 1; */
-        if (message.userName !== "")
-            writer.tag(1, WireType.LengthDelimited).string(message.userName);
-        /* string path = 2; */
-        if (message.path !== "")
-            writer.tag(2, WireType.LengthDelimited).string(message.path);
-        /* string page_id = 3; */
-        if (message.pageId !== "")
-            writer.tag(3, WireType.LengthDelimited).string(message.pageId);
-        /* map<string, string> params = 4; */
-        for (let k of globalThis.Object.keys(message.params))
-            writer.tag(4, WireType.LengthDelimited).fork().tag(1, WireType.LengthDelimited).string(k).tag(2, WireType.LengthDelimited).string(message.params[k]).join();
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message prehog.v1alpha.UIInteractionEvent
- */
-export const UIInteractionEvent = new UIInteractionEvent$Type();
+export const AccessRequestEvent = new AccessRequestEvent$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
     constructor() {
@@ -13592,30 +10744,8 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
             { no: 93, name: "session_recording_access", kind: "message", oneof: "event", T: () => SessionRecordingAccessEvent },
             { no: 94, name: "user_task_state", kind: "message", oneof: "event", T: () => UserTaskStateEvent },
             { no: 96, name: "ui_integration_enroll_step_event", kind: "message", oneof: "event", T: () => UIIntegrationEnrollStepEvent },
-            { no: 99, name: "access_request_create", kind: "message", oneof: "event", T: () => AccessRequestCreateEvent },
-            { no: 100, name: "access_request_review", kind: "message", oneof: "event", T: () => AccessRequestReviewEvent },
-            { no: 101, name: "ui_integration_enroll_section_open_event", kind: "message", oneof: "event", T: () => UIIntegrationEnrollSectionOpenEvent },
-            { no: 102, name: "ui_integration_enroll_field_complete_event", kind: "message", oneof: "event", T: () => UIIntegrationEnrollFieldCompleteEvent },
-            { no: 103, name: "ui_integration_enroll_code_copy_event", kind: "message", oneof: "event", T: () => UIIntegrationEnrollCodeCopyEvent },
-            { no: 104, name: "ui_integration_enroll_link_click_event", kind: "message", oneof: "event", T: () => UIIntegrationEnrollLinkClickEvent },
-            { no: 105, name: "session_summary_create_event", kind: "message", oneof: "event", T: () => SessionSummaryCreateEvent },
-            { no: 106, name: "session_summary_access_event", kind: "message", oneof: "event", T: () => SessionSummaryAccessEvent },
-            { no: 107, name: "discovery_config", kind: "message", oneof: "event", T: () => DiscoveryConfigEvent },
-            { no: 108, name: "identity_security_graph_size_event", kind: "message", oneof: "event", T: () => IdentitySecurityGraphSizeEvent },
-            { no: 109, name: "identity_security_audit_logs_ingested_event", kind: "message", oneof: "event", T: () => IdentitySecurityAuditLogsIngestedEvent },
-            { no: 110, name: "ui_access_list_define_access_event", kind: "message", oneof: "event", T: () => UIAccessListDefineAccessEvent },
-            { no: 111, name: "ui_access_list_define_identities_event", kind: "message", oneof: "event", T: () => UIAccessListDefineIdentitiesEvent },
-            { no: 112, name: "ui_access_list_define_basic_info_event", kind: "message", oneof: "event", T: () => UIAccessListDefineBasicInfoEvent },
-            { no: 113, name: "ui_access_list_define_members_event", kind: "message", oneof: "event", T: () => UIAccessListDefineMembersEvent },
-            { no: 114, name: "ui_access_list_define_owners_event", kind: "message", oneof: "event", T: () => UIAccessListDefineOwnersEvent },
-            { no: 115, name: "ui_access_list_start_event", kind: "message", oneof: "event", T: () => UIAccessListStartEvent },
-            { no: 116, name: "ui_access_list_complete_event", kind: "message", oneof: "event", T: () => UIAccessListCompleteEvent },
-            { no: 117, name: "ui_access_list_integrate_event", kind: "message", oneof: "event", T: () => UIAccessListIntegrateEvent },
-            { no: 118, name: "ui_access_list_custom_event", kind: "message", oneof: "event", T: () => UIAccessListCustomEvent },
-            { no: 119, name: "ui_page_view", kind: "message", oneof: "event", T: () => UIPageViewEvent },
-            { no: 120, name: "ui_usage_reporting_alert_cta_click", kind: "message", oneof: "event", T: () => UIUsageReportingAlertCtaClickEvent },
-            { no: 121, name: "session_summary_search_event", kind: "message", oneof: "event", T: () => SessionSummarySearchEvent },
-            { no: 122, name: "ui_interaction", kind: "message", oneof: "event", T: () => UIInteractionEvent }
+            { no: 97, name: "access_request_create_event", kind: "message", oneof: "event", T: () => AccessRequestEvent },
+            { no: 98, name: "access_request_review_event", kind: "message", oneof: "event", T: () => AccessRequestEvent }
         ]);
     }
     create(value?: PartialMessage<SubmitEventRequest>): SubmitEventRequest {
@@ -14193,148 +11323,16 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
                         uiIntegrationEnrollStepEvent: UIIntegrationEnrollStepEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).uiIntegrationEnrollStepEvent)
                     };
                     break;
-                case /* prehog.v1alpha.AccessRequestCreateEvent access_request_create */ 99:
+                case /* prehog.v1alpha.AccessRequestEvent access_request_create_event */ 97:
                     message.event = {
-                        oneofKind: "accessRequestCreate",
-                        accessRequestCreate: AccessRequestCreateEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).accessRequestCreate)
+                        oneofKind: "accessRequestCreateEvent",
+                        accessRequestCreateEvent: AccessRequestEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).accessRequestCreateEvent)
                     };
                     break;
-                case /* prehog.v1alpha.AccessRequestReviewEvent access_request_review */ 100:
+                case /* prehog.v1alpha.AccessRequestEvent access_request_review_event */ 98:
                     message.event = {
-                        oneofKind: "accessRequestReview",
-                        accessRequestReview: AccessRequestReviewEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).accessRequestReview)
-                    };
-                    break;
-                case /* prehog.v1alpha.UIIntegrationEnrollSectionOpenEvent ui_integration_enroll_section_open_event */ 101:
-                    message.event = {
-                        oneofKind: "uiIntegrationEnrollSectionOpenEvent",
-                        uiIntegrationEnrollSectionOpenEvent: UIIntegrationEnrollSectionOpenEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).uiIntegrationEnrollSectionOpenEvent)
-                    };
-                    break;
-                case /* prehog.v1alpha.UIIntegrationEnrollFieldCompleteEvent ui_integration_enroll_field_complete_event */ 102:
-                    message.event = {
-                        oneofKind: "uiIntegrationEnrollFieldCompleteEvent",
-                        uiIntegrationEnrollFieldCompleteEvent: UIIntegrationEnrollFieldCompleteEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).uiIntegrationEnrollFieldCompleteEvent)
-                    };
-                    break;
-                case /* prehog.v1alpha.UIIntegrationEnrollCodeCopyEvent ui_integration_enroll_code_copy_event */ 103:
-                    message.event = {
-                        oneofKind: "uiIntegrationEnrollCodeCopyEvent",
-                        uiIntegrationEnrollCodeCopyEvent: UIIntegrationEnrollCodeCopyEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).uiIntegrationEnrollCodeCopyEvent)
-                    };
-                    break;
-                case /* prehog.v1alpha.UIIntegrationEnrollLinkClickEvent ui_integration_enroll_link_click_event */ 104:
-                    message.event = {
-                        oneofKind: "uiIntegrationEnrollLinkClickEvent",
-                        uiIntegrationEnrollLinkClickEvent: UIIntegrationEnrollLinkClickEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).uiIntegrationEnrollLinkClickEvent)
-                    };
-                    break;
-                case /* prehog.v1alpha.SessionSummaryCreateEvent session_summary_create_event */ 105:
-                    message.event = {
-                        oneofKind: "sessionSummaryCreateEvent",
-                        sessionSummaryCreateEvent: SessionSummaryCreateEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).sessionSummaryCreateEvent)
-                    };
-                    break;
-                case /* prehog.v1alpha.SessionSummaryAccessEvent session_summary_access_event */ 106:
-                    message.event = {
-                        oneofKind: "sessionSummaryAccessEvent",
-                        sessionSummaryAccessEvent: SessionSummaryAccessEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).sessionSummaryAccessEvent)
-                    };
-                    break;
-                case /* prehog.v1alpha.DiscoveryConfigEvent discovery_config */ 107:
-                    message.event = {
-                        oneofKind: "discoveryConfig",
-                        discoveryConfig: DiscoveryConfigEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).discoveryConfig)
-                    };
-                    break;
-                case /* prehog.v1alpha.IdentitySecurityGraphSizeEvent identity_security_graph_size_event */ 108:
-                    message.event = {
-                        oneofKind: "identitySecurityGraphSizeEvent",
-                        identitySecurityGraphSizeEvent: IdentitySecurityGraphSizeEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).identitySecurityGraphSizeEvent)
-                    };
-                    break;
-                case /* prehog.v1alpha.IdentitySecurityAuditLogsIngestedEvent identity_security_audit_logs_ingested_event */ 109:
-                    message.event = {
-                        oneofKind: "identitySecurityAuditLogsIngestedEvent",
-                        identitySecurityAuditLogsIngestedEvent: IdentitySecurityAuditLogsIngestedEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).identitySecurityAuditLogsIngestedEvent)
-                    };
-                    break;
-                case /* prehog.v1alpha.UIAccessListDefineAccessEvent ui_access_list_define_access_event */ 110:
-                    message.event = {
-                        oneofKind: "uiAccessListDefineAccessEvent",
-                        uiAccessListDefineAccessEvent: UIAccessListDefineAccessEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).uiAccessListDefineAccessEvent)
-                    };
-                    break;
-                case /* prehog.v1alpha.UIAccessListDefineIdentitiesEvent ui_access_list_define_identities_event */ 111:
-                    message.event = {
-                        oneofKind: "uiAccessListDefineIdentitiesEvent",
-                        uiAccessListDefineIdentitiesEvent: UIAccessListDefineIdentitiesEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).uiAccessListDefineIdentitiesEvent)
-                    };
-                    break;
-                case /* prehog.v1alpha.UIAccessListDefineBasicInfoEvent ui_access_list_define_basic_info_event */ 112:
-                    message.event = {
-                        oneofKind: "uiAccessListDefineBasicInfoEvent",
-                        uiAccessListDefineBasicInfoEvent: UIAccessListDefineBasicInfoEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).uiAccessListDefineBasicInfoEvent)
-                    };
-                    break;
-                case /* prehog.v1alpha.UIAccessListDefineMembersEvent ui_access_list_define_members_event */ 113:
-                    message.event = {
-                        oneofKind: "uiAccessListDefineMembersEvent",
-                        uiAccessListDefineMembersEvent: UIAccessListDefineMembersEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).uiAccessListDefineMembersEvent)
-                    };
-                    break;
-                case /* prehog.v1alpha.UIAccessListDefineOwnersEvent ui_access_list_define_owners_event */ 114:
-                    message.event = {
-                        oneofKind: "uiAccessListDefineOwnersEvent",
-                        uiAccessListDefineOwnersEvent: UIAccessListDefineOwnersEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).uiAccessListDefineOwnersEvent)
-                    };
-                    break;
-                case /* prehog.v1alpha.UIAccessListStartEvent ui_access_list_start_event */ 115:
-                    message.event = {
-                        oneofKind: "uiAccessListStartEvent",
-                        uiAccessListStartEvent: UIAccessListStartEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).uiAccessListStartEvent)
-                    };
-                    break;
-                case /* prehog.v1alpha.UIAccessListCompleteEvent ui_access_list_complete_event */ 116:
-                    message.event = {
-                        oneofKind: "uiAccessListCompleteEvent",
-                        uiAccessListCompleteEvent: UIAccessListCompleteEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).uiAccessListCompleteEvent)
-                    };
-                    break;
-                case /* prehog.v1alpha.UIAccessListIntegrateEvent ui_access_list_integrate_event */ 117:
-                    message.event = {
-                        oneofKind: "uiAccessListIntegrateEvent",
-                        uiAccessListIntegrateEvent: UIAccessListIntegrateEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).uiAccessListIntegrateEvent)
-                    };
-                    break;
-                case /* prehog.v1alpha.UIAccessListCustomEvent ui_access_list_custom_event */ 118:
-                    message.event = {
-                        oneofKind: "uiAccessListCustomEvent",
-                        uiAccessListCustomEvent: UIAccessListCustomEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).uiAccessListCustomEvent)
-                    };
-                    break;
-                case /* prehog.v1alpha.UIPageViewEvent ui_page_view */ 119:
-                    message.event = {
-                        oneofKind: "uiPageView",
-                        uiPageView: UIPageViewEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).uiPageView)
-                    };
-                    break;
-                case /* prehog.v1alpha.UIUsageReportingAlertCtaClickEvent ui_usage_reporting_alert_cta_click */ 120:
-                    message.event = {
-                        oneofKind: "uiUsageReportingAlertCtaClick",
-                        uiUsageReportingAlertCtaClick: UIUsageReportingAlertCtaClickEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).uiUsageReportingAlertCtaClick)
-                    };
-                    break;
-                case /* prehog.v1alpha.SessionSummarySearchEvent session_summary_search_event */ 121:
-                    message.event = {
-                        oneofKind: "sessionSummarySearchEvent",
-                        sessionSummarySearchEvent: SessionSummarySearchEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).sessionSummarySearchEvent)
-                    };
-                    break;
-                case /* prehog.v1alpha.UIInteractionEvent ui_interaction */ 122:
-                    message.event = {
-                        oneofKind: "uiInteraction",
-                        uiInteraction: UIInteractionEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).uiInteraction)
+                        oneofKind: "accessRequestReviewEvent",
+                        accessRequestReviewEvent: AccessRequestEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).accessRequestReviewEvent)
                     };
                     break;
                 default:
@@ -14634,78 +11632,12 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
         /* prehog.v1alpha.UIIntegrationEnrollStepEvent ui_integration_enroll_step_event = 96; */
         if (message.event.oneofKind === "uiIntegrationEnrollStepEvent")
             UIIntegrationEnrollStepEvent.internalBinaryWrite(message.event.uiIntegrationEnrollStepEvent, writer.tag(96, WireType.LengthDelimited).fork(), options).join();
-        /* prehog.v1alpha.AccessRequestCreateEvent access_request_create = 99; */
-        if (message.event.oneofKind === "accessRequestCreate")
-            AccessRequestCreateEvent.internalBinaryWrite(message.event.accessRequestCreate, writer.tag(99, WireType.LengthDelimited).fork(), options).join();
-        /* prehog.v1alpha.AccessRequestReviewEvent access_request_review = 100; */
-        if (message.event.oneofKind === "accessRequestReview")
-            AccessRequestReviewEvent.internalBinaryWrite(message.event.accessRequestReview, writer.tag(100, WireType.LengthDelimited).fork(), options).join();
-        /* prehog.v1alpha.UIIntegrationEnrollSectionOpenEvent ui_integration_enroll_section_open_event = 101; */
-        if (message.event.oneofKind === "uiIntegrationEnrollSectionOpenEvent")
-            UIIntegrationEnrollSectionOpenEvent.internalBinaryWrite(message.event.uiIntegrationEnrollSectionOpenEvent, writer.tag(101, WireType.LengthDelimited).fork(), options).join();
-        /* prehog.v1alpha.UIIntegrationEnrollFieldCompleteEvent ui_integration_enroll_field_complete_event = 102; */
-        if (message.event.oneofKind === "uiIntegrationEnrollFieldCompleteEvent")
-            UIIntegrationEnrollFieldCompleteEvent.internalBinaryWrite(message.event.uiIntegrationEnrollFieldCompleteEvent, writer.tag(102, WireType.LengthDelimited).fork(), options).join();
-        /* prehog.v1alpha.UIIntegrationEnrollCodeCopyEvent ui_integration_enroll_code_copy_event = 103; */
-        if (message.event.oneofKind === "uiIntegrationEnrollCodeCopyEvent")
-            UIIntegrationEnrollCodeCopyEvent.internalBinaryWrite(message.event.uiIntegrationEnrollCodeCopyEvent, writer.tag(103, WireType.LengthDelimited).fork(), options).join();
-        /* prehog.v1alpha.UIIntegrationEnrollLinkClickEvent ui_integration_enroll_link_click_event = 104; */
-        if (message.event.oneofKind === "uiIntegrationEnrollLinkClickEvent")
-            UIIntegrationEnrollLinkClickEvent.internalBinaryWrite(message.event.uiIntegrationEnrollLinkClickEvent, writer.tag(104, WireType.LengthDelimited).fork(), options).join();
-        /* prehog.v1alpha.SessionSummaryCreateEvent session_summary_create_event = 105; */
-        if (message.event.oneofKind === "sessionSummaryCreateEvent")
-            SessionSummaryCreateEvent.internalBinaryWrite(message.event.sessionSummaryCreateEvent, writer.tag(105, WireType.LengthDelimited).fork(), options).join();
-        /* prehog.v1alpha.SessionSummaryAccessEvent session_summary_access_event = 106; */
-        if (message.event.oneofKind === "sessionSummaryAccessEvent")
-            SessionSummaryAccessEvent.internalBinaryWrite(message.event.sessionSummaryAccessEvent, writer.tag(106, WireType.LengthDelimited).fork(), options).join();
-        /* prehog.v1alpha.DiscoveryConfigEvent discovery_config = 107; */
-        if (message.event.oneofKind === "discoveryConfig")
-            DiscoveryConfigEvent.internalBinaryWrite(message.event.discoveryConfig, writer.tag(107, WireType.LengthDelimited).fork(), options).join();
-        /* prehog.v1alpha.IdentitySecurityGraphSizeEvent identity_security_graph_size_event = 108; */
-        if (message.event.oneofKind === "identitySecurityGraphSizeEvent")
-            IdentitySecurityGraphSizeEvent.internalBinaryWrite(message.event.identitySecurityGraphSizeEvent, writer.tag(108, WireType.LengthDelimited).fork(), options).join();
-        /* prehog.v1alpha.IdentitySecurityAuditLogsIngestedEvent identity_security_audit_logs_ingested_event = 109; */
-        if (message.event.oneofKind === "identitySecurityAuditLogsIngestedEvent")
-            IdentitySecurityAuditLogsIngestedEvent.internalBinaryWrite(message.event.identitySecurityAuditLogsIngestedEvent, writer.tag(109, WireType.LengthDelimited).fork(), options).join();
-        /* prehog.v1alpha.UIAccessListDefineAccessEvent ui_access_list_define_access_event = 110; */
-        if (message.event.oneofKind === "uiAccessListDefineAccessEvent")
-            UIAccessListDefineAccessEvent.internalBinaryWrite(message.event.uiAccessListDefineAccessEvent, writer.tag(110, WireType.LengthDelimited).fork(), options).join();
-        /* prehog.v1alpha.UIAccessListDefineIdentitiesEvent ui_access_list_define_identities_event = 111; */
-        if (message.event.oneofKind === "uiAccessListDefineIdentitiesEvent")
-            UIAccessListDefineIdentitiesEvent.internalBinaryWrite(message.event.uiAccessListDefineIdentitiesEvent, writer.tag(111, WireType.LengthDelimited).fork(), options).join();
-        /* prehog.v1alpha.UIAccessListDefineBasicInfoEvent ui_access_list_define_basic_info_event = 112; */
-        if (message.event.oneofKind === "uiAccessListDefineBasicInfoEvent")
-            UIAccessListDefineBasicInfoEvent.internalBinaryWrite(message.event.uiAccessListDefineBasicInfoEvent, writer.tag(112, WireType.LengthDelimited).fork(), options).join();
-        /* prehog.v1alpha.UIAccessListDefineMembersEvent ui_access_list_define_members_event = 113; */
-        if (message.event.oneofKind === "uiAccessListDefineMembersEvent")
-            UIAccessListDefineMembersEvent.internalBinaryWrite(message.event.uiAccessListDefineMembersEvent, writer.tag(113, WireType.LengthDelimited).fork(), options).join();
-        /* prehog.v1alpha.UIAccessListDefineOwnersEvent ui_access_list_define_owners_event = 114; */
-        if (message.event.oneofKind === "uiAccessListDefineOwnersEvent")
-            UIAccessListDefineOwnersEvent.internalBinaryWrite(message.event.uiAccessListDefineOwnersEvent, writer.tag(114, WireType.LengthDelimited).fork(), options).join();
-        /* prehog.v1alpha.UIAccessListStartEvent ui_access_list_start_event = 115; */
-        if (message.event.oneofKind === "uiAccessListStartEvent")
-            UIAccessListStartEvent.internalBinaryWrite(message.event.uiAccessListStartEvent, writer.tag(115, WireType.LengthDelimited).fork(), options).join();
-        /* prehog.v1alpha.UIAccessListCompleteEvent ui_access_list_complete_event = 116; */
-        if (message.event.oneofKind === "uiAccessListCompleteEvent")
-            UIAccessListCompleteEvent.internalBinaryWrite(message.event.uiAccessListCompleteEvent, writer.tag(116, WireType.LengthDelimited).fork(), options).join();
-        /* prehog.v1alpha.UIAccessListIntegrateEvent ui_access_list_integrate_event = 117; */
-        if (message.event.oneofKind === "uiAccessListIntegrateEvent")
-            UIAccessListIntegrateEvent.internalBinaryWrite(message.event.uiAccessListIntegrateEvent, writer.tag(117, WireType.LengthDelimited).fork(), options).join();
-        /* prehog.v1alpha.UIAccessListCustomEvent ui_access_list_custom_event = 118; */
-        if (message.event.oneofKind === "uiAccessListCustomEvent")
-            UIAccessListCustomEvent.internalBinaryWrite(message.event.uiAccessListCustomEvent, writer.tag(118, WireType.LengthDelimited).fork(), options).join();
-        /* prehog.v1alpha.UIPageViewEvent ui_page_view = 119; */
-        if (message.event.oneofKind === "uiPageView")
-            UIPageViewEvent.internalBinaryWrite(message.event.uiPageView, writer.tag(119, WireType.LengthDelimited).fork(), options).join();
-        /* prehog.v1alpha.UIUsageReportingAlertCtaClickEvent ui_usage_reporting_alert_cta_click = 120; */
-        if (message.event.oneofKind === "uiUsageReportingAlertCtaClick")
-            UIUsageReportingAlertCtaClickEvent.internalBinaryWrite(message.event.uiUsageReportingAlertCtaClick, writer.tag(120, WireType.LengthDelimited).fork(), options).join();
-        /* prehog.v1alpha.SessionSummarySearchEvent session_summary_search_event = 121; */
-        if (message.event.oneofKind === "sessionSummarySearchEvent")
-            SessionSummarySearchEvent.internalBinaryWrite(message.event.sessionSummarySearchEvent, writer.tag(121, WireType.LengthDelimited).fork(), options).join();
-        /* prehog.v1alpha.UIInteractionEvent ui_interaction = 122; */
-        if (message.event.oneofKind === "uiInteraction")
-            UIInteractionEvent.internalBinaryWrite(message.event.uiInteraction, writer.tag(122, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.AccessRequestEvent access_request_create_event = 97; */
+        if (message.event.oneofKind === "accessRequestCreateEvent")
+            AccessRequestEvent.internalBinaryWrite(message.event.accessRequestCreateEvent, writer.tag(97, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.AccessRequestEvent access_request_review_event = 98; */
+        if (message.event.oneofKind === "accessRequestReviewEvent")
+            AccessRequestEvent.internalBinaryWrite(message.event.accessRequestReviewEvent, writer.tag(98, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

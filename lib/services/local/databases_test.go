@@ -21,6 +21,7 @@ package local
 import (
 	"cmp"
 	"context"
+	"fmt"
 	"slices"
 	"strconv"
 	"testing"
@@ -33,9 +34,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 // TestDatabasesCRUD tests backend operations with database resources.
@@ -76,10 +77,6 @@ func TestDatabasesCRUD(t *testing.T) {
 	require.Empty(t, out)
 	require.Empty(t, next)
 
-	out, err = stream.Collect(service.RangeDatabases(ctx, "", ""))
-	require.NoError(t, err)
-	require.Empty(t, out)
-
 	// Create both databases.
 	err = service.CreateDatabase(ctx, db1)
 	require.NoError(t, err)
@@ -109,12 +106,6 @@ func TestDatabasesCRUD(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 	require.Empty(t, next)
-
-	out, err = stream.Collect(service.RangeDatabases(ctx, "", ""))
-	require.NoError(t, err)
-	require.Empty(t, gocmp.Diff([]types.Database{dbBadURI, db1, db2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-	))
 
 	// Fetch a specific database.
 	db, err := service.GetDatabase(ctx, db2.GetName())
@@ -157,12 +148,6 @@ func TestDatabasesCRUD(t *testing.T) {
 	))
 	require.Empty(t, next)
 
-	out, err = stream.Collect(service.RangeDatabases(ctx, "", ""))
-	require.NoError(t, err)
-	require.Empty(t, gocmp.Diff([]types.Database{dbBadURI, db2}, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-	))
-
 	// Try to delete a database that doesn't exist.
 	err = service.DeleteDatabase(ctx, "doesnotexist")
 	require.ErrorAs(t, err, new(*trace.NotFoundError))
@@ -179,10 +164,6 @@ func TestDatabasesCRUD(t *testing.T) {
 	require.Empty(t, out)
 	require.Empty(t, next)
 
-	out, err = stream.Collect(service.RangeDatabases(ctx, "", ""))
-	require.NoError(t, err)
-	require.Empty(t, out)
-
 	// Test pagination
 	expected := make([]types.Database, 0, 50)
 	for i := range 50 {
@@ -193,7 +174,7 @@ func TestDatabasesCRUD(t *testing.T) {
 			URI:      "localhost",
 		})
 		require.NoError(t, err)
-		require.NoError(t, service.CreateDatabase(t.Context(), db))
+		require.NoError(t, service.CreateDatabase(ctx, db))
 		expected = append(expected, db)
 	}
 	slices.SortFunc(expected, func(a, b types.Database) int {
@@ -207,12 +188,12 @@ func TestDatabasesCRUD(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
-	page1, page2Start, err := service.ListDatabases(t.Context(), 10, "")
+	page1, page2Start, err := service.ListDatabases(ctx, 10, "")
 	require.NoError(t, err)
 	assert.Len(t, page1, 10)
 	assert.NotEmpty(t, page2Start)
 
-	page2, next, err := service.ListDatabases(t.Context(), 1000, page2Start)
+	page2, next, err := service.ListDatabases(ctx, 1000, page2Start)
 	require.NoError(t, err)
 	assert.Len(t, page2, len(expected)-10)
 	assert.Empty(t, next)
@@ -222,24 +203,76 @@ func TestDatabasesCRUD(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
-	out, err = stream.Collect(service.RangeDatabases(t.Context(), "", page2Start))
-	require.NoError(t, err)
-	assert.Len(t, out, len(page1))
-	assert.Empty(t, gocmp.Diff(page1, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-	))
+}
 
-	out, err = stream.Collect(service.RangeDatabases(t.Context(), "", ""))
-	require.NoError(t, err)
-	assert.Len(t, out, len(expected))
-	assert.Empty(t, gocmp.Diff(expected, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-	))
+// TestListDatabases_SkipsUnmarshalErrorsHittingPageBoundary guards against a regression where hitting a page boundary with a malformed backend item would
+// return less items than the page limit and no next token. This would cause callers to miss resources and fail to paginate properly when malformed items are present in the backend.
+func TestListDatabases_SkipsUnmarshalErrorsHittingPageBoundary(t *testing.T) {
+	ctx := t.Context()
 
-	out, err = stream.Collect(service.RangeDatabases(t.Context(), page2Start, ""))
+	const pageLimit = 64
+	const numberOfPages = 5
+
+	clock := clockwork.NewFakeClock()
+	mem, err := memory.New(memory.Config{
+		Context: t.Context(),
+		Clock:   clock,
+	})
 	require.NoError(t, err)
-	assert.Len(t, out, len(expected)-10)
-	assert.Empty(t, gocmp.Diff(expected, append(page1, out...),
+
+	service := NewDatabasesService(mem)
+
+	var allExpected []types.Database
+
+	createResource := func(name string) {
+		db, err := types.NewDatabaseV3(types.Metadata{
+			Name: name,
+		}, types.DatabaseSpecV3{
+			Protocol: defaults.ProtocolPostgres,
+			URI:      "localhost:5432",
+		})
+		require.NoError(t, err)
+		err = service.CreateDatabase(ctx, db)
+		require.NoError(t, err)
+		allExpected = append(allExpected, db)
+
+	}
+
+	createMalformedEntry := func(name string) {
+		_, err := mem.Put(ctx, backend.Item{
+			Key:   backend.NewKey(databasesPrefix, name),
+			Value: []byte("not-valid-json"),
+		})
+		require.NoError(t, err)
+	}
+
+	for i := range pageLimit * numberOfPages {
+		key := fmt.Sprintf("r%d", i)
+		if i%2 == 0 {
+			createMalformedEntry(key)
+		} else {
+			createResource(key)
+		}
+	}
+
+	page1, next, err := service.ListDatabases(ctx, pageLimit, "")
+	require.NoError(t, err)
+	require.Len(t, page1, pageLimit)
+	require.NotEmpty(t, next)
+
+	page2, next, err := service.ListDatabases(ctx, pageLimit, next)
+	require.NoError(t, err)
+	require.Len(t, page2, pageLimit)
+	require.NotEmpty(t, next)
+
+	page3, next, err := service.ListDatabases(ctx, pageLimit, next)
+	require.NoError(t, err)
+	require.Len(t, page3, pageLimit/2)
+	require.Empty(t, next)
+
+	allActual := append(append(page1, page2...), page3...)
+	require.Empty(t, gocmp.Diff(allExpected, allActual,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.SortSlices(func(a, b types.Database) bool { return a.GetName() < b.GetName() }),
 	))
 }

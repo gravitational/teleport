@@ -26,7 +26,7 @@ import {
   useMemo,
   useState,
 } from 'react';
-import { matchPath, useLocation } from 'react-router';
+import { matchPath, useHistory } from 'react-router';
 import styled from 'styled-components';
 
 import { Box, Flex, Indicator } from 'design';
@@ -36,7 +36,6 @@ import {
   useInfoGuide,
 } from 'shared/components/SlidingSidePanel/InfoGuide';
 import { marginTransitionCss } from 'shared/components/SlidingSidePanel/InfoGuide/const';
-import { ToastNotifications } from 'shared/components/ToastNotification';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import { BannerList } from 'teleport/components/BannerList';
@@ -53,12 +52,14 @@ import {
   LINK_DESTINATION_LABEL,
   LINK_TEXT_LABEL,
 } from 'teleport/services/alerts/alerts';
+import { storageService } from 'teleport/services/storageService';
 import { TopBar } from 'teleport/TopBar';
 import type { LockedFeatures, TeleportFeature } from 'teleport/types';
 import { useUser } from 'teleport/User/UserContext';
 import useTeleport from 'teleport/useTeleport';
 
 import { MainContainer } from './MainContainer';
+import { OnboardDiscover } from './OnboardDiscover';
 
 export interface MainProps {
   initialAlerts?: ClusterAlert[];
@@ -66,11 +67,12 @@ export interface MainProps {
   features: TeleportFeature[];
   billingBanners?: ReactNode[];
   CustomLogo?: () => React.ReactElement;
+  inviteCollaboratorsFeedback?: ReactNode;
 }
 
 export function Main(props: MainProps) {
   const ctx = useTeleport();
-  const location = useLocation();
+  const history = useHistory();
 
   const { attempt, setAttempt, run } = useAttempt('processing');
 
@@ -94,14 +96,23 @@ export function Main(props: MainProps) {
 
   const { alerts, dismissAlert } = useAlerts(props.initialAlerts);
 
+  // if there is a redirectUrl, do not show the onboarding popup - it'll get in the way of the redirected page
+  const [showOnboardDiscover, setShowOnboardDiscover] = useState(
+    !ctx.redirectUrl
+  );
+
   useEffect(() => {
     if (
-      ctx.redirectUrl &&
-      matchPath({ path: ctx.redirectUrl, end: true }, location.pathname)
+      matchPath(history.location.pathname, {
+        path: ctx.redirectUrl,
+        exact: true,
+      })
     ) {
+      // hide the onboarding popup if we're on the redirectUrl, just in case
+      setShowOnboardDiscover(false);
       ctx.redirectUrl = null;
     }
-  }, [ctx, location.pathname]);
+  }, [ctx, history.location.pathname]);
 
   if (attempt.status === 'failed') {
     return <Failed message={attempt.statusText} />;
@@ -115,8 +126,25 @@ export function Main(props: MainProps) {
     );
   }
 
+  function handleOnboard() {
+    updateOnboardDiscover();
+    history.push(cfg.routes.discover);
+  }
+
+  function handleOnClose() {
+    updateOnboardDiscover();
+    setShowOnboardDiscover(false);
+  }
+
+  function updateOnboardDiscover() {
+    const discover = storageService.getOnboardDiscover();
+    storageService.setOnboardDiscover({ ...discover, notified: true });
+  }
+
   // redirect to the default feature when hitting the root /web URL
-  if (matchPath(cfg.routes.root, location.pathname)) {
+  if (
+    matchPath(history.location.pathname, { path: cfg.routes.root, exact: true })
+  ) {
     if (ctx.redirectUrl) {
       return <Redirect to={ctx.redirectUrl} />;
     }
@@ -150,6 +178,11 @@ export function Main(props: MainProps) {
     })
   );
 
+  const onboard = storageService.getOnboardDiscover();
+  const requiresOnboarding =
+    onboard && !onboard.hasResource && !onboard.notified;
+  const displayOnboardDiscover = requiresOnboarding && showOnboardDiscover;
+
   return (
     <FeaturesContextProvider value={features}>
       <TopBar CustomLogo={props.CustomLogo} />
@@ -165,7 +198,6 @@ export function Main(props: MainProps) {
                   billingBanners={featureFlags.billing && props.billingBanners}
                   onBannerDismiss={dismissAlert}
                 />
-                <ToastNotifications />
                 <Suspense fallback={null}>
                   <FeatureRoutes lockedFeatures={ctx.lockedFeatures} />
                 </Suspense>
@@ -174,6 +206,10 @@ export function Main(props: MainProps) {
           </InfoGuidePanelProvider>
         </MainContainer>
       </Wrapper>
+      {displayOnboardDiscover && (
+        <OnboardDiscover onClose={handleOnClose} onOnboard={handleOnboard} />
+      )}
+      {props.inviteCollaboratorsFeedback}
     </FeaturesContextProvider>
   );
 }
@@ -283,7 +319,7 @@ export const ContentMinWidth = ({ children }: { children: ReactNode }) => {
           overflow-y: auto;
           ${marginTransitionCss({
             sidePanelOpened: infoGuideSidePanelOpened,
-            panelWidth: infoGuideConfig?.viewHasOwnSidePanel ? 0 : panelWidth,
+            panelWidth,
           })}
         `}
       >

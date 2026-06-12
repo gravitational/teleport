@@ -130,6 +130,7 @@ func TestAutoUsersPostgres(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
+			tc := tc
 			t.Parallel()
 
 			// At initial setup, only allows postgres (used to create execute the procedures).
@@ -188,7 +189,7 @@ func TestAutoUsersPostgres(t *testing.T) {
 			select {
 			case e := <-testCtx.postgres["postgres"].db.UserEventsCh():
 				require.Equal(t, "alice", e.Name)
-				require.ElementsMatch(t, tc.databaseRoles, e.Roles)
+				require.Equal(t, tc.databaseRoles, e.Roles)
 				require.True(t, e.Active)
 			case <-time.After(5 * time.Second):
 				t.Fatal("user not activated after 5s")
@@ -356,7 +357,7 @@ func TestAutoUsersMySQL(t *testing.T) {
 			case e := <-testCtx.mysql["mysql"].db.UserEventsCh():
 				require.Equal(t, tc.teleportUser, e.TeleportUser)
 				require.Equal(t, tc.expectDatabaseUser, e.DatabaseUser)
-				require.ElementsMatch(t, []string{"reader", "writer"}, e.Roles)
+				require.Equal(t, []string{"reader", "writer"}, e.Roles)
 				require.True(t, e.Active)
 			case <-time.After(5 * time.Second):
 				t.Fatal("user not activated after 5s")
@@ -406,6 +407,7 @@ func TestAutoUsersMongoDB(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 

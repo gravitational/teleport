@@ -35,11 +35,12 @@ export function ClusterAdd(props: {
   onSuccess(clusterUri: string): void;
   prefill: { clusterAddress: string };
 }) {
-  const { mainProcessClient } = useAppContext();
+  const { clustersService, workspacesService } = useAppContext();
   const [{ status, statusText }, addCluster] = useAsync(
     async (addr: string) => {
       const proxyAddr = parseClusterProxyWebAddr(addr);
-      const cluster = await mainProcessClient.addCluster(proxyAddr);
+      const cluster = await clustersService.addRootCluster(proxyAddr);
+      workspacesService.addWorkspace(cluster.uri);
       return props.onSuccess(cluster.uri);
     }
   );

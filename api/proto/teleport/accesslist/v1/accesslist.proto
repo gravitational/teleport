@@ -72,9 +72,9 @@ message AccessListSpec {
   // owner_grants describes the access granted by owners to this Access List.
   AccessListGrants owner_grants = 11;
 
-  // type can be an empty string which denotes a regular Access List, "scim" which represents
-  // an Access List created from SCIM group or "static" for Access Lists managed by IaC
-  // tools.
+  // type can be currently "dynamic" (the default if empty string) which denotes a regular Access
+  // List, "scim" which represents an Access List created from SCIM group or "static" for Access
+  // Lists managed by IaC tools.
   string type = 12;
 }
 
@@ -162,23 +162,13 @@ message AccessListRequires {
 // AccessListGrants describes what access is granted by membership to the Access
 // List.
 message AccessListGrants {
-  // roles are the names of roles to be granted to users.
+  // roles are the roles that are granted to users who are members of the Access
+  // List.
   repeated string roles = 1;
 
-  // traits are the traits to be granted to users.
+  // traits are the traits that are granted to users who are members of the
+  // Access List.
   repeated teleport.trait.v1.Trait traits = 2;
-
-  // scoped_roles are scoped roles to be granted to users.
-  repeated ScopedRoleGrant scoped_roles = 3;
-}
-
-// ScopedRoleGrant describes a scoped role granted at a specific scope.
-message ScopedRoleGrant {
-  // role is the name of the scoped role to be granted.
-  string role = 1;
-  // scope is the scope the role will be assigned at. It must be an assignable
-  // scope of the role.
-  string scope = 2;
 }
 
 // Member describes a member of an Access List.
@@ -319,14 +309,6 @@ message CurrentUserAssignments {
   AccessListUserAssignmentType membership_type = 2;
 }
 
-// UserAssignments describes the requested user's ownership and membership assignment types in the access list.
-message UserAssignments {
-  // ownership_type represents the requested user's ownership type (explicit, inherited, or none) in the access list.
-  AccessListUserAssignmentType ownership_type = 1;
-  // membership_type represents the requested user's membership type (explicit, inherited, or none) in the access list.
-  AccessListUserAssignmentType membership_type = 2;
-}
-
 // AccessListStatus contains dynamic fields calculated during retrieval.
 message AccessListStatus {
   // member_count is the number of members in the Access List.
@@ -339,6 +321,4 @@ message AccessListStatus {
   repeated string member_of = 4;
   // current_user_assignments describes the current user's ownership and membership status in the access list.
   CurrentUserAssignments current_user_assignments = 5;
-  // user_assignments describes the requested user's ownership and membership assignment types in the access list.
-  UserAssignments user_assignments = 6;
 }

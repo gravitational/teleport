@@ -349,7 +349,6 @@ func mustSetupKubeconfig(t *testing.T, tshHome, kubeCluster string) string {
 				TLSCertificates: [][]byte{[]byte(fixtures.TLSCACertPEM)},
 			}},
 		},
-		ProxyAddr:     "localhost:443",
 		SelectCluster: kubeCluster,
 	}, false)
 	require.NoError(t, err)

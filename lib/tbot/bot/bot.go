@@ -273,7 +273,6 @@ func (b *Bot) buildServices(ctx context.Context, registry *readyz.Registry) ([]*
 				teleport.ComponentKey,
 				teleport.Component(teleport.ComponentTBot, "svc", handle.name),
 			),
-			Scoped: b.cfg.Scoped,
 		})
 		if err != nil {
 			return nil, closeFn, trace.Wrap(err, "building service [%d]", idx)
@@ -356,7 +355,6 @@ func (b *Bot) buildIdentityService(
 		Destination:     b.cfg.InternalStorage,
 		TTL:             b.cfg.CredentialLifetime.TTL,
 		RenewalInterval: b.cfg.CredentialLifetime.RenewalInterval,
-		Leeway:          b.cfg.Leeway,
 		FIPS:            b.cfg.FIPS,
 		Logger: b.cfg.Logger.With(
 			teleport.ComponentKey,
@@ -365,7 +363,6 @@ func (b *Bot) buildIdentityService(
 		ClientBuilder:  clientBuilder,
 		ReloadCh:       reloadCh,
 		StatusReporter: handle.statusReporter,
-		Scoped:         b.cfg.Scoped,
 	})
 	if err != nil {
 		unsubscribe()

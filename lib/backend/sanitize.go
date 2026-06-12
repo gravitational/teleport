@@ -20,7 +20,6 @@ package backend
 
 import (
 	"context"
-	"iter"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -75,8 +74,6 @@ func IsKeySafe(key Key) bool {
 }
 
 var _ Backend = (*Sanitizer)(nil)
-var _ BatchDeleter = (*Sanitizer)(nil)
-var _ BatchPutter = (*Sanitizer)(nil)
 
 // Sanitizer wraps a [Backend] implementation to make sure all
 // [Key]s written to the backend are allowed. Retrieval and deletion
@@ -100,10 +97,6 @@ func (s *Sanitizer) GetRange(ctx context.Context, startKey, endKey Key, limit in
 	return s.backend.GetRange(ctx, startKey, endKey, limit)
 }
 
-func (s *Sanitizer) Items(ctx context.Context, params ItemsParams) iter.Seq2[Item, error] {
-	return s.backend.Items(ctx, params)
-}
-
 // Create creates item if it does not exist
 func (s *Sanitizer) Create(ctx context.Context, i Item) (*Lease, error) {
 	if !IsKeySafe(i.Key) {
@@ -120,17 +113,6 @@ func (s *Sanitizer) Put(ctx context.Context, i Item) (*Lease, error) {
 	}
 
 	return s.backend.Put(ctx, i)
-}
-
-// PutBatch puts multiple values into backend.
-func (s *Sanitizer) PutBatch(ctx context.Context, items []Item) ([]string, error) {
-	for _, item := range items {
-		if !IsKeySafe(item.Key) {
-			return nil, trace.BadParameter(errorMessage, item.Key)
-		}
-	}
-	out, err := PutBatch(ctx, s.backend, items)
-	return out, trace.Wrap(err)
 }
 
 // Update updates value in the backend
@@ -170,11 +152,6 @@ func (s *Sanitizer) CompareAndSwap(ctx context.Context, expected Item, replaceWi
 // Delete deletes item by key
 func (s *Sanitizer) Delete(ctx context.Context, key Key) error {
 	return s.backend.Delete(ctx, key)
-}
-
-// DeleteBatch deletes multiple items from the backend.
-func (s *Sanitizer) DeleteBatch(ctx context.Context, keys []Key) error {
-	return trace.Wrap(DeleteBatch(ctx, s.backend, keys))
 }
 
 // ConditionalDelete deletes the item by key if the revision matches the stored revision.

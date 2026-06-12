@@ -38,7 +38,6 @@ import (
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	"github.com/gravitational/teleport/api/types/autoupdate"
 	"github.com/gravitational/teleport/lib/asciitable"
-	aur "github.com/gravitational/teleport/lib/autoupdate/report"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
@@ -167,7 +166,7 @@ func (c *AutoUpdateCommand) TargetVersion(ctx context.Context, client autoupdate
 		// For parallel requests where we attempt to create a resource simultaneously, retries should be implemented.
 		// The same approach applies to updates if the resource has been deleted during the process.
 		// Second create request must return `AlreadyExists` error, update for deleted resource `NotFound` error.
-		for range maxRetries {
+		for i := 0; i < maxRetries; i++ {
 			err = c.setToolsTargetVersion(ctx, client)
 			if err == nil {
 				break
@@ -186,7 +185,7 @@ func (c *AutoUpdateCommand) SetModeCommand(enabled bool) func(ctx context.Contex
 		// For parallel requests where we attempt to create a resource simultaneously, retries should be implemented.
 		// The same approach applies to updates if the resource has been deleted during the process.
 		// Second create request must return `AlreadyExists` error, update for deleted resource `NotFound` error.
-		for range maxRetries {
+		for i := 0; i < maxRetries; i++ {
 			err := c.setToolsMode(ctx, client, enabled)
 			if err == nil {
 				break
@@ -244,7 +243,7 @@ func (c *AutoUpdateCommand) agentsStatusCommand(ctx context.Context, client auto
 		sb.WriteString("Target version: " + target + "\n")
 	}
 	if state := rollout.GetStatus().GetState(); state != autoupdatev1pb.AutoUpdateAgentRolloutState_AUTO_UPDATE_AGENT_ROLLOUT_STATE_UNSPECIFIED {
-		sb.WriteString("Rollout state: " + aur.UserFriendlyState(state) + "\n")
+		sb.WriteString("Rollout state: " + userFriendlyState(state) + "\n")
 	}
 	if schedule := rollout.GetSpec().GetSchedule(); schedule == autoupdate.AgentsScheduleImmediate {
 		sb.WriteString("Schedule is immediate. Every group immediately updates to the target version.\n")
@@ -280,7 +279,7 @@ func (c *AutoUpdateCommand) agentsReportCommand(ctx context.Context, client auto
 		return trace.BadParameter("no reports returned, but the server did not return a NotFoundError, this ia a bug")
 	}
 
-	validReports := aur.ValidReports(reports, now)
+	validReports := filterValidReports(reports, now)
 
 	if len(validReports) == 0 {
 		fmt.Fprintf(c.stdout, "Read %d reports, but they are expired. If you just (re)deployed the Auth service, you might want to retry after 60 seconds.\n", len(reports))
@@ -328,6 +327,16 @@ func (c *AutoUpdateCommand) agentsReportCommand(ctx context.Context, client auto
 	fmt.Fprint(c.stdout, c.omittedSummary(validReports))
 
 	return trace.Wrap(err)
+}
+
+func filterValidReports(reports []*autoupdatev1pb.AutoUpdateAgentReport, now time.Time) []*autoupdatev1pb.AutoUpdateAgentReport {
+	var validReports []*autoupdatev1pb.AutoUpdateAgentReport
+	for _, report := range reports {
+		if now.Sub(report.GetSpec().GetTimestamp().AsTime()) <= time.Minute {
+			validReports = append(validReports, report)
+		}
+	}
+	return validReports
 }
 
 func (c *AutoUpdateCommand) omittedSummary(reports []*autoupdatev1pb.AutoUpdateAgentReport) string {
@@ -394,7 +403,7 @@ func rolloutGroupTable(rollout *autoupdatev1pb.AutoUpdateAgentRollout, writer io
 			if i == len(groups)-1 {
 				groupName = groupName + " (catch-all)"
 			}
-			state := aur.UserFriendlyState(group.GetState())
+			state := userFriendlyState(group.GetState())
 
 			// If this is the canary state, we annotate the group state with the canary progress
 			if group.GetState() == autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY {
@@ -425,7 +434,7 @@ func rolloutGroupTable(rollout *autoupdatev1pb.AutoUpdateAgentRollout, writer io
 			groupName := group.GetName()
 			table.AddRow([]string{
 				groupName,
-				aur.UserFriendlyState(group.GetState()),
+				userFriendlyState(group.GetState()),
 				formatTimeIfNotEmpty(group.GetStartTime().AsTime(), time.DateTime),
 				group.GetLastUpdateReason()})
 		}
@@ -476,9 +485,9 @@ func (c *AutoUpdateCommand) agentsMarkDoneCommand(ctx context.Context, client au
 	}
 
 	if len(c.groups) == 0 {
-		fmt.Fprintln(c.stdout, "Successfully marked every started agent group as completed.")
+		fmt.Fprintln(c.stdout, "Successfully rolledback every started agent group.")
 	} else {
-		fmt.Fprintf(c.stdout, "Successfully marked agent groups as completed: %v.\n", groups)
+		fmt.Fprintf(c.stdout, "Successfully rolledback agents groups: %v.\n", groups)
 	}
 
 	fmt.Fprint(c.stdout, "New agent rollout status:\n\n")
@@ -517,6 +526,26 @@ func formatTimeIfNotEmpty(t time.Time, format string) string {
 		return ""
 	}
 	return t.Format(format)
+}
+
+func userFriendlyState[T autoupdatev1pb.AutoUpdateAgentGroupState | autoupdatev1pb.AutoUpdateAgentRolloutState](state T) string {
+	switch state {
+	case 0:
+		return "Unknown"
+	case 1:
+		return "Unstarted"
+	case 2:
+		return "Active"
+	case 3:
+		return "Done"
+	case 4:
+		return "Rolledback"
+	case 5:
+		return "Canary"
+	default:
+		// If we don't know anything about this state, we display its integer
+		return fmt.Sprintf("Unknown state (%d)", state)
+	}
 }
 
 // ToolsStatus makes request to auth service to fetch client tools auto update version and mode.

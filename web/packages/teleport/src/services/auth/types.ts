@@ -62,24 +62,12 @@ export type ResetPasswordWithWebauthnReqWithEvent = {
   eventMeta?: EventMeta;
 };
 
-// CreateAuthenticateChallengeRequest is the request used when creating an MFA
-// challenge. If browserMfaRequestId is set, scope is optional because auth
-// will set the scope when creating the challenge.
-export type CreateAuthenticateChallengeRequest =
-  | {
-      browserMfaRequestId: string;
-      scope?: MfaChallengeScope;
-      allowReuse?: boolean;
-      isMfaRequiredRequest?: IsMfaRequiredRequest;
-      userVerificationRequirement?: UserVerificationRequirement;
-    }
-  | {
-      browserMfaRequestId?: never;
-      scope: MfaChallengeScope;
-      allowReuse?: boolean;
-      isMfaRequiredRequest?: IsMfaRequiredRequest;
-      userVerificationRequirement?: UserVerificationRequirement;
-    };
+export type CreateAuthenticateChallengeRequest = {
+  scope: MfaChallengeScope;
+  allowReuse?: boolean;
+  isMfaRequiredRequest?: IsMfaRequiredRequest;
+  userVerificationRequirement?: UserVerificationRequirement;
+};
 
 export type ChangePasswordReq = {
   oldPassword: string;

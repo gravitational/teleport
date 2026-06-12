@@ -21,7 +21,6 @@ package kubeconfig
 import (
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
@@ -29,8 +28,6 @@ import (
 
 func TestLocalProxy(t *testing.T) {
 	const (
-		proxyHost           = "root-cluster.example.com"
-		proxy               = proxyHost + ":443"
 		rootKubeClusterAddr = "https://root-cluster.example.com"
 		rootClusterName     = "root-cluster"
 		leafClusterName     = "leaf-cluster"
@@ -50,7 +47,6 @@ func TestLocalProxy(t *testing.T) {
 		KubeClusters:        []string{"kube1"},
 		Credentials:         creds,
 		Exec:                exec,
-		ProxyAddr:           proxy,
 	}, false))
 	require.NoError(t, Update(kubeconfigPath, Values{
 		TeleportClusterName: rootClusterName,
@@ -58,7 +54,6 @@ func TestLocalProxy(t *testing.T) {
 		KubeClusters:        []string{"kube2"},
 		Credentials:         creds,
 		Exec:                exec,
-		ProxyAddr:           proxy,
 		SelectCluster:       "kube2",
 	}, false))
 	require.NoError(t, Update(kubeconfigPath, Values{
@@ -70,14 +65,13 @@ func TestLocalProxy(t *testing.T) {
 		Impersonate:         "as",
 		ImpersonateGroups:   []string{"group1", "group2"},
 		Exec:                exec,
-		ProxyAddr:           proxy,
 	}, false))
 
 	configAfterLogins, err := Load(kubeconfigPath)
 	require.NoError(t, err)
 
 	t.Run("LocalProxyClustersFromDefaultConfig", func(t *testing.T) {
-		clusters := LocalProxyClustersFromDefaultConfig(configAfterLogins, proxyHost, rootKubeClusterAddr)
+		clusters := LocalProxyClustersFromDefaultConfig(configAfterLogins, rootKubeClusterAddr)
 		require.ElementsMatch(t, LocalProxyClusters{
 			{
 				TeleportCluster: rootClusterName,
@@ -102,7 +96,7 @@ func TestLocalProxy(t *testing.T) {
 
 		// Simulate a scenario that kube3 is already pointing to a local proxy
 		// through ProxyURL.
-		inputConfig.Clusters[leafClusterName+"-kube3"].ProxyURL = "https://localhost:8443"
+		inputConfig.Clusters[leafClusterName].ProxyURL = "https://localhost:8443"
 
 		tests := []struct {
 			name          string
@@ -147,7 +141,7 @@ func TestLocalProxy(t *testing.T) {
 
 		for _, test := range tests {
 			t.Run(test.name, func(t *testing.T) {
-				cluster, found := FindTeleportClusterForLocalProxy(inputConfig, test.selectContext, proxyHost, rootKubeClusterAddr)
+				cluster, found := FindTeleportClusterForLocalProxy(inputConfig, rootKubeClusterAddr, test.selectContext)
 				test.checkResult(t, found)
 				require.Equal(t, test.wantCluster, cluster)
 			})
@@ -159,7 +153,6 @@ func TestLocalProxy(t *testing.T) {
 		clientKeyData := []byte("clientKeyData")
 		values := &LocalProxyValues{
 			LocalProxyCAs:           map[string][]byte{rootClusterName: caData},
-			TeleportProfileName:     proxyHost,
 			TeleportKubeClusterAddr: rootKubeClusterAddr,
 			LocalProxyURL:           "http://localhost:12345",
 			ClientKeyData:           clientKeyData,
@@ -190,63 +183,26 @@ func TestLocalProxy(t *testing.T) {
 			CertificateAuthorityData: caData,
 			TLSServerName:            rootClusterName,
 			LocationOfOrigin:         kubeconfigPath,
-			Extensions: map[string]runtime.Object{
-				extProfileName: &runtime.Unknown{
-					Raw:         []byte(`"` + proxyHost + `"`),
-					ContentType: "application/json",
-				},
-				extTeleClusterName: &runtime.Unknown{
-					Raw:         []byte(`"` + rootClusterName + `"`),
-					ContentType: "application/json",
-				},
-				extKubeClusterName: &runtime.Unknown{
-					Raw:         []byte(`"kube1"`),
-					ContentType: "application/json",
-				},
-			},
+			Extensions:               map[string]runtime.Object{},
 		}
 		wantConfig.Contexts["root-cluster-kube1"] = &clientcmdapi.Context{
-			Namespace: "namespace",
-			Cluster:   "root-cluster-kube1",
-			AuthInfo:  "root-cluster-kube1",
-			Extensions: map[string]runtime.Object{
-				extProfileName: &runtime.Unknown{
-					Raw:         []byte(`"` + proxyHost + `"`),
-					ContentType: "application/json",
-				},
-				extTeleClusterName: &runtime.Unknown{
-					Raw:         []byte(`"` + rootClusterName + `"`),
-					ContentType: "application/json",
-				},
-				extKubeClusterName: &runtime.Unknown{
-					Raw:         []byte(`"kube1"`),
-					ContentType: "application/json",
-				},
-			},
+			Namespace:        "namespace",
+			Cluster:          "root-cluster-kube1",
+			AuthInfo:         "root-cluster-kube1",
+			LocationOfOrigin: kubeconfigPath,
+			Extensions:       map[string]runtime.Object{},
 		}
 		wantConfig.AuthInfos["root-cluster-kube1"] = &clientcmdapi.AuthInfo{
 			ClientCertificateData: caData,
 			ClientKeyData:         clientKeyData,
 			Impersonate:           "as",
 			ImpersonateGroups:     []string{"group1", "group2"},
-			Extensions: map[string]runtime.Object{
-				extProfileName: &runtime.Unknown{
-					Raw:         []byte(`"` + proxyHost + `"`),
-					ContentType: "application/json",
-				},
-				extTeleClusterName: &runtime.Unknown{
-					Raw:         []byte(`"` + rootClusterName + `"`),
-					ContentType: "application/json",
-				},
-				extKubeClusterName: &runtime.Unknown{
-					Raw:         []byte(`"kube1"`),
-					ContentType: "application/json",
-				},
-			},
+			LocationOfOrigin:      kubeconfigPath,
+			Extensions:            map[string]runtime.Object{},
 		}
 
 		// Current context is updated.
 		wantConfig.CurrentContext = "root-cluster-kube1"
-		require.Empty(t, cmp.Diff(wantConfig, *generatedConfig, kubeconfigCmpOpts...))
+		require.Equal(t, wantConfig, *generatedConfig)
 	})
 }

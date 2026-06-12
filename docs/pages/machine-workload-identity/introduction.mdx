@@ -1,6 +1,6 @@
 ---
 title: "Introduction to Machine & Workload Identity"
-description: "Explains concepts and use cases for Machine & Workload Identity, which replaces static secrets with secure, short-lived identities for machines and workloads."
+description: "Replace static secrets with secure, short-lived identities for machines and workloads."
 sidebar_label: "Introduction"
 sidebar_position: 1
 videoBanner: "ZDWRt105tBg"
@@ -30,10 +30,7 @@ The tbot agent manages identity requests and renewals, authenticating to the Tel
 
 ## Zero Trust Access for machines
 
-Teleport provides machines with an identity ("bot") that can authenticate to the
-Teleport cluster. Bots have one or more Teleport roles, governing their access
-to resources in your infrastructure, and Teleport records
-their activity using audit logs.
+Teleport provides machines with an identity ("bot") that can authenticate to the Teleport cluster. Bots are similar to human users with access controlled by roles and activities recorded in audit logs.
 
 Bots authenticate using join tokens that specify which bot user they grant access to and what proof (join method) is needed. Each tbot client connection creates a server-side Bot Instance to track installations over time.
 
@@ -175,6 +172,6 @@ for workload to workload communication.
 them.
 - [Architecture](../reference/architecture/machine-id-architecture.mdx): A technical deep-dive into how Machine &
 Workload Identity works.
-- [Reference](../reference/machine-workload-identity/machine-workload-identity.mdx): Complete documentation of available
+- [Reference](../reference/machine-id/configuration.mdx): Complete documentation of available
 configuration options.
 - [Manifesto](./manifesto.mdx): Our vision for Machine & Workload Identity.

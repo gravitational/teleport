@@ -64,31 +64,14 @@ const (
 	// OktaCA identifies the certificate authority that will be used by the
 	// integration with Okta.
 	OktaCA CertAuthType = "okta"
-	// AWSRACA identifies the certificate authority that will be used by the
-	// AWS IAM Roles Anywhere integration functionality.
-	AWSRACA CertAuthType = "awsra"
 	// BoundKeypairCA identifies the CA used to sign bound keypair client state
 	// documents.
 	BoundKeypairCA CertAuthType = "bound_keypair"
-	// WindowsCA issues end-user RDP (Remote Desktop Protocol) certificates for
-	// Windows Desktop Access.
-	//
-	// WindowsCA is trusted by Windows hosts.
-	//
-	// Introduced on Teleport versions 18.x and 19 as a clone of the UserCA (which
-	// was previously used by Windows Desktop Access).
-	//
-	// https://github.com/gravitational/teleport/blob/master/rfd/0239-windows-ca-split.md
-	WindowsCA CertAuthType = "windows"
-	// AppClientCA is the certificate authority used to issue app access client
-	// certificates.
-	AppClientCA CertAuthType = "app_client"
 )
 
 // CertAuthTypes lists all certificate authority types.
 var CertAuthTypes = []CertAuthType{
 	HostCA,
-	WindowsCA, // before UserCA to avoid undue CA cloning
 	UserCA,
 	DatabaseCA,
 	DatabaseClientCA,
@@ -98,19 +81,14 @@ var CertAuthTypes = []CertAuthType{
 	OIDCIdPCA,
 	SPIFFECA,
 	OktaCA,
-	AWSRACA,
 	BoundKeypairCA,
-	AppClientCA,
 }
 
 // NewlyAdded should return true for CA types that were added in the current
 // major version, so that we can avoid erroring out when a potentially older
 // remote server doesn't know about them.
 func (c CertAuthType) NewlyAdded() bool {
-	return c.addedInMajorVer() >= api.VersionMajor ||
-		// WindowsCA and AppClientCA are considered new in both v18.x and v19.
-		// TODO(codingllama): DELETE IN 20. Only here for backport purposes.
-		((c == WindowsCA || c == AppClientCA) && api.VersionMajor == 18)
+	return c.addedInMajorVer() >= api.VersionMajor
 }
 
 // addedInMajorVer returns the major version in which given CA was added.
@@ -128,13 +106,8 @@ func (c CertAuthType) addedInMajorVer() int64 {
 		return 15
 	case OktaCA:
 		return 17
-	case AWSRACA, BoundKeypairCA:
-		return 18
-	case WindowsCA, AppClientCA:
-		// Note: WindowsCA and AppClientCA were added in an 18.x minor release,
-		// so unlike others they are considered "new" in both versions 18 and 19.
-		// That is to allow for, at least, a full release cycle.
-		return 19
+	case BoundKeypairCA:
+		return 17
 	default:
 		// We don't care about other CAs added before v4.0.0
 		return 4

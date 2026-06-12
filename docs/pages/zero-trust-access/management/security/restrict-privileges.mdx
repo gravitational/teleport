@@ -1,11 +1,9 @@
 ---
 title: Restrict Access for Privileged Accounts
-sidebar_label: Privileged Accounts
 description: Explains the risks of root-level access to Teleport-protected resources.
 tags:
  - conceptual
  - zero-trust
- - privileged-access
 ---
 
 As an administrator, you need to make informed decisions about when and how to grant
@@ -15,7 +13,7 @@ and determine whether to apply network-level restrictions.
 
 ## Labels and label expressions
 
-As you learned in [Add Labels to Resources](../../rbac-get-started/labels.mdx), labels enable you to group, filter, and control access to 
+As you learned in [Add Labels to Resources](../../management/admin/labels.mdx), labels enable you to group, filter, and control access to 
 nodes and services in your infrastructure that you want to protect with Teleport. 
 When combined with allow and deny rules in Teleport roles, labels become the primary mechanism 
 for granting or denying access to critical resources.
@@ -30,7 +28,7 @@ To prevent changes to labels from granting elevated privileges, you should:
 - Review sources used to generate dynamic labels and restrict modifications to the command 
   or the data sources used.
 - Follow the **principle of least privilege** in creating and assigning roles. 
-  Don't give users permissive roles when a more restrictive role will do. For example, don't 
+  Don't give users permissive roles when more a restrictive role will do. For example, don't 
   assign users the preset `access` or `editor` role, which give them permission to access and edit 
   all cluster resources. Instead, define roles with the minimum required permissions for each 
   user and configure **Access Requests** or **Access Lists** to provide temporary elevated permissions.
@@ -57,7 +55,7 @@ following guidelines:
 - Avoid allowing `sudo` in production environments unless it's necessary.
 - Secure all Teleport executables so that they can't be modified or replaced.
 - Secure Teleport configuration files so that they can't be modified or replaced.
-- Ensure the user's client `~/.tsh` directory is secure and should not be copied. If a user's `tsh` client 
+- Ensure the users' client `~/.tsh` directory is secure and should not be copied. If a user's `tsh` client 
   is compromised, it could result in a compromise of that user.
 
 ## Prevent access to storage
@@ -65,7 +63,7 @@ following guidelines:
 You should make sure that the Teleport storage backend you use can't be accessed directly or modified. 
 For example, you should ensure that the storage you use for audit log events and session recordings is
 secured so the data can't be tampered with. For more information about managing storage, see 
-[Storage backends](../../../reference/deployment/backends.mdx)
+[Storage backends](../../../reference/backends.mdx)
 
 ## Restrict network access
 

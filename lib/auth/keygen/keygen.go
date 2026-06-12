@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -35,36 +36,33 @@ import (
 	"github.com/gravitational/teleport/lib/sshca"
 )
 
-// Keygen is named poorly, it provides methods for generating and signing SSH
-// certificates.
+// Keygen is a key generator that precomputes keys to provide quick access to
+// public/private key pairs.
 type Keygen struct {
-	// now returns the current time
-	now func() time.Time
-	// buildType defienes which Teleport build is running.
-	buildType string
+	// clock is used to control time.
+	clock clockwork.Clock
 }
 
-type Config struct {
-	Now       func() time.Time
-	BuildType string
+// Option is a functional optional argument for key generator
+type Option func(k *Keygen)
+
+// SetClock sets the clock to use for key generation.
+func SetClock(clock clockwork.Clock) Option {
+	return func(k *Keygen) {
+		k.clock = clock
+	}
 }
 
 // New returns a new key generator.
-func New(cfg Config) (*Keygen, error) {
-	// TODO(tross): Enforce that a build type is provided. There are a number of tests which
-	// override the modules without setting a build type that would fail otherwise.
-	// if cfg.BuildType == "" {
-	// return nil, trace.BadParameter("BuildType is a required parameter for Keygen")
-	// }
-
-	if cfg.Now == nil {
-		cfg.Now = time.Now
+func New(_ context.Context, opts ...Option) *Keygen {
+	k := &Keygen{
+		clock: clockwork.NewRealClock(),
+	}
+	for _, opt := range opts {
+		opt(k)
 	}
 
-	return &Keygen{
-		now:       cfg.Now,
-		buildType: cfg.BuildType,
-	}, nil
+	return k
 }
 
 // GenerateHostCert generates a host certificate with the passed in parameters.
@@ -103,11 +101,11 @@ func (k *Keygen) GenerateHostCertWithoutValidation(req sshca.HostCertificateRequ
 	// calculate ValidBefore based on the outer request TTL
 	ident.ValidBefore = uint64(ssh.CertTimeInfinity)
 	if req.TTL != 0 {
-		b := k.now().UTC().Add(req.TTL)
+		b := k.clock.Now().UTC().Add(req.TTL)
 		ident.ValidBefore = uint64(b.Unix())
 	}
 
-	ident.ValidAfter = uint64(k.now().UTC().Add(-1 * time.Minute).Unix())
+	ident.ValidAfter = uint64(k.clock.Now().UTC().Add(-1 * time.Minute).Unix())
 
 	// encode the identity into a certificate
 	cert, err := ident.Encode("")
@@ -156,7 +154,7 @@ func (k *Keygen) GenerateUserCertWithoutValidation(req sshca.UserCertificateRequ
 	// calculate ValidBefore based on the outer request TTL
 	ident.ValidBefore = uint64(ssh.CertTimeInfinity)
 	if req.TTL != 0 {
-		b := k.now().UTC().Add(req.TTL)
+		b := k.clock.Now().UTC().Add(req.TTL)
 		ident.ValidBefore = uint64(b.Unix())
 		slog.DebugContext(
 			context.TODO(),
@@ -168,11 +166,13 @@ func (k *Keygen) GenerateUserCertWithoutValidation(req sshca.UserCertificateRequ
 	}
 
 	// set ValidAfter to be 1 minute in the past
-	ident.ValidAfter = uint64(k.now().UTC().Add(-1 * time.Minute).Unix())
+	ident.ValidAfter = uint64(k.clock.Now().UTC().Add(-1 * time.Minute).Unix())
 
 	// if the provided identity is attempting to perform IP pinning, make sure modules are enforced
-	if ident.PinnedIP != "" && k.buildType != modules.BuildEnterprise {
-		return nil, trace.AccessDenied("source IP pinning is only supported in Teleport Enterprise")
+	if ident.PinnedIP != "" {
+		if modules.GetModules().BuildType() != modules.BuildEnterprise {
+			return nil, trace.AccessDenied("source IP pinning is only supported in Teleport Enterprise")
+		}
 	}
 
 	// encode the identity into a certificate

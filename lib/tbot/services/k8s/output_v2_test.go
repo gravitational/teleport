@@ -40,7 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/internal"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
 
@@ -155,7 +155,7 @@ func TestKubernetesV2OutputService_fetch(t *testing.T) {
 					Name: "nonexistent",
 				},
 			},
-			expectError: func(tt require.TestingT, err error, i ...any) {
+			expectError: func(tt require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "unable to fetch cluster \"nonexistent\" by name")
 			},
 		},
@@ -295,7 +295,7 @@ func TestKubernetesV2OutputService_render(t *testing.T) {
 					Destination:       dest,
 				},
 				executablePath: fakeGetExecutablePath,
-				log:            logtest.NewLogger(),
+				log:            utils.NewSlogLoggerForTests(),
 			}
 
 			keyRing, err := internal.NewClientKeyRing(
@@ -303,14 +303,13 @@ func TestKubernetesV2OutputService_render(t *testing.T) {
 				[]types.CertAuthority{fakeCA(t, types.HostCA, mockClusterName)},
 			)
 			require.NoError(t, err)
-			mockSNI := client.GetKubeTLSServerName(mockClusterName)
 			status := &kubernetesStatusV2{
 				kubernetesClusterNames: []string{"a", "b", "c"},
 				defaultNamespaces: map[string]string{
 					"a": "namespace-a",
 				},
 				teleportClusterName: mockClusterName,
-				tlsServerNameFunc:   func(teleportClusterName, kubeClusterName string) string { return mockSNI },
+				tlsServerName:       client.GetKubeTLSServerName(mockClusterName),
 				credentials:         keyRing,
 				clusterAddr:         fmt.Sprintf("https://%s:443", mockClusterName),
 			}

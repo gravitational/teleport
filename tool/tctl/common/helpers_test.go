@@ -42,7 +42,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/config"
-	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -68,7 +67,7 @@ type cliCommand interface {
 	TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (bool, error)
 }
 
-func runCommand(t require.TestingT, client *authclient.Client, cmd cliCommand, args []string) error {
+func runCommand(t *testing.T, client *authclient.Client, cmd cliCommand, args []string) error {
 	cfg := servicecfg.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
@@ -87,7 +86,7 @@ func runCommand(t require.TestingT, client *authclient.Client, cmd cliCommand, a
 func runResourceCommand(t *testing.T, client *authclient.Client, args []string) (*bytes.Buffer, error) {
 	var stdoutBuff bytes.Buffer
 	command := &ResourceCommand{
-		Stdout: &stdoutBuff,
+		stdout: &stdoutBuff,
 	}
 	return &stdoutBuff, runCommand(t, client, command, args)
 }
@@ -114,20 +113,10 @@ func runLockCommand(t *testing.T, client *authclient.Client, args []string) erro
 func runTokensCommand(t *testing.T, client *authclient.Client, args []string) (*bytes.Buffer, error) {
 	var stdoutBuff bytes.Buffer
 	command := &TokensCommand{
-		Stdout: &stdoutBuff,
+		stdout: &stdoutBuff,
 	}
 
 	args = append([]string{"tokens"}, args...)
-	return &stdoutBuff, runCommand(t, client, command, args)
-}
-
-func runScopedCommand(t *testing.T, client *authclient.Client, args []string) (*bytes.Buffer, error) {
-	var stdoutBuff bytes.Buffer
-	command := &ScopedCommand{
-		Stdout: &stdoutBuff,
-	}
-
-	args = append([]string{"scoped"}, args...)
 	return &stdoutBuff, runCommand(t, client, command, args)
 }
 
@@ -149,23 +138,13 @@ func runIdPSAMLCommand(t *testing.T, client *authclient.Client, args []string) e
 	return runCommand(t, client, command, args)
 }
 
-func runNotificationsCommand(t require.TestingT, client *authclient.Client, args []string) (*bytes.Buffer, error) {
+func runNotificationsCommand(t *testing.T, client *authclient.Client, args []string) (*bytes.Buffer, error) {
 	var stdoutBuff bytes.Buffer
 	command := &NotificationCommand{
 		stdout: &stdoutBuff,
 	}
 
 	args = append([]string{"notifications"}, args...)
-	return &stdoutBuff, runCommand(t, client, command, args)
-}
-
-func runAlertCommand(t *testing.T, client *authclient.Client, args []string) (*bytes.Buffer, error) {
-	var stdoutBuff bytes.Buffer
-	command := &AlertCommand{
-		stdout: &stdoutBuff,
-	}
-
-	args = append([]string{"alerts"}, args...)
 	return &stdoutBuff, runCommand(t, client, command, args)
 }
 
@@ -181,29 +160,6 @@ func mustTranscodeYAMLToJSON(t *testing.T, r io.Reader) []byte {
 	var resource services.UnknownResource
 	require.NoError(t, decoder.Decode(&resource))
 	return resource.Raw
-}
-
-// mustTranscodeYAMLDocsToJSON safely transcodes YAML docs for unknown resources.
-func mustTranscodeYAMLDocsToJSON(t *testing.T, r io.Reader) []byte {
-	decoder := kyaml.NewYAMLToJSONDecoder(r)
-	var jsonRaw []json.RawMessage
-
-	for {
-		var resource services.UnknownResource
-		if err := decoder.Decode(&resource); err != nil {
-			// Break when there are no more documents to decode
-			if !errors.Is(err, io.EOF) {
-				require.FailNow(t, "error transcoding YAML docs to JSON: %v", err)
-			}
-			break
-		}
-		jsonRaw = append(jsonRaw, resource.Raw)
-	}
-
-	jsonDocs, err := json.Marshal(jsonRaw)
-	require.NoError(t, err)
-
-	return jsonDocs
 }
 
 func mustDecodeYAMLDocuments[T any](t *testing.T, r io.Reader, out *[]T) {
@@ -261,9 +217,6 @@ type testServerOptions struct {
 	fileConfig      *config.FileConfig
 	fileDescriptors []*servicecfg.FileDescriptor
 	fakeClock       *clockwork.FakeClock
-	scopesFeatures  scopes.Features
-	enableCache     bool
-	enableProxy     bool
 }
 
 type testServerOptionFunc func(options *testServerOptions)
@@ -286,24 +239,6 @@ func withFakeClock(fakeClock *clockwork.FakeClock) testServerOptionFunc {
 	}
 }
 
-func withScopesFeatures(features scopes.Features) testServerOptionFunc {
-	return func(options *testServerOptions) {
-		options.scopesFeatures = features
-	}
-}
-
-func withEnableCache(enableCache bool) testServerOptionFunc {
-	return func(options *testServerOptions) {
-		options.enableCache = enableCache
-	}
-}
-
-func withEnableProxy() testServerOptionFunc {
-	return func(options *testServerOptions) {
-		options.enableProxy = true
-	}
-}
-
 func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth *service.TeleportProcess) {
 	var options testServerOptions
 	for _, opt := range opts {
@@ -313,22 +248,17 @@ func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth 
 	var err error
 	cfg := servicecfg.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	cfg.ScopesFeatures = options.scopesFeatures
 	cfg.FileDescriptors = options.fileDescriptors
 	if options.fileConfig != nil {
 		err = config.ApplyFileConfig(options.fileConfig, cfg)
 		require.NoError(t, err)
 	}
 
-	cfg.CachePolicy.Enabled = options.enableCache
-	if options.enableProxy {
-		cfg.Proxy.Enabled = true
-	}
+	cfg.CachePolicy.Enabled = false
 	cfg.Proxy.DisableWebInterface = true
 	cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 	if options.fakeClock != nil {
 		cfg.Clock = options.fakeClock
-		cfg.Auth.Clock = options.fakeClock
 	}
 	auth, err = service.NewTeleport(cfg)
 

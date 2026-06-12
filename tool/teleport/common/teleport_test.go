@@ -20,9 +20,7 @@ package common
 
 import (
 	"bytes"
-	"context"
 	"fmt"
-	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -30,6 +28,7 @@ import (
 	"testing"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -37,8 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/server/installer"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const initTestSentinel = "init_test"
@@ -48,7 +46,7 @@ func TestMain(m *testing.M) {
 		os.Exit(0)
 	}
 
-	logtest.InitLogger(testing.Verbose)
+	utils.InitLoggerForTests()
 	os.Exit(m.Run())
 }
 
@@ -59,7 +57,7 @@ func BenchmarkInit(b *testing.B) {
 	executable, err := os.Executable()
 	require.NoError(b, err)
 
-	for b.Loop() {
+	for i := 0; i < b.N; i++ {
 		cmd := exec.Command(executable, initTestSentinel)
 		err := cmd.Run()
 		assert.NoError(b, err)
@@ -78,37 +76,15 @@ func TestTeleportMain(t *testing.T) {
 	require.NoError(t, os.WriteFile(configFile, []byte(configData), 0660))
 
 	// generate the fixture bootstrap file
-	bootstrapEntries := []struct {
-		fileName string
-		kind     string
-		name     string
-		content  string
-	}{
-		{fileName: "role.yaml", kind: types.KindRole, name: "role_name"},
-		{fileName: "github.yaml", kind: types.KindGithubConnector, name: "github"},
-		{fileName: "user.yaml", kind: types.KindRole, name: "user"},
-		{
-			fileName: "workload-identity.yaml",
-			kind:     types.KindWorkloadIdentity,
-			name:     "example-workload-identity",
-			content: `kind: workload_identity
-version: v1
-metadata:
-  name: example-workload-identity
-spec:
-  spiffe:
-    id: /svc/example
-`,
-		},
+	bootstrapEntries := []struct{ fileName, kind, name string }{
+		{"role.yaml", types.KindRole, "role_name"},
+		{"github.yaml", types.KindGithubConnector, "github"},
+		{"user.yaml", types.KindRole, "user"},
 	}
 	var bootstrapData []byte
 	for _, entry := range bootstrapEntries {
-		data := []byte(entry.content)
-		if entry.content == "" {
-			fileData, err := os.ReadFile(filepath.Join("..", "..", "..", "examples", "resources", entry.fileName))
-			require.NoError(t, err)
-			data = fileData
-		}
+		data, err := os.ReadFile(filepath.Join("..", "..", "..", "examples", "resources", entry.fileName))
+		require.NoError(t, err)
 		bootstrapData = append(bootstrapData, data...)
 		bootstrapData = append(bootstrapData, "\n---\n"...)
 	}
@@ -130,7 +106,8 @@ spec:
 		require.True(t, conf.Auth.Enabled)
 		require.True(t, conf.SSH.Enabled)
 		require.True(t, conf.Proxy.Enabled)
-		require.True(t, slog.Default().Handler().Enabled(context.Background(), slog.LevelError))
+		require.Equal(t, os.Stdout, conf.Console)
+		require.Equal(t, log.ErrorLevel, log.GetLevel())
 	})
 
 	t.Run("RolesFlag", func(t *testing.T) {
@@ -171,7 +148,7 @@ spec:
 		require.True(t, conf.SSH.Enabled)
 		require.False(t, conf.Auth.Enabled)
 		require.False(t, conf.Proxy.Enabled)
-		require.True(t, slog.Default().Handler().Enabled(context.Background(), slog.LevelDebug))
+		require.Equal(t, log.DebugLevel, conf.Log.GetLevel())
 		require.Equal(t, "hvostongo.example.org", conf.Hostname)
 
 		token, err := conf.Token()
@@ -279,56 +256,6 @@ func TestDumpConfigFile(t *testing.T) {
 			tc.assert(t, err)
 		})
 	}
-}
-
-func TestWriteInstallJoinFailureError(t *testing.T) {
-	t.Parallel()
-
-	t.Run("all fields populated", func(t *testing.T) {
-		t.Parallel()
-
-		var stderr bytes.Buffer
-		writeInstallJoinFailureError(&stderr, &installer.JoinFailureError{
-			Message:            "node did not become ready (join cluster) within 5m0s",
-			ServiceDiagnostics: `systemd service state: ActiveState="failed"`,
-			JournalOutput:      "error: token expired",
-		})
-
-		out := stderr.String()
-		require.Contains(t, out, "ERROR: agent failed to join the cluster\n")
-		require.Contains(t, out, "node did not become ready (join cluster) within 5m0s\n")
-		require.Contains(t, out, `systemd service state: ActiveState="failed"`)
-		require.Contains(t, out, "Journal output:\nerror: token expired\n")
-	})
-
-	t.Run("message only", func(t *testing.T) {
-		t.Parallel()
-
-		var stderr bytes.Buffer
-		writeInstallJoinFailureError(&stderr, &installer.JoinFailureError{
-			Message: "node did not become ready (join cluster) within 5m0s",
-		})
-
-		out := stderr.String()
-		require.Contains(t, out, "ERROR: agent failed to join the cluster\n")
-		require.Contains(t, out, "node did not become ready (join cluster) within 5m0s\n")
-	})
-
-	t.Run("no journal output", func(t *testing.T) {
-		t.Parallel()
-
-		var stderr bytes.Buffer
-		writeInstallJoinFailureError(&stderr, &installer.JoinFailureError{
-			Message:            "node did not become ready (join cluster) within 5m0s",
-			ServiceDiagnostics: "systemd service state: unavailable",
-		})
-
-		out := stderr.String()
-		require.Contains(t, out, "ERROR: agent failed to join the cluster\n")
-		require.Contains(t, out, "node did not become ready (join cluster) within 5m0s\n")
-		require.Contains(t, out, "systemd service state: unavailable\n")
-		require.NotContains(t, out, "Journal output:")
-	})
 }
 
 const configData = `

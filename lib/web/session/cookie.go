@@ -22,7 +22,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"net/http"
-	"time"
 )
 
 // Cookie stores information about active user and session
@@ -57,7 +56,7 @@ func DecodeCookie(b string) (*Cookie, error) {
 
 // SetCookie encodes the provided user and session id via [EncodeCookie]
 // and then sets the [http.Cookie] of the provided [http.ResponseWriter].
-func SetCookie(w http.ResponseWriter, user, sid string, expiry time.Time) error {
+func SetCookie(w http.ResponseWriter, user, sid string) error {
 	d, err := EncodeCookie(user, sid)
 	if err != nil {
 		return err
@@ -69,11 +68,6 @@ func SetCookie(w http.ResponseWriter, user, sid string, expiry time.Time) error 
 		HttpOnly: true,
 		Secure:   true,
 		SameSite: http.SameSiteLaxMode,
-	}
-	// if expiry is zero or in the past, we can skip MaxAge and treat as a session cookie.
-	// Otherwise, set maxage
-	if maxAge := int(time.Until(expiry).Seconds()); maxAge > 0 {
-		c.MaxAge = maxAge
 	}
 	http.SetCookie(w, c)
 	return nil

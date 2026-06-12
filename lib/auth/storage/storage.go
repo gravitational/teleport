@@ -57,9 +57,6 @@ const (
 	teleportPrefix = "teleport"
 	// lastKnownVersion is a key for storing version of teleport
 	lastKnownVersion = "last-known-version"
-	// boundKeypairPrefix is a key prefix for the agent's bound keypair state,
-	// if any
-	boundKeypairPrefix = "bound-keypair"
 )
 
 // stateBackend implements abstraction over local or remote storage backend methods
@@ -122,7 +119,7 @@ func (p *ProcessStorage) GetState(ctx context.Context, role types.SystemRole) (*
 }
 
 // CreateState creates process state if it does not exist yet.
-func (p *ProcessStorage) CreateState(ctx context.Context, role types.SystemRole, state state.StateV2) error {
+func (p *ProcessStorage) CreateState(role types.SystemRole, state state.StateV2) error {
 	if err := state.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -134,7 +131,7 @@ func (p *ProcessStorage) CreateState(ctx context.Context, role types.SystemRole,
 		Key:   backend.NewKey(statesPrefix, strings.ToLower(role.String()), stateName),
 		Value: value,
 	}
-	_, err = p.stateStorage.Create(ctx, item)
+	_, err = p.stateStorage.Create(context.TODO(), item)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -142,7 +139,7 @@ func (p *ProcessStorage) CreateState(ctx context.Context, role types.SystemRole,
 }
 
 // WriteState writes local cluster state to the backend.
-func (p *ProcessStorage) WriteState(ctx context.Context, role types.SystemRole, state state.StateV2) error {
+func (p *ProcessStorage) WriteState(role types.SystemRole, state state.StateV2) error {
 	if err := state.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -154,7 +151,7 @@ func (p *ProcessStorage) WriteState(ctx context.Context, role types.SystemRole, 
 		Key:   backend.NewKey(statesPrefix, strings.ToLower(role.String()), stateName),
 		Value: value,
 	}
-	_, err = p.stateStorage.Put(ctx, item)
+	_, err = p.stateStorage.Put(context.TODO(), item)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -162,11 +159,11 @@ func (p *ProcessStorage) WriteState(ctx context.Context, role types.SystemRole, 
 }
 
 // ReadIdentity reads identity using identity name and role.
-func (p *ProcessStorage) ReadIdentity(ctx context.Context, name string, role types.SystemRole) (*state.Identity, error) {
+func (p *ProcessStorage) ReadIdentity(name string, role types.SystemRole) (*state.Identity, error) {
 	if name == "" {
 		return nil, trace.BadParameter("missing parameter name")
 	}
-	item, err := p.stateStorage.Get(ctx, backend.NewKey(idsPrefix, strings.ToLower(role.String()), name))
+	item, err := p.stateStorage.Get(context.TODO(), backend.NewKey(idsPrefix, strings.ToLower(role.String()), name))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -177,21 +174,16 @@ func (p *ProcessStorage) ReadIdentity(ctx context.Context, name string, role typ
 	if err := res.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	identity, err := state.ReadIdentityFromKeyPair(res.Spec.Key, &proto.Certs{
+	return state.ReadIdentityFromKeyPair(res.Spec.Key, &proto.Certs{
 		SSH:        res.Spec.SSHCert,
 		TLS:        res.Spec.TLSCert,
 		TLSCACerts: res.Spec.TLSCACerts,
 		SSHCACerts: res.Spec.SSHCACerts,
 	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	identity.ImmutableLabels = res.Spec.ImmutableLabels
-	return identity, nil
 }
 
 // WriteIdentity writes identity to the backend.
-func (p *ProcessStorage) WriteIdentity(ctx context.Context, name string, id state.Identity) error {
+func (p *ProcessStorage) WriteIdentity(name string, id state.Identity) error {
 	res := state.IdentityV2{
 		ResourceHeader: types.ResourceHeader{
 			Kind:    types.KindIdentity,
@@ -201,12 +193,11 @@ func (p *ProcessStorage) WriteIdentity(ctx context.Context, name string, id stat
 			},
 		},
 		Spec: state.IdentitySpecV2{
-			Key:             id.KeyBytes,
-			SSHCert:         id.CertBytes,
-			TLSCert:         id.TLSCertBytes,
-			TLSCACerts:      id.TLSCACertsBytes,
-			SSHCACerts:      id.SSHCACertBytes,
-			ImmutableLabels: id.ImmutableLabels,
+			Key:        id.KeyBytes,
+			SSHCert:    id.CertBytes,
+			TLSCert:    id.TLSCertBytes,
+			TLSCACerts: id.TLSCACertsBytes,
+			SSHCACerts: id.SSHCACertBytes,
 		},
 	}
 	if err := res.CheckAndSetDefaults(); err != nil {
@@ -220,7 +211,7 @@ func (p *ProcessStorage) WriteIdentity(ctx context.Context, name string, id stat
 		Key:   backend.NewKey(idsPrefix, strings.ToLower(id.ID.Role.String()), name),
 		Value: value,
 	}
-	_, err = p.stateStorage.Put(ctx, item)
+	_, err = p.stateStorage.Put(context.TODO(), item)
 	return trace.Wrap(err)
 }
 
@@ -295,37 +286,15 @@ func (p *ProcessStorage) ReadRDPLicense(ctx context.Context, key *types.RDPLicen
 	return license.Data, nil
 }
 
-// ReadBoundKeypairItem reads an arbitrary key with the bound keypair prefix
-func (p *ProcessStorage) ReadBoundKeypairItem(ctx context.Context, name string) ([]byte, error) {
-	item, err := p.stateStorage.Get(ctx, backend.NewKey(boundKeypairPrefix, name))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return item.Value, nil
-}
-
-// WriteBoundKeypairItem writes a (key, value) into the bound keypair prefix.
-func (p *ProcessStorage) WriteBoundKeypairItem(ctx context.Context, name string, data []byte) error {
-	item := backend.Item{
-		Key:   backend.NewKey(boundKeypairPrefix, name),
-		Value: data,
-	}
-	_, err := p.stateStorage.Put(ctx, item)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// ReadLocalIdentityForRole reads, parses and returns the given pub/pri key +
-// cert from the key storage (dataDir).
-func ReadLocalIdentityForRole(ctx context.Context, dataDir string, role types.SystemRole) (*state.Identity, error) {
-	storage, err := NewProcessStorage(ctx, dataDir)
+// ReadLocalIdentity reads, parses and returns the given pub/pri key + cert from the
+// key storage (dataDir).
+func ReadLocalIdentity(dataDir string, id state.IdentityID) (*state.Identity, error) {
+	storage, err := NewProcessStorage(context.TODO(), dataDir)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer storage.Close()
-	return storage.ReadIdentity(ctx, state.IdentityCurrent, role)
+	return storage.ReadIdentity(state.IdentityCurrent, id.Role)
 }
 
 // ReadOrGenerateHostID tries to read the `host_uuid` from Kubernetes storage (if available) or local storage.
@@ -336,55 +305,52 @@ func ReadLocalIdentityForRole(ctx context.Context, dataDir string, role types.Sy
 // Finally, if a new id is generated, this function writes it into local storage and Kubernetes storage (if available).
 // If kubeBackend is nil, the agent is not running in a Kubernetes Cluster.
 // When facing IsAlreadyExists error, this function will retry reading the host ID from the storage.
-func (p *ProcessStorage) ReadOrGenerateHostID(ctx context.Context, cfg *servicecfg.Config) (string, error) {
-	var hostID string
-
+func (p *ProcessStorage) ReadOrGenerateHostID(ctx context.Context, cfg *servicecfg.Config) error {
 	// Read or generate the host ID, which is used to identify the Teleport agent.
 	// If running in Kubernetes, it will read from the Kubernetes secret if available,
 	// otherwise it will read from the local storage.
 	if err := retry.OnError(retry.DefaultRetry, trace.IsAlreadyExists, func() error {
-		var err error
-		hostID, err = readOrGenerateHostID(ctx, cfg, p.stateStorage)
-		return err
+		return readOrGenerateHostID(ctx, cfg, p.stateStorage)
 	}); err != nil {
-		return "", trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
-	return hostID, nil
+	return nil
 }
 
-func readOrGenerateHostID(ctx context.Context, cfg *servicecfg.Config, kubeBackend stateBackend) (string, error) {
+func readOrGenerateHostID(ctx context.Context, cfg *servicecfg.Config, kubeBackend stateBackend) (err error) {
 	// Load `host_uuid` from different storages. If this process is running in a Kubernetes Cluster,
 	// readHostUUIDFromStorages will try to read the `host_uuid` from the Kubernetes Secret. If the
 	// key is empty or if not running in a Kubernetes Cluster, it will read the
 	// `host_uuid` from local data directory.
-	hostID, err := readHostIDFromStorages(ctx, cfg.DataDir, kubeBackend)
+	cfg.HostUUID, err = readHostIDFromStorages(ctx, cfg.DataDir, kubeBackend)
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			if errors.Is(err, fs.ErrPermission) {
 				cfg.Logger.ErrorContext(ctx, "Teleport does not have permission to write to the data directory. Ensure that you are running as a user with appropriate permissions.", "data_dir", cfg.DataDir)
 			}
-			return "", trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 		// if there's no host uuid initialized yet, try to read one from the
 		// one of the identities
 		if len(cfg.Identities) != 0 {
-			hostID = cfg.Identities[0].ID.HostUUID
-			cfg.Logger.InfoContext(ctx, "Taking host UUID from first identity.", "host_uuid", hostID)
+			cfg.HostUUID = cfg.Identities[0].ID.HostUUID
+			cfg.Logger.InfoContext(ctx, "Taking host UUID from first identity.", "host_uuid", cfg.HostUUID)
 		} else {
-			hostID, err = hostid.Generate(ctx, cfg.JoinMethod)
+			id, err := hostid.Generate(ctx, cfg.JoinMethod)
 			if err != nil {
-				return "", trace.Wrap(err)
+				return trace.Wrap(err)
 			}
-			cfg.Logger.InfoContext(ctx, "Generating new host UUID", "host_uuid", hostID)
+			cfg.HostUUID = id
+			cfg.Logger.InfoContext(ctx, "Generating new host UUID", "host_uuid", cfg.HostUUID)
 		}
 		// persistHostUUIDToStorages will persist the host_uuid to the local storage
 		// and to Kubernetes Secret if this process is running on a Kubernetes Cluster.
-		if err := persistHostIDToStorages(ctx, cfg, hostID, kubeBackend); err != nil {
-			return "", trace.Wrap(err)
+		if err := persistHostIDToStorages(ctx, cfg, kubeBackend); err != nil {
+			return trace.Wrap(err)
 		}
 	}
-	return hostID, nil
+	return nil
 }
 
 // readHostIDFromStorages tries to read the `host_uuid` value from different storages,
@@ -405,46 +371,21 @@ func readHostIDFromStorages(ctx context.Context, dataDir string, kubeBackend sta
 	return hostID, trace.Wrap(err)
 }
 
-// PersistAssignedHostID writes an assigned host ID to state storage and the
-// host_uuid file. This should not be called in the same process as
-// ReadOrGenerateHostID, it is intended to persist a host UUID assigned by the
-// Auth service that was not generated locally. With the new auth-assigned host
-// persisted to storage to maintain compatibility with any other processes that
-// UUID flow the agent doesn't even need to read the host ID, it is only
-// may read it.
-func (p *ProcessStorage) PersistAssignedHostID(ctx context.Context, cfg *servicecfg.Config, hostID string) error {
-	if p.stateStorage != nil {
-		if _, err := p.stateStorage.Put(
-			ctx,
-			backend.Item{
-				Key:   backend.NewKey(hostid.FileName),
-				Value: []byte(hostID),
-			},
-		); err != nil {
-			return trace.Wrap(err, "persisting host ID to state storage")
-		}
-	}
-	if err := hostid.WriteFile(cfg.DataDir, hostID); err != nil {
-		return trace.Wrap(err, "persisting host ID to file")
-	}
-	return nil
-}
-
-// persistHostIDToStorages writes the host ID to local data and to
+// persistHostIDToStorages writes the cfg.HostUUID to local data and to
 // Kubernetes Secret if this process is running on a Kubernetes Cluster.
-func persistHostIDToStorages(ctx context.Context, cfg *servicecfg.Config, hostID string, kubeBackend stateBackend) error {
+func persistHostIDToStorages(ctx context.Context, cfg *servicecfg.Config, kubeBackend stateBackend) error {
 	// Persists the `host_uuid` into Kubernetes Secret for later reusage.
 	// This is required because `host_uuid` is part of the client secret
 	// and Auth connection will fail if we present a different `host_uuid`.
 	if kubeBackend != nil {
-		if err := writeHostIDToKubeSecret(ctx, kubeBackend, hostID); err != nil {
+		if err := writeHostIDToKubeSecret(ctx, kubeBackend, cfg.HostUUID); err != nil {
 			// If the storage of the secret fails, don't attempt to write the host id to disk.
 			return trace.Wrap(err)
 		}
 		// Success, write the hostid to disk.
 	}
 
-	if err := hostid.WriteFile(cfg.DataDir, hostID); err != nil {
+	if err := hostid.WriteFile(cfg.DataDir, cfg.HostUUID); err != nil {
 		if errors.Is(err, fs.ErrPermission) {
 			cfg.Logger.ErrorContext(ctx, "Teleport does not have permission to write to the data directory. Ensure that you are running as a user with appropriate permissions.", "data_dir", cfg.DataDir)
 		}

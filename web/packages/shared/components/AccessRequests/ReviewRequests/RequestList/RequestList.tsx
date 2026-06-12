@@ -16,10 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Flex, Text } from 'design';
+import { Flex, LabelState, Text } from 'design';
 import { Cell } from 'design/DataTable';
 import { ArrowFatLinesUp } from 'design/Icon';
-import { StatusDot, type StatusKind } from 'design/Status';
+import { LabelKind } from 'design/LabelState/LabelState';
 import { AccessRequest } from 'shared/services/accessRequests';
 
 export const renderUserCell = ({ user }: AccessRequest) => {
@@ -66,24 +66,25 @@ export const renderStatusCell = ({ state }: AccessRequest) => {
     );
   }
 
-  return (
-    <Cell>
-      <Flex alignItems="center">
-        <StateDot state={state} />
-        <Text typography="body3" ml={2}>
-          {state}
-        </Text>
-      </Flex>
-    </Cell>
-  );
-};
-
-function StateDot({ state }: { state: string }) {
-  let kind: StatusKind = 'warning';
+  let kind: LabelKind = 'warning';
   if (state === 'APPROVED') {
     kind = 'success';
   } else if (state === 'DENIED') {
     kind = 'danger';
   }
-  return <StatusDot kind={kind} />;
-}
+
+  return (
+    <Cell>
+      <Flex alignItems="center">
+        <LabelState
+          kind={kind}
+          mr={2}
+          width="10px"
+          p={0}
+          style={{ minHeight: '10px' }}
+        />
+        <Text typography="body3">{state}</Text>
+      </Flex>
+    </Cell>
+  );
+};

@@ -20,42 +20,29 @@ package srv
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"log/slog"
 	"net"
-	"os"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
-	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/types/known/durationpb"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/constants"
-	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
-	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/auditd"
 	"github.com/gravitational/teleport/lib/auth/moderation"
 	"github.com/gravitational/teleport/lib/connectmycomputer"
-	"github.com/gravitational/teleport/lib/decision"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/observability/metrics"
-	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
-	srvssh "github.com/gravitational/teleport/lib/srv/ssh"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
-	"github.com/gravitational/teleport/session/auditd"
 )
 
 var (
@@ -104,13 +91,6 @@ type AuthHandlerConfig struct {
 	// for TLS certificate verification.
 	// Defaults to real clock if unspecified
 	Clock clockwork.Clock
-
-	// OnRBACFailure is an optional callback used to hook in metrics/logs related to
-	// RBAC failures.
-	OnRBACFailure func(conn ssh.ConnMetadata, ident *sshca.Identity, err error)
-
-	// ValidatedMFAChallengeVerifier is used to verify that a validated MFA challenge resource exists.
-	ValidatedMFAChallengeVerifier srvssh.ValidatedMFAChallengeVerifier
 }
 
 func (c *AuthHandlerConfig) CheckAndSetDefaults() error {
@@ -130,10 +110,6 @@ func (c *AuthHandlerConfig) CheckAndSetDefaults() error {
 		c.Clock = clockwork.NewRealClock()
 	}
 
-	if c.ValidatedMFAChallengeVerifier == nil {
-		return trace.BadParameter("ValidatedMFAChallengeVerifier required")
-	}
-
 	return nil
 }
 
@@ -141,11 +117,8 @@ func (c *AuthHandlerConfig) CheckAndSetDefaults() error {
 // used by the regular and forwarding server.
 type AuthHandlers struct {
 	loginChecker
-	scopedLoginChecker
-	proxyingChecker
-	gitForwardingChecker
 
-	log *slog.Logger
+	log *log.Entry
 
 	c *AuthHandlerConfig
 }
@@ -162,17 +135,12 @@ func NewAuthHandlers(config *AuthHandlerConfig) (*AuthHandlers, error) {
 
 	ah := &AuthHandlers{
 		c:   config,
-		log: slog.With(teleport.ComponentKey, config.Component),
+		log: log.WithField(teleport.ComponentKey, config.Component),
 	}
-	lc := &ahLoginChecker{
+	ah.loginChecker = &ahLoginChecker{
 		log: ah.log,
 		c:   ah.c,
 	}
-
-	ah.loginChecker = lc
-	ah.scopedLoginChecker = lc
-	ah.proxyingChecker = lc
-	ah.gitForwardingChecker = lc
 
 	return ah, nil
 }
@@ -184,39 +152,6 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 	certificate, err := apisshutils.ParseCertificate(certRaw)
 	if err != nil {
 		return IdentityContext{}, trace.Wrap(err)
-	}
-
-	var permitCount int
-	var accessPermit *decisionpb.SSHAccessPermit
-	if permitRaw, ok := sconn.Permissions.Extensions[utils.ExtIntSSHAccessPermit]; ok {
-		accessPermit = &decisionpb.SSHAccessPermit{}
-		if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal([]byte(permitRaw), accessPermit); err != nil {
-			return IdentityContext{}, trace.Wrap(err)
-		}
-		permitCount++
-	}
-
-	var proxyPermit *proxyingPermit
-	if permitRaw, ok := sconn.Permissions.Extensions[utils.ExtIntProxyingPermit]; ok {
-		proxyPermit = &proxyingPermit{}
-		if err := utils.FastUnmarshal([]byte(permitRaw), proxyPermit); err != nil {
-			return IdentityContext{}, trace.Wrap(err)
-		}
-		permitCount++
-	}
-
-	var gitForwardingPermit *GitForwardingPermit
-	if permitRaw, ok := sconn.Permissions.Extensions[utils.ExtIntGitForwardingPermit]; ok {
-		gitForwardingPermit = &GitForwardingPermit{}
-		if err := utils.FastUnmarshal([]byte(permitRaw), gitForwardingPermit); err != nil {
-			return IdentityContext{}, trace.Wrap(err)
-		}
-		permitCount++
-	}
-
-	// verify that exactly one permit was defined
-	if permitCount != 1 {
-		return IdentityContext{}, trace.BadParameter("identity context expected exactly one permit, got %d (this is a bug)", permitCount)
 	}
 
 	unmappedIdentity, err := sshca.DecodeIdentity(certificate)
@@ -234,7 +169,7 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 		return IdentityContext{}, trace.Wrap(err)
 	}
 
-	clusterName, err := h.c.AccessPoint.GetClusterName(context.TODO())
+	clusterName, err := h.c.AccessPoint.GetClusterName()
 	if err != nil {
 		return IdentityContext{}, trace.Wrap(err)
 	}
@@ -243,97 +178,66 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 	if err != nil {
 		return IdentityContext{}, trace.Wrap(err)
 	}
-
-	var unstableAccessChecker services.AccessChecker
-	if accessInfo.ScopePin == nil {
-		// TODO(fspmarshall/scopes): rework session joining & cluster access checking logic to be compatible
-		// with scoped identities (or at least move the lack of support behind a better abstraction). for now, any codepath
-		// that would result in use of the unstable checker just returns empty joining policies.
-		unstableAccessChecker, err = services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), h.c.AccessPoint)
-		if err != nil {
-			return IdentityContext{}, trace.Wrap(err)
-		}
-	}
-
-	unstableClusterAccessChecker := func(cluster types.RemoteCluster) error {
-		if unstableAccessChecker == nil {
-			return trace.AccessDenied("scoped identities do not support cross-cluster operations")
-		}
-
-		return unstableAccessChecker.CheckAccessToRemoteCluster(cluster)
+	accessChecker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), h.c.AccessPoint)
+	if err != nil {
+		return IdentityContext{}, trace.Wrap(err)
 	}
 
 	return IdentityContext{
-		UnmappedIdentity:                    unmappedIdentity,
-		AccessPermit:                        accessPermit,
-		ProxyingPermit:                      proxyPermit,
-		GitForwardingPermit:                 gitForwardingPermit,
-		Login:                               sconn.User(),
-		CertAuthority:                       certAuthority,
-		UnstableSessionJoiningAccessChecker: unstableAccessChecker,
-		UnstableClusterAccessChecker:        unstableClusterAccessChecker,
-		TeleportUser:                        unmappedIdentity.Username,
-		RouteToCluster:                      unmappedIdentity.RouteToCluster,
-		UnmappedRoles:                       unmappedIdentity.Roles,
-		CertValidBefore:                     certValidBefore,
-		Impersonator:                        unmappedIdentity.Impersonator,
-		ActiveRequests:                      unmappedIdentity.ActiveRequests,
-		DisallowReissue:                     unmappedIdentity.DisallowReissue,
-		Renewable:                           unmappedIdentity.Renewable,
-		BotName:                             unmappedIdentity.BotName,
-		BotInstanceID:                       unmappedIdentity.BotInstanceID,
-		JoinToken:                           unmappedIdentity.JoinToken,
-		PreviousIdentityExpires:             unmappedIdentity.PreviousIdentityExpires,
-		OriginClusterName:                   certAuthority.GetClusterName(),
-		MappedRoles:                         accessInfo.Roles,
-		Traits:                              accessInfo.Traits,
+		UnmappedIdentity:        unmappedIdentity,
+		Login:                   sconn.User(),
+		CertAuthority:           certAuthority,
+		AccessChecker:           accessChecker,
+		TeleportUser:            unmappedIdentity.Username,
+		RouteToCluster:          unmappedIdentity.RouteToCluster,
+		UnmappedRoles:           unmappedIdentity.Roles,
+		CertValidBefore:         certValidBefore,
+		AllowedResourceIDs:      unmappedIdentity.AllowedResourceIDs,
+		Impersonator:            unmappedIdentity.Impersonator,
+		ActiveRequests:          unmappedIdentity.ActiveRequests,
+		DisallowReissue:         unmappedIdentity.DisallowReissue,
+		Renewable:               unmappedIdentity.Renewable,
+		BotName:                 unmappedIdentity.BotName,
+		BotInstanceID:           unmappedIdentity.BotInstanceID,
+		JoinToken:               unmappedIdentity.JoinToken,
+		Generation:              unmappedIdentity.Generation,
+		PreviousIdentityExpires: unmappedIdentity.PreviousIdentityExpires,
 	}, nil
 }
 
 // CheckAgentForward checks if agent forwarding is allowed for the users RoleSet.
 func (h *AuthHandlers) CheckAgentForward(ctx *ServerContext) error {
-	if ctx.Identity.AccessPermit != nil && ctx.Identity.AccessPermit.ForwardAgent {
-		return nil
+	if err := ctx.Identity.AccessChecker.CheckAgentForward(ctx.Identity.Login); err != nil {
+		return trace.Wrap(err)
 	}
 
-	if ctx.Identity.ProxyingPermit != nil &&
-		(h.c.Component == teleport.ComponentProxy || h.c.Component == teleport.ComponentForwardingNode) {
-		// We are in the proxying path and not the access-controlling boundary.
-		// Allow agent forwarding requests to pass through to the enforcing node.
-		return nil
-	}
-
-	return trace.AccessDenied("agent forwarding not permitted")
+	return nil
 }
 
 // CheckX11Forward checks if X11 forwarding is permitted for the user's RoleSet.
 func (h *AuthHandlers) CheckX11Forward(ctx *ServerContext) error {
-	if ctx.Identity.AccessPermit != nil && ctx.Identity.AccessPermit.X11Forwarding {
-		return nil
+	if !ctx.Identity.AccessChecker.PermitX11Forwarding() {
+		return trace.AccessDenied("x11 forwarding not permitted")
 	}
+	return nil
+}
 
-	if ctx.Identity.ProxyingPermit != nil && h.c.Component == teleport.ComponentForwardingNode {
-		// we are a proxy and not the access-controlling boundary. Allow X11 forwarding requests to pass through
-		// the recording layer and down to the enforcing node.
-		return nil
+func (h *AuthHandlers) CheckFileCopying(ctx *ServerContext) error {
+	if !ctx.Identity.AccessChecker.CanCopyFiles() {
+		return trace.Wrap(errRoleFileCopyingNotPermitted)
 	}
-
-	return trace.AccessDenied("X11 forwarding not permitted")
+	return nil
 }
 
 // CheckPortForward checks if port forwarding is allowed for the users RoleSet.
-func (h *AuthHandlers) CheckPortForward(addr string, ctx *ServerContext, requestedMode decisionpb.SSHPortForwardMode) error {
-	if ctx.Identity.AccessPermit == nil {
-		return trace.AccessDenied("port forwarding not permitted")
-	}
-
-	allowedMode := ctx.Identity.AccessPermit.PortForwardMode
-	if allowedMode == decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON {
+func (h *AuthHandlers) CheckPortForward(addr string, ctx *ServerContext, requestedMode services.SSHPortForwardMode) error {
+	allowedMode := ctx.Identity.AccessChecker.SSHPortForwardMode()
+	if allowedMode == services.SSHPortForwardModeOn {
 		return nil
 	}
 
-	if allowedMode == decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_OFF || allowedMode != requestedMode {
-		systemErrorMessage := fmt.Sprintf("port forwarding not allowed for user: %v", ctx.Identity.TeleportUser)
+	if allowedMode == services.SSHPortForwardModeOff || allowedMode != requestedMode {
+		systemErrorMessage := fmt.Sprintf("port forwarding not allowed by role set: %v", ctx.Identity.AccessChecker.RoleNames())
 		userErrorMessage := "port forwarding not allowed"
 
 		// Emit port forward failure event
@@ -353,10 +257,10 @@ func (h *AuthHandlers) CheckPortForward(addr string, ctx *ServerContext, request
 				Error:   systemErrorMessage,
 			},
 		}); err != nil {
-			h.log.WarnContext(h.c.Server.Context(), "Failed to emit port forward deny audit event", "error", err)
+			h.log.WithError(err).Warn("Failed to emit port forward deny audit event.")
 		}
 
-		h.log.WarnContext(h.c.Server.Context(), "Port forwarding request denied", "error", systemErrorMessage)
+		h.log.Warnf("Port forwarding request denied: %v.", systemErrorMessage)
 
 		return trace.AccessDenied("%s", userErrorMessage)
 	}
@@ -364,58 +268,42 @@ func (h *AuthHandlers) CheckPortForward(addr string, ctx *ServerContext, request
 	return nil
 }
 
-// PublicKeyCallback performs full certificate and RBAC checks for a proposed SSH public key.
-//
-// This method is intended to be used as the PublicKeyCallback in ssh.ServerConfig before the client proves key
-// possession. It decides whether the offered key could be accepted once ownership is proven.
-//
-// If the certificate is valid and authorized, this callback returns permissions that will be passed through to
-// VerifiedPublicKeyCallback. If the certificate is invalid or unauthorized, it returns a non-nil error.
-func (h *AuthHandlers) PublicKeyCallback(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
+// UserKeyAuth implements SSH client authentication using public keys and is
+// called by the server every time the client connects.
+func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
 	ctx := context.Background()
 
 	fingerprint := fmt.Sprintf("%v %v", key.Type(), sshutils.Fingerprint(key))
 
 	// create a new logging entry with info specific to this login attempt
-	log := h.log.With(
-		"local_addr", conn.LocalAddr(),
-		"remote_addr", conn.RemoteAddr(),
-		"user", conn.User(),
-		"fingerprint", fingerprint,
-	)
+	log := h.log.WithField(teleport.ComponentFields, log.Fields{
+		"local":       conn.LocalAddr(),
+		"remote":      conn.RemoteAddr(),
+		"user":        conn.User(),
+		"fingerprint": fingerprint,
+	})
+
+	cid := fmt.Sprintf("conn(%v->%v, user=%v)", conn.RemoteAddr(), conn.LocalAddr(), conn.User())
+	log.Debugf("%v auth attempt", cid)
 
 	cert, ok := key.(*ssh.Certificate)
+	log.Debugf("%v auth attempt with key %v, %#v", cid, fingerprint, cert)
 	if !ok {
-		log.DebugContext(ctx, "rejecting auth attempt, unsupported key type")
+		log.Debugf("auth attempt, unsupported key type")
 		return nil, trace.BadParameter("unsupported key type: %v", fingerprint)
 	}
-
-	log.DebugContext(ctx, "processing auth attempt with key",
-		slog.Group("cert",
-			"serial", cert.Serial,
-			"type", cert.CertType,
-			"key_id", cert.KeyId,
-			"valid_principals", cert.ValidPrincipals,
-			"valid_after", cert.ValidAfter,
-			"valid_before", cert.ValidBefore,
-			"critical_options", cert.CriticalOptions,
-			"extensions", cert.Extensions,
-			"reserved", cert.Reserved,
-		),
-	)
-
 	if len(cert.ValidPrincipals) == 0 {
-		log.DebugContext(ctx, "rejecting auth attempt without valid principals")
+		log.Debugf("need a valid principal for key")
 		return nil, trace.BadParameter("need a valid principal for key %v", fingerprint)
 	}
 	if len(cert.KeyId) == 0 {
-		log.DebugContext(ctx, "rejecting auth attempt without valid key ID")
+		log.Debugf("need a valid key ID for key")
 		return nil, trace.BadParameter("need a valid key for key %v", fingerprint)
 	}
 
 	ident, err := sshca.DecodeIdentity(cert)
 	if err != nil {
-		log.WarnContext(ctx, "failed to decode ssh identity from cert", "error", err)
+		log.Warnf("failed to decode ssh identity from cert: %v", err)
 		return nil, trace.BadParameter("failed to decode ssh identity from cert: %v", fingerprint)
 	}
 
@@ -468,15 +356,7 @@ func (h *AuthHandlers) PublicKeyCallback(conn ssh.ConnMetadata, key ssh.PublicKe
 			message,
 			err,
 		); err != nil {
-			h.log.WarnContext(ctx, "Failed to append Trace to ConnectionDiagnostic", "error", err)
-		}
-
-		// If the target of the auth attempt is a Teleport SSH server, we want
-		// to return node info in the audit event.
-		var hostID, hostName string
-		if h.c.TargetServer != nil {
-			hostID = h.c.TargetServer.GetName()
-			hostName = h.c.TargetServer.GetHostname()
+			h.log.WithError(err).Warn("Failed to append Trace to ConnectionDiagnostic.")
 		}
 
 		if err := h.c.Emitter.EmitAuditEvent(h.c.Server.Context(), &apievents.AuthAttempt{
@@ -493,16 +373,12 @@ func (h *AuthHandlers) PublicKeyCallback(conn ssh.ConnMetadata, key ssh.PublicKe
 				LocalAddr:  conn.LocalAddr().String(),
 				RemoteAddr: conn.RemoteAddr().String(),
 			},
-			ServerMetadata: apievents.ServerMetadata{
-				ServerID:       hostID,
-				ServerHostname: hostName,
-			},
 			Status: apievents.Status{
 				Success: false,
 				Error:   err.Error(),
 			},
 		}); err != nil {
-			h.log.WarnContext(ctx, "Failed to emit failed login audit event", "error", err)
+			h.log.WithError(err).Warn("Failed to emit failed login audit event.")
 		}
 
 		auditdMsg := auditd.Message{
@@ -512,7 +388,7 @@ func (h *AuthHandlers) PublicKeyCallback(conn ssh.ConnMetadata, key ssh.PublicKe
 		}
 
 		if err := auditd.SendEvent(auditd.AuditUserErr, auditd.Failed, auditdMsg); err != nil {
-			log.WarnContext(ctx, "Failed to send an event to auditd", "error", err)
+			log.Warnf("Failed to send an event to auditd: %v", err)
 		}
 	}
 
@@ -527,51 +403,55 @@ func (h *AuthHandlers) PublicKeyCallback(conn ssh.ConnMetadata, key ssh.PublicKe
 		FIPS: h.c.FIPS,
 	}
 
-	originalPermissions, err := certChecker.Authenticate(conn, key)
+	permissions, err := certChecker.Authenticate(conn, key)
 	if err != nil {
 		certificateMismatchCount.Inc()
 		recordFailedLogin(err)
 		return nil, trace.Wrap(err)
 	}
-	log.DebugContext(ctx, "Successfully authenticated")
+	log.Debugf("Successfully authenticated")
 
-	for ext := range originalPermissions.Extensions {
-		if utils.IsInternalSSHExtension(ext) {
-			return nil, trace.BadParameter("internal extension %q is not permitted in cert permissions", ext)
-		}
-	}
-
-	for ext := range originalPermissions.CriticalOptions {
-		if utils.IsInternalSSHExtension(ext) {
-			return nil, trace.BadParameter("internal extension %q is not permitted in cert critical options", ext)
-		}
-	}
-
-	clusterName, err := h.c.AccessPoint.GetClusterName(ctx)
+	clusterName, err := h.c.AccessPoint.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var certType string
+	// this is the only way we know of to pass valid additional data about the
+	// connection to the handlers
+	permissions.Extensions[utils.CertTeleportUser] = ident.Username
+	permissions.Extensions[utils.CertTeleportClusterName] = clusterName.GetClusterName()
+	permissions.Extensions[utils.CertTeleportUserCertificate] = string(ssh.MarshalAuthorizedKey(cert))
+
 	switch ident.CertType {
 	case ssh.UserCert:
-		certType = utils.ExtIntCertTypeUser
+		permissions.Extensions[utils.ExtIntCertType] = utils.ExtIntCertTypeUser
 	case ssh.HostCert:
-		certType = utils.ExtIntCertTypeHost
+		permissions.Extensions[utils.ExtIntCertType] = utils.ExtIntCertTypeHost
 	default:
-		log.WarnContext(ctx, "Received unexpected cert type", "cert_type", cert.CertType)
-		return nil, trace.BadParameter("unsupported cert type %v", ident.CertType)
+		log.Warnf("Unexpected cert type: %v", cert.CertType)
 	}
 
-	// this is the only way we know of to pass valid additional data about the
-	// connection to the handlers.
-	outputPermissions := &ssh.Permissions{
-		Extensions: map[string]string{
-			utils.CertTeleportUser:            ident.Username,
-			utils.CertTeleportClusterName:     clusterName.GetClusterName(),
-			utils.CertTeleportUserCertificate: string(ssh.MarshalAuthorizedKey(cert)),
-			utils.ExtIntCertType:              certType,
-		},
+	// the git forwarding component currently only supports an authorization model that makes sense
+	// for local identities. reject all non-local identities explicitly.
+	if h.c.Component == teleport.ComponentForwardingGit {
+		ca, err := h.authorityForCert(types.UserCA, cert.SignatureKey)
+		if err != nil {
+			log.Errorf("Permission denied: %+v", err)
+			recordFailedLogin(err)
+			return nil, trace.Wrap(err)
+		}
+
+		if clusterName.GetClusterName() != ca.GetClusterName() {
+			log.Errorf("Cross-cluster git forwarding is not supported, local_cluster=%s remote_cluster=%s", clusterName.GetClusterName(), ca.GetClusterName())
+			recordFailedLogin(trace.AccessDenied("cross-cluster git forwarding is not supported"))
+			return nil, trace.AccessDenied("cross-cluster git forwarding is not supported")
+		}
+	}
+
+	// Skip RBAC check for proxy or git servers. RBAC check on git servers are
+	// performed outside this handler.
+	if h.isProxy() || h.c.Component == teleport.ComponentForwardingGit {
+		return permissions, nil
 	}
 
 	// even if the returned CA isn't used when a RBAC check isn't
@@ -579,256 +459,55 @@ func (h *AuthHandlers) PublicKeyCallback(conn ssh.ConnMetadata, key ssh.PublicKe
 	// client's certificate
 	ca, err := h.authorityForCert(types.UserCA, cert.SignatureKey)
 	if err != nil {
-		log.ErrorContext(ctx, "Permission denied", "error", err)
+		log.Errorf("Permission denied: %v", err)
 		recordFailedLogin(err)
 		return nil, trace.Wrap(err)
 	}
 
-	// the git forwarding component currently only supports an authorization model that makes sense
-	// for local identities. reject all non-local identities explicitly.
-	if h.c.Component == teleport.ComponentForwardingGit && clusterName.GetClusterName() != ca.GetClusterName() {
-		log.ErrorContext(ctx, "cross-cluster git forwarding is not supported", "local_cluster", clusterName.GetClusterName(), "remote_cluster", ca.GetClusterName())
-		err = trace.AccessDenied("cross-cluster git forwarding is not supported")
-		recordFailedLogin(err)
-		return nil, err
-	}
-
-	var accessPermit *decisionpb.SSHAccessPermit
-	var gitForwardingPermit *GitForwardingPermit
-	var proxyPermit *proxyingPermit
-	var diagnosticTracing bool
-
-	switch h.c.Component {
-	case teleport.ComponentForwardingGit:
-		gitForwardingPermit, err = h.evaluateGitForwarding(ident, ca, clusterName.GetClusterName(), h.c.TargetServer)
-	case teleport.ComponentProxy:
-		proxyPermit, err = h.evaluateProxying(ident, ca, clusterName.GetClusterName(), h.c.TargetServer, conn.User())
-	case teleport.ComponentForwardingNode:
-		diagnosticTracing = true
+	// check if the user has permission to log into the node.
+	if h.c.Component == teleport.ComponentForwardingNode {
+		// If we are forwarding the connection, the target node
+		// exists and it is an agentless node, preform an RBAC check.
+		// Otherwise if the target node does not exist the node is
+		// probably an unregistered SSH node; do not preform an RBAC check
 		if h.c.TargetServer != nil && h.c.TargetServer.IsOpenSSHNode() {
-			accessPermit, err = h.evaluateSSHAccess(ident, ca, clusterName.GetClusterName(), h.c.TargetServer, conn.User())
-			if errors.Is(err, services.ErrScopedIdentity) {
-				accessPermit, err = h.evaluateScopedSSHAccess(ident, ca, clusterName.GetClusterName(), h.c.TargetServer, conn.User())
-			}
-		} else {
-			proxyPermit, err = h.evaluateProxying(ident, ca, clusterName.GetClusterName(), h.c.TargetServer, conn.User())
+			err = h.canLoginWithRBAC(ident, ca, clusterName.GetClusterName(), h.c.TargetServer, conn.User())
 		}
-	case teleport.ComponentNode:
-		diagnosticTracing = true
-		accessPermit, err = h.evaluateSSHAccess(ident, ca, clusterName.GetClusterName(), h.c.Server.GetInfo(), conn.User())
-		if errors.Is(err, services.ErrScopedIdentity) {
-			accessPermit, err = h.evaluateScopedSSHAccess(ident, ca, clusterName.GetClusterName(), h.c.Server.GetInfo(), conn.User())
-		}
-	default:
-		return nil, trace.BadParameter("cannot determine appropriate authorization checks for unknown component %q (this is a bug)", h.c.Component)
+	} else {
+		// the SSH server is a Teleport node, preform an RBAC check now
+		err = h.canLoginWithRBAC(ident, ca, clusterName.GetClusterName(), h.c.Server.GetInfo(), conn.User())
 	}
-
 	if err != nil {
-		log.ErrorContext(ctx, "permission denied",
-			"error", err,
-			"local_addr", logutils.StringerAttr(conn.LocalAddr()),
-			"remote_addr", logutils.StringerAttr(conn.RemoteAddr()),
-			"key", key.Type(),
-			"fingerprint", sshutils.Fingerprint(key),
-			"user", cert.KeyId,
-		)
-
+		log.Errorf("Permission denied: %v", err)
 		recordFailedLogin(err)
-
-		if h.c.OnRBACFailure != nil {
-			h.c.OnRBACFailure(conn, ident, err)
-		}
-
 		return nil, trace.Wrap(err)
 	}
 
-	if accessPermit != nil {
-		encodedPermit, err := protojson.Marshal(accessPermit)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		outputPermissions.Extensions[utils.ExtIntSSHAccessPermit] = string(encodedPermit)
-	}
-
-	if proxyPermit != nil {
-		encodedPermit, err := utils.FastMarshal(proxyPermit)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		outputPermissions.Extensions[utils.ExtIntProxyingPermit] = string(encodedPermit)
-	}
-
-	if gitForwardingPermit != nil {
-		encodedPermit, err := utils.FastMarshal(gitForwardingPermit)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		outputPermissions.Extensions[utils.ExtIntGitForwardingPermit] = string(encodedPermit)
-	}
-
-	if diagnosticTracing {
-		if err := h.maybeAppendDiagnosticTrace(ctx, ident.ConnectionDiagnosticID,
-			types.ConnectionDiagnosticTrace_RBAC_NODE,
-			"You have access to the Node.",
-			nil,
-		); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		if err := h.maybeAppendDiagnosticTrace(ctx, ident.ConnectionDiagnosticID,
-			types.ConnectionDiagnosticTrace_CONNECTIVITY,
-			"Node is alive and reachable.",
-			nil,
-		); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		if err := h.maybeAppendDiagnosticTrace(ctx, ident.ConnectionDiagnosticID,
-			types.ConnectionDiagnosticTrace_RBAC_PRINCIPAL,
-			"The requested principal is allowed.",
-			nil,
-		); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	h.log.DebugContext(ctx, "permission granted",
-		"local_addr", conn.LocalAddr(),
-		"remote_addr", conn.RemoteAddr(),
-		"user", conn.User(),
-		"fingerprint", fingerprint,
-		"access_permit", accessPermit,
-		"proxy_permit", proxyPermit,
-		"git_forwarding_permit", gitForwardingPermit,
-	)
-
-	return outputPermissions, nil
-}
-
-// VerifiedPublicKeyCallback performs post-verification auth steering for an already-authorized key.
-//
-// This method is intended to be used as the VerifiedPublicKeyCallback in ssh.ServerConfig after the client proves key
-// possession. Key acceptance decisions are performed in PublicKeyCallback.
-func (h *AuthHandlers) VerifiedPublicKeyCallback(
-	conn ssh.ConnMetadata,
-	key ssh.PublicKey,
-	perms *ssh.Permissions,
-	_ string,
-) (*ssh.Permissions, error) {
-	// Access preconditions are only set in the SSH access permit. For all other permit types, it is expected for this
-	// entry to be unset, so grant access.
-	rawPermit, ok := perms.Extensions[utils.ExtIntSSHAccessPermit]
-	if !ok {
-		return perms, nil
-	}
-
-	permit := &decisionpb.SSHAccessPermit{}
-	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal([]byte(rawPermit), permit); err != nil {
+	if err := h.maybeAppendDiagnosticTrace(ctx, ident.ConnectionDiagnosticID,
+		types.ConnectionDiagnosticTrace_RBAC_NODE,
+		"You have access to the Node.",
+		nil,
+	); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// If no preconditions are set, allow the connection to proceed without additional checks.
-	preconds := permit.GetPreconditions()
-	if len(preconds) == 0 {
-		return perms, nil
+	if err := h.maybeAppendDiagnosticTrace(ctx, ident.ConnectionDiagnosticID,
+		types.ConnectionDiagnosticTrace_CONNECTIVITY,
+		"Node is alive and reachable.",
+		nil,
+	); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	cert, ok := key.(*ssh.Certificate)
-	if !ok {
-		return nil, trace.BadParameter("unsupported key type: %v %v", key.Type(), sshutils.Fingerprint(key))
+	if err := h.maybeAppendDiagnosticTrace(ctx, ident.ConnectionDiagnosticID,
+		types.ConnectionDiagnosticTrace_RBAC_PRINCIPAL,
+		"The requested principal is allowed.",
+		nil,
+	); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	id, err := sshca.DecodeIdentity(cert)
-	if err != nil {
-		return nil, trace.BadParameter("failed to decode ssh identity from cert: %v %v", key.Type(), sshutils.Fingerprint(key))
-	}
-
-	// Determine if keyboard-interactive authentication is required to satisfy any outstanding preconditions.
-	requiresKeyboardInteractive := false
-
-	for _, precond := range preconds {
-		switch precond.GetKind() {
-		case decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA:
-			required, err := requiresInBandMFA(id, conn)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			requiresKeyboardInteractive = requiresKeyboardInteractive || required
-
-		case decisionpb.PreconditionKind_PRECONDITION_KIND_PIN_SOURCE_IP:
-			// No interactive auth needed.
-
-		default:
-			// If an unknown or unsupported precondition is provided, fail close to prevent potential auth bypasses.
-			return nil, trace.BadParameter("unexpected precondition type %q found (this is a bug)", precond.GetKind())
-		}
-	}
-
-	// If we have determined that keyboard-interactive authentication is not required to satisfy any outstanding
-	// preconditions, allow the connection to proceed. Otherwise, proceed to the keyboard-interactive callback to
-	// evaluate the remaining preconditions.
-	if !requiresKeyboardInteractive {
-		return perms, nil
-	}
-
-	return h.KeyboardInteractiveAuth(
-		context.Background(),
-		preconds,
-		id,
-		perms,
-	)
-}
-
-func requiresInBandMFA(id *sshca.Identity, conn ssh.ConnMetadata) (bool, error) {
-	// If the certificate indicates that hardware MFA was used, we can trust that MFA was completed and allow the
-	// connection to proceed without performing in-band MFA checks, even if the client doesn't support in-band MFA.
-	if id.PrivateKeyPolicy.MFAVerified() {
-		return false, nil
-	}
-
-	// If the certificate was issued as a result of headless login, then in-band MFA checks are not required since the
-	// user would have been required to complete MFA to obtain the headless certificate in the first place.
-	if id.HeadlessAuthenticationID != "" {
-		return false, nil
-	}
-
-	inBandMFASupported, err := apissh.IsFeatureSupported(string(conn.ClientVersion()), apissh.InBandMFAFeature)
-	if err != nil && !errors.Is(err, apissh.NonTeleportSSHVersionError{}) {
-		return false, trace.Wrap(err)
-	}
-
-	var (
-		forceInBandMFA      = os.Getenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA") == "yes"
-		isLegacyClient      = !inBandMFASupported
-		isRegularSSHCert    = id.MFAVerified == ""
-		isPerSessionMFACert = !isRegularSSHCert
-	)
-
-	// TODO(cthach): DELETE IN v20.0 when in-band MFA is required for all clients and backwards compatibility with
-	// legacy clients is no longer supported.
-	if isLegacyClient {
-		if forceInBandMFA {
-			// In-band MFA is required and the client doesn't support in-band MFA, deny.
-			return false, trace.AccessDenied(
-				"This connection requires in-band MFA, but your SSH client does not support it. " +
-					"Please update your Teleport SSH client to the latest version to connect.",
-			)
-		}
-
-		if isPerSessionMFACert {
-			// In-band MFA is optional, and the client is using a legacy per-session MFA certificate, allow
-			// during the RFD 234 transition period.
-			return false, nil
-		}
-
-		// In-band MFA is optional, but MFA is required and client is using a regular cert, deny.
-		return false, services.ErrSessionMFARequired
-	}
-
-	// Client must proceed with in-band MFA checks to satisfy the precondition.
-	return true, nil
+	return permissions, nil
 }
 
 func (h *AuthHandlers) maybeAppendDiagnosticTrace(ctx context.Context, connectionDiagnosticID string, traceType types.ConnectionDiagnosticTrace_TraceType, message string, traceError error) error {
@@ -873,7 +552,7 @@ func (h *AuthHandlers) hostKeyCallback(hostname string, remote net.Addr, key ssh
 	ctx := h.c.Server.Context()
 
 	// For SubKindOpenSSHEICENode we use SSH Keys (EC2 does not support Certificates in ec2.SendSSHPublicKey).
-	if h.c.Server.GetInfo().GetSubKind() == types.SubKindOpenSSHEICENode {
+	if h.c.Server.TargetMetadata().ServerSubKind == types.SubKindOpenSSHEICENode {
 		return nil
 	}
 
@@ -888,7 +567,7 @@ func (h *AuthHandlers) hostKeyCallback(hostname string, remote net.Addr, key ssh
 
 	// If strict host key checking is not enabled, log that Teleport trusted an
 	// insecure key, but allow the request to go through.
-	h.log.WarnContext(ctx, "Insecure configuration! Strict host key checking disabled, allowing login without checking host key", "key_type", key.Type())
+	h.log.Warnf("Insecure configuration! Strict host key checking disabled, allowing login without checking host key of type %v.", key.Type())
 	return nil
 }
 
@@ -907,458 +586,77 @@ func (h *AuthHandlers) IsUserAuthority(authority ssh.PublicKey) bool {
 // was a Teleport CA.
 func (h *AuthHandlers) IsHostAuthority(authority ssh.PublicKey, address string) bool {
 	if _, err := h.authorityForCert(types.HostCA, authority); err != nil {
-		h.log.DebugContext(h.c.Server.Context(), "Unable to find SSH host CA", "error", err)
+		h.log.Debugf("Unable to find SSH host CA: %v.", err)
 		return false
 	}
 	return true
 }
 
-// GitForwardingPermit is a permit that specifies the parameters/constraints associated with
-// an authorized git forwarding attempt.
-// NOTE: this type and its related functionality will likely be moved to the 'decision' family of
-// packages in the future.
-type GitForwardingPermit struct {
-	// ClientIdleTimeout is the maximum amount of time the client is allowed to be idle.
-	ClientIdleTimeout     time.Duration
-	LockingMode           constants.LockingMode
-	LockTargets           []types.LockTarget
-	DisconnectExpiredCert time.Time
-}
-
 // loginChecker checks if the Teleport user should be able to login to
 // a target.
 type loginChecker interface {
-	// evaluateSSHAccess checks the given certificate (supplied by a connected
+	// canLoginWithRBAC checks the given certificate (supplied by a connected
 	// client) to see if this certificate can be allowed to login as user:login
 	// pair to requested server and if RBAC rules allow login.
-	evaluateSSHAccess(ident *sshca.Identity, ca types.CertAuthority, clusterName string, target types.Server, osUser string) (*decisionpb.SSHAccessPermit, error)
-}
-
-type scopedLoginChecker interface {
-	evaluateScopedSSHAccess(ident *sshca.Identity, ca types.CertAuthority, clusterName string, target types.Server, osUser string) (*decisionpb.SSHAccessPermit, error)
-}
-
-type proxyingChecker interface {
-	// evaluateProxying evaluates the capabilities/constraints related to a user's
-	// attempt to access proxy forwarding.
-	evaluateProxying(ident *sshca.Identity, ca types.CertAuthority, clusterName string, target types.Server, osUser string) (*proxyingPermit, error)
-}
-
-type gitForwardingChecker interface {
-	// evaluateGitForwarding evaluates the capabilities/constraints related to a user's
-	// attempt to access git forwarding.
-	evaluateGitForwarding(ident *sshca.Identity, ca types.CertAuthority, clusterName string, target types.Server) (*GitForwardingPermit, error)
+	canLoginWithRBAC(ident *sshca.Identity, ca types.CertAuthority, clusterName string, target types.Server, osUser string) error
 }
 
 type ahLoginChecker struct {
-	log *slog.Logger
+	log *log.Entry
 	c   *AuthHandlerConfig
 }
 
-type proxyingPermit struct {
-	ClientIdleTimeout     time.Duration
-	LockingMode           constants.LockingMode
-	PrivateKeyPolicy      keys.PrivateKeyPolicy
-	LockTargets           []types.LockTarget
-	MaxConnections        int64
-	SSHFileCopy           bool
-	DisconnectExpiredCert time.Time
-	MappedRoles           []string
-	SessionRecordingMode  constants.SessionRecordingMode
-	PinSourceIP           bool
-}
-
-func (a *ahLoginChecker) evaluateProxying(ident *sshca.Identity, ca types.CertAuthority, clusterName string, target types.Server, osUser string) (*proxyingPermit, error) {
-	// Use the server's shutdown context.
-	ctx := a.c.Server.Context()
-
-	a.log.DebugContext(ctx, "evaluating ssh proxying attempt", "teleport_user", ident.Username)
-
-	accessInfo, err := fetchAccessInfo(ident, ca, clusterName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Build context — scoped or unscoped-wrapping.
-	var checkerContext *services.ScopedAccessCheckerContext
-	if accessInfo.ScopePin != nil {
-		checkerContext, err = services.NewScopedAccessCheckerContext(ctx, accessInfo, clusterName, a.c.AccessPoint.ScopedRoleReader())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		unscoped, err := services.NewAccessChecker(accessInfo, clusterName, a.c.AccessPoint)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		checkerContext = services.NewScopedAccessCheckerContextFromUnscoped(unscoped)
-	}
-
-	if accessInfo.ScopePin != nil && target == nil {
-		return nil, trace.AccessDenied("scoped proxying without a target is not supported")
-	}
-
-	agentScope := ""
-	if target != nil && target.GetScope() != "" {
-		agentScope = target.GetScope()
-	}
-
-	state, err := checkerContext.AccessStateFromSSHIdentity(ctx, ident, a.c.AccessPoint)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var checker *services.ScopedAccessChecker
-	if err := checkerContext.Decision(ctx, agentScope, func(c *services.ScopedAccessChecker) error {
-		// Clients are able to dial nodes as an SSH subsystem (ComponentProxy), and the target server is not known at this time.
-		// We do not support this mode for scopes right now.
-		if target != nil {
-			if err := c.SSH().CheckAccessToSSHServer(target, state, osUser); err != nil {
-				return trace.Wrap(err)
-			}
-		}
-		checker = c
-		return nil
-	}); err != nil {
-		return nil, trace.AccessDenied("user %s@%s is not authorized to login as %v@%s: %v",
-			ident.Username, ca.GetClusterName(), osUser, clusterName, err)
-	}
-
-	netConfig, err := a.c.AccessPoint.GetClusterNetworkingConfig(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// load auth preference (used during calculation of locking mode)
-	authPref, err := a.c.AccessPoint.GetAuthPreference(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	privateKeyPolicy, err := checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	clientIdleTimeout, err := checker.SSH().AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	lockTargets := services.ProxyingLockTargets(clusterName, a.c.Server.HostUUID(), accessInfo, ident)
-	return &proxyingPermit{
-		ClientIdleTimeout:     clientIdleTimeout,
-		LockingMode:           checker.SSH().LockingMode(authPref.GetLockingMode()),
-		PrivateKeyPolicy:      privateKeyPolicy,
-		LockTargets:           lockTargets,
-		MaxConnections:        checker.SSH().MaxConnections(),
-		SSHFileCopy:           checker.SSH().CanCopyFiles(),
-		DisconnectExpiredCert: getDisconnectExpiredCertFromSSHIdentityScoped(checker.SSH(), authPref, ident),
-		MappedRoles:           accessInfo.Roles,
-		SessionRecordingMode:  checker.SSH().SessionRecordingMode(),
-		PinSourceIP:           checker.PinSourceIP(),
-	}, nil
-}
-
-func (a *ahLoginChecker) evaluateGitForwarding(ident *sshca.Identity, ca types.CertAuthority, clusterName string, target types.Server) (*GitForwardingPermit, error) {
-	// Use the server's shutdown context.
-	ctx := a.c.Server.Context()
-
-	if clusterName != ca.GetClusterName() {
-		// we don't currently support cross-cluster git forwarding (see comments in PublicKeyCallback for details).
-		return nil, trace.BadParameter("evaluateGitForwarding called with non-local identity (this is a bug)")
-	}
-
-	a.log.DebugContext(ctx, "checking git forwarding permissions", "teleport_user", ident.Username)
-
-	accessInfo, err := fetchAccessInfo(ident, ca, clusterName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	accessChecker, err := services.NewAccessChecker(accessInfo, clusterName, a.c.AccessPoint)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	state, err := services.AccessStateFromSSHIdentity(ctx, ident, accessChecker, a.c.AccessPoint)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := accessChecker.CheckAccess(target, state); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	netConfig, err := a.c.AccessPoint.GetClusterNetworkingConfig(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// load auth preference (used during calculation of locking mode)
-	authPref, err := a.c.AccessPoint.GetAuthPreference(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	lockTargets := services.GitForwardingLockTargets(clusterName, a.c.Server.HostUUID() /* id of git forwarder, not the target */, accessInfo, ident)
-
-	return &GitForwardingPermit{
-		ClientIdleTimeout:     accessChecker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
-		LockingMode:           accessChecker.LockingMode(authPref.GetLockingMode()),
-		LockTargets:           lockTargets,
-		DisconnectExpiredCert: getDisconnectExpiredCertFromSSHIdentity(accessChecker, authPref, ident),
-	}, nil
-}
-
-func (a *ahLoginChecker) evaluateScopedSSHAccess(ident *sshca.Identity, ca types.CertAuthority, clusterName string, target types.Server, osUser string) (*decisionpb.SSHAccessPermit, error) {
-	// use the server's shutdown context.
-	ctx := a.c.Server.Context()
-
-	accessInfo, err := fetchAccessInfo(ident, ca, clusterName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// build an access checker context based on the provided scoped identity.
-	checkerContext, err := services.NewScopedAccessCheckerContext(ctx, accessInfo, clusterName, a.c.AccessPoint.ScopedRoleReader())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	state, err := checkerContext.AccessStateFromSSHIdentity(ctx, ident, a.c.AccessPoint)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if osUser == teleport.SSHSessionJoinPrincipal {
-		// TODO(fspmarshall/scopes): scoped session joining
-		// NOTE: getting session joining fully working with scoped access will be tricky. session joining permissions
-		// are complex, have yet to be ported to the more easily refactored PDP-style evaluation pattern, and do not
-		// slot easily into the current scoped access-checking model since they bypass standard node access checks. the
-		// majority of this function is written such that it should work for scoped and unscoped identities, but must be
-		// kept separate from the unscoped version until we decide how to handle session joining.
-		return nil, trace.NotImplemented("session joining for scoped identities is not implemented")
-	}
-
-	serverV2, ok := target.(*types.ServerV2)
-	if !ok {
-		return nil, trace.BadParameter("expected target to be of type *types.ServerV2, got %T", target)
-	}
-
-	agentScope := scopes.Root
-	if serverV2.Scope != "" {
-		agentScope = serverV2.Scope
-	}
-
-	// perform the primary node access check and exfiltrate the checker if successful
-	// for use in calculating the remaining fields of the permit.
-	var checker *services.ScopedAccessChecker
-	if err := checkerContext.Decision(ctx, agentScope, func(c *services.ScopedAccessChecker) error {
-		if err := c.SSH().CheckAccessToSSHServer(
-			target,
-			state,
-			osUser,
-		); err != nil {
-			return trace.Wrap(err)
-		}
-
-		checker = c
-		return nil
-	}); err != nil {
-		return nil, trace.AccessDenied("user %s@%s is not authorized to login as %v@%s: %v",
-			ident.Username, ca.GetClusterName(), osUser, clusterName, err)
-	}
-
-	// load net config (used during calculation of client idle timeout)
-	netConfig, err := a.c.AccessPoint.GetClusterNetworkingConfig(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// load auth preference (used during calculation of locking mode)
-	authPref, err := a.c.AccessPoint.GetAuthPreference(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	privateKeyPolicy, err := checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	lockTargets := services.SSHAccessLockTargets(clusterName, target.GetName(), osUser, accessInfo, ident)
-
-	hostSudoers, err := checker.SSH().HostSudoers(target)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var bpfEvents []string
-	for event := range checker.SSH().EnhancedRecordingSet() {
-		bpfEvents = append(bpfEvents, event)
-	}
-
-	hostUsersDecision, err := checker.SSH().HostUsers(target)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	clientIdleTimeout, err := checker.SSH().AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	permit := &decisionpb.SSHAccessPermit{
-		ForwardAgent:          checker.SSH().CheckAgentForward(osUser) == nil,
-		X11Forwarding:         checker.SSH().PermitX11Forwarding(),
-		MaxConnections:        checker.SSH().MaxConnections(),
-		MaxSessions:           checker.SSH().MaxSessions(),
-		SshFileCopy:           checker.SSH().CanCopyFiles(),
-		PortForwardMode:       checker.SSH().SSHPortForwardMode(),
-		ClientIdleTimeout:     durationpb.New(clientIdleTimeout),
-		DisconnectExpiredCert: timestampFromGoTime(getDisconnectExpiredCertFromSSHIdentityScoped(checker.SSH(), authPref, ident)),
-		SessionRecordingMode:  string(checker.SSH().SessionRecordingMode()),
-		LockingMode:           string(checker.SSH().LockingMode(authPref.GetLockingMode())),
-		PrivateKeyPolicy:      string(privateKeyPolicy),
-		LockTargets:           decision.LockTargetsToProto(lockTargets),
-		MappedRoles:           accessInfo.Roles,
-		HostSudoers:           hostSudoers,
-		BpfEvents:             bpfEvents,
-		HostUsersInfo:         hostUsersDecision.Info,
-		DecisionContext: &decisionpb.SSHAccessPermitContext{
-			HostUserCreationAllowedBy: hostUsersDecision.AllowedBy,
-			HostUserCreationDeniedBy:  hostUsersDecision.DeniedBy,
-		},
-	}
-
-	if checker.PinSourceIP() {
-		permit.Preconditions = append(permit.Preconditions, &decisionpb.Precondition{
-			Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_PIN_SOURCE_IP,
-		})
-	}
-
-	return permit, nil
-}
-
-// evaluateSSHAccess checks the given certificate (supplied by a connected
+// canLoginWithRBAC checks the given certificate (supplied by a connected
 // client) to see if this certificate can be allowed to login as user:login
 // pair to requested server and if RBAC rules allow login.
-func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertAuthority, clusterName string, target types.Server, osUser string) (*decisionpb.SSHAccessPermit, error) {
+func (a *ahLoginChecker) canLoginWithRBAC(ident *sshca.Identity, ca types.CertAuthority, clusterName string, target types.Server, osUser string) error {
 	// Use the server's shutdown context.
 	ctx := a.c.Server.Context()
 
-	a.log.DebugContext(ctx, "checking permissions to login to node with RBAC checks", "teleport_user", ident.Username, "os_user", osUser)
+	a.log.Debugf("Checking permissions for (%v,%v) to login to node with RBAC checks.", ident.Username, osUser)
 
 	// get roles assigned to this user
 	accessInfo, err := fetchAccessInfo(ident, ca, clusterName)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 	accessChecker, err := services.NewAccessChecker(accessInfo, clusterName, a.c.AccessPoint)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
 	state, err := services.AccessStateFromSSHIdentity(ctx, ident, accessChecker, a.c.AccessPoint)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
-	// Determine if session join can bypass standard node access checks. This is allowed if all are true:
-	//  1. The requested OS user is the special session join principal (for moderated sessions).
-	//  2. The user's roles support moderated sessions.
-	//  3. MFA is NOT required for this session (MFARequiredNever),
-	//      OR the legacy out-of-band MFA flow is allowed (see below) and MFA has already been verified for this session.
-	//
-	// The legacy out-of-band MFA flow is allowed as long as TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA is not set to "yes"
-	// and MFA has already been verified for this session.
-	//
-	// TODO(cthach): Remove in v20.0 when the legacy out-of-band MFA flow is removed.
-	bypassAccessCheck :=
-		osUser == teleport.SSHSessionJoinPrincipal &&
-			moderation.RoleSupportsModeratedSessions(accessChecker.Roles()) &&
-			(state.MFARequired == services.MFARequiredNever ||
-				(os.Getenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA") != "yes" && state.MFAVerified))
+	// we don't need to check the RBAC for the node if they are only allowed to join sessions
+	if osUser == teleport.SSHSessionJoinPrincipal &&
+		moderation.RoleSupportsModeratedSessions(accessChecker.Roles()) {
 
-	// Collect preconditions that must be met before the session can start.
-	var preconds []*decisionpb.Precondition
+		// allow joining if cluster wide MFA is not required
+		if state.MFARequired == services.MFARequiredNever {
+			return nil
+		}
 
-	// Perform the primary node access check unless bypass is allowed.
-	if !bypassAccessCheck {
-		if preconds, err = accessChecker.CheckConditionalAccess(
-			target,
-			state,
-			services.NewLoginMatcher(osUser),
-		); err != nil {
-			return nil, trace.AccessDenied("user %s@%s is not authorized to login as %v@%s: %v",
-				ident.Username, ca.GetClusterName(), osUser, clusterName, err)
+		// only allow joining if the MFA ceremony was completed
+		// first if cluster wide MFA is enabled
+		if state.MFAVerified {
+			return nil
 		}
 	}
 
-	// load net config (used during calculation of client idle timeout)
-	netConfig, err := a.c.AccessPoint.GetClusterNetworkingConfig(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	// check if roles allow access to server
+	if err := accessChecker.CheckAccess(
+		target,
+		state,
+		services.NewLoginMatcher(osUser),
+	); err != nil {
+		return trace.AccessDenied("user %s@%s is not authorized to login as %v@%s: %v",
+			ident.Username, ca.GetClusterName(), osUser, clusterName, err)
 	}
 
-	// load auth preference (used during calculation of locking mode)
-	authPref, err := a.c.AccessPoint.GetAuthPreference(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	privateKeyPolicy, err := accessChecker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	lockTargets := services.SSHAccessLockTargets(clusterName, target.GetName(), osUser, accessInfo, ident)
-
-	hostSudoers, err := accessChecker.HostSudoers(target)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var bpfEvents []string
-	for event := range accessChecker.EnhancedRecordingSet() {
-		bpfEvents = append(bpfEvents, event)
-	}
-
-	hostUsersDecision, err := accessChecker.HostUsers(target)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if accessChecker.PinSourceIP() {
-		preconds = append(preconds, &decisionpb.Precondition{
-			Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_PIN_SOURCE_IP,
-		})
-	}
-
-	return &decisionpb.SSHAccessPermit{
-		ForwardAgent:          accessChecker.CheckAgentForward(osUser) == nil,
-		X11Forwarding:         accessChecker.PermitX11Forwarding(),
-		MaxConnections:        accessChecker.MaxConnections(),
-		MaxSessions:           accessChecker.MaxSessions(),
-		SshFileCopy:           accessChecker.CanCopyFiles(),
-		PortForwardMode:       accessChecker.SSHPortForwardMode(),
-		ClientIdleTimeout:     durationpb.New(accessChecker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout())),
-		DisconnectExpiredCert: timestampFromGoTime(getDisconnectExpiredCertFromSSHIdentity(accessChecker, authPref, ident)),
-		SessionRecordingMode:  string(accessChecker.SessionRecordingMode(constants.SessionRecordingServiceSSH)),
-		LockingMode:           string(accessChecker.LockingMode(authPref.GetLockingMode())),
-		PrivateKeyPolicy:      string(privateKeyPolicy),
-		LockTargets:           decision.LockTargetsToProto(lockTargets),
-		MappedRoles:           accessInfo.Roles,
-		HostSudoers:           hostSudoers,
-		BpfEvents:             bpfEvents,
-		HostUsersInfo:         hostUsersDecision.Info,
-		Preconditions:         preconds,
-		DecisionContext: &decisionpb.SSHAccessPermitContext{
-			HostUserCreationAllowedBy: hostUsersDecision.AllowedBy,
-			HostUserCreationDeniedBy:  hostUsersDecision.DeniedBy,
-		},
-	}, nil
+	return nil
 }
 
 // fetchAccessInfo fetches the services.AccessChecker (after role mapping)
@@ -1379,9 +677,9 @@ func fetchAccessInfo(ident *sshca.Identity, ca types.CertAuthority, clusterName 
 // contains the issuer of a certificate and returns it.
 func (h *AuthHandlers) authorityForCert(caType types.CertAuthType, authority ssh.PublicKey) (types.CertAuthority, error) {
 	// get all certificate authorities for given type
-	cas, err := h.c.AccessPoint.GetCertAuthorities(h.c.Server.Context(), caType, false)
+	cas, err := h.c.AccessPoint.GetCertAuthorities(context.TODO(), caType, false)
 	if err != nil {
-		h.log.WarnContext(h.c.Server.Context(), "failed retrieving cert authority", "error", err)
+		h.log.Warnf("%v", trace.DebugReport(err))
 		return nil, trace.Wrap(err)
 	}
 
@@ -1390,7 +688,7 @@ func (h *AuthHandlers) authorityForCert(caType types.CertAuthType, authority ssh
 	for i := range cas {
 		checkers, err := sshutils.GetCheckers(cas[i])
 		if err != nil {
-			h.log.WarnContext(h.c.Server.Context(), "unable to get cert checker for ca", "ca", cas[i].GetName(), "error", err)
+			h.log.Warnf("%v", err)
 			return nil, trace.Wrap(err)
 		}
 		for _, checker := range checkers {
@@ -1409,49 +707,7 @@ func (h *AuthHandlers) authorityForCert(caType types.CertAuthType, authority ssh
 	return ca, nil
 }
 
-func getDisconnectExpiredCertFromSSHIdentity(
-	checker services.AccessChecker,
-	authPref types.AuthPreference,
-	identity *sshca.Identity,
-) time.Time {
-	return getDisconnectExpiredCertFromSSHIdentityScoped(services.NewScopedAccessCheckerFromUnscoped(checker).SSH(), authPref, identity)
-}
-
-func getDisconnectExpiredCertFromSSHIdentityScoped(checker *services.SSHAccessChecker, authPref types.AuthPreference, identity *sshca.Identity) time.Time {
-	// In the case where both disconnect_expired_cert and require_session_mfa are enabled,
-	// the PreviousIdentityExpires value of the certificate will be used, which is the
-	// expiry of the certificate used to issue the short lived MFA verified certificate.
-	//
-	// See https://github.com/gravitational/teleport/issues/18544
-
-	// If the session doesn't need to be disconnected on cert expiry just return the default value.
-	if !checker.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert()) {
-		return time.Time{}
-	}
-
-	if !identity.PreviousIdentityExpires.IsZero() {
-		// If this is a short-lived mfa verified cert, return the certificate extension
-		// that holds its' issuing cert's expiry value.
-		return identity.PreviousIdentityExpires
-	}
-
-	// Otherwise just return the current cert's expiration
-	return identity.GetValidBefore()
-}
-
-func timestampToGoTime(t *timestamppb.Timestamp) time.Time {
-	// nil or "zero" Timestamps are mapped to Go's zero time (0-0-0 0:0.0) instead
-	// of unix epoch. The latter avoids problems with tooling (eg, Terraform) that
-	// sets structs to their defaults instead of using nil.
-	if t.GetSeconds() == 0 && t.GetNanos() == 0 {
-		return time.Time{}
-	}
-	return t.AsTime()
-}
-
-func timestampFromGoTime(t time.Time) *timestamppb.Timestamp {
-	if t.IsZero() {
-		return nil
-	}
-	return timestamppb.New(t)
+// isProxy returns true if it's a regular SSH proxy.
+func (h *AuthHandlers) isProxy() bool {
+	return h.c.Component == teleport.ComponentProxy
 }

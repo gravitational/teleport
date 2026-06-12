@@ -1,11 +1,11 @@
 ---
+# lint disable page-structure remark-lint
 title: Machine & Workload Identity with Database Access
-sidebar_label: Databases
+sidebar_label: Database Access
 description: How to use Machine & Workload Identity to access database servers
 tags:
  - how-to
  - mwi
- - infrastructure-identity
 ---
 
 {/* lint disable page-structure remark-lint */}
@@ -35,9 +35,6 @@ used to access a database configured in Teleport.
 - `tbot` must already be installed and configured on the machine that will
   access the database. For more information, see the
   [deployment guides](../deployment/deployment.mdx).
-- To run the example programs we include in [Step
-  4](#step-44-configure-the-client-to-connect-to-the-database), you must have
-  [Go installed on your system](https://go.dev/doc/install).
 
 ## Step 1/4. Configure RBAC
 
@@ -86,7 +83,7 @@ $ tctl bots update example --add-roles example-role
 
 This rule will allow the bot to do two things:
 
-- Access the database `example-db` on any database server (due to the `'*': '*'`
+- Access the database `example` on any database server (due to the `'*': '*'`
   label selector) as the user `alice`.
 - Discover information about database resources in Teleport.
 
@@ -144,14 +141,16 @@ services:
     path: /opt/machine-id
   # Specify the details of the database you wish to connect to.
   service: example-server
-  database: example-db
+  database: example
   username: alice
   # Specify a format to use for the output credentials. For most databases,
   # this configuration field can be omitted.
   # format: mongo
 ```
 
-(!docs/pages/includes/machine-id/reload-tbot.mdx resource="the database"!)
+If operating `tbot` as a background service, restart it. If running `tbot` in
+one-shot mode, it must be executed before you attempt to execute the Ansible
+playbook.
 
 ## Step 3/4. Configure the local database access proxy
 
@@ -247,27 +246,20 @@ configured port.
 With the credentials generated and the local proxy running, you can now
 configure your client to use the local proxy with the credentials.
 
-1. Copy one of these sample Go programs into a file called "connect.go",
-   modifying it as indicated in the commands:
+Refer to these sample Go programs for using the credentials:
 
-  <Tabs>
-    <TabItem label="Self-Hosted PostgreSQL">
-    ```go
-    (!docs/pages/includes/machine-id/postgresql/postgresql.go!)
-    ```
-    </TabItem>
-    <TabItem label="Self-Hosted MongoDB">
-    ```go
-    (!docs/pages/includes/machine-id/mongodb/mongodb.go!)
-    ```
-    </TabItem>
-  </Tabs>
-
-1. Run the program:
-
-   ```code
-   $ go run connect.go
-   ```
+<Tabs>
+  <TabItem label="Self-Hosted PostgreSQL">
+  ```go
+  (!docs/pages/includes/machine-id/postgresql/postgresql.go!)
+  ```
+  </TabItem>
+  <TabItem label="Self-Hosted MongoDB">
+  ```go
+  (!docs/pages/includes/machine-id/mongodb/mongodb.go!)
+  ```
+  </TabItem>
+</Tabs>
 
 You're all set. You have provided your application with short-lived
 certificates tied to a machine identity that can access your database, be
@@ -276,5 +268,5 @@ access controls.
 
 ## Next steps
 
-- Read the [configuration reference](../../reference/machine-workload-identity/configuration.mdx) to explore
+- Read the [configuration reference](../../reference/machine-id/configuration.mdx) to explore
   all the available configuration options.

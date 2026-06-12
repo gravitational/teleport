@@ -24,58 +24,48 @@ import (
 	"github.com/gravitational/trace"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	apistream "github.com/gravitational/teleport/api/internalutils/stream"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
 )
 
 // GetInstances iterates all teleport instances.
-func (s *PresenceService) GetInstances(ctx context.Context, req types.InstanceFilter) apistream.Stream[types.Instance] {
+func (s *PresenceService) GetInstances(ctx context.Context, req types.InstanceFilter) stream.Stream[types.Instance] {
+	const pageSize = 1_000
 	if req.ServerID != "" {
 		instance, err := s.getInstance(ctx, req.ServerID)
 		if err != nil {
 			if trace.IsNotFound(err) {
-				return apistream.Empty[types.Instance]()
+				return stream.Empty[types.Instance]()
 			}
-			return apistream.Fail[types.Instance](trace.Wrap(err))
+			return stream.Fail[types.Instance](trace.Wrap(err))
 		}
 		if !req.Match(instance) {
-			return apistream.Empty[types.Instance]()
+			return stream.Empty[types.Instance]()
 		}
-		return apistream.Once(instance)
+		return stream.Once(instance)
 	}
 
 	startKey := backend.ExactKey(instancePrefix)
 	endKey := backend.RangeEnd(startKey)
-	return stream.IntoLegacy(stream.FilterMap(
-		s.Backend.Items(
-			ctx,
-			backend.ItemsParams{
-				StartKey: startKey,
-				EndKey:   endKey,
-			}),
-		func(item backend.Item) (types.Instance, bool) {
-			instance, err := generic.FastUnmarshal[*types.InstanceV1](item)
-			if err != nil {
-				return nil, false
-			}
-
-			if err := instance.CheckAndSetDefaults(); err != nil {
-				s.logger.WarnContext(ctx, "Skipping invalid instance",
-					"key", item.Key,
-					"error", err,
-				)
-				return nil, false
-			}
-			if !req.Match(instance) {
-				return nil, false
-			}
-			return instance, true
-		},
-	))
+	items := backend.StreamRange(ctx, s, startKey, endKey, pageSize)
+	return stream.FilterMap(items, func(item backend.Item) (types.Instance, bool) {
+		instance, err := generic.FastUnmarshal[*types.InstanceV1](item)
+		if err != nil {
+			s.log.Warnf("Skipping instance at %s, failed to unmarshal: %v", item.Key, err)
+			return nil, false
+		}
+		if err := instance.CheckAndSetDefaults(); err != nil {
+			s.log.Warnf("Skipping instance at %s: %v", item.Key, err)
+			return nil, false
+		}
+		if !req.Match(instance) {
+			return nil, false
+		}
+		return instance, true
+	})
 }
 
 // getInstance gets an instance resource by server ID.

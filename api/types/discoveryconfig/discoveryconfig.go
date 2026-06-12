@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/encoding/protojson"
 
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -85,9 +84,7 @@ type Status struct {
 	// LastSyncTime is the timestamp when the Discovery Config was last sync.
 	LastSyncTime time.Time `json:"last_sync_time,omitempty" yaml:"last_sync_time,omitempty"`
 	// IntegrationDiscoveredResources maps an integration to a summary of resources that were found using that integration.
-	IntegrationDiscoveredResources map[string]*IntegrationDiscoveredSummary `json:"integration_discovered_resources,omitempty" yaml:"integration_discovered_resources,omitempty"`
-	// ServerStatus tracks the discovery iteration status for multiple discovery servers, keyed by Server ID.
-	ServerStatus map[string]*DiscoveryStatusServer `json:"server_status,omitempty" yaml:"server_status,omitempty"`
+	IntegrationDiscoveredResources map[string]*discoveryconfigv1.IntegrationDiscoveredSummary `json:"integration_discovered_resources,omitempty" yaml:"integration_discovered_resources,omitempty"`
 }
 
 // NewDiscoveryConfig will create a new discovery config.
@@ -102,54 +99,6 @@ func NewDiscoveryConfig(metadata header.Metadata, spec Spec) (*DiscoveryConfig, 
 	}
 
 	return discoveryConfig, nil
-}
-
-// IntegrationDiscoveredSummary holds the summary of resources discovered for a specific integration.
-type IntegrationDiscoveredSummary struct {
-	*discoveryconfigv1.IntegrationDiscoveredSummary
-}
-
-// MarshalJSON marshals the IntegrationDiscoveredSummary into JSON.
-func (s *IntegrationDiscoveredSummary) MarshalJSON() ([]byte, error) {
-	if s == nil {
-		s = &IntegrationDiscoveredSummary{}
-	}
-	return protojson.Marshal(s.IntegrationDiscoveredSummary)
-}
-
-// UnmarshalJSON unmarshals JSON data into the IntegrationDiscoveredSummary.
-func (s *IntegrationDiscoveredSummary) UnmarshalJSON(data []byte) error {
-	if s.IntegrationDiscoveredSummary == nil {
-		s.IntegrationDiscoveredSummary = &discoveryconfigv1.IntegrationDiscoveredSummary{}
-	}
-
-	return protojson.UnmarshalOptions{
-		DiscardUnknown: true,
-	}.Unmarshal(data, s.IntegrationDiscoveredSummary)
-}
-
-// ServerStatus holds the status of a discovery server.
-type DiscoveryStatusServer struct {
-	*discoveryconfigv1.DiscoveryStatusServer
-}
-
-// MarshalJSON marshals the ServerStatus into JSON.
-func (s *DiscoveryStatusServer) MarshalJSON() ([]byte, error) {
-	if s == nil {
-		s = &DiscoveryStatusServer{}
-	}
-	return protojson.Marshal(s.DiscoveryStatusServer)
-}
-
-// UnmarshalJSON unmarshals JSON data into the ServerStatus.
-func (s *DiscoveryStatusServer) UnmarshalJSON(data []byte) error {
-	if s.DiscoveryStatusServer == nil {
-		s.DiscoveryStatusServer = &discoveryconfigv1.DiscoveryStatusServer{}
-	}
-
-	return protojson.UnmarshalOptions{
-		DiscardUnknown: true,
-	}.Unmarshal(data, s.DiscoveryStatusServer)
 }
 
 // CheckAndSetDefaults validates fields and populates empty fields with default values.
@@ -210,30 +159,6 @@ func (a *DiscoveryConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// Clone returns a copy of the config.
-func (a *DiscoveryConfig) Clone() *DiscoveryConfig {
-	var copy *DiscoveryConfig
-	utils.StrictObjectToStruct(a, &copy)
-
-	if len(a.Spec.AWS) == 0 && a.Spec.AWS != nil {
-		copy.Spec.AWS = []types.AWSMatcher{}
-	}
-
-	if len(a.Spec.Azure) == 0 && a.Spec.Azure != nil {
-		copy.Spec.Azure = []types.AzureMatcher{}
-	}
-
-	if len(a.Spec.GCP) == 0 && a.Spec.GCP != nil {
-		copy.Spec.GCP = []types.GCPMatcher{}
-	}
-
-	if len(a.Spec.Kube) == 0 && a.Spec.Kube != nil {
-		copy.Spec.Kube = []types.KubernetesMatcher{}
-	}
-
-	return copy
-}
-
 // GetDiscoveryGroup returns the DiscoveryGroup from the discovery config.
 func (a *DiscoveryConfig) GetDiscoveryGroup() string {
 	return a.Spec.DiscoveryGroup
@@ -250,15 +175,6 @@ func (a *DiscoveryConfig) GetMetadata() types.Metadata {
 func (a *DiscoveryConfig) MatchSearch(values []string) bool {
 	fieldVals := append(utils.MapToStrings(a.GetAllLabels()), a.GetName(), a.GetDiscoveryGroup())
 	return types.MatchSearch(fieldVals, values, nil)
-}
-
-// IsMatchersEmpty returns true if all matchers are empty.
-func (a *DiscoveryConfig) IsMatchersEmpty() bool {
-	return len(a.Spec.AWS) == 0 &&
-		len(a.Spec.Azure) == 0 &&
-		len(a.Spec.GCP) == 0 &&
-		len(a.Spec.Kube) == 0 &&
-		(a.Spec.AccessGraph == nil || len(a.Spec.AccessGraph.AWS) == 0)
 }
 
 // CloneResource returns a copy of the resource as types.ResourceWithLabels.

@@ -74,7 +74,7 @@ func protoMessageVariables[TMessage proto.Message, TEnv messageEnv[TMessage]](ze
 		seen[string(descriptor.FullName())] = struct{}{}
 
 		fields := descriptor.Fields()
-		for i := range fields.Len() {
+		for i := 0; i < fields.Len(); i++ {
 			field := fields.Get(i)
 
 			name := field.TextName()

@@ -107,16 +107,16 @@ export const Buttons = () => {
           defaultValue="Padding of buttons below should match padding of this input"
           width="480px"
         />
-        <Button size="extra-large" $inputAlignment>
+        <Button size="extra-large" inputAlignment>
           Extra large with input alignment
         </Button>
-        <Button size="large" $inputAlignment>
+        <Button size="large" inputAlignment>
           Large with input alignment
         </Button>
-        <Button size="medium" $inputAlignment>
+        <Button size="medium" inputAlignment>
           Medium with input alignment
         </Button>
-        <Button size="small" $inputAlignment>
+        <Button size="small" inputAlignment>
           Small with input alignment
         </Button>
       </Flex>
@@ -218,7 +218,7 @@ export const Buttons = () => {
       </Flex>
 
       <Flex gap={3} flexDirection="column" alignItems="flex-start">
-        {([2, 1, 0] as const).map(size => (
+        {[2, 1, 0].map(size => (
           <Flex gap={3} key={`size-${size}`}>
             <ButtonIcon size={size}>
               <icons.AddUsers />

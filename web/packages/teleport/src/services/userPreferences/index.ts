@@ -17,7 +17,6 @@
  */
 
 export {
-  clearCachedPreferences,
   getUserPreferences,
   updateUserPreferences,
   updateUserClusterPreferences,

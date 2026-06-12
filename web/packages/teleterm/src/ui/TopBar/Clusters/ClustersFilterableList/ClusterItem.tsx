@@ -19,8 +19,7 @@
 import { useEffect, useRef } from 'react';
 import styled from 'styled-components';
 
-import { Flex, Text } from 'design';
-import { Status } from 'design/Status';
+import { Flex, Label, Text } from 'design';
 
 import { Cluster } from 'teleterm/services/tshd/types';
 import { useKeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
@@ -38,7 +37,7 @@ export function ClusterItem(props: ClusterItemProps) {
     index: props.index,
     onRun: props.onSelect,
   });
-  const ref = useRef<HTMLLIElement>(null);
+  const ref = useRef<HTMLLIElement>();
 
   const clusterName = props.item.name;
 
@@ -64,16 +63,16 @@ export function ClusterItem(props: ClusterItemProps) {
           {clusterName}
         </Text>
         <Flex>
-          {!props.item.leaf && (
-            <Status ml={1} kind="primary" variant="filled" icon={false}>
+          {!props.item.leaf ? (
+            <Label ml={1} kind="primary">
               root
-            </Status>
-          )}
-          {props.isSelected && (
-            <Status ml={1} kind="success" variant="filled" icon={false}>
+            </Label>
+          ) : null}
+          {props.isSelected ? (
+            <Label ml={1} kind="success">
               active
-            </Status>
-          )}
+            </Label>
+          ) : null}
         </Flex>
       </Flex>
     </StyledListItem>

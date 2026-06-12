@@ -31,82 +31,29 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 )
 
-type ReconcilerFactory func(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error)
-
 type reconcilerFactory struct {
 	cr      string
-	factory ReconcilerFactory
+	factory func(kclient.Client, *client.Client) (controllers.Reconciler, error)
 }
 
 // SetupAllControllers sets up all controllers
-func SetupAllControllers(log logr.Logger, mgr manager.Manager, teleportClient *client.Client, features *proto.Features, scoped bool) error {
-	kubeClient := mgr.GetClient()
-	for _, reconciler := range enabledReconcilers(log, features, scoped) {
-		r, err := reconciler.factory(kubeClient, teleportClient)
-		if err != nil {
-			return trace.Wrap(err, "failed to create controller for %s", reconciler.cr)
-		}
-		err = r.SetupWithManager(mgr)
-		if err != nil {
-			return trace.Wrap(err, "failed to setup controller for: %s", reconciler.cr)
-		}
-	}
-
-	return nil
-}
-
-func enabledReconcilers(log logr.Logger, features *proto.Features, scoped bool) []reconcilerFactory {
-	var reconcilers []reconcilerFactory
-
-	// We always run
-	reconcilers = append(reconcilers, scopedReconcilers(log, features)...)
-	if scoped {
-		log.Info("Running in scoped mode. Unscoped resources will not be reconciled.")
-	} else {
-		reconcilers = append(reconcilers, unscopedReconcilers(log, features)...)
-	}
-	return reconcilers
-}
-
-func scopedReconcilers(log logr.Logger, features *proto.Features) []reconcilerFactory {
-	return []reconcilerFactory{
-		{"TeleportScopedTokenV1", NewScopedTokenV1Reconciler},
-		{"TeleportScopedRoleV1", NewScopedRoleV1Reconciler},
-		{"TeleportScopedRoleAssignmentV1", NewScopedRoleAssignmentV1Reconciler},
-	}
-}
-
-func unscopedReconcilers(log logr.Logger, features *proto.Features) []reconcilerFactory {
+func SetupAllControllers(log logr.Logger, mgr manager.Manager, teleportClient *client.Client, features *proto.Features) error {
 	reconcilers := []reconcilerFactory{
 		{"TeleportRole", NewRoleReconciler},
 		{"TeleportRoleV6", NewRoleV6Reconciler},
 		{"TeleportRoleV7", NewRoleV7Reconciler},
-		{"TeleportRoleV8", NewRoleV8Reconciler},
 		{"TeleportUser", NewUserReconciler},
 		{"TeleportGithubConnector", NewGithubConnectorReconciler},
-		{"TeleportLockV2", NewLockV2Reconciler},
 		{"TeleportProvisionToken", NewProvisionTokenReconciler},
 		{"TeleportOpenSSHServerV2", NewOpenSSHServerV2Reconciler},
 		{"TeleportOpenSSHEICEServerV2", NewOpenSSHEICEServerV2Reconciler},
 		{"TeleportTrustedClusterV2", NewTrustedClusterV2Reconciler},
 		{"TeleportBotV1", NewBotV1Reconciler},
 		{"TeleportWorkloadIdentityV1", NewWorkloadIdentityV1Reconciler},
-		{"TeleportAutoupdateConfigV1", NewAutoUpdateConfigV1Reconciler},
-		{"TeleportAutoupdateVersionV1", NewAutoUpdateVersionV1Reconciler},
-		{"TeleportAppV3", NewAppV3Reconciler},
-		{"TeleportDatabaseV3", NewDatabaseV3Reconciler},
-		{"TeleportAccessMonitoringRuleV1", NewAccessMonitoringRuleV1Reconciler},
-		// Although the WebUi doesn't show "SAML Application (Generic)" for
-		// oss builds when adding a resource due to the BuildType() check in
-		// lib/auth/auth_with_roles.go, the API allows creating
-		// saml_idp_service_provider objects using tctl for any build. We
-		// therefore enable it here unconditionally to mirror tctl behavior.
-		{"TeleportSAMLIdPServiceProviderV1", NewSAMLIdPServiceProviderV1Reconciler},
 	}
 
 	oidc := modules.GetProtoEntitlement(features, entitlements.OIDC)
 	saml := modules.GetProtoEntitlement(features, entitlements.SAML)
-	policy := modules.GetProtoEntitlement(features, entitlements.Policy)
 
 	if oidc.Enabled {
 		reconcilers = append(reconcilers, reconcilerFactory{"TeleportOIDCConnector", NewOIDCConnectorReconciler})
@@ -118,15 +65,6 @@ func unscopedReconcilers(log logr.Logger, features *proto.Features) []reconciler
 		reconcilers = append(reconcilers, reconcilerFactory{"TeleportSAMLConnector", NewSAMLConnectorReconciler})
 	} else {
 		log.Info("SAML connectors are only available in Teleport Enterprise edition. TeleportSAMLConnector resources won't be reconciled")
-	}
-
-	if policy.Enabled {
-		reconcilers = append(reconcilers, reconcilerFactory{"TeleportInferenceModel", NewInferenceModelReconciler})
-		reconcilers = append(reconcilers, reconcilerFactory{"TeleportInferencePolicy", NewInferencePolicyReconciler})
-		reconcilers = append(reconcilers, reconcilerFactory{"TeleportInferenceSecret", NewInferenceSecretReconciler})
-		reconcilers = append(reconcilers, reconcilerFactory{"TeleportRetrievalModelV1", NewRetrievalModelV1Reconciler})
-	} else {
-		log.Info("Inference Models, Policies, Secrets, and RetrievalModel are only available in Teleport Enterprise edition. TeleportInferenceModel, TeleportInferencePolicy, TeleportInferenceSecret, and TeleportRetrievalModelV1 resources won't be reconciled")
 	}
 
 	// Login Rules are enterprise-only but there is no specific feature flag for them.
@@ -144,5 +82,17 @@ func unscopedReconcilers(log logr.Logger, features *proto.Features) []reconciler
 		log.Info("The cluster license does not contain advanced workflows. TeleportAccessList, TeleportOktaImportRule resources won't be reconciled")
 	}
 
-	return reconcilers
+	kubeClient := mgr.GetClient()
+	for _, reconciler := range reconcilers {
+		r, err := reconciler.factory(kubeClient, teleportClient)
+		if err != nil {
+			return trace.Wrap(err, "failed to create controller for %s", reconciler.cr)
+		}
+		err = r.SetupWithManager(mgr)
+		if err != nil {
+			return trace.Wrap(err, "failed to setup controller for: %s", reconciler.cr)
+		}
+	}
+
+	return nil
 }

@@ -36,7 +36,7 @@ type Command struct {
 
 // NewCommand creates a new [Command] instance.
 func NewCommand(app *kingpin.Application) *Command {
-	wid := app.Command("webauthnwin", "Manage Windows WebAuthn.").Hidden()
+	wid := app.Command("webauthnwin", "Manage Windows WebAuthn").Hidden()
 	cmd := &Command{
 		Diag: newDiagCommand(wid),
 	}
@@ -58,7 +58,7 @@ type DiagCommand struct {
 
 func newDiagCommand(app *kingpin.CmdClause) *DiagCommand {
 	return &DiagCommand{
-		CmdClause: app.Command("diag", "Run windows webauthn diagnostics.").Hidden(),
+		CmdClause: app.Command("diag", "Run windows webauthn diagnostics").Hidden(),
 	}
 }
 

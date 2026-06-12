@@ -152,7 +152,13 @@ export function Notifications({ iconSize = 24 }: { iconSize?: number }) {
       data-testid="tb-notifications"
       className={IGNORE_CLICK_CLASSNAME}
     >
-      <HoverTooltip placement="bottom" tipContent="Notifications">
+      <HoverTooltip
+        placement="bottom"
+        tipContent="Notifications"
+        css={`
+          height: 100%;
+        `}
+      >
         <ButtonIconContainer
           onClick={onIconClick}
           onKeyUp={e => (e.key === 'Enter' || e.key === ' ') && onIconClick()}

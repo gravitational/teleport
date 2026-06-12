@@ -18,9 +18,9 @@
 
 import { act, renderHook } from '@testing-library/react';
 
-// eslint-disable-next-line no-restricted-imports -- FIXME
+// oxlint-disable-next-line no-restricted-imports
 import { ApiError } from 'teleport/services/api/parseError';
-// eslint-disable-next-line no-restricted-imports -- FIXME
+// oxlint-disable-next-line no-restricted-imports
 import { Node } from 'teleport/services/nodes';
 
 import { newFetchFunc, resourceClusterIds, resourceNames } from './testUtils';

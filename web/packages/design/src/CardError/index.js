@@ -23,16 +23,7 @@ import CardError, {
   LogoutFailed,
   NotFound,
   Offline,
-  BadRequest,
 } from './CardError';
 
 export default CardError;
-export {
-  Failed,
-  LoginFailed,
-  AccessDenied,
-  NotFound,
-  Offline,
-  LogoutFailed,
-  BadRequest,
-};
+export { Failed, LoginFailed, AccessDenied, NotFound, Offline, LogoutFailed };

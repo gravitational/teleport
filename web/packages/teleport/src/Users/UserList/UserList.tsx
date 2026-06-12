@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useTheme } from 'styled-components';
-
 import Table, { Cell, LabelCell } from 'design/DataTable';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 import { SearchPanel } from 'shared/components/Search';
@@ -29,14 +27,11 @@ export default function UserList({
   onEdit,
   onDelete,
   onReset,
-  onUserClick,
   onSearchChange,
   search,
   serversidePagination,
   usersAcl,
-  selectedUser,
 }: Props) {
-  const theme = useTheme();
   const canEdit = usersAcl.edit;
   const canDelete = usersAcl.remove;
 
@@ -60,18 +55,6 @@ export default function UserList({
             disableSearch={serversidePagination.fetchStatus === 'loading'}
           />
         ),
-      }}
-      row={{
-        onClick: onUserClick,
-        getStyle: (user: User) => {
-          if (selectedUser?.name === user.name) {
-            return {
-              backgroundColor: theme.colors.interactive.tonal.primary[0],
-            };
-          }
-          return { cursor: 'pointer' };
-        },
-        getKey: user => user.name,
       }}
       columns={[
         {
@@ -179,10 +162,8 @@ type Props = {
   onEdit(user: User): void;
   onDelete(user: User): void;
   onReset(user: User): void;
-  onUserClick(user: User): void;
   onSearchChange(search: string): void;
   search: string;
   serversidePagination: SeversidePagination<User>;
   usersAcl: Access;
-  selectedUser?: User | null;
 };

@@ -20,7 +20,6 @@ import { Meta } from '@storybook/react-vite';
 
 import { Box, Flex, Text } from 'design';
 import { HoverTooltip } from 'design/Tooltip';
-import { AppSubKind } from 'shared/services';
 
 import {
   makeApp,
@@ -126,40 +125,14 @@ function Buttons(props: StoryProps) {
           <Text>SAML app</Text>
           <SamlApp />
         </Box>
-        <HoverTooltip tipContent="Connect doesn't support MCP apps properly yet but it renders a div with consintent width.">
-          <Box>
-            <Text>MCP (Stdio)</Text>
-            <Mcp scheme={'mcp+stdio'} />
-          </Box>
-        </HoverTooltip>
-        <Box>
-          <Text>MCP (Streamable HTTP)</Text>
-          <Mcp scheme={'mcp+http'} />
-        </Box>
       </Flex>
       <Box>
         <Text>Server</Text>
         <Server />
       </Box>
       <Box>
-        <Text>Database (no users, disabled)</Text>
-        <DatabaseNoUsers />
-      </Box>
-      <Box>
-        <Text>Database (known users, filter mode)</Text>
-        <DatabaseWithKnownUsers />
-      </Box>
-      <Box>
-        <Text>Database (wildcard, no known users)</Text>
-        <DatabaseWithWildcardNoUsers />
-      </Box>
-      <Box>
-        <Text>Database (wildcard + known users, input mode)</Text>
-        <DatabaseWithWildcardUsers />
-      </Box>
-      <Box>
-        <Text>Database (auto-user provisioning)</Text>
-        <DatabaseAutoUserProvisioning />
+        <Text>Database</Text>
+        <Database />
       </Box>
       <Box>
         <Text>Kube</Text>
@@ -196,6 +169,7 @@ function prepareAppContext(appContext: MockAppContext): void {
   appContext.clustersService.setState(d => {
     d.clusters.set(testCluster.uri, testCluster);
   });
+  appContext.resourcesService.getDbUsers = async () => ['postgres-user'];
 }
 
 function TcpApp() {
@@ -253,14 +227,12 @@ function AwsConsole() {
             display: 'foo',
             name: 'foo',
             accountId: '123456789012',
-            requiresRequest: false,
           },
           {
             arn: 'bar',
             display: 'bar',
             name: 'bar',
             accountId: '123456789012',
-            requiresRequest: false,
           },
         ],
         uri: `${testCluster.uri}/apps/bar`,
@@ -274,7 +246,7 @@ function AwsIc() {
     <ConnectAppActionButton
       app={makeApp({
         name: 'bar',
-        subKind: AppSubKind.AwsIcAccount,
+        subKind: 'aws_ic_account',
         permissionSets: [
           { arn: '1234', assignmentId: '5432', name: 'Foo' },
           { arn: '9123847', assignmentId: '987324', name: 'Quux' },
@@ -312,17 +284,6 @@ function SamlApp() {
   );
 }
 
-function Mcp(props: { scheme: string }) {
-  return (
-    <ConnectAppActionButton
-      app={makeApp({
-        endpointUri: `${props.scheme}://localhost:3000`,
-        uri: `${testCluster.uri}/apps/bar`,
-      })}
-    />
-  );
-}
-
 function Server() {
   return (
     <ConnectServerActionButton
@@ -333,59 +294,11 @@ function Server() {
   );
 }
 
-function DatabaseNoUsers() {
+function Database() {
   return (
     <ConnectDatabaseActionButton
       database={makeDatabase({
         uri: `${testCluster.uri}/dbs/bar`,
-        wildcardUserAllowed: false,
-      })}
-    />
-  );
-}
-
-function DatabaseWithKnownUsers() {
-  return (
-    <ConnectDatabaseActionButton
-      database={makeDatabase({
-        uri: `${testCluster.uri}/dbs/bar`,
-        databaseUsers: ['alice', 'bob', 'charlie'],
-        wildcardUserAllowed: false,
-      })}
-    />
-  );
-}
-
-function DatabaseWithWildcardNoUsers() {
-  return (
-    <ConnectDatabaseActionButton
-      database={makeDatabase({
-        uri: `${testCluster.uri}/dbs/bar`,
-        wildcardUserAllowed: true,
-      })}
-    />
-  );
-}
-
-function DatabaseWithWildcardUsers() {
-  return (
-    <ConnectDatabaseActionButton
-      database={makeDatabase({
-        uri: `${testCluster.uri}/dbs/bar`,
-        databaseUsers: ['alice', 'bob'],
-        wildcardUserAllowed: true,
-      })}
-    />
-  );
-}
-
-function DatabaseAutoUserProvisioning() {
-  return (
-    <ConnectDatabaseActionButton
-      database={makeDatabase({
-        uri: `${testCluster.uri}/dbs/bar`,
-        autoUserProvisioning: { databaseRoles: ['reader', 'writer'] },
-        wildcardUserAllowed: false,
       })}
     />
   );

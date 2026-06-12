@@ -39,13 +39,8 @@ import (
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 )
-
-func TestMain(m *testing.M) {
-	logtest.InitLogger(testing.Verbose)
-	os.Exit(m.Run())
-}
 
 type fakeHeartbeatSubmitter struct {
 	ch chan *machineidv1pb.SubmitHeartbeatRequest
@@ -62,7 +57,7 @@ func TestHeartbeatService(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
-		log := logtest.NewLogger()
+		log := utils.NewSlogLoggerForTests()
 		ctx, cancel := context.WithCancel(t.Context())
 		t.Cleanup(cancel)
 

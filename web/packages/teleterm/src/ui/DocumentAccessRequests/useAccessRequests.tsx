@@ -41,6 +41,7 @@ export default function useAccessRequests(doc: types.DocumentAccessRequests) {
   const { rootClusterUri, documentsService } = useWorkspaceContext();
   const { fetchRequestsAttempt, fetchRequests } = useAccessRequestsContext();
 
+  const assumed = ctx.clustersService.getAssumedRequests(rootClusterUri);
   const loggedInUser = useWorkspaceLoggedInUser();
 
   function goBack() {
@@ -78,7 +79,7 @@ export default function useAccessRequests(doc: types.DocumentAccessRequests) {
     doc,
     getRequests: fetchRequests,
     getFlags: (accessRequest: AccessRequest) =>
-      makeFlags(accessRequest, loggedInUser),
+      makeFlags(accessRequest, assumed, loggedInUser),
     goBack,
   };
 }
@@ -113,11 +114,12 @@ export function makeUiAccessRequest(request: TshdAccessRequest) {
 // TODO(gzdunek): Replace with a function from `DocumentAccessRequests/useReviewAccessRequest`.
 export function makeFlags(
   request: AccessRequest,
+  assumed: Record<string, TshdAccessRequest>,
   loggedInUser: LoggedInUser
 ): RequestFlags {
   const ownRequest = request.user === loggedInUser?.name;
   const canAssume = ownRequest && request.state === 'APPROVED';
-  const isAssumed = loggedInUser?.activeRequests.includes(request.id);
+  const isAssumed = !!assumed[request.id];
 
   const isPromoted =
     request.state === 'PROMOTED' && !!request.promotedAccessListTitle;

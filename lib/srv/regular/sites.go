@@ -53,20 +53,20 @@ func (t *proxySitesSubsys) Wait() error {
 // Start serves a request for "proxysites" custom SSH subsystem. It builds an array of
 // service.Site structures, and writes it serialized as JSON back to the SSH client
 func (t *proxySitesSubsys) Start(ctx context.Context, sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Request, serverContext *srv.ServerContext) error {
-	t.srv.logger.DebugContext(ctx, "starting proxysites subsystem", "server_context", serverContext)
-	checker, err := t.srv.clusterGetterWithAccessChecker(serverContext)
+	log.Debugf("proxysites.start(%v)", serverContext)
+	checker, err := t.srv.tunnelWithAccessChecker(serverContext)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	clusters, err := checker.Clusters(ctx)
+	remoteSites, err := checker.GetSites()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// build an arary of services.Site structures:
-	retval := make([]types.Site, 0, len(clusters))
-	for _, s := range clusters {
+	retval := make([]types.Site, 0, len(remoteSites))
+	for _, s := range remoteSites {
 		retval = append(retval, types.Site{
 			Name:          s.GetName(),
 			Status:        s.GetStatus(),

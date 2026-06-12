@@ -31,7 +31,6 @@ import { UnknownFieldHandler } from "@protobuf-ts/runtime";
 import type { PartialMessage } from "@protobuf-ts/runtime";
 import { reflectionMergePartial } from "@protobuf-ts/runtime";
 import { MessageType } from "@protobuf-ts/runtime";
-import { BrowserMFAChallenge } from "../../../mfa/v1/challenge_pb";
 import { PortRange } from "./app_pb";
 import { RouteToApp } from "./app_pb";
 /**
@@ -282,21 +281,6 @@ export interface PromptMFARequest {
      * @generated from protobuf field: teleport.lib.teleterm.v1.SSOChallenge sso = 6;
      */
     sso?: SSOChallenge;
-    /**
-     * We may handle MFA options differently based on whether or not per-session
-     * MFA is required. For example, we invalidate TOTP as an option during
-     * per-session MFA but we may still need to know that the user has TOTP
-     * configured as an option.
-     *
-     * @generated from protobuf field: bool per_session_mfa = 7;
-     */
-    perSessionMfa: boolean;
-    /**
-     * BrowserMFAChallenge is sent when browser-based MFA is supported.
-     *
-     * @generated from protobuf field: teleport.mfa.v1.BrowserMFAChallenge browser = 8;
-     */
-    browser?: BrowserMFAChallenge;
 }
 /**
  * SSOChallenge contains SSO challenge details.
@@ -1133,9 +1117,7 @@ class PromptMFARequest$Type extends MessageType<PromptMFARequest> {
             { no: 3, name: "totp", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 4, name: "webauthn", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 5, name: "cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 6, name: "sso", kind: "message", T: () => SSOChallenge },
-            { no: 7, name: "per_session_mfa", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
-            { no: 8, name: "browser", kind: "message", T: () => BrowserMFAChallenge }
+            { no: 6, name: "sso", kind: "message", T: () => SSOChallenge }
         ]);
     }
     create(value?: PartialMessage<PromptMFARequest>): PromptMFARequest {
@@ -1144,7 +1126,6 @@ class PromptMFARequest$Type extends MessageType<PromptMFARequest> {
         message.totp = false;
         message.webauthn = false;
         message.clusterUri = "";
-        message.perSessionMfa = false;
         if (value !== undefined)
             reflectionMergePartial<PromptMFARequest>(this, message, value);
         return message;
@@ -1168,12 +1149,6 @@ class PromptMFARequest$Type extends MessageType<PromptMFARequest> {
                     break;
                 case /* teleport.lib.teleterm.v1.SSOChallenge sso */ 6:
                     message.sso = SSOChallenge.internalBinaryRead(reader, reader.uint32(), options, message.sso);
-                    break;
-                case /* bool per_session_mfa */ 7:
-                    message.perSessionMfa = reader.bool();
-                    break;
-                case /* teleport.mfa.v1.BrowserMFAChallenge browser */ 8:
-                    message.browser = BrowserMFAChallenge.internalBinaryRead(reader, reader.uint32(), options, message.browser);
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1202,12 +1177,6 @@ class PromptMFARequest$Type extends MessageType<PromptMFARequest> {
         /* teleport.lib.teleterm.v1.SSOChallenge sso = 6; */
         if (message.sso)
             SSOChallenge.internalBinaryWrite(message.sso, writer.tag(6, WireType.LengthDelimited).fork(), options).join();
-        /* bool per_session_mfa = 7; */
-        if (message.perSessionMfa !== false)
-            writer.tag(7, WireType.Varint).bool(message.perSessionMfa);
-        /* teleport.mfa.v1.BrowserMFAChallenge browser = 8; */
-        if (message.browser)
-            BrowserMFAChallenge.internalBinaryWrite(message.browser, writer.tag(8, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

@@ -34,19 +34,13 @@ import {
 } from './Resources';
 import {
   AppAccess,
-  AppAccessInputFields,
   DatabaseAccess,
-  DatabaseAccessInputFields,
   defaultRoleVersion,
   GitHubOrganizationAccess,
-  GitHubOrganizationAccessInputFields,
   KubernetesAccess,
-  KubernetesAccessInputFields,
   newResourceAccess,
   ServerAccess,
-  ServerAccessInputFields,
   WindowsDesktopAccess,
-  WindowsDesktopAccessInputFields,
 } from './standardmodel';
 import { StatefulSection } from './StatefulSection';
 import {
@@ -55,15 +49,11 @@ import {
 } from './validation';
 
 describe('ServerAccessSection', () => {
-  const setup = (visibleInputFields?: ServerAccessInputFields) => {
+  const setup = () => {
     const onChange = jest.fn();
     let validator: Validator;
     render(
-      <StatefulSection<
-        ServerAccess,
-        ResourceAccessValidationResult,
-        ServerAccessInputFields
-      >
+      <StatefulSection<ServerAccess, ResourceAccessValidationResult>
         component={ServerAccessSection}
         defaultValue={newResourceAccess('node', defaultRoleVersion)}
         onChange={onChange}
@@ -71,7 +61,6 @@ describe('ServerAccessSection', () => {
           validator = v;
         }}
         validate={validateResourceAccess}
-        visibleInputFields={visibleInputFields}
       />
     );
     return { user: userEvent.setup(), onChange, validator };
@@ -117,37 +106,14 @@ describe('ServerAccessSection', () => {
       screen.getByText('Wildcard is not allowed in logins')
     ).toBeInTheDocument();
   });
-
-  test('hide all input fields', async () => {
-    setup({ labels: false, logins: false });
-    expect(screen.queryByPlaceholderText('label key')).not.toBeInTheDocument();
-    expect(
-      screen.queryByPlaceholderText('label value')
-    ).not.toBeInTheDocument();
-    expect(screen.queryByLabelText(/logins/i)).not.toBeInTheDocument();
-  });
-
-  test('hide one input field', async () => {
-    setup({ labels: true, logins: false });
-    expect(screen.getByPlaceholderText('label key')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('label value')).toBeInTheDocument();
-    expect(screen.queryByLabelText(/logins/i)).not.toBeInTheDocument();
-  });
 });
 
 describe('KubernetesAccessSection', () => {
-  const setup = (
-    roleVersion: RoleVersion = defaultRoleVersion,
-    visibleInputFields?: KubernetesAccessInputFields
-  ) => {
+  const setup = (roleVersion: RoleVersion = defaultRoleVersion) => {
     const onChange = jest.fn();
     let validator: Validator;
     render(
-      <StatefulSection<
-        KubernetesAccess,
-        ResourceAccessValidationResult,
-        KubernetesAccessInputFields
-      >
+      <StatefulSection<KubernetesAccess, ResourceAccessValidationResult>
         component={KubernetesAccessSection}
         defaultValue={{
           ...newResourceAccess('kube_cluster', defaultRoleVersion),
@@ -158,7 +124,6 @@ describe('KubernetesAccessSection', () => {
           validator = v;
         }}
         validate={validateResourceAccess}
-        visibleInputFields={visibleInputFields}
       />
     );
     return { user: userEvent.setup(), onChange, validator };
@@ -188,14 +153,11 @@ describe('KubernetesAccessSection', () => {
       screen.getByRole('button', { name: 'Add a Kubernetes Resource' })
     );
     expect(
-      reactSelectValueContainer(screen.getByLabelText('Kind (plural)'))
+      reactSelectValueContainer(screen.getByLabelText('Kind'))
     ).toHaveTextContent('Any kind');
-    expect(screen.getByLabelText('API Group *')).toHaveValue('*');
     expect(screen.getByLabelText('Name *')).toHaveValue('*');
     expect(screen.getByLabelText('Namespace *')).toHaveValue('*');
-    await selectEvent.select(screen.getByLabelText('Kind (plural)'), 'jobs');
-    await user.clear(screen.getByLabelText('API Group *'));
-    await user.type(screen.getByLabelText('API Group *'), 'api-group-name');
+    await selectEvent.select(screen.getByLabelText('Kind'), 'Job');
     await user.clear(screen.getByLabelText('Name *'));
     await user.type(screen.getByLabelText('Name *'), 'job-name');
     await user.clear(screen.getByLabelText('Namespace *'));
@@ -216,22 +178,21 @@ describe('KubernetesAccessSection', () => {
       resources: [
         {
           id: expect.any(String),
-          kind: expect.objectContaining({ value: 'jobs' }),
+          kind: expect.objectContaining({ value: 'job' }),
           name: 'job-name',
           namespace: 'job-namespace',
           verbs: [
             expect.objectContaining({ value: 'create' }),
             expect.objectContaining({ value: 'delete' }),
           ],
-          apiGroup: 'api-group-name',
-          roleVersion: 'v8',
+          roleVersion: 'v7',
         },
       ],
       users: [
         expect.objectContaining({ value: 'joe' }),
         expect.objectContaining({ value: 'mary' }),
       ],
-      roleVersion: 'v8',
+      roleVersion: 'v7',
       hideValidationErrors: true,
     } as KubernetesAccess);
   });
@@ -297,10 +258,7 @@ describe('KubernetesAccessSection', () => {
     await user.click(
       screen.getByRole('button', { name: 'Add a Kubernetes Resource' })
     );
-
-    screen.getByLabelText('Kind').setAttribute('value', 'Service');
-
-    screen.getByLabelText('Kind');
+    await selectEvent.select(screen.getByLabelText('Kind'), 'Service');
     await user.clear(screen.getByLabelText('Name *'));
     await user.clear(screen.getByLabelText('Namespace *'));
     await selectEvent.select(screen.getByLabelText('Verbs'), [
@@ -324,55 +282,14 @@ describe('KubernetesAccessSection', () => {
       screen.getByText('Mixing "All verbs" with other options is not allowed')
     ).toBeVisible();
   });
-
-  test('hide all input fields', async () => {
-    setup(defaultRoleVersion, {
-      labels: false,
-      resources: false,
-      users: false,
-      groups: false,
-    });
-    expect(screen.queryByPlaceholderText('label key')).not.toBeInTheDocument();
-    expect(
-      screen.queryByPlaceholderText('label value')
-    ).not.toBeInTheDocument();
-    expect(screen.queryByLabelText(/groups/i)).not.toBeInTheDocument();
-    expect(screen.queryByLabelText(/users/i)).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole('button', { name: 'Add a Kubernetes Resource' })
-    ).not.toBeInTheDocument();
-  });
-
-  test('hide a few input fields', async () => {
-    setup(defaultRoleVersion, {
-      labels: true,
-      resources: true,
-      users: false,
-      groups: false,
-    });
-    expect(screen.getByPlaceholderText('label key')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('label value')).toBeInTheDocument();
-    expect(screen.queryByLabelText(/groups/i)).not.toBeInTheDocument();
-    expect(screen.queryByLabelText(/users/i)).not.toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: 'Add a Kubernetes Resource' })
-    ).toBeInTheDocument();
-  });
 });
 
 describe('AppAccessSection', () => {
-  const setup = (
-    model: Partial<AppAccess> = {},
-    visibleInputFields?: AppAccessInputFields
-  ) => {
+  const setup = (model: Partial<AppAccess> = {}) => {
     const onChange = jest.fn();
     let validator: Validator;
     render(
-      <StatefulSection<
-        AppAccess,
-        ResourceAccessValidationResult,
-        AppAccessInputFields
-      >
+      <StatefulSection<AppAccess, ResourceAccessValidationResult>
         component={AppAccessSection}
         defaultValue={{
           ...newResourceAccess('app', defaultRoleVersion),
@@ -383,26 +300,23 @@ describe('AppAccessSection', () => {
           validator = v;
         }}
         validate={validateResourceAccess}
-        visibleInputFields={visibleInputFields}
       />
     );
     return { user: userEvent.setup(), onChange, validator };
   };
 
   const awsRoleArns = () =>
-    screen.getByRole('group', { name: /^AWS Role ARNs/ });
+    screen.getByRole('group', { name: 'AWS Role ARNs' });
   const awsRoleArnTextBoxes = () =>
     within(awsRoleArns()).getAllByRole('textbox');
   const azureIdentities = () =>
-    screen.getByRole('group', { name: /^Azure Identities/ });
+    screen.getByRole('group', { name: 'Azure Identities' });
   const azureIdentityTextBoxes = () =>
     within(azureIdentities()).getAllByRole('textbox');
   const gcpServiceAccounts = () =>
-    screen.getByRole('group', { name: /^GCP Service Accounts/ });
+    screen.getByRole('group', { name: 'GCP Service Accounts' });
   const gcpServiceAccountTextBoxes = () =>
     within(gcpServiceAccounts()).getAllByRole('textbox');
-  const mcpTools = () => screen.getByRole('group', { name: /^MCP Tools/ });
-  const mcpToolsTextBoxes = () => within(mcpTools()).getAllByRole('textbox');
 
   test('editing', async () => {
     const { user, onChange } = setup();
@@ -429,11 +343,6 @@ describe('AppAccessSection', () => {
     );
     await user.click(gcpServiceAccountTextBoxes()[1]);
     await user.paste('admin@some-project.iam.gserviceaccount.com');
-    await user.click(
-      within(mcpTools()).getByRole('button', { name: 'Add More' })
-    );
-    await user.click(mcpToolsTextBoxes()[1]);
-    await user.paste('allow_tools_with_prefix_*');
 
     expect(onChange).toHaveBeenLastCalledWith({
       kind: 'app',
@@ -450,7 +359,6 @@ describe('AppAccessSection', () => {
         '{{internal.gcp_service_accounts}}',
         'admin@some-project.iam.gserviceaccount.com',
       ],
-      mcpTools: ['{{internal.mcp_tools}}', 'allow_tools_with_prefix_*'],
       hideValidationErrors: true,
     } as AppAccess);
   });
@@ -484,61 +392,14 @@ describe('AppAccessSection', () => {
       'Wildcard is not allowed in GCP service accounts'
     );
   });
-
-  test('hide all input fields', async () => {
-    setup(
-      {},
-      {
-        labels: false,
-        awsRoleARNs: false,
-        azureIdentities: false,
-        gcpServiceAccounts: false,
-        mcpTools: false,
-      }
-    );
-    expect(screen.queryByPlaceholderText('label key')).not.toBeInTheDocument();
-    expect(screen.queryByText(/aws role arns/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/azure identities/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/gcp service accounts/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/mcp tools/i)).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole('button', { name: 'Add More' })
-    ).not.toBeInTheDocument();
-  });
-
-  test('hide a few input fields', async () => {
-    setup(
-      {},
-      {
-        labels: true,
-        awsRoleARNs: false,
-        azureIdentities: false,
-        gcpServiceAccounts: true,
-        mcpTools: true,
-      }
-    );
-    expect(screen.getByPlaceholderText('label key')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('label value')).toBeInTheDocument();
-    expect(screen.queryByText(/aws role arns/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/azure identities/i)).not.toBeInTheDocument();
-    expect(screen.getByText(/gcp service accounts/i)).toBeInTheDocument();
-    expect(screen.getByText(/mcp tools/i)).toBeInTheDocument();
-    expect(screen.queryAllByRole('button', { name: 'Add More' })).toHaveLength(
-      2
-    );
-  });
 });
 
 describe('DatabaseAccessSection', () => {
-  const setup = (visibleInputFields?: DatabaseAccessInputFields) => {
+  const setup = () => {
     const onChange = jest.fn();
     let validator: Validator;
     render(
-      <StatefulSection<
-        DatabaseAccess,
-        ResourceAccessValidationResult,
-        DatabaseAccessInputFields
-      >
+      <StatefulSection<DatabaseAccess, ResourceAccessValidationResult>
         component={DatabaseAccessSection}
         defaultValue={newResourceAccess('db', defaultRoleVersion)}
         onChange={onChange}
@@ -546,7 +407,6 @@ describe('DatabaseAccessSection', () => {
           validator = v;
         }}
         validate={validateResourceAccess}
-        visibleInputFields={visibleInputFields}
       />
     );
     return { user: userEvent.setup(), onChange, validator };
@@ -570,7 +430,7 @@ describe('DatabaseAccessSection', () => {
     });
 
     const dbServiceLabels = within(
-      screen.getByRole('group', { name: /^Database Service Labels/ })
+      screen.getByRole('group', { name: 'Database Service Labels' })
     );
     await user.type(dbServiceLabels.getByPlaceholderText('label key'), 'foo');
     await user.type(dbServiceLabels.getByPlaceholderText('label value'), 'bar');
@@ -600,7 +460,7 @@ describe('DatabaseAccessSection', () => {
     const labels = within(screen.getByRole('group', { name: 'Labels' }));
     await user.type(labels.getByPlaceholderText('label value'), 'some-value');
     const dbServiceLabelsGroup = within(
-      screen.getByRole('group', { name: /^Database Service Labels/ })
+      screen.getByRole('group', { name: 'Database Service Labels' })
     );
     await user.type(
       dbServiceLabelsGroup.getByPlaceholderText('label value'),
@@ -620,53 +480,14 @@ describe('DatabaseAccessSection', () => {
       screen.getByText('Wildcard is not allowed in database roles')
     ).toBeInTheDocument();
   });
-
-  test('hide all input fields', async () => {
-    setup({
-      labels: false,
-      names: false,
-      users: false,
-      roles: false,
-      dbServiceLabels: false,
-    });
-    expect(screen.queryByPlaceholderText('label key')).not.toBeInTheDocument();
-    expect(
-      screen.queryByPlaceholderText('label value')
-    ).not.toBeInTheDocument();
-    expect(screen.queryByLabelText(/Database Names/i)).not.toBeInTheDocument();
-    expect(screen.queryByLabelText(/Database Users/i)).not.toBeInTheDocument();
-    expect(screen.queryByLabelText(/Database Roles/i)).not.toBeInTheDocument();
-  });
-
-  test('hide a few input fields', async () => {
-    setup({
-      labels: true,
-      names: false,
-      users: true,
-      roles: false,
-      dbServiceLabels: false,
-    });
-    expect(screen.getByPlaceholderText('label key')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('label value')).toBeInTheDocument();
-    expect(
-      screen.queryByLabelText(/^Database Service Labels/)
-    ).not.toBeInTheDocument();
-    expect(screen.queryByLabelText(/database names/i)).not.toBeInTheDocument();
-    expect(screen.getByLabelText(/database users/i)).toBeInTheDocument();
-    expect(screen.queryByLabelText(/database roles/i)).not.toBeInTheDocument();
-  });
 });
 
 describe('WindowsDesktopAccessSection', () => {
-  const setup = (visibleInputFields?: WindowsDesktopAccessInputFields) => {
+  const setup = () => {
     const onChange = jest.fn();
     let validator: Validator;
     render(
-      <StatefulSection<
-        WindowsDesktopAccess,
-        ResourceAccessValidationResult,
-        WindowsDesktopAccessInputFields
-      >
+      <StatefulSection<WindowsDesktopAccess, ResourceAccessValidationResult>
         component={WindowsDesktopAccessSection}
         defaultValue={newResourceAccess('windows_desktop', defaultRoleVersion)}
         onChange={onChange}
@@ -674,7 +495,6 @@ describe('WindowsDesktopAccessSection', () => {
           validator = v;
         }}
         validate={validateResourceAccess}
-        visibleInputFields={visibleInputFields}
       />
     );
     return { user: userEvent.setup(), onChange, validator };
@@ -706,34 +526,14 @@ describe('WindowsDesktopAccessSection', () => {
       screen.getByPlaceholderText('label key')
     ).toHaveAccessibleDescription('required');
   });
-
-  test('hide all input fields', async () => {
-    setup({ labels: false, logins: false });
-    expect(screen.queryByPlaceholderText('label key')).not.toBeInTheDocument();
-    expect(
-      screen.queryByPlaceholderText('label value')
-    ).not.toBeInTheDocument();
-    expect(screen.queryByLabelText(/logins/i)).not.toBeInTheDocument();
-  });
-
-  test('hide one input field', async () => {
-    setup({ labels: true, logins: false });
-    expect(screen.getByPlaceholderText('label key')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('label value')).toBeInTheDocument();
-    expect(screen.queryByLabelText(/logins/i)).not.toBeInTheDocument();
-  });
 });
 
 describe('GitHubOrganizationAccessSection', () => {
-  const setup = (visibleInputFields?: GitHubOrganizationAccessInputFields) => {
+  const setup = () => {
     const onChange = jest.fn();
     let validator: Validator;
     render(
-      <StatefulSection<
-        GitHubOrganizationAccess,
-        ResourceAccessValidationResult,
-        GitHubOrganizationAccessInputFields
-      >
+      <StatefulSection<GitHubOrganizationAccess, ResourceAccessValidationResult>
         component={GitHubOrganizationAccessSection}
         defaultValue={newResourceAccess('git_server', defaultRoleVersion)}
         onChange={onChange}
@@ -741,7 +541,6 @@ describe('GitHubOrganizationAccessSection', () => {
           validator = v;
         }}
         validate={validateResourceAccess}
-        visibleInputFields={visibleInputFields}
       />
     );
     return { user: userEvent.setup(), onChange, validator };
@@ -764,13 +563,6 @@ describe('GitHubOrganizationAccessSection', () => {
       ],
       hideValidationErrors: true,
     } as GitHubOrganizationAccess);
-  });
-
-  test('hide all input fields', async () => {
-    setup({ organizations: false });
-    expect(
-      screen.queryByLabelText(/organization names/i)
-    ).not.toBeInTheDocument();
   });
 });
 

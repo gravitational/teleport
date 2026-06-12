@@ -18,12 +18,12 @@ import (
 	"archive/zip"
 	"embed"
 	"fmt"
+	"html/template"
 	"io"
 	"os"
 	"path/filepath"
 	"slices"
 
-	template "github.com/DataDog/datadog-agent/pkg/template/html"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 )
@@ -160,14 +160,14 @@ func copyAssets(zipWriter *zip.Writer) error {
 }
 
 // printStep prints formatted string leaded with step number
-func printStep(step *byte, message string, args ...any) {
-	p := append([]any{*step}, args...)
+func printStep(step *byte, message string, args ...interface{}) {
+	p := append([]interface{}{*step}, args...)
 	fmt.Printf("[%v] "+message+"\n", p...)
 	*step++
 }
 
 // renderTemplateTo renders template from a string and writes file to targetPath
-func renderTemplateTo(w io.Writer, content string, payload any) error {
+func renderTemplateTo(w io.Writer, content string, payload interface{}) error {
 	tpl, err := template.New("template").Parse(content)
 	if err != nil {
 		return trace.Wrap(err)

@@ -62,7 +62,9 @@ func (m *mockedFeatureGetter) setFeatures(f proto.Features) {
 func TestFeaturesWatcher(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := &mockedFeatureGetter{features: &proto.Features{
-			Entitlements: map[string]*proto.EntitlementInfo{},
+			Kubernetes:     true,
+			Entitlements:   map[string]*proto.EntitlementInfo{},
+			AccessRequests: &proto.AccessRequestsFeature{},
 		}}
 
 		ctx, cancel := context.WithCancel(t.Context())
@@ -74,6 +76,7 @@ func TestFeaturesWatcher(t *testing.T) {
 			},
 			clock:           clockwork.NewRealClock(),
 			clusterFeatures: proto.Features{},
+			log:             newPackageLogger(),
 			logger:          slog.Default().With(teleport.ComponentKey, teleport.ComponentWeb),
 		}
 
@@ -89,27 +92,34 @@ func TestFeaturesWatcher(t *testing.T) {
 		synctest.Wait()
 
 		// after starting the watcher, handler.GetClusterFeatures should return
-		// values matching the client's response
+		// values matching the client's response (with BackfillFeatures applied)
 		features := proto.Features{
-			Entitlements: map[string]*proto.EntitlementInfo{},
+			Kubernetes:     true,
+			Entitlements:   map[string]*proto.EntitlementInfo{},
+			AccessRequests: &proto.AccessRequestsFeature{},
 		}
+		entitlements.BackfillFeatures(&features)
 		expected := utils.CloneProtoMsg(&features)
 		require.Equal(t, *expected, handler.GetClusterFeatures())
 
 		// update values once again and check if the features are properly updated
 		features = proto.Features{
-			Entitlements: map[string]*proto.EntitlementInfo{},
+			Kubernetes:     false,
+			Entitlements:   map[string]*proto.EntitlementInfo{},
+			AccessRequests: &proto.AccessRequestsFeature{},
 		}
 		mockClient.setFeatures(features)
 
 		time.Sleep(handler.cfg.FeatureWatchInterval)
 		synctest.Wait()
 
+		entitlements.BackfillFeatures(&features)
 		expected = utils.CloneProtoMsg(&features)
 		require.Equal(t, *expected, handler.GetClusterFeatures())
 
 		// test updating entitlements
 		features = proto.Features{
+			Kubernetes: true,
 			Entitlements: map[string]*proto.EntitlementInfo{
 				string(entitlements.ExternalAuditStorage):   {Enabled: true},
 				string(entitlements.AccessLists):            {Enabled: true},
@@ -117,13 +127,15 @@ func TestFeaturesWatcher(t *testing.T) {
 				string(entitlements.App):                    {Enabled: true},
 				string(entitlements.CloudAuditLogRetention): {Enabled: true},
 			},
+			AccessRequests: &proto.AccessRequestsFeature{},
 		}
 		mockClient.setFeatures(features)
 
 		time.Sleep(handler.cfg.FeatureWatchInterval)
 		synctest.Wait()
 
-		expected = &proto.Features{
+		expectedFeatures := proto.Features{
+			Kubernetes: true,
 			Entitlements: map[string]*proto.EntitlementInfo{
 				string(entitlements.ExternalAuditStorage):   {Enabled: true},
 				string(entitlements.AccessLists):            {Enabled: true},
@@ -131,20 +143,23 @@ func TestFeaturesWatcher(t *testing.T) {
 				string(entitlements.App):                    {Enabled: true},
 				string(entitlements.CloudAuditLogRetention): {Enabled: true},
 			},
+			AccessRequests: &proto.AccessRequestsFeature{},
 		}
-		require.Equal(t, *expected, handler.GetClusterFeatures())
+		entitlements.BackfillFeatures(&expectedFeatures)
+		require.Equal(t, expectedFeatures, handler.GetClusterFeatures())
 
 		// stop watcher and ensure it stops updating features
 		cancel()
 		synctest.Wait()
 
 		features = proto.Features{
-			Entitlements: map[string]*proto.EntitlementInfo{},
+			Entitlements:   map[string]*proto.EntitlementInfo{},
+			AccessRequests: &proto.AccessRequestsFeature{},
 		}
 		mockClient.setFeatures(features)
 		notExpected := utils.CloneProtoMsg(&features)
 
-		// assert the handler never get these last features as the watcher is stopped
+		// assert the handler never gets these last features as the watcher is stopped
 		require.NotEqual(t, *notExpected, handler.GetClusterFeatures())
 	})
 }
@@ -166,6 +181,7 @@ func TestFeaturesWatcherDoesNotPanicOnNilFeatures(t *testing.T) {
 			},
 			clock:           clockwork.NewRealClock(),
 			clusterFeatures: initialFeatures,
+			log:             newPackageLogger(),
 			logger:          slog.Default().With(teleport.ComponentKey, teleport.ComponentWeb),
 		}
 

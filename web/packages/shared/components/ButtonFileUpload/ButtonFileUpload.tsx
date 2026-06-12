@@ -56,7 +56,7 @@ export function ButtonFileUpload({
   buttonSize?: ButtonSize;
   buttonIconSize?: IconSize;
 }) {
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>();
   const [fileInputError, setFileInputError] =
     useState<boolean>(showValidationError);
   if (showValidationError !== fileInputError) {
@@ -88,15 +88,12 @@ export function ButtonFileUpload({
      * on situation where user cancels file picker without
      * selecting a file.
      */
-    const input = fileInputRef.current;
-    const onCancel = () => {
+    fileInputRef.current.addEventListener('cancel', () => {
       if (!fileName) {
         setFileInputError(true);
       }
-    };
-    input.addEventListener('cancel', onCancel);
-    return () => input.removeEventListener('cancel', onCancel);
-  }, [fileName]);
+    });
+  }, [fileName, fileInputRef]);
 
   return (
     <Flex alignItems="center" gap={2}>

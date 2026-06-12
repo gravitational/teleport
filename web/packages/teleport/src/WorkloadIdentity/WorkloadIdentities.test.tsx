@@ -17,17 +17,16 @@
  */
 
 import { QueryClientProvider } from '@tanstack/react-query';
+import { setupServer } from 'msw/node';
 import { PropsWithChildren } from 'react';
 import { MemoryRouter } from 'react-router';
 
 import { darkTheme } from 'design/theme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
-  enableMswServer,
   fireEvent,
   render,
   screen,
-  server,
   testQueryClient,
   userEvent,
   waitFor,
@@ -57,12 +56,20 @@ jest.mock('teleport/services/workloadIdentity/workloadIdentity', () => {
   };
 });
 
-enableMswServer();
+const server = setupServer();
+
+beforeAll(() => {
+  server.listen();
+});
 
 afterEach(async () => {
+  server.resetHandlers();
   await testQueryClient.resetQueries();
+
   jest.clearAllMocks();
 });
+
+afterAll(() => server.close());
 
 describe('WorkloadIdentities', () => {
   it('Shows an empty state', async () => {

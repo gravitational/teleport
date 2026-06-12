@@ -61,9 +61,6 @@ export function createTshdEventsContextBridgeService(
           onSsoContinue: (redirectUrl: string) => {
             window.open(redirectUrl);
           },
-          onBrowserMfaContinue: (redirectUrl: string) => {
-            window.open(redirectUrl);
-          },
           onCancel: () =>
             resolve({
               hasCanceledModal: true,

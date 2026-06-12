@@ -16,14 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { setupServer } from 'msw/node';
 import { MemoryRouter } from 'react-router';
 
 import {
-  enableMswServer,
   fireEvent,
   render,
   screen,
-  server,
   testQueryClient,
   userEvent,
   waitFor,
@@ -31,16 +30,12 @@ import {
 import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import { ContextProvider } from 'teleport';
-import { InfoGuideSidePanel } from 'teleport/components/SlidingSidePanel/InfoGuideSidePanel';
-import * as Main from 'teleport/Main/Main';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { Access } from 'teleport/services/user';
 import { successGetUsersV2 } from 'teleport/test/helpers/users';
 
 import { Users } from './Users';
 import { State } from './useUsers';
-
-enableMswServer();
 
 const defaultAcl: Access = {
   read: true,
@@ -50,17 +45,21 @@ const defaultAcl: Access = {
   create: true,
 };
 
+const server = setupServer();
+
+beforeEach(() => server.listen());
 afterEach(() => {
+  server.resetHandlers();
+
   return testQueryClient.resetQueries();
 });
+afterAll(() => server.close());
 
 describe('invite collaborators integration', () => {
   const ctx = createTeleportContext();
 
   let props: State;
   beforeEach(() => {
-    jest.spyOn(Main, 'useNoMinWidth').mockReturnValue();
-
     props = {
       operation: { type: 'invite-collaborators' },
       fetch: ctx.userService.fetchUsersV2,
@@ -76,7 +75,6 @@ describe('invite collaborators integration', () => {
       inviteCollaboratorsOpen: false,
       onEmailPasswordResetClose: () => undefined,
       EmailPasswordReset: null,
-      UserDetails: null,
       showMauInfo: false,
       onDismissUsersMauNotice: () => null,
       usersAcl: defaultAcl,
@@ -135,19 +133,10 @@ describe('invite collaborators integration', () => {
     await user.click(enrollButton);
     expect(startMock.mock.calls).toHaveLength(1);
 
-    // Ensure the passed in component for InviteCollaborators renders.
-    render(
-      <MemoryRouter>
-        <InfoGuidePanelProvider>
-          <ContextProvider ctx={ctx}>
-            <Users {...props} inviteCollaboratorsOpen={true} />
-          </ContextProvider>
-        </InfoGuidePanelProvider>
-      </MemoryRouter>
-    );
-    expect(
-      await screen.findByTestId('invite-collaborators')
-    ).toBeInTheDocument();
+    // This will display regardless since the dialog display is managed by the
+    // dialog itself, and our mock above is trivial, but we can make sure it
+    // renders.
+    expect(screen.getByTestId('invite-collaborators')).toBeInTheDocument();
   });
 });
 
@@ -172,7 +161,6 @@ test('Users not equal to MAU Notice', async () => {
     inviteCollaboratorsOpen: false,
     onEmailPasswordResetClose: () => undefined,
     EmailPasswordReset: null,
-    UserDetails: null,
     showMauInfo: true,
     onDismissUsersMauNotice: jest.fn(),
     usersAcl: defaultAcl,
@@ -226,7 +214,6 @@ describe('email password reset integration', () => {
       inviteCollaboratorsOpen: false,
       onEmailPasswordResetClose: () => undefined,
       EmailPasswordReset: null,
-      UserDetails: null,
       showMauInfo: false,
       onDismissUsersMauNotice: () => null,
       usersAcl: defaultAcl,
@@ -282,7 +269,6 @@ describe('permission handling', () => {
       inviteCollaboratorsOpen: false,
       onEmailPasswordResetClose: () => undefined,
       EmailPasswordReset: null,
-      UserDetails: null,
       showMauInfo: false,
       onDismissUsersMauNotice: () => null,
       usersAcl: defaultAcl,
@@ -332,6 +318,9 @@ describe('permission handling', () => {
 
     await screen.findByPlaceholderText('Search...');
 
+    await waitFor(() => {
+      expect(screen.getByText('tester')).toBeInTheDocument();
+    });
     const optionsButton = await screen.findByRole('button', {
       name: /options/i,
     });
@@ -413,47 +402,5 @@ describe('permission handling', () => {
     expect(
       menuItems.every(item => item.textContent.includes('Delete'))
     ).not.toBe(true);
-  });
-
-  test('users detail panel opens when clicking on a row', async () => {
-    const testProps = {
-      ...props,
-      usersAcl: {
-        read: true,
-        list: true,
-        edit: true,
-        create: true,
-        remove: false,
-      },
-      UserDetails: ({ user }) => (
-        <div data-testid="user-details-panel">
-          <div>Test Details: {user.name}</div>
-        </div>
-      ),
-    };
-
-    render(
-      <MemoryRouter>
-        <InfoGuidePanelProvider>
-          <ContextProvider ctx={ctx}>
-            <Users {...testProps} />
-            <InfoGuideSidePanel />
-          </ContextProvider>
-        </InfoGuidePanelProvider>
-      </MemoryRouter>
-    );
-
-    await screen.findByPlaceholderText('Search...');
-    const userRow = await screen.findByText('tester');
-    expect(userRow).toBeInTheDocument();
-    expect(screen.queryByTestId('user-details-panel')).not.toBeInTheDocument();
-
-    const user = userEvent.setup();
-    await user.click(userRow);
-
-    await waitFor(() => {
-      expect(screen.getByTestId('user-details-panel')).toBeInTheDocument();
-    });
-    expect(screen.getByText('Test Details: tester')).toBeInTheDocument();
   });
 });

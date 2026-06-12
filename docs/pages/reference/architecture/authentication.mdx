@@ -1,6 +1,5 @@
 ---
 title: Teleport Authentication
-sidebar_label: Authentication
 description: This chapter explains how Teleport uses certificate authorities to authenticate users and services.
 tags:
  - conceptual
@@ -9,8 +8,7 @@ tags:
 
 Teleport handles both authentication and authorization.
 
-- Authentication is about proving an identity of an AI agent, human user, or
-  service.
+- Authentication is about proving an identity of a user or a service.
 - Authorization is proving access rights to something.
 
 This guide explains how Teleport handles authentication with short-lived
@@ -120,7 +118,7 @@ To renew these certificates, admins should use certificate authority rotation.
 This is the process of invalidating all previously-issued certificates for nodes
 or users regardless of expiry, and issuing new ones using a new certificate authority.
 
-Take a look at the [Certificate Rotation Guide](../../zero-trust-access/management/security/ca-rotation.mdx) to
+Take a look at the [Certificate Rotation Guide](../../zero-trust-access/management/operations/ca-rotation.mdx) to
 learn how to do certificate rotation in practice.
 
 <Admonition type="tip">

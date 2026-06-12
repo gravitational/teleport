@@ -142,7 +142,6 @@ export type ThemeColors = {
   tooltip: {
     background: string;
     inverseBackground: string;
-    inverseLinkDefault: string;
   };
 
   progressBarColor: string;
@@ -223,68 +222,63 @@ export type ThemeColors = {
     caribbean: string;
   };
 
-  sessionRecording: {
-    resource: string;
-    user: string;
-    player: {
-      progressBar: {
-        background: string;
-        seeking: string;
-        progress: string;
-      };
-    };
-    riskLevels: {
-      low: string;
-      medium: string;
-      high: string;
-      critical: string;
-    };
-  };
-
-  sessionRecordingTimeline: {
-    background: string;
-    headerBackground: string;
-    frameBorder: string;
-    progressLine: string;
-    cursor: string;
-    border: {
-      default: string;
-      hover: string;
-    };
-    events: {
-      inactivity: {
-        background: string;
-        text: string;
-      };
-      resize: {
-        semiBackground: string;
-        background: string;
-        border: string;
-        text: string;
-      };
-      join: {
-        background: string;
-        text: string;
-      };
-      default: {
-        background: string;
-        text: string;
-      };
-    };
-    timeMarks: {
-      primary: string;
-      secondary: string;
-      absolute: string;
-      text: string;
-    };
-  };
-
   link: string;
 
   highlightedNavigationItem: string;
 
   dataVisualisation: DataVisualisationColors;
+  accessGraph: AccessGraphColors;
 } & SharedColors;
+
+interface AccessGraphColors {
+  dotsColor: string;
+  nodes: {
+    user: AccessGraphNodeColors;
+    userGroup: AccessGraphNodeColors;
+    resource: AccessGraphNodeColors;
+    resourceGroup: AccessGraphNodeColors;
+    allowedAction: AccessGraphNodeColors;
+    disallowedAction: AccessGraphNodeColors;
+    allowedRequest: AccessGraphNodeColors;
+    disallowedRequest: AccessGraphNodeColors;
+    allowedReview: AccessGraphNodeColors;
+    disallowedReview: AccessGraphNodeColors;
+    accessRequest: AccessGraphNodeColors;
+    temporaryUserGroup: AccessGraphNodeColors;
+    temporaryResourceGroup: AccessGraphNodeColors;
+    temporaryAllowedAction: AccessGraphNodeColors;
+  };
+  edges: {
+    dynamicMemberOf: AccessGraphEdgeColors;
+    memberOf: AccessGraphEdgeColors;
+    reverse: AccessGraphEdgeColors;
+    allowed: AccessGraphEdgeColors;
+    disallowed: AccessGraphEdgeColors;
+    restricted: AccessGraphEdgeColors;
+    default: AccessGraphEdgeColors;
+    requestedBy: AccessGraphEdgeColors;
+    requestedResource: AccessGraphEdgeColors;
+    requestedAction: AccessGraphEdgeColors;
+  };
+}
+
+interface AccessGraphNodeColors {
+  background: string;
+  borderColor: string;
+  typeColor: string;
+  iconBackground: string;
+  handleColor: string;
+  highlightColor: string;
+  label: {
+    background: string;
+    color: string;
+  };
+}
+
+interface AccessGraphEdgeColors {
+  color: string;
+  stroke: string;
+}
 
 export type SharedColors = {
   dark: string;

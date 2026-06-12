@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -38,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func newTestMonitor(ctx context.Context, t *testing.T, asrv *authtest.AuthServer, mut ...func(*MonitorConfig)) (*mockTrackingConn, *eventstest.ChannelEmitter, MonitorConfig) {
@@ -51,10 +51,10 @@ func newTestMonitor(ctx context.Context, t *testing.T, asrv *authtest.AuthServer
 		Context:        ctx,
 		Conn:           conn,
 		Emitter:        emitter,
-		EmitterContext: ctx,
+		EmitterContext: context.Background(),
 		Clock:          asrv.Clock(),
 		Tracker:        &mockActivityTracker{asrv.Clock()},
-		Logger:         logtest.NewLogger(),
+		Entry:          logrus.StandardLogger(),
 		LockWatcher:    asrv.LockWatcher,
 		LockTargets:    []types.LockTarget{{User: "test-user"}},
 		LockingMode:    constants.LockingModeBestEffort,
@@ -69,7 +69,7 @@ func newTestMonitor(ctx context.Context, t *testing.T, asrv *authtest.AuthServer
 func TestConnectionMonitorLockInForce(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx := context.Background()
 
 	asrv, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:   t.TempDir(),
@@ -86,7 +86,7 @@ func TestConnectionMonitorLockInForce(t *testing.T) {
 		Emitter:        emitter,
 		EmitterContext: ctx,
 		Clock:          asrv.Clock(),
-		Logger:         logtest.NewLogger(),
+		Logger:         logrus.StandardLogger(),
 		LockWatcher:    asrv.LockWatcher,
 		ServerID:       "test",
 	})
@@ -160,8 +160,7 @@ func TestConnectionMonitorLockInForce(t *testing.T) {
 func TestMonitorLockInForce(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
-
+	ctx := context.Background()
 	asrv, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:   t.TempDir(),
 		Clock: clockwork.NewFakeClock(),
@@ -207,8 +206,7 @@ func TestMonitorLockInForce(t *testing.T) {
 func TestMonitorStaleLocks(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
-
+	ctx := context.Background()
 	asrv, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:   t.TempDir(),
 		Clock: clockwork.NewFakeClock(),
@@ -268,8 +266,7 @@ func TestWritesDisconnectMessage(t *testing.T) {
 
 	var sw strings.Builder
 
-	ctx := t.Context()
-
+	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 	conn, _, _ := newTestMonitor(ctx, t, asrv, func(cfg *MonitorConfig) {
 		cfg.ClientIdleTimeout = 1 * time.Second
@@ -311,8 +308,7 @@ func TestMonitorDisconnectExpiredCertBeforeTimeNow(t *testing.T) {
 	clock := clockwork.NewRealClock()
 
 	certExpirationTime := clock.Now().Add(-1 * time.Second)
-	ctx := t.Context()
-
+	ctx := context.Background()
 	asrv, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:   t.TempDir(),
 		Clock: clockwork.NewFakeClock(),

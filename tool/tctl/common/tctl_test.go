@@ -33,7 +33,6 @@ import (
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/config"
-	"github.com/gravitational/teleport/lib/cryptosuites/cryptosuitestest"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
@@ -49,11 +48,7 @@ func TestMain(m *testing.M) {
 	}
 
 	modules.SetInsecureTestMode(true)
-	ctx, cancel := context.WithCancel(context.Background())
-	cryptosuitestest.PrecomputeRSAKeys(ctx)
-	exitCode := m.Run()
-	cancel()
-	os.Exit(exitCode)
+	os.Exit(m.Run())
 }
 
 func BenchmarkInit(b *testing.B) {
@@ -63,7 +58,7 @@ func BenchmarkInit(b *testing.B) {
 	executable, err := os.Executable()
 	require.NoError(b, err)
 
-	for b.Loop() {
+	for i := 0; i < b.N; i++ {
 		cmd := exec.Command(executable, initTestSentinel)
 		err := cmd.Run()
 		assert.NoError(b, err)
@@ -232,32 +227,18 @@ func TestConnect(t *testing.T) {
 			// set tsh home to a fake path so that the existence of a real
 			// ~/.tsh does not interfere with the test result.
 			cfg.TeleportHome = t.TempDir()
-			// set data dir to a fake path so that the existence of a real
-			// /var/lib/teleport does not interfere with the test result.
-			cfg.DataDir = t.TempDir()
 			if tc.modifyConfig != nil {
 				tc.modifyConfig(cfg)
 			}
 
-			resolved, err := tctlcfg.ApplyConfig(&tc.cliFlags, cfg)
+			clientConfig, err := tctlcfg.ApplyConfig(&tc.cliFlags, cfg)
 			if tc.wantErrContains != "" {
 				require.ErrorContains(t, err, tc.wantErrContains)
 				return
 			}
 			require.NoError(t, err)
 
-			// Identity-file and tsh-profile paths populate ClientStore+Profile
-			// for downstream callers (e.g. Access Graph credential lookup);
-			// auth-host fallback leaves both nil.
-			if tc.cliFlags.IdentityFilePath != "" {
-				require.NotNil(t, resolved.ClientStore, "identity-file path must populate ClientStore")
-				require.NotNil(t, resolved.Profile, "identity-file path must populate Profile")
-			} else {
-				require.Nil(t, resolved.ClientStore, "auth-host path must leave ClientStore nil")
-				require.Nil(t, resolved.Profile, "auth-host path must leave Profile nil")
-			}
-
-			_, err = authclient.Connect(ctx, resolved.Auth)
+			_, err = authclient.Connect(ctx, clientConfig)
 			require.NoError(t, err)
 		})
 	}

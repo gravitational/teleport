@@ -32,9 +32,6 @@ const RESOURCES_PATH = app.isPackaged
   ? process.resourcesPath
   : path.join(__dirname, '../../..');
 
-// Optional root directory for app data; when set, Connect stores `home`, `userData`, and `sessionData` under this path.
-// Used in e2e tests.
-const CONNECT_DATA_DIR_ENV_VAR = 'CONNECT_DATA_DIR';
 const TSH_BIN_ENV_VAR = 'CONNECT_TSH_BIN_PATH';
 // __dirname of this file in dev mode is teleport/web/packages/teleterm/build/app/main
 // We default to teleport/build/tsh.
@@ -60,23 +57,16 @@ const insecure =
   (dev && !!env.CONNECT_INSECURE);
 
 export async function getRuntimeSettings(): Promise<RuntimeSettings> {
-  const envDataDir = process.env[CONNECT_DATA_DIR_ENV_VAR];
-  const homeDir = envDataDir
-    ? path.join(envDataDir, 'home')
-    : app.getPath('home');
-  const userDataDir = envDataDir
-    ? path.join(envDataDir, 'userData')
-    : app.getPath('userData');
-  const sessionDataDir = envDataDir
-    ? path.join(envDataDir, 'sessionData')
-    : app.getPath('sessionData');
+  const userDataDir = app.getPath('userData');
+  const sessionDataDir = app.getPath('sessionData');
   const tempDataDir = app.getPath('temp');
-  const [grpcAddresses, kubeConfigsDir, certsDir, availableShells] =
+  const [grpcAddresses, kubeConfigsDir, certsDir, availableShells, tshHomeDir] =
     await Promise.all([
       requestGrpcServerAddresses(),
       getKubeConfigsDir(userDataDir),
       getCertsDir(userDataDir),
       getAvailableShells(),
+      getTshHomeDir(),
     ]);
   const { binDir, tshBinPath } = getBinaryPaths();
   const { username } = os.userInfo();
@@ -91,7 +81,7 @@ export async function getRuntimeSettings(): Promise<RuntimeSettings> {
 
   const tshd = {
     binaryPath: tshBinPath,
-    defaultHomeDir: path.resolve(homeDir, '.tsh'),
+    homeDir: tshHomeDir,
     requestedNetworkAddress: grpcAddresses.tsh,
   };
   const sharedProcess = {
@@ -117,7 +107,6 @@ export async function getRuntimeSettings(): Promise<RuntimeSettings> {
     tshd,
     sharedProcess,
     tshdEvents,
-    homeDir,
     userDataDir,
     sessionDataDir,
     tempDataDir,
@@ -150,6 +139,12 @@ async function getKubeConfigsDir(userDataDir: string): Promise<string> {
   const kubeConfigsPath = path.resolve(userDataDir, 'kube');
   await fs.promises.mkdir(kubeConfigsPath, { recursive: true });
   return kubeConfigsPath;
+}
+
+async function getTshHomeDir(): Promise<string> {
+  const tshPath = path.resolve(app.getPath('userData'), 'tsh');
+  await fs.promises.mkdir(tshPath, { recursive: true });
+  return tshPath;
 }
 
 // binDir is used in the packaged version to add tsh to PATH.

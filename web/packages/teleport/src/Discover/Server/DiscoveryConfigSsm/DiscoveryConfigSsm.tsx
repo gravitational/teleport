@@ -111,9 +111,11 @@ export function DiscoveryConfigSsm() {
   const { clusterId } = useStickyClusterId();
 
   const [selectedRegion, setSelectedRegion] = useState<Regions>();
-  const [ssmDocumentName, setSsmDocumentName] = useState('AWS-RunShellScript');
+  const [ssmDocumentName, setSsmDocumentName] = useState(
+    'TeleportDiscoveryInstaller'
+  );
   const [scriptUrl, setScriptUrl] = useState('');
-  const joinTokenRef = useRef<JoinToken>(undefined);
+  const joinTokenRef = useRef<JoinToken>();
   const [tags, setTags] = useState<AWSLabels>([]);
   const [showRestOfSteps, setShowRestOfSteps] = useState(false);
 
@@ -420,7 +422,6 @@ const inlinePolicyJson = `{
       {
           "Effect": "Allow",
           "Action": [
-              "account:ListRegions",
               "ec2:DescribeInstances",
               "ssm:DescribeInstanceInformation",
               "ssm:GetCommandInvocation",

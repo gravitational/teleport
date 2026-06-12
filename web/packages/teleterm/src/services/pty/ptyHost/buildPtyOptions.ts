@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { delimiter } from 'path';
+import path, { delimiter } from 'path';
 
 import { makeCustomShellFromPath, Shell } from 'teleterm/mainProcess/shell';
 import { RuntimeSettings } from 'teleterm/mainProcess/types';
@@ -33,6 +33,7 @@ import {
   PtyProcessCreationStatus,
   ShellCommand,
   SshOptions,
+  TshKubeLoginCommand,
   WindowsPty,
 } from '../types';
 import {
@@ -40,12 +41,10 @@ import {
   ResolveShellEnvTimeoutError,
 } from './resolveShellEnv';
 
-export type PtyConfigOptions = {
+type PtyOptions = {
   ssh: SshOptions;
   windowsPty: Pick<WindowsPty, 'useConpty'>;
   customShellPath: string;
-  tshHome: string;
-  setTeleportAuthServerEnvVar: boolean;
 };
 
 const WSLENV_VAR = 'WSLENV';
@@ -57,7 +56,7 @@ export async function buildPtyOptions({
   processEnv = process.env,
 }: {
   settings: RuntimeSettings;
-  options: PtyConfigOptions;
+  options: PtyOptions;
   cmd: PtyCommand;
   processEnv?: typeof process.env;
 }): Promise<{
@@ -98,21 +97,16 @@ export async function buildPtyOptions({
       // combinedEnv is going to be used as env by every command coming out of buildPtyOptions. Some
       // commands might add extra variables, but they shouldn't remove any of the env vars that are
       // added here.
-      const combinedEnv: Record<string, string> = {
+      const combinedEnv = {
         ...processEnv,
         ...shellEnv,
         TERM_PROGRAM: 'Teleport_Connect',
         TERM_PROGRAM_VERSION: settings.appVersion,
-        TELEPORT_HOME: options.tshHome,
+        TELEPORT_HOME: settings.tshd.homeDir,
         TELEPORT_CLUSTER: cmd.clusterName,
         TELEPORT_PROXY: cmd.proxyHost,
         [TSH_AUTOUPDATE_ENV_VAR]: TSH_AUTOUPDATE_OFF,
       };
-
-      if (options.setTeleportAuthServerEnvVar) {
-        // Makes tctl operate on the root cluster of the current workspace.
-        combinedEnv['TELEPORT_AUTH_SERVER'] = cmd.proxyHost;
-      }
 
       // The regular env vars are not available in WSL,
       // they need to be passed via the special variable WSLENV.
@@ -128,10 +122,6 @@ export async function buildPtyOptions({
           'TELEPORT_HOME/p',
           TSH_AUTOUPDATE_ENV_VAR,
         ];
-        if (options.setTeleportAuthServerEnvVar) {
-          wslEnv.push('TELEPORT_AUTH_SERVER');
-        }
-
         // Preserve the user defined WSLENV and add ours (ours takes precedence).
         combinedEnv[WSLENV_VAR] = [combinedEnv[WSLENV_VAR], wslEnv]
           .flat()
@@ -162,7 +152,7 @@ export function getPtyProcessOptions({
   shellBinPath,
 }: {
   settings: RuntimeSettings;
-  options: PtyConfigOptions;
+  options: PtyOptions;
   cmd: PtyCommand;
   env: typeof process.env;
   shellBinPath: string;
@@ -190,6 +180,32 @@ export function getPtyProcessOptions({
         cwd: cmd.cwd,
         env: { ...env, ...cmd.env },
         initMessage: cmd.initMessage,
+        useConpty,
+      };
+    }
+
+    case 'pty.tsh-kube-login': {
+      const isWindows = settings.platform === 'win32';
+
+      // backtick (PowerShell) and backslash (Bash) are used to escape a whitespace
+      const escapedBinaryPath = settings.tshd.binaryPath.replaceAll(
+        ' ',
+        isWindows ? '` ' : '\\ '
+      );
+      const kubeLoginCommand = [
+        escapedBinaryPath,
+        `--proxy=${cmd.rootClusterId}`,
+        `kube login ${cmd.kubeId} --cluster=${cmd.clusterName}`,
+        settings.insecure && '--insecure',
+      ]
+        .filter(Boolean)
+        .join(' ');
+      const bashCommandArgs = ['-c', `${kubeLoginCommand};$SHELL`];
+      const powershellCommandArgs = ['-NoExit', '-c', kubeLoginCommand];
+      return {
+        path: shellBinPath,
+        args: isWindows ? powershellCommandArgs : bashCommandArgs,
+        env: { ...env, KUBECONFIG: getKubeConfigFilePath(cmd, settings) },
         useConpty,
       };
     }
@@ -257,10 +273,17 @@ function prependBinDirToPath(
     .join(delimiter);
 }
 
+function getKubeConfigFilePath(
+  command: TshKubeLoginCommand,
+  settings: RuntimeSettings
+): string {
+  return path.join(settings.kubeConfigsDir, command.kubeConfigRelativePath);
+}
+
 async function resolveShell(
   cmd: ShellCommand,
   settings: RuntimeSettings,
-  ptyOptions: PtyConfigOptions
+  ptyOptions: PtyOptions
 ): Promise<Shell | undefined> {
   if (cmd.shellId !== CUSTOM_SHELL_ID) {
     return settings.availableShells.find(s => s.id === cmd.shellId);

@@ -4,7 +4,6 @@ description: Connecting a Kubernetes cluster to Teleport with IAM joining.
 tags:
  - how-to
  - zero-trust
- - infrastructure-identity
 ---
 
 In this guide, we will show you how to register a Kubernetes cluster with
@@ -265,7 +264,7 @@ $ helm install teleport-agent teleport/teleport-kube-agent \
 ```
 
 Make sure that the Teleport Agent pod is running. You should see one Teleport
-agent pod with a single ready container:
+agent pod pod with a single ready container:
 
 ```code
 $ kubectl -n <Var name="teleport-agent"/> get pods

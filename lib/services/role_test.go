@@ -19,6 +19,7 @@
 package services
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"encoding/json"
@@ -41,10 +42,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
-	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
-	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -190,7 +188,7 @@ func TestRoleParse(t *testing.T) {
 					}
 				}`,
 			error:        trace.BadParameter(""),
-			matchMessage: "KubernetesResource kind \"pod\" must include Namespace",
+			matchMessage: "KubernetesResource must include Namespace",
 		},
 		{
 			name: "validation error, invalid kubernetes_resources kind",
@@ -207,7 +205,7 @@ func TestRoleParse(t *testing.T) {
 					}
 				}`,
 			error:        trace.BadParameter(""),
-			matchMessage: "kind \"abcd\" is not supported in role version \"v6\"",
+			matchMessage: "invalid or unsupported",
 		},
 		{
 			name: "validation error, kubernetes_resources kind namespace not supported in v6",
@@ -866,39 +864,6 @@ func TestValidateRole(t *testing.T) {
 			},
 		},
 		{
-			name: "unsupported function for non session",
-			spec: types.RoleSpecV6{
-				Allow: types.RoleConditions{
-					Rules: []types.Rule{
-						{
-							Resources: []string{"roles"},
-							Verbs:     []string{"read", "list"},
-							Where:     "can_view()",
-						},
-					},
-				},
-			},
-			expectWarnings: []string{
-				"parsing allow rule",
-				"could not parse 'where' rule",
-				"unsupported function: can_view",
-			},
-		},
-		{
-			name: "supported function for session",
-			spec: types.RoleSpecV6{
-				Allow: types.RoleConditions{
-					Rules: []types.Rule{
-						{
-							Resources: []string{"session"},
-							Verbs:     []string{"read", "list"},
-							Where:     "can_view()",
-						},
-					},
-				},
-			},
-		},
-		{
 			name: "unsupported function in where",
 			spec: types.RoleSpecV6{
 				Allow: types.RoleConditions{
@@ -951,9 +916,6 @@ func TestValidateRole(t *testing.T) {
 					ClusterLabels: types.Labels{
 						"owner": {"{{email.localz(external.email)}}"},
 					},
-					BeamLabels: types.Labels{
-						"owner": {"{{email.localz(external.email)}}"},
-					},
 				},
 				Deny: types.RoleConditions{
 					Logins: []string{"test"},
@@ -975,9 +937,6 @@ func TestValidateRole(t *testing.T) {
 					ClusterLabels: types.Labels{
 						"owner": {"{{email.localz(external.email)}}"},
 					},
-					BeamLabels: types.Labels{
-						"owner": {"{{email.localz(external.email)}}"},
-					},
 				},
 			},
 			expectWarnings: []string{
@@ -987,14 +946,12 @@ func TestValidateRole(t *testing.T) {
 				"parsing allow.db_labels template expression",
 				"parsing allow.windows_desktop_labels template expression",
 				"parsing allow.cluster_labels template expression",
-				"parsing allow.beam_labels template expression",
 				"parsing deny.node_labels template expression",
 				"parsing deny.app_labels template expression",
 				"parsing deny.kubernetes_labels template expression",
 				"parsing deny.db_labels template expression",
 				"parsing deny.windows_desktop_labels template expression",
 				"parsing deny.cluster_labels template expression",
-				"parsing deny.beam_labels template expression",
 				"unsupported function: email.localz",
 			},
 		},
@@ -1010,7 +967,6 @@ func TestValidateRole(t *testing.T) {
 					DatabaseServiceLabelsExpression: `containz(labels["env"], "staging")`,
 					WindowsDesktopLabelsExpression:  `containz(labels["env"], "staging")`,
 					GroupLabelsExpression:           `containz(labels["env"], "staging")`,
-					BeamLabelsExpression:            `containz(labels["env"], "staging")`,
 				},
 				Deny: types.RoleConditions{
 					ClusterLabelsExpression:         `containz(labels["env"], "staging")`,
@@ -1021,7 +977,6 @@ func TestValidateRole(t *testing.T) {
 					DatabaseServiceLabelsExpression: `containz(labels["env"], "staging")`,
 					WindowsDesktopLabelsExpression:  `containz(labels["env"], "staging")`,
 					GroupLabelsExpression:           `containz(labels["env"], "staging")`,
-					BeamLabelsExpression:            `containz(labels["env"], "staging")`,
 				},
 			},
 			expectWarnings: []string{
@@ -1031,14 +986,12 @@ func TestValidateRole(t *testing.T) {
 				"parsing allow.db_labels_expression",
 				"parsing allow.windows_desktop_labels_expression",
 				"parsing allow.cluster_labels_expression",
-				"parsing allow.beam_labels_expression",
 				"parsing deny.node_labels_expression",
 				"parsing deny.app_labels_expression",
 				"parsing deny.kubernetes_labels_expression",
 				"parsing deny.db_labels_expression",
 				"parsing deny.windows_desktop_labels_expression",
 				"parsing deny.cluster_labels_expression",
-				"parsing deny.beam_labels_expression",
 				"unsupported function: containz",
 			},
 		},
@@ -1121,22 +1074,20 @@ func TestValidateRole(t *testing.T) {
 				Allow: types.RoleConditions{
 					KubernetesResources: []types.KubernetesResource{
 						{
-							Kind:      "pods",
+							Kind:      types.KindKubePod,
 							Namespace: "{{external.namespace",
 							Name:      "{{email.localz(external.email)}}",
 							Verbs:     []string{"{{external.verbs"},
-							APIGroup:  types.Wildcard,
 						},
 					},
 				},
 				Deny: types.RoleConditions{
 					KubernetesResources: []types.KubernetesResource{
 						{
-							Kind:      "pods",
+							Kind:      types.KindKubePod,
 							Namespace: "{{external.namespace",
 							Name:      "{{email.localz(external.email)}}",
 							Verbs:     []string{"{{external.verbs"},
-							APIGroup:  types.Wildcard,
 						},
 					},
 				},
@@ -1161,7 +1112,7 @@ func TestValidateRole(t *testing.T) {
 					Name:      "name1",
 					Namespace: apidefaults.Namespace,
 				},
-				Version: types.V8,
+				Version: types.V7,
 				Spec:    tc.spec,
 			}, withWarningReporter(func(err error) {
 				warning = err
@@ -1218,7 +1169,6 @@ func BenchmarkValidateRole(b *testing.B) {
 			DatabaseLabels:       types.Labels{"env": {`{{regexp.replace(external["allow-envs"], "^env-(.*)$", "$1")}}`}},
 			WindowsDesktopLabels: types.Labels{"env": {`{{regexp.replace(external["allow-envs"], "^env-(.*)$", "$1")}}`}},
 			ClusterLabels:        types.Labels{"env": {`{{regexp.replace(external["allow-envs"], "^env-(.*)$", "$1")}}`}},
-			BeamLabels:           types.Labels{"env": {`{{regexp.replace(external["allow-envs"], "^env-(.*)$", "$1")}}`}},
 			Rules: []types.Rule{
 				{
 					Resources: []string{types.KindRole},
@@ -1235,90 +1185,9 @@ func BenchmarkValidateRole(b *testing.B) {
 	})
 	require.NoError(b, err)
 
-	for b.Loop() {
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
 		require.NoError(b, ValidateRole(role))
-	}
-}
-
-func TestUnmarshalRole(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name                string
-		json                string
-		disallowUnknown     bool
-		expectErrorContains string
-	}{
-		{
-			name: "valid role accepted with DisallowUnknown",
-			json: `{
-				"kind": "role",
-				"version": "v6",
-				"metadata": {"name": "test"},
-				"spec": {
-					"allow": {
-						"kubernetes_groups": ["system:masters"]
-					}
-				}
-			}`,
-			disallowUnknown: true,
-		},
-		{
-			name: "unknown field rejected with DisallowUnknown",
-			json: `{
-				"kind": "role",
-				"version": "v6",
-				"metadata": {"name": "test"},
-				"spec": {
-					"allow": {
-						"kubernetes_group": ["system:masters"]
-					}
-				}
-			}`,
-			disallowUnknown:     true,
-			expectErrorContains: "kubernetes_group",
-		},
-		{
-			name: "valid role accepted without DisallowUnknown",
-			json: `{
-				"kind": "role",
-				"version": "v6",
-				"metadata": {"name": "test"},
-				"spec": {
-					"allow": {
-						"kubernetes_groups": ["system:masters"]
-					}
-				}
-			}`,
-		},
-		{
-			name: "unknown field silently accepted without DisallowUnknown",
-			json: `{
-				"kind": "role",
-				"version": "v6",
-				"metadata": {"name": "test"},
-				"spec": {
-					"allow": {
-						"kubernetes_group": ["system:masters"]
-					}
-				}
-			}`,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var opts []MarshalOption
-			if tt.disallowUnknown {
-				opts = append(opts, DisallowUnknown())
-			}
-			_, err := UnmarshalRole([]byte(tt.json), opts...)
-			if tt.expectErrorContains != "" {
-				require.ErrorContains(t, err, tt.expectErrorContains)
-			} else {
-				require.NoError(t, err)
-			}
-		})
 	}
 }
 
@@ -2304,21 +2173,35 @@ func makeAccessCheckerWithRoleSet(roleSet RoleSet) AccessChecker {
 		roleNames[i] = role.GetName()
 	}
 	accessInfo := &AccessInfo{
-		Username:                 "alice",
-		Roles:                    roleNames,
-		Traits:                   nil,
-		AllowedResourceAccessIDs: nil,
+		Username:           "alice",
+		Roles:              roleNames,
+		Traits:             nil,
+		AllowedResourceIDs: nil,
 	}
 	return NewAccessCheckerWithRoleSet(accessInfo, "clustername", roleSet)
 }
 
+// testContext overrides context and captures log writes in action
+type testContext struct {
+	Context
+	// Buffer captures log writes
+	buffer *bytes.Buffer
+}
+
+// Write is implemented explicitly to avoid collision
+// of String methods when embedding
+func (t *testContext) Write(data []byte) (int, error) {
+	return t.buffer.Write(data)
+}
+
 func TestCheckRuleAccess(t *testing.T) {
 	type check struct {
-		hasAccess bool
-		verb      string
-		namespace string
-		rule      string
-		context   Context
+		hasAccess   bool
+		verb        string
+		namespace   string
+		rule        string
+		context     testContext
+		matchBuffer string
 	}
 	testCases := []struct {
 		name   string
@@ -2438,6 +2321,9 @@ func TestCheckRuleAccess(t *testing.T) {
 									Resources: []string{types.KindSession},
 									Verbs:     []string{types.VerbRead},
 									Where:     `contains(user.spec.traits["group"], "prod")`,
+									Actions: []string{
+										`log("info", "4 - tc match for user %v", user.metadata.name)`,
+									},
 								},
 							},
 						},
@@ -2448,14 +2334,17 @@ func TestCheckRuleAccess(t *testing.T) {
 				{rule: types.KindSession, verb: types.VerbRead, namespace: apidefaults.Namespace, hasAccess: false},
 				{rule: types.KindSession, verb: types.VerbList, namespace: apidefaults.Namespace, hasAccess: false},
 				{
-					context: Context{
-						User: &types.UserV2{
-							Metadata: types.Metadata{
-								Name: "bob",
-							},
-							Spec: types.UserSpecV2{
-								Traits: map[string][]string{
-									"group": {"dev", "prod"},
+					context: testContext{
+						buffer: &bytes.Buffer{},
+						Context: Context{
+							User: &types.UserV2{
+								Metadata: types.Metadata{
+									Name: "bob",
+								},
+								Spec: types.UserSpecV2{
+									Traits: map[string][]string{
+										"group": {"dev", "prod"},
+									},
 								},
 							},
 						},
@@ -2466,11 +2355,14 @@ func TestCheckRuleAccess(t *testing.T) {
 					hasAccess: true,
 				},
 				{
-					context: Context{
-						User: &types.UserV2{
-							Spec: types.UserSpecV2{
-								Traits: map[string][]string{
-									"group": {"dev"},
+					context: testContext{
+						buffer: &bytes.Buffer{},
+						Context: Context{
+							User: &types.UserV2{
+								Spec: types.UserSpecV2{
+									Traits: map[string][]string{
+										"group": {"dev"},
+									},
 								},
 							},
 						},
@@ -2498,6 +2390,9 @@ func TestCheckRuleAccess(t *testing.T) {
 									Resources: []string{types.KindRole},
 									Verbs:     []string{types.VerbRead},
 									Where:     `equals(resource.metadata.labels["team"], "dev")`,
+									Actions: []string{
+										`log("error", "4 - tc match")`,
+									},
 								},
 							},
 						},
@@ -2508,10 +2403,13 @@ func TestCheckRuleAccess(t *testing.T) {
 				{rule: types.KindRole, verb: types.VerbRead, namespace: apidefaults.Namespace, hasAccess: false},
 				{rule: types.KindRole, verb: types.VerbList, namespace: apidefaults.Namespace, hasAccess: false},
 				{
-					context: Context{
-						Resource: &types.RoleV6{
-							Metadata: types.Metadata{
-								Labels: map[string]string{"team": "dev"},
+					context: testContext{
+						buffer: &bytes.Buffer{},
+						Context: Context{
+							Resource: &types.RoleV6{
+								Metadata: types.Metadata{
+									Labels: map[string]string{"team": "dev"},
+								},
 							},
 						},
 					},
@@ -2542,6 +2440,9 @@ func TestCheckRuleAccess(t *testing.T) {
 									Resources: []string{types.KindRole},
 									Verbs:     []string{types.VerbRead},
 									Where:     `equals(resource.metadata.labels["team"], "dev")`,
+									Actions: []string{
+										`log("info", "matched more specific rule")`,
+									},
 								},
 							},
 						},
@@ -2550,17 +2451,21 @@ func TestCheckRuleAccess(t *testing.T) {
 			},
 			checks: []check{
 				{
-					context: Context{
-						Resource: &types.RoleV6{
-							Metadata: types.Metadata{
-								Labels: map[string]string{"team": "dev"},
+					context: testContext{
+						buffer: &bytes.Buffer{},
+						Context: Context{
+							Resource: &types.RoleV6{
+								Metadata: types.Metadata{
+									Labels: map[string]string{"team": "dev"},
+								},
 							},
 						},
 					},
-					rule:      types.KindRole,
-					verb:      types.VerbRead,
-					namespace: apidefaults.Namespace,
-					hasAccess: true,
+					rule:        types.KindRole,
+					verb:        types.VerbRead,
+					namespace:   apidefaults.Namespace,
+					hasAccess:   true,
+					matchBuffer: "more specific rule",
 				},
 			},
 		},
@@ -2572,15 +2477,14 @@ func TestCheckRuleAccess(t *testing.T) {
 		}
 		for j, check := range tc.checks {
 			comment := fmt.Sprintf("test case %v '%v', check %v", i, tc.name, j)
-
-			// At least one scenario exercises "default" vs "system" namespaces.
-			namespace := check.namespace
-
-			result := set.CheckAccessToRule(&check.context, namespace, check.rule, check.verb)
+			result := set.CheckAccessToRule(&check.context, check.namespace, check.rule, check.verb)
 			if check.hasAccess {
 				require.NoError(t, result, comment)
 			} else {
 				require.True(t, trace.IsAccessDenied(result), comment)
+			}
+			if check.matchBuffer != "" {
+				require.Contains(t, check.context.buffer.String(), check.matchBuffer, comment)
 			}
 		}
 	}
@@ -2590,8 +2494,9 @@ func TestDefaultImplicitRules(t *testing.T) {
 	type check struct {
 		hasAccess bool
 		verb      string
+		namespace string
 		rule      string
-		context   Context
+		context   testContext
 	}
 	testCases := []struct {
 		name   string
@@ -2602,44 +2507,44 @@ func TestDefaultImplicitRules(t *testing.T) {
 			name: "KindIdentityCenter with NewPresetAccessRole",
 			role: NewPresetAccessRole(),
 			checks: []check{
-				{rule: types.KindIdentityCenter, verb: types.VerbRead, hasAccess: true},
-				{rule: types.KindIdentityCenter, verb: types.VerbList, hasAccess: true},
-				{rule: types.KindIdentityCenter, verb: types.VerbCreate, hasAccess: false},
-				{rule: types.KindIdentityCenter, verb: types.VerbUpdate, hasAccess: false},
-				{rule: types.KindIdentityCenter, verb: types.VerbDelete, hasAccess: false},
+				{rule: types.KindIdentityCenter, verb: types.VerbRead, namespace: apidefaults.Namespace, hasAccess: true},
+				{rule: types.KindIdentityCenter, verb: types.VerbList, namespace: apidefaults.Namespace, hasAccess: true},
+				{rule: types.KindIdentityCenter, verb: types.VerbCreate, namespace: apidefaults.Namespace, hasAccess: false},
+				{rule: types.KindIdentityCenter, verb: types.VerbUpdate, namespace: apidefaults.Namespace, hasAccess: false},
+				{rule: types.KindIdentityCenter, verb: types.VerbDelete, namespace: apidefaults.Namespace, hasAccess: false},
 			},
 		},
 		{
 			name: "KindIdentityCenter with a custom role that does not explicitly target read and list verbs for KindIdentityCenterAccount",
 			role: newRole(func(r *types.RoleV6) {}),
 			checks: []check{
-				{rule: types.KindIdentityCenter, verb: types.VerbRead, hasAccess: true},
-				{rule: types.KindIdentityCenter, verb: types.VerbList, hasAccess: true},
-				{rule: types.KindIdentityCenter, verb: types.VerbCreate, hasAccess: false},
-				{rule: types.KindIdentityCenter, verb: types.VerbUpdate, hasAccess: false},
-				{rule: types.KindIdentityCenter, verb: types.VerbDelete, hasAccess: false},
+				{rule: types.KindIdentityCenter, verb: types.VerbRead, namespace: apidefaults.Namespace, hasAccess: true},
+				{rule: types.KindIdentityCenter, verb: types.VerbList, namespace: apidefaults.Namespace, hasAccess: true},
+				{rule: types.KindIdentityCenter, verb: types.VerbCreate, namespace: apidefaults.Namespace, hasAccess: false},
+				{rule: types.KindIdentityCenter, verb: types.VerbUpdate, namespace: apidefaults.Namespace, hasAccess: false},
+				{rule: types.KindIdentityCenter, verb: types.VerbDelete, namespace: apidefaults.Namespace, hasAccess: false},
 			},
 		},
 		{
 			name: "KindSAMLIdPServiceProvider with NewPresetAccessRole",
 			role: NewPresetAccessRole(),
 			checks: []check{
-				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbRead, hasAccess: true},
-				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbList, hasAccess: true},
-				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbCreate, hasAccess: false},
-				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbUpdate, hasAccess: false},
-				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbDelete, hasAccess: false},
+				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbRead, namespace: apidefaults.Namespace, hasAccess: true},
+				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbList, namespace: apidefaults.Namespace, hasAccess: true},
+				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbCreate, namespace: apidefaults.Namespace, hasAccess: false},
+				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbUpdate, namespace: apidefaults.Namespace, hasAccess: false},
+				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbDelete, namespace: apidefaults.Namespace, hasAccess: false},
 			},
 		},
 		{
 			name: "KindSAMLIdPServiceProvider with a custom role that does not explicitly target read and list verbs for KindSAMLIdPServiceProvider",
 			role: newRole(func(r *types.RoleV6) {}),
 			checks: []check{
-				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbRead, hasAccess: true},
-				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbList, hasAccess: true},
-				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbCreate, hasAccess: false},
-				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbUpdate, hasAccess: false},
-				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbDelete, hasAccess: false},
+				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbRead, namespace: apidefaults.Namespace, hasAccess: true},
+				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbList, namespace: apidefaults.Namespace, hasAccess: true},
+				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbCreate, namespace: apidefaults.Namespace, hasAccess: false},
+				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbUpdate, namespace: apidefaults.Namespace, hasAccess: false},
+				{rule: types.KindSAMLIdPServiceProvider, verb: types.VerbDelete, namespace: apidefaults.Namespace, hasAccess: false},
 			},
 		},
 		{
@@ -2649,23 +2554,24 @@ func TestDefaultImplicitRules(t *testing.T) {
 				r.Spec.Deny = types.RoleConditions{}
 			}),
 			checks: []check{
-				{rule: types.KindGitServer, verb: types.VerbRead, hasAccess: true},
-				{rule: types.KindGitServer, verb: types.VerbList, hasAccess: true},
-				{rule: types.KindGitServer, verb: types.VerbCreate, hasAccess: false},
-				{rule: types.KindGitServer, verb: types.VerbUpdate, hasAccess: false},
-				{rule: types.KindGitServer, verb: types.VerbDelete, hasAccess: false},
+				{rule: types.KindGitServer, verb: types.VerbRead, namespace: apidefaults.Namespace, hasAccess: true},
+				{rule: types.KindGitServer, verb: types.VerbList, namespace: apidefaults.Namespace, hasAccess: true},
+				{rule: types.KindGitServer, verb: types.VerbCreate, namespace: apidefaults.Namespace, hasAccess: false},
+				{rule: types.KindGitServer, verb: types.VerbUpdate, namespace: apidefaults.Namespace, hasAccess: false},
+				{rule: types.KindGitServer, verb: types.VerbDelete, namespace: apidefaults.Namespace, hasAccess: false},
 			},
 		},
 	}
 	for _, tc := range testCases {
 		roleSet := NewRoleSet(tc.role)
 		for _, check := range tc.checks {
-			result := roleSet.CheckAccessToRule(&check.context, apidefaults.Namespace, check.rule, check.verb)
+			result := roleSet.CheckAccessToRule(&check.context, check.namespace, check.rule, check.verb)
 			if check.hasAccess {
 				require.NoError(t, result)
 			} else {
 				require.True(t, trace.IsAccessDenied(result))
 			}
+
 		}
 	}
 }
@@ -2704,13 +2610,12 @@ func TestMFAVerificationInterval(t *testing.T) {
 		{
 			name: "Single role with MFA requirement, TTL adjusted to MFA verification interval",
 			roles: []types.RoleV6{
-				{
-					Spec: types.RoleSpecV6{
-						Options: types.RoleOptions{
-							RequireMFAType:          types.RequireMFAType_SESSION,
-							MFAVerificationInterval: 5 * time.Minute,
-						},
+				{Spec: types.RoleSpecV6{
+					Options: types.RoleOptions{
+						RequireMFAType:          types.RequireMFAType_SESSION,
+						MFAVerificationInterval: 5 * time.Minute,
 					},
+				},
 				},
 			},
 			enforce:     false,
@@ -2843,9 +2748,10 @@ func TestGuessIfAccessIsPossible(t *testing.T) {
 	require.NoError(t, err)
 
 	type checkAccessParams struct {
-		ctx      Context
-		resource string
-		verbs    []string
+		ctx       Context
+		namespace string
+		resource  string
+		verbs     []string
 	}
 
 	tests := []struct {
@@ -2863,8 +2769,9 @@ func TestGuessIfAccessIsPossible(t *testing.T) {
 			name:  "global session list/read allowed",
 			roles: RoleSet{readAllSessions},
 			params: &checkAccessParams{
-				resource: types.KindSession,
-				verbs:    []string{types.VerbList, types.VerbRead},
+				namespace: apidefaults.Namespace,
+				resource:  types.KindSession,
+				verbs:     []string{types.VerbList, types.VerbRead},
 			},
 			wantRuleAccess:  true,
 			wantGuessAccess: true,
@@ -2873,8 +2780,9 @@ func TestGuessIfAccessIsPossible(t *testing.T) {
 			name:  "own session list/read allowed",
 			roles: RoleSet{ownSessions}, // allowed despite "where" clause in allow rules
 			params: &checkAccessParams{
-				resource: types.KindSession,
-				verbs:    []string{types.VerbList, types.VerbRead},
+				namespace: apidefaults.Namespace,
+				resource:  types.KindSession,
+				verbs:     []string{types.VerbList, types.VerbRead},
 			},
 			wantRuleAccess:  false, // where condition needs specific resource
 			wantGuessAccess: true,
@@ -2883,8 +2791,9 @@ func TestGuessIfAccessIsPossible(t *testing.T) {
 			name:  "session list/read denied",
 			roles: RoleSet{allowSSHSessions, denySSHSessions}, // none mention "session"
 			params: &checkAccessParams{
-				resource: types.KindSession,
-				verbs:    []string{types.VerbList, types.VerbRead},
+				namespace: apidefaults.Namespace,
+				resource:  types.KindSession,
+				verbs:     []string{types.VerbList, types.VerbRead},
 			},
 		},
 		{
@@ -2894,16 +2803,18 @@ func TestGuessIfAccessIsPossible(t *testing.T) {
 				allowSSHSessions, denySSHSessions, // none mention "session"
 			},
 			params: &checkAccessParams{
-				resource: types.KindSession,
-				verbs:    []string{types.VerbUpdate, types.VerbDelete},
+				namespace: apidefaults.Namespace,
+				resource:  types.KindSession,
+				verbs:     []string{types.VerbUpdate, types.VerbDelete},
 			},
 		},
 		{
 			name:  "global SSH session list/read allowed",
 			roles: RoleSet{allowSSHSessions},
 			params: &checkAccessParams{
-				resource: types.KindSSHSession,
-				verbs:    []string{types.VerbList, types.VerbRead},
+				namespace: apidefaults.Namespace,
+				resource:  types.KindSSHSession,
+				verbs:     []string{types.VerbList, types.VerbRead},
 			},
 			wantRuleAccess:  true,
 			wantGuessAccess: true,
@@ -2912,8 +2823,9 @@ func TestGuessIfAccessIsPossible(t *testing.T) {
 			name:  "own SSH session list/read allowed",
 			roles: RoleSet{ownSSHSessions}, // allowed despite "where" clause in deny rules
 			params: &checkAccessParams{
-				resource: types.KindSSHSession,
-				verbs:    []string{types.VerbList, types.VerbRead},
+				namespace: apidefaults.Namespace,
+				resource:  types.KindSSHSession,
+				verbs:     []string{types.VerbList, types.VerbRead},
 			},
 			wantRuleAccess:  false, // where condition needs specific resource
 			wantGuessAccess: true,
@@ -2925,8 +2837,9 @@ func TestGuessIfAccessIsPossible(t *testing.T) {
 				denySSHSessions, // unconditional deny, takes precedence
 			},
 			params: &checkAccessParams{
-				resource: types.KindSSHSession,
-				verbs:    []string{types.VerbCreate, types.VerbList, types.VerbRead, types.VerbUpdate, types.VerbDelete},
+				namespace: apidefaults.Namespace,
+				resource:  types.KindSSHSession,
+				verbs:     []string{types.VerbCreate, types.VerbList, types.VerbRead, types.VerbUpdate, types.VerbDelete},
 			},
 		},
 		{
@@ -2937,8 +2850,9 @@ func TestGuessIfAccessIsPossible(t *testing.T) {
 				ownSSHSessions,
 			},
 			params: &checkAccessParams{
-				resource: types.KindSSHSession,
-				verbs:    []string{types.VerbCreate, types.VerbList, types.VerbRead, types.VerbUpdate, types.VerbDelete},
+				namespace: apidefaults.Namespace,
+				resource:  types.KindSSHSession,
+				verbs:     []string{types.VerbCreate, types.VerbList, types.VerbRead, types.VerbUpdate, types.VerbDelete},
 			},
 		},
 	}
@@ -2946,12 +2860,12 @@ func TestGuessIfAccessIsPossible(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			params := test.params
 			for _, verb := range params.verbs {
-				err := test.roles.CheckAccessToRule(&params.ctx, apidefaults.Namespace, params.resource, verb)
+				err := test.roles.CheckAccessToRule(&params.ctx, params.namespace, params.resource, verb)
 				if gotAccess, wantAccess := err == nil, test.wantRuleAccess; gotAccess != wantAccess {
 					t.Errorf("CheckAccessToRule(verb=%q) returned err = %v=q, wantAccess = %v", verb, err, wantAccess)
 				}
 
-				err = test.roles.GuessIfAccessIsPossible(&params.ctx, apidefaults.Namespace, params.resource, verb)
+				err = test.roles.GuessIfAccessIsPossible(&params.ctx, params.namespace, params.resource, verb)
 				if gotAccess, wantAccess := err == nil, test.wantGuessAccess; gotAccess != wantAccess {
 					t.Errorf("GuessIfAccessIsPossible(verb=%q) returned err = %q, wantAccess = %v", verb, err, wantAccess)
 				}
@@ -3096,10 +3010,6 @@ func TestApplyTraits(t *testing.T) {
 		outKubeResources        []types.KubernetesResource
 		inGitHubPermissions     []types.GitHubPermission
 		outGitHubPermissions    []types.GitHubPermission
-		inMCPPermissions        *types.MCPPermissions
-		outMCPPermissions       *types.MCPPermissions
-		inBeamLabels            types.Labels
-		outBeamLabels           types.Labels
 	}
 	tests := []struct {
 		comment  string
@@ -3896,57 +3806,6 @@ func TestApplyTraits(t *testing.T) {
 				}},
 			},
 		},
-		{
-			comment: "MCP permissions in allow rule",
-			inTraits: map[string][]string{
-				"mcp_tools": {"get_*", "search_files"},
-			},
-			allow: rule{
-				inMCPPermissions: &types.MCPPermissions{
-					Tools: []string{"{{internal.mcp_tools}}"},
-				},
-				outMCPPermissions: &types.MCPPermissions{
-					Tools: []string{"get_*", "search_files"},
-				},
-			},
-		},
-		{
-			comment: "MCP permissions in deny rule",
-			inTraits: map[string][]string{
-				"mcp_tools": {"get_*", "search_files"},
-			},
-			deny: rule{
-				inMCPPermissions: &types.MCPPermissions{
-					Tools: []string{"{{internal.mcp_tools}}"},
-				},
-				outMCPPermissions: &types.MCPPermissions{
-					Tools: []string{"get_*", "search_files"},
-				},
-			},
-		},
-		{
-			comment: "Beam labels in allow and deny rules",
-			inTraits: map[string][]string{
-				"foo": {"bar"},
-				"baz": {"qux"},
-			},
-			allow: rule{
-				inBeamLabels: types.Labels{
-					"label1": {"{{external.foo}}"},
-				},
-				outBeamLabels: types.Labels{
-					"label1": {"bar"},
-				},
-			},
-			deny: rule{
-				inBeamLabels: types.Labels{
-					"label2": {"{{external.baz}}"},
-				},
-				outBeamLabels: types.Labels{
-					"label2": {"qux"},
-				},
-			},
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.comment, func(t *testing.T) {
@@ -3979,8 +3838,6 @@ func TestApplyTraits(t *testing.T) {
 						HostSudoers:          tt.allow.inSudoers,
 						KubernetesResources:  tt.allow.inKubeResources,
 						GitHubPermissions:    tt.allow.inGitHubPermissions,
-						MCP:                  tt.allow.inMCPPermissions,
-						BeamLabels:           tt.allow.inBeamLabels,
 					},
 					Deny: types.RoleConditions{
 						Logins:               tt.deny.inLogins,
@@ -4003,8 +3860,6 @@ func TestApplyTraits(t *testing.T) {
 						HostSudoers:          tt.deny.outSudoers,
 						KubernetesResources:  tt.deny.inKubeResources,
 						GitHubPermissions:    tt.deny.inGitHubPermissions,
-						MCP:                  tt.deny.inMCPPermissions,
-						BeamLabels:           tt.deny.inBeamLabels,
 					},
 				},
 			}
@@ -4039,27 +3894,9 @@ func TestApplyTraits(t *testing.T) {
 				require.Equal(t, rule.spec.outSudoers, outRole.GetHostSudoers(rule.condition))
 				require.Equal(t, rule.spec.outKubeResources, outRole.GetRoleConditions(rule.condition).KubernetesResources)
 				require.Equal(t, rule.spec.outGitHubPermissions, outRole.GetRoleConditions(rule.condition).GitHubPermissions)
-				require.Equal(t, rule.spec.outBeamLabels, outRole.GetRoleConditions(rule.condition).BeamLabels)
 			}
 		})
 	}
-}
-
-func TestFetchRolesForUser_ExpandsUserMetadataName(t *testing.T) {
-	role := newRole(func(r *types.RoleV6) {
-		r.Metadata.Name = "dev"
-		r.Spec.Allow.Logins = []string{"{{user.metadata.name}}"}
-	})
-
-	roleSet, err := FetchRolesForUser(mockCurrentUser{
-		roles: []string{"dev"},
-	}, mockCurrentUserRoleGetter{
-		nameToRole: map[string]types.Role{
-			"dev": role,
-		},
-	})
-	require.NoError(t, err)
-	require.Equal(t, []string{"mockCurrentUser"}, roleSet[0].GetLogins(types.Allow))
 }
 
 // TestExtractFrom makes sure roles and traits are extracted from SSH and TLS
@@ -4112,131 +3949,6 @@ func TestExtractFrom(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, roles, origRoles)
 	require.Equal(t, traits, origTraits)
-}
-
-// TestCanCopyFiles verifies the behavior of the RoleSet.CanCopyFiles method
-// and the underlying Options.SSHFileCopy role field.
-func TestCanCopyFiles(t *testing.T) {
-	tts := []struct {
-		name   string
-		values []*types.BoolOption
-		expect bool
-	}{
-		{
-			name: "nil",
-			values: []*types.BoolOption{
-				nil,
-			},
-			expect: true,
-		},
-		{
-			name: "false",
-			values: []*types.BoolOption{
-				types.NewBoolOption(false),
-			},
-			expect: false,
-		},
-		{
-			name: "true",
-			values: []*types.BoolOption{
-				types.NewBoolOption(true),
-			},
-			expect: true,
-		},
-		{
-			name: "true and false",
-			values: []*types.BoolOption{
-				types.NewBoolOption(true),
-				types.NewBoolOption(false),
-			},
-			expect: false,
-		},
-		{
-			name: "nil and true",
-			values: []*types.BoolOption{
-				nil,
-				types.NewBoolOption(true),
-			},
-			expect: true,
-		},
-		{
-			name: "nil and false",
-			values: []*types.BoolOption{
-				nil,
-				types.NewBoolOption(false),
-			},
-			expect: false,
-		},
-	}
-
-	for _, tt := range tts {
-		t.Run(tt.name, func(t *testing.T) {
-			var roles RoleSet
-			for _, v := range tt.values {
-				roles = append(roles, &types.RoleV6{
-					Spec: types.RoleSpecV6{
-						Options: types.RoleOptions{
-							SSHFileCopy: v,
-						},
-					},
-				})
-			}
-
-			require.Equal(t, tt.expect, roles.CanCopyFiles())
-		})
-	}
-}
-
-// TestGetWebTerminalClipboardMode verifies that the RoleSet.GetWebTerminalClipboardMode method calculates the correct clipboard mode from a set of roles.
-func TestGetWebTerminalClipboardMode(t *testing.T) {
-	tests := []struct {
-		name   string
-		values []types.WebTerminalClipboardMode
-		expect types.WebTerminalClipboardMode
-	}{
-		{
-			name:   "unspecified",
-			values: []types.WebTerminalClipboardMode{types.WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNSPECIFIED},
-			expect: types.WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNSPECIFIED,
-		},
-		{
-			name:   "unrestricted",
-			values: []types.WebTerminalClipboardMode{types.WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNRESTRICTED},
-			expect: types.WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNRESTRICTED,
-		},
-		{
-			name:   "no-copy",
-			values: []types.WebTerminalClipboardMode{types.WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_NO_COPY},
-			expect: types.WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_NO_COPY,
-		},
-		{
-			name:   "roles have both unrestricted and no-copy, no-copy takes precedence",
-			values: []types.WebTerminalClipboardMode{types.WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNRESTRICTED, types.WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_NO_COPY},
-			expect: types.WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_NO_COPY,
-		},
-		{
-			name:   "roles have both unspecified and no-copy, no-copy takes precedence",
-			values: []types.WebTerminalClipboardMode{types.WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNSPECIFIED, types.WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_NO_COPY},
-			expect: types.WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_NO_COPY,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var roles RoleSet
-			for _, v := range tt.values {
-				roles = append(roles, &types.RoleV6{
-					Spec: types.RoleSpecV6{
-						Options: types.RoleOptions{
-							WebTerminalClipboardMode: v,
-						},
-					},
-				})
-			}
-
-			require.Equal(t, tt.expect, roles.GetWebTerminalClipboardMode())
-		})
-	}
 }
 
 // TestBoolOptions makes sure that bool options (like agent forwarding and
@@ -4514,7 +4226,7 @@ func TestCheckAccessToDatabase(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, access := range tc.access {
-				_, err := tc.roles.checkAccess(access.server, "", wrappers.Traits{}, tc.state,
+				err := tc.roles.checkAccess(access.server, wrappers.Traits{}, tc.state,
 					NewDatabaseUserMatcher(access.server, access.dbUser),
 					&DatabaseNameMatcher{Name: access.dbName})
 				if access.access {
@@ -4727,7 +4439,7 @@ func TestCheckAccessToDatabaseUser(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, access := range tc.access {
-				_, err := tc.roles.checkAccess(access.server, "", wrappers.Traits{}, AccessState{}, NewDatabaseUserMatcher(access.server, access.dbUser))
+				err := tc.roles.checkAccess(access.server, wrappers.Traits{}, AccessState{}, NewDatabaseUserMatcher(access.server, access.dbUser))
 				if access.access {
 					require.NoError(t, err, "access check shouldn't have failed for username %q", access.dbUser)
 				} else {
@@ -4822,10 +4534,9 @@ func TestRoleSetEnumerateDatabaseUsersAndNames(t *testing.T) {
 		Metadata: types.Metadata{Name: "allow_deny_same", Namespace: apidefaults.Namespace},
 		Spec: types.RoleSpecV6{
 			Allow: types.RoleConditions{
-				DatabaseLabels: types.Labels{"env": []string{"stage"}},
-				Namespaces:     []string{apidefaults.Namespace},
-				DatabaseUsers:  []string{"root"},
-				DatabaseNames:  []string{"root"},
+				Namespaces:    []string{apidefaults.Namespace},
+				DatabaseUsers: []string{"root"},
+				DatabaseNames: []string{"root"},
 			},
 			Deny: types.RoleConditions{
 				Namespaces:    []string{apidefaults.Namespace},
@@ -5248,6 +4959,7 @@ func TestGetAllowedSearchAsRoles_WithAllowedKubernetesResourceKindFilter(t *test
 	for _, tc := range tt {
 		accessChecker := makeAccessCheckerWithRoleSet(tc.roleSet)
 		t.Run(tc.name, func(t *testing.T) {
+
 			allowedRoles := accessChecker.GetAllowedSearchAsRolesForKubeResourceKind(tc.requestType)
 			require.ElementsMatch(t, tc.expectedAllowedRoles, allowedRoles)
 		})
@@ -5521,7 +5233,7 @@ func TestCheckDatabaseRoles(t *testing.T) {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
-				require.ElementsMatch(t, test.outRoles, roles)
+				require.Equal(t, test.outRoles, roles)
 			}
 
 			allow, deny, err := accessChecker.GetDatabasePermissions(database)
@@ -5847,7 +5559,7 @@ func TestCheckAccessToDatabaseService(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, access := range tc.access {
-				_, err := tc.roles.checkAccess(access.server, "", userTraits, AccessState{})
+				err := tc.roles.checkAccess(access.server, userTraits, AccessState{})
 				if access.access {
 					require.NoError(t, err)
 				} else {
@@ -5953,9 +5665,8 @@ func TestCheckAccessToAWSConsole(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			for _, access := range test.access {
-				_, err := test.roles.checkAccess(
+				err := test.roles.checkAccess(
 					app,
-					"",
 					wrappers.Traits{},
 					AccessState{},
 					&AWSRoleARNMatcher{RoleARN: access.roleARN})
@@ -6056,7 +5767,7 @@ func TestCheckAccessToAzureCloud(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			for identity, hasAccess := range test.access {
-				_, err := test.roles.checkAccess(app, "", wrappers.Traits{}, AccessState{}, &AzureIdentityMatcher{Identity: identity})
+				err := test.roles.checkAccess(app, wrappers.Traits{}, AccessState{}, &AzureIdentityMatcher{Identity: identity})
 				if hasAccess {
 					require.NoError(t, err)
 				} else {
@@ -6154,7 +5865,7 @@ func TestCheckAccessToGCP(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			for account, hasAccess := range test.access {
-				_, err := test.roles.checkAccess(app, "", wrappers.Traits{}, AccessState{}, &GCPServiceAccountMatcher{ServiceAccount: account})
+				err := test.roles.checkAccess(app, wrappers.Traits{}, AccessState{}, &GCPServiceAccountMatcher{ServiceAccount: account})
 				if hasAccess {
 					require.NoError(t, err)
 				} else {
@@ -6289,7 +6000,7 @@ func TestCheckAzureIdentities(t *testing.T) {
 			name:        "no access role",
 			overrideTTL: true,
 			roles:       RoleSet{roleNoAccess},
-			wantError: func(t require.TestingT, err error, i ...any) {
+			wantError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "this user cannot access Azure API, has no assigned identities")
 			},
 		},
@@ -6306,7 +6017,7 @@ func TestCheckAzureIdentities(t *testing.T) {
 			overrideTTL: false,
 			ttl:         sessionLong,
 			roles:       RoleSet{roleReadOnly},
-			wantError: func(t require.TestingT, err error, i ...any) {
+			wantError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "this user cannot access Azure API for 3h0m0s")
 			},
 		},
@@ -6343,7 +6054,7 @@ func TestCheckAzureIdentities(t *testing.T) {
 			overrideTTL:    true,
 			roles:          RoleSet{roleFullAccess, roleDenyAll},
 			wantIdentities: nil,
-			wantError: func(t require.TestingT, err error, i ...any) {
+			wantError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "this user cannot access Azure API, has no assigned identities")
 			},
 		},
@@ -6479,7 +6190,7 @@ func TestCheckGCPServiceAccounts(t *testing.T) {
 			name:        "no access role",
 			overrideTTL: true,
 			roles:       RoleSet{roleNoAccess},
-			wantError: func(t require.TestingT, err error, i ...any) {
+			wantError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "this user cannot request GCP API access, has no assigned service accounts")
 			},
 		},
@@ -6496,7 +6207,7 @@ func TestCheckGCPServiceAccounts(t *testing.T) {
 			overrideTTL: false,
 			ttl:         sessionLong,
 			roles:       RoleSet{roleReadOnly},
-			wantError: func(t require.TestingT, err error, i ...any) {
+			wantError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "this user cannot request GCP API access for 3h0m0s")
 			},
 		},
@@ -6533,7 +6244,7 @@ func TestCheckGCPServiceAccounts(t *testing.T) {
 			overrideTTL:  true,
 			roles:        RoleSet{roleFullAccess, roleDenyAll},
 			wantAccounts: nil,
-			wantError: func(t require.TestingT, err error, i ...any) {
+			wantError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "this user cannot request GCP API access, has no assigned service accounts")
 			},
 		},
@@ -6541,62 +6252,89 @@ func TestCheckGCPServiceAccounts(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			accounts, err := tt.roles.CheckGCPServiceAccounts(tt.ttl, tt.overrideTTL)
-			require.ElementsMatch(t, tt.wantAccounts, accounts)
+			require.Equal(t, tt.wantAccounts, accounts)
 			tt.wantError(t, err)
 		})
 	}
 }
 
 func TestCheckAccessToSAMLIdP(t *testing.T) {
-	createRole := func(t *testing.T, name, version string, spec types.RoleSpecV6) *types.RoleV6 {
-		t.Helper()
-		return &types.RoleV6{
-			Version: version,
-			Metadata: types.Metadata{
-				Name:      name,
-				Namespace: apidefaults.Namespace,
+	roleNoSAMLOptions := &types.RoleV6{
+		Metadata: types.Metadata{Name: "roleNoSAMLOptions", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{MaxSessionTTL: types.Duration(time.Hour)},
+			Allow: types.RoleConditions{
+				Namespaces: []string{apidefaults.Namespace},
 			},
-			Spec: spec,
-		}
+		},
 	}
-
-	idpEnabled := func(t *testing.T, enabled bool) *types.IdPOptions {
-		t.Helper()
-		return &types.IdPOptions{
-			SAML: &types.IdPSAMLOptions{
-				Enabled: types.NewBoolOption(enabled),
+	//nolint:revive // Because we want this to be IdP.
+	roleOnlyIdPBlock := &types.RoleV6{
+		Metadata: types.Metadata{Name: "roleOnlyIdPBlock", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{
+				MaxSessionTTL: types.Duration(time.Hour),
+				IDP:           &types.IdPOptions{},
 			},
-		}
+			Allow: types.RoleConditions{
+				Namespaces: []string{apidefaults.Namespace},
+			},
+		},
 	}
-
-	roleV8SAMLAllowed := func(t *testing.T) types.RoleConditions {
-		t.Helper()
-		return types.RoleConditions{
-			Namespaces: []string{apidefaults.Namespace},
-			AppLabels:  types.Labels{"env": []string{"dev"}},
-			Rules: []types.Rule{
-				{
-					Resources: []string{types.KindSAMLIdPServiceProvider},
-					Verbs:     RO(),
+	roleOnlySAMLBlock := &types.RoleV6{
+		Metadata: types.Metadata{Name: "roleOnlySAMLBlock", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{
+				MaxSessionTTL: types.Duration(time.Hour),
+				IDP: &types.IdPOptions{
+					SAML: &types.IdPSAMLOptions{},
 				},
 			},
-		}
-	}
-
-	sp, err := types.NewSAMLIdPServiceProvider(
-		types.Metadata{
-			Name: "saml-app",
-			Labels: map[string]string{
-				"env": "dev",
+			Allow: types.RoleConditions{
+				Namespaces: []string{apidefaults.Namespace},
 			},
 		},
-		types.SAMLIdPServiceProviderSpecV1{
-			EntityID:   "https://example.com",
-			ACSURL:     "https://example.com",
-			RelayState: "test-relay-state",
+	}
+	roleSAMLAllowed := &types.RoleV6{
+		Metadata: types.Metadata{Name: "roleSAMLAllowed", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{
+				MaxSessionTTL: types.Duration(2 * time.Hour),
+				IDP: &types.IdPOptions{
+					SAML: &types.IdPSAMLOptions{
+						Enabled: types.NewBoolOption(true),
+					},
+				},
+			},
 		},
-	)
-	require.NoError(t, err)
+	}
+	roleSAMLNotAllowed := &types.RoleV6{
+		Metadata: types.Metadata{Name: "roleSAMLNotAllowed", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{
+				MaxSessionTTL: types.Duration(2 * time.Hour),
+				IDP: &types.IdPOptions{
+					SAML: &types.IdPSAMLOptions{
+						Enabled: types.NewBoolOption(false),
+					},
+				},
+			},
+		},
+	}
+	roleSAMLAllowedMFARequired := &types.RoleV6{
+		Metadata: types.Metadata{Name: "roleSAMLAllowedMFARequired", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{
+				RequireMFAType: types.RequireMFAType_SESSION,
+				MaxSessionTTL:  types.Duration(2 * time.Hour),
+				IDP: &types.IdPOptions{
+					SAML: &types.IdPSAMLOptions{
+						Enabled: types.NewBoolOption(true),
+					},
+				},
+			},
+		},
+	}
 
 	testCases := []struct {
 		name                string
@@ -6606,234 +6344,79 @@ func TestCheckAccessToSAMLIdP(t *testing.T) {
 		errAssertionFunc    require.ErrorAssertionFunc
 	}{
 		{
-			name:                "no roles",
-			roles:               RoleSet{},
-			authPrefSamlEnabled: true,
-			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
-				require.ErrorContains(t, err, "No roles assigned to user")
-			},
-		},
-		{
-			name: "roleV7: no idp option",
-			roles: RoleSet{
-				createRole(t, "roleV7NoSAMLOptions", types.V7, types.RoleSpecV6{
-					Allow: types.RoleConditions{
-						Namespaces: []string{apidefaults.Namespace},
-					},
-					Options: types.RoleOptions{},
-				}),
-			},
+			name:                "role with no IdP block",
+			roles:               RoleSet{roleNoSAMLOptions},
 			authPrefSamlEnabled: true,
 			errAssertionFunc:    require.NoError,
 		},
 		{
-			name: "roleV7: idp option block undefined",
-			roles: RoleSet{
-				createRole(t, "roleV7OnlyIdPBlock", types.V7, types.RoleSpecV6{
-					Allow: types.RoleConditions{
-						Namespaces: []string{apidefaults.Namespace},
-					},
-					Options: types.RoleOptions{
-						IDP: &types.IdPOptions{},
-					},
-				}),
-			},
+			name:                "role with only IdP block",
+			roles:               RoleSet{roleOnlyIdPBlock},
 			authPrefSamlEnabled: true,
 			errAssertionFunc:    require.NoError,
 		},
 		{
-			name: "roleV7: idp saml option block undefined",
-			roles: RoleSet{
-				createRole(t, "roleV7OnlySAMLBlock", types.V7, types.RoleSpecV6{
-					Allow: types.RoleConditions{
-						Namespaces: []string{apidefaults.Namespace},
-					},
-					Options: types.RoleOptions{
-						IDP: &types.IdPOptions{
-							SAML: &types.IdPSAMLOptions{},
-						},
-					},
-				}),
-			},
+			name:                "role with only SAML block",
+			roles:               RoleSet{roleOnlySAMLBlock},
 			authPrefSamlEnabled: true,
 			errAssertionFunc:    require.NoError,
 		},
 		{
-			name: "roleV7: idp option enabled",
-			roles: RoleSet{
-				createRole(t, "roleV7IdPEnabled", types.V7, types.RoleSpecV6{
-					Options: types.RoleOptions{
-						IDP: idpEnabled(t, true),
-					},
-				}),
-			},
+			name:                "only allowed role",
+			roles:               RoleSet{roleSAMLAllowed},
 			authPrefSamlEnabled: true,
 			errAssertionFunc:    require.NoError,
 		},
 		{
-			name: "roleV7: idp option disabled",
-			roles: RoleSet{
-				createRole(t, "roleV7IdPDisabled", types.V7, types.RoleSpecV6{
-					Options: types.RoleOptions{
-						IDP: idpEnabled(t, false),
-					},
-				}),
-			},
+			name:                "only denied role",
+			roles:               RoleSet{roleSAMLNotAllowed},
 			authPrefSamlEnabled: true,
-			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
-				require.ErrorIs(t, err, trace.AccessDenied("user has been denied access to the SAML IdP by role roleV7IdPDisabled"))
+			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, trace.AccessDenied("user has been denied access to the SAML IdP by role roleSAMLNotAllowed"))
 			},
 		},
 		{
-			name: "roleV7: multiple roles with enabled and disabled idp option",
-			roles: RoleSet{
-				createRole(t, "roleV7IdPEnabled", types.V7, types.RoleSpecV6{
-					Options: types.RoleOptions{
-						IDP: idpEnabled(t, true),
-					},
-				}),
-				createRole(t, "roleV7IdPDisabled", types.V7, types.RoleSpecV6{
-					Options: types.RoleOptions{
-						IDP: idpEnabled(t, false),
-					},
-				}),
-			},
+			name:                "allowed and denied role",
+			roles:               RoleSet{roleSAMLAllowed, roleSAMLNotAllowed},
 			authPrefSamlEnabled: true,
-			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
-				require.ErrorIs(t, err, trace.AccessDenied("user has been denied access to the SAML IdP by role roleV7IdPDisabled"))
+			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, trace.AccessDenied("user has been denied access to the SAML IdP by role roleSAMLNotAllowed"))
 			},
 		},
 		{
-			name: "roleV7: idp option enabled, but denied at cluster level",
-			roles: RoleSet{
-				createRole(t, "roleV7IdPEnabled", types.V7, types.RoleSpecV6{
-					Options: types.RoleOptions{
-						IDP: idpEnabled(t, true),
-					},
-				}),
-			},
+			name:                "allowed role, but denied at cluster level",
+			roles:               RoleSet{roleSAMLAllowed},
 			authPrefSamlEnabled: false,
-			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
+			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, trace.AccessDenied("SAML IdP is disabled at the cluster level"))
 			},
 		},
-		// labels matching
+		// Per-session MFA checks
 		{
-			name: "roleV7: idp disabled and wildcard labels does not grant access",
-			roles: RoleSet{
-				createRole(t, "roleV7labelsNotMatched", types.V7, types.RoleSpecV6{
-					Allow: types.RoleConditions{
-						AppLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-						Rules: []types.Rule{
-							{
-								Resources: []string{types.KindSAMLIdPServiceProvider},
-								Verbs:     RO(),
-							},
-						},
-					},
-					Options: types.RoleOptions{
-						IDP: idpEnabled(t, false),
-					},
-				}),
-			},
-			authPrefSamlEnabled: true,
-			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
-				require.ErrorIs(t, err, trace.AccessDenied("user has been denied access to the SAML IdP by role roleV7labelsNotMatched"))
-			},
-		},
-		{
-			name: "roleV7: idp enabled and denying label and verbs does not deny access",
-			roles: RoleSet{
-				createRole(t, "roleV7labelsNotMatched", types.V7, types.RoleSpecV6{
-					Deny: types.RoleConditions{
-						AppLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-						Rules: []types.Rule{
-							{
-								Resources: []string{types.KindSAMLIdPServiceProvider},
-								Verbs:     RO(),
-							},
-						},
-					},
-					Options: types.RoleOptions{
-						IDP: idpEnabled(t, true),
-					},
-				}),
-			},
-			authPrefSamlEnabled: true,
-			errAssertionFunc:    require.NoError,
-		},
-		{
-			name: "roleV8: labels matched, idp disabled is not disable access",
-			roles: RoleSet{
-				createRole(t, "roleV8labelsMatched", types.V8, types.RoleSpecV6{
-					Allow: roleV8SAMLAllowed(t),
-					Options: types.RoleOptions{
-						IDP: idpEnabled(t, false),
-					},
-				}),
-			},
-			authPrefSamlEnabled: true,
-			errAssertionFunc:    require.NoError,
-		},
-		{
-			name: "roleV8: unmatched labels denies access, idp enabled is not applied",
-			roles: RoleSet{
-				createRole(t, "roleV8labelsMatched", types.V8, types.RoleSpecV6{
-					Allow: types.RoleConditions{
-						Namespaces: []string{apidefaults.Namespace},
-						AppLabels:  types.Labels{"env": []string{"prod"}},
-						Rules: []types.Rule{
-							{
-								Resources: []string{types.KindSAMLIdPServiceProvider},
-								Verbs:     RO(),
-							},
-						},
-					},
-					Options: types.RoleOptions{
-						IDP: idpEnabled(t, true),
-					},
-				}),
-			},
+			name:                "MFA required by cluster or all roles, mfa verified",
+			roles:               RoleSet{roleSAMLAllowed},
 			authPrefSamlEnabled: true,
 			state: AccessState{
 				MFARequired: MFARequiredAlways,
 				MFAVerified: true,
 			},
-			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
-				require.ErrorContains(t, err, "User does not have permissions")
-			},
+			errAssertionFunc: require.NoError,
 		},
-		// MFA checks for role v7
 		{
-			name: "roleV7: per-session MFA denies unverified MFA",
-			roles: RoleSet{
-				createRole(t, "roleV7MFARequired", types.V7, types.RoleSpecV6{
-					Options: types.RoleOptions{
-						RequireMFAType: types.RequireMFAType_SESSION,
-						IDP:            idpEnabled(t, true),
-					},
-				}),
-			},
+			name:                "MFA required by cluster or all roles, mfa not verified",
+			roles:               RoleSet{roleSAMLAllowed},
 			authPrefSamlEnabled: true,
 			state: AccessState{
-				MFARequired: MFARequiredPerRole,
+				MFARequired: MFARequiredAlways,
 				MFAVerified: false,
 			},
-			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
+			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, ErrSessionMFARequired)
 			},
 		},
 		{
-			name: "roleV7: per-session MFA allows verified MFA",
-			roles: RoleSet{
-				createRole(t, "roleV7MFARequired", types.V7, types.RoleSpecV6{
-					Allow: roleV8SAMLAllowed(t),
-					Options: types.RoleOptions{
-						RequireMFAType: types.RequireMFAType_SESSION,
-						IDP:            idpEnabled(t, true),
-					},
-				}),
-			},
+			name:                "MFA required by cluster or all roles, mfa verified",
+			roles:               RoleSet{roleSAMLAllowed},
 			authPrefSamlEnabled: true,
 			state: AccessState{
 				MFARequired: MFARequiredPerRole,
@@ -6842,105 +6425,16 @@ func TestCheckAccessToSAMLIdP(t *testing.T) {
 			errAssertionFunc: require.NoError,
 		},
 		{
-			name: "roleV7: cluster-level MFA denies unverified MFA",
-			roles: RoleSet{
-				createRole(t, "roleV7MFARequired", types.V7, types.RoleSpecV6{
-					Options: types.RoleOptions{
-						IDP: idpEnabled(t, true),
-					},
-				}),
-			},
-			authPrefSamlEnabled: true,
-			state: AccessState{
-				MFARequired: MFARequiredAlways,
-				MFAVerified: false,
-			},
-			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
-				require.ErrorIs(t, err, ErrSessionMFARequired)
-			},
-		},
-		{
-			name: "roleV7: cluster-level MFA allows verified MFA",
-			roles: RoleSet{
-				createRole(t, "roleV7MFARequired", types.V7, types.RoleSpecV6{
-					Options: types.RoleOptions{
-						IDP: idpEnabled(t, true),
-					},
-				}),
-			},
-			authPrefSamlEnabled: true,
-			state: AccessState{
-				MFARequired: MFARequiredAlways,
-				MFAVerified: true,
-			},
-			errAssertionFunc: require.NoError,
-		},
-		// MFA checks for role v8
-		{
-			name: "roleV8: per-session MFA denies unverified MFA",
-			roles: RoleSet{
-				createRole(t, "roleV8MFARequired", types.V8, types.RoleSpecV6{
-					Allow: roleV8SAMLAllowed(t),
-					Options: types.RoleOptions{
-						RequireMFAType: types.RequireMFAType_SESSION,
-					},
-				}),
-			},
+			name:                "MFA required by some roles, mfa not verified",
+			roles:               RoleSet{roleSAMLAllowed, roleSAMLAllowedMFARequired},
 			authPrefSamlEnabled: true,
 			state: AccessState{
 				MFARequired: MFARequiredPerRole,
 				MFAVerified: false,
 			},
-			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
+			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, ErrSessionMFARequired)
 			},
-		},
-		{
-			name: "roleV8: per-session MFA allows verified MFA",
-			roles: RoleSet{
-				createRole(t, "roleV8MFARequired", types.V8, types.RoleSpecV6{
-					Allow: roleV8SAMLAllowed(t),
-					Options: types.RoleOptions{
-						RequireMFAType: types.RequireMFAType_SESSION,
-					},
-				}),
-			},
-			authPrefSamlEnabled: true,
-			state: AccessState{
-				MFARequired: MFARequiredPerRole,
-				MFAVerified: true,
-			},
-			errAssertionFunc: require.NoError,
-		},
-		{
-			name: "roleV8: cluster-level MFA denies unverified MFA",
-			roles: RoleSet{
-				createRole(t, "roleV8MFARequired", types.V8, types.RoleSpecV6{
-					Allow: roleV8SAMLAllowed(t),
-				}),
-			},
-			authPrefSamlEnabled: true,
-			state: AccessState{
-				MFARequired: MFARequiredAlways,
-				MFAVerified: false,
-			},
-			errAssertionFunc: func(tt require.TestingT, err error, i ...any) {
-				require.ErrorIs(t, err, ErrSessionMFARequired)
-			},
-		},
-		{
-			name: "roleV8: cluster-level MFA allows verified MFA",
-			roles: RoleSet{
-				createRole(t, "roleV8MFARequired", types.V8, types.RoleSpecV6{
-					Allow: roleV8SAMLAllowed(t),
-				}),
-			},
-			authPrefSamlEnabled: true,
-			state: AccessState{
-				MFARequired: MFARequiredAlways,
-				MFAVerified: true,
-			},
-			errAssertionFunc: require.NoError,
 		},
 	}
 	for _, tc := range testCases {
@@ -6953,8 +6447,7 @@ func TestCheckAccessToSAMLIdP(t *testing.T) {
 				},
 			})
 			require.NoError(t, err)
-			accessChecker := makeAccessCheckerWithRoleSet(tc.roles)
-			tc.errAssertionFunc(t, accessChecker.CheckAccessToSAMLIdP(sp, authPref, tc.state))
+			tc.errAssertionFunc(t, tc.roles.CheckAccessToSAMLIdP(authPref, tc.state))
 		})
 	}
 }
@@ -7491,7 +6984,7 @@ func TestCheckAccessToWindowsDesktop(t *testing.T) {
 			for i, check := range test.checks {
 				msg := fmt.Sprintf("check=%d, user=%v, server=%v, should_have_access=%v",
 					i, check.login, check.desktop.GetName(), check.hasAccess)
-				_, err := test.roleSet.checkAccess(check.desktop, "", wrappers.Traits{}, AccessState{}, NewWindowsLoginMatcher(check.login))
+				err := test.roleSet.checkAccess(check.desktop, wrappers.Traits{}, AccessState{}, NewWindowsLoginMatcher(check.login))
 				if check.hasAccess {
 					require.NoError(t, err, msg)
 				} else {
@@ -7598,7 +7091,7 @@ func TestCheckAccessToUserGroups(t *testing.T) {
 			for i, check := range test.checks {
 				msg := fmt.Sprintf("check=%d, userGroup=%v, should_have_access=%v",
 					i, check.userGroup.GetName(), check.hasAccess)
-				_, err := test.roleSet.checkAccess(check.userGroup, "", wrappers.Traits{}, AccessState{})
+				err := test.roleSet.checkAccess(check.userGroup, wrappers.Traits{}, AccessState{})
 				if check.hasAccess {
 					require.NoError(t, err, msg)
 				} else {
@@ -7610,8 +7103,8 @@ func TestCheckAccessToUserGroups(t *testing.T) {
 	}
 }
 
-// BenchmarkCheckConditionalAccessToServer tests how long it takes to run
-// CheckConditionalAccess for servers across 4,000 nodes for 5 roles each with 5 logins each.
+// BenchmarkCheckAccessToServer tests how long it takes to run
+// CheckAccess for servers across 4,000 nodes for 5 roles each with 5 logins each.
 //
 // To run benchmark:
 //
@@ -7630,14 +7123,14 @@ func TestCheckAccessToUserGroups(t *testing.T) {
 //
 //	go tool pprof --pdf cpu.prof > cpu.pdf
 //	go tool pprof --pdf mem.prof > mem.pdf
-func BenchmarkCheckConditionalAccessToServer(b *testing.B) {
+func BenchmarkCheckAccessToServer(b *testing.B) {
 	if testing.Short() {
 		b.Skip("skipping heavy benchmark")
 	}
 	servers := make([]*types.ServerV2, 0, 4000)
 
 	// Create 4,000 servers with random IDs.
-	for range 4000 {
+	for i := 0; i < 4000; i++ {
 		hostname := uuid.New().String()
 		servers = append(servers, &types.ServerV2{
 			Kind:    types.KindNode,
@@ -7656,7 +7149,7 @@ func BenchmarkCheckConditionalAccessToServer(b *testing.B) {
 	// Create RoleSet with four generic roles that have five logins
 	// each and only have access to the a:b label.
 	var set RoleSet
-	for i := range 4 {
+	for i := 0; i < 4; i++ {
 		set = append(set, &types.RoleV6{
 			Kind:    types.KindRole,
 			Version: types.V3,
@@ -7674,6 +7167,9 @@ func BenchmarkCheckConditionalAccessToServer(b *testing.B) {
 	}
 	userTraits := wrappers.Traits{}
 
+	// Initialization is complete, start the benchmark timer.
+	b.ResetTimer()
+
 	// Build a map of all allowed logins.
 	allowLogins := map[string]bool{}
 	for _, role := range set {
@@ -7683,14 +7179,13 @@ func BenchmarkCheckConditionalAccessToServer(b *testing.B) {
 	}
 
 	// Check access to all 4,000 nodes.
-	for b.Loop() {
-		for i := range 4000 {
+	for n := 0; n < b.N; n++ {
+		for i := 0; i < 4000; i++ {
 			for login := range allowLogins {
 				// note: we don't check the error here because this benchmark
 				// is testing the performance of failed RBAC checks
-				_, _ = set.checkAccess(
+				_ = set.checkAccess(
 					servers[i],
-					"",
 					userTraits,
 					AccessState{},
 					NewLoginMatcher(login),
@@ -8171,7 +7666,7 @@ func TestCheckKubeGroupsAndUsers(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			matcher := NewKubernetesClusterLabelMatcher(tc.kubeResLabels, "alice", userTraits)
+			matcher := NewKubernetesClusterLabelMatcher(tc.kubeResLabels, userTraits)
 			gotGroups, gotUsers, err := tc.roles.CheckKubeGroupsAndUsers(time.Hour, true, matcher)
 			if tc.errorFunc == nil {
 				require.NoError(t, err)
@@ -8288,12 +7783,12 @@ func TestWindowsDesktopGroups(t *testing.T) {
 func TestGetKubeResources(t *testing.T) {
 	t.Parallel()
 	podA := types.KubernetesResource{
-		Kind:      "pods",
+		Kind:      types.KindKubePod,
 		Namespace: "test",
 		Name:      "podA",
 	}
 	podB := types.KubernetesResource{
-		Kind:      "pods",
+		Kind:      types.KindKubePod,
 		Namespace: "test",
 		Name:      "podB",
 	}
@@ -8323,17 +7818,6 @@ func TestGetKubeResources(t *testing.T) {
 				}),
 			},
 			clusterLabels: map[string]string{"env": "prod"},
-			expectAllowed: []types.KubernetesResource{podA, podB},
-		},
-		{
-			desc: "labels expression matches username",
-			roles: []types.Role{
-				newRole(func(r *types.RoleV6) {
-					r.Spec.Allow.KubernetesLabelsExpression = `labels["owner"] == user.metadata.name`
-					r.Spec.Allow.KubernetesResources = []types.KubernetesResource{podA, podB}
-				}),
-			},
-			clusterLabels: map[string]string{"owner": "alice"},
 			expectAllowed: []types.KubernetesResource{podA, podB},
 		},
 		{
@@ -8378,7 +7862,6 @@ func TestGetKubeResources(t *testing.T) {
 			set := NewRoleSet(tc.roles...)
 			accessChecker := makeAccessCheckerWithRoleSet(set)
 			allowed, denied := accessChecker.GetKubeResources(cluster)
-			tc.expectAllowed = append(tc.expectAllowed, types.KubernetesResourceSelfSubjectAccessReview)
 			require.ElementsMatch(t, tc.expectAllowed, allowed, "allow list mismatch")
 			require.ElementsMatch(t, tc.expectDenied, denied, "deny list mismatch")
 		})
@@ -8556,9 +8039,9 @@ func TestHostUsers_getGroups(t *testing.T) {
 	} {
 		t.Run(tc.test, func(t *testing.T) {
 			accessChecker := makeAccessCheckerWithRoleSet(tc.roles)
-			hu, err := accessChecker.HostUsers(tc.server)
+			info, err := accessChecker.HostUsers(tc.server)
 			require.NoError(t, err)
-			require.ElementsMatch(t, tc.groups, hu.Info.Groups)
+			require.Equal(t, tc.groups, info.Groups)
 		})
 	}
 }
@@ -8986,7 +8469,6 @@ func TestHostUsers_CanCreateHostUser(t *testing.T) {
 				},
 			}),
 			server: &types.ServerV2{
-				Kind: types.KindNode,
 				Metadata: types.Metadata{
 					Labels: map[string]string{
 						"success": "abc",
@@ -9038,15 +8520,10 @@ func TestHostUsers_CanCreateHostUser(t *testing.T) {
 	} {
 		t.Run(tc.test, func(t *testing.T) {
 			accessChecker := makeAccessCheckerWithRoleSet(tc.roles)
-			hu, err := accessChecker.HostUsers(tc.server)
-			require.NoError(t, err)
+			info, err := accessChecker.HostUsers(tc.server)
+			require.Equal(t, tc.canCreate, err == nil && info != nil)
 			if tc.canCreate {
-				require.NotEmpty(t, hu.AllowedBy)
-				require.Empty(t, hu.DeniedBy)
-				require.Equal(t, convertHostUserMode(tc.expectedMode), hu.Info.Mode)
-			} else {
-				require.NotEmpty(t, hu.DeniedBy)
-				require.Nil(t, hu.Info)
+				require.Equal(t, convertHostUserMode(tc.expectedMode), info.Mode)
 			}
 		})
 	}
@@ -9289,6 +8766,7 @@ func TestRoleSet_GetAccessState(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -9630,26 +9108,23 @@ func TestKubeResourcesMatcher(t *testing.T) {
 			Allow: types.RoleConditions{
 				KubernetesResources: []types.KubernetesResource{
 					{
-						Kind:      "pods",
+						Kind:      types.KindKubePod,
 						Namespace: "dev",
 						Name:      types.Wildcard,
-						APIGroup:  types.Wildcard,
 					},
 					{
-						Kind:      "pods",
+						Kind:      types.KindKubePod,
 						Namespace: "default",
 						Name:      "nginx-*",
-						APIGroup:  types.Wildcard,
 					},
 				},
 			},
 			Deny: types.RoleConditions{
 				KubernetesResources: []types.KubernetesResource{
 					{
-						Kind:      "pods",
+						Kind:      types.KindKubePod,
 						Namespace: "default",
 						Name:      "restricted",
-						APIGroup:  types.Wildcard,
 					},
 				},
 			},
@@ -9662,10 +9137,9 @@ func TestKubeResourcesMatcher(t *testing.T) {
 			Allow: types.RoleConditions{
 				KubernetesResources: []types.KubernetesResource{
 					{
-						Kind:      "pods",
+						Kind:      types.KindKubePod,
 						Namespace: "prod",
 						Name:      "pod",
-						APIGroup:  types.Wildcard,
 					},
 				},
 			},
@@ -9678,10 +9152,9 @@ func TestKubeResourcesMatcher(t *testing.T) {
 			Allow: types.RoleConditions{
 				KubernetesResources: []types.KubernetesResource{
 					{
-						Kind:      "pods",
+						Kind:      types.KindKubePod,
 						Namespace: `^[($`,
 						Name:      `^[($`,
-						APIGroup:  types.Wildcard,
 					},
 				},
 			},
@@ -9708,12 +9181,12 @@ func TestKubeResourcesMatcher(t *testing.T) {
 				cond:  types.Allow,
 				resources: []types.KubernetesResource{
 					{
-						Kind:      "pods",
+						Kind:      types.KindKubePod,
 						Namespace: "dev",
 						Name:      "pod",
 					},
 					{
-						Kind:      "pods",
+						Kind:      types.KindKubePod,
 						Namespace: "default",
 						Name:      "nginx-*",
 					},
@@ -9730,12 +9203,12 @@ func TestKubeResourcesMatcher(t *testing.T) {
 				cond:  types.Allow,
 				resources: []types.KubernetesResource{
 					{
-						Kind:      "pods",
+						Kind:      types.KindKubePod,
 						Namespace: "dev",
 						Name:      "pod",
 					},
 					{
-						Kind:      "pods",
+						Kind:      types.KindKubePod,
 						Namespace: "default",
 						Name:      "nginx*",
 					},
@@ -9745,7 +9218,7 @@ func TestKubeResourcesMatcher(t *testing.T) {
 			// because unmatchedResources is not empty.
 			wantMatch:          boolsToSlice(true),
 			assertErr:          require.NoError,
-			unmatchedResources: []string{"pods/default/nginx*"},
+			unmatchedResources: []string{"pod/default/nginx*"},
 		},
 		{
 			name: "user requests a valid subset of pods but distributed across two roles",
@@ -9754,12 +9227,12 @@ func TestKubeResourcesMatcher(t *testing.T) {
 				cond:  types.Allow,
 				resources: []types.KubernetesResource{
 					{
-						Kind:      "pods",
+						Kind:      types.KindKubePod,
 						Namespace: "dev",
 						Name:      "pod",
 					},
 					{
-						Kind:      "pods",
+						Kind:      types.KindKubePod,
 						Namespace: "prod",
 						Name:      "pod",
 					},
@@ -9776,7 +9249,7 @@ func TestKubeResourcesMatcher(t *testing.T) {
 				cond:  types.Allow,
 				resources: []types.KubernetesResource{
 					{
-						Kind:      "pods",
+						Kind:      types.KindKubePod,
 						Namespace: "default",
 						Name:      "pod",
 					},
@@ -9784,7 +9257,7 @@ func TestKubeResourcesMatcher(t *testing.T) {
 			},
 			wantMatch:          boolsToSlice(false, false),
 			assertErr:          require.NoError,
-			unmatchedResources: []string{"pods/default/pod"},
+			unmatchedResources: []string{"pod/default/pod"},
 		},
 		{
 			name: "user requests a denied pod",
@@ -9793,7 +9266,7 @@ func TestKubeResourcesMatcher(t *testing.T) {
 				cond:  types.Deny,
 				resources: []types.KubernetesResource{
 					{
-						Kind:      "pods",
+						Kind:      types.KindKubePod,
 						Namespace: "default",
 						Name:      "restricted",
 					},
@@ -9810,7 +9283,7 @@ func TestKubeResourcesMatcher(t *testing.T) {
 				cond:  types.Allow,
 				resources: []types.KubernetesResource{
 					{
-						Kind:      "pods",
+						Kind:      types.KindKubePod,
 						Namespace: "default",
 						Name:      "restricted",
 					},
@@ -9818,7 +9291,7 @@ func TestKubeResourcesMatcher(t *testing.T) {
 			},
 			wantMatch:          boolsToSlice(false),
 			assertErr:          require.Error,
-			unmatchedResources: []string{"pods/default/restricted"},
+			unmatchedResources: []string{"pod/default/restricted"},
 		},
 	}
 	for _, tt := range tests {
@@ -9855,13 +9328,6 @@ func TestCheckAccessWithLabelExpressions(t *testing.T) {
 		&types.WindowsDesktopV3{ResourceHeader: types.ResourceHeader{Kind: types.KindWindowsDesktop}},
 		&types.WindowsDesktopServiceV3{ResourceHeader: types.ResourceHeader{Kind: types.KindWindowsDesktopService}},
 		&types.UserGroupV1{ResourceHeader: types.ResourceHeader{Kind: types.KindUserGroup}},
-		types.Resource153ToResourceWithLabels(&beamsv1.Beam{
-			Kind:    types.KindBeam,
-			Version: types.V1,
-			Metadata: &headerv1.Metadata{
-				Labels: map[string]string{},
-			},
-		}),
 	}
 	for _, r := range resources {
 		r.SetStaticLabels(map[string]string{"env": "prod"})
@@ -9942,6 +9408,7 @@ func TestCheckAccessWithLabelExpressions(t *testing.T) {
 	}
 
 	for _, resource := range resources {
+		resource := resource
 		t.Run(resource.GetKind(), func(t *testing.T) {
 			t.Parallel()
 			for _, tc := range testcases {
@@ -9989,21 +9456,6 @@ func TestCheckAccessWithLabelExpressions(t *testing.T) {
 			})
 		}
 	})
-}
-
-func TestCheckAccess_WithLabelExpressionUsername(t *testing.T) {
-	t.Parallel()
-
-	role := newRole(func(r *types.RoleV6) {
-		r.Spec.Allow.NodeLabelsExpression = `labels["owner"] == user.metadata.name`
-	})
-
-	server := &types.ServerV2{Kind: types.KindNode}
-	server.SetStaticLabels(map[string]string{"owner": "alice"})
-
-	accessChecker := makeAccessCheckerWithRoleSet(NewRoleSet(role))
-	err := accessChecker.CheckAccess(server, AccessState{})
-	require.NoError(t, err)
 }
 
 func TestCheckSPIFFESVID(t *testing.T) {
@@ -10331,260 +9783,6 @@ func TestCheckAccessToGitServer(t *testing.T) {
 	}
 }
 
-func TestMatchRequestKubernetesResource(t *testing.T) {
-	tests := []struct {
-		input     gk
-		reference types.RequestKubernetesResource
-		cond      types.RoleConditionType
-		expected  bool
-	}{
-		// Deny not match.
-		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "jobs", APIGroup: "batch"}, types.Deny, false},
-		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "jobs", APIGroup: "*"}, types.Deny, false},
-		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "batch"}, types.Deny, false},
-		{gk{kind: "*", group: "apps"}, types.RequestKubernetesResource{Kind: "jobs", APIGroup: "batch"}, types.Deny, false},
-		{gk{kind: "*", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "batch"}, types.Deny, false},
-		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "jobs", APIGroup: "batch"}, types.Deny, false},
-		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "jobs", APIGroup: "*"}, types.Deny, false},
-		{gk{kind: "deployments", group: "batch"}, types.RequestKubernetesResource{Kind: "jobs", APIGroup: "batch"}, types.Deny, false},
-		{gk{kind: "deployments", group: "batch"}, types.RequestKubernetesResource{Kind: "jobs", APIGroup: "*"}, types.Deny, false},
-		// Same checks with allow.
-		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "jobs", APIGroup: "batch"}, types.Allow, false},
-		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "jobs", APIGroup: "*"}, types.Allow, false},
-		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "batch"}, types.Allow, false},
-		{gk{kind: "*", group: "apps"}, types.RequestKubernetesResource{Kind: "jobs", APIGroup: "batch"}, types.Allow, false},
-		{gk{kind: "*", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "batch"}, types.Allow, false},
-		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "jobs", APIGroup: "batch"}, types.Allow, false},
-		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "jobs", APIGroup: "*"}, types.Allow, false},
-		{gk{kind: "deployments", group: "batch"}, types.RequestKubernetesResource{Kind: "jobs", APIGroup: "batch"}, types.Allow, false},
-		{gk{kind: "deployments", group: "batch"}, types.RequestKubernetesResource{Kind: "jobs", APIGroup: "*"}, types.Allow, false},
-
-		// Deny match.
-		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "apps"}, types.Deny, true},
-		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "*"}, types.Deny, true},
-		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "apps"}, types.Deny, true},
-		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "*"}, types.Deny, true},
-		{gk{kind: "*", group: "apps"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "apps"}, types.Deny, true},
-		{gk{kind: "*", group: "apps"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "*"}, types.Deny, true},
-		{gk{kind: "*", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "apps"}, types.Deny, true},
-		{gk{kind: "*", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "*"}, types.Deny, true},
-		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "apps"}, types.Deny, true},
-		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "*"}, types.Deny, true},
-		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "apps"}, types.Deny, true},
-		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "*"}, types.Deny, true},
-		{gk{kind: "*", group: "*"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "apps"}, types.Deny, true},
-		{gk{kind: "*", group: "*"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "*"}, types.Deny, true},
-		{gk{kind: "*", group: "*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "apps"}, types.Deny, true},
-		{gk{kind: "*", group: "*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "*"}, types.Deny, true},
-		{gk{kind: "deployments", group: "ap*"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "apps"}, types.Deny, true},
-		{gk{kind: "deployments", group: "ap*"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "*"}, types.Deny, true},
-		{gk{kind: "deployments", group: "ap*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "apps"}, types.Deny, true},
-		{gk{kind: "deployments", group: "ap*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "*"}, types.Deny, true},
-		{gk{kind: "*", group: "ap*"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "apps"}, types.Deny, true},
-		{gk{kind: "*", group: "ap*"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "*"}, types.Deny, true},
-		{gk{kind: "*", group: "ap*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "apps"}, types.Deny, true},
-		{gk{kind: "*", group: "ap*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "*"}, types.Deny, true},
-		// Same checks with allow.
-		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "apps"}, types.Allow, true},
-		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "*"}, types.Allow, true},
-		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "apps"}, types.Allow, true},
-		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "*"}, types.Allow, true},
-		{gk{kind: "*", group: "apps"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "apps"}, types.Allow, false},
-		{gk{kind: "*", group: "apps"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "*"}, types.Allow, false},
-		{gk{kind: "*", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "apps"}, types.Allow, true},
-		{gk{kind: "*", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "*"}, types.Allow, true},
-		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "apps"}, types.Allow, false},
-		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "*"}, types.Allow, true},
-		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "apps"}, types.Allow, false},
-		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "*"}, types.Allow, true},
-		{gk{kind: "*", group: "*"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "apps"}, types.Allow, false},
-		{gk{kind: "*", group: "*"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "*"}, types.Allow, false},
-		{gk{kind: "*", group: "*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "apps"}, types.Allow, false},
-		{gk{kind: "*", group: "*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "*"}, types.Allow, true},
-		{gk{kind: "deployments", group: "ap*"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "apps"}, types.Allow, false},
-		{gk{kind: "deployments", group: "ap*"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "*"}, types.Allow, true},
-		{gk{kind: "deployments", group: "ap*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "apps"}, types.Allow, false},
-		{gk{kind: "deployments", group: "ap*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "*"}, types.Allow, true},
-		{gk{kind: "*", group: "ap*"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "apps"}, types.Allow, false},
-		{gk{kind: "*", group: "ap*"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "*"}, types.Allow, false},
-		{gk{kind: "*", group: "ap*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "apps"}, types.Allow, false},
-		{gk{kind: "*", group: "ap*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "*"}, types.Allow, true},
-
-		// Allow not match. Some dups from earlier, but keeping them for logic, before it was the counter-part of the deny, here it is the main check.
-		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "jobs", APIGroup: "batch"}, types.Allow, false},
-		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "jobs", APIGroup: "*"}, types.Allow, false},
-		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "batch"}, types.Allow, false},
-		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "ba*"}, types.Allow, false},
-		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "jobs", APIGroup: "batch"}, types.Allow, false},
-		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "jobs", APIGroup: "*"}, types.Allow, false},
-		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "batch"}, types.Allow, false},
-		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "apps"}, types.Allow, false},
-		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "a*"}, types.Allow, false},
-		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "batch"}, types.Allow, false},
-		{gk{kind: "*", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "batch"}, types.Allow, false},
-		{gk{kind: "*", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "ba*"}, types.Allow, false},
-		{gk{kind: "*", group: "apps"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "apps"}, types.Allow, false},
-		{gk{kind: "*", group: "apps"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "*"}, types.Allow, false},
-		{gk{kind: "*", group: "*"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "apps"}, types.Allow, false},
-		{gk{kind: "*", group: "*"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "*"}, types.Allow, false},
-		{gk{kind: "*", group: "*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "apps"}, types.Allow, false},
-		// Same checks with deny.
-		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "jobs", APIGroup: "batch"}, types.Deny, false},
-		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "jobs", APIGroup: "*"}, types.Deny, false},
-		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "batch"}, types.Deny, false},
-		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "ba*"}, types.Deny, false},
-		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "jobs", APIGroup: "batch"}, types.Deny, false},
-		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "jobs", APIGroup: "*"}, types.Deny, false},
-		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "batch"}, types.Deny, true},
-		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "apps"}, types.Deny, true},
-		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "a*"}, types.Deny, true},
-		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "batch"}, types.Deny, true},
-		{gk{kind: "*", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "batch"}, types.Deny, false},
-		{gk{kind: "*", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "ba*"}, types.Deny, false},
-		{gk{kind: "*", group: "apps"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "apps"}, types.Deny, true},
-		{gk{kind: "*", group: "apps"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "*"}, types.Deny, true},
-		{gk{kind: "*", group: "*"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "apps"}, types.Deny, true},
-		{gk{kind: "*", group: "*"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "*"}, types.Deny, true},
-		{gk{kind: "*", group: "*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "apps"}, types.Deny, true},
-
-		// Allow match. Some dups from earlier, but keeping them for logic, before it was the counter-part of the deny, here it is the main check.
-		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "apps"}, types.Allow, true},
-		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "*"}, types.Allow, true},
-		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "apps"}, types.Allow, true},
-		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "*"}, types.Allow, true},
-		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "ap*"}, types.Allow, true},
-		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "*"}, types.Allow, true},
-		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "*"}, types.Allow, true},
-		{gk{kind: "*", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "apps"}, types.Allow, true},
-		{gk{kind: "*", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "*"}, types.Allow, true},
-		{gk{kind: "*", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "ap*"}, types.Allow, true},
-		{gk{kind: "*", group: "*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "*"}, types.Allow, true},
-		// Same checks with deny.
-		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "apps"}, types.Deny, true},
-		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "*"}, types.Deny, true},
-		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "apps"}, types.Deny, true},
-		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "*"}, types.Deny, true},
-		{gk{kind: "deployments", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "ap*"}, types.Deny, true},
-		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "deployments", APIGroup: "*"}, types.Deny, true},
-		{gk{kind: "deployments", group: "*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "*"}, types.Deny, true},
-		{gk{kind: "*", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "apps"}, types.Deny, true},
-		{gk{kind: "*", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "*"}, types.Deny, true},
-		{gk{kind: "*", group: "apps"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "ap*"}, types.Deny, true},
-		{gk{kind: "*", group: "*"}, types.RequestKubernetesResource{Kind: "*", APIGroup: "*"}, types.Deny, true},
-	}
-
-	for i, test := range tests {
-		t.Run(fmt.Sprint(i), func(t *testing.T) {
-			if result := matchRequestKubernetesResources(test.input, test.reference, test.cond); result != test.expected {
-				checkType := "allow"
-				if test.cond == types.Deny {
-					checkType = "deny"
-				}
-				t.Fatalf("Checking '%s.%s' %s by '%s.%s', expected %t, got %t",
-					test.input.kind, test.input.group, checkType, test.reference.Kind, test.reference.APIGroup, test.expected, result)
-			}
-		})
-	}
-}
-
-func TestMCPToolMatcher(t *testing.T) {
-	roleWithSpecificAllow := &types.RoleV6{
-		Kind:    types.KindRole,
-		Version: types.V8,
-		Metadata: types.Metadata{
-			Name:      "ai_user",
-			Namespace: apidefaults.Namespace,
-		},
-		Spec: types.RoleSpecV6{
-			Allow: types.RoleConditions{
-				MCP: &types.MCPPermissions{
-					Tools: []string{
-						"allow_literal",
-						"^allow(_regex)+$",
-						"allow_glob*",
-					},
-				},
-			},
-		},
-	}
-
-	roleWithWildcardAllow := &types.RoleV6{
-		Kind:    types.KindRole,
-		Version: types.V8,
-		Metadata: types.Metadata{
-			Name:      "ai_user",
-			Namespace: apidefaults.Namespace,
-		},
-		Spec: types.RoleSpecV6{
-			Allow: types.RoleConditions{
-				MCP: &types.MCPPermissions{
-					Tools: []string{"*"},
-				},
-			},
-			Deny: types.RoleConditions{
-				MCP: &types.MCPPermissions{
-					Tools: []string{"deny_literal"},
-				},
-			},
-		},
-	}
-
-	tests := []struct {
-		testToolName  string
-		testRole      types.Role
-		testCondition types.RoleConditionType
-		requireMatch  require.BoolAssertionFunc
-	}{
-		{
-			testToolName:  "deny_empty",
-			testRole:      roleWithSpecificAllow,
-			testCondition: types.Deny,
-			requireMatch:  require.False,
-		},
-		{
-			testToolName:  "allow_literal",
-			testRole:      roleWithSpecificAllow,
-			testCondition: types.Allow,
-			requireMatch:  require.True,
-		},
-		{
-			testToolName:  "allow_regex_regex",
-			testRole:      roleWithSpecificAllow,
-			testCondition: types.Allow,
-			requireMatch:  require.True,
-		},
-		{
-			testToolName:  "allow_globbb",
-			testRole:      roleWithSpecificAllow,
-			testCondition: types.Allow,
-			requireMatch:  require.True,
-		},
-		{
-			testToolName:  "allow_wildcard",
-			testRole:      roleWithWildcardAllow,
-			testCondition: types.Allow,
-			requireMatch:  require.True,
-		},
-		{
-			testToolName:  "deny_literal",
-			testRole:      roleWithWildcardAllow,
-			testCondition: types.Deny,
-			requireMatch:  require.True,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.testToolName, func(t *testing.T) {
-			matcher := MCPToolMatcher{
-				Name: tt.testToolName,
-			}
-			match, err := matcher.Match(tt.testRole, tt.testCondition)
-			require.NoError(t, err)
-			tt.requireMatch(t, match)
-		})
-	}
-}
-
 func TestNewEnumerationResultFromEntities(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -10628,652 +9826,110 @@ func TestNewEnumerationResultFromEntities(t *testing.T) {
 	}
 }
 
-func TestSessionRecordingRBAC(t *testing.T) {
-	newUser := func(name string, traits map[string][]string, roles []string) types.User {
-		user, err := types.NewUser(name)
-		require.NoError(t, err)
-		user.SetTraits(traits)
-		user.SetRoles(roles)
-		return user
-	}
-	newRole := func(allow, deny *types.Rule) *types.RoleV6 {
-		var denyRules []types.Rule
-		var denyNamespaces []string
-		if deny != nil {
-			denyRules = []types.Rule{*deny}
-			denyNamespaces = []string{apidefaults.Namespace}
-		}
-		var allowRules []types.Rule
-		if allow != nil {
-			allowRules = []types.Rule{*allow}
-		}
-		return &types.RoleV6{
-			Metadata: types.Metadata{
-				Name:      "test-role",
-				Namespace: apidefaults.Namespace,
+func TestCheckImpersonateRoles(t *testing.T) {
+	t.Parallel()
+	u, err := types.NewUser("myuser")
+	require.NoError(t, err)
+
+	newRole := func(t *testing.T, name string, allow, deny *types.ImpersonateConditions) types.Role {
+		role, err := types.NewRole(name, types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Impersonate: allow,
 			},
-			Spec: types.RoleSpecV6{
-				Allow: types.RoleConditions{
-					Namespaces: []string{apidefaults.Namespace},
-					NodeLabels: types.Labels{
-						"env": []string{"prod"},
-					},
-					Rules: allowRules,
-				},
-				Deny: types.RoleConditions{
-					Rules:      denyRules,
-					Namespaces: denyNamespaces,
-				},
+			Deny: types.RoleConditions{
+				Impersonate: deny,
 			},
-		}
-	}
-
-	newServer := func(name string, labels map[string]string) types.Server {
-		server, err := types.NewServer(name, types.KindNode, types.ServerSpecV2{})
+		})
 		require.NoError(t, err)
-		server.SetStaticLabels(labels)
-		return server
+		return role
 	}
 
-	serverWithAccess := newServer("server-with-access", map[string]string{
-		"env": "prod",
-	})
-
-	serverWithoutAccess := newServer("server-without-access", map[string]string{
-		"env": "dev",
-	})
-
-	alice := newUser(
-		"alice",
-		map[string][]string{
-			"group": {"prod"},
-			"team":  {"engineering"},
-		}, []string{"role1"})
-
-	bob := newUser(
-		"bob",
-		map[string][]string{
-			"group": {"prod"},
-			"team":  {"engineering"},
-		}, []string{"role1"})
-
-	john := newUser(
-		"john",
-		map[string][]string{
-			"group": {"sre"},
-			"team":  {"sre"},
-		}, []string{"role2"})
-
-	testCases := []struct {
-		name                     string
-		roles                    RoleSet
-		accessRequestResourceIds []types.ResourceID
-		context                  Context
-		errCheck                 require.ErrorAssertionFunc
+	acceptTests := []struct {
+		name             string
+		roleSet          RoleSet
+		impersonateRoles []types.Role
 	}{
 		{
-			name:  "0 - empty role set has access to nothing",
-			roles: RoleSet{},
-			context: Context{
-				User:     alice,
-				Session:  newSessionEndEvent(),
-				Resource: serverWithAccess,
-			},
-			errCheck: requireAccessDenied,
+			name: "allow rule",
+			roleSet: []types.Role{newRole(t, "myrole", &types.ImpersonateConditions{
+				Roles: []string{"foo"},
+			}, nil)},
+			impersonateRoles: []types.Role{newRole(t, "foo", nil, nil)},
 		},
 		{
-			name: "1 - user can read session",
-			roles: RoleSet{
-				newRole(&types.Rule{
-					Resources: []string{types.KindSession},
-					Verbs:     []string{types.VerbRead},
-				}, nil),
-			},
-			context: Context{
-				User:     alice,
-				Session:  newSessionEndEvent(),
-				Resource: serverWithAccess,
-			},
-			errCheck: require.NoError,
-		},
-		{
-			name: "2 - user can read session with trait match",
-			roles: RoleSet{
-				newRole(&types.Rule{
-					Resources: []string{types.KindSession},
-					Verbs:     []string{types.VerbRead},
-					Where:     `contains(user.spec.traits["group"], "prod")`,
-				}, nil),
-			},
-			context: Context{
-				User:     alice,
-				Session:  newSessionEndEvent(),
-				Resource: serverWithAccess,
-			},
-			errCheck: require.NoError,
-		},
-		{
-			name: "3 - user can not read session with missing trait match",
-			roles: RoleSet{
-				newRole(&types.Rule{
-					Resources: []string{types.KindSession},
-					Verbs:     []string{types.VerbRead},
-					Where:     `contains(user.spec.traits["group"], "missing")`,
-				}, nil),
-			},
-			context: Context{
-				User:     alice,
-				Session:  newSessionEndEvent(),
-				Resource: serverWithAccess,
-			},
-			errCheck: requireAccessDenied,
-		},
-		{
-			name: "4 - alice user can read session if he is a participant",
-			roles: RoleSet{
-				newRole(&types.Rule{
-					Resources: []string{types.KindSession},
-					Verbs:     []string{types.VerbRead},
-					Where:     `contains(session.participants, user.metadata.name)`,
-				}, nil),
-			},
-			context: Context{
-				User:     alice,
-				Session:  newSessionEndEvent(),
-				Resource: serverWithAccess,
-			},
-			errCheck: require.NoError,
-		},
-
-		{
-			name: "5 - bob user can read session if he is a participant",
-			roles: RoleSet{
-				newRole(&types.Rule{
-					Resources: []string{types.KindSession},
-					Verbs:     []string{types.VerbRead},
-					Where:     `contains(session.participants, user.metadata.name)`,
-				}, nil),
-			},
-			context: Context{
-				User:     bob,
-				Session:  newSessionEndEvent(),
-				Resource: serverWithAccess,
-			},
-			errCheck: require.NoError,
-		},
-		{
-			name: "6 - john user can not read session because he is a participant",
-			roles: RoleSet{
-				newRole(&types.Rule{
-					Resources: []string{types.KindSession},
-					Verbs:     []string{types.VerbRead},
-					Where:     `contains(session.participants, user.metadata.name)`,
-				}, nil),
-			},
-			context: Context{
-				User:     john,
-				Session:  newSessionEndEvent(),
-				Resource: serverWithAccess,
-			},
-			errCheck: requireAccessDenied,
-		},
-		{
-			name: "7 - alice can read session if server label matches",
-			roles: RoleSet{
-				newRole(&types.Rule{
-					Resources: []string{types.KindSession},
-					Verbs:     []string{types.VerbRead},
-					Where:     `contains(user.spec.traits["group"], session.server_labels["env"])`,
-				}, nil),
-			},
-			context: Context{
-				User:     alice,
-				Session:  newSessionEndEvent(),
-				Resource: serverWithAccess,
-			},
-			errCheck: require.NoError,
-		},
-		{
-			name: "8 - john can not read session because server label doesn't match",
-			roles: RoleSet{
-				newRole(&types.Rule{
-					Resources: []string{types.KindSession},
-					Verbs:     []string{types.VerbRead},
-					Where:     `contains(user.spec.traits["group"], session.server_labels["env"])`,
-				}, nil),
-			},
-			context: Context{
-				User:     john,
-				Session:  newSessionEndEvent(),
-				Resource: serverWithAccess,
-			},
-			errCheck: requireAccessDenied,
-		},
-		{
-			name: "9 - bob can read session if he shares any role with the session user",
-			roles: RoleSet{
-				newRole(&types.Rule{
-					Resources: []string{types.KindSession},
-					Verbs:     []string{types.VerbRead},
-					Where:     `contains_any(user.spec.roles, session.user_roles)`,
-				}, nil),
-			},
-			context: Context{
-				User:    bob,
-				Session: newSessionEndEvent(),
-			},
-			errCheck: require.NoError,
-		},
-		{
-			name: "10 - john can not read session because he shares no roles with the session user",
-			roles: RoleSet{
-				newRole(&types.Rule{
-					Resources: []string{types.KindSession},
-					Verbs:     []string{types.VerbRead},
-					Where:     `contains_any(user.spec.roles, session.user_roles)`,
-				}, nil),
-			},
-			context: Context{
-				User:     john,
-				Session:  newSessionEndEvent(),
-				Resource: serverWithAccess,
-			},
-			errCheck: requireAccessDenied,
-		},
-		{
-			name: "11 - bob can read session if he belongs to the same team as the session user",
-			roles: RoleSet{
-				newRole(&types.Rule{
-					Resources: []string{types.KindSession},
-					Verbs:     []string{types.VerbRead},
-					Where:     `contains_all(user.spec.traits["team"], session.user_traits["team"])`,
-				}, nil),
-			},
-			context: Context{
-				User:     bob,
-				Session:  newSessionEndEvent(),
-				Resource: serverWithAccess,
-			},
-			errCheck: require.NoError,
-		},
-		{
-			name: "12 - john can not read session because he belongs to a different team",
-			roles: RoleSet{
-				newRole(&types.Rule{
-					Resources: []string{types.KindSession},
-					Verbs:     []string{types.VerbRead},
-					Where:     `contains_all(user.spec.traits["team"], session.user_traits["team"])`,
-				}, nil),
-			},
-			context: Context{
-				User:     john,
-				Session:  newSessionEndEvent(),
-				Resource: serverWithAccess,
-			},
-			errCheck: requireAccessDenied,
-		},
-		{
-			name: "13 - bob can read session if he belongs to the same team as the session user",
-			roles: RoleSet{
-				newRole(&types.Rule{
-					Resources: []string{types.KindSession},
-					Verbs:     []string{types.VerbRead},
-					Where:     `contains_all(user.spec.traits["team"], session.user_traits["team"])`,
-				}, nil),
-			},
-			context: Context{
-				User:     bob,
-				Session:  newWindowsSessionEndEvent(),
-				Resource: serverWithAccess,
-			},
-			errCheck: require.NoError,
-		},
-		{
-			name: "14 - john can not read session because he belongs to a different team",
-			roles: RoleSet{
-				newRole(&types.Rule{
-					Resources: []string{types.KindSession},
-					Verbs:     []string{types.VerbRead},
-					Where:     `contains_all(user.spec.traits["team"], session.user_traits["team"])`,
-				}, nil),
-			},
-			context: Context{
-				User:     john,
-				Session:  newWindowsSessionEndEvent(),
-				Resource: serverWithAccess,
-			},
-			errCheck: requireAccessDenied,
-		},
-		{
-			name: "15 - alice can't read session because of deny rule",
-			roles: RoleSet{
-				newRole(&types.Rule{
-					Resources: []string{types.KindSession},
-					Verbs:     []string{types.VerbRead},
-				}, nil),
-				newRole(nil, &types.Rule{
-					Resources: []string{types.KindSession},
-					Verbs:     []string{types.VerbRead},
-					Where:     `contains(user.spec.traits["group"], "prod")`,
-				}),
-			},
-			context: Context{
-				User:     alice,
-				Session:  newSessionEndEvent(),
-				Resource: serverWithAccess,
-			},
-			errCheck: requireAccessDenied,
-		},
-		{
-			name: "15 - alice can read session because of deny rule does not match",
-			roles: RoleSet{
-				newRole(&types.Rule{
-					Resources: []string{types.KindSession},
-					Verbs:     []string{types.VerbRead},
-				}, nil),
-				newRole(nil, &types.Rule{
-					Resources: []string{types.KindSession},
-					Verbs:     []string{types.VerbRead},
-					Where:     `contains(user.spec.traits["group"], "missing")`,
-				}),
-			},
-			context: Context{
-				User:     alice,
-				Session:  newSessionEndEvent(),
-				Resource: serverWithAccess,
-			},
-			errCheck: require.NoError,
-		},
-		{
-			name: "16 - alice can read session because she can access the server",
-			roles: RoleSet{
-				newRole(&types.Rule{
-					Resources: []string{types.KindSession},
-					Verbs:     []string{types.VerbRead},
-					Where:     `can_view()`,
-				}, nil),
-			},
-			context: Context{
-				User:     alice,
-				Session:  newSessionEndEvent(),
-				Resource: serverWithAccess,
-			},
-			errCheck: require.NoError,
-		},
-		{
-			name: "17 - alice can not read session because she can't access the server",
-			roles: RoleSet{
-				newRole(&types.Rule{
-					Resources: []string{types.KindSession},
-					Verbs:     []string{types.VerbRead},
-					Where:     `can_view()`,
-				}, nil),
-			},
-			context: Context{
-				User:     alice,
-				Session:  newSessionEndEvent(),
-				Resource: serverWithoutAccess,
-			},
-			errCheck: requireAccessDenied,
-		},
-		{
-			name: "18 - alice can not read session because resource doesn't exist",
-			roles: RoleSet{
-				newRole(&types.Rule{
-					Resources: []string{types.KindSession},
-					Verbs:     []string{types.VerbRead},
-					Where:     `can_view()`,
-				}, nil),
-			},
-			context: Context{
-				User:    alice,
-				Session: newSessionEndEvent(),
-			},
-			errCheck: requireAccessDenied,
-		},
-		{
-			name: "19 - bob can read session because he has access and belongs to the same team as the session user",
-			roles: RoleSet{
-				newRole(&types.Rule{
-					Resources: []string{types.KindSession},
-					Verbs:     []string{types.VerbRead},
-					Where:     `can_view() && contains_all(user.spec.traits["team"], session.user_traits["team"])`,
-				}, nil),
-			},
-			context: Context{
-				User:     bob,
-				Session:  newSessionEndEvent(),
-				Resource: serverWithAccess,
-			},
-			errCheck: require.NoError,
-		},
-		{
-			name: "20 - john can not read session because he has access but belongs to a different team",
-			roles: RoleSet{
-				newRole(&types.Rule{
-					Resources: []string{types.KindSession},
-					Verbs:     []string{types.VerbRead},
-					Where:     `can_view() && contains_all(user.spec.traits["team"], session.user_traits["team"])`,
-				}, nil),
-			},
-			context: Context{
-				User:     john,
-				Session:  newSessionEndEvent(),
-				Resource: serverWithAccess,
-			},
-			errCheck: requireAccessDenied,
-		},
-		{
-			name: "21 - bob can read database session because his group matches with env label for database",
-			roles: RoleSet{
-				newRole(&types.Rule{
-					Resources: []string{types.KindSession},
-					Verbs:     []string{types.VerbRead},
-					Where:     `contains(user.spec.traits["group"], session.db_labels["env"])`,
-				}, nil),
-			},
-			context: Context{
-				User:     bob,
-				Session:  newDatabaseSessionEndEvent(),
-				Resource: serverWithAccess,
-			},
-			errCheck: require.NoError,
-		},
-		{
-			name: "21 - john can not read database session because his group does not match with env label for database",
-			roles: RoleSet{
-				newRole(&types.Rule{
-					Resources: []string{types.KindSession},
-					Verbs:     []string{types.VerbRead},
-					Where:     `contains(user.spec.traits["group"], session.db_labels["env"])`,
-				}, nil),
-			},
-			context: Context{
-				User:     john,
-				Session:  newDatabaseSessionEndEvent(),
-				Resource: serverWithAccess,
-			},
-			errCheck: requireAccessDenied,
-		},
-		{
-			name: "20 - bob can read session because he has access request for the server",
-			roles: RoleSet{
-				newRole(&types.Rule{
-					Resources: []string{types.KindSession},
-					Verbs:     []string{types.VerbRead},
-					Where:     `can_view()`,
-				}, nil),
-			},
-			accessRequestResourceIds: []types.ResourceID{
-				{
-					ClusterName: "local",
-					Kind:        types.KindNode,
-					Name:        serverWithAccess.GetName(),
-				},
-			},
-			context: Context{
-				User:     bob,
-				Session:  newSessionEndEvent(),
-				Resource: serverWithAccess,
-			},
-			errCheck: require.NoError,
-		},
-		{
-			name: "21 - bob can't read session because he has access request for a different server",
-			roles: RoleSet{
-				newRole(&types.Rule{
-					Resources: []string{types.KindSession},
-					Verbs:     []string{types.VerbRead},
-					Where:     `can_view()`,
-				}, nil),
-			},
-			accessRequestResourceIds: []types.ResourceID{
-				{
-					ClusterName: "local",
-					Kind:        types.KindNode,
-					Name:        serverWithoutAccess.GetName(),
-				},
-			},
-			context: Context{
-				User:     bob,
-				Session:  newSessionEndEvent(),
-				Resource: serverWithAccess,
-			},
-			errCheck: requireAccessDenied,
-		},
-		{
-			name: "22 - bob can't read windows session because his role references session.server_labels",
-			roles: RoleSet{
-				newRole(&types.Rule{
-					Resources: []string{types.KindSession},
-					Verbs:     []string{types.VerbRead},
-					Where:     `session.server_labels["env"]=="prod"`,
-				}, nil),
-			},
-			context: Context{
-				User:     bob,
-				Session:  newWindowsSessionEndEvent(),
-				Resource: serverWithAccess,
-			},
-			errCheck: requireAccessDenied,
-		},
-		{
-			name: "23 - bob can read windows session one of his roles allow it",
-			roles: RoleSet{
-				newRole(&types.Rule{
-					Resources: []string{types.KindSession},
-					Verbs:     []string{types.VerbRead},
-					Where:     `session.server_labels["env"]=="prod"`,
-				}, nil),
-				newRole(&types.Rule{
-					Resources: []string{types.KindSession},
-					Verbs:     []string{types.VerbRead},
-				}, nil),
-			},
-			context: Context{
-				User:     bob,
-				Session:  newWindowsSessionEndEvent(),
-				Resource: serverWithAccess,
-			},
-			errCheck: require.NoError,
+			name: "matching where clause",
+			roleSet: []types.Role{newRole(t, "myrole", &types.ImpersonateConditions{
+				Roles: []string{"*"},
+				Where: `equals(impersonate_role.metadata.name, "foo")`,
+			}, nil)},
+			impersonateRoles: []types.Role{newRole(t, "foo", nil, nil)},
 		},
 	}
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			tc.context.AccessChecker = NewAccessCheckerWithRoleSet(&AccessInfo{AllowedResourceAccessIDs: types.ResourceIDsToResourceAccessIDs(tc.accessRequestResourceIds)}, "local", tc.roles)
-			result := tc.roles.CheckAccessToRule(&tc.context, apidefaults.Namespace, types.KindSession, types.VerbRead)
-			tc.errCheck(t, result)
+	for _, tc := range acceptTests {
+		t.Run("accept "+tc.name, func(t *testing.T) {
+			require.NoError(t, tc.roleSet.CheckImpersonateRoles(u, tc.impersonateRoles))
 		})
 	}
-}
-
-func newSessionEndEvent() *apievents.SessionEnd {
-	startTime := time.Date(2020, 3, 30, 15, 58, 54, 561*int(time.Millisecond), time.UTC)
-	endTime := startTime.Add(time.Minute)
-	return &apievents.SessionEnd{
-		Metadata: apievents.Metadata{
-			Index: 20,
-			Type:  "session.end",
-			ID:    "da455e0f-c27d-459f-a218-4e83b3db9426",
-			Code:  "T2004I",
-			Time:  endTime,
+	rejectTests := []struct {
+		name             string
+		roleSet          RoleSet
+		impersonateRoles []types.Role
+	}{
+		{
+			name:             "no allow rules",
+			roleSet:          []types.Role{newRole(t, "foo", nil, nil)},
+			impersonateRoles: []types.Role{newRole(t, "bar", nil, nil)},
 		},
-		ServerMetadata: apievents.ServerMetadata{
-			ServerVersion:   teleport.Version,
-			ServerID:        "6a7c593d-345a-431f-9e21-4049be982fa5",
-			ServerNamespace: "default",
-			ServerLabels:    map[string]string{"env": "prod"},
+		{
+			name: "deny rule",
+			roleSet: []types.Role{newRole(t, "myrole", &types.ImpersonateConditions{
+				Roles: []string{"*"},
+			}, &types.ImpersonateConditions{
+				Roles: []string{"foo"},
+			})},
+			impersonateRoles: []types.Role{newRole(t, "foo", nil, nil)},
 		},
-		SessionMetadata: apievents.SessionMetadata{
-			SessionID: "cb116fb0-9227-4889-9392-aedd13a914a6",
+		{
+			name: "users in allow rule",
+			roleSet: []types.Role{newRole(t, "myrole", &types.ImpersonateConditions{
+				Users: []string{"*"},
+				Roles: []string{"foo"},
+			}, nil)},
+			impersonateRoles: []types.Role{newRole(t, "foo", nil, nil)},
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:      "alice",
-			UserRoles: []string{"role1"},
-			UserTraits: map[string][]string{
-				"group": {"prod"},
-				"team":  {"engineering"},
-			},
+		{
+			name: "users bypassing role check",
+			roleSet: []types.Role{newRole(t, "myrole", &types.ImpersonateConditions{
+				Roles: []string{"*"},
+			}, &types.ImpersonateConditions{
+				Roles: []string{"foo"},
+				Users: []string{"*"},
+			})},
+			impersonateRoles: []types.Role{newRole(t, "foo", nil, nil)},
 		},
-		EnhancedRecording: true,
-		Interactive:       true,
-		Participants:      []string{"alice", "bob"},
-		StartTime:         startTime,
-		EndTime:           endTime,
+		{
+			name: "users in deny rule",
+			roleSet: []types.Role{newRole(t, "myrole", &types.ImpersonateConditions{
+				Roles: []string{"*"},
+			}, &types.ImpersonateConditions{
+				Roles: []string{"bar"},
+				Users: []string{"*"},
+			})},
+			impersonateRoles: []types.Role{newRole(t, "foo", nil, nil)},
+		},
+		{
+			name: "no matching where clause",
+			roleSet: []types.Role{newRole(t, "myRole", &types.ImpersonateConditions{
+				Roles: []string{"*"},
+				Where: `equals(impersonate_role.metadata.name, "wrongname")`,
+			}, nil)},
+			impersonateRoles: []types.Role{newRole(t, "foo", nil, nil)},
+		},
 	}
-}
-
-func newWindowsSessionEndEvent() *apievents.WindowsDesktopSessionEnd {
-	startTime := time.Date(2020, 3, 30, 15,
-		58, 54, 561*int(time.Millisecond), time.UTC)
-	endTime := startTime.Add(time.Minute)
-	return &apievents.WindowsDesktopSessionEnd{
-		Metadata: apievents.Metadata{
-			Index: 20,
-			Type:  "session.end",
-			ID:    "da455e0f-c27d-459f-a218-4e83b3db9426",
-			Code:  "T2004I",
-			Time:  endTime,
-		},
-		DesktopLabels: map[string]string{"env": "prod"},
-		UserMetadata: apievents.UserMetadata{
-			User:      "alice",
-			UserRoles: []string{"role1"},
-			UserTraits: map[string][]string{
-				"group": {"prod"},
-				"team":  {"engineering"},
-			},
-		},
-		Participants: []string{"alice", "bob"},
-		StartTime:    startTime,
-		EndTime:      endTime,
-	}
-}
-
-func newDatabaseSessionEndEvent() *apievents.DatabaseSessionEnd {
-	startTime := time.Date(2020, 3, 30, 15,
-		58, 54, 561*int(time.Millisecond), time.UTC)
-	endTime := startTime.Add(time.Minute)
-	return &apievents.DatabaseSessionEnd{
-		Metadata: apievents.Metadata{
-			Index: 20,
-			Type:  "session.end",
-			ID:    "da455e0f-c27d-459f-a218-4e83b3db9426",
-			Code:  "T2004I",
-			Time:  endTime,
-		},
-		DatabaseMetadata: apievents.DatabaseMetadata{
-			DatabaseLabels: map[string]string{"env": "prod"},
-		},
-		UserMetadata: apievents.UserMetadata{
-			User:      "alice",
-			UserRoles: []string{"role1"},
-			UserTraits: map[string][]string{
-				"group": {"prod"},
-				"team":  {"engineering"},
-			},
-		},
-		StartTime: startTime,
-		EndTime:   endTime,
+	for _, tc := range rejectTests {
+		t.Run("reject "+tc.name, func(t *testing.T) {
+			err := tc.roleSet.CheckImpersonateRoles(u, tc.impersonateRoles)
+			require.True(t, trace.IsAccessDenied(err), "unexpected error: %v", err)
+		})
 	}
 }

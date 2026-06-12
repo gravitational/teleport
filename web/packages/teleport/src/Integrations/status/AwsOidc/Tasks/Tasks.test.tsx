@@ -15,17 +15,13 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-import { MemoryRouter, Route, Routes } from 'react-router';
+import { createMemoryHistory } from 'history';
+import { Router } from 'react-router';
 
-import {
-  CurrentLocation,
-  render,
-  screen,
-  userEvent,
-  waitFor,
-} from 'design/utils/testing';
+import { render, screen, userEvent, waitFor } from 'design/utils/testing';
 
 import { ContextProvider } from 'teleport';
+import { Route } from 'teleport/components/Router';
 import cfg from 'teleport/config';
 import { Tasks } from 'teleport/Integrations/status/AwsOidc/Tasks/Tasks';
 import { makeAwsOidcStatusContextState } from 'teleport/Integrations/status/AwsOidc/testHelpers/makeAwsOidcStatusContextState';
@@ -57,52 +53,28 @@ test('deep links an open task', async () => {
       nextKey: 'next',
     });
 
-  jest.spyOn(integrationService, 'fetchUserTask').mockResolvedValue({
-    name: 'df4d8288-7106-5a50-bb50-4b5858e48ad5',
-    taskType: 'discover-rds',
-    state: 'OPEN',
-    integration: integrationName,
-    title: 'RDS Failure',
-    description: 'details',
-    discoverRds: {
-      region: 'us-east-1',
-      databases: {
-        db1: {
-          name: 'db1',
-        },
-      },
-    },
-  } as any);
+  const history = createMemoryHistory({
+    initialEntries: [
+      cfg.getIntegrationTasksRoute(IntegrationKind.AwsOidc, integrationName),
+    ],
+  });
+  history.replace = jest.fn();
 
   render(
-    <MemoryRouter
-      initialEntries={[
-        cfg.getIntegrationTasksRoute(IntegrationKind.AwsOidc, integrationName),
-      ]}
-    >
+    <Router history={history}>
       <ContextProvider ctx={ctx}>
         <awsOidcStatusContext.Provider value={makeAwsOidcStatusContextState()}>
-          <Routes>
-            <Route
-              path={cfg.routes.integrationTasks}
-              element={
-                <>
-                  <Tasks />
-                  <CurrentLocation testId="location" />
-                </>
-              }
-            />
-          </Routes>
+          <Route path={cfg.routes.integrationTasks} render={() => <Tasks />} />
         </awsOidcStatusContext.Provider>
       </ContextProvider>
-    </MemoryRouter>
+    </Router>
   );
 
   await screen.findAllByText('Pending Tasks');
   await userEvent.click(screen.getByText('RDS Failure'));
 
   await waitFor(() =>
-    expect(screen.getByTestId('location')).toHaveTextContent(
+    expect(history.replace).toHaveBeenCalledWith(
       '/web/integrations/status/aws-oidc/integration-test/tasks?task=df4d8288-7106-5a50-bb50-4b5858e48ad5'
     )
   );

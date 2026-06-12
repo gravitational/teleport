@@ -23,6 +23,7 @@ package accesspoint
 
 import (
 	"context"
+	"log/slog"
 	"slices"
 	"time"
 
@@ -32,6 +33,8 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
@@ -72,17 +75,14 @@ type Config struct {
 	Access                  services.Access
 	AccessLists             services.AccessLists
 	AccessMonitoringRules   services.AccessMonitoringRules
-	AppSession              services.AppSessionReader
+	AppSession              services.AppSession
 	Applications            services.Applications
-	Beams                   services.BeamReader
 	BotInstance             services.BotInstance
 	ClusterConfig           services.ClusterConfiguration
-	StaticScopedToken       services.StaticScopedTokenService
 	CrownJewels             services.CrownJewels
 	DatabaseObjects         services.DatabaseObjects
 	DatabaseServices        services.DatabaseServices
 	Databases               services.Databases
-	DelegationSessions      services.DelegationSessions
 	DiscoveryConfigs        services.DiscoveryConfigs
 	DynamicAccess           services.DynamicAccessCore
 	Events                  types.Events
@@ -95,9 +95,10 @@ type Config struct {
 	Provisioner             services.Provisioner
 	Restrictions            services.Restrictions
 	SAMLIdPServiceProviders services.SAMLIdPServiceProviders
+	SAMLIdPSession          services.SAMLIdPSession
 	SecReports              services.SecReports
 	SnowflakeSession        services.SnowflakeSession
-	SPIFFEFederations       services.SPIFFEFederations
+	SPIFFEFederations       cache.SPIFFEFederationReader
 	StaticHostUsers         services.StaticHostUser
 	Trust                   services.Trust
 	UserGroups              services.UserGroups
@@ -109,18 +110,12 @@ type Config struct {
 	WorkloadIdentity        services.WorkloadIdentities
 	DynamicWindowsDesktops  services.DynamicWindowsDesktops
 	WindowsDesktops         services.WindowsDesktops
-	LinuxDesktops           services.LinuxDesktops
 	AutoUpdateService       services.AutoUpdateServiceGetter
 	ProvisioningStates      services.ProvisioningStates
 	IdentityCenter          services.IdentityCenter
 	PluginStaticCredentials services.PluginStaticCredentials
 	GitServers              services.GitServers
-	HealthCheckConfig       services.HealthCheckConfigReader
-	RecordingEncryption     services.RecordingEncryption
 	Plugin                  services.Plugins
-	AppAuthConfig           services.AppAuthConfigReader
-	Summarizer              services.Summarizer
-	SubCAService            services.SubCAServiceGetter
 }
 
 func (c *Config) CheckAndSetDefaults() error {
@@ -141,9 +136,29 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	slog.DebugContext(cfg.Context, "Creating in-memory backend cache.", "cache_name", cfg.CacheName)
+	mem, err := memory.New(memory.Config{
+		Context:   cfg.Context,
+		EventsOff: !cfg.EventsSystem,
+		Mirror:    true,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	var tracer oteltrace.Tracer
 	if cfg.TracingProvider != nil {
 		tracer = cfg.TracingProvider.Tracer(teleport.ComponentCache)
+	}
+
+	reporter, err := backend.NewReporter(backend.ReporterConfig{
+		Component:  teleport.ComponentCache,
+		Backend:    mem,
+		Tracer:     tracer,
+		Registerer: cfg.Registerer,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	component := slices.Clone(cfg.CacheName)
@@ -156,6 +171,7 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 
 	cacheCfg := cache.Config{
 		Context:                 cfg.Context,
+		Backend:                 reporter,
 		Component:               teleport.Component(component...),
 		MetricComponent:         teleport.Component(metricComponent...),
 		Tracer:                  tracer,
@@ -167,9 +183,7 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		AccessMonitoringRules:   cfg.AccessMonitoringRules,
 		AppSession:              cfg.AppSession,
 		Apps:                    cfg.Applications,
-		Beams:                   cfg.Beams,
 		ClusterConfig:           cfg.ClusterConfig,
-		StaticScopedToken:       cfg.StaticScopedToken,
 		AutoUpdateService:       cfg.AutoUpdateService,
 		CrownJewels:             cfg.CrownJewels,
 		DatabaseObjects:         cfg.DatabaseObjects,
@@ -187,6 +201,7 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		Provisioner:             cfg.Provisioner,
 		Restrictions:            cfg.Restrictions,
 		SAMLIdPServiceProviders: cfg.SAMLIdPServiceProviders,
+		SAMLIdPSession:          cfg.SAMLIdPSession,
 		SecReports:              cfg.SecReports,
 		SnowflakeSession:        cfg.SnowflakeSession,
 		SPIFFEFederations:       cfg.SPIFFEFederations,
@@ -200,19 +215,13 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		WebToken:                cfg.WebToken,
 		WorkloadIdentity:        cfg.WorkloadIdentity,
 		WindowsDesktops:         cfg.WindowsDesktops,
-		LinuxDesktops:           cfg.LinuxDesktops,
 		DynamicWindowsDesktops:  cfg.DynamicWindowsDesktops,
 		ProvisioningStates:      cfg.ProvisioningStates,
 		IdentityCenter:          cfg.IdentityCenter,
 		PluginStaticCredentials: cfg.PluginStaticCredentials,
 		GitServers:              cfg.GitServers,
-		HealthCheckConfig:       cfg.HealthCheckConfig,
 		BotInstanceService:      cfg.BotInstance,
-		RecordingEncryption:     cfg.RecordingEncryption,
 		Plugin:                  cfg.Plugin,
-		AppAuthConfig:           cfg.AppAuthConfig,
-		Summarizer:              cfg.Summarizer,
-		SubCAService:            cfg.SubCAService,
 	}
 
 	return cache.New(cfg.Setup(cacheCfg))

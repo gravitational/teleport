@@ -16,7 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState, type JSX } from 'react';
+import React, { useState } from 'react';
+import { GitServer } from 'web/packages/teleport/src/services/gitServers';
 
 import { ButtonBorder, ButtonWithMenu, MenuItem } from 'design';
 import { AwsLaunchButton } from 'shared/components/AwsLaunchButton';
@@ -26,10 +27,8 @@ import {
   MenuLogin,
 } from 'shared/components/MenuLogin';
 import { MenuLoginWithActionMenu } from 'shared/components/MenuLoginWithActionMenu';
-import { AppSubKind } from 'shared/services';
 import { AwsRole } from 'shared/services/apps';
 
-import { MCPAppConnectDialog } from 'teleport/Apps/MCPAppConnectDialog';
 import { TcpAppConnectDialog } from 'teleport/Apps/TcpAppConnectDialog';
 import cfg from 'teleport/config';
 import DbConnectDialog from 'teleport/Databases/ConnectDialog';
@@ -40,10 +39,9 @@ import KubeConnectDialog from 'teleport/Kubes/ConnectDialog';
 import { openNewTab } from 'teleport/lib/util';
 import { useSamlAppAction } from 'teleport/SamlApplications/useSamlAppActions';
 import { UnifiedResource } from 'teleport/services/agents';
-import { App, SamlAppLaunchUrl } from 'teleport/services/apps';
+import { App, AppSubKind, SamlAppLaunchUrl } from 'teleport/services/apps';
 import { Database } from 'teleport/services/databases';
 import { Desktop } from 'teleport/services/desktops';
-import { GitServer } from 'teleport/services/gitServers';
 import { Kube } from 'teleport/services/kube';
 import { Node, sortNodeLogins } from 'teleport/services/nodes';
 import { SamlServiceProviderPreset } from 'teleport/services/samlidp/types';
@@ -181,10 +179,20 @@ const AppLaunch = ({ app }: AppLaunchProps) => {
   const { actions, userSamlIdPPerm } = useSamlAppAction();
 
   const isAwsIdentityCenterApp = subKind === AppSubKind.AwsIcAccount;
+  function getAwsLaunchUrl(arnOrPermSetName: string) {
+    if (isAwsIdentityCenterApp) {
+      return `${publicAddr}&role_name=${arnOrPermSetName}`;
+    } else {
+      return cfg.getAppLauncherRoute({
+        fqdn,
+        clusterId,
+        publicAddr,
+        arn: arnOrPermSetName,
+      });
+    }
+  }
   if (awsConsole || isAwsIdentityCenterApp) {
-    let awsConsoleOrIdentityCenterRoles: AwsRole[] = awsRoles.filter(
-      ps => !ps.requiresRequest
-    );
+    let awsConsoleOrIdentityCenterRoles: AwsRole[] = awsRoles;
     if (isAwsIdentityCenterApp) {
       awsConsoleOrIdentityCenterRoles = permissionSets.map(
         (ps): AwsRole => ({
@@ -194,18 +202,6 @@ const AppLaunch = ({ app }: AppLaunchProps) => {
           accountId: name,
         })
       );
-    }
-    function getAwsLaunchUrl(arnOrPermSetName: string) {
-      if (isAwsIdentityCenterApp) {
-        return `${publicAddr}&role_name=${arnOrPermSetName}`;
-      } else {
-        return cfg.getAppLauncherRoute({
-          fqdn,
-          clusterId,
-          publicAddr,
-          arn: arnOrPermSetName,
-        });
-      }
     }
 
     return (
@@ -229,9 +225,6 @@ const AppLaunch = ({ app }: AppLaunchProps) => {
         Launch
       </ButtonBorder>
     );
-  }
-  if (subKind === AppSubKind.MCP) {
-    return <MCPAppConnect app={app} />;
   }
   if (isTcp) {
     return <TcpAppConnect app={app} />;
@@ -413,28 +406,6 @@ function TcpAppConnect({ app }: { app: App }) {
         Connect
       </ButtonBorder>
       {open && <TcpAppConnectDialog app={app} onClose={() => setOpen(false)} />}
-    </>
-  );
-}
-
-/**
- * MCPAppConnect is the button on an MCP app resource that opens the MCP connect
- * dialog.
- */
-function MCPAppConnect({ app }: { app: App }) {
-  const [open, setOpen] = useState(false);
-
-  return (
-    <>
-      <ButtonBorder
-        textTransform="none"
-        width="123px"
-        size="small"
-        onClick={() => setOpen(true)}
-      >
-        Connect
-      </ButtonBorder>
-      {open && <MCPAppConnectDialog app={app} onClose={() => setOpen(false)} />}
     </>
   );
 }

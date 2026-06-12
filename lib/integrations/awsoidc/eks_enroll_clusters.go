@@ -23,7 +23,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"log/slog"
-	"maps"
 	"net/url"
 	"slices"
 	"strings"
@@ -34,6 +33,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/eks"
 	eksTypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"github.com/aws/smithy-go/middleware"
+	smithyhttp "github.com/aws/smithy-go/transport/http"
 	"github.com/coreos/go-semver/semver"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -54,11 +55,9 @@ import (
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/cloud/aws/tags"
 	"github.com/gravitational/teleport/lib/defaults"
-	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/teleportassets"
 )
 
 const (
@@ -68,13 +67,14 @@ const (
 
 	agentNamespace              = "teleport-agent"
 	agentName                   = "teleport-kube-agent"
+	awsKubePrefix               = "k8s-aws-v1."
+	awsHeaderClusterName        = "x-k8s-aws-id"
+	awsHeaderExpires            = "X-Amz-Expires" // Header required by AWS when creating presigned URL.
 	concurrentEKSEnrollingLimit = 5
 )
 
-var (
-	agentRepoURL        = teleportassets.HelmRepoURL()
-	agentStagingRepoURL = teleportassets.HelmStagingRepoURL()
-)
+var agentRepoURL = url.URL{Scheme: "https", Host: "charts.releases.teleport.dev"}
+var agentStagingRepoURL = url.URL{Scheme: "https", Host: "charts.releases.development.teleport.dev"}
 
 // EnrollEKSClusterResult contains result for a single EKS cluster enrollment, if it was successful 'Error' will be nil
 // otherwise it will contain an error happened during enrollment.
@@ -124,15 +124,13 @@ type EnrollEKSClusterClient interface {
 	// CreateToken creates provisioning token on the auth server. That token can be used to install kube agent to an EKS cluster.
 	CreateToken(context.Context, types.ProvisionToken) error
 
-	// GenEKSAuthToken generates an EKS bearer token (a presigned STS GetCallerIdentity URL
-	// encoded as "k8s-aws-v1.<base64>") that can be used to authenticate against an EKS cluster.
-	GenEKSAuthToken(context.Context, string) (string, error)
+	// PresignGetCallerIdentityURL creates a presigned URL for the GetCallerIdentity action, that can be used for accessing EKS cluster.
+	PresignGetCallerIdentityURL(context.Context, string) (string, error)
 }
 
 type defaultEnrollEKSClustersClient struct {
 	*eks.Client
 	stsClient    *sts.Client
-	clock        clockwork.Clock
 	tokenCreator TokenCreatorFn
 }
 
@@ -141,9 +139,8 @@ func (d *defaultEnrollEKSClustersClient) GetCallerIdentity(ctx context.Context, 
 	return d.stsClient.GetCallerIdentity(ctx, params, optFns...)
 }
 
-func (d *defaultEnrollEKSClustersClient) GenEKSAuthToken(ctx context.Context, clusterName string) (string, error) {
-	token, _, err := kubeutils.GenAWSEKSToken(ctx, sts.NewPresignClient(d.stsClient), clusterName, d.clock)
-	return token, trace.Wrap(err)
+func (d *defaultEnrollEKSClustersClient) PresignGetCallerIdentityURL(ctx context.Context, clusterName string) (string, error) {
+	return presignCallerIdentityURL(ctx, d.stsClient, clusterName)
 }
 
 // CheckAgentAlreadyInstalled checks if teleport-kube-agent Helm chart is already installed on the EKS cluster.
@@ -226,7 +223,6 @@ func NewEnrollEKSClustersClient(ctx context.Context, req *AWSClientRequest, toke
 	clt := defaultEnrollEKSClustersClient{
 		Client:       eksClient,
 		stsClient:    stsClient,
-		clock:        clockwork.NewRealClock(),
 		tokenCreator: tokenCreator,
 	}
 
@@ -311,6 +307,7 @@ func EnrollEKSClusters(ctx context.Context, log *slog.Logger, clock clockwork.Cl
 	group.SetLimit(concurrentEKSEnrollingLimit)
 
 	for _, eksClusterName := range req.ClusterNames {
+		eksClusterName := eksClusterName
 
 		group.Go(func() error {
 			resourceId, issueType, err := enrollEKSCluster(ctx, log, clock, clt, proxyAddr, eksClusterName, req)
@@ -338,6 +335,39 @@ func EnrollEKSClusters(ctx context.Context, log *slog.Logger, clock clockwork.Cl
 	_ = group.Wait()
 
 	return &EnrollEKSClusterResponse{Results: results}, nil
+}
+
+func presignCallerIdentityURL(ctx context.Context, stsClient *sts.Client, clusterName string) (string, error) {
+	presignClient := sts.NewPresignClient(stsClient)
+
+	// This function adds required headers for accessing an EKS cluster to the presigned URL.
+	// Header "x-k8s-aws-id" specifies EKS cluster name and header "X-Amz-Expires" is just required for compatibility reasons.
+	addEKSHeaders := func(ctx context.Context, in middleware.BuildInput, next middleware.BuildHandler) (
+		out middleware.BuildOutput, metadata middleware.Metadata, err error,
+	) {
+		req, ok := in.Request.(*smithyhttp.Request)
+		if !ok {
+			return out, metadata, fmt.Errorf("unknown transport type %T", req)
+		}
+
+		req.Header.Add(awsHeaderClusterName, clusterName)
+		// 60 is put for compatibility reasons, in reality it is ignored and real expiration time is 15 minutes.
+		req.Header.Add(awsHeaderExpires, "60")
+
+		return next.HandleBuild(ctx, in)
+	}
+
+	presigned, err := presignClient.PresignGetCallerIdentity(ctx, &sts.GetCallerIdentityInput{}, func(options *sts.PresignOptions) {
+		options.ClientOptions = append(options.ClientOptions,
+			sts.WithAPIOptions(func(stack *middleware.Stack) error {
+				return stack.Build.Add(middleware.BuildMiddlewareFunc("AddEKSHeaders", addEKSHeaders), 0)
+			}))
+	})
+	if err != nil {
+		return "", trace.Wrap(err, "failed to presign caller identity")
+	}
+
+	return presigned.URL, nil
 }
 
 // enrollEKSCluster tries to enroll a single EKS cluster using the EnrollEKSClusterClient.
@@ -416,12 +446,12 @@ func enrollEKSCluster(ctx context.Context, log *slog.Logger, clock clockwork.Clo
 		return "", "", trace.Wrap(err, "unable to associate EKS Access Policy to cluster %q", clusterName)
 	}
 
-	kubeToken, err := clt.GenEKSAuthToken(ctx, clusterName)
+	presignedURL, err := clt.PresignGetCallerIdentityURL(ctx, clusterName)
 	if err != nil {
 		return "", "", trace.Wrap(err)
 	}
 
-	kubeClientGetter, err := getKubeClientGetter(kubeToken,
+	kubeClientGetter, err := getKubeClientGetter(presignedURL,
 		aws.ToString(eksCluster.CertificateAuthority.Data), aws.ToString(eksCluster.Endpoint))
 	if err != nil {
 		return "", "", trace.Wrap(err, "unable to build kubernetes client for EKS cluster %q", clusterName)
@@ -431,6 +461,7 @@ func enrollEKSCluster(ctx context.Context, log *slog.Logger, clock clockwork.Clo
 		return "",
 			issueTypeFromCheckAgentInstalledError(err),
 			trace.Wrap(err, "could not check if teleport-kube-agent is already installed.")
+
 	} else if alreadyInstalled {
 		return "",
 			// When using EKS Auto Discovery, after the Kube Agent connects to the Teleport cluster, it is ignored in next discovery iterations.
@@ -492,8 +523,10 @@ func maybeAddAccessEntry(ctx context.Context, log *slog.Logger, clusterName, rol
 		return false, trace.Wrap(err)
 	}
 
-	if slices.Contains(entries.AccessEntries, roleArn) {
-		return false, nil
+	for _, entry := range entries.AccessEntries {
+		if entry == roleArn {
+			return false, nil
+		}
 	}
 
 	createAccessEntryReq := &eks.CreateAccessEntryInput{
@@ -504,7 +537,7 @@ func maybeAddAccessEntry(ctx context.Context, log *slog.Logger, clusterName, rol
 
 	_, err = clt.CreateAccessEntry(ctx, createAccessEntryReq)
 	if err != nil {
-		convertedError := awslib.ConvertRequestFailureError(err)
+		convertedError := awslib.ConvertIAMv2Error(err)
 		if !trace.IsAccessDenied(convertedError) {
 			return false, trace.Wrap(err)
 		}
@@ -524,9 +557,10 @@ func maybeAddAccessEntry(ctx context.Context, log *slog.Logger, clusterName, rol
 	return err == nil, trace.Wrap(err)
 }
 
-// getKubeClientGetter returns client getter for kube that can be used to access target EKS cluster.
-// kubeToken is the k8s bearer token (as produced by kubeutils.GenAWSEKSToken).
-func getKubeClientGetter(kubeToken, clusterCA, clusterEndpoint string) (*genericclioptions.ConfigFlags, error) {
+// getKubeClientGetter returns client getter for kube that can be used to access target EKS cluster
+func getKubeClientGetter(presignedUrl, clusterCA, clusterEndpoint string) (*genericclioptions.ConfigFlags, error) {
+	kubeToken := awsKubePrefix + base64.RawURLEncoding.EncodeToString([]byte(presignedUrl))
+
 	eksClusterCA, err := base64.StdEncoding.DecodeString(clusterCA)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -554,7 +588,7 @@ func getHelmActionConfig(ctx context.Context, clientGetter genericclioptions.RES
 	// helm.action.Configuration requires a debug method that supports string interpolation (similar to fmt.XPrintf family of commands).
 	// > func(format string, v ...interface{})
 	// slog.Log does not support it, so it must be added
-	debugLogWithFormat := func(format string, v ...any) {
+	debugLogWithFormat := func(format string, v ...interface{}) {
 		if !log.Handler().Enabled(ctx, slog.LevelDebug) {
 			return
 		}
@@ -676,8 +710,7 @@ func installKubeAgent(ctx context.Context, cfg installKubeAgentParams) error {
 	if cfg.req.IsCloud && cfg.req.EnableAutoUpgrades {
 		vals["updater"] = map[string]any{"enabled": true, "releaseChannel": "stable/cloud"}
 
-		vals["highAvailability"] = map[string]any{
-			"replicaCount":        2,
+		vals["highAvailability"] = map[string]any{"replicaCount": 2,
 			"podDisruptionBudget": map[string]any{"enabled": true, "minAvailable": 1},
 		}
 	}
@@ -685,10 +718,11 @@ func installKubeAgent(ctx context.Context, cfg installKubeAgentParams) error {
 		vals["enterprise"] = true
 	}
 
-	eksTags := make(map[string]string, len(cfg.eksCluster.Tags))
-	maps.Copy(eksTags, cfg.eksCluster.Tags)
-	eksTags[types.OriginLabel] = types.OriginCloud
-
+	eksTags := make(map[string]*string, len(cfg.eksCluster.Tags))
+	for k, v := range cfg.eksCluster.Tags {
+		eksTags[k] = aws.String(v)
+	}
+	eksTags[types.OriginLabel] = aws.String(types.OriginCloud)
 	kubeCluster, err := common.NewKubeClusterFromAWSEKS(aws.ToString(cfg.eksCluster.Name), aws.ToString(cfg.eksCluster.Arn), eksTags)
 	if err != nil {
 		return trace.Wrap(err)

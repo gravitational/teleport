@@ -20,23 +20,18 @@ import * as Icons from 'design/Icon';
 import { MenuIcon, MenuItem, MenuItemIcon } from 'shared/components/MenuAction';
 
 export default function ActionMenu(props: Props) {
-  const {
-    showShareDirectory,
-    onShareDirectory,
-    onDisconnect,
-    onCtrlAltDel,
-    openUpward,
-    buttonIconColor = 'text.slightlyMuted',
-  } = props;
+  const { showShareDirectory, onShareDirectory, onDisconnect, onCtrlAltDel } =
+    props;
 
   return (
     <MenuIcon
       buttonIconProps={{
-        color: buttonIconColor,
-        style: { fontSize: '20px', borderRadius: '8px' },
+        size: 0,
+        color: 'text.slightlyMuted',
+        style: { fontSize: '20px' },
         title: 'More actions',
       }}
-      menuProps={openUpward ? upwardMenuProps : menuProps}
+      menuProps={menuProps}
     >
       {showShareDirectory && (
         <MenuItem onClick={onShareDirectory}>
@@ -61,8 +56,6 @@ type Props = {
   onShareDirectory: VoidFunction;
   onDisconnect: VoidFunction;
   onCtrlAltDel: VoidFunction;
-  openUpward?: boolean;
-  buttonIconColor?: string;
 };
 
 const menuListCss = () => `
@@ -71,16 +64,4 @@ const menuListCss = () => `
 
 const menuProps = {
   menuListCss,
-} as const;
-
-const upwardMenuProps = {
-  menuListCss,
-  anchorOrigin: {
-    vertical: 'top' as const,
-    horizontal: 'center' as const,
-  },
-  transformOrigin: {
-    vertical: 'bottom' as const,
-    horizontal: 'center' as const,
-  },
 } as const;

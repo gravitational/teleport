@@ -22,7 +22,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"math/rand/v2"
 	"os"
 	"path/filepath"
@@ -32,7 +31,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -40,8 +40,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestMigrateProcessDataObjects(t *testing.T) {
@@ -61,7 +60,7 @@ func TestMigrateProcessDataObjects(t *testing.T) {
 		},
 		eventsEmitter: emitter,
 		Config: Config{
-			Logger:          logtest.NewLogger(),
+			Logger:          utils.NewLoggerForTests(),
 			NoOfEmitWorkers: 5,
 			bufferSize:      10,
 			CheckpointPath:  filepath.Join(t.TempDir(), "migration-tests.json"),
@@ -132,7 +131,7 @@ func TestLargeEventsParse(t *testing.T) {
 		},
 		eventsEmitter: emitter,
 		Config: Config{
-			Logger:          logtest.NewLogger(),
+			Logger:          utils.NewLoggerForTests(),
 			NoOfEmitWorkers: 5,
 			bufferSize:      10,
 			CheckpointPath:  filepath.Join(t.TempDir(), "migration-tests.json"),
@@ -152,27 +151,23 @@ type fakeDownloader struct {
 	dataObjects map[string]string
 }
 
-func (f *fakeDownloader) DownloadObject(ctx context.Context, input *transfermanager.DownloadObjectInput, opts ...func(*transfermanager.Options)) (*transfermanager.DownloadObjectOutput, error) {
+func (f *fakeDownloader) Download(ctx context.Context, w io.WriterAt, input *s3.GetObjectInput, options ...func(*manager.Downloader)) (int64, error) {
 	data, ok := f.dataObjects[*input.Key]
 	if !ok {
-		return nil, errors.New("object does not exists")
+		return 0, errors.New("object does not exists")
 	}
 	var buf bytes.Buffer
 	zw := gzip.NewWriter(&buf)
 	_, err := zw.Write([]byte(data))
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 	if err := zw.Close(); err != nil {
-		return nil, err
+		return 0, err
 	}
 
-	n, err := input.WriterAt.WriteAt(buf.Bytes(), 0)
-	if err != nil {
-		return nil, err
-	}
-	contentLength := int64(n)
-	return &transfermanager.DownloadObjectOutput{ContentLength: &contentLength}, nil
+	n, err := w.WriteAt(buf.Bytes(), 0)
+	return int64(n), err
 }
 
 type mockEmitter struct {
@@ -226,7 +221,7 @@ func TestMigrationCheckpoint(t *testing.T) {
 
 	noOfWorkers := 3
 	defaultConfig := Config{
-		Logger:          logtest.NewLogger(),
+		Logger:          utils.NewLoggerForTests(),
 		NoOfEmitWorkers: noOfWorkers,
 		bufferSize:      noOfWorkers * 5,
 		CheckpointPath:  filepath.Join(t.TempDir(), "migration-tests.json"),
@@ -516,9 +511,8 @@ func generateDynamoExportData(n int) string {
 	}
 	lineFmt := `{ "Item": { "EventIndex": { "N": "2147483647" }, "SessionID": { "S": "4298bd54-a747-4d53-b850-83ba17caae5a" }, "CreatedAtDate": { "S": "2023-05-22" }, "FieldsMap": { "M": { "cluster_name": { "S": "test.example.local" }, "uid": { "S": "%s" }, "code": { "S": "T2005I" }, "ei": { "N": "2147483647" }, "time": { "S": "2023-05-22T12:12:21.966Z" }, "event": { "S": "session.upload" }, "sid": { "S": "4298bd54-a747-4d53-b850-83ba17caae5a" } } }, "EventType": { "S": "session.upload" }, "EventNamespace": { "S": "default" }, "CreatedAt": { "N": "1684757541" } } }`
 	sb := strings.Builder{}
-	for range n {
-		fmt.Fprintf(&sb, lineFmt, uuid.NewString())
-		fmt.Fprintln(&sb)
+	for i := 0; i < n; i++ {
+		fmt.Fprintf(&sb, lineFmt+"\n", uuid.NewString())
 	}
 	return sb.String()
 }
@@ -555,7 +549,7 @@ func TestMigrationDryRunValidation(t *testing.T) {
 					validEvent(), eventWithoutTime,
 				}
 			},
-			wantLog: "empty event time",
+			wantLog: "is invalid: empty event time",
 			wantErr: "1 invalid",
 		},
 		{
@@ -567,7 +561,7 @@ func TestMigrationDryRunValidation(t *testing.T) {
 					validEvent(), eventWithInvalidUUID,
 				}
 			},
-			wantLog: "invalid uid format: invalid UUID length",
+			wantLog: "is invalid: invalid uid format: invalid UUID length",
 			wantErr: "1 invalid",
 		},
 	}
@@ -575,9 +569,8 @@ func TestMigrationDryRunValidation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Migration cli logs output from validation to logger.
 			var logBuffer bytes.Buffer
-			log := slog.New(logutils.NewSlogJSONHandler(&logBuffer, logutils.SlogJSONHandlerConfig{
-				Level: slog.LevelDebug,
-			}))
+			log := utils.NewLoggerForTests()
+			log.SetOutput(&logBuffer)
 
 			tr := &task{
 				Config: Config{

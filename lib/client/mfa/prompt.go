@@ -21,10 +21,10 @@ package mfa
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"strings"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/mfa"
@@ -111,7 +111,9 @@ func HandleConcurrentMFAPrompts(ctx context.Context, chal *proto.MFAAuthenticate
 			// Surface error immediately.
 			return nil, trace.Wrap(resp.err)
 		case err != nil:
-			slog.DebugContext(ctx, "MFA goroutine failed, continuing so other goroutines have a chance to succeed", "error", err)
+			log.
+				WithError(err).
+				Debug("MFA goroutine failed, continuing so other goroutines have a chance to succeed")
 			errs = append(errs, err)
 			// Continue to give the other authn goroutine a chance to succeed.
 			// If both have failed, this will exit the loop.

@@ -100,6 +100,16 @@ func ContainSameUniqueElements[S ~[]E, E comparable](s1, s2 S) bool {
 	return true
 }
 
+// Any checks if any element of slice satisfy given predicate. If the slice is empty, it returns false.
+func Any[S ~[]E, E any](s S, predicate func(E) bool) bool {
+	for _, e := range s {
+		if predicate(e) {
+			return true
+		}
+	}
+	return false
+}
+
 // All checks if all elements of slice satisfy given predicate. If the slice is empty, it returns true.
 func All[S ~[]E, E any](s S, predicate func(E) bool) bool {
 	for _, e := range s {
@@ -118,14 +128,4 @@ func CountBy[S ~[]E, E any](elements S, mapper func(E) string) map[string]int {
 		out[key] += 1
 	}
 	return out
-}
-
-// ContainsAll checks whether haystack contains all needles.
-func ContainsAll[S ~[]E, E comparable](haystack S, needles S) bool {
-	for _, needle := range needles {
-		if !slices.Contains(haystack, needle) {
-			return false
-		}
-	}
-	return true
 }

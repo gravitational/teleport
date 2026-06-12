@@ -1,0 +1,5 @@
+type: spiffe-svid
+destination:
+  type: memory
+svid:
+  path: /foo

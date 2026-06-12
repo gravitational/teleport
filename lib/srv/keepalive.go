@@ -20,8 +20,9 @@ package srv
 
 import (
 	"context"
-	"log/slog"
 	"time"
+
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -58,8 +59,10 @@ type KeepAliveParams struct {
 func StartKeepAliveLoop(p KeepAliveParams) {
 	var missedCount int64
 
-	log := slog.With(teleport.ComponentKey, teleport.ComponentKeepAlive)
-	log.DebugContext(p.CloseContext, "Starting keep-alive loop", "interval", p.Interval, "max_count", p.MaxCount)
+	log := logrus.WithFields(logrus.Fields{
+		teleport.ComponentKey: teleport.ComponentKeepAlive,
+	})
+	log.Debugf("Starting keep-alive loop with interval %v and max count %v.", p.Interval, p.MaxCount)
 
 	tickerCh := time.NewTicker(p.Interval)
 	defer tickerCh.Stop()
@@ -86,7 +89,7 @@ func StartKeepAliveLoop(p KeepAliveParams) {
 			// and notify the server to disconnect and cleanup.
 			missedCount = missedCount + 1
 			if missedCount > p.MaxCount {
-				log.InfoContext(p.CloseContext, "Missed too keep-alive messages, closing connection", "missed_count", missedCount)
+				log.Infof("Missed %v keep-alive messages, closing connection.", missedCount)
 				p.CloseCancel()
 				return
 			}

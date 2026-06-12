@@ -33,6 +33,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -132,6 +133,6 @@ func (metricsAccessPoint) GetSessionRecordingConfig(_ context.Context) (types.Se
 	return types.DefaultSessionRecordingConfig(), nil
 }
 
-func (metricsAccessPoint) GetClusterName(_ context.Context) (types.ClusterName, error) {
+func (metricsAccessPoint) GetClusterName(_ ...services.MarshalOption) (types.ClusterName, error) {
 	return types.NewClusterName(types.ClusterNameSpecV2{ClusterName: "test", ClusterID: "test"})
 }

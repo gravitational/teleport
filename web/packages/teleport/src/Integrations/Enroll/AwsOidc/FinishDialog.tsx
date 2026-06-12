@@ -18,7 +18,8 @@
 
 import { Location } from 'history';
 import React from 'react';
-import { Link, useLocation } from 'react-router';
+import { useLocation } from 'react-router';
+import { Link } from 'react-router-dom';
 
 import { ButtonPrimary, ButtonSecondary, Flex, Text } from 'design';
 import Dialog, {
@@ -37,7 +38,7 @@ export function FinishDialog({
 }: {
   integration: IntegrationAwsOidc;
 }) {
-  const location = useLocation() as Location<DiscoverUrlLocationState>;
+  const location = useLocation<DiscoverUrlLocationState>();
   return (
     <Dialog
       dialogCss={() => ({ maxWidth: '500px', width: '100%' })}
@@ -72,10 +73,12 @@ function FooterButton({
       <ButtonPrimary
         size="large"
         as={Link}
-        to={cfg.routes.discover}
-        state={{
-          integration,
-          discover: location.state.discover,
+        to={{
+          pathname: cfg.routes.discover,
+          state: {
+            integration,
+            discover: location.state.discover,
+          },
         }}
       >
         Begin AWS Resource Enrollment

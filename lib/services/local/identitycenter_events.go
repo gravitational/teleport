@@ -153,8 +153,7 @@ func (p *identityCenterAccountAssignmentParser) parse(event backend.Event) (type
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return types.Resource153ToLegacy(r),
-			nil
+		return types.Resource153ToLegacy(r), nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}

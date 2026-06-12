@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
 	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
-	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
 )
 
@@ -188,20 +187,24 @@ func (g *workloadIdentityTestingPrimitives) CompareTeleportAndKubernetesResource
 
 func TestWorkloadIdentityCreation(t *testing.T) {
 	test := &workloadIdentityTestingPrimitives{}
-	testlib.ResourceCreationSynchronousTest(t, resources.NewWorkloadIdentityV1Reconciler, test)
-}
-
-func TestWorkloadIdentityDeletion(t *testing.T) {
-	test := &workloadIdentityTestingPrimitives{}
-	testlib.ResourceDeletionSynchronousTest(t, resources.NewWorkloadIdentityV1Reconciler, test)
+	testlib.ResourceCreationTest[
+		*workloadidentityv1.WorkloadIdentity,
+		*resourcesv1.TeleportWorkloadIdentityV1,
+	](t, test)
 }
 
 func TestWorkloadIdentityDeletionDrift(t *testing.T) {
 	test := &workloadIdentityTestingPrimitives{}
-	testlib.ResourceDeletionDriftSynchronousTest(t, resources.NewWorkloadIdentityV1Reconciler, test)
+	testlib.ResourceDeletionDriftTest[
+		*workloadidentityv1.WorkloadIdentity,
+		*resourcesv1.TeleportWorkloadIdentityV1,
+	](t, test)
 }
 
 func TestWorkloadIdentityUpdate(t *testing.T) {
 	test := &workloadIdentityTestingPrimitives{}
-	testlib.ResourceUpdateTestSynchronous(t, resources.NewWorkloadIdentityV1Reconciler, test)
+	testlib.ResourceUpdateTest[
+		*workloadidentityv1.WorkloadIdentity,
+		*resourcesv1.TeleportWorkloadIdentityV1,
+	](t, test)
 }

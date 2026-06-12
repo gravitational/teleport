@@ -39,9 +39,11 @@ import {
   AutoUpdatesStatus,
 } from 'teleterm/services/appUpdater';
 import { UnsupportedVersionError } from 'teleterm/services/appUpdater/errors';
-import { routing } from 'teleterm/ui/uri';
+import { RootClusterUri } from 'teleterm/ui/uri';
 
 import {
+  ClusterGetter,
+  clusterNameGetter,
   formatMB,
   getDownloadHost,
   iconMac,
@@ -58,6 +60,7 @@ import {
  * unless there's an issue that prevents autoupdates from working.
  */
 export function WidgetView({
+  clusterGetter,
   onDownload,
   onInstall,
   onMore,
@@ -67,15 +70,17 @@ export function WidgetView({
 }: {
   updateEvent: AppUpdateEvent;
   platform: Platform;
+  clusterGetter: ClusterGetter;
   onMore(): void;
   onDownload(): void;
   onInstall(): void;
 } & SpaceProps) {
+  const getClusterName = clusterNameGetter(clusterGetter);
   const { autoUpdatesStatus } = updateEvent;
 
   const issueRequiringAttention =
     autoUpdatesStatus &&
-    findAutoUpdatesIssuesRequiringAttention(autoUpdatesStatus);
+    findAutoUpdatesIssuesRequiringAttention(autoUpdatesStatus, getClusterName);
 
   if (issueRequiringAttention) {
     return (
@@ -137,25 +142,18 @@ export function WidgetView({
       ? updateEvent.autoUpdatesStatus.options.unreachableClusters
       : [];
   const downloadBaseUrl = getDownloadHost(updateEvent);
-  const requiresUacPrompt = updateEvent.update.requiresUacPrompt;
 
   return (
     <AvailableUpdate
       version={updateEvent.update.version}
       platform={platform}
-      requiresUacPrompt={requiresUacPrompt}
       description={description}
       unreachableClusters={unreachableClusters}
       downloadHost={downloadBaseUrl}
       onMore={onMore}
+      getClusterName={getClusterName}
       primaryButton={
-        button
-          ? {
-              name: button.name,
-              disabled: button.disabled,
-              onClick: button.action,
-            }
-          : undefined
+        button ? { name: button.name, onClick: button.action } : undefined
       }
       {...rest}
     />
@@ -167,7 +165,6 @@ function AvailableUpdate({
   downloadHost,
   onMore,
   platform,
-  requiresUacPrompt,
   primaryButton,
   unreachableClusters,
   version,
@@ -178,12 +175,11 @@ function AvailableUpdate({
   unreachableClusters: UnreachableCluster[];
   downloadHost: string;
   platform: Platform;
-  requiresUacPrompt: boolean;
   onMore(): void;
+  getClusterName(clusterUri: RootClusterUri): string;
   primaryButton?: {
     name: string;
-    disabled?: boolean;
-    onClick?(): void;
+    onClick(): void;
   };
 } & SpaceProps) {
   const hasUnreachableClusters = !!unreachableClusters.length;
@@ -223,11 +219,7 @@ function AvailableUpdate({
         </Flex>
         <Flex gap={2}>
           {primaryButton && (
-            <ButtonPrimary
-              size="small"
-              onClick={primaryButton.onClick}
-              disabled={primaryButton.disabled}
-            >
+            <ButtonPrimary size="small" onClick={primaryButton.onClick}>
               {primaryButton.name}
             </ButtonPrimary>
           )}
@@ -236,7 +228,7 @@ function AvailableUpdate({
           </ButtonSecondary>
         </Flex>
       </Flex>
-      {(hasUnreachableClusters || isNonTeleportServer || requiresUacPrompt) && (
+      {(hasUnreachableClusters || isNonTeleportServer) && (
         <Stack ml={1}>
           {hasUnreachableClusters && (
             <IconAndText
@@ -248,12 +240,6 @@ function AvailableUpdate({
             <IconAndText
               Icon={Info}
               text={`Using ${downloadHost} as the update server.`}
-            />
-          )}
-          {requiresUacPrompt && (
-            <IconAndText
-              Icon={Info}
-              text="Update your configuration to enable UAC-free updates."
             />
           )}
         </Stack>
@@ -289,8 +275,7 @@ function makeUpdaterContent({
   description: string;
   button?: {
     name: string;
-    disabled?: boolean;
-    action?(): void;
+    action(): void;
   };
 } {
   switch (updateEvent.kind) {
@@ -299,14 +284,21 @@ function makeUpdaterContent({
         description: `Downloaded ${formatMB(updateEvent.progress.transferred)} of ${formatMB(updateEvent.progress.total)}`,
       };
     case 'update-available':
+      const { updateKind } = updateEvent.update;
       if (updateEvent.autoDownload) {
         return {
-          description: 'Update available. Starting download…',
+          description:
+            updateKind === 'upgrade'
+              ? 'Update available. Starting download…'
+              : 'Downloading required version…',
         };
       }
 
       return {
-        description: 'Update available',
+        description:
+          updateKind === 'upgrade'
+            ? 'Update available'
+            : 'Downgrade to required version',
         button: {
           name: 'Download',
           action: onDownload,
@@ -320,14 +312,6 @@ function makeUpdaterContent({
           action: onInstall,
         },
       };
-    case 'installing':
-      return {
-        description: 'Ready to install',
-        button: {
-          name: 'Restarting…',
-          disabled: true,
-        },
-      };
     case 'error':
       return {
         description: 'Update failed',
@@ -337,7 +321,8 @@ function makeUpdaterContent({
 
 /** Returns issues that need to be resolved to make autoupdates work. */
 function findAutoUpdatesIssuesRequiringAttention(
-  status: AutoUpdatesStatus
+  status: AutoUpdatesStatus,
+  getClusterName: (clusterUri: RootClusterUri) => string
 ): string | undefined {
   if (status.enabled === false && status.reason === 'no-compatible-version') {
     return 'Your clusters require incompatible client versions. Choose one to enable app updates.';
@@ -347,7 +332,7 @@ function findAutoUpdatesIssuesRequiringAttention(
     status.enabled === false &&
     status.reason === 'managing-cluster-unable-to-manage'
   ) {
-    return `The cluster ${routing.parseClusterName(status.options.managingClusterUri)} was chosen to manage updates but is not able to provide them.`;
+    return `The cluster ${getClusterName(status.options.managingClusterUri)} was chosen to manage updates but is not able to provide them.`;
   }
 
   if (
@@ -355,6 +340,9 @@ function findAutoUpdatesIssuesRequiringAttention(
     status.reason === 'no-cluster-with-auto-update' &&
     status.options.unreachableClusters.length
   ) {
-    return makeUnreachableClusterText(status.options.unreachableClusters);
+    return makeUnreachableClusterText(
+      status.options.unreachableClusters,
+      getClusterName
+    );
   }
 }

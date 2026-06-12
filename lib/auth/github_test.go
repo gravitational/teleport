@@ -52,7 +52,6 @@ import (
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 type githubContext struct {
@@ -62,7 +61,7 @@ type githubContext struct {
 	c           *clockwork.FakeClock
 }
 
-func setupGithubContext(t *testing.T) *githubContext {
+func setupGithubContext(ctx context.Context, t *testing.T) *githubContext {
 	var tt githubContext
 	t.Cleanup(func() { tt.Close() })
 
@@ -70,7 +69,7 @@ func setupGithubContext(t *testing.T) *githubContext {
 
 	var err error
 	tt.b, err = memory.New(memory.Config{
-		Context: t.Context(),
+		Context: context.Background(),
 		Clock:   tt.c,
 	})
 	require.NoError(t, err)
@@ -83,17 +82,13 @@ func setupGithubContext(t *testing.T) *githubContext {
 		require.NoError(t, tt.b.Close())
 	})
 
-	keygen, err := authority.NewKeygen(modules.BuildOSS, tt.c.Now)
-	require.NoError(t, err)
-
 	authConfig := &auth.InitConfig{
 		ClusterName:            clusterName,
 		Backend:                tt.b,
 		VersionStorage:         authtest.NewFakeTeleportVersion(),
-		Authority:              keygen,
+		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
 		HostUUID:               uuid.NewString(),
-		Modules:                modulestest.OSSModules(),
 	}
 	tt.a, err = auth.NewServer(authConfig)
 	require.NoError(t, err)
@@ -133,8 +128,8 @@ func TestPopulateClaims(t *testing.T) {
 
 func TestCreateGithubUser(t *testing.T) {
 	t.Parallel()
-	ctx := t.Context()
-	tt := setupGithubContext(t)
+	ctx := context.Background()
+	tt := setupGithubContext(ctx, t)
 
 	// Dry-run creation of Github user.
 	user, err := tt.a.CreateGithubUser(ctx, &auth.CreateUserParams{
@@ -199,8 +194,7 @@ func TestValidateGithubAuthCallbackEventsEmitted(t *testing.T) {
 	t.Parallel()
 	clientAddr := &net.TCPAddr{IP: net.IPv4(10, 255, 0, 0)}
 	ctx := authz.ContextWithClientSrcAddr(context.Background(), clientAddr)
-	tt := setupGithubContext(t)
-	logger := logtest.NewLogger()
+	tt := setupGithubContext(ctx, t)
 
 	resp := &authclient.GithubAuthResponse{
 		Username: "test-name",
@@ -233,7 +227,7 @@ func TestValidateGithubAuthCallbackEventsEmitted(t *testing.T) {
 		diagCtx.Info.AppliedLoginRules = []string{"login-rule"}
 		return resp, nil
 	}
-	_, _ = auth.ValidateGithubAuthCallbackHelper(ctx, m, diagCtx, nil, tt.a.GetEmitter(), logger)
+	_, _ = auth.ValidateGithubAuthCallbackHelper(ctx, m, diagCtx, nil, tt.a.GetEmitter())
 	require.Equal(t, events.UserLoginEvent, tt.mockEmitter.LastEvent().GetType())
 	require.Equal(t, events.UserSSOLoginCode, tt.mockEmitter.LastEvent().GetCode())
 	loginEvt := tt.mockEmitter.LastEvent().(*apievents.UserLogin)
@@ -248,7 +242,7 @@ func TestValidateGithubAuthCallbackEventsEmitted(t *testing.T) {
 		diagCtx.Info.GithubClaims = claims
 		return resp, trace.BadParameter("")
 	}
-	_, _ = auth.ValidateGithubAuthCallbackHelper(ctx, m, diagCtx, nil, tt.a.GetEmitter(), logger)
+	_, _ = auth.ValidateGithubAuthCallbackHelper(ctx, m, diagCtx, nil, tt.a.GetEmitter())
 	require.Equal(t, events.UserLoginEvent, tt.mockEmitter.LastEvent().GetType())
 	require.Equal(t, events.UserSSOLoginFailureCode, tt.mockEmitter.LastEvent().GetCode())
 	loginEvt = tt.mockEmitter.LastEvent().(*apievents.UserLogin)
@@ -261,7 +255,7 @@ func TestValidateGithubAuthCallbackEventsEmitted(t *testing.T) {
 		diagCtx.Info.GithubClaims = claims
 		return resp, nil
 	}
-	_, _ = auth.ValidateGithubAuthCallbackHelper(ctx, m, diagCtx, nil, tt.a.GetEmitter(), logger)
+	_, _ = auth.ValidateGithubAuthCallbackHelper(ctx, m, diagCtx, nil, tt.a.GetEmitter())
 	require.Equal(t, events.UserLoginEvent, tt.mockEmitter.LastEvent().GetType())
 	require.Equal(t, events.UserSSOTestFlowLoginCode, tt.mockEmitter.LastEvent().GetCode())
 	loginEvt = tt.mockEmitter.LastEvent().(*apievents.UserLogin)
@@ -275,7 +269,7 @@ func TestValidateGithubAuthCallbackEventsEmitted(t *testing.T) {
 		diagCtx.Info.GithubClaims = claims
 		return resp, trace.BadParameter("")
 	}
-	_, _ = auth.ValidateGithubAuthCallbackHelper(ctx, m, diagCtx, nil, tt.a.GetEmitter(), logger)
+	_, _ = auth.ValidateGithubAuthCallbackHelper(ctx, m, diagCtx, nil, tt.a.GetEmitter())
 	require.Equal(t, events.UserLoginEvent, tt.mockEmitter.LastEvent().GetType())
 	require.Equal(t, events.UserSSOTestFlowLoginFailureCode, tt.mockEmitter.LastEvent().GetCode())
 	loginEvt = tt.mockEmitter.LastEvent().(*apievents.UserLogin)
@@ -468,7 +462,7 @@ func TestCheckGithubOrgSSOSupport(t *testing.T) {
 	tests := []struct {
 		testName             string
 		connector            types.GithubConnector
-		buildType            string
+		isEnterprise         bool
 		requestShouldSucceed bool
 		httpStatusCode       int
 		reuseCache           bool
@@ -477,7 +471,7 @@ func TestCheckGithubOrgSSOSupport(t *testing.T) {
 		{
 			testName:             "OSS HTTP connection failure",
 			connector:            ssoOrg,
-			buildType:            modules.BuildOSS,
+			isEnterprise:         false,
 			requestShouldSucceed: false,
 			reuseCache:           false,
 			errFunc:              trace.IsConnectionProblem,
@@ -485,7 +479,7 @@ func TestCheckGithubOrgSSOSupport(t *testing.T) {
 		{
 			testName:             "Enterprise skips HTTP check",
 			connector:            ssoOrg,
-			buildType:            modules.BuildEnterprise,
+			isEnterprise:         true,
 			requestShouldSucceed: false,
 			reuseCache:           false,
 			errFunc:              nil,
@@ -493,7 +487,7 @@ func TestCheckGithubOrgSSOSupport(t *testing.T) {
 		{
 			testName:             "OSS has SSO",
 			connector:            ssoOrg,
-			buildType:            modules.BuildOSS,
+			isEnterprise:         false,
 			requestShouldSucceed: true,
 			httpStatusCode:       http.StatusOK,
 			reuseCache:           false,
@@ -502,7 +496,7 @@ func TestCheckGithubOrgSSOSupport(t *testing.T) {
 		{
 			testName:             "OSS has SSO with cache",
 			connector:            ssoOrg,
-			buildType:            modules.BuildOSS,
+			isEnterprise:         false,
 			requestShouldSucceed: false,
 			reuseCache:           true,
 			errFunc:              trace.IsAccessDenied,
@@ -510,7 +504,7 @@ func TestCheckGithubOrgSSOSupport(t *testing.T) {
 		{
 			testName:             "OSS doesn't have SSO",
 			connector:            noSSOOrg,
-			buildType:            modules.BuildOSS,
+			isEnterprise:         false,
 			requestShouldSucceed: true,
 			httpStatusCode:       404,
 			reuseCache:           true,
@@ -519,7 +513,7 @@ func TestCheckGithubOrgSSOSupport(t *testing.T) {
 		{
 			testName:             "OSS doesn't have SSO with cache",
 			connector:            noSSOOrg,
-			buildType:            modules.BuildOSS,
+			isEnterprise:         false,
 			requestShouldSucceed: false,
 			reuseCache:           true,
 			errFunc:              nil,
@@ -527,13 +521,19 @@ func TestCheckGithubOrgSSOSupport(t *testing.T) {
 	}
 
 	var orgCache *utils.FnCache
-	ctx := t.Context()
+	ctx := context.Background()
 
 	for _, tt := range tests {
 		t.Run(tt.testName, func(t *testing.T) {
 			client := mockHTTPRequester{
 				succeed:    tt.requestShouldSucceed,
 				statusCode: tt.httpStatusCode,
+			}
+
+			if tt.isEnterprise {
+				modulestest.SetTestModules(t, modulestest.Modules{
+					TestBuildType: modules.BuildEnterprise,
+				})
 			}
 
 			if !tt.reuseCache {
@@ -543,7 +543,7 @@ func TestCheckGithubOrgSSOSupport(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			err := auth.CheckGithubOrgSSOSupport(ctx, tt.connector, nil, tt.buildType, orgCache, client)
+			err := auth.CheckGithubOrgSSOSupport(ctx, tt.connector, nil, orgCache, client)
 			if tt.errFunc == nil {
 				require.NoError(t, err)
 			} else {

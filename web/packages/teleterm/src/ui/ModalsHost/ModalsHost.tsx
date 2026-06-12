@@ -108,6 +108,7 @@ function renderDialog({
         <ClusterLogout
           hidden={hidden}
           clusterUri={dialog.clusterUri}
+          clusterTitle={dialog.clusterTitle}
           onClose={handleClose}
         />
       );
@@ -206,7 +207,6 @@ function renderDialog({
           }}
           // This function needs to be stable between renders.
           onSsoContinue={dialog.onSsoContinue}
-          onBrowserMfaContinue={dialog.onBrowserMfaContinue}
           onCancel={() => {
             handleClose();
             dialog.onCancel();

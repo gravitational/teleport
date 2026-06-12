@@ -19,7 +19,6 @@
 package s3sessions
 
 import (
-	"bytes"
 	"context"
 	"crypto/tls"
 	"fmt"
@@ -34,28 +33,23 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	awsconfig "github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
-	tmanagertypes "github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager/types"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	awstypes "github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"github.com/aws/smithy-go/tracing/smithyoteltracing"
 	"github.com/gravitational/trace"
-	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-sdk-go-v2/otelaws"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	config "github.com/gravitational/teleport/lib/cloud/aws/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
 	awsmetrics "github.com/gravitational/teleport/lib/observability/metrics/aws"
-	s3metrics "github.com/gravitational/teleport/lib/observability/metrics/s3"
 	"github.com/gravitational/teleport/lib/session"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	"github.com/gravitational/teleport/lib/utils/aws/endpoint"
-	"github.com/gravitational/teleport/lib/utils/downloadretrier"
 )
 
 // s3AllowedACL is the set of canned ACLs that S3 accepts
@@ -205,12 +199,12 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 	}
 	logger := slog.With(teleport.ComponentKey, teleport.SchemeS3)
 
-	opts := []func(*awsconfig.LoadOptions) error{
-		awsconfig.WithRegion(cfg.Region),
+	opts := []func(*config.LoadOptions) error{
+		config.WithRegion(cfg.Region),
 	}
 
 	if cfg.Insecure {
-		opts = append(opts, awsconfig.WithHTTPClient(&http.Client{
+		opts = append(opts, config.WithHTTPClient(&http.Client{
 			Transport: &http.Transport{
 				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 			},
@@ -221,17 +215,14 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 			return nil, trace.Wrap(err)
 		}
 
-		opts = append(opts, awsconfig.WithHTTPClient(hc))
+		opts = append(opts, config.WithHTTPClient(hc))
 	}
 
 	if cfg.CredentialsProvider != nil {
-		opts = append(opts, awsconfig.WithCredentialsProvider(cfg.CredentialsProvider))
+		opts = append(opts, config.WithCredentialsProvider(cfg.CredentialsProvider))
 	}
 
-	opts = append(opts,
-		awsconfig.WithAPIOptions(awsmetrics.MetricsMiddleware()),
-		awsconfig.WithAPIOptions(s3metrics.MetricsMiddleware()),
-	)
+	opts = append(opts, config.WithAPIOptions(awsmetrics.MetricsMiddleware()))
 
 	resolver, err := endpoint.NewLoggingResolver(
 		s3.NewDefaultEndpointResolverV2(),
@@ -244,26 +235,21 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	s3Opts := []func(*s3.Options){
-		s3.WithEndpointResolverV2(resolver),
-		func(o *s3.Options) {
-			o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
-		},
-	}
+	s3Opts := []func(*s3.Options){s3.WithEndpointResolverV2(resolver)}
 
 	if cfg.Endpoint != "" {
 		if _, err := url.Parse(cfg.Endpoint); err != nil {
 			return nil, trace.BadParameter("configured S3 endpoint is invalid: %s", err.Error())
 		}
 
-		opts = append(opts, awsconfig.WithBaseEndpoint(cfg.Endpoint))
+		opts = append(opts, config.WithBaseEndpoint(cfg.Endpoint))
 
 		s3Opts = append(s3Opts, func(options *s3.Options) {
 			options.UsePathStyle = !cfg.UseVirtualStyleAddressing
 		})
 	}
 
-	if modules.GetModules().IsFIPSBuild() && cfg.UseFIPSEndpoint == types.ClusterAuditConfigSpecV2_FIPS_ENABLED {
+	if modules.GetModules().IsBoringBinary() && cfg.UseFIPSEndpoint == types.ClusterAuditConfigSpecV2_FIPS_ENABLED {
 		s3Opts = append(s3Opts, func(options *s3.Options) {
 			options.EndpointOptions.UseFIPSEndpoint = aws.FIPSEndpointStateEnabled
 		})
@@ -274,10 +260,12 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	otelaws.AppendMiddlewares(&awsConfig.APIOptions)
+
 	// Create S3 client with custom options
 	client := s3.NewFromConfig(awsConfig, s3Opts...)
 
-	uploader := transfermanager.New(client)
+	uploader := manager.NewUploader(client)
 
 	h := &Handler{
 		logger:   logger,
@@ -311,7 +299,7 @@ type Handler struct {
 	Config
 	// logger emits log messages
 	logger   *slog.Logger
-	uploader *transfermanager.Client
+	uploader *manager.Uploader
 	client   s3Client
 }
 
@@ -320,207 +308,138 @@ func (h *Handler) Close() error {
 	return nil
 }
 
-// Upload reads the content of a session recording from a reader and uploads it
-// to an S3 bucket. If successful, it returns URL of the uploaded object.
+// Upload uploads object to S3 bucket, reads the contents of the object from reader
+// and returns the target S3 bucket path in case of successful upload.
 func (h *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	path, err := h.uploadFile(ctx, h.recordingPath(sessionID), reader)
-	return path, trace.Wrap(err)
-}
+	path := h.path(sessionID)
 
-// UploadPendingSummary reads the content of a pending session summary from a
-// reader and uploads it to an S3 bucket. This function can be called multiple
-// times for a given sessionID to update the state.
-func (h *Handler) UploadPendingSummary(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	path, err := h.uploadFile(ctx, h.summaryPath(sessionID), reader, withOverwrite(), canBeOverwrittenLater())
-	return path, trace.Wrap(err)
-}
-
-// UploadSummary reads the content of a final version of session summary from a
-// reader and uploads it to an S3 bucket. If successful, it returns URL of the
-// uploaded object. This function can be called only once for a given
-// sessionID; subsequent calls will return an error.
-func (h *Handler) UploadSummary(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	path, err := h.uploadFile(ctx, h.summaryPath(sessionID), reader, withOverwrite())
-	return path, trace.Wrap(err)
-}
-
-// UploadMetadata reads the content of a session's metadata from a reader and
-// uploads it to an S3 bucket. If successful, it returns URL of the uploaded
-// object.
-func (h *Handler) UploadMetadata(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	path, err := h.uploadFile(ctx, h.metadataPath(sessionID), reader)
-	return path, trace.Wrap(err)
-}
-
-// UploadThumbnail reads the content of a session's thumbnail from a reader and
-// uploads it to an S3 bucket. If successful, it returns URL of the uploaded
-// object.
-func (h *Handler) UploadThumbnail(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	path, err := h.uploadFile(ctx, h.thumbnailPath(sessionID), reader)
-	return path, trace.Wrap(err)
-}
-
-type fileUploadConfig struct {
-	overwrite             bool
-	canBeOverwrittenLater bool
-}
-
-type fileUploadOption func(*fileUploadConfig)
-
-func withOverwrite() fileUploadOption {
-	return func(cfg *fileUploadConfig) {
-		cfg.overwrite = true
-	}
-}
-
-func canBeOverwrittenLater() fileUploadOption {
-	return func(cfg *fileUploadConfig) {
-		cfg.canBeOverwrittenLater = true
-	}
-}
-
-// overwritableKey is a metadata key that indicates the file can be later
-// overwritten.
-const overwritableKey = "teleport-internal-overwritable"
-
-// uploadFile uploads a file to S3. Normally, it doesn't allow overwriting;
-// this can be changed if  [withOverwrite] was specified in the options. If
-// file is intended to be later overwritten, [canBeOverwrittenLater] must be
-// specified in the options. The file that can be overwritten is marked with
-// the [overwritableKey] metadata header.
-func (h *Handler) uploadFile(ctx context.Context, path string, reader io.Reader, opts ...fileUploadOption) (string, error) {
-	cfg := fileUploadConfig{}
-	for _, opt := range opts {
-		opt(&cfg)
-	}
-
-	uploadInput := &transfermanager.UploadObjectInput{
+	uploadInput := &s3.PutObjectInput{
 		Bucket: aws.String(h.Bucket),
 		Key:    aws.String(path),
 		Body:   reader,
 	}
-	if cfg.canBeOverwrittenLater {
-		uploadInput.Metadata = map[string]string{overwritableKey: "true"}
-	}
-
-	if cfg.overwrite {
-		// File can overwrite the existing one. Let's see if the existing file's
-		// metadata allows it.
-		head, err := h.client.HeadObject(ctx, &s3.HeadObjectInput{
-			Bucket: aws.String(h.Bucket),
-			Key:    aws.String(path),
-		})
-		err = awsutils.ConvertS3Error(err)
-		if err != nil && !trace.IsNotFound(err) {
-			return "", err
-		}
-		if err == nil {
-			// An existing file was found.
-			if _, overwritable := head.Metadata[overwritableKey]; !overwritable {
-				return "", trace.AlreadyExists("Object %q already exists and cannot be overwritten", path)
-			}
-
-			// Since we confirmed that this version can be overwritten, let's make
-			// sure no other version appeared in the meantime.
-			uploadInput.IfMatch = head.ETag
-		}
-	} else {
-		// The file shouldn't be overwritten, so we simply assert it's not there at
-		// all.
-		uploadInput.IfNoneMatch = aws.String("*")
-	}
-
 	if !h.Config.DisableServerSideEncryption {
-		uploadInput.ServerSideEncryption = tmanagertypes.ServerSideEncryptionAwsKms
+		uploadInput.ServerSideEncryption = awstypes.ServerSideEncryptionAwsKms
 		if h.Config.SSEKMSKey != "" {
-			uploadInput.SSEKMSKeyID = aws.String(h.Config.SSEKMSKey)
+			uploadInput.SSEKMSKeyId = aws.String(h.Config.SSEKMSKey)
 		}
 	}
 	if h.Config.ACL != "" {
-		uploadInput.ACL = tmanagertypes.ObjectCannedACL(h.Config.ACL)
+		uploadInput.ACL = awstypes.ObjectCannedACL(h.Config.ACL)
 	}
-	_, err := h.uploader.UploadObject(ctx, uploadInput)
+	_, err := h.uploader.Upload(ctx, uploadInput)
 	if err != nil {
 		return "", awsutils.ConvertS3Error(err)
 	}
 	return fmt.Sprintf("%v://%v/%v", teleport.SchemeS3, h.Bucket, path), nil
 }
 
-// StreamSessionRecording downloads a session recording from an S3 bucket and returns a
-// ReadCloser for the content. Returns trace.NotFound error if the recording
-// is not found.
-func (h *Handler) StreamSessionRecording(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
-	return h.downloadOriginalFile(ctx, h.recordingPath(sessionID))
-}
-
-// StreamSessionSummary downloads a final session summary from an S3 bucket and
-// returns a ReadCloser for the content. Returns trace.NotFound error if the
-// summary is not found or is not final.
-func (h *Handler) StreamSessionSummary(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
-	return h.downloadFileRetrier(ctx, h.summaryPath(sessionID), nil /* versionID */)
-}
-
-// StreamSessionMetadata downloads a session's metadata from an S3 bucket and
-// returns a ReadCloser for the content. Returns trace.NotFound error if the
-// metadata is not found.
-func (h *Handler) StreamSessionMetadata(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
-	return h.downloadOriginalFile(ctx, h.metadataPath(sessionID))
-}
-
-// StreamSessionThumbnail downloads a session's thumbnail from an S3 bucket and
-// returns a ReadCloser for the content. Returns trace.NotFound error if the
-// thumbnail is not found.
-func (h *Handler) StreamSessionThumbnail(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
-	return h.downloadOriginalFile(ctx, h.thumbnailPath(sessionID))
-}
-
-func (h *Handler) downloadOriginalFile(ctx context.Context, path string) (io.ReadCloser, error) {
+// Download downloads recorded session from S3 bucket and writes the results
+// into writer return trace.NotFound error is object is not found.
+func (h *Handler) Download(ctx context.Context, sessionID session.ID, writer io.Writer) error {
 	// Get the oldest version of this object. This has to be done because S3
 	// allows overwriting objects in a bucket. To prevent corruption of recording
 	// data, get all versions and always return the first.
-	versionID, err := h.getOldestVersion(ctx, h.Bucket, path)
+	versionID, err := h.getOldestVersion(ctx, h.Bucket, h.path(sessionID))
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
-	h.logger.DebugContext(ctx, "Downloading file from S3", "bucket", h.Bucket, "path", path, "version_id", versionID)
+	h.logger.DebugContext(ctx, "Downloading recording from S3", "bucket", h.Bucket, "path", h.path(sessionID), "version_id", versionID)
 
-	return h.downloadFileRetrier(ctx, path, aws.String(versionID))
+	err = h.downloadFile(ctx, h.path(sessionID), writer, aws.String(versionID))
+	if err != nil {
+		return awsutils.ConvertS3Error(err)
+	}
+	return nil
 }
 
-// downloadFileRetrier does a HeadObject to verify the object exists, then
-// returns a downloadretrier.Retrier whose DownloadFunc issues a range GET
-// starting at the given offset.
-func (h *Handler) downloadFileRetrier(ctx context.Context, path string, versionID *string) (io.ReadCloser, error) {
-	// Check existence and fetch content-length upfront so that NotFound is
-	// returned before the caller attempts any reads.
-	headOutput, err := h.client.HeadObject(ctx, &s3.HeadObjectInput{
+func (h *Handler) downloadFile(
+	ctx context.Context, path string, writer io.Writer, versionID *string,
+) error {
+	// maxDownloadRetries is the maximum number of retries for the body.
+	const maxDownloadRetries = 3
+
+	// get the file head to find out the size.
+	headInput := &s3.HeadObjectInput{
 		Bucket:    aws.String(h.Bucket),
 		Key:       aws.String(path),
 		VersionId: versionID,
-	})
+	}
+
+	headOutput, err := h.client.HeadObject(ctx, headInput)
 	if err != nil {
-		return nil, awsutils.ConvertS3Error(err)
+		return awsutils.ConvertS3Error(err)
 	}
 
 	contentLength := aws.ToInt64(headOutput.ContentLength)
 	if contentLength == 0 {
-		return io.NopCloser(bytes.NewBuffer(nil)), nil
+		return nil
 	}
 
-	return downloadretrier.New(ctx, contentLength, func(ctx context.Context, offset int64) (io.ReadCloser, error) {
+	// offset tracks how many bytes have been successfully copied to the writer so far
+	var offset int64
+	var lastErr error
+	for attempt := range maxDownloadRetries {
+		if err := ctx.Err(); err != nil {
+			return trace.Wrap(err)
+		}
+		if attempt > 0 {
+			h.logger.DebugContext(ctx, "Retrying download from last position",
+				"bucket", h.Bucket,
+				"path", path,
+				"offset", offset,
+				"attempt", attempt+1,
+			)
+		}
+
+		// send the range header to download only the remaining part of the file
 		rangeStr := fmt.Sprintf("bytes=%d-%d", offset, contentLength-1)
-		output, err := h.client.GetObject(ctx, &s3.GetObjectInput{
+
+		getInput := &s3.GetObjectInput{
 			Bucket:    aws.String(h.Bucket),
 			Key:       aws.String(path),
 			VersionId: versionID,
 			Range:     aws.String(rangeStr),
-		})
-		if err != nil {
-			return nil, awsutils.ConvertS3Error(err)
 		}
-		return output.Body, nil
-	}), nil
+
+		output, err := h.client.GetObject(ctx, getInput)
+		if err != nil {
+			return trace.Wrap(awsutils.ConvertS3Error(err))
+		}
+
+		// copy the body to the writer
+		n, err := io.Copy(writer, output.Body)
+		_ = output.Body.Close()
+
+		offset += n
+
+		if err != nil {
+			// If we haven't reached the end, continue
+			// the AWS manager.Downloader retries on every error when reading the error.
+			if offset < contentLength {
+				lastErr = err
+				continue
+			}
+			return trace.Wrap(err)
+		}
+
+		if offset < contentLength {
+			lastErr = fmt.Errorf("downloaded %d bytes, expected %d", offset, contentLength)
+			continue
+		}
+
+		// this case should never happen given that we force the version and the file
+		// shouldn't be changing under us, but if it does, we want to know about it
+		//  instead of silently truncating the recording
+		if offset != contentLength {
+			return trace.BadParameter("expected %d bytes, got %d when downloading file %q", contentLength, offset, path)
+		}
+
+		return nil
+	}
+
+	return trace.Wrap(lastErr, "failed to download file after %d attempts", maxDownloadRetries)
 }
 
 // versionID is used to store versions of a key to allow sorting by timestamp.
@@ -565,7 +484,7 @@ func (h *Handler) getOldestVersion(ctx context.Context, bucket string, prefix st
 	return versions[0].ID, nil
 }
 
-// deleteBucket deletes the bucket and all its contents and is used in tests
+// delete bucket deletes bucket and all it's contents and is used in tests
 func (h *Handler) deleteBucket(ctx context.Context) error {
 	// first, list and delete all the objects in the bucket
 	paginator := s3.NewListObjectVersionsPaginator(h.client, &s3.ListObjectVersionsInput{
@@ -595,32 +514,11 @@ func (h *Handler) deleteBucket(ctx context.Context) error {
 	return awsutils.ConvertS3Error(err)
 }
 
-func (h *Handler) recordingPath(sessionID session.ID) string {
+func (h *Handler) path(sessionID session.ID) string {
 	if h.Path == "" {
 		return string(sessionID) + ".tar"
 	}
 	return strings.TrimPrefix(path.Join(h.Path, string(sessionID)+".tar"), "/")
-}
-
-func (h *Handler) summaryPath(sessionID session.ID) string {
-	if h.Path == "" {
-		return string(sessionID) + ".summary.json"
-	}
-	return strings.TrimPrefix(path.Join(h.Path, string(sessionID)+".summary.json"), "/")
-}
-
-func (h *Handler) metadataPath(sessionID session.ID) string {
-	if h.Path == "" {
-		return string(sessionID) + ".metadata"
-	}
-	return strings.TrimPrefix(path.Join(h.Path, string(sessionID)+".metadata"), "/")
-}
-
-func (h *Handler) thumbnailPath(sessionID session.ID) string {
-	if h.Path == "" {
-		return string(sessionID) + ".thumbnail"
-	}
-	return strings.TrimPrefix(path.Join(h.Path, string(sessionID)+".thumbnail"), "/")
 }
 
 func (h *Handler) fromPath(p string) session.ID {

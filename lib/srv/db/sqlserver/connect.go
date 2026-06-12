@@ -154,7 +154,7 @@ func (c *connector) getKerberosConnector(ctx context.Context, sessionCtx *common
 		return nil, trace.Wrap(err)
 	}
 
-	return mssql.NewConnectorConfigCustomAuth(dsnConfig, dbAuth), nil
+	return mssql.NewConnectorConfig(dsnConfig, dbAuth), nil
 }
 
 // getAzureConnector generates a connector that authenticates using Azure AD.

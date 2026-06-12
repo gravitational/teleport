@@ -21,7 +21,7 @@ import { useParams } from 'react-router';
 
 import {
   DisconnectedState,
-  DesktopSessionWithSharing as SharedDesktopSession,
+  DesktopSession as SharedDesktopSession,
 } from 'shared/components/DesktopSession';
 import { useAsync } from 'shared/hooks/useAsync';
 import { selectDirectoryInBrowser, TdpClient } from 'shared/libs/tdp';
@@ -34,11 +34,9 @@ import { adaptWebSocketToTdpTransport } from 'teleport/lib/tdp';
 import { shouldShowMfaPrompt, useMfaEmitter } from 'teleport/lib/useMfa';
 import { getHostName } from 'teleport/services/api';
 import auth from 'teleport/services/auth';
-import { useUser } from 'teleport/User/UserContext';
 
 export function DesktopSession() {
   const ctx = useTeleport();
-  const { preferences } = useUser();
   const { username, desktopName, clusterId } = useParams<UrlDesktopParams>();
   useEffect(() => {
     document.title = `${username} on ${desktopName} • ${clusterId}`;
@@ -56,7 +54,6 @@ export function DesktopSession() {
                 .replace(':clusterId', clusterId)
                 .replace(':desktopName', desktopName)
                 .replace(':username', username)
-                .replace(':version', 'teleport-tdpb-1.0')
             ),
             abortSignal
           ),
@@ -115,7 +112,7 @@ export function DesktopSession() {
           return (
             <DisconnectedState
               message={{
-                title: 'This session requires multi-factor authentication',
+                title: 'This session requires multi factor authentication',
                 details: mfa.attempt.statusText,
               }}
               desktopName={desktopName}
@@ -134,7 +131,6 @@ export function DesktopSession() {
       aclAttempt={aclAttempt}
       browserSupportsSharing={navigator.userAgent.includes('Chrome')}
       hasAnotherSession={hasAnotherSession}
-      keyboardLayout={preferences.keyboardLayout}
     />
   );
 }

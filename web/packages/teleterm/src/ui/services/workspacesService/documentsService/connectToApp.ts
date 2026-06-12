@@ -17,8 +17,6 @@
  */
 
 import { App } from 'gen-proto-ts/teleport/lib/teleterm/v1/app_pb';
-import { AppSubKind } from 'shared/services';
-import { getAppProtocol } from 'shared/services/apps';
 
 import {
   getAwsAppLaunchUrl,
@@ -88,7 +86,7 @@ export async function connectToApp(
     return;
   }
 
-  if (target.subKind === AppSubKind.AwsIcAccount) {
+  if (target.subKind === 'aws_ic_account') {
     launchAppInBrowser(
       ctx,
       target,
@@ -137,12 +135,7 @@ export async function connectToApp(
     targetPort = target.tcpPorts[0].port;
   }
 
-  const targetProtocol = getAppProtocol(target.endpointUri);
-  await setUpAppGateway(ctx, target.uri, {
-    telemetry,
-    targetPort,
-    targetProtocol,
-  });
+  await setUpAppGateway(ctx, target.uri, { telemetry, targetPort });
 }
 
 export async function setUpAppGateway(
@@ -155,10 +148,6 @@ export async function setUpAppGateway(
      * only for multi-port TCP apps.
      */
     targetPort?: number;
-    /**
-     * targetProtocol is the protocol of the resource proxied by the gateway.
-     */
-    targetProtocol?: string;
   }
 ) {
   const rootClusterUri = routing.ensureRootClusterUri(targetUri);
@@ -171,8 +160,6 @@ export async function setUpAppGateway(
     targetName: routing.parseAppUri(targetUri).params.appId,
     targetUser: '',
     targetSubresourceName: options.targetPort?.toString(),
-    targetProtocol: options.targetProtocol,
-    autoUserProvisioning: undefined,
   });
 
   const connectionToReuse = ctx.connectionTracker.findConnectionByDocument(doc);
@@ -182,11 +169,7 @@ export async function setUpAppGateway(
       origin: options.telemetry.origin,
     });
   } else {
-    const { isAtDesiredWorkspace } =
-      await ctx.workspacesService.setActiveWorkspace(rootClusterUri);
-    if (!isAtDesiredWorkspace) {
-      return;
-    }
+    await ctx.workspacesService.setActiveWorkspace(rootClusterUri);
     documentsService.add(doc);
     documentsService.open(doc.uri);
   }

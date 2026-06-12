@@ -31,9 +31,6 @@ const (
 	// TCPSessionType is the session_type in tp.session.start for TCP
 	// Application Access.
 	TCPSessionType = "app_tcp"
-	// MCPAppSessionType is the session_type in tp.session.start for MCP
-	// Access via App access.
-	MCPAppSessionType = "app_mcp"
 	// PortSessionType is the session_type in tp.session.start for SSH or Kube
 	// port forwarding.
 	//
@@ -46,13 +43,11 @@ const (
 	// PortKubeSessionType is the session_type in tp.session.start for Kube port
 	// forwarding.
 	PortKubeSessionType = "k8s_port"
-	// SAMLIdPSessionType is the session_type tp.session.start for a SAML IdP specific web session.
-	SAMLIdPSessionType = "saml_idp_session"
 )
 
-// PrehogUserKindFromEventKind converts a Teleport UserKind to a prehog
+// prehogUserKindFromEventKind converts a Teleport UserKind to a prehog
 // UserKind.
-func PrehogUserKindFromEventKind(eventsKind apievents.UserKind) prehogv1a.UserKind {
+func prehogUserKindFromEventKind(eventsKind apievents.UserKind) prehogv1a.UserKind {
 	switch eventsKind {
 	case apievents.UserKind_USER_KIND_BOT:
 		return prehogv1a.UserKind_USER_KIND_BOT
@@ -124,7 +119,7 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 		return &SessionStartEvent{
 			UserName:    e.User,
 			SessionType: string(sessionType),
-			UserKind:    PrehogUserKindFromEventKind(e.UserKind),
+			UserKind:    prehogUserKindFromEventKind(e.UserKind),
 		}
 	case *apievents.PortForward:
 		sessionType := PortSSHSessionType
@@ -134,7 +129,7 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 		return &SessionStartEvent{
 			UserName:    e.User,
 			SessionType: sessionType,
-			UserKind:    PrehogUserKindFromEventKind(e.UserKind),
+			UserKind:    prehogUserKindFromEventKind(e.UserKind),
 		}
 	case *apievents.DatabaseSessionStart:
 		return &SessionStartEvent{
@@ -146,7 +141,7 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 				DbOrigin:   e.DatabaseOrigin,
 				UserAgent:  e.UserAgent,
 			},
-			UserKind: PrehogUserKindFromEventKind(e.UserKind),
+			UserKind: prehogUserKindFromEventKind(e.UserKind),
 		}
 	case *apievents.AppSessionStart:
 		var app *prehogv1a.SessionStartAppMetadata
@@ -163,7 +158,7 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 		return &SessionStartEvent{
 			UserName:    e.User,
 			SessionType: sessionType,
-			UserKind:    PrehogUserKindFromEventKind(e.UserKind),
+			UserKind:    prehogUserKindFromEventKind(e.UserKind),
 			App:         app,
 		}
 	case *apievents.WindowsDesktopSessionStart:
@@ -184,7 +179,7 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 
 			// Note: Unlikely for this to ever be a bot session, but included
 			// for completeness.
-			UserKind: PrehogUserKindFromEventKind(e.UserKind),
+			UserKind: prehogUserKindFromEventKind(e.UserKind),
 		}
 
 	case *apievents.GithubConnectorCreate:
@@ -209,14 +204,14 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 	case *apievents.KubeRequest:
 		return &KubeRequestEvent{
 			UserName: e.User,
-			UserKind: PrehogUserKindFromEventKind(e.UserKind),
+			UserKind: prehogUserKindFromEventKind(e.UserKind),
 		}
 
 	case *apievents.SFTP:
 		return &SFTPEvent{
 			UserName: e.User,
 			Action:   int32(e.Action),
-			UserKind: PrehogUserKindFromEventKind(e.UserKind),
+			UserKind: prehogUserKindFromEventKind(e.UserKind),
 		}
 
 	case *apievents.BotJoin:
@@ -306,7 +301,7 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 	case *apievents.SPIFFESVIDIssued:
 		return &SPIFFESVIDIssuedEvent{
 			UserName:      e.User,
-			UserKind:      PrehogUserKindFromEventKind(e.UserKind),
+			UserKind:      prehogUserKindFromEventKind(e.UserKind),
 			SpiffeId:      e.SPIFFEID,
 			IpSansCount:   int32(len(e.IPSANs)),
 			DnsSansCount:  int32(len(e.DNSSANs)),
@@ -350,6 +345,7 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 			UserName:    e.User,
 			Format:      e.Format,
 		}
+
 	case *apievents.GitCommand:
 		// Only count when a command is executed on remote Git server and ignore
 		// errors that happen before that.
@@ -359,7 +355,7 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 		return &SessionStartEvent{
 			UserName:    e.User,
 			SessionType: string(types.GitSessionKind),
-			UserKind:    PrehogUserKindFromEventKind(e.UserKind),
+			UserKind:    prehogUserKindFromEventKind(e.UserKind),
 			Git: &prehogv1a.SessionStartGitMetadata{
 				GitType:    e.ServerSubKind,
 				GitService: e.Service,
@@ -372,21 +368,7 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 		}
 		return &SessionStartEvent{
 			UserName:    e.User,
-			SessionType: string(SAMLIdPSessionType),
-		}
-	case *apievents.MCPSessionStart:
-		return &SessionStartEvent{
-			UserName:    e.User,
-			SessionType: MCPAppSessionType,
-			UserKind:    PrehogUserKindFromEventKind(e.UserKind),
-			Mcp: &prehogv1a.SessionStartMCPMetadata{
-				Transport:       types.GetMCPServerTransportType(e.AppURI),
-				ProtocolVersion: e.ProtocolVersion,
-				IngressAuthType: e.IngressAuthType,
-				EgressAuthType:  e.EgressAuthType,
-				ClientName:      e.ClientInfo,
-				ServerName:      e.ServerInfo,
-			},
+			SessionType: string(types.KindSAMLIdPSession),
 		}
 	}
 

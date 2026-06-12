@@ -24,16 +24,14 @@ import (
 	"errors"
 	"fmt"
 	iofs "io/fs"
-	"log/slog"
-	"maps"
 	"os"
 	"path/filepath"
 	"runtime"
-	"slices"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -91,10 +89,6 @@ type KeyStore interface {
 	// GetSSHCertificates gets all certificates signed for the given user and proxy,
 	// including certificates for trusted clusters.
 	GetSSHCertificates(proxyHost, username string) ([]*ssh.Certificate, error)
-
-	// GetIdentities returns the usernames associated to signed user certificates
-	// for the given proxy in the keystore.
-	GetIdentities(proxyHost string) ([]string, error)
 }
 
 // FSKeyStore is an on-disk implementation of the KeyStore interface.
@@ -102,7 +96,7 @@ type KeyStore interface {
 // The FS store uses the file layout outlined in `api/utils/keypaths.go`.
 type FSKeyStore struct {
 	// log holds the structured logger.
-	log *slog.Logger
+	log logrus.FieldLogger
 
 	// KeyDir is the directory where all keys are stored.
 	KeyDir string
@@ -114,14 +108,9 @@ type FSKeyStore struct {
 func NewFSKeyStore(dirPath string) *FSKeyStore {
 	dirPath = profile.FullProfilePath(dirPath)
 	return &FSKeyStore{
-		log:    slog.With(teleport.ComponentKey, teleport.ComponentKeyStore),
+		log:    logrus.WithField(teleport.ComponentKey, teleport.ComponentKeyStore),
 		KeyDir: dirPath,
 	}
-}
-
-// proxyKeyDir returns the path to the given proxy's keys directory.
-func (fs *FSKeyStore) proxyKeyDir(proxy string) string {
-	return keypaths.ProxyKeyDir(fs.KeyDir, proxy)
 }
 
 // userSSHKeyPath returns the SSH private key path for the given KeyRingIndex.
@@ -137,12 +126,6 @@ func (fs *FSKeyStore) userTLSKeyPath(idx KeyRingIndex) string {
 // tlsCertPath returns the TLS certificate path given KeyRingIndex.
 func (fs *FSKeyStore) tlsCertPath(idx KeyRingIndex) string {
 	return keypaths.TLSCertPath(fs.KeyDir, idx.ProxyHost, idx.Username)
-}
-
-// accessGraphTLSCertPath returns the path to the Access Graph TLS certificate
-// for the given KeyRingIndex.
-func (fs *FSKeyStore) accessGraphTLSCertPath(idx KeyRingIndex) string {
-	return keypaths.AccessGraphTLSCertPath(fs.KeyDir, idx.ProxyHost, idx.Username)
 }
 
 // tlsCertPathLegacy returns the legacy TLS certificate path used in Teleport v16 and
@@ -217,15 +200,6 @@ func (fs *FSKeyStore) AddKeyRing(keyRing *KeyRing) error {
 		return trace.Wrap(err)
 	}
 
-	// Store Access Graph cert. Share the same key-file lock used for the main
-	// TLS credential so this cert doesn't drift from TLSPrivateKey under
-	// concurrent writes.
-	if len(keyRing.AccessGraphTLSCert) > 0 {
-		if err := fs.writeAccessGraphTLSCert(keyRing); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
 	// Store SSH private and public key.
 	sshPrivateKeyPEM, err := keyRing.SSHPrivateKey.MarshalSSHPrivateKey()
 	if err != nil {
@@ -242,7 +216,7 @@ func (fs *FSKeyStore) AddKeyRing(keyRing *KeyRing) error {
 	if runtime.GOOS == constants.WindowsOS {
 		ppkFile, err := keyRing.SSHPrivateKey.PPKFile()
 		if err != nil {
-			fs.log.DebugContext(context.Background(), "Cannot convert private key to PPK-formatted keypair", "error", err)
+			fs.log.Debugf("Cannot convert private key to PPK-formatted keypair: %v", err)
 		} else {
 			if err := fs.writeBytes(ppkFile, fs.ppkFilePath(keyRing.KeyRingIndex)); err != nil {
 				return trace.Wrap(err)
@@ -288,43 +262,6 @@ func (fs *FSKeyStore) AddKeyRing(keyRing *KeyRing) error {
 	}
 
 	return nil
-}
-
-// readAccessGraphTLSCert reads the Access Graph TLS cert under a read lock
-// on the main TLS key file, so the returned bytes are paired with the key
-// loaded by readTLSCredential. Returns nil bytes (no error) if the cert
-// file isn't present.
-func (fs *FSKeyStore) readAccessGraphTLSCert(idx KeyRingIndex) ([]byte, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
-	defer cancel()
-	unlock, err := tryReadLockFile(ctx, fs.userTLSKeyPath(idx))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer unlock()
-	cert, err := os.ReadFile(fs.accessGraphTLSCertPath(idx))
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return nil, nil
-		}
-		return nil, trace.ConvertSystemError(err)
-	}
-	return cert, nil
-}
-
-// writeAccessGraphTLSCert writes the Access Graph TLS cert under a write
-// lock on the main TLS key file. The AccessGraph cert reuses TLSPrivateKey,
-// so this lock prevents a concurrent key rotation from leaving the
-// AccessGraph cert bound to a stale key.
-func (fs *FSKeyStore) writeAccessGraphTLSCert(keyRing *KeyRing) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
-	defer cancel()
-	unlock, err := tryWriteLockFile(ctx, fs.userTLSKeyPath(keyRing.KeyRingIndex))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer unlock()
-	return trace.Wrap(fs.writeBytes(keyRing.AccessGraphTLSCert, fs.accessGraphTLSCertPath(keyRing.KeyRingIndex)))
 }
 
 func (fs *FSKeyStore) writeTLSCredential(cred TLSCredential, keyPath, certPath string) error {
@@ -407,10 +344,7 @@ func tryLockFile(ctx context.Context, path string, lockFn func(string) (func() e
 		case err == nil:
 			return func() {
 				if err := unlock(); err != nil {
-					log.ErrorContext(ctx, "failed to unlock TLS credential",
-						"credential_path", path,
-						"error", err,
-					)
+					log.Errorf("failed to unlock TLS credential at %s: %s", path, err)
 				}
 			}, nil
 		case errors.Is(err, utils.ErrUnsuccessfulLockTry):
@@ -493,12 +427,6 @@ func (fs *FSKeyStore) DeleteKeyRing(idx KeyRingIndex) error {
 	for _, fn := range files {
 		deleteErrs = append(deleteErrs, trace.ConvertSystemError(utils.RemoveSecure(fn)))
 	}
-
-	// Access Graph cert may not exist — it's only persisted when minted.
-	if err := utils.RemoveSecure(fs.accessGraphTLSCertPath(idx)); err != nil && !errors.Is(err, iofs.ErrNotExist) {
-		deleteErrs = append(deleteErrs, trace.Wrap(err, "failed to remove Access Graph TLS cert file"))
-	}
-
 	// we also need to delete the extra PuTTY-formatted .ppk file when running on Windows,
 	// but it may not exist when upgrading from v9 -> v10 and logging into an existing cluster.
 	// as such, deletion should be best-effort and not generate an error if it fails.
@@ -509,7 +437,7 @@ func (fs *FSKeyStore) DeleteKeyRing(idx KeyRingIndex) error {
 	// And try to delete kube credentials lockfile in case it exists
 	err := utils.RemoveSecure(fs.kubeCredLockfilePath(idx))
 	if err != nil && !errors.Is(err, iofs.ErrNotExist) {
-		log.DebugContext(context.Background(), "Could not remove kube credentials file", "error", err)
+		log.Debugf("Could not remove kube credentials file: %v", err)
 	}
 
 	// Clear ClusterName to delete the user certs stored for all clusters.
@@ -622,11 +550,6 @@ func (fs *FSKeyStore) GetKeyRing(idx KeyRingIndex, hwks hardwarekey.Service, opt
 		return nil, trace.Wrap(err)
 	}
 
-	accessGraphTLSCert, err := fs.readAccessGraphTLSCert(idx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	sshPriv, err := keys.LoadKeyPair(fs.userSSHKeyPath(idx), fs.publicKeyPath(idx), keys.WithHardwareKeyService(hwks), keys.WithContextualKeyInfo(idx.contextualKeyInfo()))
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
@@ -635,9 +558,6 @@ func (fs *FSKeyStore) GetKeyRing(idx KeyRingIndex, hwks hardwarekey.Service, opt
 	keyRing := NewKeyRing(sshPriv, tlsCred.PrivateKey)
 	keyRing.KeyRingIndex = idx
 	keyRing.TLSCert = tlsCred.Cert
-	// readAccessGraphTLSCert returns nil bytes when the file isn't present,
-	// so this is a no-op for keyrings without an Access Graph cert.
-	keyRing.AccessGraphTLSCert = accessGraphTLSCert
 
 	for _, o := range opts {
 		if err := fs.updateKeyRingWithCerts(o, hwks, keyRing); err != nil && !trace.IsNotFound(err) {
@@ -678,27 +598,6 @@ func (fs *FSKeyStore) GetSSHCertificates(proxyHost, username string) ([]*ssh.Cer
 	}
 
 	return sshCerts, nil
-}
-
-// GetIdentities returns the usernames associated to signed user certificates
-// for the given proxy in the keystore.
-func (fs *FSKeyStore) GetIdentities(proxyHost string) ([]string, error) {
-	proxyDir := fs.proxyKeyDir(proxyHost)
-	files, err := os.ReadDir(proxyDir)
-	if err != nil {
-		return nil, trace.ConvertSystemError(err)
-	}
-
-	var identities []string
-	for _, file := range files {
-		// we seek the files corresponding to user SSH certificates, which are
-		// stored in [user]-ssh subdirectory. These are generated on successful logins.
-		if file.IsDir() && strings.HasSuffix(file.Name(), keypaths.SSHDirSuffix) {
-			username := strings.TrimSuffix(file.Name(), keypaths.SSHDirSuffix)
-			identities = append(identities, username)
-		}
-	}
-	return identities, nil
 }
 
 func getCredentialsByName(credentialDir string, opts ...keys.ParsePrivateKeyOpt) (map[string]TLSCredential, error) {
@@ -972,7 +871,6 @@ func (ms *MemKeyStore) GetKeyRing(idx KeyRingIndex, _ hardwarekey.Service, opts 
 	retKeyRing := NewKeyRing(keyRing.SSHPrivateKey, keyRing.TLSPrivateKey)
 	retKeyRing.KeyRingIndex = idx
 	retKeyRing.TLSCert = keyRing.TLSCert
-	retKeyRing.AccessGraphTLSCert = keyRing.AccessGraphTLSCert
 	for _, o := range opts {
 		switch o.(type) {
 		case WithSSHCerts:
@@ -1047,10 +945,4 @@ func (ms *MemKeyStore) GetSSHCertificates(proxyHost, username string) ([]*ssh.Ce
 	}
 
 	return sshCerts, nil
-}
-
-// GetIdentities returns the usernames associated to signed user certificates
-// for the given proxy in the keystore.
-func (ms *MemKeyStore) GetIdentities(proxyHost string) ([]string, error) {
-	return slices.Collect(maps.Keys(ms.keyRings[proxyHost])), nil
 }

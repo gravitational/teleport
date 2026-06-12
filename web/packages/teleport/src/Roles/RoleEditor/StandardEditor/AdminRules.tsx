@@ -94,7 +94,7 @@ const AdminRule = memo(function AdminRule({
 }: SectionPropsWithDispatch<RuleModel, AdminRuleValidationResult>) {
   const { id, resources, verbs, allVerbs, where, hideValidationErrors } = value;
   const theme = useTheme();
-  function setResources(resources: ResourceKindOption[]) {
+  function setResources(resources: readonly ResourceKindOption[]) {
     dispatch({
       type: ActionType.SetAdminRuleResources,
       payload: { id, resources },
@@ -173,7 +173,7 @@ const AdminRule = memo(function AdminRule({
   );
 });
 
-function getTitleSegments(resources: ResourceKindOption[]): string[] {
+function getTitleSegments(resources: readonly ResourceKindOption[]): string[] {
   switch (resources.length) {
     case 0:
       return ['Admin Rule'];
@@ -205,13 +205,10 @@ function ResourceKindMultiValue(props: MultiValueProps<ResourceKindOption>) {
   }
   return (
     <HoverTooltip tipContent="Unrecognized resource type">
-      {/* components.MultiValue doesn't forward ref, so we need an additional wrapper.*/}
-      <Flex>
-        <components.MultiValue
-          {...props}
-          className="teleport-resourcekind__value--unknown"
-        />
-      </Flex>
+      <components.MultiValue
+        {...props}
+        className="teleport-resourcekind__value--unknown"
+      />
     </HoverTooltip>
   );
 }

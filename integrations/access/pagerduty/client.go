@@ -24,9 +24,9 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"text/template"
 	"time"
 
-	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/go-resty/resty/v2"
 	"github.com/google/go-querystring/query"
 	"github.com/gravitational/trace"
@@ -35,7 +35,7 @@ import (
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
-	"github.com/gravitational/teleport/lib/utils/set"
+	"github.com/gravitational/teleport/integrations/lib/stringset"
 )
 
 const (
@@ -49,13 +49,13 @@ const (
 )
 
 var incidentBodyTemplate = template.Must(template.New("incident body").Parse(
-	`{{.User}} requested permissions for roles {{range $index, $element := .Roles}}{{if $index}}, {{end}}{{ . }}{{end}} on Teleport at {{.CreatedTime}}.
+	`{{.User}} requested permissions for roles {{range $index, $element := .Roles}}{{if $index}}, {{end}}{{ . }}{{end}} on Teleport at {{.Created.Format .TimeFormat}}.
 {{if .RequestReason}}Reason: {{.RequestReason}}{{end}}
 {{if .RequestLink}}To approve or deny the request, proceed to {{.RequestLink}}{{end}}
 `,
 ))
 var reviewNoteTemplate = template.Must(template.New("review note").Parse(
-	`{{.Author}} reviewed the request at {{.CreatedTime}}.
+	`{{.Author}} reviewed the request at {{.Created.Format .TimeFormat}}.
 Resolution: {{.ProposedState}}.
 {{if .Reason}}Reason: {{.Reason}}.{{end}}`,
 ))
@@ -122,10 +122,10 @@ func onAfterPagerDutyResponse(sink common.StatusSink) resty.ResponseMiddleware {
 		defer cancel()
 
 		if err := sink.Emit(ctx, status); err != nil {
-			log.ErrorContext(ctx, "Error while emitting PagerDuty plugin status", "error", err)
+			log.WithError(err).Errorf("Error while emitting PagerDuty plugin status: %v", err)
 		}
 
-		errorFn := trace.Errorf
+		var errorFn = trace.Errorf
 		if status.GetCode() == types.PluginStatusCode_UNAUTHORIZED {
 			errorFn = func(msg string, args ...any) error {
 				return trace.AccessDenied(msg, args...)
@@ -289,7 +289,7 @@ func (p *Pagerduty) FindUserByEmail(ctx context.Context, userEmail string) (User
 	}
 
 	if len(result.Users) > 0 && result.More {
-		logger.Get(ctx).WarnContext(ctx, "PagerDuty returned too many results when querying user email", "email", userEmail)
+		logger.Get(ctx).Warningf("PagerDuty returned too many results when querying by email %q", userEmail)
 	}
 
 	return User{}, trace.NotFound("failed to find pagerduty user by email %s", userEmail)
@@ -340,8 +340,8 @@ func (p Pagerduty) FindServicesByNames(ctx context.Context, serviceNames []strin
 
 // RangeOnCallPolicies iterates over the escalation policy IDs for which a given user is currently on-call.
 func (p *Pagerduty) FilterOnCallPolicies(ctx context.Context, userID string, escalationPolicyIDs []string) ([]string, error) {
-	policyIDSet := set.New(escalationPolicyIDs...)
-	filteredIDSet := set.New[string]()
+	policyIDSet := stringset.New(escalationPolicyIDs...)
+	filteredIDSet := stringset.New()
 
 	var offset uint
 	more := true
@@ -388,16 +388,16 @@ func (p *Pagerduty) FilterOnCallPolicies(ctx context.Context, userID string, esc
 
 	if len(filteredIDSet) == 0 {
 		if anyData {
-			logger.Get(ctx).WarnContext(ctx, "PagerDuty returned some oncalls array but none of them matched the query",
-				"pd_user_id", userID,
-				"pd_escalation_policy_ids", escalationPolicyIDs,
-			)
+			logger.Get(ctx).WithFields(logger.Fields{
+				"pd_user_id":               userID,
+				"pd_escalation_policy_ids": escalationPolicyIDs,
+			}).Warningf("PagerDuty returned some oncalls array but none of them matched the query")
 		}
 
 		return nil, nil
 	}
 
-	return filteredIDSet.Elements(), nil
+	return filteredIDSet.ToSlice(), nil
 }
 
 func (p Pagerduty) buildIncidentBody(reqID string, reqData RequestData) (string, error) {
@@ -411,12 +411,12 @@ func (p Pagerduty) buildIncidentBody(reqID string, reqData RequestData) (string,
 	var builder strings.Builder
 	err := incidentBodyTemplate.Execute(&builder, struct {
 		ID          string
-		CreatedTime string
+		TimeFormat  string
 		RequestLink string
 		RequestData
 	}{
 		reqID,
-		reqData.Created.Format(time.RFC822),
+		time.RFC822,
 		requestLink,
 		reqData,
 	})
@@ -431,11 +431,11 @@ func (p Pagerduty) buildReviewNoteBody(review types.AccessReview) (string, error
 	err := reviewNoteTemplate.Execute(&builder, struct {
 		types.AccessReview
 		ProposedState string
-		CreatedTime   string
+		TimeFormat    string
 	}{
 		review,
 		review.ProposedState.String(),
-		review.Created.Format(time.RFC822),
+		time.RFC822,
 	})
 	if err != nil {
 		return "", trace.Wrap(err)

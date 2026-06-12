@@ -7,13 +7,12 @@ spec:
   attributes_to_roles:
   - name: groups
     roles:
-    - auditor
     - editor
-    value: admins
+    value: admin
   - name: groups
     roles:
     - access
-    value: devs
+    value: dev
   audience: https://teleport.example.com:443/v1/webapi/saml/acs/onelogin
   cert: ""
   display: OneLogin

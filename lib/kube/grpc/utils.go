@@ -27,7 +27,6 @@ import (
 
 	"github.com/gravitational/trace"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
-	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
@@ -68,7 +67,7 @@ func getWebAddrAndKubeSNI(proxyAddr string) (string, string, error) {
 
 // buildKubeClient creates a new Kubernetes client that is used to communicate
 // with the Kubernetes API server.
-func (s *Server) buildKubeClient() error {
+func (s *Server) buildKubeClient() (kubernetes.Interface, error) {
 	const idleConnsPerHost = 25
 
 	tlsConfig := utils.TLSConfig(s.cfg.ConnTLSCipherSuites)
@@ -97,19 +96,8 @@ func (s *Server) buildKubeClient() error {
 		Host:      s.proxyAddress,
 		Transport: internal.NewImpersonatorRoundTripper(transport),
 	}
-
 	kubeClient, err := kubernetes.NewForConfig(cfg)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	s.kubeClient = kubeClient
-	dynamicClient, err := dynamic.NewForConfig(cfg)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	s.kubeDynamicClient = dynamicClient
-
-	return nil
+	return kubeClient, trace.Wrap(err)
 }
 
 // decideLimit returns the number of items we should request for. If respectLimit

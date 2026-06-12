@@ -31,7 +31,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/msgraph"
-	"github.com/gravitational/teleport/lib/msgraph/models"
 )
 
 var errNonSSOApp = errors.New("app does not have SSO set up")
@@ -117,7 +116,7 @@ func CreateTAGCacheFile(ctx context.Context) error {
 	}
 
 	cache := &TAGInfoCache{}
-	err = graphClient.IterateApplications(ctx, func(app *models.Application) bool {
+	err = graphClient.IterateApplications(ctx, func(app *msgraph.Application) bool {
 		appID := app.AppID
 		if appID == nil {
 			slog.WarnContext(ctx, "app ID is nil", "app", app)

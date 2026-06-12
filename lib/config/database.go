@@ -22,24 +22,22 @@ import (
 	"bytes"
 	"fmt"
 	"strings"
-	"time"
+	"text/template"
 
-	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils/parse"
 )
 
 // databaseConfigTemplateFunc list of template functions used on the database
 // config template.
 var databaseConfigTemplateFuncs = template.FuncMap{
-	"quote":    quote,
-	"join":     strings.Join,
-	"duration": func(d types.Duration) time.Duration { return d.Duration() },
+	"quote": quote,
+	"join":  strings.Join,
 }
 
 // databaseAgentConfigurationTemplate database configuration template.
@@ -95,7 +93,7 @@ db_service:
   {{- end }}
 
   # Matchers for registering AWS-hosted databases.
-  {{- if or .RDSDiscoveryRegions .RDSProxyDiscoveryRegions .RedshiftDiscoveryRegions .RedshiftServerlessDiscoveryRegions .ElastiCacheDiscoveryRegions .ElastiCacheServerlessDiscoveryRegions .MemoryDBDiscoveryRegions .OpenSearchDiscoveryRegions}}
+  {{- if or .RDSDiscoveryRegions .RDSProxyDiscoveryRegions .RedshiftDiscoveryRegions .RedshiftServerlessDiscoveryRegions .ElastiCacheDiscoveryRegions .MemoryDBDiscoveryRegions .OpenSearchDiscoveryRegions}}
   aws:
   {{- else }}
   # For more information about AWS auto-discovery:
@@ -108,10 +106,9 @@ db_service:
   #   # 'redshift' - discovers and registers AWS Redshift databases.
   #   # 'redshift-serverless' - discovers and registers AWS Redshift Serverless databases.
   #   # 'elasticache' - discovers and registers AWS ElastiCache Redis databases.
-  #   # 'elasticache-serverless' - Amazon ElastiCache Serverless Redis or Valkey databases.
   #   # 'memorydb' - discovers and registers AWS MemoryDB Redis databases.
   #   # 'opensearch' - discovers and registers AWS OpenSearch domains.
-  # - types: ["rds", "rdsproxy", "redshift", "redshift-serverless", "elasticache", "elasticache-serverless", "memorydb", "opensearch"]
+  # - types: ["rds", "rdsproxy", "redshift", "redshift-serverless", "elasticache", "memorydb", "opensearch"]
   #   # AWS regions to register databases from.
   #   regions: ["us-west-1", "us-east-2"]
   #   # AWS resource tags to match when registering databases.
@@ -185,21 +182,6 @@ db_service:
     # AWS regions to register databases from.
     regions:
     {{- range .ElastiCacheDiscoveryRegions }}
-    - "{{ . }}"
-    {{- end }}
-    # AWS resource tags to match when registering databases.
-    tags:
-    {{- range $name, $value := .AWSTags }}
-      "{{ $name }}": "{{ $value }}"
-    {{- end }}
-  {{- end }}
-  {{- if .ElastiCacheServerlessDiscoveryRegions }}
-  # ElastiCacheServerless databases auto-discovery.
-  # For more information about ElastiCacheServerless auto-discovery: https://goteleport.com/docs/enroll-resources/auto-discovery/databases/aws/
-  - types: ["elasticache-serverless"]
-    # AWS regions to register databases from.
-    regions:
-    {{- range .ElastiCacheServerlessDiscoveryRegions }}
     - "{{ . }}"
     {{- end }}
     # AWS resource tags to match when registering databases.
@@ -386,7 +368,7 @@ db_service:
       trust_system_cert_pool: {{ .DatabaseTrustSystemCertPool }}
       {{- end }}
     {{- end }}
-    {{- if or .DatabaseAWSRegion .DatabaseAWSAccountID .DatabaseAWSAssumeRoleARN .DatabaseAWSExternalID .DatabaseAWSRedshiftClusterID .DatabaseAWSRDSInstanceID .DatabaseAWSRDSClusterID .DatabaseAWSElastiCacheGroupID .DatabaseAWSElastiCacheServerlessCacheName .DatabaseAWSMemoryDBClusterName }}
+    {{- if or .DatabaseAWSRegion .DatabaseAWSAccountID .DatabaseAWSAssumeRoleARN .DatabaseAWSExternalID .DatabaseAWSRedshiftClusterID .DatabaseAWSRDSInstanceID .DatabaseAWSRDSClusterID .DatabaseAWSElastiCacheGroupID .DatabaseAWSMemoryDBClusterName }}
     aws:
       {{- if .DatabaseAWSRegion }}
       region: "{{ .DatabaseAWSRegion }}"
@@ -416,10 +398,6 @@ db_service:
       {{- if .DatabaseAWSElastiCacheGroupID }}
       elasticache:
         replication_group_id: "{{ .DatabaseAWSElastiCacheGroupID }}"
-      {{- end }}
-      {{- if .DatabaseAWSElastiCacheServerlessCacheName }}
-      elasticache_serverless:
-        cache_name: "{{ .DatabaseAWSElastiCacheServerlessCacheName }}"
       {{- end }}
       {{- if .DatabaseAWSMemoryDBClusterName }}
       memorydb:
@@ -459,7 +437,7 @@ db_service:
     dynamic_labels:
     {{- range $name, $label := .StaticDatabaseDynamicLabels }}
     - name: "{{ $name }}"
-      period: "{{ duration $label.Period }}"
+      period: "{{ $label.Period.Duration }}"
       command:
       {{- range $command := $label.Command }}
       - {{ $command | quote }}
@@ -638,9 +616,6 @@ type DatabaseSampleFlags struct {
 	// ElastiCacheDiscoveryRegions is a list of regions the ElastiCache
 	// auto-discovery is configured.
 	ElastiCacheDiscoveryRegions []string
-	// ElastiCacheServerlessDiscoveryRegions is a list of regions the ElastiCache
-	// Serverless auto-discovery is configured.
-	ElastiCacheServerlessDiscoveryRegions []string
 	// MemoryDBDiscoveryRegions is a list of regions the MemoryDB
 	// auto-discovery is configured.
 	MemoryDBDiscoveryRegions []string
@@ -669,8 +644,6 @@ type DatabaseSampleFlags struct {
 	DatabaseAWSRDSInstanceID string
 	// DatabaseAWSElastiCacheGroupID is the ElastiCache replication group identifier.
 	DatabaseAWSElastiCacheGroupID string
-	// DatabaseAWSElastiCacheServerlessCacheName is the ElastiCache Serverless cache name.
-	DatabaseAWSElastiCacheServerlessCacheName string
 	// DatabaseAWSMemoryDBClusterName is the MemoryDB cluster name.
 	DatabaseAWSMemoryDBClusterName string
 	// DatabaseADDomain is the Active Directory domain for authentication.
@@ -703,10 +676,10 @@ func (f *DatabaseSampleFlags) CheckAndSetDefaults() error {
 	}
 
 	var err error
-	if f.AWSTags, err = parse.LabelSelectorSpec(f.AWSRawTags); err != nil {
+	if f.AWSTags, err = client.ParseLabelSpec(f.AWSRawTags); err != nil {
 		return trace.Wrap(err)
 	}
-	if f.AzureTags, err = parse.LabelSelectorSpec(f.AzureRawTags); err != nil {
+	if f.AzureTags, err = client.ParseLabelSpec(f.AzureRawTags); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -726,7 +699,7 @@ func (f *DatabaseSampleFlags) CheckAndSetDefaults() error {
 
 	// Labels for "resources" section.
 	for i := range f.DynamicResourcesRawLabels {
-		labels, err := parse.LabelSelectorSpec(f.DynamicResourcesRawLabels[i])
+		labels, err := client.ParseLabelSpec(f.DynamicResourcesRawLabels[i])
 		if err != nil {
 			return trace.Wrap(err)
 		}

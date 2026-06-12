@@ -68,8 +68,6 @@ func FindSessionEndEvent(ctx context.Context, streamer SessionStreamer, sessionI
 				return e, nil
 			case *apievents.AppSessionEnd:
 				return e, nil
-			case *apievents.MCPSessionEnd:
-				return e, nil
 			}
 		case err := <-errCh:
 			return nil, trace.Wrap(err)
@@ -122,7 +120,6 @@ func FindOrRecoverSessionEnd(ctx context.Context, cfg FindOrRecoverSessionEndCon
 	var desktopSessionEnd apievents.WindowsDesktopSessionEnd
 	var dbSessionEnd apievents.DatabaseSessionEnd
 	var appSessionEnd apievents.AppSessionEnd
-	var mcpSessionEnd apievents.MCPSessionEnd
 
 	// We use the streaming events API to search through the session events, because it works
 	// for all session types
@@ -144,7 +141,7 @@ loop:
 			switch e := evt.(type) {
 			// Return if session end event already exists
 			case *apievents.SessionEnd, *apievents.WindowsDesktopSessionEnd,
-				*apievents.DatabaseSessionEnd, *apievents.AppSessionEnd, *apievents.MCPSessionEnd:
+				*apievents.DatabaseSessionEnd, *apievents.AppSessionEnd:
 				return e, nil
 
 			case *apievents.WindowsDesktopSessionStart:
@@ -152,7 +149,7 @@ loop:
 				desktopSessionEnd.Code = DesktopSessionEndCode
 				desktopSessionEnd.ClusterName = e.ClusterName
 				desktopSessionEnd.StartTime = e.Time
-				desktopSessionEnd.Participants = append(desktopSessionEnd.Participants, transformedUsername(e.UserMetadata, cfg.ClusterName))
+				desktopSessionEnd.Participants = append(desktopSessionEnd.Participants, e.UserMetadata.User)
 				desktopSessionEnd.Recorded = true
 				desktopSessionEnd.UserMetadata = e.UserMetadata
 				desktopSessionEnd.SessionMetadata = e.SessionMetadata
@@ -176,10 +173,10 @@ loop:
 				sshSessionEnd.InitialCommand = e.InitialCommand
 				sshSessionEnd.SessionRecording = e.SessionRecording
 				sshSessionEnd.Interactive = e.TerminalSize != ""
-				sshSessionEnd.Participants = append(sshSessionEnd.Participants, transformedUsername(e.UserMetadata, cfg.ClusterName))
+				sshSessionEnd.Participants = append(sshSessionEnd.Participants, e.UserMetadata.User)
 
 			case *apievents.SessionJoin:
-				sshSessionEnd.Participants = append(sshSessionEnd.Participants, transformedUsername(e.UserMetadata, cfg.ClusterName))
+				sshSessionEnd.Participants = append(sshSessionEnd.Participants, e.UserMetadata.User)
 
 			case *apievents.DatabaseSessionStart:
 				dbSessionEnd.Type = DatabaseSessionEndEvent
@@ -189,8 +186,6 @@ loop:
 				dbSessionEnd.UserMetadata = e.UserMetadata
 				dbSessionEnd.SessionMetadata = e.SessionMetadata
 				dbSessionEnd.DatabaseMetadata = e.DatabaseMetadata
-				dbSessionEnd.ConnectionMetadata = e.ConnectionMetadata
-				dbSessionEnd.Participants = append(dbSessionEnd.Participants, transformedUsername(e.UserMetadata, cfg.ClusterName))
 
 			case *apievents.AppSessionStart:
 				appSessionEnd.Type = AppSessionEndEvent
@@ -201,16 +196,6 @@ loop:
 				appSessionEnd.ServerMetadata = e.ServerMetadata
 				appSessionEnd.ConnectionMetadata = e.ConnectionMetadata
 				appSessionEnd.AppMetadata = e.AppMetadata
-
-			case *apievents.MCPSessionStart:
-				mcpSessionEnd.Type = MCPSessionEndEvent
-				mcpSessionEnd.Code = MCPSessionEndCode
-				mcpSessionEnd.ClusterName = e.ClusterName
-				mcpSessionEnd.UserMetadata = e.UserMetadata
-				mcpSessionEnd.SessionMetadata = e.SessionMetadata
-				mcpSessionEnd.ServerMetadata = e.ServerMetadata
-				mcpSessionEnd.ConnectionMetadata = e.ConnectionMetadata
-				mcpSessionEnd.AppMetadata = e.AppMetadata
 			}
 
 		case err := <-errors:
@@ -239,8 +224,6 @@ loop:
 		sessionEndEvent = &dbSessionEnd
 	case appSessionEnd.Code != "":
 		sessionEndEvent = &appSessionEnd
-	case mcpSessionEnd.Code != "":
-		sessionEndEvent = &mcpSessionEnd
 	default:
 		return nil, trace.BadParameter("invalid session, could not find session start")
 	}

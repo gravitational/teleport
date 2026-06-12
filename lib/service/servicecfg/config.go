@@ -32,8 +32,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -46,14 +49,11 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/plugin"
-	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
-	"github.com/gravitational/teleport/session/pam/pamcfg"
 )
 
 // Config contains the configuration for all services that Teleport can run.
@@ -63,9 +63,6 @@ type Config struct {
 	Version string
 	// DataDir is the directory where teleport stores its local state, e.g. keys
 	DataDir string
-
-	// ScopesFeatures dictates which scoped components are enabled for this process.
-	ScopesFeatures scopes.Features
 
 	// Hostname is a node host name
 	Hostname string
@@ -79,10 +76,6 @@ type Config struct {
 	// ProxyServer is the address of the proxy
 	ProxyServer utils.NetAddr
 
-	// RelayServer is the optional address of the relay server that this agent
-	// should be opening tunnels to for supported services.
-	RelayServer string
-
 	// Identities is an optional list of pre-generated key pairs
 	// for teleport roles, this is helpful when server is preconfigured
 	Identities []*state.Identity
@@ -95,19 +88,12 @@ type Config struct {
 	// in case if they lose connection to auth servers
 	CachePolicy CachePolicy
 
-	// ShutdownDelay is a fixed delay between receiving a termination signal and
-	// the beginning of the shutdown procedures.
-	ShutdownDelay time.Duration
-
 	// Auth service configuration. Manages cluster state and configuration.
 	Auth AuthConfig
 
 	// Proxy service configuration. Manages incoming and outbound
 	// connections to the cluster.
 	Proxy ProxyConfig
-
-	// Relay contains the configuration for the Relay service.
-	Relay RelayConfig
 
 	// SSH service configuration. Manages SSH servers running within the cluster.
 	SSH SSHConfig
@@ -145,6 +131,13 @@ type Config struct {
 	// Keygen points to a key generator implementation
 	Keygen sshca.Authority
 
+	// HostUUID is a unique UUID of this host (it will be known via this UUID within
+	// a teleport cluster). It's automatically generated on 1st start
+	HostUUID string
+
+	// Console writer to speak to a user
+	Console io.Writer
+
 	// ReverseTunnels is a list of reverse tunnels to create on the
 	// first cluster start
 	ReverseTunnels []types.ReverseTunnel
@@ -165,13 +158,13 @@ type Config struct {
 	Events types.Events
 
 	// Provisioner is a service that keeps track of provisioning tokens
-	Provisioner services.ProvisionerInternal
+	Provisioner services.Provisioner
 
 	// Identity is a service that manages users and credentials
-	Identity services.IdentityInternal
+	Identity services.Identity
 
 	// Access is a service that controls access
-	Access services.AccessInternal
+	Access services.Access
 
 	// ClusterConfiguration is a service that provides cluster configuration
 	ClusterConfiguration services.ClusterConfigurationInternal
@@ -216,11 +209,8 @@ type Config struct {
 	// Clock is used to control time in tests.
 	Clock clockwork.Clock
 
-	// FIPS means FedRAMP/FIPS compliant configuration was requested via the --fips flag.
+	// FIPS means FedRAMP/FIPS compliant configuration was requested.
 	FIPS bool
-
-	// Modules defines build time constraints and licensed features.
-	Modules modules.Modules
 
 	// SkipVersionCheck means the version checking between server and client
 	// will be skipped.
@@ -232,16 +222,13 @@ type Config struct {
 	// Kube is a Kubernetes API gateway using Teleport client identities.
 	Kube KubeConfig
 
-	// LogConfig is the config used to initialize the logger and associated fields below.
-	// We keep the original config for child processes to initialize the same logger.
-	LogConfig logutils.Config
+	// Log optionally specifies the logger.
+	// Deprecated: use Logger instead.
+	Log utils.Logger
 
 	// Logger outputs messages using slog. The underlying handler respects
 	// the user supplied logging config.
 	Logger *slog.Logger
-
-	// LogWriter is the underlying log writer used by the Logger above.
-	LogWriter io.Writer
 
 	// LoggerLevel defines the Logger log level.
 	LoggerLevel *slog.LevelVar
@@ -253,8 +240,8 @@ type Config struct {
 	// attempts as used by the rotation state service
 	RotationConnectionInterval time.Duration
 
-	// AuthConnectionConfig defines the Auth Service connection configuration.
-	AuthConnectionConfig AuthConnectionConfig
+	// MaxRetryPeriod is the maximum period between reconnection attempts to auth
+	MaxRetryPeriod time.Duration
 
 	// TeleportHome is the path to tsh configuration and data, used
 	// for loading profiles when TELEPORT_HOME is set
@@ -281,19 +268,19 @@ type Config struct {
 	// DatabaseREPLRegistry is used to retrieve datatabase REPL given the
 	// protocol.
 	DatabaseREPLRegistry dbrepl.REPLRegistry
-	// InsecureMode defines whether insecure connections are allowed.
-	InsecureMode bool
+
+	// MetricsRegistry is the prometheus metrics registry used by the Teleport process to register its metrics.
+	// As of today, not every Teleport metric is registered against this registry. Some Teleport services
+	// and Teleport dependencies are using the global registry.
+	// Both the MetricsRegistry and the default global registry are gathered by Teleport's metric service.
+	MetricsRegistry *prometheus.Registry
+
 	// token is either the token needed to join the auth server, or a path pointing to a file
 	// that contains the token
 	//
 	// This is private to avoid external packages reading the value - the value should be obtained
 	// using Token()
 	token string
-
-	// tokenSecret is either the secret needed to join with the token defined for the config, or
-	// a path that contains the secret. This is private to avoid external packages reading the
-	// value - the value should be obtained using TokenSecret()
-	tokenSecret string
 
 	// v1, v2 -
 	// AuthServers is a list of auth servers, proxies and peer auth servers to
@@ -339,17 +326,6 @@ type ConfigTesting struct {
 	// HTTPTransport is an optional HTTP round tripper to used in tests
 	// to mock HTTP requests to the third party services like Okta integration
 	HTTPTransport http.RoundTripper
-
-	// RunWhileLockedRetryInterval defines the interval at which the auth server retries
-	// a locking operation for backend objects.
-	// This setting is particularly useful in test environments,
-	// as it can help accelerate operations such as updating the access list,
-	// especially when the list is also being modified concurrently by the background
-	// eligibility handler.
-	RunWhileLockedRetryInterval time.Duration
-
-	// TriggerOktaSyncC is a channel that can be used in tests to trigger Okta sync immediately instead of waiting for the next scheduled sync.
-	TriggerOktaSyncC chan struct{}
 }
 
 // UserMonitorConfig contains configuration for the user monitor service, which is responsible for monitoring
@@ -376,70 +352,6 @@ type AccessGraphConfig struct {
 
 	// Insecure is true if the connection to the Access Graph service should be insecure
 	Insecure bool
-
-	// AuditLog contains audit log export details.
-	AuditLog AuditLogConfig
-}
-
-// AuditLogConfig specifies the audit log event export setup.
-type AuditLogConfig struct {
-	// Enabled indicates if Audit Log event exporting is enabled.
-	Enabled bool
-	// StartDate is the start date for exporting audit logs. It defaults to 90 days ago on the first export.
-	StartDate time.Time
-}
-
-// AuthConnectionConfig defines the parameters used to connect to the Auth Service.
-type AuthConnectionConfig struct {
-	// UpperLimitBetweenRetries is the upper limit for how long to wait between retries.
-	UpperLimitBetweenRetries time.Duration
-	// InitialConnectionDelay is the initial delay before the first retry attempt.
-	// The retry logic will apply jitter to this duration.
-	InitialConnectionDelay time.Duration
-	// BackoffStepDuration is the amount of time added to the retry delay.
-	BackoffStepDuration time.Duration
-}
-
-// CheckAndSetDefaults checks and sets default values
-func (c *AuthConnectionConfig) CheckAndSetDefaults() error {
-	const minWatcherBackoff = 10 * time.Second
-
-	if c.UpperLimitBetweenRetries < 1 {
-		c.UpperLimitBetweenRetries = defaults.MaxWatcherBackoff
-	} else if c.UpperLimitBetweenRetries < minWatcherBackoff {
-		return trace.BadParameter("upper_limit_between_retries (%s) cannot be set below %s", c.UpperLimitBetweenRetries, minWatcherBackoff)
-	}
-
-	if c.InitialConnectionDelay < 1 {
-		c.InitialConnectionDelay = c.UpperLimitBetweenRetries / 10
-	} else if c.InitialConnectionDelay > c.UpperLimitBetweenRetries {
-		return trace.BadParameter(
-			"initial_connection_delay (%s) cannot be larger than upper_limit_between_retries (%s)",
-			c.InitialConnectionDelay,
-			c.UpperLimitBetweenRetries,
-		)
-	}
-
-	if c.BackoffStepDuration < 1 {
-		c.BackoffStepDuration = c.UpperLimitBetweenRetries / 5
-	} else if c.BackoffStepDuration > c.UpperLimitBetweenRetries {
-		return trace.BadParameter(
-			"backoff_step_duration (%s) cannot be larger than upper_limit_between_retries (%s)",
-			c.BackoffStepDuration,
-			c.UpperLimitBetweenRetries,
-		)
-	}
-
-	return nil
-}
-
-// DefaultRatioAuthConnectionConfig returns AuthConnectionConfig with parameters based on UpperLimitBetweenRetries
-func DefaultRatioAuthConnectionConfig(UpperLimitBetweenRetries time.Duration) *AuthConnectionConfig {
-	return &AuthConnectionConfig{
-		UpperLimitBetweenRetries: UpperLimitBetweenRetries,
-		InitialConnectionDelay:   UpperLimitBetweenRetries / 10,
-		BackoffStepDuration:      UpperLimitBetweenRetries / 5,
-	}
 }
 
 // RoleAndIdentityEvent is a role and its corresponding identity event.
@@ -455,7 +367,6 @@ type RoleAndIdentityEvent struct {
 func DisableLongRunningServices(cfg *Config) {
 	cfg.Auth.Enabled = false
 	cfg.Proxy.Enabled = false
-	cfg.Relay.Enabled = false
 	cfg.SSH.Enabled = false
 	cfg.Kube.Enabled = false
 	cfg.Apps.Enabled = false
@@ -466,80 +377,12 @@ func DisableLongRunningServices(cfg *Config) {
 
 // JoinParams is a set of extra parameters for joining the auth server.
 type JoinParams struct {
-	Azure        AzureJoinParams
-	BoundKeypair BoundKeypairParams
+	Azure AzureJoinParams
 }
 
 // AzureJoinParams is the parameters specific to the azure join method.
 type AzureJoinParams struct {
 	ClientID string
-}
-
-// BoundKeypairParams contains parameters specific to bound keypair joining.
-type BoundKeypairParams struct {
-	// RegistrationSecretValue is an explicit registration secret value, used to
-	// authenticate the initial join with a bound keypair token. It becomes
-	// inert once used.
-	RegistrationSecretValue string
-
-	// RegistrationSecretPath is a path to a file on the local disk containing a
-	// registration secret. It is incompatible with RegistrationSecretValue.
-	RegistrationSecretPath string
-
-	// StaticPrivateKeyPath is a path to a file on the local disk containing a
-	// static keypair to be used for bound keypair joining. Static keys are
-	// immutable and are not managed automatically. They must be preregistered,
-	// do not support automatic keypair rotation, and must be used with a token
-	// set to use `insecure` recovery mode.
-	StaticPrivateKeyPath string
-}
-
-// RegistrationSecret returns the currently configured bound keypair
-// registration secret, if any. Registration secrets are optional, and only used
-// at first join when no existing identity can be used to authenticate the join
-// request, no pregenerated key exists, and no static key is configured.
-func (b *BoundKeypairParams) RegistrationSecret() (string, error) {
-	if b.RegistrationSecretValue != "" && b.RegistrationSecretPath != "" {
-		return "", trace.BadParameter("only one of `registration_secret` and `registration_secret_path` may be specified")
-	}
-
-	// Note: no env var support like in tbot, we could consider adding it in the
-	// future.
-
-	switch {
-	case b.RegistrationSecretPath != "":
-		bytes, err := os.ReadFile(b.RegistrationSecretPath)
-		if err != nil {
-			return "", trace.ConvertSystemError(err)
-		}
-
-		return strings.TrimSpace(string(bytes)), nil
-	case b.RegistrationSecretValue != "":
-		return b.RegistrationSecretValue, nil
-	default:
-		return "", nil
-	}
-}
-
-// StaticPrivateKeyBytes returns the configured static private key if one has
-// been configured. If not nil, this value should be used to initialize a
-// bound keypair `StaticClientState` instead of the process-stored state. Static
-// keys do not support automatic rotation or join state verification.
-func (b *BoundKeypairParams) StaticPrivateKeyBytes() ([]byte, error) {
-	if b.StaticPrivateKeyPath != "" {
-		bytes, err := os.ReadFile(b.StaticPrivateKeyPath)
-		if err != nil {
-			return nil, trace.Wrap(err, "reading static key from %s", b.StaticPrivateKeyPath)
-		}
-
-		return bytes, nil
-	}
-
-	// Note: no env var support like in tbot, may consider adding it in the
-	// future.
-
-	// No static key configured, nothing to return.
-	return nil, nil
 }
 
 // CachePolicy sets caching policy for proxies and nodes
@@ -561,33 +404,6 @@ func (c CachePolicy) String() string {
 		return "no cache"
 	}
 	return "in-memory cache"
-}
-
-// CheckServicesForSELinux returns false if any services that don't
-// support SELinux enforcement are enabled.
-func (cfg *Config) CheckServicesForSELinux() bool {
-	switch {
-	case cfg.AccessGraph.Enabled:
-		fallthrough
-	case cfg.Apps.Enabled:
-		fallthrough
-	case cfg.Auth.Enabled:
-		fallthrough
-	case cfg.Databases.Enabled:
-		fallthrough
-	case cfg.Jamf.Enabled():
-		fallthrough
-	case cfg.Kube.Enabled:
-		fallthrough
-	case cfg.Okta.Enabled:
-		fallthrough
-	case cfg.Proxy.Enabled:
-		fallthrough
-	case cfg.WindowsDesktop.Enabled:
-		return false
-
-	}
-	return true
 }
 
 // AuthServerAddresses returns the value of authServers for config versions v1 and v2 and
@@ -634,34 +450,11 @@ func (cfg *Config) Token() (string, error) {
 	return token, nil
 }
 
-// TokenSecret returns token secret needed to join the auth server with the configured token
-//
-// If the value stored points to a file, it will attempt to read the token secret from the file
-// and return an error if it wasn't successful.
-// If the value stored doesn't point to a file, it'll return the value stored.
-// If the secret hasn't been set, an empty string will be returned
-func (cfg *Config) TokenSecret() (string, error) {
-	secret, err := utils.TryReadValueAsFile(cfg.tokenSecret)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	return secret, nil
-}
-
 // SetToken stores the value for --token or auth_token in the config
 //
 // This can be either the token or an absolute path to a file containing the token.
 func (cfg *Config) SetToken(token string) {
 	cfg.token = token
-}
-
-// SetTokenSecret stores the value for --token-secret or join_params.token_secret in the
-// config.
-//
-// This can be either the secret or an absolute path to a file containing the secret.
-func (cfg *Config) SetTokenSecret(secret string) {
-	cfg.tokenSecret = secret
 }
 
 // HasToken gives the ability to check if there has been a token value stored
@@ -692,6 +485,20 @@ func (cfg *Config) ApplyCAPins(caPins []string) error {
 		cfg.CAPins = filteredPins
 	}
 	return nil
+}
+
+// DebugDumpToYAML is useful for debugging: it dumps the Config structure into
+// a string
+func (cfg *Config) DebugDumpToYAML() string {
+	shallow := *cfg
+	// do not copy sensitive data to stdout
+	shallow.Identities = nil
+	shallow.Auth.Authorities = nil
+	out, err := yaml.Marshal(shallow)
+	if err != nil {
+		return err.Error()
+	}
+	return string(out)
 }
 
 // ApplyFIPSDefaults updates default configuration to be FedRAMP/FIPS
@@ -731,20 +538,16 @@ func ApplyDefaults(cfg *Config) {
 
 	cfg.Version = defaults.TeleportConfigVersionV1
 
+	if cfg.Log == nil {
+		cfg.Log = utils.NewLogger()
+	}
+
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
 	}
 
-	if cfg.LogWriter == nil {
-		cfg.LogWriter = io.Discard
-	}
-
 	if cfg.LoggerLevel == nil {
 		cfg.LoggerLevel = new(slog.LevelVar)
-	}
-
-	if cfg.Modules == nil {
-		cfg.Modules = modules.GetModules()
 	}
 
 	// Remove insecure and (borderline insecure) cryptographic primitives from
@@ -767,6 +570,7 @@ func ApplyDefaults(cfg *Config) {
 	// Global defaults.
 	cfg.Hostname = hostname
 	cfg.DataDir = defaults.DataDir
+	cfg.Console = os.Stdout
 	cfg.CipherSuites = utils.DefaultCipherSuites()
 	cfg.Ciphers = sc.Ciphers
 	cfg.KEXAlgorithms = kex
@@ -796,7 +600,7 @@ func ApplyDefaults(cfg *Config) {
 	// SSH service defaults.
 	cfg.SSH.Enabled = true
 	defaults.ConfigureLimiter(&cfg.SSH.Limiter)
-	cfg.SSH.PAM = &pamcfg.PAMConfig{Enabled: false}
+	cfg.SSH.PAM = &PAMConfig{Enabled: false}
 	cfg.SSH.BPF = &BPFConfig{Enabled: false}
 	cfg.SSH.AllowTCPForwarding = true
 	cfg.SSH.AllowFileCopying = true
@@ -807,7 +611,6 @@ func ApplyDefaults(cfg *Config) {
 
 	// Apps service defaults. It's disabled by default.
 	cfg.Apps.Enabled = false
-	defaults.ConfigureLimiter(&cfg.Apps.Limiter)
 
 	// Databases proxy service is disabled by default.
 	cfg.Databases.Enabled = false
@@ -821,7 +624,7 @@ func ApplyDefaults(cfg *Config) {
 	defaults.ConfigureLimiter(&cfg.WindowsDesktop.ConnLimiter)
 
 	cfg.RotationConnectionInterval = defaults.HighResPollingPeriod
-	cfg.AuthConnectionConfig = *DefaultRatioAuthConnectionConfig(defaults.MaxWatcherBackoff)
+	cfg.MaxRetryPeriod = defaults.MaxWatcherBackoff
 	cfg.Testing.ConnectFailureC = make(chan time.Duration, 1)
 	cfg.CircuitBreakerConfig = breaker.DefaultBreakerConfig(cfg.Clock)
 
@@ -909,6 +712,14 @@ func ValidateConfig(cfg *Config) error {
 func applyDefaults(cfg *Config) {
 	if cfg.Version == "" {
 		cfg.Version = defaults.TeleportConfigVersionV1
+	}
+
+	if cfg.Console == nil {
+		cfg.Console = io.Discard
+	}
+
+	if cfg.Log == nil {
+		cfg.Log = logrus.StandardLogger()
 	}
 
 	if cfg.Logger == nil {
@@ -1001,7 +812,6 @@ func verifyEnabledService(cfg *Config) error {
 		cfg.Auth.Enabled,
 		cfg.SSH.Enabled,
 		cfg.Proxy.Enabled,
-		cfg.Relay.Enabled,
 		cfg.Kube.Enabled,
 		cfg.Apps.Enabled,
 		cfg.Databases.Enabled,
@@ -1019,8 +829,7 @@ func verifyEnabledService(cfg *Config) error {
 	}
 
 	return trace.BadParameter(
-		"config: enable at least one of auth_service, ssh_service, proxy_service, relay_service, app_service, database_service, kubernetes_service, windows_desktop_service, discovery_service, okta_service or jamf_service",
-	)
+		"config: enable at least one of auth_service, ssh_service, proxy_service, app_service, database_service, kubernetes_service, windows_desktop_service, discovery_service, okta_service or jamf_service")
 }
 
 // SetLogLevel changes the loggers log level.
@@ -1028,6 +837,7 @@ func verifyEnabledService(cfg *Config) error {
 // If called after `config.ApplyFileConfig` or `config.Configure` it will also
 // change the global loggers.
 func (c *Config) SetLogLevel(level slog.Level) {
+	c.Log.SetLevel(logutils.SlogLevelToLogrusLevel(level))
 	c.LoggerLevel.Set(level)
 }
 

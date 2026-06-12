@@ -32,7 +32,7 @@ import (
 
 func TestTotalInstances(t *testing.T) {
 	t.Parallel()
-	instances := []*proto.UpstreamInventoryHello{
+	instances := []proto.UpstreamInventoryHello{
 		{},
 		{Version: "15.0.0"},
 		{ServerID: "id"},
@@ -42,7 +42,7 @@ func TestTotalInstances(t *testing.T) {
 
 	periodic := newInstanceMetricsPeriodic()
 	for _, instance := range instances {
-		periodic.VisitInstance(instance, new(proto.UpstreamInventoryAgentMetadata))
+		periodic.VisitInstance(instance, proto.UpstreamInventoryAgentMetadata{})
 	}
 
 	require.Equal(t, 5, periodic.TotalInstances())
@@ -52,12 +52,12 @@ func TestTotalEnrolledInUpgrades(t *testing.T) {
 	t.Parallel()
 	tts := []struct {
 		desc      string
-		instances []*proto.UpstreamInventoryHello
+		instances []proto.UpstreamInventoryHello
 		expected  int
 	}{
 		{
 			desc: "mixed",
-			instances: []*proto.UpstreamInventoryHello{
+			instances: []proto.UpstreamInventoryHello{
 				{ExternalUpgrader: "kube", ExternalUpgraderVersion: "13.0.0"},
 				{ExternalUpgrader: "kube", ExternalUpgraderVersion: "14.0.0"},
 				{ExternalUpgrader: "unit", ExternalUpgraderVersion: "13.0.0"},
@@ -69,7 +69,7 @@ func TestTotalEnrolledInUpgrades(t *testing.T) {
 		},
 		{
 			desc: "version omitted",
-			instances: []*proto.UpstreamInventoryHello{
+			instances: []proto.UpstreamInventoryHello{
 				{ExternalUpgrader: "kube"},
 				{ExternalUpgrader: "unit"},
 			},
@@ -77,7 +77,7 @@ func TestTotalEnrolledInUpgrades(t *testing.T) {
 		},
 		{
 			desc: "all-unenrolled",
-			instances: []*proto.UpstreamInventoryHello{
+			instances: []proto.UpstreamInventoryHello{
 				{},
 				{},
 			},
@@ -85,7 +85,7 @@ func TestTotalEnrolledInUpgrades(t *testing.T) {
 		},
 		{
 			desc:      "none",
-			instances: []*proto.UpstreamInventoryHello{},
+			instances: []proto.UpstreamInventoryHello{},
 			expected:  0,
 		},
 	}
@@ -93,7 +93,7 @@ func TestTotalEnrolledInUpgrades(t *testing.T) {
 		t.Run(tt.desc, func(t *testing.T) {
 			periodic := newInstanceMetricsPeriodic()
 			for _, instance := range tt.instances {
-				periodic.VisitInstance(instance, new(proto.UpstreamInventoryAgentMetadata))
+				periodic.VisitInstance(instance, proto.UpstreamInventoryAgentMetadata{})
 			}
 			require.Equal(t, tt.expected, periodic.TotalEnrolledInUpgrades(), "tt=%q", tt.desc)
 		})
@@ -104,37 +104,29 @@ func TestUpgraderCounts(t *testing.T) {
 	t.Parallel()
 	tts := []struct {
 		desc      string
-		instances []*proto.UpstreamInventoryHello
+		instances []proto.UpstreamInventoryHello
 		expected  map[upgrader]int
 	}{
 		{
 			desc: "mixed",
-			instances: []*proto.UpstreamInventoryHello{
-				{ExternalUpgrader: "kube", ExternalUpgraderVersion: "13.0.0", UpdaterInfo: &types.UpdaterV2Info{
-					UpdaterStatus: types.UpdaterStatus_UPDATER_STATUS_OK,
-				}},
-				{ExternalUpgrader: "kube", ExternalUpgraderVersion: "14.0.0", UpdaterInfo: &types.UpdaterV2Info{
-					UpdaterStatus: types.UpdaterStatus_UPDATER_STATUS_OK,
-				}},
-				{ExternalUpgrader: "unit", ExternalUpgraderVersion: "13.0.0", UpdaterInfo: &types.UpdaterV2Info{
-					UpdaterStatus: types.UpdaterStatus_UPDATER_STATUS_OK,
-				}},
+			instances: []proto.UpstreamInventoryHello{
+				{ExternalUpgrader: "kube", ExternalUpgraderVersion: "13.0.0"},
+				{ExternalUpgrader: "kube", ExternalUpgraderVersion: "14.0.0"},
+				{ExternalUpgrader: "unit", ExternalUpgraderVersion: "13.0.0"},
 				{},
-				{ExternalUpgrader: "unit", ExternalUpgraderVersion: "14.0.0", UpdaterInfo: &types.UpdaterV2Info{
-					UpdaterStatus: types.UpdaterStatus_UPDATER_STATUS_PINNED,
-				}},
+				{ExternalUpgrader: "unit", ExternalUpgraderVersion: "14.0.0"},
 				{},
 			},
 			expected: map[upgrader]int{
-				{"kube", "13.0.0", "UPDATER_STATUS_OK"}:     1,
-				{"kube", "14.0.0", "UPDATER_STATUS_OK"}:     1,
-				{"unit", "13.0.0", "UPDATER_STATUS_OK"}:     1,
-				{"unit", "14.0.0", "UPDATER_STATUS_PINNED"}: 1,
+				{"kube", "13.0.0"}: 1,
+				{"kube", "14.0.0"}: 1,
+				{"unit", "13.0.0"}: 1,
+				{"unit", "14.0.0"}: 1,
 			},
 		},
 		{
 			desc: "all-unenrolled",
-			instances: []*proto.UpstreamInventoryHello{
+			instances: []proto.UpstreamInventoryHello{
 				{},
 				{},
 			},
@@ -142,26 +134,26 @@ func TestUpgraderCounts(t *testing.T) {
 		},
 		{
 			desc: "all-enrolled",
-			instances: []*proto.UpstreamInventoryHello{
+			instances: []proto.UpstreamInventoryHello{
 				{ExternalUpgrader: "kube", ExternalUpgraderVersion: "13.0.0"},
 				{ExternalUpgrader: "kube", ExternalUpgraderVersion: "13.0.0"},
 				{ExternalUpgrader: "unit", ExternalUpgraderVersion: "13.0.0"},
 				{ExternalUpgrader: "unit", ExternalUpgraderVersion: "13.0.0"},
 			},
 			expected: map[upgrader]int{
-				{"kube", "13.0.0", ""}: 2,
-				{"unit", "13.0.0", ""}: 2,
+				{"kube", "13.0.0"}: 2,
+				{"unit", "13.0.0"}: 2,
 			},
 		},
 		{
 			desc: "nil version",
-			instances: []*proto.UpstreamInventoryHello{
+			instances: []proto.UpstreamInventoryHello{
 				{ExternalUpgrader: "kube"},
 				{ExternalUpgrader: "unit"},
 			},
 			expected: map[upgrader]int{
-				{"kube", "", ""}: 1,
-				{"unit", "", ""}: 1,
+				{"kube", ""}: 1,
+				{"unit", ""}: 1,
 			},
 		},
 		{
@@ -175,7 +167,7 @@ func TestUpgraderCounts(t *testing.T) {
 			periodic := newInstanceMetricsPeriodic()
 
 			for _, instance := range tt.instances {
-				periodic.VisitInstance(instance, new(proto.UpstreamInventoryAgentMetadata))
+				periodic.VisitInstance(instance, proto.UpstreamInventoryAgentMetadata{})
 			}
 			require.Equal(t, tt.expected, periodic.UpgraderCounts(), "tt=%q", tt.desc)
 		})
@@ -186,17 +178,17 @@ func TestInstallMethodCounts(t *testing.T) {
 	t.Parallel()
 	tts := []struct {
 		desc     string
-		metadata []*proto.UpstreamInventoryAgentMetadata
+		metadata []proto.UpstreamInventoryAgentMetadata
 		expected map[string]int
 	}{
 		{
 			desc:     "none",
-			metadata: []*proto.UpstreamInventoryAgentMetadata{},
+			metadata: []proto.UpstreamInventoryAgentMetadata{},
 			expected: map[string]int{},
 		},
 		{
 			desc: "unknown install method",
-			metadata: []*proto.UpstreamInventoryAgentMetadata{
+			metadata: []proto.UpstreamInventoryAgentMetadata{
 				{},
 			},
 			expected: map[string]int{
@@ -205,7 +197,7 @@ func TestInstallMethodCounts(t *testing.T) {
 		},
 		{
 			desc: "various install methods",
-			metadata: []*proto.UpstreamInventoryAgentMetadata{
+			metadata: []proto.UpstreamInventoryAgentMetadata{
 				{InstallMethods: []string{"systemctl"}},
 				{InstallMethods: []string{"systemctl"}},
 				{InstallMethods: []string{"helm_kube_agent"}},
@@ -219,7 +211,7 @@ func TestInstallMethodCounts(t *testing.T) {
 		},
 		{
 			desc: "multiple install methods",
-			metadata: []*proto.UpstreamInventoryAgentMetadata{
+			metadata: []proto.UpstreamInventoryAgentMetadata{
 				{InstallMethods: []string{"dockerfile", "helm_kube_agent"}},
 				{InstallMethods: []string{"helm_kube_agent", "dockerfile"}},
 			},
@@ -233,7 +225,7 @@ func TestInstallMethodCounts(t *testing.T) {
 			periodic := newInstanceMetricsPeriodic()
 
 			for _, metadata := range tt.metadata {
-				periodic.VisitInstance(new(proto.UpstreamInventoryHello), metadata)
+				periodic.VisitInstance(proto.UpstreamInventoryHello{}, metadata)
 			}
 			require.Equal(t, tt.expected, periodic.InstallMethodCounts(), "tt=%q", tt.desc)
 		})
@@ -244,17 +236,17 @@ func TestRegisteredAgentsCounts(t *testing.T) {
 	t.Parallel()
 	tts := []struct {
 		desc     string
-		instance []*proto.UpstreamInventoryHello
+		instance []proto.UpstreamInventoryHello
 		expected map[registeredAgent]int
 	}{
 		{
 			desc:     "none",
-			instance: []*proto.UpstreamInventoryHello{},
+			instance: []proto.UpstreamInventoryHello{},
 			expected: map[registeredAgent]int{},
 		},
 		{
 			desc: "automatic updates disabled",
-			instance: []*proto.UpstreamInventoryHello{
+			instance: []proto.UpstreamInventoryHello{
 				{Version: "13.0.0"},
 				{Version: "14.0.0"},
 				{Version: "15.0.0"},
@@ -267,7 +259,7 @@ func TestRegisteredAgentsCounts(t *testing.T) {
 		},
 		{
 			desc: "automatic updates enabled",
-			instance: []*proto.UpstreamInventoryHello{
+			instance: []proto.UpstreamInventoryHello{
 				{Version: "13.0.0", ExternalUpgrader: "unit"},
 				{Version: "13.0.0", ExternalUpgrader: "kube"},
 				{Version: "13.0.0"},
@@ -293,7 +285,7 @@ func TestRegisteredAgentsCounts(t *testing.T) {
 			periodic := newInstanceMetricsPeriodic()
 
 			for _, instance := range tt.instance {
-				periodic.VisitInstance(instance, &proto.UpstreamInventoryAgentMetadata{
+				periodic.VisitInstance(instance, proto.UpstreamInventoryAgentMetadata{
 					OS: runtime.GOOS,
 				})
 			}
@@ -397,7 +389,7 @@ func TestUpgradeEnrollPeriodic(t *testing.T) {
 			periodic := newUpgradeEnrollPeriodic()
 
 			for ver, count := range tt.enrolled {
-				for range count {
+				for i := 0; i < count; i++ {
 					instance, err := types.NewInstance(uuid.New().String(), types.InstanceSpecV1{
 						Version:          ver,
 						ExternalUpgrader: "some-upgrader",
@@ -409,7 +401,7 @@ func TestUpgradeEnrollPeriodic(t *testing.T) {
 			}
 
 			for ver, count := range tt.unenrolled {
-				for range count {
+				for i := 0; i < count; i++ {
 					instance, err := types.NewInstance(uuid.New().String(), types.InstanceSpecV1{
 						Version:          ver,
 						ExternalUpgrader: "",

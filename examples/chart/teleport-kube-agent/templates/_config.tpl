@@ -15,9 +15,6 @@ teleport:
   {{- else }}
   auth_servers: ["{{ required "proxyAddr is required in chart values" .Values.proxyAddr }}"]
   {{- end }}
-  {{- with .Values.relayAddr }}
-  relay_server: {{ . | quote }}
-  {{- end }}
   {{- if .Values.caPin }}
   ca_pin: {{- toYaml .Values.caPin | nindent 4 }}
   {{- end }}

@@ -27,7 +27,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
-	token "github.com/gravitational/teleport/integrations/terraform/tfschema"
+	token "github.com/gravitational/teleport/integrations/terraform/tfschema/token"
 )
 
 // dataSourceTeleportProvisionTokenType is the data source metadata type

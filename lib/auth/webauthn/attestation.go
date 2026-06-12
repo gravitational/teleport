@@ -19,22 +19,17 @@
 package webauthn
 
 import (
-	"context"
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
-	"log/slog"
 	"slices"
 
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
-
-var log = logutils.NewPackageLogger(teleport.ComponentKey, "WebAuthn")
 
 // x5cFormats enumerates all attestation formats that supply an attestation
 // chain through the "x5c" field.
@@ -96,11 +91,9 @@ func verifyAttestation(cfg *types.Webauthn, obj protocol.AttestationObject) erro
 		if _, err := cert.Verify(opts); err == nil {
 			allowed = true // OK, but keep checking
 		} else {
-			log.DebugContext(context.Background(),
-				"Attestation check for allowed CAs failed",
-				"subject", cert.Subject,
-				"error", err,
-			)
+			log.WithError(err).
+				WithField("subject", cert.Subject).
+				Debug("Attestation check for allowed CAs failed")
 		}
 
 		opts = verifyOptsBase // take copy
@@ -108,11 +101,9 @@ func verifyAttestation(cfg *types.Webauthn, obj protocol.AttestationObject) erro
 		if _, err := cert.Verify(opts); err == nil {
 			return trace.BadParameter("attestation certificate %q from issuer %q not allowed", cert.Subject, cert.Issuer)
 		} else if !errors.As(err, new(x509.UnknownAuthorityError)) {
-			log.DebugContext(context.Background(),
-				"Attestation check for denied CAs failed",
-				"subject", cert.Subject,
-				"error", err,
-			)
+			log.WithError(err).
+				WithField("subject", cert.Subject).
+				Debug("Attestation check for denied CAs failed")
 		}
 	}
 	if !allowed {
@@ -151,7 +142,7 @@ func getChainFromX5C(obj protocol.AttestationObject) ([]*x509.Certificate, error
 		return nil, trace.BadParameter(
 			"%q attestation: self attestation not allowed; includes Touch ID in non-Apple browsers", obj.Format)
 	}
-	x5cArray, ok := x5c.([]any)
+	x5cArray, ok := x5c.([]interface{})
 	if !ok {
 		return nil, trace.BadParameter("%q attestation: unexpected x5c type: %T", obj.Format, x5c)
 	}
@@ -173,17 +164,13 @@ func getChainFromX5C(obj protocol.AttestationObject) ([]*x509.Certificate, error
 
 	// Print out attestation certs if debug is enabled.
 	// This may come in handy for people having trouble with their setups.
-	ctx := context.Background()
-	if log.Handler().Enabled(ctx, slog.LevelDebug) {
+	if log.IsLevelEnabled(log.DebugLevel) {
 		for _, cert := range chain {
 			certPEM := pem.EncodeToMemory(&pem.Block{
 				Type:  "CERTIFICATE",
 				Bytes: cert.Raw,
 			})
-			log.DebugContext(context.Background(), "got attestation certificate",
-				"format", obj.Format,
-				"certificate", string(certPEM),
-			)
+			log.Debugf("WebAuthn: got %q attestation certificate:\n\n%s", obj.Format, certPEM)
 		}
 	}
 

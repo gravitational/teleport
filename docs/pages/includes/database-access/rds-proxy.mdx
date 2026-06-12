@@ -1,4 +1,3 @@
-{/* this comment is here to make the includes below render */}
 ## How it works
 
 (!docs/pages/includes/database-access/how-it-works/iam.mdx db="RDS Proxy" cloud="AWS"!)
@@ -15,9 +14,9 @@
 
 <Admonition type="note" title="Supported Engine Family">
 Teleport currently supports RDS Proxy instances with engine family
-[PostgreSQL](../../enroll-resources/database-access/enrollment/aws/rds-proxy/rds-proxy-postgres.mdx),
-[MariaDB/MySQL](../../enroll-resources/database-access/enrollment/aws/rds-proxy/rds-proxy-postgres.mdx) or
-[Microsoft SQL Server](../../enroll-resources/database-access/enrollment/aws/rds-proxy/rds-proxy-sqlserver.mdx).
+[PostgreSQL](../../enroll-resources/database-access/enroll-aws-databases/rds-proxy-postgres.mdx),
+[MariaDB/MySQL](../../enroll-resources/database-access/enroll-aws-databases/rds-proxy-postgres.mdx) or
+[Microsoft SQL Server](../../enroll-resources/database-access/enroll-aws-databases/rds-proxy-sqlserver.mdx).
 </Admonition>
 
 (!docs/pages/includes/database-access/auto-discovery-tip.mdx dbType="RDS Proxy" providerType="AWS"!)
@@ -187,7 +186,7 @@ $ tsh db connect --db-user=alice --db-name=dev rds-proxy
 
 (!docs/pages/includes/database-access/proxy-db-tunnel.mdx db="rds-proxy" dbArgs="--db-user=alice --db-name=dev"!)
 
-(!docs/pages/includes/database-access/db-access-webui-ad.mdx dbType="PostgreSQL and MySQL"!)
+(!docs/pages/includes/database-access/pg-access-webui.mdx!)
 
 To log out of the database and remove credentials:
 

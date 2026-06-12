@@ -22,7 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"strings"
+	"iter"
 	"testing"
 	"time"
 
@@ -446,7 +446,7 @@ func TestCollectPages(t *testing.T) {
 
 	for _, tt := range tts {
 		t.Run(tt.desc, func(t *testing.T) {
-			var stream Stream[[]string]
+			var stream iter.Seq2[[]string, error]
 			if tt.err == nil {
 				stream = Slice(tt.pages)
 			} else {
@@ -529,7 +529,7 @@ func TestFlatten(t *testing.T) {
 	t.Parallel()
 
 	// normal usage
-	s, err := Collect(Flatten(Slice([]Stream[int]{
+	s, err := Collect(Flatten(Slice([]iter.Seq2[int, error]{
 		Slice([]int{1, 2}),
 		Slice([]int{3, 4}),
 		Slice([]int{5, 6}),
@@ -538,12 +538,12 @@ func TestFlatten(t *testing.T) {
 	require.Equal(t, []int{1, 2, 3, 4, 5, 6}, s)
 
 	// empty stream
-	s, err = Collect(Flatten(Empty[Stream[int]]()))
+	s, err = Collect(Flatten(Empty[iter.Seq2[int, error]]()))
 	require.NoError(t, err)
 	require.Empty(t, s)
 
 	// empty substreams
-	s, err = Collect(Flatten(Slice([]Stream[int]{
+	s, err = Collect(Flatten(Slice([]iter.Seq2[int, error]{
 		Empty[int](),
 		Slice([]int{1, 2, 3}),
 		Empty[int](),
@@ -554,11 +554,11 @@ func TestFlatten(t *testing.T) {
 	require.Equal(t, []int{1, 2, 3, 4, 5, 6}, s)
 
 	// immediate failure
-	err = Drain(Flatten(Fail[Stream[int]](fmt.Errorf("unexpected error"))))
+	err = Drain(Flatten(Fail[iter.Seq2[int, error]](fmt.Errorf("unexpected error"))))
 	require.Error(t, err)
 
 	// failure during streaming
-	s, err = Collect(Flatten(Slice([]Stream[int]{
+	s, err = Collect(Flatten(Slice([]iter.Seq2[int, error]{
 		Slice([]int{1, 2}),
 		Fail[int](fmt.Errorf("unexpected error")),
 		Slice([]int{3, 4}),
@@ -674,7 +674,7 @@ func TestRateLimit(t *testing.T) {
 
 	items := make(chan struct{}, tokens+1)
 
-	for range workers {
+	for i := 0; i < workers; i++ {
 		go func() {
 			stream := RateLimit(repeat("some-item", maxItemsPerWorker), func() error {
 				select {
@@ -707,7 +707,7 @@ func TestRateLimit(t *testing.T) {
 
 	// limiter isn't applied until after the first item is yielded, so pop the first item
 	// from each worker immediately to simplify test logic.
-	for range workers {
+	for i := 0; i < workers; i++ {
 		select {
 		case <-items:
 		case <-time.After(time.Second * 10):
@@ -719,7 +719,7 @@ func TestRateLimit(t *testing.T) {
 	var yielded int
 
 	// do an initial fill of limiter channel
-	for range burst {
+	for i := 0; i < burst; i++ {
 		select {
 		case lim <- struct{}{}:
 			yielded++
@@ -732,7 +732,7 @@ func TestRateLimit(t *testing.T) {
 
 	// consume item receipt events
 	timeoutC := time.After(time.Second * 30)
-	for range burst {
+	for i := 0; i < burst; i++ {
 		select {
 		case <-items:
 			consumed++
@@ -763,7 +763,7 @@ func TestRateLimit(t *testing.T) {
 	close(done)
 
 	// wait for all workers to finish
-	for range workers {
+	for i := 0; i < workers; i++ {
 		select {
 		case err := <-results:
 			require.NoError(t, err)
@@ -792,7 +792,7 @@ ConsumeItems:
 }
 
 // repeat repeats the same item N times
-func repeat[T any](item T, count int) Stream[T] {
+func repeat[T any](item T, count int) iter.Seq2[T, error] {
 	var n int
 	return Func(func() (T, error) {
 		n++
@@ -884,267 +884,6 @@ func TestMergeStreams(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, []int{1, 2, 3, 4, 5, 6}, out)
 	})
-}
-
-func TestMergeStreamsWithPriority(t *testing.T) {
-	t.Parallel()
-
-	type Item struct {
-		name   string
-		stream string
-	}
-
-	newItem := func(stream string, name string) Item {
-		return Item{name: name, stream: stream}
-	}
-
-	newItemSlice := func(stream string, names ...string) []Item {
-		out := make([]Item, 0, len(names))
-		for _, name := range names {
-			out = append(out, newItem(stream, name))
-		}
-		return out
-	}
-
-	compareFunc := func(a, b Item) int {
-		return strings.Compare(a.name, b.name)
-	}
-
-	// Test the case where the streams should have interlaced values.
-	t.Run("interlaced streams", func(t *testing.T) {
-		want := []Item{
-			newItem("streamA", "a"),
-			newItem("streamB", "b"),
-			newItem("streamA", "c"),
-			newItem("streamB", "d"),
-			newItem("streamA", "e"),
-			newItem("streamB", "f"),
-		}
-		streamA := Slice(newItemSlice("streamA", "a", "c", "e"))
-		streamB := Slice(newItemSlice("streamB", "b", "d", "f"))
-
-		got, err := Collect(MergeStreamsWithPriority(streamA, streamB, compareFunc))
-		require.NoError(t, err)
-		require.Equal(t, want, got)
-	})
-
-	// Test the case where streamA is empty.
-	t.Run("stream A empty", func(t *testing.T) {
-		want := []Item{
-			newItem("streamB", "b"),
-			newItem("streamB", "d"),
-			newItem("streamB", "f"),
-		}
-		streamA := Empty[Item]()
-		streamB := Slice(newItemSlice("streamB", "b", "d", "f"))
-
-		got, err := Collect(MergeStreamsWithPriority(streamA, streamB, compareFunc))
-
-		require.NoError(t, err)
-		require.Equal(t, want, got)
-
-	})
-
-	// Test the case where streamB is empty.
-	t.Run("stream B empty", func(t *testing.T) {
-		want := []Item{
-			newItem("streamA", "a"),
-			newItem("streamA", "c"),
-			newItem("streamA", "e"),
-		}
-		streamA := Slice(newItemSlice("streamA", "a", "c", "e"))
-		streamB := Empty[Item]()
-
-		resultStream := MergeStreamsWithPriority(streamA, streamB, compareFunc)
-		got, err := Collect(resultStream)
-
-		require.NoError(t, err)
-		require.Equal(t, want, got)
-	})
-
-	// Test the case where both streams are empty.
-	t.Run("both streams empty", func(t *testing.T) {
-		streamA := Empty[Item]()
-		streamB := Empty[Item]()
-
-		resultStream := MergeStreamsWithPriority(streamA, streamB, compareFunc)
-		got, err := Collect(resultStream)
-
-		require.NoError(t, err)
-		require.Empty(t, got)
-	})
-
-	// Test the case where every value in streamA is lower than every value in streamB.
-	t.Run("compare always favors A", func(t *testing.T) {
-		want := []Item{
-			newItem("streamA", "a"),
-			newItem("streamB", "b"),
-			newItem("streamA", "c"),
-			newItem("streamB", "d"),
-			newItem("streamA", "e"),
-			newItem("streamB", "f"),
-		}
-		streamA := Slice(newItemSlice("streamA", "a", "c", "e"))
-		streamB := Slice(newItemSlice("streamB", "b", "d", "f"))
-
-		resultStream := MergeStreamsWithPriority(streamA, streamB, compareFunc)
-		got, err := Collect(resultStream)
-
-		require.NoError(t, err)
-		require.Equal(t, want, got)
-	})
-
-	// Test the case where every value in streamB is lower than every value in streamA.
-	t.Run("compare always favors B", func(t *testing.T) {
-		want := []Item{
-			newItem("streamA", "a"),
-			newItem("streamB", "b"),
-			newItem("streamA", "c"),
-			newItem("streamB", "d"),
-			newItem("streamA", "e"),
-			newItem("streamB", "f"),
-		}
-		streamA := Slice(newItemSlice("streamA", "a", "c", "e"))
-		streamB := Slice(newItemSlice("streamB", "b", "d", "f"))
-
-		resultStream := MergeStreamsWithPriority(streamA, streamB, compareFunc)
-		got, err := Collect(resultStream)
-
-		require.NoError(t, err)
-		require.Equal(t, want, got)
-	})
-
-	t.Run("compare always favors A with clashing item yielding A", func(t *testing.T) {
-		want := []Item{
-			newItem("streamA", "a"),
-			newItem("streamB", "b"),
-			newItem("streamA", "c"),
-			newItem("streamA", "e"),
-			newItem("streamB", "f"),
-		}
-		streamA := Slice(newItemSlice("streamA", "a", "c", "e"))
-		streamB := Slice(newItemSlice("streamB", "b", "c", "f"))
-
-		resultStream := MergeStreamsWithPriority(streamA, streamB, compareFunc)
-		got, err := Collect(resultStream)
-
-		require.NoError(t, err)
-		require.Equal(t, want, got)
-	})
-
-	t.Run("compare always favors B with clashing item yielding A", func(t *testing.T) {
-		want := []Item{
-			newItem("streamA", "a"),
-			newItem("streamB", "b"),
-			newItem("streamA", "c"),
-			newItem("streamA", "e"),
-			newItem("streamB", "f"),
-		}
-		streamA := Slice(newItemSlice("streamA", "a", "c", "e"))
-		streamB := Slice(newItemSlice("streamB", "b", "c", "f"))
-
-		resultStream := MergeStreamsWithPriority(streamA, streamB, compareFunc)
-		got, err := Collect(resultStream)
-
-		require.NoError(t, err)
-		require.Equal(t, want, got)
-	})
-
-	t.Run("compare clashing keys always favors A", func(t *testing.T) {
-		want := []Item{
-			newItem("streamA", "a"),
-			newItem("streamA", "b"),
-			newItem("streamA", "c"),
-		}
-		streamA := Slice(newItemSlice("streamA", "a", "b", "c"))
-		streamB := Slice(newItemSlice("streamB", "a", "b", "c"))
-
-		got, err := Collect(MergeStreamsWithPriority(streamA, streamB, compareFunc))
-		require.NoError(t, err)
-		require.Equal(t, want, got)
-	})
-
-	t.Run("mid stream fail in A", func(t *testing.T) {
-		want := []Item{
-			newItem("streamA", "a"),
-		}
-
-		streamA := Chain(
-			Slice(newItemSlice("streamA", "a")),
-			Fail[Item](fmt.Errorf("some error")),
-			Slice(newItemSlice("streamA", "c", "e")),
-		)
-		streamB := Slice(newItemSlice("streamB", "b", "d", "f"))
-
-		resultStream := MergeStreamsWithPriority(streamA, streamB, compareFunc)
-		got, err := Collect(resultStream)
-
-		require.Error(t, err)
-		require.Equal(t, want, got)
-	})
-
-	t.Run("mid stream B with Fail and key clash", func(t *testing.T) {
-		want := []Item{
-			newItem("streamA", "a"),
-			newItem("streamA", "b"),
-		}
-
-		streamA := Slice(newItemSlice("streamA", "a", "b", "c"))
-		streamB := Chain(
-			Slice(newItemSlice("streamB", "b")),
-			Fail[Item](fmt.Errorf("some error")),
-			Slice(newItemSlice("streamB", "d", "f")),
-		)
-
-		resultStream := MergeStreamsWithPriority(streamA, streamB, compareFunc)
-		got, err := Collect(resultStream)
-
-		require.Error(t, err)
-		require.Equal(t, want, got)
-	})
-
-	t.Run("tail stream B fails", func(t *testing.T) {
-		want := []Item{
-			newItem("streamA", "a"),
-			newItem("streamA", "b"),
-			newItem("streamA", "c"),
-			newItem("streamB", "d"),
-		}
-
-		streamA := Slice(newItemSlice("streamA", "a", "b", "c"))
-		streamB := Chain(
-			Slice(newItemSlice("streamB", "d")),
-			Fail[Item](fmt.Errorf("some error")),
-		)
-
-		resultStream := MergeStreamsWithPriority(streamA, streamB, compareFunc)
-		got, err := Collect(resultStream)
-
-		require.Error(t, err)
-		require.Equal(t, want, got)
-	})
-
-	t.Run("tail stream A fails", func(t *testing.T) {
-		want := []Item{
-			newItem("streamB", "a"),
-			newItem("streamB", "b"),
-			newItem("streamB", "c"),
-			newItem("streamA", "d"),
-		}
-
-		streamA := Chain(
-			Slice(newItemSlice("streamA", "d")),
-			Fail[Item](fmt.Errorf("some error")),
-		)
-		streamB := Slice(newItemSlice("streamB", "a", "b", "c"))
-
-		resultStream := MergeStreamsWithPriority(streamA, streamB, compareFunc)
-		got, err := Collect(resultStream)
-
-		require.Error(t, err)
-		require.Equal(t, want, got)
-	})
-
 }
 
 func TestTakeWhile(t *testing.T) {

@@ -35,65 +35,10 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 )
-
-func TestWebSessionsUpsertExpiry(t *testing.T) {
-	t.Parallel()
-
-	clock := clockwork.NewFakeClock()
-	bk, err := memory.New(memory.Config{
-		Context: context.Background(),
-		Clock:   clock,
-	})
-	require.NoError(t, err)
-
-	identity, err := NewTestIdentityService(bk)
-	require.NoError(t, err)
-	ctx := context.Background()
-
-	bearerExpires := clock.Now().Add(1 * time.Minute)
-	sessionExpires := clock.Now().Add(1 * time.Hour)
-
-	tests := []struct {
-		name           string
-		usage          types.WebSessionUsage
-		expectedExpiry time.Time
-	}{
-		{
-			name:           "standard session uses earliest of bearer token and session expiry",
-			usage:          types.WebSessionUsage_WEB_SESSION_USAGE_UNSPECIFIED,
-			expectedExpiry: bearerExpires,
-		},
-		{
-			name:           "access graph session ignores bearer token expiry",
-			usage:          types.WebSessionUsage_WEB_SESSION_USAGE_ACCESS_GRAPH_API,
-			expectedExpiry: sessionExpires,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			sessionID := uuid.New().String()
-			session, err := types.NewWebSession(sessionID, types.KindWebSession, types.WebSessionSpecV2{
-				User:               "alice",
-				BearerToken:        "bearer-" + sessionID,
-				BearerTokenExpires: bearerExpires,
-				Expires:            sessionExpires,
-				Usage:              tc.usage,
-			})
-			require.NoError(t, err)
-
-			require.NoError(t, identity.WebSessions().Upsert(ctx, session))
-
-			item, err := bk.Get(ctx, webSessionKey(sessionID))
-			require.NoError(t, err)
-			require.True(t, tc.expectedExpiry.Equal(item.Expires),
-				"expected backend item expiry %s, got %s", tc.expectedExpiry, item.Expires)
-		})
-	}
-}
 
 func TestDeleteUserAppSessions(t *testing.T) {
 	t.Parallel()
@@ -177,7 +122,7 @@ func TestListAppSessions(t *testing.T) {
 	// Create 3 pages worth of sessions. One full
 	// page per user and one partial page with 5
 	// sessions per user.
-	for range maxSessionPageSize + 5 {
+	for i := 0; i < maxSessionPageSize+5; i++ {
 		for _, user := range users {
 			session, err := types.NewWebSession(uuid.New().String(), types.KindAppSession, types.WebSessionSpecV2{
 				User:    user,
@@ -220,6 +165,147 @@ func TestListAppSessions(t *testing.T) {
 	for _, user := range users {
 		for {
 			sessions, token, err = identity.ListAppSessions(ctx, 11, token, user)
+			require.NoError(t, err)
+
+			for _, session := range sessions {
+				require.Equal(t, user, session.GetUser())
+			}
+
+			if token == "" {
+				require.Len(t, sessions, 7)
+				break
+			} else {
+				require.Len(t, sessions, 11)
+			}
+		}
+	}
+}
+
+func TestDeleteUserSAMLIdPSessions(t *testing.T) {
+	t.Parallel()
+
+	clock := clockwork.NewFakeClock()
+	backend, err := memory.New(memory.Config{
+		Context: context.Background(),
+		Clock:   clockwork.NewFakeClock(),
+	})
+	require.NoError(t, err)
+
+	identity, err := NewTestIdentityService(backend)
+	require.NoError(t, err)
+	users := []string{"alice", "bob"}
+	ctx := context.Background()
+
+	// Create SAML IdP sessions for different users.
+	for _, user := range users {
+		session, err := types.NewWebSession(uuid.New().String(), types.KindSAMLIdPSession, types.WebSessionSpecV2{
+			User:    user,
+			Expires: clock.Now().Add(time.Hour),
+		})
+		require.NoError(t, err)
+
+		err = identity.UpsertSAMLIdPSession(ctx, session)
+		require.NoError(t, err)
+	}
+
+	// Ensure the number of SAML IdP sessions is correct.
+	sessions, nextKey, err := identity.ListSAMLIdPSessions(ctx, 10, "", "")
+	require.NoError(t, err)
+	require.Len(t, sessions, 2)
+	require.Empty(t, nextKey)
+
+	// Delete sessions of the first user.
+	err = identity.DeleteUserSAMLIdPSessions(ctx, users[0])
+	require.NoError(t, err)
+
+	sessions, nextKey, err = identity.ListSAMLIdPSessions(ctx, 10, "", "")
+	require.NoError(t, err)
+	require.Len(t, sessions, 1)
+	require.Equal(t, users[1], sessions[0].GetUser())
+	require.Empty(t, nextKey)
+
+	// Delete sessions of the second user.
+	err = identity.DeleteUserSAMLIdPSessions(ctx, users[1])
+	require.NoError(t, err)
+
+	sessions, nextKey, err = identity.ListSAMLIdPSessions(ctx, 10, "", "")
+	require.NoError(t, err)
+	require.Empty(t, sessions)
+	require.Empty(t, nextKey)
+}
+
+func TestListSAMLIdPSessions(t *testing.T) {
+	t.Parallel()
+
+	clock := clockwork.NewFakeClock()
+	backend, err := memory.New(memory.Config{
+		Context: context.Background(),
+		Clock:   clockwork.NewFakeClock(),
+	})
+	require.NoError(t, err)
+
+	identity, err := NewTestIdentityService(backend)
+	require.NoError(t, err)
+
+	users := []string{"alice", "bob"}
+	ctx := context.Background()
+
+	// the default page size is used if the pageSize
+	// provide to ListSAMLIdPSessions is 0 || > maxSessionPageSize
+	const useDefaultPageSize = 0
+
+	// Validate no sessions exist
+	sessions, token, err := identity.ListSAMLIdPSessions(ctx, useDefaultPageSize, "", "")
+	require.NoError(t, err)
+	require.Empty(t, sessions)
+	require.Empty(t, token)
+
+	// Create 3 pages worth of sessions. One full
+	// page per user and one partial page with 5
+	// sessions per user.
+	for i := 0; i < maxSessionPageSize+5; i++ {
+		for _, user := range users {
+			session, err := types.NewWebSession(uuid.New().String(), types.KindSAMLIdPSession, types.WebSessionSpecV2{
+				User:    user,
+				Expires: clock.Now().Add(time.Hour),
+			})
+			require.NoError(t, err)
+
+			err = identity.UpsertSAMLIdPSession(ctx, session)
+			require.NoError(t, err)
+		}
+	}
+
+	// Validate page size is truncated to maxSessionPageSize
+	sessions, token, err = identity.ListSAMLIdPSessions(ctx, maxSessionPageSize+maxSessionPageSize*2/3, "", "")
+	require.NoError(t, err)
+	require.Len(t, sessions, maxSessionPageSize)
+	require.NotEmpty(t, token)
+
+	// reset token
+	token = ""
+
+	// Validate that sessions are retrieved for all users
+	// with the default page size
+	for {
+		sessions, token, err = identity.ListSAMLIdPSessions(ctx, useDefaultPageSize, token, "")
+		require.NoError(t, err)
+		if token == "" {
+			require.Len(t, sessions, 10)
+			break
+		} else {
+			require.Len(t, sessions, maxSessionPageSize)
+		}
+	}
+
+	// reset token
+	token = ""
+
+	// Validate that sessions are retrieved per user with
+	// a page size of 11
+	for _, user := range users {
+		for {
+			sessions, token, err = identity.ListSAMLIdPSessions(ctx, 11, token, user)
 			require.NoError(t, err)
 
 			for _, session := range sessions {
@@ -327,8 +413,6 @@ func TestWebTokenCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	newToken := func(name, user string) types.WebToken {
-
-		// types.NewWebToken
 		expires := clock.Now().Add(time.Hour)
 		token, err := types.NewWebToken(expires, types.WebTokenSpecV3{
 			Token: name,
@@ -348,10 +432,6 @@ func TestWebTokenCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, out)
 	require.Empty(t, next)
-
-	out, err = stream.Collect(identity.RangeWebTokens(ctx, "", ""))
-	require.NoError(t, err)
-	require.Empty(t, out)
 
 	// Create some tokens.
 	var expected []types.WebToken
@@ -375,12 +455,6 @@ func TestWebTokenCRUD(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 	require.Empty(t, next)
-
-	out, err = stream.Collect(identity.RangeWebTokens(ctx, "", ""))
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(expected, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-	))
 
 	// Fetch a specific token.
 	token, err := identity.GetWebToken(ctx, types.GetWebTokenRequest{
@@ -428,27 +502,6 @@ func TestWebTokenCRUD(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
-	out, err = stream.Collect(identity.RangeWebTokens(ctx, "", page2Start))
-	require.NoError(t, err)
-	assert.Len(t, out, len(page1))
-	assert.Empty(t, cmp.Diff(page1, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-	))
-
-	out, err = stream.Collect(identity.RangeWebTokens(ctx, "", ""))
-	require.NoError(t, err)
-	assert.Len(t, out, len(expected))
-	assert.Empty(t, cmp.Diff(expected, out,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-	))
-
-	out, err = stream.Collect(identity.RangeWebTokens(ctx, page2Start, ""))
-	require.NoError(t, err)
-	assert.Len(t, out, len(expected)-2)
-	assert.Empty(t, cmp.Diff(expected, append(page1, out...),
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-	))
-
 	// Try to delete a token that doesn't exist.
 	err = identity.DeleteWebToken(ctx, types.DeleteWebTokenRequest{
 		Token: "doesnotexist",
@@ -463,7 +516,7 @@ func TestWebTokenCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify deleted
-	out, err = stream.Collect(identity.RangeWebTokens(ctx, "", ""))
+	out, err = identity.GetWebTokens(ctx)
 	require.NoError(t, err)
 	assert.Len(t, out, len(expected)-1)
 	assert.Empty(t, cmp.Diff(expected[1:], out,
@@ -482,8 +535,76 @@ func TestWebTokenCRUD(t *testing.T) {
 	require.Empty(t, out)
 	require.Empty(t, next)
 
-	out, err = stream.Collect(identity.RangeWebTokens(ctx, "", ""))
-	require.NoError(t, err)
-	require.Empty(t, out)
+}
 
+// TestListWebTokens_SkipsUnmarshalErrorsHittingPageBoundary guards against a regression where hitting a page boundary with a malformed backend item would
+// return less items than the page limit and no next token. This would cause callers to miss resources and fail to paginate properly when malformed items are present in the backend.
+func TestListWebTokens_SkipsUnmarshalErrorsHittingPageBoundary(t *testing.T) {
+	ctx := t.Context()
+
+	const pageLimit = 64
+	const numberOfPages = 5
+
+	clock := clockwork.NewFakeClock()
+	mem, err := memory.New(memory.Config{
+		Context: t.Context(),
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service, err := NewTestIdentityService(mem)
+	require.NoError(t, err)
+
+	var allExpected []types.WebToken
+
+	createResource := func(name string) {
+		expires := clock.Now().Add(time.Hour)
+		token, err := types.NewWebToken(expires, types.WebTokenSpecV3{
+			Token: name,
+			User:  "foo",
+		})
+		require.NoError(t, err)
+		err = service.UpsertWebToken(ctx, token)
+		require.NoError(t, err)
+		allExpected = append(allExpected, token)
+
+	}
+
+	createMalformedEntry := func(name string) {
+		_, err := mem.Put(ctx, backend.Item{
+			Key:   backend.NewKey(webPrefix, tokensPrefix, name),
+			Value: []byte("not-valid-json"),
+		})
+		require.NoError(t, err)
+	}
+
+	for i := range pageLimit * numberOfPages {
+		key := fmt.Sprintf("r%d", i)
+		if i%2 == 0 {
+			createMalformedEntry(key)
+		} else {
+			createResource(key)
+		}
+	}
+
+	page1, next, err := service.ListWebTokens(ctx, pageLimit, "")
+	require.NoError(t, err)
+	require.Len(t, page1, pageLimit)
+	require.NotEmpty(t, next)
+
+	page2, next, err := service.ListWebTokens(ctx, pageLimit, next)
+	require.NoError(t, err)
+	require.Len(t, page2, pageLimit)
+	require.NotEmpty(t, next)
+
+	page3, next, err := service.ListWebTokens(ctx, pageLimit, next)
+	require.NoError(t, err)
+	require.Len(t, page3, pageLimit/2)
+	require.Empty(t, next)
+
+	allActual := append(append(page1, page2...), page3...)
+	require.Empty(t, cmp.Diff(allExpected, allActual,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.SortSlices(func(a, b types.WebToken) bool { return a.GetName() < b.GetName() }),
+	))
 }

@@ -19,13 +19,12 @@
 package native
 
 import (
-	"context"
-	"log/slog"
 	"runtime"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -89,7 +88,7 @@ func readCachedDeviceDataUnderLock(mode CollectDataMode) (cdd *devicepb.DeviceCo
 		return nil, false
 	}
 
-	slog.DebugContext(context.Background(), "Device Trust: Using in-process cached device data")
+	log.Debug("Device Trust: Using in-process cached device data")
 	cdd = proto.Clone(cachedDeviceData.value).(*devicepb.DeviceCollectedData)
 	cdd.CollectTime = timestamppb.Now()
 	return cdd, true

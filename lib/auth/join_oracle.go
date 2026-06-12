@@ -32,15 +32,10 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/join/oracle"
-	"github.com/gravitational/teleport/lib/join/joinutils"
-	"github.com/gravitational/teleport/lib/join/legacyjoin"
-	"github.com/gravitational/teleport/lib/join/oraclejoin"
 )
 
-// RegisterUsingOracleMethod registers the caller using the legacy Oracle join
-// method and returns signed certs to join the cluster.
-//
-// TODO(nklaassen): DELETE IN 20 when removing the legacy join service.
+// RegisterUsingOracleMethod registers the caller using the Oracle join method and
+// returns signed certs to join the cluster.
 func (a *Server) RegisterUsingOracleMethod(
 	ctx context.Context,
 	tokenReq *types.RegisterUsingTokenRequest,
@@ -64,14 +59,10 @@ func (a *Server) registerUsingOracleMethod(
 		// Emit a log message and audit event on join failure.
 		if err != nil {
 			a.handleJoinFailure(
-				ctx, err, provisionToken, claims, tokenReq,
+				err, provisionToken, claims, tokenReq,
 			)
 		}
 	}()
-
-	if legacyjoin.Disabled() {
-		return nil, trace.Wrap(legacyjoin.ErrDisabled)
-	}
 
 	challenge, err := generateOracleChallenge()
 	if err != nil {
@@ -92,19 +83,28 @@ func (a *Server) registerUsingOracleMethod(
 	}
 
 	if tokenReq.Role == types.RoleBot {
-		params := makeBotCertsParams(tokenReq, claims, &workloadidentityv1pb.JoinAttrs{
-			Oracle: claims.JoinAttrs(),
-		})
-		certs, _, err := a.GenerateBotCertsForJoin(ctx, provisionToken, params)
-		return certs, trace.Wrap(err, "generating bot certs")
+		certs, _, err := a.generateCertsBot(
+			ctx,
+			provisionToken,
+			tokenReq,
+			claims,
+			&workloadidentityv1pb.JoinAttrs{
+				Oracle: claims.JoinAttrs(),
+			},
+		)
+		return certs, trace.Wrap(err)
 	}
-	params := makeHostCertsParams(tokenReq, claims)
-	certs, err = a.GenerateHostCertsForJoin(ctx, provisionToken, params)
-	return certs, trace.Wrap(err, "generating certs")
+	certs, err = a.generateCerts(
+		ctx,
+		provisionToken,
+		tokenReq,
+		claims,
+	)
+	return certs, trace.Wrap(err)
 }
 
 func generateOracleChallenge() (string, error) {
-	challenge, err := joinutils.GenerateChallenge(base64.StdEncoding, 32)
+	challenge, err := generateChallenge(base64.StdEncoding, 32)
 	return challenge, trace.Wrap(err)
 }
 
@@ -143,6 +143,25 @@ func checkHeaders(headers http.Header, challenge string, clock clockwork.Clock) 
 	}
 
 	return nil
+}
+
+func checkOracleAllowRules(claims oracle.Claims, token string, allowRules []*types.ProvisionTokenSpecV2Oracle_Rule) error {
+	for _, rule := range allowRules {
+		if rule.Tenancy != claims.TenancyID {
+			continue
+		}
+		if len(rule.ParentCompartments) != 0 && !slices.Contains(rule.ParentCompartments, claims.CompartmentID) {
+			continue
+		}
+		if len(rule.Regions) != 0 && !slices.ContainsFunc(rule.Regions, func(region string) bool {
+			canonicalRegion, _ := oracle.ParseRegion(region)
+			return canonicalRegion == claims.Region()
+		}) {
+			continue
+		}
+		return nil
+	}
+	return trace.AccessDenied("instance %v did not match any allow rules in token %v", claims.InstanceID, token)
 }
 
 func formatHeaderFromMap(m map[string]string) http.Header {
@@ -207,8 +226,12 @@ func (a *Server) checkOracleRequest(
 	}
 
 	// Check allow rules.
-	if err := oraclejoin.CheckOracleAllowRules(&claims, provisionToken); err != nil {
-		return claims, trace.Wrap(err)
+	tokenV2, ok := provisionToken.(*types.ProvisionTokenV2)
+	if !ok {
+		return oracle.Claims{}, trace.BadParameter("oracle join method only supports ProvisionTokenV2")
+	}
+	if err := checkOracleAllowRules(claims, provisionToken.GetName(), tokenV2.Spec.Oracle.Allow); err != nil {
+		return oracle.Claims{}, trace.Wrap(err)
 	}
 
 	return claims, nil

@@ -7,7 +7,7 @@ recording bucket depends on whether you expect to create the bucket yourself or
 enable the Auth Service to create and configure it for you:
 
 <Tabs>
-<TabItem label="Self-Managed">
+<TabItem label="Manage the Bucket Yourself">
 
 Note that Teleport will only use S3 buckets with versioning enabled. This
 ensures that a session log cannot be permanently altered or deleted, as
@@ -53,7 +53,7 @@ You'll need to replace these values in the policy example below:
 ```
 
 </TabItem>
-<TabItem label="Created by the Auth Service">
+<TabItem label="Auth Service Creates a Bucket">
 
 You'll need to replace these values in the policy example below:
 

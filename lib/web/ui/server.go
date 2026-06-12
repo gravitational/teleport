@@ -23,23 +23,12 @@ import (
 	"strings"
 
 	"github.com/gravitational/teleport/api/constants"
-	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
-	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/ui"
-	"github.com/gravitational/teleport/lib/utils/slices"
 )
-
-// SSHLogin describes an SSH login available on a server.
-type SSHLogin struct {
-	// Login is the SSH login name.
-	Login string `json:"login"`
-	// RequiresRequest indicates whether this login requires an access request to be used.
-	RequiresRequest bool `json:"requiresRequest,omitempty"`
-}
 
 // Server describes a server for webapp
 type Server struct {
@@ -59,20 +48,12 @@ type Server struct {
 	Addr string `json:"addr"`
 	// Labels is this server list of labels
 	Labels []ui.Label `json:"tags"`
-	// SSHLogins is the list of logins this user can use on this server.
-	// Kept as []string for backwards compatibility with older web UIs.
-	//
-	// TODO(kiosion): DELETE IN 20.0.0
+	// SSHLogins is the list of logins this user can use on this server
 	SSHLogins []string `json:"sshLogins"`
-	// SSHLoginDetails provides per-login metadata (e.g. whether a login requires an access request).
-	// Only populated when the handler has requestable login info.
-	SSHLoginDetails []SSHLogin `json:"sshLoginDetails,omitempty"`
 	// AWS contains metadata for instances hosted in AWS.
 	AWS *AWSMetadata `json:"aws,omitempty"`
 	// RequireRequest indicates if a returned resource is only accessible after an access request
 	RequiresRequest bool `json:"requiresRequest,omitempty"`
-	// SupportedFeatureIDs contains ComponentFeatureIDs supported by this Server and all other involved components.
-	SupportedFeatureIDs []componentfeaturesv1.ComponentFeatureID `json:"supportedFeatureIds,omitempty"`
 }
 
 // AWSMetadata describes the AWS metadata for instances hosted in AWS.
@@ -86,46 +67,21 @@ type AWSMetadata struct {
 	SubnetID    string `json:"subnetId"`
 }
 
-// MakeServerConfig contains parameters for converting Servers to UI representation.
-type MakeServerConfig struct {
-	// ClusterName is the name of the local cluster.
-	ClusterName string
-	// Logins is the set of granted and/or requestable logins.
-	Logins *PrincipalSet
-	// RequiresRequest is whether the Server resource requires an Access Request to be usable.
-	RequiresRequest bool
-	// SupportedFeatures contains FeatureIDs supported by the Server.
-	SupportedFeatures *componentfeaturesv1.ComponentFeatures
-}
-
-// MakeServer creates a server object for the web ui.
-// logins contains the full set of visible logins and the granted subset.
-// SSHLoginDetails is populated with per-login requiresRequest metadata derived
-// from the difference between logins.All and logins.Granted.
-func MakeServer(server types.Server, c MakeServerConfig) Server {
+// MakeServer creates a server object for the web ui
+func MakeServer(clusterName string, server types.Server, logins []string, requiresRequest bool) Server {
 	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(server.GetAllLabels())
-
-	var sshLogins []string
-	if c.Logins != nil {
-		sshLogins = c.Logins.All.Elements()
-	}
 
 	uiServer := Server{
 		Kind:            server.GetKind(),
-		ClusterName:     c.ClusterName,
+		ClusterName:     clusterName,
 		Labels:          uiLabels,
 		Name:            server.GetName(),
 		Hostname:        server.GetHostname(),
 		Addr:            server.GetAddr(),
 		Tunnel:          server.GetUseTunnel(),
 		SubKind:         server.GetSubKind(),
-		RequiresRequest: c.RequiresRequest,
-		SSHLogins:       sshLogins,
-		SSHLoginDetails: buildSSHLoginDetails(c.Logins),
-	}
-
-	if f := c.SupportedFeatures.GetFeatures(); len(f) > 0 {
-		uiServer.SupportedFeatureIDs = f
+		RequiresRequest: requiresRequest,
+		SSHLogins:       logins,
 	}
 
 	if server.GetSubKind() == types.SubKindOpenSSHEICENode {
@@ -141,18 +97,6 @@ func MakeServer(server types.Server, c MakeServerConfig) Server {
 	}
 
 	return uiServer
-}
-
-func buildSSHLoginDetails(logins *PrincipalSet) []SSHLogin {
-	if logins == nil {
-		return nil
-	}
-	return slices.Map(logins.All.Elements(), func(login string) SSHLogin {
-		return SSHLogin{
-			Login:           login,
-			RequiresRequest: !logins.Granted.Contains(login),
-		}
-	})
 }
 
 // EKSCluster represents and EKS cluster, analog of awsoidc.EKSCluster, but used by web ui.
@@ -181,15 +125,6 @@ type KubeCluster struct {
 	KubeGroups []string `json:"kubernetes_groups"`
 	// RequireRequest indicates if a returned resource is only accessible after an access request
 	RequiresRequest bool `json:"requiresRequest,omitempty"`
-	// TargetHealth describes the health of a Kubernetes cluster
-	// reported from an Teleport Kubernetes agent.
-	//
-	// This field will be empty if Kubernetes was not extracted from
-	// a kube_server resource. The following endpoints will set this field
-	// since these endpoints query for kube_server under the hood and then
-	// extract kube from it:
-	// - webapi/sites/:site/resources (unified resources)
-	TargetHealth types.TargetHealth `json:"targetHealth,omitzero"`
 }
 
 // MakeKubeCluster creates a kube cluster object for the web ui
@@ -286,7 +221,7 @@ func MakeKubeResources(resources []*types.KubernetesResourceV1, cluster string) 
 // each Role, and focuses only on listing all users and groups that the user may
 // have access to.
 func getAllowedKubeUsersAndGroupsForCluster(accessChecker services.AccessChecker, kube types.KubeCluster) (kubeUsers []string, kubeGroups []string) {
-	matcher := services.NewKubernetesClusterLabelMatcher(kube.GetAllLabels(), accessChecker.AccessInfo().Username, accessChecker.Traits())
+	matcher := services.NewKubernetesClusterLabelMatcher(kube.GetAllLabels(), accessChecker.Traits())
 	// We ignore the TTL verification because we want to include every possibility.
 	// Later, if the user certificate expiration is longer than the maximum allowed TTL
 	// for the role that defines the `kubernetes_*` principals the request will be
@@ -373,16 +308,6 @@ type Database struct {
 	// AutoUsersEnabled is a flag to indicate the database has user auto
 	// provisioning enabled
 	AutoUsersEnabled bool `json:"auto_users_enabled,omitempty"`
-	// TargetHealth describes the health status of network connectivity
-	// reported from an agent (db_service) that is proxying this database.
-	//
-	// This field will be empty if the database was not extracted from
-	// a db_server resource. The following endpoints will set this field
-	// since these endpoints query for db_server under the hood and then
-	// extract db from it:
-	// - webapi/sites/:site/databases/:database (singular)
-	// - webapi/sites/:site/resources (unified resources)
-	TargetHealth types.TargetHealth `json:"targetHealth,omitzero"`
 }
 
 // AWS contains AWS specific fields.
@@ -460,13 +385,6 @@ func MakeDatabase(database types.Database, accessChecker services.AccessChecker,
 	return db
 }
 
-// MakeDatabaseFromDatabaseServer creates a database object with db_server target health info.
-func MakeDatabaseFromDatabaseServer(dbServer types.DatabaseServer, accessChecker services.AccessChecker, interactiveChecker DatabaseInteractiveChecker, requiresRequest bool) Database {
-	db := MakeDatabase(dbServer.GetDatabase(), accessChecker, interactiveChecker, requiresRequest)
-	db.TargetHealth = dbServer.GetTargetHealth()
-	return db
-}
-
 // MakeDatabases creates database objects.
 func MakeDatabases(databases []*types.DatabaseV3, accessChecker services.AccessChecker, interactiveChecker DatabaseInteractiveChecker) []Database {
 	uiServers := make([]Database, 0, len(databases))
@@ -525,25 +443,10 @@ type Desktop struct {
 	RequiresRequest bool `json:"requiresRequest,omitempty"`
 }
 
-func MakeLinuxDesktop(linuxDesktop *linuxdesktopv1.LinuxDesktop, logins []string, requiresRequest bool) Desktop {
-	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(linuxDesktop.Metadata.Labels)
-
-	return Desktop{
-		Kind:            linuxDesktop.GetKind(),
-		OS:              constants.LinuxOS,
-		Name:            linuxDesktop.Spec.Hostname,
-		Addr:            linuxDesktop.Spec.Addr,
-		Labels:          uiLabels,
-		HostID:          linuxDesktop.Metadata.Name,
-		Logins:          logins,
-		RequiresRequest: requiresRequest,
-	}
-}
-
-// MakeWindowsDesktop converts a desktop from its API form to a type the UI can display.
-func MakeWindowsDesktop(windowsDesktop types.WindowsDesktop, logins []string, requiresRequest bool) Desktop {
-	// stripRDPPort strips the default rdp port from an ip address since it is unimportant to display
-	stripRDPPort := func(addr string) string {
+// MakeDesktop converts a desktop from its API form to a type the UI can display.
+func MakeDesktop(windowsDesktop types.WindowsDesktop, logins []string, requiresRequest bool) Desktop {
+	// stripRdpPort strips the default rdp port from an ip address since it is unimportant to display
+	stripRdpPort := func(addr string) string {
 		splitAddr := strings.Split(addr, ":")
 		if len(splitAddr) > 1 && splitAddr[1] == strconv.Itoa(defaults.RDPListenPort) {
 			return splitAddr[0]
@@ -557,7 +460,7 @@ func MakeWindowsDesktop(windowsDesktop types.WindowsDesktop, logins []string, re
 		Kind:            windowsDesktop.GetKind(),
 		OS:              constants.WindowsOS,
 		Name:            windowsDesktop.GetName(),
-		Addr:            stripRDPPort(windowsDesktop.GetAddr()),
+		Addr:            stripRdpPort(windowsDesktop.GetAddr()),
 		Labels:          uiLabels,
 		HostID:          windowsDesktop.GetHostID(),
 		Logins:          logins,

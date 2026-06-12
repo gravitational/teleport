@@ -21,7 +21,6 @@ package services
 import (
 	"context"
 	"encoding/json"
-	"iter"
 
 	"github.com/gravitational/trace"
 
@@ -93,8 +92,6 @@ type WebToken interface {
 	GetWebTokens(context.Context) ([]types.WebToken, error)
 	// ListWebTokens returns a page of web tokens
 	ListWebTokens(ctx context.Context, limit int, start string) ([]types.WebToken, string, error)
-	// RangeWebTokens returns web tokens within the range [start, end).
-	RangeWebTokens(ctx context.Context, start, end string) iter.Seq2[types.WebToken, error]
 	// UpsertWebToken updates the existing or inserts a new web token.
 	UpsertWebToken(context.Context, types.WebToken) error
 	// DeleteWebToken deletes a web token.

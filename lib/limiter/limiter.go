@@ -124,7 +124,7 @@ func (l *Limiter) UnaryServerInterceptor() grpc.UnaryServerInterceptor {
 
 		clientIP, err := utils.ClientIPFromAddr(peerInfo.Addr)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.BadParameter("missing client IP")
 		}
 		if err := l.RegisterRequest(clientIP); err != nil {
 			return nil, trace.LimitExceeded("rate limit exceeded")
@@ -139,7 +139,7 @@ func (l *Limiter) UnaryServerInterceptor() grpc.UnaryServerInterceptor {
 
 // StreamServerInterceptor is a gRPC stream interceptor that rate limits
 // incoming requests by client IP.
-func (l *Limiter) StreamServerInterceptor(srv any, serverStream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+func (l *Limiter) StreamServerInterceptor(srv interface{}, serverStream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 	peerInfo, ok := peer.FromContext(serverStream.Context())
 	if !ok {
 		return trace.AccessDenied("missing peer info")
@@ -147,7 +147,7 @@ func (l *Limiter) StreamServerInterceptor(srv any, serverStream grpc.ServerStrea
 	// Limit requests per second and simultaneous connection by client IP.
 	clientIP, err := utils.ClientIPFromAddr(peerInfo.Addr)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.BadParameter("missing client IP")
 	}
 	if err := l.RegisterRequest(clientIP); err != nil {
 		return trace.LimitExceeded("rate limit exceeded")

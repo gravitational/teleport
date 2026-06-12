@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { current, Draft, enableMapSet, original } from 'immer';
+import { current, enableMapSet, original } from 'immer';
 import { Dispatch } from 'react';
 import { useImmerReducer } from 'use-immer';
 
@@ -47,8 +47,6 @@ const logger = new Logger('useStandardModel');
 // Enable support for the Set type in Immer. We use it for `disabledTabs`.
 enableMapSet();
 
-export type RoleStandardModel = [StandardEditorModel, StandardModelDispatcher];
-
 /**
  * Creates a standard model state and returns an array composed of the state
  * and an action dispatcher that can be used to change it. Since the conversion
@@ -56,7 +54,9 @@ export type RoleStandardModel = [StandardEditorModel, StandardModelDispatcher];
  * here: if an error is thrown, the {@link StandardEditorModel.roleModel} and
  * {@link StandardEditorModel.validationResult} will be set to `undefined`.
  */
-export const useStandardModel = (originalRole?: Role): RoleStandardModel =>
+export const useStandardModel = (
+  originalRole?: Role
+): [StandardEditorModel, StandardModelDispatcher] =>
   useImmerReducer(reduce, originalRole, initializeState);
 
 const initializeState = (originalRole?: Role): StandardEditorModel => {
@@ -165,7 +165,7 @@ type RemoveResourceAccessAction = {
 type AddAdminRuleAction = { type: ActionType.AddAdminRule; payload?: never };
 type SetAdminRuleResourcesAction = {
   type: ActionType.SetAdminRuleResources;
-  payload: { id: string; resources: ResourceKindOption[] };
+  payload: { id: string; resources: readonly ResourceKindOption[] };
 };
 type SetAdminRuleVerbAction = {
   type: ActionType.SetAdminRuleVerb;
@@ -191,7 +191,7 @@ type EnableValidationAction = {
 
 /** Produces a new model using existing state and the action. */
 const reduce = (
-  state: Draft<StandardEditorModel>,
+  state: StandardEditorModel,
   action: StandardModelAction
 ): StandardEditorModel => {
   // We need to give `type` a different name or the assertion in the `default`
@@ -341,7 +341,7 @@ const reduce = (
  * Recomputes dependent fields of a state draft. Validates the state and
  * recognizes whether it's dirty (i.e. changed from the original).
  */
-const processEditorModel = (state: Draft<StandardEditorModel>) => {
+const processEditorModel = (state: StandardEditorModel) => {
   const { roleModel, originalRole, validationResult } = state;
   state.isDirty = hasModifiedFields(roleModel, originalRole);
   state.validationResult = validateRoleEditorModel(

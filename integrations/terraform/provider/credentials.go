@@ -21,11 +21,10 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"log/slog"
 	"strings"
+	"text/template"
 	"time"
 
-	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
@@ -528,9 +527,6 @@ See https://goteleport.com/docs/reference/join-methods for more details.`)
 			Gitlab: onboarding.GitlabOnboardingConfig{
 				TokenEnvVarName: gitlabIDTokenEnvVar,
 			},
-			Kubernetes: onboarding.KubernetesOnboardingConfig{
-				TokenPath: config.KubernetesTokenPath.Value,
-			},
 		},
 		CredentialLifetime: bot.CredentialLifetime{
 			TTL:             time.Hour,
@@ -538,8 +534,7 @@ See https://goteleport.com/docs/reference/join-methods for more details.`)
 		},
 		Insecure: insecure,
 	}
-	// slog default logger has been configured during the provider init.
-	bot, err := embeddedtbot.New(botConfig, slog.Default())
+	bot, err := embeddedtbot.New(botConfig)
 	if err != nil {
 		return nil, trace.Wrap(err, "Failed to create bot configuration, this is a provider bug, please open a GitHub issue.")
 	}

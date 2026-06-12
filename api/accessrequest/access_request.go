@@ -89,8 +89,7 @@ func GetResourceDetails(ctx context.Context, clusterName string, lister client.L
 			Kind:        resource.GetKind(),
 			Name:        resource.GetName(),
 		}
-		idString := types.ResourceIDToString(id)
-		result[idString] = types.ResourceDetails{
+		result[types.ResourceIDToString(id)] = types.ResourceDetails{
 			FriendlyName: friendlyName,
 		}
 	}
@@ -101,14 +100,13 @@ func GetResourceDetails(ctx context.Context, clusterName string, lister client.L
 // GetResourceIDsByCluster will return resource IDs grouped by cluster.
 func GetResourceIDsByCluster(r types.AccessRequest) map[string][]types.ResourceID {
 	resourceIDsByCluster := make(map[string][]types.ResourceID)
-	for _, wrapped := range r.GetAllRequestedResourceIDs() {
-		resourceID := wrapped.GetResourceID()
+	for _, resourceID := range r.GetRequestedResourceIDs() {
 		resourceIDsByCluster[resourceID.ClusterName] = append(resourceIDsByCluster[resourceID.ClusterName], resourceID)
 	}
 	return resourceIDsByCluster
 }
 
-// GetResourcesByResourceIDs gets a list of resources by their resource IDs.
+// GetResourcesByResourceID gets a list of resources by their resource IDs.
 func GetResourcesByResourceIDs(ctx context.Context, lister client.ListResourcesClient, resourceIDs []types.ResourceID, opts ...ListResourcesRequestOption) ([]types.ResourceWithLabels, error) {
 	resourceNamesByKind := make(map[string][]string)
 	for _, resourceID := range resourceIDs {
@@ -134,7 +132,7 @@ func GetResourcesByResourceIDs(ctx context.Context, lister client.ListResourcesC
 
 // GetResourceNames returns the human readable names for the requested resources in an access request.
 func GetResourceNames(ctx context.Context, lister client.ListResourcesClient, req types.AccessRequest) ([]string, error) {
-	resourceNames := make([]string, 0, len(req.GetAllRequestedResourceIDs()))
+	resourceNames := make([]string, 0, len(req.GetRequestedResourceIDs()))
 	resourcesByCluster := GetResourceIDsByCluster(req)
 
 	for cluster, resources := range resourcesByCluster {

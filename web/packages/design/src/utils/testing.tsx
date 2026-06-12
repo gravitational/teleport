@@ -17,7 +17,6 @@
  */
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import '@testing-library/jest-dom';
 import {
   act,
   fireEvent,
@@ -30,13 +29,13 @@ import {
   within,
 } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import 'jest-styled-components';
-import { HttpResponse, JsonBodyType } from 'msw';
-import { setupServer } from 'msw/node';
-import { PropsWithChildren, ReactNode } from 'react';
-import { MemoryRouter, useLocation } from 'react-router';
+import { ReactNode } from 'react';
+import { MemoryRouter as Router } from 'react-router-dom';
 
 import { darkTheme } from 'design/theme';
+import '@testing-library/jest-dom';
+import 'jest-styled-components';
+
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 
 export const testQueryClient = new QueryClient({
@@ -79,99 +78,9 @@ screen.debug = () => {
 };
 
 type RenderOptions = {
-  wrapper?: React.FC<PropsWithChildren>;
+  wrapper?: React.FC;
   container?: HTMLElement;
 };
-
-type CurrentPathProps = {
-  testId?: string;
-};
-
-export function CurrentPath({ testId = 'current-path' }: CurrentPathProps) {
-  const location = useLocation();
-  return <span data-testid={testId}>{location.pathname}</span>;
-}
-
-type CurrentLocationProps = {
-  testId?: string;
-};
-
-export function CurrentLocation({
-  testId = 'location-display',
-}: CurrentLocationProps) {
-  const location = useLocation();
-  return (
-    <span data-testid={testId}>
-      {location.pathname}
-      {location.search}
-      {location.hash}
-    </span>
-  );
-}
-
-/**
- * createDeferredResponse is a utility function to create a deferred response
- * handler for testing purposes.
- *
- * This is useful when you want to assert that a loading state is shown,
- * and then the loaded data is displayed after resolving the promise,
- * instead of using a timeout or a fixed delay in the response handler.
- *
- * Example usage:
- *
- * ```ts
- * const deferred = createDeferredResponse({
- *   events: MOCK_EVENTS,
- *   startKey: '',
- * });
- *
- * server.use(http.get(listRecordingsUrl, deferred.handler));
- *
- * setupTest();
- *
- * await waitFor(() => {
- *   expect(screen.getByTestId('indicator')).toBeInTheDocument();
- * });
- *
- * deferred.resolve();
- *
- * await waitFor(() => {
- *   expect(screen.queryByTestId('indicator')).not.toBeInTheDocument();
- * });
- * ```
- */
-export function createDeferredResponse<T extends JsonBodyType>(data: T) {
-  let resolve: () => void;
-
-  const promise = new Promise<void>(r => {
-    resolve = r;
-  });
-
-  return {
-    handler: async () => {
-      await promise;
-
-      return HttpResponse.json(data);
-    },
-    resolve: () => resolve(),
-  };
-}
-
-export const server = setupServer();
-
-/**
- * Registers MSW lifecycle hooks for the current test suite. Call this at the
- * top level of every test file that uses `server.use()`.
- *
- * This is intentionally opt-in rather than global (via setupTests.ts) to
- * avoid the overhead of patching fetch/XHR in the hundreds of test suites
- * that don't use MSW.
- */
-export function enableMswServer() {
-  beforeAll(() => server.listen());
-  afterEach(() => server.resetHandlers());
-  afterAll(() => server.close());
-}
 
 export {
   act,
@@ -183,7 +92,7 @@ export {
   prettyDOM,
   waitFor,
   getByTestId,
-  MemoryRouter as Router,
+  Router,
   userEvent,
   waitForElementToBeRemoved,
   within,

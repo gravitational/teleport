@@ -18,8 +18,6 @@
 // 	protoc        (unknown)
 // source: teleport/userpreferences/v1/userpreferences.proto
 
-//go:build !protoopaque
-
 package userpreferencesv1
 
 import (
@@ -27,6 +25,7 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	reflect "reflect"
+	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -39,7 +38,7 @@ const (
 
 // UserPreferences is a collection of different user changeable preferences for the frontend.
 type UserPreferences struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// theme is the theme of the frontend.
 	Theme Theme `protobuf:"varint,2,opt,name=theme,proto3,enum=teleport.userpreferences.v1.Theme" json:"theme,omitempty"`
 	// onboard is the preferences from the onboarding questionnaire.
@@ -54,12 +53,8 @@ type UserPreferences struct {
 	SideNavDrawerMode SideNavDrawerMode `protobuf:"varint,7,opt,name=side_nav_drawer_mode,json=sideNavDrawerMode,proto3,enum=teleport.userpreferences.v1.SideNavDrawerMode" json:"side_nav_drawer_mode,omitempty"`
 	// discover_resource_preferences are user preferences saved for the discover resource web UI.
 	DiscoverResourcePreferences *DiscoverResourcePreferences `protobuf:"bytes,8,opt,name=discover_resource_preferences,json=discoverResourcePreferences,proto3" json:"discover_resource_preferences,omitempty"`
-	// keyboard_layout is the layout used by the user in Windows Desktop sessions
-	// keyboard layout identifiers can be found here:
-	// https://learn.microsoft.com/en-us/globalization/windows-keyboard-layouts
-	KeyboardLayout uint32 `protobuf:"varint,9,opt,name=keyboard_layout,json=keyboardLayout,proto3" json:"keyboard_layout,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	unknownFields               protoimpl.UnknownFields
+	sizeCache                   protoimpl.SizeCache
 }
 
 func (x *UserPreferences) Reset() {
@@ -85,6 +80,11 @@ func (x *UserPreferences) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UserPreferences.ProtoReflect.Descriptor instead.
+func (*UserPreferences) Descriptor() ([]byte, []int) {
+	return file_teleport_userpreferences_v1_userpreferences_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *UserPreferences) GetTheme() Theme {
@@ -136,141 +136,9 @@ func (x *UserPreferences) GetDiscoverResourcePreferences() *DiscoverResourcePref
 	return nil
 }
 
-func (x *UserPreferences) GetKeyboardLayout() uint32 {
-	if x != nil {
-		return x.KeyboardLayout
-	}
-	return 0
-}
-
-func (x *UserPreferences) SetTheme(v Theme) {
-	x.Theme = v
-}
-
-func (x *UserPreferences) SetOnboard(v *OnboardUserPreferences) {
-	x.Onboard = v
-}
-
-func (x *UserPreferences) SetClusterPreferences(v *ClusterUserPreferences) {
-	x.ClusterPreferences = v
-}
-
-func (x *UserPreferences) SetUnifiedResourcePreferences(v *UnifiedResourcePreferences) {
-	x.UnifiedResourcePreferences = v
-}
-
-func (x *UserPreferences) SetAccessGraph(v *AccessGraphUserPreferences) {
-	x.AccessGraph = v
-}
-
-func (x *UserPreferences) SetSideNavDrawerMode(v SideNavDrawerMode) {
-	x.SideNavDrawerMode = v
-}
-
-func (x *UserPreferences) SetDiscoverResourcePreferences(v *DiscoverResourcePreferences) {
-	x.DiscoverResourcePreferences = v
-}
-
-func (x *UserPreferences) SetKeyboardLayout(v uint32) {
-	x.KeyboardLayout = v
-}
-
-func (x *UserPreferences) HasOnboard() bool {
-	if x == nil {
-		return false
-	}
-	return x.Onboard != nil
-}
-
-func (x *UserPreferences) HasClusterPreferences() bool {
-	if x == nil {
-		return false
-	}
-	return x.ClusterPreferences != nil
-}
-
-func (x *UserPreferences) HasUnifiedResourcePreferences() bool {
-	if x == nil {
-		return false
-	}
-	return x.UnifiedResourcePreferences != nil
-}
-
-func (x *UserPreferences) HasAccessGraph() bool {
-	if x == nil {
-		return false
-	}
-	return x.AccessGraph != nil
-}
-
-func (x *UserPreferences) HasDiscoverResourcePreferences() bool {
-	if x == nil {
-		return false
-	}
-	return x.DiscoverResourcePreferences != nil
-}
-
-func (x *UserPreferences) ClearOnboard() {
-	x.Onboard = nil
-}
-
-func (x *UserPreferences) ClearClusterPreferences() {
-	x.ClusterPreferences = nil
-}
-
-func (x *UserPreferences) ClearUnifiedResourcePreferences() {
-	x.UnifiedResourcePreferences = nil
-}
-
-func (x *UserPreferences) ClearAccessGraph() {
-	x.AccessGraph = nil
-}
-
-func (x *UserPreferences) ClearDiscoverResourcePreferences() {
-	x.DiscoverResourcePreferences = nil
-}
-
-type UserPreferences_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// theme is the theme of the frontend.
-	Theme Theme
-	// onboard is the preferences from the onboarding questionnaire.
-	Onboard *OnboardUserPreferences
-	// cluster_preferences are user preferences saved per cluster.
-	ClusterPreferences *ClusterUserPreferences
-	// unified_resource_preferences are user preferences saved for the Unified Resource web UI
-	UnifiedResourcePreferences *UnifiedResourcePreferences
-	// access_graph is the preferences for Access Graph.
-	AccessGraph *AccessGraphUserPreferences
-	// side_nav_drawer_mode is the sidenav drawer behavior preference in the frontend.
-	SideNavDrawerMode SideNavDrawerMode
-	// discover_resource_preferences are user preferences saved for the discover resource web UI.
-	DiscoverResourcePreferences *DiscoverResourcePreferences
-	// keyboard_layout is the layout used by the user in Windows Desktop sessions
-	// keyboard layout identifiers can be found here:
-	// https://learn.microsoft.com/en-us/globalization/windows-keyboard-layouts
-	KeyboardLayout uint32
-}
-
-func (b0 UserPreferences_builder) Build() *UserPreferences {
-	m0 := &UserPreferences{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Theme = b.Theme
-	x.Onboard = b.Onboard
-	x.ClusterPreferences = b.ClusterPreferences
-	x.UnifiedResourcePreferences = b.UnifiedResourcePreferences
-	x.AccessGraph = b.AccessGraph
-	x.SideNavDrawerMode = b.SideNavDrawerMode
-	x.DiscoverResourcePreferences = b.DiscoverResourcePreferences
-	x.KeyboardLayout = b.KeyboardLayout
-	return m0
-}
-
 // GetUserPreferencesRequest is a request to get the user preferences.
 type GetUserPreferencesRequest struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -300,21 +168,14 @@ func (x *GetUserPreferencesRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-type GetUserPreferencesRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-}
-
-func (b0 GetUserPreferencesRequest_builder) Build() *GetUserPreferencesRequest {
-	m0 := &GetUserPreferencesRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	return m0
+// Deprecated: Use GetUserPreferencesRequest.ProtoReflect.Descriptor instead.
+func (*GetUserPreferencesRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_userpreferences_v1_userpreferences_proto_rawDescGZIP(), []int{1}
 }
 
 // GetUserPreferencesResponse is a response to get the user preferences.
 type GetUserPreferencesResponse struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// preferences is the user preferences.
 	Preferences   *UserPreferences `protobuf:"bytes,1,opt,name=preferences,proto3" json:"preferences,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -346,6 +207,11 @@ func (x *GetUserPreferencesResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use GetUserPreferencesResponse.ProtoReflect.Descriptor instead.
+func (*GetUserPreferencesResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_userpreferences_v1_userpreferences_proto_rawDescGZIP(), []int{2}
+}
+
 func (x *GetUserPreferencesResponse) GetPreferences() *UserPreferences {
 	if x != nil {
 		return x.Preferences
@@ -353,39 +219,9 @@ func (x *GetUserPreferencesResponse) GetPreferences() *UserPreferences {
 	return nil
 }
 
-func (x *GetUserPreferencesResponse) SetPreferences(v *UserPreferences) {
-	x.Preferences = v
-}
-
-func (x *GetUserPreferencesResponse) HasPreferences() bool {
-	if x == nil {
-		return false
-	}
-	return x.Preferences != nil
-}
-
-func (x *GetUserPreferencesResponse) ClearPreferences() {
-	x.Preferences = nil
-}
-
-type GetUserPreferencesResponse_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// preferences is the user preferences.
-	Preferences *UserPreferences
-}
-
-func (b0 GetUserPreferencesResponse_builder) Build() *GetUserPreferencesResponse {
-	m0 := &GetUserPreferencesResponse{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Preferences = b.Preferences
-	return m0
-}
-
 // UpsertUserPreferencesRequest is a request to create or update the user preferences.
 type UpsertUserPreferencesRequest struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// preferences is the new user preferences to set.
 	Preferences   *UserPreferences `protobuf:"bytes,1,opt,name=preferences,proto3" json:"preferences,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -417,6 +253,11 @@ func (x *UpsertUserPreferencesRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use UpsertUserPreferencesRequest.ProtoReflect.Descriptor instead.
+func (*UpsertUserPreferencesRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_userpreferences_v1_userpreferences_proto_rawDescGZIP(), []int{3}
+}
+
 func (x *UpsertUserPreferencesRequest) GetPreferences() *UserPreferences {
 	if x != nil {
 		return x.Preferences
@@ -424,41 +265,11 @@ func (x *UpsertUserPreferencesRequest) GetPreferences() *UserPreferences {
 	return nil
 }
 
-func (x *UpsertUserPreferencesRequest) SetPreferences(v *UserPreferences) {
-	x.Preferences = v
-}
-
-func (x *UpsertUserPreferencesRequest) HasPreferences() bool {
-	if x == nil {
-		return false
-	}
-	return x.Preferences != nil
-}
-
-func (x *UpsertUserPreferencesRequest) ClearPreferences() {
-	x.Preferences = nil
-}
-
-type UpsertUserPreferencesRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// preferences is the new user preferences to set.
-	Preferences *UserPreferences
-}
-
-func (b0 UpsertUserPreferencesRequest_builder) Build() *UpsertUserPreferencesRequest {
-	m0 := &UpsertUserPreferencesRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Preferences = b.Preferences
-	return m0
-}
-
 var File_teleport_userpreferences_v1_userpreferences_proto protoreflect.FileDescriptor
 
 const file_teleport_userpreferences_v1_userpreferences_proto_rawDesc = "" +
 	"\n" +
-	"1teleport/userpreferences/v1/userpreferences.proto\x12\x1bteleport.userpreferences.v1\x1a\x1bgoogle/protobuf/empty.proto\x1a.teleport/userpreferences/v1/access_graph.proto\x1a5teleport/userpreferences/v1/cluster_preferences.proto\x1a?teleport/userpreferences/v1/discover_resource_preferences.proto\x1a)teleport/userpreferences/v1/onboard.proto\x1a5teleport/userpreferences/v1/sidenav_preferences.proto\x1a'teleport/userpreferences/v1/theme.proto\x1a>teleport/userpreferences/v1/unified_resource_preferences.proto\"\xed\x05\n" +
+	"1teleport/userpreferences/v1/userpreferences.proto\x12\x1bteleport.userpreferences.v1\x1a\x1bgoogle/protobuf/empty.proto\x1a.teleport/userpreferences/v1/access_graph.proto\x1a5teleport/userpreferences/v1/cluster_preferences.proto\x1a?teleport/userpreferences/v1/discover_resource_preferences.proto\x1a)teleport/userpreferences/v1/onboard.proto\x1a5teleport/userpreferences/v1/sidenav_preferences.proto\x1a'teleport/userpreferences/v1/theme.proto\x1a>teleport/userpreferences/v1/unified_resource_preferences.proto\"\xc4\x05\n" +
 	"\x0fUserPreferences\x128\n" +
 	"\x05theme\x18\x02 \x01(\x0e2\".teleport.userpreferences.v1.ThemeR\x05theme\x12M\n" +
 	"\aonboard\x18\x03 \x01(\v23.teleport.userpreferences.v1.OnboardUserPreferencesR\aonboard\x12d\n" +
@@ -466,8 +277,7 @@ const file_teleport_userpreferences_v1_userpreferences_proto_rawDesc = "" +
 	"\x1cunified_resource_preferences\x18\x05 \x01(\v27.teleport.userpreferences.v1.UnifiedResourcePreferencesR\x1aunifiedResourcePreferences\x12Z\n" +
 	"\faccess_graph\x18\x06 \x01(\v27.teleport.userpreferences.v1.AccessGraphUserPreferencesR\vaccessGraph\x12_\n" +
 	"\x14side_nav_drawer_mode\x18\a \x01(\x0e2..teleport.userpreferences.v1.SideNavDrawerModeR\x11sideNavDrawerMode\x12|\n" +
-	"\x1ddiscover_resource_preferences\x18\b \x01(\v28.teleport.userpreferences.v1.DiscoverResourcePreferencesR\x1bdiscoverResourcePreferences\x12'\n" +
-	"\x0fkeyboard_layout\x18\t \x01(\rR\x0ekeyboardLayoutJ\x04\b\x01\x10\x02R\x06assist\"+\n" +
+	"\x1ddiscover_resource_preferences\x18\b \x01(\v28.teleport.userpreferences.v1.DiscoverResourcePreferencesR\x1bdiscoverResourcePreferencesJ\x04\b\x01\x10\x02R\x06assist\"+\n" +
 	"\x19GetUserPreferencesRequestJ\x04\b\x01\x10\x02R\busername\"l\n" +
 	"\x1aGetUserPreferencesResponse\x12N\n" +
 	"\vpreferences\x18\x01 \x01(\v2,.teleport.userpreferences.v1.UserPreferencesR\vpreferences\"~\n" +
@@ -476,6 +286,18 @@ const file_teleport_userpreferences_v1_userpreferences_proto_rawDesc = "" +
 	"\x16UserPreferencesService\x12\x85\x01\n" +
 	"\x12GetUserPreferences\x126.teleport.userpreferences.v1.GetUserPreferencesRequest\x1a7.teleport.userpreferences.v1.GetUserPreferencesResponse\x12j\n" +
 	"\x15UpsertUserPreferences\x129.teleport.userpreferences.v1.UpsertUserPreferencesRequest\x1a\x16.google.protobuf.EmptyBYZWgithub.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1;userpreferencesv1b\x06proto3"
+
+var (
+	file_teleport_userpreferences_v1_userpreferences_proto_rawDescOnce sync.Once
+	file_teleport_userpreferences_v1_userpreferences_proto_rawDescData []byte
+)
+
+func file_teleport_userpreferences_v1_userpreferences_proto_rawDescGZIP() []byte {
+	file_teleport_userpreferences_v1_userpreferences_proto_rawDescOnce.Do(func() {
+		file_teleport_userpreferences_v1_userpreferences_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_userpreferences_v1_userpreferences_proto_rawDesc), len(file_teleport_userpreferences_v1_userpreferences_proto_rawDesc)))
+	})
+	return file_teleport_userpreferences_v1_userpreferences_proto_rawDescData
+}
 
 var file_teleport_userpreferences_v1_userpreferences_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_teleport_userpreferences_v1_userpreferences_proto_goTypes = []any{

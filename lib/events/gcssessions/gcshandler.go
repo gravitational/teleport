@@ -19,7 +19,6 @@
 package gcssessions
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -41,7 +40,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/utils/downloadretrier"
 )
 
 var (
@@ -90,8 +88,6 @@ const (
 	kmsKeyName = "keyName"
 	// pathPropertyKey
 	pathPropertyKey = "path"
-	// pendingPrefix is a prefix of the pending summaries path
-	pendingPrefix = "pending"
 )
 
 // Config is handler configuration
@@ -240,84 +236,24 @@ func (h *Handler) Close() error {
 	return h.gcsClient.Close()
 }
 
-// Upload reads the content of a session recording from a reader and uploads it
-// to a GCS bucket. If successful, it returns URL of the uploaded object.
+// Upload uploads object to GCS bucket, reads the contents of the object from reader
+// and returns the target GCS bucket path in case of successful upload.
 func (h *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	path, err := h.uploadFile(ctx, h.recordingPath(sessionID), reader)
-	return path, trace.Wrap(err)
-}
-
-// UploadPendingSummary reads the content of a pending session summary from a
-// reader and uploads it to a GCS bucket. If successful, it returns URL of the
-// uploaded object. This function can be called multiple times for a given
-// sessionID to update the state.
-func (h *Handler) UploadPendingSummary(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	path, err := h.uploadFile(ctx, h.pendingSummaryPath(sessionID), reader, withOverwrite())
-	return path, trace.Wrap(err)
-}
-
-// UploadSummary reads the content of a final version of session summary from a
-// reader and uploads it to a GCS bucket. The pending version, if any, is
-// removed. If successful, it returns URL of the uploaded object. This function
-// can be called only once for a given sessionID; subsequent calls will return
-// an error.
-func (h *Handler) UploadSummary(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	path, err := h.uploadFile(ctx, h.summaryPath(sessionID), reader)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	pendingObj := h.gcsClient.Bucket(h.Config.Bucket).Object(h.pendingSummaryPath(sessionID))
-	err = convertGCSError(pendingObj.Delete(ctx))
-	if err != nil && !trace.IsNotFound(err) {
-		return "", trace.Wrap(err)
-	}
-	return path, nil
-}
-
-// UploadMetadata reads the session metadata from a reader and uploads it to a GCS
-// bucket. If successful, it returns URL of the uploaded object.
-func (h *Handler) UploadMetadata(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	path, err := h.uploadFile(ctx, h.metadataPath(sessionID), reader)
-	return path, trace.Wrap(err)
-}
-
-// UploadThumbnail reads the session thumbnail from a reader and uploads it to a GCS
-// bucket. If successful, it returns URL of the uploaded object.
-func (h *Handler) UploadThumbnail(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	path, err := h.uploadFile(ctx, h.thumbnailPath(sessionID), reader)
-	return path, trace.Wrap(err)
-}
-
-type fileUploadConfig struct {
-	overwrite bool
-}
-
-type fileUploadOption func(*fileUploadConfig)
-
-func withOverwrite() fileUploadOption {
-	return func(cfg *fileUploadConfig) {
-		cfg.overwrite = true
-	}
-}
-
-func (h *Handler) uploadFile(ctx context.Context, path string, reader io.Reader, opts ...fileUploadOption) (string, error) {
-	cfg := fileUploadConfig{}
-	for _, opt := range opts {
-		opt(&cfg)
-	}
-
+	path := h.path(sessionID)
 	h.logger.DebugContext(ctx, "Uploading object to GCS", "path", path)
 
-	obj := h.gcsClient.Bucket(h.Config.Bucket).Object(path)
-	if !cfg.overwrite {
-		// Make sure we don't overwrite an existing recording.
-		obj = obj.If(storage.Conditions{DoesNotExist: true})
+	// Make sure we don't overwrite an existing recording.
+	_, err := h.gcsClient.Bucket(h.Config.Bucket).Object(path).Attrs(ctx)
+	if !errors.Is(err, storage.ErrObjectNotExist) {
+		if err != nil {
+			return "", convertGCSError(err)
+		}
+		return "", trace.AlreadyExists("recording for session %q already exists in GCS", sessionID)
 	}
 
-	writer := obj.NewWriter(ctx)
+	writer := h.gcsClient.Bucket(h.Config.Bucket).Object(path).NewWriter(ctx)
 	start := time.Now()
-	_, err := io.Copy(writer, reader)
+	_, err = io.Copy(writer, reader)
 	// Always close the writer, even if upload failed.
 	closeErr := writer.Close()
 	if err == nil {
@@ -331,120 +267,34 @@ func (h *Handler) uploadFile(ctx context.Context, path string, reader io.Reader,
 	return fmt.Sprintf("%v://%v/%v", teleport.SchemeGCS, h.Bucket, path), nil
 }
 
-// StreamSessionRecording downloads a session recording from a GCS bucket and returns a
-// ReadCloser for the content. Returns trace.NotFound error if the recording
-// is not found.
-func (h *Handler) StreamSessionRecording(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
-	return h.gcsRetrier(ctx, h.recordingPath(sessionID))
-}
-
-// StreamSessionSummary downloads a session summary from a GCS bucket and returns a
-// ReadCloser for the content. Returns trace.NotFound error if the summary is
-// not found.
-func (h *Handler) StreamSessionSummary(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
-	// Happy path: the final summary exists.
-	rc, err := h.gcsRetrier(ctx, h.summaryPath(sessionID))
-	if trace.IsNotFound(err) {
-		// Final summary doesn't exist, try the pending one. We don't retry
-		// here since the pending summary can be overwritten at any time.
-		rc, err = h.gcsStream(ctx, h.pendingSummaryPath(sessionID))
-		if trace.IsNotFound(err) {
-			// One more check for the final summary to prevent a race condition where
-			// the final one got created and the pending one got removed between the
-			// two checks above.
-			rc, err = h.gcsRetrier(ctx, h.summaryPath(sessionID))
-		}
-	}
-	return rc, trace.Wrap(err)
-}
-
-// gcsStream downloads an object in a single shot without retry logic.
-func (h *Handler) gcsStream(ctx context.Context, objectPath string) (io.ReadCloser, error) {
-	h.logger.DebugContext(ctx, "Downloading object from GCS.", "path", objectPath)
-	obj := h.gcsClient.Bucket(h.Config.Bucket).Object(objectPath)
-	reader, err := obj.NewReader(ctx)
+// Download downloads recorded session from GCS bucket and writes the results into writer
+// return trace.NotFound error is object is not found
+func (h *Handler) Download(ctx context.Context, sessionID session.ID, writer io.Writer) error {
+	path := h.path(sessionID)
+	h.logger.DebugContext(ctx, "Downloading object from GCS.", "path", path)
+	reader, err := h.gcsClient.Bucket(h.Config.Bucket).Object(path).NewReader(ctx)
 	if err != nil {
-		return nil, convertGCSError(err)
+		return convertGCSError(err)
 	}
-	return reader, nil
-}
-
-// StreamSessionMetadata downloads a session's metadata from a GCS bucket and
-// returns a ReadCloser for the content. Returns trace.NotFound error if the
-// metadata is not found.
-func (h *Handler) StreamSessionMetadata(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
-	return h.gcsRetrier(ctx, h.metadataPath(sessionID))
-}
-
-// StreamSessionThumbnail downloads a session's thumbnail from a GCS bucket and
-// returns a ReadCloser for the content. Returns trace.NotFound error if the
-// thumbnail is not found.
-func (h *Handler) StreamSessionThumbnail(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
-	return h.gcsRetrier(ctx, h.thumbnailPath(sessionID))
-}
-
-// gcsRetrier checks the object's existence and returns a downloadretrier.Retrier
-// whose DownloadFunc opens a range reader starting at the given offset.
-func (h *Handler) gcsRetrier(ctx context.Context, objectPath string) (io.ReadCloser, error) {
-	h.logger.DebugContext(ctx, "Downloading object from GCS.", "path", objectPath)
-	obj := h.gcsClient.Bucket(h.Config.Bucket).Object(objectPath)
-
-	// Check existence upfront; also detect empty objects which GCS would
-	// return as NotFound in the old implementation.
-	attrs, err := obj.Attrs(ctx)
+	defer reader.Close()
+	start := time.Now()
+	written, err := io.Copy(writer, reader)
 	if err != nil {
-		return nil, convertGCSError(err)
+		return convertGCSError(err)
 	}
-	if attrs.Size == 0 {
-		return io.NopCloser(bytes.NewBuffer(nil)), nil
+	downloadLatencies.Observe(time.Since(start).Seconds())
+	downloadRequests.Inc()
+	if written == 0 {
+		return trace.NotFound("recording for %v is empty", sessionID)
 	}
-	obj = obj.Generation(attrs.Generation)
-	return downloadretrier.New(ctx, attrs.Size, func(ctx context.Context, offset int64) (io.ReadCloser, error) {
-		downloadRequests.Inc()
-		start := time.Now()
-		// NewRangeReader(ctx, offset, -1) reads from offset to the end.
-		reader, err := obj.NewRangeReader(ctx, offset, -1)
-		if err != nil {
-			return nil, convertGCSError(err)
-		}
-		downloadLatencies.Observe(time.Since(start).Seconds())
-		return reader, nil
-	}), nil
+	return nil
 }
 
-func (h *Handler) recordingPath(sessionID session.ID) string {
+func (h *Handler) path(sessionID session.ID) string {
 	if h.Path == "" {
 		return string(sessionID) + ".tar"
 	}
 	return strings.TrimPrefix(path.Join(h.Path, string(sessionID)+".tar"), slash)
-}
-
-func (h *Handler) pendingSummaryPath(sessionID session.ID) string {
-	if h.Path == "" {
-		return path.Join(pendingPrefix, string(sessionID)+".summary.json")
-	}
-	return strings.TrimPrefix(path.Join(h.Path, pendingPrefix, string(sessionID)+".summary.json"), slash)
-}
-
-func (h *Handler) summaryPath(sessionID session.ID) string {
-	if h.Path == "" {
-		return string(sessionID) + ".summary.json"
-	}
-	return strings.TrimPrefix(path.Join(h.Path, string(sessionID)+".summary.json"), slash)
-}
-
-func (h *Handler) metadataPath(sessionID session.ID) string {
-	if h.Path == "" {
-		return string(sessionID) + ".metadata"
-	}
-	return strings.TrimPrefix(path.Join(h.Path, string(sessionID)+".metadata"), slash)
-}
-
-func (h *Handler) thumbnailPath(sessionID session.ID) string {
-	if h.Path == "" {
-		return string(sessionID) + ".thumbnail"
-	}
-	return strings.TrimPrefix(path.Join(h.Path, string(sessionID)+".thumbnail"), slash)
 }
 
 // ensureBucket makes sure bucket exists, and if it does not, creates it

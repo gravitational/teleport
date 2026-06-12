@@ -16,11 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import fs from 'node:fs/promises';
+import { spawn } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 
-import { app, dialog, nativeTheme } from 'electron';
+import { app, dialog, globalShortcut, nativeTheme, shell } from 'electron';
 
 import { CUSTOM_PROTOCOL } from 'shared/deepLinks';
 import { ensureError } from 'shared/utils/error';
@@ -28,18 +28,20 @@ import { ensureError } from 'shared/utils/error';
 import { parseDeepLink } from 'teleterm/deepLinks';
 import Logger from 'teleterm/logger';
 import MainProcess from 'teleterm/mainProcess';
-import { registerNavigationHandlers } from 'teleterm/mainProcess/navigationHandler';
 import {
   registerAppFileProtocol,
   setUpProtocolHandlers,
 } from 'teleterm/mainProcess/protocolHandler';
+import { manageRootClusterProxyHostAllowList } from 'teleterm/mainProcess/rootClusterProxyHostAllowList';
 import { getRuntimeSettings } from 'teleterm/mainProcess/runtimeSettings';
 import { WindowsManager } from 'teleterm/mainProcess/windowsManager';
-import { createConfigService } from 'teleterm/services/config';
-import { createFileStorage, FileStorage } from 'teleterm/services/fileStorage';
+import {
+  createConfigService,
+  runConfigFileMigration,
+} from 'teleterm/services/config';
+import { createFileStorage } from 'teleterm/services/fileStorage';
 import { createFileLoggerService, LoggerColor } from 'teleterm/services/logger';
 import * as types from 'teleterm/types';
-import type { StatePersistenceState } from 'teleterm/ui/services/statePersistence';
 import { assertUnreachable } from 'teleterm/ui/utils';
 
 import { setTray } from './tray';
@@ -84,23 +86,17 @@ if (app.requestSingleInstanceLock()) {
 async function initializeApp(): Promise<void> {
   updateSessionDataPath();
   registerAppFileProtocol();
+  let devRelaunchScheduled = false;
   const settings = await getRuntimeSettings();
   const logger = initMainLogger(settings);
-
-  process.on('uncaughtException', (error, origin) => {
-    logger.error('Uncaught exception', origin, error);
-    showDialogWithError(`Uncaught exception (${origin} origin)`, error);
-    app.exit(1);
-  });
-
   logger.info(`Starting ${app.getName()} version ${app.getVersion()}`);
-
   const {
     appStateFileStorage,
     configFileStorage,
     configJsonSchemaFileStorage,
   } = createFileStorages(settings.userDataDir);
 
+  runConfigFileMigration(configFileStorage);
   const configService = createConfigService({
     configFile: configFileStorage,
     jsonSchemaFile: configJsonSchemaFileStorage,
@@ -113,6 +109,78 @@ async function initializeApp(): Promise<void> {
     settings,
     configService
   );
+
+  process.on('uncaughtException', (error, origin) => {
+    logger.error('Uncaught exception', origin, error);
+    showDialogWithError(`Uncaught exception (${origin} origin)`, error);
+    app.exit(1);
+  });
+
+  let mainProcess: MainProcess;
+  try {
+    mainProcess = MainProcess.create({
+      settings,
+      logger,
+      configService,
+      appStateFileStorage,
+      configFileStorage,
+      windowsManager,
+    });
+  } catch (error) {
+    const message = 'Could not initialize the main process';
+    logger.error(message, error);
+    showDialogWithError(message, error);
+    // app.exit(1) isn't equivalent to throwing an error, use an explicit return to stop further
+    // execution. See https://github.com/gravitational/teleport/issues/56272.
+    app.exit(1);
+    return;
+  }
+
+  //TODO(gzdunek): Make sure this is not needed after migrating to Vite.
+  app.on(
+    'certificate-error',
+    (event, webContents, url, error, certificate, callback) => {
+      // allow certs errors for localhost:8080
+      if (
+        settings.dev &&
+        new URL(url).host === 'localhost:8080' &&
+        error === 'net::ERR_CERT_AUTHORITY_INVALID'
+      ) {
+        event.preventDefault();
+        callback(true);
+      } else {
+        callback(false);
+        console.error(error);
+      }
+    }
+  );
+
+  app.on('will-quit', async event => {
+    event.preventDefault();
+    const disposeMainProcess = async () => {
+      try {
+        await mainProcess.dispose();
+      } catch (e) {
+        logger.error('Failed to gracefully dispose of main process', e);
+      }
+    };
+
+    globalShortcut.unregisterAll();
+    await Promise.all([appStateFileStorage.write(), disposeMainProcess()]); // none of them can throw
+    app.exit();
+  });
+
+  app.on('quit', () => {
+    if (devRelaunchScheduled) {
+      const [bin, ...args] = process.argv;
+      const child = spawn(bin, args, {
+        env: process.env,
+        detached: true,
+        stdio: 'inherit',
+      });
+      child.unref();
+    }
+  });
 
   // On Windows/Linux: Re-launching the app while it's already running
   // triggers 'second-instance' (because of app.requestSingleInstanceLock()).
@@ -136,68 +204,34 @@ async function initializeApp(): Promise<void> {
   // A module-level listener buffers the URL so it's not lost. setUpDeepLinks drains the buffer.
   setUpDeepLinks(logger, windowsManager, settings);
 
-  const tshHome = configService.get('tshHome').value;
-  // Ensure the tsh directory exist.
-  await fs.mkdir(tshHome, {
-    recursive: true,
-  });
+  const rootClusterProxyHostAllowList = new Set<string>();
 
-  // TODO(gzdunek): DELETE IN 20.0.0. Users should already migrate to the new location.
-  // Also remove TshHomeMigrationBanner component, relevant properties from app_state.json,
-  // and address the TODO in teleport-connect.mdx > ##Troubleshooting.
-  await migrateOldTshHomeOnce(
-    logger,
-    tshHome,
-    appStateFileStorage,
-    settings.userDataDir
-  );
+  (async () => {
+    const { terminalService } = await mainProcess.getTshdClients();
 
-  let mainProcess: MainProcess;
-  try {
-    mainProcess = new MainProcess({
-      settings,
+    manageRootClusterProxyHostAllowList({
+      tshdClient: terminalService,
       logger,
-      configService,
-      appStateFileStorage,
-      configFileStorage,
-      windowsManager,
+      allowList: rootClusterProxyHostAllowList,
     });
-  } catch (error) {
-    const message = 'Could not initialize the main process';
+  })().catch(error => {
+    const message = 'Could not initialize the tshd client in the main process';
     logger.error(message, error);
     showDialogWithError(message, error);
-    // app.exit(1) isn't equivalent to throwing an error, use an explicit return to stop further
-    // execution. See https://github.com/gravitational/teleport/issues/56272.
     app.exit(1);
-    return;
-  }
-
-  app.on('will-quit', async event => {
-    event.preventDefault();
-    const disposeMainProcess = async () => {
-      try {
-        await mainProcess.dispose();
-      } catch (e) {
-        logger.error('Failed to gracefully dispose of main process', e);
-      }
-    };
-
-    await Promise.all([appStateFileStorage.write(), disposeMainProcess()]); // none of them can throw
-    app.exit();
-  });
-
-  app.on('web-contents-created', (_, webContents) => {
-    registerNavigationHandlers(
-      webContents,
-      settings,
-      mainProcess.clusterStore,
-      logger
-    );
   });
 
   app
     .whenReady()
     .then(() => {
+      if (mainProcess.settings.dev) {
+        // allow restarts on F6
+        globalShortcut.register('F6', () => {
+          devRelaunchScheduled = true;
+          app.quit();
+        });
+      }
+
       setUpProtocolHandlers(settings.dev);
 
       windowsManager.createWindow();
@@ -212,6 +246,91 @@ async function initializeApp(): Promise<void> {
       showDialogWithError(message, error);
       app.exit(1);
     });
+
+  // Limit navigation capabilities to reduce the attack surface.
+  // See TEL-Q122-19 from "Teleport Core Testing Q1 2022" security audit.
+  //
+  // See also points 12, 13 and 14 from the Electron's security tutorial.
+  // https://github.com/electron/electron/blob/v17.2.0/docs/tutorial/security.md#12-verify-webview-options-before-creation
+  app.on('web-contents-created', (_, contents) => {
+    contents.on('will-navigate', (event, navigationUrl) => {
+      // Allow reloading the renderer app in dev mode.
+      if (settings.dev && new URL(navigationUrl).host === 'localhost:8080') {
+        return;
+      }
+      logger.warn(
+        `Navigation to ${navigationUrl} blocked by 'will-navigate'. Navigating away from the frontend app is not allowed. Does the anchor element have target="_blank" set?`
+      );
+      event.preventDefault();
+    });
+
+    // The usage of webview is blocked by default, but let's include the handler just in case.
+    // https://github.com/electron/electron/blob/v17.2.0/docs/api/webview-tag.md#enabling
+    contents.on('will-attach-webview', (event, _, params) => {
+      logger.warn(
+        `Opening a webview to ${params.src} blocked by 'will-attach-webview'`
+      );
+      event.preventDefault();
+    });
+
+    contents.setWindowOpenHandler(details => {
+      const url = new URL(details.url);
+
+      function isUrlSafe(): boolean {
+        if (url.protocol !== 'https:') {
+          return false;
+        }
+        if (url.host === 'goteleport.com') {
+          return true;
+        }
+        if (
+          url.host === 'github.com' &&
+          url.pathname.startsWith('/gravitational/')
+        ) {
+          return true;
+        }
+
+        // Allow opening links to the Web UIs of root clusters currently added in the app.
+        if (rootClusterProxyHostAllowList.has(url.host)) {
+          return true;
+        }
+
+        // AWS IAM IC apps.
+        // Verify that the host is a direct subdomain of awsapp.com and that it has the expected path.
+        // https://docs.aws.amazon.com/signin/latest/userguide/sign-in-urls-defined.html#access-portal-url
+        // This of course allows an attacker to create an app on awsapps.com and open it from Connect.
+        // TODO(ravicious): Allow tsh to bless arbitrary hosts for opening in the browser.
+        // https://github.com/gravitational/teleport/issues/62808
+        const isAwsIc =
+          url.host.endsWith('.awsapps.com') &&
+          url.host.split('.').length === 3 &&
+          url.pathname === '/start/';
+        // https://docs.aws.amazon.com/govcloud-us/latest/UserGuide/govcloud-sso.html#govcloud-diffs-20
+        const isAwsIcUsGov =
+          url.host === 'start.us-gov-home.awsapps.com' &&
+          url.pathname.startsWith('/directory/');
+        if (isAwsIc || isAwsIcUsGov) {
+          return true;
+        }
+      }
+
+      // Open links to documentation and GitHub issues in the external browser.
+      // They need to have `target` set to `_blank`.
+      if (isUrlSafe()) {
+        shell.openExternal(url.toString());
+      } else {
+        logger.warn(
+          `Opening a new window to ${url} blocked by 'setWindowOpenHandler'`
+        );
+        dialog.showErrorBox(
+          'Cannot open this link',
+          'The domain does not match any of the allowed domains. Check main.log for more details.'
+        );
+      }
+
+      return { action: 'deny' };
+    });
+  });
 }
 
 /**
@@ -387,86 +506,4 @@ function showDialogWithError(title: string, unknownError: unknown) {
   // V8 includes the error message in the stack, so there's no need to append stack to message.
   const content = error.stack || error.message;
   dialog.showErrorBox(title, content);
-}
-
-/**
- * Migrates the old "Teleport Connect/tsh" directory to the new location
- * ("~/.tsh" by default) by copying all files recursively.
- * Any failure in the migration process causes an early exit and marks it as processed.
- * Retrying on the next launch could be harmful, since the user likely already
- * re-added their profiles.
- */
-async function migrateOldTshHomeOnce(
-  logger: Logger,
-  tshHome: string,
-  appStorage: FileStorage,
-  userDataDir: string
-): Promise<void> {
-  const oldTshHome = path.resolve(userDataDir, 'tsh');
-  const tshHomeMigrationKey = 'tshHomeMigration';
-  const tshMigration: TshHomeMigration =
-    appStorage.get()?.[tshHomeMigrationKey];
-  if (tshMigration?.processed) {
-    return;
-  }
-
-  const markMigrationAsProcessed = (opts?: { noOldTshHome?: boolean }) => {
-    const migrationProcessed: TshHomeMigration = { processed: true };
-    // The properties are separated, because `tshHomeMigration` should only
-    // be updated from the main process.
-    // The renderer can only update properties in the `state` key.
-    appStorage.put(tshHomeMigrationKey, migrationProcessed);
-    // Do not promote the shared tsh directory if there was nothing to migrate.
-    if (!opts?.noOldTshHome) {
-      // TODO(gzdunek): We need a better way to manage the app state.
-      const appState = (appStorage.get('state') || {}) as StatePersistenceState;
-      appState.showTshHomeMigrationBanner = true;
-      appStorage.put('state', appState);
-    }
-  };
-
-  // Check if the old directory exists.
-  try {
-    await fs.stat(oldTshHome);
-  } catch (err) {
-    if (err.code === 'ENOENT') {
-      logger.info(
-        'Old tsh directory does not exist, marking migration as processed'
-      );
-      markMigrationAsProcessed({ noOldTshHome: true });
-      return;
-    }
-    logger.error('Failed to read old tsh directory', err);
-    markMigrationAsProcessed();
-    return;
-  }
-
-  // Perform the migration.
-  // The dereference option allows the source and the target to be symlinks.
-  //
-  // It may happen that the user already symlinked the global tsh home to the
-  // Electron's the home.
-  // In that case, the copy will fail with ERR_FS_CP_EINVAL error.
-  try {
-    await fs.cp(oldTshHome, tshHome, {
-      recursive: true,
-      force: true,
-      dereference: true,
-    });
-    logger.info(
-      `Successfully copied tsh home directory from ${oldTshHome} to ${tshHome}`
-    );
-  } catch (err) {
-    logger.error('Failed to copy tsh directory', err);
-  } finally {
-    markMigrationAsProcessed();
-  }
-}
-
-interface TshHomeMigration {
-  /**
-   * Indicates whether the old `tsh` directory has been migrated to the new location.
-   * `true` means the migration was attempted (successfully or not) and should not be retried.
-   */
-  processed?: boolean;
 }

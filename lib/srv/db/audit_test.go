@@ -35,10 +35,9 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
-	clickhouse "github.com/gravitational/teleport/lib/srv/db/clickhouse/protocoltest"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
-	redis "github.com/gravitational/teleport/lib/srv/db/redis/protocoltest"
+	"github.com/gravitational/teleport/lib/srv/db/redis"
 )
 
 // TestAuditPostgres verifies proper audit events are emitted for Postgres
@@ -336,11 +335,12 @@ func TestAuditClickHouseHTTP(t *testing.T) {
 		})
 
 		requireEvent(t, testCtx, libevents.DatabaseSessionStartCode)
+		// Select timezone.
 		event := waitForEvent(t, testCtx, libevents.DatabaseSessionQueryCode)
-		assertDatabaseQueryFromAuditEvent(t, event, clickhouse.HelloQuery)
+		assertDatabaseQueryFromAuditEvent(t, event, "SELECT timezone()")
 
 		event = waitForEvent(t, testCtx, libevents.DatabaseSessionQueryCode)
-		assertDatabaseQueryFromAuditEvent(t, event, clickhouse.PingQuery)
+		assertDatabaseQueryFromAuditEvent(t, event, "SELECT 1")
 
 		require.NoError(t, conn.Close())
 		requireEvent(t, testCtx, libevents.DatabaseSessionEndCode)

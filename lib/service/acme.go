@@ -34,8 +34,10 @@ import (
 type hostPolicyCheckerConfig struct {
 	// publicAddrs is a list of pubic addresses to support acme for
 	publicAddrs []utils.NetAddr
-	// clusterGetter is used to retrieve connected Teleport clusters.
-	clusterGetter reversetunnelclient.ClusterGetter
+	// clt is used to get the list of registered applications
+	clt app.Getter
+	// tun is a reverse tunnel
+	tun reversetunnelclient.Tunnel
 	// clusterName is a name of this cluster
 	clusterName string
 }
@@ -58,7 +60,7 @@ func (h *hostPolicyChecker) checkHost(ctx context.Context, host string) error {
 		return nil
 	}
 
-	_, _, err := app.ResolveFQDN(ctx, h.cfg.clusterGetter, h.cfg.clusterName, h.dnsNames, host)
+	_, _, err := app.ResolveFQDN(ctx, h.cfg.clt, h.cfg.tun, h.dnsNames, host)
 	if err == nil {
 		return nil
 	}
@@ -85,8 +87,12 @@ func newHostPolicyChecker(cfg hostPolicyCheckerConfig) (*hostPolicyChecker, erro
 }
 
 func (h *hostPolicyCheckerConfig) CheckAndSetDefaults() ([]string, error) {
-	if h.clusterGetter == nil {
-		return nil, trace.BadParameter("missing parameter clusterGetter")
+	if h.clt == nil {
+		return nil, trace.BadParameter("missing parameter clt")
+	}
+
+	if h.tun == nil {
+		return nil, trace.BadParameter("missing parameter tun")
 	}
 
 	dnsNames := make([]string, 0, len(h.publicAddrs))

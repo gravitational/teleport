@@ -18,59 +18,50 @@
 
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { addHours, subHours } from 'date-fns';
+import { useEffect } from 'react';
 
 import { render } from 'design/utils/testing';
-import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 
-import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 import {
   makeAccessRequest,
-  makeLoggedInUser,
   makeRootCluster,
 } from 'teleterm/services/tshd/testHelpers';
 import { SelectorMenu } from 'teleterm/ui/AccessRequests/SelectorMenu';
-import { ResourcesContextProvider } from 'teleterm/ui/DocumentCluster/resourcesContext';
+import {
+  ResourcesContextProvider,
+  useResourcesContext,
+} from 'teleterm/ui/DocumentCluster/resourcesContext';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { MockWorkspaceContextProvider } from 'teleterm/ui/fixtures/MockWorkspaceContextProvider';
+import { RootClusterUri } from 'teleterm/ui/uri';
 
 import { AccessRequestsContextProvider } from './AccessRequestsContext';
 
-test('assuming or dropping a request calls API', async () => {
-  const user = userEvent.setup();
+test('assuming or dropping a request refreshes resources', async () => {
   const appContext = new MockAppContext();
-  const accessRequest = makeAccessRequest();
   const cluster = makeRootCluster({
     features: { advancedAccessWorkflows: true, isUsageBasedBilling: false },
   });
   appContext.addRootCluster(cluster);
   jest.spyOn(appContext.clustersService, 'dropRoles');
-  jest
-    .spyOn(appContext.clustersService, 'assumeRoles')
-    .mockImplementation(async () => {
-      appContext.clustersService.setState(state => {
-        state.clusters.get(cluster.uri).loggedInUser.activeRequests = [
-          accessRequest.id,
-        ];
-      });
-    });
-  appContext.tshd.getAccessRequests = () => {
-    return new MockedUnaryCall({
-      requests: [accessRequest],
-    });
-  };
-  appContext.tshd.getAccessRequest = () => {
-    return new MockedUnaryCall({
-      request: accessRequest,
-    });
-  };
+  const refreshListener = jest.fn();
+  const accessRequest = makeAccessRequest();
+  appContext.clustersService.setState(draftState => {
+    draftState.clusters.get(cluster.uri).loggedInUser.assumedRequests = {
+      [accessRequest.id]: accessRequest,
+    };
+  });
 
   render(
     <MockAppContextProvider appContext={appContext}>
       <ResourcesContextProvider>
         <MockWorkspaceContextProvider rootClusterUri={cluster.uri}>
           <AccessRequestsContextProvider rootClusterUri={cluster.uri}>
+            <RequestRefreshSubscriber
+              rootClusterUri={cluster.uri}
+              onResourcesRefreshRequest={refreshListener}
+            />
             <SelectorMenu />
           </AccessRequestsContextProvider>
         </MockWorkspaceContextProvider>
@@ -79,136 +70,28 @@ test('assuming or dropping a request calls API', async () => {
   );
 
   const accessRequestsMenu = await screen.findByTitle('Access Requests');
-  await user.click(accessRequestsMenu);
+  await userEvent.click(accessRequestsMenu);
 
   const item = await screen.findByText(accessRequest.resources.at(0).id.name);
-  await user.click(item);
-  expect(appContext.clustersService.assumeRoles).toHaveBeenCalledTimes(1);
-  expect(appContext.clustersService.assumeRoles).toHaveBeenCalledWith(
-    cluster.uri,
-    [accessRequest.id]
-  );
-  expect(await screen.findByText(/access assumed/i)).toBeInTheDocument();
-  await user.click(item);
+  await userEvent.click(item);
   expect(appContext.clustersService.dropRoles).toHaveBeenCalledTimes(1);
   expect(appContext.clustersService.dropRoles).toHaveBeenCalledWith(
     cluster.uri,
     [accessRequest.id]
   );
+  expect(refreshListener).toHaveBeenCalledTimes(1);
 });
 
-test('assumed request are always visible, even if getAccessRequests no longer returns them', async () => {
-  const user = userEvent.setup();
-  const requestA = makeAccessRequest({
-    id: '67bea2b6-9390-43a5-af47-c391561dbfba',
-    resources: [],
-    roles: ['access-a'],
-  });
-  const requestB = makeAccessRequest({
-    id: '34488748-0c91-463e-ac93-a5dd21eeec8a',
-    resources: [],
-    roles: ['access-b'],
-  });
-  const appContext = new MockAppContext();
-  const cluster = makeRootCluster({
-    features: { advancedAccessWorkflows: true, isUsageBasedBilling: false },
-    loggedInUser: makeLoggedInUser({
-      activeRequests: [requestB.id, 'request-with-details-not-available'],
-    }),
-  });
-  appContext.addRootCluster(cluster);
-
-  appContext.tshd.getAccessRequests = () => {
-    return new MockedUnaryCall({ requests: [requestA] });
-  };
-  appContext.tshd.getAccessRequest = ({ accessRequestId }) => {
-    if (accessRequestId !== requestB.id) {
-      throw new Error(`Request ${accessRequestId} not found`);
-    }
-    return new MockedUnaryCall({ request: requestB });
-  };
-
-  render(
-    <MockAppContextProvider appContext={appContext}>
-      <ResourcesContextProvider>
-        <MockWorkspaceContextProvider rootClusterUri={cluster.uri}>
-          <AccessRequestsContextProvider rootClusterUri={cluster.uri}>
-            <SelectorMenu />
-          </AccessRequestsContextProvider>
-        </MockWorkspaceContextProvider>
-      </ResourcesContextProvider>
-    </MockAppContextProvider>
+function RequestRefreshSubscriber(props: {
+  rootClusterUri: RootClusterUri;
+  onResourcesRefreshRequest: () => void;
+}) {
+  const { onResourcesRefreshRequest } = useResourcesContext(
+    props.rootClusterUri
   );
+  useEffect(() => {
+    onResourcesRefreshRequest(props.onResourcesRefreshRequest);
+  }, [onResourcesRefreshRequest, props.onResourcesRefreshRequest]);
 
-  const accessRequestsMenu = await screen.findByTitle('Access Requests');
-  await user.click(accessRequestsMenu);
-
-  // Even though getAccessRequests only returned requestA, the UI always displays the assumed requests:
-  // - requestB, which details exists in the useAssumedRequests cache
-  // - request-with-details-not-available, which is shown using only its ID (details missing)
-  expect(await screen.findByText('access-a')).toBeInTheDocument();
-  expect(await screen.findByText('access-b')).toBeInTheDocument();
-  expect(
-    await screen.findByText('request-with-details-not-available')
-  ).toBeInTheDocument();
-});
-
-test('after assuming a request and waiting for it to expire, the menu says the request has expired', async () => {
-  const user = userEvent.setup();
-  const appContext = new MockAppContext();
-  const now = new Date();
-  const futureExpires = Timestamp.fromDate(addHours(now, 4));
-  const pastExpires = Timestamp.fromDate(subHours(now, 5));
-  const accessRequest = makeAccessRequest({
-    resources: [],
-    roles: ['allow-users-with-short-ttl'],
-    expires: futureExpires,
-  });
-  const cluster = makeRootCluster({
-    features: { advancedAccessWorkflows: true, isUsageBasedBilling: false },
-  });
-  appContext.addRootCluster(cluster);
-  jest
-    .spyOn(appContext.clustersService, 'assumeRoles')
-    .mockImplementation(async () => {
-      appContext.clustersService.setState(state => {
-        state.clusters.get(cluster.uri).loggedInUser.activeRequests = [
-          accessRequest.id,
-        ];
-      });
-    });
-  appContext.tshd.getAccessRequests = () =>
-    new MockedUnaryCall({ requests: [accessRequest] });
-  appContext.tshd.getAccessRequest = () =>
-    new MockedUnaryCall({ request: accessRequest });
-
-  render(
-    <MockAppContextProvider appContext={appContext}>
-      <ResourcesContextProvider>
-        <MockWorkspaceContextProvider rootClusterUri={cluster.uri}>
-          <AccessRequestsContextProvider rootClusterUri={cluster.uri}>
-            <SelectorMenu />
-          </AccessRequestsContextProvider>
-        </MockWorkspaceContextProvider>
-      </ResourcesContextProvider>
-    </MockAppContextProvider>
-  );
-
-  // Open the menu and assume the request.
-  await user.click(await screen.findByTitle('Access Requests'));
-  await user.click(await screen.findByText('allow-users-with-short-ttl'));
-  expect(
-    await screen.findByText(/access assumed · expires in/i)
-  ).toBeInTheDocument();
-
-  // Simulate the request expiring by updating the mock to return a past expiry.
-  accessRequest.expires = pastExpires;
-
-  // Close and re-open the menu to trigger a refetch.
-  await user.click(await screen.findByTitle('Access Requests'));
-  await user.click(await screen.findByTitle('Access Requests'));
-
-  expect(
-    await screen.findByText('Access assumed · Expired')
-  ).toBeInTheDocument();
-});
+  return null;
+}

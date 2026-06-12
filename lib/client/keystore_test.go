@@ -73,6 +73,7 @@ func TestKeyStore(t *testing.T) {
 		"software key": softKeyRing,
 		"hardware key": hardKeyRing,
 	} {
+		keyRing := keyRing
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
@@ -132,58 +133,6 @@ func TestKeyStore(t *testing.T) {
 	}
 }
 
-func TestKeyStore_accessGraphCert(t *testing.T) {
-	t.Parallel()
-	a := newTestAuthority(t)
-
-	t.Run("round trip", func(t *testing.T) {
-		t.Parallel()
-		testEachKeyStore(t, func(t *testing.T, keyStore KeyStore) {
-			idx := KeyRingIndex{"host.a", "bob", "root"}
-			keyRing := a.makeSignedKeyRing(t, idx, false)
-			keyRing.AccessGraphTLSCert = a.signAccessGraphCert(t, keyRing, false)
-			require.NotEqual(t, keyRing.TLSCert, keyRing.AccessGraphTLSCert,
-				"AccessGraph cert must be distinct from the main TLS cert for this test to be meaningful")
-
-			require.NoError(t, keyStore.AddKeyRing(keyRing))
-
-			retrieved, err := keyStore.GetKeyRing(idx, nil /*hwks*/, WithAllCerts...)
-			require.NoError(t, err)
-			keyRing.TrustedCerts = nil
-			assertEqualKeyRings(t, keyRing, retrieved)
-		})
-	})
-
-	t.Run("fs delete removes cert file when present", func(t *testing.T) {
-		t.Parallel()
-		keyStore := newTestFSKeyStore(t)
-		idx := KeyRingIndex{"host.a", "bob", "root"}
-		keyRing := a.makeSignedKeyRing(t, idx, false)
-		keyRing.AccessGraphTLSCert = a.signAccessGraphCert(t, keyRing, false)
-		require.NoError(t, keyStore.AddKeyRing(keyRing))
-
-		certPath := keyStore.accessGraphTLSCertPath(idx)
-		require.FileExists(t, certPath)
-
-		require.NoError(t, keyStore.DeleteKeyRing(idx))
-		_, err := os.Stat(certPath)
-		require.ErrorIs(t, err, os.ErrNotExist)
-	})
-
-	t.Run("fs delete succeeds when cert absent", func(t *testing.T) {
-		t.Parallel()
-		keyStore := newTestFSKeyStore(t)
-		idx := KeyRingIndex{"host.a", "bob", "root"}
-		// AddKeyRing without setting AccessGraphTLSCert → file is never created.
-		require.NoError(t, keyStore.AddKeyRing(a.makeSignedKeyRing(t, idx, false)))
-
-		_, err := os.Stat(keyStore.accessGraphTLSCertPath(idx))
-		require.ErrorIs(t, err, os.ErrNotExist)
-
-		require.NoError(t, keyStore.DeleteKeyRing(idx))
-	})
-}
-
 func TestListKeys(t *testing.T) {
 	t.Parallel()
 	auth := newTestAuthority(t)
@@ -194,7 +143,7 @@ func TestListKeys(t *testing.T) {
 
 		// add 5 keys for "bob"
 		keys := make([]KeyRing, keyNum)
-		for i := range keyNum {
+		for i := 0; i < keyNum; i++ {
 			idx := KeyRingIndex{fmt.Sprintf("host-%v", i), "bob", "root"}
 			keyRing := auth.makeSignedKeyRing(t, idx, false)
 			require.NoError(t, keyStore.AddKeyRing(keyRing))
@@ -206,7 +155,7 @@ func TestListKeys(t *testing.T) {
 		require.NoError(t, keyStore.AddKeyRing(samKeyRing))
 
 		// read all bob keys:
-		for i := range keyNum {
+		for i := 0; i < keyNum; i++ {
 			keyRing, err := keyStore.GetKeyRing(keys[i].KeyRingIndex, nil /*hwks*/, WithSSHCerts{}, WithDBCerts{})
 			require.NoError(t, err)
 			keyRing.TrustedCerts = keys[i].TrustedCerts
@@ -235,7 +184,7 @@ func TestGetCertificates(t *testing.T) {
 		certs := make([]*ssh.Certificate, keyNum)
 		var proxy = "proxy.example.com"
 		var user = "bob"
-		for i := range keyNum {
+		for i := 0; i < keyNum; i++ {
 			idx := KeyRingIndex{proxy, user, fmt.Sprintf("cluster-%v", i)}
 			keyRing := auth.makeSignedKeyRing(t, idx, false)
 			err := keyStore.AddKeyRing(keyRing)

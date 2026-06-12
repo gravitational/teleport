@@ -33,22 +33,11 @@ import { ValidationResult } from 'shared/components/Validation/rules';
 import { StandardModelDispatcher } from './useStandardModel';
 
 /** Properties of a section that uses plain callbacks to change the model. */
-export type SectionProps<Model, ValidationResult, VisibleInputFields> = {
+export type SectionProps<Model, ValidationResult> = {
   value: Model;
   isProcessing: boolean;
   validation?: ValidationResult;
   onChange(value: Model): void;
-  /**
-   * If true, input fields are not editable, control buttons
-   * (e.g. trash, add/delete) are hidden, and input validations
-   * are disabled.
-   */
-  readOnly?: boolean;
-  /**
-   * Defaults to showing all fields.
-   * When specified, only fields with `true` value are shown.
-   */
-  visibleInputFields?: VisibleInputFields;
 };
 
 /** Properties of a section that uses a dispatcher to change the model. */
@@ -94,7 +83,6 @@ export const SectionBox = ({
   removable,
   isProcessing = false,
   validation,
-  onExpand,
   onRemove,
   initiallyCollapsed = false,
 }: React.PropsWithChildren<{
@@ -103,7 +91,6 @@ export const SectionBox = ({
   removable?: boolean;
   isProcessing?: boolean;
   validation?: ValidationResult;
-  onExpand?(): void;
   onRemove?(): void;
   initiallyCollapsed?: boolean;
 }>) => {
@@ -142,8 +129,6 @@ export const SectionBox = ({
         ? ExpansionState.Collapsing
         : ExpansionState.Measuring
     );
-
-    onExpand?.();
   };
 
   // Triggered when the collapse animation is finished and we can finally make

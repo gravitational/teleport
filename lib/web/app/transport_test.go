@@ -49,7 +49,6 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func Test_transport_rewriteRedirect(t *testing.T) {
@@ -86,14 +85,14 @@ func Test_transport_rewriteRedirect(t *testing.T) {
 			identity:    identity,
 			servers:     []types.AppServer{server},
 
-			cipherSuites:  utils.DefaultCipherSuites(),
-			clusterGetter: &mockClusterGetter{},
+			cipherSuites: utils.DefaultCipherSuites(),
+			proxyClient:  &mockProxyClient{},
 			accessPoint: &mockAuthClient{
 				caKey:       caKey,
 				caCert:      caCert,
 				clusterName: clusterName,
 			},
-			ws:                    createAppSession(t, clock, caKey, caCert, clusterName, clusterName, "testapp"),
+			ws:                    createAppSession(t, clock, caKey, caCert, clusterName, clusterName),
 			integrationAppHandler: &mockIntegrationAppHandler{},
 		}
 	}
@@ -219,20 +218,20 @@ func Test_transport_rewriteRedirect(t *testing.T) {
 }
 
 type fakeTunnel struct {
-	reversetunnelclient.ClusterGetter
+	reversetunnelclient.Tunnel
 
-	fakeCluster *reversetunnelclient.FakeCluster
-	err         error
+	fakeSite *reversetunnelclient.FakeRemoteSite
+	err      error
 }
 
-func (f fakeTunnel) Cluster(context.Context, string) (reversetunnelclient.Cluster, error) {
-	return f.fakeCluster, f.err
+func (f fakeTunnel) GetSite(domainName string) (reversetunnelclient.RemoteSite, error) {
+	return f.fakeSite, f.err
 }
 
 func TestTransport_DialContextNoServersAvailable(t *testing.T) {
 	tp := transport{
 		c: &transportConfig{
-			clusterGetter: fakeTunnel{
+			proxyClient: fakeTunnel{
 				err: trace.ConnectionProblem(errors.New(reversetunnelclient.NoApplicationTunnel), ""),
 			},
 			identity: &tlsca.Identity{},
@@ -241,7 +240,7 @@ func TestTransport_DialContextNoServersAvailable(t *testing.T) {
 				&types.AppServerV3{Spec: types.AppServerSpecV3{App: &types.AppV3{}}},
 				&types.AppServerV3{Spec: types.AppServerSpecV3{App: &types.AppV3{}}},
 			},
-			log: logtest.NewLogger(),
+			log: utils.NewLoggerForTests(),
 		},
 	}
 
@@ -254,7 +253,7 @@ func TestTransport_DialContextNoServersAvailable(t *testing.T) {
 	count := len(tp.c.servers) + 1
 	resC := make(chan dialRes, count)
 
-	for range count {
+	for i := 0; i < count; i++ {
 		go func() {
 			conn, err := tp.DialContext(ctx, "", "")
 			resC <- dialRes{
@@ -264,7 +263,7 @@ func TestTransport_DialContextNoServersAvailable(t *testing.T) {
 		}()
 	}
 
-	for range count {
+	for i := 0; i < count; i++ {
 		res := <-resC
 		require.Error(t, res.err)
 		require.Nil(t, res.conn)
@@ -296,7 +295,7 @@ func Test_transport_rewriteRequest(t *testing.T) {
 
 	clock := clockwork.NewFakeClock()
 
-	appSession := createAppSession(t, clock, caKey, caCert, rootCluster, rootCluster, "testapp")
+	appSession := createAppSession(t, clock, caKey, caCert, rootCluster, rootCluster)
 	tr, err := newTransport(&transportConfig{
 		clock:       clock,
 		clusterName: rootCluster,
@@ -306,9 +305,9 @@ func Test_transport_rewriteRequest(t *testing.T) {
 				AzureIdentity: "azure-identity",
 			},
 		},
-		servers:       []types.AppServer{azureAppServer},
-		cipherSuites:  utils.DefaultCipherSuites(),
-		clusterGetter: &mockClusterGetter{},
+		servers:      []types.AppServer{azureAppServer},
+		cipherSuites: utils.DefaultCipherSuites(),
+		proxyClient:  &mockProxyClient{},
 		accessPoint: &mockAuthClient{
 			caKey:       caKey,
 			caCert:      caCert,
@@ -349,7 +348,7 @@ func Test_transport_rewriteRequest(t *testing.T) {
 			Resource: "root",
 		}
 
-		clientKey, clientCertPEM := createAppKeyCertPair(t, clock, caKey, caCert, rootCluster, rootCluster, "testapp")
+		clientKey, clientCertPEM := createAppKeyCertPair(t, clock, caKey, caCert, rootCluster, rootCluster)
 		b, _ := pem.Decode(clientCertPEM)
 		clientCert, err := x509.ParseCertificate(b.Bytes)
 		require.NoError(t, err)
@@ -472,7 +471,7 @@ func Test_transport_with_integration(t *testing.T) {
 
 	integrationAppHandler := &mockIntegrationAppHandler{}
 
-	appSession := createAppSession(t, clock, caKey, caCert, rootCluster, rootCluster, "testapp")
+	appSession := createAppSession(t, clock, caKey, caCert, rootCluster, rootCluster)
 	tr, err := newTransport(&transportConfig{
 		clock:       clock,
 		clusterName: rootCluster,
@@ -482,9 +481,9 @@ func Test_transport_with_integration(t *testing.T) {
 				AWSRoleARN:  "MyAWSRole",
 			},
 		},
-		servers:       []types.AppServer{awsAppServer},
-		cipherSuites:  utils.DefaultCipherSuites(),
-		clusterGetter: &mockClusterGetter{},
+		servers:      []types.AppServer{awsAppServer},
+		cipherSuites: utils.DefaultCipherSuites(),
+		proxyClient:  &mockProxyClient{},
 		accessPoint: &mockAuthClient{
 			caKey:       caKey,
 			caCert:      caCert,
@@ -521,60 +520,4 @@ func Test_transport_with_integration(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, message, string(bs))
-}
-
-func Test_isAppServerDialable(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name    string // description of this test case
-		dialErr error
-		match   bool
-		app     func() types.AppServer
-	}{
-		{
-			name:  "WithHealthyApp",
-			match: true,
-			app:   mustNewAppServer(t, types.OriginDynamic),
-		},
-		{
-			name:    "WithUnhealthyApp",
-			dialErr: errors.New("failed to connect"),
-			match:   false,
-			app:     mustNewAppServer(t, types.OriginDynamic),
-		},
-		{
-			name:    "WithUnhealthyOktaApp",
-			dialErr: errors.New("failed to connect"),
-			match:   true,
-			app:     mustNewAppServer(t, types.OriginOkta),
-		},
-		{
-			name:    "WithIntegrationApp",
-			dialErr: errors.New("failed to connect"),
-			match:   true,
-			app: func() types.AppServer {
-				appServer := mustNewAppServer(t, types.OriginDynamic)()
-				app := appServer.GetApp().Copy()
-				app.Spec.Integration = "my-integration"
-				appServer.SetApp(app)
-
-				return appServer
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ctx := t.Context()
-			clusterGetter := &mockClusterGetter{
-				cluster: &mockCluster{
-					dialErr: tt.dialErr,
-				},
-			}
-
-			clusterClient, _ := clusterGetter.Cluster(ctx, "")
-			got := isAppServerDialable(ctx, clusterClient, tt.app())
-			require.Equal(t, tt.match, got, tt.app())
-		})
-	}
 }

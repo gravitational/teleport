@@ -18,11 +18,7 @@
 
 package local
 
-import (
-	"time"
-
-	"github.com/gravitational/teleport/api/types"
-)
+import "time"
 
 // SessionDataLimiter exports sdLimiter for tests.
 var SessionDataLimiter = sdLimiter
@@ -41,11 +37,3 @@ const (
 	UsersPrefix  = usersPrefix
 	ParamsPrefix = paramsPrefix
 )
-
-func ValidateOracleJoinToken(token types.ProvisionToken) error {
-	return validateOracleJoinToken(token)
-}
-
-func ValidateProvisionToken(token types.ProvisionToken) error {
-	return validateProvisionToken(token)
-}

@@ -1,5 +1,5 @@
 resource "teleport_role" "test" {
-  version = "v8"
+  version = "v7"
   metadata = {
     name = "test"
   }

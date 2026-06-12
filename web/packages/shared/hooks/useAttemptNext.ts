@@ -22,11 +22,7 @@ import Logger from 'shared/libs/logger';
 
 const logger = Logger.create('shared/hooks/useAttempt');
 
-/**
- * @deprecated Use TanStack Query (useQuery/useMutation) instead. See RFD 197.
- *
- * This was the next version of the existing useAttempt hook.
- */
+// This is the next version of existing useAttempt hook
 export default function useAttemptNext(status = '' as Attempt['status']) {
   const [attempt, setAttempt] = useState<Attempt>(() => ({
     status,

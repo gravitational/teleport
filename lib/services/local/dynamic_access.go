@@ -20,11 +20,11 @@ package local
 
 import (
 	"context"
-	"log/slog"
 	"slices"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -38,14 +38,14 @@ import (
 // DynamicAccessService manages dynamic RBAC
 type DynamicAccessService struct {
 	backend.Backend
-	logger *slog.Logger
+	log *logrus.Entry
 }
 
 // NewDynamicAccessService returns new dynamic access service instance
 func NewDynamicAccessService(backend backend.Backend) *DynamicAccessService {
 	return &DynamicAccessService{
 		Backend: backend,
-		logger:  slog.With(teleport.ComponentKey, "DynamicAccess"),
+		log:     logrus.WithFields(logrus.Fields{teleport.ComponentKey: "DynamicAccess"}),
 	}
 }
 
@@ -65,9 +65,6 @@ func (s *DynamicAccessService) CreateAccessRequestV2(ctx context.Context, req ty
 	}
 	if req.GetDryRun() {
 		return nil, trace.BadParameter("dry run access request made it to DynamicAccessService, this is a bug")
-	}
-	if req.GetLongTermResourceGrouping() != nil {
-		return nil, trace.BadParameter("long term resource grouping should not be persisted, this is a bug")
 	}
 	item, err := itemFromAccessRequest(req)
 	if err != nil {
@@ -93,9 +90,10 @@ func (s *DynamicAccessService) SetAccessRequestState(ctx context.Context, params
 		return nil, trace.Wrap(err)
 	}
 	// Setting state is attempted multiple times in the event of concurrent writes.
-	// The reason we bother to re-attempt is that state updates aren't meant
-	// to be "first come, first served". Approved, denied, and promoted states are terminal.
-	for range maxCmpAttempts {
+	// The reason we bother to re-attempt is because state updates aren't meant
+	// to be "first come first serve".  Denials should overwrite approvals, but
+	// approvals should not overwrite denials.
+	for i := 0; i < maxCmpAttempts; i++ {
 		item, err := s.Get(ctx, accessRequestKey(params.RequestID))
 		if err != nil {
 			if trace.IsNotFound(err) {
@@ -107,15 +105,9 @@ func (s *DynamicAccessService) SetAccessRequestState(ctx context.Context, params
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
-		if req.GetState() == params.State && req.GetState().IsResolved() {
-			return nil, trace.BadParameter("cannot update access request in state %q", req.GetState().String())
-		}
-
 		if err := req.SetState(params.State); err != nil {
 			return nil, trace.Wrap(err)
 		}
-
 		req.SetResolveReason(params.Reason)
 		req.SetResolveAnnotations(params.Annotations)
 		if len(params.Roles) > 0 {
@@ -173,7 +165,7 @@ func (s *DynamicAccessService) ApplyAccessReview(ctx context.Context, params typ
 		return nil, trace.Wrap(err)
 	}
 	// Review application is attempted multiple times in the event of concurrent writes.
-	for range maxCmpAttempts {
+	for i := 0; i < maxCmpAttempts; i++ {
 		item, err := s.Get(ctx, accessRequestKey(params.RequestID))
 		if err != nil {
 			if trace.IsNotFound(err) {
@@ -363,39 +355,43 @@ func (s *DynamicAccessService) collectPage(ctx context.Context, limit int, start
 	endKey := backend.RangeEnd(backend.ExactKey(accessRequestsPrefix))
 
 	var res []*types.AccessRequestV3
-	for item, err := range s.Backend.Items(ctx, backend.ItemsParams{
-		StartKey: startKey,
-		EndKey:   endKey,
-	}) {
-		if err != nil {
-			return nil, "", trace.Wrap(err)
+	if err := backend.IterateRange(ctx, s.Backend, startKey, endKey, limit+1, func(items []backend.Item) (stop bool, err error) {
+		for _, item := range items {
+			if len(res) > limit {
+				return true, nil
+			}
+
+			if !item.Key.HasSuffix(backend.NewKey(paramsPrefix)) {
+				// Item represents a different resource type in the
+				// same namespace.
+				continue
+			}
+
+			accessRequest, err := itemToAccessRequest(item)
+			if err != nil {
+				s.log.Warnf("Failed to unmarshal access request at %q: %v", item.Key, err)
+				continue
+			}
+
+			if !filter(accessRequest) {
+				continue
+			}
+
+			res = append(res, accessRequest)
 		}
 
-		if !item.Key.HasSuffix(backend.NewKey(paramsPrefix)) {
-			// Item represents a different resource type in the
-			// same namespace.
-			continue
-		}
-
-		accessRequest, err := itemToAccessRequest(item)
-		if err != nil {
-			s.logger.WarnContext(ctx, "Failed to unmarshal access request",
-				"key", item.Key,
-				"error", err,
-			)
-			continue
-		}
-
-		if !filter(accessRequest) {
-			continue
-		}
-
-		if len(res) >= limit {
-			return res, accessRequest.GetName(), nil
-		}
-		res = append(res, accessRequest)
+		return len(res) > limit, nil
+	}); err != nil {
+		return nil, "", trace.Wrap(err)
 	}
-	return res, "", nil
+
+	var nextToken string
+	if len(res) > limit {
+		nextToken = res[limit].GetName()
+		res = res[:limit]
+	}
+
+	return res, nextToken, nil
 }
 
 // DeleteAccessRequest deletes an access request.

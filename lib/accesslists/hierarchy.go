@@ -19,7 +19,6 @@
 package accesslists
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"maps"
@@ -33,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/trait"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // RelationshipKind represents the type of relationship: member or owner.
@@ -47,15 +47,6 @@ const (
 type AccessListAndMembersGetter interface {
 	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
 	GetAccessList(ctx context.Context, accessListName string) (*accesslist.AccessList, error)
-	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
-}
-
-// lockGetter is a service that gets locks.
-type lockGetter interface {
-	// GetLocks is here for compatibility with older Teleport versions.
-	// TODO(okraport): DELETE IN v21
-	GetLocks(ctx context.Context, inForceOnly bool, targets ...types.LockTarget) ([]types.Lock, error)
-	ListLocks(ctx context.Context, limit int, startKey string, filter *types.LockFilter) ([]types.Lock, string, error)
 }
 
 // GetMembersFor returns a flattened list of Members for an Access List, including inherited Members.
@@ -271,15 +262,14 @@ func IsUserLocked(err error) bool {
 	return errors.As(err, &userLockedError{})
 }
 
-// IsAccessListOwner checks if the given user is the Access List owner.
-// It returns an error matched by [IsUserLocked] if the user is locked.
-// If the user is not an owner, it returns a trace.AccessDenied error.
+// IsAccessListOwner checks if the given user is the Access List owner. It returns an error matched
+// by [IsUserLocked] if the user is locked.
 func IsAccessListOwner(
 	ctx context.Context,
 	user types.User,
 	accessList *accesslist.AccessList,
 	g AccessListAndMembersGetter,
-	lockGetter lockGetter,
+	lockGetter services.LockGetter,
 	clock clockwork.Clock,
 ) (accesslistv1.AccessListUserAssignmentType, error) {
 	if lockGetter != nil {
@@ -325,40 +315,36 @@ func IsAccessListOwner(
 		if owner.MembershipKind == accesslist.MembershipKindList {
 			ownerAccessList, err := g.GetAccessList(ctx, owner.Name)
 			if err != nil {
-				return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(err)
-			}
-			// Since we already verified that the user is not locked, don't provide lockGetter here
-			if _, err := IsAccessListMember(ctx, user, ownerAccessList, g, nil, clock); err != nil {
-				if trace.IsAccessDenied(err) {
-					ownershipErr = trace.Wrap(err)
-					continue
-				}
-				return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(err)
-			}
-			if !UserMeetsRequirements(user, accessList.Spec.OwnershipRequires) {
-				ownershipErr = trace.AccessDenied("User '%s' does not meet the ownership requirements for Access List '%s'", user.GetName(), accessList.Spec.Title)
+				ownershipErr = trace.Wrap(err)
 				continue
 			}
-			return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_INHERITED, nil
+			// Since we already verified that the user is not locked, don't provide lockGetter here
+			membershipType, err := IsAccessListMember(ctx, user, ownerAccessList, g, nil, clock)
+			if err != nil {
+				ownershipErr = trace.Wrap(err)
+				continue
+			}
+			if membershipType != accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED {
+				if !UserMeetsRequirements(user, accessList.Spec.OwnershipRequires) {
+					ownershipErr = trace.AccessDenied("User '%s' does not meet the ownership requirements for Access List '%s'", user.GetName(), accessList.Spec.Title)
+					continue
+				}
+				return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_INHERITED, nil
+			}
 		}
-	}
-
-	if ownershipErr == nil {
-		ownershipErr = trace.AccessDenied("no ownership path found")
 	}
 
 	return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(ownershipErr)
 }
 
-// IsAccessListMember checks if the given user is the Access List member.
-// It returns an error matched by [IsUserLocked] if the user is locked.
-// If the user is not a member, it returns a trace.AccessDenied error.
+// IsAccessListMember checks if the given user is the Access List member. It returns an error
+// matched by [IsUserLocked] if the user is locked.
 func IsAccessListMember(
 	ctx context.Context,
 	user types.User,
 	accessList *accesslist.AccessList,
 	g AccessListAndMembersGetter,
-	lockGetter lockGetter,
+	lockGetter services.LockGetter,
 	clock clockwork.Clock,
 ) (accesslistv1.AccessListUserAssignmentType, error) {
 	if lockGetter != nil {
@@ -386,12 +372,56 @@ func IsAccessListMember(
 		}
 	}
 
-	cfg := walkConfig{
-		getter: g,
-		root:   accessList,
+	members, err := fetchMembers(ctx, accessList.GetName(), g)
+	if err != nil {
+		return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(err)
 	}
 
-	return isAccessListMember(ctx, user, cfg, clock.Now())
+	var membershipErr error
+
+	for _, member := range members {
+		// Is user an explicit member?
+		if member.Spec.MembershipKind != accesslist.MembershipKindList && member.GetName() == user.GetName() {
+			if !UserMeetsRequirements(user, accessList.Spec.MembershipRequires) {
+				// Avoid non-deterministic behavior in these checks. Rather than returning immediately, continue
+				// through all members to make sure there isn't a valid match later on.
+				membershipErr = trace.AccessDenied("User '%s' does not meet the membership requirements for Access List '%s'", user.GetName(), accessList.Spec.Title)
+				continue
+			}
+			if !member.Spec.Expires.IsZero() && !clock.Now().Before(member.Spec.Expires) {
+				membershipErr = trace.AccessDenied("User '%s's membership in Access List '%s' has expired", user.GetName(), accessList.Spec.Title)
+				continue
+			}
+			return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_EXPLICIT, nil
+		}
+		// Is user an inherited member through any potential member AccessLists?
+		if member.Spec.MembershipKind == accesslist.MembershipKindList {
+			memberAccessList, err := g.GetAccessList(ctx, member.GetName())
+			if err != nil {
+				membershipErr = trace.Wrap(err)
+				continue
+			}
+			// Since we already verified that the user is not locked, don't provide lockGetter here
+			membershipType, err := IsAccessListMember(ctx, user, memberAccessList, g, nil, clock)
+			if err != nil {
+				membershipErr = trace.Wrap(err)
+				continue
+			}
+			if membershipType != accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED {
+				if !UserMeetsRequirements(user, accessList.Spec.MembershipRequires) {
+					membershipErr = trace.AccessDenied("User '%s' does not meet the membership requirements for Access List '%s'", user.GetName(), accessList.Spec.Title)
+					continue
+				}
+				if !member.Spec.Expires.IsZero() && !clock.Now().Before(member.Spec.Expires) {
+					membershipErr = trace.AccessDenied("User '%s's membership in Access List '%s' has expired", user.GetName(), accessList.Spec.Title)
+					continue
+				}
+				return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_INHERITED, nil
+			}
+		}
+	}
+
+	return accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED, trace.Wrap(membershipErr)
 }
 
 // UserMeetsRequirements is a helper which will return whether the User meets the AccessList Ownership/MembershipRequires.
@@ -443,305 +473,58 @@ func UserMeetsRequirements(identity types.User, requires accesslist.Requires) bo
 	return true
 }
 
-type ancestorOptions struct {
-	validateUserRequirement bool
-	clock                   clockwork.Clock
-	user                    types.User
-}
-
-func (o *ancestorOptions) validate() error {
-	if o.validateUserRequirement {
-		if o.user == nil {
-			return trace.BadParameter("user is required when validateUserRequirement is true")
-		}
-		if o.clock == nil {
-			o.clock = clockwork.NewRealClock()
-		}
-	}
-	return nil
-}
-
-// ancestorOption is a functional option for configuring the behavior of GetAncestorsFor.
-type ancestorOption func(*ancestorOptions)
-
-func withUserRequirementsCheck(user types.User, clock clockwork.Clock) ancestorOption {
-	return func(opts *ancestorOptions) {
-		opts.validateUserRequirement = true
-		opts.user = user
-		opts.clock = clock
-	}
-}
-
-// HierarchyConfig holds dependencies for building access list hierarchies.
-type HierarchyConfig struct {
-	// AccessListService is used to fetch Access Lists and their members.
-	AccessListsService AccessListAndMembersGetter
-	// Clock is used to check if memberships are expired.
-	Clock clockwork.Clock
-}
-
-// CheckAndSetDefaults validates the config and sets default values.
-func (c *HierarchyConfig) CheckAndSetDefaults() error {
-	if c.AccessListsService == nil {
-		return trace.BadParameter("AccessListsService is required")
-	}
-	if c.Clock == nil {
-		c.Clock = clockwork.NewRealClock()
-	}
-	return nil
-}
-
-// Hierarchy provides methods to compute access list hierarchies.
-type Hierarchy struct {
-	HierarchyConfig
-}
-
-// NewHierarchy constructs a HierarchyService with the given config.
-func NewHierarchy(cfg HierarchyConfig) (*Hierarchy, error) {
-	if err := cfg.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &Hierarchy{
-		HierarchyConfig: cfg,
-	}, nil
-}
-
-// GetHierarchyForUser builds the hierarchy of Access Lists for a given user,
-// starting from the provided list and traversing upward through its ancestors
-// using MemberOf/OwnerOf relationships. The returned hierarchy includes the
-// starting list (if the user meets the requirements) and may include ancestor
-// lists where the user satisfies membership or ownership requirements.
-// If the user fails to meet the requirements at any point, that branch is excluded.
-func (s *Hierarchy) GetHierarchyForUser(ctx context.Context, accessList *accesslist.AccessList, user types.User) (memberHierarchy, ownerHierarchy []*accesslist.AccessList, err error) {
-	if s.validDirectOwner(user, accessList) {
-		// User Is direct owner and meet the ownership requirements
-		// Include access list from the owner hierarchy
-		// and check if there is more ownership via nested ownership
-		// or via chained membership -> ownership relationships
-		// e.g. A has nested ownership B, B has nested membership C, C has direct members like alice
-		ownerHierarchy = append(ownerHierarchy, accessList)
-	}
-	ok, err := s.validMembership(ctx, accessList, user)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	if !ok {
-		// User is not a valid member of the starting access list
-		// return current owner hierarchy (not empty if user has a direct ownership)
-		// and empty member hierarchy
-		return memberHierarchy, ownerHierarchy, nil
-	}
-	// User is a valid member of the starting access list
-	// Include access list in the member hierarchy
-	memberHierarchy = append(memberHierarchy, accessList)
-
-	// Fetch ancestors via MemberOf edges while checking user requirements
-	ancestors, err := getAncestors(ctx, accessList, RelationshipKindMember, s.AccessListsService, withUserRequirementsCheck(user, s.Clock))
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	// We need to consider 2 scenarios:
-	// - An access list can be configured as 1 level owner of another access list
-	//   like access list A.Owners = [B], {B.members = [alice], B.Status.OwnerOf = [A]
-	//   In that case we need to explore the OwnerOf edges directly from input accessList and check if the user meets
-	//   the ownership requirements of the parent access list.
-	//
-	// - An access list can be configured as 2+ level owner of another access list
-	//   like access list A.Owners = [B], {B.members = [C], B.Status.OwnerOf = [A]}, {C.members = [alice], C.Status.MemberOf = [B]
-	//   where the access list traversal start from Access List C and goes up via MemberOf to build ancestors and then to A via OwnerOf edges.
-	owners, err := s.expandOwnerOf(ctx, accessList, ancestors, user)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	return append(memberHierarchy, ancestors...), append(ownerHierarchy, owners...), nil
-}
-
-func (s *Hierarchy) validMembership(ctx context.Context, list *accesslist.AccessList, user types.User) (bool, error) {
-	m, err := s.AccessListsService.GetAccessListMember(ctx, list.GetName(), user.GetName())
-	if err != nil {
-		if trace.IsNotFound(err) {
-			return false, nil
-		}
-		return false, trace.Wrap(err)
-	}
-	// Only user membership are valid. It can happen that username overlaps with the access list name.
-	// So we need to ensure the membership kind always is verified.
-	if !m.IsUser() {
-		return false, nil
-	}
-	if m.IsExpired(s.Clock.Now()) || !UserMeetsRequirements(user, list.GetMembershipRequires()) {
-		return false, nil
-	}
-	return true, nil
-}
-
-// Expand ancestors via OwnerOf edges while checking user requirements
-func (s *Hierarchy) expandOwnerOf(ctx context.Context, accessList *accesslist.AccessList, ancestors []*accesslist.AccessList, user types.User) ([]*accesslist.AccessList, error) {
-	var out []*accesslist.AccessList
-	processFn := func(al *accesslist.AccessList) error {
-		for _, name := range al.Status.OwnerOf {
-			ownerList, err := s.AccessListsService.GetAccessList(ctx, name)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			if UserMeetsRequirements(user, ownerList.GetOwnershipRequires()) {
-				out = append(out, ownerList)
-			}
-		}
-		return nil
-	}
-
-	if err := processFn(accessList); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	for _, al := range ancestors {
-		if err := processFn(al); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-	return out, nil
-}
-
-func (s *Hierarchy) validDirectOwner(user types.User, acl *accesslist.AccessList) bool {
-	if !UserMeetsRequirements(user, acl.GetOwnershipRequires()) {
-		return false
-	}
-	for _, v := range acl.Spec.Owners {
-		// Only user membership are valid. It can happen that username overlaps with the access list name.
-		// So we need to ensure the  membership kind is verified as user.
-		if !v.IsMembershipKindUser() {
-			continue
-		}
-		if v.Name == user.GetName() {
-			return true
-		}
-	}
-	return false
-}
-
 // GetAncestorsFor calculates and returns the set of Ancestor ACLs depending on
 // the supplied relationship criteria. Order of the ancestor list is undefined.
 func GetAncestorsFor(ctx context.Context, accessList *accesslist.AccessList, kind RelationshipKind, g AccessListAndMembersGetter) ([]*accesslist.AccessList, error) {
-	return getAncestors(ctx, accessList, kind, g)
-}
-
-func getAncestors(ctx context.Context, accessList *accesslist.AccessList, kind RelationshipKind, g AccessListAndMembersGetter, opts ...ancestorOption) ([]*accesslist.AccessList, trace.Error) {
 	ancestorsMap := make(map[string]*accesslist.AccessList)
-	if err := collectAncestors(ctx, accessList, kind, g, make(map[string]struct{}), ancestorsMap, opts...); err != nil {
+	if err := collectAncestors(ctx, accessList, kind, g, make(map[string]struct{}), ancestorsMap); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	ancestors := slices.Collect(maps.Values(ancestorsMap))
 	return ancestors, nil
 }
 
-func collectAncestors(ctx context.Context, accessList *accesslist.AccessList, kind RelationshipKind, g AccessListAndMembersGetter, visited map[string]struct{}, ancestors map[string]*accesslist.AccessList, opts ...ancestorOption) error {
-	options := &ancestorOptions{}
-	for _, opt := range opts {
-		opt(options)
-	}
-	if err := options.validate(); err != nil {
-		return trace.Wrap(err)
-	}
+func collectAncestors(ctx context.Context, accessList *accesslist.AccessList, kind RelationshipKind, g AccessListAndMembersGetter, visited map[string]struct{}, ancestors map[string]*accesslist.AccessList) error {
 	if _, ok := visited[accessList.GetName()]; ok {
 		return nil
 	}
 	visited[accessList.GetName()] = struct{}{}
 
-	isDirectMembershipExpired := func(acl, member string) (bool, error) {
-		if !options.validateUserRequirement {
-			return false, nil
-		}
-		m, err := g.GetAccessListMember(ctx, acl, member)
-		if err != nil {
-			return false, trace.Wrap(err)
-		}
-		return m.IsExpired(options.clock.Now()), nil
-	}
-
-	userMeetsRequirements := func(r accesslist.Requires) bool {
-		if options.user == nil {
-			return true
-		}
-		return UserMeetsRequirements(options.user, r)
-	}
-
-	if kind == RelationshipKindOwner {
+	switch kind {
+	case RelationshipKindOwner:
 		// Add parents where this list is an owner to ancestors
 		for _, ownerParent := range accessList.Status.OwnerOf {
 			ownerParentAcl, err := g.GetAccessList(ctx, ownerParent)
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			if !userMeetsRequirements(ownerParentAcl.Spec.OwnershipRequires) {
-				continue
-			}
 			ancestors[ownerParent] = ownerParentAcl
 		}
-	}
-	for _, memberParent := range accessList.Status.MemberOf {
-		memberParentAcl, err := g.GetAccessList(ctx, memberParent)
-		if err != nil {
-			return trace.Wrap(err)
+		// Recursively traverse parents where this list is a member
+		for _, memberParent := range accessList.Status.MemberOf {
+			memberParentAcl, err := g.GetAccessList(ctx, memberParent)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if err := collectAncestors(ctx, memberParentAcl, kind, g, visited, ancestors); err != nil {
+				return trace.Wrap(err)
+			}
 		}
-		expired, err := isDirectMembershipExpired(memberParent, accessList.GetName())
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if expired || !userMeetsRequirements(memberParentAcl.Spec.MembershipRequires) {
-			continue
-		}
-
-		if kind == RelationshipKindMember {
+	default:
+		// Only collect parents where this list is a member
+		for _, memberParent := range accessList.Status.MemberOf {
+			memberParentAcl, err := g.GetAccessList(ctx, memberParent)
+			if err != nil {
+				return trace.Wrap(err)
+			}
 			ancestors[memberParent] = memberParentAcl
-		}
-		if err := collectAncestors(ctx, memberParentAcl, kind, g, visited, ancestors, opts...); err != nil {
-			return trace.Wrap(err)
+			if err := collectAncestors(ctx, memberParentAcl, kind, g, visited, ancestors); err != nil {
+				return trace.Wrap(err)
+			}
 		}
 	}
 
 	return nil
-}
-
-// GetInheritedMembershipRequires returns the combined Requires for an Access List's members,
-// inherited from any ancestor lists, and the Access List's own MembershipRequires.
-func GetInheritedMembershipRequires(ctx context.Context, accessList *accesslist.AccessList, g AccessListAndMembersGetter) (*accesslist.Requires, error) {
-	ownRequires := accessList.GetMembershipRequires()
-	ownRequires = ownRequires.Clone()
-	ancestors, err := GetAncestorsFor(ctx, accessList, RelationshipKindMember, g)
-	if err != nil {
-		return &ownRequires, trace.Wrap(err)
-	}
-
-	roles := ownRequires.Roles
-	traits := ownRequires.Traits
-	if traits == nil {
-		traits = trait.Traits{}
-	}
-
-	for _, ancestor := range ancestors {
-		requires := ancestor.GetMembershipRequires()
-		roles = append(roles, requires.Roles...)
-		for traitKey, traitValues := range requires.Traits {
-			if _, exists := traits[traitKey]; !exists {
-				traits[traitKey] = []string{}
-			}
-			traits[traitKey] = append(traits[traitKey], traitValues...)
-		}
-	}
-
-	slices.Sort(roles)
-	roles = slices.Compact(roles)
-
-	for k, v := range traits {
-		slices.Sort(v)
-		traits[k] = slices.Compact(v)
-	}
-
-	return &accesslist.Requires{
-		Roles:  roles,
-		Traits: traits,
-	}, nil
 }
 
 // GetInheritedGrants returns the combined Grants for an Access List's members, inherited from any ancestor lists.
@@ -751,23 +534,16 @@ func GetInheritedGrants(ctx context.Context, accessList *accesslist.AccessList, 
 	}
 
 	collectedRoles := make(map[string]struct{})
-	collectedScopedRoles := make(map[accesslist.ScopedRoleGrant]struct{})
 	collectedTraits := make(map[string]map[string]struct{})
 
-	addGrants := func(grantsToAdd accesslist.Grants) {
-		for _, role := range grantsToAdd.Roles {
+	addGrants := func(grantRoles []string, grantTraits trait.Traits) {
+		for _, role := range grantRoles {
 			if _, exists := collectedRoles[role]; !exists {
 				grants.Roles = append(grants.Roles, role)
 				collectedRoles[role] = struct{}{}
 			}
 		}
-		for _, scopedRoleGrant := range grantsToAdd.ScopedRoles {
-			if _, exists := collectedScopedRoles[scopedRoleGrant]; !exists {
-				grants.ScopedRoles = append(grants.ScopedRoles, scopedRoleGrant)
-				collectedScopedRoles[scopedRoleGrant] = struct{}{}
-			}
-		}
-		for traitKey, traitValues := range grantsToAdd.Traits {
+		for traitKey, traitValues := range grantTraits {
 			if _, exists := collectedTraits[traitKey]; !exists {
 				collectedTraits[traitKey] = make(map[string]struct{})
 			}
@@ -786,7 +562,8 @@ func GetInheritedGrants(ctx context.Context, accessList *accesslist.AccessList, 
 		return nil, trace.Wrap(err)
 	}
 	for _, ancestor := range ancestorLists {
-		addGrants(ancestor.GetGrants())
+		memberGrants := ancestor.GetGrants()
+		addGrants(memberGrants.Roles, memberGrants.Traits)
 	}
 
 	// Get ancestors via owner relationship
@@ -795,20 +572,16 @@ func GetInheritedGrants(ctx context.Context, accessList *accesslist.AccessList, 
 		return nil, trace.Wrap(err)
 	}
 	for _, ancestorOwner := range ancestorOwnerLists {
-		addGrants(ancestorOwner.GetOwnerGrants())
+		ownerGrants := ancestorOwner.GetOwnerGrants()
+		addGrants(ownerGrants.Roles, ownerGrants.Traits)
 	}
 
 	slices.Sort(grants.Roles)
+	grants.Roles = slices.Compact(grants.Roles)
 
-	slices.SortFunc(grants.ScopedRoles, func(a, b accesslist.ScopedRoleGrant) int {
-		if c := cmp.Compare(a.Role, b.Role); c != 0 {
-			return c
-		}
-		return cmp.Compare(a.Scope, b.Scope)
-	})
-
-	for _, values := range grants.Traits {
-		slices.Sort(values)
+	for k, v := range grants.Traits {
+		slices.Sort(v)
+		grants.Traits[k] = slices.Compact(v)
 	}
 
 	return &grants, nil

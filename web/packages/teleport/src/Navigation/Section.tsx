@@ -21,27 +21,26 @@ import React, {
   forwardRef,
   PropsWithChildren,
   ReactNode,
-  type JSX,
 } from 'react';
-import { NavLink } from 'react-router';
+import { NavLink } from 'react-router-dom';
 import styled, { css, useTheme } from 'styled-components';
 
-import { Box, ButtonIcon, Flex, P2, Text } from 'design';
+import { Box, ButtonIcon, Flex, Image, P2, Text } from 'design';
 import { ArrowLineLeft, ArrowSquareIn } from 'design/Icon';
 import { Theme } from 'design/theme';
 import { HoverTooltip, IconTooltip } from 'design/Tooltip';
 
-import { PoweredByTeleportLogo } from 'teleport/components/PoweredByTeleportLogo';
 import { SlidingSidePanel } from 'teleport/components/SlidingSidePanel';
 import cfg from 'teleport/config';
 
 import { CategoryIcon } from './CategoryIcon';
+import logoPoweredByDark from './logoPoweredByDark.svg';
+import logoPoweredByLight from './logoPoweredByLight.svg';
 import {
   NavigationSection,
   NavigationSubsection,
   useFloatingUiWithRestMs,
 } from './Navigation';
-import { useDefaultNavigation } from './useDefaultNavigation';
 import { zIndexMap } from './zIndexMap';
 
 type SharedSectionProps = {
@@ -91,7 +90,6 @@ export function DefaultSection({
         isExpanded={isExpanded}
         tabIndex={section.standalone ? 0 : -1}
         {...getReferenceProps()}
-        {...useDefaultNavigation(section)}
       >
         <CategoryIcon category={section.category} />
         {section.category}
@@ -385,21 +383,17 @@ export function SubsectionItem({
     <StyledSubsectionItem
       $active={$active}
       to={to}
-      end={exact}
+      exact={exact}
       tabIndex={0}
       onClick={onClick}
-      data-testid={to}
     >
       {children}
     </StyledSubsectionItem>
   );
 }
 
-export const StyledSubsectionItem = styled(NavLink).withConfig({
-  shouldForwardProp: prop => prop !== '$active' && prop !== 'end',
-})<{
+export const StyledSubsectionItem = styled(NavLink)<{
   $active: boolean;
-  end?: boolean;
 }>`
   display: flex;
   position: relative;
@@ -527,6 +521,23 @@ function LicenseFooter({
         </IconTooltip>
       </Flex>
       <SubText>{subText}</SubText>
+    </StyledFooterBox>
+  );
+}
+
+function PoweredByTeleportLogo() {
+  const theme = useTheme();
+  const src = theme.type === 'dark' ? logoPoweredByDark : logoPoweredByLight;
+  return (
+    <StyledFooterBox
+      py={3}
+      px={4}
+      pb={4}
+      css={`
+        border: none;
+      `}
+    >
+      <Image src={src} maxWidth="100%" alt="powered by teleport" />
     </StyledFooterBox>
   );
 }

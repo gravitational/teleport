@@ -4,7 +4,7 @@ deploy:
 	./init.sh
 	./apply.sh
 
-# destroys resources that are not cleaned up by tearing down the k8s cluster.
+# initializes helm repos and install teleport
 .PHONY: destroy
 destroy:
 	./clean-non-kube.sh

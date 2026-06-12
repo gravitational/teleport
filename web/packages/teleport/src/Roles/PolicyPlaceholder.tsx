@@ -64,19 +64,13 @@ export function PolicyPlaceholder({
     return;
   }
 
-  const waitingForSync =
-    roleDiffProps?.roleDiffState === RoleDiffState.WaitingForSync;
   const loading =
     roleDiffProps?.roleDiffState === RoleDiffState.LoadingSettings ||
-    waitingForSync;
-
-  // roleDiffProps can be undefined if not cloud and not role tester
-  // enabled.
-  const hideSalesButton = (cfg.isPolicyEnabled || cfg.isCloud) && roleDiffProps;
+    roleDiffProps?.roleDiffState === RoleDiffState.WaitingForSync;
 
   return (
     <Box maxWidth={promoImageWidth + 2 * 2} minWidth={300}>
-      {roleDiffProps?.roleDiffErrorMessage && !waitingForSync && (
+      {roleDiffProps?.roleDiffErrorMessage && (
         <Alert>{roleDiffProps.roleDiffErrorMessage}</Alert>
       )}
       <H1 mb={2}>{FeatureName.IdentitySecurity} saves you from mistakes.</H1>
@@ -103,21 +97,22 @@ export function PolicyPlaceholder({
                 {loading ? 'Creating graph…' : 'Preview Identity Security'}
               </ButtonPrimary>
             )}
-          {!hideSalesButton && ( // non-cloud must contact sales
-            <>
-              <ButtonLockedFeature noIcon py={0} width={undefined}>
-                Contact Sales
-              </ButtonLockedFeature>
-              <ButtonSecondary
-                as="a"
-                href="https://goteleport.com/platform/identity-security/"
-                target="_blank"
-                ml={2}
-              >
-                Learn More
-              </ButtonSecondary>
-            </>
-          )}
+          {!cfg.isPolicyEnabled &&
+            !cfg.isCloud && ( // non-cloud must contact sales
+              <>
+                <ButtonLockedFeature noIcon py={0} width={undefined}>
+                  Contact Sales
+                </ButtonLockedFeature>
+                <ButtonSecondary
+                  as="a"
+                  href="https://goteleport.com/platform/policy/"
+                  target="_blank"
+                  ml={2}
+                >
+                  Learn More
+                </ButtonSecondary>
+              </>
+            )}
         </Flex>
       </Flex>
       <Flex

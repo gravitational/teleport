@@ -102,7 +102,7 @@ test('login with SSO', () => {
       displayName: 'With GitHub',
       type: 'github',
       name: 'github',
-      url: '/github/login/web?connector_id=:providerName&redirect_url=:redirect?',
+      url: '/github/login/web?redirect_url=:redirect?connector_id=:providerName',
     },
   ]);
 
@@ -111,7 +111,7 @@ test('login with SSO', () => {
   // test login pathways
   fireEvent.click(screen.getByText('With GitHub'));
   expect(history.push).toHaveBeenCalledWith(
-    'http://localhost/github/login/web?connector_id=github&redirect_url=http%3A%2F%2Flocalhost%2Fweb',
+    'http://localhost/github/login/web?redirect_url=http:%2F%2Flocalhost%2Fwebconnector_id=github',
     true
   );
 });
@@ -203,7 +203,7 @@ test('redirect to root if session is valid and path is not "/enterprise/saml-idp
   jest
     .spyOn(history, 'getRedirectParam')
     .mockReturnValue(
-      'http://localhost/web/login?redirect_url=http://localhost/web/cluster/localhost/resources'
+      'http://localhost/web/login?redirect_url=https://localhost/web/cluster/localhost/resources'
     );
   render(<Login />);
 
@@ -217,5 +217,5 @@ test('redirect if session is valid and path matches "/enterprise/saml-idp/sso"',
     .spyOn(history, 'getRedirectParam')
     .mockReturnValue(samlIdPPath.toString());
   render(<Login />);
-  expect(history.push).toHaveBeenCalledWith(samlIdPPath.toString(), true);
+  expect(history.push).toHaveBeenCalledWith(samlIdPPath, true);
 });

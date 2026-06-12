@@ -19,10 +19,8 @@
 package reversetunnel
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -30,12 +28,12 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // connKey is a key used to identify tunnel connections. It contains the UUID
@@ -45,8 +43,6 @@ import (
 type connKey struct {
 	// uuid is the host UUID of the process.
 	uuid string
-	// scope the process belongs to.
-	scope string
 	// connType is the type of tunnel, for example: node or application.
 	connType types.TunnelType
 }
@@ -58,14 +54,14 @@ type remoteConn struct {
 	lastHeartbeat atomic.Int64
 
 	*connConfig
-	mu     sync.Mutex
-	logger *slog.Logger
+	mu  sync.Mutex
+	log *logrus.Entry
 
 	// discoveryCh is the SSH channel over which discovery requests are sent.
 	discoveryCh ssh.Channel
 
-	// proxyDiscoverySubscriber receives proxy updates.
-	proxyDiscoverySubscriber *proxyDiscoverySubscriber
+	// newProxiesC is a list used to nofity about new proxies
+	newProxiesC chan []types.Server
 
 	// invalid indicates the connection is invalid and connections can no longer
 	// be made on it.
@@ -106,28 +102,22 @@ type connConfig struct {
 	// to the node UUID dialing back
 	nodeID string
 
-	// scope the process belongs to.
-	scope string
-
 	// offlineThreshold is how long to wait for a keep alive message before
 	// marking a reverse tunnel connection as invalid.
 	offlineThreshold time.Duration
-
-	// proxyDiscoverySubscriber receives proxy discovery events.
-	proxyDiscoverySubscriber *proxyDiscoverySubscriber
 }
 
-func newRemoteConn(cfg *connConfig) (*remoteConn, error) {
-	if cfg.proxyDiscoverySubscriber == nil {
-		return nil, trace.BadParameter("missing proxy discovery subscription")
-	}
+func newRemoteConn(cfg *connConfig) *remoteConn {
 	c := &remoteConn{
-		logger:                   slog.With(teleport.ComponentKey, "discovery"),
-		connConfig:               cfg,
-		clock:                    clockwork.NewRealClock(),
-		proxyDiscoverySubscriber: cfg.proxyDiscoverySubscriber,
+		log: logrus.WithFields(logrus.Fields{
+			teleport.ComponentKey: "discovery",
+		}),
+		connConfig:  cfg,
+		clock:       clockwork.NewRealClock(),
+		newProxiesC: make(chan []types.Server, 100),
 	}
-	return c, nil
+
+	return c
 }
 
 func (c *remoteConn) String() string {
@@ -191,11 +181,7 @@ func (c *remoteConn) markInvalid(err error) {
 
 	c.lastError = err
 	c.invalid.Store(true)
-	c.logger.WarnContext(context.Background(), "Unhealthy reverse tunnel connection",
-		"cluster", c.clusterName,
-		"remote_addr", logutils.StringerAttr(c.conn.RemoteAddr()),
-		"error", err,
-	)
+	c.log.Warnf("Unhealthy connection to %v %v: %v.", c.clusterName, c.conn.RemoteAddr(), err)
 }
 
 func (c *remoteConn) markValid() {
@@ -261,6 +247,19 @@ func (c *remoteConn) openDiscoveryChannel() (ssh.Channel, error) {
 	return c.discoveryCh, nil
 }
 
+// updateProxies is a non-blocking call that puts the new proxies
+// list so that remote connection can notify the remote agent
+// about the list update
+func (c *remoteConn) updateProxies(proxies []types.Server) {
+	select {
+	case c.newProxiesC <- proxies:
+	default:
+		// Missing proxies update is no longer critical with more permissive
+		// discovery protocol that tolerates conflicting, stale or missing updates
+		c.log.Warnf("Discovery channel overflow at %v.", len(c.newProxiesC))
+	}
+}
+
 func (c *remoteConn) adviseReconnect() error {
 	_, _, err := c.sconn.SendRequest(reconnectRequest, true, nil)
 	return trace.Wrap(err)
@@ -268,7 +267,7 @@ func (c *remoteConn) adviseReconnect() error {
 
 // sendDiscoveryRequest sends a discovery request with up to date
 // list of connected proxies
-func (c *remoteConn) sendDiscoveryRequest(ctx context.Context, req discoveryRequest) error {
+func (c *remoteConn) sendDiscoveryRequest(req discoveryRequest) error {
 	discoveryCh, err := c.openDiscoveryChannel()
 	if err != nil {
 		return trace.Wrap(err)
@@ -283,10 +282,7 @@ func (c *remoteConn) sendDiscoveryRequest(ctx context.Context, req discoveryRequ
 
 	// Log the discovery request being sent. Useful for debugging to know what
 	// proxies the tunnel server thinks exist.
-	c.logger.DebugContext(ctx, "Sending discovery request",
-		"proxies", req.ProxyNames(),
-		"target_addr", logutils.StringerAttr(c.sconn.RemoteAddr()),
-	)
+	c.log.Debugf("Sending discovery request with proxies %v to %v.", req.ProxyNames(), c.sconn.RemoteAddr())
 
 	if _, err := discoveryCh.SendRequest(chanDiscoveryReq, false, payload); err != nil {
 		c.markInvalid(err)

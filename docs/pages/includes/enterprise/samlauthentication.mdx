@@ -1,0 +1,37 @@
+### Enable default SAML authentication
+
+Configure Teleport to use SAML authentication as the default instead of the local
+user database.
+
+Use `tctl` to edit the `cluster_auth_preference` value:
+
+```code
+$ tctl edit cluster_auth_preference
+```
+
+Set the value of `spec.type` to `saml`:
+
+```yaml
+kind: cluster_auth_preference
+metadata:
+  ...
+  name: cluster-auth-preference
+spec:
+  ...
+  type: saml
+  ...
+version: v2
+```
+
+After you save and exit the editor, `tctl` will update the resource:
+
+```text
+cluster auth preference has been updated
+```
+
+<Admonition type="tip">
+
+If you need to log in again before configuring your SAML provider, use the flag <nobr>`--auth=local`</nobr>.
+
+</Admonition>
+

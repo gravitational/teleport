@@ -26,13 +26,11 @@ import (
 	"slices"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	smithyendpoints "github.com/aws/smithy-go/endpoints"
-	"github.com/aws/smithy-go/tracing/smithyoteltracing"
 	"github.com/gravitational/trace"
-	"go.opentelemetry.io/otel"
 
-	config "github.com/gravitational/teleport/lib/cloud/aws/config"
 	cloudaws "github.com/gravitational/teleport/lib/cloud/imds/aws"
 	"github.com/gravitational/teleport/lib/utils/aws/stsutils"
 )
@@ -48,18 +46,18 @@ type stsIdentityRequestOptions struct {
 	imdsClient imdsClient
 }
 
-type STSIdentityRequestOption func(cfg *stsIdentityRequestOptions)
+type stsIdentityRequestOption func(cfg *stsIdentityRequestOptions)
 
 // WithFIPSEndpoint is a functional option to use a FIPS STS endpoint. In non-US
 // regions, this will use the us-east-1 FIPS endpoint.
-func WithFIPSEndpoint(useFIPS bool) STSIdentityRequestOption {
+func WithFIPSEndpoint(useFIPS bool) stsIdentityRequestOption {
 	return func(opts *stsIdentityRequestOptions) {
 		opts.useFIPS = useFIPS
 	}
 }
 
 // WithIMDSClient is a functional option to use a custom IMDS client.
-func WithIMDSClient(clt imdsClient) STSIdentityRequestOption {
+func WithIMDSClient(clt imdsClient) stsIdentityRequestOption {
 	return func(opts *stsIdentityRequestOptions) {
 		opts.imdsClient = clt
 	}
@@ -75,7 +73,7 @@ type imdsClient interface {
 
 // CreateSignedSTSIdentityRequest is called on the client side and returns an
 // sts:GetCallerIdentity request signed with the local AWS credentials
-func CreateSignedSTSIdentityRequest(ctx context.Context, challenge string, opts ...STSIdentityRequestOption) ([]byte, error) {
+func CreateSignedSTSIdentityRequest(ctx context.Context, challenge string, opts ...stsIdentityRequestOption) ([]byte, error) {
 	var options stsIdentityRequestOptions
 	for _, opt := range opts {
 		opt(&options)
@@ -115,42 +113,16 @@ func CreateSignedSTSIdentityRequest(ctx context.Context, challenge string, opts 
 			// httpRequestRecorder intentionally records the request and returns
 			// an error, don't retry.
 			stsOpts.RetryMaxAttempts = 1
-
-			stsOpts.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
 		})
 
 	if _, err = stsClient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{}); !errors.Is(err, errRequestRecorded) {
 		if err == nil {
-			return nil, trace.Errorf("expected to get errRequestRecorded, got <nil> (this is a bug)")
+			return nil, trace.Errorf("expected to get errRequestedRecorded, got <nil> (this is a bug)")
 		}
 		return nil, trace.Wrap(err, "building signed sts:GetCallerIdentity request")
 	}
 
 	return signedRequest.Bytes(), nil
-}
-
-var (
-	// ErrNoFIPSEndpoint is returned when a FIPS endpoint is requested for a
-	// region that has none.
-	ErrNoFIPSEndpoint = errors.New("region has no known FIPS endpoint")
-)
-
-// ExpectedSTSHost returns the expected AWS STS endpoint hostname in the given region and FIPS mode.
-func ExpectedSTSHost(ctx context.Context, region string, fips bool) (string, error) {
-	// This check is necessary because the AWS SDK will happily return FIPS
-	// endpoints that don't exist in regions that don't have one.
-	if fips && !slices.Contains(FIPSSTSRegions(), region) {
-		return "", ErrNoFIPSEndpoint
-	}
-	resolver := sts.NewDefaultEndpointResolverV2()
-	endpoint, err := resolver.ResolveEndpoint(ctx, sts.EndpointParameters{
-		Region:  aws.String(region),
-		UseFIPS: aws.Bool(fips),
-	})
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	return endpoint.URI.Hostname(), nil
 }
 
 // getEC2LocalRegion returns the AWS region this EC2 instance is running in, or

@@ -1,6 +1,5 @@
 ---
 title: Getting Started with Device Trust
-sidebar_label: Getting Started
 description: Get started with Teleport Device Trust
 videoBanner: gBQyj_X1LVw
 tags:
@@ -116,7 +115,7 @@ Device "(=devicetrust.asset_tag=)"/macOS registered and enrolled
 <Admonition type="tip" title="self enrollment">
   The `--current-device` flag tells `tsh` to enroll the current device. The user must have the preset `editor`
   or `device-admin` role to be able to self-enroll their device. For users without the `editor` or
-  `device-admin` roles, a device admin must generate the enrollment token, which can then be
+  `device-admin` roles, a device admin must generate the an enrollment token, which can then be
   used to enroll the device. Learn more about manual device enrollment in the
   [device management guide](./device-management.mdx#register-a-trusted-device).
 </Admonition>
@@ -158,7 +157,6 @@ Device Trust enforcement.
 - [Device Management](./device-management.mdx)
 - [Enforcing Device Trust](./enforcing-device-trust.mdx)
 - [Jamf Pro Integration](./jamf-integration.mdx)
-- [Microsoft Intune Integration](./intune-integration.mdx)
 - The role we illustrated in this guide uses the `internal.logins` trait,
   which Teleport replaces with values from the Teleport local user
   database. For full details on how traits work in Teleport roles,

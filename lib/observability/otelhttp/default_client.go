@@ -28,3 +28,13 @@ import (
 // Prefer setting up your own, specialized, properly configured client instead
 // of relying on this.
 var DefaultClient = &http.Client{Transport: otelhttp.NewTransport(http.DefaultTransport)}
+
+// NewTransport wraps the provided http.RoundTripper with one that
+// starts a span, injects the span context into the outbound request headers,
+// and enriches it with metrics.
+//
+// If the provided http.RoundTripper is nil, http.DefaultTransport will be used
+// as the base http.RoundTripper.
+func NewTransport(t http.RoundTripper) *otelhttp.Transport {
+	return otelhttp.NewTransport(t)
+}

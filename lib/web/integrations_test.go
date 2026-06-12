@@ -21,7 +21,6 @@ package web
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"strconv"
 	"testing"
 	"time"
@@ -30,7 +29,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
@@ -41,10 +39,11 @@ import (
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/usertasks"
 	"github.com/gravitational/teleport/lib/auth/integration/credentials"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	libui "github.com/gravitational/teleport/lib/ui"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
@@ -107,117 +106,12 @@ func TestIntegrationsCreateWithAudience(t *testing.T) {
 	}
 }
 
-func TestIntegrationsCRUDRolesAnywhere(t *testing.T) {
-	t.Parallel()
-	wPack := newWebPack(t, 1 /* proxies */)
-	proxy := wPack.proxies[0]
-	authPack := proxy.authPack(t, "user", []types.Role{services.NewPresetEditorRole()})
-	ctx := context.Background()
-
-	// Create Integration
-	const integrationName = "test-integration"
-	trustAnchorARN := "arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/12345678-1234-1234-1234-123456789012"
-	createData := ui.Integration{
-		Name:    integrationName,
-		SubKind: "aws-ra",
-		AWSRA: &ui.IntegrationAWSRASpec{
-			TrustAnchorARN: trustAnchorARN,
-			ProfileSyncConfig: ui.AWSRAProfileSync{
-				Enabled: false,
-			},
-		},
-	}
-	createEndpoint := authPack.clt.Endpoint("webapi", "sites", wPack.server.ClusterName(), "integrations")
-	createResp, err := authPack.clt.PostJSON(ctx, createEndpoint, createData)
-	require.NoError(t, err)
-	require.Equal(t, 200, createResp.Code())
-
-	intgrationResource, err := wPack.server.Auth().GetIntegration(ctx, integrationName)
-	require.NoError(t, err)
-	require.Equal(t, trustAnchorARN, intgrationResource.GetAWSRolesAnywhereIntegrationSpec().TrustAnchorARN)
-
-	// Create Integration fails when sync is enabled but config is not set
-	createDataWithoutSyncFields := ui.Integration{
-		Name:    "another-integration",
-		SubKind: "aws-ra",
-		AWSRA: &ui.IntegrationAWSRASpec{
-			TrustAnchorARN: trustAnchorARN,
-			ProfileSyncConfig: ui.AWSRAProfileSync{
-				Enabled:    true,
-				ProfileARN: "",
-				RoleARN:    "arn:aws:iam::123456789012:role/testrole",
-			},
-		},
-	}
-	createResp, err = authPack.clt.PostJSON(ctx, createEndpoint, createDataWithoutSyncFields)
-	require.ErrorContains(t, err, "missing awsra.profileSync.profileArn field")
-	require.Equal(t, 400, createResp.Code())
-
-	// Get single integration
-	getEndpoint := authPack.clt.Endpoint("webapi", "sites", wPack.server.ClusterName(), "integrations", integrationName)
-	getResp, err := authPack.clt.Get(ctx, getEndpoint, nil)
-	require.NoError(t, err)
-	require.Equal(t, 200, getResp.Code())
-
-	var resp ui.Integration
-	err = json.Unmarshal(getResp.Bytes(), &resp)
-	require.NoError(t, err)
-	require.Equal(t, createData, resp)
-
-	// Update integration
-	updatedTrustAnchor := "arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/00000000-0000-0000-0000-123456789012"
-	syncProfileARN := "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/00000000-0000-0000-0000-123456789012"
-	syncRoleARN := "arn:aws:iam::123456789012:role/testrole"
-	updateIntegration := ui.UpdateIntegrationRequest{
-		AWSRA: &ui.IntegrationAWSRASpec{
-			TrustAnchorARN: updatedTrustAnchor,
-			ProfileSyncConfig: ui.AWSRAProfileSync{
-				Enabled:            true,
-				ProfileARN:         syncProfileARN,
-				RoleARN:            syncRoleARN,
-				ProfileNameFilters: []string{"ExposedProfile-*"},
-			},
-		},
-	}
-	updateEndpoint := authPack.clt.Endpoint("webapi", "sites", wPack.server.ClusterName(), "integrations", integrationName)
-	updateResp, err := authPack.clt.PutJSON(ctx, updateEndpoint, updateIntegration)
-	require.NoError(t, err)
-	require.Equal(t, 200, updateResp.Code())
-
-	// List integrations
-	listEndpoint := authPack.clt.Endpoint("webapi", "sites", wPack.server.ClusterName(), "integrations")
-	listResp, err := authPack.clt.Get(ctx, listEndpoint, nil)
-	require.NoError(t, err)
-	require.Equal(t, 200, listResp.Code())
-
-	var listRespObject ui.IntegrationsListResponse
-	err = json.Unmarshal(listResp.Bytes(), &listRespObject)
-	require.NoError(t, err)
-	require.Len(t, listRespObject.Items, 1)
-	integrationObject := listRespObject.Items[0]
-	require.Equal(t, updatedTrustAnchor, integrationObject.AWSRA.TrustAnchorARN)
-	require.True(t, integrationObject.AWSRA.ProfileSyncConfig.Enabled)
-	require.Equal(t, syncProfileARN, integrationObject.AWSRA.ProfileSyncConfig.ProfileARN)
-	require.Equal(t, syncRoleARN, integrationObject.AWSRA.ProfileSyncConfig.RoleARN)
-	require.Len(t, integrationObject.AWSRA.ProfileSyncConfig.ProfileNameFilters, 1)
-	require.Equal(t, "ExposedProfile-*", integrationObject.AWSRA.ProfileSyncConfig.ProfileNameFilters[0])
-
-	// Delete Integration
-	err = wPack.server.Auth().DeleteIntegration(ctx, integrationName)
-	require.NoError(t, err)
-}
-
 type mockUserTasksLister struct {
 	defaultPageSize int64
-	err             error
 	userTasks       []*usertasksv1.UserTask
 }
 
 func (m *mockUserTasksLister) ListUserTasks(ctx context.Context, pageSize int64, nextToken string, filters *usertasksv1.ListUserTasksFilters) ([]*usertasksv1.UserTask, string, error) {
-	if m.err != nil {
-		return nil, "", m.err
-	}
-
 	var ret []*usertasksv1.UserTask
 	if pageSize == 0 {
 		pageSize = m.defaultPageSize
@@ -250,9 +144,9 @@ func (m *mockUserTasksLister) ListUserTasks(ctx context.Context, pageSize int64,
 	return ret, "", nil
 }
 
-func TestCollectIntegrationStats(t *testing.T) {
+func TestCollectAWSOIDCAutoDiscoverStats(t *testing.T) {
 	ctx := context.Background()
-	logger := logtest.NewLogger()
+	logger := utils.NewSlogLoggerForTests()
 
 	integrationName := "my-integration"
 	integration, err := types.NewIntegrationAWSOIDC(
@@ -322,13 +216,6 @@ func TestCollectIntegrationStats(t *testing.T) {
 			userTasksList = append(userTasksList, &usertasksv1.UserTask{Spec: &usertasksv1.UserTaskSpec{State: usertasks.TaskStateResolved, TaskType: usertasks.TaskTypeDiscoverEC2}})
 		}
 
-		var openUserTasksList []*usertasksv1.UserTask
-		for _, ut := range userTasksList {
-			if ut.GetSpec().GetState() == usertasks.TaskStateOpen {
-				openUserTasksList = append(openUserTasksList, ut)
-			}
-		}
-
 		userTasksClient := &mockUserTasksLister{
 			defaultPageSize: 3,
 			userTasks:       userTasksList,
@@ -351,7 +238,6 @@ func TestCollectIntegrationStats(t *testing.T) {
 				AWSOIDC: &ui.IntegrationAWSOIDCSpec{RoleARN: "arn:role"},
 			},
 			UnresolvedUserTasks: ec2UserTasks + rdsUserTasks,
-			UserTasks:           ui.MakeUserTasks(openUserTasksList),
 			AWSEC2: ui.ResourceTypeSummary{
 				UnresolvedUserTasks: ec2UserTasks,
 			},
@@ -363,8 +249,7 @@ func TestCollectIntegrationStats(t *testing.T) {
 	})
 
 	t.Run("collects multiple discovery configs", func(t *testing.T) {
-		syncTime := time.Now().UTC()
-		syncEnd := timestamppb.New(syncTime)
+		syncTime := time.Now()
 		dcForEC2 := &discoveryconfig.DiscoveryConfig{
 			Spec: discoveryconfig.Spec{AWS: []types.AWSMatcher{{
 				Integration: integrationName,
@@ -374,17 +259,9 @@ func TestCollectIntegrationStats(t *testing.T) {
 			Status: discoveryconfig.Status{
 				LastSyncTime:        syncTime,
 				DiscoveredResources: 2,
-				ServerStatus: map[string]*discoveryconfig.DiscoveryStatusServer{
-					"server-1": {
-						DiscoveryStatusServer: &discoveryconfigv1.DiscoveryStatusServer{
-							IntegrationSummaries: map[string]*discoveryconfigv1.DiscoverSummary{
-								integrationName: {
-									AwsEc2: &discoveryconfigv1.ResourceSummary{
-										Previous: &discoveryconfigv1.ResourcesDiscoveredSummary{Found: 2, Enrolled: 1, Failed: 1, SyncStart: syncEnd, SyncEnd: syncEnd},
-									},
-								},
-							},
-						},
+				IntegrationDiscoveredResources: map[string]*discoveryconfigv1.IntegrationDiscoveredSummary{
+					integrationName: {
+						AwsEc2: &discoveryconfigv1.ResourcesDiscoveredSummary{Found: 2, Enrolled: 1, Failed: 1},
 					},
 				},
 			},
@@ -398,17 +275,9 @@ func TestCollectIntegrationStats(t *testing.T) {
 			Status: discoveryconfig.Status{
 				LastSyncTime:        syncTime,
 				DiscoveredResources: 2,
-				ServerStatus: map[string]*discoveryconfig.DiscoveryStatusServer{
-					"server-1": {
-						DiscoveryStatusServer: &discoveryconfigv1.DiscoveryStatusServer{
-							IntegrationSummaries: map[string]*discoveryconfigv1.DiscoverSummary{
-								integrationName: {
-									AwsRds: &discoveryconfigv1.ResourceSummary{
-										Previous: &discoveryconfigv1.ResourcesDiscoveredSummary{Found: 2, Enrolled: 1, Failed: 1, SyncStart: syncEnd, SyncEnd: syncEnd},
-									},
-								},
-							},
-						},
+				IntegrationDiscoveredResources: map[string]*discoveryconfigv1.IntegrationDiscoveredSummary{
+					integrationName: {
+						AwsRds: &discoveryconfigv1.ResourcesDiscoveredSummary{Found: 2, Enrolled: 1, Failed: 1},
 					},
 				},
 			},
@@ -422,17 +291,9 @@ func TestCollectIntegrationStats(t *testing.T) {
 			Status: discoveryconfig.Status{
 				LastSyncTime:        syncTime,
 				DiscoveredResources: 2,
-				ServerStatus: map[string]*discoveryconfig.DiscoveryStatusServer{
-					"server-1": {
-						DiscoveryStatusServer: &discoveryconfigv1.DiscoveryStatusServer{
-							IntegrationSummaries: map[string]*discoveryconfigv1.DiscoverSummary{
-								integrationName: {
-									AwsEks: &discoveryconfigv1.ResourceSummary{
-										Previous: &discoveryconfigv1.ResourcesDiscoveredSummary{Found: 4, Enrolled: 0, Failed: 0, SyncStart: syncEnd, SyncEnd: syncEnd},
-									},
-								},
-							},
-						},
+				IntegrationDiscoveredResources: map[string]*discoveryconfigv1.IntegrationDiscoveredSummary{
+					integrationName: {
+						AwsEks: &discoveryconfigv1.ResourcesDiscoveredSummary{Found: 4, Enrolled: 0, Failed: 0},
 					},
 				},
 			},
@@ -469,8 +330,6 @@ func TestCollectIntegrationStats(t *testing.T) {
 				ResourcesEnrollmentFailed:  1,
 				ResourcesEnrollmentSuccess: 1,
 				DiscoverLastSync:           &syncTime,
-				SyncStart:                  &syncTime,
-				SyncEnd:                    &syncTime,
 			},
 			AWSRDS: ui.ResourceTypeSummary{
 				RulesCount:                 3,
@@ -479,8 +338,6 @@ func TestCollectIntegrationStats(t *testing.T) {
 				ResourcesEnrollmentSuccess: 1,
 				ECSDatabaseServiceCount:    1,
 				DiscoverLastSync:           &syncTime,
-				SyncStart:                  &syncTime,
-				SyncEnd:                    &syncTime,
 			},
 			AWSEKS: ui.ResourceTypeSummary{
 				RulesCount:                 1,
@@ -488,15 +345,12 @@ func TestCollectIntegrationStats(t *testing.T) {
 				ResourcesEnrollmentFailed:  0,
 				ResourcesEnrollmentSuccess: 0,
 				DiscoverLastSync:           &syncTime,
-				SyncStart:                  &syncTime,
-				SyncEnd:                    &syncTime,
 			},
 		}
 		require.Equal(t, expectedSummary, gotSummary)
 	})
 	t.Run("returns 0 ECS DatabaseServices if listing deployed database services returns AccessDenied", func(t *testing.T) {
-		syncTime := time.Now().UTC()
-		syncEnd := timestamppb.New(syncTime)
+		syncTime := time.Now()
 		dcForRDS := &discoveryconfig.DiscoveryConfig{
 			Spec: discoveryconfig.Spec{AWS: []types.AWSMatcher{{
 				Integration: integrationName,
@@ -506,17 +360,9 @@ func TestCollectIntegrationStats(t *testing.T) {
 			Status: discoveryconfig.Status{
 				LastSyncTime:        syncTime,
 				DiscoveredResources: 2,
-				ServerStatus: map[string]*discoveryconfig.DiscoveryStatusServer{
-					"server-1": {
-						DiscoveryStatusServer: &discoveryconfigv1.DiscoveryStatusServer{
-							IntegrationSummaries: map[string]*discoveryconfigv1.DiscoverSummary{
-								integrationName: {
-									AwsRds: &discoveryconfigv1.ResourceSummary{
-										Previous: &discoveryconfigv1.ResourcesDiscoveredSummary{Found: 2, Enrolled: 1, Failed: 1, SyncStart: syncEnd, SyncEnd: syncEnd},
-									},
-								},
-							},
-						},
+				IntegrationDiscoveredResources: map[string]*discoveryconfigv1.IntegrationDiscoveredSummary{
+					integrationName: {
+						AwsRds: &discoveryconfigv1.ResourcesDiscoveredSummary{Found: 2, Enrolled: 1, Failed: 1},
 					},
 				},
 			},
@@ -555,235 +401,6 @@ func TestCollectIntegrationStats(t *testing.T) {
 				ResourcesEnrollmentSuccess: 1,
 				ECSDatabaseServiceCount:    0,
 				DiscoverLastSync:           &syncTime,
-				SyncStart:                  &syncTime,
-				SyncEnd:                    &syncTime,
-			},
-		}
-		require.Equal(t, expectedSummary, gotSummary)
-	})
-
-	t.Run("returns AWS IAM Roles Anywhere Profile Sync status", func(t *testing.T) {
-		syncStartTime := time.Now()
-		syncEndTime := syncStartTime.Add(5 * time.Minute)
-		integrationName := "my-integration"
-		integration, err := types.NewIntegrationAWSRA(
-			types.Metadata{Name: integrationName},
-			&types.AWSRAIntegrationSpecV1{
-				TrustAnchorARN: "arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/12345678-1234-1234-1234-123456789012",
-				ProfileSyncConfig: &types.AWSRolesAnywhereProfileSyncConfig{
-					Enabled:                       true,
-					ProfileARN:                    "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/uuid2",
-					ProfileAcceptsRoleSessionName: true,
-					RoleARN:                       "arn:aws:iam::123456789012:role/SyncRole",
-				},
-			},
-		)
-		require.NoError(t, err)
-		integration.SetStatus(types.IntegrationStatusV1{
-			AWSRolesAnywhere: &types.AWSRAIntegrationStatusV1{
-				LastProfileSync: &types.AWSRolesAnywhereProfileSyncIterationSummary{
-					Status:         "SUCCESS",
-					SyncedProfiles: 4,
-					StartTime:      syncStartTime,
-					EndTime:        syncEndTime,
-				},
-			},
-		})
-
-		clt := &mockRelevantAWSRegionsClient{
-			discoveryConfigs: []*discoveryconfig.DiscoveryConfig{},
-			databaseServices: &proto.ListResourcesResponse{},
-			databases: []types.Database{
-				&types.DatabaseV3{Spec: types.DatabaseSpecV3{AWS: types.AWS{Region: "us-west-1"}}},
-			},
-		}
-
-		deployedDatabaseServicesClient := &mockDeployedDatabaseServices{
-			listErr: errors.New("only aws oidc integrations can list deployed database services"),
-		}
-		req := collectIntegrationStatsRequest{
-			logger:                logger,
-			integration:           integration,
-			discoveryConfigLister: clt,
-			databaseGetter:        clt,
-			awsOIDCClient:         deployedDatabaseServicesClient,
-			userTasksClient:       &mockUserTasksLister{},
-		}
-		gotSummary, err := collectIntegrationStats(ctx, req)
-		require.NoError(t, err)
-		expectedSummary := &ui.IntegrationWithSummary{
-			Integration: &ui.Integration{
-				Name:    integrationName,
-				SubKind: "aws-ra",
-				AWSRA: &ui.IntegrationAWSRASpec{
-					TrustAnchorARN: "arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/12345678-1234-1234-1234-123456789012",
-					ProfileSyncConfig: ui.AWSRAProfileSync{
-						Enabled:    true,
-						ProfileARN: "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/uuid2",
-						RoleARN:    "arn:aws:iam::123456789012:role/SyncRole",
-					},
-				},
-			},
-			RolesAnywhereProfileSync: &ui.RolesAnywhereProfileSync{
-				Enabled:        true,
-				Status:         "SUCCESS",
-				SyncedProfiles: 4,
-				SyncStartTime:  syncStartTime,
-				SyncEndTime:    syncEndTime,
-			},
-		}
-		require.Equal(t, expectedSummary, gotSummary)
-	})
-
-	t.Run("returns AWS IAM Roles Anywhere Profile Sync status with error message", func(t *testing.T) {
-		syncStartTime := time.Now()
-		syncEndTime := syncStartTime.Add(5 * time.Minute)
-		integrationName := "my-integration"
-		integration, err := types.NewIntegrationAWSRA(
-			types.Metadata{Name: integrationName},
-			&types.AWSRAIntegrationSpecV1{
-				TrustAnchorARN: "arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/12345678-1234-1234-1234-123456789012",
-				ProfileSyncConfig: &types.AWSRolesAnywhereProfileSyncConfig{
-					Enabled:                       true,
-					ProfileARN:                    "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/uuid2",
-					ProfileAcceptsRoleSessionName: true,
-					RoleARN:                       "arn:aws:iam::123456789012:role/SyncRole",
-				},
-			},
-		)
-		require.NoError(t, err)
-		integration.SetStatus(types.IntegrationStatusV1{
-			AWSRolesAnywhere: &types.AWSRAIntegrationStatusV1{
-				LastProfileSync: &types.AWSRolesAnywhereProfileSyncIterationSummary{
-					Status:         "ERROR",
-					SyncedProfiles: 0,
-					StartTime:      syncStartTime,
-					EndTime:        syncEndTime,
-					ErrorMessage:   "Failed to sync profiles due to access denied error",
-				},
-			},
-		})
-
-		clt := &mockRelevantAWSRegionsClient{
-			discoveryConfigs: []*discoveryconfig.DiscoveryConfig{},
-			databaseServices: &proto.ListResourcesResponse{},
-			databases:        make([]types.Database, 0),
-		}
-
-		deployedDatabaseServicesClient := &mockDeployedDatabaseServices{
-			listErr: trace.AccessDenied("AccessDenied to ECS:ListServices"),
-		}
-		req := collectIntegrationStatsRequest{
-			logger:                logger,
-			integration:           integration,
-			discoveryConfigLister: clt,
-			databaseGetter:        clt,
-			awsOIDCClient:         deployedDatabaseServicesClient,
-			userTasksClient:       &mockUserTasksLister{},
-		}
-		gotSummary, err := collectIntegrationStats(ctx, req)
-		require.NoError(t, err)
-		expectedSummary := &ui.IntegrationWithSummary{
-			Integration: &ui.Integration{
-				Name:    integrationName,
-				SubKind: "aws-ra",
-				AWSRA: &ui.IntegrationAWSRASpec{
-					TrustAnchorARN: "arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/12345678-1234-1234-1234-123456789012",
-					ProfileSyncConfig: ui.AWSRAProfileSync{
-						Enabled:    true,
-						ProfileARN: "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/uuid2",
-						RoleARN:    "arn:aws:iam::123456789012:role/SyncRole",
-					},
-				},
-			},
-			RolesAnywhereProfileSync: &ui.RolesAnywhereProfileSync{
-				Enabled:        true,
-				Status:         "ERROR",
-				SyncedProfiles: 0,
-				SyncStartTime:  syncStartTime,
-				SyncEndTime:    syncEndTime,
-				ErrorMessage:   "Failed to sync profiles due to access denied error",
-			},
-		}
-		require.Equal(t, expectedSummary, gotSummary)
-	})
-
-	t.Run("collects Azure discovery configs", func(t *testing.T) {
-		mockInt := newMockAzureOIDCIntegration(t, integrationName)
-
-		syncTime := time.Now().UTC()
-		syncEnd := timestamppb.New(syncTime)
-		azureConfig := &discoveryconfig.DiscoveryConfig{
-			Spec: discoveryconfig.Spec{Azure: []types.AzureMatcher{{
-				Integration: integrationName,
-				Types:       []string{types.AzureMatcherVM},
-				Regions:     []string{"eastus", "westus"},
-			}}},
-			Status: discoveryconfig.Status{
-				LastSyncTime: syncTime,
-				ServerStatus: map[string]*discoveryconfig.DiscoveryStatusServer{
-					"server-1": {
-						DiscoveryStatusServer: &discoveryconfigv1.DiscoveryStatusServer{
-							IntegrationSummaries: map[string]*discoveryconfigv1.DiscoverSummary{
-								integrationName: {
-									AzureVms: &discoveryconfigv1.ResourceSummary{
-										Previous: &discoveryconfigv1.ResourcesDiscoveredSummary{
-											Found:     5,
-											Enrolled:  3,
-											Failed:    1,
-											SyncStart: syncEnd,
-											SyncEnd:   syncEnd,
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		}
-
-		var userTasksList []*usertasksv1.UserTask
-		for range 10 {
-			userTasksList = append(userTasksList, &usertasksv1.UserTask{Spec: &usertasksv1.UserTaskSpec{State: usertasks.TaskStateOpen, TaskType: usertasks.TaskTypeDiscoverAzureVM}})
-		}
-
-		clt := &mockRelevantAWSRegionsClient{
-			discoveryConfigs: []*discoveryconfig.DiscoveryConfig{azureConfig},
-		}
-
-		req := collectIntegrationStatsRequest{
-			logger:                logger,
-			integration:           mockInt,
-			discoveryConfigLister: clt,
-			databaseGetter:        clt,
-			awsOIDCClient:         deployedDatabaseServicesClient,
-			userTasksClient:       &mockUserTasksLister{userTasks: userTasksList},
-		}
-
-		gotSummary, err := collectIntegrationStats(ctx, req)
-		require.NoError(t, err)
-
-		expectedSummary := &ui.IntegrationWithSummary{
-			Integration: &ui.Integration{
-				Name:    integrationName,
-				SubKind: "azure-oidc",
-				AzureOIDC: &ui.IntegrationAzureOIDCSpec{
-					TenantID: "00000000-0000-0000-0000-000000000000",
-					ClientID: "11111111-1111-1111-1111-111111111111",
-				},
-			},
-			UnresolvedUserTasks: 10,
-			UserTasks:           ui.MakeUserTasks(userTasksList),
-			AzureVM: ui.ResourceTypeSummary{
-				RulesCount:                 2,
-				ResourcesFound:             5,
-				ResourcesEnrollmentSuccess: 3,
-				ResourcesEnrollmentFailed:  1,
-				DiscoverLastSync:           &syncTime,
-				SyncStart:                  &syncTime,
-				SyncEnd:                    &syncTime,
-				UnresolvedUserTasks:        10,
 			},
 		}
 		require.Equal(t, expectedSummary, gotSummary)
@@ -807,7 +424,6 @@ func TestCollectAutoDiscoveryRules(t *testing.T) {
 
 	t.Run("collects multiple discovery configs", func(t *testing.T) {
 		syncTime := time.Now()
-		kubeAppDiscoveryDisabled := false
 		dcForEC2 := &discoveryconfig.DiscoveryConfig{
 			ResourceHeader: header.ResourceHeader{Metadata: header.Metadata{
 				Name: uuid.NewString(),
@@ -890,9 +506,8 @@ func TestCollectAutoDiscoveryRules(t *testing.T) {
 				LabelMatcher: []libui.Label{
 					{Name: "*", Value: "*"},
 				},
-				DiscoveryConfig:  dcForEKS.GetName(),
-				LastSync:         &syncTime,
-				KubeAppDiscovery: &kubeAppDiscoveryDisabled,
+				DiscoveryConfig: dcForEKS.GetName(),
+				LastSync:        &syncTime,
 			},
 			{
 				ResourceType: "eks",
@@ -900,8 +515,7 @@ func TestCollectAutoDiscoveryRules(t *testing.T) {
 				LabelMatcher: []libui.Label{
 					{Name: "*", Value: "*"},
 				},
-				DiscoveryConfig:  dcForEKSWithoutStatus.GetName(),
-				KubeAppDiscovery: &kubeAppDiscoveryDisabled,
+				DiscoveryConfig: dcForEKSWithoutStatus.GetName(),
 			},
 			{
 				ResourceType: "rds",
@@ -921,47 +535,6 @@ func TestCollectAutoDiscoveryRules(t *testing.T) {
 					{Name: "env", Value: "prod"},
 				},
 				DiscoveryConfig: dcForRDS.GetName(),
-				LastSync:        &syncTime,
-			},
-		}
-		require.Empty(t, got.NextKey)
-		require.ElementsMatch(t, expectedRules, got.Rules)
-	})
-
-	t.Run("collects azure discovery configs", func(t *testing.T) {
-		syncTime := time.Now()
-		dcForVM := &discoveryconfig.DiscoveryConfig{
-			ResourceHeader: header.ResourceHeader{Metadata: header.Metadata{
-				Name: uuid.NewString(),
-			}},
-			Spec: discoveryconfig.Spec{Azure: []types.AzureMatcher{{
-				Integration:    integrationName,
-				Types:          []string{types.AzureMatcherVM},
-				Regions:        []string{"eastus"},
-				Subscriptions:  []string{"sub-1"},
-				ResourceGroups: []string{"rg-1", "rg-2"},
-				ResourceTags:   types.Labels{"env": []string{"dev"}},
-			}}},
-			Status: discoveryconfig.Status{
-				LastSyncTime: syncTime,
-			},
-		}
-		clt := &mockRelevantAWSRegionsClient{
-			discoveryConfigs: []*discoveryconfig.DiscoveryConfig{dcForVM},
-		}
-
-		got, err := collectAutoDiscoveryRules(ctx, integrationName, "", types.AzureMatcherVM, nil, clt)
-		require.NoError(t, err)
-		expectedRules := []ui.IntegrationDiscoveryRule{
-			{
-				ResourceType: types.AzureMatcherVM,
-				Region:       "eastus",
-				LabelMatcher: []libui.Label{
-					{Name: "env", Value: "dev"},
-				},
-				Subscriptions:   []string{"sub-1"},
-				ResourceGroups:  []string{"rg-1", "rg-2"},
-				DiscoveryConfig: dcForVM.GetName(),
 				LastSync:        &syncTime,
 			},
 		}
@@ -1117,41 +690,6 @@ func TestCollectAutoDiscoveryRules(t *testing.T) {
 		}
 		require.Equal(t, totalRules, rulesCounter)
 	})
-
-	t.Run("collects Azure VM rules with subscriptions and resource groups", func(t *testing.T) {
-		syncTime := time.Now()
-		azureConfig := &discoveryconfig.DiscoveryConfig{
-			ResourceHeader: header.ResourceHeader{Metadata: header.Metadata{
-				Name: uuid.NewString(),
-			}},
-			Spec: discoveryconfig.Spec{Azure: []types.AzureMatcher{{
-				Integration:    integrationName,
-				Types:          []string{types.AzureMatcherVM},
-				Regions:        []string{"eastus", "westus"},
-				Subscriptions:  []string{"sub-1", "sub-2"},
-				ResourceGroups: []string{"rg-1"},
-				ResourceTags:   types.Labels{"env": []string{"prod"}},
-			}}},
-			Status: discoveryconfig.Status{
-				LastSyncTime: syncTime,
-			},
-		}
-		clt := &mockRelevantAWSRegionsClient{
-			discoveryConfigs: []*discoveryconfig.DiscoveryConfig{azureConfig},
-		}
-
-		got, err := collectAutoDiscoveryRules(ctx, integrationName, "", "", nil, clt)
-		require.NoError(t, err)
-
-		require.Len(t, got.Rules, 2)
-		for _, rule := range got.Rules {
-			require.Equal(t, types.AzureMatcherVM, rule.ResourceType)
-			require.ElementsMatch(t, []string{"sub-1", "sub-2"}, rule.Subscriptions)
-			require.ElementsMatch(t, []string{"rg-1"}, rule.ResourceGroups)
-			require.Equal(t, []libui.Label{{Name: "env", Value: "prod"}}, rule.LabelMatcher)
-			require.Equal(t, &syncTime, rule.LastSync)
-		}
-	})
 }
 
 // TestGitHubIntegration tests CRUD on GitHub integration subkind and CA export.
@@ -1159,8 +697,9 @@ func TestCollectAutoDiscoveryRules(t *testing.T) {
 // The test cases in this test are performed sequentially and each test case
 // depends on the previous state.
 func TestGitHubIntegration(t *testing.T) {
-	t.Parallel()
-	wPack := newWebPack(t, 1 /* proxies */, withModules(modulestest.EnterpriseModules()))
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
+
+	wPack := newWebPack(t, 1 /* proxies */)
 	proxy := wPack.proxies[0]
 	authPack := proxy.authPack(t, "user", []types.Role{services.NewPresetEditorRole()})
 	ctx := context.Background()
@@ -1181,6 +720,7 @@ func TestGitHubIntegration(t *testing.T) {
 				Integration: uiIntegration,
 			})
 			require.Error(t, err)
+
 		})
 		t.Run("success", func(t *testing.T) {
 			createResp, err := authPack.clt.PostJSON(ctx, endpoint, ui.CreateIntegrationRequest{
@@ -1289,222 +829,4 @@ func TestGitHubIntegration(t *testing.T) {
 			require.True(t, trace.IsNotFound(err))
 		})
 	})
-}
-
-func TestBuildBriefSummaries(t *testing.T) {
-	mockAwsInt := newMockAWSOIDCIntegration(t, "aws-oidc-1")
-	mockGithubInt := newMockGitHubIntegration(t, "gh")
-
-	mockUserTasks := []*usertasksv1.UserTask{
-		{
-			Spec: &usertasksv1.UserTaskSpec{
-				Integration: mockAwsInt.GetName(),
-				TaskType:    usertasks.TaskTypeDiscoverEC2,
-				State:       usertasks.TaskStateOpen,
-			},
-		},
-		{
-			Spec: &usertasksv1.UserTaskSpec{
-				Integration: mockAwsInt.GetName(),
-				TaskType:    usertasks.TaskTypeDiscoverEKS,
-				State:       usertasks.TaskStateOpen,
-			},
-		},
-	}
-
-	mockDC1 := &discoveryconfig.DiscoveryConfig{
-		Status: discoveryconfig.Status{
-			IntegrationDiscoveredResources: map[string]*discoveryconfig.IntegrationDiscoveredSummary{
-				mockAwsInt.GetName(): {
-					IntegrationDiscoveredSummary: &discoveryconfigv1.IntegrationDiscoveredSummary{
-						AwsEc2: &discoveryconfigv1.ResourcesDiscoveredSummary{Found: 2, Enrolled: 1, Failed: 0},
-						AwsEks: &discoveryconfigv1.ResourcesDiscoveredSummary{Found: 3, Enrolled: 0, Failed: 1},
-						AwsRds: &discoveryconfigv1.ResourcesDiscoveredSummary{Found: 5, Enrolled: 2, Failed: 2},
-					},
-				},
-			},
-		},
-	}
-	mockDC2 := &discoveryconfig.DiscoveryConfig{
-		Status: discoveryconfig.Status{
-			IntegrationDiscoveredResources: map[string]*discoveryconfig.IntegrationDiscoveredSummary{
-				mockAwsInt.GetName(): {
-					IntegrationDiscoveredSummary: &discoveryconfigv1.IntegrationDiscoveredSummary{
-						AzureVms: &discoveryconfigv1.ResourcesDiscoveredSummary{Found: 2, Enrolled: 1, Failed: 0},
-					},
-				},
-			},
-		},
-	}
-
-	mockErr := errors.New("test error")
-
-	tests := []struct {
-		name         string
-		utLister     *mockUserTasksLister
-		dcLister     *mockDiscoveryConfigLister
-		integrations []types.Integration
-		expected     map[string]*ui.BriefSummary
-		error        error
-	}{
-		{"Empty Input", &mockUserTasksLister{}, &mockDiscoveryConfigLister{}, nil, map[string]*ui.BriefSummary{}, nil},
-		{
-			"Skips Integrations With No Support",
-			&mockUserTasksLister{},
-			&mockDiscoveryConfigLister{},
-			[]types.Integration{
-				mockAwsInt,
-				mockGithubInt,
-			},
-			map[string]*ui.BriefSummary{
-				mockAwsInt.GetName(): {
-					UnresolvedUserTasks: []ui.UserTask{},
-				},
-			},
-			nil,
-		},
-		{
-			"Collects User Tasks",
-			&mockUserTasksLister{
-				userTasks:       mockUserTasks,
-				defaultPageSize: 100,
-			},
-			&mockDiscoveryConfigLister{},
-			[]types.Integration{
-				mockAwsInt,
-				mockGithubInt,
-			},
-			map[string]*ui.BriefSummary{
-				mockAwsInt.GetName(): {
-					UnresolvedUserTasks: ui.MakeUserTasks(mockUserTasks),
-				},
-			},
-			nil,
-		},
-		{
-			"Counts Discovered Resources",
-			&mockUserTasksLister{},
-			&mockDiscoveryConfigLister{
-				configs: [][]*discoveryconfig.DiscoveryConfig{{mockDC1}, {mockDC2}},
-			},
-			[]types.Integration{
-				mockAwsInt,
-				mockGithubInt,
-			},
-			map[string]*ui.BriefSummary{
-				mockAwsInt.GetName(): {
-					UnresolvedUserTasks: []ui.UserTask{},
-					ResourcesCount: &ui.ResourcesCount{
-						Found:    12,
-						Enrolled: 4,
-						Failed:   3,
-					},
-				},
-			},
-			nil,
-		},
-		{
-			"Error From User Task Lister",
-			&mockUserTasksLister{err: mockErr},
-			&mockDiscoveryConfigLister{},
-			[]types.Integration{
-				mockAwsInt,
-			},
-			nil,
-			mockErr,
-		},
-		{
-			"Error From Discovery Config Lister",
-			&mockUserTasksLister{},
-			&mockDiscoveryConfigLister{err: mockErr},
-			[]types.Integration{
-				mockAwsInt,
-			},
-			nil,
-			mockErr,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			actual, err := buildBriefSummaries(context.Background(), tt.integrations, tt.utLister, tt.dcLister)
-			require.Equal(t, tt.expected, actual)
-			require.Equal(t, tt.error, trace.Unwrap(err))
-		})
-	}
-}
-
-type mockDiscoveryConfigLister struct {
-	configs [][]*discoveryconfig.DiscoveryConfig
-	err     error
-
-	calls int
-}
-
-func (m *mockDiscoveryConfigLister) ListDiscoveryConfigs(ctx context.Context, pageSize int, nextToken string) ([]*discoveryconfig.DiscoveryConfig, string, error) {
-	m.calls++
-	if m.err != nil {
-		return nil, "", m.err
-	}
-	if len(m.configs) == 0 {
-		return nil, "", nil
-	}
-
-	var page int
-	if nextToken != "" {
-		switch nextToken {
-		case "1":
-			page = 1
-		case "2":
-			page = 2
-		default:
-			page = 0
-		}
-	}
-
-	if page >= len(m.configs) {
-		return nil, "", nil
-	}
-	next := ""
-	if page+1 < len(m.configs) {
-		next = string(rune('0' + (page + 1)))
-	}
-	return m.configs[page], next, nil
-}
-
-func newMockAWSOIDCIntegration(t *testing.T, name string) types.Integration {
-	t.Helper()
-	ig, err := types.NewIntegrationAWSOIDC(
-		types.Metadata{Name: name},
-		&types.AWSOIDCIntegrationSpecV1{
-			RoleARN:     "arn:aws:iam::123456789012:role/test",
-			IssuerS3URI: "s3://bucket/prefix",
-			Audience:    "aws-identity-center",
-		},
-	)
-	require.NoError(t, err)
-	return ig
-}
-
-func newMockGitHubIntegration(t *testing.T, name string) types.Integration {
-	t.Helper()
-	ig, err := types.NewIntegrationGitHub(
-		types.Metadata{Name: name},
-		&types.GitHubIntegrationSpecV1{Organization: "test"},
-	)
-	require.NoError(t, err)
-	return ig
-}
-
-func newMockAzureOIDCIntegration(t *testing.T, name string) types.Integration {
-	t.Helper()
-	ig, err := types.NewIntegrationAzureOIDC(
-		types.Metadata{Name: name},
-		&types.AzureOIDCIntegrationSpecV1{
-			TenantID: "00000000-0000-0000-0000-000000000000",
-			ClientID: "11111111-1111-1111-1111-111111111111",
-		},
-	)
-	require.NoError(t, err)
-	return ig
 }

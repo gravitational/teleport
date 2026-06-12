@@ -17,7 +17,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useHistory } from 'react-router';
 
 import { Alert, Box, Flex, Indicator } from 'design';
 import { H2 } from 'design/Text/Text';
@@ -58,18 +58,18 @@ export function AuthConnectorsContainer() {
       <Route
         key="auth-connector-edit"
         path={cfg.routes.ssoConnector.edit}
-        element={<GitHubConnectorEditor />}
+        render={() => <GitHubConnectorEditor />}
       />
       <Route
         key="auth-connector-new"
         path={cfg.routes.ssoConnector.create}
-        element={<GitHubConnectorEditor isNew={true} />}
+        render={() => <GitHubConnectorEditor isNew={true} />}
       />
       <Route
         key="auth-connector-list"
         path={cfg.routes.sso}
         exact
-        element={<AuthConnectors />}
+        render={() => <AuthConnectors />}
       />
     </Switch>
   );
@@ -121,7 +121,7 @@ export function AuthConnectors() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const navigate = useNavigate();
+  const history = useHistory();
   const isEmpty = items.length === 0;
   const resources = useResources(items, templates);
 
@@ -147,7 +147,9 @@ export function AuthConnectors() {
         <InfoGuideButton config={{ guide: <InfoGuide isGitHub={true} /> }}>
           <ResponsiveAddButton
             fill="border"
-            onClick={() => navigate(cfg.getCreateAuthConnectorRoute('github'))}
+            onClick={() =>
+              history.push(cfg.getCreateAuthConnectorRoute('github'))
+            }
           >
             New GitHub Connector
           </ResponsiveAddButton>
@@ -175,7 +177,7 @@ export function AuthConnectors() {
               {isEmpty ? (
                 <EmptyList
                   onCreate={() =>
-                    navigate(cfg.getCreateAuthConnectorRoute('github'))
+                    history.push(cfg.getCreateAuthConnectorRoute('github'))
                   }
                   isLocalDefault={defaultConnector.type === 'local'}
                 />
@@ -218,11 +220,11 @@ export const InfoGuide = ({ isGitHub = false }) => (
         isGitHub
           ? {
               title: 'Configure GitHub connector',
-              href: 'https://goteleport.com/docs/zero-trust-access/sso/integrate-idp/github-sso/',
+              href: 'https://goteleport.com/docs/admin-guides/access-controls/sso/github-sso/',
             }
           : {
               title: 'Samples of different connectors',
-              href: 'https://goteleport.com/docs/zero-trust-access/sso/integrate-idp/#integrating-your-provider',
+              href: 'https://goteleport.com/docs/admin-guides/access-controls/sso/',
             },
       ]}
     />

@@ -94,7 +94,8 @@ func emitStatusUpdate(resp *resty.Response, statusSink common.StatusSink) {
 
 	if err := statusSink.Emit(ctx, status); err != nil {
 		logger.Get(resp.Request.Context()).
-			ErrorContext(ctx, "Error while emitting Discord plugin status", "error", err)
+			WithError(err).
+			Errorf("Error while emitting Discord plugin status: %v", err)
 	}
 }
 
@@ -112,7 +113,7 @@ func (b DiscordBot) CheckHealth(ctx context.Context) error {
 // SupportedApps are the apps supported by this bot.
 func (b DiscordBot) SupportedApps() []common.App {
 	return []common.App{
-		accessrequest.NewApp(),
+		accessrequest.NewApp(b),
 	}
 }
 
@@ -213,7 +214,7 @@ func (b DiscordBot) discordEmbeds(reviews []types.AccessReview) []DiscordEmbed {
 }
 
 func (b DiscordBot) discordMsgText(reqID string, reqData pd.AccessRequestData) string {
-	return accessrequest.MsgTitle(reqData) +
+	return "You have a new Role Request:\n" +
 		accessrequest.MsgFields(reqID, reqData, b.clusterName, b.webProxyURL) +
 		accessrequest.MsgStatusText(reqData.ResolutionTag, reqData.ResolutionReason)
 }

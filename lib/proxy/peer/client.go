@@ -40,7 +40,6 @@ import (
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -260,7 +259,6 @@ func (c *grpcClientConn) Ping(ctx context.Context) error {
 // Dial implements [internal.ClientConn].
 func (c *grpcClientConn) Dial(
 	nodeID string,
-	scope string,
 	src net.Addr,
 	dst net.Addr,
 	tunnelType types.TunnelType,
@@ -294,7 +292,6 @@ func (c *grpcClientConn) Dial(
 					Addr:    dst.String(),
 					Network: dst.Network(),
 				},
-				TargetScope: scope,
 			},
 		},
 	})
@@ -596,7 +593,6 @@ func (c *Client) GetConnectionsCount() int {
 func (c *Client) DialNode(
 	proxyIDs []string,
 	nodeID string,
-	scope string,
 	src net.Addr,
 	dst net.Addr,
 	tunnelType types.TunnelType,
@@ -604,7 +600,6 @@ func (c *Client) DialNode(
 	conn, _, err := c.dial(
 		proxyIDs,
 		nodeID,
-		scope,
 		src,
 		dst,
 		tunnelType,
@@ -624,7 +619,6 @@ func (c *Client) DialNode(
 func (c *Client) dial(
 	proxyIDs []string,
 	nodeID string,
-	scope string,
 	src net.Addr,
 	dst net.Addr,
 	tunnelType types.TunnelType,
@@ -636,7 +630,7 @@ func (c *Client) dial(
 
 	var errs []error
 	for _, clientConn := range conns {
-		conn, err := clientConn.Dial(nodeID, scope, src, dst, tunnelType)
+		conn, err := clientConn.Dial(nodeID, src, dst, tunnelType)
 		if err != nil {
 			errs = append(errs, trace.Wrap(err))
 			continue
@@ -682,10 +676,7 @@ func (c *Client) getConnections(proxyIDs []string) ([]internal.ClientConn, bool,
 	c.metrics.reportTunnelError(errorProxyPeerTunnelNotFound)
 
 	// try to establish new connections otherwise.
-	proxies, err := clientutils.CollectWithFallback(c.ctx, c.config.AuthClient.ListProxyServers, func(context.Context) ([]types.Server, error) {
-		//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
-		return c.config.AuthClient.GetProxies()
-	})
+	proxies, err := c.config.AuthClient.GetProxies()
 	if err != nil {
 		c.metrics.reportTunnelError(errorProxyPeerFetchProxies)
 		return nil, false, trace.Wrap(err)
@@ -776,9 +767,9 @@ func (c *Client) connect(params connectParams) (internal.ClientConn, error) {
 		return tlsCert, nil
 	}
 	tlsConfig.InsecureSkipVerify = true
-	tlsConfig.VerifyConnection = utils.VerifyConnection(c.config.Clock.Now, c.config.GetTLSRoots)
+	tlsConfig.VerifyConnection = utils.VerifyConnectionWithRoots(c.config.GetTLSRoots)
 
-	expectedPeer := utils.HostFQDN(params.peerID, c.config.ClusterName)
+	expectedPeer := authclient.HostFQDN(params.peerID, c.config.ClusterName)
 
 	conn, err := grpc.Dial(
 		params.peerAddr,
@@ -790,7 +781,7 @@ func (c *Client) connect(params connectParams) (internal.ClientConn, error) {
 			Timeout:             peerTimeout,
 			PermitWithoutStream: true,
 		}),
-		grpc.WithDefaultServiceConfig(`{"loadBalancingConfig": [{"round_robin": {}}]}`),
+		grpc.WithDefaultServiceConfig(`{"loadBalancingPolicy":"round_robin"}`),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err, "Error dialing proxy %q", params.peerID)

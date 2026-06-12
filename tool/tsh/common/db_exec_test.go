@@ -250,7 +250,7 @@ func TestDatabaseExec(t *testing.T) {
 				read, err = utils.ReadPath(filepath.Join(dir, "test-output", "mysql.output"))
 				require.NoError(t, err)
 				require.Equal(t, "db-query executed", strings.TrimSpace(string(read)))
-				require.FileExists(t, filepath.Join(dir, "test-output", "summary.json"))
+				require.True(t, utils.FileExists(filepath.Join(dir, "test-output", "summary.json")))
 			},
 		},
 	}
@@ -326,19 +326,29 @@ func (c *fakeDatabaseExecClient) issueCert(context.Context, *databaseInfo) (tls.
 	return c.cert, nil
 }
 func (c *fakeDatabaseExecClient) listDatabasesWithFilter(ctx context.Context, req *proto.ListResourcesRequest) ([]types.Database, error) {
-	filtered, err := matchResources(req, c.allDatabaseServers)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	filter := services.MatchResourceFilter{
+		ResourceKind:   req.ResourceType,
+		Labels:         req.Labels,
+		SearchKeywords: req.SearchKeywords,
 	}
-	return types.DatabaseServers(filtered).ToDatabases(), nil
-}
+	if req.PredicateExpression != "" {
+		expression, err := services.NewResourceExpression(req.PredicateExpression)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		filter.PredicateExpression = expression
+	}
 
-func matchResources[R types.ResourceWithLabels](req *proto.ListResourcesRequest, s []R) ([]R, error) {
-	filter, err := services.MatchResourceFilterFromListResourceRequest(req)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	var filtered []types.Database
+	for _, dbServer := range c.allDatabaseServers {
+		match, err := services.MatchResourceByFilters(dbServer, filter, nil)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		} else if match {
+			filtered = append(filtered, dbServer.GetDatabase())
+		}
 	}
-	return services.MatchResourcesByFilters(s, filter)
+	return filtered, nil
 }
 
 func mustMakeDatabaseServer(t *testing.T, db types.Database) types.DatabaseServer {

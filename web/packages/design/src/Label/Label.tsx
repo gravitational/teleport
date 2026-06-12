@@ -22,26 +22,12 @@ import styled from 'styled-components';
 import { border, BorderProps, space, SpaceProps } from '../system';
 import { Theme } from '../theme';
 
-const kind = ({
-  kind,
-  theme,
-  withHoverState = false,
-}: {
-  kind?: LabelKind;
-  theme: Theme;
-  withHoverState?: boolean;
-}) => {
+const kind = ({ kind, theme }: { kind?: LabelKind; theme: Theme }) => {
   if (kind === 'secondary') {
     return {
       backgroundColor: theme.colors.spotBackground[0],
       color: theme.colors.text.main,
       fontWeight: theme.fontWeights.regular,
-      ...(withHoverState && {
-        '&:hover': {
-          text: theme.colors.text.primaryInverse,
-          background: theme.colors.interactive.tonal.neutral[1],
-        },
-      }),
     };
   }
 
@@ -49,12 +35,6 @@ const kind = ({
     return {
       backgroundColor: theme.colors.warning.main,
       color: theme.colors.text.primaryInverse,
-      ...(withHoverState && {
-        '&:hover': {
-          color: theme.colors.text.primaryInverse,
-          backgroundColor: theme.colors.interactive.solid['alert'].hover,
-        },
-      }),
     };
   }
 
@@ -62,12 +42,6 @@ const kind = ({
     return {
       backgroundColor: theme.colors.error.main,
       color: theme.colors.text.primaryInverse,
-      ...(withHoverState && {
-        '&:hover': {
-          color: theme.colors.text.primaryInverse,
-          backgroundColor: theme.colors.interactive.solid['danger'].hover,
-        },
-      }),
     };
   }
 
@@ -75,63 +49,17 @@ const kind = ({
     return {
       backgroundColor: theme.colors.success.main,
       color: theme.colors.text.primaryInverse,
-      ...(withHoverState && {
-        '&:hover': {
-          color: theme.colors.text.primaryInverse,
-          backgroundColor: theme.colors.interactive.solid['success'].hover,
-        },
-      }),
-    };
-  }
-
-  if (kind === 'outline-primary') {
-    return {
-      color: theme.colors.brand,
-      backgroundColor: 'transparent',
-      borderColor: theme.colors.brand,
-      borderWidth: 1,
-      borderStyle: 'solid',
-      fontWeight: theme.fontWeights.regular,
-      ...(withHoverState && {
-        '&:hover': {
-          color: theme.colors.text.primaryInverse,
-          backgroundColor: theme.colors.interactive.solid['primary'].hover,
-        },
-      }),
     };
   }
 
   if (kind === 'outline-secondary') {
     return {
-      color: theme.colors.text.slightlyMuted,
-      backgroundColor: theme.colors.interactive.tonal.neutral[0],
-      borderColor: theme.colors.text.slightlyMuted,
+      color: theme.colors.text.main,
+      backgroundColor: 'transparent',
+      borderColor: theme.colors.interactive.tonal.neutral[0],
       borderWidth: 1,
       borderStyle: 'solid',
       fontWeight: theme.fontWeights.regular,
-      ...(withHoverState && {
-        '&:hover': {
-          text: theme.colors.text.primaryInverse,
-          background: theme.colors.interactive.tonal.neutral[1],
-        },
-      }),
-    };
-  }
-
-  if (kind === 'outline-success') {
-    return {
-      color: theme.colors.interactive.solid.success.hover,
-      backgroundColor: theme.colors.interactive.tonal.success[0],
-      borderColor: theme.colors.interactive.solid.success.hover,
-      borderWidth: 1,
-      borderStyle: 'solid',
-      fontWeight: theme.fontWeights.regular,
-      ...(withHoverState && {
-        '&:hover': {
-          color: theme.colors.text.primaryInverse,
-          backgroundColor: theme.colors.interactive.solid['success'].hover,
-        },
-      }),
     };
   }
 
@@ -139,33 +67,21 @@ const kind = ({
     return {
       color: theme.colors.dataVisualisation.primary.sunflower,
       backgroundColor: theme.colors.interactive.tonal.alert[0],
-      borderColor: theme.colors.dataVisualisation.primary.sunflower,
+      borderColor: theme.colors.interactive.tonal.alert[2],
       borderWidth: 1,
       borderStyle: 'solid',
       fontWeight: theme.fontWeights.regular,
-      ...(withHoverState && {
-        '&:hover': {
-          color: theme.colors.text.primaryInverse,
-          backgroundColor: theme.colors.interactive.solid['alert'].hover,
-        },
-      }),
     };
   }
 
   if (kind === 'outline-danger') {
     return {
-      color: theme.colors.dataVisualisation.tertiary.abbey,
+      color: theme.colors.interactive.solid.danger.default,
       backgroundColor: theme.colors.interactive.tonal.danger[0],
-      borderColor: theme.colors.interactive.solid.danger.default,
+      borderColor: theme.colors.interactive.tonal.danger[2],
       borderWidth: 1,
       borderStyle: 'solid',
       fontWeight: theme.fontWeights.regular,
-      ...(withHoverState && {
-        '&:hover': {
-          color: theme.colors.text.primaryInverse,
-          backgroundColor: theme.colors.interactive.solid['danger'].hover,
-        },
-      }),
     };
   }
 
@@ -173,19 +89,9 @@ const kind = ({
   return {
     backgroundColor: theme.colors.brand,
     color: theme.colors.text.primaryInverse,
-    ...(withHoverState && {
-      '&:hover': {
-        color: theme.colors.text.primaryInverse,
-        backgroundColor: theme.colors.interactive.solid['primary'].hover,
-      },
-    }),
   };
 };
 
-/**
- * @deprecated Use `Status` from `design/Status` for semantic states
- * (success, warning, danger) or `Tag` from `design/Tag` for neutral metadata.
- */
 export type LabelKind =
   | 'primary'
   | 'secondary'
@@ -194,25 +100,14 @@ export type LabelKind =
   | 'success'
   | 'outline-secondary'
   | 'outline-warning'
-  | 'outline-danger'
-  | 'outline-primary'
-  | 'outline-success';
+  | 'outline-danger';
 
-/**
- * @deprecated Use `StatusProps` from `design/Status` for semantic states
- * (success, warning, danger) or `TagProps` from `design/Tag` for neutral metadata.
- */
-export type LabelProps = {
+type LabelProps = {
   kind?: LabelKind;
-  withHoverState?: boolean;
   children?: React.ReactNode;
 } & SpaceProps &
   BorderProps;
 
-/**
- * @deprecated Use `Status` from `design/Status` for semantic states
- * (success, warning, danger) or `Tag` from `design/Tag` for neutral metadata.
- */
 const Label = styled.div<LabelProps>`
   box-sizing: border-box;
   border-radius: 999px;
@@ -233,35 +128,24 @@ export default Label;
 
 type LabelPropsWithoutKind = Omit<LabelProps, 'kind'>;
 
-/** @deprecated Use `<Status kind="primary" variant="filled">` from `design/Status`. */
 export const Primary = (props: LabelPropsWithoutKind) => (
   <Label kind="primary" {...props} />
 );
-/** @deprecated Use `<Tag>` from `design/Tag`. */
 export const Secondary = (props: LabelPropsWithoutKind) => (
   <Label kind="secondary" {...props} />
 );
-/** @deprecated Use `<Status kind="warning" variant="filled">` from `design/Status`. */
 export const Warning = (props: LabelPropsWithoutKind) => (
   <Label kind="warning" {...props} />
 );
-/** @deprecated Use `<Status kind="danger" variant="filled">` from `design/Status`. */
 export const Danger = (props: LabelPropsWithoutKind) => (
   <Label kind="danger" {...props} />
 );
-/** @deprecated Use `<Tag variant="outline">` from `design/Tag`. */
 export const SecondaryOutlined = (props: LabelPropsWithoutKind) => (
   <Label kind="outline-secondary" {...props} />
 );
-/** @deprecated Use `<Status kind="success">` from `design/Status`. */
-export const SuccessOutlined = (props: LabelPropsWithoutKind) => (
-  <Label kind="outline-success" {...props} />
-);
-/** @deprecated Use `<Status kind="warning">` from `design/Status`. */
 export const WarningOutlined = (props: LabelPropsWithoutKind) => (
   <Label kind="outline-warning" {...props} />
 );
-/** @deprecated Use `<Status kind="danger">` from `design/Status`. */
 export const DangerOutlined = (props: LabelPropsWithoutKind) => (
   <Label kind="outline-danger" {...props} />
 );

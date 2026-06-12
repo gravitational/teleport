@@ -98,7 +98,6 @@ export function BotList({
         row={{
           onClick: onSelect,
           getStyle: () => ({ cursor: 'pointer' }),
-          getKey: bot => bot.name,
         }}
       />
       {selectedBot && interaction === Interaction.DELETE && (

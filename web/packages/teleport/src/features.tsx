@@ -19,7 +19,6 @@
 import {
   AddCircle,
   Bots as BotsIcon,
-  CheckCircleDotted,
   CirclePlay,
   ClipboardUser,
   Cluster,
@@ -35,7 +34,6 @@ import {
   Question,
   Server,
   SlidersVertical,
-  Stack,
   Terminal,
   UserCircleGear,
   User as UserIcon,
@@ -43,32 +41,29 @@ import {
 
 import { IntegrationEnroll } from '@gravitational/teleport/src/Integrations/Enroll';
 import cfg, { Cfg } from 'teleport/config';
-import { IaCIntegrationOverview } from 'teleport/Discover/Overview/IaCIntegrationOverview';
-import { IaCIntegrationSettings } from 'teleport/Discover/Overview/IaCIntegrationSettings';
 import { IntegrationStatus } from 'teleport/Integrations/IntegrationStatus';
 import {
   NavigationCategory,
   NavigationCategory as SideNavigationCategory,
 } from 'teleport/Navigation/categories';
-import { ListSessionRecordingsRoute } from 'teleport/SessionRecordings/list/ListSessionRecordingsRoute';
 
 import { LockedAccessRequests } from './AccessRequests';
 import { AccountPage } from './Account';
 import { AuditContainer as Audit } from './Audit';
 import { AuthConnectorsContainer as AuthConnectors } from './AuthConnectors';
 import { BotInstances } from './BotInstances/BotInstances';
+import { BotInstanceDetails } from './BotInstances/Details/BotInstanceDetails';
 import { Bots } from './Bots';
 import { AddBots } from './Bots/Add';
 import { BotDetails } from './Bots/Details/BotDetails';
 import { Clusters } from './Clusters';
 import { DeviceTrustLocked } from './DeviceTrust';
 import { Discover } from './Discover';
-import { Instances } from './Instances/Instances';
 import { Integrations } from './Integrations';
 import { JoinTokens } from './JoinTokens/JoinTokens';
 import { Locks } from './LocksV2/Locks';
 import { NewLockView } from './LocksV2/NewLock';
-import { ManagedUpdates } from './ManagedUpdates';
+import { RecordingsContainer as Recordings } from './Recordings';
 import { RolesContainer as Roles } from './Roles';
 import { SessionsContainer as Sessions } from './Sessions';
 import { Support } from './Support';
@@ -308,45 +303,18 @@ export class FeatureBotInstances implements TeleportFeature {
   }
 }
 
-// TODO(nicholasmarais1158) Remove this feature stub when teleport.e no longer
-// uses it.
 export class FeatureBotInstanceDetails implements TeleportFeature {
-  hasAccess() {
-    return false;
-  }
-}
-
-export class FeatureInstances implements TeleportFeature {
-  category = NavigationCategory.ZeroTrustAccess;
+  parent = FeatureBotInstances;
 
   route = {
-    title: 'Instance Inventory',
-    path: cfg.routes.instances,
+    title: 'Bot instance details',
+    path: cfg.routes.botInstance,
     exact: true,
-    component: Instances,
+    component: BotInstanceDetails,
   };
 
-  hasAccess(flags: FeatureFlags) {
-    // if feature hiding is enabled, only show
-    // if the user has access
-    if (shouldHideFromNavigation(cfg)) {
-      return flags.listInstances || flags.listBotInstances;
-    }
+  hasAccess() {
     return true;
-  }
-
-  navigationItem = {
-    title: NavTitle.InstanceInventory,
-    icon: Stack,
-    exact: true,
-    getLink() {
-      return cfg.getInstancesRoute();
-    },
-    searchableTags: ['instances', 'instance', 'agents', 'inventory'],
-  };
-
-  getRoute() {
-    return this.route;
   }
 }
 
@@ -385,14 +353,12 @@ export class FeatureAddBotsShortcut implements TeleportFeature {
 
 export class FeatureAddBots implements TeleportFeature {
   category = NavigationCategory.AddNew;
-  // botsNew redirects to Integrations page
-  isHyperLink = true;
 
   route = {
     title: 'Bot',
     path: cfg.routes.botsNew,
     exact: true,
-    component: AddBots,
+    component: () => <AddBots />,
   };
 
   hasAccess(flags: FeatureFlags) {
@@ -596,7 +562,7 @@ export class FeatureIntegrations implements TeleportFeature {
     title: 'Manage Integrations',
     path: cfg.routes.integrations,
     exact: true,
-    component: Integrations,
+    component: () => <Integrations />,
   };
 
   navigationItem = {
@@ -619,9 +585,9 @@ export class FeatureIntegrationEnroll implements TeleportFeature {
 
   route = {
     title: 'Integration',
-    path: cfg.routes.integrationEnrollNew,
+    path: cfg.routes.integrationEnroll,
     exact: false,
-    component: IntegrationEnroll,
+    component: () => <IntegrationEnroll />,
   };
 
   hasAccess(flags: FeatureFlags) {
@@ -647,43 +613,6 @@ export class FeatureIntegrationEnroll implements TeleportFeature {
   }
 }
 
-export class FeatureManagedUpdates implements TeleportFeature {
-  category = NavigationCategory.ZeroTrustAccess;
-
-  route = {
-    title: 'Managed Updates',
-    path: cfg.routes.managedUpdates,
-    exact: true,
-    component: ManagedUpdates,
-  };
-
-  hasAccess(flags: FeatureFlags) {
-    const canViewPage =
-      flags.readAutoUpdateConfig ||
-      flags.readAutoUpdateVersion ||
-      flags.readAutoUpdateAgentRollout;
-
-    if (shouldHideFromNavigation(cfg)) {
-      return canViewPage;
-    }
-    return true;
-  }
-
-  navigationItem = {
-    title: NavTitle.ManagedUpdates,
-    icon: CheckCircleDotted,
-    exact: true,
-    getLink() {
-      return cfg.getManagedUpdatesRoute();
-    },
-    searchableTags: ['managed updates', 'updates', 'rollout', 'agents'],
-  };
-
-  getRoute() {
-    return this.route;
-  }
-}
-
 // - Activity
 
 export class FeatureRecordings implements TeleportFeature {
@@ -693,7 +622,7 @@ export class FeatureRecordings implements TeleportFeature {
     title: 'Session Recordings',
     path: cfg.routes.recordings,
     exact: true,
-    component: ListSessionRecordingsRoute,
+    component: Recordings,
   };
 
   hasAccess(flags: FeatureFlags) {
@@ -860,34 +789,6 @@ class FeatureIntegrationStatus implements TeleportFeature {
   }
 }
 
-export class FeatureIntegrationOverview implements TeleportFeature {
-  parent = FeatureIntegrations;
-
-  route = {
-    title: 'Integration Overview',
-    path: cfg.routes.integrationOverview,
-    component: IaCIntegrationOverview,
-  };
-
-  hasAccess() {
-    return true;
-  }
-}
-
-export class FeatureIntegrationOverviewSettings implements TeleportFeature {
-  parent = FeatureIntegrations;
-
-  route = {
-    title: 'Integration Settings',
-    path: cfg.routes.integrationOverviewSettings,
-    component: IaCIntegrationSettings,
-  };
-
-  hasAccess() {
-    return true;
-  }
-}
-
 // ****************************
 // Other Features
 // ****************************
@@ -964,19 +865,16 @@ export function getOSSFeatures(): TeleportFeature[] {
     new FeatureBots(),
     new FeatureBotDetails(),
     new FeatureBotInstances(),
-    new FeatureInstances(),
+    new FeatureBotInstanceDetails(),
     new FeatureAddBotsShortcut(),
     new FeatureJoinTokens(),
     new FeatureRoles(),
     new FeatureDeviceTrust(),
     new FeatureAuthConnectors(),
     new FeatureIntegrations(),
-    new FeatureManagedUpdates(),
     new FeatureClusters(),
     new FeatureTrust(),
     new FeatureIntegrationStatus(),
-    new FeatureIntegrationOverview(),
-    new FeatureIntegrationOverviewSettings(),
 
     // - Identity
     new AccessRequests(),

@@ -1,7 +1,7 @@
 # Teleport Role resource
 
 resource "teleport_role" "example" {
-  version = "v8"
+  version = "v7"
   metadata = {
     name        = "example"
     description = "Example Teleport Role"

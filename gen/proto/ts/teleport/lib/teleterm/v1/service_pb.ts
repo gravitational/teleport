@@ -43,12 +43,9 @@ import { Kube } from "./kube_pb";
 import { Database } from "./database_pb";
 import { Server } from "./server_pb";
 import { Gateway } from "./gateway_pb";
-import { DatabaseServer } from "./database_pb";
 import { Cluster } from "./cluster_pb";
-import { KubeServer } from "./kube_pb";
 import { KubeResource } from "./kube_pb";
 import { AccessList } from "../../../accesslist/v1/accesslist_pb";
-import { ResourceAccessID } from "../../../legacy/types/resources_pb";
 import { Timestamp } from "../../../../google/protobuf/timestamp_pb";
 import { ResourceID } from "./access_request_pb";
 import { AccessRequest } from "./access_request_pb";
@@ -56,6 +53,17 @@ import { AccessRequest } from "./access_request_pb";
  * @generated from protobuf message teleport.lib.teleterm.v1.EmptyResponse
  */
 export interface EmptyResponse {
+}
+/**
+ * RemoveClusterRequest describes RemoveClusterRequest
+ *
+ * @generated from protobuf message teleport.lib.teleterm.v1.RemoveClusterRequest
+ */
+export interface RemoveClusterRequest {
+    /**
+     * @generated from protobuf field: string cluster_uri = 1;
+     */
+    clusterUri: string;
 }
 /**
  * GetClusterRequest describes GetClusterRequest
@@ -69,6 +77,8 @@ export interface GetClusterRequest {
     clusterUri: string;
 }
 /**
+ * LogoutRequest describes LogoutRequest
+ *
  * @generated from protobuf message teleport.lib.teleterm.v1.LogoutRequest
  */
 export interface LogoutRequest {
@@ -76,26 +86,6 @@ export interface LogoutRequest {
      * @generated from protobuf field: string cluster_uri = 1;
      */
     clusterUri: string;
-    /**
-     * Whether to remove the associated YAML profile after logout.
-     *
-     * @generated from protobuf field: bool remove_profile = 2;
-     */
-    removeProfile: boolean;
-}
-/**
- * @generated from protobuf message teleport.lib.teleterm.v1.ClearStaleClusterClientsRequest
- */
-export interface ClearStaleClusterClientsRequest {
-    /**
-     * @generated from protobuf field: string root_cluster_uri = 1;
-     */
-    rootClusterUri: string;
-}
-/**
- * @generated from protobuf message teleport.lib.teleterm.v1.ClearStaleClusterClientsResponse
- */
-export interface ClearStaleClusterClientsResponse {
 }
 /**
  * @generated from protobuf message teleport.lib.teleterm.v1.StartHeadlessWatcherRequest
@@ -224,17 +214,6 @@ export interface CreateAccessRequestRequest {
      * @generated from protobuf field: google.protobuf.Timestamp request_ttl = 9;
      */
     requestTtl?: Timestamp;
-    /**
-     * resource_access_ids is the set of resources to which access is being requested,
-     * paired with additional information such as ResourceConstraints.
-     * Differs from resource_ids, which only identify resources and cannot be used
-     * to express additional information per-resource such as ResourceConstraints.
-     * When present, resource_access_ids should be treated as authoritative
-     * (ResourceIDs can be derived by mapping to ResourceAccessID.id).
-     *
-     * @generated from protobuf field: repeated types.ResourceAccessID resource_access_ids = 10;
-     */
-    resourceAccessIds: ResourceAccessID[];
 }
 /**
  * @generated from protobuf message teleport.lib.teleterm.v1.CreateAccessRequestResponse
@@ -449,56 +428,6 @@ export interface ListKubernetesResourcesResponse {
      * @generated from protobuf field: repeated teleport.lib.teleterm.v1.KubeResource resources = 1;
      */
     resources: KubeResource[];
-}
-/**
- * Lists Kubernetes servers request.
- *
- * @generated from protobuf message teleport.lib.teleterm.v1.ListKubernetesServersRequest
- */
-export interface ListKubernetesServersRequest {
-    /**
-     * Maximum number of servers to return per page.
-     *
-     * @generated from protobuf field: int32 page_size = 1;
-     */
-    pageSize: number;
-    /**
-     * Pagination token from a previous response.
-     *
-     * @generated from protobuf field: string page_token = 2;
-     */
-    pageToken: string;
-    /**
-     * Target Kubernetes cluster URI.
-     *
-     * @generated from protobuf field: string cluster_uri = 3;
-     */
-    clusterUri: string;
-    /**
-     * Additional filters and sorting options.
-     *
-     * @generated from protobuf field: teleport.lib.teleterm.v1.ListResourcesParams params = 4;
-     */
-    params?: ListResourcesParams;
-}
-/**
- * Lists Kubernetes servers response.
- *
- * @generated from protobuf message teleport.lib.teleterm.v1.ListKubernetesServersResponse
- */
-export interface ListKubernetesServersResponse {
-    /**
-     * Resources in this page of results.
-     *
-     * @generated from protobuf field: repeated teleport.lib.teleterm.v1.KubeServer resources = 1;
-     */
-    resources: KubeServer[];
-    /**
-     * Pagination token for the next page.
-     *
-     * @generated from protobuf field: string next_page_token = 2;
-     */
-    nextPageToken: string;
 }
 /**
  * CredentialInfo holds fields related to a user's WebAuthn credential.
@@ -753,58 +682,22 @@ export interface ListLeafClustersRequest {
     clusterUri: string;
 }
 /**
- * ListResourcesParams describes different types of params
- * that can be applied when sending a request to a method that
- * uses the ListResources API underneath.
- *
- * @generated from protobuf message teleport.lib.teleterm.v1.ListResourcesParams
+ * @generated from protobuf message teleport.lib.teleterm.v1.ListDatabaseUsersRequest
  */
-export interface ListResourcesParams {
+export interface ListDatabaseUsersRequest {
     /**
-     * @generated from protobuf field: string start_key = 1;
+     * @generated from protobuf field: string db_uri = 1;
      */
-    startKey: string;
-    /**
-     * @generated from protobuf field: int32 limit = 2;
-     */
-    limit: number;
-    /**
-     * @generated from protobuf field: string predicate_expression = 3;
-     */
-    predicateExpression: string;
-    /**
-     * UseSearchAsRoles indicates that the response should include all resources
-     * the caller is able to request access to using search_as_roles
-     *
-     * @generated from protobuf field: bool use_search_as_roles = 4;
-     */
-    useSearchAsRoles: boolean;
+    dbUri: string;
 }
 /**
- * @generated from protobuf message teleport.lib.teleterm.v1.ListDatabaseServersRequest
+ * @generated from protobuf message teleport.lib.teleterm.v1.ListDatabaseUsersResponse
  */
-export interface ListDatabaseServersRequest {
+export interface ListDatabaseUsersResponse {
     /**
-     * @generated from protobuf field: string cluster_uri = 1;
+     * @generated from protobuf field: repeated string users = 1;
      */
-    clusterUri: string;
-    /**
-     * @generated from protobuf field: teleport.lib.teleterm.v1.ListResourcesParams params = 2;
-     */
-    params?: ListResourcesParams;
-}
-/**
- * @generated from protobuf message teleport.lib.teleterm.v1.ListDatabaseServersResponse
- */
-export interface ListDatabaseServersResponse {
-    /**
-     * @generated from protobuf field: repeated teleport.lib.teleterm.v1.DatabaseServer resources = 1;
-     */
-    resources: DatabaseServer[];
-    /**
-     * @generated from protobuf field: string next_key = 2;
-     */
-    nextKey: string;
+    users: string[];
 }
 /**
  * @generated from protobuf message teleport.lib.teleterm.v1.CreateGatewayRequest
@@ -875,6 +768,56 @@ export interface SetGatewayLocalPortRequest {
      * @generated from protobuf field: string local_port = 2;
      */
     localPort: string;
+}
+/**
+ * @generated from protobuf message teleport.lib.teleterm.v1.GetServersRequest
+ */
+export interface GetServersRequest {
+    /**
+     * @generated from protobuf field: string cluster_uri = 1;
+     */
+    clusterUri: string;
+    /**
+     * @generated from protobuf field: int32 limit = 2;
+     */
+    limit: number;
+    /**
+     * @generated from protobuf field: string start_key = 3;
+     */
+    startKey: string;
+    /**
+     * @generated from protobuf field: string search = 4;
+     */
+    search: string;
+    /**
+     * @generated from protobuf field: string query = 5;
+     */
+    query: string;
+    /**
+     * @generated from protobuf field: string sort_by = 6;
+     */
+    sortBy: string;
+    /**
+     * @generated from protobuf field: string search_as_roles = 7;
+     */
+    searchAsRoles: string;
+}
+/**
+ * @generated from protobuf message teleport.lib.teleterm.v1.GetServersResponse
+ */
+export interface GetServersResponse {
+    /**
+     * @generated from protobuf field: repeated teleport.lib.teleterm.v1.Server agents = 1;
+     */
+    agents: Server[];
+    /**
+     * @generated from protobuf field: int32 total_count = 2;
+     */
+    totalCount: number;
+    /**
+     * @generated from protobuf field: string start_key = 3;
+     */
+    startKey: string;
 }
 /**
  * @generated from protobuf message teleport.lib.teleterm.v1.GetAuthSettingsRequest
@@ -1102,7 +1045,7 @@ export interface ListUnifiedResourcesResponse {
      */
     resources: PaginatedResource[];
     /**
-     * A key to use as start_key in a ListUnifiedResourcesRequest to continue retrieving
+     * A key to use as start_key in a ListResourcesRequest to continue retrieving
      * the next pages. If it is empty, there are no more pages.
      *
      * @generated from protobuf field: string next_key = 2;
@@ -1443,6 +1386,53 @@ class EmptyResponse$Type extends MessageType<EmptyResponse> {
  */
 export const EmptyResponse = new EmptyResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class RemoveClusterRequest$Type extends MessageType<RemoveClusterRequest> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.RemoveClusterRequest", [
+            { no: 1, name: "cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<RemoveClusterRequest>): RemoveClusterRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.clusterUri = "";
+        if (value !== undefined)
+            reflectionMergePartial<RemoveClusterRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: RemoveClusterRequest): RemoveClusterRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string cluster_uri */ 1:
+                    message.clusterUri = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: RemoveClusterRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string cluster_uri = 1; */
+        if (message.clusterUri !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.clusterUri);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.RemoveClusterRequest
+ */
+export const RemoveClusterRequest = new RemoveClusterRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class GetClusterRequest$Type extends MessageType<GetClusterRequest> {
     constructor() {
         super("teleport.lib.teleterm.v1.GetClusterRequest", [
@@ -1493,14 +1483,12 @@ export const GetClusterRequest = new GetClusterRequest$Type();
 class LogoutRequest$Type extends MessageType<LogoutRequest> {
     constructor() {
         super("teleport.lib.teleterm.v1.LogoutRequest", [
-            { no: 1, name: "cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "remove_profile", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+            { no: 1, name: "cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
     create(value?: PartialMessage<LogoutRequest>): LogoutRequest {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.clusterUri = "";
-        message.removeProfile = false;
         if (value !== undefined)
             reflectionMergePartial<LogoutRequest>(this, message, value);
         return message;
@@ -1512,9 +1500,6 @@ class LogoutRequest$Type extends MessageType<LogoutRequest> {
             switch (fieldNo) {
                 case /* string cluster_uri */ 1:
                     message.clusterUri = reader.string();
-                    break;
-                case /* bool remove_profile */ 2:
-                    message.removeProfile = reader.bool();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1531,9 +1516,6 @@ class LogoutRequest$Type extends MessageType<LogoutRequest> {
         /* string cluster_uri = 1; */
         if (message.clusterUri !== "")
             writer.tag(1, WireType.LengthDelimited).string(message.clusterUri);
-        /* bool remove_profile = 2; */
-        if (message.removeProfile !== false)
-            writer.tag(2, WireType.Varint).bool(message.removeProfile);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -1544,78 +1526,6 @@ class LogoutRequest$Type extends MessageType<LogoutRequest> {
  * @generated MessageType for protobuf message teleport.lib.teleterm.v1.LogoutRequest
  */
 export const LogoutRequest = new LogoutRequest$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class ClearStaleClusterClientsRequest$Type extends MessageType<ClearStaleClusterClientsRequest> {
-    constructor() {
-        super("teleport.lib.teleterm.v1.ClearStaleClusterClientsRequest", [
-            { no: 1, name: "root_cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
-        ]);
-    }
-    create(value?: PartialMessage<ClearStaleClusterClientsRequest>): ClearStaleClusterClientsRequest {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.rootClusterUri = "";
-        if (value !== undefined)
-            reflectionMergePartial<ClearStaleClusterClientsRequest>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ClearStaleClusterClientsRequest): ClearStaleClusterClientsRequest {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* string root_cluster_uri */ 1:
-                    message.rootClusterUri = reader.string();
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: ClearStaleClusterClientsRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* string root_cluster_uri = 1; */
-        if (message.rootClusterUri !== "")
-            writer.tag(1, WireType.LengthDelimited).string(message.rootClusterUri);
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message teleport.lib.teleterm.v1.ClearStaleClusterClientsRequest
- */
-export const ClearStaleClusterClientsRequest = new ClearStaleClusterClientsRequest$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class ClearStaleClusterClientsResponse$Type extends MessageType<ClearStaleClusterClientsResponse> {
-    constructor() {
-        super("teleport.lib.teleterm.v1.ClearStaleClusterClientsResponse", []);
-    }
-    create(value?: PartialMessage<ClearStaleClusterClientsResponse>): ClearStaleClusterClientsResponse {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        if (value !== undefined)
-            reflectionMergePartial<ClearStaleClusterClientsResponse>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ClearStaleClusterClientsResponse): ClearStaleClusterClientsResponse {
-        return target ?? this.create();
-    }
-    internalBinaryWrite(message: ClearStaleClusterClientsResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message teleport.lib.teleterm.v1.ClearStaleClusterClientsResponse
- */
-export const ClearStaleClusterClientsResponse = new ClearStaleClusterClientsResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class StartHeadlessWatcherRequest$Type extends MessageType<StartHeadlessWatcherRequest> {
     constructor() {
@@ -1950,8 +1860,7 @@ class CreateAccessRequestRequest$Type extends MessageType<CreateAccessRequestReq
             { no: 6, name: "assume_start_time", kind: "message", T: () => Timestamp },
             { no: 7, name: "dry_run", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 8, name: "max_duration", kind: "message", T: () => Timestamp },
-            { no: 9, name: "request_ttl", kind: "message", T: () => Timestamp },
-            { no: 10, name: "resource_access_ids", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => ResourceAccessID }
+            { no: 9, name: "request_ttl", kind: "message", T: () => Timestamp }
         ]);
     }
     create(value?: PartialMessage<CreateAccessRequestRequest>): CreateAccessRequestRequest {
@@ -1962,7 +1871,6 @@ class CreateAccessRequestRequest$Type extends MessageType<CreateAccessRequestReq
         message.suggestedReviewers = [];
         message.resourceIds = [];
         message.dryRun = false;
-        message.resourceAccessIds = [];
         if (value !== undefined)
             reflectionMergePartial<CreateAccessRequestRequest>(this, message, value);
         return message;
@@ -1998,9 +1906,6 @@ class CreateAccessRequestRequest$Type extends MessageType<CreateAccessRequestReq
                     break;
                 case /* google.protobuf.Timestamp request_ttl */ 9:
                     message.requestTtl = Timestamp.internalBinaryRead(reader, reader.uint32(), options, message.requestTtl);
-                    break;
-                case /* repeated types.ResourceAccessID resource_access_ids */ 10:
-                    message.resourceAccessIds.push(ResourceAccessID.internalBinaryRead(reader, reader.uint32(), options));
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -2041,9 +1946,6 @@ class CreateAccessRequestRequest$Type extends MessageType<CreateAccessRequestReq
         /* google.protobuf.Timestamp request_ttl = 9; */
         if (message.requestTtl)
             Timestamp.internalBinaryWrite(message.requestTtl, writer.tag(9, WireType.LengthDelimited).fork(), options).join();
-        /* repeated types.ResourceAccessID resource_access_ids = 10; */
-        for (let i = 0; i < message.resourceAccessIds.length; i++)
-            ResourceAccessID.internalBinaryWrite(message.resourceAccessIds[i], writer.tag(10, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -2782,131 +2684,6 @@ class ListKubernetesResourcesResponse$Type extends MessageType<ListKubernetesRes
  * @generated MessageType for protobuf message teleport.lib.teleterm.v1.ListKubernetesResourcesResponse
  */
 export const ListKubernetesResourcesResponse = new ListKubernetesResourcesResponse$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class ListKubernetesServersRequest$Type extends MessageType<ListKubernetesServersRequest> {
-    constructor() {
-        super("teleport.lib.teleterm.v1.ListKubernetesServersRequest", [
-            { no: 1, name: "page_size", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
-            { no: 2, name: "page_token", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 3, name: "cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 4, name: "params", kind: "message", T: () => ListResourcesParams }
-        ]);
-    }
-    create(value?: PartialMessage<ListKubernetesServersRequest>): ListKubernetesServersRequest {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.pageSize = 0;
-        message.pageToken = "";
-        message.clusterUri = "";
-        if (value !== undefined)
-            reflectionMergePartial<ListKubernetesServersRequest>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ListKubernetesServersRequest): ListKubernetesServersRequest {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* int32 page_size */ 1:
-                    message.pageSize = reader.int32();
-                    break;
-                case /* string page_token */ 2:
-                    message.pageToken = reader.string();
-                    break;
-                case /* string cluster_uri */ 3:
-                    message.clusterUri = reader.string();
-                    break;
-                case /* teleport.lib.teleterm.v1.ListResourcesParams params */ 4:
-                    message.params = ListResourcesParams.internalBinaryRead(reader, reader.uint32(), options, message.params);
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: ListKubernetesServersRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* int32 page_size = 1; */
-        if (message.pageSize !== 0)
-            writer.tag(1, WireType.Varint).int32(message.pageSize);
-        /* string page_token = 2; */
-        if (message.pageToken !== "")
-            writer.tag(2, WireType.LengthDelimited).string(message.pageToken);
-        /* string cluster_uri = 3; */
-        if (message.clusterUri !== "")
-            writer.tag(3, WireType.LengthDelimited).string(message.clusterUri);
-        /* teleport.lib.teleterm.v1.ListResourcesParams params = 4; */
-        if (message.params)
-            ListResourcesParams.internalBinaryWrite(message.params, writer.tag(4, WireType.LengthDelimited).fork(), options).join();
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message teleport.lib.teleterm.v1.ListKubernetesServersRequest
- */
-export const ListKubernetesServersRequest = new ListKubernetesServersRequest$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class ListKubernetesServersResponse$Type extends MessageType<ListKubernetesServersResponse> {
-    constructor() {
-        super("teleport.lib.teleterm.v1.ListKubernetesServersResponse", [
-            { no: 1, name: "resources", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => KubeServer },
-            { no: 2, name: "next_page_token", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
-        ]);
-    }
-    create(value?: PartialMessage<ListKubernetesServersResponse>): ListKubernetesServersResponse {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.resources = [];
-        message.nextPageToken = "";
-        if (value !== undefined)
-            reflectionMergePartial<ListKubernetesServersResponse>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ListKubernetesServersResponse): ListKubernetesServersResponse {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* repeated teleport.lib.teleterm.v1.KubeServer resources */ 1:
-                    message.resources.push(KubeServer.internalBinaryRead(reader, reader.uint32(), options));
-                    break;
-                case /* string next_page_token */ 2:
-                    message.nextPageToken = reader.string();
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: ListKubernetesServersResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* repeated teleport.lib.teleterm.v1.KubeServer resources = 1; */
-        for (let i = 0; i < message.resources.length; i++)
-            KubeServer.internalBinaryWrite(message.resources[i], writer.tag(1, WireType.LengthDelimited).fork(), options).join();
-        /* string next_page_token = 2; */
-        if (message.nextPageToken !== "")
-            writer.tag(2, WireType.LengthDelimited).string(message.nextPageToken);
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message teleport.lib.teleterm.v1.ListKubernetesServersResponse
- */
-export const ListKubernetesServersResponse = new ListKubernetesServersResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class CredentialInfo$Type extends MessageType<CredentialInfo> {
     constructor() {
@@ -3699,41 +3476,26 @@ class ListLeafClustersRequest$Type extends MessageType<ListLeafClustersRequest> 
  */
 export const ListLeafClustersRequest = new ListLeafClustersRequest$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class ListResourcesParams$Type extends MessageType<ListResourcesParams> {
+class ListDatabaseUsersRequest$Type extends MessageType<ListDatabaseUsersRequest> {
     constructor() {
-        super("teleport.lib.teleterm.v1.ListResourcesParams", [
-            { no: 1, name: "start_key", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "limit", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
-            { no: 3, name: "predicate_expression", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 4, name: "use_search_as_roles", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+        super("teleport.lib.teleterm.v1.ListDatabaseUsersRequest", [
+            { no: 1, name: "db_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
         ]);
     }
-    create(value?: PartialMessage<ListResourcesParams>): ListResourcesParams {
+    create(value?: PartialMessage<ListDatabaseUsersRequest>): ListDatabaseUsersRequest {
         const message = globalThis.Object.create((this.messagePrototype!));
-        message.startKey = "";
-        message.limit = 0;
-        message.predicateExpression = "";
-        message.useSearchAsRoles = false;
+        message.dbUri = "";
         if (value !== undefined)
-            reflectionMergePartial<ListResourcesParams>(this, message, value);
+            reflectionMergePartial<ListDatabaseUsersRequest>(this, message, value);
         return message;
     }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ListResourcesParams): ListResourcesParams {
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ListDatabaseUsersRequest): ListDatabaseUsersRequest {
         let message = target ?? this.create(), end = reader.pos + length;
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
             switch (fieldNo) {
-                case /* string start_key */ 1:
-                    message.startKey = reader.string();
-                    break;
-                case /* int32 limit */ 2:
-                    message.limit = reader.int32();
-                    break;
-                case /* string predicate_expression */ 3:
-                    message.predicateExpression = reader.string();
-                    break;
-                case /* bool use_search_as_roles */ 4:
-                    message.useSearchAsRoles = reader.bool();
+                case /* string db_uri */ 1:
+                    message.dbUri = reader.string();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -3746,19 +3508,10 @@ class ListResourcesParams$Type extends MessageType<ListResourcesParams> {
         }
         return message;
     }
-    internalBinaryWrite(message: ListResourcesParams, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* string start_key = 1; */
-        if (message.startKey !== "")
-            writer.tag(1, WireType.LengthDelimited).string(message.startKey);
-        /* int32 limit = 2; */
-        if (message.limit !== 0)
-            writer.tag(2, WireType.Varint).int32(message.limit);
-        /* string predicate_expression = 3; */
-        if (message.predicateExpression !== "")
-            writer.tag(3, WireType.LengthDelimited).string(message.predicateExpression);
-        /* bool use_search_as_roles = 4; */
-        if (message.useSearchAsRoles !== false)
-            writer.tag(4, WireType.Varint).bool(message.useSearchAsRoles);
+    internalBinaryWrite(message: ListDatabaseUsersRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string db_uri = 1; */
+        if (message.dbUri !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.dbUri);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -3766,34 +3519,30 @@ class ListResourcesParams$Type extends MessageType<ListResourcesParams> {
     }
 }
 /**
- * @generated MessageType for protobuf message teleport.lib.teleterm.v1.ListResourcesParams
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.ListDatabaseUsersRequest
  */
-export const ListResourcesParams = new ListResourcesParams$Type();
+export const ListDatabaseUsersRequest = new ListDatabaseUsersRequest$Type();
 // @generated message type with reflection information, may provide speed optimized methods
-class ListDatabaseServersRequest$Type extends MessageType<ListDatabaseServersRequest> {
+class ListDatabaseUsersResponse$Type extends MessageType<ListDatabaseUsersResponse> {
     constructor() {
-        super("teleport.lib.teleterm.v1.ListDatabaseServersRequest", [
-            { no: 1, name: "cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "params", kind: "message", T: () => ListResourcesParams }
+        super("teleport.lib.teleterm.v1.ListDatabaseUsersResponse", [
+            { no: 1, name: "users", kind: "scalar", repeat: 2 /*RepeatType.UNPACKED*/, T: 9 /*ScalarType.STRING*/ }
         ]);
     }
-    create(value?: PartialMessage<ListDatabaseServersRequest>): ListDatabaseServersRequest {
+    create(value?: PartialMessage<ListDatabaseUsersResponse>): ListDatabaseUsersResponse {
         const message = globalThis.Object.create((this.messagePrototype!));
-        message.clusterUri = "";
+        message.users = [];
         if (value !== undefined)
-            reflectionMergePartial<ListDatabaseServersRequest>(this, message, value);
+            reflectionMergePartial<ListDatabaseUsersResponse>(this, message, value);
         return message;
     }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ListDatabaseServersRequest): ListDatabaseServersRequest {
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ListDatabaseUsersResponse): ListDatabaseUsersResponse {
         let message = target ?? this.create(), end = reader.pos + length;
         while (reader.pos < end) {
             let [fieldNo, wireType] = reader.tag();
             switch (fieldNo) {
-                case /* string cluster_uri */ 1:
-                    message.clusterUri = reader.string();
-                    break;
-                case /* teleport.lib.teleterm.v1.ListResourcesParams params */ 2:
-                    message.params = ListResourcesParams.internalBinaryRead(reader, reader.uint32(), options, message.params);
+                case /* repeated string users */ 1:
+                    message.users.push(reader.string());
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -3806,13 +3555,10 @@ class ListDatabaseServersRequest$Type extends MessageType<ListDatabaseServersReq
         }
         return message;
     }
-    internalBinaryWrite(message: ListDatabaseServersRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* string cluster_uri = 1; */
-        if (message.clusterUri !== "")
-            writer.tag(1, WireType.LengthDelimited).string(message.clusterUri);
-        /* teleport.lib.teleterm.v1.ListResourcesParams params = 2; */
-        if (message.params)
-            ListResourcesParams.internalBinaryWrite(message.params, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
+    internalBinaryWrite(message: ListDatabaseUsersResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* repeated string users = 1; */
+        for (let i = 0; i < message.users.length; i++)
+            writer.tag(1, WireType.LengthDelimited).string(message.users[i]);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -3820,64 +3566,9 @@ class ListDatabaseServersRequest$Type extends MessageType<ListDatabaseServersReq
     }
 }
 /**
- * @generated MessageType for protobuf message teleport.lib.teleterm.v1.ListDatabaseServersRequest
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.ListDatabaseUsersResponse
  */
-export const ListDatabaseServersRequest = new ListDatabaseServersRequest$Type();
-// @generated message type with reflection information, may provide speed optimized methods
-class ListDatabaseServersResponse$Type extends MessageType<ListDatabaseServersResponse> {
-    constructor() {
-        super("teleport.lib.teleterm.v1.ListDatabaseServersResponse", [
-            { no: 1, name: "resources", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => DatabaseServer },
-            { no: 2, name: "next_key", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
-        ]);
-    }
-    create(value?: PartialMessage<ListDatabaseServersResponse>): ListDatabaseServersResponse {
-        const message = globalThis.Object.create((this.messagePrototype!));
-        message.resources = [];
-        message.nextKey = "";
-        if (value !== undefined)
-            reflectionMergePartial<ListDatabaseServersResponse>(this, message, value);
-        return message;
-    }
-    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ListDatabaseServersResponse): ListDatabaseServersResponse {
-        let message = target ?? this.create(), end = reader.pos + length;
-        while (reader.pos < end) {
-            let [fieldNo, wireType] = reader.tag();
-            switch (fieldNo) {
-                case /* repeated teleport.lib.teleterm.v1.DatabaseServer resources */ 1:
-                    message.resources.push(DatabaseServer.internalBinaryRead(reader, reader.uint32(), options));
-                    break;
-                case /* string next_key */ 2:
-                    message.nextKey = reader.string();
-                    break;
-                default:
-                    let u = options.readUnknownField;
-                    if (u === "throw")
-                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
-                    let d = reader.skip(wireType);
-                    if (u !== false)
-                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
-            }
-        }
-        return message;
-    }
-    internalBinaryWrite(message: ListDatabaseServersResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
-        /* repeated teleport.lib.teleterm.v1.DatabaseServer resources = 1; */
-        for (let i = 0; i < message.resources.length; i++)
-            DatabaseServer.internalBinaryWrite(message.resources[i], writer.tag(1, WireType.LengthDelimited).fork(), options).join();
-        /* string next_key = 2; */
-        if (message.nextKey !== "")
-            writer.tag(2, WireType.LengthDelimited).string(message.nextKey);
-        let u = options.writeUnknownFields;
-        if (u !== false)
-            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
-        return writer;
-    }
-}
-/**
- * @generated MessageType for protobuf message teleport.lib.teleterm.v1.ListDatabaseServersResponse
- */
-export const ListDatabaseServersResponse = new ListDatabaseServersResponse$Type();
+export const ListDatabaseUsersResponse = new ListDatabaseUsersResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class CreateGatewayRequest$Type extends MessageType<CreateGatewayRequest> {
     constructor() {
@@ -4178,6 +3869,164 @@ class SetGatewayLocalPortRequest$Type extends MessageType<SetGatewayLocalPortReq
  * @generated MessageType for protobuf message teleport.lib.teleterm.v1.SetGatewayLocalPortRequest
  */
 export const SetGatewayLocalPortRequest = new SetGatewayLocalPortRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class GetServersRequest$Type extends MessageType<GetServersRequest> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.GetServersRequest", [
+            { no: 1, name: "cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "limit", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
+            { no: 3, name: "start_key", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "search", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 5, name: "query", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 6, name: "sort_by", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 7, name: "search_as_roles", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<GetServersRequest>): GetServersRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.clusterUri = "";
+        message.limit = 0;
+        message.startKey = "";
+        message.search = "";
+        message.query = "";
+        message.sortBy = "";
+        message.searchAsRoles = "";
+        if (value !== undefined)
+            reflectionMergePartial<GetServersRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetServersRequest): GetServersRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string cluster_uri */ 1:
+                    message.clusterUri = reader.string();
+                    break;
+                case /* int32 limit */ 2:
+                    message.limit = reader.int32();
+                    break;
+                case /* string start_key */ 3:
+                    message.startKey = reader.string();
+                    break;
+                case /* string search */ 4:
+                    message.search = reader.string();
+                    break;
+                case /* string query */ 5:
+                    message.query = reader.string();
+                    break;
+                case /* string sort_by */ 6:
+                    message.sortBy = reader.string();
+                    break;
+                case /* string search_as_roles */ 7:
+                    message.searchAsRoles = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: GetServersRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string cluster_uri = 1; */
+        if (message.clusterUri !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.clusterUri);
+        /* int32 limit = 2; */
+        if (message.limit !== 0)
+            writer.tag(2, WireType.Varint).int32(message.limit);
+        /* string start_key = 3; */
+        if (message.startKey !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.startKey);
+        /* string search = 4; */
+        if (message.search !== "")
+            writer.tag(4, WireType.LengthDelimited).string(message.search);
+        /* string query = 5; */
+        if (message.query !== "")
+            writer.tag(5, WireType.LengthDelimited).string(message.query);
+        /* string sort_by = 6; */
+        if (message.sortBy !== "")
+            writer.tag(6, WireType.LengthDelimited).string(message.sortBy);
+        /* string search_as_roles = 7; */
+        if (message.searchAsRoles !== "")
+            writer.tag(7, WireType.LengthDelimited).string(message.searchAsRoles);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.GetServersRequest
+ */
+export const GetServersRequest = new GetServersRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class GetServersResponse$Type extends MessageType<GetServersResponse> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.GetServersResponse", [
+            { no: 1, name: "agents", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Server },
+            { no: 2, name: "total_count", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
+            { no: 3, name: "start_key", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<GetServersResponse>): GetServersResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.agents = [];
+        message.totalCount = 0;
+        message.startKey = "";
+        if (value !== undefined)
+            reflectionMergePartial<GetServersResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: GetServersResponse): GetServersResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* repeated teleport.lib.teleterm.v1.Server agents */ 1:
+                    message.agents.push(Server.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* int32 total_count */ 2:
+                    message.totalCount = reader.int32();
+                    break;
+                case /* string start_key */ 3:
+                    message.startKey = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: GetServersResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* repeated teleport.lib.teleterm.v1.Server agents = 1; */
+        for (let i = 0; i < message.agents.length; i++)
+            Server.internalBinaryWrite(message.agents[i], writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        /* int32 total_count = 2; */
+        if (message.totalCount !== 0)
+            writer.tag(2, WireType.Varint).int32(message.totalCount);
+        /* string start_key = 3; */
+        if (message.startKey !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.startKey);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.GetServersResponse
+ */
+export const GetServersResponse = new GetServersResponse$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class GetAuthSettingsRequest$Type extends MessageType<GetAuthSettingsRequest> {
     constructor() {
@@ -5849,7 +5698,8 @@ export const TerminalService = new ServiceType("teleport.lib.teleterm.v1.Termina
     { name: "ListRootClusters", options: {}, I: ListClustersRequest, O: ListClustersResponse },
     { name: "ListLeafClusters", options: {}, I: ListLeafClustersRequest, O: ListClustersResponse },
     { name: "StartHeadlessWatcher", options: {}, I: StartHeadlessWatcherRequest, O: StartHeadlessWatcherResponse },
-    { name: "ListDatabaseServers", options: {}, I: ListDatabaseServersRequest, O: ListDatabaseServersResponse },
+    { name: "ListDatabaseUsers", options: {}, I: ListDatabaseUsersRequest, O: ListDatabaseUsersResponse },
+    { name: "GetServers", options: {}, I: GetServersRequest, O: GetServersResponse },
     { name: "GetAccessRequests", options: {}, I: GetAccessRequestsRequest, O: GetAccessRequestsResponse },
     { name: "GetAccessRequest", options: {}, I: GetAccessRequestRequest, O: GetAccessRequestResponse },
     { name: "DeleteAccessRequest", options: {}, I: DeleteAccessRequestRequest, O: EmptyResponse },
@@ -5860,8 +5710,8 @@ export const TerminalService = new ServiceType("teleport.lib.teleterm.v1.Termina
     { name: "PromoteAccessRequest", options: {}, I: PromoteAccessRequestRequest, O: PromoteAccessRequestResponse },
     { name: "GetSuggestedAccessLists", options: {}, I: GetSuggestedAccessListsRequest, O: GetSuggestedAccessListsResponse },
     { name: "ListKubernetesResources", options: {}, I: ListKubernetesResourcesRequest, O: ListKubernetesResourcesResponse },
-    { name: "ListKubernetesServers", options: {}, I: ListKubernetesServersRequest, O: ListKubernetesServersResponse },
     { name: "AddCluster", options: {}, I: AddClusterRequest, O: Cluster },
+    { name: "RemoveCluster", options: {}, I: RemoveClusterRequest, O: EmptyResponse },
     { name: "ListGateways", options: {}, I: ListGatewaysRequest, O: ListGatewaysResponse },
     { name: "CreateGateway", options: {}, I: CreateGatewayRequest, O: Gateway },
     { name: "RemoveGateway", options: {}, I: RemoveGatewayRequest, O: EmptyResponse },
@@ -5872,7 +5722,6 @@ export const TerminalService = new ServiceType("teleport.lib.teleterm.v1.Termina
     { name: "Login", options: {}, I: LoginRequest, O: EmptyResponse },
     { name: "LoginPasswordless", serverStreaming: true, clientStreaming: true, options: {}, I: LoginPasswordlessRequest, O: LoginPasswordlessResponse },
     { name: "Logout", options: {}, I: LogoutRequest, O: EmptyResponse },
-    { name: "ClearStaleClusterClients", options: {}, I: ClearStaleClusterClientsRequest, O: ClearStaleClusterClientsResponse },
     { name: "TransferFile", serverStreaming: true, options: {}, I: FileTransferRequest, O: FileTransferProgress },
     { name: "ReportUsageEvent", options: {}, I: ReportUsageEventRequest, O: EmptyResponse },
     { name: "UpdateHeadlessAuthenticationState", options: {}, I: UpdateHeadlessAuthenticationStateRequest, O: UpdateHeadlessAuthenticationStateResponse },

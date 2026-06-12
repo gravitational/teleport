@@ -95,17 +95,6 @@ export const Disabled = () => {
   );
 };
 
-export const ReadOnly = () => {
-  const [labels, setLabels] = useState<Label[]>([
-    { name: 'some-name', value: 'some-value' },
-  ]);
-  return (
-    <Validation>
-      <LabelsInput labels={labels} setLabels={setLabels} readOnly />
-    </Validation>
-  );
-};
-
 export const AutoFocus = () => {
   const [labels, setLabels] = useState<Label[]>([{ name: '', value: '' }]);
   return (
@@ -124,6 +113,20 @@ export const AtLeastOneRequired = () => {
         labels={labels}
         setLabels={setLabels}
         required={true}
+      />
+    </Validation>
+  );
+};
+
+export const AtLeastOneRowVisible = () => {
+  const [labels, setLabels] = useState<Label[]>([]);
+  return (
+    <Validation>
+      <LabelsInput
+        legend="Labels"
+        labels={labels}
+        setLabels={setLabels}
+        atLeastOneRow
       />
     </Validation>
   );

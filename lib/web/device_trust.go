@@ -40,7 +40,7 @@ import (
 //
 // The result of this call is a redirect to "/web", regardless of the outcome of
 // the ConfirmDeviceWebAuthentication RPC.
-func (h *Handler) deviceWebConfirm(w http.ResponseWriter, r *http.Request, _ httprouter.Params, sessionCtx *SessionContext) (any, error) {
+func (h *Handler) deviceWebConfirm(w http.ResponseWriter, r *http.Request, _ httprouter.Params, sessionCtx *SessionContext) (interface{}, error) {
 	query := r.URL.Query()
 
 	// Read input parameters.
@@ -66,17 +66,17 @@ func (h *Handler) deviceWebConfirm(w http.ResponseWriter, r *http.Request, _ htt
 	})
 	switch {
 	case err != nil:
-		h.logger.WarnContext(ctx, "Device web authentication confirm failed",
-			"error", err,
-			"user", sessionCtx.GetUser(),
-		)
+		h.log.
+			WithError(err).
+			WithField("user", sessionCtx.GetUser()).
+			Warn("Device web authentication confirm failed")
 		// err swallowed on purpose.
 	default:
 		// Preemptively release session from cache, as its certificates are now
 		// updated.
 		// The WebSession watcher takes care of this in other proxy instances
 		// (see [sessionCache.watchWebSessions]).
-		h.auth.releaseResources(r.Context(), sessionCtx.GetUser(), sessionCtx.GetSessionID())
+		h.auth.releaseResources(sessionCtx.GetUser(), sessionCtx.GetSessionID())
 	}
 
 	// Always redirect back to the dashboard, regardless of outcome.
@@ -84,10 +84,10 @@ func (h *Handler) deviceWebConfirm(w http.ResponseWriter, r *http.Request, _ htt
 
 	redirectTo, err := h.getRedirectURL(r.Host, unsafeRedirectURI)
 	if err != nil {
-		h.logger.DebugContext(ctx, "Unable to parse redirectURI",
-			"error", err,
-			"redirect_uri", unsafeRedirectURI,
-		)
+		h.log.
+			WithError(err).
+			WithField("redirect_uri", unsafeRedirectURI).
+			Debug("Unable to parse redirectURI")
 		http.Error(w, http.StatusText(trace.ErrorToCode(err)), trace.ErrorToCode(err))
 		return nil, nil
 	}

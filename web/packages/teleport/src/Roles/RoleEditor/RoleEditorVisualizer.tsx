@@ -78,7 +78,7 @@ export function RoleEditorVisualizer({
                 }}
                 secondaryAction={{
                   content: 'Learn More',
-                  href: 'https://goteleport.com/platform/identity-security/',
+                  href: 'https://goteleport.com/platform/policy/',
                 }}
                 dismissible
                 onDismiss={() => setDemoDismissed(true)}
@@ -93,7 +93,7 @@ export function RoleEditorVisualizer({
   }
 
   return (
-    <Flex flex="1" justifyContent="center" margin="auto">
+    <Flex flex="1" alignItems="center" justifyContent="center" m={3}>
       <PolicyPlaceholder
         canUpdateAccessGraphSettings={canUpdateAccessGraphSettings}
         roleDiffProps={roleDiffProps}

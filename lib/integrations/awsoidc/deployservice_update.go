@@ -46,8 +46,6 @@ type UpdateServiceRequest struct {
 	TeleportVersionTag string
 	// OwnershipTags specifies ownership tags
 	OwnershipTags tags.AWSTags
-	// TeleportBuildType specifies the type of teleport build in use.
-	TeleportBuildType string
 }
 
 // CheckAndSetDefaults checks and sets default config values.
@@ -64,10 +62,6 @@ func (req *UpdateServiceRequest) CheckAndSetDefaults() error {
 		return trace.BadParameter("ownership tags required")
 	}
 
-	if req.TeleportBuildType == "" {
-		return trace.BadParameter("teleport build type required")
-	}
-
 	return nil
 }
 
@@ -77,7 +71,7 @@ func UpdateDeployService(ctx context.Context, clt DeployServiceClient, log *slog
 		return trace.Wrap(err)
 	}
 
-	teleportImage, err := getDistrolessTeleportImage(req.TeleportVersionTag, req.TeleportBuildType)
+	teleportImage, err := getDistrolessTeleportImage(req.TeleportVersionTag)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -164,7 +158,7 @@ func getAllServiceNamesForCluster(ctx context.Context, clt DeployServiceClient, 
 			NextToken: aws.String(nextToken),
 		})
 		if err != nil {
-			return nil, awslib.ConvertIAMError(err)
+			return nil, awslib.ConvertIAMv2Error(err)
 		}
 
 		ret = append(ret, resp.ServiceArns...)
@@ -201,7 +195,10 @@ func getManagedServices(ctx context.Context, clt DeployServiceClient, log *slog.
 	// According to AWS API docs, a maximum of 10 Services can be queried at the same time when using the ecs:DescribeServices operation.
 	batchSize := 10
 	for batchStart := 0; batchStart < len(ecsServiceNames); batchStart += batchSize {
-		batchEnd := min(batchStart+batchSize, len(ecsServiceNames))
+		batchEnd := batchStart + batchSize
+		if batchEnd > len(ecsServiceNames) {
+			batchEnd = len(ecsServiceNames)
+		}
 
 		describeServicesOut, err := clt.DescribeServices(ctx, &ecs.DescribeServicesInput{
 			Cluster:  wellKnownClusterName,

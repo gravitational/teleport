@@ -712,8 +712,7 @@
             "type": "object",
             "required": [
                 "existingSecretName",
-                "existingCASecretName",
-                "existingCASecretKeyName"
+                "existingCASecretName"
             ],
             "properties": {
                 "existingSecretName": {
@@ -725,11 +724,6 @@
                     "$id": "#/properties/tls/properties/existingCASecretName",
                     "type": "string",
                     "default": ""
-                },
-                "existingCASecretKeyName": {
-                    "$id": "#/properties/tls/properties/existingCASecretKeyName",
-                    "type": "string",
-                    "default": "ca.pem"
                 }
             }
         },

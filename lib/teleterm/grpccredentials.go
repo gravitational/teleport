@@ -21,12 +21,11 @@ package teleterm
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"log/slog"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
@@ -69,21 +68,21 @@ func createServerCredentials(serverKeyPair tls.Certificate, clientCertPaths []st
 		ClientCAs: x509.NewCertPool(),
 	}
 
-	config.GetConfigForClient = func(info *tls.ClientHelloInfo) (*tls.Config, error) {
+	config.GetConfigForClient = func(_ *tls.ClientHelloInfo) (*tls.Config, error) {
 		certPool := x509.NewCertPool()
 
 		for _, clientCertPath := range clientCertPaths {
-			log := slog.With("cert_path", clientCertPath)
+			log := log.WithField("cert_path", clientCertPath)
 
 			clientCert, err := os.ReadFile(clientCertPath)
 			if err != nil {
-				log.ErrorContext(info.Context(), "Failed to read the client cert file", "error", err)
+				log.WithError(err).Error("Failed to read the client cert file")
 				// Fall back to the default config.
 				return nil, nil
 			}
 
 			if !certPool.AppendCertsFromPEM(clientCert) {
-				log.ErrorContext(info.Context(), "Failed to add the client cert to the pool")
+				log.Error("Failed to add the client cert to the pool")
 				// Fall back to the default config.
 				return nil, nil
 			}
@@ -135,7 +134,7 @@ func generateAndSaveCert(targetPath string, eku ...x509.ExtKeyUsage) (tls.Certif
 	}
 	defer os.Remove(tempFile.Name())
 
-	cert, err := cert.GenerateSelfSignedCert([]string{"localhost"}, nil, eku, time.Now)
+	cert, err := cert.GenerateSelfSignedCert([]string{"localhost"}, nil, eku...)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err, "failed to generate the certificate")
 	}

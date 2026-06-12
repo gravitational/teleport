@@ -38,23 +38,29 @@ func (l *Backend) runPeriodicOperations() {
 	for {
 		select {
 		case <-l.ctx.Done():
+			if err := l.closeDatabase(); err != nil {
+				l.logger.WarnContext(l.ctx, "Error closing database", "error", err)
+			}
 			return
 		case <-t.C:
-			if err := l.removeExpiredKeys(); err != nil {
+			err := l.removeExpiredKeys()
+			if err != nil {
 				// connection problem means that database is closed
-				// or is closing, omit the log to avoid polluting logs in production
-				if !trace.IsConnectionProblem(err) && l.ctx.Err() == nil {
+				// or is closing, downgrade the log to debug
+				// to avoid polluting logs in production
+				if trace.IsConnectionProblem(err) {
+					l.logger.DebugContext(l.ctx, "Failed to run remove expired keys", "error", err)
+				} else {
 					l.logger.DebugContext(l.ctx, "Failed to run remove expired keys", "error", err)
 				}
 			}
 			if !l.EventsOff {
-				err := l.removeOldEvents()
-				if err != nil && !trace.IsConnectionProblem(err) && l.ctx.Err() == nil {
+				err = l.removeOldEvents()
+				if err != nil {
 					l.logger.WarnContext(l.ctx, "Failed to run remove old events", "error", err)
 				}
-
 				rowid, err = l.pollEvents(rowid)
-				if err != nil && !trace.IsConnectionProblem(err) && l.ctx.Err() == nil {
+				if err != nil {
 					l.logger.WarnContext(l.ctx, "Failed to run poll events", "error", err)
 				}
 			}

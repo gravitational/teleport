@@ -68,6 +68,9 @@ func BenchmarkGetClusterDetails(b *testing.B) {
 
 		// run the sub benchmark
 		b.Run(name, func(sb *testing.B) {
+
+			sb.StopTimer() // stop timer while running setup
+
 			// configure the backend instance
 			var bk backend.Backend
 			var err error
@@ -89,24 +92,29 @@ func BenchmarkGetClusterDetails(b *testing.B) {
 			insertServers(ctx, b, svc, types.KindProxy, proxyCount)
 			insertServers(ctx, b, svc, types.KindAuthServer, authCount)
 
-			site := &mockCluster{
+			site := &mockRemoteSite{
 				accessPoint: &mockAccessPoint{
 					presence: svc,
 				},
 			}
+
+			sb.StartTimer() // restart timer for benchmark operations
+
 			benchmarkGetClusterDetails(ctx, sb, site, tt.nodes)
+
+			sb.StopTimer() // stop timer to exclude deferred cleanup
 		})
 	}
 }
 
 // insertServers inserts a collection of servers into a backend.
-func insertServers(ctx context.Context, b *testing.B, svc services.PresenceInternal, kind string, count int) {
+func insertServers(ctx context.Context, b *testing.B, svc services.Presence, kind string, count int) {
 	const labelCount = 10
 	labels := make(map[string]string, labelCount)
-	for i := range labelCount {
+	for i := 0; i < labelCount; i++ {
 		labels[fmt.Sprintf("label-key-%d", i)] = fmt.Sprintf("label-val-%d", i)
 	}
-	for range count {
+	for i := 0; i < count; i++ {
 		name := uuid.New().String()
 		addr := fmt.Sprintf("%s.%s", name, clusterName)
 		server := &types.ServerV2{
@@ -127,7 +135,7 @@ func insertServers(ctx context.Context, b *testing.B, svc services.PresenceInter
 		case types.KindNode:
 			_, err = svc.UpsertNode(ctx, server)
 		case types.KindProxy:
-			_, err = svc.UpsertProxyServer(ctx, server)
+			err = svc.UpsertProxy(ctx, server)
 		case types.KindAuthServer:
 			err = svc.UpsertAuthServer(ctx, server)
 		default:
@@ -137,34 +145,34 @@ func insertServers(ctx context.Context, b *testing.B, svc services.PresenceInter
 	}
 }
 
-func benchmarkGetClusterDetails(ctx context.Context, b *testing.B, cluster reversetunnelclient.Cluster, nodes int, opts ...services.MarshalOption) {
-	var got *Cluster
+func benchmarkGetClusterDetails(ctx context.Context, b *testing.B, site reversetunnelclient.RemoteSite, nodes int, opts ...services.MarshalOption) {
+	var cluster *Cluster
 	var err error
-	for b.Loop() {
-		got, err = GetClusterDetails(ctx, cluster, opts...)
+	for i := 0; i < b.N; i++ {
+		cluster, err = GetClusterDetails(ctx, site, opts...)
 		require.NoError(b, err)
 	}
-	require.NotNil(b, got)
+	require.NotNil(b, cluster)
 }
 
-type mockCluster struct {
-	reversetunnelclient.Cluster
+type mockRemoteSite struct {
+	reversetunnelclient.RemoteSite
 	accessPoint authclient.ProxyAccessPoint
 }
 
-func (m *mockCluster) CachingAccessPoint() (authclient.RemoteProxyAccessPoint, error) {
+func (m *mockRemoteSite) CachingAccessPoint() (authclient.RemoteProxyAccessPoint, error) {
 	return m.accessPoint, nil
 }
 
-func (m *mockCluster) GetName() string {
+func (m *mockRemoteSite) GetName() string {
 	return clusterName
 }
 
-func (m *mockCluster) GetLastConnected() time.Time {
+func (m *mockRemoteSite) GetLastConnected() time.Time {
 	return time.Now()
 }
 
-func (m *mockCluster) GetStatus() string {
+func (m *mockRemoteSite) GetStatus() string {
 	return teleport.RemoteClusterStatusOnline
 }
 
@@ -178,19 +186,9 @@ func (m *mockAccessPoint) GetNodes(ctx context.Context, namespace string) ([]typ
 }
 
 func (m *mockAccessPoint) GetProxies() ([]types.Server, error) {
-	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 	return m.presence.GetProxies()
 }
 
-func (m *mockAccessPoint) ListProxyServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
-	return m.presence.ListProxyServers(ctx, pageSize, pageToken)
-}
-
 func (m *mockAccessPoint) GetAuthServers() ([]types.Server, error) {
-	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 	return m.presence.GetAuthServers()
-}
-
-func (m *mockAccessPoint) ListAuthServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error) {
-	return m.presence.ListAuthServers(ctx, pageSize, pageToken)
 }

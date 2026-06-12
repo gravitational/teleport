@@ -33,12 +33,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/maps"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -51,10 +52,11 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/integration/helpers"
+	"github.com/gravitational/teleport/lib"
+	"github.com/gravitational/teleport/lib/auth/join"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -68,7 +70,6 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 type Suite struct {
@@ -115,7 +116,7 @@ func newSuite(t *testing.T, opts ...proxySuiteOptionsFunc) *Suite {
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    options.rootClusterNodeName,
-		Logger:      logtest.NewLogger(),
+		Log:         utils.NewLoggerForTests(),
 	}
 	rCfg.Listeners = options.rootClusterListeners(t, &rCfg.Fds)
 	rc := helpers.NewInstance(t, rCfg)
@@ -127,7 +128,7 @@ func newSuite(t *testing.T, opts ...proxySuiteOptionsFunc) *Suite {
 		NodeName:    options.leafClusterNodeName,
 		Priv:        rc.Secrets.PrivKey,
 		Pub:         rc.Secrets.PubKey,
-		Logger:      logtest.NewLogger(),
+		Log:         utils.NewLoggerForTests(),
 	}
 	lCfg.Listeners = options.leafClusterListeners(t, &lCfg.Fds)
 	lc := helpers.NewInstance(t, lCfg)
@@ -195,7 +196,8 @@ func newSuite(t *testing.T, opts ...proxySuiteOptionsFunc) *Suite {
 func (p *Suite) addNodeToLeafCluster(t *testing.T, tunnelNodeHostname string) {
 	nodeConfig := func() *servicecfg.Config {
 		tconf := servicecfg.MakeDefaultConfig()
-		tconf.Logger = logtest.NewLogger()
+		tconf.Console = nil
+		tconf.Log = utils.NewLoggerForTests()
 		tconf.Hostname = tunnelNodeHostname
 		tconf.SetToken("token")
 		tconf.SetAuthServerAddress(utils.NetAddr{
@@ -205,7 +207,6 @@ func (p *Suite) addNodeToLeafCluster(t *testing.T, tunnelNodeHostname string) {
 		tconf.Auth.Enabled = false
 		tconf.Proxy.Enabled = false
 		tconf.SSH.Enabled = true
-		tconf.InsecureMode = true
 		tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 		return tconf
 	}
@@ -329,7 +330,6 @@ func rootClusterStandardConfig(t *testing.T) func(suite *Suite) *servicecfg.Conf
 	return func(suite *Suite) *servicecfg.Config {
 		rc := suite.root
 		config := servicecfg.MakeDefaultConfig()
-		config.InsecureMode = true
 		config.DataDir = t.TempDir()
 		config.Auth.Enabled = true
 		config.Auth.Preference.SetSecondFactor("off")
@@ -350,7 +350,6 @@ func leafClusterStandardConfig(t *testing.T) func(suite *Suite) *servicecfg.Conf
 	return func(suite *Suite) *servicecfg.Config {
 		lc := suite.leaf
 		config := servicecfg.MakeDefaultConfig()
-		config.InsecureMode = true
 		config.DataDir = t.TempDir()
 		config.Auth.Enabled = true
 		config.Auth.Preference.SetSecondFactor("off")
@@ -608,7 +607,7 @@ func mustParseURL(t *testing.T, rawURL string) *url.URL {
 type fakeSTSClient struct {
 	accountID   string
 	arn         string
-	credentials aws.CredentialsProvider
+	credentials *credentials.Credentials
 }
 
 func (f fakeSTSClient) Do(req *http.Request) (*http.Response, error) {
@@ -643,10 +642,10 @@ func mustCreateIAMJoinProvisionToken(t *testing.T, name, awsAccountID, allowedAR
 	return provisionToken
 }
 
-func mustRegisterUsingIAMMethod(t *testing.T, proxyAddr utils.NetAddr, token string, credentials aws.CredentialsProvider) {
+func mustRegisterUsingIAMMethod(t *testing.T, proxyAddr utils.NetAddr, token string, credentials *credentials.Credentials) {
 	t.Helper()
 
-	cred, err := credentials.Retrieve(context.Background())
+	cred, err := credentials.Get()
 	require.NoError(t, err)
 
 	t.Setenv("AWS_ACCESS_KEY_ID", cred.AccessKeyID)
@@ -655,15 +654,16 @@ func mustRegisterUsingIAMMethod(t *testing.T, proxyAddr utils.NetAddr, token str
 	t.Setenv("AWS_REGION", "us-west-2")
 
 	node := uuid.NewString()
-	_, err = joinclient.Join(t.Context(), joinclient.JoinParams{
+	_, err = join.Register(t.Context(), join.RegisterParams{
 		Token: token,
 		ID: state.IdentityID{
-			Role:     types.RoleInstance,
+			Role:     types.RoleNode,
+			HostUUID: node,
 			NodeName: node,
 		},
 		ProxyServer: proxyAddr,
 		JoinMethod:  types.JoinMethodIAM,
-		Insecure:    true,
+		Insecure:    lib.IsInsecureDevMode(),
 	})
 	require.NoError(t, err, trace.DebugReport(err))
 }
@@ -772,7 +772,7 @@ func kubeClientForLocalProxy(t *testing.T, kubeconfigPath, teleportCluster, kube
 	require.NoError(t, err)
 
 	contextName := kubeconfig.ContextName(teleportCluster, kubeCluster)
-	require.Contains(t, config.Clusters, contextName)
+	require.Contains(t, maps.Keys(config.Clusters), contextName)
 	proxyURL, err := url.Parse(config.Clusters[contextName].ProxyURL)
 	require.NoError(t, err)
 

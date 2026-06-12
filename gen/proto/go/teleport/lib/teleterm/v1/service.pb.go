@@ -21,19 +21,17 @@
 // 	protoc        (unknown)
 // source: teleport/lib/teleterm/v1/service.proto
 
-//go:build !protoopaque
-
 package teletermv1
 
 import (
 	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	v12 "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	v11 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
-	types "github.com/gravitational/teleport/api/types"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
+	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -97,6 +95,11 @@ func (x PasswordlessPrompt) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
+// Deprecated: Use PasswordlessPrompt.Descriptor instead.
+func (PasswordlessPrompt) EnumDescriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{0}
+}
+
 // FileTransferDirection describes directions of a file transfer
 type FileTransferDirection int32
 
@@ -140,6 +143,11 @@ func (FileTransferDirection) Type() protoreflect.EnumType {
 
 func (x FileTransferDirection) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use FileTransferDirection.Descriptor instead.
+func (FileTransferDirection) EnumDescriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{1}
 }
 
 // HeadlessAuthenticationState is a headless authentication state.
@@ -190,8 +198,13 @@ func (x HeadlessAuthenticationState) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
+// Deprecated: Use HeadlessAuthenticationState.Descriptor instead.
+func (HeadlessAuthenticationState) EnumDescriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{2}
+}
+
 type EmptyResponse struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -221,21 +234,59 @@ func (x *EmptyResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-type EmptyResponse_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
+// Deprecated: Use EmptyResponse.ProtoReflect.Descriptor instead.
+func (*EmptyResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{0}
 }
 
-func (b0 EmptyResponse_builder) Build() *EmptyResponse {
-	m0 := &EmptyResponse{}
-	b, x := &b0, m0
-	_, _ = b, x
-	return m0
+// RemoveClusterRequest describes RemoveClusterRequest
+type RemoveClusterRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ClusterUri    string                 `protobuf:"bytes,1,opt,name=cluster_uri,json=clusterUri,proto3" json:"cluster_uri,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RemoveClusterRequest) Reset() {
+	*x = RemoveClusterRequest{}
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RemoveClusterRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RemoveClusterRequest) ProtoMessage() {}
+
+func (x *RemoveClusterRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RemoveClusterRequest.ProtoReflect.Descriptor instead.
+func (*RemoveClusterRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *RemoveClusterRequest) GetClusterUri() string {
+	if x != nil {
+		return x.ClusterUri
+	}
+	return ""
 }
 
 // GetClusterRequest describes GetClusterRequest
 type GetClusterRequest struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
 	ClusterUri    string                 `protobuf:"bytes,1,opt,name=cluster_uri,json=clusterUri,proto3" json:"cluster_uri,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -243,7 +294,7 @@ type GetClusterRequest struct {
 
 func (x *GetClusterRequest) Reset() {
 	*x = GetClusterRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[1]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -255,7 +306,7 @@ func (x *GetClusterRequest) String() string {
 func (*GetClusterRequest) ProtoMessage() {}
 
 func (x *GetClusterRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[1]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -266,6 +317,11 @@ func (x *GetClusterRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use GetClusterRequest.ProtoReflect.Descriptor instead.
+func (*GetClusterRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{2}
+}
+
 func (x *GetClusterRequest) GetClusterUri() string {
 	if x != nil {
 		return x.ClusterUri
@@ -273,36 +329,17 @@ func (x *GetClusterRequest) GetClusterUri() string {
 	return ""
 }
 
-func (x *GetClusterRequest) SetClusterUri(v string) {
-	x.ClusterUri = v
-}
-
-type GetClusterRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	ClusterUri string
-}
-
-func (b0 GetClusterRequest_builder) Build() *GetClusterRequest {
-	m0 := &GetClusterRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.ClusterUri = b.ClusterUri
-	return m0
-}
-
+// LogoutRequest describes LogoutRequest
 type LogoutRequest struct {
-	state      protoimpl.MessageState `protogen:"hybrid.v1"`
-	ClusterUri string                 `protobuf:"bytes,1,opt,name=cluster_uri,json=clusterUri,proto3" json:"cluster_uri,omitempty"`
-	// Whether to remove the associated YAML profile after logout.
-	RemoveProfile bool `protobuf:"varint,2,opt,name=remove_profile,json=removeProfile,proto3" json:"remove_profile,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ClusterUri    string                 `protobuf:"bytes,1,opt,name=cluster_uri,json=clusterUri,proto3" json:"cluster_uri,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *LogoutRequest) Reset() {
 	*x = LogoutRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[2]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -314,7 +351,7 @@ func (x *LogoutRequest) String() string {
 func (*LogoutRequest) ProtoMessage() {}
 
 func (x *LogoutRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[2]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -323,6 +360,11 @@ func (x *LogoutRequest) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LogoutRequest.ProtoReflect.Descriptor instead.
+func (*LogoutRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *LogoutRequest) GetClusterUri() string {
@@ -332,140 +374,8 @@ func (x *LogoutRequest) GetClusterUri() string {
 	return ""
 }
 
-func (x *LogoutRequest) GetRemoveProfile() bool {
-	if x != nil {
-		return x.RemoveProfile
-	}
-	return false
-}
-
-func (x *LogoutRequest) SetClusterUri(v string) {
-	x.ClusterUri = v
-}
-
-func (x *LogoutRequest) SetRemoveProfile(v bool) {
-	x.RemoveProfile = v
-}
-
-type LogoutRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	ClusterUri string
-	// Whether to remove the associated YAML profile after logout.
-	RemoveProfile bool
-}
-
-func (b0 LogoutRequest_builder) Build() *LogoutRequest {
-	m0 := &LogoutRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.ClusterUri = b.ClusterUri
-	x.RemoveProfile = b.RemoveProfile
-	return m0
-}
-
-type ClearStaleClusterClientsRequest struct {
-	state          protoimpl.MessageState `protogen:"hybrid.v1"`
-	RootClusterUri string                 `protobuf:"bytes,1,opt,name=root_cluster_uri,json=rootClusterUri,proto3" json:"root_cluster_uri,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
-}
-
-func (x *ClearStaleClusterClientsRequest) Reset() {
-	*x = ClearStaleClusterClientsRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[3]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ClearStaleClusterClientsRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ClearStaleClusterClientsRequest) ProtoMessage() {}
-
-func (x *ClearStaleClusterClientsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[3]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-func (x *ClearStaleClusterClientsRequest) GetRootClusterUri() string {
-	if x != nil {
-		return x.RootClusterUri
-	}
-	return ""
-}
-
-func (x *ClearStaleClusterClientsRequest) SetRootClusterUri(v string) {
-	x.RootClusterUri = v
-}
-
-type ClearStaleClusterClientsRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	RootClusterUri string
-}
-
-func (b0 ClearStaleClusterClientsRequest_builder) Build() *ClearStaleClusterClientsRequest {
-	m0 := &ClearStaleClusterClientsRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.RootClusterUri = b.RootClusterUri
-	return m0
-}
-
-type ClearStaleClusterClientsResponse struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ClearStaleClusterClientsResponse) Reset() {
-	*x = ClearStaleClusterClientsResponse{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[4]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ClearStaleClusterClientsResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ClearStaleClusterClientsResponse) ProtoMessage() {}
-
-func (x *ClearStaleClusterClientsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[4]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-type ClearStaleClusterClientsResponse_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-}
-
-func (b0 ClearStaleClusterClientsResponse_builder) Build() *ClearStaleClusterClientsResponse {
-	m0 := &ClearStaleClusterClientsResponse{}
-	b, x := &b0, m0
-	_, _ = b, x
-	return m0
-}
-
 type StartHeadlessWatcherRequest struct {
-	state          protoimpl.MessageState `protogen:"hybrid.v1"`
+	state          protoimpl.MessageState `protogen:"open.v1"`
 	RootClusterUri string                 `protobuf:"bytes,1,opt,name=root_cluster_uri,json=rootClusterUri,proto3" json:"root_cluster_uri,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
@@ -473,7 +383,7 @@ type StartHeadlessWatcherRequest struct {
 
 func (x *StartHeadlessWatcherRequest) Reset() {
 	*x = StartHeadlessWatcherRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[5]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -485,7 +395,7 @@ func (x *StartHeadlessWatcherRequest) String() string {
 func (*StartHeadlessWatcherRequest) ProtoMessage() {}
 
 func (x *StartHeadlessWatcherRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[5]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -496,6 +406,11 @@ func (x *StartHeadlessWatcherRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use StartHeadlessWatcherRequest.ProtoReflect.Descriptor instead.
+func (*StartHeadlessWatcherRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{4}
+}
+
 func (x *StartHeadlessWatcherRequest) GetRootClusterUri() string {
 	if x != nil {
 		return x.RootClusterUri
@@ -503,33 +418,15 @@ func (x *StartHeadlessWatcherRequest) GetRootClusterUri() string {
 	return ""
 }
 
-func (x *StartHeadlessWatcherRequest) SetRootClusterUri(v string) {
-	x.RootClusterUri = v
-}
-
-type StartHeadlessWatcherRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	RootClusterUri string
-}
-
-func (b0 StartHeadlessWatcherRequest_builder) Build() *StartHeadlessWatcherRequest {
-	m0 := &StartHeadlessWatcherRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.RootClusterUri = b.RootClusterUri
-	return m0
-}
-
 type StartHeadlessWatcherResponse struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *StartHeadlessWatcherResponse) Reset() {
 	*x = StartHeadlessWatcherResponse{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[6]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -541,7 +438,7 @@ func (x *StartHeadlessWatcherResponse) String() string {
 func (*StartHeadlessWatcherResponse) ProtoMessage() {}
 
 func (x *StartHeadlessWatcherResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[6]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -552,20 +449,13 @@ func (x *StartHeadlessWatcherResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-type StartHeadlessWatcherResponse_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-}
-
-func (b0 StartHeadlessWatcherResponse_builder) Build() *StartHeadlessWatcherResponse {
-	m0 := &StartHeadlessWatcherResponse{}
-	b, x := &b0, m0
-	_, _ = b, x
-	return m0
+// Deprecated: Use StartHeadlessWatcherResponse.ProtoReflect.Descriptor instead.
+func (*StartHeadlessWatcherResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{5}
 }
 
 type GetAccessRequestRequest struct {
-	state      protoimpl.MessageState `protogen:"hybrid.v1"`
+	state      protoimpl.MessageState `protogen:"open.v1"`
 	ClusterUri string                 `protobuf:"bytes,1,opt,name=cluster_uri,json=clusterUri,proto3" json:"cluster_uri,omitempty"`
 	// specifcies a specific request id
 	AccessRequestId string `protobuf:"bytes,2,opt,name=access_request_id,json=accessRequestId,proto3" json:"access_request_id,omitempty"`
@@ -575,7 +465,7 @@ type GetAccessRequestRequest struct {
 
 func (x *GetAccessRequestRequest) Reset() {
 	*x = GetAccessRequestRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[7]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -587,7 +477,7 @@ func (x *GetAccessRequestRequest) String() string {
 func (*GetAccessRequestRequest) ProtoMessage() {}
 
 func (x *GetAccessRequestRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[7]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -596,6 +486,11 @@ func (x *GetAccessRequestRequest) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetAccessRequestRequest.ProtoReflect.Descriptor instead.
+func (*GetAccessRequestRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *GetAccessRequestRequest) GetClusterUri() string {
@@ -612,33 +507,8 @@ func (x *GetAccessRequestRequest) GetAccessRequestId() string {
 	return ""
 }
 
-func (x *GetAccessRequestRequest) SetClusterUri(v string) {
-	x.ClusterUri = v
-}
-
-func (x *GetAccessRequestRequest) SetAccessRequestId(v string) {
-	x.AccessRequestId = v
-}
-
-type GetAccessRequestRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	ClusterUri string
-	// specifcies a specific request id
-	AccessRequestId string
-}
-
-func (b0 GetAccessRequestRequest_builder) Build() *GetAccessRequestRequest {
-	m0 := &GetAccessRequestRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.ClusterUri = b.ClusterUri
-	x.AccessRequestId = b.AccessRequestId
-	return m0
-}
-
 type GetAccessRequestsRequest struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// cluster_uri is the cluster uri
 	ClusterUri    string `protobuf:"bytes,1,opt,name=cluster_uri,json=clusterUri,proto3" json:"cluster_uri,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -647,7 +517,7 @@ type GetAccessRequestsRequest struct {
 
 func (x *GetAccessRequestsRequest) Reset() {
 	*x = GetAccessRequestsRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[8]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -659,7 +529,7 @@ func (x *GetAccessRequestsRequest) String() string {
 func (*GetAccessRequestsRequest) ProtoMessage() {}
 
 func (x *GetAccessRequestsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[8]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -670,6 +540,11 @@ func (x *GetAccessRequestsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use GetAccessRequestsRequest.ProtoReflect.Descriptor instead.
+func (*GetAccessRequestsRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{7}
+}
+
 func (x *GetAccessRequestsRequest) GetClusterUri() string {
 	if x != nil {
 		return x.ClusterUri
@@ -677,27 +552,8 @@ func (x *GetAccessRequestsRequest) GetClusterUri() string {
 	return ""
 }
 
-func (x *GetAccessRequestsRequest) SetClusterUri(v string) {
-	x.ClusterUri = v
-}
-
-type GetAccessRequestsRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// cluster_uri is the cluster uri
-	ClusterUri string
-}
-
-func (b0 GetAccessRequestsRequest_builder) Build() *GetAccessRequestsRequest {
-	m0 := &GetAccessRequestsRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.ClusterUri = b.ClusterUri
-	return m0
-}
-
 type GetAccessRequestResponse struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
 	Request       *AccessRequest         `protobuf:"bytes,1,opt,name=request,proto3" json:"request,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -705,7 +561,7 @@ type GetAccessRequestResponse struct {
 
 func (x *GetAccessRequestResponse) Reset() {
 	*x = GetAccessRequestResponse{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[9]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -717,7 +573,7 @@ func (x *GetAccessRequestResponse) String() string {
 func (*GetAccessRequestResponse) ProtoMessage() {}
 
 func (x *GetAccessRequestResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[9]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -728,6 +584,11 @@ func (x *GetAccessRequestResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use GetAccessRequestResponse.ProtoReflect.Descriptor instead.
+func (*GetAccessRequestResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{8}
+}
+
 func (x *GetAccessRequestResponse) GetRequest() *AccessRequest {
 	if x != nil {
 		return x.Request
@@ -735,37 +596,8 @@ func (x *GetAccessRequestResponse) GetRequest() *AccessRequest {
 	return nil
 }
 
-func (x *GetAccessRequestResponse) SetRequest(v *AccessRequest) {
-	x.Request = v
-}
-
-func (x *GetAccessRequestResponse) HasRequest() bool {
-	if x == nil {
-		return false
-	}
-	return x.Request != nil
-}
-
-func (x *GetAccessRequestResponse) ClearRequest() {
-	x.Request = nil
-}
-
-type GetAccessRequestResponse_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	Request *AccessRequest
-}
-
-func (b0 GetAccessRequestResponse_builder) Build() *GetAccessRequestResponse {
-	m0 := &GetAccessRequestResponse{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Request = b.Request
-	return m0
-}
-
 type GetAccessRequestsResponse struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
 	Requests      []*AccessRequest       `protobuf:"bytes,1,rep,name=requests,proto3" json:"requests,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -773,7 +605,7 @@ type GetAccessRequestsResponse struct {
 
 func (x *GetAccessRequestsResponse) Reset() {
 	*x = GetAccessRequestsResponse{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[10]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -785,7 +617,7 @@ func (x *GetAccessRequestsResponse) String() string {
 func (*GetAccessRequestsResponse) ProtoMessage() {}
 
 func (x *GetAccessRequestsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[10]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -796,6 +628,11 @@ func (x *GetAccessRequestsResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use GetAccessRequestsResponse.ProtoReflect.Descriptor instead.
+func (*GetAccessRequestsResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{9}
+}
+
 func (x *GetAccessRequestsResponse) GetRequests() []*AccessRequest {
 	if x != nil {
 		return x.Requests
@@ -803,26 +640,8 @@ func (x *GetAccessRequestsResponse) GetRequests() []*AccessRequest {
 	return nil
 }
 
-func (x *GetAccessRequestsResponse) SetRequests(v []*AccessRequest) {
-	x.Requests = v
-}
-
-type GetAccessRequestsResponse_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	Requests []*AccessRequest
-}
-
-func (b0 GetAccessRequestsResponse_builder) Build() *GetAccessRequestsResponse {
-	m0 := &GetAccessRequestsResponse{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Requests = b.Requests
-	return m0
-}
-
 type DeleteAccessRequestRequest struct {
-	state           protoimpl.MessageState `protogen:"hybrid.v1"`
+	state           protoimpl.MessageState `protogen:"open.v1"`
 	RootClusterUri  string                 `protobuf:"bytes,1,opt,name=root_cluster_uri,json=rootClusterUri,proto3" json:"root_cluster_uri,omitempty"`
 	AccessRequestId string                 `protobuf:"bytes,2,opt,name=access_request_id,json=accessRequestId,proto3" json:"access_request_id,omitempty"`
 	unknownFields   protoimpl.UnknownFields
@@ -831,7 +650,7 @@ type DeleteAccessRequestRequest struct {
 
 func (x *DeleteAccessRequestRequest) Reset() {
 	*x = DeleteAccessRequestRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[11]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -843,7 +662,7 @@ func (x *DeleteAccessRequestRequest) String() string {
 func (*DeleteAccessRequestRequest) ProtoMessage() {}
 
 func (x *DeleteAccessRequestRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[11]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -852,6 +671,11 @@ func (x *DeleteAccessRequestRequest) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteAccessRequestRequest.ProtoReflect.Descriptor instead.
+func (*DeleteAccessRequestRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *DeleteAccessRequestRequest) GetRootClusterUri() string {
@@ -868,32 +692,8 @@ func (x *DeleteAccessRequestRequest) GetAccessRequestId() string {
 	return ""
 }
 
-func (x *DeleteAccessRequestRequest) SetRootClusterUri(v string) {
-	x.RootClusterUri = v
-}
-
-func (x *DeleteAccessRequestRequest) SetAccessRequestId(v string) {
-	x.AccessRequestId = v
-}
-
-type DeleteAccessRequestRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	RootClusterUri  string
-	AccessRequestId string
-}
-
-func (b0 DeleteAccessRequestRequest_builder) Build() *DeleteAccessRequestRequest {
-	m0 := &DeleteAccessRequestRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.RootClusterUri = b.RootClusterUri
-	x.AccessRequestId = b.AccessRequestId
-	return m0
-}
-
 type CreateAccessRequestRequest struct {
-	state          protoimpl.MessageState `protogen:"hybrid.v1"`
+	state          protoimpl.MessageState `protogen:"open.v1"`
 	RootClusterUri string                 `protobuf:"bytes,1,opt,name=root_cluster_uri,json=rootClusterUri,proto3" json:"root_cluster_uri,omitempty"`
 	Reason         string                 `protobuf:"bytes,2,opt,name=reason,proto3" json:"reason,omitempty"`
 	// a list of roles requested
@@ -911,21 +711,14 @@ type CreateAccessRequestRequest struct {
 	MaxDuration *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=max_duration,json=maxDuration,proto3" json:"max_duration,omitempty"`
 	// request_ttl is the expiration time of the request (how long it will await
 	// approval).
-	RequestTtl *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=request_ttl,json=requestTtl,proto3" json:"request_ttl,omitempty"`
-	// resource_access_ids is the set of resources to which access is being requested,
-	// paired with additional information such as ResourceConstraints.
-	// Differs from resource_ids, which only identify resources and cannot be used
-	// to express additional information per-resource such as ResourceConstraints.
-	// When present, resource_access_ids should be treated as authoritative
-	// (ResourceIDs can be derived by mapping to ResourceAccessID.id).
-	ResourceAccessIds []*types.ResourceAccessID `protobuf:"bytes,10,rep,name=resource_access_ids,json=resourceAccessIds,proto3" json:"resource_access_ids,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	RequestTtl    *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=request_ttl,json=requestTtl,proto3" json:"request_ttl,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *CreateAccessRequestRequest) Reset() {
 	*x = CreateAccessRequestRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[12]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -937,7 +730,7 @@ func (x *CreateAccessRequestRequest) String() string {
 func (*CreateAccessRequestRequest) ProtoMessage() {}
 
 func (x *CreateAccessRequestRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[12]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -946,6 +739,11 @@ func (x *CreateAccessRequestRequest) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateAccessRequestRequest.ProtoReflect.Descriptor instead.
+func (*CreateAccessRequestRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *CreateAccessRequestRequest) GetRootClusterUri() string {
@@ -1011,135 +809,8 @@ func (x *CreateAccessRequestRequest) GetRequestTtl() *timestamppb.Timestamp {
 	return nil
 }
 
-func (x *CreateAccessRequestRequest) GetResourceAccessIds() []*types.ResourceAccessID {
-	if x != nil {
-		return x.ResourceAccessIds
-	}
-	return nil
-}
-
-func (x *CreateAccessRequestRequest) SetRootClusterUri(v string) {
-	x.RootClusterUri = v
-}
-
-func (x *CreateAccessRequestRequest) SetReason(v string) {
-	x.Reason = v
-}
-
-func (x *CreateAccessRequestRequest) SetRoles(v []string) {
-	x.Roles = v
-}
-
-func (x *CreateAccessRequestRequest) SetSuggestedReviewers(v []string) {
-	x.SuggestedReviewers = v
-}
-
-func (x *CreateAccessRequestRequest) SetResourceIds(v []*ResourceID) {
-	x.ResourceIds = v
-}
-
-func (x *CreateAccessRequestRequest) SetAssumeStartTime(v *timestamppb.Timestamp) {
-	x.AssumeStartTime = v
-}
-
-func (x *CreateAccessRequestRequest) SetDryRun(v bool) {
-	x.DryRun = v
-}
-
-func (x *CreateAccessRequestRequest) SetMaxDuration(v *timestamppb.Timestamp) {
-	x.MaxDuration = v
-}
-
-func (x *CreateAccessRequestRequest) SetRequestTtl(v *timestamppb.Timestamp) {
-	x.RequestTtl = v
-}
-
-func (x *CreateAccessRequestRequest) SetResourceAccessIds(v []*types.ResourceAccessID) {
-	x.ResourceAccessIds = v
-}
-
-func (x *CreateAccessRequestRequest) HasAssumeStartTime() bool {
-	if x == nil {
-		return false
-	}
-	return x.AssumeStartTime != nil
-}
-
-func (x *CreateAccessRequestRequest) HasMaxDuration() bool {
-	if x == nil {
-		return false
-	}
-	return x.MaxDuration != nil
-}
-
-func (x *CreateAccessRequestRequest) HasRequestTtl() bool {
-	if x == nil {
-		return false
-	}
-	return x.RequestTtl != nil
-}
-
-func (x *CreateAccessRequestRequest) ClearAssumeStartTime() {
-	x.AssumeStartTime = nil
-}
-
-func (x *CreateAccessRequestRequest) ClearMaxDuration() {
-	x.MaxDuration = nil
-}
-
-func (x *CreateAccessRequestRequest) ClearRequestTtl() {
-	x.RequestTtl = nil
-}
-
-type CreateAccessRequestRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	RootClusterUri string
-	Reason         string
-	// a list of roles requested
-	Roles []string
-	// suggested_reviewers is a suggested list of reviewers that can review a request.
-	SuggestedReviewers []string
-	// List of resources to which access is being requested.
-	ResourceIds []*ResourceID
-	// assume_start_time is the time after which the requested access can be assumed.
-	AssumeStartTime *timestamppb.Timestamp
-	// dry_run is a flag that indicates whether the request is a dry run to check and set defaults,
-	// and return before actually creating the request in the backend.
-	DryRun bool
-	// max_duration is the maximum duration for which the request is valid.
-	MaxDuration *timestamppb.Timestamp
-	// request_ttl is the expiration time of the request (how long it will await
-	// approval).
-	RequestTtl *timestamppb.Timestamp
-	// resource_access_ids is the set of resources to which access is being requested,
-	// paired with additional information such as ResourceConstraints.
-	// Differs from resource_ids, which only identify resources and cannot be used
-	// to express additional information per-resource such as ResourceConstraints.
-	// When present, resource_access_ids should be treated as authoritative
-	// (ResourceIDs can be derived by mapping to ResourceAccessID.id).
-	ResourceAccessIds []*types.ResourceAccessID
-}
-
-func (b0 CreateAccessRequestRequest_builder) Build() *CreateAccessRequestRequest {
-	m0 := &CreateAccessRequestRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.RootClusterUri = b.RootClusterUri
-	x.Reason = b.Reason
-	x.Roles = b.Roles
-	x.SuggestedReviewers = b.SuggestedReviewers
-	x.ResourceIds = b.ResourceIds
-	x.AssumeStartTime = b.AssumeStartTime
-	x.DryRun = b.DryRun
-	x.MaxDuration = b.MaxDuration
-	x.RequestTtl = b.RequestTtl
-	x.ResourceAccessIds = b.ResourceAccessIds
-	return m0
-}
-
 type CreateAccessRequestResponse struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
 	Request       *AccessRequest         `protobuf:"bytes,1,opt,name=request,proto3" json:"request,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1147,7 +818,7 @@ type CreateAccessRequestResponse struct {
 
 func (x *CreateAccessRequestResponse) Reset() {
 	*x = CreateAccessRequestResponse{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[13]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1159,7 +830,7 @@ func (x *CreateAccessRequestResponse) String() string {
 func (*CreateAccessRequestResponse) ProtoMessage() {}
 
 func (x *CreateAccessRequestResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[13]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1170,6 +841,11 @@ func (x *CreateAccessRequestResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use CreateAccessRequestResponse.ProtoReflect.Descriptor instead.
+func (*CreateAccessRequestResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{12}
+}
+
 func (x *CreateAccessRequestResponse) GetRequest() *AccessRequest {
 	if x != nil {
 		return x.Request
@@ -1177,37 +853,8 @@ func (x *CreateAccessRequestResponse) GetRequest() *AccessRequest {
 	return nil
 }
 
-func (x *CreateAccessRequestResponse) SetRequest(v *AccessRequest) {
-	x.Request = v
-}
-
-func (x *CreateAccessRequestResponse) HasRequest() bool {
-	if x == nil {
-		return false
-	}
-	return x.Request != nil
-}
-
-func (x *CreateAccessRequestResponse) ClearRequest() {
-	x.Request = nil
-}
-
-type CreateAccessRequestResponse_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	Request *AccessRequest
-}
-
-func (b0 CreateAccessRequestResponse_builder) Build() *CreateAccessRequestResponse {
-	m0 := &CreateAccessRequestResponse{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Request = b.Request
-	return m0
-}
-
 type AssumeRoleRequest struct {
-	state            protoimpl.MessageState `protogen:"hybrid.v1"`
+	state            protoimpl.MessageState `protogen:"open.v1"`
 	RootClusterUri   string                 `protobuf:"bytes,1,opt,name=root_cluster_uri,json=rootClusterUri,proto3" json:"root_cluster_uri,omitempty"`
 	AccessRequestIds []string               `protobuf:"bytes,2,rep,name=access_request_ids,json=accessRequestIds,proto3" json:"access_request_ids,omitempty"`
 	DropRequestIds   []string               `protobuf:"bytes,3,rep,name=drop_request_ids,json=dropRequestIds,proto3" json:"drop_request_ids,omitempty"`
@@ -1217,7 +864,7 @@ type AssumeRoleRequest struct {
 
 func (x *AssumeRoleRequest) Reset() {
 	*x = AssumeRoleRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[14]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1229,7 +876,7 @@ func (x *AssumeRoleRequest) String() string {
 func (*AssumeRoleRequest) ProtoMessage() {}
 
 func (x *AssumeRoleRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[14]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1238,6 +885,11 @@ func (x *AssumeRoleRequest) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AssumeRoleRequest.ProtoReflect.Descriptor instead.
+func (*AssumeRoleRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *AssumeRoleRequest) GetRootClusterUri() string {
@@ -1261,38 +913,8 @@ func (x *AssumeRoleRequest) GetDropRequestIds() []string {
 	return nil
 }
 
-func (x *AssumeRoleRequest) SetRootClusterUri(v string) {
-	x.RootClusterUri = v
-}
-
-func (x *AssumeRoleRequest) SetAccessRequestIds(v []string) {
-	x.AccessRequestIds = v
-}
-
-func (x *AssumeRoleRequest) SetDropRequestIds(v []string) {
-	x.DropRequestIds = v
-}
-
-type AssumeRoleRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	RootClusterUri   string
-	AccessRequestIds []string
-	DropRequestIds   []string
-}
-
-func (b0 AssumeRoleRequest_builder) Build() *AssumeRoleRequest {
-	m0 := &AssumeRoleRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.RootClusterUri = b.RootClusterUri
-	x.AccessRequestIds = b.AccessRequestIds
-	x.DropRequestIds = b.DropRequestIds
-	return m0
-}
-
 type GetRequestableRolesRequest struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
 	ClusterUri    string                 `protobuf:"bytes,1,opt,name=cluster_uri,json=clusterUri,proto3" json:"cluster_uri,omitempty"`
 	ResourceIds   []*ResourceID          `protobuf:"bytes,2,rep,name=resource_ids,json=resourceIds,proto3" json:"resource_ids,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1301,7 +923,7 @@ type GetRequestableRolesRequest struct {
 
 func (x *GetRequestableRolesRequest) Reset() {
 	*x = GetRequestableRolesRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[15]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1313,7 +935,7 @@ func (x *GetRequestableRolesRequest) String() string {
 func (*GetRequestableRolesRequest) ProtoMessage() {}
 
 func (x *GetRequestableRolesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[15]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1322,6 +944,11 @@ func (x *GetRequestableRolesRequest) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetRequestableRolesRequest.ProtoReflect.Descriptor instead.
+func (*GetRequestableRolesRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *GetRequestableRolesRequest) GetClusterUri() string {
@@ -1338,32 +965,8 @@ func (x *GetRequestableRolesRequest) GetResourceIds() []*ResourceID {
 	return nil
 }
 
-func (x *GetRequestableRolesRequest) SetClusterUri(v string) {
-	x.ClusterUri = v
-}
-
-func (x *GetRequestableRolesRequest) SetResourceIds(v []*ResourceID) {
-	x.ResourceIds = v
-}
-
-type GetRequestableRolesRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	ClusterUri  string
-	ResourceIds []*ResourceID
-}
-
-func (b0 GetRequestableRolesRequest_builder) Build() *GetRequestableRolesRequest {
-	m0 := &GetRequestableRolesRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.ClusterUri = b.ClusterUri
-	x.ResourceIds = b.ResourceIds
-	return m0
-}
-
 type GetRequestableRolesResponse struct {
-	state           protoimpl.MessageState `protogen:"hybrid.v1"`
+	state           protoimpl.MessageState `protogen:"open.v1"`
 	Roles           []string               `protobuf:"bytes,1,rep,name=roles,proto3" json:"roles,omitempty"`
 	ApplicableRoles []string               `protobuf:"bytes,2,rep,name=applicable_roles,json=applicableRoles,proto3" json:"applicable_roles,omitempty"`
 	unknownFields   protoimpl.UnknownFields
@@ -1372,7 +975,7 @@ type GetRequestableRolesResponse struct {
 
 func (x *GetRequestableRolesResponse) Reset() {
 	*x = GetRequestableRolesResponse{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[16]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1384,7 +987,7 @@ func (x *GetRequestableRolesResponse) String() string {
 func (*GetRequestableRolesResponse) ProtoMessage() {}
 
 func (x *GetRequestableRolesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[16]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1393,6 +996,11 @@ func (x *GetRequestableRolesResponse) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetRequestableRolesResponse.ProtoReflect.Descriptor instead.
+func (*GetRequestableRolesResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *GetRequestableRolesResponse) GetRoles() []string {
@@ -1409,32 +1017,8 @@ func (x *GetRequestableRolesResponse) GetApplicableRoles() []string {
 	return nil
 }
 
-func (x *GetRequestableRolesResponse) SetRoles(v []string) {
-	x.Roles = v
-}
-
-func (x *GetRequestableRolesResponse) SetApplicableRoles(v []string) {
-	x.ApplicableRoles = v
-}
-
-type GetRequestableRolesResponse_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	Roles           []string
-	ApplicableRoles []string
-}
-
-func (b0 GetRequestableRolesResponse_builder) Build() *GetRequestableRolesResponse {
-	m0 := &GetRequestableRolesResponse{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Roles = b.Roles
-	x.ApplicableRoles = b.ApplicableRoles
-	return m0
-}
-
 type ReviewAccessRequestRequest struct {
-	state           protoimpl.MessageState `protogen:"hybrid.v1"`
+	state           protoimpl.MessageState `protogen:"open.v1"`
 	RootClusterUri  string                 `protobuf:"bytes,1,opt,name=root_cluster_uri,json=rootClusterUri,proto3" json:"root_cluster_uri,omitempty"`
 	State           string                 `protobuf:"bytes,2,opt,name=state,proto3" json:"state,omitempty"`
 	Reason          string                 `protobuf:"bytes,3,opt,name=reason,proto3" json:"reason,omitempty"`
@@ -1448,7 +1032,7 @@ type ReviewAccessRequestRequest struct {
 
 func (x *ReviewAccessRequestRequest) Reset() {
 	*x = ReviewAccessRequestRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[17]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1460,7 +1044,7 @@ func (x *ReviewAccessRequestRequest) String() string {
 func (*ReviewAccessRequestRequest) ProtoMessage() {}
 
 func (x *ReviewAccessRequestRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[17]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1469,6 +1053,11 @@ func (x *ReviewAccessRequestRequest) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReviewAccessRequestRequest.ProtoReflect.Descriptor instead.
+func (*ReviewAccessRequestRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *ReviewAccessRequestRequest) GetRootClusterUri() string {
@@ -1513,68 +1102,8 @@ func (x *ReviewAccessRequestRequest) GetAssumeStartTime() *timestamppb.Timestamp
 	return nil
 }
 
-func (x *ReviewAccessRequestRequest) SetRootClusterUri(v string) {
-	x.RootClusterUri = v
-}
-
-func (x *ReviewAccessRequestRequest) SetState(v string) {
-	x.State = v
-}
-
-func (x *ReviewAccessRequestRequest) SetReason(v string) {
-	x.Reason = v
-}
-
-func (x *ReviewAccessRequestRequest) SetRoles(v []string) {
-	x.Roles = v
-}
-
-func (x *ReviewAccessRequestRequest) SetAccessRequestId(v string) {
-	x.AccessRequestId = v
-}
-
-func (x *ReviewAccessRequestRequest) SetAssumeStartTime(v *timestamppb.Timestamp) {
-	x.AssumeStartTime = v
-}
-
-func (x *ReviewAccessRequestRequest) HasAssumeStartTime() bool {
-	if x == nil {
-		return false
-	}
-	return x.AssumeStartTime != nil
-}
-
-func (x *ReviewAccessRequestRequest) ClearAssumeStartTime() {
-	x.AssumeStartTime = nil
-}
-
-type ReviewAccessRequestRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	RootClusterUri  string
-	State           string
-	Reason          string
-	Roles           []string
-	AccessRequestId string
-	// Overwrites the requested start time (optional).
-	AssumeStartTime *timestamppb.Timestamp
-}
-
-func (b0 ReviewAccessRequestRequest_builder) Build() *ReviewAccessRequestRequest {
-	m0 := &ReviewAccessRequestRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.RootClusterUri = b.RootClusterUri
-	x.State = b.State
-	x.Reason = b.Reason
-	x.Roles = b.Roles
-	x.AccessRequestId = b.AccessRequestId
-	x.AssumeStartTime = b.AssumeStartTime
-	return m0
-}
-
 type ReviewAccessRequestResponse struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
 	Request       *AccessRequest         `protobuf:"bytes,1,opt,name=request,proto3" json:"request,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1582,7 +1111,7 @@ type ReviewAccessRequestResponse struct {
 
 func (x *ReviewAccessRequestResponse) Reset() {
 	*x = ReviewAccessRequestResponse{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[18]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1594,7 +1123,7 @@ func (x *ReviewAccessRequestResponse) String() string {
 func (*ReviewAccessRequestResponse) ProtoMessage() {}
 
 func (x *ReviewAccessRequestResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[18]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1605,6 +1134,11 @@ func (x *ReviewAccessRequestResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use ReviewAccessRequestResponse.ProtoReflect.Descriptor instead.
+func (*ReviewAccessRequestResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{17}
+}
+
 func (x *ReviewAccessRequestResponse) GetRequest() *AccessRequest {
 	if x != nil {
 		return x.Request
@@ -1612,37 +1146,8 @@ func (x *ReviewAccessRequestResponse) GetRequest() *AccessRequest {
 	return nil
 }
 
-func (x *ReviewAccessRequestResponse) SetRequest(v *AccessRequest) {
-	x.Request = v
-}
-
-func (x *ReviewAccessRequestResponse) HasRequest() bool {
-	if x == nil {
-		return false
-	}
-	return x.Request != nil
-}
-
-func (x *ReviewAccessRequestResponse) ClearRequest() {
-	x.Request = nil
-}
-
-type ReviewAccessRequestResponse_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	Request *AccessRequest
-}
-
-func (b0 ReviewAccessRequestResponse_builder) Build() *ReviewAccessRequestResponse {
-	m0 := &ReviewAccessRequestResponse{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Request = b.Request
-	return m0
-}
-
 type PromoteAccessRequestRequest struct {
-	state           protoimpl.MessageState `protogen:"hybrid.v1"`
+	state           protoimpl.MessageState `protogen:"open.v1"`
 	RootClusterUri  string                 `protobuf:"bytes,1,opt,name=root_cluster_uri,json=rootClusterUri,proto3" json:"root_cluster_uri,omitempty"`
 	AccessListId    string                 `protobuf:"bytes,2,opt,name=access_list_id,json=accessListId,proto3" json:"access_list_id,omitempty"`
 	Reason          string                 `protobuf:"bytes,3,opt,name=reason,proto3" json:"reason,omitempty"`
@@ -1653,7 +1158,7 @@ type PromoteAccessRequestRequest struct {
 
 func (x *PromoteAccessRequestRequest) Reset() {
 	*x = PromoteAccessRequestRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[19]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1665,7 +1170,7 @@ func (x *PromoteAccessRequestRequest) String() string {
 func (*PromoteAccessRequestRequest) ProtoMessage() {}
 
 func (x *PromoteAccessRequestRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[19]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1674,6 +1179,11 @@ func (x *PromoteAccessRequestRequest) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PromoteAccessRequestRequest.ProtoReflect.Descriptor instead.
+func (*PromoteAccessRequestRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *PromoteAccessRequestRequest) GetRootClusterUri() string {
@@ -1704,44 +1214,8 @@ func (x *PromoteAccessRequestRequest) GetAccessRequestId() string {
 	return ""
 }
 
-func (x *PromoteAccessRequestRequest) SetRootClusterUri(v string) {
-	x.RootClusterUri = v
-}
-
-func (x *PromoteAccessRequestRequest) SetAccessListId(v string) {
-	x.AccessListId = v
-}
-
-func (x *PromoteAccessRequestRequest) SetReason(v string) {
-	x.Reason = v
-}
-
-func (x *PromoteAccessRequestRequest) SetAccessRequestId(v string) {
-	x.AccessRequestId = v
-}
-
-type PromoteAccessRequestRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	RootClusterUri  string
-	AccessListId    string
-	Reason          string
-	AccessRequestId string
-}
-
-func (b0 PromoteAccessRequestRequest_builder) Build() *PromoteAccessRequestRequest {
-	m0 := &PromoteAccessRequestRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.RootClusterUri = b.RootClusterUri
-	x.AccessListId = b.AccessListId
-	x.Reason = b.Reason
-	x.AccessRequestId = b.AccessRequestId
-	return m0
-}
-
 type PromoteAccessRequestResponse struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
 	Request       *AccessRequest         `protobuf:"bytes,1,opt,name=request,proto3" json:"request,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1749,7 +1223,7 @@ type PromoteAccessRequestResponse struct {
 
 func (x *PromoteAccessRequestResponse) Reset() {
 	*x = PromoteAccessRequestResponse{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[20]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1761,7 +1235,7 @@ func (x *PromoteAccessRequestResponse) String() string {
 func (*PromoteAccessRequestResponse) ProtoMessage() {}
 
 func (x *PromoteAccessRequestResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[20]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1772,6 +1246,11 @@ func (x *PromoteAccessRequestResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use PromoteAccessRequestResponse.ProtoReflect.Descriptor instead.
+func (*PromoteAccessRequestResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{19}
+}
+
 func (x *PromoteAccessRequestResponse) GetRequest() *AccessRequest {
 	if x != nil {
 		return x.Request
@@ -1779,37 +1258,8 @@ func (x *PromoteAccessRequestResponse) GetRequest() *AccessRequest {
 	return nil
 }
 
-func (x *PromoteAccessRequestResponse) SetRequest(v *AccessRequest) {
-	x.Request = v
-}
-
-func (x *PromoteAccessRequestResponse) HasRequest() bool {
-	if x == nil {
-		return false
-	}
-	return x.Request != nil
-}
-
-func (x *PromoteAccessRequestResponse) ClearRequest() {
-	x.Request = nil
-}
-
-type PromoteAccessRequestResponse_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	Request *AccessRequest
-}
-
-func (b0 PromoteAccessRequestResponse_builder) Build() *PromoteAccessRequestResponse {
-	m0 := &PromoteAccessRequestResponse{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Request = b.Request
-	return m0
-}
-
 type GetSuggestedAccessListsRequest struct {
-	state           protoimpl.MessageState `protogen:"hybrid.v1"`
+	state           protoimpl.MessageState `protogen:"open.v1"`
 	RootClusterUri  string                 `protobuf:"bytes,1,opt,name=root_cluster_uri,json=rootClusterUri,proto3" json:"root_cluster_uri,omitempty"`
 	AccessRequestId string                 `protobuf:"bytes,2,opt,name=access_request_id,json=accessRequestId,proto3" json:"access_request_id,omitempty"`
 	unknownFields   protoimpl.UnknownFields
@@ -1818,7 +1268,7 @@ type GetSuggestedAccessListsRequest struct {
 
 func (x *GetSuggestedAccessListsRequest) Reset() {
 	*x = GetSuggestedAccessListsRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[21]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1830,7 +1280,7 @@ func (x *GetSuggestedAccessListsRequest) String() string {
 func (*GetSuggestedAccessListsRequest) ProtoMessage() {}
 
 func (x *GetSuggestedAccessListsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[21]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1839,6 +1289,11 @@ func (x *GetSuggestedAccessListsRequest) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetSuggestedAccessListsRequest.ProtoReflect.Descriptor instead.
+func (*GetSuggestedAccessListsRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *GetSuggestedAccessListsRequest) GetRootClusterUri() string {
@@ -1855,32 +1310,8 @@ func (x *GetSuggestedAccessListsRequest) GetAccessRequestId() string {
 	return ""
 }
 
-func (x *GetSuggestedAccessListsRequest) SetRootClusterUri(v string) {
-	x.RootClusterUri = v
-}
-
-func (x *GetSuggestedAccessListsRequest) SetAccessRequestId(v string) {
-	x.AccessRequestId = v
-}
-
-type GetSuggestedAccessListsRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	RootClusterUri  string
-	AccessRequestId string
-}
-
-func (b0 GetSuggestedAccessListsRequest_builder) Build() *GetSuggestedAccessListsRequest {
-	m0 := &GetSuggestedAccessListsRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.RootClusterUri = b.RootClusterUri
-	x.AccessRequestId = b.AccessRequestId
-	return m0
-}
-
 type GetSuggestedAccessListsResponse struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
 	AccessLists   []*v1.AccessList       `protobuf:"bytes,1,rep,name=access_lists,json=accessLists,proto3" json:"access_lists,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1888,7 +1319,7 @@ type GetSuggestedAccessListsResponse struct {
 
 func (x *GetSuggestedAccessListsResponse) Reset() {
 	*x = GetSuggestedAccessListsResponse{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[22]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1900,7 +1331,7 @@ func (x *GetSuggestedAccessListsResponse) String() string {
 func (*GetSuggestedAccessListsResponse) ProtoMessage() {}
 
 func (x *GetSuggestedAccessListsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[22]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1911,6 +1342,11 @@ func (x *GetSuggestedAccessListsResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use GetSuggestedAccessListsResponse.ProtoReflect.Descriptor instead.
+func (*GetSuggestedAccessListsResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{21}
+}
+
 func (x *GetSuggestedAccessListsResponse) GetAccessLists() []*v1.AccessList {
 	if x != nil {
 		return x.AccessLists
@@ -1918,26 +1354,8 @@ func (x *GetSuggestedAccessListsResponse) GetAccessLists() []*v1.AccessList {
 	return nil
 }
 
-func (x *GetSuggestedAccessListsResponse) SetAccessLists(v []*v1.AccessList) {
-	x.AccessLists = v
-}
-
-type GetSuggestedAccessListsResponse_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	AccessLists []*v1.AccessList
-}
-
-func (b0 GetSuggestedAccessListsResponse_builder) Build() *GetSuggestedAccessListsResponse {
-	m0 := &GetSuggestedAccessListsResponse{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.AccessLists = b.AccessLists
-	return m0
-}
-
 type ListKubernetesResourcesRequest struct {
-	state      protoimpl.MessageState `protogen:"hybrid.v1"`
+	state      protoimpl.MessageState `protogen:"open.v1"`
 	ClusterUri string                 `protobuf:"bytes,1,opt,name=cluster_uri,json=clusterUri,proto3" json:"cluster_uri,omitempty"`
 	// ResourceType is the Kubernetes resource that is going to be retrieved.
 	ResourceType string `protobuf:"bytes,2,opt,name=resource_type,json=resourceType,proto3" json:"resource_type,omitempty"`
@@ -1965,7 +1383,7 @@ type ListKubernetesResourcesRequest struct {
 
 func (x *ListKubernetesResourcesRequest) Reset() {
 	*x = ListKubernetesResourcesRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[23]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1977,7 +1395,7 @@ func (x *ListKubernetesResourcesRequest) String() string {
 func (*ListKubernetesResourcesRequest) ProtoMessage() {}
 
 func (x *ListKubernetesResourcesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[23]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1986,6 +1404,11 @@ func (x *ListKubernetesResourcesRequest) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListKubernetesResourcesRequest.ProtoReflect.Descriptor instead.
+func (*ListKubernetesResourcesRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *ListKubernetesResourcesRequest) GetClusterUri() string {
@@ -2051,86 +1474,8 @@ func (x *ListKubernetesResourcesRequest) GetKubernetesNamespace() string {
 	return ""
 }
 
-func (x *ListKubernetesResourcesRequest) SetClusterUri(v string) {
-	x.ClusterUri = v
-}
-
-func (x *ListKubernetesResourcesRequest) SetResourceType(v string) {
-	x.ResourceType = v
-}
-
-func (x *ListKubernetesResourcesRequest) SetLimit(v int32) {
-	x.Limit = v
-}
-
-func (x *ListKubernetesResourcesRequest) SetNextKey(v string) {
-	x.NextKey = v
-}
-
-func (x *ListKubernetesResourcesRequest) SetPredicateExpression(v string) {
-	x.PredicateExpression = v
-}
-
-func (x *ListKubernetesResourcesRequest) SetSearchKeywords(v string) {
-	x.SearchKeywords = v
-}
-
-func (x *ListKubernetesResourcesRequest) SetUseSearchAsRoles(v bool) {
-	x.UseSearchAsRoles = v
-}
-
-func (x *ListKubernetesResourcesRequest) SetKubernetesCluster(v string) {
-	x.KubernetesCluster = v
-}
-
-func (x *ListKubernetesResourcesRequest) SetKubernetesNamespace(v string) {
-	x.KubernetesNamespace = v
-}
-
-type ListKubernetesResourcesRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	ClusterUri string
-	// ResourceType is the Kubernetes resource that is going to be retrieved.
-	ResourceType string
-	// Limit is the maximum amount of resources to retrieve.
-	Limit int32
-	// NextKey is used to start listing resources from a specific spot. It
-	// should be set to the previous NextKey value if using pagination, or
-	// left empty.
-	NextKey string
-	// PredicateExpression defines boolean conditions that will be matched against the resource.
-	PredicateExpression string
-	// SearchKeywords is a string containing search keywords to match against resource field values.
-	SearchKeywords string
-	// UseSearchAsRoles indicates that the response should include all resources
-	// the caller is able to request access to using search_as_roles
-	UseSearchAsRoles bool
-	// Cluster is the Kubernetes Cluster to request the resources.
-	KubernetesCluster string
-	// Namespace is the Kubernetes namespace where the resources must be located.
-	// To search on every Kubernetes Namespace, do not define the value.
-	KubernetesNamespace string
-}
-
-func (b0 ListKubernetesResourcesRequest_builder) Build() *ListKubernetesResourcesRequest {
-	m0 := &ListKubernetesResourcesRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.ClusterUri = b.ClusterUri
-	x.ResourceType = b.ResourceType
-	x.Limit = b.Limit
-	x.NextKey = b.NextKey
-	x.PredicateExpression = b.PredicateExpression
-	x.SearchKeywords = b.SearchKeywords
-	x.UseSearchAsRoles = b.UseSearchAsRoles
-	x.KubernetesCluster = b.KubernetesCluster
-	x.KubernetesNamespace = b.KubernetesNamespace
-	return m0
-}
-
 type ListKubernetesResourcesResponse struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
 	Resources     []*KubeResource        `protobuf:"bytes,1,rep,name=resources,proto3" json:"resources,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -2138,7 +1483,7 @@ type ListKubernetesResourcesResponse struct {
 
 func (x *ListKubernetesResourcesResponse) Reset() {
 	*x = ListKubernetesResourcesResponse{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[24]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2150,7 +1495,7 @@ func (x *ListKubernetesResourcesResponse) String() string {
 func (*ListKubernetesResourcesResponse) ProtoMessage() {}
 
 func (x *ListKubernetesResourcesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[24]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2159,6 +1504,11 @@ func (x *ListKubernetesResourcesResponse) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListKubernetesResourcesResponse.ProtoReflect.Descriptor instead.
+func (*ListKubernetesResourcesResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *ListKubernetesResourcesResponse) GetResources() []*KubeResource {
@@ -2168,222 +1518,9 @@ func (x *ListKubernetesResourcesResponse) GetResources() []*KubeResource {
 	return nil
 }
 
-func (x *ListKubernetesResourcesResponse) SetResources(v []*KubeResource) {
-	x.Resources = v
-}
-
-type ListKubernetesResourcesResponse_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	Resources []*KubeResource
-}
-
-func (b0 ListKubernetesResourcesResponse_builder) Build() *ListKubernetesResourcesResponse {
-	m0 := &ListKubernetesResourcesResponse{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Resources = b.Resources
-	return m0
-}
-
-// Lists Kubernetes servers request.
-type ListKubernetesServersRequest struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// Maximum number of servers to return per page.
-	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
-	// Pagination token from a previous response.
-	PageToken string `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
-	// Target Kubernetes cluster URI.
-	ClusterUri string `protobuf:"bytes,3,opt,name=cluster_uri,json=clusterUri,proto3" json:"cluster_uri,omitempty"`
-	// Additional filters and sorting options.
-	Params        *ListResourcesParams `protobuf:"bytes,4,opt,name=params,proto3" json:"params,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ListKubernetesServersRequest) Reset() {
-	*x = ListKubernetesServersRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[25]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ListKubernetesServersRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ListKubernetesServersRequest) ProtoMessage() {}
-
-func (x *ListKubernetesServersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[25]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-func (x *ListKubernetesServersRequest) GetPageSize() int32 {
-	if x != nil {
-		return x.PageSize
-	}
-	return 0
-}
-
-func (x *ListKubernetesServersRequest) GetPageToken() string {
-	if x != nil {
-		return x.PageToken
-	}
-	return ""
-}
-
-func (x *ListKubernetesServersRequest) GetClusterUri() string {
-	if x != nil {
-		return x.ClusterUri
-	}
-	return ""
-}
-
-func (x *ListKubernetesServersRequest) GetParams() *ListResourcesParams {
-	if x != nil {
-		return x.Params
-	}
-	return nil
-}
-
-func (x *ListKubernetesServersRequest) SetPageSize(v int32) {
-	x.PageSize = v
-}
-
-func (x *ListKubernetesServersRequest) SetPageToken(v string) {
-	x.PageToken = v
-}
-
-func (x *ListKubernetesServersRequest) SetClusterUri(v string) {
-	x.ClusterUri = v
-}
-
-func (x *ListKubernetesServersRequest) SetParams(v *ListResourcesParams) {
-	x.Params = v
-}
-
-func (x *ListKubernetesServersRequest) HasParams() bool {
-	if x == nil {
-		return false
-	}
-	return x.Params != nil
-}
-
-func (x *ListKubernetesServersRequest) ClearParams() {
-	x.Params = nil
-}
-
-type ListKubernetesServersRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// Maximum number of servers to return per page.
-	PageSize int32
-	// Pagination token from a previous response.
-	PageToken string
-	// Target Kubernetes cluster URI.
-	ClusterUri string
-	// Additional filters and sorting options.
-	Params *ListResourcesParams
-}
-
-func (b0 ListKubernetesServersRequest_builder) Build() *ListKubernetesServersRequest {
-	m0 := &ListKubernetesServersRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.PageSize = b.PageSize
-	x.PageToken = b.PageToken
-	x.ClusterUri = b.ClusterUri
-	x.Params = b.Params
-	return m0
-}
-
-// Lists Kubernetes servers response.
-type ListKubernetesServersResponse struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// Resources in this page of results.
-	Resources []*KubeServer `protobuf:"bytes,1,rep,name=resources,proto3" json:"resources,omitempty"`
-	// Pagination token for the next page.
-	NextPageToken string `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ListKubernetesServersResponse) Reset() {
-	*x = ListKubernetesServersResponse{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[26]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ListKubernetesServersResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ListKubernetesServersResponse) ProtoMessage() {}
-
-func (x *ListKubernetesServersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[26]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-func (x *ListKubernetesServersResponse) GetResources() []*KubeServer {
-	if x != nil {
-		return x.Resources
-	}
-	return nil
-}
-
-func (x *ListKubernetesServersResponse) GetNextPageToken() string {
-	if x != nil {
-		return x.NextPageToken
-	}
-	return ""
-}
-
-func (x *ListKubernetesServersResponse) SetResources(v []*KubeServer) {
-	x.Resources = v
-}
-
-func (x *ListKubernetesServersResponse) SetNextPageToken(v string) {
-	x.NextPageToken = v
-}
-
-type ListKubernetesServersResponse_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// Resources in this page of results.
-	Resources []*KubeServer
-	// Pagination token for the next page.
-	NextPageToken string
-}
-
-func (b0 ListKubernetesServersResponse_builder) Build() *ListKubernetesServersResponse {
-	m0 := &ListKubernetesServersResponse{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Resources = b.Resources
-	x.NextPageToken = b.NextPageToken
-	return m0
-}
-
 // CredentialInfo holds fields related to a user's WebAuthn credential.
 type CredentialInfo struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
 	Username      string                 `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -2391,7 +1528,7 @@ type CredentialInfo struct {
 
 func (x *CredentialInfo) Reset() {
 	*x = CredentialInfo{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[27]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2403,7 +1540,7 @@ func (x *CredentialInfo) String() string {
 func (*CredentialInfo) ProtoMessage() {}
 
 func (x *CredentialInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[27]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2414,6 +1551,11 @@ func (x *CredentialInfo) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use CredentialInfo.ProtoReflect.Descriptor instead.
+func (*CredentialInfo) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{24}
+}
+
 func (x *CredentialInfo) GetUsername() string {
 	if x != nil {
 		return x.Username
@@ -2421,28 +1563,10 @@ func (x *CredentialInfo) GetUsername() string {
 	return ""
 }
 
-func (x *CredentialInfo) SetUsername(v string) {
-	x.Username = v
-}
-
-type CredentialInfo_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	Username string
-}
-
-func (b0 CredentialInfo_builder) Build() *CredentialInfo {
-	m0 := &CredentialInfo{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Username = b.Username
-	return m0
-}
-
 // LoginPasswordlessResponse is a message sent by the server during the
 // passwordless login flow.
 type LoginPasswordlessResponse struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
 	Prompt        PasswordlessPrompt     `protobuf:"varint,1,opt,name=prompt,proto3,enum=teleport.lib.teleterm.v1.PasswordlessPrompt" json:"prompt,omitempty"`
 	Credentials   []*CredentialInfo      `protobuf:"bytes,2,rep,name=credentials,proto3" json:"credentials,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -2451,7 +1575,7 @@ type LoginPasswordlessResponse struct {
 
 func (x *LoginPasswordlessResponse) Reset() {
 	*x = LoginPasswordlessResponse{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[28]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2463,7 +1587,7 @@ func (x *LoginPasswordlessResponse) String() string {
 func (*LoginPasswordlessResponse) ProtoMessage() {}
 
 func (x *LoginPasswordlessResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[28]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2472,6 +1596,11 @@ func (x *LoginPasswordlessResponse) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LoginPasswordlessResponse.ProtoReflect.Descriptor instead.
+func (*LoginPasswordlessResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *LoginPasswordlessResponse) GetPrompt() PasswordlessPrompt {
@@ -2488,33 +1617,9 @@ func (x *LoginPasswordlessResponse) GetCredentials() []*CredentialInfo {
 	return nil
 }
 
-func (x *LoginPasswordlessResponse) SetPrompt(v PasswordlessPrompt) {
-	x.Prompt = v
-}
-
-func (x *LoginPasswordlessResponse) SetCredentials(v []*CredentialInfo) {
-	x.Credentials = v
-}
-
-type LoginPasswordlessResponse_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	Prompt      PasswordlessPrompt
-	Credentials []*CredentialInfo
-}
-
-func (b0 LoginPasswordlessResponse_builder) Build() *LoginPasswordlessResponse {
-	m0 := &LoginPasswordlessResponse{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Prompt = b.Prompt
-	x.Credentials = b.Credentials
-	return m0
-}
-
 // LoginPasswordlessRequest is a message sent by the client during the passwordless login flow.
 type LoginPasswordlessRequest struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Request:
 	//
 	//	*LoginPasswordlessRequest_Init
@@ -2527,7 +1632,7 @@ type LoginPasswordlessRequest struct {
 
 func (x *LoginPasswordlessRequest) Reset() {
 	*x = LoginPasswordlessRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[29]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2539,7 +1644,7 @@ func (x *LoginPasswordlessRequest) String() string {
 func (*LoginPasswordlessRequest) ProtoMessage() {}
 
 func (x *LoginPasswordlessRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[29]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2548,6 +1653,11 @@ func (x *LoginPasswordlessRequest) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LoginPasswordlessRequest.ProtoReflect.Descriptor instead.
+func (*LoginPasswordlessRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *LoginPasswordlessRequest) GetRequest() isLoginPasswordlessRequest_Request {
@@ -2584,140 +1694,6 @@ func (x *LoginPasswordlessRequest) GetCredential() *LoginPasswordlessRequest_Log
 	return nil
 }
 
-func (x *LoginPasswordlessRequest) SetInit(v *LoginPasswordlessRequest_LoginPasswordlessRequestInit) {
-	if v == nil {
-		x.Request = nil
-		return
-	}
-	x.Request = &LoginPasswordlessRequest_Init{v}
-}
-
-func (x *LoginPasswordlessRequest) SetPin(v *LoginPasswordlessRequest_LoginPasswordlessPINResponse) {
-	if v == nil {
-		x.Request = nil
-		return
-	}
-	x.Request = &LoginPasswordlessRequest_Pin{v}
-}
-
-func (x *LoginPasswordlessRequest) SetCredential(v *LoginPasswordlessRequest_LoginPasswordlessCredentialResponse) {
-	if v == nil {
-		x.Request = nil
-		return
-	}
-	x.Request = &LoginPasswordlessRequest_Credential{v}
-}
-
-func (x *LoginPasswordlessRequest) HasRequest() bool {
-	if x == nil {
-		return false
-	}
-	return x.Request != nil
-}
-
-func (x *LoginPasswordlessRequest) HasInit() bool {
-	if x == nil {
-		return false
-	}
-	_, ok := x.Request.(*LoginPasswordlessRequest_Init)
-	return ok
-}
-
-func (x *LoginPasswordlessRequest) HasPin() bool {
-	if x == nil {
-		return false
-	}
-	_, ok := x.Request.(*LoginPasswordlessRequest_Pin)
-	return ok
-}
-
-func (x *LoginPasswordlessRequest) HasCredential() bool {
-	if x == nil {
-		return false
-	}
-	_, ok := x.Request.(*LoginPasswordlessRequest_Credential)
-	return ok
-}
-
-func (x *LoginPasswordlessRequest) ClearRequest() {
-	x.Request = nil
-}
-
-func (x *LoginPasswordlessRequest) ClearInit() {
-	if _, ok := x.Request.(*LoginPasswordlessRequest_Init); ok {
-		x.Request = nil
-	}
-}
-
-func (x *LoginPasswordlessRequest) ClearPin() {
-	if _, ok := x.Request.(*LoginPasswordlessRequest_Pin); ok {
-		x.Request = nil
-	}
-}
-
-func (x *LoginPasswordlessRequest) ClearCredential() {
-	if _, ok := x.Request.(*LoginPasswordlessRequest_Credential); ok {
-		x.Request = nil
-	}
-}
-
-const LoginPasswordlessRequest_Request_not_set_case case_LoginPasswordlessRequest_Request = 0
-const LoginPasswordlessRequest_Init_case case_LoginPasswordlessRequest_Request = 1
-const LoginPasswordlessRequest_Pin_case case_LoginPasswordlessRequest_Request = 2
-const LoginPasswordlessRequest_Credential_case case_LoginPasswordlessRequest_Request = 3
-
-func (x *LoginPasswordlessRequest) WhichRequest() case_LoginPasswordlessRequest_Request {
-	if x == nil {
-		return LoginPasswordlessRequest_Request_not_set_case
-	}
-	switch x.Request.(type) {
-	case *LoginPasswordlessRequest_Init:
-		return LoginPasswordlessRequest_Init_case
-	case *LoginPasswordlessRequest_Pin:
-		return LoginPasswordlessRequest_Pin_case
-	case *LoginPasswordlessRequest_Credential:
-		return LoginPasswordlessRequest_Credential_case
-	default:
-		return LoginPasswordlessRequest_Request_not_set_case
-	}
-}
-
-type LoginPasswordlessRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// Fields of oneof Request:
-	Init       *LoginPasswordlessRequest_LoginPasswordlessRequestInit
-	Pin        *LoginPasswordlessRequest_LoginPasswordlessPINResponse
-	Credential *LoginPasswordlessRequest_LoginPasswordlessCredentialResponse
-	// -- end of Request
-}
-
-func (b0 LoginPasswordlessRequest_builder) Build() *LoginPasswordlessRequest {
-	m0 := &LoginPasswordlessRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	if b.Init != nil {
-		x.Request = &LoginPasswordlessRequest_Init{b.Init}
-	}
-	if b.Pin != nil {
-		x.Request = &LoginPasswordlessRequest_Pin{b.Pin}
-	}
-	if b.Credential != nil {
-		x.Request = &LoginPasswordlessRequest_Credential{b.Credential}
-	}
-	return m0
-}
-
-type case_LoginPasswordlessRequest_Request protoreflect.FieldNumber
-
-func (x case_LoginPasswordlessRequest_Request) String() string {
-	md := file_teleport_lib_teleterm_v1_service_proto_msgTypes[29].Descriptor()
-	if x == 0 {
-		return "not set"
-	}
-	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
-}
-
 type isLoginPasswordlessRequest_Request interface {
 	isLoginPasswordlessRequest_Request()
 }
@@ -2741,7 +1717,7 @@ func (*LoginPasswordlessRequest_Pin) isLoginPasswordlessRequest_Request() {}
 func (*LoginPasswordlessRequest_Credential) isLoginPasswordlessRequest_Request() {}
 
 type FileTransferRequest struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// login is the SSH username to use for the transfer.
 	Login string `protobuf:"bytes,2,opt,name=login,proto3" json:"login,omitempty"`
 	// source path of the transferred file.
@@ -2757,7 +1733,7 @@ type FileTransferRequest struct {
 
 func (x *FileTransferRequest) Reset() {
 	*x = FileTransferRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[30]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2769,7 +1745,7 @@ func (x *FileTransferRequest) String() string {
 func (*FileTransferRequest) ProtoMessage() {}
 
 func (x *FileTransferRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[30]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2778,6 +1754,11 @@ func (x *FileTransferRequest) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FileTransferRequest.ProtoReflect.Descriptor instead.
+func (*FileTransferRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *FileTransferRequest) GetLogin() string {
@@ -2815,54 +1796,8 @@ func (x *FileTransferRequest) GetServerUri() string {
 	return ""
 }
 
-func (x *FileTransferRequest) SetLogin(v string) {
-	x.Login = v
-}
-
-func (x *FileTransferRequest) SetSource(v string) {
-	x.Source = v
-}
-
-func (x *FileTransferRequest) SetDestination(v string) {
-	x.Destination = v
-}
-
-func (x *FileTransferRequest) SetDirection(v FileTransferDirection) {
-	x.Direction = v
-}
-
-func (x *FileTransferRequest) SetServerUri(v string) {
-	x.ServerUri = v
-}
-
-type FileTransferRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// login is the SSH username to use for the transfer.
-	Login string
-	// source path of the transferred file.
-	Source string
-	// destination path of the transferred file.
-	Destination string
-	// direction indicates whether the file is uploaded/downloaded.
-	Direction FileTransferDirection
-	ServerUri string
-}
-
-func (b0 FileTransferRequest_builder) Build() *FileTransferRequest {
-	m0 := &FileTransferRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Login = b.Login
-	x.Source = b.Source
-	x.Destination = b.Destination
-	x.Direction = b.Direction
-	x.ServerUri = b.ServerUri
-	return m0
-}
-
 type FileTransferProgress struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
 	Percentage    uint32                 `protobuf:"varint,1,opt,name=percentage,proto3" json:"percentage,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -2870,7 +1805,7 @@ type FileTransferProgress struct {
 
 func (x *FileTransferProgress) Reset() {
 	*x = FileTransferProgress{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[31]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2882,7 +1817,7 @@ func (x *FileTransferProgress) String() string {
 func (*FileTransferProgress) ProtoMessage() {}
 
 func (x *FileTransferProgress) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[31]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2893,6 +1828,11 @@ func (x *FileTransferProgress) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use FileTransferProgress.ProtoReflect.Descriptor instead.
+func (*FileTransferProgress) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{28}
+}
+
 func (x *FileTransferProgress) GetPercentage() uint32 {
 	if x != nil {
 		return x.Percentage
@@ -2900,27 +1840,9 @@ func (x *FileTransferProgress) GetPercentage() uint32 {
 	return 0
 }
 
-func (x *FileTransferProgress) SetPercentage(v uint32) {
-	x.Percentage = v
-}
-
-type FileTransferProgress_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	Percentage uint32
-}
-
-func (b0 FileTransferProgress_builder) Build() *FileTransferProgress {
-	m0 := &FileTransferProgress{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Percentage = b.Percentage
-	return m0
-}
-
 // LoginRequest describes cluster login request
 type LoginRequest struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// cluster_uri is the cluster uri
 	ClusterUri string `protobuf:"bytes,1,opt,name=cluster_uri,json=clusterUri,proto3" json:"cluster_uri,omitempty"`
 	// Types that are valid to be assigned to Params:
@@ -2934,7 +1856,7 @@ type LoginRequest struct {
 
 func (x *LoginRequest) Reset() {
 	*x = LoginRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[32]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2946,7 +1868,7 @@ func (x *LoginRequest) String() string {
 func (*LoginRequest) ProtoMessage() {}
 
 func (x *LoginRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[32]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2955,6 +1877,11 @@ func (x *LoginRequest) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LoginRequest.ProtoReflect.Descriptor instead.
+func (*LoginRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *LoginRequest) GetClusterUri() string {
@@ -2989,120 +1916,6 @@ func (x *LoginRequest) GetSso() *LoginRequest_SsoParams {
 	return nil
 }
 
-func (x *LoginRequest) SetClusterUri(v string) {
-	x.ClusterUri = v
-}
-
-func (x *LoginRequest) SetLocal(v *LoginRequest_LocalParams) {
-	if v == nil {
-		x.Params = nil
-		return
-	}
-	x.Params = &LoginRequest_Local{v}
-}
-
-func (x *LoginRequest) SetSso(v *LoginRequest_SsoParams) {
-	if v == nil {
-		x.Params = nil
-		return
-	}
-	x.Params = &LoginRequest_Sso{v}
-}
-
-func (x *LoginRequest) HasParams() bool {
-	if x == nil {
-		return false
-	}
-	return x.Params != nil
-}
-
-func (x *LoginRequest) HasLocal() bool {
-	if x == nil {
-		return false
-	}
-	_, ok := x.Params.(*LoginRequest_Local)
-	return ok
-}
-
-func (x *LoginRequest) HasSso() bool {
-	if x == nil {
-		return false
-	}
-	_, ok := x.Params.(*LoginRequest_Sso)
-	return ok
-}
-
-func (x *LoginRequest) ClearParams() {
-	x.Params = nil
-}
-
-func (x *LoginRequest) ClearLocal() {
-	if _, ok := x.Params.(*LoginRequest_Local); ok {
-		x.Params = nil
-	}
-}
-
-func (x *LoginRequest) ClearSso() {
-	if _, ok := x.Params.(*LoginRequest_Sso); ok {
-		x.Params = nil
-	}
-}
-
-const LoginRequest_Params_not_set_case case_LoginRequest_Params = 0
-const LoginRequest_Local_case case_LoginRequest_Params = 2
-const LoginRequest_Sso_case case_LoginRequest_Params = 3
-
-func (x *LoginRequest) WhichParams() case_LoginRequest_Params {
-	if x == nil {
-		return LoginRequest_Params_not_set_case
-	}
-	switch x.Params.(type) {
-	case *LoginRequest_Local:
-		return LoginRequest_Local_case
-	case *LoginRequest_Sso:
-		return LoginRequest_Sso_case
-	default:
-		return LoginRequest_Params_not_set_case
-	}
-}
-
-type LoginRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// cluster_uri is the cluster uri
-	ClusterUri string
-	// Fields of oneof Params:
-	// local holds parameters for local logins
-	Local *LoginRequest_LocalParams
-	// sso holds parameters for sso logins
-	Sso *LoginRequest_SsoParams
-	// -- end of Params
-}
-
-func (b0 LoginRequest_builder) Build() *LoginRequest {
-	m0 := &LoginRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.ClusterUri = b.ClusterUri
-	if b.Local != nil {
-		x.Params = &LoginRequest_Local{b.Local}
-	}
-	if b.Sso != nil {
-		x.Params = &LoginRequest_Sso{b.Sso}
-	}
-	return m0
-}
-
-type case_LoginRequest_Params protoreflect.FieldNumber
-
-func (x case_LoginRequest_Params) String() string {
-	md := file_teleport_lib_teleterm_v1_service_proto_msgTypes[32].Descriptor()
-	if x == 0 {
-		return "not set"
-	}
-	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
-}
-
 type isLoginRequest_Params interface {
 	isLoginRequest_Params()
 }
@@ -3122,7 +1935,7 @@ func (*LoginRequest_Local) isLoginRequest_Params() {}
 func (*LoginRequest_Sso) isLoginRequest_Params() {}
 
 type AddClusterRequest struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
 	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -3130,7 +1943,7 @@ type AddClusterRequest struct {
 
 func (x *AddClusterRequest) Reset() {
 	*x = AddClusterRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[33]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3142,7 +1955,7 @@ func (x *AddClusterRequest) String() string {
 func (*AddClusterRequest) ProtoMessage() {}
 
 func (x *AddClusterRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[33]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3153,6 +1966,11 @@ func (x *AddClusterRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use AddClusterRequest.ProtoReflect.Descriptor instead.
+func (*AddClusterRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{30}
+}
+
 func (x *AddClusterRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -3160,33 +1978,15 @@ func (x *AddClusterRequest) GetName() string {
 	return ""
 }
 
-func (x *AddClusterRequest) SetName(v string) {
-	x.Name = v
-}
-
-type AddClusterRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	Name string
-}
-
-func (b0 AddClusterRequest_builder) Build() *AddClusterRequest {
-	m0 := &AddClusterRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Name = b.Name
-	return m0
-}
-
 type ListClustersRequest struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ListClustersRequest) Reset() {
 	*x = ListClustersRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[34]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3198,7 +1998,7 @@ func (x *ListClustersRequest) String() string {
 func (*ListClustersRequest) ProtoMessage() {}
 
 func (x *ListClustersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[34]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3209,20 +2009,13 @@ func (x *ListClustersRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-type ListClustersRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-}
-
-func (b0 ListClustersRequest_builder) Build() *ListClustersRequest {
-	m0 := &ListClustersRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	return m0
+// Deprecated: Use ListClustersRequest.ProtoReflect.Descriptor instead.
+func (*ListClustersRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{31}
 }
 
 type ListClustersResponse struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
 	Clusters      []*Cluster             `protobuf:"bytes,1,rep,name=clusters,proto3" json:"clusters,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -3230,7 +2023,7 @@ type ListClustersResponse struct {
 
 func (x *ListClustersResponse) Reset() {
 	*x = ListClustersResponse{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[35]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3242,7 +2035,7 @@ func (x *ListClustersResponse) String() string {
 func (*ListClustersResponse) ProtoMessage() {}
 
 func (x *ListClustersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[35]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3253,6 +2046,11 @@ func (x *ListClustersResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use ListClustersResponse.ProtoReflect.Descriptor instead.
+func (*ListClustersResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{32}
+}
+
 func (x *ListClustersResponse) GetClusters() []*Cluster {
 	if x != nil {
 		return x.Clusters
@@ -3260,26 +2058,8 @@ func (x *ListClustersResponse) GetClusters() []*Cluster {
 	return nil
 }
 
-func (x *ListClustersResponse) SetClusters(v []*Cluster) {
-	x.Clusters = v
-}
-
-type ListClustersResponse_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	Clusters []*Cluster
-}
-
-func (b0 ListClustersResponse_builder) Build() *ListClustersResponse {
-	m0 := &ListClustersResponse{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Clusters = b.Clusters
-	return m0
-}
-
 type ListLeafClustersRequest struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
 	ClusterUri    string                 `protobuf:"bytes,1,opt,name=cluster_uri,json=clusterUri,proto3" json:"cluster_uri,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -3287,7 +2067,7 @@ type ListLeafClustersRequest struct {
 
 func (x *ListLeafClustersRequest) Reset() {
 	*x = ListLeafClustersRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[36]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3299,7 +2079,7 @@ func (x *ListLeafClustersRequest) String() string {
 func (*ListLeafClustersRequest) ProtoMessage() {}
 
 func (x *ListLeafClustersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[36]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3308,6 +2088,11 @@ func (x *ListLeafClustersRequest) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListLeafClustersRequest.ProtoReflect.Descriptor instead.
+func (*ListLeafClustersRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *ListLeafClustersRequest) GetClusterUri() string {
@@ -3317,153 +2102,28 @@ func (x *ListLeafClustersRequest) GetClusterUri() string {
 	return ""
 }
 
-func (x *ListLeafClustersRequest) SetClusterUri(v string) {
-	x.ClusterUri = v
-}
-
-type ListLeafClustersRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	ClusterUri string
-}
-
-func (b0 ListLeafClustersRequest_builder) Build() *ListLeafClustersRequest {
-	m0 := &ListLeafClustersRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.ClusterUri = b.ClusterUri
-	return m0
-}
-
-// ListResourcesParams describes different types of params
-// that can be applied when sending a request to a method that
-// uses the ListResources API underneath.
-type ListResourcesParams struct {
-	state               protoimpl.MessageState `protogen:"hybrid.v1"`
-	StartKey            string                 `protobuf:"bytes,1,opt,name=start_key,json=startKey,proto3" json:"start_key,omitempty"`
-	Limit               int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
-	PredicateExpression string                 `protobuf:"bytes,3,opt,name=predicate_expression,json=predicateExpression,proto3" json:"predicate_expression,omitempty"`
-	// UseSearchAsRoles indicates that the response should include all resources
-	// the caller is able to request access to using search_as_roles
-	UseSearchAsRoles bool `protobuf:"varint,4,opt,name=use_search_as_roles,json=useSearchAsRoles,proto3" json:"use_search_as_roles,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
-}
-
-func (x *ListResourcesParams) Reset() {
-	*x = ListResourcesParams{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[37]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ListResourcesParams) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ListResourcesParams) ProtoMessage() {}
-
-func (x *ListResourcesParams) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[37]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-func (x *ListResourcesParams) GetStartKey() string {
-	if x != nil {
-		return x.StartKey
-	}
-	return ""
-}
-
-func (x *ListResourcesParams) GetLimit() int32 {
-	if x != nil {
-		return x.Limit
-	}
-	return 0
-}
-
-func (x *ListResourcesParams) GetPredicateExpression() string {
-	if x != nil {
-		return x.PredicateExpression
-	}
-	return ""
-}
-
-func (x *ListResourcesParams) GetUseSearchAsRoles() bool {
-	if x != nil {
-		return x.UseSearchAsRoles
-	}
-	return false
-}
-
-func (x *ListResourcesParams) SetStartKey(v string) {
-	x.StartKey = v
-}
-
-func (x *ListResourcesParams) SetLimit(v int32) {
-	x.Limit = v
-}
-
-func (x *ListResourcesParams) SetPredicateExpression(v string) {
-	x.PredicateExpression = v
-}
-
-func (x *ListResourcesParams) SetUseSearchAsRoles(v bool) {
-	x.UseSearchAsRoles = v
-}
-
-type ListResourcesParams_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	StartKey            string
-	Limit               int32
-	PredicateExpression string
-	// UseSearchAsRoles indicates that the response should include all resources
-	// the caller is able to request access to using search_as_roles
-	UseSearchAsRoles bool
-}
-
-func (b0 ListResourcesParams_builder) Build() *ListResourcesParams {
-	m0 := &ListResourcesParams{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.StartKey = b.StartKey
-	x.Limit = b.Limit
-	x.PredicateExpression = b.PredicateExpression
-	x.UseSearchAsRoles = b.UseSearchAsRoles
-	return m0
-}
-
-type ListDatabaseServersRequest struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
-	ClusterUri    string                 `protobuf:"bytes,1,opt,name=cluster_uri,json=clusterUri,proto3" json:"cluster_uri,omitempty"`
-	Params        *ListResourcesParams   `protobuf:"bytes,2,opt,name=params,proto3" json:"params,omitempty"`
+type ListDatabaseUsersRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	DbUri         string                 `protobuf:"bytes,1,opt,name=db_uri,json=dbUri,proto3" json:"db_uri,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ListDatabaseServersRequest) Reset() {
-	*x = ListDatabaseServersRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[38]
+func (x *ListDatabaseUsersRequest) Reset() {
+	*x = ListDatabaseUsersRequest{}
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ListDatabaseServersRequest) String() string {
+func (x *ListDatabaseUsersRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ListDatabaseServersRequest) ProtoMessage() {}
+func (*ListDatabaseUsersRequest) ProtoMessage() {}
 
-func (x *ListDatabaseServersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[38]
+func (x *ListDatabaseUsersRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3474,78 +2134,40 @@ func (x *ListDatabaseServersRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-func (x *ListDatabaseServersRequest) GetClusterUri() string {
+// Deprecated: Use ListDatabaseUsersRequest.ProtoReflect.Descriptor instead.
+func (*ListDatabaseUsersRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{34}
+}
+
+func (x *ListDatabaseUsersRequest) GetDbUri() string {
 	if x != nil {
-		return x.ClusterUri
+		return x.DbUri
 	}
 	return ""
 }
 
-func (x *ListDatabaseServersRequest) GetParams() *ListResourcesParams {
-	if x != nil {
-		return x.Params
-	}
-	return nil
-}
-
-func (x *ListDatabaseServersRequest) SetClusterUri(v string) {
-	x.ClusterUri = v
-}
-
-func (x *ListDatabaseServersRequest) SetParams(v *ListResourcesParams) {
-	x.Params = v
-}
-
-func (x *ListDatabaseServersRequest) HasParams() bool {
-	if x == nil {
-		return false
-	}
-	return x.Params != nil
-}
-
-func (x *ListDatabaseServersRequest) ClearParams() {
-	x.Params = nil
-}
-
-type ListDatabaseServersRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	ClusterUri string
-	Params     *ListResourcesParams
-}
-
-func (b0 ListDatabaseServersRequest_builder) Build() *ListDatabaseServersRequest {
-	m0 := &ListDatabaseServersRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.ClusterUri = b.ClusterUri
-	x.Params = b.Params
-	return m0
-}
-
-type ListDatabaseServersResponse struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
-	Resources     []*DatabaseServer      `protobuf:"bytes,1,rep,name=resources,proto3" json:"resources,omitempty"`
-	NextKey       string                 `protobuf:"bytes,2,opt,name=next_key,json=nextKey,proto3" json:"next_key,omitempty"`
+type ListDatabaseUsersResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Users         []string               `protobuf:"bytes,1,rep,name=users,proto3" json:"users,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ListDatabaseServersResponse) Reset() {
-	*x = ListDatabaseServersResponse{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[39]
+func (x *ListDatabaseUsersResponse) Reset() {
+	*x = ListDatabaseUsersResponse{}
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ListDatabaseServersResponse) String() string {
+func (x *ListDatabaseUsersResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ListDatabaseServersResponse) ProtoMessage() {}
+func (*ListDatabaseUsersResponse) ProtoMessage() {}
 
-func (x *ListDatabaseServersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[39]
+func (x *ListDatabaseUsersResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3556,46 +2178,20 @@ func (x *ListDatabaseServersResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-func (x *ListDatabaseServersResponse) GetResources() []*DatabaseServer {
+// Deprecated: Use ListDatabaseUsersResponse.ProtoReflect.Descriptor instead.
+func (*ListDatabaseUsersResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{35}
+}
+
+func (x *ListDatabaseUsersResponse) GetUsers() []string {
 	if x != nil {
-		return x.Resources
+		return x.Users
 	}
 	return nil
-}
-
-func (x *ListDatabaseServersResponse) GetNextKey() string {
-	if x != nil {
-		return x.NextKey
-	}
-	return ""
-}
-
-func (x *ListDatabaseServersResponse) SetResources(v []*DatabaseServer) {
-	x.Resources = v
-}
-
-func (x *ListDatabaseServersResponse) SetNextKey(v string) {
-	x.NextKey = v
-}
-
-type ListDatabaseServersResponse_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	Resources []*DatabaseServer
-	NextKey   string
-}
-
-func (b0 ListDatabaseServersResponse_builder) Build() *ListDatabaseServersResponse {
-	m0 := &ListDatabaseServersResponse{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Resources = b.Resources
-	x.NextKey = b.NextKey
-	return m0
 }
 
 type CreateGatewayRequest struct {
-	state                 protoimpl.MessageState `protogen:"hybrid.v1"`
+	state                 protoimpl.MessageState `protogen:"open.v1"`
 	TargetUri             string                 `protobuf:"bytes,1,opt,name=target_uri,json=targetUri,proto3" json:"target_uri,omitempty"`
 	TargetUser            string                 `protobuf:"bytes,2,opt,name=target_user,json=targetUser,proto3" json:"target_user,omitempty"`
 	LocalPort             string                 `protobuf:"bytes,3,opt,name=local_port,json=localPort,proto3" json:"local_port,omitempty"`
@@ -3606,7 +2202,7 @@ type CreateGatewayRequest struct {
 
 func (x *CreateGatewayRequest) Reset() {
 	*x = CreateGatewayRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[40]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3618,7 +2214,7 @@ func (x *CreateGatewayRequest) String() string {
 func (*CreateGatewayRequest) ProtoMessage() {}
 
 func (x *CreateGatewayRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[40]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3627,6 +2223,11 @@ func (x *CreateGatewayRequest) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateGatewayRequest.ProtoReflect.Descriptor instead.
+func (*CreateGatewayRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *CreateGatewayRequest) GetTargetUri() string {
@@ -3657,51 +2258,15 @@ func (x *CreateGatewayRequest) GetTargetSubresourceName() string {
 	return ""
 }
 
-func (x *CreateGatewayRequest) SetTargetUri(v string) {
-	x.TargetUri = v
-}
-
-func (x *CreateGatewayRequest) SetTargetUser(v string) {
-	x.TargetUser = v
-}
-
-func (x *CreateGatewayRequest) SetLocalPort(v string) {
-	x.LocalPort = v
-}
-
-func (x *CreateGatewayRequest) SetTargetSubresourceName(v string) {
-	x.TargetSubresourceName = v
-}
-
-type CreateGatewayRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	TargetUri             string
-	TargetUser            string
-	LocalPort             string
-	TargetSubresourceName string
-}
-
-func (b0 CreateGatewayRequest_builder) Build() *CreateGatewayRequest {
-	m0 := &CreateGatewayRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.TargetUri = b.TargetUri
-	x.TargetUser = b.TargetUser
-	x.LocalPort = b.LocalPort
-	x.TargetSubresourceName = b.TargetSubresourceName
-	return m0
-}
-
 type ListGatewaysRequest struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ListGatewaysRequest) Reset() {
 	*x = ListGatewaysRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[41]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3713,7 +2278,7 @@ func (x *ListGatewaysRequest) String() string {
 func (*ListGatewaysRequest) ProtoMessage() {}
 
 func (x *ListGatewaysRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[41]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3724,20 +2289,13 @@ func (x *ListGatewaysRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-type ListGatewaysRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-}
-
-func (b0 ListGatewaysRequest_builder) Build() *ListGatewaysRequest {
-	m0 := &ListGatewaysRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	return m0
+// Deprecated: Use ListGatewaysRequest.ProtoReflect.Descriptor instead.
+func (*ListGatewaysRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{37}
 }
 
 type ListGatewaysResponse struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
 	Gateways      []*Gateway             `protobuf:"bytes,1,rep,name=gateways,proto3" json:"gateways,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -3745,7 +2303,7 @@ type ListGatewaysResponse struct {
 
 func (x *ListGatewaysResponse) Reset() {
 	*x = ListGatewaysResponse{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[42]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3757,7 +2315,7 @@ func (x *ListGatewaysResponse) String() string {
 func (*ListGatewaysResponse) ProtoMessage() {}
 
 func (x *ListGatewaysResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[42]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3768,6 +2326,11 @@ func (x *ListGatewaysResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use ListGatewaysResponse.ProtoReflect.Descriptor instead.
+func (*ListGatewaysResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{38}
+}
+
 func (x *ListGatewaysResponse) GetGateways() []*Gateway {
 	if x != nil {
 		return x.Gateways
@@ -3775,26 +2338,8 @@ func (x *ListGatewaysResponse) GetGateways() []*Gateway {
 	return nil
 }
 
-func (x *ListGatewaysResponse) SetGateways(v []*Gateway) {
-	x.Gateways = v
-}
-
-type ListGatewaysResponse_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	Gateways []*Gateway
-}
-
-func (b0 ListGatewaysResponse_builder) Build() *ListGatewaysResponse {
-	m0 := &ListGatewaysResponse{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Gateways = b.Gateways
-	return m0
-}
-
 type RemoveGatewayRequest struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
 	GatewayUri    string                 `protobuf:"bytes,1,opt,name=gateway_uri,json=gatewayUri,proto3" json:"gateway_uri,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -3802,7 +2347,7 @@ type RemoveGatewayRequest struct {
 
 func (x *RemoveGatewayRequest) Reset() {
 	*x = RemoveGatewayRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[43]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3814,7 +2359,7 @@ func (x *RemoveGatewayRequest) String() string {
 func (*RemoveGatewayRequest) ProtoMessage() {}
 
 func (x *RemoveGatewayRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[43]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3825,6 +2370,11 @@ func (x *RemoveGatewayRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use RemoveGatewayRequest.ProtoReflect.Descriptor instead.
+func (*RemoveGatewayRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{39}
+}
+
 func (x *RemoveGatewayRequest) GetGatewayUri() string {
 	if x != nil {
 		return x.GatewayUri
@@ -3832,26 +2382,8 @@ func (x *RemoveGatewayRequest) GetGatewayUri() string {
 	return ""
 }
 
-func (x *RemoveGatewayRequest) SetGatewayUri(v string) {
-	x.GatewayUri = v
-}
-
-type RemoveGatewayRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	GatewayUri string
-}
-
-func (b0 RemoveGatewayRequest_builder) Build() *RemoveGatewayRequest {
-	m0 := &RemoveGatewayRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.GatewayUri = b.GatewayUri
-	return m0
-}
-
 type SetGatewayTargetSubresourceNameRequest struct {
-	state                 protoimpl.MessageState `protogen:"hybrid.v1"`
+	state                 protoimpl.MessageState `protogen:"open.v1"`
 	GatewayUri            string                 `protobuf:"bytes,1,opt,name=gateway_uri,json=gatewayUri,proto3" json:"gateway_uri,omitempty"`
 	TargetSubresourceName string                 `protobuf:"bytes,2,opt,name=target_subresource_name,json=targetSubresourceName,proto3" json:"target_subresource_name,omitempty"`
 	unknownFields         protoimpl.UnknownFields
@@ -3860,7 +2392,7 @@ type SetGatewayTargetSubresourceNameRequest struct {
 
 func (x *SetGatewayTargetSubresourceNameRequest) Reset() {
 	*x = SetGatewayTargetSubresourceNameRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[44]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3872,7 +2404,7 @@ func (x *SetGatewayTargetSubresourceNameRequest) String() string {
 func (*SetGatewayTargetSubresourceNameRequest) ProtoMessage() {}
 
 func (x *SetGatewayTargetSubresourceNameRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[44]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3881,6 +2413,11 @@ func (x *SetGatewayTargetSubresourceNameRequest) ProtoReflect() protoreflect.Mes
 		return ms
 	}
 	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetGatewayTargetSubresourceNameRequest.ProtoReflect.Descriptor instead.
+func (*SetGatewayTargetSubresourceNameRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *SetGatewayTargetSubresourceNameRequest) GetGatewayUri() string {
@@ -3897,32 +2434,8 @@ func (x *SetGatewayTargetSubresourceNameRequest) GetTargetSubresourceName() stri
 	return ""
 }
 
-func (x *SetGatewayTargetSubresourceNameRequest) SetGatewayUri(v string) {
-	x.GatewayUri = v
-}
-
-func (x *SetGatewayTargetSubresourceNameRequest) SetTargetSubresourceName(v string) {
-	x.TargetSubresourceName = v
-}
-
-type SetGatewayTargetSubresourceNameRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	GatewayUri            string
-	TargetSubresourceName string
-}
-
-func (b0 SetGatewayTargetSubresourceNameRequest_builder) Build() *SetGatewayTargetSubresourceNameRequest {
-	m0 := &SetGatewayTargetSubresourceNameRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.GatewayUri = b.GatewayUri
-	x.TargetSubresourceName = b.TargetSubresourceName
-	return m0
-}
-
 type SetGatewayLocalPortRequest struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
 	GatewayUri    string                 `protobuf:"bytes,1,opt,name=gateway_uri,json=gatewayUri,proto3" json:"gateway_uri,omitempty"`
 	LocalPort     string                 `protobuf:"bytes,2,opt,name=local_port,json=localPort,proto3" json:"local_port,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -3931,7 +2444,7 @@ type SetGatewayLocalPortRequest struct {
 
 func (x *SetGatewayLocalPortRequest) Reset() {
 	*x = SetGatewayLocalPortRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[45]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3943,7 +2456,7 @@ func (x *SetGatewayLocalPortRequest) String() string {
 func (*SetGatewayLocalPortRequest) ProtoMessage() {}
 
 func (x *SetGatewayLocalPortRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[45]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3952,6 +2465,11 @@ func (x *SetGatewayLocalPortRequest) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetGatewayLocalPortRequest.ProtoReflect.Descriptor instead.
+func (*SetGatewayLocalPortRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *SetGatewayLocalPortRequest) GetGatewayUri() string {
@@ -3968,32 +2486,160 @@ func (x *SetGatewayLocalPortRequest) GetLocalPort() string {
 	return ""
 }
 
-func (x *SetGatewayLocalPortRequest) SetGatewayUri(v string) {
-	x.GatewayUri = v
+type GetServersRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ClusterUri    string                 `protobuf:"bytes,1,opt,name=cluster_uri,json=clusterUri,proto3" json:"cluster_uri,omitempty"`
+	Limit         int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
+	StartKey      string                 `protobuf:"bytes,3,opt,name=start_key,json=startKey,proto3" json:"start_key,omitempty"`
+	Search        string                 `protobuf:"bytes,4,opt,name=search,proto3" json:"search,omitempty"`
+	Query         string                 `protobuf:"bytes,5,opt,name=query,proto3" json:"query,omitempty"`
+	SortBy        string                 `protobuf:"bytes,6,opt,name=sort_by,json=sortBy,proto3" json:"sort_by,omitempty"`
+	SearchAsRoles string                 `protobuf:"bytes,7,opt,name=search_as_roles,json=searchAsRoles,proto3" json:"search_as_roles,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
-func (x *SetGatewayLocalPortRequest) SetLocalPort(v string) {
-	x.LocalPort = v
+func (x *GetServersRequest) Reset() {
+	*x = GetServersRequest{}
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[42]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
 }
 
-type SetGatewayLocalPortRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	GatewayUri string
-	LocalPort  string
+func (x *GetServersRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
 }
 
-func (b0 SetGatewayLocalPortRequest_builder) Build() *SetGatewayLocalPortRequest {
-	m0 := &SetGatewayLocalPortRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.GatewayUri = b.GatewayUri
-	x.LocalPort = b.LocalPort
-	return m0
+func (*GetServersRequest) ProtoMessage() {}
+
+func (x *GetServersRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[42]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetServersRequest.ProtoReflect.Descriptor instead.
+func (*GetServersRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{42}
+}
+
+func (x *GetServersRequest) GetClusterUri() string {
+	if x != nil {
+		return x.ClusterUri
+	}
+	return ""
+}
+
+func (x *GetServersRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *GetServersRequest) GetStartKey() string {
+	if x != nil {
+		return x.StartKey
+	}
+	return ""
+}
+
+func (x *GetServersRequest) GetSearch() string {
+	if x != nil {
+		return x.Search
+	}
+	return ""
+}
+
+func (x *GetServersRequest) GetQuery() string {
+	if x != nil {
+		return x.Query
+	}
+	return ""
+}
+
+func (x *GetServersRequest) GetSortBy() string {
+	if x != nil {
+		return x.SortBy
+	}
+	return ""
+}
+
+func (x *GetServersRequest) GetSearchAsRoles() string {
+	if x != nil {
+		return x.SearchAsRoles
+	}
+	return ""
+}
+
+type GetServersResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Agents        []*Server              `protobuf:"bytes,1,rep,name=agents,proto3" json:"agents,omitempty"`
+	TotalCount    int32                  `protobuf:"varint,2,opt,name=total_count,json=totalCount,proto3" json:"total_count,omitempty"`
+	StartKey      string                 `protobuf:"bytes,3,opt,name=start_key,json=startKey,proto3" json:"start_key,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetServersResponse) Reset() {
+	*x = GetServersResponse{}
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[43]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetServersResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetServersResponse) ProtoMessage() {}
+
+func (x *GetServersResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[43]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetServersResponse.ProtoReflect.Descriptor instead.
+func (*GetServersResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{43}
+}
+
+func (x *GetServersResponse) GetAgents() []*Server {
+	if x != nil {
+		return x.Agents
+	}
+	return nil
+}
+
+func (x *GetServersResponse) GetTotalCount() int32 {
+	if x != nil {
+		return x.TotalCount
+	}
+	return 0
+}
+
+func (x *GetServersResponse) GetStartKey() string {
+	if x != nil {
+		return x.StartKey
+	}
+	return ""
 }
 
 type GetAuthSettingsRequest struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
 	ClusterUri    string                 `protobuf:"bytes,1,opt,name=cluster_uri,json=clusterUri,proto3" json:"cluster_uri,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -4001,7 +2647,7 @@ type GetAuthSettingsRequest struct {
 
 func (x *GetAuthSettingsRequest) Reset() {
 	*x = GetAuthSettingsRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[46]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4013,7 +2659,7 @@ func (x *GetAuthSettingsRequest) String() string {
 func (*GetAuthSettingsRequest) ProtoMessage() {}
 
 func (x *GetAuthSettingsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[46]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4024,6 +2670,11 @@ func (x *GetAuthSettingsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use GetAuthSettingsRequest.ProtoReflect.Descriptor instead.
+func (*GetAuthSettingsRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{44}
+}
+
 func (x *GetAuthSettingsRequest) GetClusterUri() string {
 	if x != nil {
 		return x.ClusterUri
@@ -4031,26 +2682,8 @@ func (x *GetAuthSettingsRequest) GetClusterUri() string {
 	return ""
 }
 
-func (x *GetAuthSettingsRequest) SetClusterUri(v string) {
-	x.ClusterUri = v
-}
-
-type GetAuthSettingsRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	ClusterUri string
-}
-
-func (b0 GetAuthSettingsRequest_builder) Build() *GetAuthSettingsRequest {
-	m0 := &GetAuthSettingsRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.ClusterUri = b.ClusterUri
-	return m0
-}
-
 type UpdateTshdEventsServerAddressRequest struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
 	Address       string                 `protobuf:"bytes,1,opt,name=address,proto3" json:"address,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -4058,7 +2691,7 @@ type UpdateTshdEventsServerAddressRequest struct {
 
 func (x *UpdateTshdEventsServerAddressRequest) Reset() {
 	*x = UpdateTshdEventsServerAddressRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[47]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4070,7 +2703,7 @@ func (x *UpdateTshdEventsServerAddressRequest) String() string {
 func (*UpdateTshdEventsServerAddressRequest) ProtoMessage() {}
 
 func (x *UpdateTshdEventsServerAddressRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[47]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4081,6 +2714,11 @@ func (x *UpdateTshdEventsServerAddressRequest) ProtoReflect() protoreflect.Messa
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use UpdateTshdEventsServerAddressRequest.ProtoReflect.Descriptor instead.
+func (*UpdateTshdEventsServerAddressRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{45}
+}
+
 func (x *UpdateTshdEventsServerAddressRequest) GetAddress() string {
 	if x != nil {
 		return x.Address
@@ -4088,33 +2726,15 @@ func (x *UpdateTshdEventsServerAddressRequest) GetAddress() string {
 	return ""
 }
 
-func (x *UpdateTshdEventsServerAddressRequest) SetAddress(v string) {
-	x.Address = v
-}
-
-type UpdateTshdEventsServerAddressRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	Address string
-}
-
-func (b0 UpdateTshdEventsServerAddressRequest_builder) Build() *UpdateTshdEventsServerAddressRequest {
-	m0 := &UpdateTshdEventsServerAddressRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Address = b.Address
-	return m0
-}
-
 type UpdateTshdEventsServerAddressResponse struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *UpdateTshdEventsServerAddressResponse) Reset() {
 	*x = UpdateTshdEventsServerAddressResponse{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[48]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4126,7 +2746,7 @@ func (x *UpdateTshdEventsServerAddressResponse) String() string {
 func (*UpdateTshdEventsServerAddressResponse) ProtoMessage() {}
 
 func (x *UpdateTshdEventsServerAddressResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[48]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4137,20 +2757,13 @@ func (x *UpdateTshdEventsServerAddressResponse) ProtoReflect() protoreflect.Mess
 	return mi.MessageOf(x)
 }
 
-type UpdateTshdEventsServerAddressResponse_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-}
-
-func (b0 UpdateTshdEventsServerAddressResponse_builder) Build() *UpdateTshdEventsServerAddressResponse {
-	m0 := &UpdateTshdEventsServerAddressResponse{}
-	b, x := &b0, m0
-	_, _ = b, x
-	return m0
+// Deprecated: Use UpdateTshdEventsServerAddressResponse.ProtoReflect.Descriptor instead.
+func (*UpdateTshdEventsServerAddressResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{46}
 }
 
 type UpdateHeadlessAuthenticationStateRequest struct {
-	state                    protoimpl.MessageState      `protogen:"hybrid.v1"`
+	state                    protoimpl.MessageState      `protogen:"open.v1"`
 	RootClusterUri           string                      `protobuf:"bytes,1,opt,name=root_cluster_uri,json=rootClusterUri,proto3" json:"root_cluster_uri,omitempty"`
 	HeadlessAuthenticationId string                      `protobuf:"bytes,2,opt,name=headless_authentication_id,json=headlessAuthenticationId,proto3" json:"headless_authentication_id,omitempty"`
 	State                    HeadlessAuthenticationState `protobuf:"varint,3,opt,name=state,proto3,enum=teleport.lib.teleterm.v1.HeadlessAuthenticationState" json:"state,omitempty"`
@@ -4160,7 +2773,7 @@ type UpdateHeadlessAuthenticationStateRequest struct {
 
 func (x *UpdateHeadlessAuthenticationStateRequest) Reset() {
 	*x = UpdateHeadlessAuthenticationStateRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[49]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4172,7 +2785,7 @@ func (x *UpdateHeadlessAuthenticationStateRequest) String() string {
 func (*UpdateHeadlessAuthenticationStateRequest) ProtoMessage() {}
 
 func (x *UpdateHeadlessAuthenticationStateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[49]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4181,6 +2794,11 @@ func (x *UpdateHeadlessAuthenticationStateRequest) ProtoReflect() protoreflect.M
 		return ms
 	}
 	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateHeadlessAuthenticationStateRequest.ProtoReflect.Descriptor instead.
+func (*UpdateHeadlessAuthenticationStateRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *UpdateHeadlessAuthenticationStateRequest) GetRootClusterUri() string {
@@ -4204,45 +2822,15 @@ func (x *UpdateHeadlessAuthenticationStateRequest) GetState() HeadlessAuthentica
 	return HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_UNSPECIFIED
 }
 
-func (x *UpdateHeadlessAuthenticationStateRequest) SetRootClusterUri(v string) {
-	x.RootClusterUri = v
-}
-
-func (x *UpdateHeadlessAuthenticationStateRequest) SetHeadlessAuthenticationId(v string) {
-	x.HeadlessAuthenticationId = v
-}
-
-func (x *UpdateHeadlessAuthenticationStateRequest) SetState(v HeadlessAuthenticationState) {
-	x.State = v
-}
-
-type UpdateHeadlessAuthenticationStateRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	RootClusterUri           string
-	HeadlessAuthenticationId string
-	State                    HeadlessAuthenticationState
-}
-
-func (b0 UpdateHeadlessAuthenticationStateRequest_builder) Build() *UpdateHeadlessAuthenticationStateRequest {
-	m0 := &UpdateHeadlessAuthenticationStateRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.RootClusterUri = b.RootClusterUri
-	x.HeadlessAuthenticationId = b.HeadlessAuthenticationId
-	x.State = b.State
-	return m0
-}
-
 type UpdateHeadlessAuthenticationStateResponse struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *UpdateHeadlessAuthenticationStateResponse) Reset() {
 	*x = UpdateHeadlessAuthenticationStateResponse{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[50]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4254,7 +2842,7 @@ func (x *UpdateHeadlessAuthenticationStateResponse) String() string {
 func (*UpdateHeadlessAuthenticationStateResponse) ProtoMessage() {}
 
 func (x *UpdateHeadlessAuthenticationStateResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[50]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4265,20 +2853,13 @@ func (x *UpdateHeadlessAuthenticationStateResponse) ProtoReflect() protoreflect.
 	return mi.MessageOf(x)
 }
 
-type UpdateHeadlessAuthenticationStateResponse_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-}
-
-func (b0 UpdateHeadlessAuthenticationStateResponse_builder) Build() *UpdateHeadlessAuthenticationStateResponse {
-	m0 := &UpdateHeadlessAuthenticationStateResponse{}
-	b, x := &b0, m0
-	_, _ = b, x
-	return m0
+// Deprecated: Use UpdateHeadlessAuthenticationStateResponse.ProtoReflect.Descriptor instead.
+func (*UpdateHeadlessAuthenticationStateResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{48}
 }
 
 type CreateConnectMyComputerRoleRequest struct {
-	state          protoimpl.MessageState `protogen:"hybrid.v1"`
+	state          protoimpl.MessageState `protogen:"open.v1"`
 	RootClusterUri string                 `protobuf:"bytes,1,opt,name=root_cluster_uri,json=rootClusterUri,proto3" json:"root_cluster_uri,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
@@ -4286,7 +2867,7 @@ type CreateConnectMyComputerRoleRequest struct {
 
 func (x *CreateConnectMyComputerRoleRequest) Reset() {
 	*x = CreateConnectMyComputerRoleRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[51]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4298,7 +2879,7 @@ func (x *CreateConnectMyComputerRoleRequest) String() string {
 func (*CreateConnectMyComputerRoleRequest) ProtoMessage() {}
 
 func (x *CreateConnectMyComputerRoleRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[51]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4309,6 +2890,11 @@ func (x *CreateConnectMyComputerRoleRequest) ProtoReflect() protoreflect.Message
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use CreateConnectMyComputerRoleRequest.ProtoReflect.Descriptor instead.
+func (*CreateConnectMyComputerRoleRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{49}
+}
+
 func (x *CreateConnectMyComputerRoleRequest) GetRootClusterUri() string {
 	if x != nil {
 		return x.RootClusterUri
@@ -4316,26 +2902,8 @@ func (x *CreateConnectMyComputerRoleRequest) GetRootClusterUri() string {
 	return ""
 }
 
-func (x *CreateConnectMyComputerRoleRequest) SetRootClusterUri(v string) {
-	x.RootClusterUri = v
-}
-
-type CreateConnectMyComputerRoleRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	RootClusterUri string
-}
-
-func (b0 CreateConnectMyComputerRoleRequest_builder) Build() *CreateConnectMyComputerRoleRequest {
-	m0 := &CreateConnectMyComputerRoleRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.RootClusterUri = b.RootClusterUri
-	return m0
-}
-
 type CreateConnectMyComputerRoleResponse struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// certs_reloaded signals to the Electron app that tshd has reloaded the certs in order to refresh
 	// the role list. The Electron app should refresh the details from the user cert as well.
 	CertsReloaded bool `protobuf:"varint,1,opt,name=certs_reloaded,json=certsReloaded,proto3" json:"certs_reloaded,omitempty"`
@@ -4345,7 +2913,7 @@ type CreateConnectMyComputerRoleResponse struct {
 
 func (x *CreateConnectMyComputerRoleResponse) Reset() {
 	*x = CreateConnectMyComputerRoleResponse{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[52]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4357,7 +2925,7 @@ func (x *CreateConnectMyComputerRoleResponse) String() string {
 func (*CreateConnectMyComputerRoleResponse) ProtoMessage() {}
 
 func (x *CreateConnectMyComputerRoleResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[52]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4368,6 +2936,11 @@ func (x *CreateConnectMyComputerRoleResponse) ProtoReflect() protoreflect.Messag
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use CreateConnectMyComputerRoleResponse.ProtoReflect.Descriptor instead.
+func (*CreateConnectMyComputerRoleResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{50}
+}
+
 func (x *CreateConnectMyComputerRoleResponse) GetCertsReloaded() bool {
 	if x != nil {
 		return x.CertsReloaded
@@ -4375,28 +2948,8 @@ func (x *CreateConnectMyComputerRoleResponse) GetCertsReloaded() bool {
 	return false
 }
 
-func (x *CreateConnectMyComputerRoleResponse) SetCertsReloaded(v bool) {
-	x.CertsReloaded = v
-}
-
-type CreateConnectMyComputerRoleResponse_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// certs_reloaded signals to the Electron app that tshd has reloaded the certs in order to refresh
-	// the role list. The Electron app should refresh the details from the user cert as well.
-	CertsReloaded bool
-}
-
-func (b0 CreateConnectMyComputerRoleResponse_builder) Build() *CreateConnectMyComputerRoleResponse {
-	m0 := &CreateConnectMyComputerRoleResponse{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.CertsReloaded = b.CertsReloaded
-	return m0
-}
-
 type CreateConnectMyComputerNodeTokenRequest struct {
-	state          protoimpl.MessageState `protogen:"hybrid.v1"`
+	state          protoimpl.MessageState `protogen:"open.v1"`
 	RootClusterUri string                 `protobuf:"bytes,1,opt,name=root_cluster_uri,json=rootClusterUri,proto3" json:"root_cluster_uri,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
@@ -4404,7 +2957,7 @@ type CreateConnectMyComputerNodeTokenRequest struct {
 
 func (x *CreateConnectMyComputerNodeTokenRequest) Reset() {
 	*x = CreateConnectMyComputerNodeTokenRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[53]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4416,7 +2969,7 @@ func (x *CreateConnectMyComputerNodeTokenRequest) String() string {
 func (*CreateConnectMyComputerNodeTokenRequest) ProtoMessage() {}
 
 func (x *CreateConnectMyComputerNodeTokenRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[53]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4427,6 +2980,11 @@ func (x *CreateConnectMyComputerNodeTokenRequest) ProtoReflect() protoreflect.Me
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use CreateConnectMyComputerNodeTokenRequest.ProtoReflect.Descriptor instead.
+func (*CreateConnectMyComputerNodeTokenRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{51}
+}
+
 func (x *CreateConnectMyComputerNodeTokenRequest) GetRootClusterUri() string {
 	if x != nil {
 		return x.RootClusterUri
@@ -4434,26 +2992,8 @@ func (x *CreateConnectMyComputerNodeTokenRequest) GetRootClusterUri() string {
 	return ""
 }
 
-func (x *CreateConnectMyComputerNodeTokenRequest) SetRootClusterUri(v string) {
-	x.RootClusterUri = v
-}
-
-type CreateConnectMyComputerNodeTokenRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	RootClusterUri string
-}
-
-func (b0 CreateConnectMyComputerNodeTokenRequest_builder) Build() *CreateConnectMyComputerNodeTokenRequest {
-	m0 := &CreateConnectMyComputerNodeTokenRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.RootClusterUri = b.RootClusterUri
-	return m0
-}
-
 type CreateConnectMyComputerNodeTokenResponse struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
 	Token         string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -4461,7 +3001,7 @@ type CreateConnectMyComputerNodeTokenResponse struct {
 
 func (x *CreateConnectMyComputerNodeTokenResponse) Reset() {
 	*x = CreateConnectMyComputerNodeTokenResponse{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[54]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4473,7 +3013,7 @@ func (x *CreateConnectMyComputerNodeTokenResponse) String() string {
 func (*CreateConnectMyComputerNodeTokenResponse) ProtoMessage() {}
 
 func (x *CreateConnectMyComputerNodeTokenResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[54]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4484,6 +3024,11 @@ func (x *CreateConnectMyComputerNodeTokenResponse) ProtoReflect() protoreflect.M
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use CreateConnectMyComputerNodeTokenResponse.ProtoReflect.Descriptor instead.
+func (*CreateConnectMyComputerNodeTokenResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{52}
+}
+
 func (x *CreateConnectMyComputerNodeTokenResponse) GetToken() string {
 	if x != nil {
 		return x.Token
@@ -4491,26 +3036,8 @@ func (x *CreateConnectMyComputerNodeTokenResponse) GetToken() string {
 	return ""
 }
 
-func (x *CreateConnectMyComputerNodeTokenResponse) SetToken(v string) {
-	x.Token = v
-}
-
-type CreateConnectMyComputerNodeTokenResponse_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	Token string
-}
-
-func (b0 CreateConnectMyComputerNodeTokenResponse_builder) Build() *CreateConnectMyComputerNodeTokenResponse {
-	m0 := &CreateConnectMyComputerNodeTokenResponse{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Token = b.Token
-	return m0
-}
-
 type WaitForConnectMyComputerNodeJoinRequest struct {
-	state          protoimpl.MessageState `protogen:"hybrid.v1"`
+	state          protoimpl.MessageState `protogen:"open.v1"`
 	RootClusterUri string                 `protobuf:"bytes,1,opt,name=root_cluster_uri,json=rootClusterUri,proto3" json:"root_cluster_uri,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
@@ -4518,7 +3045,7 @@ type WaitForConnectMyComputerNodeJoinRequest struct {
 
 func (x *WaitForConnectMyComputerNodeJoinRequest) Reset() {
 	*x = WaitForConnectMyComputerNodeJoinRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[55]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4530,7 +3057,7 @@ func (x *WaitForConnectMyComputerNodeJoinRequest) String() string {
 func (*WaitForConnectMyComputerNodeJoinRequest) ProtoMessage() {}
 
 func (x *WaitForConnectMyComputerNodeJoinRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[55]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4541,6 +3068,11 @@ func (x *WaitForConnectMyComputerNodeJoinRequest) ProtoReflect() protoreflect.Me
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use WaitForConnectMyComputerNodeJoinRequest.ProtoReflect.Descriptor instead.
+func (*WaitForConnectMyComputerNodeJoinRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{53}
+}
+
 func (x *WaitForConnectMyComputerNodeJoinRequest) GetRootClusterUri() string {
 	if x != nil {
 		return x.RootClusterUri
@@ -4548,26 +3080,8 @@ func (x *WaitForConnectMyComputerNodeJoinRequest) GetRootClusterUri() string {
 	return ""
 }
 
-func (x *WaitForConnectMyComputerNodeJoinRequest) SetRootClusterUri(v string) {
-	x.RootClusterUri = v
-}
-
-type WaitForConnectMyComputerNodeJoinRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	RootClusterUri string
-}
-
-func (b0 WaitForConnectMyComputerNodeJoinRequest_builder) Build() *WaitForConnectMyComputerNodeJoinRequest {
-	m0 := &WaitForConnectMyComputerNodeJoinRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.RootClusterUri = b.RootClusterUri
-	return m0
-}
-
 type WaitForConnectMyComputerNodeJoinResponse struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
 	Server        *Server                `protobuf:"bytes,1,opt,name=server,proto3" json:"server,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -4575,7 +3089,7 @@ type WaitForConnectMyComputerNodeJoinResponse struct {
 
 func (x *WaitForConnectMyComputerNodeJoinResponse) Reset() {
 	*x = WaitForConnectMyComputerNodeJoinResponse{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[56]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4587,7 +3101,7 @@ func (x *WaitForConnectMyComputerNodeJoinResponse) String() string {
 func (*WaitForConnectMyComputerNodeJoinResponse) ProtoMessage() {}
 
 func (x *WaitForConnectMyComputerNodeJoinResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[56]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4598,6 +3112,11 @@ func (x *WaitForConnectMyComputerNodeJoinResponse) ProtoReflect() protoreflect.M
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use WaitForConnectMyComputerNodeJoinResponse.ProtoReflect.Descriptor instead.
+func (*WaitForConnectMyComputerNodeJoinResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{54}
+}
+
 func (x *WaitForConnectMyComputerNodeJoinResponse) GetServer() *Server {
 	if x != nil {
 		return x.Server
@@ -4605,37 +3124,8 @@ func (x *WaitForConnectMyComputerNodeJoinResponse) GetServer() *Server {
 	return nil
 }
 
-func (x *WaitForConnectMyComputerNodeJoinResponse) SetServer(v *Server) {
-	x.Server = v
-}
-
-func (x *WaitForConnectMyComputerNodeJoinResponse) HasServer() bool {
-	if x == nil {
-		return false
-	}
-	return x.Server != nil
-}
-
-func (x *WaitForConnectMyComputerNodeJoinResponse) ClearServer() {
-	x.Server = nil
-}
-
-type WaitForConnectMyComputerNodeJoinResponse_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	Server *Server
-}
-
-func (b0 WaitForConnectMyComputerNodeJoinResponse_builder) Build() *WaitForConnectMyComputerNodeJoinResponse {
-	m0 := &WaitForConnectMyComputerNodeJoinResponse{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Server = b.Server
-	return m0
-}
-
 type DeleteConnectMyComputerNodeRequest struct {
-	state          protoimpl.MessageState `protogen:"hybrid.v1"`
+	state          protoimpl.MessageState `protogen:"open.v1"`
 	RootClusterUri string                 `protobuf:"bytes,1,opt,name=root_cluster_uri,json=rootClusterUri,proto3" json:"root_cluster_uri,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
@@ -4643,7 +3133,7 @@ type DeleteConnectMyComputerNodeRequest struct {
 
 func (x *DeleteConnectMyComputerNodeRequest) Reset() {
 	*x = DeleteConnectMyComputerNodeRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[57]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4655,7 +3145,7 @@ func (x *DeleteConnectMyComputerNodeRequest) String() string {
 func (*DeleteConnectMyComputerNodeRequest) ProtoMessage() {}
 
 func (x *DeleteConnectMyComputerNodeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[57]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4666,6 +3156,11 @@ func (x *DeleteConnectMyComputerNodeRequest) ProtoReflect() protoreflect.Message
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use DeleteConnectMyComputerNodeRequest.ProtoReflect.Descriptor instead.
+func (*DeleteConnectMyComputerNodeRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{55}
+}
+
 func (x *DeleteConnectMyComputerNodeRequest) GetRootClusterUri() string {
 	if x != nil {
 		return x.RootClusterUri
@@ -4673,33 +3168,15 @@ func (x *DeleteConnectMyComputerNodeRequest) GetRootClusterUri() string {
 	return ""
 }
 
-func (x *DeleteConnectMyComputerNodeRequest) SetRootClusterUri(v string) {
-	x.RootClusterUri = v
-}
-
-type DeleteConnectMyComputerNodeRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	RootClusterUri string
-}
-
-func (b0 DeleteConnectMyComputerNodeRequest_builder) Build() *DeleteConnectMyComputerNodeRequest {
-	m0 := &DeleteConnectMyComputerNodeRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.RootClusterUri = b.RootClusterUri
-	return m0
-}
-
 type DeleteConnectMyComputerNodeResponse struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *DeleteConnectMyComputerNodeResponse) Reset() {
 	*x = DeleteConnectMyComputerNodeResponse{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[58]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4711,7 +3188,7 @@ func (x *DeleteConnectMyComputerNodeResponse) String() string {
 func (*DeleteConnectMyComputerNodeResponse) ProtoMessage() {}
 
 func (x *DeleteConnectMyComputerNodeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[58]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4722,20 +3199,13 @@ func (x *DeleteConnectMyComputerNodeResponse) ProtoReflect() protoreflect.Messag
 	return mi.MessageOf(x)
 }
 
-type DeleteConnectMyComputerNodeResponse_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-}
-
-func (b0 DeleteConnectMyComputerNodeResponse_builder) Build() *DeleteConnectMyComputerNodeResponse {
-	m0 := &DeleteConnectMyComputerNodeResponse{}
-	b, x := &b0, m0
-	_, _ = b, x
-	return m0
+// Deprecated: Use DeleteConnectMyComputerNodeResponse.ProtoReflect.Descriptor instead.
+func (*DeleteConnectMyComputerNodeResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{56}
 }
 
 type GetConnectMyComputerNodeNameRequest struct {
-	state          protoimpl.MessageState `protogen:"hybrid.v1"`
+	state          protoimpl.MessageState `protogen:"open.v1"`
 	RootClusterUri string                 `protobuf:"bytes,1,opt,name=root_cluster_uri,json=rootClusterUri,proto3" json:"root_cluster_uri,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
@@ -4743,7 +3213,7 @@ type GetConnectMyComputerNodeNameRequest struct {
 
 func (x *GetConnectMyComputerNodeNameRequest) Reset() {
 	*x = GetConnectMyComputerNodeNameRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[59]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4755,7 +3225,7 @@ func (x *GetConnectMyComputerNodeNameRequest) String() string {
 func (*GetConnectMyComputerNodeNameRequest) ProtoMessage() {}
 
 func (x *GetConnectMyComputerNodeNameRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[59]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4766,6 +3236,11 @@ func (x *GetConnectMyComputerNodeNameRequest) ProtoReflect() protoreflect.Messag
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use GetConnectMyComputerNodeNameRequest.ProtoReflect.Descriptor instead.
+func (*GetConnectMyComputerNodeNameRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{57}
+}
+
 func (x *GetConnectMyComputerNodeNameRequest) GetRootClusterUri() string {
 	if x != nil {
 		return x.RootClusterUri
@@ -4773,26 +3248,8 @@ func (x *GetConnectMyComputerNodeNameRequest) GetRootClusterUri() string {
 	return ""
 }
 
-func (x *GetConnectMyComputerNodeNameRequest) SetRootClusterUri(v string) {
-	x.RootClusterUri = v
-}
-
-type GetConnectMyComputerNodeNameRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	RootClusterUri string
-}
-
-func (b0 GetConnectMyComputerNodeNameRequest_builder) Build() *GetConnectMyComputerNodeNameRequest {
-	m0 := &GetConnectMyComputerNodeNameRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.RootClusterUri = b.RootClusterUri
-	return m0
-}
-
 type GetConnectMyComputerNodeNameResponse struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
 	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -4800,7 +3257,7 @@ type GetConnectMyComputerNodeNameResponse struct {
 
 func (x *GetConnectMyComputerNodeNameResponse) Reset() {
 	*x = GetConnectMyComputerNodeNameResponse{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[60]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4812,7 +3269,7 @@ func (x *GetConnectMyComputerNodeNameResponse) String() string {
 func (*GetConnectMyComputerNodeNameResponse) ProtoMessage() {}
 
 func (x *GetConnectMyComputerNodeNameResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[60]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4823,6 +3280,11 @@ func (x *GetConnectMyComputerNodeNameResponse) ProtoReflect() protoreflect.Messa
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use GetConnectMyComputerNodeNameResponse.ProtoReflect.Descriptor instead.
+func (*GetConnectMyComputerNodeNameResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{58}
+}
+
 func (x *GetConnectMyComputerNodeNameResponse) GetName() string {
 	if x != nil {
 		return x.Name
@@ -4830,26 +3292,8 @@ func (x *GetConnectMyComputerNodeNameResponse) GetName() string {
 	return ""
 }
 
-func (x *GetConnectMyComputerNodeNameResponse) SetName(v string) {
-	x.Name = v
-}
-
-type GetConnectMyComputerNodeNameResponse_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	Name string
-}
-
-func (b0 GetConnectMyComputerNodeNameResponse_builder) Build() *GetConnectMyComputerNodeNameResponse {
-	m0 := &GetConnectMyComputerNodeNameResponse{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Name = b.Name
-	return m0
-}
-
 type ListUnifiedResourcesRequest struct {
-	state      protoimpl.MessageState `protogen:"hybrid.v1"`
+	state      protoimpl.MessageState `protogen:"open.v1"`
 	ClusterUri string                 `protobuf:"bytes,1,opt,name=cluster_uri,json=clusterUri,proto3" json:"cluster_uri,omitempty"`
 	// A list of kinds to match against a resource's kind. This can be used in a
 	// unified resource request that can include multiple types.
@@ -4878,7 +3322,7 @@ type ListUnifiedResourcesRequest struct {
 
 func (x *ListUnifiedResourcesRequest) Reset() {
 	*x = ListUnifiedResourcesRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[61]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[59]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4890,7 +3334,7 @@ func (x *ListUnifiedResourcesRequest) String() string {
 func (*ListUnifiedResourcesRequest) ProtoMessage() {}
 
 func (x *ListUnifiedResourcesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[61]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[59]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4899,6 +3343,11 @@ func (x *ListUnifiedResourcesRequest) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListUnifiedResourcesRequest.ProtoReflect.Descriptor instead.
+func (*ListUnifiedResourcesRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{59}
 }
 
 func (x *ListUnifiedResourcesRequest) GetClusterUri() string {
@@ -4971,103 +3420,8 @@ func (x *ListUnifiedResourcesRequest) GetIncludeRequestable() bool {
 	return false
 }
 
-func (x *ListUnifiedResourcesRequest) SetClusterUri(v string) {
-	x.ClusterUri = v
-}
-
-func (x *ListUnifiedResourcesRequest) SetKinds(v []string) {
-	x.Kinds = v
-}
-
-func (x *ListUnifiedResourcesRequest) SetLimit(v int32) {
-	x.Limit = v
-}
-
-func (x *ListUnifiedResourcesRequest) SetStartKey(v string) {
-	x.StartKey = v
-}
-
-func (x *ListUnifiedResourcesRequest) SetQuery(v string) {
-	x.Query = v
-}
-
-func (x *ListUnifiedResourcesRequest) SetSearch(v string) {
-	x.Search = v
-}
-
-func (x *ListUnifiedResourcesRequest) SetSortBy(v *SortBy) {
-	x.SortBy = v
-}
-
-func (x *ListUnifiedResourcesRequest) SetSearchAsRoles(v bool) {
-	x.SearchAsRoles = v
-}
-
-func (x *ListUnifiedResourcesRequest) SetPinnedOnly(v bool) {
-	x.PinnedOnly = v
-}
-
-func (x *ListUnifiedResourcesRequest) SetIncludeRequestable(v bool) {
-	x.IncludeRequestable = v
-}
-
-func (x *ListUnifiedResourcesRequest) HasSortBy() bool {
-	if x == nil {
-		return false
-	}
-	return x.SortBy != nil
-}
-
-func (x *ListUnifiedResourcesRequest) ClearSortBy() {
-	x.SortBy = nil
-}
-
-type ListUnifiedResourcesRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	ClusterUri string
-	// A list of kinds to match against a resource's kind. This can be used in a
-	// unified resource request that can include multiple types.
-	Kinds []string
-	// The maximum number of resources to retrieve.
-	Limit int32
-	// Starts listing resources from a specific spot.
-	// It should be set to the next_key from ListUnifiedResourcesResponse if
-	// using pagination, or left empty.
-	StartKey string
-	// If defined, the advanced search is used. The search field should be left empty.
-	Query string
-	// If defined, the regular search is used. The query field should be left empty.
-	Search string
-	// SortBy describes which resource field and which direction to sort by.
-	SortBy *SortBy
-	// When true, all resources that the user can request access to are returned.
-	SearchAsRoles bool
-	// Only the pinned resources will be returned for the requesting user.
-	PinnedOnly bool
-	// include_requestable indicates that the response should include resources that the user must request access to.
-	IncludeRequestable bool
-}
-
-func (b0 ListUnifiedResourcesRequest_builder) Build() *ListUnifiedResourcesRequest {
-	m0 := &ListUnifiedResourcesRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.ClusterUri = b.ClusterUri
-	x.Kinds = b.Kinds
-	x.Limit = b.Limit
-	x.StartKey = b.StartKey
-	x.Query = b.Query
-	x.Search = b.Search
-	x.SortBy = b.SortBy
-	x.SearchAsRoles = b.SearchAsRoles
-	x.PinnedOnly = b.PinnedOnly
-	x.IncludeRequestable = b.IncludeRequestable
-	return m0
-}
-
 type SortBy struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// A sort direction flag where if true the direction is descending, else ascending.
 	IsDesc bool `protobuf:"varint,1,opt,name=is_desc,json=isDesc,proto3" json:"is_desc,omitempty"`
 	// Name of an object's field to sort by. Resources can be sorted by name and kind.
@@ -5078,7 +3432,7 @@ type SortBy struct {
 
 func (x *SortBy) Reset() {
 	*x = SortBy{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[62]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[60]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5090,7 +3444,7 @@ func (x *SortBy) String() string {
 func (*SortBy) ProtoMessage() {}
 
 func (x *SortBy) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[62]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[60]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5099,6 +3453,11 @@ func (x *SortBy) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SortBy.ProtoReflect.Descriptor instead.
+func (*SortBy) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{60}
 }
 
 func (x *SortBy) GetIsDesc() bool {
@@ -5115,36 +3474,10 @@ func (x *SortBy) GetField() string {
 	return ""
 }
 
-func (x *SortBy) SetIsDesc(v bool) {
-	x.IsDesc = v
-}
-
-func (x *SortBy) SetField(v string) {
-	x.Field = v
-}
-
-type SortBy_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// A sort direction flag where if true the direction is descending, else ascending.
-	IsDesc bool
-	// Name of an object's field to sort by. Resources can be sorted by name and kind.
-	Field string
-}
-
-func (b0 SortBy_builder) Build() *SortBy {
-	m0 := &SortBy{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.IsDesc = b.IsDesc
-	x.Field = b.Field
-	return m0
-}
-
 type ListUnifiedResourcesResponse struct {
-	state     protoimpl.MessageState `protogen:"hybrid.v1"`
+	state     protoimpl.MessageState `protogen:"open.v1"`
 	Resources []*PaginatedResource   `protobuf:"bytes,1,rep,name=resources,proto3" json:"resources,omitempty"`
-	// A key to use as start_key in a ListUnifiedResourcesRequest to continue retrieving
+	// A key to use as start_key in a ListResourcesRequest to continue retrieving
 	// the next pages. If it is empty, there are no more pages.
 	NextKey       string `protobuf:"bytes,2,opt,name=next_key,json=nextKey,proto3" json:"next_key,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -5153,7 +3486,7 @@ type ListUnifiedResourcesResponse struct {
 
 func (x *ListUnifiedResourcesResponse) Reset() {
 	*x = ListUnifiedResourcesResponse{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[63]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[61]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5165,7 +3498,7 @@ func (x *ListUnifiedResourcesResponse) String() string {
 func (*ListUnifiedResourcesResponse) ProtoMessage() {}
 
 func (x *ListUnifiedResourcesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[63]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[61]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5174,6 +3507,11 @@ func (x *ListUnifiedResourcesResponse) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListUnifiedResourcesResponse.ProtoReflect.Descriptor instead.
+func (*ListUnifiedResourcesResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{61}
 }
 
 func (x *ListUnifiedResourcesResponse) GetResources() []*PaginatedResource {
@@ -5190,34 +3528,8 @@ func (x *ListUnifiedResourcesResponse) GetNextKey() string {
 	return ""
 }
 
-func (x *ListUnifiedResourcesResponse) SetResources(v []*PaginatedResource) {
-	x.Resources = v
-}
-
-func (x *ListUnifiedResourcesResponse) SetNextKey(v string) {
-	x.NextKey = v
-}
-
-type ListUnifiedResourcesResponse_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	Resources []*PaginatedResource
-	// A key to use as start_key in a ListUnifiedResourcesRequest to continue retrieving
-	// the next pages. If it is empty, there are no more pages.
-	NextKey string
-}
-
-func (b0 ListUnifiedResourcesResponse_builder) Build() *ListUnifiedResourcesResponse {
-	m0 := &ListUnifiedResourcesResponse{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Resources = b.Resources
-	x.NextKey = b.NextKey
-	return m0
-}
-
 type PaginatedResource struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Resource:
 	//
 	//	*PaginatedResource_Database
@@ -5233,7 +3545,7 @@ type PaginatedResource struct {
 
 func (x *PaginatedResource) Reset() {
 	*x = PaginatedResource{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[64]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[62]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5245,7 +3557,7 @@ func (x *PaginatedResource) String() string {
 func (*PaginatedResource) ProtoMessage() {}
 
 func (x *PaginatedResource) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[64]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[62]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5254,6 +3566,11 @@ func (x *PaginatedResource) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PaginatedResource.ProtoReflect.Descriptor instead.
+func (*PaginatedResource) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{62}
 }
 
 func (x *PaginatedResource) GetResource() isPaginatedResource_Resource {
@@ -5315,204 +3632,6 @@ func (x *PaginatedResource) GetRequiresRequest() bool {
 	return false
 }
 
-func (x *PaginatedResource) SetDatabase(v *Database) {
-	if v == nil {
-		x.Resource = nil
-		return
-	}
-	x.Resource = &PaginatedResource_Database{v}
-}
-
-func (x *PaginatedResource) SetServer(v *Server) {
-	if v == nil {
-		x.Resource = nil
-		return
-	}
-	x.Resource = &PaginatedResource_Server{v}
-}
-
-func (x *PaginatedResource) SetKube(v *Kube) {
-	if v == nil {
-		x.Resource = nil
-		return
-	}
-	x.Resource = &PaginatedResource_Kube{v}
-}
-
-func (x *PaginatedResource) SetApp(v *App) {
-	if v == nil {
-		x.Resource = nil
-		return
-	}
-	x.Resource = &PaginatedResource_App{v}
-}
-
-func (x *PaginatedResource) SetWindowsDesktop(v *WindowsDesktop) {
-	if v == nil {
-		x.Resource = nil
-		return
-	}
-	x.Resource = &PaginatedResource_WindowsDesktop{v}
-}
-
-func (x *PaginatedResource) SetRequiresRequest(v bool) {
-	x.RequiresRequest = v
-}
-
-func (x *PaginatedResource) HasResource() bool {
-	if x == nil {
-		return false
-	}
-	return x.Resource != nil
-}
-
-func (x *PaginatedResource) HasDatabase() bool {
-	if x == nil {
-		return false
-	}
-	_, ok := x.Resource.(*PaginatedResource_Database)
-	return ok
-}
-
-func (x *PaginatedResource) HasServer() bool {
-	if x == nil {
-		return false
-	}
-	_, ok := x.Resource.(*PaginatedResource_Server)
-	return ok
-}
-
-func (x *PaginatedResource) HasKube() bool {
-	if x == nil {
-		return false
-	}
-	_, ok := x.Resource.(*PaginatedResource_Kube)
-	return ok
-}
-
-func (x *PaginatedResource) HasApp() bool {
-	if x == nil {
-		return false
-	}
-	_, ok := x.Resource.(*PaginatedResource_App)
-	return ok
-}
-
-func (x *PaginatedResource) HasWindowsDesktop() bool {
-	if x == nil {
-		return false
-	}
-	_, ok := x.Resource.(*PaginatedResource_WindowsDesktop)
-	return ok
-}
-
-func (x *PaginatedResource) ClearResource() {
-	x.Resource = nil
-}
-
-func (x *PaginatedResource) ClearDatabase() {
-	if _, ok := x.Resource.(*PaginatedResource_Database); ok {
-		x.Resource = nil
-	}
-}
-
-func (x *PaginatedResource) ClearServer() {
-	if _, ok := x.Resource.(*PaginatedResource_Server); ok {
-		x.Resource = nil
-	}
-}
-
-func (x *PaginatedResource) ClearKube() {
-	if _, ok := x.Resource.(*PaginatedResource_Kube); ok {
-		x.Resource = nil
-	}
-}
-
-func (x *PaginatedResource) ClearApp() {
-	if _, ok := x.Resource.(*PaginatedResource_App); ok {
-		x.Resource = nil
-	}
-}
-
-func (x *PaginatedResource) ClearWindowsDesktop() {
-	if _, ok := x.Resource.(*PaginatedResource_WindowsDesktop); ok {
-		x.Resource = nil
-	}
-}
-
-const PaginatedResource_Resource_not_set_case case_PaginatedResource_Resource = 0
-const PaginatedResource_Database_case case_PaginatedResource_Resource = 1
-const PaginatedResource_Server_case case_PaginatedResource_Resource = 2
-const PaginatedResource_Kube_case case_PaginatedResource_Resource = 3
-const PaginatedResource_App_case case_PaginatedResource_Resource = 4
-const PaginatedResource_WindowsDesktop_case case_PaginatedResource_Resource = 6
-
-func (x *PaginatedResource) WhichResource() case_PaginatedResource_Resource {
-	if x == nil {
-		return PaginatedResource_Resource_not_set_case
-	}
-	switch x.Resource.(type) {
-	case *PaginatedResource_Database:
-		return PaginatedResource_Database_case
-	case *PaginatedResource_Server:
-		return PaginatedResource_Server_case
-	case *PaginatedResource_Kube:
-		return PaginatedResource_Kube_case
-	case *PaginatedResource_App:
-		return PaginatedResource_App_case
-	case *PaginatedResource_WindowsDesktop:
-		return PaginatedResource_WindowsDesktop_case
-	default:
-		return PaginatedResource_Resource_not_set_case
-	}
-}
-
-type PaginatedResource_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// Fields of oneof Resource:
-	Database       *Database
-	Server         *Server
-	Kube           *Kube
-	App            *App
-	WindowsDesktop *WindowsDesktop
-	// -- end of Resource
-	RequiresRequest bool
-}
-
-func (b0 PaginatedResource_builder) Build() *PaginatedResource {
-	m0 := &PaginatedResource{}
-	b, x := &b0, m0
-	_, _ = b, x
-	if b.Database != nil {
-		x.Resource = &PaginatedResource_Database{b.Database}
-	}
-	if b.Server != nil {
-		x.Resource = &PaginatedResource_Server{b.Server}
-	}
-	if b.Kube != nil {
-		x.Resource = &PaginatedResource_Kube{b.Kube}
-	}
-	if b.App != nil {
-		x.Resource = &PaginatedResource_App{b.App}
-	}
-	if b.WindowsDesktop != nil {
-		x.Resource = &PaginatedResource_WindowsDesktop{b.WindowsDesktop}
-	}
-	x.RequiresRequest = b.RequiresRequest
-	return m0
-}
-
-type case_PaginatedResource_Resource protoreflect.FieldNumber
-
-func (x case_PaginatedResource_Resource) String() string {
-	md := file_teleport_lib_teleterm_v1_service_proto_msgTypes[64].Descriptor()
-	if x == 0 {
-		return "not set"
-	}
-	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
-}
-
 type isPaginatedResource_Resource interface {
 	isPaginatedResource_Resource()
 }
@@ -5548,7 +3667,7 @@ func (*PaginatedResource_App) isPaginatedResource_Resource() {}
 func (*PaginatedResource_WindowsDesktop) isPaginatedResource_Resource() {}
 
 type GetUserPreferencesRequest struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
 	ClusterUri    string                 `protobuf:"bytes,1,opt,name=cluster_uri,json=clusterUri,proto3" json:"cluster_uri,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -5556,7 +3675,7 @@ type GetUserPreferencesRequest struct {
 
 func (x *GetUserPreferencesRequest) Reset() {
 	*x = GetUserPreferencesRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[65]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[63]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5568,7 +3687,7 @@ func (x *GetUserPreferencesRequest) String() string {
 func (*GetUserPreferencesRequest) ProtoMessage() {}
 
 func (x *GetUserPreferencesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[65]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[63]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5579,6 +3698,11 @@ func (x *GetUserPreferencesRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use GetUserPreferencesRequest.ProtoReflect.Descriptor instead.
+func (*GetUserPreferencesRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{63}
+}
+
 func (x *GetUserPreferencesRequest) GetClusterUri() string {
 	if x != nil {
 		return x.ClusterUri
@@ -5586,26 +3710,8 @@ func (x *GetUserPreferencesRequest) GetClusterUri() string {
 	return ""
 }
 
-func (x *GetUserPreferencesRequest) SetClusterUri(v string) {
-	x.ClusterUri = v
-}
-
-type GetUserPreferencesRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	ClusterUri string
-}
-
-func (b0 GetUserPreferencesRequest_builder) Build() *GetUserPreferencesRequest {
-	m0 := &GetUserPreferencesRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.ClusterUri = b.ClusterUri
-	return m0
-}
-
 type GetUserPreferencesResponse struct {
-	state           protoimpl.MessageState `protogen:"hybrid.v1"`
+	state           protoimpl.MessageState `protogen:"open.v1"`
 	UserPreferences *UserPreferences       `protobuf:"bytes,1,opt,name=user_preferences,json=userPreferences,proto3" json:"user_preferences,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
@@ -5613,7 +3719,7 @@ type GetUserPreferencesResponse struct {
 
 func (x *GetUserPreferencesResponse) Reset() {
 	*x = GetUserPreferencesResponse{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[66]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[64]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5625,7 +3731,7 @@ func (x *GetUserPreferencesResponse) String() string {
 func (*GetUserPreferencesResponse) ProtoMessage() {}
 
 func (x *GetUserPreferencesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[66]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[64]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5636,6 +3742,11 @@ func (x *GetUserPreferencesResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use GetUserPreferencesResponse.ProtoReflect.Descriptor instead.
+func (*GetUserPreferencesResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{64}
+}
+
 func (x *GetUserPreferencesResponse) GetUserPreferences() *UserPreferences {
 	if x != nil {
 		return x.UserPreferences
@@ -5643,37 +3754,8 @@ func (x *GetUserPreferencesResponse) GetUserPreferences() *UserPreferences {
 	return nil
 }
 
-func (x *GetUserPreferencesResponse) SetUserPreferences(v *UserPreferences) {
-	x.UserPreferences = v
-}
-
-func (x *GetUserPreferencesResponse) HasUserPreferences() bool {
-	if x == nil {
-		return false
-	}
-	return x.UserPreferences != nil
-}
-
-func (x *GetUserPreferencesResponse) ClearUserPreferences() {
-	x.UserPreferences = nil
-}
-
-type GetUserPreferencesResponse_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	UserPreferences *UserPreferences
-}
-
-func (b0 GetUserPreferencesResponse_builder) Build() *GetUserPreferencesResponse {
-	m0 := &GetUserPreferencesResponse{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.UserPreferences = b.UserPreferences
-	return m0
-}
-
 type UpdateUserPreferencesRequest struct {
-	state           protoimpl.MessageState `protogen:"hybrid.v1"`
+	state           protoimpl.MessageState `protogen:"open.v1"`
 	ClusterUri      string                 `protobuf:"bytes,1,opt,name=cluster_uri,json=clusterUri,proto3" json:"cluster_uri,omitempty"`
 	UserPreferences *UserPreferences       `protobuf:"bytes,2,opt,name=user_preferences,json=userPreferences,proto3" json:"user_preferences,omitempty"`
 	unknownFields   protoimpl.UnknownFields
@@ -5682,7 +3764,7 @@ type UpdateUserPreferencesRequest struct {
 
 func (x *UpdateUserPreferencesRequest) Reset() {
 	*x = UpdateUserPreferencesRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[67]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[65]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5694,7 +3776,7 @@ func (x *UpdateUserPreferencesRequest) String() string {
 func (*UpdateUserPreferencesRequest) ProtoMessage() {}
 
 func (x *UpdateUserPreferencesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[67]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[65]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5703,6 +3785,11 @@ func (x *UpdateUserPreferencesRequest) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateUserPreferencesRequest.ProtoReflect.Descriptor instead.
+func (*UpdateUserPreferencesRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{65}
 }
 
 func (x *UpdateUserPreferencesRequest) GetClusterUri() string {
@@ -5719,43 +3806,8 @@ func (x *UpdateUserPreferencesRequest) GetUserPreferences() *UserPreferences {
 	return nil
 }
 
-func (x *UpdateUserPreferencesRequest) SetClusterUri(v string) {
-	x.ClusterUri = v
-}
-
-func (x *UpdateUserPreferencesRequest) SetUserPreferences(v *UserPreferences) {
-	x.UserPreferences = v
-}
-
-func (x *UpdateUserPreferencesRequest) HasUserPreferences() bool {
-	if x == nil {
-		return false
-	}
-	return x.UserPreferences != nil
-}
-
-func (x *UpdateUserPreferencesRequest) ClearUserPreferences() {
-	x.UserPreferences = nil
-}
-
-type UpdateUserPreferencesRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	ClusterUri      string
-	UserPreferences *UserPreferences
-}
-
-func (b0 UpdateUserPreferencesRequest_builder) Build() *UpdateUserPreferencesRequest {
-	m0 := &UpdateUserPreferencesRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.ClusterUri = b.ClusterUri
-	x.UserPreferences = b.UserPreferences
-	return m0
-}
-
 type UpdateUserPreferencesResponse struct {
-	state           protoimpl.MessageState `protogen:"hybrid.v1"`
+	state           protoimpl.MessageState `protogen:"open.v1"`
 	UserPreferences *UserPreferences       `protobuf:"bytes,1,opt,name=user_preferences,json=userPreferences,proto3" json:"user_preferences,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
@@ -5763,7 +3815,7 @@ type UpdateUserPreferencesResponse struct {
 
 func (x *UpdateUserPreferencesResponse) Reset() {
 	*x = UpdateUserPreferencesResponse{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[68]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[66]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5775,7 +3827,7 @@ func (x *UpdateUserPreferencesResponse) String() string {
 func (*UpdateUserPreferencesResponse) ProtoMessage() {}
 
 func (x *UpdateUserPreferencesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[68]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[66]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5786,6 +3838,11 @@ func (x *UpdateUserPreferencesResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use UpdateUserPreferencesResponse.ProtoReflect.Descriptor instead.
+func (*UpdateUserPreferencesResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{66}
+}
+
 func (x *UpdateUserPreferencesResponse) GetUserPreferences() *UserPreferences {
 	if x != nil {
 		return x.UserPreferences
@@ -5793,39 +3850,10 @@ func (x *UpdateUserPreferencesResponse) GetUserPreferences() *UserPreferences {
 	return nil
 }
 
-func (x *UpdateUserPreferencesResponse) SetUserPreferences(v *UserPreferences) {
-	x.UserPreferences = v
-}
-
-func (x *UpdateUserPreferencesResponse) HasUserPreferences() bool {
-	if x == nil {
-		return false
-	}
-	return x.UserPreferences != nil
-}
-
-func (x *UpdateUserPreferencesResponse) ClearUserPreferences() {
-	x.UserPreferences = nil
-}
-
-type UpdateUserPreferencesResponse_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	UserPreferences *UserPreferences
-}
-
-func (b0 UpdateUserPreferencesResponse_builder) Build() *UpdateUserPreferencesResponse {
-	m0 := &UpdateUserPreferencesResponse{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.UserPreferences = b.UserPreferences
-	return m0
-}
-
 // UserPreferences is a subset of teleport.userpreferences.v1.UserPreferences.
 // It contains preferences that are relevant to Connect.
 type UserPreferences struct {
-	state                      protoimpl.MessageState          `protogen:"hybrid.v1"`
+	state                      protoimpl.MessageState          `protogen:"open.v1"`
 	ClusterPreferences         *v11.ClusterUserPreferences     `protobuf:"bytes,1,opt,name=cluster_preferences,json=clusterPreferences,proto3" json:"cluster_preferences,omitempty"`
 	UnifiedResourcePreferences *v11.UnifiedResourcePreferences `protobuf:"bytes,2,opt,name=unified_resource_preferences,json=unifiedResourcePreferences,proto3" json:"unified_resource_preferences,omitempty"`
 	unknownFields              protoimpl.UnknownFields
@@ -5834,7 +3862,7 @@ type UserPreferences struct {
 
 func (x *UserPreferences) Reset() {
 	*x = UserPreferences{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[69]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[67]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5846,7 +3874,7 @@ func (x *UserPreferences) String() string {
 func (*UserPreferences) ProtoMessage() {}
 
 func (x *UserPreferences) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[69]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[67]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5855,6 +3883,11 @@ func (x *UserPreferences) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UserPreferences.ProtoReflect.Descriptor instead.
+func (*UserPreferences) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{67}
 }
 
 func (x *UserPreferences) GetClusterPreferences() *v11.ClusterUserPreferences {
@@ -5871,55 +3904,9 @@ func (x *UserPreferences) GetUnifiedResourcePreferences() *v11.UnifiedResourcePr
 	return nil
 }
 
-func (x *UserPreferences) SetClusterPreferences(v *v11.ClusterUserPreferences) {
-	x.ClusterPreferences = v
-}
-
-func (x *UserPreferences) SetUnifiedResourcePreferences(v *v11.UnifiedResourcePreferences) {
-	x.UnifiedResourcePreferences = v
-}
-
-func (x *UserPreferences) HasClusterPreferences() bool {
-	if x == nil {
-		return false
-	}
-	return x.ClusterPreferences != nil
-}
-
-func (x *UserPreferences) HasUnifiedResourcePreferences() bool {
-	if x == nil {
-		return false
-	}
-	return x.UnifiedResourcePreferences != nil
-}
-
-func (x *UserPreferences) ClearClusterPreferences() {
-	x.ClusterPreferences = nil
-}
-
-func (x *UserPreferences) ClearUnifiedResourcePreferences() {
-	x.UnifiedResourcePreferences = nil
-}
-
-type UserPreferences_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	ClusterPreferences         *v11.ClusterUserPreferences
-	UnifiedResourcePreferences *v11.UnifiedResourcePreferences
-}
-
-func (b0 UserPreferences_builder) Build() *UserPreferences {
-	m0 := &UserPreferences{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.ClusterPreferences = b.ClusterPreferences
-	x.UnifiedResourcePreferences = b.UnifiedResourcePreferences
-	return m0
-}
-
 // Request for AuthenticateWebDevice.
 type AuthenticateWebDeviceRequest struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// Device web token to be spent in exchange for the device authentication
 	// attempt.
 	DeviceWebToken *v12.DeviceWebToken `protobuf:"bytes,1,opt,name=device_web_token,json=deviceWebToken,proto3" json:"device_web_token,omitempty"`
@@ -5930,7 +3917,7 @@ type AuthenticateWebDeviceRequest struct {
 
 func (x *AuthenticateWebDeviceRequest) Reset() {
 	*x = AuthenticateWebDeviceRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[70]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[68]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5942,7 +3929,7 @@ func (x *AuthenticateWebDeviceRequest) String() string {
 func (*AuthenticateWebDeviceRequest) ProtoMessage() {}
 
 func (x *AuthenticateWebDeviceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[70]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[68]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5951,6 +3938,11 @@ func (x *AuthenticateWebDeviceRequest) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AuthenticateWebDeviceRequest.ProtoReflect.Descriptor instead.
+func (*AuthenticateWebDeviceRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{68}
 }
 
 func (x *AuthenticateWebDeviceRequest) GetDeviceWebToken() *v12.DeviceWebToken {
@@ -5967,46 +3959,9 @@ func (x *AuthenticateWebDeviceRequest) GetRootClusterUri() string {
 	return ""
 }
 
-func (x *AuthenticateWebDeviceRequest) SetDeviceWebToken(v *v12.DeviceWebToken) {
-	x.DeviceWebToken = v
-}
-
-func (x *AuthenticateWebDeviceRequest) SetRootClusterUri(v string) {
-	x.RootClusterUri = v
-}
-
-func (x *AuthenticateWebDeviceRequest) HasDeviceWebToken() bool {
-	if x == nil {
-		return false
-	}
-	return x.DeviceWebToken != nil
-}
-
-func (x *AuthenticateWebDeviceRequest) ClearDeviceWebToken() {
-	x.DeviceWebToken = nil
-}
-
-type AuthenticateWebDeviceRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// Device web token to be spent in exchange for the device authentication
-	// attempt.
-	DeviceWebToken *v12.DeviceWebToken
-	RootClusterUri string
-}
-
-func (b0 AuthenticateWebDeviceRequest_builder) Build() *AuthenticateWebDeviceRequest {
-	m0 := &AuthenticateWebDeviceRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.DeviceWebToken = b.DeviceWebToken
-	x.RootClusterUri = b.RootClusterUri
-	return m0
-}
-
 // Response for AuthenticateWebDevice.
 type AuthenticateWebDeviceResponse struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// Device confirmation token to be sent to the browser that originated the
 	// authentication attempt.
 	ConfirmationToken *v12.DeviceConfirmationToken `protobuf:"bytes,1,opt,name=confirmation_token,json=confirmationToken,proto3" json:"confirmation_token,omitempty"`
@@ -6016,7 +3971,7 @@ type AuthenticateWebDeviceResponse struct {
 
 func (x *AuthenticateWebDeviceResponse) Reset() {
 	*x = AuthenticateWebDeviceResponse{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[71]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[69]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6028,7 +3983,7 @@ func (x *AuthenticateWebDeviceResponse) String() string {
 func (*AuthenticateWebDeviceResponse) ProtoMessage() {}
 
 func (x *AuthenticateWebDeviceResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[71]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[69]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6039,6 +3994,11 @@ func (x *AuthenticateWebDeviceResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use AuthenticateWebDeviceResponse.ProtoReflect.Descriptor instead.
+func (*AuthenticateWebDeviceResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{69}
+}
+
 func (x *AuthenticateWebDeviceResponse) GetConfirmationToken() *v12.DeviceConfirmationToken {
 	if x != nil {
 		return x.ConfirmationToken
@@ -6046,39 +4006,8 @@ func (x *AuthenticateWebDeviceResponse) GetConfirmationToken() *v12.DeviceConfir
 	return nil
 }
 
-func (x *AuthenticateWebDeviceResponse) SetConfirmationToken(v *v12.DeviceConfirmationToken) {
-	x.ConfirmationToken = v
-}
-
-func (x *AuthenticateWebDeviceResponse) HasConfirmationToken() bool {
-	if x == nil {
-		return false
-	}
-	return x.ConfirmationToken != nil
-}
-
-func (x *AuthenticateWebDeviceResponse) ClearConfirmationToken() {
-	x.ConfirmationToken = nil
-}
-
-type AuthenticateWebDeviceResponse_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// Device confirmation token to be sent to the browser that originated the
-	// authentication attempt.
-	ConfirmationToken *v12.DeviceConfirmationToken
-}
-
-func (b0 AuthenticateWebDeviceResponse_builder) Build() *AuthenticateWebDeviceResponse {
-	m0 := &AuthenticateWebDeviceResponse{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.ConfirmationToken = b.ConfirmationToken
-	return m0
-}
-
 type GetAppRequest struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
 	AppUri        string                 `protobuf:"bytes,1,opt,name=app_uri,json=appUri,proto3" json:"app_uri,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -6086,7 +4015,7 @@ type GetAppRequest struct {
 
 func (x *GetAppRequest) Reset() {
 	*x = GetAppRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[72]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[70]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6098,7 +4027,7 @@ func (x *GetAppRequest) String() string {
 func (*GetAppRequest) ProtoMessage() {}
 
 func (x *GetAppRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[72]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[70]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6109,6 +4038,11 @@ func (x *GetAppRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use GetAppRequest.ProtoReflect.Descriptor instead.
+func (*GetAppRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{70}
+}
+
 func (x *GetAppRequest) GetAppUri() string {
 	if x != nil {
 		return x.AppUri
@@ -6116,26 +4050,8 @@ func (x *GetAppRequest) GetAppUri() string {
 	return ""
 }
 
-func (x *GetAppRequest) SetAppUri(v string) {
-	x.AppUri = v
-}
-
-type GetAppRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	AppUri string
-}
-
-func (b0 GetAppRequest_builder) Build() *GetAppRequest {
-	m0 := &GetAppRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.AppUri = b.AppUri
-	return m0
-}
-
 type GetAppResponse struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
 	App           *App                   `protobuf:"bytes,1,opt,name=app,proto3" json:"app,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -6143,7 +4059,7 @@ type GetAppResponse struct {
 
 func (x *GetAppResponse) Reset() {
 	*x = GetAppResponse{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[73]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[71]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6155,7 +4071,7 @@ func (x *GetAppResponse) String() string {
 func (*GetAppResponse) ProtoMessage() {}
 
 func (x *GetAppResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[73]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[71]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6166,6 +4082,11 @@ func (x *GetAppResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use GetAppResponse.ProtoReflect.Descriptor instead.
+func (*GetAppResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{71}
+}
+
 func (x *GetAppResponse) GetApp() *App {
 	if x != nil {
 		return x.App
@@ -6173,38 +4094,9 @@ func (x *GetAppResponse) GetApp() *App {
 	return nil
 }
 
-func (x *GetAppResponse) SetApp(v *App) {
-	x.App = v
-}
-
-func (x *GetAppResponse) HasApp() bool {
-	if x == nil {
-		return false
-	}
-	return x.App != nil
-}
-
-func (x *GetAppResponse) ClearApp() {
-	x.App = nil
-}
-
-type GetAppResponse_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	App *App
-}
-
-func (b0 GetAppResponse_builder) Build() *GetAppResponse {
-	m0 := &GetAppResponse{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.App = b.App
-	return m0
-}
-
 // TargetDesktop contains information about the destination desktop.
 type TargetDesktop struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// URI of the desktop to connect to.
 	DesktopUri string `protobuf:"bytes,1,opt,name=desktop_uri,json=desktopUri,proto3" json:"desktop_uri,omitempty"`
 	// Login for the desktop session.
@@ -6215,7 +4107,7 @@ type TargetDesktop struct {
 
 func (x *TargetDesktop) Reset() {
 	*x = TargetDesktop{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[74]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[72]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6227,7 +4119,7 @@ func (x *TargetDesktop) String() string {
 func (*TargetDesktop) ProtoMessage() {}
 
 func (x *TargetDesktop) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[74]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[72]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6236,6 +4128,11 @@ func (x *TargetDesktop) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TargetDesktop.ProtoReflect.Descriptor instead.
+func (*TargetDesktop) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{72}
 }
 
 func (x *TargetDesktop) GetDesktopUri() string {
@@ -6252,35 +4149,9 @@ func (x *TargetDesktop) GetLogin() string {
 	return ""
 }
 
-func (x *TargetDesktop) SetDesktopUri(v string) {
-	x.DesktopUri = v
-}
-
-func (x *TargetDesktop) SetLogin(v string) {
-	x.Login = v
-}
-
-type TargetDesktop_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// URI of the desktop to connect to.
-	DesktopUri string
-	// Login for the desktop session.
-	Login string
-}
-
-func (b0 TargetDesktop_builder) Build() *TargetDesktop {
-	m0 := &TargetDesktop{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.DesktopUri = b.DesktopUri
-	x.Login = b.Login
-	return m0
-}
-
 // Request for ConnectToDesktop.
 type ConnectToDesktopRequest struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// Data is a TDP (Teleport Desktop Protocol) message sent from the client to the desktop service.
 	// Must be empty in the first message and nonempty in subsequent messages.
 	Data []byte `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
@@ -6292,7 +4163,7 @@ type ConnectToDesktopRequest struct {
 
 func (x *ConnectToDesktopRequest) Reset() {
 	*x = ConnectToDesktopRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[75]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[73]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6304,7 +4175,7 @@ func (x *ConnectToDesktopRequest) String() string {
 func (*ConnectToDesktopRequest) ProtoMessage() {}
 
 func (x *ConnectToDesktopRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[75]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[73]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6313,6 +4184,11 @@ func (x *ConnectToDesktopRequest) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConnectToDesktopRequest.ProtoReflect.Descriptor instead.
+func (*ConnectToDesktopRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{73}
 }
 
 func (x *ConnectToDesktopRequest) GetData() []byte {
@@ -6329,50 +4205,9 @@ func (x *ConnectToDesktopRequest) GetTargetDesktop() *TargetDesktop {
 	return nil
 }
 
-func (x *ConnectToDesktopRequest) SetData(v []byte) {
-	if v == nil {
-		v = []byte{}
-	}
-	x.Data = v
-}
-
-func (x *ConnectToDesktopRequest) SetTargetDesktop(v *TargetDesktop) {
-	x.TargetDesktop = v
-}
-
-func (x *ConnectToDesktopRequest) HasTargetDesktop() bool {
-	if x == nil {
-		return false
-	}
-	return x.TargetDesktop != nil
-}
-
-func (x *ConnectToDesktopRequest) ClearTargetDesktop() {
-	x.TargetDesktop = nil
-}
-
-type ConnectToDesktopRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// Data is a TDP (Teleport Desktop Protocol) message sent from the client to the desktop service.
-	// Must be empty in the first message and nonempty in subsequent messages.
-	Data []byte
-	// Target desktop and login. Must be set in the first message and unset in subsequent messages.
-	TargetDesktop *TargetDesktop
-}
-
-func (b0 ConnectToDesktopRequest_builder) Build() *ConnectToDesktopRequest {
-	m0 := &ConnectToDesktopRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Data = b.Data
-	x.TargetDesktop = b.TargetDesktop
-	return m0
-}
-
 // Response for ConnectToDesktop.
 type ConnectToDesktopResponse struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// Data is a TDP (Teleport Desktop Protocol) message sent from the desktop service to the client.
 	Data          []byte `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -6381,7 +4216,7 @@ type ConnectToDesktopResponse struct {
 
 func (x *ConnectToDesktopResponse) Reset() {
 	*x = ConnectToDesktopResponse{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[76]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[74]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6393,7 +4228,7 @@ func (x *ConnectToDesktopResponse) String() string {
 func (*ConnectToDesktopResponse) ProtoMessage() {}
 
 func (x *ConnectToDesktopResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[76]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[74]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6404,6 +4239,11 @@ func (x *ConnectToDesktopResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use ConnectToDesktopResponse.ProtoReflect.Descriptor instead.
+func (*ConnectToDesktopResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{74}
+}
+
 func (x *ConnectToDesktopResponse) GetData() []byte {
 	if x != nil {
 		return x.Data
@@ -6411,31 +4251,9 @@ func (x *ConnectToDesktopResponse) GetData() []byte {
 	return nil
 }
 
-func (x *ConnectToDesktopResponse) SetData(v []byte) {
-	if v == nil {
-		v = []byte{}
-	}
-	x.Data = v
-}
-
-type ConnectToDesktopResponse_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// Data is a TDP (Teleport Desktop Protocol) message sent from the desktop service to the client.
-	Data []byte
-}
-
-func (b0 ConnectToDesktopResponse_builder) Build() *ConnectToDesktopResponse {
-	m0 := &ConnectToDesktopResponse{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Data = b.Data
-	return m0
-}
-
 // Request for SetSharedDirectoryForDesktopSession.
 type SetSharedDirectoryForDesktopSessionRequest struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// URI of the desktop.
 	DesktopUri string `protobuf:"bytes,1,opt,name=desktop_uri,json=desktopUri,proto3" json:"desktop_uri,omitempty"`
 	// Login for the desktop session.
@@ -6448,7 +4266,7 @@ type SetSharedDirectoryForDesktopSessionRequest struct {
 
 func (x *SetSharedDirectoryForDesktopSessionRequest) Reset() {
 	*x = SetSharedDirectoryForDesktopSessionRequest{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[77]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[75]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6460,7 +4278,7 @@ func (x *SetSharedDirectoryForDesktopSessionRequest) String() string {
 func (*SetSharedDirectoryForDesktopSessionRequest) ProtoMessage() {}
 
 func (x *SetSharedDirectoryForDesktopSessionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[77]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[75]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6469,6 +4287,11 @@ func (x *SetSharedDirectoryForDesktopSessionRequest) ProtoReflect() protoreflect
 		return ms
 	}
 	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetSharedDirectoryForDesktopSessionRequest.ProtoReflect.Descriptor instead.
+func (*SetSharedDirectoryForDesktopSessionRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{75}
 }
 
 func (x *SetSharedDirectoryForDesktopSessionRequest) GetDesktopUri() string {
@@ -6492,49 +4315,16 @@ func (x *SetSharedDirectoryForDesktopSessionRequest) GetPath() string {
 	return ""
 }
 
-func (x *SetSharedDirectoryForDesktopSessionRequest) SetDesktopUri(v string) {
-	x.DesktopUri = v
-}
-
-func (x *SetSharedDirectoryForDesktopSessionRequest) SetLogin(v string) {
-	x.Login = v
-}
-
-func (x *SetSharedDirectoryForDesktopSessionRequest) SetPath(v string) {
-	x.Path = v
-}
-
-type SetSharedDirectoryForDesktopSessionRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// URI of the desktop.
-	DesktopUri string
-	// Login for the desktop session.
-	Login string
-	// Path to share with a remote machine. Must be a directory.
-	Path string
-}
-
-func (b0 SetSharedDirectoryForDesktopSessionRequest_builder) Build() *SetSharedDirectoryForDesktopSessionRequest {
-	m0 := &SetSharedDirectoryForDesktopSessionRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.DesktopUri = b.DesktopUri
-	x.Login = b.Login
-	x.Path = b.Path
-	return m0
-}
-
 // Response for SetSharedDirectoryForDesktopSession.
 type SetSharedDirectoryForDesktopSessionResponse struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *SetSharedDirectoryForDesktopSessionResponse) Reset() {
 	*x = SetSharedDirectoryForDesktopSessionResponse{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[78]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[76]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6546,7 +4336,7 @@ func (x *SetSharedDirectoryForDesktopSessionResponse) String() string {
 func (*SetSharedDirectoryForDesktopSessionResponse) ProtoMessage() {}
 
 func (x *SetSharedDirectoryForDesktopSessionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[78]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[76]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6557,21 +4347,14 @@ func (x *SetSharedDirectoryForDesktopSessionResponse) ProtoReflect() protoreflec
 	return mi.MessageOf(x)
 }
 
-type SetSharedDirectoryForDesktopSessionResponse_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-}
-
-func (b0 SetSharedDirectoryForDesktopSessionResponse_builder) Build() *SetSharedDirectoryForDesktopSessionResponse {
-	m0 := &SetSharedDirectoryForDesktopSessionResponse{}
-	b, x := &b0, m0
-	_, _ = b, x
-	return m0
+// Deprecated: Use SetSharedDirectoryForDesktopSessionResponse.ProtoReflect.Descriptor instead.
+func (*SetSharedDirectoryForDesktopSessionResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{76}
 }
 
 // LoginPasswordlessRequestInit contains fields needed to init the stream request.
 type LoginPasswordlessRequest_LoginPasswordlessRequestInit struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// cluster_uri is needed to resolve cluster by its uri.
 	ClusterUri    string `protobuf:"bytes,1,opt,name=cluster_uri,json=clusterUri,proto3" json:"cluster_uri,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -6580,7 +4363,7 @@ type LoginPasswordlessRequest_LoginPasswordlessRequestInit struct {
 
 func (x *LoginPasswordlessRequest_LoginPasswordlessRequestInit) Reset() {
 	*x = LoginPasswordlessRequest_LoginPasswordlessRequestInit{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[79]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[77]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6592,7 +4375,7 @@ func (x *LoginPasswordlessRequest_LoginPasswordlessRequestInit) String() string 
 func (*LoginPasswordlessRequest_LoginPasswordlessRequestInit) ProtoMessage() {}
 
 func (x *LoginPasswordlessRequest_LoginPasswordlessRequestInit) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[79]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[77]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6603,6 +4386,11 @@ func (x *LoginPasswordlessRequest_LoginPasswordlessRequestInit) ProtoReflect() p
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use LoginPasswordlessRequest_LoginPasswordlessRequestInit.ProtoReflect.Descriptor instead.
+func (*LoginPasswordlessRequest_LoginPasswordlessRequestInit) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{26, 0}
+}
+
 func (x *LoginPasswordlessRequest_LoginPasswordlessRequestInit) GetClusterUri() string {
 	if x != nil {
 		return x.ClusterUri
@@ -6610,28 +4398,9 @@ func (x *LoginPasswordlessRequest_LoginPasswordlessRequestInit) GetClusterUri() 
 	return ""
 }
 
-func (x *LoginPasswordlessRequest_LoginPasswordlessRequestInit) SetClusterUri(v string) {
-	x.ClusterUri = v
-}
-
-type LoginPasswordlessRequest_LoginPasswordlessRequestInit_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// cluster_uri is needed to resolve cluster by its uri.
-	ClusterUri string
-}
-
-func (b0 LoginPasswordlessRequest_LoginPasswordlessRequestInit_builder) Build() *LoginPasswordlessRequest_LoginPasswordlessRequestInit {
-	m0 := &LoginPasswordlessRequest_LoginPasswordlessRequestInit{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.ClusterUri = b.ClusterUri
-	return m0
-}
-
 // LoginPasswordlessPINResponse contains fields related to request from webauthncli.PromptPIN.
 type LoginPasswordlessRequest_LoginPasswordlessPINResponse struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// pin is the user's device's pin.
 	Pin           string `protobuf:"bytes,1,opt,name=pin,proto3" json:"pin,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -6640,7 +4409,7 @@ type LoginPasswordlessRequest_LoginPasswordlessPINResponse struct {
 
 func (x *LoginPasswordlessRequest_LoginPasswordlessPINResponse) Reset() {
 	*x = LoginPasswordlessRequest_LoginPasswordlessPINResponse{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[80]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[78]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6652,7 +4421,7 @@ func (x *LoginPasswordlessRequest_LoginPasswordlessPINResponse) String() string 
 func (*LoginPasswordlessRequest_LoginPasswordlessPINResponse) ProtoMessage() {}
 
 func (x *LoginPasswordlessRequest_LoginPasswordlessPINResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[80]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[78]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6663,6 +4432,11 @@ func (x *LoginPasswordlessRequest_LoginPasswordlessPINResponse) ProtoReflect() p
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use LoginPasswordlessRequest_LoginPasswordlessPINResponse.ProtoReflect.Descriptor instead.
+func (*LoginPasswordlessRequest_LoginPasswordlessPINResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{26, 1}
+}
+
 func (x *LoginPasswordlessRequest_LoginPasswordlessPINResponse) GetPin() string {
 	if x != nil {
 		return x.Pin
@@ -6670,29 +4444,10 @@ func (x *LoginPasswordlessRequest_LoginPasswordlessPINResponse) GetPin() string 
 	return ""
 }
 
-func (x *LoginPasswordlessRequest_LoginPasswordlessPINResponse) SetPin(v string) {
-	x.Pin = v
-}
-
-type LoginPasswordlessRequest_LoginPasswordlessPINResponse_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// pin is the user's device's pin.
-	Pin string
-}
-
-func (b0 LoginPasswordlessRequest_LoginPasswordlessPINResponse_builder) Build() *LoginPasswordlessRequest_LoginPasswordlessPINResponse {
-	m0 := &LoginPasswordlessRequest_LoginPasswordlessPINResponse{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Pin = b.Pin
-	return m0
-}
-
 // LoginPasswordlessPINResponse contains fields related to request from
 // webauthncli.PromptCredential.
 type LoginPasswordlessRequest_LoginPasswordlessCredentialResponse struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// index is the associated number in the list of credentials that the user selected to log
 	// in as.
 	Index         int64 `protobuf:"varint,1,opt,name=index,proto3" json:"index,omitempty"`
@@ -6702,7 +4457,7 @@ type LoginPasswordlessRequest_LoginPasswordlessCredentialResponse struct {
 
 func (x *LoginPasswordlessRequest_LoginPasswordlessCredentialResponse) Reset() {
 	*x = LoginPasswordlessRequest_LoginPasswordlessCredentialResponse{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[81]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[79]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6714,7 +4469,7 @@ func (x *LoginPasswordlessRequest_LoginPasswordlessCredentialResponse) String() 
 func (*LoginPasswordlessRequest_LoginPasswordlessCredentialResponse) ProtoMessage() {}
 
 func (x *LoginPasswordlessRequest_LoginPasswordlessCredentialResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[81]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[79]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6725,6 +4480,11 @@ func (x *LoginPasswordlessRequest_LoginPasswordlessCredentialResponse) ProtoRefl
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use LoginPasswordlessRequest_LoginPasswordlessCredentialResponse.ProtoReflect.Descriptor instead.
+func (*LoginPasswordlessRequest_LoginPasswordlessCredentialResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{26, 2}
+}
+
 func (x *LoginPasswordlessRequest_LoginPasswordlessCredentialResponse) GetIndex() int64 {
 	if x != nil {
 		return x.Index
@@ -6732,29 +4492,9 @@ func (x *LoginPasswordlessRequest_LoginPasswordlessCredentialResponse) GetIndex(
 	return 0
 }
 
-func (x *LoginPasswordlessRequest_LoginPasswordlessCredentialResponse) SetIndex(v int64) {
-	x.Index = v
-}
-
-type LoginPasswordlessRequest_LoginPasswordlessCredentialResponse_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// index is the associated number in the list of credentials that the user selected to log
-	// in as.
-	Index int64
-}
-
-func (b0 LoginPasswordlessRequest_LoginPasswordlessCredentialResponse_builder) Build() *LoginPasswordlessRequest_LoginPasswordlessCredentialResponse {
-	m0 := &LoginPasswordlessRequest_LoginPasswordlessCredentialResponse{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Index = b.Index
-	return m0
-}
-
 // LocalParams describes parameters for local user logins
 type LoginRequest_LocalParams struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// user is the user name
 	User string `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
 	// password is the user password
@@ -6767,7 +4507,7 @@ type LoginRequest_LocalParams struct {
 
 func (x *LoginRequest_LocalParams) Reset() {
 	*x = LoginRequest_LocalParams{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[82]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[80]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6779,7 +4519,7 @@ func (x *LoginRequest_LocalParams) String() string {
 func (*LoginRequest_LocalParams) ProtoMessage() {}
 
 func (x *LoginRequest_LocalParams) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[82]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[80]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6788,6 +4528,11 @@ func (x *LoginRequest_LocalParams) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LoginRequest_LocalParams.ProtoReflect.Descriptor instead.
+func (*LoginRequest_LocalParams) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{29, 0}
 }
 
 func (x *LoginRequest_LocalParams) GetUser() string {
@@ -6811,42 +4556,9 @@ func (x *LoginRequest_LocalParams) GetToken() string {
 	return ""
 }
 
-func (x *LoginRequest_LocalParams) SetUser(v string) {
-	x.User = v
-}
-
-func (x *LoginRequest_LocalParams) SetPassword(v string) {
-	x.Password = v
-}
-
-func (x *LoginRequest_LocalParams) SetToken(v string) {
-	x.Token = v
-}
-
-type LoginRequest_LocalParams_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// user is the user name
-	User string
-	// password is the user password
-	Password string
-	// token is the 2FA token
-	Token string
-}
-
-func (b0 LoginRequest_LocalParams_builder) Build() *LoginRequest_LocalParams {
-	m0 := &LoginRequest_LocalParams{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.User = b.User
-	x.Password = b.Password
-	x.Token = b.Token
-	return m0
-}
-
 // SsoParams describes SSO parameters
 type LoginRequest_SsoParams struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// provider_type is the provider type
 	ProviderType string `protobuf:"bytes,1,opt,name=provider_type,json=providerType,proto3" json:"provider_type,omitempty"`
 	// provider_name is the provider name
@@ -6857,7 +4569,7 @@ type LoginRequest_SsoParams struct {
 
 func (x *LoginRequest_SsoParams) Reset() {
 	*x = LoginRequest_SsoParams{}
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[83]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[81]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6869,7 +4581,7 @@ func (x *LoginRequest_SsoParams) String() string {
 func (*LoginRequest_SsoParams) ProtoMessage() {}
 
 func (x *LoginRequest_SsoParams) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[83]
+	mi := &file_teleport_lib_teleterm_v1_service_proto_msgTypes[81]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6878,6 +4590,11 @@ func (x *LoginRequest_SsoParams) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LoginRequest_SsoParams.ProtoReflect.Descriptor instead.
+func (*LoginRequest_SsoParams) Descriptor() ([]byte, []int) {
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP(), []int{29, 1}
 }
 
 func (x *LoginRequest_SsoParams) GetProviderType() string {
@@ -6894,48 +4611,21 @@ func (x *LoginRequest_SsoParams) GetProviderName() string {
 	return ""
 }
 
-func (x *LoginRequest_SsoParams) SetProviderType(v string) {
-	x.ProviderType = v
-}
-
-func (x *LoginRequest_SsoParams) SetProviderName(v string) {
-	x.ProviderName = v
-}
-
-type LoginRequest_SsoParams_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// provider_type is the provider type
-	ProviderType string
-	// provider_name is the provider name
-	ProviderName string
-}
-
-func (b0 LoginRequest_SsoParams_builder) Build() *LoginRequest_SsoParams {
-	m0 := &LoginRequest_SsoParams{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.ProviderType = b.ProviderType
-	x.ProviderName = b.ProviderName
-	return m0
-}
-
 var File_teleport_lib_teleterm_v1_service_proto protoreflect.FileDescriptor
 
 const file_teleport_lib_teleterm_v1_service_proto_rawDesc = "" +
 	"\n" +
-	"&teleport/lib/teleterm/v1/service.proto\x12\x18teleport.lib.teleterm.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a'teleport/accesslist/v1/accesslist.proto\x1a7teleport/devicetrust/v1/device_confirmation_token.proto\x1a.teleport/devicetrust/v1/device_web_token.proto\x1a%teleport/legacy/types/resources.proto\x1a-teleport/lib/teleterm/v1/access_request.proto\x1a\"teleport/lib/teleterm/v1/app.proto\x1a,teleport/lib/teleterm/v1/auth_settings.proto\x1a&teleport/lib/teleterm/v1/cluster.proto\x1a'teleport/lib/teleterm/v1/database.proto\x1a&teleport/lib/teleterm/v1/gateway.proto\x1a#teleport/lib/teleterm/v1/kube.proto\x1a%teleport/lib/teleterm/v1/server.proto\x1a+teleport/lib/teleterm/v1/usage_events.proto\x1a.teleport/lib/teleterm/v1/windows_desktop.proto\x1a5teleport/userpreferences/v1/cluster_preferences.proto\x1a>teleport/userpreferences/v1/unified_resource_preferences.proto\"\x0f\n" +
-	"\rEmptyResponse\"4\n" +
+	"&teleport/lib/teleterm/v1/service.proto\x12\x18teleport.lib.teleterm.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a'teleport/accesslist/v1/accesslist.proto\x1a7teleport/devicetrust/v1/device_confirmation_token.proto\x1a.teleport/devicetrust/v1/device_web_token.proto\x1a-teleport/lib/teleterm/v1/access_request.proto\x1a\"teleport/lib/teleterm/v1/app.proto\x1a,teleport/lib/teleterm/v1/auth_settings.proto\x1a&teleport/lib/teleterm/v1/cluster.proto\x1a'teleport/lib/teleterm/v1/database.proto\x1a&teleport/lib/teleterm/v1/gateway.proto\x1a#teleport/lib/teleterm/v1/kube.proto\x1a%teleport/lib/teleterm/v1/server.proto\x1a+teleport/lib/teleterm/v1/usage_events.proto\x1a.teleport/lib/teleterm/v1/windows_desktop.proto\x1a5teleport/userpreferences/v1/cluster_preferences.proto\x1a>teleport/userpreferences/v1/unified_resource_preferences.proto\"\x0f\n" +
+	"\rEmptyResponse\"7\n" +
+	"\x14RemoveClusterRequest\x12\x1f\n" +
+	"\vcluster_uri\x18\x01 \x01(\tR\n" +
+	"clusterUri\"4\n" +
 	"\x11GetClusterRequest\x12\x1f\n" +
 	"\vcluster_uri\x18\x01 \x01(\tR\n" +
-	"clusterUri\"W\n" +
+	"clusterUri\"0\n" +
 	"\rLogoutRequest\x12\x1f\n" +
 	"\vcluster_uri\x18\x01 \x01(\tR\n" +
-	"clusterUri\x12%\n" +
-	"\x0eremove_profile\x18\x02 \x01(\bR\rremoveProfile\"K\n" +
-	"\x1fClearStaleClusterClientsRequest\x12(\n" +
-	"\x10root_cluster_uri\x18\x01 \x01(\tR\x0erootClusterUri\"\"\n" +
-	" ClearStaleClusterClientsResponse\"G\n" +
+	"clusterUri\"G\n" +
 	"\x1bStartHeadlessWatcherRequest\x12(\n" +
 	"\x10root_cluster_uri\x18\x01 \x01(\tR\x0erootClusterUri\"\x1e\n" +
 	"\x1cStartHeadlessWatcherResponse\"f\n" +
@@ -6952,7 +4642,7 @@ const file_teleport_lib_teleterm_v1_service_proto_rawDesc = "" +
 	"\brequests\x18\x01 \x03(\v2'.teleport.lib.teleterm.v1.AccessRequestR\brequests\"r\n" +
 	"\x1aDeleteAccessRequestRequest\x12(\n" +
 	"\x10root_cluster_uri\x18\x01 \x01(\tR\x0erootClusterUri\x12*\n" +
-	"\x11access_request_id\x18\x02 \x01(\tR\x0faccessRequestId\"\x94\x04\n" +
+	"\x11access_request_id\x18\x02 \x01(\tR\x0faccessRequestId\"\xcb\x03\n" +
 	"\x1aCreateAccessRequestRequest\x12(\n" +
 	"\x10root_cluster_uri\x18\x01 \x01(\tR\x0erootClusterUri\x12\x16\n" +
 	"\x06reason\x18\x02 \x01(\tR\x06reason\x12\x14\n" +
@@ -6963,9 +4653,7 @@ const file_teleport_lib_teleterm_v1_service_proto_rawDesc = "" +
 	"\adry_run\x18\a \x01(\bR\x06dryRun\x12=\n" +
 	"\fmax_duration\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\vmaxDuration\x12;\n" +
 	"\vrequest_ttl\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"requestTtl\x12G\n" +
-	"\x13resource_access_ids\x18\n" +
-	" \x03(\v2\x17.types.ResourceAccessIDR\x11resourceAccessIds\"`\n" +
+	"requestTtl\"`\n" +
 	"\x1bCreateAccessRequestResponse\x12A\n" +
 	"\arequest\x18\x01 \x01(\v2'.teleport.lib.teleterm.v1.AccessRequestR\arequest\"\x95\x01\n" +
 	"\x11AssumeRoleRequest\x12(\n" +
@@ -7012,17 +4700,7 @@ const file_teleport_lib_teleterm_v1_service_proto_rawDesc = "" +
 	"\x12kubernetes_cluster\x18\b \x01(\tR\x11kubernetesCluster\x121\n" +
 	"\x14kubernetes_namespace\x18\t \x01(\tR\x13kubernetesNamespace\"w\n" +
 	"\x1fListKubernetesResourcesResponse\x12D\n" +
-	"\tresources\x18\x01 \x03(\v2&.teleport.lib.teleterm.v1.KubeResourceR\tresourcesJ\x04\b\x02\x10\x03R\bnext_key\"\xc2\x01\n" +
-	"\x1cListKubernetesServersRequest\x12\x1b\n" +
-	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
-	"\n" +
-	"page_token\x18\x02 \x01(\tR\tpageToken\x12\x1f\n" +
-	"\vcluster_uri\x18\x03 \x01(\tR\n" +
-	"clusterUri\x12E\n" +
-	"\x06params\x18\x04 \x01(\v2-.teleport.lib.teleterm.v1.ListResourcesParamsR\x06params\"\x8b\x01\n" +
-	"\x1dListKubernetesServersResponse\x12B\n" +
-	"\tresources\x18\x01 \x03(\v2$.teleport.lib.teleterm.v1.KubeServerR\tresources\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\",\n" +
+	"\tresources\x18\x01 \x03(\v2&.teleport.lib.teleterm.v1.KubeResourceR\tresourcesJ\x04\b\x02\x10\x03R\bnext_key\",\n" +
 	"\x0eCredentialInfo\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\tR\busername\"\xad\x01\n" +
 	"\x19LoginPasswordlessResponse\x12D\n" +
@@ -7073,19 +4751,11 @@ const file_teleport_lib_teleterm_v1_service_proto_rawDesc = "" +
 	"\bclusters\x18\x01 \x03(\v2!.teleport.lib.teleterm.v1.ClusterR\bclusters\":\n" +
 	"\x17ListLeafClustersRequest\x12\x1f\n" +
 	"\vcluster_uri\x18\x01 \x01(\tR\n" +
-	"clusterUri\"\xaa\x01\n" +
-	"\x13ListResourcesParams\x12\x1b\n" +
-	"\tstart_key\x18\x01 \x01(\tR\bstartKey\x12\x14\n" +
-	"\x05limit\x18\x02 \x01(\x05R\x05limit\x121\n" +
-	"\x14predicate_expression\x18\x03 \x01(\tR\x13predicateExpression\x12-\n" +
-	"\x13use_search_as_roles\x18\x04 \x01(\bR\x10useSearchAsRoles\"\x84\x01\n" +
-	"\x1aListDatabaseServersRequest\x12\x1f\n" +
-	"\vcluster_uri\x18\x01 \x01(\tR\n" +
-	"clusterUri\x12E\n" +
-	"\x06params\x18\x02 \x01(\v2-.teleport.lib.teleterm.v1.ListResourcesParamsR\x06params\"\x80\x01\n" +
-	"\x1bListDatabaseServersResponse\x12F\n" +
-	"\tresources\x18\x01 \x03(\v2(.teleport.lib.teleterm.v1.DatabaseServerR\tresources\x12\x19\n" +
-	"\bnext_key\x18\x02 \x01(\tR\anextKey\"\xad\x01\n" +
+	"clusterUri\"1\n" +
+	"\x18ListDatabaseUsersRequest\x12\x15\n" +
+	"\x06db_uri\x18\x01 \x01(\tR\x05dbUri\"1\n" +
+	"\x19ListDatabaseUsersResponse\x12\x14\n" +
+	"\x05users\x18\x01 \x03(\tR\x05users\"\xad\x01\n" +
 	"\x14CreateGatewayRequest\x12\x1d\n" +
 	"\n" +
 	"target_uri\x18\x01 \x01(\tR\ttargetUri\x12\x1f\n" +
@@ -7108,7 +4778,21 @@ const file_teleport_lib_teleterm_v1_service_proto_rawDesc = "" +
 	"\vgateway_uri\x18\x01 \x01(\tR\n" +
 	"gatewayUri\x12\x1d\n" +
 	"\n" +
-	"local_port\x18\x02 \x01(\tR\tlocalPort\"9\n" +
+	"local_port\x18\x02 \x01(\tR\tlocalPort\"\xd6\x01\n" +
+	"\x11GetServersRequest\x12\x1f\n" +
+	"\vcluster_uri\x18\x01 \x01(\tR\n" +
+	"clusterUri\x12\x14\n" +
+	"\x05limit\x18\x02 \x01(\x05R\x05limit\x12\x1b\n" +
+	"\tstart_key\x18\x03 \x01(\tR\bstartKey\x12\x16\n" +
+	"\x06search\x18\x04 \x01(\tR\x06search\x12\x14\n" +
+	"\x05query\x18\x05 \x01(\tR\x05query\x12\x17\n" +
+	"\asort_by\x18\x06 \x01(\tR\x06sortBy\x12&\n" +
+	"\x0fsearch_as_roles\x18\a \x01(\tR\rsearchAsRoles\"\x8c\x01\n" +
+	"\x12GetServersResponse\x128\n" +
+	"\x06agents\x18\x01 \x03(\v2 .teleport.lib.teleterm.v1.ServerR\x06agents\x12\x1f\n" +
+	"\vtotal_count\x18\x02 \x01(\x05R\n" +
+	"totalCount\x12\x1b\n" +
+	"\tstart_key\x18\x03 \x01(\tR\bstartKey\"9\n" +
 	"\x16GetAuthSettingsRequest\x12\x1f\n" +
 	"\vcluster_uri\x18\x01 \x01(\tR\n" +
 	"clusterUri\"@\n" +
@@ -7219,13 +4903,15 @@ const file_teleport_lib_teleterm_v1_service_proto_rawDesc = "" +
 	")HEADLESS_AUTHENTICATION_STATE_UNSPECIFIED\x10\x00\x12)\n" +
 	"%HEADLESS_AUTHENTICATION_STATE_PENDING\x10\x01\x12(\n" +
 	"$HEADLESS_AUTHENTICATION_STATE_DENIED\x10\x02\x12*\n" +
-	"&HEADLESS_AUTHENTICATION_STATE_APPROVED\x10\x032\xe0+\n" +
+	"&HEADLESS_AUTHENTICATION_STATE_APPROVED\x10\x032\x92+\n" +
 	"\x0fTerminalService\x12\xa0\x01\n" +
 	"\x1dUpdateTshdEventsServerAddress\x12>.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressRequest\x1a?.teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressResponse\x12q\n" +
 	"\x10ListRootClusters\x12-.teleport.lib.teleterm.v1.ListClustersRequest\x1a..teleport.lib.teleterm.v1.ListClustersResponse\x12u\n" +
 	"\x10ListLeafClusters\x121.teleport.lib.teleterm.v1.ListLeafClustersRequest\x1a..teleport.lib.teleterm.v1.ListClustersResponse\x12\x85\x01\n" +
-	"\x14StartHeadlessWatcher\x125.teleport.lib.teleterm.v1.StartHeadlessWatcherRequest\x1a6.teleport.lib.teleterm.v1.StartHeadlessWatcherResponse\x12\x82\x01\n" +
-	"\x13ListDatabaseServers\x124.teleport.lib.teleterm.v1.ListDatabaseServersRequest\x1a5.teleport.lib.teleterm.v1.ListDatabaseServersResponse\x12|\n" +
+	"\x14StartHeadlessWatcher\x125.teleport.lib.teleterm.v1.StartHeadlessWatcherRequest\x1a6.teleport.lib.teleterm.v1.StartHeadlessWatcherResponse\x12|\n" +
+	"\x11ListDatabaseUsers\x122.teleport.lib.teleterm.v1.ListDatabaseUsersRequest\x1a3.teleport.lib.teleterm.v1.ListDatabaseUsersResponse\x12l\n" +
+	"\n" +
+	"GetServers\x12+.teleport.lib.teleterm.v1.GetServersRequest\x1a,.teleport.lib.teleterm.v1.GetServersResponse\"\x03\x88\x02\x01\x12|\n" +
 	"\x11GetAccessRequests\x122.teleport.lib.teleterm.v1.GetAccessRequestsRequest\x1a3.teleport.lib.teleterm.v1.GetAccessRequestsResponse\x12y\n" +
 	"\x10GetAccessRequest\x121.teleport.lib.teleterm.v1.GetAccessRequestRequest\x1a2.teleport.lib.teleterm.v1.GetAccessRequestResponse\x12t\n" +
 	"\x13DeleteAccessRequest\x124.teleport.lib.teleterm.v1.DeleteAccessRequestRequest\x1a'.teleport.lib.teleterm.v1.EmptyResponse\x12\x82\x01\n" +
@@ -7236,10 +4922,10 @@ const file_teleport_lib_teleterm_v1_service_proto_rawDesc = "" +
 	"AssumeRole\x12+.teleport.lib.teleterm.v1.AssumeRoleRequest\x1a'.teleport.lib.teleterm.v1.EmptyResponse\x12\x85\x01\n" +
 	"\x14PromoteAccessRequest\x125.teleport.lib.teleterm.v1.PromoteAccessRequestRequest\x1a6.teleport.lib.teleterm.v1.PromoteAccessRequestResponse\x12\x8e\x01\n" +
 	"\x17GetSuggestedAccessLists\x128.teleport.lib.teleterm.v1.GetSuggestedAccessListsRequest\x1a9.teleport.lib.teleterm.v1.GetSuggestedAccessListsResponse\x12\x8e\x01\n" +
-	"\x17ListKubernetesResources\x128.teleport.lib.teleterm.v1.ListKubernetesResourcesRequest\x1a9.teleport.lib.teleterm.v1.ListKubernetesResourcesResponse\x12\x88\x01\n" +
-	"\x15ListKubernetesServers\x126.teleport.lib.teleterm.v1.ListKubernetesServersRequest\x1a7.teleport.lib.teleterm.v1.ListKubernetesServersResponse\x12\\\n" +
+	"\x17ListKubernetesResources\x128.teleport.lib.teleterm.v1.ListKubernetesResourcesRequest\x1a9.teleport.lib.teleterm.v1.ListKubernetesResourcesResponse\x12\\\n" +
 	"\n" +
-	"AddCluster\x12+.teleport.lib.teleterm.v1.AddClusterRequest\x1a!.teleport.lib.teleterm.v1.Cluster\x12m\n" +
+	"AddCluster\x12+.teleport.lib.teleterm.v1.AddClusterRequest\x1a!.teleport.lib.teleterm.v1.Cluster\x12h\n" +
+	"\rRemoveCluster\x12..teleport.lib.teleterm.v1.RemoveClusterRequest\x1a'.teleport.lib.teleterm.v1.EmptyResponse\x12m\n" +
 	"\fListGateways\x12-.teleport.lib.teleterm.v1.ListGatewaysRequest\x1a..teleport.lib.teleterm.v1.ListGatewaysResponse\x12b\n" +
 	"\rCreateGateway\x12..teleport.lib.teleterm.v1.CreateGatewayRequest\x1a!.teleport.lib.teleterm.v1.Gateway\x12h\n" +
 	"\rRemoveGateway\x12..teleport.lib.teleterm.v1.RemoveGatewayRequest\x1a'.teleport.lib.teleterm.v1.EmptyResponse\x12\x86\x01\n" +
@@ -7250,8 +4936,7 @@ const file_teleport_lib_teleterm_v1_service_proto_rawDesc = "" +
 	"GetCluster\x12+.teleport.lib.teleterm.v1.GetClusterRequest\x1a!.teleport.lib.teleterm.v1.Cluster\x12X\n" +
 	"\x05Login\x12&.teleport.lib.teleterm.v1.LoginRequest\x1a'.teleport.lib.teleterm.v1.EmptyResponse\x12\x80\x01\n" +
 	"\x11LoginPasswordless\x122.teleport.lib.teleterm.v1.LoginPasswordlessRequest\x1a3.teleport.lib.teleterm.v1.LoginPasswordlessResponse(\x010\x01\x12Z\n" +
-	"\x06Logout\x12'.teleport.lib.teleterm.v1.LogoutRequest\x1a'.teleport.lib.teleterm.v1.EmptyResponse\x12\x91\x01\n" +
-	"\x18ClearStaleClusterClients\x129.teleport.lib.teleterm.v1.ClearStaleClusterClientsRequest\x1a:.teleport.lib.teleterm.v1.ClearStaleClusterClientsResponse\x12o\n" +
+	"\x06Logout\x12'.teleport.lib.teleterm.v1.LogoutRequest\x1a'.teleport.lib.teleterm.v1.EmptyResponse\x12o\n" +
 	"\fTransferFile\x12-.teleport.lib.teleterm.v1.FileTransferRequest\x1a..teleport.lib.teleterm.v1.FileTransferProgress0\x01\x12n\n" +
 	"\x10ReportUsageEvent\x121.teleport.lib.teleterm.v1.ReportUsageEventRequest\x1a'.teleport.lib.teleterm.v1.EmptyResponse\x12\xac\x01\n" +
 	"!UpdateHeadlessAuthenticationState\x12B.teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateRequest\x1aC.teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateResponse\x12\x9a\x01\n" +
@@ -7268,256 +4953,259 @@ const file_teleport_lib_teleterm_v1_service_proto_rawDesc = "" +
 	"\x10ConnectToDesktop\x121.teleport.lib.teleterm.v1.ConnectToDesktopRequest\x1a2.teleport.lib.teleterm.v1.ConnectToDesktopResponse(\x010\x01\x12\xb2\x01\n" +
 	"#SetSharedDirectoryForDesktopSession\x12D.teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionRequest\x1aE.teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionResponseBTZRgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1b\x06proto3"
 
+var (
+	file_teleport_lib_teleterm_v1_service_proto_rawDescOnce sync.Once
+	file_teleport_lib_teleterm_v1_service_proto_rawDescData []byte
+)
+
+func file_teleport_lib_teleterm_v1_service_proto_rawDescGZIP() []byte {
+	file_teleport_lib_teleterm_v1_service_proto_rawDescOnce.Do(func() {
+		file_teleport_lib_teleterm_v1_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_lib_teleterm_v1_service_proto_rawDesc), len(file_teleport_lib_teleterm_v1_service_proto_rawDesc)))
+	})
+	return file_teleport_lib_teleterm_v1_service_proto_rawDescData
+}
+
 var file_teleport_lib_teleterm_v1_service_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_teleport_lib_teleterm_v1_service_proto_msgTypes = make([]protoimpl.MessageInfo, 84)
+var file_teleport_lib_teleterm_v1_service_proto_msgTypes = make([]protoimpl.MessageInfo, 82)
 var file_teleport_lib_teleterm_v1_service_proto_goTypes = []any{
 	(PasswordlessPrompt)(0),                                              // 0: teleport.lib.teleterm.v1.PasswordlessPrompt
 	(FileTransferDirection)(0),                                           // 1: teleport.lib.teleterm.v1.FileTransferDirection
 	(HeadlessAuthenticationState)(0),                                     // 2: teleport.lib.teleterm.v1.HeadlessAuthenticationState
 	(*EmptyResponse)(nil),                                                // 3: teleport.lib.teleterm.v1.EmptyResponse
-	(*GetClusterRequest)(nil),                                            // 4: teleport.lib.teleterm.v1.GetClusterRequest
-	(*LogoutRequest)(nil),                                                // 5: teleport.lib.teleterm.v1.LogoutRequest
-	(*ClearStaleClusterClientsRequest)(nil),                              // 6: teleport.lib.teleterm.v1.ClearStaleClusterClientsRequest
-	(*ClearStaleClusterClientsResponse)(nil),                             // 7: teleport.lib.teleterm.v1.ClearStaleClusterClientsResponse
-	(*StartHeadlessWatcherRequest)(nil),                                  // 8: teleport.lib.teleterm.v1.StartHeadlessWatcherRequest
-	(*StartHeadlessWatcherResponse)(nil),                                 // 9: teleport.lib.teleterm.v1.StartHeadlessWatcherResponse
-	(*GetAccessRequestRequest)(nil),                                      // 10: teleport.lib.teleterm.v1.GetAccessRequestRequest
-	(*GetAccessRequestsRequest)(nil),                                     // 11: teleport.lib.teleterm.v1.GetAccessRequestsRequest
-	(*GetAccessRequestResponse)(nil),                                     // 12: teleport.lib.teleterm.v1.GetAccessRequestResponse
-	(*GetAccessRequestsResponse)(nil),                                    // 13: teleport.lib.teleterm.v1.GetAccessRequestsResponse
-	(*DeleteAccessRequestRequest)(nil),                                   // 14: teleport.lib.teleterm.v1.DeleteAccessRequestRequest
-	(*CreateAccessRequestRequest)(nil),                                   // 15: teleport.lib.teleterm.v1.CreateAccessRequestRequest
-	(*CreateAccessRequestResponse)(nil),                                  // 16: teleport.lib.teleterm.v1.CreateAccessRequestResponse
-	(*AssumeRoleRequest)(nil),                                            // 17: teleport.lib.teleterm.v1.AssumeRoleRequest
-	(*GetRequestableRolesRequest)(nil),                                   // 18: teleport.lib.teleterm.v1.GetRequestableRolesRequest
-	(*GetRequestableRolesResponse)(nil),                                  // 19: teleport.lib.teleterm.v1.GetRequestableRolesResponse
-	(*ReviewAccessRequestRequest)(nil),                                   // 20: teleport.lib.teleterm.v1.ReviewAccessRequestRequest
-	(*ReviewAccessRequestResponse)(nil),                                  // 21: teleport.lib.teleterm.v1.ReviewAccessRequestResponse
-	(*PromoteAccessRequestRequest)(nil),                                  // 22: teleport.lib.teleterm.v1.PromoteAccessRequestRequest
-	(*PromoteAccessRequestResponse)(nil),                                 // 23: teleport.lib.teleterm.v1.PromoteAccessRequestResponse
-	(*GetSuggestedAccessListsRequest)(nil),                               // 24: teleport.lib.teleterm.v1.GetSuggestedAccessListsRequest
-	(*GetSuggestedAccessListsResponse)(nil),                              // 25: teleport.lib.teleterm.v1.GetSuggestedAccessListsResponse
-	(*ListKubernetesResourcesRequest)(nil),                               // 26: teleport.lib.teleterm.v1.ListKubernetesResourcesRequest
-	(*ListKubernetesResourcesResponse)(nil),                              // 27: teleport.lib.teleterm.v1.ListKubernetesResourcesResponse
-	(*ListKubernetesServersRequest)(nil),                                 // 28: teleport.lib.teleterm.v1.ListKubernetesServersRequest
-	(*ListKubernetesServersResponse)(nil),                                // 29: teleport.lib.teleterm.v1.ListKubernetesServersResponse
-	(*CredentialInfo)(nil),                                               // 30: teleport.lib.teleterm.v1.CredentialInfo
-	(*LoginPasswordlessResponse)(nil),                                    // 31: teleport.lib.teleterm.v1.LoginPasswordlessResponse
-	(*LoginPasswordlessRequest)(nil),                                     // 32: teleport.lib.teleterm.v1.LoginPasswordlessRequest
-	(*FileTransferRequest)(nil),                                          // 33: teleport.lib.teleterm.v1.FileTransferRequest
-	(*FileTransferProgress)(nil),                                         // 34: teleport.lib.teleterm.v1.FileTransferProgress
-	(*LoginRequest)(nil),                                                 // 35: teleport.lib.teleterm.v1.LoginRequest
-	(*AddClusterRequest)(nil),                                            // 36: teleport.lib.teleterm.v1.AddClusterRequest
-	(*ListClustersRequest)(nil),                                          // 37: teleport.lib.teleterm.v1.ListClustersRequest
-	(*ListClustersResponse)(nil),                                         // 38: teleport.lib.teleterm.v1.ListClustersResponse
-	(*ListLeafClustersRequest)(nil),                                      // 39: teleport.lib.teleterm.v1.ListLeafClustersRequest
-	(*ListResourcesParams)(nil),                                          // 40: teleport.lib.teleterm.v1.ListResourcesParams
-	(*ListDatabaseServersRequest)(nil),                                   // 41: teleport.lib.teleterm.v1.ListDatabaseServersRequest
-	(*ListDatabaseServersResponse)(nil),                                  // 42: teleport.lib.teleterm.v1.ListDatabaseServersResponse
-	(*CreateGatewayRequest)(nil),                                         // 43: teleport.lib.teleterm.v1.CreateGatewayRequest
-	(*ListGatewaysRequest)(nil),                                          // 44: teleport.lib.teleterm.v1.ListGatewaysRequest
-	(*ListGatewaysResponse)(nil),                                         // 45: teleport.lib.teleterm.v1.ListGatewaysResponse
-	(*RemoveGatewayRequest)(nil),                                         // 46: teleport.lib.teleterm.v1.RemoveGatewayRequest
-	(*SetGatewayTargetSubresourceNameRequest)(nil),                       // 47: teleport.lib.teleterm.v1.SetGatewayTargetSubresourceNameRequest
-	(*SetGatewayLocalPortRequest)(nil),                                   // 48: teleport.lib.teleterm.v1.SetGatewayLocalPortRequest
-	(*GetAuthSettingsRequest)(nil),                                       // 49: teleport.lib.teleterm.v1.GetAuthSettingsRequest
-	(*UpdateTshdEventsServerAddressRequest)(nil),                         // 50: teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressRequest
-	(*UpdateTshdEventsServerAddressResponse)(nil),                        // 51: teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressResponse
-	(*UpdateHeadlessAuthenticationStateRequest)(nil),                     // 52: teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateRequest
-	(*UpdateHeadlessAuthenticationStateResponse)(nil),                    // 53: teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateResponse
-	(*CreateConnectMyComputerRoleRequest)(nil),                           // 54: teleport.lib.teleterm.v1.CreateConnectMyComputerRoleRequest
-	(*CreateConnectMyComputerRoleResponse)(nil),                          // 55: teleport.lib.teleterm.v1.CreateConnectMyComputerRoleResponse
-	(*CreateConnectMyComputerNodeTokenRequest)(nil),                      // 56: teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenRequest
-	(*CreateConnectMyComputerNodeTokenResponse)(nil),                     // 57: teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenResponse
-	(*WaitForConnectMyComputerNodeJoinRequest)(nil),                      // 58: teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinRequest
-	(*WaitForConnectMyComputerNodeJoinResponse)(nil),                     // 59: teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinResponse
-	(*DeleteConnectMyComputerNodeRequest)(nil),                           // 60: teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeRequest
-	(*DeleteConnectMyComputerNodeResponse)(nil),                          // 61: teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeResponse
-	(*GetConnectMyComputerNodeNameRequest)(nil),                          // 62: teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameRequest
-	(*GetConnectMyComputerNodeNameResponse)(nil),                         // 63: teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameResponse
-	(*ListUnifiedResourcesRequest)(nil),                                  // 64: teleport.lib.teleterm.v1.ListUnifiedResourcesRequest
-	(*SortBy)(nil),                                                       // 65: teleport.lib.teleterm.v1.SortBy
-	(*ListUnifiedResourcesResponse)(nil),                                 // 66: teleport.lib.teleterm.v1.ListUnifiedResourcesResponse
-	(*PaginatedResource)(nil),                                            // 67: teleport.lib.teleterm.v1.PaginatedResource
-	(*GetUserPreferencesRequest)(nil),                                    // 68: teleport.lib.teleterm.v1.GetUserPreferencesRequest
-	(*GetUserPreferencesResponse)(nil),                                   // 69: teleport.lib.teleterm.v1.GetUserPreferencesResponse
-	(*UpdateUserPreferencesRequest)(nil),                                 // 70: teleport.lib.teleterm.v1.UpdateUserPreferencesRequest
-	(*UpdateUserPreferencesResponse)(nil),                                // 71: teleport.lib.teleterm.v1.UpdateUserPreferencesResponse
-	(*UserPreferences)(nil),                                              // 72: teleport.lib.teleterm.v1.UserPreferences
-	(*AuthenticateWebDeviceRequest)(nil),                                 // 73: teleport.lib.teleterm.v1.AuthenticateWebDeviceRequest
-	(*AuthenticateWebDeviceResponse)(nil),                                // 74: teleport.lib.teleterm.v1.AuthenticateWebDeviceResponse
-	(*GetAppRequest)(nil),                                                // 75: teleport.lib.teleterm.v1.GetAppRequest
-	(*GetAppResponse)(nil),                                               // 76: teleport.lib.teleterm.v1.GetAppResponse
-	(*TargetDesktop)(nil),                                                // 77: teleport.lib.teleterm.v1.TargetDesktop
-	(*ConnectToDesktopRequest)(nil),                                      // 78: teleport.lib.teleterm.v1.ConnectToDesktopRequest
-	(*ConnectToDesktopResponse)(nil),                                     // 79: teleport.lib.teleterm.v1.ConnectToDesktopResponse
-	(*SetSharedDirectoryForDesktopSessionRequest)(nil),                   // 80: teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionRequest
-	(*SetSharedDirectoryForDesktopSessionResponse)(nil),                  // 81: teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionResponse
-	(*LoginPasswordlessRequest_LoginPasswordlessRequestInit)(nil),        // 82: teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit
-	(*LoginPasswordlessRequest_LoginPasswordlessPINResponse)(nil),        // 83: teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse
-	(*LoginPasswordlessRequest_LoginPasswordlessCredentialResponse)(nil), // 84: teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse
-	(*LoginRequest_LocalParams)(nil),                                     // 85: teleport.lib.teleterm.v1.LoginRequest.LocalParams
-	(*LoginRequest_SsoParams)(nil),                                       // 86: teleport.lib.teleterm.v1.LoginRequest.SsoParams
-	(*AccessRequest)(nil),                                                // 87: teleport.lib.teleterm.v1.AccessRequest
-	(*ResourceID)(nil),                                                   // 88: teleport.lib.teleterm.v1.ResourceID
-	(*timestamppb.Timestamp)(nil),                                        // 89: google.protobuf.Timestamp
-	(*types.ResourceAccessID)(nil),                                       // 90: types.ResourceAccessID
-	(*v1.AccessList)(nil),                                                // 91: teleport.accesslist.v1.AccessList
-	(*KubeResource)(nil),                                                 // 92: teleport.lib.teleterm.v1.KubeResource
-	(*KubeServer)(nil),                                                   // 93: teleport.lib.teleterm.v1.KubeServer
-	(*Cluster)(nil),                                                      // 94: teleport.lib.teleterm.v1.Cluster
-	(*DatabaseServer)(nil),                                               // 95: teleport.lib.teleterm.v1.DatabaseServer
-	(*Gateway)(nil),                                                      // 96: teleport.lib.teleterm.v1.Gateway
-	(*Server)(nil),                                                       // 97: teleport.lib.teleterm.v1.Server
-	(*Database)(nil),                                                     // 98: teleport.lib.teleterm.v1.Database
-	(*Kube)(nil),                                                         // 99: teleport.lib.teleterm.v1.Kube
-	(*App)(nil),                                                          // 100: teleport.lib.teleterm.v1.App
-	(*WindowsDesktop)(nil),                                               // 101: teleport.lib.teleterm.v1.WindowsDesktop
-	(*v11.ClusterUserPreferences)(nil),                                   // 102: teleport.userpreferences.v1.ClusterUserPreferences
-	(*v11.UnifiedResourcePreferences)(nil),                               // 103: teleport.userpreferences.v1.UnifiedResourcePreferences
-	(*v12.DeviceWebToken)(nil),                                           // 104: teleport.devicetrust.v1.DeviceWebToken
-	(*v12.DeviceConfirmationToken)(nil),                                  // 105: teleport.devicetrust.v1.DeviceConfirmationToken
-	(*ReportUsageEventRequest)(nil),                                      // 106: teleport.lib.teleterm.v1.ReportUsageEventRequest
-	(*AuthSettings)(nil),                                                 // 107: teleport.lib.teleterm.v1.AuthSettings
+	(*RemoveClusterRequest)(nil),                                         // 4: teleport.lib.teleterm.v1.RemoveClusterRequest
+	(*GetClusterRequest)(nil),                                            // 5: teleport.lib.teleterm.v1.GetClusterRequest
+	(*LogoutRequest)(nil),                                                // 6: teleport.lib.teleterm.v1.LogoutRequest
+	(*StartHeadlessWatcherRequest)(nil),                                  // 7: teleport.lib.teleterm.v1.StartHeadlessWatcherRequest
+	(*StartHeadlessWatcherResponse)(nil),                                 // 8: teleport.lib.teleterm.v1.StartHeadlessWatcherResponse
+	(*GetAccessRequestRequest)(nil),                                      // 9: teleport.lib.teleterm.v1.GetAccessRequestRequest
+	(*GetAccessRequestsRequest)(nil),                                     // 10: teleport.lib.teleterm.v1.GetAccessRequestsRequest
+	(*GetAccessRequestResponse)(nil),                                     // 11: teleport.lib.teleterm.v1.GetAccessRequestResponse
+	(*GetAccessRequestsResponse)(nil),                                    // 12: teleport.lib.teleterm.v1.GetAccessRequestsResponse
+	(*DeleteAccessRequestRequest)(nil),                                   // 13: teleport.lib.teleterm.v1.DeleteAccessRequestRequest
+	(*CreateAccessRequestRequest)(nil),                                   // 14: teleport.lib.teleterm.v1.CreateAccessRequestRequest
+	(*CreateAccessRequestResponse)(nil),                                  // 15: teleport.lib.teleterm.v1.CreateAccessRequestResponse
+	(*AssumeRoleRequest)(nil),                                            // 16: teleport.lib.teleterm.v1.AssumeRoleRequest
+	(*GetRequestableRolesRequest)(nil),                                   // 17: teleport.lib.teleterm.v1.GetRequestableRolesRequest
+	(*GetRequestableRolesResponse)(nil),                                  // 18: teleport.lib.teleterm.v1.GetRequestableRolesResponse
+	(*ReviewAccessRequestRequest)(nil),                                   // 19: teleport.lib.teleterm.v1.ReviewAccessRequestRequest
+	(*ReviewAccessRequestResponse)(nil),                                  // 20: teleport.lib.teleterm.v1.ReviewAccessRequestResponse
+	(*PromoteAccessRequestRequest)(nil),                                  // 21: teleport.lib.teleterm.v1.PromoteAccessRequestRequest
+	(*PromoteAccessRequestResponse)(nil),                                 // 22: teleport.lib.teleterm.v1.PromoteAccessRequestResponse
+	(*GetSuggestedAccessListsRequest)(nil),                               // 23: teleport.lib.teleterm.v1.GetSuggestedAccessListsRequest
+	(*GetSuggestedAccessListsResponse)(nil),                              // 24: teleport.lib.teleterm.v1.GetSuggestedAccessListsResponse
+	(*ListKubernetesResourcesRequest)(nil),                               // 25: teleport.lib.teleterm.v1.ListKubernetesResourcesRequest
+	(*ListKubernetesResourcesResponse)(nil),                              // 26: teleport.lib.teleterm.v1.ListKubernetesResourcesResponse
+	(*CredentialInfo)(nil),                                               // 27: teleport.lib.teleterm.v1.CredentialInfo
+	(*LoginPasswordlessResponse)(nil),                                    // 28: teleport.lib.teleterm.v1.LoginPasswordlessResponse
+	(*LoginPasswordlessRequest)(nil),                                     // 29: teleport.lib.teleterm.v1.LoginPasswordlessRequest
+	(*FileTransferRequest)(nil),                                          // 30: teleport.lib.teleterm.v1.FileTransferRequest
+	(*FileTransferProgress)(nil),                                         // 31: teleport.lib.teleterm.v1.FileTransferProgress
+	(*LoginRequest)(nil),                                                 // 32: teleport.lib.teleterm.v1.LoginRequest
+	(*AddClusterRequest)(nil),                                            // 33: teleport.lib.teleterm.v1.AddClusterRequest
+	(*ListClustersRequest)(nil),                                          // 34: teleport.lib.teleterm.v1.ListClustersRequest
+	(*ListClustersResponse)(nil),                                         // 35: teleport.lib.teleterm.v1.ListClustersResponse
+	(*ListLeafClustersRequest)(nil),                                      // 36: teleport.lib.teleterm.v1.ListLeafClustersRequest
+	(*ListDatabaseUsersRequest)(nil),                                     // 37: teleport.lib.teleterm.v1.ListDatabaseUsersRequest
+	(*ListDatabaseUsersResponse)(nil),                                    // 38: teleport.lib.teleterm.v1.ListDatabaseUsersResponse
+	(*CreateGatewayRequest)(nil),                                         // 39: teleport.lib.teleterm.v1.CreateGatewayRequest
+	(*ListGatewaysRequest)(nil),                                          // 40: teleport.lib.teleterm.v1.ListGatewaysRequest
+	(*ListGatewaysResponse)(nil),                                         // 41: teleport.lib.teleterm.v1.ListGatewaysResponse
+	(*RemoveGatewayRequest)(nil),                                         // 42: teleport.lib.teleterm.v1.RemoveGatewayRequest
+	(*SetGatewayTargetSubresourceNameRequest)(nil),                       // 43: teleport.lib.teleterm.v1.SetGatewayTargetSubresourceNameRequest
+	(*SetGatewayLocalPortRequest)(nil),                                   // 44: teleport.lib.teleterm.v1.SetGatewayLocalPortRequest
+	(*GetServersRequest)(nil),                                            // 45: teleport.lib.teleterm.v1.GetServersRequest
+	(*GetServersResponse)(nil),                                           // 46: teleport.lib.teleterm.v1.GetServersResponse
+	(*GetAuthSettingsRequest)(nil),                                       // 47: teleport.lib.teleterm.v1.GetAuthSettingsRequest
+	(*UpdateTshdEventsServerAddressRequest)(nil),                         // 48: teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressRequest
+	(*UpdateTshdEventsServerAddressResponse)(nil),                        // 49: teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressResponse
+	(*UpdateHeadlessAuthenticationStateRequest)(nil),                     // 50: teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateRequest
+	(*UpdateHeadlessAuthenticationStateResponse)(nil),                    // 51: teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateResponse
+	(*CreateConnectMyComputerRoleRequest)(nil),                           // 52: teleport.lib.teleterm.v1.CreateConnectMyComputerRoleRequest
+	(*CreateConnectMyComputerRoleResponse)(nil),                          // 53: teleport.lib.teleterm.v1.CreateConnectMyComputerRoleResponse
+	(*CreateConnectMyComputerNodeTokenRequest)(nil),                      // 54: teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenRequest
+	(*CreateConnectMyComputerNodeTokenResponse)(nil),                     // 55: teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenResponse
+	(*WaitForConnectMyComputerNodeJoinRequest)(nil),                      // 56: teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinRequest
+	(*WaitForConnectMyComputerNodeJoinResponse)(nil),                     // 57: teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinResponse
+	(*DeleteConnectMyComputerNodeRequest)(nil),                           // 58: teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeRequest
+	(*DeleteConnectMyComputerNodeResponse)(nil),                          // 59: teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeResponse
+	(*GetConnectMyComputerNodeNameRequest)(nil),                          // 60: teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameRequest
+	(*GetConnectMyComputerNodeNameResponse)(nil),                         // 61: teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameResponse
+	(*ListUnifiedResourcesRequest)(nil),                                  // 62: teleport.lib.teleterm.v1.ListUnifiedResourcesRequest
+	(*SortBy)(nil),                                                       // 63: teleport.lib.teleterm.v1.SortBy
+	(*ListUnifiedResourcesResponse)(nil),                                 // 64: teleport.lib.teleterm.v1.ListUnifiedResourcesResponse
+	(*PaginatedResource)(nil),                                            // 65: teleport.lib.teleterm.v1.PaginatedResource
+	(*GetUserPreferencesRequest)(nil),                                    // 66: teleport.lib.teleterm.v1.GetUserPreferencesRequest
+	(*GetUserPreferencesResponse)(nil),                                   // 67: teleport.lib.teleterm.v1.GetUserPreferencesResponse
+	(*UpdateUserPreferencesRequest)(nil),                                 // 68: teleport.lib.teleterm.v1.UpdateUserPreferencesRequest
+	(*UpdateUserPreferencesResponse)(nil),                                // 69: teleport.lib.teleterm.v1.UpdateUserPreferencesResponse
+	(*UserPreferences)(nil),                                              // 70: teleport.lib.teleterm.v1.UserPreferences
+	(*AuthenticateWebDeviceRequest)(nil),                                 // 71: teleport.lib.teleterm.v1.AuthenticateWebDeviceRequest
+	(*AuthenticateWebDeviceResponse)(nil),                                // 72: teleport.lib.teleterm.v1.AuthenticateWebDeviceResponse
+	(*GetAppRequest)(nil),                                                // 73: teleport.lib.teleterm.v1.GetAppRequest
+	(*GetAppResponse)(nil),                                               // 74: teleport.lib.teleterm.v1.GetAppResponse
+	(*TargetDesktop)(nil),                                                // 75: teleport.lib.teleterm.v1.TargetDesktop
+	(*ConnectToDesktopRequest)(nil),                                      // 76: teleport.lib.teleterm.v1.ConnectToDesktopRequest
+	(*ConnectToDesktopResponse)(nil),                                     // 77: teleport.lib.teleterm.v1.ConnectToDesktopResponse
+	(*SetSharedDirectoryForDesktopSessionRequest)(nil),                   // 78: teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionRequest
+	(*SetSharedDirectoryForDesktopSessionResponse)(nil),                  // 79: teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionResponse
+	(*LoginPasswordlessRequest_LoginPasswordlessRequestInit)(nil),        // 80: teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit
+	(*LoginPasswordlessRequest_LoginPasswordlessPINResponse)(nil),        // 81: teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse
+	(*LoginPasswordlessRequest_LoginPasswordlessCredentialResponse)(nil), // 82: teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse
+	(*LoginRequest_LocalParams)(nil),                                     // 83: teleport.lib.teleterm.v1.LoginRequest.LocalParams
+	(*LoginRequest_SsoParams)(nil),                                       // 84: teleport.lib.teleterm.v1.LoginRequest.SsoParams
+	(*AccessRequest)(nil),                                                // 85: teleport.lib.teleterm.v1.AccessRequest
+	(*ResourceID)(nil),                                                   // 86: teleport.lib.teleterm.v1.ResourceID
+	(*timestamppb.Timestamp)(nil),                                        // 87: google.protobuf.Timestamp
+	(*v1.AccessList)(nil),                                                // 88: teleport.accesslist.v1.AccessList
+	(*KubeResource)(nil),                                                 // 89: teleport.lib.teleterm.v1.KubeResource
+	(*Cluster)(nil),                                                      // 90: teleport.lib.teleterm.v1.Cluster
+	(*Gateway)(nil),                                                      // 91: teleport.lib.teleterm.v1.Gateway
+	(*Server)(nil),                                                       // 92: teleport.lib.teleterm.v1.Server
+	(*Database)(nil),                                                     // 93: teleport.lib.teleterm.v1.Database
+	(*Kube)(nil),                                                         // 94: teleport.lib.teleterm.v1.Kube
+	(*App)(nil),                                                          // 95: teleport.lib.teleterm.v1.App
+	(*WindowsDesktop)(nil),                                               // 96: teleport.lib.teleterm.v1.WindowsDesktop
+	(*v11.ClusterUserPreferences)(nil),                                   // 97: teleport.userpreferences.v1.ClusterUserPreferences
+	(*v11.UnifiedResourcePreferences)(nil),                               // 98: teleport.userpreferences.v1.UnifiedResourcePreferences
+	(*v12.DeviceWebToken)(nil),                                           // 99: teleport.devicetrust.v1.DeviceWebToken
+	(*v12.DeviceConfirmationToken)(nil),                                  // 100: teleport.devicetrust.v1.DeviceConfirmationToken
+	(*ReportUsageEventRequest)(nil),                                      // 101: teleport.lib.teleterm.v1.ReportUsageEventRequest
+	(*AuthSettings)(nil),                                                 // 102: teleport.lib.teleterm.v1.AuthSettings
 }
 var file_teleport_lib_teleterm_v1_service_proto_depIdxs = []int32{
-	87,  // 0: teleport.lib.teleterm.v1.GetAccessRequestResponse.request:type_name -> teleport.lib.teleterm.v1.AccessRequest
-	87,  // 1: teleport.lib.teleterm.v1.GetAccessRequestsResponse.requests:type_name -> teleport.lib.teleterm.v1.AccessRequest
-	88,  // 2: teleport.lib.teleterm.v1.CreateAccessRequestRequest.resource_ids:type_name -> teleport.lib.teleterm.v1.ResourceID
-	89,  // 3: teleport.lib.teleterm.v1.CreateAccessRequestRequest.assume_start_time:type_name -> google.protobuf.Timestamp
-	89,  // 4: teleport.lib.teleterm.v1.CreateAccessRequestRequest.max_duration:type_name -> google.protobuf.Timestamp
-	89,  // 5: teleport.lib.teleterm.v1.CreateAccessRequestRequest.request_ttl:type_name -> google.protobuf.Timestamp
-	90,  // 6: teleport.lib.teleterm.v1.CreateAccessRequestRequest.resource_access_ids:type_name -> types.ResourceAccessID
-	87,  // 7: teleport.lib.teleterm.v1.CreateAccessRequestResponse.request:type_name -> teleport.lib.teleterm.v1.AccessRequest
-	88,  // 8: teleport.lib.teleterm.v1.GetRequestableRolesRequest.resource_ids:type_name -> teleport.lib.teleterm.v1.ResourceID
-	89,  // 9: teleport.lib.teleterm.v1.ReviewAccessRequestRequest.assume_start_time:type_name -> google.protobuf.Timestamp
-	87,  // 10: teleport.lib.teleterm.v1.ReviewAccessRequestResponse.request:type_name -> teleport.lib.teleterm.v1.AccessRequest
-	87,  // 11: teleport.lib.teleterm.v1.PromoteAccessRequestResponse.request:type_name -> teleport.lib.teleterm.v1.AccessRequest
-	91,  // 12: teleport.lib.teleterm.v1.GetSuggestedAccessListsResponse.access_lists:type_name -> teleport.accesslist.v1.AccessList
-	92,  // 13: teleport.lib.teleterm.v1.ListKubernetesResourcesResponse.resources:type_name -> teleport.lib.teleterm.v1.KubeResource
-	40,  // 14: teleport.lib.teleterm.v1.ListKubernetesServersRequest.params:type_name -> teleport.lib.teleterm.v1.ListResourcesParams
-	93,  // 15: teleport.lib.teleterm.v1.ListKubernetesServersResponse.resources:type_name -> teleport.lib.teleterm.v1.KubeServer
-	0,   // 16: teleport.lib.teleterm.v1.LoginPasswordlessResponse.prompt:type_name -> teleport.lib.teleterm.v1.PasswordlessPrompt
-	30,  // 17: teleport.lib.teleterm.v1.LoginPasswordlessResponse.credentials:type_name -> teleport.lib.teleterm.v1.CredentialInfo
-	82,  // 18: teleport.lib.teleterm.v1.LoginPasswordlessRequest.init:type_name -> teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit
-	83,  // 19: teleport.lib.teleterm.v1.LoginPasswordlessRequest.pin:type_name -> teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse
-	84,  // 20: teleport.lib.teleterm.v1.LoginPasswordlessRequest.credential:type_name -> teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse
-	1,   // 21: teleport.lib.teleterm.v1.FileTransferRequest.direction:type_name -> teleport.lib.teleterm.v1.FileTransferDirection
-	85,  // 22: teleport.lib.teleterm.v1.LoginRequest.local:type_name -> teleport.lib.teleterm.v1.LoginRequest.LocalParams
-	86,  // 23: teleport.lib.teleterm.v1.LoginRequest.sso:type_name -> teleport.lib.teleterm.v1.LoginRequest.SsoParams
-	94,  // 24: teleport.lib.teleterm.v1.ListClustersResponse.clusters:type_name -> teleport.lib.teleterm.v1.Cluster
-	40,  // 25: teleport.lib.teleterm.v1.ListDatabaseServersRequest.params:type_name -> teleport.lib.teleterm.v1.ListResourcesParams
-	95,  // 26: teleport.lib.teleterm.v1.ListDatabaseServersResponse.resources:type_name -> teleport.lib.teleterm.v1.DatabaseServer
-	96,  // 27: teleport.lib.teleterm.v1.ListGatewaysResponse.gateways:type_name -> teleport.lib.teleterm.v1.Gateway
-	2,   // 28: teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateRequest.state:type_name -> teleport.lib.teleterm.v1.HeadlessAuthenticationState
-	97,  // 29: teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinResponse.server:type_name -> teleport.lib.teleterm.v1.Server
-	65,  // 30: teleport.lib.teleterm.v1.ListUnifiedResourcesRequest.sort_by:type_name -> teleport.lib.teleterm.v1.SortBy
-	67,  // 31: teleport.lib.teleterm.v1.ListUnifiedResourcesResponse.resources:type_name -> teleport.lib.teleterm.v1.PaginatedResource
-	98,  // 32: teleport.lib.teleterm.v1.PaginatedResource.database:type_name -> teleport.lib.teleterm.v1.Database
-	97,  // 33: teleport.lib.teleterm.v1.PaginatedResource.server:type_name -> teleport.lib.teleterm.v1.Server
-	99,  // 34: teleport.lib.teleterm.v1.PaginatedResource.kube:type_name -> teleport.lib.teleterm.v1.Kube
-	100, // 35: teleport.lib.teleterm.v1.PaginatedResource.app:type_name -> teleport.lib.teleterm.v1.App
-	101, // 36: teleport.lib.teleterm.v1.PaginatedResource.windows_desktop:type_name -> teleport.lib.teleterm.v1.WindowsDesktop
-	72,  // 37: teleport.lib.teleterm.v1.GetUserPreferencesResponse.user_preferences:type_name -> teleport.lib.teleterm.v1.UserPreferences
-	72,  // 38: teleport.lib.teleterm.v1.UpdateUserPreferencesRequest.user_preferences:type_name -> teleport.lib.teleterm.v1.UserPreferences
-	72,  // 39: teleport.lib.teleterm.v1.UpdateUserPreferencesResponse.user_preferences:type_name -> teleport.lib.teleterm.v1.UserPreferences
-	102, // 40: teleport.lib.teleterm.v1.UserPreferences.cluster_preferences:type_name -> teleport.userpreferences.v1.ClusterUserPreferences
-	103, // 41: teleport.lib.teleterm.v1.UserPreferences.unified_resource_preferences:type_name -> teleport.userpreferences.v1.UnifiedResourcePreferences
-	104, // 42: teleport.lib.teleterm.v1.AuthenticateWebDeviceRequest.device_web_token:type_name -> teleport.devicetrust.v1.DeviceWebToken
-	105, // 43: teleport.lib.teleterm.v1.AuthenticateWebDeviceResponse.confirmation_token:type_name -> teleport.devicetrust.v1.DeviceConfirmationToken
-	100, // 44: teleport.lib.teleterm.v1.GetAppResponse.app:type_name -> teleport.lib.teleterm.v1.App
-	77,  // 45: teleport.lib.teleterm.v1.ConnectToDesktopRequest.target_desktop:type_name -> teleport.lib.teleterm.v1.TargetDesktop
-	50,  // 46: teleport.lib.teleterm.v1.TerminalService.UpdateTshdEventsServerAddress:input_type -> teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressRequest
-	37,  // 47: teleport.lib.teleterm.v1.TerminalService.ListRootClusters:input_type -> teleport.lib.teleterm.v1.ListClustersRequest
-	39,  // 48: teleport.lib.teleterm.v1.TerminalService.ListLeafClusters:input_type -> teleport.lib.teleterm.v1.ListLeafClustersRequest
-	8,   // 49: teleport.lib.teleterm.v1.TerminalService.StartHeadlessWatcher:input_type -> teleport.lib.teleterm.v1.StartHeadlessWatcherRequest
-	41,  // 50: teleport.lib.teleterm.v1.TerminalService.ListDatabaseServers:input_type -> teleport.lib.teleterm.v1.ListDatabaseServersRequest
-	11,  // 51: teleport.lib.teleterm.v1.TerminalService.GetAccessRequests:input_type -> teleport.lib.teleterm.v1.GetAccessRequestsRequest
-	10,  // 52: teleport.lib.teleterm.v1.TerminalService.GetAccessRequest:input_type -> teleport.lib.teleterm.v1.GetAccessRequestRequest
-	14,  // 53: teleport.lib.teleterm.v1.TerminalService.DeleteAccessRequest:input_type -> teleport.lib.teleterm.v1.DeleteAccessRequestRequest
-	15,  // 54: teleport.lib.teleterm.v1.TerminalService.CreateAccessRequest:input_type -> teleport.lib.teleterm.v1.CreateAccessRequestRequest
-	20,  // 55: teleport.lib.teleterm.v1.TerminalService.ReviewAccessRequest:input_type -> teleport.lib.teleterm.v1.ReviewAccessRequestRequest
-	18,  // 56: teleport.lib.teleterm.v1.TerminalService.GetRequestableRoles:input_type -> teleport.lib.teleterm.v1.GetRequestableRolesRequest
-	17,  // 57: teleport.lib.teleterm.v1.TerminalService.AssumeRole:input_type -> teleport.lib.teleterm.v1.AssumeRoleRequest
-	22,  // 58: teleport.lib.teleterm.v1.TerminalService.PromoteAccessRequest:input_type -> teleport.lib.teleterm.v1.PromoteAccessRequestRequest
-	24,  // 59: teleport.lib.teleterm.v1.TerminalService.GetSuggestedAccessLists:input_type -> teleport.lib.teleterm.v1.GetSuggestedAccessListsRequest
-	26,  // 60: teleport.lib.teleterm.v1.TerminalService.ListKubernetesResources:input_type -> teleport.lib.teleterm.v1.ListKubernetesResourcesRequest
-	28,  // 61: teleport.lib.teleterm.v1.TerminalService.ListKubernetesServers:input_type -> teleport.lib.teleterm.v1.ListKubernetesServersRequest
-	36,  // 62: teleport.lib.teleterm.v1.TerminalService.AddCluster:input_type -> teleport.lib.teleterm.v1.AddClusterRequest
-	44,  // 63: teleport.lib.teleterm.v1.TerminalService.ListGateways:input_type -> teleport.lib.teleterm.v1.ListGatewaysRequest
-	43,  // 64: teleport.lib.teleterm.v1.TerminalService.CreateGateway:input_type -> teleport.lib.teleterm.v1.CreateGatewayRequest
-	46,  // 65: teleport.lib.teleterm.v1.TerminalService.RemoveGateway:input_type -> teleport.lib.teleterm.v1.RemoveGatewayRequest
-	47,  // 66: teleport.lib.teleterm.v1.TerminalService.SetGatewayTargetSubresourceName:input_type -> teleport.lib.teleterm.v1.SetGatewayTargetSubresourceNameRequest
-	48,  // 67: teleport.lib.teleterm.v1.TerminalService.SetGatewayLocalPort:input_type -> teleport.lib.teleterm.v1.SetGatewayLocalPortRequest
-	49,  // 68: teleport.lib.teleterm.v1.TerminalService.GetAuthSettings:input_type -> teleport.lib.teleterm.v1.GetAuthSettingsRequest
-	4,   // 69: teleport.lib.teleterm.v1.TerminalService.GetCluster:input_type -> teleport.lib.teleterm.v1.GetClusterRequest
-	35,  // 70: teleport.lib.teleterm.v1.TerminalService.Login:input_type -> teleport.lib.teleterm.v1.LoginRequest
-	32,  // 71: teleport.lib.teleterm.v1.TerminalService.LoginPasswordless:input_type -> teleport.lib.teleterm.v1.LoginPasswordlessRequest
-	5,   // 72: teleport.lib.teleterm.v1.TerminalService.Logout:input_type -> teleport.lib.teleterm.v1.LogoutRequest
-	6,   // 73: teleport.lib.teleterm.v1.TerminalService.ClearStaleClusterClients:input_type -> teleport.lib.teleterm.v1.ClearStaleClusterClientsRequest
-	33,  // 74: teleport.lib.teleterm.v1.TerminalService.TransferFile:input_type -> teleport.lib.teleterm.v1.FileTransferRequest
-	106, // 75: teleport.lib.teleterm.v1.TerminalService.ReportUsageEvent:input_type -> teleport.lib.teleterm.v1.ReportUsageEventRequest
-	52,  // 76: teleport.lib.teleterm.v1.TerminalService.UpdateHeadlessAuthenticationState:input_type -> teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateRequest
-	54,  // 77: teleport.lib.teleterm.v1.TerminalService.CreateConnectMyComputerRole:input_type -> teleport.lib.teleterm.v1.CreateConnectMyComputerRoleRequest
-	56,  // 78: teleport.lib.teleterm.v1.TerminalService.CreateConnectMyComputerNodeToken:input_type -> teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenRequest
-	58,  // 79: teleport.lib.teleterm.v1.TerminalService.WaitForConnectMyComputerNodeJoin:input_type -> teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinRequest
-	60,  // 80: teleport.lib.teleterm.v1.TerminalService.DeleteConnectMyComputerNode:input_type -> teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeRequest
-	62,  // 81: teleport.lib.teleterm.v1.TerminalService.GetConnectMyComputerNodeName:input_type -> teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameRequest
-	64,  // 82: teleport.lib.teleterm.v1.TerminalService.ListUnifiedResources:input_type -> teleport.lib.teleterm.v1.ListUnifiedResourcesRequest
-	68,  // 83: teleport.lib.teleterm.v1.TerminalService.GetUserPreferences:input_type -> teleport.lib.teleterm.v1.GetUserPreferencesRequest
-	70,  // 84: teleport.lib.teleterm.v1.TerminalService.UpdateUserPreferences:input_type -> teleport.lib.teleterm.v1.UpdateUserPreferencesRequest
-	73,  // 85: teleport.lib.teleterm.v1.TerminalService.AuthenticateWebDevice:input_type -> teleport.lib.teleterm.v1.AuthenticateWebDeviceRequest
-	75,  // 86: teleport.lib.teleterm.v1.TerminalService.GetApp:input_type -> teleport.lib.teleterm.v1.GetAppRequest
-	78,  // 87: teleport.lib.teleterm.v1.TerminalService.ConnectToDesktop:input_type -> teleport.lib.teleterm.v1.ConnectToDesktopRequest
-	80,  // 88: teleport.lib.teleterm.v1.TerminalService.SetSharedDirectoryForDesktopSession:input_type -> teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionRequest
-	51,  // 89: teleport.lib.teleterm.v1.TerminalService.UpdateTshdEventsServerAddress:output_type -> teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressResponse
-	38,  // 90: teleport.lib.teleterm.v1.TerminalService.ListRootClusters:output_type -> teleport.lib.teleterm.v1.ListClustersResponse
-	38,  // 91: teleport.lib.teleterm.v1.TerminalService.ListLeafClusters:output_type -> teleport.lib.teleterm.v1.ListClustersResponse
-	9,   // 92: teleport.lib.teleterm.v1.TerminalService.StartHeadlessWatcher:output_type -> teleport.lib.teleterm.v1.StartHeadlessWatcherResponse
-	42,  // 93: teleport.lib.teleterm.v1.TerminalService.ListDatabaseServers:output_type -> teleport.lib.teleterm.v1.ListDatabaseServersResponse
-	13,  // 94: teleport.lib.teleterm.v1.TerminalService.GetAccessRequests:output_type -> teleport.lib.teleterm.v1.GetAccessRequestsResponse
-	12,  // 95: teleport.lib.teleterm.v1.TerminalService.GetAccessRequest:output_type -> teleport.lib.teleterm.v1.GetAccessRequestResponse
-	3,   // 96: teleport.lib.teleterm.v1.TerminalService.DeleteAccessRequest:output_type -> teleport.lib.teleterm.v1.EmptyResponse
-	16,  // 97: teleport.lib.teleterm.v1.TerminalService.CreateAccessRequest:output_type -> teleport.lib.teleterm.v1.CreateAccessRequestResponse
-	21,  // 98: teleport.lib.teleterm.v1.TerminalService.ReviewAccessRequest:output_type -> teleport.lib.teleterm.v1.ReviewAccessRequestResponse
-	19,  // 99: teleport.lib.teleterm.v1.TerminalService.GetRequestableRoles:output_type -> teleport.lib.teleterm.v1.GetRequestableRolesResponse
-	3,   // 100: teleport.lib.teleterm.v1.TerminalService.AssumeRole:output_type -> teleport.lib.teleterm.v1.EmptyResponse
-	23,  // 101: teleport.lib.teleterm.v1.TerminalService.PromoteAccessRequest:output_type -> teleport.lib.teleterm.v1.PromoteAccessRequestResponse
-	25,  // 102: teleport.lib.teleterm.v1.TerminalService.GetSuggestedAccessLists:output_type -> teleport.lib.teleterm.v1.GetSuggestedAccessListsResponse
-	27,  // 103: teleport.lib.teleterm.v1.TerminalService.ListKubernetesResources:output_type -> teleport.lib.teleterm.v1.ListKubernetesResourcesResponse
-	29,  // 104: teleport.lib.teleterm.v1.TerminalService.ListKubernetesServers:output_type -> teleport.lib.teleterm.v1.ListKubernetesServersResponse
-	94,  // 105: teleport.lib.teleterm.v1.TerminalService.AddCluster:output_type -> teleport.lib.teleterm.v1.Cluster
-	45,  // 106: teleport.lib.teleterm.v1.TerminalService.ListGateways:output_type -> teleport.lib.teleterm.v1.ListGatewaysResponse
-	96,  // 107: teleport.lib.teleterm.v1.TerminalService.CreateGateway:output_type -> teleport.lib.teleterm.v1.Gateway
-	3,   // 108: teleport.lib.teleterm.v1.TerminalService.RemoveGateway:output_type -> teleport.lib.teleterm.v1.EmptyResponse
-	96,  // 109: teleport.lib.teleterm.v1.TerminalService.SetGatewayTargetSubresourceName:output_type -> teleport.lib.teleterm.v1.Gateway
-	96,  // 110: teleport.lib.teleterm.v1.TerminalService.SetGatewayLocalPort:output_type -> teleport.lib.teleterm.v1.Gateway
-	107, // 111: teleport.lib.teleterm.v1.TerminalService.GetAuthSettings:output_type -> teleport.lib.teleterm.v1.AuthSettings
-	94,  // 112: teleport.lib.teleterm.v1.TerminalService.GetCluster:output_type -> teleport.lib.teleterm.v1.Cluster
-	3,   // 113: teleport.lib.teleterm.v1.TerminalService.Login:output_type -> teleport.lib.teleterm.v1.EmptyResponse
-	31,  // 114: teleport.lib.teleterm.v1.TerminalService.LoginPasswordless:output_type -> teleport.lib.teleterm.v1.LoginPasswordlessResponse
-	3,   // 115: teleport.lib.teleterm.v1.TerminalService.Logout:output_type -> teleport.lib.teleterm.v1.EmptyResponse
-	7,   // 116: teleport.lib.teleterm.v1.TerminalService.ClearStaleClusterClients:output_type -> teleport.lib.teleterm.v1.ClearStaleClusterClientsResponse
-	34,  // 117: teleport.lib.teleterm.v1.TerminalService.TransferFile:output_type -> teleport.lib.teleterm.v1.FileTransferProgress
-	3,   // 118: teleport.lib.teleterm.v1.TerminalService.ReportUsageEvent:output_type -> teleport.lib.teleterm.v1.EmptyResponse
-	53,  // 119: teleport.lib.teleterm.v1.TerminalService.UpdateHeadlessAuthenticationState:output_type -> teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateResponse
-	55,  // 120: teleport.lib.teleterm.v1.TerminalService.CreateConnectMyComputerRole:output_type -> teleport.lib.teleterm.v1.CreateConnectMyComputerRoleResponse
-	57,  // 121: teleport.lib.teleterm.v1.TerminalService.CreateConnectMyComputerNodeToken:output_type -> teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenResponse
-	59,  // 122: teleport.lib.teleterm.v1.TerminalService.WaitForConnectMyComputerNodeJoin:output_type -> teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinResponse
-	61,  // 123: teleport.lib.teleterm.v1.TerminalService.DeleteConnectMyComputerNode:output_type -> teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeResponse
-	63,  // 124: teleport.lib.teleterm.v1.TerminalService.GetConnectMyComputerNodeName:output_type -> teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameResponse
-	66,  // 125: teleport.lib.teleterm.v1.TerminalService.ListUnifiedResources:output_type -> teleport.lib.teleterm.v1.ListUnifiedResourcesResponse
-	69,  // 126: teleport.lib.teleterm.v1.TerminalService.GetUserPreferences:output_type -> teleport.lib.teleterm.v1.GetUserPreferencesResponse
-	71,  // 127: teleport.lib.teleterm.v1.TerminalService.UpdateUserPreferences:output_type -> teleport.lib.teleterm.v1.UpdateUserPreferencesResponse
-	74,  // 128: teleport.lib.teleterm.v1.TerminalService.AuthenticateWebDevice:output_type -> teleport.lib.teleterm.v1.AuthenticateWebDeviceResponse
-	76,  // 129: teleport.lib.teleterm.v1.TerminalService.GetApp:output_type -> teleport.lib.teleterm.v1.GetAppResponse
-	79,  // 130: teleport.lib.teleterm.v1.TerminalService.ConnectToDesktop:output_type -> teleport.lib.teleterm.v1.ConnectToDesktopResponse
-	81,  // 131: teleport.lib.teleterm.v1.TerminalService.SetSharedDirectoryForDesktopSession:output_type -> teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionResponse
-	89,  // [89:132] is the sub-list for method output_type
-	46,  // [46:89] is the sub-list for method input_type
-	46,  // [46:46] is the sub-list for extension type_name
-	46,  // [46:46] is the sub-list for extension extendee
-	0,   // [0:46] is the sub-list for field type_name
+	85,  // 0: teleport.lib.teleterm.v1.GetAccessRequestResponse.request:type_name -> teleport.lib.teleterm.v1.AccessRequest
+	85,  // 1: teleport.lib.teleterm.v1.GetAccessRequestsResponse.requests:type_name -> teleport.lib.teleterm.v1.AccessRequest
+	86,  // 2: teleport.lib.teleterm.v1.CreateAccessRequestRequest.resource_ids:type_name -> teleport.lib.teleterm.v1.ResourceID
+	87,  // 3: teleport.lib.teleterm.v1.CreateAccessRequestRequest.assume_start_time:type_name -> google.protobuf.Timestamp
+	87,  // 4: teleport.lib.teleterm.v1.CreateAccessRequestRequest.max_duration:type_name -> google.protobuf.Timestamp
+	87,  // 5: teleport.lib.teleterm.v1.CreateAccessRequestRequest.request_ttl:type_name -> google.protobuf.Timestamp
+	85,  // 6: teleport.lib.teleterm.v1.CreateAccessRequestResponse.request:type_name -> teleport.lib.teleterm.v1.AccessRequest
+	86,  // 7: teleport.lib.teleterm.v1.GetRequestableRolesRequest.resource_ids:type_name -> teleport.lib.teleterm.v1.ResourceID
+	87,  // 8: teleport.lib.teleterm.v1.ReviewAccessRequestRequest.assume_start_time:type_name -> google.protobuf.Timestamp
+	85,  // 9: teleport.lib.teleterm.v1.ReviewAccessRequestResponse.request:type_name -> teleport.lib.teleterm.v1.AccessRequest
+	85,  // 10: teleport.lib.teleterm.v1.PromoteAccessRequestResponse.request:type_name -> teleport.lib.teleterm.v1.AccessRequest
+	88,  // 11: teleport.lib.teleterm.v1.GetSuggestedAccessListsResponse.access_lists:type_name -> teleport.accesslist.v1.AccessList
+	89,  // 12: teleport.lib.teleterm.v1.ListKubernetesResourcesResponse.resources:type_name -> teleport.lib.teleterm.v1.KubeResource
+	0,   // 13: teleport.lib.teleterm.v1.LoginPasswordlessResponse.prompt:type_name -> teleport.lib.teleterm.v1.PasswordlessPrompt
+	27,  // 14: teleport.lib.teleterm.v1.LoginPasswordlessResponse.credentials:type_name -> teleport.lib.teleterm.v1.CredentialInfo
+	80,  // 15: teleport.lib.teleterm.v1.LoginPasswordlessRequest.init:type_name -> teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessRequestInit
+	81,  // 16: teleport.lib.teleterm.v1.LoginPasswordlessRequest.pin:type_name -> teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessPINResponse
+	82,  // 17: teleport.lib.teleterm.v1.LoginPasswordlessRequest.credential:type_name -> teleport.lib.teleterm.v1.LoginPasswordlessRequest.LoginPasswordlessCredentialResponse
+	1,   // 18: teleport.lib.teleterm.v1.FileTransferRequest.direction:type_name -> teleport.lib.teleterm.v1.FileTransferDirection
+	83,  // 19: teleport.lib.teleterm.v1.LoginRequest.local:type_name -> teleport.lib.teleterm.v1.LoginRequest.LocalParams
+	84,  // 20: teleport.lib.teleterm.v1.LoginRequest.sso:type_name -> teleport.lib.teleterm.v1.LoginRequest.SsoParams
+	90,  // 21: teleport.lib.teleterm.v1.ListClustersResponse.clusters:type_name -> teleport.lib.teleterm.v1.Cluster
+	91,  // 22: teleport.lib.teleterm.v1.ListGatewaysResponse.gateways:type_name -> teleport.lib.teleterm.v1.Gateway
+	92,  // 23: teleport.lib.teleterm.v1.GetServersResponse.agents:type_name -> teleport.lib.teleterm.v1.Server
+	2,   // 24: teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateRequest.state:type_name -> teleport.lib.teleterm.v1.HeadlessAuthenticationState
+	92,  // 25: teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinResponse.server:type_name -> teleport.lib.teleterm.v1.Server
+	63,  // 26: teleport.lib.teleterm.v1.ListUnifiedResourcesRequest.sort_by:type_name -> teleport.lib.teleterm.v1.SortBy
+	65,  // 27: teleport.lib.teleterm.v1.ListUnifiedResourcesResponse.resources:type_name -> teleport.lib.teleterm.v1.PaginatedResource
+	93,  // 28: teleport.lib.teleterm.v1.PaginatedResource.database:type_name -> teleport.lib.teleterm.v1.Database
+	92,  // 29: teleport.lib.teleterm.v1.PaginatedResource.server:type_name -> teleport.lib.teleterm.v1.Server
+	94,  // 30: teleport.lib.teleterm.v1.PaginatedResource.kube:type_name -> teleport.lib.teleterm.v1.Kube
+	95,  // 31: teleport.lib.teleterm.v1.PaginatedResource.app:type_name -> teleport.lib.teleterm.v1.App
+	96,  // 32: teleport.lib.teleterm.v1.PaginatedResource.windows_desktop:type_name -> teleport.lib.teleterm.v1.WindowsDesktop
+	70,  // 33: teleport.lib.teleterm.v1.GetUserPreferencesResponse.user_preferences:type_name -> teleport.lib.teleterm.v1.UserPreferences
+	70,  // 34: teleport.lib.teleterm.v1.UpdateUserPreferencesRequest.user_preferences:type_name -> teleport.lib.teleterm.v1.UserPreferences
+	70,  // 35: teleport.lib.teleterm.v1.UpdateUserPreferencesResponse.user_preferences:type_name -> teleport.lib.teleterm.v1.UserPreferences
+	97,  // 36: teleport.lib.teleterm.v1.UserPreferences.cluster_preferences:type_name -> teleport.userpreferences.v1.ClusterUserPreferences
+	98,  // 37: teleport.lib.teleterm.v1.UserPreferences.unified_resource_preferences:type_name -> teleport.userpreferences.v1.UnifiedResourcePreferences
+	99,  // 38: teleport.lib.teleterm.v1.AuthenticateWebDeviceRequest.device_web_token:type_name -> teleport.devicetrust.v1.DeviceWebToken
+	100, // 39: teleport.lib.teleterm.v1.AuthenticateWebDeviceResponse.confirmation_token:type_name -> teleport.devicetrust.v1.DeviceConfirmationToken
+	95,  // 40: teleport.lib.teleterm.v1.GetAppResponse.app:type_name -> teleport.lib.teleterm.v1.App
+	75,  // 41: teleport.lib.teleterm.v1.ConnectToDesktopRequest.target_desktop:type_name -> teleport.lib.teleterm.v1.TargetDesktop
+	48,  // 42: teleport.lib.teleterm.v1.TerminalService.UpdateTshdEventsServerAddress:input_type -> teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressRequest
+	34,  // 43: teleport.lib.teleterm.v1.TerminalService.ListRootClusters:input_type -> teleport.lib.teleterm.v1.ListClustersRequest
+	36,  // 44: teleport.lib.teleterm.v1.TerminalService.ListLeafClusters:input_type -> teleport.lib.teleterm.v1.ListLeafClustersRequest
+	7,   // 45: teleport.lib.teleterm.v1.TerminalService.StartHeadlessWatcher:input_type -> teleport.lib.teleterm.v1.StartHeadlessWatcherRequest
+	37,  // 46: teleport.lib.teleterm.v1.TerminalService.ListDatabaseUsers:input_type -> teleport.lib.teleterm.v1.ListDatabaseUsersRequest
+	45,  // 47: teleport.lib.teleterm.v1.TerminalService.GetServers:input_type -> teleport.lib.teleterm.v1.GetServersRequest
+	10,  // 48: teleport.lib.teleterm.v1.TerminalService.GetAccessRequests:input_type -> teleport.lib.teleterm.v1.GetAccessRequestsRequest
+	9,   // 49: teleport.lib.teleterm.v1.TerminalService.GetAccessRequest:input_type -> teleport.lib.teleterm.v1.GetAccessRequestRequest
+	13,  // 50: teleport.lib.teleterm.v1.TerminalService.DeleteAccessRequest:input_type -> teleport.lib.teleterm.v1.DeleteAccessRequestRequest
+	14,  // 51: teleport.lib.teleterm.v1.TerminalService.CreateAccessRequest:input_type -> teleport.lib.teleterm.v1.CreateAccessRequestRequest
+	19,  // 52: teleport.lib.teleterm.v1.TerminalService.ReviewAccessRequest:input_type -> teleport.lib.teleterm.v1.ReviewAccessRequestRequest
+	17,  // 53: teleport.lib.teleterm.v1.TerminalService.GetRequestableRoles:input_type -> teleport.lib.teleterm.v1.GetRequestableRolesRequest
+	16,  // 54: teleport.lib.teleterm.v1.TerminalService.AssumeRole:input_type -> teleport.lib.teleterm.v1.AssumeRoleRequest
+	21,  // 55: teleport.lib.teleterm.v1.TerminalService.PromoteAccessRequest:input_type -> teleport.lib.teleterm.v1.PromoteAccessRequestRequest
+	23,  // 56: teleport.lib.teleterm.v1.TerminalService.GetSuggestedAccessLists:input_type -> teleport.lib.teleterm.v1.GetSuggestedAccessListsRequest
+	25,  // 57: teleport.lib.teleterm.v1.TerminalService.ListKubernetesResources:input_type -> teleport.lib.teleterm.v1.ListKubernetesResourcesRequest
+	33,  // 58: teleport.lib.teleterm.v1.TerminalService.AddCluster:input_type -> teleport.lib.teleterm.v1.AddClusterRequest
+	4,   // 59: teleport.lib.teleterm.v1.TerminalService.RemoveCluster:input_type -> teleport.lib.teleterm.v1.RemoveClusterRequest
+	40,  // 60: teleport.lib.teleterm.v1.TerminalService.ListGateways:input_type -> teleport.lib.teleterm.v1.ListGatewaysRequest
+	39,  // 61: teleport.lib.teleterm.v1.TerminalService.CreateGateway:input_type -> teleport.lib.teleterm.v1.CreateGatewayRequest
+	42,  // 62: teleport.lib.teleterm.v1.TerminalService.RemoveGateway:input_type -> teleport.lib.teleterm.v1.RemoveGatewayRequest
+	43,  // 63: teleport.lib.teleterm.v1.TerminalService.SetGatewayTargetSubresourceName:input_type -> teleport.lib.teleterm.v1.SetGatewayTargetSubresourceNameRequest
+	44,  // 64: teleport.lib.teleterm.v1.TerminalService.SetGatewayLocalPort:input_type -> teleport.lib.teleterm.v1.SetGatewayLocalPortRequest
+	47,  // 65: teleport.lib.teleterm.v1.TerminalService.GetAuthSettings:input_type -> teleport.lib.teleterm.v1.GetAuthSettingsRequest
+	5,   // 66: teleport.lib.teleterm.v1.TerminalService.GetCluster:input_type -> teleport.lib.teleterm.v1.GetClusterRequest
+	32,  // 67: teleport.lib.teleterm.v1.TerminalService.Login:input_type -> teleport.lib.teleterm.v1.LoginRequest
+	29,  // 68: teleport.lib.teleterm.v1.TerminalService.LoginPasswordless:input_type -> teleport.lib.teleterm.v1.LoginPasswordlessRequest
+	6,   // 69: teleport.lib.teleterm.v1.TerminalService.Logout:input_type -> teleport.lib.teleterm.v1.LogoutRequest
+	30,  // 70: teleport.lib.teleterm.v1.TerminalService.TransferFile:input_type -> teleport.lib.teleterm.v1.FileTransferRequest
+	101, // 71: teleport.lib.teleterm.v1.TerminalService.ReportUsageEvent:input_type -> teleport.lib.teleterm.v1.ReportUsageEventRequest
+	50,  // 72: teleport.lib.teleterm.v1.TerminalService.UpdateHeadlessAuthenticationState:input_type -> teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateRequest
+	52,  // 73: teleport.lib.teleterm.v1.TerminalService.CreateConnectMyComputerRole:input_type -> teleport.lib.teleterm.v1.CreateConnectMyComputerRoleRequest
+	54,  // 74: teleport.lib.teleterm.v1.TerminalService.CreateConnectMyComputerNodeToken:input_type -> teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenRequest
+	56,  // 75: teleport.lib.teleterm.v1.TerminalService.WaitForConnectMyComputerNodeJoin:input_type -> teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinRequest
+	58,  // 76: teleport.lib.teleterm.v1.TerminalService.DeleteConnectMyComputerNode:input_type -> teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeRequest
+	60,  // 77: teleport.lib.teleterm.v1.TerminalService.GetConnectMyComputerNodeName:input_type -> teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameRequest
+	62,  // 78: teleport.lib.teleterm.v1.TerminalService.ListUnifiedResources:input_type -> teleport.lib.teleterm.v1.ListUnifiedResourcesRequest
+	66,  // 79: teleport.lib.teleterm.v1.TerminalService.GetUserPreferences:input_type -> teleport.lib.teleterm.v1.GetUserPreferencesRequest
+	68,  // 80: teleport.lib.teleterm.v1.TerminalService.UpdateUserPreferences:input_type -> teleport.lib.teleterm.v1.UpdateUserPreferencesRequest
+	71,  // 81: teleport.lib.teleterm.v1.TerminalService.AuthenticateWebDevice:input_type -> teleport.lib.teleterm.v1.AuthenticateWebDeviceRequest
+	73,  // 82: teleport.lib.teleterm.v1.TerminalService.GetApp:input_type -> teleport.lib.teleterm.v1.GetAppRequest
+	76,  // 83: teleport.lib.teleterm.v1.TerminalService.ConnectToDesktop:input_type -> teleport.lib.teleterm.v1.ConnectToDesktopRequest
+	78,  // 84: teleport.lib.teleterm.v1.TerminalService.SetSharedDirectoryForDesktopSession:input_type -> teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionRequest
+	49,  // 85: teleport.lib.teleterm.v1.TerminalService.UpdateTshdEventsServerAddress:output_type -> teleport.lib.teleterm.v1.UpdateTshdEventsServerAddressResponse
+	35,  // 86: teleport.lib.teleterm.v1.TerminalService.ListRootClusters:output_type -> teleport.lib.teleterm.v1.ListClustersResponse
+	35,  // 87: teleport.lib.teleterm.v1.TerminalService.ListLeafClusters:output_type -> teleport.lib.teleterm.v1.ListClustersResponse
+	8,   // 88: teleport.lib.teleterm.v1.TerminalService.StartHeadlessWatcher:output_type -> teleport.lib.teleterm.v1.StartHeadlessWatcherResponse
+	38,  // 89: teleport.lib.teleterm.v1.TerminalService.ListDatabaseUsers:output_type -> teleport.lib.teleterm.v1.ListDatabaseUsersResponse
+	46,  // 90: teleport.lib.teleterm.v1.TerminalService.GetServers:output_type -> teleport.lib.teleterm.v1.GetServersResponse
+	12,  // 91: teleport.lib.teleterm.v1.TerminalService.GetAccessRequests:output_type -> teleport.lib.teleterm.v1.GetAccessRequestsResponse
+	11,  // 92: teleport.lib.teleterm.v1.TerminalService.GetAccessRequest:output_type -> teleport.lib.teleterm.v1.GetAccessRequestResponse
+	3,   // 93: teleport.lib.teleterm.v1.TerminalService.DeleteAccessRequest:output_type -> teleport.lib.teleterm.v1.EmptyResponse
+	15,  // 94: teleport.lib.teleterm.v1.TerminalService.CreateAccessRequest:output_type -> teleport.lib.teleterm.v1.CreateAccessRequestResponse
+	20,  // 95: teleport.lib.teleterm.v1.TerminalService.ReviewAccessRequest:output_type -> teleport.lib.teleterm.v1.ReviewAccessRequestResponse
+	18,  // 96: teleport.lib.teleterm.v1.TerminalService.GetRequestableRoles:output_type -> teleport.lib.teleterm.v1.GetRequestableRolesResponse
+	3,   // 97: teleport.lib.teleterm.v1.TerminalService.AssumeRole:output_type -> teleport.lib.teleterm.v1.EmptyResponse
+	22,  // 98: teleport.lib.teleterm.v1.TerminalService.PromoteAccessRequest:output_type -> teleport.lib.teleterm.v1.PromoteAccessRequestResponse
+	24,  // 99: teleport.lib.teleterm.v1.TerminalService.GetSuggestedAccessLists:output_type -> teleport.lib.teleterm.v1.GetSuggestedAccessListsResponse
+	26,  // 100: teleport.lib.teleterm.v1.TerminalService.ListKubernetesResources:output_type -> teleport.lib.teleterm.v1.ListKubernetesResourcesResponse
+	90,  // 101: teleport.lib.teleterm.v1.TerminalService.AddCluster:output_type -> teleport.lib.teleterm.v1.Cluster
+	3,   // 102: teleport.lib.teleterm.v1.TerminalService.RemoveCluster:output_type -> teleport.lib.teleterm.v1.EmptyResponse
+	41,  // 103: teleport.lib.teleterm.v1.TerminalService.ListGateways:output_type -> teleport.lib.teleterm.v1.ListGatewaysResponse
+	91,  // 104: teleport.lib.teleterm.v1.TerminalService.CreateGateway:output_type -> teleport.lib.teleterm.v1.Gateway
+	3,   // 105: teleport.lib.teleterm.v1.TerminalService.RemoveGateway:output_type -> teleport.lib.teleterm.v1.EmptyResponse
+	91,  // 106: teleport.lib.teleterm.v1.TerminalService.SetGatewayTargetSubresourceName:output_type -> teleport.lib.teleterm.v1.Gateway
+	91,  // 107: teleport.lib.teleterm.v1.TerminalService.SetGatewayLocalPort:output_type -> teleport.lib.teleterm.v1.Gateway
+	102, // 108: teleport.lib.teleterm.v1.TerminalService.GetAuthSettings:output_type -> teleport.lib.teleterm.v1.AuthSettings
+	90,  // 109: teleport.lib.teleterm.v1.TerminalService.GetCluster:output_type -> teleport.lib.teleterm.v1.Cluster
+	3,   // 110: teleport.lib.teleterm.v1.TerminalService.Login:output_type -> teleport.lib.teleterm.v1.EmptyResponse
+	28,  // 111: teleport.lib.teleterm.v1.TerminalService.LoginPasswordless:output_type -> teleport.lib.teleterm.v1.LoginPasswordlessResponse
+	3,   // 112: teleport.lib.teleterm.v1.TerminalService.Logout:output_type -> teleport.lib.teleterm.v1.EmptyResponse
+	31,  // 113: teleport.lib.teleterm.v1.TerminalService.TransferFile:output_type -> teleport.lib.teleterm.v1.FileTransferProgress
+	3,   // 114: teleport.lib.teleterm.v1.TerminalService.ReportUsageEvent:output_type -> teleport.lib.teleterm.v1.EmptyResponse
+	51,  // 115: teleport.lib.teleterm.v1.TerminalService.UpdateHeadlessAuthenticationState:output_type -> teleport.lib.teleterm.v1.UpdateHeadlessAuthenticationStateResponse
+	53,  // 116: teleport.lib.teleterm.v1.TerminalService.CreateConnectMyComputerRole:output_type -> teleport.lib.teleterm.v1.CreateConnectMyComputerRoleResponse
+	55,  // 117: teleport.lib.teleterm.v1.TerminalService.CreateConnectMyComputerNodeToken:output_type -> teleport.lib.teleterm.v1.CreateConnectMyComputerNodeTokenResponse
+	57,  // 118: teleport.lib.teleterm.v1.TerminalService.WaitForConnectMyComputerNodeJoin:output_type -> teleport.lib.teleterm.v1.WaitForConnectMyComputerNodeJoinResponse
+	59,  // 119: teleport.lib.teleterm.v1.TerminalService.DeleteConnectMyComputerNode:output_type -> teleport.lib.teleterm.v1.DeleteConnectMyComputerNodeResponse
+	61,  // 120: teleport.lib.teleterm.v1.TerminalService.GetConnectMyComputerNodeName:output_type -> teleport.lib.teleterm.v1.GetConnectMyComputerNodeNameResponse
+	64,  // 121: teleport.lib.teleterm.v1.TerminalService.ListUnifiedResources:output_type -> teleport.lib.teleterm.v1.ListUnifiedResourcesResponse
+	67,  // 122: teleport.lib.teleterm.v1.TerminalService.GetUserPreferences:output_type -> teleport.lib.teleterm.v1.GetUserPreferencesResponse
+	69,  // 123: teleport.lib.teleterm.v1.TerminalService.UpdateUserPreferences:output_type -> teleport.lib.teleterm.v1.UpdateUserPreferencesResponse
+	72,  // 124: teleport.lib.teleterm.v1.TerminalService.AuthenticateWebDevice:output_type -> teleport.lib.teleterm.v1.AuthenticateWebDeviceResponse
+	74,  // 125: teleport.lib.teleterm.v1.TerminalService.GetApp:output_type -> teleport.lib.teleterm.v1.GetAppResponse
+	77,  // 126: teleport.lib.teleterm.v1.TerminalService.ConnectToDesktop:output_type -> teleport.lib.teleterm.v1.ConnectToDesktopResponse
+	79,  // 127: teleport.lib.teleterm.v1.TerminalService.SetSharedDirectoryForDesktopSession:output_type -> teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionResponse
+	85,  // [85:128] is the sub-list for method output_type
+	42,  // [42:85] is the sub-list for method input_type
+	42,  // [42:42] is the sub-list for extension type_name
+	42,  // [42:42] is the sub-list for extension extendee
+	0,   // [0:42] is the sub-list for field type_name
 }
 
 func init() { file_teleport_lib_teleterm_v1_service_proto_init() }
@@ -7535,16 +5223,16 @@ func file_teleport_lib_teleterm_v1_service_proto_init() {
 	file_teleport_lib_teleterm_v1_server_proto_init()
 	file_teleport_lib_teleterm_v1_usage_events_proto_init()
 	file_teleport_lib_teleterm_v1_windows_desktop_proto_init()
-	file_teleport_lib_teleterm_v1_service_proto_msgTypes[29].OneofWrappers = []any{
+	file_teleport_lib_teleterm_v1_service_proto_msgTypes[26].OneofWrappers = []any{
 		(*LoginPasswordlessRequest_Init)(nil),
 		(*LoginPasswordlessRequest_Pin)(nil),
 		(*LoginPasswordlessRequest_Credential)(nil),
 	}
-	file_teleport_lib_teleterm_v1_service_proto_msgTypes[32].OneofWrappers = []any{
+	file_teleport_lib_teleterm_v1_service_proto_msgTypes[29].OneofWrappers = []any{
 		(*LoginRequest_Local)(nil),
 		(*LoginRequest_Sso)(nil),
 	}
-	file_teleport_lib_teleterm_v1_service_proto_msgTypes[64].OneofWrappers = []any{
+	file_teleport_lib_teleterm_v1_service_proto_msgTypes[62].OneofWrappers = []any{
 		(*PaginatedResource_Database)(nil),
 		(*PaginatedResource_Server)(nil),
 		(*PaginatedResource_Kube)(nil),
@@ -7557,7 +5245,7 @@ func file_teleport_lib_teleterm_v1_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_lib_teleterm_v1_service_proto_rawDesc), len(file_teleport_lib_teleterm_v1_service_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   84,
+			NumMessages:   82,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

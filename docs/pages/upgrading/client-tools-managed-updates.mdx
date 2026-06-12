@@ -10,7 +10,7 @@ This documentation explains how to keep Teleport client tools like `tsh` and `tc
 Updates can be managed by cluster or self-managed, ensuring tools are secure, free from bugs,
 and compatible with your Teleport cluster.
 
-For detailed information on managed updates in Teleport Connect, see [Teleport Connect Managed updates](../connect-your-client/teleport-clients/teleport-connect.mdx#managed-updates).
+For detailed information on managed updates in Teleport Connect, see [Teleport Connect Managed updates](../connect-your-client/teleport-connect.mdx#managed-updates).
 
 Why keep client tools updated?
 
@@ -49,7 +49,7 @@ Allows mirroring the CDN in a private network or using custom builds.
 Only one process can acquire the lock to update client tools, while other processes wait for the lock to be released.
 If the first process cancels the update, the next process in line will initiate the update.
 
-### Multi-cluster support and multi-version caching
+### Multi-cluster support and multi-version caching (v17.6.0+)
 
 Client tools managed updates support multi-cluster environments. When you log in to different clusters that use
 different versions (including different major versions), the client makes a request to the `/v1/webapi/find` endpoint

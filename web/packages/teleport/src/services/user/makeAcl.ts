@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Acl, WebTerminalClipboardMode } from './types';
+import { Acl } from './types';
 
 export function makeAcl(json): Acl {
   json = json || {};
@@ -45,8 +45,6 @@ export function makeAcl(json): Acl {
   // doesn't return the valid permission. If they don't have access, the action will
   // still fail with an error, so this is merely a UX improvment.
   const fileTransferAccess = json.fileTransferAccess ?? true; // use nullish coalescing to prevent default from overriding a strictly false value
-  const webTerminalClipboardMode: WebTerminalClipboardMode =
-    json.webTerminalClipboardMode ?? '';
   const connectionDiagnostic = json.connectionDiagnostic || defaultAccess;
   // Defaults to true, see RFD 0049
   // https://github.com/gravitational/teleport/blob/master/rfd/0049-desktop-clipboard.md#security
@@ -88,22 +86,9 @@ export function makeAcl(json): Acl {
 
   const botInstances = json.botInstances || defaultAccess;
 
-  const instances = json.instances || defaultAccess;
-
   const workloadIdentity = json.workloadIdentity || defaultAccess;
 
   const clientIpRestriction = json.clientIpRestriction || defaultAccess;
-
-  const autoUpdateConfig = json.autoUpdateConfig || defaultAccess;
-  const autoUpdateVersion = json.autoUpdateVersion || defaultAccess;
-  const autoUpdateAgentRollout = json.autoUpdateAgentRollout || defaultAccess;
-  const autoUpdateAgentReport = json.autoUpdateAgentReport || defaultAccess;
-
-  const inferencePolicy = json.inferencePolicy || defaultAccess;
-  const inferenceModel = json.inferenceModel || defaultAccess;
-  const inferenceSecret = json.inferenceSecret || defaultAccess;
-
-  const beam = json.beam || defaultAccess;
 
   return {
     accessList,
@@ -144,21 +129,11 @@ export function makeAcl(json): Acl {
     discoverConfigs,
     contacts,
     fileTransferAccess,
-    webTerminalClipboardMode,
     gitServers,
     accessGraphSettings,
     botInstances,
-    instances,
     workloadIdentity,
     clientIpRestriction,
-    autoUpdateConfig,
-    autoUpdateVersion,
-    autoUpdateAgentRollout,
-    autoUpdateAgentReport,
-    inferencePolicy,
-    inferenceModel,
-    inferenceSecret,
-    beam,
   };
 }
 

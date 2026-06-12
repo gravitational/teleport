@@ -22,8 +22,7 @@ import { render, screen } from 'design/utils/testing';
 import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import { AwsOidcTitle } from 'teleport/Integrations/status/AwsOidc/AwsOidcTitle';
-import { AwsResource } from 'teleport/Integrations/status/AwsOidc/Cards/StatCard';
-import { Status } from 'teleport/Integrations/types';
+import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
 import {
   IntegrationAwsOidc,
   IntegrationKind,
@@ -61,7 +60,7 @@ test('renders with resource', () => {
   expect(screen.getByText('EC2')).toBeInTheDocument();
   expect(screen.queryByText('some-name')).not.toBeInTheDocument();
   expect(
-    within(screen.getByLabelText('status')).getByText(Status.Healthy)
+    within(screen.getByLabelText('status')).getByText('Running')
   ).toBeInTheDocument();
 });
 
@@ -80,7 +79,7 @@ test('renders without resource', () => {
   );
   expect(screen.getByText('some-name')).toBeInTheDocument();
   expect(
-    within(screen.getByLabelText('status')).getByText(Status.Healthy)
+    within(screen.getByLabelText('status')).getByText('Running')
   ).toBeInTheDocument();
 });
 
@@ -99,6 +98,6 @@ test('renders tasks', () => {
   );
   expect(screen.getByText('Pending Tasks')).toBeInTheDocument();
   expect(
-    within(screen.getByLabelText('status')).getByText(Status.Healthy)
+    within(screen.getByLabelText('status')).getByText('Running')
   ).toBeInTheDocument();
 });

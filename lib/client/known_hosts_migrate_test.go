@@ -23,13 +23,11 @@ import (
 	"fmt"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/sshca"
 )
 
@@ -37,15 +35,10 @@ type knownHostsMigrateTest struct {
 	keygen *testauthority.Keygen
 }
 
-func newMigrateTest() (knownHostsMigrateTest, error) {
-	keygen, err := testauthority.NewKeygen(modules.BuildOSS, time.Now)
-	if err != nil {
-		return knownHostsMigrateTest{}, err
-	}
-
+func newMigrateTest() knownHostsMigrateTest {
 	return knownHostsMigrateTest{
-		keygen: keygen,
-	}, nil
+		keygen: testauthority.New(),
+	}
 }
 
 func generateHostCert(t *testing.T, s *knownHostsMigrateTest, clusterName string) []byte {
@@ -95,8 +88,7 @@ func generateNewHostEntry(
 }
 
 func TestParseKnownHost(t *testing.T) {
-	s, err := newMigrateTest()
-	require.NoError(t, err)
+	s := newMigrateTest()
 
 	oldCert := generateHostCert(t, &s, "example.com")
 	oldEntry := generateOldHostEntry(t, &s, oldCert, "example.com")
@@ -122,8 +114,7 @@ func TestParseKnownHost(t *testing.T) {
 }
 
 func TestIsOldHostsEntry(t *testing.T) {
-	s, err := newMigrateTest()
-	require.NoError(t, err)
+	s := newMigrateTest()
 
 	// tsh's older format.
 	cert := generateHostCert(t, &s, "example.com")
@@ -149,8 +140,7 @@ func TestIsOldHostsEntry(t *testing.T) {
 }
 
 func TestCanPruneOldHostsEntry(t *testing.T) {
-	s, err := newMigrateTest()
-	require.NoError(t, err)
+	s := newMigrateTest()
 
 	certFoo := generateHostCert(t, &s, "foo.example.com")
 	certLeaf := generateHostCert(t, &s, "leaf.example.com")
@@ -179,8 +169,7 @@ func TestCanPruneOldHostsEntry(t *testing.T) {
 }
 
 func TestPruneOldHostKeys(t *testing.T) {
-	s, err := newMigrateTest()
-	require.NoError(t, err)
+	s := newMigrateTest()
 
 	certFoo := generateHostCert(t, &s, "foo.example.com")
 	certLeaf := generateHostCert(t, &s, "leaf.example.com")

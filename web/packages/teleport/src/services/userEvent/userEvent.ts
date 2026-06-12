@@ -19,7 +19,6 @@
 import cfg from 'teleport/config';
 import api from 'teleport/services/api';
 
-import { AccessListEventRequest } from './accessListEvents';
 import {
   CaptureEvent,
   CreateNewRoleSaveClickEvent,
@@ -30,9 +29,7 @@ import {
   FeatureRecommendationEvent,
   FeatureRecommendationEventRequest,
   IntegrationEnrollEventRequest,
-  PageViewEventRequest,
   PreUserEvent,
-  UiInteractionEventRequest,
   UserEvent,
 } from './types';
 
@@ -47,10 +44,7 @@ function captureEvent({
     | IntegrationEnrollEventRequest
     | CtaEventRequest
     | FeatureRecommendationEventRequest
-    | CreateNewRoleSaveClickEvent
-    | AccessListEventRequest
-    | PageViewEventRequest
-    | UiInteractionEventRequest;
+    | CreateNewRoleSaveClickEvent;
   path?: string;
 }) {
   // using api.fetch instead of api.fetchJSON
@@ -74,15 +68,7 @@ export const userEventService = {
     captureEvent({ event });
   },
 
-  captureAccessListEvent(event: AccessListEventRequest) {
-    captureEvent({ event });
-  },
-
   captureIntegrationEnrollEvent(event: IntegrationEnrollEventRequest) {
-    captureEvent({ event });
-  },
-
-  capturePageViewEvent(event: PageViewEventRequest) {
     captureEvent({ event });
   },
 
@@ -113,8 +99,5 @@ export const userEventService = {
         eventData,
       },
     });
-  },
-  captureUiInteractionEvent(event: UiInteractionEventRequest) {
-    captureEvent({ event });
   },
 };

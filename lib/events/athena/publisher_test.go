@@ -27,7 +27,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	sqstypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/google/uuid"
@@ -199,8 +200,8 @@ func Test_EmitAuditEvent(t *testing.T) {
 
 type mockUploader struct{}
 
-func (m mockUploader) UploadObject(ctx context.Context, input *transfermanager.UploadObjectInput, opts ...func(*transfermanager.Options)) (*transfermanager.UploadObjectOutput, error) {
-	return &transfermanager.UploadObjectOutput{}, nil
+func (m mockUploader) Upload(ctx context.Context, input *s3.PutObjectInput, opts ...func(*manager.Uploader)) (*manager.UploadOutput, error) {
+	return &manager.UploadOutput{}, nil
 }
 
 func Test_sqsMaxDirectMessageSize(t *testing.T) {

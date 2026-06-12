@@ -22,7 +22,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -45,7 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/integrations/awsoidc/deployserviceconfig"
 	"github.com/gravitational/teleport/lib/services"
 	libui "github.com/gravitational/teleport/lib/ui"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
@@ -165,6 +164,111 @@ func TestBuildDeployServiceConfigureIAMScript(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			resp, err := publicClt.Get(ctx, endpoint, tc.reqQuery)
+			tc.errCheck(t, err)
+			if err != nil {
+				return
+			}
+
+			require.Contains(t, string(resp.Bytes()),
+				fmt.Sprintf("entrypointArgs='%s'\n", tc.expectedTeleportArgs),
+			)
+		})
+	}
+}
+
+func TestBuildEICEConfigureIAMScript(t *testing.T) {
+	t.Parallel()
+	isBadParamErrFn := func(tt require.TestingT, err error, i ...any) {
+		require.True(tt, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
+	}
+
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+
+	// Unauthenticated client for script downloading.
+	publicClt := env.proxies[0].newClient(t)
+	pathVars := []string{
+		"webapi",
+		"scripts",
+		"integrations",
+		"configure",
+		"eice-iam.sh",
+	}
+	endpoint := publicClt.Endpoint(pathVars...)
+
+	tests := []struct {
+		name                 string
+		reqRelativeURL       string
+		reqQuery             url.Values
+		errCheck             require.ErrorAssertionFunc
+		expectedTeleportArgs string
+	}{
+		{
+			name: "valid",
+			reqQuery: url.Values{
+				"awsRegion":    []string{"us-east-1"},
+				"role":         []string{"myRole"},
+				"awsAccountID": []string{"123456789012"},
+			},
+			errCheck: require.NoError,
+			expectedTeleportArgs: "integration configure eice-iam " +
+				"--aws-region=us-east-1 " +
+				"--role=myRole " +
+				"--aws-account-id=123456789012",
+		},
+		{
+			name: "valid with symbols in role",
+			reqQuery: url.Values{
+				"awsRegion":    []string{"us-east-1"},
+				"role":         []string{"Test+1=2,3.4@5-6_7"},
+				"awsAccountID": []string{"123456789012"},
+			},
+			errCheck: require.NoError,
+			expectedTeleportArgs: "integration configure eice-iam " +
+				"--aws-region=us-east-1 " +
+				"--role=Test\\+1=2,3.4\\@5-6_7 " +
+				"--aws-account-id=123456789012",
+		},
+		{
+			name: "missing aws-region",
+			reqQuery: url.Values{
+				"role":         []string{"myRole"},
+				"awsAccountID": []string{"123456789012"},
+			},
+			errCheck: isBadParamErrFn,
+		},
+		{
+			name: "missing account id",
+			reqQuery: url.Values{
+				"awsRegion": []string{"us-east-1"},
+				"role":      []string{"myRole"},
+			},
+			errCheck: isBadParamErrFn,
+		},
+		{
+			name: "missing role",
+			reqQuery: url.Values{
+				"awsRegion":    []string{"us-east-1"},
+				"awsAccountID": []string{"123456789012"},
+			},
+			errCheck: isBadParamErrFn,
+		},
+		{
+			name: "trying to inject escape sequence into query params",
+			reqQuery: url.Values{
+				"awsRegion":    []string{"'; rm -rf /tmp/dir; echo '"},
+				"role":         []string{"role"},
+				"awsAccountID": []string{"123456789012"},
+			},
+			errCheck: isBadParamErrFn,
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			resp, err := publicClt.Get(ctx, endpoint, tc.reqQuery)
 			tc.errCheck(t, err)
@@ -295,169 +399,9 @@ func TestBuildEC2SSMIAMScript(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			resp, err := publicClt.Get(ctx, endpoint, tc.reqQuery)
-			tc.errCheck(t, err)
-			if err != nil {
-				return
-			}
-
-			require.Contains(t, string(resp.Bytes()),
-				fmt.Sprintf("entrypointArgs='%s'\n", tc.expectedTeleportArgs),
-			)
-		})
-	}
-}
-
-func TestBuildAccessGraphCloudSyncIAMScript(t *testing.T) {
-	t.Parallel()
-	isBadParamErrFn := func(tt require.TestingT, err error, i ...any) {
-		require.True(tt, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
-	}
-
-	env := newWebPack(t, 1)
-
-	// Unauthenticated client for script downloading.
-	anonymousHTTPClient := env.proxies[0].newClient(t)
-	pathVars := []string{
-		"webapi",
-		"scripts",
-		"integrations",
-		"configure",
-		"access-graph-cloud-sync-iam.sh",
-	}
-	endpoint := anonymousHTTPClient.Endpoint(pathVars...)
-
-	role := "myRole"
-	awsAccountID := "123456789012"
-	sqsUrl := "https://sqs.us-west-2.amazonaws.com/123456789012/queue-name"
-	cloudTrailS3Bucket := "arn:aws:s3:::bucket-name"
-	kmsKey1 := "arn:aws:kms:us-west-2:123456789012:key/00000000-1111-2222-3333-444444444444"
-	kmsKey2 := "arn:aws:kms:us-west-2:123456789012:key/55555555-6666-7777-8888-999999999999"
-
-	tests := []struct {
-		name                 string
-		reqRelativeURL       string
-		reqQuery             url.Values
-		errCheck             require.ErrorAssertionFunc
-		expectedTeleportArgs string
-	}{
-		{
-			name: "valid",
-			reqQuery: url.Values{
-				"kind":         []string{"aws-iam"},
-				"role":         []string{role},
-				"awsAccountID": []string{awsAccountID},
-			},
-			errCheck: require.NoError,
-			expectedTeleportArgs: "integration configure access-graph aws-iam" +
-				" --role=" + role +
-				" --aws-account-id=" + awsAccountID,
-		},
-		{
-			name: "valid with cloud trail",
-			reqQuery: url.Values{
-				"kind":               []string{"aws-iam"},
-				"role":               []string{role},
-				"awsAccountID":       []string{awsAccountID},
-				"sqsUrl":             []string{sqsUrl},
-				"cloudTrailS3Bucket": []string{cloudTrailS3Bucket},
-				"kmsKeysARNs":        []string{kmsKey1, kmsKey2},
-			},
-			errCheck: require.NoError,
-			expectedTeleportArgs: "integration configure access-graph aws-iam" +
-				" --role=" + role +
-				" --aws-account-id=" + awsAccountID +
-				" --sqs-queue-url=" + sqsUrl +
-				" --cloud-trail-bucket=" + cloudTrailS3Bucket +
-				" --kms-key=" + kmsKey1 +
-				" --kms-key=" + kmsKey2,
-		},
-		{
-			name: "valid with eks audit logs",
-			reqQuery: url.Values{
-				"kind":         []string{"aws-iam"},
-				"role":         []string{role},
-				"awsAccountID": []string{awsAccountID},
-				"eksAuditLogs": []string{"true"},
-			},
-			errCheck: require.NoError,
-			expectedTeleportArgs: "integration configure access-graph aws-iam" +
-				" --role=" + role +
-				" --aws-account-id=" + awsAccountID +
-				" --eks-audit-logs",
-		},
-		{
-			name: "valid with cloud trail and eks audit logs",
-			reqQuery: url.Values{
-				"kind":               []string{"aws-iam"},
-				"role":               []string{role},
-				"awsAccountID":       []string{awsAccountID},
-				"sqsUrl":             []string{sqsUrl},
-				"cloudTrailS3Bucket": []string{cloudTrailS3Bucket},
-				"kmsKeysARNs":        []string{kmsKey1, kmsKey2},
-				"eksAuditLogs":       []string{"true"},
-			},
-			errCheck: require.NoError,
-			expectedTeleportArgs: "integration configure access-graph aws-iam" +
-				" --role=" + role +
-				" --aws-account-id=" + awsAccountID +
-				" --sqs-queue-url=" + sqsUrl +
-				" --cloud-trail-bucket=" + cloudTrailS3Bucket +
-				" --kms-key=" + kmsKey1 +
-				" --kms-key=" + kmsKey2 +
-				" --eks-audit-logs",
-		},
-		{
-			name: "valid with symbols in role",
-			reqQuery: url.Values{
-				"kind":         []string{"aws-iam"},
-				"role":         []string{"Test+1=2,3.4@5-6_7"},
-				"awsAccountID": []string{"123456789012"},
-			},
-			errCheck: require.NoError,
-			expectedTeleportArgs: "integration configure access-graph aws-iam " +
-				"--role=Test\\+1=2,3.4\\@5-6_7 " +
-				"--aws-account-id=123456789012",
-		},
-		{
-			name: "missing kind",
-			reqQuery: url.Values{
-				"role":         []string{"myRole"},
-				"awsAccountID": []string{"123456789012"},
-			},
-			errCheck: isBadParamErrFn,
-		},
-		{
-			name: "missing role",
-			reqQuery: url.Values{
-				"kind":         []string{"aws-iam"},
-				"awsAccountID": []string{"123456789012"},
-			},
-			errCheck: isBadParamErrFn,
-		},
-		{
-			name: "missing awsAccountID",
-			reqQuery: url.Values{
-				"kind": []string{"aws-iam"},
-				"role": []string{"myRole"},
-			},
-			errCheck: isBadParamErrFn,
-		},
-		{
-			name: "trying to inject escape sequence into query params",
-			reqQuery: url.Values{
-				"kind":         []string{"aws-iam"},
-				"role":         []string{"'; rm -rf /tmp/dir; echo '"},
-				"awsAccountID": []string{"123456789012"},
-			},
-			errCheck: isBadParamErrFn,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			resp, err := anonymousHTTPClient.Get(t.Context(), endpoint, tc.reqQuery)
 			tc.errCheck(t, err)
 			if err != nil {
 				return
@@ -476,6 +420,7 @@ func TestBuildAWSAppAccessConfigureIAMScript(t *testing.T) {
 		require.True(tt, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
 	}
 
+	ctx := context.Background()
 	env := newWebPack(t, 1)
 
 	// Unauthenticated client for script downloading.
@@ -531,7 +476,7 @@ func TestBuildAWSAppAccessConfigureIAMScript(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			resp, err := anonymousHTTPClient.Get(t.Context(), endpoint, tc.reqQuery)
+			resp, err := anonymousHTTPClient.Get(ctx, endpoint, tc.reqQuery)
 			tc.errCheck(t, err)
 			if err != nil {
 				return
@@ -764,6 +709,7 @@ func TestBuildAWSOIDCIdPConfigureScript(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			resp, err := publicClt.Get(ctx, scriptEndpoint, tc.reqQuery)
 			tc.errCheck(t, err)
@@ -1107,8 +1053,6 @@ func TestAWSOIDCAppAccessAppServerCreationDeletion(t *testing.T) {
 	proxy := env.proxies[0]
 	proxy.handler.handler.cfg.PublicProxyAddr = strings.TrimPrefix(proxy.handler.handler.cfg.PublicProxyAddr, "https://")
 	proxyPublicAddr := proxy.handler.handler.cfg.PublicProxyAddr
-	proxyPublicHost, _, err := net.SplitHostPort(proxyPublicAddr)
-	require.NoError(t, err)
 	pack := proxy.authPack(t, "foo@example.com", []types.Role{roleTokenCRD})
 
 	myIntegration, err := types.NewIntegrationAWSOIDC(types.Metadata{
@@ -1158,7 +1102,7 @@ func TestAWSOIDCAppAccessAppServerCreationDeletion(t *testing.T) {
 					URI:         "https://console.aws.amazon.com",
 					Integration: "my-integration",
 					Cloud:       "AWS",
-					PublicAddr:  "my-integration." + proxyPublicHost,
+					PublicAddr:  "my-integration." + proxyPublicAddr,
 				},
 			},
 		},
@@ -1210,22 +1154,6 @@ func TestAWSOIDCAppAccessAppServerCreationDeletion(t *testing.T) {
 		_, err = pack.clt.PostJSON(ctx, endpoint, nil)
 		require.Error(t, err)
 		require.ErrorContains(t, err, `Invalid integration name ("env.prod") for enabling AWS Access.`)
-	})
-
-	t.Run("mixed-case integration name is rejected", func(t *testing.T) {
-		mixedCaseIntegration, err := types.NewIntegrationAWSOIDC(types.Metadata{
-			Name: "MixedCase",
-		}, &types.AWSOIDCIntegrationSpecV1{
-			RoleARN: "arn:aws:iam::123456789012:role/teleport",
-		})
-		require.NoError(t, err)
-
-		_, err = env.server.Auth().CreateIntegration(ctx, mixedCaseIntegration)
-		require.NoError(t, err)
-		endpoint = pack.clt.Endpoint("webapi", "sites", "localhost", "integrations", "aws-oidc", "MixedCase", "aws-app-access")
-		_, err = pack.clt.PostJSON(ctx, endpoint, nil)
-		require.Error(t, err)
-		require.ErrorContains(t, err, "contains uppercase characters")
 	})
 }
 
@@ -1315,7 +1243,10 @@ func (m *mockDeployedDatabaseServices) ListDeployedDatabaseServices(ctx context.
 	}
 
 	sliceStart := pageSize * (requestedPage - 1)
-	sliceEnd := min(pageSize*requestedPage, totalResources)
+	sliceEnd := pageSize * requestedPage
+	if sliceEnd > totalResources {
+		sliceEnd = totalResources
+	}
 
 	ret.DeployedDatabaseServices = services[sliceStart:sliceEnd]
 	if sliceEnd < totalResources {
@@ -1327,7 +1258,7 @@ func (m *mockDeployedDatabaseServices) ListDeployedDatabaseServices(ctx context.
 
 func TestAWSOIDCListDeployedDatabaseServices(t *testing.T) {
 	ctx := context.Background()
-	logger := logtest.NewLogger()
+	logger := utils.NewSlogLoggerForTests()
 
 	for _, tt := range []struct {
 		name              string
@@ -1478,7 +1409,7 @@ func TestAWSOIDCListDeployedDatabaseServices(t *testing.T) {
 			},
 			expectedServices: func(t *testing.T) []ui.AWSOIDCDeployedDatabaseService {
 				var ret []ui.AWSOIDCDeployedDatabaseService
-				for i := range 1_024 {
+				for i := 0; i < 1_024; i++ {
 					ret = append(ret, ui.AWSOIDCDeployedDatabaseService{
 						Name:                fmt.Sprintf("database-service-vpc-%d", i),
 						DashboardURL:        "url",
@@ -1520,7 +1451,7 @@ func buildCommandDeployedDatabaseService(t *testing.T, valid bool, matchingLabel
 
 func dummyDeployedDatabaseServices(count int, command []string) []*integrationv1.DeployedDatabaseService {
 	var ret []*integrationv1.DeployedDatabaseService
-	for i := range count {
+	for i := 0; i < count; i++ {
 		ret = append(ret, &integrationv1.DeployedDatabaseService{
 			Name:                fmt.Sprintf("database-service-vpc-%d", i),
 			ServiceDashboardUrl: "url",

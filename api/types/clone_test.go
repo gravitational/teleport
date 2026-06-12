@@ -43,7 +43,6 @@ func TestCloning(t *testing.T) {
 	accessRequest := a.(*AccessRequestV3)
 	accessRequest.Spec.SuggestedReviewers = nil
 	accessRequest.Spec.RequestedResourceIDs = nil
-	accessRequest.Spec.RequestedResourceAccessIDs = nil
 	resources = append(resources, accessRequest)
 
 	user, err := NewUser("foo")

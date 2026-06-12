@@ -36,7 +36,6 @@ import {
   makeCheckingForUpdateEvent,
   makeDownloadProgressEvent,
   makeErrorEvent,
-  makeInstallingEvent,
   makeUpdateAvailableEvent,
   makeUpdateDownloadedEvent,
   makeUpdateInfo,
@@ -51,10 +50,9 @@ export interface StoryProps {
     | 'Update available'
     | 'Download progress'
     | 'Error'
-    | 'Update downloaded'
-    | 'Installing';
+    | 'Update downloaded';
   updateSource: string;
-  configToolsVersion: 'Set to "off"' | 'Set to version - v15' | 'Unset';
+  envVar: 'Set to "off"' | 'Set to version - v15' | 'Unset';
   platform: Platform;
   clusterFoo:
     | 'Does not exist'
@@ -69,19 +67,18 @@ export interface StoryProps {
     | 'Enabled client updates - v16 cluster'
     | 'Disabled client updates - v17 cluster';
   clusterBarSetToManageUpdates: boolean;
-  cdnBaseUrl: 'Unset (OSS build)' | 'Official' | 'Unofficial';
-  updateRequiresUacPrompt: boolean;
+  updateKind: 'Upgrade' | 'Downgrade';
+  nonTeleportCdn: boolean;
 }
 
 const meta: Meta<StoryProps> = {
   title: 'Teleterm/AppUpdater',
   component: WidgetAndDetails,
   argTypes: {
-    configToolsVersion: {
+    envVar: {
       control: { type: 'radio' },
       options: ['Off', 'Set to version - v15', 'Unset'],
-      description:
-        'Tools version from the local config (env var/system registry value)',
+      description: '`TELEPORT_TOOLS_VERSION` value',
     },
     clusterFoo: {
       control: { type: 'select' },
@@ -109,6 +106,12 @@ const meta: Meta<StoryProps> = {
       control: { type: 'boolean' },
       description: 'Whether cluster "bar" is manually set to control updates',
     },
+    updateKind: {
+      control: { type: 'radio' },
+      options: ['Upgrade', 'Downgrade'],
+      description:
+        'Indicates whether the update version is newer or older than the current application version.',
+    },
     step: {
       control: { type: 'radio' },
       options: [
@@ -118,7 +121,6 @@ const meta: Meta<StoryProps> = {
         'Download progress',
         'Error',
         'Update downloaded',
-        'Installing',
       ],
       description: 'Updating process step',
     },
@@ -127,26 +129,21 @@ const meta: Meta<StoryProps> = {
       options: ['win32', 'darwin', 'linux'],
       description: 'Operating system',
     },
-    cdnBaseUrl: {
-      control: { type: 'radio' },
-      description: 'CDN Base URL',
-      options: ['Unset (OSS build)', 'Official', 'Unofficial'],
-    },
-    updateRequiresUacPrompt: {
+    nonTeleportCdn: {
       control: { type: 'boolean' },
       description:
-        'Deprecated per‑machine env‑var configuration requires a UAC prompt and prevents use of the privileged updater. Windows only.',
+        'Whether `TELEPORT_CDN_BASE_URL` is set to non-Teleport CDN URL',
     },
   },
   args: {
-    configToolsVersion: 'Unset',
+    envVar: 'Unset',
     clusterFoo: 'Enabled client updates - v18 cluster',
     clusterBar: 'Does not exist',
     clusterBarSetToManageUpdates: false,
+    updateKind: 'Upgrade',
     step: 'Update available',
     platform: 'darwin',
-    cdnBaseUrl: 'Official',
-    updateRequiresUacPrompt: false,
+    nonTeleportCdn: false,
   },
 };
 
@@ -158,16 +155,10 @@ context.addRootCluster(makeRootCluster({ uri: '/clusters/bar', name: 'bar' }));
 
 async function resolveEvent(storyProps: StoryProps): Promise<AppUpdateEvent> {
   const status = await resolveAutoUpdatesStatus({
-    cdnBaseUrl:
-      storyProps.cdnBaseUrl === 'Unset (OSS build)'
-        ? ''
-        : storyProps.cdnBaseUrl === 'Official'
-          ? 'https://cdn.teleport.dev'
-          : 'https://custom-hosting.local',
-    configToolsVersion:
-      storyProps.configToolsVersion === 'Set to version - v15'
+    versionEnvVar:
+      storyProps.envVar === 'Set to version - v15'
         ? '15.0.0'
-        : storyProps.configToolsVersion === 'Unset'
+        : storyProps.envVar === 'Unset'
           ? undefined
           : 'off',
     managingClusterUri: storyProps.clusterBarSetToManageUpdates
@@ -251,16 +242,11 @@ async function resolveEvent(storyProps: StoryProps): Promise<AppUpdateEvent> {
     },
   });
 
-  const nonTeleportCdn = storyProps.cdnBaseUrl === 'Unofficial';
   const updateInfo = makeUpdateInfo(
-    nonTeleportCdn,
+    storyProps.nonTeleportCdn,
     status.enabled ? status.version : '',
-    storyProps.updateRequiresUacPrompt
+    storyProps.updateKind === 'Upgrade' ? 'upgrade' : 'downgrade'
   );
-
-  if (storyProps.platform !== 'win32' && storyProps.updateRequiresUacPrompt) {
-    return;
-  }
 
   switch (storyProps.step) {
     case 'Checking for update':
@@ -285,11 +271,6 @@ async function resolveEvent(storyProps: StoryProps): Promise<AppUpdateEvent> {
     case 'Error':
       if (status.enabled) {
         return makeErrorEvent(updateInfo, status);
-      }
-      return;
-    case 'Installing':
-      if (status.enabled) {
-        return makeInstallingEvent(updateInfo, status);
       }
       return;
   }
@@ -331,6 +312,9 @@ function WidgetAndDetails(storyProps: StoryProps) {
         <WidgetView
           platform={storyProps.platform}
           updateEvent={state}
+          clusterGetter={{
+            findCluster: () => undefined,
+          }}
           onMore={() => {}}
           onDownload={() => {}}
           onInstall={() => {}}
@@ -346,9 +330,11 @@ function WidgetAndDetails(storyProps: StoryProps) {
           </P2>
         </Stack>
         <DetailsView
-          currentVersion="14.7.3"
           platform={storyProps.platform}
           updateEvent={state}
+          clusterGetter={{
+            findCluster: () => undefined,
+          }}
           changeManagingCluster={() => {}}
           onCheckForUpdates={() => {}}
           onDownload={() => {}}
@@ -360,9 +346,9 @@ function WidgetAndDetails(storyProps: StoryProps) {
   );
 }
 
-export const EnabledWithLocalConfigToolsVersion: StoryObj<StoryProps> = {
+export const EnabledWithEnvVar: StoryObj<StoryProps> = {
   args: {
-    configToolsVersion: 'Set to version - v15',
+    envVar: 'Set to version - v15',
   },
 };
 
@@ -448,9 +434,3 @@ export const DisabledBecauseClustersRequireIncompatibleVersions: StoryObj<StoryP
       step: 'Update not available',
     },
   };
-
-export const DisabledNoCdnBaseUrl: StoryObj<StoryProps> = {
-  args: {
-    cdnBaseUrl: 'Unset (OSS build)',
-  },
-};

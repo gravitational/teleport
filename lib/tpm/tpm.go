@@ -36,9 +36,9 @@ import (
 
 var tracer = otel.Tracer("github.com/gravitational/teleport/lib/tpm")
 
-// SerialString converts a serial number into a readable colon-delimited hex
+// serialString converts a serial number into a readable colon-delimited hex
 // string thats user-readable e.g ab:ab:ab:ff:ff:ff
-func SerialString(serial *big.Int) string {
+func serialString(serial *big.Int) string {
 	hex := serial.Text(16)
 
 	out := strings.Builder{}
@@ -60,11 +60,11 @@ func SerialString(serial *big.Int) string {
 	return out.String()
 }
 
-// HashEKPub hashes the public part of an EK key. The key is hashed with SHA256,
+// hashEKPub hashes the public part of an EK key. The key is hashed with SHA256,
 // and returned as a hexadecimal string.
-func HashEKPub(pkixPublicKey []byte) string {
+func hashEKPub(pkixPublicKey []byte) (string, error) {
 	hashed := sha256.Sum256(pkixPublicKey)
-	return fmt.Sprintf("%x", hashed)
+	return fmt.Sprintf("%x", hashed), nil
 }
 
 // QueryRes is the result of the TPM query performed by Query.
@@ -94,7 +94,9 @@ func Query(ctx context.Context, log *slog.Logger) (*QueryRes, error) {
 	ctx, span := tracer.Start(ctx, "Query")
 	defer span.End()
 
-	tpm, err := openTPM()
+	tpm, err := attest.OpenTPM(&attest.OpenConfig{
+		TPMVersion: attest.TPMVersion20,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -138,12 +140,15 @@ func QueryWithTPM(
 		return nil, trace.Wrap(err)
 	}
 	data.EKPub = ekPub
-	data.EKPubHash = HashEKPub(ekPub)
+	data.EKPubHash, err = hashEKPub(ekPub)
+	if err != nil {
+		return nil, trace.Wrap(err, "hashing ekpub")
+	}
 
 	if eks[0].Certificate != nil {
 		data.EKCert = &QueryEKCert{
 			Raw:          eks[0].Certificate.Raw,
-			SerialNumber: SerialString(eks[0].Certificate.SerialNumber),
+			SerialNumber: serialString(eks[0].Certificate.SerialNumber),
 		}
 	}
 	log.DebugContext(ctx, "Successfully queried TPM", "data", data)
@@ -175,7 +180,9 @@ func Attest(ctx context.Context, log *slog.Logger) (
 	ctx, span := tracer.Start(ctx, "Attest")
 	defer span.End()
 
-	tpm, err := openTPM()
+	tpm, err := attest.OpenTPM(&attest.OpenConfig{
+		TPMVersion: attest.TPMVersion20,
+	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -251,9 +258,4 @@ func PrintQuery(data *QueryRes, debug bool, w io.Writer) {
 			}))
 		}
 	}
-}
-
-// openTPM opens the TPM device using a predetermined config.
-func openTPM() (*attest.TPM, error) {
-	return attest.OpenTPM(nil /* config */)
 }

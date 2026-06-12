@@ -55,7 +55,6 @@ func (s *proxyService) DialNode(stream proto.ProxyService_DialNodeServer) error 
 	}
 
 	log := s.log.With(
-		"target_scope", dial.TargetScope,
 		"node", dial.NodeID,
 		"src", dial.Source.Addr,
 		"dst", dial.Destination.Addr,
@@ -77,11 +76,10 @@ func (s *proxyService) DialNode(stream proto.ProxyService_DialNodeServer) error 
 	}
 
 	nodeConn, err := s.dialer.Dial(clusterName, peerdial.DialParams{
-		From:        source,
-		To:          destination,
-		ServerID:    dial.NodeID,
-		ConnType:    dial.TunnelType,
-		TargetScope: dial.TargetScope,
+		From:     source,
+		To:       destination,
+		ServerID: dial.NodeID,
+		ConnType: dial.TunnelType,
 	})
 	if err != nil {
 		return trace.Wrap(err)

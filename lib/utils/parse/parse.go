@@ -24,12 +24,10 @@
 package parse
 
 import (
-	"fmt"
 	"net/mail"
 	"regexp"
 	"strings"
 	"unicode"
-	"unicode/utf8"
 
 	"github.com/gravitational/trace"
 
@@ -47,50 +45,6 @@ const (
 	// RegexpReplaceFnName is a name for regexp.replace function.
 	RegexpReplaceFnName = "regexp.replace"
 )
-
-// LabelSelectorSpec parses a string like 'name=value,"long name"="quoted value"` into a map like
-// { "name" -> "value", "long name" -> "quoted value" }.
-func LabelSelectorSpec(spec string) (map[string]string, error) {
-	var tokens []string
-	openQuotes := false
-	var tokenStart, assignCount int
-	specLen := len(spec)
-	// tokenize the label spec:
-	for i, ch := range spec {
-		endOfToken := false
-		// end of line?
-		if i+utf8.RuneLen(ch) == specLen {
-			i += utf8.RuneLen(ch)
-			endOfToken = true
-		}
-		switch ch {
-		case '"':
-			openQuotes = !openQuotes
-		case '=', ',', ';':
-			if !openQuotes {
-				endOfToken = true
-				if ch == '=' {
-					assignCount++
-				}
-			}
-		}
-		if endOfToken && i > tokenStart {
-			tokens = append(tokens, strings.TrimSpace(strings.Trim(spec[tokenStart:i], `"`)))
-			tokenStart = i + 1
-		}
-	}
-	// simple validation of tokenization: must have an even number of tokens (because they're pairs)
-	// and the number of such pairs must be equal the number of assignments
-	if len(tokens)%2 != 0 || assignCount != len(tokens)/2 {
-		return nil, fmt.Errorf("invalid label spec: '%s', should be 'key=value'", spec)
-	}
-	// break tokens in pairs and put into a map:
-	labels := make(map[string]string)
-	for i := 0; i < len(tokens); i += 2 {
-		labels[tokens[i]] = tokens[i+1]
-	}
-	return labels, nil
-}
 
 var (
 	traitsTemplateParser = mustNewTraitsTemplateParser()
@@ -118,8 +72,7 @@ type TraitsTemplateExpression struct {
 	expr traitsTemplateExpression
 }
 
-// NewTraitsTemplateExpression parses expressions like {{external.foo}}, {{internal.bar}},
-// or {{user.metadata.name}},
+// NewTraitsTemplateExpression parses expressions like {{external.foo}} or {{internal.bar}},
 // or a literal value like "prod". Call Interpolate on the returned Expression
 // to get the final value based on user traits.
 func NewTraitsTemplateExpression(value string) (*TraitsTemplateExpression, error) {
@@ -156,14 +109,7 @@ func NewTraitsTemplateExpression(value string) (*TraitsTemplateExpression, error
 // and this variable is not found on any trait, nil in case of success,
 // and BadParameter otherwise.
 func (e *TraitsTemplateExpression) Interpolate(varValidation func(namespace, name string) error, traits map[string][]string) ([]string, error) {
-	return e.InterpolateWithUser(varValidation, "", traits)
-}
-
-// InterpolateWithUser interpolates the variable adding prefix and suffix if
-// present, with optional Teleport username.
-func (e *TraitsTemplateExpression) InterpolateWithUser(varValidation func(namespace, name string) error, username string, traits map[string][]string) ([]string, error) {
 	result, err := e.expr.Evaluate(traitsTemplateEnv{
-		username:       username,
 		traits:         traits,
 		traitValidator: varValidation,
 	})
@@ -182,7 +128,6 @@ func (e *TraitsTemplateExpression) InterpolateWithUser(varValidation func(namesp
 }
 
 type traitsTemplateEnv struct {
-	username       string
 	traits         map[string][]string
 	traitValidator func(namespace, name string) error
 }
@@ -222,12 +167,6 @@ func newTraitsTemplateParser() (*typical.CachedParser[traitsTemplateEnv, []strin
 		Variables: map[string]typical.Variable{
 			"external": traitsVariable("external"),
 			"internal": traitsVariable("internal"),
-			"user.metadata.name": typical.DynamicVariable(func(e traitsTemplateEnv) ([]string, error) {
-				if e.username == "" {
-					return nil, trace.NotFound("user.metadata.name is not available in this context")
-				}
-				return []string{e.username}, nil
-			}),
 		},
 		Functions: map[string]typical.Function{
 			EmailLocalFnName:    typical.UnaryFunction[traitsTemplateEnv](EmailLocal),

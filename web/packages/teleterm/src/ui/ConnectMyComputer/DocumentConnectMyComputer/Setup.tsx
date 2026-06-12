@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useEffect, useState, type JSX } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import styled from 'styled-components';
 
 import { Alert, Box, ButtonPrimary, Flex, H1, Text } from 'design';
@@ -24,10 +24,7 @@ import * as Alerts from 'design/Alert';
 import { Attempt, makeEmptyAttempt, useAsync } from 'shared/hooks/useAsync';
 import { wait } from 'shared/utils/wait';
 
-import {
-  isRpcError,
-  isRpcErrorReloginResolvable,
-} from 'teleterm/services/tshd/cloneableClient';
+import { isTshdRpcError } from 'teleterm/services/tshd/cloneableClient';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
   AgentProcessError,
@@ -240,8 +237,8 @@ function AgentSetup() {
               certsReloaded = response.certsReloaded;
             } catch (error) {
               if (
-                isRpcError(error, 'PERMISSION_DENIED') &&
-                !isRpcErrorReloginResolvable(error)
+                isTshdRpcError(error, 'PERMISSION_DENIED') &&
+                !error.isResolvableWithRelogin
               ) {
                 throw new Error(
                   `Cannot set up the role: ${error.message}. Contact your administrator for permissions to manage users and roles.`,

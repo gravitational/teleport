@@ -214,6 +214,7 @@ export type ClusterConnectReason =
 export interface DialogClusterLogout {
   kind: 'cluster-logout';
   clusterUri: RootClusterUri;
+  clusterTitle: string;
 }
 
 export interface DialogDocumentsReopen {
@@ -261,7 +262,6 @@ export interface DialogReAuthenticate {
   promptMfaRequest: tshdEventsApi.PromptMFARequest;
   onSuccess(totpCode: string): void;
   onSsoContinue(redirectUrl: string): void;
-  onBrowserMfaContinue(redirectUrl: string): void;
   onCancel(): void;
 }
 

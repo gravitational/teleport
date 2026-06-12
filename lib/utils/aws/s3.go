@@ -22,11 +22,15 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net/http"
 	"strings"
 
 	awsv2 "github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
+	managerv2 "github.com/aws/aws-sdk-go-v2/feature/s3/manager"
+	s3v2 "github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/smithy-go"
 	"github.com/gravitational/trace"
 )
@@ -38,6 +42,25 @@ func ConvertS3Error(err error) error {
 		return nil
 	}
 
+	// SDK v1 errors:
+	var rerr awserr.RequestFailure
+	if errors.As(err, &rerr) && rerr.StatusCode() == http.StatusForbidden {
+		return trace.AccessDenied("%s", rerr.Message())
+	}
+
+	var aerr awserr.Error
+	if errors.As(err, &aerr) {
+		switch aerr.Code() {
+		case s3.ErrCodeNoSuchKey, s3.ErrCodeNoSuchBucket, s3.ErrCodeNoSuchUpload, "NotFound":
+			return trace.NotFound("%s", aerr)
+		case s3.ErrCodeBucketAlreadyExists, s3.ErrCodeBucketAlreadyOwnedByYou:
+			return trace.AlreadyExists("%s", aerr)
+		default:
+			return trace.BadParameter("%s", aerr)
+		}
+	}
+
+	// SDK v2 errors:
 	var noSuchKey *s3types.NoSuchKey
 	if errors.As(err, &noSuchKey) {
 		return trace.NotFound("%s", noSuchKey)
@@ -82,11 +105,11 @@ type s3V2FileWriter struct {
 
 // NewS3V2FileWriter created s3V2FileWriter. Close method on writer should be called
 // to make sure that reader has finished.
-func NewS3V2FileWriter(ctx context.Context, s3Client transfermanager.S3APIClient, bucket, key string, uploaderOptions []func(*transfermanager.Options), putObjectInputOptions ...func(*transfermanager.UploadObjectInput)) (*s3V2FileWriter, error) {
-	client := transfermanager.New(s3Client, uploaderOptions...)
+func NewS3V2FileWriter(ctx context.Context, s3Client managerv2.UploadAPIClient, bucket, key string, uploaderOptions []func(*managerv2.Uploader), putObjectInputOptions ...func(*s3v2.PutObjectInput)) (*s3V2FileWriter, error) {
+	uploader := managerv2.NewUploader(s3Client, uploaderOptions...)
 	pr, pw := io.Pipe()
 
-	uploadParams := &transfermanager.UploadObjectInput{
+	uploadParams := &s3v2.PutObjectInput{
 		Bucket: awsv2.String(bucket),
 		Key:    awsv2.String(key),
 		Body:   pr,
@@ -98,7 +121,7 @@ func NewS3V2FileWriter(ctx context.Context, s3Client transfermanager.S3APIClient
 	uploadFinisherErrChan := make(chan error)
 	go func() {
 		defer close(uploadFinisherErrChan)
-		_, err := client.UploadObject(ctx, uploadParams)
+		_, err := uploader.Upload(ctx, uploadParams)
 		if err != nil {
 			pr.CloseWithError(err)
 		}

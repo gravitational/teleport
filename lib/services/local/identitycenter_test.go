@@ -29,20 +29,21 @@ import (
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/services"
 )
 
 func newTestBackend(t *testing.T, ctx context.Context, clock clockwork.Clock) backend.Backend {
 	t.Helper()
-	bk, err := memory.New(memory.Config{
+	sqliteBackend, err := lite.NewWithConfig(ctx, lite.Config{
+		Path:  t.TempDir(),
 		Clock: clock,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		require.NoError(t, bk.Close())
+		require.NoError(t, sqliteBackend.Close())
 	})
-	return bk
+	return sqliteBackend
 }
 
 func TestIdentityCenterResourceCRUD(t *testing.T) {
@@ -68,7 +69,7 @@ func TestIdentityCenterResourceCRUD(t *testing.T) {
 			},
 			updateResource: func(subtestCtx context.Context, svc services.IdentityCenter, r types.Resource153) (types.Resource153, error) {
 				acct := r.(*identitycenterv1.Account)
-				return svc.UpdateIdentityCenterAccount(subtestCtx, acct)
+				return svc.UpdateIdentityCenterAccount2(subtestCtx, acct)
 			},
 			upsertResource: func(subtestCtx context.Context, svc services.IdentityCenter, r types.Resource153) (types.Resource153, error) {
 				acct := r.(*identitycenterv1.Account)
@@ -108,10 +109,10 @@ func TestIdentityCenterResourceCRUD(t *testing.T) {
 			},
 			upsertResource: func(subtestCtx context.Context, svc services.IdentityCenter, r types.Resource153) (types.Resource153, error) {
 				asmt := r.(*identitycenterv1.AccountAssignment)
-				return svc.UpsertIdentityCenterAccountAssignment(subtestCtx, asmt)
+				return svc.UpsertAccountAssignment(subtestCtx, asmt)
 			},
 			deleteAllResources: func(subtestCtx context.Context, svc services.IdentityCenter) error {
-				return svc.DeleteAllIdentityCenterAccountAssignments(subtestCtx)
+				return svc.DeleteAllAccountAssignments(subtestCtx)
 			},
 		},
 		{
@@ -269,7 +270,7 @@ func TestIdentityCenterResourceCRUD(t *testing.T) {
 
 func makeTestIdentityCenterAccount(t *testing.T, ctx context.Context, svc services.IdentityCenter, id string) *identitycenterv1.Account {
 	t.Helper()
-	created, err := svc.CreateIdentityCenterAccount(ctx, &identitycenterv1.Account{
+	created, err := svc.CreateIdentityCenterAccount2(ctx, &identitycenterv1.Account{
 		Kind:     types.KindIdentityCenterAccount,
 		Version:  types.V1,
 		Metadata: &headerv1.Metadata{Name: id},

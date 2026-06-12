@@ -33,7 +33,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/authcatest"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -118,16 +117,16 @@ func runUserResourceTest(
 	require.NoError(t, err)
 	b, err := s.GetUser(ctx, "bob", withSecrets)
 	require.NoError(t, err)
-	require.True(t, bob.IsEqual(b), "dynamically inserted user does not match")
+	require.True(t, services.UsersEquals(bob, b), "dynamically inserted user does not match")
 	allUsers, err := s.GetUsers(ctx, withSecrets)
 	require.NoError(t, err)
 	require.Len(t, allUsers, 2, "expected exactly two users")
 	for _, user := range allUsers {
 		switch user.GetName() {
 		case "alice":
-			require.True(t, alice.IsEqual(user), "alice does not match")
+			require.True(t, services.UsersEquals(alice, user), "alice does not match")
 		case "bob":
-			require.True(t, bob.IsEqual(user), "bob does not match")
+			require.True(t, services.UsersEquals(bob, user), "bob does not match")
 		default:
 			t.Errorf("Unexpected user %q", user.GetName())
 		}
@@ -145,17 +144,17 @@ func TestCertAuthorityResource(t *testing.T) {
 	ctx := context.Background()
 	tt := setupServicesContext(ctx, t)
 
-	userCA, err := authcatest.NewCA(types.UserCA, "example.com")
-	require.NoError(t, err)
-	hostCA, err := authcatest.NewCA(types.HostCA, "example.com")
-	require.NoError(t, err)
+	userCA := NewTestCA(types.UserCA, "example.com")
+	hostCA := NewTestCA(types.HostCA, "example.com")
 
 	// Check basic dynamic item creation
-	require.NoError(t, CreateResources(ctx, tt.bk, userCA, hostCA))
+	err := CreateResources(ctx, tt.bk, userCA, hostCA)
+	require.NoError(t, err)
 
 	// Check that dynamically created item is compatible with service
 	s := NewCAService(tt.bk)
-	require.NoError(t, s.CompareAndSwapCertAuthority(userCA, userCA))
+	err = s.CompareAndSwapCertAuthority(userCA, userCA)
+	require.NoError(t, err)
 }
 
 func TestTrustedClusterResource(t *testing.T) {

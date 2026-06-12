@@ -36,6 +36,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/helpers"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -44,14 +45,13 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
-	cassandra "github.com/gravitational/teleport/lib/srv/db/cassandra/protocoltest"
+	"github.com/gravitational/teleport/lib/srv/db/cassandra"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 type DatabasePack struct {
@@ -129,7 +129,6 @@ func (pack *databaseClusterPack) StartDatabaseServices(t *testing.T, clock clock
 	conf := servicecfg.MakeDefaultConfig()
 	conf.DataDir = filepath.Join(t.TempDir(), pack.name)
 	conf.SetToken("static-token-value")
-	conf.InsecureMode = true
 
 	conf.SetAuthServerAddress(utils.NetAddr{
 		AddrNetwork: "tcp",
@@ -256,10 +255,11 @@ func SetupDatabaseTest(t *testing.T, options ...TestOptionFunc) *DatabasePack {
 	// Some global setup.
 	tracer := utils.NewTracer(utils.ThisFunction()).Start()
 	t.Cleanup(func() { tracer.Stop() })
-	log := logtest.NewLogger()
+	lib.SetInsecureDevMode(true)
+	log := utils.NewLoggerForTests()
 
 	// Generate keypair.
-	privateKey, publicKey, err := testauthority.GenerateKeyPair()
+	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	p := &DatabasePack{
@@ -275,8 +275,7 @@ func SetupDatabaseTest(t *testing.T, options ...TestOptionFunc) *DatabasePack {
 		NodeName:    opts.nodeName,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		Logger:      log,
-		Clock:       opts.clock,
+		Log:         log,
 	}
 	rootCfg.Listeners = opts.listenerSetup(t, &rootCfg.Fds)
 	p.Root.Cluster = helpers.NewInstance(t, rootCfg)
@@ -288,23 +287,19 @@ func SetupDatabaseTest(t *testing.T, options ...TestOptionFunc) *DatabasePack {
 		NodeName:    opts.nodeName,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		Logger:      log,
-		Clock:       opts.clock,
+		Log:         log,
 	}
 	leafCfg.Listeners = opts.listenerSetup(t, &leafCfg.Fds)
 	p.Leaf.Cluster = helpers.NewInstance(t, leafCfg)
 
 	// Make root cluster config.
 	rcConf := servicecfg.MakeDefaultConfig()
-	rcConf.InsecureMode = true
 	rcConf.DataDir = t.TempDir()
 	rcConf.Auth.Enabled = true
-	rcConf.Auth.Clock = p.clock
 	rcConf.Auth.Preference.SetSecondFactor("off")
 	rcConf.Proxy.Enabled = true
 	rcConf.Proxy.DisableWebInterface = true
 	rcConf.Clock = p.clock
-	rcConf.InsecureMode = true
 	rcConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	if opts.rootConfig != nil {
 		opts.rootConfig(rcConf)
@@ -313,14 +308,11 @@ func SetupDatabaseTest(t *testing.T, options ...TestOptionFunc) *DatabasePack {
 	// Make leaf cluster config.
 	lcConf := servicecfg.MakeDefaultConfig()
 	lcConf.DataDir = t.TempDir()
-	lcConf.InsecureMode = true
 	lcConf.Auth.Enabled = true
-	lcConf.Auth.Clock = p.clock
 	lcConf.Auth.Preference.SetSecondFactor("off")
 	lcConf.Proxy.Enabled = true
 	lcConf.Proxy.DisableWebInterface = true
 	lcConf.Clock = p.clock
-	lcConf.InsecureMode = true
 	lcConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	if opts.leafConfig != nil {
 		opts.leafConfig(lcConf)
@@ -346,14 +338,6 @@ func SetupDatabaseTest(t *testing.T, options ...TestOptionFunc) *DatabasePack {
 
 	// Setup users and roles on both clusters.
 	p.setupUsersAndRoles(t)
-
-	// disable health checks to reduce log noise during tests
-	defaultHCC := services.VirtualDefaultHealthCheckConfigDB()
-	defaultHCC.GetSpec().GetMatch().Disabled = true
-	_, err = p.Root.Cluster.Process.GetAuthServer().UpsertHealthCheckConfig(ctx, defaultHCC)
-	require.NoError(t, err)
-	_, err = p.Leaf.Cluster.Process.GetAuthServer().UpsertHealthCheckConfig(ctx, defaultHCC)
-	require.NoError(t, err)
 
 	// Update root's certificate authority on leaf to configure role mapping.
 	ca, err := p.Leaf.Cluster.Process.GetAuthServer().GetCertAuthority(ctx, types.CertAuthID{
@@ -396,10 +380,10 @@ func (p *DatabasePack) setupUsersAndRoles(t *testing.T) {
 
 func (p *DatabasePack) WaitForLeaf(t *testing.T) {
 	helpers.WaitForProxyCount(p.Leaf.Cluster, p.Root.Cluster.Secrets.SiteName, 1)
-	cluster, err := p.Root.Cluster.Tunnel.Cluster(t.Context(), p.Leaf.Cluster.Secrets.SiteName)
+	site, err := p.Root.Cluster.Tunnel.GetSite(p.Leaf.Cluster.Secrets.SiteName)
 	require.NoError(t, err)
 
-	accessPoint, err := cluster.CachingAccessPoint()
+	accessPoint, err := site.CachingAccessPoint()
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -414,15 +398,15 @@ func (p *DatabasePack) WaitForLeaf(t *testing.T) {
 			servers, err := accessPoint.GetDatabaseServers(ctx, apidefaults.Namespace)
 			if err != nil {
 				// Use root logger as we need a configured logger instance and the root cluster have one.
-				p.Root.Cluster.Log.DebugContext(ctx, "Leaf cluster access point is unavailable", "error", err)
+				p.Root.Cluster.Log.WithError(err).Debugf("Leaf cluster access point is unavailable.")
 				continue
 			}
 			if !containsDB(servers, p.Leaf.MysqlService.Name) {
-				p.Root.Cluster.Log.DebugContext(ctx, "Leaf db service is unavailable", "error", err, "db_service", p.Leaf.MysqlService.Name)
+				p.Root.Cluster.Log.WithError(err).Debugf("Leaf db service %q is unavailable.", p.Leaf.MysqlService.Name)
 				continue
 			}
 			if !containsDB(servers, p.Leaf.PostgresService.Name) {
-				p.Root.Cluster.Log.DebugContext(ctx, "Leaf db service is unavailable", "error", err, "db_service", p.Leaf.PostgresService.Name)
+				p.Root.Cluster.Log.WithError(err).Debugf("Leaf db service %q is unavailable.", p.Leaf.PostgresService.Name)
 				continue
 			}
 			return
@@ -459,7 +443,6 @@ func (p *DatabasePack) startRootDatabaseAgent(t *testing.T, params databaseAgent
 	conf.Databases.Databases = params.databases
 	conf.Databases.ResourceMatchers = params.resourceMatchers
 	conf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	conf.InsecureMode = true
 
 	server, authClient, hostUUID, err := p.Root.Cluster.StartDatabase(conf)
 	require.NoError(t, err)

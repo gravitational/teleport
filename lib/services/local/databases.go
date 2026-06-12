@@ -20,17 +20,16 @@ package local
 
 import (
 	"context"
-	"iter"
 	"log/slog"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/local/generic"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // DatabaseService manages database resources in the backend.
@@ -48,7 +47,6 @@ func NewDatabasesService(backend backend.Backend) *DatabaseService {
 }
 
 // GetDatabases returns all database resources.
-// Deprecated: Prefer paginated variant such as [ListDatabases] or [RangeDatabases]
 func (s *DatabaseService) GetDatabases(ctx context.Context) ([]types.Database, error) {
 	startKey := backend.ExactKey(databasesPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
@@ -68,46 +66,49 @@ func (s *DatabaseService) GetDatabases(ctx context.Context) ([]types.Database, e
 }
 
 // ListDatabases returns a page of database resources.
-func (s *DatabaseService) ListDatabases(ctx context.Context, limit int, startKey string) ([]types.Database, string, error) {
-	return generic.CollectPageAndCursor(s.RangeDatabases(ctx, startKey, ""), limit, types.Database.GetName)
-}
-
-// RangeDatabases returns database resources within the range [start, end).
-func (s *DatabaseService) RangeDatabases(ctx context.Context, start, end string) iter.Seq2[types.Database, error] {
-	mapFn := func(item backend.Item) (types.Database, bool) {
-		database, err := services.UnmarshalDatabase(item.Value,
-			services.WithExpires(item.Expires),
-			services.WithRevision(item.Revision))
-		if err != nil {
-			s.logger.WarnContext(ctx, "Failed to unmarshal database",
-				"key", item.Key,
-				"error", err,
-			)
-			return nil, false
-		}
-		return database, true
+func (s *DatabaseService) ListDatabases(ctx context.Context, limit int, pageToken string) ([]types.Database, string, error) {
+	// Adjust page size, so it can't be too large.
+	if limit <= 0 || limit > defaults.DefaultChunkSize {
+		limit = defaults.DefaultChunkSize
 	}
 
 	dbKey := backend.NewKey(databasesPrefix)
-	startKey := dbKey.AppendKey(backend.KeyFromString(start))
+	startKey := dbKey.AppendKey(backend.KeyFromString(pageToken))
 	endKey := backend.RangeEnd(dbKey)
-	if end != "" {
-		endKey = dbKey.AppendKey(backend.KeyFromString(end)).ExactKey()
+	out := make([]types.Database, 0, limit)
+	var nextPage string
+
+	if err := backend.IterateRange(
+		ctx,
+		s.Backend,
+		startKey,
+		endKey,
+		limit+1,
+		func(items []backend.Item) (bool, error) {
+			for _, item := range items {
+				db, err := services.UnmarshalDatabase(item.Value,
+					services.WithRevision(item.Revision),
+					services.WithExpires(item.Expires))
+				if err != nil {
+					s.logger.WarnContext(ctx, "Failed to unmarshal database",
+						"key", logutils.StringerAttr(item.Key),
+						"error", err)
+					continue
+				}
+
+				if len(out) >= limit {
+					nextPage = db.GetName()
+					return true, nil
+				} else {
+					out = append(out, db)
+				}
+			}
+			return false, nil
+		}); err != nil {
+		return nil, "", trace.Wrap(err)
 	}
 
-	return stream.TakeWhile(
-		stream.FilterMap(
-			s.Backend.Items(ctx, backend.ItemsParams{
-				StartKey: startKey,
-				EndKey:   endKey,
-			}),
-			mapFn,
-		),
-		func(db types.Database) bool {
-			// The range is not inclusive of the end key, so return early
-			// if the end has been reached.
-			return end == "" || db.GetName() < end
-		})
+	return out, nextPage, nil
 }
 
 // GetDatabase returns the specified database resource.

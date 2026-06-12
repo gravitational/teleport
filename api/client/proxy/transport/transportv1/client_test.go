@@ -331,7 +331,7 @@ func TestClient_DialHost(t *testing.T) {
 				}
 
 				// process agent frames
-				eg, _ := errgroup.WithContext(t.Context())
+				var eg errgroup.Group
 				eg.Go(func() error {
 					// create an agent that will communicate over the agent frames
 					// and list the keys from the client
@@ -509,7 +509,7 @@ func TestClient_DialHost(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			conn, details, err := pack.Client.DialHost(t.Context(), test.target, test.cluster, nil, test.keyring)
+			conn, details, err := pack.Client.DialHost(context.Background(), test.target, test.cluster, nil, test.keyring)
 			test.assertion(t, conn, details, err)
 		})
 	}
@@ -549,7 +549,7 @@ func newServer(t *testing.T, srv transportv1pb.TransportServiceServer) testPack 
 	}()
 
 	// gRPC client.
-	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	cc, err := grpc.DialContext(ctx, "unused",
 		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {

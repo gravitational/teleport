@@ -27,14 +27,11 @@ import (
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	apimachinerytypes "k8s.io/apimachinery/pkg/types"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/gravitational/teleport/api/types"
 	resourcesv3 "github.com/gravitational/teleport/integrations/operator/apis/resources/v3"
 	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
-	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/secretlookup"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
 )
@@ -130,27 +127,22 @@ func (g *githubTestingPrimitives) CompareTeleportAndKubernetesResource(tResource
 
 func TestGithubConnectorCreation(t *testing.T) {
 	test := &githubTestingPrimitives{}
-	testlib.ResourceCreationSynchronousTest(t, resources.NewGithubConnectorReconciler, test)
-}
-
-func TestGithubConnectorDeletion(t *testing.T) {
-	test := &githubTestingPrimitives{}
-	testlib.ResourceDeletionSynchronousTest(t, resources.NewGithubConnectorReconciler, test)
+	testlib.ResourceCreationTest[types.GithubConnector, *resourcesv3.TeleportGithubConnector](t, test)
 }
 
 func TestGithubConnectorDeletionDrift(t *testing.T) {
 	test := &githubTestingPrimitives{}
-	testlib.ResourceDeletionDriftSynchronousTest(t, resources.NewGithubConnectorReconciler, test)
+	testlib.ResourceDeletionDriftTest[types.GithubConnector, *resourcesv3.TeleportGithubConnector](t, test)
 }
 
 func TestGithubConnectorUpdate(t *testing.T) {
 	test := &githubTestingPrimitives{}
-	testlib.ResourceUpdateTestSynchronous(t, resources.NewGithubConnectorReconciler, test)
+	testlib.ResourceUpdateTest[types.GithubConnector, *resourcesv3.TeleportGithubConnector](t, test)
 }
 
 func TestGithubConnectorSecretLookup(t *testing.T) {
 	test := &githubTestingPrimitives{}
-	setup := testlib.SetupFakeKubeTestEnv(t)
+	setup := testlib.SetupTestEnv(t)
 	test.Init(setup)
 	ctx := context.Background()
 
@@ -166,11 +158,6 @@ func TestGithubConnectorSecretLookup(t *testing.T) {
 			Annotations: map[string]string{
 				secretlookup.AllowLookupAnnotation: crName,
 			},
-		},
-		// Real kube servers convert stringData into data.
-		// The fake client does not, so we must use Data instead.
-		Data: map[string][]byte{
-			secretKey: []byte(secretValue),
 		},
 		StringData: map[string]string{
 			secretKey: secretValue,
@@ -191,24 +178,6 @@ func TestGithubConnectorSecretLookup(t *testing.T) {
 	github.Spec.ClientSecret = "secret://" + secretName + "/" + secretKey
 
 	require.NoError(t, kubeClient.Create(ctx, github))
-
-	reconciler, err := resources.NewGithubConnectorReconciler(kubeClient, setup.TeleportClient)
-	require.NoError(t, err)
-	// Test execution: Kick off the reconciliation.
-	req := reconcile.Request{
-		NamespacedName: apimachinerytypes.NamespacedName{
-			Namespace: setup.Namespace.Name,
-			Name:      crName,
-		},
-	}
-	// First reconciliation should set the finalizer and exit.
-	_, err = reconciler.Reconcile(ctx, req)
-	require.NoError(t, err)
-	// Second reconciliation should create the Teleport resource.
-	// In a real cluster we should receive the event of our own finalizer change
-	// and this wakes us for a second round.
-	_, err = reconciler.Reconcile(ctx, req)
-	require.NoError(t, err)
 
 	testlib.FastEventually(t, func() bool {
 		gh, err := test.GetTeleportResource(ctx, crName)

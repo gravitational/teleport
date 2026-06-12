@@ -20,11 +20,10 @@ package clusters
 
 import (
 	"context"
-	"log/slog"
-	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
@@ -50,8 +49,8 @@ type Cluster struct {
 	Name string
 	// ProfileName is the name of the tsh profile
 	ProfileName string
-	// Logger is a component logger
-	Logger *slog.Logger
+	// Log is a component logger
+	Log *logrus.Entry
 	// Status is the cluster status
 	status client.ProfileStatus
 	// If not empty, it means that there was a problem with reading the cluster status.
@@ -154,7 +153,7 @@ func (c *Cluster) GetWithDetails(ctx context.Context, authClient authclient.Clie
 	var authClusterID string
 	group.Go(func() error {
 		err := AddMetadataToRetryableError(groupCtx, func() error {
-			clusterName, err := authClient.GetClusterName(groupCtx)
+			clusterName, err := authClient.GetClusterName()
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -193,7 +192,9 @@ func (c *Cluster) GetWithDetails(ctx context.Context, authClient authclient.Clie
 		return roles, nil
 	})
 	if err != nil {
-		c.Logger.WarnContext(ctx, "Failed to calculate trusted device requirement", "error", err)
+		c.Log.
+			WithError(err).
+			Warn("Failed to calculate trusted device requirement")
 	}
 
 	roleSet := services.NewRoleSet(roles...)
@@ -271,11 +272,6 @@ func (c *Cluster) GetRoles(ctx context.Context) ([]*types.Role, error) {
 	return roles, nil
 }
 
-// NewAccessChecker creates a new access checker for the cluster.
-func (c *Cluster) NewAccessChecker(ctx context.Context, authClient services.CurrentUserRoleGetter) (services.AccessChecker, error) {
-	return services.NewAccessCheckerForRemoteCluster(ctx, c.status.AccessInfo(), c.Name, authClient)
-}
-
 // GetRequestableRoles returns the requestable roles for the currently logged-in user
 func (c *Cluster) GetRequestableRoles(ctx context.Context, req *api.GetRequestableRolesRequest, authClient authclient.ClientI) (*types.AccessCapabilities, error) {
 	var (
@@ -318,7 +314,6 @@ func (c *Cluster) GetLoggedInUser() LoggedInUser {
 		SSHLogins:      c.status.Logins,
 		Roles:          c.status.Roles,
 		ActiveRequests: c.status.ActiveRequests,
-		ValidUntil:     c.status.ValidUntil,
 	}
 }
 
@@ -328,13 +323,9 @@ func (c *Cluster) GetProfileStatusError() error {
 }
 
 // GetProxyHost returns proxy address (hostname:port) of the root cluster, even when called on a
-// Cluster that represents a leaf cluster. Falls back to WebProxyAddr when the profile status has
-// not been loaded yet (e.g., before the first login).
+// Cluster that represents a leaf cluster.
 func (c *Cluster) GetProxyHost() string {
-	if c.status.ProxyURL.Host != "" {
-		return c.status.ProxyURL.Host
-	}
-	return c.WebProxyAddr
+	return c.status.ProxyURL.Host
 }
 
 // HasDeviceTrustExtensions indicates if the cert contains all required
@@ -364,8 +355,6 @@ type LoggedInUser struct {
 	Roles []string
 	// ActiveRequests is the user active requests
 	ActiveRequests []string
-	// ValidUntil is expiration time of the certificate.
-	ValidUntil time.Time
 }
 
 // AddMetadataToRetryableError is Connect's equivalent of client.RetryWithRelogin. By adding the
@@ -399,32 +388,4 @@ func UserTypeFromString(userType types.UserType) (api.LoggedInUser_UserType, err
 		return api.LoggedInUser_USER_TYPE_UNSPECIFIED,
 			trace.BadParameter("unknown user type %q", userType)
 	}
-}
-
-// Server describes an SSH node.
-type Server struct {
-	// URI is the cluster URI
-	URI uri.ResourceURI
-	// Subset of logins allowed by the certificate and RBAC rules.
-	Logins []string
-
-	types.Server
-}
-
-// SaveProfileAndPreserveSiteName wraps [client.TeleportClient.SaveProfile]. It restores the original site name before
-// saving the profile.
-//
-// It's needed because teleterm/clusters.Storage.loadProfileStatusAndClusterKey overwrites the profile's site name so that
-// the cluster client is created for the cluster specified in the URI rather than the one stored in the profile.
-// This adjustment is only relevant for Connect and should not be persisted.
-func SaveProfileAndPreserveSiteName(clusterClient *client.TeleportClient, makeCurrent bool) error {
-	profile, err := clusterClient.GetProfile(clusterClient.WebProxyAddr)
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-	if profile != nil {
-		clusterClient.SiteName = profile.SiteName
-	}
-	err = clusterClient.SaveProfile(makeCurrent)
-	return trace.Wrap(err)
 }

@@ -52,6 +52,7 @@ import (
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -62,7 +63,7 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	libutils "github.com/gravitational/teleport/lib/utils"
 )
 
 func TestTeleterm(t *testing.T) {
@@ -70,13 +71,9 @@ func TestTeleterm(t *testing.T) {
 		dbhelpers.WithListenerSetupDatabaseTest(helpers.SingleProxyPortSetup),
 		dbhelpers.WithLeafConfig(func(config *servicecfg.Config) {
 			config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
-			config.InsecureMode = true
-			config.Modules = modulestest.EnterpriseModules()
 		}),
 		dbhelpers.WithRootConfig(func(config *servicecfg.Config) {
 			config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
-			config.InsecureMode = true
-			config.Modules = modulestest.EnterpriseModules()
 		}),
 	)
 	pack.WaitForLeaf(t)
@@ -137,29 +134,13 @@ func TestTeleterm(t *testing.T) {
 		testClientCache(t, pack, creds)
 	})
 
-	t.Run("clearing stale cached clients", func(t *testing.T) {
-		t.Parallel()
-
-		testClearingStaleCachedClients(t, pack, creds)
-	})
-
-	t.Run("logging out", func(t *testing.T) {
-		t.Parallel()
-		testLogout(t, pack, creds)
-	})
-
-	t.Run("setting site name", func(t *testing.T) {
-		t.Parallel()
-		testSettingSiteName(t, pack, creds)
-	})
-
-	t.Run("ListUnifiedResources returns database users", func(t *testing.T) {
+	t.Run("ListDatabaseUsers", func(t *testing.T) {
 		// ListDatabaseUsers cannot be run in parallel as it modifies the default roles of users set up
 		// through the test pack.
 		// TODO(ravicious): After some optimizations, those tests could run in parallel. Instead of
 		// modifying existing roles, they could create new users with new roles and then update the role
 		// mapping between the root the leaf cluster through authServer.UpdateUserCARoleMap.
-		testListDatabaseUsersFromUnifiedResources(t, pack)
+		testListDatabaseUsers(t, pack)
 	})
 
 	t.Run("with MFA", func(t *testing.T) {
@@ -558,187 +539,14 @@ func testClientCache(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.
 	require.NoError(t, err)
 	require.Equal(t, concurrentCallsForClient[0], secondCallForClient)
 
-	// Reissue user certs by assuming a role with a bogus ID in DropAccessRequests.
-	// This makes the cached client stale.
-	accessRequest := &api.AssumeRoleRequest{
-		RootClusterUri: cluster.URI.String(),
-		DropRequestIds: []string{"does-not-matter"},
-	}
-	err = cluster.AssumeRole(ctx, secondCallForClient, accessRequest)
-	require.NoError(t, err)
-
-	// Clearing stale clients should delete the stale client and force a new one.
-	err = daemonService.ClearStaleCachedClientsForRoot(cluster.URI)
+	// Let's remove the client from the cache.
+	// The call to GetCachedClient will
+	// connect to proxy and return a new client.
+	err = daemonService.ClearCachedClientsForRoot(cluster.URI)
 	require.NoError(t, err)
 	thirdCallForClient, err := daemonService.GetCachedClient(ctx, cluster.URI)
 	require.NoError(t, err)
 	require.NotEqual(t, secondCallForClient, thirdCallForClient)
-}
-
-func testClearingStaleCachedClients(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds) {
-	ctx := context.Background()
-
-	tc := mustLogin(t, pack.Root.User.GetName(), pack, creds)
-
-	storageFakeClock := clockwork.NewFakeClockAt(time.Now())
-
-	storage, err := clusters.NewStorage(clusters.Config{
-		ClientStore:        tc.ClientStore,
-		Clock:              storageFakeClock,
-		InsecureSkipVerify: tc.InsecureSkipVerify,
-	})
-	require.NoError(t, err)
-
-	cluster, _, err := storage.Add(ctx, tc.WebProxyAddr)
-	require.NoError(t, err)
-
-	tshdEventsClient := daemon.NewTshdEventsClient(func() (grpc.DialOption, error) {
-		return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
-	})
-
-	daemonService, err := daemon.New(daemon.Config{
-		Storage:          storage,
-		TshdEventsClient: tshdEventsClient,
-		KubeconfigsDir:   t.TempDir(),
-		AgentsDir:        t.TempDir(),
-	})
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		daemonService.Stop()
-	})
-
-	firstCallForClient, err := daemonService.GetCachedClient(ctx, cluster.URI)
-	require.NoError(t, err)
-	err = daemonService.ClearStaleCachedClientsForRoot(cluster.URI)
-	require.NoError(t, err)
-	// Ensure the client wasn't closed.
-	secondCallForClient, err := daemonService.GetCachedClient(ctx, cluster.URI)
-	require.NoError(t, err)
-	require.Equal(t, firstCallForClient, secondCallForClient)
-	// Reissue user certs by assuming a role with a bogus ID in DropAccessRequests.
-	accessRequest := &api.AssumeRoleRequest{
-		RootClusterUri: cluster.URI.String(),
-		DropRequestIds: []string{"does-not-matter"},
-	}
-	err = cluster.AssumeRole(ctx, firstCallForClient, accessRequest)
-	require.NoError(t, err)
-	// The cert has changed, so after clearing stale clients,
-	// GetCachedClient should return a new client.
-	err = daemonService.ClearStaleCachedClientsForRoot(cluster.URI)
-	require.NoError(t, err)
-	thirdCallForClient, err := daemonService.GetCachedClient(ctx, cluster.URI)
-	require.NoError(t, err)
-	require.NotEqual(t, secondCallForClient, thirdCallForClient)
-}
-
-func testLogout(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds) {
-	ctx := context.Background()
-
-	tc := mustLogin(t, pack.Root.User.GetName(), pack, creds)
-
-	storageFakeClock := clockwork.NewFakeClockAt(time.Now())
-
-	storage, err := clusters.NewStorage(clusters.Config{
-		ClientStore:        tc.ClientStore,
-		Clock:              storageFakeClock,
-		InsecureSkipVerify: tc.InsecureSkipVerify,
-	})
-	require.NoError(t, err)
-
-	cluster, _, err := storage.Add(ctx, tc.WebProxyAddr)
-	require.NoError(t, err)
-
-	tshdEventsClient := daemon.NewTshdEventsClient(func() (grpc.DialOption, error) {
-		return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
-	})
-
-	daemonService, err := daemon.New(daemon.Config{
-		Storage:          storage,
-		TshdEventsClient: tshdEventsClient,
-		KubeconfigsDir:   t.TempDir(),
-		AgentsDir:        t.TempDir(),
-	})
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		daemonService.Stop()
-	})
-
-	// Ensure there is a cluster.
-	rootClusters, err := daemonService.ListRootClusters(ctx)
-	require.NoError(t, err)
-	require.Len(t, rootClusters, 1)
-
-	// Log out without removing the profile.
-	err = daemonService.ClusterLogout(ctx, cluster.URI, false)
-	require.NoError(t, err)
-	rootClusters, err = daemonService.ListRootClusters(ctx)
-	require.NoError(t, err)
-	require.Len(t, rootClusters, 1)
-	require.Empty(t, rootClusters[0].GetLoggedInUser().Name)
-
-	// Log out again, now also remove the profile.
-	err = daemonService.ClusterLogout(ctx, cluster.URI, true)
-	require.NoError(t, err)
-	rootClusters, err = daemonService.ListRootClusters(ctx)
-	require.NoError(t, err)
-	require.Empty(t, rootClusters)
-
-	// Log out again, the operation should be idempotent.
-	err = daemonService.ClusterLogout(ctx, cluster.URI, true)
-	require.NoError(t, err)
-}
-
-func testSettingSiteName(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds) {
-	ctx := context.Background()
-
-	tc, err := pack.Root.Cluster.NewClient(helpers.ClientConfig{
-		TeleportUser: pack.Root.User.GetName(),
-		Cluster:      "root.example.com",
-	})
-	require.NoError(t, err)
-
-	storageFakeClock := clockwork.NewFakeClockAt(time.Now())
-
-	storage, err := clusters.NewStorage(clusters.Config{
-		ClientStore:        tc.ClientStore,
-		Clock:              storageFakeClock,
-		InsecureSkipVerify: tc.InsecureSkipVerify,
-	})
-	require.NoError(t, err)
-
-	// Add a cluster.
-	cluster, clusterClient, err := storage.Add(ctx, tc.WebProxyAddr)
-	require.NoError(t, err)
-	require.Equal(t, "root.example.com", clusterClient.SiteName)
-	require.Equal(t, "root.example.com", cluster.Name)
-	// Adding a cluster should set the site name in the profile.
-	profile, err := clusterClient.GetProfile(tc.WebProxyAddr)
-	require.NoError(t, err)
-	require.Equal(t, "root.example.com", profile.SiteName)
-
-	// Simulate logging into a leaf cluster, which changes the profile's site name.
-	clusterClient.SiteName = "leaf.example.com"
-	err = clusterClient.SaveProfile(false)
-	require.NoError(t, err)
-
-	// The URI should always resolve to the target cluster, even if the profile's site name points to a different cluster.
-	cluster, clusterClient, err = storage.ResolveCluster(cluster.URI)
-	require.NoError(t, err)
-	// These are empty because the user is not logged in, so there's no cert to retrieve the root cluster name.
-	require.Empty(t, clusterClient.SiteName)
-	require.Empty(t, cluster.Name)
-	// SiteName in the profile should still point to the leaf.
-	profile, err = clusterClient.GetProfile(tc.WebProxyAddr)
-	require.NoError(t, err)
-	require.Equal(t, "leaf.example.com", profile.SiteName)
-
-	// Saving the profile with SaveProfileAndPreserveSiteName doesn't overwrite the profile
-	// with the current clusterClient.SiteName.
-	err = clusters.SaveProfileAndPreserveSiteName(clusterClient, false)
-	require.NoError(t, err)
-	profile, err = clusterClient.GetProfile(tc.WebProxyAddr)
-	require.NoError(t, err)
-	require.Equal(t, "leaf.example.com", profile.SiteName)
 }
 
 func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack) {
@@ -889,6 +697,7 @@ func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack)
 		},
 	}
 	for _, test := range tests {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -1161,7 +970,7 @@ func testWaitForConnectMyComputerNodeJoin(t *testing.T, pack *dbhelpers.Database
 	nodeConfig := newNodeConfig(t, "token", types.JoinMethodToken)
 	nodeConfig.SetAuthServerAddress(pack.Root.Cluster.Config.Auth.ListenAddr)
 	nodeConfig.DataDir = filepath.Join(agentsDir, profileName, "data")
-	nodeConfig.Logger = logtest.NewLogger()
+	nodeConfig.Log = libutils.NewLoggerForTests()
 	nodeSvc, err := service.NewTeleport(nodeConfig)
 	require.NoError(t, err)
 	require.NoError(t, nodeSvc.Start())
@@ -1236,18 +1045,15 @@ func testDeleteConnectMyComputerNode(t *testing.T, pack *dbhelpers.DatabasePack)
 	nodeConfig := newNodeConfig(t, "token", types.JoinMethodToken)
 	nodeConfig.SetAuthServerAddress(pack.Root.Cluster.Config.Auth.ListenAddr)
 	nodeConfig.DataDir = filepath.Join(agentsDir, profileName, "data")
-	nodeConfig.Logger = logtest.NewLogger()
+	nodeConfig.Log = libutils.NewLoggerForTests()
 	nodeSvc, err := service.NewTeleport(nodeConfig)
 	require.NoError(t, err)
 	require.NoError(t, nodeSvc.Start())
 	t.Cleanup(func() { require.NoError(t, nodeSvc.Close()) })
 
-	nodeID, err := nodeSvc.WaitForHostID(ctx)
-	require.NoError(t, err)
-
 	// waits for the node to be added
 	require.Eventually(t, func() bool {
-		_, err := authServer.GetNode(ctx, defaults.Namespace, nodeID)
+		_, err := authServer.GetNode(ctx, defaults.Namespace, nodeConfig.HostUUID)
 		return err == nil
 	}, time.Minute, time.Second, "waiting for node to join cluster")
 
@@ -1263,12 +1069,15 @@ func testDeleteConnectMyComputerNode(t *testing.T, pack *dbhelpers.DatabasePack)
 
 	// waits for the node to be deleted
 	require.Eventually(t, func() bool {
-		_, err := authServer.GetNode(ctx, defaults.Namespace, nodeID)
+		_, err := authServer.GetNode(ctx, defaults.Namespace, nodeConfig.HostUUID)
 		return trace.IsNotFound(err)
 	}, time.Minute, time.Second, "waiting for node to be deleted")
 }
 
-func testListDatabaseUsersFromUnifiedResources(t *testing.T, pack *dbhelpers.DatabasePack) {
+// testListDatabaseUsers adds a unique string under spec.allow.db_users of the role automatically
+// given to a user by [dbhelpers.DatabasePack] and then checks if that string is returned when
+// calling [handler.Handler.ListDatabaseUsers].
+func testListDatabaseUsers(t *testing.T, pack *dbhelpers.DatabasePack) {
 	ctx := context.Background()
 
 	mustAddDBUserToUserRole := func(ctx context.Context, t *testing.T, cluster *helpers.TeleInstance, user, dbUser string) {
@@ -1284,10 +1093,11 @@ func testListDatabaseUsersFromUnifiedResources(t *testing.T, pack *dbhelpers.Dat
 		_, err = authServer.UpdateRole(ctx, role)
 		require.NoError(t, err)
 
-		require.EventuallyWithT(t, func(t *assert.CollectT) {
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
 			role, err := authServer.GetRole(ctx, roleName)
-			require.NoError(t, err)
-			require.Equal(t, dbUsers, role.GetDatabaseUsers(types.Allow))
+			if assert.NoError(collect, err) {
+				assert.Equal(collect, dbUsers, role.GetDatabaseUsers(types.Allow))
+			}
 		}, 10*time.Second, 100*time.Millisecond)
 	}
 
@@ -1301,13 +1111,18 @@ func testListDatabaseUsersFromUnifiedResources(t *testing.T, pack *dbhelpers.Dat
 		_, err = authServer.UpdateUser(ctx, user)
 		require.NoError(t, err)
 
-		require.EventuallyWithT(t, func(t *assert.CollectT) {
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
 			user, err := authServer.GetUser(ctx, userName, false /* withSecrets */)
-			require.NoError(t, err)
-
-			require.Equal(t, roles, user.GetRoles())
+			if assert.NoError(collect, err) {
+				assert.Equal(collect, roles, user.GetRoles())
+			}
 		}, 10*time.Second, 100*time.Millisecond)
 	}
+
+	// Allow resource access requests to be created.
+	currentModules := modules.GetModules()
+	t.Cleanup(func() { modules.SetModules(currentModules) })
+	modules.SetModules(&modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 
 	rootClusterName, _, err := net.SplitHostPort(pack.Root.Cluster.Web)
 	require.NoError(t, err)
@@ -1382,13 +1197,11 @@ func testListDatabaseUsersFromUnifiedResources(t *testing.T, pack *dbhelpers.Dat
 				mustUpdateUserRoles(ctx, t, pack.Root.Cluster, rootUserName, []string{requesterRole.GetName()})
 			},
 			createAccessRequest: func(ctx context.Context, t *testing.T) string {
-				req, err := services.NewAccessRequestWithResources(rootUserName, []string{rootRoleName}, []types.ResourceAccessID{
-					{
-						Id: types.ResourceID{
-							ClusterName: pack.Leaf.Cluster.Secrets.SiteName,
-							Kind:        types.KindDatabase,
-							Name:        pack.Leaf.PostgresService.Name,
-						},
+				req, err := services.NewAccessRequestWithResources(rootUserName, []string{rootRoleName}, []types.ResourceID{
+					types.ResourceID{
+						ClusterName: pack.Leaf.Cluster.Secrets.SiteName,
+						Kind:        types.KindDatabase,
+						Name:        pack.Leaf.PostgresService.Name,
 					},
 				})
 				require.NoError(t, err)
@@ -1459,24 +1272,14 @@ func testListDatabaseUsersFromUnifiedResources(t *testing.T, pack *dbhelpers.Dat
 				require.NoError(t, err)
 			}
 
-			res, err := handler.ListUnifiedResources(ctx, &api.ListUnifiedResourcesRequest{
-				ClusterUri: test.dbURI.GetClusterURI().String(),
-				Kinds:      []string{types.KindDatabase},
+			res, err := handler.ListDatabaseUsers(ctx, &api.ListDatabaseUsersRequest{
+				DbUri: test.dbURI.String(),
 			})
 			require.NoError(t, err)
-
-			var matchedDatabase *api.Database
-			for _, resource := range res.Resources {
-				database := resource.GetDatabase()
-				if database != nil && database.Uri == test.dbURI.String() {
-					matchedDatabase = database
-					break
-				}
-			}
-			require.NotNil(t, matchedDatabase, "database %q not found in unified resources response", test.dbURI.String())
-			require.Contains(t, matchedDatabase.DatabaseUsers, test.wantDBUser)
+			require.Contains(t, res.Users, test.wantDBUser)
 		})
 	}
+
 }
 
 // mustLogin logs in as the given user by completely skipping the actual login flow and saving valid

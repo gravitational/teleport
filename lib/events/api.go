@@ -22,7 +22,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"iter"
 	"math"
 	"time"
 
@@ -52,14 +51,12 @@ const (
 	// EventProtocol specifies protocol that was captured
 	EventProtocol = "proto"
 	// EventProtocolsSSH specifies SSH as a type of captured protocol
-	EventProtocolSSH = apievents.EventProtocolSSH
+	EventProtocolSSH = "ssh"
 	// EventProtocolKube specifies kubernetes as a type of captured protocol
-	EventProtocolKube = apievents.EventProtocolKube
+	EventProtocolKube = "kube"
 	// EventProtocolTDP specifies Teleport Desktop Protocol (TDP)
 	// as a type of captured protocol
-	EventProtocolTDP = apievents.EventProtocolTDP
-	// EventProtocolDB specifies database as a type of captured protocol
-	EventProtocolDB = apievents.EventProtocolDB
+	EventProtocolTDP = "tdp"
 	// LocalAddr is a target address on the host
 	LocalAddr = "addr.local"
 	// RemoteAddr is a client (user's) address
@@ -325,6 +322,9 @@ const (
 	// PPID is the PID of the parent process.
 	PPID = "ppid"
 
+	// CgroupID is the internal cgroupv2 ID of the event.
+	CgroupID = "cgroup_id"
+
 	// Program is name of the executable.
 	Program = "program"
 
@@ -422,13 +422,6 @@ const (
 	// AppSessionDynamoDBRequestEvent is emitted when DynamoDB client sends
 	// a request via app access session.
 	AppSessionDynamoDBRequestEvent = "app.session.dynamodb.request"
-
-	// AppSessionLLMRequestSuccessEvent is emitted when an LLM inference request
-	// is sent and succeeds.
-	AppSessionLLMRequestSuccessEvent = "app.session.llm.request.success"
-	// AppSessionLLMRequestFailureEvent is emitted when an LLM inference request
-	// is sent and fails.
-	AppSessionLLMRequestFailureEvent = "app.session.llm.request.failure"
 
 	// DatabaseCreateEvent is emitted when a database resource is created.
 	DatabaseCreateEvent = "db.create"
@@ -627,9 +620,6 @@ const (
 	// UpgradeWindowStartUpdateEvent is emitted when the upgrade window start time
 	// is updated. Used only for teleport cloud.
 	UpgradeWindowStartUpdateEvent = "upgradewindowstart.update"
-	// EnvironmentProfileUpdateEvent is emitted when the environment profile
-	// is updated. Used only for teleport cloud.
-	EnvironmentProfileUpdateEvent = "environmentprofile.update"
 
 	// SessionRecordingAccessEvent is emitted when a session recording is accessed
 	SessionRecordingAccessEvent = "session.recording.access"
@@ -637,10 +627,6 @@ const (
 	// SSMRunEvent is emitted when a run of an install script
 	// completes on a discovered EC2 node
 	SSMRunEvent = "ssm.run"
-
-	// AzureRunEvent is emitted when a run of an install script
-	// completes on a discovered Azure VM
-	AzureRunEvent = "azure.run"
 
 	// DeviceEvent is the catch-all event for Device Trust events.
 	// Deprecated: Use one of the more specific event codes below.
@@ -871,17 +857,17 @@ const (
 	// from AutoUpdateAgentRollout resource are manually rolledback.
 	AutoUpdateAgentRolloutRollbackEvent = "auto_update_agent_rollout.rollback"
 
-	// ContactCreateEvent is emitted when a Contact resource is created.
-	ContactCreateEvent = "contact.create"
-	// ContactDeleteEvent is emitted when a Contact resource is deleted.
-	ContactDeleteEvent = "contact.delete"
-
 	// WorkloadIdentityCreateEvent is emitted when a WorkloadIdentity resource is created.
 	WorkloadIdentityCreateEvent = "workload_identity.create"
 	// WorkloadIdentityUpdateEvent is emitted when a WorkloadIdentity resource is updated.
 	WorkloadIdentityUpdateEvent = "workload_identity.update"
 	// WorkloadIdentityDeleteEvent is emitted when a WorkloadIdentity resource is deleted.
 	WorkloadIdentityDeleteEvent = "workload_identity.delete"
+
+	// ContactCreateEvent is emitted when a Contact resource is created.
+	ContactCreateEvent = "contact.create"
+	// ContactDeleteEvent is emitted when a Contact resource is deleted.
+	ContactDeleteEvent = "contact.delete"
 
 	// WorkloadIdentityX509RevocationCreateEvent is emitted when a
 	// WorkloadIdentityX509Revocation resource is created.
@@ -912,39 +898,6 @@ const (
 	// StableUNIXUserCreateEvent is emitted when a stable UNIX user is created.
 	StableUNIXUserCreateEvent = "stable_unix_user.create"
 
-	// AWSICResourceSyncSuccessEvent is emitted when AWS Identity Center resources are imported
-	// and reconciled to Teleport.
-	AWSICResourceSyncSuccessEvent = "aws_identity_center.resource_sync.success"
-	// AWSICResourceSyncFailureEvent is emitted when AWS Identity Center resources sync failed.
-	AWSICResourceSyncFailureEvent = "aws_identity_center.resource_sync.failed"
-
-	// HealthCheckConfigCreateEvent is emitted when a health check config
-	// resource is created.
-	HealthCheckConfigCreateEvent = "health_check_config.create"
-	// HealthCheckConfigUpdateEvent is emitted when a health check config
-	// resource is updated.
-	HealthCheckConfigUpdateEvent = "health_check_config.update"
-	// HealthCheckConfigDeleteEvent is emitted when a health check config
-	// resource is deleted.
-	HealthCheckConfigDeleteEvent = "health_check_config.delete"
-
-	// MCPSessionStartEvent is emitted when a user starts a MCP session.
-	MCPSessionStartEvent = "mcp.session.start"
-	// MCPSessionEndEvent is emitted when an MCP session ends.
-	MCPSessionEndEvent = "mcp.session.end"
-	// MCPSessionRequestEvent is emitted when a request is sent by client during
-	// a MCP session.
-	MCPSessionRequestEvent = "mcp.session.request"
-	// MCPSessionNotificationEvent is emitted when a notification is sent by
-	// client during a MCP session.
-	MCPSessionNotificationEvent = "mcp.session.notification"
-	// MCPSessionListenSSEStream is emitted when the client sends a GET request for
-	// listening server notifications via an SSE stream.
-	MCPSessionListenSSEStream = "mcp.session.listen_sse_stream"
-	// MCPSessionInvalidHTTPRequest is a blanket event for all requests that we
-	// do not understand (usually out of MCP spec).
-	MCPSessionInvalidHTTPRequest = "mcp.session.invalid_http_request"
-
 	// BoundKeypairRecovery is emitted when a bound keypair token is used to
 	// perform a recovery.
 	BoundKeypairRecovery = "join_token.bound_keypair.recovery"
@@ -974,85 +927,8 @@ const (
 	// SCIMDeleteEvent is emitted when a resource is deleted via SCIM.
 	SCIMDeleteEvent = "scim.delete"
 
-	// SCIMPatchEvent is emitted when a resource is patched via SCIM.
-	SCIMPatchEvent = "scim.patch"
-
 	// ClientIPRestrictionsUpdateEvent is emitted when a Client IP Restriction list is updated.
 	ClientIPRestrictionsUpdateEvent = "cir.update"
-
-	// AppAuthConfigCreateEvent is emitted when an app auth config
-	// resource is created.
-	AppAuthConfigCreateEvent = "app_auth_config.create"
-	// AppAuthConfigUpdateEvent is emitted when an app auth config
-	// resource is updated.
-	AppAuthConfigUpdateEvent = "app_auth_config.update"
-	// AppAuthConfigDeleteEvent is emitted when an app auth config
-	// resource is deleted.
-	AppAuthConfigDeleteEvent = "app_auth_config.delete"
-	// AppAuthConfigVerifySuccessEvent is emitted when an app auth verification
-	// succeeds.
-	AppAuthConfigVerifySuccessEvent = "app_auth_config.verify.success"
-	// AppAuthConfigVerifyFailureEvent is emitted when an app auth verification
-	// fails.
-	AppAuthConfigVerifyFailureEvent = "app_auth_config.verify.failure"
-
-	// VnetConfigCreateEvent is emitted when a Vnet config resource is created.
-	VnetConfigCreateEvent = "vnet.config.create"
-	// VnetConfigUpdateEvent is emitted when a Vnet config resource is updated.
-	VnetConfigUpdateEvent = "vnet.config.update"
-	// VnetConfigDeleteEvent is emitted when a Vnet config resource is deleted.
-	VnetConfigDeleteEvent = "vnet.config.delete"
-
-	// WorkloadClusterCreateEvent is emitted when a WorkloadCluster resource is created.
-	WorkloadClusterCreateEvent = "workload_cluster.create"
-	// WorkloadClusterUpdateEvent is emitted when a WorkloadCluster resource is updated.
-	WorkloadClusterUpdateEvent = "workload_cluster.update"
-	// WorkloadClusterDeleteEvent is emitted when a WorkloadCluster resource is deleted.
-	WorkloadClusterDeleteEvent = "workload_cluster.delete"
-
-	// InferenceModelCreateEvent is emitted when an inference model resource is created.
-	InferenceModelCreateEvent = "inference_model.create"
-	// InferenceModelUpdateEvent is emitted when an inference model resource is updated.
-	InferenceModelUpdateEvent = "inference_model.update"
-	// InferenceModelDeleteEvent is emitted when an inference model resource is deleted.
-	InferenceModelDeleteEvent = "inference_model.delete"
-
-	// InferenceSecretCreateEvent is emitted when an inference secret resource is created.
-	InferenceSecretCreateEvent = "inference_secret.create"
-	// InferenceSecretUpdateEvent is emitted when an inference secret resource is updated.
-	InferenceSecretUpdateEvent = "inference_secret.update"
-	// InferenceSecretDeleteEvent is emitted when an inference secret resource is deleted.
-	InferenceSecretDeleteEvent = "inference_secret.delete"
-
-	// InferencePolicyCreateEvent is emitted when an inference policy resource is created.
-	InferencePolicyCreateEvent = "inference_policy.create"
-	// InferencePolicyUpdateEvent is emitted when an inference policy resource is updated.
-	InferencePolicyUpdateEvent = "inference_policy.update"
-	// InferencePolicyDeleteEvent is emitted when an inference policy resource is deleted.
-	InferencePolicyDeleteEvent = "inference_policy.delete"
-
-	// RetrievalModelCreateEvent is emitted when a retrieval model resource is created.
-	RetrievalModelCreateEvent = "retrieval_model.create"
-	// RetrievalModelUpdateEvent is emitted when a retrieval model resource is updated.
-	RetrievalModelUpdateEvent = "retrieval_model.update"
-	// RetrievalModelDeleteEvent is emitted when a retrieval model resource is deleted.
-	RetrievalModelDeleteEvent = "retrieval_model.delete"
-
-	// SessionSummarizedEvent is emitted when a session summary is created.
-	SessionSummarizedEvent = "session.summarized"
-
-	// CertAuthOverrideCreateEvent is the create event for cert_auth_override
-	// resources.
-	CertAuthOverrideCreateEvent = "cert_auth_override.create"
-	// CertAuthOverrideUpdateEvent is the update event for cert_auth_override
-	// resources.
-	CertAuthOverrideUpdateEvent = "cert_auth_override.update"
-	// CertAuthOverrideUpsertEvent is the upsert event for cert_auth_override
-	// resources.
-	CertAuthOverrideUpsertEvent = "cert_auth_override.upsert"
-	// CertAuthOverrideDeleteEvent is the delete event for cert_auth_override
-	// resources.
-	CertAuthOverrideDeleteEvent = "cert_auth_override.delete"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add
@@ -1077,13 +953,6 @@ var SessionRecordingEvents = []string{
 	SessionEndEvent,
 	WindowsDesktopSessionEndEvent,
 	DatabaseSessionEndEvent,
-
-	// HTTP/HTTPS application sessions do not emit AppSessionEndEvent.
-	// Their recordings IDs are in AppSessionChunkEvent, so it is included.
-	//
-	// TCP application sessions emit AppSessionEndEvent but produce no
-	// recordings, so it is excluded.
-	AppSessionChunkEvent,
 }
 
 // ServerMetadataGetter represents interface
@@ -1197,11 +1066,7 @@ type MultipartUploader interface {
 	// ReserveUploadPart reserves an upload part. Reserve is used to identify
 	// upload errors beforehand.
 	ReserveUploadPart(ctx context.Context, upload StreamUpload, partNumber int64) error
-	// UploadPart uploads part and returns the part.
-	//
-	// The part must be greater than [MinUploadPartSizeBytes]. It is the responsibility
-	// of the caller to add padding if needed, or else the upload may fail depending on
-	// storage provider.
+	// UploadPart uploads part and returns the part
 	UploadPart(ctx context.Context, upload StreamUpload, partNumber int64, partBody io.ReadSeeker) (*StreamPart, error)
 	// ListParts returns all uploaded parts for the completed upload in sorted order
 	ListParts(ctx context.Context, upload StreamUpload) ([]StreamPart, error)
@@ -1259,7 +1124,6 @@ type StreamEmitter interface {
 type AuditLogSessionStreamer interface {
 	AuditLogger
 	SessionStreamer
-	EncryptedRecordingUploader
 }
 
 // SessionStreamer supports streaming session chunks or events.
@@ -1272,12 +1136,6 @@ type SessionStreamer interface {
 	// is exhausted or the error channel reports an error, or until the context
 	// is canceled.
 	StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error)
-}
-
-// EncryptedRecordingUploader takes a session ID and a sequence of encrypted
-// recording parts and uploads an encrypted session recording.
-type EncryptedRecordingUploader interface {
-	UploadEncryptedRecording(ctx context.Context, sessionID string, parts iter.Seq2[[]byte, error]) error
 }
 
 type SearchEventsRequest struct {
@@ -1295,8 +1153,6 @@ type SearchEventsRequest struct {
 	// If the previous response had LastKey set then this should be
 	// set to its value. Otherwise leave empty.
 	StartKey string
-	// Search is an optional search query to filter events.
-	Search string
 }
 
 type SearchSessionEventsRequest struct {
@@ -1313,7 +1169,7 @@ type SearchSessionEventsRequest struct {
 	// set to its value. Otherwise leave empty.
 	StartKey string
 	// Cond can be used to pass additional expression to query, can be empty.
-	Cond *utils.ToFieldsConditionConfig
+	Cond *types.WhereExpr
 	// SessionID is optional parameter to return session events only to given session.
 	SessionID string
 }
@@ -1353,16 +1209,6 @@ type AuditLogger interface {
 	// GetEventExportChunks returns a stream of event chunks that can be exported via ExportUnstructuredEvents. The returned
 	// list isn't ordered and polling for new chunks requires re-consuming the entire stream from the beginning.
 	GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) stream.Stream[*auditlogpb.EventExportChunk]
-
-	// SearchUnstructuredEvents is a flexible way to find events and returns them in an unstructured format (JSON like)
-	//
-	// Event types to filter can be specified and pagination is handled by an iterator key that allows
-	// a query to be resumed.
-	//
-	// The only mandatory requirement is a date range (UTC).
-	//
-	// This function may never return more than 1 MiB of event data.
-	SearchUnstructuredEvents(ctx context.Context, req SearchEventsRequest) ([]*auditlogpb.EventUnstructured, string, error)
 }
 
 // EventFields instance is attached to every logged event

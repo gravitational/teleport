@@ -44,8 +44,8 @@ export function AppUpdates(props: { hidden?: boolean; onClose(): void }) {
     void checkForAppUpdates();
   }, [checkForAppUpdates]);
 
-  const { platform, appVersion } = useMemo(() => {
-    return appContext.mainProcessClient.getRuntimeSettings();
+  const platform = useMemo(() => {
+    return appContext.mainProcessClient.getRuntimeSettings().platform;
   }, [appContext.mainProcessClient]);
 
   return (
@@ -72,8 +72,8 @@ export function AppUpdates(props: { hidden?: boolean; onClose(): void }) {
       <DialogContent mb={0}>
         <DetailsView
           platform={platform}
-          currentVersion={appVersion}
           updateEvent={updateEvent}
+          clusterGetter={appContext.clustersService}
           onCancelDownload={() => void cancelAppUpdateDownload()}
           onDownload={() => void downloadAppUpdate()}
           onCheckForUpdates={() => void checkForAppUpdates()}

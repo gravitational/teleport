@@ -44,7 +44,7 @@ type UserTask struct {
 	// Integration is the Integration Name this User Task refers to.
 	Integration string `json:"integration,omitempty"`
 	// LastStateChange indicates when the current's user task state was last changed.
-	LastStateChange time.Time `json:"lastStateChange"`
+	LastStateChange time.Time `json:"lastStateChange,omitempty"`
 }
 
 // UserTaskDetail contains all the details for a User Task.
@@ -59,8 +59,6 @@ type UserTaskDetail struct {
 	DiscoverEKS *usertasks.UserTaskDiscoverEKSWithURLs `json:"discoverEks,omitempty"`
 	// DiscoverRDS contains the task details for the DiscoverRDS tasks.
 	DiscoverRDS *usertasks.UserTaskDiscoverRDSWithURLs `json:"discoverRds,omitempty"`
-	// DiscoverAzureVM contains the task details for the DiscoverAzureVM tasks.
-	DiscoverAzureVM *usertasks.UserTaskDiscoverAzureVMWithURLs `json:"discoverAzureVm,omitempty"`
 }
 
 // UpdateUserTaskStateRequest is a request to update a UserTask
@@ -104,7 +102,6 @@ func MakeDetailedUserTask(ut *usertasksv1.UserTask) UserTaskDetail {
 	var discoverEC2 *usertasks.UserTaskDiscoverEC2WithURLs
 	var discoverEKS *usertasks.UserTaskDiscoverEKSWithURLs
 	var discoverRDS *usertasks.UserTaskDiscoverRDSWithURLs
-	var discoverAzureVM *usertasks.UserTaskDiscoverAzureVMWithURLs
 
 	switch ut.GetSpec().GetTaskType() {
 	case apiusertasks.TaskTypeDiscoverEC2:
@@ -115,20 +112,16 @@ func MakeDetailedUserTask(ut *usertasksv1.UserTask) UserTaskDetail {
 
 	case apiusertasks.TaskTypeDiscoverRDS:
 		discoverRDS = usertasks.RDSDatabasesWithURLs(ut)
-
-	case apiusertasks.TaskTypeDiscoverAzureVM:
-		discoverAzureVM = usertasks.AzureVMInstancesWithURLs(ut)
 	}
 
 	_, description := userTaskTitleAndDescription(ut)
 
 	return UserTaskDetail{
-		UserTask:        MakeUserTask(ut),
-		Description:     description,
-		DiscoverEC2:     discoverEC2,
-		DiscoverEKS:     discoverEKS,
-		DiscoverRDS:     discoverRDS,
-		DiscoverAzureVM: discoverAzureVM,
+		UserTask:    MakeUserTask(ut),
+		Description: description,
+		DiscoverEC2: discoverEC2,
+		DiscoverEKS: discoverEKS,
+		DiscoverRDS: discoverRDS,
 	}
 }
 
@@ -142,9 +135,6 @@ func userTaskTitleAndDescription(ut *usertasksv1.UserTask) (string, string) {
 
 	case apiusertasks.TaskTypeDiscoverRDS:
 		return usertasks.DescriptionForDiscoverRDSIssue(ut.GetSpec().GetIssueType())
-
-	case apiusertasks.TaskTypeDiscoverAzureVM:
-		return usertasks.DescriptionForDiscoverAzureVMIssue(ut.GetSpec().GetIssueType())
 
 	default:
 		return "", ""

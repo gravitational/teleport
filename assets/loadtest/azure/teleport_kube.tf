@@ -8,18 +8,15 @@ resource "kubernetes_namespace_v1" "teleport" {
 }
 
 resource "helm_release" "teleport" {
-  lifecycle { enabled = var.deploy_teleport }
+  count = var.deploy_teleport ? 1 : 0
 
   name = local.teleport_release
-
-  reset_values = true
-  max_history  = 10
 
   chart      = "teleport-cluster"
   repository = "https://charts.releases.development.teleport.dev"
   version    = var.teleport_version
 
-  namespace = one(kubernetes_namespace_v1.teleport.metadata).name
+  namespace = kubernetes_namespace_v1.teleport.metadata.0.name
 
   values = [jsonencode({
     "clusterName" = "${var.cluster_prefix}.${data.azurerm_dns_zone.dns_zone.name}"
@@ -80,7 +77,7 @@ resource "helm_release" "teleport" {
     }
 
     "highAvailability" = {
-      "replicaCount" = 2
+      "replicaCount" = 3
       "certManager" = {
         "enabled"    = true
         "issuerName" = kubectl_manifest.issuer.name
@@ -125,7 +122,7 @@ resource "azurerm_public_ip" "proxy" {
 resource "azurerm_role_assignment" "proxy_ip" {
   scope                = azurerm_public_ip.proxy.id
   role_definition_name = "Network Contributor"
-  principal_id         = one(azurerm_kubernetes_cluster.kube_cluster.identity).principal_id
+  principal_id         = azurerm_kubernetes_cluster.kube_cluster.identity.0.principal_id
 
   skip_service_principal_aad_check = true
 }

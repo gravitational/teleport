@@ -1,11 +1,10 @@
 ---
 title: Machine & Workload Identity with Server Access
-sidebar_label: Linux Servers
+sidebar_label: Server Access
 description: How to use Machine & Workload Identity to access servers via SSH
 tags:
  - how-to
  - mwi
- - infrastructure-identity
 ---
 
 {/* lint disable page-structure remark-lint */}
@@ -49,7 +48,7 @@ spec:
     # Allow login to the Linux user 'root'.
     logins: ['root']
     # Allow connection to any node. Adjust these labels to match only nodes
-    # needed to access.
+    # that ansible needs to access.
     node_labels:
       '*': '*'
 ```
@@ -100,7 +99,9 @@ services:
     path: /opt/machine-id
 ```
 
-(!docs/pages/includes/machine-id/reload-tbot.mdx resource="nodes via SSH"!)
+If operating `tbot` as a background service, restart it. If running `tbot` in
+one-shot mode, it must be executed before you attempt to use the credentials
+produced by `tbot` to connect to nodes via SSH.
 
 ## Step 3/3. Using the output credentials
 
@@ -173,5 +174,5 @@ functionality.
 
 ## Next steps
 
-- Read the [configuration reference](../../reference/machine-workload-identity/configuration.mdx) to explore
+- Read the [configuration reference](../../reference/machine-id/configuration.mdx) to explore
   all the available configuration options.

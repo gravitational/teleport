@@ -96,7 +96,6 @@ teleport:
   log:
     output: stderr
     severity: INFO
-  shutdown_delay: "7m35s"
   connection_limits:
     max_connections: 90
     max_users: 91
@@ -181,7 +180,6 @@ db_service:
       resource_groups: ["group1", "group2"]
       types: ["postgres", "mysql"]
       regions: ["eastus", "centralus"]
-      integration: integration123
       tags:
         "a": "b"
     - types: ["postgres", "mysql"]

@@ -55,7 +55,7 @@ type CreateGatewayParams struct {
 // CreateGateway creates a gateway
 func (c *Cluster) CreateGateway(ctx context.Context, params CreateGatewayParams) (gateway.Gateway, error) {
 	c.clusterClient.MFAPromptConstructor = params.MFAPromptConstructor
-	c.clusterClient.MFACeremonyConstructor = sso.NewConnectMFACeremony
+	c.clusterClient.SSOMFACeremonyConstructor = sso.NewConnectMFACeremony
 
 	switch {
 	case params.TargetURI.IsDB():
@@ -106,7 +106,7 @@ func (c *Cluster) createDBGateway(ctx context.Context, params CreateGatewayParam
 		Cert:                          cert,
 		Insecure:                      c.clusterClient.InsecureSkipVerify,
 		WebProxyAddr:                  c.clusterClient.WebProxyAddr,
-		Logger:                        c.Logger,
+		Log:                           c.Log,
 		TCPPortAllocator:              params.TCPPortAllocator,
 		OnExpiredCert:                 params.OnExpiredCert,
 		Clock:                         c.clock,
@@ -146,8 +146,7 @@ func (c *Cluster) createKubeGateway(ctx context.Context, params CreateGatewayPar
 		Cert:                          cert,
 		Insecure:                      c.clusterClient.InsecureSkipVerify,
 		WebProxyAddr:                  c.clusterClient.WebProxyAddr,
-		RelayAddr:                     c.clusterClient.RelayAddr,
-		Logger:                        c.Logger,
+		Log:                           c.Log,
 		TCPPortAllocator:              params.TCPPortAllocator,
 		OnExpiredCert:                 params.OnExpiredCert,
 		Clock:                         c.clock,
@@ -197,7 +196,7 @@ func (c *Cluster) createAppGateway(ctx context.Context, params CreateGatewayPara
 		Protocol:                      app.GetProtocol(),
 		Insecure:                      c.clusterClient.InsecureSkipVerify,
 		WebProxyAddr:                  c.clusterClient.WebProxyAddr,
-		Logger:                        c.Logger,
+		Log:                           c.Log,
 		TCPPortAllocator:              params.TCPPortAllocator,
 		OnExpiredCert:                 params.OnExpiredCert,
 		Clock:                         c.clock,

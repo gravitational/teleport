@@ -31,7 +31,7 @@ import (
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integrations/operator/apis/resources/teleportcr"
+	"github.com/gravitational/teleport/integrations/operator/apis/resources"
 )
 
 // newFakeTeleportResource creates a fakeTeleportResource
@@ -118,7 +118,7 @@ func (f *fakeTeleportResourceClient) resourceExists(name string) bool {
 // Its corresponding TeleportResource is fakeTeleportResource.
 type fakeTeleportKubernetesResource struct {
 	kclient.Object
-	status teleportcr.Status
+	status resources.Status
 }
 
 // ToTeleport implements the TeleportKubernetesResource interface.
@@ -190,7 +190,7 @@ func TestTeleportResourceReconciler_Delete(t *testing.T) {
 		{
 			name:  "delete non-existing Resource",
 			store: map[string]types.Metadata{},
-			assertErr: func(t require.TestingT, err error, i ...any) {
+			assertErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsNotFound(err))
 			},
 			resourceExists: false,

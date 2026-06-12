@@ -24,8 +24,8 @@ import (
 	"net/url"
 	"slices"
 	"strings"
+	"text/template"
 
-	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
@@ -68,7 +68,7 @@ var resolutionNoteTemplate = template.Must(template.New("resolution note").Parse
 // SupportedApps are the apps supported by this bot.
 func (b Bot) SupportedApps() []common.App {
 	return []common.App{
-		accessrequest.NewApp(),
+		accessrequest.NewApp(b),
 	}
 }
 
@@ -162,7 +162,7 @@ func (b Bot) FetchOncallUsers(ctx context.Context, req types.AccessRequest) ([]s
 	annotationKey := types.TeleportNamespace + types.ReqAnnotationApproveSchedulesLabel
 	teamNames, err := common.GetNamesFromAnnotations(req, annotationKey)
 	if err != nil {
-		log.DebugContext(ctx, "Automatic approvals annotation is empty or unspecified")
+		log.Debug("Automatic approvals annotation is empty or unspecified.")
 		return nil, nil
 	}
 
@@ -197,7 +197,7 @@ func (b Bot) FetchOncallUsers(ctx context.Context, req types.AccessRequest) ([]s
 	for _, teamID := range teamIDs {
 		resp, err := b.datadog.GetTeamOncall(ctx, teamID)
 		if err != nil {
-			log.WarnContext(ctx, "failed to get on-call users", "team_id", teamID)
+			log.WithField("team_id", teamID).Warn("failed to get on-call users")
 			continue
 		}
 

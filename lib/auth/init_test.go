@@ -22,7 +22,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"maps"
 	"math"
 	"os"
 	"os/exec"
@@ -44,7 +43,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/testing/protocmp"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
@@ -52,20 +50,19 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	backendinfov1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/backendinfo/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
-	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/backendinfo"
 	"github.com/gravitational/teleport/api/types/label"
-	"github.com/gravitational/teleport/api/types/vnet"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/authcatest"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
@@ -78,7 +75,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/proxy"
-	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 // TestReadIdentity makes parses identity from private key and certificate
@@ -86,9 +82,7 @@ import (
 func TestReadIdentity(t *testing.T) {
 	t.Parallel()
 	clock := clockwork.NewFakeClock()
-	a, err := testauthority.NewKeygen(modules.BuildOSS, clock.Now)
-	require.NoError(t, err)
-
+	a := testauthority.NewWithClock(clock)
 	priv, pub, err := a.GenerateKeyPair()
 	require.NoError(t, err)
 	caSigner, err := ssh.ParsePrivateKey(priv)
@@ -136,9 +130,7 @@ func TestReadIdentity(t *testing.T) {
 
 func TestBadIdentity(t *testing.T) {
 	t.Parallel()
-	a, err := testauthority.NewKeygen(modules.BuildOSS, time.Now)
-	require.NoError(t, err)
-
+	a := testauthority.New()
 	priv, pub, err := a.GenerateKeyPair()
 	require.NoError(t, err)
 	caSigner, err := ssh.ParsePrivateKey(priv)
@@ -201,8 +193,7 @@ func TestBadIdentity(t *testing.T) {
 }
 
 func TestSignatureAlgorithmSuite(t *testing.T) {
-	t.Parallel()
-	ctx := t.Context()
+	ctx := context.Background()
 
 	suiteName := func(suite types.SignatureAlgorithmSuite) string {
 		suiteName, err := suite.MarshalText()
@@ -215,7 +206,15 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 		assert.Equal(t, suiteName(expected), suiteName(actual))
 	}
 
-	setupInitConfig := func(t *testing.T, capOrigin string, fips, hsm, cloud bool) auth.InitConfig {
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.HSM: {Enabled: true},
+			},
+		},
+	})
+
+	setupInitConfig := func(t *testing.T, capOrigin string, fips, hsm bool) auth.InitConfig {
 		cfg := setupConfig(t)
 		cfg.FIPS = fips
 		if hsm {
@@ -227,25 +226,12 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 		}
 		// Pre-generate all CAs to keep tests fast esp. with SoftHSM.
 		for _, caType := range types.CertAuthTypes {
-			ca, err := authcatest.NewCAWithConfig(authcatest.CAConfig{
+			cfg.BootstrapResources = append(cfg.BootstrapResources, authtest.NewTestCAWithConfig(authtest.TestCAConfig{
 				Type:        caType,
 				ClusterName: cfg.ClusterName.GetClusterName(),
 				Clock:       cfg.Clock,
-			})
-			require.NoError(t, err)
-
-			cfg.BootstrapResources = append(cfg.BootstrapResources, ca)
+			}))
 		}
-
-		cfg.Modules = &modulestest.Modules{
-			TestFeatures: modules.Features{
-				Cloud: cloud,
-				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-					entitlements.HSM: {Enabled: true},
-				},
-			},
-		}
-
 		return cfg
 	}
 
@@ -300,10 +286,21 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 			t.Run(origin, func(t *testing.T) {
 				for desc, tc := range testCases {
 					t.Run(desc, func(t *testing.T) {
+						if tc.cloud {
+							modulestest.SetTestModules(t, modulestest.Modules{
+								TestFeatures: modules.Features{
+									Cloud: true,
+									Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+										entitlements.HSM: {Enabled: true},
+									},
+								},
+							})
+						}
+
 						// Assert that a fresh cluster with no signature_algorithm_suite
 						// configured gets the expected default suite, whether
 						// or not anything else in the cluster auth preference is set.
-						cfg := setupInitConfig(t, origin, tc.fips, tc.hsm, tc.cloud)
+						cfg := setupInitConfig(t, origin, tc.fips, tc.hsm)
 						auth1, err := auth.Init(ctx, cfg)
 						require.NoError(t, err)
 						t.Cleanup(func() { auth1.Close() })
@@ -370,6 +367,16 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 	t.Run("upsert", func(t *testing.T) {
 		for desc, tc := range testCases {
 			t.Run(desc, func(t *testing.T) {
+				if tc.cloud {
+					modulestest.SetTestModules(t, modulestest.Modules{
+						TestFeatures: modules.Features{
+							Cloud: true,
+							Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+								entitlements.HSM: {Enabled: true},
+							},
+						},
+					})
+				}
 				cfg := authtest.AuthServerConfig{
 					Dir:  t.TempDir(),
 					FIPS: tc.fips,
@@ -378,14 +385,6 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 						SecondFactor: constants.SecondFactorOn,
 						Webauthn: &types.Webauthn{
 							RPID: "teleport.example.com",
-						},
-					},
-					Modules: &modulestest.Modules{
-						TestFeatures: modules.Features{
-							Cloud: tc.cloud,
-							Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-								entitlements.HSM: {Enabled: true},
-							},
 						},
 					},
 				}
@@ -751,22 +750,6 @@ func TestAuthPreference(t *testing.T) {
 	})
 }
 
-func TestVnetConfig(t *testing.T) {
-	t.Parallel()
-
-	conf := setupConfig(t)
-	authServer, err := auth.Init(context.Background(), conf)
-	require.NoError(t, err)
-	t.Cleanup(func() { authServer.Close() })
-
-	actualVnetConfig, err := authServer.GetVnetConfig(t.Context())
-	require.NoError(t, err)
-
-	defaultVnetConfig, err := vnet.DefaultVnetConfig()
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(defaultVnetConfig.GetSpec(), actualVnetConfig.GetSpec(), protocmp.Transform()))
-}
-
 func TestAuthPreferenceSecondFactorOnly(t *testing.T) {
 	modules.SetInsecureTestMode(false)
 	defer modules.SetInsecureTestMode(true)
@@ -876,7 +859,7 @@ func TestClusterID(t *testing.T) {
 	require.NoError(t, err)
 	defer authServer.Close()
 
-	cc, err := authServer.GetClusterName(ctx)
+	cc, err := authServer.GetClusterName()
 	require.NoError(t, err)
 	clusterID := cc.GetClusterID()
 	require.NotEmpty(t, clusterID)
@@ -886,7 +869,7 @@ func TestClusterID(t *testing.T) {
 	require.NoError(t, err)
 	defer authServer.Close()
 
-	cc, err = authServer.GetClusterName(ctx)
+	cc, err = authServer.GetClusterName()
 	require.NoError(t, err)
 	require.Equal(t, clusterID, cc.GetClusterID())
 }
@@ -911,10 +894,18 @@ func TestClusterName(t *testing.T) {
 	require.NoError(t, err)
 	defer authServer.Close()
 
-	cn, err := authServer.GetClusterName(ctx)
+	cn, err := authServer.GetClusterName()
 	require.NoError(t, err)
 	require.NotEqual(t, newConfig.ClusterName.GetClusterName(), cn.GetClusterName())
 	require.Equal(t, conf.ClusterName.GetClusterName(), cn.GetClusterName())
+}
+
+func keysIn[K comparable, V any](m map[K]V) []K {
+	result := make([]K, 0, len(m))
+	for k := range m {
+		result = append(result, k)
+	}
+	return result
 }
 
 type failingTrustInternal struct {
@@ -954,9 +945,7 @@ func TestInitCertFailureRecovery(t *testing.T) {
 
 // TestPresets tests behavior of presets
 func TestPresets(t *testing.T) {
-	t.Parallel()
-
-	ctx := t.Context()
+	ctx := context.Background()
 
 	presetRoleNames := []string{
 		teleport.PresetEditorRoleName,
@@ -965,20 +954,19 @@ func TestPresets(t *testing.T) {
 		teleport.PresetTerraformProviderRoleName,
 		teleport.PresetWildcardWorkloadIdentityIssuerRoleName,
 		teleport.PresetAccessPluginRoleName,
-		teleport.PresetAccessPluginWithReviewRoleName,
 		teleport.PresetListAccessRequestResourcesRoleName,
-		teleport.PresetMCPUserRoleName,
 	}
 
 	t.Run("EmptyCluster", func(t *testing.T) {
-		testModules := modulestest.OSSModules()
-		as := newTestAuthServer(ctx, t, testModules)
+		as := newTestAuthServer(ctx, t)
+		clock := clockwork.NewFakeClock()
+		as.SetClock(clock)
 
-		err := auth.CreatePresetRoles(ctx, testModules.BuildType(), as)
+		err := auth.CreatePresetRoles(ctx, as)
 		require.NoError(t, err)
 
 		// Second call should not fail
-		err = auth.CreatePresetRoles(ctx, testModules.BuildType(), as)
+		err = auth.CreatePresetRoles(ctx, as)
 		require.NoError(t, err)
 
 		// Presets were created
@@ -990,16 +978,16 @@ func TestPresets(t *testing.T) {
 
 	// Makes sure that existing role with the same name is not modified
 	t.Run("ExistingRole", func(t *testing.T) {
-		testModules := modulestest.OSSModules()
-
-		as := newTestAuthServer(ctx, t, testModules)
+		as := newTestAuthServer(ctx, t)
+		clock := clockwork.NewFakeClock()
+		as.SetClock(clock)
 
 		access := services.NewPresetEditorRole()
 		access.SetLogins(types.Allow, []string{"root"})
 		access, err := as.CreateRole(ctx, access)
 		require.NoError(t, err)
 
-		err = auth.CreatePresetRoles(ctx, testModules.BuildType(), as)
+		err = auth.CreatePresetRoles(ctx, as)
 		require.NoError(t, err)
 
 		// Presets were created
@@ -1015,9 +1003,9 @@ func TestPresets(t *testing.T) {
 
 	// If a default allow condition is not present, ensure it gets added.
 	t.Run("AddDefaultAllowConditions", func(t *testing.T) {
-		testModules := modulestest.OSSModules()
-
-		as := newTestAuthServer(ctx, t, testModules)
+		as := newTestAuthServer(ctx, t)
+		clock := clockwork.NewFakeClock()
+		as.SetClock(clock)
 
 		editorRole := services.NewPresetEditorRole()
 		rules := editorRole.GetRules(types.Allow)
@@ -1042,7 +1030,7 @@ func TestPresets(t *testing.T) {
 		accessRole, err = as.CreateRole(ctx, accessRole)
 		require.NoError(t, err)
 
-		err = auth.CreatePresetRoles(ctx, testModules.BuildType(), as)
+		err = auth.CreatePresetRoles(ctx, as)
 		require.NoError(t, err)
 
 		outEditor, err := as.GetRole(ctx, editorRole.GetName())
@@ -1067,8 +1055,9 @@ func TestPresets(t *testing.T) {
 	// Don't set a default allow rule if the resource is present in the role.
 	// Either as part of allowing or denying rules.
 	t.Run("DefaultAllowRulesNotAppliedIfExplicitlyDefined", func(t *testing.T) {
-		testModules := modulestest.OSSModules()
-		as := newTestAuthServer(ctx, t, testModules)
+		as := newTestAuthServer(ctx, t)
+		clock := clockwork.NewFakeClock()
+		as.SetClock(clock)
 
 		// Set up a changed Editor Role
 		editorRole := services.NewPresetEditorRole()
@@ -1105,7 +1094,7 @@ func TestPresets(t *testing.T) {
 		require.NoError(t, err)
 
 		// Apply defaults.
-		err = auth.CreatePresetRoles(ctx, testModules.BuildType(), as)
+		err = auth.CreatePresetRoles(ctx, as)
 		require.NoError(t, err)
 
 		outEditor, err := as.GetRole(ctx, editorRole.GetName())
@@ -1129,7 +1118,7 @@ func TestPresets(t *testing.T) {
 		require.Equal(t, types.Labels{types.Wildcard: []string{types.Wildcard}}, deniedDatabaseServiceLabels, "keeps the deny label for DatabaseService")
 	})
 
-	upsertRoleTest := func(t *testing.T, buildType string, expectedPresetRoles []string, expectedSystemRoles []string) {
+	upsertRoleTest := func(t *testing.T, expectedPresetRoles []string, expectedSystemRoles []string) {
 		// test state
 		ctx := context.Background()
 		// mu protects created resource maps
@@ -1168,7 +1157,7 @@ func TestPresets(t *testing.T) {
 				defer mu.Unlock()
 				require.True(t, types.IsSystemResource(r))
 				require.Contains(t, expectedSystemRoles, r.GetName())
-				require.NotContains(t, slices.Collect(maps.Keys(createdSystemRoles)), r.GetName())
+				require.NotContains(t, keysIn(createdSystemRoles), r.GetName())
 				createdSystemRoles[r.GetName()] = r
 			}).
 			Maybe().
@@ -1176,10 +1165,10 @@ func TestPresets(t *testing.T) {
 				return r, nil
 			})
 
-		err := auth.CreatePresetRoles(ctx, buildType, roleManager)
+		err := auth.CreatePresetRoles(ctx, roleManager)
 		require.NoError(t, err)
-		require.ElementsMatch(t, slices.Collect(maps.Keys(createdPresets)), expectedPresetRoles)
-		require.ElementsMatch(t, slices.Collect(maps.Keys(createdSystemRoles)), expectedSystemRoles)
+		require.ElementsMatch(t, keysIn(createdPresets), expectedPresetRoles)
+		require.ElementsMatch(t, keysIn(createdSystemRoles), expectedSystemRoles)
 		roleManager.AssertExpectations(t)
 
 		//
@@ -1216,7 +1205,7 @@ func TestPresets(t *testing.T) {
 				Return(role, nil)
 		}
 
-		err = auth.CreatePresetRoles(ctx, buildType, roleManager)
+		err = auth.CreatePresetRoles(ctx, roleManager)
 		require.NoError(t, err)
 		roleManager.AssertExpectations(t)
 
@@ -1240,7 +1229,7 @@ func TestPresets(t *testing.T) {
 
 		// EXPECT that createPresets will try to create all expected
 		// non-system roles
-		remainingPresets := set.New(expectedPresetRoles...)
+		remainingPresets := toSet(expectedPresetRoles)
 		roleManager.
 			On("CreateRole", mock.Anything, mock.Anything).
 			Run(func(args mock.Arguments) {
@@ -1273,18 +1262,20 @@ func TestPresets(t *testing.T) {
 				return r, nil
 			})
 
-		err = auth.CreatePresetRoles(ctx, buildType, roleManager)
+		err = auth.CreatePresetRoles(ctx, roleManager)
 		require.NoError(t, err)
 		require.Empty(t, remainingPresets)
 		roleManager.AssertExpectations(t)
 	}
 
 	t.Run("Does not upsert roles if nothing changes", func(t *testing.T) {
-		upsertRoleTest(t, modules.BuildOSS, presetRoleNames, nil)
+		upsertRoleTest(t, presetRoleNames, nil)
 	})
 
 	t.Run("Enterprise", func(t *testing.T) {
-		testModules := modulestest.EnterpriseModules()
+		modulestest.SetTestModules(t, modulestest.Modules{
+			TestBuildType: modules.BuildEnterprise,
+		})
 
 		enterprisePresetRoleNames := append([]string{
 			teleport.PresetGroupAccessRoleName,
@@ -1294,32 +1285,31 @@ func TestPresets(t *testing.T) {
 			teleport.PresetDeviceEnrollRoleName,
 			teleport.PresetRequireTrustedDeviceRoleName,
 			teleport.SystemOktaRequesterRoleName, // This is treated as a preset
-			teleport.PresetBeamUserRoleName,
-			teleport.PresetBeamAdminRoleName,
 		}, presetRoleNames...)
 
 		enterpriseSystemRoleNames := []string{
 			teleport.SystemAutomaticAccessApprovalRoleName,
 			teleport.SystemOktaAccessRoleName,
 			teleport.SystemIdentityCenterAccessRoleName,
-			teleport.SystemBeamRoleName,
 		}
 
 		enterpriseUsers := []types.User{
-			services.NewSystemAutomaticAccessBotUser(testModules.BuildType()),
+			services.NewSystemAutomaticAccessBotUser(),
 		}
 
 		t.Run("EmptyCluster", func(t *testing.T) {
-			as := newTestAuthServer(ctx, t, testModules)
+			as := newTestAuthServer(ctx, t)
+			clock := clockwork.NewFakeClock()
+			as.SetClock(clock)
 
 			// Run multiple times to simulate starting auth on an
 			// existing cluster and asserting that everything still
 			// returns success
-			for range 2 {
-				err := auth.CreatePresetRoles(ctx, testModules.BuildType(), as)
+			for i := 0; i < 2; i++ {
+				err := auth.CreatePresetRoles(ctx, as)
 				require.NoError(t, err)
 
-				err = auth.CreatePresetUsers(ctx, testModules.BuildType(), as)
+				err = auth.CreatePresetUsers(ctx, as)
 				require.NoError(t, err)
 			}
 
@@ -1337,12 +1327,12 @@ func TestPresets(t *testing.T) {
 		})
 
 		t.Run("Does not upsert roles if nothing changes", func(t *testing.T) {
-			upsertRoleTest(t, testModules.BuildType(), enterprisePresetRoleNames, enterpriseSystemRoleNames)
+			upsertRoleTest(t, enterprisePresetRoleNames, enterpriseSystemRoleNames)
 		})
 
 		t.Run("System users are always upserted", func(t *testing.T) {
-			ctx := t.Context()
-			sysUser := services.NewSystemAutomaticAccessBotUser(testModules.BuildType()).(*types.UserV2)
+			ctx := context.Background()
+			sysUser := services.NewSystemAutomaticAccessBotUser().(*types.UserV2)
 
 			// GIVEN a user database...
 			manager := newMockUserManager(t)
@@ -1364,7 +1354,7 @@ func TestPresets(t *testing.T) {
 				Return(sysUser, nil)
 
 			// WHEN I attempt to create the preset users...
-			err := auth.CreatePresetUsers(ctx, testModules.BuildType(), manager)
+			err := auth.CreatePresetUsers(ctx, manager)
 
 			// EXPECT that the process succeeds and the system user was upserted
 			require.NoError(t, err)
@@ -1374,56 +1364,20 @@ func TestPresets(t *testing.T) {
 	})
 }
 
-func TestDashboardMode(t *testing.T) {
-	t.Parallel()
-
-	conf := setupConfig(t)
-	// dashboard mode is determined via cloud and recovery codes
-	conf.Modules = &modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Cloud:         false,
-			RecoveryCodes: true,
-		},
-	}
-	ctx := t.Context()
-	authServer, err := auth.Init(ctx, conf)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		err = authServer.Close()
-		require.NoError(t, err)
-	})
-
-	// verify auth server is functional
-	_, err = authServer.GetClusterName(ctx)
-	require.NoError(t, err)
-
-	// verify that preset roles were NOT created in dashboard mode
-	presetRoles := auth.GetPresetRoles(conf.Modules.BuildType())
-
-	for _, role := range presetRoles {
-		_, err := authServer.GetRole(ctx, role.GetName())
-		require.True(t, trace.IsNotFound(err), "expected preset role %q to not exist in dashboard mode", role.GetName())
-	}
-
-	// verify preset users were NOT created in dashboard mode
-	presetUsers := auth.GetPresetUsers(conf.Modules.BuildType())
-
-	for _, user := range presetUsers {
-		_, err := authServer.GetUser(ctx, user.GetName(), false)
-		require.True(t, trace.IsNotFound(err), "expected preset user %q to not exist in dashboard mode", user.GetName())
-	}
-}
-
 func TestGetPresetUsers(t *testing.T) {
-	t.Parallel()
 	// no preset users for OSS
-	require.Empty(t, auth.GetPresetUsers(modules.BuildOSS))
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestBuildType: modules.BuildOSS,
+	})
+	require.Empty(t, auth.GetPresetUsers())
 
 	// preset user @teleport-access-approval-bot on enterprise
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+	})
 	require.Equal(t, []types.User{
-		services.NewSystemAutomaticAccessBotUser(modules.BuildEnterprise),
-	}, auth.GetPresetUsers(modules.BuildEnterprise))
+		services.NewSystemAutomaticAccessBotUser(),
+	}, auth.GetPresetUsers())
 }
 
 type mockUserManager struct {
@@ -1519,10 +1473,18 @@ func requireSystemResource(t *testing.T, argno int) func(mock.Arguments) {
 	}
 }
 
+func toSet(items []string) map[string]struct{} {
+	result := make(map[string]struct{})
+	for _, v := range items {
+		result[v] = struct{}{}
+	}
+	return result
+}
+
 func setupConfig(t *testing.T) auth.InitConfig {
 	tempDir := t.TempDir()
 
-	bk, err := memory.New(memory.Config{})
+	bk, err := lite.New(t.Context(), backend.Params{"path": tempDir})
 	require.NoError(t, err)
 
 	processStorage, err := storage.NewProcessStorage(
@@ -1541,16 +1503,13 @@ func setupConfig(t *testing.T) auth.InitConfig {
 		processStorage.Close()
 	})
 
-	authority, err := testauthority.NewKeygen(modules.BuildOSS, time.Now)
-	require.NoError(t, err)
-
 	return auth.InitConfig{
 		DataDir:                 tempDir,
 		HostUUID:                "00000000-0000-0000-0000-000000000000",
 		NodeName:                "foo",
 		Backend:                 bk,
 		VersionStorage:          processStorage,
-		Authority:               authority,
+		Authority:               testauthority.New(),
 		ClusterAuditConfig:      types.DefaultClusterAuditConfig(),
 		ClusterNetworkingConfig: types.DefaultClusterNetworkingConfig(),
 		SessionRecordingConfig:  types.DefaultSessionRecordingConfig(),
@@ -1680,18 +1639,6 @@ spec:
   type: saml_idp
 sub_kind: saml_idp
 version: v2`
-	healthCheckConfigYAML = `kind: health_check_config
-metadata:
-  name: valid
-  revision: c1159783-930e-4a79-bb19-0d0d866d7af6
-spec:
-  enabled: true
-  match:
-    db_labels:
-    - name: "*"
-      values:
-      - "*"
-version: v1`
 )
 
 func TestInit_bootstrap(t *testing.T) {
@@ -1741,28 +1688,6 @@ func TestInit_bootstrap(t *testing.T) {
 				)
 			},
 			assertError: require.NoError,
-		},
-		{
-			name: "OK bootstrap health check config",
-			modifyConfig: func(cfg *auth.InitConfig) {
-				cfg.BootstrapResources = append(
-					cfg.BootstrapResources,
-					newHealthCheckConfig(t),
-				)
-			},
-			assertError: require.NoError,
-		},
-		{
-			name: "NOK bootstrap health check config invalid",
-			modifyConfig: func(cfg *auth.InitConfig) {
-				cfg.BootstrapResources = append(
-					cfg.BootstrapResources,
-					newHealthCheckConfig(t, func(hcc *healthcheckconfigv1.HealthCheckConfig) {
-						hcc.Spec.HealthyThreshold = 9000
-					}),
-				)
-			},
-			assertError: require.Error,
 		},
 		{
 			name: "NOK bootstrap Host CA missing keys",
@@ -1906,18 +1831,6 @@ spec:
   github:
     allow:
       - repository: gravitational/example`
-	badTokenYAML = `kind: token
-version: v2
-metadata:
-  name: iam-token-without-orgid-but-ous
-  expires: "3000-01-01T00:00:00Z"
-spec:
-  roles: [Node]
-  join_method: iam
-  allow:
-   - aws_account: "123456789012"
-     aws_organizational_units:
-       include: [r-rootid]`
 	roleYAML = `kind: role
 version: v7
 metadata:
@@ -1963,20 +1876,6 @@ spec:
   type: local
 version: v2
 `
-	workloadIdentityYAML = `kind: workload_identity
-version: v1
-metadata:
-  name: example-workload-identity
-spec:
-  spiffe:
-    id: /svc/example
-`
-	botYAML = `kind: bot
-metadata:
-  name: my-bot
-spec:
-  roles: ["admin"]
-`
 )
 
 func TestInit_ApplyOnStartup(t *testing.T) {
@@ -1984,13 +1883,10 @@ func TestInit_ApplyOnStartup(t *testing.T) {
 
 	user := resourceFromYAML(t, userYAML).(types.User)
 	token := resourceFromYAML(t, tokenYAML).(types.ProvisionToken)
-	badToken := resourceFromYAML(t, badTokenYAML).(types.ProvisionToken)
 	role := resourceFromYAML(t, roleYAML).(types.Role)
 	lock := resourceFromYAML(t, lockYAML).(types.Lock)
 	clusterNetworkingConfig := resourceFromYAML(t, clusterNetworkingConfYAML).(types.ClusterNetworkingConfig)
 	authPref := resourceFromYAML(t, authPrefYAML).(types.AuthPreference)
-	workloadIdentity := resourceFromYAML(t, workloadIdentityYAML)
-	bot := resourceFromYAML(t, botYAML)
 
 	tests := []struct {
 		name         string
@@ -2004,13 +1900,6 @@ func TestInit_ApplyOnStartup(t *testing.T) {
 				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, user)
 				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, role)
 				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, token)
-			},
-			assertError: require.Error,
-		},
-		{
-			name: "Apply invalid provision token",
-			modifyConfig: func(cfg *auth.InitConfig) {
-				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, badToken)
 			},
 			assertError: require.Error,
 		},
@@ -2066,29 +1955,6 @@ func TestInit_ApplyOnStartup(t *testing.T) {
 			},
 			assertError: require.NoError,
 		},
-		{
-			name: "Apply WorkloadIdentity",
-			modifyConfig: func(cfg *auth.InitConfig) {
-				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, workloadIdentity)
-			},
-			assertError: require.NoError,
-		},
-		{
-			name: "Apply Role+Bot",
-			modifyConfig: func(cfg *auth.InitConfig) {
-				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, role)
-				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, bot)
-			},
-			assertError: require.NoError,
-		},
-		{
-			name: "Apply Bot+Role",
-			modifyConfig: func(cfg *auth.InitConfig) {
-				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, bot)
-				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, role)
-			},
-			assertError: require.NoError,
-		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -2117,15 +1983,6 @@ func resourceDiff(res1, res2 types.Resource) string {
 	return cmp.Diff(res1, res2,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Namespace"),
 		cmpopts.EquateEmpty())
-}
-
-func newHealthCheckConfig(t *testing.T, opts ...func(*healthcheckconfigv1.HealthCheckConfig)) types.Resource {
-	r := resourceFromYAML(t, healthCheckConfigYAML)
-	inner := r.(types.Resource153UnwrapperT[*healthcheckconfigv1.HealthCheckConfig]).UnwrapT()
-	for _, opt := range opts {
-		opt(inner)
-	}
-	return r
 }
 
 // TestSyncUpgadeWindowStartHour verifies the core logic of the upgrade window start
@@ -2385,6 +2242,9 @@ func TestInitCreatesCertsIfMissing(t *testing.T) {
 }
 
 func TestTeleportProcessAuthVersionUpgradeCheck(t *testing.T) {
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
 	tests := []struct {
 		name               string
 		initialVersion     string
@@ -2462,10 +2322,10 @@ func TestTeleportProcessAuthVersionUpgradeCheck(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			ctx := t.Context()
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
 
 			authCfg := setupConfig(t)
-			authCfg.InsecureMode = true
 			service, err := local.NewBackendInfoService(authCfg.Backend)
 			require.NoError(t, err)
 
@@ -2550,6 +2410,25 @@ func Test_createPresetDatabaseObjectImportRule(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	oldPresetRule, err := databaseobjectimportrule.NewDatabaseObjectImportRule("import_all_objects", &dbobjectimportrulev1.DatabaseObjectImportRuleSpec{
+		DatabaseLabels: label.FromMap(map[string][]string{"*": {"*"}}),
+		Mappings: []*dbobjectimportrulev1.DatabaseObjectImportRuleMapping{
+			{
+				Match:     &dbobjectimportrulev1.DatabaseObjectImportMatch{TableNames: []string{"*"}},
+				AddLabels: map[string]string{"kind": "table"},
+			},
+			{
+				Match:     &dbobjectimportrulev1.DatabaseObjectImportMatch{ViewNames: []string{"*"}},
+				AddLabels: map[string]string{"kind": "view"},
+			},
+			{
+				Match:     &dbobjectimportrulev1.DatabaseObjectImportMatch{ProcedureNames: []string{"*"}},
+				AddLabels: map[string]string{"kind": "procedure"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
 	tests := []struct {
 		name          string
 		existingRules []*dbobjectimportrulev1.DatabaseObjectImportRule
@@ -2565,12 +2444,22 @@ func Test_createPresetDatabaseObjectImportRule(t *testing.T) {
 			existingRules: []*dbobjectimportrulev1.DatabaseObjectImportRule{customRule},
 		},
 		{
+			name:          "no action with old preset and custom rule",
+			existingRules: []*dbobjectimportrulev1.DatabaseObjectImportRule{oldPresetRule, customRule},
+		},
+		{
 			name:          "no action with preset rule",
 			existingRules: []*dbobjectimportrulev1.DatabaseObjectImportRule{presetRule},
+		},
+		{
+			name:          "migrate old preset to new",
+			existingRules: []*dbobjectimportrulev1.DatabaseObjectImportRule{oldPresetRule},
+			expectUpsert:  presetRule,
 		},
 	}
 
 	for _, test := range tests {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			m := &mockDatabaseObjectImportRules{
@@ -2632,34 +2521,6 @@ version: v1`
 			version, err := auth.GetAutoUpdateVersion(ctx)
 			assert.NoError(t, err)
 			assert.Equal(t, "1.2.3", version.GetSpec().GetTools().GetTargetVersion())
-		})
-	}
-}
-
-func TestInitWithWorkloadIdentityResources(t *testing.T) {
-	t.Parallel()
-
-	ctx := t.Context()
-	resources := []types.Resource{
-		resourceFromYAML(t, workloadIdentityYAML),
-	}
-
-	for _, test := range []struct {
-		name string
-		fn   func(cfg *auth.InitConfig)
-	}{
-		{name: "bootstrap", fn: func(cfg *auth.InitConfig) { cfg.BootstrapResources = resources }},
-		{name: "apply", fn: func(cfg *auth.InitConfig) { cfg.ApplyOnStartupResources = resources }},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			cfg := setupConfig(t)
-			test.fn(&cfg)
-			auth, err := auth.Init(ctx, cfg)
-			require.NoError(t, err)
-
-			workloadIdentity, err := auth.GetWorkloadIdentity(ctx, "example-workload-identity")
-			require.NoError(t, err)
-			require.Equal(t, "/svc/example", workloadIdentity.GetSpec().GetSpiffe().GetId())
 		})
 	}
 }

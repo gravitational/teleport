@@ -34,7 +34,7 @@ func (tc *TeleportClient) NewMFACeremony() *mfa.Ceremony {
 	return &mfa.Ceremony{
 		CreateAuthenticateChallenge: tc.createAuthenticateChallenge,
 		PromptConstructor:           tc.NewMFAPrompt,
-		MFACeremonyConstructor:      tc.NewRedirectorMFACeremony,
+		SSOMFACeremonyConstructor:   tc.NewSSOMFACeremony,
 	}
 }
 
@@ -64,7 +64,6 @@ func (tc *TeleportClient) NewMFAPrompt(opts ...mfa.PromptOpt) mfa.Prompt {
 		Writer:           tc.Stderr,
 		PreferOTP:        tc.PreferOTP,
 		PreferSSO:        tc.PreferSSO,
-		PreferBrowser:    tc.PreferBrowser,
 		AllowStdinHijack: tc.AllowStdinHijack,
 		StdinFunc:        tc.StdinFunc,
 	})
@@ -87,8 +86,8 @@ func (tc *TeleportClient) newPromptConfig(opts ...mfa.PromptOpt) *libmfa.PromptC
 	return cfg
 }
 
-// NewRedirectorMFACeremony creates a new redirector for SSO or Browser MFA ceremony.
-func (tc *TeleportClient) NewRedirectorMFACeremony(ctx context.Context) (mfa.CallbackCeremony, error) {
+// NewSSOMFACeremony creates a new SSO MFA ceremony.
+func (tc *TeleportClient) NewSSOMFACeremony(ctx context.Context) (mfa.SSOMFACeremony, error) {
 	rdConfig, err := tc.ssoRedirectorConfig(ctx, "" /*connectorDisplayName*/)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -99,8 +98,8 @@ func (tc *TeleportClient) NewRedirectorMFACeremony(ctx context.Context) (mfa.Cal
 		return nil, trace.Wrap(err, "failed to create a redirector for SSO MFA")
 	}
 
-	if tc.MFACeremonyConstructor != nil {
-		return tc.MFACeremonyConstructor(rd), nil
+	if tc.SSOMFACeremonyConstructor != nil {
+		return tc.SSOMFACeremonyConstructor(rd), nil
 	}
 
 	return sso.NewCLIMFACeremony(rd), nil

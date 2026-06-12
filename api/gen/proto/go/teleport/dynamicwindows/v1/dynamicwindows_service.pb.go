@@ -21,8 +21,6 @@
 // 	protoc        (unknown)
 // source: teleport/dynamicwindows/v1/dynamicwindows_service.proto
 
-//go:build !protoopaque
-
 package dynamicwindowsv1
 
 import (
@@ -31,6 +29,7 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	reflect "reflect"
+	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -43,7 +42,7 @@ const (
 
 // ListDynamicWindowsDesktopsRequest is request to fetch single page of dynamic Windows desktops
 type ListDynamicWindowsDesktopsRequest struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// The maximum number of items to return.
 	// The server may impose a different page size at its discretion.
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
@@ -78,6 +77,11 @@ func (x *ListDynamicWindowsDesktopsRequest) ProtoReflect() protoreflect.Message 
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use ListDynamicWindowsDesktopsRequest.ProtoReflect.Descriptor instead.
+func (*ListDynamicWindowsDesktopsRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_dynamicwindows_v1_dynamicwindows_service_proto_rawDescGZIP(), []int{0}
+}
+
 func (x *ListDynamicWindowsDesktopsRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
@@ -92,36 +96,9 @@ func (x *ListDynamicWindowsDesktopsRequest) GetPageToken() string {
 	return ""
 }
 
-func (x *ListDynamicWindowsDesktopsRequest) SetPageSize(v int32) {
-	x.PageSize = v
-}
-
-func (x *ListDynamicWindowsDesktopsRequest) SetPageToken(v string) {
-	x.PageToken = v
-}
-
-type ListDynamicWindowsDesktopsRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// The maximum number of items to return.
-	// The server may impose a different page size at its discretion.
-	PageSize int32
-	// The next_page_token value returned from a previous List request, if any.
-	PageToken string
-}
-
-func (b0 ListDynamicWindowsDesktopsRequest_builder) Build() *ListDynamicWindowsDesktopsRequest {
-	m0 := &ListDynamicWindowsDesktopsRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.PageSize = b.PageSize
-	x.PageToken = b.PageToken
-	return m0
-}
-
 // ListDynamicWindowsDesktopsRequest is single page of dynamic Windows desktops
 type ListDynamicWindowsDesktopsResponse struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// The page of DynamicWindowsDesktops that matched the request.
 	Desktops []*types.DynamicWindowsDesktopV1 `protobuf:"bytes,1,rep,name=desktops,proto3" json:"desktops,omitempty"`
 	// Token to retrieve the next page of results, or empty if there are no
@@ -156,6 +133,11 @@ func (x *ListDynamicWindowsDesktopsResponse) ProtoReflect() protoreflect.Message
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use ListDynamicWindowsDesktopsResponse.ProtoReflect.Descriptor instead.
+func (*ListDynamicWindowsDesktopsResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_dynamicwindows_v1_dynamicwindows_service_proto_rawDescGZIP(), []int{1}
+}
+
 func (x *ListDynamicWindowsDesktopsResponse) GetDesktops() []*types.DynamicWindowsDesktopV1 {
 	if x != nil {
 		return x.Desktops
@@ -170,36 +152,9 @@ func (x *ListDynamicWindowsDesktopsResponse) GetNextPageToken() string {
 	return ""
 }
 
-func (x *ListDynamicWindowsDesktopsResponse) SetDesktops(v []*types.DynamicWindowsDesktopV1) {
-	x.Desktops = v
-}
-
-func (x *ListDynamicWindowsDesktopsResponse) SetNextPageToken(v string) {
-	x.NextPageToken = v
-}
-
-type ListDynamicWindowsDesktopsResponse_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// The page of DynamicWindowsDesktops that matched the request.
-	Desktops []*types.DynamicWindowsDesktopV1
-	// Token to retrieve the next page of results, or empty if there are no
-	// more results in the list.
-	NextPageToken string
-}
-
-func (b0 ListDynamicWindowsDesktopsResponse_builder) Build() *ListDynamicWindowsDesktopsResponse {
-	m0 := &ListDynamicWindowsDesktopsResponse{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Desktops = b.Desktops
-	x.NextPageToken = b.NextPageToken
-	return m0
-}
-
 // GetDynamicWindowsDesktopRequest is a request for a specific dynamic Windows desktop.
 type GetDynamicWindowsDesktopRequest struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// name is the name of the dynamic Windows desktop to be requested.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -231,6 +186,11 @@ func (x *GetDynamicWindowsDesktopRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use GetDynamicWindowsDesktopRequest.ProtoReflect.Descriptor instead.
+func (*GetDynamicWindowsDesktopRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_dynamicwindows_v1_dynamicwindows_service_proto_rawDescGZIP(), []int{2}
+}
+
 func (x *GetDynamicWindowsDesktopRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -238,28 +198,9 @@ func (x *GetDynamicWindowsDesktopRequest) GetName() string {
 	return ""
 }
 
-func (x *GetDynamicWindowsDesktopRequest) SetName(v string) {
-	x.Name = v
-}
-
-type GetDynamicWindowsDesktopRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// name is the name of the dynamic Windows desktop to be requested.
-	Name string
-}
-
-func (b0 GetDynamicWindowsDesktopRequest_builder) Build() *GetDynamicWindowsDesktopRequest {
-	m0 := &GetDynamicWindowsDesktopRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Name = b.Name
-	return m0
-}
-
 // CreateDynamicWindowsDesktopRequest is used for creating new dynamic Windows desktops.
 type CreateDynamicWindowsDesktopRequest struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// desktop to be created
 	Desktop       *types.DynamicWindowsDesktopV1 `protobuf:"bytes,1,opt,name=desktop,proto3" json:"desktop,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -291,6 +232,11 @@ func (x *CreateDynamicWindowsDesktopRequest) ProtoReflect() protoreflect.Message
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use CreateDynamicWindowsDesktopRequest.ProtoReflect.Descriptor instead.
+func (*CreateDynamicWindowsDesktopRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_dynamicwindows_v1_dynamicwindows_service_proto_rawDescGZIP(), []int{3}
+}
+
 func (x *CreateDynamicWindowsDesktopRequest) GetDesktop() *types.DynamicWindowsDesktopV1 {
 	if x != nil {
 		return x.Desktop
@@ -298,39 +244,9 @@ func (x *CreateDynamicWindowsDesktopRequest) GetDesktop() *types.DynamicWindowsD
 	return nil
 }
 
-func (x *CreateDynamicWindowsDesktopRequest) SetDesktop(v *types.DynamicWindowsDesktopV1) {
-	x.Desktop = v
-}
-
-func (x *CreateDynamicWindowsDesktopRequest) HasDesktop() bool {
-	if x == nil {
-		return false
-	}
-	return x.Desktop != nil
-}
-
-func (x *CreateDynamicWindowsDesktopRequest) ClearDesktop() {
-	x.Desktop = nil
-}
-
-type CreateDynamicWindowsDesktopRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// desktop to be created
-	Desktop *types.DynamicWindowsDesktopV1
-}
-
-func (b0 CreateDynamicWindowsDesktopRequest_builder) Build() *CreateDynamicWindowsDesktopRequest {
-	m0 := &CreateDynamicWindowsDesktopRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Desktop = b.Desktop
-	return m0
-}
-
 // UpdateDynamicWindowsDesktopRequest is used for updating existing dynamic Windows desktops.
 type UpdateDynamicWindowsDesktopRequest struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// desktop to be updated
 	Desktop       *types.DynamicWindowsDesktopV1 `protobuf:"bytes,1,opt,name=desktop,proto3" json:"desktop,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -362,6 +278,11 @@ func (x *UpdateDynamicWindowsDesktopRequest) ProtoReflect() protoreflect.Message
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use UpdateDynamicWindowsDesktopRequest.ProtoReflect.Descriptor instead.
+func (*UpdateDynamicWindowsDesktopRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_dynamicwindows_v1_dynamicwindows_service_proto_rawDescGZIP(), []int{4}
+}
+
 func (x *UpdateDynamicWindowsDesktopRequest) GetDesktop() *types.DynamicWindowsDesktopV1 {
 	if x != nil {
 		return x.Desktop
@@ -369,39 +290,9 @@ func (x *UpdateDynamicWindowsDesktopRequest) GetDesktop() *types.DynamicWindowsD
 	return nil
 }
 
-func (x *UpdateDynamicWindowsDesktopRequest) SetDesktop(v *types.DynamicWindowsDesktopV1) {
-	x.Desktop = v
-}
-
-func (x *UpdateDynamicWindowsDesktopRequest) HasDesktop() bool {
-	if x == nil {
-		return false
-	}
-	return x.Desktop != nil
-}
-
-func (x *UpdateDynamicWindowsDesktopRequest) ClearDesktop() {
-	x.Desktop = nil
-}
-
-type UpdateDynamicWindowsDesktopRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// desktop to be updated
-	Desktop *types.DynamicWindowsDesktopV1
-}
-
-func (b0 UpdateDynamicWindowsDesktopRequest_builder) Build() *UpdateDynamicWindowsDesktopRequest {
-	m0 := &UpdateDynamicWindowsDesktopRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Desktop = b.Desktop
-	return m0
-}
-
 // UpsertDynamicWindowsDesktopRequest is used for upserting dynamic Windows desktops.
 type UpsertDynamicWindowsDesktopRequest struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// desktop to be upserted
 	Desktop       *types.DynamicWindowsDesktopV1 `protobuf:"bytes,1,opt,name=desktop,proto3" json:"desktop,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -433,6 +324,11 @@ func (x *UpsertDynamicWindowsDesktopRequest) ProtoReflect() protoreflect.Message
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use UpsertDynamicWindowsDesktopRequest.ProtoReflect.Descriptor instead.
+func (*UpsertDynamicWindowsDesktopRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_dynamicwindows_v1_dynamicwindows_service_proto_rawDescGZIP(), []int{5}
+}
+
 func (x *UpsertDynamicWindowsDesktopRequest) GetDesktop() *types.DynamicWindowsDesktopV1 {
 	if x != nil {
 		return x.Desktop
@@ -440,39 +336,9 @@ func (x *UpsertDynamicWindowsDesktopRequest) GetDesktop() *types.DynamicWindowsD
 	return nil
 }
 
-func (x *UpsertDynamicWindowsDesktopRequest) SetDesktop(v *types.DynamicWindowsDesktopV1) {
-	x.Desktop = v
-}
-
-func (x *UpsertDynamicWindowsDesktopRequest) HasDesktop() bool {
-	if x == nil {
-		return false
-	}
-	return x.Desktop != nil
-}
-
-func (x *UpsertDynamicWindowsDesktopRequest) ClearDesktop() {
-	x.Desktop = nil
-}
-
-type UpsertDynamicWindowsDesktopRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// desktop to be upserted
-	Desktop *types.DynamicWindowsDesktopV1
-}
-
-func (b0 UpsertDynamicWindowsDesktopRequest_builder) Build() *UpsertDynamicWindowsDesktopRequest {
-	m0 := &UpsertDynamicWindowsDesktopRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Desktop = b.Desktop
-	return m0
-}
-
 // DeleteDynamicWindowsDesktopRequest is a request to delete a Windows desktop host.
 type DeleteDynamicWindowsDesktopRequest struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// name is the name of the Windows desktop host.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -504,30 +370,16 @@ func (x *DeleteDynamicWindowsDesktopRequest) ProtoReflect() protoreflect.Message
 	return mi.MessageOf(x)
 }
 
+// Deprecated: Use DeleteDynamicWindowsDesktopRequest.ProtoReflect.Descriptor instead.
+func (*DeleteDynamicWindowsDesktopRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_dynamicwindows_v1_dynamicwindows_service_proto_rawDescGZIP(), []int{6}
+}
+
 func (x *DeleteDynamicWindowsDesktopRequest) GetName() string {
 	if x != nil {
 		return x.Name
 	}
 	return ""
-}
-
-func (x *DeleteDynamicWindowsDesktopRequest) SetName(v string) {
-	x.Name = v
-}
-
-type DeleteDynamicWindowsDesktopRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// name is the name of the Windows desktop host.
-	Name string
-}
-
-func (b0 DeleteDynamicWindowsDesktopRequest_builder) Build() *DeleteDynamicWindowsDesktopRequest {
-	m0 := &DeleteDynamicWindowsDesktopRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.Name = b.Name
-	return m0
 }
 
 var File_teleport_dynamicwindows_v1_dynamicwindows_service_proto protoreflect.FileDescriptor
@@ -559,6 +411,18 @@ const file_teleport_dynamicwindows_v1_dynamicwindows_service_proto_rawDesc = "" 
 	"\x1bUpdateDynamicWindowsDesktop\x12>.teleport.dynamicwindows.v1.UpdateDynamicWindowsDesktopRequest\x1a\x1e.types.DynamicWindowsDesktopV1\x12}\n" +
 	"\x1bUpsertDynamicWindowsDesktop\x12>.teleport.dynamicwindows.v1.UpsertDynamicWindowsDesktopRequest\x1a\x1e.types.DynamicWindowsDesktopV1\x12u\n" +
 	"\x1bDeleteDynamicWindowsDesktop\x12>.teleport.dynamicwindows.v1.DeleteDynamicWindowsDesktopRequest\x1a\x16.google.protobuf.EmptyB`Z^github.com/gravitational/teleport/api/gen/proto/go/teleport/dynamicwindows/v1;dynamicwindowsv1b\x06proto3"
+
+var (
+	file_teleport_dynamicwindows_v1_dynamicwindows_service_proto_rawDescOnce sync.Once
+	file_teleport_dynamicwindows_v1_dynamicwindows_service_proto_rawDescData []byte
+)
+
+func file_teleport_dynamicwindows_v1_dynamicwindows_service_proto_rawDescGZIP() []byte {
+	file_teleport_dynamicwindows_v1_dynamicwindows_service_proto_rawDescOnce.Do(func() {
+		file_teleport_dynamicwindows_v1_dynamicwindows_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_dynamicwindows_v1_dynamicwindows_service_proto_rawDesc), len(file_teleport_dynamicwindows_v1_dynamicwindows_service_proto_rawDesc)))
+	})
+	return file_teleport_dynamicwindows_v1_dynamicwindows_service_proto_rawDescData
+}
 
 var file_teleport_dynamicwindows_v1_dynamicwindows_service_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_teleport_dynamicwindows_v1_dynamicwindows_service_proto_goTypes = []any{

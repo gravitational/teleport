@@ -22,13 +22,11 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"net"
-	"strconv"
 	"sync"
 	"testing"
 	"time"
 
-	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	mysqlclient "github.com/go-mysql-org/go-mysql/client"
 	"github.com/go-mysql-org/go-mysql/mysql"
@@ -37,7 +35,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/helpers"
-	"github.com/gravitational/teleport/lib/cloud/aws/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -81,11 +78,10 @@ func testRDS(t *testing.T) {
 
 	// use random names so we can test auto provisioning these users with these
 	// roles via Teleport, without tests colliding with eachother across
-	// parallel test runs. use email addresses in some tests to test out
-	// special characters.
-	autoUserFineGrain := "auto_fine_grain_" + randASCII(t) + "@teleport.com"
-	autoUserKeep := "auto_keep_" + randASCII(t) + "@teleport.com"
-	autoUserDrop := "auto_drop_" + randASCII(t) + "@teleport.com"
+	// parallel test runs.
+	autoUserFineGrain := "auto_fine_grain_" + randASCII(t)
+	autoUserKeep := "auto_keep_" + randASCII(t)
+	autoUserDrop := "auto_drop_" + randASCII(t)
 	autoUserFineGrain2 := "auto_fine_grain2_" + randASCII(t)
 	autoUserKeep2 := "auto_keep2_" + randASCII(t)
 	autoUserDrop2 := "auto_drop2_" + randASCII(t)
@@ -268,6 +264,7 @@ func testRDS(t *testing.T) {
 						},
 					},
 				} {
+					test := test
 					t.Run(name, func(t *testing.T) {
 						t.Parallel()
 						t.Run("connect", func(t *testing.T) {
@@ -376,6 +373,7 @@ func testRDS(t *testing.T) {
 				},
 			},
 		} {
+			test := test
 			t.Run(name, func(t *testing.T) {
 				t.Parallel()
 				route := tlsca.RouteToDatabase{
@@ -504,6 +502,7 @@ func testRDS(t *testing.T) {
 				},
 			},
 		} {
+			test := test
 			t.Run(name, func(t *testing.T) {
 				t.Parallel()
 				route := tlsca.RouteToDatabase{
@@ -545,7 +544,7 @@ type mySQLConn struct {
 	conn *mysqlclient.Conn
 }
 
-func (c *mySQLConn) Execute(command string, args ...any) (*mysql.Result, error) {
+func (c *mySQLConn) Execute(command string, args ...interface{}) (*mysql.Result, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.conn.Execute(command, args...)
@@ -563,8 +562,7 @@ func connectAsRDSMySQLAdmin(t *testing.T, ctx context.Context, instanceID string
 		})
 		return nil
 	}
-
-	endpoint := net.JoinHostPort(info.address, strconv.Itoa(info.port))
+	endpoint := fmt.Sprintf("%s:%d", info.address, info.port)
 	conn, err := mysqlclient.Connect(endpoint, info.username, info.password, dbName, opt)
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -576,7 +574,7 @@ func connectAsRDSMySQLAdmin(t *testing.T, ctx context.Context, instanceID string
 func getRDSAdminInfo(t *testing.T, ctx context.Context, instanceID string) dbUserLogin {
 	t.Helper()
 	cfg, err := config.LoadDefaultConfig(ctx,
-		awsconfig.WithRegion(mustGetEnv(t, awsRegionEnv)),
+		config.WithRegion(mustGetEnv(t, awsRegionEnv)),
 	)
 	require.NoError(t, err)
 

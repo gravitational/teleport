@@ -33,10 +33,7 @@ import {
 } from 'shared/libs/tdp';
 import { TdpError as RemoteTdpError } from 'shared/libs/tdp/client';
 
-import {
-  DesktopSessionWithSharing,
-  DesktopSessionWithSharingProps,
-} from './DesktopSessionWithSharing';
+import { DesktopSession, DesktopSessionProps } from './DesktopSession';
 
 const meta: Meta = {
   title: 'Shared/DesktopSession',
@@ -60,13 +57,13 @@ export default meta;
 const fakeClient = () => {
   const client = new TdpClient(() => null, selectDirectoryInBrowser);
   // Don't try to connect to a websocket.
-  client.connect = async options => {
-    emitFrame(client, options.screenSpec);
+  client.connect = async spec => {
+    emitFrame(client, spec);
   };
   return client;
 };
 
-const props: DesktopSessionWithSharingProps = {
+const props: DesktopSessionProps = {
   aclAttempt: makeSuccessAttempt({
     clipboardSharingEnabled: true,
     directorySharingEnabled: true,
@@ -79,11 +76,11 @@ const props: DesktopSessionWithSharingProps = {
 };
 
 export const Processing = () => (
-  <DesktopSessionWithSharing {...props} aclAttempt={makeProcessingAttempt()} />
+  <DesktopSession {...props} aclAttempt={makeProcessingAttempt()} />
 );
 
 export const FetchError = () => (
-  <DesktopSessionWithSharing
+  <DesktopSession
     {...props}
     aclAttempt={makeErrorAttempt(new Error('Network Error'))}
   />
@@ -103,24 +100,24 @@ export const TdpError = () => {
     );
   };
 
-  return <DesktopSessionWithSharing {...props} client={client} />;
+  return <DesktopSession {...props} client={client} />;
 };
 
 export const Connected = () => {
-  return <DesktopSessionWithSharing {...props} />;
+  return <DesktopSession {...props} />;
 };
 
 export const DisconnectedWithNoMessage = () => {
   const client = fakeClient();
   client.connect = async () => {
-    client.emit(TdpClientEvent.CONNECTION_CLOSE, undefined);
+    client.emit(TdpClientEvent.TRANSPORT_CLOSE, undefined);
   };
 
-  return <DesktopSessionWithSharing {...props} client={client} />;
+  return <DesktopSession {...props} client={client} />;
 };
 
 export const MfaPrompt = () => (
-  <DesktopSessionWithSharing
+  <DesktopSession
     {...props}
     customConnectionState={() => {
       return (
@@ -136,14 +133,11 @@ export const MfaPrompt = () => (
 );
 
 export const AnotherSessionActive = () => (
-  <DesktopSessionWithSharing
-    {...props}
-    hasAnotherSession={() => Promise.resolve(true)}
-  />
+  <DesktopSession {...props} hasAnotherSession={() => Promise.resolve(true)} />
 );
 
 export const SharingDisabledRbac = () => (
-  <DesktopSessionWithSharing
+  <DesktopSession
     {...props}
     aclAttempt={makeSuccessAttempt({
       clipboardSharingEnabled: false,
@@ -178,8 +172,8 @@ export const SharingDisabledRbac = () => (
 
 export const Alerts = () => {
   const client = fakeClient();
-  client.connect = async options => {
-    emitFrame(client, options.screenSpec);
+  client.connect = async spec => {
+    emitFrame(client, spec);
     client.emit(
       TdpClientEvent.TDP_WARNING,
       'Potential performance issues detected. Expect possible lag or instability.'
@@ -190,7 +184,7 @@ export const Alerts = () => {
     );
   };
 
-  return <DesktopSessionWithSharing {...props} client={client} />;
+  return <DesktopSession {...props} client={client} />;
 };
 
 function emitFrame(client: TdpClient, spec: ClientScreenSpec) {

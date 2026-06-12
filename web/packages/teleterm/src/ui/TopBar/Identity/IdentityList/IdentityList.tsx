@@ -16,37 +16,26 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { formatDistanceToNowStrict, isPast } from 'date-fns';
 import { JSX } from 'react';
 import styled from 'styled-components';
 
-import { ButtonText, Flex, P3, Stack } from 'design';
-import {
-  Clock,
-  Logout,
-  Refresh,
-  ShieldCheck,
-  ShieldWarning,
-} from 'design/Icon';
+import { ButtonText, Flex, Label, P3 } from 'design';
+import { Logout, Refresh, ShieldCheck, ShieldWarning } from 'design/Icon';
 import Link from 'design/Link';
-import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 
 import { ProfileStatusError } from 'teleterm/ui/components/ProfileStatusError';
-import { usePersistedState } from 'teleterm/ui/hooks/usePersistedState';
 import { WorkspaceColor } from 'teleterm/ui/services/workspacesService';
-import { RootClusterUri, routing } from 'teleterm/ui/uri';
+import { DeviceTrustStatus } from 'teleterm/ui/TopBar/Identity/Identity';
+import { RootClusterUri } from 'teleterm/ui/uri';
 
-import { DeviceTrustStatus } from '../Identity';
-import { IdentityItem } from '../useIdentity';
 import { ColorPicker } from './ColorPicker';
 import {
   AddClusterItem,
-  getProfileNameLetter,
+  getClusterLetter,
   IdentityListItem,
   TitleAndSubtitle,
 } from './IdentityListItem';
-import { Roles } from './Roles';
 
 export function ActiveCluster(props: {
   activeCluster: Cluster | undefined;
@@ -56,42 +45,32 @@ export function ActiveCluster(props: {
   onRefresh(): void;
   onLogout(): void;
 }) {
-  const clusterName = routing.parseClusterName(props.activeCluster.uri);
-  const validUntil =
-    props.activeCluster.loggedInUser?.validUntil &&
-    Timestamp.toDate(props.activeCluster.loggedInUser.validUntil);
-  const roles = props.activeCluster.loggedInUser?.roles || [];
-  const [isRolesExpanded, setIsRolesExpanded] = usePersistedState(
-    'showRolesExpanded',
-    false
-  );
-
   return (
     <>
       <Flex p={3} pb={2} flexWrap="nowrap" gap={2} flexDirection="column">
         <Flex gap={4} justifyContent="space-between">
           <Flex alignItems="center" flex={1} minWidth="0" gap={2}>
             <ColorPicker
-              letter={getProfileNameLetter(props.activeCluster.uri)}
+              letter={getClusterLetter(props.activeCluster)}
               color={props.activeColor}
               setColor={props.onChangeColor}
             />
             <TitleAndSubtitle
-              title={clusterName}
+              title={props.activeCluster.name}
               subtitle={props.activeCluster.loggedInUser?.name}
             />
           </Flex>
 
           <Flex flexDirection="row" alignItems="flex-start" gap={1}>
             <ButtonText
-              title={`Refresh session in ${clusterName}`}
+              title={`Refresh session in ${props.activeCluster.name}`}
               size="small"
               onClick={() => props.onRefresh()}
             >
               <Refresh size="small" />
             </ButtonText>
             <ButtonText
-              title={`Log out from ${clusterName}`}
+              title={`Log out from ${props.activeCluster.name}`}
               onClick={() => props.onLogout()}
               intent="danger"
               size="small"
@@ -110,81 +89,46 @@ export function ActiveCluster(props: {
             `}
           />
         )}
-        <Stack gap={0}>
-          <Roles
-            roles={roles}
-            expanded={isRolesExpanded}
-            setExpanded={setIsRolesExpanded}
-          />
-          {validUntil && (
-            <Flex gap={1} color="text.slightlyMuted">
-              <Clock size="small" />
-              <P3>
-                {isPast(validUntil) ? (
-                  'Session expired.'
-                ) : (
-                  <>
-                    Session expires{' '}
-                    <span
-                      title={validUntil.toLocaleString()}
-                      css={`
-                        text-decoration: underline;
-                        text-decoration-style: dotted;
-                      `}
-                    >
-                      {formatDistanceToNowStrict(validUntil, {
-                        addSuffix: true,
-                      })}
-                      .
-                    </span>
-                  </>
-                )}
-              </P3>
-            </Flex>
-          )}
-          <DeviceTrustMessage status={props.deviceTrustStatus} />
-        </Stack>
+        <Flex flexWrap="wrap" gap={1} mt={1}>
+          {props.activeCluster.loggedInUser?.roles.map(role => (
+            <Label
+              css={`
+                line-height: 20px;
+              `}
+              key={role}
+              kind="secondary"
+            >
+              {role}
+            </Label>
+          ))}
+        </Flex>
+        <DeviceTrustMessage status={props.deviceTrustStatus} />
       </Flex>
       <Separator />
     </>
   );
 }
 
-export function IdentityList(props: {
-  items: IdentityItem[];
+export function ClusterList(props: {
+  clusters: Cluster[];
   onSelect(clusterUri: RootClusterUri): void;
-  onLogout(clusterUri: RootClusterUri): void;
-  onForget(clusterUri: RootClusterUri): void;
+  onLogout?(clusterUri: RootClusterUri): void;
   onAdd(): void;
 }) {
   return (
     <>
-      {props.items
-        .toSorted((a, b) => {
-          return (
-            // Puts items with profile first, then sorts equal groups alphabetically.
-            Number(!!b.cluster) - Number(!!a.cluster) ||
-            routing
-              .parseClusterName(a.uri)
-              .localeCompare(routing.parseClusterName(b.uri))
-          );
-        })
-        .map((identityItem, index) => {
-          const { cluster } = identityItem;
-          return (
-            <IdentityListItem
-              key={identityItem.uri}
-              uri={identityItem.uri}
-              index={index}
-              color={identityItem.workspace.color}
-              cluster={cluster}
-              onSelect={() => props.onSelect(identityItem.uri)}
-              onLogout={() => props.onLogout(identityItem.uri)}
-              onForget={() => props.onForget(identityItem.uri)}
-            />
-          );
-        })}
-      <AddClusterItem index={props.items.length} onClick={props.onAdd} />
+      {props.clusters.map((cluster, index) => (
+        <IdentityListItem
+          key={cluster.uri}
+          index={index}
+          cluster={cluster}
+          onSelect={() => props.onSelect(cluster.uri)}
+          onLogout={
+            props.onLogout ? () => props.onLogout(cluster.uri) : undefined
+          }
+        />
+      ))}
+      <AddClusterItem index={props.clusters.length} onClick={props.onAdd} />
     </>
   );
 }

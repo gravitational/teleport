@@ -56,8 +56,8 @@ const (
 const (
 	// serviceDir contains the relative path to the Teleport SystemD service dir.
 	serviceDir = "lib/systemd/system"
-	// teleportServiceName contains the upstream name of the Teleport SystemD service file.
-	teleportServiceName = "teleport.service"
+	// serviceName contains the upstream name of the Teleport SystemD service file.
+	serviceName = "teleport.service"
 )
 
 // ServiceFile represents a systemd service file for a Teleport binary.
@@ -380,10 +380,9 @@ func tgzExtractPaths(ent bool) []utils.ExtractPath {
 		prefix += "-ent"
 	}
 	return []utils.ExtractPath{
-		{Src: path.Join(prefix, "examples/systemd/teleport.service"), Dst: filepath.Join(serviceDir, teleportServiceName), DirMode: systemDirMode},
+		{Src: path.Join(prefix, "examples/systemd/teleport.service"), Dst: filepath.Join(serviceDir, serviceName), DirMode: systemDirMode},
 		{Src: path.Join(prefix, "examples"), Skip: true, DirMode: systemDirMode},
 		{Src: path.Join(prefix, "install"), Skip: true, DirMode: systemDirMode},
-		{Src: path.Join(prefix, "install-selinux.sh"), Skip: true, DirMode: systemDirMode},
 		{Src: path.Join(prefix, "README.md"), Dst: "share/README.md", DirMode: systemDirMode},
 		{Src: path.Join(prefix, "CHANGELOG.md"), Dst: "share/CHANGELOG.md", DirMode: systemDirMode},
 		{Src: path.Join(prefix, "VERSION"), Dst: "share/VERSION", DirMode: systemDirMode},
@@ -607,7 +606,7 @@ func (li *LocalInstaller) forceLinks(ctx context.Context, srcBinDir, srcSvcDir, 
 		return revert, trace.Wrap(ErrNoBinaries)
 	}
 
-	// process systemd service files
+	// create systemd service files
 
 	for _, s := range li.TargetServices {
 		orig, err := copyService(s, srcSvcDir, dstBinDir, flags)
@@ -853,7 +852,6 @@ func (li *LocalInstaller) tryLinks(ctx context.Context, srcBinDir, srcSvcDir, ds
 		}
 	}
 
-	// process systemd service files
 	for _, s := range li.TargetServices {
 		_, err := copyService(s, srcSvcDir, dstBinDir, flags)
 		if err != nil && !errors.Is(err, os.ErrExist) {

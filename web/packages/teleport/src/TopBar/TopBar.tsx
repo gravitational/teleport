@@ -16,14 +16,15 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { type JSX } from 'react';
-import { Link, matchPath, useLocation } from 'react-router';
+import React from 'react';
+import { matchPath, useHistory } from 'react-router';
+import { Link } from 'react-router-dom';
 import styled, { useTheme } from 'styled-components';
 
 import { breakpointsPx, Flex, Image, TopNav } from 'design';
 import { HoverTooltip } from 'design/Tooltip';
 
-import { logoSrc } from 'teleport/components/LogoHero/LogoHero';
+import { logos } from 'teleport/components/LogoHero/LogoHero';
 import { UserMenuNav } from 'teleport/components/UserMenuNav';
 import cfg from 'teleport/config';
 import { useFeatures } from 'teleport/FeaturesContext';
@@ -38,7 +39,7 @@ export function TopBar({
   CustomLogo?: () => React.ReactElement;
 }) {
   const ctx = useTeleport();
-  const location = useLocation();
+  const history = useHistory();
   const features = useFeatures();
   const { currentWidth } = useLayout();
 
@@ -46,10 +47,10 @@ export function TopBar({
   const feature = features.find(
     f =>
       f.route &&
-      matchPath(
-        { path: f.route.path, end: f.route.exact ?? false },
-        location.pathname
-      )
+      matchPath(history.location.pathname, {
+        path: f.route.path,
+        exact: f.route.exact ?? false,
+      })
   );
 
   const iconSize =
@@ -94,10 +95,23 @@ const TeleportLogo = ({
   CustomLogo?: () => React.ReactElement;
 }) => {
   const theme = useTheme();
-  const src = logoSrc(theme.type);
+  const src = logos[cfg.edition][theme.type];
 
   return (
-    <HoverTooltip placement="bottom" tipContent="Teleport Resources Home">
+    <HoverTooltip
+      placement="bottom"
+      tipContent="Teleport Resources Home"
+      css={`
+        height: 100%;
+        margin-right: 0px;
+        @media screen and (min-width: ${p => p.theme.breakpoints.medium}) {
+          margin-right: 76px;
+        }
+        @media screen and (min-width: ${p => p.theme.breakpoints.large}) {
+          margin-right: 67px;
+        }
+      `}
+    >
       <Link
         css={`
           cursor: pointer;
@@ -108,14 +122,6 @@ const TeleportLogo = ({
               p.theme.colors.interactive.tonal.primary[0]};
           }
           align-items: center;
-          height: 100%;
-          margin-right: 0px;
-          @media screen and (min-width: ${p => p.theme.breakpoints.medium}) {
-            margin-right: 76px;
-          }
-          @media screen and (min-width: ${p => p.theme.breakpoints.large}) {
-            margin-right: 67px;
-          }
         `}
         to={cfg.routes.root}
       >
@@ -125,7 +131,7 @@ const TeleportLogo = ({
           <Image
             data-testid="teleport-logo"
             src={src}
-            alt="Teleport logo"
+            alt="teleport logo"
             css={`
               padding-left: ${props => props.theme.space[3]}px;
               padding-right: ${props => props.theme.space[3]}px;

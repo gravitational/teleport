@@ -20,6 +20,7 @@ package discovery
 
 import (
 	"context"
+	"log/slog"
 	"sync"
 
 	"github.com/gravitational/trace"
@@ -55,15 +56,13 @@ func (s *Server) startKubeAppsWatchers() error {
 
 				return utils.FromSlice(filterResources(apps, types.OriginDiscoveryKubernetes, s.DiscoveryGroup), types.Application.GetName)
 			},
-			CompareResources: func(a1, a2 types.Application) int {
-				return services.EqualFromBool(a1.IsEqual(a2))
-			},
 			GetNewResources: func() map[string]types.Application {
 				mu.Lock()
 				defer mu.Unlock()
 				return utils.FromSlice(appResources, types.Application.GetName)
 			},
-			Logger:   s.Log.With("kind", types.KindApp),
+			// TODO(tross): update to use the server logger once it is converted to use slog
+			Logger:   slog.With("kind", types.KindApp),
 			OnCreate: s.onAppCreate,
 			OnUpdate: s.onAppUpdate,
 			OnDelete: s.onAppDelete,
@@ -75,7 +74,7 @@ func (s *Server) startKubeAppsWatchers() error {
 
 	watcher, err := common.NewWatcher(s.ctx, common.WatcherConfig{
 		FetchersFn:     common.StaticFetchers(s.kubeAppsFetchers),
-		Logger:         s.Log.With("kind", types.KindApp),
+		Log:            s.LegacyLogger.WithField("kind", types.KindApp),
 		DiscoveryGroup: s.DiscoveryGroup,
 		Interval:       s.PollInterval,
 		Origin:         types.OriginDiscoveryKubernetes,
@@ -134,11 +133,12 @@ func (s *Server) onAppCreate(ctx context.Context, app types.Application) error {
 		}
 		return trace.Wrap(s.onAppUpdate(ctx, app, nil))
 	}
-	err = s.emitUsageEvent(appEventPrefix+app.GetName(), &usageeventsv1.ResourceCreateEvent{
-		ResourceType:        types.DiscoveredResourceApp,
-		ResourceOrigin:      types.OriginKubernetes,
-		DiscoveryConfigName: app.GetStaticLabels()[types.TeleportInternalDiscoveryConfigName],
-		// CloudProvider is not set for apps created from Kubernetes services
+	err = s.emitUsageEvents(map[string]*usageeventsv1.ResourceCreateEvent{
+		appEventPrefix + app.GetName(): {
+			ResourceType:   types.DiscoveredResourceApp,
+			ResourceOrigin: types.OriginKubernetes,
+			// CloudProvider is not set for apps created from Kubernetes services
+		},
 	})
 	if err != nil {
 		s.Log.DebugContext(ctx, "Error emitting usage event", "error", err)

@@ -49,7 +49,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/fixtures"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -316,7 +315,7 @@ func (s *KeyAgentTestSuite) generateCA(t *testing.T, keygen *testauthority.Keyge
 
 		// retry until we get a unique keypair
 		attempts := 20
-		for i := range attempts {
+		for i := 0; i < attempts; i++ {
 			if i == attempts-1 {
 				require.FailNowf(t, "could not find a unique keypair", "made %d attempts", i)
 			}
@@ -375,8 +374,7 @@ func TestHostCertVerification(t *testing.T) {
 
 	// Create a CA, generate a keypair for the CA, and add it to the known
 	// hosts cache (done by "tsh login").
-	keygen, err := testauthority.NewKeygen(modules.BuildOSS, time.Now)
-	require.NoError(t, err)
+	keygen := testauthority.New()
 
 	cas := s.generateCA(t, keygen, lka, "example.com", "leaf.example.com")
 	root, leaf := cas[0], cas[1]
@@ -522,7 +520,8 @@ func TestHostKeyVerification(t *testing.T) {
 	require.False(t, lka.UserRefusedHosts())
 
 	// make a fake host key:
-	_, pub, err := testauthority.GenerateKeyPair()
+	keygen := testauthority.New()
+	_, pub, err := keygen.GenerateKeyPair()
 	require.NoError(t, err)
 	pk, _, _, _, err := ssh.ParseAuthorizedKey(pub)
 	require.NoError(t, err)
@@ -602,8 +601,7 @@ func TestHostCertVerificationLoadAllCasProxyAddrEqClusterName(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	keygen, err := testauthority.NewKeygen(modules.BuildOSS, time.Now)
-	require.NoError(t, err)
+	keygen := testauthority.New()
 
 	cas := s.generateCA(t, keygen, lka, rootClusterName, leafClusterName)
 	rootClusterCA, leafClusterCA := cas[0], cas[1]
@@ -668,6 +666,8 @@ func mustGenerateHostPublicCert(t *testing.T, keygen *testauthority.Keygen, sign
 func TestDefaultHostPromptFunc(t *testing.T) {
 	s := makeSuite(t)
 
+	keygen := testauthority.New()
+
 	clientStore := NewFSClientStore(s.keyDir)
 	a, err := NewLocalAgent(LocalAgentConfig{
 		ClientStore: clientStore,
@@ -677,7 +677,7 @@ func TestDefaultHostPromptFunc(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, keyBytes, err := testauthority.GenerateKeyPair()
+	_, keyBytes, err := keygen.GenerateKeyPair()
 	require.NoError(t, err)
 	key, _, _, _, err := ssh.ParseAuthorizedKey(keyBytes)
 	require.NoError(t, err)
@@ -779,7 +779,7 @@ func (s *KeyAgentTestSuite) makeKeyRing(t *testing.T, username, proxyHost string
 
 	sshPub, err := ssh.NewPublicKey(sshKey.Public())
 	require.NoError(t, err)
-	certificate, err := testauthority.GenerateUserCert(sshca.UserCertificateRequest{
+	certificate, err := testauthority.New().GenerateUserCert(sshca.UserCertificateRequest{
 		CertificateFormat: constants.CertificateFormatStandard,
 		CASigner:          caSigner,
 		PublicUserKey:     ssh.MarshalAuthorizedKey(sshPub),
@@ -842,7 +842,7 @@ func startDebugAgent(t *testing.T) error {
 			conn, err := listener.Accept()
 			if err != nil {
 				if !utils.IsUseOfClosedNetworkError(err) {
-					log.WarnContext(context.Background(), "Unexpected response from listener.Accept", "error", err)
+					log.Warnf("Unexpected response from listener.Accept: %v", err)
 				}
 				return
 			}

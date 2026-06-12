@@ -74,7 +74,7 @@ func TestSessionWriter(t *testing.T) {
 		require.NoError(t, err)
 
 		for _, part := range parts {
-			reader := events.NewProtoReader(bytes.NewReader(part), nil)
+			reader := events.NewProtoReader(bytes.NewReader(part))
 			out, err := reader.ReadAll(test.ctx)
 			require.NoError(t, err, "part crash %#v", part)
 			outEvents = append(outEvents, out...)
@@ -352,9 +352,7 @@ func withBackoff(timeout, dur time.Duration) sessionWriterOption {
 
 func newSessionWriterTest(t *testing.T, newStreamer newStreamerFn, opts ...sessionWriterOption) *sessionWriterTest {
 	eventsCh := make(chan events.UploadEvent, 1)
-	uploader := eventstest.NewMemoryUploader(eventstest.MemoryUploaderConfig{
-		EventsC: eventsCh,
-	})
+	uploader := eventstest.NewMemoryUploader(eventsCh)
 	protoStreamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
 		Uploader: uploader,
 	})
@@ -422,7 +420,7 @@ func (a *sessionWriterTest) collectEvents(t *testing.T) []apievents.AuditEvent {
 	for _, part := range parts {
 		readers = append(readers, bytes.NewReader(part))
 	}
-	reader := events.NewProtoReader(io.MultiReader(readers...), nil)
+	reader := events.NewProtoReader(io.MultiReader(readers...))
 	outEvents, err := reader.ReadAll(a.ctx)
 	require.NoError(t, err, "failed to read")
 	t.Logf("Reader stats :%v", reader.GetStats().ToFields())

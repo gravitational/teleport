@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	sqladmin "google.golang.org/api/sqladmin/v1beta4"
 
@@ -32,7 +33,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
-	"github.com/gravitational/teleport/lib/cloud/gcp/gcptest"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -56,7 +56,7 @@ func (a fakeAuth) GetCloudSQLPassword(ctx context.Context, database types.Databa
 	return "one-time-password", nil
 }
 
-func (a fakeAuth) WithLogger(getUpdatedLogger func(*slog.Logger) *slog.Logger) common.Auth {
+func (a fakeAuth) WithLogger(getUpdatedLogger func(logrus.FieldLogger) logrus.FieldLogger) common.Auth {
 	if a.Auth != nil {
 		return a.Auth.WithLogger(getUpdatedLogger)
 	}
@@ -143,6 +143,7 @@ func Test_getGCPUserAndPassword(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
 			sessionCtx := &common.Session{
 				Database:     db,
@@ -156,12 +157,9 @@ func Test_getGCPUserAndPassword(t *testing.T) {
 				Context:    ctx,
 				Clock:      clockwork.NewRealClock(),
 				Log:        slog.Default(),
-				GCPClients: &gcptest.Clients{GCPSQL: test.mockGCPClient},
 			}).(*Engine)
 
-			connector, err := engine.newConnector(sessionCtx)
-			require.NoError(t, err)
-			databaseUser, password, err := connector.gcpAuth.getGCPUserAndPassword(ctx)
+			databaseUser, password, err := engine.getGCPUserAndPassword(ctx, sessionCtx, test.mockGCPClient)
 			if test.wantError {
 				require.Error(t, err)
 			} else {

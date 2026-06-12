@@ -7,10 +7,11 @@ resource "azurerm_postgresql_flexible_server" "pgbk" {
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
 
-  version = 18
+  version = 15
 
-  # Standard_D2ds_v5: 2 vCPU, 8GiB of ram, 75 GiB temp storage
-  sku_name   = "GP_Standard_D2ds_v5"
+  # Standard_D2ds_v4: 2 vCPU, 8GiB of ram, 75 GiB temp storage
+  # v4 because northeurope doesn't have v5 for Postgres
+  sku_name   = "GP_Standard_D2ds_v4"
   storage_mb = 128 * 1024
 
   authentication {

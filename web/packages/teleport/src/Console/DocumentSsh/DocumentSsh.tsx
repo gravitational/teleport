@@ -51,8 +51,7 @@ export default function DocumentSshWrapper(props: PropTypes) {
 function DocumentSsh({ doc, visible }: PropTypes) {
   const ctx = useConsoleContext();
   const hasFileTransferAccess = ctx.storeUser.hasFileTransferAccess();
-  const disableCopy = ctx.storeUser.isWebTerminalCopyBlocked();
-  const terminalRef = useRef<TerminalRef>(undefined);
+  const terminalRef = useRef<TerminalRef>();
   const { tty, status, closeDocument, session } = useSshSession(doc);
   const [showSearch, setShowSearch] = useState(false);
 
@@ -103,7 +102,6 @@ function DocumentSsh({ doc, visible }: PropTypes) {
       tty={tty}
       fontFamily={theme.fonts.mono}
       theme={theme.colors.terminal}
-      disableCopy={disableCopy}
       terminalAddons={ref => (
         <>
           <TerminalSearch

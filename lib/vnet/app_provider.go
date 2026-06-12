@@ -19,6 +19,7 @@ package vnet
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 
 	"github.com/gravitational/trace"
 
@@ -56,13 +57,21 @@ func (p *appProvider) ReissueAppCert(ctx context.Context, appInfo *vnetv1.AppInf
 }
 
 func (p *appProvider) newAppCertSigner(cert []byte, appKey *vnetv1.AppKey, targetPort uint16) (*rpcSigner, error) {
-	return newRPCCertSigner(cert, func(req *vnetv1.SignRequest) ([]byte, error) {
-		return p.clt.SignForApp(context.TODO(), &vnetv1.SignForAppRequest{
-			AppKey:     appKey,
-			TargetPort: uint32(targetPort),
-			Sign:       req,
-		})
-	})
+	x509Cert, err := x509.ParseCertificate(cert)
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing x509 certificate")
+	}
+	pub := x509Cert.PublicKey
+	return &rpcSigner{
+		pub: pub,
+		sendRequest: func(req *vnetv1.SignRequest) ([]byte, error) {
+			return p.clt.SignForApp(context.TODO(), &vnetv1.SignForAppRequest{
+				AppKey:     appKey,
+				TargetPort: uint32(targetPort),
+				Sign:       req,
+			})
+		},
+	}, nil
 }
 
 // OnNewAppConnection reports a new TCP connection to the target app.

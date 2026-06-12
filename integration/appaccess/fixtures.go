@@ -37,11 +37,10 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/integration/helpers"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 type AppTestOptions struct {
@@ -66,7 +65,11 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
-	log := logtest.NewLogger()
+	log := utils.NewLoggerForTests()
+
+	// Insecure development mode needs to be set because the web proxy uses a
+	// self-signed certificate during tests.
+	lib.SetInsecureDevMode(true)
 
 	p := &Pack{
 		rootAppName:        "app-01",
@@ -309,7 +312,7 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 	p.flushAppURI = flushServer.URL
 	p.dumperAppURI = dumperServer.URL
 
-	privateKey, publicKey, err := testauthority.GenerateKeyPair()
+	privateKey, publicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	// Create a new Teleport instance with passed in configuration.
@@ -320,8 +323,7 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 		NodeName:    helpers.Host,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		Logger:      log,
-		Modules:     modulestest.EnterpriseModules(),
+		Log:         log,
 	}
 	if opts.RootClusterListeners != nil {
 		rootCfg.Listeners = opts.RootClusterListeners(t, &rootCfg.Fds)
@@ -336,8 +338,7 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 		NodeName:    helpers.Host,
 		Priv:        privateKey,
 		Pub:         publicKey,
-		Logger:      log,
-		Modules:     modulestest.EnterpriseModules(),
+		Log:         log,
 	}
 	if opts.LeafClusterListeners != nil {
 		leafCfg.Listeners = opts.LeafClusterListeners(t, &leafCfg.Fds)
@@ -345,11 +346,8 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 	p.leafCluster = helpers.NewInstance(t, leafCfg)
 
 	rcConf := servicecfg.MakeDefaultConfig()
-	// Insecure development mode needs to be set because the web proxy uses a
-	// self-signed certificate during tests.
-	rcConf.Modules = rootCfg.Modules
-	rcConf.InsecureMode = true
-	rcConf.Logger = log
+	rcConf.Console = nil
+	rcConf.Log = log
 	rcConf.DataDir = t.TempDir()
 	rcConf.Auth.Enabled = true
 	rcConf.Auth.Preference.SetSecondFactor("off")
@@ -366,11 +364,8 @@ func SetupWithOptions(t *testing.T, opts AppTestOptions) *Pack {
 	rcConf.Clock = opts.Clock
 
 	lcConf := servicecfg.MakeDefaultConfig()
-	lcConf.Modules = leafCfg.Modules
-	// Insecure development mode needs to be set because the web proxy uses a
-	// self-signed certificate during tests.
-	lcConf.InsecureMode = true
-	lcConf.Logger = log
+	lcConf.Console = nil
+	lcConf.Log = log
 	lcConf.DataDir = t.TempDir()
 	lcConf.Auth.Enabled = true
 	lcConf.Auth.Preference.SetSecondFactor("off")

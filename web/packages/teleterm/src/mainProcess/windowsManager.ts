@@ -22,15 +22,12 @@ import {
   app,
   autoUpdater,
   BrowserWindow,
-  dialog,
   ipcMain,
   Menu,
   nativeTheme,
   Rectangle,
   screen,
 } from 'electron';
-
-import { ensureError } from 'shared/utils/error';
 
 import { DeepLinkParseResult } from 'teleterm/deepLinks';
 import Logger from 'teleterm/logger';
@@ -70,7 +67,6 @@ export class WindowsManager {
    * by the OS (e.g. Command+H).
    */
   private isInBackgroundMode: boolean;
-  private crashWindowPromise: Promise<void>;
 
   constructor(
     private fileStorage: FileStorage,
@@ -482,39 +478,6 @@ export class WindowsManager {
       ...getDefaults(),
       ...getPositionAndSize(),
     };
-  }
-
-  /**
-   * Displays an error in a system dialog and offers reloading the window
-   * or quitting the app.
-   */
-  async crashWindow(error: unknown): Promise<void> {
-    if (this.crashWindowPromise) {
-      return this.crashWindowPromise;
-    }
-    this.crashWindowPromise = this.doCrashWindow(error);
-    try {
-      await this.crashWindowPromise;
-    } finally {
-      this.crashWindowPromise = undefined;
-    }
-  }
-
-  private async doCrashWindow(error: unknown): Promise<void> {
-    this.logger.error('Window crashed', error);
-    const { response } = await dialog.showMessageBox(this.window, {
-      type: 'error',
-      message: 'Teleport Connect has crashed',
-      detail: ensureError(error).message,
-      buttons: ['Reload Window', 'Quit'],
-      defaultId: 0,
-      noLink: true,
-    });
-    if (response === 0) {
-      this.window.reload();
-    } else {
-      app.quit();
-    }
   }
 
   private isWindowUsable(): boolean {

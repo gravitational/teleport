@@ -31,46 +31,9 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
-	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
-
-// OSSModules returns a [Modules] with the build type
-// set to modules.BuildOSS.
-func OSSModules() *Modules {
-	return &Modules{
-		TestBuildType: modules.BuildOSS,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.App:                {Enabled: true, Limit: 0},
-				entitlements.DB:                 {Enabled: true, Limit: 0},
-				entitlements.Desktop:            {Enabled: true, Limit: 0},
-				entitlements.JoinActiveSessions: {Enabled: true, Limit: 0},
-				entitlements.K8s:                {Enabled: true, Limit: 0},
-			},
-		},
-	}
-}
-
-// EnterpriseModules returns a [Modules] with the build type
-// set to modules.BuildEnterprise.
-func EnterpriseModules() *Modules {
-	return &Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.App:                {Enabled: true, Limit: 0},
-				entitlements.DB:                 {Enabled: true, Limit: 0},
-				entitlements.Desktop:            {Enabled: true, Limit: 0},
-				entitlements.JoinActiveSessions: {Enabled: true, Limit: 0},
-				entitlements.K8s:                {Enabled: true, Limit: 0},
-				entitlements.Identity:           {Enabled: true},
-				entitlements.AccessLists:        {Enabled: true, Limit: 2000},
-			},
-		},
-	}
-}
 
 // Modules is an implementation of [modules.Modules] to be
 // used in tests that need to exercise various conditions
@@ -80,16 +43,14 @@ type Modules struct {
 	TestBuildType string
 	// TestFeatures is returned from the Features function.
 	TestFeatures modules.Features
-	// FIPS is returned from the IsFIPSBuild function.
+	// FIPS is returned from the IsBoringBinary function.
 	FIPS bool
 	// MockAttestationData is fake attestation data to return
 	// during tests when hardware key support is enabled. This
 	// attestation data is shared by all logins when set.
 	MockAttestationData *keys.AttestationData
 
-	GenerateAccessRequestPromotionsFn         func(ctx context.Context, accessListGetter modules.AccessResourcesGetter, accessReq types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
-	GenerateAccessRequestSuggestedReviewersFn func(ctx context.Context, accessListGetter modules.AccessResourcesGetter, accessReq types.AccessRequest) ([]string, error)
-	GenerateLongTermResourceGroupingFn        func(ctx context.Context, clt modules.AccessResourcesGetter, req types.AccessRequest) (*types.LongTermResourceGrouping, error)
+	GenerateAccessRequestPromotionsFn func(ctx context.Context, accessListGetter modules.AccessResourcesGetter, accessReq types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
 }
 
 // AttestHardwareKey implements modules.Modules.
@@ -122,14 +83,6 @@ func (m *Modules) Features() modules.Features {
 	return m.TestFeatures
 }
 
-// GenerateLongTermResourceGrouping implements modules.Modules.
-func (m *Modules) GenerateLongTermResourceGrouping(ctx context.Context, clt modules.AccessResourcesGetter, req types.AccessRequest) (*types.LongTermResourceGrouping, error) {
-	if m.GenerateLongTermResourceGroupingFn != nil {
-		return m.GenerateLongTermResourceGroupingFn(ctx, clt, req)
-	}
-	return nil, trace.NotImplemented("GenerateLongTermResourceGrouping not implemented")
-}
-
 // GenerateAccessRequestPromotions implements modules.Modules.
 func (m *Modules) GenerateAccessRequestPromotions(ctx context.Context, getter modules.AccessResourcesGetter, request types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
 	if m.GenerateAccessRequestPromotionsFn != nil {
@@ -138,21 +91,13 @@ func (m *Modules) GenerateAccessRequestPromotions(ctx context.Context, getter mo
 	return types.NewAccessRequestAllowedPromotions(nil), nil
 }
 
-// GenerateAccessRequestSuggestedReviewers implements modules.Modules.
-func (m *Modules) GenerateAccessRequestSuggestedReviewers(ctx context.Context, getter modules.AccessResourcesGetter, request types.AccessRequest) ([]string, error) {
-	if m.GenerateAccessRequestSuggestedReviewersFn != nil {
-		return m.GenerateAccessRequestSuggestedReviewersFn(ctx, getter, request)
-	}
-	return []string{}, nil
-}
-
 // GetSuggestedAccessLists implements modules.Modules.
 func (m *Modules) GetSuggestedAccessLists(ctx context.Context, identity *tlsca.Identity, clt modules.AccessListSuggestionClient, accessListGetter modules.AccessListAndMembersGetter, requestID string) ([]*accesslist.AccessList, error) {
 	return nil, trace.NotImplemented("GetSuggestedAccessLists not implemented")
 }
 
-// IsFIPSBuild implements modules.Modules.
-func (m *Modules) IsFIPSBuild() bool {
+// IsBoringBinary implements modules.Modules.
+func (m *Modules) IsBoringBinary() bool {
 	return m.FIPS
 }
 

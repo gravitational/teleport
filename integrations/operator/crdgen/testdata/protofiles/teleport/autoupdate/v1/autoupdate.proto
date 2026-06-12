@@ -1,0 +1,250 @@
+// Copyright 2024 Gravitational, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.autoupdate.v1;
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+import "teleport/header/v1/metadata.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1;autoupdate";
+
+// AutoUpdateConfig is a config singleton used to configure cluster
+// autoupdate settings.
+message AutoUpdateConfig {
+  string kind = 1;
+  string sub_kind = 2;
+  string version = 3;
+  teleport.header.v1.Metadata metadata = 4;
+
+  AutoUpdateConfigSpec spec = 5;
+}
+
+// AutoUpdateConfigSpec encodes the parameters of the autoupdate config object.
+message AutoUpdateConfigSpec {
+  reserved 1;
+  reserved "tools_autoupdate"; // ToolsAutoupdate is replaced by tools.mode.
+  AutoUpdateConfigSpecTools tools = 2;
+  AutoUpdateConfigSpecAgents agents = 3;
+}
+
+// AutoUpdateConfigSpecTools encodes the parameters for client tools auto updates.
+message AutoUpdateConfigSpecTools {
+  // Mode defines state of the client tools auto update.
+  string mode = 1;
+}
+
+// AutoUpdateConfigSpecAgents encodes the parameters of automatic agent updates.
+message AutoUpdateConfigSpecAgents {
+  reserved 5;
+  reserved "agent_schedules";
+  // mode specifies whether agent autoupdates are enabled, disabled, or paused.
+  string mode = 1;
+  // strategy to use for updating the agents.
+  string strategy = 2;
+  // maintenance_window_duration is the maintenance window duration. This can only be set if `strategy` is "time-based".
+  // Once the window is over, the group transitions to the done state. Existing agents won't be updated until the next
+  // maintenance window.
+  google.protobuf.Duration maintenance_window_duration = 3;
+  // schedules specifies schedules for updates of grouped agents.
+  AgentAutoUpdateSchedules schedules = 6;
+}
+
+// AgentAutoUpdateSchedules specifies update scheduled for grouped agents.
+message AgentAutoUpdateSchedules {
+  // regular schedules for non-critical versions.
+  repeated AgentAutoUpdateGroup regular = 1;
+}
+
+// AgentAutoUpdateGroup specifies the update schedule for a group of agents.
+message AgentAutoUpdateGroup {
+  reserved 4;
+  reserved "wait_days";
+
+  // name of the group
+  string name = 1;
+  // days when the update can run. Supported values are "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" and "*"
+  repeated string days = 2;
+  // start_hour to initiate update
+  int32 start_hour = 3;
+  // wait_hours after last group succeeds before this group can run. This can only be used when the strategy is "halt-on-failure".
+  // This field must be positive.
+  int32 wait_hours = 5;
+}
+
+// AutoUpdateVersion is a resource singleton with version required for
+// tools autoupdate.
+message AutoUpdateVersion {
+  string kind = 1;
+  string sub_kind = 2;
+  string version = 3;
+  teleport.header.v1.Metadata metadata = 4;
+
+  AutoUpdateVersionSpec spec = 5;
+}
+
+// AutoUpdateVersionSpec encodes the parameters of the autoupdate versions.
+message AutoUpdateVersionSpec {
+  reserved 1;
+  reserved "tools_version"; // ToolsVersion is replaced by tools.target_version.
+  AutoUpdateVersionSpecTools tools = 2;
+  AutoUpdateVersionSpecAgents agents = 3;
+}
+
+// AutoUpdateVersionSpecTools encodes the parameters for client tools auto updates.
+message AutoUpdateVersionSpecTools {
+  // TargetVersion specifies the semantic version required for tools to establish a connection with the cluster.
+  // Client tools after connection to the cluster going to be updated to this version automatically.
+  string target_version = 1;
+}
+
+// AutoUpdateVersionSpecAgents is the spec for the autoupdate version.
+message AutoUpdateVersionSpecAgents {
+  // start_version is the version to update from.
+  string start_version = 1;
+  // target_version is the version to update to.
+  string target_version = 2;
+  // schedule to use for the rollout
+  string schedule = 3;
+  // autoupdate_mode to use for the rollout
+  string mode = 4;
+}
+
+// AutoUpdateAgentRollout is the resource the Teleport Auth Service uses to track and control the rollout of a new
+// agent version. This resource is written by the automatic agent update controller in the Teleport Auth Service
+// and read by the Teleport Proxy Service.
+message AutoUpdateAgentRollout {
+  string kind = 1;
+  string sub_kind = 2;
+  string version = 3;
+  teleport.header.v1.Metadata metadata = 4;
+  AutoUpdateAgentRolloutSpec spec = 5;
+  AutoUpdateAgentRolloutStatus status = 6;
+}
+
+// AutoUpdateAgentRolloutSpec describes the desired agent rollout.
+// This is built by merging the user-provided AutoUpdateConfigSpecAgents and the operator-provided
+// AutoUpdateVersionSpecAgents.
+message AutoUpdateAgentRolloutSpec {
+  // start_version is the version to update from.
+  string start_version = 1;
+  // target_version is the version to update to.
+  string target_version = 2;
+  // schedule to use for the rollout. Supported values are "regular" and "immediate".
+  // - "regular" follows the regular group schedule
+  // - "immediate" updates all the agents immediately
+  string schedule = 3;
+  // autoupdate_mode to use for the rollout. Supported modes are:
+  // - "enabled": Teleport will update existing agents.
+  // - "disabled": Teleport will not update existing agents.
+  // - "suspended": Teleport will temporarily stop updating existing agents.
+  string autoupdate_mode = 4;
+  // strategy to use for updating the agents. Supported strategies are:
+  // - "time-based": agents update as soon as their maintenance window starts. There is no dependency between groups.
+  //   This strategy allows Teleport users to setup reliable follow-the-sun updates and enforce the maintenance window
+  //   more strictly. A group finishes its update at the end of the maintenance window, regardless of the new version
+  //   adoption rate. Agents that missed the maintenance window will not attempt to update until the next maintenance
+  //   window.
+  // - "halt-on-failure": the update proceeds from the first group to the last group, ensuring that each group
+  //   successfully updates before allowing the next group to proceed. This is the strategy that offers the best
+  //   availability. A group finishes its update once most of its agents are running the correct version. Agents that
+  //   missed the group update will try to catch back as soon as possible.
+  string strategy = 5;
+  // maintenance_window_duration is the maintenance window duration. This can only be set if `strategy` is "time-based".
+  // Once the window is over, the group transitions to the done state. Existing agents won't be updated until the next
+  // maintenance window.
+  google.protobuf.Duration maintenance_window_duration = 6;
+}
+
+// AutoUpdateAgentRolloutStatus tracks the current agent rollout status.
+// The status is reset if any spec field changes except the mode.
+message AutoUpdateAgentRolloutStatus {
+  repeated AutoUpdateAgentRolloutStatusGroup groups = 1;
+  AutoUpdateAgentRolloutState state = 2;
+  // The start time is set when the rollout is created or reset. Usually this is caused by a version change.
+  // The timestamp allows the controller to detect that the rollout just changed.
+  // The controller will not start any group that should have been active before the start_time to avoid a double-update
+  // effect.
+  // For example, a group updates every day between 13:00 and 14:00. If the target version changes to 13:30, the group
+  // will not start updating to the new version directly. The controller sees that the group theoretical start time is
+  // before the rollout start time and the maintenance window belongs to the previous rollout.
+  // When the timestamp is nil, the controller will ignore the start time and check and allow groups to activate.
+  google.protobuf.Timestamp start_time = 3;
+
+  // Time override is an optional timestamp making the autoupdate_agent_rollout controller use a specific time instead
+  // of the system clock when evaluating time-based criteria. This field is used for testing and troubleshooting
+  // purposes.
+  google.protobuf.Timestamp time_override = 4;
+}
+
+// AutoUpdateAgentRolloutStatusGroup tracks the current agent rollout status of a specific group.
+message AutoUpdateAgentRolloutStatusGroup {
+  reserved 8;
+  reserved "config_wait_days";
+
+  // name of the group
+  string name = 1;
+  // start_time of the rollout
+  google.protobuf.Timestamp start_time = 2;
+  // state is the current state of the rollout.
+  AutoUpdateAgentGroupState state = 3;
+  // last_update_time is the time of the previous update for this group.
+  google.protobuf.Timestamp last_update_time = 4;
+  // last_update_reason is the trigger for the last update
+  string last_update_reason = 5;
+  // config_days when the update can run. Supported values are "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" and "*"
+  repeated string config_days = 6;
+  // config_start_hour to initiate update
+  int32 config_start_hour = 7;
+  // config_wait_hours after last group succeeds before this group can run. This can only be used when the strategy is "halt-on-failure".
+  // This field must be positive.
+  int32 config_wait_hours = 9;
+}
+
+// AutoUpdateAgentGroupState represents the agent group state. This state controls whether the agents from this group
+// should install the start version, the target version, and if they should update immediately or wait.
+enum AutoUpdateAgentGroupState {
+  // AUTO_UPDATE_AGENT_GROUP_STATE_UNSPECIFIED state
+  AUTO_UPDATE_AGENT_GROUP_STATE_UNSPECIFIED = 0;
+  // AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED represents that the group update has not been started yet.
+  AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED = 1;
+  // AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE represents that the group is actively getting updated.
+  // New agents should run v2, existing agents are instructed to update to v2.
+  AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE = 2;
+  // AUTO_UPDATE_AGENT_GROUP_STATE_DONE represents that the group has been updated. New agents should run v2.
+  AUTO_UPDATE_AGENT_GROUP_STATE_DONE = 3;
+  // AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK represents that the group has been rolled back.
+  // New agents should run v1, existing agents should update to v1.
+  AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK = 4;
+}
+
+// AutoUpdateAgentRolloutState represents the rollout state. This tells if Teleport started updating agents from the
+// start version to the target version, if the update is done, still in progress
+// or if the rollout was manually reverted.
+enum AutoUpdateAgentRolloutState {
+  // AUTO_UPDATE_AGENT_ROLLOUT_STATE_UNSPECIFIED state
+  AUTO_UPDATE_AGENT_ROLLOUT_STATE_UNSPECIFIED = 0;
+  // AUTO_UPDATE_AGENT_ROLLOUT_STATE_UNSTARTED represents that no group in the rollout has been started yet.
+  AUTO_UPDATE_AGENT_ROLLOUT_STATE_UNSTARTED = 1;
+  // AUTO_UPDATE_AGENT_ROLLOUT_STATE_ACTIVE represents that at least one group of the rollout has started.
+  // If every group is finished, the state will be AUTO_UPDATE_AGENT_ROLLOUT_STATE_DONE.
+  AUTO_UPDATE_AGENT_ROLLOUT_STATE_ACTIVE = 2;
+  // AUTO_UPDATE_AGENT_ROLLOUT_STATE_DONE represents that every group is in the DONE state, or has been in the done
+  // state (groups might become active again in time-based strategy).
+  AUTO_UPDATE_AGENT_ROLLOUT_STATE_DONE = 3;
+  // AUTO_UPDATE_AGENT_ROLLOUT_STATE_ROLLEDBACK represents that at least one group is in the rolledback state.
+  AUTO_UPDATE_AGENT_ROLLOUT_STATE_ROLLEDBACK = 4;
+}

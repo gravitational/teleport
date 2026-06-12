@@ -57,14 +57,10 @@ export const WithClusters = () => {
   const ctx = new MockAppContext();
   ctx.addRootCluster(clusterOrange);
   ctx.addRootCluster(clusterViolet);
-  ctx.statePersistenceService.putState({
-    ...ctx.statePersistenceService.getState(),
-    showTshHomeMigrationBanner: true,
-  });
 
   return (
     <MockAppContextProvider appContext={ctx}>
-      <ClusterConnectPanel />
+      <ClusterConnectPanel />;
     </MockAppContextProvider>
   );
 };
@@ -78,13 +74,9 @@ export const WithErrors = () => {
     })
   );
   ctx.addRootCluster(clusterViolet);
-  ctx.statePersistenceService.putState({
-    ...ctx.statePersistenceService.getState(),
-    showTshHomeMigrationBanner: true,
-  });
   return (
     <MockAppContextProvider appContext={ctx}>
-      <ClusterConnectPanel />
+      <ClusterConnectPanel />;
     </MockAppContextProvider>
   );
 };

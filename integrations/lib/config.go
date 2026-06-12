@@ -22,18 +22,18 @@ import (
 	"context"
 	"errors"
 	"io"
-	"log/slog"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	grpcbackoff "google.golang.org/grpc/backoff"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/integrations/lib/credentials"
-	"github.com/gravitational/teleport/lib/utils/set"
+	"github.com/gravitational/teleport/integrations/lib/stringset"
 )
 
 const (
@@ -82,8 +82,8 @@ func (cfg *TeleportConfig) CheckAndSetDefaults() error {
 }
 
 func (cfg *TeleportConfig) CheckTLSConfig() error {
-	provided := set.NewWithCapacity[string](3)
-	missing := set.NewWithCapacity[string](3)
+	provided := stringset.NewWithCap(3)
+	missing := stringset.NewWithCap(3)
 
 	if cfg.ClientCrt != "" {
 		provided.Add("`client_crt`")
@@ -106,8 +106,8 @@ func (cfg *TeleportConfig) CheckTLSConfig() error {
 	if len(provided) > 0 && len(provided) < 3 {
 		return trace.BadParameter(
 			"configuration setting(s) %s are provided but setting(s) %s are missing",
-			strings.Join(provided.Elements(), ", "),
-			strings.Join(missing.Elements(), ", "),
+			strings.Join(provided.ToSlice(), ", "),
+			strings.Join(missing.ToSlice(), ", "),
 		)
 	}
 
@@ -137,7 +137,7 @@ func NewIdentityFileWatcher(ctx context.Context, path string, interval time.Dura
 			}
 
 			if err := dynamicCred.Reload(); err != nil {
-				slog.ErrorContext(ctx, "Failed to reload identity file from disk", "error", err)
+				log.WithError(err).Error("Failed to reload identity file from disk.")
 			}
 			timer.Reset(interval)
 		}
@@ -152,7 +152,7 @@ func (cfg TeleportConfig) NewClient(ctx context.Context) (*client.Client, error)
 	case cfg.Addr != "":
 		addr = cfg.Addr
 	case cfg.AuthServer != "":
-		slog.WarnContext(ctx, "Configuration setting `auth_server` is deprecated, consider to change it to `addr`")
+		log.Warn("Configuration setting `auth_server` is deprecated, consider to change it to `addr`")
 		addr = cfg.AuthServer
 	}
 
@@ -173,13 +173,13 @@ func (cfg TeleportConfig) NewClient(ctx context.Context) (*client.Client, error)
 	}
 
 	if validCred, err := credentials.CheckIfExpired(creds); err != nil {
-		slog.WarnContext(ctx, "found expired credentials", "error", err)
+		log.Warn(err)
 		if !validCred {
 			return nil, trace.BadParameter(
 				"No valid credentials found, this likely means credentials are expired. In this case, please sign new credentials and increase their TTL if needed.",
 			)
 		}
-		slog.InfoContext(ctx, "At least one non-expired credential has been found, continuing startup")
+		log.Info("At least one non-expired credential has been found, continuing startup")
 	}
 
 	bk := grpcbackoff.DefaultConfig

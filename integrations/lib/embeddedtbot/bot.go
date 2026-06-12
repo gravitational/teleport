@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -37,7 +38,6 @@ import (
 
 // EmbeddedBot is an embedded tBot instance to renew the operator certificates.
 type EmbeddedBot struct {
-	log *slog.Logger
 	cfg bot.Config
 
 	credential *clientcredentials.UnstableConfig
@@ -50,10 +50,7 @@ type EmbeddedBot struct {
 }
 
 // New creates a new EmbeddedBot from a BotConfig.
-func New(botConfig *BotConfig, log *slog.Logger) (*EmbeddedBot, error) {
-	if log == nil {
-		return nil, trace.BadParameter("missing log")
-	}
+func New(botConfig *BotConfig) (*EmbeddedBot, error) {
 	credential := &clientcredentials.UnstableConfig{}
 
 	cfg := bot.Config{
@@ -66,7 +63,7 @@ func New(botConfig *BotConfig, log *slog.Logger) (*EmbeddedBot, error) {
 		},
 		Onboarding:         botConfig.Onboarding,
 		InternalStorage:    destination.NewMemory(),
-		Logger:             log,
+		Logger:             slog.Default(),
 		CredentialLifetime: botConfig.CredentialLifetime,
 		Services: []bot.ServiceBuilder{
 			clientcredentials.ServiceBuilder(
@@ -74,7 +71,6 @@ func New(botConfig *BotConfig, log *slog.Logger) (*EmbeddedBot, error) {
 				botConfig.CredentialLifetime,
 			),
 		},
-		Scoped: botConfig.Scoped,
 	}
 
 	err := cfg.CheckAndSetDefaults()
@@ -85,7 +81,6 @@ func New(botConfig *BotConfig, log *slog.Logger) (*EmbeddedBot, error) {
 	bot := &EmbeddedBot{
 		cfg:        cfg,
 		credential: credential,
-		log:        log,
 	}
 
 	return bot, nil
@@ -134,9 +129,9 @@ func (b *EmbeddedBot) start(ctx context.Context) error {
 	go func() {
 		err := bot.Run(botCtx)
 		if err != nil {
-			slog.ErrorContext(botCtx, "bot exited with error", "error", err)
+			log.Errorf("bot exited with error: %s", err)
 		} else {
-			slog.InfoContext(botCtx, "bot exited without error")
+			log.Infof("bot exited without error")
 		}
 		b.errCh <- trace.Wrap(err)
 	}()
@@ -171,10 +166,10 @@ func (b *EmbeddedBot) waitForCredentials(ctx context.Context, deadline time.Dura
 
 	select {
 	case <-waitCtx.Done():
-		slog.WarnContext(ctx, "context canceled while waiting for the bot client")
+		log.Warn("context canceled while waiting for the bot client")
 		return nil, trace.Wrap(ctx.Err())
 	case <-b.credential.Ready():
-		slog.InfoContext(ctx, "credential ready")
+		log.Infof("credential ready")
 	}
 
 	return b.credential, nil

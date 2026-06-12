@@ -26,6 +26,76 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
+func TestIdentityCenterAccountClone(t *testing.T) {
+	// GIVEN an Account Record
+	src := IdentityCenterAccount{
+		Account: &identitycenterv1.Account{
+			Kind:     types.KindIdentityCenterAccount,
+			Version:  types.V1,
+			Metadata: &headerv1.Metadata{Name: "some-account"},
+			Spec: &identitycenterv1.AccountSpec{
+				Id:          "aws-account-id",
+				Arn:         "arn:aws:sso::account-id:",
+				Description: "Test account",
+				PermissionSetInfo: []*identitycenterv1.PermissionSetInfo{
+					{
+						Name: "original value",
+						Arn:  "arn:aws:sso:::permissionSet/ic-instance/ps-instance",
+					},
+				},
+			},
+		},
+	}
+
+	// WHEN I clone the resource
+	dst := src.CloneResource().(IdentityCenterAccount)
+
+	// EXPECT that the resulting clone compares equally
+	require.Equal(t, src, dst)
+
+	// WHEN I modify the source object in a way that would be shared with a
+	// shallow copy
+	src.Spec.PermissionSetInfo[0].Name = "some new value"
+
+	// EXPECT that the cloned object DOES NOT inherit the update
+	require.NotEqual(t, src, dst)
+	require.Equal(t, "original value", dst.Spec.PermissionSetInfo[0].Name)
+}
+
+func TestIdentityCenterAccountAssignmentClone(t *testing.T) {
+	// GIVEN an Account Assignment Record
+	src := IdentityCenterAccountAssignment{
+		AccountAssignment: &identitycenterv1.AccountAssignment{
+			Kind:     types.KindIdentityCenterAccountAssignment,
+			Version:  types.V1,
+			Metadata: &headerv1.Metadata{Name: "u-test@example.com"},
+			Spec: &identitycenterv1.AccountAssignmentSpec{
+				Display: "Some-Permission-set on Some-AWS-account",
+				PermissionSet: &identitycenterv1.PermissionSetInfo{
+					Arn:  "arn:aws:sso:::permissionSet/ic-instance/ps-instance",
+					Name: "original name",
+				},
+				AccountName: "Some Account Name",
+				AccountId:   "some account id",
+			},
+		},
+	}
+
+	// WHEN I clone the resource
+	dst := src.CloneResource().(IdentityCenterAccountAssignment)
+
+	// EXPECT that the resulting clone compares equally
+	require.Equal(t, src, dst)
+
+	// WHEN I modify the source object in a way that would be shared with a
+	// shallow copy
+	src.Spec.PermissionSet.Name = "some new name"
+
+	// EXPECT that the cloned object DOES NOT inherit the update
+	require.NotEqual(t, src, dst)
+	require.Equal(t, "original name", dst.Spec.PermissionSet.Name)
+}
+
 func TestIdentityCenterAccountMatcher(t *testing.T) {
 	testCases := []struct {
 		name            string
@@ -316,62 +386,6 @@ func TestIdentityCenterAccountAssignmentMatcher(t *testing.T) {
 			require.NoError(t, err)
 
 			testCase.expectMatch(t, match)
-		})
-	}
-}
-
-// TestIdentityCenterAccountToAppServer asserts the converter passes
-// StartUrl through to both URI and PublicAddr verbatim. The web
-// Launch button builds the SSO launch href as
-// `${publicAddr}&role_name=...`, so any normalization of scheme,
-// path, port, or case breaks Identity Center app launches.
-func TestIdentityCenterAccountToAppServer(t *testing.T) {
-	tests := []struct {
-		name     string
-		acctName string
-		startURL string
-	}{
-		{
-			name:     "full launch URL preserved",
-			acctName: "test-account",
-			startURL: "https://start.example.com/start",
-		},
-		{
-			name:     "URL with port preserved",
-			acctName: "test-account",
-			startURL: "https://start.example.com:8443/start",
-		},
-		{
-			name:     "bare hostname preserved",
-			acctName: "test-account",
-			startURL: "start.example.com",
-		},
-		{
-			name:     "mixed-case name and URL preserved",
-			acctName: "Mixed-Case-Account",
-			startURL: "https://Start.Example.COM/start",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			acct := &identitycenterv1.Account{
-				Kind:    types.KindIdentityCenterAccount,
-				Version: types.V1,
-				Metadata: &headerv1.Metadata{
-					Name: tt.acctName,
-				},
-				Spec: &identitycenterv1.AccountSpec{
-					Id:       "123456789012",
-					StartUrl: tt.startURL,
-				},
-			}
-
-			srv := IdentityCenterAccountToAppServer(acct)
-			require.Equal(t, tt.acctName, srv.GetApp().GetName())
-			require.Equal(t, tt.acctName, srv.GetName())
-			require.Equal(t, tt.startURL, srv.GetApp().GetURI())
-			require.Equal(t, tt.startURL, srv.GetApp().GetPublicAddr())
 		})
 	}
 }

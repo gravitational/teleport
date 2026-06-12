@@ -18,20 +18,25 @@
 
 import { createRoot } from 'react-dom/client';
 
+import history from 'teleport/services/history';
+import 'teleport/lib/polyfillRandomUuid';
+
 import cfg from './config';
-import { KeysEnum } from './services/storageService';
 import Teleport from './Teleport';
 import TeleportContext from './teleportContext';
 
 // apply configuration received from the server
 cfg.init(window['GRV_CONFIG']);
 
-if (localStorage.getItem(KeysEnum.ENABLE_TELEMETRY) === 'true') {
+// use browser history
+history.init();
+
+if (localStorage.getItem('enable-telemetry') === 'true') {
   import('./telemetry-boot').then(m => m.instantiateTelemetry());
 }
 
 const teleportContext = new TeleportContext();
 
 createRoot(document.getElementById('app')).render(
-  <Teleport ctx={teleportContext} />
+  <Teleport history={history.original()} ctx={teleportContext} />
 );

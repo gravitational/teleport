@@ -27,9 +27,9 @@ import {
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { isAbortError } from 'shared/utils/abortError';
 
-// eslint-disable-next-line no-restricted-imports -- FIXME
+// oxlint-disable-next-line no-restricted-imports
 import { ResourcesResponse } from 'teleport/services/agents';
-// eslint-disable-next-line no-restricted-imports -- FIXME
+// oxlint-disable-next-line no-restricted-imports
 import { ApiError } from 'teleport/services/api/parseError';
 
 /**
@@ -207,7 +207,7 @@ export type KeyBasedPaginationOptions<T> = {
   dataKey?: string;
 };
 
-export type KeyBasedPagination<T> = {
+type KeyBasedPagination<T> = {
   /**
    * Attempts to fetch a new batch of data, unless one is already being fetched,
    * or the previous fetch resulted with an error. It is intended to be called
@@ -229,10 +229,6 @@ export type KeyBasedPagination<T> = {
   clear(): void;
   attempt: Attempt;
   resources: T[];
-  /**
-   * True if there is no next page.
-   * Means all pages were fetched.
-   */
   finished: boolean;
   /**
    * Used in conjunction with create/delete/update operations

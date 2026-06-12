@@ -17,7 +17,6 @@
  */
 
 import { MutableRefObject, useMemo } from 'react';
-import { useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 
@@ -43,7 +42,6 @@ import { DocumentGatewayApp } from 'teleterm/ui/DocumentGatewayApp';
 import { DocumentGatewayCliClient } from 'teleterm/ui/DocumentGatewayCliClient';
 import { DocumentGatewayKube } from 'teleterm/ui/DocumentGatewayKube';
 import { DocumentTerminal } from 'teleterm/ui/DocumentTerminal';
-import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
 import * as types from 'teleterm/ui/services/workspacesService';
 import {
   DocumentsService,
@@ -59,51 +57,34 @@ import { WorkspaceContextProvider } from './workspaceContext';
 export function DocumentsRenderer(props: {
   topBarConnectMyComputerRef: MutableRefObject<HTMLDivElement>;
   topBarAccessRequestRef: MutableRefObject<HTMLDivElement>;
-  desktopSessionControlsRef: MutableRefObject<HTMLDivElement>;
 }) {
   const { workspacesService } = useAppContext();
-  const clusters = useStoreSelector(
-    'clustersService',
-    useCallback(state => state.clusters, [])
-  );
-  const workspaces = useStoreSelector(
-    'workspacesService',
-    useCallback(state => state.workspaces, [])
-  );
 
   function renderDocuments(documentsService: DocumentsService) {
     return documentsService.getDocuments().map(doc => {
       const isActiveDoc = workspacesService.isDocumentActive(doc.uri);
-      return (
-        <MemoizedDocument
-          doc={doc}
-          visible={isActiveDoc}
-          key={doc.uri}
-          desktopSessionControlsRef={props.desktopSessionControlsRef}
-        />
-      );
+      return <MemoizedDocument doc={doc} visible={isActiveDoc} key={doc.uri} />;
     });
   }
 
-  const workspacesWithClusters = useMemo(
+  const workspaces = useMemo(
     () =>
-      Object.entries(workspaces)
-        // Workspaces can outlive their clusters. Render only those that have an accompanying cluster available.
-        .filter(([clusterUri]) => clusters.has(clusterUri))
-        .map(([clusterUri, workspace]: [RootClusterUri, Workspace]) => ({
+      Object.entries(workspacesService.getWorkspaces()).map(
+        ([clusterUri, workspace]: [RootClusterUri, Workspace]) => ({
           rootClusterUri: clusterUri,
           localClusterUri: workspace.localClusterUri,
           documentsService:
             workspacesService.getWorkspaceDocumentService(clusterUri),
           accessRequestsService:
             workspacesService.getWorkspaceAccessRequestsService(clusterUri),
-        })),
-    [workspaces, clusters, workspacesService]
+        })
+      ),
+    [workspacesService.getWorkspaces()]
   );
 
   return (
     <>
-      {workspacesWithClusters.map(workspace => (
+      {workspaces.map(workspace => (
         <DocumentsContainer
           isVisible={
             workspace.rootClusterUri === workspacesService.getRootClusterUri()
@@ -150,12 +131,8 @@ const DocumentsContainer = styled.div<{ isVisible?: boolean }>`
   display: ${props => (props.isVisible ? 'contents' : 'none')};
 `;
 
-function MemoizedDocument(props: {
-  doc: types.Document;
-  visible: boolean;
-  desktopSessionControlsRef: MutableRefObject<HTMLDivElement>;
-}) {
-  const { doc, visible, desktopSessionControlsRef } = props;
+function MemoizedDocument(props: { doc: types.Document; visible: boolean }) {
+  const { doc, visible } = props;
 
   return useMemo(() => {
     switch (doc.kind) {
@@ -188,6 +165,9 @@ function MemoizedDocument(props: {
       case 'doc.terminal_shell':
       case 'doc.terminal_tsh_node':
         return <DocumentTerminal doc={doc} visible={visible} />;
+      // DELETE IN 15.0.0. See DocumentGatewayKube for more details.
+      case 'doc.terminal_tsh_kube':
+        return <DocumentTerminal doc={doc} visible={visible} />;
       case 'doc.access_requests':
         return <DocumentAccessRequests doc={doc} visible={visible} />;
       case 'doc.connect_my_computer':
@@ -199,13 +179,7 @@ function MemoizedDocument(props: {
       case 'doc.vnet_info':
         return <DocumentVnetInfo doc={doc} visible={visible} />;
       case 'doc.desktop_session':
-        return (
-          <DocumentDesktopSession
-            doc={doc}
-            visible={visible}
-            desktopSessionControlsRef={desktopSessionControlsRef}
-          />
-        );
+        return <DocumentDesktopSession doc={doc} visible={visible} />;
       default:
         doc satisfies types.DocumentBlank;
         return (
@@ -216,5 +190,5 @@ function MemoizedDocument(props: {
           </Document>
         );
     }
-  }, [visible, doc, desktopSessionControlsRef]);
+  }, [visible, doc]);
 }

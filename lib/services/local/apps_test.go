@@ -21,6 +21,7 @@ package local
 import (
 	"cmp"
 	"context"
+	"fmt"
 	"slices"
 	"strconv"
 	"testing"
@@ -33,6 +34,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 )
 
@@ -72,13 +74,6 @@ func TestAppsCRUD(t *testing.T) {
 	require.Empty(t, out)
 	require.Empty(t, next)
 
-	var iterOut []types.Application
-	for app, err := range service.Apps(ctx, "", "") {
-		require.NoError(t, err)
-		iterOut = append(iterOut, app)
-	}
-	require.Empty(t, iterOut)
-
 	// Create both apps.
 	err = service.CreateApp(ctx, app1)
 	require.NoError(t, err)
@@ -98,15 +93,6 @@ func TestAppsCRUD(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 	require.Empty(t, next)
-
-	iterOut = nil
-	for app, err := range service.Apps(ctx, "", "") {
-		require.NoError(t, err)
-		iterOut = append(iterOut, app)
-	}
-	require.Empty(t, gocmp.Diff([]types.Application{app1, app2}, iterOut,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-	))
 
 	// Fetch a specific application.
 	app, err := service.GetApp(ctx, app2.GetName())
@@ -150,15 +136,6 @@ func TestAppsCRUD(t *testing.T) {
 	))
 	require.Empty(t, next)
 
-	iterOut = nil
-	for app, err := range service.Apps(ctx, "", "") {
-		require.NoError(t, err)
-		iterOut = append(iterOut, app)
-	}
-	require.Empty(t, gocmp.Diff([]types.Application{app2}, iterOut,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-	))
-
 	// Try to delete an application that doesn't exist.
 	err = service.DeleteApp(ctx, "doesnotexist")
 	require.ErrorAs(t, err, new(*trace.NotFoundError))
@@ -175,13 +152,6 @@ func TestAppsCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, out)
 	require.Empty(t, next)
-
-	iterOut = nil
-	for app, err := range service.Apps(ctx, "", "") {
-		require.NoError(t, err)
-		iterOut = append(iterOut, app)
-	}
-	require.Empty(t, iterOut)
 
 	// Test pagination
 	var expected []types.Application
@@ -221,35 +191,75 @@ func TestAppsCRUD(t *testing.T) {
 	assert.Empty(t, gocmp.Diff(expected, listed,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
+}
 
-	iterOut = nil
-	for app, err := range service.Apps(ctx, "", page2Start) {
+// TestListApps_SkipsUnmarshalErrorsHittingPageBoundary guards against a regression where hitting a page boundary with a malformed backend item would
+// return less items than the page limit and no next token. This would cause callers to miss resources and fail to paginate properly when malformed items are present in the backend.
+func TestListApps_SkipsUnmarshalErrorsHittingPageBoundary(t *testing.T) {
+	ctx := t.Context()
+
+	const pageLimit = 64
+	const numberOfPages = 5
+
+	clock := clockwork.NewFakeClock()
+	mem, err := memory.New(memory.Config{
+		Context: t.Context(),
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service := NewAppService(mem)
+
+	var allExpected []types.Application
+
+	createResource := func(name string) {
+		app, err := types.NewAppV3(types.Metadata{
+			Name: name,
+		}, types.AppSpecV3{
+			URI: "localhost1",
+		})
 		require.NoError(t, err)
-		iterOut = append(iterOut, app)
-	}
-	assert.Len(t, iterOut, len(page1))
-	assert.Empty(t, gocmp.Diff(page1, iterOut,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-	))
-
-	iterOut = nil
-	for app, err := range service.Apps(ctx, "", "") {
+		err = service.CreateApp(ctx, app)
 		require.NoError(t, err)
-		iterOut = append(iterOut, app)
-	}
-	assert.Len(t, iterOut, len(expected))
-	assert.Empty(t, gocmp.Diff(expected, iterOut,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-	))
+		allExpected = append(allExpected, app)
 
-	iterOut = nil
-	for app, err := range service.Apps(ctx, page2Start, "") {
+	}
+
+	createMalformedEntry := func(name string) {
+		_, err := mem.Put(ctx, backend.Item{
+			Key:   backend.NewKey(appPrefix, name),
+			Value: []byte("not-valid-json"),
+		})
 		require.NoError(t, err)
-		iterOut = append(iterOut, app)
 	}
 
-	assert.Len(t, iterOut, len(expected)-1000)
-	assert.Empty(t, gocmp.Diff(expected, append(page1, iterOut...),
+	for i := range pageLimit * numberOfPages {
+		key := fmt.Sprintf("r%d", i)
+		if i%2 == 0 {
+			createMalformedEntry(key)
+		} else {
+			createResource(key)
+		}
+	}
+
+	page1, next, err := service.ListApps(ctx, pageLimit, "")
+	require.NoError(t, err)
+	require.Len(t, page1, pageLimit)
+	require.NotEmpty(t, next)
+
+	page2, next, err := service.ListApps(ctx, pageLimit, next)
+	require.NoError(t, err)
+	require.Len(t, page2, pageLimit)
+	require.NotEmpty(t, next)
+
+	page3, next, err := service.ListApps(ctx, pageLimit, next)
+	require.NoError(t, err)
+	require.Len(t, page3, pageLimit/2)
+	require.Empty(t, next)
+
+	allActual := append(append(page1, page2...), page3...)
+	require.Empty(t, gocmp.Diff(allExpected, allActual,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.SortSlices(func(a, b types.Application) bool { return a.GetName() < b.GetName() }),
 	))
 }

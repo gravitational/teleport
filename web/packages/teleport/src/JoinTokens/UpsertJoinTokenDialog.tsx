@@ -41,6 +41,7 @@ import { requiredField } from 'shared/components/Validation/rules';
 import { useAsync } from 'shared/hooks/useAsync';
 import { collectKeys } from 'shared/utils/collectKeys';
 
+import 'teleport/services/resources';
 import { useTeleport } from 'teleport';
 import auth from 'teleport/services/auth';
 import {
@@ -50,7 +51,6 @@ import {
   JoinRole,
   JoinToken,
 } from 'teleport/services/joinToken';
-import 'teleport/services/resources';
 import { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
 
 import {
@@ -59,7 +59,6 @@ import {
   JoinTokenOracleForm,
 } from './JoinTokenForms';
 import { JoinTokenGithubForm } from './JoinTokenGithubForm';
-import { JoinTokenGitlabForm } from './JoinTokenGitlabForm';
 
 const maxWidth = '550px';
 
@@ -78,13 +77,10 @@ const availableJoinMethods: OptionJoinMethod[] = [
   'gcp',
   'oracle',
   'github',
-  'gitlab',
-]
-  .sort()
-  .map(method => ({
-    value: method as JoinMethod,
-    label: method as JoinMethod,
-  }));
+].map(method => ({
+  value: method as JoinMethod,
+  label: method as JoinMethod,
+}));
 
 export type AllowOption = Option<string, string>;
 type OptionJoinMethod = Option<JoinMethod, JoinMethod>;
@@ -101,33 +97,17 @@ type NewJoinTokenOracleState = {
 };
 
 type NewJoinTokenGithubState = {
-  server_host?: string | null;
-  static_jwks?: string | null;
-  enterprise_slug?: string | null;
-  rules?: NewJoinTokenGithubStateRule[] | null;
-};
-
-export type NewJoinTokenGithubStateRule = {
-  repository?: string | null;
-  repository_owner?: string | null;
-  workflow?: string | null;
-  environment?: string | null;
-  ref?: string | null;
-  ref_type?: 'branch' | 'tag' | null;
-};
-
-type NewJoinTokenGitlabState = {
-  domain?: string | null;
-  static_jwks?: string | null;
-  rules?: NewJoinTokenGitlabStateRule[] | null;
-};
-
-export type NewJoinTokenGitlabStateRule = {
-  project_path?: string | null;
-  namespace_path?: string | null;
-  environment?: string | null;
-  ref?: string | null;
-  ref_type?: 'branch' | 'tag' | null;
+  server_host?: string;
+  static_jwks?: string | undefined;
+  enterprise_slug?: string | undefined;
+  rules: {
+    repository?: string;
+    repository_owner?: string | undefined;
+    workflow?: string | undefined;
+    environment?: string | undefined;
+    ref?: string;
+    ref_type?: 'any' | 'branch' | 'tag';
+  }[];
 };
 
 export type NewJoinTokenState = {
@@ -136,11 +116,10 @@ export type NewJoinTokenState = {
   bot_name?: string;
   method: OptionJoinMethod;
   roles: OptionJoinRole[];
-  iam?: AWSRules[];
-  gcp?: NewJoinTokenGCPState[];
-  oracle?: NewJoinTokenOracleState[];
-  github?: NewJoinTokenGithubState;
-  gitlab?: NewJoinTokenGitlabState;
+  iam: AWSRules[];
+  gcp: NewJoinTokenGCPState[];
+  oracle: NewJoinTokenOracleState[];
+  github: NewJoinTokenGithubState;
 };
 
 export const defaultNewTokenState: NewJoinTokenState = {
@@ -152,10 +131,11 @@ export const defaultNewTokenState: NewJoinTokenState = {
   gcp: [{ project_ids: [], service_accounts: [], locations: [] }],
   oracle: [{ tenancy: '', parent_compartments: [], regions: [] }],
   github: {
-    rules: [{}],
-  },
-  gitlab: {
-    rules: [{}],
+    rules: [
+      {
+        ref_type: 'any',
+      },
+    ],
   },
 };
 
@@ -171,10 +151,7 @@ function makeDefaultEditState(token: JoinToken): NewJoinTokenState {
     iam: token.allow,
     gcp: token.gcp?.allow.map(r => ({
       project_ids: r.project_ids?.map(i => ({ value: i, label: i })),
-      service_accounts: r.service_accounts?.map(i => ({
-        value: i,
-        label: i,
-      })),
+      service_accounts: r.service_accounts?.map(i => ({ value: i, label: i })),
       locations: r.locations?.map(i => ({ value: i, label: i })),
     })),
     oracle: token.oracle?.allow.map(r => ({
@@ -190,40 +167,27 @@ function makeDefaultEditState(token: JoinToken): NewJoinTokenState {
           server_host: token.github.enterprise_server_host,
           enterprise_slug: token.github.enterprise_slug,
           static_jwks: token.github.static_jwks,
-          rules: token.github.allow?.map(r => ({
+          rules: token.github.allow.map(r => ({
             repository: r.repository,
             actor: r.actor,
             environment: r.environment,
             ref: r.ref,
-            ref_type: parseRefType(r.ref_type),
+            ref_type: parseGithubRefType(r.ref_type),
             repository_owner: r.repository_owner,
             workflow: r.workflow,
-          })),
-        }
-      : undefined,
-    gitlab: token.gitlab
-      ? {
-          domain: token.gitlab?.domain,
-          static_jwks: token.gitlab.static_jwks,
-          rules: token.gitlab.allow?.map(r => ({
-            project_path: r.project_path,
-            namespace_path: r.namespace_path,
-            environment: r.environment,
-            ref: r.ref,
-            ref_type: parseRefType(r.ref_type),
           })),
         }
       : undefined,
   };
 }
 
-function parseRefType(refType: string | null | undefined) {
+function parseGithubRefType(refType: string) {
   if (refType == 'branch') {
     return 'branch';
   } else if (refType == 'tag') {
     return 'tag';
   } else {
-    return undefined;
+    return 'any';
   }
 }
 
@@ -235,7 +199,7 @@ export const UpsertJoinTokenDialog = ({
 }: {
   onClose(): void;
   updateTokenList: (token: JoinToken) => void;
-  editToken: JoinToken | null;
+  editToken?: JoinToken;
   editTokenWithYAML: (tokenId: string) => void;
 }) => {
   const ctx = useTeleport();
@@ -309,11 +273,6 @@ export const UpsertJoinTokenDialog = ({
           data.object.spec.github,
           data.object.spec.join_method
         );
-      case 'gitlab':
-        return !checkYamlData(
-          data.object.spec.gitlab,
-          data.object.spec.join_method
-        );
     }
 
     return false;
@@ -345,67 +304,49 @@ export const UpsertJoinTokenDialog = ({
 
     if (newTokenState.method.value === 'gcp') {
       const gcp = {
-        allow:
-          newTokenState.gcp?.map(rule => ({
-            project_ids: rule.project_ids?.map(id => id.value),
-            locations: rule.locations?.map(loc => loc.value),
-            service_accounts: rule.service_accounts?.map(
-              account => account.value
-            ),
-          })) ?? [],
+        allow: newTokenState.gcp.map(rule => ({
+          project_ids: rule.project_ids?.map(id => id.value),
+          locations: rule.locations?.map(loc => loc.value),
+          service_accounts: rule.service_accounts?.map(
+            account => account.value
+          ),
+        })),
       };
       request.gcp = gcp;
     }
 
     if (newTokenState.method.value === 'oracle') {
       const oracle = {
-        allow:
-          newTokenState.oracle?.map(rule => ({
-            tenancy: rule.tenancy,
-            parent_compartments: rule.parent_compartments?.map(
-              compartment => compartment.value
-            ),
-            regions: rule.regions?.map(region => region.value),
-          })) ?? [],
+        allow: newTokenState.oracle.map(rule => ({
+          tenancy: rule.tenancy,
+          parent_compartments: rule.parent_compartments?.map(
+            compartment => compartment.value
+          ),
+          regions: rule.regions?.map(region => region.value),
+        })),
       };
       request.oracle = oracle;
     }
 
     if (newTokenState.method.value === 'github') {
       const github: (typeof request)['github'] = {
-        allow: newTokenState.github?.rules?.map(rule => ({
+        allow: newTokenState.github.rules.map(rule => ({
           environment: rule.environment,
           ref: rule.ref,
-          ref_type: rule.ref_type,
+          ref_type: rule.ref ? rule.ref_type : undefined,
           repository: rule.repository,
           repository_owner: rule.repository_owner,
           workflow: rule.workflow,
 
-          actor: undefined, // Unsupported field
-          sub: undefined, // Unsupported field
+          actor: null, // Unsupported field
+          sub: null, // Unsupported field
         })),
-        enterprise_server_host: newTokenState.github?.server_host,
-        enterprise_slug: newTokenState.github?.enterprise_slug,
-        static_jwks: newTokenState.github?.static_jwks,
+        enterprise_server_host: newTokenState.github.server_host,
+        enterprise_slug: newTokenState.github.enterprise_slug,
+        static_jwks: newTokenState.github.static_jwks,
       };
 
       request.github = github;
-    }
-
-    if (newTokenState.method.value === 'gitlab') {
-      const gitlab: (typeof request)['gitlab'] = {
-        allow: newTokenState.gitlab?.rules?.map(rule => ({
-          project_path: rule.project_path,
-          namespace_path: rule.namespace_path,
-          environment: rule.environment,
-          ref: rule.ref,
-          ref_type: rule.ref_type,
-        })),
-        domain: newTokenState.gitlab?.domain,
-        static_jwks: newTokenState.gitlab?.static_jwks,
-      };
-
-      request.gitlab = gitlab;
     }
 
     runCreateTokenAttempt(request, !!editToken);
@@ -486,7 +427,7 @@ export const UpsertJoinTokenDialog = ({
               )}
             </Flex>
 
-            {hasUnsupportedFields && editToken ? (
+            {hasUnsupportedFields ? (
               <Info alignItems="flex-start">
                 <Text>
                   This token has configuration that is not visible. To edit this
@@ -590,13 +531,6 @@ export const UpsertJoinTokenDialog = ({
                       readonly={hasUnsupportedFields}
                     />
                   )}
-                  {newTokenState.method.value === 'gitlab' && (
-                    <JoinTokenGitlabForm
-                      tokenState={newTokenState}
-                      onUpdateState={setNewTokenState}
-                      readonly={hasUnsupportedFields}
-                    />
-                  )}
                   <Flex
                     mt={4}
                     py={4}
@@ -653,7 +587,6 @@ const checkYAMLData = (
       allow: unknown;
       gcp: unknown;
       github: unknown;
-      gitlab: unknown;
     };
   };
 } => {
@@ -725,15 +658,6 @@ const supportedFieldsMap: Partial<Record<JoinMethod, Set<string>>> = {
     '.allow.repository',
     '.allow.repository_owner',
     '.allow.workflow',
-    '.allow.environment',
-    '.allow.ref',
-    '.allow.ref_type',
-  ]),
-  gitlab: new Set([
-    '.domain',
-    '.static_jwks',
-    '.allow.project_path',
-    '.allow.namespace_path',
     '.allow.environment',
     '.allow.ref',
     '.allow.ref_type',

@@ -21,8 +21,6 @@ package dbcmd
 import (
 	"context"
 	"fmt"
-	"log/slog"
-	"net"
 	"net/url"
 	"os"
 	"os/exec"
@@ -32,6 +30,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -150,8 +149,8 @@ func NewCmdBuilder(
 		host, port = tc.DatabaseProxyHostPort(db)
 	}
 
-	if options.logger == nil {
-		options.logger = slog.Default()
+	if options.log == nil {
+		options.log = logrus.NewEntry(logrus.StandardLogger())
 	}
 
 	if options.exe == nil {
@@ -271,11 +270,8 @@ func (c *CLICommandBuilder) getPostgresCommand() *exec.Cmd {
 func (c *CLICommandBuilder) getCockroachCommand() *exec.Cmd {
 	// If cockroach CLI client is not available, fallback to psql.
 	if _, err := c.options.exe.LookPath(cockroachBin); err != nil {
-		c.options.logger.DebugContext(context.Background(), "Couldn't find cockroach client in PATH, falling back to postgres client",
-			"cockroach_client", cockroachBin,
-			"postgres_client", postgresBin,
-			"error", err,
-		)
+		c.options.log.Debugf("Couldn't find %q client in PATH, falling back to %q: %v.",
+			cockroachBin, postgresBin, err)
 		return c.getPostgresCommand()
 	}
 	return exec.Command(cockroachBin, "sql", "--url", c.getPostgresConnString())
@@ -477,6 +473,12 @@ func (c *CLICommandBuilder) isMySQLBinMariaDBFlavor() (bool, error) {
 	return strings.Contains(strings.ToLower(string(mysqlVer)), "mariadb"), nil
 }
 
+// isSqlcmdAvailable returns true if "sqlcmd" binary is fouind in the system
+// PATH.
+func (c *CLICommandBuilder) isSqlcmdAvailable() bool {
+	return c.isBinAvailable(sqlcmdBin)
+}
+
 func (c *CLICommandBuilder) shouldUseMongoshBin(db types.Database) bool {
 	// DocumentDB prefers the legacy "mongo" client.
 	if db.GetType() == types.DatabaseTypeDocumentDB {
@@ -567,10 +569,7 @@ func (c *CLICommandBuilder) getMongoAddress() string {
 	// force a different timeout for debugging purpose or extreme situations.
 	serverSelectionTimeoutMS := "5000"
 	if envValue := os.Getenv(envVarMongoServerSelectionTimeoutMS); envValue != "" {
-		c.options.logger.InfoContext(context.Background(), "Using server selection timeout value from environment variable",
-			"environment_variable", envVarMongoServerSelectionTimeoutMS,
-			"server_selection_timeout", envValue,
-		)
+		c.options.log.Infof("Using environment variable %s=%s.", envVarMongoServerSelectionTimeoutMS, envValue)
 		serverSelectionTimeoutMS = envValue
 	}
 	query.Set("serverSelectionTimeoutMS", serverSelectionTimeoutMS)
@@ -589,7 +588,7 @@ func (c *CLICommandBuilder) getMongoAddress() string {
 
 	address := url.URL{
 		Scheme:   connstring.SchemeMongoDB,
-		Host:     net.JoinHostPort(c.host, strconv.Itoa(c.port)),
+		Host:     fmt.Sprintf("%s:%d", c.host, c.port),
 		RawQuery: query.Encode(),
 		Path:     fmt.Sprintf("/%s", c.db.Database),
 	}
@@ -639,13 +638,6 @@ func (c *CLICommandBuilder) getRedisCommand() *exec.Cmd {
 
 // getSQLServerCommand returns a command to connect to SQL Server.
 // mssql-cli and sqlcmd commands have the same argument names.
-//
-// sqlcmd is preferred and used by default. mssql-cli is only returned when
-// sqlcmd is not in PATH but mssql-cli is, so users who only have mssql-cli
-// installed are still given a working command. When neither binary is in PATH
-// (e.g., Teleport Connect launched from a desktop environment where $PATH is
-// not set), the printed command falls back to sqlcmd, which is the actively
-// maintained client.
 func (c *CLICommandBuilder) getSQLServerCommand() *exec.Cmd {
 	args := []string{
 		// Host and port must be comma-separated.
@@ -660,11 +652,11 @@ func (c *CLICommandBuilder) getSQLServerCommand() *exec.Cmd {
 		args = append(args, "-d", c.db.Database)
 	}
 
-	if !c.isBinAvailable(sqlcmdBin) && c.isBinAvailable(mssqlBin) {
-		return exec.Command(mssqlBin, args...)
+	if c.isSqlcmdAvailable() {
+		return exec.Command(sqlcmdBin, args...)
 	}
 
-	return exec.Command(sqlcmdBin, args...)
+	return exec.Command(mssqlBin, args...)
 }
 
 func (c *CLICommandBuilder) getSnowflakeCommand() *exec.Cmd {
@@ -850,17 +842,15 @@ func (c *CLICommandBuilder) getOracleCommand() (*exec.Cmd, error) {
 func (c *CLICommandBuilder) getOracleAlternativeCommands() []CommandAlternative {
 	var commands []CommandAlternative
 
-	ctx := context.Background()
+	c.options.log.Debugf("Building Oracle commands.")
+	c.options.log.Debugf("Found servers with TCP support: %v.", c.options.oracle.hasTCPServers)
+	c.options.log.Debugf("All servers support TCP: %v.", c.options.oracle.canUseTCP)
 
-	c.options.logger.DebugContext(ctx, "Building Oracle commands.")
-	c.options.logger.DebugContext(ctx, "Found servers with TCP support", "count", c.options.oracle.hasTCPServers)
-	c.options.logger.DebugContext(ctx, "All servers support TCP", "all_servers_support_tcp", c.options.oracle.canUseTCP)
-
-	c.options.logger.DebugContext(ctx, "Connection strings:")
-	c.options.logger.DebugContext(ctx, "JDBC", "connection_string", c.getOracleJDBCConnectionString())
+	c.options.log.Debugf("Connection strings:")
+	c.options.log.Debugf("- JDBC: %s", c.getOracleJDBCConnectionString())
 	if c.options.oracle.hasTCPServers {
-		c.options.logger.DebugContext(ctx, "TNS", "connection_string", c.getOracleTNSDescriptorString())
-		c.options.logger.DebugContext(ctx, "Direct", "connection_string", c.getOracleDirectConnectionString())
+		c.options.log.Debugf("- TNS descriptor: %s", c.getOracleTNSDescriptorString())
+		c.options.log.Debugf("- Direct: %s", c.getOracleDirectConnectionString())
 	}
 
 	const oneShotLogin = "-L"
@@ -969,7 +959,7 @@ type connectionCommandOpts struct {
 	noTLS                    bool
 	printFormat              bool
 	tolerateMissingCLIClient bool
-	logger                   *slog.Logger
+	log                      *logrus.Entry
 	exe                      Execer
 	password                 string
 	oracle                   oracleOpts
@@ -1032,9 +1022,9 @@ func WithPrintFormat() ConnectCommandFunc {
 
 // WithLogger is the connect command option that allows the caller to pass a logger that will be
 // used by CLICommandBuilder.
-func WithLogger(log *slog.Logger) ConnectCommandFunc {
+func WithLogger(log *logrus.Entry) ConnectCommandFunc {
 	return func(opts *connectionCommandOpts) {
-		opts.logger = log
+		opts.log = log
 	}
 }
 

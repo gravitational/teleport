@@ -18,7 +18,8 @@
 
 import styled from 'styled-components';
 
-import { Box, Flex, H2, ResourceIcon, Text } from 'design';
+import { Box, Flex, H2, ResourceIcon } from 'design';
+import { P } from 'design/Text/Text';
 
 export const IntegrationTile = styled(Flex)<{
   disabled?: boolean;
@@ -30,17 +31,14 @@ export const IntegrationTile = styled(Flex)<{
   align-items: center;
   justify-content: center;
   position: relative;
-  border-radius: ${({ theme }) => theme.radii[2]}px;
-  padding: ${({ theme }) => theme.space[3]}px;
-  gap: ${({ theme }) => theme.space[3]}px;
+  border-radius: 4px;
+  padding: 15px 10px 6px 10px;
   height: 170px;
   width: 170px;
-  background-color: ${({ theme }) => theme.colors.levels.sunken};
+  background-color: ${({ theme }) => theme.colors.buttons.secondary.default};
   text-align: center;
   cursor: ${({ disabled, $exists }) =>
-    disabled || $exists ? 'not-allowed' : 'pointer'};
-  transition: background-color 200ms ease;
-
+    disabled || $exists ? 'default' : 'pointer'};
   ${props => {
     if (props.$exists) {
       return;
@@ -48,9 +46,8 @@ export const IntegrationTile = styled(Flex)<{
 
     return `
     opacity: ${props.disabled ? '0.45' : '1'};
-    &:hover,
-    &:focus-visible {
-      background-color: ${props.theme.colors.levels.surface};
+    &:hover {
+      background-color: ${props.theme.colors.buttons.secondary.hover};
     }
     `;
   }};
@@ -59,10 +56,10 @@ export const IntegrationTile = styled(Flex)<{
 export const NoCodeIntegrationDescription = () => (
   <Box mb={3}>
     <H2 mb={1}>No-Code Integrations</H2>
-    <Text>
+    <P>
       Set up Teleport to post notifications to messaging apps, discover and
       import resources from cloud providers and other services.
-    </Text>
+    </P>
   </Box>
 );
 
@@ -75,6 +72,6 @@ export const IntegrationIcon = styled(ResourceIcon).withConfig({
 })<{ size?: number }>`
   margin: 0 auto;
   height: 100%;
-  min-width: ${props => (props.size ? `${props.size}px` : 0)};
-  max-width: ${props => props.size || 72}px;
+  min-width: 0;
+  ${({ size }) => `max-height: ${size || 80}px;`}
 `;

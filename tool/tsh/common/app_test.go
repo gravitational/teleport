@@ -114,7 +114,6 @@ func TestAppCommands(t *testing.T) {
 		testserver.WithTestApp("rootapp", rootApp.URL),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
-			cfg.InsecureMode = true
 		}),
 	}
 	rootServer, err := testserver.NewTeleportProcess(t.TempDir(), rootServerOpts...)
@@ -142,7 +141,6 @@ func TestAppCommands(t *testing.T) {
 		testserver.WithTestApp("leafapp", leafApp.URL),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
-			cfg.InsecureMode = true
 		}),
 	}
 	leafServer, err := testserver.NewTeleportProcess(t.TempDir(), leafServerOpts...)
@@ -280,8 +278,8 @@ func TestAppCommands(t *testing.T) {
 									resp, err := testDummyAppConn(fmt.Sprintf("https://%v", rootProxyAddr.Addr), clientCert)
 									require.NoError(t, err)
 									resp.Body.Close()
-									require.Equal(t, http.StatusOK, resp.StatusCode)
-									require.Equal(t, app.name, resp.Header.Get("Server"))
+									assert.Equal(t, http.StatusOK, resp.StatusCode)
+									assert.Equal(t, app.name, resp.Header.Get("Server"))
 								}, 5*time.Second, 50*time.Millisecond)
 
 								// Verify that the app.session.start event was emitted.
@@ -295,10 +293,10 @@ func TestAppCommands(t *testing.T) {
 											Order:      types.EventOrderDescending,
 											EventTypes: []string{events.AppSessionStartEvent},
 										})
-										require.NoError(t, err)
+										assert.NoError(t, err)
 
 										for _, e := range es {
-											require.Equal(t, e.(*apievents.AppSessionStart).AppName, app.name)
+											assert.Equal(t, e.(*apievents.AppSessionStart).AppName, app.name)
 											return
 										}
 										t.Errorf("failed to find AppSessionStartCode event (0/%d events matched)", len(es))

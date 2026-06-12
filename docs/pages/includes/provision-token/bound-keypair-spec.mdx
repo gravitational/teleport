@@ -4,16 +4,9 @@ version: v2
 metadata:
   name: example-token
 spec:
-  # The role list, either `[Bot]` for bots, or a minimal set of roles (e.g.
-  # Node, Proxy, App, Kube, DB, WindowsDesktop).
-  roles: [Node]
-
-  # Configures this token as a bound keypair token.
+  roles: [Bot]
   join_method: bound_keypair
-
-  # A bot name is required if `roles: [Bot]` is set above. It must be unset for
-  # other node types.
-  # bot_name: example
+  bot_name: example
 
   # Fields related to the bound keypair joining process.
   bound_keypair:

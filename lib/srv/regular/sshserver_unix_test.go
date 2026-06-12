@@ -1,4 +1,5 @@
 //go:build unix
+// +build unix
 
 /*
  * Teleport
@@ -21,8 +22,6 @@ package regular
 
 import (
 	"context"
-	"io"
-	"log/slog"
 	"os/user"
 	"runtime"
 	"sync"
@@ -33,10 +32,8 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
-	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/utils/host"
 	"github.com/gravitational/teleport/lib/utils/testutils"
-	"github.com/gravitational/teleport/session/host"
-	"github.com/gravitational/teleport/session/reexec"
 )
 
 // BenchmarkRootExecCommand measures performance of running multiple exec requests
@@ -66,27 +63,16 @@ func BenchmarkRootExecCommand(b *testing.B) {
 				b.Skip("Skip benchmark with user creation on non-linux OS")
 			}
 
-			opts := []ServerOption{
-				// TODO(okraport): Disable child logs to reduce noise in benchmark results.
-				// Re-enable once we have a better way to benchmark with logging enabled.
-				func(s *Server) error {
-					s.childLogConfig = &srv.ChildLogConfig{
-						ExecLogConfig: reexec.ExecLogConfig{
-							Level: slog.LevelError,
-						},
-						Writer: io.Discard,
-					}
-					return nil
-				},
-			}
+			opts := []ServerOption{}
 
 			if test.createUser {
 				opts = append(opts, SetCreateHostUser(true))
 			}
 
 			f := newFixtureWithoutDiskBasedLogging(b, opts...)
+			b.ResetTimer()
 
-			for b.Loop() {
+			for i := 0; i < b.N; i++ {
 				username := f.user
 				if test.createUser {
 					username = testutils.GenerateLocalUsername(b)
@@ -108,7 +94,7 @@ func executeCommand(tb testing.TB, clt *tracessh.Client, command string, executi
 	tb.Helper()
 
 	var wg sync.WaitGroup
-	for range executions {
+	for i := 0; i < executions; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

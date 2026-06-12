@@ -25,23 +25,25 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"log/slog"
 	"mime"
 	"net"
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
+	log "github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
+	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -155,6 +157,23 @@ func MakeStdHandlerWithErrorWriter(fn StdHandlerFunc, errWriter ErrorWriter) htt
 	}
 }
 
+// WithCSRFProtection ensures that request to unauthenticated API is checked against CSRF attacks
+func WithCSRFProtection(fn HandlerFunc) httprouter.Handle {
+	handlerFn := MakeHandler(fn)
+	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			errHeader := csrf.VerifyHTTPHeader(r)
+			errForm := csrf.VerifyFormField(r)
+			if errForm != nil && errHeader != nil {
+				log.Warningf("unable to validate CSRF token: %v, %v", errHeader, errForm)
+				trace.WriteError(w, trace.AccessDenied("access denied"))
+				return
+			}
+		}
+		handlerFn(w, r, p)
+	}
+}
+
 // ReadJSON reads HTTP json request and unmarshals it
 // into passed any obj. A reasonable maximum size is enforced
 // to mitigate resource exhaustion attacks.
@@ -171,15 +190,14 @@ func ReadResourceJSON(r *http.Request, val any) error {
 
 func readJSON(r *http.Request, val any, maxSize int64) error {
 	// Check content type to mitigate CSRF attack.
-	// (Form POST requests don't support application/json payloads.)
 	contentType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil {
-		slog.WarnContext(r.Context(), "Error parsing media type for reading JSON", "error", err)
+		log.Warningf("Error parsing media type for reading JSON: %v", err)
 		return trace.BadParameter("invalid request")
 	}
 
 	if contentType != "application/json" {
-		slog.WarnContext(r.Context(), "Invalid HTTP request header content-type for reading JSON", "content_type", contentType)
+		log.Warningf("Invalid HTTP request header content-type %q for reading JSON", contentType)
 		return trace.BadParameter("invalid request")
 	}
 
@@ -250,6 +268,22 @@ func RouteNotFoundResponse(ctx context.Context, w http.ResponseWriter) {
 	roundtrip.ReplyJSON(w, http.StatusNotFound, errObj)
 }
 
+// ParseBool will parse boolean variable from url query
+// returns value, ok, error
+func ParseBool(q url.Values, name string) (bool, bool, error) {
+	stringVal := q.Get(name)
+	if stringVal == "" {
+		return false, false, nil
+	}
+
+	val, err := strconv.ParseBool(stringVal)
+	if err != nil {
+		return false, false, trace.BadParameter(
+			"'%v': expected 'true' or 'false', got %v", name, stringVal)
+	}
+	return val, true, nil
+}
+
 // RewritePair is a rewrite expression
 type RewritePair struct {
 	// Expr is matching expression
@@ -288,14 +322,11 @@ func OriginLocalRedirectURI(redirectURL string) (string, error) {
 		return "", trace.BadParameter("Invalid scheme: %s", parsedURL.Scheme)
 	}
 
-	// Make sure User field does not exist to prevent basic auth
-	if parsedURL.User != nil {
-		return "", trace.BadParameter("Basic Auth not allowed in redirect URL")
-	}
-
 	resultURI := parsedURL.RequestURI()
 	if strings.HasPrefix(resultURI, "//") {
 		return "", trace.BadParameter("Invalid double slash redirect")
+	} else if strings.Contains(resultURI, "@") {
+		return "", trace.BadParameter("Basic Auth not allowed in redirect")
 	}
 	return resultURI, nil
 }

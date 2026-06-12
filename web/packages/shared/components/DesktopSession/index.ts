@@ -17,4 +17,3 @@
  */
 
 export { DesktopSession, DisconnectedState } from './DesktopSession';
-export { DesktopSessionWithSharing } from './DesktopSessionWithSharing';

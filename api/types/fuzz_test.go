@@ -30,7 +30,7 @@ func FuzzParseDuration(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, s string) {
 		require.NotPanics(t, func() {
-			ParseDuration(s)
+			parseDuration(s)
 		})
 	})
 }

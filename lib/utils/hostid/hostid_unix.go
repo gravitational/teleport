@@ -89,7 +89,7 @@ func ReadOrCreateFile(dataDir string, opts ...func(*options)) (string, error) {
 		return "", trace.Wrap(err)
 	}
 
-	for range o.iterationLimit {
+	for i := 0; i < o.iterationLimit; i++ {
 		if read, err := ReadFile(dataDir); err == nil {
 			return read, nil
 		} else if !trace.IsNotFound(err) {

@@ -185,7 +185,7 @@ func TestRewind(t *testing.T) {
 	require.NoError(t, p.Play())
 
 	// play through 7 events at regular speed
-	for range 7 {
+	for i := 0; i < 7; i++ {
 		clk.BlockUntil(1)                    // player is now waiting to emit event
 		clk.Advance(1000 * time.Millisecond) // unblock event
 		<-p.C()                              // read event
@@ -292,9 +292,9 @@ func TestSkipIdlePeriods(t *testing.T) {
 			clk.Advance(player.MaxIdleTime)
 			select {
 			case evt := <-p.C():
-				require.Equal(t, int64(i), evt.GetIndex())
+				assert.Equal(t, int64(i), evt.GetIndex())
 			default:
-				require.Fail(t, "expected to receive event after short period, but got nothing")
+				assert.Fail(t, "expected to receive event after short period, but got nothing")
 			}
 		}, 3*time.Second, 100*time.Millisecond)
 	}
@@ -328,7 +328,7 @@ func (s *simpleStreamer) StreamSessionEvents(ctx context.Context, sessionID sess
 					// to access without a type assertion
 					Code: strconv.FormatInt((i+1)*s.delay, 10),
 				},
-				Data:              fmt.Appendf(nil, "event %d\n", i),
+				Data:              []byte(fmt.Sprintf("event %d\n", i)),
 				ChunkIndex:        i, // TODO(zmb3) deprecate this
 				DelayMilliseconds: (i + 1) * s.delay,
 			}:

@@ -18,16 +18,9 @@
 
 import { act } from '@testing-library/react';
 import { mockIntersectionObserver } from 'jsdom-testing-mocks';
-import {
-  createRef,
-  FC,
-  forwardRef,
-  Profiler,
-  PropsWithChildren,
-  useImperativeHandle,
-} from 'react';
+import { createRef, forwardRef, useImperativeHandle } from 'react';
 
-import { Providers, render, screen } from 'design/utils/testing';
+import { render, screen } from 'design/utils/testing';
 import { ShowResources } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 import {
   AvailableResourceMode,
@@ -38,8 +31,6 @@ import {
 
 import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 import {
-  leafClusterUri,
-  makeLeafCluster,
   makeRootCluster,
   makeServer,
   rootClusterUri,
@@ -274,7 +265,7 @@ test.each([
   {
     name: 'refreshes resources when the document cluster URI matches the requested cluster URI',
     conditions: {
-      documentClusterUri: rootClusterUri,
+      documentClusterUri: '/clusters/teleport-local',
     },
     expect: {
       resourcesRefreshed: true,
@@ -283,7 +274,7 @@ test.each([
   {
     name: 'refreshes resources when the document cluster URI is a leaf of the requested cluster URI',
     conditions: {
-      documentClusterUri: leafClusterUri,
+      documentClusterUri: '/clusters/teleport-local/leaves/leaf',
     },
     expect: {
       resourcesRefreshed: true,
@@ -299,9 +290,6 @@ test.each([
   const serverResource = makeServer();
   const appContext = new MockAppContext();
   appContext.addRootClusterWithDoc(rootCluster, doc);
-  appContext.clustersService.setState(draft => {
-    draft.clusters.set(leafClusterUri, makeLeafCluster());
-  });
 
   jest
     .spyOn(appContext.resourcesService, 'listUnifiedResources')
@@ -376,76 +364,4 @@ const Refresher = forwardRef<
     requestResourcesRefresh: resourcesContext.requestResourcesRefresh,
   }));
   return null;
-});
-
-it('passes props with stable identity to <Resources>', async () => {
-  const rootCluster = makeRootCluster();
-  const doc = makeDocumentCluster({
-    clusterUri: rootCluster.uri,
-  });
-  const serverResource = makeServer();
-  const appContext = new MockAppContext();
-  appContext.addRootClusterWithDoc(rootCluster, doc);
-
-  jest
-    .spyOn(appContext.resourcesService, 'listUnifiedResources')
-    .mockResolvedValue({
-      resources: [
-        {
-          kind: 'server',
-          resource: serverResource,
-          requiresRequest: false,
-        },
-      ],
-      nextKey: '',
-    });
-
-  let renderCount = 0;
-  const onRender = () => (renderCount += 1);
-
-  const Wrapper: FC<PropsWithChildren> = ({ children }) => (
-    <Providers>
-      <MockAppContextProvider appContext={appContext}>
-        <MockWorkspaceContextProvider>
-          <ResourcesContextProvider>
-            <ConnectMyComputerContextProvider rootClusterUri={doc.clusterUri}>
-              <ConnectionsContextProvider>
-                <VnetContextProvider>{children}</VnetContextProvider>
-              </ConnectionsContextProvider>
-            </ConnectMyComputerContextProvider>
-          </ResourcesContextProvider>
-        </MockWorkspaceContextProvider>
-      </MockAppContextProvider>
-    </Providers>
-  );
-
-  const Component = () => (
-    <Profiler id="unifiedResources" onRender={onRender}>
-      <UnifiedResources
-        clusterUri={doc.clusterUri}
-        docUri={doc.uri}
-        queryParams={doc.queryParams}
-      />
-    </Profiler>
-  );
-
-  const { rerender } = render(<Component />, { wrapper: Wrapper });
-  act(mio.enterAll);
-  // Wait for resources to render.
-  await expect(
-    screen.findByText(serverResource.hostname)
-  ).resolves.toBeInTheDocument();
-  // oxlint-disable-next-line testing-library/render-result-naming-convention
-  const renderCountBeforeRerender = renderCount;
-
-  rerender(<Component />);
-  await expect(
-    screen.findByText(serverResource.hostname)
-  ).resolves.toBeInTheDocument();
-  const renderCountDelta = renderCount - renderCountBeforeRerender;
-
-  // When <Resources> is properly memoized and all params passed to it have stable identity,
-  // rerendering the outer <UnifiedResources> with no prop changes should cause only one render
-  // within the tree.
-  expect(renderCountDelta).toEqual(1);
 });

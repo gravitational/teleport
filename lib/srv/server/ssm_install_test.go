@@ -21,150 +21,62 @@ package server
 import (
 	"context"
 	"fmt"
-	"slices"
-	"strings"
+	"net/http"
 	"testing"
-	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/ssm"
-	ssmtypes "github.com/aws/aws-sdk-go-v2/service/ssm/types"
-	"github.com/gravitational/trace"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/aws/request"
+	"github.com/aws/aws-sdk-go/service/ssm"
+	"github.com/aws/aws-sdk-go/service/ssm/ssmiface"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/types/usertasks"
 	libevent "github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/srv/server/installer"
-	"github.com/gravitational/teleport/lib/srv/server/installstatus"
 )
 
 type mockSSMClient struct {
-	SSMClient
+	ssmiface.SSMAPI
 	commandOutput          *ssm.SendCommandOutput
-	waiterTimeout          bool
 	commandInvokeOutput    map[string]*ssm.GetCommandInvocationOutput
 	describeOutput         *ssm.DescribeInstanceInformationOutput
 	listCommandInvocations *ssm.ListCommandInvocationsOutput
 }
 
-func TestTrimToRecentTail(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name     string
-		input    *string
-		maxChars int
-		want     string
-	}{
-		{
-			name:     "returns full string when below limit",
-			input:    aws.String("line-a\nline-b"),
-			maxChars: len([]rune("line-a\nline-b")) + 1,
-			want:     "line-a\nline-b",
-		},
-		{
-			name: "keeps tail and aligns to line boundary",
-			input: aws.String(strings.Join([]string{
-				"line-1",
-				"line-2",
-				"line-3",
-				"line-4",
-			}, "\n")),
-			maxChars: len("e-2\nline-3\nline-4"),
-			want:     "line-3\nline-4",
-		},
-		{
-			name:     "handles multi-byte runes",
-			input:    aws.String("🙂🙂🙂\nlast"),
-			maxChars: 6,
-			want:     "last",
-		},
-		{
-			name:     "returns empty for nil input",
-			input:    nil,
-			maxChars: 10,
-			want:     "",
-		},
-		{
-			name:     "returns empty for non-positive max chars",
-			input:    aws.String("line-a"),
-			maxChars: 0,
-			want:     "",
-		},
-		{
-			name:     "keeps raw tail when no newline is present",
-			input:    aws.String("aaaaabbbbb"),
-			maxChars: 4,
-			want:     "bbbb",
-		},
-		{
-			name:     "keeps boundary-aligned tail when cut starts after newline",
-			input:    aws.String("line-1\nline-2"),
-			maxChars: len("line-2"),
-			want:     "line-2",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			require.Equal(t, tt.want, trimToRecentTail(tt.input, tt.maxChars))
-		})
-	}
-}
-
 const docWithoutSSHDConfigPathParam = "ssmdocument-without-sshdConfigPath-param"
 
-const docWithoutEnvParam = "ssmdocument-without-env-param"
-
-func (sm *mockSSMClient) SendCommand(_ context.Context, input *ssm.SendCommandInput, _ ...func(*ssm.Options)) (*ssm.SendCommandOutput, error) {
-	if _, hasExtraParam := input.Parameters["sshdConfigPath"]; hasExtraParam && aws.ToString(input.DocumentName) == docWithoutSSHDConfigPathParam {
+func (sm *mockSSMClient) SendCommandWithContext(_ context.Context, input *ssm.SendCommandInput, _ ...request.Option) (*ssm.SendCommandOutput, error) {
+	if _, hasExtraParam := input.Parameters["sshdConfigPath"]; hasExtraParam && aws.StringValue(input.DocumentName) == docWithoutSSHDConfigPathParam {
 		return nil, fmt.Errorf("InvalidParameters: document %s does not support parameters", docWithoutSSHDConfigPathParam)
 	}
-
-	if _, hasExtraParam := input.Parameters["env"]; hasExtraParam && aws.ToString(input.DocumentName) == docWithoutEnvParam {
-		return nil, fmt.Errorf("InvalidParameters: document %s does not support parameters", docWithoutEnvParam)
-	}
-
 	return sm.commandOutput, nil
 }
 
-func (sm *mockSSMClient) GetCommandInvocation(_ context.Context, input *ssm.GetCommandInvocationInput, _ ...func(*ssm.Options)) (*ssm.GetCommandInvocationOutput, error) {
-	if stepResult, found := sm.commandInvokeOutput[aws.ToString(input.PluginName)]; found {
+func (sm *mockSSMClient) GetCommandInvocationWithContext(_ context.Context, input *ssm.GetCommandInvocationInput, _ ...request.Option) (*ssm.GetCommandInvocationOutput, error) {
+	if stepResult, found := sm.commandInvokeOutput[aws.StringValue(input.PluginName)]; found {
 		return stepResult, nil
 	}
-	return nil, &ssmtypes.InvalidPluginName{}
+	return nil, &ssm.InvalidPluginName{}
 }
 
-func (sm *mockSSMClient) DescribeInstanceInformation(_ context.Context, input *ssm.DescribeInstanceInformationInput, _ ...func(*ssm.Options)) (*ssm.DescribeInstanceInformationOutput, error) {
+func (sm *mockSSMClient) DescribeInstanceInformationWithContext(_ context.Context, input *ssm.DescribeInstanceInformationInput, _ ...request.Option) (*ssm.DescribeInstanceInformationOutput, error) {
 	if sm.describeOutput == nil {
-		return nil, trace.AccessDenied("")
+		return nil, awserr.NewRequestFailure(awserr.New("AccessDeniedException", "message", nil), http.StatusBadRequest, uuid.NewString())
 	}
 	return sm.describeOutput, nil
 }
 
-func (sm *mockSSMClient) ListCommandInvocations(_ context.Context, input *ssm.ListCommandInvocationsInput, _ ...func(*ssm.Options)) (*ssm.ListCommandInvocationsOutput, error) {
+func (sm *mockSSMClient) ListCommandInvocationsWithContext(aws.Context, *ssm.ListCommandInvocationsInput, ...request.Option) (*ssm.ListCommandInvocationsOutput, error) {
 	if sm.listCommandInvocations == nil {
-		return nil, trace.AccessDenied("")
+		return nil, awserr.NewRequestFailure(awserr.New("AccessDeniedException", "message", nil), http.StatusBadRequest, uuid.NewString())
 	}
 	return sm.listCommandInvocations, nil
 }
 
-func (sm *mockSSMClient) Wait(ctx context.Context, params *ssm.GetCommandInvocationInput, maxWaitDur time.Duration, optFns ...func(*ssm.CommandExecutedWaiterOptions)) error {
-	if sm.waiterTimeout {
-		return trace.Errorf(waiterTimedOutErrorMessage)
-	}
-
-	var failureStates = []ssmtypes.CommandStatus{
-		ssmtypes.CommandStatusCancelled,
-		ssmtypes.CommandStatusFailed,
-		ssmtypes.CommandStatusTimedOut,
-		ssmtypes.CommandStatusCancelling,
-	}
-
-	if slices.Contains(failureStates, sm.commandOutput.Command.Status) {
-		return trace.Errorf(waiterTransitionedToFailureErrorMessage)
+func (sm *mockSSMClient) WaitUntilCommandExecutedWithContext(aws.Context, *ssm.GetCommandInvocationInput, ...request.WaiterOption) error {
+	if aws.StringValue(sm.commandOutput.Command.Status) == ssm.CommandStatusFailed {
+		return awserr.New(request.WaiterResourceNotReadyErrorCode, "err", nil)
 	}
 	return nil
 }
@@ -180,16 +92,10 @@ func (me *mockInstallationResults) ReportInstallationResult(ctx context.Context,
 
 func TestSSMInstaller(t *testing.T) {
 	document := "ssmdocument"
-	joinFailureTimeout := installer.JoinFailureTimeout.String()
-	joinFailureMessage := fmt.Sprintf("node did not become ready (join cluster) within %s", joinFailureTimeout)
-	joinFailureStatus := fmt.Sprintf("Teleport was installed successfully but the agent did not become ready within the configured timeout. Check standard error output for join diagnostics. (timeout: %s)", joinFailureTimeout)
-	joinFailureStandardError := fmt.Sprintf("ERROR: join failure: token is expired or not found; %s", joinFailureMessage)
 
 	for _, tc := range []struct {
-		client                *mockSSMClient
 		req                   SSMRunRequest
 		expectedInstallations []*SSMInstallationResult
-		expectedRunErrCheck   require.ErrorAssertionFunc
 		name                  string
 	}{
 		{
@@ -202,25 +108,25 @@ func TestSSMInstaller(t *testing.T) {
 				Params:              map[string]string{"token": "abcdefg"},
 				IntegrationName:     "aws-integration",
 				DiscoveryConfigName: "dc001",
-				Region:              "eu-central-1",
-				AccountID:           "account-id",
-			},
-			client: &mockSSMClient{
-				commandOutput: &ssm.SendCommandOutput{
-					Command: &ssmtypes.Command{
-						CommandId: aws.String("command-id-1"),
+				SSM: &mockSSMClient{
+					commandOutput: &ssm.SendCommandOutput{
+						Command: &ssm.Command{
+							CommandId: aws.String("command-id-1"),
+						},
+					},
+					commandInvokeOutput: map[string]*ssm.GetCommandInvocationOutput{
+						"downloadContent": {
+							Status:       aws.String(ssm.CommandStatusSuccess),
+							ResponseCode: aws.Int64(0),
+						},
+						"runShellScript": {
+							Status:       aws.String(ssm.CommandStatusSuccess),
+							ResponseCode: aws.Int64(0),
+						},
 					},
 				},
-				commandInvokeOutput: map[string]*ssm.GetCommandInvocationOutput{
-					"downloadContent": {
-						Status:       ssmtypes.CommandInvocationStatusSuccess,
-						ResponseCode: 0,
-					},
-					"runShellScript": {
-						Status:       ssmtypes.CommandInvocationStatusSuccess,
-						ResponseCode: 0,
-					},
-				},
+				Region:    "eu-central-1",
+				AccountID: "account-id",
 			},
 			expectedInstallations: []*SSMInstallationResult{{
 				IntegrationName:     "aws-integration",
@@ -235,7 +141,7 @@ func TestSSMInstaller(t *testing.T) {
 					AccountID:     "account-id",
 					Region:        "eu-central-1",
 					ExitCode:      0,
-					Status:        string(ssmtypes.CommandInvocationStatusSuccess),
+					Status:        ssm.CommandStatusSuccess,
 					InvocationURL: "https://eu-central-1.console.aws.amazon.com/systems-manager/run-command/command-id-1/instance-id-1",
 				},
 				IssueType:       "ec2-ssm-script-failure",
@@ -251,25 +157,25 @@ func TestSSMInstaller(t *testing.T) {
 				},
 				DocumentName: docWithoutSSHDConfigPathParam,
 				Params:       map[string]string{"sshdConfigPath": "abcdefg"},
-				Region:       "eu-central-1",
-				AccountID:    "account-id",
-			},
-			client: &mockSSMClient{
-				commandOutput: &ssm.SendCommandOutput{
-					Command: &ssmtypes.Command{
-						CommandId: aws.String("command-id-1"),
+				SSM: &mockSSMClient{
+					commandOutput: &ssm.SendCommandOutput{
+						Command: &ssm.Command{
+							CommandId: aws.String("command-id-1"),
+						},
+					},
+					commandInvokeOutput: map[string]*ssm.GetCommandInvocationOutput{
+						"downloadContent": {
+							Status:       aws.String(ssm.CommandStatusSuccess),
+							ResponseCode: aws.Int64(0),
+						},
+						"runShellScript": {
+							Status:       aws.String(ssm.CommandStatusSuccess),
+							ResponseCode: aws.Int64(0),
+						},
 					},
 				},
-				commandInvokeOutput: map[string]*ssm.GetCommandInvocationOutput{
-					"downloadContent": {
-						Status:       ssmtypes.CommandInvocationStatusSuccess,
-						ResponseCode: 0,
-					},
-					"runShellScript": {
-						Status:       ssmtypes.CommandInvocationStatusSuccess,
-						ResponseCode: 0,
-					},
-				},
+				Region:    "eu-central-1",
+				AccountID: "account-id",
 			},
 			expectedInstallations: []*SSMInstallationResult{{
 				SSMRunEvent: &events.SSMRun{
@@ -282,44 +188,12 @@ func TestSSMInstaller(t *testing.T) {
 					AccountID:     "account-id",
 					Region:        "eu-central-1",
 					ExitCode:      0,
-					Status:        string(ssmtypes.CommandInvocationStatusSuccess),
+					Status:        ssm.CommandStatusSuccess,
 					InvocationURL: "https://eu-central-1.console.aws.amazon.com/systems-manager/run-command/command-id-1/instance-id-1",
 				},
 				IssueType:       "ec2-ssm-script-failure",
 				SSMDocumentName: "ssmdocument-without-sshdConfigPath-param",
 			}},
-		},
-		{
-			name: "params do not include env",
-			req: SSMRunRequest{
-				Instances: []EC2Instance{
-					{InstanceID: "instance-id-1"},
-				},
-				DocumentName: docWithoutEnvParam,
-				Params:       map[string]string{"env": "FOO=bar BAZ=qux"},
-				Region:       "eu-central-1",
-				AccountID:    "account-id",
-			},
-			client: &mockSSMClient{
-				commandOutput: &ssm.SendCommandOutput{
-					Command: &ssmtypes.Command{
-						CommandId: aws.String("command-id-1"),
-					},
-				},
-				commandInvokeOutput: map[string]*ssm.GetCommandInvocationOutput{
-					"downloadContent": {
-						Status:       ssmtypes.CommandInvocationStatusSuccess,
-						ResponseCode: 0,
-					},
-					"runShellScript": {
-						Status:       ssmtypes.CommandInvocationStatusSuccess,
-						ResponseCode: 0,
-					},
-				},
-			},
-			expectedRunErrCheck: func(tt require.TestingT, err error, i ...interface{}) {
-				require.ErrorContains(tt, err, "update the document")
-			},
 		},
 		{
 			name: "ssm run failed in download content",
@@ -330,24 +204,23 @@ func TestSSMInstaller(t *testing.T) {
 				},
 				IntegrationName: "aws-1",
 				Params:          map[string]string{"token": "abcdefg"},
-				Region:          "eu-central-1",
-				AccountID:       "account-id",
-			},
-			client: &mockSSMClient{
-				commandOutput: &ssm.SendCommandOutput{
-					Command: &ssmtypes.Command{
-						CommandId: aws.String("command-id-1"),
-						Status:    ssmtypes.CommandStatusFailed,
+				SSM: &mockSSMClient{
+					commandOutput: &ssm.SendCommandOutput{
+						Command: &ssm.Command{
+							CommandId: aws.String("command-id-1"),
+						},
+					},
+					commandInvokeOutput: map[string]*ssm.GetCommandInvocationOutput{
+						"downloadContent": {
+							Status:                aws.String(ssm.CommandStatusFailed),
+							ResponseCode:          aws.Int64(1),
+							StandardErrorContent:  aws.String("timeout error"),
+							StandardOutputContent: aws.String(""),
+						},
 					},
 				},
-				commandInvokeOutput: map[string]*ssm.GetCommandInvocationOutput{
-					"downloadContent": {
-						Status:                ssmtypes.CommandInvocationStatusFailed,
-						ResponseCode:          1,
-						StandardErrorContent:  aws.String("timeout error"),
-						StandardOutputContent: aws.String(""),
-					},
-				},
+				Region:    "eu-central-1",
+				AccountID: "account-id",
 			},
 			expectedInstallations: []*SSMInstallationResult{{
 				IntegrationName: "aws-1",
@@ -361,58 +234,9 @@ func TestSSMInstaller(t *testing.T) {
 					AccountID:      "account-id",
 					Region:         "eu-central-1",
 					ExitCode:       1,
-					Status:         "Installation failed with exit code 1. Please check stdout and stderr and try again.",
+					Status:         ssm.CommandStatusFailed,
 					StandardOutput: "",
 					StandardError:  "timeout error",
-					InvocationURL:  "https://eu-central-1.console.aws.amazon.com/systems-manager/run-command/command-id-1/instance-id-1",
-				},
-				IssueType:       "ec2-ssm-script-failure",
-				SSMDocumentName: "ssmdocument",
-			}},
-		},
-		{
-			name: "ssm run takes too long, and waiter times out",
-			req: SSMRunRequest{
-				DocumentName: document,
-				Instances: []EC2Instance{
-					{InstanceID: "instance-id-1"},
-				},
-				IntegrationName: "aws-1",
-				Params:          map[string]string{"token": "abcdefg"},
-				Region:          "eu-central-1",
-				AccountID:       "account-id",
-			},
-			client: &mockSSMClient{
-				waiterTimeout: true,
-				commandOutput: &ssm.SendCommandOutput{
-					Command: &ssmtypes.Command{
-						CommandId: aws.String("command-id-1"),
-						Status:    ssmtypes.CommandStatusInProgress,
-					},
-				},
-				commandInvokeOutput: map[string]*ssm.GetCommandInvocationOutput{
-					"downloadContent": {
-						Status:                ssmtypes.CommandInvocationStatusInProgress,
-						StandardErrorContent:  aws.String("downloading..."),
-						StandardOutputContent: aws.String(""),
-					},
-				},
-			},
-			expectedInstallations: []*SSMInstallationResult{{
-				IntegrationName: "aws-1",
-				SSMRunEvent: &events.SSMRun{
-					Metadata: events.Metadata{
-						Type: libevent.SSMRunEvent,
-						Code: libevent.SSMRunFailCode,
-					},
-					CommandID:      "command-id-1",
-					InstanceID:     "instance-id-1",
-					AccountID:      "account-id",
-					Region:         "eu-central-1",
-					ExitCode:       -1,
-					Status:         string(ssmtypes.CommandInvocationStatusInProgress),
-					StandardOutput: "",
-					StandardError:  "downloading...",
 					InvocationURL:  "https://eu-central-1.console.aws.amazon.com/systems-manager/run-command/command-id-1/instance-id-1",
 				},
 				IssueType:       "ec2-ssm-script-failure",
@@ -426,31 +250,30 @@ func TestSSMInstaller(t *testing.T) {
 				Instances: []EC2Instance{
 					{InstanceID: "instance-id-1"},
 				},
-				Params:    map[string]string{"token": "abcdefg"},
+				Params: map[string]string{"token": "abcdefg"},
+				SSM: &mockSSMClient{
+					commandOutput: &ssm.SendCommandOutput{
+						Command: &ssm.Command{
+							CommandId: aws.String("command-id-1"),
+						},
+					},
+					commandInvokeOutput: map[string]*ssm.GetCommandInvocationOutput{
+						"downloadContent": {
+							Status:                aws.String(ssm.CommandStatusSuccess),
+							ResponseCode:          aws.Int64(0),
+							StandardErrorContent:  aws.String("no error"),
+							StandardOutputContent: aws.String(""),
+						},
+						"runShellScript": {
+							Status:                aws.String(ssm.CommandStatusFailed),
+							ResponseCode:          aws.Int64(1),
+							StandardErrorContent:  aws.String("timeout error"),
+							StandardOutputContent: aws.String(""),
+						},
+					},
+				},
 				Region:    "eu-central-1",
 				AccountID: "account-id",
-			},
-			client: &mockSSMClient{
-				commandOutput: &ssm.SendCommandOutput{
-					Command: &ssmtypes.Command{
-						CommandId: aws.String("command-id-1"),
-						Status:    ssmtypes.CommandStatusFailed,
-					},
-				},
-				commandInvokeOutput: map[string]*ssm.GetCommandInvocationOutput{
-					"downloadContent": {
-						Status:                ssmtypes.CommandInvocationStatusSuccess,
-						ResponseCode:          0,
-						StandardErrorContent:  aws.String("no error"),
-						StandardOutputContent: aws.String(""),
-					},
-					"runShellScript": {
-						Status:                ssmtypes.CommandInvocationStatusFailed,
-						ResponseCode:          1,
-						StandardErrorContent:  aws.String("timeout error"),
-						StandardOutputContent: aws.String(""),
-					},
-				},
 			},
 			expectedInstallations: []*SSMInstallationResult{{
 				SSMRunEvent: &events.SSMRun{
@@ -463,107 +286,9 @@ func TestSSMInstaller(t *testing.T) {
 					AccountID:      "account-id",
 					Region:         "eu-central-1",
 					ExitCode:       1,
-					Status:         "Installation failed with exit code 1. Please check stdout and stderr and try again.",
+					Status:         ssm.CommandStatusFailed,
 					StandardOutput: "",
 					StandardError:  "timeout error",
-					InvocationURL:  "https://eu-central-1.console.aws.amazon.com/systems-manager/run-command/command-id-1/instance-id-1",
-				},
-				IssueType:       "ec2-ssm-script-failure",
-				SSMDocumentName: "ssmdocument",
-			}},
-		},
-		{
-			name: "ssm run failed in run shell script with join failure exit code",
-			req: SSMRunRequest{
-				DocumentName: document,
-				Instances: []EC2Instance{
-					{InstanceID: "instance-id-1"},
-				},
-				Params:    map[string]string{"token": "abcdefg"},
-				Region:    "eu-central-1",
-				AccountID: "account-id",
-			},
-			client: &mockSSMClient{
-				commandOutput: &ssm.SendCommandOutput{
-					Command: &ssmtypes.Command{
-						CommandId: aws.String("command-id-1"),
-						Status:    ssmtypes.CommandStatusFailed,
-					},
-				},
-				commandInvokeOutput: map[string]*ssm.GetCommandInvocationOutput{
-					"downloadContent": {
-						Status:       ssmtypes.CommandInvocationStatusSuccess,
-						ResponseCode: 0,
-					},
-					"runShellScript": {
-						Status:                ssmtypes.CommandInvocationStatusFailed,
-						ResponseCode:          150,
-						StandardErrorContent:  aws.String(joinFailureStandardError),
-						StandardOutputContent: aws.String(""),
-					},
-				},
-			},
-			expectedInstallations: []*SSMInstallationResult{{
-				SSMRunEvent: &events.SSMRun{
-					Metadata: events.Metadata{
-						Type: libevent.SSMRunEvent,
-						Code: libevent.SSMRunFailCode,
-					},
-					CommandID:      "command-id-1",
-					InstanceID:     "instance-id-1",
-					AccountID:      "account-id",
-					Region:         "eu-central-1",
-					ExitCode:       150,
-					Status:         joinFailureStatus,
-					StandardOutput: "",
-					StandardError:  joinFailureStandardError,
-					InvocationURL:  "https://eu-central-1.console.aws.amazon.com/systems-manager/run-command/command-id-1/instance-id-1",
-				},
-				IssueType:       "ec2-join-failure",
-				SSMDocumentName: "ssmdocument",
-			}},
-		},
-		{
-			name: "non-failed command invocation status with join failure exit code remains script failure",
-			req: SSMRunRequest{
-				DocumentName: document,
-				Instances: []EC2Instance{
-					{InstanceID: "instance-id-1"},
-				},
-				Region:    "eu-central-1",
-				AccountID: "account-id",
-			},
-			client: &mockSSMClient{
-				waiterTimeout: true,
-				commandOutput: &ssm.SendCommandOutput{
-					Command: &ssmtypes.Command{
-						CommandId: aws.String("command-id-1"),
-						Status:    ssmtypes.CommandStatusInProgress,
-					},
-				},
-				commandInvokeOutput: map[string]*ssm.GetCommandInvocationOutput{
-					"downloadContent": {
-						Status:                ssmtypes.CommandInvocationStatusInProgress,
-						ResponseCode:          150,
-						StandardErrorContent:  aws.String("still running"),
-						StandardOutputContent: aws.String(""),
-					},
-				},
-			},
-			expectedInstallations: []*SSMInstallationResult{{
-				SSMRunEvent: &events.SSMRun{
-					Metadata: events.Metadata{
-						Type: libevent.SSMRunEvent,
-						Code: libevent.SSMRunFailCode,
-					},
-					CommandID:      "command-id-1",
-					InstanceID:     "instance-id-1",
-					AccountID:      "account-id",
-					Region:         "eu-central-1",
-					ExitCode:       150,
-					Status:         string(ssmtypes.CommandInvocationStatusInProgress),
-					StandardOutput: "",
-					StandardError:  "still running",
 					InvocationURL:  "https://eu-central-1.console.aws.amazon.com/systems-manager/run-command/command-id-1/instance-id-1",
 				},
 				IssueType:       "ec2-ssm-script-failure",
@@ -581,50 +306,44 @@ func TestSSMInstaller(t *testing.T) {
 				},
 				DocumentName: document,
 				Params:       map[string]string{"token": "abcdefg"},
-				Region:       "eu-central-1",
-				AccountID:    "account-id",
-			},
-			client: &mockSSMClient{
-				commandOutput: &ssm.SendCommandOutput{
-					Command: &ssmtypes.Command{
-						CommandId: aws.String("command-id-1"),
-					},
-				},
-				commandInvokeOutput: map[string]*ssm.GetCommandInvocationOutput{
-					"downloadContent": {
-						Status:       ssmtypes.CommandInvocationStatusSuccess,
-						ResponseCode: 0,
-					},
-					"runShellScript": {
-						Status:       ssmtypes.CommandInvocationStatusSuccess,
-						ResponseCode: 0,
-					},
-				},
-				describeOutput: &ssm.DescribeInstanceInformationOutput{
-					InstanceInformationList: []ssmtypes.InstanceInformation{
-						{
-							InstanceId:      aws.String("instance-id-1"),
-							PingStatus:      ssmtypes.PingStatusOnline,
-							PlatformName:    aws.String("Amazon Linux"),
-							PlatformType:    ssmtypes.PlatformTypeLinux,
-							PlatformVersion: aws.String("2023.5.20240916"),
+				SSM: &mockSSMClient{
+					commandOutput: &ssm.SendCommandOutput{
+						Command: &ssm.Command{
+							CommandId: aws.String("command-id-1"),
 						},
-						{
-							InstanceId:      aws.String("instance-id-2"),
-							PingStatus:      ssmtypes.PingStatusConnectionLost,
-							PlatformName:    aws.String("Amazon Linux"),
-							PlatformType:    ssmtypes.PlatformTypeLinux,
-							PlatformVersion: aws.String("2023.5.20240916"),
+					},
+					commandInvokeOutput: map[string]*ssm.GetCommandInvocationOutput{
+						"downloadContent": {
+							Status:       aws.String(ssm.CommandStatusSuccess),
+							ResponseCode: aws.Int64(0),
 						},
-						{
-							InstanceId:      aws.String("instance-id-3"),
-							PingStatus:      ssmtypes.PingStatusOnline,
-							PlatformName:    aws.String("Windows Server 2022 Datacenter"),
-							PlatformType:    ssmtypes.PlatformTypeWindows,
-							PlatformVersion: aws.String("10.0.20348"),
+						"runShellScript": {
+							Status:       aws.String(ssm.CommandStatusSuccess),
+							ResponseCode: aws.Int64(0),
+						},
+					},
+					describeOutput: &ssm.DescribeInstanceInformationOutput{
+						InstanceInformationList: []*ssm.InstanceInformation{
+							{
+								InstanceId:   aws.String("instance-id-1"),
+								PingStatus:   aws.String("Online"),
+								PlatformType: aws.String("Linux"),
+							},
+							{
+								InstanceId:   aws.String("instance-id-2"),
+								PingStatus:   aws.String("ConnectionLost"),
+								PlatformType: aws.String("Linux"),
+							},
+							{
+								InstanceId:   aws.String("instance-id-3"),
+								PingStatus:   aws.String("Online"),
+								PlatformType: aws.String("Windows"),
+							},
 						},
 					},
 				},
+				Region:    "eu-central-1",
+				AccountID: "account-id",
 			},
 			expectedInstallations: []*SSMInstallationResult{
 				{
@@ -633,16 +352,13 @@ func TestSSMInstaller(t *testing.T) {
 							Type: libevent.SSMRunEvent,
 							Code: libevent.SSMRunSuccessCode,
 						},
-						CommandID:       "command-id-1",
-						InstanceID:      "instance-id-1",
-						AccountID:       "account-id",
-						Region:          "eu-central-1",
-						ExitCode:        0,
-						Status:          string(ssmtypes.CommandInvocationStatusSuccess),
-						InvocationURL:   "https://eu-central-1.console.aws.amazon.com/systems-manager/run-command/command-id-1/instance-id-1",
-						PlatformName:    "Amazon Linux",
-						PlatformType:    "Linux",
-						PlatformVersion: "2023.5.20240916",
+						CommandID:     "command-id-1",
+						InstanceID:    "instance-id-1",
+						AccountID:     "account-id",
+						Region:        "eu-central-1",
+						ExitCode:      0,
+						Status:        ssm.CommandStatusSuccess,
+						InvocationURL: "https://eu-central-1.console.aws.amazon.com/systems-manager/run-command/command-id-1/instance-id-1",
 					},
 					IssueType:       "ec2-ssm-script-failure",
 					SSMDocumentName: "ssmdocument",
@@ -653,15 +369,12 @@ func TestSSMInstaller(t *testing.T) {
 							Type: libevent.SSMRunEvent,
 							Code: libevent.SSMRunFailCode,
 						},
-						CommandID:       "no-command",
-						InstanceID:      "instance-id-2",
-						AccountID:       "account-id",
-						Region:          "eu-central-1",
-						ExitCode:        -1,
-						Status:          "SSM Agent in EC2 Instance is not connecting to SSM Service. Restart or reinstall the SSM service. See https://docs.aws.amazon.com/systems-manager/latest/userguide/ami-preinstalled-agent.html#verify-ssm-agent-status for more details.",
-						PlatformName:    "Amazon Linux",
-						PlatformType:    "Linux",
-						PlatformVersion: "2023.5.20240916",
+						CommandID:  "no-command",
+						InstanceID: "instance-id-2",
+						AccountID:  "account-id",
+						Region:     "eu-central-1",
+						ExitCode:   -1,
+						Status:     "SSM Agent in EC2 Instance is not connecting to SSM Service. Restart or reinstall the SSM service. See https://docs.aws.amazon.com/systems-manager/latest/userguide/ami-preinstalled-agent.html#verify-ssm-agent-status for more details.",
 					},
 					IssueType:       "ec2-ssm-agent-connection-lost",
 					SSMDocumentName: "ssmdocument",
@@ -672,15 +385,12 @@ func TestSSMInstaller(t *testing.T) {
 							Type: libevent.SSMRunEvent,
 							Code: libevent.SSMRunFailCode,
 						},
-						CommandID:       "no-command",
-						InstanceID:      "instance-id-3",
-						AccountID:       "account-id",
-						Region:          "eu-central-1",
-						ExitCode:        -1,
-						Status:          "EC2 instance is running an unsupported Operating System. Only Linux is supported.",
-						PlatformName:    "Windows Server 2022 Datacenter",
-						PlatformType:    "Windows",
-						PlatformVersion: "10.0.20348",
+						CommandID:  "no-command",
+						InstanceID: "instance-id-3",
+						AccountID:  "account-id",
+						Region:     "eu-central-1",
+						ExitCode:   -1,
+						Status:     "EC2 instance is running an unsupported Operating System. Only Linux is supported.",
 					},
 					IssueType:       "ec2-ssm-unsupported-os",
 					SSMDocumentName: "ssmdocument",
@@ -711,34 +421,34 @@ func TestSSMInstaller(t *testing.T) {
 				},
 				DocumentName: document,
 				Params:       map[string]string{"token": "abcdefg"},
-				Region:       "eu-central-1",
-				AccountID:    "account-id",
-			},
-			client: &mockSSMClient{
-				commandOutput: &ssm.SendCommandOutput{
-					Command: &ssmtypes.Command{
-						CommandId: aws.String("command-id-1"),
-					},
-				},
-				commandInvokeOutput: map[string]*ssm.GetCommandInvocationOutput{
-					"downloadContentCustom": {
-						Status:       ssmtypes.CommandInvocationStatusSuccess,
-						ResponseCode: 0,
-					},
-					"runShellScriptCustom": {
-						Status:                ssmtypes.CommandInvocationStatusSuccess,
-						ResponseCode:          0,
-						StandardOutputContent: aws.String("custom output"),
-					},
-				},
-				listCommandInvocations: &ssm.ListCommandInvocationsOutput{
-					CommandInvocations: []ssmtypes.CommandInvocation{{
-						CommandPlugins: []ssmtypes.CommandPlugin{
-							{Name: aws.String("downloadContentCustom")},
-							{Name: aws.String("runShellScriptCustom")},
+				SSM: &mockSSMClient{
+					commandOutput: &ssm.SendCommandOutput{
+						Command: &ssm.Command{
+							CommandId: aws.String("command-id-1"),
 						},
-					}},
+					},
+					commandInvokeOutput: map[string]*ssm.GetCommandInvocationOutput{
+						"downloadContentCustom": {
+							Status:       aws.String(ssm.CommandStatusSuccess),
+							ResponseCode: aws.Int64(0),
+						},
+						"runShellScriptCustom": {
+							Status:                aws.String(ssm.CommandStatusSuccess),
+							ResponseCode:          aws.Int64(0),
+							StandardOutputContent: aws.String("custom output"),
+						},
+					},
+					listCommandInvocations: &ssm.ListCommandInvocationsOutput{
+						CommandInvocations: []*ssm.CommandInvocation{{
+							CommandPlugins: []*ssm.CommandPlugin{
+								{Name: aws.String("downloadContentCustom")},
+								{Name: aws.String("runShellScriptCustom")},
+							},
+						}},
+					},
 				},
+				Region:    "eu-central-1",
+				AccountID: "account-id",
 			},
 			expectedInstallations: []*SSMInstallationResult{{
 				SSMRunEvent: &events.SSMRun{
@@ -751,7 +461,7 @@ func TestSSMInstaller(t *testing.T) {
 					AccountID:      "account-id",
 					Region:         "eu-central-1",
 					ExitCode:       0,
-					Status:         string(ssmtypes.CommandInvocationStatusSuccess),
+					Status:         ssm.CommandStatusSuccess,
 					StandardOutput: "custom output",
 					InvocationURL:  "https://eu-central-1.console.aws.amazon.com/systems-manager/run-command/command-id-1/instance-id-1",
 				},
@@ -767,21 +477,21 @@ func TestSSMInstaller(t *testing.T) {
 				},
 				DocumentName: document,
 				Params:       map[string]string{"token": "abcdefg"},
-				Region:       "eu-central-1",
-				AccountID:    "account-id",
-			},
-			client: &mockSSMClient{
-				commandOutput: &ssm.SendCommandOutput{
-					Command: &ssmtypes.Command{
-						CommandId: aws.String("command-id-1"),
+				SSM: &mockSSMClient{
+					commandOutput: &ssm.SendCommandOutput{
+						Command: &ssm.Command{
+							CommandId: aws.String("command-id-1"),
+						},
+					},
+					commandInvokeOutput: map[string]*ssm.GetCommandInvocationOutput{
+						"": {
+							Status:       aws.String(ssm.CommandStatusSuccess),
+							ResponseCode: aws.Int64(0),
+						},
 					},
 				},
-				commandInvokeOutput: map[string]*ssm.GetCommandInvocationOutput{
-					"": {
-						Status:       ssmtypes.CommandInvocationStatusSuccess,
-						ResponseCode: 0,
-					},
-				},
+				Region:    "eu-central-1",
+				AccountID: "account-id",
 			},
 			expectedInstallations: []*SSMInstallationResult{{
 				SSMRunEvent: &events.SSMRun{
@@ -794,7 +504,7 @@ func TestSSMInstaller(t *testing.T) {
 					AccountID:     "account-id",
 					Region:        "eu-central-1",
 					ExitCode:      0,
-					Status:        string(ssmtypes.CommandInvocationStatusSuccess),
+					Status:        ssm.CommandStatusSuccess,
 					InvocationURL: "https://eu-central-1.console.aws.amazon.com/systems-manager/run-command/command-id-1/instance-id-1",
 				},
 				IssueType:       "ec2-ssm-script-failure",
@@ -806,58 +516,16 @@ func TestSSMInstaller(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx := context.Background()
-			tc.req.SSM = tc.client
 			installationResultsCollector := &mockInstallationResults{}
 			inst, err := NewSSMInstaller(SSMInstallerConfig{
 				ReportSSMInstallationResultFunc: installationResultsCollector.ReportInstallationResult,
-				getWaiter:                       func(s SSMClient) commandWaiter { return tc.client },
 			})
 			require.NoError(t, err)
 
 			err = inst.Run(ctx, tc.req)
-			if tc.expectedRunErrCheck != nil {
-				tc.expectedRunErrCheck(t, err)
-			} else {
-				require.NoError(t, err)
-			}
+			require.NoError(t, err)
 
 			require.ElementsMatch(t, tc.expectedInstallations, installationResultsCollector.installations)
-		})
-	}
-}
-
-func TestClassifyEC2SSMInvocationIssueType(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name     string
-		status   ssmtypes.CommandInvocationStatus
-		exitCode int64
-		want     string
-	}{
-		{
-			name:     "failed with join failure exit code maps to join failure issue",
-			status:   ssmtypes.CommandInvocationStatusFailed,
-			exitCode: int64(installstatus.JoinFailure),
-			want:     usertasks.AutoDiscoverEC2IssueJoinFailure,
-		},
-		{
-			name:     "failed with other exit code maps to script failure issue",
-			status:   ssmtypes.CommandInvocationStatusFailed,
-			exitCode: 1,
-			want:     usertasks.AutoDiscoverEC2IssueSSMScriptFailure,
-		},
-		{
-			name:     "in progress with join failure exit code stays script failure issue",
-			status:   ssmtypes.CommandInvocationStatusInProgress,
-			exitCode: int64(installstatus.JoinFailure),
-			want:     usertasks.AutoDiscoverEC2IssueSSMScriptFailure,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.want, classifyEC2SSMInvocationIssueType(tt.status, tt.exitCode))
 		})
 	}
 }

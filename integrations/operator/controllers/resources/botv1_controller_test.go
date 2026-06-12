@@ -35,7 +35,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
 	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
-	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
 	"github.com/gravitational/teleport/lib/defaults"
 )
@@ -165,20 +164,15 @@ func (g *botTestingPrimitives) CompareTeleportAndKubernetesResource(
 
 func TestBotCreation(t *testing.T) {
 	test := &botTestingPrimitives{}
-	testlib.ResourceCreationSynchronousTest(t, resources.NewBotV1Reconciler, test)
-}
-
-func TestBotDeletion(t *testing.T) {
-	test := &botTestingPrimitives{}
-	testlib.ResourceDeletionSynchronousTest(t, resources.NewBotV1Reconciler, test)
+	testlib.ResourceCreationTest[*machineidv1.Bot, *resourcesv1.TeleportBotV1](t, test)
 }
 
 func TestBotDeletionDrift(t *testing.T) {
 	test := &botTestingPrimitives{}
-	testlib.ResourceDeletionDriftSynchronousTest(t, resources.NewBotV1Reconciler, test)
+	testlib.ResourceDeletionDriftTest[*machineidv1.Bot, *resourcesv1.TeleportBotV1](t, test)
 }
 
 func TestBotUpdate(t *testing.T) {
 	test := &botTestingPrimitives{}
-	testlib.ResourceUpdateTestSynchronous(t, resources.NewBotV1Reconciler, test)
+	testlib.ResourceUpdateTest[*machineidv1.Bot, *resourcesv1.TeleportBotV1](t, test)
 }

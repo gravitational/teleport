@@ -31,7 +31,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
-	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/entitlements"
@@ -45,9 +44,6 @@ const (
 	TestPassword = "UPDATER_TEST_PASSWORD"
 	// TestBuild is env var for setting test build type during the test.
 	TestBuild = "UPDATER_TEST_BUILD"
-	// TestRequireFastReExecOnly is an envvar to require "fast" (local-only)
-	// re-execution for client tools.
-	TestRequireFastReExecOnly = "UPDATER_TEST_FAST_REEXEC_ONLY"
 )
 
 func init() {
@@ -62,28 +58,12 @@ func init() {
 	if len(parts) > 2 {
 		tools.Version = parts[len(parts)-2]
 	}
-
-	if e := os.Getenv(TestRequireFastReExecOnly); e != "" {
-		b, err := apiutils.ParseBool(e)
-		if err != nil {
-			panic(err)
-		}
-		tools.FastReExecOnly = b
-	}
 }
 
 type TestModules struct{}
 
-func (p *TestModules) GenerateLongTermResourceGrouping(context.Context, modules.AccessResourcesGetter, types.AccessRequest) (*types.LongTermResourceGrouping, error) {
-	return &types.LongTermResourceGrouping{}, nil
-}
-
 func (p *TestModules) GenerateAccessRequestPromotions(context.Context, modules.AccessResourcesGetter, types.AccessRequest) (*types.AccessRequestAllowedPromotions, error) {
 	return &types.AccessRequestAllowedPromotions{}, nil
-}
-
-func (p *TestModules) GenerateAccessRequestSuggestedReviewers(context.Context, modules.AccessResourcesGetter, types.AccessRequest) ([]string, error) {
-	return []string{}, nil
 }
 
 func (p *TestModules) GetSuggestedAccessLists(context.Context, *tlsca.Identity, modules.AccessListSuggestionClient, modules.AccessListAndMembersGetter, string) ([]*accesslist.AccessList, error) {
@@ -126,13 +106,13 @@ func (p *TestModules) Features() modules.Features {
 	}
 }
 
-// IsFIPSBuild checks if the binary was compiled in FIPS140 mode.
-func (p *TestModules) IsFIPSBuild() bool {
+// IsBoringBinary checks if the binary was compiled with BoringCrypto.
+func (p *TestModules) IsBoringBinary() bool {
 	return false
 }
 
 // AttestHardwareKey attests a hardware key.
-func (p *TestModules) AttestHardwareKey(context.Context, any, *hardwarekey.AttestationStatement, crypto.PublicKey, time.Duration) (*keys.AttestationData, error) {
+func (p *TestModules) AttestHardwareKey(context.Context, interface{}, *hardwarekey.AttestationStatement, crypto.PublicKey, time.Duration) (*keys.AttestationData, error) {
 	return nil, trace.NotFound("no attestation data for the given key")
 }
 

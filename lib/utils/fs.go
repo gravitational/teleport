@@ -346,7 +346,7 @@ func removeSecure(filePath string, fi os.FileInfo) error {
 	} else {
 		removeErr := os.Remove(filePath)
 		if f != nil {
-			for range 3 {
+			for i := 0; i < 3; i++ {
 				if err := overwriteFile(f, fi); err != nil {
 					break
 				}

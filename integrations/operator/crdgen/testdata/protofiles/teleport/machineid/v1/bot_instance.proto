@@ -1,0 +1,133 @@
+// Copyright 2024 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.machineid.v1;
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+import "teleport/header/v1/metadata.proto";
+import "teleport/workloadidentity/v1/join_attrs.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1;machineidv1";
+
+// A BotInstance
+message BotInstance {
+  // The kind of resource represented.
+  string kind = 1;
+  // Differentiates variations of the same kind. All resources should
+  // contain one, even if it is never populated.
+  string sub_kind = 2;
+  // The version of the resource being represented.
+  string version = 3;
+  // Common metadata that all resources share.
+  teleport.header.v1.Metadata metadata = 4;
+  // The configured properties of a BotInstance.
+  BotInstanceSpec spec = 5;
+  // Fields that are set by the server as results of operations. These should
+  // not be modified by users.
+  BotInstanceStatus status = 6;
+}
+
+// BotInstanceSpec contains fields
+message BotInstanceSpec {
+  // The name of the bot associated with this instance.
+  string bot_name = 1;
+  // The unique identifier for this instance.
+  string instance_id = 2;
+
+  reserved 3;
+  reserved "ttl";
+}
+
+// BotInstanceStatusHeartbeat contains information self-reported by an instance
+// of a Bot. This information is not verified by the server and should not be
+// trusted.
+message BotInstanceStatusHeartbeat {
+  // The timestamp that the heartbeat was recorded by the Auth Server. Any
+  // value submitted by `tbot` for this field will be ignored.
+  google.protobuf.Timestamp recorded_at = 1;
+  // Indicates whether this is the heartbeat submitted by `tbot` on startup.
+  bool is_startup = 2;
+  // The version of `tbot` that submitted this heartbeat.
+  string version = 3;
+  // The hostname of the host that `tbot` is running on.
+  string hostname = 4;
+  // The duration that `tbot` has been running for when it submitted this
+  // heartbeat.
+  google.protobuf.Duration uptime = 5;
+  // The currently configured join_method.
+  string join_method = 6;
+  // Indicates whether `tbot` is running in one-shot mode.
+  bool one_shot = 7;
+  // The architecture of the host that `tbot` is running on, determined by
+  // runtime.GOARCH.
+  string architecture = 8;
+  // The OS of the host that `tbot` is running on, determined by runtime.GOOS.
+  string os = 9;
+  // In future iterations, additional information can be submitted here.
+  // For example, the configuration of `tbot` or the health of individual
+  // outputs.
+}
+
+// BotInstanceStatusAuthentication contains information about a join or renewal.
+// Ths information is entirely sourced by the Auth Server and can be trusted.
+message BotInstanceStatusAuthentication {
+  // The timestamp that the join or renewal was authenticated by the Auth
+  // Server.
+  google.protobuf.Timestamp authenticated_at = 1;
+  // The join method used for this join or renewal.
+  // Deprecated: prefer using join_attrs.meta.join_method
+  string join_method = 2;
+  // The join token used for this join or renewal. This is only populated for
+  // delegated join methods as the value for `token` join methods is sensitive.
+  // Deprecated: prefer using join_attrs.meta.join_token_name
+  string join_token = 3;
+  // The metadata sourced from the join method.
+  // Deprecated: prefer using join_attrs.
+  google.protobuf.Struct metadata = 4;
+
+  // On each renewal, this generation is incremented. For delegated join
+  // methods, this counter is not checked during renewal. For the `token` join
+  // method, this counter is checked during renewal and the Bot is locked out if
+  // the counter in the certificate does not match the counter of the last
+  // authentication.
+  int32 generation = 5;
+  // The public key of the Bot instance. This must be a PEM wrapped, PKIX DER
+  // encoded public key. This provides consistency and supports multiple types
+  // of public key algorithm.
+  bytes public_key = 6;
+
+  reserved 7;
+  reserved "fingerprint";
+
+  // The attributes generated during the join process. Typically, this is
+  // information from the join attestation process itself. This field will
+  // eventually replace the `metadata` field, which is structureless.
+  teleport.workloadidentity.v1.JoinAttrs join_attrs = 8;
+}
+
+// BotInstanceStatus holds the status of a BotInstance.
+message BotInstanceStatus {
+  // The initial authentication status for this bot instance.
+  BotInstanceStatusAuthentication initial_authentication = 1;
+  // The N most recent authentication status records for this bot instance.
+  repeated BotInstanceStatusAuthentication latest_authentications = 2;
+  // The initial heartbeat status for this bot instance.
+  BotInstanceStatusHeartbeat initial_heartbeat = 3;
+  // The N most recent heartbeats for this bot instance.
+  repeated BotInstanceStatusHeartbeat latest_heartbeats = 4;
+}

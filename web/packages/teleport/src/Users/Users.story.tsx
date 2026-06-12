@@ -172,7 +172,6 @@ const sample = {
   InviteCollaborators: null,
   onEmailPasswordResetClose: () => null,
   EmailPasswordReset: null,
-  UserDetails: null,
   showMauInfo: false,
   onDismissUsersMauNotice: () => null,
   canEditUsers: true,

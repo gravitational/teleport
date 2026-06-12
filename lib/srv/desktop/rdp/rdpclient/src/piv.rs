@@ -22,7 +22,7 @@ use iso7816::command::Command;
 use iso7816::response::Status;
 use iso7816_tlv::ber::{Tag, Tlv, Value};
 use log::{debug, warn};
-use rand::{RngCore, TryRngCore};
+use rand::RngCore;
 use rsa::pkcs1::DecodeRsaPrivateKey;
 use rsa::traits::{PrivateKeyParts, PublicKeyParts};
 use rsa::{BigUint, RsaPrivateKey};
@@ -459,7 +459,7 @@ impl<const S: usize> Card<S> {
         // Generating a unique one per CCC is more future-proof than hardcoding.
         card_identifier.extend_from_slice(&{
             let mut bytes = [0u8; 14];
-            rand::rngs::OsRng.unwrap_err().fill_bytes(&mut bytes);
+            rand::rngs::OsRng.fill_bytes(&mut bytes);
             bytes
         });
         card_identifier[TLV_L_IDX] = (card_identifier.len() - TLV_TL_SIZE) as u8;

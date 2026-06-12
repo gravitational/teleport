@@ -30,7 +30,7 @@ import (
 	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
-	"github.com/charmbracelet/lipgloss"
+	"github.com/fatih/color"
 	"github.com/google/safetext/shsprintf"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -40,14 +40,13 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	entraapiutils "github.com/gravitational/teleport/api/utils/entraid"
 	"github.com/gravitational/teleport/lib/integrations/azureoidc"
-	"github.com/gravitational/teleport/lib/plugins/filter"
 	"github.com/gravitational/teleport/lib/utils/oidc"
 	"github.com/gravitational/teleport/lib/web/scripts/oneoff"
 )
 
 var (
-	bold    = lipgloss.NewStyle().Bold(true).Render
-	boldRed = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("9")).Render
+	bold    = color.New(color.Bold).SprintFunc()
+	boldRed = color.New(color.Bold, color.FgRed).SprintFunc()
 
 	step1Template = bold("Step 1: Run the Setup Script") + `
 
@@ -79,22 +78,20 @@ With the output of Step 1, please copy and paste the following information:
 
 To finish the Entra ID integration, manually configure the Application in Microsoft Entra ID.
 
-Follow the instructions provided in the Teleport documentation: [https://goteleport.com/docs/identity-security/integrations/entra-id/].
+Follow the instructions provided in the Teleport documentation: [https://goteleport.com/docs/admin-guides/teleport-policy/integrations/entra-id/].
 
 After completing the Entra ID setup, copy and paste the following information:
 `
 )
 
 type entraArgs struct {
-	cmd                    *kingpin.CmdClause
-	authConnectorName      string
-	defaultOwners          []string
-	useSystemCredentials   bool
-	accessGraph            bool
-	force                  bool
-	manualEntraIDSetup     bool
-	groupFilters           filter.Inputs
-	accessListOwnersSource string
+	cmd                  *kingpin.CmdClause
+	authConnectorName    string
+	defaultOwners        []string
+	useSystemCredentials bool
+	accessGraph          bool
+	force                bool
+	manualEntraIDSetup   bool
 }
 
 func (p *PluginsCommand) initInstallEntra(parent *kingpin.CmdClause) {
@@ -114,14 +111,10 @@ func (p *PluginsCommand) initInstallEntra(parent *kingpin.CmdClause) {
 		Flag("use-system-credentials", "Uses system credentials instead of OIDC.").
 		BoolVar(&p.install.entraID.useSystemCredentials)
 
-	cmd.Flag("default-owner", "List of Teleport users that are default owners for the imported Access Lists. Multiple flags allowed.").
+	cmd.Flag("default-owner", "List of Teleport users that are default owners for the imported access lists. Multiple flags allowed.").
 		Required().
 		StringsVar(&p.install.entraID.defaultOwners)
 
-	cmd.
-		Flag("access-list-owners-source", "Source of the Access List owners.").
-		Default("plugin").
-		StringVar(&p.install.entraID.accessListOwnersSource)
 	cmd.
 		Flag("access-graph", "Enables Access Graph cache build.").
 		Default("true").
@@ -138,15 +131,6 @@ func (p *PluginsCommand) initInstallEntra(parent *kingpin.CmdClause) {
 		Short('m').
 		Default("false").
 		BoolVar(&p.install.entraID.manualEntraIDSetup)
-
-	cmd.Flag("group-id", "Include group matching the specified group ID.").
-		StringsVar(&p.install.entraID.groupFilters.ID)
-	cmd.Flag("group-name", "Include groups matching the specified group name regex.").
-		StringsVar(&p.install.entraID.groupFilters.NameRegex)
-	cmd.Flag("exclude-group-id", "Exclude group matching the specified group ID.").
-		StringsVar(&p.install.entraID.groupFilters.ExcludeID)
-	cmd.Flag("exclude-group-name", "Exclude groups matching the specified group name regex.").
-		StringsVar(&p.install.entraID.groupFilters.ExcludeNameRegex)
 }
 
 type entraSettings struct {
@@ -159,8 +143,8 @@ var errCancel = trace.BadParameter("operation canceled")
 
 func (p *PluginsCommand) entraSetupGuide(proxyPublicAddr string, manualEntraIDSetup bool) (entraSettings, error) {
 	if manualEntraIDSetup {
-		fmt.Fprint(p.stdout, manualConfigurationTemplate)
-		settings, err := readAzureInputs(p.install.entraID.accessGraph, p.stdin, p.stdout)
+		fmt.Fprint(os.Stdout, manualConfigurationTemplate)
+		settings, err := readAzureInputs(p.install.entraID.accessGraph)
 		return settings, trace.Wrap(err)
 	}
 
@@ -189,9 +173,9 @@ func (p *PluginsCommand) entraSetupGuide(proxyPublicAddr string, manualEntraIDSe
 	}
 	fileLoc := f.Name()
 
-	fmt.Fprintf(p.stdout, step1Template, fileLoc, filepath.Base(fileLoc))
+	fmt.Fprintf(os.Stdout, step1Template, fileLoc, filepath.Base(fileLoc))
 
-	op, err := readData(p.stdin, p.stdout,
+	op, err := readData(os.Stdin, os.Stdout,
 		`Once the script completes, type 'continue' to proceed, 'exit' to quit`,
 		func(input string) bool {
 			return input == "continue" || input == "exit"
@@ -203,25 +187,25 @@ func (p *PluginsCommand) entraSetupGuide(proxyPublicAddr string, manualEntraIDSe
 		return entraSettings{}, errCancel
 	}
 
-	fmt.Fprint(p.stdout, step2Template)
+	fmt.Fprint(os.Stdout, step2Template)
 
-	settings, err := readAzureInputs(p.install.entraID.accessGraph, p.stdin, p.stdout)
+	settings, err := readAzureInputs(p.install.entraID.accessGraph)
 	return settings, trace.Wrap(err)
 }
 
-func readAzureInputs(acessGraph bool, r io.Reader, w io.Writer) (entraSettings, error) {
+func readAzureInputs(acessGraph bool) (entraSettings, error) {
 	validUUID := func(input string) bool {
 		_, err := uuid.Parse(input)
 		return err == nil
 	}
 	var settings entraSettings
 	var err error
-	settings.tenantID, err = readData(r, w, "Enter the Tenant ID", validUUID, "Invalid Tenant ID")
+	settings.tenantID, err = readData(os.Stdin, os.Stdout, "Enter the Tenant ID", validUUID, "Invalid Tenant ID")
 	if err != nil {
 		return settings, trace.Wrap(err, "failed to read Tenant ID")
 	}
 
-	settings.clientID, err = readData(r, w, "Enter the Client ID", validUUID, "Invalid Client ID")
+	settings.clientID, err = readData(os.Stdin, os.Stdout, "Enter the Client ID", validUUID, "Invalid Client ID")
 	if err != nil {
 		return settings, trace.Wrap(err, "failed to read Client ID")
 	}
@@ -231,7 +215,7 @@ func readAzureInputs(acessGraph bool, r io.Reader, w io.Writer) (entraSettings, 
 			settings.accessGraphCache, err = readTAGCache(input)
 			return err == nil
 		}
-		_, err = readData(r, w, "Enter the Access Graph Cache file location", dataValidator, "File does not exist or is invalid")
+		_, err = readData(os.Stdin, os.Stdout, "Enter the Access Graph Cache file location", dataValidator, "File does not exist or is invalid")
 		if err != nil {
 			return settings, trace.Wrap(err, "failed to read Access Graph Cache file")
 		}
@@ -257,12 +241,6 @@ func readAzureInputs(acessGraph bool, r io.Reader, w io.Writer) (entraSettings, 
 // in Teleport and a Teleport plugin to synchronize access lists from EntraID to Teleport.
 func (p *PluginsCommand) InstallEntra(ctx context.Context, args pluginServices) error {
 	inputs := p.install
-	if p.stdin == nil {
-		p.stdin = os.Stdin
-	}
-	if p.stdout == nil {
-		p.stdout = os.Stdout
-	}
 
 	proxyPublicAddr, err := getProxyPublicAddr(ctx, args.authClient)
 	if err != nil {
@@ -352,17 +330,6 @@ func (p *PluginsCommand) InstallEntra(ctx context.Context, args pluginServices) 
 	if inputs.entraID.useSystemCredentials {
 		credentialsSource = types.EntraIDCredentialsSource_ENTRAID_CREDENTIALS_SOURCE_SYSTEM_CREDENTIALS
 	}
-
-	groupFilters, err := filter.NewFromInputs(inputs.entraID.groupFilters)
-	if err != nil {
-		return trace.Wrap(err, "failed to read filters")
-	}
-
-	ownersSource, err := toAccessListOwnersSource(inputs.entraID.accessListOwnersSource)
-	if err != nil {
-		return trace.Wrap(err, "failed to read Access List owners source")
-	}
-
 	req := &pluginspb.CreatePluginRequest{
 		Plugin: &types.PluginV1{
 			Metadata: types.Metadata{
@@ -375,13 +342,11 @@ func (p *PluginsCommand) InstallEntra(ctx context.Context, args pluginServices) 
 				Settings: &types.PluginSpecV1_EntraId{
 					EntraId: &types.PluginEntraIDSettings{
 						SyncSettings: &types.PluginEntraIDSyncSettings{
-							DefaultOwners:          inputs.entraID.defaultOwners,
-							SsoConnectorId:         inputs.entraID.authConnectorName,
-							CredentialsSource:      credentialsSource,
-							TenantId:               settings.tenantID,
-							EntraAppId:             settings.clientID,
-							GroupFilters:           groupFilters,
-							AccessListOwnersSource: ownersSource,
+							DefaultOwners:     inputs.entraID.defaultOwners,
+							SsoConnectorId:    inputs.entraID.authConnectorName,
+							CredentialsSource: credentialsSource,
+							TenantId:          settings.tenantID,
+							EntraAppId:        settings.clientID,
 						},
 						AccessGraphSettings: tagSyncSettings,
 					},
@@ -415,20 +380,6 @@ func (p *PluginsCommand) InstallEntra(ctx context.Context, args pluginServices) 
 	fmt.Printf("Successfully created EntraID plugin %q\n\n", p.install.name)
 
 	return nil
-}
-
-func toAccessListOwnersSource(in string) (types.EntraIDAccessListOwnersSource, error) {
-	switch in {
-	case "entraid":
-		return types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_ENTRAID, nil
-	case "plugin":
-		return types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_PLUGIN, nil
-	case "plugin-and-entraid":
-		return types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_PLUGIN_AND_ENTRAID, nil
-	default:
-		return types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_UNSPECIFIED,
-			trace.BadParameter(`unknown value %s received for the Access List owners source, expected "plugin", "entraid" or "plugin-and-entraid"`, in)
-	}
 }
 
 func buildScript(proxyPublicAddr string, entraCfg entraArgs) (string, error) {

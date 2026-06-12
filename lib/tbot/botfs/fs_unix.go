@@ -1,4 +1,5 @@
 //go:build unix && !linux
+// +build unix,!linux
 
 /*
  * Teleport

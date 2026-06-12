@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/defaults"
-	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/utils"
 )
 
@@ -88,8 +87,6 @@ const (
 	// JoinMethodBoundKeypair indicates the node will join using the Bound
 	// Keypair join method. See lib/boundkeypair for more.
 	JoinMethodBoundKeypair JoinMethod = "bound_keypair"
-	// JoinMethodEnv0 indicates the node will join using the env0 join method.
-	JoinMethodEnv0 JoinMethod = "env0"
 )
 
 var JoinMethods = []JoinMethod{
@@ -109,7 +106,6 @@ var JoinMethods = []JoinMethod{
 	JoinMethodTerraformCloud,
 	JoinMethodOracle,
 	JoinMethodBoundKeypair,
-	JoinMethodEnv0,
 }
 
 func ValidateJoinMethod(method JoinMethod) error {
@@ -145,42 +141,18 @@ type ProvisionToken interface {
 	SetLabels(map[string]string)
 	// GetAllowRules returns the list of allow rules
 	GetAllowRules() []*TokenRule
-	// GetAWSAllowRules returns the list of AWS-specific allow rules. GetAllowRules is kept for backwards compatibility,
-	// but GetAWSAllowRules should be preferred.
-	GetAWSAllowRules() []*TokenRule
 	// SetAllowRules sets the allow rules
 	SetAllowRules([]*TokenRule)
-	// GetIntegration returns the integration name that provides credentials to validate allow rules.
-	// Currently, this is only used to validate the AWS Organization.
-	GetIntegration() string
 	// GetGCPRules will return the GCP rules within this token.
 	GetGCPRules() *ProvisionTokenSpecV2GCP
 	// GetGithubRules will return the GitHub rules within this token.
 	GetGithubRules() *ProvisionTokenSpecV2GitHub
-	// GetGitlabRules will return the GitLab rules within this token.
-	GetGitlabRules() *ProvisionTokenSpecV2GitLab
-	// GetAzure will return the Azure specific configuration for this token.
-	GetAzure() *ProvisionTokenSpecV2Azure
-	// GetAzureDevops will return the AzureDevops specific configuration for this token.
-	GetAzureDevops() *ProvisionTokenSpecV2AzureDevops
-	// GetOracle will return the Oracle specific configuration for this token.
-	GetOracle() *ProvisionTokenSpecV2Oracle
-	// GetKubernetes will return the Kubernetes specific configuration for this
-	// token.
-	GetKubernetes() *ProvisionTokenSpecV2Kubernetes
-	// GetBoundKeypair returns bound keypair specific configuration for this token.
-	GetBoundKeypair() *ProvisionTokenSpecV2BoundKeypair
-	// GetBoundKeypairStatus returns bound keypair status for this token.
-	GetBoundKeypairStatus() *ProvisionTokenStatusV2BoundKeypair
 	// GetAWSIIDTTL returns the TTL of EC2 IIDs
 	GetAWSIIDTTL() Duration
 	// GetJoinMethod returns joining method that must be used with this token.
 	GetJoinMethod() JoinMethod
 	// GetBotName returns the BotName field which must be set for joining bots.
 	GetBotName() string
-	// GetBotScope returns the BotScope field which must be set for bots joining
-	// with a scoped token. It is empty for unscoped bots.
-	GetBotScope() string
 	// IsStatic returns true if the token is statically configured
 	IsStatic() bool
 	// GetSuggestedLabels returns the set of labels that the resource should add when adding itself to the cluster
@@ -201,21 +173,6 @@ type ProvisionToken interface {
 	// join methods where the name is secret. This should be used when logging
 	// the token name.
 	GetSafeName() string
-
-	// GetAssignedScope always returns an empty string because a [ProvisionToken] is always
-	// unscoped
-	GetAssignedScope() string
-
-	// GetSecret returns the token's secret value and a bool representing whether
-	// or not the token had a secret..
-	GetSecret() (string, bool)
-
-	// GetImmutableLabels returns labels that must be applied to resources
-	// provisioned with this token.
-	GetImmutableLabels() *joiningv1.ImmutableLabels
-
-	// Clone creates a copy of the token.
-	Clone() ProvisionToken
 }
 
 // NewProvisionToken returns a new provision token with the given roles.
@@ -268,10 +225,6 @@ func MustCreateProvisionToken(token string, roles SystemRoles, expires time.Time
 		panic(err)
 	}
 	return t
-}
-
-func (p *ProvisionTokenV2) Clone() ProvisionToken {
-	return utils.CloneProtoMsg(p)
 }
 
 // setStaticFields sets static resource header and metadata fields.
@@ -328,9 +281,6 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 			if allowRule.AWSARN != "" {
 				return trace.BadParameter(`the %q join method does not support the "aws_arn" parameter`, JoinMethodEC2)
 			}
-			if allowRule.AWSOrganizationID != "" {
-				return trace.BadParameter(`the %q join method does not support the "aws_organization_id" parameter`, JoinMethodEC2)
-			}
 			if allowRule.AWSAccount == "" && allowRule.AWSRole == "" {
 				return trace.BadParameter(`allow rule for %q join method must set "aws_account" or "aws_role"`, JoinMethodEC2)
 			}
@@ -350,8 +300,8 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 			if len(allowRule.AWSRegions) != 0 {
 				return trace.BadParameter(`the %q join method does not support the "aws_regions" parameter`, JoinMethodIAM)
 			}
-			if allowRule.AWSAccount == "" && allowRule.AWSARN == "" && allowRule.AWSOrganizationID == "" {
-				return trace.BadParameter(`allow rule for %q join method must set "aws_account", "aws_arn", or "aws_organization_id"`, JoinMethodIAM)
+			if allowRule.AWSAccount == "" && allowRule.AWSARN == "" {
+				return trace.BadParameter(`allow rule for %q join method must set "aws_account" or "aws_arn"`, JoinMethodEC2)
 			}
 		}
 	case JoinMethodGitHub:
@@ -494,14 +444,6 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 		if err := p.Spec.BoundKeypair.checkAndSetDefaults(); err != nil {
 			return trace.Wrap(err, "spec.bound_keypair: failed validation")
 		}
-	case JoinMethodEnv0:
-		if p.Spec.Env0 == nil {
-			p.Spec.Env0 = &ProvisionTokenSpecV2Env0{}
-		}
-
-		if err := p.Spec.Env0.checkAndSetDefaults(); err != nil {
-			return trace.Wrap(err, "spec.env0: failed validation")
-		}
 	default:
 		return trace.BadParameter("unknown join method %q", p.Spec.JoinMethod)
 	}
@@ -531,14 +473,9 @@ func (p *ProvisionTokenV2) SetLabels(l map[string]string) {
 	p.Metadata.Labels = l
 }
 
-// GetAWSAllowRules returns the list of AWS-specific allow rules
-func (p *ProvisionTokenV2) GetAWSAllowRules() []*TokenRule {
-	return p.Spec.Allow
-}
-
-// GetAllowRules returns the list of allow rules.
+// GetAllowRules returns the list of allow rules
 func (p *ProvisionTokenV2) GetAllowRules() []*TokenRule {
-	return p.GetAWSAllowRules()
+	return p.Spec.Allow
 }
 
 // SetAllowRules sets the allow rules.
@@ -546,7 +483,7 @@ func (p *ProvisionTokenV2) SetAllowRules(rules []*TokenRule) {
 	p.Spec.Allow = rules
 }
 
-// GetGCPRules will return the GCP-specific configuration for this token.
+// GetGCPRules will return the GCP rules within this token.
 func (p *ProvisionTokenV2) GetGCPRules() *ProvisionTokenSpecV2GCP {
 	return p.Spec.GCP
 }
@@ -556,47 +493,9 @@ func (p *ProvisionTokenV2) GetGithubRules() *ProvisionTokenSpecV2GitHub {
 	return p.Spec.GitHub
 }
 
-// GetGitlabRules will return the GitLab rules within this token.
-func (p *ProvisionTokenV2) GetGitlabRules() *ProvisionTokenSpecV2GitLab {
-	return p.Spec.GitLab
-}
-
 // GetAWSIIDTTL returns the TTL of EC2 IIDs
 func (p *ProvisionTokenV2) GetAWSIIDTTL() Duration {
 	return p.Spec.AWSIIDTTL
-}
-
-// GetAzure the Azure specific configuration for this token.
-func (p *ProvisionTokenV2) GetAzure() *ProvisionTokenSpecV2Azure {
-	return p.Spec.Azure
-}
-
-// GetAzureDevops will return the AzureDevops specific configuration for this token.
-func (p *ProvisionTokenV2) GetAzureDevops() *ProvisionTokenSpecV2AzureDevops {
-	return p.Spec.AzureDevops
-}
-
-// GetOracle will return the Oracle specific configuration for this token.
-func (p *ProvisionTokenV2) GetOracle() *ProvisionTokenSpecV2Oracle {
-	return p.Spec.Oracle
-}
-
-// GetKubernetes will return the Kubernetes specific configuration for this token.
-func (p *ProvisionTokenV2) GetKubernetes() *ProvisionTokenSpecV2Kubernetes {
-	return p.Spec.Kubernetes
-}
-
-// GetBoundKeypair returns bound keypair specific configuration for this token.
-func (p *ProvisionTokenV2) GetBoundKeypair() *ProvisionTokenSpecV2BoundKeypair {
-	return p.Spec.BoundKeypair
-}
-
-// GetBoundKeypairStatus returns bound keypair status for this token.
-func (p *ProvisionTokenV2) GetBoundKeypairStatus() *ProvisionTokenStatusV2BoundKeypair {
-	if p.Status == nil {
-		return nil
-	}
-	return p.Status.BoundKeypair
 }
 
 // GetJoinMethod returns joining method that must be used with this token.
@@ -612,13 +511,6 @@ func (p *ProvisionTokenV2) IsStatic() bool {
 // GetBotName returns the BotName field which must be set for joining bots.
 func (p *ProvisionTokenV2) GetBotName() string {
 	return p.Spec.BotName
-}
-
-// GetBotScope returns the BotScope field which must be set for bots joining
-// with a scoped token. It is empty for unscoped bots.
-func (p *ProvisionTokenV2) GetBotScope() string {
-	// Always empty for ProvisionTokenV2
-	return ""
 }
 
 // GetKind returns resource kind
@@ -679,12 +571,6 @@ func (p *ProvisionTokenV2) GetSuggestedAgentMatcherLabels() Labels {
 	return p.Spec.SuggestedAgentMatcherLabels
 }
 
-// GetIntegration returns the integration name that provides credentials to validate allow rules.
-// Currently, this is only used to validate the AWS Organization.
-func (p *ProvisionTokenV2) GetIntegration() string {
-	return p.Spec.Integration
-}
-
 // V1 returns V1 version of the resource
 func (p *ProvisionTokenV2) V1() *ProvisionTokenV1 {
 	return &ProvisionTokenV1{
@@ -740,24 +626,6 @@ func (p *ProvisionTokenV2) GetSafeName() string {
 	name = name[hiddenBefore:]
 	name = strings.Repeat("*", hiddenBefore) + name
 	return name
-}
-
-// GetAssignedScope always returns an empty string because a [ProvisionTokenV2] is always
-// unscoped
-func (p *ProvisionTokenV2) GetAssignedScope() string {
-	return ""
-}
-
-// GetSecret always returns an empty string and false because a [ProvisionTokenV2] does not have a
-// dedicated secret value. The name itself is the secret for the "token" join method.
-func (p *ProvisionTokenV2) GetSecret() (string, bool) {
-	return "", false
-}
-
-// GetImmutableLabels always returns nil labels because a [ProvisionTokenV2] can not assign
-// immutable labels
-func (p *ProvisionTokenV2) GetImmutableLabels() *joiningv1.ImmutableLabels {
-	return nil
 }
 
 // String returns the human readable representation of a provisioning token.
@@ -838,11 +706,9 @@ func (a *ProvisionTokenSpecV2GitHub) checkAndSetDefaults() error {
 		repoSet := rule.Repository != ""
 		ownerSet := rule.RepositoryOwner != ""
 		subSet := rule.Sub != ""
-		enterpriseSet := rule.Enterprise != ""
-		enterpriseIDSet := rule.EnterpriseID != ""
-		if !subSet && !ownerSet && !repoSet && !enterpriseSet && !enterpriseIDSet {
+		if !subSet && !ownerSet && !repoSet {
 			return trace.BadParameter(
-				`allow rule for %q must include at least one of "repository", "repository_owner", "sub", "enterprise" or "enterprise_id"`,
+				`allow rule for %q must include at least one of "repository", "repository_owner" or "sub"`,
 				JoinMethodGitHub,
 			)
 		}
@@ -876,32 +742,23 @@ func (a *ProvisionTokenSpecV2CircleCI) checkAndSetDefaults() error {
 	return nil
 }
 
-// validates the given Kubernetes configuration and sets defaults if necessary. Additional validations applied
-// during marshal/write can be found in lib/services/provisioning.go:strongValidateProvisionTokenWithDefaults().
-// Scoped variants of these validations are found in lib/scopes/joining/token.go:validateKubernetes()
 func (a *ProvisionTokenSpecV2Kubernetes) checkAndSetDefaults() error {
 	if len(a.Allow) == 0 {
 		return trace.BadParameter("allow: at least one rule must be set")
 	}
 	for i, allowRule := range a.Allow {
-		serviceAccountSet := allowRule.ServiceAccount != ""
-		serviceAccountNameSet := allowRule.ServiceAccountName != ""
-		serviceAccountNamespaceSet := allowRule.ServiceAccountNamespace != ""
-
-		if !serviceAccountSet && (!serviceAccountNameSet || !serviceAccountNamespaceSet) {
+		if allowRule.ServiceAccount == "" {
 			return trace.BadParameter(
-				"allow[%d]: must specify service_account or (service_account_name and service_account_namespace)",
+				"allow[%d].service_account: name of service account must be set",
 				i,
 			)
 		}
-		if serviceAccountSet {
-			if len(strings.Split(allowRule.ServiceAccount, ":")) != 2 {
-				return trace.BadParameter(
-					`allow[%d].service_account: name of service account should be in format "namespace:service_account", got %q instead`,
-					i,
-					allowRule.ServiceAccount,
-				)
-			}
+		if len(strings.Split(allowRule.ServiceAccount, ":")) != 2 {
+			return trace.BadParameter(
+				`allow[%d].service_account: name of service account should be in format "namespace:service_account", got %q instead`,
+				i,
+				allowRule.ServiceAccount,
+			)
 		}
 	}
 
@@ -965,9 +822,9 @@ func (a *ProvisionTokenSpecV2Azure) checkAndSetDefaults() error {
 		)
 	}
 	for _, allowRule := range a.Allow {
-		if allowRule.Subscription == "" && allowRule.Tenant == "" {
+		if allowRule.Subscription == "" {
 			return trace.BadParameter(
-				"the %q join method requires azure allow rules with non-empty subscription or tenant",
+				"the %q join method requires azure allow rules with non-empty subscription",
 				JoinMethodAzure,
 			)
 		}
@@ -1158,9 +1015,6 @@ func (a *ProvisionTokenSpecV2Oracle) checkAndSetDefaults() error {
 				i,
 			)
 		}
-		if len(rule.Instances) > 100 {
-			return trace.BadParameter("allow[%d]: maximum 100 instances may be set (found %d)", i, len(rule.Instances))
-		}
 	}
 	return nil
 }
@@ -1210,24 +1064,6 @@ func (a *ProvisionTokenSpecV2BoundKeypair) checkAndSetDefaults() error {
 
 	// Note: Recovery.Mode will be interpreted at joining time; it's zero value
 	// ("") is mapped to RecoveryModeStandard.
-
-	return nil
-}
-
-func (a *ProvisionTokenSpecV2Env0) checkAndSetDefaults() error {
-	if len(a.Allow) == 0 {
-		return trace.BadParameter("the %q join method requires at least one token allow rule", JoinMethodEnv0)
-	}
-
-	for i, allowRule := range a.Allow {
-		if allowRule.OrganizationID == "" {
-			return trace.BadParameter("allow[%d]: organization_id must be set", i)
-		}
-
-		if allowRule.ProjectID == "" && allowRule.ProjectName == "" {
-			return trace.BadParameter("allow[%d]: at least one of ['project_id', 'project_name'] must be set", i)
-		}
-	}
 
 	return nil
 }

@@ -1,9 +1,6 @@
 ---
 title: Jamf Pro Integration
 description: Sync your Jamf Pro inventory into Teleport
-# Positioning the two integration guides together until we can create a
-# docs subsection/subdirectory for Device Trust integrations
-sidebar_position: 4
 tags:
  - how-to
  - zero-trust
@@ -11,7 +8,7 @@ tags:
 enterprise: Device Trust
 ---
 
-The Device Trust Jamf Pro integration lets you automatically sync your Jamf Pro computer
+Device Trust Jamf Pro integration lets you automatically sync your Jamf Pro computer
 inventory into Teleport.
 
 ## How it works
@@ -138,14 +135,14 @@ Change the following settings, as appropriate:
 - jamf_service.client_id
 
 Finally, write your Jamf client secret to the
-`/var/lib/teleport/jamf_client_secret.txt` file:
+`/var/lib/teleport/jamf_client_secret` file:
 
 ```code
-$ sudo nano /var/lib/teleport/jamf_client_secret.txt # or use your favorite editor
+$ sudo nano /var/lib/teleport/jamf_client_secret # or use your favorite editor
 
 # Only the OS user that runs `teleport` should have access to the secret file.
-$ sudo chmod 400 /var/lib/teleport/jamf_client_secret.txt
-$ sudo chown teleport /var/lib/teleport/jamf_client_secret.txt
+$ sudo chmod 400 /var/lib/teleport/jamf_client_secret
+$ sudo chown teleport /var/lib/teleport/jamf_client_secret
 ```
 
 ## Step 3/4. Create a join token
@@ -192,13 +189,13 @@ devices ls`:
 
 ```code
 $ tctl devices ls
-Asset Tag    OS    Source Enroll Status Owner Device ID
------------- ----- ------ ------------- ----- ------------------------------------
-CXXXXXXXXX17 macOS Jamf   not enrolled        20ec6373-9e8e-46e0-8f1c-47ad6b06a768
-CXXXXXXXXX2T macOS Jamf   not enrolled        79755778-7cbe-4e2c-83ec-7eaa3d4d7e36
-CXXXXXXXXX3T macOS Jamf   not enrolled        665e59d5-393a-4894-841d-edad06329717
-CXXXXXXXXX4T macOS Jamf   not enrolled        dd032e90-bfb0-47d5-bce5-e57545f6788f
-CXXXXXXXXX5T macOS Jamf   not enrolled        bf189863-a94a-40dc-9013-d96f8dada2f1
+Asset Tag    OS      Enroll Status Device ID
+------------ ------- ------------- ------------------------------------
+CXXXXXXXXX17 macOS   not enrolled  20ec6373-9e8e-46e0-8f1c-47ad6b06a768
+CXXXXXXXXX2T macOS   not enrolled  79755778-7cbe-4e2c-83ec-7eaa3d4d7e36
+CXXXXXXXXX3T macOS   not enrolled  665e59d5-393a-4894-841d-edad06329717
+CXXXXXXXXX4T macOS   not enrolled  dd032e90-bfb0-47d5-bce5-e57545f6788f
+CXXXXXXXXX5T macOS   not enrolled  bf189863-a94a-40dc-9013-d96f8dada2f1
 (...)
 ```
 

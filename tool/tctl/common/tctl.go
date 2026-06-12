@@ -41,7 +41,6 @@ import (
 	"github.com/gravitational/teleport/tool/common"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
-	"github.com/gravitational/teleport/tool/tctl/common/mfa"
 )
 
 const (
@@ -53,23 +52,20 @@ const (
 const (
 	identityFileEnvVar = "TELEPORT_IDENTITY_FILE"
 	authAddrEnvVar     = "TELEPORT_AUTH_SERVER"
-	mfaModeEnvVar      = "TELEPORT_MFA_MODE"
 )
 
-// CLICommand is an interface that must be implemented by every top-level CLI command.
+// CLICommand interface must be implemented by every CLI command
+//
+// This allows OSS and Enterprise Teleport editions to plug their own
+// implementations of different CLI commands into the common execution
+// framework
 type CLICommand interface {
 	// Initialize allows a caller-defined command to plug itself into CLI
 	// argument parsing
 	Initialize(*kingpin.Application, *tctlcfg.GlobalCLIFlags, *servicecfg.Config)
 
-	RunnableCommand
-}
-
-// RunnableCommand is an interface for runnable CLI commands.
-type RunnableCommand interface {
-	// TryRun will be called after CLI parsing is done. The implementation
-	// must determine if cmd belongs to it. If so, it should run the command
-	// and return (true, err). If it does not match cmd, it must return (false, nil).
+	// TryRun is executed after the CLI parsing is done. The command must
+	// determine if selectedCommand belongs to it and return match=true
 	TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error)
 }
 
@@ -165,15 +161,10 @@ func TryRun(ctx context.Context, commands []CLICommand, args []string) error {
 		StringVar(&ccf.IdentityFilePath)
 	app.Flag("insecure", "When specifying a proxy address in --auth-server, do not verify its TLS certificate. Danger: any data you send can be intercepted or modified by an attacker.").
 		BoolVar(&ccf.Insecure)
-	modes := []string{mfa.MFAModeAuto, mfa.MFAModeCrossPlatform, mfa.MFAModePlatform, mfa.MFAModeSSO, mfa.MFAModeBrowser}
-	app.Flag("mfa-mode", "Preferred mode for MFA assertions.").
-		Default(mfa.MFAModeAuto).
-		Envar(mfaModeEnvVar).
-		EnumVar(&ccf.MFAMode, modes...)
 	app.HelpFlag.Short('h')
 
 	// parse CLI commands+flags:
-	utils.UpdateAppUsageTemplate(app)
+	utils.UpdateAppUsageTemplate(app, args)
 	selectedCmd, err := app.Parse(args)
 	if err != nil {
 		app.Usage(args)

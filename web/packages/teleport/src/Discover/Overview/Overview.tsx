@@ -16,8 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import type { JSX } from 'react';
-import { Link as InternalLink } from 'react-router';
+import { Link as InternalLink } from 'react-router-dom';
 
 import { Mark } from 'design';
 import {
@@ -232,7 +231,7 @@ export function getOverview({
           href: 'https://docs.aws.amazon.com/AmazonECS/latest/developerguide/Welcome.html',
         },
         howEnrollmentWorks: {
-          title: 'How AWS OIDC RDS enrollment works',
+          title: 'How AWS OIDC RDS enrollment work',
           href: 'https://goteleport.com/docs/admin-guides/management/guides/awsoidc-integration-rds/',
         },
       };

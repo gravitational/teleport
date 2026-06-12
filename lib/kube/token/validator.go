@@ -21,6 +21,7 @@ package token
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"slices"
 	"strings"
 	"sync"
@@ -29,7 +30,10 @@ import (
 	"github.com/go-jose/go-jose/v3"
 	josejwt "github.com/go-jose/go-jose/v3/jwt"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
+	"github.com/gregjones/httpcache"
+	"github.com/zitadel/oidc/v3/pkg/client"
+	"github.com/zitadel/oidc/v3/pkg/client/rp"
+	zoidc "github.com/zitadel/oidc/v3/pkg/oidc"
 	v1 "k8s.io/api/authentication/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/version"
@@ -39,8 +43,7 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
-	tokenclaims "github.com/gravitational/teleport/lib/kube/token/claims"
-	"github.com/gravitational/teleport/lib/oidc"
+	"github.com/gravitational/teleport/lib/observability/otelhttp"
 )
 
 const (
@@ -63,13 +66,7 @@ type ValidationResult struct {
 	// This will be prepended with `system:serviceaccount:` for service
 	// accounts.
 	Username string `json:"username"`
-	// ServiceAccountName is the name of the service account extracted from the
-	// identity.
-	ServiceAccountName string `json:"service_account_name"`
-	// ServiceAccountNamespace is the namespace of the service account extracted
-	// from the identity
-	ServiceAccountNamespace string `json:"service_account_namespace"`
-	attrs                   *workloadidentityv1pb.JoinAttrsKubernetes
+	attrs    *workloadidentityv1pb.JoinAttrsKubernetes
 }
 
 // JoinAttrs returns the protobuf representation of the attested identity.
@@ -130,7 +127,7 @@ func unsafeGetTokenAudiences(token string) ([]string, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	claims := &tokenclaims.ServiceAccountClaims{}
+	claims := &ServiceAccountClaims{}
 	err = jwt.UnsafeClaimsWithoutVerification(claims)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -227,12 +224,10 @@ func (v *TokenReviewValidator) Validate(ctx context.Context, token, clusterName 
 	}
 
 	return &ValidationResult{
-		Raw:                     reviewResult.Status,
-		Type:                    types.KubernetesJoinTypeInCluster,
-		Username:                reviewResult.Status.User.Username,
-		attrs:                   attrs,
-		ServiceAccountName:      serviceAccount,
-		ServiceAccountNamespace: namespace,
+		Raw:      reviewResult.Status,
+		Type:     types.KubernetesJoinTypeInCluster,
+		Username: reviewResult.Status.User.Username,
+		attrs:    attrs,
 	}, nil
 }
 
@@ -262,6 +257,39 @@ func kubernetesSupportsBoundTokens(gitVersion string) (bool, error) {
 	return kubeVersion.AtLeast(minKubeVersion), nil
 }
 
+// PodSubClaim are the Pod-specific claims we expect to find on a Kubernetes Service Account JWT.
+type PodSubClaim struct {
+	Name string `json:"name"`
+	UID  string `json:"uid"`
+}
+
+// ServiceAccountSubClaim are the Service Account-specific claims we expect to find on a Kubernetes Service Account JWT.
+type ServiceAccountSubClaim struct {
+	Name string `json:"name"`
+	UID  string `json:"uid"`
+}
+
+// KubernetesSubClaim are the Kubernetes-specific claims (under kubernetes.io)
+// we expect to find on a Kubernetes Service Account JWT.
+type KubernetesSubClaim struct {
+	Namespace      string                  `json:"namespace"`
+	ServiceAccount *ServiceAccountSubClaim `json:"serviceaccount"`
+	Pod            *PodSubClaim            `json:"pod"`
+}
+
+// ServiceAccountClaims are the claims we expect to find on a Kubernetes Service Account JWT.
+type ServiceAccountClaims struct {
+	josejwt.Claims
+	Kubernetes *KubernetesSubClaim `json:"kubernetes.io"`
+}
+
+// OIDCServiceAccountClaims is a variant of `ServiceAccountClaims` intended for
+// use with the OIDC validator rather than plain JWKS.
+type OIDCServiceAccountClaims struct {
+	zoidc.TokenClaims
+	Kubernetes *KubernetesSubClaim `json:"kubernetes.io"`
+}
+
 // ValidateTokenWithJWKS validates a Kubernetes Service Account JWT using a
 // configured JWKS.
 func ValidateTokenWithJWKS(
@@ -280,7 +308,7 @@ func ValidateTokenWithJWKS(
 		return nil, trace.Wrap(err, "parsing provided jwks")
 	}
 
-	claims := tokenclaims.ServiceAccountClaims{}
+	claims := ServiceAccountClaims{}
 	if err := jwt.Claims(jwks, &claims); err != nil {
 		return nil, trace.Wrap(err, "validating jwt signature")
 	}
@@ -300,7 +328,8 @@ func ValidateTokenWithJWKS(
 	}
 
 	// Ensure this is a pod-bound service account token
-	if claims.Kubernetes == nil || claims.Kubernetes.Pod == nil || claims.Kubernetes.Pod.Name == "" {
+	if claims.Kubernetes == nil || claims.Kubernetes.Pod == nil || claims.Kubernetes.Pod.Name == "" ||
+		claims.Kubernetes.ServiceAccount == nil || claims.Kubernetes.ServiceAccount.Name == "" {
 		return nil, trace.BadParameter("static_jwks joining requires the use of projected pod bound service account token")
 	}
 
@@ -334,49 +363,107 @@ func ValidateTokenWithJWKS(
 				Namespace: claims.Kubernetes.Namespace,
 			},
 		},
-		ServiceAccountName:      claims.Kubernetes.ServiceAccount.Name,
-		ServiceAccountNamespace: claims.Kubernetes.Namespace,
 	}, nil
 }
 
-// NewKubernetesOIDCTokenValidator constructs a KubernetesOIDCTokenValidator.
-func NewKubernetesOIDCTokenValidator() (*KubernetesOIDCTokenValidator, error) {
-	validator, err := oidc.NewCachingTokenValidator[*tokenclaims.OIDCServiceAccountClaims](clockwork.NewRealClock())
+// providerTimeout is the maximum time allowed to fetch provider metadata before
+// giving up.
+const providerTimeout = 15 * time.Second
+
+// zoidcValidateToken validates an OIDC token against a generic claim type.
+func zoidcValidateToken[C zoidc.Claims](
+	ctx context.Context,
+	issuerURL string,
+	audience string,
+	token string,
+	opts ...rp.VerifierOption,
+) (C, error) {
+	// Backport note: This function has been extracted and lightly modified from
+	// https://github.com/gravitational/teleport/commit/5bc9e5482bb037cf4c697871a9c9b8022f9b08e3.
+	//
+	// We aren't backporting the entire change, so the necessary functions have
+	// been extracted here. If we ever do backport the broader change, we should
+	// consider removing these duplicates. This particular implementation omits
+	// some functionality (authorized party check, etc)
+
+	timeoutCtx, cancel := context.WithTimeout(ctx, providerTimeout)
+	defer cancel()
+
+	var nilClaims C
+
+	// TODO(noah): It'd be nice to cache the OIDC discovery document fairly
+	// aggressively across join tokens since this isn't going to change very
+	// regularly.
+	dc, err := client.Discover(timeoutCtx, issuerURL, otelhttp.DefaultClient)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nilClaims, trace.Wrap(err, "discovering oidc document")
 	}
 
-	return &KubernetesOIDCTokenValidator{
-		validator: validator,
-	}, nil
+	// TODO(noah): Ideally we'd cache the remote keyset across joins/join tokens
+	// based on the issuer.
+	ks := rp.NewRemoteKeySet(otelhttp.DefaultClient, dc.JwksURI)
+	verifier := rp.NewIDTokenVerifier(issuerURL, audience, ks, opts...)
+	// TODO(noah): It'd be ideal if we could extend the verifier to use an
+	// injected "now" time.
+
+	claims, err := rp.VerifyIDToken[C](timeoutCtx, token, verifier)
+	if err != nil {
+		return nilClaims, trace.Wrap(err, "verifying token")
+	}
+
+	return claims, nil
 }
 
-// KubernetesOIDCTokenValidator is a validator that can validate Kubernetes
-// projected service account tokens against an external OIDC compatible IdP.
+// newCachingHTTPClient constructs and returns a caching HTTP client. Similar to
+// the default client used in `ValidateToken()`, this uses an underlying
+// `otelhttp` transport.
+// Note that this client should be retained and reused to benefit from caching.
+func newCachingHTTPClient() *http.Client {
+	// Backport note: This is derived from
+	// https://github.com/gravitational/teleport/pull/57789 and copied here for
+	// the v17 backport, as the OIDC library it requires was not broadly
+	// backported to v17.
+	transport := httpcache.NewMemoryCacheTransport()
+	transport.Transport = otelhttp.NewTransport(http.DefaultTransport)
+
+	return transport.Client()
+}
+
+// KubernetesOIDCTokenValidator is a utility struct to retain a caching HTTP
+// client for use during OIDC validation.
 type KubernetesOIDCTokenValidator struct {
-	validator *oidc.CachingTokenValidator[*tokenclaims.OIDCServiceAccountClaims]
+	client *http.Client
 }
 
-// ValidateTokenWithJWKS validates a Kubernetes Service Account JWT using an
+// NewKubernetesOIDCTokenValidator returns a token validator populated with a
+// caching HTTP client.
+func NewKubernetesOIDCTokenValidator() *KubernetesOIDCTokenValidator {
+	return &KubernetesOIDCTokenValidator{
+		client: newCachingHTTPClient(),
+	}
+}
+
+// ValidateTokenWithOIDC validates a Kubernetes Service Account JWT using an
 // OIDC endpoint.
-func (v *KubernetesOIDCTokenValidator) ValidateToken(
+func ValidateTokenWithOIDC(
 	ctx context.Context,
 	issuerURL string,
 	clusterName string,
 	token string,
 ) (*ValidationResult, error) {
-	validator, err := v.validator.GetValidator(ctx, issuerURL, clusterName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	claims, err := validator.ValidateToken(ctx, token)
+	claims, err := zoidcValidateToken[*OIDCServiceAccountClaims](
+		ctx,
+		issuerURL,
+		clusterName,
+		token,
+	)
 	if err != nil {
 		return nil, trace.Wrap(err, "validating OIDC token")
 	}
 
 	// Ensure this is a pod-bound service account token
-	if claims.Kubernetes == nil || claims.Kubernetes.Pod == nil || claims.Kubernetes.Pod.Name == "" {
+	if claims.Kubernetes == nil || claims.Kubernetes.Pod == nil || claims.Kubernetes.Pod.Name == "" ||
+		claims.Kubernetes.ServiceAccount == nil || claims.Kubernetes.ServiceAccount.Name == "" {
 		return nil, trace.BadParameter("oidc joining requires the use of a projected pod bound service account token")
 	}
 
@@ -387,11 +474,9 @@ func (v *KubernetesOIDCTokenValidator) ValidateToken(
 	}
 
 	return &ValidationResult{
-		Raw:                     claims,
-		Type:                    types.KubernetesJoinTypeOIDC,
-		Username:                claims.GetSubject(),
-		ServiceAccountName:      claims.Kubernetes.ServiceAccount.Name,
-		ServiceAccountNamespace: claims.Kubernetes.Namespace,
+		Raw:      claims,
+		Type:     types.KubernetesJoinTypeOIDC,
+		Username: claims.GetSubject(),
 		attrs: &workloadidentityv1pb.JoinAttrsKubernetes{
 			Subject: claims.GetSubject(),
 			Pod: &workloadidentityv1pb.JoinAttrsKubernetesPod{

@@ -17,14 +17,15 @@
  */
 
 import { useEffect } from 'react';
-import { Link as InternalLink, useParams } from 'react-router';
+import { useParams } from 'react-router';
+import { Link as InternalLink } from 'react-router-dom';
 
 import { ButtonPrimary } from 'design';
 import Table, { LabelCell } from 'design/DataTable';
 
 import { useServerSidePagination } from 'teleport/components/hooks';
 import cfg from 'teleport/config';
-import { AwsResource } from 'teleport/Integrations/status/AwsOidc/Cards/StatCard';
+import { AwsResource } from 'teleport/Integrations/status/AwsOidc/StatCard';
 import {
   IntegrationDiscoveryRule,
   IntegrationKind,
@@ -78,8 +79,10 @@ export function Rules() {
       emptyButton={
         <ButtonPrimary
           as={InternalLink}
-          to={cfg.routes.discover}
-          state={{ searchKeywords: resourceKind }}
+          to={{
+            pathname: cfg.routes.discover,
+            state: { searchKeywords: resourceKind },
+          }}
         >
           Add Enrollment Rule
         </ButtonPrimary>

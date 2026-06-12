@@ -379,7 +379,6 @@ func TestFindOrRecoverSessionEnd(t *testing.T) {
 				assert.Equal(t, userMeta, recovered.UserMetadata)
 				assert.Equal(t, sessionMeta, recovered.SessionMetadata)
 				assert.Equal(t, dbMeta, recovered.DatabaseMetadata)
-				assert.Equal(t, connMeta, recovered.ConnectionMetadata)
 				assert.Equal(t, startTime, recovered.StartTime)
 				assert.Equal(t, lastTime, recovered.EndTime)
 				assert.Len(t, emitted, 1)
@@ -429,58 +428,6 @@ func TestFindOrRecoverSessionEnd(t *testing.T) {
 				require.True(t, ok)
 				assert.Equal(t, events.AppSessionEndEvent, recovered.Type)
 				assert.Equal(t, events.AppSessionEndCode, recovered.Code)
-				assert.Equal(t, userMeta, recovered.UserMetadata)
-				assert.Equal(t, sessionMeta, recovered.SessionMetadata)
-				assert.Equal(t, serverMeta, recovered.ServerMetadata)
-				assert.Equal(t, connMeta, recovered.ConnectionMetadata)
-				assert.Equal(t, appMeta, recovered.AppMetadata)
-				assert.Len(t, emitted, 1)
-			},
-		},
-		{
-			name: "MCP/end already exists",
-			evts: []apievents.AuditEvent{
-				&apievents.MCPSessionStart{
-					Metadata:        apievents.Metadata{Type: events.MCPSessionStartEvent, Time: startTime, ClusterName: clusterName},
-					UserMetadata:    userMeta,
-					SessionMetadata: sessionMeta,
-					AppMetadata:     appMeta,
-				},
-				&apievents.MCPSessionEnd{
-					Metadata:        apievents.Metadata{Type: events.MCPSessionEndEvent, Time: lastTime, ClusterName: clusterName},
-					UserMetadata:    userMeta,
-					SessionMetadata: sessionMeta,
-					AppMetadata:     appMeta,
-				},
-			},
-			check: alreadyExists(
-				&apievents.MCPSessionEnd{
-					Metadata:        apievents.Metadata{Type: events.MCPSessionEndEvent, Time: lastTime, ClusterName: clusterName},
-					UserMetadata:    userMeta,
-					SessionMetadata: sessionMeta,
-					AppMetadata:     appMeta,
-				},
-			),
-		},
-		{
-			name: "MCP/end recovered",
-			evts: []apievents.AuditEvent{
-				&apievents.MCPSessionStart{
-					Metadata:           apievents.Metadata{Type: events.MCPSessionStartEvent, Time: startTime, ClusterName: clusterName},
-					UserMetadata:       userMeta,
-					SessionMetadata:    sessionMeta,
-					ServerMetadata:     serverMeta,
-					ConnectionMetadata: connMeta,
-					AppMetadata:        appMeta,
-				},
-				&apievents.SessionPrint{Metadata: apievents.Metadata{Type: events.SessionPrintEvent, Time: lastTime}},
-			},
-			check: func(t *testing.T, gotEnd apievents.AuditEvent, emitted []apievents.AuditEvent) {
-				t.Helper()
-				recovered, ok := gotEnd.(*apievents.MCPSessionEnd)
-				require.True(t, ok)
-				assert.Equal(t, events.MCPSessionEndEvent, recovered.Type)
-				assert.Equal(t, events.MCPSessionEndCode, recovered.Code)
 				assert.Equal(t, userMeta, recovered.UserMetadata)
 				assert.Equal(t, sessionMeta, recovered.SessionMetadata)
 				assert.Equal(t, serverMeta, recovered.ServerMetadata)

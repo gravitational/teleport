@@ -38,29 +38,31 @@ describe('getServerUri', () => {
     {
       name: 'throws an error if serverId is missing from the root cluster URI',
       input: { rootClusterId: 'foo' },
-      wantErr: 'Missing ":serverId" param',
+      wantErr: new TypeError('Expected "serverId" to be defined'),
     },
     {
       name: 'throws an error if serverId is missing from the leaf cluster URI',
       input: { rootClusterId: 'foo', leafClusterId: 'bar' },
-      wantErr: 'Missing ":serverId" param',
+      wantErr: new TypeError('Expected "serverId" to be defined'),
     },
     {
+      // This isn't necessarily a behavior which we should depend on, but we should document it
+      // nonetheless.
       name: 'returns a server URI if extra params are included',
       input: { rootClusterId: 'foo', serverId: 'ubuntu', dbId: 'postgres' },
       output: '/clusters/foo/servers/ubuntu',
     },
   ];
 
+  /* oxlint-disable jest/no-conditional-expect */
   test.each(tests)('$name', ({ input, output, wantErr }) => {
-    /* oxlint-disable jest/no-conditional-expect */
     if (wantErr) {
       expect(() => routing.getServerUri(input)).toThrow(wantErr);
     } else {
       expect(routing.getServerUri(input)).toEqual(output);
     }
-    /* oxlint-enable jest/no-conditional-expect */
   });
+  /* oxlint-enable jest/no-conditional-expect */
 });
 
 describe('getKubeResourceNamespaceUri', () => {

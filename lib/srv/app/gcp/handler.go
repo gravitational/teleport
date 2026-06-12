@@ -31,10 +31,11 @@ import (
 	"github.com/googleapis/gax-go/v2"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils/gcp"
-	libgcp "github.com/gravitational/teleport/lib/cloud/gcp"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
@@ -68,6 +69,10 @@ var _ cloudClientGCP = (*cloudClientGCPImpl[iamCredentialsClient])(nil)
 type HandlerConfig struct {
 	// RoundTripper is the underlying transport given to an oxy Forwarder.
 	RoundTripper http.RoundTripper
+	// LegacyLogger is the old logger.
+	// Should be removed gradually.
+	// Deprecated: use Log instead.
+	LegacyLogger logrus.FieldLogger
 	// Log is a logger for the handler.
 	Log *slog.Logger
 	// Clock is used to override time in tests.
@@ -91,10 +96,15 @@ func (s *HandlerConfig) CheckAndSetDefaults() error {
 	if s.Log == nil {
 		s.Log = slog.With(teleport.ComponentKey, "gcp:fwd")
 	}
+	if s.LegacyLogger == nil {
+		s.LegacyLogger = logrus.WithField(teleport.ComponentKey, "gcp:fwd")
+	}
 	if s.cloudClientGCP == nil {
-		// TODO (Tener): clients should be closed when no longer in use.
-		clients := libgcp.NewClients()
-		s.cloudClientGCP = &cloudClientGCPImpl[*gcpcredentials.IamCredentialsClient]{getGCPIAMClient: clients.GetIAMClient}
+		clients, err := cloud.NewClients()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		s.cloudClientGCP = &cloudClientGCPImpl[*gcpcredentials.IamCredentialsClient]{getGCPIAMClient: clients.GetGCPIAMClient}
 	}
 	return nil
 }
@@ -139,7 +149,7 @@ func newGCPHandler(ctx context.Context, config HandlerConfig) (*handler, error) 
 
 	svc.fwd, err = reverseproxy.New(
 		reverseproxy.WithRoundTripper(config.RoundTripper),
-		reverseproxy.WithLogger(config.Log),
+		reverseproxy.WithLogger(config.LegacyLogger),
 		reverseproxy.WithErrorHandler(svc.formatForwardResponseError),
 	)
 	return svc, trace.Wrap(err)
@@ -261,30 +271,28 @@ var defaultScopeList = []string{
 func (s *handler) getToken(ctx context.Context, serviceAccount string) (*credentialspb.GenerateAccessTokenResponse, error) {
 	key := cacheKey{serviceAccount}
 
-	type result struct {
-		token *credentialspb.GenerateAccessTokenResponse
-		err   error
-	}
-	resultChan := make(chan result, 1)
-
-	ctx, cancel := context.WithTimeout(ctx, getTokenTimeout)
+	cancelCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	var tokenResult *credentialspb.GenerateAccessTokenResponse
+	var errorResult error
+
+	// call Clock.After() before FnCacheGet gets called in a different go-routine.
+	// this ensures there is no race condition in the timeout tests
+	timeoutChan := s.Clock.After(getTokenTimeout)
+
 	go func() {
-		token, err := utils.FnCacheGet(ctx, s.tokenCache, key, func(ctx context.Context) (*credentialspb.GenerateAccessTokenResponse, error) {
+		tokenResult, errorResult = utils.FnCacheGet(cancelCtx, s.tokenCache, key, func(ctx context.Context) (*credentialspb.GenerateAccessTokenResponse, error) {
 			return s.generateAccessToken(ctx, serviceAccount, defaultScopeList)
 		})
-		resultChan <- result{
-			token: token,
-			err:   err,
-		}
+		cancel()
 	}()
 
 	select {
-	case <-ctx.Done():
-		return nil, trace.Wrap(ctx.Err())
-	case result := <-resultChan:
-		return result.token, trace.Wrap(result.err)
+	case <-timeoutChan:
+		return nil, trace.Wrap(context.DeadlineExceeded, "timeout waiting for access token for %v", getTokenTimeout)
+	case <-cancelCtx.Done():
+		return tokenResult, errorResult
 	}
 }
 

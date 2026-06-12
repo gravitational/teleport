@@ -47,6 +47,11 @@ type YubiKeyService struct {
 	// that needs its protection.
 	promptMu sync.Mutex
 
+	// signMu prevents prompting for PIN/touch repeatedly for concurrent signatures.
+	// TODO(Joerger): Rather than preventing concurrent signatures, we can make the
+	// PIN and touch prompts durable to concurrent signatures.
+	signMu sync.Mutex
+
 	// yubiKeys is a shared, thread-safe [YubiKey] cache by serial number. It allows for
 	// separate goroutines to share a YubiKey connection to work around the single PC/SC
 	// transaction (connection) per-yubikey limit.
@@ -307,7 +312,7 @@ func (s *YubiKeyService) promptOverwriteSlot(ctx context.Context, msg string, ke
 	if confirmed, confirmErr := s.getPrompt().ConfirmSlotOverwrite(ctx, promptQuestion, keyInfo); confirmErr != nil {
 		return trace.Wrap(confirmErr)
 	} else if !confirmed {
-		return trace.Wrap(trace.CompareFailed("%s", msg), "user declined to overwrite slot")
+		return trace.Wrap(trace.CompareFailed(msg), "user declined to overwrite slot")
 	}
 	return nil
 }

@@ -42,10 +42,7 @@ export default function useLogin() {
   const [showMotd, setShowMotd] = useState<boolean>(() => {
     const redirectUri = history.getRedirectParam();
 
-    if (
-      redirectUri?.includes('headless') ||
-      redirectUri?.includes('/mfa/browser')
-    ) {
+    if (redirectUri?.includes('headless')) {
       return false;
     }
     return !!cfg.getMotd();
@@ -77,12 +74,13 @@ export default function useLogin() {
     if (session.isValid()) {
       try {
         const redirectUrlWithBase = new URL(getEntryRoute());
-        const matched = matchPath(
-          cfg.routes.samlIdpSso,
-          redirectUrlWithBase.pathname
-        );
+        const matched = matchPath(redirectUrlWithBase.pathname, {
+          path: cfg.routes.samlIdpSso,
+          strict: true,
+          exact: true,
+        });
         if (matched) {
-          history.push(redirectUrlWithBase.toString(), true);
+          history.push(redirectUrlWithBase, true);
           return;
         } else {
           history.replace(cfg.routes.root);
@@ -93,6 +91,8 @@ export default function useLogin() {
         history.replace(cfg.routes.root);
         return;
       }
+      history.replace(cfg.routes.root);
+      return;
     }
     setCheckingValidSession(false);
   }, []);
@@ -119,16 +119,11 @@ export default function useLogin() {
       });
   }
 
-  function onLoginWithSso(provider: AuthProvider, loginHint?: string) {
+  function onLoginWithSso(provider: AuthProvider) {
     attemptActions.start();
     storageService.clearLoginTime();
     const appStartRoute = getEntryRoute();
-    const ssoUri = cfg.getSsoUrl(
-      provider.url,
-      provider.name,
-      appStartRoute,
-      loginHint
-    );
+    const ssoUri = cfg.getSsoUrl(provider.url, provider.name, appStartRoute);
     history.push(ssoUri, true);
   }
 

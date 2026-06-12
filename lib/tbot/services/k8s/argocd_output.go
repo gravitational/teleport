@@ -31,7 +31,6 @@ import (
 	"strings"
 	"time"
 
-	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/gravitational/trace"
 	corev1 "k8s.io/api/core/v1"
 	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -41,6 +40,8 @@ import (
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/client"
@@ -52,7 +53,7 @@ import (
 // ArgoCDServiceBuilder builds a new ArgoCDOutput.
 func ArgoCDServiceBuilder(cfg *ArgoCDOutputConfig, opts ...ArgoCDServiceOption) bot.ServiceBuilder {
 	buildFn := func(deps bot.ServiceDependencies) (bot.Service, error) {
-		if err := cfg.CheckAndSetDefaults(deps.Scoped); err != nil {
+		if err := cfg.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -77,7 +78,7 @@ func ArgoCDServiceBuilder(cfg *ArgoCDOutputConfig, opts ...ArgoCDServiceOption) 
 		// environment.
 		if svc.k8s == nil {
 			var err error
-			if svc.k8s, err = newKubernetesClient("", ""); err != nil {
+			if svc.k8s, err = newKubernetesClient(); err != nil {
 				return nil, trace.Wrap(err, "creating Kubernetes client")
 			}
 		}
@@ -220,16 +221,16 @@ func (s *ArgoCDOutput) discoverClusters(ctx context.Context) ([]*argoClusterCred
 		return nil, trace.Wrap(err)
 	}
 
-	// Copy clusters into a map to deduplicate by name.
-	clusters := make(map[string]types.KubeCluster)
+	var clusterNames []string
 	for _, m := range matches {
-		clusters[m.cluster.GetName()] = m.cluster
+		clusterNames = append(clusterNames, m.cluster.GetName())
 	}
+	clusterNames = utils.Deduplicate(clusterNames)
 
 	s.log.InfoContext(
 		ctx,
 		"Generated identity for Kubernetes access",
-		"matched_cluster_count", len(clusters),
+		"matched_cluster_count", len(clusterNames),
 		"identity", id.Get(),
 	)
 	proxyPong, err := s.proxyPinger.Ping(ctx)
@@ -277,17 +278,16 @@ func (s *ArgoCDOutput) discoverClusters(ctx context.Context) ([]*argoClusterCred
 		return nil, trace.BadParameter("TLS trusted CAs missing in provided credentials")
 	}
 
-	credentials := make([]*argoClusterCredentials, 0, len(clusters))
-	for _, cluster := range clusters {
-		credentials = append(credentials, &argoClusterCredentials{
+	credentials := make([]*argoClusterCredentials, len(clusterNames))
+	for idx, clusterName := range clusterNames {
+		credentials[idx] = &argoClusterCredentials{
 			teleportClusterName: proxyPong.ClusterName,
-			kubeClusterName:     cluster.GetName(),
-			kubeClusterLabels:   cluster.GetAllLabels(),
+			kubeClusterName:     clusterName,
 			addr: fmt.Sprintf(
 				"%s/v1/teleport/%s/%s",
 				proxyAddr,
 				encodePathComponent(proxyPong.ClusterName),
-				encodePathComponent(cluster.GetName()),
+				encodePathComponent(clusterName),
 			),
 			tlsClientConfig: argoTLSClientConfig{
 				CAData:     caBytes,
@@ -296,7 +296,7 @@ func (s *ArgoCDOutput) discoverClusters(ctx context.Context) ([]*argoClusterCred
 				ServerName: kubeSNI,
 			},
 			botName: id.Get().TLSIdentity.BotName,
-		})
+		}
 	}
 	return credentials, nil
 }
@@ -304,7 +304,6 @@ func (s *ArgoCDOutput) discoverClusters(ctx context.Context) ([]*argoClusterCred
 type argoClusterCredentials struct {
 	teleportClusterName string
 	kubeClusterName     string
-	kubeClusterLabels   map[string]string
 	addr                string
 	tlsClientConfig     argoTLSClientConfig
 	botName             string
@@ -323,14 +322,7 @@ func (s *ArgoCDOutput) renderSecret(cluster *argoClusterCredentials) (*corev1.Se
 	}
 	for k, v := range s.cfg.SecretLabels {
 		// Do not overwrite any of "our" labels.
-		if _, ok := labels[k]; ok {
-			continue
-		}
-		v, err := renderTemplate(v, cluster)
-		if err != nil {
-			return nil, trace.Wrap(err, "templating secret label %q", k)
-		}
-		if v != "" {
+		if _, ok := labels[k]; !ok {
 			labels[k] = v
 		}
 	}
@@ -344,14 +336,7 @@ func (s *ArgoCDOutput) renderSecret(cluster *argoClusterCredentials) (*corev1.Se
 	}
 	for k, v := range s.cfg.SecretAnnotations {
 		// Do not overwrite any of "our" annotations.
-		if _, ok := annotations[k]; ok {
-			continue
-		}
-		v, err := renderTemplate(v, cluster)
-		if err != nil {
-			return nil, trace.Wrap(err, "templating secret annotation %q", k)
-		}
-		if v != "" {
+		if _, ok := annotations[k]; !ok {
 			annotations[k] = v
 		}
 	}
@@ -363,7 +348,11 @@ func (s *ArgoCDOutput) renderSecret(cluster *argoClusterCredentials) (*corev1.Se
 		return nil, trace.Wrap(err, "marshaling cluster credentials")
 	}
 
-	name, err := renderTemplate(s.cfg.ClusterNameTemplate, cluster)
+	name, err := kubeconfig.ContextNameFromTemplate(
+		s.cfg.ClusterNameTemplate,
+		cluster.teleportClusterName,
+		cluster.kubeClusterName,
+	)
 	if err != nil {
 		return nil, trace.Wrap(err, "templating cluster name")
 	}
@@ -437,31 +426,4 @@ func (s *ArgoCDOutput) writeSecret(ctx context.Context, secret *corev1.Secret) e
 		return trace.Wrap(err, "updating secret: %s", fullName)
 	}
 	return nil
-}
-
-func renderTemplate(temp string, cluster *argoClusterCredentials) (string, error) {
-	if temp == "" {
-		return "", nil
-	}
-
-	tmpl, err := template.New("").Parse(temp)
-	if err != nil {
-		return "", trace.BadParameter("failed to parse template, error: %v", err)
-	}
-
-	tmplVars := struct {
-		ClusterName string
-		KubeName    string
-		Labels      map[string]string
-	}{
-		ClusterName: cluster.teleportClusterName,
-		KubeName:    cluster.kubeClusterName,
-		Labels:      cluster.kubeClusterLabels,
-	}
-
-	var b bytes.Buffer
-	if err = tmpl.Execute(&b, tmplVars); err != nil {
-		return "", trace.BadParameter("failed to execute template, error: %v", err)
-	}
-	return b.String(), nil
 }

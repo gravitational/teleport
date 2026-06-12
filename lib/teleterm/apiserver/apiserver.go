@@ -19,12 +19,11 @@
 package apiserver
 
 import (
-	"context"
 	"fmt"
-	"log/slog"
 	"net"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 
 	autoupdateapi "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/auto_update/v1"
@@ -82,12 +81,12 @@ func New(cfg Config) (*APIServer, error) {
 
 	grpcServer := grpc.NewServer(cfg.TshdServerCreds,
 		grpc.ChainUnaryInterceptor(
-			withUnaryErrorHandling(cfg.Logger),
-			withUnaryPanicRecovery(cfg.Logger),
+			withUnaryErrorHandling(cfg.Log),
+			withUnaryPanicRecovery(cfg.Log),
 		),
 		grpc.ChainStreamInterceptor(
-			withStreamErrorHandling(cfg.Logger),
-			withStreamPanicRecovery(cfg.Logger),
+			withStreamErrorHandling(cfg.Log),
+			withStreamPanicRecovery(cfg.Log),
 		),
 		grpc.MaxConcurrentStreams(defaults.GRPCMaxConcurrentStreams),
 	)
@@ -115,7 +114,7 @@ func (s *APIServer) Stop() {
 	// immediate. Closing the VNet service before the gRPC server gives some time for the VNet admin
 	// process to notice that the client is gone and shut down as well.
 	if err := s.vnetService.Close(); err != nil {
-		slog.ErrorContext(context.Background(), "Error while closing VNet service", "error", err)
+		log.WithError(err).Error("Error while closing VNet service")
 	}
 
 	s.grpcServer.GracefulStop()
@@ -139,7 +138,7 @@ func newListener(hostAddr string, listeningC chan<- utils.NetAddr) (net.Listener
 		listeningC <- addr
 	}
 
-	slog.InfoContext(context.Background(), "tsh daemon listener created", "listen_addr", addr.FullAddress())
+	log.Infof("tsh daemon is listening on %v.", addr.FullAddress())
 
 	return lis, nil
 }

@@ -21,32 +21,20 @@
 package tools_test
 
 import (
-	"os/exec"
 	"syscall"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/sys/windows"
 )
 
-// newCommand creates command depends on platform.
-func newCommand(path string, args ...string) *exec.Cmd {
-	cmd := exec.Command(path, args...)
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
-	}
-	return cmd
-}
+var (
+	kernel    = windows.NewLazyDLL("kernel32.dll")
+	ctrlEvent = kernel.NewProc("GenerateConsoleCtrlEvent")
+)
 
 // sendInterrupt sends a Ctrl-Break event to the process.
 func sendInterrupt(pid int) error {
-	d, err := syscall.LoadDLL("kernel32.dll")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	p, err := d.FindProc("GenerateConsoleCtrlEvent")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	r, _, err := p.Call(syscall.CTRL_BREAK_EVENT, uintptr(pid))
+	r, _, err := ctrlEvent.Call(uintptr(syscall.CTRL_BREAK_EVENT), uintptr(pid))
 	if r == 0 {
 		return trace.Wrap(err)
 	}

@@ -1,4 +1,4 @@
-//go:build !darwin && !windows && !linux
+//go:build !darwin && !windows
 
 // Teleport
 // Copyright (C) 2025 Gravitational, Inc.
@@ -24,8 +24,6 @@ import (
 
 	"github.com/gravitational/trace"
 )
-
-// TODO(tangyatsu): linux diagnostics
 
 func (n *NetInterfaces) interfaceApp(ctx context.Context, ifaceName string) (string, error) {
 	return "", trace.NotImplemented("InterfaceApp is not implemented")

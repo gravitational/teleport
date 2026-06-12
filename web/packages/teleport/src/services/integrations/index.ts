@@ -18,5 +18,4 @@
 
 export { integrationService, makeIntegrations } from './integrations';
 
-export * from './constants';
 export * from './types';

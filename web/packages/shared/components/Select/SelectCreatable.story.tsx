@@ -16,33 +16,17 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Meta } from '@storybook/react-vite';
 import { useState } from 'react';
 
 import { Box, Flex } from 'design';
 
 import { Option, SelectCreatable } from '../Select';
 
-type StoryProps = {
-  readOnly?: boolean;
-  isDisabled?: boolean;
-};
-
-const meta: Meta<StoryProps> = {
+export default {
   title: 'Shared/SelectCreatable',
-  component: Controls,
-  argTypes: {
-    readOnly: {
-      control: { type: 'boolean' },
-    },
-    isDisabled: {
-      control: { type: 'boolean' },
-    },
-  },
 };
-export default meta;
 
-export function Controls(props: StoryProps) {
+export const Selects = () => {
   const [input, setInput] = useState('');
   const [inputMulti, setInputMulti] = useState('');
   const [selected, setSelected] = useState<Option>();
@@ -65,8 +49,6 @@ export function Controls(props: StoryProps) {
           value={selectedMulti}
           onInputChange={v => setInputMulti(v)}
           onChange={v => setSelectedMulti(v)}
-          isDisabled={props.isDisabled}
-          readOnly={props.readOnly}
         />
         Note: accept new candidate with Enter or mouse click
       </Box>
@@ -78,10 +60,8 @@ export function Controls(props: StoryProps) {
           value={selected}
           onInputChange={v => setInput(v)}
           onChange={v => setSelected(v)}
-          isDisabled={props.isDisabled}
-          readOnly={props.readOnly}
         />
       </Box>
     </Flex>
   );
-}
+};

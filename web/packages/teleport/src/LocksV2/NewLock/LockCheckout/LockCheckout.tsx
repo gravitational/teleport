@@ -17,7 +17,7 @@
  */
 
 import { forwardRef, useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router';
+import { Link } from 'react-router-dom';
 import type { TransitionStatus } from 'react-transition-group';
 import styled from 'styled-components';
 
@@ -74,7 +74,7 @@ export const LockCheckout = forwardRef<HTMLDivElement, Props>(
     },
     ref
   ) => {
-    const sliderRef = useRef<HTMLDivElement>(null);
+    const sliderRef = useRef<HTMLDivElement>();
 
     const { attempt, setAttempt } = useAttempt('');
 
@@ -322,8 +322,14 @@ function SuccessActionComponent({ reset, onClose, locks }) {
         mb={3}
         width="100%"
         size="large"
-        to={cfg.getLocksRoute()}
-        state={locks.length ? { createdLocks: locks } : undefined}
+        to={
+          locks.length
+            ? {
+                pathname: cfg.getLocksRoute(),
+                state: { createdLocks: locks },
+              }
+            : cfg.getLocksRoute()
+        }
       >
         Back to Locks
       </ButtonPrimary>

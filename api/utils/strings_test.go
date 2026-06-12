@@ -28,3 +28,10 @@ func TestMapToStrings(t *testing.T) {
 	s := MapToStrings(map[string]string{"env": "prod", "Os": "Mac"})
 	require.ElementsMatch(t, []string{"env", "prod", "Os", "Mac"}, s)
 }
+
+func TestToLowerStrings(t *testing.T) {
+	t.Parallel()
+
+	s := ToLowerStrings([]string{"FOO", "bAr", "baz"})
+	require.ElementsMatch(t, []string{"foo", "bar", "baz"}, s)
+}

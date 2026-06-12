@@ -135,7 +135,7 @@ func MakeTestServerTLSConfig(config TestServerConfig) (*tls.Config, error) {
 	resp, err := config.AuthClient.GenerateDatabaseCert(context.Background(),
 		&proto.DatabaseCertRequest{
 			CSR:           csr,
-			ServerNames:   []string{cn, "127.0.0.1", "::1"},
+			ServerName:    cn,
 			TTL:           proto.Duration(time.Hour),
 			RequesterName: proto.DatabaseCertRequest_TCTL,
 		})

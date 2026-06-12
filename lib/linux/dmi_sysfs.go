@@ -77,6 +77,8 @@ func DMIInfoFromFS(dmifs fs.FS) (*DMIInfo, error) {
 	vals := make([]string, len(names))
 	errs := make([]error, len(names))
 	for i, name := range names {
+		i := i
+		name := name
 
 		wg.Add(1)
 		go func() {

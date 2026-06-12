@@ -28,12 +28,11 @@ db_service:
     # 'rdsproxy' - discovers and registers Amazon RDS Proxy databases.
     # 'redshift' - discovers and registers Amazon Redshift databases.
     # 'redshift-serverless' - discovers and registers Amazon Redshift Serverless databases.
-    # 'elasticache' - discovers and registers Amazon ElastiCache Redis and Valkey databases.
-    # 'elasticache-serverless' - Amazon ElastiCache Serverless Redis or Valkey databases.
-    # 'memorydb' - discovers and registers Amazon MemoryDB databases.
+    # 'elasticache' - discovers and registers Amazon ElastiCache Redis databases.
+    # 'memorydb' - discovers and registers Amazon MemoryDB Redis databases.
     # 'opensearch' - discovers and registers Amazon OpenSearch databases.
     # 'docdb' - discovers and registers Amazon DocumentDB databases.
-  - types: ["rds", "rdsproxy","redshift", "redshift-serverless", "elasticache", "elasticache-serverless", "memorydb", "opensearch", "docdb"]
+  - types: ["rds", "rdsproxy","redshift", "redshift-serverless", "elasticache", "memorydb", "opensearch", "docdb"]
     # AWS regions to register databases from.
     regions: ["us-west-1", "us-east-2"]
     # Optional AWS role that the Database Service will assume to discover
@@ -55,7 +54,7 @@ db_service:
   # on the Database Service.
   #
   # NOTE: for most deployments, it is recommended to use the Discovery Service
-  # to register Azure databases instead of Database Service–based discovery.
+  # to register AWS databases instead of Database Service–based discovery.
   azure:
     # Database types. Valid options are:
     # 'mysql' - discovers and registers Azure MySQL databases.
@@ -135,13 +134,6 @@ db_service:
       # When this option is set the Database Agent doesn't try to check the MySQL server version.
       server_version: 8.0.28
 
-    # Oracle only options.
-    oracle:
-      # Randomize host order per connection attempt to spread load. Optional.
-      shuffle_hostnames: true
-      # Retries per host on network errors only; non-network errors stop (default: 2). Optional.
-      retry_count: 5            
-
     # Optional admin user configuration for Automatic User Provisioning.
     admin_user:
       # Name of the admin user.
@@ -206,12 +198,6 @@ db_service:
       project_id: "xxx-1234"
       # Cloud SQL instance ID.
       instance_id: "example"
-      # AlloyDB-specific configuration.
-      alloydb:
-        # Endpoint type. Valid types: "private" (default), "public", "PSC".
-        endpoint_type: "private"
-        # Endpoint override. IP address or hostname to be used instead of automatically resolved endpoint.
-        endpoint_override: "11.22.33.44"
 
     # Settings specific to Active Directory authentication e.g. for SQL Server.
     ad:
@@ -224,7 +210,7 @@ db_service:
       # Optional path to Kerberos configuration file. Defaults to /etc/krb5.conf.
       krb5_file: /etc/krb5.conf
       # Name of the service account Teleport uses to perform LDAP queries for retrieving user SIDs.
-      ldap_service_account_name: 'EXAMPLE\svc-teleport'
+      ldap_service_account_name: "svc-teleport"
       # SID of the above service account. Teleport uses this to authenticate LDAP queries.
       # Also required for PKINIT if the user SID must be included in the certificate.
       ldap_service_account_sid: "S-1-5-21-1111111111-2222222222-3333333333-4444"

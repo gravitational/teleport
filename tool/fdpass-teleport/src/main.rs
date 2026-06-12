@@ -23,7 +23,7 @@ use nix::{
 use simple_eyre::eyre::{self, OptionExt, Result, WrapErr};
 use std::{
     env,
-    io::{self, IoSlice, Write},
+    io::{IoSlice, Write},
     os::{
         fd::AsRawFd,
         unix::{ffi::OsStrExt, net::UnixStream},
@@ -60,20 +60,20 @@ fn main() -> Result<()> {
     // we'll get a ENOTSOCK if stdout is not a socket, or EINVAL if the address
     // returned by getsockname() is not AF_UNIX (i.e. stdout is a socket but not
     // a unix domain socket)
-    socket::getsockname::<socket::UnixAddr>(io::stdout().as_raw_fd())
+    socket::getsockname::<socket::UnixAddr>(libc::STDOUT_FILENO)
         .wrap_err("stdout is not a unix socket")?;
 
     // to not have to bother with poll() for the later sendmsg() we have to
     // confirm that the socket is set to blocking mode, or we might end up
     // busylooping with EAGAIN; OpenSSH at the time of writing (9.7) will give
     // the ProxyCommand a blocking socketpair() half, so we should be good
-    let fl = fcntl::fcntl(io::stdout(), fcntl::F_GETFL)
+    let fl = fcntl::fcntl(libc::STDOUT_FILENO, fcntl::F_GETFL)
         .wrap_err("could not check stdout for blocking mode")?;
     let fl = OFlag::from_bits_retain(fl);
     if fl.contains(OFlag::O_NONBLOCK) {
         let mut fl = fl;
         fl.set(OFlag::O_NONBLOCK, false);
-        fcntl::fcntl(io::stdout(), fcntl::F_SETFL(fl))
+        fcntl::fcntl(libc::STDOUT_FILENO, fcntl::F_SETFL(fl))
             .wrap_err("could not set stdout to blocking mode")?;
     }
 
@@ -88,7 +88,7 @@ fn main() -> Result<()> {
         match socket::sendmsg::<()>(
             mux_conn.as_raw_fd(),
             &[IoSlice::new(buf)],
-            &[ControlMessage::ScmRights(&[io::stderr().as_raw_fd()])],
+            &[ControlMessage::ScmRights(&[libc::STDERR_FILENO])],
             MsgFlags::empty(),
             None,
         ) {
@@ -115,7 +115,7 @@ fn main() -> Result<()> {
     // (https://github.com/openbsd/src/blob/master/usr.bin/nc/netcat.c)
     loop {
         match socket::sendmsg::<()>(
-            io::stdout().as_raw_fd(),
+            libc::STDOUT_FILENO,
             &[IoSlice::new(&[0])],
             &[ControlMessage::ScmRights(&[mux_conn.as_raw_fd()])],
             MsgFlags::empty(),

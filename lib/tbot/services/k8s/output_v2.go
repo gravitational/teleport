@@ -26,7 +26,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net/url"
 	"path/filepath"
 
 	"github.com/gravitational/trace"
@@ -42,7 +41,6 @@ import (
 	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
-	kuberelay "github.com/gravitational/teleport/lib/kube/relay"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
@@ -55,7 +53,7 @@ import (
 
 func OutputV2ServiceBuilder(cfg *OutputV2Config, opts ...OutputV2Option) bot.ServiceBuilder {
 	buildFn := func(deps bot.ServiceDependencies) (bot.Service, error) {
-		if err := cfg.CheckAndSetDefaults(deps.Scoped); err != nil {
+		if err := cfg.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		svc := &OutputV2Service{
@@ -70,7 +68,6 @@ func OutputV2ServiceBuilder(cfg *OutputV2Config, opts ...OutputV2Option) bot.Ser
 			clientBuilder:             deps.ClientBuilder,
 			log:                       deps.Logger,
 			statusReporter:            deps.GetStatusReporter(),
-			scoped:                    deps.Scoped,
 		}
 		for _, opt := range opts {
 			opt.applyToV2Output(svc)
@@ -106,8 +103,6 @@ type OutputV2Service struct {
 	executablePath    func() (string, error)
 	identityGenerator *identity.Generator
 	clientBuilder     *client.Builder
-
-	scoped bool
 }
 
 func (s *OutputV2Service) String() string {
@@ -118,22 +113,14 @@ func (s *OutputV2Service) String() string {
 }
 
 func (s *OutputV2Service) OneShot(ctx context.Context) error {
-	f := s.generate
-	if s.scoped {
-		f = s.generateScoped
-	}
-	return f(ctx)
+	return s.generate(ctx)
 }
 
 func (s *OutputV2Service) Run(ctx context.Context) error {
-	f := s.generate
-	if s.scoped {
-		f = s.generateScoped
-	}
 	return trace.Wrap(internal.RunOnInterval(ctx, internal.RunOnIntervalConfig{
 		Service:         s.String(),
 		Name:            "output-renewal",
-		F:               f,
+		F:               s.generate,
 		Interval:        cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime).RenewalInterval,
 		RetryLimit:      internal.RenewalRetryLimit,
 		Log:             s.log,
@@ -164,55 +151,15 @@ func (s *OutputV2Service) generate(ctx context.Context) error {
 	}
 
 	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
-	opts := []identity.GenerateOption{
+	id, err := s.identityGenerator.GenerateFacade(ctx,
 		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
 		identity.WithLogger(s.log),
-	}
-
-	if s.cfg.DelegationSessionID != "" {
-		opts = append(opts, identity.WithDelegation(s.cfg.DelegationSessionID))
-	}
-
-	id, err := s.identityGenerator.GenerateFacade(ctx, opts...)
+	)
 	if err != nil {
 		return trace.Wrap(err, "generating identity")
 	}
 
-	return s.generateForIdentity(ctx, id)
-}
-
-func (s *OutputV2Service) generateScoped(ctx context.Context) error {
-	ctx, span := tracer.Start(
-		ctx,
-		"OutputV2Service/generateScoped",
-	)
-	defer span.End()
-	s.log.InfoContext(ctx, "Generating output in scoped mode")
-
-	if err := s.cfg.Destination.Verify(identity.ListKeys(identity.DestinationKinds()...)); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := identity.VerifyWrite(ctx, s.cfg.Destination); err != nil {
-		return trace.Wrap(err, "verifying destination")
-	}
-
-	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
-	id, err := s.identityGenerator.GenerateScopedFacade(
-		ctx, effectiveLifetime.TTL, effectiveLifetime.RenewalInterval,
-	)
-	if err != nil {
-		return trace.Wrap(err, "generating scoped identity")
-	}
-
-	return s.generateForIdentity(ctx, id)
-}
-
-// generateForIdentity is the shared post-identity logic for both the scoped
-// and unscoped generate paths: it uses the given identity to enumerate
-// kubernetes clusters matching the configured selectors and renders a
-// kubeconfig.
-func (s *OutputV2Service) generateForIdentity(ctx context.Context, id *identity.Facade) error {
-	// create a client that uses the generated identity, so that when we
+	// create a client that uses the impersonated identity, so that when we
 	// fetch information, we can ensure access rights are enforced.
 	impersonatedClient, err := s.clientBuilder.Build(ctx, id)
 	if err != nil {
@@ -273,23 +220,12 @@ func (s *OutputV2Service) generateForIdentity(ctx context.Context, id *identity.
 	}
 
 	status := &kubernetesStatusV2{
+		clusterAddr:            clusterAddr,
+		tlsServerName:          tlsServerName,
 		credentials:            keyRing,
 		teleportClusterName:    proxyPong.ClusterName,
 		kubernetesClusterNames: clusterNames,
 		defaultNamespaces:      defaultNamespaces,
-	}
-
-	if s.cfg.RelayAddress == "" {
-		status.clusterAddr = clusterAddr
-		status.tlsServerNameFunc = func(teleportClusterName, kubeClusterName string) string {
-			return tlsServerName
-		}
-	} else {
-		status.clusterAddr = (&url.URL{
-			Scheme: "https",
-			Host:   s.cfg.RelayAddress,
-		}).String()
-		status.tlsServerNameFunc = kuberelay.FullSNIForKubeCluster
 	}
 
 	return trace.Wrap(s.render(ctx, status, id.Get(), hostCAs))
@@ -300,20 +236,12 @@ func (s *OutputV2Service) generateForIdentity(ctx context.Context, id *identity.
 type kubernetesStatusV2 struct {
 	clusterAddr            string
 	teleportClusterName    string
-	tlsServerNameFunc      func(teleportClusterName, kubeClusterName string) string
+	tlsServerName          string
 	credentials            *libclient.KeyRing
 	kubernetesClusterNames []string
 	// defaultNamespace is map of the cluster name to the default namespace
 	// which should be used for that cluster.
 	defaultNamespaces map[string]string
-}
-
-func (s kubernetesStatusV2) tlsServerName(teleportClusterName, kubeClusterName string) string {
-	if s.tlsServerNameFunc == nil {
-		return ""
-	}
-
-	return s.tlsServerNameFunc(teleportClusterName, kubeClusterName)
 }
 
 // queryKubeClustersByLabels fetches a list of Kubernetes clusters matching the
@@ -523,7 +451,7 @@ func (o *OutputV2Service) generateKubeConfigV2WithPlugin(ks *kubernetesStatusV2,
 		suffix := fmt.Sprintf("/v1/teleport/%s/%s", encodePathComponent(ks.teleportClusterName), encodePathComponent(cluster))
 		config.Clusters[contextName] = &clientcmdapi.Cluster{
 			Server:        ks.clusterAddr + suffix,
-			TLSServerName: ks.tlsServerName(ks.teleportClusterName, cluster),
+			TLSServerName: ks.tlsServerName,
 
 			// TODO: consider using CertificateAuthority (path) here to avoid
 			// duplication. This branch (with plugin) already requires a file
@@ -580,7 +508,7 @@ func (o *OutputV2Service) generateKubeConfigV2WithoutPlugin(ks *kubernetesStatus
 		suffix := fmt.Sprintf("/v1/teleport/%s/%s", encodePathComponent(ks.teleportClusterName), encodePathComponent(cluster))
 		config.Clusters[contextName] = &clientcmdapi.Cluster{
 			Server:                   ks.clusterAddr + suffix,
-			TLSServerName:            ks.tlsServerName(ks.teleportClusterName, cluster),
+			TLSServerName:            ks.tlsServerName,
 			CertificateAuthorityData: cas,
 		}
 

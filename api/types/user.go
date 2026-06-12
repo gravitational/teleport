@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/charlievieth/strcase"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -39,14 +38,8 @@ const (
 
 // Match checks if the given user matches this filter.
 func (f *UserFilter) Match(user *UserV2) bool {
-	if len(f.SearchKeywords) > 0 {
+	if len(f.SearchKeywords) != 0 {
 		if !user.MatchSearch(f.SearchKeywords) {
-			return false
-		}
-	}
-
-	if len(f.Traits) > 0 {
-		if !user.MatchTraits(f.Traits) {
 			return false
 		}
 	}
@@ -64,15 +57,12 @@ type User interface {
 	ResourceWithSecrets
 	ResourceWithOrigin
 	ResourceWithLabels
-	IsEqual(other User) bool
 	// SetMetadata sets object metadata
 	SetMetadata(meta Metadata)
 	// GetOIDCIdentities returns a list of connected OIDC identities
 	GetOIDCIdentities() []ExternalIdentity
 	// GetSAMLIdentities returns a list of connected SAML identities
 	GetSAMLIdentities() []ExternalIdentity
-	// SetSAMLIdentities sets a list of connected SAML identities
-	SetSAMLIdentities([]ExternalIdentity)
 	// GetGithubIdentities returns a list of connected Github identities
 	GetGithubIdentities() []ExternalIdentity
 	// SetGithubIdentities sets the list of connected GitHub identities
@@ -137,18 +127,12 @@ type User interface {
 	SetHostUserUID(uid string)
 	// SetHostUserGID sets the GID for host users
 	SetHostUserGID(gid string)
-	// SetMCPTools sets a list of allowed MCP tools for the user
-	SetMCPTools(mcpTools []string)
-	// SetDefaultRelayAddr sets the trait for the default relay address.
-	SetDefaultRelayAddr(addr string)
 	// GetCreatedBy returns information about user
 	GetCreatedBy() CreatedBy
 	// SetCreatedBy sets created by information
 	SetCreatedBy(CreatedBy)
 	// GetUserType indicates if the User was created by an SSO Provider or locally.
 	GetUserType() UserType
-	// GetDisplay returns display values derived from the user.
-	GetDisplay() UserDisplay
 	// GetTraits gets the trait map for this user used to populate role variables.
 	GetTraits() map[string][]string
 	// SetTraits sets the trait map for this user used to populate role variables.
@@ -176,8 +160,6 @@ type User interface {
 	SetWeakestDevice(MFADeviceKind)
 	// GetWeakestDevice gets the MFA state for the user.
 	GetWeakestDevice() MFADeviceKind
-	// Clone creats a copy of the user.
-	Clone() User
 }
 
 // NewUser creates new empty user
@@ -197,33 +179,6 @@ func NewUser(name string) (User, error) {
 // same ID/type as this one
 func (r *ConnectorRef) IsSameProvider(other *ConnectorRef) bool {
 	return other != nil && other.Type == r.Type && other.ID == r.ID
-}
-
-func (u *UserV2) IsEqual(other User) bool {
-	otherV2, ok := other.(*UserV2)
-	if !ok {
-		return false
-	}
-	if !deriveTeleportEqualUser(u, otherV2) {
-		return false
-	}
-
-	if u == nil && otherV2 == nil {
-		return true
-	}
-
-	// The derived equality function skips MFA because the Device
-	// interface is not handled by goderive. If every other aspect
-	// of the users is equivalent, then evualate whether the devices
-	// are as well manually.
-	var thisMFA, thatMFA []*MFADevice
-	if u != nil && u.Spec.LocalAuth != nil {
-		thisMFA = u.Spec.LocalAuth.MFA
-	}
-	if otherV2 != nil && otherV2.Spec.LocalAuth != nil {
-		thatMFA = otherV2.Spec.LocalAuth.MFA
-	}
-	return mfaDevicesEqual(thisMFA, thatMFA)
 }
 
 // GetVersion returns resource version
@@ -296,56 +251,9 @@ func (u *UserV2) SetStaticLabels(sl map[string]string) {
 // MatchSearch goes through select field values and tries to
 // match against the list of search values.
 func (u *UserV2) MatchSearch(values []string) bool {
-Outer:
-	for _, searchV := range values {
-		for key, value := range u.GetAllLabels() {
-			if strcase.Contains(key, searchV) || strcase.Contains(value, searchV) {
-				continue Outer
-			}
-		}
-
-		if strcase.Contains(u.GetName(), searchV) {
-			continue
-		}
-
-		for _, role := range u.GetRoles() {
-			if strcase.Contains(role, searchV) {
-				continue Outer
-			}
-		}
-
-		for trait, values := range u.GetTraits() {
-			if strcase.Contains(trait, searchV) {
-				continue Outer
-			}
-			for _, value := range values {
-				if strcase.Contains(value, searchV) {
-					continue Outer
-				}
-			}
-		}
-
-		// When no fields matched a value, prematurely end if we can.
-		return false
-	}
-
-	return true
-}
-
-// MatchTraits takes a map of traits and returns `true` if the user's
-// traits contains all of them.
-func (u *UserV2) MatchTraits(traits map[string][]string) bool {
-	if u.Spec.Traits == nil {
-		return false
-	}
-
-	for key, values := range traits {
-		traitValues, ok := u.Spec.Traits[key]
-		if !ok || !utils.ContainsAll(traitValues, values) {
-			return false
-		}
-	}
-	return true
+	fieldVals := append(utils.MapToStrings(u.Metadata.Labels), u.GetName())
+	fieldVals = append(fieldVals, u.GetRoles()...)
+	return MatchSearch(fieldVals, values, nil)
 }
 
 // SetMetadata sets object metadata
@@ -368,15 +276,14 @@ func (u *UserV2) SetName(e string) {
 	u.Metadata.Name = e
 }
 
-func (u *UserV2) Clone() User {
-	return utils.CloneProtoMsg(u)
-}
-
 // WithoutSecrets returns an instance of resource without secrets.
 func (u *UserV2) WithoutSecrets() Resource {
-	u2 := utils.CloneProtoMsg(u)
+	if u.Spec.LocalAuth == nil {
+		return u
+	}
+	u2 := *u
 	u2.Spec.LocalAuth = nil
-	return u2
+	return &u2
 }
 
 // GetTraits gets the trait map for this user used to populate role variables.
@@ -512,23 +419,6 @@ func (u *UserV2) SetHostUserGID(uid string) {
 	u.setTrait(constants.TraitHostUserGID, []string{uid})
 }
 
-// SetMCPTools sets a list of allowed MCP tools for the user
-func (u *UserV2) SetMCPTools(mcpTools []string) {
-	u.setTrait(constants.TraitMCPTools, mcpTools)
-}
-
-// SetDefaultRelayAddr implements [User].
-func (u *UserV2) SetDefaultRelayAddr(addr string) {
-	if addr == "" {
-		delete(u.Spec.Traits, constants.TraitDefaultRelayAddr)
-		return
-	}
-	if u.Spec.Traits == nil {
-		u.Spec.Traits = make(map[string][]string)
-	}
-	u.Spec.Traits[constants.TraitDefaultRelayAddr] = []string{addr}
-}
-
 // GetStatus returns login status of the user
 func (u *UserV2) GetStatus() LoginStatus {
 	return u.Spec.Status
@@ -542,11 +432,6 @@ func (u *UserV2) GetOIDCIdentities() []ExternalIdentity {
 // GetSAMLIdentities returns a list of connected SAML identities
 func (u *UserV2) GetSAMLIdentities() []ExternalIdentity {
 	return u.Spec.SAMLIdentities
-}
-
-// SetSAMLIdentities sets a list of connected SAML identities
-func (u *UserV2) SetSAMLIdentities(identities []ExternalIdentity) {
-	u.Spec.SAMLIdentities = identities
 }
 
 // GetGithubIdentities returns a list of connected Github identities

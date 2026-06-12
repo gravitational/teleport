@@ -59,7 +59,6 @@ export enum NavTitle {
   Users = 'Users',
   Bots = 'Bots',
   BotInstances = 'Bot Instances',
-  InstanceInventory = 'Instance Inventory',
   Roles = 'Roles',
   JoinTokens = 'Join Tokens',
   AuthConnectors = 'Auth Connectors',
@@ -70,7 +69,6 @@ export enum NavTitle {
   NewAccessList = 'Access List',
   NewBot = 'Bot',
   NewBotShortcut = 'Enroll New Bot',
-  ManagedUpdates = 'Managed Updates',
 
   // Identity Governance & Security
   AccessLists = 'Access Lists',
@@ -78,7 +76,6 @@ export enum NavTitle {
   TrustedDevices = 'Trusted Devices',
   AccessMonitoring = 'Access Monitoring',
   WorkloadIdentity = 'Workload Identity',
-  AccessAutomations = 'Access Automations',
 
   // Resources Requests
   NewRequest = 'New Request',
@@ -87,8 +84,6 @@ export enum NavTitle {
   // Access Graph
   AccessGraphDashboard = 'Dashboard',
   AccessGraphBrowse = 'Browse',
-  AccessGraphAlerts = 'Alerts',
-  AccessGraphInvestigate = 'Investigate',
   AccessGraphCrownJewels = 'Crown Jewels',
   AccessGraphGraphExplorer = 'Graph Explorer',
   AccessGraphSQLEditor = 'SQL Editor',
@@ -115,11 +110,6 @@ export enum NavTitle {
 
   Support = 'Support',
   Downloads = 'Downloads',
-
-  // Beams
-  BeamsQuickstart = 'Quickstart',
-  BeamsFeedback = 'Feedback',
-  BeamsList = 'My Beams',
 }
 
 export interface TeleportFeatureRoute {
@@ -219,22 +209,12 @@ export interface FeatureFlags {
   externalAuditStorage: boolean;
   listBots: boolean;
   readBots: boolean;
-  readBotInstances: boolean;
   listBotInstances: boolean;
-  readInstances: boolean;
-  listInstances: boolean;
   addBots: boolean;
   editBots: boolean;
   removeBots: boolean;
   gitServers: boolean;
   listWorkloadIdentities: boolean;
-  readAutoUpdateConfig: boolean;
-  readAutoUpdateVersion: boolean;
-  readAutoUpdateAgentRollout: boolean;
-  listAutoUpdateAgentReport: boolean;
-  sessionSummaries: boolean;
-  listBeam: boolean;
-  readBeam: boolean;
 }
 
 // LockedFeatures are used for determining which features are disabled in the user's cluster.

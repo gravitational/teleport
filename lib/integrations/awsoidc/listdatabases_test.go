@@ -32,7 +32,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func stringPointer(s string) *string {
@@ -117,7 +117,7 @@ func TestListDatabases(t *testing.T) {
 
 		allInstances := make([]rdsTypes.DBInstance, 0, totalDBs)
 		for i, vpcID := range vpcIDs {
-			for j := range databasesPerVPC {
+			for j := 0; j < databasesPerVPC; j++ {
 				allInstances = append(allInstances, rdsTypes.DBInstance{
 					DBInstanceStatus:     stringPointer("available"),
 					DBInstanceIdentifier: stringPointer(fmt.Sprintf("db-%v", i*databasesPerVPC+j)),
@@ -141,7 +141,7 @@ func TestListDatabases(t *testing.T) {
 
 		t.Run("without vpc filter", func(t *testing.T) {
 			t.Parallel()
-			logger := logtest.With("test", t.Name())
+			logger := utils.NewSlogLoggerForTests().With("test", t.Name())
 			// First page must return pageSize number of DBs
 			req := ListDatabasesRequest{
 				Region:    "us-east-1",
@@ -166,7 +166,7 @@ func TestListDatabases(t *testing.T) {
 
 		t.Run("with vpc filter", func(t *testing.T) {
 			t.Parallel()
-			logger := logtest.With("test", t.Name())
+			logger := utils.NewSlogLoggerForTests().With("test", t.Name())
 			// First page must return at least pageSize number of DBs
 			var gotDatabases []types.Database
 			wantVPC := "vpc-2"
@@ -694,7 +694,7 @@ func TestListDatabases(t *testing.T) {
 				dbInstances: tt.mockInstances,
 				dbClusters:  tt.mockClusters,
 			}
-			logger := logtest.With("test", t.Name())
+			logger := utils.NewSlogLoggerForTests().With("test", t.Name())
 			resp, err := ListDatabases(ctx, mockListClient, logger, tt.req)
 			require.True(t, tt.errCheck(err), "unexpected err: %v", err)
 			if err != nil {

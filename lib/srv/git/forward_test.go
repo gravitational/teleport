@@ -34,9 +34,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/gitserver"
 	"github.com/gravitational/teleport/api/constants"
-	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
-	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -53,11 +51,10 @@ import (
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	logtest.InitLogger(testing.Verbose)
+	utils.InitLoggerForTests()
 	os.Exit(m.Run())
 }
 
@@ -98,7 +95,6 @@ func TestForwardServer(t *testing.T) {
 				require.True(t, ok)
 				assert.Equal(t, libevents.GitCommandEvent, gitEvent.Metadata.Type)
 				assert.Equal(t, libevents.GitCommandCode, gitEvent.Metadata.Code)
-				assert.NotEmpty(t, gitEvent.SessionID)
 				assert.Equal(t, "alice", gitEvent.User)
 				assert.Equal(t, "0", gitEvent.CommandMetadata.ExitCode)
 				assert.Equal(t, "git-upload-pack", gitEvent.Service)
@@ -208,10 +204,12 @@ func TestForwardServer(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx := t.Context()
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
 
 			mockEmitter := &eventstest.MockRecorderEmitter{}
 			mockGitService := newMockGitHostingService(t, caSigner)
@@ -249,16 +247,13 @@ func TestForwardServer(t *testing.T) {
 			clientDialConn, err := s.Dial()
 			require.NoError(t, err)
 
-			conn, chCh, reqCh, err := apissh.NewClientConn(
-				t.Context(),
+			conn, chCh, reqCh, err := ssh.NewClientConn(
 				clientDialConn,
 				"127.0.0.1:222",
-				apissh.ClientConfig{
+				&ssh.ClientConfig{
 					User: test.clientLogin,
-					PublicKeyAuth: apissh.PublicKeyAuthConfig{
-						Signers: func() ([]ssh.Signer, error) {
-							return []ssh.Signer{userCert}, nil
-						},
+					Auth: []ssh.AuthMethod{
+						ssh.PublicKeys(userCert),
 					},
 					HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 					Timeout:         5 * time.Second,
@@ -276,7 +271,7 @@ func TestForwardServer(t *testing.T) {
 			if test.verifyEvent != nil {
 				// Server emits exec event after sending result to client.
 				require.EventuallyWithT(t, func(t *assert.CollectT) {
-					require.NotNil(t, mockEmitter.LastEvent())
+					assert.NotNil(t, mockEmitter.LastEvent())
 				}, time.Second*2, time.Millisecond*100, "Timeout waiting for audit event.")
 				test.verifyEvent(t, mockEmitter.LastEvent())
 			}
@@ -287,9 +282,10 @@ func TestForwardServer(t *testing.T) {
 
 func makeUserCert(t *testing.T, caSigner ssh.Signer) ssh.Signer {
 	t.Helper()
+	keygen := testauthority.New()
 	clientPrivateKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
-	clientCertBytes, err := testauthority.GenerateUserCert(sshca.UserCertificateRequest{
+	clientCertBytes, err := keygen.GenerateUserCert(sshca.UserCertificateRequest{
 		CASigner:          caSigner,
 		PublicUserKey:     clientPrivateKey.MarshalSSHPublicKey(),
 		CertificateFormat: constants.CertificateFormatStandard,
@@ -414,14 +410,6 @@ func (m mockAuthClient) NewWatcher(ctx context.Context, watch types.Watch) (type
 	return m.events.NewWatcher(ctx, watch)
 }
 
-type mockMFAServiceClient struct {
-	mfav2.MFAServiceClient
-}
-
-func (m mockAuthClient) MFAServiceClientV2() mfav2.MFAServiceClient {
-	return &mockMFAServiceClient{}
-}
-
 type mockAccessPoint struct {
 	srv.AccessPoint
 	ca               ssh.Signer
@@ -429,7 +417,7 @@ type mockAccessPoint struct {
 	services.GitServers
 }
 
-func (m mockAccessPoint) GetClusterName(ctx context.Context) (types.ClusterName, error) {
+func (m mockAccessPoint) GetClusterName(...services.MarshalOption) (types.ClusterName, error) {
 	return types.NewClusterName(types.ClusterNameSpecV2{
 		ClusterName: "git.test",
 		ClusterID:   "git.test",

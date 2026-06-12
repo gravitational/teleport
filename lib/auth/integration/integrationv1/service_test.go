@@ -21,44 +21,40 @@ package integrationv1
 import (
 	"cmp"
 	"context"
-	"crypto/x509/pkix"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/defaults"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/discoveryconfig"
 	"github.com/gravitational/teleport/api/types/externalauditstorage"
-	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/lib/auth/integration/credentials"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestMain(m *testing.M) {
-	logtest.InitLogger(testing.Verbose)
+	utils.InitLoggerForTests()
 	os.Exit(m.Run())
 }
 
 func TestIntegrationCRUD(t *testing.T) {
-	t.Parallel()
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
+
 	clusterName := "test-cluster"
 	proxyPublicAddr := "127.0.0.1.nip.io"
 
@@ -149,7 +145,7 @@ func TestIntegrationCRUD(t *testing.T) {
 				}}},
 			},
 			Setup: func(t *testing.T, _ string) {
-				for range 10 {
+				for i := 0; i < 10; i++ {
 					_, err := localClient.CreateIntegration(ctx, sampleIntegrationFn(t, uuid.NewString()))
 					require.NoError(t, err)
 				}
@@ -667,108 +663,6 @@ func TestIntegrationCRUD(t *testing.T) {
 			},
 			ErrAssertion: noError,
 		},
-		{
-			Name: "cannot delete AWS OIDC integration with user-created discovery config",
-			Role: types.RoleSpecV6{
-				Allow: types.RoleConditions{Rules: []types.Rule{
-					{
-						Resources: []string{types.KindIntegration},
-						Verbs:     []string{types.VerbDelete},
-					},
-				}},
-			},
-			Setup: func(t *testing.T, igName string) {
-				t.Helper()
-				ig := sampleIntegrationFn(t, igName)
-				_, err := localClient.CreateIntegration(ctx, ig)
-				require.NoError(t, err)
-				_, err = localClient.CreateDiscoveryConfig(ctx, mustMakeDiscoveryConfig(t, ig))
-				require.NoError(t, err)
-				problematicConfig := mustMakeDiscoveryConfig(t, ig)
-				problematicConfig.Metadata.Name = "problematicconfig"
-				_, err = localClient.CreateDiscoveryConfig(ctx, problematicConfig)
-				require.NoError(t, err)
-			},
-			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
-				_, err := resourceSvc.DeleteIntegration(ctx, &integrationpb.DeleteIntegrationRequest{
-					Name:                      igName,
-					DeleteAssociatedResources: true,
-				})
-				return err
-			},
-			Validate: func(t *testing.T, igName string) {
-				t.Helper()
-				_, err := localClient.GetIntegration(context.Background(), igName)
-				require.NoError(t, err)
-				_, err = localClient.GetDiscoveryConfig(context.Background(), igName)
-				require.NoError(t, err)
-				_, err = localClient.GetDiscoveryConfig(context.Background(), "problematicconfig")
-				require.NoError(t, err)
-			},
-			ErrAssertion: trace.IsBadParameter,
-		},
-		{
-			Name: "delete AWS OIDC integration with associated resources",
-			Role: types.RoleSpecV6{
-				Allow: types.RoleConditions{Rules: []types.Rule{
-					{
-						Resources: []string{types.KindIntegration},
-						Verbs:     []string{types.VerbDelete},
-					},
-				}},
-			},
-			Setup: func(t *testing.T, igName string) {
-				t.Helper()
-
-				ig := sampleIntegrationFn(t, igName)
-				_, err := localClient.CreateIntegration(ctx, ig)
-				require.NoError(t, err)
-				_, err = localClient.CreateDiscoveryConfig(ctx, mustMakeDiscoveryConfig(t, ig))
-				require.NoError(t, err)
-				_, err = localClient.UpsertApplicationServer(ctx, mustMakeAppServer(t, ig))
-				require.NoError(t, err)
-
-				anotherIg := sampleIntegrationFn(t, igName+igName)
-				_, err = localClient.CreateIntegration(ctx, anotherIg)
-				require.NoError(t, err)
-				_, err = localClient.CreateDiscoveryConfig(ctx, mustMakeDiscoveryConfig(t, anotherIg))
-				require.NoError(t, err)
-				_, err = localClient.UpsertApplicationServer(ctx, mustMakeAppServer(t, anotherIg))
-				require.NoError(t, err)
-			},
-			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
-				_, err := resourceSvc.DeleteIntegration(ctx, &integrationpb.DeleteIntegrationRequest{
-					Name:                      igName,
-					DeleteAssociatedResources: true,
-				})
-				return err
-			},
-			Validate: func(t *testing.T, igName string) {
-				t.Helper()
-				// discovery_config associated with the integration is removed
-				_, err := localClient.GetDiscoveryConfig(context.Background(), igName)
-				require.True(t, trace.IsNotFound(err))
-				// app_server associated with the integration is removed
-				appServers, err := localClient.GetApplicationServers(context.Background(), defaults.Namespace)
-				require.NoError(t, err)
-				for _, appServer := range appServers {
-					require.NotEqual(t, igName, appServer.GetApp().GetIntegration(),
-						"app server with integration %s should have been deleted", igName)
-				}
-				// other integrations' associated resources should remain
-				_, err = localClient.GetDiscoveryConfig(context.Background(), igName+igName)
-				require.NoError(t, err)
-				require.Condition(t, func() bool {
-					for _, appServer := range appServers {
-						if appServer.GetApp().GetIntegration() == igName+igName {
-							return true
-						}
-					}
-					return false
-				}, "app server with integration %s should still exist", igName+igName)
-			},
-			ErrAssertion: noError,
-		},
 
 		// Delete all
 		{
@@ -789,6 +683,7 @@ func TestIntegrationCRUD(t *testing.T) {
 	}
 
 	for _, tc := range tt {
+		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			localCtx := authorizerForDummyUser(t, ctx, tc.Role, localClient)
 			igName := cmp.Or(tc.IntegrationName, uuid.NewString())
@@ -848,8 +743,6 @@ type localClient interface {
 	services.PluginStaticCredentials
 	services.Integrations
 	services.GitServers
-	services.DiscoveryConfigs
-	services.Presence
 }
 
 type testClient struct {
@@ -958,8 +851,6 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 	require.NoError(t, err)
 	gitServerService, err := local.NewGitServerService(backend)
 	require.NoError(t, err)
-	discoveryConfigService, err := local.NewDiscoveryConfigService(backend)
-	require.NoError(t, err)
 
 	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
 		ClusterName: clusterName,
@@ -972,20 +863,15 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 	require.NoError(t, err)
 	localCredService, err := local.NewPluginStaticCredentialsService(backend)
 	require.NoError(t, err)
-	presenceService := local.NewPresenceService(backend)
 
 	backendSvc := struct {
 		services.Integrations
 		services.PluginStaticCredentials
 		services.GitServers
-		services.DiscoveryConfigs
-		services.Presence
 	}{
 		Integrations:            localResourceService,
 		PluginStaticCredentials: localCredService,
 		GitServers:              gitServerService,
-		DiscoveryConfigs:        discoveryConfigService,
-		Presence:                presenceService,
 	}
 
 	cacheResourceService, err := local.NewIntegrationsService(backend, local.WithIntegrationsServiceCacheMode(true))
@@ -1001,11 +887,9 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 		},
 		IntegrationsService:            *cacheResourceService,
 		PluginStaticCredentialsService: localCredService,
-		DiscoveryConfigService:         discoveryConfigService,
-		PresenceService:                presenceService,
 	}
 
-	keystoreManager, err := keystore.NewManager(t.Context(), &servicecfg.KeystoreConfig{}, &keystore.Options{
+	keystoreManager, err := keystore.NewManager(ctx, &servicecfg.KeystoreConfig{}, &keystore.Options{
 		ClusterName:          &types.ClusterNameV2{Metadata: types.Metadata{Name: clusterName}},
 		AuthPreferenceGetter: clusterConfigSvc,
 	})
@@ -1017,16 +901,6 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 		Cache:           cache,
 		KeyStoreManager: keystoreManager,
 		Emitter:         events.NewDiscardEmitter(),
-		Modules:         modulestest.EnterpriseModules(),
-		awsRolesAnywhereCreateSessionFn: func(ctx context.Context, req createsession.CreateSessionRequest) (*createsession.CreateSessionResponse, error) {
-			return &createsession.CreateSessionResponse{
-				Version:         1,
-				AccessKeyID:     "access-key-id",
-				SecretAccessKey: "secret-access-key",
-				SessionToken:    "session-token",
-				Expiration:      time.Now().Add(1 * time.Hour).Format(time.RFC3339),
-			}, nil
-		},
 	})
 	require.NoError(t, err)
 
@@ -1038,8 +912,6 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 		*local.PluginsService
 		*local.PluginStaticCredentialsService
 		*local.GitServerService
-		*local.DiscoveryConfigService
-		*local.PresenceService
 	}{
 		AccessService:                  roleSvc,
 		IdentityService:                userSvc,
@@ -1048,8 +920,6 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 		PluginsService:                 pluginSvc,
 		PluginStaticCredentialsService: localCredService,
 		GitServerService:               gitServerService,
-		DiscoveryConfigService:         discoveryConfigService,
-		PresenceService:                presenceService,
 	}, resourceSvc
 }
 
@@ -1062,8 +932,6 @@ type mockCache struct {
 
 	local.IntegrationsService
 	*local.PluginStaticCredentialsService
-	*local.DiscoveryConfigService
-	*local.PresenceService
 }
 
 func (m *mockCache) GetProxies() ([]types.Server, error) {
@@ -1071,13 +939,6 @@ func (m *mockCache) GetProxies() ([]types.Server, error) {
 		return nil, m.returnErr
 	}
 	return m.proxies, nil
-}
-
-func (m *mockCache) ListProxyServers(context.Context, int, string) ([]types.Server, string, error) {
-	if m.returnErr != nil {
-		return nil, "", m.returnErr
-	}
-	return m.proxies, "", nil
 }
 
 func (m *mockCache) GetToken(ctx context.Context, token string) (types.ProvisionToken, error) {
@@ -1089,7 +950,7 @@ func (m *mockCache) UpsertToken(ctx context.Context, token types.ProvisionToken)
 }
 
 // GetClusterName returns local auth domain of the current auth server
-func (m *mockCache) GetClusterName(_ context.Context) (types.ClusterName, error) {
+func (m *mockCache) GetClusterName(...services.MarshalOption) (types.ClusterName, error) {
 	return &types.ClusterNameV2{
 		Spec: types.ClusterNameSpecV2{
 			ClusterName: m.domainName,
@@ -1106,10 +967,8 @@ func (m *mockCache) GetCertAuthority(ctx context.Context, id types.CertAuthID, l
 func newCertAuthority(t *testing.T, caType types.CertAuthType, domain string) types.CertAuthority {
 	t.Helper()
 
-	pub, priv, err := testauthority.GenerateJWT()
-	require.NoError(t, err)
-
-	key, cert, err := tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: domain}, nil, time.Minute)
+	ta := testauthority.New()
+	pub, priv, err := ta.GenerateJWT()
 	require.NoError(t, err)
 
 	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
@@ -1120,10 +979,6 @@ func newCertAuthority(t *testing.T, caType types.CertAuthType, domain string) ty
 				PublicKey:      pub,
 				PrivateKey:     priv,
 				PrivateKeyType: types.PrivateKeyType_RAW,
-			}},
-			TLS: []*types.TLSKeyPair{{
-				Key:  key,
-				Cert: cert,
 			}},
 		},
 	})
@@ -1198,46 +1053,4 @@ func mustMakeGitHubServer(t *testing.T, ig types.Integration) types.Server {
 	require.NoError(t, err)
 	server.SetName(ig.GetName())
 	return server
-}
-
-func mustMakeDiscoveryConfig(t *testing.T, ig types.Integration) *discoveryconfig.DiscoveryConfig {
-	t.Helper()
-	discoveryConfig, err := discoveryconfig.NewDiscoveryConfig(
-		header.Metadata{Name: ig.GetName()},
-		discoveryconfig.Spec{
-			DiscoveryGroup: ig.GetName(),
-			AWS: []types.AWSMatcher{
-				{
-					Types:       []string{"ec2"},
-					Regions:     []string{"us-west-2"},
-					Integration: ig.GetName(),
-					Params: &types.InstallerParams{
-						EnrollMode: types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
-					},
-				},
-			},
-		},
-	)
-	require.NoError(t, err)
-	return discoveryConfig
-}
-
-func mustMakeAppServer(t *testing.T, ig types.Integration) types.AppServer {
-	t.Helper()
-	appServer, err := types.NewAppServerV3(types.Metadata{
-		Name: ig.GetName(),
-	}, types.AppServerSpecV3{
-		HostID: ig.GetName(),
-		App: &types.AppV3{
-			Metadata: types.Metadata{
-				Name: ig.GetName(),
-			},
-			Spec: types.AppSpecV3{
-				URI:         "https://example.com",
-				Integration: ig.GetName(),
-			},
-		},
-	})
-	require.NoError(t, err)
-	return appServer
 }

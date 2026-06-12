@@ -72,9 +72,6 @@ type TerraformSuiteOSSWithCache struct {
 type TerraformSuiteOSS struct {
 	TerraformBaseSuite
 }
-type TerraformSuiteOSSScopedResources struct {
-	TerraformBaseSuite
-}
 type TerraformSuiteEnterprise struct {
 	TerraformBaseSuite
 }
@@ -145,9 +142,11 @@ func (s *TerraformBaseSuite) getTLSCreds(ctx context.Context, user types.User, o
 
 	signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(s.T(), err)
+	privateKeyPEM, err := keys.MarshalPrivateKey(signer)
+	require.NoError(s.T(), err)
 	publicKeyPEM, err := keys.MarshalPublicKey(signer.Public())
 	require.NoError(s.T(), err)
-	privateKey, err := keys.NewPrivateKey(signer)
+	privateKey, err := keys.NewPrivateKey(signer, privateKeyPEM)
 	require.NoError(s.T(), err)
 	// Identity files only support a single private key for SSH and TLS.
 	keyRing := libclient.NewKeyRing(privateKey, privateKey)

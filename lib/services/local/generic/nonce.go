@@ -110,7 +110,7 @@ func FastUpdateNonceProtectedResource[T nonceProtectedResource](ctx context.Cont
 // from breaking concurrent protected updates.
 func fastUpsertNonceProtectedResource[T nonceProtectedResource](ctx context.Context, bk backend.Backend, key backend.Key, resource T) error {
 	const maxRetries = 16
-	for range maxRetries {
+	for i := 0; i < maxRetries; i++ {
 		prev, err := bk.Get(ctx, key)
 		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)

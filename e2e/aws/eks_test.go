@@ -197,7 +197,6 @@ func withFullKubeAccessUserRole(t *testing.T) testOptionsFunc {
 					Name:      types.Wildcard,
 					Namespace: types.Wildcard,
 					Verbs:     []string{types.Wildcard},
-					APIGroup:  types.Wildcard,
 				},
 			},
 		},

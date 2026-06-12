@@ -20,12 +20,12 @@ package proxy
 
 import (
 	"context"
-	"maps"
-	"slices"
+	"log/slog"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/maps"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
@@ -37,20 +37,18 @@ import (
 // kubernetes clusters according to the up-to-date list of kube_cluster resources.
 func (s *TLSServer) startReconciler(ctx context.Context) (err error) {
 	if len(s.ResourceMatchers) == 0 || s.KubeServiceType != KubeService {
-		s.log.DebugContext(ctx, "Not initializing Kube Cluster resource watcher")
+		s.log.Debug("Not initializing Kube Cluster resource watcher.")
 		return nil
 	}
 	s.reconciler, err = services.NewReconciler(services.ReconcilerConfig[types.KubeCluster]{
 		Matcher:             s.matcher,
 		GetCurrentResources: s.getResources,
-		CompareResources: func(kc1, kc2 types.KubeCluster) int {
-			return services.EqualFromBool(kc1.IsEqual(kc2))
-		},
-		GetNewResources: s.monitoredKubeClusters.get,
-		OnCreate:        s.onCreate,
-		OnUpdate:        s.onUpdate,
-		OnDelete:        s.onDelete,
-		Logger:          s.log.With("kind", types.KindKubernetesCluster),
+		GetNewResources:     s.monitoredKubeClusters.get,
+		OnCreate:            s.onCreate,
+		OnUpdate:            s.onUpdate,
+		OnDelete:            s.onDelete,
+		// TODO(tross): update to use the server logger once it has been converted to slog
+		Logger: slog.With("kind", types.KindKubernetesCluster),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -73,16 +71,16 @@ func (s *TLSServer) startReconciler(ctx context.Context) (err error) {
 			select {
 			case <-reconcileTicker.C:
 				if err := s.reconciler.Reconcile(ctx); err != nil {
-					s.log.ErrorContext(ctx, "Failed to reconcile", "error", err)
+					s.log.WithError(err).Error("Failed to reconcile.")
 				}
 			case <-s.reconcileCh:
 				if err := s.reconciler.Reconcile(ctx); err != nil {
-					s.log.ErrorContext(ctx, "Failed to reconcile", "error", err)
+					s.log.WithError(err).Error("Failed to reconcile.")
 				} else if s.OnReconcile != nil {
 					s.OnReconcile(s.fwd.kubeClusters())
 				}
 			case <-ctx.Done():
-				s.log.DebugContext(ctx, "Reconciler done")
+				s.log.Debug("Reconciler done.")
 				return
 			}
 		}
@@ -93,16 +91,17 @@ func (s *TLSServer) startReconciler(ctx context.Context) (err error) {
 // startKubeClusterResourceWatcher starts watching changes to Kube Clusters resources and
 // registers/unregisters the proxied Kube Cluster accordingly.
 func (s *TLSServer) startKubeClusterResourceWatcher(ctx context.Context) (*services.GenericWatcher[types.KubeCluster, readonly.KubeCluster], error) {
-	if len(s.ResourceMatchers) == 0 || s.KubeServiceType != KubeService || s.Scope != "" {
-		s.log.DebugContext(ctx, "Not initializing Kube Cluster resource watcher")
+	if len(s.ResourceMatchers) == 0 || s.KubeServiceType != KubeService {
+		s.log.Debug("Not initializing Kube Cluster resource watcher.")
 		return nil, nil
 	}
-	s.log.DebugContext(ctx, "Initializing Kube Cluster resource watcher")
+	s.log.Debug("Initializing Kube Cluster resource watcher.")
 	watcher, err := services.NewKubeClusterWatcher(ctx, services.KubeClusterWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: s.Component,
-			Logger:    s.log,
-			Client:    s.AccessPoint,
+			// TODO(tross): update this once converted to use slog
+			// Logger:       s.log,
+			Client: s.AccessPoint,
 		},
 		KubernetesClusterGetter: s.AccessPoint,
 	})
@@ -121,7 +120,7 @@ func (s *TLSServer) startKubeClusterResourceWatcher(ctx context.Context) (*servi
 					return
 				}
 			case <-ctx.Done():
-				s.log.DebugContext(ctx, "Kube Cluster resource watcher done")
+				s.log.Debug("Kube Cluster resource watcher done.")
 				return
 			}
 		}
@@ -142,7 +141,7 @@ func (s *TLSServer) onUpdate(ctx context.Context, cluster, _ types.KubeCluster) 
 }
 
 func (s *TLSServer) onDelete(ctx context.Context, cluster types.KubeCluster) error {
-	return s.unregisterKubeCluster(ctx, cluster, false)
+	return s.unregisterKubeCluster(ctx, cluster.GetName(), false)
 }
 
 func (s *TLSServer) matcher(cluster types.KubeCluster) bool {
@@ -177,9 +176,7 @@ func (m *monitoredKubeClusters) get() map[string]types.KubeCluster {
 
 func (s *TLSServer) buildClusterDetailsConfigForCluster(cluster types.KubeCluster) clusterDetailsConfig {
 	return clusterDetailsConfig{
-		azureClients:     s.azureClients,
-		gcpClients:       s.gcpClients,
-		awsCloudClients:  s.awsClients,
+		cloudClients:     s.CloudClients,
 		cluster:          cluster,
 		log:              s.log,
 		checker:          s.CheckImpersonationPermissions,
@@ -198,7 +195,7 @@ func (s *TLSServer) registerKubeCluster(ctx context.Context, cluster types.KubeC
 		return trace.Wrap(err)
 	}
 	s.fwd.upsertKubeDetails(cluster.GetName(), clusterDetails)
-	return trace.Wrap(s.startHeartbeatAndHealthCheck(cluster))
+	return trace.Wrap(s.startHeartbeat(cluster.GetName()))
 }
 
 func (s *TLSServer) updateKubeCluster(ctx context.Context, cluster types.KubeCluster) error {
@@ -216,14 +213,11 @@ func (s *TLSServer) updateKubeCluster(ctx context.Context, cluster types.KubeClu
 // unregisterKubeCluster unregisters the proxied Kube Cluster from the agent.
 // This function is called when the dynamic cluster is deleted/no longer match
 // the agent's resource matcher or when the agent is shutting down.
-func (s *TLSServer) unregisterKubeCluster(ctx context.Context, cluster types.KubeCluster, isShutdown bool) error {
+func (s *TLSServer) unregisterKubeCluster(ctx context.Context, name string, isShutdown bool) error {
 	var errs []error
 
-	if err := s.stopHeartbeatAndHealthCheck(cluster); err != nil {
-		errs = append(errs, err)
-	}
-	clusterName := cluster.GetName()
-	s.fwd.removeKubeDetails(clusterName)
+	errs = append(errs, s.stopHeartbeat(name))
+	s.fwd.removeKubeDetails(name)
 
 	// A child process can be forked to upgrade the Teleport binary. The child
 	// will take over the heartbeats so do NOT delete them in that case.
@@ -239,23 +233,20 @@ func (s *TLSServer) unregisterKubeCluster(ctx context.Context, cluster types.Kub
 	}
 
 	if !isShutdown || shouldDeleteOnShutdown {
-		if err := s.deleteKubernetesServer(ctx, clusterName); err != nil {
+		if err := s.deleteKubernetesServer(ctx, name); err != nil {
 			errs = append(errs, err)
 		}
 	}
 
 	// close active sessions before returning.
 	s.fwd.mu.Lock()
-	// collect all sessions to avoid holding the lock while closing them
-	sessions := slices.Collect(maps.Values(s.fwd.sessions))
+	sessions := maps.Values(s.fwd.sessions)
 	s.fwd.mu.Unlock()
 	// close active sessions
 	for _, sess := range sessions {
-		if sess.ctx.kubeClusterName == clusterName {
+		if sess.ctx.kubeClusterName == name {
 			// TODO(tigrato): check if we should send errors to each client
-			if err := sess.Close(); err != nil {
-				errs = append(errs, err)
-			}
+			errs = append(errs, sess.Close())
 		}
 	}
 

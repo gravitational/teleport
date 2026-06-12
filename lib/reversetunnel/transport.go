@@ -23,12 +23,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log/slog"
 	"net"
 	"net/netip"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -61,7 +61,7 @@ func parseDialReq(payload []byte) *sshutils.DialReq {
 // transport is used to build a connection to the target host.
 type transport struct {
 	component    string
-	logger       *slog.Logger
+	log          logrus.FieldLogger
 	closeContext context.Context
 	authClient   authclient.ProxyAccessPoint
 	authServers  []string
@@ -126,7 +126,7 @@ func (p *transport) start() {
 			return
 		}
 	case <-time.After(apidefaults.DefaultIOTimeout):
-		p.logger.WarnContext(p.closeContext, "Transport request failed: timed out waiting for request")
+		p.log.Warnf("Transport request failed: timed out waiting for request.")
 		return
 	}
 
@@ -140,12 +140,8 @@ func (p *transport) start() {
 	if !p.forwardClientAddress {
 		// This shouldn't happen in normal operation. Either malicious user or misconfigured client.
 		if dreq.ClientSrcAddr != "" || dreq.ClientDstAddr != "" {
-			const msg = "Received unexpected dial request with client source address and " +
-				"client destination address populated, when they should be empty."
-			p.logger.WarnContext(p.closeContext, msg,
-				"client_src_addr", dreq.ClientSrcAddr,
-				"client_dest_addr", dreq.ClientDstAddr,
-			)
+			p.log.Warnf("Received unexpected dial request with client source address %q, "+
+				"client destination address %q, when they should be empty.", dreq.ClientSrcAddr, dreq.ClientDstAddr)
 		}
 
 		// Make sure address fields are overwritten.
@@ -158,11 +154,7 @@ func (p *transport) start() {
 		}
 	}
 
-	p.logger.DebugContext(p.closeContext, "Received out-of-band proxy transport request",
-		"target_address", dreq.Address,
-		"target_server_id", dreq.ServerID,
-		"client_addr", dreq.ClientSrcAddr,
-	)
+	p.log.Debugf("Received out-of-band proxy transport request for %v [%v], from %v.", dreq.Address, dreq.ServerID, dreq.ClientSrcAddr)
 
 	// directAddress will hold the address of the node to dial to, if we don't
 	// have a tunnel for it.
@@ -173,7 +165,7 @@ func (p *transport) start() {
 	// Connect to an Auth Server.
 	case reversetunnelclient.RemoteAuthServer:
 		if len(p.authServers) == 0 {
-			p.logger.ErrorContext(p.closeContext, "connection rejected: no auth servers configured")
+			p.log.Errorf("connection rejected: no auth servers configured")
 			p.reply(req, false, []byte("no auth servers configured"))
 
 			return
@@ -198,14 +190,11 @@ func (p *transport) start() {
 				return
 			}
 			if err := req.Reply(true, []byte("Connected.")); err != nil {
-				p.logger.ErrorContext(p.closeContext, "Failed responding OK to request",
-					"request_type", req.Type,
-					"error", err,
-				)
+				p.log.Errorf("Failed responding OK to %q request: %v", req.Type, err)
 				return
 			}
 
-			p.logger.DebugContext(p.closeContext, "Handing off connection to a local kubernetes service")
+			p.log.Debug("Handing off connection to a local kubernetes service")
 
 			// If dreq has ClientSrcAddr we wrap connection
 			var clientConn net.Conn = sshutils.NewChConn(p.sconn, p.channel)
@@ -222,7 +211,7 @@ func (p *transport) start() {
 				p.reply(req, false, []byte("connection rejected: configure kubernetes proxy for this cluster."))
 				return
 			}
-			p.logger.DebugContext(p.closeContext, "Forwarding connection to kubernetes proxy", "kube_proxy_addr", p.kubeDialAddr.Addr)
+			p.log.Debugf("Forwarding connection to %q", p.kubeDialAddr.Addr)
 			directAddress = p.kubeDialAddr.Addr
 		}
 
@@ -238,20 +227,17 @@ func (p *transport) start() {
 
 		if p.server != nil {
 			if p.sconn == nil {
-				p.logger.DebugContext(p.closeContext, "Connection rejected: server connection missing")
+				p.log.Debug("Connection rejected: server connection missing")
 				p.reply(req, false, []byte("connection rejected: server connection missing"))
 				return
 			}
 
 			if err := req.Reply(true, []byte("Connected.")); err != nil {
-				p.logger.ErrorContext(p.closeContext, "Failed responding OK to request",
-					"request_type", req.Type,
-					"error", err,
-				)
+				p.log.Errorf("Failed responding OK to %q request: %v", req.Type, err)
 				return
 			}
 
-			p.logger.DebugContext(p.closeContext, "Handing off connection to a local service.", "conn_type", dreq.ConnType)
+			p.log.Debugf("Handing off connection to a local %q service.", dreq.ConnType)
 
 			// If dreq has ClientSrcAddr we wrap connection
 			var clientConn net.Conn = sshutils.NewChConn(p.sconn, p.channel)
@@ -308,19 +294,13 @@ func (p *transport) start() {
 
 	// Dial was successful.
 	if err := req.Reply(true, []byte("Connected.")); err != nil {
-		p.logger.ErrorContext(p.closeContext, "Failed responding OK to request",
-			"request_type", req.Type,
-			"error", err,
-		)
+		p.log.Errorf("Failed responding OK to %q request: %v", req.Type, err)
 		if err := conn.Close(); err != nil {
-			p.logger.ErrorContext(p.closeContext, "Failed closing connection", "error", err)
+			p.log.Errorf("Failed closing connection: %v", err)
 		}
 		return
 	}
-	p.logger.DebugContext(p.closeContext, "Successfully dialed to target, starting to proxy",
-		"target_addr", dreq.Address,
-		"target_server_id", dreq.ServerID,
-	)
+	p.log.Debugf("Successfully dialed to %v %q, start proxying.", dreq.Address, dreq.ServerID)
 
 	// Start processing channel requests. Pass in a context that wraps the passed
 	// in context with a context that closes when this function returns to
@@ -334,9 +314,9 @@ func (p *transport) start() {
 	if len(signedHeader) > 0 {
 		_, err = conn.Write(signedHeader)
 		if err != nil {
-			p.logger.ErrorContext(p.closeContext, "Could not write PROXY header to the connection", "error", err)
+			p.log.Errorf("Could not write PROXY header to the connection: %v", err)
 			if err := conn.Close(); err != nil {
-				p.logger.ErrorContext(p.closeContext, "Failed closing connection", "error", err)
+				p.log.Errorf("Failed closing connection: %v", err)
 			}
 			return
 		}
@@ -358,11 +338,11 @@ func (p *transport) start() {
 
 	// wait for both io.Copy goroutines to finish, or for
 	// the context to be canceled.
-	for range 2 {
+	for i := 0; i < 2; i++ {
 		select {
 		case <-errorCh:
 		case <-p.closeContext.Done():
-			p.logger.WarnContext(p.closeContext, "Proxy transport failed: closing context")
+			p.log.Warnf("Proxy transport failed: closing context.")
 			return
 		}
 	}
@@ -389,14 +369,14 @@ func (p *transport) handleChannelRequests(closeContext context.Context, useTunne
 	}
 }
 
-// getConn checks if the local cluster holds a connection to the target host,
+// getConn checks if the local site holds a connection to the target host,
 // and if it does, attempts to dial through the tunnel. Otherwise directly
 // dials to host.
 func (p *transport) getConn(addr string, r *sshutils.DialReq) (net.Conn, bool, error) {
 	// This function doesn't attempt to dial if a host with one of the
 	// search names is not registered. It's a fast check.
-	p.logger.DebugContext(p.closeContext, "Attempting to dial server through tunnel", "target_server_id", r.ServerID)
-	conn, err := p.tunnelDial(p.closeContext, r)
+	p.log.Debugf("Attempting to dial through tunnel with server ID %q.", r.ServerID)
+	conn, err := p.tunnelDial(r)
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return nil, false, trace.Wrap(err)
@@ -414,13 +394,13 @@ func (p *transport) getConn(addr string, r *sshutils.DialReq) (net.Conn, bool, e
 		}
 
 		errTun := err
-		p.logger.DebugContext(p.closeContext, "Attempting to dial server directly", "target_addr", addr)
+		p.log.Debugf("Attempting to dial directly %q.", addr)
 		conn, err = p.directDial(addr)
 		if err != nil {
 			return nil, false, trace.ConnectionProblem(err, "failed dialing through tunnel (%v) or directly (%v)", errTun, err)
 		}
 
-		p.logger.DebugContext(p.closeContext, "Returning direct dialed connection", "target_addr", addr)
+		p.log.Debugf("Returning direct dialed connection to %q.", addr)
 
 		// Requests to get a connection to the remote auth server do not provide a ConnType,
 		// and since an empty ConnType is converted to [types.NodeTunnel] in CheckAndSetDefaults,
@@ -433,7 +413,7 @@ func (p *transport) getConn(addr string, r *sshutils.DialReq) (net.Conn, bool, e
 		return conn, false, nil
 	}
 
-	p.logger.DebugContext(p.closeContext, "Returning connection to server dialed through tunnel", "target_server_id", r.ServerID)
+	p.log.Debugf("Returning connection dialed through tunnel with server ID %v.", r.ServerID)
 
 	if r.ConnType == types.NodeTunnel {
 		return proxy.NewProxiedMetricConn(conn), true, nil
@@ -442,20 +422,20 @@ func (p *transport) getConn(addr string, r *sshutils.DialReq) (net.Conn, bool, e
 	return conn, true, nil
 }
 
-// tunnelDial looks up the search names in the local cluster for a matching tunnel
+// tunnelDial looks up the search names in the local site for a matching tunnel
 // connection. If a connection exists, it's used to dial through the tunnel.
-func (p *transport) tunnelDial(ctx context.Context, r *sshutils.DialReq) (net.Conn, error) {
-	// Extract the local cluster from the tunnel server. If no tunnel server
+func (p *transport) tunnelDial(r *sshutils.DialReq) (net.Conn, error) {
+	// Extract the local site from the tunnel server. If no tunnel server
 	// exists, then exit right away this code may be running outside of a
-	// leaf cluster.
+	// remote site.
 	if p.reverseTunnelServer == nil {
 		return nil, trace.NotFound("not found")
 	}
-	cluster, err := p.reverseTunnelServer.Cluster(ctx, p.localClusterName)
+	cluster, err := p.reverseTunnelServer.GetSite(p.localClusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	localCluster, ok := cluster.(*localCluster)
+	localCluster, ok := cluster.(*localSite)
 	if !ok {
 		return nil, trace.BadParameter("did not find local cluster, found %T", cluster)
 	}
@@ -469,10 +449,10 @@ func (p *transport) tunnelDial(ctx context.Context, r *sshutils.DialReq) (net.Co
 
 func (p *transport) reply(req *ssh.Request, ok bool, msg []byte) {
 	if !ok {
-		p.logger.DebugContext(p.closeContext, "Non-ok reply to request", "request_type", req.Type, "error", string(msg))
+		p.log.Debugf("Non-ok reply to %q request: %s", req.Type, msg)
 	}
 	if err := req.Reply(ok, msg); err != nil {
-		p.logger.WarnContext(p.closeContext, "Failed sending reply to request", "request_type", req.Type, "error", err)
+		p.log.Warnf("Failed sending reply to %q request on SSH channel: %v", req.Type, err)
 	}
 }
 

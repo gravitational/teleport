@@ -33,11 +33,7 @@ export async function connectToWindowsDesktop(
   }
 ): Promise<void> {
   const rootClusterUri = routing.ensureRootClusterUri(target.uri);
-  const { isAtDesiredWorkspace } =
-    await ctx.workspacesService.setActiveWorkspace(rootClusterUri);
-  if (!isAtDesiredWorkspace) {
-    return;
-  }
+  await ctx.workspacesService.setActiveWorkspace(rootClusterUri);
   ctx.workspacesService
     .getWorkspaceDocumentService(rootClusterUri)
     .openExistingOrAddNew(

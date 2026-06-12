@@ -25,7 +25,6 @@ export {
   type VerticalOrigin,
   type GrowDirections,
   type Position as Orientation,
-  type Props as PopoverProps,
 } from './Popover';
 
 export default Popover;

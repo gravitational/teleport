@@ -29,10 +29,11 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	awssdkconfig "github.com/aws/aws-sdk-go-v2/config"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-sdk-go-v2/otelaws"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport"
@@ -40,7 +41,6 @@ import (
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/backend"
-	awsconfig "github.com/gravitational/teleport/lib/cloud/aws/config"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage"
 	"github.com/gravitational/teleport/lib/observability/metrics"
@@ -296,6 +296,7 @@ func (cfg *Config) CheckAndSetDefaults(ctx context.Context) error {
 		if cfg.Region != "" {
 			awsCfg.Region = cfg.Region
 		}
+		otelaws.AppendMiddlewares(&awsCfg.APIOptions)
 		cfg.PublisherConsumerAWSConfig = &awsCfg
 	}
 
@@ -446,12 +447,13 @@ func (cfg *Config) UpdateForExternalAuditStorage(ctx context.Context, externalAu
 	cfg.Region = spec.Region
 
 	awsCfg, err := awsconfig.LoadDefaultConfig(ctx,
-		awssdkconfig.WithRegion(cfg.Region),
-		awssdkconfig.WithCredentialsProvider(externalAuditStorage.CredentialsProvider()),
+		awsconfig.WithRegion(cfg.Region),
+		awsconfig.WithCredentialsProvider(externalAuditStorage.CredentialsProvider()),
 	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	otelaws.AppendMiddlewares(&awsCfg.APIOptions)
 	cfg.StorerQuerierAWSConfig = &awsCfg
 
 	cfg.ObserveWriteEventsError = externalAuditStorage.ErrorCounter.ObserveEmitError
@@ -524,16 +526,7 @@ func (l *Log) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error
 }
 
 func (l *Log) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
-	values, next, err := l.querier.SearchEvents(ctx, req)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	// Convert the values to apievents.AuditEvent.
-	evts, err := events.FromEventFieldsSlice(values)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	return evts, next, nil
+	return l.querier.SearchEvents(ctx, req)
 }
 
 func (l *Log) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
@@ -545,27 +538,7 @@ func (l *Log) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEvent
 }
 
 func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
-	values, next, err := l.querier.SearchSessionEvents(ctx, req)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	evts, err := events.FromEventFieldsSlice(values)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	return evts, next, nil
-}
-
-func (l *Log) SearchUnstructuredEvents(ctx context.Context, req events.SearchEventsRequest) ([]*auditlogpb.EventUnstructured, string, error) {
-	values, next, err := l.querier.SearchEvents(ctx, req)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	evts, err := events.FromEventFieldsSliceToUnstructured(values)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	return evts, next, nil
+	return l.querier.SearchSessionEvents(ctx, req)
 }
 
 func (l *Log) Close() error {
@@ -648,7 +621,7 @@ func newAthenaMetrics(cfg athenaMetricsConfig) (*athenaMetrics, error) {
 			prometheus.HistogramOpts{
 				Namespace: teleport.MetricNamespace,
 				Name:      teleport.MetricParquetlogConsumerDeleteEventsDuration,
-				Help:      "Duration of deletion of events on SQS in parquetlog",
+				Help:      "Duration of delation of events on SQS in parquetlog",
 				// lowest bucket start of upper bound 0.001 sec (1 ms) with factor 2
 				// highest bucket start of 0.001 sec * 2^15 == 32.768 sec
 				Buckets:     prometheus.ExponentialBuckets(0.001, 2, 16),

@@ -17,7 +17,6 @@ limitations under the License.
 package types
 
 import (
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types/common"
 )
 
@@ -142,6 +141,9 @@ const (
 	// KindSnowflakeSession represents a Snowflake specific web session.
 	KindSnowflakeSession = "snowflake_session"
 
+	// KindSAMLIdPSession represents a SAML IdP session.
+	KindSAMLIdPSession = "saml_idp_session"
+
 	// KindEvent is structured audit logging event
 	KindEvent = "event"
 
@@ -181,21 +183,12 @@ const (
 	// KindApp is a web app resource.
 	KindApp = "app"
 
-	// SubKindMCP represents an MCP server as a subkind of app.
-	SubKindMCP = KindMCP
-
-	// SubKindLLM represents an LLM inference endpoint as a subkind of app.
-	SubKindLLM = KindLLM
-
-	// KindMCP is an MCP server resource.
-	// Currently, MCP servers are accessed through apps.
-	// In the future, they may become a standalone resource kind.
-	KindMCP = "mcp"
-
-	// KindLLM is an LLM inference endpoint server resource.
-	// Currently, inference endpoints are accessed through apps.
-	// In the future, they may become a standalone resource kind.
-	KindLLM = "llm"
+	// KindAppOrSAMLIdPServiceProvider represent an App Server resource or a SAML IdP Service Provider (SAML Application) resource.
+	// This is not a real resource stored in the backend, it is a pseudo resource used only to provide a common interface to
+	// the ListResources RPC in order to be able to list both AppServers and SAMLIdPServiceProviders in the same request.
+	//
+	// DEPRECATED: Use KindAppServer and KindSAMLIdPServiceProvider individually.
+	KindAppOrSAMLIdPServiceProvider = "app_server_or_saml_idp_sp"
 
 	// KindDatabaseServer is a database proxy server resource.
 	KindDatabaseServer = "db_server"
@@ -218,8 +211,6 @@ const (
 	KindCrownJewel = "crown_jewel"
 	// KindKubernetesCluster is a Kubernetes cluster.
 	KindKubernetesCluster = "kube_cluster"
-	// KindKubernetesResource is a Kubernetes resource within a cluster.
-	KindKubernetesResource = "kube_resource"
 
 	// KindKubePod is a Kubernetes Pod resource type.
 	KindKubePod = "pod"
@@ -253,9 +244,6 @@ const (
 
 	// KindKubeReplicaSet is a Kubernetes Replicaset resource type.
 	KindKubeReplicaSet = "replicaset"
-
-	// KindKubeReplicationController is a Kubernetes ReplicationController resource type.
-	KindKubeReplicationController = "replicationcontroller"
 
 	// KindKubeStatefulset is a Kubernetes Statefulset resource type.
 	KindKubeStatefulset = "statefulset"
@@ -295,9 +283,6 @@ const (
 	// KindToken is a provisioning token resource
 	KindToken = "token"
 
-	// KindScopedToken is a provisioning token resource
-	KindScopedToken = "scoped_token"
-
 	// KindCertAuthority is a certificate authority resource
 	KindCertAuthority = "cert_authority"
 
@@ -325,19 +310,9 @@ const (
 	// KindSessionRecordingConfig is the resource for session recording configuration.
 	KindSessionRecordingConfig = "session_recording_config"
 
-	// KindRecordingEncryption is the collection of active session recording encryption keys.
-	KindRecordingEncryption = "recording_encryption"
-
-	// KindRotatedKey is a previously rotated session recording encryption key kept for future replay.
-	KindRotatedKey = "rotated_key"
-
 	// MetaNameSessionRecordingConfig is the exact name of the singleton resource for
 	// session recording configuration.
 	MetaNameSessionRecordingConfig = "session-recording-config"
-
-	// MetaNameRecordingEncryption is the exact name of the singleton resource for
-	// session recording configuration.
-	MetaNameRecordingEncryption = "recording-encryption"
 
 	// KindExternalAuditStorage the resource kind for External Audit Storage
 	// configuration.
@@ -415,14 +390,8 @@ const (
 	// KindStaticTokens is a type of configuration resource that contains static tokens.
 	KindStaticTokens = "static_tokens"
 
-	// KindStaticScopedTokens is a type of configuration resource that contains static scoped tokens.
-	KindStaticScopedTokens = "static_scoped_tokens"
-
 	// MetaNameStaticTokens is the name of a configuration resource for static tokens.
 	MetaNameStaticTokens = "static-tokens"
-
-	// MetaNameStaticScopedTokens is the name of a configuration resource for static scoped tokens.
-	MetaNameStaticScopedTokens = "static-scoped-tokens"
 
 	// MetaNameSessionTracker is the prefix of resources used to track live sessions.
 	MetaNameSessionTracker = "session-tracker"
@@ -476,9 +445,6 @@ const (
 
 	// KindDynamicWindowsDesktop is a dynamic Windows desktop host.
 	KindDynamicWindowsDesktop = "dynamic_windows_desktop"
-
-	// KindLinuxDesktop is a Linux desktop host.
-	KindLinuxDesktop = "linux_desktop"
 
 	// KindRecoveryCodes is a resource that holds users recovery codes.
 	KindRecoveryCodes = "recovery_codes"
@@ -540,9 +506,6 @@ const (
 
 	// KindHeadlessAuthentication is a headless authentication resource.
 	KindHeadlessAuthentication = "headless_authentication"
-
-	// KindHealthCheckConfig is the resource for health check configuration.
-	KindHealthCheckConfig = "health_check_config"
 
 	// KindAccessGraph is the RBAC kind for access graph.
 	KindAccessGraph = "access_graph"
@@ -683,58 +646,12 @@ const (
 	// stable UNIX users.
 	KindStableUNIXUser = "stable_unix_user"
 
-	// KindRetrievalModel is the kind of teleport.summarizer.v1.RetrievalModel.
-	KindRetrievalModel = "retrieval_model"
-
-	// KindInferenceModel is the kind of teleport.summarizer.v1.InferenceModel.
-	KindInferenceModel = "inference_model"
-
-	// KindInferenceSecret is the kind of teleport.summarizer.v1.InferenceSecret.
-	KindInferenceSecret = "inference_secret"
-
-	// KindInferencePolicy is the kind of teleport.summarizer.v1.InferencePolicy.
-	KindInferencePolicy = "inference_policy"
-
 	// MetaNameAccessGraphSettings is the exact name of the singleton resource holding
 	// access graph settings.
 	MetaNameAccessGraphSettings = "access-graph-settings"
 
-	// MetaNameVnetConfig is the exact name of the singleton resource holding VNet config.
-	MetaNameVnetConfig = "vnet-config"
-
-	// MetaNameRetrievalModel is the name of the singleton resource holding
-	// the default retrieval model configuration.
-	MetaNameRetrievalModel = "retrieval-model"
-
-	// KindRelayServer is the resource kind for a Relay service heartbeat.
-	KindRelayServer = "relay_server"
-
 	// KindClientIPRestriction is the resource kind for Client IP Restriction allowlist.
 	KindClientIPRestriction = "client_ip_restriction"
-
-	// KindAppAuthConfig is the resource kind for app auth configs.
-	KindAppAuthConfig = "app_auth_config"
-
-	// KindValidatedMFAChallenge is the resource kind for validated MFA challenges.
-	KindValidatedMFAChallenge = "validated_mfa_challenge"
-
-	// KindWorkloadCluster is the resource kind for workload clusters.
-	KindWorkloadCluster = "workload_cluster"
-
-	// KindCertAuthorityOverride is the resource kind for CA overrides.
-	KindCertAuthorityOverride = "cert_authority_override"
-
-	// KindDelegationSession is the resource kind for Delegation Sessions.
-	//
-	// Delegation Sessions allow users to temporarily lend (a subset of) their
-	// access to a bot or workload, such as an AI Agent.
-	KindDelegationSession = "delegation_session"
-
-	// KindBeam is an ephemeral AI-optimized compute environment.
-	KindBeam = "beam"
-
-	// V8 is the eighth version of resources.
-	V8 = "v8"
 
 	// V7 is the seventh version of resources.
 	V7 = "v7"
@@ -763,7 +680,7 @@ const (
 var PackageNameKinds = []string{PackageNameOSS, PackageNameEnt, PackageNameEntFIPS}
 
 // WebSessionSubKinds lists subkinds of web session resources
-var WebSessionSubKinds = []string{KindAppSession, KindWebSession, KindSnowflakeSession}
+var WebSessionSubKinds = []string{KindAppSession, KindWebSession, KindSnowflakeSession, KindSAMLIdPSession}
 
 const (
 	// VerbList is used to list all objects. Does not imply the ability to read a single object.
@@ -822,8 +739,6 @@ const (
 	// ADLabel is a resource metadata label name used to identify if resource is part of Active Directory
 	ADLabel = TeleportNamespace + "/ad"
 
-	// CreatedByIaCLabel is a resource metadata label name used to identify if resource was created by IaC tooling.
-	CreatedByIaCLabel = TeleportNamespace + "/iac-tool"
 	// OriginDefaults is an origin value indicating that the resource was
 	// constructed as a default value.
 	OriginDefaults = common.OriginDefaults
@@ -852,10 +767,6 @@ const (
 	// created from the AWS OIDC Integration.
 	OriginIntegrationAWSOIDC = common.OriginIntegrationAWSOIDC
 
-	// OriginIntegrationAWSRolesAnywhere is an origin value indicating that the resource was
-	// created from the AWS IAM Roles Anywhere Integration.
-	OriginIntegrationAWSRolesAnywhere = common.OriginIntegrationAWSRolesAnywhere
-
 	// OriginDiscoveryKubernetes indicates that the resource was imported
 	// from kubernetes cluster by discovery service.
 	OriginDiscoveryKubernetes = common.OriginDiscoveryKubernetes
@@ -871,8 +782,6 @@ const (
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
 	AWSAccountIDLabel = TeleportNamespace + "/account-id"
-	// AWSAccountNameLabel is the human-readable AWS account name label.
-	AWSAccountNameLabel = TeleportNamespace + "/account-name"
 	// AWSInstanceIDLabel is used to identify nodes by EC2 instance ID
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
@@ -880,16 +789,14 @@ const (
 	// AWSInstanceRegion is used to identify the region an EC2
 	// instance is running in
 	AWSInstanceRegion = TeleportNamespace + "/aws-region"
-	// AWSSSORegionLabel is the AWS Identity Center SSO region label.
-	AWSSSORegionLabel = TeleportNamespace + "/sso-region"
-	// SubscriptionIDLabelInternal is a hidden label (teleport.internal/) used
-	// to identify Azure VMs by subscription ID during auto-discovery.
-	// Preserved for backward compatibility; superseded by SubscriptionIDLabel.
-	SubscriptionIDLabelInternal = TeleportInternalLabelPrefix + "subscription-id"
-	// VMIDLabelInternal is a hidden label (teleport.internal/) used to identify
-	// Azure VMs by VM ID during auto-discovery.
-	// Preserved for backward compatibility; superseded by VMIDLabel.
-	VMIDLabelInternal = TeleportInternalLabelPrefix + "vm-id"
+	// SubscriptionIDLabel is used to identify virtual machines by Azure
+	// subscription ID found via automatic discovery, to avoid re-running
+	// installation commands on the node.
+	SubscriptionIDLabel = TeleportInternalLabelPrefix + "subscription-id"
+	// VMIDLabel is used to identify virtual machines by ID found
+	// via automatic discovery, to avoid re-running installation commands
+	// on the node.
+	VMIDLabel = TeleportInternalLabelPrefix + "vm-id"
 	// projectIDLabelSuffix is the identifier for adding the GCE ProjectID to an instance.
 	projectIDLabelSuffix = "project-id"
 	// ProjectIDLabelDiscovery is used to identify virtual machines by GCP project
@@ -900,20 +807,14 @@ const (
 	// The difference between this and ProjectIDLabelDiscovery, is that this one will be visible to the user
 	// and can be used in RBAC checks.
 	ProjectIDLabel = TeleportNamespace + "/" + projectIDLabelSuffix
-	// RegionLabelInternal is a hidden label (teleport.internal/) used to
-	// identify Azure VMs by region during auto-discovery.
-	// Preserved for backward compatibility; superseded by RegionLabel.
-	RegionLabelInternal = TeleportInternalLabelPrefix + "region"
-	// ResourceGroupLabelInternal is a hidden label (teleport.internal/) used
-	// to identify Azure VMs by resource group during auto-discovery.
-	// Preserved for backward compatibility; superseded by ResourceGroupLabel.
-	ResourceGroupLabelInternal = TeleportInternalLabelPrefix + "resource-group"
-	// AzureManagedIdentityRegionLabel is the label key for the Azure region for
-	// the managed identity created by the Azure discovery Terraform module.
-	AzureManagedIdentityRegionLabel = TeleportNamespace + "/azure-managed-identity-region"
-	// AzureManagedIdentityResourceGroupLabel is the label key for the Azure resource
-	// group for the managed identity created by the Azure discovery Terraform module.
-	AzureManagedIdentityResourceGroupLabel = TeleportNamespace + "/azure-managed-identity-resource-group"
+	// RegionLabel is used to identify virtual machines by region found
+	// via automatic discovery, to avoid re-running installation commands
+	// on the node.
+	RegionLabel = TeleportInternalLabelPrefix + "region"
+	// ResourceGroupLabel is used to identify virtual machines by resource-group found
+	// via automatic discovery, to avoid re-running installation commands
+	// on the node.
+	ResourceGroupLabel = TeleportInternalLabelPrefix + "resource-group"
 	// ZoneLabelDiscovery is used to identify virtual machines by GCP zone
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
@@ -922,26 +823,6 @@ const (
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
 	NameLabelDiscovery = TeleportInternalLabelPrefix + "name"
-
-	// Azure VM labels (teleport.dev/ prefix, visible in UI and CLI).
-	// Used for RBAC and resource filtering.
-
-	// SubscriptionIDLabel identifies Azure VMs by subscription ID.
-	SubscriptionIDLabel = TeleportNamespace + "/subscription-id"
-	// VMIDLabel identifies Azure VMs by VM ID.
-	VMIDLabel = TeleportNamespace + "/vm-id"
-	// RegionLabel identifies Azure VMs by region.
-	RegionLabel = TeleportNamespace + "/region"
-	// ResourceGroupLabel identifies Azure VMs by resource group.
-	ResourceGroupLabel = TeleportNamespace + "/resource-group"
-
-	// GCP VM visible labels (teleport.dev/ prefix, visible in UI and CLI).
-	// Used for RBAC and resource filtering.
-
-	// ZoneLabel is the visible version of ZoneLabelDiscovery.
-	ZoneLabel = TeleportNamespace + "/zone"
-	// NameLabel is the visible version of NameLabelDiscovery.
-	NameLabel = TeleportNamespace + "/name"
 
 	// CloudLabel is used to identify the cloud where the resource was discovered.
 	CloudLabel = TeleportNamespace + "/cloud"
@@ -983,15 +864,6 @@ const (
 	// KubernetesClusterLabel indicates name of the kubernetes cluster for auto-discovered services inside kubernetes.
 	KubernetesClusterLabel = TeleportNamespace + "/kubernetes-cluster"
 
-	// AWSRolesAnywhereProfileNameOverrideLabel indicates the name of the AWS IAM Roles Anywhere Profile's tag key
-	// that Teleport will use to override the name of the discovered profile.
-	// Ensure this name is unique and valid DNS label.
-	AWSRolesAnywhereProfileNameOverrideLabel = "TeleportApplicationName"
-
-	// AWSRolesAnywhereProfileARNLabel is the label key to store the Profile ARN when creating an Application
-	// resource from an AWS IAM Roles Anywhere Profile.
-	AWSRolesAnywhereProfileARNLabel = TeleportNamespace + "/aws-roles-anywhere-profile-arn"
-
 	// DiscoveryTypeLabel specifies type of discovered service that should be created from Kubernetes service.
 	// Also added by discovery service to indicate the type of discovered
 	// resource, e.g. "rds" for RDS databases, "eks" for EKS kube clusters, etc.
@@ -1014,10 +886,6 @@ const (
 	DiscoveryPublicAddr = TeleportNamespace + "/public-addr"
 	// DiscoveryDescription specifies the description for a discovered app created from a Kubernetes service.
 	DiscoveryDescription = TeleportNamespace + "/description"
-	// IACToolLabel is a resource metadata label that identifies which infrastructure-as-code tool created the resource.
-	IACToolLabel = TeleportNamespace + "/iac-tool"
-	// IACToolTerraform identifies that a IAC tool is Terraform.
-	IACToolTerraform = "terraform"
 
 	// ReqAnnotationApproveSchedulesLabel is the request annotation key at which schedules are stored for access plugins.
 	ReqAnnotationApproveSchedulesLabel = "/schedules"
@@ -1032,34 +900,6 @@ const (
 	CloudAzure = "Azure"
 	// CloudGCP identifies that a resource was discovered in GCP.
 	CloudGCP = "GCP"
-
-	// SchemeMCPStdio is a URI scheme for MCP servers using stdio transport.
-	SchemeMCPStdio = "mcp+stdio"
-	// MCPTransportStdio indicates the MCP server uses stdio transport.
-	MCPTransportStdio = "stdio"
-	// SchemeMCPSSEHTTP is a URI scheme for MCP servers using HTTP with SSE
-	// transport.
-	SchemeMCPSSEHTTP = "mcp+sse+http"
-	// SchemeMCPSSEHTTPS is a URI scheme for MCP servers using HTTPS with SSE
-	// transport.
-	SchemeMCPSSEHTTPS = "mcp+sse+https"
-	// MCPTransportSSE indicates the MCP server uses SSE transport.
-	MCPTransportSSE = "SSE"
-	// SchemeMCPHTTP is a URI scheme for MCP servers using HTTP with streamable
-	// HTTP transport.
-	SchemeMCPHTTP = "mcp+http"
-	// SchemeMCPHTTPS is a URI scheme for MCP servers using HTTPS with
-	// streamable HTTP transport.
-	SchemeMCPHTTPS = "mcp+https"
-	// MCPTransportHTTP indicates the MCP server uses SSE transport.
-	MCPTransportHTTP = "Streamable HTTP"
-
-	// SchemeLLMEndpoint is a URI scheme for LLM inference endpoints.
-	SchemeLLMEndpoint = "llm"
-
-	// SchemeTLS is a URI scheme for TCP apps that Teleport terminate TLS
-	// connections with upstream.
-	SchemeTLS = "tls"
 
 	// DiscoveredResourceNode identifies a discovered SSH node.
 	DiscoveredResourceNode = "node"
@@ -1212,11 +1052,6 @@ const (
 	// BotGenerationLabel is a label used to record the certificate generation counter.
 	BotGenerationLabel = TeleportInternalLabelPrefix + "bot-generation"
 
-	// BotScopeLabel is a label used to identify the scope in which a Bot
-	// exists. It is stored on the user resource to allow the Bot to be hydrated
-	// from a user.
-	BotScopeLabel = TeleportInternalLabelPrefix + "bot-scope"
-
 	// InternalResourceIDLabel is a label used to store an ID to correlate between two resources
 	// A pratical example of this is to create a correlation between a Node Provision Token and
 	// the Node that used that token to join the cluster
@@ -1291,14 +1126,9 @@ const (
 	// should not change these resources.
 	SystemResource = "system"
 
-	// PresetResource are resources that will be created if they don't exist. Updates may be applied
+	// PresetResource are resources resources will be created if they don't exist. Updates may be applied
 	// to them, but user changes to these resources will be preserved.
 	PresetResource = "preset"
-
-	// DemoResource are resources that demonstrates specific Teleport features.
-	// These resources are typically managed internally by Teleport and enabled
-	// via flags. Users should not change these resources.
-	DemoResource = "demo"
 
 	// ProxyGroupIDLabel is the internal-use label for proxy heartbeats that's
 	// used by reverse tunnel agents to keep track of multiple independent sets
@@ -1351,27 +1181,6 @@ const (
 
 	// GitHubOrgLabel is the label for GitHub organization.
 	GitHubOrgLabel = TeleportInternalLabelPrefix + "github-org"
-
-	// AppSubKindLabel is the label that has the same value of "app.sub_kind".
-	AppSubKindLabel = TeleportInternalLabelPrefix + "app-sub-kind"
-
-	// BeamsInternalLabelPrefix is the prefix used by internal beams labels.
-	BeamsInternalLabelPrefix = TeleportInternalLabelPrefix + "beams/"
-
-	// BeamIDLabel is the label used to track which Beam a resource belongs to.
-	BeamIDLabel = BeamsInternalLabelPrefix + "id"
-
-	// BeamOwnerLabel is the label used to track which user's Beam a resource
-	// belongs to.
-	BeamOwnerLabel = BeamsInternalLabelPrefix + "owner"
-
-	// BeamAliasLabel is the label used to track the alias of the Beam a
-	// resource belongs to.
-	BeamAliasLabel = BeamsInternalLabelPrefix + "alias"
-
-	// BeamAppTypeLabel is the label used to denote the type of app created for
-	// Beams. Valid values: "ingress" and "llm".
-	BeamAppTypeLabel = BeamsInternalLabelPrefix + "app-type"
 )
 
 const (
@@ -1550,22 +1359,10 @@ const (
 var RequestableResourceKinds = []string{
 	KindNode,
 	KindKubernetesCluster,
-	KindKubernetesResource,
 	KindDatabase,
 	KindApp,
 	KindWindowsDesktop,
 	KindUserGroup,
-	KindSAMLIdPServiceProvider,
-	KindIdentityCenterAccount,
-	KindIdentityCenterAccountAssignment,
-	KindGitServer,
-}
-
-// LegacyRequestableKubeResourceKinds lists all legacy Teleport resource kinds users can request access to.
-// Those are the requestable Kubernetes resource kinds that were supported before the introduction of
-// custom resource support. We need to keep them to maintain support with older Teleport versions.
-// TODO(@creack): DELETE IN v20.0.0.
-var LegacyRequestableKubeResourceKinds = []string{
 	KindKubePod,
 	KindKubeSecret,
 	KindKubeConfigmap,
@@ -1587,17 +1384,10 @@ var LegacyRequestableKubeResourceKinds = []string{
 	KindKubeJob,
 	KindKubeCertificateSigningRequest,
 	KindKubeIngress,
+	KindSAMLIdPServiceProvider,
+	KindIdentityCenterAccount,
+	KindIdentityCenterAccountAssignment,
 }
-
-// Prefix constants to identify kubernetes resources in access requests.
-const (
-	// AccessRequestPrefixKindKube denotes that the resource is a kubernetes one. Used for access requests.
-	AccessRequestPrefixKindKube = "kube:"
-	// AccessRequestPrefixKindKubeClusterWide denotes that the kube resource is cluster-wide.
-	AccessRequestPrefixKindKubeClusterWide = AccessRequestPrefixKindKube + "cw:"
-	// AccessRequestPrefixKindKubeNamespaced denotes that the kube resource is namespaced.
-	AccessRequestPrefixKindKubeNamespaced = AccessRequestPrefixKindKube + "ns:"
-)
 
 // The list below needs to be kept in sync with `kubernetesResourceKindOptions`
 // in `web/packages/teleport/src/Roles/RoleEditor/standardmodel.ts`. (Keeping
@@ -1631,72 +1421,6 @@ var KubernetesResourcesKinds = []string{
 	KindKubeIngress,
 }
 
-// KubernetesResourceSelfSubjectAccessReview is a Kubernetes resource that
-// represents a self-subject access review. This gets injected in the allow section in the roles.
-var KubernetesResourceSelfSubjectAccessReview = KubernetesResource{
-	Kind:     "selfsubjectaccessreviews",
-	Name:     Wildcard,
-	Verbs:    []string{"create"},
-	APIGroup: "authorization.k8s.io",
-}
-
-// KubernetesResourcesV7KindGroups maps the legacy Teleport kube kinds
-// to their kubernetes group.
-// Used for validation in role >=v8 to check whether an older value has
-// been accidentally used.
-var KubernetesResourcesV7KindGroups = map[string]string{
-	KindKubePod:                       "",
-	KindKubeSecret:                    "",
-	KindKubeConfigmap:                 "",
-	KindKubeNamespace:                 "",
-	KindKubeService:                   "",
-	KindKubeServiceAccount:            "",
-	KindKubeNode:                      "",
-	KindKubePersistentVolume:          "",
-	KindKubePersistentVolumeClaim:     "",
-	KindKubeDeployment:                "apps",
-	KindKubeReplicaSet:                "apps",
-	KindKubeStatefulset:               "apps",
-	KindKubeDaemonSet:                 "apps",
-	KindKubeClusterRole:               "rbac.authorization.k8s.io",
-	KindKubeRole:                      "rbac.authorization.k8s.io",
-	KindKubeClusterRoleBinding:        "rbac.authorization.k8s.io",
-	KindKubeRoleBinding:               "rbac.authorization.k8s.io",
-	KindKubeCronjob:                   "batch",
-	KindKubeJob:                       "batch",
-	KindKubeCertificateSigningRequest: "certificates.k8s.io",
-	KindKubeIngress:                   "networking.k8s.io",
-}
-
-// KubernetesResourcesKindsPlurals maps the legacy Teleport kube kinds
-// to their kubernetes name.
-// Used to upgrade roles <=v7 as well as to support existing access request
-// format.
-// NOTE: Namespace having a different behavior between versions, it is omitted from this map.
-var KubernetesResourcesKindsPlurals = map[string]string{
-	KindKubePod:                       "pods",
-	KindKubeSecret:                    "secrets",
-	KindKubeConfigmap:                 "configmaps",
-	KindKubeService:                   "services",
-	KindKubeServiceAccount:            "serviceaccounts",
-	KindKubeNode:                      "nodes",
-	KindKubePersistentVolume:          "persistentvolumes",
-	KindKubePersistentVolumeClaim:     "persistentvolumeclaims",
-	KindKubeDeployment:                "deployments",
-	KindKubeReplicaSet:                "replicasets",
-	KindKubeReplicationController:     "replicationcontrollers",
-	KindKubeStatefulset:               "statefulsets",
-	KindKubeDaemonSet:                 "daemonsets",
-	KindKubeClusterRole:               "clusterroles",
-	KindKubeRole:                      "roles",
-	KindKubeClusterRoleBinding:        "clusterrolebindings",
-	KindKubeRoleBinding:               "rolebindings",
-	KindKubeCronjob:                   "cronjobs",
-	KindKubeJob:                       "jobs",
-	KindKubeCertificateSigningRequest: "certificatesigningrequests",
-	KindKubeIngress:                   "ingresses",
-}
-
 const (
 	// KubeVerbGet is the Kubernetes verb for "get".
 	KubeVerbGet = "get"
@@ -1718,6 +1442,11 @@ const (
 	KubeVerbExec = "exec"
 	// KubeVerbPortForward is the Kubernetes verb for "pod/portforward".
 	KubeVerbPortForward = "portforward"
+	// KubeVerbProxy is the Kubernetes verb for the pods/proxy,
+	// services/proxy, and nodes/proxy subresources. These endpoints
+	// reach pod ports, service endpoints, or the kubelet API over HTTP
+	// (distinct from portforward, which tunnels raw TCP).
+	KubeVerbProxy = "proxy"
 )
 
 // The list below needs to be kept in sync with `kubernetesResourceVerbOptions`
@@ -1738,11 +1467,11 @@ var KubernetesVerbs = []string{
 	KubeVerbDeleteCollection,
 	KubeVerbExec,
 	KubeVerbPortForward,
+	KubeVerbProxy,
 }
 
 // KubernetesClusterWideResourceKinds is the list of supported Kubernetes cluster resource kinds
 // that are not namespaced.
-// Needed to maintain backward compatibility.
 var KubernetesClusterWideResourceKinds = []string{
 	KindKubeNamespace,
 	KindKubeNode,
@@ -1752,99 +1481,18 @@ var KubernetesClusterWideResourceKinds = []string{
 	KindKubeCertificateSigningRequest,
 }
 
-// KubernetesNamespacedResourceKinds is the list of known Kubernetes resource kinds
-// that are namespaced.
-//
-// Generated from `kubectl api-resources --namespaced=true -o name --sort-by=name` (kind k8s v1.32.2).
-// The format is "<plural>.<apigroup>".
-//
-// Only used in role >=v8 to attempt to validate the api_group field.
-// If we have a match, we know we need a namespaced value, if we don't
-// have a match, we don't know we don't. Best effort basis.
-//
-// Key: resource kind, value: api group.
-var kubernetesNamespacedResourceKinds = map[string]string{
-	"bindings":                  "",
-	"configmaps":                "",
-	"controllerrevisions":       "apps",
-	"cronjobs":                  "batch",
-	"csistoragecapacities":      "storage.k8s.io",
-	"daemonsets":                "apps",
-	"deployments":               "apps",
-	"endpoints":                 "",
-	"endpointslices":            "discovery.k8s.io",
-	"events":                    "events.k8s.io",
-	"horizontalpodautoscalers":  "autoscaling",
-	"ingresses":                 "networking.k8s.io",
-	"jobs":                      "batch",
-	"leases":                    "coordination.k8s.io",
-	"limitranges":               "",
-	"localsubjectaccessreviews": "authorization.k8s.io",
-	"networkpolicies":           "networking.k8s.io",
-	"persistentvolumeclaims":    "",
-	"poddisruptionbudgets":      "policy",
-	"pods":                      "",
-	"podtemplates":              "",
-	"replicasets":               "apps",
-	"replicationcontrollers":    "",
-	"resourcequotas":            "",
-	"rolebindings":              "rbac.authorization.k8s.io",
-	"roles":                     "rbac.authorization.k8s.io",
-	"secrets":                   "",
-	"serviceaccounts":           "",
-	"services":                  "",
-	"statefulsets":              "apps",
-}
-
-// List of "" (core / legacy) resources.
-//
-// Used to validate the api_group field.
-//
-// Generated with:
-//
-//	(kubectl api-resources --api-group "" --output=name --namespaced=true && kubectl api-resources --api-group "" --output=name --namespaced=false) | sort
-var KubernetesCoreResourceKinds = map[string]struct{}{
-	"bindings":               {},
-	"componentstatuses":      {},
-	"configmaps":             {},
-	"endpoints":              {},
-	"events":                 {},
-	"limitranges":            {},
-	"namespaces":             {},
-	"nodes":                  {},
-	"persistentvolumeclaims": {},
-	"persistentvolumes":      {},
-	"pods":                   {},
-	"podtemplates":           {},
-	"replicationcontrollers": {},
-	"resourcequotas":         {},
-	"secrets":                {},
-	"serviceaccounts":        {},
-	"services":               {},
-}
-
-// TODO(espadolini): delete in v20
 const (
 	// TeleportDropGroup is a default group that users of the teleport automated user
 	// provisioning system get added to when provisioned in INSECURE_DROP mode. This
 	// prevents already existing users from being tampered with or deleted.
-	//
-	// Deprecated: use [constants.TeleportDropGroup].
-	//go:fix inline
-	TeleportDropGroup = constants.TeleportDropGroup
+	TeleportDropGroup = "teleport-system"
 	// TeleportKeepGroup is a default group that users of the teleport automated user
 	// provisioning system get added to when provisioned in KEEP mode. This prevents
 	// already existing users from being tampered with or deleted.
-	//
-	// Deprecated: use [constants.TeleportKeepGroup].
-	//go:fix inline
-	TeleportKeepGroup = constants.TeleportKeepGroup
+	TeleportKeepGroup = "teleport-keep"
 	// TeleportStaticGroup is a default group that static host users get added to. This
 	// prevents already existing users from being tampered with or deleted.
-	//
-	// Deprecated: use [constants.TeleportStaticGroup].
-	//go:fix inline
-	TeleportStaticGroup = constants.TeleportStaticGroup
+	TeleportStaticGroup = "teleport-static"
 )
 
 const (
@@ -1873,12 +1521,6 @@ const (
 	ApplicationProtocolHTTP = "HTTP"
 	// ApplicationProtocolTCP is the TCP apps protocol.
 	ApplicationProtocolTCP = "TCP"
-	// ApplicationProtocolMCP is the protocol for MCP (Model Context Protocol)
-	// server applications.
-	ApplicationProtocolMCP = "MCP"
-	// ApplicationProtocolLLM is the protocol for applications that expose an
-	// LLM inference endpoint.
-	ApplicationProtocolLLM = "LLM"
 )
 
 const (
@@ -1943,20 +1585,3 @@ const (
 	// types.Server to indicate the GitHub organization of a Git server.
 	GitHubOrgServerDomain = "teleport-github-org"
 )
-
-// AccessMonitoringRuleState specifies the desired state of an access monitoring
-// rule subject.
-type AccessMonitoringRuleState string
-
-const (
-	// AccessMonitoringRuleStateReviewed indicates that the access monitoring
-	// rule subject should be reviewed.
-	AccessMonitoringRuleStateReviewed = "reviewed"
-)
-
-// BuiltInAutomaticReview is used within access monitoring rules and indicates
-// that the automatic_review rule should be monitored by Teleport.
-const BuiltInAutomaticReview = "builtin"
-
-// BeamsLogin is the login that should be used when SSHing into beams.
-const BeamsLogin = "beams"

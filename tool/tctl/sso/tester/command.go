@@ -32,7 +32,6 @@ import (
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
@@ -186,11 +185,8 @@ type AuthRequestInfo struct {
 // SSOLoginConsoleRequestFn allows customizing issuance of SSOLoginConsoleReq. Optional.
 type SSOLoginConsoleRequestFn func(req client.SSOLoginConsoleReq) (*client.SSOLoginConsoleResponse, error)
 
-func (cmd *SSOTestCommand) runSSOLoginFlow(ctx context.Context, connectorType string, c *authclient.Client, initiateSSOLoginFn SSOLoginConsoleRequestFn) (*authclient.CLILoginResponse, error) {
-	proxies, err := clientutils.CollectWithFallback(ctx, c.ListProxyServers, func(context.Context) ([]types.Server, error) {
-		//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
-		return c.GetProxies()
-	})
+func (cmd *SSOTestCommand) runSSOLoginFlow(ctx context.Context, connectorType string, c *authclient.Client, initiateSSOLoginFn SSOLoginConsoleRequestFn) (*authclient.SSHLoginResponse, error) {
+	proxies, err := c.GetProxies()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -227,7 +223,7 @@ func (cmd *SSOTestCommand) runSSOLoginFlow(ctx context.Context, connectorType st
 		req := client.SSOLoginConsoleReq{
 			ConnectorID: "-sso-test",
 			RedirectURL: clientCallbackURL,
-			UserPublicKeys: client.UserPublicKeys{
+			SSOUserPublicKeys: client.SSOUserPublicKeys{
 				SSHPubKey: ssh.MarshalAuthorizedKey(sshPub),
 				TLSPubKey: tlsPub,
 			},
@@ -254,7 +250,7 @@ func GetDiagMessage(present bool, show bool, msg string) string {
 	return ""
 }
 
-func (cmd *SSOTestCommand) reportLoginResult(authKind string, diag *types.SSODiagnosticInfo, infoErr error, loginResponse *authclient.CLILoginResponse, loginErr error) (errResult error) {
+func (cmd *SSOTestCommand) reportLoginResult(authKind string, diag *types.SSODiagnosticInfo, infoErr error, loginResponse *authclient.SSHLoginResponse, loginErr error) (errResult error) {
 	success := diag != nil && diag.Success
 
 	// check for errors

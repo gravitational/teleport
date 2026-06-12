@@ -20,10 +20,8 @@ package scp
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"io"
-	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -32,15 +30,15 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	logtest.InitLogger(testing.Verbose)
+	utils.InitLoggerForTests()
 	os.Exit(m.Run())
 }
 
@@ -50,7 +48,7 @@ func TestSend(t *testing.T) {
 	atime := testNow.Add(1 * time.Second)
 	dirModtime := testNow.Add(2 * time.Second)
 	dirAtime := testNow.Add(3 * time.Second)
-	logger := logtest.With(teleport.ComponentKey, "send")
+	logger := logrus.WithField(teleport.ComponentKey, "t:send")
 	testCases := []struct {
 		desc   string
 		config Config
@@ -79,6 +77,7 @@ func TestSend(t *testing.T) {
 		},
 	}
 	for _, tt := range testCases {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 			cmd, err := CreateCommand(tt.config)
@@ -113,7 +112,7 @@ func TestReceive(t *testing.T) {
 	atime := testNow.Add(1 * time.Second)
 	dirModtime := testNow.Add(2 * time.Second)
 	dirAtime := testNow.Add(3 * time.Second)
-	logger := logtest.With(teleport.ComponentKey, "recv")
+	logger := logrus.WithField(teleport.ComponentKey, "t:recv")
 	testCases := []struct {
 		desc       string
 		config     Config
@@ -171,8 +170,9 @@ func TestReceive(t *testing.T) {
 		},
 	}
 	for _, tt := range testCases {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
-			logger := logger.With("test", tt.desc)
+			logger := logger.WithField("test", tt.desc)
 			t.Parallel()
 
 			sourceDir := t.TempDir()
@@ -235,7 +235,7 @@ func TestSCPFailsIfNoSource(t *testing.T) {
 //
 // See https://github.com/gravitational/teleport/issues/5497
 func TestReceiveIntoExistingDirectory(t *testing.T) {
-	logger := logtest.With("test", t.Name())
+	logger := logrus.WithField("test", t.Name())
 	config := newTargetConfigWithFS("dir",
 		Flags{PreserveAttrs: true, Recursive: true},
 		newTestFS(logger, newDir("dir")),
@@ -278,7 +278,7 @@ func TestReceiveIntoExistingDirectory(t *testing.T) {
 //
 // See https://github.com/gravitational/teleport/issues/5695
 func TestReceiveIntoNonExistingDirectoryFailsWithCorrectMessage(t *testing.T) {
-	logger := logtest.With("test", t.Name())
+	logger := logrus.WithField("test", t.Name())
 	// Target configuration with no existing directory
 	root := t.TempDir()
 	config := newTargetConfigWithFS(filepath.Join(root, "dir"),
@@ -306,7 +306,7 @@ func TestReceiveIntoNonExistingDirectoryFailsWithCorrectMessage(t *testing.T) {
 // TestCopyIntoNestedNonExistingDirectoriesDoesNotCreateIntermediateDirectories validates that copying a directory
 // into a remote '/path/to/remote' where '/path/to' does not exist causes an error.
 func TestCopyIntoNestedNonExistingDirectoriesDoesNotCreateIntermediateDirectories(t *testing.T) {
-	logger := logtest.With("test", t.Name())
+	logger := logrus.WithField("test", t.Name())
 
 	config := newTargetConfig("non-existing/remote_dir", Flags{Recursive: true})
 	sourceFS := newTestFS(logger, newDir("dir"))
@@ -360,6 +360,7 @@ func TestInvalidDir(t *testing.T) {
 	}
 
 	for _, tt := range testCases {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 
@@ -630,14 +631,14 @@ func newCmd(name string, args ...string) (cmd *exec.Cmd, stdin io.WriteCloser, s
 
 // newTestFS creates a new test FileSystem using the specified logger
 // and the set of top-level files
-func newTestFS(logger *slog.Logger, files ...*testFileInfo) *testFS {
+func newTestFS(logger logrus.FieldLogger, files ...*testFileInfo) *testFS {
 	fs := newEmptyTestFS(logger)
 	addFiles(fs.fs, files...)
 	return fs
 }
 
 // newEmptyTestFS creates a new test FileSystem without content
-func newEmptyTestFS(logger *slog.Logger) *testFS {
+func newEmptyTestFS(logger logrus.FieldLogger) *testFS {
 	return &testFS{
 		fs: make(map[string]*testFileInfo),
 		l:  logger,
@@ -645,7 +646,7 @@ func newEmptyTestFS(logger *slog.Logger) *testFS {
 }
 
 func (r *testFS) IsDir(path string) bool {
-	r.l.DebugContext(context.Background(), "IsDir", "path", path)
+	r.l.WithField("path", path).Debug("IsDir.")
 	if fi, exists := r.fs[path]; exists {
 		return fi.IsDir()
 	}
@@ -653,7 +654,7 @@ func (r *testFS) IsDir(path string) bool {
 }
 
 func (r *testFS) GetFileInfo(path string) (FileInfo, error) {
-	r.l.DebugContext(context.Background(), "GetFileInfo", "path", path)
+	r.l.WithField("path", path).Debug("GetFileInfo.")
 	fi, exists := r.fs[path]
 	if !exists {
 		return nil, newErrMissingFile(path)
@@ -662,7 +663,7 @@ func (r *testFS) GetFileInfo(path string) (FileInfo, error) {
 }
 
 func (r *testFS) MkDir(path string, mode int) error {
-	r.l.DebugContext(context.Background(), "MkDir", "path", path, "mode", mode)
+	r.l.WithFields(logrus.Fields{"path": path, "mode": mode}).Debug("MkDir.")
 	_, exists := r.fs[path]
 	if exists {
 		return trace.AlreadyExists("directory %v already exists", path)
@@ -676,7 +677,7 @@ func (r *testFS) MkDir(path string, mode int) error {
 }
 
 func (r *testFS) OpenFile(path string) (io.ReadCloser, error) {
-	r.l.DebugContext(context.Background(), "OpenFile", "path", path)
+	r.l.WithField("path", path).Debug("OpenFile.")
 	fi, exists := r.fs[path]
 	if !exists {
 		return nil, newErrMissingFile(path)
@@ -686,7 +687,7 @@ func (r *testFS) OpenFile(path string) (io.ReadCloser, error) {
 }
 
 func (r *testFS) CreateFile(path string, length uint64) (io.WriteCloser, error) {
-	r.l.DebugContext(context.Background(), "CreateFile", "path", path, "len", length)
+	r.l.WithFields(logrus.Fields{"path": path, "len": length}).Debug("CreateFile.")
 	baseDir := filepath.Dir(path)
 	if _, exists := r.fs[baseDir]; baseDir != "." && !exists {
 		return nil, newErrMissingFile(baseDir)
@@ -703,7 +704,7 @@ func (r *testFS) CreateFile(path string, length uint64) (io.WriteCloser, error) 
 }
 
 func (r *testFS) Chmod(path string, mode int) error {
-	r.l.DebugContext(context.Background(), "Chmod", "path", path, "mode", mode)
+	r.l.WithFields(logrus.Fields{"path": path, "mode": mode}).Debug("Chmod.")
 	fi, exists := r.fs[path]
 	if !exists {
 		return newErrMissingFile(path)
@@ -713,7 +714,11 @@ func (r *testFS) Chmod(path string, mode int) error {
 }
 
 func (r *testFS) Chtimes(path string, atime, mtime time.Time) error {
-	r.l.DebugContext(context.Background(), "Chtimes", "path", path, "atime", atime, "mtime", mtime)
+	r.l.WithFields(logrus.Fields{
+		"path":  path,
+		"atime": atime,
+		"mtime": mtime,
+	}).Debug("Chtimes.")
 	fi, exists := r.fs[path]
 	if !exists {
 		return newErrMissingFile(path)
@@ -725,7 +730,7 @@ func (r *testFS) Chtimes(path string, atime, mtime time.Time) error {
 
 // testFS implements a fake FileSystem
 type testFS struct {
-	l  *slog.Logger
+	l  logrus.FieldLogger
 	fs map[string]*testFileInfo
 }
 

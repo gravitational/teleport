@@ -19,14 +19,12 @@
 package filesessions
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
-	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -71,50 +69,18 @@ func GetOpenFileFunc() utils.OpenFileWithFlagsFunc {
 	return openFileFunc
 }
 
-const (
-	// minUploadBytes is the minimum part file size required to trigger its upload.
-	minUploadBytes = constants.MaxProtoMessageSizeBytes * 2
-	// reservationSize is the size new reservations will preallocate.
-	reservationSize = minUploadBytes + constants.MaxProtoMessageSizeBytes
-)
-
-type StreamerConfig struct {
-	// Dir is the dir to stream session events to.
-	Dir string
-	// MinUploadBytes is the minimum size at which upload parts are submitted.
-	// Due to the nature of the gzip writer, each upload part maybe be marginally
-	// larger, but not smaller, than the minimum size. Defaults to 128KB.
-	MinUploadBytes int64
-	// Encrypter wraps the final gzip writer with encryption.
-	Encrypter events.EncryptionWrapper
-}
-
-// CheckAndSetDefaults checks and sets streamer defaults
-func (cfg *StreamerConfig) CheckAndSetDefaults() error {
-	if cfg.Dir == "" {
-		return trace.BadParameter("missing parameter Dir")
-	}
-	if cfg.MinUploadBytes == 0 {
-		cfg.MinUploadBytes = minUploadBytes
-	}
-	return nil
-}
+// minUploadBytes is the minimum part file size required to trigger its upload.
+const minUploadBytes = constants.MaxProtoMessageSizeBytes * 2
 
 // NewStreamer creates a streamer sending uploads to disk
-func NewStreamer(cfg StreamerConfig) (*events.ProtoStreamer, error) {
-	if err := cfg.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	handler, err := NewHandler(Config{Directory: cfg.Dir, OpenFile: GetOpenFileFunc()})
+func NewStreamer(dir string) (*events.ProtoStreamer, error) {
+	handler, err := NewHandler(Config{Directory: dir})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	return events.NewProtoStreamer(events.ProtoStreamerConfig{
 		Uploader:       handler,
-		MinUploadBytes: cfg.MinUploadBytes,
-		Encrypter:      cfg.Encrypter,
+		MinUploadBytes: minUploadBytes,
 	})
 }
 
@@ -145,14 +111,23 @@ func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, pa
 		return nil, trace.Wrap(err)
 	}
 
-	reservationPath := h.reservationPath(upload, partNumber)
-	if err := h.fileRecorder.WritePart(ctx, reservationPath, partBody); err != nil {
+	file, reservationPath, err := h.openReservationPart(upload, partNumber)
+	if err != nil {
+		return nil, trace.ConvertSystemError(err)
+	}
+
+	size, err := io.Copy(file, partBody)
+	if err = trace.NewAggregate(err, file.Truncate(size), file.Close()); err != nil {
+		if rmErr := os.Remove(reservationPath); rmErr != nil {
+			h.logger.WarnContext(ctx, "Failed to remove part file", "file", reservationPath, "error", rmErr)
+		}
 		return nil, trace.Wrap(err)
 	}
 
 	// Rename reservation to part file.
 	partPath := h.partPath(upload, partNumber)
-	if err := os.Rename(reservationPath, partPath); err != nil {
+	err = os.Rename(reservationPath, partPath)
+	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
 
@@ -176,7 +151,12 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 		return h.cleanupUpload(ctx, upload)
 	}
 
-	uploadPath := h.recordingPath(upload.SessionID)
+	// Parts must be sorted in PartNumber order.
+	sort.Slice(parts, func(i, j int) bool {
+		return parts[i].Number < parts[j].Number
+	})
+
+	uploadPath := h.path(upload.SessionID)
 
 	// Prevent other processes from accessing this file until the write is completed
 	f, err := GetOpenFileFunc()(uploadPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o600)
@@ -185,7 +165,7 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 	}
 	unlock, err := utils.FSTryWriteLock(uploadPath)
 Loop:
-	for range 3 {
+	for i := 0; i < 3; i++ {
 		switch {
 		case err == nil:
 			break Loop
@@ -230,19 +210,26 @@ Loop:
 		}
 	}()
 
-	// Parts must be sorted in PartNumber order.
-	slices.SortFunc(parts, func(a, b events.StreamPart) int {
-		return cmp.Compare(a.Number, b.Number)
-	})
-
-	if err := h.fileRecorder.CombineParts(ctx, f, func(yield func(string) bool) {
-		for _, part := range parts {
-			if !yield(h.partPath(upload, part.Number)) {
-				break
-			}
+	writePartToFile := func(path string) error {
+		file, err := os.Open(path)
+		if err != nil {
+			return err
 		}
-	}); err != nil {
-		return trace.Wrap(err)
+		defer func() {
+			if err := file.Close(); err != nil {
+				h.logger.ErrorContext(ctx, "failed to close file", "file", path, "error", err)
+			}
+		}()
+
+		_, err = io.Copy(f, file)
+		return err
+	}
+
+	for _, part := range parts {
+		partPath := h.partPath(upload, part.Number)
+		if err := writePartToFile(partPath); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	err = h.Config.OnBeforeComplete(ctx, upload)
@@ -258,7 +245,7 @@ Loop:
 }
 
 func (h *Handler) cleanupUpload(ctx context.Context, upload events.StreamUpload) error {
-	uploadKey := h.recordingPath(upload.SessionID)
+	uploadKey := h.path(upload.SessionID)
 	log := h.logger.With(
 		"upload", upload.ID,
 		"session", upload.SessionID,
@@ -384,12 +371,35 @@ func (h *Handler) GetUploadMetadata(s session.ID) events.UploadMetadata {
 
 // ReserveUploadPart reserves an upload part.
 func (h *Handler) ReserveUploadPart(ctx context.Context, upload events.StreamUpload, partNumber int64) error {
-	reservationPath := h.reservationPath(upload, partNumber)
-	if err := h.fileRecorder.ReservePart(ctx, reservationPath, reservationSize); err != nil {
-		return trace.Wrap(err)
+	file, partPath, err := h.openReservationPart(upload, partNumber)
+	if err != nil {
+		return trace.ConvertSystemError(err)
+	}
+
+	// Create a buffer with the max size that a part file can have.
+	buf := make([]byte, minUploadBytes+constants.MaxProtoMessageSizeBytes)
+
+	_, err = file.Write(buf)
+	if err = trace.NewAggregate(err, file.Close()); err != nil {
+		if rmErr := os.Remove(partPath); rmErr != nil {
+			h.logger.WarnContext(ctx, "Failed to remove part file.", "file", partPath, "error", rmErr)
+		}
+
+		return trace.ConvertSystemError(err)
 	}
 
 	return nil
+}
+
+// openReservationPart opens a reservation upload part file.
+func (h *Handler) openReservationPart(upload events.StreamUpload, partNumber int64) (*os.File, string, error) {
+	partPath := h.reservationPath(upload, partNumber)
+	file, err := GetOpenFileFunc()(partPath, os.O_RDWR|os.O_CREATE, 0o600)
+	if err != nil {
+		return nil, partPath, trace.ConvertSystemError(err)
+	}
+
+	return file, partPath, nil
 }
 
 func (h *Handler) uploadsPath() string {
@@ -463,12 +473,6 @@ const (
 	partExt = ".part"
 	// tarExt is a suffix for file uploads
 	tarExt = ".tar"
-	// summaryExt is a suffix for summary files
-	summaryExt = ".summary.json"
-	// metadataExt is a suffix for session metadata files
-	metadataExt = ".metadata"
-	// thumbnailExt is a suffix for session thumbnails
-	thumbnailExt = ".thumbnail"
 	// checkpointExt is a suffix for checkpoint extensions
 	checkpointExt = ".checkpoint"
 	// errorExt is a suffix for files storing session errors

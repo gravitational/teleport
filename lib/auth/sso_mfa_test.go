@@ -36,7 +36,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
-	"github.com/gravitational/teleport/lib/auth/mfatypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -274,14 +273,14 @@ func TestSSOMFAChallenge_Creation(t *testing.T) {
 				assert.True(t, req.CheckUser)
 
 				// We should find non validated SSO MFA session data tied to the challenge by auth request ID.
-				sd, err := a.GetMFASessionData(ctx, chal.SSOChallenge.RequestId)
+				sd, err := a.GetSSOMFASessionData(ctx, chal.SSOChallenge.RequestId)
 				require.NoError(t, err)
-				assert.Equal(t, &services.MFASessionData{
+				assert.Equal(t, &services.SSOMFASessionData{
 					RequestID:     chal.SSOChallenge.RequestId,
 					Username:      samlUser.GetName(),
 					ConnectorID:   samlConnector.GetName(),
 					ConnectorType: samlConnector.GetKind(),
-					ChallengeExtensions: &mfatypes.ChallengeExtensions{
+					ChallengeExtensions: &mfav1.ChallengeExtensions{
 						Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 					},
 				}, sd)
@@ -313,14 +312,14 @@ func TestSSOMFAChallenge_Creation(t *testing.T) {
 				assert.True(t, req.CheckUser)
 
 				// We should find non validated SSO MFA session data tied to the challenge by auth request ID.
-				sd, err := a.GetMFASessionData(ctx, chal.SSOChallenge.RequestId)
+				sd, err := a.GetSSOMFASessionData(ctx, chal.SSOChallenge.RequestId)
 				require.NoError(t, err)
-				assert.Equal(t, &services.MFASessionData{
+				assert.Equal(t, &services.SSOMFASessionData{
 					RequestID:     chal.SSOChallenge.RequestId,
 					Username:      oidcUser.GetName(),
 					ConnectorID:   oidcConnector.GetName(),
 					ConnectorType: oidcConnector.GetKind(),
-					ChallengeExtensions: &mfatypes.ChallengeExtensions{
+					ChallengeExtensions: &mfav1.ChallengeExtensions{
 						Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 					},
 				}, sd)
@@ -341,7 +340,7 @@ func TestSSOMFAChallenge_Creation(t *testing.T) {
 				require.NotNil(t, chal.SSOChallenge, "expected SSO challenge to be returned")
 
 				// We should find non validated SSO MFA session data tied to the challenge by auth request ID.
-				sd, err := a.GetMFASessionData(ctx, chal.SSOChallenge.RequestId)
+				sd, err := a.GetSSOMFASessionData(ctx, chal.SSOChallenge.RequestId)
 				require.NoError(t, err)
 				assert.Equal(t, mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES, sd.ChallengeExtensions.AllowReuse)
 			},
@@ -455,7 +454,7 @@ func TestSSOMFAChallenge_Validation(t *testing.T) {
 	for _, tt := range []struct {
 		name               string
 		username           string
-		sd                 *services.MFASessionData
+		sd                 *services.SSOMFASessionData
 		ssoResponse        *proto.SSOResponse
 		requiredExtensions *mfav1.ChallengeExtensions
 		assertValidation   func(t *testing.T, mad *authz.MFAAuthData, err error)
@@ -485,12 +484,12 @@ func TestSSOMFAChallenge_Validation(t *testing.T) {
 		{
 			name:     "NOK mismatch user",
 			username: samlUser.GetName(),
-			sd: &services.MFASessionData{
+			sd: &services.SSOMFASessionData{
 				RequestID:     "request1",
 				Username:      "wrong-user",
 				ConnectorID:   samlConnector.GetName(),
 				ConnectorType: samlConnector.GetKind(),
-				ChallengeExtensions: &mfatypes.ChallengeExtensions{
+				ChallengeExtensions: &mfav1.ChallengeExtensions{
 					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 				},
 				Token: "token",
@@ -509,12 +508,12 @@ func TestSSOMFAChallenge_Validation(t *testing.T) {
 		{
 			name:     "NOK mismatch token",
 			username: samlUser.GetName(),
-			sd: &services.MFASessionData{
+			sd: &services.SSOMFASessionData{
 				RequestID:     "request2",
 				Username:      samlUser.GetName(),
 				ConnectorID:   samlConnector.GetName(),
 				ConnectorType: samlConnector.GetKind(),
-				ChallengeExtensions: &mfatypes.ChallengeExtensions{
+				ChallengeExtensions: &mfav1.ChallengeExtensions{
 					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 				},
 				Token: "token",
@@ -533,12 +532,12 @@ func TestSSOMFAChallenge_Validation(t *testing.T) {
 		{
 			name:     "NOK non validated session data",
 			username: samlUser.GetName(),
-			sd: &services.MFASessionData{
+			sd: &services.SSOMFASessionData{
 				RequestID:     "request2",
 				Username:      samlUser.GetName(),
 				ConnectorID:   samlConnector.GetName(),
 				ConnectorType: samlConnector.GetKind(),
-				ChallengeExtensions: &mfatypes.ChallengeExtensions{
+				ChallengeExtensions: &mfav1.ChallengeExtensions{
 					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 				},
 			},
@@ -556,12 +555,12 @@ func TestSSOMFAChallenge_Validation(t *testing.T) {
 		{
 			name:     "NOK mismatch scope",
 			username: samlUser.GetName(),
-			sd: &services.MFASessionData{
+			sd: &services.SSOMFASessionData{
 				RequestID:     "request3",
 				Username:      samlUser.GetName(),
 				ConnectorID:   samlConnector.GetName(),
 				ConnectorType: samlConnector.GetKind(),
-				ChallengeExtensions: &mfatypes.ChallengeExtensions{
+				ChallengeExtensions: &mfav1.ChallengeExtensions{
 					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 				},
 				Token: "token",
@@ -580,12 +579,12 @@ func TestSSOMFAChallenge_Validation(t *testing.T) {
 		{
 			name:     "NOK reuse not allowed",
 			username: samlUser.GetName(),
-			sd: &services.MFASessionData{
+			sd: &services.SSOMFASessionData{
 				RequestID:     "request4",
 				Username:      samlUser.GetName(),
 				ConnectorID:   samlConnector.GetName(),
 				ConnectorType: samlConnector.GetKind(),
-				ChallengeExtensions: &mfatypes.ChallengeExtensions{
+				ChallengeExtensions: &mfav1.ChallengeExtensions{
 					Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 					AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
 				},
@@ -606,12 +605,12 @@ func TestSSOMFAChallenge_Validation(t *testing.T) {
 		{
 			name:     "NOK sso mfa not enabled by auth connector",
 			username: noMFASAMLUser.GetName(),
-			sd: &services.MFASessionData{
+			sd: &services.SSOMFASessionData{
 				RequestID:     "request5",
 				Username:      noMFASAMLUser.GetName(),
 				ConnectorID:   noMFASAMLConnector.GetName(),
 				ConnectorType: noMFASAMLConnector.GetKind(),
-				ChallengeExtensions: &mfatypes.ChallengeExtensions{
+				ChallengeExtensions: &mfav1.ChallengeExtensions{
 					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 				},
 				Token: "token",
@@ -630,12 +629,12 @@ func TestSSOMFAChallenge_Validation(t *testing.T) {
 		{
 			name:     "NOK non sso user",
 			username: standardUser.GetName(),
-			sd: &services.MFASessionData{
+			sd: &services.SSOMFASessionData{
 				RequestID:     "request6",
 				Username:      standardUser.GetName(),
 				ConnectorID:   samlConnector.GetName(),
 				ConnectorType: samlConnector.GetKind(),
-				ChallengeExtensions: &mfatypes.ChallengeExtensions{
+				ChallengeExtensions: &mfav1.ChallengeExtensions{
 					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 				},
 				Token: "token",
@@ -654,12 +653,12 @@ func TestSSOMFAChallenge_Validation(t *testing.T) {
 		{
 			name:     "OK sso user",
 			username: samlUser.GetName(),
-			sd: &services.MFASessionData{
+			sd: &services.SSOMFASessionData{
 				RequestID:     "request7",
 				Username:      samlUser.GetName(),
 				ConnectorID:   samlConnector.GetName(),
 				ConnectorType: samlConnector.GetKind(),
-				ChallengeExtensions: &mfatypes.ChallengeExtensions{
+				ChallengeExtensions: &mfav1.ChallengeExtensions{
 					Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 					AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_NO,
 				},
@@ -684,12 +683,12 @@ func TestSSOMFAChallenge_Validation(t *testing.T) {
 		{
 			name:     "OK sso user allow reuse",
 			username: samlUser.GetName(),
-			sd: &services.MFASessionData{
+			sd: &services.SSOMFASessionData{
 				RequestID:     "request8",
 				Username:      samlUser.GetName(),
 				ConnectorID:   samlConnector.GetName(),
 				ConnectorType: samlConnector.GetKind(),
-				ChallengeExtensions: &mfatypes.ChallengeExtensions{
+				ChallengeExtensions: &mfav1.ChallengeExtensions{
 					Scope:      mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 					AllowReuse: mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
 				},
@@ -715,7 +714,7 @@ func TestSSOMFAChallenge_Validation(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.sd != nil {
-				err := a.UpsertMFASessionData(ctx, tt.sd)
+				err := a.UpsertSSOMFASessionData(ctx, tt.sd)
 				require.NoError(t, err)
 			}
 

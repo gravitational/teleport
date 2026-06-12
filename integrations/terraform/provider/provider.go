@@ -19,7 +19,6 @@ package provider
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"net"
 	"os"
 	"strconv"
@@ -30,13 +29,13 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/grpclog"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
@@ -95,10 +94,6 @@ const (
 	// attributeTerraformGitlabIDTokenEnvVar is the attribute configuring the environment variable used to fetch the ID
 	// token issued by GitLab for the `gitlab` join method. If unset, this defaults to `TBOT_GITLAB_JWT`.
 	attributeTerraformGitlabIDTokenEnvVar = "gitlab_id_token_env_var"
-	// attributeKubernetesTokenPath configures the Kubernetes token location when joining using MachineID and the `kubernetes` join method.
-	// When unset, the join client will try the `KUBERNETES_TOKEN_PATH` env var, else it will use the standard location:
-	// "/var/run/secrets/kubernetes.io/serviceaccount/token".
-	attributeKubernetesTokenPath = "kubernetes_token_path"
 )
 
 type RetryConfig struct {
@@ -162,10 +157,6 @@ type providerData struct {
 	// defaults to `TBOT_GITLAB_JWT`. Useful in cases where multiple Teleport
 	// clusters are managed by the same GitLab job.
 	GitlabIDTokenEnvVar types.String `tfsdk:"gitlab_id_token_env_var"`
-	// KubernetesTokenPath configures the Kubernetes token location when joining using MachineID and the `kubernetes` join method.
-	// When unset, the join client will try the `KUBERNETES_TOKEN_PATH` env var, else it will use the standard location:
-	// "/var/run/secrets/kubernetes.io/serviceaccount/token".
-	KubernetesTokenPath types.String `tfsdk:"kubernetes_token_path"`
 }
 
 // New returns an empty provider struct
@@ -273,13 +264,13 @@ func (p *Provider) GetSchema(_ context.Context) (tfsdk.Schema, diag.Diagnostics)
 				Type:        types.StringType,
 				Sensitive:   false,
 				Optional:    true,
-				Description: fmt.Sprintf("Enables the native Terraform MachineID support. When set, Terraform uses MachineID to securely join the Teleport cluster and obtain credentials. See [the join method reference](../../deployment/join-methods.mdx) for possible values. You must use [a delegated join method](../../deployment/join-methods.mdx#secret-vs-delegated). This can also be set with the environment variable `%s`.", constants.EnvVarTerraformJoinMethod),
+				Description: fmt.Sprintf("Enables the native Terraform MachineID support. When set, Terraform uses MachineID to securely join the Teleport cluster and obtain credentials. See [the join method reference](../join-methods.mdx) for possible values. You must use [a delegated join method](../join-methods.mdx#secret-vs-delegated). This can also be set with the environment variable `%s`.", constants.EnvVarTerraformJoinMethod),
 			},
 			attributeTerraformJoinToken: {
 				Type:        types.StringType,
 				Sensitive:   false,
 				Optional:    true,
-				Description: fmt.Sprintf("Name of the token used for the native MachineID joining. This value is not sensitive for [delegated join methods](../../deployment/join-methods.mdx#secret-vs-delegated). This can also be set with the environment variable `%s`.", constants.EnvVarTerraformJoinToken),
+				Description: fmt.Sprintf("Name of the token used for the native MachineID joining. This value is not sensitive for [delegated join methods](../join-methods.mdx#secret-vs-delegated). This can also be set with the environment variable `%s`.", constants.EnvVarTerraformJoinToken),
 			},
 			attributeTerraformJoinAudienceTag: {
 				Type:        types.StringType,
@@ -292,12 +283,6 @@ func (p *Provider) GetSchema(_ context.Context) (tfsdk.Schema, diag.Diagnostics)
 				Sensitive:   false,
 				Optional:    true,
 				Description: fmt.Sprintf("Environment variable used to fetch the ID token issued by GitLab for the `gitlab` join method. If unset, this defaults to `TBOT_GITLAB_JWT`. This can also be set with the environment variable `%s`.", constants.EnvVarGitlabIDTokenEnvVar),
-			},
-			attributeKubernetesTokenPath: {
-				Type:        types.StringType,
-				Sensitive:   false,
-				Optional:    true,
-				Description: "KubernetesTokenPath configures the Kubernetes token location when joining using MachineID and the `kubernetes` join method. When unset, the join client will try the `KUBERNETES_TOKEN_PATH` env var, else it will use the standard location: `/var/run/secrets/kubernetes.io/serviceaccount/token`.",
 			},
 		},
 	}, nil
@@ -344,7 +329,7 @@ func (p *Provider) Configure(ctx context.Context, req tfsdk.ConfigureProviderReq
 		return
 	}
 
-	slog.DebugContext(ctx, "Using Teleport address", "addr", addr)
+	log.WithFields(log.Fields{"addr": addr}).Debug("Using Teleport address")
 
 	dialTimeoutDuration, err := time.ParseDuration(dialTimeoutDurationStr)
 	if err != nil {
@@ -433,7 +418,7 @@ func (p *Provider) Configure(ctx context.Context, req tfsdk.ConfigureProviderReq
 
 // checkTeleportVersion ensures that Teleport version is at least minServerVersion
 func (p *Provider) checkTeleportVersion(ctx context.Context, client *client.Client, resp *tfsdk.ConfigureProviderResponse) bool {
-	slog.DebugContext(ctx, "Checking Teleport server version")
+	log.Debug("Checking Teleport server version")
 	pong, err := client.Ping(ctx)
 	if err != nil {
 		if trace.IsNotImplemented(err) {
@@ -443,13 +428,13 @@ func (p *Provider) checkTeleportVersion(ctx context.Context, client *client.Clie
 			)
 			return false
 		}
-		slog.DebugContext(ctx, "Teleport version check error", "error", err)
+		log.WithError(err).Debug("Teleport version check error!")
 		resp.Diagnostics.AddError("Unable to get Teleport server version!", "Unable to get Teleport server version!")
 		return false
 	}
 	err = utils.CheckMinVersion(pong.ServerVersion, minServerVersion)
 	if err != nil {
-		slog.DebugContext(ctx, "Teleport version check error", "error", err)
+		log.WithError(err).Debug("Teleport version check error!")
 		resp.Diagnostics.AddError("Teleport version check error!", err.Error())
 		return false
 	}
@@ -497,7 +482,7 @@ func (p *Provider) validateAddr(addr string, resp *tfsdk.ConfigureProviderRespon
 
 	_, _, err := net.SplitHostPort(addr)
 	if err != nil {
-		slog.DebugContext(context.Background(), "Teleport address format error", "error", err, "addr", addr)
+		log.WithField("addr", addr).WithError(err).Debug("Teleport address format error!")
 		resp.Diagnostics.AddError(
 			"Invalid Teleport address format",
 			fmt.Sprintf("Teleport address must be specified as host:port. Got %q", addr),
@@ -511,32 +496,20 @@ func (p *Provider) validateAddr(addr string, resp *tfsdk.ConfigureProviderRespon
 
 // configureLog configures logging
 func (p *Provider) configureLog() {
-	level := slog.LevelError
 	// Get Terraform log level
-	switch strings.ToLower(os.Getenv("TF_LOG")) {
-	case "panic", "fatal", "error":
-		level = slog.LevelError
-	case "warn", "warning":
-		level = slog.LevelWarn
-	case "info":
-		level = slog.LevelInfo
-	case "debug":
-		level = slog.LevelDebug
-	case "trace":
-		level = logutils.TraceLevel
+	level, err := log.ParseLevel(os.Getenv("TF_LOG"))
+	if err != nil {
+		log.SetLevel(log.ErrorLevel)
+	} else {
+		log.SetLevel(level)
 	}
 
-	_, _, _, err := logutils.Initialize(logutils.Config{
-		Severity: level.String(),
-		Format:   "text",
-	})
-	if err != nil {
-		return
-	}
+	log.SetFormatter(&log.TextFormatter{})
 
 	// Show GRPC debug logs only if TF_LOG=DEBUG
-	if level <= slog.LevelDebug {
-		grpclog.SetLoggerV2(grpclog.NewLoggerV2(os.Stderr, os.Stderr, os.Stderr))
+	if log.GetLevel() >= log.DebugLevel {
+		l := grpclog.NewLoggerV2(log.StandardLogger().Out, log.StandardLogger().Out, log.StandardLogger().Out)
+		grpclog.SetLoggerV2(l)
 	}
 }
 
@@ -544,31 +517,24 @@ func (p *Provider) configureLog() {
 func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceType, diag.Diagnostics) {
 	return map[string]tfsdk.ResourceType{
 		"teleport_app":                        resourceTeleportAppType{},
-		"teleport_app_auth_config":            resourceTeleportAppAuthConfigType{},
 		"teleport_auth_preference":            resourceTeleportAuthPreferenceType{},
 		"teleport_cluster_maintenance_config": resourceTeleportClusterMaintenanceConfigType{},
 		"teleport_cluster_networking_config":  resourceTeleportClusterNetworkingConfigType{},
 		"teleport_database":                   resourceTeleportDatabaseType{},
-		"teleport_discovery_config":           resourceTeleportDiscoveryConfigType{},
 		"teleport_dynamic_windows_desktop":    resourceTeleportDynamicWindowsDesktopType{},
 		"teleport_github_connector":           resourceTeleportGithubConnectorType{},
-		"teleport_kube_cluster":               resourceTeleportKubeClusterType{},
-		"teleport_lock":                       resourceTeleportLockType{},
 		"teleport_provision_token":            resourceTeleportProvisionTokenType{},
 		"teleport_oidc_connector":             resourceTeleportOIDCConnectorType{},
 		"teleport_role":                       resourceTeleportRoleType{},
 		"teleport_saml_connector":             resourceTeleportSAMLConnectorType{},
-		"teleport_saml_idp_service_provider":  resourceTeleportSAMLIdPServiceProviderType{},
 		"teleport_session_recording_config":   resourceTeleportSessionRecordingConfigType{},
 		"teleport_trusted_cluster":            resourceTeleportTrustedClusterType{},
-		"teleport_ui_config":                  resourceTeleportUIConfigType{},
 		"teleport_user":                       resourceTeleportUserType{},
 		"teleport_bot":                        resourceTeleportBotType{},
 		"teleport_login_rule":                 resourceTeleportLoginRuleType{},
 		"teleport_trusted_device":             resourceTeleportDeviceV1Type{},
 		"teleport_okta_import_rule":           resourceTeleportOktaImportRuleType{},
 		"teleport_access_list":                resourceTeleportAccessListType{},
-		"teleport_access_list_member":         resourceTeleportMemberType{},
 		"teleport_server":                     resourceTeleportServerType{},
 		"teleport_installer":                  resourceTeleportInstallerType{},
 		"teleport_access_monitoring_rule":     resourceTeleportAccessMonitoringRuleType{},
@@ -576,18 +542,6 @@ func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceTyp
 		"teleport_workload_identity":          resourceTeleportWorkloadIdentityType{},
 		"teleport_autoupdate_version":         resourceTeleportAutoUpdateVersionType{},
 		"teleport_autoupdate_config":          resourceTeleportAutoUpdateConfigType{},
-		"teleport_health_check_config":        resourceTeleportHealthCheckConfigType{},
-		"teleport_vnet_config":                resourceTeleportVnetConfigType{},
-		"teleport_integration":                resourceTeleportIntegrationType{},
-		"teleport_inference_model":            resourceTeleportInferenceModelType{},
-		"teleport_inference_secret":           resourceTeleportInferenceSecretType{},
-		"teleport_inference_policy":           resourceTeleportInferencePolicyType{},
-		"teleport_retrieval_model":            resourceTeleportRetrievalModelType{},
-		"teleport_scoped_token":               resourceTeleportScopedTokenType{},
-		"teleport_workload_cluster":           resourceTeleportWorkloadClusterType{},
-		"teleport_scoped_role":                resourceTeleportScopedRoleType{},
-		"teleport_scoped_role_assignment":     resourceTeleportScopedRoleAssignmentType{},
-		"teleport_db_object_import_rule":      resourceTeleportDatabaseObjectImportRuleType{},
 	}, nil
 }
 
@@ -595,51 +549,29 @@ func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceTyp
 func (p *Provider) GetDataSources(_ context.Context) (map[string]tfsdk.DataSourceType, diag.Diagnostics) {
 	return map[string]tfsdk.DataSourceType{
 		"teleport_app":                        dataSourceTeleportAppType{},
-		"teleport_app_auth_config":            dataSourceTeleportAppAuthConfigType{},
 		"teleport_auth_preference":            dataSourceTeleportAuthPreferenceType{},
 		"teleport_cluster_maintenance_config": dataSourceTeleportClusterMaintenanceConfigType{},
 		"teleport_cluster_networking_config":  dataSourceTeleportClusterNetworkingConfigType{},
 		"teleport_database":                   dataSourceTeleportDatabaseType{},
-		"teleport_discovery_config":           dataSourceTeleportDiscoveryConfigType{},
 		"teleport_dynamic_windows_desktop":    dataSourceTeleportDynamicWindowsDesktopType{},
 		"teleport_github_connector":           dataSourceTeleportGithubConnectorType{},
-		"teleport_kube_cluster":               dataSourceTeleportKubeClusterType{},
-		"teleport_lock":                       dataSourceTeleportLockType{},
 		"teleport_provision_token":            dataSourceTeleportProvisionTokenType{},
 		"teleport_oidc_connector":             dataSourceTeleportOIDCConnectorType{},
 		"teleport_role":                       dataSourceTeleportRoleType{},
 		"teleport_saml_connector":             dataSourceTeleportSAMLConnectorType{},
-		"teleport_saml_idp_service_provider":  dataSourceTeleportSAMLIdPServiceProviderType{},
 		"teleport_session_recording_config":   dataSourceTeleportSessionRecordingConfigType{},
 		"teleport_trusted_cluster":            dataSourceTeleportTrustedClusterType{},
-		"teleport_ui_config":                  dataSourceTeleportUIConfigType{},
 		"teleport_user":                       dataSourceTeleportUserType{},
 		"teleport_login_rule":                 dataSourceTeleportLoginRuleType{},
 		"teleport_trusted_device":             dataSourceTeleportDeviceV1Type{},
 		"teleport_okta_import_rule":           dataSourceTeleportOktaImportRuleType{},
 		"teleport_access_list":                dataSourceTeleportAccessListType{},
-		"teleport_access_list_member":         dataSourceTeleportMemberType{},
 		"teleport_installer":                  dataSourceTeleportInstallerType{},
 		"teleport_access_monitoring_rule":     dataSourceTeleportAccessMonitoringRuleType{},
 		"teleport_static_host_user":           dataSourceTeleportStaticHostUserType{},
 		"teleport_workload_identity":          dataSourceTeleportWorkloadIdentityType{},
 		"teleport_autoupdate_version":         dataSourceTeleportAutoUpdateVersionType{},
 		"teleport_autoupdate_config":          dataSourceTeleportAutoUpdateConfigType{},
-		"teleport_health_check_config":        dataSourceTeleportHealthCheckConfigType{},
-		"teleport_vnet_config":                dataSourceTeleportVnetConfigType{},
-		"teleport_integration":                dataSourceTeleportIntegrationType{},
-		"teleport_scoped_token":               dataSourceTeleportScopedTokenType{},
-		"teleport_scoped_role":                dataSourceTeleportScopedRoleType{},
-		"teleport_scoped_role_assignment":     dataSourceTeleportScopedRoleAssignmentType{},
-		"teleport_db_object_import_rule":      dataSourceTeleportDatabaseObjectImportRuleType{},
-		// TODO(bl-nero): Add teleport_inference_* data sources after data sources
-		// are fixed. The current problems with data sources include:
-		// - Data sources only perform a "shallow fill", which means only setting
-		//   leaf-level fields.
-		// - Data sources use the same schema as resources, which means that fields
-		//   required on a resource also need to be set on the data source
-		//   definition.
-		"teleport_workload_cluster": dataSourceTeleportWorkloadClusterType{},
 	}, nil
 }
 

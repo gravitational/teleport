@@ -3,7 +3,6 @@
     "type": "object",
     "required": [
         "proxyAddr",
-        "relayAddr",
         "roles",
         "joinParams",
         "kubeClusterName",
@@ -51,11 +50,6 @@
             "type": "string",
             "default": ""
         },
-        "relayAddr": {
-            "$id": "#/properties/relayAddr",
-            "type": "string",
-            "default": ""
-        },
         "roles": {
             "$id": "#/properties/roles",
             "type": "string",
@@ -81,11 +75,6 @@
         },
         "kubeClusterName": {
             "$id": "#/properties/kubeClusterName",
-            "type": "string",
-            "default": ""
-        },
-        "teleportClusterName": {
-            "$id": "#/properties/teleportClusterName",
             "type": "string",
             "default": ""
         },
@@ -272,19 +261,13 @@
             "$id": "#/properties/tls",
             "type": "object",
             "required": [
-                "existingCASecretName",
-                "existingCASecretKeyName"
+                "existingCASecretName"
             ],
             "properties": {
                 "existingCASecretName": {
                     "$id": "#/properties/tls/properties/existingCASecretName",
                     "type": "string",
                     "default": ""
-                },
-                "existingCASecretKeyName": {
-                    "$id": "#/properties/tls/properties/existingCASecretKeyName",
-                    "type": "string",
-                    "default": "ca.pem"
                 }
             }
         },
@@ -535,11 +518,6 @@
             "$id": "#/properties/affinity",
             "type": "object",
             "default": {}
-        },
-        "topologySpreadConstraints": {
-            "$id": "#/properties/topologySpreadConstraints",
-            "type": "array",
-            "default": []
         },
         "dnsConfig": {
             "$id": "#/properties/dnsConfig",

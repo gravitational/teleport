@@ -218,7 +218,7 @@ func TestListUserTask(t *testing.T) {
 			prepopulateUserTask(t, service, count)
 
 			expectedElements := make([]*usertasksv1.UserTask, 0, count)
-			for i := range count {
+			for i := 0; i < count; i++ {
 				expectedElements = append(expectedElements, getUserTaskObject(t, i))
 			}
 			slices.SortFunc(expectedElements, sortUserTasksFn)
@@ -296,7 +296,7 @@ func getUserTaskObject(t *testing.T, index int) *usertasksv1.UserTask {
 }
 
 func prepopulateUserTask(t *testing.T, service services.UserTasks, count int) {
-	for i := range count {
+	for i := 0; i < count; i++ {
 		_, err := service.CreateUserTask(context.Background(), getUserTaskObject(t, i))
 		require.NoError(t, err)
 	}

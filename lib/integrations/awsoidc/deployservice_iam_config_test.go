@@ -35,11 +35,11 @@ import (
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
 )
 
-var badParameterCheck = func(t require.TestingT, err error, msgAndArgs ...any) {
+var badParameterCheck = func(t require.TestingT, err error, msgAndArgs ...interface{}) {
 	require.True(t, trace.IsBadParameter(err), `expected "bad parameter", but got %v`, err)
 }
 
-var notFoundCheck = func(t require.TestingT, err error, msgAndArgs ...any) {
+var notFoundCheck = func(t require.TestingT, err error, msgAndArgs ...interface{}) {
 	require.True(t, trace.IsNotFound(err), `expected "not found", but got %v`, err)
 }
 

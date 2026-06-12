@@ -21,14 +21,11 @@ package kubev1
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"slices"
-	"strings"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/gravitational/teleport"
@@ -50,11 +47,10 @@ var errDone = errors.New("done iterating")
 // Server implements KubeService gRPC server.
 type Server struct {
 	proto.UnimplementedKubeServiceServer
-	cfg               Config
-	proxyAddress      string
-	kubeProxySNI      string
-	kubeClient        kubernetes.Interface
-	kubeDynamicClient *dynamic.DynamicClient
+	cfg          Config
+	proxyAddress string
+	kubeProxySNI string
+	kubeClient   kubernetes.Interface
 }
 
 // New creates a new instance of Kube gRPC handler.
@@ -74,7 +70,7 @@ func New(cfg Config) (*Server, error) {
 
 	s := &Server{cfg: cfg, proxyAddress: addr, kubeProxySNI: sni}
 
-	if err := s.buildKubeClient(); err != nil {
+	if s.kubeClient, err = s.buildKubeClient(); err != nil {
 		return nil, trace.Wrap(err, "unable to create kubeClient")
 	}
 
@@ -89,7 +85,7 @@ type Config struct {
 	// Authz authenticates user.
 	Authz authz.Authorizer
 	// Log is the logger function.
-	Log *slog.Logger
+	Log logrus.FieldLogger
 	// Emitter is used to emit audit events.
 	Emitter apievents.Emitter
 	// Component name to include in log output.
@@ -143,9 +139,9 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.Component = "kube.grpc"
 	}
 	if c.Log == nil {
-		c.Log = slog.Default()
+		c.Log = logrus.New()
 	}
-	c.Log = c.Log.With(teleport.ComponentKey, c.Component)
+	c.Log = c.Log.WithFields(logrus.Fields{teleport.ComponentKey: c.Component})
 	return nil
 }
 
@@ -194,7 +190,7 @@ func (s *Server) ListKubernetesResources(ctx context.Context, req *proto.ListKub
 	case requiresFakePagination(req):
 		rsp, err := s.listResourcesUsingFakePagination(ctx, req)
 		return rsp, trail.ToGRPC(err)
-	case slices.Contains(types.KubernetesResourcesKinds, req.ResourceType) || strings.HasPrefix(req.ResourceType, types.AccessRequestPrefixKindKube):
+	case slices.Contains(types.KubernetesResourcesKinds, req.ResourceType):
 		rsp, err := s.listKubernetesResources(ctx, true, req)
 		return rsp, trail.ToGRPC(err)
 	default:
@@ -286,77 +282,6 @@ func (s *Server) listKubernetesResources(
 	return rsp, trace.Wrap(err)
 }
 
-func fetchAPIGroups(ctx context.Context, clientset kubernetes.Interface) (*metav1.APIGroupList, error) {
-	restClient := clientset.Discovery().RESTClient()
-
-	var groupList metav1.APIGroupList
-	if err := restClient.Get().AbsPath("/apis").Do(ctx).Into(&groupList); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &groupList, nil
-}
-
-func fetchAPIResources(ctx context.Context, clientset kubernetes.Interface, apiGroup, version string) (*metav1.APIResourceList, error) {
-	absPath := ""
-	if apiGroup == "" {
-		absPath = "/api/v1"
-	} else {
-		absPath = "/apis/" + apiGroup + "/" + version
-	}
-	restClient := clientset.Discovery().RESTClient()
-
-	var rsList metav1.APIResourceList
-	if err := restClient.Get().AbsPath(absPath).Do(ctx).Into(&rsList); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &rsList, nil
-}
-
-// lookupAPIGroupVersions looks up the GroupKind in the actual API Group list.
-// Returns the extracted api group name, and the list of versions, starting with the preferred version.
-func lookupAPIGroupVersions(ctx context.Context, kubeClient kubernetes.Interface, gk schema.GroupKind) (apiGroup string, versions []string, err error) {
-	if gk.Group == "" {
-		return "", []string{"v1"}, nil
-	}
-	groupList, err := fetchAPIGroups(ctx, kubeClient)
-	if err != nil {
-		return "", nil, trace.Wrap(err)
-	}
-	for _, g := range groupList.Groups {
-		if g.Name != gk.Group {
-			continue
-		}
-		versions := []string{g.PreferredVersion.Version}
-		for _, elem := range g.Versions {
-			if elem.Version == g.PreferredVersion.Version {
-				continue
-			}
-			versions = append(versions, elem.Version)
-		}
-		return gk.Group, versions, nil
-	}
-	return "", nil, trace.BadParameter("unsupported resource type %q in group %q", gk.Kind, gk.Group)
-}
-
-// lookupAPIResource looks up the given resource kind.apiGroup in the actual API Resource list for the given versions.
-// Expects the versions list to start with the preferred one and returns the first match.
-func lookupAPIResource(ctx context.Context, kubeClient kubernetes.Interface, gk schema.GroupKind, versions []string) (version string, isClusterWide bool, err error) {
-	// Lookup the resource version, starting from the group preferred version.
-	for _, v := range versions {
-		// Lookup the resource within the group/version.
-		// The goal is to 1) validate that the resource exists and 2) get the
-		// namespaced scope of the resource.
-		rs, err := fetchAPIResources(ctx, kubeClient, gk.Group, v)
-		if err != nil {
-			return "", false, trace.Wrap(err)
-		}
-		if idx := slices.IndexFunc(rs.APIResources, func(r metav1.APIResource) bool { return r.Name == gk.Kind }); idx != -1 {
-			return v, !rs.APIResources[idx].Namespaced, nil
-		}
-	}
-	return "", false, trace.BadParameter("unsupported resource type %q in group %q versions %v", gk.Kind, gk.Group, versions)
-}
-
 // iterateKubernetesResources creates a new Kubernetes Client with temporary user
 // certificates and iterates through the returned Kubernetes resources.
 // For each resources discovered, the fn function is called to decide the action.
@@ -374,19 +299,9 @@ func (s *Server) iterateKubernetesResources(
 	fn func(*types.KubernetesResourceV1, string) (int, error),
 ) error {
 	kubeClient := s.kubeClient
-	kubeDynamicClient := s.kubeDynamicClient
 
-	// Pagination.
 	continueKey := req.StartKey
 	itemsAppended := 0
-
-	// Unknown resources.
-	resourceType := req.ResourceType
-	apiGroup := ""
-	version := ""
-
-	// Flag to format/validate the resourceID.
-	isClusterWide := false
 	for {
 		var (
 			items           []kObject
@@ -397,7 +312,6 @@ func (s *Server) iterateKubernetesResources(
 			}
 		)
 
-		// TODO(@creack): DELETE IN v20.0.0 when we no longer support tsh v18.
 		switch req.ResourceType {
 		case types.KindKubePod:
 			lItems, err := kubeClient.CoreV1().Pods(req.KubernetesNamespace).List(ctx, listOpts)
@@ -421,7 +335,6 @@ func (s *Server) iterateKubernetesResources(
 			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
 			nextContinueKey = lItems.Continue
 		case types.KindKubeNamespace:
-			isClusterWide = true
 			lItems, err := kubeClient.CoreV1().Namespaces().List(ctx, listOpts)
 			if err != nil {
 				return trace.Wrap(err)
@@ -443,7 +356,6 @@ func (s *Server) iterateKubernetesResources(
 			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
 			nextContinueKey = lItems.Continue
 		case types.KindKubeNode:
-			isClusterWide = true
 			lItems, err := kubeClient.CoreV1().Nodes().List(ctx, listOpts)
 			if err != nil {
 				return trace.Wrap(err)
@@ -451,7 +363,6 @@ func (s *Server) iterateKubernetesResources(
 			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
 			nextContinueKey = lItems.Continue
 		case types.KindKubePersistentVolume:
-			isClusterWide = true
 			lItems, err := kubeClient.CoreV1().PersistentVolumes().List(ctx, listOpts)
 			if err != nil {
 				return trace.Wrap(err)
@@ -494,7 +405,6 @@ func (s *Server) iterateKubernetesResources(
 			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
 			nextContinueKey = lItems.Continue
 		case types.KindKubeClusterRole:
-			isClusterWide = true
 			lItems, err := kubeClient.RbacV1().ClusterRoles().List(ctx, listOpts)
 			if err != nil {
 				return trace.Wrap(err)
@@ -509,7 +419,6 @@ func (s *Server) iterateKubernetesResources(
 			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
 			nextContinueKey = lItems.Continue
 		case types.KindKubeClusterRoleBinding:
-			isClusterWide = true
 			lItems, err := kubeClient.RbacV1().ClusterRoleBindings().List(ctx, listOpts)
 			if err != nil {
 				return trace.Wrap(err)
@@ -538,7 +447,6 @@ func (s *Server) iterateKubernetesResources(
 			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
 			nextContinueKey = lItems.Continue
 		case types.KindKubeCertificateSigningRequest:
-			isClusterWide = true
 			lItems, err := kubeClient.CertificatesV1().CertificateSigningRequests().List(ctx, listOpts)
 			if err != nil {
 				return trace.Wrap(err)
@@ -553,50 +461,11 @@ func (s *Server) iterateKubernetesResources(
 			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
 			nextContinueKey = lItems.Continue
 		default:
-			// If we don't have a known legacy value, we expect a 'kube:' prefix.
-			if !strings.HasPrefix(req.ResourceType, types.AccessRequestPrefixKindKube) {
-				return trace.BadParameter("unsupported resource type %q", resourceType)
-			}
-
-			// If the apiGroup var is not set, it is the first time we are here,
-			// Lookup the group versions to validate the requested group actually exists.
-			// The next iteration of paginatin, we don't need to lookup the values again.
-			if apiGroup == "" && version == "" {
-				// TODO(@creack): Consider caching the discovery. Needs to be periodically invalidated.
-				// As it is only for the access request search, it is likely not heavily used and the request
-				// is between us and kube_proxy which is likely on the same host.
-				gk := schema.ParseGroupKind(strings.TrimPrefix(req.ResourceType, types.AccessRequestPrefixKindKube))
-				resourceType = gk.Kind
-				g, versions, err := lookupAPIGroupVersions(ctx, kubeClient, gk)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-				v, clusterWide, err := lookupAPIResource(ctx, kubeClient, gk, versions)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-				apiGroup, version, isClusterWide = g, v, clusterWide
-			}
-
-			// NOTE: The CLI sends the 'default' namespace regardless of the kind. Make sure to clear it out for globals.
-			if req.KubernetesNamespace == defaults.Namespace && isClusterWide {
-				req.KubernetesNamespace = ""
-			}
-
-			lItems, err := kubeDynamicClient.Resource(schema.GroupVersionResource{
-				Group:    apiGroup,
-				Version:  version,
-				Resource: resourceType,
-			}).Namespace(req.KubernetesNamespace).List(ctx, listOpts)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
-			nextContinueKey = lItems.GetContinue()
+			return trace.BadParameter("unsupported resource type: %q", req.ResourceType)
 		}
 
 		for _, resource := range items {
-			resource, err := getKubernetesResourceFromKObject(resource, !isClusterWide, req.ResourceType)
+			resource, err := getKubernetesResourceFromKObject(resource, req.ResourceType)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -626,19 +495,11 @@ type kObject interface {
 // getKubernetesResourceFromKObject converts a Kubernetes object to a
 // KubernetesResourceV1.
 func getKubernetesResourceFromKObject(
-	kObj kObject, namespaced bool,
+	kObj kObject,
 	resourceType string,
 ) (*types.KubernetesResourceV1, error) {
-	if strings.HasPrefix(resourceType, types.AccessRequestPrefixKindKube) {
-		if namespaced {
-			resourceType = strings.Replace(resourceType, types.AccessRequestPrefixKindKube, types.AccessRequestPrefixKindKubeNamespaced, 1)
-		} else {
-			resourceType = strings.Replace(resourceType, types.AccessRequestPrefixKindKube, types.AccessRequestPrefixKindKubeClusterWide, 1)
-		}
-	}
 	return types.NewKubernetesResourceV1(
 		resourceType,
-		namespaced,
 		types.Metadata{
 			Name:   kObj.GetName(),
 			Labels: kObj.GetLabels(),
@@ -654,9 +515,6 @@ func getKubernetesResourceFromKObject(
 // This is needed because the Kubernetes API returns a list of items, but
 // only a list of pointers to items satisfies the kObject interface.
 func itemListToItemListPtr[T any](items []T) []*T {
-	if len(items) == 0 {
-		return nil
-	}
 	kObjects := make([]*T, len(items))
 	for i := range items {
 		kObjects[i] = &(items[i])
@@ -667,9 +525,6 @@ func itemListToItemListPtr[T any](items []T) []*T {
 // itemListToKObjectList is a helper function that converts a list of items
 // to a list of kObjects.
 func itemListToKObjectList[T kObject](items []T) []kObject {
-	if len(items) == 0 {
-		return nil
-	}
 	kObjects := make([]kObject, len(items))
 	for i, item := range items {
 		kObjects[i] = item
@@ -689,7 +544,7 @@ func (s *Server) listResourcesUsingFakePagination(
 		err error
 	)
 	switch {
-	case slices.Contains(types.KubernetesResourcesKinds, req.ResourceType) || strings.HasPrefix(req.ResourceType, types.AccessRequestPrefixKindKube):
+	case slices.Contains(types.KubernetesResourcesKinds, req.ResourceType):
 		rsp, err = s.listKubernetesResources(ctx, false /* do not respect the limit value */, req)
 		if err != nil {
 			return nil, trace.Wrap(err)

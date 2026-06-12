@@ -19,8 +19,9 @@
 package utils
 
 import (
+	"context"
 	"fmt"
-	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -33,96 +34,167 @@ var randomLocalAddr = *MustParseAddr("127.0.0.1:0")
 
 func TestSingleBackendLB(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
-	backends := startBackends(t, 1)
+	backend1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "backend 1")
+	}))
+	defer backend1.Close()
 
-	lb, err := NewLoadBalancer(t.Context(), randomLocalAddr, backends[0])
+	lb, err := NewLoadBalancer(ctx, randomLocalAddr, urlToNetAddr(backend1.URL))
 	require.NoError(t, err)
 	err = lb.Listen()
 	require.NoError(t, err)
 	go lb.Serve()
 	defer lb.Close()
 
-	out, err := httpGet(lb.Addr().String())
+	out, err := Roundtrip(lb.Addr().String())
 	require.NoError(t, err)
 	require.Equal(t, "backend 1", out)
 }
 
 func TestTwoBackendsLB(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
-	backends := startBackends(t, 2)
+	backend1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "backend 1")
+	}))
+	defer backend1.Close()
 
-	lb, err := NewLoadBalancer(t.Context(), randomLocalAddr, backends...)
+	backend2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "backend 2")
+	}))
+	defer backend2.Close()
+
+	backend1Addr, backend2Addr := urlToNetAddr(backend1.URL), urlToNetAddr(backend2.URL)
+
+	lb, err := NewLoadBalancer(ctx, randomLocalAddr)
 	require.NoError(t, err)
 	err = lb.Listen()
 	require.NoError(t, err)
 	go lb.Serve()
 	defer lb.Close()
 
-	lb.AddBackend(backends[0])
-	out, err := httpGet(lb.Addr().String())
+	// no endpoints
+	_, err = Roundtrip(lb.Addr().String())
+	require.Error(t, err)
+
+	lb.AddBackend(backend1Addr)
+	out, err := Roundtrip(lb.Addr().String())
 	require.NoError(t, err)
 	require.Equal(t, "backend 1", out)
 
-	lb.AddBackend(backends[1])
-	out, err = httpGet(lb.Addr().String())
+	lb.AddBackend(backend2Addr)
+	out, err = Roundtrip(lb.Addr().String())
 	require.NoError(t, err)
 	require.Equal(t, "backend 2", out)
 }
 
-func TestDropConnections(t *testing.T) {
+func TestOneFailingBackend(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
-	backends := startBackends(t, 1)
+	backend1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "backend 1")
+	}))
+	defer backend1.Close()
 
-	lb, err := NewLoadBalancer(t.Context(), randomLocalAddr, backends[0])
+	backend2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "backend 2")
+	}))
+	backend2.Close()
+
+	backend1Addr, backend2Addr := urlToNetAddr(backend1.URL), urlToNetAddr(backend2.URL)
+
+	lb, err := NewLoadBalancer(ctx, randomLocalAddr)
 	require.NoError(t, err)
 	err = lb.Listen()
 	require.NoError(t, err)
 	go lb.Serve()
 	defer lb.Close()
 
-	lbURL := "http://" + lb.Addr().String()
-	client := new(http.Client)
+	lb.AddBackend(backend1Addr)
+	lb.AddBackend(backend2Addr)
 
-	// Make sure we can make multiple requests.
-	// We reuse the same client here to exercise net/http's connection reuse.
-	resp, err := client.Get(lbURL)
+	out, err := Roundtrip(lb.Addr().String())
 	require.NoError(t, err)
-	body, err := io.ReadAll(resp.Body)
-	resp.Body.Close()
-	require.NoError(t, err)
-	require.Equal(t, "backend 1", string(body))
+	require.Equal(t, "backend 1", out)
 
-	resp, err = client.Get(lbURL)
-	require.NoError(t, err)
-	body, err = io.ReadAll(resp.Body)
-	resp.Body.Close()
-	require.NoError(t, err)
-	require.Equal(t, "backend 1", string(body))
-
-	// removing backend results in error
-	err = lb.RemoveBackend(backends[0])
-	require.NoError(t, err)
-	resp, err = client.Get(lbURL)
-	if err == nil {
-		resp.Body.Close()
-	}
+	_, err = Roundtrip(lb.Addr().String())
 	require.Error(t, err)
+
+	out, err = Roundtrip(lb.Addr().String())
+	require.NoError(t, err)
+	require.Equal(t, "backend 1", out)
 }
 
-func startBackends(t *testing.T, count int) []NetAddr {
-	addrs := make([]NetAddr, 0, count)
-	for i := range count {
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			fmt.Fprintf(w, "backend %d", i+1)
-		}))
-		t.Cleanup(srv.Close)
+func TestClose(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
 
-		addrs = append(addrs, urlToNetAddr(srv.URL))
-	}
-	return addrs
+	backend1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "backend 1")
+	}))
+	defer backend1.Close()
+
+	lb, err := NewLoadBalancer(ctx, randomLocalAddr, urlToNetAddr(backend1.URL))
+	require.NoError(t, err)
+	err = lb.Listen()
+	require.NoError(t, err)
+	go lb.Serve()
+	defer lb.Close()
+
+	out, err := Roundtrip(lb.Addr().String())
+	require.NoError(t, err)
+	require.Equal(t, "backend 1", out)
+
+	lb.Close()
+	// second close works
+	lb.Close()
+
+	lb.Wait()
+
+	// requests are failing
+	out, err = Roundtrip(lb.Addr().String())
+	require.Error(t, err, "output: %s, err: %v", out, err)
+}
+
+func TestDropConnections(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	backend1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "backend 1")
+	}))
+	defer backend1.Close()
+
+	backendAddr := urlToNetAddr(backend1.URL)
+	lb, err := NewLoadBalancer(ctx, randomLocalAddr, backendAddr)
+	require.NoError(t, err)
+	err = lb.Listen()
+	require.NoError(t, err)
+	go lb.Serve()
+	defer lb.Close()
+
+	conn, err := net.Dial("tcp", lb.Addr().String())
+	require.NoError(t, err)
+	defer conn.Close()
+
+	out, err := RoundtripWithConn(conn)
+	require.NoError(t, err)
+	require.Equal(t, "backend 1", out)
+
+	// to make sure multiple requests work on the same wire
+	out, err = RoundtripWithConn(conn)
+	require.NoError(t, err)
+	require.Equal(t, "backend 1", out)
+
+	// removing backend results in dropped connection to this backend
+	err = lb.RemoveBackend(backendAddr)
+	require.NoError(t, err)
+	_, err = RoundtripWithConn(conn)
+	require.Error(t, err)
 }
 
 func urlToNetAddr(u string) NetAddr {
@@ -131,24 +203,4 @@ func urlToNetAddr(u string) NetAddr {
 		panic(err)
 	}
 	return *MustParseAddr(parsed.Host)
-}
-
-func httpGet(addr string) (string, error) {
-	// Use a dedicated client instead of http.DeafultClient so that
-	// we don't share state across test cases
-	client := new(http.Client)
-	defer client.CloseIdleConnections()
-
-	resp, err := client.Get("http://" + addr)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	out, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", err
-	}
-
-	return string(out), nil
 }

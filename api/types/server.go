@@ -27,7 +27,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
-	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/aws"
 )
@@ -77,13 +76,6 @@ type Server interface {
 	// ProxiedService provides common methods for a proxied service.
 	ProxiedService
 
-	// GetRelayGroup returns the name of the Relay group that the server is
-	// connected to.
-	GetRelayGroup() string
-	// GetRelayIDs returns the list of Relay host IDs that the server is
-	// connected to.
-	GetRelayIDs() []string
-
 	// DeepCopy creates a clone of this server value
 	DeepCopy() Server
 
@@ -113,15 +105,6 @@ type Server interface {
 
 	// GetGitHub returns the GitHub server spec.
 	GetGitHub() *GitHubServerMetadata
-	// GetScope returns the scope this server belongs to.
-	GetScope() string
-
-	// GetComponentFeatures returns the supported features for the server.
-	GetComponentFeatures() *componentfeaturesv1.ComponentFeatures
-	// SetComponentFeatures sets the supported features for the server.
-	SetComponentFeatures(*componentfeaturesv1.ComponentFeatures)
-	// GetImmutableLabels returns the immutable labels for the server.
-	GetImmutableLabels() map[string]string
 }
 
 // NewServer creates an instance of Server.
@@ -201,16 +184,6 @@ func NewGitHubServerWithName(name string, githubSpec GitHubServerMetadata) (Serv
 		return nil, trace.Wrap(err)
 	}
 	return server, nil
-}
-
-// GetComponentFeatures returns the supported features for the server.
-func (s *ServerV2) GetComponentFeatures() *componentfeaturesv1.ComponentFeatures {
-	return s.Spec.ComponentFeatures
-}
-
-// SetComponentFeatures sets the supported features for the server.
-func (s *ServerV2) SetComponentFeatures(features *componentfeaturesv1.ComponentFeatures) {
-	s.Spec.ComponentFeatures = features
 }
 
 // GetVersion returns resource version
@@ -340,10 +313,6 @@ func (s *ServerV2) GetHostname() string {
 // GetLabel retrieves the label with the provided key. If not found
 // value will be empty and ok will be false.
 func (s *ServerV2) GetLabel(key string) (value string, ok bool) {
-	if v, ok := s.Spec.ImmutableLabels[key]; ok {
-		return v, ok
-	}
-
 	if cmd, ok := s.Spec.CmdLabels[key]; ok {
 		return cmd.Result, ok
 	}
@@ -357,7 +326,7 @@ func (s *ServerV2) GetLabel(key string) (value string, ok bool) {
 // exists to preserve backwards compatibility, while GetStaticLabels exists to
 // implement ResourcesWithLabels.
 func (s *ServerV2) GetLabels() map[string]string {
-	return s.GetStaticLabels()
+	return s.Metadata.Labels
 }
 
 // GetStaticLabels returns the server static labels.
@@ -365,7 +334,7 @@ func (s *ServerV2) GetLabels() map[string]string {
 // exists to preserve backwards compatibility, while GetStaticLabels exists to
 // implement ResourcesWithLabels.
 func (s *ServerV2) GetStaticLabels() map[string]string {
-	return CombineLabels(s.Spec.ImmutableLabels, s.Metadata.Labels, nil)
+	return s.Metadata.Labels
 }
 
 // SetStaticLabels sets the server static labels.
@@ -415,45 +384,26 @@ func (s *ServerV2) SetProxyIDs(proxyIDs []string) {
 	s.Spec.ProxyIDs = proxyIDs
 }
 
-// GetRelayGroup implements [Server].
-func (s *ServerV2) GetRelayGroup() string {
-	if s == nil {
-		return ""
-	}
-	return s.Spec.RelayGroup
-}
-
-// GetRelayIDs implements [Server].
-func (s *ServerV2) GetRelayIDs() []string {
-	if s == nil {
-		return nil
-	}
-	return s.Spec.RelayIds
-}
-
 // GetAllLabels returns the full key:value map of both static labels and
 // "command labels"
 func (s *ServerV2) GetAllLabels() map[string]string {
 	// server labels (static and dynamic)
-	labels := CombineLabels(s.Spec.ImmutableLabels, s.Metadata.Labels, s.Spec.CmdLabels)
+	labels := CombineLabels(s.Metadata.Labels, s.Spec.CmdLabels)
 	return labels
 }
 
 // CombineLabels combines the passed in static and dynamic labels.
-func CombineLabels(immutable, static map[string]string, dynamic map[string]CommandLabelV2) map[string]string {
-	if len(dynamic) == 0 && len(immutable) == 0 {
+func CombineLabels(static map[string]string, dynamic map[string]CommandLabelV2) map[string]string {
+	if len(dynamic) == 0 {
 		return static
 	}
-	lmap := make(map[string]string, len(static)+len(dynamic)+len(immutable))
+
+	lmap := make(map[string]string, len(static)+len(dynamic))
 	for key, value := range static {
 		lmap[key] = value
 	}
 	for key, cmd := range dynamic {
 		lmap[key] = cmd.Result
-	}
-	// immutable labels must always override static and dynamic labels
-	for key, value := range immutable {
-		lmap[key] = value
 	}
 	return lmap
 }
@@ -700,9 +650,7 @@ func (s *ServerV2) githubCheckAndSetDefaults() error {
 // MatchSearch goes through select field values and tries to
 // match against the list of search values.
 func (s *ServerV2) MatchSearch(values []string) bool {
-	switch s.Kind {
-	case KindNode, KindGitServer:
-	default:
+	if s.GetKind() != KindNode {
 		return false
 	}
 Outer:
@@ -774,16 +722,6 @@ func (s *ServerV2) GetAWSInfo() *AWSInfo {
 // SetCloudMetadata sets the server's cloud metadata.
 func (s *ServerV2) SetCloudMetadata(meta *CloudMetadata) {
 	s.Spec.CloudMetadata = meta
-}
-
-// GetScope returns the scope this server belongs to.
-func (s *ServerV2) GetScope() string {
-	return s.Scope
-}
-
-// GetImmutableLabels returns the immutable labels for the server.
-func (s *ServerV2) GetImmutableLabels() map[string]string {
-	return s.Spec.ImmutableLabels
 }
 
 // CommandLabel is a label that has a value as a result of the

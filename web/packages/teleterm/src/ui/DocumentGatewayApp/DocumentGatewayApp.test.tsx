@@ -82,7 +82,6 @@ describe('reconnecting when the gateway fails to be created', () => {
       origin: 'resource_table',
       title: '',
       status: '',
-      autoUserProvisioning: undefined,
     };
     appContext.addRootClusterWithDoc(cluster, doc);
 
@@ -130,7 +129,6 @@ describe('reconnecting when the gateway fails to be created', () => {
       origin: 'resource_table',
       title: '',
       status: '',
-      autoUserProvisioning: undefined,
     };
     appContext.addRootClusterWithDoc(cluster, doc);
 

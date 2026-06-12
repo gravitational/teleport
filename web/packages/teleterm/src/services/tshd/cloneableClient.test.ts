@@ -35,23 +35,19 @@ import {
 import {
   cloneAbortSignal,
   cloneClient,
-  isRpcError,
-  isRpcErrorReloginResolvable,
+  isTshdRpcError,
+  TshdRpcError,
 } from './cloneableClient';
 
 function getRpcError() {
-  return new RpcError('You do not have permission.', 'ACCESS_DENIED', {
-    'is-resolvable-with-relogin': ['1'],
-  });
+  return new RpcError('You do not have permission.', 'ACCESS_DENIED');
 }
 
-const rpcErrorObjectMatcher = expect.objectContaining<RpcError>({
+const tshdRpcErrorObjectMatcher: TshdRpcError = expect.objectContaining({
   code: 'ACCESS_DENIED',
+  isResolvableWithRelogin: false,
   message: 'You do not have permission.',
-  name: 'RpcError',
-  meta: {
-    'is-resolvable-with-relogin': ['1'],
-  },
+  name: 'TshdRpcError',
   stack: expect.stringContaining('You do not have permission.'),
   cause: undefined,
 });
@@ -116,7 +112,7 @@ test('response error is cloned as an object for a unary call', async () => {
   }
 
   expect(Object.getPrototypeOf(error).constructor).toEqual(Object);
-  expect(error).toMatchObject(rpcErrorObjectMatcher);
+  expect(error).toMatchObject(tshdRpcErrorObjectMatcher);
 });
 
 test('response error is cloned as an object in a client streaming call', async () => {
@@ -154,7 +150,7 @@ test('response error is cloned as an object in a client streaming call', async (
   }
 
   expect(Object.getPrototypeOf(error).constructor).toEqual(Object);
-  expect(error).toMatchObject(rpcErrorObjectMatcher);
+  expect(error).toMatchObject(tshdRpcErrorObjectMatcher);
 });
 
 test('response error is cloned as an object in a server streaming call', async () => {
@@ -191,8 +187,12 @@ test('response error is cloned as an object in a server streaming call', async (
   res.responses.onError(onError);
 
   errorEmitter.emit('', getRpcError());
-  expect(onNext).toHaveBeenCalledWith(undefined, rpcErrorObjectMatcher, true);
-  expect(onError).toHaveBeenCalledWith(rpcErrorObjectMatcher);
+  expect(onNext).toHaveBeenCalledWith(
+    undefined,
+    tshdRpcErrorObjectMatcher,
+    true
+  );
+  expect(onError).toHaveBeenCalledWith(tshdRpcErrorObjectMatcher);
 
   let error: unknown;
   try {
@@ -202,7 +202,7 @@ test('response error is cloned as an object in a server streaming call', async (
   }
 
   expect(Object.getPrototypeOf(error).constructor).toEqual(Object);
-  expect(error).toMatchObject(rpcErrorObjectMatcher);
+  expect(error).toMatchObject(tshdRpcErrorObjectMatcher);
 });
 
 test('response error is cloned as an object in a duplex call', async () => {
@@ -239,8 +239,12 @@ test('response error is cloned as an object in a duplex call', async () => {
   res.responses.onError(onError);
 
   errorEmitter.emit('', getRpcError());
-  expect(onNext).toHaveBeenCalledWith(undefined, rpcErrorObjectMatcher, true);
-  expect(onError).toHaveBeenCalledWith(rpcErrorObjectMatcher);
+  expect(onNext).toHaveBeenCalledWith(
+    undefined,
+    tshdRpcErrorObjectMatcher,
+    true
+  );
+  expect(onError).toHaveBeenCalledWith(tshdRpcErrorObjectMatcher);
 
   let error: unknown;
   try {
@@ -250,74 +254,30 @@ test('response error is cloned as an object in a duplex call', async () => {
   }
 
   expect(Object.getPrototypeOf(error).constructor).toEqual(Object);
-  expect(error).toMatchObject(rpcErrorObjectMatcher);
+  expect(error).toMatchObject(tshdRpcErrorObjectMatcher);
 });
 
-describe('isRpcError', () => {
-  test.each([
-    {
-      name: 'returns true for plain RpcError-shaped object',
-      errorToCheck: { name: 'RpcError', code: 'PERMISSION_DENIED' },
-      statusCodeToCheck: 'PERMISSION_DENIED',
-      expect: true,
-    },
-    {
-      name: 'returns true for RpcError instance',
-      errorToCheck: new RpcError('Denied', 'PERMISSION_DENIED'),
-      statusCodeToCheck: 'PERMISSION_DENIED',
-      expect: true,
-    },
-    {
-      name: 'returns false for plain object with non-RpcError name',
-      errorToCheck: { name: 'Error' },
-      statusCodeToCheck: undefined,
-      expect: false,
-    },
-    {
-      name: 'returns false for Error instance',
-      errorToCheck: new Error(),
-      statusCodeToCheck: undefined,
-      expect: false,
-    },
-  ])('$name', testCase => {
-    expect(isRpcError(testCase.errorToCheck, testCase.statusCodeToCheck)).toBe(
-      testCase.expect
-    );
-  });
-});
-
-describe('isRpcErrorReloginResolvable', () => {
-  test.each([
-    {
-      name: 'returns true for plain RpcError-shaped object with relogin metadata',
-      errorToCheck: {
-        name: 'RpcError',
-        meta: {
-          'is-resolvable-with-relogin': ['1'],
-        },
-      },
-      expect: true,
-    },
-    {
-      name: 'returns true for RpcError instance with relogin metadata',
-      errorToCheck: new RpcError('No access', 'UNKNOWN', {
-        'is-resolvable-with-relogin': ['1'],
-      }),
-      expect: true,
-    },
-    {
-      name: 'returns false for RpcError-shaped object without relogin metadata',
-      errorToCheck: { name: 'RpcError' },
-      expect: false,
-    },
-    {
-      name: 'returns false for RpcError instance without relogin metadata',
-      errorToCheck: new RpcError('No access'),
-      expect: false,
-    },
-  ])('$name', testCase => {
-    expect(isRpcErrorReloginResolvable(testCase.errorToCheck)).toBe(
-      testCase.expect
-    );
-  });
+test.each([
+  {
+    name: 'is not a tshd error',
+    errorToCheck: { name: 'Error' },
+    statusCodeToCheck: undefined,
+    expectTshdRpcError: false,
+  },
+  {
+    name: 'is a tshd error',
+    errorToCheck: { name: 'TshdRpcError' },
+    statusCodeToCheck: undefined,
+    expectTshdRpcError: true,
+  },
+  {
+    name: 'is a tshd error with a status code',
+    errorToCheck: { name: 'TshdRpcError', code: 'PERMISSION_DENIED' },
+    statusCodeToCheck: 'PERMISSION_DENIED',
+    expectTshdRpcError: true,
+  },
+])('$name', testCase => {
+  expect(
+    isTshdRpcError(testCase.errorToCheck, testCase.statusCodeToCheck)
+  ).toBe(testCase.expectTshdRpcError);
 });

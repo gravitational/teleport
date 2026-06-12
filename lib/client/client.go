@@ -28,6 +28,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -44,7 +45,6 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
-	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -52,15 +52,16 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/socks"
 )
 
 // NodeClient implements ssh client to a ssh node (teleport or any regular ssh node)
 // NodeClient can run shell and commands or upload and download files.
 type NodeClient struct {
+	Namespace   string
 	Tracer      oteltrace.Tracer
 	Client      *tracessh.Client
 	TC          *TeleportClient
@@ -127,7 +128,6 @@ func RouteToDatabaseToProto(dbRoute tlsca.RouteToDatabase) proto.RouteToDatabase
 type ReissueParams struct {
 	RouteToCluster    string
 	NodeName          string
-	SSHLogin          string
 	KubernetesCluster string
 	AccessRequests    []string
 	// See [proto.UserCertsRequest.DropAccessRequests].
@@ -241,7 +241,7 @@ func makeDatabaseClientPEM(proto string, cert []byte, pk *keys.PrivateKey) ([]by
 		} else if !trace.IsBadParameter(err) {
 			return nil, trace.Wrap(err)
 		}
-		log.WarnContext(context.Background(), "MongoDB integration is not supported when logging in with a hardware private key", "error", err)
+		log.WithError(err).Warn("MongoDB integration is not supported when logging in with a hardware private key.")
 	}
 	return cert, nil
 }
@@ -280,6 +280,8 @@ func nodeName(node TargetNode) string {
 type NodeDetails struct {
 	// Addr is an address to dial
 	Addr string
+	// Namespace is the node namespace
+	Namespace string
 	// Cluster is the name of the target cluster
 	Cluster string
 
@@ -303,7 +305,10 @@ func (n NodeDetails) String() string {
 // ProxyFormat returns the address in the format
 // used by the proxy subsystem
 func (n *NodeDetails) ProxyFormat() string {
-	parts := []string{n.Addr, apidefaults.Namespace}
+	parts := []string{n.Addr}
+	if n.Namespace != "" {
+		parts = append(parts, n.Namespace)
+	}
 	if n.Cluster != "" {
 		parts = append(parts, n.Cluster)
 	}
@@ -330,7 +335,7 @@ func WithSSHLogDir(logDir string) NodeClientOption {
 
 // NewNodeClient constructs a NodeClient that is connected to the node at nodeAddress.
 // The nodeName field is optional and is used only to present better error messages.
-func NewNodeClient(ctx context.Context, sshConfig apissh.ClientConfig, conn net.Conn, nodeAddress, nodeName string, tc *TeleportClient, fipsEnabled bool, opts ...NodeClientOption) (*NodeClient, error) {
+func NewNodeClient(ctx context.Context, sshConfig *ssh.ClientConfig, conn net.Conn, nodeAddress, nodeName string, tc *TeleportClient, fipsEnabled bool, opts ...NodeClientOption) (*NodeClient, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"NewNodeClient",
@@ -352,11 +357,7 @@ func NewNodeClient(ctx context.Context, sshConfig apissh.ClientConfig, conn net.
 			// TODO(codingllama): Improve error message below for device trust.
 			//  An alternative we have here is querying the cluster to check if device
 			//  trust is required, a check similar to `IsMFARequired`.
-			log.InfoContext(ctx, "Access denied connecting to host",
-				"login", sshConfig.User,
-				"target_host", nodeName,
-				"error", err,
-			)
+			log.Infof("Access denied to %v connecting to %v: %v", sshConfig.User, nodeName, err)
 			host := nodeName
 			if h, _, err := net.SplitHostPort(nodeName); err == nil {
 				host = h
@@ -373,6 +374,7 @@ func NewNodeClient(ctx context.Context, sshConfig apissh.ClientConfig, conn net.
 
 	nc := &NodeClient{
 		Client:          tracessh.NewClient(sshconn, chans, emptyCh),
+		Namespace:       apidefaults.Namespace,
 		TC:              tc,
 		Tracer:          tc.Tracer,
 		FIPSEnabled:     fipsEnabled,
@@ -392,10 +394,10 @@ func NewNodeClient(ctx context.Context, sshConfig apissh.ClientConfig, conn net.
 	return nc, nil
 }
 
-// RunInteractiveShell creates or joins an interactive shell on the node and copies stdin/stdout/stderr
+// RunInteractiveShell creates an interactive shell on the node and copies stdin/stdout/stderr
 // to and from the node and local shell. This will block until the interactive shell on the node
 // is terminated.
-func (c *NodeClient) RunInteractiveShell(ctx context.Context, joinSessionID string, joinMode types.SessionParticipantMode, beforeStart func(io.Writer)) error {
+func (c *NodeClient) RunInteractiveShell(ctx context.Context, mode types.SessionParticipantMode, sessToJoin types.SessionTracker, beforeStart func(io.Writer)) error {
 	ctx, span := c.Tracer.Start(
 		ctx,
 		"nodeClient/RunInteractiveShell",
@@ -403,21 +405,28 @@ func (c *NodeClient) RunInteractiveShell(ctx context.Context, joinSessionID stri
 	)
 	defer span.End()
 
-	sessionParams := &tracessh.SessionParams{
-		WebProxyAddr:                   c.WebProxyAddr(),
-		Reason:                         c.TC.Config.Reason,
-		Invited:                        c.TC.Config.Invited,
-		DisplayParticipantRequirements: c.TC.Config.DisplayParticipantRequirements,
-		JoinSessionID:                  joinSessionID,
-		JoinMode:                       joinMode,
+	env := c.TC.newSessionEnv()
+	env[teleport.EnvSSHJoinMode] = string(mode)
+	env[teleport.EnvSSHSessionReason] = c.TC.Config.Reason
+	env[teleport.EnvSSHSessionDisplayParticipantRequirements] = strconv.FormatBool(c.TC.Config.DisplayParticipantRequirements)
+	encoded, err := json.Marshal(&c.TC.Config.Invited)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	env[teleport.EnvSSHSessionInvited] = string(encoded)
+
+	// Overwrite "SSH_SESSION_WEBPROXY_ADDR" with the public addr reported by the proxy. Otherwise,
+	// this would be set to the localhost addr (tc.WebProxyAddr) used for Web UI client connections.
+	if c.ProxyPublicAddr != "" && c.TC.WebProxyAddr != c.ProxyPublicAddr {
+		env[teleport.SSHSessionWebProxyAddr] = c.ProxyPublicAddr
 	}
 
-	nodeSession, err := newSession(ctx, c, sessionParams, c.TC.Stdin, c.TC.Stdout, c.TC.Stderr, !c.TC.DisableEscapeSequences)
+	nodeSession, err := newSession(ctx, c, sessToJoin, env, c.TC.Stdin, c.TC.Stdout, c.TC.Stderr, !c.TC.DisableEscapeSequences)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err = nodeSession.runShell(ctx, sessionParams, beforeStart, c.TC.OnShellCreated); err != nil {
+	if err = nodeSession.runShell(ctx, mode, beforeStart, c.TC.OnShellCreated); err != nil {
 		var exitErr *ssh.ExitError
 		var exitMissingErr *ssh.ExitMissingError
 		switch err := trace.Unwrap(err); {
@@ -613,19 +622,13 @@ func (c *NodeClient) RunCommand(ctx context.Context, command []string, opts ...R
 		}
 	}
 
-	sessionParams := &tracessh.SessionParams{
-		WebProxyAddr:                   c.WebProxyAddr(),
-		Reason:                         c.TC.Config.Reason,
-		Invited:                        c.TC.Config.Invited,
-		DisplayParticipantRequirements: c.TC.Config.DisplayParticipantRequirements,
-	}
-
-	nodeSession, err := newSession(ctx, c, sessionParams, c.TC.Stdin, stdout, stderr, !c.TC.DisableEscapeSequences)
+	nodeSession, err := newSession(ctx, c, nil, c.TC.newSessionEnv(), c.TC.Stdin, stdout, stderr, !c.TC.DisableEscapeSequences)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer nodeSession.Close()
-	err = nodeSession.runCommand(ctx, sessionParams, command, c.TC.OnShellCreated, c.TC.Config.InteractiveCommand)
+
+	err = nodeSession.runCommand(ctx, types.SessionPeerMode, command, c.TC.OnShellCreated, c.TC.Config.InteractiveCommand)
 	if err != nil {
 		c.TC.SetExitStatus(getExitStatus(err))
 	}
@@ -672,7 +675,7 @@ func (c *NodeClient) handleGlobalRequests(ctx context.Context, requestCh <-chan 
 			switch r.Type {
 			case teleport.MFAPresenceRequest:
 				if c.OnMFA == nil {
-					log.WarnContext(ctx, "Received MFA presence request, but no callback was provided")
+					log.Warn("Received MFA presence request, but no callback was provided.")
 					continue
 				}
 
@@ -683,21 +686,21 @@ func (c *NodeClient) handleGlobalRequests(ctx context.Context, requestCh <-chan 
 				var e events.EventFields
 				err := json.Unmarshal(r.Payload, &e)
 				if err != nil {
-					log.WarnContext(ctx, "Unable to parse event", "event", string(r.Payload), "error", err)
+					log.Warnf("Unable to parse event: %v: %v.", string(r.Payload), err)
 					continue
 				}
 
 				// Send event to event channel.
 				err = c.TC.SendEvent(ctx, e)
 				if err != nil {
-					log.WarnContext(ctx, "Unable to send event", "event", string(r.Payload), "error", err)
+					log.Warnf("Unable to send event %v: %v.", string(r.Payload), err)
 					continue
 				}
 			default:
 				// This handles keep-alive messages and matches the behavior of OpenSSH.
 				err := r.Reply(false, nil)
 				if err != nil {
-					log.WarnContext(ctx, "Unable to reply to request", "request_type", r.Type, "error", err)
+					log.Warnf("Unable to reply to %v request.", r.Type)
 					continue
 				}
 			}
@@ -712,7 +715,7 @@ func newClientConn(
 	ctx context.Context,
 	conn net.Conn,
 	nodeAddress string,
-	config apissh.ClientConfig,
+	config *ssh.ClientConfig,
 ) (ssh.Conn, <-chan ssh.NewChannel, <-chan *ssh.Request, error) {
 	type response struct {
 		conn   ssh.Conn
@@ -726,7 +729,7 @@ func newClientConn(
 		// Use a noop text map propagator so that the tracing context isn't included in
 		// the connection handshake. Since the provided conn will already include the tracing
 		// context we don't want to send it again.
-		conn, chans, reqs, err := apissh.NewClientConn(ctx, conn, nodeAddress, config, tracing.WithTextMapPropagator(propagation.NewCompositeTextMapPropagator()))
+		conn, chans, reqs, err := tracessh.NewClientConnWithTimeout(ctx, conn, nodeAddress, config, tracing.WithTextMapPropagator(propagation.NewCompositeTextMapPropagator()))
 		respCh <- response{conn, chans, reqs, err}
 	}()
 
@@ -739,7 +742,7 @@ func newClientConn(
 	case <-ctx.Done():
 		errClose := conn.Close()
 		if errClose != nil {
-			log.ErrorContext(ctx, "Failed closing connection", "error", errClose)
+			log.Error(errClose)
 		}
 		// drain the channel
 		resp := <-respCh
@@ -747,21 +750,39 @@ func newClientConn(
 	}
 }
 
+// TransferFiles transfers files over SFTP.
+func (c *NodeClient) TransferFiles(ctx context.Context, cfg *sftp.Config) error {
+	ctx, span := c.Tracer.Start(
+		ctx,
+		"nodeClient/TransferFiles",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
+	if err := cfg.TransferFiles(ctx, c.Client.Client); err != nil {
+		// TODO(tross): DELETE IN 19.0.0 - Older versions of Teleport would return
+		// a trace.BadParameter error when ~user path expansion was rejected, and
+		// reauthentication logic is attempted on BadParameter errors.
+		if trace.IsBadParameter(err) && strings.Contains(err.Error(), "expanding remote ~user paths is not supported") {
+			return trace.Wrap(&NonRetryableError{Err: err})
+		}
+
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
 type netDialer interface {
 	DialContext(context.Context, string, string) (net.Conn, error)
 }
 
 func proxyConnection(ctx context.Context, conn net.Conn, remoteAddr string, dialer netDialer) error {
-	logger := log.With(
-		"source_addr", logutils.StringerAttr(conn.RemoteAddr()),
-		"target_addr", remoteAddr,
-	)
-
 	defer conn.Close()
-	defer logger.DebugContext(ctx, "Finished proxy connection")
+	defer log.Debugf("Finished proxy from %v to %v.", conn.RemoteAddr(), remoteAddr)
 
 	var remoteConn net.Conn
-	logger.DebugContext(ctx, "Attempting to proxy connection")
+	log.Debugf("Attempting to connect proxy from %v to %v.", conn.RemoteAddr(), remoteAddr)
 
 	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
 		First:  100 * time.Millisecond,
@@ -781,7 +802,7 @@ func proxyConnection(ctx context.Context, conn net.Conn, remoteAddr string, dial
 			break
 		}
 
-		logger.DebugContext(ctx, "Proxy connection attempt", "attempt", attempt, "error", err)
+		log.Debugf("Proxy connection attempt %v: %v.", attempt, err)
 		// Wait and attempt to connect again, if the context has closed, exit
 		// right away.
 		select {
@@ -831,19 +852,16 @@ func acceptWithContext(ctx context.Context, l net.Listener) (net.Conn, error) {
 func (c *NodeClient) listenAndForward(ctx context.Context, ln net.Listener, localAddr string, remoteAddr string) {
 	defer ln.Close()
 
-	log := log.With(
-		"local_addr", localAddr,
-		"remote_addr", remoteAddr,
-	)
+	log := log.WithField("localAddr", localAddr).WithField("remoteAddr", remoteAddr)
 
-	log.InfoContext(ctx, "Starting port forwarding")
+	log.Infof("Starting port forwarding")
 
 	for ctx.Err() == nil {
 		// Accept connections from the client.
 		conn, err := acceptWithContext(ctx, ln)
 		if err != nil {
 			if ctx.Err() == nil {
-				log.ErrorContext(ctx, "Port forwarding failed", "error", err)
+				log.WithError(err).Errorf("Port forwarding failed.")
 			}
 			continue
 		}
@@ -852,12 +870,12 @@ func (c *NodeClient) listenAndForward(ctx context.Context, ln net.Listener, loca
 		go func() {
 			// `err` must be a fresh variable, hence `:=` instead of `=`.
 			if err := proxyConnection(ctx, conn, remoteAddr, c.Client); err != nil {
-				log.WarnContext(ctx, "Failed to proxy connection", "error", err)
+				log.WithError(err).Warnf("Failed to proxy connection.")
 			}
 		}()
 	}
 
-	log.InfoContext(ctx, "Shutting down port forwarding", "error", ctx.Err())
+	log.WithError(ctx.Err()).Infof("Shutting down port forwarding.")
 }
 
 // dynamicListenAndForward listens for connections, performs a SOCKS5
@@ -865,11 +883,9 @@ func (c *NodeClient) listenAndForward(ctx context.Context, ln net.Listener, loca
 func (c *NodeClient) dynamicListenAndForward(ctx context.Context, ln net.Listener, localAddr string) {
 	defer ln.Close()
 
-	log := log.With(
-		"local_addr", localAddr,
-	)
+	log := log.WithField("localAddr", localAddr)
 
-	log.InfoContext(ctx, "Starting dynamic port forwarding")
+	log.Infof("Starting dynamic port forwarding.")
 
 	for ctx.Err() == nil {
 		// Accept connection from the client. Here the client is typically
@@ -877,7 +893,7 @@ func (c *NodeClient) dynamicListenAndForward(ctx context.Context, ln net.Listene
 		conn, err := acceptWithContext(ctx, ln)
 		if err != nil {
 			if ctx.Err() == nil {
-				log.ErrorContext(ctx, "Dynamic port forwarding (SOCKS5) failed", "error", err)
+				log.WithError(err).Errorf("Dynamic port forwarding (SOCKS5) failed.")
 			}
 			continue
 		}
@@ -886,55 +902,52 @@ func (c *NodeClient) dynamicListenAndForward(ctx context.Context, ln net.Listene
 		// address to proxy.
 		remoteAddr, err := socks.Handshake(conn)
 		if err != nil {
-			log.ErrorContext(ctx, "SOCKS5 handshake failed", "error", err)
+			log.WithError(err).Errorf("SOCKS5 handshake failed.")
 			if err = conn.Close(); err != nil {
-				log.ErrorContext(ctx, "Error closing failed proxy connection", "error", err)
+				log.WithError(err).Errorf("Error closing failed proxy connection.")
 			}
 			continue
 		}
-		log.DebugContext(ctx, "SOCKS5 proxy forwarding requests", "remote_addr", remoteAddr)
+		log.Debugf("SOCKS5 proxy forwarding requests to %v.", remoteAddr)
 
 		// Proxy the connection to the remote address.
 		go func() {
 			// `err` must be a fresh variable, hence `:=` instead of `=`.
 			if err := proxyConnection(ctx, conn, remoteAddr, c.Client); err != nil {
-				log.WarnContext(ctx, "Failed to proxy connection", "error", err)
+				log.WithError(err).Warnf("Failed to proxy connection.")
 				if err = conn.Close(); err != nil {
-					log.ErrorContext(ctx, "Error closing failed proxy connection", "error", err)
+					log.WithError(err).Errorf("Error closing failed proxy connection.")
 				}
 			}
 		}()
 	}
 
-	log.InfoContext(ctx, "Shutting down dynamic port forwarding", "error", ctx.Err())
+	log.WithError(ctx.Err()).Infof("Shutting down dynamic port forwarding.")
 }
 
 // remoteListenAndForward requests a listening socket and forwards all incoming
 // commands to the local address through the SSH tunnel.
 func (c *NodeClient) remoteListenAndForward(ctx context.Context, ln net.Listener, localAddr, remoteAddr string) {
 	defer ln.Close()
-	log := log.With(
-		"local_addr", localAddr,
-		"remote_addr", remoteAddr,
-	)
-	log.InfoContext(ctx, "Starting remote port forwarding")
+	log := log.WithField("localAddr", localAddr).WithField("remoteAddr", remoteAddr)
+	log.Infof("Starting remote port forwarding")
 
 	for ctx.Err() == nil {
 		conn, err := acceptWithContext(ctx, ln)
 		if err != nil {
 			if ctx.Err() == nil {
-				log.ErrorContext(ctx, "Remote port forwarding failed", "error", err)
+				log.WithError(err).Errorf("Remote port forwarding failed.")
 			}
 			continue
 		}
 
 		go func() {
 			if err := proxyConnection(ctx, conn, localAddr, &net.Dialer{}); err != nil {
-				log.WarnContext(ctx, "Failed to proxy connection", "error", err)
+				log.WithError(err).Warnf("Failed to proxy connection")
 			}
 		}()
 	}
-	log.InfoContext(ctx, "Shutting down remote port forwarding", "error", ctx.Err())
+	log.WithError(ctx.Err()).Infof("Shutting down remote port forwarding.")
 }
 
 // GetRemoteTerminalSize fetches the terminal size of a given SSH session.
@@ -1008,14 +1021,4 @@ func GetPaginatedSessions(ctx context.Context, fromUTC, toUTC time.Time, pageSiz
 		return sessions[:max], nil
 	}
 	return sessions, nil
-}
-
-// WebProxyAddr is the address of the proxy forwarding the SSH connection to the target server.
-func (c *NodeClient) WebProxyAddr() string {
-	// Prioritize the public addr reported by the proxy. Otherwise, this would
-	// return the localhost addr used for Web UI client connections.
-	if c.ProxyPublicAddr != "" {
-		return c.ProxyPublicAddr
-	}
-	return c.TC.WebProxyAddr
 }

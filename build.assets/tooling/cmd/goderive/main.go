@@ -25,7 +25,6 @@ import (
 
 	"github.com/awalterschulze/goderive/derive"
 
-	"github.com/gravitational/teleport/build.assets/tooling/cmd/goderive/plugin/deepcopy"
 	"github.com/gravitational/teleport/build.assets/tooling/cmd/goderive/plugin/teleportequal"
 )
 
@@ -33,7 +32,6 @@ func main() {
 	// Establish Teleport derive plugins of interest.
 	plugins := []derive.Plugin{
 		teleportequal.NewPlugin(),
-		deepcopy.NewPlugin(),
 	}
 
 	// Parse args, which are just paths at the moment..

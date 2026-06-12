@@ -21,7 +21,6 @@ package common
 import (
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"strings"
 	"time"
@@ -36,10 +35,9 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/defaults"
+	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/parse"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
@@ -58,16 +56,12 @@ type AlertCommand struct {
 
 	alertList   *kingpin.CmdClause
 	alertCreate *kingpin.CmdClause
-	alertDelete *kingpin.CmdClause
 
 	alertAck *kingpin.CmdClause
 
 	reason  string
 	alertID string
 	clear   bool
-
-	// stdout allows to switch the standard output source. Used in tests.
-	stdout io.Writer
 }
 
 // Initialize allows AlertCommand to plug itself into the CLI parser
@@ -75,21 +69,16 @@ func (c *AlertCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLI
 	c.config = config
 	alert := app.Command("alerts", "Manage cluster alerts.").Alias("alert")
 
-	formats := defaults.DefaultFormats
-
 	c.alertList = alert.Command("list", "List cluster alerts.").Alias("ls")
 	c.alertList.Flag("verbose", "Show detailed alert info, including acknowledged alerts.").Short('v').BoolVar(&c.verbose)
 	c.alertList.Flag("labels", labelHelp).StringVar(&c.labels)
-	c.alertList.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, formats...)
+	c.alertList.Flag("format", "Output format, 'text' or 'json'").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
 
 	c.alertCreate = alert.Command("create", "Create cluster alerts.")
 	c.alertCreate.Arg("message", "Alert body message.").Required().StringVar(&c.message)
 	c.alertCreate.Flag("ttl", "Time duration after which the alert expires (default 24h).").DurationVar(&c.ttl)
-	c.alertCreate.Flag("severity", "Severity of the alert.").Default("low").EnumVar(&c.severity, "low", "medium", "high")
+	c.alertCreate.Flag("severity", "Severity of the alert (low, medium, or high).").Default("low").EnumVar(&c.severity, "low", "medium", "high")
 	c.alertCreate.Flag("labels", "List of labels to attach to the alert. For example: key1=value1,key2=value2.").StringVar(&c.labels)
-
-	c.alertDelete = alert.Command("delete", "Deletes a cluster alert.").Alias("rm")
-	c.alertDelete.Arg("id", "The cluster alert ID.").Required().StringVar(&c.alertID)
 
 	c.alertAck = alert.Command("ack", "Acknowledge cluster alerts.")
 	// Be wary of making any of these flags required. Because `tctl alerts ack ls` is not an actual
@@ -99,19 +88,11 @@ func (c *AlertCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLI
 	c.alertAck.Flag("clear", "Clear the acknowledgment for the cluster alert.").BoolVar(&c.clear)
 	c.alertAck.Flag("reason", "The reason for acknowledging the cluster alert.").StringVar(&c.reason)
 	c.alertAck.Arg("id", "The cluster alert ID.").Required().StringVar(&c.alertID)
-	c.alertAck.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, formats...)
 
-	// We add "ack ls" as a command so kingpin shows it in the help dialog.
-	// This allows us to be consistent with our other `tctl xyz ls` commands.
-	alertAckList := alert.Command("ack ls", "List acknowledged cluster alerts.")
-	// Keep this in sync with alertAck's format flag. Runtime execution is still
-	// routed through alertAck with alertID == "ls", but generated docs use this
-	// synthetic command model.
-	alertAckList.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, formats...)
-
-	if c.stdout == nil {
-		c.stdout = os.Stdout
-	}
+	// We add "ack ls" as a command so kingpin shows it in the help dialog - as there is a space, `tctl ack xyz` will always be
+	// handled by the ack command above
+	// This allows us to be consistent with our other `tctl xyz ls` commands
+	alert.Command("ack ls", "List acknowledged cluster alerts.")
 }
 
 // TryRun takes the CLI command as an argument (like "alerts ls") and executes it.
@@ -124,8 +105,6 @@ func (c *AlertCommand) TryRun(ctx context.Context, cmd string, clientFunc common
 		commandFunc = c.Create
 	case c.alertAck.FullCommand():
 		commandFunc = c.Ack
-	case c.alertDelete.FullCommand():
-		commandFunc = c.Delete
 	default:
 		return false, nil
 	}
@@ -145,23 +124,14 @@ func (c *AlertCommand) ListAck(ctx context.Context, client *authclient.Client) e
 		return trace.Wrap(err)
 	}
 
-	switch c.format {
-	case teleport.Text:
-		table := asciitable.MakeTable([]string{"ID", "Reason", "Expires"})
+	table := asciitable.MakeTable([]string{"ID", "Reason", "Expires"})
 
-		for _, ack := range acks {
-			expires := apiutils.HumanTimeFormat(ack.Expires)
-			table.AddRow([]string{ack.AlertID, fmt.Sprintf("%q", ack.Reason), expires})
-		}
-
-		fmt.Fprintln(c.stdout, table.AsBuffer().String())
-	case teleport.JSON:
-		return trace.Wrap(utils.WriteJSONArray(c.stdout, acks), "failed to marshal alert acks")
-	case teleport.YAML:
-		return trace.Wrap(utils.WriteYAML(c.stdout, acks), "failed to marshal alert acks")
-	default:
-		return trace.BadParameter("invalid format %q", c.format)
+	for _, ack := range acks {
+		expires := apiutils.HumanTimeFormat(ack.Expires)
+		table.AddRow([]string{ack.AlertID, fmt.Sprintf("%q", ack.Reason), expires})
 	}
+
+	fmt.Println(table.AsBuffer().String())
 
 	return nil
 }
@@ -190,16 +160,8 @@ func (c *AlertCommand) Ack(ctx context.Context, client *authclient.Client) error
 		return trace.Wrap(err)
 	}
 
-	switch c.format {
-	case teleport.Text:
-		fmt.Fprintf(c.stdout, "Successfully acknowledged alert %q. Alerts with this ID won't be pushed for %s.\n", c.alertID, c.ttl)
-	case teleport.JSON:
-		return trace.Wrap(utils.WriteJSON(c.stdout, ack), "failed to marshal alert ack")
-	case teleport.YAML:
-		return trace.Wrap(utils.WriteYAML(c.stdout, ack), "failed to marshal alert ack")
-	default:
-		return trace.BadParameter("invalid format %q", c.format)
-	}
+	fmt.Printf("Successfully acknowledged alert %q. Alerts with this ID won't be pushed for %s.\n", c.alertID, c.ttl)
+
 	return nil
 }
 
@@ -212,13 +174,13 @@ func (c *AlertCommand) ClearAck(ctx context.Context, client *authclient.Client) 
 		return trace.Wrap(err)
 	}
 
-	fmt.Fprintf(c.stdout, "Successfully cleared acknowledgement for alert %q. Alerts with this ID will resume being pushed.\n", c.alertID)
+	fmt.Printf("Successfully cleared acknowledgement for alert %q. Alerts with this ID will resume being pushed.\n", c.alertID)
 
 	return nil
 }
 
 func (c *AlertCommand) List(ctx context.Context, client *authclient.Client) error {
-	labels, err := parse.LabelSelectorSpec(c.labels)
+	labels, err := libclient.ParseLabelSpec(c.labels)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -233,7 +195,7 @@ func (c *AlertCommand) List(ctx context.Context, client *authclient.Client) erro
 	}
 
 	if len(alerts) == 0 && c.format == teleport.Text {
-		fmt.Fprintln(c.stdout, "no alerts")
+		fmt.Println("no alerts")
 		return nil
 	}
 
@@ -242,19 +204,17 @@ func (c *AlertCommand) List(ctx context.Context, client *authclient.Client) erro
 
 	switch c.format {
 	case teleport.Text:
-		c.displayAlertsText(alerts, c.verbose)
+		displayAlertsText(alerts, c.verbose)
 		return nil
 	case teleport.JSON:
-		return trace.Wrap(utils.WriteJSONArray(c.stdout, alerts))
-	case teleport.YAML:
-		return trace.Wrap(utils.WriteYAML(c.stdout, alerts))
+		return trace.Wrap(displayAlertsJSON(alerts))
 	default:
 		// technically unreachable since kingpin validates the EnumVar
 		return trace.BadParameter("invalid format %q", c.format)
 	}
 }
 
-func (c *AlertCommand) displayAlertsText(alerts []types.ClusterAlert, verbose bool) {
+func displayAlertsText(alerts []types.ClusterAlert, verbose bool) {
 	if verbose {
 		table := asciitable.MakeTable([]string{"ID", "Severity", "Expires In", "Message", "Created", "Labels"})
 		for _, alert := range alerts {
@@ -273,7 +233,7 @@ func (c *AlertCommand) displayAlertsText(alerts []types.ClusterAlert, verbose bo
 				strings.Join(labelPairs, ", "),
 			})
 		}
-		fmt.Fprintln(c.stdout, table.AsBuffer().String())
+		fmt.Println(table.AsBuffer().String())
 	} else {
 		table := asciitable.MakeTable([]string{"ID", "Severity", "Expires In", "Message"})
 		for _, alert := range alerts {
@@ -284,7 +244,7 @@ func (c *AlertCommand) displayAlertsText(alerts []types.ClusterAlert, verbose bo
 				fmt.Sprintf("%q", alert.Spec.Message),
 			})
 		}
-		fmt.Fprintln(c.stdout, table.AsBuffer().String())
+		fmt.Println(table.AsBuffer().String())
 	}
 }
 
@@ -301,8 +261,12 @@ func calculateTTL(expiration *time.Time) time.Duration {
 	return remainingDuration.Round(time.Minute)
 }
 
+func displayAlertsJSON(alerts []types.ClusterAlert) error {
+	return utils.WriteJSONArray(os.Stdout, alerts)
+}
+
 func (c *AlertCommand) Create(ctx context.Context, client *authclient.Client) error {
-	labels, err := parse.LabelSelectorSpec(c.labels)
+	labels, err := libclient.ParseLabelSpec(c.labels)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -333,13 +297,4 @@ func (c *AlertCommand) Create(ctx context.Context, client *authclient.Client) er
 	}
 
 	return trace.Wrap(client.UpsertClusterAlert(ctx, alert))
-}
-
-func (c *AlertCommand) Delete(ctx context.Context, client *authclient.Client) error {
-	if err := client.DeleteClusterAlert(ctx, c.alertID); err != nil {
-		return trace.Wrap(err)
-	}
-
-	fmt.Fprintf(c.stdout, "Successfully deleted alert %q.\n", c.alertID)
-	return nil
 }

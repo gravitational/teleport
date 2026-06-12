@@ -68,10 +68,12 @@ func NewTeleportResourceWithLabelsReconciler[T types.ResourceWithLabels, K Kuber
 		return nil, trace.Wrap(err)
 	}
 	reconciler := &resourceReconciler[T, K]{
-		kubeClient:     client,
-		resourceClient: resourceClient,
-		gvk:            gvk,
-		adapter:        ResourceWithLabelsAdapter[T]{},
+		ResourceBaseReconciler: ResourceBaseReconciler{Client: client},
+		resourceClient:         resourceClient,
+		gvk:                    gvk,
+		adapter:                ResourceWithLabelsAdapter[T]{},
 	}
+	reconciler.ResourceBaseReconciler.UpsertExternal = reconciler.Upsert
+	reconciler.ResourceBaseReconciler.DeleteExternal = reconciler.Delete
 	return reconciler, nil
 }

@@ -24,7 +24,6 @@ import (
 	"io"
 	"io/fs"
 	"os"
-	"runtime"
 	"strings"
 	"time"
 
@@ -40,12 +39,12 @@ const (
 )
 
 const (
-	// UpdateConfigName specifies the name of the file inside versionsDirName containing configuration for the teleport update.
-	UpdateConfigName = "update.yaml"
-	// UpdateConfigV1 specifies the version of the update.yaml file.
-	UpdateConfigV1 = "v1"
-	// UpdateConfigKind specifies the kind of the update.yaml file.
-	UpdateConfigKind = "update_config"
+	// updateConfigName specifies the name of the file inside versionsDirName containing configuration for the teleport update.
+	updateConfigName = "update.yaml"
+
+	// UpdateConfig metadata
+	updateConfigVersion = "v1"
+	updateConfigKind    = "update_config"
 )
 
 // UpdateConfig describes the update.yaml file schema.
@@ -84,9 +83,6 @@ type UpdateSpec struct {
 	Enabled bool `yaml:"enabled"`
 	// Pinned controls whether the active_version is pinned.
 	Pinned bool `yaml:"pinned"`
-	// SELinuxSSH controls whether an SELinux module will be installed to
-	// constrain Teleport SSH.
-	SELinuxSSH bool `yaml:"selinux_ssh,omitempty"`
 }
 
 // UpdateStatus describes the status field in update.yaml.
@@ -196,8 +192,8 @@ func readConfig(path string) (*UpdateConfig, error) {
 	f, err := os.Open(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return &UpdateConfig{
-			Version: UpdateConfigV1,
-			Kind:    UpdateConfigKind,
+			Version: updateConfigVersion,
+			Kind:    updateConfigKind,
 		}, nil
 	}
 	if err != nil {
@@ -208,10 +204,10 @@ func readConfig(path string) (*UpdateConfig, error) {
 	if err := yaml.NewDecoder(f).Decode(&cfg); err != nil {
 		return nil, trace.Wrap(err, "failed to parse")
 	}
-	if k := cfg.Kind; k != UpdateConfigKind {
+	if k := cfg.Kind; k != updateConfigKind {
 		return nil, trace.Errorf("invalid kind %s", k)
 	}
-	if v := cfg.Version; v != UpdateConfigV1 {
+	if v := cfg.Version; v != updateConfigVersion {
 		return nil, trace.Errorf("invalid version %s", v)
 	}
 	return &cfg, nil
@@ -242,12 +238,6 @@ func updateConfigSpec(spec *UpdateSpec, override OverrideConfig) error {
 	}
 	if override.Pinned {
 		spec.Pinned = true
-	}
-	if override.SELinuxSSHChanged {
-		spec.SELinuxSSH = override.SELinuxSSH
-	}
-	if spec.SELinuxSSH && runtime.GOOS != "linux" {
-		return trace.BadParameter("SELinux is only supported on Linux")
 	}
 	return nil
 }

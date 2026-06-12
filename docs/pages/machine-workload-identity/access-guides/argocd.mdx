@@ -3,11 +3,8 @@ title: Machine & Workload Identity with Argo CD
 description: How to use Machine & Workload Identity to enable Argo CD to connect to external Kubernetes clusters
 sidebar_label: Argo CD
 tags:
- - ci-cd
- - infrastructure-as-code
  - how-to
  - mwi
- - infrastructure-identity
 ---
 
 Argo CD is a declarative, GitOps continuous delivery tool for Kubernetes. It
@@ -22,13 +19,13 @@ applications using Teleport.
 
 Argo CD supports declaratively managing clusters using Kubernetes secrets (see
 the [Argo CD
-documentation](https://argo-cd.readthedocs.io/en/latest/operator-manual/declarative-setup/#clusters)).
+documentation](https://argo-cd.readthedocs.io/en/latest/operator-manual/declarative-setup/#clusters).
 The Argo CD application controller reads these secrets in order to retrieve
 cluster credentials. When configured to use the Argo CD output service, `tbot`
 writes Teleport-signed Kubernetes cluster credentials into secrets that Argo CD
 can then use to access Teleport-protected Kubernetes clusters.
 
-## Prerequisites
+## Prerequisite
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
@@ -145,17 +142,13 @@ Make sure you replace `example-bot` with a unique, descriptive name for your Bot
 and replace `example-role` with the name of the role you created in the previous
 step.
 
-Create the bot:
-
-```code
-$ tctl create -f ./bot.yaml
-```
+Use `tctl create -f ./bot.yaml` to create the bot.
 
 ## Step 3/4. Create a join token
 
 In order for `tbot` to be able to authenticate and join the Teleport cluster,
 we need to configure a join token. There are a number of different available
-[methods](../../reference/deployment/join-methods.mdx), but for this guide we will use
+[methods](../../reference/join-methods.mdx), but for this guide we will use
 the `kubernetes` method with a static JWKS. Please refer to the
 [Deploying tbot on Kubernetes](../deployment/kubernetes.mdx) guide for more
 in-depth information.
@@ -209,7 +202,7 @@ spec:
     - service_account: "argocd:tbot" # namespace:service_account
 ```
 
-Use `tctl create -f ./join-token.yaml` to create the join token.
+Use `tctl create -f ./join-token.yaml` to create the join.
 
 ## Step 4/4. Deploy `tbot`
 
@@ -340,7 +333,7 @@ groups.
 
 ## Next steps
 
-- Read the [configuration reference](../../reference/machine-workload-identity/configuration.mdx)
+- Read the [configuration reference](../../reference/machine-id/configuration.mdx)
   to explore all the available configuration options.
 - Read the [Teleport Kubernetes RBAC guide](../../enroll-resources/kubernetes-access/controls.mdx)
   for more details on controlling Kubernetes access.

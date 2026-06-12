@@ -24,41 +24,24 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
-	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport/api/constants"
-	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
-	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/scopes/joining"
-	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/utils/testutils"
 )
 
 func TestIdentityConversion(t *testing.T) {
 	ident := &Identity{
-		ValidAfter:  1,
-		ValidBefore: 2,
-		CertType:    ssh.UserCert,
-		ClusterName: "some-cluster",
-		SystemRole:  types.RoleNode,
-		Username:    "user",
-		ScopePin: &scopesv1.Pin{
-			Kind:  scopesv1.PinKind_PIN_KIND_USER,
-			Scope: "/foo",
-			SystemRoles: &scopesv1.SystemRoles{
-				Primary:    "node",
-				Additional: []string{"proxy"},
-			},
-			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-				"/": {"/": {"role1", "role2"}},
-			}),
-		},
+		ValidAfter:              1,
+		ValidBefore:             2,
+		CertType:                ssh.UserCert,
+		ClusterName:             "some-cluster",
+		SystemRole:              types.RoleNode,
+		Username:                "user",
 		Impersonator:            "impersonator",
 		Principals:              []string{"login1", "login2"},
 		PermitX11Forwarding:     true,
@@ -84,38 +67,19 @@ func TestIdentityConversion(t *testing.T) {
 		BotName:       "bot",
 		BotInstanceID: "instance",
 		JoinToken:     "join-token",
-		AllowedResourceAccessIDs: []types.ResourceAccessID{{
-			Id: types.ResourceID{
-				ClusterName:     "cluster",
-				Kind:            types.KindKubePod, // this is not valid in practice; Constraints and KindKube cannot be mixed
-				Name:            "name",
-				SubResourceName: "sub/sub",
-			},
-			Constraints: &types.ResourceConstraints{
-				Version: types.V1,
-				Details: &types.ResourceConstraints_AwsConsole{
-					AwsConsole: &types.AWSConsoleResourceConstraints{
-						RoleArns: []string{"arn:aws:iam::123456789012:role/TestRole"},
-					},
-				},
-			},
+		AllowedResourceIDs: []types.ResourceID{{
+			ClusterName:     "cluster",
+			Kind:            types.KindKubePod, // must use a kube resource kind for parsing of sub-resource to work correctly
+			Name:            "name",
+			SubResourceName: "sub/sub",
 		}},
-		ConnectionDiagnosticID:   "diag",
-		PrivateKeyPolicy:         keys.PrivateKeyPolicy("policy"),
-		DeviceID:                 "device",
-		DeviceAssetTag:           "asset",
-		DeviceCredentialID:       "cred",
-		GitHubUserID:             "github",
-		GitHubUsername:           "ghuser",
-		HeadlessAuthenticationID: "headless-auth-id",
-		DelegationSessionID:      "delegation-session-id",
-		AgentScope:               "/foo",
-		ImmutableLabelHash: joining.HashImmutableLabels(&joiningv1.ImmutableLabels{
-			Ssh: map[string]string{
-				"one": "1",
-				"two": "2",
-			},
-		}),
+		ConnectionDiagnosticID: "diag",
+		PrivateKeyPolicy:       keys.PrivateKeyPolicy("policy"),
+		DeviceID:               "device",
+		DeviceAssetTag:         "asset",
+		DeviceCredentialID:     "cred",
+		GitHubUserID:           "github",
+		GitHubUsername:         "ghuser",
 	}
 
 	ignores := []string{
@@ -128,31 +92,6 @@ func TestIdentityConversion(t *testing.T) {
 		"ResourceID.XXX_NoUnkeyedLiteral",
 		"ResourceID.XXX_unrecognized",
 		"ResourceID.XXX_sizecache",
-		"Pin.XXX_NoUnkeyedLiteral",
-		"Pin.XXX_unrecognized",
-		"Pin.XXX_sizecache",
-		"Pin.Assignments", // TODO(fspamrshall/scopes): deprecate & remove assignments field
-		"PinnedAssignments.XXX_NoUnkeyedLiteral",
-		"PinnedAssignments.XXX_unrecognized",
-		"PinnedAssignments.XXX_sizecache",
-		"ResourceAccessID.XXX_NoUnkeyedLiteral",
-		"ResourceAccessID.XXX_unrecognized",
-		"ResourceAccessID.XXX_sizecache",
-		"ResourceConstraints.XXX_NoUnkeyedLiteral",
-		"ResourceConstraints.XXX_unrecognized",
-		"ResourceConstraints.XXX_sizecache",
-		"AWSConsoleResourceConstraints.XXX_NoUnkeyedLiteral",
-		"AWSConsoleResourceConstraints.XXX_unrecognized",
-		"AWSConsoleResourceConstraints.XXX_sizecache",
-		"Identity.AllowedResourceIDs", // at decode, allowedResourceIDs are converted to ResourceAccessIDs and stored in Identity.AllowedResourceAccessIDs
-		"AssignmentNode.XXX_NoUnkeyedLiteral",
-		"AssignmentNode.XXX_unrecognized",
-		"AssignmentNode.XXX_sizecache",
-		"AssignmentNode.Children", // has to be empty in leaf nodes because of how trees work
-		"RoleNode.XXX_NoUnkeyedLiteral",
-		"RoleNode.XXX_unrecognized",
-		"RoleNode.XXX_sizecache",
-		"RoleNode.Children", // has to be empty in leaf nodes because of how trees work
 	}
 
 	require.True(t, testutils.ExhaustiveNonEmpty(ident, ignores...), "empty=%+v", testutils.FindAllEmpty(ident, ignores...))
@@ -163,96 +102,5 @@ func TestIdentityConversion(t *testing.T) {
 	ident2, err := DecodeIdentity(cert)
 	require.NoError(t, err)
 
-	require.Empty(t, cmp.Diff(ident, ident2, protocmp.Transform()))
-}
-
-// TestAllowedResources_SSHEncodeDecode verifies that AllowedResourceIDs and
-// AllowedResourceAccessIDs are populated correctly after an SSH cert's
-// encode-decode cycle across all resource mix permutations.
-func TestAllowedResources_SSHEncodeDecode(t *testing.T) {
-	plainNode := types.ResourceID{ClusterName: "cluster", Kind: types.KindNode, Name: "prod-node"}
-	plainDB := types.ResourceID{ClusterName: "cluster", Kind: types.KindDatabase, Name: "prod-db"}
-	constrainedApp := types.ResourceAccessID{
-		Id: types.ResourceID{ClusterName: "cluster", Kind: types.KindApp, Name: "aws-console"},
-		Constraints: &types.ResourceConstraints{
-			Version: types.V1,
-			Details: &types.ResourceConstraints_AwsConsole{
-				AwsConsole: &types.AWSConsoleResourceConstraints{
-					RoleArns: []string{"arn:aws:iam::123456789012:role/DevOps"},
-				},
-			},
-		},
-	}
-
-	tcs := []struct {
-		name                         string
-		allowedResourceIDs           []types.ResourceID
-		allowedResourceAccessIDs     []types.ResourceAccessID
-		wantAllowedResourceIDs       []types.ResourceID
-		wantAllowedResourceAccessIDs []types.ResourceAccessID
-	}{
-		{
-			name:                         "plain resources only (new auth cert)",
-			allowedResourceIDs:           []types.ResourceID{plainNode, plainDB},
-			allowedResourceAccessIDs:     types.ResourceIDsToResourceAccessIDs([]types.ResourceID{plainNode, plainDB}),
-			wantAllowedResourceIDs:       []types.ResourceID{plainNode, plainDB},
-			wantAllowedResourceAccessIDs: types.ResourceIDsToResourceAccessIDs([]types.ResourceID{plainNode, plainDB}),
-		},
-		{
-			name:                         "constrained resources only (new auth cert)",
-			allowedResourceIDs:           nil,
-			allowedResourceAccessIDs:     []types.ResourceAccessID{constrainedApp},
-			wantAllowedResourceIDs:       nil,
-			wantAllowedResourceAccessIDs: []types.ResourceAccessID{constrainedApp},
-		},
-		{
-			name:                     "mixed plain and constrained (new auth cert)",
-			allowedResourceIDs:       []types.ResourceID{plainNode},
-			allowedResourceAccessIDs: append(types.ResourceIDsToResourceAccessIDs([]types.ResourceID{plainNode}), constrainedApp),
-			wantAllowedResourceIDs:   []types.ResourceID{plainNode},
-			wantAllowedResourceAccessIDs: append(
-				types.ResourceIDsToResourceAccessIDs([]types.ResourceID{plainNode}),
-				constrainedApp,
-			),
-		},
-		{
-			name:                         "old auth cert (only old extension)",
-			allowedResourceIDs:           []types.ResourceID{plainNode, plainDB},
-			allowedResourceAccessIDs:     nil,
-			wantAllowedResourceIDs:       []types.ResourceID{plainNode, plainDB},
-			wantAllowedResourceAccessIDs: types.ResourceIDsToResourceAccessIDs([]types.ResourceID{plainNode, plainDB}),
-		},
-	}
-
-	for _, tt := range tcs {
-		t.Run(tt.name, func(t *testing.T) {
-			ident := &Identity{
-				ValidBefore: uint64(time.Now().Add(time.Hour).Unix()),
-				CertType:    ssh.UserCert,
-				Username:    "test-user",
-				Roles:       []string{"access"},
-				//nolint:staticcheck // testing deprecated field
-				AllowedResourceIDs:       tt.allowedResourceIDs,
-				AllowedResourceAccessIDs: tt.allowedResourceAccessIDs,
-			}
-
-			cert, err := ident.Encode(constants.CertificateFormatStandard)
-			require.NoError(t, err)
-
-			decoded, err := DecodeIdentity(cert)
-			require.NoError(t, err)
-
-			assert.ElementsMatch(t, tt.wantAllowedResourceAccessIDs, decoded.AllowedResourceAccessIDs,
-				"AllowedResourceAccessIDs mismatch")
-			//nolint:staticcheck // testing deprecated field
-			assert.ElementsMatch(t, tt.wantAllowedResourceIDs, decoded.AllowedResourceIDs,
-				"AllowedResourceIDs mismatch")
-
-			//nolint:staticcheck // testing deprecated field
-			for _, rid := range decoded.AllowedResourceIDs {
-				assert.False(t, types.IsSentinelResourceID(rid),
-					"sentinel value not expected in decoded AllowedResourceIDs")
-			}
-		})
-	}
+	require.Empty(t, cmp.Diff(ident, ident2))
 }

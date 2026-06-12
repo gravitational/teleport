@@ -146,7 +146,7 @@ func GenerateUserCreds(req UserCredsRequest) (*UserCreds, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	clusterName, err := a.GetClusterName(context.TODO())
+	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

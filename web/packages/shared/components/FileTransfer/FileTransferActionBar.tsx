@@ -34,24 +34,24 @@ export function FileTransferActionBar({
 }: FileTransferActionBarProps) {
   const fileTransferContext = useFileTransferContext();
   const areFileTransferButtonsDisabled =
-    !!fileTransferContext.openedDialog || !isConnected || !hasAccess;
+    fileTransferContext.openedDialog || !isConnected || !hasAccess;
 
   return (
-    <HoverTooltip
-      placement="bottom"
-      tipContent={
-        !hasAccess ? (
-          <Text>
-            You are missing the{' '}
-            <Text bold as="span">
-              ssh_file_copy
-            </Text>{' '}
-            role option.
-          </Text>
-        ) : null
-      }
-    >
-      <Flex alignItems="center" width="min-content" height="24px">
+    <Flex flex="none" alignItems="center" height="24px">
+      <HoverTooltip
+        placement="bottom"
+        tipContent={
+          !hasAccess ? (
+            <Text>
+              You are missing the{' '}
+              <Text bold as="span">
+                ssh_file_copy
+              </Text>{' '}
+              role option.
+            </Text>
+          ) : null
+        }
+      >
         <ButtonIcon
           disabled={areFileTransferButtonsDisabled}
           size={0}
@@ -68,7 +68,7 @@ export function FileTransferActionBar({
         >
           <Icons.Upload size={16} />
         </ButtonIcon>
-      </Flex>
-    </HoverTooltip>
+      </HoverTooltip>
+    </Flex>
   );
 }

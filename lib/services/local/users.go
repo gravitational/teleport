@@ -26,7 +26,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"io"
-	"iter"
 	"log/slog"
 	"sort"
 	"strings"
@@ -37,6 +36,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/sync/errgroup"
 
@@ -44,15 +44,15 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/local/generic"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // GlobalSessionDataMaxEntries represents the maximum number of in-flight
@@ -65,13 +65,14 @@ var GlobalSessionDataMaxEntries = 5000 // arbitrary
 // user accounts as well
 type IdentityService struct {
 	backend.Backend
-	logger           *slog.Logger
+	log              logrus.FieldLogger
 	bcryptCost       int
 	notificationsSvc *NotificationsService
 }
 
-// NewIdentityService returns a new instance of IdentityService object
-func NewIdentityService(backend backend.Backend) (*IdentityService, error) {
+// TODO(rudream): Rename to NewIdentityService.
+// NewIdentityServiceV2 returns a new instance of IdentityService object
+func NewIdentityServiceV2(backend backend.Backend) (*IdentityService, error) {
 	notificationsSvc, err := NewNotificationsService(backend, backend.Clock())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -79,17 +80,35 @@ func NewIdentityService(backend backend.Backend) (*IdentityService, error) {
 
 	return &IdentityService{
 		Backend:          backend,
-		logger:           slog.With(teleport.ComponentKey, "identity"),
+		log:              logrus.WithField(teleport.ComponentKey, "identity"),
 		bcryptCost:       bcrypt.DefaultCost,
 		notificationsSvc: notificationsSvc,
 	}, nil
+}
+
+// TODO(rudream): Remove once NewIdentityServiceV2 is merged.
+// NewIdentityService returns a new instance of IdentityService object
+func NewIdentityService(backend backend.Backend) *IdentityService {
+	notificationsSvc, err := NewNotificationsService(backend, backend.Clock())
+
+	log := logrus.WithField(teleport.ComponentKey, "identity")
+	if err != nil {
+		log.Warnf("error initializing notifications service with identity service: %v", err)
+	}
+
+	return &IdentityService{
+		Backend:          backend,
+		log:              log,
+		bcryptCost:       bcrypt.DefaultCost,
+		notificationsSvc: notificationsSvc,
+	}
 }
 
 // NewTestIdentityService returns a new instance of IdentityService object to be
 // used in tests. It will use weaker cryptography to minimize the time it takes
 // to perform flakiness tests and decrease the probability of timeouts.
 func NewTestIdentityService(backend backend.Backend) (*IdentityService, error) {
-	s, err := NewIdentityService(backend)
+	s, err := NewIdentityServiceV2(backend)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -115,9 +134,13 @@ func (s *IdentityService) ListUsers(ctx context.Context, req *userspb.ListUsersR
 		pageSize = apidefaults.DefaultChunkSize
 	}
 
-	itemStream := s.Backend.Items(ctx, backend.ItemsParams{StartKey: rangeStart, EndKey: rangeEnd})
+	// Artificially inflate the limit to account for user secrets
+	// which have the same prefix.
+	limit := int(pageSize) * 4
 
-	var userStream iter.Seq2[*types.UserV2, error]
+	itemStream := backend.StreamRange(ctx, s.Backend, rangeStart, rangeEnd, limit)
+
+	var userStream stream.Stream[*types.UserV2]
 	if req.WithSecrets {
 		userStream = s.streamUsersWithSecrets(itemStream)
 	} else {
@@ -134,20 +157,21 @@ func (s *IdentityService) ListUsers(ctx context.Context, req *userspb.ListUsersR
 		})
 	}
 
-	var resp userspb.ListUsersResponse
-	for user, err := range userStream {
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+	users, full := stream.Take(userStream, int(pageSize))
 
-		if len(resp.Users) >= int(pageSize) {
-			resp.NextPageToken = nextUserToken(resp.Users[len(resp.Users)-1])
-			return &resp, nil
-		}
-
-		resp.Users = append(resp.Users, user)
+	var nextToken string
+	if full && userStream.Next() {
+		nextToken = nextUserToken(users[len(users)-1])
 	}
-	return &resp, nil
+
+	if err := userStream.Done(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &userspb.ListUsersResponse{
+		Users:         users,
+		NextPageToken: nextToken,
+	}, nil
 }
 
 // nextUserToken returns the last token for the given user. This
@@ -161,7 +185,7 @@ func nextUserToken(user types.User) string {
 
 // streamUsersWithSecrets is a helper that converts a stream of backend items over the user key range into a stream
 // of users along with their associated secrets.
-func (s *IdentityService) streamUsersWithSecrets(itemStream iter.Seq2[backend.Item, error]) iter.Seq2[*types.UserV2, error] {
+func (s *IdentityService) streamUsersWithSecrets(itemStream stream.Stream[backend.Item]) stream.Stream[*types.UserV2] {
 	type collector struct {
 		items userItems
 		name  string
@@ -172,10 +196,7 @@ func (s *IdentityService) streamUsersWithSecrets(itemStream iter.Seq2[backend.It
 	collectorStream := stream.FilterMap(itemStream, func(item backend.Item) (collector, bool) {
 		name, suffix, err := splitUsernameAndSuffix(item.Key)
 		if err != nil {
-			s.logger.WarnContext(context.Background(), "Failed to extract name/suffix for user item",
-				"key", item.Key,
-				"error", err,
-			)
+			s.log.Warnf("Failed to extract name/suffix for user item at %q: %v", item.Key, err)
 			return collector{}, false
 		}
 
@@ -216,10 +237,7 @@ func (s *IdentityService) streamUsersWithSecrets(itemStream iter.Seq2[backend.It
 	userStream := stream.FilterMap(collectorStream, func(c collector) (*types.UserV2, bool) {
 		user, err := userFromUserItems(c.name, c.items)
 		if err != nil {
-			s.logger.WarnContext(context.Background(), "Failed to build user from user item aggregator",
-				"user", c.name,
-				"error", err,
-			)
+			s.log.Warnf("Failed to build user %q from user item aggregator: %v", c.name, err)
 			return nil, false
 		}
 
@@ -231,7 +249,7 @@ func (s *IdentityService) streamUsersWithSecrets(itemStream iter.Seq2[backend.It
 
 // streamUsersWithoutSecrets is a helper that converts a stream of backend items over the user range into a stream of
 // user resources without any included secrets.
-func (s *IdentityService) streamUsersWithoutSecrets(itemStream iter.Seq2[backend.Item, error]) iter.Seq2[*types.UserV2, error] {
+func (s *IdentityService) streamUsersWithoutSecrets(itemStream stream.Stream[backend.Item]) stream.Stream[*types.UserV2] {
 	suffix := backend.NewKey(paramsPrefix)
 	userStream := stream.FilterMap(itemStream, func(item backend.Item) (*types.UserV2, bool) {
 		if !item.Key.HasSuffix(suffix) {
@@ -240,10 +258,7 @@ func (s *IdentityService) streamUsersWithoutSecrets(itemStream iter.Seq2[backend
 
 		user, err := services.UnmarshalUser(item.Value, services.WithRevision(item.Revision))
 		if err != nil {
-			s.logger.WarnContext(context.Background(), "Failed to unmarshal user",
-				"key", item.Key,
-				"error", err,
-			)
+			s.log.Warnf("Failed to unmarshal user at %q: %v", item.Key, err)
 			return nil, false
 		}
 
@@ -496,31 +511,6 @@ func (s *IdentityService) UpsertUser(ctx context.Context, user types.User) (type
 	return user, nil
 }
 
-// AppendPutUserParamsActions adds conditional actions to an atomic write to
-// create or update the user params resource (without secrets, mfa devices).
-func (s *IdentityService) AppendPutUserParamsActions(
-	actions []backend.ConditionalAction,
-	user types.User,
-	condition backend.Condition,
-) ([]backend.ConditionalAction, error) {
-	if err := services.ValidateUser(user); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	withoutSecrets, ok := user.WithoutSecrets().(types.User)
-	if !ok {
-		return nil, trace.BadParameter("WithoutSecrets returned a different type (this is a bug)")
-	}
-	item, err := itemFromUser(withoutSecrets)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return append(actions, backend.ConditionalAction{
-		Key:       item.Key,
-		Condition: condition,
-		Action:    backend.Put(*item),
-	}), nil
-}
-
 // CompareAndSwapUser updates a user, but fails if the user (as exists in the
 // backend) differs from the provided `existing` user. If the existing user
 // matches, returns no error, otherwise returns `trace.CompareFailed`.
@@ -552,7 +542,7 @@ func (s *IdentityService) CompareAndSwapUser(ctx context.Context, new, existing 
 	// one retry because ConditionalUpdate could occasionally spuriously fail,
 	// another retry because a single retry would be weird
 	const iterationLimit = 3
-	for range iterationLimit {
+	for i := 0; i < iterationLimit; i++ {
 		const withoutSecrets = false
 		currentWithoutSecrets, err := s.GetUser(ctx, new.GetName(), withoutSecrets)
 		if err != nil {
@@ -562,7 +552,7 @@ func (s *IdentityService) CompareAndSwapUser(ctx context.Context, new, existing 
 			return trace.Wrap(err)
 		}
 
-		if !existingWithoutSecrets.IsEqual(currentWithoutSecrets) {
+		if !services.UsersEquals(existingWithoutSecrets, currentWithoutSecrets) {
 			return trace.CompareFailed("user %v did not match expected existing value", new.GetName())
 		}
 
@@ -578,8 +568,7 @@ func (s *IdentityService) CompareAndSwapUser(ctx context.Context, new, existing 
 
 		item.Revision = currentWithoutSecrets.GetRevision()
 
-		_, err = s.Backend.ConditionalUpdate(ctx, item)
-		if err != nil {
+		if _, err = s.Backend.ConditionalUpdate(ctx, item); err != nil {
 			if trace.IsCompareFailed(err) {
 				continue
 			}
@@ -667,7 +656,7 @@ func (s *IdentityService) upsertLocalAuthSecrets(ctx context.Context, user strin
 	return nil
 }
 
-// GetUserByOIDCIdentity returns a user by its specified OIDC Identity, returns first
+// GetUserByOIDCIdentity returns a user by it's specified OIDC Identity, returns first
 // user specified with this identity
 func (s *IdentityService) GetUserByOIDCIdentity(id types.ExternalIdentity) (types.User, error) {
 	users, err := s.GetUsers(context.TODO(), false)
@@ -684,7 +673,7 @@ func (s *IdentityService) GetUserByOIDCIdentity(id types.ExternalIdentity) (type
 	return nil, trace.NotFound("user with identity %q not found", &id)
 }
 
-// GetUserBySAMLIdentity returns a user by its specified OIDC Identity, returns
+// GetUserBySAMLIdentity returns a user by it's specified OIDC Identity, returns
 // first user specified with this identity.
 func (s *IdentityService) GetUserBySAMLIdentity(id types.ExternalIdentity) (types.User, error) {
 	users, err := s.GetUsers(context.TODO(), false)
@@ -743,24 +732,6 @@ func (s *IdentityService) DeleteUser(ctx context.Context, user string) error {
 	}
 
 	return trace.NewAggregate(notifErrors...)
-}
-
-// AppendDeleteUserParamsActions adds conditional actions to an atomic write
-// to delete the user params resource.
-//
-// Note: the returned actions will NOT delete the user's password, MFA devices,
-// etc. so is only really suitable for bot users, in most cases you should use
-// DeleteUser instead.
-func (s *IdentityService) AppendDeleteUserParamsActions(
-	actions []backend.ConditionalAction,
-	user string,
-	condition backend.Condition,
-) ([]backend.ConditionalAction, error) {
-	return append(actions, backend.ConditionalAction{
-		Key:       backend.NewKey(webPrefix, usersPrefix, user, paramsPrefix),
-		Condition: condition,
-		Action:    backend.Delete(),
-	}), nil
 }
 
 func (s *IdentityService) upsertPasswordHash(username string, hash []byte) error {
@@ -898,7 +869,6 @@ func (s *IdentityService) DeleteUserLoginAttempts(user string) error {
 // `PasswordState` status flag accordingly. Returns an error if the user doesn't
 // exist.
 func (s *IdentityService) UpsertPassword(user string, password []byte) error {
-	ctx := context.TODO()
 	if user == "" {
 		return trace.BadParameter("missing username")
 	}
@@ -916,7 +886,7 @@ func (s *IdentityService) UpsertPassword(user string, password []byte) error {
 	}
 
 	_, err = s.UpdateAndSwapUser(
-		ctx,
+		context.TODO(),
 		user,
 		false, /*withSecrets*/
 		func(u types.User) (bool, error) {
@@ -925,10 +895,10 @@ func (s *IdentityService) UpsertPassword(user string, password []byte) error {
 		})
 	if err != nil {
 		// Don't let the password state flag change fail the entire operation.
-		s.logger.WarnContext(ctx, "Failed to set password state",
-			"user", user,
-			"error", err,
-		)
+		s.log.
+			WithError(err).
+			WithField("user", user).
+			Warn("Failed to set password state")
 	}
 
 	return nil
@@ -949,7 +919,7 @@ func (s *IdentityService) DeletePassword(ctx context.Context, user string) error
 	}
 
 	if _, err := s.UpdateAndSwapUser(
-		ctx,
+		context.TODO(),
 		user,
 		false, /*withSecrets*/
 		func(u types.User) (bool, error) {
@@ -958,10 +928,10 @@ func (s *IdentityService) DeletePassword(ctx context.Context, user string) error
 		},
 	); err != nil {
 		// Don't let the password state flag change fail the entire operation.
-		s.logger.WarnContext(ctx, "Failed to set password state",
-			"user", user,
-			"error", err,
-		)
+		s.log.
+			WithError(err).
+			WithField("user", user).
+			Warn("Failed to set password state")
 	}
 
 	// Now is the time to return the delete operation, if any.
@@ -1012,7 +982,7 @@ func (s *IdentityService) UpsertWebauthnLocalAuth(ctx context.Context, user stri
 		// lib/auth/webauthn is prepared to deal with eventual inconsistencies
 		// between "web/users/.../webauthnlocalauth" and "webauthn/users/" keys.
 		if err := s.Delete(ctx, wlaKey); err != nil {
-			s.logger.WarnContext(ctx, "Failed to undo WebauthnLocalAuth update", "error", err)
+			s.log.WithError(err).Warn("Failed to undo WebauthnLocalAuth update")
 		}
 		return trace.Wrap(err, "writing webauthn user")
 	}
@@ -1143,7 +1113,10 @@ func (l *globalSessionDataLimiter) add(scope string, n int) int {
 		l.lastReset = now
 	}
 
-	v := max(l.scopeCount[scope]+n, 0)
+	v := l.scopeCount[scope] + n
+	if v < 0 {
+		v = 0
+	}
 	l.scopeCount[scope] = v
 	return v
 }
@@ -1230,7 +1203,7 @@ func (s *IdentityService) UpsertMFADevice(ctx context.Context, user string, d *t
 		return trace.Wrap(err)
 	}
 	if err := s.upsertUserStatusMFADevice(ctx, user); err != nil {
-		s.logger.WarnContext(ctx, "Unable to update user status after adding MFA device", "error", err)
+		s.log.WithError(err).Warn("Unable to update user status after adding MFA device")
 	}
 	return nil
 }
@@ -1330,7 +1303,7 @@ func (s *IdentityService) buildAndSetWeakestMFADeviceKind(ctx context.Context, u
 	}
 	state, err := s.buildWeakestMFADeviceKind(ctx, user.GetName(), upsertingMFA...)
 	if err != nil {
-		s.logger.WarnContext(ctx, "Failed to determine weakest mfa device kind for user", "error", err)
+		s.log.WithError(err).Warn("Failed to determine weakest mfa device kind for user")
 		return
 	}
 	user.SetWeakestDevice(state)
@@ -1392,7 +1365,7 @@ func (s *IdentityService) DeleteMFADevice(ctx context.Context, user, id string) 
 		return trace.Wrap(err)
 	}
 	if err := s.upsertUserStatusMFADevice(ctx, user); err != nil {
-		s.logger.WarnContext(ctx, "Unable to update user status after deleting MFA device", "error", err)
+		s.log.WithError(err).Warn("Unable to update user status after deleting MFA device")
 	}
 	return nil
 }
@@ -1620,62 +1593,81 @@ func (s *IdentityService) GetOIDCConnector(ctx context.Context, name string, wit
 
 // GetOIDCConnectors returns registered connectors, withSecrets adds or removes client secret from return results
 func (s *IdentityService) GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]types.OIDCConnector, error) {
-	return stream.Collect(s.RangeOIDCConnectors(ctx, "", "", withSecrets))
+	startKey := backend.ExactKey(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix)
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var connectors []types.OIDCConnector
+	for _, item := range result.Items {
+		conn, err := services.UnmarshalOIDCConnector(item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+		if err != nil {
+			logrus.
+				WithError(err).
+				WithField("key", item.Key).
+				Errorf("Error unmarshaling OIDC Connector")
+			continue
+		}
+		if !withSecrets {
+			conn.SetClientSecret("")
+			conn.SetGoogleServiceAccount("")
+		}
+		connectors = append(connectors, conn)
+	}
+	return connectors, nil
 }
 
 // ListOIDCConnectors returns a page of valid registered connectors.
 // withSecrets adds or removes client secret from return results.
 func (s *IdentityService) ListOIDCConnectors(ctx context.Context, limit int, start string, withSecrets bool) ([]types.OIDCConnector, string, error) {
-	return generic.CollectPageAndCursor(s.RangeOIDCConnectors(ctx, start, "", withSecrets), limit, types.OIDCConnector.GetName)
-}
-
-// RangeOIDCConnectors returns valid registered connectors within the range [start, end).
-// withSecrets adds or removes client secret from return results.
-func (s *IdentityService) RangeOIDCConnectors(ctx context.Context, start, end string, withSecrets bool) iter.Seq2[types.OIDCConnector, error] {
-	mapFn := func(item backend.Item) (types.OIDCConnector, bool) {
-		conn, err := services.UnmarshalOIDCConnector(
-			item.Value,
-			services.WithExpires(item.Expires),
-			services.WithRevision(item.Revision),
-		)
-
-		if err != nil {
-			s.logger.ErrorContext(ctx, "Failed to unmarshal OIDC Connector",
-				"key", item.Key,
-				"error", err,
-			)
-			return nil, false
-		}
-
-		if !withSecrets {
-			conn.SetClientSecret("")
-			conn.SetGoogleServiceAccount("")
-		}
-
-		return conn, true
+	// Adjust page size, so it can't be too large.
+	if limit <= 0 || limit > apidefaults.DefaultChunkSize {
+		limit = apidefaults.DefaultChunkSize
 	}
 
 	connectorKey := backend.NewKey(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix)
 	startKey := connectorKey.AppendKey(backend.KeyFromString(start))
 	endKey := backend.RangeEnd(connectorKey)
-	if end != "" {
-		endKey = connectorKey.AppendKey(backend.KeyFromString(end)).ExactKey()
+
+	out := make([]types.OIDCConnector, 0, limit)
+	var nextPage string
+
+	if err := backend.IterateRange(
+		ctx,
+		s.Backend,
+		startKey,
+		endKey,
+		limit+1,
+		func(items []backend.Item) (bool, error) {
+			for _, item := range items {
+				connector, err := services.UnmarshalOIDCConnector(item.Value,
+					services.WithRevision(item.Revision),
+					services.WithExpires(item.Expires))
+				if err != nil {
+					slog.WarnContext(ctx, "Failed to unmarshal OIDC Connector",
+						"key", logutils.StringerAttr(item.Key),
+						"error", err)
+					continue
+				}
+
+				if !withSecrets {
+					connector.SetClientSecret("")
+					connector.SetGoogleServiceAccount("")
+				}
+
+				if len(out) >= limit {
+					nextPage = connector.GetName()
+					return true, nil
+				} else {
+					out = append(out, connector)
+				}
+			}
+			return false, nil
+		}); err != nil {
+		return nil, "", trace.Wrap(err)
 	}
 
-	return stream.TakeWhile(
-		stream.FilterMap(
-			s.Backend.Items(ctx, backend.ItemsParams{
-				StartKey: startKey,
-				EndKey:   endKey,
-			}),
-			mapFn,
-		),
-		func(conn types.OIDCConnector) bool {
-			// The range is not inclusive of the end key, so return early
-			// if the end has been reached.
-			return end == "" || conn.GetName() < end
-		})
-
+	return out, nextPage, nil
 }
 
 // CreateOIDCAuthRequest creates new auth request
@@ -1821,11 +1813,6 @@ func (s *IdentityService) GetSAMLConnectorWithValidationOptions(ctx context.Cont
 			keyPair.PrivateKey = ""
 			conn.SetSigningKeyPair(keyPair)
 		}
-		oauthCreds := conn.GetOAuthClientCredentials()
-		if oauthCreds != nil {
-			oauthCreds.ClientSecret = ""
-			conn.SetOAuthClientCredentials(oauthCreds)
-		}
 	}
 	return conn, nil
 }
@@ -1833,37 +1820,74 @@ func (s *IdentityService) GetSAMLConnectorWithValidationOptions(ctx context.Cont
 // GetSAMLConnectors returns registered connectors
 // withSecrets includes or excludes private key values from return results
 func (s *IdentityService) GetSAMLConnectors(ctx context.Context, withSecrets bool) ([]types.SAMLConnector, error) {
-	return stream.Collect(s.RangeSAMLConnectorsWithOptions(ctx, "", "", withSecrets))
+	return s.GetSAMLConnectorsWithValidationOptions(ctx, withSecrets)
 }
 
 // GetSAMLConnectorsWithValidationOptions returns registered connectors
 // withSecrets includes or excludes private key values from return results
 func (s *IdentityService) GetSAMLConnectorsWithValidationOptions(ctx context.Context, withSecrets bool, opts ...types.SAMLConnectorValidationOption) ([]types.SAMLConnector, error) {
-	return stream.Collect(s.RangeSAMLConnectorsWithOptions(ctx, "", "", withSecrets, opts...))
+	startKey := backend.ExactKey(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix)
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var connectors []types.SAMLConnector
+	for _, item := range result.Items {
+		conn, err := services.UnmarshalSAMLConnectorWithValidationOptions(item.Value, opts, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
+		if err != nil {
+			logrus.
+				WithError(err).
+				WithField("key", item.Key).
+				Errorf("Error unmarshaling SAML Connector")
+			continue
+		}
+		if !withSecrets {
+			keyPair := conn.GetSigningKeyPair()
+			if keyPair != nil {
+				keyPair.PrivateKey = ""
+				conn.SetSigningKeyPair(keyPair)
+			}
+		}
+		connectors = append(connectors, conn)
+	}
+	return connectors, nil
 }
 
 // ListSAMLConnectorsWithOptions returns a page of valid registered SAML connectors.
 // withSecrets adds or removes client secret from return results.
 func (s *IdentityService) ListSAMLConnectorsWithOptions(ctx context.Context, limit int, start string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) ([]types.SAMLConnector, string, error) {
-	return generic.CollectPageAndCursor(s.RangeSAMLConnectorsWithOptions(ctx, start, "", withSecrets, opts...), limit, types.SAMLConnector.GetName)
-}
+	// Adjust page size, so it can't be too large.
+	if limit <= 0 || limit > apidefaults.DefaultChunkSize {
+		limit = apidefaults.DefaultChunkSize
+	}
 
-// RangeSAMLConnectorsWithOptions returns valid registered SAML connectors within the range [start, end).
-// withSecrets adds or removes client secret from return results.
-func (s *IdentityService) RangeSAMLConnectorsWithOptions(ctx context.Context, start, end string, withSecrets bool, opts ...types.SAMLConnectorValidationOption) iter.Seq2[types.SAMLConnector, error] {
-	mapFn := func(item backend.Item) (types.SAMLConnector, bool) {
+	startKey := backend.NewKey(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix, start)
+	endKey := backend.RangeEnd(backend.NewKey(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix))
+
+	result, err := s.GetRange(ctx, startKey, endKey, limit+1)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	var connectors []types.SAMLConnector
+
+	for _, item := range result.Items {
 		conn, err := services.UnmarshalSAMLConnectorWithValidationOptions(
 			item.Value,
 			opts,
 			services.WithExpires(item.Expires),
-			services.WithRevision(item.Revision))
-
+			services.WithRevision(item.Revision),
+		)
 		if err != nil {
-			s.logger.ErrorContext(ctx, "Failed to unmarshal SAML Connector",
-				"key", item.Key,
-				"error", err,
-			)
-			return nil, false
+			logrus.
+				WithError(err).
+				WithField("key", item.Key).
+				Errorf("Error unmarshaling SAML Connector")
+			continue
+		}
+
+		if len(connectors) >= limit {
+			return connectors, conn.GetName(), nil
 		}
 
 		if !withSecrets {
@@ -1872,36 +1896,12 @@ func (s *IdentityService) RangeSAMLConnectorsWithOptions(ctx context.Context, st
 				keyPair.PrivateKey = ""
 				conn.SetSigningKeyPair(keyPair)
 			}
-			oauthCreds := conn.GetOAuthClientCredentials()
-			if oauthCreds != nil {
-				oauthCreds.ClientSecret = ""
-				conn.SetOAuthClientCredentials(oauthCreds)
-			}
 		}
 
-		return conn, true
+		connectors = append(connectors, conn)
 	}
 
-	startKey := backend.NewKey(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix, start)
-	endKey := backend.RangeEnd(backend.NewKey(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix))
-	if end != "" {
-		endKey = backend.NewKey(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix, end).ExactKey()
-	}
-
-	return stream.TakeWhile(
-		stream.FilterMap(
-			s.Backend.Items(ctx, backend.ItemsParams{
-				StartKey: startKey,
-				EndKey:   endKey,
-			}),
-			mapFn,
-		),
-		func(conn types.SAMLConnector) bool {
-			// The range is not inclusive of the end key, so return early
-			// if the end has been reached.
-			return end == "" || conn.GetName() < end
-		},
-	)
+	return connectors, "", nil
 }
 
 // CreateSAMLAuthRequest creates new auth request
@@ -1996,7 +1996,7 @@ func (s *IdentityService) GetSSODiagnosticInfo(ctx context.Context, authKind str
 	return &req, nil
 }
 
-func (s *IdentityService) UpsertMFASessionData(ctx context.Context, sd *services.MFASessionData) error {
+func (s *IdentityService) UpsertSSOMFASessionData(ctx context.Context, sd *services.SSOMFASessionData) error {
 	switch {
 	case sd == nil:
 		return trace.BadParameter("missing parameter sd")
@@ -2022,7 +2022,7 @@ func (s *IdentityService) UpsertMFASessionData(ctx context.Context, sd *services
 	return trace.Wrap(err)
 }
 
-func (s *IdentityService) GetMFASessionData(ctx context.Context, sessionID string) (*services.MFASessionData, error) {
+func (s *IdentityService) GetSSOMFASessionData(ctx context.Context, sessionID string) (*services.SSOMFASessionData, error) {
 	if sessionID == "" {
 		return nil, trace.BadParameter("missing parameter sessionID")
 	}
@@ -2031,35 +2031,16 @@ func (s *IdentityService) GetMFASessionData(ctx context.Context, sessionID strin
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sd := &services.MFASessionData{}
+	sd := &services.SSOMFASessionData{}
 	return sd, trace.Wrap(json.Unmarshal(item.Value, sd))
 }
 
-func (s *IdentityService) DeleteMFASessionData(ctx context.Context, sessionID string) error {
+func (s *IdentityService) DeleteSSOMFASessionData(ctx context.Context, sessionID string) error {
 	if sessionID == "" {
 		return trace.BadParameter("missing parameter sessionID")
 	}
 
 	return trace.Wrap(s.Delete(ctx, ssoMFASessionDataKey(sessionID)))
-}
-
-// Deprecated: use UpsertMFASessionData.
-func (s *IdentityService) UpsertSSOMFASessionData(ctx context.Context, sd *services.SSOMFASessionData) error {
-	return trace.Wrap(s.UpsertMFASessionData(ctx, sd))
-}
-
-// Deprecated: use GetMFASessionData.
-func (s *IdentityService) GetSSOMFASessionData(ctx context.Context, sessionID string) (*services.SSOMFASessionData, error) {
-	sd, err := s.GetMFASessionData(ctx, sessionID)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return sd, nil
-}
-
-// Deprecated: use DeleteMFASessionData.
-func (s *IdentityService) DeleteSSOMFASessionData(ctx context.Context, sessionID string) error {
-	return trace.Wrap(s.DeleteMFASessionData(ctx, sessionID))
 }
 
 func ssoMFASessionDataKey(sessionID string) backend.Key {
@@ -2137,60 +2118,73 @@ func (s *IdentityService) CreateGithubConnector(ctx context.Context, connector t
 
 // GetGithubConnectors returns all configured Github connectors
 func (s *IdentityService) GetGithubConnectors(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error) {
-	return stream.Collect(s.RangeGithubConnectors(ctx, "", "", withSecrets))
+	startKey := backend.ExactKey(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix)
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var connectors []types.GithubConnector
+	for _, item := range result.Items {
+		connector, err := services.UnmarshalGithubConnector(item.Value, services.WithRevision(item.Revision))
+		if err != nil {
+			logrus.
+				WithError(err).
+				WithField("key", item.Key).
+				Errorf("Error unmarshaling GitHub Connector")
+			continue
+		}
+		if !withSecrets {
+			connector.SetClientSecret("")
+		}
+		connectors = append(connectors, connector)
+	}
+	return connectors, nil
 }
 
-// ListGithubConnectors returns a page of valid registered connectors.
+// ListGithubConnectors returns a page of valid registered Github connectors.
 // withSecrets adds or removes client secret from return results.
 func (s *IdentityService) ListGithubConnectors(ctx context.Context, limit int, start string, withSecrets bool) ([]types.GithubConnector, string, error) {
-	return generic.CollectPageAndCursor(s.RangeGithubConnectors(ctx, start, "", withSecrets), limit, types.GithubConnector.GetName)
-}
+	// Adjust page size, so it can't be too large.
+	if limit <= 0 || limit > apidefaults.DefaultChunkSize {
+		limit = apidefaults.DefaultChunkSize
+	}
 
-// RangeGithubConnectors returns valid registered connectors within the range [start, end).
-// withSecrets adds or removes client secret from return results.
-func (s *IdentityService) RangeGithubConnectors(ctx context.Context, start, end string, withSecrets bool) iter.Seq2[types.GithubConnector, error] {
-	mapFn := func(item backend.Item) (types.GithubConnector, bool) {
+	startKey := backend.NewKey(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, start)
+	endKey := backend.RangeEnd(backend.NewKey(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix))
+
+	result, err := s.GetRange(ctx, startKey, endKey, limit+1)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	var connectors []types.GithubConnector
+
+	for _, item := range result.Items {
 		conn, err := services.UnmarshalGithubConnector(
 			item.Value,
 			services.WithExpires(item.Expires),
 			services.WithRevision(item.Revision),
 		)
-
 		if err != nil {
-			s.logger.ErrorContext(ctx, "Failed to unmarshal GitHub Connector",
-				"key", item.Key,
-				"error", err,
-			)
-			return nil, false
+			logrus.
+				WithError(err).
+				WithField("key", item.Key).
+				Errorf("Error unmarshaling Github Connector")
+			continue
+		}
+
+		if len(connectors) >= limit {
+			return connectors, conn.GetName(), nil
 		}
 
 		if !withSecrets {
 			conn.SetClientSecret("")
 		}
 
-		return conn, true
+		connectors = append(connectors, conn)
 	}
 
-	startKey := backend.NewKey(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, start)
-	endKey := backend.RangeEnd(backend.NewKey(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix))
-	if end != "" {
-		endKey = backend.NewKey(webPrefix, connectorsPrefix, githubPrefix, connectorsPrefix, end).ExactKey()
-	}
-
-	return stream.TakeWhile(
-		stream.FilterMap(
-			s.Backend.Items(ctx, backend.ItemsParams{
-				StartKey: startKey,
-				EndKey:   endKey,
-			}),
-			mapFn,
-		),
-		func(conn types.GithubConnector) bool {
-			// The range is not inclusive of the end key, so return early
-			// if the end has been reached.
-			return end == "" || conn.GetName() < end
-		})
-
+	return connectors, "", nil
 }
 
 // GetGithubConnector returns a particular Github connector.
@@ -2358,53 +2352,6 @@ func keyAttestationDataFingerprint(pubDER []byte) string {
 	sha256sum := sha256.Sum256(pubDER)
 	encodedSHA := base64.RawURLEncoding.EncodeToString(sha256sum[:])
 	return encodedSHA
-}
-
-func newSAMLConnectorParser(loadSecrets bool) *samlConnectorParser {
-	return &samlConnectorParser{
-		baseParser:  newBaseParser(backend.ExactKey(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix)),
-		loadSecrets: loadSecrets,
-	}
-}
-
-type samlConnectorParser struct {
-	baseParser
-	loadSecrets bool
-}
-
-func (p *samlConnectorParser) parse(event backend.Event) (types.Resource, error) {
-	switch event.Type {
-	case types.OpDelete:
-		name := event.Item.Key.TrimPrefix(backend.ExactKey(webPrefix, connectorsPrefix, samlPrefix, connectorsPrefix)).String()
-		if name == "" {
-			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
-		}
-
-		return &types.SAMLConnectorV2{
-			Kind:    types.KindSAMLConnector,
-			Version: types.V2,
-			Metadata: types.Metadata{
-				Name:      name,
-				Namespace: apidefaults.Namespace,
-			},
-		}, nil
-	case types.OpPut:
-		connector, err := services.UnmarshalSAMLConnectorWithValidationOptions(
-			event.Item.Value,
-			[]types.SAMLConnectorValidationOption{types.SAMLConnectorValidationFollowURLs(false)},
-			services.WithExpires(event.Item.Expires),
-			services.WithRevision(event.Item.Revision),
-		)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if !p.loadSecrets {
-			return connector.WithoutSecrets(), nil
-		}
-		return connector, nil
-	default:
-		return nil, trace.BadParameter("event %v is not supported", event.Type)
-	}
 }
 
 const (

@@ -216,12 +216,12 @@ type trustDomainSyncState struct {
 // the local cluster. It does this by creating a goroutine that manages each
 // federated cluster.
 func (s *SPIFFEFederationSyncer) syncTrustDomains(ctx context.Context) error {
-	s.cfg.Logger.DebugContext(
+	s.cfg.Logger.InfoContext(
 		ctx,
 		"Obtained lock, SPIFFEFederation syncer is starting",
 	)
 	defer func() {
-		s.cfg.Logger.DebugContext(
+		s.cfg.Logger.InfoContext(
 			ctx, "SPIFFEFederation syncer has stopped",
 		)
 	}()

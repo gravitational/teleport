@@ -1,12 +1,10 @@
 ---
 title: Protect a Web Application with Teleport
-sidebar_label: Getting Started
 description: Provides instructions to set up the Teleport Application Service and enable secure access to a web application.
 videoBanner: cvW4b96aPL0
 tags:
  - how-to
  - zero-trust
- - infrastructure-identity
 ---
 
 This tutorial demonstrates how to configure secure access to an application 
@@ -32,7 +30,7 @@ joins your Teleport cluster with a secure token. You configure the Application
 Service to protect a web application using a configuration file. After the
 Application Service joins the cluster, the Teleport Proxy Service routes
 requests from end users to the Teleport Application Service, and responses from
-the Application Service back to end users. 
+the Application Serve back to end users. 
 
 The Application Service authenticates user requests by validating a JSON web
 token (JWT) in the request against a CA maintained by the Teleport Auth Service.
@@ -231,8 +229,6 @@ Teleport Web UI.
 
 There are a couple of ways to access the proxied application.
 
-### Using a browser
-
 Sign in to the Teleport Web UI using your Teleport cluster address. 
 All available applications are displayed on the Applications tab. 
 Click **Launch** on the Grafana application tile to access it.
@@ -241,27 +237,12 @@ Alternatively, you can call the application directly with its name as the subdom
 `https://grafana.teleport.example.com` or `https://grafana.mytenant.teleport.sh`. 
 You are prompted to sign in if you haven't already been authenticated.
 
-### Using CLI clients
-
-You can access Teleport-protected web applications using command-line tools and
-scripts. To do so, retrieve a short-lived X.509 certificate for the application.
-Teleport uses this certificate to authenticate requests. Run the following
-command:
-
-```code
-$ tsh apps login grafana
-```
-
-The output shows an example `curl` command you can run to call the target
-application's API. The `curl` command shows the file paths of the certificate
-and private key to use to authenticate your API calls.
-
 ## Next steps
 
 Learn more about protecting applications with Teleport in the following topics:
 
-- [Connecting applications](protect-apps/connecting-apps.mdx).
+- [Connecting applications](./guides/connecting-apps.mdx).
 - Integrating with [JWT tokens](./jwt/introduction.mdx).
-- Accessing applications with [RESTful APIs](protect-apps/api-access.mdx).
-- Setting configuration options AND running CLI commands in the [Application Service reference](reference.mdx).
+- Accessing applications with [RESTful APIs](./guides/api-access.mdx).
+- Setting configuration options AND running CLI commands in the [Application Service reference](../../reference/agent-services/application-access.mdx).
 - Using the Let's Encrypt [ACME protocol](https://letsencrypt.org/how-it-works/).

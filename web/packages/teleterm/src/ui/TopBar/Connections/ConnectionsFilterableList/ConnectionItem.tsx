@@ -58,7 +58,7 @@ export function ConnectionItem(props: {
   };
 
   const actionIcon = offline ? actionIcons.remove : actionIcons.disconnect;
-  const ref = useRef<HTMLLIElement>(null);
+  const ref = useRef<HTMLLIElement>();
 
   useEffect(() => {
     scrollIntoViewIfActive(ref.current);
@@ -158,9 +158,6 @@ function getKindName(connection: ExtendedTrackedConnection): string {
   switch (connection.kind) {
     case 'connection.gateway':
       if (isAppUri(connection.targetUri)) {
-        if (connection.targetProtocol === 'MCP') {
-          return 'MCP';
-        }
         return 'APP';
       }
       if (isDatabaseUri(connection.targetUri)) {

@@ -117,28 +117,6 @@ type SAMLConnector interface {
 	GetForceAuthn() bool
 	// GetPreferredRequestBinding returns PreferredRequestBinding.
 	GetPreferredRequestBinding() string
-	// GetUserMatchers returns the set of glob patterns to narrow down which username(s) this auth connector should
-	// match for identifier-first login.
-	GetUserMatchers() []string
-	// SetUserMatchers sets the set of glob patterns to narrow down which username(s) this auth connector should match
-	// for identifier-first login.
-	SetUserMatchers([]string)
-	// GetIncludeSubject returns true if the Subject element should be included in the AuthnRequest.
-	GetIncludeSubject() bool
-	// SetIncludeSubject sets whether the Subject element should be included.
-	SetIncludeSubject(bool)
-	// IsEqual determines if two connectors are equivalent to one another.
-	IsEqual(SAMLConnector) bool
-	// GetEntraIDGroupsProvider returns Entra ID groups provider.
-	GetEntraIDGroupsProvider() *EntraIDGroupsProvider
-	// IsEntraIDGroupsProviderDisabled checks if the Entra ID groups provider is disabled.
-	IsEntraIDGroupsProviderDisabled() bool
-	// GetOAuthClientCredentials returns the OAuth client credentials.
-	GetOAuthClientCredentials() *OAuthClientCredentials
-	// SetOAuthClientCredentials sets the OAuth client credentials.
-	SetOAuthClientCredentials(*OAuthClientCredentials)
-	// GetCredentials returns the credentials.
-	GetCredentials() *SAMLConnectorCredentials
 }
 
 // NewSAMLConnector returns a new SAMLConnector based off a name and SAMLConnectorSpecV2.
@@ -153,15 +131,6 @@ func NewSAMLConnector(name string, spec SAMLConnectorSpecV2) (SAMLConnector, err
 		return nil, trace.Wrap(err)
 	}
 	return o, nil
-}
-
-func (o *SAMLConnectorV2) IsEqual(other SAMLConnector) bool {
-	otherv2, ok := other.(*SAMLConnectorV2)
-	if !ok {
-		return false
-	}
-
-	return deriveTeleportEqualSAMLConnectorV2(o, otherv2)
 }
 
 // GetVersion returns resource version
@@ -198,7 +167,6 @@ func (o *SAMLConnectorV2) SetRevision(rev string) {
 func (o *SAMLConnectorV2) WithoutSecrets() Resource {
 	k1 := o.GetSigningKeyPair()
 	k2 := o.GetEncryptionKeyPair()
-	k3 := o.GetOAuthClientCredentials()
 	o2 := *o
 	if k1 != nil {
 		q1 := *k1
@@ -209,11 +177,6 @@ func (o *SAMLConnectorV2) WithoutSecrets() Resource {
 		q2 := *k2
 		q2.PrivateKey = ""
 		o2.SetEncryptionKeyPair(&q2)
-	}
-	if k3 != nil {
-		q3 := *k3
-		q3.ClientSecret = ""
-		o2.SetOAuthClientCredentials(&q3)
 	}
 	return &o2
 }
@@ -485,107 +448,6 @@ func (o *SAMLConnectorV2) GetForceAuthn() bool {
 	return o.Spec.ForceAuthn == SAMLForceAuthn_FORCE_AUTHN_YES
 }
 
-// GetUserMatchers returns the set of glob patterns to narrow down which username(s) this auth connector should
-// match for identifier-first login.
-func (r *SAMLConnectorV2) GetUserMatchers() []string {
-	if r.Spec.UserMatchers == nil {
-		return nil
-	}
-	return r.Spec.UserMatchers
-}
-
-// SetUserMatchers sets the set of glob patterns to narrow down which username(s) this auth connector should match
-// for identifier-first login.
-func (r *SAMLConnectorV2) SetUserMatchers(userMatchers []string) {
-	r.Spec.UserMatchers = userMatchers
-}
-
-func (r *SAMLConnectorV2) GetIncludeSubject() bool {
-	return r.Spec.IncludeSubject
-}
-
-func (r *SAMLConnectorV2) SetIncludeSubject(includeSubject bool) {
-	r.Spec.IncludeSubject = includeSubject
-}
-
-// GetOAuthClientCredentials returns the OAuth client credentials.
-func (r *SAMLConnectorV2) GetOAuthClientCredentials() *OAuthClientCredentials {
-	if r.Spec.Credentials == nil {
-		return nil
-	}
-	return r.Spec.Credentials.Oauth
-}
-
-// SetOAuthClientCredentials sets the OAuth client credentials. If any other type of credentials is set,
-// they'll be overwritten, ensuring only one credentials type is set.
-func (r *SAMLConnectorV2) SetOAuthClientCredentials(creds *OAuthClientCredentials) {
-	if creds == nil {
-		r.Spec.Credentials = nil
-		return
-	}
-	r.Spec.Credentials = &SAMLConnectorCredentials{Oauth: creds}
-}
-
-// GetCredentials returns the credentials.
-func (r *SAMLConnectorV2) GetCredentials() *SAMLConnectorCredentials {
-	return r.Spec.Credentials
-}
-
-// GetEntraIDGroupsProvider returns Entra ID groups provider.
-func (r *SAMLConnectorV2) GetEntraIDGroupsProvider() *EntraIDGroupsProvider {
-	return r.Spec.EntraIdGroupsProvider
-}
-
-// IsEntraIDGroupsProviderDisabled checks if the Entra ID groups provider is disabled.
-func (r *SAMLConnectorV2) IsEntraIDGroupsProviderDisabled() bool {
-	entra := r.Spec.EntraIdGroupsProvider
-	return entra != nil && entra.Disabled
-}
-
-// Validate checks that the required fields are present on the key pair.
-// cert is required, private_key is required if withSecrets=true.
-func (k *AsymmetricKeyPair) Validate(withSecrets bool) error {
-	if k == nil {
-		return nil
-	}
-
-	if k.Cert == "" {
-		return trace.BadParameter("missing required cert in signing_key_pair")
-	}
-
-	if withSecrets && k.PrivateKey == "" {
-		return trace.BadParameter("missing required private_key in signing_key_pair")
-	}
-
-	return nil
-}
-
-// Validate checks that the type of credentials configured is valid.
-//
-// For OAuth, client_id is required, client_secret is required if withSecrets=true.
-func (c *SAMLConnectorCredentials) Validate(withSecrets bool) error {
-	if c == nil {
-		return nil
-	}
-	// NOTE: Due to inability to use oneof with gogoproto (see https://github.com/gogo/protobuf/issues/623),
-	// the 'one of' invariant needs to be maintained here.
-	// When adding credential types, a mutual exclusion check must be added,
-	// e.g. if c.NewType != nil && c.Oauth != nil { return trace.BadParameter("only a single credential type may be specified") }
-
-	switch {
-	case c.Oauth != nil:
-		if c.Oauth.ClientId == "" {
-			return trace.BadParameter("missing required client_id in credentials.oauth")
-		}
-		if withSecrets && c.Oauth.ClientSecret == "" {
-			return trace.BadParameter("missing required client_secret in credentials.oauth")
-		}
-		return nil
-	default:
-		return trace.BadParameter("missing required credential type in credentials")
-	}
-}
-
 const (
 	// SAMLRequestHTTPRedirectBinding is the SAML http-redirect binding request name.
 	SAMLRequestHTTPRedirectBinding = "http-redirect"
@@ -621,7 +483,7 @@ func (o *SAMLConnectorV2) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing acs - assertion consumer service parameter, set service URL that will receive POST requests from SAML")
 	}
 	if o.Spec.AllowIDPInitiated && !strings.HasSuffix(o.Spec.AssertionConsumerService, "/"+o.Metadata.Name) {
-		return trace.BadParameter("acs - assertion consumer service parameter must end with /%v when allow_idp_initiated is set to true, eg https://cluster.domain/v1/webapi/saml/acs/%v. Ensure this URI matches the one configured at the identity provider.", o.Metadata.Name, o.Metadata.Name)
+		return trace.BadParameter("acs - assertion consumer service parameter must end with /%v when allow_idp_initiated is set to true, eg https://cluster.domain/webapi/v1/saml/acs/%v. Ensure this URI matches the one configured at the identity provider.", o.Metadata.Name, o.Metadata.Name)
 	}
 	if o.Spec.ServiceProviderIssuer == "" {
 		o.Spec.ServiceProviderIssuer = o.Spec.AssertionConsumerService
@@ -643,18 +505,6 @@ func (o *SAMLConnectorV2) CheckAndSetDefaults() error {
 		}
 	}
 
-	if creds := o.Spec.Credentials; creds != nil {
-		if err := creds.Validate(false); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	if entra := o.GetEntraIDGroupsProvider(); entra != nil {
-		if err := entra.checkAndSetDefaults(); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
 	return nil
 }
 
@@ -668,14 +518,26 @@ func (r *SAMLAuthRequest) Check() error {
 		return trace.BadParameter("ConnectorSpec cannot be nil when SSOTestFlow is true")
 	case !r.SSOTestFlow && r.ConnectorSpec != nil:
 		return trace.BadParameter("ConnectorSpec must be nil when SSOTestFlow is false")
+	case len(r.PublicKey) != 0 && len(r.SshPublicKey) != 0:
+		return trace.BadParameter("illegal to set both PublicKey and SshPublicKey")
+	case len(r.PublicKey) != 0 && len(r.TlsPublicKey) != 0:
+		return trace.BadParameter("illegal to set both PublicKey and TlsPublicKey")
+	case r.AttestationStatement != nil && r.SshAttestationStatement != nil:
+		return trace.BadParameter("illegal to set both AttestationStatement and SshAttestationStatement")
+	case r.AttestationStatement != nil && r.TlsAttestationStatement != nil:
+		return trace.BadParameter("illegal to set both AttestationStatement and TlsAttestationStatement")
 	}
-	if len(r.SshPublicKey) > 0 {
-		_, _, _, _, err := ssh.ParseAuthorizedKey(r.SshPublicKey)
+	sshPubKey := r.PublicKey
+	if len(sshPubKey) == 0 {
+		sshPubKey = r.SshPublicKey
+	}
+	if len(sshPubKey) > 0 {
+		_, _, _, _, err := ssh.ParseAuthorizedKey(sshPubKey)
 		if err != nil {
 			return trace.BadParameter("bad SSH public key: %v", err)
 		}
 	}
-	if (len(r.SshPublicKey) != 0 || len(r.TlsPublicKey) != 0) &&
+	if len(r.PublicKey)+len(r.SshPublicKey)+len(r.TlsPublicKey) > 0 &&
 		(r.CertTTL > defaults.MaxCertDuration || r.CertTTL < defaults.MinCertDuration) {
 		return trace.BadParameter("wrong CertTTL")
 	}
@@ -783,7 +645,6 @@ type SAMLConnectorValidationOptions struct {
 	// metadata. Useful when full metadata is not necessary, especially for
 	// endpoints like /webapi/ping which must not hang or fail.
 	NoFollowURLs bool
-	WithSecrets  bool
 }
 
 // SAMLConnectorValidationOption is an option for validation of SAML connectors.
@@ -794,13 +655,5 @@ type SAMLConnectorValidationOption func(*SAMLConnectorValidationOptions)
 func SAMLConnectorValidationFollowURLs(follow bool) SAMLConnectorValidationOption {
 	return func(opts *SAMLConnectorValidationOptions) {
 		opts.NoFollowURLs = !follow
-	}
-}
-
-// SAMLConnectorValidationWithSecrets returns a SAMLConnectorValidation that sets whether to
-// include secrets when validating the connector.
-func SAMLConnectorValidationWithSecrets(withSecrets bool) SAMLConnectorValidationOption {
-	return func(opts *SAMLConnectorValidationOptions) {
-		opts.WithSecrets = withSecrets
 	}
 }

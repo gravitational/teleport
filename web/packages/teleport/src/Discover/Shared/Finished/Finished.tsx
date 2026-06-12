@@ -26,31 +26,17 @@ import history from 'teleport/services/history';
 import type { AgentStepProps } from '../../types';
 import celebratePamPng from './celebrate-pam.png';
 
-//  Message fields will optionally override defaults and agent-based logic
-type Message = {
-  title?: string;
-  resourceText?: string;
-  primaryButtonText?: string;
-  primaryButtonAction?: () => void;
-  secondaryButtonText?: string;
-  secondaryButtonAction?: () => void;
-};
+export function Finished(props: AgentStepProps) {
+  let title = 'Resource Successfully Added';
+  let resourceText =
+    'You can start accessing this resource right away or add another resource.';
 
-export function Finished({
-  agentMeta,
-  title = 'Resource Successfully Added',
-  resourceText = 'You can start accessing this resource right away or add another resource.',
-  primaryButtonText = 'Browse Existing Resources',
-  primaryButtonAction = () => history.push(cfg.routes.root, true),
-  secondaryButtonText = 'Add Another Resource',
-  secondaryButtonAction = () => history.reload(),
-}: AgentStepProps & Message) {
-  if (agentMeta) {
-    if (agentMeta.autoDiscovery) {
+  if (props.agentMeta) {
+    if (props.agentMeta.autoDiscovery) {
       title = 'Completed Setup';
       resourceText = 'You have completed setup for auto-enrolling.';
-    } else if (agentMeta.resourceName) {
-      resourceText = `Resource [${agentMeta.resourceName}] has been successfully added to
+    } else if (props.agentMeta.resourceName) {
+      resourceText = `Resource [${props.agentMeta.resourceName}] has been successfully added to
       this Teleport Cluster. ${resourceText}`;
     }
   }
@@ -66,17 +52,17 @@ export function Finished({
         <ButtonPrimary
           width="270px"
           size="large"
-          onClick={primaryButtonAction}
+          onClick={() => history.push(cfg.routes.root, true)}
           mr={3}
         >
-          {primaryButtonText}
+          Browse Existing Resources
         </ButtonPrimary>
         <ButtonSecondary
           width="270px"
           size="large"
-          onClick={secondaryButtonAction}
+          onClick={() => history.reload()}
         >
-          {secondaryButtonText}
+          Add Another Resource
         </ButtonSecondary>
       </Flex>
     </Container>

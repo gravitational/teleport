@@ -20,7 +20,11 @@ package token
 
 import (
 	"context"
+	"crypto"
 	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -44,9 +48,6 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cryptosuites"
-	"github.com/gravitational/teleport/lib/kube/token/claims"
-	"github.com/gravitational/teleport/lib/oidc/fakeissuer"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 const (
@@ -201,10 +202,8 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 				},
 			},
 			wantResult: &ValidationResult{
-				Type:                    types.KubernetesJoinTypeInCluster,
-				Username:                "system:serviceaccount:namespace:my-service-account",
-				ServiceAccountNamespace: "namespace",
-				ServiceAccountName:      "my-service-account",
+				Type:     types.KubernetesJoinTypeInCluster,
+				Username: "system:serviceaccount:namespace:my-service-account",
 				// Raw will be filled in during test run to value of review
 			},
 			wantAttrs: &workloadidentityv1pb.JoinAttrsKubernetes{
@@ -243,10 +242,8 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 				},
 			},
 			wantResult: &ValidationResult{
-				Type:                    types.KubernetesJoinTypeInCluster,
-				Username:                "system:serviceaccount:namespace:my-service-account",
-				ServiceAccountNamespace: "namespace",
-				ServiceAccountName:      "my-service-account",
+				Type:     types.KubernetesJoinTypeInCluster,
+				Username: "system:serviceaccount:namespace:my-service-account",
 				// Raw will be filled in during test run to value of review
 			},
 			wantAttrs: &workloadidentityv1pb.JoinAttrsKubernetes{
@@ -282,10 +279,8 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 				},
 			},
 			wantResult: &ValidationResult{
-				Type:                    types.KubernetesJoinTypeInCluster,
-				Username:                "system:serviceaccount:namespace:my-service-account",
-				ServiceAccountNamespace: "namespace",
-				ServiceAccountName:      "my-service-account",
+				Type:     types.KubernetesJoinTypeInCluster,
+				Username: "system:serviceaccount:namespace:my-service-account",
 				// Raw will be filled in during test run to value of review
 			},
 			wantAttrs: &workloadidentityv1pb.JoinAttrsKubernetes{
@@ -375,6 +370,7 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.token, func(t *testing.T) {
 			// Fill value of raw to avoid duplication in test table
 			if tt.wantResult != nil {
@@ -475,12 +471,12 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 
 	now := time.Now()
 	clusterName := "example.teleport.sh"
-	validKubeSubclaim := &claims.KubernetesSubClaim{
-		ServiceAccount: &claims.ServiceAccountSubClaim{
+	validKubeSubclaim := &KubernetesSubClaim{
+		ServiceAccount: &ServiceAccountSubClaim{
 			Name: "my-service-account",
 			UID:  "8b77ea6d-3144-4203-9a8b-36eb5ad65596",
 		},
-		Pod: &claims.PodSubClaim{
+		Pod: &PodSubClaim{
 			Name: "my-pod-797959fdf-wptbj",
 			UID:  "413b22ca-4833-48d9-b6db-76219d583173",
 		},
@@ -490,7 +486,7 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 	tests := []struct {
 		name   string
 		signer jose.Signer
-		claims claims.ServiceAccountClaims
+		claims ServiceAccountClaims
 
 		wantResult *ValidationResult
 		wantAttrs  *workloadidentityv1pb.JoinAttrsKubernetes
@@ -499,7 +495,7 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 		{
 			name:   "valid",
 			signer: signer,
-			claims: claims.ServiceAccountClaims{
+			claims: ServiceAccountClaims{
 				Claims: jwt.Claims{
 					Subject:   "system:serviceaccount:default:my-service-account",
 					Audience:  jwt.Audience{clusterName},
@@ -510,10 +506,8 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 				Kubernetes: validKubeSubclaim,
 			},
 			wantResult: &ValidationResult{
-				Type:                    types.KubernetesJoinTypeStaticJWKS,
-				Username:                "system:serviceaccount:default:my-service-account",
-				ServiceAccountNamespace: "default",
-				ServiceAccountName:      "my-service-account",
+				Type:     types.KubernetesJoinTypeStaticJWKS,
+				Username: "system:serviceaccount:default:my-service-account",
 			},
 			wantAttrs: &workloadidentityv1pb.JoinAttrsKubernetes{
 				Subject: "system:serviceaccount:default:my-service-account",
@@ -529,7 +523,7 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 		{
 			name:   "missing bound pod claim",
 			signer: signer,
-			claims: claims.ServiceAccountClaims{
+			claims: ServiceAccountClaims{
 				Claims: jwt.Claims{
 					Subject:   "system:serviceaccount:default:my-service-account",
 					Audience:  jwt.Audience{clusterName},
@@ -537,8 +531,8 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 					NotBefore: jwt.NewNumericDate(now.Add(-1 * time.Minute)),
 					Expiry:    jwt.NewNumericDate(now.Add(10 * time.Minute)),
 				},
-				Kubernetes: &claims.KubernetesSubClaim{
-					ServiceAccount: &claims.ServiceAccountSubClaim{
+				Kubernetes: &KubernetesSubClaim{
+					ServiceAccount: &ServiceAccountSubClaim{
 						Name: "my-service-account",
 						UID:  "8b77ea6d-3144-4203-9a8b-36eb5ad65596",
 					},
@@ -548,9 +542,31 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 			wantErr: "static_jwks joining requires the use of projected pod bound service account token",
 		},
 		{
+			// A token with a pod claim but no service account claim must be rejected, not panic.
+			name:   "missing service account claim",
+			signer: signer,
+			claims: ServiceAccountClaims{
+				Claims: jwt.Claims{
+					Subject:   "system:serviceaccount:default:my-service-account",
+					Audience:  jwt.Audience{clusterName},
+					IssuedAt:  jwt.NewNumericDate(now.Add(-1 * time.Minute)),
+					NotBefore: jwt.NewNumericDate(now.Add(-1 * time.Minute)),
+					Expiry:    jwt.NewNumericDate(now.Add(10 * time.Minute)),
+				},
+				Kubernetes: &KubernetesSubClaim{
+					Pod: &PodSubClaim{
+						Name: "my-pod-797959fdf-wptbj",
+						UID:  "413b22ca-4833-48d9-b6db-76219d583173",
+					},
+					Namespace: "default",
+				},
+			},
+			wantErr: "static_jwks joining requires the use of projected pod bound service account token",
+		},
+		{
 			name:   "signed by unknown key",
 			signer: wrongSigner,
-			claims: claims.ServiceAccountClaims{
+			claims: ServiceAccountClaims{
 				Claims: jwt.Claims{
 					Subject:   "system:serviceaccount:default:my-service-account",
 					Audience:  jwt.Audience{clusterName},
@@ -565,7 +581,7 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 		{
 			name:   "wrong audience",
 			signer: signer,
-			claims: claims.ServiceAccountClaims{
+			claims: ServiceAccountClaims{
 				Claims: jwt.Claims{
 					Subject:   "system:serviceaccount:default:my-service-account",
 					Audience:  jwt.Audience{"wrong.audience"},
@@ -580,7 +596,7 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 		{
 			name:   "no expiry",
 			signer: signer,
-			claims: claims.ServiceAccountClaims{
+			claims: ServiceAccountClaims{
 				Claims: jwt.Claims{
 					Subject:   "system:serviceaccount:default:my-service-account",
 					Audience:  jwt.Audience{clusterName},
@@ -594,7 +610,7 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 		{
 			name:   "no issued at",
 			signer: signer,
-			claims: claims.ServiceAccountClaims{
+			claims: ServiceAccountClaims{
 				Claims: jwt.Claims{
 					Subject:   "system:serviceaccount:default:my-service-account",
 					Audience:  jwt.Audience{clusterName},
@@ -608,7 +624,7 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 		{
 			name:   "too long ttl",
 			signer: signer,
-			claims: claims.ServiceAccountClaims{
+			claims: ServiceAccountClaims{
 				Claims: jwt.Claims{
 					Subject:   "system:serviceaccount:default:my-service-account",
 					Audience:  jwt.Audience{clusterName},
@@ -627,7 +643,7 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 		{
 			name:   "expired",
 			signer: signer,
-			claims: claims.ServiceAccountClaims{
+			claims: ServiceAccountClaims{
 				Claims: jwt.Claims{
 					Subject:   "system:serviceaccount:default:my-service-account",
 					Audience:  jwt.Audience{clusterName},
@@ -642,7 +658,7 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 		{
 			name:   "not yet valid",
 			signer: signer,
-			claims: claims.ServiceAccountClaims{
+			claims: ServiceAccountClaims{
 				Claims: jwt.Claims{
 					Subject:   "system:serviceaccount:default:my-service-account",
 					Audience:  jwt.Audience{clusterName},
@@ -690,34 +706,133 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 	}
 }
 
+// fakeIDP provides a minimal fake OIDC provider for use in tests
+type fakeIDP struct {
+	t         *testing.T
+	signer    jose.Signer
+	publicKey crypto.PublicKey
+	server    *httptest.Server
+	audience  string
+}
+
+func newFakeIDP(t *testing.T, audience string) *fakeIDP {
+	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.RSA2048)
+	require.NoError(t, err)
+
+	signer, err := jose.NewSigner(
+		jose.SigningKey{Algorithm: jose.RS256, Key: privateKey},
+		(&jose.SignerOptions{}).WithType("JWT"),
+	)
+	require.NoError(t, err)
+
+	f := &fakeIDP{
+		signer:    signer,
+		publicKey: privateKey.Public(),
+		t:         t,
+		audience:  audience,
+	}
+
+	providerMux := http.NewServeMux()
+	providerMux.HandleFunc(
+		"/.well-known/openid-configuration",
+		f.handleOpenIDConfig,
+	)
+	providerMux.HandleFunc(
+		"/.well-known/jwks",
+		f.handleJWKSEndpoint,
+	)
+
+	srv := httptest.NewServer(providerMux)
+	t.Cleanup(srv.Close)
+	f.server = srv
+	return f
+}
+
+func (f *fakeIDP) issuer() string {
+	return f.server.URL
+}
+
+func (f *fakeIDP) handleOpenIDConfig(w http.ResponseWriter, r *http.Request) {
+	// mimic `kubectl get --raw /.well-known/openid-configuration` for an EKS cluster
+	response := map[string]any{
+		"claims_supported": []string{
+			"sub",
+			"iss",
+		},
+		"id_token_signing_alg_values_supported": []string{"RS256"},
+		"issuer":                                f.issuer(),
+		"jwks_uri":                              f.issuer() + "/.well-known/jwks",
+		"response_types_supported":              []string{"id_token"},
+		"scopes_supported":                      []string{"openid"},
+		"subject_types_supported":               []string{"public"},
+	}
+	responseBytes, err := json.Marshal(response)
+	require.NoError(f.t, err)
+	_, err = w.Write(responseBytes)
+	require.NoError(f.t, err)
+}
+
+func (f *fakeIDP) handleJWKSEndpoint(w http.ResponseWriter, r *http.Request) {
+	jwks := jose.JSONWebKeySet{
+		Keys: []jose.JSONWebKey{
+			{
+				Key: f.publicKey,
+			},
+		},
+	}
+	responseBytes, err := json.Marshal(jwks)
+	require.NoError(f.t, err)
+	_, err = w.Write(responseBytes)
+	require.NoError(f.t, err)
+}
+
+func (f *fakeIDP) issueToken(
+	t *testing.T,
+	issuer,
+	audience,
+	sub string,
+	issuedAt time.Time,
+	expiry time.Time,
+	k8s *KubernetesSubClaim,
+) string {
+	claims := OIDCServiceAccountClaims{
+		TokenClaims: oidc.TokenClaims{
+			Issuer:     issuer,
+			Subject:    sub,
+			Audience:   oidc.Audience{audience},
+			IssuedAt:   oidc.FromTime(issuedAt),
+			NotBefore:  oidc.FromTime(issuedAt),
+			Expiration: oidc.FromTime(expiry),
+		},
+		Kubernetes: k8s,
+	}
+
+	token, err := jwt.Signed(f.signer).
+		Claims(claims).
+		CompactSerialize()
+	require.NoError(t, err)
+
+	return token
+}
+
 func TestValidateTokenWithOIDC(t *testing.T) {
 	t.Parallel()
-	log := logtest.NewLogger()
 
 	const idpAudience = "example.teleport.sh"
-	idp, err := fakeissuer.NewIDP(log)
-	require.NoError(t, err)
-	t.Cleanup(idp.Close)
+	idp := newFakeIDP(t, idpAudience)
 
-	wrongIDP, err := fakeissuer.NewIDP(log)
-	require.NoError(t, err)
-	t.Cleanup(wrongIDP.Close)
+	wrongIDP := newFakeIDP(t, idpAudience)
 
-	k8sClaim := &claims.KubernetesSubClaim{
+	k8sClaim := &KubernetesSubClaim{
 		Namespace: "default",
-		ServiceAccount: &claims.ServiceAccountSubClaim{
+		ServiceAccount: &ServiceAccountSubClaim{
 			Name: "example",
 			UID:  "abcd-1234",
 		},
-		Pod: &claims.PodSubClaim{
+		Pod: &PodSubClaim{
 			Name: "example-pod",
 			UID:  "zxcv-1234",
 		},
-	}
-
-	mustIssueToken := func(token string, err error) string {
-		require.NoError(t, err)
-		return token
 	}
 
 	tests := []struct {
@@ -731,41 +846,41 @@ func TestValidateTokenWithOIDC(t *testing.T) {
 		{
 			name:     "simple",
 			audience: idpAudience,
-			token: mustIssueToken(idp.IssueToken(
-				idp.IssuerURL(),
-				idpAudience,
+			token: idp.issueToken(
+				t,
+				idp.issuer(),
+				idp.audience,
 				"example",
 				time.Now().Add(-5*time.Minute),
 				time.Now().Add(5*time.Minute),
 				k8sClaim,
-			)),
+			),
 			assertError: require.NoError,
 			want: &ValidationResult{
 				Username: "example",
 				Type:     types.KubernetesJoinTypeOIDC,
-				Raw: &claims.OIDCServiceAccountClaims{
+				Raw: &OIDCServiceAccountClaims{
 					TokenClaims: oidc.TokenClaims{
-						Issuer:   idp.IssuerURL(),
+						Issuer:   idp.issuer(),
 						Subject:  "example",
 						Audience: oidc.Audience{idpAudience},
 					},
 					Kubernetes: k8sClaim,
 				},
-				ServiceAccountName:      "example",
-				ServiceAccountNamespace: "default",
 			},
 		},
 		{
 			name:     "invalid-audience",
 			audience: idpAudience,
-			token: mustIssueToken(idp.IssueToken(
-				idp.IssuerURL(),
+			token: idp.issueToken(
+				t,
+				idp.issuer(),
 				"invalid-audience.example.com",
 				"example",
 				time.Now().Add(-5*time.Minute),
 				time.Now().Add(5*time.Minute),
 				k8sClaim,
-			)),
+			),
 			assertError: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "audience is not valid")
 			},
@@ -774,14 +889,15 @@ func TestValidateTokenWithOIDC(t *testing.T) {
 		{
 			name:     "invalid-issuer",
 			audience: idpAudience,
-			token: mustIssueToken(idp.IssueToken(
+			token: idp.issueToken(
+				t,
 				"invalid-issuer",
-				idpAudience,
+				idp.audience,
 				"example",
 				time.Now().Add(-5*time.Minute),
 				time.Now().Add(5*time.Minute),
 				k8sClaim,
-			)),
+			),
 			assertError: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "issuer does not match")
 			},
@@ -790,14 +906,15 @@ func TestValidateTokenWithOIDC(t *testing.T) {
 		{
 			name:     "expired",
 			audience: idpAudience,
-			token: mustIssueToken(idp.IssueToken(
-				idp.IssuerURL(),
-				idpAudience,
+			token: idp.issueToken(
+				t,
+				idp.issuer(),
+				idp.audience,
 				"example",
 				time.Now().Add(-10*time.Minute),
 				time.Now().Add(-5*time.Minute),
 				k8sClaim,
-			)),
+			),
 			assertError: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "token has expired")
 			},
@@ -806,14 +923,15 @@ func TestValidateTokenWithOIDC(t *testing.T) {
 		{
 			name:     "ttl-too-long",
 			audience: idpAudience,
-			token: mustIssueToken(idp.IssueToken(
-				idp.IssuerURL(),
-				idpAudience,
+			token: idp.issueToken(
+				t,
+				idp.issuer(),
+				idp.audience,
 				"example",
 				time.Now().Add(-5*time.Minute),
 				time.Now().Add(30*time.Minute),
 				k8sClaim,
-			)),
+			),
 			assertError: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "token with a TTL of less than")
 			},
@@ -822,14 +940,15 @@ func TestValidateTokenWithOIDC(t *testing.T) {
 		{
 			name:     "missing-k8s-attrs",
 			audience: idpAudience,
-			token: mustIssueToken(idp.IssueToken(
-				idp.IssuerURL(),
-				idpAudience,
+			token: idp.issueToken(
+				t,
+				idp.issuer(),
+				idp.audience,
 				"example",
 				time.Now().Add(-5*time.Minute),
 				time.Now().Add(5*time.Minute),
 				nil,
-			)),
+			),
 			assertError: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "requires the use of a projected pod")
 			},
@@ -838,16 +957,41 @@ func TestValidateTokenWithOIDC(t *testing.T) {
 		{
 			name:     "imposter-idp",
 			audience: idpAudience,
-			token: mustIssueToken(wrongIDP.IssueToken(
-				idp.IssuerURL(),
-				idpAudience,
+			token: wrongIDP.issueToken(
+				t,
+				idp.issuer(),
+				idp.audience,
 				"example",
 				time.Now().Add(-5*time.Minute),
 				time.Now().Add(5*time.Minute),
 				k8sClaim,
-			)),
+			),
 			assertError: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "signature verification failed")
+			},
+			want: nil,
+		},
+		{
+			// A token with a pod claim but no service account claim must be rejected, not panic.
+			name:     "missing-service-account",
+			audience: idpAudience,
+			token: idp.issueToken(
+				t,
+				idp.issuer(),
+				idp.audience,
+				"example",
+				time.Now().Add(-5*time.Minute),
+				time.Now().Add(5*time.Minute),
+				&KubernetesSubClaim{
+					Namespace: "default",
+					Pod: &PodSubClaim{
+						Name: "example-pod",
+						UID:  "zxcv-1234",
+					},
+				},
+			),
+			assertError: func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, "requires the use of a projected pod")
 			},
 			want: nil,
 		},
@@ -857,10 +1001,9 @@ func TestValidateTokenWithOIDC(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
 
-			validator, err := NewKubernetesOIDCTokenValidator()
-			require.NoError(t, err)
+			issuer := fmt.Sprintf("http://%s", idp.server.Listener.Addr().String())
 
-			result, err := validator.ValidateToken(ctx, idp.IssuerURL(), tt.audience, tt.token)
+			result, err := ValidateTokenWithOIDC(ctx, issuer, tt.audience, tt.token)
 			tt.assertError(t, err)
 
 			require.Empty(t, cmp.Diff(

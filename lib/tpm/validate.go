@@ -23,6 +23,7 @@ import (
 	"crypto"
 	"crypto/subtle"
 	"crypto/x509"
+	"log/slog"
 
 	"github.com/google/go-attestation/attest"
 	"github.com/gravitational/trace"
@@ -82,7 +83,9 @@ func (c *ValidatedTPM) JoinAttrs() *workloadidentityv1pb.JoinAttrsTPM {
 // the client to solve in a credential activation ceremony. This allows us to
 // verify that the client possesses the TPM corresponding to the EK public key
 // or certificate presented by the client.
-func Validate(ctx context.Context, params ValidateParams) (*ValidatedTPM, error) {
+func Validate(
+	ctx context.Context, log *slog.Logger, params ValidateParams,
+) (*ValidatedTPM, error) {
 	ctx, span := tracer.Start(ctx, "Validate")
 	defer span.End()
 
@@ -104,9 +107,12 @@ func Validate(ctx context.Context, params ValidateParams) (*ValidatedTPM, error)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	validated.EKPubHash = HashEKPub(ekPubPKIX)
+	validated.EKPubHash, err = hashEKPub(ekPubPKIX)
+	if err != nil {
+		return validated, trace.Wrap(err, "hashing EK public key")
+	}
 	if ekCert != nil {
-		validated.EKCertSerial = SerialString(ekCert.SerialNumber)
+		validated.EKCertSerial = serialString(ekCert.SerialNumber)
 	}
 
 	if params.AllowedCAs != nil {
@@ -117,8 +123,9 @@ func Validate(ctx context.Context, params ValidateParams) (*ValidatedTPM, error)
 	}
 
 	activationParameters := attest.ActivationParameters{
-		AK: params.AttestParams,
-		EK: ekPub,
+		TPMVersion: attest.TPMVersion20,
+		AK:         params.AttestParams,
+		EK:         ekPub,
 	}
 	// The generate method completes initial validation that provides the
 	// following assurances:

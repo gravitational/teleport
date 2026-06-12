@@ -24,8 +24,12 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/join/azuredevops"
+	"github.com/gravitational/teleport/lib/azuredevops"
 )
+
+type azureDevopsIDTokenValidator interface {
+	Validate(ctx context.Context, organizationID string, idToken string) (*azuredevops.IDTokenClaims, error)
+}
 
 func (a *Server) checkAzureDevopsJoinRequest(
 	ctx context.Context,
@@ -40,22 +44,47 @@ func (a *Server) checkAzureDevopsJoinRequest(
 		return nil, trace.BadParameter("%q join method only support ProvisionTokenV2, '%T' was provided", types.JoinMethodAzureDevops, pt)
 	}
 
-	claims, err := azuredevops.CheckIDToken(ctx, &azuredevops.CheckIDTokenParams{
-		ProvisionToken: token,
-		IDToken:        req.IDToken,
-		Validator:      a.azureDevopsIDTokenValidator,
-	})
-	return claims, trace.Wrap(err)
+	claims, err := a.azureDevopsIDTokenValidator.Validate(
+		ctx,
+		token.Spec.AzureDevops.OrganizationID,
+		req.IDToken,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return claims, trace.Wrap(checkAzureDevopsAllowRules(token, claims))
 }
 
-// GetAzureDevopsIDTokenValidator returns the currently configured token validator
-// for Azure Devops.
-func (a *Server) GetAzureDevopsIDTokenValidator() azuredevops.Validator {
-	return a.azureDevopsIDTokenValidator
-}
+func checkAzureDevopsAllowRules(token *types.ProvisionTokenV2, claims *azuredevops.IDTokenClaims) error {
+	// If a single rule passes, accept the IDToken
+	for _, rule := range token.Spec.AzureDevops.Allow {
+		if rule.Sub != "" && rule.Sub != claims.Sub {
+			continue
+		}
+		if rule.ProjectName != "" && rule.ProjectName != claims.ProjectName {
+			continue
+		}
+		if rule.PipelineName != "" && rule.PipelineName != claims.PipelineName {
+			continue
+		}
+		if rule.ProjectID != "" && claims.ProjectID != rule.ProjectID {
+			continue
+		}
+		if rule.DefinitionID != "" && claims.DefinitionID != rule.DefinitionID {
+			continue
+		}
+		if rule.RepositoryURI != "" && claims.RepositoryURI != rule.RepositoryURI {
+			continue
+		}
+		if rule.RepositoryVersion != "" && claims.RepositoryVersion != rule.RepositoryVersion {
+			continue
+		}
+		if rule.RepositoryRef != "" && claims.RepositoryRef != rule.RepositoryRef {
+			continue
+		}
+		return nil
+	}
 
-// SetAzureDevopsIDTokenValidator sets the current token validator for Azure
-// Devops.
-func (a *Server) SetAzureDevopsIDTokenValidator(validator azuredevops.Validator) {
-	a.azureDevopsIDTokenValidator = validator
+	return trace.AccessDenied("id token claims failed to match any allow rules")
 }

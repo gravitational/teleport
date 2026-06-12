@@ -23,9 +23,9 @@ import mcpAndAiSvg from "@site/src/components/Icon/teleport-svg/mcp-and-ai.svg";
 >
   Easy access to all your infrastructure, on a foundation of cryptographic identity and zero trust.
 
-  [Authentication and session joining](./authentication/authentication.mdx)
+  [Authentication and session joining](./access-controls/guides/joining-sessions.mdx)
 
-  [Get started with role-based access control (RBAC)](./rbac-get-started/rbac-get-started.mdx)
+  [Get started with role-based access control (RBAC)](./access-controls/access-controls.mdx)
 
   [Export audit events to a SIEM tool](./export-audit-events/export-audit-events.mdx)
 
@@ -42,22 +42,22 @@ import mcpAndAiSvg from "@site/src/components/Icon/teleport-svg/mcp-and-ai.svg";
       tags: [
         {
           name: "Okta",
-          href: "./sso/integrate-idp/okta/",
+          href: "./sso/okta/",
           icon: "okta",
         },
         {
           name: "GitHub",
-          href: "./sso/integrate-idp/github-sso/",
+          href: "./sso/github-sso/",
           icon: "github",
         },
         {
           name: "Entra ID",
-          href: "./sso/integrate-idp/entra-id-oidc/",
+          href: "./sso/entra-id/",
           icon: "entraId",
         },
        {
           name: "More IdPs",
-          href: "./sso/integrate-idp/",
+          href: "./sso/",
           arrow: true,
         },
       ]
@@ -65,7 +65,7 @@ import mcpAndAiSvg from "@site/src/components/Icon/teleport-svg/mcp-and-ai.svg";
      {
       title: "VNet: Build without VPNs",
       description: "Connect to internal, non-browser TCP and SSH resources without VPNs. Use familiar tools and workflows while eliminating exposure to public internet.",
-      href: "../enroll-resources/application-access/vnet/",
+      href: "../enroll-resources/application-access/guides/vnet/",
       tags: [
         {
           name: "Teleport VNet demo",
@@ -74,7 +74,7 @@ import mcpAndAiSvg from "@site/src/components/Icon/teleport-svg/mcp-and-ai.svg";
         },
         {
           name: "VNet guide",
-          href: "../connect-your-client/teleport-clients/vnet/",
+          href: "../connect-your-client/vnet/",
         },
       ]
     },
@@ -104,6 +104,27 @@ import mcpAndAiSvg from "@site/src/components/Icon/teleport-svg/mcp-and-ai.svg";
         },
       ]
     },
+    {
+      title: "Self-host Teleport",
+      description: "Run Teleport Enterprise in your own infrastructure, with guides covering high availability and multi-region clusters, securing key material with KMS or HSMs, and more.",
+      href: "./deploy-a-cluster/",
+      tags: [
+        {
+          name: "AWS KMS",
+          href: "./deploy-a-cluster/aws-kms/",
+          icon: "aws",
+        },
+        {
+          name: "Google Cloud KMS",
+          href: "./deploy-a-cluster/gcp-kms/",
+          icon: "googleCloud",
+        },
+        {
+          name: "Helm chart",
+          href: "./deploy-a-cluster/helm-deployments/",
+        },
+      ]
+    },  
     {
       title: "Infrastructure as Code",
       description: "Manage Teleport's Dynamic Resources using infrastructure as code tools, including Terraform, Helm and the Teleport tctl client tool.",
@@ -152,22 +173,17 @@ import mcpAndAiSvg from "@site/src/components/Icon/teleport-svg/mcp-and-ai.svg";
     {
       title: "VNet: Build without VPNs",
       description: "Secure app and SSH access with no VPNs or proxies",
-      href: "../enroll-resources/application-access/vnet/",
+      href: "../enroll-resources/application-access/guides/vnet/",
     },
-    {
-      title: "Secure MCP",
-      description: "Secure MCP integration with a granular audit trail",
-      href: "../connect-your-client/model-context-protocol/",
-    },  
     {
       title: "Role-Based Access Control (RBAC)",
       description: "Govern infrastructure access with granular permissions",
-      href: "./rbac-get-started/",
+      href: "./access-controls/",
     },
     {
       title: "Passwordless authentication",
       description: "Log in securely using biometrics",
-      href: "./authentication/passwordless/",
+      href: "./access-controls/guides/passwordless/",
     },
     {
       title: "Device Trust",
@@ -187,17 +203,17 @@ import mcpAndAiSvg from "@site/src/components/Icon/teleport-svg/mcp-and-ai.svg";
     {
       title: "Identity-based audit events",
       description: "Detailed audit logs for every user action",
-      href: "../reference/deployment/monitoring/audit/",
+      href: "../reference/monitoring/audit/",
     },  
     {
       title: "Session recording and playback",
       description: "Record a detailed review of what took place",
-      href: "../enroll-resources/desktop-access/reference/sessions/",
+      href: "../reference/agent-services/desktop-access-reference/sessions/",
     },
     {
       title: "Session sharing and moderation",
       description: "Require a moderator for privileged sessions",
-      href: "./authentication/joining-sessions/",
+      href: "./access-controls/guides/joining-sessions",
     },
     {
       title: "Dual authorization capabilities",
@@ -257,12 +273,6 @@ import mcpAndAiSvg from "@site/src/components/Icon/teleport-svg/mcp-and-ai.svg";
       iconComponent: cloudProvidersSvg,
       href: '../enroll-resources/application-access/cloud-apis/'
     },
-    {
-      title: 'MCP and AI agents',
-      description: 'Secure agentic AI connections to databases and MCP servers',
-      iconComponent: mcpAndAiSvg,
-      href: '../enroll-resources/mcp-access/'
-    }
   ]}
 />
 {/* vale messaging.protocol-products = YES */}

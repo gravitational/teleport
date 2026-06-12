@@ -118,15 +118,6 @@ const (
 	// ProtocolPingSuffix is TLS ALPN suffix used to wrap connections with
 	// Ping.
 	ProtocolPingSuffix Protocol = "-ping"
-
-	// ProtocolMCP is TLS ALPN protocol value used to indicate MCP connections.
-	ProtocolMCP Protocol = "teleport-mcp"
-
-	// ProtocolAppHTTPS tunnels HTTPS (currently http/1.1) inside a mTLS tunnel
-	// for HTTP apps, mainly for VNet. This tunnel always uses ping protocol so
-	// it always has the "-ping" suffix. See callers to IsPingProtocol for more
-	// details on ping handling.
-	ProtocolAppHTTPS Protocol = "teleport-app-https-ping"
 )
 
 // SupportedProtocols is the list of supported ALPN protocols.
@@ -147,8 +138,6 @@ var SupportedProtocols = WithPingProtocols(
 		ProtocolProxySSHGRPC,
 		ProtocolProxyGRPCInsecure,
 		ProtocolProxyGRPCSecure,
-		ProtocolMCP,
-		ProtocolAppHTTPS,
 	}, DatabaseProtocols...),
 )
 
@@ -159,18 +148,6 @@ func ProtocolsToString(protocols []Protocol) []string {
 		out = append(out, string(v))
 	}
 	return out
-}
-
-// ProtocolToStringsWithPing converts Protocol to a list of strings, adding the
-// ping version if the protocol supports it.
-func ProtocolToStringsWithPing(protocol Protocol) []string {
-	if !IsPingProtocol(protocol) && HasPingSupport(protocol) {
-		return []string{
-			string(ProtocolWithPing(protocol)),
-			string(protocol),
-		}
-	}
-	return []string{string(protocol)}
 }
 
 // ToALPNProtocol maps provided database protocol to ALPN protocol.
@@ -250,12 +227,10 @@ var DatabaseProtocols = []Protocol{
 }
 
 // ProtocolsWithPingSupport is the list of protocols that Ping connection is
-// supported.
+// supported. For now, only database protocols are supported.
 var ProtocolsWithPingSupport = append(
 	DatabaseProtocols,
 	ProtocolTCP,
-	ProtocolMCP,
-	ProtocolAppHTTPS,
 )
 
 // WithPingProtocols adds Ping protocols to the list for each protocol that
@@ -273,9 +248,6 @@ func WithPingProtocols(protocols []Protocol) []Protocol {
 // ProtocolWithPing receives a protocol and returns it with the Ping protocol
 // suffix.
 func ProtocolWithPing(protocol Protocol) Protocol {
-	if IsPingProtocol(protocol) {
-		return protocol
-	}
 	return Protocol(string(protocol) + string(ProtocolPingSuffix))
 }
 

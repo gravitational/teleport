@@ -262,12 +262,29 @@ func (s *Service) newDesktopSession(desktopURI uri.ResourceURI, login string) (*
 		defer s.desktopSessionsMu.Unlock()
 
 		delete(s.desktopSessions, key)
-		if err := session.CloseSharedDirectory(); err != nil {
-			s.cfg.Logger.WarnContext(context.Background(), "Failed to close shared directory for desktop session", "error", err)
-		}
 	}
 
 	return session, cleanup, nil
+}
+
+// RemoveCluster removes cluster
+func (s *Service) RemoveCluster(ctx context.Context, uri string) error {
+	cluster, _, err := s.ResolveCluster(uri)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if cluster.Connected() {
+		if err := cluster.Logout(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	if err := s.cfg.Storage.Remove(ctx, cluster.ProfileName); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // NewClusterClient is a wrapper on ResolveClusterURI that can be passed as an argument to
@@ -306,7 +323,7 @@ func (s *Service) ResolveClusterURI(uri uri.ResourceURI) (*clusters.Cluster, *cl
 	// Custom MFAPromptConstructor gets removed during the calls to Login and LoginPasswordless RPCs.
 	// Those RPCs assume that the default CLI prompt is in use.
 	clusterClient.MFAPromptConstructor = s.NewMFAPromptConstructor(cluster.URI)
-	clusterClient.MFACeremonyConstructor = sso.NewConnectMFACeremony
+	clusterClient.SSOMFACeremonyConstructor = sso.NewConnectMFACeremony
 
 	return cluster, clusterClient, nil
 }
@@ -332,30 +349,22 @@ func (s *Service) ResolveClusterWithDetails(ctx context.Context, uri string) (*c
 	return withDetails, clusterClient, nil
 }
 
-// ClusterLogout logs the user out of the cluster and cleans up associated resources.
-// Optionally removes the profile.
-// This operation is idempotent and can be safely invoked multiple times.
-func (s *Service) ClusterLogout(ctx context.Context, uri uri.ResourceURI, removeProfile bool) error {
-	cluster, _, err := s.ResolveClusterURI(uri)
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-	if err == nil {
-		if err = cluster.Logout(ctx); err != nil {
-			return trace.Wrap(err)
-		}
-		if removeProfile {
-			if err = s.cfg.Storage.Remove(ctx, cluster.ProfileName); err != nil {
-				return trace.Wrap(err)
-			}
-		}
-	}
-
-	if err = s.StopHeadlessWatcher(uri.String()); err != nil && !trace.IsNotFound(err) {
+// ClusterLogout logs a user out from the cluster
+func (s *Service) ClusterLogout(ctx context.Context, uri string) error {
+	cluster, _, err := s.ResolveCluster(uri)
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(s.ClearStaleCachedClientsForRoot(uri))
+	if err := cluster.Logout(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := s.StopHeadlessWatcher(uri); err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(s.ClearCachedClientsForRoot(cluster.URI))
 }
 
 // CreateGateway creates a gateway to given targetURI
@@ -413,7 +422,7 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 
 	go func() {
 		if err := gateway.Serve(); err != nil {
-			gateway.Log().WarnContext(ctx, "Failed to handle a gateway connection", "error", err)
+			gateway.Log().WithError(err).Warn("Failed to handle a gateway connection.")
 		}
 	}()
 
@@ -472,7 +481,7 @@ func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) (t
 			},
 		})
 		if notifyErr != nil {
-			s.cfg.Logger.ErrorContext(ctx, "Failed to send a notification for an error encountered during gateway cert reissue", "error", notifyErr)
+			s.cfg.Log.WithError(notifyErr).Error("Failed to send a notification for an error encountered during gateway cert reissue")
 		}
 
 		// Return the error to the alpn.LocalProxy's middleware.
@@ -644,9 +653,9 @@ func (s *Service) SetGatewayLocalPort(gatewayURI, localPort string) (gateway.Gat
 		// Rather than continuing in presence of the race condition, let's attempt to close the new
 		// gateway (since it shouldn't be used anyway) and return the error.
 		if newGatewayCloseErr := newGateway.Close(); newGatewayCloseErr != nil {
-			newGateway.Log().WarnContext(s.closeContext,
-				"Failed to close the new gateway after failing to close the old gateway",
-				"error", newGatewayCloseErr,
+			newGateway.Log().Warnf(
+				"Failed to close the new gateway after failing to close the old gateway: %v",
+				newGatewayCloseErr,
 			)
 		}
 		return nil, trace.Wrap(err)
@@ -656,11 +665,31 @@ func (s *Service) SetGatewayLocalPort(gatewayURI, localPort string) (gateway.Gat
 
 	go func() {
 		if err := newGateway.Serve(); err != nil {
-			newGateway.Log().WarnContext(s.closeContext, "Failed to handle a gateway connection", "error", err)
+			newGateway.Log().WithError(err).Warn("Failed to handle a gateway connection.")
 		}
 	}()
 
 	return newGateway, nil
+}
+
+// GetServers accepts parameterized input to enable searching, sorting, and pagination.
+func (s *Service) GetServers(ctx context.Context, req *api.GetServersRequest) (*clusters.GetServersResponse, error) {
+	cluster, _, err := s.ResolveCluster(req.ClusterUri)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	proxyClient, err := s.GetCachedClient(ctx, cluster.URI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	response, err := cluster.GetServers(ctx, req, proxyClient.CurrentCluster())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return response, nil
 }
 
 func (s *Service) GetRequestableRoles(ctx context.Context, req *api.GetRequestableRolesRequest) (*api.GetRequestableRolesResponse, error) {
@@ -877,7 +906,7 @@ func (s *Service) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) er
 	}
 
 	// We have to reconnect using the updated cert.
-	return trace.Wrap(s.ClearStaleCachedClientsForRoot(cluster.URI))
+	return trace.Wrap(s.ClearCachedClientsForRoot(cluster.URI))
 }
 
 // ListKubernetesResourcesRequest defines a request to retrieve kube resources paginated.
@@ -915,48 +944,6 @@ func (s *Service) ListKubernetesResources(ctx context.Context, clusterURI uri.Re
 	return resources, trace.Wrap(err)
 }
 
-// ListKubernetesServers returns a paginated list of Kubernetes servers (resource kind "kube_server").
-func (s *Service) ListKubernetesServers(ctx context.Context, req *api.ListKubernetesServersRequest) (*clusters.ListKubernetesServersResponse, error) {
-	clusterURI, err := uri.Parse(req.GetClusterUri())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cluster, _, err := s.ResolveClusterURI(clusterURI)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	proxyClient, err := s.GetCachedClient(ctx, clusterURI)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	response, err := cluster.ListKubernetesServers(ctx, req.GetParams(), proxyClient.CurrentCluster())
-	return response, trace.Wrap(err)
-}
-
-// ListDatabaseServers returns a paginated list of database servers (resource kind "db_server").
-func (s *Service) ListDatabaseServers(ctx context.Context, req *api.ListDatabaseServersRequest) (*clusters.GetDatabaseServersResponse, error) {
-	clusterURI, err := uri.Parse(req.GetClusterUri())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cluster, _, err := s.ResolveClusterURI(clusterURI)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	proxyClient, err := s.GetCachedClient(ctx, clusterURI)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	response, err := cluster.ListDatabaseServers(ctx, req.GetParams(), proxyClient.CurrentCluster())
-	return response, trace.Wrap(err)
-}
-
 func (s *Service) ReportUsageEvent(req *api.ReportUsageEventRequest) error {
 	prehogEvent, err := usagereporter.GetAnonymizedPrehogEvent(req)
 	if err != nil {
@@ -971,7 +958,7 @@ func (s *Service) Stop() {
 	s.gatewaysMu.RLock()
 	defer s.gatewaysMu.RUnlock()
 
-	s.cfg.Logger.InfoContext(s.closeContext, "Stopping")
+	s.cfg.Log.Info("Stopping")
 
 	for _, gateway := range s.gateways {
 		gateway.Close()
@@ -980,14 +967,14 @@ func (s *Service) Stop() {
 	s.StopHeadlessWatchers()
 
 	if err := s.clientCache.Clear(); err != nil {
-		s.cfg.Logger.ErrorContext(s.closeContext, "Failed to close remote clients", "error", err)
+		s.cfg.Log.WithError(err).Error("Failed to close remote clients")
 	}
 
 	timeoutCtx, cancel := context.WithTimeout(s.closeContext, time.Second*10)
 	defer cancel()
 
 	if err := s.usageReporter.GracefulStop(timeoutCtx); err != nil {
-		s.cfg.Logger.ErrorContext(timeoutCtx, "Gracefully stopping usage reporter failed", "error", err)
+		s.cfg.Log.WithError(err).Error("Gracefully stopping usage reporter failed")
 	}
 
 	// s.closeContext is used for the tshd events client which might make requests as long as any of
@@ -1279,12 +1266,11 @@ func (s *Service) GetCachedClient(ctx context.Context, resourceURI uri.ResourceU
 	return clt, trace.Wrap(err)
 }
 
-// ClearStaleCachedClientsForRoot closes and removes clients from the cache
-// for the root cluster and its leaf clusters, if their cert is outdated.
-func (s *Service) ClearStaleCachedClientsForRoot(clusterURI uri.ResourceURI) error {
+// ClearCachedClientsForRoot closes and removes clients from the cache
+// for the root cluster and its leaf clusters.
+func (s *Service) ClearCachedClientsForRoot(clusterURI uri.ResourceURI) error {
 	profileName := clusterURI.GetProfileName()
-	err := s.clientCache.ClearStaleClientsForRoot(profileName)
-	return trace.Wrap(err)
+	return trace.Wrap(s.clientCache.ClearForRoot(profileName))
 }
 
 // SetSharedDirectoryForDesktopSession opens a directory for a desktop session and enables file system operations for it.

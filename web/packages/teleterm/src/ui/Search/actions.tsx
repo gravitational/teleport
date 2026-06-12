@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { AppSubKind } from 'shared/services';
-
 import { SearchContext } from 'teleterm/ui/Search/SearchContext';
 import { SearchResult } from 'teleterm/ui/Search/searchResult';
 import {
@@ -32,7 +30,7 @@ import {
 import { ResourceRequest } from 'teleterm/ui/services/workspacesService/accessRequestsService';
 import { IAppContext } from 'teleterm/ui/types';
 import { routing } from 'teleterm/ui/uri';
-import { assertUnreachable } from 'teleterm/ui/utils';
+import { assertUnreachable, retryWithRelogin } from 'teleterm/ui/utils';
 import { VnetLauncher } from 'teleterm/ui/Vnet';
 
 export interface SimpleAction {
@@ -172,7 +170,7 @@ export function mapToAction(
         };
       }
 
-      if (result.resource.subKind === AppSubKind.AwsIcAccount) {
+      if (result.resource.subKind === 'aws_ic_account') {
         return {
           type: 'parametrized-action',
           searchResult: result,
@@ -216,64 +214,37 @@ export function mapToAction(
         };
       }
 
-      const {
-        uri,
-        name,
-        protocol,
-        gcpProjectId,
-        autoUserProvisioning,
-        databaseUsers,
-        wildcardUserAllowed,
-      } = result.resource;
-
-      if (autoUserProvisioning) {
-        return {
-          type: 'simple-action',
-          searchResult: result,
-          perform: () =>
-            connectToDatabase(
-              ctx,
-              {
-                uri,
-                name,
-                protocol,
-                gcpProjectId,
-                dbUser: databaseUsers?.[0] ?? '',
-                autoUserProvisioning,
-              },
-              { origin: 'search_bar' }
-            ),
-        };
-      }
-
       return {
         type: 'parametrized-action',
         searchResult: result,
         parameter: {
-          getSuggestions: async () =>
-            databaseUsers.map(dbUser => ({
-              value: dbUser,
-              displayText: dbUser,
-            })),
-          allowOnlySuggestions: !wildcardUserAllowed,
-          noSuggestionsAvailableMessage: 'No db username available',
-          placeholder: wildcardUserAllowed
-            ? 'Provide db username'
-            : 'Search by username',
+          getSuggestions: () =>
+            retryWithRelogin(ctx, result.resource.uri, async () => {
+              const dbUsers = await ctx.resourcesService.getDbUsers(
+                result.resource.uri
+              );
+              return dbUsers.map(dbUser => ({
+                value: dbUser,
+                displayText: dbUser,
+              }));
+            }),
+          placeholder: 'Provide db username',
         },
-        perform: dbUser =>
-          connectToDatabase(
+        perform: dbUser => {
+          const { uri, name, protocol } = result.resource;
+          return connectToDatabase(
             ctx,
             {
               uri,
               name,
               protocol,
-              gcpProjectId,
               dbUser: dbUser.value,
-              autoUserProvisioning: undefined,
             },
-            { origin: 'search_bar' }
-          ),
+            {
+              origin: 'search_bar',
+            }
+          );
+        },
       };
     }
     case 'windows_desktop': {

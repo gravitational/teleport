@@ -22,11 +22,9 @@ import (
 	"slices"
 
 	"github.com/gravitational/trace"
-	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
-	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 )
 
 // Ceremony is an MFA ceremony.
@@ -35,30 +33,24 @@ type Ceremony struct {
 	CreateAuthenticateChallenge CreateAuthenticateChallengeFunc
 	// PromptConstructor creates a prompt to prompt the user to solve an authentication challenge.
 	PromptConstructor PromptConstructor
-	// MFACeremonyConstructor is an optional MFA ceremony constructor. If provided,
-	// the MFA ceremony will also attempt to retrieve an MFA challenge.
-	MFACeremonyConstructor MFACeremonyConstructor
+	// SSOMFACeremonyConstructor is an optional SSO MFA ceremony constructor. If provided,
+	// the MFA ceremony will also attempt to retrieve an SSO MFA challenge.
+	SSOMFACeremonyConstructor SSOMFACeremonyConstructor
 }
 
-// CallbackCeremony is an SSO/Browser callback ceremony.
-type CallbackCeremony interface {
+// SSOMFACeremony is an SSO MFA ceremony.
+type SSOMFACeremony interface {
 	GetClientCallbackURL() string
 	GetProxyAddress() string
 	Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
 	Close()
 }
 
-// MFACeremonyConstructor constructs a new SSO or Browser MFA ceremony.
-type MFACeremonyConstructor func(ctx context.Context) (CallbackCeremony, error)
+// SSOMFACeremonyConstructor constructs a new SSO MFA ceremony.
+type SSOMFACeremonyConstructor func(ctx context.Context) (SSOMFACeremony, error)
 
 // CreateAuthenticateChallengeFunc is a function that creates an authentication challenge.
 type CreateAuthenticateChallengeFunc func(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error)
-
-// CreateSessionChallengeFunc is a function that creates a session-bound MFA challenge.
-type CreateSessionChallengeFunc func(ctx context.Context, req *mfav2.CreateSessionChallengeRequest, opts ...grpc.CallOption) (*mfav2.CreateSessionChallengeResponse, error)
-
-// ValidateSessionChallengeFunc is a function that validates a session-bound MFA challenge.
-type ValidateSessionChallengeFunc func(ctx context.Context, req *mfav2.ValidateSessionChallengeRequest, opts ...grpc.CallOption) (*mfav2.ValidateSessionChallengeResponse, error)
 
 // Run the MFA ceremony.
 //
@@ -69,16 +61,16 @@ func (c *Ceremony) Run(ctx context.Context, req *proto.CreateAuthenticateChallen
 		return nil, trace.BadParameter("mfa ceremony must have CreateAuthenticateChallenge set in order to begin")
 	}
 
-	// If available, prepare an MFA ceremony and set the client redirect URL in the challenge
-	// request to request an SSO or Browser MFA challenge in addition to other challenges.
-	if c.MFACeremonyConstructor != nil {
-		mfaCeremony, err := c.MFACeremonyConstructor(ctx)
+	// If available, prepare an SSO MFA ceremony and set the client redirect URL in the challenge
+	// request to request an SSO challenge in addition to other challenges.
+	if c.SSOMFACeremonyConstructor != nil {
+		ssoMFACeremony, err := c.SSOMFACeremonyConstructor(ctx)
 		if err != nil {
-			// We may fail to start the MFA flow in cases where the Proxy is down or broken. Fall
-			// back to skipping SSO/Browser MFA, especially since SSO/Browser MFA may not even be allowed on the server.
-			slog.DebugContext(ctx, "Failed to attempt SSO/Browser MFA, continuing with other MFA methods", "error", err)
+			// We may fail to start the SSO MFA flow in cases where the Proxy is down or broken. Fall
+			// back to skipping SSO MFA, especially since SSO MFA may not even be allowed on the server.
+			slog.DebugContext(ctx, "Failed to attempt SSO MFA, continuing with other MFA methods", "error", err)
 		} else {
-			defer mfaCeremony.Close()
+			defer ssoMFACeremony.Close()
 
 			// req may be nil in cases where the ceremony's CreateAuthenticateChallenge sources
 			// its own req or uses a different e.g. login. We should still provide the sso client
@@ -87,13 +79,9 @@ func (c *Ceremony) Run(ctx context.Context, req *proto.CreateAuthenticateChallen
 				req = new(proto.CreateAuthenticateChallengeRequest)
 			}
 
-			req.SSOClientRedirectURL = mfaCeremony.GetClientCallbackURL()
-			// Reuse the same callback server for Browser MFA because only one of
-			// SSO MFA or Browser MFA can be used. Sending both redirect URLs
-			// indicates to the server that both methods are available.
-			req.BrowserMFATSHRedirectURL = mfaCeremony.GetClientCallbackURL()
-			req.ProxyAddress = mfaCeremony.GetProxyAddress()
-			promptOpts = append(promptOpts, withSSOMFACeremony(mfaCeremony))
+			req.SSOClientRedirectURL = ssoMFACeremony.GetClientCallbackURL()
+			req.ProxyAddress = ssoMFACeremony.GetProxyAddress()
+			promptOpts = append(promptOpts, withSSOMFACeremony(ssoMFACeremony))
 		}
 	}
 
@@ -151,13 +139,6 @@ func PerformAdminActionMFACeremony(ctx context.Context, mfaCeremony CeremonyFn, 
 		},
 	}
 
-	// Remove MFA resp from context if set. This way, the mfa required
-	// check will return true as long as MFA for admin actions is enabled,
-	// even if the current context has a reusable MFA. v18 server will
-	// return this requirement as expected.
-	// TODO(Joerger): DELETE IN v19.0.0
-	ceremonyCtx := ContextWithMFAResponse(ctx, nil)
-
-	resp, err := mfaCeremony(ceremonyCtx, challengeRequest, WithPromptReasonAdminAction())
+	resp, err := mfaCeremony(ctx, challengeRequest, WithPromptReasonAdminAction())
 	return resp, trace.Wrap(err)
 }

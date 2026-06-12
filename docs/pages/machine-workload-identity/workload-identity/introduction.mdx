@@ -1,11 +1,9 @@
 ---
 title: Introduction to Workload Identity
-sidebar_label: Introduction
 description: Describes Teleport Workload Identity, which securely issues flexible, short-lived cryptographic identities to workloads and non-human identities.
 tags:
  - conceptual
  - mwi
- - infrastructure-identity
 ---
 
 Teleport Workload Identity securely issues short-lived cryptographic identities
@@ -58,7 +56,7 @@ request identities with specific SPIFFE IDs.
 The `tbot` agent is installed in close proximity to workloads which require an
 identity. It manages the process of requesting and renewing the identities for
 the workloads. The `tbot` agent authenticates to the Teleport cluster using one
-of our supported join methods, which in many cases enable it to authenticate 
+of our support join methods, which in many cases enable it to authenticate 
 on the basis of federated trust rather than the use of long-lived secrets.
 
 Workloads can receive their identities in one of two ways:
@@ -103,8 +101,8 @@ Learn more about Teleport Workload Identity:
 - [Federation](./federation.mdx): Learn about using Federation to allow workloads to trust workloads from other trust domains.
 - [JWT SVIDs](./jwt-svids.mdx): Learn about the short-lived JWTs issued by Workload Identity.
 - [Best Practices](./best-practices.mdx): Best practices for using Workload Identity in Production.
-- [Workload Identity Resource](../../reference/machine-workload-identity/workload-identity/workload-identity-resource.mdx): The full reference for the Workload Identity resource.
-- [Workload Identity API and Workload Attestation](../../reference/machine-workload-identity/workload-identity/workload-identity-api-and-workload-attestation.mdx): To learn more about the Workload Identity API and Workload Attestation.
+- [Workload Identity Resource](../../reference/workload-identity/workload-identity-resource.mdx): The full reference for the Workload Identity resource.
+- [Workload Identity API and Workload Attestation](../../reference/workload-identity/workload-identity-api-and-workload-attestation.mdx): To learn more about the Workload Identity API and Workload Attestation.
 
 Learn how to configure Teleport Workload Identity for specific use-cases:
 

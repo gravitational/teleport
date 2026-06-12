@@ -37,10 +37,6 @@ import FieldInput from 'shared/components/FieldInput';
 import { FieldSelectAsync } from 'shared/components/FieldSelect';
 import { FieldTextArea } from 'shared/components/FieldTextArea/FieldTextArea';
 import { Option } from 'shared/components/Select';
-import {
-  TraitsEditor,
-  TraitsOption,
-} from 'shared/components/TraitsEditor/TraitsEditor';
 import Validation from 'shared/components/Validation';
 import {
   requiredField,
@@ -49,6 +45,10 @@ import {
 
 import { editBotMutationFunction, fetchRoles } from 'teleport/services/bot/bot';
 import { FlatBot } from 'teleport/services/bot/types';
+import {
+  TraitsEditor,
+  TraitsOption,
+} from 'teleport/Users/UserAddEdit/TraitsEditor';
 import useTeleport from 'teleport/useTeleport';
 
 import { formatDuration } from '../formatDuration';

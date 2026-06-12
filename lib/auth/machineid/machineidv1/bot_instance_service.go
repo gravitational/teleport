@@ -62,13 +62,13 @@ type BotInstancesCache interface {
 	GetBotInstance(ctx context.Context, botName, instanceID string) (*pb.BotInstance, error)
 
 	// ListBotInstances returns a page of BotInstance resources.
-	ListBotInstances(ctx context.Context, pageSize int, lastToken string, options *services.ListBotInstancesRequestOptions) ([]*pb.BotInstance, string, error)
+	ListBotInstances(ctx context.Context, botName string, pageSize int, lastToken string, search string, sort *types.SortBy) ([]*pb.BotInstance, string, error)
 }
 
 // BotInstanceServiceConfig holds configuration options for the BotInstance gRPC
 // service.
 type BotInstanceServiceConfig struct {
-	Authorizer authz.ScopedAuthorizer
+	Authorizer authz.Authorizer
 	Cache      BotInstancesCache
 	Backend    services.BotInstance
 	Logger     *slog.Logger
@@ -107,7 +107,7 @@ type BotInstanceService struct {
 	pb.UnimplementedBotInstanceServiceServer
 
 	backend    services.BotInstance
-	authorizer authz.ScopedAuthorizer
+	authorizer authz.Authorizer
 	cache      BotInstancesCache
 	logger     *slog.Logger
 	clock      clockwork.Clock
@@ -115,51 +115,20 @@ type BotInstanceService struct {
 
 // DeleteBotInstance deletes a bot specific bot instance
 func (b *BotInstanceService) DeleteBotInstance(ctx context.Context, req *pb.DeleteBotInstanceRequest) (*emptypb.Empty, error) {
-	authCtx, err := b.authorizer.AuthorizeScoped(ctx)
+	authCtx, err := b.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Perform pre-authz check to see if they might have access, to avoid
-	// reading cache or backend if unauthorized.
-	ruleCtx := authCtx.RuleContext()
-	if err := authCtx.CheckerContext.CheckMaybeHasAccessToRules(
-		&ruleCtx, types.KindBotInstance, types.VerbDelete,
-	); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindBotInstance, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	instance, err := b.backend.GetBotInstance(ctx, req.BotName, req.InstanceId)
-	if err != nil {
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	ruleCtx.Resource153 = instance
-	if err := authCtx.CheckerContext.Decision(
-		ctx,
-		instance.Scope,
-		func(checker *services.ScopedAccessChecker) error {
-			return checker.CheckAccessToRules(
-				&ruleCtx,
-				types.KindBotInstance,
-				types.VerbDelete,
-			)
-		},
-	); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// Scoped authorizer does not yet support MFA, so for now, only perform
-	// against unscoped identities.
-	// TODO(strideynet): when we support scoped MFA, change this...
-	if unscoped, ok := authCtx.UnscopedContext(); ok {
-		if err := unscoped.AuthorizeAdminActionAllowReusedMFA(); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	if err := b.backend.DeleteBotInstance(
-		ctx, instance.Spec.BotName, instance.Spec.InstanceId,
-	); err != nil {
+	if err := b.backend.DeleteBotInstance(ctx, req.BotName, req.InstanceId); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -168,17 +137,12 @@ func (b *BotInstanceService) DeleteBotInstance(ctx context.Context, req *pb.Dele
 
 // GetBotInstance retrieves a specific bot instance
 func (b *BotInstanceService) GetBotInstance(ctx context.Context, req *pb.GetBotInstanceRequest) (*pb.BotInstance, error) {
-	authCtx, err := b.authorizer.AuthorizeScoped(ctx)
+	authCtx, err := b.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Perform pre-authz check to see if they might have access, to avoid
-	// reading cache or backend if unauthorized.
-	ruleCtx := authCtx.RuleContext()
-	if err := authCtx.CheckerContext.CheckMaybeHasAccessToRules(
-		&ruleCtx, types.KindBotInstance, types.VerbReadNoSecrets,
-	); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindBotInstance, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -187,102 +151,34 @@ func (b *BotInstanceService) GetBotInstance(ctx context.Context, req *pb.GetBotI
 		return nil, trace.Wrap(err)
 	}
 
-	ruleCtx.Resource153 = res
-	if err := authCtx.CheckerContext.Decision(
-		ctx,
-		res.Scope,
-		func(checker *services.ScopedAccessChecker) error {
-			return checker.CheckAccessToRules(
-				&ruleCtx,
-				types.KindBotInstance,
-				types.VerbReadNoSecrets,
-			)
-		},
-	); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	return res, nil
 }
 
 // ListBotInstances returns a list of bot instances matching the criteria in the request
 func (b *BotInstanceService) ListBotInstances(ctx context.Context, req *pb.ListBotInstancesRequest) (*pb.ListBotInstancesResponse, error) {
-	var sortField string
-	var sortDesc bool
-	if req.GetSort() != nil {
-		sortField = req.GetSort().Field
-		sortDesc = req.GetSort().IsDesc
-	}
-	return b.ListBotInstancesV2(ctx, &pb.ListBotInstancesV2Request{
-		PageSize:  req.GetPageSize(),
-		PageToken: req.GetPageToken(),
-		SortField: sortField,
-		SortDesc:  sortDesc,
-		Filter: &pb.ListBotInstancesV2Request_Filters{
-			BotName:    req.GetFilterBotName(),
-			SearchTerm: req.GetFilterSearchTerm(),
-		},
-	})
-}
-
-// ListBotInstancesV2 returns a list of bot instances matching the criteria in the request
-func (b *BotInstanceService) ListBotInstancesV2(ctx context.Context, req *pb.ListBotInstancesV2Request) (*pb.ListBotInstancesResponse, error) {
-	authCtx, err := b.authorizer.AuthorizeScoped(ctx)
+	authCtx, err := b.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Perform pre-authz check to see if they might have access, to avoid
-	// reading cache or backend if unauthorized.
-	ruleCtx := authCtx.RuleContext()
-	if err := authCtx.CheckerContext.CheckMaybeHasAccessToRules(
-		&ruleCtx, types.KindBotInstance, types.VerbReadNoSecrets, types.VerbList,
-	); err != nil {
+	if err := authCtx.CheckAccessToKind(types.KindBotInstance, types.VerbRead, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	botInstances, nextToken, err := b.cache.ListBotInstances(
-		ctx,
-		int(req.PageSize),
-		req.PageToken,
-		&services.ListBotInstancesRequestOptions{
-			SortField:        req.GetSortField(),
-			SortDesc:         req.GetSortDesc(),
-			FilterBotName:    req.GetFilter().GetBotName(),
-			FilterSearchTerm: req.GetFilter().GetSearchTerm(),
-			FilterQuery:      req.GetFilter().GetQuery(),
-			FilterFn: func(botInstance *pb.BotInstance) bool {
-				ruleCtx := authCtx.RuleContext()
-				ruleCtx.Resource153 = botInstance
-				err := authCtx.CheckerContext.Decision(
-					ctx,
-					botInstance.Scope,
-					func(checker *services.ScopedAccessChecker) error {
-						return checker.CheckAccessToRules(
-							&ruleCtx,
-							types.KindBotInstance,
-							types.VerbReadNoSecrets,
-							types.VerbList,
-						)
-					},
-				)
-				return err == nil
-			},
-		},
-	)
+	res, nextToken, err := b.cache.ListBotInstances(ctx, req.FilterBotName, int(req.PageSize), req.PageToken, req.FilterSearchTerm, req.Sort)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &pb.ListBotInstancesResponse{
-		BotInstances:  botInstances,
+		BotInstances:  res,
 		NextPageToken: nextToken,
 	}, nil
 }
 
 // SubmitHeartbeat records heartbeat information for a bot
 func (b *BotInstanceService) SubmitHeartbeat(ctx context.Context, req *pb.SubmitHeartbeatRequest) (*pb.SubmitHeartbeatResponse, error) {
-	authCtx, err := b.authorizer.AuthorizeScoped(ctx)
+	authCtx, err := b.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -302,24 +198,13 @@ func (b *BotInstanceService) SubmitHeartbeat(ctx context.Context, req *pb.Submit
 	}
 
 	// Enforce that the connecting client is a bot and has a bot instance ID.
-	ident := authCtx.Identity.GetIdentity()
-	botName := ident.BotName
-	botInstanceID := ident.BotInstanceID
+	botName := authCtx.Identity.GetIdentity().BotName
+	botInstanceID := authCtx.Identity.GetIdentity().BotInstanceID
 	switch {
 	case botName == "":
 		return nil, trace.AccessDenied("identity did not contain bot name")
 	case botInstanceID == "":
 		return nil, trace.AccessDenied("identity did not contain bot instance ID")
-	}
-
-	// For now, we just require that Scoped Bots have the BotInternal identity
-	// flag set - however - once sufficient time has passed and we're sure all
-	// existing bots will have the BotInternal flag set in their certs, we can
-	// make this check always applied.
-	if ident.ScopePin != nil && ident.ScopePin.Scope != "" {
-		if !ident.BotInternal {
-			return nil, trace.AccessDenied("identity not marked BotInternal")
-		}
 	}
 
 	b.logger.DebugContext(

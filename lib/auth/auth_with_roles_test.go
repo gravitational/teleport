@@ -22,10 +22,9 @@ import (
 	"context"
 	"crypto"
 	"crypto/tls"
-	"crypto/x509"
 	"crypto/x509/pkix"
-	"encoding/pem"
 	"fmt"
+	"io"
 	"net/url"
 	"slices"
 	"strconv"
@@ -33,20 +32,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-jose/go-jose/v3"
-	josejwt "github.com/go-jose/go-jose/v3/jwt"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp/totp"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/gravitational/teleport"
@@ -56,11 +53,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
-	kubewaitingcontainerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
-	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
-	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
-	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/metadata"
@@ -69,13 +62,11 @@ import (
 	apicommon "github.com/gravitational/teleport/api/types/common"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
-	"github.com/gravitational/teleport/api/types/kubewaitingcontainer"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
@@ -87,21 +78,15 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
-	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
-	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/okta/oktatest"
-	"github.com/gravitational/teleport/lib/scopes"
-	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
-	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
-	dbvnet "github.com/gravitational/teleport/lib/srv/db/vnet"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 func TestGenerateUserCerts_MFAVerifiedFieldSet(t *testing.T) {
@@ -159,6 +144,7 @@ func TestGenerateUserCerts_MFAVerifiedFieldSet(t *testing.T) {
 			},
 		},
 	} {
+		test := test
 		t.Run(test.desc, func(t *testing.T) {
 			mfaResponse := test.getMFAResponse()
 			certs, err := client.GenerateUserCerts(context.Background(), proto.UserCertsRequest{
@@ -213,12 +199,11 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 	})
 
 	for _, test := range []struct {
-		desc           string
-		renewable      bool
-		roleRequests   bool
-		reqTTL         time.Duration
-		expiresIn      time.Duration
-		githubIdentity *types.ExternalIdentity
+		desc         string
+		renewable    bool
+		roleRequests bool
+		reqTTL       time.Duration
+		expiresIn    time.Duration
 	}{
 		{
 			desc:      "not-renewable",
@@ -263,17 +248,6 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 			reqTTL:       2 * defaults.MaxRenewableCertTTL,
 			expiresIn:    defaults.MaxRenewableCertTTL,
 		},
-		{
-			desc:         "github-identity-from-login-state-preserved",
-			renewable:    false,
-			roleRequests: true,
-			reqTTL:       4 * time.Hour,
-			expiresIn:    4 * time.Hour,
-			githubIdentity: &types.ExternalIdentity{
-				UserID:   "1024025",
-				Username: "torvalds",
-			},
-		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
 			ctx := context.Background()
@@ -299,14 +273,6 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 				require.NoError(t, err)
 			} else {
 				id = authtest.TestUser(user.GetName())
-			}
-
-			// Simulate authenticated GitHub OAuth flow where GitHub identity is
-			// saved in login state.
-			if test.githubIdentity != nil {
-				user.SetGithubIdentities([]types.ExternalIdentity{*test.githubIdentity})
-				_, err := srv.Auth().RefreshULS(ctx, user, srv.Auth().UserLoginStates)
-				require.NoError(t, err)
 			}
 
 			client, err := srv.NewClient(id)
@@ -339,16 +305,8 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 			sshCert, err := sshutils.ParseCertificate(certs.SSH)
 			require.NoError(t, err)
 
-			sshIdentity, err := sshca.DecodeIdentity(sshCert)
-			require.NoError(t, err)
-
 			require.WithinDuration(t, start.Add(test.expiresIn), x509.NotAfter, 1*time.Second)
 			require.WithinDuration(t, start.Add(test.expiresIn), time.Unix(int64(sshCert.ValidBefore), 0), 1*time.Second)
-
-			if test.githubIdentity != nil {
-				require.Equal(t, test.githubIdentity.UserID, sshIdentity.GitHubUserID)
-				require.Equal(t, test.githubIdentity.Username, sshIdentity.GitHubUsername)
-			}
 		})
 	}
 }
@@ -475,64 +433,10 @@ func TestInstaller(t *testing.T) {
 	}
 }
 
-func TestGitHubConnectorNameTooLarge(t *testing.T) {
-	t.Parallel()
-
-	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
-	require.NoError(t, err)
-
-	// Create a role that the connector will reference
-	role, err := types.NewRole("access", types.RoleSpecV6{})
-	require.NoError(t, err)
-	_, err = srv.AuthServer.CreateRole(t.Context(), role)
-	require.NoError(t, err)
-
-	authContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(t.Context(), authtest.TestBuiltin(types.RoleAdmin).I))
-	require.NoError(t, err)
-
-	authWithRoles := auth.NewServerWithRoles(
-		srv.AuthServer,
-		new(eventstest.MockAuditLog),
-		*authContext,
-	)
-
-	conn, err := types.NewGithubConnector(strings.Repeat("abc", 300), types.GithubConnectorSpecV3{
-		ClientID:     "example-client-id",
-		ClientSecret: "example-client-secret",
-		RedirectURL:  "https://localhost:3080/v1/webapi/github/callback",
-		Display:      "sign in with github",
-		TeamsToLogins: []types.TeamMapping{
-			{
-				Organization: "octocats",
-				Team:         "idp-admin",
-				Logins:       []string{"access"},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	created, err := authWithRoles.CreateGithubConnector(t.Context(), conn)
-	require.ErrorContains(t, err, "exceeds maximum length")
-	require.Nil(t, created)
-
-	upserted, err := authWithRoles.UpsertGithubConnector(t.Context(), conn)
-	require.ErrorContains(t, err, "exceeds maximum length")
-	require.Nil(t, upserted)
-
-	conn.SetName("short")
-	conn, err = authWithRoles.CreateGithubConnector(t.Context(), conn)
-	require.NoError(t, err)
-	require.NotNil(t, conn)
-
-	conn.SetName(strings.Repeat("abc", 300))
-	_, err = authWithRoles.UpdateGithubConnector(t.Context(), conn)
-	require.ErrorContains(t, err, "exceeds maximum length")
-}
-
 func TestGithubAuthRequest(t *testing.T) {
-	t.Parallel()
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 	ctx := context.Background()
-	srv := newTestTLSServer(t, withModules(modulestest.EnterpriseModules()))
+	srv := newTestTLSServer(t)
 
 	emptyRole, err := authtest.CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV6{})
 	require.NoError(t, err)
@@ -715,9 +619,9 @@ func TestGithubAuthRequest(t *testing.T) {
 // github/requests/validate which must have the same format as the requested
 // keys to support both old and new proxies.
 func TestGithubAuthCompat(t *testing.T) {
-	t.Parallel()
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 	ctx := context.Background()
-	srv := newTestTLSServer(t, withModules(modulestest.EnterpriseModules()))
+	srv := newTestTLSServer(t)
 
 	connector, err := types.NewGithubConnector("example", types.GithubConnectorSpecV3{
 		ClientID:     "example-client-id",
@@ -771,7 +675,13 @@ func TestGithubAuthCompat(t *testing.T) {
 			desc: "no keys",
 		},
 		{
-			desc:                "both keys",
+			desc:                "single key",
+			pubKey:              sshPubBytes,
+			expectSSHSubjectKey: sshPub,
+			expectTLSSubjectKey: sshKey.Public(),
+		},
+		{
+			desc:                "split keys",
 			sshPubKey:           sshPubBytes,
 			tlsPubKey:           tlsPubBytes,
 			expectSSHSubjectKey: sshPub,
@@ -794,6 +704,7 @@ func TestGithubAuthCompat(t *testing.T) {
 			req, err := proxyClient.CreateGithubAuthRequest(ctx, types.GithubAuthRequest{
 				ConnectorID:  connector.GetName(),
 				Type:         constants.Github,
+				PublicKey:    tc.pubKey,
 				SshPublicKey: tc.sshPubKey,
 				TlsPublicKey: tc.tlsPubKey,
 				CertTTL:      apidefaults.MinCertDuration,
@@ -808,7 +719,10 @@ func TestGithubAuthCompat(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			// The proxy should get back the keys exactly as it sent them.
+			// The proxy should get back the keys exactly as it sent them. Older
+			// proxies won't look for the new split keys, and they do check for
+			// the old single key to tell if this was a console or web request.
+			require.Equal(t, tc.pubKey, resp.Req.PublicKey) //nolint:staticcheck // SA1019. Checking that deprecated field is set.
 			require.Equal(t, tc.sshPubKey, resp.Req.SSHPubKey)
 			require.Equal(t, tc.tlsPubKey, resp.Req.TLSPubKey)
 
@@ -835,202 +749,6 @@ func TestGithubAuthCompat(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestAWSRolesAnywhereCredentialGenerationForApps(t *testing.T) {
-	t.Parallel()
-	ctx := t.Context()
-	srv := newTestTLSServer(t)
-
-	// Set up a new Integration for AWS Roles Anywhere.
-	awsRAIntegration := "awsra-integration"
-	ig, err := types.NewIntegrationAWSRA(types.Metadata{Name: awsRAIntegration}, &types.AWSRAIntegrationSpecV1{
-		TrustAnchorARN: "arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/ExampleTrustAnchor",
-		ProfileSyncConfig: &types.AWSRolesAnywhereProfileSyncConfig{
-			Enabled:                       true,
-			ProfileARN:                    "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/uuid2",
-			ProfileAcceptsRoleSessionName: true,
-			RoleARN:                       "arn:aws:iam::123456789012:role/SyncRole",
-		},
-	})
-	require.NoError(t, err)
-	_, err = srv.Auth().Integrations.CreateIntegration(ctx, ig)
-	require.NoError(t, err)
-
-	// Set up a new AWS App created from a Roles Anywhere Profile.
-	appName := "my-aws-access"
-	app, err := types.NewAppServerV3(
-		types.Metadata{Name: appName},
-		types.AppServerSpecV3{
-			HostID: uuid.NewString(),
-			App: &types.AppV3{
-				Metadata: types.Metadata{Name: appName},
-				Spec: types.AppSpecV3{
-					URI:         constants.AWSConsoleURL,
-					Integration: awsRAIntegration,
-					PublicAddr:  "my-app.example.com",
-					AWS: &types.AppAWS{
-						RolesAnywhereProfile: &types.AppAWSRolesAnywhereProfile{
-							ProfileARN:            "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/uuid1",
-							AcceptRoleSessionName: true,
-						},
-					},
-				},
-			},
-		},
-	)
-	require.NoError(t, err)
-	_, err = srv.Auth().UpsertApplicationServer(ctx, app)
-	require.NoError(t, err)
-
-	// Mock the credential generation function to return fixed credentials.
-	// This is required because the generator calls AWS endpoints to convert a teleport created certificate into valid AWS credentials.
-	srv.Auth().AWSRolesAnywhereCreateSessionOverride = func(ctx context.Context, req createsession.CreateSessionRequest) (*createsession.CreateSessionResponse, error) {
-		return &createsession.CreateSessionResponse{
-			Version:         1,
-			AccessKeyID:     "aki",
-			SecretAccessKey: "sak",
-			SessionToken:    "st",
-			Expiration:      "2025-06-25T12:07:02.474135Z",
-		}, nil
-	}
-
-	// Set up a user with the necessary roles to access the AWS App.
-	username := "aws-access-user"
-	roleARN := "arn:aws:iam::123456789012:role/MyRole"
-	awsAccessRole, err := authtest.CreateRole(ctx, srv.Auth(), "aws-access", types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			AppLabels: types.Labels{
-				types.Wildcard: []string{types.Wildcard},
-			},
-			AWSRoleARNs: []string{roleARN},
-		},
-	})
-	require.NoError(t, err)
-
-	user, err := authtest.CreateUser(ctx, srv.Auth(), username, awsAccessRole)
-	require.NoError(t, err)
-
-	client, err := srv.NewClient(authtest.TestUser(user.GetName()))
-	require.NoError(t, err)
-
-	// Create credentials for the AWS App
-	priv, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
-	require.NoError(t, err)
-	pub, err := keys.MarshalPublicKey(priv.Public())
-	require.NoError(t, err)
-
-	certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		TLSPublicKey: pub,
-		Username:     user.GetName(),
-		Expires:      time.Now().Add(time.Hour),
-		RouteToApp: proto.RouteToApp{
-			Name:       app.GetApp().GetName(),
-			AWSRoleARN: roleARN,
-		},
-	})
-	require.NoError(t, err)
-
-	// Parse the Identity and check the AWS Role ARN and credentials.
-	tlsCert, err := tlsca.ParseCertificatePEM(certs.TLS)
-	require.NoError(t, err)
-	identity, err := tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
-	require.NoError(t, err)
-
-	require.Equal(t, roleARN, identity.AWSRoleARNs[0], "Expected AWS Role ARN to match the one requested")
-	require.JSONEq(t, `{"Version":1,"AccessKeyId":"aki","SecretAccessKey":"sak","SessionToken":"st","Expiration":"2025-06-25T12:07:02.474135Z"}`, identity.RouteToApp.AWSCredentialProcessCredentials)
-}
-
-func TestAppAccessUsingAWSOIDC_doesntGenerateClientCredentials(t *testing.T) {
-	t.Parallel()
-	ctx := t.Context()
-	srv := newTestTLSServer(t)
-
-	// Set up a user with the necessary roles to access the AWS App.
-	username := "aws-access-user"
-	roleARN := "arn:aws:iam::123456789012:role/MyRole"
-	awsAccessRole, err := authtest.CreateRole(ctx, srv.Auth(), "aws-access", types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			AppLabels: types.Labels{
-				types.Wildcard: []string{types.Wildcard},
-			},
-			AWSRoleARNs: []string{roleARN},
-		},
-	})
-	require.NoError(t, err)
-
-	awsOIDCIntegration := "aws-oidc-integration"
-	ig, err := types.NewIntegrationAWSOIDC(types.Metadata{Name: awsOIDCIntegration}, &types.AWSOIDCIntegrationSpecV1{
-		RoleARN: "arn:aws:iam::123456789012:role/MyRole",
-	})
-	require.NoError(t, err)
-	_, err = srv.Auth().Integrations.CreateIntegration(ctx, ig)
-	require.NoError(t, err)
-
-	// Set up a new AWS App created from a Roles Anywhere Profile.
-	appName := "my-aws-access-using-awsoidc"
-	app, err := types.NewAppServerV3(
-		types.Metadata{Name: appName},
-		types.AppServerSpecV3{
-			HostID: uuid.NewString(),
-			App: &types.AppV3{
-				Metadata: types.Metadata{Name: appName},
-				Spec: types.AppSpecV3{
-					URI:         constants.AWSConsoleURL,
-					Integration: awsOIDCIntegration,
-					PublicAddr:  "my-app.example.com",
-				},
-			},
-		},
-	)
-	require.NoError(t, err)
-	_, err = srv.Auth().UpsertApplicationServer(ctx, app)
-	require.NoError(t, err)
-
-	user, err := authtest.CreateUser(ctx, srv.Auth(), username, awsAccessRole)
-	require.NoError(t, err)
-
-	client, err := srv.NewClient(authtest.TestUser(user.GetName()))
-	require.NoError(t, err)
-
-	// Create credentials for the AWS App
-	priv, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
-	require.NoError(t, err)
-	pub, err := keys.MarshalPublicKey(priv.Public())
-	require.NoError(t, err)
-
-	// Impersonating the requester name fails.
-	_, err = client.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		TLSPublicKey: pub,
-		Username:     user.GetName(),
-		Expires:      time.Now().Add(time.Hour),
-		RouteToApp: proto.RouteToApp{
-			Name:       appName,
-			AWSRoleARN: roleARN,
-		},
-		RequesterName: proto.UserCertsRequest_TSH_APP_AWS_CREDENTIALPROCESS,
-	})
-	require.Error(t, err)
-
-	certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		TLSPublicKey: pub,
-		Username:     user.GetName(),
-		Expires:      time.Now().Add(time.Hour),
-		RouteToApp: proto.RouteToApp{
-			Name:       appName,
-			AWSRoleARN: roleARN,
-		},
-	})
-	require.NoError(t, err)
-
-	// Parse the Identity and check the AWS Role ARN and credentials.
-	tlsCert, err := tlsca.ParseCertificatePEM(certs.TLS)
-	require.NoError(t, err)
-	identity, err := tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
-	require.NoError(t, err)
-
-	require.Equal(t, roleARN, identity.AWSRoleARNs[0], "Expected AWS Role ARN to match the one requested")
-	require.Empty(t, identity.RouteToApp.AWSCredentialProcessCredentials)
 }
 
 func TestSSODiagnosticInfo(t *testing.T) {
@@ -1100,8 +818,9 @@ func TestSSODiagnosticInfo(t *testing.T) {
 
 func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 	t.Parallel()
+
 	ctx := context.Background()
-	srv := newTestTLSServer(t, withScopesFeatures(scopes.Features{Enabled: true}))
+	srv := newTestTLSServer(t)
 
 	const kubeClusterName = "kube-cluster-1"
 	kubeCluster, err := types.NewKubernetesClusterV3(
@@ -1130,17 +849,11 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create test user1.
-	user1, _, err := authtest.CreateUserAndRole(srv.Auth(), "user1", []string{"role1"}, nil, authtest.WithRoleMutator(func(role types.Role) {
-		role.SetKubeGroups(types.Allow, []string{"kube_group"})
-		role.SetKubeUsers(types.Allow, []string{"kube_user"})
-	}))
+	user1, _, err := authtest.CreateUserAndRole(srv.Auth(), "user1", []string{"role1"}, nil)
 	require.NoError(t, err)
 
 	// Create test user2.
-	user2, role2, err := authtest.CreateUserAndRole(srv.Auth(), "user2", []string{"role2"}, nil, authtest.WithRoleMutator(func(role types.Role) {
-		role.SetKubeGroups(types.Allow, []string{"kube_group"})
-		role.SetKubeUsers(types.Allow, []string{"kube_user"})
-	}))
+	user2, role2, err := authtest.CreateUserAndRole(srv.Auth(), "user2", []string{"role2"}, nil)
 	require.NoError(t, err)
 
 	role2Opts := role2.GetOptions()
@@ -1158,101 +871,31 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 	authPrefs, err := srv.Auth().GetAuthPreference(ctx)
 	require.NoError(t, err)
 
-	getScopeAsName := func(scope string) string {
-		return strings.ReplaceAll(strings.Trim(scope, "/"), "/", "-")
-	}
-
-	scope := "/test"
-	roleResp, err := srv.Auth().ScopedAccess().CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
-		Role: &scopedaccessv1.ScopedRole{
-			Kind:    scopedaccess.KindScopedRole,
-			Version: types.V1,
-			Metadata: &headerv1.Metadata{
-				Name: getScopeAsName(scope) + "-role",
-			},
-			Scope: scope,
-			Spec: &scopedaccessv1.ScopedRoleSpec{
-				AssignableScopes: []string{scope},
-				Kube: &scopedaccessv1.ScopedRoleKube{
-					Users:  []string{"scoped_kube_user"},
-					Groups: []string{"scoped_kube_group"},
-					Labels: []*labelv1.Label{
-						{
-							Name:   types.Wildcard,
-							Values: []string{types.Wildcard},
-						},
-					},
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	role := roleResp.GetRole()
-	sra, err := srv.Auth().ScopedAccess().CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
-		Assignment: &scopedaccessv1.ScopedRoleAssignment{
-			Kind:    scopedaccess.KindScopedRoleAssignment,
-			SubKind: scopedaccess.SubKindDynamic,
-			Version: types.V1,
-			Metadata: &headerv1.Metadata{
-				Name: uuid.NewString(),
-			},
-			Scope: scope,
-			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
-				User: user1.GetName(),
-				Assignments: []*scopedaccessv1.Assignment{
-					{Role: role.GetMetadata().GetName(), Scope: scope},
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-	waitForSRACache(t, srv, sra)
-
 	_, sshPubKey, _, tlsPubKey := newSSHAndTLSKeyPairs(t)
 	defaultDuration := authPrefs.GetDefaultSessionTTL().Duration()
 
 	testCases := []struct {
-		desc             string
-		user             types.User
-		scope            string
-		expiration       time.Time
-		expectKubeUsers  []string
-		expectKubeGroups []string
+		desc       string
+		user       types.User
+		expiration time.Time
 	}{
 		{
-			desc:             "Roles don't have max_session_ttl set",
-			user:             user1,
-			expiration:       srv.Auth().GetClock().Now().Add(defaultDuration),
-			expectKubeUsers:  []string{"kube_user"},
-			expectKubeGroups: []string{"kube_group"},
-		},
-		{
-			desc:             "Roles have max_session_ttl set, cert expiration adjusted",
-			user:             user2,
-			expiration:       srv.Auth().GetClock().Now().Add(2 * time.Hour),
-			expectKubeUsers:  []string{"kube_user"},
-			expectKubeGroups: []string{"kube_group"},
-		},
-		{
-			// scopes don't support max_session_ttl
-			desc:       "Scoped role, no max_session_ttl set",
+			desc:       "Roles don't have max_session_ttl set",
 			user:       user1,
-			scope:      scope,
 			expiration: srv.Auth().GetClock().Now().Add(defaultDuration),
+		},
+		{
+			desc:       "Roles have max_session_ttl set, cert expiration adjusted",
+			user:       user2,
+			expiration: srv.Auth().GetClock().Now().Add(2 * time.Hour),
 		},
 	}
 
 	for _, tt := range testCases {
 		t.Run(tt.desc, func(t *testing.T) {
-			var ident authtest.TestIdentity
-			if tt.scope != "" {
-				ident = authtest.TestScopedUser(tt.user.GetName(), tt.scope)
-			} else {
-				ident = authtest.TestUser(tt.user.GetName())
-			}
-			ident.TTL = defaultDuration
-			client, err := srv.NewClient(ident)
+			user := authtest.TestUser(tt.user.GetName())
+			user.TTL = defaultDuration
+			client, err := srv.NewClient(user)
 			require.NoError(t, err)
 
 			certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
@@ -1271,15 +914,6 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 			require.NoError(t, err)
 			identity, err := tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
 			require.NoError(t, err)
-			if tt.scope != "" {
-				require.Equal(t, tt.scope, identity.ScopePin.Scope)
-			} else {
-				require.Nil(t, identity.ScopePin)
-			}
-
-			// Verify kube fields are set
-			require.ElementsMatch(t, tt.expectKubeUsers, identity.KubernetesUsers)
-			require.ElementsMatch(t, tt.expectKubeGroups, identity.KubernetesGroups)
 
 			sshCert, err := sshutils.ParseCertificate(certs.SSH)
 			require.NoError(t, err)
@@ -1447,13 +1081,11 @@ func TestGenerateUserCertsWithMFAVerification(t *testing.T) {
 			_, err = srv.Auth().UpsertAuthPreference(ctx, ap)
 			require.NoError(t, err)
 
-			priv, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
-			require.NoError(t, err)
-			pub, err := keys.MarshalPublicKey(priv.Public())
+			_, pub, err := testauthority.New().GenerateKeyPair()
 			require.NoError(t, err)
 
 			certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
-				TLSPublicKey:      pub,
+				PublicKey:         pub,
 				Username:          tt.user.GetName(),
 				Expires:           authClock.Now().Add(defaultDuration),
 				KubernetesCluster: kubeClusterName,
@@ -1504,13 +1136,6 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	userNameRole, err := authtest.CreateRole(ctx, srv.Auth(), "test-access-username", types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			Logins: []string{"{{user.metadata.name}}"},
-		},
-	})
-	require.NoError(t, err)
-
 	impersonatorRole, err := authtest.CreateRole(ctx, srv.Auth(), "test-impersonator", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Impersonate: &types.ImpersonateConditions{
@@ -1518,7 +1143,6 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 					accessFooRole.GetName(),
 					accessBarRole.GetName(),
 					loginsTraitsRole.GetName(),
-					userNameRole.GetName(),
 				},
 			},
 		},
@@ -1596,14 +1220,6 @@ func TestGenerateUserCertsWithRoleRequest(t *testing.T) {
 			roleRequests:     []string{loginsTraitsRole.GetName()},
 			useRoleRequests:  true,
 			expectPrincipals: []string{"trait-login"},
-		},
-		{
-			desc:             "requesting a role preserves the teleport username",
-			username:         "ivy",
-			roles:            []string{emptyRole.GetName(), impersonatorRole.GetName()},
-			roleRequests:     []string{userNameRole.GetName()},
-			useRoleRequests:  true,
-			expectPrincipals: []string{"ivy"},
 		},
 		{
 			// Users not using role requests should keep their own roles
@@ -1958,7 +1574,7 @@ func TestRoleRequestDenyReimpersonation(t *testing.T) {
 	require.NoError(t, err)
 
 	// Attempt a request.
-	_, err = impersonatedClient.GetClusterName(ctx)
+	_, err = impersonatedClient.GetClusterName()
 	require.NoError(t, err)
 
 	// Attempt to generate new certs for a different (allowed) role.
@@ -2143,14 +1759,36 @@ func testDynamicallyConfigurableRBAC(t *testing.T, p testDynamicallyConfigurable
 	runTestCases(true)
 }
 
-func TestClusterNetworkingCloudUpdates(t *testing.T) {
+func TestAuthPreferenceRBAC(t *testing.T) {
 	t.Parallel()
-	ctx := t.Context()
+	ctx := context.Background()
+	testDynamicallyConfigurableRBAC(t, testDynamicallyConfigurableRBACParams{
+		kind: types.KindClusterAuthPreference,
+		storeDefault: func(s *auth.Server) {
+			s.UpsertAuthPreference(ctx, types.DefaultAuthPreference())
+		},
+		storeConfigFile: func(s *auth.Server) {
+			authPref := types.DefaultAuthPreference()
+			authPref.SetOrigin(types.OriginConfigFile)
+			s.UpsertAuthPreference(ctx, authPref)
+		},
+		get: func(s *auth.ServerWithRoles) error {
+			_, err := s.GetAuthPreference(ctx)
+			return err
+		},
+		set: func(s *auth.ServerWithRoles) error {
+			return s.SetAuthPreference(ctx, types.DefaultAuthPreference())
+		},
+		reset: func(s *auth.ServerWithRoles) error {
+			return s.ResetAuthPreference(ctx)
+		},
+		alwaysReadable: true,
+	})
+}
 
-	testModules := modulestest.EnterpriseModules()
-
-	srv := newTestTLSServer(t, withModules(testModules))
-
+func TestClusterNetworkingCloudUpdates(t *testing.T) {
+	srv := newTestTLSServer(t)
+	ctx := context.Background()
 	_, err := srv.Auth().UpsertClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
 	require.NoError(t, err)
 
@@ -2243,11 +1881,17 @@ func TestClusterNetworkingCloudUpdates(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			testModules.TestFeatures.Cloud = tc.cloud
+			modulestest.SetTestModules(t, modulestest.Modules{
+				TestBuildType: modules.BuildEnterprise,
+				TestFeatures: modules.Features{
+					Cloud: tc.cloud,
+				},
+			})
+
 			client, err := srv.NewClient(tc.identity)
 			require.NoError(t, err)
 
-			_, err = client.UpsertClusterNetworkingConfig(ctx, tc.clusterNetworkingConfig.(*types.ClusterNetworkingConfigV2))
+			err = client.SetClusterNetworkingConfig(ctx, tc.clusterNetworkingConfig.(*types.ClusterNetworkingConfigV2))
 			if tc.expectSetErr != "" {
 				assert.ErrorContains(t, err, tc.expectSetErr)
 			} else {
@@ -2358,11 +2002,17 @@ func BenchmarkListNodes(b *testing.B) {
 	const nodeCount = 50_000
 	const roleCount = 32
 
+	logger := logrus.StandardLogger()
+	logger.ReplaceHooks(make(logrus.LevelHooks))
+	logrus.SetFormatter(logutils.NewTestJSONFormatter())
+	logger.SetLevel(logrus.DebugLevel)
+	logger.SetOutput(io.Discard)
+
 	ctx := context.Background()
 	srv := newTestTLSServer(b)
 
 	var ids []string
-	for range roleCount {
+	for i := 0; i < roleCount; i++ {
 		ids = append(ids, uuid.New().String())
 	}
 
@@ -2370,7 +2020,7 @@ func BenchmarkListNodes(b *testing.B) {
 
 	var hiddenNodes int
 	// Create test nodes.
-	for i := range nodeCount {
+	for i := 0; i < nodeCount; i++ {
 		name := uuid.New().String()
 		id := ids[i%len(ids)]
 		if id == "hidden" {
@@ -2523,8 +2173,9 @@ func benchmarkListNodes(
 	require.NoError(b, err)
 
 	b.ReportAllocs()
+	b.ResetTimer()
 
-	for b.Loop() {
+	for n := 0; n < b.N; n++ {
 		var resources []types.ResourceWithLabels
 		req := proto.ListResourcesRequest{
 			ResourceType: types.KindNode,
@@ -2553,7 +2204,7 @@ func TestGetAndList_Nodes(t *testing.T) {
 	srv := newTestTLSServer(t)
 
 	// Create test nodes.
-	for range 10 {
+	for i := 0; i < 10; i++ {
 		name := uuid.New().String()
 		node, err := types.NewServerWithLabels(
 			name,
@@ -2676,7 +2327,8 @@ func TestStreamSessionEventsRBAC(t *testing.T) {
 	clt, err := srv.NewClient(identity)
 	require.NoError(t, err)
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	_, errC := clt.StreamSessionEvents(ctx, "foo", 0)
 	select {
 	case err := <-errC:
@@ -2690,7 +2342,8 @@ func TestStreamSessionEventsRBAC(t *testing.T) {
 func TestStreamSessionEvents_User(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	srv := newTestTLSServer(t)
 
 	username := "user"
@@ -2725,7 +2378,8 @@ func TestStreamSessionEvents_User(t *testing.T) {
 func TestAuditLog_SessionEvents_BuiltinRoles(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	srv := newTestTLSServer(t)
 
 	roles := types.LocalServiceMappings()
@@ -2859,8 +2513,8 @@ func TestStreamSessionEvents_SessionType(t *testing.T) {
 			Limit:      1,
 			Order:      types.EventOrderDescending,
 		})
-		require.NoError(t, err)
-		require.Len(t, searchEvents, 1, "expected one event but got %d", len(searchEvents))
+		assert.NoError(t, err)
+		assert.Len(t, searchEvents, 1, "expected one event but got %d", len(searchEvents))
 	}, 5*time.Second, 200*time.Millisecond)
 
 	event := searchEvents[0].(*apievents.SessionRecordingAccess)
@@ -2993,7 +2647,7 @@ func serverWithAllowRules(t *testing.T, srv *authtest.AuthServer, allowRules []t
 	_, err = srv.AuthServer.UpsertRole(ctx, role)
 	require.NoError(t, err)
 
-	localUser := authz.LocalUser{Username: username, Identity: tlsca.Identity{Username: username, Groups: []string{role.GetName()}}}
+	localUser := authz.LocalUser{Username: username, Identity: tlsca.Identity{Username: username}}
 	authContext, err := authz.ContextForLocalUser(ctx, localUser, srv.AuthServer.Services, srv.ClusterName, true /* disableDeviceAuthz */)
 	require.NoError(t, err)
 	authContext.AdminActionAuthState = authz.AdminActionAuthMFAVerified
@@ -3228,8 +2882,9 @@ func mustGetDatabases(t *testing.T, client *authclient.Client, wantDatabases []t
 		cmpopts.EquateEmpty(),
 	))
 
-	actualDatabases, err = stream.Collect(client.RangeDatabases(t.Context(), "", ""))
+	actualDatabases, next, err := client.ListDatabases(context.Background(), 0, "")
 	require.NoError(t, err)
+	require.Empty(t, next)
 
 	require.Empty(t, cmp.Diff(wantDatabases, actualDatabases,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
@@ -3245,13 +2900,23 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 	discoveryClt, err := srv.NewClient(authtest.TestBuiltin(types.RoleDiscovery))
 	require.NoError(t, err)
 
-	eksCluster, err := common.NewKubeClusterFromAWSEKS(
-		"eks-cluster1",
-		"arn:aws:eks:eu-west-1:accountID:cluster/cluster1",
-		nil,
-	)
-	require.NoError(t, err)
-	eksCluster.SetOrigin(types.OriginCloud)
+	newCluster := func(index int) types.KubeCluster {
+		cluster, err := common.NewKubeClusterFromAWSEKS(
+			fmt.Sprintf("eks-cluster%d", index),
+			fmt.Sprintf("arn:aws:eks:eu-west-1:accountID:cluster/cluster%d", index),
+			nil,
+		)
+		require.NoError(t, err)
+		return cluster
+
+	}
+
+	var eksClusters []types.KubeCluster
+	for i := range 3 {
+		cluster := newCluster(i)
+		cluster.SetOrigin(types.OriginCloud)
+		eksClusters = append(eksClusters, cluster)
+	}
 
 	// Discovery service must not have access to non-cloud cluster (cluster
 	// without "cloud" origin label).
@@ -3265,11 +2930,7 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 	require.NoError(t, srv.Auth().CreateKubernetesCluster(ctx, nonCloudCluster))
 
 	// Discovery service cannot create cluster with dynamic labels.
-	clusterWithDynamicLabels, err := common.NewKubeClusterFromAWSEKS(
-		"eks-cluster2",
-		"arn:aws:eks:eu-west-1:accountID:cluster/cluster2",
-		nil,
-	)
+	clusterWithDynamicLabels := newCluster(4)
 	require.NoError(t, err)
 	clusterWithDynamicLabels.SetOrigin(types.OriginCloud)
 	clusterWithDynamicLabels.SetDynamicLabels(map[string]types.CommandLabel{
@@ -3279,51 +2940,41 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 		},
 	})
 
-	scopedCluster, err := types.NewKubernetesClusterV3(
-		types.Metadata{
-			Name: "scoped-cluster",
-			Labels: map[string]string{
-				types.CloudLabel: types.CloudAWS,
-			},
-		},
-		types.KubernetesClusterSpecV3{},
-	)
-	require.NoError(t, err)
-	scopedCluster.SetOrigin(types.OriginCloud)
-	scopedCluster.Scope = "/test"
-
 	t.Run("Create", func(t *testing.T) {
-		require.NoError(t, discoveryClt.CreateKubernetesCluster(ctx, eksCluster))
+		for _, eksCluster := range eksClusters {
+			require.NoError(t, discoveryClt.CreateKubernetesCluster(ctx, eksCluster))
+		}
 		require.True(t, trace.IsAccessDenied(discoveryClt.CreateKubernetesCluster(ctx, nonCloudCluster)))
 		require.True(t, trace.IsAccessDenied(discoveryClt.CreateKubernetesCluster(ctx, clusterWithDynamicLabels)))
-		require.True(t, trace.IsBadParameter(discoveryClt.CreateKubernetesCluster(ctx, scopedCluster)))
 	})
 	t.Run("Read", func(t *testing.T) {
 		diffopt := cmpopts.IgnoreFields(types.Metadata{}, "Revision")
 
 		clusters, err := discoveryClt.GetKubernetesClusters(ctx)
 		require.NoError(t, err)
-		require.Empty(t, cmp.Diff([]types.KubeCluster{eksCluster}, clusters, diffopt))
+		require.Empty(t, cmp.Diff(eksClusters, clusters, diffopt))
 
 		clusters, next, err := discoveryClt.ListKubernetesClusters(ctx, 0, "")
 		require.Empty(t, next)
 		require.NoError(t, err)
-		require.Empty(t, cmp.Diff([]types.KubeCluster{eksCluster}, clusters, diffopt))
+		require.Empty(t, cmp.Diff(eksClusters, clusters, diffopt))
 
-		clusters, err = stream.Collect(discoveryClt.RangeKubernetesClusters(ctx, "", ""))
+		page1, page2Start, err := discoveryClt.ListKubernetesClusters(ctx, 1, "")
+		require.NotEmpty(t, page2Start)
 		require.NoError(t, err)
-		require.Empty(t, cmp.Diff([]types.KubeCluster{eksCluster}, clusters, diffopt))
+		require.Empty(t, cmp.Diff(eksClusters[:1], page1, diffopt))
+
+		page2, next, err := discoveryClt.ListKubernetesClusters(ctx, 0, page2Start)
+		require.Empty(t, next)
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(eksClusters[1:], page2, diffopt))
+
+		require.Empty(t, cmp.Diff(eksClusters, append(page1, page2...), diffopt))
 	})
 
 	t.Run("Update", func(t *testing.T) {
-		require.NoError(t, discoveryClt.UpdateKubernetesCluster(ctx, eksCluster))
+		require.NoError(t, discoveryClt.UpdateKubernetesCluster(ctx, eksClusters[0]))
 		require.True(t, trace.IsAccessDenied(discoveryClt.UpdateKubernetesCluster(ctx, nonCloudCluster)))
-
-		// try to add a scope to the cluster that was successfully created
-		scopedEKSCluster, ok := eksCluster.Copy().(*types.KubernetesClusterV3)
-		require.True(t, ok, "expected eksCluster copy to be a *types.KubernetesClusterV3")
-		scopedEKSCluster.Scope = "/test"
-		require.True(t, trace.IsBadParameter(discoveryClt.UpdateKubernetesCluster(ctx, scopedEKSCluster)))
 	})
 	t.Run("Delete", func(t *testing.T) {
 		require.NoError(t, discoveryClt.DeleteAllKubernetesClusters(ctx))
@@ -3331,307 +2982,10 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, clusters)
 
-		clusters, err = stream.Collect(discoveryClt.RangeKubernetesClusters(ctx, "", ""))
-		require.NoError(t, err)
-		require.Empty(t, clusters)
-
 		// Discovery service cannot delete non-cloud clusters.
 		clusters, err = srv.Auth().GetKubernetesClusters(ctx)
 		require.NoError(t, err)
 		require.Len(t, clusters, 1)
-
-		clusters, err = stream.Collect(srv.Auth().RangeKubernetesClusters(ctx, "", ""))
-		require.NoError(t, err)
-		require.Len(t, clusters, 1)
-	})
-}
-
-func TestKubeCRUDFromKubeService(t *testing.T) {
-	t.Parallel()
-	ctx := t.Context()
-	srv := newTestTLSServer(t, withBufconnListener())
-
-	scopedIdent := authtest.TestBuiltin(types.RoleKube)
-	// override the agent scope in the test identity
-	builtinRole, ok := scopedIdent.I.(authz.BuiltinRole)
-	require.True(t, ok, "expected ident to be a builtin role")
-
-	builtinRole.Identity.AgentScope = "/test"
-	scopedIdent.I = builtinRole
-
-	scopedKubeClient, err := srv.NewClient(scopedIdent)
-	require.NoError(t, err)
-
-	unscopedKubeClient, err := srv.NewClient(authtest.TestBuiltin(types.RoleKube))
-	require.NoError(t, err)
-
-	// create an admin client to create resources and setup for test cases
-	adminClient, err := srv.NewClient(authtest.TestBuiltin(types.RoleAdmin))
-	require.NoError(t, err)
-
-	const clusterName = "kube-cluster"
-	kubeCluster, err := types.NewKubernetesClusterV3(
-		types.Metadata{
-			Name: clusterName,
-			Labels: map[string]string{
-				"env": "test",
-			},
-		},
-		types.KubernetesClusterSpecV3{},
-	)
-	require.NoError(t, err)
-
-	kubeServer, err := types.NewKubernetesServerV3FromCluster(kubeCluster, "hostname", "host-id")
-	require.NoError(t, err)
-
-	err = adminClient.CreateKubernetesCluster(ctx, kubeCluster)
-	require.NoError(t, err)
-
-	_, err = adminClient.UpsertKubernetesServer(ctx, kubeServer)
-	require.NoError(t, err)
-
-	waitingContainer, err := unscopedKubeClient.CreateKubernetesWaitingContainer(ctx, &kubewaitingcontainerv1.KubernetesWaitingContainer{
-		Metadata: &headerv1.Metadata{
-			Name: "waiting-container",
-		},
-		Spec: &kubewaitingcontainerv1.KubernetesWaitingContainerSpec{
-			Username:      "user",
-			Cluster:       clusterName,
-			Namespace:     "namespace",
-			PodName:       "pod-name",
-			ContainerName: "waiting-container",
-			Patch:         []byte("patch"),
-			PatchType:     kubewaitingcontainer.ApplyPatchType,
-		},
-	})
-	require.NoError(t, err)
-
-	t.Run("CreateKubernetesCluster", func(t *testing.T) {
-		// neither scoped nor unscoped kube service clients should be able to create a kube cluster
-		err := unscopedKubeClient.CreateKubernetesCluster(ctx, kubeCluster)
-		require.Error(t, err)
-		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
-
-		err = scopedKubeClient.CreateKubernetesCluster(ctx, kubeCluster)
-		require.Error(t, err)
-		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
-	})
-
-	t.Run("UpdateKubernetesCluster", func(t *testing.T) {
-		// neither scoped nor unscoped kube service clients should be able to create a kube cluster
-		err := unscopedKubeClient.UpdateKubernetesCluster(ctx, kubeCluster)
-		require.Error(t, err)
-		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
-
-		err = scopedKubeClient.UpdateKubernetesCluster(ctx, kubeCluster)
-		require.Error(t, err)
-		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
-	})
-
-	t.Run("GetKubernetesCluster", func(t *testing.T) {
-		// unscoped kube clients SHOULD be able to fetch a kube cluster
-		cluster, err := unscopedKubeClient.GetKubernetesCluster(ctx, clusterName)
-		require.NoError(t, err)
-		require.NotNil(t, cluster)
-
-		// scoped kube clients SHOULD NOT be able to fetch a kube cluster
-		_, err = scopedKubeClient.GetKubernetesCluster(ctx, clusterName)
-		require.Error(t, err)
-		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
-	})
-
-	t.Run("GetKubernetesClusters", func(t *testing.T) {
-		// unscoped kube clients SHOULD be able to list kube clusters
-		clusters, err := unscopedKubeClient.GetKubernetesClusters(ctx)
-		require.NoError(t, err)
-		require.Len(t, clusters, 1)
-
-		// scoped kube clients SHOULD NOT be able to list a kube clusters
-		clusters, err = scopedKubeClient.GetKubernetesClusters(ctx)
-		require.NoError(t, err)
-		require.Empty(t, clusters)
-	})
-
-	t.Run("ListKubernetesClusters", func(t *testing.T) {
-		// unscoped kube clients SHOULD be able to list kube clusters
-		clusters, _, err := unscopedKubeClient.ListKubernetesClusters(ctx, 10, "")
-		require.NoError(t, err)
-		require.Len(t, clusters, 1)
-
-		// scoped kube clients SHOULD NOT be able to list kube clusters
-		clusters, _, err = scopedKubeClient.ListKubernetesClusters(ctx, 10, "")
-		require.NoError(t, err)
-		require.Empty(t, clusters)
-	})
-
-	t.Run("DeleteKubernetesCluster", func(t *testing.T) {
-		// neither scoped nor unscoped kube clients should be able to delete a kube cluster
-		err := unscopedKubeClient.DeleteKubernetesCluster(ctx, clusterName)
-		require.Error(t, err)
-		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
-
-		err = scopedKubeClient.DeleteKubernetesCluster(ctx, clusterName)
-		require.Error(t, err)
-		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
-	})
-
-	t.Run("DeleteAllKubernetesCluster", func(t *testing.T) {
-		// neither scoped nor unscoped kube clients should be able to delete all kube clusters
-		err := unscopedKubeClient.DeleteAllKubernetesClusters(ctx)
-		require.Error(t, err)
-		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
-
-		err = scopedKubeClient.DeleteAllKubernetesClusters(ctx)
-		require.Error(t, err)
-		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
-	})
-
-	t.Run("UpsertKubernetesServer", func(t *testing.T) {
-		// unscoped kube service SHOULD be able to upsert a kube server
-		_, err = unscopedKubeClient.UpsertKubernetesServer(ctx, kubeServer)
-		require.NoError(t, err)
-
-		// scoped kube service SHOULD NOT be able to upsert a kube server
-		_, err = scopedKubeClient.UpsertKubernetesServer(ctx, kubeServer)
-		require.Error(t, err)
-		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
-	})
-
-	t.Run("GetKubernetesServers", func(t *testing.T) {
-		// unscoped kube service clients SHOULD be able to get a list of kube servers
-		servers, err := unscopedKubeClient.GetKubernetesServers(ctx)
-		require.NoError(t, err)
-		require.Len(t, servers, 1)
-
-		// scoped kube service clients SHOULD NOT be able to get a list of kube servers
-		servers, err = scopedKubeClient.GetKubernetesServers(ctx)
-		require.NoError(t, err)
-		require.Empty(t, servers)
-	})
-
-	t.Run("DeleteKubernetesServer", func(t *testing.T) {
-		ks := kubeServer
-		ks.SetName("kube-server-for-deletion")
-		_, err := adminClient.UpsertKubernetesServer(ctx, ks)
-		require.NoError(t, err)
-
-		// unscoped kube clients SHOULD be able to delete a kube server
-		err = unscopedKubeClient.DeleteKubernetesServer(ctx, "host-id", ks.GetName())
-		require.NoError(t, err)
-
-		// scoped kube clients SHOULD NOT be able to delete a kube server
-		err = scopedKubeClient.DeleteKubernetesServer(ctx, "hostname", "host-id")
-		require.Error(t, err)
-		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
-	})
-
-	t.Run("DeleteAllKubernetesServers", func(t *testing.T) {
-		ks := kubeServer
-		ks.SetName("kube-server-for-deletion")
-		_, err := adminClient.UpsertKubernetesServer(ctx, ks)
-		require.NoError(t, err)
-
-		// unscoped kube clients SHOULD be able to delete all kube servers
-		err = unscopedKubeClient.DeleteAllKubernetesServers(ctx)
-		require.NoError(t, err)
-
-		// scoped kube clients SHOULD NOT be able to delete all kube servers
-		err = scopedKubeClient.DeleteAllKubernetesServers(ctx)
-		require.Error(t, err)
-		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
-	})
-
-	t.Run("CreateKubernetesWaitingContainer", func(t *testing.T) {
-		const wcName = "create-waiting-container"
-		wc := &kubewaitingcontainerv1.KubernetesWaitingContainer{
-			Metadata: &headerv1.Metadata{
-				Name: wcName,
-			},
-			Spec: &kubewaitingcontainerv1.KubernetesWaitingContainerSpec{
-				Username:      waitingContainer.GetSpec().GetUsername(),
-				Cluster:       waitingContainer.GetSpec().GetCluster(),
-				Namespace:     waitingContainer.GetSpec().GetNamespace(),
-				PodName:       waitingContainer.GetSpec().GetPodName(),
-				ContainerName: wcName,
-				Patch:         waitingContainer.GetSpec().GetPatch(),
-				PatchType:     waitingContainer.GetSpec().GetPatchType(),
-			},
-		}
-
-		// unscoped kube service clients SHOULD be able to create a kube waiting container
-		wc, err := unscopedKubeClient.CreateKubernetesWaitingContainer(ctx, wc)
-		require.NoError(t, err)
-
-		// cleanup waiting container
-		err = unscopedKubeClient.DeleteKubernetesWaitingContainer(ctx, &kubewaitingcontainerv1.DeleteKubernetesWaitingContainerRequest{
-			Username:      wc.GetSpec().GetUsername(),
-			Cluster:       wc.GetSpec().GetCluster(),
-			Namespace:     wc.GetSpec().GetNamespace(),
-			PodName:       wc.GetSpec().GetPodName(),
-			ContainerName: wc.GetSpec().GetContainerName(),
-		})
-		require.NoError(t, err)
-
-		// scoped kube service clients SHOULD NOT be able to create a kube waiting container
-		_, err = scopedKubeClient.CreateKubernetesWaitingContainer(ctx, &kubewaitingcontainerv1.KubernetesWaitingContainer{})
-		require.Error(t, err)
-		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
-	})
-
-	t.Run("DeleteKubernetesWaitingContainer", func(t *testing.T) {
-		const wcName = "delete-waiting-container"
-		wc := &kubewaitingcontainerv1.KubernetesWaitingContainer{
-			Metadata: &headerv1.Metadata{
-				Name: wcName,
-			},
-			Spec: &kubewaitingcontainerv1.KubernetesWaitingContainerSpec{
-				Username:      waitingContainer.GetSpec().GetUsername(),
-				Cluster:       waitingContainer.GetSpec().GetCluster(),
-				Namespace:     waitingContainer.GetSpec().GetNamespace(),
-				PodName:       waitingContainer.GetSpec().GetPodName(),
-				ContainerName: wcName,
-				Patch:         waitingContainer.GetSpec().GetPatch(),
-				PatchType:     waitingContainer.GetSpec().GetPatchType(),
-			},
-		}
-
-		// unscoped kube service clients SHOULD be able to create a kube waiting container
-		wc, err := unscopedKubeClient.CreateKubernetesWaitingContainer(ctx, wc)
-		require.NoError(t, err)
-
-		deleteReq := &kubewaitingcontainerv1.DeleteKubernetesWaitingContainerRequest{
-			Username:      wc.GetSpec().GetUsername(),
-			Cluster:       wc.GetSpec().GetCluster(),
-			Namespace:     wc.GetSpec().GetNamespace(),
-			PodName:       wc.GetSpec().GetPodName(),
-			ContainerName: wc.GetSpec().GetContainerName(),
-		}
-		// cleanup waiting container
-		err = unscopedKubeClient.DeleteKubernetesWaitingContainer(ctx, deleteReq)
-		require.NoError(t, err)
-
-		// scoped kube service clients SHOULD NOT be able to delete a kube waiting container
-		err = scopedKubeClient.DeleteKubernetesWaitingContainer(ctx, deleteReq)
-		require.Error(t, err)
-		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
-	})
-
-	t.Run("GetKubernetesWaitingContainer", func(t *testing.T) {
-		req := &kubewaitingcontainerv1.GetKubernetesWaitingContainerRequest{
-			Username:      waitingContainer.GetSpec().GetUsername(),
-			Cluster:       waitingContainer.GetSpec().GetCluster(),
-			Namespace:     waitingContainer.GetSpec().GetNamespace(),
-			PodName:       waitingContainer.GetSpec().GetPodName(),
-			ContainerName: waitingContainer.GetSpec().GetContainerName(),
-		}
-		// unscoped kube clients SHOULD be able to fetch a kube waiting containers
-		_, err := unscopedKubeClient.GetKubernetesWaitingContainer(ctx, req)
-		require.NoError(t, err)
-
-		// scoped kube clients SHOULD NOT be able to fetch a kube waiting containers
-		_, err = scopedKubeClient.GetKubernetesWaitingContainer(ctx, req)
-		require.Error(t, err)
-		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
 	})
 }
 
@@ -3641,7 +2995,7 @@ func TestGetAndList_DatabaseServers(t *testing.T) {
 	srv := newTestTLSServer(t)
 
 	// Create test databases.
-	for i := range 5 {
+	for i := 0; i < 5; i++ {
 		name := fmt.Sprintf("db-%d", i)
 		database, err := types.NewDatabaseV3(
 			types.Metadata{
@@ -3670,11 +3024,6 @@ func TestGetAndList_DatabaseServers(t *testing.T) {
 
 	testServers, err := srv.Auth().GetDatabaseServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-
-	for _, server := range testServers {
-		db := server.GetDatabase()
-		require.Equal(t, dbvnet.DNSName(db.GetName()), db.GetStatusVNetDNSName())
-	}
 
 	testResources := make([]types.ResourceWithLabels, len(testServers))
 	for i, server := range testServers {
@@ -3785,7 +3134,7 @@ func TestGetAndList_ApplicationServers(t *testing.T) {
 	srv := newTestTLSServer(t)
 
 	// Create test app servers.
-	for i := range 5 {
+	for i := 0; i < 5; i++ {
 		name := fmt.Sprintf("app-%v", i)
 		app, err := types.NewAppV3(types.Metadata{
 			Name:   name,
@@ -3905,63 +3254,188 @@ func TestGetAndList_ApplicationServers(t *testing.T) {
 	require.Empty(t, resp.Resources)
 }
 
-func TestListSAMLIdPServiceProviderWithCache(t *testing.T) {
-	t.Parallel()
-	// Set license to enterprise in order to be able to list SAML IdP service providers.
-	ctx := t.Context()
-	srv := newTestTLSServer(t, withCacheEnabled(true), withModules(modulestest.EnterpriseModules()))
+// TestGetAndList_AppServersAndSAMLIdPServiceProviders verifies RBAC and filtering is applied when fetching App Servers and SAML IdP Service Providers.
+// DELETE IN 17.0
+func TestGetAndList_AppServersAndSAMLIdPServiceProviders(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
 
-	sp, err := types.NewSAMLIdPServiceProvider(types.Metadata{
-		Name: "saml-app",
-	}, types.SAMLIdPServiceProviderSpecV1{
-		ACSURL:   "https://example.com/acs",
-		EntityID: "https://example.com/entity-id",
+	// Set license to enterprise in order to be able to list SAML IdP Service Providers.
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
 	})
-	require.NoError(t, err)
-	err = srv.Auth().CreateSAMLIdPServiceProvider(ctx, sp)
+
+	// Create test app servers and SAML IdP Service Providers.
+	for i := 0; i < 6; i++ {
+		// Alternate between creating AppServers and SAMLIdPServiceProviders
+		if i%2 == 0 {
+			name := fmt.Sprintf("app-server-%v", i)
+			app, err := types.NewAppV3(types.Metadata{
+				Name:   name,
+				Labels: map[string]string{"name": name},
+			},
+				types.AppSpecV3{URI: "localhost"})
+			require.NoError(t, err)
+			server, err := types.NewAppServerV3FromApp(app, "host", "hostid")
+			server.Spec.Version = types.V3
+			require.NoError(t, err)
+
+			_, err = srv.Auth().UpsertApplicationServer(ctx, server)
+			require.NoError(t, err)
+		} else {
+			name := fmt.Sprintf("saml-app-%v", i)
+			sp, err := types.NewSAMLIdPServiceProvider(types.Metadata{
+				Name:      name,
+				Namespace: apidefaults.Namespace,
+			}, types.SAMLIdPServiceProviderSpecV1{
+				ACSURL:   fmt.Sprintf("https://entity-id-%v", i),
+				EntityID: fmt.Sprintf("entity-id-%v", i),
+			})
+			require.NoError(t, err)
+			err = srv.Auth().CreateSAMLIdPServiceProvider(ctx, sp)
+			require.NoError(t, err)
+		}
+	}
+
+	testAppServers, err := srv.Auth().GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 
-	var sps []types.SAMLIdPServiceProvider
-	inlineEventually(t, func() bool {
-		var err error
-		sps, _, err = srv.Auth().ListSAMLIdPServiceProviders(ctx, 0, "")
-		require.NoError(t, err)
-		return len(sps) == 1
-	}, 5*time.Second, 200*time.Millisecond, "SAMLIdPServiceProviders from auth")
-
-	user, role, err := authtest.CreateUserAndRole(srv.Auth(), "user", nil, []types.Rule{
-		types.NewRule(types.KindSAMLIdPServiceProvider, services.RO()),
-	})
-	require.NoError(t, err)
-	clt, err := srv.NewClient(authtest.TestUser(user.GetName()))
+	testServiceProviders, _, err := srv.Auth().ListSAMLIdPServiceProviders(ctx, 0, "")
 	require.NoError(t, err)
 
+	numResources := len(testAppServers) + len(testServiceProviders)
+
+	testResources := make([]types.ResourceWithLabels, numResources)
+	for i, server := range testAppServers {
+		testResources[i] = createAppServerOrSPFromAppServer(server)
+	}
+
+	for i, sp := range testServiceProviders {
+		testResources[i+len(testAppServers)] = createAppServerOrSPFromSP(sp)
+	}
+
+	listRequest := proto.ListResourcesRequest{
+		Namespace: apidefaults.Namespace,
+		// Guarantee that the list will have all the app servers and IdP service providers.
+		Limit:        int32(numResources + 1),
+		ResourceType: types.KindAppOrSAMLIdPServiceProvider,
+	}
+
+	// create user, role, and client
+	username := "user"
+	user, role, err := authtest.CreateUserAndRole(srv.Auth(), username, nil, nil)
+	require.NoError(t, err)
+	identity := authtest.TestUser(user.GetName())
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+
+	// permit user to get the first app
+	listRequestAppsOnly := listRequest
+	listRequestAppsOnly.SearchKeywords = []string{"app-server"}
+	role.SetAppLabels(types.Allow, types.Labels{"name": {testAppServers[0].GetName()}})
+	_, err = srv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
+	servers, err := clt.GetApplicationServers(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Len(t, servers, 1)
+	require.Empty(t, cmp.Diff(testAppServers[0:1], servers))
+	resp, err := clt.ListResources(ctx, listRequestAppsOnly)
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, 1)
+	require.Empty(t, cmp.Diff(testResources[0:1], resp.Resources))
+
+	// Permit user to get all apps and saml idp service providers.
 	role.SetAppLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
+
 	_, err = srv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
 
-	require.Eventually(t, func() bool {
-		sps_cache, err := clt.ListResources(ctx, proto.ListResourcesRequest{
-			Namespace:    apidefaults.Namespace,
-			Limit:        int32(len(sps)),
-			ResourceType: types.KindSAMLIdPServiceProvider,
-		})
-		require.NoError(t, err)
-		require.Equal(t, sps_cache.Resources[0].GetName(), sp.GetName())
-		return len(sps_cache.Resources) == len(sps)
-	}, 5*time.Second, 200*time.Millisecond, "SAMLIdPServiceProviders from cache")
+	// Test getting all apps and SAML IdP service providers.
+	resp, err = clt.ListResources(ctx, listRequest)
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, len(testResources))
+	require.Empty(t, cmp.Diff(testResources, resp.Resources))
+	// Test various filtering.
+	baseRequest := proto.ListResourcesRequest{
+		Namespace:    apidefaults.Namespace,
+		Limit:        int32(numResources + 1),
+		ResourceType: types.KindAppOrSAMLIdPServiceProvider,
+	}
+
+	// list only application with label
+	withLabels := baseRequest
+	withLabels.Labels = map[string]string{"name": testAppServers[0].GetName()}
+	resp, err = clt.ListResources(ctx, withLabels)
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, 1)
+	require.Empty(t, cmp.Diff(testResources[0:1], resp.Resources))
+
+	// Test search keywords match for app servers.
+	withSearchKeywords := baseRequest
+	withSearchKeywords.SearchKeywords = []string{"app-server", testAppServers[0].GetName()}
+	resp, err = clt.ListResources(ctx, withSearchKeywords)
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, 1)
+	require.Empty(t, cmp.Diff(testResources[0:1], resp.Resources))
+
+	// Test search keywords match for saml idp service providers servers.
+	withSearchKeywords.SearchKeywords = []string{"saml-app", testServiceProviders[0].GetName()}
+	resp, err = clt.ListResources(ctx, withSearchKeywords)
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, 1)
+	require.Empty(t, cmp.Diff(testResources[len(testAppServers):len(testAppServers)+1], resp.Resources))
+
+	// Test expression match for app servers.
+	withExpression := baseRequest
+	withExpression.PredicateExpression = fmt.Sprintf(`search("%s")`, testResources[0].GetName())
+	resp, err = clt.ListResources(ctx, withExpression)
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, 1)
+	require.Empty(t, cmp.Diff(testResources[0:1], resp.Resources))
+
+	// deny user to get the first app
+	role.SetAppLabels(types.Deny, types.Labels{"name": {testAppServers[0].GetName()}})
+	_, err = srv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
+	servers, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Len(t, testAppServers[1:], len(servers))
+	require.Empty(t, cmp.Diff(testAppServers[1:], servers))
+	resp, err = clt.ListResources(ctx, listRequest)
+	require.NoError(t, err)
+	require.Len(t, resp.Resources, len(testResources[1:]))
+	require.Empty(t, cmp.Diff(testResources[1:], resp.Resources))
+
+	// deny user to get all apps and service providers
+	role.SetAppLabels(types.Deny, types.Labels{types.Wildcard: {types.Wildcard}})
+	role.SetRules(types.Deny, []types.Rule{
+		{
+			Resources: []string{types.KindSAMLIdPServiceProvider},
+			Verbs:     []string{types.VerbList},
+		},
+	})
+	_, err = srv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
+	servers, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Empty(t, servers)
+	resp, err = clt.ListResources(ctx, listRequest)
+	require.NoError(t, err)
+	require.Empty(t, resp.Resources)
 }
 
 // TestListSAMLIdPServiceProviderAndListResources verifies
 // RBAC and search filters when fetching SAML IdP service providers.
 func TestListSAMLIdPServiceProviderAndListResources(t *testing.T) {
 	// Set license to enterprise in order to be able to list SAML IdP service providers.
-	t.Parallel()
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+	})
 
-	ctx := t.Context()
-	srv := newTestTLSServer(t, withModules(modulestest.EnterpriseModules()))
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
 
-	for i := range 5 {
+	for i := 0; i < 5; i++ {
 		name := fmt.Sprintf("saml-app-%v", i)
 		sp, err := types.NewSAMLIdPServiceProvider(types.Metadata{
 			Name:   name,
@@ -3998,29 +3472,11 @@ func TestListSAMLIdPServiceProviderAndListResources(t *testing.T) {
 	clt, err := srv.NewClient(identity)
 	require.NoError(t, err)
 
-	// permit user to get the first service provider
-	role.SetAppLabels(types.Allow, types.Labels{"name": {testServiceProviders[0].GetName()}})
-	_, err = srv.Auth().UpsertRole(ctx, role)
-	require.NoError(t, err)
-
 	sps, _, err := clt.ListSAMLIdPServiceProviders(ctx, 0, "")
-	require.NoError(t, err)
-	require.Len(t, sps, 1)
-	require.Empty(t, cmp.Diff(testServiceProviders[0:1], sps))
-	resp, err := clt.ListResources(ctx, listRequest)
-	require.NoError(t, err)
-	require.Len(t, resp.Resources, 1)
-	require.Empty(t, cmp.Diff(testResources[0:1], resp.Resources))
-
-	// permit user to get all service providers
-	role.SetAppLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
-	_, err = srv.Auth().UpsertRole(ctx, role)
-	require.NoError(t, err)
-	sps, _, err = clt.ListSAMLIdPServiceProviders(ctx, 0, "")
 	require.NoError(t, err)
 	require.Len(t, testServiceProviders, len(sps))
 	require.Empty(t, cmp.Diff(testServiceProviders, sps))
-	resp, err = clt.ListResources(ctx, listRequest)
+	resp, err := clt.ListResources(ctx, listRequest)
 	require.NoError(t, err)
 	require.Len(t, resp.Resources, len(testResources))
 	require.Empty(t, cmp.Diff(testResources, resp.Resources))
@@ -4031,14 +3487,6 @@ func TestListSAMLIdPServiceProviderAndListResources(t *testing.T) {
 		Limit:        int32(len(testServiceProviders) + 1),
 		ResourceType: types.KindSAMLIdPServiceProvider,
 	}
-
-	// list only service providers with label
-	withLabels := baseRequest
-	withLabels.Labels = map[string]string{"name": testServiceProviders[0].GetName()}
-	resp, err = clt.ListResources(ctx, withLabels)
-	require.NoError(t, err)
-	require.Len(t, resp.Resources, 1)
-	require.Empty(t, cmp.Diff(testResources[0:1], resp.Resources))
 
 	// Test search keywords match.
 	withSearchKeywords := baseRequest
@@ -4056,35 +3504,25 @@ func TestListSAMLIdPServiceProviderAndListResources(t *testing.T) {
 	require.Len(t, resp.Resources, 1)
 	require.Empty(t, cmp.Diff(testResources[0:1], resp.Resources))
 
-	// deny user to get the first service provider
-	role.SetAppLabels(types.Deny, types.Labels{"name": {testServiceProviders[0].GetName()}})
-	_, err = srv.Auth().UpsertRole(ctx, role)
-	require.NoError(t, err)
-	sps, _, err = clt.ListSAMLIdPServiceProviders(ctx, 0, "")
-	require.NoError(t, err)
-	require.Len(t, testServiceProviders[1:], len(sps))
-	require.Empty(t, cmp.Diff(testServiceProviders[1:], sps))
-	resp, err = clt.ListResources(ctx, listRequest)
-	require.NoError(t, err)
-	require.Len(t, resp.Resources, len(testResources[1:]))
-	require.Empty(t, cmp.Diff(testResources[1:], resp.Resources))
-
 	// deny user to get all service providers
-	role.SetAppLabels(types.Deny, types.Labels{types.Wildcard: {types.Wildcard}})
+	role.SetRules(types.Deny, []types.Rule{
+		{
+			Resources: []string{types.KindSAMLIdPServiceProvider},
+			Verbs:     []string{types.VerbList},
+		},
+	})
+	// role.SetAppLabels(types.Deny, types.Labels{types.Wildcard: {types.Wildcard}})
 	_, err = srv.Auth().UpsertRole(ctx, role)
 	require.NoError(t, err)
 	sps, _, err = clt.ListSAMLIdPServiceProviders(ctx, 0, "")
-	require.NoError(t, err)
+	require.ErrorContains(t, err, `access denied to perform action "list"`)
 	require.Empty(t, sps)
-	resp, err = clt.ListResources(ctx, listRequest)
-	require.NoError(t, err)
-	require.Empty(t, resp.Resources)
 }
 
 // TestApps verifies RBAC is applied to app resources.
 func TestApps(t *testing.T) {
 	t.Parallel()
-	ctx := t.Context()
+	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
 	// Setup a couple of users:
@@ -4092,25 +3530,19 @@ func TestApps(t *testing.T) {
 	// - "admin" has access to all apps
 	dev, devRole, err := authtest.CreateUserAndRole(srv.Auth(), "dev", nil, nil)
 	require.NoError(t, err)
-
 	devRole.SetAppLabels(types.Allow, types.Labels{"env": {"dev"}})
 	_, err = srv.Auth().UpsertRole(ctx, devRole)
 	require.NoError(t, err)
-
 	devClt, err := srv.NewClient(authtest.TestUser(dev.GetName()))
 	require.NoError(t, err)
-	t.Cleanup(func() { devClt.Close() })
 
 	admin, adminRole, err := authtest.CreateUserAndRole(srv.Auth(), "admin", nil, nil)
 	require.NoError(t, err)
-
 	adminRole.SetAppLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
 	_, err = srv.Auth().UpsertRole(ctx, adminRole)
 	require.NoError(t, err)
-
 	adminClt, err := srv.NewClient(authtest.TestUser(admin.GetName()))
 	require.NoError(t, err)
-	t.Cleanup(func() { adminClt.Close() })
 
 	// Prepare a couple of app resources.
 	devApp, err := types.NewAppV3(types.Metadata{
@@ -4120,7 +3552,6 @@ func TestApps(t *testing.T) {
 		URI: "localhost1",
 	})
 	require.NoError(t, err)
-
 	adminApp, err := types.NewAppV3(types.Metadata{
 		Name:   "admin",
 		Labels: map[string]string{"env": "prod", types.OriginLabel: types.OriginDynamic},
@@ -4177,17 +3608,6 @@ func TestApps(t *testing.T) {
 	require.Empty(t, cmp.Diff(devApp, app,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
-
-	// Clients can't create/update apps for the beams service.
-	adminApp.GetMetadata().Labels["teleport.internal/beams/app-type"] = "llm"
-	err = adminClt.UpdateApp(ctx, adminApp)
-	require.True(t, trace.IsAccessDenied(err))
-	delete(adminApp.GetMetadata().Labels, "teleport.internal/beams/app-type")
-
-	beamApp := devApp.Copy()
-	beamApp.GetMetadata().Labels["teleport.internal/beams/app-type"] = "llm"
-	err = devClt.CreateApp(ctx, beamApp)
-	require.True(t, trace.IsAccessDenied(err))
 
 	// When listing apps, dev should only see one.
 	apps, err := devClt.GetApps(ctx)
@@ -4282,7 +3702,7 @@ func TestReplaceRemoteLocksRBAC(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, srv.Close()) })
 
-	user, role, err := authtest.CreateUserAndRole(srv.AuthServer, "test-user", []string{}, nil)
+	user, _, err := authtest.CreateUserAndRole(srv.AuthServer, "test-user", []string{}, nil)
 	require.NoError(t, err)
 
 	targetCluster := "cluster"
@@ -4293,7 +3713,7 @@ func TestReplaceRemoteLocksRBAC(t *testing.T) {
 	}{
 		{
 			desc:     "users may not replace remote locks",
-			identity: authtest.TestUserWithRoles(user.GetName(), []string{role.GetName()}),
+			identity: authtest.TestUser(user.GetName()),
 			checkErr: trace.IsAccessDenied,
 		},
 		{
@@ -4553,7 +3973,7 @@ func TestKindClusterConfig(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, srv.Close()) })
 
 	getClusterConfigResources := func(ctx context.Context, user types.User) []error {
-		authContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, authtest.TestUserWithRoles(user.GetName(), user.GetRoles()).I))
+		authContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, authtest.TestUser(user.GetName()).I))
 		require.NoError(t, err, trace.DebugReport(err))
 		s := auth.NewServerWithRoles(
 			srv.AuthServer,
@@ -4567,9 +3987,7 @@ func TestKindClusterConfig(t *testing.T) {
 	}
 
 	t.Run("without KindClusterConfig privilege", func(t *testing.T) {
-		role, err := types.NewRole("test-role", types.RoleSpecV6{})
-		require.NoError(t, err)
-		user, err := authtest.CreateUser(ctx, srv.AuthServer, "test-user", role)
+		user, err := authtest.CreateUser(ctx, srv.AuthServer, "test-user")
 		require.NoError(t, err)
 		for _, err := range getClusterConfigResources(ctx, user) {
 			require.Error(t, err)
@@ -4600,7 +4018,7 @@ func TestGetAndList_KubernetesServers(t *testing.T) {
 	srv := newTestTLSServer(t)
 
 	// Create test kube servers.
-	for range 5 {
+	for i := 0; i < 5; i++ {
 		// insert legacy kube servers
 		name := uuid.NewString()
 		cluster, err := types.NewKubernetesClusterV3(
@@ -4729,7 +4147,7 @@ func TestListDatabaseServices(t *testing.T) {
 	numInitialResources := 5
 
 	// Create test Database Services.
-	for range numInitialResources {
+	for i := 0; i < numInitialResources; i++ {
 		name := uuid.NewString()
 		s, err := types.NewDatabaseServiceV1(types.Metadata{
 			Name: name,
@@ -4872,7 +4290,7 @@ func TestListResources_NeedTotalCountFlag(t *testing.T) {
 	srv := newTestTLSServer(t)
 
 	// Create test nodes.
-	for range 3 {
+	for i := 0; i < 3; i++ {
 		name := uuid.New().String()
 		node, err := types.NewServerWithLabels(
 			name,
@@ -4925,7 +4343,7 @@ func TestListResources_SearchAsRoles(t *testing.T) {
 
 	// Create test nodes.
 	const numTestNodes = 3
-	for i := range numTestNodes {
+	for i := 0; i < numTestNodes; i++ {
 		name := fmt.Sprintf("node%d", i)
 		node, err := types.NewServerWithLabels(
 			name,
@@ -5065,7 +4483,7 @@ func TestListResources_WithLogins(t *testing.T) {
 		return srv.Auth().UnifiedResourceCache.IsInitialized()
 	}, 5*time.Second, 200*time.Millisecond, "unified resource watcher never initialized")
 
-	for i := range 5 {
+	for i := 0; i < 5; i++ {
 		name := uuid.New().String()
 		node, err := types.NewServerWithLabels(
 			name,
@@ -5229,7 +4647,7 @@ func TestGetAndList_WindowsDesktops(t *testing.T) {
 	srv := newTestTLSServer(t)
 
 	// Create test desktops.
-	for range 5 {
+	for i := 0; i < 5; i++ {
 		name := uuid.New().String()
 		desktop, err := types.NewWindowsDesktopV3(name, map[string]string{"name": name},
 			types.WindowsDesktopSpecV3{Addr: "_", HostID: "_"})
@@ -5359,236 +4777,48 @@ func TestGetAndList_WindowsDesktops(t *testing.T) {
 	require.Empty(t, resp.Resources)
 }
 
-func TestIsLocalOrRemoteServerAction(t *testing.T) {
-	ctx := t.Context()
-	mods := modulestest.OSSModules()
-	mods.TestFeatures.Entitlements[entitlements.K8s] = modules.EntitlementInfo{Enabled: false}
-	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{
-		Dir:     t.TempDir(),
-		Modules: mods,
-	})
-	require.NoError(t, err)
-
-	tts := []struct {
-		name      string
-		getSrvFn  func(t *testing.T) *auth.ServerWithRoles
-		expectErr bool
-	}{
-		{
-			name: "local server builtin",
-			getSrvFn: func(t *testing.T) *auth.ServerWithRoles {
-				authCtx, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, authtest.TestBuiltin(types.RoleProxy).I))
-				require.NoError(t, err)
-				return auth.NewServerWithRoles(srv.AuthServer, srv.AuditLog, *authCtx)
-			},
-		},
-		{
-			name: "remote server builtin",
-			getSrvFn: func(t *testing.T) *auth.ServerWithRoles {
-				authCtx, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, authtest.TestRemoteBuiltin(types.RoleProxy, "remote-cluster").I))
-				require.NoError(t, err)
-				return auth.NewServerWithRoles(srv.AuthServer, srv.AuditLog, *authCtx)
-			},
-		},
-		{
-			name: "local wrapped server builtin",
-			getSrvFn: func(t *testing.T) *auth.ServerWithRoles {
-				authCtx, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, authtest.TestBuiltin(types.RoleProxy).I))
-				require.NoError(t, err)
-				return auth.NewScopedServerWithRoles(srv.AuthServer, srv.AuditLog, authz.ScopedContextFromUnscopedContext(authCtx))
-			},
-		},
-		{
-			name: "remote wrapped server builtin",
-			getSrvFn: func(t *testing.T) *auth.ServerWithRoles {
-				authCtx, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, authtest.TestRemoteBuiltin(types.RoleProxy, "remote-cluster").I))
-				require.NoError(t, err)
-				return auth.NewScopedServerWithRoles(srv.AuthServer, srv.AuditLog, authz.ScopedContextFromUnscopedContext(authCtx))
-			},
-		},
-		{
-			name: "non-server builtin",
-			getSrvFn: func(t *testing.T) *auth.ServerWithRoles {
-				authCtx, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, authtest.TestAdmin().I))
-				require.NoError(t, err)
-				return auth.NewServerWithRoles(srv.AuthServer, srv.AuditLog, *authCtx)
-			},
-			expectErr: true,
-		},
-		{
-			name: "wrapped non-server builtin",
-			getSrvFn: func(t *testing.T) *auth.ServerWithRoles {
-				authCtx, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, authtest.TestAdmin().I))
-				require.NoError(t, err)
-				return auth.NewScopedServerWithRoles(srv.AuthServer, srv.AuditLog, authz.ScopedContextFromUnscopedContext(authCtx))
-			},
-			expectErr: true,
-		},
-		{
-			name: "remote non-builtin",
-			getSrvFn: func(t *testing.T) *auth.ServerWithRoles {
-				authCtx := authz.Context{
-					Identity: authz.RemoteBuiltinRole{
-						Role:        types.RoleProxy,
-						Username:    string(types.RoleProxy),
-						ClusterName: "remote-cluster",
-					},
-				}
-				return auth.NewServerWithRoles(srv.AuthServer, srv.AuditLog, authCtx)
-			},
-			expectErr: true,
-		},
-		{
-			name: "remote wrapped non-builtin",
-			getSrvFn: func(t *testing.T) *auth.ServerWithRoles {
-				authCtx := authz.Context{
-					Identity: authz.RemoteBuiltinRole{
-						Role:        types.RoleProxy,
-						Username:    string(types.RoleProxy),
-						ClusterName: "remote-cluster",
-					},
-				}
-				return auth.NewScopedServerWithRoles(srv.AuthServer, srv.AuditLog, authz.ScopedContextFromUnscopedContext(&authCtx))
-			},
-			expectErr: true,
-		},
-	}
-
-	for _, tt := range tts {
-		t.Run(tt.name, func(t *testing.T) {
-			srv := tt.getSrvFn(t)
-			_, err := srv.ListResources(ctx, proto.ListResourcesRequest{
-				ResourceType: types.KindKubeServer,
-			})
-			if tt.expectErr {
-				require.Error(t, err)
-				require.ErrorContains(t, err, "not licensed")
-			} else {
-				require.NoError(t, err)
-			}
-		})
-	}
-}
-
 func TestListResources_KindKubernetesCluster(t *testing.T) {
 	t.Parallel()
-	ctx := t.Context()
-	srv := newTestTLSServer(t, withScopesFeatures(scopes.Features{Enabled: true}))
+	ctx := context.Background()
+	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, srv.Close()) })
 
-	scopedAccess := srv.Auth().ScopedAccess()
-	scopes := []string{"/test", "/other"}
-	getScopeAsName := func(scope string) string {
-		return strings.ReplaceAll(strings.Trim(scope, "/"), "/", "-")
-	}
-	// create scoped roles, users, and assignments
-	for _, scope := range scopes {
-		roleResp, err := scopedAccess.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
-			Role: &scopedaccessv1.ScopedRole{
-				Kind:    scopedaccess.KindScopedRole,
-				Version: types.V1,
-				Metadata: &headerv1.Metadata{
-					Name: getScopeAsName(scope) + "-role",
-				},
-				Scope: scope,
-				Spec: &scopedaccessv1.ScopedRoleSpec{
-					AssignableScopes: []string{scope},
-					Kube: &scopedaccessv1.ScopedRoleKube{
-						Users:  []string{"kube_user"},
-						Groups: []string{"kube_group"},
-						Labels: []*labelv1.Label{
-							{
-								Name:   types.Wildcard,
-								Values: []string{types.Wildcard},
-							},
-						},
-					},
-				},
-			},
-		})
-		require.NoError(t, err)
-
-		user, err := authtest.CreateUser(ctx, srv.Auth(), getScopeAsName(scope)+"-reader")
-		require.NoError(t, err)
-
-		role := roleResp.GetRole()
-		sra, err := scopedAccess.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
-			Assignment: &scopedaccessv1.ScopedRoleAssignment{
-				Kind:    scopedaccess.KindScopedRoleAssignment,
-				SubKind: scopedaccess.SubKindDynamic,
-				Version: types.V1,
-				Metadata: &headerv1.Metadata{
-					Name: uuid.NewString(),
-				},
-				Scope: scope,
-				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
-					User: user.GetName(),
-					Assignments: []*scopedaccessv1.Assignment{
-						{Role: role.GetMetadata().GetName(), Scope: scope},
-					},
-				},
-			},
-		})
-		require.NoError(t, err)
-
-		waitForSRACache(t, srv, sra)
-	}
-	unscopedClient, err := srv.NewClient(authtest.TestBuiltin(types.RoleProxy))
+	authContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, authtest.TestBuiltin(types.RoleProxy).I))
 	require.NoError(t, err)
 
-	scopedClient, err := srv.NewClient(authtest.TestScopedUser(
-		getScopeAsName(scopes[0])+"-reader",
-		scopes[0],
-	))
-	require.NoError(t, err)
+	s := auth.NewServerWithRoles(
+		srv.AuthServer,
+		srv.AuditLog,
+		*authContext,
+	)
 
-	otherScopedClient, err := srv.NewClient(authtest.TestScopedUser(
-		getScopeAsName(scopes[1])+"-reader",
-		scopes[1],
-	))
-	require.NoError(t, err)
-
-	testNames := []string{
-		// unscoped cluster names
-		"a", "b", "c", "d",
-		// scoped cluster names
-		"a", "b", "c",
-	}
+	testNames := []string{"a", "b", "c", "d"}
 
 	// Add a kube service with 3 clusters.
-	createKubeServer(t, srv.Auth(), []string{"d", "b", "a"}, "host1", "")
+	createKubeServer(t, s, []string{"d", "b", "a"}, "host1")
 
 	// Add a kube service with 2 clusters.
 	// Includes a duplicate cluster name to test deduplicate.
-	createKubeServer(t, srv.Auth(), []string{"a", "c"}, "host2", "")
-
-	// Add scoped variants of the kube services
-	createKubeServer(t, srv.Auth(), []string{"b", "a"}, "scoped_host1", scopes[0])
-
-	// Add a kube service with 2 clusters.
-	// Includes a duplicate cluster name to test deduplicate.
-	createKubeServer(t, srv.Auth(), []string{"a", "c"}, "scoped_host2", scopes[0])
+	createKubeServer(t, s, []string{"a", "c"}, "host2")
 
 	// Test upsert.
-	kubeServers, err := srv.Auth().GetKubernetesServers(ctx)
+	kubeServers, err := s.GetKubernetesServers(ctx)
 	require.NoError(t, err)
-	// 5 unscoped and 4 scoped kube servers
-	require.Len(t, kubeServers, 9)
+	require.Len(t, kubeServers, 5)
 
 	t.Run("fetch all", func(t *testing.T) {
 		t.Parallel()
 
-		res, err := unscopedClient.ListResources(ctx, proto.ListResourcesRequest{
+		res, err := s.ListResources(ctx, proto.ListResourcesRequest{
 			ResourceType: types.KindKubernetesCluster,
 			Limit:        10,
 		})
 		require.NoError(t, err)
 		require.Len(t, res.Resources, len(testNames))
 		require.Empty(t, res.NextKey)
-		// There are 4 unique clusters names total (a, b, c, and d)
-		// The two unscoped kube servers reference 5 clusters combined, but will be deduplicated to a count of 4.
-		// The two scoped kube servers reference 4 clusters combined, but will be deduplicated down to a count of 3.
-		// Deduplication does not cross scope boundaries, so we expect a total of 7 clusters.
-		require.Equal(t, 7, res.TotalCount)
+		// There is 2 kube services, but 4 unique clusters.
+		require.Equal(t, 4, res.TotalCount)
 
 		clusters, err := types.ResourcesWithLabels(res.Resources).AsKubeClusters()
 		require.NoError(t, err)
@@ -5601,7 +4831,7 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 		t.Parallel()
 
 		// First fetch.
-		res, err := unscopedClient.ListResources(ctx, proto.ListResourcesRequest{
+		res, err := s.ListResources(ctx, proto.ListResourcesRequest{
 			ResourceType: types.KindKubernetesCluster,
 			Limit:        1,
 		})
@@ -5610,7 +4840,7 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 		require.Equal(t, kubeServers[1].GetCluster().GetName(), res.NextKey)
 
 		// Second fetch.
-		res, err = unscopedClient.ListResources(ctx, proto.ListResourcesRequest{
+		res, err = s.ListResources(ctx, proto.ListResourcesRequest{
 			ResourceType: types.KindKubernetesCluster,
 			Limit:        1,
 			StartKey:     res.NextKey,
@@ -5622,7 +4852,7 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 
 	t.Run("fetch with sort and total count", func(t *testing.T) {
 		t.Parallel()
-		res, err := unscopedClient.ListResources(ctx, proto.ListResourcesRequest{
+		res, err := s.ListResources(ctx, proto.ListResourcesRequest{
 			ResourceType: types.KindKubernetesCluster,
 			Limit:        10,
 			SortBy: types.SortBy{
@@ -5640,307 +4870,20 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 		require.NoError(t, err)
 		names, err := types.KubeClusters(clusters).GetFieldVals(types.ResourceMetadataName)
 		require.NoError(t, err)
-		require.IsNonIncreasing(t, names, "expected kube cluster names to be non-increasing")
-	})
-
-	t.Run("fetch all scoped", func(t *testing.T) {
-		t.Parallel()
-
-		res, err := scopedClient.ListResources(ctx, proto.ListResourcesRequest{
-			ResourceType: types.KindKubernetesCluster,
-			Limit:        10,
-		})
-		require.NoError(t, err)
-		require.Len(t, res.Resources, 3)
-		require.Empty(t, res.NextKey)
-		// There are 2 scoped kube services referencing 3 unique clusters.
-		require.Equal(t, 3, res.TotalCount)
-
-		clusters, err := types.ResourcesWithLabels(res.Resources).AsKubeClusters()
-		require.NoError(t, err)
-		names, err := types.KubeClusters(clusters).GetFieldVals(types.ResourceMetadataName)
-		require.NoError(t, err)
-		require.ElementsMatch(t, names, []string{"a", "b", "c"})
-	})
-
-	t.Run("fetch all scoped - orthogonal scope", func(t *testing.T) {
-		t.Parallel()
-
-		res, err := otherScopedClient.ListResources(ctx, proto.ListResourcesRequest{
-			ResourceType: types.KindKubernetesCluster,
-			Limit:        10,
-		})
-		require.NoError(t, err)
-		require.Empty(t, res.Resources, "expected no resources when listing from orthogonal scope")
-		require.Equal(t, 0, res.TotalCount, "expected no resources when listing from orthogonal scope")
-		require.Empty(t, res.NextKey)
-	})
-
-	t.Run("fetch servers", func(t *testing.T) {
-		t.Parallel()
-
-		res, err := unscopedClient.ListResources(ctx, proto.ListResourcesRequest{
-			ResourceType: types.KindKubeServer,
-			Limit:        10,
-		})
-		require.NoError(t, err)
-		// 4 services, 1 with 3 clusters and 3 with 2 clusters
-		// (1 * 3) + (3 * 2) = 9
-		require.Len(t, res.Resources, 9)
-	})
-
-	t.Run("fetch scoped servers", func(t *testing.T) {
-		t.Parallel()
-
-		res, err := scopedClient.ListResources(ctx, proto.ListResourcesRequest{
-			ResourceType: types.KindKubeServer,
-			Limit:        10,
-		})
-		require.NoError(t, err)
-		require.Len(t, res.Resources, 4)
+		require.IsDecreasing(t, names)
 	})
 }
 
-func waitForSRACache(t *testing.T, srv *authtest.TLSServer, resps ...*scopedaccessv1.CreateScopedRoleAssignmentResponse) {
-	t.Helper()
-	ctx := t.Context()
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		for _, resp := range resps {
-			_, err := srv.Auth().ScopedAccessCache.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
-				Name:    resp.GetAssignment().GetMetadata().GetName(),
-				SubKind: resp.GetAssignment().GetSubKind(),
-			})
-			require.NoError(t, err)
-		}
-	}, 10*time.Second, 100*time.Millisecond)
-}
-
-func createKubeServer(t *testing.T, s *auth.Server, clusterNames []string, hostID, scope string) {
+func createKubeServer(t *testing.T, s *auth.ServerWithRoles, clusterNames []string, hostID string) {
 	for _, clusterName := range clusterNames {
 		kubeCluster, err := types.NewKubernetesClusterV3(types.Metadata{
-			Name:        clusterName,
-			Description: hostID,
+			Name: clusterName,
 		}, types.KubernetesClusterSpecV3{})
 		require.NoError(t, err)
-		kubeCluster.Scope = scope
-
 		kubeServer, err := types.NewKubernetesServerV3FromCluster(kubeCluster, hostID, hostID)
 		require.NoError(t, err)
-		kubeServer.Scope = scope
-
 		_, err = s.UpsertKubernetesServer(context.Background(), kubeServer)
 		require.NoError(t, err)
-	}
-}
-
-func TestListResourcesScopedPagination(t *testing.T) {
-	t.Parallel()
-	ctx := t.Context()
-	srv := newTestTLSServer(t, withScopesFeatures(scopes.Features{Enabled: true}))
-
-	client, err := srv.NewClient(authtest.TestBuiltin(types.RoleProxy))
-	require.NoError(t, err)
-
-	makeScope := func(i int) string {
-		a := byte('a')
-		z := byte('z')
-		mod := int(z - a)
-		return fmt.Sprintf("/%c%c", a+byte(i/mod), a+byte(i%mod))
-	}
-
-	resourceCount := 50
-	for i := range resourceCount {
-		scope := makeScope(i)
-		// all kube clusters and servers will have the same name, so the only way to
-		// correctly paginate clusters is by scope
-		kubeServer := &types.KubernetesServerV3{
-			Kind:  types.KindKubeServer,
-			Scope: scope,
-			Metadata: types.Metadata{
-				Name:        "a",
-				Description: strconv.Itoa(i),
-			},
-			Spec: types.KubernetesServerSpecV3{
-				Cluster: &types.KubernetesClusterV3{
-					Scope: scope,
-					Metadata: types.Metadata{
-						Name:        "a",
-						Description: strconv.Itoa(i),
-					},
-				},
-				// kube servers will actually be paginated by host ID, so we need this
-				// to be unique
-				HostID: fmt.Sprintf("ks-%d", i),
-			},
-		}
-		_, err = srv.Auth().UpsertKubernetesServer(ctx, kubeServer)
-		require.NoError(t, err)
-
-		// create some scoped nodes to make sure we haven't introduced regressions
-		// for existing scoped resources
-		node := &types.ServerV2{
-			Kind:    types.KindNode,
-			Version: types.V2,
-			Metadata: types.Metadata{
-				Name:        fmt.Sprintf("node-%d", i),
-				Description: strconv.Itoa(i),
-				Namespace:   apidefaults.Namespace,
-			},
-			Spec: types.ServerSpecV2{
-				Hostname: "node",
-			},
-			Scope: scope,
-		}
-		_, err = srv.Auth().UpsertNode(ctx, node)
-		require.NoError(t, err)
-
-		// create some databse servers as an unscoped control
-		db, err := types.NewDatabaseServerV3(types.Metadata{
-			Name:        "db",
-			Description: strconv.Itoa(i),
-		}, types.DatabaseServerSpecV3{
-			HostID:   fmt.Sprintf("db-%d", i),
-			Hostname: "hostname",
-			Database: &types.DatabaseV3{
-				Metadata: types.Metadata{
-					Name: "db",
-				},
-				Spec: types.DatabaseSpecV3{
-					Protocol: "postgres",
-					URI:      "postgres://user:password@host",
-				},
-			},
-		})
-		require.NoError(t, err)
-		_, err = srv.Auth().UpsertDatabaseServer(ctx, db)
-		require.NoError(t, err)
-	}
-
-	getIndex := func(resource types.ResourceWithLabels) (int, bool) {
-		switch res := resource.(type) {
-		case types.KubeCluster, types.KubeServer, types.Server, types.DatabaseServer:
-			id, err := strconv.Atoi(res.GetMetadata().Description)
-			return id, err == nil
-		default:
-			return -1, false
-		}
-	}
-
-	kinds := []string{types.KindKubeServer, types.KindKubernetesCluster, types.KindNode, types.KindDatabaseServer}
-	for _, kind := range kinds {
-		t.Run(kind, func(t *testing.T) {
-			found := make(map[int]struct{})
-			// try a few different page sizes
-			for _, pageSize := range []int{1, 2, 3, 5, 8, 13, 21, resourceCount} {
-				startKey := ""
-				count := 0
-				for range resourceCount/pageSize + 1 {
-					res, err := client.ListResources(ctx, proto.ListResourcesRequest{
-						ResourceType: kind,
-						Limit:        int32(pageSize),
-						StartKey:     startKey,
-					})
-					require.NoError(t, err)
-					for _, r := range res.Resources {
-						idx, ok := getIndex(r)
-						require.True(t, ok)
-						found[idx] = struct{}{}
-						count++
-					}
-					startKey = res.NextKey
-					if startKey == "" {
-						break
-					}
-				}
-
-				// pagination was successful if we visited each resource exactly once and all indexes were
-				// added to the found map
-				assert.Equal(t, resourceCount, count)
-				for i := range resourceCount {
-					_, ok := found[i]
-					assert.True(t, ok, "no resource found for idx %d", i)
-				}
-				clear(found)
-			}
-		})
-	}
-}
-
-// TestListResourcesScopedPaginateKubeClusters tests that scoped kube clusters can be paginated properly even when
-// there are resources that will be deduplicated.
-func TestListResourcesPaginateKubeClusters(t *testing.T) {
-	t.Parallel()
-	ctx := t.Context()
-	srv := newTestTLSServer(t, withScopesFeatures(scopes.Features{Enabled: true}))
-
-	client, err := srv.NewClient(authtest.TestBuiltin(types.RoleProxy))
-	require.NoError(t, err)
-
-	scopes := []string{"", "/aa", "/bb", "/cc", "/dd", "/ee", "/ff", "/gg", "/hh", "/ii"}
-	scopeChangeFreq := 5
-	const resourceCount = 50
-	for i := range resourceCount {
-		// cluster scopes will change every scopeChangeFreq clusters
-		scope := scopes[i/scopeChangeFreq]
-		// all kube clusters and servers will have the same name, so the only way to
-		// paginate them is by scope
-		kubeCluster, err := types.NewKubernetesClusterV3(types.Metadata{
-			Name:        "a",
-			Description: strconv.Itoa(i),
-		}, types.KubernetesClusterSpecV3{})
-		require.NoError(t, err)
-		kubeCluster.Scope = scope
-
-		kubeServer, err := types.NewKubernetesServerV3FromCluster(kubeCluster, "hostname", fmt.Sprintf("ks-%d", i))
-		require.NoError(t, err)
-		kubeServer.Metadata.Description = strconv.Itoa(i)
-
-		_, err = srv.Auth().UpsertKubernetesServer(ctx, kubeServer)
-		require.NoError(t, err)
-	}
-
-	found := make(map[string]struct{})
-	// Because duplicate clusters within a scope are dropped, we need to ensure we only ever receive one unique
-	// cluster per scope while paginating
-	uniqueResourceCount := resourceCount / scopeChangeFreq
-	// try a few different page sizes
-	for _, pageSize := range []int{1, 2, 3, 5, 8, 13, 21, resourceCount} {
-		startKey := ""
-		for page := range uniqueResourceCount/pageSize + 1 {
-			res, err := client.ListResources(ctx, proto.ListResourcesRequest{
-				ResourceType: types.KindKubernetesCluster,
-				Limit:        int32(pageSize),
-				StartKey:     startKey,
-			})
-			require.NoError(t, err)
-
-			// we should only get data from pages up to the uniqueResourceCount
-			if uniqueResourceCount-page*pageSize > pageSize {
-				require.Len(t, res.Resources, pageSize, "page=%d pageSize=%d", page, pageSize)
-			} else if uniqueResourceCount-page*pageSize > 0 {
-				require.Len(t, res.Resources, uniqueResourceCount-page*pageSize, "page=%d pageSize=%d", page, pageSize)
-			} else {
-				require.Empty(t, res.Resources)
-			}
-			for _, r := range res.Resources {
-				cluster, ok := r.(types.KubeCluster)
-				require.True(t, ok, "expected a kube cluster")
-				_, ok = found[cluster.GetScope()]
-				assert.False(t, ok) // we should only find each scope once per pageSize
-				found[cluster.GetScope()] = struct{}{}
-			}
-			startKey = res.NextKey
-			if startKey == "" {
-				break
-			}
-		}
-
-		// we should have found all scopes after fully paging through the data
-		for _, scope := range scopes {
-			_, ok := found[scope]
-			assert.True(t, ok, "no resource found for scope %q", scope)
-		}
-		clear(found)
 	}
 }
 
@@ -5979,7 +4922,7 @@ func TestListResources_KindUserGroup(t *testing.T) {
 	testUg2 := createUserGroup(t, srv.AuthServer, "a", map[string]string{"label": "value"})
 	testUg3 := createUserGroup(t, srv.AuthServer, "b", map[string]string{"label": "value"})
 
-	authContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, authtest.TestUserWithRoles(user.GetName(), []string{role.GetName()}).I))
+	authContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, authtest.TestUser(user.GetName()).I))
 	require.NoError(t, err)
 
 	s := auth.NewServerWithRoles(
@@ -6064,7 +5007,7 @@ func TestListResources_KindUserGroup(t *testing.T) {
 
 func createUserGroup(t *testing.T, s *auth.Server, name string, labels map[string]string) types.UserGroup {
 	t.Helper()
-	ctx := t.Context()
+	ctx := context.Background()
 	userGroup, err := types.NewUserGroup(types.Metadata{
 		Name:   name,
 		Labels: labels,
@@ -6182,346 +5125,6 @@ func TestDeleteUserAppSessions(t *testing.T) {
 	require.Empty(t, nextKey)
 }
 
-func TestSetAppSessionDBSCPublicKey(t *testing.T) {
-	t.Parallel()
-	ctx := t.Context()
-
-	srv := newTestTLSServer(t)
-	t.Cleanup(func() { srv.Close() })
-
-	// Generates a new user client.
-	userClient := func(username string) *authclient.Client {
-		user, _, err := authtest.CreateUserAndRole(srv.Auth(), username, nil, nil)
-		require.NoError(t, err)
-		identity := authtest.TestUser(user.GetName())
-		clt, err := srv.NewClient(identity)
-		require.NoError(t, err)
-		return clt
-	}
-
-	// Register users.
-	aliceClt := userClient("alice")
-	bobClt := userClient("bob")
-	proxyClt, err := srv.NewClient(authtest.TestBuiltin(types.RoleProxy))
-	require.NoError(t, err)
-	serverWithRoles := func(identity authtest.TestIdentity) *auth.ServerWithRoles {
-		authContext, err := srv.AuthServer.Authorizer.Authorize(authz.ContextWithUser(ctx, identity.I))
-		require.NoError(t, err)
-		return auth.NewServerWithRoles(srv.Auth(), srv.AuthServer.AuditLog, *authContext)
-	}
-
-	// Register an application.
-	app, err := types.NewAppV3(types.Metadata{
-		Name: "panel",
-	}, types.AppSpecV3{
-		URI:        "localhost",
-		PublicAddr: "panel.example.com",
-	})
-	require.NoError(t, err)
-	server, err := types.NewAppServerV3FromApp(app, "host", uuid.New().String())
-	require.NoError(t, err)
-	_, err = srv.Auth().UpsertApplicationServer(ctx, server)
-	require.NoError(t, err)
-
-	// Create a session for alice.
-	aliceSession, err := aliceClt.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
-		Username:    "alice",
-		PublicAddr:  "panel.example.com",
-		ClusterName: "localhost",
-	})
-	require.NoError(t, err)
-
-	// Create a session for bob.
-	bobSession, err := bobClt.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
-		Username:    "bob",
-		PublicAddr:  "panel.example.com",
-		ClusterName: "localhost",
-	})
-	require.NoError(t, err)
-	claimsOnlySession, err := aliceClt.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
-		Username:    "alice",
-		PublicAddr:  "panel.example.com",
-		ClusterName: "localhost",
-	})
-	require.NoError(t, err)
-	mismatchedKeySession, err := aliceClt.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
-		Username:    "alice",
-		PublicAddr:  "panel.example.com",
-		ClusterName: "localhost",
-	})
-	require.NoError(t, err)
-	leafSession, err := aliceClt.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
-		Username:    "alice",
-		PublicAddr:  "panel.example.com",
-		ClusterName: "leaf",
-	})
-	require.NoError(t, err)
-	leafSessionBlocked, err := bobClt.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
-		Username:    "bob",
-		PublicAddr:  "panel.example.com",
-		ClusterName: "leaf",
-	})
-	require.NoError(t, err)
-
-	deviceKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
-	require.NoError(t, err)
-
-	challenge, err := proxyClt.SignDBSCChallenge(ctx, aliceSession.GetName())
-	require.NoError(t, err)
-
-	responseJWT, expectedPublicKey := makeDBSCResponseJWT(t, deviceKey, challenge)
-
-	// Proxy can verify the response and bind the public key to the session.
-	err = proxyClt.SetAppSessionDBSCPublicKey(ctx, aliceSession.GetName(), []byte(responseJWT))
-	require.NoError(t, err)
-
-	// A missing session is rejected before the DBSC response is parsed or verified.
-	err = proxyClt.SetAppSessionDBSCPublicKey(ctx, "missing-session", []byte("not-a-jwt"))
-	require.Error(t, err)
-	require.True(t, trace.IsNotFound(err))
-
-	// Verify the update persisted.
-	updatedSession, err := srv.Auth().GetAppSession(ctx, types.GetAppSessionRequest{
-		SessionID: aliceSession.GetName(),
-	})
-	require.NoError(t, err)
-	require.Equal(t, expectedPublicKey, updatedSession.GetDBSCPublicKey())
-
-	// Standards-compliant clients may carry the public key only in claims.
-	claimsOnlyChallenge, err := proxyClt.SignDBSCChallenge(ctx, claimsOnlySession.GetName())
-	require.NoError(t, err)
-	claimsOnlyJWK := jose.JSONWebKey{Key: deviceKey.Public()}
-	claimsOnlySigner, err := jose.NewSigner(jose.SigningKey{
-		Algorithm: jose.ES256,
-		Key:       deviceKey,
-	}, (&jose.SignerOptions{}).WithType("dbsc+jwt"))
-	require.NoError(t, err)
-	claimsOnlyResponseJWT, err := josejwt.Signed(claimsOnlySigner).Claims(struct {
-		josejwt.Claims
-		Key jose.JSONWebKey `json:"key"`
-	}{
-		Claims: josejwt.Claims{
-			ID: claimsOnlyChallenge,
-		},
-		Key: claimsOnlyJWK.Public(),
-	}).CompactSerialize()
-	require.NoError(t, err)
-	expectedClaimsOnlyPublicKey, err := claimsOnlyJWK.Public().MarshalJSON()
-	require.NoError(t, err)
-	err = proxyClt.SetAppSessionDBSCPublicKey(ctx, claimsOnlySession.GetName(), []byte(claimsOnlyResponseJWT))
-	require.NoError(t, err)
-	updatedClaimsOnlySession, err := srv.Auth().GetAppSession(ctx, types.GetAppSessionRequest{
-		SessionID: claimsOnlySession.GetName(),
-	})
-	require.NoError(t, err)
-	require.Equal(t, expectedClaimsOnlyPublicKey, updatedClaimsOnlySession.GetDBSCPublicKey())
-
-	// If a client sends both header and claim keys, they must match.
-	mismatchedKeyChallenge, err := proxyClt.SignDBSCChallenge(ctx, mismatchedKeySession.GetName())
-	require.NoError(t, err)
-	mismatchedClaimKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
-	require.NoError(t, err)
-	mismatchedHeaderJWK := jose.JSONWebKey{Key: deviceKey.Public()}
-	mismatchedClaimsJWK := jose.JSONWebKey{Key: mismatchedClaimKey.Public()}
-	mismatchedSigner, err := jose.NewSigner(jose.SigningKey{
-		Algorithm: jose.ES256,
-		Key:       deviceKey,
-	}, (&jose.SignerOptions{}).WithType("dbsc+jwt").WithHeader("jwk", mismatchedHeaderJWK.Public()))
-	require.NoError(t, err)
-	mismatchedResponseJWT, err := josejwt.Signed(mismatchedSigner).Claims(struct {
-		josejwt.Claims
-		Key jose.JSONWebKey `json:"key"`
-	}{
-		Claims: josejwt.Claims{
-			ID: mismatchedKeyChallenge,
-		},
-		Key: mismatchedClaimsJWK.Public(),
-	}).CompactSerialize()
-	require.NoError(t, err)
-	err = proxyClt.SetAppSessionDBSCPublicKey(ctx, mismatchedKeySession.GetName(), []byte(mismatchedResponseJWT))
-	require.Error(t, err)
-
-	// Setting the same response again should succeed (idempotent retry).
-	err = proxyClt.SetAppSessionDBSCPublicKey(ctx, aliceSession.GetName(), []byte(responseJWT))
-	require.NoError(t, err)
-
-	// A different browser key cannot be rebound onto the same session.
-	differentDeviceKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
-	require.NoError(t, err)
-	differentResponseJWT, _ := makeDBSCResponseJWT(t, differentDeviceKey, challenge)
-	err = proxyClt.SetAppSessionDBSCPublicKey(ctx, aliceSession.GetName(), []byte(differentResponseJWT))
-	require.Error(t, err)
-	require.True(t, trace.IsAccessDenied(err))
-
-	// Verify the key was not changed.
-	unchangedSession, err := srv.Auth().GetAppSession(ctx, types.GetAppSessionRequest{
-		SessionID: aliceSession.GetName(),
-	})
-	require.NoError(t, err)
-	require.Equal(t, expectedPublicKey, unchangedSession.GetDBSCPublicKey())
-
-	// A response bound to bob's challenge cannot be replayed onto alice's session.
-	bobChallenge, err := proxyClt.SignDBSCChallenge(ctx, bobSession.GetName())
-	require.NoError(t, err)
-	bobResponseJWT, _ := makeDBSCResponseJWT(t, deviceKey, bobChallenge)
-	err = proxyClt.SetAppSessionDBSCPublicKey(ctx, aliceSession.GetName(), []byte(bobResponseJWT))
-	require.Error(t, err)
-
-	// Human users cannot call this RPC directly.
-	err = aliceClt.SetAppSessionDBSCPublicKey(ctx, aliceSession.GetName(), []byte(responseJWT))
-	require.Error(t, err)
-	require.True(t, trace.IsAccessDenied(err))
-
-	err = bobClt.SetAppSessionDBSCPublicKey(ctx, aliceSession.GetName(), []byte(responseJWT))
-	require.Error(t, err)
-	require.True(t, trace.IsAccessDenied(err))
-
-	leafRemoteProxy := serverWithRoles(authtest.TestRemoteBuiltin(types.RoleProxy, "leaf"))
-	otherRemoteProxy := serverWithRoles(authtest.TestRemoteBuiltin(types.RoleProxy, "other-leaf"))
-
-	leafChallenge, err := leafRemoteProxy.SignDBSCChallenge(ctx, leafSession.GetName())
-	require.NoError(t, err)
-	leafResponseJWT, leafPublicKey := makeDBSCResponseJWT(t, deviceKey, leafChallenge)
-	err = leafRemoteProxy.SetAppSessionDBSCPublicKey(ctx, leafSession.GetName(), []byte(leafResponseJWT))
-	require.NoError(t, err)
-
-	updatedLeafSession, err := srv.Auth().GetAppSession(ctx, types.GetAppSessionRequest{
-		SessionID: leafSession.GetName(),
-	})
-	require.NoError(t, err)
-	require.Equal(t, leafPublicKey, updatedLeafSession.GetDBSCPublicKey())
-
-	_, err = otherRemoteProxy.SignDBSCChallenge(ctx, leafSession.GetName())
-	require.Error(t, err)
-	require.True(t, trace.IsAccessDenied(err))
-
-	_, err = leafRemoteProxy.SignDBSCChallenge(ctx, aliceSession.GetName())
-	require.Error(t, err)
-	require.True(t, trace.IsAccessDenied(err))
-
-	blockedChallenge, err := proxyClt.SignDBSCChallenge(ctx, leafSessionBlocked.GetName())
-	require.NoError(t, err)
-	blockedResponseJWT, _ := makeDBSCResponseJWT(t, deviceKey, blockedChallenge)
-	err = otherRemoteProxy.SetAppSessionDBSCPublicKey(ctx, leafSessionBlocked.GetName(), []byte(blockedResponseJWT))
-	require.Error(t, err)
-	require.True(t, trace.IsAccessDenied(err))
-}
-
-func makeDBSCResponseJWT(t *testing.T, deviceKey crypto.Signer, challenge string) (string, []byte) {
-	t.Helper()
-
-	jwk := jose.JSONWebKey{Key: deviceKey.Public()}
-	signer, err := jose.NewSigner(jose.SigningKey{
-		Algorithm: jose.ES256,
-		Key:       deviceKey,
-	}, (&jose.SignerOptions{}).WithType("dbsc+jwt").WithHeader("jwk", jwk.Public()))
-	require.NoError(t, err)
-
-	token, err := josejwt.Signed(signer).Claims(struct {
-		josejwt.Claims
-		Key jose.JSONWebKey `json:"key"`
-	}{
-		Claims: josejwt.Claims{
-			ID: challenge,
-		},
-		Key: jwk.Public(),
-	}).CompactSerialize()
-	require.NoError(t, err)
-
-	publicKeyJSON, err := jwk.Public().MarshalJSON()
-	require.NoError(t, err)
-
-	return token, publicKeyJSON
-}
-
-func TestSignDBSCChallenge(t *testing.T) {
-	t.Parallel()
-	ctx := t.Context()
-
-	srv := newTestTLSServer(t)
-	t.Cleanup(func() { srv.Close() })
-
-	userClient := func(username string) *authclient.Client {
-		user, _, err := authtest.CreateUserAndRole(srv.Auth(), username, nil, nil)
-		require.NoError(t, err)
-		clt, err := srv.NewClient(authtest.TestUser(user.GetName()))
-		require.NoError(t, err)
-		return clt
-	}
-
-	aliceClt := userClient("alice")
-	proxyClt, err := srv.NewClient(authtest.TestBuiltin(types.RoleProxy))
-	require.NoError(t, err)
-	appClt, err := srv.NewClient(authtest.TestBuiltin(types.RoleApp))
-	require.NoError(t, err)
-	serverWithRoles := func(identity authtest.TestIdentity) *auth.ServerWithRoles {
-		authContext, err := srv.AuthServer.Authorizer.Authorize(authz.ContextWithUser(ctx, identity.I))
-		require.NoError(t, err)
-		return auth.NewServerWithRoles(srv.Auth(), srv.AuthServer.AuditLog, *authContext)
-	}
-
-	app, err := types.NewAppV3(types.Metadata{
-		Name: "panel",
-	}, types.AppSpecV3{
-		URI:        "localhost",
-		PublicAddr: "panel.example.com",
-	})
-	require.NoError(t, err)
-	server, err := types.NewAppServerV3FromApp(app, "host", uuid.New().String())
-	require.NoError(t, err)
-	_, err = srv.Auth().UpsertApplicationServer(ctx, server)
-	require.NoError(t, err)
-
-	aliceSession, err := aliceClt.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
-		Username:    "alice",
-		PublicAddr:  "panel.example.com",
-		ClusterName: "localhost",
-	})
-	require.NoError(t, err)
-	leafSession, err := aliceClt.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
-		Username:    "alice",
-		PublicAddr:  "panel.example.com",
-		ClusterName: "leaf",
-	})
-	require.NoError(t, err)
-
-	challenge, err := proxyClt.SignDBSCChallenge(ctx, aliceSession.GetName())
-	require.NoError(t, err)
-	require.NotEmpty(t, challenge)
-
-	anotherChallenge, err := proxyClt.SignDBSCChallenge(ctx, aliceSession.GetName())
-	require.NoError(t, err)
-	require.NotEmpty(t, anotherChallenge)
-
-	// Signing a challenge for a non-existent session should fail.
-	_, err = proxyClt.SignDBSCChallenge(ctx, "missing-session")
-	require.Error(t, err)
-	require.True(t, trace.IsNotFound(err))
-
-	_, err = aliceClt.SignDBSCChallenge(ctx, aliceSession.GetName())
-	require.Error(t, err)
-	require.True(t, trace.IsAccessDenied(err))
-
-	_, err = appClt.SignDBSCChallenge(ctx, aliceSession.GetName())
-	require.Error(t, err)
-	require.True(t, trace.IsAccessDenied(err))
-
-	leafRemoteProxy := serverWithRoles(authtest.TestRemoteBuiltin(types.RoleProxy, "leaf"))
-	otherRemoteProxy := serverWithRoles(authtest.TestRemoteBuiltin(types.RoleProxy, "other-leaf"))
-
-	leafChallenge, err := leafRemoteProxy.SignDBSCChallenge(ctx, leafSession.GetName())
-	require.NoError(t, err)
-	require.NotEmpty(t, leafChallenge)
-
-	_, err = otherRemoteProxy.SignDBSCChallenge(ctx, leafSession.GetName())
-	require.Error(t, err)
-	require.True(t, trace.IsAccessDenied(err))
-
-	_, err = leafRemoteProxy.SignDBSCChallenge(ctx, aliceSession.GetName())
-	require.Error(t, err)
-	require.True(t, trace.IsAccessDenied(err))
-}
-
 func TestListResources_SortAndDeduplicate(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -6554,7 +5157,7 @@ func TestListResources_SortAndDeduplicate(t *testing.T) {
 			name: "KindDatabaseServer",
 			kind: types.KindDatabaseServer,
 			insertResources: func() {
-				for i := range names {
+				for i := 0; i < len(names); i++ {
 					db, err := types.NewDatabaseServerV3(types.Metadata{
 						Name: fmt.Sprintf("name-%v", i),
 					}, types.DatabaseServerSpecV3{
@@ -6580,7 +5183,7 @@ func TestListResources_SortAndDeduplicate(t *testing.T) {
 			name: "KindAppServer",
 			kind: types.KindAppServer,
 			insertResources: func() {
-				for i := range names {
+				for i := 0; i < len(names); i++ {
 					server, err := types.NewAppServerV3(types.Metadata{
 						Name: fmt.Sprintf("name-%v", i),
 					}, types.AppServerSpecV3{
@@ -6597,7 +5200,7 @@ func TestListResources_SortAndDeduplicate(t *testing.T) {
 			name: "KindWindowsDesktop",
 			kind: types.KindWindowsDesktop,
 			insertResources: func() {
-				for i := range names {
+				for i := 0; i < len(names); i++ {
 					desktop, err := types.NewWindowsDesktopV3(names[i], nil, types.WindowsDesktopSpecV3{
 						Addr:   "_",
 						HostID: fmt.Sprintf("name-%v", i),
@@ -6611,7 +5214,7 @@ func TestListResources_SortAndDeduplicate(t *testing.T) {
 			name: "KindKubernetesCluster",
 			kind: types.KindKubernetesCluster,
 			insertResources: func() {
-				for i := range names {
+				for i := 0; i < len(names); i++ {
 
 					kube, err := types.NewKubernetesClusterV3(types.Metadata{
 						Name: names[i],
@@ -6697,7 +5300,7 @@ func TestListResources_WithRoles(t *testing.T) {
 
 	// inserts a pool nodes with different labels
 	insertNodes := func(ctx context.Context, t *testing.T, srv *auth.Server, nodeCount int, labels map[string]string) {
-		for range nodeCount {
+		for i := 0; i < nodeCount; i++ {
 			name := uuid.NewString()
 			addr := fmt.Sprintf("node-%s.example.com", name)
 
@@ -6836,6 +5439,7 @@ func TestListResources_WithRoles(t *testing.T) {
 
 	// ensure that a user can see the correct number of resources for their role(s)
 	for _, tt := range cases {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -6911,7 +5515,7 @@ func TestListUnifiedResources_WithLogins(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	for i := range 5 {
+	for i := 0; i < 5; i++ {
 		name := uuid.New().String()
 		node, err := types.NewServerWithLabels(
 			name,
@@ -6987,7 +5591,9 @@ func TestListUnifiedResources_WithLogins(t *testing.T) {
 				SortBy:        types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
 				StartKey:      start,
 			})
-			require.NoError(t, err)
+			if !assert.NoError(t, err) {
+				return
+			}
 
 			results = append(results, resp.Resources...)
 			start = resp.NextKey
@@ -6998,7 +5604,9 @@ func TestListUnifiedResources_WithLogins(t *testing.T) {
 
 		// Note: this number should be updated in case we add more resources to
 		// the setup loop.
-		require.Len(t, results, 20)
+		if !assert.Len(t, results, 20) {
+			return
+		}
 		resultsC <- results
 	}, 10*time.Second, 100*time.Millisecond, "unable to list all resources")
 
@@ -7028,7 +5636,7 @@ func TestListUnifiedResources_IncludeRequestable(t *testing.T) {
 
 	// Create test nodes.
 	const numTestNodes = 3
-	for i := range numTestNodes {
+	for i := 0; i < numTestNodes; i++ {
 		name := fmt.Sprintf("node%d", i)
 		node, err := types.NewServerWithLabels(
 			name,
@@ -7217,16 +5825,25 @@ func TestCreateAccessRequestV2_oktaReadOnly(t *testing.T) {
 	// 7. Run tests
 
 	t.Run("requesting okta resources but no okta plugin", func(t *testing.T) {
-		// Note: Okta-originated resources present in the cluster and no Okta plugin
-		// configured is the situation where the plugin was freshly deleted and the
-		// heartbeats for the Okta apps haven't expired yet. This is an edge-case so the
-		// error is a bit confusing.
+		// v18+ version:
+		/*
+			// Note: Okta-originated resources present in the cluster and no Okta plugin
+			// configured is the situation where the plugin was freshly deleted and the
+			// heartbeats for the Okta apps haven't expired yet. This is an edge-case so the
+			// error is a bit confusing.
+			for _, accessRequest := range testAccessRequests {
+				_, err := aliceClt.CreateAccessRequestV2(ctx, accessRequest)
+				require.Error(t, err)
+				require.True(t, trace.IsBadParameter(err))
+				require.ErrorContains(t, err, okta.OktaResourceNotRequestableError.Error())
+			}
+		*/
+
+		// v17 only - we need to support okta_service where no plugin exists:
 		for _, accessRequest := range testAccessRequests {
 			msg := fmt.Sprintf("requested resources = %v", accessRequest.GetRequestedResourceIDs())
 			_, err := aliceClt.CreateAccessRequestV2(ctx, accessRequest)
-			require.Error(t, err, msg)
-			require.True(t, trace.IsBadParameter(err), msg)
-			require.ErrorContains(t, err, okta.OktaResourceNotRequestableError.Error(), msg)
+			require.NoError(t, err, msg)
 		}
 	})
 
@@ -7325,14 +5942,14 @@ func TestListUnifiedResources_search_as_roles_oktaReadOnly(t *testing.T) {
 	// 1. Create app resources
 
 	searchableGenericApp := createTestAppServerV3(t, srv.Auth(),
-		"test-generic-app",
+		"test_generic_app",
 		map[string]string{
 			"find_me": "please",
 		},
 	)
 
 	searchableOktaApp := createTestAppServerV3(t, srv.Auth(),
-		"test-searchable-okta-app",
+		"test_searchable_okta_app",
 		map[string]string{
 			"find_me":         "please",
 			types.OriginLabel: types.OriginOkta,
@@ -7340,7 +5957,7 @@ func TestListUnifiedResources_search_as_roles_oktaReadOnly(t *testing.T) {
 	)
 
 	assignedOktaApp := createTestAppServerV3(t, srv.Auth(),
-		"test-assigned-okta-app",
+		"test_assigned_okta_app",
 		map[string]string{
 			"owner":           "alice",
 			types.OriginLabel: types.OriginOkta,
@@ -7477,7 +6094,7 @@ func TestListUnifiedResources_KindsFilter(t *testing.T) {
 		return srv.Auth().UnifiedResourceCache.IsInitialized()
 	}, 5*time.Second, 200*time.Millisecond, "unified resource watcher never initialized")
 
-	for i := range 5 {
+	for i := 0; i < 5; i++ {
 		name := uuid.New().String()
 		node, err := types.NewServerWithLabels(
 			name,
@@ -7507,9 +6124,6 @@ func TestListUnifiedResources_KindsFilter(t *testing.T) {
 		require.NoError(t, err)
 		_, err = srv.Auth().UpsertDatabaseServer(ctx, db)
 		require.NoError(t, err)
-
-		createTestAppServerV3(t, srv.Auth(), name, nil)
-		createTestMCPAppServer(t, srv.Auth(), "mcp-"+name, nil)
 	}
 
 	// create user and client
@@ -7542,21 +6156,6 @@ func TestListUnifiedResources_KindsFilter(t *testing.T) {
 		Limit: 5,
 	})
 	require.NoError(t, err, "sort field is not required")
-
-	t.Run("KindApp", func(t *testing.T) {
-		resp, err = clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
-			Kinds: []string{types.KindApp},
-		})
-		require.NoError(t, err)
-		require.Len(t, resp.Resources, 10) // 5 app + 5 mcp server
-	})
-	t.Run("KindMCP", func(t *testing.T) {
-		resp, err = clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
-			Kinds: []string{types.KindMCP},
-		})
-		require.NoError(t, err)
-		require.Len(t, resp.Resources, 5)
-	})
 }
 
 func TestListUnifiedResources_WithPinnedResources(t *testing.T) {
@@ -7638,7 +6237,7 @@ func TestListUnifiedResources_WithSearch(t *testing.T) {
 	}, 5*time.Second, 200*time.Millisecond, "unified resource watcher never initialized")
 
 	names := []string{"vivi", "cloud", "aerith", "barret", "cid", "vivi2"}
-	for i := range 6 {
+	for i := 0; i < 6; i++ {
 		name := names[i]
 		node, err := types.NewServerWithLabels(
 			name,
@@ -7712,7 +6311,7 @@ func TestListUnifiedResources_MixedAccess(t *testing.T) {
 	}, 5*time.Second, 200*time.Millisecond, "unified resource watcher never initialized")
 
 	names := []string{"tifa", "cloud", "aerith", "baret", "cid", "tifa2"}
-	for i := range 6 {
+	for i := 0; i < 6; i++ {
 		name := names[i]
 
 		// add nodes
@@ -7810,9 +6409,9 @@ func TestListUnifiedResources_MixedAccess(t *testing.T) {
 			Limit:  20,
 			SortBy: types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
 		})
-		require.NoError(t, err)
-		require.Empty(t, resp.NextKey)
-		require.Len(t, resp.Resources, 6)
+		assert.NoError(t, err)
+		assert.Empty(t, resp.NextKey)
+		assert.Len(t, resp.Resources, 6)
 	}, 10*time.Second, 200*time.Millisecond)
 
 	// only receive databases because nodes are denied with labels and desktops are denied with a verb rule
@@ -7841,8 +6440,8 @@ func TestListUnifiedResources_MixedAccess(t *testing.T) {
 			Limit:  20,
 			SortBy: types.SortBy{IsDesc: true, Field: types.ResourceMetadataName},
 		})
-		require.True(t, trace.IsAccessDenied(err), "Expected Access Denied, got %v", err)
-		require.Nil(t, resp)
+		assert.True(t, trace.IsAccessDenied(err), "Expected Access Denied, got %v", err)
+		assert.Nil(t, resp)
 	}, 10*time.Second, 200*time.Millisecond)
 
 	// Validate that an error is returned when a subset of kinds are requested.
@@ -7867,7 +6466,7 @@ func TestListUnifiedResources_WithPredicate(t *testing.T) {
 	}, 5*time.Second, 200*time.Millisecond, "unified resource watcher never initialized")
 
 	names := []string{"tifa", "cloud", "aerith", "baret", "cid", "tifa2"}
-	for i := range 6 {
+	for i := 0; i < 6; i++ {
 		name := names[i]
 
 		// add nodes
@@ -7956,217 +6555,273 @@ func TestUnifiedResources_IdentityCenter(t *testing.T) {
 	withMatchingAccountAssignment := withAccountAssignment(types.Allow,
 		validAccountID, validPermissionSetARN)
 
-	acct, err := srv.Auth().CreateIdentityCenterAccount(ctx, &identitycenterv1.Account{
-		Kind:    types.KindIdentityCenterAccount,
-		Version: types.V1,
-		Metadata: &headerv1.Metadata{
-			Name: "test-account",
-			Labels: map[string]string{
-				types.OriginLabel: apicommon.OriginAWSIdentityCenter,
+	testCases := []struct {
+		name string
+		kind string
+		init func(*testing.T)
+	}{
+		{
+			name: "account",
+			kind: types.KindIdentityCenterAccount,
+			init: func(subtestT *testing.T) {
+				acct, err := srv.Auth().CreateIdentityCenterAccount(ctx, &identitycenterv1.Account{
+					Kind:    types.KindIdentityCenterAccount,
+					Version: types.V1,
+					Metadata: &headerv1.Metadata{
+						Name: "test-account",
+						Labels: map[string]string{
+							types.OriginLabel: apicommon.OriginAWSIdentityCenter,
+						},
+					},
+					Spec: &identitycenterv1.AccountSpec{
+						Id:   validAccountID,
+						Arn:  "some:account:arn",
+						Name: "Test Account",
+					},
+				})
+				require.NoError(subtestT, err)
+				subtestT.Cleanup(func() {
+					srv.Auth().DeleteIdentityCenterAccount(ctx,
+						services.IdentityCenterAccountID(acct.GetMetadata().GetName()))
+				})
+
+				inlineEventually(subtestT,
+					func() bool {
+						accounts, _, err := srv.Auth().ListIdentityCenterAccounts(ctx, 100, "")
+						require.NoError(t, err)
+						return len(accounts) == 1
+					},
+					5*time.Second, 200*time.Millisecond,
+					"Target resource missing from cache")
 			},
 		},
-		Spec: &identitycenterv1.AccountSpec{
-			Id:   validAccountID,
-			Arn:  "some:account:arn",
-			Name: "Test Account",
-		},
-	})
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		srv.Auth().DeleteIdentityCenterAccount(ctx,
-			services.IdentityCenterAccountID(acct.GetMetadata().GetName()))
-	})
+		{
+			name: "account assignment",
+			kind: types.KindIdentityCenterAccountAssignment,
+			init: func(subtestT *testing.T) {
+				asmt, err := srv.Auth().CreateIdentityCenterAccountAssignment(ctx, &identitycenterv1.AccountAssignment{
+					Kind:    types.KindIdentityCenterAccountAssignment,
+					Version: types.V1,
+					Metadata: &headerv1.Metadata{
+						Name: "test-account",
+						Labels: map[string]string{
+							types.OriginLabel: apicommon.OriginAWSIdentityCenter,
+						},
+					},
+					Spec: &identitycenterv1.AccountAssignmentSpec{
+						AccountId: validAccountID,
+						Display:   "Test Account Assignment",
+						PermissionSet: &identitycenterv1.PermissionSetInfo{
+							Arn:          validPermissionSetARN,
+							Name:         "Test permission set",
+							AssignmentId: "Test Assignment on Test Account",
+						},
+					},
+				})
+				require.NoError(subtestT, err)
+				subtestT.Cleanup(func() {
+					srv.Auth().DeleteAccountAssignment(ctx,
+						services.IdentityCenterAccountAssignmentID(asmt.GetMetadata().GetName()))
+				})
 
-	inlineEventually(t,
-		func() bool {
-			accounts, _, err := srv.Auth().ListIdentityCenterAccounts(ctx, 100, "")
-			require.NoError(t, err)
-			return len(accounts) == 1
+				inlineEventually(subtestT,
+					func() bool {
+						testAssignments, _, err := srv.Auth().ListIdentityCenterAccountAssignments(ctx, 100, "")
+						require.NoError(t, err)
+						return len(testAssignments) == 1
+					},
+					5*time.Second, 200*time.Millisecond,
+					"Target resource missing from cache")
+			},
 		},
-		5*time.Second, 200*time.Millisecond,
-		"Target resource missing from cache")
-	allowBySpecificKind := []types.Rule{
-		types.NewRule(types.KindIdentityCenterAccount, services.RO()),
 	}
 
-	t.Run("no access", func(t *testing.T) {
-		userNoAccess, _, err := authtest.CreateUserAndRole(srv.Auth(), "no-access", nil, nil)
-		require.NoError(t, err)
+	for _, test := range testCases {
+		t.Run(test.name, func(t *testing.T) {
+			test.init(t)
 
-		identity := authtest.TestUser(userNoAccess.GetName())
-		clt, err := srv.NewClient(identity)
-		require.NoError(t, err)
-		defer clt.Close()
+			allowBySpecificKind := []types.Rule{
+				types.NewRule(test.kind, services.RO()),
+			}
 
-		unifiedResp, err := clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
-			Kinds: []string{types.KindApp},
-			Labels: map[string]string{
-				types.OriginLabel: apicommon.OriginAWSIdentityCenter,
-			},
-		})
-		require.NoError(t, err)
-		require.Empty(t, unifiedResp.Resources)
+			t.Run("no access", func(t *testing.T) {
+				userNoAccess, _, err := authtest.CreateUserAndRole(srv.Auth(), "no-access", nil, nil)
+				require.NoError(t, err)
 
-		resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
-			ResourceType: types.KindIdentityCenterAccount,
-			Labels: map[string]string{
-				types.OriginLabel: apicommon.OriginAWSIdentityCenter,
-			},
-		})
-		require.NoError(t, err)
-		require.Empty(t, resp.Resources)
-	})
+				identity := authtest.TestUser(userNoAccess.GetName())
+				clt, err := srv.NewClient(identity)
+				require.NoError(t, err)
+				defer clt.Close()
 
-	t.Run("no access via no matching account condition ", func(t *testing.T) {
-		userNoAccess, _, err := authtest.CreateUserAndRole(srv.Auth(), "no-access-account-mismatch", nil,
-			allowByGenericKind,
-			withAccountAssignment(types.Allow, "22222222", validPermissionSetARN))
-		require.NoError(t, err)
-
-		identity := authtest.TestUser(userNoAccess.GetName())
-		clt, err := srv.NewClient(identity)
-		require.NoError(t, err)
-		defer clt.Close()
-
-		unifiedResp, err := clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
-			Kinds: []string{types.KindApp},
-			Labels: map[string]string{
-				types.OriginLabel: apicommon.OriginAWSIdentityCenter,
-			},
-		})
-		require.NoError(t, err)
-		require.Empty(t, unifiedResp.Resources)
-
-		resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
-			ResourceType: types.KindIdentityCenterAccount,
-			Labels: map[string]string{
-				types.OriginLabel: apicommon.OriginAWSIdentityCenter,
-			},
-		})
-		require.NoError(t, err)
-		require.Empty(t, resp.Resources)
-	})
-
-	t.Run("access denied by account deny condition", func(t *testing.T) {
-		userNoAccess, _, err := authtest.CreateUserAndRole(srv.Auth(), "no-access-account-mismatch", nil,
-			allowBySpecificKind,
-			withMatchingAccountAssignment,
-			withAccountAssignment(types.Deny, validAccountID, "*"))
-		require.NoError(t, err)
-
-		identity := authtest.TestUser(userNoAccess.GetName())
-		clt, err := srv.NewClient(identity)
-		require.NoError(t, err)
-		defer clt.Close()
-
-		unifiedResp, err := clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
-			Kinds: []string{types.KindApp},
-			Labels: map[string]string{
-				types.OriginLabel: apicommon.OriginAWSIdentityCenter,
-			},
-		})
-		require.NoError(t, err)
-		require.Empty(t, unifiedResp.Resources)
-
-		resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
-			ResourceType: types.KindIdentityCenterAccount,
-			Labels: map[string]string{
-				types.OriginLabel: apicommon.OriginAWSIdentityCenter,
-			},
-		})
-		require.NoError(t, err)
-		require.Empty(t, resp.Resources)
-	})
-
-	t.Run("access via generic kind", func(t *testing.T) {
-		user, _, err := authtest.CreateUserAndRole(srv.Auth(), "read-generic", nil,
-			allowByGenericKind,
-			withMatchingAccountAssignment)
-		require.NoError(t, err)
-
-		identity := authtest.TestUser(user.GetName())
-		clt, err := srv.NewClient(identity)
-		require.NoError(t, err)
-		defer clt.Close()
-
-		unifiedResp, err := clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
-			Kinds: []string{types.KindApp},
-			Labels: map[string]string{
-				types.OriginLabel: apicommon.OriginAWSIdentityCenter,
-			},
-		})
-		require.NoError(t, err)
-		require.Len(t, unifiedResp.Resources, 1)
-
-		resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
-			ResourceType: types.KindIdentityCenterAccount,
-			Labels: map[string]string{
-				types.OriginLabel: apicommon.OriginAWSIdentityCenter,
-			},
-		})
-		require.NoError(t, err)
-		require.Len(t, resp.Resources, 1)
-	})
-
-	t.Run("access via specific kind", func(t *testing.T) {
-		user, _, err := authtest.CreateUserAndRole(srv.Auth(), "read-specific", nil,
-			allowBySpecificKind,
-			withMatchingAccountAssignment)
-		require.NoError(t, err)
-
-		identity := authtest.TestUser(user.GetName())
-		clt, err := srv.NewClient(identity)
-		require.NoError(t, err)
-		defer clt.Close()
-
-		unifiedResp, err := clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
-			Kinds: []string{types.KindApp},
-		})
-		require.NoError(t, err)
-		require.Len(t, unifiedResp.Resources, 1)
-
-		resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
-			ResourceType: types.KindIdentityCenterAccount,
-			Labels: map[string]string{
-				types.OriginLabel: apicommon.OriginAWSIdentityCenter,
-			},
-		})
-		require.NoError(t, err)
-		require.Len(t, resp.Resources, 1)
-	})
-
-	t.Run("access denied via specific kind beats allow via generic kind", func(t *testing.T) {
-		user, _, err := authtest.CreateUserAndRole(srv.Auth(), "specific-beats-generic", nil,
-			allowByGenericKind,
-			withMatchingAccountAssignment,
-			authtest.WithRoleMutator(func(r types.Role) {
-				r.SetRules(types.Deny, []types.Rule{
-					types.NewRule(types.KindIdentityCenterAccount, services.RO()),
+				resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
+					ResourceType: test.kind,
+					Labels: map[string]string{
+						types.OriginLabel: apicommon.OriginAWSIdentityCenter,
+					},
 				})
-			}))
-		require.NoError(t, err)
+				require.NoError(t, err)
+				require.Empty(t, resp.Resources)
+			})
 
-		identity := authtest.TestUser(user.GetName())
-		clt, err := srv.NewClient(identity)
-		require.NoError(t, err)
-		defer clt.Close()
+			t.Run("no access via no matching account condition ", func(t *testing.T) {
+				userNoAccess, _, err := authtest.CreateUserAndRole(srv.Auth(), "no-access-account-mismatch", nil,
+					allowByGenericKind,
+					withAccountAssignment(types.Allow, "22222222", validPermissionSetARN))
+				require.NoError(t, err)
 
-		_, err = clt.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
-			Kinds: []string{types.KindIdentityCenterAccount},
+				identity := authtest.TestUser(userNoAccess.GetName())
+				clt, err := srv.NewClient(identity)
+				require.NoError(t, err)
+				defer clt.Close()
+
+				resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
+					ResourceType: test.kind,
+					Labels: map[string]string{
+						types.OriginLabel: apicommon.OriginAWSIdentityCenter,
+					},
+				})
+				require.NoError(t, err)
+				require.Empty(t, resp.Resources)
+			})
+
+			t.Run("access denied by account deny condition", func(t *testing.T) {
+				userNoAccess, _, err := authtest.CreateUserAndRole(srv.Auth(), "no-access-account-mismatch", nil,
+					allowBySpecificKind,
+					withMatchingAccountAssignment,
+					withAccountAssignment(types.Deny, validAccountID, "*"))
+				require.NoError(t, err)
+
+				identity := authtest.TestUser(userNoAccess.GetName())
+				clt, err := srv.NewClient(identity)
+				require.NoError(t, err)
+				defer clt.Close()
+
+				resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
+					ResourceType: test.kind,
+					Labels: map[string]string{
+						types.OriginLabel: apicommon.OriginAWSIdentityCenter,
+					},
+				})
+				require.NoError(t, err)
+				require.Empty(t, resp.Resources)
+			})
+
+			t.Run("access via generic kind", func(t *testing.T) {
+				user, _, err := authtest.CreateUserAndRole(srv.Auth(), "read-generic", nil,
+					allowByGenericKind,
+					withMatchingAccountAssignment)
+				require.NoError(t, err)
+
+				identity := authtest.TestUser(user.GetName())
+				clt, err := srv.NewClient(identity)
+				require.NoError(t, err)
+				defer clt.Close()
+
+				resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
+					ResourceType: test.kind,
+					Labels: map[string]string{
+						types.OriginLabel: apicommon.OriginAWSIdentityCenter,
+					},
+				})
+				require.NoError(t, err)
+				require.Len(t, resp.Resources, 1)
+			})
+
+			t.Run("access via specific kind", func(t *testing.T) {
+				user, _, err := authtest.CreateUserAndRole(srv.Auth(), "read-specific", nil,
+					allowBySpecificKind,
+					withMatchingAccountAssignment)
+				require.NoError(t, err)
+
+				identity := authtest.TestUser(user.GetName())
+				clt, err := srv.NewClient(identity)
+				require.NoError(t, err)
+				defer clt.Close()
+
+				resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
+					ResourceType: test.kind,
+				})
+				require.NoError(t, err)
+				require.Len(t, resp.Resources, 1)
+			})
+
+			t.Run("access denied via specific kind beats allow via generic kind", func(t *testing.T) {
+				user, _, err := authtest.CreateUserAndRole(srv.Auth(), "specific-beats-generic", nil,
+					allowByGenericKind,
+					withMatchingAccountAssignment,
+					authtest.WithRoleMutator(func(r types.Role) {
+						r.SetRules(types.Deny, []types.Rule{
+							types.NewRule(test.kind, services.RO()),
+						})
+					}))
+				require.NoError(t, err)
+
+				identity := authtest.TestUser(user.GetName())
+				clt, err := srv.NewClient(identity)
+				require.NoError(t, err)
+				defer clt.Close()
+
+				_, err = clt.ListResources(ctx, proto.ListResourcesRequest{
+					ResourceType: test.kind,
+				})
+				require.True(t, trace.IsAccessDenied(err),
+					"Expected Access Denied, got %v", err)
+			})
+
+			// The tests below this point are only applicable to Identity Center
+			// Account assignments
+			if test.kind == types.KindIdentityCenterAccount {
+				return
+			}
+
+			// Asserts that a role ALLOW condition with a matching Account ID but
+			// nonmatching PermissionSet ARN does not allow access
+			t.Run("no access via no matching allow permission set condition", func(t *testing.T) {
+				userNoAccess, _, err := authtest.CreateUserAndRole(srv.Auth(), "no-access-allow-ps-mismatch", nil,
+					allowByGenericKind,
+					withAccountAssignment(types.Allow, validAccountID, "some:other:ps:arn"))
+				require.NoError(t, err)
+
+				identity := authtest.TestUser(userNoAccess.GetName())
+				clt, err := srv.NewClient(identity)
+				require.NoError(t, err)
+				defer clt.Close()
+
+				resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
+					ResourceType: test.kind,
+					Labels: map[string]string{
+						types.OriginLabel: apicommon.OriginAWSIdentityCenter,
+					},
+				})
+				require.NoError(t, err)
+				require.Empty(t, resp.Resources)
+			})
+
+			// Asserts that a role DENY condition with a matching Account ID but
+			// nonmatching PermissionSet ARN does not block access
+			t.Run("access via no matching deny permission set condition", func(t *testing.T) {
+				userNoAccess, _, err := authtest.CreateUserAndRole(srv.Auth(), "access-deny-ps-mismatch", nil,
+					allowByGenericKind,
+					withMatchingAccountAssignment,
+					withAccountAssignment(types.Deny, "*", "some:other:ps"))
+				require.NoError(t, err)
+
+				identity := authtest.TestUser(userNoAccess.GetName())
+				clt, err := srv.NewClient(identity)
+				require.NoError(t, err)
+				defer clt.Close()
+
+				resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
+					ResourceType: test.kind,
+					Labels: map[string]string{
+						types.OriginLabel: apicommon.OriginAWSIdentityCenter,
+					},
+				})
+				require.NoError(t, err)
+				require.Len(t, resp.Resources, 1)
+			})
 		})
-		require.True(t, trace.IsAccessDenied(err),
-			"Expected Access Denied, got %v", err)
-
-		_, err = clt.ListResources(ctx, proto.ListResourcesRequest{
-			ResourceType: types.KindIdentityCenterAccount,
-			Labels: map[string]string{
-				types.OriginLabel: apicommon.OriginAWSIdentityCenter,
-			},
-		})
-
-		require.True(t, trace.IsAccessDenied(err),
-			"Expected Access Denied, got %v", err)
-	})
+	}
 }
 
 func BenchmarkListUnifiedResourcesFilter(b *testing.B) {
@@ -8175,13 +6830,18 @@ func BenchmarkListUnifiedResourcesFilter(b *testing.B) {
 	}
 	const nodeCount = 150_000
 	const roleCount = 32
-	const dbCount = 150_000
+
+	logger := logrus.StandardLogger()
+	logger.ReplaceHooks(make(logrus.LevelHooks))
+	logrus.SetFormatter(logutils.NewTestJSONFormatter())
+	logger.SetLevel(logrus.PanicLevel)
+	logger.SetOutput(io.Discard)
 
 	ctx := context.Background()
 	srv := newTestTLSServer(b)
 
 	var ids []string
-	for range roleCount {
+	for i := 0; i < roleCount; i++ {
 		ids = append(ids, uuid.New().String())
 	}
 
@@ -8189,7 +6849,7 @@ func BenchmarkListUnifiedResourcesFilter(b *testing.B) {
 
 	var hiddenNodes int
 	// Create test nodes.
-	for i := range nodeCount {
+	for i := 0; i < nodeCount; i++ {
 		name := uuid.New().String()
 		id := ids[i%len(ids)]
 		if id == "hidden" {
@@ -8221,101 +6881,7 @@ func BenchmarkListUnifiedResourcesFilter(b *testing.B) {
 		require.NoError(b, err)
 	}
 
-	// Create test HA databases (multiple agents per database)
-	var hiddenDBs int
-	for i := range dbCount {
-		id := ids[i%len(ids)]
-		if id == "hidden" {
-			hiddenDBs++
-		}
-		name := "db-" + strconv.Itoa(i)
-		labels := map[string]string{
-			"kEy":   id,
-			"grouP": "useRs",
-		}
-		if i == 10 {
-			labels["ip"] = "10.20.30.40"
-			labels["ADDRESS"] = "10.20.30.41"
-			labels["food"] = "POTATO"
-		}
-
-		db, err := types.NewDatabaseV3(types.Metadata{
-			Name:   name,
-			Labels: labels,
-		}, types.DatabaseSpecV3{
-			Protocol: "test-protocol",
-			URI:      "test-uri:1234",
-		})
-		require.NoError(b, err)
-
-		statuses := []string{"healthy", "unknown", "healthy"}
-		if i == 10 {
-			statuses = []string{"unhealthy", "unhealthy", "unhealthy"}
-		}
-		for _, healthStatus := range statuses {
-			dbServer, err := types.NewDatabaseServerV3(types.Metadata{
-				Name: db.GetName(),
-			}, types.DatabaseServerSpecV3{
-				Database: db.Copy(),
-				Hostname: name,
-				HostID:   uuid.New().String(),
-			})
-			require.NoError(b, err)
-			dbServer.SetTargetHealth(types.TargetHealth{Status: healthStatus})
-			_, err = srv.Auth().UpsertDatabaseServer(ctx, dbServer)
-			require.NoError(b, err)
-		}
-	}
-
 	b.Run("labels", func(b *testing.B) {
-		benchmarkListUnifiedResources(
-			b, ctx,
-			2,
-			srv,
-			ids,
-			func(role types.Role, id string) {
-				role.SetNodeLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
-				role.SetDatabaseLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
-			},
-			func(req *proto.ListUnifiedResourcesRequest) {
-				req.Kinds = []string{types.KindNode, types.KindDatabase}
-				req.Labels = map[string]string{"ip": "10.20.30.40"}
-			},
-		)
-	})
-	b.Run("predicate path", func(b *testing.B) {
-		benchmarkListUnifiedResources(
-			b, ctx,
-			2,
-			srv,
-			ids,
-			func(role types.Role, id string) {
-				role.SetNodeLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
-				role.SetDatabaseLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
-			},
-			func(req *proto.ListUnifiedResourcesRequest) {
-				req.Kinds = []string{types.KindNode, types.KindDatabase}
-				req.PredicateExpression = `labels.ip == "10.20.30.40"`
-			},
-		)
-	})
-	b.Run("predicate index", func(b *testing.B) {
-		benchmarkListUnifiedResources(
-			b, ctx,
-			2,
-			srv,
-			ids,
-			func(role types.Role, id string) {
-				role.SetNodeLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
-				role.SetDatabaseLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
-			},
-			func(req *proto.ListUnifiedResourcesRequest) {
-				req.Kinds = []string{types.KindNode, types.KindDatabase}
-				req.PredicateExpression = `labels["ip"] == "10.20.30.40"`
-			},
-		)
-	})
-	b.Run("predicate health status", func(b *testing.B) {
 		benchmarkListUnifiedResources(
 			b, ctx,
 			1,
@@ -8323,26 +6889,50 @@ func BenchmarkListUnifiedResourcesFilter(b *testing.B) {
 			ids,
 			func(role types.Role, id string) {
 				role.SetNodeLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
-				role.SetDatabaseLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
 			},
 			func(req *proto.ListUnifiedResourcesRequest) {
-				req.Kinds = []string{types.KindNode, types.KindDatabase}
-				req.PredicateExpression = `health.status == "unhealthy"`
+				req.Labels = map[string]string{"ip": "10.20.30.40"}
+			},
+		)
+	})
+	b.Run("predicate path", func(b *testing.B) {
+		benchmarkListUnifiedResources(
+			b, ctx,
+			1,
+			srv,
+			ids,
+			func(role types.Role, id string) {
+				role.SetNodeLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
+			},
+			func(req *proto.ListUnifiedResourcesRequest) {
+				req.PredicateExpression = `labels.ip == "10.20.30.40"`
+			},
+		)
+	})
+	b.Run("predicate index", func(b *testing.B) {
+		benchmarkListUnifiedResources(
+			b, ctx,
+			1,
+			srv,
+			ids,
+			func(role types.Role, id string) {
+				role.SetNodeLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
+			},
+			func(req *proto.ListUnifiedResourcesRequest) {
+				req.PredicateExpression = `labels["ip"] == "10.20.30.40"`
 			},
 		)
 	})
 	b.Run("search lower", func(b *testing.B) {
 		benchmarkListUnifiedResources(
 			b, ctx,
-			2,
+			1,
 			srv,
 			ids,
 			func(role types.Role, id string) {
 				role.SetNodeLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
-				role.SetDatabaseLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
 			},
 			func(req *proto.ListUnifiedResourcesRequest) {
-				req.Kinds = []string{types.KindNode, types.KindDatabase}
 				req.SearchKeywords = []string{"10.20.30.40"}
 			},
 		)
@@ -8350,15 +6940,13 @@ func BenchmarkListUnifiedResourcesFilter(b *testing.B) {
 	b.Run("search upper", func(b *testing.B) {
 		benchmarkListUnifiedResources(
 			b, ctx,
-			2,
+			1,
 			srv,
 			ids,
 			func(role types.Role, id string) {
 				role.SetNodeLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
-				role.SetDatabaseLabels(types.Allow, types.Labels{types.Wildcard: []string{types.Wildcard}})
 			},
 			func(req *proto.ListUnifiedResourcesRequest) {
-				req.Kinds = []string{types.KindNode, types.KindDatabase}
 				req.SearchKeywords = []string{"POTATO"}
 			},
 		)
@@ -8381,13 +6969,18 @@ func BenchmarkListUnifiedResources(b *testing.B) {
 
 	const nodeCount = 150_000
 	const roleCount = 32
-	const dbCount = 150_000
+
+	logger := logrus.StandardLogger()
+	logger.ReplaceHooks(make(logrus.LevelHooks))
+	logrus.SetFormatter(logutils.NewTestJSONFormatter())
+	logger.SetLevel(logrus.DebugLevel)
+	logger.SetOutput(io.Discard)
 
 	ctx := context.Background()
 	srv := newTestTLSServer(b)
 
 	var ids []string
-	for range roleCount {
+	for i := 0; i < roleCount; i++ {
 		ids = append(ids, uuid.New().String())
 	}
 
@@ -8395,7 +6988,7 @@ func BenchmarkListUnifiedResources(b *testing.B) {
 
 	var hiddenNodes int
 	// Create test nodes.
-	for i := range nodeCount {
+	for i := 0; i < nodeCount; i++ {
 		name := uuid.New().String()
 		id := ids[i%len(ids)]
 		if id == "hidden" {
@@ -8418,40 +7011,6 @@ func BenchmarkListUnifiedResources(b *testing.B) {
 		require.NoError(b, err)
 	}
 
-	// Create test HA databases (multiple agents per database)
-	var hiddenDBs int
-	for i := range dbCount {
-		id := ids[i%len(ids)]
-		if id == "hidden" {
-			hiddenDBs++
-		}
-		name := "db-" + strconv.Itoa(i)
-		db, err := types.NewDatabaseV3(types.Metadata{
-			Name: name,
-			Labels: map[string]string{
-				"key":   id,
-				"group": "users",
-			},
-		}, types.DatabaseSpecV3{
-			Protocol: "test-protocol",
-			URI:      "test-uri:1234",
-		})
-		require.NoError(b, err)
-		for _, healthStatus := range []string{"healthy", "unhealthy", "unknown"} {
-			dbServer, err := types.NewDatabaseServerV3(types.Metadata{
-				Name: db.GetName(),
-			}, types.DatabaseServerSpecV3{
-				Database: db.Copy(),
-				Hostname: name,
-				HostID:   uuid.New().String(),
-			})
-			require.NoError(b, err)
-			dbServer.SetTargetHealth(types.TargetHealth{Status: healthStatus})
-			_, err = srv.Auth().UpsertDatabaseServer(ctx, dbServer)
-			require.NoError(b, err)
-		}
-	}
-
 	for _, tc := range []struct {
 		desc     string
 		editRole func(types.Role, string)
@@ -8461,10 +7020,8 @@ func BenchmarkListUnifiedResources(b *testing.B) {
 			editRole: func(r types.Role, id string) {
 				if id == "hidden" {
 					r.SetNodeLabels(types.Deny, types.Labels{"key": {id}})
-					r.SetDatabaseLabels(types.Deny, types.Labels{"key": {id}})
 				} else {
 					r.SetNodeLabels(types.Allow, types.Labels{"key": {id}})
-					r.SetDatabaseLabels(types.Allow, types.Labels{"key": {id}})
 				}
 			},
 		},
@@ -8472,13 +7029,11 @@ func BenchmarkListUnifiedResources(b *testing.B) {
 		b.Run(tc.desc, func(b *testing.B) {
 			benchmarkListUnifiedResources(
 				b, ctx,
-				nodeCount-hiddenNodes+dbCount-hiddenDBs,
+				nodeCount-hiddenNodes,
 				srv,
 				ids,
 				tc.editRole,
-				func(req *proto.ListUnifiedResourcesRequest) {
-					req.Kinds = []string{types.KindNode, types.KindDatabase}
-				},
+				func(req *proto.ListUnifiedResourcesRequest) {},
 			)
 		})
 	}
@@ -8516,8 +7071,9 @@ func benchmarkListUnifiedResources(
 	require.NoError(b, err)
 
 	b.ReportAllocs()
+	b.ResetTimer()
 
-	for b.Loop() {
+	for n := 0; n < b.N; n++ {
 		var resources []*proto.PaginatedResource
 		req := &proto.ListUnifiedResourcesRequest{
 			Kinds:  []string{types.KindNode},
@@ -8550,7 +7106,7 @@ func TestGenerateHostCert(t *testing.T) {
 
 	clusterName := srv.ClusterName()
 
-	_, pub, err := testauthority.GenerateKeyPair()
+	_, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
 	noError := func(err error) bool {
@@ -8692,309 +7248,6 @@ func TestGenerateHostCert(t *testing.T) {
 	}
 }
 
-// newScopedTestServerForHost creates a self-cleaning `ServerWithRoles`, configured
-// for a given host. One or more roles must be provided.
-func newScopedTestServerForHost(t *testing.T, srv *authtest.AuthServer, hostID, scope string, roles ...types.SystemRole) *auth.ServerWithRoles {
-	authzContext := authz.ContextWithUser(t.Context(), authtest.TestScopedHost(srv.ClusterName, hostID, scope, roles...).I)
-	ctxIdentity, err := srv.Authorizer.Authorize(authzContext)
-	require.NoError(t, err)
-
-	authWithRole := auth.NewServerWithRoles(
-		srv.AuthServer,
-		srv.AuditLog,
-		*ctxIdentity,
-	)
-
-	t.Cleanup(func() { authWithRole.Close() })
-
-	return authWithRole
-}
-
-func TestGenerateHostCertsScoped(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, as.Close()) })
-
-	scope := "/aa/bb"
-	hostID := "testhost"
-	roles := types.SystemRoles{types.RoleNode}
-
-	s := newScopedTestServerForHost(t, as, hostID, scope, types.RoleNode)
-
-	_, sshPub, err := testauthority.GenerateKeyPair()
-	require.NoError(t, err)
-	tlsKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
-	require.NoError(t, err)
-	tlsPubPEM, err := keys.MarshalPublicKey(tlsKey.Public())
-	require.NoError(t, err)
-
-	certs, err := s.GenerateHostCerts(ctx, &proto.HostCertsRequest{
-		PublicTLSKey: tlsPubPEM,
-		PublicSSHKey: sshPub,
-		HostID:       hostID,
-		Role:         types.RoleInstance,
-		SystemRoles:  roles,
-	})
-	require.NoError(t, err)
-
-	// ensure scope encoded in TLS cert matches the auth identity
-	tlsCert, err := tlsca.ParseCertificatePEM(certs.TLS)
-	require.NoError(t, err)
-
-	tlsIdent, err := tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
-	require.NoError(t, err)
-	require.Equal(t, scope, tlsIdent.AgentScope)
-
-	// ensure scope encoded in SSH cert matches the auth identity
-	sshCert, err := sshutils.ParseCertificate(certs.SSH)
-	require.NoError(t, err)
-	sshIdent, err := sshca.DecodeIdentity(sshCert)
-	require.NoError(t, err)
-	require.Equal(t, scope, sshIdent.AgentScope)
-}
-
-func TestUpsertNode(t *testing.T) {
-	t.Parallel()
-	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, as.Close()) })
-
-	const nodeName = "test1"
-	const otherID = "test2"
-
-	makeNode := func(t *testing.T, name, scope string) types.Server {
-		node := &types.ServerV2{
-			Kind:    types.KindNode,
-			SubKind: types.SubKindOpenSSHNode,
-			Metadata: types.Metadata{
-				Name: name,
-			},
-			Spec: types.ServerSpecV2{
-				Addr:     "someaddr.com:443",
-				Hostname: name,
-			},
-			Scope: scope,
-		}
-		require.NoError(t, node.CheckAndSetDefaults())
-		return node
-	}
-
-	tests := []struct {
-		name        string
-		callerScope string
-		nodeName    string
-		nodeScope   string
-		shouldErr   bool
-	}{
-		{
-			name:        "unscoped - bypasses node ID check",
-			callerScope: "",
-			nodeName:    otherID,
-			nodeScope:   "",
-		},
-		{
-			name:        "scoped - matching ID and scope allowed",
-			callerScope: "/staging",
-			nodeName:    nodeName,
-			nodeScope:   "/staging",
-		},
-		{
-			name:        "scoped - matching ID but mismatched scope denied",
-			callerScope: "/staging",
-			nodeName:    nodeName,
-			nodeScope:   "/prod",
-			shouldErr:   true,
-		},
-		{
-			name:        "scoped - matching scope but mismatched ID denied",
-			callerScope: "/staging",
-			nodeName:    otherID,
-			nodeScope:   "/staging",
-			shouldErr:   true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			srv := newScopedTestServerForHost(t, as, nodeName, tt.callerScope, types.RoleNode)
-			_, err := srv.UpsertNode(t.Context(), makeNode(t, tt.nodeName, tt.nodeScope))
-			if tt.shouldErr {
-				require.Error(t, err)
-				require.True(t, trace.IsAccessDenied(err))
-				return
-			}
-			require.NoError(t, err)
-		})
-	}
-}
-
-// TestGenerateHostCertsAgentScopePin verifies that GenerateHostCerts handles agent scope pins
-// correctly. As agent scope pins are still in development, this test currently covers the behavior
-// of the associated feature flag and verifies the old format is still the default behavior. This
-// test will be simplified once the agent scope pin feature is complete.
-func TestGenerateHostCertsAgentScopePin(t *testing.T) {
-	t.Parallel()
-
-	const scope = "/aa/bb"
-	const hostID = "testhost"
-
-	type certIdents struct {
-		tls *tlsca.Identity
-		ssh *sshca.Identity
-	}
-
-	parseIdents := func(t *testing.T, certs *proto.Certs) certIdents {
-		t.Helper()
-		tlsCert, err := tlsca.ParseCertificatePEM(certs.TLS)
-		require.NoError(t, err)
-		tlsIdent, err := tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
-		require.NoError(t, err)
-		sshCert, err := sshutils.ParseCertificate(certs.SSH)
-		require.NoError(t, err)
-		sshIdent, err := sshca.DecodeIdentity(sshCert)
-		require.NoError(t, err)
-		return certIdents{tls: tlsIdent, ssh: sshIdent}
-	}
-
-	generateCerts := func(t *testing.T, as *authtest.AuthServer, role types.SystemRole) certIdents {
-		t.Helper()
-		s := newScopedTestServerForHost(t, as, hostID, scope, role)
-
-		_, sshPub, err := testauthority.GenerateKeyPair()
-		require.NoError(t, err)
-		tlsKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
-		require.NoError(t, err)
-		tlsPubPEM, err := keys.MarshalPublicKey(tlsKey.Public())
-		require.NoError(t, err)
-
-		certs, err := s.GenerateHostCerts(t.Context(), &proto.HostCertsRequest{
-			PublicTLSKey: tlsPubPEM,
-			PublicSSHKey: sshPub,
-			HostID:       hostID,
-			Role:         role,
-		})
-		require.NoError(t, err)
-		return parseIdents(t, certs)
-	}
-
-	generateInstanceCerts := func(t *testing.T, as *authtest.AuthServer, systemRoles types.SystemRoles) certIdents {
-		t.Helper()
-		s := newScopedTestServerForHost(t, as, hostID, scope, systemRoles...)
-
-		_, sshPub, err := testauthority.GenerateKeyPair()
-		require.NoError(t, err)
-		tlsKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
-		require.NoError(t, err)
-		tlsPubPEM, err := keys.MarshalPublicKey(tlsKey.Public())
-		require.NoError(t, err)
-
-		certs, err := s.GenerateHostCerts(t.Context(), &proto.HostCertsRequest{
-			PublicTLSKey: tlsPubPEM,
-			PublicSSHKey: sshPub,
-			HostID:       hostID,
-			Role:         types.RoleInstance,
-			SystemRoles:  systemRoles,
-		})
-		require.NoError(t, err)
-		return parseIdents(t, certs)
-	}
-
-	// verify that the legacy scoped agent cert format is still the one generated when
-	// the agent scope pin feature is not enabled
-	t.Run("legacy format", func(t *testing.T) {
-		t.Parallel()
-		as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir(), ScopesFeatures: scopes.Features{Enabled: true}})
-		require.NoError(t, err)
-		t.Cleanup(func() { require.NoError(t, as.Close()) })
-		idents := generateCerts(t, as, types.RoleNode)
-
-		// Legacy path: Groups contains the role, AgentScope is set, ScopePin is nil.
-		require.Contains(t, idents.tls.Groups, types.RoleNode.String())
-		require.Equal(t, scope, idents.tls.AgentScope)
-		require.Nil(t, idents.tls.ScopePin)
-
-		// SSH cert: legacy AgentScope set, no pin.
-		require.Equal(t, scope, idents.ssh.AgentScope)
-		require.Nil(t, idents.ssh.ScopePin)
-	})
-
-	t.Run("agent pin enabled", func(t *testing.T) {
-		t.Parallel()
-		as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir(), ScopesFeatures: scopes.Features{Enabled: true, AgentPinEnabled: true}})
-		require.NoError(t, err)
-		t.Cleanup(func() { require.NoError(t, as.Close()) })
-
-		// verify agent pin created correctly for service certs
-		t.Run("agent pin service cert", func(t *testing.T) {
-
-			idents := generateCerts(t, as, types.RoleNode)
-			require.Empty(t, idents.tls.Groups)
-			require.Empty(t, idents.tls.AgentScope)
-			require.NotNil(t, idents.tls.ScopePin)
-			require.Equal(t, scope, idents.tls.ScopePin.GetScope())
-			require.Equal(t, types.RoleNode.String(), idents.tls.ScopePin.GetSystemRoles().GetPrimary())
-
-			require.NotNil(t, idents.ssh.ScopePin)
-			require.Equal(t, scope, idents.ssh.ScopePin.GetScope())
-			require.Equal(t, types.RoleNode.String(), idents.ssh.ScopePin.GetSystemRoles().GetPrimary())
-		})
-
-		// verify agent pin created correctly for instance certs
-		t.Run("agent pin instance cert", func(t *testing.T) {
-			systemRoles := types.SystemRoles{types.RoleNode, types.RoleKube}
-			idents := generateInstanceCerts(t, as, systemRoles)
-
-			require.Empty(t, idents.tls.Groups)
-			require.NotNil(t, idents.tls.ScopePin)
-			require.Equal(t, scope, idents.tls.ScopePin.GetScope())
-			require.Equal(t, types.RoleInstance.String(), idents.tls.ScopePin.GetSystemRoles().GetPrimary())
-			tlsAdditional := idents.tls.ScopePin.GetSystemRoles().GetAdditional()
-			for _, role := range systemRoles {
-				require.Contains(t, tlsAdditional, role.String())
-			}
-
-			require.NotNil(t, idents.ssh.ScopePin)
-			require.Equal(t, scope, idents.ssh.ScopePin.GetScope())
-			require.Equal(t, types.RoleInstance.String(), idents.ssh.ScopePin.GetSystemRoles().GetPrimary())
-			sshAdditional := idents.ssh.ScopePin.GetSystemRoles().GetAdditional()
-			for _, role := range systemRoles {
-				require.Contains(t, sshAdditional, role.String())
-			}
-		})
-
-		// verify that scope pins are not set for unscoped agents
-		t.Run("unscoped agent has no pin", func(t *testing.T) {
-			_, sshPub, err := testauthority.GenerateKeyPair()
-			require.NoError(t, err)
-			tlsKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
-			require.NoError(t, err)
-			tlsPubPEM, err := keys.MarshalPublicKey(tlsKey.Public())
-			require.NoError(t, err)
-
-			certs, err := as.AuthServer.GenerateHostCerts(t.Context(), auth.HostCertsParams{
-				Req: &proto.HostCertsRequest{
-					PublicTLSKey: tlsPubPEM,
-					PublicSSHKey: sshPub,
-					HostID:       hostID,
-					NodeName:     hostID,
-					Role:         types.RoleNode,
-				},
-			})
-			require.NoError(t, err)
-
-			idents := parseIdents(t, certs)
-			require.Contains(t, idents.tls.Groups, types.RoleNode.String())
-			require.Empty(t, idents.tls.AgentScope)
-			require.Nil(t, idents.tls.ScopePin)
-
-			require.Empty(t, idents.ssh.AgentScope)
-			require.Nil(t, idents.ssh.ScopePin)
-		})
-	})
-}
-
 // TestLocalServiceRolesHavePermissionsForUploaderService verifies that all of Teleport's
 // builtin roles have permissions to execute the calls required by the uploader service.
 // This is because only one uploader service runs per Teleport process, and it will use
@@ -9010,11 +7263,6 @@ func TestLocalServiceRolesHavePermissionsForUploaderService(t *testing.T) {
 		// RoleMDM and AccessGraphPlugin services don't create events by themselves, instead they rely on
 		// Auth to issue events.
 		if role == types.RoleAuth || role == types.RoleMDM || role == types.RoleAccessGraphPlugin {
-			continue
-		}
-		// TODO(espadolini): figure out if the relay service needs to emit
-		// events or not (and if it needs blanket event write access or not).
-		if role == types.RoleRelay {
 			continue
 		}
 
@@ -9532,7 +7780,151 @@ func TestGetLicensePermissions(t *testing.T) {
 	}
 }
 
-const errSAMLAppLabelsDenied = "access to saml_idp_service_provider denied"
+func TestGetSAMLIdPServiceProvider(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	const errReadVerbDenied = `access denied to perform action "read"`
+
+	sp, err := types.NewSAMLIdPServiceProvider(
+		types.Metadata{
+			Name: "sp1",
+			Labels: map[string]string{
+				"env": "dev",
+			},
+		},
+		types.SAMLIdPServiceProviderSpecV1{
+			EntityDescriptor: newEntityDescriptor("sp1"),
+			EntityID:         "sp1",
+		})
+	require.NoError(t, err)
+	require.NoError(t, srv.Auth().CreateSAMLIdPServiceProvider(ctx, sp))
+
+	tt := []struct {
+		name      string
+		allowRule types.RoleConditions
+		denyRule  types.RoleConditions
+
+		errAssertion require.ErrorAssertionFunc
+	}{
+		{
+			name:      "with deny VerbRead but a matching app_labels",
+			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}),
+			denyRule:  samlIdPRoleCondition(types.Labels{}, types.VerbRead),
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, errReadVerbDenied)
+			},
+		},
+		{
+			name:      "with allow VerbRead and deny VerbRead",
+			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}, types.VerbRead),
+			denyRule:  samlIdPRoleCondition(types.Labels{}, types.VerbRead),
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, errReadVerbDenied)
+			},
+		},
+		{
+			name:      "with VerbRead and a matching app_labels",
+			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}, types.VerbRead),
+		},
+		{
+			name:      "with VerbRead but a non-matching app_labels",
+			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"prod"}}, types.VerbRead),
+		},
+		{
+			name:      "with VerbRead but a deny app_labels",
+			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}, types.VerbRead),
+			denyRule:  samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}),
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+
+			user := createSAMLIdPTestUser(t, srv.Auth(), types.RoleSpecV6{Allow: tc.allowRule, Deny: tc.denyRule})
+
+			client, err := srv.NewClient(authtest.TestUser(user))
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				require.NoError(t, client.Close())
+			})
+			spFromBackend, err := client.GetSAMLIdPServiceProvider(ctx, sp.GetName())
+			if tc.errAssertion != nil {
+				tc.errAssertion(t, err)
+			} else {
+				require.Empty(t, cmp.Diff(sp, spFromBackend,
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+				))
+			}
+		})
+	}
+}
+
+func TestListSAMLIdPServiceProvider(t *testing.T) {
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	const errListVerbDenied = `access denied to perform action "list"`
+
+	createSAMLIdPServiceProvider(t, ctx, srv.Auth(), "sp1", map[string]string{"env": "dev"})
+	createSAMLIdPServiceProvider(t, ctx, srv.Auth(), "sp2", map[string]string{"env": "prod"})
+
+	tt := []struct {
+		name      string
+		allowRule types.RoleConditions
+		denyRule  types.RoleConditions
+
+		errAssertion require.ErrorAssertionFunc
+	}{
+		{
+			name:      "With deny VerbList but a matching app_labels",
+			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}),
+			denyRule:  samlIdPRoleCondition(types.Labels{}, types.VerbList),
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, errListVerbDenied)
+			},
+		},
+		{
+			name:      "with allow VerbList and deny VerbList",
+			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}, types.VerbList),
+			denyRule:  samlIdPRoleCondition(types.Labels{}, types.VerbList),
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, errListVerbDenied)
+			},
+		},
+		{
+			name:      "with VerbList and a matching app_labels",
+			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}, types.VerbList),
+		},
+		{
+			name:      "with VerbList but a non-matching app_labels",
+			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"prod"}}, types.VerbList),
+		},
+		{
+			name:      "with VerbList but a deny app_labels",
+			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}, types.VerbList),
+			denyRule:  samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}),
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			user := createSAMLIdPTestUser(t, srv.Auth(), types.RoleSpecV6{Allow: tc.allowRule, Deny: tc.denyRule})
+
+			client, err := srv.NewClient(authtest.TestUser(user))
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				require.NoError(t, client.Close())
+			})
+			sps, _, err := client.ListSAMLIdPServiceProviders(ctx, 10, "")
+			if tc.errAssertion != nil {
+				tc.errAssertion(t, err)
+			} else {
+				require.Len(t, sps, 2)
+			}
+		})
+	}
+}
 
 func TestCreateSAMLIdPServiceProvider(t *testing.T) {
 	t.Parallel()
@@ -9550,71 +7942,7 @@ func TestCreateSAMLIdPServiceProvider(t *testing.T) {
 		eventCode    string
 		errAssertion require.ErrorAssertionFunc
 	}{
-		{
-			name: "with VerbCreate and wildcard app_labels",
-			metadata: types.Metadata{
-				Name: "sp1",
-			},
-			spec: types.SAMLIdPServiceProviderSpecV1{
-				EntityDescriptor: newEntityDescriptor("sp1"),
-				EntityID:         "sp1",
-			},
-			allowRule:    samlIdPRoleCondition(types.Labels{"*": []string{"*"}}, types.VerbCreate),
-			eventCode:    events.SAMLIdPServiceProviderCreateCode,
-			errAssertion: require.NoError,
-		},
-		{
-			name: "with VerbCreate and a matching app_labels",
-			metadata: types.Metadata{
-				Name: "sp2",
-				Labels: map[string]string{
-					"env": "dev",
-				},
-			},
-			spec: types.SAMLIdPServiceProviderSpecV1{
-				EntityDescriptor: newEntityDescriptor("sp2"),
-				EntityID:         "sp2",
-			},
-			allowRule:    samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}, types.VerbCreate),
-			eventCode:    events.SAMLIdPServiceProviderCreateCode,
-			errAssertion: require.NoError,
-		},
-		{
-			name: "without VerbCreate but a matching app_labels",
-			metadata: types.Metadata{
-				Name: "sp1",
-				Labels: map[string]string{
-					"env": "dev",
-				},
-			},
-			spec: types.SAMLIdPServiceProviderSpecV1{
-				EntityDescriptor: newEntityDescriptor("sp1"),
-				EntityID:         "sp1",
-			},
-			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}),
-			eventCode: events.SAMLIdPServiceProviderCreateFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...any) {
-				require.ErrorContains(t, err, errCreateVerbDenied)
-			},
-		},
-		{
-			name: "with VerbCreate but a non-matching app_labels",
-			metadata: types.Metadata{
-				Name: "sp1",
-				Labels: map[string]string{
-					"env": "prod",
-				},
-			},
-			spec: types.SAMLIdPServiceProviderSpecV1{
-				EntityDescriptor: newEntityDescriptor("sp1"),
-				EntityID:         "sp1",
-			},
-			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}, types.VerbCreate),
-			eventCode: events.SAMLIdPServiceProviderCreateFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...any) {
-				require.ErrorContains(t, err, errSAMLAppLabelsDenied)
-			},
-		},
+
 		{
 			name: "with allow VerbCreate and deny VerbCreate",
 			metadata: types.Metadata{
@@ -9630,7 +7958,21 @@ func TestCreateSAMLIdPServiceProvider(t *testing.T) {
 			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}, types.VerbCreate),
 			denyRule:  samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}, types.VerbCreate),
 			eventCode: events.SAMLIdPServiceProviderCreateFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, errCreateVerbDenied)
+			},
+		},
+		{
+			name: "without any permissions",
+			metadata: types.Metadata{
+				Name: "sp1",
+			},
+			spec: types.SAMLIdPServiceProviderSpecV1{
+				EntityDescriptor: newEntityDescriptor("sp1"),
+				EntityID:         "sp1",
+			},
+			eventCode: events.SAMLIdPServiceProviderCreateFailureCode,
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, errCreateVerbDenied)
 			},
 		},
@@ -9646,26 +7988,26 @@ func TestCreateSAMLIdPServiceProvider(t *testing.T) {
 				EntityDescriptor: newEntityDescriptor("sp1"),
 				EntityID:         "sp1",
 			},
-			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}, types.VerbCreate),
-			denyRule:  samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}),
-			eventCode: events.SAMLIdPServiceProviderCreateFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...any) {
-				require.ErrorContains(t, err, errSAMLAppLabelsDenied)
-			},
+			allowRule:    samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}, types.VerbCreate),
+			denyRule:     samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}),
+			eventCode:    events.SAMLIdPServiceProviderCreateCode,
+			errAssertion: require.NoError,
 		},
 		{
-			name: "without any permissions",
+			name: "with VerbCreate but a non-matching app_labels",
 			metadata: types.Metadata{
-				Name: "sp1",
+				Name: "sp2",
+				Labels: map[string]string{
+					"env": "prod",
+				},
 			},
 			spec: types.SAMLIdPServiceProviderSpecV1{
-				EntityDescriptor: newEntityDescriptor("sp1"),
-				EntityID:         "sp1",
+				EntityDescriptor: newEntityDescriptor("sp2"),
+				EntityID:         "sp2",
 			},
-			eventCode: events.SAMLIdPServiceProviderCreateFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...any) {
-				require.ErrorContains(t, err, errCreateVerbDenied)
-			},
+			allowRule:    samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}, types.VerbCreate),
+			eventCode:    events.SAMLIdPServiceProviderCreateCode,
+			errAssertion: require.NoError,
 		},
 	}
 
@@ -9694,21 +8036,7 @@ func TestUpdateSAMLIdPServiceProvider(t *testing.T) {
 
 	const errUpdateVerbDenied = `access denied to perform action "update"`
 
-	sp := &types.SAMLIdPServiceProviderV1{
-		ResourceHeader: types.ResourceHeader{
-			Metadata: types.Metadata{
-				Name: "sp1",
-				Labels: map[string]string{
-					"env": "dev",
-				},
-			},
-		},
-		Spec: types.SAMLIdPServiceProviderSpecV1{
-			EntityDescriptor: newEntityDescriptor("sp1"),
-			EntityID:         "sp1",
-		},
-	}
-	require.NoError(t, srv.Auth().CreateSAMLIdPServiceProvider(ctx, sp))
+	createSAMLIdPServiceProvider(t, ctx, srv.Auth(), "sp1", map[string]string{"env": "dev"})
 
 	tt := []struct {
 		name         string
@@ -9720,36 +8048,18 @@ func TestUpdateSAMLIdPServiceProvider(t *testing.T) {
 		errAssertion require.ErrorAssertionFunc
 	}{
 		{
-			name: "with VerbUpdate and wildcard app_labels",
+			name: "without any permissions",
 			metadata: types.Metadata{
 				Name: "sp1",
-				Labels: map[string]string{
-					"env": "dev",
-				},
 			},
 			spec: types.SAMLIdPServiceProviderSpecV1{
-				EntityDescriptor: newEntityDescriptor("sp2"),
-				EntityID:         "sp2",
+				EntityDescriptor: newEntityDescriptor("sp1"),
+				EntityID:         "sp1",
 			},
-			allowRule:    samlIdPRoleCondition(types.Labels{"*": []string{"*"}}, types.VerbUpdate),
-			eventCode:    events.SAMLIdPServiceProviderUpdateCode,
-			errAssertion: require.NoError,
-		},
-		{
-			name: "with VerbUpdate and a matching app_labels",
-			metadata: types.Metadata{
-				Name: "sp1",
-				Labels: map[string]string{
-					"env": "dev",
-				},
+			eventCode: events.SAMLIdPServiceProviderUpdateFailureCode,
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, errUpdateVerbDenied)
 			},
-			spec: types.SAMLIdPServiceProviderSpecV1{
-				EntityDescriptor: newEntityDescriptor("sp3"),
-				EntityID:         "sp3",
-			},
-			allowRule:    samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}, types.VerbUpdate),
-			eventCode:    events.SAMLIdPServiceProviderUpdateCode,
-			errAssertion: require.NoError,
 		},
 		{
 			name: "without VerbUpdate but a matching app_labels",
@@ -9765,26 +8075,8 @@ func TestUpdateSAMLIdPServiceProvider(t *testing.T) {
 			},
 			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}),
 			eventCode: events.SAMLIdPServiceProviderUpdateFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, errUpdateVerbDenied)
-			},
-		},
-		{
-			name: "with VerbUpdate but a non-matching app_labels",
-			metadata: types.Metadata{
-				Name: "sp1",
-				Labels: map[string]string{
-					"env": "prod",
-				},
-			},
-			spec: types.SAMLIdPServiceProviderSpecV1{
-				EntityDescriptor: newEntityDescriptor("sp2"),
-				EntityID:         "sp2",
-			},
-			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}, types.VerbUpdate),
-			eventCode: events.SAMLIdPServiceProviderUpdateFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...any) {
-				require.ErrorContains(t, err, errSAMLAppLabelsDenied)
 			},
 		},
 		{
@@ -9802,9 +8094,25 @@ func TestUpdateSAMLIdPServiceProvider(t *testing.T) {
 			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}, types.VerbUpdate),
 			denyRule:  samlIdPRoleCondition(types.Labels{}, types.VerbUpdate),
 			eventCode: events.SAMLIdPServiceProviderUpdateFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, errUpdateVerbDenied)
 			},
+		},
+		{
+			name: "with VerbUpdate but a non-matching app_labels",
+			metadata: types.Metadata{
+				Name: "sp1",
+				Labels: map[string]string{
+					"env": "prod",
+				},
+			},
+			spec: types.SAMLIdPServiceProviderSpecV1{
+				EntityDescriptor: newEntityDescriptor("sp1"),
+				EntityID:         "sp1",
+			},
+			allowRule:    samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}, types.VerbUpdate),
+			eventCode:    events.SAMLIdPServiceProviderUpdateCode,
+			errAssertion: require.NoError,
 		},
 		{
 			name: "with VerbUpdate but a deny app_labels",
@@ -9818,26 +8126,10 @@ func TestUpdateSAMLIdPServiceProvider(t *testing.T) {
 				EntityDescriptor: newEntityDescriptor("sp1"),
 				EntityID:         "sp1",
 			},
-			allowRule: samlIdPRoleCondition(types.Labels{}, types.VerbUpdate),
-			denyRule:  samlIdPRoleCondition(types.Labels{"env": []string{"prod"}}),
-			eventCode: events.SAMLIdPServiceProviderUpdateFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...any) {
-				require.ErrorContains(t, err, errSAMLAppLabelsDenied)
-			},
-		},
-		{
-			name: "without any permissions",
-			metadata: types.Metadata{
-				Name: "sp1",
-			},
-			spec: types.SAMLIdPServiceProviderSpecV1{
-				EntityDescriptor: newEntityDescriptor("sp1"),
-				EntityID:         "sp1",
-			},
-			eventCode: events.SAMLIdPServiceProviderUpdateFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...any) {
-				require.ErrorContains(t, err, errUpdateVerbDenied)
-			},
+			allowRule:    samlIdPRoleCondition(types.Labels{}, types.VerbUpdate),
+			denyRule:     samlIdPRoleCondition(types.Labels{"env": []string{"prod"}}),
+			eventCode:    events.SAMLIdPServiceProviderUpdateCode,
+			errAssertion: require.NoError,
 		},
 	}
 
@@ -9881,14 +8173,14 @@ func TestCreateSAMLIdPServiceProviderInvalidInputs(t *testing.T) {
 			name:     "missing url scheme in acs input",
 			entityID: "sp",
 			acsURL:   "sp",
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "invalid scheme")
 			},
 		},
 		{
 			name:             "missing url scheme for acs in ed",
 			entityDescriptor: services.NewSAMLTestSPMetadata("sp", "sp"),
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "invalid url scheme")
 			},
 		},
@@ -9896,14 +8188,14 @@ func TestCreateSAMLIdPServiceProviderInvalidInputs(t *testing.T) {
 			name:     "http url scheme in acs",
 			entityID: "sp",
 			acsURL:   "http://sp",
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "invalid scheme")
 			},
 		},
 		{
 			name:             "http url scheme for acs in ed",
 			entityDescriptor: services.NewSAMLTestSPMetadata("sp", "http://sp"),
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "unsupported ACS bindings")
 			},
 		},
@@ -9911,14 +8203,14 @@ func TestCreateSAMLIdPServiceProviderInvalidInputs(t *testing.T) {
 			name:     "unsupported scheme in acs",
 			entityID: "sp",
 			acsURL:   "gopher://sp",
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "invalid scheme")
 			},
 		},
 		{
 			name:             "unsupported scheme for acs in ed",
 			entityDescriptor: services.NewSAMLTestSPMetadata("sp", "gopher://sp"),
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "invalid url scheme")
 			},
 		},
@@ -9926,14 +8218,14 @@ func TestCreateSAMLIdPServiceProviderInvalidInputs(t *testing.T) {
 			name:     "invalid character in acs",
 			entityID: "sp",
 			acsURL:   "https://sp>",
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "unsupported character")
 			},
 		},
 		{
 			name:             "invalid character in acs in ed",
 			entityDescriptor: services.NewSAMLTestSPMetadata("sp", "https://sp>"),
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "unsupported ACS bindings")
 			},
 		},
@@ -9942,7 +8234,7 @@ func TestCreateSAMLIdPServiceProviderInvalidInputs(t *testing.T) {
 			entityID:   "sp",
 			acsURL:     "https://sp",
 			relayState: "default_state<b",
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "unsupported character")
 			},
 		},
@@ -9995,28 +8287,28 @@ func TestUpdateSAMLIdPServiceProviderInvalidInputs(t *testing.T) {
 		{
 			name:             "missing url scheme for acs in ed",
 			entityDescriptor: services.NewSAMLTestSPMetadata("https://sp", "sp"),
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "invalid url scheme")
 			},
 		},
 		{
 			name:             "http url scheme for acs in ed",
 			entityDescriptor: services.NewSAMLTestSPMetadata("https://sp", "http://sp"),
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "unsupported ACS bindings")
 			},
 		},
 		{
 			name:             "unsupported scheme for acs in ed",
 			entityDescriptor: services.NewSAMLTestSPMetadata("https://sp", "gopher://sp"),
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "invalid url scheme")
 			},
 		},
 		{
 			name:             "invalid character in acs in ed",
 			entityDescriptor: services.NewSAMLTestSPMetadata("https://sp", "https://sp>"),
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "unsupported ACS bindings")
 			},
 		},
@@ -10024,7 +8316,7 @@ func TestUpdateSAMLIdPServiceProviderInvalidInputs(t *testing.T) {
 			name:             "invalid character in relay state",
 			entityDescriptor: services.NewSAMLTestSPMetadata("https://sp", "https://sp"),
 			relayState:       "default_state<b",
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "unsupported character")
 			},
 		},
@@ -10053,25 +8345,9 @@ func TestDeleteSAMLIdPServiceProvider(t *testing.T) {
 
 	const errDeleteVerbDenied = `access denied to perform action "delete"`
 
-	sp := &types.SAMLIdPServiceProviderV1{
-		ResourceHeader: types.ResourceHeader{
-			Metadata: types.Metadata{
-				Name: "sp1",
-				Labels: map[string]string{
-					"env": "dev",
-				},
-			},
-		},
-		Spec: types.SAMLIdPServiceProviderSpecV1{
-			EntityDescriptor: newEntityDescriptor("sp1"),
-			EntityID:         "sp1",
-		},
-	}
-	require.NoError(t, srv.Auth().CreateSAMLIdPServiceProvider(ctx, sp))
-
+	const serviceProviderName = "sp1"
 	tt := []struct {
 		name         string
-		spName       string
 		allowRule    types.RoleConditions
 		denyRule     types.RoleConditions
 		eventCode    string
@@ -10079,54 +8355,44 @@ func TestDeleteSAMLIdPServiceProvider(t *testing.T) {
 	}{
 		{
 			name:      "without VerbDelete but a matching app_labels",
-			spName:    "sp1",
 			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}),
 			eventCode: events.SAMLIdPServiceProviderDeleteFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, errDeleteVerbDenied)
-			},
-		},
-		{
-			name:      "with VerbDelete but a non-matching app_labels",
-			spName:    "sp1",
-			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"prod"}}, types.VerbDelete),
-			eventCode: events.SAMLIdPServiceProviderDeleteFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...any) {
-				require.ErrorContains(t, err, errSAMLAppLabelsDenied)
 			},
 		},
 		{
 			name:      "with allow VerbDelete and deny VerbDelete",
-			spName:    "sp1",
 			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}, types.VerbDelete),
 			denyRule:  samlIdPRoleCondition(types.Labels{}, types.VerbDelete),
 			eventCode: events.SAMLIdPServiceProviderDeleteFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, errDeleteVerbDenied)
 			},
 		},
 		{
-			name:      "with VerbDelete but a deny app_labels",
-			spName:    "sp1",
-			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}, types.VerbDelete),
-			denyRule:  samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}),
-			eventCode: events.SAMLIdPServiceProviderDeleteFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...any) {
-				require.ErrorContains(t, err, errSAMLAppLabelsDenied)
-			},
-		},
-		{
 			name:      "without any permissions",
-			spName:    "sp1",
 			eventCode: events.SAMLIdPServiceProviderDeleteFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, errDeleteVerbDenied)
 			},
 		},
 		{
 			name:         "with VerbDelete and a matching app_labels",
-			spName:       "sp1",
 			allowRule:    samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}, types.VerbDelete),
+			eventCode:    events.SAMLIdPServiceProviderDeleteCode,
+			errAssertion: require.NoError,
+		},
+		{
+			name:         "with VerbDelete but a non-matching app_labels",
+			allowRule:    samlIdPRoleCondition(types.Labels{"env": []string{"prod"}}, types.VerbDelete),
+			eventCode:    events.SAMLIdPServiceProviderDeleteCode,
+			errAssertion: require.NoError,
+		},
+		{
+			name:         "with VerbDelete but a deny app_labels",
+			allowRule:    samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}, types.VerbDelete),
+			denyRule:     samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}),
 			eventCode:    events.SAMLIdPServiceProviderDeleteCode,
 			errAssertion: require.NoError,
 		},
@@ -10134,6 +8400,11 @@ func TestDeleteSAMLIdPServiceProvider(t *testing.T) {
 
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
+			_, err := srv.Auth().GetSAMLIdPServiceProvider(ctx, serviceProviderName)
+			if trace.IsNotFound(err) {
+				createSAMLIdPServiceProvider(t, ctx, srv.Auth(), serviceProviderName, map[string]string{"env": "dev"})
+			}
+
 			user := createSAMLIdPTestUser(t, srv.Auth(), types.RoleSpecV6{Allow: tc.allowRule, Deny: tc.denyRule})
 
 			client, err := srv.NewClient(authtest.TestUser(user))
@@ -10143,7 +8414,7 @@ func TestDeleteSAMLIdPServiceProvider(t *testing.T) {
 			})
 
 			modifyAndWaitForEvent(t, tc.errAssertion, srv, tc.eventCode, func() error {
-				return client.DeleteSAMLIdPServiceProvider(ctx, tc.spName)
+				return client.DeleteSAMLIdPServiceProvider(ctx, serviceProviderName)
 			})
 		})
 	}
@@ -10156,7 +8427,7 @@ func TestDeleteAllSAMLIdPServiceProviders(t *testing.T) {
 
 	const errDeleteVerbDenied = `access denied to perform action "delete"`
 
-	for i := range 5 {
+	for i := 0; i < 5; i++ {
 		name := fmt.Sprintf("saml-app-%v", i)
 		sp, err := types.NewSAMLIdPServiceProvider(types.Metadata{
 			Name:   name,
@@ -10181,18 +8452,8 @@ func TestDeleteAllSAMLIdPServiceProviders(t *testing.T) {
 			name:      "without VerbDelete but a matching app_labels",
 			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}),
 			eventCode: events.SAMLIdPServiceProviderDeleteAllFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...any) {
-				t.(*testing.T).Helper()
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, errDeleteVerbDenied)
-			},
-		},
-		{
-			name:      "with VerbDelete but a non-matching app_labels",
-			allowRule: samlIdPRoleCondition(types.Labels{}, types.VerbDelete),
-			eventCode: events.SAMLIdPServiceProviderDeleteAllFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...any) {
-				t.(*testing.T).Helper()
-				require.ErrorContains(t, err, errSAMLAppLabelsDenied)
 			},
 		},
 		{
@@ -10200,29 +8461,31 @@ func TestDeleteAllSAMLIdPServiceProviders(t *testing.T) {
 			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}, types.VerbDelete),
 			denyRule:  samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}, types.VerbDelete),
 			eventCode: events.SAMLIdPServiceProviderDeleteAllFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...any) {
-				t.(*testing.T).Helper()
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, errDeleteVerbDenied)
-			},
-		},
-		{
-			name:      "with VerbDelete but a deny app_labels",
-			allowRule: samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}, types.VerbDelete),
-			denyRule:  samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}),
-			eventCode: events.SAMLIdPServiceProviderDeleteAllFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...any) {
-				t.(*testing.T).Helper()
-				require.ErrorContains(t, err, errSAMLAppLabelsDenied)
 			},
 		},
 		{
 			name:      "without any permissions",
 			eventCode: events.SAMLIdPServiceProviderDeleteAllFailureCode,
-			errAssertion: func(t require.TestingT, err error, i ...any) {
-				t.(*testing.T).Helper()
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, errDeleteVerbDenied)
 			},
 		},
+		{
+			name:         "with VerbDelete but a non-matching app_labels",
+			allowRule:    samlIdPRoleCondition(types.Labels{}, types.VerbDelete),
+			eventCode:    events.SAMLIdPServiceProviderDeleteAllCode,
+			errAssertion: require.NoError,
+		},
+		{
+			name:         "with VerbDelete but a deny app_labels",
+			allowRule:    samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}, types.VerbDelete),
+			denyRule:     samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}),
+			eventCode:    events.SAMLIdPServiceProviderDeleteAllCode,
+			errAssertion: require.NoError,
+		},
+
 		{
 			name:         "with VerbDelete and a matching app_labels",
 			allowRule:    samlIdPRoleCondition(types.Labels{"env": []string{"dev"}}, types.VerbDelete),
@@ -10246,6 +8509,21 @@ func TestDeleteAllSAMLIdPServiceProviders(t *testing.T) {
 			})
 		})
 	}
+}
+
+func createSAMLIdPServiceProvider(t *testing.T, ctx context.Context, authServer *auth.Server, name string, labels map[string]string) {
+	t.Helper()
+	sp, err := types.NewSAMLIdPServiceProvider(
+		types.Metadata{
+			Name:   name,
+			Labels: labels,
+		},
+		types.SAMLIdPServiceProviderSpecV1{
+			EntityDescriptor: newEntityDescriptor(name),
+			EntityID:         name,
+		})
+	require.NoError(t, err)
+	require.NoError(t, authServer.CreateSAMLIdPServiceProvider(ctx, sp))
 }
 
 func createSAMLIdPTestUser(t *testing.T, server *auth.Server, userRole types.RoleSpecV6) string {
@@ -10299,7 +8577,6 @@ func modifyAndWaitForEvent(t *testing.T, errFn require.ErrorAssertionFunc, srv *
 // newTestHeadlessAuthn returns the headless authentication resource
 // used across headless authentication tests.
 func newTestHeadlessAuthn(t *testing.T, user string, clock clockwork.Clock) *types.HeadlessAuthentication {
-	t.Helper()
 	sshKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
 	require.NoError(t, err)
 	sshPub, err := ssh.NewPublicKey(sshKey.Public())
@@ -10342,8 +8619,7 @@ func TestGetHeadlessAuthentication(t *testing.T) {
 	_, _, err = authtest.CreateUserAndRole(srv.Auth(), otherUsername, nil, nil)
 	require.NoError(t, err)
 
-	assertTimeout := func(t require.TestingT, err error, _ ...any) {
-		t.(*testing.T).Helper()
+	assertTimeout := func(t require.TestingT, err error, i ...interface{}) {
 		require.Error(t, err)
 		s, ok := status.FromError(err)
 		require.True(t, ok)
@@ -10354,8 +8630,7 @@ func TestGetHeadlessAuthentication(t *testing.T) {
 		require.Equal(t, codes.DeadlineExceeded.String(), s.Code().String())
 	}
 
-	assertAccessDenied := func(t require.TestingT, err error, _ ...any) {
-		t.(*testing.T).Helper()
+	assertAccessDenied := func(t require.TestingT, err error, i ...interface{}) {
 		require.Error(t, err)
 		require.True(t, trace.IsAccessDenied(err), "expected access denied error but got: %v", err)
 	}
@@ -10386,6 +8661,7 @@ func TestGetHeadlessAuthentication(t *testing.T) {
 			assertError: assertAccessDenied,
 		},
 	} {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -10427,12 +8703,12 @@ func TestUpdateHeadlessAuthenticationState(t *testing.T) {
 	_, _, err := authtest.CreateUserAndRole(srv.Auth(), otherUsername, nil, nil)
 	require.NoError(t, err)
 
-	assertNotFound := func(t require.TestingT, err error, i ...any) {
+	assertNotFound := func(t require.TestingT, err error, i ...interface{}) {
 		require.Error(t, err)
 		require.True(t, trace.IsNotFound(err), "expected not found error but got: %v", err)
 	}
 
-	assertAccessDenied := func(t require.TestingT, err error, i ...any) {
+	assertAccessDenied := func(t require.TestingT, err error, i ...interface{}) {
 		require.Error(t, err)
 		require.True(t, trace.IsAccessDenied(err), "expected access denied error but got: %v", err)
 	}
@@ -10503,6 +8779,7 @@ func TestUpdateHeadlessAuthenticationState(t *testing.T) {
 			assertError: assertAccessDenied,
 		},
 	} {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			// create headless authn
 			headlessAuthn := newTestHeadlessAuthn(t, mfa.User, srv.Auth().GetClock())
@@ -10571,9 +8848,6 @@ func TestGenerateCertAuthorityCRL(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, srv.Close()) })
 
-	_, err = authtest.CreateRole(ctx, srv.AuthServer.Services, "rolename", types.RoleSpecV6{})
-	require.NoError(t, err)
-
 	// Create a test user.
 	_, err = authtest.CreateUser(ctx, srv.AuthServer.Services, "username")
 	require.NoError(t, err)
@@ -10590,7 +8864,7 @@ func TestGenerateCertAuthorityCRL(t *testing.T) {
 		},
 		{
 			desc:      "User",
-			identity:  authtest.TestUserWithRoles("username", []string{"rolename"}),
+			identity:  authtest.TestUser("username"),
 			assertErr: require.NoError,
 		},
 		{
@@ -10642,6 +8916,7 @@ func TestCreateSnowflakeSession(t *testing.T) {
 		},
 	}
 	for name, test := range tests {
+		test := test
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			ctx, cancel := context.WithCancel(context.Background())
@@ -10698,6 +8973,7 @@ func TestGetSnowflakeSession(t *testing.T) {
 	}
 
 	for name, test := range tests {
+		test := test
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			client, err := srv.NewClient(test.identity)
@@ -10736,6 +9012,7 @@ func TestGetSnowflakeSessions(t *testing.T) {
 	}
 
 	for name, test := range tests {
+		test := test
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			client, err := srv.NewClient(test.identity)
@@ -10743,6 +9020,8 @@ func TestGetSnowflakeSessions(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			t.Cleanup(cancel)
 			_, err = client.GetSnowflakeSessions(ctx)
+			test.assertErr(t, err)
+			_, _, err = client.ListSnowflakeSessions(ctx, 0, "")
 			test.assertErr(t, err)
 		})
 	}
@@ -10795,6 +9074,7 @@ func TestListSnowflakeSessions(t *testing.T) {
 	require.Empty(t, next)
 	require.Len(t, page2, 1)
 	require.Empty(t, cmp.Diff(expected, append(page1, page2...), opts...))
+
 }
 
 func TestDeleteSnowflakeSession(t *testing.T) {
@@ -10826,6 +9106,7 @@ func TestDeleteSnowflakeSession(t *testing.T) {
 	dbClient, err := srv.NewClient(authtest.TestBuiltin(types.RoleDatabase))
 	require.NoError(t, err)
 	for name, test := range tests {
+		test := test
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			ctx, cancel := context.WithCancel(context.Background())
@@ -10870,6 +9151,7 @@ func TestDeleteAllSnowflakeSessions(t *testing.T) {
 	}
 
 	for name, test := range tests {
+		test := test
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			client, err := srv.NewClient(test.identity)
@@ -10877,6 +9159,225 @@ func TestDeleteAllSnowflakeSessions(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			t.Cleanup(cancel)
 			err = client.DeleteAllSnowflakeSessions(ctx)
+			test.assertErr(t, err)
+		})
+	}
+}
+
+func TestCreateSAMLIdPSession(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	alice, bob, admin := createSessionTestUsers(t, srv.Auth())
+
+	tests := map[string]struct {
+		identity  authtest.TestIdentity
+		assertErr require.ErrorAssertionFunc
+	}{
+		"as proxy user": {
+			identity:  authtest.TestBuiltin(types.RoleProxy),
+			assertErr: require.NoError,
+		},
+		"as session user": {
+			identity:  authtest.TestUser(alice),
+			assertErr: require.Error,
+		},
+		"as other user": {
+			identity:  authtest.TestUser(bob),
+			assertErr: require.Error,
+		},
+		"as admin user": {
+			identity:  authtest.TestUser(admin),
+			assertErr: require.Error,
+		},
+	}
+	for name, test := range tests {
+		test := test
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			ctx, cancel := context.WithCancel(context.Background())
+			t.Cleanup(cancel)
+			client, err := srv.NewClient(test.identity)
+			require.NoError(t, err)
+			_, err = client.CreateSAMLIdPSession(ctx, types.CreateSAMLIdPSessionRequest{
+				SessionID:   "test",
+				Username:    alice,
+				SAMLSession: &types.SAMLSessionData{},
+			})
+			test.assertErr(t, err)
+		})
+	}
+}
+
+func TestGetSAMLIdPSession(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	alice, bob, admin := createSessionTestUsers(t, srv.Auth())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	sess, err := srv.Auth().CreateSAMLIdPSession(ctx, types.CreateSAMLIdPSessionRequest{
+		SessionID:   "test",
+		Username:    alice,
+		SAMLSession: &types.SAMLSessionData{},
+	})
+	require.NoError(t, err)
+
+	tests := map[string]struct {
+		identity  authtest.TestIdentity
+		assertErr require.ErrorAssertionFunc
+	}{
+		"as proxy service": {
+			identity:  authtest.TestBuiltin(types.RoleProxy),
+			assertErr: require.NoError,
+		},
+		"as session user": {
+			identity:  authtest.TestUser(alice),
+			assertErr: require.Error,
+		},
+		"as other user": {
+			identity:  authtest.TestUser(bob),
+			assertErr: require.Error,
+		},
+		"as admin user": {
+			identity:  authtest.TestUser(admin),
+			assertErr: require.NoError,
+		},
+	}
+
+	for name, test := range tests {
+		test := test
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			client, err := srv.NewClient(test.identity)
+			require.NoError(t, err)
+			ctx, cancel := context.WithCancel(context.Background())
+			t.Cleanup(cancel)
+			_, err = client.GetSAMLIdPSession(ctx, types.GetSAMLIdPSessionRequest{
+				SessionID: sess.GetName(),
+			})
+			test.assertErr(t, err)
+		})
+	}
+}
+
+func TestListSAMLIdPSessions(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	alice, _, admin := createSessionTestUsers(t, srv.Auth())
+
+	tests := map[string]struct {
+		identity  authtest.TestIdentity
+		assertErr require.ErrorAssertionFunc
+	}{
+		"as proxy service": {
+			identity:  authtest.TestBuiltin(types.RoleProxy),
+			assertErr: require.NoError,
+		},
+		"as user": {
+			identity:  authtest.TestUser(alice),
+			assertErr: require.Error,
+		},
+		"as admin": {
+			identity:  authtest.TestUser(admin),
+			assertErr: require.NoError,
+		},
+	}
+
+	for name, test := range tests {
+		test := test
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			client, err := srv.NewClient(test.identity)
+			require.NoError(t, err)
+			ctx, cancel := context.WithCancel(context.Background())
+			t.Cleanup(cancel)
+			_, _, err = client.ListSAMLIdPSessions(ctx, 0, "", "")
+			test.assertErr(t, err)
+		})
+	}
+}
+
+func TestDeleteSAMLIdPSession(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	alice, bob, admin := createSessionTestUsers(t, srv.Auth())
+	tests := map[string]struct {
+		identity  authtest.TestIdentity
+		assertErr require.ErrorAssertionFunc
+	}{
+		"as proxy service": {
+			identity:  authtest.TestBuiltin(types.RoleProxy),
+			assertErr: require.NoError,
+		},
+		"as session user": {
+			identity:  authtest.TestUser(alice),
+			assertErr: require.NoError,
+		},
+		"as other user": {
+			identity:  authtest.TestUser(bob),
+			assertErr: require.Error,
+		},
+		"as admin user": {
+			identity:  authtest.TestUser(admin),
+			assertErr: require.NoError,
+		},
+	}
+
+	for name, test := range tests {
+		test := test
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			sess, err := srv.Auth().CreateSAMLIdPSession(ctx, types.CreateSAMLIdPSessionRequest{
+				SessionID:   uuid.NewString(),
+				Username:    alice,
+				SAMLSession: &types.SAMLSessionData{},
+			})
+			require.NoError(t, err)
+			client, err := srv.NewClient(test.identity)
+			require.NoError(t, err)
+			err = client.DeleteSAMLIdPSession(ctx, types.DeleteSAMLIdPSessionRequest{
+				SessionID: sess.GetName(),
+			})
+			test.assertErr(t, err)
+		})
+	}
+}
+
+func TestDeleteAllSAMLIdPSessions(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	alice, _, admin := createSessionTestUsers(t, srv.Auth())
+
+	tests := map[string]struct {
+		identity  authtest.TestIdentity
+		assertErr require.ErrorAssertionFunc
+	}{
+		"as proxy service": {
+			identity:  authtest.TestBuiltin(types.RoleProxy),
+			assertErr: require.NoError,
+		},
+		"as user": {
+			identity:  authtest.TestUser(alice),
+			assertErr: require.Error,
+		},
+		"as admin user": {
+			identity:  authtest.TestUser(admin),
+			assertErr: require.NoError,
+		},
+	}
+
+	for name, test := range tests {
+		test := test
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			client, err := srv.NewClient(test.identity)
+			require.NoError(t, err)
+			ctx, cancel := context.WithCancel(context.Background())
+			t.Cleanup(cancel)
+			err = client.DeleteAllSAMLIdPSessions(ctx)
 			test.assertErr(t, err)
 		})
 	}
@@ -11499,7 +10000,7 @@ func TestAccessRequestNonGreedyAnnotations(t *testing.T) {
 						Name:        id,
 					})
 				}
-				req, err = types.NewAccessRequestWithResources(uuid.NewString(), user.GetName(), tc.requestedRoles, types.ResourceIDsToResourceAccessIDs(resourceIds))
+				req, err = types.NewAccessRequestWithResources(uuid.NewString(), user.GetName(), tc.requestedRoles, resourceIds)
 			}
 			require.NoError(t, err)
 
@@ -11519,7 +10020,7 @@ func TestAccessRequestNonGreedyAnnotations(t *testing.T) {
 func mustAccessRequest(t *testing.T, user string, state types.RequestState, created, expires time.Time, roles []string, resourceIDs []types.ResourceID) types.AccessRequest {
 	t.Helper()
 
-	accessRequest, err := types.NewAccessRequestWithResources(uuid.NewString(), user, roles, types.ResourceIDsToResourceAccessIDs(resourceIDs))
+	accessRequest, err := types.NewAccessRequestWithResources(uuid.NewString(), user, roles, resourceIDs)
 	require.NoError(t, err)
 
 	accessRequest.SetState(state)
@@ -11645,6 +10146,8 @@ func TestWatchHeadlessAuthentications_usersCanOnlyWatchThemselves(t *testing.T) 
 	// Initialize headless watcher for each test cases.
 	t.Run("init_watchers", func(t *testing.T) {
 		for _, tc := range testCases {
+			tc := tc
+
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
@@ -11691,6 +10194,7 @@ func TestWatchHeadlessAuthentications_usersCanOnlyWatchThemselves(t *testing.T) 
 	t.Run("watch_events", func(t *testing.T) {
 		// Check that each watcher captured the expected events.
 		for _, tc := range testCases {
+			tc := tc
 
 			// watcher was not initialized for this test case, skip.
 			if tc.watcher == nil {
@@ -11718,144 +10222,30 @@ func TestWatchHeadlessAuthentications_usersCanOnlyWatchThemselves(t *testing.T) 
 	})
 }
 
-// TestScopedRoleEvents verifies the basic functionality of the events API for the ScopedRole family of types.
-func TestScopedRoleEvents(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	srv := newTestTLSServer(t, withCacheEnabled(true))
-
-	// get an admin client
-	client, err := srv.NewClient(authtest.TestAdmin())
-	require.NoError(t, err)
-
-	watcher, err := client.NewWatcher(ctx, types.Watch{
-		Kinds: []types.WatchKind{
-			{
-				Kind: scopedaccess.KindScopedRole,
-			},
-			{
-				Kind: scopedaccess.KindScopedRoleAssignment,
-			},
+// createAppServerOrSPFromAppServer returns a AppServerOrSAMLIdPServiceProvider given an AppServer.
+//
+//nolint:staticcheck // SA1019. TODO(sshah) DELETE IN 17.0
+func createAppServerOrSPFromAppServer(appServer types.AppServer) types.AppServerOrSAMLIdPServiceProvider {
+	appServerOrSP := &types.AppServerOrSAMLIdPServiceProviderV1{
+		Resource: &types.AppServerOrSAMLIdPServiceProviderV1_AppServer{
+			AppServer: appServer.(*types.AppServerV3),
 		},
-	})
-	require.NoError(t, err)
-	defer watcher.Close()
-
-	// as of time of writing, CRUD methods for scoped access resources are not
-	// exposed yet, so for the purposes of this test we're just going to write
-	// to the backend directly.
-	service := local.NewScopedAccessService(srv.AuthServer.Backend)
-
-	getNextEvent := func() types.Event {
-		select {
-		case event := <-watcher.Events():
-			return event
-		case <-watcher.Done():
-			require.FailNow(t, "Watcher exited with error", watcher.Error())
-		case <-time.After(time.Second * 5):
-			require.FailNow(t, "Timeout waiting for event", watcher.Error())
-		}
-
-		panic("unreachable")
 	}
 
-	event := getNextEvent()
-	require.Equal(t, types.OpInit, event.Type)
+	return appServerOrSP
+}
 
-	// Create a ScopedRole and verify create event is well-formed.
-	role := &scopedaccessv1.ScopedRole{
-		Kind: scopedaccess.KindScopedRole,
-		Metadata: &headerv1.Metadata{
-			Name: "test-role",
+// createAppServerOrSPFromApp returns a AppServerOrSAMLIdPServiceProvider given a SAMLIdPServiceProvider.
+//
+//nolint:staticcheck // SA1019. TODO(sshah) DELETE IN 17.0
+func createAppServerOrSPFromSP(sp types.SAMLIdPServiceProvider) types.AppServerOrSAMLIdPServiceProvider {
+	appServerOrSP := &types.AppServerOrSAMLIdPServiceProviderV1{
+		Resource: &types.AppServerOrSAMLIdPServiceProviderV1_SAMLIdPServiceProvider{
+			SAMLIdPServiceProvider: sp.(*types.SAMLIdPServiceProviderV1),
 		},
-		Scope: "/",
-		Spec: &scopedaccessv1.ScopedRoleSpec{
-			AssignableScopes: []string{"/foo", "/bar"},
-		},
-		Version: types.V1,
 	}
 
-	crsp, err := service.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
-		Role: role,
-	})
-	require.NoError(t, err)
-
-	event = getNextEvent()
-	require.Equal(t, types.OpPut, event.Type)
-
-	resource := (event.Resource).(types.Resource153UnwrapperT[*scopedaccessv1.ScopedRole]).UnwrapT()
-	require.Empty(t, cmp.Diff(crsp.Role, resource, protocmp.Transform() /* deliberately not ignoring revision */))
-
-	// delete the role and verify delete event is well-formed.
-	_, err = service.DeleteScopedRole(ctx, &scopedaccessv1.DeleteScopedRoleRequest{
-		Name: role.Metadata.Name,
-	})
-	require.NoError(t, err)
-
-	event = getNextEvent()
-	require.Equal(t, types.OpDelete, event.Type)
-
-	require.Empty(t, cmp.Diff(&types.ResourceHeader{
-		Kind: scopedaccess.KindScopedRole,
-		Metadata: types.Metadata{
-			Name: role.Metadata.Name,
-		},
-	}, event.Resource.(*types.ResourceHeader), protocmp.Transform()))
-
-	// recreate scoped role so that we can use it for testing assignment events
-	_, err = service.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
-		Role: role,
-	})
-	require.NoError(t, err)
-
-	_ = getNextEvent() // drain the role create event
-
-	assignment := &scopedaccessv1.ScopedRoleAssignment{
-		Kind:    scopedaccess.KindScopedRoleAssignment,
-		SubKind: scopedaccess.SubKindDynamic,
-		Metadata: &headerv1.Metadata{
-			Name: uuid.New().String(),
-		},
-		Scope: "/",
-		Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
-			User: "alice",
-			Assignments: []*scopedaccessv1.Assignment{
-				{
-					Role:  role.Metadata.Name,
-					Scope: "/foo",
-				},
-			},
-		},
-		Version: types.V1,
-	}
-
-	acrsp, err := service.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
-		Assignment: assignment,
-	})
-	require.NoError(t, err)
-
-	event = getNextEvent()
-	require.Equal(t, types.OpPut, event.Type)
-	assignmentResource := (event.Resource).(types.Resource153UnwrapperT[*scopedaccessv1.ScopedRoleAssignment]).UnwrapT()
-	require.Empty(t, cmp.Diff(acrsp.Assignment, assignmentResource, protocmp.Transform() /* deliberately not ignoring revision */))
-
-	// delete the assignment and verify delete event is well-formed.
-	_, err = service.DeleteScopedRoleAssignment(ctx, &scopedaccessv1.DeleteScopedRoleAssignmentRequest{
-		Name:    assignment.Metadata.Name,
-		SubKind: assignment.SubKind,
-	})
-	require.NoError(t, err)
-
-	event = getNextEvent()
-	require.Equal(t, types.OpDelete, event.Type)
-
-	require.Empty(t, cmp.Diff(&types.ResourceHeader{
-		Kind:    scopedaccess.KindScopedRoleAssignment,
-		SubKind: scopedaccess.SubKindDynamic,
-		Metadata: types.Metadata{
-			Name: assignment.Metadata.Name,
-		},
-	}, event.Resource.(*types.ResourceHeader), protocmp.Transform()))
+	return appServerOrSP
 }
 
 // TestWatchAllCacheKinds ensures the system builtin roles can watch every
@@ -11866,7 +10256,7 @@ func TestWatchAllCacheKinds(t *testing.T) {
 	t.Parallel()
 
 	ctx := t.Context()
-	srv := newTestTLSServer(t, withModules(modulestest.EnterpriseModules()))
+	srv := newTestTLSServer(t)
 
 	for role, watchKinds := range map[types.SystemRole][]types.WatchKind{
 		types.RoleProxy:          cache.ForProxy(cache.Config{}).Watches,
@@ -11874,7 +10264,6 @@ func TestWatchAllCacheKinds(t *testing.T) {
 		types.RoleApp:            cache.ForApps(cache.Config{}).Watches,
 		types.RoleDatabase:       cache.ForDatabases(cache.Config{}).Watches,
 		types.RoleOkta:           cache.ForOkta(cache.Config{}).Watches,
-		types.RoleRelay:          cache.ForRelay(cache.Config{}).Watches,
 		types.RoleDiscovery:      cache.ForDiscovery(cache.Config{}).Watches,
 		types.RoleKube:           cache.ForKubernetes(cache.Config{}).Watches,
 		types.RoleWindowsDesktop: cache.ForWindowsDesktop(cache.Config{}).Watches,
@@ -11917,11 +10306,8 @@ func collectWatchKind(kinds []types.WatchKind) []string {
 
 func TestKubeKeepAliveServer(t *testing.T) {
 	t.Parallel()
-	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, as.Close()) })
-	authServer := as.AuthServer
-	domainName, err := authServer.GetDomainName()
+	srv := newTestTLSServer(t)
+	domainName, err := srv.Auth().GetDomainName()
 	require.NoError(t, err)
 
 	tests := map[string]struct {
@@ -11942,6 +10328,7 @@ func TestKubeKeepAliveServer(t *testing.T) {
 		},
 	}
 	for name, test := range tests {
+		test := test
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			hostID := uuid.New().String()
@@ -11973,7 +10360,7 @@ func TestKubeKeepAliveServer(t *testing.T) {
 			)
 			require.NoError(t, err)
 			// Upsert the kubernetes server into the backend.
-			_, err = authServer.UpsertKubernetesServer(context.Background(), kubeServer)
+			_, err = srv.Auth().UpsertKubernetesServer(context.Background(), kubeServer)
 			require.NoError(t, err)
 
 			// Create a built-in role.
@@ -11988,7 +10375,7 @@ func TestKubeKeepAliveServer(t *testing.T) {
 
 			// Create a server with the built-in role.
 			srv := auth.NewServerWithRoles(
-				authServer,
+				srv.Auth(),
 				events.NewDiscardAuditLog(),
 				*authContext,
 			)
@@ -12010,7 +10397,7 @@ func TestKubeKeepAliveServer(t *testing.T) {
 
 // inlineEventually is equivalent to require.Eventually except that it runs the provided function directly
 // instead of in a background goroutine, making it safe to fail the test from within the closure.
-func inlineEventually(t *testing.T, cond func() bool, waitFor time.Duration, tick time.Duration, msgAndArgs ...any) {
+func inlineEventually(t *testing.T, cond func() bool, waitFor time.Duration, tick time.Duration, msgAndArgs ...interface{}) {
 	t.Helper()
 
 	timer := time.NewTimer(waitFor)
@@ -12056,15 +10443,15 @@ func TestIsMFARequired_AdminAction(t *testing.T) {
 			name:                 "mfa verified",
 			adminActionAuthState: authz.AdminActionAuthMFAVerified,
 			expectResp: &proto.IsMFARequiredResponse{
-				Required:    true,
-				MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
+				Required:    false,
+				MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
 			},
 		}, {
 			name:                 "mfa verified with reuse",
 			adminActionAuthState: authz.AdminActionAuthMFAVerifiedWithReuse,
 			expectResp: &proto.IsMFARequiredResponse{
-				Required:    true,
-				MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
+				Required:    false,
+				MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
 			},
 		},
 	} {
@@ -12085,7 +10472,6 @@ func TestIsMFARequired_AdminAction(t *testing.T) {
 }
 
 func TestCloudDefaultPasswordless(t *testing.T) {
-	t.Parallel()
 	tt := []struct {
 		name                     string
 		cloud                    bool
@@ -12133,16 +10519,15 @@ func TestCloudDefaultPasswordless(t *testing.T) {
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
 			// create new server
-			ctx := t.Context()
-			t.Parallel()
-			testModules := &modulestest.Modules{
+			ctx := context.Background()
+			srv := newTestTLSServer(t)
+
+			modulestest.SetTestModules(t, modulestest.Modules{
 				TestBuildType: modules.BuildEnterprise,
 				TestFeatures: modules.Features{
 					Cloud: tc.cloud,
 				},
-			}
-
-			srv := newTestTLSServer(t, withModules(testModules))
+			})
 
 			// set cluster Webauthn
 			authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -12158,7 +10543,7 @@ func TestCloudDefaultPasswordless(t *testing.T) {
 
 			// the test server doesn't create the preset users, so we call createPresetUsers manually
 			if tc.withPresetUsers {
-				auth.CreatePresetUsers(ctx, testModules.BuildType(), srv.Auth())
+				auth.CreatePresetUsers(ctx, srv.Auth())
 			}
 
 			// create preexisting users
@@ -12223,11 +10608,9 @@ func TestCloudDefaultPasswordless(t *testing.T) {
 func TestRoleRequestReasonModeValidation(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, as.Close()) })
+	srv := newTestTLSServer(t)
 
-	s := newTestServerWithRoles(t, as, types.RoleAdmin)
+	s := newTestServerWithRoles(t, srv.AuthServer, types.RoleAdmin)
 
 	testCases := []struct {
 		desc          string
@@ -12533,8 +10916,95 @@ func paginatedAppPermissionSet(src *identitycenterv1.PermissionSetInfo) *types.I
 	}
 }
 
+func TestValidateOracleJoinToken(t *testing.T) {
+	t.Parallel()
+	makeToken := func(spec types.ProvisionTokenSpecV2) types.ProvisionToken {
+		spec.JoinMethod = types.JoinMethodOracle
+		spec.Roles = []types.SystemRole{types.RoleNode}
+		token, err := types.NewProvisionTokenFromSpec("foo", time.Now().Add(time.Hour), spec)
+		require.NoError(t, err)
+		return token
+	}
+
+	t.Run("oracle", func(t *testing.T) {
+		tests := []struct {
+			name   string
+			token  types.ProvisionToken
+			assert require.ErrorAssertionFunc
+		}{
+			{
+				name: "ok",
+				token: makeToken(types.ProvisionTokenSpecV2{
+					Oracle: &types.ProvisionTokenSpecV2Oracle{
+						Allow: []*types.ProvisionTokenSpecV2Oracle_Rule{
+							{
+								Tenancy:            makeTenancyID("foo"),
+								ParentCompartments: []string{makeCompartmentID("foo"), makeCompartmentID("bar")},
+								Regions:            []string{"us-phoenix-1", "iad"},
+							},
+						},
+					},
+				}),
+				assert: require.NoError,
+			},
+			{
+				name: "invalid tenant",
+				token: makeToken(types.ProvisionTokenSpecV2{
+					Oracle: &types.ProvisionTokenSpecV2Oracle{
+						Allow: []*types.ProvisionTokenSpecV2Oracle_Rule{
+							{
+								Tenancy:            "foo",
+								ParentCompartments: []string{makeCompartmentID("foo"), makeCompartmentID("bar")},
+								Regions:            []string{"us-phoenix-1", "iad"},
+							},
+						},
+					},
+				}),
+				assert: require.Error,
+			},
+			{
+				name: "invalid compartment",
+				token: makeToken(types.ProvisionTokenSpecV2{
+					Oracle: &types.ProvisionTokenSpecV2Oracle{
+						Allow: []*types.ProvisionTokenSpecV2Oracle_Rule{
+							{
+								Tenancy:            makeTenancyID("foo"),
+								ParentCompartments: []string{"foo", makeCompartmentID("bar")},
+								Regions:            []string{"us-phoenix-1", "iad"},
+							},
+						},
+					},
+				}),
+				assert: require.Error,
+			},
+			{
+				name: "invalid region",
+				token: makeToken(types.ProvisionTokenSpecV2{
+					Oracle: &types.ProvisionTokenSpecV2Oracle{
+						Allow: []*types.ProvisionTokenSpecV2Oracle_Rule{
+							{
+								Tenancy:            makeTenancyID("foo"),
+								ParentCompartments: []string{makeCompartmentID("foo"), makeCompartmentID("bar")},
+								Regions:            []string{"invalid", "iad"},
+							},
+						},
+					},
+				}),
+				assert: require.Error,
+			},
+		}
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				tc.assert(t, auth.ValidateOracleJoinToken(tc.token))
+			})
+		}
+	})
+}
+
 func createTestAppServerV3(t *testing.T, auth *auth.Server, name string, labels map[string]string) *types.AppServerV3 {
 	t.Helper()
+	ctx := context.Background()
+
 	app, err := types.NewAppV3(
 		types.Metadata{
 			Name:   name,
@@ -12545,15 +11015,10 @@ func createTestAppServerV3(t *testing.T, auth *auth.Server, name string, labels 
 		},
 	)
 	require.NoError(t, err)
-	return createTestAppServerFromApp(t, auth, app)
-}
-
-func createTestAppServerFromApp(t *testing.T, auth *auth.Server, app *types.AppV3) *types.AppServerV3 {
-	t.Helper()
 	appServer, err := types.NewAppServerV3(
 		types.Metadata{
-			Name:   app.GetName(),
-			Labels: app.GetAllLabels(),
+			Name:   name,
+			Labels: labels,
 		},
 		types.AppServerSpecV3{
 			HostID: "test-host-id",
@@ -12562,657 +11027,8 @@ func createTestAppServerFromApp(t *testing.T, auth *auth.Server, app *types.AppV
 	)
 	require.NoError(t, err)
 
-	_, err = auth.UpsertApplicationServer(t.Context(), appServer)
+	_, err = auth.UpsertApplicationServer(ctx, appServer)
 	require.NoError(t, err, "upserting test Application Server")
 
 	return appServer
-}
-
-func createTestMCPAppServer(t *testing.T, auth *auth.Server, name string, labels map[string]string) *types.AppServerV3 {
-	t.Helper()
-	mcp, err := types.NewAppV3(
-		types.Metadata{
-			Name:   name,
-			Labels: labels,
-		},
-		types.AppSpecV3{
-			MCP: &types.MCP{
-				Command:       "test",
-				RunAsHostUser: "test",
-			},
-		},
-	)
-	require.NoError(t, err)
-	return createTestAppServerFromApp(t, auth, mcp)
-}
-
-func TestSAMLIdPRoleOptionCreateUpdateValidation(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, as.Close()) })
-
-	s := newTestServerWithRoles(t, as, types.RoleAdmin)
-
-	const errMsg = "supported in role version 7 and below"
-	testCases := []struct {
-		desc         string
-		roleVersion  string
-		roleOptions  types.RoleOptions
-		errAssertion require.ErrorAssertionFunc
-	}{
-		{
-			desc:        "samlidp: role option not allowed in role v8",
-			roleVersion: types.V8,
-			roleOptions: types.RoleOptions{
-				IDP: &types.IdPOptions{
-					SAML: &types.IdPSAMLOptions{
-						Enabled: types.NewBoolOption(true),
-					},
-				},
-			},
-			errAssertion: func(t require.TestingT, err error, i ...any) {
-				require.ErrorContains(t, err, errMsg)
-			},
-		},
-		{
-			desc:        "samlidp: role option allowed in role v7",
-			roleVersion: types.V7,
-			roleOptions: types.RoleOptions{
-				IDP: &types.IdPOptions{
-					SAML: &types.IdPSAMLOptions{
-						Enabled: types.NewBoolOption(true),
-					},
-				},
-			},
-			errAssertion: func(t require.TestingT, err error, i ...any) {
-				require.NoError(t, err)
-			},
-		},
-	}
-
-	for i, tt := range testCases {
-		t.Run(tt.desc, func(t *testing.T) {
-			newRole := func(t *testing.T, name string, roleOption types.RoleOptions) types.Role {
-				t.Helper()
-				role, err := types.NewRoleWithVersion(name, tt.roleVersion, types.RoleSpecV6{
-					Options: roleOption,
-				})
-				require.NoError(t, err)
-				return role
-			}
-
-			roleToCreate := newRole(t, fmt.Sprintf("test-create-role-%d", i), tt.roleOptions)
-			_, err := s.CreateRole(ctx, roleToCreate)
-			tt.errAssertion(t, err)
-
-			roleToUpdate := newRole(t, fmt.Sprintf("test-update-role-%d", i), types.RoleOptions{})
-			updateRole, err := s.CreateRole(ctx, roleToUpdate)
-			require.NoError(t, err)
-			updateRole.SetOptions(tt.roleOptions)
-			_, err = s.UpdateRole(ctx, updateRole)
-			tt.errAssertion(t, err)
-
-			roleToUpsert := newRole(t, fmt.Sprintf("test-upsert-role-%d", i), tt.roleOptions)
-			_, err = s.UpsertRole(ctx, roleToUpsert)
-			tt.errAssertion(t, err)
-		})
-	}
-}
-
-func TestClusterAlertOperations(t *testing.T) {
-	t.Parallel()
-	ctx := t.Context()
-	srv := newTestTLSServer(t)
-
-	t.Run("perform alert operations with admin role", func(t *testing.T) {
-		client, err := srv.NewClient(authtest.TestAdmin())
-		require.NoError(t, err)
-		defer client.Close()
-		const testAlertId = "test-alert"
-		t.Run("create ClusterAlert succeeds and can retrieve and delete it", func(t *testing.T) {
-			alert, err := types.NewClusterAlert(testAlertId, "testmessage", types.WithAlertSeverity(types.AlertSeverity_LOW))
-			require.NoError(t, err)
-			require.NoError(t, client.UpsertClusterAlert(ctx, alert))
-
-			retrieved, err := client.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
-				WithUntargeted: true,
-			})
-			require.NoError(t, err)
-			require.Len(t, retrieved, 1)
-			require.Equal(t, alert.Spec.Message, retrieved[0].Spec.Message)
-			require.Equal(t, alert.Spec.Severity, retrieved[0].Spec.Severity)
-
-			require.NoError(t, client.DeleteClusterAlert(ctx, testAlertId))
-
-			retrieved, err = client.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
-				WithUntargeted: true,
-			})
-			require.NoError(t, err)
-			require.Empty(t, retrieved)
-		})
-
-		t.Run("acknowledge cluster alert operations", func(t *testing.T) {
-			testAlertAck := "testAlertAck"
-			testAlert, err := types.NewClusterAlert(testAlertAck, "testmessage", types.WithAlertSeverity(types.AlertSeverity_LOW))
-			require.NoError(t, err)
-
-			require.NoError(t, client.UpsertClusterAlert(ctx, testAlert))
-
-			t.Run("create AlertAcknowledgement succeeds and can retrieve and delete it", func(t *testing.T) {
-				require.NoError(t, client.CreateAlertAck(ctx, types.AlertAcknowledgement{
-					AlertID: testAlertAck,
-					Reason:  "test",
-					Expires: time.Now().Add(24 * time.Hour),
-				}))
-
-				retrievedAcks, err := client.GetAlertAcks(ctx)
-				require.NoError(t, err)
-				require.Len(t, retrievedAcks, 1)
-				require.Equal(t, testAlertAck, retrievedAcks[0].AlertID)
-
-				// cluster alert is filtered out since it's acknowledged
-				retrieved, err := client.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
-					WithUntargeted: true,
-					AlertID:        testAlertAck,
-				})
-				require.NoError(t, err)
-				require.Empty(t, retrieved)
-
-				require.NoError(t, client.ClearAlertAcks(ctx, proto.ClearAlertAcksRequest{
-					AlertID: testAlertAck,
-				}))
-				retrievedAcks, err = client.GetAlertAcks(ctx)
-				require.NoError(t, err)
-				require.Empty(t, retrievedAcks)
-
-				// cluster alert is back since its acknowledgement is cleared
-				retrieved, err = client.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
-					WithUntargeted: true,
-					AlertID:        testAlertAck,
-				})
-				require.NoError(t, err)
-				require.Len(t, retrieved, 1)
-				require.Equal(t, testAlertAck, retrieved[0].GetMetadata().Name)
-			})
-		})
-	})
-
-	t.Run("perform alert operations with non read and write role fails", func(t *testing.T) {
-		user, _, err := authtest.CreateUserAndRole(srv.Auth(), "someuser", []string{"role"}, nil)
-		require.NoError(t, err)
-		badUser, err := srv.NewClient(authtest.TestUser(user.GetName()))
-		require.NoError(t, err)
-		defer badUser.Close()
-
-		t.Run("create ClusterAlert fails", func(t *testing.T) {
-			testAlertId := "test-alert-non-admin"
-			alert, err := types.NewClusterAlert(testAlertId, "testmessage", types.WithAlertSeverity(types.AlertSeverity_LOW))
-			require.NoError(t, err)
-			err = badUser.UpsertClusterAlert(ctx, alert)
-			require.ErrorContains(t, err, "access denied")
-		})
-		t.Run("get ClusterAlert succeeds but returns nothing", func(t *testing.T) {
-			alerts, err := badUser.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
-				WithUntargeted: true,
-			})
-			require.NoError(t, err)
-			require.Empty(t, alerts)
-		})
-		t.Run("delete ClusterAlert fails", func(t *testing.T) {
-			err := badUser.DeleteClusterAlert(ctx, "some-alert-id")
-			require.ErrorContains(t, err, "access denied")
-		})
-		t.Run("create AlertAcknowledgement fails", func(t *testing.T) {
-			err := badUser.CreateAlertAck(ctx, types.AlertAcknowledgement{
-				AlertID: "test-alert-ack-non-admin",
-				Reason:  "test",
-				Expires: time.Now().Add(24 * time.Hour),
-			})
-			require.ErrorContains(t, err, "access denied")
-		})
-		t.Run("get AlertAcknowledgement fails", func(t *testing.T) {
-			_, err := badUser.GetAlertAcks(ctx)
-			require.ErrorContains(t, err, "access denied")
-		})
-		t.Run("clear AlertAcknowledgement fails", func(t *testing.T) {
-			err := badUser.ClearAlertAcks(ctx, proto.ClearAlertAcksRequest{
-				AlertID: "test-alert-ack-non-admin",
-			})
-			require.ErrorContains(t, err, "access denied")
-		})
-	})
-}
-
-type inventoryControlStreamHarness struct {
-	server     *auth.ServerWithRoles
-	upstream   apiclient.UpstreamInventoryControlStream
-	downstream apiclient.DownstreamInventoryControlStream
-}
-
-func newInventoryControlStreamHarness(t *testing.T, srv *authtest.AuthServer, serverID, scope, labelHash string, role types.SystemRole) inventoryControlStreamHarness {
-	t.Helper()
-
-	username := serverID + "." + srv.ClusterName
-	identity := authz.BuiltinRole{
-		Role:                  types.RoleInstance,
-		AdditionalSystemRoles: types.SystemRoles{role},
-		Username:              username,
-		ClusterName:           srv.ClusterName,
-		Identity: tlsca.Identity{
-			Username:           username,
-			AgentScope:         scope,
-			ImmutableLabelHash: labelHash,
-		},
-	}
-
-	authContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(t.Context(), identity))
-	require.NoError(t, err)
-
-	authWithRole := auth.NewServerWithRoles(
-		srv.AuthServer,
-		srv.AuditLog,
-		*authContext,
-	)
-	upstream, downstream := apiclient.InventoryControlStreamPipe()
-
-	t.Cleanup(func() {
-		_ = upstream.Close()
-		_ = downstream.Close()
-	})
-
-	return inventoryControlStreamHarness{
-		server:     authWithRole,
-		upstream:   upstream,
-		downstream: downstream,
-	}
-}
-
-func TestRegisterInventoryControlStreamScopes(t *testing.T) {
-	t.Parallel()
-
-	ctx := t.Context()
-	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, as.Close()) })
-
-	const serverID = "test-server"
-	const agentScope = "/test/one"
-
-	cases := []struct {
-		name        string
-		helloScope  string
-		expectScope string
-		expectErr   func(error) bool
-	}{
-		{
-			name:        "empty scope defaults to agent scope",
-			helloScope:  "",
-			expectScope: agentScope,
-			expectErr:   nil,
-		},
-		{
-			name:        "matching scope accepted",
-			helloScope:  agentScope,
-			expectScope: agentScope,
-			expectErr:   nil,
-		},
-		{
-			name:       "mismatched scope denied",
-			helloScope: "/test/two",
-			expectErr:  trace.IsAccessDenied,
-		},
-	}
-
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			h := newInventoryControlStreamHarness(t, as, serverID, agentScope, "", types.RoleNode)
-			type registerResult struct {
-				hello *proto.UpstreamInventoryHello
-				err   error
-			}
-			resultCh := make(chan registerResult)
-			go func() {
-				hello, err := h.server.RegisterInventoryControlStream(h.upstream)
-				resultCh <- registerResult{hello: hello, err: err}
-			}()
-
-			err := h.downstream.Send(ctx, &proto.UpstreamInventoryHello{
-				ServerID: serverID,
-				Scope:    c.helloScope,
-			})
-			require.NoError(t, err)
-
-			if c.expectErr != nil {
-				result := <-resultCh
-				require.True(t, c.expectErr(result.err), "expected error")
-				return
-			}
-
-			msg := <-h.downstream.Recv()
-			require.IsType(t, *new(*proto.DownstreamInventoryHello), msg)
-
-			result := <-resultCh
-			require.NoError(t, result.err)
-			require.NotNil(t, result.hello)
-			require.Equal(t, c.expectScope, result.hello.GetScope())
-		})
-	}
-}
-
-func TestRegisterInventoryControlStreamImmutableLabels(t *testing.T) {
-	t.Parallel()
-
-	ctx := t.Context()
-
-	const serverID = "test-server"
-	helloLabels := &joiningv1.ImmutableLabels{
-		Ssh: map[string]string{
-			"test":  "label",
-			"test2": "label2",
-		},
-	}
-	helloHash := joining.HashImmutableLabels(helloLabels)
-
-	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, as.Close()) })
-
-	cases := []struct {
-		name        string
-		helloLabels *joiningv1.ImmutableLabels
-		identHash   string
-		expectErr   func(error) bool
-	}{
-		{
-			name:        "matching immutable labels accepted",
-			helloLabels: helloLabels,
-			identHash:   helloHash,
-			expectErr:   nil,
-		},
-		{
-			name:        "no labels with no hash accepted",
-			helloLabels: nil,
-			identHash:   "",
-			expectErr:   nil,
-		},
-		{
-			name:        "immutable labels with different hash denied",
-			helloLabels: helloLabels,
-			identHash:   "some-other-hash",
-			expectErr:   trace.IsAccessDenied,
-		},
-		{
-			name:        "immutable labels with empty hash denied",
-			helloLabels: helloLabels,
-			identHash:   "",
-			expectErr:   trace.IsAccessDenied,
-		},
-		{
-			name:      "nil immutable labels with provided hash denied",
-			identHash: helloHash,
-			expectErr: trace.IsAccessDenied,
-		},
-	}
-
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			h := newInventoryControlStreamHarness(t, as, serverID, "", c.identHash, types.RoleNode)
-			type registerResult struct {
-				hello *proto.UpstreamInventoryHello
-				err   error
-			}
-			resultCh := make(chan registerResult)
-			go func() {
-				hello, err := h.server.RegisterInventoryControlStream(h.upstream)
-				resultCh <- registerResult{hello: hello, err: err}
-			}()
-
-			err := h.downstream.Send(ctx, &proto.UpstreamInventoryHello{
-				ServerID:        serverID,
-				ImmutableLabels: c.helloLabels,
-			})
-			require.NoError(t, err)
-
-			if c.expectErr != nil {
-				result := <-resultCh
-				require.True(t, c.expectErr(result.err), "expected error")
-				return
-			}
-
-			msg := <-h.downstream.Recv()
-			require.IsType(t, *new(*proto.DownstreamInventoryHello), msg)
-
-			result := <-resultCh
-			require.NoError(t, result.err)
-			require.NotNil(t, result.hello)
-		})
-	}
-}
-
-// assert that common user cert generation cases are properly handled for scoped identities
-func TestScopedUserCertGeneration(t *testing.T) {
-	t.Parallel()
-	clock := clockwork.NewFakeClock()
-	srv := newTestTLSServer(t, withScopesFeatures(scopes.Features{Enabled: true}), withModules(&modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Policy: {Enabled: true},
-				entitlements.K8s:    {Enabled: true},
-			},
-		},
-	}), withClock(clock))
-	ctx := t.Context()
-
-	_, sshPubKey, _, tlsPubKey := newSSHAndTLSKeyPairs(t)
-	username := "scoped-user"
-	scope := "/test"
-	scopedAccess := srv.Auth().ScopedAccess()
-	roleResp, err := scopedAccess.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
-		Role: &scopedaccessv1.ScopedRole{
-			Kind:    scopedaccess.KindScopedRole,
-			Version: types.V1,
-			Metadata: &headerv1.Metadata{
-				Name: username,
-			},
-			Scope: scope,
-			Spec: &scopedaccessv1.ScopedRoleSpec{
-				AssignableScopes: []string{scope},
-				Kube: &scopedaccessv1.ScopedRoleKube{
-					Users:  []string{"kube_user"},
-					Groups: []string{"kube_group"},
-					Labels: []*labelv1.Label{
-						{
-							Name:   types.Wildcard,
-							Values: []string{types.Wildcard},
-						},
-					},
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	user, role, err := authtest.CreateUserAndRole(srv.Auth(), username, []string{username}, nil)
-	require.NoError(t, err)
-
-	scopedRole := roleResp.GetRole()
-	sra, err := scopedAccess.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
-		Assignment: &scopedaccessv1.ScopedRoleAssignment{
-			Kind:    scopedaccess.KindScopedRoleAssignment,
-			SubKind: scopedaccess.SubKindDynamic,
-			Version: types.V1,
-			Metadata: &headerv1.Metadata{
-				Name: uuid.NewString(),
-			},
-			Scope: scope,
-			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
-				User: user.GetName(),
-				Assignments: []*scopedaccessv1.Assignment{
-					{Role: scopedRole.GetMetadata().GetName(), Scope: scope},
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-	waitForSRACache(t, srv, sra)
-
-	ident := authtest.TestScopedUser(username, scope)
-	client, err := srv.NewClient(ident)
-	require.NoError(t, err)
-
-	createKubeServer(t, srv.Auth(), []string{"kube-cluster"}, "kube-host", scope)
-	tts := []struct {
-		name       string
-		req        proto.UserCertsRequest
-		assertErr  func(t *testing.T, err error)
-		assertCert func(t *testing.T, cert *x509.Certificate)
-	}{
-		{
-			name: "valid request",
-			req: proto.UserCertsRequest{
-				SSHPublicKey:      sshPubKey,
-				TLSPublicKey:      tlsPubKey,
-				Username:          username,
-				Usage:             proto.UserCertsRequest_Kubernetes,
-				KubernetesCluster: "kube-cluster",
-				Expires:           time.Now().Add(time.Hour),
-			},
-		},
-		{
-			name: "session TTL for non-disk flow",
-			req: proto.UserCertsRequest{
-				SSHPublicKey:      sshPubKey,
-				TLSPublicKey:      tlsPubKey,
-				Username:          username,
-				Usage:             proto.UserCertsRequest_Kubernetes,
-				RequesterName:     proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY,
-				KubernetesCluster: "kube-cluster",
-				Expires:           time.Now().Add(time.Hour * 24 * 7),
-			},
-			assertCert: func(t *testing.T, cert *x509.Certificate) {
-				roAuthPref, err := srv.Auth().GetReadOnlyAuthPreference(ctx)
-				require.NoError(t, err)
-
-				// expiry should get shortened to default set for the cluster
-				notAfter := clock.Now().UTC().Add(roAuthPref.GetDefaultSessionTTL().Duration())
-				diff := notAfter.Sub(cert.NotAfter)
-				// ignore small differences from parsing
-				require.Less(t, max(diff, -diff), time.Second)
-			},
-		},
-		{
-			name: "with impersonation",
-			req: proto.UserCertsRequest{
-				SSHPublicKey:      sshPubKey,
-				TLSPublicKey:      tlsPubKey,
-				Username:          "some-other-user",
-				Usage:             proto.UserCertsRequest_Kubernetes,
-				KubernetesCluster: "kube-cluster",
-				Expires:           time.Now().Add(time.Hour),
-			},
-			assertErr: func(t *testing.T, err error) {
-				require.Error(t, err)
-				require.True(t, trace.IsAccessDenied(err))
-				require.ErrorContains(t, err, "impersonation is not allowed")
-			},
-		},
-		{
-			name: "with role impersonation",
-			req: proto.UserCertsRequest{
-				SSHPublicKey:      sshPubKey,
-				TLSPublicKey:      tlsPubKey,
-				Username:          username,
-				Usage:             proto.UserCertsRequest_Kubernetes,
-				KubernetesCluster: "kube-cluster",
-				Expires:           time.Now().Add(time.Hour),
-				UseRoleRequests:   true,
-				RoleRequests:      []string{role.GetName()},
-			},
-			assertErr: func(t *testing.T, err error) {
-				require.Error(t, err)
-				require.True(t, trace.IsAccessDenied(err), "expected AccessDeniedError")
-				require.ErrorContains(t, err, "scoped identities not supported")
-				require.ErrorContains(t, err, "impersonation not permitted")
-			},
-		},
-		{
-			name: "app session creation",
-			req: proto.UserCertsRequest{
-				SSHPublicKey:      sshPubKey,
-				TLSPublicKey:      tlsPubKey,
-				Username:          username,
-				Usage:             proto.UserCertsRequest_Kubernetes,
-				KubernetesCluster: "kube-cluster",
-				Expires:           time.Now().Add(time.Hour),
-				RouteToApp: proto.RouteToApp{
-					Name: "app-name",
-				},
-			},
-			assertErr: func(t *testing.T, err error) {
-				require.Error(t, err)
-				require.True(t, trace.IsAccessDenied(err), "expected AccessDeniedError")
-				require.ErrorContains(t, err, "creating app session")
-				require.ErrorContains(t, err, "scoped identities not supported")
-			},
-		},
-		{
-			name: "for non-kube usage",
-			req: proto.UserCertsRequest{
-				SSHPublicKey: sshPubKey,
-				TLSPublicKey: tlsPubKey,
-				Username:     username,
-				Expires:      time.Now().Add(time.Hour),
-			},
-			assertErr: func(t *testing.T, err error) {
-				require.Error(t, err)
-				require.True(t, trace.IsAccessDenied(err), "expected AccessDeniedError")
-				require.ErrorContains(t, err, "scoped identities not supported")
-				require.ErrorContains(t, err, "generating scoped user cert for non-kubernetes usage")
-			},
-		},
-		{
-			// this is a separate test case from the previous because there are other
-			// checks specific to access graph that should start failing  if the restriction
-			// on usage is every removed
-			name: "for access graph",
-			req: proto.UserCertsRequest{
-				SSHPublicKey: sshPubKey,
-				TLSPublicKey: tlsPubKey,
-				Username:     username,
-				Expires:      time.Now().Add(time.Hour),
-				Usage:        proto.UserCertsRequest_AccessGraphAPI,
-			},
-			assertErr: func(t *testing.T, err error) {
-				require.Error(t, err)
-				require.True(t, trace.IsAccessDenied(err), "expected AccessDeniedError")
-				require.ErrorContains(t, err, "scoped identities not supported")
-				// TODO (eriktate/scopes): remove the nonKubeErr check if/when we stop restricting usages for scoped
-				// user cert gen
-				nonKubeErr := strings.Contains(err.Error(), "generating scoped user cert for non-kubernetes usage")
-				accessGraphErr := strings.Contains(err.Error(), "access graph is not permitted")
-				require.True(t, nonKubeErr || accessGraphErr, "expected error due to unsupported scoped certificate usage or unsupported scoped access graph usage")
-			},
-		},
-	}
-
-	for _, tt := range tts {
-		t.Run(tt.name, func(t *testing.T) {
-			certs, err := client.GenerateUserCerts(ctx, tt.req)
-			if tt.assertErr != nil {
-				tt.assertErr(t, err)
-			} else {
-				require.NoError(t, err)
-			}
-			if tt.assertCert != nil {
-				b, _ := pem.Decode(certs.TLS)
-				cert, err := x509.ParseCertificate(b.Bytes)
-				require.NoError(t, err)
-
-				tt.assertCert(t, cert)
-			}
-		})
-	}
 }

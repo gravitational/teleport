@@ -24,11 +24,9 @@ import {
   PropsWithChildren,
   useCallback,
   useContext,
-  useEffect,
   useRef,
 } from 'react';
 
-import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
 export interface ResourcesContext {
@@ -56,8 +54,7 @@ export interface ResourcesContext {
 const ResourcesContext = createContext<ResourcesContext>(null);
 
 export const ResourcesContextProvider: FC<PropsWithChildren> = props => {
-  const appCtx = useAppContext();
-  const emitterRef = useRef<EventEmitter>(undefined);
+  const emitterRef = useRef<EventEmitter>();
   if (!emitterRef.current) {
     emitterRef.current = new EventEmitter();
   }
@@ -88,12 +85,6 @@ export const ResourcesContextProvider: FC<PropsWithChildren> = props => {
     },
     []
   );
-
-  useEffect(() => {
-    return appCtx.addResourceRefreshListener(uri => {
-      requestResourcesRefresh(uri);
-    });
-  }, [appCtx, requestResourcesRefresh]);
 
   return (
     <ResourcesContext.Provider

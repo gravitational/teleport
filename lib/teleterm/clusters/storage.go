@@ -54,8 +54,6 @@ func (s *Storage) ListRootClusters() ([]*Cluster, error) {
 
 	clusters := make([]*Cluster, 0, len(pfNames))
 	for _, name := range pfNames {
-		// TODO(ravicious): Handle a possible scenario where one of the clusters gets removed between
-		// client.Store.ListProfiles and Storage.fromProfile. See https://github.com/gravitational/teleport/pull/63975
 		cluster, _, err := s.fromProfile(name, "")
 		if cluster == nil {
 			return nil, trace.Wrap(err)
@@ -122,9 +120,7 @@ func (s *Storage) Remove(ctx context.Context, profileName string) error {
 // https://github.com/gravitational/teleport/issues/13278
 func (s *Storage) Add(ctx context.Context, webProxyAddress string) (*Cluster, *client.TeleportClient, error) {
 	profiles, err := s.ListProfileNames()
-	// If the tsh directory does not exist, [client.ProfileStore.SaveProfile] will
-	// create it.
-	if err != nil && !trace.IsNotFound(err) {
+	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
@@ -173,20 +169,13 @@ func (s *Storage) addCluster(ctx context.Context, webProxyAddress string) (*Clus
 		return nil, nil, trace.Wrap(err)
 	}
 
-	// There's an incorrect default in api/profile.profileFromFile - an empty SiteName is replaced with the profile name.
-	// A profile name is not the same thing as a site name, and they differ when the proxy hostname is different
-	// from the cluster name.
-	// Using this incorrect site name causes login failures in `tsh`, so we proactively set SiteName to the root cluster
-	// name instead.
-	clusterClient.SiteName = pingResponse.ClusterName
-
-	clusterLog := s.Logger.With("cluster", clusterURI)
+	clusterLog := s.Log.WithField("cluster", clusterURI)
 
 	pingResponseJSON, err := json.Marshal(pingResponse)
 	if err != nil {
-		clusterLog.DebugContext(ctx, "Could not marshal ping response to JSON", "error", err)
+		clusterLog.WithError(err).Debugln("Could not marshal ping response to JSON")
 	} else {
-		clusterLog.DebugContext(ctx, "Got ping response", "response", string(pingResponseJSON))
+		clusterLog.WithField("response", string(pingResponseJSON)).Debugln("Got ping response")
 	}
 
 	if err := clusterClient.SaveProfile(false); err != nil {
@@ -201,7 +190,7 @@ func (s *Storage) addCluster(ctx context.Context, webProxyAddress string) (*Clus
 		ProfileName:   profileName,
 		clusterClient: clusterClient,
 		clock:         s.Clock,
-		Logger:        clusterLog,
+		Log:           clusterLog,
 		WebProxyAddr:  clusterClient.WebProxyAddr,
 	}, clusterClient, nil
 }
@@ -224,11 +213,6 @@ func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, *c
 		clusterNameForKey = leafClusterName
 		clusterURI = clusterURI.AppendLeafCluster(leafClusterName)
 		cfg.SiteName = leafClusterName
-	} else {
-		// Reset SiteName as it may reference a leaf cluster (the cluster can be changed
-		// through "tsh login <leaf>").
-		// The correct root cluster value will be set in loadProfileStatusAndClusterKey.
-		cfg.SiteName = ""
 	}
 
 	clusterClient, err := client.NewClient(cfg)
@@ -244,7 +228,7 @@ func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, *c
 		clusterClient: clusterClient,
 		clock:         s.Clock,
 		statusError:   err,
-		Logger:        s.Logger.With("cluster", clusterURI),
+		Log:           s.Log.WithField("cluster", clusterURI),
 		WebProxyAddr:  clusterClient.WebProxyAddr,
 	}
 	if status != nil {
@@ -259,62 +243,24 @@ func (s *Storage) loadProfileStatusAndClusterKey(clusterClient *client.TeleportC
 	status := &client.ProfileStatus{}
 
 	// load profile status if key exists
-	key, err := clusterClient.LocalAgent().GetKeyRing(clusterNameForKey)
+	_, err := clusterClient.LocalAgent().GetKeyRing(clusterNameForKey)
 	if err != nil {
 		if trace.IsNotFound(err) {
-			s.Logger.InfoContext(context.Background(), "No keys found for cluster", "cluster", clusterNameForKey)
+			s.Log.Infof("No keys found for cluster %v.", clusterNameForKey)
 		} else {
 			return nil, trace.Wrap(err)
 		}
 	}
 
-	// If the key exists, and clusterClient is a root cluster client,
-	// extract the name from the key.
-	// We don't use SiteName from the profile as it can be changed
-	// through "tsh login <leaf>", so we would return a client that incorrectly
-	// points to the leaf cluster.
-	if err == nil && clusterClient.Config.SiteName == "" {
-		var rootClusterName string
-		rootClusterName, err = key.RootClusterName()
+	if err == nil && clusterClient.Username != "" {
+		status, err = clusterClient.ProfileStatus()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		clusterClient.Config.SiteName = rootClusterName
-		clusterClient.SiteName = rootClusterName
-	}
 
-	// TODO(gzdunek): If the key doesn't exist, we should still try to read
-	// the profile status.
-	// This creates an inconsistency in how the profile is interpreted after running
-	//`tsh logout --proxy=... --user=...`  by `tsh status` versus Connect.
-	//
-	// tsh will still show a profile that includes the username, while Connect
-	// receives an empty profile status and therefore has no username.
-	// Fixing this requires updating how ClusterLifecycleManager detects logouts.
-	// Right now it assumes that a logout results in an empty username.
-	// After the fix, the username would still be present, so we'll need to rely on
-	// a different field of LoggedInUser (or introduce a new one) to determine logout
-	// state reliably.
-	if err != nil || clusterClient.Username == "" {
-		return status, nil
-	}
-
-	status, err = clusterClient.ProfileStatus()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Load SSH key for the cluster indicated in the profile.
-	// Skip if the profile is empty, the key cannot be found, or the key isn't supported as an agent key.
-	err = clusterClient.LoadKeyForCluster(context.Background(), status.Cluster)
-	if err != nil {
-		if !trace.IsNotFound(err) && !trace.IsConnectionProblem(err) && !trace.IsCompareFailed(err) {
+		if err := clusterClient.LoadKeyForCluster(context.Background(), status.Cluster); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		s.Logger.InfoContext(context.Background(), "Could not load key for cluster into the local agent",
-			"cluster", status.Cluster,
-			"error", err,
-		)
 	}
 
 	return status, nil

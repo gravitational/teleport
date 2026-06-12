@@ -46,7 +46,6 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
-	grpcmetrics "github.com/gravitational/teleport/lib/observability/metrics/grpc"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/client"
 	"github.com/gravitational/teleport/lib/tbot/internal"
@@ -66,7 +65,7 @@ func WorkloadAPIServiceBuilder(
 	defaultCredentialLifetime bot.CredentialLifetime,
 ) bot.ServiceBuilder {
 	buildFn := func(deps bot.ServiceDependencies) (bot.Service, error) {
-		if err := cfg.CheckAndSetDefaults(deps.Scoped); err != nil {
+		if err := cfg.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		sidecar, credential := clientcredentials.NewSidecar(deps, defaultCredentialLifetime)
@@ -169,7 +168,7 @@ func (s *WorkloadAPIService) Run(ctx context.Context) error {
 	defer s.client.Close()
 	s.log.DebugContext(ctx, "Completed pre-run initialization")
 
-	srvMetrics := grpcmetrics.CreateGRPCServerMetrics(
+	srvMetrics := metrics.CreateGRPCServerMetrics(
 		true, prometheus.Labels{
 			teleport.TagServer: "tbot-workload-identity-api",
 		},
@@ -218,7 +217,6 @@ func (s *WorkloadAPIService) Run(ctx context.Context) error {
 
 			return log, fetchSVIDs, nil
 		},
-		TrustDomainSelector: s.cfg.TrustDomainSelector,
 	})
 	if err != nil {
 		return trace.Wrap(err, "creating SDS handler")
@@ -388,10 +386,8 @@ func (s *WorkloadAPIService) FetchX509SVID(
 		}
 
 		resp := &workloadpb.X509SVIDResponse{
-			Svids: svids,
-			// The `Svids` already include the Local bundle, so do not include
-			// it into this list.
-			FederatedBundles: bundleSet.EncodedX509Bundles(false, s.cfg.TrustDomainSelector),
+			Svids:            svids,
+			FederatedBundles: bundleSet.EncodedX509Bundles(false),
 		}
 		if len(crlSet.LocalCRL) > 0 {
 			resp.Crl = [][]byte{crlSet.LocalCRL}
@@ -472,7 +468,7 @@ func (s *WorkloadAPIService) FetchX509Bundles(
 
 		s.log.InfoContext(ctx, "Sending X.509 trust bundles to workload")
 		resp := &workloadpb.X509BundlesResponse{
-			Bundles: bundleSet.EncodedX509Bundles(true, s.cfg.TrustDomainSelector),
+			Bundles: bundleSet.EncodedX509Bundles(true),
 		}
 		if len(crlSet.LocalCRL) > 0 {
 			resp.Crl = [][]byte{crlSet.LocalCRL}
@@ -526,9 +522,6 @@ func (s *WorkloadAPIService) fetchX509SVIDs(
 		return nil, trace.Wrap(err)
 	}
 
-	// Even if the local bundle is not on the trust domain selector, we do return
-	// it here. This avoids creating a scenario where the issued certs cannot be
-	// trusted by the requestor.
 	marshaledBundle := workloadidentity.MarshalX509Bundle(localBundle.X509Bundle())
 
 	// Convert responses from the Teleport API to the SPIFFE Workload API

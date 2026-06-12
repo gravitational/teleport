@@ -27,6 +27,12 @@ import (
 
 // Status defines an interface for managing cluster status info.
 type Status interface {
+	// GetClusterAlerts loads all matching cluster alerts.
+	GetClusterAlerts(ctx context.Context, query types.GetClusterAlertsRequest) ([]types.ClusterAlert, error)
+
+	// UpsertClusterAlert creates the specified alert, overwriting any preexisting alert with the same ID.
+	UpsertClusterAlert(ctx context.Context, alert types.ClusterAlert) error
+
 	// CreateAlertAck marks a cluster alert as acknowledged.
 	CreateAlertAck(ctx context.Context, ack types.AlertAcknowledgement) error
 
@@ -35,12 +41,11 @@ type Status interface {
 
 	// ClearAlertAcks clears alert acknowledgments.
 	ClearAlertAcks(ctx context.Context, req proto.ClearAlertAcksRequest) error
+}
 
-	// GetClusterAlerts loads all matching cluster alerts.
-	GetClusterAlerts(ctx context.Context, query types.GetClusterAlertsRequest) ([]types.ClusterAlert, error)
-
-	// UpsertClusterAlert creates the specified alert, overwriting any preexisting alert with the same ID.
-	UpsertClusterAlert(ctx context.Context, alert types.ClusterAlert) error
+// StatusInternal extends Status with auth-internal methods.
+type StatusInternal interface {
+	Status
 
 	// DeleteClusterAlert deletes the cluster alert with the specified ID.
 	DeleteClusterAlert(ctx context.Context, alertID string) error

@@ -41,8 +41,6 @@ type osConfigState struct {
 	platformOSConfigState platformOSConfigState
 }
 
-type configureOSFn func(ctx context.Context, oc *osConfig, _ *osConfigState) error
-
 func configureOS(ctx context.Context, osConfig *osConfig, osConfigState *osConfigState) error {
 	return trace.Wrap(platformConfigureOS(ctx, osConfig, &osConfigState.platformOSConfigState))
 }
@@ -50,16 +48,11 @@ func configureOS(ctx context.Context, osConfig *osConfig, osConfigState *osConfi
 type osConfigurator struct {
 	remoteOSConfigProvider *osConfigProvider
 	osConfigState          osConfigState
-	configureOS            configureOSFn
 }
 
-func newOSConfigurator(remoteOSConfigProvider *osConfigProvider, fn configureOSFn) *osConfigurator {
-	if fn == nil {
-		fn = configureOS
-	}
+func newOSConfigurator(remoteOSConfigProvider *osConfigProvider) *osConfigurator {
 	return &osConfigurator{
 		remoteOSConfigProvider: remoteOSConfigProvider,
-		configureOS:            fn,
 	}
 }
 
@@ -68,7 +61,7 @@ func (c *osConfigurator) updateOSConfiguration(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := c.configureOS(ctx, desiredOSConfig, &c.osConfigState); err != nil {
+	if err := configureOS(ctx, desiredOSConfig, &c.osConfigState); err != nil {
 		return trace.Wrap(err, "configuring OS")
 	}
 	return nil
@@ -76,7 +69,7 @@ func (c *osConfigurator) updateOSConfiguration(ctx context.Context) error {
 
 func (c *osConfigurator) deconfigureOS(ctx context.Context) error {
 	// configureOS is meant to be called with an empty config to deconfigure anything necessary.
-	return trace.Wrap(c.configureOS(ctx, &osConfig{}, &c.osConfigState))
+	return trace.Wrap(configureOS(ctx, &osConfig{}, &c.osConfigState))
 }
 
 // runOSConfigurationLoop will keep running until ctx is canceled or an

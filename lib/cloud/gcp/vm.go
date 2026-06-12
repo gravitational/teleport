@@ -37,13 +37,13 @@ import (
 	"cloud.google.com/go/resourcemanager/apiv3/resourcemanagerpb"
 	"github.com/googleapis/gax-go/v2/apierror"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 
 	"github.com/gravitational/teleport/api/internalutils/stream"
-	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -264,7 +264,7 @@ func (clt *instancesClient) getHostKeys(ctx context.Context, req *gcpimds.Instan
 	keys := make([]ssh.PublicKey, 0, len(items))
 	var errs []error
 	for _, item := range items {
-		key, _, _, _, err := ssh.ParseAuthorizedKey(fmt.Appendf(nil, "%v %v", item.GetKey(), item.GetValue()))
+		key, _, _, _, err := ssh.ParseAuthorizedKey([]byte(fmt.Sprintf("%v %v", item.GetKey(), item.GetValue())))
 		if err == nil {
 			keys = append(keys, key)
 		} else {
@@ -554,11 +554,11 @@ https://cloud.google.com/solutions/connecting-securely#storing_host_keys_by_enab
 		var err error
 		// Fetch the instance first to get the most up-to-date metadata hash.
 		if keyReq.Instance, err = req.Client.GetInstance(ctx, &req.InstanceRequest); err != nil {
-			slog.WarnContext(ctx, "Error fetching instance", "error", err)
+			logrus.WithError(err).Warn("Error fetching instance.")
 			return
 		}
 		if err := req.Client.RemoveSSHKey(ctx, keyReq); err != nil {
-			slog.WarnContext(ctx, "Error deleting SSH Key", "error", err)
+			logrus.WithError(err).Warn("Error deleting SSH Key.")
 		}
 	}()
 
@@ -567,12 +567,10 @@ https://cloud.google.com/solutions/connecting-securely#storing_host_keys_by_enab
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	config := apissh.ClientConfig{
+	config := &ssh.ClientConfig{
 		User: sshUser,
-		PublicKeyAuth: apissh.PublicKeyAuthConfig{
-			Signers: func() ([]ssh.Signer, error) {
-				return []ssh.Signer{signer}, nil
-			},
+		Auth: []ssh.AuthMethod{
+			ssh.PublicKeys(signer),
 		},
 		HostKeyCallback: callback,
 	}
@@ -592,15 +590,14 @@ https://cloud.google.com/solutions/connecting-securely#storing_host_keys_by_enab
 			return nil
 		}
 
-		loggerWithVMMetadata.ErrorContext(ctx, "Installing teleport in GCP VM failed",
-			"ip", ip,
-			"error", err,
-			"stdout", string(stdout),
-			"stderr", string(stderr),
-		)
-
 		// An exit error means the connection was successful, so don't try another address.
 		if errors.Is(err, &ssh.ExitError{}) {
+			loggerWithVMMetadata.ErrorContext(ctx, "Installing teleport in GCP VM failed after connecting",
+				"ip", ip,
+				"error", err,
+				"stdout", string(stdout),
+				"stderr", string(stderr),
+			)
 			return trace.Wrap(err)
 		}
 		errs = append(errs, err)

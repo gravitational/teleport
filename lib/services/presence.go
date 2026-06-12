@@ -20,26 +20,17 @@ package services
 
 import (
 	"context"
-	"iter"
 	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/backend"
 )
 
 // ProxyGetter is a service that gets proxies.
 type ProxyGetter interface {
 	// GetProxies returns a list of registered proxies.
-	//
-	// Deprecated: Prefer paginated variant [ListProxyServers].
-	//
-	// TODO(kiosion): DELETE IN 21.0.0
 	GetProxies() ([]types.Server, error)
-	// ListProxyServers returns a paginated list of registered Proxy servers.
-	ListProxyServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error)
 }
 
 // NodesGetter is a service that gets nodes.
@@ -50,8 +41,7 @@ type NodesGetter interface {
 
 // DatabaseServersGetter is a service that gets database servers.
 type DatabaseServersGetter interface {
-	// GetDatabaseServers returns all registered database proxy servers.
-	GetDatabaseServers(ctx context.Context, namespace string, opts ...MarshalOption) ([]types.DatabaseServer, error)
+	GetDatabaseServers(context.Context, string, ...MarshalOption) ([]types.DatabaseServer, error)
 }
 
 // AppServersGetter is a service that gets application servers.
@@ -92,14 +82,7 @@ type Presence interface {
 	UpsertNode(ctx context.Context, server types.Server) (*types.KeepAlive, error)
 
 	// GetAuthServers returns a list of registered servers
-	//
-	// Deprecated: Prefer paginated variant [ListAuthServers].
-	//
-	// TODO(kiosion): DELETE IN 21.0.0
 	GetAuthServers() ([]types.Server, error)
-
-	// ListAuthServers returns a paginated list of registered auth servers.
-	ListAuthServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error)
 
 	// UpsertAuthServer registers auth server presence, permanently if ttl is 0 or
 	// for the specified duration with second resolution if it's >= 1 second
@@ -108,23 +91,55 @@ type Presence interface {
 	// DeleteAuthServer deletes auth server by name
 	DeleteAuthServer(name string) error
 
+	// DeleteAllAuthServers deletes all auth servers
+	DeleteAllAuthServers() error
+
+	// UpsertProxy registers proxy server presence, permanently if ttl is 0 or
+	// for the specified duration with second resolution if it's >= 1 second
+	UpsertProxy(ctx context.Context, server types.Server) error
+
 	// ProxyGetter gets a list of proxies
 	ProxyGetter
 
-	// DeleteProxyServer deletes proxy by name
-	DeleteProxyServer(ctx context.Context, name string) error
+	// DeleteProxy deletes proxy by name
+	DeleteProxy(ctx context.Context, name string) error
+
+	// DeleteAllProxies deletes all proxies
+	DeleteAllProxies() error
 
 	// UpsertReverseTunnel upserts reverse tunnel entry temporarily or permanently
-	UpsertReverseTunnel(ctx context.Context, tunnel types.ReverseTunnel) (types.ReverseTunnel, error)
+	UpsertReverseTunnel(ctx context.Context, tunnel types.ReverseTunnel) error
 
 	// GetReverseTunnel returns reverse tunnel by name
 	GetReverseTunnel(ctx context.Context, name string) (types.ReverseTunnel, error)
 
-	// DeleteReverseTunnel deletes reverse tunnel by its domain name
+	// GetReverseTunnels returns a list of registered servers
+	// Deprecated: use ListReverseTunnels
+	GetReverseTunnels(ctx context.Context) ([]types.ReverseTunnel, error)
+
+	// DeleteReverseTunnel deletes reverse tunnel by it's domain name
 	DeleteReverseTunnel(ctx context.Context, domainName string) error
+
+	// DeleteAllReverseTunnels deletes all reverse tunnels
+	DeleteAllReverseTunnels(ctx context.Context) error
 
 	// ListReverseTunnels returns a page of ReverseTunnels.
 	ListReverseTunnels(ctx context.Context, pageSize int, pageToken string) ([]types.ReverseTunnel, string, error)
+
+	// GetNamespaces returns a list of namespaces
+	GetNamespaces() ([]types.Namespace, error)
+
+	// GetNamespace returns namespace by name
+	GetNamespace(name string) (*types.Namespace, error)
+
+	// DeleteAllNamespaces deletes all namespaces
+	DeleteAllNamespaces() error
+
+	// UpsertNamespace upserts namespace
+	UpsertNamespace(types.Namespace) error
+
+	// DeleteNamespace deletes namespace by name
+	DeleteNamespace(name string) error
 
 	// GetServerInfos returns a stream of ServerInfos.
 	GetServerInfos(ctx context.Context) stream.Stream[types.ServerInfo]
@@ -185,13 +200,6 @@ type Presence interface {
 	// DeleteAllWindowsDesktopServices removes all Windows desktop services.
 	DeleteAllWindowsDesktopServices(context.Context) error
 
-	// GetRelayServer returns the relay server heartbeat with a given name.
-	GetRelayServer(ctx context.Context, name string) (*presencev1.RelayServer, error)
-	// ListRelayServers returns a paginated list of relay server heartbeats.
-	ListRelayServers(ctx context.Context, pageSize int, pageToken string) (_ []*presencev1.RelayServer, nextPageToken string, _ error)
-	// DeleteRelayServer deletes a relay server heartbeat by name.
-	DeleteRelayServer(ctx context.Context, name string) error
-
 	// ListResources returns a paginated list of resources.
 	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 }
@@ -201,43 +209,8 @@ type PresenceInternal interface {
 	Presence
 	InventoryInternal
 
-	// UpsertProxyServer registers proxy server presence, permanently if ttl is
-	// 0 or for the specified duration with second resolution if it's >= 1
-	// second. It returns the upserted server with its revision populated.
-	UpsertProxyServer(ctx context.Context, server types.Server) (types.Server, error)
-
 	UpsertHostUserInteractionTime(ctx context.Context, name string, loginTime time.Time) error
 	GetHostUserInteractionTime(ctx context.Context, name string) (time.Time, error)
+	UpsertReverseTunnelV2(ctx context.Context, tunnel types.ReverseTunnel) (types.ReverseTunnel, error)
 	UpdateNode(ctx context.Context, server types.Server) (types.Server, error)
-
-	// UpsertRelayServer creates or updates a relay server heartbeat, unconditionally.
-	UpsertRelayServer(ctx context.Context, relayServer *presencev1.RelayServer) (*presencev1.RelayServer, error)
-
-	// UnconditionalUpdateApplicationServer writes an app_server if one with the
-	// same host ID and name exists in storage, no matter its contents (i.e., it
-	// doesn't check the revision of the app_server in storage).
-	UnconditionalUpdateApplicationServer(ctx context.Context, server types.AppServer) (types.AppServer, error)
-
-	// AppendPutNodeActions adds conditional actions to an atomic write to create
-	// or update a node resource.
-	AppendPutNodeActions(
-		actions []backend.ConditionalAction,
-		server types.Server,
-		condition backend.Condition,
-	) ([]backend.ConditionalAction, error)
-
-	// AppendDeleteNodeActions adds conditional actions to an atomic write to
-	// delete a node resource.
-	AppendDeleteNodeActions(
-		actions []backend.ConditionalAction,
-		namespace string,
-		name string,
-		condition backend.Condition,
-	) ([]backend.ConditionalAction, error)
-
-	// RangeDatabaseServersWithName returns an iterator over database proxy servers for a given database name.
-	RangeDatabaseServersWithName(ctx context.Context, databaseName string) iter.Seq2[types.DatabaseServer, error]
-
-	// RangeKubernetesServersWithName returns an iterator over kubernetes servers for a given cluster name.
-	RangeKubernetesServersWithName(ctx context.Context, clusterName string) iter.Seq2[types.KubeServer, error]
 }

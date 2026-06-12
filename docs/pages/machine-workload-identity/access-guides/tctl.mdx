@@ -5,7 +5,6 @@ description: How to use Machine & Workload Identity with tctl to manage your Tel
 tags:
  - how-to
  - mwi
- - infrastructure-identity
 ---
 
 {/* lint disable page-structure remark-lint */}
@@ -14,7 +13,7 @@ tags:
 credentials from the locally logged in user, it is also possible to use
 credentials issued by Machine & Workload Identity. This allows `tctl` to be
 leveraged as part of a custom automation workflow deployed in a non-interactive
-environment (e.g. CI/CD).
+environment (e.g CI/CD).
 
 In this guide, you will configure `tbot` to produce credentials for `tctl`, and
 then use `tctl` to deploy Teleport roles defined in files.
@@ -98,7 +97,9 @@ services:
     path: /opt/machine-id
 ```
 
-(!docs/pages/includes/machine-id/reload-tbot.mdx resource="the generated credentials"!)
+If operating `tbot` as a background service, restart it. If running `tbot` in
+one-shot mode, it must be executed before you attempt to execute the Terraform
+plan later.
 
 You should now see an `identity` file under `/opt/machine-id`. This contains
 the private key and signed certificates needed by `tctl` to
@@ -149,5 +150,5 @@ $ tctl get role/tctl-test
 
 - Explore the [`tctl` reference](../../reference/cli/tctl.mdx) to discover all
   `tctl` can do.
-- Read the [configuration reference](../../reference/machine-workload-identity/configuration.mdx) to explore
+- Read the [configuration reference](../../reference/machine-id/configuration.mdx) to explore
   all the available `tbot` configuration options.

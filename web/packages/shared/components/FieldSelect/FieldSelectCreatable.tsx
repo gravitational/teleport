@@ -44,7 +44,6 @@ import {
  * @param {boolean} markAsError - manually mark the component as error.
  * @param {string} placeholder - placeholder value.
  * @param {string} formatCreateLabel - custom formatting for create label.
- * @param {StylesConfig} stylesConfig - custom styles for the inner select component.
  * @returns SelectCreatable
  */
 export function FieldSelectCreatable<
@@ -58,12 +57,11 @@ export function FieldSelectCreatable<
     Group,
     typeof props
   >(props, {});
-  const { formatCreateLabel, filterOption, ...styles } = others;
+  const { formatCreateLabel, ...styles } = others;
   return (
     <FieldSelectWrapper {...wrapper} {...styles}>
       <SelectCreatable<Opt, IsMulti, Group>
         {...base}
-        filterOption={filterOption}
         formatCreateLabel={formatCreateLabel}
       />
     </FieldSelectWrapper>

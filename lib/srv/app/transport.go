@@ -20,6 +20,7 @@ package app
 
 import (
 	"context"
+	"crypto/tls"
 	"io"
 	"log/slog"
 	"net"
@@ -35,10 +36,10 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/app/common"
-	"github.com/gravitational/teleport/lib/srv/app/upstreamtls"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -49,17 +50,14 @@ const responseHeaderTimeout = time.Hour
 
 // transportConfig is configuration for a rewriting transport.
 type transportConfig struct {
-	app           types.Application
-	publicPort    string
-	cipherSuites  []uint16
-	jwt           string
-	rewriteTraits wrappers.Traits
-	log           *slog.Logger
+	app          types.Application
+	publicPort   string
+	cipherSuites []uint16
+	jwt          string
+	traits       wrappers.Traits
+	log          *slog.Logger
 	// hostID is purely for troubleshooting purposes (put in the error messages)
-	hostID              string
-	insecureMode        bool
-	clusterName         string
-	certAuthorityGetter upstreamtls.CertificateAuthorityGetter
+	hostID string
 }
 
 // Check validates configuration.
@@ -75,12 +73,6 @@ func (c *transportConfig) Check() error {
 	}
 	if c.log == nil {
 		c.log = slog.With(teleport.ComponentKey, "transport")
-	}
-	if c.clusterName == "" {
-		return trace.BadParameter("cluster name missing")
-	}
-	if c.certAuthorityGetter == nil {
-		return trace.BadParameter("cert authority getter missing")
 	}
 
 	return nil
@@ -118,14 +110,7 @@ func newTransport(ctx context.Context, c *transportConfig) (*transport, error) {
 
 	tr.ResponseHeaderTimeout = responseHeaderTimeout
 
-	tr.TLSClientConfig, err = upstreamtls.Configure(ctx, upstreamtls.Options{
-		Logger:       c.log,
-		CAGetter:     c.certAuthorityGetter,
-		ClusterName:  c.clusterName,
-		App:          c.app,
-		CipherSuites: c.cipherSuites,
-		InsecureMode: c.insecureMode,
-	})
+	tr.TLSClientConfig, err = configureTLS(c)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -221,12 +206,43 @@ func (t *transport) rewriteRequest(r *http.Request) error {
 	r.URL.Scheme = t.uri.Scheme
 	r.URL.Host = t.uri.Host
 
-	// Add in JWT headers.
-	r.Header.Set(teleport.AppJWTHeader, t.jwt)
 	// Add headers from rewrite configuration.
-	rewriteHeaders := common.AppRewriteHeaders(r.Context(), t.app.GetRewrite(), t.log)
-	services.RewriteHeadersAndApplyValueTraits(r, rewriteHeaders, t.rewriteTraits, t.log)
+	rewriteHeaders(r, t.transportConfig)
+
 	return nil
+}
+
+// rewriteHeaders applies headers rewrites from the application configuration.
+func rewriteHeaders(r *http.Request, c *transportConfig) {
+	// Add in JWT headers.
+	r.Header.Set(teleport.AppJWTHeader, c.jwt)
+
+	if c.app.GetRewrite() == nil || len(c.app.GetRewrite().Headers) == 0 {
+		return
+	}
+	for _, header := range c.app.GetRewrite().Headers {
+		if common.IsReservedHeader(header.Name) {
+			c.log.DebugContext(r.Context(), "Not rewriting Teleport reserved header", "header_name", header.Name)
+			continue
+		}
+		values, err := services.ApplyValueTraits(header.Value, c.traits)
+		if err != nil {
+			c.log.DebugContext(r.Context(), "Failed to apply traits",
+				"header_value", header.Value,
+				"error", err,
+			)
+			continue
+		}
+		r.Header.Del(header.Name)
+		for _, value := range values {
+			switch http.CanonicalHeaderKey(header.Name) {
+			case teleport.HostHeader:
+				r.Host = value
+			default:
+				r.Header.Add(header.Name, value)
+			}
+		}
+	}
 }
 
 // needsPathRedirect checks if the request should be redirected to a different path.
@@ -299,6 +315,19 @@ func (t *transport) rewriteRedirect(resp *http.Response) error {
 	return nil
 }
 
+// configureTLS creates and configures a *tls.Config that will be used for
+// mutual authentication.
+func configureTLS(c *transportConfig) (*tls.Config, error) {
+	tlsConfig := utils.TLSConfig(c.cipherSuites)
+
+	// Don't verify the server's certificate if Teleport was started with
+	// the --insecure flag, or 'insecure_skip_verify' was specifically requested in
+	// the application config.
+	tlsConfig.InsecureSkipVerify = (lib.IsInsecureDevMode() || c.app.GetInsecureSkipVerify())
+
+	return tlsConfig, nil
+}
+
 // host returns the host from a host:port string.
 func host(addr string) string {
 	host, _, err := net.SplitHostPort(addr)
@@ -311,9 +340,9 @@ func host(addr string) string {
 // charWrap wraps a line to about 80 characters to make it easier to read.
 func charWrap(message string) string {
 	var sb strings.Builder
-	for line := range strings.SplitSeq(message, "\n") {
+	for _, line := range strings.Split(message, "\n") {
 		var n int
-		for word := range strings.FieldsSeq(line) {
+		for _, word := range strings.Fields(line) {
 			sb.WriteString(word)
 			sb.WriteString(" ")
 

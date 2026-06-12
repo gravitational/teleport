@@ -21,7 +21,9 @@ import {
   ResourceIconName,
   resourceIconSpecs,
 } from 'design/ResourceIcon';
-import { AppSubKind } from 'shared/services';
+
+// oxlint-disable-next-line no-restricted-imports
+import { AppSubKind } from 'teleport/services/apps';
 
 import { UnifiedResourceApp } from '../types';
 
@@ -39,20 +41,17 @@ export function guessAppIcon(resource: UnifiedResourceApp): ResourceIconName {
     return labelIconValue as ResourceIconName;
   }
 
-  const app = {
-    name: withoutWhiteSpaces(name)?.toLocaleLowerCase(),
-    friendlyName: withoutWhiteSpaces(friendlyName)?.toLocaleLowerCase(),
-  };
-
   if (awsConsole) {
-    if (match('quick', app) && (match('sight', app) || match('suite', app))) {
-      return 'awsquicksight';
-    }
-    return 'awsidentityandaccessmanagementiam';
+    return 'aws';
   }
   if (subKind === AppSubKind.AwsIcAccount) {
     return 'awsaccount';
   }
+
+  const app = {
+    name: withoutWhiteSpaces(name)?.toLocaleLowerCase(),
+    friendlyName: withoutWhiteSpaces(friendlyName)?.toLocaleLowerCase(),
+  };
 
   // Try a direct lookup first.
   if (resourceIconSpecs[app.name]) {
@@ -79,15 +78,11 @@ export function guessAppIcon(resource: UnifiedResourceApp): ResourceIconName {
     if (match('calendar', app)) return 'googlecalendar';
     if (match('cloud', app)) return 'googlecloud';
     if (match('drive', app)) return 'googledrive';
-    if (match('gemini', app)) return 'gemini';
     if (match('tag', app)) return 'googletag';
     if (match('voice', app)) return 'googlevoice';
     return 'google'; // generic
   }
   if (match('microsoft', app)) {
-    if (match('active', app)) return 'microsoftactivedirectory';
-    if (match('ad', app)) return 'microsoftactivedirectory';
-    if (match('code', app)) return 'microsoftvisualstudiocode';
     if (match('excel', app)) return 'microsoftexcel';
     if (match('drive', app)) return 'microsoftonedrive';
     if (match('note', app)) return 'microsoftonenote';

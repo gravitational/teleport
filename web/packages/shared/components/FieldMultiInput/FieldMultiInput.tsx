@@ -24,7 +24,6 @@ import { ButtonSecondary } from 'design/Button';
 import ButtonIcon from 'design/ButtonIcon';
 import Flex from 'design/Flex';
 import * as Icon from 'design/Icon';
-import { inputGeometry } from 'design/Input/Input';
 import { LabelContent } from 'design/LabelInput/LabelInput';
 import { useRule } from 'shared/components/Validation';
 import {
@@ -48,17 +47,8 @@ type StringListValidationResult = ValidationResult & {
 
 export type FieldMultiInputProps = {
   label?: string;
-  placeholder?: string;
   value: string[];
-  /**
-   * Disables and mutes all controls and values.
-   */
   disabled?: boolean;
-  /**
-   * Disables inputs and hides controls
-   * but does not mute values.
-   */
-  readOnly?: boolean;
   /** Adds a required field indicator to the label. */
   required?: boolean;
   tooltipContent?: ReactNode;
@@ -77,10 +67,8 @@ export type FieldMultiInputProps = {
  */
 export function FieldMultiInput({
   label,
-  placeholder,
   value,
   disabled,
-  readOnly,
   required,
   tooltipContent,
   tooltipSticky,
@@ -101,7 +89,7 @@ export function FieldMultiInput({
 
   const theme = useTheme();
   // Index of the input to be focused after the next rendering.
-  const toFocus = useRef<number | undefined>(undefined);
+  const toFocus = useRef<number | undefined>();
 
   const setFocus = (element: HTMLInputElement) => {
     element?.focus();
@@ -163,11 +151,10 @@ export function FieldMultiInput({
             // difficult to use) or to keep the array with generated IDs as local
             // state (which would require us to write a prop/state reconciliation
             // procedure whose complexity would probably outweigh the benefits).
-            <Flex key={i} alignItems="start" gap={2}>
+            <Flex key={i} alignItems="center" gap={2}>
               <Box flex="1">
                 <FieldInput
                   value={val}
-                  placeholder={placeholder}
                   rule={precomputed(vr)}
                   ref={toFocus.current === i ? setFocus : null}
                   onChange={e =>
@@ -177,42 +164,28 @@ export function FieldMultiInput({
                   }
                   onKeyDown={e => handleKeyDown(i, e)}
                   mb={0}
-                  readonly={readOnly}
-                  disabled={disabled}
                 />
               </Box>
-              {!readOnly && (
-                // Match input height to keep 'X' icon centered
-                // when validation errors are present.
-                <Flex
-                  alignItems="center"
-                  height={inputGeometry['medium'].height}
-                >
-                  <ButtonIcon
-                    size={0}
-                    title="Remove Item"
-                    onClick={() => removeItem(i)}
-                    disabled={disabled}
-                  >
-                    <Icon.Cross size="small" color={theme.colors.text.muted} />
-                  </ButtonIcon>
-                </Flex>
-              )}
+              <ButtonIcon
+                size="0"
+                title="Remove Item"
+                onClick={() => removeItem(i)}
+                disabled={disabled}
+              >
+                <Icon.Cross size="small" color={theme.colors.text.muted} />
+              </ButtonIcon>
             </Flex>
           );
         })}
-        {!readOnly && (
-          <ButtonSecondary
-            alignSelf="start"
-            size="small"
-            $inputAlignment
-            onClick={() => insertItem(value.length)}
-            disabled={disabled}
-          >
-            <Icon.Plus size="small" mr={2} />
-            Add More
-          </ButtonSecondary>
-        )}
+        <ButtonSecondary
+          alignSelf="start"
+          size="small"
+          inputAlignment
+          onClick={() => insertItem(value.length)}
+        >
+          <Icon.Plus size="small" mr={2} />
+          Add More
+        </ButtonSecondary>
       </Fieldset>
     </Box>
   );

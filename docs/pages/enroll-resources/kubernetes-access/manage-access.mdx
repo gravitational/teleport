@@ -1,11 +1,9 @@
 ---
 title: Setting Up Access Controls for Kubernetes
-sidebar_label: Access Controls Guide
 description: How to configure Teleport roles to access clusters, groups, users, and resources in Kubernetes.
 tags:
  - how-to
  - zero-trust
- - privileged-access
 ---
 
 The Teleport Kubernetes Service is a proxy that sits between Kubernetes users
@@ -13,7 +11,7 @@ and one or more Kubernetes clusters.
 
 In this guide, we will use a local Kubernetes cluster to show you how to
 configure Teleport's role-based access control (RBAC) system to manage access to
-Kubernetes clusters, groups, users, and resources.
+Kubernetes clusers, groups, users, and resources.
 
 ## How it works
 
@@ -459,6 +457,6 @@ Now that you know how to configure Teleport's RBAC system to control access to
 Kubernetes clusters, learn how to set up [Resource Access
 Requests](../../identity-governance/access-requests/resource-requests.mdx)
 for just-in-time access and [Access Request
-plugins](../../identity-governance/access-requests/plugins/plugins.mdx) so you can manage
+plugins](../../identity-governance/access-request-plugins/access-request-plugins.mdx) so you can manage
 access with your communication workflow of choice.
 

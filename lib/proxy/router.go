@@ -21,7 +21,6 @@ package proxy
 import (
 	"bytes"
 	"context"
-	"log/slog"
 	"math/rand/v2"
 	"net"
 	"os"
@@ -29,11 +28,12 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -43,8 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/desktop"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
-	"github.com/gravitational/teleport/lib/scopes"
-	"github.com/gravitational/teleport/lib/scopes/pinning"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/utils"
@@ -103,13 +102,13 @@ func (c *ProxiedMetricConn) Close() error {
 	return trace.Wrap(c.Conn.Close())
 }
 
-type serverResolverFn = func(ctx context.Context, scopePin *scopesv1.Pin, host, port string, cluster cluster) (types.Server, error)
+type serverResolverFn = func(ctx context.Context, host, port string, site site) (types.Server, error)
 type windowsDesktopServiceConnectorFn = func(ctx context.Context, config *desktop.ConnectionConfig) (conn net.Conn, version string, err error)
 
-// ClusterGetter provides access to connected local or remote clusters.
-type ClusterGetter interface {
-	// Cluster returns the cluster matching the provided clusterName
-	Cluster(ctx context.Context, clusterName string) (reversetunnelclient.Cluster, error)
+// SiteGetter provides access to connected local or remote sites
+type SiteGetter interface {
+	// GetSite returns the site matching the provided clusterName
+	GetSite(clusterName string) (reversetunnelclient.RemoteSite, error)
 }
 
 // LocalAccessPoint provides access to remote cluster resources
@@ -125,14 +124,14 @@ type LocalAccessPoint interface {
 type RouterConfig struct {
 	// ClusterName indicates which cluster the router is for
 	ClusterName string
+	// Log is the logger to use
+	Log *logrus.Entry
 	// LocalAccessPoint is the proxy cache
 	LocalAccessPoint LocalAccessPoint
-	// ClusterGetter allows looking up clusters
-	ClusterGetter ClusterGetter
+	// SiteGetter allows looking up sites
+	SiteGetter SiteGetter
 	// TracerProvider allows tracers to be created
 	TracerProvider oteltrace.TracerProvider
-	// Log is an optional logger. A default logger will be created if not set.
-	Logger *slog.Logger
 
 	// serverResolver is used to resolve hosts, used by tests
 	serverResolver serverResolverFn
@@ -142,6 +141,10 @@ type RouterConfig struct {
 
 // CheckAndSetDefaults ensures the required items were populated
 func (c *RouterConfig) CheckAndSetDefaults() error {
+	if c.Log == nil {
+		c.Log = logrus.WithField(teleport.ComponentKey, "Router")
+	}
+
 	if c.ClusterName == "" {
 		return trace.BadParameter("ClusterName must be provided")
 	}
@@ -150,7 +153,7 @@ func (c *RouterConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("LocalAccessPoint must be provided")
 	}
 
-	if c.ClusterGetter == nil {
+	if c.SiteGetter == nil {
 		return trace.BadParameter("SiteGetter must be provided")
 	}
 
@@ -166,10 +169,6 @@ func (c *RouterConfig) CheckAndSetDefaults() error {
 		c.windowsDesktopServiceConnector = desktop.ConnectToWindowsService
 	}
 
-	if c.Logger == nil {
-		c.Logger = slog.Default()
-	}
-
 	return nil
 }
 
@@ -177,11 +176,11 @@ func (c *RouterConfig) CheckAndSetDefaults() error {
 // nodes, desktops, and other clusters.
 type Router struct {
 	clusterName                    string
+	log                            *logrus.Entry
 	localAccessPoint               LocalAccessPoint
-	localCluster                   reversetunnelclient.Cluster
-	clusterGetter                  ClusterGetter
+	localSite                      reversetunnelclient.RemoteSite
+	siteGetter                     SiteGetter
 	tracer                         oteltrace.Tracer
-	log                            *slog.Logger
 	serverResolver                 serverResolverFn
 	windowsDesktopServiceConnector windowsDesktopServiceConnectorFn
 }
@@ -193,18 +192,18 @@ func NewRouter(cfg RouterConfig) (*Router, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	localCluster, err := cfg.ClusterGetter.Cluster(context.Background(), cfg.ClusterName)
+	localSite, err := cfg.SiteGetter.GetSite(cfg.ClusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &Router{
 		clusterName:                    cfg.ClusterName,
+		log:                            cfg.Log,
 		localAccessPoint:               cfg.LocalAccessPoint,
-		localCluster:                   localCluster,
-		clusterGetter:                  cfg.ClusterGetter,
+		localSite:                      localSite,
+		siteGetter:                     cfg.SiteGetter,
 		tracer:                         cfg.TracerProvider.Tracer("Router"),
-		log:                            cfg.Logger,
 		serverResolver:                 cfg.serverResolver,
 		windowsDesktopServiceConnector: cfg.windowsDesktopServiceConnector,
 	}, nil
@@ -213,7 +212,7 @@ func NewRouter(cfg RouterConfig) (*Router, error) {
 // DialHost dials the node that matches the provided host, port and cluster. If no matching node
 // is found an error is returned. If more than one matching node is found and the cluster networking
 // configuration is not set to route to the most recent an error is returned.
-func (r *Router) DialHost(ctx context.Context, scopePin *scopesv1.Pin, clientSrcAddr, clientDstAddr net.Addr, host, port, clusterName string, clusterAccessChecker func(types.RemoteCluster) error, agentGetter sshagent.ClientGetter, signer agentless.SignerCreator) (_ net.Conn, err error) {
+func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, clusterName string, accessChecker services.AccessChecker, agentGetter sshagent.ClientGetter, signer agentless.SignerCreator) (_ net.Conn, err error) {
 	ctx, span := r.tracer.Start(
 		ctx,
 		"router/DialHost",
@@ -231,20 +230,17 @@ func (r *Router) DialHost(ctx context.Context, scopePin *scopesv1.Pin, clientSrc
 		tracing.EndSpan(span, err)
 	}()
 
-	cluster := r.localCluster
+	site := r.localSite
 	if clusterName != r.clusterName {
-		if scopePin != nil {
-			return nil, trace.AccessDenied("identity pinned to scope %q cannot dial remote cluster %q (scoping does not support cross-cluster operations)", scopePin.GetScope(), clusterName)
-		}
-		remoteCluster, err := r.getRemoteCluster(ctx, clusterName, clusterAccessChecker)
+		remoteSite, err := r.getRemoteCluster(ctx, clusterName, accessChecker)
 		if err != nil {
 			return nil, trace.Wrap(err, "looking up remote cluster %q", clusterName)
 		}
-		cluster = remoteCluster
+		site = remoteSite
 	}
 
 	span.AddEvent("looking up server")
-	target, err := r.serverResolver(ctx, scopePin, host, port, fakeCluster{cluster})
+	target, err := r.serverResolver(ctx, host, port, remoteSite{site})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -278,27 +274,35 @@ func (r *Router) DialHost(ctx context.Context, scopePin *scopesv1.Pin, clientSrc
 
 	// If the node is a registered openssh node don't set agentGetter
 	// so a SSH user agent will not be created when connecting to the remote node.
-	var agentlessSignerCreator agentless.SignerCreator
+	var sshSigner ssh.Signer
 	if target.IsOpenSSHNode() {
 		agentGetter = nil
+
 		if target.GetSubKind() == types.SubKindOpenSSHNode {
-			agentlessSignerCreator = signer
+			// If the node is of SubKindOpenSSHNode, create the signer.
+			client, err := r.GetSiteClient(ctx, clusterName)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			sshSigner, err = signer(ctx, r.localAccessPoint, client)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
 	}
 
-	conn, err := cluster.Dial(reversetunnelclient.DialParams{
-		From:                   clientSrcAddr,
-		To:                     &utils.NetAddr{AddrNetwork: "tcp", Addr: serverAddr},
-		OriginalClientDstAddr:  clientDstAddr,
-		GetUserAgent:           agentGetter,
-		AgentlessSignerCreator: agentlessSignerCreator,
-		Address:                host,
-		Principals:             apiutils.Deduplicate(principals),
-		ServerID:               serverID,
-		ProxyIDs:               target.GetProxyIDs(),
-		ConnType:               types.NodeTunnel,
-		TargetServer:           target,
-		TargetScope:            target.GetScope(),
+	conn, err := site.Dial(reversetunnelclient.DialParams{
+		From:                  clientSrcAddr,
+		To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: serverAddr},
+		OriginalClientDstAddr: clientDstAddr,
+		GetUserAgent:          agentGetter,
+		AgentlessSigner:       sshSigner,
+		Address:               host,
+		Principals:            apiutils.Deduplicate(principals),
+		ServerID:              serverID,
+		ProxyIDs:              target.GetProxyIDs(),
+		ConnType:              types.NodeTunnel,
+		TargetServer:          target,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -311,7 +315,7 @@ func (r *Router) DialHost(ctx context.Context, scopePin *scopesv1.Pin, clientSrc
 
 // DialWindowsDesktop dials the desktop that matches the provided desktop name and cluster.
 // If no matching desktop is found, an error is returned.
-func (r *Router) DialWindowsDesktop(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, desktopName, clusterName string, clusterAccessChecker func(types.RemoteCluster) error) (_ net.Conn, err error) {
+func (r *Router) DialWindowsDesktop(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, desktopName, clusterName string, checker services.AccessChecker) (_ net.Conn, err error) {
 	ctx, span := r.tracer.Start(
 		ctx,
 		"router/DialWindowsDesktop",
@@ -322,16 +326,16 @@ func (r *Router) DialWindowsDesktop(ctx context.Context, clientSrcAddr, clientDs
 	)
 	defer func() { tracing.EndSpan(span, err) }()
 
-	cluster := r.localCluster
+	site := r.localSite
 	if clusterName != r.clusterName {
-		remoteCluster, err := r.getRemoteCluster(ctx, clusterName, clusterAccessChecker)
+		remoteSite, err := r.getRemoteCluster(ctx, clusterName, checker)
 		if err != nil {
 			return nil, trace.Wrap(err, "looking up remote cluster %q", clusterName)
 		}
-		cluster = remoteCluster
+		site = remoteSite
 	}
 
-	accessPoint, err := cluster.CachingAccessPoint()
+	accessPoint, err := site.CachingAccessPoint()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -341,7 +345,7 @@ func (r *Router) DialWindowsDesktop(ctx context.Context, clientSrcAddr, clientDs
 	serviceConn, _, err := r.windowsDesktopServiceConnector(ctx, &desktop.ConnectionConfig{
 		Log:            r.log,
 		DesktopsGetter: accessPoint,
-		Cluster:        cluster,
+		Site:           site,
 		ClientSrcAddr:  clientSrcAddr,
 		ClientDstAddr:  clientDstAddr,
 		ClusterName:    clusterName,
@@ -394,9 +398,9 @@ func (c *checkedPrefixWriter) Write(p []byte) (int, error) {
 	return n, trace.Wrap(err)
 }
 
-// getRemoteCluster looks up the provided clusterName to determine if a remote cluster exists with
+// getRemoteCluster looks up the provided clusterName to determine if a remote site exists with
 // that name and determines if the user has access to it.
-func (r *Router) getRemoteCluster(ctx context.Context, clusterName string, clusterAccessChecker func(types.RemoteCluster) error) (reversetunnelclient.Cluster, error) {
+func (r *Router) getRemoteCluster(ctx context.Context, clusterName string, checker services.AccessChecker) (reversetunnelclient.RemoteSite, error) {
 	_, span := r.tracer.Start(
 		ctx,
 		"router/getRemoteCluster",
@@ -406,7 +410,7 @@ func (r *Router) getRemoteCluster(ctx context.Context, clusterName string, clust
 	)
 	defer span.End()
 
-	cluster, err := r.clusterGetter.Cluster(ctx, clusterName)
+	site, err := r.siteGetter.GetSite(clusterName)
 	if err != nil {
 		return nil, utils.OpaqueAccessDenied(err)
 	}
@@ -416,30 +420,30 @@ func (r *Router) getRemoteCluster(ctx context.Context, clusterName string, clust
 		return nil, utils.OpaqueAccessDenied(err)
 	}
 
-	if err := clusterAccessChecker(rc); err != nil {
+	if err := checker.CheckAccessToRemoteCluster(rc); err != nil {
 		return nil, utils.OpaqueAccessDenied(err)
 	}
 
-	return cluster, nil
+	return site, nil
 }
 
-// cluster is the minimum interface needed to match servers
-// for a reversetunnelclient.Cluster. It makes testing easier.
-type cluster interface {
+// site is the minimum interface needed to match servers
+// for a reversetunnelclient.RemoteSite. It makes testing easier.
+type site interface {
 	GetNodes(ctx context.Context, fn func(n readonly.Server) bool) ([]types.Server, error)
 	GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error)
 	GetGitServers(context.Context, func(readonly.Server) bool) ([]types.Server, error)
 }
 
-// fakeCluster is a cluster implementation that wraps
-// a reversetunnelclient.Cluster
-type fakeCluster struct {
-	cluster reversetunnelclient.Cluster
+// remoteSite is a site implementation that wraps
+// a reversetunnelclient.RemoteSite
+type remoteSite struct {
+	site reversetunnelclient.RemoteSite
 }
 
-// GetNodes uses the wrapped cluster's NodeWatcher to filter nodes
-func (r fakeCluster) GetNodes(ctx context.Context, fn func(n readonly.Server) bool) ([]types.Server, error) {
-	watcher, err := r.cluster.NodeWatcher()
+// GetNodes uses the wrapped sites NodeWatcher to filter nodes
+func (r remoteSite) GetNodes(ctx context.Context, fn func(n readonly.Server) bool) ([]types.Server, error) {
+	watcher, err := r.site.NodeWatcher()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -448,9 +452,9 @@ func (r fakeCluster) GetNodes(ctx context.Context, fn func(n readonly.Server) bo
 	return servers, trace.Wrap(err)
 }
 
-// GetGitServers uses the wrapped cluster's GitServerWatcher to filter git servers.
-func (r fakeCluster) GetGitServers(ctx context.Context, fn func(n readonly.Server) bool) ([]types.Server, error) {
-	watcher, err := r.cluster.GitServerWatcher()
+// GetGitServers uses the wrapped sites GitServerWatcher to filter git servers.
+func (r remoteSite) GetGitServers(ctx context.Context, fn func(n readonly.Server) bool) ([]types.Server, error) {
+	watcher, err := r.site.GitServerWatcher()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -458,9 +462,9 @@ func (r fakeCluster) GetGitServers(ctx context.Context, fn func(n readonly.Serve
 	return watcher.CurrentResourcesWithFilter(ctx, fn)
 }
 
-// GetClusterNetworkingConfig uses the wrapped cluster's cache to retrieve the ClusterNetworkingConfig
-func (r fakeCluster) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
-	ap, err := r.cluster.CachingAccessPoint()
+// GetClusterNetworkingConfig uses the wrapped sites cache to retrieve the ClusterNetworkingConfig
+func (r remoteSite) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
+	ap, err := r.site.CachingAccessPoint()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -470,30 +474,27 @@ func (r fakeCluster) GetClusterNetworkingConfig(ctx context.Context) (types.Clus
 }
 
 // getServer attempts to locate a node matching the provided host and port in
-// the provided cluster.
-func getServer(ctx context.Context, scopePin *scopesv1.Pin, host, port string, cluster cluster) (types.Server, error) {
+// the provided site.
+func getServer(ctx context.Context, host, port string, site site) (types.Server, error) {
 	if org, ok := types.GetGitHubOrgFromNodeAddr(host); ok {
-		if scopePin != nil {
-			return nil, trace.AccessDenied("identity pinned to scope %q cannot dial github server for %q (scoped identities not supported)", scopePin.GetScope(), org)
-		}
-		return getGitHubServer(ctx, org, cluster)
+		return getGitHubServer(ctx, org, site)
 	}
-	return getServerWithResolver(ctx, scopePin, host, port, cluster, nil /* use default resolver */)
+	return getServerWithResolver(ctx, host, port, site, nil /* use default resolver */)
 }
 
 var disableUnqualifiedLookups = os.Getenv("TELEPORT_UNSTABLE_DISABLE_UNQUALIFIED_LOOKUPS") == "yes"
 
 // getServerWithResolver attempts to locate a node matching the provided host and port in
-// the provided cluster. The resolver argument is used in certain tests to mock DNS resolution
+// the provided site. The resolver argument is used in certain tests to mock DNS resolution
 // and can generally be left nil.
-func getServerWithResolver(ctx context.Context, scopePin *scopesv1.Pin, host, port string, cluster cluster, resolver apiutils.HostResolver) (types.Server, error) {
-	if cluster == nil {
-		return nil, trace.BadParameter("invalid remote cluster provided")
+func getServerWithResolver(ctx context.Context, host, port string, site site, resolver apiutils.HostResolver) (types.Server, error) {
+	if site == nil {
+		return nil, trace.BadParameter("invalid remote site provided")
 	}
 
 	strategy := types.RoutingStrategy_UNAMBIGUOUS_MATCH
 	var caseInsensitiveRouting bool
-	if cfg, err := cluster.GetClusterNetworkingConfig(ctx); err == nil {
+	if cfg, err := site.GetClusterNetworkingConfig(ctx); err == nil {
 		strategy = cfg.GetRoutingStrategy()
 		caseInsensitiveRouting = cfg.GetCaseInsensitiveRouting()
 	}
@@ -511,22 +512,7 @@ func getServerWithResolver(ctx context.Context, scopePin *scopesv1.Pin, host, po
 
 	var maxScore int
 	scores := make(map[string]int)
-	matches, err := cluster.GetNodes(ctx, func(server readonly.Server) bool {
-		if scopePin != nil {
-			// TODO(fspmarshall/scopes): implement scope-aware node storage. filtering agents based on scope is sub-optimal. scoping
-			// provides a natural machanism for efficiently storing resources in trees s.t. we only need query the subset of resources
-			// that are subject to the target scope. in very large clusters, reworking our node route table storage such that it is
-			// scope-partitioned could provide significant routing performance improvements.
-			agentScope := scopes.Root
-			if server.GetScope() != "" {
-				agentScope = server.GetScope()
-			}
-
-			if !pinning.PinAppliesToResourceScope(scopePin, agentScope) {
-				return false
-			}
-		}
-
+	matches, err := site.GetNodes(ctx, func(server readonly.Server) bool {
 		score := routeMatcher.RouteToServerScore(server)
 		if score < 1 {
 			return false
@@ -551,17 +537,6 @@ func getServerWithResolver(ctx context.Context, scopePin *scopesv1.Pin, host, po
 			}
 		}
 	}
-
-	// NOTE: there is an open question here about wether or not we should be doing scope-aware
-	// disambiguation when multiple matches are found. In some cases, this seems like the obviously
-	// right thing to do.  For example, when there is a match in `/foo` and a match in `/foo/bar`,
-	// it would seem obvious that the match in `/foo` should be preferred per scope hierarchy rules.
-	// However, not all cases are so clear (e.g. `/foo/bar` and `/foo/bax`), and there may be an
-	// argument that disambiguation within the set of scope-subject nodes may inadvertently hide
-	// the nature of scope-based routing and lead to a false sense of security, causing undesirable
-	// outcomes should the node in the parent scope ever go offline. For now, we are opting to leave
-	// scope-aware disambiguation as a future enhancement, in favor of only using scope to exclude those
-	// nodes that would *never* be routable per the provided scope pin.
 
 	if len(matches) > 1 {
 		// in the event of multiple matches, some matches may be of higher quality than others
@@ -631,17 +606,17 @@ func (r *Router) DialSite(ctx context.Context, clusterName string, clientSrcAddr
 
 	// dial the local auth server
 	if clusterName == r.clusterName {
-		conn, err := r.localCluster.DialAuthServer(reversetunnelclient.DialParams{From: clientSrcAddr, OriginalClientDstAddr: clientDstAddr})
+		conn, err := r.localSite.DialAuthServer(reversetunnelclient.DialParams{From: clientSrcAddr, OriginalClientDstAddr: clientDstAddr})
 		return conn, trace.Wrap(err)
 	}
 
-	// lookup the cluster and dial its auth server
-	cluster, err := r.clusterGetter.Cluster(ctx, clusterName)
+	// lookup the site and dial its auth server
+	site, err := r.siteGetter.GetSite(clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	conn, err := cluster.DialAuthServer(reversetunnelclient.DialParams{From: clientSrcAddr, OriginalClientDstAddr: clientDstAddr})
+	conn, err := site.DialAuthServer(reversetunnelclient.DialParams{From: clientSrcAddr, OriginalClientDstAddr: clientDstAddr})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -652,18 +627,18 @@ func (r *Router) DialSite(ctx context.Context, clusterName string, clientSrcAddr
 // GetSiteClient returns an auth client for the provided cluster.
 func (r *Router) GetSiteClient(ctx context.Context, clusterName string) (authclient.ClientI, error) {
 	if clusterName == r.clusterName {
-		return r.localCluster.GetClient()
+		return r.localSite.GetClient()
 	}
 
-	cluster, err := r.clusterGetter.Cluster(ctx, clusterName)
+	site, err := r.siteGetter.GetSite(clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return cluster.GetClient()
+	return site.GetClient()
 }
 
-func getGitHubServer(ctx context.Context, gitHubOrg string, cluster cluster) (types.Server, error) {
-	servers, err := cluster.GetGitServers(ctx, func(s readonly.Server) bool {
+func getGitHubServer(ctx context.Context, gitHubOrg string, site site) (types.Server, error) {
+	servers, err := site.GetGitServers(ctx, func(s readonly.Server) bool {
 		github := s.GetGitHub()
 		return github != nil && github.Organization == gitHubOrg
 	})

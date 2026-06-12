@@ -37,7 +37,6 @@ var AllPluginTypes = []PluginType{
 	PluginTypeOpenAI,
 	PluginTypeOkta,
 	PluginTypeJamf,
-	PluginTypeIntune,
 	PluginTypeJira,
 	PluginTypeOpsgenie,
 	PluginTypePagerDuty,
@@ -63,8 +62,6 @@ const (
 	PluginTypeOkta = "okta"
 	// PluginTypeJamf is the Jamf MDM plugin
 	PluginTypeJamf = "jamf"
-	// PluginTypeIntune is the Intune MDM plugin
-	PluginTypeIntune = "intune"
 	// PluginTypeJira is the Jira access plugin
 	PluginTypeJira = "jira"
 	// PluginTypeOpsgenie is the Opsgenie access request plugin
@@ -77,8 +74,6 @@ const (
 	PluginTypeDiscord = "discord"
 	// PluginTypeGitlab indicates the Gitlab access plugin
 	PluginTypeGitlab = "gitlab"
-	// PluginTypeGithub indicates the Github access plugin
-	PluginTypeGithub = "github"
 	// PluginTypeEntraID indicates the Entra ID sync plugin
 	PluginTypeEntraID = "entra-id"
 	// PluginTypeSCIM indicates a generic SCIM integration
@@ -137,7 +132,6 @@ type PluginCredentials interface {
 type PluginStatus interface {
 	GetCode() PluginStatusCode
 	GetErrorMessage() string
-	GetLastRawError() string
 	GetLastSyncTime() time.Time
 	GetGitlab() *PluginGitlabStatusV1
 	GetEntraId() *PluginEntraIDStatusV1
@@ -183,13 +177,11 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 			// this should validate that credentials are not empty
 			break
 		}
-		if p.Credentials.GetOauth2AccessToken() == nil && p.Credentials.GetStaticCredentialsRef() == nil {
-			return trace.BadParameter("Slack access plugin must be used with either OAuth2 access token, or a static credential")
+		if p.Credentials.GetOauth2AccessToken() == nil {
+			return trace.BadParameter("Slack access plugin can only be used with OAuth2 access token credential type")
 		}
-		if p.Credentials.GetOauth2AccessToken() != nil {
-			if err := p.Credentials.GetOauth2AccessToken().CheckAndSetDefaults(); err != nil {
-				return trace.Wrap(err)
-			}
+		if err := p.Credentials.GetOauth2AccessToken().CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
 		}
 	case *PluginSpecV1_Openai:
 		if p.Credentials == nil {
@@ -251,23 +243,7 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if len(staticCreds.Labels) == 0 {
 			return trace.BadParameter("labels must be specified")
 		}
-	case *PluginSpecV1_Intune:
-		if settings.Intune == nil {
-			return trace.BadParameter("missing Intune settings")
-		}
-		if err := settings.Intune.Validate(); err != nil {
-			return trace.Wrap(err)
-		}
-		if p.Credentials == nil {
-			return trace.BadParameter("credentials must be set")
-		}
-		staticCreds := p.Credentials.GetStaticCredentialsRef()
-		if staticCreds == nil {
-			return trace.BadParameter("Intune plugin must be used with the static credentials ref type")
-		}
-		if len(staticCreds.Labels) == 0 {
-			return trace.BadParameter("labels must be specified")
-		}
+
 	case *PluginSpecV1_Jira:
 		if settings.Jira == nil {
 			return trace.BadParameter("missing Jira settings")
@@ -357,17 +333,12 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if settings.EntraId == nil {
 			return trace.BadParameter("missing Entra ID settings")
 		}
-
 		if err := settings.EntraId.Validate(); err != nil {
 			return trace.Wrap(err)
 		}
 		// backfill the credentials source if it's not set.
 		if settings.EntraId.SyncSettings.CredentialsSource == EntraIDCredentialsSource_ENTRAID_CREDENTIALS_SOURCE_UNKNOWN {
 			settings.EntraId.SyncSettings.CredentialsSource = EntraIDCredentialsSource_ENTRAID_CREDENTIALS_SOURCE_OIDC
-		}
-		// backfill the Access List owners source if it's not set.
-		if settings.EntraId.SyncSettings.AccessListOwnersSource == EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_UNSPECIFIED {
-			settings.EntraId.SyncSettings.AccessListOwnersSource = EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_PLUGIN
 		}
 
 	case *PluginSpecV1_Scim:
@@ -427,17 +398,6 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		}
 		if len(staticCreds.Labels) == 0 {
 			return trace.BadParameter("labels must be specified")
-		}
-	case *PluginSpecV1_Github:
-		if settings.Github == nil {
-			return trace.BadParameter("missing Github settings")
-		}
-		if err := settings.Github.Validate(); err != nil {
-			return trace.Wrap(err)
-		}
-		staticCreds := p.Credentials.GetStaticCredentialsRef()
-		if staticCreds == nil {
-			return trace.BadParameter("Github plugin must be used with the static credentials ref type")
 		}
 	default:
 		return nil
@@ -593,8 +553,6 @@ func (p *PluginV1) GetType() PluginType {
 		return PluginTypeOkta
 	case *PluginSpecV1_Jamf:
 		return PluginTypeJamf
-	case *PluginSpecV1_Intune:
-		return PluginTypeIntune
 	case *PluginSpecV1_Jira:
 		return PluginTypeJira
 	case *PluginSpecV1_Opsgenie:
@@ -609,8 +567,6 @@ func (p *PluginV1) GetType() PluginType {
 		return PluginTypeServiceNow
 	case *PluginSpecV1_Gitlab:
 		return PluginTypeGitlab
-	case *PluginSpecV1_Github:
-		return PluginTypeGithub
 	case *PluginSpecV1_EntraId:
 		return PluginTypeEntraID
 	case *PluginSpecV1_Scim:
@@ -790,55 +746,6 @@ func (c *PluginEntraIDSettings) Validate() error {
 		return trace.BadParameter("sync_settings.sso_connector_id must be set")
 	}
 
-	if syncIntervals := c.SyncSettings.SyncIntervals; syncIntervals != nil {
-		if err := syncIntervals.Validate(); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	return nil
-}
-
-func (c *PluginEntraIDSyncIntervals) Validate() error {
-	// Delta and full intervals must be either
-	// empty or a valid interval.
-	if c.Delta == "" && c.Full == "" {
-		// Must be an existing plugin installation without sync interval fields.
-		return nil
-	}
-
-	var full, delta time.Duration
-	// Entra ID service will deal with picking up defaults for empty value.
-	if c.Delta != "" {
-		d, err := time.ParseDuration(c.Delta)
-		if err != nil {
-			return trace.BadParameter("invalid delta sync interval, value must be a valid Go duration string, got %q: %v", c.Delta, err)
-		} else {
-			delta = d
-		}
-	}
-
-	// Entra ID service will deal with picking up defaults for empty value.
-	if c.Full != "" {
-		f, err := time.ParseDuration(c.Full)
-		if err != nil {
-			return trace.BadParameter("invalid full sync interval, value must be a valid Go duration string, got %q: %v", c.Full, err)
-		} else {
-			full = f
-		}
-	}
-
-	if delta < 0 {
-		return trace.BadParameter(`sync_settings.sync_intervals.delta cannot be a negative value`)
-	}
-	if full < 0 {
-		return trace.BadParameter(`sync_settings.sync_intervals.full cannot be a negative value`)
-	}
-	if delta > 0 && full > 0 && delta >= full {
-		return trace.BadParameter(`sync_settings.sync_intervals.delta sync interval value ` +
-			`should be less than sync_settings.sync_intervals.full sync interval`)
-	}
-
 	return nil
 }
 
@@ -873,6 +780,7 @@ const (
 )
 
 func (c *PluginAWSICSettings) CheckAndSetDefaults() error {
+
 	// Handle legacy records that pre-date the polymorphic Credentials settings
 	// TODO(tcsc): remove this check in v19
 	if c.Credentials == nil {
@@ -1033,14 +941,9 @@ func (c PluginStatusV1) GetCode() PluginStatusCode {
 	return c.Code
 }
 
-// GetErrorMessage returns the friendly error message.
+// GetErrorMessage returns the error message
 func (c PluginStatusV1) GetErrorMessage() string {
 	return c.ErrorMessage
-}
-
-// GetLastRawError returns the raw error message.
-func (c PluginStatusV1) GetLastRawError() string {
-	return c.LastRawError
 }
 
 // GetLastSyncTime returns the last run of the plugin.
@@ -1078,50 +981,4 @@ func (c *PluginNetIQSettings) Validate() error {
 	}
 
 	return nil
-}
-
-// Validate checks that the required fields for the Github plugin are set.
-func (c *PluginGithubSettings) Validate() error {
-	if c.ClientId == "" {
-		return trace.BadParameter("client_id must be set")
-	}
-	if c.OrganizationName == "" {
-		return trace.BadParameter("organization_name must be set")
-	}
-	return nil
-}
-
-// Validate checks that the required fields for the Intune plugin are set.
-func (c *PluginIntuneSettings) Validate() error {
-	if c.Tenant == "" {
-		return trace.BadParameter("tenant must be set")
-	}
-
-	if err := ValidateMSGraphAndLoginEndpoints(c.LoginEndpoint, c.GraphEndpoint); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-// UnmarshalJSON implements [json.Unmarshaler] for the PluginSyncFilter, forcing
-// it to use the `jsonpb` unmarshaler, which understands how to unpack values
-// generated from a protobuf `oneof` directive.
-func (s *PluginSyncFilter) UnmarshalJSON(b []byte) error {
-	if err := (&jsonpb.Unmarshaler{AllowUnknownFields: true}).Unmarshal(bytes.NewReader(b), s); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-// MarshalJSON implements [json.Marshaler] for the PluginSyncFilter, forcing
-// it to use the `jsonpb` marshaler, which understands how to pack values
-// generated from a protobuf `oneof` directive.
-func (s PluginSyncFilter) MarshalJSON() ([]byte, error) {
-	m := jsonpb.Marshaler{}
-	var buf bytes.Buffer
-	if err := m.Marshal(&buf, &s); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return buf.Bytes(), nil
 }

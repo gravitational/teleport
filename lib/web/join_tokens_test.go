@@ -48,7 +48,6 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
-	autoupdatelookup "github.com/gravitational/teleport/lib/autoupdate/lookup"
 	"github.com/gravitational/teleport/lib/boundkeypair"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -57,7 +56,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	libui "github.com/gravitational/teleport/lib/ui"
 	utils "github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
@@ -163,7 +161,6 @@ func TestGetTokens(t *testing.T) {
 				},
 			},
 			expected: []ui.JoinToken{
-				staticUIToken,
 				{
 					ID:            "cloud-iam",
 					SafeName:      "*********",
@@ -172,6 +169,7 @@ func TestGetTokens(t *testing.T) {
 					IsCloudSystem: true, // due to presence of the teleport.internal/cloud/token label
 					Method:        "token",
 				},
+				staticUIToken,
 			},
 		},
 		{
@@ -267,7 +265,7 @@ func TestGetTokens(t *testing.T) {
 									Workflow:        "test-workflow",
 									Environment:     "test-environment",
 									Actor:           "octocat",
-									Ref:             "refs/heads/main",
+									Ref:             "ref/heads/main",
 									RefType:         "branch",
 								},
 							},
@@ -294,7 +292,7 @@ func TestGetTokens(t *testing.T) {
 								Workflow:        "test-workflow",
 								Environment:     "test-environment",
 								Actor:           "octocat",
-								Ref:             "refs/heads/main",
+								Ref:             "ref/heads/main",
 								RefType:         "branch",
 							},
 						},
@@ -363,7 +361,7 @@ func TestGetTokens(t *testing.T) {
 			resp := GetTokensResponse{}
 			require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
 			require.Len(t, resp.Items, len(tc.expected))
-			require.Empty(t, cmp.Diff(tc.expected, resp.Items, cmpopts.IgnoreFields(ui.JoinToken{}, "Content"), cmpopts.SortSlices(func(a, b ui.JoinToken) bool { return a.ID < b.ID })))
+			require.Empty(t, cmp.Diff(resp.Items, tc.expected, cmpopts.IgnoreFields(ui.JoinToken{}, "Content")))
 		})
 	}
 }
@@ -631,9 +629,18 @@ func TestEditToken(t *testing.T) {
 }
 
 func TestCreateTokenExpiry(t *testing.T) {
-	ctx := t.Context()
+	// Can't t.Parallel because of modules.SetTestModules.
+	// Use enterprise build to access token types such as TPM and Spacelift
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Cloud: false,
+		},
+	})
+
+	ctx := context.Background()
 	username := "test-user@example.com"
-	env := newWebPack(t, 1, withModules(modulestest.EnterpriseModules()))
+	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, username, nil /* roles */)
 
@@ -647,7 +654,7 @@ func TestCreateTokenExpiry(t *testing.T) {
 
 			var expectedExpiry time.Time
 			switch method {
-			case types.JoinMethodGCP, types.JoinMethodIAM, types.JoinMethodOracle, types.JoinMethodGitHub, types.JoinMethodGitLab:
+			case types.JoinMethodGCP, types.JoinMethodIAM, types.JoinMethodOracle, types.JoinMethodGitHub:
 				expectedExpiry = time.Time{}
 			default:
 				expectedExpiry = time.Now().UTC().Add(4 * time.Hour)
@@ -784,15 +791,6 @@ func setMinimalConfigForMethod(spec *types.ProvisionTokenSpecV2, method types.Jo
 				Mode: boundkeypair.RecoveryModeInsecure,
 			},
 		}
-	case types.JoinMethodEnv0:
-		spec.Env0 = &types.ProvisionTokenSpecV2Env0{
-			Allow: []*types.ProvisionTokenSpecV2Env0_Rule{
-				{
-					OrganizationID: "example-organization-id",
-					ProjectName:    "example-project-name",
-				},
-			},
-		}
 	}
 }
 
@@ -893,39 +891,6 @@ func TestGenerateAzureTokenName(t *testing.T) {
 		require.NotEqual(t, hash1, hash2)
 	})
 
-	t.Run("tenant changes hash for subscription rule", func(t *testing.T) {
-		withTenant := types.ProvisionTokenSpecV2Azure_Rule{
-			Subscription: rule1.Subscription,
-			Tenant:       "tenant-a",
-		}
-		hash1, err := generateAzureTokenName([]*types.ProvisionTokenSpecV2Azure_Rule{&rule1})
-		require.NoError(t, err)
-		hash2, err := generateAzureTokenName([]*types.ProvisionTokenSpecV2Azure_Rule{&withTenant})
-		require.NoError(t, err)
-		require.NotEqual(t, hash1, hash2)
-	})
-
-	t.Run("tenant name hashes differently than an identical subscription name", func(t *testing.T) {
-		rule1 := types.ProvisionTokenSpecV2Azure_Rule{
-			Subscription: "abc123",
-		}
-		rule2 := types.ProvisionTokenSpecV2Azure_Rule{
-			Tenant: "abc123",
-		}
-		hash1, err := generateAzureTokenName([]*types.ProvisionTokenSpecV2Azure_Rule{&rule1})
-		require.NoError(t, err)
-		hash2, err := generateAzureTokenName([]*types.ProvisionTokenSpecV2Azure_Rule{&rule2})
-		require.NoError(t, err)
-		require.NotEqual(t, hash1, hash2)
-	})
-
-	t.Run("tenant-only rule hashes distinctly", func(t *testing.T) {
-		hash1, err := generateAzureTokenName([]*types.ProvisionTokenSpecV2Azure_Rule{{Tenant: "tenant-a"}})
-		require.NoError(t, err)
-		hash2, err := generateAzureTokenName([]*types.ProvisionTokenSpecV2Azure_Rule{{Tenant: "tenant-b"}})
-		require.NoError(t, err)
-		require.NotEqual(t, hash1, hash2)
-	})
 }
 
 func TestSortRules(t *testing.T) {
@@ -1154,21 +1119,6 @@ func TestSortAzureRules(t *testing.T) {
 				{Subscription: "100000000000"},
 				{Subscription: "200000000000"},
 				{Subscription: "300000000000"},
-			},
-		},
-		{
-			name: "tenant sorted before subscription",
-			rules: []*types.ProvisionTokenSpecV2Azure_Rule{
-				{Subscription: "200000000000", Tenant: "tenant-b"},
-				{Subscription: "100000000000", Tenant: "tenant-b"},
-				{Subscription: "100000000000", Tenant: "tenant-a"},
-				{Tenant: "tenant-a"},
-			},
-			expected: []*types.ProvisionTokenSpecV2Azure_Rule{
-				{Tenant: "tenant-a"},
-				{Subscription: "100000000000", Tenant: "tenant-a"},
-				{Subscription: "100000000000", Tenant: "tenant-b"},
-				{Subscription: "200000000000", Tenant: "tenant-b"},
 			},
 		},
 	}
@@ -1419,11 +1369,6 @@ func (a *autoupdateProxyClientMock) GetClusterCACert(ctx context.Context) (*prot
 	return args.Get(0).(*proto.GetClusterCACertResponse), args.Error(1)
 }
 
-func (a *autoupdateProxyClientMock) GetClusterMaintenanceConfig(ctx context.Context) (types.ClusterMaintenanceConfig, error) {
-	args := a.Called(ctx)
-	return args.Get(0).(types.ClusterMaintenanceConfig), args.Error(1)
-}
-
 type autoupdateTestHandlerConfig struct {
 	testModules *modulestest.Modules
 	hostname    string
@@ -1462,34 +1407,22 @@ func newAutoupdateTestHandler(t *testing.T, config autoupdateTestHandlerConfig) 
 	}
 
 	clt.On("GetClusterCACert", mock.Anything).Return(&proto.GetClusterCACertResponse{TLSCA: []byte(fixtures.SigningCertPEM)}, nil)
-	clt.On("GetClusterMaintenanceConfig", mock.Anything).Return(nil, trace.NotImplemented("Should not be called"))
 
 	if config.testModules == nil {
 		config.testModules = &modulestest.Modules{
 			TestBuildType: modules.BuildCommunity,
 		}
 	}
-
-	log := logtest.NewLogger()
-	r, err := autoupdatelookup.NewResolver(
-		autoupdatelookup.Config{
-			RolloutGetter: ap,
-			CMCGetter:     clt,
-			Channels:      config.channels,
-			Log:           log,
-			Context:       t.Context(),
-		})
-	require.NoError(t, err)
+	modulestest.SetTestModules(t, *config.testModules)
 	h := &Handler{
 		clusterFeatures: *config.testModules.Features().ToProto(),
 		cfg: Config{
-			AccessPoint:     ap,
-			PublicProxyAddr: addr,
-			ProxyClient:     clt,
-			Modules:         config.testModules,
+			AutomaticUpgradesChannels: config.channels,
+			AccessPoint:               ap,
+			PublicProxyAddr:           addr,
+			ProxyClient:               clt,
 		},
-		logger:             log,
-		autoUpdateResolver: r,
+		logger: utils.NewSlogLoggerForTests(),
 	}
 	h.PublicProxyAddr()
 	return h
@@ -1652,6 +1585,7 @@ func TestGetAppJoinScript(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.desc, func(t *testing.T) {
 			script, err = h.getJoinScript(context.Background(), tc.settings)
 			if tc.shouldError {
@@ -2157,31 +2091,38 @@ func TestJoinScript(t *testing.T) {
 
 func TestAutomaticUpgrades(t *testing.T) {
 	t.Run("cloud and automatic upgrades enabled", func(t *testing.T) {
-		features := modules.Features{
-			Cloud:             true,
-			AutomaticUpgrades: true,
-		}
+		modulestest.SetTestModules(t, modulestest.Modules{
+			TestFeatures: modules.Features{
+				Cloud:             true,
+				AutomaticUpgrades: true,
+			},
+		})
 
-		got := automaticUpgrades(*features.ToProto())
+		got := automaticUpgrades(*modules.GetModules().Features().ToProto())
 		require.True(t, got)
 	})
 	t.Run("cloud but automatic upgrades disabled", func(t *testing.T) {
-		features := modules.Features{
-			Cloud:             true,
-			AutomaticUpgrades: false,
-		}
+		modulestest.SetTestModules(t, modulestest.Modules{
+			TestFeatures: modules.Features{
+				Cloud:             true,
+				AutomaticUpgrades: false,
+			},
+		})
 
-		got := automaticUpgrades(*features.ToProto())
+		got := automaticUpgrades(*modules.GetModules().Features().ToProto())
 		require.False(t, got)
 	})
 
 	t.Run("automatic upgrades enabled but is not cloud", func(t *testing.T) {
-		features := modules.Features{
-			Cloud:             false,
-			AutomaticUpgrades: true,
-		}
+		modulestest.SetTestModules(t, modulestest.Modules{
+			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				Cloud:             false,
+				AutomaticUpgrades: true,
+			},
+		})
 
-		got := automaticUpgrades(*features.ToProto())
+		got := automaticUpgrades(*modules.GetModules().Features().ToProto())
 		require.False(t, got)
 	})
 }
@@ -2244,36 +2185,6 @@ func TestIsSameAzureRuleSet(t *testing.T) {
 				},
 			},
 			expected: true,
-		},
-		{
-			name: "tenant-only rules match",
-			r1: []*types.ProvisionTokenSpecV2Azure_Rule{
-				{
-					Tenant: "tenant-a",
-				},
-			},
-			r2: []*types.ProvisionTokenSpecV2Azure_Rule{
-				{
-					Tenant: "tenant-a",
-				},
-			},
-			expected: true,
-		},
-		{
-			name: "tenant differentiates matching subscription",
-			r1: []*types.ProvisionTokenSpecV2Azure_Rule{
-				{
-					Subscription: "123123123123",
-					Tenant:       "tenant-a",
-				},
-			},
-			r2: []*types.ProvisionTokenSpecV2Azure_Rule{
-				{
-					Subscription: "123123123123",
-					Tenant:       "tenant-b",
-				},
-			},
-			expected: false,
 		},
 	}
 

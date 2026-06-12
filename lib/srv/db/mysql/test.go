@@ -19,10 +19,8 @@
 package mysql
 
 import (
-	"context"
 	"crypto/tls"
 	"encoding/json"
-	"log/slog"
 	"net"
 	"strings"
 	"sync"
@@ -32,18 +30,18 @@ import (
 	"github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/go-mysql-org/go-mysql/server"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 // TestClientConn defines interface for client.Conn.
 type TestClientConn interface {
-	Execute(command string, args ...any) (*mysql.Result, error)
+	Execute(command string, args ...interface{}) (*mysql.Result, error)
 	Close() error
 	UseDB(dbName string) error
 	GetServerVersion() string
@@ -109,7 +107,7 @@ type TestServer struct {
 	listener      net.Listener
 	port          string
 	tlsConfig     *tls.Config
-	log           *slog.Logger
+	log           logrus.FieldLogger
 	handler       *testHandler
 	serverVersion string
 
@@ -152,9 +150,10 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (sv
 		listener = tls.NewListener(listener, tlsConfig)
 	}
 
-	log := logtest.With(teleport.ComponentKey, defaults.ProtocolMySQL,
-		"name", config.Name,
-	)
+	log := logrus.WithFields(logrus.Fields{
+		teleport.ComponentKey: defaults.ProtocolMySQL,
+		"name":                config.Name,
+	})
 	server := &TestServer{
 		cfg:      config,
 		listener: listener,
@@ -179,25 +178,25 @@ func NewTestServer(config common.TestServerConfig, opts ...TestServerOption) (sv
 
 // Serve starts serving client connections.
 func (s *TestServer) Serve() error {
-	ctx := context.Background()
-	s.log.DebugContext(ctx, "Starting test MySQL server", "listen_addr", s.listener.Addr())
-	defer s.log.DebugContext(ctx, "Test MySQL server stopped")
+	s.log.Debugf("Starting test MySQL server on %v.", s.listener.Addr())
+	defer s.log.Debug("Test MySQL server stopped.")
 	for {
 		conn, err := s.listener.Accept()
 		if err != nil {
 			if utils.IsOKNetworkError(err) {
 				return nil
 			}
-			s.log.ErrorContext(ctx, "Failed to accept connection", "error", err)
+			s.log.WithError(err).Error("Failed to accept connection.")
 			continue
 		}
-		s.log.DebugContext(ctx, "Accepted connection")
+		s.log.Debug("Accepted connection.")
 		go func() {
-			defer s.log.DebugContext(ctx, "Connection done")
+			defer s.log.Debug("Connection done.")
 			defer conn.Close()
 			err = s.handleConnection(conn)
 			if err != nil {
-				s.log.ErrorContext(ctx, "Failed to handle connection", "error", err)
+				s.log.Errorf("Failed to handle connection: %v.",
+					trace.DebugReport(err))
 			}
 		}()
 	}
@@ -295,7 +294,7 @@ func (s *TestServer) UserEventsCh() <-chan UserEvent {
 
 type testHandler struct {
 	server.EmptyHandler
-	log *slog.Logger
+	log logrus.FieldLogger
 	// queryCount keeps track of the number of queries the server has received.
 	queryCount uint32
 
@@ -306,7 +305,7 @@ type testHandler struct {
 }
 
 func (h *testHandler) HandleQuery(query string) (*mysql.Result, error) {
-	h.log.DebugContext(context.Background(), "Received query", "query", query)
+	h.log.Debugf("Received query %q.", query)
 	atomic.AddUint32(&h.queryCount, 1)
 
 	// When getting a "show tables" query, construct the response in a way
@@ -314,7 +313,7 @@ func (h *testHandler) HandleQuery(query string) (*mysql.Result, error) {
 	if query == "show tables" {
 		resultSet, err := mysql.BuildSimpleTextResultset(
 			[]string{"Tables_in_test"},
-			[][]any{
+			[][]interface{}{
 				// In raw bytes, this table name starts with 0x11 which used to
 				// cause server packet parsing issues since it clashed with
 				// COM_CHANGE_USER packet type.
@@ -331,19 +330,19 @@ func (h *testHandler) HandleQuery(query string) (*mysql.Result, error) {
 	return newTestQueryResponse(), nil
 }
 
-func (h *testHandler) HandleStmtPrepare(prepare string) (int, int, any, error) {
+func (h *testHandler) HandleStmtPrepare(prepare string) (int, int, interface{}, error) {
 	params := strings.Count(prepare, "?")
 	return params, 0, nil, nil
 }
-func (h *testHandler) HandleStmtExecute(_ any, query string, args []any) (*mysql.Result, error) {
-	h.log.DebugContext(context.Background(), "Received execute statement with args", "query", query, "args", args)
+func (h *testHandler) HandleStmtExecute(_ interface{}, query string, args []interface{}) (*mysql.Result, error) {
+	h.log.Debugf("Received execute %q with args %+v.", query, args)
 	if strings.HasPrefix(query, "CALL ") {
 		return h.handleCallProcedure(query, args)
 	}
 	return newTestQueryResponse(), nil
 }
 
-func (h *testHandler) handleCallProcedure(query string, args []any) (*mysql.Result, error) {
+func (h *testHandler) handleCallProcedure(query string, args []interface{}) (*mysql.Result, error) {
 	query = strings.TrimSpace(strings.TrimPrefix(query, "CALL"))
 	openBracketIndex := strings.IndexByte(query, '(')
 	endBracketIndex := strings.LastIndexByte(query, ')')

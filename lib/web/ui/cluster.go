@@ -27,7 +27,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -53,16 +52,16 @@ type Cluster struct {
 }
 
 // NewClusters creates a slice of Cluster's, containing data about each cluster.
-func NewClusters(remoteClusters []reversetunnelclient.Cluster) ([]Cluster, error) {
+func NewClusters(remoteClusters []reversetunnelclient.RemoteSite) ([]Cluster, error) {
 	clusters := make([]Cluster, 0, len(remoteClusters))
-	for _, cluster := range remoteClusters {
+	for _, site := range remoteClusters {
 		// Other fields such as node count, url, and proxy/auth versions are not set
 		// because each cluster will need to make network calls to retrieve information
 		// which does not scale well (ie: 1k clusters, each request will take seconds).
 		cluster := &Cluster{
-			Name:          cluster.GetName(),
-			LastConnected: cluster.GetLastConnected(),
-			Status:        cluster.GetStatus(),
+			Name:          site.GetName(),
+			LastConnected: site.GetLastConnected(),
+			Status:        site.GetStatus(),
 		}
 
 		clusters = append(clusters, *cluster)
@@ -90,13 +89,12 @@ func NewClustersFromRemote(remoteClusters []types.RemoteCluster) ([]Cluster, err
 }
 
 // GetClusterDetails retrieves and sets details about a cluster
-func GetClusterDetails(ctx context.Context, cluster reversetunnelclient.Cluster, opts ...services.MarshalOption) (*Cluster, error) {
-	clt, err := cluster.CachingAccessPoint()
+func GetClusterDetails(ctx context.Context, site reversetunnelclient.RemoteSite, opts ...services.MarshalOption) (*Cluster, error) {
+	clt, err := site.CachingAccessPoint()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 	proxies, err := clt.GetProxies()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -106,12 +104,7 @@ func GetClusterDetails(ctx context.Context, cluster reversetunnelclient.Cluster,
 		return nil, trace.Wrap(err)
 	}
 
-	authServers, err := clientutils.CollectWithFallback(
-		ctx,
-		clt.ListAuthServers,
-		//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
-		func(context.Context) ([]types.Server, error) { return clt.GetAuthServers() },
-	)
+	authServers, err := clt.GetAuthServers()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -126,9 +119,9 @@ func GetClusterDetails(ctx context.Context, cluster reversetunnelclient.Cluster,
 	}
 
 	return &Cluster{
-		Name:          cluster.GetName(),
-		LastConnected: cluster.GetLastConnected(),
-		Status:        cluster.GetStatus(),
+		Name:          site.GetName(),
+		LastConnected: site.GetLastConnected(),
+		Status:        site.GetStatus(),
 		PublicURL:     proxyHost,
 		AuthVersion:   authVersion,
 

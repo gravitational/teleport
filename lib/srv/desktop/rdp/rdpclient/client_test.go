@@ -20,84 +20,11 @@
 package rdpclient
 
 import (
-	"bytes"
-	"io"
-	"log/slog"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
 )
-
-type fakeConn struct {
-	bytes.Buffer
-	writer bytes.Buffer
-}
-
-func (f *fakeConn) Write(p []byte) (n int, err error) {
-	return f.writer.Write(p)
-}
-
-func (f *fakeConn) Close() error {
-	return nil
-}
-
-func (f *fakeConn) AddMessage(message tdp.Message) error {
-	msg, err := message.Encode()
-	if err != nil {
-		return err
-	}
-	_, err = f.Buffer.Write(msg)
-	return err
-}
-
-func TestClientNew_EOF(t *testing.T) {
-	f := fakeConn{}
-	conn := tdp.NewConn(&f, tdp.DecoderAdapter(tdpb.DecodePermissive), tdpb.WarningConstructor)
-
-	_, _, err := PrepareConnecton(tdpb.ProtocolName, conn, slog.New(slog.DiscardHandler))
-	require.ErrorIs(t, err, io.EOF)
-}
-
-func TestClientNew_NoKeyboardLayout(t *testing.T) {
-	f := fakeConn{}
-	err := f.AddMessage(&tdpb.ClientHello{Username: "user"})
-	require.NoError(t, err)
-
-	conn := tdp.NewConn(&f, tdp.DecoderAdapter(tdpb.DecodePermissive), tdpb.WarningConstructor)
-
-	wrappedConn, hello, err := PrepareConnecton(tdpb.ProtocolName, conn, slog.New(slog.DiscardHandler))
-	require.NoError(t, err)
-
-	_, err = New(wrappedConn, hello, createConfig())
-	require.NoError(t, err)
-}
-
-func TestClientNew_KeyboardLayout(t *testing.T) {
-	f := fakeConn{}
-	err := f.AddMessage(&tdpb.ClientHello{Username: "user", KeyboardLayout: 1})
-	require.NoError(t, err)
-
-	conn := tdp.NewConn(&f, tdp.DecoderAdapter(tdpb.DecodePermissive), tdpb.WarningConstructor)
-	wrappedConn, hello, err := PrepareConnecton(tdpb.ProtocolName, conn, slog.New(slog.DiscardHandler))
-	require.NoError(t, err)
-
-	_, err = New(wrappedConn, hello, createConfig())
-	require.NoError(t, err)
-}
-
-func createConfig() Config {
-	return Config{
-		Addr:        "example.com",
-		AuthorizeFn: func(login string) error { return nil },
-		Logger:      slog.Default(),
-		Width:       1,
-		Height:      1,
-	}
-}
 
 func TestRDPClientID(t *testing.T) {
 	nilID := rdpClientID{}

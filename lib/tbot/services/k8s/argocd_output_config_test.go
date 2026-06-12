@@ -206,23 +206,6 @@ func TestArgoCDConfig_CheckAndSetDefaults(t *testing.T) {
 			wantErr: "can't evaluate field InvalidVariable",
 		},
 		{
-			name: "invalid secret_labels template",
-			in: func() *ArgoCDOutputConfig {
-				return &ArgoCDOutputConfig{
-					Selectors: []*KubernetesSelector{
-						{Labels: map[string]string{"foo": "bar"}},
-					},
-					SecretNamespace:  "argocd",
-					SecretNamePrefix: "argo-cluster",
-					SecretLabels: map[string]string{
-						"foo": "{{.InvalidVariable}}",
-					},
-					ClusterNameTemplate: "{{.KubeName}}",
-				}
-			},
-			wantErr: "can't evaluate field InvalidVariable",
-		},
-		{
 			name: "defaults",
 			in: func() *ArgoCDOutputConfig {
 				return &ArgoCDOutputConfig{
@@ -239,21 +222,6 @@ func TestArgoCDConfig_CheckAndSetDefaults(t *testing.T) {
 				SecretNamePrefix:    "teleport.argocd-cluster",
 				ClusterNameTemplate: "{{.ClusterName}}-{{.KubeName}}",
 			},
-		},
-		{
-			name:   "scoped",
-			scoped: true,
-			in: func() *ArgoCDOutputConfig {
-				return &ArgoCDOutputConfig{
-					Selectors: []*KubernetesSelector{
-						{Name: "foo", Labels: make(map[string]string)},
-					},
-					SecretNamespace:     "argocd",
-					SecretNamePrefix:    "argo-cluster",
-					ClusterNameTemplate: "{{.KubeName}}",
-				}
-			},
-			wantErr: "is not supported in scoped mode",
 		},
 	}
 	testCheckAndSetDefaults(t, tests)

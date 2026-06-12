@@ -22,15 +22,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net/url"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
@@ -53,7 +52,7 @@ type Store struct {
 
 // StoreConfig contains shared config options for Store.
 type StoreConfig struct {
-	log                *slog.Logger
+	log                *logrus.Entry
 	HardwareKeyService hardwarekey.Service
 }
 
@@ -98,7 +97,7 @@ func NewMemClientStore(opts ...StoreConfigOpt) *Store {
 func newClientStore(ks KeyStore, tcs TrustedCertsStore, ps ProfileStore, opts ...StoreConfigOpt) *Store {
 	// Start with default config
 	config := StoreConfig{
-		log: slog.With(teleport.ComponentKey, teleport.ComponentKeyStore),
+		log: logrus.WithField(teleport.ComponentKey, teleport.ComponentKeyStore),
 	}
 
 	// Apply opts
@@ -205,14 +204,6 @@ func (s *Store) GetKeyRing(idx KeyRingIndex, opts ...CertOption) (*KeyRing, erro
 		return nil, trace.Wrap(err)
 	}
 
-	// if the key ring has an Access Graph TLS certificate, verify it as well
-	if len(keyRing.AccessGraphTLSCert) > 0 {
-		_, err = keyRing.AccessGraphTLSCertValidBefore()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
 	// Validate the SSH certificate.
 	if keyRing.Cert != nil {
 		if err := keyRing.CheckCert(); err != nil {
@@ -247,17 +238,16 @@ func (s *Store) AddTrustedHostKeys(proxyHost string, clusterName string, hostKey
 
 // ReadProfileStatus returns the profile status for the given profile name.
 // If no profile name is provided, return the current profile.
-func (s *Store) ReadProfileStatus(proxyAddressOrProfile string) (*ProfileStatus, error) {
+func (s *Store) ReadProfileStatus(profileName string) (*ProfileStatus, error) {
 	var err error
-	var profileName string
-	if proxyAddressOrProfile == "" {
+	if profileName == "" {
 		profileName, err = s.CurrentProfile()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	} else {
 		// remove ports from proxy host, because profile name is stored by host name
-		profileName, err = utils.Host(proxyAddressOrProfile)
+		profileName, err = utils.Host(profileName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -275,49 +265,38 @@ func (s *Store) ReadProfileStatus(proxyAddressOrProfile string) (*ProfileStatus,
 		ClusterName: profile.SiteName,
 		Username:    profile.Username,
 	}
-
-	var scopePin *scopesv1.Pin
-	if profile.Scope != "" {
-		scopePin = &scopesv1.Pin{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: profile.Scope}
-	}
-
-	// If we can't find a keyRing to match the profile, connect to the keyRing (hardware key),
-	// or read the full profile status, return a partial status.
-	// This is used for some superficial functions `tsh logout` and `tsh status`.
-	partialStatus := &ProfileStatus{
-		Name: profileName,
-		Dir:  profile.Dir,
-		ProxyURL: url.URL{
-			Scheme: "https",
-			Host:   profile.WebProxyAddr,
-		},
-		Username:    profile.Username,
-		Cluster:     profile.SiteName,
-		KubeEnabled: profile.KubeProxyAddr != "",
-		// Set ValidUntil to now and GetKeyRingError to show that the keys are not available.
-		ValidUntil:              time.Now(),
-		SAMLSingleLogoutEnabled: profile.SAMLSingleLogoutEnabled,
-		SSOHost:                 profile.SSOHost,
-		ScopePin:                scopePin,
-	}
-
 	keyRing, err := s.GetKeyRing(idx, WithAllCerts...)
 	if err != nil {
 		if trace.IsNotFound(err) || trace.IsConnectionProblem(err) {
-			partialStatus.GetKeyRingError = err
-			return partialStatus, nil
+			// If we can't find a keyRing to match the profile, or can't connect to
+			// the keyRing (hardware key), return a partial status. This is used for
+			// some superficial functions `tsh logout` and `tsh status`.
+			return &ProfileStatus{
+				Name: profileName,
+				Dir:  profile.Dir,
+				ProxyURL: url.URL{
+					Scheme: "https",
+					Host:   profile.WebProxyAddr,
+				},
+				Username:    profile.Username,
+				Cluster:     profile.SiteName,
+				KubeEnabled: profile.KubeProxyAddr != "",
+				// Set ValidUntil to now and GetKeyRingError to show that the keys are not available.
+				ValidUntil:              time.Now(),
+				GetKeyRingError:         err,
+				SAMLSingleLogoutEnabled: profile.SAMLSingleLogoutEnabled,
+				SSOHost:                 profile.SSOHost,
+			}, nil
 		}
 		return nil, trace.Wrap(err)
 	}
 
 	_, onDisk := s.KeyStore.(*FSKeyStore)
 
-	profileStatus, err := profileStatusFromKeyRing(keyRing, profileOptions{
+	return profileStatusFromKeyRing(keyRing, profileOptions{
 		ProfileName:             profileName,
 		ProfileDir:              profile.Dir,
 		WebProxyAddr:            profile.WebProxyAddr,
-		RelayAddr:               profile.RelayAddr,
-		DefaultRelayAddr:        profile.DefaultRelayAddr,
 		Username:                profile.Username,
 		SiteName:                profile.SiteName,
 		KubeProxyAddr:           profile.KubeProxyAddr,
@@ -326,45 +305,19 @@ func (s *Store) ReadProfileStatus(proxyAddressOrProfile string) (*ProfileStatus,
 		IsVirtual:               !onDisk,
 		TLSRoutingEnabled:       profile.TLSRoutingEnabled,
 	})
-	if trace.IsNotFound(err) {
-		return partialStatus, nil
-	} else if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return profileStatus, nil
 }
 
-// FullProfileStatus returns the status of the active profile along with the
-// statuses of all profiles.
-//
-// The active profile status is determined from the provided profile if given;
-// otherwise, it is read from the current profile.
-//
-// The active profile status is nil if there is no active profile.
-func (s *Store) FullProfileStatus(proxyAddressOrProfile string) (*ProfileStatus, []*ProfileStatus, error) {
-	var currentProfileName string
-	if proxyAddressOrProfile == "" {
-		profileName, err := s.CurrentProfile()
-		if err != nil && !trace.IsNotFound(err) {
-			return nil, nil, trace.Wrap(err)
-		}
-		currentProfileName = profileName
-	} else {
-		// Remove ports from proxy host, profile name is stored by host name.
-		profileName, err := utils.Host(proxyAddressOrProfile)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-		currentProfileName = profileName
+// FullProfileStatus returns the name of the current profile with a
+// a list of all profile statuses.
+func (s *Store) FullProfileStatus() (*ProfileStatus, []*ProfileStatus, error) {
+	currentProfileName, err := s.CurrentProfile()
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
 	}
 
-	var currentProfile *ProfileStatus
-	if currentProfileName != "" {
-		profileStatus, err := s.ReadProfileStatus(currentProfileName)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-		currentProfile = profileStatus
+	currentProfile, err := s.ReadProfileStatus(currentProfileName)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
 	}
 
 	profileNames, err := s.ListProfiles()
@@ -380,10 +333,7 @@ func (s *Store) FullProfileStatus(proxyAddressOrProfile string) (*ProfileStatus,
 		}
 		status, err := s.ReadProfileStatus(profileName)
 		if err != nil {
-			s.log.WarnContext(context.Background(), "skipping profile due to error",
-				"profile_name", profileName,
-				"error", err,
-			)
+			s.log.WithError(err).Warnf("skipping profile %q due to error", profileName)
 			continue
 		}
 		profiles = append(profiles, status)

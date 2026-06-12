@@ -22,7 +22,6 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"log/slog"
 	"net"
 	"os"
 	"os/user"
@@ -31,34 +30,31 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
-	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/clocki"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
-	"github.com/gravitational/teleport/session/pam/pamcfg"
-	"github.com/gravitational/teleport/session/reexec"
 )
 
-func newTestServerContext(t *testing.T, srv Server, sessionJoiningRoleSet services.RoleSet, accessPermit *decisionpb.SSHAccessPermit) *ServerContext {
+func newTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *ServerContext {
 	usr, err := user.Current()
 	require.NoError(t, err)
 
@@ -78,33 +74,42 @@ func newTestServerContext(t *testing.T, srv Server, sessionJoiningRoleSet servic
 	clusterName := "localhost"
 	_, connCtx := sshutils.NewConnectionContext(ctx, nil, &ssh.ServerConn{Conn: sshConn})
 	scx := &ServerContext{
-		newSessionID:           rsession.NewID(),
-		Logger:                 logtest.NewLogger(),
+		Entry:                  logrus.NewEntry(logrus.StandardLogger()),
 		ConnectionContext:      connCtx,
 		env:                    make(map[string]string),
 		SessionRecordingConfig: recConfig,
 		IsTestStub:             true,
 		ClusterName:            clusterName,
 		srv:                    srv,
+		sessionID:              rsession.NewID(),
 		Identity: IdentityContext{
 			UnmappedIdentity: ident,
 			Login:            usr.Username,
 			TeleportUser:     "teleportUser",
-			AccessPermit:     accessPermit,
 			// roles do not actually exist in mock backend, just need a non-nil
-			// session joining access checker to avoid panic
-			UnstableSessionJoiningAccessChecker: services.NewAccessCheckerWithRoleSet(
-				&services.AccessInfo{Roles: sessionJoiningRoleSet.RoleNames()}, clusterName, sessionJoiningRoleSet),
+			// access checker to avoid panic
+			AccessChecker: services.NewAccessCheckerWithRoleSet(
+				&services.AccessInfo{Roles: roleSet.RoleNames()}, clusterName, roleSet),
 		},
 		cancelContext: ctx,
 		cancel:        cancel,
-		// If proxy forwarding is being used (proxy recording, agentless), then remote session must be set.
-		// Otherwise, this field is ignored.
-		RemoteSession: mockSSHSession(t),
 	}
 
 	err = scx.SetExecRequest(&localExec{Ctx: scx})
 	require.NoError(t, err)
+
+	scx.cmdr, scx.cmdw, err = os.Pipe()
+	require.NoError(t, err)
+
+	scx.contr, scx.contw, err = os.Pipe()
+	require.NoError(t, err)
+
+	scx.readyr, scx.readyw, err = os.Pipe()
+	require.NoError(t, err)
+
+	scx.killShellr, scx.killShellw, err = os.Pipe()
+	require.NoError(t, err)
+	scx.AddCloser(scx.killShellw)
 
 	// TODO (joerger): check the error coming from Close once the logic around
 	// closing open files has been fixed to fail with "close |1: file already closed".
@@ -116,15 +121,14 @@ func newTestServerContext(t *testing.T, srv Server, sessionJoiningRoleSet servic
 }
 
 func newMockServer(t *testing.T) *mockServer {
+	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
-	bk, err := memory.New(memory.Config{
+	bk, err := lite.NewWithConfig(ctx, lite.Config{
+		Path:  t.TempDir(),
 		Clock: clock,
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = bk.Close()
-	})
 
 	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: "localhost",
@@ -135,42 +139,37 @@ func newMockServer(t *testing.T) *mockServer {
 		StaticTokens: []types.ProvisionTokenV1{},
 	})
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, bk.Close())
+	})
 
-	authority, err := testauthority.NewKeygen(modules.BuildOSS, clock.Now)
-	require.NoError(t, err)
-
-	authServer, err := auth.NewServer(&auth.InitConfig{
+	authCfg := &auth.InitConfig{
 		Backend:        bk,
 		VersionStorage: authtest.NewFakeTeleportVersion(),
-		Authority:      authority,
+		Authority:      testauthority.New(),
 		ClusterName:    clusterName,
 		StaticTokens:   staticTokens,
 		HostUUID:       uuid.NewString(),
-		Clock:          clock,
-	})
+	}
+
+	authServer, err := auth.NewServer(authCfg, authtest.WithClock(clock))
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, authServer.Close())
-	})
 
 	return &mockServer{
 		auth:                authServer,
 		datadir:             t.TempDir(),
 		MockRecorderEmitter: &eventstest.MockRecorderEmitter{},
 		clock:               clock,
-		component:           teleport.ComponentNode,
 	}
 }
 
 type mockServer struct {
 	*eventstest.MockRecorderEmitter
-	info      types.Server
 	datadir   string
 	auth      *auth.Server
 	component string
 	clock     clocki.FakeClock
 	bpf       bpf.BPF
-	pamCfg    *pamcfg.PAMConfig
 }
 
 // ID is the unique ID of the server.
@@ -216,11 +215,8 @@ func (m *mockServer) GetDataDir() string {
 }
 
 // GetPAM returns PAM configuration for this server.
-func (m *mockServer) GetPAM() *pamcfg.PAMConfig {
-	if m.pamCfg != nil {
-		return m.pamCfg
-	}
-	return new(pamcfg.PAMConfig)
+func (m *mockServer) GetPAM() *servicecfg.PAMConfig {
+	return &servicecfg.PAMConfig{Enabled: false}
 }
 
 // GetClock returns a clock setup for the server
@@ -231,18 +227,8 @@ func (m *mockServer) GetClock() clockwork.Clock {
 	return clockwork.NewRealClock()
 }
 
-// setInfo overrides the default result of [mockServer.GetInfo]. Necessary in order to
-// correctly test the behavior of local node rbac that expects specific server attributes.
-func (m *mockServer) setInfo(server types.Server) {
-	m.info = server
-}
-
 // GetInfo returns a services.Server that represents this server.
 func (m *mockServer) GetInfo() types.Server {
-	if m.info != nil {
-		return m.info
-	}
-
 	hostname, err := os.Hostname()
 	if err != nil {
 		hostname = "localhost"
@@ -266,7 +252,7 @@ func (m *mockServer) GetInfo() types.Server {
 	}
 }
 
-func (m *mockServer) EventMetadata() apievents.ServerMetadata {
+func (m *mockServer) TargetMetadata() apievents.ServerMetadata {
 	return apievents.ServerMetadata{
 		ServerID:        "123",
 		ForwardedBy:     "abc",
@@ -296,8 +282,8 @@ func (m *mockServer) Context() context.Context {
 }
 
 // GetUserAccountingPaths returns the path of the user accounting database and log. Returns empty for system defaults.
-func (m *mockServer) GetUserAccountingPaths() (utmp, wtmp, btmp, wtmpdb string) {
-	return "test", "test", "test", "test"
+func (m *mockServer) GetUserAccountingPaths() (utmp, wtmp, btmp string) {
+	return "test", "test", "test"
 }
 
 // GetLockWatcher gets the server's lock watcher.
@@ -319,22 +305,6 @@ func (m *mockServer) GetHostUsers() HostUsers {
 // GetHostSudoers
 func (m *mockServer) GetHostSudoers() HostSudoers {
 	return &HostSudoersNotImplemented{}
-}
-
-// GetSELinuxEnabled
-func (m *mockServer) GetSELinuxEnabled() bool {
-	return false
-}
-
-// ChildLogConfig returns a noop log configuration.
-func (m *mockServer) ChildLogConfig() ChildLogConfig {
-	return ChildLogConfig{
-		ExecLogConfig: reexec.ExecLogConfig{
-			Level:  slog.LevelDebug,
-			Format: "json",
-		},
-		Writer: os.Stdout,
-	}
 }
 
 // Implementation of ssh.Conn interface.
@@ -444,7 +414,7 @@ type fakeBPF struct {
 	bpf bpf.NOP
 }
 
-func (f fakeBPF) OpenSession(ctx *bpf.SessionContext) error {
+func (f fakeBPF) OpenSession(ctx *bpf.SessionContext) (uint64, error) {
 	return f.bpf.OpenSession(ctx)
 }
 
@@ -458,8 +428,4 @@ func (f fakeBPF) Close(restarting bool) error {
 
 func (f fakeBPF) Enabled() bool {
 	return true
-}
-
-func (f fakeBPF) LostEvents() bpf.EventCount {
-	return bpf.EventCount{}
 }

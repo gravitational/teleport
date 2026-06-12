@@ -349,6 +349,7 @@ func TestExecMissingGETPermissionError(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			const errorCode = http.StatusForbidden
@@ -481,7 +482,6 @@ func TestExecWebsocketEndToEndErrReturn(t *testing.T) {
 				Minor:      "31",
 				GitVersion: "v1.31.0",
 			}),
-		testingkubemock.WithTeleportRoleCRD,
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -543,6 +543,7 @@ func TestExecWebsocketEndToEndErrReturn(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 

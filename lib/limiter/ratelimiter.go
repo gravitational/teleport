@@ -91,31 +91,10 @@ func NewRateLimiter(config Config) (*RateLimiter, error) {
 	return &limiter, nil
 }
 
-// IsRateLimited checks if the provided token is currently
-// rate-limited without consuming any tokens.
-func (l *RateLimiter) IsRateLimited(token string) bool {
-	// No rates configured means no buckets can exist, so skip the
-	// lock entirely.
-	if l.rates.Len() == 0 {
-		return false
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	bucketSet, ok := l.rateLimits.GetIfExists(token)
-	if !ok {
-		return false
-	}
-	bucket, ok := bucketSet.(*ratelimit.TokenBucketSet)
-	if !ok {
-		return false
-	}
-	return bucket.IsRateLimited()
-}
-
 // RegisterRequest increases number of requests for the provided token.
-// It returns a [*RateLimitExceededError] (which satisfies [trace.IsLimitExceeded])
-// if there are too many requests with the provided token. If no rates are
-// configured, the request passes through without any limiting.
+// It returns an error if there are too many requests with the provided
+// token. If no rates are configured, the request passes through
+// without any limiting.
 func (l *RateLimiter) RegisterRequest(token string) error {
 	if l.rates.Len() == 0 {
 		return nil
@@ -143,10 +122,7 @@ func (l *RateLimiter) RegisterRequest(token string) error {
 		return err
 	}
 	if delay > 0 {
-		return &RateLimitExceededError{
-			Delay: delay,
-			err:   trace.LimitExceeded("rate limit exceeded, try again in %v", delay),
-		}
+		return trace.LimitExceeded("rate limit exceeded, try again in %v", delay)
 	}
 	return nil
 }

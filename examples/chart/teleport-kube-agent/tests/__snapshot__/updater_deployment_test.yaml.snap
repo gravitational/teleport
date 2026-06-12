@@ -27,7 +27,7 @@ sets the affinity:
       - --base-image=public.ecr.aws/gravitational/teleport-distroless
       - --version-server=https://my-custom-version-server/v1
       - --version-channel=custom/preview
-      image: public.ecr.aws/gravitational/teleport-kube-agent-updater:19.0.0-prealpha.2
+      image: public.ecr.aws/gravitational/teleport-kube-agent-updater:17.7.25
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -63,8 +63,6 @@ sets the affinity:
         runAsUser: 9807
         seccompProfile:
           type: RuntimeDefault
-    securityContext:
-      fsGroup: 9807
     serviceAccountName: RELEASE-NAME-updater
 sets the tolerations:
   1: |
@@ -75,7 +73,7 @@ sets the tolerations:
       - --base-image=public.ecr.aws/gravitational/teleport-distroless
       - --version-server=https://my-custom-version-server/v1
       - --version-channel=custom/preview
-      image: public.ecr.aws/gravitational/teleport-kube-agent-updater:19.0.0-prealpha.2
+      image: public.ecr.aws/gravitational/teleport-kube-agent-updater:17.7.25
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -111,8 +109,6 @@ sets the tolerations:
         runAsUser: 9807
         seccompProfile:
           type: RuntimeDefault
-    securityContext:
-      fsGroup: 9807
     serviceAccountName: RELEASE-NAME-updater
     tolerations:
     - effect: NoExecute

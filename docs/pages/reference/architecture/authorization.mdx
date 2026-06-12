@@ -1,11 +1,9 @@
 ---
 title: Teleport Authorization
-sidebar_label: Authorization
 description: This chapter explains how Teleport authorizes users and roles.
 tags:
  - conceptual
  - platform-wide
- - privileged-access
 ---
 
 Teleport handles both authentication and authorization.
@@ -134,7 +132,7 @@ spec:
       'environment': '^test|staging$'
 
     kubernetes_labels:
-      # User can access any region in us-west, e.g. us-west-1, us-west-2
+      # User can access any region in us-west, e.g us-west-1, us-west-2
       'region': 'us-west-*'
       'cluster_name': '^us.*\.example\.com$'
 ```
@@ -390,7 +388,7 @@ spec:
 ## Next steps
 
 - [Access Control Reference](../access-controls/roles.mdx).
-- [Teleport Predicate Language](../access-controls/predicate-language.mdx).
+- [Teleport Predicate Language](../predicate-language.mdx).
 - [Access Requests Guides](../../identity-governance/access-requests/access-requests.mdx)
 - [Architecture Overview](../../core-concepts.mdx)
 - [Teleport Auth](authentication.mdx)

@@ -30,16 +30,16 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/labels"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv"
@@ -85,21 +85,17 @@ type Config struct {
 	// ResourceMatchers is a list of app resource matchers.
 	ResourceMatchers []services.ResourceMatcher
 
-	// OnReconcile is called after each app resource reconciliation.
+	// OnReconcile is called after each database resource reconciliation.
 	OnReconcile func(types.Apps)
 
 	// ConnectedProxyGetter gets the proxies teleport is connected to.
-	ConnectedProxyGetter reversetunnelclient.ConnectedProxyGetter
+	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
 
 	// ConnectionsHandler handles the HTTP/TCP App proxy connections.
 	ConnectionsHandler *ConnectionsHandler
 
 	// InventoryHandle is used to send app server heartbeats via the inventory control stream.
 	InventoryHandle inventory.DownstreamHandle
-
-	// IgnoreAppsWithCommandLabels configures the app server to reject app resources
-	// with dynamic/command labels even if the app's labels otherwise match.
-	IgnoreAppsWithCommandLabels bool
 }
 
 // CheckAndSetDefaults makes sure the configuration has the minimum required
@@ -130,7 +126,7 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("connections handler missing")
 	}
 	if c.ConnectedProxyGetter == nil {
-		return trace.BadParameter("ConnectedProxyGetter missing")
+		c.ConnectedProxyGetter = reversetunnel.NewConnectedProxyGetter()
 	}
 	return nil
 }
@@ -138,8 +134,9 @@ func (c *Config) CheckAndSetDefaults() error {
 // Server is an application server. It authenticates requests from the web
 // proxy and forwards th to internal applications.
 type Server struct {
-	c   *Config
-	log *slog.Logger
+	c         *Config
+	legacyLog *logrus.Entry
+	log       *slog.Logger
 
 	closeContext context.Context
 	closeFunc    context.CancelFunc
@@ -210,7 +207,11 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 	}()
 
 	s := &Server{
-		c:             c,
+		c: c,
+		// TODO(greedy52) replace with slog from Config.Logger.
+		legacyLog: logrus.WithFields(logrus.Fields{
+			teleport.ComponentKey: teleport.ComponentApp,
+		}),
 		log:           slog.With(teleport.ComponentKey, teleport.ComponentApp),
 		heartbeats:    make(map[string]srv.HeartbeatI),
 		dynamicLabels: make(map[string]*labels.Dynamic),
@@ -314,6 +315,10 @@ func (s *Server) startHeartbeat(ctx context.Context, app types.Application) erro
 		InventoryHandle: s.c.InventoryHandle,
 		GetResource:     s.getServerInfoFunc(app),
 		OnHeartbeat:     s.c.OnHeartbeat,
+		// Announcer is provided to allow falling back to non-ICS heartbeats if
+		// the Auth server is older than the app service.
+		// TODO(tross): DELETE IN 16.0.0
+		Announcer: s.c.AccessPoint,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -364,13 +369,8 @@ func (s *Server) getServerInfo(app types.Application) (*types.AppServerV3, error
 		App:      copy,
 		ProxyIDs: s.c.ConnectedProxyGetter.GetProxyIDs(),
 	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
-	server.SetComponentFeatures(componentfeatures.ForAppServer(server))
-
-	return server, nil
+	return server, trace.Wrap(err)
 }
 
 // getRotationState is a helper to return this server's CA rotation state.
@@ -452,17 +452,6 @@ func (s *Server) Start(ctx context.Context) (err error) {
 	// proxied apps based on the application resources.
 	if s.watcher, err = s.startResourceWatcher(ctx); err != nil {
 		return trace.Wrap(err)
-	}
-
-	// App uses heartbeat v2, which heartbeats resources but not the server itself
-	// If there are no resources, we will never report ready.
-	// We workaround by reporting ready after the first successful watcher init.
-	// We only need to do this if the watcher is non-nil, because if
-	// it's nil we are advertising some static app and will heartbeat.
-	if s.watcher != nil && s.c.OnHeartbeat != nil {
-		go func() {
-			s.c.OnHeartbeat(s.watcher.WaitInitialization())
-		}()
 	}
 
 	// Clean up orphaned app server records left behind by a previous
@@ -589,6 +578,7 @@ func (s *Server) close(ctx context.Context) error {
 	// server below would be undone.
 	s.mu.RLock()
 	for name := range s.apps {
+		name := name
 		heartbeat := s.heartbeats[name]
 
 		if dynamic, ok := s.dynamicLabels[name]; ok {

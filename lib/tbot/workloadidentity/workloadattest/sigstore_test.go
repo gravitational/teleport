@@ -32,7 +32,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity/workloadattest/sigstore/sigstoretest"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 var loopbackPrefixes = []string{"127.0.0.1/8", "::1/128"}
@@ -118,7 +118,7 @@ func TestSigstoreAttestor_Attest_WithCredentials(t *testing.T) {
 			CredentialsPath:               dockerConfigFile,
 			AllowedPrivateNetworkPrefixes: loopbackPrefixes,
 		},
-		logtest.NewLogger(),
+		utils.NewSlogLoggerForTests(),
 	)
 	require.NoError(t, err)
 
@@ -151,7 +151,7 @@ func TestSigstoreAttestor_Attest_Caching(t *testing.T) {
 			Enabled:                       true,
 			AllowedPrivateNetworkPrefixes: loopbackPrefixes,
 		},
-		logtest.NewLogger(),
+		utils.NewSlogLoggerForTests(),
 	)
 	require.NoError(t, err)
 

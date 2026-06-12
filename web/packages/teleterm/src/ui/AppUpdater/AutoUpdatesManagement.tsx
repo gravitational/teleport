@@ -26,14 +26,15 @@ import { RadioGroup } from 'design/RadioGroup';
 import { H3, P3 } from 'design/Text';
 import { pluralize } from 'shared/utils/text';
 
-import type { Platform } from 'teleterm/mainProcess/types';
 import {
   AppUpdateEvent,
   AutoUpdatesDisabled,
   AutoUpdatesEnabled,
   AutoUpdatesStatus,
 } from 'teleterm/services/appUpdater';
-import { RootClusterUri, routing } from 'teleterm/ui/uri';
+import { RootClusterUri } from 'teleterm/ui/uri';
+
+import { ClusterGetter, clusterNameGetter } from './common';
 
 const listFormatter = new Intl.ListFormat('en', {
   style: 'long',
@@ -41,18 +42,19 @@ const listFormatter = new Intl.ListFormat('en', {
 });
 
 export function AutoUpdatesManagement(props: {
-  platform: Platform;
   status: AutoUpdatesStatus;
   updateEventKind: AppUpdateEvent['kind'];
+  clusterGetter: ClusterGetter;
   changeManagingCluster(clusterUri: RootClusterUri | undefined): void;
   onCheckForUpdates(): void;
 }) {
   const { status } = props;
 
+  const getClusterName = clusterNameGetter(props.clusterGetter);
   const content =
     status.enabled === true
-      ? makeContentForEnabledAutoUpdates(status)
-      : makeContentForDisabledAutoUpdates(status, props.platform);
+      ? makeContentForEnabledAutoUpdates(status, getClusterName)
+      : makeContentForDisabledAutoUpdates(status);
   const retryButton = {
     content: 'Retry',
     onClick: props.onCheckForUpdates,
@@ -77,6 +79,7 @@ export function AutoUpdatesManagement(props: {
         autoUpdatesStatus={status}
         changeManagingCluster={props.changeManagingCluster}
         isCheckingForUpdates={props.updateEventKind === 'checking-for-update'}
+        getClusterName={getClusterName}
         onRetry={props.onCheckForUpdates}
         // Resets localIsAutoManaged checkbox.
         key={JSON.stringify(status)}
@@ -89,11 +92,13 @@ function ManagingClusterSelector({
   autoUpdatesStatus,
   isCheckingForUpdates,
   changeManagingCluster,
+  getClusterName,
   onRetry,
 }: {
   autoUpdatesStatus: AutoUpdatesStatus;
   isCheckingForUpdates: boolean;
   changeManagingCluster(clusterUri: RootClusterUri | undefined): void;
+  getClusterName(clusterUri: RootClusterUri): string;
   onRetry(): void;
 }) {
   // Allows optimistic UI updates without waiting for autoUpdatesStatus.
@@ -103,6 +108,7 @@ function ManagingClusterSelector({
 
   const options = makeOptions({
     status: autoUpdatesStatus,
+    getClusterName,
     disabled: isCheckingForUpdates,
     highestCompatibleVersion:
       autoUpdatesStatus.options.highestCompatibleVersion,
@@ -146,11 +152,13 @@ function ManagingClusterSelector({
 
 function makeOptions({
   status,
+  getClusterName,
   highestCompatibleVersion,
   disabled,
   onRetry,
 }: {
   status: AutoUpdatesStatus;
+  getClusterName: (clusterUri: RootClusterUri) => string;
   disabled: boolean;
   highestCompatibleVersion: string;
   onRetry(): void;
@@ -166,13 +174,11 @@ function makeOptions({
     value: '',
   };
 
-  const getProfileName = (uri: RootClusterUri) => routing.parseClusterName(uri);
-
   const candidateClusters = status.options.clusters
     .filter(c => c.toolsAutoUpdate)
     .map(c => {
       const otherCompatibleClusters = c.otherCompatibleClusters.map(c =>
-        getProfileName(c)
+        getClusterName(c)
       );
       const compatibility = otherCompatibleClusters.length
         ? `Also compatible with ${pluralize(otherCompatibleClusters.length, 'cluster')} ${listFormatter.format(otherCompatibleClusters.toSorted())}.`
@@ -180,7 +186,7 @@ function makeOptions({
 
       return {
         disabled,
-        label: getProfileName(c.clusterUri),
+        label: getClusterName(c.clusterUri),
         helperText: [`Teleport Connect ${c.toolsVersion}`, compatibility]
           .filter(Boolean)
           .join(' · '),
@@ -193,7 +199,7 @@ function makeOptions({
     .map(c => {
       return {
         disabled,
-        label: getProfileName(c.clusterUri),
+        label: getClusterName(c.clusterUri),
         helperText: (
           <>
             Teleport Connect {c.toolsVersion}
@@ -208,7 +214,7 @@ function makeOptions({
   const unreachableClusters = status.options.unreachableClusters.map(
     cluster => ({
       disabled,
-      label: getProfileName(cluster.clusterUri),
+      label: getClusterName(cluster.clusterUri),
       helperText: (
         <UnreachableClusterHelper
           onRetry={onRetry}
@@ -280,23 +286,26 @@ function UnreachableClusterHelper(props: { error: string; onRetry(): void }) {
   );
 }
 
-function makeContentForEnabledAutoUpdates(status: AutoUpdatesEnabled): {
+function makeContentForEnabledAutoUpdates(
+  status: AutoUpdatesEnabled,
+  getClusterName: (clusterUri: RootClusterUri) => string
+): {
   description: string;
   kind: 'neutral' | 'warning';
   showRetry?: boolean;
 } {
   switch (status.source) {
-    case 'env-config':
+    case 'env-var':
       return {
         kind: 'neutral',
-        description: `Your device settings require client version ${status.version}.`,
+        description: `The app is set to stay on version ${status.version} by your device settings.`,
       };
     case 'managing-cluster':
       return;
     case 'highest-compatible':
       const providingClusters = status.options.clusters
         .filter(c => c.toolsAutoUpdate && c.toolsVersion === status.version)
-        .map(c => routing.parseClusterName(c.clusterUri));
+        .map(c => getClusterName(c.clusterUri));
       // Show info if there's only one cluster.
       if (
         status.options.clusters.length === 1 &&
@@ -310,41 +319,14 @@ function makeContentForEnabledAutoUpdates(status: AutoUpdatesEnabled): {
   }
 }
 
-function makeContentForDisabledAutoUpdates(
-  updateSource: AutoUpdatesDisabled,
-  platform: Platform
-): {
+function makeContentForDisabledAutoUpdates(updateSource: AutoUpdatesDisabled): {
   title?: string;
   description?: ReactNode;
   kind: 'danger' | 'neutral';
   showRetry?: boolean;
 } {
   switch (updateSource.reason) {
-    case 'no-base-url':
-      return {
-        kind: 'danger',
-        description: (
-          <>
-            Client tools updates are disabled because the download base URL is
-            not configured. To use Community Edition builds or custom binaries,
-            set{' '}
-            {platform === 'win32' ? (
-              <>
-                <code>CdnBaseUrl</code> in{' '}
-                <code>
-                  HKEY_LOCAL_MACHINE|HKEY_CURRENT_USER\SOFTWARE\Policies\Teleport\TeleportConnect
-                </code>{' '}
-                in the system registry.
-              </>
-            ) : (
-              <>
-                the <code>TELEPORT_CDN_BASE_URL</code> environment variable.
-              </>
-            )}
-          </>
-        ),
-      };
-    case 'disabled-by-env-config':
+    case 'disabled-by-env-var':
       return {
         kind: 'neutral',
         description: 'App updates are disabled by your device settings.',

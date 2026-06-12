@@ -1,18 +1,10 @@
 ---
-title: Access AWS with the Teleport Application Service
-sidebar_label: AWS (via Teleport Agent)
+title: Access AWS With Teleport Application Access
 description: How to access AWS with Teleport application access.
 tags:
  - how-to
  - zero-trust
- - infrastructure-identity
- - aws
 ---
-
-<Admonition type="tip">
-If you're using AWS IAM Roles Anywhere, see the [corresponding guide](aws-console-roles-anywhere.mdx) that provides
-the recommended way to manage access to AWS Console and CLI-based tooling.
-</Admonition>
 
 You can protect the AWS Management Console and AWS APIs with Teleport. This
 makes it possible to manage access to AWS infrastructure with Teleport features
@@ -796,20 +788,6 @@ instance and attach an IAM role to it.
 
 (!docs/pages/includes/aws-no-credential-provider.mdx service="Application"!)
 
-### Missing X-Forwarded-Host HTTP header
-
-You may encounter the error `proxied requests must include X-Forwarded-Host header`
-when making requests to your `tsh` local proxy. This is because Teleport
-expects the HTTP requests to include the `X-Forwarded-Host` header, containing
-a valid AWS endpoint.
-
-Ensure the application using the Teleport AWS local proxy supports HTTPS proxy
-setting. Passing the local proxy address to applications as the AWS endpoint URL
-is no longer supported.
-
-If you were previously using the `--endpoint-url` flag on `tsh proxy aws`
-command, you must update your applications to use the local HTTPS proxy instead.
-
 ## Next steps
 
 Now that you know how to set up Teleport to protect access to the AWS Management
@@ -840,7 +818,7 @@ for all of the variables and functions you can use in the `aws_role_arns` field.
 You can deploy a pool of Teleport Agents to run the Teleport Application
 Service, then enroll an AWS application in your Teleport cluster as a dynamic
 resource. Read more about [dynamically registering
-applications](../configuration/dynamic-registration.mdx).
+applications](../guides/dynamic-registration.mdx).
 
 ### Choose an alternative agent join method
 

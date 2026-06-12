@@ -18,7 +18,7 @@
 
 import { RequestState } from 'shared/services/accessRequests';
 
-// eslint-disable-next-line no-restricted-imports -- FIXME
+// oxlint-disable-next-line no-restricted-imports
 import { AllUserTraits } from 'teleport/services/user';
 
 export type RequestFlags = {

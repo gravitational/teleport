@@ -1,5 +1,5 @@
 /*
-Copyright 2015-2026 Gravitational, Inc.
+Copyright 2015-2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -234,12 +234,12 @@ func GenSchemaAutoUpdateVersion(ctx context.Context) (github_com_hashicorp_terra
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"start_version": {
-							Description: "start_version is the version used for newly installed agents before their update window.",
+							Description: "start_version is the version to update from.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"target_version": {
-							Description: "target_version is the version that all agents will update to during their update window.",
+							Description: "target_version is the version to update to.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},

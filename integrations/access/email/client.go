@@ -21,9 +21,9 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"text/template"
 	"time"
 
-	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
@@ -33,7 +33,7 @@ import (
 )
 
 var reviewReplyTemplate = template.Must(template.New("review reply").Parse(
-	`{{.Author}} reviewed the request at {{.CreatedTime}}.
+	`{{.Author}} reviewed the request at {{.Created.Format .TimeFormat}}.
 Resolution: {{.ProposedStateEmoji}} {{.ProposedState}}.
 {{if .Reason}}Reason: {{.Reason}}.{{end}}`,
 ))
@@ -61,16 +61,16 @@ func NewClient(ctx context.Context, conf Config, clusterName, webProxyAddr strin
 
 	if conf.Mailgun != nil {
 		mailer = NewMailgunMailer(*conf.Mailgun, conf.StatusSink, conf.Delivery.Sender, clusterName, conf.RoleToRecipients[types.Wildcard])
-		logger.Get(ctx).InfoContext(ctx, "Using Mailgun as email transport", "domain", conf.Mailgun.Domain)
+		logger.Get(ctx).WithField("domain", conf.Mailgun.Domain).Info("Using Mailgun as email transport")
 	}
 
 	if conf.SMTP != nil {
 		mailer = NewSMTPMailer(*conf.SMTP, conf.StatusSink, conf.Delivery.Sender, clusterName)
-		logger.Get(ctx).InfoContext(ctx, "Using SMTP as email transport",
-			"host", conf.SMTP.Host,
-			"port", conf.SMTP.Port,
-			"username", conf.SMTP.Username,
-		)
+		logger.Get(ctx).WithFields(logger.Fields{
+			"host":     conf.SMTP.Host,
+			"port":     conf.SMTP.Port,
+			"username": conf.SMTP.Username,
+		}).Info("Using SMTP as email transport")
 	}
 
 	return Client{
@@ -122,12 +122,12 @@ func (c *Client) SendReview(ctx context.Context, threads []EmailThread, reqID st
 		types.AccessReview
 		ProposedState      string
 		ProposedStateEmoji string
-		CreatedTime        string
+		TimeFormat         string
 	}{
 		review,
 		review.ProposedState.String(),
 		proposedStateEmoji,
-		review.Created.Format(time.RFC822),
+		time.RFC822,
 	})
 	if err != nil {
 		return threadsSent, trace.Wrap(err)

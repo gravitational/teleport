@@ -229,10 +229,6 @@ type Application interface {
 	GetAWSAccountID() string
 	// GetAWSExternalID returns the AWS External ID configured for this app.
 	GetAWSExternalID() string
-	// GetAWSRolesAnywhereProfileARN returns the AWS IAM Roles Anywhere Profile ARN which originated this App.
-	GetAWSRolesAnywhereProfileARN() string
-	// GetAWSRolesAnywhereAcceptRoleSessionName returns whether the IAM Roles Anywhere Profile supports defining a custom AWS Session Name.
-	GetAWSRolesAnywhereAcceptRoleSessionName() bool
 	// GetUserGroups will get the list of user group IDs associated with the application.
 	GetUserGroups() []string
 	// Copy returns a copy of this app resource.
@@ -247,72 +243,6 @@ type Application interface {
 }
 
 var _ Application = types.Application(nil)
-
-// ProxiedService is a read only variant of [types.ProxiedService].
-type ProxiedService interface {
-	// GetProxyIDs returns a list of proxy ids this service is connected to.
-	GetProxyIDs() []string
-}
-
-var _ ProxiedService = types.ProxiedService(nil)
-
-// AppServer is a read only variant of [types.AppServer].
-type AppServer interface {
-	// ResourceWithLabels provides common resource methods.
-	ResourceWithLabels
-	// GetNamespace returns server namespace.
-	GetNamespace() string
-	// GetTeleportVersion returns the teleport version the server is running on.
-	GetTeleportVersion() string
-	// GetHostname returns the server hostname.
-	GetHostname() string
-	// GetHostID returns ID of the host the server is running on.
-	GetHostID() string
-	// GetRotation gets the state of certificate authority rotation.
-	GetRotation() types.Rotation
-	// String returns string representation of the server.
-	String() string
-	// Copy returns a copy of this app server object.
-	Copy() types.AppServer
-	// GetApp returns the app this app server proxies.
-	GetApp() types.Application
-	// GetTunnelType returns the tunnel type associated with the app server.
-	GetTunnelType() types.TunnelType
-	// ProxiedService provides common methods for a proxied service.
-	ProxiedService
-	// GetRelayGroup returns the name of the Relay group that the app server is
-	// connected to.
-	GetRelayGroup() string
-	// GetRelayIDs returns the list of Relay host IDs that the app server is
-	// connected to.
-	GetRelayIDs() []string
-	// GetScope returns the scope this server belongs to.
-	GetScope() string
-}
-
-var _ AppServer = types.AppServer(nil)
-
-// DatabaseServer is a read only variant of [types.DatabaseServer]
-type DatabaseServer struct {
-	inner types.DatabaseServer
-}
-
-// GetDatabaseName returns the name of the database this server is proxying.
-func (d DatabaseServer) GetDatabaseName() string {
-	if d.inner == nil {
-		return ""
-	}
-	db := d.inner.GetDatabase()
-	if db == nil {
-		return ""
-	}
-	return db.GetName()
-}
-
-// NewDatabaseServer returns a new read-only DatabaseServer.
-func NewDatabaseServer(server types.DatabaseServer) DatabaseServer {
-	return DatabaseServer{inner: server}
-}
 
 // KubeServer is a read only variant of [types.KubeServer].
 type KubeServer interface {
@@ -338,9 +268,6 @@ type KubeServer interface {
 	GetCluster() types.KubeCluster
 	// GetProxyIDs returns a list of proxy ids this service is connected to.
 	GetProxyIDs() []string
-	// GetRelayGroup returns the name of the Relay group that the kube server is
-	// connected to.
-	GetRelayGroup() string
 }
 
 var _ KubeServer = types.KubeServer(nil)
@@ -376,7 +303,7 @@ type KubeCluster interface {
 	// IsKubeconfig identifies if the KubeCluster contains kubeconfig data.
 	IsKubeconfig() bool
 	// Copy returns a copy of this kube cluster resource.
-	Copy() types.KubeCluster
+	Copy() *types.KubernetesClusterV3
 	// GetCloud gets the cloud this kube cluster is running on, or an empty string if it
 	// isn't running on a cloud provider.
 	GetCloud() string
@@ -531,9 +458,6 @@ type Server interface {
 
 	// GetGitHub returns the GitHub server spec.
 	GetGitHub() *types.GitHubServerMetadata
-
-	// GetScope returns the scope this server belongs to.
-	GetScope() string
 }
 
 var _ Server = types.Server(nil)
@@ -554,44 +478,7 @@ type DynamicWindowsDesktop interface {
 	// use the size passed by the client over TDP.
 	GetScreenSize() (width, height uint32)
 	// Copy returns a copy of this dynamic Windows desktop
-	Copy() types.DynamicWindowsDesktop
+	Copy() *types.DynamicWindowsDesktopV1
 }
 
 var _ DynamicWindowsDesktop = types.DynamicWindowsDesktop(nil)
-
-// CertAuthority represents a teleport certificate authority.
-type CertAuthority interface {
-	// ResourceWithSecrets sets common resource properties
-	types.ResourceWithSecrets
-	// GetID returns certificate authority ID -
-	// combined type and name
-	GetID() types.CertAuthID
-	// GetType returns user or host certificate authority
-	GetType() types.CertAuthType
-	// GetClusterName returns cluster name this cert authority
-	// is associated with
-	GetClusterName() string
-
-	GetActiveKeys() types.CAKeySet
-	GetAdditionalTrustedKeys() types.CAKeySet
-
-	GetTrustedSSHKeyPairs() []*types.SSHKeyPair
-	GetTrustedTLSKeyPairs() []*types.TLSKeyPair
-	GetTrustedJWTKeyPairs() []*types.JWTKeyPair
-
-	// CombinedMapping is used to specify combined mapping from legacy property Roles
-	// and new property RoleMap
-	CombinedMapping() types.RoleMap
-	// GetRoleMap returns role map property
-	GetRoleMap() types.RoleMap
-	// GetRoles returns a list of roles assumed by users signed by this CA
-	GetRoles() []string
-	// String returns human readable version of the CertAuthority
-	String() string
-	// GetRotation returns rotation state.
-	GetRotation() types.Rotation
-	// AllKeyTypes returns the set of all different key types in the CA.
-	AllKeyTypes() []string
-	// Clone returns a copy of the cert authority object.
-	Clone() types.CertAuthority
-}

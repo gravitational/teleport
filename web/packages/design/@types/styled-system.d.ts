@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import type * as PropTypes from 'prop-types';
 import 'styled-system';
 
 declare module 'styled-system' {
@@ -24,6 +23,6 @@ declare module 'styled-system' {
 
   export interface styleFn {
     (...args: any[]): any;
-    propTypes: PropTypes.WeakValidationMap<{ [string]: any }>;
+    propTypes: React.WeakValidationMap<{ [string]: any }>;
   }
 }

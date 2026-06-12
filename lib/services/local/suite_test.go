@@ -18,6 +18,7 @@ package local
 
 import (
 	"context"
+	"crypto/x509/pkix"
 	"fmt"
 	"log/slog"
 	"sort"
@@ -35,25 +36,22 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	protobuf "google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
-	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/clusterconfig"
 	"github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/clientutils"
-	"github.com/gravitational/teleport/lib/auth/authcatest"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
-	"github.com/gravitational/teleport/lib/itertools/stream"
-	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // ServicesTestSuite is an acceptance test suite
@@ -63,7 +61,7 @@ type ServicesTestSuite struct {
 	Access         services.Access
 	TrustS         services.Trust
 	TrustInternalS services.TrustInternal
-	PresenceS      services.PresenceInternal
+	PresenceS      services.Presence
 	ProvisioningS  services.Provisioner
 	WebS           services.Identity
 	ConfigS        services.ClusterConfiguration
@@ -98,7 +96,7 @@ func userSlicesEqual(t *testing.T, a []types.User, b []types.User) {
 }
 
 func usersEqual(t *testing.T, a types.User, b types.User) {
-	require.True(t, a.IsEqual(b), cmp.Diff(a, b))
+	require.True(t, services.UsersEquals(a, b), cmp.Diff(a, b))
 }
 
 func newUser(name string, roles []string) types.User {
@@ -225,8 +223,7 @@ func (s *ServicesTestSuite) LoginAttempts(t *testing.T) {
 
 func (s *ServicesTestSuite) CertAuthCRUD(t *testing.T) {
 	ctx := context.Background()
-	ca, err := authcatest.NewCA(types.UserCA, "example.com")
-	require.NoError(t, err)
+	ca := NewTestCA(types.UserCA, "example.com")
 	require.NoError(t, s.TrustS.UpsertCertAuthority(ctx, ca))
 
 	out, err := s.TrustS.GetCertAuthority(ctx, ca.GetID(), true)
@@ -252,8 +249,7 @@ func (s *ServicesTestSuite) CertAuthCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	// test compare and swap
-	ca, err = authcatest.NewCA(types.UserCA, "example.com")
-	require.NoError(t, err)
+	ca = NewTestCA(types.UserCA, "example.com")
 	require.NoError(t, s.TrustS.CreateCertAuthority(ctx, ca))
 
 	clock := clockwork.NewFakeClock()
@@ -274,8 +270,7 @@ func (s *ServicesTestSuite) CertAuthCRUD(t *testing.T) {
 	require.Empty(t, cmp.Diff(&newCA, out, cmpopts.EquateApproxTime(time.Second), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	// test conditional update
-	ca, err = authcatest.NewCA(types.UserCA, "update.example.com")
-	require.NoError(t, err)
+	ca = NewTestCA(types.UserCA, "update.example.com")
 	rev, err := s.TrustInternalS.CreateCertAuthorities(ctx, ca)
 	require.NoError(t, err)
 
@@ -312,9 +307,7 @@ func (s *ServicesTestSuite) CertAuthCRUD(t *testing.T) {
 
 	cas = nil
 	for _, cn := range clusterNames {
-		ca, err := authcatest.NewCA(types.UserCA, cn)
-		require.NoError(t, err)
-		cas = append(cas, ca)
+		cas = append(cas, NewTestCA(types.UserCA, cn))
 	}
 
 	rev, err = s.TrustInternalS.CreateCertAuthorities(ctx, cas...)
@@ -388,32 +381,27 @@ func (s *ServicesTestSuite) ServerCRUD(t *testing.T) {
 	require.Empty(t, out)
 
 	// Proxy service.
-	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 	out, err = s.PresenceS.GetProxies()
 	require.NoError(t, err)
 	require.Empty(t, out)
 
 	proxy := NewServer(types.KindProxy, "proxy1", "127.0.0.1:2023", apidefaults.Namespace)
 	proxy.Spec.Hostname = "proxy.llama"
-	_, err = s.PresenceS.UpsertProxyServer(ctx, proxy)
-	require.NoError(t, err)
+	require.NoError(t, s.PresenceS.UpsertProxy(ctx, proxy))
 
-	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 	out, err = s.PresenceS.GetProxies()
 	require.NoError(t, err)
 	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff(out, []types.Server{proxy}, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-	err = s.PresenceS.DeleteProxyServer(ctx, proxy.GetName())
+	err = s.PresenceS.DeleteProxy(ctx, proxy.GetName())
 	require.NoError(t, err)
 
-	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 	out, err = s.PresenceS.GetProxies()
 	require.NoError(t, err)
 	require.Empty(t, out)
 
 	// Auth service.
-	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 	out, err = s.PresenceS.GetAuthServers()
 	require.NoError(t, err)
 	require.Empty(t, out)
@@ -422,7 +410,6 @@ func (s *ServicesTestSuite) ServerCRUD(t *testing.T) {
 	auth.Spec.Hostname = "auth.llama"
 	require.NoError(t, s.PresenceS.UpsertAuthServer(ctx, auth))
 
-	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 	out, err = s.PresenceS.GetAuthServers()
 	require.NoError(t, err)
 	require.Len(t, out, 1)
@@ -485,6 +472,38 @@ func newReverseTunnel(clusterName string, dialAddrs []string) *types.ReverseTunn
 			DialAddrs:   dialAddrs,
 		},
 	}
+}
+
+func (s *ServicesTestSuite) ReverseTunnelsCRUD(t *testing.T) {
+	ctx := context.Background()
+
+	out, err := s.PresenceS.GetReverseTunnels(ctx)
+	require.NoError(t, err)
+	require.Empty(t, out)
+
+	tunnel := newReverseTunnel("example.com", []string{"example.com:2023"})
+	require.NoError(t, s.PresenceS.UpsertReverseTunnel(ctx, tunnel))
+
+	out, err = s.PresenceS.GetReverseTunnels(ctx)
+	require.NoError(t, err)
+	require.Len(t, out, 1)
+	require.Empty(t, cmp.Diff(out, []types.ReverseTunnel{tunnel}, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+	err = s.PresenceS.DeleteReverseTunnel(ctx, tunnel.Spec.ClusterName)
+	require.NoError(t, err)
+
+	out, err = s.PresenceS.GetReverseTunnels(ctx)
+	require.NoError(t, err)
+	require.Empty(t, out)
+
+	err = s.PresenceS.UpsertReverseTunnel(ctx, newReverseTunnel("", []string{"127.0.0.1:1234"}))
+	require.True(t, trace.IsBadParameter(err))
+
+	err = s.PresenceS.UpsertReverseTunnel(ctx, newReverseTunnel("example.com", []string{""}))
+	require.True(t, trace.IsBadParameter(err))
+
+	err = s.PresenceS.UpsertReverseTunnel(ctx, newReverseTunnel("example.com", []string{}))
+	require.True(t, trace.IsBadParameter(err))
 }
 
 func (s *ServicesTestSuite) PasswordCRUD(t *testing.T) {
@@ -616,10 +635,7 @@ func (s *ServicesTestSuite) TokenCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, s.ProvisioningS.UpsertToken(ctx, tok))
 
-	tokens, err := stream.Collect(clientutils.Resources(ctx,
-		func(ctx context.Context, pageSize int, pageKey string) ([]types.ProvisionToken, string, error) {
-			return s.ProvisioningS.ListProvisionTokens(ctx, pageSize, pageKey, nil, "")
-		}))
+	tokens, err := s.ProvisioningS.GetTokens(ctx)
 	require.NoError(t, err)
 	require.Len(t, tokens, 2)
 
@@ -629,10 +645,7 @@ func (s *ServicesTestSuite) TokenCRUD(t *testing.T) {
 	err = s.ProvisioningS.DeleteToken(ctx, tokens[1].GetName())
 	require.NoError(t, err)
 
-	tokens, err = stream.Collect(clientutils.Resources(ctx,
-		func(ctx context.Context, pageSize int, pageKey string) ([]types.ProvisionToken, string, error) {
-			return s.ProvisioningS.ListProvisionTokens(ctx, pageSize, pageKey, nil, "")
-		}))
+	tokens, err = s.ProvisioningS.GetTokens(ctx)
 	require.NoError(t, err)
 	require.Empty(t, tokens)
 }
@@ -719,12 +732,6 @@ func (s *ServicesTestSuite) SAMLCRUD(t *testing.T) {
 				PrivateKey: fixtures.TLSCAKeyPEM,
 				Cert:       fixtures.TLSCACertPEM,
 			},
-			Credentials: &types.SAMLConnectorCredentials{
-				Oauth: &types.OAuthClientCredentials{
-					ClientId:     "test-id",
-					ClientSecret: "test-secret",
-				},
-			},
 		},
 	}
 	err := services.ValidateSAMLConnector(connector, nil)
@@ -745,9 +752,6 @@ func (s *ServicesTestSuite) SAMLCRUD(t *testing.T) {
 	require.NoError(t, err)
 	connectorNoSecrets := *connector
 	connectorNoSecrets.Spec.SigningKeyPair.PrivateKey = ""
-	oauthNoSecrets := *connectorNoSecrets.GetOAuthClientCredentials()
-	oauthNoSecrets.ClientSecret = ""
-	connectorNoSecrets.SetOAuthClientCredentials(&oauthNoSecrets)
 	require.Empty(t, cmp.Diff(out2, &connectorNoSecrets, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	connectorsNoSecrets, err := s.WebS.GetSAMLConnectors(ctx, false)
@@ -914,55 +918,6 @@ func (s *ServicesTestSuite) SAMLPagination(t *testing.T) {
 		require.Empty(t, cmp.Diff(want, append(page1, page2...), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 	})
 
-	t.Run("RangeSAMLConnectorsWithOptions", func(t *testing.T) {
-		withSecrets := false
-		want := expectedWithoutSecrets
-
-		// full range
-		conns, err := stream.Collect(s.WebS.RangeSAMLConnectorsWithOptions(ctx, "", "", withSecrets))
-		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(want, conns, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
-
-		// with start
-		conns, err = stream.Collect(s.WebS.RangeSAMLConnectorsWithOptions(ctx, want[pageSize].GetName(), "", withSecrets))
-		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(want[pageSize:], conns, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
-
-		// with end
-		conns, err = stream.Collect(s.WebS.RangeSAMLConnectorsWithOptions(ctx, "", want[pageSize*2].GetName(), withSecrets))
-		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(want[:pageSize*2], conns, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
-
-		// with start and end
-		conns, err = stream.Collect(s.WebS.RangeSAMLConnectorsWithOptions(ctx, want[pageSize].GetName(), want[pageSize*2].GetName(), withSecrets))
-		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(want[pageSize:pageSize*2], conns, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
-	})
-
-	t.Run("RangeSAMLConnectorsWithOptions with secrets", func(t *testing.T) {
-		withSecrets := true
-		want := expected
-
-		// full range
-		conns, err := stream.Collect(s.WebS.RangeSAMLConnectorsWithOptions(ctx, "", "", withSecrets))
-		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(want, conns, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
-
-		// with start
-		conns, err = stream.Collect(s.WebS.RangeSAMLConnectorsWithOptions(ctx, want[pageSize].GetName(), "", withSecrets))
-		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(want[pageSize:], conns, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
-
-		// with end
-		conns, err = stream.Collect(s.WebS.RangeSAMLConnectorsWithOptions(ctx, "", want[pageSize*2].GetName(), withSecrets))
-		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(want[:pageSize*2], conns, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
-
-		// with start and end
-		conns, err = stream.Collect(s.WebS.RangeSAMLConnectorsWithOptions(ctx, want[pageSize].GetName(), want[pageSize*2].GetName(), withSecrets))
-		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(want[pageSize:pageSize*2], conns, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
-	})
 }
 
 func (s *ServicesTestSuite) OIDCCRUD(t *testing.T) {
@@ -1167,57 +1122,94 @@ func (s *ServicesTestSuite) OIDCPagination(t *testing.T) {
 
 		require.Empty(t, cmp.Diff(want, append(page1, page2...), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 	})
+}
 
-	t.Run("RangeOIDCConnectors", func(t *testing.T) {
-		withSecrets := false
-		want := expectedWithoutSecrets
+// TestListOIDCConnectors_SkipsUnmarshalErrorsHittingPageBoundary guards against a regression where hitting a page boundary with a malformed backend item would
+// return less items than the page limit and no next token. This would cause callers to miss resources and fail to paginate properly when malformed items are present in the backend.
+func TestListOIDCConnectors_SkipsUnmarshalErrorsHittingPageBoundary(t *testing.T) {
+	ctx := t.Context()
 
-		// full range
-		conns, err := stream.Collect(s.WebS.RangeOIDCConnectors(ctx, "", "", withSecrets))
-		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(want, conns, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	const pageLimit = 64
+	const numberOfPages = 5
 
-		// with start
-		conns, err = stream.Collect(s.WebS.RangeOIDCConnectors(ctx, want[pageSize].GetName(), "", withSecrets))
-		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(want[pageSize:], conns, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
-
-		// with end
-		conns, err = stream.Collect(s.WebS.RangeOIDCConnectors(ctx, "", want[pageSize*2].GetName(), withSecrets))
-		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(want[:pageSize*2], conns, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
-
-		// with start and end
-		conns, err = stream.Collect(s.WebS.RangeOIDCConnectors(ctx, want[pageSize].GetName(), want[pageSize*2].GetName(), withSecrets))
-		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(want[pageSize:pageSize*2], conns, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	clock := clockwork.NewFakeClock()
+	mem, err := memory.New(memory.Config{
+		Context: t.Context(),
+		Clock:   clock,
 	})
+	require.NoError(t, err)
 
-	t.Run("RangeOIDCConnectors with secrets", func(t *testing.T) {
-		withSecrets := true
-		want := expected
+	service, err := NewTestIdentityService(mem)
+	require.NoError(t, err)
 
-		// full range
-		conns, err := stream.Collect(s.WebS.RangeOIDCConnectors(ctx, "", "", withSecrets))
+	var allExpected []types.OIDCConnector
+
+	createResource := func(name string) {
+		connector := &types.OIDCConnectorV3{
+			Kind:    types.KindOIDC,
+			Version: types.V2,
+			Metadata: types.Metadata{
+				Name:      name,
+				Namespace: apidefaults.Namespace,
+			},
+			Spec: types.OIDCConnectorSpecV3{
+				Display:      "SAML",
+				IssuerURL:    "http://example.com",
+				ClientID:     "aaa",
+				ClientSecret: "bbb",
+				RedirectURLs: []string{"https://localhost:3080/v1/webapi/github/callback"},
+				ClaimsToRoles: []types.ClaimMapping{
+					{
+						Claim: "abc",
+						Value: "xyz",
+						Roles: []string{"admin"},
+					},
+				},
+			},
+		}
+		_, err = service.UpsertOIDCConnector(ctx, connector)
 		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(want, conns, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+		allExpected = append(allExpected, connector)
 
-		// with start
-		conns, err = stream.Collect(s.WebS.RangeOIDCConnectors(ctx, want[pageSize].GetName(), "", withSecrets))
+	}
+
+	createMalformedEntry := func(name string) {
+		_, err := mem.Put(ctx, backend.Item{
+			Key:   backend.NewKey(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix, name),
+			Value: []byte("not-valid-json"),
+		})
 		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(want[pageSize:], conns, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	}
 
-		// with end
-		conns, err = stream.Collect(s.WebS.RangeOIDCConnectors(ctx, "", want[pageSize*2].GetName(), withSecrets))
-		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(want[:pageSize*2], conns, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	for i := range pageLimit * numberOfPages {
+		key := fmt.Sprintf("r%d", i)
+		if i%2 == 0 {
+			createMalformedEntry(key)
+		} else {
+			createResource(key)
+		}
+	}
 
-		// with start and end
-		conns, err = stream.Collect(s.WebS.RangeOIDCConnectors(ctx, want[pageSize].GetName(), want[pageSize*2].GetName(), withSecrets))
-		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(want[pageSize:pageSize*2], conns, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
-	})
+	page1, next, err := service.ListOIDCConnectors(ctx, pageLimit, "", true)
+	require.NoError(t, err)
+	require.Len(t, page1, pageLimit)
+	require.NotEmpty(t, next)
 
+	page2, next, err := service.ListOIDCConnectors(ctx, pageLimit, next, true)
+	require.NoError(t, err)
+	require.Len(t, page2, pageLimit)
+	require.NotEmpty(t, next)
+
+	page3, next, err := service.ListOIDCConnectors(ctx, pageLimit, next, true)
+	require.NoError(t, err)
+	require.Len(t, page3, pageLimit/2)
+	require.Empty(t, next)
+
+	allActual := append(append(page1, page2...), page3...)
+	require.Empty(t, cmp.Diff(allExpected, allActual,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.SortSlices(func(a, b types.OIDCConnector) bool { return a.GetName() < b.GetName() }),
+	))
 }
 
 func (s *ServicesTestSuite) TunnelConnectionsCRUD(t *testing.T) {
@@ -1258,12 +1250,15 @@ func (s *ServicesTestSuite) TunnelConnectionsCRUD(t *testing.T) {
 	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff(out[0], conn, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-	out, err = s.TrustS.GetAllTunnelConnections()
+	err = s.TrustS.DeleteAllTunnelConnections()
 	require.NoError(t, err)
-	for _, tc := range out {
-		err = s.TrustS.DeleteTunnelConnection(tc.GetClusterName(), tc.GetName())
-		require.NoError(t, err)
-	}
+
+	out, err = s.TrustS.GetTunnelConnections(clusterName)
+	require.NoError(t, err)
+	require.Empty(t, out)
+
+	err = s.TrustS.DeleteAllTunnelConnections()
+	require.NoError(t, err)
 
 	// test delete individual connection
 	err = s.TrustS.UpsertTunnelConnection(conn)
@@ -1483,56 +1478,6 @@ func (s *ServicesTestSuite) GithubPagination(t *testing.T) {
 		require.Empty(t, cmp.Diff(want, append(page1, page2...), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 	})
 
-	t.Run("RangeGithubConnectors", func(t *testing.T) {
-		withSecrets := false
-		want := expectedWithoutSecrets
-
-		// full range
-		conns, err := stream.Collect(s.WebS.RangeGithubConnectors(ctx, "", "", withSecrets))
-		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(want, conns, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
-
-		// with start
-		conns, err = stream.Collect(s.WebS.RangeGithubConnectors(ctx, want[pageSize].GetName(), "", withSecrets))
-		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(want[pageSize:], conns, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
-
-		// with end
-		conns, err = stream.Collect(s.WebS.RangeGithubConnectors(ctx, "", want[pageSize*2].GetName(), withSecrets))
-		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(want[:pageSize*2], conns, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
-
-		// with start and end
-		conns, err = stream.Collect(s.WebS.RangeGithubConnectors(ctx, want[pageSize].GetName(), want[pageSize*2].GetName(), withSecrets))
-		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(want[pageSize:pageSize*2], conns, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
-	})
-
-	t.Run("RangeGithubConnectors with secrets", func(t *testing.T) {
-		withSecrets := true
-		want := expected
-
-		// full range
-		conns, err := stream.Collect(s.WebS.RangeGithubConnectors(ctx, "", "", withSecrets))
-		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(want, conns, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
-
-		// with start
-		conns, err = stream.Collect(s.WebS.RangeGithubConnectors(ctx, want[pageSize].GetName(), "", withSecrets))
-		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(want[pageSize:], conns, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
-
-		// with end
-		conns, err = stream.Collect(s.WebS.RangeGithubConnectors(ctx, "", want[pageSize*2].GetName(), withSecrets))
-		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(want[:pageSize*2], conns, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
-
-		// with start and end
-		conns, err = stream.Collect(s.WebS.RangeGithubConnectors(ctx, want[pageSize].GetName(), want[pageSize*2].GetName(), withSecrets))
-		require.NoError(t, err)
-		require.Empty(t, cmp.Diff(want[pageSize:pageSize*2], conns, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
-	})
-
 }
 
 // AuthPreference tests authentication preference service
@@ -1640,7 +1585,6 @@ func (s *ServicesTestSuite) SessionRecordingConfig(t *testing.T) {
 }
 
 func (s *ServicesTestSuite) StaticTokens(t *testing.T) {
-	ctx := t.Context()
 	// set static tokens
 	staticTokens, err := types.NewStaticTokens(types.StaticTokensSpecV2{
 		StaticTokens: []types.ProvisionTokenV1{
@@ -1656,60 +1600,14 @@ func (s *ServicesTestSuite) StaticTokens(t *testing.T) {
 	err = s.ConfigS.SetStaticTokens(staticTokens)
 	require.NoError(t, err)
 
-	out, err := s.ConfigS.GetStaticTokens(ctx)
+	out, err := s.ConfigS.GetStaticTokens()
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(staticTokens, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	err = s.ConfigS.DeleteStaticTokens()
 	require.NoError(t, err)
 
-	_, err = s.ConfigS.GetStaticTokens(ctx)
-	require.True(t, trace.IsNotFound(err))
-}
-
-func (s *ServicesTestSuite) StaticScopedTokens(t *testing.T) {
-	ctx := t.Context()
-	// set static tokens
-	staticTokens := &joiningv1.StaticScopedTokens{
-		Kind:  types.KindStaticScopedTokens,
-		Scope: "/",
-		Metadata: &headerv1.Metadata{
-			Name: types.MetaNameStaticScopedTokens,
-		},
-		Spec: &joiningv1.StaticScopedTokensSpec{
-			Tokens: []*joiningv1.ScopedToken{
-				{
-					Kind:  types.KindScopedToken,
-					Scope: "/",
-					Metadata: &headerv1.Metadata{
-						Name:    "tok1",
-						Expires: timestamppb.New(time.Now().UTC().Add(time.Hour)),
-					},
-					Spec: &joiningv1.ScopedTokenSpec{
-						Roles:         []string{types.RoleNode.String()},
-						JoinMethod:    string(types.JoinMethodToken),
-						UsageMode:     string(joining.TokenUsageModeUnlimited),
-						AssignedScope: "/local",
-					},
-				},
-			},
-		},
-	}
-
-	err := s.LocalConfigS.SetStaticScopedTokens(ctx, staticTokens)
-	require.NoError(t, err)
-
-	out, err := s.LocalConfigS.GetStaticScopedTokens(ctx)
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(staticTokens, out,
-		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
-		protocmp.Transform(),
-	))
-
-	err = s.LocalConfigS.DeleteStaticScopedTokens(ctx)
-	require.NoError(t, err)
-
-	_, err = s.LocalConfigS.GetStaticScopedTokens(ctx)
+	_, err = s.ConfigS.GetStaticTokens()
 	require.True(t, trace.IsNotFound(err))
 }
 
@@ -1741,7 +1639,6 @@ func CollectOptions(opts ...Option) Options {
 
 // ClusterName tests cluster name.
 func (s *ServicesTestSuite) ClusterName(t *testing.T, opts ...Option) {
-	ctx := context.Background()
 	clusterName, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
 		ClusterName: "example.com",
 	})
@@ -1749,20 +1646,20 @@ func (s *ServicesTestSuite) ClusterName(t *testing.T, opts ...Option) {
 	err = s.LocalConfigS.SetClusterName(clusterName)
 	require.NoError(t, err)
 
-	gotName, err := s.ConfigS.GetClusterName(ctx)
+	gotName, err := s.ConfigS.GetClusterName()
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(clusterName, gotName, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	err = s.LocalConfigS.DeleteClusterName()
 	require.NoError(t, err)
 
-	_, err = s.ConfigS.GetClusterName(ctx)
+	_, err = s.ConfigS.GetClusterName()
 	require.True(t, trace.IsNotFound(err))
 
 	err = s.LocalConfigS.UpsertClusterName(clusterName)
 	require.NoError(t, err)
 
-	gotName, err = s.ConfigS.GetClusterName(ctx)
+	gotName, err = s.ConfigS.GetClusterName()
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(clusterName, gotName, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 }
@@ -2060,8 +1957,7 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 				LoadSecrets: true,
 			},
 			crud: func(context.Context) types.Resource {
-				ca, err := authcatest.NewCA(types.UserCA, "example.com")
-				require.NoError(t, err)
+				ca := NewTestCA(types.UserCA, "example.com")
 				require.NoError(t, s.TrustS.UpsertCertAuthority(ctx, ca))
 
 				out, err := s.TrustS.GetCertAuthority(ctx, *ca.ID(), true)
@@ -2082,8 +1978,7 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 				LoadSecrets: false,
 			},
 			crud: func(context.Context) types.Resource {
-				ca, err := authcatest.NewCA(types.UserCA, "example.com")
-				require.NoError(t, err)
+				ca := NewTestCA(types.UserCA, "example.com")
 				require.NoError(t, s.TrustS.UpsertCertAuthority(ctx, ca))
 
 				out, err := s.TrustS.GetCertAuthority(ctx, *ca.ID(), false)
@@ -2137,7 +2032,7 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 				err = s.LocalConfigS.SetStaticTokens(staticTokens)
 				require.NoError(t, err)
 
-				out, err := s.LocalConfigS.GetStaticTokens(ctx)
+				out, err := s.LocalConfigS.GetStaticTokens()
 				require.NoError(t, err)
 
 				err = s.LocalConfigS.DeleteStaticTokens()
@@ -2221,16 +2116,14 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 			crud: func(context.Context) types.Resource {
 				srv := NewServer(types.KindProxy, "srv1", "127.0.0.1:2022", apidefaults.Namespace)
 
-				_, err := s.PresenceS.UpsertProxyServer(ctx, srv)
+				err := s.PresenceS.UpsertProxy(ctx, srv)
 				require.NoError(t, err)
 
-				//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 				out, err := s.PresenceS.GetProxies()
 				require.NoError(t, err)
 
-				for _, p := range out {
-					require.NoError(t, s.PresenceS.DeleteProxyServer(ctx, p.GetName()))
-				}
+				err = s.PresenceS.DeleteAllProxies()
+				require.NoError(t, err)
 
 				return out[0]
 			},
@@ -2254,7 +2147,7 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 				out, err := s.TrustS.GetTunnelConnections("example.com")
 				require.NoError(t, err)
 
-				err = s.TrustS.DeleteTunnelConnection(conn.GetClusterName(), conn.GetName())
+				err = s.TrustS.DeleteAllTunnelConnections()
 				require.NoError(t, err)
 
 				return out[0]
@@ -2267,7 +2160,7 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 			},
 			crud: func(context.Context) types.Resource {
 				tunnel := newReverseTunnel("example.com", []string{"example.com:2023"})
-				_, err := s.PresenceS.UpsertReverseTunnel(ctx, tunnel)
+				err := s.PresenceS.UpsertReverseTunnel(ctx, tunnel)
 				require.NoError(t, err)
 
 				out, _, err := s.PresenceS.ListReverseTunnels(
@@ -2300,42 +2193,6 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 				require.NoError(t, err)
 
 				return out[0]
-			},
-		},
-		{
-			name: "SAMLConnector",
-			kind: types.WatchKind{
-				Kind: types.KindSAMLConnector,
-			},
-			crud: func(ctx context.Context) types.Resource {
-				connector, err := types.NewSAMLConnector("test-saml-connector", types.SAMLConnectorSpecV2{
-					Display:                  "SAML",
-					Issuer:                   "http://example.com",
-					SSO:                      "https://example.com/saml/sso",
-					AssertionConsumerService: "https://localhost/acs",
-					Audience:                 "https://localhost/aud",
-					ServiceProviderIssuer:    "https://localhost/iss",
-					AttributesToRoles: []types.AttributeMapping{
-						{Name: "groups", Value: "admin", Roles: []string{"admin"}},
-					},
-					Cert: fixtures.TLSCACertPEM,
-					SigningKeyPair: &types.AsymmetricKeyPair{
-						PrivateKey: fixtures.TLSCAKeyPEM,
-						Cert:       fixtures.TLSCACertPEM,
-					},
-				})
-				require.NoError(t, err)
-
-				_, err = s.WebS.CreateSAMLConnector(ctx, connector)
-				require.NoError(t, err)
-
-				out, err := s.WebS.GetSAMLConnector(ctx, connector.GetName(), false)
-				require.NoError(t, err)
-
-				err = s.WebS.DeleteSAMLConnector(ctx, connector.GetName())
-				require.NoError(t, err)
-
-				return out
 			},
 		},
 	}
@@ -2378,7 +2235,7 @@ func (s *ServicesTestSuite) EventsClusterConfig(t *testing.T) {
 				err = s.LocalConfigS.UpsertClusterName(clusterName)
 				require.NoError(t, err)
 
-				out, err := s.ConfigS.GetClusterName(ctx)
+				out, err := s.ConfigS.GetClusterName()
 				require.NoError(t, err)
 
 				err = s.LocalConfigS.DeleteClusterName()
@@ -2541,33 +2398,17 @@ skiploop:
 
 		ExpectResource(t, w, 3*time.Second, resource)
 
-		// Explicitly handle watchers that emit a concrete type on delete, rather than
-		// a ResourceHeader.
-		var deleteResource types.Resource
-		switch r := resource.(type) {
-		case *types.SAMLConnectorV2:
-			meta := r.GetMetadata()
-			deleteResource = &types.SAMLConnectorV2{
-				Kind:    r.GetKind(),
-				Version: r.GetVersion(),
-				Metadata: types.Metadata{
-					Name:      meta.Name,
-					Namespace: meta.Namespace,
-				},
-			}
-		default:
-			meta := r.GetMetadata()
-			deleteResource = &types.ResourceHeader{
-				Kind:    r.GetKind(),
-				SubKind: r.GetSubKind(),
-				Version: r.GetVersion(),
-				Metadata: types.Metadata{
-					Name:      meta.Name,
-					Namespace: meta.Namespace,
-				},
-			}
+		meta := resource.GetMetadata()
+		header := &types.ResourceHeader{
+			Kind:    resource.GetKind(),
+			SubKind: resource.GetSubKind(),
+			Version: resource.GetVersion(),
+			Metadata: types.Metadata{
+				Name:      meta.Name,
+				Namespace: meta.Namespace,
+			},
 		}
-		ExpectDeleteResource(t, w, 3*time.Second, deleteResource)
+		ExpectDeleteResource(t, w, 3*time.Second, header)
 	}
 }
 
@@ -2660,4 +2501,138 @@ waitLoop:
 			break waitLoop
 		}
 	}
+}
+
+// NewTestCA returns new test authority with a test key as a public and
+// signing key
+func NewTestCA(caType types.CertAuthType, clusterName string, privateKeys ...[]byte) *types.CertAuthorityV2 {
+	return NewTestCAWithConfig(TestCAConfig{
+		Type:        caType,
+		ClusterName: clusterName,
+		PrivateKeys: privateKeys,
+		Clock:       clockwork.NewRealClock(),
+	})
+}
+
+// TestCAConfig defines the configuration for generating
+// a test certificate authority
+type TestCAConfig struct {
+	Type        types.CertAuthType
+	PrivateKeys [][]byte
+	Clock       clockwork.Clock
+	ClusterName string
+	// the below string fields default to ClusterName if left empty
+	ResourceName        string
+	SubjectOrganization string
+}
+
+// NewTestCAWithConfig generates a new certificate authority with the specified
+// configuration
+// Keep this function in-sync with lib/auth/auth.go:newKeySet().
+// TODO(jakule): reuse keystore.KeyStore interface to match newKeySet().
+func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
+	var keyPEM []byte
+	var key *keys.PrivateKey
+
+	if config.ResourceName == "" {
+		config.ResourceName = config.ClusterName
+	}
+	if config.SubjectOrganization == "" {
+		config.SubjectOrganization = config.ClusterName
+	}
+
+	switch config.Type {
+	case types.DatabaseCA, types.SAMLIDPCA, types.OIDCIdPCA:
+		// These CAs only support RSA.
+		keyPEM = fixtures.PEMBytes["rsa"]
+	case types.DatabaseClientCA:
+		// The db client CA also only supports RSA, but some tests rely on it
+		// being different than the DB CA.
+		keyPEM = fixtures.PEMBytes["rsa-db-client"]
+	}
+	if len(config.PrivateKeys) > 0 {
+		// Allow test to override the private key.
+		keyPEM = config.PrivateKeys[0]
+	}
+
+	if keyPEM != nil {
+		var err error
+		key, err = keys.ParsePrivateKey(keyPEM)
+		if err != nil {
+			panic(err)
+		}
+	} else {
+		// If config.PrivateKeys was not set and this CA does not exclusively
+		// support RSA, generate an ECDSA key. Signatures are ~10x faster than
+		// RSA and generating a new key is actually faster than parsing a PEM
+		// fixture.
+		signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+		if err != nil {
+			panic(err)
+		}
+		key, err = keys.NewPrivateKey(signer)
+		if err != nil {
+			panic(err)
+		}
+		keyPEM = key.PrivateKeyPEM()
+	}
+
+	ca := &types.CertAuthorityV2{
+		Kind:    types.KindCertAuthority,
+		SubKind: string(config.Type),
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Name:      config.ResourceName,
+			Namespace: apidefaults.Namespace,
+		},
+		Spec: types.CertAuthoritySpecV2{
+			Type:        config.Type,
+			ClusterName: config.ClusterName,
+		},
+	}
+
+	// Add SSH keys if necessary.
+	switch config.Type {
+	case types.UserCA, types.HostCA, types.OpenSSHCA:
+		ca.Spec.ActiveKeys.SSH = []*types.SSHKeyPair{{
+			PrivateKey: keyPEM,
+			PublicKey:  key.MarshalSSHPublicKey(),
+		}}
+	}
+
+	// Add TLS keys if necessary.
+	switch config.Type {
+	case types.UserCA, types.HostCA, types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA:
+		cert, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
+			Signer: key.Signer,
+			Entity: pkix.Name{
+				CommonName:   config.ClusterName,
+				Organization: []string{config.SubjectOrganization},
+			},
+			TTL:   defaults.CATTL,
+			Clock: config.Clock,
+		})
+		if err != nil {
+			panic(err)
+		}
+		ca.Spec.ActiveKeys.TLS = []*types.TLSKeyPair{{
+			Key:  keyPEM,
+			Cert: cert,
+		}}
+	}
+
+	// Add JWT keys if necessary.
+	switch config.Type {
+	case types.JWTSigner, types.OIDCIdPCA, types.SPIFFECA, types.OktaCA, types.BoundKeypairCA:
+		pubKeyPEM, err := keys.MarshalPublicKey(key.Public())
+		if err != nil {
+			panic(err)
+		}
+		ca.Spec.ActiveKeys.JWT = []*types.JWTKeyPair{{
+			PrivateKey: keyPEM,
+			PublicKey:  pubKeyPEM,
+		}}
+	}
+
+	return ca
 }

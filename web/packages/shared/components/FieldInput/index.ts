@@ -19,4 +19,4 @@
 import FieldInput from './FieldInput';
 
 export default FieldInput;
-export { HelperTextLine, type FieldInputProps } from './FieldInput';
+export type { FieldInputProps } from './FieldInput';

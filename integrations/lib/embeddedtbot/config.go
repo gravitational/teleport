@@ -42,8 +42,6 @@ type BotConfig struct {
 	Onboarding         onboarding.Config
 	CredentialLifetime bot.CredentialLifetime
 	Insecure           bool
-	// Scoped represents if the bot uses a scoped token to join (and gets a scoped identity).
-	Scoped bool
 }
 
 // BindFlags binds BotConfig fields to CLI flags.

@@ -48,6 +48,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/backend"
@@ -63,7 +64,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 // CommandOptions controls how the SSH command is built.
@@ -205,7 +205,7 @@ func mustCreateUserKeyRingWithKeys(t *testing.T, tc *TeleInstance, username stri
 
 	tlsPub, err := keys.MarshalPublicKey(tlsKey.Public())
 	require.NoError(t, err)
-	sshCert, tlsCert, err := tc.Process.GetAuthServer().GenerateUserTestCertsWithContext(t.Context(), auth.GenerateUserTestCertsRequest{
+	sshCert, tlsCert, err := tc.Process.GetAuthServer().GenerateUserTestCertsWithContext(context.Background(), auth.GenerateUserTestCertsRequest{
 		SSHPubKey:      keyRing.SSHPrivateKey.MarshalSSHPublicKey(),
 		TLSPubKey:      tlsPub,
 		Username:       username,
@@ -261,7 +261,7 @@ func WaitForProxyCount(t *TeleInstance, clusterName string, count int) error {
 }
 
 func WaitForAuditEventTypeWithBackoff(t *testing.T, cli *auth.Server, startTime time.Time, eventType string) []apievents.AuditEvent {
-	max := time.Second * 10
+	max := time.Second * 2
 	timeout := time.After(max)
 	bf, err := retryutils.NewLinear(retryutils.LinearConfig{
 		Step: max / 10,
@@ -396,7 +396,7 @@ func MakeTestServers(t *testing.T) (auth *service.TeleportProcess, proxy *servic
 	cfg.SSH.Enabled = false
 	cfg.Auth.Enabled = true
 	cfg.Proxy.Enabled = false
-	cfg.Logger = logtest.NewLogger()
+	cfg.Log = utils.NewLoggerForTests()
 
 	auth, err = service.NewTeleport(cfg)
 	require.NoError(t, err)
@@ -435,7 +435,7 @@ func MakeTestServers(t *testing.T) (auth *service.TeleportProcess, proxy *servic
 		cfg.Proxy.WebAddr,
 	}
 	cfg.Proxy.DisableWebInterface = true
-	cfg.Logger = logtest.NewLogger()
+	cfg.Log = utils.NewLoggerForTests()
 
 	proxy, err = service.NewTeleport(cfg)
 	require.NoError(t, err)
@@ -456,10 +456,11 @@ func MakeTestServers(t *testing.T) (auth *service.TeleportProcess, proxy *servic
 // MakeTestDatabaseServer creates a Database Service
 // It receives the Proxy Address, a Token (to join the cluster) and a list of Datbases
 func MakeTestDatabaseServer(t *testing.T, proxyAddr utils.NetAddr, token string, resMatchers []services.ResourceMatcher, dbs ...servicecfg.Database) (db *service.TeleportProcess) {
+	// Proxy uses self-signed certificates in tests.
+	lib.SetInsecureDevMode(true)
+
 	cfg := servicecfg.MakeDefaultConfig()
 	cfg.DebugService.Enabled = false
-	// Proxy uses self-signed certificates in tests.
-	cfg.InsecureMode = true
 	cfg.Hostname = "localhost"
 	cfg.DataDir = t.TempDir()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
@@ -472,7 +473,7 @@ func MakeTestDatabaseServer(t *testing.T, proxyAddr utils.NetAddr, token string,
 	cfg.Databases.Enabled = true
 	cfg.Databases.Databases = dbs
 	cfg.Databases.ResourceMatchers = resMatchers
-	cfg.Logger = logtest.NewLogger()
+	cfg.Log = utils.NewLoggerForTests()
 
 	db, err := service.NewTeleport(cfg)
 	require.NoError(t, err)
@@ -487,37 +488,6 @@ func MakeTestDatabaseServer(t *testing.T, proxyAddr utils.NetAddr, token string,
 	require.NoError(t, err, "database server didn't start after 10s")
 
 	return db
-}
-
-// MakeAgentServer creates SSH agent Service
-// It receives the Proxy Address, a Token (to join the cluster).
-func MakeAgentServer(t *testing.T, cfg *servicecfg.Config, proxyAddr utils.NetAddr, token string) *service.TeleportProcess {
-	// Proxy uses self-signed certificates in tests.
-	cfg.InsecureMode = true
-	cfg.Hostname = "localhost"
-	cfg.DataDir = t.TempDir()
-	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
-	cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
-	cfg.SetAuthServerAddress(proxyAddr)
-	cfg.SetToken(token)
-	cfg.SSH.Enabled = true
-	cfg.Auth.Enabled = false
-	cfg.Proxy.Enabled = false
-	cfg.Databases.Enabled = false
-	cfg.Logger = logtest.NewLogger()
-
-	agent, err := service.NewTeleport(cfg)
-	require.NoError(t, err)
-	require.NoError(t, agent.Start())
-
-	t.Cleanup(func() {
-		assert.NoError(t, agent.Close())
-	})
-
-	_, err = agent.WaitForEventTimeout(30*time.Second, service.NodeSSHReady)
-	require.NoError(t, err, "agent server didn't start after 10s")
-
-	return agent
 }
 
 // MustCreateListener creates a tcp listener at 127.0.0.1 with random port.
@@ -561,6 +531,6 @@ func UpsertAuthPrefAndWaitForCache(
 		rp, err := srv.GetReadOnlyAuthPreference(ctx)
 		require.NoError(t, err)
 		p := rp.Clone()
-		require.Empty(t, cmp.Diff(&pref, &p))
+		assert.Empty(t, cmp.Diff(&pref, &p))
 	}, 5*time.Second, 100*time.Millisecond)
 }

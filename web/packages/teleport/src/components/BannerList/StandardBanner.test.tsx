@@ -16,25 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {
-  enableMswServer,
-  fireEvent,
-  render,
-  screen,
-  server,
-  theme,
-} from 'design/utils/testing';
+import { fireEvent, render, screen, theme } from 'design/utils/testing';
 
 import { userEventService } from 'teleport/services/userEvent';
-import { userEventCaptureSuccess } from 'teleport/test/helpers/userEvents';
 
 import { StandardBanner } from './StandardBanner';
-
-enableMswServer();
-
-beforeEach(() => {
-  server.use(userEventCaptureSuccess());
-});
 
 describe('StandardBanner', () => {
   it('displays the supplied message', () => {

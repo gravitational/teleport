@@ -40,11 +40,11 @@ func TestCLICommandBuilderGetExecCommand(t *testing.T) {
 	}
 
 	conf := &client.Config{
-		ClientStore:  client.NewFSClientStore(t.TempDir()),
 		Host:         "localhost",
 		WebProxyAddr: "proxy.example.com",
 		SiteName:     "db.example.com",
 		Tracer:       tracing.NoopProvider().Tracer("test"),
+		ClientStore:  client.NewMemClientStore(),
 	}
 
 	tc, err := client.NewClient(conf)

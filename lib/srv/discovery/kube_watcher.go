@@ -20,6 +20,7 @@ package discovery
 
 import (
 	"context"
+	"log/slog"
 	"sync"
 
 	"github.com/gravitational/trace"
@@ -35,7 +36,7 @@ import (
 const kubeEventPrefix = "kube/"
 
 func (s *Server) startKubeWatchers() error {
-	if len(s.getKubeNonIntegrationFetchers()) == 0 && s.DiscoveryGroup == "" {
+	if len(s.getKubeNonIntegrationFetchers()) == 0 && s.dynamicMatcherWatcher == nil {
 		return nil
 	}
 
@@ -61,9 +62,11 @@ func (s *Server) startKubeWatchers() error {
 				defer mu.Unlock()
 				return utils.FromSlice(kubeResources, types.KubeCluster.GetName)
 			},
+			// TODO(tross): update to user the server logger once it is converted to use slog
+			Logger: slog.With("kind", types.KindKubernetesCluster),
 			CompareResources: func(kc1, kc2 types.KubeCluster) int {
-				if !kc1.IsEqual(kc2) {
-					return services.Different
+				if res := services.CompareResources(kc1, kc2); res != services.Equal {
+					return res
 				}
 				// Additionally compare Status field using its IsEqual method.
 				// This is needed because CompareResources ignores Status field of KubeCluster and for most
@@ -75,7 +78,6 @@ func (s *Server) startKubeWatchers() error {
 				}
 				return services.Different
 			},
-			Logger:   s.Log.With("kind", types.KindKubernetesCluster),
 			OnCreate: s.onKubeCreate,
 			OnUpdate: s.onKubeUpdate,
 			OnDelete: s.onKubeDelete,
@@ -91,7 +93,7 @@ func (s *Server) startKubeWatchers() error {
 			s.submitFetchersEvent(kubeNonIntegrationFetchers)
 			return kubeNonIntegrationFetchers
 		},
-		Logger:         s.Log.With("kind", types.KindKubernetesCluster),
+		Log:            s.LegacyLogger.WithField("kind", types.KindKubernetesCluster),
 		DiscoveryGroup: s.DiscoveryGroup,
 		Interval:       s.PollInterval,
 		Origin:         types.OriginCloud,
@@ -150,11 +152,12 @@ func (s *Server) onKubeCreate(ctx context.Context, kubeCluster types.KubeCluster
 		}
 		return trace.Wrap(s.onKubeUpdate(ctx, kubeCluster, nil))
 	}
-	err = s.emitUsageEvent(kubeEventPrefix+kubeCluster.GetName(), &usageeventsv1.ResourceCreateEvent{
-		ResourceType:        types.DiscoveredResourceKubernetes,
-		ResourceOrigin:      types.OriginCloud,
-		CloudProvider:       kubeCluster.GetCloud(),
-		DiscoveryConfigName: kubeCluster.GetStaticLabels()[types.TeleportInternalDiscoveryConfigName],
+	err = s.emitUsageEvents(map[string]*usageeventsv1.ResourceCreateEvent{
+		kubeEventPrefix + kubeCluster.GetName(): {
+			ResourceType:   types.DiscoveredResourceKubernetes,
+			ResourceOrigin: types.OriginCloud,
+			CloudProvider:  kubeCluster.GetCloud(),
+		},
 	})
 	if err != nil {
 		s.Log.DebugContext(ctx, "Error emitting usage event", "error", err)
@@ -172,7 +175,7 @@ func (s *Server) onKubeDelete(ctx context.Context, kubeCluster types.KubeCluster
 	if err := fetchers.DeleteKubernetesDanglingResources(
 		ctx,
 		fetchers.DeleteKubernetesDanglingResourcesConfig{
-			ClientGetter: s.AWSFetchersClients,
+			ClientGetter: s.CloudClients,
 			Cluster:      kubeCluster,
 			Logger:       s.Log,
 		},

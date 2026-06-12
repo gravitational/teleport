@@ -1,12 +1,9 @@
 ---
 title: AWS Database Discovery
-sidebar_label: AWS
 description: How to configure Teleport to auto-discover AWS databases.
 tags:
  - how-to
  - zero-trust
- - infrastructure-identity
- - aws
 ---
 
 Teleport can be configured to discover AWS-hosted databases automatically and
@@ -221,7 +218,7 @@ will depend on your specific networking setup.
 
 ### Create a Teleport config file
 
-Create a `teleport.yaml` config file on the host that will run the Database
+Create a `teleport.yaml` config file on the host that will run the Discovery
 Service:
 
 ```yaml
@@ -263,7 +260,7 @@ from any AWS account (`"*"` is a wildcard and it can be used as a label key and/
 The AWS tags attached to AWS databases are imported as Teleport `db` labels
 in addition to some other identifying metadata.
 Refer to
-[Database Labels Reference](../../database-access/reference/labels.mdx)
+[Database Labels Reference](../../../reference/agent-services/database-access-reference/labels.mdx)
 for more information about available database labels.
 
 ### Generate a join token
@@ -297,7 +294,7 @@ Additional Teleport RBAC configuration and possibly IAM configuration may also
 be required to connect to the discovered databases via Teleport.
 
 Refer to the appropriate guide in
-[Enroll AWS Databases](../../database-access/enrollment/aws/aws.mdx)
+[Enroll AWS Databases](../../database-access/enroll-aws-databases/enroll-aws-databases.mdx)
 for information about database user provisioning and configuration.
 </Admonition>
 
@@ -305,13 +302,13 @@ for information about database user provisioning and configuration.
 - Learn about [Dynamic Registration](../../database-access/guides/dynamic-registration.mdx) by the
   Teleport Database Service.
 - Get started by [connecting](../../database-access/guides/guides.mdx) your database.
-- Connect AWS databases in [external AWS accounts](../../database-access/enrollment/aws/aws-cross-account.mdx).
+- Connect AWS databases in [external AWS accounts](../../database-access/enroll-aws-databases/aws-cross-account.mdx).
 - Refer to the appropriate guide in
-[Enroll AWS Databases](../../database-access/enrollment/aws/aws.mdx)
+[Enroll AWS Databases](../../database-access/enroll-aws-databases/enroll-aws-databases.mdx)
 for information about database user provisioning and configuration.
 
 ## Troubleshooting
 
-(!docs/pages/includes/discovery/discovery-service-troubleshooting.mdx resourceKind="database" tctlResource="db" cloud="AWS"!)
+(!docs/pages/includes/discovery/discovery-service-troubleshooting.mdx resourceKind="database" tctlResource="db" !)
 
 (!docs/pages/includes/discovery/database-service-troubleshooting.mdx!)

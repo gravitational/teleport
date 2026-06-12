@@ -32,7 +32,7 @@ import (
 	"google.golang.org/grpc/credentials"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 type testCredentials struct {
@@ -113,7 +113,7 @@ func TestClientCredentials(t *testing.T) {
 				},
 			}
 
-			creds := newClientCredentials(test.expectedPeerID, test.peerAddr, logtest.NewLogger(), newTestCredentials(cert))
+			creds := newClientCredentials(test.expectedPeerID, test.peerAddr, utils.NewSlogLoggerForTests(), newTestCredentials(cert))
 
 			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 			defer cancel()

@@ -24,9 +24,6 @@ import {
 } from 'shared/hooks/useAsync';
 
 import {
-  requestResourceApprovedWithConstraints,
-  requestResourcePendingWithConstraints,
-  requestResourceWithConstraintsSuggestedAccessLists,
   requestRoleApproved,
   requestRoleApprovedWithStartTime,
   requestRoleDenied,
@@ -104,42 +101,6 @@ export const LoadedRoleApprovedWithStartTime = () => {
     <RequestView
       {...sample}
       fetchRequestAttempt={makeSuccessAttempt(requestRoleApprovedWithStartTime)}
-      getFlags={() => flags}
-    />
-  );
-};
-
-export const LoadedResourcePendingWithConstraints = () => {
-  const flags = {
-    ...sampleFlags,
-    canReview: true,
-    canDelete: true,
-  };
-  return (
-    <RequestView
-      {...sample}
-      fetchRequestAttempt={makeSuccessAttempt(
-        requestResourcePendingWithConstraints
-      )}
-      fetchSuggestedAccessListsAttempt={makeSuccessAttempt(
-        requestResourceWithConstraintsSuggestedAccessLists
-      )}
-      getFlags={() => flags}
-    />
-  );
-};
-
-export const LoadedResourceApprovedWithConstraints = () => {
-  const flags = {
-    ...sampleFlags,
-    canAssume: true,
-  };
-  return (
-    <RequestView
-      {...sample}
-      fetchRequestAttempt={makeSuccessAttempt(
-        requestResourceApprovedWithConstraints
-      )}
       getFlags={() => flags}
     />
   );

@@ -33,8 +33,8 @@ import (
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/clocki"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 const (
@@ -43,7 +43,7 @@ const (
 )
 
 func TestMain(m *testing.M) {
-	logtest.InitLogger(testing.Verbose)
+	utils.InitLoggerForTests()
 	os.Exit(m.Run())
 }
 
@@ -207,7 +207,8 @@ func TestLeaseBucketing(t *testing.T) {
 		t.Skip("This test requires etcd, run `make run-etcd` and set TELEPORT_ETCD_TEST=yes in your environment")
 	}
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	var opts []Option
 	opts = append(opts, commonEtcdOptions...)
@@ -221,11 +222,11 @@ func TestLeaseBucketing(t *testing.T) {
 	baseExpiry := time.Now().Add(time.Minute)
 
 	buckets := make(map[int64]struct{})
-	for i := range count {
+	for i := 0; i < count; i++ {
 		key := backend.NewKey(pfx, fmt.Sprintf("%d", i))
 		_, err := bk.Put(ctx, backend.Item{
 			Key:     key,
-			Value:   fmt.Appendf(nil, "val-%d", i),
+			Value:   []byte(fmt.Sprintf("val-%d", i)),
 			Expires: baseExpiry.Add(time.Duration(i) * 200 * time.Millisecond),
 		})
 		require.NoError(t, err)

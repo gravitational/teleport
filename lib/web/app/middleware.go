@@ -111,7 +111,7 @@ func (h *Handler) redirectToLauncher(w http.ResponseWriter, r *http.Request, p l
 
 // validateAppAddr checks that appAddr does not match proxyHost
 // and returns an error on conflict.
-func (h *Handler) validateAppAddr(ctx context.Context, appAddr, proxyHost string) error {
+func (h *Handler) validateAppAddr(_ context.Context, appAddr, proxyHost string) error {
 	if appAddr != proxyHost {
 		return nil
 	}
@@ -121,7 +121,7 @@ func (h *Handler) validateAppAddr(ctx context.Context, appAddr, proxyHost string
 		"proxy's public addresses. Refer to https://goteleport.com/" +
 		"docs/enroll-resources/application-access/guides/" +
 		"connecting-apps/."
-	h.logger.ErrorContext(ctx, errMsg, "app_public_addr", appAddr, "proxy_host", proxyHost)
+	h.log.WithField("app_public_addr", appAddr).WithField("proxy_host", proxyHost).Error(errMsg)
 	return trace.BadParameter(errMsg)
 }
 

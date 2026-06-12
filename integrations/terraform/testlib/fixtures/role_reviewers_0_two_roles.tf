@@ -12,5 +12,5 @@ resource "teleport_role" "test_decrease_reviewers" {
     }
   }
 
-  version = "v8"
+  version = "v6"
 }

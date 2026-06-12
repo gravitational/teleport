@@ -54,16 +54,22 @@ const StyledContent = styled(Flex)`
 const StyledFooter = styled('footer')`
   padding-bottom: ${props => props.theme.space[4]}px;
   width: 100%;
-  color: ${props => props.theme.colors.text.main};
+  // we don't want to leverage theme.colors.text.main here
+  // because the footer is always on a dark image background
+  color: white;
 `;
 
 const StyledLink = styled(Link)`
-  color: ${props => props.theme.colors.text.main};
+  // we don't want to leverage theme.colors.text.main here
+  // because the footer is always on a dark image background
+  color: white;
   text-decoration: none;
 
   &:hover,
   &:active,
   &:focus {
-    color: ${props => props.theme.colors.text.muted};
+    // we don't want to leverage theme.colors.text.muted here
+    // because the footer is always on a dark image background
+    color: rgba(255, 255, 255, 0.54);
   }
 `;

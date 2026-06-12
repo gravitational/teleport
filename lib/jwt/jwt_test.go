@@ -19,7 +19,6 @@
 package jwt
 
 import (
-	"cmp"
 	"testing"
 	"time"
 
@@ -38,66 +37,46 @@ var supportedAlgorithms = []cryptosuites.Algorithm{
 
 func TestSignAndVerify(t *testing.T) {
 	t.Parallel()
-	testIssuers := []struct {
-		name   string
-		issuer string
-	}{
-		{
-			name:   "implicit issuer (cluster name)",
-			issuer: "",
-		},
-		{
-			name:   "explicit issuer",
-			issuer: "https://teleport.example.com",
-		},
-	}
 	for _, alg := range supportedAlgorithms {
 		t.Run(alg.String(), func(t *testing.T) {
-			for _, tc := range testIssuers {
-				t.Run(tc.name, func(t *testing.T) {
-					privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(alg)
-					require.NoError(t, err)
+			privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(alg)
+			require.NoError(t, err)
 
-					clock := clockwork.NewFakeClockAt(time.Now())
+			clock := clockwork.NewFakeClockAt(time.Now())
 
-					// Create a new key that can sign and verify tokens.
-					key, err := New(&Config{
-						Clock:       clock,
-						PrivateKey:  privateKey,
-						ClusterName: "example.com",
-					})
-					require.NoError(t, err)
+			// Create a new key that can sign and verify tokens.
+			key, err := New(&Config{
+				Clock:       clock,
+				PrivateKey:  privateKey,
+				ClusterName: "example.com",
+			})
+			require.NoError(t, err)
 
-					// Sign a token with the new key.
-					token, err := key.Sign(SignParams{
-						Issuer:   tc.issuer,
-						Username: "foo@example.com",
-						Roles:    []string{"foo", "bar"},
-						Expires:  clock.Now().Add(1 * time.Minute),
-						URI:      "http://127.0.0.1:8080",
-					})
-					require.NoError(t, err)
+			// Sign a token with the new key.
+			token, err := key.Sign(SignParams{
+				Username: "foo@example.com",
+				Roles:    []string{"foo", "bar"},
+				Expires:  clock.Now().Add(1 * time.Minute),
+				URI:      "http://127.0.0.1:8080",
+			})
+			require.NoError(t, err)
 
-					// decode the signed token
-					decodedToken, err := josejwt.ParseSigned(token)
-					require.NoError(t, err)
+			// decode the signed token
+			decodedToken, err := josejwt.ParseSigned(token)
+			require.NoError(t, err)
 
-					// verify that the kid header is present, and not empty
-					require.NotEmpty(t, decodedToken.Headers[0].KeyID)
+			// verify that the kid header is present, and not empty
+			require.NotEmpty(t, decodedToken.Headers[0].KeyID)
 
-					// Verify that the token can be validated and values match expected values.
-					claims, err := key.Verify(VerifyParams{
-						Issuer:   tc.issuer,
-						Username: "foo@example.com",
-						RawToken: token,
-						URI:      "http://127.0.0.1:8080",
-					})
-					require.NoError(t, err)
-					require.Equal(t, "foo@example.com", claims.Username)
-					require.Equal(t, []string{"foo", "bar"}, claims.Roles)
-					require.Equal(t, cmp.Or(tc.issuer, "example.com"), claims.Issuer)
-				})
-			}
+			// Verify that the token can be validated and values match expected values.
+			claims, err := key.Verify(VerifyParams{
+				Username: "foo@example.com",
+				RawToken: token,
+				URI:      "http://127.0.0.1:8080",
+			})
+			require.NoError(t, err)
+			require.Equal(t, "foo@example.com", claims.Username)
+			require.Equal(t, []string{"foo", "bar"}, claims.Roles)
 		})
 	}
 }
@@ -279,47 +258,6 @@ func TestKey_SignAndVerifyPROXY(t *testing.T) {
 				RawToken:           token,
 			})
 			require.ErrorContains(t, err, "token is expired")
-		})
-	}
-}
-
-func TestKey_SignAndVerifyDBSCChallenge(t *testing.T) {
-	t.Parallel()
-	for _, alg := range supportedAlgorithms {
-		t.Run(alg.String(), func(t *testing.T) {
-			privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(alg)
-			require.NoError(t, err)
-
-			clock := clockwork.NewFakeClock()
-			const (
-				clusterName = "teleport-test"
-				sessionID   = "app-session-id"
-			)
-
-			key, err := New(&Config{
-				PrivateKey:  privateKey,
-				ClusterName: clusterName,
-				Clock:       clock,
-			})
-			require.NoError(t, err)
-
-			token, err := key.SignDBSCChallenge(sessionID)
-			require.NoError(t, err)
-
-			err = key.VerifyDBSCChallenge(DBSCChallengeVerifyParams{
-				RawToken:  token,
-				SessionID: sessionID,
-			})
-			require.NoError(t, err)
-
-			err = key.VerifyDBSCChallenge(DBSCChallengeVerifyParams{
-				RawToken:  token,
-				SessionID: "other-session-id",
-			})
-			require.ErrorContains(t, err, "invalid subject")
-
-			_, err = key.SignDBSCChallenge("")
-			require.ErrorContains(t, err, "session ID required")
 		})
 	}
 }

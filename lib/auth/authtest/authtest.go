@@ -22,7 +22,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"fmt"
+	"crypto/x509/pkix"
 	"net"
 	"strings"
 	"testing"
@@ -42,31 +42,26 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/accesspoint"
-	"github.com/gravitational/teleport/lib/auth/authcatest"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/recordingmetadata"
 	"github.com/gravitational/teleport/lib/auth/state"
-	"github.com/gravitational/teleport/lib/auth/summarizer"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/cache"
-	inventorycache "github.com/gravitational/teleport/lib/cache/inventory"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
-	"github.com/gravitational/teleport/lib/join/iamjoin"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
-	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -92,21 +87,10 @@ type AuthServerConfig struct {
 	// ClusterNetworkingConfig allows a test to change the default
 	// networking configuration.
 	ClusterNetworkingConfig types.ClusterNetworkingConfig
-	// UploadHandler allows a test to set its own upload handler. This setting is
-	// propagated to AuditLog, but only if they are not customized here.
-	UploadHandler events.MultipartHandler
 	// Streamer allows a test to set its own session recording streamer.
 	Streamer events.Streamer
 	// AuditLog allows a test to configure its own audit log.
 	AuditLog events.AuditLogSessionStreamer
-	// SessionSummarizerProvider allows a test to configure its own session
-	// summarizer provider.
-	SessionSummarizerProvider *summarizer.SessionSummarizerProvider
-	// RecordingMetadataProvider allows a test to configure its own recording
-	RecordingMetadataProvider *recordingmetadata.Provider
-	// AWSOrganizationsClientGetter provides an AWS client that can call Organizations APIs.
-	// This is used to allow the IAM join method to validate that an AWS account belongs to a specific AWS Organization.
-	AWSOrganizationsClientGetter iamjoin.OrganizationsAPIGetter
 	// TraceClient allows a test to configure the trace client
 	TraceClient otlptrace.Client
 	// AuthPreferenceSpec is custom initial AuthPreference spec for the test.
@@ -120,11 +104,6 @@ type AuthServerConfig struct {
 	FIPS bool
 	// KeystoreConfig is configuration for the CA keystore.
 	KeystoreConfig servicecfg.KeystoreConfig
-	InsecureMode   bool
-	// Modules defines build time constraints and licensed features.
-	Modules modules.Modules
-	// ScopesFeatures dictates which scoped components are enabled for the test auth server.
-	ScopesFeatures scopes.Features
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -147,15 +126,6 @@ func (cfg *AuthServerConfig) CheckAndSetDefaults() error {
 			SecondFactor: constants.SecondFactorOff,
 		}
 	}
-	if cfg.UploadHandler == nil {
-		cfg.UploadHandler = eventstest.NewMemoryUploader()
-	}
-
-	if cfg.Modules == nil {
-		// TODO(tross) return an error after all callers are updated
-		cfg.Modules = modules.GetModules()
-	}
-
 	return nil
 }
 
@@ -174,11 +144,7 @@ type ServerConfig struct {
 	TLS *TLSServerConfig
 }
 
-// NewTestServer creates a new test server configuration and exposes
-// the Auth Service on a random local address. It is the callers
-// responsibility close the server when it is no longer needed.
-//
-// Prefer NewAuthServer if Auth Service RPCs are never invoked.
+// NewTestServer creates a new test server configuration
 func NewTestServer(cfg ServerConfig) (*Server, error) {
 	authServer, err := NewAuthServer(cfg.Auth)
 	if err != nil {
@@ -199,9 +165,6 @@ func NewTestServer(cfg ServerConfig) (*Server, error) {
 
 	if tlsCfg.APIConfig.Authorizer == nil {
 		tlsCfg.APIConfig.Authorizer = authServer.Authorizer
-	}
-	if tlsCfg.APIConfig.ScopedAuthorizer == nil {
-		tlsCfg.APIConfig.ScopedAuthorizer = authServer.ScopedAuthorizer
 	}
 	if tlsCfg.APIConfig.AuditLog == nil {
 		tlsCfg.APIConfig.AuditLog = authServer.AuditLog
@@ -252,6 +215,14 @@ func (a *Server) Shutdown(ctx context.Context) error {
 	)
 }
 
+// WithClock is a functional server option that sets the server's clock
+func WithClock(clock clockwork.Clock) auth.ServerOption {
+	return func(s *auth.Server) error {
+		s.SetClock(clock)
+		return nil
+	}
+}
+
 // WithBcryptCost is a functional server option that sets the server's bcrypt cost.
 func WithBcryptCost(cost int) auth.ServerOption {
 	return func(s *auth.Server) error {
@@ -274,8 +245,6 @@ type AuthServer struct {
 	Backend backend.Backend
 	// Authorizer is an authorizer used in tests
 	Authorizer authz.Authorizer
-	// ScopedAuthorizer is a scoped authorizer used in tests.
-	ScopedAuthorizer authz.ScopedAuthorizer
 	// LockWatcher is a lock watcher used in tests.
 	LockWatcher *services.LockWatcher
 }
@@ -292,11 +261,8 @@ const (
 	FakeRecoveryCodeHash = `$2a$04$04QoQDbwYTwSIppmJLQQkebbFrMS9V02ttus3rHi2cwujcnDHKbL6`
 )
 
-// NewAuthServer returns a new test auth server. It is the callers
-// responsibility close the server when it is no longer needed.
-//
-// Prefer using this over NewTestTLSServer if Auth Service RPCs are
-// never invoked.
+// NewAuthServer returns a new test auth server.
+// The caller should close the server when it is no longer needed.
 func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 	ctx := context.Background()
 
@@ -325,7 +291,7 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 			DataDir:       cfg.Dir,
 			ServerID:      cfg.ClusterName,
 			Clock:         cfg.Clock,
-			UploadHandler: cfg.UploadHandler,
+			UploadHandler: eventstest.NewMemoryUploader(),
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -347,10 +313,7 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	accessLists, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
-		Backend: srv.Backend,
-		Modules: cfg.Modules,
-	})
+	accessLists, err := local.NewAccessListService(srv.Backend, cfg.Clock, local.WithRunWhileLockedRetryInterval(cfg.RunWhileLockedRetryInterval))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -363,39 +326,28 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	authority, err := authority.NewKeygen(cfg.Modules.BuildType(), cfg.Clock.Now)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	srv.AuthServer, err = auth.NewServer(&auth.InitConfig{
-		DataDir:                      cfg.Dir,
-		Backend:                      srv.Backend,
-		Modules:                      cfg.Modules,
-		VersionStorage:               NewFakeTeleportVersion(),
-		Authority:                    authority,
-		Access:                       access,
-		Identity:                     identity,
-		AuditLog:                     srv.AuditLog,
-		Streamer:                     cfg.Streamer,
-		SkipPeriodicOperations:       true,
-		Emitter:                      emitter,
-		TraceClient:                  cfg.TraceClient,
-		Clock:                        cfg.Clock,
-		ClusterName:                  clusterName,
-		HostUUID:                     uuid.New().String(),
-		AccessLists:                  accessLists,
-		FIPS:                         cfg.FIPS,
-		KeyStoreConfig:               cfg.KeystoreConfig,
-		MultipartHandler:             cfg.UploadHandler,
-		SessionSummarizerProvider:    cfg.SessionSummarizerProvider,
-		RecordingMetadataProvider:    cfg.RecordingMetadataProvider,
-		AWSOrganizationsClientGetter: cfg.AWSOrganizationsClientGetter,
-		FakePasswordHash:             []byte(FakePasswordHash),
-		FakeRecoveryCodeHash:         []byte(FakeRecoveryCodeHash),
-		InsecureMode:                 cfg.InsecureMode,
-		ScopesFeatures:               cfg.ScopesFeatures,
+		DataDir:                cfg.Dir,
+		Backend:                srv.Backend,
+		VersionStorage:         NewFakeTeleportVersion(),
+		Authority:              authority.NewWithClock(cfg.Clock),
+		Access:                 access,
+		Identity:               identity,
+		AuditLog:               srv.AuditLog,
+		Streamer:               cfg.Streamer,
+		SkipPeriodicOperations: true,
+		Emitter:                emitter,
+		TraceClient:            cfg.TraceClient,
+		Clock:                  cfg.Clock,
+		ClusterName:            clusterName,
+		HostUUID:               uuid.New().String(),
+		AccessLists:            accessLists,
+		FIPS:                   cfg.FIPS,
+		KeyStoreConfig:         cfg.KeystoreConfig,
+		FakePasswordHash:       []byte(FakePasswordHash),
+		FakeRecoveryCodeHash:   []byte(FakeRecoveryCodeHash),
 	},
+		WithClock(cfg.Clock),
 		// Reduce auth.Server bcrypt costs when testing.
 		WithBcryptCost(bcrypt.MinCost),
 	)
@@ -476,15 +428,11 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 
 	// Setup certificate and signing authorities.
 	for _, caType := range types.CertAuthTypes {
-		ca, err := authcatest.NewCAWithConfig(authcatest.CAConfig{
+		if err = srv.AuthServer.UpsertCertAuthority(ctx, NewTestCAWithConfig(TestCAConfig{
 			Type:        caType,
 			ClusterName: srv.ClusterName,
 			Clock:       cfg.Clock,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if err = srv.AuthServer.UpsertCertAuthority(ctx, ca); err != nil {
+		})); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -538,25 +486,17 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 	}
 	srv.AuthServer.SetHeadlessAuthenticationWatcher(headlessAuthenticationWatcher)
 
-	authorizerOpts := authz.AuthorizerOpts{
+	srv.Authorizer, err = authz.NewAuthorizer(authz.AuthorizerOpts{
 		ClusterName:         srv.ClusterName,
 		AccessPoint:         srv.AuthServer,
 		ReadOnlyAccessPoint: srv.AuthServer.ReadOnlyCache,
-		ScopedRoleReader:    srv.AuthServer.ScopedAccessCache,
 		LockWatcher:         srv.LockWatcher,
-		ScopesFeatures:      cfg.ScopesFeatures,
 		// AuthServer does explicit device authorization checks.
 		DeviceAuthorization: authz.DeviceAuthorizationOpts{
 			DisableGlobalMode: true,
 			DisableRoleMode:   true,
 		},
-	}
-	srv.Authorizer, err = authz.NewAuthorizer(authorizerOpts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	srv.ScopedAuthorizer, err = authz.NewScopedAuthorizer(authorizerOpts)
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -604,18 +544,16 @@ func InitAuthCache(p AuthCacheParams) error {
 		EventsSystem: true,
 		Unstarted:    p.Unstarted,
 
-		Access:                  p.AuthServer.Services.AccessInternal,
+		Access:                  p.AuthServer.Services.Access,
 		AccessLists:             p.AuthServer.Services.AccessListsInternal,
 		AccessMonitoringRules:   p.AuthServer.Services.AccessMonitoringRules,
-		AppSession:              p.AuthServer.Services.IdentityInternal,
-		Applications:            p.AuthServer.Services.ApplicationsInternal,
-		Beams:                   p.AuthServer.Services.Beams,
+		AppSession:              p.AuthServer.Services.Identity,
+		Applications:            p.AuthServer.Services.Applications,
 		ClusterConfig:           p.AuthServer.Services.ClusterConfigurationInternal,
 		CrownJewels:             p.AuthServer.Services.CrownJewels,
 		DatabaseObjects:         p.AuthServer.Services.DatabaseObjects,
 		DatabaseServices:        p.AuthServer.Services.DatabaseServices,
 		Databases:               p.AuthServer.Services.Databases,
-		DelegationSessions:      p.AuthServer.Services.DelegationSessions,
 		DiscoveryConfigs:        p.AuthServer.Services.DiscoveryConfigs,
 		DynamicAccess:           p.AuthServer.Services.DynamicAccessExt,
 		Events:                  p.AuthServer.Services.Events,
@@ -625,55 +563,36 @@ func InitAuthCache(p AuthCacheParams) error {
 		Notifications:           p.AuthServer.Services.Notifications,
 		Okta:                    p.AuthServer.Services.Okta,
 		Presence:                p.AuthServer.Services.PresenceInternal,
-		Provisioner:             p.AuthServer.Services.ProvisionerInternal,
+		Provisioner:             p.AuthServer.Services.Provisioner,
 		Restrictions:            p.AuthServer.Services.Restrictions,
 		SAMLIdPServiceProviders: p.AuthServer.Services.SAMLIdPServiceProviders,
+		SAMLIdPSession:          p.AuthServer.Services.Identity,
 		SecReports:              p.AuthServer.Services.SecReports,
-		SnowflakeSession:        p.AuthServer.Services.IdentityInternal,
+		SnowflakeSession:        p.AuthServer.Services.Identity,
 		SPIFFEFederations:       p.AuthServer.Services.SPIFFEFederations,
 		StaticHostUsers:         p.AuthServer.Services.StaticHostUser,
 		Trust:                   p.AuthServer.Services.TrustInternal,
 		UserGroups:              p.AuthServer.Services.UserGroups,
 		UserTasks:               p.AuthServer.Services.UserTasks,
 		UserLoginStates:         p.AuthServer.Services.UserLoginStates,
-		Users:                   p.AuthServer.Services.IdentityInternal,
-		WebSession:              p.AuthServer.Services.IdentityInternal.WebSessions(),
-		WebToken:                p.AuthServer.Services.IdentityInternal,
+		Users:                   p.AuthServer.Services.Identity,
+		WebSession:              p.AuthServer.Services.Identity.WebSessions(),
+		WebToken:                p.AuthServer.Services.Identity,
 		WorkloadIdentity:        p.AuthServer.Services.WorkloadIdentities,
 		DynamicWindowsDesktops:  p.AuthServer.Services.DynamicWindowsDesktops,
-		LinuxDesktops:           p.AuthServer.Services.LinuxDesktops,
 		WindowsDesktops:         p.AuthServer.Services.WindowsDesktops,
 		AutoUpdateService:       p.AuthServer.Services.AutoUpdateService,
 		ProvisioningStates:      p.AuthServer.Services.ProvisioningStates,
 		IdentityCenter:          p.AuthServer.Services.IdentityCenter,
 		PluginStaticCredentials: p.AuthServer.Services.PluginStaticCredentials,
 		GitServers:              p.AuthServer.Services.GitServers,
-		HealthCheckConfig:       p.AuthServer.Services.HealthCheckConfig,
 		BotInstance:             p.AuthServer.Services.BotInstance,
-		RecordingEncryption:     p.AuthServer.Services.RecordingEncryptionManager,
 		Plugin:                  p.AuthServer.Services.Plugins,
-		AppAuthConfig:           p.AuthServer.Services.AppAuthConfig,
-		StaticScopedToken:       p.AuthServer.Services.ClusterConfigurationInternal,
-		Summarizer:              p.AuthServer.Services.Summarizer,
-		SubCAService:            p.AuthServer.Services.SubCAService,
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	p.AuthServer.Cache = c
-
-	// Create and set the inventory cache
-	invCache, err := inventorycache.NewInventoryCache(inventorycache.InventoryCacheConfig{
-		PrimaryCache:       c,
-		Events:             p.AuthServer.Services,
-		Inventory:          p.AuthServer.Services,
-		BotInstanceBackend: p.AuthServer.Services,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	p.AuthServer.SetInventoryCache(invCache)
-
 	return nil
 }
 
@@ -751,21 +670,18 @@ func generateCertificate(authServer *auth.Server, identity TestIdentity) ([]byte
 		}
 
 		_, tlsCert, err := authServer.GenerateUserTestCerts(auth.GenerateUserTestCertsRequest{
-			SSHPubKey:                sshPublicKeyPEM,
-			TLSPubKey:                tlsPublicKeyPEM,
-			Username:                 id.Username,
-			TTL:                      identity.TTL,
-			RouteToCluster:           identity.RouteToCluster,
-			PinnedIP:                 id.Identity.PinnedIP,
-			MFAVerified:              id.Identity.MFAVerified,
-			DeviceExtensions:         auth.DeviceExtensions(id.Identity.DeviceExtensions),
-			Generation:               id.Identity.Generation,
-			AllowedResourceAccessIDs: id.Identity.AllowedResourceAccessIDs,
-			Renewable:                identity.Renewable,
-			Usage:                    identity.AcceptedUsage,
-			Scope:                    identity.Scope,
-			BotInternal:              id.Identity.BotInternal,
-			DisallowReissue:          id.Identity.DisallowReissue,
+			SSHPubKey:          sshPublicKeyPEM,
+			TLSPubKey:          tlsPublicKeyPEM,
+			Username:           id.Username,
+			TTL:                identity.TTL,
+			RouteToCluster:     identity.RouteToCluster,
+			PinnedIP:           id.Identity.PinnedIP,
+			MFAVerified:        id.Identity.MFAVerified,
+			DeviceExtensions:   auth.DeviceExtensions(id.Identity.DeviceExtensions),
+			Generation:         id.Identity.Generation,
+			AllowedResourceIDs: id.Identity.AllowedResourceIDs,
+			Renewable:          identity.Renewable,
+			Usage:              identity.AcceptedUsage,
 		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
@@ -773,31 +689,28 @@ func generateCertificate(authServer *auth.Server, identity TestIdentity) ([]byte
 
 		return tlsCert, privateKeyPEM, nil
 	case authz.BuiltinRole:
-		certs, err := authServer.GenerateHostCerts(ctx, auth.HostCertsParams{
-			Req: &proto.HostCertsRequest{
+		certs, err := authServer.GenerateHostCerts(ctx,
+			&proto.HostCertsRequest{
 				HostID:       id.Username,
 				NodeName:     id.Username,
 				Role:         id.Role,
 				PublicTLSKey: tlsPublicKeyPEM,
 				PublicSSHKey: sshPublicKeyPEM,
 				SystemRoles:  id.AdditionalSystemRoles,
-			},
-			AgentScope: id.Identity.AgentScope,
-		})
+			})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 		return certs.TLS, privateKeyPEM, nil
 	case authz.RemoteBuiltinRole:
-		certs, err := authServer.GenerateHostCerts(ctx, auth.HostCertsParams{
-			Req: &proto.HostCertsRequest{
+		certs, err := authServer.GenerateHostCerts(ctx,
+			&proto.HostCertsRequest{
 				HostID:       id.Username,
 				NodeName:     id.Username,
 				Role:         id.Role,
 				PublicTLSKey: tlsPublicKeyPEM,
 				PublicSSHKey: sshPublicKeyPEM,
-			},
-		})
+			})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -886,15 +799,13 @@ func (a *AuthServer) Trust(ctx context.Context, remote *AuthServer, roleMap type
 	return nil
 }
 
-// NewTestTLSServer creates a test TLS server configured to use
-// this AuthServer.
+// NewTestTLSServer returns new test TLS server
 func (a *AuthServer) NewTestTLSServer(opts ...TestTLSServerOption) (*TLSServer, error) {
 	apiConfig := &auth.APIConfig{
-		AuthServer:       a.AuthServer,
-		Authorizer:       a.Authorizer,
-		ScopedAuthorizer: a.ScopedAuthorizer,
-		AuditLog:         a.AuditLog,
-		Emitter:          a.AuthServer,
+		AuthServer: a.AuthServer,
+		Authorizer: a.Authorizer,
+		AuditLog:   a.AuditLog,
+		Emitter:    a.AuthServer,
 	}
 	cfg := TLSServerConfig{
 		APIConfig:     apiConfig,
@@ -942,13 +853,6 @@ func WithBufconnListener() TestTLSServerOption {
 	}
 }
 
-// WithoutJoinV1 disables the new join gRPC service while keeping legacy join registered.
-func WithoutJoinV1() TestTLSServerOption {
-	return func(cfg *TLSServerConfig) {
-		cfg.APIConfig.DisableJoinV1 = true
-	}
-}
-
 // NewRemoteClient creates new client to the remote server using identity
 // generated for this certificate authority
 func (a *AuthServer) NewRemoteClient(identity TestIdentity, addr net.Addr, pool *x509.CertPool) (*authclient.Client, error) {
@@ -979,11 +883,11 @@ type TLSServerConfig struct {
 	AuthServer *AuthServer
 	// Limiter is a connection and request limiter
 	Limiter *limiter.Config
-	// Listener is an optional listener to use instead of the
-	// default tcp listener when creating the Mux.
-	Listener net.Listener
 	// Mux is a multiplexer to serve requests on
 	Mux *multiplexer.Mux
+	// Listener is the underlying listener of the multiplexer
+	// TODO(Joerger): Replaced by Mux, remove once reference in /e is removed.
+	Listener net.Listener
 	// AuthDialer is a dialer to use when making auth clients.
 	AuthDialer client.ContextDialer
 	// AcceptedUsage is a list of accepted usage restrictions
@@ -1033,10 +937,7 @@ func (cfg *TLSServerConfig) CheckAndSetDefaults() error {
 }
 
 // NewTestTLSServer returns new test TLS server that is started and is listening
-// on 127.0.0.1 loopback on any available port. It is the callers responsibility
-// close the server when it is no longer needed.
-//
-// Prefer using authtest.AuthServer directly if Auth Service RPCs are never used.
+// on 127.0.0.1 loopback on any available port
 func NewTestTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	err := cfg.CheckAndSetDefaults()
 	if err != nil {
@@ -1112,72 +1013,14 @@ type TestIdentity struct {
 	RouteToCluster string
 	Renewable      bool
 	Generation     uint64
-	Scope          string
 }
 
-// TestUser returns TestIdentity for local user. Note that this constructor only produces a
-// test identity suitable for use with the `NewClient` methods defined in this file, as those helpers
-// auto-populate roles.  Prefer using TestUserWithRoles for most usecases.
+// TestUser returns TestIdentity for local user
 func TestUser(username string) TestIdentity {
-	return TestUserWithRoles(username, nil)
-}
-
-// TestScopedUser returns a TestIdentity for a local user with a scoped identity
-// pinned to the given scope.
-func TestScopedUser(username string, scope string) TestIdentity {
 	return TestIdentity{
 		I: authz.LocalUser{
 			Username: username,
-			Identity: tlsca.Identity{
-				Username: username,
-			},
-		},
-		Scope: scope,
-	}
-}
-
-// TestBot returns a TestIdentity for an unscoped bot user
-func TestBot(botName string, botInternal bool) TestIdentity {
-	userName := fmt.Sprintf("bot-%s", botName)
-	return TestIdentity{
-		I: authz.LocalUser{
-			Username: userName,
-			Identity: tlsca.Identity{
-				Username: userName,
-				// GenerateUserTestCertsWithContext will inject BotName and
-				// BotInstanceID.
-				BotInternal: botInternal,
-			},
-		},
-	}
-}
-
-// TestScopedBot returns a TestIdentity for a scoped bot user
-func TestScopedBot(botName string, scope string, botInternal bool) TestIdentity {
-	userName := fmt.Sprintf("bot-%s", botName)
-	return TestIdentity{
-		I: authz.LocalUser{
-			Username: userName,
-			Identity: tlsca.Identity{
-				Username: userName,
-				// GenerateUserTestCertsWithContext will inject BotName and
-				// BotInstanceID.
-				BotInternal: botInternal,
-			},
-		},
-		Scope: scope,
-	}
-}
-
-// TestUserWithRoles returns a local user TestIdentity with the specified username and roles.
-func TestUserWithRoles(username string, roles []string) TestIdentity {
-	return TestIdentity{
-		I: authz.LocalUser{
-			Username: username,
-			Identity: tlsca.Identity{
-				Username: username,
-				Groups:   roles,
-			},
+			Identity: tlsca.Identity{Username: username},
 		},
 	}
 }
@@ -1229,35 +1072,6 @@ func TestBuiltin(role types.SystemRole) TestIdentity {
 		I: authz.BuiltinRole{
 			Role:     role,
 			Username: string(role),
-		},
-	}
-}
-
-// TestUnauthenticated returns TestIdentity for unauthenticate user
-func TestUnauthenticated(role types.UnauthenticatedRole) TestIdentity {
-	return TestIdentity{
-		I: authz.UnauthenticatedRole{
-			Role:     role,
-			Username: string(role),
-		},
-	}
-}
-
-// TestScopedHost returns TestIdentity for a scoped host. One or more roles may be provided;
-// all are included as AdditionalSystemRoles on an instance cert identity.
-func TestScopedHost(clusterName, hostID, scope string, roles ...types.SystemRole) TestIdentity {
-	username := hostID
-	if clusterName != "" {
-		username = utils.HostFQDN(hostID, clusterName)
-	}
-	return TestIdentity{
-		I: authz.BuiltinRole{
-			Role:                  types.RoleInstance,
-			Username:              username,
-			AdditionalSystemRoles: types.SystemRoles(roles),
-			Identity: tlsca.Identity{
-				AgentScope: scope,
-			},
 		},
 	}
 }
@@ -1329,7 +1143,7 @@ func (t *TLSServer) ClientTLSConfig(identity TestIdentity) (*tls.Config, error) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if !isUnauthenticated(identity) {
+	if identity.I != nil {
 		cert, err := t.AuthServer.NewCertificate(identity)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1342,14 +1156,6 @@ func (t *TLSServer) ClientTLSConfig(identity TestIdentity) (*tls.Config, error) 
 	}
 	tlsConfig.Time = t.AuthServer.AuthServer.GetClock().Now
 	return tlsConfig, nil
-}
-
-func isUnauthenticated(identity TestIdentity) bool {
-	if identity.I == nil {
-		return true
-	}
-	_, ok := identity.I.(authz.UnauthenticatedRole)
-	return ok
 }
 
 // CloneClient uses the same credentials as the passed client
@@ -1408,15 +1214,6 @@ func (t *TLSServer) NewClientWithCert(clientCert tls.Certificate) (*authclient.C
 
 // NewClient returns new client to test server authenticated with identity
 func (t *TLSServer) NewClient(identity TestIdentity) (*authclient.Client, error) {
-	if localUser, ok := identity.I.(authz.LocalUser); ok && len(localUser.Identity.Groups) == 0 && identity.Scope == "" {
-		user, err := t.AuthServer.AuthServer.GetUser(context.TODO(), localUser.Username, false)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		localUser.Identity.Groups = user.GetRoles()
-		identity.I = localUser
-	}
 	tlsConfig, err := t.ClientTLSConfig(identity)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1455,10 +1252,11 @@ func (t *TLSServer) Close() error {
 		errs = append(errs, err)
 	}
 
-	if err := t.AuthServer.Close(); err != nil {
-		errs = append(errs, err)
+	if t.AuthServer.Backend != nil {
+		if err := t.AuthServer.Backend.Close(); err != nil {
+			errs = append(errs, err)
+		}
 	}
-
 	return trace.NewAggregate(errs...)
 }
 
@@ -1469,14 +1267,20 @@ func (t *TLSServer) Shutdown(ctx context.Context) error {
 		errs = append(errs, err)
 	}
 
+	if t.Listener != nil {
+		if err := t.Listener.Close(); err != nil && !utils.IsUseOfClosedNetworkError(err) {
+			errs = append(errs, err)
+		}
+
+	}
 	if t.Mux != nil {
 		t.Mux.Close()
 	}
-
-	if err := t.AuthServer.Close(); err != nil {
-		errs = append(errs, err)
+	if t.AuthServer.Backend != nil {
+		if err := t.AuthServer.Backend.Close(); err != nil {
+			errs = append(errs, err)
+		}
 	}
-
 	return trace.NewAggregate(errs...)
 }
 
@@ -1537,15 +1341,14 @@ func NewServerIdentity(clt *auth.Server, hostID string, role types.SystemRole) (
 		return nil, trace.Wrap(err)
 	}
 
-	certs, err := clt.GenerateHostCerts(context.Background(), auth.HostCertsParams{
-		Req: &proto.HostCertsRequest{
+	certs, err := clt.GenerateHostCerts(context.Background(),
+		&proto.HostCertsRequest{
 			HostID:       hostID,
 			NodeName:     hostID,
 			Role:         role,
 			PublicSSHKey: ssh.MarshalAuthorizedKey(sshPubKey),
 			PublicTLSKey: tlsPubKey,
-		},
-	})
+		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1698,14 +1501,12 @@ func WithRoleMutator(mutate ...func(role types.Role)) CreateUserAndRoleOption {
 	}
 }
 
-// CreateUserAndRole creates user and role and assigns role to a user, used in tests.
+// CreateUserAndRole creates user and role and assigns role to a user, used in tests
 // If allowRules is nil, the role has admin privileges.
 // If allowRules is not-nil, then the rules associated with the role will be
 // replaced with those specified.
 func CreateUserAndRole(clt UserRoleClient, username string, allowedLogins []string, allowRules []types.Rule, opts ...CreateUserAndRoleOption) (types.User, types.Role, error) {
-	o := createUserAndRoleOptions{
-		version: types.DefaultRoleVersion,
-	}
+	o := createUserAndRoleOptions{}
 	for _, opt := range opts {
 		opt(&o)
 	}
@@ -1715,7 +1516,7 @@ func CreateUserAndRole(clt UserRoleClient, username string, allowedLogins []stri
 		return nil, nil, trace.Wrap(err)
 	}
 
-	role := services.RoleWithVersionForUser(user, o.version)
+	role := services.RoleForUser(user)
 	role.SetLogins(types.Allow, allowedLogins)
 	if allowRules != nil {
 		role.SetRules(types.Allow, allowRules)
@@ -1814,4 +1615,138 @@ func FlushCache(t *testing.T, clt Flusher) {
 			t.Fatal("Time out waiting for role to be replicated")
 		}
 	}
+}
+
+// TestCAConfig defines the configuration for generating
+// a test certificate authority
+type TestCAConfig struct {
+	Type        types.CertAuthType
+	PrivateKeys [][]byte
+	Clock       clockwork.Clock
+	ClusterName string
+	// the below string fields default to ClusterName if left empty
+	ResourceName        string
+	SubjectOrganization string
+}
+
+// NewTestCA returns new test authority with a test key as a public and
+// signing key
+func NewTestCA(caType types.CertAuthType, clusterName string, privateKeys ...[]byte) *types.CertAuthorityV2 {
+	return NewTestCAWithConfig(TestCAConfig{
+		Type:        caType,
+		ClusterName: clusterName,
+		PrivateKeys: privateKeys,
+		Clock:       clockwork.NewRealClock(),
+	})
+}
+
+// NewTestCAWithConfig generates a new certificate authority with the specified
+// configuration
+// Keep this function in-sync with lib/auth/auth.go:newKeySet().
+// TODO(jakule): reuse keystore.KeyStore interface to match newKeySet().
+func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
+	var keyPEM []byte
+	var key *keys.PrivateKey
+
+	if config.ResourceName == "" {
+		config.ResourceName = config.ClusterName
+	}
+	if config.SubjectOrganization == "" {
+		config.SubjectOrganization = config.ClusterName
+	}
+
+	switch config.Type {
+	case types.DatabaseCA, types.SAMLIDPCA, types.OIDCIdPCA:
+		// These CAs only support RSA.
+		keyPEM = fixtures.PEMBytes["rsa"]
+	case types.DatabaseClientCA:
+		// The db client CA also only supports RSA, but some tests rely on it
+		// being different than the DB CA.
+		keyPEM = fixtures.PEMBytes["rsa-db-client"]
+	}
+	if len(config.PrivateKeys) > 0 {
+		// Allow test to override the private key.
+		keyPEM = config.PrivateKeys[0]
+	}
+
+	if keyPEM != nil {
+		var err error
+		key, err = keys.ParsePrivateKey(keyPEM)
+		if err != nil {
+			panic(err)
+		}
+	} else {
+		// If config.PrivateKeys was not set and this CA does not exclusively
+		// support RSA, generate an ECDSA key. Signatures are ~10x faster than
+		// RSA and generating a new key is actually faster than parsing a PEM
+		// fixture.
+		signer, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+		if err != nil {
+			panic(err)
+		}
+		key, err = keys.NewPrivateKey(signer)
+		if err != nil {
+			panic(err)
+		}
+		keyPEM = key.PrivateKeyPEM()
+	}
+
+	ca := &types.CertAuthorityV2{
+		Kind:    types.KindCertAuthority,
+		SubKind: string(config.Type),
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Name:      config.ResourceName,
+			Namespace: apidefaults.Namespace,
+		},
+		Spec: types.CertAuthoritySpecV2{
+			Type:        config.Type,
+			ClusterName: config.ClusterName,
+		},
+	}
+
+	// Add SSH keys if necessary.
+	switch config.Type {
+	case types.UserCA, types.HostCA, types.OpenSSHCA:
+		ca.Spec.ActiveKeys.SSH = []*types.SSHKeyPair{{
+			PrivateKey: keyPEM,
+			PublicKey:  key.MarshalSSHPublicKey(),
+		}}
+	}
+
+	// Add TLS keys if necessary.
+	switch config.Type {
+	case types.UserCA, types.HostCA, types.DatabaseCA, types.DatabaseClientCA, types.SAMLIDPCA, types.SPIFFECA:
+		cert, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
+			Signer: key.Signer,
+			Entity: pkix.Name{
+				CommonName:   config.ClusterName,
+				Organization: []string{config.SubjectOrganization},
+			},
+			TTL:   defaults.CATTL,
+			Clock: config.Clock,
+		})
+		if err != nil {
+			panic(err)
+		}
+		ca.Spec.ActiveKeys.TLS = []*types.TLSKeyPair{{
+			Key:  keyPEM,
+			Cert: cert,
+		}}
+	}
+
+	// Add JWT keys if necessary.
+	switch config.Type {
+	case types.JWTSigner, types.OIDCIdPCA, types.SPIFFECA, types.OktaCA, types.BoundKeypairCA:
+		pubKeyPEM, err := keys.MarshalPublicKey(key.Public())
+		if err != nil {
+			panic(err)
+		}
+		ca.Spec.ActiveKeys.JWT = []*types.JWTKeyPair{{
+			PrivateKey: keyPEM,
+			PublicKey:  pubKeyPEM,
+		}}
+	}
+
+	return ca
 }

@@ -177,18 +177,3 @@ test(`enum validation`, () => {
     path: expect.arrayContaining(['theme']),
   });
 });
-
-test('tilde expanding in path schema', () => {
-  const configFile = createMockFileStorage();
-  configFile.replace({
-    tshHome: '~/.~tsh-dev',
-  });
-  const configService = createConfigService({
-    configFile,
-    jsonSchemaFile: createMockFileStorage(),
-    settings: makeRuntimeSettings({ homeDir: '/Users/testuser' }),
-  });
-  expect(configService.get('tshHome')).toMatchObject({
-    value: '/Users/testuser/.~tsh-dev',
-  });
-});

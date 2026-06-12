@@ -19,30 +19,22 @@
 package services
 
 import (
-	"context"
 	"fmt"
-	"go/ast"
-	goparser "go/parser"
-	"go/token"
-	"log/slog"
-	"strconv"
+	"io"
+	"slices"
 	"strings"
-	"sync"
 	"time"
-	"unicode/utf8"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 	"github.com/vulcand/predicate"
 	"github.com/vulcand/predicate/builder"
-	"golang.org/x/tools/go/ast/astutil"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/session"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
-	"github.com/gravitational/teleport/lib/utils/set"
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
@@ -51,13 +43,10 @@ import (
 // about current session, e.g. current user
 type RuleContext interface {
 	// GetIdentifier returns identifier defined in a context
-	GetIdentifier(fields []string) (any, error)
+	GetIdentifier(fields []string) (interface{}, error)
 	// GetResource returns resource if specified in the context,
 	// if unspecified, returns error.
 	GetResource() (types.Resource, error)
-	// GetAccessChecker returns access checker if specified in the context,
-	// if unspecified, returns error.
-	GetAccessChecker() (AccessChecker, error)
 }
 
 var (
@@ -71,7 +60,7 @@ var (
 // predicateAllEndWith is a custom function to test if a string ends with a
 // particular suffix. If given a `[]string` as the first argument, all values
 // must have the given suffix (2nd argument).
-func predicateAllEndWith(a any, b any) predicate.BoolPredicate {
+func predicateAllEndWith(a interface{}, b interface{}) predicate.BoolPredicate {
 	return func() bool {
 		// bval is the suffix and must always be a plain string.
 		bval, ok := b.(string)
@@ -98,7 +87,7 @@ func predicateAllEndWith(a any, b any) predicate.BoolPredicate {
 // predicateAllEqual is a custom function to test if all entries in a []string
 // are equal to a certain value. This is primarily useful for comparing string
 // fields that are only expected to contain a single, specific value.
-func predicateAllEqual(a any, b any) predicate.BoolPredicate {
+func predicateAllEqual(a interface{}, b interface{}) predicate.BoolPredicate {
 	return func() bool {
 		// bval is the suffix and must always be a plain string.
 		bval, ok := b.(string)
@@ -125,7 +114,7 @@ func predicateAllEqual(a any, b any) predicate.BoolPredicate {
 // predicateIsSubset determines if the first parameter is contained within the
 // variadic args. The first argument may either by `string` or `[]string`, and
 // the variadic args may only be `string`.
-func predicateIsSubset(a any, b ...any) predicate.BoolPredicate {
+func predicateIsSubset(a interface{}, b ...interface{}) predicate.BoolPredicate {
 	return func() bool {
 		// Populate the set.
 		set := map[string]bool{}
@@ -155,40 +144,24 @@ func predicateIsSubset(a any, b ...any) predicate.BoolPredicate {
 	}
 }
 
-func newDefaultWhereParserDef(ctx RuleContext) predicate.Def {
-	def := predicate.Def{
+// NewWhereParser returns standard parser for `where` section in access rules.
+func NewWhereParser(ctx RuleContext) (predicate.Parser, error) {
+	return predicate.NewParser(predicate.Def{
 		Operators: predicate.Operators{
 			AND: predicate.And,
 			OR:  predicate.Or,
 			NOT: predicate.Not,
-			EQ:  predicate.Equals,
-			NEQ: func(a any, b any) predicate.BoolPredicate {
-				return func() bool {
-					return !predicate.Equals(a, b)()
-				}
-			},
 		},
-		Functions: map[string]any{
+		Functions: map[string]interface{}{
 			"equals":       predicate.Equals,
 			"contains":     predicate.Contains,
-			"contains_all": predicateContainsAll,
-			"contains_any": predicateContainsAny,
-			"set": func(a ...any) []string {
-				aVal := make([]string, 0, len(a))
-				for _, v := range a {
-					if str, ok := v.(string); ok {
-						aVal = append(aVal, str)
-					}
-				}
-				return aVal
-			},
 			"all_end_with": predicateAllEndWith,
 			"all_equal":    predicateAllEqual,
 			"is_subset":    predicateIsSubset,
 			// system.catype is a function that returns cert authority type,
 			// it returns empty values for unrecognized values to
 			// pass static rule checks.
-			"system.catype": func() (any, error) {
+			"system.catype": func() (interface{}, error) {
 				resource, err := ctx.GetResource()
 				if err != nil {
 					if trace.IsNotFound(err) {
@@ -202,7 +175,7 @@ func newDefaultWhereParserDef(ctx RuleContext) predicate.Def {
 				}
 				return string(ca.GetType()), nil
 			},
-			"has_prefix": func(a, b any) predicate.BoolPredicate {
+			"has_prefix": func(a, b interface{}) predicate.BoolPredicate {
 				return func() bool {
 					aval, ok := a.(string)
 					if !ok {
@@ -218,76 +191,14 @@ func newDefaultWhereParserDef(ctx RuleContext) predicate.Def {
 		},
 		GetIdentifier: ctx.GetIdentifier,
 		GetProperty:   GetStringMapValue,
-	}
-	return def
-}
-
-// WhereParserOpt is a function that modifies the default
-// predicate.Def used to create a parser for the `where` section in access rules.
-type WhereParserOpt func(RuleContext, *predicate.Def)
-
-// WithCanViewFunction adds a can_view function to the parser definition.
-// This function will be used to check if the user has access to the resource
-// specified in the context.
-func WithCanViewFunction() WhereParserOpt {
-	return func(ctx RuleContext, def *predicate.Def) {
-		def.Functions["can_view"] = CanViewResourceFunc(ctx)
-	}
-}
-
-// ConditionalOption applies the specified option if the condition is true.
-// Otherwise, the returned option is a no-op.
-func ConditionalOption(condition bool, option WhereParserOpt) WhereParserOpt {
-	return func(ctx RuleContext, def *predicate.Def) {
-		if condition {
-			option(ctx, def)
-		}
-	}
-}
-
-// NewWhereParser returns standard parser for `where` section in access rules.
-func NewWhereParser(ctx RuleContext, opts ...WhereParserOpt) (predicate.Parser, error) {
-	def := newDefaultWhereParserDef(ctx)
-	for _, opt := range opts {
-		opt(ctx, &def)
-	}
-	return predicate.NewParser(def)
-}
-
-// CanViewResourceFunc returns a function that checks if the user has access
-// to the resource specified in the context.
-func CanViewResourceFunc(ctx RuleContext) func() predicate.BoolPredicate {
-	return func() predicate.BoolPredicate {
-		return func() bool {
-			resource, err := ctx.GetResource()
-			if err != nil {
-				return false
-			}
-			accessCheckableResource, ok := resource.(AccessCheckable)
-			if !ok {
-				return false
-			}
-
-			checker, err := ctx.GetAccessChecker()
-			if err != nil {
-				return false
-			}
-
-			// We do not enforce MFA or Device Trust for this check because
-			// we don't have a way of checking it from the context.
-			return checker.CheckAccess(accessCheckableResource, AccessState{
-				MFARequired: MFARequiredNever,
-				MFAVerified: true,
-			}) == nil
-		}
-	}
+	})
 }
 
 // GetStringMapValue is a helper function that returns property
 // from map[string]string or map[string][]string
 // the function returns empty value in case if key not found
 // In case if map is nil, returns empty value as well
-func GetStringMapValue(mapVal, keyVal any) (any, error) {
+func GetStringMapValue(mapVal, keyVal interface{}) (interface{}, error) {
 	key, ok := keyVal.(string)
 	if !ok {
 		return nil, trace.BadParameter("only string keys are supported")
@@ -322,7 +233,7 @@ func GetStringMapValue(mapVal, keyVal any) (any, error) {
 func NewActionsParser(ctx RuleContext) (predicate.Parser, error) {
 	return predicate.NewParser(predicate.Def{
 		Operators: predicate.Operators{},
-		Functions: map[string]any{
+		Functions: map[string]interface{}{
 			"log": NewLogActionFn(ctx),
 		},
 		GetIdentifier: ctx.GetIdentifier,
@@ -331,43 +242,36 @@ func NewActionsParser(ctx RuleContext) (predicate.Parser, error) {
 }
 
 // NewLogActionFn creates logger functions
-func NewLogActionFn(ctx RuleContext) any {
+func NewLogActionFn(ctx RuleContext) interface{} {
 	l := &LogAction{ctx: ctx}
-
+	writer, ok := ctx.(io.Writer)
+	if ok && writer != nil {
+		l.writer = writer
+	}
 	return l.Log
 }
 
 // LogAction represents action that will emit log entry
 // when specified in the actions of a matched rule
 type LogAction struct {
-	ctx RuleContext
+	ctx    RuleContext
+	writer io.Writer
 }
 
-// Log logs with specified level and message string and attributes
-func (l *LogAction) Log(level, msg string, args ...any) predicate.BoolPredicate {
+// Log logs with specified level and formatting string with arguments
+func (l *LogAction) Log(level, format string, args ...interface{}) predicate.BoolPredicate {
 	return func() bool {
-		slevel := slog.LevelDebug
-		switch strings.ToLower(level) {
-		case "error":
-			slevel = slog.LevelError
-		case "warn", "warning":
-			slevel = slog.LevelWarn
-		case "info":
-			slevel = slog.LevelInfo
-		case "debug":
-			slevel = slog.LevelDebug
-		case "trace":
-			slevel = logutils.TraceLevel
+		ilevel, err := log.ParseLevel(level)
+		if err != nil {
+			ilevel = log.DebugLevel
 		}
-
-		ctx := context.Background()
-		// Expicitly check whether logging is enabled for the level
-		// to avoid formatting the message if the log won't be sampled.
-		if slog.Default().Handler().Enabled(ctx, slevel) {
-			//nolint:sloglint // msg cannot be constant
-			slog.Log(context.Background(), slevel, fmt.Sprintf(msg, args...))
+		var writer io.Writer
+		if l.writer != nil {
+			writer = l.writer
+		} else {
+			writer = log.StandardLogger().WriterLevel(ilevel)
 		}
-
+		fmt.Fprintf(writer, format, args...)
 		return true
 	}
 }
@@ -391,9 +295,6 @@ type Context struct {
 	HostCert *HostCertContext
 	// SessionTracker is an optional session tracker, in case if the rule checks access to the tracker.
 	SessionTracker types.SessionTracker
-	// AccessChecker is an optional access checker that can be used
-	// to check access to other resources.
-	AccessChecker AccessChecker
 }
 
 // String returns user friendly representation of this context
@@ -445,15 +346,8 @@ func (ctx *Context) GetResource() (types.Resource, error) {
 	}
 }
 
-func (ctx *Context) GetAccessChecker() (AccessChecker, error) {
-	if ctx.AccessChecker == nil {
-		return nil, trace.NotFound("access checker is not set in the context")
-	}
-	return ctx.AccessChecker, nil
-}
-
 // GetIdentifier returns identifier defined in a context
-func (ctx *Context) GetIdentifier(fields []string) (any, error) {
+func (ctx *Context) GetIdentifier(fields []string) (interface{}, error) {
 	switch fields[0] {
 	case UserIdentifier:
 		var user UserState
@@ -480,23 +374,10 @@ func (ctx *Context) GetIdentifier(fields []string) (any, error) {
 	case SessionIdentifier:
 		var session events.AuditEvent = &events.SessionEnd{}
 		switch ctx.Session.(type) {
-		case *events.SessionEnd, *events.WindowsDesktopSessionEnd, *events.DatabaseSessionEnd:
+		case *events.SessionEnd, *events.WindowsDesktopSessionEnd:
 			session = ctx.Session
 		}
-		v, origErr := predicate.GetFieldByTag(session, teleport.JSON, fields[1:])
-		if trace.IsNotFound(origErr) {
-			// Special case: session is a special resource because
-			// it's backed by different object kinds (events.SessionEnd,
-			// events.WindowsDesktopSessionEnd, events.DatabaseSessionEnd)
-			// and these objects have different schemas, so it's possible that
-			// the parser can't find a field mentioned in the "where" clause.
-			// In this case, we try to find the field in all supported
-			// session end events and return the value if found.
-			if v, err := getMissingEmptyFieldForSessionEnd(fields); err == nil {
-				return v, nil
-			}
-		}
-		return v, trace.Wrap(origErr)
+		return predicate.GetFieldByTag(session, teleport.JSON, fields[1:])
 	case SSHSessionIdentifier:
 		// Do not expose the original session.Session, instead transform it into a
 		// ctxSession so the exposed fields match our desired API.
@@ -536,16 +417,6 @@ func (ctx *Context) GetIdentifier(fields []string) (any, error) {
 	}
 }
 
-func getMissingEmptyFieldForSessionEnd(fields []string) (any, error) {
-	for _, emptySession := range []events.AuditEvent{&events.SessionEnd{}, &events.WindowsDesktopSessionEnd{}, &events.DatabaseSessionEnd{}} {
-		v, err := predicate.GetFieldByTag(emptySession, teleport.JSON, fields[1:])
-		if err == nil {
-			return v, nil
-		}
-	}
-	return nil, trace.NotFound("field %q is not found in any supported session end event", strings.Join(fields, "."))
-}
-
 // ctxSession represents the public contract of a session.Session, as exposed
 // to a Context rule.
 // See RFD 82: https://github.com/gravitational/teleport/blob/master/rfd/0082-session-tracker-resource-rbac.md
@@ -572,14 +443,7 @@ func toCtxTracker(t types.SessionTracker) ctxTracker {
 		participants := s.GetParticipants()
 		names := make([]string, len(participants))
 		for i, participant := range participants {
-			// Participant for RBAC must be represented as `remote-{user}-{cluster}`.
-			// if they belong to a different cluster. This is because the user
-			// is also named like that when they authenticate.
-			names[i] = UsernameForCluster(UsernameForClusterConfig{
-				User:              participant.User,
-				OriginClusterName: participant.Cluster,
-				LocalClusterName:  s.GetClusterName(),
-			})
+			names[i] = participant.User
 		}
 
 		return names
@@ -763,8 +627,8 @@ func (r *EmptyResource) CheckAndSetDefaults() error { return nil }
 // `contains(session.participants, "user")`. With another RuleContext the
 // largest such subcondition is the empty expression.
 func newParserForIdentifierSubcondition(ctx RuleContext, identifier string) (predicate.Parser, error) {
-	binaryPred := func(predFn func(a, b any) predicate.BoolPredicate, exprFn func(a, b types.WhereExpr) types.WhereExpr) func(a, b any) types.WhereExpr {
-		return func(a, b any) types.WhereExpr {
+	binaryPred := func(predFn func(a, b interface{}) predicate.BoolPredicate, exprFn func(a, b types.WhereExpr) types.WhereExpr) func(a, b interface{}) types.WhereExpr {
+		return func(a, b interface{}) types.WhereExpr {
 			an, aOK := a.(types.WhereExpr)
 			if !aOK {
 				an = types.WhereExpr{Literal: a}
@@ -819,58 +683,16 @@ func newParserForIdentifierSubcondition(ctx RuleContext, identifier string) (pre
 				}
 				return types.WhereExpr{Not: &expr}
 			},
-			EQ: func(a, b any) types.WhereExpr {
-				aExpr, ok := a.(types.WhereExpr)
-				if !ok {
-					aExpr = types.WhereExpr{Literal: a}
-				}
-				bExpr, ok := b.(types.WhereExpr)
-				if !ok {
-					bExpr = types.WhereExpr{Literal: b}
-				}
-				return types.WhereExpr{Equals: types.WhereExpr2{L: &aExpr, R: &bExpr}}
-			},
-			NEQ: func(a, b any) types.WhereExpr {
-				aExpr, ok := a.(types.WhereExpr)
-				if !ok {
-					aExpr = types.WhereExpr{Literal: a}
-				}
-				bExpr, ok := b.(types.WhereExpr)
-				if !ok {
-					bExpr = types.WhereExpr{Literal: b}
-				}
-				return types.WhereExpr{
-					Not: &types.WhereExpr{Equals: types.WhereExpr2{L: &aExpr, R: &bExpr}},
-				}
-			},
 		},
-		Functions: map[string]any{
+		Functions: map[string]interface{}{
 			"equals": binaryPred(predicate.Equals, func(a, b types.WhereExpr) types.WhereExpr {
 				return types.WhereExpr{Equals: types.WhereExpr2{L: &a, R: &b}}
 			}),
 			"contains": binaryPred(predicate.Contains, func(a, b types.WhereExpr) types.WhereExpr {
 				return types.WhereExpr{Contains: types.WhereExpr2{L: &a, R: &b}}
 			}),
-			"contains_all": binaryPred(predicateContainsAll, func(a, b types.WhereExpr) types.WhereExpr {
-				return types.WhereExpr{ContainsAll: types.WhereExpr2{L: &a, R: &b}}
-			}),
-			"contains_any": binaryPred(predicateContainsAny, func(a, b types.WhereExpr) types.WhereExpr {
-				return types.WhereExpr{ContainsAny: types.WhereExpr2{L: &a, R: &b}}
-			}),
-			"set": func(a ...any) types.WhereExpr {
-				aVal := make([]string, 0, len(a))
-				for _, v := range a {
-					if str, ok := v.(string); ok {
-						aVal = append(aVal, str)
-					}
-				}
-				return types.WhereExpr{Literal: aVal}
-			},
-			"can_view": func() types.WhereExpr {
-				return types.WhereExpr{CanView: &types.WhereNoExpr{}}
-			},
 		},
-		GetIdentifier: func(fields []string) (any, error) {
+		GetIdentifier: func(fields []string) (interface{}, error) {
 			if fields[0] == identifier {
 				// TODO: Session events have only one level of attributes. Support for
 				// more nested levels may be added when needed for other objects.
@@ -882,7 +704,7 @@ func newParserForIdentifierSubcondition(ctx RuleContext, identifier string) (pre
 			lit, err := ctx.GetIdentifier(fields)
 			return types.WhereExpr{Literal: lit}, trace.Wrap(err)
 		},
-		GetProperty: func(mapVal, keyVal any) (any, error) {
+		GetProperty: func(mapVal, keyVal interface{}) (interface{}, error) {
 			mapExpr, mapOK := mapVal.(types.WhereExpr)
 			if !mapOK {
 				mapExpr = types.WhereExpr{Literal: mapVal}
@@ -890,14 +712,6 @@ func newParserForIdentifierSubcondition(ctx RuleContext, identifier string) (pre
 			keyExpr, keyOK := keyVal.(types.WhereExpr)
 			if !keyOK {
 				keyExpr = types.WhereExpr{Literal: keyVal}
-			}
-			if mapExpr.Field != "" && keyExpr.Literal != nil {
-				return types.WhereExpr{
-					MapRef: &types.WhereExpr2{
-						L: &mapExpr,
-						R: &keyExpr,
-					},
-				}, nil
 			}
 			if mapExpr.Literal == nil || keyExpr.Literal == nil {
 				// TODO: Add support for general WhereExpr.
@@ -908,155 +722,18 @@ func newParserForIdentifierSubcondition(ctx RuleContext, identifier string) (pre
 	})
 }
 
-// predicateContainsAll is a custom function to test if all entries in a []string
-// are contained in another []string. Order does not matter, but all entries
-// in the second slice must be present in the first slice.
-func predicateContainsAll(a, b any) predicate.BoolPredicate {
-	return func() bool {
-		aval, ok := a.([]string)
-		if !ok {
-			return false
-		}
-		bval, ok := b.([]string)
-		if !ok {
-			return false
-		}
-
-		if len(aval) == 0 || len(bval) == 0 {
-			return false
-		}
-
-		aSet := set.New(aval...)
-		for _, v := range bval {
-			if !aSet.Contains(v) {
-				return false
-			}
-		}
-		return true
-	}
-}
-
-// predicateContainsAny is a custom function to test if any entry in a []string
-func predicateContainsAny(a, b any) predicate.BoolPredicate {
-	return func() bool {
-		aval, ok := a.([]string)
-		if !ok {
-			return false
-		}
-		bval, ok := b.([]string)
-		if !ok {
-			return false
-		}
-		if len(aval) == 0 || len(bval) == 0 {
-			return false
-		}
-		aSet := set.New(aval...)
-		for _, v := range bval {
-			if aSet.Contains(v) {
-				return true
-			}
-		}
-		return false
-	}
-}
-
-type lazyStringSplit struct {
-	value, delimiter string
-}
-
-// Slice implements [typical.StringSlice].
-func (s *lazyStringSplit) Slice() []string {
-	return strings.Split(s.value, s.delimiter)
-}
-
-// Contains implements [typical.StringSlice].
-func (s *lazyStringSplit) Contains(target string) bool {
-	return splitContains(s.value, s.delimiter, target)
-}
-
-func splitContains(value, delimiter, target string) bool {
-	if delimiter == "" {
-		// an empty delimiter was unfortunately not preemptively disallowed, so
-		// we have to match the behavior of [strings.Split] with an empty
-		// delimiter, i.e. splitting up the string in individual utf8 sequences
-		// or single bytes of non-well-formed utf8
-		if target == "" {
-			// exploding a string into utf8 sequences never yields an empty
-			// string, so we can't ever match an empty target if the delimiter
-			// is empty
-			return false
-		}
-		if value == "" {
-			// exploding the empty string into utf8 sequences yields nothing
-			return false
-		}
-		r, s := utf8.DecodeRuneInString(target)
-		if len(target) != s {
-			// target is more than one rune or invalid non-utf8 byte, so it will
-			// never match anything yielded by SplitSeq(value, "")
-			return false
-		}
-		if s != 1 || r != utf8.RuneError {
-			// target is a well formed utf8 sequence, so we can check if it's in
-			// value by means of Contains
-			return strings.Contains(value, target)
-		}
-		// target is a single byte that's not a valid utf8 sequence but it might
-		// appear in value as part of a valid utf8 sequence, so we can't use a
-		// bytewise contains, unfortunately, and the predicate language supports
-		// go escaping for strings, so we can't rely on the well-formedness of
-		// strings either; if we hit this case we just fall back to the slower
-		// case using SplitSeq
-	} else if value == "" {
-		// the empty value splits into a single empty string since the delimiter
-		// is nonempty
-		return target == ""
-	} else if strings.Contains(target, delimiter) || !strings.Contains(value, target) {
-		// delimiter is nonempty, so SplitSeq works bytewise, and there's no way
-		// we'll ever get a match if the target contains the delimiter or if the
-		// target is not contained in the value; note that this check is
-		// wasteful in case of a successful match, but erring on the side of
-		// excluding matches will hopefully result in overall faster behavior,
-		// especially when resource expressions are used as a predicate to
-		// select one or few resources
-		return false
-	}
-
-	for v := range strings.SplitSeq(value, delimiter) {
-		if target == v {
-			return true
-		}
-	}
-	return false
-}
-
-func splitContainsSinglebyteAffix(value, delimTargetDelim string) bool {
-	// the delimiter is one byte and it's at the head and tail of
-	// delimTargetDelim, so if we don't have two bytes we can't do some of the
-	// slicing; this is an internal-use function so we're not really concerned
-	// with sanity checks - if called incorrectly, this function will return a
-	// useless value but it will not crash
-	if len(delimTargetDelim) < 2 {
-		return false
-	}
-	if target := delimTargetDelim[1 : len(delimTargetDelim)-1]; value == target {
-		// ("foo", ",foo,")
-		return true
-	}
-	if targetDelim := delimTargetDelim[1:]; strings.HasPrefix(value, targetDelim) {
-		// ("foo,bar", ",foo,")
-		return true
-	}
-	if delimTarget := delimTargetDelim[:len(delimTargetDelim)-1]; strings.HasSuffix(value, delimTarget) {
-		// ("bar,foo", ",foo,")
-		return true
-	}
-	// ("bar,qux,foo,baz", ",foo,")
-	return strings.Contains(value, delimTargetDelim)
-}
-
-func newResourceExpressionParser(opts ...func(*typical.ParserSpec[types.ResourceWithLabels])) (*typical.Parser[types.ResourceWithLabels, bool], error) {
-	spec := typical.ParserSpec[types.ResourceWithLabels]{
+// NewResourceExpression returns a [typical.Expression] that is to be evaluated against a
+// [types.ResourceWithLabels]. It is customized to allow short identifiers common in all
+// resources:
+//   - shorthand `name` refers to `resource.spec.hostname` for node resources, or it refers
+//     to `resource.metadata.name` for all other resources eg: `name == "app-name-jenkins"`
+//   - shorthand `labels` refers to resource `resource.metadata.labels + resource.spec.dynamic_labels`
+//     eg: `labels.env == "prod"`
+//
+// All other fields can be referenced by starting expression with identifier `resource`
+// followed by the names of the json fields ie: `resource.spec.public_addr`.
+func NewResourceExpression(expression string) (typical.Expression[types.ResourceWithLabels, bool], error) {
+	parser, err := typical.NewParser[types.ResourceWithLabels, bool](typical.ParserSpec[types.ResourceWithLabels]{
 		Variables: map[string]typical.Variable{
 			"resource.metadata.labels": typical.DynamicVariable(func(r types.ResourceWithLabels) (map[string]string, error) {
 				return r.GetStaticLabels(), nil
@@ -1078,12 +755,6 @@ func newResourceExpressionParser(opts ...func(*typical.ParserSpec[types.Resource
 
 				return r.GetName(), nil
 			}),
-			"health.status": typical.DynamicVariable(func(r types.ResourceWithLabels) (string, error) {
-				if r, ok := r.(types.TargetHealthStatusGetter); ok {
-					return string(r.GetTargetHealthStatus()), nil
-				}
-				return "", nil
-			}),
 		},
 		Functions: map[string]typical.Function{
 			"hasPrefix": typical.BinaryFunction[types.ResourceWithLabels](func(s, suffix string) (bool, error) {
@@ -1098,17 +769,11 @@ func newResourceExpressionParser(opts ...func(*typical.ParserSpec[types.Resource
 			"exists": typical.UnaryFunction[types.ResourceWithLabels](func(value string) (bool, error) {
 				return value != "", nil
 			}),
-			"split": typical.BinaryFunction[types.ResourceWithLabels](func(value string, delimiter string) (typical.StringSlice, error) {
-				return &lazyStringSplit{value: value, delimiter: delimiter}, nil
+			"split": typical.BinaryFunction[types.ResourceWithLabels](func(value string, delimiter string) ([]string, error) {
+				return strings.Split(value, delimiter), nil
 			}),
-			"contains": typical.BinaryFunction[types.ResourceWithLabels](func(list typical.StringSlice, value string) (bool, error) {
-				return list.Contains(value), nil
-			}),
-			"__split_contains": typical.TernaryFunction[types.ResourceWithLabels](func(value string, delimiter string, target string) (bool, error) {
-				return splitContains(value, delimiter, target), nil
-			}),
-			"__split_contains_singlebyte_affix": typical.BinaryFunction[types.ResourceWithLabels](func(value string, delimTargetDelim string) (bool, error) {
-				return splitContainsSinglebyteAffix(value, delimTargetDelim), nil
+			"contains": typical.BinaryFunction[types.ResourceWithLabels](func(list []string, value string) (bool, error) {
+				return slices.Contains(list, value), nil
 			}),
 		},
 		GetUnknownIdentifier: func(env types.ResourceWithLabels, fields []string) (any, error) {
@@ -1121,209 +786,11 @@ func newResourceExpressionParser(opts ...func(*typical.ParserSpec[types.Resource
 			identifier := strings.Join(fields, ".")
 			return nil, trace.BadParameter("identifier %s is not defined", identifier)
 		},
-	}
-	for _, opt := range opts {
-		opt(&spec)
-	}
-	parser, err := typical.NewParser[types.ResourceWithLabels, bool](spec)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return parser, nil
-}
-
-var resourceExpressionParserOnce sync.Once
-var resourceExpressionParser *typical.Parser[types.ResourceWithLabels, bool]
-
-func getResourceExpressionParser() (*typical.Parser[types.ResourceWithLabels, bool], error) {
-	resourceExpressionParserOnce.Do(func() {
-		p, err := newResourceExpressionParser()
-		if err != nil {
-			return
-		}
-		resourceExpressionParser = p
 	})
-	if resourceExpressionParser != nil {
-		return resourceExpressionParser, nil
-	}
-	// if there was an error creating the parser, which is impossible at the
-	// time of writing, just try again on every call so we can forward the error
-	// to the caller
-	return newResourceExpressionParser()
-}
-
-// NewResourceExpression returns a [typical.Expression] that is to be evaluated against a
-// [types.ResourceWithLabels]. It is customized to allow short identifiers common in all
-// resources:
-//   - shorthand `name` refers to `resource.spec.hostname` for node resources, or it refers
-//     to `resource.metadata.name` for all other resources eg: `name == "app-name-jenkins"`
-//   - shorthand `labels` refers to resource `resource.metadata.labels + resource.spec.dynamic_labels`
-//     eg: `labels.env == "prod"`
-//
-// All other fields can be referenced by starting expression with identifier `resource`
-// followed by the names of the json fields ie: `resource.spec.public_addr`.
-func NewResourceExpression(expression string) (typical.Expression[types.ResourceWithLabels, bool], error) {
-	parser, err := getResourceExpressionParser()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return newResourceExpression(expression, parser)
-}
-
-func newResourceExpression(expression string, parser *typical.Parser[types.ResourceWithLabels, bool]) (typical.Expression[types.ResourceWithLabels, bool], error) {
-	astExpr, err := goparser.ParseExpr(expression)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	for _, postFunc := range []astutil.ApplyFunc{
-		combineSplitContains,
-		optimizeSplitContains,
-	} {
-		newNode := astutil.Apply(astExpr, nil, postFunc)
-		astExpr, _ = newNode.(ast.Expr)
-		if astExpr == nil {
-			return nil, trace.Errorf("expected ast.Expr from AST optimization step, got %T (this is a bug)", newNode)
-		}
-	}
-
-	expr, err := parser.ParseAST(astExpr)
+	expr, err := parser.Parse(expression)
 	return expr, trace.Wrap(err)
-}
-
-// combineSplitContains is an [astutil.ApplyFunc] that replaces the combination
-// of calls of "contains(split(value, delimiter), target)" into a single call to
-// "__split_contains(value, delimiter, target)".
-func combineSplitContains(cursor *astutil.Cursor) (cont bool) {
-	// we don't terminate the AST visit early so we always return true
-	cont = true
-
-	containsCall := getIdentCall(cursor.Node(), "contains")
-	if containsCall == nil {
-		return
-	}
-	if len(containsCall.Args) != 2 {
-		return
-	}
-
-	splitCall := getIdentCall(ast.Unparen(containsCall.Args[0]), "split")
-	if splitCall == nil {
-		return
-	}
-	if len(splitCall.Args) != 2 {
-		return
-	}
-
-	// contains(split(value, delim), target) -> __split_contains(value, delim, target)
-	cursor.Replace(&ast.CallExpr{
-		Fun: &ast.Ident{Name: "__split_contains"},
-		Args: []ast.Expr{
-			ast.Unparen(splitCall.Args[0]),
-			ast.Unparen(splitCall.Args[1]),
-			ast.Unparen(containsCall.Args[1]),
-		},
-	})
-	return
-}
-
-func isImpossibleSplitContainsMatch(target, delimiter string) bool {
-	return delimiter != "" && strings.Contains(target, delimiter)
-}
-
-// optimizeSplitContains is an [astutil.ApplyFunc] that replaces calls to
-// __split_contains where the delimiter is a nonempty literal string and the
-// target is a literal string into calls to __split_contains_singlebyte_affix,
-// by combining the delimiter and literal strings into a new literal string that
-// can be more efficiently matched.
-func optimizeSplitContains(cursor *astutil.Cursor) (cont bool) {
-	// we don't terminate the AST visit early so we always return true
-	cont = true
-
-	splitContainsCall := getIdentCall(cursor.Node(), "__split_contains")
-	if splitContainsCall == nil {
-		return
-	}
-	if len(splitContainsCall.Args) != 3 {
-		return
-	}
-
-	delimiter := getLiteralString(ast.Unparen(splitContainsCall.Args[1]))
-	target := getLiteralString(ast.Unparen(splitContainsCall.Args[2]))
-	if delimiter == nil || target == nil {
-		return
-	}
-
-	if isImpossibleSplitContainsMatch(*target, *delimiter) {
-		// impossible match, turn it into a function call that unconditionally
-		// returns false very quickly
-
-		// TODO(espadolini): figure out if adding a "false" or "__false"
-		// variable has the potential to break things
-
-		// __split_contains(value, ",", "contains,delimiter") -> __split_contains_singlebyte_affix(value, "")
-		cursor.Replace(&ast.CallExpr{
-			Fun: &ast.Ident{Name: "__split_contains_singlebyte_affix"},
-			Args: []ast.Expr{
-				ast.Unparen(splitContainsCall.Args[0]),
-				&ast.BasicLit{Kind: token.STRING, Value: `""`},
-			},
-		})
-		return
-	}
-
-	if len(*delimiter) != 1 {
-		return
-	}
-
-	// the delimiter is a one byte literal string and the target is a literal
-	// string, so we affix the delimiter to the head and tail of the target
-	// string so we can just call [strings.Contains] which is almost surely much
-	// more efficient than anything else we could do; the delimiter has to be
-	// single byte because __split_contains_singlebyte_affix must be able to
-	// skip it when checking for the target being at the very beginning or the
-	// very end of the string, and we don't want to copy every string in the
-	// slice just to add the delimiter at the beginning and end for that
-
-	// __split_contains(sliceExpr, ",", "literal") -> __split_contains_singlebyte_affix(sliceExpr, ",literal,")
-	cursor.Replace(&ast.CallExpr{
-		Fun: &ast.Ident{Name: "__split_contains_singlebyte_affix"},
-		Args: []ast.Expr{
-			ast.Unparen(splitContainsCall.Args[0]),
-			&ast.BasicLit{
-				Kind:  token.STRING,
-				Value: strconv.Quote(*delimiter + *target + *delimiter),
-			},
-		},
-	})
-
-	return
-}
-
-func getIdentCall(n ast.Node, ident string) *ast.CallExpr {
-	c, _ := n.(*ast.CallExpr)
-	if c == nil {
-		return nil
-	}
-	// predicate doesn't handle function expressions, not even to unparen them,
-	// so `(foo)(1, 2, 3)` is not valid and we only need to check for
-	// [*ast.Ident]
-	if i, _ := c.Fun.(*ast.Ident); i == nil || i.Name != ident {
-		return nil
-	}
-	return c
-}
-
-func getLiteralString(n ast.Node) *string {
-	l, _ := n.(*ast.BasicLit)
-	if l == nil {
-		return nil
-	}
-	if l.Kind != token.STRING {
-		return nil
-	}
-	s, err := strconv.Unquote(l.Value)
-	if err != nil {
-		return nil
-	}
-	return &s
 }

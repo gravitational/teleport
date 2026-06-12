@@ -15,6 +15,7 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 //go:build vnetdaemon
+// +build vnetdaemon
 
 package daemon
 
@@ -25,11 +26,6 @@ import "C"
 
 import (
 	"errors"
-	"unsafe"
-
-	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/lib/utils/darwinbundle"
 )
 
 var (
@@ -63,24 +59,3 @@ var (
 	errorCodeNSXPCConnectionInvalid = int(C.NSXPCConnectionInvalid)
 	errXPCConnectionInvalid         = errors.New("XPC connection invalid")
 )
-
-func DaemonLabel() (string, error) {
-	path, err := darwinbundle.Path()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	cPath := C.CString(path)
-	defer C.free(unsafe.Pointer(cPath))
-
-	cLabel := C.DaemonLabel(cPath)
-	defer C.free(unsafe.Pointer(cLabel))
-
-	label := C.GoString(cLabel)
-
-	if label == "" {
-		return "", trace.Errorf("could not get details for bundle under %s", path)
-	}
-
-	return label, nil
-}

@@ -17,7 +17,6 @@
  */
 
 import Logger, { NullService } from 'teleterm/logger';
-import { makeWorkspace } from 'teleterm/ui/services/workspacesService/testHelpers';
 
 import { ClustersService } from '../clusters';
 import { StatePersistenceService } from '../statePersistence';
@@ -25,7 +24,8 @@ import {
   Document,
   DocumentGateway,
   DocumentGatewayKube,
-  DocumentTshNode,
+  DocumentTshNodeWithLoginHost,
+  DocumentTshNodeWithServerId,
   WorkspacesService,
 } from '../workspacesService';
 import { getEmptyPendingAccessRequest } from '../workspacesService/accessRequestsService';
@@ -77,7 +77,6 @@ it('removeItemsBelongingToRootCluster removes connections', () => {
       targetUser: 'alice',
       targetName: 'test',
       targetSubresourceName: 'pg',
-      autoUserProvisioning: undefined,
     },
     {
       kind: 'connection.kube',
@@ -117,7 +116,6 @@ it('updates the port of a gateway connection when the underlying doc gets update
     port: '12345',
     origin: 'resource_table',
     status: '',
-    autoUserProvisioning: undefined,
   };
 
   const { connectionTrackerService, workspacesService } =
@@ -145,7 +143,7 @@ it('updates the port of a gateway connection when the underlying doc gets update
 });
 
 it('creates a connection for doc.terminal_tsh_node docs with serverUri', () => {
-  const document: DocumentTshNode = {
+  const document: DocumentTshNodeWithServerId = {
     kind: 'doc.terminal_tsh_node',
     uri: '/docs/123',
     title: '',
@@ -173,6 +171,25 @@ it('creates a connection for doc.terminal_tsh_node docs with serverUri', () => {
     serverUri: document.serverUri,
     connected: false,
   });
+});
+
+it('ignores doc.terminal_tsh_node docs with no serverUri', () => {
+  const document: DocumentTshNodeWithLoginHost = {
+    kind: 'doc.terminal_tsh_node',
+    uri: '/docs/123',
+    title: '',
+    status: '',
+    loginHost: 'user@foo',
+    rootClusterId: 'test',
+    leafClusterId: undefined,
+    origin: 'resource_table',
+  };
+
+  const { connectionTrackerService } = getTestSetupWithMockedDocuments([
+    document,
+  ]);
+
+  expect(connectionTrackerService.getConnections()).toEqual([]);
 });
 
 it('creates a kube connection for doc.gateway_kube', () => {
@@ -254,7 +271,7 @@ function getTestSetupWithMockedDocuments(documents: Document[]) {
 
   // Insert the documents.
   workspacesService.setState(draftState => {
-    draftState.workspaces['/clusters/localhost'] = makeWorkspace({
+    draftState.workspaces['/clusters/localhost'] = {
       color: 'purple',
       accessRequests: {
         pending: getEmptyPendingAccessRequest(),
@@ -263,7 +280,7 @@ function getTestSetupWithMockedDocuments(documents: Document[]) {
       localClusterUri: '/clusters/localhost',
       location: documents[0]?.uri,
       documents: documents,
-    });
+    };
   });
 
   return { workspacesService, connectionTrackerService };

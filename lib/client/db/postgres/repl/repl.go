@@ -39,7 +39,6 @@ import (
 
 type REPL struct {
 	*term.Terminal
-
 	connConfig *pgconn.Config
 	client     io.ReadWriteCloser
 	route      clientproto.RouteToDatabase

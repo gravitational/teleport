@@ -129,7 +129,7 @@ func RunALPNAuthTunnel(ctx context.Context, cfg ALPNAuthTunnelConfig) error {
 	go func() {
 		defer cfg.Listener.Close()
 		if err := lp.Start(ctx); err != nil {
-			log.InfoContext(ctx, "ALPN proxy stopped", "error", err)
+			log.WithError(err).Info("ALPN proxy stopped.")
 		}
 	}()
 

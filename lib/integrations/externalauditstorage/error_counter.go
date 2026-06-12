@@ -20,10 +20,8 @@ package externalauditstorage
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -31,6 +29,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
@@ -39,7 +38,6 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 const (
@@ -55,7 +53,7 @@ const (
 	syncInterval = 30 * time.Second
 )
 
-var log = logutils.NewPackageLogger(teleport.ComponentKey, "ExternalAuditStorage")
+var log = logrus.WithField(teleport.ComponentKey, "ExternalAuditStorage")
 
 // ClusterAlertService abstracts a service providing Upsert and Delete
 // operations for cluster alerts.
@@ -191,25 +189,16 @@ func (c *ErrorCounter) sync(ctx context.Context) {
 			types.WithAlertLabel(types.AlertOnLogin, "yes"),
 			types.WithAlertLabel(types.AlertVerbPermit, "external_audit_storage:create"))
 		if err != nil {
-			log.InfoContext(ctx, "ErrorCounter failed to create cluster alert",
-				"alert_name", newAlert.name,
-				"error", err,
-			)
+			log.Infof("ErrorCounter failed to create cluster alert %s: %s", newAlert.name, err)
 			continue
 		}
 		if err := c.alertService.UpsertClusterAlert(ctx, alert); err != nil {
-			log.InfoContext(ctx, "ErrorCounter failed to upsert cluster alert",
-				"alert_name", newAlert.name,
-				"error", err,
-			)
+			log.Infof("ErrorCounter failed to upsert cluster alert %s: %s", newAlert.name, err)
 		}
 	}
 	for _, alertToClear := range allAlertActions.clearAlerts {
 		if err := c.alertService.DeleteClusterAlert(ctx, alertToClear); err != nil && !trace.IsNotFound(err) {
-			log.InfoContext(ctx, "ErrorCounter failed to delete cluster alert",
-				"alert_name", alertToClear,
-				"error", err,
-			)
+			log.Infof("ErrorCounter failed to delete cluster alert %s: %s", alertToClear, err)
 		}
 	}
 }
@@ -329,12 +318,6 @@ func (c *ErrorCountingLogger) SearchEvents(ctx context.Context, req events.Searc
 	return events, key, err
 }
 
-func (c *ErrorCountingLogger) SearchUnstructuredEvents(ctx context.Context, req events.SearchEventsRequest) ([]*auditlogpb.EventUnstructured, string, error) {
-	events, key, err := c.wrapped.SearchUnstructuredEvents(ctx, req)
-	c.searches.observe(err)
-	return events, key, err
-}
-
 func (c *ErrorCountingLogger) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
 	return stream.MapErr(c.wrapped.ExportUnstructuredEvents(ctx, req), func(err error) error {
 		c.searches.observe(err)
@@ -381,72 +364,11 @@ func (c *ErrorCountingSessionHandler) Upload(ctx context.Context, sessionID sess
 	return res, err
 }
 
-// UploadPendingSummary calls [c.wrapped.UploadPendingSummary] and counts the error or success.
-func (c *ErrorCountingSessionHandler) UploadPendingSummary(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	res, err := c.wrapped.UploadPendingSummary(ctx, sessionID, reader)
-	c.uploads.observe(err)
-	return res, err
-}
-
-// UploadSummary calls [c.wrapped.UploadSummary] and counts the error or success.
-func (c *ErrorCountingSessionHandler) UploadSummary(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	res, err := c.wrapped.UploadSummary(ctx, sessionID, reader)
-	c.uploads.observe(err)
-	return res, err
-}
-
-// UploadMetadata calls [c.wrapped.UploadMetadata] and counts the error or success.
-func (c *ErrorCountingSessionHandler) UploadMetadata(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	res, err := c.wrapped.UploadMetadata(ctx, sessionID, reader)
-	c.uploads.observe(err)
-	return res, err
-}
-
-// UploadThumbnail calls [c.wrapped.UploadThumbnail] and counts the error or success.
-func (c *ErrorCountingSessionHandler) UploadThumbnail(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	res, err := c.wrapped.UploadThumbnail(ctx, sessionID, reader)
-	c.uploads.observe(err)
-	return res, err
-}
-
-// StreamSessionRecording calls [c.wrapped.StreamSessionRecording] and counts the error or success.
-func (c *ErrorCountingSessionHandler) StreamSessionRecording(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
-	rc, err := c.wrapped.StreamSessionRecording(ctx, sessionID)
-	if err != nil {
-		c.downloads.observe(err)
-		return nil, err
-	}
-	return newErrorReportReader(rc, c.downloads), nil
-}
-
-// StreamSessionSummary calls [c.wrapped.StreamSessionSummary] and counts the error or success.
-func (c *ErrorCountingSessionHandler) StreamSessionSummary(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
-	rc, err := c.wrapped.StreamSessionSummary(ctx, sessionID)
-	if err != nil {
-		c.downloads.observe(err)
-		return nil, err
-	}
-	return newErrorReportReader(rc, c.downloads), nil
-}
-
-// StreamSessionMetadata calls [c.wrapped.StreamSessionMetadata] and counts the error or success.
-func (c *ErrorCountingSessionHandler) StreamSessionMetadata(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
-	rc, err := c.wrapped.StreamSessionMetadata(ctx, sessionID)
-	if err != nil {
-		c.downloads.observe(err)
-		return nil, err
-	}
-	return newErrorReportReader(rc, c.downloads), nil
-}
-
-// StreamSessionThumbnail calls [c.wrapped.StreamSessionThumbnail()] and counts the error or success.
-func (c *ErrorCountingSessionHandler) StreamSessionThumbnail(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
-	rc, err := c.wrapped.StreamSessionThumbnail(ctx, sessionID)
-	if err != nil {
-		c.downloads.observe(err)
-		return nil, err
-	}
-	return newErrorReportReader(rc, c.downloads), nil
+// Download calls [c.wrapped.Download] and counts the error or success.
+func (c *ErrorCountingSessionHandler) Download(ctx context.Context, sessionID session.ID, writer io.Writer) error {
+	err := c.wrapped.Download(ctx, sessionID, writer)
+	c.downloads.observe(err)
+	return err
 }
 
 // CreateUpload calls [c.wrapped.CreateUpload] and counts the error or success.
@@ -513,33 +435,4 @@ func truncateErrForAlert(err error) string {
 		return s
 	}
 	return s[:maxLength]
-}
-
-// newErrorReportReader wraps r so that read errors and successful completions
-// are forwarded to reporter. It should be used after a download call has
-// already succeeded, to capture errors that occur while streaming the body.
-func newErrorReportReader(r io.ReadCloser, reporter *errorCount) errorReportReader {
-	return errorReportReader{
-		r,
-		reporter,
-	}
-}
-
-// errorReportReader wraps an [io.ReadCloser] and observes read outcomes via
-// reporter. A non-nil, non-EOF error from Read is counted as a download
-// failure. An io.EOF is counted as a success, indicating the full body was
-// consumed without error.
-type errorReportReader struct {
-	io.ReadCloser
-	reporter *errorCount
-}
-
-func (e errorReportReader) Read(buf []byte) (int, error) {
-	n, err := e.ReadCloser.Read(buf)
-	if errors.Is(err, io.EOF) {
-		e.reporter.observe(nil)
-	} else if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, os.ErrClosed) {
-		e.reporter.observe(err)
-	}
-	return n, err
 }

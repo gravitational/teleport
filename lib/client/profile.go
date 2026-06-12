@@ -19,7 +19,6 @@
 package client
 
 import (
-	"context"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -30,9 +29,9 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
-	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -132,6 +131,9 @@ func (ms *MemProfileStore) DeleteProfile(profileName string) error {
 //
 // The FS store uses the file layout outlined in `api/utils/keypaths.go`.
 type FSProfileStore struct {
+	// log holds the structured logger.
+	log logrus.FieldLogger
+
 	// Dir is the directory where all keys are stored.
 	Dir string
 }
@@ -140,6 +142,7 @@ type FSProfileStore struct {
 func NewFSProfileStore(dirPath string) *FSProfileStore {
 	dirPath = profile.FullProfilePath(dirPath)
 	return &FSProfileStore{
+		log: logrus.WithField(teleport.ComponentKey, teleport.ComponentKeyStore),
 		Dir: dirPath,
 	}
 }
@@ -227,23 +230,11 @@ type ProfileStatus struct {
 	// ProxyURL is the URL the web client is accessible at.
 	ProxyURL url.URL
 
-	// RelayAddr is the address of the relay to use, if any.
-	RelayAddr string
-
-	// DefaultRelayAddr is the address of the relay to use specified by the
-	// cluster at login time, if any.
-	DefaultRelayAddr string
-
 	// Username is the Teleport username.
 	Username string
 
-	// Roles is a list of Teleport Roles this user has been assigned. Mutually
-	// exclusive with the ScopePin field.
+	// Roles is a list of Teleport Roles this user has been assigned.
 	Roles []string
-
-	// ScopePin describes the scope that this profile is pinned to, if any, and
-	// encodes scoped role assignments. Mutually exclusive with the Roles field.
-	ScopePin *scopesv1.Pin
 
 	// Logins are the Linux accounts, also known as principals in OpenSSH terminology.
 	Logins []string
@@ -295,9 +286,9 @@ type ProfileStatus struct {
 	// GCPServiceAccounts is a list of allowed GCP service accounts user can assume.
 	GCPServiceAccounts []string
 
-	// AllowedResourceAccessIDs is a list of resources the user can access. An empty
+	// AllowedResourceIDs is a list of resources the user can access. An empty
 	// list means there are no resource-specific restrictions.
-	AllowedResourceAccessIDs []types.ResourceAccessID
+	AllowedResourceIDs []types.ResourceID
 
 	// IsVirtual is set when this profile does not actually exist on disk,
 	// probably because it was constructed from an identity file. When set,
@@ -319,10 +310,6 @@ type ProfileStatus struct {
 	// TLSRoutingEnabled indicates that proxy supports ALPN SNI server where
 	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
 	TLSRoutingEnabled bool
-
-	// DelegationSessionID is the ID of the Delegation Session the profile's
-	// credentials are associated with.
-	DelegationSessionID string
 }
 
 // GitHubIdentity is the GitHub identity attached to the user.
@@ -339,8 +326,6 @@ type profileOptions struct {
 	ProfileName             string
 	ProfileDir              string
 	WebProxyAddr            string
-	RelayAddr               string
-	DefaultRelayAddr        string
 	Username                string
 	SiteName                string
 	KubeProxyAddr           string
@@ -430,33 +415,29 @@ func profileStatusFromKeyRing(keyRing *KeyRing, opts profileOptions) (*ProfileSt
 			Scheme: "https",
 			Host:   opts.WebProxyAddr,
 		},
-		RelayAddr:                opts.RelayAddr,
-		DefaultRelayAddr:         opts.DefaultRelayAddr,
-		Username:                 opts.Username,
-		Logins:                   sshCert.ValidPrincipals,
-		ValidUntil:               validUntil,
-		Extensions:               extensions,
-		CriticalOptions:          sshCert.CriticalOptions,
-		Roles:                    roles,
-		ScopePin:                 sshIdent.ScopePin,
-		Cluster:                  opts.SiteName,
-		Traits:                   sshIdent.Traits,
-		ActiveRequests:           sshIdent.ActiveRequests,
-		KubeEnabled:              opts.KubeProxyAddr != "",
-		KubeUsers:                tlsID.KubernetesUsers,
-		KubeGroups:               tlsID.KubernetesGroups,
-		Databases:                databases,
-		Apps:                     apps,
-		AWSRolesARNs:             tlsID.AWSRoleARNs,
-		AzureIdentities:          tlsID.AzureIdentities,
-		GCPServiceAccounts:       tlsID.GCPServiceAccounts,
-		IsVirtual:                opts.IsVirtual,
-		AllowedResourceAccessIDs: sshIdent.AllowedResourceAccessIDs,
-		SAMLSingleLogoutEnabled:  opts.SAMLSingleLogoutEnabled,
-		SSOHost:                  opts.SSOHost,
-		GitHubIdentity:           gitHubIdentity,
-		TLSRoutingEnabled:        opts.TLSRoutingEnabled,
-		DelegationSessionID:      sshIdent.DelegationSessionID,
+		Username:                opts.Username,
+		Logins:                  sshCert.ValidPrincipals,
+		ValidUntil:              validUntil,
+		Extensions:              extensions,
+		CriticalOptions:         sshCert.CriticalOptions,
+		Roles:                   roles,
+		Cluster:                 opts.SiteName,
+		Traits:                  sshIdent.Traits,
+		ActiveRequests:          sshIdent.ActiveRequests,
+		KubeEnabled:             opts.KubeProxyAddr != "",
+		KubeUsers:               tlsID.KubernetesUsers,
+		KubeGroups:              tlsID.KubernetesGroups,
+		Databases:               databases,
+		Apps:                    apps,
+		AWSRolesARNs:            tlsID.AWSRoleARNs,
+		AzureIdentities:         tlsID.AzureIdentities,
+		GCPServiceAccounts:      tlsID.GCPServiceAccounts,
+		IsVirtual:               opts.IsVirtual,
+		AllowedResourceIDs:      sshIdent.AllowedResourceIDs,
+		SAMLSingleLogoutEnabled: opts.SAMLSingleLogoutEnabled,
+		SSOHost:                 opts.SSOHost,
+		GitHubIdentity:          gitHubIdentity,
+		TLSRoutingEnabled:       opts.TLSRoutingEnabled,
 	}, nil
 }
 
@@ -486,17 +467,14 @@ func (p *ProfileStatus) virtualPathFromEnv(kind VirtualPathKind, params VirtualP
 	// If we can't resolve any env vars, this will return garbage which we
 	// should at least warn about. As ugly as this is, arguably making every
 	// profile path lookup fallible is even uglier.
-	log.DebugContext(context.Background(), "Could not resolve path to virtual profile entry",
-		"entry_type", kind,
-		"parameters", params,
-	)
+	log.Debugf("Could not resolve path to virtual profile entry of type %s "+
+		"with parameters %+v.", kind, params)
 
 	virtualPathWarnOnce.Do(func() {
-		const msg = "A virtual profile is in use due to an identity file " +
+		log.Errorf("A virtual profile is in use due to an identity file " +
 			"(`-i ...`) but this functionality requires additional files on " +
 			"disk and may fail. Consider using a compatible wrapper " +
-			"application (e.g. Machine ID) for this command."
-		log.ErrorContext(context.Background(), msg)
+			"application (e.g. Machine ID) for this command.")
 	})
 
 	return "", false
@@ -729,10 +707,9 @@ func ProfileNameFromProxyAddress(store ProfileStore, proxyAddr string) (string, 
 // AccessInfo returns the complete services.AccessInfo for this profile.
 func (p *ProfileStatus) AccessInfo() *services.AccessInfo {
 	return &services.AccessInfo{
-		Username:                 p.Username,
-		Roles:                    p.Roles,
-		Traits:                   p.Traits,
-		AllowedResourceAccessIDs: p.AllowedResourceAccessIDs,
-		DelegationSessionID:      p.DelegationSessionID,
+		Username:           p.Username,
+		Roles:              p.Roles,
+		Traits:             p.Traits,
+		AllowedResourceIDs: p.AllowedResourceIDs,
 	}
 }

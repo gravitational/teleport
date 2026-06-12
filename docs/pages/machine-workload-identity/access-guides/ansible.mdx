@@ -5,7 +5,6 @@ description: How to use Machine & Workload Identity with Ansible
 tags:
  - how-to
  - mwi
- - infrastructure-identity
 ---
 
 {/* lint disable page-structure remark-lint */}
@@ -20,11 +19,6 @@ to produce credentials and an OpenSSH configuration, and then configure Ansible
 to use these to connect to your SSH nodes through the Teleport Proxy Service.
 
 ## Prerequisites
-
-<Admonition type="tip" title="Using Ansible AWX?">
-If you're running your Ansible jobs under Ansible AWX or Ansible Automation
-Platform, consider reading our [dedicated guide](./ansible-awx.mdx).
-</Admonition>
 
 You will need the following tools to use Teleport with Ansible.
 
@@ -81,7 +75,7 @@ spec:
 Replace `example-role` with a descriptive name related to your use case.
 
 For production use, you should use labels to restrict this access to only the
-hosts that Ansible will need to access. This is known as the principle of
+hosts that Ansible will need to access. This is known as the principal of
 least privilege and reduces damage that exfiltrated credentials can do.
 
 Use `tctl create -f ./role.yaml` to create the role.
@@ -121,7 +115,9 @@ services:
     path: /opt/machine-id
 ```
 
-(!docs/pages/includes/machine-id/reload-tbot.mdx resource="the Ansible playbook"!)
+If operating `tbot` as a background service, restart it. If running `tbot` in
+one-shot mode, it must be executed before you attempt to execute the Ansible
+playbook.
 
 You should now see several files under `/opt/machine-id`:
 
@@ -172,7 +168,7 @@ requirement with a script like the following:
 ```code
 # Source tsh env to get the name of the current Teleport cluster.
 $ eval "$( tsh env )"
-# You can modify the `tsh ls` command to filter nodes based on the label.
+# You can modify the `tsh ls` command to filter nodes based ont he label.
 $ tsh ls --format=json | jq --arg cluster $TELEPORT_CLUSTER -r '.[].spec.hostname + "." + $cluster' > hosts
 ```
 
@@ -273,7 +269,5 @@ spec:
 
 ## Next steps
 
-- Read the [configuration reference](../../reference/machine-workload-identity/configuration.mdx) to explore
+- Read the [configuration reference](../../reference/machine-id/configuration.mdx) to explore
   all the available configuration options.
-- If you use Ansible AWX or Ansible Automation Platform, read our
-  [dedicated Ansible AWX Guide](./ansible-awx.mdx).

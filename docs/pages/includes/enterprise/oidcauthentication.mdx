@@ -1,0 +1,19 @@
+Configure Teleport to use OIDC authentication as the default instead of the local
+user database. 
+
+Edit your `cluster_auth_preference` resource:
+
+```code
+$ tctl edit cap
+```
+
+In your editor, ensure that the file contains the following content:
+
+```yaml
+kind: cluster_auth_preference
+metadata:
+  name: cluster-auth-preference
+spec:    
+  type: oidc
+version: v2
+```

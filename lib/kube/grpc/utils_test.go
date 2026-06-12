@@ -56,22 +56,19 @@ import (
 	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
-	"github.com/gravitational/teleport/lib/healthcheck"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
-	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
-	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	sessPkg "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 type TestContext struct {
@@ -81,7 +78,6 @@ type TestContext struct {
 	AuthServer           *auth.Server
 	AuthClient           *authclient.Client
 	Authz                authz.Authorizer
-	ScopedAuthz          authz.ScopedAuthorizer
 	KubeServer           *proxy.TLSServer
 	KubeProxy            *proxy.TLSServer
 	Emitter              *eventstest.ChannelEmitter
@@ -111,7 +107,6 @@ type TestConfig struct {
 	OnEvent              func(apievents.AuditEvent)
 	ClusterFeatures      func() proto.Features
 	CreateAuditStreamErr error
-	ScopesFeatures       scopes.Features
 }
 
 // SetupTestContext creates a kube service with clusters configured.
@@ -188,17 +183,11 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	t.Cleanup(func() {
 		testCtx.lockWatcher.Close()
 	})
-	authOpts := authz.AuthorizerOpts{
-		ClusterName:      testCtx.ClusterName,
-		AccessPoint:      proxyAuthClient,
-		ScopedRoleReader: proxyAuthClient.ScopedRoleReader(),
-		LockWatcher:      testCtx.lockWatcher,
-		ScopesFeatures:   cfg.ScopesFeatures,
-	}
-
-	testCtx.Authz, err = authz.NewAuthorizer(authOpts)
-	require.NoError(t, err)
-	testCtx.ScopedAuthz, err = authz.NewScopedAuthorizer(authOpts)
+	testCtx.Authz, err = authz.NewAuthorizer(authz.AuthorizerOpts{
+		ClusterName: testCtx.ClusterName,
+		AccessPoint: proxyAuthClient,
+		LockWatcher: testCtx.lockWatcher,
+	})
 	require.NoError(t, err)
 
 	// TLS config for kube proxy and Kube service.
@@ -221,8 +210,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 			}
 		}
 	}()
-	keyGen, err := keygen.New(keygen.Config{BuildType: modules.BuildOSS})
-	require.NoError(t, err)
+	keyGen := keygen.New(testCtx.Context)
 
 	client := newAuthClientWithStreamer(testCtx, cfg.CreateAuditStreamErr)
 
@@ -242,25 +230,12 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	testCtx.kubeProxyListener, err = net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 
-	healthCheckManager, err := healthcheck.NewManager(
-		testCtx.Context,
-		healthcheck.ManagerConfig{
-			Component:               teleport.ComponentKube,
-			Events:                  client,
-			HealthCheckConfigReader: client,
-		},
-	)
-	require.NoError(t, err)
-	err = healthCheckManager.Start(ctx)
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, healthCheckManager.Close()) })
-
 	inventoryHandle, err := inventory.NewDownstreamHandle(client.InventoryControlStream,
-		func(ctx context.Context) (*proto.UpstreamInventoryHello, error) {
-			return &proto.UpstreamInventoryHello{
+		func(ctx context.Context) (proto.UpstreamInventoryHello, error) {
+			return proto.UpstreamInventoryHello{
 				ServerID: testCtx.HostID,
 				Version:  teleport.Version,
-				Services: types.SystemRoles{types.RoleKube}.StringSlice(),
+				Services: []types.SystemRole{types.RoleKube},
 				Hostname: "test",
 			}, nil
 		})
@@ -273,7 +248,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 			Namespace:   apidefaults.Namespace,
 			Keygen:      keyGen,
 			ClusterName: testCtx.ClusterName,
-			ScopedAuthz: testCtx.ScopedAuthz,
+			Authz:       testCtx.Authz,
 			// fileStreamer continues to write events after the server is shutdown and
 			// races against os.RemoveAll leading the test to fail.
 			// Using "node-sync" mode to write the events and session recordings
@@ -308,14 +283,12 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		// each time heartbeat is called we insert data into the channel.
 		// this is used to make sure that heartbeat started and the clusters
 		// are registered in the auth server
-		OnHeartbeat:          func(err error) {},
-		GetRotation:          func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
-		ResourceMatchers:     cfg.ResourceMatchers,
-		OnReconcile:          cfg.OnReconcile,
-		Log:                  logtest.NewLogger(),
-		InventoryHandle:      inventoryHandle,
-		ConnectedProxyGetter: reversetunnel.NewConnectedProxyGetter(),
-		HealthCheckManager:   healthCheckManager,
+		OnHeartbeat:      func(err error) {},
+		GetRotation:      func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
+		ResourceMatchers: cfg.ResourceMatchers,
+		OnReconcile:      cfg.OnReconcile,
+		Log:              utils.NewLoggerForTests(),
+		InventoryHandle:  inventoryHandle,
 	})
 	require.NoError(t, err)
 
@@ -345,9 +318,9 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	testCtx.KubeProxy, err = proxy.NewTLSServer(proxy.TLSServerConfig{
 		ForwarderConfig: proxy.ForwarderConfig{
 			ReverseTunnelSrv: &reversetunnelclient.FakeServer{
-				FakeClusters: []reversetunnelclient.Cluster{
-					&fakeCluster{
-						FakeCluster: reversetunnelclient.NewFakeCluster(testCtx.ClusterName, client),
+				Sites: []reversetunnelclient.RemoteSite{
+					&fakeRemoteSite{
+						FakeRemoteSite: reversetunnelclient.NewFakeRemoteSite(testCtx.ClusterName, client),
 						idToAddr: map[string]string{
 							testCtx.HostID: testCtx.kubeServerListener.Addr().String(),
 						},
@@ -357,7 +330,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 			Namespace:   apidefaults.Namespace,
 			Keygen:      keyGen,
 			ClusterName: testCtx.ClusterName,
-			ScopedAuthz: testCtx.ScopedAuthz,
+			Authz:       testCtx.Authz,
 			// fileStreamer continues to write events after the server is shutdown and
 			// races against os.RemoveAll leading the test to fail.
 			// Using "node-sync" mode to write the events and session recordings
@@ -391,17 +364,15 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		LimiterConfig: limiter.Config{
 			MaxConnections: 1000,
 		},
-		Log:             logtest.NewLogger(),
+		Log:             utils.NewLoggerForTests(),
 		InventoryHandle: inventoryHandle,
 		GetRotation: func(role types.SystemRole) (*types.Rotation, error) {
 			return &types.Rotation{}, nil
 		},
-		ConnectedProxyGetter: reversetunnel.NewConnectedProxyGetter(),
-		HealthCheckManager:   healthCheckManager,
 	})
 	require.NoError(t, err)
-	require.Equal(t, testCtx.KubeServer.Server.ReadTimeout, time.Duration(0), "kube server write timeout must be 0")
-	require.Equal(t, testCtx.KubeServer.Server.WriteTimeout, time.Duration(0), "kube server write timeout must be 0")
+	require.Equal(t, time.Duration(0), testCtx.KubeServer.Server.ReadTimeout, "kube server read timeout must be 0 to keep long-running watch streams alive")
+	require.Equal(t, defaults.HandshakeReadDeadline, testCtx.KubeServer.Server.WriteTimeout, "kube server write timeout must be HandshakeReadDeadline; it caps the TLS handshake while the outer handler resets the per-request write deadline")
 
 	testCtx.startKubeServices(t)
 	// Explicitly send a heartbeat for any configured clusters.
@@ -410,7 +381,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		case sender := <-inventoryHandle.Sender():
 			server, err := testCtx.KubeServer.GetServerInfo(cluster.Name)
 			require.NoError(t, err)
-			require.NoError(t, sender.Send(ctx, &proto.InventoryHeartbeat{
+			require.NoError(t, sender.Send(ctx, proto.InventoryHeartbeat{
 				KubernetesServer: server,
 			}))
 		case <-time.After(20 * time.Second):
@@ -538,9 +509,9 @@ func newKubeConfigFile(t *testing.T, clusters ...KubeClusterConfig) string {
 type GenTestKubeClientTLSCertOptions func(*tlsca.Identity)
 
 // WithResourceAccessRequests adds resource access requests to the identity.
-func WithResourceAccessRequests(r ...types.ResourceAccessID) GenTestKubeClientTLSCertOptions {
+func WithResourceAccessRequests(r ...types.ResourceID) GenTestKubeClientTLSCertOptions {
 	return func(identity *tlsca.Identity) {
-		identity.AllowedResourceAccessIDs = r
+		identity.AllowedResourceIDs = r
 	}
 }
 
@@ -564,7 +535,7 @@ func WithMFAVerified() GenTestKubeClientTLSCertOptions {
 // GenTestKubeClientTLSCert generates a kube client to access kube service
 func (c *TestContext) GenTestKubeClientTLSCert(t *testing.T, userName, kubeCluster string, opts ...GenTestKubeClientTLSCertOptions) (*kubernetes.Clientset, *rest.Config) {
 	authServer := c.AuthServer
-	clusterName, err := authServer.GetClusterName(t.Context())
+	clusterName, err := authServer.GetClusterName()
 	require.NoError(t, err)
 
 	// Fetch user info to get roles and max session TTL.
@@ -695,14 +666,14 @@ func (f *fakeClient) CreateSessionTracker(ctx context.Context, st types.SessionT
 	}
 }
 
-// fakeCluster is a fake cluster that uses a map to map server IDs to
+// fakeRemoteSite is a fake remote site that uses a map to map server IDs to
 // addresses to simulate reverse tunneling.
-type fakeCluster struct {
-	*reversetunnelclient.FakeCluster
+type fakeRemoteSite struct {
+	*reversetunnelclient.FakeRemoteSite
 	idToAddr map[string]string
 }
 
-func (f *fakeCluster) DialTCP(p reversetunnelclient.DialParams) (conn net.Conn, err error) {
+func (f *fakeRemoteSite) DialTCP(p reversetunnelclient.DialParams) (conn net.Conn, err error) {
 	// The server ID is the first part of the address.
 	addr, ok := f.idToAddr[strings.Split(p.ServerID, ".")[0]]
 	if !ok {

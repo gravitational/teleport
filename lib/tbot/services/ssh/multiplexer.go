@@ -63,7 +63,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 	"github.com/gravitational/teleport/lib/tbot/ssh"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/session/uds"
+	"github.com/gravitational/teleport/lib/utils/uds"
 )
 
 const (
@@ -100,7 +100,7 @@ func MultiplexerServiceBuilder(
 	clientMetrics *grpcprom.ClientMetrics,
 ) bot.ServiceBuilder {
 	buildFn := func(deps bot.ServiceDependencies) (bot.Service, error) {
-		if err := cfg.CheckAndSetDefaults(deps.Scoped); err != nil {
+		if err := cfg.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		svc := &MultiplexerService{
@@ -194,7 +194,7 @@ func (s *MultiplexerService) writeArtifacts(
 ) error {
 	dest := s.cfg.Destination.(*destination.Directory)
 
-	clusterNames, err := internal.GetClusterNames(ctx, authClient, s.identity.Get().ClusterName, s.cfg.DelegationSessionID != "")
+	clusterNames, err := internal.GetClusterNames(ctx, authClient, s.identity.Get().ClusterName)
 	if err != nil {
 		return trace.Wrap(err, "fetching cluster names")
 	}
@@ -355,7 +355,6 @@ func (s *MultiplexerService) setup(ctx context.Context) (
 	// Create Proxy and Auth clients
 	proxyClient := newCyclingHostDialClient(100, proxyclient.ClientConfig{
 		ProxyAddress:      proxyAddr,
-		RelayAddress:      s.cfg.RelayAddress,
 		TLSRoutingEnabled: proxyPing.Proxy.TLSRoutingEnabled,
 		TLSConfigFunc: func(cluster string) (*tls.Config, error) {
 			cfg, err := s.identity.TLSConfig()
@@ -395,14 +394,10 @@ func (s *MultiplexerService) setup(ctx context.Context) (
 // the destination.
 func (s *MultiplexerService) generateIdentity(ctx context.Context) (*identity.Facade, error) {
 	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
-	identityOpts := []identity.GenerateOption{
+	facade, err := s.identityGenerator.GenerateFacade(ctx,
 		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
 		identity.WithLogger(s.log),
-	}
-	if s.cfg.DelegationSessionID != "" {
-		identityOpts = append(identityOpts, identity.WithDelegation(s.cfg.DelegationSessionID))
-	}
-	facade, err := s.identityGenerator.GenerateFacade(ctx, identityOpts...)
+	)
 	if err != nil {
 		return nil, trace.Wrap(err, "generating identity")
 	}
@@ -578,7 +573,6 @@ func (s *MultiplexerService) Run(ctx context.Context) (err error) {
 				s.agentMu.Unlock()
 
 				s.log.DebugContext(egCtx, "Serving agent connection")
-				//nolint:staticcheck // SA4023. ServeAgent always returns a non-nil error. This is fine.
 				err := agent.ServeAgent(currentAgent, conn)
 				if err != nil && !utils.IsOKNetworkError(err) {
 					s.log.WarnContext(

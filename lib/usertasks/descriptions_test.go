@@ -31,7 +31,6 @@ func TestAllDescriptions(t *testing.T) {
 		usertasksapi.DiscoverEC2IssueTypes,
 		usertasksapi.DiscoverEKSIssueTypes,
 		usertasksapi.DiscoverRDSIssueTypes,
-		usertasksapi.DiscoverAzureVMIssueTypes,
 	} {
 		for _, issueType := range issueGroup {
 			title, description := DescriptionForDiscoverEC2Issue(issueType)

@@ -24,34 +24,21 @@ import Flex from '../Flex';
 import * as Icons from '../Icon';
 import { Origin } from '../Popover';
 import { H3 } from '../Text';
-import Menu, { MenuList } from './Menu';
+import Menu from './Menu';
 import MenuItem, {
   MenuItemSectionLabel,
   MenuItemSectionSeparator,
 } from './MenuItem';
 import MenuItemIcon from './MenuItemIcon';
+import MenuList from './MenuList';
 
 export default {
   title: 'Design/Menu',
 };
 
 export const PlacementExample = () => (
-  <Flex m={3} gap={10} flexWrap="wrap" width="100%" justifyContent="center">
-    <Box width="100%">
-      <SimpleMenu text="Default menu attached to this long button">
-        <MenuItem>Lorem</MenuItem>
-        <MenuItem>Ipsum</MenuItem>
-        <MenuItem>Dolor</MenuItem>
-        <MenuItem>Sit</MenuItem>
-        <MenuItem>Amet</MenuItem>
-      </SimpleMenu>
-    </Box>
-
-    <SimpleMenu
-      text="Menu to the left of this long button"
-      anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
-      transformOrigin={{ vertical: 'top', horizontal: 'left' }}
-    >
+  <Flex m={3} gap={8} flexWrap="wrap">
+    <SimpleMenu text="Menu to right">
       <MenuItem>Lorem</MenuItem>
       <MenuItem>Ipsum</MenuItem>
       <MenuItem>Dolor</MenuItem>
@@ -59,7 +46,7 @@ export const PlacementExample = () => (
       <MenuItem>Amet</MenuItem>
     </SimpleMenu>
     <SimpleMenu
-      text="Menu in the center of this long button"
+      text="Menu in center"
       anchorOrigin={{
         vertical: 'bottom',
         horizontal: 'center',
@@ -78,7 +65,7 @@ export const PlacementExample = () => (
       </MenuItem>
     </SimpleMenu>
     <SimpleMenu
-      text="Menu to the right of this long button"
+      text="Menu to left"
       anchorOrigin={{
         vertical: 'top',
         horizontal: 'right',
@@ -183,7 +170,7 @@ const SimpleMenu = (
 
   return (
     <Box textAlign="center">
-      <ButtonPrimary size="small" ref={anchorElRef} onClick={open}>
+      <ButtonPrimary size="small" setRef={anchorElRef} onClick={open}>
         {text}
       </ButtonPrimary>
       <Menu

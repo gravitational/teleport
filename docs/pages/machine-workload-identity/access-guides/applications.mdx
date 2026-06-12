@@ -1,11 +1,10 @@
 ---
 title: Machine & Workload Identity with Application Access
 description: How to use Machine & Workload Identity to access applications
-sidebar_label: Applications
+sidebar_label: Application Access
 tags:
  - how-to
  - mwi
- - infrastructure-identity
 ---
 
 {/* lint disable page-structure remark-lint */}
@@ -95,7 +94,7 @@ If you aren't sure which to use, we recommend starting with the
 To configure the `application-tunnel` service, first determine where you want
 the listener to bind to. As any client that can connect to the service listener
 will be able to access the application, it is recommended to bind to the
-loopback interface (e.g. `127.0.0.1`) as this will prevent access from other
+loopback interface (e.g `127.0.0.1`) as this will prevent access from other
 hosts.
 
 Modify your `tbot` configuration to add an `application-tunnel` service:
@@ -142,8 +141,8 @@ services:
 Ensure you replace `dumper` with the name of the application you registered in
 Teleport.
 
-(!docs/pages/includes/machine-id/reload-tbot.mdx resource="your credentials"!)
-
+If operating `tbot` as a background service, restart it. If running `tbot` in
+one-shot mode, it must be executed before you attempt to use the credentials.
 </TabItem>
 </Tabs>
 
@@ -229,5 +228,5 @@ has been configured to use both the client certificate and key.
   your bot may access.
 - Configure [JWTs](../../enroll-resources/application-access/jwt/introduction.mdx) for your
   Application to remove the need for additional login credentials.
-- Read the [configuration reference](../../reference/machine-workload-identity/configuration.mdx) to explore
+- Read the [configuration reference](../../reference/machine-id/configuration.mdx) to explore
   all the available configuration options.

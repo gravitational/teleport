@@ -25,6 +25,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type testLogger struct {
+	loggedCount int
+}
+
+func (t *testLogger) Infof(msg string, args ...any) {
+	t.loggedCount++
+}
+
 func TestCachedParser(t *testing.T) {
 	// A simple cached parser with no environment that always returns an int.
 	p, err := NewCachedParser[struct{}, int](ParserSpec[struct{}]{
@@ -37,13 +45,16 @@ func TestCachedParser(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, p)
 
+	var logger testLogger
+	p.logger = &logger
+
 	// Sanity check we still get errors.
 	_, err = p.Parse(`"hello"`)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "expected type int, got value (hello) with type (string)")
 
 	// Parse $defaultCacheSize unique expressions to fill the cache.
-	for i := range defaultCacheSize {
+	for i := 0; i < defaultCacheSize; i++ {
 		expr := fmt.Sprintf("inc(%d)", i)
 
 		parsed, err := p.Parse(expr)
@@ -66,7 +77,7 @@ func TestCachedParser(t *testing.T) {
 
 	// Parse $logAfterEvictions-1 unique expressions to cause
 	// $logAfterEvictions-1 cache evictions
-	for i := range logAfterEvictions - 1 {
+	for i := 0; i < logAfterEvictions-1; i++ {
 		expr := fmt.Sprintf("inc(%d)", defaultCacheSize+i)
 
 		parsed, err := p.Parse(expr)
@@ -82,6 +93,9 @@ func TestCachedParser(t *testing.T) {
 
 		// Check that each new parsed expression results in an eviction.
 		require.Equal(t, uint32(i+1), p.evictedCount.Load())
+
+		// Check that no log was printed
+		require.Equal(t, 0, logger.loggedCount)
 	}
 
 	// Parse one more expression
@@ -89,11 +103,17 @@ func TestCachedParser(t *testing.T) {
 	_, err = p.Parse(expr)
 	require.NoError(t, err)
 
+	// Check a log was printed once after $logAfterEvictions evictions.
+	require.Equal(t, 1, logger.loggedCount)
+
 	// Parse another $logAfterEvictions unique expressions to cause
 	// another $logAfterEvictions cache evictions and one more log
-	for i := range logAfterEvictions {
+	for i := 0; i < logAfterEvictions; i++ {
 		expr := fmt.Sprintf("inc(%d)", defaultCacheSize+logAfterEvictions+i+1)
 		_, err := p.Parse(expr)
 		require.NoError(t, err)
 	}
+
+	// Check a log was printed twice after 2*$logAfterEvictions evictions.
+	require.Equal(t, 2, logger.loggedCount)
 }

@@ -65,9 +65,8 @@ func TestPromptMFAChallenge_usingNonRegisteredDevice(t *testing.T) {
 	}
 
 	challengeWebauthnOTP := &proto.MFAAuthenticateChallenge{
-		TOTP:                &proto.TOTPChallenge{}, // non-nil enables OTP prompt
-		WebauthnChallenge:   challengeWebauthnOnly.WebauthnChallenge,
-		BrowserMFAChallenge: nil,
+		TOTP:              &proto.TOTPChallenge{}, // non-nil enables OTP prompt
+		WebauthnChallenge: challengeWebauthnOnly.WebauthnChallenge,
 	}
 
 	tests := []struct {
@@ -83,8 +82,7 @@ func TestPromptMFAChallenge_usingNonRegisteredDevice(t *testing.T) {
 			name:      "webauthn and OTP",
 			challenge: challengeWebauthnOTP,
 			customizePrompt: func(p *mfa.CLIPromptConfig) {
-				// Specify cross-platform WebAuthn to prevent fallback to Browser MFA.
-				p.AuthenticatorAttachment = wancli.AttachmentCrossPlatform
+				p.AllowStdinHijack = true // required for OTP+WebAuthn prompt.
 			},
 		},
 	}

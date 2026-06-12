@@ -20,12 +20,12 @@ package app
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/utils"
@@ -37,14 +37,11 @@ func (s *Server) startReconciler(ctx context.Context) error {
 	reconciler, err := services.NewReconciler(services.ReconcilerConfig[types.Application]{
 		Matcher:             s.matcher,
 		GetCurrentResources: s.getResources,
-		CompareResources: func(a1, a2 types.Application) int {
-			return services.EqualFromBool(a1.IsEqual(a2))
-		},
-		GetNewResources: s.monitoredApps.get,
-		OnCreate:        s.onCreate,
-		OnUpdate:        s.onUpdate,
-		OnDelete:        s.onDelete,
-		Logger:          s.log.With("kind", types.KindApp),
+		GetNewResources:     s.monitoredApps.get,
+		OnCreate:            s.onCreate,
+		OnUpdate:            s.onUpdate,
+		OnDelete:            s.onDelete,
+		Logger:              s.log.With("kind", types.KindApp),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -96,7 +93,7 @@ func (s *Server) startResourceWatcher(ctx context.Context) (*services.GenericWat
 			case apps := <-watcher.ResourcesC:
 				for _, app := range apps {
 					if app.GetPublicAddr() == "" {
-						pubAddr, err := FindPublicAddr(ctx, s.c.AccessPoint, app.GetPublicAddr(), app.GetName())
+						pubAddr, err := FindPublicAddr(s.c.AccessPoint, app.GetPublicAddr(), app.GetName())
 						if err == nil {
 							app.SetPublicAddr(pubAddr)
 						} else {
@@ -125,31 +122,21 @@ func (s *Server) startResourceWatcher(ctx context.Context) (*services.GenericWat
 // FindPublicAddrClient is a client used for finding public addresses.
 type FindPublicAddrClient interface {
 	// GetProxies returns a list of proxy servers registered in the cluster
-	//
-	// Deprecated: Prefer paginated variant [ListProxyServers].
-	//
-	// TODO(kiosion): DELETE IN 21.0.0
 	GetProxies() ([]types.Server, error)
 
-	// ListProxyServers returns a paginated list of registered proxy servers.
-	ListProxyServers(ctx context.Context, pageSize int, pageToken string) ([]types.Server, string, error)
-
 	// GetClusterName gets the name of the cluster from the backend.
-	GetClusterName(ctx context.Context) (types.ClusterName, error)
+	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 }
 
 // FindPublicAddr tries to resolve the public address of the proxy of this cluster.
-func FindPublicAddr(ctx context.Context, client FindPublicAddrClient, appPublicAddr string, appName string) (string, error) {
+func FindPublicAddr(client FindPublicAddrClient, appPublicAddr string, appName string) (string, error) {
 	// If the application has a public address already set, use it.
 	if appPublicAddr != "" {
 		return appPublicAddr, nil
 	}
 
 	// Fetch list of proxies, if first has public address set, use it.
-	servers, err := clientutils.CollectWithFallback(ctx, client.ListProxyServers, func(context.Context) ([]types.Server, error) {
-		//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
-		return client.GetProxies()
-	})
+	servers, err := client.GetProxies()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -165,11 +152,11 @@ func FindPublicAddr(ctx context.Context, client FindPublicAddrClient, appPublicA
 	}
 
 	// Fall back to cluster name.
-	cn, err := client.GetClusterName(context.TODO())
+	cn, err := client.GetClusterName()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	return utils.DefaultAppPublicAddr(appName, cn.GetClusterName()), nil
+	return fmt.Sprintf("%v.%v", appName, cn.GetClusterName()), nil
 }
 
 func (s *Server) getResources() map[string]types.Application {
@@ -189,21 +176,5 @@ func (s *Server) onDelete(ctx context.Context, app types.Application) error {
 }
 
 func (s *Server) matcher(app types.Application) bool {
-	matchesLabels := services.MatchResourceLabels(s.c.ResourceMatchers, app.GetAllLabels())
-	if !matchesLabels {
-		return false
-	}
-
-	if s.c.IgnoreAppsWithCommandLabels {
-		if len(app.GetDynamicLabels()) > 0 {
-			s.log.WarnContext(
-				context.Background(),
-				"refusing to register app with dynamic labels",
-				"app_name", app.GetName(),
-			)
-			return false
-		}
-	}
-
-	return true
+	return services.MatchResourceLabels(s.c.ResourceMatchers, app.GetAllLabels())
 }

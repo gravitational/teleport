@@ -21,7 +21,6 @@ package web
 import (
 	"context"
 	"encoding/json"
-	"iter"
 	"net/http"
 	"net/url"
 	"strings"
@@ -41,7 +40,6 @@ import (
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
@@ -99,7 +97,7 @@ func TestCheckResourceUpsert(t *testing.T) {
 				// Resource does exist.
 				return nil, nil
 			},
-			assertErr: func(t require.TestingT, err error, i ...any) {
+			assertErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.True(t, trace.IsAlreadyExists(err))
 			},
@@ -113,7 +111,7 @@ func TestCheckResourceUpsert(t *testing.T) {
 				// Resource does exist.
 				return nil, nil
 			},
-			assertErr: func(t require.TestingT, err error, i ...any) {
+			assertErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err))
 			},
@@ -127,7 +125,7 @@ func TestCheckResourceUpsert(t *testing.T) {
 				// Resource does not exist.
 				return nil, trace.NotFound("")
 			},
-			assertErr: func(t require.TestingT, err error, i ...any) {
+			assertErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.True(t, trace.IsNotFound(err))
 			},
@@ -152,7 +150,7 @@ func TestCheckResourceUpsert(t *testing.T) {
 				// Resource does exist.
 				return nil, nil
 			},
-			assertErr: func(t require.TestingT, err error, i ...any) {
+			assertErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err))
 			},
@@ -220,8 +218,7 @@ spec:
     kubernetes_labels:
       '*': '*'
     kubernetes_resources:
-    - api_group: '*'
-      kind: pods
+    - kind: pod
       name: '*'
       namespace: '*'
     logins:
@@ -239,13 +236,16 @@ spec:
     - command
     - network
     forward_agent: false
+    idp:
+      saml:
+        enabled: true
     max_session_ttl: 30h0m0s
     pin_source_ip: false
     record_session:
       default: best_effort
       desktop: true
     ssh_file_copy: true
-version: v8
+version: v7
 `
 	role, err := types.NewRole("roleName", types.RoleSpecV6{
 		Allow: types.RoleConditions{
@@ -256,7 +256,7 @@ version: v8
 			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 			KubernetesResources: []types.KubernetesResource{
 				{
-					Kind: "pods", Name: types.Wildcard, Namespace: types.Wildcard, APIGroup: types.Wildcard,
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard,
 				},
 			},
 		},
@@ -297,7 +297,7 @@ version: v2
 	}, item)
 }
 
-func TestListRoles(t *testing.T) {
+func TestGetRoles(t *testing.T) {
 	m := &mockedResourceAPIGetter{}
 
 	m.mockListRoles = func(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error) {
@@ -307,7 +307,6 @@ func TestListRoles(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		require.True(t, req.Filter.SkipSystemRoles)
 
 		return &proto.ListRolesResponse{
 			Roles:   []*types.RoleV6{role.(*types.RoleV6)},
@@ -320,49 +319,6 @@ func TestListRoles(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, roles.Items, 1)
 	require.Contains(t, roles.Items.([]ui.ResourceItem)[0].Content, "name: test")
-	require.Empty(t, roles.Items.([]ui.ResourceItem)[0].Object)
-}
-
-func TestListRolesQueryParamIncludeObject(t *testing.T) {
-	m := &mockedResourceAPIGetter{}
-
-	m.mockListRoles = func(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error) {
-		role, err := types.NewRole("test", types.RoleSpecV6{
-			Allow: types.RoleConditions{
-				Logins: []string{"test"},
-			},
-		})
-		require.NoError(t, err)
-		require.True(t, req.Filter.SkipSystemRoles)
-
-		return &proto.ListRolesResponse{
-			Roles:   []*types.RoleV6{role.(*types.RoleV6)},
-			NextKey: "",
-		}, nil
-	}
-
-	// Test response is converted to ui objects.
-	roles, err := listRoles(m, url.Values{
-		"includeObject": []string{"yes"},
-	})
-	require.NoError(t, err)
-	require.Len(t, roles.Items, 1)
-	require.Contains(t, roles.Items.([]ui.ResourceItem)[0].Content, "name: test")
-	require.NotEmpty(t, roles.Items.([]ui.ResourceItem)[0].Object)
-	require.Equal(t, "test", roles.Items.([]ui.ResourceItem)[0].Object.GetName())
-}
-
-func TestListRolesQueryParamIncludeSystemRoles(t *testing.T) {
-	m := &mockedResourceAPIGetter{}
-
-	m.mockListRoles = func(ctx context.Context, req *proto.ListRolesRequest) (*proto.ListRolesResponse, error) {
-		require.False(t, req.Filter.SkipSystemRoles)
-		return nil, nil
-	}
-
-	listRoles(m, url.Values{
-		"includeSystemRoles": []string{"yes"},
-	})
 }
 
 func TestRoleCRUD(t *testing.T) {
@@ -464,8 +420,8 @@ func TestRoleCRUD(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp.Code(), "unexpected status code getting roles")
 
 	assert.Empty(t, getResponse.StartKey)
-	for _, item := range getResponse.Items.([]any) {
-		assert.NotEqual(t, "test-role", item.(map[string]any)["name"], "expected test-role to be deleted")
+	for _, item := range getResponse.Items.([]interface{}) {
+		assert.NotEqual(t, "test-role", item.(map[string]interface{})["name"], "expected test-role to be deleted")
 	}
 
 	// Validate that attempting to retrieve a deleted role yields a NotFound error.
@@ -763,6 +719,7 @@ func TestListResources(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -787,7 +744,6 @@ type mockedResourceAPIGetter struct {
 	mockUpsertRole            func(ctx context.Context, role types.Role) (types.Role, error)
 	mockGetGithubConnectors   func(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error)
 	mockListGithubConnectors  func(ctx context.Context, limit int, start string, withSecrets bool) ([]types.GithubConnector, string, error)
-	mockRangeGithubConnectors func(ctx context.Context, start, end string, withSecrets bool) iter.Seq2[types.GithubConnector, error]
 	mockGetGithubConnector    func(ctx context.Context, id string, withSecrets bool) (types.GithubConnector, error)
 	mockDeleteGithubConnector func(ctx context.Context, id string) error
 	mockUpsertTrustedCluster  func(ctx context.Context, tc types.TrustedCluster) (types.TrustedCluster, error)
@@ -852,16 +808,6 @@ func (m *mockedResourceAPIGetter) ListGithubConnectors(ctx context.Context, limi
 	}
 
 	return nil, "", trace.NotImplemented("mockListGithubConnectors not implemented")
-}
-
-// RangeGithubConnectors returns valid registered Github connectors within the range [start, end).
-// withSecrets adds or removes client secret from return results.
-func (m *mockedResourceAPIGetter) RangeGithubConnectors(ctx context.Context, start, end string, withSecrets bool) iter.Seq2[types.GithubConnector, error] {
-	if m.mockRangeGithubConnectors != nil {
-		return m.mockRangeGithubConnectors(ctx, start, end, withSecrets)
-	}
-
-	return stream.Fail[types.GithubConnector](trace.NotImplemented("mockRangeGithubConnectors not implemented"))
 }
 
 func (m *mockedResourceAPIGetter) GetGithubConnector(ctx context.Context, id string, withSecrets bool) (types.GithubConnector, error) {

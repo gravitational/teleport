@@ -40,7 +40,7 @@ import (
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestGetChartUrl(t *testing.T) {
@@ -396,7 +396,7 @@ func TestEnrollEKSClusters(t *testing.T) {
 			}
 
 			response, err := EnrollEKSClusters(
-				ctx, logtest.With("test", t.Name()), clock, proxyAddr, tc.enrollClient(t, tc.eksClusters), req)
+				ctx, utils.NewSlogLoggerForTests().With("test", t.Name()), clock, proxyAddr, tc.enrollClient(t, tc.eksClusters), req)
 			require.NoError(t, err)
 
 			tc.responseCheck(t, response)
@@ -422,7 +422,7 @@ func TestEnrollEKSClusters(t *testing.T) {
 		}
 
 		response, err := EnrollEKSClusters(
-			ctx, logtest.With("test", t.Name()), clock, proxyAddr, mockClt, req)
+			ctx, utils.NewSlogLoggerForTests().With("test", t.Name()), clock, proxyAddr, mockClt, req)
 		require.NoError(t, err)
 		require.Len(t, response.Results, 1)
 		require.Equal(t, "EKS1", response.Results[0].ClusterName)
@@ -475,16 +475,15 @@ func TestGetKubeClientGetter(t *testing.T) {
 			region:        "us-east-1",
 			caData:        "badCA",
 			expectedToken: "",
-			errorCheck: func(t require.TestingT, err error, i ...any) {
+			errorCheck: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "illegal base64 data")
 			},
 		},
 	}
 
-	const kubeToken = "k8s-aws-v1.cHJlc2lnbmVkVVJM"
 	for c, tc := range testCases {
 		t.Run(fmt.Sprintf("test#%d", c), func(t *testing.T) {
-			config, err := getKubeClientGetter(kubeToken, tc.caData, tc.endpoint)
+			config, err := getKubeClientGetter("presignedURL", tc.caData, tc.endpoint)
 
 			if tc.errorCheck == nil {
 				cfg, err := config.ToRESTConfig()
@@ -548,16 +547,16 @@ func TestGetAccessEntryPrincipalArn(t *testing.T) {
 }
 
 type mockEnrollEKSClusterClient struct {
-	createAccessEntry          func(context.Context, *eks.CreateAccessEntryInput, ...func(*eks.Options)) (*eks.CreateAccessEntryOutput, error)
-	associateAccessPolicy      func(context.Context, *eks.AssociateAccessPolicyInput, ...func(*eks.Options)) (*eks.AssociateAccessPolicyOutput, error)
-	listAccessEntries          func(context.Context, *eks.ListAccessEntriesInput, ...func(*eks.Options)) (*eks.ListAccessEntriesOutput, error)
-	deleteAccessEntry          func(context.Context, *eks.DeleteAccessEntryInput, ...func(*eks.Options)) (*eks.DeleteAccessEntryOutput, error)
-	describeCluster            func(context.Context, *eks.DescribeClusterInput, ...func(*eks.Options)) (*eks.DescribeClusterOutput, error)
-	getCallerIdentity          func(context.Context, *sts.GetCallerIdentityInput, ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
-	checkAgentAlreadyInstalled func(context.Context, genericclioptions.RESTClientGetter, *slog.Logger) (bool, error)
-	installKubeAgent           func(context.Context, *eksTypes.Cluster, string, string, string, genericclioptions.RESTClientGetter, *slog.Logger, EnrollEKSClustersRequest) error
-	createToken                func(ctx context.Context, token types.ProvisionToken) error
-	genEKSAuthToken            func(ctx context.Context, clusterName string) (string, error)
+	createAccessEntry           func(context.Context, *eks.CreateAccessEntryInput, ...func(*eks.Options)) (*eks.CreateAccessEntryOutput, error)
+	associateAccessPolicy       func(context.Context, *eks.AssociateAccessPolicyInput, ...func(*eks.Options)) (*eks.AssociateAccessPolicyOutput, error)
+	listAccessEntries           func(context.Context, *eks.ListAccessEntriesInput, ...func(*eks.Options)) (*eks.ListAccessEntriesOutput, error)
+	deleteAccessEntry           func(context.Context, *eks.DeleteAccessEntryInput, ...func(*eks.Options)) (*eks.DeleteAccessEntryOutput, error)
+	describeCluster             func(context.Context, *eks.DescribeClusterInput, ...func(*eks.Options)) (*eks.DescribeClusterOutput, error)
+	getCallerIdentity           func(context.Context, *sts.GetCallerIdentityInput, ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
+	checkAgentAlreadyInstalled  func(context.Context, genericclioptions.RESTClientGetter, *slog.Logger) (bool, error)
+	installKubeAgent            func(context.Context, *eksTypes.Cluster, string, string, string, genericclioptions.RESTClientGetter, *slog.Logger, EnrollEKSClustersRequest) error
+	createToken                 func(ctx context.Context, token types.ProvisionToken) error
+	presignGetCallerIdentityURL func(ctx context.Context, clusterName string) (string, error)
 }
 
 func (m *mockEnrollEKSClusterClient) CreateAccessEntry(ctx context.Context, params *eks.CreateAccessEntryInput, optFns ...func(*eks.Options)) (*eks.CreateAccessEntryOutput, error) {
@@ -623,9 +622,9 @@ func (m *mockEnrollEKSClusterClient) CreateToken(ctx context.Context, token type
 	return nil
 }
 
-func (m *mockEnrollEKSClusterClient) GenEKSAuthToken(ctx context.Context, clusterName string) (string, error) {
-	if m.genEKSAuthToken != nil {
-		return m.genEKSAuthToken(ctx, clusterName)
+func (m *mockEnrollEKSClusterClient) PresignGetCallerIdentityURL(ctx context.Context, clusterName string) (string, error) {
+	if m.presignGetCallerIdentityURL != nil {
+		return m.presignGetCallerIdentityURL(ctx, clusterName)
 	}
 	return "", nil
 }

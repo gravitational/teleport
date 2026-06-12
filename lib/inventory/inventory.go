@@ -23,7 +23,6 @@ import (
 	"errors"
 	"io"
 	"log/slog"
-	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -33,7 +32,6 @@ import (
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
-	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/inventory/internal/delay"
 	"github.com/gravitational/teleport/lib/inventory/metadata"
@@ -49,7 +47,7 @@ const (
 type DownstreamCreateFunc func(ctx context.Context) (client.DownstreamInventoryControlStream, error)
 
 // DownstreamPingHandler is a function that handles ping messages that come down the inventory control stream.
-type DownstreamPingHandler func(sender DownstreamSender, msg *proto.DownstreamInventoryPing)
+type DownstreamPingHandler func(sender DownstreamSender, msg proto.DownstreamInventoryPing)
 
 // DownstreamHandle is a persistent handle used to interact with the current downstream half of the inventory
 // control stream. This handle automatically re-creates the control stream if it fails. The latest (or next, if
@@ -91,7 +89,7 @@ type DownstreamSender interface {
 	Send(ctx context.Context, msg proto.UpstreamInventoryMessage) error
 	// Hello gets the cached downstream hello that was sent by the auth server
 	// when the stream was initialized.
-	Hello() *proto.DownstreamInventoryHello
+	Hello() proto.DownstreamInventoryHello
 	// Done signals closure of the underlying stream.
 	Done() <-chan struct{}
 }
@@ -139,7 +137,8 @@ func NewDownstreamHandle(fn DownstreamCreateFunc, hello HelloGetter, opts ...Dow
 	// Create a new cache to save the hello result, this cache ensure we don't
 	// perform too many lookups instead of crash-looping stream.
 	cache, err := utils.NewFnCache(utils.FnCacheConfig{
-		TTL:         helloGetterCacheTTL,
+		TTL: helloGetterCacheTTL,
+		// v18 and above use options.clock, but the clock option has not been backported to v17
 		Clock:       options.clock,
 		Context:     ctx,
 		ReloadOnErr: true,
@@ -150,10 +149,10 @@ func NewDownstreamHandle(fn DownstreamCreateFunc, hello HelloGetter, opts ...Dow
 	}
 
 	// Replace the getter we had by a cached and time-boxed one.
-	cachedHelloGetter := func(ctx context.Context) (*proto.UpstreamInventoryHello, error) {
+	cachedHelloGetter := func(ctx context.Context) (proto.UpstreamInventoryHello, error) {
 		getCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 		defer cancel()
-		return utils.FnCacheGet(getCtx, cache, "hello", func(ctx context.Context) (*proto.UpstreamInventoryHello, error) {
+		return utils.FnCacheGet(getCtx, cache, "hello", func(ctx context.Context) (proto.UpstreamInventoryHello, error) {
 			return hello(ctx)
 		})
 	}
@@ -231,7 +230,7 @@ func (h *downstreamHandle) autoEmitMetadata() {
 		}
 		return
 	}
-	msg := &proto.UpstreamInventoryAgentMetadata{
+	msg := proto.UpstreamInventoryAgentMetadata{
 		OS:                    md.OS,
 		OSVersion:             md.OSVersion,
 		HostArchitecture:      md.HostArchitecture,
@@ -304,7 +303,7 @@ func (h *downstreamHandle) tryRun(fn DownstreamCreateFunc) {
 // This is evaluated each time the stream is being established to craft the upstream Hello.
 // Its output is cached for a minute by the downstreamHandle to mitigate load
 // issues when if the stream is crash-looping.
-type HelloGetter func(ctx context.Context) (*proto.UpstreamInventoryHello, error)
+type HelloGetter func(ctx context.Context) (proto.UpstreamInventoryHello, error)
 
 func (h *downstreamHandle) handleStream(stream client.DownstreamInventoryControlStream) error {
 	defer stream.Close()
@@ -323,11 +322,11 @@ func (h *downstreamHandle) handleStream(stream client.DownstreamInventoryControl
 	}
 
 	// wait for downstream hello
-	var downstreamHello *proto.DownstreamInventoryHello
+	var downstreamHello proto.DownstreamInventoryHello
 	select {
 	case msg := <-stream.Recv():
 		switch m := msg.(type) {
-		case *proto.DownstreamInventoryHello:
+		case proto.DownstreamInventoryHello:
 			downstreamHello = m
 		default:
 			return trace.BadParameter("expected downstream hello, got %T", msg)
@@ -350,11 +349,11 @@ func (h *downstreamHandle) handleStream(stream client.DownstreamInventoryControl
 		case h.senderC <- sender:
 		case msg := <-stream.Recv():
 			switch m := msg.(type) {
-			case *proto.DownstreamInventoryHello:
+			case proto.DownstreamInventoryHello:
 				return trace.BadParameter("unexpected downstream hello")
-			case *proto.DownstreamInventoryPing:
+			case proto.DownstreamInventoryPing:
 				h.handlePing(sender, m)
-			case *proto.DownstreamInventoryUpdateLabels:
+			case proto.DownstreamInventoryUpdateLabels:
 				h.handleUpdateLabels(m)
 			default:
 				return trace.BadParameter("unexpected downstream message type: %T", m)
@@ -370,7 +369,7 @@ func (h *downstreamHandle) handleStream(stream client.DownstreamInventoryControl
 	}
 }
 
-func (h *downstreamHandle) handlePing(sender DownstreamSender, msg *proto.DownstreamInventoryPing) {
+func (h *downstreamHandle) handlePing(sender DownstreamSender, msg proto.DownstreamInventoryPing) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if len(h.pingHandlers) == 0 {
@@ -395,7 +394,7 @@ func (h *downstreamHandle) RegisterPingHandler(handler DownstreamPingHandler) (u
 	}
 }
 
-func (h *downstreamHandle) handleUpdateLabels(msg *proto.DownstreamInventoryUpdateLabels) {
+func (h *downstreamHandle) handleUpdateLabels(msg proto.DownstreamInventoryUpdateLabels) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if msg.Kind == proto.LabelUpdateKind_SSHServerCloudLabels {
@@ -464,15 +463,15 @@ func (h *downstreamHandle) sendGoodbye(ctx context.Context, sender DownstreamSen
 		return nil
 	}
 
-	return trace.Wrap(sender.Send(ctx, goodbye))
+	return trace.Wrap(sender.Send(ctx, *goodbye))
 }
 
 type downstreamSender struct {
 	client.DownstreamInventoryControlStream
-	hello *proto.DownstreamInventoryHello
+	hello proto.DownstreamInventoryHello
 }
 
-func (d downstreamSender) Hello() *proto.DownstreamInventoryHello {
+func (d downstreamSender) Hello() proto.DownstreamInventoryHello {
 	return d.hello
 }
 
@@ -483,7 +482,7 @@ func (d downstreamSender) Hello() *proto.DownstreamInventoryHello {
 type UpstreamHandle interface {
 	client.UpstreamInventoryControlStream
 	// Hello gets the cached upstream hello that was used to initialize the stream.
-	Hello() *proto.UpstreamInventoryHello
+	Hello() proto.UpstreamInventoryHello
 
 	// Goodbye gets the cached upstream goodbye. Returns nil if downstream never sent a Goodbye.
 	// This is used to identify if the instance is terminating or being soft-reloaded.
@@ -493,10 +492,9 @@ type UpstreamHandle interface {
 	RegistrationTime() time.Time
 
 	// AgentMetadata is the service's metadata: OS, glibc version, install methods, ...
-	AgentMetadata() *proto.UpstreamInventoryAgentMetadata
+	AgentMetadata() proto.UpstreamInventoryAgentMetadata
 
 	Ping(ctx context.Context, id uint64) (d time.Duration, err error)
-
 	// HasService is a helper for checking if a given service is associated with this
 	// stream.
 	HasService(types.SystemRole) bool
@@ -524,7 +522,7 @@ type UpstreamHandle interface {
 // when using this struct to inject control log entries, said entries won't be included until the next
 // normal instance heartbeat (though this may be triggered early via UpstreamHandle.HeartbeatInstance()).
 // The primary intended usage pattern is for periodic operations to append entries to the QualifiedPendingControlLog,
-// and then observe whether or not said entries end up being included on subsequent iterations. This
+// and then observe wether or not said entries end up being included on subsequent iterations. This
 // patterns lets us achieve a kind of lazy "locking", whereby complex coordination can occur without
 // large spikes in backend load. See the QualifiedPendingControlLog field for an example of this pattern.
 type instanceStateTracker struct {
@@ -565,10 +563,6 @@ type instanceStateTracker struct {
 	// will be nil if the instance only recently connected or joined. Operations that expect to be able to
 	// observe the committed state of the instance control log should skip instances for which this field is nil.
 	lastHeartbeat types.Instance
-
-	// pingResponse stores information about last system clock request to propagate this data in the
-	// next heartbeat request.
-	pingResponse pingResponse
 
 	// retryHeartbeat is set to true if an unexpected error is hit. We retry exactly once, closing
 	// the stream if the retry does not succeede.
@@ -635,30 +629,15 @@ func (i *instanceStateTracker) WithLock(fn func()) {
 }
 
 // nextHeartbeat calculates the next heartbeat value. *Must* be called only while lock is held.
-func (i *instanceStateTracker) nextHeartbeat(now time.Time, hello *proto.UpstreamInventoryHello, authID string) (types.Instance, error) {
-	var lastMeasurement *types.SystemClockMeasurement
-	if !i.pingResponse.systemClock.IsZero() {
-		lastMeasurement = &types.SystemClockMeasurement{
-			ControllerSystemClock: i.pingResponse.controllerClock,
-			SystemClock:           i.pingResponse.systemClock,
-			RequestDuration:       i.pingResponse.reqDuration,
-		}
-	}
-
-	services := make([]types.SystemRole, 0, len(hello.GetServices()))
-	for _, s := range hello.GetServices() {
-		services = append(services, types.SystemRole(s))
-	}
-
+func (i *instanceStateTracker) nextHeartbeat(now time.Time, hello proto.UpstreamInventoryHello, authID string) (types.Instance, error) {
 	instance, err := types.NewInstance(hello.ServerID, types.InstanceSpecV1{
 		Version:                 vc.Normalize(hello.Version),
-		Services:                services,
+		Services:                hello.Services,
 		Hostname:                hello.Hostname,
 		AuthID:                  authID,
 		LastSeen:                now.UTC(),
 		ExternalUpgrader:        hello.GetExternalUpgrader(),
 		ExternalUpgraderVersion: vc.Normalize(hello.GetExternalUpgraderVersion()),
-		LastMeasurement:         lastMeasurement,
 		UpdaterInfo:             hello.GetUpdaterInfo(),
 	})
 	if err != nil {
@@ -683,11 +662,12 @@ func (i *instanceStateTracker) nextHeartbeat(now time.Time, hello *proto.Upstrea
 
 type upstreamHandle struct {
 	client.UpstreamInventoryControlStream
-	hello            *proto.UpstreamInventoryHello
+	hello            proto.UpstreamInventoryHello
 	registrationTime time.Time
 
-	agentMetadata atomic.Pointer[proto.UpstreamInventoryAgentMetadata]
-	goodbye       atomic.Pointer[proto.UpstreamInventoryGoodbye]
+	agentInfoLock sync.Mutex
+	agentMetadata proto.UpstreamInventoryAgentMetadata
+	goodbye       *proto.UpstreamInventoryGoodbye
 
 	pingC chan pingRequest
 
@@ -709,14 +689,6 @@ type upstreamHandle struct {
 
 	// kubernetesServers track kubernetesServers server details.
 	kubernetesServers map[resourceKey]*heartBeatInfo[*types.KubernetesServerV3]
-
-	// relayServer, if set, is the current relay heartbeat.
-	relayServer *presencev1.RelayServer
-
-	// relayServerErrorCount counts how many times in a row we have failed to
-	// keepalive the relay server heartbeat, or, if negative, signals that we
-	// have failed to upsert a new resource.
-	relayServerErrorCount int
 
 	// appKeepAliveDelay is a multi-delay that controls the cadence of app server keepalive
 	// operations. Note that this is not created automatically by newUpstreamHandle.
@@ -747,7 +719,7 @@ type heartBeatInfo[T any] struct {
 	keepAliveErrs int
 }
 
-func newUpstreamHandle(stream client.UpstreamInventoryControlStream, hello *proto.UpstreamInventoryHello, now time.Time) *upstreamHandle {
+func newUpstreamHandle(stream client.UpstreamInventoryControlStream, hello proto.UpstreamInventoryHello, now time.Time) *upstreamHandle {
 	return &upstreamHandle{
 		UpstreamInventoryControlStream: stream,
 		pingC:                          make(chan pingRequest),
@@ -768,10 +740,8 @@ type pingRequest struct {
 }
 
 type pingResponse struct {
-	reqDuration     time.Duration
-	systemClock     time.Time
-	controllerClock time.Time
-	err             error
+	d   time.Duration
+	err error
 }
 
 func (h *upstreamHandle) Ping(ctx context.Context, id uint64) (d time.Duration, err error) {
@@ -786,7 +756,7 @@ func (h *upstreamHandle) Ping(ctx context.Context, id uint64) (d time.Duration, 
 
 	select {
 	case rsp := <-rspC:
-		return rsp.reqDuration, rsp.err
+		return rsp.d, rsp.err
 	case <-h.Done():
 		return 0, trace.Errorf("failed to recv upstream pong (stream closed)")
 	case <-ctx.Done():
@@ -797,15 +767,19 @@ func (h *upstreamHandle) Ping(ctx context.Context, id uint64) (d time.Duration, 
 // Goodbye gets the cached upstream goodbye. Returns nil if downstream never sent a Goodbye.
 // This is used to identify if the instance is terminating or being soft-reloaded.
 func (h *upstreamHandle) Goodbye() *proto.UpstreamInventoryGoodbye {
-	return h.goodbye.Load()
+	h.agentInfoLock.Lock()
+	defer h.agentInfoLock.Unlock()
+	return h.goodbye
 }
 
 // setGoodbye sets the goodbye for the current handler.
 func (h *upstreamHandle) setGoodbye(goodbye *proto.UpstreamInventoryGoodbye) {
-	h.goodbye.Store(goodbye)
+	h.agentInfoLock.Lock()
+	defer h.agentInfoLock.Unlock()
+	h.goodbye = goodbye
 }
 
-func (h *upstreamHandle) Hello() *proto.UpstreamInventoryHello {
+func (h *upstreamHandle) Hello() proto.UpstreamInventoryHello {
 	return h.hello
 }
 
@@ -815,26 +789,35 @@ func (h *upstreamHandle) RegistrationTime() time.Time {
 }
 
 // AgentMetadata returns the Agent's metadata (eg os, glibc version, install methods, teleport version).
-func (h *upstreamHandle) AgentMetadata() *proto.UpstreamInventoryAgentMetadata {
-	return h.agentMetadata.Load()
+func (h *upstreamHandle) AgentMetadata() proto.UpstreamInventoryAgentMetadata {
+	h.agentInfoLock.Lock()
+	defer h.agentInfoLock.Unlock()
+	return h.agentMetadata
 }
 
-// setAgentMetadata sets the agent metadata for the current handler.
-func (h *upstreamHandle) setAgentMetadata(agentMD *proto.UpstreamInventoryAgentMetadata) {
-	h.agentMetadata.Store(agentMD)
+// SetAgentMetadata sets the agent metadata for the current handler.
+func (h *upstreamHandle) SetAgentMetadata(agentMD proto.UpstreamInventoryAgentMetadata) {
+	h.agentInfoLock.Lock()
+	defer h.agentInfoLock.Unlock()
+	h.agentMetadata = agentMD
 }
 
 // HasService is a helper for checking if a given service is associated with this
 // stream.
 func (h *upstreamHandle) HasService(service types.SystemRole) bool {
-	return slices.Contains(h.hello.GetServices(), string(service))
+	for _, s := range h.hello.Services {
+		if s == service {
+			return true
+		}
+	}
+	return false
 }
 
 // HasControlPlaneService implements UpstreamHandle and returns true if at
 // least a control plane service is associated with this stream.
 func (h *upstreamHandle) HasControlPlaneService() bool {
 	for _, s := range h.hello.Services {
-		if types.SystemRole(s).IsControlPlane() {
+		if s.IsControlPlane() {
 			return true
 		}
 	}
@@ -842,7 +825,7 @@ func (h *upstreamHandle) HasControlPlaneService() bool {
 }
 
 func (h *upstreamHandle) UpdateLabels(ctx context.Context, kind proto.LabelUpdateKind, labels map[string]string) error {
-	req := &proto.DownstreamInventoryUpdateLabels{
+	req := proto.DownstreamInventoryUpdateLabels{
 		Kind:   kind,
 		Labels: labels,
 	}

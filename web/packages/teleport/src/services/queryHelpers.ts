@@ -18,20 +18,11 @@
 
 import * as reactQuery from '@tanstack/react-query';
 import {
-  useMutation,
   type DataTag,
   type DefaultError,
-  type InfiniteData,
-  type MutationOptions,
   type QueryFunction,
-  type UseInfiniteQueryOptions,
-  type UseInfiniteQueryResult,
   type UseQueryOptions,
   type UseQueryResult,
-  type UseSuspenseInfiniteQueryOptions,
-  type UseSuspenseInfiniteQueryResult,
-  type UseSuspenseQueryOptions,
-  type UseSuspenseQueryResult,
 } from '@tanstack/react-query';
 
 export type QueryHook<
@@ -43,58 +34,10 @@ export type QueryHook<
   options?: Omit<UseQueryOptions<TData, TError>, 'queryKey' | 'queryFn'>
 ) => UseQueryResult<TData, TError>;
 
-export type SuspenseQueryHook<
-  TData = unknown,
-  TVariables = void,
-  TError = DefaultError,
-> = (
-  variables?: TVariables,
-  options?: Omit<UseSuspenseQueryOptions<TData, TError>, 'queryKey' | 'queryFn'>
-) => UseSuspenseQueryResult<TData, TError>;
-
-export type InfiniteQueryHook<
-  TData = unknown,
-  TVariables = void,
-  TError = DefaultError,
-  TPageParam = string,
-> = (
-  variables: TVariables,
-  options: Omit<
-    UseInfiniteQueryOptions<
-      TData,
-      TError,
-      InfiniteData<TData, TPageParam>,
-      DataTag<string[], TData, TError>,
-      TPageParam
-    >,
-    'queryKey' | 'queryFn'
-  >
-) => UseInfiniteQueryResult<InfiniteData<TData, TPageParam>, TError>;
-
-export type SuspenseInfiniteQueryHook<
-  TData = unknown,
-  TVariables = void,
-  TError = DefaultError,
-  TPageParam = string,
-> = (
-  variables: TVariables,
-  options: Omit<
-    UseSuspenseInfiniteQueryOptions<
-      TData,
-      TError,
-      InfiniteData<TData, TPageParam>,
-      DataTag<string[], TData, TError>,
-      TPageParam
-    >,
-    'queryKey' | 'queryFn'
-  >
-) => UseSuspenseInfiniteQueryResult<InfiniteData<TData, TPageParam>, TError>;
-
 export interface WrappedQuery<
   TData = unknown,
   TVariables = void,
   TError = DefaultError,
-  TPageParam = string,
 > {
   createQueryKey: (variables?: TVariables) => DataTag<string[], TData, TError>;
   queryKey: DataTag<string[], TData, TError>;
@@ -104,14 +47,6 @@ export interface WrappedQuery<
     queryKey: DataTag<string[], TData, TError>;
     queryFn: QueryFunction<TData>;
   };
-  useSuspenseQuery: SuspenseQueryHook<TData, TVariables, TError>;
-  useInfiniteQuery: InfiniteQueryHook<TData, TVariables, TError, TPageParam>;
-  useSuspenseInfiniteQuery: SuspenseInfiniteQueryHook<
-    TData,
-    TVariables,
-    TError,
-    TPageParam
-  >;
 }
 
 type SignalOnlyQueryFn<TData> = (signal: AbortSignal) => Promise<TData>;
@@ -288,16 +223,11 @@ export function createQueryHook<
   TData = unknown,
   TVariables = void,
   TError = DefaultError,
-  TPageParam = string,
 >(
   queryKey: string[],
-  queryFn: QueryFn<TData, TVariables>,
-  addPageParamToVariables?: (
-    pageParam: TPageParam,
-    variables: TVariables
-  ) => TVariables
-): WrappedQuery<TData, TVariables, TError, TPageParam> {
-  const wrapped: WrappedQuery<TData, TVariables, TError, TPageParam> = {
+  queryFn: QueryFn<TData, TVariables>
+): WrappedQuery<TData, TVariables, TError> {
+  const wrapped: WrappedQuery<TData, TVariables, TError> = {
     queryKey: queryKey as DataTag<string[], TData, TError>,
     createQueryKey(variables?: TVariables) {
       const key = [...queryKey];
@@ -327,121 +257,9 @@ export function createQueryHook<
         ...options,
       });
     },
-    useSuspenseQuery: function wrappedSuspenseQuery(
-      variables?: TVariables,
-      options?: Omit<UseQueryOptions<TData, TError>, 'queryKey' | 'queryFn'>
-    ) {
-      return reactQuery.useSuspenseQuery({
-        ...wrapped.createQuery(variables),
-        ...options,
-      });
-    },
-    useInfiniteQuery: function wrappedInfiniteQuery(
-      variables: TVariables,
-      options: Omit<
-        UseInfiniteQueryOptions<
-          TData,
-          TError,
-          InfiniteData<TData, TPageParam>,
-          DataTag<string[], TData, TError>,
-          TPageParam
-        >,
-        'queryKey' | 'queryFn'
-      >
-    ) {
-      return reactQuery.useInfiniteQuery<
-        TData,
-        TError,
-        InfiniteData<TData, TPageParam>,
-        DataTag<string[], TData, TError>,
-        TPageParam
-      >({
-        ...options,
-        queryKey: wrapped.createQueryKey(variables),
-        queryFn: ({ pageParam, signal }) =>
-          callQueryFn(
-            queryFn,
-            addPageParamToVariables
-              ? addPageParamToVariables(pageParam as TPageParam, variables)
-              : variables,
-            signal
-          ),
-      });
-    },
-    useSuspenseInfiniteQuery: function wrappedSuspenseInfiniteQuery(
-      variables: TVariables,
-      options: Omit<
-        UseSuspenseInfiniteQueryOptions<
-          TData,
-          TError,
-          InfiniteData<TData, TPageParam>,
-          DataTag<string[], TData, TError>,
-          TPageParam
-        >,
-        'queryKey' | 'queryFn'
-      >
-    ) {
-      return reactQuery.useSuspenseInfiniteQuery<
-        TData,
-        TError,
-        InfiniteData<TData, TPageParam>,
-        DataTag<string[], TData, TError>,
-        TPageParam
-      >({
-        ...options,
-        queryKey: wrapped.createQueryKey(variables),
-        queryFn: ({ pageParam, signal }) =>
-          callQueryFn(
-            queryFn,
-            addPageParamToVariables
-              ? addPageParamToVariables(pageParam as TPageParam, variables)
-              : variables,
-            signal
-          ),
-      });
-    },
   };
 
   return wrapped;
-}
-
-/**
- * createMutationHook is a utility function to create a TanStack Query `useMutation`
- * hook from a service method.
- *
- * This is useful for quickly creating a mutation hook.
- *
- * @example
- * This example shows how to create a mutation hook for creating a user.
- *
- * ```tsx
- * const useCreateUser = createMutationHook(userService.createUser);
- * ```
- *
- * Usage:
- *
- * ```tsx
- * function CreateUserForm() {
- *   const mutation = useCreateUser({
- *     onSuccess: (data) => {
- *       // data is correctly inferred as User
- *     },
- *   });
- *
- *   const handleSubmit = (userData: User) => {
- *     mutation.mutate(userData);
- *   };
- *
- *   // ...
- * }
- * ```
- *
- */
-export function createMutationHook<TData, TVariables, TError = DefaultError>(
-  mutationFn: (variables: TVariables) => Promise<TData>
-) {
-  return (options?: MutationOptions<TData, TError, TVariables>) =>
-    useMutation({ mutationFn, ...options });
 }
 
 function isSignalOnlyQueryFn<TData = unknown, TVariables = void>(

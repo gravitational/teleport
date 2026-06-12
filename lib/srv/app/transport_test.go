@@ -30,7 +30,7 @@ import (
 	"testing/synctest"
 	"time"
 
-	"github.com/gravitational/trace"
+	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -198,11 +198,9 @@ func newTestTransport(t *testing.T, dial func(context.Context, string, string) (
 	})
 	require.NoError(t, err)
 	tr, err := newTransport(t.Context(), &transportConfig{
-		app:                 app,
-		publicPort:          "443",
-		jwt:                 "test-jwt",
-		clusterName:         "example",
-		certAuthorityGetter: &emptyCertAuthorityGetter{},
+		app:        app,
+		publicPort: "443",
+		jwt:        "test-jwt",
 	})
 	require.NoError(t, err)
 	tr.tr.(*http.Transport).DialContext = dial
@@ -258,21 +256,14 @@ func (noopAudit) OnSessionChunk(context.Context, string, string, *tlsca.Identity
 	return nil
 }
 
-func (noopAudit) OnRequest(context.Context, *common.SessionContext, *http.Request, uint32, *common.AWSResolvedEndpoint) error {
+func (noopAudit) OnRequest(context.Context, *common.SessionContext, *http.Request, uint32, *endpoints.ResolvedEndpoint) error {
 	return nil
 }
 
-func (noopAudit) OnDynamoDBRequest(context.Context, *common.SessionContext, *http.Request, uint32, *common.AWSResolvedEndpoint) error {
+func (noopAudit) OnDynamoDBRequest(context.Context, *common.SessionContext, *http.Request, uint32, *endpoints.ResolvedEndpoint) error {
 	return nil
 }
 
 func (noopAudit) EmitEvent(context.Context, apievents.AuditEvent) error {
 	return nil
-}
-
-type emptyCertAuthorityGetter struct{}
-
-// GetCertAuthority returns cert authority by id.
-func (emptyCertAuthorityGetter) GetCertAuthority(context.Context, types.CertAuthID, bool) (types.CertAuthority, error) {
-	return nil, trace.NotFound("certificate authority not found")
 }

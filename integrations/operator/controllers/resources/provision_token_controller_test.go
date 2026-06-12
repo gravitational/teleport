@@ -27,15 +27,12 @@ import (
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	apimachinerytypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/gravitational/teleport/api/types"
 	resourcesv2 "github.com/gravitational/teleport/integrations/operator/apis/resources/v2"
 	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
-	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
 )
 
@@ -151,22 +148,17 @@ func (g *tokenTestingPrimitives) CompareTeleportAndKubernetesResource(tResource 
 
 func TestProvisionTokenCreation(t *testing.T) {
 	test := &tokenTestingPrimitives{}
-	testlib.ResourceCreationSynchronousTest(t, resources.NewProvisionTokenReconciler, test)
-}
-
-func TestProvisionTokenDeletion(t *testing.T) {
-	test := &tokenTestingPrimitives{}
-	testlib.ResourceDeletionSynchronousTest(t, resources.NewProvisionTokenReconciler, test)
+	testlib.ResourceCreationTest[types.ProvisionToken, *resourcesv2.TeleportProvisionToken](t, test)
 }
 
 func TestProvisionTokenDeletionDrift(t *testing.T) {
 	test := &tokenTestingPrimitives{}
-	testlib.ResourceDeletionDriftSynchronousTest(t, resources.NewProvisionTokenReconciler, test)
+	testlib.ResourceDeletionDriftTest[types.ProvisionToken, *resourcesv2.TeleportProvisionToken](t, test)
 }
 
 func TestProvisionTokenUpdate(t *testing.T) {
 	test := &tokenTestingPrimitives{}
-	testlib.ResourceUpdateTestSynchronous(t, resources.NewProvisionTokenReconciler, test)
+	testlib.ResourceUpdateTest[types.ProvisionToken, *resourcesv2.TeleportProvisionToken](t, test)
 }
 
 // This test checks the operator can create Token resources in Teleport for a
@@ -180,7 +172,7 @@ func TestProvisionTokenUpdate(t *testing.T) {
 func TestProvisionTokenCreation_GitHubBot(t *testing.T) {
 	// Test setup
 	ctx := context.Background()
-	setup := testlib.SetupFakeKubeTestEnv(t)
+	setup := setupTestEnv(t)
 	require.NoError(t, teleportCreateDummyRole(ctx, "a", setup.TeleportClient))
 
 	tokenSpecYAML := `
@@ -200,7 +192,7 @@ github:
 	}
 
 	// Creating the Kubernetes resource. We are using an untyped client to be able to create invalid resources.
-	tokenManifest := map[string]any{}
+	tokenManifest := map[string]interface{}{}
 	err := yaml.Unmarshal([]byte(tokenSpecYAML), &tokenManifest)
 	require.NoError(t, err)
 
@@ -212,27 +204,8 @@ github:
 	obj.SetName(tokenName)
 	obj.SetNamespace(setup.Namespace.Name)
 
-	// Text execution: create the TeleportProvisionToken in Kubernetes
+	// Doing the test: we create the TeleportProvisionToken in Kubernetes
 	err = setup.K8sClient.Create(ctx, obj)
-	require.NoError(t, err)
-
-	reconciler, err := resources.NewProvisionTokenReconciler(setup.K8sClient, setup.TeleportClient)
-	require.NoError(t, err)
-
-	// Test execution: Kick off the reconciliation.
-	req := reconcile.Request{
-		NamespacedName: apimachinerytypes.NamespacedName{
-			Namespace: setup.Namespace.Name,
-			Name:      tokenName,
-		},
-	}
-	// First reconciliation should set the finalizer and exit.
-	_, err = reconciler.Reconcile(ctx, req)
-	require.NoError(t, err)
-	// Second reconciliation should create the Teleport resource.
-	// In a real cluster we should receive the event of our own finalizer change
-	// and this wakes us for a second round.
-	_, err = reconciler.Reconcile(ctx, req)
 	require.NoError(t, err)
 
 	// Then we wait for the token to be created in Teleport
@@ -256,13 +229,14 @@ github:
 
 		return true
 	})
+	// Test Teardown
 
-	// Test cleanup: Delete the resource to avoid leftover state if we were running on a real instance.
 	require.NoError(t, setup.K8sClient.Delete(ctx, obj))
-	require.NoError(t, setup.TeleportClient.DeleteToken(ctx, tokenName))
-	// Kicking of a reconciliation to remove the finalizer and let Kube remove the resource.
-	_, err = reconciler.Reconcile(ctx, req)
-	require.NoError(t, err)
+	// We wait for the role deletion in Teleport
+	fastEventually(t, func() bool {
+		_, err := setup.TeleportClient.GetToken(ctx, tokenName)
+		return trace.IsNotFound(err)
+	})
 }
 
 func compareTokenSpecs(t *testing.T, expectedUser, actualUser types.ProvisionToken) {

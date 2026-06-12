@@ -19,8 +19,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 /**
- * @deprecated Use TanStack Query (useQuery/useMutation) instead. See RFD 197.
- *
  * `useAsync` lets you represent the state of an async operation as data. It accepts an async function
  * that you want to execute. Calling the hook returns an array of three elements:
  *
@@ -91,7 +89,7 @@ export function useAsync<Args extends unknown[], AttemptData>(
 ) {
   const [state, setState] = useState<Attempt<AttemptData>>(makeEmptyAttempt);
   const isMounted = useIsMounted();
-  const asyncTask = useRef<Promise<AttemptData>>(undefined);
+  const asyncTask = useRef<Promise<AttemptData>>();
 
   const run: (...args: Args) => RunFuncReturnValue<AttemptData> = useCallback(
     (...args: Args) => {

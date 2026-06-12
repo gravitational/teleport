@@ -45,11 +45,10 @@ import (
 	"github.com/gravitational/teleport/lib/proxy/peer/internal"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
-	logtest.InitLogger(testing.Verbose)
+	utils.InitLoggerForTests()
 	os.Exit(m.Run())
 }
 
@@ -103,7 +102,7 @@ func TestCertificateVerification(t *testing.T) {
 			clientCAs:  correctCAPool,
 			clientCert: clientProxyCert,
 			rootCAs:    correctCAPool,
-			check: func(t require.TestingT, err error, msgAndArgs ...any) {
+			check: func(t require.TestingT, err error, msgAndArgs ...interface{}) {
 				require.Error(t, err, msgAndArgs...)
 				require.ErrorIs(t, err, internal.WrongProxyError{}, msgAndArgs...)
 			},
@@ -117,7 +116,7 @@ func TestCertificateVerification(t *testing.T) {
 			clientCAs:  correctCAPool,
 			clientCert: clientProxyCert,
 			rootCAs:    correctCAPool,
-			check: func(t require.TestingT, err error, msgAndArgs ...any) {
+			check: func(t require.TestingT, err error, msgAndArgs ...interface{}) {
 				require.Error(t, err, msgAndArgs...)
 				require.NotErrorIs(t, err, internal.WrongProxyError{}, msgAndArgs...)
 				require.ErrorAs(t, err, new(*trace.AccessDeniedError), msgAndArgs...)
@@ -132,7 +131,7 @@ func TestCertificateVerification(t *testing.T) {
 			clientCAs:  correctCAPool,
 			clientCert: clientProxyCert,
 			rootCAs:    correctCAPool,
-			check: func(t require.TestingT, err error, msgAndArgs ...any) {
+			check: func(t require.TestingT, err error, msgAndArgs ...interface{}) {
 				require.Error(t, err, msgAndArgs...)
 				require.ErrorAs(t, err, new(*tls.CertificateVerificationError))
 			},
@@ -146,7 +145,7 @@ func TestCertificateVerification(t *testing.T) {
 				Groups:   []string{string(types.RoleProxy)},
 			}),
 			rootCAs: correctCAPool,
-			check: func(t require.TestingT, err error, msgAndArgs ...any) {
+			check: func(t require.TestingT, err error, msgAndArgs ...interface{}) {
 				require.Error(t, err, msgAndArgs...)
 				var transportError *quic.TransportError
 				require.ErrorAs(t, err, &transportError, msgAndArgs...)
@@ -167,7 +166,7 @@ func TestCertificateVerification(t *testing.T) {
 				Groups:   []string{string(types.RoleNode)},
 			}),
 			rootCAs: correctCAPool,
-			check: func(t require.TestingT, err error, msgAndArgs ...any) {
+			check: func(t require.TestingT, err error, msgAndArgs ...interface{}) {
 				require.Error(t, err, msgAndArgs...)
 				var transportError *quic.TransportError
 				require.ErrorAs(t, err, &transportError, msgAndArgs...)
@@ -182,6 +181,7 @@ func TestCertificateVerification(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -281,7 +281,6 @@ func TestBasicFunctionality(t *testing.T) {
 	clientDialRandomNode := func() (net.Conn, error) {
 		return client.Dial(
 			uuid.NewString()+".testcluster",
-			"/example/scope",
 			&utils.NetAddr{
 				AddrNetwork: "tcp",
 				Addr:        "1.2.3.4:56",
@@ -324,9 +323,6 @@ func TestBasicFunctionality(t *testing.T) {
 			if request.ConnType != "echo" {
 				return nil, trace.CompareFailed("the only conntype is echo")
 			}
-			if request.TargetScope != "/echo" {
-				return nil, trace.CompareFailed("the only scope is /echo")
-			}
 			p1, p2 := net.Pipe()
 			go func() {
 				defer close(pipeClosed)
@@ -340,7 +336,6 @@ func TestBasicFunctionality(t *testing.T) {
 
 		conn, err := client.Dial(
 			"echo.echo",
-			"/echo",
 			&utils.NetAddr{
 				AddrNetwork: "tcp",
 				Addr:        "1.2.3.4:56",

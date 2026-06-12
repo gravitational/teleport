@@ -126,7 +126,7 @@ func TestStaticHostUserAuditEvents(t *testing.T) {
 			},
 		}
 
-		require.Empty(t, cmp.Diff(expectedEvent, evt, cmpopts.IgnoreFields(apievents.UserMetadata{}, "User", "UserRoles")))
+		require.Empty(t, cmp.Diff(expectedEvent, evt, cmpopts.IgnoreFields(apievents.UserMetadata{}, "User")))
 
 	case <-time.After(15 * time.Second):
 		t.Fatalf("timed out waiting for static host user create event")
@@ -156,7 +156,7 @@ func TestStaticHostUserAuditEvents(t *testing.T) {
 			},
 		}
 
-		require.Empty(t, cmp.Diff(expectedEvent, evt, cmpopts.IgnoreFields(apievents.UserMetadata{}, "User", "UserRoles")))
+		require.Empty(t, cmp.Diff(expectedEvent, evt, cmpopts.IgnoreFields(apievents.UserMetadata{}, "User")))
 	case <-time.After(15 * time.Second):
 		t.Fatalf("timed out waiting for static host user update event")
 	}
@@ -184,7 +184,7 @@ func TestStaticHostUserAuditEvents(t *testing.T) {
 			},
 		}
 
-		require.Empty(t, cmp.Diff(expectedEvent, evt, cmpopts.IgnoreFields(apievents.UserMetadata{}, "User", "UserRoles")))
+		require.Empty(t, cmp.Diff(expectedEvent, evt, cmpopts.IgnoreFields(apievents.UserMetadata{}, "User")))
 	case <-time.After(15 * time.Second):
 		t.Fatalf("timed out waiting for static host user upsert event")
 	}
@@ -212,7 +212,7 @@ func TestStaticHostUserAuditEvents(t *testing.T) {
 			},
 		}
 
-		require.Empty(t, cmp.Diff(expectedEvent, evt, cmpopts.IgnoreFields(apievents.UserMetadata{}, "User", "UserRoles")))
+		require.Empty(t, cmp.Diff(expectedEvent, evt, cmpopts.IgnoreFields(apievents.UserMetadata{}, "User")))
 	case <-time.After(15 * time.Second):
 		t.Fatalf("timed out waiting for static host user delete event")
 	}
@@ -293,6 +293,7 @@ func TestStaticHostUserCRUD(t *testing.T) {
 	}
 
 	for _, tc := range accessTests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 
 			t.Run("allow", func(t *testing.T) {
@@ -406,6 +407,7 @@ func TestStaticHostUserCRUD(t *testing.T) {
 		},
 	}
 	for _, tc := range otherTests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			authorizer := authorizeWithVerbs(tc.verbs, true)
@@ -507,7 +509,7 @@ func initSvc(t *testing.T, authorizerFn func(t *testing.T, client localClient) a
 
 	localResourceService, err := local.NewStaticHostUserService(backend)
 	require.NoError(t, err)
-	for i := range 10 {
+	for i := 0; i < 10; i++ {
 		_, err := localResourceService.CreateStaticHostUser(ctx, makeStaticHostUser(i))
 		require.NoError(t, err)
 	}

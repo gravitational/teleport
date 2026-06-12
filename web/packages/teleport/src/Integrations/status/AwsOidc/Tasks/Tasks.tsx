@@ -17,16 +17,13 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router';
+import { useHistory, useLocation } from 'react-router';
 import styled, { useTheme } from 'styled-components';
 
 import { Flex, Indicator } from 'design';
 import { Danger } from 'design/Alert';
 import Table, { Cell } from 'design/DataTable';
-import {
-  ToastNotification,
-  ToastNotificationItem,
-} from 'shared/components/ToastNotification';
+import { Notification, NotificationItem } from 'shared/components/Notification';
 
 import { useServerSidePagination } from 'teleport/components/hooks';
 import { FeatureBox } from 'teleport/components/Layout';
@@ -40,11 +37,10 @@ import { integrationService, UserTask } from 'teleport/services/integrations';
 
 export function Tasks() {
   const theme = useTheme();
-  const navigate = useNavigate();
-  const location = useLocation();
-  const { search } = location;
+  const history = useHistory();
+  const { search } = useLocation();
   const searchParams = useMemo(() => new URLSearchParams(search), [search]);
-  const [notification, setNotification] = useState<ToastNotificationItem>();
+  const [notification, setNotification] = useState<NotificationItem>();
 
   const { integrationAttempt } = useAwsOidcStatus();
   const { data: integration } = integrationAttempt;
@@ -113,13 +109,13 @@ export function Tasks() {
         id: selectedTask,
       });
     }
-    navigate(location.pathname, { replace: true });
+    history.replace(history.location.pathname);
   }
 
   function openTask(task: UserTask) {
     const urlParams = new URLSearchParams();
     urlParams.append('task', task.name);
-    navigate(`${location.pathname}?${urlParams.toString()}`, { replace: true });
+    history.replace(`${history.location.pathname}?${urlParams.toString()}`);
   }
 
   return (
@@ -185,7 +181,7 @@ export function Tasks() {
           />
           {notification && (
             <NotificationContainer>
-              <ToastNotification
+              <Notification
                 key={notification.id}
                 item={notification}
                 onRemove={() => setNotification(undefined)}

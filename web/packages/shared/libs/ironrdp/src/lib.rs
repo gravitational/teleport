@@ -24,7 +24,6 @@ use ironrdp_graphics::image_processing::PixelFormat;
 use ironrdp_pdu::fast_path::UpdateCode::{Bitmap, SurfaceCommands};
 use ironrdp_pdu::fast_path::{FastPathHeader, FastPathUpdatePdu};
 use ironrdp_pdu::geometry::{InclusiveRectangle, Rectangle};
-use ironrdp_pdu::rdp::client_info;
 use ironrdp_session::fast_path::UpdateKind;
 use ironrdp_session::image::DecodedImage;
 use ironrdp_session::ActiveStageOutput;
@@ -123,14 +122,8 @@ impl FastPathProcessor {
                 user_channel_id,
                 // These should be set to the same values as they're set to in the
                 // `Config` object in lib/srv/desktop/rdp/rdpclient/src/client.rs.
-                enable_server_pointer: true,
+                no_server_pointer: false,
                 pointer_software_rendering: false,
-                // TODO (rhammonds): Update our ServerHello TDPB message to
-                // report the share_id so that we can set it here. This may
-                // fix a known resize bug.
-                // https://github.com/Devolutions/IronRDP/pull/1147
-                share_id: 0,
-                bulk_decompressor: None,
             }
             .build(),
             image: DecodedImage::new(PixelFormat::RgbA32, width, height),
@@ -276,12 +269,10 @@ impl FastPathProcessor {
                 self.remote_fx_check_required = false;
                 Ok(())
             }
-            Bitmap => Err(JsValue::from(format!(
-                "Teleport requires the RemoteFX codec for Windows desktop sessions, \
-                but the Windows host sent a bitmap update with {} compression instead.\n\
-                For detailed instructions, see:\n\
-                https://goteleport.com/docs/enroll-resources/desktop-access/active-directory/#enable-remotefx",
-                compression_type(&update_pdu.compression_type)
+            Bitmap => Err(JsValue::from_str(concat!(
+                "Teleport requires the RemoteFX codec for Windows desktop sessions, ",
+                "but it is not currently enabled. For detailed instructions, see:\n",
+                "https://goteleport.com/docs/enroll-resources/desktop-access/active-directory/#enable-remotefx"
             ))),
             _ => Ok(()),
         }
@@ -393,14 +384,4 @@ fn extract_whole_rows(
     };
 
     (wider_region, dst)
-}
-
-fn compression_type(ct: &Option<client_info::CompressionType>) -> &'static str {
-    match ct {
-        None => "unknown",
-        Some(client_info::CompressionType::K8) => "RDP 4.0",
-        Some(client_info::CompressionType::K64) => "RDP 5.0",
-        Some(client_info::CompressionType::Rdp6) => "RDP 6.0",
-        Some(client_info::CompressionType::Rdp61) => "RDP 6.1",
-    }
 }

@@ -21,8 +21,6 @@ import (
 	"fmt"
 
 	"github.com/gravitational/trace"
-
-	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 )
 
 // String returns text description of this event
@@ -149,11 +147,6 @@ func (kind WatchKind) Matches(e Event) (bool, error) {
 			var filter HeadlessAuthenticationFilter
 			filter.FromMap(kind.Filter)
 			return filter.Match(res), nil
-		case Resource153UnwrapperT[*mfav2.ValidatedMFAChallenge]:
-			var filter ValidatedMFAChallengeFilter
-			filter.FromMap(kind.Filter)
-			return filter.Match(res.UnwrapT().GetSpec().GetTargetCluster()), nil
-
 		default:
 			// we don't know about this filter, let the event through
 		}

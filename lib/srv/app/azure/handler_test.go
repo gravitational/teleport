@@ -87,7 +87,7 @@ func TestForwarder_getToken(t *testing.T) {
 					},
 				}
 			},
-			checkErr: func(t require.TestingT, err error, i ...any) {
+			checkErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "timeout waiting for access token for 5s")
 				require.ErrorIs(t, err, context.DeadlineExceeded)
 			},
@@ -101,7 +101,7 @@ func TestForwarder_getToken(t *testing.T) {
 					},
 				}
 			},
-			checkErr: func(t require.TestingT, err error, i ...any) {
+			checkErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "bad param foo")
 				require.True(t, trace.IsBadParameter(err))
 			},
@@ -127,7 +127,7 @@ func TestForwarder_getToken(t *testing.T) {
 					},
 				}
 			},
-			checkErr: func(t require.TestingT, err error, i ...any) {
+			checkErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, context.Canceled)
 			},
 		},

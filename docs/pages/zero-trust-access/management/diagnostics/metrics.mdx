@@ -1,6 +1,5 @@
 ---
 title: Key Metrics for Self-Hosted Clusters
-sidebar_label: Key Metrics
 description: Describes important metrics to monitor if you are self-hosting Teleport.
 tags:
  - conceptual
@@ -13,7 +12,7 @@ and Proxy Service. If you use Teleport Enterprise (Cloud), the Teleport team
 monitors and responds to these metrics for you.
 
 For a reference of all available metrics, see the [Teleport Metrics
-Reference](../../../reference/deployment/monitoring/metrics.mdx).
+Reference](../../../reference/monitoring/metrics.mdx).
 
 This guide assumes that you already monitor compute resources on all instances
 that run the Teleport Auth Service and Proxy Service (e.g., CPU, memory, disk,
@@ -40,7 +39,7 @@ cluster state backend. You need to track the ability of the Auth Service to read
 from and write to its backend. 
 
 The Auth Service can connect to [several possible
-backends](../../../reference/deployment/backends.mdx). In addition to Teleport backend
+backends](../../../reference/backends.mdx). In addition to Teleport backend
 metrics, you should set up monitoring for your backend of choice so that, if
 these metrics show problematic values, you can correlate them with metrics on
 your backend infrastructure.
@@ -181,7 +180,7 @@ With an improperly scaled Proxy Service pool, the Proxy Service can become a
 bottleneck for traffic to Teleport-protected resources. If Proxy Service
 instances display heavy utilization of compute resources while the number of
 connected infrastructure resources is high, you can consider scaling out your
-Proxy Service pool and using [Proxy Peering](../proxy-peering.mdx).
+Proxy Service pool and using [Proxy Peering](../operations/proxy-peering.mdx).
 
 Use the following Grafana query to track the maximum number of reverse tunnels
 by type over a given interval:

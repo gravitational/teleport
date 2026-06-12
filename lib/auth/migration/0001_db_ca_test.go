@@ -21,20 +21,18 @@ package migration
 import (
 	"context"
 	"crypto/x509/pkix"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -91,9 +89,7 @@ func TestDBAuthorityDown(t *testing.T) {
 }
 
 func newCertAuthority(t *testing.T, name string, caType types.CertAuthType) types.CertAuthority {
-	ta, err := testauthority.NewKeygen(modules.BuildOSS, time.Now)
-	require.NoError(t, err)
-
+	ta := testauthority.New()
 	priv, pub, err := ta.GenerateKeyPair()
 	require.NoError(t, err)
 
@@ -128,6 +124,20 @@ func newCertAuthority(t *testing.T, name string, caType types.CertAuthType) type
 }
 
 func TestDBAuthorityUp(t *testing.T) {
+	fakeCA := &types.CertAuthorityV2{
+		Kind: types.KindCertAuthority,
+		Spec: types.CertAuthoritySpecV2{
+			ActiveKeys: types.CAKeySet{
+				TLS: []*types.TLSKeyPair{
+					{
+						Cert: []byte{0, 1, 2},
+						Key:  []byte{3, 4, 5},
+					},
+				},
+			},
+		},
+	}
+
 	rootDB := types.CertAuthID{
 		Type:       types.DatabaseCA,
 		DomainName: "root",
@@ -170,102 +180,67 @@ func TestDBAuthorityUp(t *testing.T) {
 
 	cases := []struct {
 		name         string
-		authorities  []types.CertAuthID
-		clusters     []types.TrustedCluster
+		fakeTrust    *fakeTrust
 		assertion    require.ErrorAssertionFunc
-		validateFunc func(t *testing.T, svc *local.CA)
+		validateFunc func(t *testing.T, created []types.CertAuthority)
 	}{
 		{
 			name: "db cas created from host cas",
-			authorities: []types.CertAuthID{
-				rootHost,
-				leaf1Host,
-				leaf1DB,
-				leaf2Host,
-			},
-			clusters: []types.TrustedCluster{
-				&types.TrustedClusterV2{
-					Kind:     types.KindTrustedCluster,
-					Metadata: types.Metadata{Name: "leaf1"},
-					Spec: types.TrustedClusterSpecV2{
-						Enabled: true,
-						RoleMap: []types.RoleMapping{
-							{
-								Local:  []string{teleport.PresetAccessRoleName},
-								Remote: teleport.PresetAccessRoleName,
-							},
-						},
-					},
+			fakeTrust: &fakeTrust{
+				authorities: map[types.CertAuthID]types.CertAuthority{
+					rootHost:  fakeCA,
+					leaf1Host: fakeCA,
+					leaf1DB:   fakeCA,
+					leaf2Host: fakeCA,
 				},
-				&types.TrustedClusterV2{
-					Kind:     types.KindTrustedCluster,
-					Metadata: types.Metadata{Name: "leaf2"},
-					Spec: types.TrustedClusterSpecV2{
-						RoleMap: []types.RoleMapping{
-							{
-								Local:  []string{teleport.PresetAccessRoleName},
-								Remote: teleport.PresetAccessRoleName,
-							},
+				clusters: []types.TrustedCluster{
+					&types.TrustedClusterV2{
+						Kind:     types.KindTrustedCluster,
+						Metadata: types.Metadata{Name: "leaf1"},
+						Spec: types.TrustedClusterSpecV2{
+							Enabled: true,
 						},
+					}, &types.TrustedClusterV2{
+						Kind:     types.KindTrustedCluster,
+						Metadata: types.Metadata{Name: "leaf2"},
+						Spec:     types.TrustedClusterSpecV2{},
 					},
 				},
 			},
 			assertion: require.NoError,
-			validateFunc: func(t *testing.T, svc *local.CA) {
-				hostCAs, err := svc.GetCertAuthorities(t.Context(), types.HostCA, false)
-				require.NoError(t, err)
-				assert.Len(t, hostCAs, 3)
-
-				for _, ca := range hostCAs {
-					ca, err := svc.GetCertAuthority(t.Context(), types.CertAuthID{Type: types.DatabaseCA, DomainName: ca.GetClusterName()}, false)
-					require.NoError(t, err)
-					require.NotNil(t, ca)
-				}
+			validateFunc: func(t *testing.T, created []types.CertAuthority) {
+				require.Len(t, created, 2)
+				require.Equal(t, types.DatabaseCA, created[0].GetType())
+				require.Equal(t, "root", created[0].GetClusterName())
+				require.Equal(t, types.DatabaseCA, created[1].GetType())
+				require.Equal(t, "leaf2", created[1].GetClusterName())
 			},
 		},
 		{
 			name: "db certs already exists",
-			authorities: []types.CertAuthID{
-				rootDB,
-				leaf2DB,
-				leaf1DB,
-			},
-			clusters: []types.TrustedCluster{
-				&types.TrustedClusterV2{
-					Kind:     types.KindTrustedCluster,
-					Metadata: types.Metadata{Name: "leaf1"},
-					Spec: types.TrustedClusterSpecV2{
-						Enabled: true,
-						RoleMap: []types.RoleMapping{
-							{
-								Local:  []string{teleport.PresetAccessRoleName},
-								Remote: teleport.PresetAccessRoleName,
-							},
-						},
-					},
+			fakeTrust: &fakeTrust{
+				authorities: map[types.CertAuthID]types.CertAuthority{
+					rootDB:  fakeCA,
+					leaf2DB: fakeCA,
+					leaf1DB: fakeCA,
 				},
-				&types.TrustedClusterV2{
-					Kind:     types.KindTrustedCluster,
-					Metadata: types.Metadata{Name: "leaf2"},
-					Spec: types.TrustedClusterSpecV2{
-						RoleMap: []types.RoleMapping{
-							{
-								Local:  []string{teleport.PresetAccessRoleName},
-								Remote: teleport.PresetAccessRoleName,
-							},
+				clusters: []types.TrustedCluster{
+					&types.TrustedClusterV2{
+						Kind:     types.KindTrustedCluster,
+						Metadata: types.Metadata{Name: "leaf1"},
+						Spec: types.TrustedClusterSpecV2{
+							Enabled: true,
 						},
+					}, &types.TrustedClusterV2{
+						Kind:     types.KindTrustedCluster,
+						Metadata: types.Metadata{Name: "leaf2"},
+						Spec:     types.TrustedClusterSpecV2{},
 					},
 				},
 			},
 			assertion: require.NoError,
-			validateFunc: func(t *testing.T, svc *local.CA) {
-				cas, err := svc.GetCertAuthorities(t.Context(), types.DatabaseCA, false)
-				require.NoError(t, err)
-				assert.Len(t, cas, 3)
-
-				hostCAs, err := svc.GetCertAuthorities(t.Context(), types.HostCA, false)
-				require.NoError(t, err)
-				assert.Empty(t, hostCAs)
+			validateFunc: func(t *testing.T, created []types.CertAuthority) {
+				require.Empty(t, created)
 			},
 		},
 	}
@@ -275,20 +250,11 @@ func TestDBAuthorityUp(t *testing.T) {
 			b, err := memory.New(memory.Config{EventsOff: true})
 			require.NoError(t, err)
 
-			svc := local.NewCAService(b)
-			for _, id := range test.authorities {
-				ca := newCertAuthority(t, id.DomainName, id.Type)
-				require.NoError(t, svc.CreateCertAuthority(t.Context(), ca))
-			}
-
-			for _, tc := range test.clusters {
-				_, err := svc.CreateTrustedCluster(t.Context(), tc, nil)
-				require.NoError(t, err)
-			}
+			test.fakeTrust.Trust = local.NewCAService(b)
 
 			migration := createDBAuthority{
-				trustServiceFn: func(b backend.Backend) *local.CA {
-					return svc
+				trustServiceFn: func(b backend.Backend) services.Trust {
+					return test.fakeTrust
 				},
 				configServiceFn: func(b backend.Backend) (services.ClusterConfiguration, error) {
 					svc, err := local.NewClusterConfigurationService(b)
@@ -302,8 +268,8 @@ func TestDBAuthorityUp(t *testing.T) {
 				},
 			}
 
-			test.assertion(t, migration.Up(t.Context(), b))
-			test.validateFunc(t, svc)
+			test.assertion(t, migration.Up(context.Background(), b))
+			test.validateFunc(t, test.fakeTrust.casCreated())
 		})
 	}
 }
@@ -313,6 +279,47 @@ type fakeConfig struct {
 	clusterName types.ClusterName
 }
 
-func (f fakeConfig) GetClusterName(_ context.Context) (types.ClusterName, error) {
+func (f fakeConfig) GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error) {
 	return f.clusterName, nil
+}
+
+type fakeTrust struct {
+	services.Trust
+
+	authorities map[types.CertAuthID]types.CertAuthority
+
+	clusters []types.TrustedCluster
+	mu       sync.Mutex
+	created  []types.CertAuthority
+}
+
+func (f *fakeTrust) casCreated() []types.CertAuthority {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	cas := make([]types.CertAuthority, len(f.created))
+	copy(cas, f.created)
+
+	return cas
+}
+
+func (f *fakeTrust) CreateCertAuthority(ctx context.Context, ca types.CertAuthority) error {
+	f.mu.Lock()
+	f.created = append(f.created, ca)
+	f.mu.Unlock()
+
+	return nil
+}
+
+func (f *fakeTrust) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
+	ca, ok := f.authorities[id]
+	if !ok {
+		return nil, trace.NotFound("no authority matching %s present", id)
+	}
+
+	return ca, nil
+}
+
+func (f *fakeTrust) GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster, error) {
+	return f.clusters, nil
 }

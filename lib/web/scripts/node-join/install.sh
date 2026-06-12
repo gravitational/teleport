@@ -18,7 +18,6 @@ TARGET_PORT_DEFAULT=443
 TELEPORT_ARCHIVE_PATH='{{.packageName}}'
 TELEPORT_BINARY_DIR="/usr/local/bin"
 TELEPORT_BINARY_LIST="teleport tctl tsh teleport-update"
-TELEPORT_BINARY_LIST_darwin="teleport" # only install server binaries for macOS
 TELEPORT_CONFIG_PATH="/etc/teleport.yaml"
 TELEPORT_DATA_DIR="/var/lib/teleport"
 TELEPORT_DOCS_URL="https://goteleport.com/docs/"
@@ -790,7 +789,6 @@ if [[ "${OSTYPE}" == "linux"* ]]; then
 elif [[ "${OSTYPE}" == "darwin"* ]]; then
     # macOS host, now detect arch
     TELEPORT_BINARY_TYPE="darwin"
-    TELEPORT_BINARY_LIST="${TELEPORT_BINARY_LIST_darwin}"
     ARCH=$(uname -m)
     log "Detected host: ${OSTYPE}, using Teleport binary type ${TELEPORT_BINARY_TYPE}"
     if [[ ${ARCH} == "arm64" ]]; then
@@ -1089,7 +1087,7 @@ is_repo_available() {
     case "${ID}-${VERSION_ID}" in
         ubuntu-16.04* | ubuntu-18.04* | ubuntu-20.04* | ubuntu-22.04* | ubuntu-24.04* |\
         debian-9* | debian-10* | debian-11* | debian-12* | \
-        rhel-7* | rhel-8* | rhel-9* | rhel-10* | \
+        rhel-7* | rhel-8* | rhel-9* | \
         centos-7* | centos-8* | centos-9* | \
         amzn-2 | amzn-2023 | \
         opensuse-tumbleweed* | sles-12* | sles-15* | opensuse-leap-15*)
