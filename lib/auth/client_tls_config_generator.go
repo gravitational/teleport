@@ -92,6 +92,27 @@ type HostAndUserCAPoolInfo struct {
 	CATypes authclient.HostAndUserCAInfo
 }
 
+// findPrimarySystemRole finds the primary role for the identity and validates that it is
+// a system role.
+// It returns the validated role and a bool indicating whether or not the role was found.
+func findPrimarySystemRole(i *tlsca.Identity) (types.SystemRole, bool) {
+	if i.ScopePin != nil {
+		role := types.SystemRole(i.ScopePin.GetSystemRoles().GetPrimary())
+		if err := role.Check(); err != nil {
+			return "", false
+		}
+		return role, true
+	}
+	for _, role := range i.Groups {
+		systemRole := types.SystemRole(role)
+		err := systemRole.Check()
+		if err == nil {
+			return systemRole, true
+		}
+	}
+	return "", false
+}
+
 // verifyPeerCert returns a function that checks that the client peer
 // certificate's cluster name matches the cluster name of the CA
 // that issued it.
@@ -125,11 +146,11 @@ func (p *HostAndUserCAPoolInfo) verifyPeerCert() func([][]byte, [][]*x509.Certif
 		}
 
 		// Ensure the CA that issued this client cert is of the appropriate type
-		systemRole := findPrimarySystemRole(identity.Groups)
-		if systemRole != nil && !ca.IsHostCA {
+		systemRole, found := findPrimarySystemRole(identity)
+		if found && !ca.IsHostCA {
 			slog.WarnContext(context.TODO(), "Client peer certificate has a builtin role but was not issued by a host CA", "role", systemRole.String())
 			return trace.AccessDenied(invalidCertErrMsg)
-		} else if systemRole == nil && !ca.IsUserCA {
+		} else if !found && !ca.IsUserCA {
 			slog.WarnContext(context.TODO(), "Client peer certificate has a local role but was not issued by a user CA")
 			return trace.AccessDenied(invalidCertErrMsg)
 		}

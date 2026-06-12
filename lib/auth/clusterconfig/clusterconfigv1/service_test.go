@@ -32,6 +32,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/clusterconfig"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -541,6 +542,18 @@ func TestGetClusterNetworkingConfig(t *testing.T) {
 			assertion: func(t *testing.T, err error) {
 				require.NoError(t, err)
 			},
+		}, {
+			name: "authorized for cluster config",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{
+						rules: map[string][]string{types.KindClusterConfig: {types.VerbRead}},
+					},
+				}, nil
+			}),
+			assertion: func(t *testing.T, err error) {
+				require.NoError(t, err)
+			},
 		},
 	}
 
@@ -1043,6 +1056,18 @@ func TestGetSessionRecordingConfig(t *testing.T) {
 				return &authz.Context{
 					Checker: fakeChecker{
 						rules: map[string][]string{types.KindSessionRecordingConfig: {types.VerbRead}},
+					},
+				}, nil
+			}),
+			assertion: func(t *testing.T, err error) {
+				require.NoError(t, err)
+			},
+		}, {
+			name: "authorized for cluster config",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{
+						rules: map[string][]string{types.KindClusterConfig: {types.VerbRead}},
 					},
 				}, nil
 			}),
@@ -1697,6 +1722,12 @@ type serviceOpt = func(config *envConfig)
 func withAuthorizer(authz authz.Authorizer) serviceOpt {
 	return func(config *envConfig) {
 		config.authorizer = authz
+	}
+}
+
+func withScopedAuthorizer(scopedAuthz authz.ScopedAuthorizer) serviceOpt {
+	return func(config *envConfig) {
+		config.scopedAuthorizer = scopedAuthz
 	}
 }
 
@@ -2418,6 +2449,212 @@ func TestGetClusterName(t *testing.T) {
 			}
 
 			env, err := newTestEnv(withAuthorizer(test.authorizer), withClusterName(defaultCn))
+			require.NoError(t, err, "creating test service")
+
+			cn, err := env.GetClusterName(context.Background(), &clusterconfigpb.GetClusterNameRequest{})
+			test.assertion(t, cn, err)
+		})
+	}
+}
+
+type noopChecker struct {
+	services.AccessChecker
+}
+
+func (noopChecker) CheckAccessToRule(context services.RuleContext, namespace, rule, verb string) error {
+	return errors.New("noop")
+}
+
+func TestScopedGetClusterNetworkingConfig(t *testing.T) {
+	defaultCN, err := types.NewClusterName(types.ClusterNameSpecV2{
+		ClusterName: "my.example.com",
+		ClusterID:   "0000-0000-0000-0000",
+	})
+	require.NoError(t, err, "creating default cluster name")
+
+	defaultCNC := types.DefaultClusterNetworkingConfig()
+
+	const clusterName = "test-cluster"
+	const scope = "/aa/bb"
+	const systemRole = types.RoleNode
+	cases := []struct {
+		name             string
+		scopedAuthorizer scopedAuthorizerFunc
+		testSetup        func(*testing.T)
+		assertion        func(t *testing.T, cnc *types.ClusterNetworkingConfigV2, err error)
+	}{
+		{
+			name: "unauthorized",
+			scopedAuthorizer: scopedAuthorizerFunc(func(ctx context.Context) (*authz.ScopedContext, error) {
+				// we setup a full scoped checker context to make sure that we're evaluating scoped access rules
+				// and determining that VerbRead is not permitted for KindClusterName
+				checkerCtx, err := services.NewScopedAccessCheckerContextForAgentPin(&scopesv1.Pin{
+					Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
+					Scope: scope,
+					SystemRoles: &scopesv1.SystemRoles{
+						Primary: string(systemRole),
+					},
+				}, map[string]*services.ScopedAccessChecker{
+					string(systemRole): services.NewScopedAccessCheckerFromUnscoped(noopChecker{}),
+				})
+				if err != nil {
+					return nil, err
+				}
+				return &authz.ScopedContext{
+					CheckerContext: checkerCtx,
+				}, nil
+			}),
+			assertion: func(t *testing.T, cnc *types.ClusterNetworkingConfigV2, err error) {
+				assert.Nil(t, cnc)
+				require.True(t, trace.IsAccessDenied(err), "got (%v), expected unauthorized user to prevent resetting access graph settings", err)
+			},
+		},
+		{
+			name: "success",
+			scopedAuthorizer: scopedAuthorizerFunc(func(ctx context.Context) (*authz.ScopedContext, error) {
+				roleSet, err := authz.RoleSetForBuiltinRoles(clusterName, nil, true, systemRole)
+				if err != nil {
+					return nil, err
+				}
+				checker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
+					Roles: []string{string(systemRole)},
+				}, clusterName, roleSet)
+				checkerCtx, err := services.NewScopedAccessCheckerContextForAgentPin(&scopesv1.Pin{
+					Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
+					Scope: scope,
+					SystemRoles: &scopesv1.SystemRoles{
+						Primary: string(systemRole),
+					},
+				}, map[string]*services.ScopedAccessChecker{
+					string(systemRole): services.NewScopedAccessCheckerForSystemRole(string(systemRole), checker),
+				})
+				if err != nil {
+					return nil, err
+				}
+				return &authz.ScopedContext{
+					CheckerContext: checkerCtx,
+				}, nil
+			}),
+			assertion: func(t *testing.T, cnc *types.ClusterNetworkingConfigV2, err error) {
+				require.NoError(t, err)
+				require.Empty(t, cmp.Diff(defaultCNC, cnc, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+			},
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			if test.testSetup != nil {
+				test.testSetup(t)
+			}
+
+			authorizer := authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return nil, errors.New("unscoped authorizer should not be called")
+			})
+
+			env, err := newTestEnv(
+				withAuthorizer(authorizer),
+				withScopedAuthorizer(test.scopedAuthorizer),
+				withClusterName(defaultCN),
+				withDefaultClusterNetworkingConfig(defaultCNC),
+			)
+			require.NoError(t, err, "creating test service")
+
+			cn, err := env.GetClusterNetworkingConfig(context.Background(), &clusterconfigpb.GetClusterNetworkingConfigRequest{})
+			test.assertion(t, cn, err)
+		})
+	}
+}
+
+func TestScopedGetClusterName(t *testing.T) {
+	defaultCN, err := types.NewClusterName(types.ClusterNameSpecV2{
+		ClusterName: "my.example.com",
+		ClusterID:   "0000-0000-0000-0000",
+	})
+	require.NoError(t, err)
+	const scope = "/aa/bb"
+	const systemRole = types.RoleNode
+	cases := []struct {
+		name             string
+		scopedAuthorizer scopedAuthorizerFunc
+		testSetup        func(*testing.T)
+		assertion        func(t *testing.T, cn *types.ClusterNameV2, err error)
+	}{
+		{
+			name: "unauthorized",
+			scopedAuthorizer: scopedAuthorizerFunc(func(ctx context.Context) (*authz.ScopedContext, error) {
+				// we setup a full scoped checker context to make sure that we're evaluating scoped access rules
+				// and determining that VerbRead is not permitted for KindClusterName
+				checkerCtx, err := services.NewScopedAccessCheckerContextForAgentPin(&scopesv1.Pin{
+					Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
+					Scope: scope,
+					SystemRoles: &scopesv1.SystemRoles{
+						Primary: string(systemRole),
+					},
+				}, map[string]*services.ScopedAccessChecker{
+					string(systemRole): services.NewScopedAccessCheckerFromUnscoped(noopChecker{}),
+				})
+				if err != nil {
+					return nil, err
+				}
+				return &authz.ScopedContext{
+					CheckerContext: checkerCtx,
+				}, nil
+			}),
+			assertion: func(t *testing.T, cn *types.ClusterNameV2, err error) {
+				assert.Nil(t, cn)
+				require.True(t, trace.IsAccessDenied(err), "got (%v), expected unauthorized user to prevent resetting access graph settings", err)
+			},
+		},
+		{
+			name: "success",
+			scopedAuthorizer: scopedAuthorizerFunc(func(ctx context.Context) (*authz.ScopedContext, error) {
+				roleSet, err := authz.RoleSetForBuiltinRoles(defaultCN.GetClusterName(), nil, true, systemRole)
+				if err != nil {
+					return nil, err
+				}
+				checker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
+					Roles: []string{string(systemRole)},
+				}, defaultCN.GetClusterName(), roleSet)
+				checkerCtx, err := services.NewScopedAccessCheckerContextForAgentPin(&scopesv1.Pin{
+					Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
+					Scope: scope,
+					SystemRoles: &scopesv1.SystemRoles{
+						Primary: string(systemRole),
+					},
+				}, map[string]*services.ScopedAccessChecker{
+					string(systemRole): services.NewScopedAccessCheckerForSystemRole(string(systemRole), checker),
+				})
+				if err != nil {
+					return nil, err
+				}
+				return &authz.ScopedContext{
+					CheckerContext: checkerCtx,
+				}, nil
+			}),
+			assertion: func(t *testing.T, cn *types.ClusterNameV2, err error) {
+				require.NoError(t, err)
+				require.Equal(t, defaultCN.GetClusterName(), cn.GetClusterName())
+				require.Equal(t, defaultCN.GetClusterID(), cn.GetClusterID())
+			},
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			if test.testSetup != nil {
+				test.testSetup(t)
+			}
+
+			authorizer := authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return nil, errors.New("unscoped authorizer should not be called")
+			})
+
+			env, err := newTestEnv(
+				withAuthorizer(authorizer),
+				withScopedAuthorizer(test.scopedAuthorizer),
+				withClusterName(defaultCN),
+			)
 			require.NoError(t, err, "creating test service")
 
 			cn, err := env.GetClusterName(context.Background(), &clusterconfigpb.GetClusterNameRequest{})

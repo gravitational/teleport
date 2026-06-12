@@ -262,8 +262,10 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := healthCheckManager.Start(process.ExitContext()); err != nil {
-		return trace.Wrap(err)
+	if conn.Scope() == "" {
+		if err := healthCheckManager.Start(process.ExitContext()); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	var publicAddr string
