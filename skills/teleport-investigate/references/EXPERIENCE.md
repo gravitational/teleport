@@ -269,12 +269,6 @@ start with low-cost searches and refine until the result set is narrow.
 - **Empty `data`** — broaden the time window, or add `--show-unmatched` to a
   `--facets-only` run to discover which filter values actually exist in the
   window, then adjust the filter.
-<!-- TODO: Remove Geo filter restriction after stats endpoint adds support -->
-- **Geo filters apply to events only.** `--latitude`/`--longitude`/`--radius`
-  (all three required together) restrict the `data` array but **not** `total` or
-  the facet counts — those come from a stats endpoint that ignores geo. Expect
-  `total` to exceed `len(data)` with geo set even without `--limit` truncation;
-  explain this, don't report it as an inconsistency.
 - **Negative coordinates need the equals form.** A negative `--latitude` or
   `--longitude` is misread as a flag (`expected argument for flag '--latitude'`);
   pass it as `--latitude=-26.2309 --longitude=28.0583`.
