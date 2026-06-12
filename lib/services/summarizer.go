@@ -19,6 +19,7 @@ package services
 import (
 	"context"
 	"iter"
+	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -78,6 +79,19 @@ type Summarizer interface {
 	// backend by name.
 	DeleteInferencePolicy(ctx context.Context, name string) error
 
+	// CreateClassifier creates a new session summarization classifier in the
+	// backend.
+	CreateClassifier(ctx context.Context, classifier *summarizerv1.Classifier) (*summarizerv1.Classifier, error)
+	// UpdateClassifier updates an existing session summarization classifier in
+	// the backend.
+	UpdateClassifier(ctx context.Context, classifier *summarizerv1.Classifier) (*summarizerv1.Classifier, error)
+	// UpsertClassifier creates or updates a session summarization classifier
+	// in the backend. If the classifier already exists, it will be updated.
+	UpsertClassifier(ctx context.Context, classifier *summarizerv1.Classifier) (*summarizerv1.Classifier, error)
+	// DeleteClassifier deletes a session summarization classifier from the
+	// backend by name.
+	DeleteClassifier(ctx context.Context, name string) error
+
 	// CreateRetrievalModel creates the search model in the backend.
 	// Only one RetrievalModel can exist per cluster.
 	CreateRetrievalModel(ctx context.Context, model *summarizerv1.RetrievalModel) (*summarizerv1.RetrievalModel, error)
@@ -121,6 +135,17 @@ type SummarizerServiceGetter interface {
 	// AllInferencePolicies returns an iterator that retrieves all session
 	// summary inference policies from the backend, without pagination.
 	AllInferencePolicies(ctx context.Context) iter.Seq2[*summarizerv1.InferencePolicy, error]
+
+	// GetClassifier retrieves a session summarization classifier from the
+	// backend by name.
+	GetClassifier(ctx context.Context, name string) (*summarizerv1.Classifier, error)
+	// ListClassifiers lists session summarization classifiers in the backend
+	// with pagination support. Returns a slice of classifiers and a next page
+	// token.
+	ListClassifiers(ctx context.Context, size int, pageToken string) ([]*summarizerv1.Classifier, string, error)
+	// AllClassifiers returns an iterator that retrieves all session
+	// summarization classifiers from the backend, without pagination.
+	AllClassifiers(ctx context.Context) iter.Seq2[*summarizerv1.Classifier, error]
 
 	// GetRetrievalModel retrieves the search model from the backend.
 	// Since only one RetrievalModel can exist per cluster, no name is required.
@@ -232,6 +257,76 @@ func (ctx *InferencePolicyMatchingContext) GetResource() (types.Resource, error)
 func (ctx *InferencePolicyMatchingContext) ExtendWithSessionEnd(sessionEnd events.AuditEvent) {
 	ctx.Session = sessionEnd
 	ctx.Resource = rebuildResourceFromSessionEndEvent(sessionEnd)
+}
+
+// MatchingClassifiers returns the classifiers from the given sequence that
+// apply to a session of the given kind and matching context. Classifiers are
+// matched by session kind and filter expression the same way inference
+// policies are, except that all matching classifiers are returned rather than
+// the first one. The sequence is typically
+// [SummarizerServiceGetter.AllClassifiers].
+func MatchingClassifiers(
+	classifiers iter.Seq2[*summarizerv1.Classifier, error],
+	sessionKind types.SessionKind,
+	matchingCtx *InferencePolicyMatchingContext,
+) ([]*summarizerv1.Classifier, error) {
+	parser, err := NewWhereParser(matchingCtx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var matched []*summarizerv1.Classifier
+	for c, err := range classifiers {
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if !slices.Contains(c.GetSpec().GetKinds(), string(sessionKind)) {
+			continue
+		}
+
+		if filter := c.GetSpec().GetFilter(); filter != "" {
+			parseResult, err := parser.Parse(filter)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			pred, ok := parseResult.(predicate.BoolPredicate)
+			if !ok {
+				return nil, trace.BadParameter("unsupported type: %T", parseResult)
+			}
+
+			if !pred() {
+				continue
+			}
+		}
+
+		matched = append(matched, c)
+	}
+	return matched, nil
+}
+
+// ValidateClassifier validates a classifier, including checking filter
+// syntax. This function wraps [apisummarizer.ValidateClassifier], as no
+// function in the api/types tree can depend on the lib/services package.
+func ValidateClassifier(c *summarizerv1.Classifier) error {
+	err := apisummarizer.ValidateClassifier(c)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	s := c.GetSpec()
+	if s.GetFilter() != "" {
+		parser, err := NewWhereParser(&InferencePolicyMatchingContext{})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if _, err = parser.Parse(s.GetFilter()); err != nil {
+			return trace.Wrap(err, "spec.filter has to be a valid predicate")
+		}
+	}
+
+	return nil
 }
 
 // ValidateInferencePolicy validates an inference policy, including checking

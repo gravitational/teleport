@@ -95,6 +95,29 @@ func TestInferencePolicyCache(t *testing.T) {
 	})
 }
 
+func TestClassifierCache(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources153(t, p, testFuncs[*summarizerv1.Classifier]{
+		newResource: func(name string) (*summarizerv1.Classifier, error) {
+			return summarizer.NewClassifier(name, summarizerv1.ClassifierSpec_builder{
+				Kinds:    []string{string(types.SSHSessionKind)},
+				Criteria: "sessions that touch production data",
+			}.Build()), nil
+		},
+		create: func(ctx context.Context, item *summarizerv1.Classifier) error {
+			_, err := p.summarizer.CreateClassifier(ctx, item)
+			return err
+		},
+		list:      p.summarizer.ListClassifiers,
+		cacheList: p.cache.ListClassifiers,
+		deleteAll: p.summarizer.DeleteAllClassifiers,
+	})
+}
+
 func TestRetrievalModelCache(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		p := newTestPack(t, ForAuth)

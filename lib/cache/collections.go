@@ -157,6 +157,7 @@ type collections struct {
 	inferenceModels                    *collection[*summarizerv1.InferenceModel, inferenceModelIndex]
 	inferenceSecrets                   *collection[*summarizerv1.InferenceSecret, inferenceSecretIndex]
 	inferencePolicies                  *collection[*summarizerv1.InferencePolicy, inferencePolicyIndex]
+	classifiers                        *collection[*summarizerv1.Classifier, classifierIndex]
 	retrievalModels                    *collection[*summarizerv1.RetrievalModel, retrievalModelIndex]
 	certAuthorityOverrides             *collection[*subcav1.CertAuthorityOverride, certAuthorityOverrideIndex]
 }
@@ -838,6 +839,14 @@ func setupCollections(c Config) (*collections, error) {
 
 			out.inferencePolicies = collect
 			out.byKind[resourceKind] = out.inferencePolicies
+		case types.KindClassifier:
+			collect, err := newClassifierCollection(c.Summarizer, watch)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			out.classifiers = collect
+			out.byKind[resourceKind] = out.classifiers
 		case types.KindRetrievalModel:
 			collect, err := newRetrievalModelCollection(c.Summarizer, watch)
 			if err != nil {

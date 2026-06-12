@@ -227,6 +227,78 @@ func ValidateInferencePolicy(p *summarizerv1.InferencePolicy) error {
 	return nil
 }
 
+// NewClassifier creates a new Classifier resource with the given name and
+// spec.
+func NewClassifier(name string, spec *summarizerv1.ClassifierSpec) *summarizerv1.Classifier {
+	return &summarizerv1.Classifier{
+		Kind:    types.KindClassifier,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: name,
+		},
+		Spec: spec,
+	}
+}
+
+// ValidateClassifier validates a Classifier. This function doesn't validate
+// the Filter field, as it's unable to access the lib/services package; to
+// fully validate a classifier, use lib/services.ValidateClassifier.
+func ValidateClassifier(c *summarizerv1.Classifier) error {
+	switch {
+	case c == nil:
+		return trace.BadParameter("classifier is nil")
+	case c.GetKind() != types.KindClassifier:
+		return trace.BadParameter("kind must be %s, got %s", types.KindClassifier, c.GetKind())
+	case c.GetSubKind() != "":
+		return trace.BadParameter("subkind must be empty")
+	case c.GetVersion() == "":
+		return trace.BadParameter("version is required")
+	case c.GetVersion() != types.V1:
+		return trace.BadParameter("unsupported version %s, supported: %s", c.GetVersion(), types.V1)
+
+	case c.GetMetadata() == nil:
+		return trace.BadParameter("metadata is required")
+	case c.GetMetadata().GetName() == "":
+		return trace.BadParameter("metadata.name is required")
+
+	case c.GetSpec() == nil:
+		return trace.BadParameter("spec is required")
+	}
+
+	kinds := c.GetSpec().GetKinds()
+	if len(kinds) == 0 {
+		return trace.BadParameter("spec.kinds are required")
+	}
+	supportedKinds := []string{
+		string(types.SSHSessionKind),
+		string(types.KubernetesSessionKind),
+		string(types.DatabaseSessionKind),
+	}
+	for _, kind := range kinds {
+		if !slices.Contains(supportedKinds, kind) {
+			return trace.BadParameter(
+				"unsupported kind in spec.kinds: %s, supported: %v",
+				kind, strings.Join(supportedKinds, ", "),
+			)
+		}
+	}
+
+	if strings.TrimSpace(c.GetSpec().GetCriteria()) == "" {
+		return trace.BadParameter("spec.criteria is required")
+	}
+
+	if a := c.GetSpec().GetActions(); a != nil {
+		if _, ok := summarizerv1.RiskLevel_name[int32(a.GetRiskLevelFloor())]; !ok {
+			return trace.BadParameter(
+				"spec.actions.risk_level_floor has an unsupported value %d",
+				a.GetRiskLevelFloor(),
+			)
+		}
+	}
+
+	return nil
+}
+
 // NewRetrievalModel creates a new RetrievalModel resource with the given spec.
 // Since only one RetrievalModel can exist per cluster, a fixed name is used.
 func NewRetrievalModel(spec *summarizerv1.RetrievalModelSpec) *summarizerv1.RetrievalModel {
