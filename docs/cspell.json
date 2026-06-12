@@ -586,6 +586,7 @@
     "govulncheck",
     "goxmldsig",
     "gpgkey",
+    "gpresult",
     "gpupdate",
     "grafana",
     "grav",
