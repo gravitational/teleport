@@ -223,6 +223,109 @@ func TestValidateInferenceSecret(t *testing.T) {
 	}
 }
 
+func TestValidateClassifier(t *testing.T) {
+	t.Parallel()
+	valid := NewClassifier("my-classifier", &summarizerv1.ClassifierSpec{
+		Kinds:    []string{"ssh", "k8s", "db"},
+		Filter:   `equals(resource.metadata.labels["env"], "prod")`,
+		Criteria: "Sessions that modify production database schemas",
+		Actions: &summarizerv1.ClassifierActions{
+			EmitAuditEvent: summarizerv1.ClassifierActionMode_CLASSIFIER_ACTION_MODE_ENABLED,
+			RiskLevelFloor: summarizerv1.RiskLevel_RISK_LEVEL_HIGH,
+			FlagForReview:  summarizerv1.ClassifierActionMode_CLASSIFIER_ACTION_MODE_ENABLED,
+		},
+	})
+	require.NoError(t, ValidateClassifier(valid))
+	// Empty filter should also be valid.
+	valid.Spec.Filter = ""
+	require.NoError(t, ValidateClassifier(valid))
+	// Actions are optional.
+	valid.Spec.Actions = nil
+	require.NoError(t, ValidateClassifier(valid))
+
+	cases := []struct {
+		fn  func(c *summarizerv1.Classifier)
+		msg string
+	}{
+		{
+			fn:  func(c *summarizerv1.Classifier) { c.Kind = "other" },
+			msg: "kind must be classifier, got other",
+		},
+		{
+			fn:  func(c *summarizerv1.Classifier) { c.SubKind = "foo" },
+			msg: "subkind must be empty",
+		},
+		{
+			fn:  func(c *summarizerv1.Classifier) { c.Version = "" },
+			msg: "version is required",
+		},
+		{
+			fn:  func(c *summarizerv1.Classifier) { c.Version = types.V2 },
+			msg: "unsupported version v2, supported: v1",
+		},
+		{
+			fn:  func(c *summarizerv1.Classifier) { c.Metadata = nil },
+			msg: "metadata is required",
+		},
+		{
+			fn:  func(c *summarizerv1.Classifier) { c.Metadata.Name = "" },
+			msg: "metadata.name is required",
+		},
+		{
+			fn:  func(c *summarizerv1.Classifier) { c.Spec = nil },
+			msg: "spec is required",
+		},
+		{
+			fn:  func(c *summarizerv1.Classifier) { c.Spec.Kinds = nil },
+			msg: "spec.kinds are required",
+		},
+		{
+			fn:  func(c *summarizerv1.Classifier) { c.Spec.Kinds = []string{"foo"} },
+			msg: "unsupported kind in spec.kinds: foo, supported: ssh, k8s, db",
+		},
+		{
+			fn:  func(c *summarizerv1.Classifier) { c.Spec.Criteria = "" },
+			msg: "spec.criteria is required",
+		},
+		{
+			fn:  func(c *summarizerv1.Classifier) { c.Spec.Criteria = "   " },
+			msg: "spec.criteria is required",
+		},
+		{
+			fn: func(c *summarizerv1.Classifier) {
+				c.Spec.Actions = &summarizerv1.ClassifierActions{
+					RiskLevelFloor: summarizerv1.RiskLevel(42),
+				}
+			},
+			msg: "spec.actions.risk_level_floor has an unsupported value 42",
+		},
+		{
+			fn: func(c *summarizerv1.Classifier) {
+				c.Spec.Actions = &summarizerv1.ClassifierActions{
+					EmitAuditEvent: summarizerv1.ClassifierActionMode(42),
+				}
+			},
+			msg: "spec.actions.emit_audit_event has an unsupported value 42",
+		},
+		{
+			fn: func(c *summarizerv1.Classifier) {
+				c.Spec.Actions = &summarizerv1.ClassifierActions{
+					FlagForReview: summarizerv1.ClassifierActionMode(42),
+				}
+			},
+			msg: "spec.actions.flag_for_review has an unsupported value 42",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.msg, func(t *testing.T) {
+			c := proto.CloneOf(valid)
+			tc.fn(c)
+			assert.ErrorContains(t, ValidateClassifier(c), tc.msg)
+		})
+	}
+}
+
 func TestValidateInferencePolicy(t *testing.T) {
 	t.Parallel()
 	valid := NewInferencePolicy("my-policy", &summarizerv1.InferencePolicySpec{
