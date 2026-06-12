@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rate Limiter Bug Debugger — timePerToken = 0</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Courier New', monospace; background: #1e1e2e; color: #cdd6f4; min-height: 100vh; }
+
+  .layout { display: grid; grid-template-columns: 1fr 380px; grid-template-rows: auto 1fr auto; height: 100vh; gap: 0; }
+  .header { grid-column: 1 / -1; background: #181825; border-bottom: 1px solid #313244; padding: 12px 20px; display: flex; align-items: center; gap: 16px; }
+  .header h1 { font-size: 14px; color: #cba6f7; font-weight: bold; }
+  .header .subtitle { font-size: 12px; color: #6c7086; }
+
+  .code-panel { background: #1e1e2e; border-right: 1px solid #313244; overflow: auto; padding: 0; }
+  .sidebar { background: #181825; overflow: auto; display: flex; flex-direction: column; gap: 0; }
+  .footer { grid-column: 1 / -1; background: #11111b; border-top: 1px solid #313244; padding: 10px 20px; display: flex; align-items: center; gap: 12px; }
+
+  /* Code display */
+  .code-section { border-bottom: 1px solid #313244; }
+  .code-section-title { background: #181825; padding: 6px 16px; font-size: 11px; color: #89b4fa; border-bottom: 1px solid #313244; display: flex; align-items: center; gap: 8px; }
+  .code-section-title .file { color: #6c7086; }
+  .code-block { padding: 0; }
+  .code-line { display: flex; align-items: stretch; font-size: 12px; line-height: 1.7; padding: 0 8px 0 0; transition: background 0.1s; }
+  .code-line:hover { background: #2a2a3e; }
+  .code-line.active { background: #3b3b58 !important; border-left: 3px solid #f38ba8 !important; }
+  .code-line.active .ln { background: #3b3b58; color: #f38ba8; }
+  .code-line.highlight { background: #2e2e45; border-left: 3px solid #a6e3a1; }
+  .code-line.dim { opacity: 0.35; }
+  .ln { min-width: 42px; padding: 0 8px; color: #45475a; text-align: right; user-select: none; font-size: 11px; background: #181825; border-right: 1px solid #313244; margin-right: 12px; flex-shrink: 0; }
+  .code-text { white-space: pre; flex: 1; }
+
+  /* Syntax highlighting */
+  .kw { color: #cba6f7; }
+  .fn { color: #89b4fa; }
+  .ty { color: #89dceb; }
+  .num { color: #fab387; }
+  .str { color: #a6e3a1; }
+  .cm { color: #585b70; font-style: italic; }
+  .op { color: #89dceb; }
+  .var { color: #cdd6f4; }
+  .red { color: #f38ba8; font-weight: bold; }
+  .grn { color: #a6e3a1; }
+  .ylw { color: #f9e2af; }
+
+  /* Sidebar panels */
+  .panel { border-bottom: 1px solid #313244; }
+  .panel-title { padding: 8px 14px; font-size: 11px; color: #89b4fa; background: #1e1e2e; border-bottom: 1px solid #313244; text-transform: uppercase; letter-spacing: 0.05em; }
+  .panel-body { padding: 10px 14px; }
+
+  /* Call stack */
+  .stack-frame { padding: 5px 10px; border-radius: 4px; margin-bottom: 4px; font-size: 12px; border-left: 3px solid transparent; cursor: pointer; transition: background 0.1s; }
+  .stack-frame:hover { background: #2a2a3e; }
+  .stack-frame.active { background: #2e2e45; border-left-color: #f38ba8; }
+  .stack-frame.inactive { color: #6c7086; border-left-color: #313244; }
+  .stack-frame .fname { color: #89b4fa; }
+  .stack-frame .ffile { font-size: 10px; color: #45475a; margin-top: 1px; }
+  .stack-frame .fline { font-size: 10px; color: #6c7086; float: right; }
+
+  /* Variables */
+  .var-row { display: flex; justify-content: space-between; align-items: baseline; padding: 4px 0; border-bottom: 1px solid #1e1e2e; font-size: 12px; }
+  .var-row:last-child { border-bottom: none; }
+  .var-name { color: #cba6f7; }
+  .var-type { color: #6c7086; font-size: 10px; margin-left: 4px; }
+  .var-val { color: #fab387; font-weight: bold; }
+  .var-val.good { color: #a6e3a1; }
+  .var-val.bad { color: #f38ba8; }
+  .var-val.warn { color: #f9e2af; }
+  .var-changed { animation: flash 0.4s ease; }
+  @keyframes flash { 0%,100% { background: transparent; } 50% { background: #3b3b58; } }
+
+  /* Explanation box */
+  .explanation { padding: 12px 14px; font-size: 12px; line-height: 1.7; color: #cdd6f4; }
+  .explanation .step-num { color: #89b4fa; font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 6px; }
+  .explanation .title { color: #cba6f7; font-weight: bold; margin-bottom: 8px; font-size: 13px; }
+  .explanation p { margin-bottom: 8px; color: #bac2de; }
+  .explanation .insight { background: #2a2a3e; border-left: 3px solid #f38ba8; padding: 8px 10px; margin-top: 8px; border-radius: 0 4px 4px 0; font-size: 11px; color: #f38ba8; line-height: 1.6; }
+  .explanation .ok-note { background: #2a2a3e; border-left: 3px solid #a6e3a1; padding: 8px 10px; margin-top: 8px; border-radius: 0 4px 4px 0; font-size: 11px; color: #a6e3a1; line-height: 1.6; }
+
+  /* Controls */
+  .btn { padding: 6px 14px; border-radius: 4px; border: 1px solid #45475a; background: #313244; color: #cdd6f4; cursor: pointer; font-size: 12px; font-family: inherit; transition: all 0.1s; }
+  .btn:hover { background: #45475a; border-color: #585b70; }
+  .btn:active { background: #585b70; }
+  .btn.primary { background: #89b4fa; color: #1e1e2e; border-color: #89b4fa; font-weight: bold; }
+  .btn.primary:hover { background: #b4d0fb; border-color: #b4d0fb; }
+  .btn.danger { background: #f38ba8; color: #1e1e2e; border-color: #f38ba8; font-weight: bold; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .progress { flex: 1; display: flex; align-items: center; gap: 8px; }
+  .progress-label { font-size: 11px; color: #6c7086; white-space: nowrap; }
+  .dots { display: flex; gap: 4px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #313244; border: 1px solid #45475a; transition: all 0.2s; cursor: pointer; }
+  .dot.done { background: #a6e3a1; border-color: #a6e3a1; }
+  .dot.active { background: #89b4fa; border-color: #89b4fa; box-shadow: 0 0 6px #89b4fa; }
+  .dot.bug { background: #f38ba8; border-color: #f38ba8; box-shadow: 0 0 6px #f38ba8; }
+
+  .status-bar { font-size: 11px; padding: 6px 20px; background: #11111b; border-top: 1px solid #313244; color: #6c7086; }
+  .status-bar .status-msg { color: #cdd6f4; }
+  .status-bar.is-bug { background: #2d1a1a; border-top-color: #f38ba8; }
+  .status-bar.is-bug .status-msg { color: #f38ba8; }
+
+  /* Scenario selector */
+  .scenario-row { display: flex; gap: 8px; flex-wrap: wrap; padding: 10px 14px; border-bottom: 1px solid #313244; }
+  .scenario-btn { padding: 4px 10px; font-size: 11px; border-radius: 3px; border: 1px solid #45475a; background: #313244; color: #cdd6f4; cursor: pointer; font-family: inherit; transition: all 0.1s; }
+  .scenario-btn:hover { background: #45475a; }
+  .scenario-btn.active { background: #cba6f7; color: #1e1e2e; border-color: #cba6f7; font-weight: bold; }
+
+  /* Input controls */
+  .input-row { display: flex; gap: 8px; align-items: center; padding: 8px 14px; border-bottom: 1px solid #313244; font-size: 12px; flex-wrap: wrap; }
+  .input-row label { color: #89b4fa; min-width: 120px; }
+  .input-row input { background: #1e1e2e; border: 1px solid #45475a; color: #fab387; padding: 3px 8px; border-radius: 3px; font-family: inherit; font-size: 12px; width: 90px; }
+  .input-row input:focus { outline: none; border-color: #89b4fa; }
+  .input-row .computed { color: #6c7086; font-size: 11px; }
+
+  .scroll-anchor { height: 1px; }
+</style>
+</head>
+<body>
+
+<div class="layout">
+  <div class="header">
+    <div>
+      <div class="header h1">&#x1F41B; Rate Limiter Bug Debugger</div>
+      <div class="subtitle">tokenbucket.go — timePerToken = 0 silent bypass &nbsp;|&nbsp; lib/limiter/internal/ratelimit/</div>
+    </div>
+  </div>
+
+  <!-- CODE PANEL -->
+  <div class="code-panel" id="codePanel"></div>
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="panel">
+      <div class="panel-title">Scenario</div>
+      <div class="scenario-row">
+        <button class="scenario-btn active" onclick="selectScenario('bug')">&#x1F534; Bug (average &gt; period)</button>
+        <button class="scenario-btn" onclick="selectScenario('ok')">&#x1F7E2; Safe (normal config)</button>
+        <button class="scenario-btn" onclick="selectScenario('boundary')">&#x1F7E1; Boundary</button>
+      </div>
+      <div class="input-row">
+        <label>period (ns)</label>
+        <input type="number" id="inp-period" value="1000" min="1" oninput="onParamChange()">
+        <span class="computed" id="period-display">1µs</span>
+      </div>
+      <div class="input-row">
+        <label>average (req/period)</label>
+        <input type="number" id="inp-average" value="1001" min="1" oninput="onParamChange()">
+      </div>
+      <div class="input-row">
+        <label>burst</label>
+        <input type="number" id="inp-burst" value="1" min="1" oninput="onParamChange()">
+        <span class="computed" id="tpt-display" style="color:#f38ba8"></span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Call Stack</div>
+      <div class="panel-body" id="callStack"></div>
+    </div>
+
+    <div class="panel" style="flex:1; overflow:auto;">
+      <div class="panel-title">Variables</div>
+      <div class="panel-body" id="variables"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Textbook Note</div>
+      <div id="explanation"></div>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <button class="btn" id="btn-prev" onclick="step(-1)">&#x25C4; Prev</button>
+    <button class="btn primary" id="btn-next" onclick="step(1)">Next &#x25BA;</button>
+    <button class="btn" onclick="reset()">&#x21BA; Reset</button>
+    <div class="progress">
+      <span class="progress-label">Step:</span>
+      <div class="dots" id="dots"></div>
+    </div>
+    <button class="btn danger" onclick="runAll()">&#x25B6; Run to Bug</button>
+  </div>
+</div>
+
+<div class="status-bar" id="statusBar">
+  <span class="status-msg" id="statusMsg">Select a scenario and press Next to step through the vulnerability.</span>
+</div>
+
+<script>
+// ─── SCENARIO DEFINITIONS ────────────────────────────────────────────────────
+
+const SCENARIOS = {
+  bug: {
+    period: 1000,       // 1000 ns = 1 µs
+    average: 1001,      // average > period → timePerToken = 1000/1001 = 0 (truncated)
+    burst: 1,
+    label: "Bug: average (1001) > period (1000ns) → integer division truncates to 0"
+  },
+  ok: {
+    period: 1_000_000_000,  // 1 second
+    average: 100,            // 100 req/s → timePerToken = 10,000,000 ns = 10ms
+    burst: 5,
+    label: "Safe: 100 req/s over 1s → timePerToken = 10ms, rate limiting works correctly"
+  },
+  boundary: {
+    period: 1000,
+    average: 1000,           // exactly equal → 1000/1000 = 1 ns
+    burst: 2,
+    label: "Boundary: average == period → timePerToken = 1ns (just barely non-zero)"
+  }
+};
+
+// ─── STEP DEFINITIONS ────────────────────────────────────────────────────────
+// Each step describes: which lines are active/highlighted, variables, call stack, explanation
+
+function buildSteps(p) {
+  const { period, average, burst } = p;
+  const timePerToken = Math.trunc(period / average);
+  const isBug = timePerToken === 0;
+
+  // Simulate state
+  let availableTokens = burst;
+  const tokensToConsume = 1;
+  const missingTokensBefore = Math.max(0, tokensToConsume - availableTokens);
+  const timeUntilResult = missingTokensBefore * timePerToken;
+
+  // After burst exhaustion:
+  availableTokens = 0;
+  const missingTokens = tokensToConsume - availableTokens; // = 1
+  const timeUntilAfterExhaust = missingTokens * timePerToken;
+  const consumeReturns = timeUntilAfterExhaust; // (delay, nil) from consume
+  const maxDelay = Math.max(-1, consumeReturns); // UndefinedDelay=-1
+  const rollbackTriggered = maxDelay > 0;
+
+  const nsFmt = ns => {
+    if (ns === 0) return '<span class="bad">0</span>';
+    if (ns < 0) return `<span class="warn">${ns} (UndefinedDelay)</span>`;
+    if (ns >= 1e9) return `<span class="good">${(ns/1e9).toFixed(3)}s</span>`;
+    if (ns >= 1e6) return `<span class="good">${(ns/1e6).toFixed(3)}ms</span>`;
+    if (ns >= 1e3) return `<span class="good">${(ns/1e3).toFixed(3)}µs</span>`;
+    return `<span class="good">${ns}ns</span>`;
+  };
+
+  return [
+    // STEP 0: Setup
+    {
+      id: "setup",
+      section: "newTokenBucket",
+      activeLine: "L145",
+      highlightLines: ["L141","L142","L143","L144","L145","L146","L147","L148","L149","L150","L151"],
+      stack: [
+        { name: "newTokenBucket", file: "tokenbucket.go", line: 141, active: true },
+      ],
+      vars: [
+        { name: "period", type: "time.Duration", val: `${period}ns`, cls: "" },
+        { name: "average", type: "int64", val: `${average}`, cls: "" },
+        { name: "burst", type: "int64", val: `${burst}`, cls: "" },
+        { name: "timePerToken", type: "time.Duration", val: `int64(${period}) / ${average} = ${timePerToken}ns`, cls: isBug ? "bad" : "good" },
+      ],
+      explanation: {
+        stepNum: "Step 1 of 7 — Constructor",
+        title: "newTokenBucket: integer division",
+        body: `<p>When a token bucket is created, <code>timePerToken</code> is computed as:</p>
+               <p><code>timePerToken = time.Duration(int64(period) / average)</code></p>
+               <p>This is integer division in Go. If <code>average &gt; int64(period)</code>, the result <strong>truncates to 0</strong> — not a tiny number, literally zero.</p>
+               ${isBug
+                 ? `<div class="insight">&#x26A0; BUG HERE: ${period} / ${average} = ${timePerToken} (truncated). The bucket thinks each token takes 0 nanoseconds to regenerate — an impossibly fast rate.</div>`
+                 : `<div class="ok-note">&#x2714; OK: ${period} / ${average} = ${timePerToken}ns per token. Rate limiting will work correctly.</div>`}`,
+        isBug: isBug,
+      },
+      status: isBug
+        ? `BUG: timePerToken = int64(${period}) / ${average} = ${timePerToken} (truncated to zero)`
+        : `OK: timePerToken = ${timePerToken}ns`,
+    },
+
+    // STEP 1: consumeRates calls Consume
+    {
+      id: "consumeRates",
+      section: "consumeRates",
+      activeLine: "CL137",
+      highlightLines: ["CL125","CL130","CL133","CL137","CL140","CL144","CL148"],
+      stack: [
+        { name: "consumeRates", file: "ratelimit.go", line: 137, active: true },
+        { name: "ServeHTTP", file: "ratelimit.go", line: 89, active: false },
+      ],
+      vars: [
+        { name: "amount", type: "int64", val: "1", cls: "" },
+        { name: "delay", type: "time.Duration", val: "(not yet returned)", cls: "" },
+        { name: "err", type: "error", val: "nil", cls: "good" },
+      ],
+      explanation: {
+        stepNum: "Step 2 of 7 — consumeRates",
+        title: "consumeRates: the outer check",
+        body: `<p><code>consumeRates</code> calls <code>bucketSet.Consume(1)</code> and then checks:</p>
+               <p><code>if delay &gt; 0 { return &amp;limitExceededError{...} }</code></p>
+               <p>This check is about to become the final gate. If <code>delay</code> comes back as <code>0</code> instead of a positive duration, this gate stays open and the request is allowed through.</p>
+               ${isBug
+                 ? `<div class="insight">&#x26A0; Because timePerToken = 0, Consume will return delay = 0. The check <code>0 &gt; 0</code> is FALSE — the limiter won't reject the request.</div>`
+                 : `<div class="ok-note">&#x2714; Consume will return a positive delay. The check will correctly fire.</div>`}`,
+        isBug: isBug,
+      },
+      status: "consumeRates → calling bucketSet.Consume(1)...",
+    },
+
+    // STEP 2: Consume (TokenBucketSet) - before burst exhaustion
+    {
+      id: "consume-burst",
+      section: "Consume",
+      activeLine: "TL91",
+      highlightLines: ["TL91","TL92","TL93","TL94","TL95","TL96","TL97","TL98","TL99","TL100","TL101","TL102","TL103","TL104","TL105","TL106","TL107","TL108","TL109","TL110","TL111","TL112","TL113","TL114","TL115"],
+      stack: [
+        { name: "Consume", file: "tokenbucket.go", line: 91, active: true },
+        { name: "consumeRates", file: "ratelimit.go", line: 137, active: false },
+        { name: "ServeHTTP", file: "ratelimit.go", line: 89, active: false },
+      ],
+      vars: [
+        { name: "tokens", type: "int64", val: `${tokensToConsume}`, cls: "" },
+        { name: "maxDelay", type: "time.Duration", val: "-1 (UndefinedDelay)", cls: "warn" },
+        { name: "firstErr", type: "error", val: "nil", cls: "good" },
+        { name: "availableTokens (before exhaust)", type: "int64", val: `${burst}`, cls: "good" },
+      ],
+      explanation: {
+        stepNum: "Step 3 of 7 — First N requests (burst)",
+        title: "Consume: the burst is being used",
+        body: `<p>The first <strong>${burst}</strong> request(s) succeed normally — the bucket starts full with <code>availableTokens = ${burst}</code>.</p>
+               <p>During these requests, <code>availableTokens &gt;= tokens</code>, so <code>timeUntilAvailable</code> is never reached. The bucket decrements and returns <code>(UndefinedDelay, nil)</code>.</p>
+               <p><strong>UndefinedDelay = -1</strong> is a sentinel: it means "no delay needed." The check <code>-1 &gt; 0</code> is FALSE, so the request is correctly allowed.</p>
+               <div class="ok-note">&#x2714; Burst phase is fine. The bug only surfaces <em>after</em> the burst is exhausted.</div>`,
+        isBug: false,
+      },
+      status: `Burst phase: availableTokens = ${burst}, requests allowed normally`,
+    },
+
+    // STEP 3: Burst exhausted, consume is called
+    {
+      id: "consume-inner",
+      section: "consume",
+      activeLine: "TL160",
+      highlightLines: ["TL155","TL156","TL157","TL158","TL159","TL160","TL161","TL162","TL163","TL164","TL165","TL166","TL167"],
+      stack: [
+        { name: "consume (tokenBucket)", file: "tokenbucket.go", line: 160, active: true },
+        { name: "Consume (TokenBucketSet)", file: "tokenbucket.go", line: 104, active: false },
+        { name: "consumeRates", file: "ratelimit.go", line: 137, active: false },
+      ],
+      vars: [
+        { name: "availableTokens", type: "int64", val: "0 (burst exhausted)", cls: "warn" },
+        { name: "tokens", type: "int64", val: `${tokensToConsume}`, cls: "" },
+        { name: "condition", type: "bool", val: `availableTokens(0) < tokens(${tokensToConsume}) → TRUE`, cls: "warn" },
+      ],
+      explanation: {
+        stepNum: "Step 4 of 7 — Burst exhausted",
+        title: "consume: the bucket is empty",
+        body: `<p>Now <code>availableTokens = 0</code> and we try to consume <code>${tokensToConsume}</code> token(s).</p>
+               <p>The condition <code>tb.availableTokens &lt; tokens</code> is TRUE. The code calls <code>tb.timeUntilAvailable(tokens)</code> to find out how long to wait.</p>
+               <p>This is the <strong>critical moment</strong>. The returned delay determines whether the request is rejected.</p>
+               ${isBug
+                 ? `<div class="insight">&#x26A0; timePerToken = 0 is stored in the bucket. Let's see what timeUntilAvailable returns...</div>`
+                 : `<div class="ok-note">&#x2714; timePerToken = ${timePerToken}ns. The delay will be correctly computed.</div>`}`,
+        isBug: isBug,
+      },
+      status: `Bucket empty: availableTokens=0 < tokens=${tokensToConsume} → calling timeUntilAvailable(${tokensToConsume})`,
+    },
+
+    // STEP 4: timeUntilAvailable
+    {
+      id: "timeUntilAvailable",
+      section: "timeUntilAvailable",
+      activeLine: "TL197",
+      highlightLines: ["TL195","TL196","TL197"],
+      stack: [
+        { name: "timeUntilAvailable", file: "tokenbucket.go", line: 197, active: true },
+        { name: "consume", file: "tokenbucket.go", line: 160, active: false },
+        { name: "Consume", file: "tokenbucket.go", line: 104, active: false },
+        { name: "consumeRates", file: "ratelimit.go", line: 137, active: false },
+      ],
+      vars: [
+        { name: "tokens (param)", type: "int64", val: `${tokensToConsume}`, cls: "" },
+        { name: "tb.availableTokens", type: "int64", val: "0", cls: "warn" },
+        { name: "missingTokens", type: "int64", val: `${tokensToConsume} - 0 = ${missingTokens}`, cls: "" },
+        { name: "tb.timePerToken", type: "time.Duration", val: `${timePerToken}ns`, cls: isBug ? "bad" : "good" },
+        { name: "return value", type: "time.Duration", val: `${missingTokens} × ${timePerToken} = <strong>${timeUntilAfterExhaust}ns</strong>`, cls: isBug ? "bad" : "good" },
+      ],
+      explanation: {
+        stepNum: "Step 5 of 7 — timeUntilAvailable",
+        title: isBug ? "THE BUG: 1 × 0 = 0" : "timeUntilAvailable: correct delay",
+        body: `<p>The formula is: <code>missingTokens × tb.timePerToken</code></p>
+               <p><code>missingTokens = ${tokensToConsume} - 0 = ${missingTokens}</code></p>
+               <p><code>return time.Duration(${missingTokens}) * ${timePerToken} = <strong>${timeUntilAfterExhaust}</strong></code></p>
+               ${isBug
+                 ? `<div class="insight">&#x26A0; The bucket is empty, but the function says "you need to wait 0 nanoseconds." This is mathematically nonsensical — 0 means instant availability, but the bucket is dry. The contract is violated: a non-zero delay should always be returned when tokens are insufficient.</div>`
+                 : `<div class="ok-note">&#x2714; ${missingTokens} × ${timePerToken}ns = ${timeUntilAfterExhaust}ns. The caller gets a meaningful delay and will reject the request.</div>`}`,
+        isBug: isBug,
+      },
+      status: isBug
+        ? `BUG: timeUntilAvailable returns 0 — empty bucket looks like "no delay needed"`
+        : `OK: timeUntilAvailable returns ${timeUntilAfterExhaust}ns`,
+    },
+
+    // STEP 5: Back in Consume — rollback check
+    {
+      id: "rollback-check",
+      section: "Consume",
+      activeLine: "TL107",
+      highlightLines: ["TL104","TL105","TL106","TL107","TL108","TL109","TL110","TL111","TL112","TL113"],
+      stack: [
+        { name: "Consume (TokenBucketSet)", file: "tokenbucket.go", line: 107, active: true },
+        { name: "consumeRates", file: "ratelimit.go", line: 137, active: false },
+        { name: "ServeHTTP", file: "ratelimit.go", line: 89, active: false },
+      ],
+      vars: [
+        { name: "delay (from consume)", type: "time.Duration", val: `${nsFmt(consumeReturns)}ns`, cls: "" },
+        { name: "maxDelay", type: "time.Duration", val: `max(-1, ${consumeReturns}) = ${maxDelay}`, cls: isBug ? "bad" : "good" },
+        { name: "firstErr", type: "error", val: "nil", cls: "good" },
+        { name: "rollback condition", type: "bool", val: `firstErr!=nil(F) || maxDelay>0(${maxDelay}>0 = ${rollbackTriggered})`, cls: rollbackTriggered ? "good" : "bad" },
+        { name: "rollback triggered?", type: "bool", val: rollbackTriggered ? "YES ✓" : "NO — tokens NOT restored!", cls: rollbackTriggered ? "good" : "bad" },
+      ],
+      explanation: {
+        stepNum: "Step 6 of 7 — Rollback check",
+        title: isBug ? "Rollback skipped: 0 > 0 is FALSE" : "Rollback correctly triggered",
+        body: `<p>After all buckets are consumed, <code>Consume</code> checks:</p>
+               <p><code>if firstErr != nil || maxDelay &gt; 0 { rollback() }</code></p>
+               <p>The rollback restores tokens and signals "retry later." It only fires if the delay is strictly positive.</p>
+               ${isBug
+                 ? `<div class="insight">&#x26A0; maxDelay = 0. The check is <code>0 &gt; 0</code> = FALSE. Rollback is skipped. The tokens were already subtracted (they go negative), and Consume returns <code>(0, nil)</code> — which looks identical to a successful, non-rate-limited request.</div>`
+                 : `<div class="ok-note">&#x2714; maxDelay = ${maxDelay} > 0. Rollback fires, tokens restored. Consume returns <code>(${maxDelay}ns, nil)</code>, and consumeRates will reject with LimitExceeded.</div>`}`,
+        isBug: isBug,
+      },
+      status: isBug
+        ? `BUG: maxDelay=0, rollback skipped, Consume returns (0, nil)`
+        : `OK: maxDelay=${maxDelay}ns, rollback triggered, request rejected`,
+    },
+
+    // STEP 6: Back in consumeRates — final gate
+    {
+      id: "final-gate",
+      section: "consumeRates",
+      activeLine: "CL140",
+      highlightLines: ["CL137","CL138","CL139","CL140","CL141","CL142","CL143","CL144","CL145","CL146","CL147","CL148"],
+      stack: [
+        { name: "consumeRates", file: "ratelimit.go", line: 140, active: true },
+        { name: "ServeHTTP", file: "ratelimit.go", line: 89, active: false },
+      ],
+      vars: [
+        { name: "delay (from Consume)", type: "time.Duration", val: `${nsFmt(consumeReturns)}`, cls: isBug ? "bad" : "good" },
+        { name: "err", type: "error", val: "nil", cls: "good" },
+        { name: "gate condition", type: "bool", val: `delay > 0 → ${consumeReturns} > 0 = ${consumeReturns > 0}`, cls: consumeReturns > 0 ? "good" : "bad" },
+        { name: "request outcome", type: "", val: isBug ? "ALLOWED (bypass!)" : "REJECTED (correct)", cls: isBug ? "bad" : "good" },
+      ],
+      explanation: {
+        stepNum: "Step 7 of 7 — Final gate",
+        title: isBug ? "BYPASS COMPLETE: request allowed forever" : "Request correctly rejected",
+        body: `<p>The final check in <code>consumeRates</code>:</p>
+               <p><code>if delay &gt; 0 { return &amp;limitExceededError{delay: delay} }</code></p>
+               <p><code>return nil</code></p>
+               ${isBug
+                 ? `<div class="insight">&#x26A0; delay = 0. The check <code>0 &gt; 0</code> is FALSE. The function falls through and returns <code>nil</code> — telling the HTTP handler "everything is fine, serve the request." Every subsequent request also gets delay=0. The rate limiter is now permanently disabled for this token. This is a complete, silent bypass.</div>`
+                 : `<div class="ok-note">&#x2714; delay = ${consumeReturns}ns &gt; 0. The check fires and returns a LimitExceededError. The HTTP handler gets a 429 response. Rate limiting works as intended.</div>`}`,
+        isBug: isBug,
+      },
+      status: isBug
+        ? `VULNERABILITY: Rate limit bypassed permanently. All requests allowed. delay=0 > 0 is FALSE.`
+        : `OK: Request rejected with delay=${consumeReturns}ns. Rate limiting is effective.`,
+      isBugFinal: isBug,
+    },
+  ];
+}
+
+// ─── CODE SNIPPETS ────────────────────────────────────────────────────────────
+
+const CODE = {
+  newTokenBucket: {
+    title: "newTokenBucket", file: "tokenbucket.go:141",
+    lines: [
+      { id: "L141", n: 141, code: `<span class="kw">func</span> <span class="fn">newTokenBucket</span>(rate *<span class="ty">rate</span>, clock <span class="ty">clockwork.Clock</span>) *<span class="ty">tokenBucket</span> {` },
+      { id: "L142", n: 142, code: `    period := cmp.<span class="fn">Or</span>(rate.period, time.Nanosecond)` },
+      { id: "L143", n: 143, code: `    <span class="kw">return</span> &<span class="ty">tokenBucket</span>{` },
+      { id: "L144", n: 144, code: `        period:       period,` },
+      { id: "L145", n: 145, code: `        timePerToken: <span class="ty">time.Duration</span>(<span class="fn">int64</span>(period) / rate.average), <span class="cm">// ← integer division!</span>` },
+      { id: "L146", n: 146, code: `        burst:        rate.burst,` },
+      { id: "L147", n: 147, code: `        clock:        clock,` },
+      { id: "L148", n: 148, code: `        lastRefresh:  clock.<span class="fn">Now</span>().<span class="fn">UTC</span>(),` },
+      { id: "L149", n: 149, code: `        availableTokens: rate.burst,` },
+      { id: "L150", n: 150, code: `    }` },
+      { id: "L151", n: 151, code: `}` },
+    ]
+  },
+  timeUntilAvailable: {
+    title: "timeUntilAvailable", file: "tokenbucket.go:195",
+    lines: [
+      { id: "TL195", n: 195, code: `<span class="kw">func</span> (tb *<span class="ty">tokenBucket</span>) <span class="fn">timeUntilAvailable</span>(tokens <span class="ty">int64</span>) <span class="ty">time.Duration</span> {` },
+      { id: "TL196", n: 196, code: `    missingTokens := tokens - tb.availableTokens` },
+      { id: "TL197", n: 197, code: `    <span class="kw">return</span> <span class="ty">time.Duration</span>(missingTokens) * tb.timePerToken <span class="cm">// = 0 when timePerToken=0!</span>` },
+      { id: "TL198", n: 198, code: `}` },
+    ]
+  },
+  consume: {
+    title: "consume (tokenBucket)", file: "tokenbucket.go:155",
+    lines: [
+      { id: "TL153", n: 153, code: `<span class="kw">const</span> UndefinedDelay = -<span class="num">1</span>` },
+      { id: "TL154", n: 154, code: `` },
+      { id: "TL155", n: 155, code: `<span class="kw">func</span> (tb *<span class="ty">tokenBucket</span>) <span class="fn">consume</span>(tokens <span class="ty">int64</span>) (<span class="ty">time.Duration</span>, <span class="ty">error</span>) {` },
+      { id: "TL156", n: 156, code: `    tb.<span class="fn">updateAvailableTokens</span>()` },
+      { id: "TL157", n: 157, code: `    <span class="kw">if</span> tb.availableTokens >= tokens {` },
+      { id: "TL158", n: 158, code: `        tb.lastConsumed = tokens` },
+      { id: "TL159", n: 159, code: `        tb.availableTokens -= tokens` },
+      { id: "TL160", n: 160, code: `        <span class="kw">return</span> UndefinedDelay, <span class="kw">nil</span>` },
+      { id: "TL161", n: 161, code: `    }` },
+      { id: "TL162", n: 162, code: `    delay := tb.<span class="fn">timeUntilAvailable</span>(tokens) <span class="cm">// returns 0 when timePerToken=0</span>` },
+      { id: "TL163", n: 163, code: `    tb.lastConsumed = tokens` },
+      { id: "TL164", n: 164, code: `    tb.availableTokens -= tokens  <span class="cm">// goes negative!</span>` },
+      { id: "TL165", n: 165, code: `    <span class="kw">return</span> delay, <span class="kw">nil</span>  <span class="cm">// returns (0, nil)</span>` },
+      { id: "TL166", n: 166, code: `}` },
+      { id: "TL167", n: 167, code: `` },
+    ]
+  },
+  Consume: {
+    title: "Consume (TokenBucketSet)", file: "tokenbucket.go:91",
+    lines: [
+      { id: "TL91",  n: 91,  code: `<span class="kw">func</span> (tbs *<span class="ty">TokenBucketSet</span>) <span class="fn">Consume</span>(tokens <span class="ty">int64</span>) (<span class="ty">time.Duration</span>, <span class="ty">error</span>) {` },
+      { id: "TL92",  n: 92,  code: `    <span class="kw">var</span> maxDelay <span class="ty">time.Duration</span> = UndefinedDelay  <span class="cm">// = -1</span>` },
+      { id: "TL93",  n: 93,  code: `    <span class="kw">var</span> firstErr <span class="ty">error</span> = <span class="kw">nil</span>` },
+      { id: "TL94",  n: 94,  code: `    <span class="kw">for</span> _, tokenBucket := <span class="kw">range</span> tbs.buckets {` },
+      { id: "TL95",  n: 95,  code: `        delay, err := tokenBucket.<span class="fn">consume</span>(tokens)` },
+      { id: "TL96",  n: 96,  code: `        <span class="kw">if</span> firstErr == <span class="kw">nil</span> {` },
+      { id: "TL97",  n: 97,  code: `            <span class="kw">if</span> err != <span class="kw">nil</span> { firstErr = err` },
+      { id: "TL98",  n: 98,  code: `            } <span class="kw">else</span> { maxDelay = <span class="fn">max</span>(maxDelay, delay) }` },
+      { id: "TL99",  n: 99,  code: `        }` },
+      { id: "TL100", n: 100, code: `    }` },
+      { id: "TL101", n: 101, code: `` },
+      { id: "TL102", n: 102, code: `    <span class="cm">// Rollback only if there's an error OR a positive delay.</span>` },
+      { id: "TL103", n: 103, code: `    <span class="cm">// When delay=0: 0 &gt; 0 is FALSE → no rollback!</span>` },
+      { id: "TL104", n: 104, code: `    <span class="kw">if</span> firstErr != <span class="kw">nil</span> || maxDelay > <span class="num">0</span> {  <span class="cm">// ← BUG: 0 &gt; 0 is false</span>` },
+      { id: "TL105", n: 105, code: `        <span class="kw">for</span> _, tokenBucket := <span class="kw">range</span> tbs.buckets {` },
+      { id: "TL106", n: 106, code: `            tokenBucket.<span class="fn">rollback</span>()` },
+      { id: "TL107", n: 107, code: `        }` },
+      { id: "TL108", n: 108, code: `    }` },
+      { id: "TL109", n: 109, code: `    <span class="kw">return</span> maxDelay, firstErr` },
+      { id: "TL110", n: 110, code: `}` },
+      { id: "TL111", n: 111, code: `` },
+      { id: "TL112", n: 112, code: `` },
+      { id: "TL113", n: 113, code: `` },
+      { id: "TL114", n: 114, code: `` },
+      { id: "TL115", n: 115, code: `` },
+    ]
+  },
+  consumeRates: {
+    title: "consumeRates", file: "ratelimit.go:125",
+    lines: [
+      { id: "CL125", n: 125, code: `<span class="kw">func</span> (tl *<span class="ty">TokenLimiter</span>) <span class="fn">consumeRates</span>(r *<span class="ty">http.Request</span>, amount <span class="ty">int64</span>) <span class="ty">error</span> {` },
+      { id: "CL126", n: 126, code: `    token, err := <span class="fn">ExtractClientIP</span>(r)` },
+      { id: "CL127", n: 127, code: `    <span class="kw">if</span> err != <span class="kw">nil</span> { <span class="kw">return</span> err }` },
+      { id: "CL128", n: 128, code: `` },
+      { id: "CL129", n: 129, code: `    tl.mu.<span class="fn">Lock</span>()` },
+      { id: "CL130", n: 130, code: `    <span class="kw">defer</span> tl.mu.<span class="fn">Unlock</span>()` },
+      { id: "CL131", n: 131, code: `` },
+      { id: "CL132", n: 132, code: `    ttl := tl.rates.<span class="fn">MaxPeriod</span>()*<span class="num">10</span> + <span class="num">1</span>` },
+      { id: "CL133", n: 133, code: `    bucketSet, err := utils.<span class="fn">FnCacheGetWithTTL</span>(...)` },
+      { id: "CL134", n: 134, code: `    <span class="kw">if</span> err != <span class="kw">nil</span> { <span class="kw">return</span> err }` },
+      { id: "CL135", n: 135, code: `` },
+      { id: "CL136", n: 136, code: `    bucketSet.<span class="fn">Update</span>(tl.rates)` },
+      { id: "CL137", n: 137, code: `    delay, err := bucketSet.<span class="fn">Consume</span>(amount)` },
+      { id: "CL138", n: 138, code: `    <span class="kw">if</span> err != <span class="kw">nil</span> { <span class="kw">return</span> err }` },
+      { id: "CL139", n: 139, code: `` },
+      { id: "CL140", n: 140, code: `    <span class="kw">if</span> delay > <span class="num">0</span> {  <span class="cm">// ← FINAL GATE: 0 &gt; 0 is FALSE → allowed!</span>` },
+      { id: "CL141", n: 141, code: `        <span class="kw">return</span> &<span class="ty">limitExceededError</span>{delay: delay}` },
+      { id: "CL142", n: 142, code: `    }` },
+      { id: "CL143", n: 143, code: `    <span class="kw">return</span> <span class="kw">nil</span>  <span class="cm">// request allowed — bypass achieved</span>` },
+      { id: "CL144", n: 144, code: `}` },
+      { id: "CL145", n: 145, code: `` },
+      { id: "CL146", n: 146, code: `` },
+      { id: "CL147", n: 147, code: `` },
+      { id: "CL148", n: 148, code: `` },
+    ]
+  },
+};
+
+// ─── STATE ────────────────────────────────────────────────────────────────────
+
+let currentScenario = 'bug';
+let currentStepIdx = 0;
+let steps = [];
+let params = SCENARIOS.bug;
+
+function selectScenario(name) {
+  currentScenario = name;
+  params = SCENARIOS[name];
+  document.getElementById('inp-period').value = params.period;
+  document.getElementById('inp-average').value = params.average;
+  document.getElementById('inp-burst').value = params.burst;
+  document.querySelectorAll('.scenario-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  rebuildAndReset();
+}
+
+function onParamChange() {
+  params = {
+    period: parseInt(document.getElementById('inp-period').value) || 1,
+    average: parseInt(document.getElementById('inp-average').value) || 1,
+    burst: parseInt(document.getElementById('inp-burst').value) || 1,
+  };
+  document.querySelectorAll('.scenario-btn').forEach(b => b.classList.remove('active'));
+  rebuildAndReset();
+}
+
+function rebuildAndReset() {
+  const period = params.period;
+  const average = params.average;
+  const tpt = Math.trunc(period / average);
+
+  const pDisplay = period >= 1e9 ? `${(period/1e9).toFixed(3)}s`
+    : period >= 1e6 ? `${(period/1e6).toFixed(3)}ms`
+    : period >= 1e3 ? `${(period/1e3).toFixed(3)}µs`
+    : `${period}ns`;
+
+  document.getElementById('period-display').textContent = pDisplay;
+  const tptEl = document.getElementById('tpt-display');
+  tptEl.textContent = `→ timePerToken = ${tpt}ns`;
+  tptEl.style.color = tpt === 0 ? '#f38ba8' : '#a6e3a1';
+
+  steps = buildSteps(params);
+  currentStepIdx = 0;
+  renderCode();
+  renderStep();
+}
+
+function reset() {
+  currentStepIdx = 0;
+  renderStep();
+}
+
+function step(dir) {
+  currentStepIdx = Math.max(0, Math.min(steps.length - 1, currentStepIdx + dir));
+  renderStep();
+}
+
+function runAll() {
+  currentStepIdx = steps.length - 1;
+  renderStep();
+}
+
+// ─── RENDERING ────────────────────────────────────────────────────────────────
+
+function renderCode() {
+  const panel = document.getElementById('codePanel');
+  panel.innerHTML = '';
+
+  const sectionOrder = ['newTokenBucket','timeUntilAvailable','consume','Consume','consumeRates'];
+  sectionOrder.forEach(secKey => {
+    const sec = CODE[secKey];
+    const div = document.createElement('div');
+    div.className = 'code-section';
+    div.dataset.section = secKey;
+
+    const title = document.createElement('div');
+    title.className = 'code-section-title';
+    title.innerHTML = `<span>${sec.title}</span><span class="file">${sec.file}</span>`;
+    div.appendChild(title);
+
+    const block = document.createElement('div');
+    block.className = 'code-block';
+
+    sec.lines.forEach(l => {
+      const line = document.createElement('div');
+      line.className = 'code-line';
+      line.id = `line-${l.id}`;
+      line.innerHTML = `<span class="ln">${l.n}</span><span class="code-text">${l.code}</span>`;
+      block.appendChild(line);
+    });
+
+    div.appendChild(block);
+    panel.appendChild(div);
+  });
+}
+
+function renderStep() {
+  if (steps.length === 0) return;
+  const step = steps[currentStepIdx];
+
+  // Update code highlights
+  document.querySelectorAll('.code-line').forEach(el => {
+    el.classList.remove('active', 'highlight', 'dim');
+  });
+
+  const activeLineEl = document.getElementById(`line-${step.activeLine}`);
+  if (activeLineEl) {
+    activeLineEl.classList.add('active');
+    activeLineEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  step.highlightLines?.forEach(id => {
+    const el = document.getElementById(`line-${id}`);
+    if (el && !el.classList.contains('active')) el.classList.add('highlight');
+  });
+
+  // Dim irrelevant sections
+  const allSections = ['newTokenBucket','timeUntilAvailable','consume','Consume','consumeRates'];
+  allSections.forEach(secKey => {
+    const secEl = document.querySelector(`[data-section="${secKey}"]`);
+    if (!secEl) return;
+    const relevant = step.highlightLines?.some(id => {
+      const el = document.getElementById(`line-${id}`);
+      return el && secEl.contains(el);
+    }) || (activeLineEl && secEl.contains(activeLineEl));
+    secEl.querySelectorAll('.code-line').forEach(el => {
+      if (!relevant && !el.classList.contains('active') && !el.classList.contains('highlight')) {
+        el.classList.add('dim');
+      }
+    });
+  });
+
+  // Call stack
+  const stackEl = document.getElementById('callStack');
+  stackEl.innerHTML = step.stack.map(f => `
+    <div class="stack-frame ${f.active ? 'active' : 'inactive'}">
+      <span class="fline">${f.line}</span>
+      <div class="fname">${f.name}</div>
+      <div class="ffile">${f.file}</div>
+    </div>
+  `).join('');
+
+  // Variables
+  const varsEl = document.getElementById('variables');
+  varsEl.innerHTML = step.vars.map(v => `
+    <div class="var-row">
+      <span><span class="var-name">${v.name}</span><span class="var-type">${v.type}</span></span>
+      <span class="var-val ${v.cls}">${v.val}</span>
+    </div>
+  `).join('');
+
+  // Explanation
+  const expEl = document.getElementById('explanation');
+  const ex = step.explanation;
+  expEl.innerHTML = `
+    <div class="explanation">
+      <div class="step-num">${ex.stepNum}</div>
+      <div class="title">${ex.title}</div>
+      ${ex.body}
+    </div>
+  `;
+
+  // Dots
+  const dotsEl = document.getElementById('dots');
+  dotsEl.innerHTML = steps.map((s, i) => {
+    let cls = i < currentStepIdx ? 'done' : i === currentStepIdx ? 'active' : '';
+    if (i === currentStepIdx && s.isBugFinal) cls = 'bug';
+    if (i === steps.length - 1 && params.period && Math.trunc(params.period / params.average) === 0) {
+      if (i === currentStepIdx) cls = 'bug';
+      else if (i < currentStepIdx) cls = 'done';
+    }
+    return `<div class="dot ${cls}" onclick="jumpTo(${i})" title="Step ${i+1}"></div>`;
+  }).join('');
+
+  // Status bar
+  const sb = document.getElementById('statusBar');
+  const sm = document.getElementById('statusMsg');
+  sm.innerHTML = step.status;
+  sb.className = 'status-bar' + (step.isBugFinal ? ' is-bug' : '');
+
+  // Buttons
+  document.getElementById('btn-prev').disabled = currentStepIdx === 0;
+  document.getElementById('btn-next').disabled = currentStepIdx === steps.length - 1;
+}
+
+function jumpTo(idx) {
+  currentStepIdx = idx;
+  renderStep();
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+
+rebuildAndReset();
+</script>
+</body>
+</html>
