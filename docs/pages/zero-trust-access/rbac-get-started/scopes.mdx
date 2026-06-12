@@ -680,7 +680,7 @@ spec: {}
 ```
 
 Grant the Bot privileges through a scoped role assignment, identifying the
-Bot using `spec.bot_name` and `spec.bot_scope`:
+Bot by its scope-qualified name in `spec.bot`:
 
 ```yaml
 kind: scoped_role_assignment
@@ -690,8 +690,7 @@ metadata:
 scope: /staging
 sub_kind: dynamic
 spec:
-  bot_name: my-scoped-bot
-  bot_scope: /staging
+  bot: /staging::my-scoped-bot
   assignments:
     - role: staging-ssh-access
       scope: /staging
