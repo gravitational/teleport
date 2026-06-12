@@ -235,11 +235,12 @@ function AvailableUpdate(props: { update: UpdateInfo; platform: Platform }) {
       <Text>A new version is available.</Text>
       <Flex gap={1} alignItems="center">
         {props.platform === 'darwin' ? (
-          <img alt="App icon" height="50px" src={iconMac} />
+          <img alt="App icon" height="50px" width="50px" src={iconMac} />
         ) : (
           <img
             alt="App icon"
             height="43px"
+            width="43px"
             style={{ marginRight: '4px' }}
             src={iconWinLinux}
           />
