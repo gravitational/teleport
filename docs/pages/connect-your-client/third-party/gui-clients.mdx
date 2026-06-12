@@ -64,6 +64,8 @@ There are three ways to do this:
   in the protected database's protocol. We recommend TLS multiplexing for a
   typical Teleport cluster, and it is enabled by default on Teleport Cloud.
 
+## Get connection information
+
 To access a Teleport-protected database with a GUI client, you will need to
 retrieve connection information to pass to your client.
 
@@ -80,26 +82,27 @@ Replace <Var name="database-name" /> with the name of the database you want to
 connect to.
 
 <Checkpoint
-  title="Verify database visibility"
-  description="Run tsh db ls. Success looks like: the database you want appears in the list. An empty list means no databases are currently visible to your Teleport role."
+  title="You can see your database"
+  description="The output of `tsh db ls` includes the database you want to connect to."
 >
-- If no databases are listed:
-  - Confirm the Database Service is running and has registered databases in the cluster.
-  - If you use leaf clusters, try:
-    ```code
-    $ tsh db ls --all
-    ```
-- If the database exists but does not appear for you:
-  - Your role may restrict access via `db_names`, `db_labels`, or `db_users`.
-  - Ask your administrator to confirm your role allows the database and at least one database user.
-- If a later command (such as `tsh db login` or `tsh proxy db`) reports the database is not found:
-  - Confirm the database resource name matches the entry in `tsh db ls` exactly, including any prefixes or environment suffixes.
+- **No databases are listed:** Confirm the Database Service is running and has
+  registered databases in the cluster. If you use leaf clusters, run:
+
+  ```code
+  $ tsh db ls --all
+  ```
+- **The database exists but does not appear for you:** Your role may restrict
+  access via `db_names`, `db_labels`, or `db_users`. Ask your administrator to
+  confirm your role allows the database and at least one database user.
+- **A later command (`tsh db login`, `tsh proxy db`) reports the database is
+  not found:** Confirm the database resource name matches the entry in
+  `tsh db ls` exactly, including any prefixes or environment suffixes.
 
 </Checkpoint>
 
 ### Authenticated tunnel
 
-To start the local authenticated tunnel, run the following command, 
+To start the local authenticated tunnel, run the following command:
 
 ```code
 $ tsh proxy db --tunnel <Var name="database-name" />
@@ -177,34 +180,40 @@ Once you have started a tunnel, local proxy, or retrieved remote host and port
 configuration, verify the result before configuring your GUI client.
 
 <Checkpoint
-  title="Verify the local proxy is running"
-  description="Success looks like: tsh prints a Started message with a localhost address and port. For the local proxy server, all three credential file paths (ca_file, cert_file, key_file) are printed and exist on disk. For the remote host and port method, tsh db config shows a Host and Port plus CA/Cert/Key paths."
+  title="The local proxy or tunnel is running"
+  description="`tsh` prints a `Started` message with a localhost address and port. For the local proxy server method, the `ca_file`, `cert_file`, and `key_file` paths are also printed and exist on disk. For the remote host and port method, `tsh db config` shows a Host and Port plus CA/Cert/Key paths."
 >
 - If you see **Access denied**:
   - Your role may not allow the `--db-user` or `--db-name` you specified.
   - Try without overrides, or confirm allowed values with:
+
     ```code
     $ tsh db login <database-name>
     ```
 - If you see **Port already in use**:
   - Re-run and let `tsh` pick a new port, or set one explicitly:
+
     ```code
     $ tsh proxy db --tunnel --port 54321 <database-name>
     ```
 - If credential files do not exist (local proxy server method):
   - Generate DB credentials, then restart the proxy:
+
     ```code
     $ tsh db login <database-name>
     $ tsh proxy db <database-name>
     ```
 - If you see **certificate expired**:
   - Refresh your login and restart the proxy:
+
     ```code
     $ tsh login --proxy=... --user=...
     $ tsh proxy db --tunnel <database-name>
     ```
 - If you see **Not logged into database** (remote host and port method):
-  - ```code
+  - Log in to the database, then view the configuration again:
+
+    ```code
     $ tsh db login <database-name>
     $ tsh db config <database-name>
     ```
@@ -224,7 +233,7 @@ On the "New Connection" panel, click on "Fill in connection fields individually"
 
 On the "Hostname" tab, enter the hostname and port of the proxy you will use to
 access the database (see
-[Get connection information](./gui-clients.mdx#how-gui-clients-access-teleport-protected-databases)).
+[Get connection information](./gui-clients.mdx#get-connection-information)).
 Leave "Authentication" as None.
 
 ![MongoDB Compass hostname](../../../img/database-access/compass-hostname@2x.png)
@@ -289,7 +298,7 @@ Parameters](../../../img/database-access/workbench-parameters@2x.png)
 
 In the "SSL" tab, set "Use SSL" to `Require and Verify Identity` and enter the
 paths to your CA, certificate, and private key files (see
-[Get connection information](./gui-clients.mdx#how-gui-clients-access-teleport-protected-databases)):
+[Get connection information](./gui-clients.mdx#get-connection-information)):
 
 ![MySQL Workbench SSL](../../../img/database-access/workbench-ssl@2x.png)
 
@@ -314,7 +323,7 @@ From the NoSQL Workbench launch screen, click **Launch** next to **Amazon Dynamo
 From the left-side menu select **Operation builder**, then **+ Add connection**.
 Choose the **DynamoDB local** tab, and point to your proxy's endpoint. This is
 `localhost:62652` in the example above. (See
-[Get connection information](./gui-clients.mdx#how-gui-clients-access-teleport-protected-databases) for
+[Get connection information](./gui-clients.mdx#get-connection-information) for
 more information.)
 
 ![DynamoDB local connection in NoSQL Workbench](../../../img/database-access/nosql-workbench-connection.png)
@@ -324,7 +333,7 @@ more information.)
 In Azure Data Studio create a connection using your proxy's endpoint. This is
 `localhost,62652` in the example above. On a Windows machine, using an address in
  the format `127.0.0.1,62652` could be required instead of `localhost`. (See
-[Get connection information](./gui-clients.mdx#how-gui-clients-access-teleport-protected-databases) for
+[Get connection information](./gui-clients.mdx#get-connection-information) for
 more information.)
 
 Create a connection with Microsoft SQL Server with these settings:
@@ -344,8 +353,8 @@ Click **Connect** to connect.
 ## PostgreSQL DBeaver
 
 To connect to your PostgreSQL instance, use the authenticated proxy address.
-This is `127.0.0.1:62652` in the example above (see the “Authenticated Proxy”
-section on [Get connection information](./gui-clients.mdx#how-gui-clients-access-teleport-protected-databases)
+This is `127.0.0.1:62652` in the example above (see the
+[Authenticated tunnel](./gui-clients.mdx#authenticated-tunnel) section
 for more information).
 
 Use the "Database native" authentication with an empty password:
@@ -397,7 +406,7 @@ for password, leave the password field empty and click OK.
 In Microsoft SQL Server Management Studio connect to a database engine using
 your proxy's endpoint. This is `localhost,62652` in the example above. Using
 the IP `127.0.0.1,62652` connection could be required on a Windows machine
-instead of `localhost`. (See [Get connection information](./gui-clients.mdx#how-gui-clients-access-teleport-protected-databases) for
+instead of `localhost`. (See [Get connection information](./gui-clients.mdx#get-connection-information) for
 more information.)
 
 Create a connection with Microsoft SQL Server with these settings:
@@ -424,8 +433,8 @@ Click Connect to connect.
 </Admonition>
 
 To connect to your Redshift instance, use the authenticated proxy address.
-This is `127.0.0.1:62652` in the example above (see the "Authenticated Proxy"
-section in [Get connection information](./gui-clients.mdx#how-gui-clients-access-teleport-protected-databases)
+This is `127.0.0.1:62652` in the example above (see the
+[Authenticated tunnel](./gui-clients.mdx#authenticated-tunnel) section
 for more information).
 
 Use the "Username/password" authentication. Set the username to match the database
@@ -454,10 +463,12 @@ After opening Redis Insight click `ADD REDIS DATABASE`.
 
 Now start a local proxy to your Redis instance:
 
-`tsh proxy db --db-user=alice redis-db-name`.
+```code
+$ tsh proxy db --db-user=alice redis-db-name
+```
 
 Click `Add Database Manually`. Use `127.0.0.1` as the `Host`. Use the port printed by
-the `tsh` command you ran in [Get connection information](./gui-clients.mdx#how-gui-clients-access-teleport-protected-databases).
+the `tsh` command you ran in [Get connection information](./gui-clients.mdx#get-connection-information).
 
 Provide your Redis username as `Username` and password as `Password`.
 
@@ -478,15 +489,16 @@ Click `Add Redis Database`.
 
 ![Redis Insight TLS Configuration](../../../img/database-access/guides/redis/redisinsight-tls-config.png)
 
-Congratulations! You have just connected to your Redis instance.
+Redis Insight connects to your Redis instance:
 
 ![Redis Insight Connected](../../../img/database-access/guides/redis/redisinsight-connected.png)
 
-## Snowflake: DBeaver
+## Snowflake DBeaver
 
 The Snowflake integration works only in the authenticated proxy mode. Start a local proxy for connections to your Snowflake database by using the command below:
-```
-tsh proxy db --tunnel --port 2000 snowflake
+
+```code
+$ tsh proxy db --tunnel --port 2000 snowflake
 ```
 
 <Admonition type="important" title="Required Snowflake driver settings">
@@ -495,7 +507,7 @@ Snowflake drivers require two non-obvious properties for the localhost connectio
 - Set `account` to any non-empty value (required by the driver UI).
 - Set `ssl` to `off` - this disables TLS only for the localhost hop; Teleport still encrypts the remote connection to Snowflake.
 
-The driver also requires a password field even though Teleport ignores it. Use any placeholder value. The same requirements apply to the JetBrains setup in the next section.
+The driver also requires a password field even though Teleport ignores it. Use any placeholder value. The same requirements apply to the Snowflake JetBrains setup below.
 </Admonition>
 
 Add a new database by clicking the "add" icon in the top-left corner:
@@ -525,13 +537,12 @@ Now you can click on "Test Connection..." in the bottom-left corner:
 
 ![DBeaver Success](../../../img/database-access/guides/snowflake/dbeaver-success.png)
 
-Congratulations! You have just connected to your Snowflake instance.
-
-## Snowflake: JetBrains (IntelliJ, Goland, DataGrip, PyCharm, etc.)
+## Snowflake JetBrains (IntelliJ, Goland, DataGrip, PyCharm, etc.)
 
 The Snowflake integration works only in the authenticated proxy mode. Start a local proxy for connections to your Snowflake database by using the command below:
-```
-tsh proxy db --tunnel --port 2000 snowflake
+
+```code
+$ tsh proxy db --tunnel --port 2000 snowflake
 ```
 
 In "Database Explorer" click the "add" button, pick "Data Source", and then pick "Snowflake":
@@ -556,13 +567,11 @@ Now you can click "Test Connection" to check your configuration.
 
 ![JetBrains Success](../../../img/database-access/guides/snowflake/jetbrains-success.png)
 
-Congratulations! You have just connected to your Snowflake instance.
-
 ## SQL Server DataGrip
 
 In the DataGrip connection configuration menu, use your proxy's endpoint. This
-is `localhost:4242` in the example below. (See
-[Get connection information](./gui-clients.mdx#how-gui-clients-access-teleport-protected-databases) for
+is `localhost:62652` in the example above. (See
+[Get connection information](./gui-clients.mdx#get-connection-information) for
 more information.)
 
 Select the "User & Password" authentication option and keep the "Password" field
@@ -576,7 +585,7 @@ Click "OK" to connect.
 
 In the DBeaver connection configuration menu, use your proxy's endpoint. This is
 `localhost:62652` in the example above. (See
-[Get connection information](./gui-clients.mdx#how-gui-clients-access-teleport-protected-databases) for
+[Get connection information](./gui-clients.mdx#get-connection-information) for
 more information.)
 
 Use the SQL Server Authentication option and keep the Password field empty:
@@ -646,9 +655,8 @@ Click "Proceed", then click "Finish".
 
 The Oracle integration works only in the authenticated proxy mode. Start a local proxy for connections to your Oracle database by using the command below:
 
-```
-> tsh proxy db --tunnel --port 11555 --db-user=<user> --db-name=<db-name> oracle
-
+```code
+$ tsh proxy db --tunnel --port 11555 --db-user=<user> --db-name=<db-name> oracle
 Started authenticated tunnel for the Oracle database "oracle" in cluster "teleport.example.com" on 127.0.0.1:11555.
 ```
 
@@ -799,9 +807,13 @@ Choose "Custom" connection type and paste the JDBC connection string printed by 
 
 Test the connection to verify the setup. Finalize by clicking "Finish".
 
+## Verify your connection
+
+After configuring any of the clients above, confirm that the connection works:
+
 <Checkpoint
-  title="Verify your GUI client connection"
-  description="Success looks like: your GUI client connects, authenticates, and shows your schemas, tables, or keys."
+  title="Your GUI client is connected"
+  description="The client authenticates and displays your database's schemas, tables, or keys."
 >
 - If you see **authentication failed / login failed / Access denied**:
   - Confirm the username is a permitted database user (Teleport role `db_users`).
@@ -828,10 +840,12 @@ Use these steps for errors not covered above.
 
 - If the tunnel/proxy terminates unexpectedly:
   - Check `tsh status` to ensure your session hasn't expired and your certificates are still valid:
+
     ```code
     $ tsh status
     ```
   - Refresh login and restart the tunnel/proxy:
+
     ```code
     $ tsh login --proxy=... --user=...
     $ tsh proxy db --tunnel <database-name>
@@ -841,6 +855,7 @@ Use these steps for errors not covered above.
   - Restart the tunnel/proxy and re-check the port (or pin a fixed port with `--port`).
 - If you see certificate errors after changes/upgrades:
   - Prefer `tsh logout` and re-login:
+
     ```code
     $ tsh logout
     $ tsh login --proxy=... --user=...
@@ -848,6 +863,7 @@ Use these steps for errors not covered above.
   - If needed, remove only the profile directory for the affected cluster under `~/.tsh/` (safer than deleting everything).
 - To access multiple databases simultaneously:
   - Run multiple tunnels/proxies with different ports:
+
     ```code
     $ tsh proxy db --tunnel --port 54321 db1
     $ tsh proxy db --tunnel --port 54322 db2
@@ -864,7 +880,10 @@ For a graphical alternative to managing tunnels manually, see [Using Teleport Co
 
 ## Next steps
 
--{/* vale messaging.protocol-products = NO */}
+{/* vale messaging.protocol-products = NO */}
+
 - See the [Database Access guides](../../enroll-resources/database-access/guides/guides.mdx) for setting up the Teleport Database Service for specific database engines.
 - Learn about [role-based access controls for databases](../../enroll-resources/database-access/rbac.mdx) including `db_users`, `db_names`, and `db_labels`.
 - Review the [`tsh` reference](../../reference/cli/tsh.mdx) for additional `tsh proxy db` flags and options.
+
+{/* vale messaging.protocol-products = YES */}
