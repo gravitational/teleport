@@ -102,10 +102,15 @@ func onAfterResponseSlack(sink common.StatusSink) func(_ *resty.Client, resp *re
 
 // SupportedApps are the apps supported by this bot.
 func (b Bot) SupportedApps() []common.App {
-	return []common.App{
+	apps := []common.App{
 		accessrequest.NewApp(),
 		appAccesslist.NewApp(),
 	}
+
+	if b.reviewConfig.Enabled {
+		apps = append(apps, NewReviewApp(b.reviewConfig))
+	}
+	return apps
 }
 
 func (b Bot) CheckHealth(ctx context.Context) error {
@@ -389,6 +394,14 @@ func (b Bot) slackAccessRequestMsgSections(reqID string, reqData pd.AccessReques
 		}),
 	}
 
+	// Only expose Approve/Deny review buttons if "native review" is enabled.
+	if b.reviewConfig.Enabled {
+		// We should not expose buttons for long-term access requests, and only
+		// show buttons if the request is still unresolved.
+		if reqData.RequestKind != types.AccessRequestKind_LONG_TERM.String() && reqData.ResolutionTag == pd.Unresolved {
+			sections = append(sections, b.slackAccessReviewMsgSection(reqID)...)
+		}
+	}
 	return sections
 }
 
