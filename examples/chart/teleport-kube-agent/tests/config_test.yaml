@@ -190,6 +190,16 @@ tests:
           of: ConfigMap
       - matchSnapshot: {}
 
+  - it: matches snapshot for join-params-token-with-secret.yaml
+    values:
+      - ../.lint/join-params-token-with-secret.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot: {}
+
   - it: matches snapshot for log-basic.yaml
     values:
       - ../.lint/log-basic.yaml

@@ -22,9 +22,12 @@ import (
 	"context"
 	"crypto"
 	"crypto/tls"
+	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/pem"
 	"fmt"
 	"net/url"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -54,6 +57,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
+	kubewaitingcontainerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
@@ -66,6 +70,7 @@ import (
 	apicommon "github.com/gravitational/teleport/api/types/common"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
+	"github.com/gravitational/teleport/api/types/kubewaitingcontainer"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -1095,7 +1100,7 @@ func TestSSODiagnosticInfo(t *testing.T) {
 }
 
 func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
-	t.Parallel()
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
 
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
@@ -1127,11 +1132,17 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create test user1.
-	user1, _, err := authtest.CreateUserAndRole(srv.Auth(), "user1", []string{"role1"}, nil)
+	user1, _, err := authtest.CreateUserAndRole(srv.Auth(), "user1", []string{"role1"}, nil, authtest.WithRoleMutator(func(role types.Role) {
+		role.SetKubeGroups(types.Allow, []string{"kube_group"})
+		role.SetKubeUsers(types.Allow, []string{"kube_user"})
+	}))
 	require.NoError(t, err)
 
 	// Create test user2.
-	user2, role2, err := authtest.CreateUserAndRole(srv.Auth(), "user2", []string{"role2"}, nil)
+	user2, role2, err := authtest.CreateUserAndRole(srv.Auth(), "user2", []string{"role2"}, nil, authtest.WithRoleMutator(func(role types.Role) {
+		role.SetKubeGroups(types.Allow, []string{"kube_group"})
+		role.SetKubeUsers(types.Allow, []string{"kube_user"})
+	}))
 	require.NoError(t, err)
 
 	role2Opts := role2.GetOptions()
@@ -1149,31 +1160,101 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 	authPrefs, err := srv.Auth().GetAuthPreference(ctx)
 	require.NoError(t, err)
 
+	getScopeAsName := func(scope string) string {
+		return strings.ReplaceAll(strings.Trim(scope, "/"), "/", "-")
+	}
+
+	scope := "/test"
+	roleResp, err := srv.Auth().ScopedAccess().CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+		Role: &scopedaccessv1.ScopedRole{
+			Kind:    scopedaccess.KindScopedRole,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: getScopeAsName(scope) + "-role",
+			},
+			Scope: scope,
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{scope},
+				Kube: &scopedaccessv1.ScopedRoleKube{
+					Users:  []string{"scoped_kube_user"},
+					Groups: []string{"scoped_kube_group"},
+					Labels: []*labelv1.Label{
+						{
+							Name:   types.Wildcard,
+							Values: []string{types.Wildcard},
+						},
+					},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	role := roleResp.GetRole()
+	sra, err := srv.Auth().ScopedAccess().CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
+		Assignment: &scopedaccessv1.ScopedRoleAssignment{
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: scopedaccess.SubKindDynamic,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: uuid.NewString(),
+			},
+			Scope: scope,
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				User: user1.GetName(),
+				Assignments: []*scopedaccessv1.Assignment{
+					{Role: role.GetMetadata().GetName(), Scope: scope},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	waitForSRACache(t, srv, sra)
+
 	_, sshPubKey, _, tlsPubKey := newSSHAndTLSKeyPairs(t)
 	defaultDuration := authPrefs.GetDefaultSessionTTL().Duration()
 
 	testCases := []struct {
-		desc       string
-		user       types.User
-		expiration time.Time
+		desc             string
+		user             types.User
+		scope            string
+		expiration       time.Time
+		expectKubeUsers  []string
+		expectKubeGroups []string
 	}{
 		{
-			desc:       "Roles don't have max_session_ttl set",
-			user:       user1,
-			expiration: srv.Auth().GetClock().Now().Add(defaultDuration),
+			desc:             "Roles don't have max_session_ttl set",
+			user:             user1,
+			expiration:       srv.Auth().GetClock().Now().Add(defaultDuration),
+			expectKubeUsers:  []string{"kube_user"},
+			expectKubeGroups: []string{"kube_group"},
 		},
 		{
-			desc:       "Roles have max_session_ttl set, cert expiration adjusted",
-			user:       user2,
-			expiration: srv.Auth().GetClock().Now().Add(2 * time.Hour),
+			desc:             "Roles have max_session_ttl set, cert expiration adjusted",
+			user:             user2,
+			expiration:       srv.Auth().GetClock().Now().Add(2 * time.Hour),
+			expectKubeUsers:  []string{"kube_user"},
+			expectKubeGroups: []string{"kube_group"},
+		},
+		{
+			// scopes don't support max_session_ttl
+			desc:       "Scoped role, no max_session_ttl set",
+			user:       user1,
+			scope:      scope,
+			expiration: srv.Auth().GetClock().Now().Add(defaultDuration),
 		},
 	}
 
 	for _, tt := range testCases {
 		t.Run(tt.desc, func(t *testing.T) {
-			user := authtest.TestUser(tt.user.GetName())
-			user.TTL = defaultDuration
-			client, err := srv.NewClient(user)
+			var ident authtest.TestIdentity
+			if tt.scope != "" {
+				ident = authtest.TestScopedUser(tt.user.GetName(), tt.scope)
+			} else {
+				ident = authtest.TestUser(tt.user.GetName())
+			}
+			ident.TTL = defaultDuration
+			client, err := srv.NewClient(ident)
 			require.NoError(t, err)
 
 			certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
@@ -1192,6 +1273,15 @@ func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
 			require.NoError(t, err)
 			identity, err := tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
 			require.NoError(t, err)
+			if tt.scope != "" {
+				require.Equal(t, tt.scope, identity.ScopePin.Scope)
+			} else {
+				require.Nil(t, identity.ScopePin)
+			}
+
+			// Verify kube fields are set
+			require.ElementsMatch(t, tt.expectKubeUsers, identity.KubernetesUsers)
+			require.ElementsMatch(t, tt.expectKubeGroups, identity.KubernetesGroups)
 
 			sshCert, err := sshutils.ParseCertificate(certs.SSH)
 			require.NoError(t, err)
@@ -3289,6 +3379,295 @@ func TestKubernetesClusterCRUD_DiscoveryService(t *testing.T) {
 	})
 }
 
+func TestKubeCRUDFromKubeService(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	srv := newTestTLSServer(t, withBufconnListener())
+
+	scopedIdent := authtest.TestBuiltin(types.RoleKube)
+	// override the agent scope in the test identity
+	builtinRole, ok := scopedIdent.I.(authz.BuiltinRole)
+	require.True(t, ok, "expected ident to be a builtin role")
+
+	builtinRole.Identity.AgentScope = "/test"
+	scopedIdent.I = builtinRole
+
+	scopedKubeClient, err := srv.NewClient(scopedIdent)
+	require.NoError(t, err)
+
+	unscopedKubeClient, err := srv.NewClient(authtest.TestBuiltin(types.RoleKube))
+	require.NoError(t, err)
+
+	// create an admin client to create resources and setup for test cases
+	adminClient, err := srv.NewClient(authtest.TestBuiltin(types.RoleAdmin))
+	require.NoError(t, err)
+
+	const clusterName = "kube-cluster"
+	kubeCluster, err := types.NewKubernetesClusterV3(
+		types.Metadata{
+			Name: clusterName,
+			Labels: map[string]string{
+				"env": "test",
+			},
+		},
+		types.KubernetesClusterSpecV3{},
+	)
+	require.NoError(t, err)
+
+	kubeServer, err := types.NewKubernetesServerV3FromCluster(kubeCluster, "hostname", "host-id")
+	require.NoError(t, err)
+
+	err = adminClient.CreateKubernetesCluster(ctx, kubeCluster)
+	require.NoError(t, err)
+
+	_, err = adminClient.UpsertKubernetesServer(ctx, kubeServer)
+	require.NoError(t, err)
+
+	waitingContainer, err := unscopedKubeClient.CreateKubernetesWaitingContainer(ctx, &kubewaitingcontainerv1.KubernetesWaitingContainer{
+		Metadata: &headerv1.Metadata{
+			Name: "waiting-container",
+		},
+		Spec: &kubewaitingcontainerv1.KubernetesWaitingContainerSpec{
+			Username:      "user",
+			Cluster:       clusterName,
+			Namespace:     "namespace",
+			PodName:       "pod-name",
+			ContainerName: "waiting-container",
+			Patch:         []byte("patch"),
+			PatchType:     kubewaitingcontainer.ApplyPatchType,
+		},
+	})
+	require.NoError(t, err)
+
+	t.Run("CreateKubernetesCluster", func(t *testing.T) {
+		// neither scoped nor unscoped kube service clients should be able to create a kube cluster
+		err := unscopedKubeClient.CreateKubernetesCluster(ctx, kubeCluster)
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
+
+		err = scopedKubeClient.CreateKubernetesCluster(ctx, kubeCluster)
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
+	})
+
+	t.Run("UpdateKubernetesCluster", func(t *testing.T) {
+		// neither scoped nor unscoped kube service clients should be able to create a kube cluster
+		err := unscopedKubeClient.UpdateKubernetesCluster(ctx, kubeCluster)
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
+
+		err = scopedKubeClient.UpdateKubernetesCluster(ctx, kubeCluster)
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
+	})
+
+	t.Run("GetKubernetesCluster", func(t *testing.T) {
+		// unscoped kube clients SHOULD be able to fetch a kube cluster
+		cluster, err := unscopedKubeClient.GetKubernetesCluster(ctx, clusterName)
+		require.NoError(t, err)
+		require.NotNil(t, cluster)
+
+		// scoped kube clients SHOULD NOT be able to fetch a kube cluster
+		_, err = scopedKubeClient.GetKubernetesCluster(ctx, clusterName)
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
+	})
+
+	t.Run("GetKubernetesClusters", func(t *testing.T) {
+		// unscoped kube clients SHOULD be able to list kube clusters
+		clusters, err := unscopedKubeClient.GetKubernetesClusters(ctx)
+		require.NoError(t, err)
+		require.Len(t, clusters, 1)
+
+		// scoped kube clients SHOULD NOT be able to list a kube clusters
+		clusters, err = scopedKubeClient.GetKubernetesClusters(ctx)
+		require.NoError(t, err)
+		require.Empty(t, clusters)
+	})
+
+	t.Run("ListKubernetesClusters", func(t *testing.T) {
+		// unscoped kube clients SHOULD be able to list kube clusters
+		clusters, _, err := unscopedKubeClient.ListKubernetesClusters(ctx, 10, "")
+		require.NoError(t, err)
+		require.Len(t, clusters, 1)
+
+		// scoped kube clients SHOULD NOT be able to list kube clusters
+		clusters, _, err = scopedKubeClient.ListKubernetesClusters(ctx, 10, "")
+		require.NoError(t, err)
+		require.Empty(t, clusters)
+	})
+
+	t.Run("DeleteKubernetesCluster", func(t *testing.T) {
+		// neither scoped nor unscoped kube clients should be able to delete a kube cluster
+		err := unscopedKubeClient.DeleteKubernetesCluster(ctx, clusterName)
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
+
+		err = scopedKubeClient.DeleteKubernetesCluster(ctx, clusterName)
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
+	})
+
+	t.Run("DeleteAllKubernetesCluster", func(t *testing.T) {
+		// neither scoped nor unscoped kube clients should be able to delete all kube clusters
+		err := unscopedKubeClient.DeleteAllKubernetesClusters(ctx)
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
+
+		err = scopedKubeClient.DeleteAllKubernetesClusters(ctx)
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
+	})
+
+	t.Run("UpsertKubernetesServer", func(t *testing.T) {
+		// unscoped kube service SHOULD be able to upsert a kube server
+		_, err = unscopedKubeClient.UpsertKubernetesServer(ctx, kubeServer)
+		require.NoError(t, err)
+
+		// scoped kube service SHOULD NOT be able to upsert a kube server
+		_, err = scopedKubeClient.UpsertKubernetesServer(ctx, kubeServer)
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
+	})
+
+	t.Run("GetKubernetesServers", func(t *testing.T) {
+		// unscoped kube service clients SHOULD be able to get a list of kube servers
+		servers, err := unscopedKubeClient.GetKubernetesServers(ctx)
+		require.NoError(t, err)
+		require.Len(t, servers, 1)
+
+		// scoped kube service clients SHOULD NOT be able to get a list of kube servers
+		servers, err = scopedKubeClient.GetKubernetesServers(ctx)
+		require.NoError(t, err)
+		require.Empty(t, servers)
+	})
+
+	t.Run("DeleteKubernetesServer", func(t *testing.T) {
+		ks := kubeServer
+		ks.SetName("kube-server-for-deletion")
+		_, err := adminClient.UpsertKubernetesServer(ctx, ks)
+		require.NoError(t, err)
+
+		// unscoped kube clients SHOULD be able to delete a kube server
+		err = unscopedKubeClient.DeleteKubernetesServer(ctx, "host-id", ks.GetName())
+		require.NoError(t, err)
+
+		// scoped kube clients SHOULD NOT be able to delete a kube server
+		err = scopedKubeClient.DeleteKubernetesServer(ctx, "hostname", "host-id")
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
+	})
+
+	t.Run("DeleteAllKubernetesServers", func(t *testing.T) {
+		ks := kubeServer
+		ks.SetName("kube-server-for-deletion")
+		_, err := adminClient.UpsertKubernetesServer(ctx, ks)
+		require.NoError(t, err)
+
+		// unscoped kube clients SHOULD be able to delete all kube servers
+		err = unscopedKubeClient.DeleteAllKubernetesServers(ctx)
+		require.NoError(t, err)
+
+		// scoped kube clients SHOULD NOT be able to delete all kube servers
+		err = scopedKubeClient.DeleteAllKubernetesServers(ctx)
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
+	})
+
+	t.Run("CreateKubernetesWaitingContainer", func(t *testing.T) {
+		const wcName = "create-waiting-container"
+		wc := &kubewaitingcontainerv1.KubernetesWaitingContainer{
+			Metadata: &headerv1.Metadata{
+				Name: wcName,
+			},
+			Spec: &kubewaitingcontainerv1.KubernetesWaitingContainerSpec{
+				Username:      waitingContainer.GetSpec().GetUsername(),
+				Cluster:       waitingContainer.GetSpec().GetCluster(),
+				Namespace:     waitingContainer.GetSpec().GetNamespace(),
+				PodName:       waitingContainer.GetSpec().GetPodName(),
+				ContainerName: wcName,
+				Patch:         waitingContainer.GetSpec().GetPatch(),
+				PatchType:     waitingContainer.GetSpec().GetPatchType(),
+			},
+		}
+
+		// unscoped kube service clients SHOULD be able to create a kube waiting container
+		wc, err := unscopedKubeClient.CreateKubernetesWaitingContainer(ctx, wc)
+		require.NoError(t, err)
+
+		// cleanup waiting container
+		err = unscopedKubeClient.DeleteKubernetesWaitingContainer(ctx, &kubewaitingcontainerv1.DeleteKubernetesWaitingContainerRequest{
+			Username:      wc.GetSpec().GetUsername(),
+			Cluster:       wc.GetSpec().GetCluster(),
+			Namespace:     wc.GetSpec().GetNamespace(),
+			PodName:       wc.GetSpec().GetPodName(),
+			ContainerName: wc.GetSpec().GetContainerName(),
+		})
+		require.NoError(t, err)
+
+		// scoped kube service clients SHOULD NOT be able to create a kube waiting container
+		_, err = scopedKubeClient.CreateKubernetesWaitingContainer(ctx, &kubewaitingcontainerv1.KubernetesWaitingContainer{})
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
+	})
+
+	t.Run("DeleteKubernetesWaitingContainer", func(t *testing.T) {
+		const wcName = "delete-waiting-container"
+		wc := &kubewaitingcontainerv1.KubernetesWaitingContainer{
+			Metadata: &headerv1.Metadata{
+				Name: wcName,
+			},
+			Spec: &kubewaitingcontainerv1.KubernetesWaitingContainerSpec{
+				Username:      waitingContainer.GetSpec().GetUsername(),
+				Cluster:       waitingContainer.GetSpec().GetCluster(),
+				Namespace:     waitingContainer.GetSpec().GetNamespace(),
+				PodName:       waitingContainer.GetSpec().GetPodName(),
+				ContainerName: wcName,
+				Patch:         waitingContainer.GetSpec().GetPatch(),
+				PatchType:     waitingContainer.GetSpec().GetPatchType(),
+			},
+		}
+
+		// unscoped kube service clients SHOULD be able to create a kube waiting container
+		wc, err := unscopedKubeClient.CreateKubernetesWaitingContainer(ctx, wc)
+		require.NoError(t, err)
+
+		deleteReq := &kubewaitingcontainerv1.DeleteKubernetesWaitingContainerRequest{
+			Username:      wc.GetSpec().GetUsername(),
+			Cluster:       wc.GetSpec().GetCluster(),
+			Namespace:     wc.GetSpec().GetNamespace(),
+			PodName:       wc.GetSpec().GetPodName(),
+			ContainerName: wc.GetSpec().GetContainerName(),
+		}
+		// cleanup waiting container
+		err = unscopedKubeClient.DeleteKubernetesWaitingContainer(ctx, deleteReq)
+		require.NoError(t, err)
+
+		// scoped kube service clients SHOULD NOT be able to delete a kube waiting container
+		err = scopedKubeClient.DeleteKubernetesWaitingContainer(ctx, deleteReq)
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
+	})
+
+	t.Run("GetKubernetesWaitingContainer", func(t *testing.T) {
+		req := &kubewaitingcontainerv1.GetKubernetesWaitingContainerRequest{
+			Username:      waitingContainer.GetSpec().GetUsername(),
+			Cluster:       waitingContainer.GetSpec().GetCluster(),
+			Namespace:     waitingContainer.GetSpec().GetNamespace(),
+			PodName:       waitingContainer.GetSpec().GetPodName(),
+			ContainerName: waitingContainer.GetSpec().GetContainerName(),
+		}
+		// unscoped kube clients SHOULD be able to fetch a kube waiting containers
+		_, err := unscopedKubeClient.GetKubernetesWaitingContainer(ctx, req)
+		require.NoError(t, err)
+
+		// scoped kube clients SHOULD NOT be able to fetch a kube waiting containers
+		_, err = scopedKubeClient.GetKubernetesWaitingContainer(ctx, req)
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err), "expected access denied error")
+	})
+}
+
 func TestGetAndList_DatabaseServers(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -5204,7 +5583,12 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 	))
 	require.NoError(t, err)
 
-	testNames := []string{"a", "b", "c", "d"}
+	testNames := []string{
+		// unscoped cluster names
+		"a", "b", "c", "d",
+		// scoped cluster names
+		"a", "b", "c",
+	}
 
 	// Add a kube service with 3 clusters.
 	createKubeServer(t, srv.Auth(), []string{"d", "b", "a"}, "host1", "")
@@ -5236,8 +5620,11 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, res.Resources, len(testNames))
 		require.Empty(t, res.NextKey)
-		// There are 4 unique clusters across all kube services.
-		require.Equal(t, 4, res.TotalCount)
+		// There are 4 unique clusters names total (a, b, c, and d)
+		// The two unscoped kube servers reference 5 clusters combined, but will be deduplicated to a count of 4.
+		// The two scoped kube servers reference 4 clusters combined, but will be deduplicated down to a count of 3.
+		// Deduplication does not cross scope boundaries, so we expect a total of 7 clusters.
+		require.Equal(t, 7, res.TotalCount)
 
 		clusters, err := types.ResourcesWithLabels(res.Resources).AsKubeClusters()
 		require.NoError(t, err)
@@ -5289,7 +5676,7 @@ func TestListResources_KindKubernetesCluster(t *testing.T) {
 		require.NoError(t, err)
 		names, err := types.KubeClusters(clusters).GetFieldVals(types.ResourceMetadataName)
 		require.NoError(t, err)
-		require.IsDecreasing(t, names)
+		require.IsNonIncreasing(t, names, "expected kube cluster names to be non-increasing")
 	})
 
 	t.Run("fetch all scoped", func(t *testing.T) {
@@ -5367,7 +5754,8 @@ func waitForSRACache(t *testing.T, srv *authtest.TLSServer, resps ...*scopedacce
 func createKubeServer(t *testing.T, s *auth.Server, clusterNames []string, hostID, scope string) {
 	for _, clusterName := range clusterNames {
 		kubeCluster, err := types.NewKubernetesClusterV3(types.Metadata{
-			Name: clusterName,
+			Name:        clusterName,
+			Description: hostID,
 		}, types.KubernetesClusterSpecV3{})
 		require.NoError(t, err)
 		kubeCluster.Scope = scope
@@ -5378,6 +5766,217 @@ func createKubeServer(t *testing.T, s *auth.Server, clusterNames []string, hostI
 
 		_, err = s.UpsertKubernetesServer(context.Background(), kubeServer)
 		require.NoError(t, err)
+	}
+}
+
+func TestListResourcesScopedPagination(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	ctx := t.Context()
+	srv := newTestTLSServer(t)
+
+	client, err := srv.NewClient(authtest.TestBuiltin(types.RoleProxy))
+	require.NoError(t, err)
+
+	makeScope := func(i int) string {
+		a := byte('a')
+		z := byte('z')
+		mod := int(z - a)
+		return fmt.Sprintf("/%c%c", a+byte(i/mod), a+byte(i%mod))
+	}
+
+	resourceCount := 50
+	for i := range resourceCount {
+		scope := makeScope(i)
+		// all kube clusters and servers will have the same name, so the only way to
+		// correctly paginate clusters is by scope
+		kubeServer := &types.KubernetesServerV3{
+			Kind:  types.KindKubeServer,
+			Scope: scope,
+			Metadata: types.Metadata{
+				Name:        "a",
+				Description: strconv.Itoa(i),
+			},
+			Spec: types.KubernetesServerSpecV3{
+				Cluster: &types.KubernetesClusterV3{
+					Scope: scope,
+					Metadata: types.Metadata{
+						Name:        "a",
+						Description: strconv.Itoa(i),
+					},
+				},
+				// kube servers will actually be paginated by host ID, so we need this
+				// to be unique
+				HostID: fmt.Sprintf("ks-%d", i),
+			},
+		}
+		_, err = srv.Auth().UpsertKubernetesServer(ctx, kubeServer)
+		require.NoError(t, err)
+
+		// create some scoped nodes to make sure we haven't introduced regressions
+		// for existing scoped resources
+		node := &types.ServerV2{
+			Kind:    types.KindNode,
+			Version: types.V2,
+			Metadata: types.Metadata{
+				Name:        fmt.Sprintf("node-%d", i),
+				Description: strconv.Itoa(i),
+				Namespace:   apidefaults.Namespace,
+			},
+			Spec: types.ServerSpecV2{
+				Hostname: "node",
+			},
+			Scope: scope,
+		}
+		_, err = srv.Auth().UpsertNode(ctx, node)
+		require.NoError(t, err)
+
+		// create some databse servers as an unscoped control
+		db, err := types.NewDatabaseServerV3(types.Metadata{
+			Name:        "db",
+			Description: strconv.Itoa(i),
+		}, types.DatabaseServerSpecV3{
+			HostID:   fmt.Sprintf("db-%d", i),
+			Hostname: "hostname",
+			Database: &types.DatabaseV3{
+				Metadata: types.Metadata{
+					Name: "db",
+				},
+				Spec: types.DatabaseSpecV3{
+					Protocol: "postgres",
+					URI:      "postgres://user:password@host",
+				},
+			},
+		})
+		require.NoError(t, err)
+		_, err = srv.Auth().UpsertDatabaseServer(ctx, db)
+		require.NoError(t, err)
+	}
+
+	getIndex := func(resource types.ResourceWithLabels) (int, bool) {
+		switch res := resource.(type) {
+		case types.KubeCluster, types.KubeServer, types.Server, types.DatabaseServer:
+			id, err := strconv.Atoi(res.GetMetadata().Description)
+			return id, err == nil
+		default:
+			return -1, false
+		}
+	}
+
+	kinds := []string{types.KindKubeServer, types.KindKubernetesCluster, types.KindNode, types.KindDatabaseServer}
+	for _, kind := range kinds {
+		t.Run(kind, func(t *testing.T) {
+			found := make(map[int]struct{})
+			// try a few different page sizes
+			for _, pageSize := range []int{1, 2, 3, 5, 8, 13, 21, resourceCount} {
+				startKey := ""
+				count := 0
+				for range resourceCount/pageSize + 1 {
+					res, err := client.ListResources(ctx, proto.ListResourcesRequest{
+						ResourceType: kind,
+						Limit:        int32(pageSize),
+						StartKey:     startKey,
+					})
+					require.NoError(t, err)
+					for _, r := range res.Resources {
+						idx, ok := getIndex(r)
+						require.True(t, ok)
+						found[idx] = struct{}{}
+						count++
+					}
+					startKey = res.NextKey
+					if startKey == "" {
+						break
+					}
+				}
+
+				// pagination was successful if we visited each resource exactly once and all indexes were
+				// added to the found map
+				assert.Equal(t, resourceCount, count)
+				for i := range resourceCount {
+					_, ok := found[i]
+					assert.True(t, ok, "no resource found for idx %d", i)
+				}
+				clear(found)
+			}
+		})
+	}
+}
+
+// TestListResourcesScopedPaginateKubeClusters tests that scoped kube clusters can be paginated properly even when
+// there are resources that will be deduplicated.
+func TestListResourcesPaginateKubeClusters(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	ctx := t.Context()
+	srv := newTestTLSServer(t)
+
+	client, err := srv.NewClient(authtest.TestBuiltin(types.RoleProxy))
+	require.NoError(t, err)
+
+	scopes := []string{"", "/aa", "/bb", "/cc", "/dd", "/ee", "/ff", "/gg", "/hh", "/ii"}
+	scopeChangeFreq := 5
+	const resourceCount = 50
+	for i := range resourceCount {
+		// cluster scopes will change every scopeChangeFreq clusters
+		scope := scopes[i/scopeChangeFreq]
+		// all kube clusters and servers will have the same name, so the only way to
+		// paginate them is by scope
+		kubeCluster, err := types.NewKubernetesClusterV3(types.Metadata{
+			Name:        "a",
+			Description: strconv.Itoa(i),
+		}, types.KubernetesClusterSpecV3{})
+		require.NoError(t, err)
+		kubeCluster.Scope = scope
+
+		kubeServer, err := types.NewKubernetesServerV3FromCluster(kubeCluster, "hostname", fmt.Sprintf("ks-%d", i))
+		require.NoError(t, err)
+		kubeServer.Metadata.Description = strconv.Itoa(i)
+
+		_, err = srv.Auth().UpsertKubernetesServer(ctx, kubeServer)
+		require.NoError(t, err)
+	}
+
+	found := make(map[string]struct{})
+	// Because duplicate clusters within a scope are dropped, we need to ensure we only ever receive one unique
+	// cluster per scope while paginating
+	uniqueResourceCount := resourceCount / scopeChangeFreq
+	// try a few different page sizes
+	for _, pageSize := range []int{1, 2, 3, 5, 8, 13, 21, resourceCount} {
+		startKey := ""
+		for page := range uniqueResourceCount/pageSize + 1 {
+			res, err := client.ListResources(ctx, proto.ListResourcesRequest{
+				ResourceType: types.KindKubernetesCluster,
+				Limit:        int32(pageSize),
+				StartKey:     startKey,
+			})
+			require.NoError(t, err)
+
+			// we should only get data from pages up to the uniqueResourceCount
+			if uniqueResourceCount-page*pageSize > pageSize {
+				require.Len(t, res.Resources, pageSize, "page=%d pageSize=%d", page, pageSize)
+			} else if uniqueResourceCount-page*pageSize > 0 {
+				require.Len(t, res.Resources, uniqueResourceCount-page*pageSize, "page=%d pageSize=%d", page, pageSize)
+			} else {
+				require.Empty(t, res.Resources)
+			}
+			for _, r := range res.Resources {
+				cluster, ok := r.(types.KubeCluster)
+				require.True(t, ok, "expected a kube cluster")
+				_, ok = found[cluster.GetScope()]
+				assert.False(t, ok) // we should only find each scope once per pageSize
+				found[cluster.GetScope()] = struct{}{}
+			}
+			startKey = res.NextKey
+			if startKey == "" {
+				break
+			}
+		}
+
+		// we should have found all scopes after fully paging through the data
+		for _, scope := range scopes {
+			_, ok := found[scope]
+			assert.True(t, ok, "no resource found for scope %q", scope)
+		}
+		clear(found)
 	}
 }
 
@@ -12189,6 +12788,210 @@ func TestRegisterInventoryControlStreamImmutableLabels(t *testing.T) {
 			result := <-resultCh
 			require.NoError(t, result.err)
 			require.NotNil(t, result.hello)
+		})
+	}
+}
+
+// assert that common user cert generation cases are properly handled for scoped identities
+func TestScopedUserCertGeneration(t *testing.T) {
+	os.Setenv("TELEPORT_UNSTABLE_SCOPES", "true")
+	clock := clockwork.NewFakeClock()
+	srv := newTestTLSServer(t, withClock(clock))
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Policy: {Enabled: true},
+				entitlements.K8s:    {Enabled: true},
+			},
+		},
+	})
+	ctx := t.Context()
+
+	_, sshPubKey, _, tlsPubKey := newSSHAndTLSKeyPairs(t)
+	username := "scoped-user"
+	scope := "/test"
+	scopedAccess := srv.Auth().ScopedAccess()
+	roleResp, err := scopedAccess.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+		Role: &scopedaccessv1.ScopedRole{
+			Kind:    scopedaccess.KindScopedRole,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: username,
+			},
+			Scope: scope,
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{scope},
+				Kube: &scopedaccessv1.ScopedRoleKube{
+					Users:  []string{"kube_user"},
+					Groups: []string{"kube_group"},
+					Labels: []*labelv1.Label{
+						{
+							Name:   types.Wildcard,
+							Values: []string{types.Wildcard},
+						},
+					},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	user, role, err := authtest.CreateUserAndRole(srv.Auth(), username, []string{username}, nil)
+	require.NoError(t, err)
+
+	scopedRole := roleResp.GetRole()
+	sra, err := scopedAccess.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
+		Assignment: &scopedaccessv1.ScopedRoleAssignment{
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: scopedaccess.SubKindDynamic,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: uuid.NewString(),
+			},
+			Scope: scope,
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				User: user.GetName(),
+				Assignments: []*scopedaccessv1.Assignment{
+					{Role: scopedRole.GetMetadata().GetName(), Scope: scope},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	waitForSRACache(t, srv, sra)
+
+	ident := authtest.TestScopedUser(username, scope)
+	client, err := srv.NewClient(ident)
+	require.NoError(t, err)
+
+	createKubeServer(t, srv.Auth(), []string{"kube-cluster"}, "kube-host", scope)
+	tts := []struct {
+		name       string
+		req        proto.UserCertsRequest
+		assertErr  func(t *testing.T, err error)
+		assertCert func(t *testing.T, cert *x509.Certificate)
+	}{
+		{
+			name: "valid request",
+			req: proto.UserCertsRequest{
+				SSHPublicKey:      sshPubKey,
+				TLSPublicKey:      tlsPubKey,
+				Username:          username,
+				Usage:             proto.UserCertsRequest_Kubernetes,
+				KubernetesCluster: "kube-cluster",
+				Expires:           time.Now().Add(time.Hour),
+			},
+		},
+		{
+			name: "session TTL for non-disk flow",
+			req: proto.UserCertsRequest{
+				SSHPublicKey:      sshPubKey,
+				TLSPublicKey:      tlsPubKey,
+				Username:          username,
+				Usage:             proto.UserCertsRequest_Kubernetes,
+				RequesterName:     proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY,
+				KubernetesCluster: "kube-cluster",
+				Expires:           time.Now().Add(time.Hour * 24 * 7),
+			},
+			assertCert: func(t *testing.T, cert *x509.Certificate) {
+				roAuthPref, err := srv.Auth().GetReadOnlyAuthPreference(ctx)
+				require.NoError(t, err)
+
+				// expiry should get shortened to default set for the cluster
+				notAfter := clock.Now().UTC().Add(roAuthPref.GetDefaultSessionTTL().Duration())
+				diff := notAfter.Sub(cert.NotAfter)
+				// ignore small differences from parsing
+				require.Less(t, max(diff, -diff), time.Second)
+			},
+		},
+		{
+			name: "with impersonation",
+			req: proto.UserCertsRequest{
+				SSHPublicKey:      sshPubKey,
+				TLSPublicKey:      tlsPubKey,
+				Username:          "some-other-user",
+				Usage:             proto.UserCertsRequest_Kubernetes,
+				KubernetesCluster: "kube-cluster",
+				Expires:           time.Now().Add(time.Hour),
+			},
+			assertErr: func(t *testing.T, err error) {
+				require.Error(t, err)
+				require.True(t, trace.IsAccessDenied(err))
+				require.ErrorContains(t, err, "impersonation is not allowed")
+			},
+		},
+		{
+			name: "with role impersonation",
+			req: proto.UserCertsRequest{
+				SSHPublicKey:      sshPubKey,
+				TLSPublicKey:      tlsPubKey,
+				Username:          username,
+				Usage:             proto.UserCertsRequest_Kubernetes,
+				KubernetesCluster: "kube-cluster",
+				Expires:           time.Now().Add(time.Hour),
+				UseRoleRequests:   true,
+				RoleRequests:      []string{role.GetName()},
+			},
+			assertErr: func(t *testing.T, err error) {
+				require.Error(t, err)
+				require.True(t, trace.IsAccessDenied(err), "expected AccessDeniedError")
+				require.ErrorContains(t, err, "scoped identities not supported")
+				require.ErrorContains(t, err, "impersonation not permitted")
+			},
+		},
+		{
+			name: "app session creation",
+			req: proto.UserCertsRequest{
+				SSHPublicKey:      sshPubKey,
+				TLSPublicKey:      tlsPubKey,
+				Username:          username,
+				Usage:             proto.UserCertsRequest_Kubernetes,
+				KubernetesCluster: "kube-cluster",
+				Expires:           time.Now().Add(time.Hour),
+				RouteToApp: proto.RouteToApp{
+					Name: "app-name",
+				},
+			},
+			assertErr: func(t *testing.T, err error) {
+				require.Error(t, err)
+				require.True(t, trace.IsAccessDenied(err), "expected AccessDeniedError")
+				require.ErrorContains(t, err, "creating app session")
+				require.ErrorContains(t, err, "scoped identities not supported")
+			},
+		},
+		{
+			name: "for non-kube usage",
+			req: proto.UserCertsRequest{
+				SSHPublicKey: sshPubKey,
+				TLSPublicKey: tlsPubKey,
+				Username:     username,
+				Expires:      time.Now().Add(time.Hour),
+			},
+			assertErr: func(t *testing.T, err error) {
+				require.Error(t, err)
+				require.True(t, trace.IsAccessDenied(err), "expected AccessDeniedError")
+				require.ErrorContains(t, err, "scoped identities not supported")
+				require.ErrorContains(t, err, "generating scoped user cert for non-kubernetes usage")
+			},
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			certs, err := client.GenerateUserCerts(ctx, tt.req)
+			if tt.assertErr != nil {
+				tt.assertErr(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+			if tt.assertCert != nil {
+				b, _ := pem.Decode(certs.TLS)
+				cert, err := x509.ParseCertificate(b.Bytes)
+				require.NoError(t, err)
+
+				tt.assertCert(t, cert)
+			}
 		})
 	}
 }

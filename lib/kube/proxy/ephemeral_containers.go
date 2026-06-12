@@ -349,6 +349,12 @@ func (f *Forwarder) getPatchedPodEvent(ctx context.Context, sess *clusterSession
 // getUserEphemeralContainersForPod returns a list of ephemeral containers
 // created by the username and are waiting to be created for a given pod.
 func (f *Forwarder) getUserEphemeralContainersForPod(ctx context.Context, username, kubeCluster, namespace, pod string) ([]*kubewaitingcontainerpb.KubernetesWaitingContainer, error) {
+	if f.cfg.Scope != "" {
+		// If the kube forwarder is scoped then moderated sessions are not supported and access to
+		// KindKubernetesWaitingContainer will be denied. We need to return without error to prevent
+		// interactive exec from failing
+		return nil, nil
+	}
 	var (
 		list      []*kubewaitingcontainerpb.KubernetesWaitingContainer
 		startPage string
