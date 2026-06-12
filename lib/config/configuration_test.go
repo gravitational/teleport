@@ -2492,6 +2492,19 @@ uQM=
 			},
 		},
 		{
+			desc: "NOK - invalid label attribute mode",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.WindowsDesktop.DiscoveryConfigs = []LDAPDiscoveryConfig{
+					{
+						BaseDN:  "*",
+						LabelAttributes: []string{"foo"},
+						LabelAtrributeMode: "invalid",
+					},
+				}
+			},,
+		},
+		{
 			desc:        "NOK - invalid RDP port",
 			expectError: require.Error,
 			mutate: func(fc *FileConfig) {

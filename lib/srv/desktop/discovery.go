@@ -19,6 +19,7 @@
 package desktop
 
 import (
+	"cmp"
 	"context"
 	"encoding/hex"
 	"errors"
@@ -296,9 +297,18 @@ func (s *WindowsService) applyLabelsFromLDAP(entry *ldap.Entry, labels map[strin
 
 	// apply any custom labels per the discovery configuration
 	for _, attr := range cfg.LabelAttributes {
-		if v := entry.GetAttributeValue(attr); v != "" {
-			labels[types.DiscoveryLabelLDAPPrefix+attr] = v
+		values := entry.GetAttributeValues(attr)
+		if len(values) == 0 {
+			continue
 		}
+		// Take only the first value when not in join mode.
+		if cfg.LabelAtrributeMode != "join" && len(values) > 1 {
+			values = values[:1]
+		}
+		// At this point we can do an unconditional join, because
+		// strings.Join is a no-op on a single-element slice.
+		labels[types.DiscoveryLabelLDAPPrefix+attr] =
+			strings.Join(values, cmp.Or(cfg.LabelAttributeJoinSeparator, "|"))
 	}
 }
 
