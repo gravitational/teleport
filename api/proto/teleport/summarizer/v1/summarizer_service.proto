@@ -66,6 +66,13 @@ service SummarizerService {
   // ListInferencePolicies lists all InferencePolicies that match the request.
   rpc ListInferencePolicies(ListInferencePoliciesRequest) returns (ListInferencePoliciesResponse);
 
+  // GetClassifier retrieves an existing Classifier by name.
+  rpc GetClassifier(GetClassifierRequest) returns (GetClassifierResponse);
+  // DeleteClassifier deletes an existing Classifier by name.
+  rpc DeleteClassifier(DeleteClassifierRequest) returns (DeleteClassifierResponse);
+  // ListClassifiers lists all Classifiers that match the request.
+  rpc ListClassifiers(ListClassifiersRequest) returns (ListClassifiersResponse);
+
   // GetSummary retrieves the inference result for a session, which
   // contains the session summary.
   rpc GetSummary(GetSummaryRequest) returns (GetSummaryResponse);
@@ -339,6 +346,48 @@ message ListInferencePoliciesResponse {
   // Policies is the page of InferencePolicies that matched the
   // request.
   repeated InferencePolicy policies = 1;
+  // NextPageToken is the token to retrieve the next page of results, or empty
+  // if there are no more results in the list.
+  string next_page_token = 2;
+}
+
+// Summarization classifiers
+
+// GetClassifierRequest is a request for retrieving a Classifier.
+message GetClassifierRequest {
+  // Name is the resource name of the Classifier to retrieve.
+  string name = 1;
+}
+
+// GetClassifierResponse is a response to retrieving a Classifier.
+message GetClassifierResponse {
+  // Classifier is the Classifier resource that was retrieved.
+  Classifier classifier = 1;
+}
+
+// DeleteClassifierRequest is a request for deleting a Classifier.
+message DeleteClassifierRequest {
+  // Name is the resource name of the Classifier to delete.
+  string name = 1;
+}
+
+// DeleteClassifierResponse is a response to deleting a Classifier.
+message DeleteClassifierResponse {}
+
+// ListClassifiersRequest is a request for listing Classifiers.
+message ListClassifiersRequest {
+  // PageSize is the maximum number of items to return. The server may use a
+  // different page size at its discretion.
+  int32 page_size = 1;
+  // PageToken is the next_page_token value returned from a previous List
+  // request, if any.
+  string page_token = 2;
+}
+
+// ListClassifiersResponse is the response for listing Classifiers.
+message ListClassifiersResponse {
+  // Classifiers is the page of Classifiers that matched the request.
+  repeated Classifier classifiers = 1;
   // NextPageToken is the token to retrieve the next page of results, or empty
   // if there are no more results in the list.
   string next_page_token = 2;
