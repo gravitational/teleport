@@ -266,7 +266,7 @@ type ScopedTokenSpec struct {
 	// Configuration specific to the "bound_keypair" join method.
 	BoundKeypair *BoundKeypairSpec `protobuf:"bytes,12,opt,name=bound_keypair,json=boundKeypair,proto3" json:"bound_keypair,omitempty"`
 	// The bot associated with this join token, if any, as a scope-qualified name
-	// of the form "<scope>::<bot-name>" (e.g. "/staging/west::mybot"). The scope
+	// of the form `<scope>::<bot-name>` (e.g. "/staging/west::mybot"). The scope
 	// component must be a descendant of or equivalent to the token's resource
 	// scope.
 	//
@@ -568,7 +568,7 @@ type ScopedTokenSpec_builder struct {
 	// Configuration specific to the "bound_keypair" join method.
 	BoundKeypair *BoundKeypairSpec
 	// The bot associated with this join token, if any, as a scope-qualified name
-	// of the form "<scope>::<bot-name>" (e.g. "/staging/west::mybot"). The scope
+	// of the form `<scope>::<bot-name>` (e.g. "/staging/west::mybot"). The scope
 	// component must be a descendant of or equivalent to the token's resource
 	// scope.
 	//
