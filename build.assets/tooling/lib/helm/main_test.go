@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package main
+package helm
 
 import (
 	"os"
@@ -30,14 +30,14 @@ const (
 	testSnapshotPath = "./testdata/expected-output.mdx"
 )
 
-func Test_parseAndRender(t *testing.T) {
+func Test_RenderReference(t *testing.T) {
 	// Test setup: we load the fixtures
 	expected, err := os.ReadFile(testSnapshotPath)
 	require.NoError(t, err)
 	require.NotEmpty(t, expected)
 
 	// Test execution: we render templates, expect no error and check result
-	actual, err := parseAndRender(testChartPath)
+	actual, err := RenderReference(testChartPath)
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
 }
