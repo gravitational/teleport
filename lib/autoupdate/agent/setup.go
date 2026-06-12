@@ -182,18 +182,28 @@ type Namespace struct {
 
 var alphanum = regexp.MustCompile("^[a-zA-Z0-9-]*$")
 
+// ValidateNamespaceName returns an error if name is not a valid teleport-update
+// namespace (install suffix). The empty string is valid and denotes the default
+// namespace.
+func ValidateNamespaceName(name string) error {
+	if name == defaultNamespace ||
+		name == systemNamespace {
+		return trace.Errorf("namespace %s is reserved", name)
+	}
+	if !alphanum.MatchString(name) {
+		return trace.Errorf("invalid namespace name %s, must be alphanumeric", name)
+	}
+	return nil
+}
+
 // NewNamespace validates and returns a Namespace.
 // Namespaces must be alphanumeric + `-`.
 // defaultPathDir overrides the destination directory for namespace setup (i.e., /usr/local)
 func NewNamespace(ctx context.Context, log *slog.Logger, name, installDir string) (ns *Namespace, err error) {
 	defer func() { ns.overrideFromConfig(ctx) }()
 
-	if name == defaultNamespace ||
-		name == systemNamespace {
-		return nil, trace.Errorf("namespace %s is reserved", name)
-	}
-	if !alphanum.MatchString(name) {
-		return nil, trace.Errorf("invalid namespace name %s, must be alphanumeric", name)
+	if err := ValidateNamespaceName(name); err != nil {
+		return nil, trace.Wrap(err)
 	}
 	if installDir == "" {
 		installDir = defaultInstallDir

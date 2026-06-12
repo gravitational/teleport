@@ -157,6 +157,35 @@ func TestNewNamespace(t *testing.T) {
 	}
 }
 
+func TestValidateNamespaceName(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		wantErr bool
+	}{
+		{name: "scope"},
+		{name: "a-b-1"},
+		{name: ""},
+		{name: "default", wantErr: true},
+		{name: "system", wantErr: true},
+		{name: "bad/suffix", wantErr: true},
+		{name: "bad suffix", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			err := ValidateNamespaceName(tt.name)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
 func TestWriteConfigFiles(t *testing.T) {
 	for _, p := range []struct {
 		name      string

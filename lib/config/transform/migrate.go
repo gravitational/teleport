@@ -19,16 +19,17 @@
 package transform
 
 import (
+	"fmt"
 	"maps"
 	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
 
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 )
 
 // MigrateParams controls ApplyMigration.
@@ -47,7 +48,6 @@ type MigrateParams struct {
 // MigrationResult describes a migrated config and the edits made to it.
 type MigrationResult struct {
 	Document                *Document
-	FieldsRemoved           []string
 	ServicesDisabled        []string
 	DisableServicesNotFound []string
 	LogPathsChanged         []PathChange
@@ -92,11 +92,11 @@ func ApplyMigration(doc *Document, p MigrateParams) (*MigrationResult, error) {
 	if doc == nil {
 		return nil, trace.BadParameter("missing input document")
 	}
-	out := doc.Clone()
+	out := doc.clone()
 	result := &MigrationResult{Document: out}
 
 	var oldPIDFile string
-	if pidFile, ok := out.Get("teleport", "pid_file"); ok {
+	if pidFile, ok := out.get("teleport", "pid_file"); ok {
 		oldPIDFile = strings.TrimSpace(pidFile.Value)
 	}
 
@@ -111,20 +111,18 @@ func ApplyMigration(doc *Document, p MigrateParams) (*MigrationResult, error) {
 		{"teleport", "data_dir"},
 		{"teleport", "pid_file"},
 	} {
-		if out.Delete(path...) {
-			result.FieldsRemoved = append(result.FieldsRemoved, strings.Join(path, "."))
-		}
+		out.delete(path...)
 	}
 
 	switch {
 	case p.ProxyServer != "" && p.AuthServer != "":
 		return nil, trace.BadParameter("only one of proxy server or auth server can be set")
 	case p.ProxyServer != "":
-		if err := out.Set(p.ProxyServer, "teleport", "proxy_server"); err != nil {
+		if err := out.set(p.ProxyServer, "teleport", "proxy_server"); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	case p.AuthServer != "":
-		if err := out.Set(p.AuthServer, "teleport", "auth_server"); err != nil {
+		if err := out.set(p.AuthServer, "teleport", "auth_server"); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	default:
@@ -138,15 +136,15 @@ func ApplyMigration(doc *Document, p MigrateParams) (*MigrationResult, error) {
 		{p.DataDir, []string{"teleport", "data_dir"}},
 		{string(p.JoinMethod), []string{"teleport", "join_params", "method"}},
 		{p.TokenName, []string{"teleport", "join_params", "token_name"}},
-		{false, []string{"auth_service", "enabled"}},
-		{false, []string{"proxy_service", "enabled"}},
+		{"no", []string{"auth_service", "enabled"}},
+		{"no", []string{"proxy_service", "enabled"}},
 	} {
-		if err := out.Set(set.value, set.path...); err != nil {
+		if err := out.set(set.value, set.path...); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
-	if p.JoinMethod == types.JoinMethodToken {
-		if err := out.Set(p.TokenSecretPath, "teleport", "join_params", "token_secret"); err != nil {
+	if p.JoinMethod == types.JoinMethodToken && p.TokenSecretPath != "" {
+		if err := out.set(p.TokenSecretPath, "teleport", "join_params", "token_secret"); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -156,11 +154,11 @@ func ApplyMigration(doc *Document, p MigrateParams) (*MigrationResult, error) {
 		if !ok {
 			return nil, trace.BadParameter("unsupported service %q in disable services", service)
 		}
-		if _, ok := out.Get(section); !ok {
+		if _, ok := out.get(section); !ok {
 			result.DisableServicesNotFound = append(result.DisableServicesNotFound, service)
 			continue
 		}
-		if err := out.Set(false, section, "enabled"); err != nil {
+		if err := out.set("no", section, "enabled"); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		result.ServicesDisabled = append(result.ServicesDisabled, section)
@@ -179,7 +177,7 @@ func (d *Document) mergeSSHLabels(labels map[string]string) error {
 	if len(labels) == 0 {
 		return nil
 	}
-	sshService, ok := d.Get("ssh_service")
+	sshService, ok := d.get("ssh_service")
 	if !ok {
 		return trace.BadParameter("cannot place labels: ssh_service is not configured; marker labels are required for verify/decommission")
 	}
@@ -189,14 +187,14 @@ func (d *Document) mergeSSHLabels(labels map[string]string) error {
 	if !sectionEnabled(sshService) {
 		return trace.BadParameter("cannot place labels: ssh_service is disabled; marker labels are required for verify/decommission")
 	}
-	labelsNode, ok := d.Get("ssh_service", "labels")
+	labelsNode, ok := d.get("ssh_service", "labels")
 	if !ok {
 		labelsNode = &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
-		if err := d.Set(labelsNode, "ssh_service", "labels"); err != nil {
+		if err := d.set(labelsNode, "ssh_service", "labels"); err != nil {
 			return trace.Wrap(err)
 		}
 		var inserted bool
-		labelsNode, inserted = d.Get("ssh_service", "labels")
+		labelsNode, inserted = d.get("ssh_service", "labels")
 		if !inserted {
 			return trace.BadParameter("failed to create ssh_service.labels")
 		}
@@ -218,11 +216,10 @@ func (d *Document) mergeSSHLabels(labels map[string]string) error {
 }
 
 func (d *Document) resolveConflicts(installSuffix, oldPIDFile string, result *MigrationResult) error {
-	if diagAddr, ok := d.Get("teleport", "diag_addr"); ok && strings.TrimSpace(diagAddr.Value) != "" {
+	if diagAddr, ok := d.get("teleport", "diag_addr"); ok && strings.TrimSpace(diagAddr.Value) != "" {
 		old := diagAddr.Value
-		d.Delete("teleport", "diag_addr")
-		result.FieldsRemoved = append(result.FieldsRemoved, "teleport.diag_addr")
-		result.Notices = append(result.Notices, "diag_addr removed from migrated config: would conflict with original agent ("+old+")")
+		d.delete("teleport", "diag_addr")
+		result.Notices = append(result.Notices, fmt.Sprintf("diag_addr removed from migrated config: would conflict with the original agent (%s).", old))
 	}
 	if err := d.suffixLogPath(installSuffix, result); err != nil {
 		return trace.Wrap(err)
@@ -237,7 +234,7 @@ func (d *Document) resolveConflicts(installSuffix, oldPIDFile string, result *Mi
 }
 
 func (d *Document) suffixLogPath(installSuffix string, result *MigrationResult) error {
-	logOutput, ok := d.Get("teleport", "log", "output")
+	logOutput, ok := d.get("teleport", "log", "output")
 	if !ok || logOutput.Kind != yaml.ScalarNode {
 		return nil
 	}
@@ -269,8 +266,8 @@ func (d *Document) resolvePIDFile(installSuffix, oldPath string, result *Migrati
 	}
 	ext := filepath.Ext(oldPath)
 	newPath := strings.TrimSuffix(oldPath, ext) + "_" + installSuffix + ext
-	if err := d.Set(newPath, "teleport", "pid_file"); err != nil {
-		result.Notices = append(result.Notices, "removed teleport.pid_file to avoid two agents sharing the same PID file")
+	if err := d.set(newPath, "teleport", "pid_file"); err != nil {
+		result.Notices = append(result.Notices, "removed teleport.pid_file to avoid two agents sharing the same PID file.")
 		return nil
 	}
 	result.PIDFileChanged = &PathChange{
@@ -282,7 +279,7 @@ func (d *Document) resolvePIDFile(installSuffix, oldPath string, result *Migrati
 }
 
 func (d *Document) checkSectionListeners(section string, result *MigrationResult) {
-	sectionNode, ok := d.Get(section)
+	sectionNode, ok := d.get(section)
 	if !ok || sectionNode.Kind != yaml.MappingNode {
 		return
 	}
@@ -292,26 +289,18 @@ func (d *Document) checkSectionListeners(section string, result *MigrationResult
 			continue
 		}
 		if sectionEnabled(sectionNode) {
-			result.ListenerWarnings = append(result.ListenerWarnings, section+"."+field+" "+strconv.Quote(listenNode.Value)+" may be bound by both agents")
+			result.ListenerWarnings = append(result.ListenerWarnings, fmt.Sprintf("%s.%s %q may be bound by both agents.", section, field, listenNode.Value))
 		}
 	}
 }
 
 func sectionEnabled(sectionNode *yaml.Node) bool {
 	enabled, ok := mappingValue(sectionNode, "enabled")
-	if !ok {
+	if !ok || strings.TrimSpace(enabled.Value) == "" {
 		return true
 	}
-	switch strings.ToLower(strings.TrimSpace(enabled.Value)) {
-	case "no", "false", "off", "0":
-		return false
-	case "yes", "true", "on", "1":
-		return true
-	default:
-		parsed, err := strconv.ParseBool(enabled.Value)
-		if err != nil {
-			return true
-		}
-		return parsed
-	}
+	// Match fileconf.Service.Enabled: apiutils.ParseBool semantics,
+	// unparseable values mean disabled.
+	parsed, err := apiutils.ParseBool(strings.TrimSpace(enabled.Value))
+	return err == nil && parsed
 }

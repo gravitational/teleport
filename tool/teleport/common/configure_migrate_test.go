@@ -205,15 +205,67 @@ func TestConfigureMigrateFlagValidation(t *testing.T) {
 	iamNoSecret.joinMethod = string(types.JoinMethodIAM)
 	require.NoError(t, iamNoSecret.CheckAndSetDefaults())
 
+	tokenWithName := base
+	tokenWithName.installSuffix = "scope"
+	tokenWithName.joinMethod = string(types.JoinMethodToken)
+	tokenWithName.token = "legacy-token"
+	tokenWithName.tokenName = "split-token"
+	tokenWithName.tokenSecretFile = ""
+	err := tokenWithName.CheckAndSetDefaults()
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "cannot be combined")
+
+	tokenWithSecret := base
+	tokenWithSecret.installSuffix = "scope"
+	tokenWithSecret.joinMethod = string(types.JoinMethodToken)
+	tokenWithSecret.token = "legacy-token"
+	tokenWithSecret.tokenName = ""
+	tokenWithSecret.tokenSecretFile = "/tmp/secret"
+	err = tokenWithSecret.CheckAndSetDefaults()
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "cannot be combined")
+
+	tokenOnly := base
+	tokenOnly.installSuffix = "scope"
+	tokenOnly.joinMethod = string(types.JoinMethodToken)
+	tokenOnly.token = "legacy-token"
+	tokenOnly.tokenName = ""
+	tokenOnly.tokenSecretFile = ""
+	require.NoError(t, tokenOnly.CheckAndSetDefaults())
+
 	fileDefaultNoSuffix := base
 	fileDefaultNoSuffix.installSuffix = ""
 	fileDefaultNoSuffix.output = "file"
 	fileDefaultNoSuffix.dataDir = "/tmp/data"
 	fileDefaultNoSuffix.joinMethod = string(types.JoinMethodToken)
 	fileDefaultNoSuffix.tokenSecretFile = "/tmp/secret"
-	err := fileDefaultNoSuffix.CheckAndSetDefaults()
+	err = fileDefaultNoSuffix.CheckAndSetDefaults()
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "--install-suffix is required when --output=file uses the default migrated config path")
+}
+
+func TestParseDisableServices(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		raw  string
+		want []string
+	}{
+		{name: "empty", raw: "", want: nil},
+		{name: "spaces", raw: "  ", want: nil},
+		{name: "single", raw: "app", want: []string{"app"}},
+		{name: "dedupe", raw: "app,app", want: []string{"app"}},
+		{name: "trim", raw: " app , db ", want: []string{"app", "db"}},
+		{name: "skip empty", raw: "app,,db", want: []string{"app", "db"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.want, parseDisableServices(tt.raw))
+		})
+	}
 }
 
 func TestConfigureMigrateInstallSuffixValidation(t *testing.T) {

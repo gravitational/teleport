@@ -433,6 +433,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	for _, m := range types.JoinMethods {
 		joinMethods = append(joinMethods, string(m))
 	}
+	// NOTE: flags added to "configure" are inherited by "configure migrate" -
+	// see the configureMigrate.FullCommand() case for how each is handled.
 	// dump flags
 	dump.Flag("cluster-name",
 		"Unique cluster name, e.g. example.com.").StringVar(&dumpFlags.ClusterName)
@@ -460,8 +462,11 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dump.Flag("node-name", "Name for the Teleport node.").StringVar(&dumpFlags.NodeName)
 	dump.Flag("node-labels", "Comma-separated list of labels to add to newly created nodes, for example env=staging,cloud=aws.").StringVar(&dumpFlags.NodeLabels)
 
+	// Note: bare "teleport configure" resolves to this hidden default child, so
+	// Run's executedCommand returns "configure dump" rather than "configure".
+	// main() discards the value; only tests observe it.
 	configureDefault := dump.Command("dump", "Generate a configuration file.").Default().Hidden()
-	configureMigrate := dump.Command("migrate", "Transform an existing Teleport config for a suffixed migrated agent. Also accepts configure flags --output, --auth-server, --data-dir, --join-method, and --test. Stdout output is redacted; use --output=file:// to write a usable config.")
+	configureMigrate := dump.Command("migrate", "Transform an existing Teleport config for a suffixed migrated agent. Also accepts configure flags --output, --auth-server, --data-dir, --join-method, --test, and --token (legacy single-value token). Stdout output is redacted; use --output=file:// to write a usable config.")
 	configureMigrate.Flag("input", fmt.Sprintf("Path to the existing Teleport configuration file [%s].", defaults.ConfigFilePath)).Default(defaults.ConfigFilePath).StringVar(&configureMigrateFlags.input)
 	configureMigrate.Flag("install-suffix", "Suffix used by teleport-update --install-suffix.").StringVar(&configureMigrateFlags.installSuffix)
 	configureMigrate.Flag("proxy-server", "Target cluster proxy server address.").StringVar(&configureMigrateFlags.proxyServer)
@@ -769,10 +774,14 @@ Examples:
 	case dump.FullCommand(), configureDefault.FullCommand():
 		err = onConfigDump(dumpFlags)
 	case configureMigrate.FullCommand():
-		if dumpFlags.AuthToken != "" {
-			err = trace.BadParameter("--token is not supported by configure migrate; use --token-name and --token-secret-file")
-			break
-		}
+		// "configure migrate" is a child of "configure" and inherits all of its
+		// flags. The inherited flags fall into two buckets:
+		//   - honored: --output, --data-dir, --auth-server, --join-method, --test,
+		//              --token (wired through below; --output/--data-dir only when
+		//              set by the user, since their defaults are wrong for migrate;
+		//              --token uses legacy single-value token semantics)
+		//   - ignored: everything else (--acme, --roles, --cluster-name, ...)
+		// If you add a flag to "configure", decide which bucket it belongs in.
 		if dumpFlags.outputSet {
 			configureMigrateFlags.output = dumpFlags.output
 		}
@@ -785,6 +794,7 @@ Examples:
 		}
 		configureMigrateFlags.authServer = dumpFlags.AuthServer
 		configureMigrateFlags.joinMethod = dumpFlags.JoinMethod
+		configureMigrateFlags.token = dumpFlags.AuthToken
 		err = onConfigureMigrate(configureMigrateFlags)
 	case dumpNodeConfigure.FullCommand():
 		dumpFlags.Roles = defaults.RoleNode

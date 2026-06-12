@@ -118,8 +118,8 @@ spec:
 	require.NoError(t, os.WriteFile(bootstrapFile, bootstrapData, 0660))
 
 	// set defaults to test-mode (non-existing files&locations)
-	defaults.ConfigFilePath = "/tmp/teleport/etc/teleport.yaml"
-	defaults.DataDir = "/tmp/teleport/var/lib/teleport"
+	defaults.ConfigFilePath = filepath.Join(fixtureDir, "missing", "etc", "teleport.yaml")
+	defaults.DataDir = filepath.Join(fixtureDir, "var", "lib", "teleport")
 
 	t.Run("Default", func(t *testing.T) {
 		_, cmd, conf := Run(Options{
@@ -128,7 +128,7 @@ spec:
 		})
 		require.Equal(t, "start", cmd)
 		require.Equal(t, hostname, conf.Hostname)
-		require.Equal(t, "/tmp/teleport/var/lib/teleport", conf.DataDir)
+		require.Equal(t, filepath.Join(fixtureDir, "var", "lib", "teleport"), conf.DataDir)
 		require.True(t, conf.Auth.Enabled)
 		require.True(t, conf.SSH.Enabled)
 		require.True(t, conf.Proxy.Enabled)
@@ -256,6 +256,8 @@ func TestConfigure(t *testing.T) {
 }
 
 func TestConfigureCommandParsing(t *testing.T) {
+	// Swaps os.Stdout/os.Stderr globally; this test (and anything using
+	// captureRunOutput) must not call t.Parallel.
 	t.Run("bare configure routes to hidden dump command", func(t *testing.T) {
 		_, stderr, command := captureRunOutput(t, []string{"configure"})
 		require.Empty(t, stderr)
@@ -297,19 +299,6 @@ func TestConfigureCommandParsing(t *testing.T) {
 	})
 }
 
-func TestConfigureMigrateRejectsInheritedTokenFlagParse(t *testing.T) {
-	if os.Getenv("TELEPORT_TEST_CONFIGURE_MIGRATE_TOKEN") == "1" {
-		Run(Options{Args: []string{"configure", "--token=secret", "migrate"}, InitOnly: true})
-		return
-	}
-
-	cmd := exec.Command(os.Args[0], "-test.run=TestConfigureMigrateRejectsInheritedTokenFlagParse")
-	cmd.Env = append(os.Environ(), "TELEPORT_TEST_CONFIGURE_MIGRATE_TOKEN=1")
-	out, err := cmd.CombinedOutput()
-	require.Error(t, err)
-	require.Contains(t, string(out), "--token is not supported by configure migrate; use --token-name and --token-secret-file")
-}
-
 func TestConfigureHelpHidesDefaultChild(t *testing.T) {
 	if os.Getenv("TELEPORT_TEST_CONFIGURE_HELP") == "1" {
 		Run(Options{Args: []string{"configure", "--help"}, InitOnly: true})
@@ -331,8 +320,89 @@ func TestConfigureHelpHidesDefaultChild(t *testing.T) {
 	require.NotRegexp(t, regexp.MustCompile(`(?m)^\s+dump\s+`), commands)
 }
 
+func TestConfigureMigrateFlagWiring(t *testing.T) {
+	// Swaps os.Stdout/os.Stderr globally; this test (and anything using
+	// captureRunOutput) must not call t.Parallel.
+	dir := t.TempDir()
+	inputPath := filepath.Join(dir, "teleport.yaml")
+	require.NoError(t, os.WriteFile(inputPath, []byte(`
+version: v3
+teleport:
+  auth_token: SUPERSECRET
+ssh_service:
+  enabled: yes
+app_service:
+  enabled: yes
+auth_service:
+  enabled: no
+proxy_service:
+  enabled: no
+`), 0o600))
+	secretPath := filepath.Join(dir, "token-secret")
+	require.NoError(t, os.WriteFile(secretPath, []byte("secret-value"), 0o600))
+
+	t.Run("scoped flags disable and label file output", func(t *testing.T) {
+		outputPath := filepath.Join(dir, "scoped.yaml")
+		_, stderr, command := captureRunOutput(t, []string{
+			"configure",
+			"--output=file://" + outputPath,
+			"migrate",
+			"--input=" + inputPath,
+			"--install-suffix=scope",
+			"--proxy-server=target.example.com:443",
+			"--token-name=tok-name",
+			"--token-secret-file=" + secretPath,
+			"--disable-services=app",
+			"--label=scope=target",
+		})
+		require.Equal(t, "configure migrate", command)
+		rendered, err := os.ReadFile(outputPath)
+		require.NoError(t, err)
+		require.Contains(t, string(rendered), "app_service:\n  enabled: no")
+		require.Contains(t, string(rendered), "scope: target")
+		require.Contains(t, stderr, "NOTICE: disabled app_service in the migrated config; the original agent continues serving it.")
+	})
+
+	t.Run("legacy token file output", func(t *testing.T) {
+		outputPath := filepath.Join(dir, "legacy.yaml")
+		_, _, command := captureRunOutput(t, []string{
+			"configure",
+			"--token=legacy-tok-value",
+			"--output=file://" + outputPath,
+			"--data-dir=" + filepath.Join(dir, "legacy-data"),
+			"migrate",
+			"--input=" + inputPath,
+			"--install-suffix=scope",
+			"--proxy-server=target.example.com:443",
+		})
+		require.Equal(t, "configure migrate", command)
+		rendered, err := os.ReadFile(outputPath)
+		require.NoError(t, err)
+		require.Contains(t, string(rendered), "token_name: legacy-tok-value")
+		require.NotContains(t, string(rendered), "token_secret:")
+	})
+
+	t.Run("legacy token stdout output", func(t *testing.T) {
+		stdout, _, command := captureRunOutput(t, []string{
+			"configure",
+			"--token=legacy-tok-value",
+			"--output=stdout",
+			"--data-dir=" + filepath.Join(dir, "legacy-stdout-data"),
+			"migrate",
+			"--input=" + inputPath,
+			"--install-suffix=scope",
+			"--proxy-server=target.example.com:443",
+		})
+		require.Equal(t, "configure migrate", command)
+		require.Contains(t, stdout, "token_name: <redacted>")
+		require.NotContains(t, stdout, "legacy-tok-value")
+	})
+}
+
 func captureRunOutput(t *testing.T, args []string) (stdout string, stderr string, command string) {
 	t.Helper()
+	// Swaps os.Stdout/os.Stderr globally; this test (and anything using
+	// captureRunOutput) must not call t.Parallel.
 
 	oldStdout := os.Stdout
 	oldStderr := os.Stderr

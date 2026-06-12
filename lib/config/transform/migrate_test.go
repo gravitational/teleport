@@ -151,7 +151,7 @@ ssh_service:
   enabled: yes
 `,
 			check: func(t *testing.T, result *MigrationResult) {
-				_, ok := result.Document.Get("teleport", "diag_addr")
+				_, ok := result.Document.get("teleport", "diag_addr")
 				require.False(t, ok)
 				require.Contains(t, result.Notices[0], "diag_addr removed")
 			},
@@ -166,7 +166,7 @@ ssh_service:
   listen_addr: 0.0.0.0:3022
 `,
 			check: func(t *testing.T, result *MigrationResult) {
-				require.Contains(t, result.ListenerWarnings, `ssh_service.listen_addr "0.0.0.0:3022" may be bound by both agents`)
+				require.Contains(t, result.ListenerWarnings, `ssh_service.listen_addr "0.0.0.0:3022" may be bound by both agents.`)
 			},
 		},
 	}
@@ -340,6 +340,39 @@ ssh_service:
 			errString: "cannot place labels: ssh_service is disabled; marker labels are required for verify/decommission",
 		},
 		{
+			name: "yeah enabled ssh service accepts labels",
+			input: `
+version: v3
+teleport: {}
+ssh_service:
+  enabled: yeah
+`,
+			labels: map[string]string{"scope": "target"},
+			want:   "scope: target",
+		},
+		{
+			name: "nope disabled ssh service rejects labels",
+			input: `
+version: v3
+teleport: {}
+ssh_service:
+  enabled: nope
+`,
+			labels:    map[string]string{"scope": "target"},
+			errString: "cannot place labels: ssh_service is disabled; marker labels are required for verify/decommission",
+		},
+		{
+			name: "unparseable enabled ssh service rejects labels",
+			input: `
+version: v3
+teleport: {}
+ssh_service:
+  enabled: garbage
+`,
+			labels:    map[string]string{"scope": "target"},
+			errString: "cannot place labels: ssh_service is disabled; marker labels are required for verify/decommission",
+		},
+		{
 			name: "teleport section scalar is rejected while setting proxy",
 			input: `
 version: v3
@@ -375,6 +408,30 @@ teleport: true
 			require.Contains(t, string(renderedBytes), tt.want)
 		})
 	}
+}
+
+func TestApplyMigrationUnsupportedDisableService(t *testing.T) {
+	t.Parallel()
+
+	doc, err := Load([]byte(`
+version: v3
+teleport: {}
+ssh_service:
+  enabled: yes
+`))
+	require.NoError(t, err)
+
+	_, err = ApplyMigration(doc, MigrateParams{
+		InstallSuffix:   "scope",
+		ProxyServer:     "target.example.com:443",
+		JoinMethod:      types.JoinMethodToken,
+		TokenName:       "scope-migrate-ip-10-2-4-17",
+		TokenSecretPath: "/var/run/migrate-token-secret",
+		DataDir:         "/var/lib/teleport_scope",
+		DisableServices: []string{"bogus"},
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), `unsupported service "bogus"`)
 }
 
 func TestApplyMigrationDeterministicLabels(t *testing.T) {
@@ -464,7 +521,7 @@ teleport:
 	require.NoError(t, err)
 	require.NotNil(t, result.PIDFileChanged)
 	require.Equal(t, "/run/teleport_scope.pid", result.PIDFileChanged.New)
-	pidFile, ok := result.Document.Get("teleport", "pid_file")
+	pidFile, ok := result.Document.get("teleport", "pid_file")
 	require.True(t, ok)
 	require.Equal(t, "/run/teleport_scope.pid", pidFile.Value)
 }
@@ -537,17 +594,45 @@ ssh_service:
 		DataDir:       "/var/lib/teleport_scope",
 	})
 	require.NoError(t, err)
-	method, ok := result.Document.Get("teleport", "join_params", "method")
+	method, ok := result.Document.get("teleport", "join_params", "method")
 	require.True(t, ok)
 	require.Equal(t, "iam", method.Value)
-	tokenName, ok := result.Document.Get("teleport", "join_params", "token_name")
+	tokenName, ok := result.Document.get("teleport", "join_params", "token_name")
 	require.True(t, ok)
 	require.Equal(t, "scope-migrate-ip-10-2-4-17", tokenName.Value)
-	_, ok = result.Document.Get("teleport", "join_params", "token_secret")
+	_, ok = result.Document.get("teleport", "join_params", "token_secret")
 	require.False(t, ok)
 	renderedBytes, err := result.Document.Render()
 	require.NoError(t, err)
 	rendered := string(renderedBytes)
+	require.NotContains(t, rendered, "token_secret:")
+}
+
+func TestApplyMigrationLegacyTokenOmitsSecret(t *testing.T) {
+	t.Parallel()
+
+	doc, err := Load([]byte(`
+version: v3
+teleport: {}
+ssh_service:
+  enabled: yes
+`))
+	require.NoError(t, err)
+
+	result, err := ApplyMigration(doc, MigrateParams{
+		InstallSuffix: "scope",
+		ProxyServer:   "target.example.com:443",
+		JoinMethod:    types.JoinMethodToken,
+		TokenName:     "legacy-tok-value",
+		DataDir:       "/var/lib/teleport_scope",
+	})
+	require.NoError(t, err)
+	renderedBytes, err := result.Document.Render()
+	require.NoError(t, err)
+	rendered := string(renderedBytes)
+	require.Contains(t, rendered, "token_name: legacy-tok-value")
+	_, ok := result.Document.get("teleport", "join_params", "token_secret")
+	require.False(t, ok)
 	require.NotContains(t, rendered, "token_secret:")
 }
 

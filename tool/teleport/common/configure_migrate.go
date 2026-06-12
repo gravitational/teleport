@@ -19,6 +19,7 @@
 package common
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"net/url"
@@ -31,6 +32,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/autoupdate/agent"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/config/transform"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -55,6 +57,7 @@ type configureMigrateFlags struct {
 	proxyServer       string
 	authServer        string
 	joinMethod        string
+	token             string
 	tokenName         string
 	tokenSecretFile   string
 	dataDir           string
@@ -93,12 +96,18 @@ func (f *configureMigrateFlags) CheckAndSetDefaults() error {
 	if f.proxyServer != "" && f.authServer != "" {
 		return trace.BadParameter("only one of --proxy-server or --auth-server can be set")
 	}
+	if f.token != "" && (f.tokenName != "" || f.tokenSecretFile != "") {
+		return trace.BadParameter("--token cannot be combined with --token-name or --token-secret-file; --token uses legacy single-value token semantics, while --token-name and --token-secret-file split the scoped token name and secret")
+	}
+	if f.token != "" {
+		f.tokenName = f.token
+	}
 	if f.tokenName == "" {
 		return trace.BadParameter("--token-name is required")
 	}
 	switch types.JoinMethod(f.joinMethod) {
 	case types.JoinMethodToken:
-		if f.tokenSecretFile == "" {
+		if f.token == "" && f.tokenSecretFile == "" {
 			return trace.BadParameter("--token-secret-file is required when --join-method=token")
 		}
 	default:
@@ -185,11 +194,14 @@ func onConfigureMigrate(flags configureMigrateFlags) error {
 	for _, service := range result.DisableServicesNotFound {
 		fmt.Fprintf(flags.stderr, "NOTICE: --disable-services=%s was requested, but no matching service section exists.\n", service)
 	}
+	for _, section := range result.ServicesDisabled {
+		fmt.Fprintf(flags.stderr, "NOTICE: disabled %s in the migrated config; the original agent continues serving it.\n", section)
+	}
 	for _, warning := range result.ListenerWarnings {
-		fmt.Fprintf(flags.stderr, "WARNING: %s.\n", warning)
+		fmt.Fprintf(flags.stderr, "WARNING: %s\n", warning)
 	}
 	for _, notice := range result.Notices {
-		fmt.Fprintf(flags.stderr, "NOTICE: %s.\n", notice)
+		fmt.Fprintf(flags.stderr, "NOTICE: %s\n", notice)
 	}
 	if types.JoinMethod(flags.joinMethod) == types.JoinMethodBoundKeypair {
 		fmt.Fprintln(flags.stderr, "NOTICE: bound_keypair joins require the registration secret step outside this command.")
@@ -241,22 +253,9 @@ func onConfigureMigrate(flags configureMigrateFlags) error {
 }
 
 func validateMigratedConfig(raw []byte) error {
-	tempFile, err := os.CreateTemp("", "teleport-configure-migrate-*.yaml")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	tempName := tempFile.Name()
-	defer os.Remove(tempName)
-	if _, err := tempFile.Write(raw); err != nil {
-		tempFile.Close()
-		return trace.Wrap(err)
-	}
-	if err := tempFile.Close(); err != nil {
-		return trace.Wrap(err)
-	}
 	// TODO(scopes): add scope-aware semantic validation when configure --test
 	// grows scoped validation.
-	_, err = config.ReadFromFile(tempName)
+	_, err := config.ReadConfig(bytes.NewReader(raw))
 	return trace.Wrap(err)
 }
 
@@ -300,6 +299,8 @@ func parseMigrateLabels(raw []string) (map[string]string, error) {
 	return labels, nil
 }
 
+// Mirrors onConfigDump's --output parsing, including its url.Parse
+// limitations (paths containing '?' or '#' are mangled); keep the two in sync.
 func migrateOutputPath(output string) (path string, stdout bool, err error) {
 	uri, err := url.Parse(output)
 	if err != nil {
@@ -369,9 +370,8 @@ func wouldRefuseOverwrite(path string) (bool, error) {
 	return false, trace.Wrap(trace.ConvertSystemError(err), "failed reading existing output file %q", path)
 }
 
-// Keep the suffixed paths and validation below in sync with
-// lib/autoupdate/agent.NewNamespace. validateInstallSuffix is intentionally
-// stricter than NewNamespace's regex for leading hyphens.
+// Keep in sync with lib/autoupdate/agent.Namespace path derivation
+// (/etc/teleport_<suffix>.yaml, /var/lib/teleport_<suffix>).
 func defaultMigrateConfigPath(suffix string) string {
 	return filepath.Join(filepath.Dir(defaults.ConfigFilePath), "teleport_"+suffix+".yaml")
 }
@@ -380,19 +380,12 @@ func defaultMigrateDataDir(suffix string) string {
 	return filepath.Join(filepath.Dir(defaults.DataDir), "teleport_"+suffix)
 }
 
+// validateInstallSuffix wraps agent.ValidateNamespaceName and additionally
+// rejects a leading '-': it is accepted by the updater's regex but is a
+// CLI-parsing hazard for the generated runbook commands.
 func validateInstallSuffix(suffix string) error {
-	switch suffix {
-	case "default", "system":
-		return trace.BadParameter("namespace %s is reserved", suffix)
-	}
 	if strings.HasPrefix(suffix, "-") {
 		return trace.BadParameter("invalid namespace name %s, must be alphanumeric", suffix)
 	}
-	for _, r := range suffix {
-		if r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '-' {
-			continue
-		}
-		return trace.BadParameter("invalid namespace name %s, must be alphanumeric", suffix)
-	}
-	return nil
+	return trace.Wrap(agent.ValidateNamespaceName(suffix))
 }

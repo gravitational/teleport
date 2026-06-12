@@ -21,7 +21,6 @@ package transform
 
 import (
 	"bytes"
-	"fmt"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -68,13 +67,13 @@ func Load(raw []byte) (*Document, error) {
 	return &Document{node: &node}, nil
 }
 
-// Clone returns a deep copy of the document.
-func (d *Document) Clone() *Document {
+// clone returns a deep copy of the document.
+func (d *Document) clone() *Document {
 	return &Document{node: cloneNode(d.node)}
 }
 
-// Get returns the node at path.
-func (d *Document) Get(path ...string) (*yaml.Node, bool) {
+// get returns the node at path.
+func (d *Document) get(path ...string) (*yaml.Node, bool) {
 	node := d.root()
 	for _, part := range path {
 		if node.Kind != yaml.MappingNode {
@@ -89,8 +88,8 @@ func (d *Document) Get(path ...string) (*yaml.Node, bool) {
 	return node, true
 }
 
-// Delete removes a mapping key if present.
-func (d *Document) Delete(path ...string) bool {
+// delete removes a mapping key if present.
+func (d *Document) delete(path ...string) bool {
 	if len(path) == 0 {
 		return false
 	}
@@ -101,8 +100,8 @@ func (d *Document) Delete(path ...string) bool {
 	return deleteMappingKey(parent, path[len(path)-1])
 }
 
-// Set creates or replaces a scalar or YAML node value at path.
-func (d *Document) Set(value any, path ...string) error {
+// set creates or replaces a scalar or YAML node value at path.
+func (d *Document) set(value any, path ...string) error {
 	if len(path) == 0 {
 		return trace.BadParameter("missing path")
 	}
@@ -138,9 +137,9 @@ func (d *Document) Render() ([]byte, error) {
 
 // Redact deep-copies the document and masks values matching rules.
 func (d *Document) Redact(rules []RedactRule) *Document {
-	out := d.Clone()
+	out := d.clone()
 	for _, rule := range rules {
-		node, ok := out.Get(rule.Path...)
+		node, ok := out.get(rule.Path...)
 		if !ok || node.Kind != yaml.ScalarNode {
 			continue
 		}
@@ -206,25 +205,13 @@ func (d *Document) ensureParent(create bool, path ...string) (*yaml.Node, bool) 
 }
 
 func nodeFromValue(value any) (*yaml.Node, error) {
-	if node, ok := value.(*yaml.Node); ok {
-		return cloneNode(node), nil
-	}
 	switch v := value.(type) {
+	case *yaml.Node:
+		return cloneNode(v), nil
 	case string:
 		return scalarString(v), nil
-	case fmt.Stringer:
-		return scalarString(v.String()), nil
-	case bool:
-		if v {
-			return scalarString("yes"), nil
-		}
-		return scalarString("no"), nil
 	default:
-		var node yaml.Node
-		if err := node.Encode(value); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &node, nil
+		return nil, trace.BadParameter("unsupported value type %T", value)
 	}
 }
 
