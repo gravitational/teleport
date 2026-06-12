@@ -213,7 +213,7 @@ connect to your app without VNet. Make sure your app appears in the Connect reso
 output of `tsh apps ls`. Turn off VNet and try creating a local proxy to your app (with debug
 logging enabled) with `tsh proxy app -d <app-name>`.
 
-### Timeouts when trying to reach a Teleport cluster
+### Timeouts when trying to reach a Teleport cluster on macOS
 
 If VNet doesn't have a chance to clean up before stopping, such as during sudden device shut down,
 it may leave leftover DNS configuration files in `/etc/resolver`. Those files tell your computer to
@@ -222,11 +222,6 @@ running, there's no DNS server to answer those calls.
 
 To clean up those files, simply start VNet again. Alternatively, you can remove the leftover files
 manually.
-
-<Admonition type="note" title="Using Linux?">
-This only applies to macOS. On Linux, VNet registers its DNS with systemd-resolved, and the
-configuration is cleared automatically when the VNet link is removed.
-</Admonition>
 
 ### Verifying that VNet receives DNS queries
 
