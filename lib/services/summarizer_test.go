@@ -319,7 +319,6 @@ func TestValidateInferencePolicy(t *testing.T) {
 	}
 }
 
-
 func newTestClassifier(name string, kinds []string, filter string) *summarizerv1.Classifier {
 	return apisummarizer.NewClassifier(name, summarizerv1.ClassifierSpec_builder{
 		Kinds:    kinds,
