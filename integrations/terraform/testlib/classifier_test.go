@@ -60,7 +60,7 @@ func (s *TerraformSuiteEnterprise) TestClassifier() {
 					resource.TestCheckResourceAttr(name, "spec.kinds.1", "k8s"),
 					resource.TestCheckResourceAttr(name, "spec.filter", `equals(resource.metadata.labels["env"], "prod")`),
 					resource.TestCheckResourceAttr(name, "spec.criteria", "The user ran a potentially destructive command."),
-					resource.TestCheckResourceAttr(name, "spec.actions.emit_audit_event", "true"),
+					resource.TestCheckResourceAttr(name, "spec.actions.emit_audit_event", "1"),
 				),
 			},
 			{
@@ -73,7 +73,7 @@ func (s *TerraformSuiteEnterprise) TestClassifier() {
 					resource.TestCheckResourceAttr(name, "spec.kinds.0", "ssh"),
 					resource.TestCheckNoResourceAttr(name, "spec.kinds.1"),
 					resource.TestCheckResourceAttr(name, "spec.filter", `equals(resource.metadata.labels["env"], "staging")`),
-					resource.TestCheckResourceAttr(name, "spec.actions.flag_for_review", "true"),
+					resource.TestCheckResourceAttr(name, "spec.actions.flag_for_review", "1"),
 				),
 			},
 			{
