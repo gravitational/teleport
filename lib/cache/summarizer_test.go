@@ -18,12 +18,18 @@ package cache
 
 import (
 	"context"
+	"iter"
 	"testing"
 	"testing/synctest"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/summarizer"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 func TestInferenceModelCache(t *testing.T) {
@@ -92,6 +98,105 @@ func TestInferencePolicyCache(t *testing.T) {
 		list:      p.summarizer.ListInferencePolicies,
 		cacheList: p.cache.ListInferencePolicies,
 		deleteAll: p.summarizer.DeleteAllInferencePolicies,
+	})
+}
+
+func TestClassifierCache(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources153(t, p, testFuncs[*summarizerv1.Classifier]{
+		newResource: func(name string) (*summarizerv1.Classifier, error) {
+			return summarizer.NewClassifier(name, summarizerv1.ClassifierSpec_builder{
+				Kinds:    []string{string(types.SSHSessionKind)},
+				Criteria: "sessions that touch production data",
+			}.Build()), nil
+		},
+		create: func(ctx context.Context, item *summarizerv1.Classifier) error {
+			_, err := p.summarizer.CreateClassifier(ctx, item)
+			return err
+		},
+		list:      p.summarizer.ListClassifiers,
+		cacheList: p.cache.ListClassifiers,
+		deleteAll: p.summarizer.DeleteAllClassifiers,
+	})
+}
+
+// collectClassifiers drains a Classifier range into a slice, failing the test
+// on error.
+func collectClassifiers(t require.TestingT, it iter.Seq2[*summarizerv1.Classifier, error]) []*summarizerv1.Classifier {
+	out, err := stream.Collect(it)
+	require.NoError(t, err)
+	return out
+}
+
+// createClassifiers creates classifiers with the given names in the backend
+// and blocks until the cache has observed all of them. Names must be unique.
+func createClassifiers(t *testing.T, ctx context.Context, p *testPack, names []string) {
+	t.Helper()
+	for _, name := range names {
+		classifier := summarizer.NewClassifier(name, summarizerv1.ClassifierSpec_builder{
+			Kinds:    []string{string(types.SSHSessionKind)},
+			Criteria: "sessions that touch production data",
+		}.Build())
+		_, err := p.summarizer.CreateClassifier(ctx, classifier)
+		require.NoError(t, err, "failed to create Classifier %q", name)
+	}
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		results := collectClassifiers(t, p.cache.RangeClassifiers(ctx, "", ""))
+		require.Len(t, results, len(names))
+	}, 10*time.Second, 100*time.Millisecond)
+}
+
+// TestClassifierCacheRange tests that RangeClassifiers iterates in name order
+// and honors range bounds.
+func TestClassifierCacheRange(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	createClassifiers(t, ctx, p, []string{
+		"test-classifier-2",
+		"test-classifier-1",
+		"test-classifier-3",
+	})
+
+	names := func(in []*summarizerv1.Classifier) []string {
+		out := make([]string, len(in))
+		for i, c := range in {
+			out[i] = c.GetMetadata().GetName()
+		}
+		return out
+	}
+
+	t.Run("full range is ascending by name", func(t *testing.T) {
+		got := collectClassifiers(t, p.cache.RangeClassifiers(ctx, "", ""))
+		require.Equal(t, []string{
+			"test-classifier-1",
+			"test-classifier-2",
+			"test-classifier-3",
+		}, names(got))
+	})
+
+	t.Run("bounded range is exclusive of end", func(t *testing.T) {
+		got := collectClassifiers(t, p.cache.RangeClassifiers(ctx, "test-classifier-2", "test-classifier-3"))
+		require.Equal(t, []string{
+			"test-classifier-2",
+		}, names(got))
+	})
+
+	t.Run("open-ended range starts at the given name", func(t *testing.T) {
+		got := collectClassifiers(t, p.cache.RangeClassifiers(ctx, "test-classifier-2", ""))
+		require.Equal(t, []string{
+			"test-classifier-2",
+			"test-classifier-3",
+		}, names(got))
 	})
 }
 
