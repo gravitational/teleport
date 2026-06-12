@@ -157,3 +157,40 @@ func newExecServerContext(t *testing.T, srv Server) *ServerContext {
 
 	return scx
 }
+
+func TestCheckSCPAllowed(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		command string
+		assert  require.BoolAssertionFunc
+	}{
+		{
+			name:    "scp command",
+			command: "scp foo bar",
+			assert:  require.True,
+		},
+		{
+			name:    "other command",
+			command: "some other command",
+			assert:  require.False,
+		},
+		{
+			name:    "no command",
+			command: "",
+			assert:  require.False,
+		},
+		{
+			name:    "scp command with whitespace",
+			command: "\tscp foo bar",
+			assert:  require.True,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			scx := newTestServerContext(t, nil, nil, nil)
+			ok, _ := checkSCPAllowed(scx, tc.command)
+			tc.assert(t, ok)
+		})
+	}
+}
