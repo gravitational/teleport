@@ -62,7 +62,7 @@ export function searchParamsToState(
 ) {
   const state: RecordingsListState = {
     filters: {
-      hideNonInteractive: false,
+      hideNonInteractive: true,
       types: [],
       resources: [],
       users: [],
