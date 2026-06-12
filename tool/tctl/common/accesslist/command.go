@@ -57,6 +57,7 @@ type Command struct {
 	usersList     *kingpin.CmdClause
 	reviewsCreate *kingpin.CmdClause
 	reviewsList   *kingpin.CmdClause
+	remove        *kingpin.CmdClause
 
 	// Used for managing a particular access list.
 	accessListName string
@@ -131,6 +132,10 @@ func (c *Command) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags
 	c.reviewsList.Arg("access-list-name", "The access list name to fetch review history for.").Required().StringVar(&c.accessListName)
 	c.reviewsList.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, teleport.YAML, teleport.JSON, teleport.Text)
 
+	c.remove = acl.Command("rm", "Delete an Access List.").Alias("del").Alias("delete")
+	c.remove.Arg("access-list-name", "The Access List name.").Required().StringVar(&c.accessListName)
+	c.remove.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
+
 	if c.Stdout == nil {
 		c.Stdout = os.Stdout
 	}
@@ -156,6 +161,8 @@ func (c *Command) TryRun(ctx context.Context, cmd string, clientFunc commonclien
 		commandFunc = c.ReviewsCreate
 	case c.reviewsList.FullCommand():
 		commandFunc = c.ReviewsList
+	case c.remove.FullCommand():
+		commandFunc = c.Remove
 	default:
 		return false, nil
 	}
