@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -40,7 +41,9 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
+	"github.com/gravitational/trace"
 )
 
 func TestAWS(t *testing.T) {
@@ -160,6 +163,230 @@ func TestAWS(t *testing.T) {
 		setCmdRunner(validateCmd),
 	)
 	require.NoError(t, err)
+}
+
+const (
+	promptAlphaRoleARN = "arn:aws:iam::123456789012:role/Alpha"
+	promptBetaRoleARN  = "arn:aws:iam::123456789012:role/Beta"
+)
+
+type interactiveLineReader struct {
+	line string
+}
+
+func newInteractiveLineReader(line string) *interactiveLineReader {
+	return &interactiveLineReader{line: line}
+}
+
+func (r *interactiveLineReader) Read(p []byte) (int, error) {
+	if r.line == "" {
+		return 0, io.EOF
+	}
+
+	n := copy(p, r.line)
+	r.line = r.line[n:]
+	return n, nil
+}
+
+func promptTestAWSApp(t *testing.T) types.Application {
+	t.Helper()
+
+	app, err := types.NewAppV3(types.Metadata{Name: "aws-test"}, types.AppSpecV3{
+		URI: constants.AWSConsoleURL,
+	})
+	require.NoError(t, err)
+	return app
+}
+
+func TestPromptRoleInteractive(t *testing.T) {
+	t.Parallel()
+
+	testRoleARNs := []string{
+		promptAlphaRoleARN,
+		promptBetaRoleARN,
+	}
+
+	roles := awsutils.FilterAWSRoles(testRoleARNs, "")
+	require.Len(t, roles, 2)
+
+	tests := []struct {
+		name           string
+		input          string
+		wantARN        string
+		wantOutputText []string
+	}{
+		{
+			name:    "selects role",
+			input:   "2\n",
+			wantARN: promptBetaRoleARN,
+			wantOutputText: []string{
+				"Available AWS roles:",
+				"Enter role number:",
+			},
+		},
+		{
+			name:    "trims whitespace",
+			input:   " 1 \n",
+			wantARN: promptAlphaRoleARN,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			stdout := new(bytes.Buffer)
+			role, err := promtRole(newInteractiveLineReader(tt.input), stdout, roles)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantARN, role.ARN)
+			for _, text := range tt.wantOutputText {
+				require.Contains(t, stdout.String(), text)
+			}
+		})
+	}
+}
+
+func TestPromptRolesInteractive(t *testing.T) {
+	t.Parallel()
+
+	testRoleARNs := []string{
+		promptAlphaRoleARN,
+		promptBetaRoleARN,
+	}
+
+	roles := awsutils.FilterAWSRoles(testRoleARNs, "")
+	require.Len(t, roles, 2)
+
+	tests := []struct {
+		name              string
+		input             string
+		roles             awsutils.Roles
+		wantARN           string
+		assertErr         func(*testing.T, error)
+		wantOutputText    []string
+		wantOutputCounts  map[string]int
+		wantOutputIsEmpty bool
+	}{
+		{
+			name:  "invalid input prints error",
+			input: "bad\n",
+			roles: roles,
+			assertErr: func(t *testing.T, err error) {
+				require.Error(t, err)
+				require.ErrorIs(t, err, io.EOF)
+			},
+			wantOutputText: []string{
+				"invalid role number: bad",
+			},
+			wantOutputCounts: map[string]int{
+				"Available AWS roles:": 2,
+				"Enter role number:":   2,
+			},
+		},
+		{
+			name:  "EOF",
+			input: "",
+			roles: roles,
+			assertErr: func(t *testing.T, err error) {
+				require.Error(t, err)
+				require.ErrorIs(t, err, io.EOF)
+			},
+		},
+		{
+			name:  "no roles",
+			input: "1\n",
+			roles: []awsutils.Role{},
+			assertErr: func(t *testing.T, err error) {
+				require.Error(t, err)
+				require.True(t, trace.IsBadParameter(err))
+			},
+			wantOutputIsEmpty: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			stdout := new(bytes.Buffer)
+			role, err := promptRoles(newInteractiveLineReader(tt.input), stdout, tt.roles)
+			if tt.assertErr != nil {
+				tt.assertErr(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tt.wantARN, role.ARN)
+			}
+
+			output := stdout.String()
+			if tt.wantOutputIsEmpty {
+				require.Empty(t, output)
+			}
+			for _, text := range tt.wantOutputText {
+				require.Contains(t, output, text)
+			}
+			for text, count := range tt.wantOutputCounts {
+				require.Equal(t, count, strings.Count(output, text))
+			}
+		})
+	}
+}
+
+func TestGetARNFromFlagsInteractive(t *testing.T) {
+	t.Parallel()
+
+	testRoleARNs := []string{
+		promptAlphaRoleARN,
+		promptBetaRoleARN,
+	}
+
+	tests := []struct {
+		name        string
+		input       string
+		logins      []string
+		wantARN     string
+		wantAWSRole string
+		wantPrompt  bool
+	}{
+		{
+			name:        "selects prompted role",
+			input:       "2\n",
+			logins:      testRoleARNs,
+			wantARN:     promptBetaRoleARN,
+			wantAWSRole: promptBetaRoleARN,
+			wantPrompt:  true,
+		},
+		{
+			name:    "single role skips prompt",
+			input:   "unexpected\n",
+			logins:  []string{promptAlphaRoleARN},
+			wantARN: promptAlphaRoleARN,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			stdout := new(bytes.Buffer)
+			cf := &CLIConf{
+				Interactive:    true,
+				OverrideStdout: stdout,
+				overrideStdin:  newInteractiveLineReader(tt.input),
+			}
+
+			arn, err := getARNFromFlags(cf, promptTestAWSApp(t), tt.logins)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantARN, arn)
+			require.Equal(t, tt.wantAWSRole, cf.AWSRole)
+			if tt.wantPrompt {
+				require.Contains(t, stdout.String(), "Available AWS roles:")
+				require.Contains(t, stdout.String(), "Enter role number:")
+				return
+			}
+			require.NotContains(t, stdout.String(), "Available AWS roles:")
+			require.NotContains(t, stdout.String(), "Enter role number:")
+		})
+	}
 }
 
 func TestAWSRolesAnywhereBasedAccess(t *testing.T) {
