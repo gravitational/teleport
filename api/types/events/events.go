@@ -3046,3 +3046,7 @@ func (m *ClassifierCreate) TrimToMaxSize(_ int) AuditEvent {
 func (m *ClassifierUpdate) TrimToMaxSize(_ int) AuditEvent {
 	return m
 }
+
+func (m *ClassifierDelete) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}

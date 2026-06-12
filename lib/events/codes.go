@@ -906,6 +906,10 @@ const (
 	ClassifierUpdateCode = "INF015I"
 	// ClassifierUpdateFailureCode is the classifier update failure event code.
 	ClassifierUpdateFailureCode = "INF015E"
+	// ClassifierDeleteCode is the classifier delete event code.
+	ClassifierDeleteCode = "INF016I"
+	// ClassifierDeleteFailureCode is the classifier delete failure event code.
+	ClassifierDeleteFailureCode = "INF016E"
 
 	// CertAuthOverrideCreateCode is the cert_auth_override create event code.
 	CertAuthOverrideCreateCode = "TCO01I"
