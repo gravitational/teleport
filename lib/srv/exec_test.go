@@ -65,7 +65,7 @@ func TestEmitExecAuditEvent(t *testing.T) {
 	expectedHostname := "testHost"
 
 	expectedMeta := apievents.UserMetadata{
-		User:                 "teleportUser",
+		User:                 "foo",
 		Login:                expectedUsr.Username,
 		Impersonator:         "",
 		AWSRoleARN:           "",

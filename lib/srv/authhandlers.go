@@ -263,6 +263,11 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 		return unstableAccessChecker.CheckAccessToRemoteCluster(cluster)
 	}
 
+	clusterQualifiedUsername := unmappedIdentity.Username
+	if certAuthority.GetClusterName() != clusterName.GetClusterName() {
+		clusterQualifiedUsername = services.UsernameForRemoteCluster(unmappedIdentity.Username, certAuthority.GetClusterName())
+	}
+
 	return IdentityContext{
 		UnmappedIdentity:                    unmappedIdentity,
 		AccessPermit:                        accessPermit,
@@ -272,7 +277,7 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 		CertAuthority:                       certAuthority,
 		UnstableSessionJoiningAccessChecker: unstableAccessChecker,
 		UnstableClusterAccessChecker:        unstableClusterAccessChecker,
-		TeleportUser:                        unmappedIdentity.Username,
+		TeleportUser:                        clusterQualifiedUsername,
 		RouteToCluster:                      unmappedIdentity.RouteToCluster,
 		UnmappedRoles:                       unmappedIdentity.Roles,
 		CertValidBefore:                     certValidBefore,

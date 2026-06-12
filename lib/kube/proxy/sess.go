@@ -1359,14 +1359,7 @@ func (s *session) unlockedLeave(ctx context.Context, id uuid.UUID) (bool, error)
 func (s *session) allParticipants() []string {
 	var participants []string
 	for _, p := range s.partiesHistorical {
-		username := services.UsernameForCluster(
-			services.UsernameForClusterConfig{
-				User:              p.Ctx.Identity.GetIdentity().Username,
-				OriginClusterName: p.Ctx.Identity.GetIdentity().OriginClusterName,
-				LocalClusterName:  p.Ctx.Identity.GetIdentity().TeleportCluster,
-			},
-		)
-		participants = append(participants, username)
+		participants = append(participants, p.Ctx.Identity.GetIdentity().Username)
 	}
 
 	return participants

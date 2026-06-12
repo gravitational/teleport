@@ -125,34 +125,39 @@ func MarshalUser(user types.User, opts ...MarshalOption) ([]byte, error) {
 	}
 }
 
-// UsernameForRemoteCluster returns an username that is prefixed with "remote-"
-// and suffixed with cluster name with the hope that it does not match a real
-// local user.
-func UsernameForRemoteCluster(localUsername, localClusterName string) string {
-	return fmt.Sprintf("remote-%v-%v", localUsername, localClusterName)
-}
-
-// UsernameForClusterConfig is a configuration struct for UsernameForCluster.
-type UsernameForClusterConfig struct {
-	// User is the username.
-	User string
-	// OriginClusterName is the cluster name where the user is authenticated.
-	OriginClusterName string
-	// LocalClusterName is the local cluster name.
-	LocalClusterName string
-}
-
-// UsernameForCluster returns an username that is prefixed with "remote-"
-// and suffixed with cluster name if the user is from a remote cluster,
-// otherwise returns the local username.
-func UsernameForCluster(cfg UsernameForClusterConfig) string {
+// UsernameForRemoteCluster returns a cluster qualified username with the form
+// "remote-<username>-<originClusterName>" in order to prevent unintentional
+// username collision between local and remote users.
+//
+// This should be called exactly once for a remote identity at the construction boundary.
+func UsernameForRemoteCluster(username, originClusterName string) string {
 	// originClusterName == "" is a special case for backward compatibility
 	// with older clients that do not send origin cluster name.
 	// In this case we assume the user is local.
-	if cfg.OriginClusterName == cfg.LocalClusterName || cfg.OriginClusterName == "" {
-		return cfg.User
+	if originClusterName == "" {
+		return username
 	}
-	return UsernameForRemoteCluster(cfg.User, cfg.OriginClusterName)
+	return fmt.Sprintf("remote-%v-%v", username, originClusterName)
+}
+
+// UsernameForCluster returns a cluster qualified username for remote users in
+// the form "remote-<user>-<originClusterName>", passing through unchanged for
+// local users or remote users whose username is already qualified.
+//
+// This transformation is idempotent, meaning a username already matching
+// "remote-<user>-<originClusterName>" won't be transformed.
+//
+// TODO(Joerger): DELETE IN v20. This exists only as a read-side fallback to
+// handle data emitted by pre-v19 SSH service agents, where the SSH service wrote
+// raw (unqualified) usernames into session trackers and audit events.
+func UsernameForCluster(username, originClusterName, localClusterName string) string {
+	if originClusterName == "" || originClusterName == localClusterName {
+		return username
+	}
+	if strings.HasPrefix(username, "remote-") && strings.HasSuffix(username, "-"+originClusterName) {
+		return username
+	}
+	return UsernameForRemoteCluster(username, originClusterName)
 }
 
 // ResolveUserDisplays resolves usernames to display values keyed by username,

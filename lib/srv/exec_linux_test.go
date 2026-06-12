@@ -88,7 +88,7 @@ func TestOSCommandPrep(t *testing.T) {
 		"TELEPORT_SESSION=xxx",
 		"SSH_TELEPORT_HOST_UUID=testID",
 		"SSH_TELEPORT_CLUSTER_NAME=localhost",
-		"SSH_TELEPORT_USER=teleportUser",
+		"SSH_TELEPORT_USER=foo",
 	}
 
 	// Empty command (simple shell).
