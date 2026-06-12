@@ -2432,9 +2432,14 @@ func (s *Server) handleTCPIPForwardRequest(ctx context.Context, ccx *sshutils.Co
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer scx.Close()
 	listener, err := s.listenTCPIP(ctx, scx, scx.SrcAddr)
 	if err != nil {
+		if serr := scx.Close(); err != nil {
+			s.logger.DebugContext(ctx, "Failed while cleaning up request",
+				"request_type", teleport.TCPIPForwardRequest,
+				"server_context_close_error", serr,
+				"error", err)
+		}
 		return trace.Wrap(err)
 	}
 
@@ -2442,10 +2447,34 @@ func (s *Server) handleTCPIPForwardRequest(ctx context.Context, ccx *sshutils.Co
 	// be reported back.
 	srcHost, _, err := sshutils.SplitHostPort(scx.SrcAddr)
 	if err != nil {
+		if lerr := listener.Close(); err != nil {
+			s.logger.DebugContext(ctx, "Failed while cleaning up request",
+				"request_type", teleport.TCPIPForwardRequest,
+				"listener_close_error", lerr,
+				"error", err)
+		}
+		if serr := scx.Close(); err != nil {
+			s.logger.DebugContext(ctx, "Failed while cleaning up request",
+				"request_type", teleport.TCPIPForwardRequest,
+				"server_context_close_error", serr,
+				"error", err)
+		}
 		return trace.Wrap(err)
 	}
 	_, listenPort, err := sshutils.SplitHostPort(listener.Addr().String())
 	if err != nil {
+		if lerr := listener.Close(); err != nil {
+			s.logger.DebugContext(ctx, "Failed while cleaning up request",
+				"request_type", teleport.TCPIPForwardRequest,
+				"listener_close_error", lerr,
+				"error", err)
+		}
+		if serr := scx.Close(); err != nil {
+			s.logger.DebugContext(ctx, "Failed while cleaning up request",
+				"request_type", teleport.TCPIPForwardRequest,
+				"server_context_close_error", serr,
+				"error", err)
+		}
 		return trace.Wrap(err)
 	}
 	scx.SrcAddr = sshutils.JoinHostPort(srcHost, listenPort)
@@ -2455,6 +2484,7 @@ func (s *Server) handleTCPIPForwardRequest(ctx context.Context, ccx *sshutils.Co
 
 	// spawn remote forwarding handler to multiplex connections to the forwarded port
 	go func() {
+		defer scx.Close()
 		stopEvent := scx.GetPortForwardEvent(events.PortForwardRemoteEvent, events.PortForwardStopCode, scx.SrcAddr)
 		defer s.emitAuditEventWithLog(ctx, &stopEvent)
 
