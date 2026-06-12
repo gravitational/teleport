@@ -87,7 +87,6 @@ connect to.
 >
 - **No databases are listed:** Confirm the Database Service is running and has
   registered databases in the cluster. If you use leaf clusters, run:
-
   ```code
   $ tsh db ls --all
   ```
@@ -186,33 +185,28 @@ configuration, verify the result before configuring your GUI client.
 - If you see **Access denied**:
   - Your role may not allow the `--db-user` or `--db-name` you specified.
   - Try without overrides, or confirm allowed values with:
-
     ```code
     $ tsh db login <database-name>
     ```
 - If you see **Port already in use**:
   - Re-run and let `tsh` pick a new port, or set one explicitly:
-
     ```code
     $ tsh proxy db --tunnel --port 54321 <database-name>
     ```
 - If credential files do not exist (local proxy server method):
   - Generate DB credentials, then restart the proxy:
-
     ```code
     $ tsh db login <database-name>
     $ tsh proxy db <database-name>
     ```
 - If you see **certificate expired**:
   - Refresh your login and restart the proxy:
-
     ```code
     $ tsh login --proxy=... --user=...
     $ tsh proxy db --tunnel <database-name>
     ```
 - If you see **Not logged into database** (remote host and port method):
   - Log in to the database, then view the configuration again:
-
     ```code
     $ tsh db login <database-name>
     $ tsh db config <database-name>
@@ -840,12 +834,10 @@ Use these steps for errors not covered above.
 
 - If the tunnel/proxy terminates unexpectedly:
   - Check `tsh status` to ensure your session hasn't expired and your certificates are still valid:
-
     ```code
     $ tsh status
     ```
   - Refresh login and restart the tunnel/proxy:
-
     ```code
     $ tsh login --proxy=... --user=...
     $ tsh proxy db --tunnel <database-name>
@@ -855,7 +847,6 @@ Use these steps for errors not covered above.
   - Restart the tunnel/proxy and re-check the port (or pin a fixed port with `--port`).
 - If you see certificate errors after changes/upgrades:
   - Prefer `tsh logout` and re-login:
-
     ```code
     $ tsh logout
     $ tsh login --proxy=... --user=...
@@ -863,7 +854,6 @@ Use these steps for errors not covered above.
   - If needed, remove only the profile directory for the affected cluster under `~/.tsh/` (safer than deleting everything).
 - To access multiple databases simultaneously:
   - Run multiple tunnels/proxies with different ports:
-
     ```code
     $ tsh proxy db --tunnel --port 54321 db1
     $ tsh proxy db --tunnel --port 54322 db2
