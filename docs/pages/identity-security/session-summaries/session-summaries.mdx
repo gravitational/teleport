@@ -413,11 +413,13 @@ summarize (Kubernetes, Database, SSH), give the policy a name, and click
      name: all-sessions
      description: Summarize all sessions
    spec:
-     # Session kinds affected by this policy. Allowed values: "ssh", "k8s", "db".
+     # Session kinds affected by this policy. Allowed values: "ssh", "k8s",
+     # "db", "desktop".
      kinds:
      - ssh
      - k8s
      - db
+     - desktop
      # Name of the pre-provisioned Teleport-managed inference model.
      model: teleport-cloud-default
    ```
@@ -432,11 +434,13 @@ summarize (Kubernetes, Database, SSH), give the policy a name, and click
      name: shell-sessions
      description: Summarize all sessions
    spec:
-     # Session kinds affected by this policy. Allowed values: "ssh", "k8s", "db".
+     # Session kinds affected by this policy. Allowed values: "ssh", "k8s",
+     # "db", "desktop".
      kinds:
      - ssh
      - k8s
      - db
+     - desktop
      # Name of the `inference_model` resource that will be used for summarizing
      # these sessions.
      model: shell-summary-model
