@@ -2460,6 +2460,146 @@ func (b0 ListInferencePoliciesResponse_builder) Build() *ListInferencePoliciesRe
 	return m0
 }
 
+// CreateClassifierRequest is a request for creating a Classifier.
+type CreateClassifierRequest struct {
+	state                 protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Classifier *Classifier            `protobuf:"bytes,1,opt,name=classifier,proto3"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
+}
+
+func (x *CreateClassifierRequest) Reset() {
+	*x = CreateClassifierRequest{}
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[36]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateClassifierRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateClassifierRequest) ProtoMessage() {}
+
+func (x *CreateClassifierRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[36]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *CreateClassifierRequest) GetClassifier() *Classifier {
+	if x != nil {
+		return x.xxx_hidden_Classifier
+	}
+	return nil
+}
+
+func (x *CreateClassifierRequest) SetClassifier(v *Classifier) {
+	x.xxx_hidden_Classifier = v
+}
+
+func (x *CreateClassifierRequest) HasClassifier() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_Classifier != nil
+}
+
+func (x *CreateClassifierRequest) ClearClassifier() {
+	x.xxx_hidden_Classifier = nil
+}
+
+type CreateClassifierRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Classifier is the Classifier resource to create.
+	Classifier *Classifier
+}
+
+func (b0 CreateClassifierRequest_builder) Build() *CreateClassifierRequest {
+	m0 := &CreateClassifierRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_Classifier = b.Classifier
+	return m0
+}
+
+// CreateClassifierResponse is a response to creating a Classifier.
+type CreateClassifierResponse struct {
+	state                 protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Classifier *Classifier            `protobuf:"bytes,1,opt,name=classifier,proto3"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
+}
+
+func (x *CreateClassifierResponse) Reset() {
+	*x = CreateClassifierResponse{}
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[37]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateClassifierResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateClassifierResponse) ProtoMessage() {}
+
+func (x *CreateClassifierResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[37]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *CreateClassifierResponse) GetClassifier() *Classifier {
+	if x != nil {
+		return x.xxx_hidden_Classifier
+	}
+	return nil
+}
+
+func (x *CreateClassifierResponse) SetClassifier(v *Classifier) {
+	x.xxx_hidden_Classifier = v
+}
+
+func (x *CreateClassifierResponse) HasClassifier() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_Classifier != nil
+}
+
+func (x *CreateClassifierResponse) ClearClassifier() {
+	x.xxx_hidden_Classifier = nil
+}
+
+type CreateClassifierResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Classifier is the Classifier resource that was created.
+	Classifier *Classifier
+}
+
+func (b0 CreateClassifierResponse_builder) Build() *CreateClassifierResponse {
+	m0 := &CreateClassifierResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_Classifier = b.Classifier
+	return m0
+}
+
 // GetClassifierRequest is a request for retrieving a Classifier.
 type GetClassifierRequest struct {
 	state           protoimpl.MessageState `protogen:"opaque.v1"`
@@ -2470,7 +2610,7 @@ type GetClassifierRequest struct {
 
 func (x *GetClassifierRequest) Reset() {
 	*x = GetClassifierRequest{}
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[36]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2482,7 +2622,7 @@ func (x *GetClassifierRequest) String() string {
 func (*GetClassifierRequest) ProtoMessage() {}
 
 func (x *GetClassifierRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[36]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2529,7 +2669,7 @@ type GetClassifierResponse struct {
 
 func (x *GetClassifierResponse) Reset() {
 	*x = GetClassifierResponse{}
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[37]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2541,7 +2681,7 @@ func (x *GetClassifierResponse) String() string {
 func (*GetClassifierResponse) ProtoMessage() {}
 
 func (x *GetClassifierResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[37]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2589,6 +2729,287 @@ func (b0 GetClassifierResponse_builder) Build() *GetClassifierResponse {
 	return m0
 }
 
+// UpdateClassifierRequest is a request for updating a Classifier.
+type UpdateClassifierRequest struct {
+	state                 protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Classifier *Classifier            `protobuf:"bytes,1,opt,name=classifier,proto3"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
+}
+
+func (x *UpdateClassifierRequest) Reset() {
+	*x = UpdateClassifierRequest{}
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[40]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateClassifierRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateClassifierRequest) ProtoMessage() {}
+
+func (x *UpdateClassifierRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[40]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *UpdateClassifierRequest) GetClassifier() *Classifier {
+	if x != nil {
+		return x.xxx_hidden_Classifier
+	}
+	return nil
+}
+
+func (x *UpdateClassifierRequest) SetClassifier(v *Classifier) {
+	x.xxx_hidden_Classifier = v
+}
+
+func (x *UpdateClassifierRequest) HasClassifier() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_Classifier != nil
+}
+
+func (x *UpdateClassifierRequest) ClearClassifier() {
+	x.xxx_hidden_Classifier = nil
+}
+
+type UpdateClassifierRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Classifier is the Classifier resource to update.
+	Classifier *Classifier
+}
+
+func (b0 UpdateClassifierRequest_builder) Build() *UpdateClassifierRequest {
+	m0 := &UpdateClassifierRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_Classifier = b.Classifier
+	return m0
+}
+
+// UpdateClassifierResponse is a response to updating a Classifier.
+type UpdateClassifierResponse struct {
+	state                 protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Classifier *Classifier            `protobuf:"bytes,1,opt,name=classifier,proto3"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
+}
+
+func (x *UpdateClassifierResponse) Reset() {
+	*x = UpdateClassifierResponse{}
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[41]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateClassifierResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateClassifierResponse) ProtoMessage() {}
+
+func (x *UpdateClassifierResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[41]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *UpdateClassifierResponse) GetClassifier() *Classifier {
+	if x != nil {
+		return x.xxx_hidden_Classifier
+	}
+	return nil
+}
+
+func (x *UpdateClassifierResponse) SetClassifier(v *Classifier) {
+	x.xxx_hidden_Classifier = v
+}
+
+func (x *UpdateClassifierResponse) HasClassifier() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_Classifier != nil
+}
+
+func (x *UpdateClassifierResponse) ClearClassifier() {
+	x.xxx_hidden_Classifier = nil
+}
+
+type UpdateClassifierResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Classifier is the Classifier resource that was updated.
+	Classifier *Classifier
+}
+
+func (b0 UpdateClassifierResponse_builder) Build() *UpdateClassifierResponse {
+	m0 := &UpdateClassifierResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_Classifier = b.Classifier
+	return m0
+}
+
+// UpsertClassifierRequest is a request for creating or updating a Classifier.
+type UpsertClassifierRequest struct {
+	state                 protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Classifier *Classifier            `protobuf:"bytes,1,opt,name=classifier,proto3"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
+}
+
+func (x *UpsertClassifierRequest) Reset() {
+	*x = UpsertClassifierRequest{}
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[42]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpsertClassifierRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpsertClassifierRequest) ProtoMessage() {}
+
+func (x *UpsertClassifierRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[42]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *UpsertClassifierRequest) GetClassifier() *Classifier {
+	if x != nil {
+		return x.xxx_hidden_Classifier
+	}
+	return nil
+}
+
+func (x *UpsertClassifierRequest) SetClassifier(v *Classifier) {
+	x.xxx_hidden_Classifier = v
+}
+
+func (x *UpsertClassifierRequest) HasClassifier() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_Classifier != nil
+}
+
+func (x *UpsertClassifierRequest) ClearClassifier() {
+	x.xxx_hidden_Classifier = nil
+}
+
+type UpsertClassifierRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Classifier is the Classifier resource to create or update.
+	Classifier *Classifier
+}
+
+func (b0 UpsertClassifierRequest_builder) Build() *UpsertClassifierRequest {
+	m0 := &UpsertClassifierRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_Classifier = b.Classifier
+	return m0
+}
+
+// UpsertClassifierResponse is a response to creating or updating a
+// Classifier.
+type UpsertClassifierResponse struct {
+	state                 protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Classifier *Classifier            `protobuf:"bytes,1,opt,name=classifier,proto3"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
+}
+
+func (x *UpsertClassifierResponse) Reset() {
+	*x = UpsertClassifierResponse{}
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[43]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpsertClassifierResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpsertClassifierResponse) ProtoMessage() {}
+
+func (x *UpsertClassifierResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[43]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *UpsertClassifierResponse) GetClassifier() *Classifier {
+	if x != nil {
+		return x.xxx_hidden_Classifier
+	}
+	return nil
+}
+
+func (x *UpsertClassifierResponse) SetClassifier(v *Classifier) {
+	x.xxx_hidden_Classifier = v
+}
+
+func (x *UpsertClassifierResponse) HasClassifier() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_Classifier != nil
+}
+
+func (x *UpsertClassifierResponse) ClearClassifier() {
+	x.xxx_hidden_Classifier = nil
+}
+
+type UpsertClassifierResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Classifier is the Classifier resource that was created or updated.
+	Classifier *Classifier
+}
+
+func (b0 UpsertClassifierResponse_builder) Build() *UpsertClassifierResponse {
+	m0 := &UpsertClassifierResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_Classifier = b.Classifier
+	return m0
+}
+
 // DeleteClassifierRequest is a request for deleting a Classifier.
 type DeleteClassifierRequest struct {
 	state           protoimpl.MessageState `protogen:"opaque.v1"`
@@ -2599,7 +3020,7 @@ type DeleteClassifierRequest struct {
 
 func (x *DeleteClassifierRequest) Reset() {
 	*x = DeleteClassifierRequest{}
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[38]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2611,7 +3032,7 @@ func (x *DeleteClassifierRequest) String() string {
 func (*DeleteClassifierRequest) ProtoMessage() {}
 
 func (x *DeleteClassifierRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[38]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2657,7 +3078,7 @@ type DeleteClassifierResponse struct {
 
 func (x *DeleteClassifierResponse) Reset() {
 	*x = DeleteClassifierResponse{}
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[39]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2669,7 +3090,7 @@ func (x *DeleteClassifierResponse) String() string {
 func (*DeleteClassifierResponse) ProtoMessage() {}
 
 func (x *DeleteClassifierResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[39]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2703,7 +3124,7 @@ type ListClassifiersRequest struct {
 
 func (x *ListClassifiersRequest) Reset() {
 	*x = ListClassifiersRequest{}
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[40]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2715,7 +3136,7 @@ func (x *ListClassifiersRequest) String() string {
 func (*ListClassifiersRequest) ProtoMessage() {}
 
 func (x *ListClassifiersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[40]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2779,7 +3200,7 @@ type ListClassifiersResponse struct {
 
 func (x *ListClassifiersResponse) Reset() {
 	*x = ListClassifiersResponse{}
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[41]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2791,7 +3212,7 @@ func (x *ListClassifiersResponse) String() string {
 func (*ListClassifiersResponse) ProtoMessage() {}
 
 func (x *ListClassifiersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[41]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2855,7 +3276,7 @@ type GetSummaryRequest struct {
 
 func (x *GetSummaryRequest) Reset() {
 	*x = GetSummaryRequest{}
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[42]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2867,7 +3288,7 @@ func (x *GetSummaryRequest) String() string {
 func (*GetSummaryRequest) ProtoMessage() {}
 
 func (x *GetSummaryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[42]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2914,7 +3335,7 @@ type GetSummaryResponse struct {
 
 func (x *GetSummaryResponse) Reset() {
 	*x = GetSummaryResponse{}
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[43]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2926,7 +3347,7 @@ func (x *GetSummaryResponse) String() string {
 func (*GetSummaryResponse) ProtoMessage() {}
 
 func (x *GetSummaryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[43]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2985,7 +3406,7 @@ type BatchGetSummaryMetadataRequest struct {
 
 func (x *BatchGetSummaryMetadataRequest) Reset() {
 	*x = BatchGetSummaryMetadataRequest{}
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[44]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2997,7 +3418,7 @@ func (x *BatchGetSummaryMetadataRequest) String() string {
 func (*BatchGetSummaryMetadataRequest) ProtoMessage() {}
 
 func (x *BatchGetSummaryMetadataRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[44]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3046,7 +3467,7 @@ type BatchGetSummaryMetadataResponse struct {
 
 func (x *BatchGetSummaryMetadataResponse) Reset() {
 	*x = BatchGetSummaryMetadataResponse{}
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[45]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3058,7 +3479,7 @@ func (x *BatchGetSummaryMetadataResponse) String() string {
 func (*BatchGetSummaryMetadataResponse) ProtoMessage() {}
 
 func (x *BatchGetSummaryMetadataResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[45]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3114,7 +3535,7 @@ type SummaryMetadata struct {
 
 func (x *SummaryMetadata) Reset() {
 	*x = SummaryMetadata{}
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[46]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3126,7 +3547,7 @@ func (x *SummaryMetadata) String() string {
 func (*SummaryMetadata) ProtoMessage() {}
 
 func (x *SummaryMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[46]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3216,7 +3637,7 @@ type IsEnabledRequest struct {
 
 func (x *IsEnabledRequest) Reset() {
 	*x = IsEnabledRequest{}
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[47]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3228,7 +3649,7 @@ func (x *IsEnabledRequest) String() string {
 func (*IsEnabledRequest) ProtoMessage() {}
 
 func (x *IsEnabledRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[47]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3261,7 +3682,7 @@ type IsEnabledResponse struct {
 
 func (x *IsEnabledResponse) Reset() {
 	*x = IsEnabledResponse{}
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[48]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3273,7 +3694,7 @@ func (x *IsEnabledResponse) String() string {
 func (*IsEnabledResponse) ProtoMessage() {}
 
 func (x *IsEnabledResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[48]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3323,7 +3744,7 @@ type TestInferenceModelRequest struct {
 
 func (x *TestInferenceModelRequest) Reset() {
 	*x = TestInferenceModelRequest{}
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[49]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3335,7 +3756,7 @@ func (x *TestInferenceModelRequest) String() string {
 func (*TestInferenceModelRequest) ProtoMessage() {}
 
 func (x *TestInferenceModelRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[49]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3421,7 +3842,7 @@ type TestInferenceModelResponse struct {
 
 func (x *TestInferenceModelResponse) Reset() {
 	*x = TestInferenceModelResponse{}
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[50]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3433,7 +3854,7 @@ func (x *TestInferenceModelResponse) String() string {
 func (*TestInferenceModelResponse) ProtoMessage() {}
 
 func (x *TestInferenceModelResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[50]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3496,7 +3917,7 @@ type TestRetrievalModelRequest struct {
 
 func (x *TestRetrievalModelRequest) Reset() {
 	*x = TestRetrievalModelRequest{}
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[51]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3508,7 +3929,7 @@ func (x *TestRetrievalModelRequest) String() string {
 func (*TestRetrievalModelRequest) ProtoMessage() {}
 
 func (x *TestRetrievalModelRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[51]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3594,7 +4015,7 @@ type TestRetrievalModelResponse struct {
 
 func (x *TestRetrievalModelResponse) Reset() {
 	*x = TestRetrievalModelResponse{}
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[52]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3606,7 +4027,7 @@ func (x *TestRetrievalModelResponse) String() string {
 func (*TestRetrievalModelResponse) ProtoMessage() {}
 
 func (x *TestRetrievalModelResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[52]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3669,7 +4090,7 @@ type CreateRetrievalModelRequest struct {
 
 func (x *CreateRetrievalModelRequest) Reset() {
 	*x = CreateRetrievalModelRequest{}
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[53]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[59]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3681,7 +4102,7 @@ func (x *CreateRetrievalModelRequest) String() string {
 func (*CreateRetrievalModelRequest) ProtoMessage() {}
 
 func (x *CreateRetrievalModelRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[53]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[59]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3739,7 +4160,7 @@ type CreateRetrievalModelResponse struct {
 
 func (x *CreateRetrievalModelResponse) Reset() {
 	*x = CreateRetrievalModelResponse{}
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[54]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[60]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3751,7 +4172,7 @@ func (x *CreateRetrievalModelResponse) String() string {
 func (*CreateRetrievalModelResponse) ProtoMessage() {}
 
 func (x *CreateRetrievalModelResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[54]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[60]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3809,7 +4230,7 @@ type GetRetrievalModelRequest struct {
 
 func (x *GetRetrievalModelRequest) Reset() {
 	*x = GetRetrievalModelRequest{}
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[55]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[61]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3821,7 +4242,7 @@ func (x *GetRetrievalModelRequest) String() string {
 func (*GetRetrievalModelRequest) ProtoMessage() {}
 
 func (x *GetRetrievalModelRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[55]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[61]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3854,7 +4275,7 @@ type GetRetrievalModelResponse struct {
 
 func (x *GetRetrievalModelResponse) Reset() {
 	*x = GetRetrievalModelResponse{}
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[56]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[62]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3866,7 +4287,7 @@ func (x *GetRetrievalModelResponse) String() string {
 func (*GetRetrievalModelResponse) ProtoMessage() {}
 
 func (x *GetRetrievalModelResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[56]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[62]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3924,7 +4345,7 @@ type UpdateRetrievalModelRequest struct {
 
 func (x *UpdateRetrievalModelRequest) Reset() {
 	*x = UpdateRetrievalModelRequest{}
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[57]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[63]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3936,7 +4357,7 @@ func (x *UpdateRetrievalModelRequest) String() string {
 func (*UpdateRetrievalModelRequest) ProtoMessage() {}
 
 func (x *UpdateRetrievalModelRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[57]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[63]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3994,7 +4415,7 @@ type UpdateRetrievalModelResponse struct {
 
 func (x *UpdateRetrievalModelResponse) Reset() {
 	*x = UpdateRetrievalModelResponse{}
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[58]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[64]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4006,7 +4427,7 @@ func (x *UpdateRetrievalModelResponse) String() string {
 func (*UpdateRetrievalModelResponse) ProtoMessage() {}
 
 func (x *UpdateRetrievalModelResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[58]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[64]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4065,7 +4486,7 @@ type UpsertRetrievalModelRequest struct {
 
 func (x *UpsertRetrievalModelRequest) Reset() {
 	*x = UpsertRetrievalModelRequest{}
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[59]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[65]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4077,7 +4498,7 @@ func (x *UpsertRetrievalModelRequest) String() string {
 func (*UpsertRetrievalModelRequest) ProtoMessage() {}
 
 func (x *UpsertRetrievalModelRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[59]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[65]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4136,7 +4557,7 @@ type UpsertRetrievalModelResponse struct {
 
 func (x *UpsertRetrievalModelResponse) Reset() {
 	*x = UpsertRetrievalModelResponse{}
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[60]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[66]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4148,7 +4569,7 @@ func (x *UpsertRetrievalModelResponse) String() string {
 func (*UpsertRetrievalModelResponse) ProtoMessage() {}
 
 func (x *UpsertRetrievalModelResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[60]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[66]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4206,7 +4627,7 @@ type DeleteRetrievalModelRequest struct {
 
 func (x *DeleteRetrievalModelRequest) Reset() {
 	*x = DeleteRetrievalModelRequest{}
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[61]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[67]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4218,7 +4639,7 @@ func (x *DeleteRetrievalModelRequest) String() string {
 func (*DeleteRetrievalModelRequest) ProtoMessage() {}
 
 func (x *DeleteRetrievalModelRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[61]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[67]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4250,7 +4671,7 @@ type DeleteRetrievalModelResponse struct {
 
 func (x *DeleteRetrievalModelResponse) Reset() {
 	*x = DeleteRetrievalModelResponse{}
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[62]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[68]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4262,7 +4683,7 @@ func (x *DeleteRetrievalModelResponse) String() string {
 func (*DeleteRetrievalModelResponse) ProtoMessage() {}
 
 func (x *DeleteRetrievalModelResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[62]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[68]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4367,10 +4788,34 @@ const file_teleport_summarizer_v1_summarizer_service_proto_rawDesc = "" +
 	"page_token\x18\x02 \x01(\tR\tpageToken\"\x8c\x01\n" +
 	"\x1dListInferencePoliciesResponse\x12C\n" +
 	"\bpolicies\x18\x01 \x03(\v2'.teleport.summarizer.v1.InferencePolicyR\bpolicies\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"*\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"]\n" +
+	"\x17CreateClassifierRequest\x12B\n" +
+	"\n" +
+	"classifier\x18\x01 \x01(\v2\".teleport.summarizer.v1.ClassifierR\n" +
+	"classifier\"^\n" +
+	"\x18CreateClassifierResponse\x12B\n" +
+	"\n" +
+	"classifier\x18\x01 \x01(\v2\".teleport.summarizer.v1.ClassifierR\n" +
+	"classifier\"*\n" +
 	"\x14GetClassifierRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\"[\n" +
 	"\x15GetClassifierResponse\x12B\n" +
+	"\n" +
+	"classifier\x18\x01 \x01(\v2\".teleport.summarizer.v1.ClassifierR\n" +
+	"classifier\"]\n" +
+	"\x17UpdateClassifierRequest\x12B\n" +
+	"\n" +
+	"classifier\x18\x01 \x01(\v2\".teleport.summarizer.v1.ClassifierR\n" +
+	"classifier\"^\n" +
+	"\x18UpdateClassifierResponse\x12B\n" +
+	"\n" +
+	"classifier\x18\x01 \x01(\v2\".teleport.summarizer.v1.ClassifierR\n" +
+	"classifier\"]\n" +
+	"\x17UpsertClassifierRequest\x12B\n" +
+	"\n" +
+	"classifier\x18\x01 \x01(\v2\".teleport.summarizer.v1.ClassifierR\n" +
+	"classifier\"^\n" +
+	"\x18UpsertClassifierResponse\x12B\n" +
 	"\n" +
 	"classifier\x18\x01 \x01(\v2\".teleport.summarizer.v1.ClassifierR\n" +
 	"classifier\"-\n" +
@@ -4432,7 +4877,7 @@ const file_teleport_summarizer_v1_summarizer_service_proto_rawDesc = "" +
 	"\x1cUpsertRetrievalModelResponse\x12<\n" +
 	"\x05model\x18\x01 \x01(\v2&.teleport.summarizer.v1.RetrievalModelR\x05model\"\x1d\n" +
 	"\x1bDeleteRetrievalModelRequest\"\x1e\n" +
-	"\x1cDeleteRetrievalModelResponse2\x8b\x1f\n" +
+	"\x1cDeleteRetrievalModelResponse2\xf0!\n" +
 	"\x11SummarizerService\x12\x81\x01\n" +
 	"\x14CreateInferenceModel\x123.teleport.summarizer.v1.CreateInferenceModelRequest\x1a4.teleport.summarizer.v1.CreateInferenceModelResponse\x12x\n" +
 	"\x11GetInferenceModel\x120.teleport.summarizer.v1.GetInferenceModelRequest\x1a1.teleport.summarizer.v1.GetInferenceModelResponse\x12\x81\x01\n" +
@@ -4451,8 +4896,11 @@ const file_teleport_summarizer_v1_summarizer_service_proto_rawDesc = "" +
 	"\x15UpdateInferencePolicy\x124.teleport.summarizer.v1.UpdateInferencePolicyRequest\x1a5.teleport.summarizer.v1.UpdateInferencePolicyResponse\x12\x84\x01\n" +
 	"\x15UpsertInferencePolicy\x124.teleport.summarizer.v1.UpsertInferencePolicyRequest\x1a5.teleport.summarizer.v1.UpsertInferencePolicyResponse\x12\x84\x01\n" +
 	"\x15DeleteInferencePolicy\x124.teleport.summarizer.v1.DeleteInferencePolicyRequest\x1a5.teleport.summarizer.v1.DeleteInferencePolicyResponse\x12\x84\x01\n" +
-	"\x15ListInferencePolicies\x124.teleport.summarizer.v1.ListInferencePoliciesRequest\x1a5.teleport.summarizer.v1.ListInferencePoliciesResponse\x12l\n" +
+	"\x15ListInferencePolicies\x124.teleport.summarizer.v1.ListInferencePoliciesRequest\x1a5.teleport.summarizer.v1.ListInferencePoliciesResponse\x12u\n" +
+	"\x10CreateClassifier\x12/.teleport.summarizer.v1.CreateClassifierRequest\x1a0.teleport.summarizer.v1.CreateClassifierResponse\x12l\n" +
 	"\rGetClassifier\x12,.teleport.summarizer.v1.GetClassifierRequest\x1a-.teleport.summarizer.v1.GetClassifierResponse\x12u\n" +
+	"\x10UpdateClassifier\x12/.teleport.summarizer.v1.UpdateClassifierRequest\x1a0.teleport.summarizer.v1.UpdateClassifierResponse\x12u\n" +
+	"\x10UpsertClassifier\x12/.teleport.summarizer.v1.UpsertClassifierRequest\x1a0.teleport.summarizer.v1.UpsertClassifierResponse\x12u\n" +
 	"\x10DeleteClassifier\x12/.teleport.summarizer.v1.DeleteClassifierRequest\x1a0.teleport.summarizer.v1.DeleteClassifierResponse\x12r\n" +
 	"\x0fListClassifiers\x12..teleport.summarizer.v1.ListClassifiersRequest\x1a/.teleport.summarizer.v1.ListClassifiersResponse\x12c\n" +
 	"\n" +
@@ -4467,7 +4915,7 @@ const file_teleport_summarizer_v1_summarizer_service_proto_rawDesc = "" +
 	"\x14DeleteRetrievalModel\x123.teleport.summarizer.v1.DeleteRetrievalModelRequest\x1a4.teleport.summarizer.v1.DeleteRetrievalModelResponse\x12{\n" +
 	"\x12TestRetrievalModel\x121.teleport.summarizer.v1.TestRetrievalModelRequest\x1a2.teleport.summarizer.v1.TestRetrievalModelResponseBXZVgithub.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1;summarizerv1b\x06proto3"
 
-var file_teleport_summarizer_v1_summarizer_service_proto_msgTypes = make([]protoimpl.MessageInfo, 63)
+var file_teleport_summarizer_v1_summarizer_service_proto_msgTypes = make([]protoimpl.MessageInfo, 69)
 var file_teleport_summarizer_v1_summarizer_service_proto_goTypes = []any{
 	(*CreateInferenceModelRequest)(nil),     // 0: teleport.summarizer.v1.CreateInferenceModelRequest
 	(*CreateInferenceModelResponse)(nil),    // 1: teleport.summarizer.v1.CreateInferenceModelResponse
@@ -4505,156 +4953,174 @@ var file_teleport_summarizer_v1_summarizer_service_proto_goTypes = []any{
 	(*DeleteInferencePolicyResponse)(nil),   // 33: teleport.summarizer.v1.DeleteInferencePolicyResponse
 	(*ListInferencePoliciesRequest)(nil),    // 34: teleport.summarizer.v1.ListInferencePoliciesRequest
 	(*ListInferencePoliciesResponse)(nil),   // 35: teleport.summarizer.v1.ListInferencePoliciesResponse
-	(*GetClassifierRequest)(nil),            // 36: teleport.summarizer.v1.GetClassifierRequest
-	(*GetClassifierResponse)(nil),           // 37: teleport.summarizer.v1.GetClassifierResponse
-	(*DeleteClassifierRequest)(nil),         // 38: teleport.summarizer.v1.DeleteClassifierRequest
-	(*DeleteClassifierResponse)(nil),        // 39: teleport.summarizer.v1.DeleteClassifierResponse
-	(*ListClassifiersRequest)(nil),          // 40: teleport.summarizer.v1.ListClassifiersRequest
-	(*ListClassifiersResponse)(nil),         // 41: teleport.summarizer.v1.ListClassifiersResponse
-	(*GetSummaryRequest)(nil),               // 42: teleport.summarizer.v1.GetSummaryRequest
-	(*GetSummaryResponse)(nil),              // 43: teleport.summarizer.v1.GetSummaryResponse
-	(*BatchGetSummaryMetadataRequest)(nil),  // 44: teleport.summarizer.v1.BatchGetSummaryMetadataRequest
-	(*BatchGetSummaryMetadataResponse)(nil), // 45: teleport.summarizer.v1.BatchGetSummaryMetadataResponse
-	(*SummaryMetadata)(nil),                 // 46: teleport.summarizer.v1.SummaryMetadata
-	(*IsEnabledRequest)(nil),                // 47: teleport.summarizer.v1.IsEnabledRequest
-	(*IsEnabledResponse)(nil),               // 48: teleport.summarizer.v1.IsEnabledResponse
-	(*TestInferenceModelRequest)(nil),       // 49: teleport.summarizer.v1.TestInferenceModelRequest
-	(*TestInferenceModelResponse)(nil),      // 50: teleport.summarizer.v1.TestInferenceModelResponse
-	(*TestRetrievalModelRequest)(nil),       // 51: teleport.summarizer.v1.TestRetrievalModelRequest
-	(*TestRetrievalModelResponse)(nil),      // 52: teleport.summarizer.v1.TestRetrievalModelResponse
-	(*CreateRetrievalModelRequest)(nil),     // 53: teleport.summarizer.v1.CreateRetrievalModelRequest
-	(*CreateRetrievalModelResponse)(nil),    // 54: teleport.summarizer.v1.CreateRetrievalModelResponse
-	(*GetRetrievalModelRequest)(nil),        // 55: teleport.summarizer.v1.GetRetrievalModelRequest
-	(*GetRetrievalModelResponse)(nil),       // 56: teleport.summarizer.v1.GetRetrievalModelResponse
-	(*UpdateRetrievalModelRequest)(nil),     // 57: teleport.summarizer.v1.UpdateRetrievalModelRequest
-	(*UpdateRetrievalModelResponse)(nil),    // 58: teleport.summarizer.v1.UpdateRetrievalModelResponse
-	(*UpsertRetrievalModelRequest)(nil),     // 59: teleport.summarizer.v1.UpsertRetrievalModelRequest
-	(*UpsertRetrievalModelResponse)(nil),    // 60: teleport.summarizer.v1.UpsertRetrievalModelResponse
-	(*DeleteRetrievalModelRequest)(nil),     // 61: teleport.summarizer.v1.DeleteRetrievalModelRequest
-	(*DeleteRetrievalModelResponse)(nil),    // 62: teleport.summarizer.v1.DeleteRetrievalModelResponse
-	(*InferenceModel)(nil),                  // 63: teleport.summarizer.v1.InferenceModel
-	(*InferenceSecret)(nil),                 // 64: teleport.summarizer.v1.InferenceSecret
-	(*InferencePolicy)(nil),                 // 65: teleport.summarizer.v1.InferencePolicy
-	(*Classifier)(nil),                      // 66: teleport.summarizer.v1.Classifier
-	(*Summary)(nil),                         // 67: teleport.summarizer.v1.Summary
-	(SummaryState)(0),                       // 68: teleport.summarizer.v1.SummaryState
-	(RiskLevel)(0),                          // 69: teleport.summarizer.v1.RiskLevel
-	(NeedsReviewReason)(0),                  // 70: teleport.summarizer.v1.NeedsReviewReason
-	(*InferenceModelSpec)(nil),              // 71: teleport.summarizer.v1.InferenceModelSpec
-	(*InferenceSecretSpec)(nil),             // 72: teleport.summarizer.v1.InferenceSecretSpec
-	(*RetrievalModelSpec)(nil),              // 73: teleport.summarizer.v1.RetrievalModelSpec
-	(*RetrievalModel)(nil),                  // 74: teleport.summarizer.v1.RetrievalModel
+	(*CreateClassifierRequest)(nil),         // 36: teleport.summarizer.v1.CreateClassifierRequest
+	(*CreateClassifierResponse)(nil),        // 37: teleport.summarizer.v1.CreateClassifierResponse
+	(*GetClassifierRequest)(nil),            // 38: teleport.summarizer.v1.GetClassifierRequest
+	(*GetClassifierResponse)(nil),           // 39: teleport.summarizer.v1.GetClassifierResponse
+	(*UpdateClassifierRequest)(nil),         // 40: teleport.summarizer.v1.UpdateClassifierRequest
+	(*UpdateClassifierResponse)(nil),        // 41: teleport.summarizer.v1.UpdateClassifierResponse
+	(*UpsertClassifierRequest)(nil),         // 42: teleport.summarizer.v1.UpsertClassifierRequest
+	(*UpsertClassifierResponse)(nil),        // 43: teleport.summarizer.v1.UpsertClassifierResponse
+	(*DeleteClassifierRequest)(nil),         // 44: teleport.summarizer.v1.DeleteClassifierRequest
+	(*DeleteClassifierResponse)(nil),        // 45: teleport.summarizer.v1.DeleteClassifierResponse
+	(*ListClassifiersRequest)(nil),          // 46: teleport.summarizer.v1.ListClassifiersRequest
+	(*ListClassifiersResponse)(nil),         // 47: teleport.summarizer.v1.ListClassifiersResponse
+	(*GetSummaryRequest)(nil),               // 48: teleport.summarizer.v1.GetSummaryRequest
+	(*GetSummaryResponse)(nil),              // 49: teleport.summarizer.v1.GetSummaryResponse
+	(*BatchGetSummaryMetadataRequest)(nil),  // 50: teleport.summarizer.v1.BatchGetSummaryMetadataRequest
+	(*BatchGetSummaryMetadataResponse)(nil), // 51: teleport.summarizer.v1.BatchGetSummaryMetadataResponse
+	(*SummaryMetadata)(nil),                 // 52: teleport.summarizer.v1.SummaryMetadata
+	(*IsEnabledRequest)(nil),                // 53: teleport.summarizer.v1.IsEnabledRequest
+	(*IsEnabledResponse)(nil),               // 54: teleport.summarizer.v1.IsEnabledResponse
+	(*TestInferenceModelRequest)(nil),       // 55: teleport.summarizer.v1.TestInferenceModelRequest
+	(*TestInferenceModelResponse)(nil),      // 56: teleport.summarizer.v1.TestInferenceModelResponse
+	(*TestRetrievalModelRequest)(nil),       // 57: teleport.summarizer.v1.TestRetrievalModelRequest
+	(*TestRetrievalModelResponse)(nil),      // 58: teleport.summarizer.v1.TestRetrievalModelResponse
+	(*CreateRetrievalModelRequest)(nil),     // 59: teleport.summarizer.v1.CreateRetrievalModelRequest
+	(*CreateRetrievalModelResponse)(nil),    // 60: teleport.summarizer.v1.CreateRetrievalModelResponse
+	(*GetRetrievalModelRequest)(nil),        // 61: teleport.summarizer.v1.GetRetrievalModelRequest
+	(*GetRetrievalModelResponse)(nil),       // 62: teleport.summarizer.v1.GetRetrievalModelResponse
+	(*UpdateRetrievalModelRequest)(nil),     // 63: teleport.summarizer.v1.UpdateRetrievalModelRequest
+	(*UpdateRetrievalModelResponse)(nil),    // 64: teleport.summarizer.v1.UpdateRetrievalModelResponse
+	(*UpsertRetrievalModelRequest)(nil),     // 65: teleport.summarizer.v1.UpsertRetrievalModelRequest
+	(*UpsertRetrievalModelResponse)(nil),    // 66: teleport.summarizer.v1.UpsertRetrievalModelResponse
+	(*DeleteRetrievalModelRequest)(nil),     // 67: teleport.summarizer.v1.DeleteRetrievalModelRequest
+	(*DeleteRetrievalModelResponse)(nil),    // 68: teleport.summarizer.v1.DeleteRetrievalModelResponse
+	(*InferenceModel)(nil),                  // 69: teleport.summarizer.v1.InferenceModel
+	(*InferenceSecret)(nil),                 // 70: teleport.summarizer.v1.InferenceSecret
+	(*InferencePolicy)(nil),                 // 71: teleport.summarizer.v1.InferencePolicy
+	(*Classifier)(nil),                      // 72: teleport.summarizer.v1.Classifier
+	(*Summary)(nil),                         // 73: teleport.summarizer.v1.Summary
+	(SummaryState)(0),                       // 74: teleport.summarizer.v1.SummaryState
+	(RiskLevel)(0),                          // 75: teleport.summarizer.v1.RiskLevel
+	(NeedsReviewReason)(0),                  // 76: teleport.summarizer.v1.NeedsReviewReason
+	(*InferenceModelSpec)(nil),              // 77: teleport.summarizer.v1.InferenceModelSpec
+	(*InferenceSecretSpec)(nil),             // 78: teleport.summarizer.v1.InferenceSecretSpec
+	(*RetrievalModelSpec)(nil),              // 79: teleport.summarizer.v1.RetrievalModelSpec
+	(*RetrievalModel)(nil),                  // 80: teleport.summarizer.v1.RetrievalModel
 }
 var file_teleport_summarizer_v1_summarizer_service_proto_depIdxs = []int32{
-	63, // 0: teleport.summarizer.v1.CreateInferenceModelRequest.model:type_name -> teleport.summarizer.v1.InferenceModel
-	63, // 1: teleport.summarizer.v1.CreateInferenceModelResponse.model:type_name -> teleport.summarizer.v1.InferenceModel
-	63, // 2: teleport.summarizer.v1.GetInferenceModelResponse.model:type_name -> teleport.summarizer.v1.InferenceModel
-	63, // 3: teleport.summarizer.v1.UpdateInferenceModelRequest.model:type_name -> teleport.summarizer.v1.InferenceModel
-	63, // 4: teleport.summarizer.v1.UpdateInferenceModelResponse.model:type_name -> teleport.summarizer.v1.InferenceModel
-	63, // 5: teleport.summarizer.v1.UpsertInferenceModelRequest.model:type_name -> teleport.summarizer.v1.InferenceModel
-	63, // 6: teleport.summarizer.v1.UpsertInferenceModelResponse.model:type_name -> teleport.summarizer.v1.InferenceModel
-	63, // 7: teleport.summarizer.v1.ListInferenceModelsResponse.models:type_name -> teleport.summarizer.v1.InferenceModel
-	64, // 8: teleport.summarizer.v1.CreateInferenceSecretRequest.secret:type_name -> teleport.summarizer.v1.InferenceSecret
-	64, // 9: teleport.summarizer.v1.CreateInferenceSecretResponse.secret:type_name -> teleport.summarizer.v1.InferenceSecret
-	64, // 10: teleport.summarizer.v1.GetInferenceSecretResponse.secret:type_name -> teleport.summarizer.v1.InferenceSecret
-	64, // 11: teleport.summarizer.v1.UpdateInferenceSecretRequest.secret:type_name -> teleport.summarizer.v1.InferenceSecret
-	64, // 12: teleport.summarizer.v1.UpdateInferenceSecretResponse.secret:type_name -> teleport.summarizer.v1.InferenceSecret
-	64, // 13: teleport.summarizer.v1.UpsertInferenceSecretRequest.secret:type_name -> teleport.summarizer.v1.InferenceSecret
-	64, // 14: teleport.summarizer.v1.UpsertInferenceSecretResponse.secret:type_name -> teleport.summarizer.v1.InferenceSecret
-	64, // 15: teleport.summarizer.v1.ListInferenceSecretsResponse.secrets:type_name -> teleport.summarizer.v1.InferenceSecret
-	65, // 16: teleport.summarizer.v1.CreateInferencePolicyRequest.policy:type_name -> teleport.summarizer.v1.InferencePolicy
-	65, // 17: teleport.summarizer.v1.CreateInferencePolicyResponse.policy:type_name -> teleport.summarizer.v1.InferencePolicy
-	65, // 18: teleport.summarizer.v1.GetInferencePolicyResponse.policy:type_name -> teleport.summarizer.v1.InferencePolicy
-	65, // 19: teleport.summarizer.v1.UpdateInferencePolicyRequest.policy:type_name -> teleport.summarizer.v1.InferencePolicy
-	65, // 20: teleport.summarizer.v1.UpdateInferencePolicyResponse.policy:type_name -> teleport.summarizer.v1.InferencePolicy
-	65, // 21: teleport.summarizer.v1.UpsertInferencePolicyRequest.policy:type_name -> teleport.summarizer.v1.InferencePolicy
-	65, // 22: teleport.summarizer.v1.UpsertInferencePolicyResponse.policy:type_name -> teleport.summarizer.v1.InferencePolicy
-	65, // 23: teleport.summarizer.v1.ListInferencePoliciesResponse.policies:type_name -> teleport.summarizer.v1.InferencePolicy
-	66, // 24: teleport.summarizer.v1.GetClassifierResponse.classifier:type_name -> teleport.summarizer.v1.Classifier
-	66, // 25: teleport.summarizer.v1.ListClassifiersResponse.classifiers:type_name -> teleport.summarizer.v1.Classifier
-	67, // 26: teleport.summarizer.v1.GetSummaryResponse.summary:type_name -> teleport.summarizer.v1.Summary
-	46, // 27: teleport.summarizer.v1.BatchGetSummaryMetadataResponse.metadata:type_name -> teleport.summarizer.v1.SummaryMetadata
-	68, // 28: teleport.summarizer.v1.SummaryMetadata.state:type_name -> teleport.summarizer.v1.SummaryState
-	69, // 29: teleport.summarizer.v1.SummaryMetadata.risk_level:type_name -> teleport.summarizer.v1.RiskLevel
-	70, // 30: teleport.summarizer.v1.SummaryMetadata.needs_further_review_reasons:type_name -> teleport.summarizer.v1.NeedsReviewReason
-	71, // 31: teleport.summarizer.v1.TestInferenceModelRequest.model:type_name -> teleport.summarizer.v1.InferenceModelSpec
-	72, // 32: teleport.summarizer.v1.TestInferenceModelRequest.secret:type_name -> teleport.summarizer.v1.InferenceSecretSpec
-	73, // 33: teleport.summarizer.v1.TestRetrievalModelRequest.model:type_name -> teleport.summarizer.v1.RetrievalModelSpec
-	72, // 34: teleport.summarizer.v1.TestRetrievalModelRequest.secret:type_name -> teleport.summarizer.v1.InferenceSecretSpec
-	74, // 35: teleport.summarizer.v1.CreateRetrievalModelRequest.model:type_name -> teleport.summarizer.v1.RetrievalModel
-	74, // 36: teleport.summarizer.v1.CreateRetrievalModelResponse.model:type_name -> teleport.summarizer.v1.RetrievalModel
-	74, // 37: teleport.summarizer.v1.GetRetrievalModelResponse.model:type_name -> teleport.summarizer.v1.RetrievalModel
-	74, // 38: teleport.summarizer.v1.UpdateRetrievalModelRequest.model:type_name -> teleport.summarizer.v1.RetrievalModel
-	74, // 39: teleport.summarizer.v1.UpdateRetrievalModelResponse.model:type_name -> teleport.summarizer.v1.RetrievalModel
-	74, // 40: teleport.summarizer.v1.UpsertRetrievalModelRequest.model:type_name -> teleport.summarizer.v1.RetrievalModel
-	74, // 41: teleport.summarizer.v1.UpsertRetrievalModelResponse.model:type_name -> teleport.summarizer.v1.RetrievalModel
-	0,  // 42: teleport.summarizer.v1.SummarizerService.CreateInferenceModel:input_type -> teleport.summarizer.v1.CreateInferenceModelRequest
-	2,  // 43: teleport.summarizer.v1.SummarizerService.GetInferenceModel:input_type -> teleport.summarizer.v1.GetInferenceModelRequest
-	4,  // 44: teleport.summarizer.v1.SummarizerService.UpdateInferenceModel:input_type -> teleport.summarizer.v1.UpdateInferenceModelRequest
-	6,  // 45: teleport.summarizer.v1.SummarizerService.UpsertInferenceModel:input_type -> teleport.summarizer.v1.UpsertInferenceModelRequest
-	8,  // 46: teleport.summarizer.v1.SummarizerService.DeleteInferenceModel:input_type -> teleport.summarizer.v1.DeleteInferenceModelRequest
-	10, // 47: teleport.summarizer.v1.SummarizerService.ListInferenceModels:input_type -> teleport.summarizer.v1.ListInferenceModelsRequest
-	12, // 48: teleport.summarizer.v1.SummarizerService.CreateInferenceSecret:input_type -> teleport.summarizer.v1.CreateInferenceSecretRequest
-	14, // 49: teleport.summarizer.v1.SummarizerService.GetInferenceSecret:input_type -> teleport.summarizer.v1.GetInferenceSecretRequest
-	16, // 50: teleport.summarizer.v1.SummarizerService.UpdateInferenceSecret:input_type -> teleport.summarizer.v1.UpdateInferenceSecretRequest
-	18, // 51: teleport.summarizer.v1.SummarizerService.UpsertInferenceSecret:input_type -> teleport.summarizer.v1.UpsertInferenceSecretRequest
-	20, // 52: teleport.summarizer.v1.SummarizerService.DeleteInferenceSecret:input_type -> teleport.summarizer.v1.DeleteInferenceSecretRequest
-	22, // 53: teleport.summarizer.v1.SummarizerService.ListInferenceSecrets:input_type -> teleport.summarizer.v1.ListInferenceSecretsRequest
-	24, // 54: teleport.summarizer.v1.SummarizerService.CreateInferencePolicy:input_type -> teleport.summarizer.v1.CreateInferencePolicyRequest
-	26, // 55: teleport.summarizer.v1.SummarizerService.GetInferencePolicy:input_type -> teleport.summarizer.v1.GetInferencePolicyRequest
-	28, // 56: teleport.summarizer.v1.SummarizerService.UpdateInferencePolicy:input_type -> teleport.summarizer.v1.UpdateInferencePolicyRequest
-	30, // 57: teleport.summarizer.v1.SummarizerService.UpsertInferencePolicy:input_type -> teleport.summarizer.v1.UpsertInferencePolicyRequest
-	32, // 58: teleport.summarizer.v1.SummarizerService.DeleteInferencePolicy:input_type -> teleport.summarizer.v1.DeleteInferencePolicyRequest
-	34, // 59: teleport.summarizer.v1.SummarizerService.ListInferencePolicies:input_type -> teleport.summarizer.v1.ListInferencePoliciesRequest
-	36, // 60: teleport.summarizer.v1.SummarizerService.GetClassifier:input_type -> teleport.summarizer.v1.GetClassifierRequest
-	38, // 61: teleport.summarizer.v1.SummarizerService.DeleteClassifier:input_type -> teleport.summarizer.v1.DeleteClassifierRequest
-	40, // 62: teleport.summarizer.v1.SummarizerService.ListClassifiers:input_type -> teleport.summarizer.v1.ListClassifiersRequest
-	42, // 63: teleport.summarizer.v1.SummarizerService.GetSummary:input_type -> teleport.summarizer.v1.GetSummaryRequest
-	44, // 64: teleport.summarizer.v1.SummarizerService.BatchGetSummaryMetadata:input_type -> teleport.summarizer.v1.BatchGetSummaryMetadataRequest
-	47, // 65: teleport.summarizer.v1.SummarizerService.IsEnabled:input_type -> teleport.summarizer.v1.IsEnabledRequest
-	49, // 66: teleport.summarizer.v1.SummarizerService.TestInferenceModel:input_type -> teleport.summarizer.v1.TestInferenceModelRequest
-	53, // 67: teleport.summarizer.v1.SummarizerService.CreateRetrievalModel:input_type -> teleport.summarizer.v1.CreateRetrievalModelRequest
-	55, // 68: teleport.summarizer.v1.SummarizerService.GetRetrievalModel:input_type -> teleport.summarizer.v1.GetRetrievalModelRequest
-	57, // 69: teleport.summarizer.v1.SummarizerService.UpdateRetrievalModel:input_type -> teleport.summarizer.v1.UpdateRetrievalModelRequest
-	59, // 70: teleport.summarizer.v1.SummarizerService.UpsertRetrievalModel:input_type -> teleport.summarizer.v1.UpsertRetrievalModelRequest
-	61, // 71: teleport.summarizer.v1.SummarizerService.DeleteRetrievalModel:input_type -> teleport.summarizer.v1.DeleteRetrievalModelRequest
-	51, // 72: teleport.summarizer.v1.SummarizerService.TestRetrievalModel:input_type -> teleport.summarizer.v1.TestRetrievalModelRequest
-	1,  // 73: teleport.summarizer.v1.SummarizerService.CreateInferenceModel:output_type -> teleport.summarizer.v1.CreateInferenceModelResponse
-	3,  // 74: teleport.summarizer.v1.SummarizerService.GetInferenceModel:output_type -> teleport.summarizer.v1.GetInferenceModelResponse
-	5,  // 75: teleport.summarizer.v1.SummarizerService.UpdateInferenceModel:output_type -> teleport.summarizer.v1.UpdateInferenceModelResponse
-	7,  // 76: teleport.summarizer.v1.SummarizerService.UpsertInferenceModel:output_type -> teleport.summarizer.v1.UpsertInferenceModelResponse
-	9,  // 77: teleport.summarizer.v1.SummarizerService.DeleteInferenceModel:output_type -> teleport.summarizer.v1.DeleteInferenceModelResponse
-	11, // 78: teleport.summarizer.v1.SummarizerService.ListInferenceModels:output_type -> teleport.summarizer.v1.ListInferenceModelsResponse
-	13, // 79: teleport.summarizer.v1.SummarizerService.CreateInferenceSecret:output_type -> teleport.summarizer.v1.CreateInferenceSecretResponse
-	15, // 80: teleport.summarizer.v1.SummarizerService.GetInferenceSecret:output_type -> teleport.summarizer.v1.GetInferenceSecretResponse
-	17, // 81: teleport.summarizer.v1.SummarizerService.UpdateInferenceSecret:output_type -> teleport.summarizer.v1.UpdateInferenceSecretResponse
-	19, // 82: teleport.summarizer.v1.SummarizerService.UpsertInferenceSecret:output_type -> teleport.summarizer.v1.UpsertInferenceSecretResponse
-	21, // 83: teleport.summarizer.v1.SummarizerService.DeleteInferenceSecret:output_type -> teleport.summarizer.v1.DeleteInferenceSecretResponse
-	23, // 84: teleport.summarizer.v1.SummarizerService.ListInferenceSecrets:output_type -> teleport.summarizer.v1.ListInferenceSecretsResponse
-	25, // 85: teleport.summarizer.v1.SummarizerService.CreateInferencePolicy:output_type -> teleport.summarizer.v1.CreateInferencePolicyResponse
-	27, // 86: teleport.summarizer.v1.SummarizerService.GetInferencePolicy:output_type -> teleport.summarizer.v1.GetInferencePolicyResponse
-	29, // 87: teleport.summarizer.v1.SummarizerService.UpdateInferencePolicy:output_type -> teleport.summarizer.v1.UpdateInferencePolicyResponse
-	31, // 88: teleport.summarizer.v1.SummarizerService.UpsertInferencePolicy:output_type -> teleport.summarizer.v1.UpsertInferencePolicyResponse
-	33, // 89: teleport.summarizer.v1.SummarizerService.DeleteInferencePolicy:output_type -> teleport.summarizer.v1.DeleteInferencePolicyResponse
-	35, // 90: teleport.summarizer.v1.SummarizerService.ListInferencePolicies:output_type -> teleport.summarizer.v1.ListInferencePoliciesResponse
-	37, // 91: teleport.summarizer.v1.SummarizerService.GetClassifier:output_type -> teleport.summarizer.v1.GetClassifierResponse
-	39, // 92: teleport.summarizer.v1.SummarizerService.DeleteClassifier:output_type -> teleport.summarizer.v1.DeleteClassifierResponse
-	41, // 93: teleport.summarizer.v1.SummarizerService.ListClassifiers:output_type -> teleport.summarizer.v1.ListClassifiersResponse
-	43, // 94: teleport.summarizer.v1.SummarizerService.GetSummary:output_type -> teleport.summarizer.v1.GetSummaryResponse
-	45, // 95: teleport.summarizer.v1.SummarizerService.BatchGetSummaryMetadata:output_type -> teleport.summarizer.v1.BatchGetSummaryMetadataResponse
-	48, // 96: teleport.summarizer.v1.SummarizerService.IsEnabled:output_type -> teleport.summarizer.v1.IsEnabledResponse
-	50, // 97: teleport.summarizer.v1.SummarizerService.TestInferenceModel:output_type -> teleport.summarizer.v1.TestInferenceModelResponse
-	54, // 98: teleport.summarizer.v1.SummarizerService.CreateRetrievalModel:output_type -> teleport.summarizer.v1.CreateRetrievalModelResponse
-	56, // 99: teleport.summarizer.v1.SummarizerService.GetRetrievalModel:output_type -> teleport.summarizer.v1.GetRetrievalModelResponse
-	58, // 100: teleport.summarizer.v1.SummarizerService.UpdateRetrievalModel:output_type -> teleport.summarizer.v1.UpdateRetrievalModelResponse
-	60, // 101: teleport.summarizer.v1.SummarizerService.UpsertRetrievalModel:output_type -> teleport.summarizer.v1.UpsertRetrievalModelResponse
-	62, // 102: teleport.summarizer.v1.SummarizerService.DeleteRetrievalModel:output_type -> teleport.summarizer.v1.DeleteRetrievalModelResponse
-	52, // 103: teleport.summarizer.v1.SummarizerService.TestRetrievalModel:output_type -> teleport.summarizer.v1.TestRetrievalModelResponse
-	73, // [73:104] is the sub-list for method output_type
-	42, // [42:73] is the sub-list for method input_type
-	42, // [42:42] is the sub-list for extension type_name
-	42, // [42:42] is the sub-list for extension extendee
-	0,  // [0:42] is the sub-list for field type_name
+	69, // 0: teleport.summarizer.v1.CreateInferenceModelRequest.model:type_name -> teleport.summarizer.v1.InferenceModel
+	69, // 1: teleport.summarizer.v1.CreateInferenceModelResponse.model:type_name -> teleport.summarizer.v1.InferenceModel
+	69, // 2: teleport.summarizer.v1.GetInferenceModelResponse.model:type_name -> teleport.summarizer.v1.InferenceModel
+	69, // 3: teleport.summarizer.v1.UpdateInferenceModelRequest.model:type_name -> teleport.summarizer.v1.InferenceModel
+	69, // 4: teleport.summarizer.v1.UpdateInferenceModelResponse.model:type_name -> teleport.summarizer.v1.InferenceModel
+	69, // 5: teleport.summarizer.v1.UpsertInferenceModelRequest.model:type_name -> teleport.summarizer.v1.InferenceModel
+	69, // 6: teleport.summarizer.v1.UpsertInferenceModelResponse.model:type_name -> teleport.summarizer.v1.InferenceModel
+	69, // 7: teleport.summarizer.v1.ListInferenceModelsResponse.models:type_name -> teleport.summarizer.v1.InferenceModel
+	70, // 8: teleport.summarizer.v1.CreateInferenceSecretRequest.secret:type_name -> teleport.summarizer.v1.InferenceSecret
+	70, // 9: teleport.summarizer.v1.CreateInferenceSecretResponse.secret:type_name -> teleport.summarizer.v1.InferenceSecret
+	70, // 10: teleport.summarizer.v1.GetInferenceSecretResponse.secret:type_name -> teleport.summarizer.v1.InferenceSecret
+	70, // 11: teleport.summarizer.v1.UpdateInferenceSecretRequest.secret:type_name -> teleport.summarizer.v1.InferenceSecret
+	70, // 12: teleport.summarizer.v1.UpdateInferenceSecretResponse.secret:type_name -> teleport.summarizer.v1.InferenceSecret
+	70, // 13: teleport.summarizer.v1.UpsertInferenceSecretRequest.secret:type_name -> teleport.summarizer.v1.InferenceSecret
+	70, // 14: teleport.summarizer.v1.UpsertInferenceSecretResponse.secret:type_name -> teleport.summarizer.v1.InferenceSecret
+	70, // 15: teleport.summarizer.v1.ListInferenceSecretsResponse.secrets:type_name -> teleport.summarizer.v1.InferenceSecret
+	71, // 16: teleport.summarizer.v1.CreateInferencePolicyRequest.policy:type_name -> teleport.summarizer.v1.InferencePolicy
+	71, // 17: teleport.summarizer.v1.CreateInferencePolicyResponse.policy:type_name -> teleport.summarizer.v1.InferencePolicy
+	71, // 18: teleport.summarizer.v1.GetInferencePolicyResponse.policy:type_name -> teleport.summarizer.v1.InferencePolicy
+	71, // 19: teleport.summarizer.v1.UpdateInferencePolicyRequest.policy:type_name -> teleport.summarizer.v1.InferencePolicy
+	71, // 20: teleport.summarizer.v1.UpdateInferencePolicyResponse.policy:type_name -> teleport.summarizer.v1.InferencePolicy
+	71, // 21: teleport.summarizer.v1.UpsertInferencePolicyRequest.policy:type_name -> teleport.summarizer.v1.InferencePolicy
+	71, // 22: teleport.summarizer.v1.UpsertInferencePolicyResponse.policy:type_name -> teleport.summarizer.v1.InferencePolicy
+	71, // 23: teleport.summarizer.v1.ListInferencePoliciesResponse.policies:type_name -> teleport.summarizer.v1.InferencePolicy
+	72, // 24: teleport.summarizer.v1.CreateClassifierRequest.classifier:type_name -> teleport.summarizer.v1.Classifier
+	72, // 25: teleport.summarizer.v1.CreateClassifierResponse.classifier:type_name -> teleport.summarizer.v1.Classifier
+	72, // 26: teleport.summarizer.v1.GetClassifierResponse.classifier:type_name -> teleport.summarizer.v1.Classifier
+	72, // 27: teleport.summarizer.v1.UpdateClassifierRequest.classifier:type_name -> teleport.summarizer.v1.Classifier
+	72, // 28: teleport.summarizer.v1.UpdateClassifierResponse.classifier:type_name -> teleport.summarizer.v1.Classifier
+	72, // 29: teleport.summarizer.v1.UpsertClassifierRequest.classifier:type_name -> teleport.summarizer.v1.Classifier
+	72, // 30: teleport.summarizer.v1.UpsertClassifierResponse.classifier:type_name -> teleport.summarizer.v1.Classifier
+	72, // 31: teleport.summarizer.v1.ListClassifiersResponse.classifiers:type_name -> teleport.summarizer.v1.Classifier
+	73, // 32: teleport.summarizer.v1.GetSummaryResponse.summary:type_name -> teleport.summarizer.v1.Summary
+	52, // 33: teleport.summarizer.v1.BatchGetSummaryMetadataResponse.metadata:type_name -> teleport.summarizer.v1.SummaryMetadata
+	74, // 34: teleport.summarizer.v1.SummaryMetadata.state:type_name -> teleport.summarizer.v1.SummaryState
+	75, // 35: teleport.summarizer.v1.SummaryMetadata.risk_level:type_name -> teleport.summarizer.v1.RiskLevel
+	76, // 36: teleport.summarizer.v1.SummaryMetadata.needs_further_review_reasons:type_name -> teleport.summarizer.v1.NeedsReviewReason
+	77, // 37: teleport.summarizer.v1.TestInferenceModelRequest.model:type_name -> teleport.summarizer.v1.InferenceModelSpec
+	78, // 38: teleport.summarizer.v1.TestInferenceModelRequest.secret:type_name -> teleport.summarizer.v1.InferenceSecretSpec
+	79, // 39: teleport.summarizer.v1.TestRetrievalModelRequest.model:type_name -> teleport.summarizer.v1.RetrievalModelSpec
+	78, // 40: teleport.summarizer.v1.TestRetrievalModelRequest.secret:type_name -> teleport.summarizer.v1.InferenceSecretSpec
+	80, // 41: teleport.summarizer.v1.CreateRetrievalModelRequest.model:type_name -> teleport.summarizer.v1.RetrievalModel
+	80, // 42: teleport.summarizer.v1.CreateRetrievalModelResponse.model:type_name -> teleport.summarizer.v1.RetrievalModel
+	80, // 43: teleport.summarizer.v1.GetRetrievalModelResponse.model:type_name -> teleport.summarizer.v1.RetrievalModel
+	80, // 44: teleport.summarizer.v1.UpdateRetrievalModelRequest.model:type_name -> teleport.summarizer.v1.RetrievalModel
+	80, // 45: teleport.summarizer.v1.UpdateRetrievalModelResponse.model:type_name -> teleport.summarizer.v1.RetrievalModel
+	80, // 46: teleport.summarizer.v1.UpsertRetrievalModelRequest.model:type_name -> teleport.summarizer.v1.RetrievalModel
+	80, // 47: teleport.summarizer.v1.UpsertRetrievalModelResponse.model:type_name -> teleport.summarizer.v1.RetrievalModel
+	0,  // 48: teleport.summarizer.v1.SummarizerService.CreateInferenceModel:input_type -> teleport.summarizer.v1.CreateInferenceModelRequest
+	2,  // 49: teleport.summarizer.v1.SummarizerService.GetInferenceModel:input_type -> teleport.summarizer.v1.GetInferenceModelRequest
+	4,  // 50: teleport.summarizer.v1.SummarizerService.UpdateInferenceModel:input_type -> teleport.summarizer.v1.UpdateInferenceModelRequest
+	6,  // 51: teleport.summarizer.v1.SummarizerService.UpsertInferenceModel:input_type -> teleport.summarizer.v1.UpsertInferenceModelRequest
+	8,  // 52: teleport.summarizer.v1.SummarizerService.DeleteInferenceModel:input_type -> teleport.summarizer.v1.DeleteInferenceModelRequest
+	10, // 53: teleport.summarizer.v1.SummarizerService.ListInferenceModels:input_type -> teleport.summarizer.v1.ListInferenceModelsRequest
+	12, // 54: teleport.summarizer.v1.SummarizerService.CreateInferenceSecret:input_type -> teleport.summarizer.v1.CreateInferenceSecretRequest
+	14, // 55: teleport.summarizer.v1.SummarizerService.GetInferenceSecret:input_type -> teleport.summarizer.v1.GetInferenceSecretRequest
+	16, // 56: teleport.summarizer.v1.SummarizerService.UpdateInferenceSecret:input_type -> teleport.summarizer.v1.UpdateInferenceSecretRequest
+	18, // 57: teleport.summarizer.v1.SummarizerService.UpsertInferenceSecret:input_type -> teleport.summarizer.v1.UpsertInferenceSecretRequest
+	20, // 58: teleport.summarizer.v1.SummarizerService.DeleteInferenceSecret:input_type -> teleport.summarizer.v1.DeleteInferenceSecretRequest
+	22, // 59: teleport.summarizer.v1.SummarizerService.ListInferenceSecrets:input_type -> teleport.summarizer.v1.ListInferenceSecretsRequest
+	24, // 60: teleport.summarizer.v1.SummarizerService.CreateInferencePolicy:input_type -> teleport.summarizer.v1.CreateInferencePolicyRequest
+	26, // 61: teleport.summarizer.v1.SummarizerService.GetInferencePolicy:input_type -> teleport.summarizer.v1.GetInferencePolicyRequest
+	28, // 62: teleport.summarizer.v1.SummarizerService.UpdateInferencePolicy:input_type -> teleport.summarizer.v1.UpdateInferencePolicyRequest
+	30, // 63: teleport.summarizer.v1.SummarizerService.UpsertInferencePolicy:input_type -> teleport.summarizer.v1.UpsertInferencePolicyRequest
+	32, // 64: teleport.summarizer.v1.SummarizerService.DeleteInferencePolicy:input_type -> teleport.summarizer.v1.DeleteInferencePolicyRequest
+	34, // 65: teleport.summarizer.v1.SummarizerService.ListInferencePolicies:input_type -> teleport.summarizer.v1.ListInferencePoliciesRequest
+	36, // 66: teleport.summarizer.v1.SummarizerService.CreateClassifier:input_type -> teleport.summarizer.v1.CreateClassifierRequest
+	38, // 67: teleport.summarizer.v1.SummarizerService.GetClassifier:input_type -> teleport.summarizer.v1.GetClassifierRequest
+	40, // 68: teleport.summarizer.v1.SummarizerService.UpdateClassifier:input_type -> teleport.summarizer.v1.UpdateClassifierRequest
+	42, // 69: teleport.summarizer.v1.SummarizerService.UpsertClassifier:input_type -> teleport.summarizer.v1.UpsertClassifierRequest
+	44, // 70: teleport.summarizer.v1.SummarizerService.DeleteClassifier:input_type -> teleport.summarizer.v1.DeleteClassifierRequest
+	46, // 71: teleport.summarizer.v1.SummarizerService.ListClassifiers:input_type -> teleport.summarizer.v1.ListClassifiersRequest
+	48, // 72: teleport.summarizer.v1.SummarizerService.GetSummary:input_type -> teleport.summarizer.v1.GetSummaryRequest
+	50, // 73: teleport.summarizer.v1.SummarizerService.BatchGetSummaryMetadata:input_type -> teleport.summarizer.v1.BatchGetSummaryMetadataRequest
+	53, // 74: teleport.summarizer.v1.SummarizerService.IsEnabled:input_type -> teleport.summarizer.v1.IsEnabledRequest
+	55, // 75: teleport.summarizer.v1.SummarizerService.TestInferenceModel:input_type -> teleport.summarizer.v1.TestInferenceModelRequest
+	59, // 76: teleport.summarizer.v1.SummarizerService.CreateRetrievalModel:input_type -> teleport.summarizer.v1.CreateRetrievalModelRequest
+	61, // 77: teleport.summarizer.v1.SummarizerService.GetRetrievalModel:input_type -> teleport.summarizer.v1.GetRetrievalModelRequest
+	63, // 78: teleport.summarizer.v1.SummarizerService.UpdateRetrievalModel:input_type -> teleport.summarizer.v1.UpdateRetrievalModelRequest
+	65, // 79: teleport.summarizer.v1.SummarizerService.UpsertRetrievalModel:input_type -> teleport.summarizer.v1.UpsertRetrievalModelRequest
+	67, // 80: teleport.summarizer.v1.SummarizerService.DeleteRetrievalModel:input_type -> teleport.summarizer.v1.DeleteRetrievalModelRequest
+	57, // 81: teleport.summarizer.v1.SummarizerService.TestRetrievalModel:input_type -> teleport.summarizer.v1.TestRetrievalModelRequest
+	1,  // 82: teleport.summarizer.v1.SummarizerService.CreateInferenceModel:output_type -> teleport.summarizer.v1.CreateInferenceModelResponse
+	3,  // 83: teleport.summarizer.v1.SummarizerService.GetInferenceModel:output_type -> teleport.summarizer.v1.GetInferenceModelResponse
+	5,  // 84: teleport.summarizer.v1.SummarizerService.UpdateInferenceModel:output_type -> teleport.summarizer.v1.UpdateInferenceModelResponse
+	7,  // 85: teleport.summarizer.v1.SummarizerService.UpsertInferenceModel:output_type -> teleport.summarizer.v1.UpsertInferenceModelResponse
+	9,  // 86: teleport.summarizer.v1.SummarizerService.DeleteInferenceModel:output_type -> teleport.summarizer.v1.DeleteInferenceModelResponse
+	11, // 87: teleport.summarizer.v1.SummarizerService.ListInferenceModels:output_type -> teleport.summarizer.v1.ListInferenceModelsResponse
+	13, // 88: teleport.summarizer.v1.SummarizerService.CreateInferenceSecret:output_type -> teleport.summarizer.v1.CreateInferenceSecretResponse
+	15, // 89: teleport.summarizer.v1.SummarizerService.GetInferenceSecret:output_type -> teleport.summarizer.v1.GetInferenceSecretResponse
+	17, // 90: teleport.summarizer.v1.SummarizerService.UpdateInferenceSecret:output_type -> teleport.summarizer.v1.UpdateInferenceSecretResponse
+	19, // 91: teleport.summarizer.v1.SummarizerService.UpsertInferenceSecret:output_type -> teleport.summarizer.v1.UpsertInferenceSecretResponse
+	21, // 92: teleport.summarizer.v1.SummarizerService.DeleteInferenceSecret:output_type -> teleport.summarizer.v1.DeleteInferenceSecretResponse
+	23, // 93: teleport.summarizer.v1.SummarizerService.ListInferenceSecrets:output_type -> teleport.summarizer.v1.ListInferenceSecretsResponse
+	25, // 94: teleport.summarizer.v1.SummarizerService.CreateInferencePolicy:output_type -> teleport.summarizer.v1.CreateInferencePolicyResponse
+	27, // 95: teleport.summarizer.v1.SummarizerService.GetInferencePolicy:output_type -> teleport.summarizer.v1.GetInferencePolicyResponse
+	29, // 96: teleport.summarizer.v1.SummarizerService.UpdateInferencePolicy:output_type -> teleport.summarizer.v1.UpdateInferencePolicyResponse
+	31, // 97: teleport.summarizer.v1.SummarizerService.UpsertInferencePolicy:output_type -> teleport.summarizer.v1.UpsertInferencePolicyResponse
+	33, // 98: teleport.summarizer.v1.SummarizerService.DeleteInferencePolicy:output_type -> teleport.summarizer.v1.DeleteInferencePolicyResponse
+	35, // 99: teleport.summarizer.v1.SummarizerService.ListInferencePolicies:output_type -> teleport.summarizer.v1.ListInferencePoliciesResponse
+	37, // 100: teleport.summarizer.v1.SummarizerService.CreateClassifier:output_type -> teleport.summarizer.v1.CreateClassifierResponse
+	39, // 101: teleport.summarizer.v1.SummarizerService.GetClassifier:output_type -> teleport.summarizer.v1.GetClassifierResponse
+	41, // 102: teleport.summarizer.v1.SummarizerService.UpdateClassifier:output_type -> teleport.summarizer.v1.UpdateClassifierResponse
+	43, // 103: teleport.summarizer.v1.SummarizerService.UpsertClassifier:output_type -> teleport.summarizer.v1.UpsertClassifierResponse
+	45, // 104: teleport.summarizer.v1.SummarizerService.DeleteClassifier:output_type -> teleport.summarizer.v1.DeleteClassifierResponse
+	47, // 105: teleport.summarizer.v1.SummarizerService.ListClassifiers:output_type -> teleport.summarizer.v1.ListClassifiersResponse
+	49, // 106: teleport.summarizer.v1.SummarizerService.GetSummary:output_type -> teleport.summarizer.v1.GetSummaryResponse
+	51, // 107: teleport.summarizer.v1.SummarizerService.BatchGetSummaryMetadata:output_type -> teleport.summarizer.v1.BatchGetSummaryMetadataResponse
+	54, // 108: teleport.summarizer.v1.SummarizerService.IsEnabled:output_type -> teleport.summarizer.v1.IsEnabledResponse
+	56, // 109: teleport.summarizer.v1.SummarizerService.TestInferenceModel:output_type -> teleport.summarizer.v1.TestInferenceModelResponse
+	60, // 110: teleport.summarizer.v1.SummarizerService.CreateRetrievalModel:output_type -> teleport.summarizer.v1.CreateRetrievalModelResponse
+	62, // 111: teleport.summarizer.v1.SummarizerService.GetRetrievalModel:output_type -> teleport.summarizer.v1.GetRetrievalModelResponse
+	64, // 112: teleport.summarizer.v1.SummarizerService.UpdateRetrievalModel:output_type -> teleport.summarizer.v1.UpdateRetrievalModelResponse
+	66, // 113: teleport.summarizer.v1.SummarizerService.UpsertRetrievalModel:output_type -> teleport.summarizer.v1.UpsertRetrievalModelResponse
+	68, // 114: teleport.summarizer.v1.SummarizerService.DeleteRetrievalModel:output_type -> teleport.summarizer.v1.DeleteRetrievalModelResponse
+	58, // 115: teleport.summarizer.v1.SummarizerService.TestRetrievalModel:output_type -> teleport.summarizer.v1.TestRetrievalModelResponse
+	82, // [82:116] is the sub-list for method output_type
+	48, // [48:82] is the sub-list for method input_type
+	48, // [48:48] is the sub-list for extension type_name
+	48, // [48:48] is the sub-list for extension extendee
+	0,  // [0:48] is the sub-list for field type_name
 }
 
 func init() { file_teleport_summarizer_v1_summarizer_service_proto_init() }
@@ -4669,7 +5135,7 @@ func file_teleport_summarizer_v1_summarizer_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_summarizer_v1_summarizer_service_proto_rawDesc), len(file_teleport_summarizer_v1_summarizer_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   63,
+			NumMessages:   69,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
