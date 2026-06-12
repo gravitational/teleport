@@ -1446,6 +1446,9 @@ message ResourceMetadata {
   // used for compatibility purposes for some events, Expires should be used instead
   // as it's more useful (contains exact expiration date/time)
   string TTL = 4 [(gogoproto.jsontag) = "ttl,omitempty"];
+
+  // The scope the resource belongs to.
+  string scope = 5 [(gogoproto.jsontag) = "scope,omitempty"];
 }
 
 // UserCreate is emitted when the user is created or upserted.
@@ -2531,6 +2534,19 @@ message TrustedClusterDelete {
   ];
 }
 
+// The metadata for a scoped token.
+message ScopedTokenMetadata {
+  // The roles that the scoped token can provision.
+  repeated string roles = 1;
+  // The join method that the scoped token can be used with.
+  string join_method = 2;
+  // The usage mode that the scoped token adheres to.
+  string usage_mode = 3;
+  // The scope that the scoped token assigns to provisioned
+  // resources.
+  string assigned_scope = 4;
+}
+
 // The event emitted when a scoped token is created.
 message ScopedTokenCreate {
   // Common event metadata
@@ -2551,17 +2567,11 @@ message ScopedTokenCreate {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
-  // The roles that the scoped token can provision.
-  repeated string roles = 4;
-  // The join method that the scoped token can be used with.
-  string join_method = 5;
-  // The usage mode that the scoped token adheres to.
-  string usage_mode = 6;
-  // The scope that the scoped token belongs to.
-  string scope = 7;
-  // The scope that the scoped token assigns to provisioned
-  // resources.
-  string assigned_scope = 8;
+  ScopedTokenMetadata scoped_token = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }
 
 // The event emitted when a scoped token is updated.
@@ -2584,17 +2594,11 @@ message ScopedTokenUpdate {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
-  // The roles that the scoped token can provision.
-  repeated string roles = 4;
-  // The join method that the scoped token can be used with.
-  string join_method = 5;
-  // The usage mode that the scoped token adheres to.
-  string usage_mode = 6;
-  // The scope that the scoped token belongs to.
-  string scope = 7;
-  // The scope that the scoped token assigns to provisioned
-  // resources.
-  string assigned_scope = 8;
+  ScopedTokenMetadata scoped_token = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }
 
 // The event emitted when a scoped token is deleted.
