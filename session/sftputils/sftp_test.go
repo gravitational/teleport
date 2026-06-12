@@ -212,7 +212,7 @@ func TestHandleFilecmd(t *testing.T) {
 		target := filepath.Join(root, "bar.txt")
 		require.NoError(t, os.WriteFile(file, []byte("test"), 0o644))
 
-		assert.NoError(t, clt.Link(target, file))
+		assert.NoError(t, clt.Link(file, target))
 		fi, err := os.Lstat(target)
 		if assert.NoError(t, err) {
 			assert.Zero(t, fi.Mode()&os.ModeSymlink)
@@ -224,7 +224,7 @@ func TestHandleFilecmd(t *testing.T) {
 		file := filepath.Join(root, "foo.txt")
 		target := filepath.Join(root, "bar.txt")
 
-		assert.Error(t, clt.Link(target, file))
+		assert.Error(t, clt.Link(file, target))
 		assert.NoFileExists(t, target)
 	})
 
@@ -241,7 +241,7 @@ func TestHandleFilecmd(t *testing.T) {
 		target := filepath.Join(root, "bar.txt")
 		require.NoError(t, os.WriteFile(file, []byte("test"), 0o644))
 
-		assert.NoError(t, clt.Symlink(target, file))
+		assert.NoError(t, clt.Symlink(file, target))
 		fi, err := os.Lstat(target)
 		assert.NoError(t, err)
 		assert.NotZero(t, fi.Mode()&os.ModeSymlink)

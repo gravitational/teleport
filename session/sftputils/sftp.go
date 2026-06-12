@@ -253,12 +253,12 @@ func HandleFilecmd(req *sftp.Request, filesys FileSystem) error {
 		if req.Target == "" {
 			return os.ErrInvalid
 		}
-		return filesys.Link(req.Target, req.Filepath)
+		return filesys.Link(req.Filepath, req.Target)
 	case MethodSymlink:
 		if req.Target == "" {
 			return os.ErrInvalid
 		}
-		return filesys.Symlink(req.Target, req.Filepath)
+		return filesys.Symlink(req.Filepath, req.Target)
 	case MethodRemove:
 		fi, err := filesys.Lstat(req.Filepath)
 		if err != nil {

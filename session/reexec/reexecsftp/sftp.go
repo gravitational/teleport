@@ -528,7 +528,9 @@ func setstatNoFollow(file string, attrFlags sftp.FileAttrFlags, attrs *sftp.File
 		}
 	}
 	if attrFlags.Permissions {
-		if err := f.Chmod(attrs.FileMode()); err != nil {
+		// Prevent setuid/setgid/sticky bits from being set.
+		mode := attrs.FileMode() & os.ModePerm
+		if err := f.Chmod(mode); err != nil {
 			return err
 		}
 	}

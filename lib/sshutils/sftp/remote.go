@@ -157,6 +157,12 @@ func (r *RemoteFS) Readlink(name string) (string, error) {
 	return r.Client.ReadLink(name)
 }
 
+func (r *RemoteFS) Chmod(path string, mode os.FileMode) error {
+	// Prevent setuid/setgid/sticky bits from being set.
+	mode = mode & os.ModePerm
+	return r.Client.Chmod(path, mode)
+}
+
 func (r *RemoteFS) Close() error {
 	var sessionErr error
 	if r.session != nil {
