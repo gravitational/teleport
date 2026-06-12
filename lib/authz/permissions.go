@@ -1377,6 +1377,29 @@ func unscopedDefinitionForBuiltinRole(clusterName string, recConfig readonly.Ses
 					},
 				},
 			})
+	case types.RoleLinuxDesktop:
+		return services.RoleFromSpec(
+			role.String(),
+			types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					Namespaces:         []string{types.Wildcard},
+					LinuxDesktopLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+					Rules: []types.Rule{
+						types.NewRule(types.KindEvent, services.WO()),
+						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
+						types.NewRule(types.KindClusterName, services.RO()),
+						types.NewRule(types.KindClusterAuditConfig, services.RO()),
+						types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
+						types.NewRule(types.KindSessionRecordingConfig, services.RO()),
+						types.NewRule(types.KindClusterAuthPreference, services.RO()),
+						types.NewRule(types.KindUser, services.RO()),
+						types.NewRule(types.KindRole, services.RO()),
+						types.NewRule(types.KindNamespace, services.RO()),
+						types.NewRule(types.KindLock, services.RO()),
+						types.NewRule(types.KindLinuxDesktop, services.RO()),
+					},
+				},
+			})
 	case types.RoleDiscovery:
 		return services.RoleFromSpec(
 			role.String(),

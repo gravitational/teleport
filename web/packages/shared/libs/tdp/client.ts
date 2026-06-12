@@ -99,6 +99,7 @@ export enum TdpClientEvent {
   RESET = 'reset',
   POINTER = 'pointer',
   LATENCY_STATS = 'latency stats',
+  SERVER_CAPABILITIES = 'server capabilities',
 }
 
 type EventMap = {
@@ -115,6 +116,7 @@ type EventMap = {
   [TdpClientEvent.RESET]: [void];
   [TdpClientEvent.POINTER]: [PointerData];
   [TdpClientEvent.LATENCY_STATS]: [LatencyStats];
+  [TdpClientEvent.SERVER_CAPABILITIES]: [ServerCapabilities];
   'terminal.webauthn': [string];
 };
 
@@ -152,6 +154,10 @@ let wasmReady: Promise<void> | undefined;
 
 // Defines which protocol the client will start with.
 type ConnectPolicy = { mode: 'tdpb' } | { mode: 'tdp' };
+
+type ServerCapabilities = {
+  availableSessions: string[];
+};
 
 // Client is the TDP client. It is responsible for connecting to a websocket serving the tdp server,
 // sending client commands, and receiving and processing server messages. Its creator is responsible for
@@ -341,6 +347,11 @@ export class TdpClient extends EventEmitter<EventMap> {
     return () => this.off(TdpClientEvent.LATENCY_STATS, listener);
   };
 
+  onServerCapabilities = (listener: (caps: ServerCapabilities) => void) => {
+    this.on(TdpClientEvent.SERVER_CAPABILITIES, listener);
+    return () => this.off(TdpClientEvent.SERVER_CAPABILITIES, listener);
+  };
+
   private async initWasm() {
     if (typeof WebAssembly === 'undefined') {
       throw new Error(
@@ -511,6 +522,9 @@ export class TdpClient extends EventEmitter<EventMap> {
 
   handleServerHello(hello: ServerHello) {
     this.hidpiSupported = hello.hidpiSupported;
+    this.emit(TdpClientEvent.SERVER_CAPABILITIES, {
+      availableSessions: hello.sessions,
+    });
     this.handleRdpConnectionActivated(hello.activationEvent);
   }
 
@@ -802,6 +816,10 @@ export class TdpClient extends EventEmitter<EventMap> {
       return;
     }
     this.transport.send(data);
+  }
+
+  sendSessionSelection(session: string) {
+    this.send(this.codec.encodeSessionSelection(session));
   }
 
   sendClientScreenSpec(spec: ClientScreenSpec) {

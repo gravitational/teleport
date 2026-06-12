@@ -362,6 +362,7 @@ export type ServerHello = {
   clipboardSupport: boolean;
   hidpiSupported: boolean;
   activationEvent: RdpConnectionActivated;
+  sessions: string[];
 };
 
 export type ClientHello = {
@@ -430,6 +431,7 @@ export interface Codec {
   encodeKeyboardInput(code: string, state: ButtonState): Message[];
   encodeMouseWheelScroll(axis: ScrollAxis, delta: number): Message;
   encodeClientScreenSpec(spec: ClientScreenSpec): Message;
+  encodeSessionSelection(sessions: string): Message;
   encodeMfaJson(mfaJson: MfaResponse): Message;
   encodeSharedDirectoryInfoResponse(res: SharedDirectoryInfoResponse): Message;
   encodeSharedDirectoryReadResponse(res: SharedDirectoryReadResponse): Message;
@@ -629,12 +631,14 @@ export class TdpbCodec implements Codec {
 
     switch (envelope.payload.oneofKind) {
       case 'serverHello':
+        const hello = envelope.payload.serverHello;
         return {
           kind: 'serverHello',
           data: {
-            clipboardSupport: envelope.payload.serverHello.clipboardEnabled,
-            hidpiSupported: envelope.payload.serverHello.hidpiSupported,
-            activationEvent: envelope.payload.serverHello.activationSpec,
+            sessions: hello.sessions.map(s => s.name),
+            clipboardSupport: hello.clipboardEnabled,
+            hidpiSupported: hello.hidpiSupported,
+            activationEvent: hello.activationSpec,
           },
         };
       case 'pngFrame':
@@ -804,6 +808,17 @@ export class TdpbCodec implements Codec {
       }),
     });
     return [hello];
+  }
+
+  encodeSessionSelection(session: string): Message {
+    return this.marshal({
+      oneofKind: 'sessionSelection',
+      sessionSelection: {
+        session: {
+          name: session,
+        },
+      },
+    });
   }
 
   encodeClientScreenSpec(spec: ClientScreenSpec): Message {
@@ -1220,6 +1235,11 @@ export class TdpCodec implements Codec {
       x: view.getUint8(1),
       y: view.getUint8(2),
     };
+  }
+
+  encodeSessionSelection(_sessions: string): Message {
+    // SessionSelection is used only by Linux desktop and it uses TDPB only
+    throw new Error('Method not implemented.');
   }
 
   encodeInitialMessages(
