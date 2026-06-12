@@ -610,6 +610,8 @@ func emitBoundKeypairRecoveryEvent(
 		}
 	}
 
+	// TODO(strideynet): When bots become scope namespaced, ensure this call
+	// site reflects scopedness.
 	botName, _ := token.GetBot()
 	if err := params.AuthService.EmitAuditEvent(context.WithoutCancel(ctx), &apievents.BoundKeypairRecovery{
 		Metadata: apievents.Metadata{
@@ -651,6 +653,8 @@ func emitBoundKeypairRotationEvent(
 		}
 	}
 
+	// TODO(strideynet): When bots become scope namespaced, ensure this call
+	// site reflects scopedness.
 	botName, _ := token.GetBot()
 	if err := params.AuthService.EmitAuditEvent(context.WithoutCancel(ctx), &apievents.BoundKeypairRotation{
 		Metadata: apievents.Metadata{
@@ -678,6 +682,8 @@ func tryLockTokenInvalidJoinState(
 ) {
 	log := params.Logger.With("join_token", token.GetName(), "validation_error", validationError)
 
+	// TODO(strideynet): When bots become scope namespaced, ensure this call
+	// site reflects scopedness.
 	botName, _ := token.GetBot()
 	if auditErr := params.AuthService.EmitAuditEvent(context.WithoutCancel(ctx), &apievents.BoundKeypairJoinStateVerificationFailed{
 		Metadata: apievents.Metadata{

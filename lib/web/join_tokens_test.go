@@ -621,6 +621,8 @@ func TestEditToken(t *testing.T) {
 			// Fetch the token and compare
 			editedToken, err := env.server.Auth().GetToken(ctx, tokenName)
 			require.NoError(t, err)
+			// TODO(strideynet): When bots become scope namespaced, ensure
+			// this call site reflects scopedness.
 			editedBotName, _ := editedToken.GetBot()
 			require.Equal(t, "test-bot_EDITED", editedBotName)
 			require.Equal(t, expiry, *editedToken.GetMetadata().Expires)

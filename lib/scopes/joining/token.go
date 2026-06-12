@@ -296,7 +296,7 @@ func validateJoinMethod(token *joiningv1.ScopedToken) error {
 
 // validateBot is used to validate plausibly-bot tokens (if `isBotToken()` has
 // returned true).
-func validateBotToken(token *joiningv1.ScopedToken, roles types.SystemRoles) error {
+func strongValidateBotToken(token *joiningv1.ScopedToken, roles types.SystemRoles) error {
 	spec := token.GetSpec()
 
 	if spec.GetBotName() == "" {
@@ -448,7 +448,7 @@ func StrongValidateToken(token *joiningv1.ScopedToken) error {
 	}
 
 	if roles.Include(types.RoleBot) {
-		if err := validateBotToken(token, roles); err != nil {
+		if err := strongValidateBotToken(token, roles); err != nil {
 			return trace.Wrap(err)
 		}
 	} else {

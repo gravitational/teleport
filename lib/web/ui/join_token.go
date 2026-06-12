@@ -65,6 +65,8 @@ func MakeJoinToken(token types.ProvisionToken) (*JoinToken, error) {
 
 	_, isCloudSystem := token.GetMetadata().Labels["teleport.internal/cloud/token"]
 
+	// TODO(strideynet): When bots become scope namespaced, ensure this call
+	// site reflects scopedness.
 	botName, _ := token.GetBot()
 	uiToken := &JoinToken{
 		ID:            token.GetName(),
