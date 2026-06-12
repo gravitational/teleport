@@ -1,7 +1,5 @@
-//go:build !(darwin && cgo && !ios)
-
 // Teleport
-// Copyright (C) 2025 Gravitational, Inc.
+// Copyright (C) 2026 Gravitational, Inc.
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -15,15 +13,21 @@
 //
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
-package log
 
-import (
-	"log/slog"
+//
+//  VerifyApp.swift
+//  Verify
+//
+//  Created by Maja Cieślak on 2026-04-29.
+//
 
-	"github.com/gravitational/trace"
-)
+import SwiftUI
 
-//nolint:staticcheck // SA4023. NewOSLogWriter on unsupported platforms always returns err.
-func NewSlogOSLogHandler(subsystem string, level slog.Leveler) (*SlogTextHandler, error) {
-	return nil, trace.NotImplemented("os_log is not supported on this platform")
+@main
+struct VerifyApp: App {
+    var body: some Scene {
+        WindowGroup {
+            ContentView()
+        }
+    }
 }

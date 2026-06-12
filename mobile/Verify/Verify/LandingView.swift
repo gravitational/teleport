@@ -1,7 +1,5 @@
-//go:build !(darwin && cgo && !ios)
-
 // Teleport
-// Copyright (C) 2025 Gravitational, Inc.
+// Copyright (C) 2026 Gravitational, Inc.
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -15,15 +13,18 @@
 //
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
-package log
 
-import (
-	"log/slog"
+import SwiftUI
 
-	"github.com/gravitational/trace"
-)
+struct LandingView: View {
+    var body: some View {
+        Text("Open the Camera app\nto scan a QR code in the Web UI.")
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity)
+            .padding()
+    }
+}
 
-//nolint:staticcheck // SA4023. NewOSLogWriter on unsupported platforms always returns err.
-func NewSlogOSLogHandler(subsystem string, level slog.Leveler) (*SlogTextHandler, error) {
-	return nil, trace.NotImplemented("os_log is not supported on this platform")
+#Preview("In ContentView") {
+    ContentView()
 }
