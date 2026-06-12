@@ -125,7 +125,7 @@ func GenSchemaScopedRoleAssignment(ctx context.Context) (github_com_hashicorp_te
 					Required:    true,
 				},
 				"bot": {
-					Description: "The Bot to whom all contained assignments apply, as a scope-qualified name of the form \"<scope>::<bot-name>\" (e.g. \"/staging/west::mybot\"). Mutually exclusive with `user`.  When specified, assignment scopes must be equal or descendent of the scope indicated by this field.",
+					Description: "The Bot to whom all contained assignments apply, as a scope-qualified name of the form `<scope>::<bot-name>` (e.g. \"/staging/west::mybot\"). Mutually exclusive with `user`.  When specified, assignment scopes must be equal or descendent of the scope indicated by this field.",
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},

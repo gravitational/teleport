@@ -301,7 +301,7 @@ type ScopedRoleAssignmentSpec_builder struct {
 	// Assignments is a list of individual role @ scope assignments.
 	Assignments []*Assignment
 	// The Bot to whom all contained assignments apply, as a scope-qualified name
-	// of the form "<scope>::<bot-name>" (e.g. "/staging/west::mybot").
+	// of the form `<scope>::<bot-name>` (e.g. "/staging/west::mybot").
 	// Mutually exclusive with `user`.
 	//
 	// When specified, assignment scopes must be equal or descendent of the scope

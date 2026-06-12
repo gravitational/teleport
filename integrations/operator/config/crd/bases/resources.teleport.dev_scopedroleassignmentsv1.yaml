@@ -69,7 +69,7 @@ spec:
                 type: array
               bot:
                 description: The Bot to whom all contained assignments apply, as a
-                  scope-qualified name of the form "<scope>::<bot-name>" (e.g. "/staging/west::mybot").
+                  scope-qualified name of the form `<scope>::<bot-name>` (e.g. "/staging/west::mybot").
                   Mutually exclusive with `user`.  When specified, assignment scopes
                   must be equal or descendent of the scope indicated by this field.
                 type: string
