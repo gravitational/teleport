@@ -1038,6 +1038,11 @@ const (
 	// RetrievalModelDeleteEvent is emitted when a retrieval model resource is deleted.
 	RetrievalModelDeleteEvent = "retrieval_model.delete"
 
+	// ClassifierCreateEvent is emitted when a classifier resource is created.
+	ClassifierCreateEvent = "classifier.create"
+	// ClassifierUpdateEvent is emitted when a classifier resource is updated.
+	ClassifierUpdateEvent = "classifier.update"
+
 	// SessionSummarizedEvent is emitted when a session summary is created.
 	SessionSummarizedEvent = "session.summarized"
 
