@@ -86,9 +86,13 @@ type JoinStateParams struct {
 }
 
 func (p *JoinStateParams) GetSubject() (string, error) {
+	botName, _ := p.Token.GetBot()
 	switch {
-	case p.Token.GetBotName() != "":
-		return p.Token.GetBotName(), nil
+	case botName != "":
+		// TODO(scopes): the bare bot name is only a unique identifier while
+		// bots are globally namespaced. Revisit the subject for scoped bots
+		// once bot users are namespaced by scope.
+		return botName, nil
 	case p.HostID != "":
 		return p.HostID, nil
 	case p.Token.GetBoundKeypairStatus().BoundHostID != "":

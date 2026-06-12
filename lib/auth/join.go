@@ -135,12 +135,10 @@ func (a *Server) handleJoinFailure(
 		if pt != nil {
 			botJoinEvent.Method = string(pt.GetJoinMethod())
 			botJoinEvent.TokenName = pt.GetSafeName()
-			botJoinEvent.BotName = pt.GetBotName()
-
 			// We don't want to perform a backend fetch here, so we'll use the
 			// bot scope indicated in the token rather than the one embedded in
 			// the user.
-			botJoinEvent.Scope = pt.GetBotScope()
+			botJoinEvent.BotName, botJoinEvent.Scope = pt.GetBot()
 		}
 		evt = botJoinEvent
 	} else {
@@ -361,7 +359,7 @@ func (a *Server) GenerateBotCertsForJoin(
 ) (*proto.Certs, string, error) {
 	// bots use this endpoint but get a user cert
 	// botResourceName must be set, enforced in CheckAndSetDefaults
-	botName := token.GetBotName()
+	botName, tokenBotScope := token.GetBot()
 	joinMethod := token.GetJoinMethod()
 
 	// Check this is a join method for bots we support.
@@ -463,7 +461,6 @@ func (a *Server) GenerateBotCertsForJoin(
 			return nil, "", trace.AccessDenied("scoped token usage mode must be 'bot' for bot joining")
 		}
 
-		tokenBotScope := scoped.GetScoped().GetSpec().GetBotScope()
 		if botScope != tokenBotScope {
 			a.logger.WarnContext(ctx, "bot scope must match token scope",
 				"token_scope", tokenBotScope,
