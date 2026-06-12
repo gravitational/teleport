@@ -203,6 +203,20 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
+// noHistoryShell returns the absolute path to a committed wrapper shell script
+// (testdata/no-history-shell.sh) that disables history.
+//
+// Tests in this package open interactive shell sessions on a local node service
+// running as the current OS user. Pointing the node at this shell via
+// [regular.SetTestLoginShell] keeps those sessions from polluting the shell
+// history.
+func noHistoryShell(t *testing.T) string {
+	t.Helper()
+	shell, err := filepath.Abs(filepath.Join("testdata", "no-history-shell.sh"))
+	require.NoError(t, err)
+	return shell
+}
+
 func newWebSuite(t *testing.T) *WebSuite {
 	return newWebSuiteWithConfig(t, webSuiteConfig{})
 }
@@ -396,6 +410,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetEmitter(nodeClient),
 		regular.SetPAMConfig(&pamcfg.PAMConfig{Enabled: false}),
+		regular.SetTestLoginShell(noHistoryShell(t)),
 		regular.SetBPF(&bpf.NOP{}),
 		regular.SetClock(s.clock),
 		regular.SetLockWatcher(nodeLockWatcher),
@@ -735,6 +750,7 @@ func (s *WebSuite) addNode(t *testing.T, uuid string, hostname string, address s
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetEmitter(nodeClient),
 		regular.SetPAMConfig(&pamcfg.PAMConfig{Enabled: false}),
+		regular.SetTestLoginShell(noHistoryShell(t)),
 		regular.SetBPF(&bpf.NOP{}),
 		regular.SetClock(s.clock),
 		regular.SetLockWatcher(nodeLockWatcher),
@@ -8946,6 +8962,7 @@ func newWebPack(t *testing.T, numProxies int, opts ...webPackOptions) *webPack {
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetEmitter(nodeClient),
 		regular.SetPAMConfig(&pamcfg.PAMConfig{Enabled: false}),
+		regular.SetTestLoginShell(noHistoryShell(t)),
 		regular.SetBPF(&bpf.NOP{}),
 		regular.SetClock(clock),
 		regular.SetLockWatcher(nodeLockWatcher),

@@ -372,6 +372,10 @@ type ServerContext struct {
 	// IsTestStub is set to true by tests.
 	IsTestStub bool
 
+	// TestLoginShell overrides the shell used for the session. It is only set by
+	// tests to avoid running the real user's shell and polluting shell history.
+	TestLoginShell string
+
 	// execRequest is the command to be executed within this session context. Do
 	// not get or set this field directly, use (Get|Set)ExecRequest.
 	execRequest Exec
@@ -1123,6 +1127,7 @@ func (c *ServerContext) ExecCommand() (*reexec.ExecCommand, error) {
 		Environment:           buildEnvironment(c),
 		PAMConfig:             pamConfig,
 		IsTestStub:            c.IsTestStub,
+		TestLoginShell:        c.TestLoginShell,
 		UaccMetadata:          *uaccMetadata,
 		SetSELinuxContext:     c.srv.GetSELinuxEnabled(),
 		RecordWithBPF:         c.recordWithBPF(),
