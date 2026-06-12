@@ -320,8 +320,7 @@ func (s *Service) ListAccessListsV2(ctx context.Context, req *accesslistv1.ListA
 	}
 
 	pageSize := int(req.GetPageSize())
-
-	if pageSize == 0 {
+	if pageSize <= 0 {
 		pageSize = defaultAccessListPageSize
 	}
 	// We don't return the auth error right away because this endpoint can still return results based on the calling user's
@@ -342,7 +341,7 @@ func (s *Service) ListAccessListsV2(ctx context.Context, req *accesslistv1.ListA
 		}
 
 		results = append(results, page...)
-		if len(results) >= (pageSize) || nextToken == "" {
+		if len(results) >= (pageSize+1) || nextToken == "" {
 			break
 		}
 		req.SetPageToken(nextToken)
@@ -386,8 +385,7 @@ func (s *Service) ListAccessLists(ctx context.Context, req *accesslistv1.ListAcc
 	}
 
 	pageSize := int(req.GetPageSize())
-
-	if pageSize == 0 {
+	if pageSize <= 0 {
 		pageSize = defaultAccessListPageSize
 	}
 	// We don't return the auth error right away because this endpoint can still return results based on the calling user's
@@ -2418,7 +2416,7 @@ func (s *Service) listAccessListsForUser(ctx context.Context, user types.User) (
 // paginateSlice paginates a slice of access lists. It sorts by name and returns
 // pageSize results starting from the access list whose name matches pageToken.
 func paginateSlice(acls []*accesslist.AccessList, pageSize int, pageToken string) ([]*accesslist.AccessList, string, int, error) {
-	if pageSize == 0 {
+	if pageSize <= 0 {
 		pageSize = defaultAccessListPageSize
 	}
 

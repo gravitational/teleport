@@ -143,6 +143,8 @@ func TestService_ListAccessLists(t *testing.T) {
 
 	accessLists := listAccessLists(c.userCtx, t, c.svc, 1)
 	require.Empty(t, accessLists)
+	accessLists = listAccessListsV2(c.userCtx, t, c.svc, 1)
+	require.Empty(t, accessLists)
 
 	a1 := newAccessList(t, "1", c.clock)
 	a2 := newAccessList(t, "2", c.clock)
@@ -190,13 +192,19 @@ func TestService_ListAccessLists(t *testing.T) {
 
 	accessLists = listAccessLists(c.userCtx, t, c.svc, 1)
 	require.Empty(t, cmp.Diff([]*accesslist.AccessList{a1, a2, a3, a4, a5, a6}, accessLists, cmpOpts...))
+	accessLists = listAccessListsV2(c.userCtx, t, c.svc, 1)
+	require.Empty(t, cmp.Diff([]*accesslist.AccessList{a1, a2, a3, a4, a5, a6}, accessLists, cmpOpts...))
 
 	// owner should only see a1, a2, a4, a5
 	accessLists = listAccessLists(c.ownerCtx, t, c.svc, 1)
 	require.Empty(t, cmp.Diff([]*accesslist.AccessList{a1, a2, a4, a5}, accessLists, cmpOpts...))
+	accessLists = listAccessListsV2(c.ownerCtx, t, c.svc, 1)
+	require.Empty(t, cmp.Diff([]*accesslist.AccessList{a1, a2, a4, a5}, accessLists, cmpOpts...))
 
 	// userDenyWhere should only see a1, a2, a4, a5
 	accessLists = listAccessLists(c.userDenyWhereCtx, t, c.svc, 1)
+	require.Empty(t, cmp.Diff([]*accesslist.AccessList{a1, a2, a4, a5}, accessLists, cmpOpts...))
+	accessLists = listAccessListsV2(c.userDenyWhereCtx, t, c.svc, 1)
 	require.Empty(t, cmp.Diff([]*accesslist.AccessList{a1, a2, a4, a5}, accessLists, cmpOpts...))
 
 	// Add a label that should be denied to a5
@@ -210,6 +218,8 @@ func TestService_ListAccessLists(t *testing.T) {
 
 	// userDenyWhere should no longer see a5
 	accessLists = listAccessLists(c.userDenyWhereCtx, t, c.svc, 1)
+	require.Empty(t, cmp.Diff([]*accesslist.AccessList{a1, a2, a4}, accessLists, cmpOpts...))
+	accessLists = listAccessListsV2(c.userDenyWhereCtx, t, c.svc, 1)
 	require.Empty(t, cmp.Diff([]*accesslist.AccessList{a1, a2, a4}, accessLists, cmpOpts...))
 
 	a1.Status.MemberCount = nil
@@ -227,38 +237,78 @@ func TestService_ListAccessLists(t *testing.T) {
 	})
 	accessLists = listAccessLists(memberCtx, t, c.svc, 1)
 	require.Empty(t, cmp.Diff([]*accesslist.AccessList{a1, a3, a4, a5}, accessLists, cmpOpts...))
+	accessLists = listAccessListsV2(memberCtx, t, c.svc, 1)
+	require.Empty(t, cmp.Diff([]*accesslist.AccessList{a1, a3, a4, a5}, accessLists, cmpOpts...))
 
 	// Use the page size defaults
 	accessLists = listAccessLists(memberCtx, t, c.svc, 0)
 	require.Empty(t, cmp.Diff([]*accesslist.AccessList{a1, a3, a4, a5}, accessLists, cmpOpts...))
+	accessLists = listAccessListsV2(memberCtx, t, c.svc, 0)
+	require.Empty(t, cmp.Diff([]*accesslist.AccessList{a1, a3, a4, a5}, accessLists, cmpOpts...))
+
+	accessLists = listAccessLists(memberCtx, t, c.svc, -1)
+	require.Empty(t, cmp.Diff([]*accesslist.AccessList{a1, a3, a4, a5}, accessLists, cmpOpts...))
+	accessLists = listAccessListsV2(memberCtx, t, c.svc, -1)
+	require.Empty(t, cmp.Diff([]*accesslist.AccessList{a1, a3, a4, a5}, accessLists, cmpOpts...))
 
 	// User where should only see a6
 	accessLists = listAccessLists(c.userWhereCtx, t, c.svc, 0)
+	require.Empty(t, cmp.Diff([]*accesslist.AccessList{a6}, accessLists, cmpOpts...))
+	accessLists = listAccessListsV2(c.userWhereCtx, t, c.svc, 0)
 	require.Empty(t, cmp.Diff([]*accesslist.AccessList{a6}, accessLists, cmpOpts...))
 }
 
 func listAccessLists(ctx context.Context, t *testing.T, svc *Service, pageSize int) []*accesslist.AccessList {
 	t.Helper()
 
-	var nextToken string
-	var accessLists []*accesslist.AccessList
-	for {
-		resp, err := svc.ListAccessLists(ctx, accesslistv1.ListAccessListsRequest_builder{
-			PageSize:  int32(pageSize),
-			NextToken: nextToken,
-		}.Build())
-		require.NoError(t, err)
+	accessLists, err := stream.Collect(
+		stream.FilterMap(
+			clientutils.Resources(ctx, func(ctx context.Context, pageSize int, token string) ([]*accesslistv1.AccessList, string, error) {
+				resp, err := svc.ListAccessLists(ctx, accesslistv1.ListAccessListsRequest_builder{
+					PageSize:  int32(pageSize),
+					NextToken: token,
+				}.Build())
+				if err != nil {
+					return nil, "", trace.Wrap(err)
+				}
 
-		for _, accessList := range resp.GetAccessLists() {
-			accessLists = append(accessLists, mustFromProto(t, accessList))
-		}
+				return resp.GetAccessLists(), resp.GetNextToken(), nil
+			}), func(accessList *accesslistv1.AccessList) (*accesslist.AccessList, bool) {
+				out, err := conv.FromProto(accessList)
+				if err != nil {
+					return nil, false
+				}
+				return out, true
+			}),
+	)
+	require.NoError(t, err)
+	return accessLists
+}
 
-		nextToken = resp.GetNextToken()
-		if nextToken == "" {
-			break
-		}
-	}
+func listAccessListsV2(ctx context.Context, t *testing.T, svc *Service, pageSize int) []*accesslist.AccessList {
+	t.Helper()
 
+	accessLists, err := stream.Collect(
+		stream.FilterMap(
+			clientutils.Resources(ctx, func(ctx context.Context, pageSize int, token string) ([]*accesslistv1.AccessList, string, error) {
+				resp, err := svc.ListAccessListsV2(ctx, accesslistv1.ListAccessListsV2Request_builder{
+					PageSize:  int32(pageSize),
+					PageToken: token,
+				}.Build())
+				if err != nil {
+					return nil, "", trace.Wrap(err)
+				}
+
+				return resp.GetAccessLists(), resp.GetNextPageToken(), nil
+			}), func(accessList *accesslistv1.AccessList) (*accesslist.AccessList, bool) {
+				out, err := conv.FromProto(accessList)
+				if err != nil {
+					return nil, false
+				}
+				return out, true
+			}),
+	)
+	require.NoError(t, err)
 	return accessLists
 }
 
@@ -3684,6 +3734,18 @@ func TestService_ListUserAccessLists(t *testing.T) {
 	}
 	wantAssignments = []*accesslistv1.UserAssignments{inheritedMembership, explicitMembership, explicitMembership, inheritedOwnership}
 	require.Equal(t, wantAssignments, gotAssignments)
+
+	// member 2 pagination, default pageSize
+	req.SetUsername(member2)
+	req.SetPageSize(-1)
+
+	resp, err = c.svc.ListUserAccessLists(c.userCtx, req)
+	require.NoError(t, err)
+	require.Len(t, resp.GetAccessLists(), 4)
+
+	gotACLs = mustFromProtoAll(t, resp.GetAccessLists()...)
+	wantACLs = []*accesslist.AccessList{a1, a3, a4, a5}
+	require.Empty(t, cmp.Diff(wantACLs, gotACLs, cmpOpts...))
 
 	// member 2 pagination
 	req.SetUsername(member2)
