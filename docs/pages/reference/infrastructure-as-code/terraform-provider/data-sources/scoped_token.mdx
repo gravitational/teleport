@@ -59,7 +59,7 @@ Optional:
 - `aws` (Attributes) The AWS-specific configuration used with the "ec2" and "iam" join methods. (see [below for nested schema](#nested-schema-for-specaws))
 - `azure` (Attributes) The Azure-specific configuration used with the "azure" join method. (see [below for nested schema](#nested-schema-for-specazure))
 - `azure_devops` (Attributes) The Azure Devops-specific configuration used with the "azure_devops" join method. (see [below for nested schema](#nested-schema-for-specazure_devops))
-- `bot` (String) The bot associated with this join token, if any, as a scope-qualified name of the form "<scope>::<bot-name>" (e.g. "/staging/west::mybot"). The scope component must be a descendant of or equivalent to the token's resource scope.  Mutually exclusive with assigned_scope.
+- `bot` (String) The bot associated with this join token, if any, as a scope-qualified name of the form `<scope>::<bot-name>` (e.g. "/staging/west::mybot"). The scope component must be a descendant of or equivalent to the token's resource scope.  Mutually exclusive with assigned_scope.
 - `bound_keypair` (Attributes) Configuration specific to the "bound_keypair" join method. (see [below for nested schema](#nested-schema-for-specbound_keypair))
 - `gcp` (Attributes) The GCP-specific configuration used with the "gcp" join method. (see [below for nested schema](#nested-schema-for-specgcp))
 - `immutable_labels` (Attributes) Immutable labels that should be applied to any resulting resources provisioned using this token. (see [below for nested schema](#nested-schema-for-specimmutable_labels))

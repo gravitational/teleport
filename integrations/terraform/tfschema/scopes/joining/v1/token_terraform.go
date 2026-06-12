@@ -244,7 +244,7 @@ func GenSchemaScopedToken(ctx context.Context) (github_com_hashicorp_terraform_p
 					Optional:    true,
 				},
 				"bot": {
-					Description: "The bot associated with this join token, if any, as a scope-qualified name of the form \"<scope>::<bot-name>\" (e.g. \"/staging/west::mybot\"). The scope component must be a descendant of or equivalent to the token's resource scope.  Mutually exclusive with assigned_scope.",
+					Description: "The bot associated with this join token, if any, as a scope-qualified name of the form `<scope>::<bot-name>` (e.g. \"/staging/west::mybot\"). The scope component must be a descendant of or equivalent to the token's resource scope.  Mutually exclusive with assigned_scope.",
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},

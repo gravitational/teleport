@@ -155,7 +155,7 @@ spec:
                 type: object
               bot:
                 description: The bot associated with this join token, if any, as a
-                  scope-qualified name of the form "<scope>::<bot-name>" (e.g. "/staging/west::mybot").
+                  scope-qualified name of the form `<scope>::<bot-name>` (e.g. "/staging/west::mybot").
                   The scope component must be a descendant of or equivalent to the
                   token's resource scope.  Mutually exclusive with assigned_scope.
                 type: string
