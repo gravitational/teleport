@@ -1081,7 +1081,7 @@ func TestSummarizerService_UpdateClassifier(t *testing.T) {
 	})
 }
 
-func TestSummarizerService_AllClassifiers(t *testing.T) {
+func TestSummarizerService_RangeClassifiers(t *testing.T) {
 	ctx, service := setupSummarizerTest(t)
 	// Create entities to retrieve
 	createdObjects := []*summarizerv1.Classifier{}
@@ -1095,7 +1095,7 @@ func TestSummarizerService_AllClassifiers(t *testing.T) {
 	}
 
 	fetched := []*summarizerv1.Classifier{}
-	for classifier, err := range service.AllClassifiers(ctx) {
+	for classifier, err := range service.RangeClassifiers(ctx, "", "") {
 		require.NoError(t, err)
 		fetched = append(fetched, classifier)
 	}
@@ -1107,6 +1107,16 @@ func TestSummarizerService_AllClassifiers(t *testing.T) {
 			return proto.Equal(created, classifier)
 		}))
 	}
+
+	// A bounded range returns only the resources within it, excluding the end.
+	bounded := []*summarizerv1.Classifier{}
+	for classifier, err := range service.RangeClassifiers(ctx, "classifier-1", "classifier-3") {
+		require.NoError(t, err)
+		bounded = append(bounded, classifier)
+	}
+	require.Len(t, bounded, 2)
+	assert.Equal(t, "classifier-1", bounded[0].GetMetadata().GetName())
+	assert.Equal(t, "classifier-2", bounded[1].GetMetadata().GetName())
 }
 
 func newRetrievalModel() *summarizerv1.RetrievalModel {

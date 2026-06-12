@@ -321,26 +321,27 @@ func (c *Cache) ListClassifiers(ctx context.Context, pageSize int, pageToken str
 	return out, next, trace.Wrap(err)
 }
 
-func (c *Cache) AllClassifiers(ctx context.Context) iter.Seq2[*summarizerv1.Classifier, error] {
+func (c *Cache) RangeClassifiers(ctx context.Context, start, end string) iter.Seq2[*summarizerv1.Classifier, error] {
+	lister := genericLister[*summarizerv1.Classifier, classifierIndex]{
+		cache:        c,
+		collection:   c.collections.classifiers,
+		index:        classifierNameIndex,
+		upstreamList: c.Config.Summarizer.ListClassifiers,
+		nextToken: func(t *summarizerv1.Classifier) string {
+			return t.GetMetadata().GetName()
+		},
+	}
+
 	return func(yield func(*summarizerv1.Classifier, error) bool) {
-		rg, err := acquireReadGuard(c, c.collections.classifiers)
-		if err != nil {
-			yield(nil, trace.Wrap(err))
-			return
-		}
-		defer rg.Release()
+		ctx, span := c.Tracer.Start(ctx, "cache/RangeClassifiers")
+		defer span.End()
 
-		if !rg.ReadCache() {
-			for classifier, err := range c.Config.Summarizer.AllClassifiers(ctx) {
-				if !yield(classifier, err) {
-					return
-				}
+		for classifier, err := range lister.Range(ctx, start, end) {
+			if !yield(classifier, err) {
+				return
 			}
-			return
-		}
 
-		for classifier := range rg.store.resources(classifierNameIndex, "", "") {
-			if !yield(proto.CloneOf(classifier), nil) {
+			if err != nil {
 				return
 			}
 		}
