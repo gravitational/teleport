@@ -2408,6 +2408,15 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				return trace.BadParameter("WindowsDesktopService specifies label_attribute %q which is not a valid label key", attributeName)
 			}
 		}
+		switch mode := discoveryConfig.LabelAtrributeMode; mode {
+		case servicecfg.LabelAttributeModeJoin:
+		case servicecfg.LabelAttributeModeFirst:
+		default:
+			return trace.BadParameter("WindowsDesktopService specifies invalid label_attribute_mode %q", mode)
+		}
+
+		// TODO: validate separator - are there invalid label values?
+
 		if p := discoveryConfig.RDPPort; p < 0 || p > 65535 {
 			return trace.BadParameter("WindowsDesktopService specifies invalid RDP port %d", p)
 		}
@@ -2425,11 +2434,13 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		}
 		cfg.WindowsDesktop.Discovery = append(cfg.WindowsDesktop.Discovery,
 			servicecfg.LDAPDiscoveryConfig{
-				BaseDN:          dc.BaseDN,
-				Filters:         dc.Filters,
-				Labels:          dc.Labels,
-				LabelAttributes: dc.LabelAttributes,
-				RDPPort:         cmp.Or(dc.RDPPort, int(defaults.RDPListenPort)),
+				BaseDN:                      dc.BaseDN,
+				Filters:                     dc.Filters,
+				Labels:                      dc.Labels,
+				LabelAttributes:             dc.LabelAttributes,
+				LabelAtrributeMode:          dc.LabelAtrributeMode,
+				LabelAttributeJoinSeparator: dc.LabelAttributeJoinSeparator,
+				RDPPort:                     cmp.Or(dc.RDPPort, int(defaults.RDPListenPort)),
 			},
 		)
 	}

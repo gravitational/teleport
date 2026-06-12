@@ -88,12 +88,13 @@ func TestAppliesLDAPLabels(t *testing.T) {
 		attrCommonName:        {"foo"},
 		"bar":                 {"baz"},
 		"quux":                {""},
+		"multi":               {"value1", "value2"},
 	})
 
 	s := new(WindowsService)
 	s.applyLabelsFromLDAP(entry, l, &servicecfg.LDAPDiscoveryConfig{
 		BaseDN:          "*",
-		LabelAttributes: []string{"bar"},
+		LabelAttributes: []string{"bar", "multi"},
 	})
 
 	// check default labels
@@ -109,6 +110,25 @@ func TestAppliesLDAPLabels(t *testing.T) {
 	// check custom labels
 	require.Equal(t, "baz", l["ldap/bar"])
 	require.Empty(t, l["ldap/quux"])
+	require.Equal(t, "value1", l["ldap/multi"]) // take first value by default
+
+	// Verify multi-valued attributes
+	clear(l)
+	s.applyLabelsFromLDAP(entry, l, &servicecfg.LDAPDiscoveryConfig{
+		BaseDN:                      "*",
+		LabelAttributes:             []string{"multi"},
+		LabelAtrributeMode:          "join",
+		LabelAttributeJoinSeparator: "_",
+	})
+	require.Equal(t, "value1_value2", l["ldap/multi"])
+
+	clear(l)
+	s.applyLabelsFromLDAP(entry, l, &servicecfg.LDAPDiscoveryConfig{
+		BaseDN:             "*",
+		LabelAttributes:    []string{"multi"},
+		LabelAtrributeMode: "join",
+	})
+	require.Equal(t, "value1|value2", l["ldap/multi"]) // default separator
 }
 
 func TestDNToDomain(t *testing.T) {
