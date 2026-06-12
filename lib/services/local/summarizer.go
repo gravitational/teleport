@@ -293,12 +293,14 @@ func (s *SummarizerService) UpsertClassifier(
 	return res, trace.Wrap(err)
 }
 
-// AllClassifiers returns an iterator that retrieves all session summarization
-// classifiers from the backend, without pagination.
-func (s *SummarizerService) AllClassifiers(
-	ctx context.Context,
+// RangeClassifiers returns an iterator that retrieves session summarization
+// classifiers from the backend, without pagination, starting with the
+// resource named start and ending before the resource named end. Empty bounds
+// iterate from the beginning and/or to the end of the collection.
+func (s *SummarizerService) RangeClassifiers(
+	ctx context.Context, start, end string,
 ) iter.Seq2[*summarizerv1.Classifier, error] {
-	return s.classifierService.Resources(ctx, "", "")
+	return s.classifierService.Resources(ctx, start, end)
 }
 
 // CreateRetrievalModel creates the search model in the backend.
