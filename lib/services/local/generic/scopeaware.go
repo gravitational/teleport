@@ -19,6 +19,7 @@ package generic
 import (
 	"context"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -50,18 +51,68 @@ type ScopeAwareService[T ScopedResource] struct {
 	ScopedService *Service[T]
 }
 
+// ScopeAwareServiceConfig holds configuration options for ScopeAwareService.
+type ScopeAwareServiceConfig[T ScopedResource] struct {
+	// Backend used to persist the resource.
+	Backend backend.Backend
+	// ResourceKind is the friendly name of the resource.
+	ResourceKind string
+	// PageLimit
+	PageLimit uint
+	// BackendPrefix used when constructing the [backend.Item.Key].
+	BackendPrefix backend.Key
+	// MarshlFunc converts the resource to bytes for persistence.
+	MarshalFunc MarshalFunc[T]
+	// UnmarshalFunc converts the bytes read from the backend to the resource.
+	UnmarshalFunc UnmarshalFunc[T]
+	// ValidateFunc optionally validates the resource prior to persisting it. Any errors
+	// returned from the validation function will prevent writes to the backend.
+	ValidateFunc func(T) error
+	// RunWhileLockedRetryInterval is the interval to retry the RunWhileLocked function.
+	// If set to 0, the default interval of 250ms will be used.
+	// WARNING: If set to a negative value, the RunWhileLocked function will retry immediately.
+	RunWhileLockedRetryInterval time.Duration
+
+	// ScopedPrefix is a prefix that will be prepended to
+	// ServiceConfig.BackendPrefix and used to store scoped resources in a
+	// separate key range.
+	ScopedPrefix backend.Key
+}
+
 // NewScopeAwareService returns a new scope-aware service.
-func NewScopeAwareService[T ScopedResource](cfg *ServiceConfig[T], scopedPrefix backend.Key) (*ScopeAwareService[T], error) {
-	unscopedService, err := NewService(cfg)
+func NewScopeAwareService[T ScopedResource](cfg *ScopeAwareServiceConfig[T]) (*ScopeAwareService[T], error) {
+	if cfg.ScopedPrefix.IsZero() {
+		cfg.ScopedPrefix = backend.NewKey("scoped")
+	}
+
+	unscopedService, err := NewService(&ServiceConfig[T]{
+		Backend:                     cfg.Backend,
+		ResourceKind:                cfg.ResourceKind,
+		PageLimit:                   cfg.PageLimit,
+		BackendPrefix:               cfg.BackendPrefix,
+		MarshalFunc:                 cfg.MarshalFunc,
+		UnmarshalFunc:               cfg.UnmarshalFunc,
+		ValidateFunc:                cfg.ValidateFunc,
+		RunWhileLockedRetryInterval: cfg.RunWhileLockedRetryInterval,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	scopedCfg := *cfg
-	scopedCfg.BackendPrefix = cfg.BackendPrefix.PrependKey(scopedPrefix)
-	scopedService, err := NewService(&scopedCfg)
+
+	scopedService, err := NewService(&ServiceConfig[T]{
+		Backend:                     cfg.Backend,
+		ResourceKind:                cfg.ResourceKind,
+		PageLimit:                   cfg.PageLimit,
+		BackendPrefix:               cfg.BackendPrefix.PrependKey(cfg.ScopedPrefix),
+		MarshalFunc:                 cfg.MarshalFunc,
+		UnmarshalFunc:               cfg.UnmarshalFunc,
+		ValidateFunc:                cfg.ValidateFunc,
+		RunWhileLockedRetryInterval: cfg.RunWhileLockedRetryInterval,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return &ScopeAwareService[T]{
 		UnscopedService: unscopedService,
 		ScopedService:   scopedService,

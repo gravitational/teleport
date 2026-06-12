@@ -47,14 +47,14 @@ func TestScopeAwareService(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	service, err := NewScopeAwareService(&ServiceConfig[*testResource]{
+	service, err := NewScopeAwareService(&ScopeAwareServiceConfig[*testResource]{
 		Backend:       memBackend,
 		ResourceKind:  "generic resource",
 		PageLimit:     200,
 		BackendPrefix: backend.NewKey("generic_prefix"),
 		UnmarshalFunc: unmarshalResource,
 		MarshalFunc:   marshalResource,
-	}, backend.NewKey("scoped"))
+	})
 	require.NoError(t, err)
 
 	var resources []*testResource
