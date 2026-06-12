@@ -262,6 +262,10 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 		publicAddr = cfg.Kube.PublicAddrs[0].String()
 	}
 
+	// TODO (eriktate): remove this once agent scope pins are fully implemented
+	if conn.Scope() != "" {
+		return trace.BadParameter("Teleport Kubernetes Service can not yet be started with scoped credentials")
+	}
 	kubeServer, err := kubeproxy.NewTLSServer(kubeproxy.TLSServerConfig{
 		ForwarderConfig: kubeproxy.ForwarderConfig{
 			Namespace:                     apidefaults.Namespace,
