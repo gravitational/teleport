@@ -38,7 +38,7 @@ import (
 	"github.com/pkg/sftp"
 	"golang.org/x/sys/unix"
 
-	"github.com/gravitational/teleport/session/reexec/internal/safefile"
+	"github.com/gravitational/teleport/session/reexec/safefile"
 	"github.com/gravitational/teleport/session/sftputils"
 )
 
