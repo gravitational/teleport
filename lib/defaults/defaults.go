@@ -304,7 +304,7 @@ const (
 	// ProxyPingInterval is the interval ping messages are going to be sent.
 	// This is only applicable for TLS routing protocols that support ping
 	// wrapping.
-	ProxyPingInterval = 30 * time.Second
+	ProxyPingInterval = 15 * time.Second
 )
 
 const (
