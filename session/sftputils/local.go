@@ -94,6 +94,8 @@ func (l LocalFS) Mkdir(path string) error {
 }
 
 func (l LocalFS) Chmod(path string, mode os.FileMode) error {
+	// Prevent setuid/setgid/sticky bits from being set.
+	mode = mode & os.ModePerm
 	return os.Chmod(path, mode)
 }
 

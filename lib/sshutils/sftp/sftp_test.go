@@ -20,7 +20,6 @@ package sftp
 
 import (
 	"bytes"
-	"context"
 	cryptorand "crypto/rand"
 	"fmt"
 	"io"
@@ -445,8 +444,7 @@ func TestTransferFiles(t *testing.T) {
 			}
 			tt.req.Destination.Path = filepath.Join(tempDir, tt.req.Destination.Path)
 
-			ctx := context.Background()
-			err := TransferFiles(ctx, tt.req)
+			err := TransferFiles(t.Context(), tt.req)
 			if tt.errCheck == nil {
 				require.NoError(t, err)
 				srcPaths := tt.req.Sources.Paths
@@ -702,6 +700,35 @@ func TestTransferUnexpectedLargerFile(t *testing.T) {
 	dstFileData, err := os.ReadFile(dstFile)
 	require.NoError(t, err)
 	require.Equal(t, "original file data\nextra data\n", string(dstFileData))
+}
+
+func TestTransferModeMask(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	srcFile := filepath.Join(tempDir, "in")
+	require.NoError(t, os.WriteFile(srcFile, []byte("the source"), 0o7755))
+	dstFile := filepath.Join(tempDir, "out")
+	f, err := os.Create(srcFile)
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+
+	req := &FileTransferRequest{
+		Sources: Sources{
+			Paths: []string{srcFile},
+		},
+		Destination: Target{
+			Path: dstFile,
+		},
+		ProgressWriter: io.Discard,
+	}
+
+	err = TransferFiles(t.Context(), req)
+	require.NoError(t, err)
+
+	dstInfo, err := os.Stat(dstFile)
+	require.NoError(t, err)
+	require.Equal(t, os.FileMode(0o755), dstInfo.Mode())
 }
 
 func createFile(t *testing.T, path string) {
