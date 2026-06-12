@@ -159,6 +159,11 @@ func (u *SessionStartEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventR
 			GitService: u.Git.GitService,
 		}
 	}
+	if u.Beam != nil {
+		sessionStart.Beam = &prehogv1a.SessionStartBeamMetadata{
+			BeamId: a.AnonymizeString(u.Beam.BeamId),
+		}
+	}
 	return prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_SessionStartV2{
 			SessionStartV2: sessionStart,
