@@ -122,8 +122,8 @@ export function searchParamsToState(
   }
 
   const hideNonInteractive = params.get('hide_non_interactive');
-  if (hideNonInteractive === 'true') {
-    state.filters.hideNonInteractive = true;
+  if (hideNonInteractive === 'false') {
+    state.filters.hideNonInteractive = false;
   }
 
   const sortKey = params.get('sort');
