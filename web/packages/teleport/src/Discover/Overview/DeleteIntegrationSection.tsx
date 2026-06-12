@@ -21,10 +21,12 @@ import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
 
 type DeleteIntegrationSectionProps = {
   integrationName: string;
+  integrationKind?: string;
 };
 
 export function DeleteIntegrationSection({
   integrationName,
+  integrationKind = 'cloud',
 }: DeleteIntegrationSectionProps) {
   return (
     <Card>
@@ -40,8 +42,8 @@ export function DeleteIntegrationSection({
               <Text as="strong" fontWeight="bold">
                 {integrationName}
               </Text>{' '}
-              module from your Terraform configuration will remove Teleport and
-              AWS resources used for auto-discovery.
+              module from your Terraform configuration will remove Teleport and{' '}
+              {integrationKind} resources used for auto-discovery.
             </Text>
           </Flex>
         </Alert>
@@ -55,8 +57,9 @@ export function DeleteIntegrationSection({
 
         <Text mt={2} fontSize={1} color="text.slightlyMuted">
           Note: This removes the integration and dependent IAM resources but
-          does not delete your AWS resources in Teleport. To remove resources
-          from Teleport, delete them via the Teleport UI or CLI.
+          does not delete your {integrationKind} resources in Teleport. To
+          remove resources from Teleport, delete them via the Teleport UI or
+          CLI.
         </Text>
       </Flex>
     </Card>
