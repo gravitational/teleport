@@ -97,6 +97,13 @@ const (
 	// hits the maxThumbnails cap.
 	desktopMinThumbnailInterval = 7 * time.Second
 
+	// desktopActivityAreaFraction is the fraction of the screen area that must change between desktop
+	// recording frames for the change to count as user activity (resetting the inactivity timer).
+	// Smaller incidental updates — a ticking taskbar clock, a blinking text caret — fall below this
+	// and are treated as inactivity. Tuned to sit above glyph/caret-scale noise; validate against
+	// real recordings.
+	desktopActivityAreaFraction = 0.001 // 0.1%
+
 	// concurrencyLimit limits the number of concurrent processing operations (matches the session summarizer).
 	concurrencyLimit = 150
 
