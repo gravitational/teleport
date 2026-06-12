@@ -169,3 +169,22 @@ func (p *mfaPrompt) maybePromptBrowserOrSSO(ctx context.Context, chal *proto.MFA
 	resp, err := p.cfg.CallbackCeremony.Run(ctx, chal)
 	return resp, trace.Wrap(err)
 }
+
+// AskRegister is not implemented.
+func (f *mfaPrompt) AskRegister(
+	ctx context.Context, config mfa.RegistrationPromptConfig,
+) (*mfa.RegistrationPromptConfig, error) {
+	return nil, trace.NotImplemented("not supported")
+}
+
+// RunRegister is not implemented.
+func (f *mfaPrompt) RunRegister(
+	ctx context.Context, config mfa.RegistrationPromptConfig, challenge *proto.MFARegisterChallenge,
+) (*mfa.PromptRunRegisterResult, error) {
+	return nil, trace.NotImplemented("not supported")
+}
+
+// NotifyRegistrationSuccess is not implemented.
+func (f *mfaPrompt) NotifyRegistrationSuccess(_ context.Context, _ mfa.RegistrationPromptConfig) error {
+	return trace.NotImplemented("not supported")
+}

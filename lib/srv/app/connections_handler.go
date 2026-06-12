@@ -40,6 +40,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -797,7 +798,7 @@ func (c *ConnectionsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, services.ErrTrustedDeviceRequired):
 			writeTrustedDeviceRequired(w, r, code)
 		case errors.Is(err, services.ErrSessionMFARequired):
-			http.Error(w, authclient.ErrNoMFADevices.Error(), code)
+			http.Error(w, mfa.ErrNoMFADevices.Error(), code)
 		default:
 			http.Error(w, http.StatusText(code), code)
 		}

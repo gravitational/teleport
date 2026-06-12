@@ -20,22 +20,92 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 )
+
+// MFADeviceType is a type of MFA device for device registration purposes.
+type MFADeviceType string
+
+const (
+	MFADeviceTypeTOTP     MFADeviceType = "TOTP"
+	MFADeviceTypeWebauthn MFADeviceType = "WEBAUTHN"
+	MFADeviceTypeTouchID  MFADeviceType = "TOUCHID"
+)
+
+// RegistrationCallbacks contains functions for confirming or rolling back
+// credentials that have been created by the MFA device.
+type RegistrationCallbacks interface {
+	// Rollback removes the newly created key from the MFA device.
+	Rollback() error
+	// Confirm persists the newly created key in the MFA device.
+	Confirm() error
+}
+
+// PromptRunRegisterResult contains the result of a [Prompt.RunRegister] call.
+type PromptRunRegisterResult struct {
+	// Response is the registration challenge response from the MFA device.
+	Response *proto.MFARegisterResponse
+	// Callbacks contain functions that need to be called depending on the result
+	// of adding the MFA device to the Teleport backend. They may have no effect,
+	// depending if they are supported by the particular MFA technology.
+	Callbacks RegistrationCallbacks
+}
+
+// RegistrationPromptConfig provides configuration for the [Prompt.AskRegister]
+// function.
+type RegistrationPromptConfig struct {
+	RegistrationCeremonyConfig
+
+	// AuthSecondFactor is the Second Factor option as configured in the auth
+	// service's auth preferences.
+	AuthSecondFactor constants.SecondFactorType
+}
 
 // Prompt is an MFA prompt.
 type Prompt interface {
 	// Run prompts the user to complete an MFA authentication challenge.
 	Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
+	// AskRegister prompts the user for device details. Returns an updated config
+	// or nil if the user decided to cancel. (User declining to move forward is
+	// not treated as an error.)
+	AskRegister(ctx context.Context, config RegistrationPromptConfig) (*RegistrationPromptConfig, error)
+	// RunRegister registers a new MFA device on the client side.
+	RunRegister(
+		ctx context.Context, config RegistrationPromptConfig, challenge *proto.MFARegisterChallenge,
+	) (*PromptRunRegisterResult, error)
+	// NotifyRegistrationSuccess notifies the user that the device registration
+	// was successful.
+	NotifyRegistrationSuccess(ctx context.Context, config RegistrationPromptConfig) error
 }
 
-// PromptFunc is a function wrapper that implements the Prompt interface.
+// PromptFunc is a function wrapper that implements the Prompt interface, but
+// does not support device registration.
 type PromptFunc func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
 
 // Run prompts the user to complete an MFA authentication challenge.
 func (f PromptFunc) Run(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
 	return f(ctx, chal)
+}
+
+// AskRegister is not implemented.
+func (f PromptFunc) AskRegister(ctx context.Context, config RegistrationPromptConfig) (*RegistrationPromptConfig, error) {
+	return nil, trace.NotImplemented("MFA device registration not supported")
+}
+
+// RunRegister is not implemented.
+func (f PromptFunc) RunRegister(
+	ctx context.Context, config RegistrationPromptConfig, challenge *proto.MFARegisterChallenge,
+) (*PromptRunRegisterResult, error) {
+	return nil, trace.NotImplemented("MFA device registration not supported")
+}
+
+// NotifyRegistrationSuccess is not implemented.
+func (f PromptFunc) NotifyRegistrationSuccess(ctx context.Context, config RegistrationPromptConfig) error {
+	return trace.NotImplemented("MFA device registration not supported")
 }
 
 // PromptConstructor is a function that creates a new MFA prompt.

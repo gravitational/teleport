@@ -30,12 +30,29 @@ import (
 )
 
 // NewMFACeremony returns a new MFA ceremony configured for this client.
-func (tc *TeleportClient) NewMFACeremony() *mfa.Ceremony {
-	return &mfa.Ceremony{
+func (tc *TeleportClient) NewMFACeremony(ctx context.Context) (*mfa.Ceremony, error) {
+	pingResp, err := tc.Ping(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	c := &mfa.Ceremony{
 		CreateAuthenticateChallenge: tc.createAuthenticateChallenge,
 		PromptConstructor:           tc.NewMFAPrompt,
 		MFACeremonyConstructor:      tc.NewRedirectorMFACeremony,
+		AuthSecondFactor:            pingResp.Auth.SecondFactor,
 	}
+
+	if tc.RegisterMFADeviceIfRequired {
+		tc.allowRegisteringMFADevicesForCeremony(c)
+	}
+
+	return c, nil
+}
+
+func (tc *TeleportClient) allowRegisteringMFADevicesForCeremony(c *mfa.Ceremony) {
+	c.AddMFADevice = tc.addMFADevice
+	c.CreateRegisterChallenge = tc.createRegisterChallenge
 }
 
 // createAuthenticateChallenge creates and returns MFA challenges for a users registered MFA devices.
@@ -51,9 +68,48 @@ func (tc *TeleportClient) createAuthenticateChallenge(ctx context.Context, req *
 	return rootClient.CreateAuthenticateChallenge(ctx, req)
 }
 
+// createRegisterChallenge creates and returns an MFA registration challenge for a user.
+func (tc *TeleportClient) createRegisterChallenge(ctx context.Context, req *proto.CreateRegisterChallengeRequest) (*proto.MFARegisterChallenge, error) {
+	clusterClient, err := tc.ConnectToCluster(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	rootClient, err := clusterClient.ConnectToRootCluster(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return rootClient.CreateRegisterChallenge(ctx, req)
+}
+
+// addMFADevice adds an MFA device to Teleport backend.
+func (tc *TeleportClient) addMFADevice(ctx context.Context, resp *proto.MFARegisterResponse, config mfa.RegistrationCeremonyConfig) error {
+	clusterClient, err := tc.ConnectToCluster(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	rootClient, err := clusterClient.ConnectToRootCluster(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = rootClient.AddMFADeviceSync(ctx, &proto.AddMFADeviceSyncRequest{
+		NewDeviceName:  config.DeviceName,
+		NewMFAResponse: resp,
+		DeviceUsage:    config.DeviceUsage,
+	})
+	return trace.Wrap(err)
+}
+
 // WebauthnLoginFunc is a function that performs WebAuthn login.
 // Mimics the signature of [webauthncli.Login].
 type WebauthnLoginFunc = libmfa.WebauthnLoginFunc
+
+// WebauthnRegisterFunc is a function that performs WebAuthn registration.
+// Mimics the signature of [wancli.Register].
+type WebauthnRegisterFunc = libmfa.WebauthnRegisterFunc
+
+// TouchIDRegisterFunc is a function that performs Touch ID registration.
+type TouchIDRegisterFunc = libmfa.TouchIDRegisterFunc
 
 // NewMFAPrompt creates a new MFA prompt from client settings.
 func (tc *TeleportClient) NewMFAPrompt(opts ...mfa.PromptOpt) mfa.Prompt {
@@ -67,6 +123,7 @@ func (tc *TeleportClient) NewMFAPrompt(opts ...mfa.PromptOpt) mfa.Prompt {
 		PreferBrowser:    tc.PreferBrowser,
 		AllowStdinHijack: tc.AllowStdinHijack,
 		StdinFunc:        tc.StdinFunc,
+		Stdout:           tc.Stdout,
 	})
 
 	if tc.MFAPromptConstructor != nil {
@@ -81,6 +138,14 @@ func (tc *TeleportClient) newPromptConfig(opts ...mfa.PromptOpt) *libmfa.PromptC
 	cfg.AuthenticatorAttachment = tc.AuthenticatorAttachment
 	if tc.WebauthnLogin != nil {
 		cfg.WebauthnLoginFunc = tc.WebauthnLogin
+		cfg.WebauthnSupported = true
+	}
+	if tc.WebauthnRegister != nil {
+		cfg.WebauthnRegisterFunc = tc.WebauthnRegister
+		cfg.WebauthnSupported = true
+	}
+	if tc.TouchIDRegister != nil {
+		cfg.TouchIDRegisterFunc = tc.TouchIDRegister
 		cfg.WebauthnSupported = true
 	}
 
@@ -104,4 +169,24 @@ func (tc *TeleportClient) NewRedirectorMFACeremony(ctx context.Context) (mfa.Cal
 	}
 
 	return sso.NewCLIMFACeremony(rd), nil
+}
+
+type AddMFAResult = mfa.CeremonyRegisterResult
+
+// AddMFA performs a registration ceremony and adds a new device if successful.
+// The returned [AddMFAResult] is always valid to allow resuming the process
+// with the same configuration in case if an error occurs.
+func (tc *TeleportClient) AddMFA(ctx context.Context, rdc mfa.RegistrationCeremonyConfig) (AddMFAResult, error) {
+	res := AddMFAResult{
+		DeviceAdded:   false,
+		UpdatedConfig: rdc,
+	}
+	c, err := tc.NewMFACeremony(ctx)
+	if err != nil {
+		return res, trace.Wrap(err)
+	}
+	// Unconditionally allow registering MFA devices.
+	tc.allowRegisteringMFADevicesForCeremony(c)
+	res, err = c.Register(ctx, rdc)
+	return res, trace.Wrap(err)
 }
