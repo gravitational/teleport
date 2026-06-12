@@ -108,10 +108,8 @@ func resolveEndpoint(r *http.Request) (*endpoints.ResolvedEndpoint, error) {
 	return &resolvedEndpoint, nil
 }
 
-// resolveEndpointByXForwardedHost resolves the endpoint by creating the URL
-// from valid "X-Forwarded-Host" header and extracting aws-service and
-// aws-region from the authorization header.
-//
+// resolveEndpointByXForwardedHost resolves the AWS endpoint from a valid "X-Forwarded-Host"
+// header and extracts the AWS service and region from the authorization header.
 // The forwarded host is accepted only if it parses as the exact HTTPS URL shape
 // we later dial: no userinfo, path, query, or fragment, an AWS endpoint
 // hostname, and either no port or the default HTTPS port. The returned endpoint
