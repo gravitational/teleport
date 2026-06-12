@@ -30,6 +30,8 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
+	"github.com/gravitational/teleport/api/observability/tracing"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/session/networking"
 )
 
@@ -138,13 +140,13 @@ func (a *AgentChannel) Close() error {
 // StartAgentChannel sets up a new agent forwarding channel against this connection.  The channel
 // is automatically closed when either ConnectionContext, or the supplied context.Context
 // gets canceled.
-func (c *ConnectionContext) StartAgentChannel() (*AgentChannel, error) {
+func (c *ConnectionContext) StartAgentChannel(ctx context.Context, opts ...tracing.Option) (*AgentChannel, error) {
 	// refuse to start an agent if forwardAgent has not yet been set.
 	if !c.GetForwardAgent() {
 		return nil, trace.AccessDenied("agent forwarding has not been requested")
 	}
 	// open a agent channel to client
-	ch, reqC, err := c.ServerConn.OpenChannel(AuthAgentRequest, nil)
+	ch, reqC, err := tracessh.OpenChannelToClient(ctx, c.ServerConn, AuthAgentRequest, nil, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

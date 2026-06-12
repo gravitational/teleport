@@ -96,7 +96,7 @@ func (m *mockSSHClient) Principals() []string {
 	return m.MockPrincipals
 }
 
-func (m *mockSSHClient) HandleChannelOpen(channelType string) <-chan ssh.NewChannel {
+func (m *mockSSHClient) HandleChannelOpenNoTrace(channelType string) <-chan ssh.NewChannel {
 	return m.MockHandleChannelOpen
 }
 

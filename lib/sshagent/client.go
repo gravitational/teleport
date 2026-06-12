@@ -20,7 +20,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	"log/slog"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -105,39 +104,31 @@ const channelType = "auth-agent@openssh.com"
 // is addressed.
 //
 // The agent getter must be safe to call concurrently.
-func ServeChannelRequests(ctx context.Context, client *ssh.Client, getForwardAgent ClientGetter) error {
-	channels := client.HandleChannelOpen(channelType)
-	if channels == nil {
-		return errors.New("agent forwarding channel already open")
-	}
-
-	go func() {
-		for ch := range channels {
-			go func() {
-				forwardAgent, err := getForwardAgent()
-				if err != nil {
-					slog.ErrorContext(ctx, "failed to connect to forwarded agent", "err", err)
-					_ = ch.Reject(ssh.ConnectionFailed, ssh.ConnectionFailed.String())
-					return
-				}
-				defer forwardAgent.Close()
-
-				channel, reqs, err := ch.Accept()
-				if err != nil {
-					return
-				}
-				defer channel.Close()
-
-				go ssh.DiscardRequests(reqs)
-				go io.Copy(io.Discard, channel.Stderr())
-
-				if err := agent.ServeAgent(forwardAgent, channel); err != nil && !errors.Is(err, io.EOF) {
-					slog.ErrorContext(ctx, "unexpected error serving forwarded agent", "err", err)
-				}
-			}()
+func ServeChannelRequests(ctx context.Context, client *tracessh.Client, getForwardAgent ClientGetter) error {
+	err := client.HandleChannelOpen(ctx, channelType, func(ctx context.Context, ch ssh.NewChannel) error {
+		forwardAgent, err := getForwardAgent()
+		if err != nil {
+			_ = ch.Reject(ssh.ConnectionFailed, "failed to connect to forwarded agent")
+			return trace.Wrap(err, "failed to connect to forwarded agent")
 		}
-	}()
-	return nil
+		defer forwardAgent.Close()
+
+		channel, reqs, err := ch.Accept()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer channel.Close()
+
+		go ssh.DiscardRequests(reqs)
+		go io.Copy(io.Discard, channel.Stderr())
+
+		if err := agent.ServeAgent(forwardAgent, channel); err != nil && !errors.Is(err, io.EOF) {
+			return trace.Wrap(err, "unexpected error serving forwarded agent", "err", err)
+		}
+
+		return nil
+	})
+	return trace.Wrap(err)
 }
 
 // RequestAgentForwarding sets up agent forwarding for the session.

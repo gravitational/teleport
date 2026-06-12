@@ -812,7 +812,7 @@ func (c *ServerContext) HandleX11Listener(ctx context.Context, l net.Listener, s
 			go func() {
 				defer xconn.Close()
 
-				xchan, sin, err := c.ServerConn.OpenChannel(x11.ChannelRequest, x11ChannelReqPayload)
+				xchan, sin, err := tracessh.OpenChannelToClient(ctx, c.ServerConn, x11.ChannelRequest, x11ChannelReqPayload)
 				if err != nil {
 					c.Logger.DebugContext(ctx, "Failed to open a new X11 channel", "error", err)
 					return

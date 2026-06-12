@@ -15,6 +15,7 @@
 package ssh
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"encoding/json"
@@ -99,6 +100,35 @@ func ContextFromNewChannel(nch ssh.NewChannel, opts ...tracing.Option) (context.
 	ctx := tracing.WithPropagationContext(context.Background(), ch.Envelope.PropagationContext, opts...)
 
 	return ctx, ch
+}
+
+// OpenChannelToClient opens a channel from an SSH server to its client,
+// adding tracing context to the channel payload when the client supports
+// Teleport SSH tracing.
+func OpenChannelToClient(ctx context.Context, conn ssh.Conn, name string, data []byte, opts ...tracing.Option) (_ ssh.Channel, _ <-chan *ssh.Request, err error) {
+	config := tracing.NewConfig(opts)
+	tracer := config.TracerProvider.Tracer(instrumentationName)
+	ctx, span := tracer.Start(
+		ctx,
+		"ssh.OpenChannel/"+name,
+		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
+		oteltrace.WithAttributes(
+			append(
+				peerAttr(conn.RemoteAddr()),
+				semconv.RPCServiceKey.String("ssh.Server"),
+				semconv.RPCMethodKey.String("OpenChannel"),
+				semconv.RPCSystemKey.String("ssh"),
+			)...,
+		),
+	)
+	defer func() { tracing.EndSpan(span, err) }()
+
+	supported := tracingUnsupported
+	if bytes.HasPrefix(conn.ClientVersion(), []byte("SSH-2.0-Teleport")) {
+		supported = tracingSupported
+	}
+
+	return conn.OpenChannel(name, wrapPayload(ctx, supported, config.TextMapPropagator, data))
 }
 
 // Dial starts a client connection to the given SSH server. It is a
