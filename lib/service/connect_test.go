@@ -21,20 +21,25 @@ package service
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/webclient"
 	apiconstants "github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apissh "github.com/gravitational/teleport/api/ssh"
@@ -44,12 +49,75 @@ import (
 	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
+
+func TestTeleportProcessMinClientVersionCheck(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// The skipped-check variant proceeds past the version check and hits
+		// join endpoints this stub doesn't implement before failing.
+		if r.URL.Path != "/webapi/find" {
+			http.NotFound(w, r)
+			return
+		}
+		require.NoError(t, json.NewEncoder(w).Encode(webclient.PingResponse{
+			MinClientVersion: teleport.MinClientSemVer().String(),
+		}))
+	}))
+	t.Cleanup(srv.Close)
+
+	newConfig := func(t *testing.T) *servicecfg.Config {
+		cfg := servicecfg.MakeDefaultConfig()
+		cfg.Version = defaults.TeleportConfigVersionV3
+		cfg.ProxyServer = utils.NetAddr{AddrNetwork: "tcp", Addr: strings.TrimPrefix(srv.URL, "https://")}
+		cfg.InsecureMode = true
+		cfg.DataDir = makeTempDir(t)
+		cfg.SetToken("join-token")
+		cfg.Auth.Enabled = false
+		cfg.Proxy.Enabled = false
+		cfg.SSH.Enabled = true
+		cfg.Testing.TeleportVersion = semver.Version{Major: teleport.MinClientSemVer().Major - 1}.String()
+		return cfg
+	}
+
+	t.Run("client too old stops reconnect retries", func(t *testing.T) {
+		cfg := newConfig(t)
+		process, err := NewTeleport(cfg)
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = process.Close() })
+
+		c, err := process.reconnectToAuthService(types.RoleInstance)
+		require.ErrorIs(t, err, joinclient.ErrClientTooOld)
+		require.Nil(t, c)
+	})
+
+	t.Run("skip version check bypasses the failure", func(t *testing.T) {
+		cfg := newConfig(t)
+		cfg.SkipVersionCheck = true
+
+		process, err := NewTeleport(cfg)
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = process.Close() })
+
+		// Deliberately call connectToAuthService, not reconnectToAuthService.
+		// With the check skipped the join fails against the stub with an
+		// ordinary connection error, which reconnectToAuthService treats as
+		// retryable and would loop on forever. Failing with anything other
+		// than ErrClientTooOld proves SkipVersionCheck was plumbed through
+		// and bypassed the check.
+		c, err := process.connectToAuthService(types.RoleInstance)
+		require.Error(t, err)
+		require.NotErrorIs(t, err, joinclient.ErrClientTooOld)
+		require.Nil(t, c)
+	})
+}
 
 func TestMakeJoinParams_BoundKeypair(t *testing.T) {
 	t.Parallel()

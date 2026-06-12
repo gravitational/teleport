@@ -22,12 +22,15 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"os"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/client/webclient"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	authjoin "github.com/gravitational/teleport/lib/auth/join"
@@ -45,14 +48,16 @@ import (
 	"github.com/gravitational/teleport/lib/join/spacelift"
 	"github.com/gravitational/teleport/lib/join/terraformcloud"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/hostid"
 )
 
 type (
-	JoinParams   = authjoin.RegisterParams
-	JoinResult   = authjoin.RegisterResult
-	AzureParams  = authjoin.AzureParams
-	GitlabParams = authjoin.GitlabParams
+	JoinParams        = authjoin.RegisterParams
+	JoinTestingParams = authjoin.RegisterTestingParams
+	JoinResult        = authjoin.RegisterResult
+	AzureParams       = authjoin.AzureParams
+	GitlabParams      = authjoin.GitlabParams
 )
 
 // Join is used to join a cluster. A host or bot calls this with the name of a
@@ -166,7 +171,73 @@ func joinNew(ctx context.Context, params JoinParams) (*JoinResult, error) {
 	return nil, trace.NewAggregate(errs...)
 }
 
+// checkClientVersionSupported returns [ErrClientTooOld] when this client is
+// older than the proxy's advertised minimum client version. It is best-effort
+// and fails open, returning nil when the minimum can't be determined. It is
+// bypassed with a warning when too old and [JoinParams.SkipVersionCheck] is set.
+func checkClientVersionSupported(ctx context.Context, params JoinParams, proxyAddr string) error {
+	resp, err := webclient.Find(&webclient.Config{
+		Context:   ctx,
+		ProxyAddr: proxyAddr,
+		Insecure:  params.Insecure,
+	})
+	if err != nil {
+		params.Log.WarnContext(ctx,
+			"Could not fetch the cluster's minimum client version from the proxy's web API, skipping check.",
+			"proxy_addr", proxyAddr,
+			"error", err,
+		)
+		return nil
+	}
+
+	localVersion := api.Version
+	if params.Testing.TeleportVersion != "" {
+		localVersion = params.Testing.TeleportVersion
+	}
+
+	err = checkClientMeetsMinVersion(localVersion, resp.MinClientVersion)
+	if err == nil {
+		return nil
+	}
+	if !errors.Is(err, ErrClientTooOld) {
+		params.Log.WarnContext(ctx,
+			"Could not parse the cluster's minimum client version, skipping check.",
+			"error", err,
+			"min_client_version", resp.MinClientVersion,
+		)
+		return nil
+	}
+	if params.SkipVersionCheck {
+		params.Log.WarnContext(ctx,
+			"This client is older than the cluster's minimum supported version, ignoring the version check because --skip-version-check is set.",
+			"error", err,
+		)
+		return nil
+	}
+	return trace.Wrap(err)
+}
+
+func checkClientMeetsMinVersion(clientVersion, minVersion string) error {
+	if minVersion == "" {
+		return nil
+	}
+	// Stripping the pre-release both validates the advertised minimum and yields a
+	// clean version for the user-facing error message.
+	minWithoutPreRelease, err := utils.VersionWithoutPreRelease(minVersion)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if !utils.MeetsMinVersion(clientVersion, minVersion) {
+		return fmt.Errorf("%w (client v%s, minimum v%s)", ErrClientTooOld, clientVersion, minWithoutPreRelease)
+	}
+	return nil
+}
+
 func joinViaProxy(ctx context.Context, params JoinParams, proxyAddr string) (*JoinResult, error) {
+	if err := checkClientVersionSupported(ctx, params, proxyAddr); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Connect to the proxy's insecure gRPC listener (this is regular TLS, the
 	// client is not authenticated because it doesn't have certs yet).
 	conn, err := proxyinsecureclient.NewConnection(ctx,
@@ -569,3 +640,7 @@ func (e *LegacyJoinError) Error() string {
 func (e *LegacyJoinError) Unwrap() error {
 	return e.wrapped
 }
+
+// ErrClientTooOld indicates this client is older than the cluster's minimum
+// client version.
+var ErrClientTooOld = errors.New("this client is older than the minimum supported version required by the cluster and will not be able to connect until it is upgraded")
