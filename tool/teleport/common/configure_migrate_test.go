@@ -182,6 +182,43 @@ func TestConfigureMigrateStdoutIsRedacted(t *testing.T) {
 	require.NotContains(t, stdout.String(), "scope-migrate-ip-10-2-4-17")
 }
 
+func TestConfigureMigrateDisabledServiceNotice(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	inputPath := filepath.Join(dir, "teleport.yaml")
+	require.NoError(t, os.WriteFile(inputPath, []byte(`
+version: v3
+teleport:
+  auth_token: SUPERSECRET
+ssh_service:
+  enabled: yes
+app_service:
+  enabled: yes
+auth_service:
+  enabled: no
+proxy_service:
+  enabled: no
+`), 0o600))
+
+	var stderr bytes.Buffer
+	err := onConfigureMigrate(configureMigrateFlags{
+		input:           inputPath,
+		installSuffix:   "scope",
+		output:          "stdout://",
+		proxyServer:     "target.example.com:443",
+		joinMethod:      string(types.JoinMethodToken),
+		tokenName:       "scope-migrate-ip-10-2-4-17",
+		tokenSecretFile: filepath.Join(dir, "token-secret"),
+		dataDir:         filepath.Join(dir, "data"),
+		disableServices: "app",
+		stdout:          &bytes.Buffer{},
+		stderr:          &stderr,
+	})
+	require.NoError(t, err)
+	require.Contains(t, stderr.String(), "NOTICE: disabled app_service in the migrated config; the original agent continues serving it.")
+}
+
 func TestConfigureMigrateFlagValidation(t *testing.T) {
 	t.Parallel()
 
@@ -293,6 +330,12 @@ func TestConfigureMigrateInstallSuffixValidation(t *testing.T) {
 			require.Error(t, flags.CheckAndSetDefaults())
 		})
 	}
+
+	flags := base
+	flags.installSuffix = "-bad"
+	err := flags.CheckAndSetDefaults()
+	require.Error(t, err)
+	require.Contains(t, err.Error(), `invalid install suffix "-bad": must not start with '-'`)
 }
 
 func TestParseMigrateLabelsTrimsValues(t *testing.T) {

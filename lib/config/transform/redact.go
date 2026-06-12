@@ -19,7 +19,9 @@
 package transform
 
 // DefaultRedactionRules returns the redaction rules for migrated config review
-// output.
+// output. token_name is redacted unconditionally because legacy token-method
+// names are the secret; ca_pin is a public hash and is intentionally not
+// redacted.
 func DefaultRedactionRules() []RedactRule {
 	return []RedactRule{
 		{Path: []string{"teleport", "auth_token"}, Mode: RedactFull},

@@ -270,6 +270,8 @@ func splitLines(s string) []string {
 	if s == "" {
 		return nil
 	}
+	// difflib.SplitLines appends "\n" to the last element, which injects a
+	// phantom trailing line into rendered diffs.
 	lines := strings.SplitAfter(s, "\n")
 	if lines[len(lines)-1] == "" {
 		lines = lines[:len(lines)-1]

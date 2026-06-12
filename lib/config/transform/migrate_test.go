@@ -431,7 +431,7 @@ ssh_service:
 		DisableServices: []string{"bogus"},
 	})
 	require.Error(t, err)
-	require.Contains(t, err.Error(), `unsupported service "bogus"`)
+	require.Contains(t, err.Error(), `unsupported service "bogus"; valid services: app,db,debug,discovery,jamf,kube,okta,ssh,windows_desktop`)
 }
 
 func TestApplyMigrationDeterministicLabels(t *testing.T) {

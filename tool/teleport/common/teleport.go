@@ -445,7 +445,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		"Get automatic certificate from Letsencrypt.org using ACME.").BoolVar(&dumpFlags.ACMEEnabled)
 	dump.Flag("acme-email",
 		"Email to receive updates from Letsencrypt.org.").StringVar(&dumpFlags.ACMEEmail)
-	dump.Flag("test", "Path to a configuration file to test. With configure migrate, validates the migrated output and overrides --input.").ExistingFileVar(&dumpFlags.testConfigFile)
+	dump.Flag("test", "Path to a configuration file to test. With configure migrate, validates the migrated output and cannot be combined with --input.").ExistingFileVar(&dumpFlags.testConfigFile)
 	dump.Flag("version", "Teleport configuration version.").Default(defaults.TeleportConfigVersionV3).StringVar(&dumpFlags.Version)
 	dump.Flag("public-addr", "The hostport that the proxy advertises for the HTTP endpoint.").StringVar(&dumpFlags.PublicAddr)
 	dump.Flag("cert-file", "Path to a TLS certificate file for the proxy.").ExistingFileVar(&dumpFlags.CertFile)
@@ -467,7 +467,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	// main() discards the value; only tests observe it.
 	configureDefault := dump.Command("dump", "Generate a configuration file.").Default().Hidden()
 	configureMigrate := dump.Command("migrate", "Transform an existing Teleport config for a suffixed migrated agent. Also accepts configure flags --output, --auth-server, --data-dir, --join-method, --test, and --token (legacy single-value token). Stdout output is redacted; use --output=file:// to write a usable config.")
-	configureMigrate.Flag("input", fmt.Sprintf("Path to the existing Teleport configuration file [%s].", defaults.ConfigFilePath)).Default(defaults.ConfigFilePath).StringVar(&configureMigrateFlags.input)
+	configureMigrate.Flag("input", fmt.Sprintf("Path to the existing Teleport configuration file [%s].", defaults.ConfigFilePath)).Default(defaults.ConfigFilePath).IsSetByUser(&configureMigrateFlags.inputSet).StringVar(&configureMigrateFlags.input)
 	configureMigrate.Flag("install-suffix", "Suffix used by teleport-update --install-suffix.").StringVar(&configureMigrateFlags.installSuffix)
 	configureMigrate.Flag("proxy-server", "Target cluster proxy server address.").StringVar(&configureMigrateFlags.proxyServer)
 	configureMigrate.Flag("token-name", "Scoped token stable name.").StringVar(&configureMigrateFlags.tokenName)
@@ -789,6 +789,10 @@ Examples:
 			configureMigrateFlags.dataDir = dumpFlags.DataDir
 		}
 		if dumpFlags.testConfigFile != "" {
+			if configureMigrateFlags.inputSet {
+				err = trace.BadParameter("only one of --test or --input can be set")
+				break
+			}
 			configureMigrateFlags.input = dumpFlags.testConfigFile
 			configureMigrateFlags.test = true
 		}

@@ -52,6 +52,7 @@ var scopedConfigureMigrateJoinMethods = []string{
 
 type configureMigrateFlags struct {
 	input             string
+	inputSet          bool
 	installSuffix     string
 	output            string
 	proxyServer       string
@@ -385,7 +386,7 @@ func defaultMigrateDataDir(suffix string) string {
 // CLI-parsing hazard for the generated runbook commands.
 func validateInstallSuffix(suffix string) error {
 	if strings.HasPrefix(suffix, "-") {
-		return trace.BadParameter("invalid namespace name %s, must be alphanumeric", suffix)
+		return trace.BadParameter("invalid install suffix %q: must not start with '-'", suffix)
 	}
 	return trace.Wrap(agent.ValidateNamespaceName(suffix))
 }

@@ -75,6 +75,10 @@ var disableServiceSections = map[string]string{
 	"debug":           "debug_service",
 }
 
+// Services that run by default when their section is absent from the config;
+// disabling one of these must create the section with enabled: no.
+// auth_service/proxy_service are listed for completeness but are not
+// reachable via --disable-services (they are always forced off).
 var defaultEnabledServiceSections = map[string]struct{}{
 	"auth_service":  {},
 	"proxy_service": {},
@@ -159,7 +163,7 @@ func ApplyMigration(doc *Document, p MigrateParams) (*MigrationResult, error) {
 	for _, service := range p.DisableServices {
 		section, ok := disableServiceSections[service]
 		if !ok {
-			return nil, trace.BadParameter("unsupported service %q in disable services", service)
+			return nil, trace.BadParameter("unsupported service %q; valid services: %s", service, strings.Join(slices.Sorted(maps.Keys(disableServiceSections)), ","))
 		}
 		if _, ok := out.get(section); !ok {
 			if _, defaultEnabled := defaultEnabledServiceSections[section]; !defaultEnabled {
@@ -276,8 +280,7 @@ func (d *Document) resolvePIDFile(installSuffix, oldPath string, result *Migrati
 	ext := filepath.Ext(oldPath)
 	newPath := strings.TrimSuffix(oldPath, ext) + "_" + installSuffix + ext
 	if err := d.set(newPath, "teleport", "pid_file"); err != nil {
-		result.Notices = append(result.Notices, "removed teleport.pid_file to avoid two agents sharing the same PID file.")
-		return nil
+		return trace.Wrap(err)
 	}
 	result.PIDFileChanged = &PathChange{
 		Path: "teleport.pid_file",
