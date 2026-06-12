@@ -29,6 +29,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"slices"
 	"strings"
 	"time"
@@ -104,6 +105,11 @@ type Handler struct {
 	clusterName string
 
 	logger *slog.Logger
+
+	// cswshAction controls the response to a detected cross-origin WebSocket
+	// upgrade, configured via TELEPORT_UNSTABLE_APP_CSWSH_ACTION. Defaults to
+	// no-op.
+	cswshAction cswshAction
 }
 
 // NewHandler returns a new application handler.
@@ -117,6 +123,11 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 		c:            c,
 		closeContext: ctx,
 		logger:       slog.With(teleport.ComponentKey, teleport.ComponentAppProxy),
+		cswshAction:  parseCSWSHAction(os.Getenv(cswshActionEnv)),
+	}
+	if h.cswshAction.enabled() {
+		h.logger.InfoContext(ctx, "Application access cross-site WebSocket (CSWSH) guard enabled",
+			"report", h.cswshAction.report, "block", h.cswshAction.block)
 	}
 
 	// Create a new session cache, this holds sessions that can be used to
@@ -254,6 +265,12 @@ func (h *Handler) HealthCheckAppServer(ctx context.Context, publicAddr string, c
 // handleHttp forwards the request to the application service or redirects
 // to the application directly.
 func (h *Handler) handleHttp(w http.ResponseWriter, r *http.Request, session *session) error {
+	// Reject (or, in report-only mode, log) cross-site WebSocket upgrades
+	// before forwarding to the application (CSWSH protection).
+	if err := h.guardCrossSiteWebSocket(r); err != nil {
+		return trace.Wrap(err)
+	}
+
 	var redirectURI string
 
 	session.tr.mu.Lock()
