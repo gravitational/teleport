@@ -4253,6 +4253,8 @@ export const events = [
     user: 'ai-user',
     app_name: 'mcp-everything',
     success: true,
+    // TODO(greedy52) delete legacy fixture in v20.
+    // Legacy format: tools_call_name and raw are not populated by older proxies.
     message: {
       id: 2,
       method: 'tools/call',
@@ -4279,14 +4281,30 @@ export const events = [
     success: false,
     error: 'access denied',
     message: {
-      id: 2,
+      id: 3,
       method: 'tools/call',
-      params: {
-        name: 'write_file',
-        arguments: {
-          path: '/etc/passwd',
-        },
-      },
+      tools_call_name: 'write_file',
+      raw: '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"write_file","arguments":{"path":"/etc/passwd"}}}',
+      jsonrpc: '2.0',
+    },
+  },
+  {
+    code: 'TMCP003I',
+    ei: 0,
+    event: 'mcp.session.request',
+    namespace: 'default',
+    server_id: 'a0518380-0d53-4188-ac8b-8ddd8103e45b',
+    sid: '6593cf87-9839-4f18-abf8-c54873aaeb4e',
+    time: '2025-05-23T11:11:11.666Z',
+    uid: '80400ed9-644e-4a6e-ab99-b264b34d0f55',
+    user: 'ai-user',
+    app_name: 'mcp-everything',
+    success: true,
+    message: {
+      id: 4,
+      method: 'tools/call',
+      tools_call_name: 'get_weather',
+      raw: '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"get_weather","arguments":{"location":"New York"}}}',
       jsonrpc: '2.0',
     },
   },

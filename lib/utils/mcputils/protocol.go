@@ -25,7 +25,6 @@ import (
 	jsoniter "github.com/json-iterator/go"
 	"github.com/mark3labs/mcp-go/mcp"
 
-	apievents "github.com/gravitational/teleport/api/types/events"
 )
 
 // Type definitions from both mcp-go/client/transport or mcp-go are not suitable
@@ -35,26 +34,39 @@ import (
 // the level of handling we need. Same goes for other helpers like StdioXXX.
 
 // JSONRPCParams defines params for request or notification.
+//
+// json.RawMessage is used for map values to preserve the original content when
+// re-marshaling (e.g. large numbers that would lose precision through
+// float64 round-tripping).
+//
 // TODO(greedy52) handle metadata
-type JSONRPCParams map[string]any
-
-// GetEventParams returns the apievents.Struct for auditing.
-func (p JSONRPCParams) GetEventParams() *apievents.Struct {
-	if p == nil {
-		return nil
-	}
-
-	eventParams, _ := apievents.EncodeMap(p)
-	return eventParams
-}
+type JSONRPCParams map[string]json.RawMessage
 
 // GetName returns the "name" param.
 func (p JSONRPCParams) GetName() (string, bool) {
-	if p == nil {
+	raw, ok := p["name"]
+	if !ok {
 		return "", false
 	}
-	name, ok := p["name"].(string)
-	return name, ok
+	var name string
+	if err := json.Unmarshal(raw, &name); err != nil {
+		return "", false
+	}
+	return name, true
+}
+
+// toAnyMap converts params to map[string]any. Values are kept as
+// json.RawMessage so json.Marshal still produces the original bytes without
+// precision loss.
+func (p JSONRPCParams) toAnyMap() map[string]any {
+	if p == nil {
+		return nil
+	}
+	m := make(map[string]any, len(p))
+	for k, v := range p {
+		m[k] = v
+	}
+	return m
 }
 
 // BaseJSONRPCMessage is a base message that includes all fields for MCP
@@ -76,6 +88,8 @@ type BaseJSONRPCMessage struct {
 	Result json.RawMessage `json:"result,omitempty"`
 	// Error is the response error.
 	Error json.RawMessage `json:"error,omitempty"`
+	// rawMessage stores the original JSON for audit purposes.
+	rawMessage string
 }
 
 // UnmarshalJSON implements json.Unmarshaler with case-sensitive field matching.
@@ -84,7 +98,11 @@ type BaseJSONRPCMessage struct {
 func (m *BaseJSONRPCMessage) UnmarshalJSON(data []byte) error {
 	type Alias BaseJSONRPCMessage
 	aux := (*Alias)(m)
-	return trace.Wrap(caseSensitiveJSONConfig.Unmarshal(data, aux))
+	if err := caseSensitiveJSONConfig.Unmarshal(data, aux); err != nil {
+		return trace.Wrap(err)
+	}
+	m.rawMessage = string(data)
+	return nil
 }
 
 // IsNotification returns true if the message is a notification.
@@ -105,19 +123,21 @@ func (m *BaseJSONRPCMessage) IsResponse() bool {
 // MakeNotification converts the base message to JSONRPCNotification.
 func (m *BaseJSONRPCMessage) MakeNotification() *JSONRPCNotification {
 	return &JSONRPCNotification{
-		JSONRPC: m.JSONRPC,
-		Method:  m.Method,
-		Params:  m.Params,
+		JSONRPC:    m.JSONRPC,
+		Method:     m.Method,
+		Params:     m.Params,
+		rawMessage: m.rawMessage,
 	}
 }
 
 // MakeRequest converts the base message to JSONRPCRequest.
 func (m *BaseJSONRPCMessage) MakeRequest() *JSONRPCRequest {
 	return &JSONRPCRequest{
-		JSONRPC: m.JSONRPC,
-		ID:      m.ID,
-		Method:  m.Method,
-		Params:  m.Params,
+		JSONRPC:    m.JSONRPC,
+		ID:         m.ID,
+		Method:     m.Method,
+		Params:     m.Params,
+		rawMessage: m.rawMessage,
 	}
 }
 
@@ -135,10 +155,14 @@ func (m *BaseJSONRPCMessage) MakeResponse() *JSONRPCResponse {
 //
 // https://modelcontextprotocol.io/specification/2025-03-26/basic#notifications
 type JSONRPCNotification struct {
-	JSONRPC string        `json:"jsonrpc"`
-	Method  string        `json:"method"`
-	Params  JSONRPCParams `json:"params,omitempty"`
+	JSONRPC    string        `json:"jsonrpc"`
+	Method     string        `json:"method"`
+	Params     JSONRPCParams `json:"params,omitempty"`
+	rawMessage string
 }
+
+// RawMessage returns the original JSON message for audit purposes.
+func (n *JSONRPCNotification) RawMessage() string { return n.rawMessage }
 
 // UnmarshalJSON implements json.Unmarshaler with case-sensitive field matching.
 // This ensures that json.Unmarshal automatically enforces case sensitivity for
@@ -153,11 +177,15 @@ func (n *JSONRPCNotification) UnmarshalJSON(data []byte) error {
 //
 // https://modelcontextprotocol.io/specification/2025-03-26/basic#requests
 type JSONRPCRequest struct {
-	JSONRPC string        `json:"jsonrpc"`
-	Method  string        `json:"method"`
-	ID      mcp.RequestId `json:"id"`
-	Params  JSONRPCParams `json:"params,omitempty"`
+	JSONRPC    string        `json:"jsonrpc"`
+	Method     string        `json:"method"`
+	ID         mcp.RequestId `json:"id"`
+	Params     JSONRPCParams `json:"params,omitempty"`
+	rawMessage string
 }
+
+// RawMessage returns the original JSON message for audit purposes.
+func (r *JSONRPCRequest) RawMessage() string { return r.rawMessage }
 
 // UnmarshalJSON implements json.Unmarshaler with case-sensitive field matching.
 // This ensures that json.Unmarshal automatically enforces case sensitivity for

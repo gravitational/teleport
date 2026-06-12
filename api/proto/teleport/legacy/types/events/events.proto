@@ -9275,11 +9275,18 @@ message MCPJSONRPCMessage {
   string ID = 2 [(gogoproto.jsontag) = "id,omitempty"];
   // Method is the method of this message.
   string method = 3 [(gogoproto.jsontag) = "method"];
-  // Params is the optional parameters.
+  // Params is the optional parameters. May lose precision for large numbers
+  // due to protobuf Struct using float64. Use raw for exact values.
+  // TODO(greedy52) deprecate in v20.
   google.protobuf.Struct params = 5 [
     (gogoproto.jsontag) = "params,omitempty",
     (gogoproto.casttype) = "Struct"
   ];
+  // ToolsCallName is the tool name extracted from params for tools/call
+  // requests, for easy querying.
+  string tools_call_name = 6 [(gogoproto.jsontag) = "tools_call_name,omitempty"];
+  // Raw is the full original JSON message, preserving exact number precision.
+  string raw = 7 [(gogoproto.jsontag) = "raw,omitempty"];
 }
 
 // MCPSessionRequest is emitted when a request is sent by client during a MCP session.

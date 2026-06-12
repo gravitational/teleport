@@ -247,7 +247,7 @@ func (h *HTTPReaderWriter) WriteMessage(ctx context.Context, msg mcp.JSONRPCMess
 			Notification: mcp.Notification{
 				Method: v.Method,
 				Params: mcp.NotificationParams{
-					AdditionalFields: v.Params,
+					AdditionalFields: v.Params.toAnyMap(),
 				},
 			},
 		}))

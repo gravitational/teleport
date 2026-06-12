@@ -240,7 +240,7 @@ func (c *requestBuilder) makeToolsCallRequest(toolName string) *mcputils.JSONRPC
 		ID:      c.makeRequestID(),
 		Method:  mcputils.MethodToolsCall,
 		Params: mcputils.JSONRPCParams{
-			"name": toolName,
+			"name": json.RawMessage(`"` + toolName + `"`),
 		},
 	}
 }
@@ -285,14 +285,6 @@ func (f fakeAccessPoint) GetCertAuthority(context.Context, types.CertAuthID, boo
 	return nil, trace.NotImplemented("not implemented")
 }
 
-func checkParamsHaveNameField(t *testing.T, params *apievents.Struct, wantName string) {
-	t.Helper()
-	require.NotNil(t, params)
-	require.NotNil(t, params.Fields)
-	value, ok := params.Fields["name"]
-	require.True(t, ok)
-	require.Equal(t, wantName, value.GetStringValue())
-}
 
 func checkToolsListResponse(t *testing.T, response mcp.JSONRPCMessage, wantID mcp.RequestId, wantTools []string) {
 	t.Helper()

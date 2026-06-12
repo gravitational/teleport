@@ -2306,8 +2306,9 @@ export const formatters: Formatters = {
     type: 'mcp.session.request',
     desc: 'MCP Session Request',
     format: ({ user, app_name, message }) => {
-      if (message.params?.name) {
-        return `User [${user}] sent an MCP request [${message.method}] for [${message.params.name}] to MCP server [${app_name}]`;
+      const toolName = message.tools_call_name || message.params?.name;
+      if (toolName) {
+        return `User [${user}] sent an MCP request [${message.method}] for [${toolName}] to MCP server [${app_name}]`;
       }
       return `User [${user}] sent an MCP request [${message.method}] to MCP server [${app_name}]`;
     },
@@ -2316,8 +2317,9 @@ export const formatters: Formatters = {
     type: 'mcp.session.request',
     desc: 'MCP Session Request Failure',
     format: ({ user, app_name, message }) => {
-      if (message.params?.name) {
-        return `User [${user}] failed to send an MCP request [${message.method}] for [${message.params.name}] to MCP server [${app_name}]`;
+      const toolName = message.tools_call_name || message.params?.name;
+      if (toolName) {
+        return `User [${user}] failed to send an MCP request [${message.method}] for [${toolName}] to MCP server [${app_name}]`;
       }
       return `User [${user}] failed to send an MCP request [${message.method}] to MCP server [${app_name}]`;
     },
