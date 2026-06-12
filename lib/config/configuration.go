@@ -2381,20 +2381,13 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		cfg.WindowsDesktop.ListenAddr = *listenAddr
 	}
 
-	for _, attributeName := range fc.WindowsDesktop.Discovery.LabelAttributes {
-		if !types.IsValidLabelKey(attributeName) {
-			return trace.BadParameter("WindowsDesktopService specifies label_attribute %q which is not a valid label key", attributeName)
-		}
-	}
-
-	for _, filter := range fc.WindowsDesktop.Discovery.Filters {
-		if _, err := ldap.CompileFilter(filter); err != nil {
-			return trace.BadParameter("WindowsDesktopService specifies invalid LDAP filter %q", filter)
-		}
-	}
-
 	if fc.WindowsDesktop.Discovery.BaseDN != "" && len(fc.WindowsDesktop.DiscoveryConfigs) > 0 {
 		return trace.BadParameter("WindowsDesktopService specifies both discovery and discovery_configs: move the discovery section to discovery_configs to continue")
+	}
+
+	// append the old (singular) discovery config to the new format that supports multiple configs
+	if fc.WindowsDesktop.Discovery.BaseDN != "" {
+		fc.WindowsDesktop.DiscoveryConfigs = append(fc.WindowsDesktop.DiscoveryConfigs, fc.WindowsDesktop.Discovery)
 	}
 
 	for _, discoveryConfig := range fc.WindowsDesktop.DiscoveryConfigs {
@@ -2413,14 +2406,16 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				return trace.BadParameter("WindowsDesktopService specifies label_attribute %q which is not a valid label key", attributeName)
 			}
 		}
+		switch mode := discoveryConfig.LabelAttributeMode; mode {
+		case servicecfg.LabelAttributeModeJoin:
+		case servicecfg.LabelAttributeModeFirst, "":
+		default:
+			return trace.BadParameter("WindowsDesktopService specifies invalid label_attribute_mode %q", mode)
+		}
+
 		if p := discoveryConfig.RDPPort; p < 0 || p > 65535 {
 			return trace.BadParameter("WindowsDesktopService specifies invalid RDP port %d", p)
 		}
-	}
-
-	// append the old (singular) discovery config to the new format that supports multiple configs
-	if fc.WindowsDesktop.Discovery.BaseDN != "" {
-		fc.WindowsDesktop.DiscoveryConfigs = append(fc.WindowsDesktop.DiscoveryConfigs, fc.WindowsDesktop.Discovery)
 	}
 
 	cfg.WindowsDesktop.Discovery = make([]servicecfg.LDAPDiscoveryConfig, 0, len(fc.WindowsDesktop.DiscoveryConfigs))
@@ -2430,11 +2425,13 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		}
 		cfg.WindowsDesktop.Discovery = append(cfg.WindowsDesktop.Discovery,
 			servicecfg.LDAPDiscoveryConfig{
-				BaseDN:          dc.BaseDN,
-				Filters:         dc.Filters,
-				Labels:          dc.Labels,
-				LabelAttributes: dc.LabelAttributes,
-				RDPPort:         cmp.Or(dc.RDPPort, int(defaults.RDPListenPort)),
+				BaseDN:                      dc.BaseDN,
+				Filters:                     dc.Filters,
+				Labels:                      dc.Labels,
+				LabelAttributes:             dc.LabelAttributes,
+				LabelAttributeMode:          cmp.Or(dc.LabelAttributeMode, string(servicecfg.LabelAttributeModeFirst)),
+				LabelAttributeJoinSeparator: dc.LabelAttributeJoinSeparator,
+				RDPPort:                     cmp.Or(dc.RDPPort, int(defaults.RDPListenPort)),
 			},
 		)
 	}
