@@ -428,9 +428,12 @@ type SearchSessionSummariesParams struct {
 	// are present. SEARCH_MODE_UNSPECIFIED and SEARCH_MODE_HYBRID both execute
 	// the full hybrid pipeline. SEARCH_MODE_KEYWORD_ONLY uses only full-text
 	// matching; SEARCH_MODE_EMBEDDING_ONLY uses only vector similarity.
-	SearchMode    SearchMode `protobuf:"varint,15,opt,name=search_mode,json=searchMode,proto3,enum=accessgraph.v1.SearchMode" json:"search_mode,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	SearchMode SearchMode `protobuf:"varint,15,opt,name=search_mode,json=searchMode,proto3,enum=accessgraph.v1.SearchMode" json:"search_mode,omitempty"`
+	// filter_needs_further_review_reasons restricts results to sessions that have
+	// at least one of the given review reasons. An empty list disables this filter.
+	FilterNeedsFurtherReviewReasons []v1.NeedsReviewReason `protobuf:"varint,16,rep,packed,name=filter_needs_further_review_reasons,json=filterNeedsFurtherReviewReasons,proto3,enum=teleport.summarizer.v1.NeedsReviewReason" json:"filter_needs_further_review_reasons,omitempty"`
+	unknownFields                   protoimpl.UnknownFields
+	sizeCache                       protoimpl.SizeCache
 }
 
 func (x *SearchSessionSummariesParams) Reset() {
@@ -563,6 +566,13 @@ func (x *SearchSessionSummariesParams) GetSearchMode() SearchMode {
 	return SearchMode_SEARCH_MODE_UNSPECIFIED
 }
 
+func (x *SearchSessionSummariesParams) GetFilterNeedsFurtherReviewReasons() []v1.NeedsReviewReason {
+	if x != nil {
+		return x.FilterNeedsFurtherReviewReasons
+	}
+	return nil
+}
+
 func (x *SearchSessionSummariesParams) SetStartTime(v *timestamppb.Timestamp) {
 	x.StartTime = v
 }
@@ -621,6 +631,10 @@ func (x *SearchSessionSummariesParams) SetResumeToken(v string) {
 
 func (x *SearchSessionSummariesParams) SetSearchMode(v SearchMode) {
 	x.SearchMode = v
+}
+
+func (x *SearchSessionSummariesParams) SetFilterNeedsFurtherReviewReasons(v []v1.NeedsReviewReason) {
+	x.FilterNeedsFurtherReviewReasons = v
 }
 
 func (x *SearchSessionSummariesParams) HasStartTime() bool {
@@ -755,6 +769,9 @@ type SearchSessionSummariesParams_builder struct {
 	// the full hybrid pipeline. SEARCH_MODE_KEYWORD_ONLY uses only full-text
 	// matching; SEARCH_MODE_EMBEDDING_ONLY uses only vector similarity.
 	SearchMode SearchMode
+	// filter_needs_further_review_reasons restricts results to sessions that have
+	// at least one of the given review reasons. An empty list disables this filter.
+	FilterNeedsFurtherReviewReasons []v1.NeedsReviewReason
 }
 
 func (b0 SearchSessionSummariesParams_builder) Build() *SearchSessionSummariesParams {
@@ -776,6 +793,7 @@ func (b0 SearchSessionSummariesParams_builder) Build() *SearchSessionSummariesPa
 	x.MaxSummaries = b.MaxSummaries
 	x.ResumeToken = b.ResumeToken
 	x.SearchMode = b.SearchMode
+	x.FilterNeedsFurtherReviewReasons = b.FilterNeedsFurtherReviewReasons
 	return m0
 }
 
@@ -1757,9 +1775,13 @@ type SessionSummary struct {
 	// session_end is the timestamp when the session ended.
 	SessionEnd *timestamppb.Timestamp `protobuf:"bytes,16,opt,name=session_end,json=sessionEnd,proto3" json:"session_end,omitempty"`
 	// host_id is the unique identifier of the host where the session occurred.
-	HostId        string `protobuf:"bytes,17,opt,name=host_id,json=hostId,proto3" json:"host_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	HostId string `protobuf:"bytes,17,opt,name=host_id,json=hostId,proto3" json:"host_id,omitempty"`
+	// needs_further_review_reasons contains the reasons why this session was
+	// flagged as requiring further human review by the summarizer. Empty when the
+	// session was not flagged.
+	NeedsFurtherReviewReasons []v1.NeedsReviewReason `protobuf:"varint,18,rep,packed,name=needs_further_review_reasons,json=needsFurtherReviewReasons,proto3,enum=teleport.summarizer.v1.NeedsReviewReason" json:"needs_further_review_reasons,omitempty"`
+	unknownFields             protoimpl.UnknownFields
+	sizeCache                 protoimpl.SizeCache
 }
 
 func (x *SessionSummary) Reset() {
@@ -1906,6 +1928,13 @@ func (x *SessionSummary) GetHostId() string {
 	return ""
 }
 
+func (x *SessionSummary) GetNeedsFurtherReviewReasons() []v1.NeedsReviewReason {
+	if x != nil {
+		return x.NeedsFurtherReviewReasons
+	}
+	return nil
+}
+
 func (x *SessionSummary) SetSessionId(v string) {
 	x.SessionId = v
 }
@@ -1972,6 +2001,10 @@ func (x *SessionSummary) SetSessionEnd(v *timestamppb.Timestamp) {
 
 func (x *SessionSummary) SetHostId(v string) {
 	x.HostId = v
+}
+
+func (x *SessionSummary) SetNeedsFurtherReviewReasons(v []v1.NeedsReviewReason) {
+	x.NeedsFurtherReviewReasons = v
 }
 
 func (x *SessionSummary) HasSessionStart() bool {
@@ -2076,6 +2109,10 @@ type SessionSummary_builder struct {
 	SessionEnd *timestamppb.Timestamp
 	// host_id is the unique identifier of the host where the session occurred.
 	HostId string
+	// needs_further_review_reasons contains the reasons why this session was
+	// flagged as requiring further human review by the summarizer. Empty when the
+	// session was not flagged.
+	NeedsFurtherReviewReasons []v1.NeedsReviewReason
 }
 
 func (b0 SessionSummary_builder) Build() *SessionSummary {
@@ -2099,6 +2136,7 @@ func (b0 SessionSummary_builder) Build() *SessionSummary {
 	x.SessionEndEvent = b.SessionEndEvent
 	x.SessionEnd = b.SessionEnd
 	x.HostId = b.HostId
+	x.NeedsFurtherReviewReasons = b.NeedsFurtherReviewReasons
 	return m0
 }
 
@@ -2150,9 +2188,13 @@ type StoreSessionSummaryRequest struct {
 	HostId string `protobuf:"bytes,17,opt,name=host_id,json=hostId,proto3" json:"host_id,omitempty"`
 	// embeddings are the semantic vector embeddings of the session summary,
 	// used for similarity-based search queries.
-	Embeddings    []*EmbeddingChunk `protobuf:"bytes,18,rep,name=embeddings,proto3" json:"embeddings,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Embeddings []*EmbeddingChunk `protobuf:"bytes,18,rep,name=embeddings,proto3" json:"embeddings,omitempty"`
+	// needs_further_review_reasons contains the reasons why this session needs
+	// further review, as determined by the summarizer. Empty when the session was
+	// not flagged.
+	NeedsFurtherReviewReasons []v1.NeedsReviewReason `protobuf:"varint,19,rep,packed,name=needs_further_review_reasons,json=needsFurtherReviewReasons,proto3,enum=teleport.summarizer.v1.NeedsReviewReason" json:"needs_further_review_reasons,omitempty"`
+	unknownFields             protoimpl.UnknownFields
+	sizeCache                 protoimpl.SizeCache
 }
 
 func (x *StoreSessionSummaryRequest) Reset() {
@@ -2306,6 +2348,13 @@ func (x *StoreSessionSummaryRequest) GetEmbeddings() []*EmbeddingChunk {
 	return nil
 }
 
+func (x *StoreSessionSummaryRequest) GetNeedsFurtherReviewReasons() []v1.NeedsReviewReason {
+	if x != nil {
+		return x.NeedsFurtherReviewReasons
+	}
+	return nil
+}
+
 func (x *StoreSessionSummaryRequest) SetSessionId(v string) {
 	x.SessionId = v
 }
@@ -2376,6 +2425,10 @@ func (x *StoreSessionSummaryRequest) SetHostId(v string) {
 
 func (x *StoreSessionSummaryRequest) SetEmbeddings(v []*EmbeddingChunk) {
 	x.Embeddings = v
+}
+
+func (x *StoreSessionSummaryRequest) SetNeedsFurtherReviewReasons(v []v1.NeedsReviewReason) {
+	x.NeedsFurtherReviewReasons = v
 }
 
 func (x *StoreSessionSummaryRequest) HasSessionStart() bool {
@@ -2480,6 +2533,10 @@ type StoreSessionSummaryRequest_builder struct {
 	// embeddings are the semantic vector embeddings of the session summary,
 	// used for similarity-based search queries.
 	Embeddings []*EmbeddingChunk
+	// needs_further_review_reasons contains the reasons why this session needs
+	// further review, as determined by the summarizer. Empty when the session was
+	// not flagged.
+	NeedsFurtherReviewReasons []v1.NeedsReviewReason
 }
 
 func (b0 StoreSessionSummaryRequest_builder) Build() *StoreSessionSummaryRequest {
@@ -2504,6 +2561,7 @@ func (b0 StoreSessionSummaryRequest_builder) Build() *StoreSessionSummaryRequest
 	x.SessionEndEvent = b.SessionEndEvent
 	x.HostId = b.HostId
 	x.Embeddings = b.Embeddings
+	x.NeedsFurtherReviewReasons = b.NeedsFurtherReviewReasons
 	return m0
 }
 
@@ -2925,7 +2983,7 @@ const file_accessgraph_v1_session_search_proto_rawDesc = "" +
 	"fetch_more\x18\x02 \x01(\v27.accessgraph.v1.SearchSessionSummariesRequest.FetchMoreH\x00R\tfetchMore\x1a0\n" +
 	"\tFetchMore\x12#\n" +
 	"\rmax_summaries\x18\x01 \x01(\rR\fmaxSummariesB\t\n" +
-	"\apayload\"\xa6\a\n" +
+	"\apayload\"\x9f\b\n" +
 	"\x1cSearchSessionSummariesParams\x129\n" +
 	"\n" +
 	"start_time\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\tstartTime\x125\n" +
@@ -2945,7 +3003,8 @@ const file_accessgraph_v1_session_search_proto_rawDesc = "" +
 	"\rmax_summaries\x18\r \x01(\rR\fmaxSummaries\x12!\n" +
 	"\fresume_token\x18\x0e \x01(\tR\vresumeToken\x12;\n" +
 	"\vsearch_mode\x18\x0f \x01(\x0e2\x1a.accessgraph.v1.SearchModeR\n" +
-	"searchMode\x1aA\n" +
+	"searchMode\x12w\n" +
+	"#filter_needs_further_review_reasons\x18\x10 \x03(\x0e2).teleport.summarizer.v1.NeedsReviewReasonR\x1ffilterNeedsFurtherReviewReasons\x1aA\n" +
 	"\x13ResourceLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B\v\n" +
@@ -2988,7 +3047,7 @@ const file_accessgraph_v1_session_search_proto_rawDesc = "" +
 	"\apayload\"{\n" +
 	"\x14SummaryAndCheckpoint\x128\n" +
 	"\asummary\x18\x01 \x01(\v2\x1e.accessgraph.v1.SessionSummaryR\asummary\x12)\n" +
-	"\x10checkpoint_token\x18\x02 \x01(\tR\x0fcheckpointToken\"\x85\a\n" +
+	"\x10checkpoint_token\x18\x02 \x01(\tR\x0fcheckpointToken\"\xf1\a\n" +
 	"\x0eSessionSummary\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x12\n" +
@@ -3012,10 +3071,11 @@ const file_accessgraph_v1_session_search_proto_rawDesc = "" +
 	"\x11session_end_event\x18\x0f \x01(\v2\x17.google.protobuf.StructR\x0fsessionEndEvent\x12;\n" +
 	"\vsession_end\x18\x10 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"sessionEnd\x12\x17\n" +
-	"\ahost_id\x18\x11 \x01(\tR\x06hostId\x1aA\n" +
+	"\ahost_id\x18\x11 \x01(\tR\x06hostId\x12j\n" +
+	"\x1cneeds_further_review_reasons\x18\x12 \x03(\x0e2).teleport.summarizer.v1.NeedsReviewReasonR\x19needsFurtherReviewReasons\x1aA\n" +
 	"\x13ResourceLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xdd\a\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xc9\b\n" +
 	"\x1aStoreSessionSummaryRequest\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\x12\x12\n" +
@@ -3042,7 +3102,8 @@ const file_accessgraph_v1_session_search_proto_rawDesc = "" +
 	"\ahost_id\x18\x11 \x01(\tR\x06hostId\x12>\n" +
 	"\n" +
 	"embeddings\x18\x12 \x03(\v2\x1e.accessgraph.v1.EmbeddingChunkR\n" +
-	"embeddings\x1aA\n" +
+	"embeddings\x12j\n" +
+	"\x1cneeds_further_review_reasons\x18\x13 \x03(\x0e2).teleport.summarizer.v1.NeedsReviewReasonR\x19needsFurtherReviewReasons\x1aA\n" +
 	"\x13ResourceLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"~\n" +
@@ -3101,7 +3162,8 @@ var file_accessgraph_v1_session_search_proto_goTypes = []any{
 	nil,                           // 21: accessgraph.v1.StoreSessionSummaryRequest.ResourceLabelsEntry
 	(*timestamppb.Timestamp)(nil), // 22: google.protobuf.Timestamp
 	(v1.RiskLevel)(0),             // 23: teleport.summarizer.v1.RiskLevel
-	(*structpb.Struct)(nil),       // 24: google.protobuf.Struct
+	(v1.NeedsReviewReason)(0),     // 24: teleport.summarizer.v1.NeedsReviewReason
+	(*structpb.Struct)(nil),       // 25: google.protobuf.Struct
 }
 var file_accessgraph_v1_session_search_proto_depIdxs = []int32{
 	3,  // 0: accessgraph.v1.SearchSessionSummariesRequest.search_params:type_name -> accessgraph.v1.SearchSessionSummariesParams
@@ -3113,39 +3175,42 @@ var file_accessgraph_v1_session_search_proto_depIdxs = []int32{
 	23, // 6: accessgraph.v1.SearchSessionSummariesParams.severity:type_name -> teleport.summarizer.v1.RiskLevel
 	4,  // 7: accessgraph.v1.SearchSessionSummariesParams.search_queries:type_name -> accessgraph.v1.EmbeddedQuery
 	0,  // 8: accessgraph.v1.SearchSessionSummariesParams.search_mode:type_name -> accessgraph.v1.SearchMode
-	6,  // 9: accessgraph.v1.ResourceProperties.ssh:type_name -> accessgraph.v1.SSHProperties
-	7,  // 10: accessgraph.v1.ResourceProperties.kubernetes:type_name -> accessgraph.v1.KubernetesProperties
-	8,  // 11: accessgraph.v1.ResourceProperties.database:type_name -> accessgraph.v1.DatabaseProperties
-	10, // 12: accessgraph.v1.SearchSessionSummariesResponse.summary:type_name -> accessgraph.v1.SummaryAndCheckpoint
-	19, // 13: accessgraph.v1.SearchSessionSummariesResponse.batch_complete:type_name -> accessgraph.v1.SearchSessionSummariesResponse.BatchComplete
-	11, // 14: accessgraph.v1.SummaryAndCheckpoint.summary:type_name -> accessgraph.v1.SessionSummary
-	22, // 15: accessgraph.v1.SessionSummary.session_start:type_name -> google.protobuf.Timestamp
-	24, // 16: accessgraph.v1.SessionSummary.user_traits:type_name -> google.protobuf.Struct
-	20, // 17: accessgraph.v1.SessionSummary.resource_labels:type_name -> accessgraph.v1.SessionSummary.ResourceLabelsEntry
-	5,  // 18: accessgraph.v1.SessionSummary.resource_properties:type_name -> accessgraph.v1.ResourceProperties
-	23, // 19: accessgraph.v1.SessionSummary.severity:type_name -> teleport.summarizer.v1.RiskLevel
-	24, // 20: accessgraph.v1.SessionSummary.session_end_event:type_name -> google.protobuf.Struct
-	22, // 21: accessgraph.v1.SessionSummary.session_end:type_name -> google.protobuf.Timestamp
-	22, // 22: accessgraph.v1.StoreSessionSummaryRequest.session_start:type_name -> google.protobuf.Timestamp
-	22, // 23: accessgraph.v1.StoreSessionSummaryRequest.session_end:type_name -> google.protobuf.Timestamp
-	24, // 24: accessgraph.v1.StoreSessionSummaryRequest.user_traits:type_name -> google.protobuf.Struct
-	21, // 25: accessgraph.v1.StoreSessionSummaryRequest.resource_labels:type_name -> accessgraph.v1.StoreSessionSummaryRequest.ResourceLabelsEntry
-	5,  // 26: accessgraph.v1.StoreSessionSummaryRequest.resource_properties:type_name -> accessgraph.v1.ResourceProperties
-	23, // 27: accessgraph.v1.StoreSessionSummaryRequest.severity:type_name -> teleport.summarizer.v1.RiskLevel
-	24, // 28: accessgraph.v1.StoreSessionSummaryRequest.session_end_event:type_name -> google.protobuf.Struct
-	13, // 29: accessgraph.v1.StoreSessionSummaryRequest.embeddings:type_name -> accessgraph.v1.EmbeddingChunk
-	1,  // 30: accessgraph.v1.IsSessionSearchEnabledResponse.availability:type_name -> accessgraph.v1.SessionSearchAvailability
-	2,  // 31: accessgraph.v1.SessionRecordingService.SearchSessionSummaries:input_type -> accessgraph.v1.SearchSessionSummariesRequest
-	12, // 32: accessgraph.v1.SessionRecordingService.StoreSessionSummary:input_type -> accessgraph.v1.StoreSessionSummaryRequest
-	15, // 33: accessgraph.v1.SessionRecordingService.IsSessionSearchEnabled:input_type -> accessgraph.v1.IsSessionSearchEnabledRequest
-	9,  // 34: accessgraph.v1.SessionRecordingService.SearchSessionSummaries:output_type -> accessgraph.v1.SearchSessionSummariesResponse
-	14, // 35: accessgraph.v1.SessionRecordingService.StoreSessionSummary:output_type -> accessgraph.v1.StoreSessionSummaryResponse
-	16, // 36: accessgraph.v1.SessionRecordingService.IsSessionSearchEnabled:output_type -> accessgraph.v1.IsSessionSearchEnabledResponse
-	34, // [34:37] is the sub-list for method output_type
-	31, // [31:34] is the sub-list for method input_type
-	31, // [31:31] is the sub-list for extension type_name
-	31, // [31:31] is the sub-list for extension extendee
-	0,  // [0:31] is the sub-list for field type_name
+	24, // 9: accessgraph.v1.SearchSessionSummariesParams.filter_needs_further_review_reasons:type_name -> teleport.summarizer.v1.NeedsReviewReason
+	6,  // 10: accessgraph.v1.ResourceProperties.ssh:type_name -> accessgraph.v1.SSHProperties
+	7,  // 11: accessgraph.v1.ResourceProperties.kubernetes:type_name -> accessgraph.v1.KubernetesProperties
+	8,  // 12: accessgraph.v1.ResourceProperties.database:type_name -> accessgraph.v1.DatabaseProperties
+	10, // 13: accessgraph.v1.SearchSessionSummariesResponse.summary:type_name -> accessgraph.v1.SummaryAndCheckpoint
+	19, // 14: accessgraph.v1.SearchSessionSummariesResponse.batch_complete:type_name -> accessgraph.v1.SearchSessionSummariesResponse.BatchComplete
+	11, // 15: accessgraph.v1.SummaryAndCheckpoint.summary:type_name -> accessgraph.v1.SessionSummary
+	22, // 16: accessgraph.v1.SessionSummary.session_start:type_name -> google.protobuf.Timestamp
+	25, // 17: accessgraph.v1.SessionSummary.user_traits:type_name -> google.protobuf.Struct
+	20, // 18: accessgraph.v1.SessionSummary.resource_labels:type_name -> accessgraph.v1.SessionSummary.ResourceLabelsEntry
+	5,  // 19: accessgraph.v1.SessionSummary.resource_properties:type_name -> accessgraph.v1.ResourceProperties
+	23, // 20: accessgraph.v1.SessionSummary.severity:type_name -> teleport.summarizer.v1.RiskLevel
+	25, // 21: accessgraph.v1.SessionSummary.session_end_event:type_name -> google.protobuf.Struct
+	22, // 22: accessgraph.v1.SessionSummary.session_end:type_name -> google.protobuf.Timestamp
+	24, // 23: accessgraph.v1.SessionSummary.needs_further_review_reasons:type_name -> teleport.summarizer.v1.NeedsReviewReason
+	22, // 24: accessgraph.v1.StoreSessionSummaryRequest.session_start:type_name -> google.protobuf.Timestamp
+	22, // 25: accessgraph.v1.StoreSessionSummaryRequest.session_end:type_name -> google.protobuf.Timestamp
+	25, // 26: accessgraph.v1.StoreSessionSummaryRequest.user_traits:type_name -> google.protobuf.Struct
+	21, // 27: accessgraph.v1.StoreSessionSummaryRequest.resource_labels:type_name -> accessgraph.v1.StoreSessionSummaryRequest.ResourceLabelsEntry
+	5,  // 28: accessgraph.v1.StoreSessionSummaryRequest.resource_properties:type_name -> accessgraph.v1.ResourceProperties
+	23, // 29: accessgraph.v1.StoreSessionSummaryRequest.severity:type_name -> teleport.summarizer.v1.RiskLevel
+	25, // 30: accessgraph.v1.StoreSessionSummaryRequest.session_end_event:type_name -> google.protobuf.Struct
+	13, // 31: accessgraph.v1.StoreSessionSummaryRequest.embeddings:type_name -> accessgraph.v1.EmbeddingChunk
+	24, // 32: accessgraph.v1.StoreSessionSummaryRequest.needs_further_review_reasons:type_name -> teleport.summarizer.v1.NeedsReviewReason
+	1,  // 33: accessgraph.v1.IsSessionSearchEnabledResponse.availability:type_name -> accessgraph.v1.SessionSearchAvailability
+	2,  // 34: accessgraph.v1.SessionRecordingService.SearchSessionSummaries:input_type -> accessgraph.v1.SearchSessionSummariesRequest
+	12, // 35: accessgraph.v1.SessionRecordingService.StoreSessionSummary:input_type -> accessgraph.v1.StoreSessionSummaryRequest
+	15, // 36: accessgraph.v1.SessionRecordingService.IsSessionSearchEnabled:input_type -> accessgraph.v1.IsSessionSearchEnabledRequest
+	9,  // 37: accessgraph.v1.SessionRecordingService.SearchSessionSummaries:output_type -> accessgraph.v1.SearchSessionSummariesResponse
+	14, // 38: accessgraph.v1.SessionRecordingService.StoreSessionSummary:output_type -> accessgraph.v1.StoreSessionSummaryResponse
+	16, // 39: accessgraph.v1.SessionRecordingService.IsSessionSearchEnabled:output_type -> accessgraph.v1.IsSessionSearchEnabledResponse
+	37, // [37:40] is the sub-list for method output_type
+	34, // [34:37] is the sub-list for method input_type
+	34, // [34:34] is the sub-list for extension type_name
+	34, // [34:34] is the sub-list for extension extendee
+	0,  // [0:34] is the sub-list for field type_name
 }
 
 func init() { file_accessgraph_v1_session_search_proto_init() }
