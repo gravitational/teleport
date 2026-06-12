@@ -2647,6 +2647,24 @@ export const formatters: Formatters = {
     format: ({ name, user }) =>
       `Retrieval Model [${name}] was deleted by [${user}]`,
   },
+  [eventCodes.CLASSIFIER_CREATE]: {
+    type: 'classifier.create',
+    desc: 'Classifier Created',
+    format: ({ name, user }) =>
+      `Classifier [${name}] was created by [${user}]`,
+  },
+  [eventCodes.CLASSIFIER_UPDATE]: {
+    type: 'classifier.update',
+    desc: 'Classifier Updated',
+    format: ({ name, user }) =>
+      `Classifier [${name}] was updated by [${user}]`,
+  },
+  [eventCodes.CLASSIFIER_DELETE]: {
+    type: 'classifier.delete',
+    desc: 'Classifier Deleted',
+    format: ({ name, user }) =>
+      `Classifier [${name}] was deleted by [${user}]`,
+  },
   [eventCodes.SESSION_SUMMARIZED]: {
     type: 'session.summarized',
     desc: 'Session Summarized',
