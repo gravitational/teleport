@@ -61,6 +61,7 @@ type configureMigrateFlags struct {
 	labels            []string
 	diff              bool
 	force             bool
+	test              bool
 	parsedDisable     []string
 	parsedLabels      map[string]string
 	stdout            io.Writer
@@ -172,6 +173,19 @@ func onConfigureMigrate(flags configureMigrateFlags) error {
 	for _, change := range result.LogPathsChanged {
 		fmt.Fprintf(flags.stderr, "NOTICE: rewrote %s from %q to %q to avoid log-file collisions.\n", change.Path, change.Old, change.New)
 	}
+	if result.PIDFileChanged != nil {
+		change := result.PIDFileChanged
+		fmt.Fprintf(flags.stderr, "NOTICE: rewrote %s from %q to %q to avoid PID-file collisions.\n", change.Path, change.Old, change.New)
+	}
+	for _, service := range result.DisableServicesNotFound {
+		fmt.Fprintf(flags.stderr, "NOTICE: --disable-services=%s was requested, but no matching service section exists.\n", service)
+	}
+	for _, warning := range result.ListenerWarnings {
+		fmt.Fprintf(flags.stderr, "WARNING: %s.\n", warning)
+	}
+	for _, notice := range result.Notices {
+		fmt.Fprintf(flags.stderr, "NOTICE: %s.\n", notice)
+	}
 	if types.JoinMethod(flags.joinMethod) == types.JoinMethodBoundKeypair {
 		fmt.Fprintln(flags.stderr, "NOTICE: bound_keypair joins require the registration secret step outside this command.")
 	}
@@ -202,6 +216,10 @@ func onConfigureMigrate(flags configureMigrateFlags) error {
 		}
 		_, err = fmt.Fprint(flags.stdout, diff)
 		return trace.Wrap(err)
+	}
+	if flags.test {
+		fmt.Fprintf(flags.stderr, "OK %s\n", flags.input)
+		return nil
 	}
 	if outputIsStdout {
 		redacted, err := result.Document.Redact(transform.DefaultRedactionRules()).Render()
@@ -318,7 +336,7 @@ func writeMigratedConfig(path string, raw []byte, force bool) error {
 	}
 	tempName := tempFile.Name()
 	defer os.Remove(tempName)
-	if err := tempFile.Chmod(0o640); err != nil {
+	if err := tempFile.Chmod(0o600); err != nil {
 		tempFile.Close()
 		return trace.Wrap(trace.ConvertSystemError(err), "error setting temporary config file permissions")
 	}

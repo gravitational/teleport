@@ -61,6 +61,9 @@ func TestConfigureMigrateWritesOverEmptyOutput(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, string(rendered), "token_secret: "+secretPath)
 	require.NotContains(t, string(rendered), "secret-value")
+	info, err := os.Stat(outputPath)
+	require.NoError(t, err)
+	require.Equal(t, os.FileMode(0o600), info.Mode().Perm())
 
 	fc, err := config.ReadFromFile(outputPath)
 	require.NoError(t, err)
@@ -93,6 +96,32 @@ func TestConfigureMigrateRefusesNonEmptyOutput(t *testing.T) {
 	})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "will not overwrite existing non-empty file")
+}
+
+func TestConfigureMigrateTestSuppressesWrite(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	inputPath := writeMigrateInput(t, dir)
+	outputPath := filepath.Join(dir, "teleport_scope.yaml")
+
+	var stderr bytes.Buffer
+	err := onConfigureMigrate(configureMigrateFlags{
+		input:           inputPath,
+		installSuffix:   "scope",
+		output:          "file://" + outputPath,
+		proxyServer:     "target.example.com:443",
+		joinMethod:      string(types.JoinMethodToken),
+		tokenName:       "scope-migrate-ip-10-2-4-17",
+		tokenSecretFile: filepath.Join(dir, "token-secret"),
+		dataDir:         filepath.Join(dir, "data"),
+		test:            true,
+		stdout:          &bytes.Buffer{},
+		stderr:          &stderr,
+	})
+	require.NoError(t, err)
+	require.Contains(t, stderr.String(), "OK "+inputPath)
+	require.NoFileExists(t, outputPath)
 }
 
 func TestConfigureMigrateDiffIsRedactedAndDoesNotWrite(t *testing.T) {

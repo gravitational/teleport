@@ -468,7 +468,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	configureMigrate.Flag("token-secret-file", "Path to a file containing the scoped token secret. Required only for --join-method=token.").StringVar(&configureMigrateFlags.tokenSecretFile)
 	configureMigrate.Flag("disable-services", "Comma-separated list of services to disable: ssh,kube,app,db,discovery,windows_desktop,okta,jamf,debug.").StringVar(&configureMigrateFlags.disableServices)
 	configureMigrate.Flag("label", "Static SSH label to add in key=value form. Can be repeated.").StringsVar(&configureMigrateFlags.labels)
-	configureMigrate.Flag("diff", "Print a redacted unified diff and write nothing. Listener conflicts fail; log file conflicts are shown as rewrites.").BoolVar(&configureMigrateFlags.diff)
+	configureMigrate.Flag("diff", "Print a redacted unified diff and write nothing. Listener conflicts are shown as warnings; log file conflicts are shown as rewrites.").BoolVar(&configureMigrateFlags.diff)
 	configureMigrate.Flag("force", "Allow overwriting an existing non-empty output file.").BoolVar(&configureMigrateFlags.force)
 
 	ver.Flag("raw", "Print the raw teleport version string.").BoolVar(&rawVersion)
@@ -773,6 +773,10 @@ Examples:
 		}
 		if dumpFlags.dataDirSet {
 			configureMigrateFlags.dataDir = dumpFlags.DataDir
+		}
+		if dumpFlags.testConfigFile != "" {
+			configureMigrateFlags.input = dumpFlags.testConfigFile
+			configureMigrateFlags.test = true
 		}
 		configureMigrateFlags.authServer = dumpFlags.AuthServer
 		configureMigrateFlags.joinMethod = dumpFlags.JoinMethod

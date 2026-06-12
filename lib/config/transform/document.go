@@ -157,18 +157,19 @@ func (d *Document) Redact(rules []RedactRule) *Document {
 	return out
 }
 
-// Diff returns a unified diff of two rendered documents.
+// Diff returns a redacted unified diff of two rendered documents.
 func (d *Document) Diff(other *Document) (string, error) {
 	return DiffDocuments(d, other, "before", "after")
 }
 
-// DiffDocuments returns a unified diff of two rendered documents with headers.
+// DiffDocuments returns a redacted unified diff of two rendered documents with
+// headers.
 func DiffDocuments(before, after *Document, beforeName, afterName string) (string, error) {
-	beforeRaw, err := before.Render()
+	beforeRaw, err := before.Redact(DefaultRedactionRules()).Render()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	afterRaw, err := after.Render()
+	afterRaw, err := after.Redact(DefaultRedactionRules()).Render()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

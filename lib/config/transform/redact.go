@@ -28,7 +28,7 @@ func DefaultRedactionRules() []RedactRule {
 		{Path: []string{"teleport", "token"}, Mode: RedactFull},
 		{Path: []string{"teleport", "join_params", "token_secret"}, Mode: RedactFull},
 		{Path: []string{"teleport", "join_params", "bound_keypair", "registration_secret_value"}, Mode: RedactFull},
-		{Path: []string{"teleport", "join_params", "token_name"}, Mode: RedactTokenName},
+		{Path: []string{"teleport", "join_params", "token_name"}, Mode: RedactFull},
 	}
 }
 

@@ -19,7 +19,6 @@
 package transform
 
 import (
-	"net"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -28,7 +27,6 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/defaults"
 )
 
 // MigrateParams controls ApplyMigration.
@@ -46,11 +44,14 @@ type MigrateParams struct {
 
 // MigrationResult describes a migrated config and the edits made to it.
 type MigrationResult struct {
-	Document         *Document
-	FieldsRemoved    []string
-	ServicesDisabled []string
-	LogPathsChanged  []PathChange
-	Notices          []string
+	Document                *Document
+	FieldsRemoved           []string
+	ServicesDisabled        []string
+	DisableServicesNotFound []string
+	LogPathsChanged         []PathChange
+	PIDFileChanged          *PathChange
+	ListenerWarnings        []string
+	Notices                 []string
 }
 
 // PathChange describes a value changed at a YAML path.
@@ -62,7 +63,7 @@ type PathChange struct {
 
 var disableServiceSections = map[string]string{
 	"ssh":             "ssh_service",
-	"kube":            "kube_service",
+	"kube":            "kubernetes_service",
 	"app":             "app_service",
 	"db":              "db_service",
 	"discovery":       "discovery_service",
@@ -92,9 +93,9 @@ func ApplyMigration(doc *Document, p MigrateParams) (*MigrationResult, error) {
 	out := doc.Clone()
 	result := &MigrationResult{Document: out}
 
-	oldDataDir := defaults.DataDir
-	if dataDirNode, ok := out.Get("teleport", "data_dir"); ok && dataDirNode.Value != "" {
-		oldDataDir = dataDirNode.Value
+	var oldPIDFile string
+	if pidFile, ok := out.Get("teleport", "pid_file"); ok {
+		oldPIDFile = strings.TrimSpace(pidFile.Value)
 	}
 
 	for _, path := range [][]string{
@@ -106,14 +107,11 @@ func ApplyMigration(doc *Document, p MigrateParams) (*MigrationResult, error) {
 		{"teleport", "join_params"},
 		{"teleport", "ca_pin"},
 		{"teleport", "data_dir"},
+		{"teleport", "pid_file"},
 	} {
 		if out.Delete(path...) {
 			result.FieldsRemoved = append(result.FieldsRemoved, strings.Join(path, "."))
 		}
-	}
-
-	if out.pruneStorage(oldDataDir) {
-		result.FieldsRemoved = append(result.FieldsRemoved, "teleport.storage")
 	}
 
 	switch {
@@ -156,6 +154,10 @@ func ApplyMigration(doc *Document, p MigrateParams) (*MigrationResult, error) {
 		if !ok {
 			return nil, trace.BadParameter("unsupported service %q in disable services", service)
 		}
+		if _, ok := out.Get(section); !ok {
+			result.DisableServicesNotFound = append(result.DisableServicesNotFound, service)
+			continue
+		}
 		if err := out.Set(false, section, "enabled"); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -165,7 +167,7 @@ func ApplyMigration(doc *Document, p MigrateParams) (*MigrationResult, error) {
 	if err := out.mergeSSHLabels(p.ExtraSSHLabels); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := out.resolveConflicts(p.InstallSuffix, result); err != nil {
+	if err := out.resolveConflicts(p.InstallSuffix, oldPIDFile, result); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return result, nil
@@ -173,6 +175,16 @@ func ApplyMigration(doc *Document, p MigrateParams) (*MigrationResult, error) {
 
 func (d *Document) mergeSSHLabels(labels map[string]string) error {
 	if len(labels) == 0 {
+		return nil
+	}
+	sshService, ok := d.Get("ssh_service")
+	if !ok {
+		return nil
+	}
+	if sshService.Kind != yaml.MappingNode {
+		return trace.BadParameter("ssh_service must be a mapping")
+	}
+	if !sectionEnabled(sshService) {
 		return nil
 	}
 	labelsNode, ok := d.Get("ssh_service", "labels")
@@ -186,7 +198,7 @@ func (d *Document) mergeSSHLabels(labels map[string]string) error {
 		return trace.BadParameter("ssh_service.labels must be a mapping")
 	}
 	for key, value := range labels {
-		if existing, ok := mappingValue(labelsNode, key); ok && existing.Value != value {
+		if existing, ok := mappingValue(labelsNode, key); ok {
 			return trace.BadParameter("ssh_service.labels.%s already has value %q", key, existing.Value)
 		}
 		setMappingValue(labelsNode, key, scalarString(value))
@@ -194,91 +206,19 @@ func (d *Document) mergeSSHLabels(labels map[string]string) error {
 	return nil
 }
 
-func (d *Document) pruneStorage(oldDataDir string) bool {
-	storage, ok := d.Get("teleport", "storage")
-	if !ok {
-		return false
-	}
-	pruned := pruneNodeReferences(storage, oldDataDir)
-	if isEmptyCollection(storage) {
-		d.Delete("teleport", "storage")
-		return true
-	}
-	return pruned
-}
-
-func pruneNodeReferences(node *yaml.Node, needle string) bool {
-	if needle == "" {
-		return false
-	}
-	switch node.Kind {
-	case yaml.MappingNode:
-		pruned := false
-		for i := 0; i+1 < len(node.Content); {
-			if nodeReferences(node.Content[i+1], needle) {
-				node.Content = append(node.Content[:i], node.Content[i+2:]...)
-				pruned = true
-				continue
-			}
-			if pruneNodeReferences(node.Content[i+1], needle) {
-				pruned = true
-			}
-			i += 2
-		}
-		return pruned
-	case yaml.SequenceNode:
-		pruned := false
-		for i := 0; i < len(node.Content); {
-			if nodeReferences(node.Content[i], needle) {
-				node.Content = append(node.Content[:i], node.Content[i+1:]...)
-				pruned = true
-				continue
-			}
-			if pruneNodeReferences(node.Content[i], needle) {
-				pruned = true
-			}
-			i++
-		}
-		return pruned
-	default:
-		return false
-	}
-}
-
-func nodeReferences(node *yaml.Node, needle string) bool {
-	switch node.Kind {
-	case yaml.ScalarNode:
-		return strings.Contains(node.Value, needle)
-	case yaml.MappingNode, yaml.SequenceNode:
-		for _, child := range node.Content {
-			if nodeReferences(child, needle) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func isEmptyCollection(node *yaml.Node) bool {
-	switch node.Kind {
-	case yaml.MappingNode, yaml.SequenceNode:
-		return len(node.Content) == 0
-	default:
-		return false
-	}
-}
-
-func (d *Document) resolveConflicts(installSuffix string, result *MigrationResult) error {
+func (d *Document) resolveConflicts(installSuffix, oldPIDFile string, result *MigrationResult) error {
 	if diagAddr, ok := d.Get("teleport", "diag_addr"); ok && strings.TrimSpace(diagAddr.Value) != "" {
-		return trace.BadParameter("teleport.diag_addr %q would be inherited by both agents; pass a different address or remove it%s", diagAddr.Value, diagAddrSuggestion(diagAddr.Value))
+		old := diagAddr.Value
+		d.Delete("teleport", "diag_addr")
+		result.FieldsRemoved = append(result.FieldsRemoved, "teleport.diag_addr")
+		result.Notices = append(result.Notices, "diag_addr removed from migrated config: would conflict with original agent ("+old+")")
 	}
 	if err := d.suffixLogPath(installSuffix, result); err != nil {
 		return trace.Wrap(err)
 	}
+	d.resolvePIDFile(installSuffix, oldPIDFile, result)
 	for section := range disableServiceSections {
-		if err := d.checkSectionListeners(disableServiceSections[section]); err != nil {
-			return trace.Wrap(err)
-		}
+		d.checkSectionListeners(disableServiceSections[section], result)
 	}
 	return nil
 }
@@ -304,14 +244,34 @@ func (d *Document) suffixLogPath(installSuffix string, result *MigrationResult) 
 		Old:  oldPath,
 		New:  newPath,
 	})
-	result.Notices = append(result.Notices, "rewrote teleport.log.output to avoid two agents writing the same log file")
 	return nil
 }
 
-func (d *Document) checkSectionListeners(section string) error {
+func (d *Document) resolvePIDFile(installSuffix, oldPath string, result *MigrationResult) {
+	if oldPath == "" {
+		return
+	}
+	if installSuffix == "" {
+		result.Notices = append(result.Notices, "removed teleport.pid_file to avoid two agents sharing the same PID file")
+		return
+	}
+	ext := filepath.Ext(oldPath)
+	newPath := strings.TrimSuffix(oldPath, ext) + "_" + installSuffix + ext
+	if err := d.Set(newPath, "teleport", "pid_file"); err != nil {
+		result.Notices = append(result.Notices, "removed teleport.pid_file to avoid two agents sharing the same PID file")
+		return
+	}
+	result.PIDFileChanged = &PathChange{
+		Path: "teleport.pid_file",
+		Old:  oldPath,
+		New:  newPath,
+	}
+}
+
+func (d *Document) checkSectionListeners(section string, result *MigrationResult) {
 	sectionNode, ok := d.Get(section)
 	if !ok || sectionNode.Kind != yaml.MappingNode {
-		return nil
+		return
 	}
 	for _, field := range listenerFields {
 		listenNode, ok := mappingValue(sectionNode, field)
@@ -319,10 +279,9 @@ func (d *Document) checkSectionListeners(section string) error {
 			continue
 		}
 		if sectionEnabled(sectionNode) {
-			return trace.BadParameter("%s.%s %q would be bound by both agents; pass a different address or remove it", section, field, listenNode.Value)
+			result.ListenerWarnings = append(result.ListenerWarnings, section+"."+field+" "+strconv.Quote(listenNode.Value)+" may be bound by both agents")
 		}
 	}
-	return nil
 }
 
 func sectionEnabled(sectionNode *yaml.Node) bool {
@@ -342,16 +301,4 @@ func sectionEnabled(sectionNode *yaml.Node) bool {
 		}
 		return parsed
 	}
-}
-
-func diagAddrSuggestion(addr string) string {
-	host, port, err := net.SplitHostPort(addr)
-	if err != nil {
-		return ""
-	}
-	portNum, err := strconv.Atoi(port)
-	if err != nil {
-		return ""
-	}
-	return "; for example, use " + net.JoinHostPort(host, strconv.Itoa(portNum+1))
 }

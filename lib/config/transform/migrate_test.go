@@ -19,7 +19,6 @@
 package transform
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -83,7 +82,7 @@ proxy_service:
 	require.Contains(t, rendered, "app_service:\n  enabled: no")
 	require.Contains(t, rendered, "output: /var/log/teleport_scope.log")
 	require.Contains(t, rendered, "scope: target")
-	require.NotContains(t, rendered, "/var/lib/teleport/backend")
+	require.Contains(t, rendered, "/var/lib/teleport/backend")
 	require.Contains(t, rendered, "keep: /srv/teleport-data")
 }
 
@@ -131,17 +130,17 @@ proxy_service:
 	require.NotContains(t, diff, "SUPERSECRET-B")
 	require.NotContains(t, diff, "SUPERSECRET-C")
 	require.NotContains(t, diff, "scope-migrate-ip-10-2-4-17")
-	require.Contains(t, diff, types.MaskTokenName("scope-migrate-ip-10-2-4-17"))
+	require.NotContains(t, diff, types.MaskTokenName("scope-migrate-ip-10-2-4-17"))
 	require.Contains(t, diff, "<redacted>")
 }
 
-func TestApplyMigrationConflicts(t *testing.T) {
+func TestApplyMigrationWarnings(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name  string
 		input string
-		want  string
+		check func(*testing.T, *MigrationResult)
 	}{
 		{
 			name: "diag addr",
@@ -152,7 +151,11 @@ teleport:
 ssh_service:
   enabled: yes
 `,
-			want: "teleport.diag_addr",
+			check: func(t *testing.T, result *MigrationResult) {
+				_, ok := result.Document.Get("teleport", "diag_addr")
+				require.False(t, ok)
+				require.Contains(t, result.Notices[0], "diag_addr removed")
+			},
 		},
 		{
 			name: "service listener",
@@ -163,19 +166,9 @@ ssh_service:
   enabled: yes
   listen_addr: 0.0.0.0:3022
 `,
-			want: "ssh_service.listen_addr",
-		},
-		{
-			name: "label conflict",
-			input: `
-version: v3
-teleport: {}
-ssh_service:
-  enabled: yes
-  labels:
-    scope: old
-`,
-			want: "ssh_service.labels.scope",
+			check: func(t *testing.T, result *MigrationResult) {
+				require.Contains(t, result.ListenerWarnings, `ssh_service.listen_addr "0.0.0.0:3022" may be bound by both agents`)
+			},
 		},
 	}
 
@@ -184,7 +177,7 @@ ssh_service:
 			t.Parallel()
 			doc, err := Load([]byte(tt.input))
 			require.NoError(t, err)
-			_, err = ApplyMigration(doc, MigrateParams{
+			result, err := ApplyMigration(doc, MigrateParams{
 				InstallSuffix:   "scope",
 				ProxyServer:     "target.example.com:443",
 				JoinMethod:      types.JoinMethodToken,
@@ -193,10 +186,89 @@ ssh_service:
 				DataDir:         "/var/lib/teleport_scope",
 				ExtraSSHLabels:  map[string]string{"scope": "target"},
 			})
-			require.Error(t, err)
-			require.Contains(t, err.Error(), tt.want)
+			require.NoError(t, err)
+			tt.check(t, result)
 		})
 	}
+}
+
+func TestApplyMigrationLabelConflict(t *testing.T) {
+	t.Parallel()
+
+	doc, err := Load([]byte(`
+version: v3
+teleport: {}
+ssh_service:
+  enabled: yes
+  labels:
+    scope: old
+`))
+	require.NoError(t, err)
+
+	_, err = ApplyMigration(doc, MigrateParams{
+		InstallSuffix:   "scope",
+		ProxyServer:     "target.example.com:443",
+		JoinMethod:      types.JoinMethodToken,
+		TokenName:       "scope-migrate-ip-10-2-4-17",
+		TokenSecretPath: "/var/run/migrate-token-secret",
+		DataDir:         "/var/lib/teleport_scope",
+		ExtraSSHLabels:  map[string]string{"scope": "target"},
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "ssh_service.labels.scope")
+}
+
+func TestApplyMigrationDisablesKubeService(t *testing.T) {
+	t.Parallel()
+
+	doc, err := Load([]byte(`
+version: v3
+teleport: {}
+kubernetes_service:
+  enabled: yes
+`))
+	require.NoError(t, err)
+
+	result, err := ApplyMigration(doc, MigrateParams{
+		InstallSuffix:   "scope",
+		ProxyServer:     "target.example.com:443",
+		JoinMethod:      types.JoinMethodToken,
+		TokenName:       "scope-migrate-ip-10-2-4-17",
+		TokenSecretPath: "/var/run/migrate-token-secret",
+		DataDir:         "/var/lib/teleport_scope",
+		DisableServices: []string{"kube"},
+	})
+	require.NoError(t, err)
+	renderedBytes, err := result.Document.Render()
+	require.NoError(t, err)
+	require.Contains(t, string(renderedBytes), "kubernetes_service:\n  enabled: no")
+	require.NotContains(t, string(renderedBytes), "kube_service:")
+}
+
+func TestApplyMigrationPIDFileIsSuffixed(t *testing.T) {
+	t.Parallel()
+
+	doc, err := Load([]byte(`
+version: v3
+teleport:
+  pid_file: /run/teleport.pid
+`))
+	require.NoError(t, err)
+
+	result, err := ApplyMigration(doc, MigrateParams{
+		InstallSuffix:   "scope",
+		ProxyServer:     "target.example.com:443",
+		JoinMethod:      types.JoinMethodToken,
+		TokenName:       "scope-migrate-ip-10-2-4-17",
+		TokenSecretPath: "/var/run/migrate-token-secret",
+		DataDir:         "/var/lib/teleport_scope",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, result.PIDFileChanged)
+	require.Equal(t, "/run/teleport_scope.pid", result.PIDFileChanged.New)
+	pidFile, ok := result.Document.Get("teleport", "pid_file")
+	require.True(t, ok)
+	require.Equal(t, "/run/teleport_scope.pid", pidFile.Value)
 }
 
 func TestRedactStdoutRender(t *testing.T) {
@@ -214,5 +286,5 @@ teleport:
 	redacted := string(redactedBytes)
 	require.NotContains(t, redacted, "SUPERSECRET")
 	require.NotContains(t, redacted, "abcdefghijklmnop")
-	require.True(t, strings.Contains(redacted, "************mnop"))
+	require.NotContains(t, redacted, "************mnop")
 }

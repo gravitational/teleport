@@ -192,7 +192,7 @@ Flags:
 |`--input`|`/etc/teleport.yaml`|Path to the existing Teleport configuration file \[/etc/teleport.yaml\].|
 |`--install-suffix`|*no default*|Suffix used by teleport-update --install-suffix.|
 |`--label`|*no default*|Static SSH label to add in key=value form. Can be repeated.|
-|`--[no-]diff`|`false`|Print a redacted unified diff and write nothing. Listener conflicts fail; log file conflicts are shown as rewrites.|
+|`--[no-]diff`|`false`|Print a redacted unified diff and write nothing. Listener conflicts are shown as warnings; log file conflicts are shown as rewrites.|
 |`--[no-]force`|`false`|Allow overwriting an existing non-empty output file.|
 |`--proxy-server`|*no default*|Target cluster proxy server address.|
 |`--token-name`|*no default*|Scoped token stable name.|
@@ -945,4 +945,3 @@ Flags:
 |Flag|Default|Description|
 |---|---|---|
 |`--[no-]raw`|`false`|Print the raw teleport version string.|
-
