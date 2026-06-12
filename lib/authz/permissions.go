@@ -1396,7 +1396,7 @@ func unscopedDefinitionForBuiltinRole(clusterName string, recConfig readonly.Ses
 						types.NewRule(types.KindRole, services.RO()),
 						types.NewRule(types.KindNamespace, services.RO()),
 						types.NewRule(types.KindLock, services.RO()),
-						types.NewRule(types.KindLinuxDesktop, services.RW()),
+						types.NewRule(types.KindLinuxDesktop, services.RO()),
 					},
 				},
 			})
