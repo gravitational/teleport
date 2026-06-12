@@ -208,7 +208,7 @@ version: v3
 teleport: {}
 `,
 			labels:    map[string]string{"scope": "target"},
-			errString: "cannot place labels: ssh_service is disabled; marker labels are required for verify/decommission",
+			errString: "cannot place labels: ssh_service is not configured; marker labels are required for verify/decommission",
 		},
 		{
 			name: "disabled ssh service with labels errors",
@@ -284,6 +284,95 @@ ssh_service:
 				require.NoError(t, err)
 				require.Contains(t, string(renderedBytes), tt.want)
 			}
+		})
+	}
+}
+
+func TestApplyMigrationOriginalConfigEdgeCases(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		input     string
+		labels    map[string]string
+		want      string
+		errString string
+	}{
+		{
+			name: "minimal original config without ssh labels",
+			input: `
+version: v3
+`,
+			want: "proxy_server: target.example.com:443",
+		},
+		{
+			name: "non-mapping ssh service rejects labels",
+			input: `
+version: v3
+teleport: {}
+ssh_service: yes
+`,
+			labels:    map[string]string{"scope": "target"},
+			errString: "ssh_service must be a mapping",
+		},
+		{
+			name: "non-mapping ssh labels rejects extra labels",
+			input: `
+version: v3
+teleport: {}
+ssh_service:
+  enabled: yes
+  labels:
+    - env=prod
+`,
+			labels:    map[string]string{"scope": "target"},
+			errString: "ssh_service.labels must be a mapping",
+		},
+		{
+			name: "numeric disabled ssh service rejects labels",
+			input: `
+version: v3
+teleport: {}
+ssh_service:
+  enabled: 0
+`,
+			labels:    map[string]string{"scope": "target"},
+			errString: "cannot place labels: ssh_service is disabled; marker labels are required for verify/decommission",
+		},
+		{
+			name: "teleport section scalar is rejected while setting proxy",
+			input: `
+version: v3
+teleport: true
+`,
+			errString: `path "teleport" is not a mapping`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			doc, err := Load([]byte(tt.input))
+			require.NoError(t, err)
+			result, err := ApplyMigration(doc, MigrateParams{
+				InstallSuffix:   "scope",
+				ProxyServer:     "target.example.com:443",
+				JoinMethod:      types.JoinMethodToken,
+				TokenName:       "scope-migrate-ip-10-2-4-17",
+				TokenSecretPath: "/var/run/migrate-token-secret",
+				DataDir:         "/var/lib/teleport_scope",
+				ExtraSSHLabels:  tt.labels,
+			})
+			if tt.errString != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tt.errString)
+				return
+			}
+			require.NoError(t, err)
+			renderedBytes, err := result.Document.Render()
+			require.NoError(t, err)
+			require.Contains(t, string(renderedBytes), tt.want)
 		})
 	}
 }

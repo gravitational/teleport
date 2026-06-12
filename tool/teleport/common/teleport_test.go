@@ -26,6 +26,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -320,8 +321,14 @@ func TestConfigureHelpHidesDefaultChild(t *testing.T) {
 	out, _ := cmd.CombinedOutput()
 	output := string(out)
 	require.Contains(t, output, "usage: teleport configure")
-	require.Contains(t, output, "migrate")
-	require.NotContains(t, output, "\ndump")
+	commandsStart := strings.Index(output, "Commands:")
+	require.NotEqual(t, -1, commandsStart)
+	commands := output[commandsStart:]
+	if flagsStart := strings.Index(commands, "\n\nFlags:"); flagsStart >= 0 {
+		commands = commands[:flagsStart]
+	}
+	require.Regexp(t, regexp.MustCompile(`(?m)^\s+migrate\s+`), commands)
+	require.NotRegexp(t, regexp.MustCompile(`(?m)^\s+dump\s+`), commands)
 }
 
 func captureRunOutput(t *testing.T, args []string) (stdout string, stderr string, command string) {

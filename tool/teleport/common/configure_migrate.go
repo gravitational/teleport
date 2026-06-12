@@ -120,6 +120,9 @@ func (f *configureMigrateFlags) CheckAndSetDefaults() error {
 		f.normalizedDataDir = f.dataDir
 	}
 	if f.output == "" || f.output == teleport.SchemeFile {
+		if f.installSuffix == "" {
+			return trace.BadParameter("--install-suffix is required when --output=file uses the default migrated config path")
+		}
 		f.normalizedOutput = teleport.SchemeFile + "://" + defaultMigrateConfigPath(f.installSuffix)
 	} else if f.output == teleport.SchemeStdout {
 		f.normalizedOutput = teleport.SchemeStdout + "://"
@@ -366,13 +369,14 @@ func wouldRefuseOverwrite(path string) (bool, error) {
 	return false, trace.Wrap(trace.ConvertSystemError(err), "failed reading existing output file %q", path)
 }
 
+// Keep the suffixed paths and validation below in sync with
+// lib/autoupdate/agent.NewNamespace. validateInstallSuffix is intentionally
+// stricter than NewNamespace's regex for leading hyphens.
 func defaultMigrateConfigPath(suffix string) string {
-	// Keep this in sync with lib/autoupdate/agent.NewNamespace.
 	return filepath.Join(filepath.Dir(defaults.ConfigFilePath), "teleport_"+suffix+".yaml")
 }
 
 func defaultMigrateDataDir(suffix string) string {
-	// Keep this in sync with lib/autoupdate/agent.NewNamespace.
 	return filepath.Join(filepath.Dir(defaults.DataDir), "teleport_"+suffix)
 }
 

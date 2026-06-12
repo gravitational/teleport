@@ -204,6 +204,16 @@ func TestConfigureMigrateFlagValidation(t *testing.T) {
 	iamNoSecret := base
 	iamNoSecret.joinMethod = string(types.JoinMethodIAM)
 	require.NoError(t, iamNoSecret.CheckAndSetDefaults())
+
+	fileDefaultNoSuffix := base
+	fileDefaultNoSuffix.installSuffix = ""
+	fileDefaultNoSuffix.output = "file"
+	fileDefaultNoSuffix.dataDir = "/tmp/data"
+	fileDefaultNoSuffix.joinMethod = string(types.JoinMethodToken)
+	fileDefaultNoSuffix.tokenSecretFile = "/tmp/secret"
+	err := fileDefaultNoSuffix.CheckAndSetDefaults()
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "--install-suffix is required when --output=file uses the default migrated config path")
 }
 
 func TestConfigureMigrateInstallSuffixValidation(t *testing.T) {

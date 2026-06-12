@@ -34,7 +34,8 @@ type Document struct {
 	node *yaml.Node
 }
 
-// RedactMode determines how a matched node is redacted.
+// RedactMode determines how a matched node is redacted; kept as an extension
+// point for future redaction strategies.
 type RedactMode int
 
 const (

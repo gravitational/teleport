@@ -181,7 +181,7 @@ func (d *Document) mergeSSHLabels(labels map[string]string) error {
 	}
 	sshService, ok := d.Get("ssh_service")
 	if !ok {
-		return trace.BadParameter("cannot place labels: ssh_service is disabled; marker labels are required for verify/decommission")
+		return trace.BadParameter("cannot place labels: ssh_service is not configured; marker labels are required for verify/decommission")
 	}
 	if sshService.Kind != yaml.MappingNode {
 		return trace.BadParameter("ssh_service must be a mapping")
