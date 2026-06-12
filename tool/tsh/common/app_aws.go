@@ -19,11 +19,15 @@
 package common
 
 import (
+	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
+	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -218,6 +222,51 @@ func printAWSRoles(w io.Writer, roles awsutils.Roles) {
 	fmt.Fprintln(w, t.AsBuffer().String())
 }
 
+func promptRoles(r io.Reader, w io.Writer, roles awsutils.Roles) (awsutils.Role, error) {
+	if len(roles) == 0 {
+		return awsutils.Role{}, trace.BadParameter("no AWS roles are available for this app")
+	}
+
+	for {
+		role, err := promtRole(r, w, roles)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return awsutils.Role{}, err
+			}
+
+			fmt.Fprintln(w, err.Error())
+			continue
+		}
+
+		return role, nil
+	}
+}
+
+func promtRole(r io.Reader, w io.Writer, roles awsutils.Roles) (awsutils.Role, error) {
+	roles.Sort()
+	t := asciitable.MakeTable([]string{"Number", "Role Name", "Role ARN"})
+	for i, role := range roles {
+		// Use role.Display for role names to match what AWS web console shows.
+		t.AddRow([]string{strconv.Itoa(i + 1), role.Display, role.ARN})
+	}
+
+	fmt.Fprintln(w, "Available AWS roles:")
+	fmt.Fprintln(w, t.AsBuffer().String())
+
+	reader := bufio.NewReader(r)
+	fmt.Fprint(w, "Enter role number: ")
+	input, err := reader.ReadString('\n')
+	if err != nil {
+		return awsutils.Role{}, err // EOF
+	}
+	choice, err := strconv.Atoi(strings.TrimSpace(input))
+	if err != nil || choice < 1 || choice > len(roles) {
+		return awsutils.Role{}, fmt.Errorf("invalid role number: %s", input)
+	}
+
+	return roles[choice-1], nil
+}
+
 func getARNFromFlags(cf *CLIConf, app types.Application, logins []string) (string, error) {
 	// Filter AWS roles by AWS account ID. If AWS account ID is empty, all
 	// roles are returned.
@@ -227,6 +276,15 @@ func getARNFromFlags(cf *CLIConf, app types.Application, logins []string) (strin
 		if len(roles) == 1 {
 			logger.InfoContext(cf.Context, "AWS Role is selected by default as it is the only role configured for this AWS app", "role", roles[0].Display)
 			return roles[0].ARN, nil
+		}
+
+		if cf.Interactive {
+			role, err := promptRoles(cf.Stdin(), cf.Stdout(), roles)
+			if err != nil {
+				return "", trace.Wrap(err)
+			}
+			cf.AWSRole = role.ARN
+			return role.ARN, nil
 		}
 
 		printAWSRoles(cf.Stdout(), roles)
