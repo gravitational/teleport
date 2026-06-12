@@ -75,6 +75,13 @@ var disableServiceSections = map[string]string{
 	"debug":           "debug_service",
 }
 
+var defaultEnabledServiceSections = map[string]struct{}{
+	"auth_service":  {},
+	"proxy_service": {},
+	"ssh_service":   {},
+	"debug_service": {},
+}
+
 var listenerFields = []string{
 	"listen_addr",
 	"web_listen_addr",
@@ -155,8 +162,10 @@ func ApplyMigration(doc *Document, p MigrateParams) (*MigrationResult, error) {
 			return nil, trace.BadParameter("unsupported service %q in disable services", service)
 		}
 		if _, ok := out.get(section); !ok {
-			result.DisableServicesNotFound = append(result.DisableServicesNotFound, service)
-			continue
+			if _, defaultEnabled := defaultEnabledServiceSections[section]; !defaultEnabled {
+				result.DisableServicesNotFound = append(result.DisableServicesNotFound, service)
+				continue
+			}
 		}
 		if err := out.set("no", section, "enabled"); err != nil {
 			return nil, trace.Wrap(err)

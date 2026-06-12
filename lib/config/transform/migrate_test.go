@@ -500,6 +500,83 @@ kubernetes_service:
 	require.NotContains(t, string(renderedBytes), "kube_service:")
 }
 
+func TestApplyMigrationDisablesAbsentDefaultEnabledServices(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		service string
+		want    string
+	}{
+		{
+			name:    "ssh",
+			service: "ssh",
+			want:    "ssh_service:\n  enabled: no",
+		},
+		{
+			name:    "debug",
+			service: "debug",
+			want:    "debug_service:\n  enabled: no",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			doc, err := Load([]byte(`
+version: v3
+teleport: {}
+`))
+			require.NoError(t, err)
+
+			result, err := ApplyMigration(doc, MigrateParams{
+				InstallSuffix:   "scope",
+				ProxyServer:     "target.example.com:443",
+				JoinMethod:      types.JoinMethodToken,
+				TokenName:       "scope-migrate-ip-10-2-4-17",
+				TokenSecretPath: "/var/run/migrate-token-secret",
+				DataDir:         "/var/lib/teleport_scope",
+				DisableServices: []string{tt.service},
+			})
+			require.NoError(t, err)
+			require.Contains(t, result.ServicesDisabled, disableServiceSections[tt.service])
+			require.NotContains(t, result.DisableServicesNotFound, tt.service)
+
+			renderedBytes, err := result.Document.Render()
+			require.NoError(t, err)
+			require.Contains(t, string(renderedBytes), tt.want)
+		})
+	}
+}
+
+func TestApplyMigrationMissingNonDefaultServiceStaysNotFound(t *testing.T) {
+	t.Parallel()
+
+	doc, err := Load([]byte(`
+version: v3
+teleport: {}
+`))
+	require.NoError(t, err)
+
+	result, err := ApplyMigration(doc, MigrateParams{
+		InstallSuffix:   "scope",
+		ProxyServer:     "target.example.com:443",
+		JoinMethod:      types.JoinMethodToken,
+		TokenName:       "scope-migrate-ip-10-2-4-17",
+		TokenSecretPath: "/var/run/migrate-token-secret",
+		DataDir:         "/var/lib/teleport_scope",
+		DisableServices: []string{"app"},
+	})
+	require.NoError(t, err)
+	require.Contains(t, result.DisableServicesNotFound, "app")
+	require.NotContains(t, result.ServicesDisabled, "app_service")
+
+	renderedBytes, err := result.Document.Render()
+	require.NoError(t, err)
+	require.NotContains(t, string(renderedBytes), "app_service:")
+}
+
 func TestApplyMigrationPIDFileIsSuffixed(t *testing.T) {
 	t.Parallel()
 
