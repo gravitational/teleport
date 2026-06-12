@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Logger } from 'design/logger';
 import {
   ClientScreenSpec,
   selectDirectoryInBrowser,
@@ -64,7 +65,8 @@ export class PlayerClient extends TdpClient {
     super(
       signal =>
         adaptWebSocketToTdpTransport(new AuthenticatedWebSocket(url), signal),
-      selectDirectoryInBrowser
+      selectDirectoryInBrowser,
+      new Logger('TDPClient')
     );
     this.setPlayerStatus = setPlayerStatus;
     this.setStatusText = setStatusText;
