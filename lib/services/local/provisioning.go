@@ -294,6 +294,8 @@ func MatchToken(t types.ProvisionToken, anyRoles types.SystemRoles, botName stri
 		return false
 	}
 
+	// TODO(strideynet): When bots become scope namespaced, ensure this call
+	// site reflects scopedness.
 	tokenBotName, _ := t.GetBot()
 	if botName != "" && (!t.GetRoles().Include(types.RoleBot) || tokenBotName != botName) {
 		return false
