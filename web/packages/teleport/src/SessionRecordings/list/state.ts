@@ -198,8 +198,8 @@ export function stateToSearchParams(state: RecordingsListState) {
     urlParams.set('page', state.page.toString());
   }
 
-  if (state.filters.hideNonInteractive) {
-    urlParams.set('hide_non_interactive', 'true');
+  if (!state.filters.hideNonInteractive) {
+    urlParams.set('hide_non_interactive', 'false');
   }
 
   if (state.search) {
