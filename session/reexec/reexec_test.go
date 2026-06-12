@@ -326,6 +326,13 @@ func TestRootOpenFileAsUser(t *testing.T) {
 
 	require.Equal(t, euid, os.Geteuid())
 	require.Equal(t, egid, os.Getegid())
+
+	// opening sylmink fails
+	symlinkPath := filepath.Join(tmp, "symlink")
+	require.NoError(t, os.Symlink(testFile, symlinkPath))
+	file, err = openFileAsUser(testUser, symlinkPath)
+	require.ErrorIs(t, err, syscall.ELOOP)
+	require.Nil(t, file)
 }
 
 // requireRoot is [testutils.RequireRoot] but inlined.
