@@ -24,6 +24,8 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 )
@@ -354,4 +356,213 @@ func TestProxyTemplatesApply(t *testing.T) {
 			require.Equal(t, test.outQuery, expanded.Query)
 		})
 	}
+}
+
+func TestProfileCheck(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		profile   Profile
+		assertErr require.ErrorAssertionFunc
+	}{
+		{
+			name:      "valid profile with proxy only",
+			profile:   Profile{Proxy: "proxy.example.com:443"},
+			assertErr: require.NoError,
+		},
+		{
+			name:      "valid mfa_mode sso",
+			profile:   Profile{MFAMode: "sso"},
+			assertErr: require.NoError,
+		},
+		{
+			name:      "invalid mfa_mode",
+			profile:   Profile{MFAMode: "bogus"},
+			assertErr: require.Error,
+		},
+		{
+			name:      "invalid add_keys_to_agent",
+			profile:   Profile{AddKeysToAgent: "maybe"},
+			assertErr: require.Error,
+		},
+		{
+			name:      "empty profile",
+			profile:   Profile{},
+			assertErr: require.NoError,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			profile := test.profile
+			test.assertErr(t, profile.Check())
+		})
+	}
+}
+
+func TestTSHConfigCheckProfiles(t *testing.T) {
+	t.Parallel()
+
+	t.Run("valid profiles and default", func(t *testing.T) {
+		t.Parallel()
+		config := TSHConfig{
+			Profiles: map[string]Profile{
+				"prod": {Proxy: "prod.example.com:443", MFAMode: "sso"},
+				"dev":  {Proxy: "dev.example.com:443"},
+			},
+			DefaultProfile: "prod",
+		}
+		require.NoError(t, config.Check())
+	})
+
+	t.Run("default_profile pointing to missing key fails", func(t *testing.T) {
+		t.Parallel()
+		config := TSHConfig{
+			Profiles: map[string]Profile{
+				"prod": {Proxy: "prod.example.com:443"},
+			},
+			DefaultProfile: "staging",
+		}
+		err := config.Check()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "staging")
+	})
+
+	t.Run("profile with bad mfa_mode fails with profile name in error", func(t *testing.T) {
+		t.Parallel()
+		config := TSHConfig{
+			Profiles: map[string]Profile{
+				"broken": {Proxy: "broken.example.com:443", MFAMode: "bogus"},
+			},
+		}
+		err := config.Check()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "broken")
+	})
+}
+
+func TestTSHConfigGetProfile(t *testing.T) {
+	t.Parallel()
+
+	prod := Profile{Proxy: "prod.example.com:443", Cluster: "prod"}
+	config := TSHConfig{
+		Profiles: map[string]Profile{
+			"prod": prod,
+			"dev":  {Proxy: "dev.example.com:443"},
+		},
+	}
+
+	t.Run("empty name returns BadParameter", func(t *testing.T) {
+		t.Parallel()
+		_, err := config.GetProfile("")
+		require.Error(t, err)
+		require.True(t, trace.IsBadParameter(err), "expected BadParameter, got %v", err)
+	})
+
+	t.Run("nil profiles returns NotFound", func(t *testing.T) {
+		t.Parallel()
+		empty := TSHConfig{}
+		_, err := empty.GetProfile("prod")
+		require.Error(t, err)
+		require.True(t, trace.IsNotFound(err), "expected NotFound, got %v", err)
+	})
+
+	t.Run("existing profile is returned", func(t *testing.T) {
+		t.Parallel()
+		got, err := config.GetProfile("prod")
+		require.NoError(t, err)
+		require.Equal(t, prod, got)
+	})
+
+	t.Run("missing profile returns NotFound with available names", func(t *testing.T) {
+		t.Parallel()
+		_, err := config.GetProfile("missing")
+		require.Error(t, err)
+		require.True(t, trace.IsNotFound(err), "expected NotFound, got %v", err)
+		assert.Contains(t, err.Error(), "prod")
+		assert.Contains(t, err.Error(), "dev")
+	})
+}
+
+func TestTSHConfigMergeProfiles(t *testing.T) {
+	t.Parallel()
+
+	newBase := func() *TSHConfig {
+		return &TSHConfig{
+			Profiles: map[string]Profile{
+				"a":      {Proxy: "a.example.com:443"},
+				"shared": {Proxy: "X"},
+			},
+			DefaultProfile: "a",
+		}
+	}
+
+	t.Run("profiles merged per-key, other wins on shared", func(t *testing.T) {
+		t.Parallel()
+		base := newBase()
+		other := &TSHConfig{
+			Profiles: map[string]Profile{
+				"b":      {Proxy: "b.example.com:443"},
+				"shared": {Proxy: "Y"},
+			},
+		}
+		merged := base.Merge(other)
+		require.Contains(t, merged.Profiles, "a")
+		require.Contains(t, merged.Profiles, "b")
+		require.Contains(t, merged.Profiles, "shared")
+		require.Equal(t, "Y", merged.Profiles["shared"].Proxy)
+	})
+
+	t.Run("default_profile kept from base when other empty", func(t *testing.T) {
+		t.Parallel()
+		base := newBase()
+		other := &TSHConfig{DefaultProfile: ""}
+		merged := base.Merge(other)
+		require.Equal(t, "a", merged.DefaultProfile)
+	})
+
+	t.Run("default_profile taken from other when set", func(t *testing.T) {
+		t.Parallel()
+		base := newBase()
+		other := &TSHConfig{
+			Profiles: map[string]Profile{
+				"b": {Proxy: "b.example.com:443"},
+			},
+			DefaultProfile: "b",
+		}
+		merged := base.Merge(other)
+		require.Equal(t, "b", merged.DefaultProfile)
+	})
+}
+
+func TestProfileYAMLUnmarshal(t *testing.T) {
+	t.Parallel()
+
+	boolPtr := func(b bool) *bool { return &b }
+
+	const raw = `
+default_profile: prod
+profiles:
+  prod:
+    proxy: prod.example.com:443
+    cluster: prod-cluster
+    mfa_mode: sso
+    headless: true
+`
+
+	var config TSHConfig
+	require.NoError(t, yaml.Unmarshal([]byte(raw), &config))
+
+	require.Equal(t, "prod", config.DefaultProfile)
+	require.Contains(t, config.Profiles, "prod")
+
+	prod := config.Profiles["prod"]
+	require.Equal(t, "prod.example.com:443", prod.Proxy)
+	require.Equal(t, "prod-cluster", prod.Cluster)
+	require.Equal(t, "sso", prod.MFAMode)
+	require.NotNil(t, prod.Headless)
+	require.Equal(t, boolPtr(true), prod.Headless)
+	require.True(t, *prod.Headless)
 }
