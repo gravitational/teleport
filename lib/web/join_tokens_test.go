@@ -621,7 +621,8 @@ func TestEditToken(t *testing.T) {
 			// Fetch the token and compare
 			editedToken, err := env.server.Auth().GetToken(ctx, tokenName)
 			require.NoError(t, err)
-			require.Equal(t, "test-bot_EDITED", editedToken.GetBotName())
+			editedBotName, _ := editedToken.GetBot()
+			require.Equal(t, "test-bot_EDITED", editedBotName)
 			require.Equal(t, expiry, *editedToken.GetMetadata().Expires)
 			require.Equal(t, map[string]string{
 				"test-key": "test-value",

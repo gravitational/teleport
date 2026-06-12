@@ -207,7 +207,7 @@ func AdaptRegisterUsingBoundKeypairMethod(
 		i.SafeTokenName = provisionToken.GetSafeName()
 		i.TokenJoinMethod = string(provisionToken.GetJoinMethod())
 		i.TokenExpires = provisionToken.Expiry()
-		i.BotName = provisionToken.GetBotName()
+		i.BotName, _ = provisionToken.GetBot()
 	})
 	if provisionToken.GetJoinMethod() != types.JoinMethodBoundKeypair {
 		return nil, trace.BadParameter("specified join token is not for `%s` method", types.JoinMethodBoundKeypair)
