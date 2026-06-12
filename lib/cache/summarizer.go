@@ -255,6 +255,98 @@ func (c *Cache) AllInferencePolicies(ctx context.Context) iter.Seq2[*summarizerv
 	}
 }
 
+type classifierIndex struct{}
+
+var classifierNameIndex = classifierIndex{}
+
+func newClassifierCollection(upstream services.Summarizer, w types.WatchKind) (*collection[*summarizerv1.Classifier, classifierIndex], error) {
+	if upstream == nil {
+		return nil, trace.BadParameter("missing parameter Summarizer")
+	}
+
+	return &collection[*summarizerv1.Classifier, classifierIndex]{
+		store: newStore(
+			types.KindClassifier,
+			proto.CloneOf[*summarizerv1.Classifier],
+			map[classifierIndex]func(*summarizerv1.Classifier) string{
+				classifierNameIndex: func(r *summarizerv1.Classifier) string {
+					return r.GetMetadata().GetName()
+				},
+			}),
+		fetcher: func(ctx context.Context, loadSecrets bool) ([]*summarizerv1.Classifier, error) {
+			out, err := stream.Collect(clientutils.Resources(ctx, upstream.ListClassifiers))
+			return out, trace.Wrap(err)
+		},
+		headerTransform: func(hdr *types.ResourceHeader) *summarizerv1.Classifier {
+			return summarizerv1.Classifier_builder{
+				Kind:    hdr.Kind,
+				Version: hdr.Version,
+				Metadata: headerv1.Metadata_builder{
+					Name: hdr.Metadata.Name,
+				}.Build(),
+			}.Build()
+		},
+		watch: w,
+	}, nil
+}
+
+func (c *Cache) GetClassifier(ctx context.Context, name string) (*summarizerv1.Classifier, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetClassifier")
+	defer span.End()
+
+	getter := genericGetter[*summarizerv1.Classifier, classifierIndex]{
+		cache:       c,
+		collection:  c.collections.classifiers,
+		index:       classifierNameIndex,
+		upstreamGet: c.Config.Summarizer.GetClassifier,
+	}
+	out, err := getter.get(ctx, name)
+	return out, trace.Wrap(err)
+}
+
+func (c *Cache) ListClassifiers(ctx context.Context, pageSize int, pageToken string) ([]*summarizerv1.Classifier, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListClassifiers")
+	defer span.End()
+
+	lister := genericLister[*summarizerv1.Classifier, classifierIndex]{
+		cache:        c,
+		collection:   c.collections.classifiers,
+		index:        classifierNameIndex,
+		upstreamList: c.Config.Summarizer.ListClassifiers,
+		nextToken: func(t *summarizerv1.Classifier) string {
+			return t.GetMetadata().GetName()
+		},
+	}
+	out, next, err := lister.list(ctx, pageSize, pageToken)
+	return out, next, trace.Wrap(err)
+}
+
+func (c *Cache) AllClassifiers(ctx context.Context) iter.Seq2[*summarizerv1.Classifier, error] {
+	return func(yield func(*summarizerv1.Classifier, error) bool) {
+		rg, err := acquireReadGuard(c, c.collections.classifiers)
+		if err != nil {
+			yield(nil, trace.Wrap(err))
+			return
+		}
+		defer rg.Release()
+
+		if !rg.ReadCache() {
+			for classifier, err := range c.Config.Summarizer.AllClassifiers(ctx) {
+				if !yield(classifier, err) {
+					return
+				}
+			}
+			return
+		}
+
+		for classifier := range rg.store.resources(classifierNameIndex, "", "") {
+			if !yield(proto.CloneOf(classifier), nil) {
+				return
+			}
+		}
+	}
+}
+
 type retrievalModelIndex struct{}
 
 var retrievalModelNameIndex = retrievalModelIndex{}

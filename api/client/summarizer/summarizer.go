@@ -161,6 +161,47 @@ func (c *Client) DeleteInferencePolicy(ctx context.Context, name string) error {
 	return trace.Wrap(err)
 }
 
+// GetClassifier retrieves an existing Classifier by name.
+func (c *Client) GetClassifier(ctx context.Context, name string) (*summarizerv1.Classifier, error) {
+	resp, err := c.grpcClient.GetClassifier(ctx, &summarizerv1.GetClassifierRequest{
+		Name: name,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp.Classifier, nil
+}
+
+// CreateClassifier creates a new Classifier.
+func (c *Client) CreateClassifier(ctx context.Context, classifier *summarizerv1.Classifier) (*summarizerv1.Classifier, error) {
+	resp, err := c.grpcClient.CreateClassifier(ctx, &summarizerv1.CreateClassifierRequest{
+		Classifier: classifier,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp.Classifier, nil
+}
+
+// UpsertClassifier creates a new Classifier or updates an existing one.
+func (c *Client) UpsertClassifier(ctx context.Context, classifier *summarizerv1.Classifier) (*summarizerv1.Classifier, error) {
+	resp, err := c.grpcClient.UpsertClassifier(ctx, &summarizerv1.UpsertClassifierRequest{
+		Classifier: classifier,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp.Classifier, nil
+}
+
+// DeleteClassifier deletes an existing Classifier by name.
+func (c *Client) DeleteClassifier(ctx context.Context, name string) error {
+	_, err := c.grpcClient.DeleteClassifier(ctx, &summarizerv1.DeleteClassifierRequest{
+		Name: name,
+	})
+	return trace.Wrap(err)
+}
+
 // GetRetrievalModel retrieves the existing RetrievalModel.
 func (c *Client) GetRetrievalModel(ctx context.Context) (*summarizerv1.RetrievalModel, error) {
 	resp, err := c.grpcClient.GetRetrievalModel(ctx, &summarizerv1.GetRetrievalModelRequest{})
