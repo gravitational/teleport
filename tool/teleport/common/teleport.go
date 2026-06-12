@@ -437,13 +437,13 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dump.Flag("cluster-name",
 		"Unique cluster name, e.g. example.com.").StringVar(&dumpFlags.ClusterName)
 	dump.Flag("output",
-		`Write to stdout with "--output=stdout", default config file with "--output=file" or custom path with --output=file:///path`).Short('o').Default(
+		`Write to stdout with "--output=stdout" (configure migrate redacts stdout output), default config file with "--output=file" or custom path with --output=file:///path`).Short('o').Default(
 		teleport.SchemeStdout).IsSetByUser(&dumpFlags.outputSet).StringVar(&dumpFlags.output)
 	dump.Flag("acme",
 		"Get automatic certificate from Letsencrypt.org using ACME.").BoolVar(&dumpFlags.ACMEEnabled)
 	dump.Flag("acme-email",
 		"Email to receive updates from Letsencrypt.org.").StringVar(&dumpFlags.ACMEEmail)
-	dump.Flag("test", "Path to a configuration file to test.").ExistingFileVar(&dumpFlags.testConfigFile)
+	dump.Flag("test", "Path to a configuration file to test. With configure migrate, validates the migrated output and overrides --input.").ExistingFileVar(&dumpFlags.testConfigFile)
 	dump.Flag("version", "Teleport configuration version.").Default(defaults.TeleportConfigVersionV3).StringVar(&dumpFlags.Version)
 	dump.Flag("public-addr", "The hostport that the proxy advertises for the HTTP endpoint.").StringVar(&dumpFlags.PublicAddr)
 	dump.Flag("cert-file", "Path to a TLS certificate file for the proxy.").ExistingFileVar(&dumpFlags.CertFile)
@@ -460,7 +460,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dump.Flag("node-name", "Name for the Teleport node.").StringVar(&dumpFlags.NodeName)
 	dump.Flag("node-labels", "Comma-separated list of labels to add to newly created nodes, for example env=staging,cloud=aws.").StringVar(&dumpFlags.NodeLabels)
 
-	configureMigrate := dump.Command("migrate", "Transform an existing Teleport config for a suffixed migrated agent. Also accepts configure flags --output, --auth-server, --data-dir, and --join-method.")
+	configureDefault := dump.Command("dump", "Generate a configuration file.").Default().Hidden()
+	configureMigrate := dump.Command("migrate", "Transform an existing Teleport config for a suffixed migrated agent. Also accepts configure flags --output, --auth-server, --data-dir, --join-method, and --test. Stdout output is redacted; use --output=file:// to write a usable config.")
 	configureMigrate.Flag("input", fmt.Sprintf("Path to the existing Teleport configuration file [%s].", defaults.ConfigFilePath)).Default(defaults.ConfigFilePath).StringVar(&configureMigrateFlags.input)
 	configureMigrate.Flag("install-suffix", "Suffix used by teleport-update --install-suffix.").StringVar(&configureMigrateFlags.installSuffix)
 	configureMigrate.Flag("proxy-server", "Target cluster proxy server address.").StringVar(&configureMigrateFlags.proxyServer)
@@ -765,9 +766,13 @@ Examples:
 		err = onSCP(&scpFlags)
 	case status.FullCommand():
 		err = onStatus()
-	case dump.FullCommand():
+	case dump.FullCommand(), configureDefault.FullCommand():
 		err = onConfigDump(dumpFlags)
 	case configureMigrate.FullCommand():
+		if dumpFlags.AuthToken != "" {
+			err = trace.BadParameter("--token is not supported by configure migrate; use --token-name and --token-secret-file")
+			break
+		}
 		if dumpFlags.outputSet {
 			configureMigrateFlags.output = dumpFlags.output
 		}

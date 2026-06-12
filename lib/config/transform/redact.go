@@ -18,8 +18,6 @@
 
 package transform
 
-import "github.com/gravitational/teleport/api/types"
-
 // DefaultRedactionRules returns the redaction rules for migrated config review
 // output.
 func DefaultRedactionRules() []RedactRule {
@@ -30,8 +28,4 @@ func DefaultRedactionRules() []RedactRule {
 		{Path: []string{"teleport", "join_params", "bound_keypair", "registration_secret_value"}, Mode: RedactFull},
 		{Path: []string{"teleport", "join_params", "token_name"}, Mode: RedactFull},
 	}
-}
-
-func maskTokenName(name string) string {
-	return types.MaskTokenName(name)
 }

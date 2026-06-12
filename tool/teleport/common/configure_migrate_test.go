@@ -120,7 +120,7 @@ func TestConfigureMigrateTestSuppressesWrite(t *testing.T) {
 		stderr:          &stderr,
 	})
 	require.NoError(t, err)
-	require.Contains(t, stderr.String(), "OK "+inputPath)
+	require.Contains(t, stderr.String(), "OK "+inputPath+" (migrated output validated)")
 	require.NoFileExists(t, outputPath)
 }
 
@@ -162,6 +162,7 @@ func TestConfigureMigrateStdoutIsRedacted(t *testing.T) {
 	dir := t.TempDir()
 	inputPath := writeMigrateInput(t, dir)
 	var stdout bytes.Buffer
+	var stderr bytes.Buffer
 	err := onConfigureMigrate(configureMigrateFlags{
 		input:           inputPath,
 		installSuffix:   "scope",
@@ -172,9 +173,10 @@ func TestConfigureMigrateStdoutIsRedacted(t *testing.T) {
 		tokenSecretFile: filepath.Join(dir, "token-secret"),
 		dataDir:         filepath.Join(dir, "data"),
 		stdout:          &stdout,
-		stderr:          &bytes.Buffer{},
+		stderr:          &stderr,
 	})
 	require.NoError(t, err)
+	require.Contains(t, stderr.String(), "NOTICE: stdout output is redacted; use --output=file:// to write a usable config")
 	require.Contains(t, stdout.String(), "token_secret: <redacted>")
 	require.NotContains(t, stdout.String(), "SUPERSECRET")
 	require.NotContains(t, stdout.String(), "scope-migrate-ip-10-2-4-17")
@@ -202,6 +204,41 @@ func TestConfigureMigrateFlagValidation(t *testing.T) {
 	iamNoSecret := base
 	iamNoSecret.joinMethod = string(types.JoinMethodIAM)
 	require.NoError(t, iamNoSecret.CheckAndSetDefaults())
+}
+
+func TestConfigureMigrateInstallSuffixValidation(t *testing.T) {
+	t.Parallel()
+
+	base := configureMigrateFlags{
+		input:           "/tmp/teleport.yaml",
+		proxyServer:     "target.example.com:443",
+		joinMethod:      string(types.JoinMethodToken),
+		tokenName:       "scope-migrate-ip-10-2-4-17",
+		tokenSecretFile: "/tmp/secret",
+	}
+
+	for _, suffix := range []string{
+		"bad/suffix",
+		"bad suffix",
+		"-bad",
+		"default",
+		"system",
+	} {
+		t.Run(suffix, func(t *testing.T) {
+			t.Parallel()
+			flags := base
+			flags.installSuffix = suffix
+			require.Error(t, flags.CheckAndSetDefaults())
+		})
+	}
+}
+
+func TestParseMigrateLabelsTrimsValues(t *testing.T) {
+	t.Parallel()
+
+	labels, err := parseMigrateLabels([]string{" env = prod "})
+	require.NoError(t, err)
+	require.Equal(t, map[string]string{"env": "prod"}, labels)
 }
 
 func TestConfigureMigrateBoundKeypairNotice(t *testing.T) {

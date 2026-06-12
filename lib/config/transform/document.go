@@ -40,9 +40,6 @@ type RedactMode int
 const (
 	// RedactFull replaces the full scalar value with "<redacted>".
 	RedactFull RedactMode = iota
-	// RedactTokenName replaces the scalar value with the Teleport token-name
-	// safe display format.
-	RedactTokenName
 )
 
 // RedactRule describes a scalar path to redact.
@@ -149,21 +146,14 @@ func (d *Document) Redact(rules []RedactRule) *Document {
 		switch rule.Mode {
 		case RedactFull:
 			node.Value = "<redacted>"
-		case RedactTokenName:
-			node.Value = maskTokenName(node.Value)
 		}
 		node.Tag = "!!str"
 	}
 	return out
 }
 
-// Diff returns a redacted unified diff of two rendered documents.
-func (d *Document) Diff(other *Document) (string, error) {
-	return DiffDocuments(d, other, "before", "after")
-}
-
-// DiffDocuments returns a redacted unified diff of two rendered documents with
-// headers.
+// DiffDocuments returns a unified diff of two rendered documents with headers.
+// Documents are redacted internally before rendering the diff.
 func DiffDocuments(before, after *Document, beforeName, afterName string) (string, error) {
 	beforeRaw, err := before.Redact(DefaultRedactionRules()).Render()
 	if err != nil {

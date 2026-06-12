@@ -165,18 +165,20 @@ Flags:
 |`--node-labels`|*no default*|Comma-separated list of labels to add to newly created nodes, for example env=staging,cloud=aws.|
 |`--node-name`|*no default*|Name for the Teleport node.|
 |`--[no-]mcp-demo-server`|`false`|Enables the Teleport demo MCP server that shows current user and session information.|
-|`-o`, `--output`|`stdout`|Write to stdout with "--output=stdout", default config file with "--output=file" or custom path with --output=file:///path|
+|`-o`, `--output`|`stdout`|Write to stdout with "--output=stdout" (configure migrate redacts stdout output), default config file with "--output=file" or custom path with --output=file:///path|
 |`--proxy`|*no default*|Address of the proxy.|
 |`--public-addr`|*no default*|The hostport that the proxy advertises for the HTTP endpoint.|
 |`--roles`|*no default*|Comma-separated list of roles to create config with.|
-|`--test`|*no default*|Path to a configuration file to test.|
+|`--test`|*no default*|Path to a configuration file to test. With configure migrate, validates the migrated output and overrides --input.|
 |`--token`|*no default*|Invitation token or path to file with token value to register with an auth server.|
 |`--version`|`v3`|Teleport configuration version.|
 
 ## teleport configure migrate
 
 Transform an existing Teleport config for a suffixed migrated agent. Also
-accepts configure flags --output, --auth-server, --data-dir, and --join-method.
+accepts configure flags --output, --auth-server, --data-dir, --join-method,
+and --test. Stdout output is redacted; use --output=file:// to write a usable
+config.
 
 Usage:
 
@@ -945,3 +947,4 @@ Flags:
 |Flag|Default|Description|
 |---|---|---|
 |`--[no-]raw`|`false`|Print the raw teleport version string.|
+

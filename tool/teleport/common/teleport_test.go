@@ -27,6 +27,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -251,6 +252,105 @@ func TestConfigure(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, stdout.Bytes())
 	})
+}
+
+func TestConfigureCommandParsing(t *testing.T) {
+	t.Run("bare configure routes to hidden dump command", func(t *testing.T) {
+		_, stderr, command := captureRunOutput(t, []string{"configure"})
+		require.Empty(t, stderr)
+		require.Equal(t, "configure dump", command)
+	})
+
+	t.Run("configure output stdout routes to hidden dump command", func(t *testing.T) {
+		_, stderr, command := captureRunOutput(t, []string{"configure", "--output=stdout"})
+		require.Empty(t, stderr)
+		require.Equal(t, "configure dump", command)
+	})
+
+	t.Run("configure test routes to hidden dump command", func(t *testing.T) {
+		configPath := filepath.Join(t.TempDir(), "teleport.yaml")
+		require.NoError(t, os.WriteFile(configPath, []byte("version: v3\nteleport:\n  data_dir: /tmp/teleport\n"), 0o600))
+		_, stderr, command := captureRunOutput(t, []string{"configure", "--test=" + configPath})
+		require.Contains(t, stderr, "OK "+configPath)
+		require.Equal(t, "configure dump", command)
+	})
+
+	t.Run("configure migrate routes to migrate command", func(t *testing.T) {
+		dir := t.TempDir()
+		inputPath := writeMigrateInput(t, dir)
+		secretPath := filepath.Join(dir, "token-secret")
+		require.NoError(t, os.WriteFile(secretPath, []byte("secret-value"), 0o600))
+		_, stderr, command := captureRunOutput(t, []string{
+			"configure",
+			"--output=stdout",
+			"--data-dir=" + filepath.Join(dir, "data"),
+			"migrate",
+			"--input=" + inputPath,
+			"--install-suffix=scope",
+			"--proxy-server=target.example.com:443",
+			"--token-name=scope-migrate-ip-10-2-4-17",
+			"--token-secret-file=" + secretPath,
+		})
+		require.Contains(t, stderr, "stdout output is redacted")
+		require.Equal(t, "configure migrate", command)
+	})
+}
+
+func TestConfigureMigrateRejectsInheritedTokenFlagParse(t *testing.T) {
+	if os.Getenv("TELEPORT_TEST_CONFIGURE_MIGRATE_TOKEN") == "1" {
+		Run(Options{Args: []string{"configure", "--token=secret", "migrate"}, InitOnly: true})
+		return
+	}
+
+	cmd := exec.Command(os.Args[0], "-test.run=TestConfigureMigrateRejectsInheritedTokenFlagParse")
+	cmd.Env = append(os.Environ(), "TELEPORT_TEST_CONFIGURE_MIGRATE_TOKEN=1")
+	out, err := cmd.CombinedOutput()
+	require.Error(t, err)
+	require.Contains(t, string(out), "--token is not supported by configure migrate; use --token-name and --token-secret-file")
+}
+
+func TestConfigureHelpHidesDefaultChild(t *testing.T) {
+	if os.Getenv("TELEPORT_TEST_CONFIGURE_HELP") == "1" {
+		Run(Options{Args: []string{"configure", "--help"}, InitOnly: true})
+		return
+	}
+
+	cmd := exec.Command(os.Args[0], "-test.run=TestConfigureHelpHidesDefaultChild")
+	cmd.Env = append(os.Environ(), "TELEPORT_TEST_CONFIGURE_HELP=1")
+	out, _ := cmd.CombinedOutput()
+	output := string(out)
+	require.Contains(t, output, "usage: teleport configure")
+	require.Contains(t, output, "migrate")
+	require.NotContains(t, output, "\ndump")
+}
+
+func captureRunOutput(t *testing.T, args []string) (stdout string, stderr string, command string) {
+	t.Helper()
+
+	oldStdout := os.Stdout
+	oldStderr := os.Stderr
+	stdoutFile, err := os.CreateTemp(t.TempDir(), "stdout-*")
+	require.NoError(t, err)
+	stderrFile, err := os.CreateTemp(t.TempDir(), "stderr-*")
+	require.NoError(t, err)
+
+	os.Stdout = stdoutFile
+	os.Stderr = stderrFile
+	defer func() {
+		os.Stdout = oldStdout
+		os.Stderr = oldStderr
+	}()
+
+	_, command, _ = Run(Options{Args: args, InitOnly: true})
+	require.NoError(t, stdoutFile.Close())
+	require.NoError(t, stderrFile.Close())
+
+	stdoutRaw, err := os.ReadFile(stdoutFile.Name())
+	require.NoError(t, err)
+	stderrRaw, err := os.ReadFile(stderrFile.Name())
+	require.NoError(t, err)
+
+	return strings.TrimSpace(string(stdoutRaw)), strings.TrimSpace(string(stderrRaw)), command
 }
 
 func TestDumpConfigFile(t *testing.T) {

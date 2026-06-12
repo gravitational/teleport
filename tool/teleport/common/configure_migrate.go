@@ -24,6 +24,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -83,7 +84,7 @@ func (f *configureMigrateFlags) CheckAndSetDefaults() error {
 	if f.joinMethod == "" {
 		f.joinMethod = string(types.JoinMethodToken)
 	}
-	if !slicesContains(scopedConfigureMigrateJoinMethods, f.joinMethod) {
+	if !slices.Contains(scopedConfigureMigrateJoinMethods, f.joinMethod) {
 		return trace.BadParameter("unsupported join method %q", f.joinMethod)
 	}
 	if f.proxyServer == "" && f.authServer == "" {
@@ -108,6 +109,11 @@ func (f *configureMigrateFlags) CheckAndSetDefaults() error {
 	if f.installSuffix == "" && (f.output == "" || f.dataDir == "") {
 		return trace.BadParameter("--install-suffix is required unless both --output and --data-dir are set")
 	}
+	if f.installSuffix != "" {
+		if err := validateInstallSuffix(f.installSuffix); err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	if f.dataDir == "" {
 		f.normalizedDataDir = defaultMigrateDataDir(f.installSuffix)
 	} else {
@@ -120,11 +126,7 @@ func (f *configureMigrateFlags) CheckAndSetDefaults() error {
 	} else {
 		f.normalizedOutput = f.output
 	}
-	disable, err := parseDisableServices(f.disableServices)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	f.parsedDisable = disable
+	f.parsedDisable = parseDisableServices(f.disableServices)
 	labels, err := parseMigrateLabels(f.labels)
 	if err != nil {
 		return trace.Wrap(err)
@@ -204,13 +206,11 @@ func onConfigureMigrate(flags configureMigrateFlags) error {
 				fmt.Fprintf(flags.stderr, "WARNING: output file %q exists and is non-empty; writing would require --force.\n", outputPath)
 			}
 		}
-		redactedInput := doc.Redact(transform.DefaultRedactionRules())
-		redactedOutput := result.Document.Redact(transform.DefaultRedactionRules())
 		outputName := flags.normalizedOutput
 		if outputPath != "" {
 			outputName = outputPath
 		}
-		diff, err := transform.DiffDocuments(redactedInput, redactedOutput, flags.input, outputName)
+		diff, err := transform.DiffDocuments(doc, result.Document, flags.input, outputName)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -218,10 +218,11 @@ func onConfigureMigrate(flags configureMigrateFlags) error {
 		return trace.Wrap(err)
 	}
 	if flags.test {
-		fmt.Fprintf(flags.stderr, "OK %s\n", flags.input)
+		fmt.Fprintf(flags.stderr, "OK %s (migrated output validated)\n", flags.input)
 		return nil
 	}
 	if outputIsStdout {
+		fmt.Fprintln(flags.stderr, "NOTICE: stdout output is redacted; use --output=file:// to write a usable config")
 		redacted, err := result.Document.Redact(transform.DefaultRedactionRules()).Render()
 		if err != nil {
 			return trace.Wrap(err)
@@ -256,9 +257,9 @@ func validateMigratedConfig(raw []byte) error {
 	return trace.Wrap(err)
 }
 
-func parseDisableServices(raw string) ([]string, error) {
+func parseDisableServices(raw string) []string {
 	if strings.TrimSpace(raw) == "" {
-		return nil, nil
+		return nil
 	}
 	var out []string
 	seen := make(map[string]struct{})
@@ -273,7 +274,7 @@ func parseDisableServices(raw string) ([]string, error) {
 		seen[service] = struct{}{}
 		out = append(out, service)
 	}
-	return out, nil
+	return out
 }
 
 func parseMigrateLabels(raw []string) (map[string]string, error) {
@@ -287,6 +288,7 @@ func parseMigrateLabels(raw []string) (map[string]string, error) {
 			return nil, trace.BadParameter("labels must be in key=value form")
 		}
 		key = strings.TrimSpace(key)
+		value = strings.TrimSpace(value)
 		if existing, ok := labels[key]; ok && existing != value {
 			return nil, trace.BadParameter("label %q was specified with multiple values", key)
 		}
@@ -374,11 +376,19 @@ func defaultMigrateDataDir(suffix string) string {
 	return filepath.Join(filepath.Dir(defaults.DataDir), "teleport_"+suffix)
 }
 
-func slicesContains(values []string, value string) bool {
-	for _, candidate := range values {
-		if candidate == value {
-			return true
-		}
+func validateInstallSuffix(suffix string) error {
+	switch suffix {
+	case "default", "system":
+		return trace.BadParameter("namespace %s is reserved", suffix)
 	}
-	return false
+	if strings.HasPrefix(suffix, "-") {
+		return trace.BadParameter("invalid namespace name %s, must be alphanumeric", suffix)
+	}
+	for _, r := range suffix {
+		if r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '-' {
+			continue
+		}
+		return trace.BadParameter("invalid namespace name %s, must be alphanumeric", suffix)
+	}
+	return nil
 }

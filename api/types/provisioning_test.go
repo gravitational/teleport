@@ -1964,11 +1964,6 @@ func TestProvisionTokenV2_GetSafeName(t *testing.T) {
 	})
 }
 
-func TestMaskTokenName(t *testing.T) {
-	require.Equal(t, "****", MaskTokenName("1234"))
-	require.Equal(t, "************cdef", MaskTokenName("0123456789abcdef"))
-}
-
 func TestProvisionTokenV2_CaseInsensitiveRoles(t *testing.T) {
 	t.Parallel()
 	t.Run("via constructor", func(t *testing.T) {

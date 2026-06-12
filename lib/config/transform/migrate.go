@@ -19,7 +19,9 @@
 package transform
 
 import (
+	"maps"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -179,13 +181,13 @@ func (d *Document) mergeSSHLabels(labels map[string]string) error {
 	}
 	sshService, ok := d.Get("ssh_service")
 	if !ok {
-		return nil
+		return trace.BadParameter("cannot place labels: ssh_service is disabled; marker labels are required for verify/decommission")
 	}
 	if sshService.Kind != yaml.MappingNode {
 		return trace.BadParameter("ssh_service must be a mapping")
 	}
 	if !sectionEnabled(sshService) {
-		return nil
+		return trace.BadParameter("cannot place labels: ssh_service is disabled; marker labels are required for verify/decommission")
 	}
 	labelsNode, ok := d.Get("ssh_service", "labels")
 	if !ok {
@@ -193,12 +195,21 @@ func (d *Document) mergeSSHLabels(labels map[string]string) error {
 		if err := d.Set(labelsNode, "ssh_service", "labels"); err != nil {
 			return trace.Wrap(err)
 		}
+		var inserted bool
+		labelsNode, inserted = d.Get("ssh_service", "labels")
+		if !inserted {
+			return trace.BadParameter("failed to create ssh_service.labels")
+		}
 	}
 	if labelsNode.Kind != yaml.MappingNode {
 		return trace.BadParameter("ssh_service.labels must be a mapping")
 	}
-	for key, value := range labels {
+	for _, key := range slices.Sorted(maps.Keys(labels)) {
+		value := labels[key]
 		if existing, ok := mappingValue(labelsNode, key); ok {
+			if existing.Value == value {
+				continue
+			}
 			return trace.BadParameter("ssh_service.labels.%s already has value %q", key, existing.Value)
 		}
 		setMappingValue(labelsNode, key, scalarString(value))
@@ -216,8 +227,10 @@ func (d *Document) resolveConflicts(installSuffix, oldPIDFile string, result *Mi
 	if err := d.suffixLogPath(installSuffix, result); err != nil {
 		return trace.Wrap(err)
 	}
-	d.resolvePIDFile(installSuffix, oldPIDFile, result)
-	for section := range disableServiceSections {
+	if err := d.resolvePIDFile(installSuffix, oldPIDFile, result); err != nil {
+		return trace.Wrap(err)
+	}
+	for _, section := range slices.Sorted(maps.Keys(disableServiceSections)) {
 		d.checkSectionListeners(disableServiceSections[section], result)
 	}
 	return nil
@@ -247,25 +260,25 @@ func (d *Document) suffixLogPath(installSuffix string, result *MigrationResult) 
 	return nil
 }
 
-func (d *Document) resolvePIDFile(installSuffix, oldPath string, result *MigrationResult) {
+func (d *Document) resolvePIDFile(installSuffix, oldPath string, result *MigrationResult) error {
 	if oldPath == "" {
-		return
+		return nil
 	}
 	if installSuffix == "" {
-		result.Notices = append(result.Notices, "removed teleport.pid_file to avoid two agents sharing the same PID file")
-		return
+		return trace.BadParameter("teleport.pid_file %q must be changed, but --install-suffix was not provided", oldPath)
 	}
 	ext := filepath.Ext(oldPath)
 	newPath := strings.TrimSuffix(oldPath, ext) + "_" + installSuffix + ext
 	if err := d.Set(newPath, "teleport", "pid_file"); err != nil {
 		result.Notices = append(result.Notices, "removed teleport.pid_file to avoid two agents sharing the same PID file")
-		return
+		return nil
 	}
 	result.PIDFileChanged = &PathChange{
 		Path: "teleport.pid_file",
 		Old:  oldPath,
 		New:  newPath,
 	}
+	return nil
 }
 
 func (d *Document) checkSectionListeners(section string, result *MigrationResult) {
