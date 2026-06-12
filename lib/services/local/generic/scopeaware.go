@@ -18,12 +18,14 @@ package generic
 
 import (
 	"context"
+	"iter"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/scopes"
 )
 
@@ -119,17 +121,45 @@ func NewScopeAwareService[T ScopedResource](cfg *ScopeAwareServiceConfig[T]) (*S
 	}, nil
 }
 
+// Resources returns a stream of resources within the unified scope-aware range
+// [startKey, endKey). Unscoped resources are ordered before scoped resources.
+//
+// The startKey and endKey values are resource cursors as defined by
+// [scopes.MakeResourceCursor]. An unscoped cursor is the resource name. A scoped
+// cursor uses [scopes.ResourceCursorPrefix] followed by the scoped backend
+// service's relative key. [scopes.ResourceCursorScopedStart] is the boundary
+// between unscoped and scoped resources.
+func (s *ScopeAwareService[T]) Resources(ctx context.Context, startKey, endKey string) iter.Seq2[T, error] {
+	var streams []stream.Stream[T]
+
+	if !scopes.IsScopedResourceCursor(startKey) {
+		unscopedEndKey := endKey
+		if scopes.IsScopedResourceCursor(endKey) {
+			unscopedEndKey = ""
+		}
+		streams = append(streams, s.UnscopedService.Resources(ctx, startKey, unscopedEndKey))
+	}
+
+	if endKey != "" && !scopes.IsScopedResourceCursor(endKey) {
+		return stream.Chain(streams...)
+	}
+	if endKey == scopes.ResourceCursorScopedStart() {
+		return stream.Chain(streams...)
+	}
+
+	scopedStartKey := ""
+	if scopes.IsScopedResourceCursor(startKey) {
+		scopedStartKey = strings.TrimPrefix(startKey, scopes.ResourceCursorPrefix)
+	}
+	scopedEndKey := strings.TrimPrefix(endKey, scopes.ResourceCursorPrefix)
+	streams = append(streams, s.ScopedService.Resources(ctx, scopedStartKey, scopedEndKey))
+
+	return stream.Chain(streams...)
+}
+
 // GetResources returns all unscoped and scoped resources.
 func (s *ScopeAwareService[T]) GetResources(ctx context.Context) ([]T, error) {
-	resources, err := s.UnscopedService.GetResources(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	scopedResources, err := s.ScopedService.GetResources(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return append(resources, scopedResources...), nil
+	return stream.Collect(s.Resources(ctx, "", ""))
 }
 
 // ListResources returns a page of resources over the unified scoped
@@ -143,11 +173,6 @@ func (s *ScopeAwareService[T]) ListResources(ctx context.Context, pageSize int, 
 // unified scoped and unscoped collection. It always returns all matching
 // unscoped resources before matching scoped resources.
 func (s *ScopeAwareService[T]) ListResourcesWithFilter(ctx context.Context, pageSize int, nextToken string, matcher func(T) bool) ([]T, string, error) {
-	// This prefix is added to page tokens before they are returned if the next
-	// page should begin with a scoped resource. It must be trimmed before
-	// querying the scoped backend.
-	const scopedPageTokenPrefix = "/scoped/"
-
 	if pageSize <= 0 || pageSize > int(s.UnscopedService.pageLimit) {
 		pageSize = int(s.UnscopedService.pageLimit)
 	}
@@ -155,39 +180,40 @@ func (s *ScopeAwareService[T]) ListResourcesWithFilter(ctx context.Context, page
 	// Check if the token was scoped, if so the caller has already paged over
 	// all unscoped resources and we should return the next page of scoped
 	// resources.
-	if nextScopedToken, isScoped := strings.CutPrefix(nextToken, scopedPageTokenPrefix); isScoped {
-		resources, nextScopedKey, err := s.ScopedService.ListResourcesWithFilter(ctx, pageSize, nextScopedToken, matcher)
-		if nextScopedKey != "" {
-			nextScopedKey = scopedPageTokenPrefix + nextScopedKey
+	if scopes.IsScopedResourceCursor(nextToken) {
+		nextToken = strings.TrimPrefix(nextToken, scopes.ResourceCursorPrefix)
+		resources, nextToken, err := s.ScopedService.ListResourcesWithFilter(ctx, pageSize, nextToken, matcher)
+		if nextToken != "" {
+			nextToken = scopes.ResourceCursorPrefix + nextToken
 		}
-		return resources, nextScopedKey, trace.Wrap(err)
+		return resources, nextToken, trace.Wrap(err)
 	}
 
 	// Fetch the next page of matching unscoped resources.
-	resources, nextKey, err := s.UnscopedService.ListResourcesWithFilter(ctx, pageSize, nextToken, matcher)
+	resources, nextToken, err := s.UnscopedService.ListResourcesWithFilter(ctx, pageSize, nextToken, matcher)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	if nextKey != "" {
+	if nextToken != "" {
 		// There are remaining unscoped resources, return this page.
-		return resources, nextKey, nil
+		return resources, nextToken, nil
 	}
 	if len(resources) >= pageSize {
-		// The page is full but nextKey is empty indicating there are no more
+		// The page is full but nextToken is empty indicating there are no more
 		// unscoped resources. Return with scopedPageTokenPrefix so the next
 		// page begins with scoped resources.
-		return resources, scopedPageTokenPrefix, nil
+		return resources, scopes.ResourceCursorScopedStart(), nil
 	}
 
 	// Reached the end of unscoped resources within pageSize, try to fill in
 	// the page with scoped resources.
 	remainingPageSize := pageSize - len(resources)
-	scopedResources, nextScopedKey, err := s.ScopedService.ListResourcesWithFilter(ctx, remainingPageSize, "", matcher)
-	if nextScopedKey != "" {
-		nextScopedKey = scopedPageTokenPrefix + nextScopedKey
+	scopedResources, nextToken, err := s.ScopedService.ListResourcesWithFilter(ctx, remainingPageSize, "", matcher)
+	if nextToken != "" {
+		nextToken = scopes.ResourceCursorPrefix + nextToken
 	}
-	return append(resources, scopedResources...), nextScopedKey, trace.Wrap(err)
+	return append(resources, scopedResources...), nextToken, trace.Wrap(err)
 }
 
 // GetResource returns a resource, if it exists, for the given scope-qualified name.

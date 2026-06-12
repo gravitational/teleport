@@ -59,8 +59,9 @@ func TestScopeAwareService(t *testing.T) {
 
 	var resources []*testResource
 
-	// Create some unscoped resources
-	for nameIndex := range 10 {
+	// Create some unscoped resources.
+	const numUnscopedResources = 10
+	for nameIndex := range numUnscopedResources {
 		resources = append(resources, newTestResource(fmt.Sprintf("name%d", nameIndex)))
 	}
 
@@ -112,11 +113,68 @@ func TestScopeAwareService(t *testing.T) {
 		assert.Empty(t, expected, "did not find expected resources")
 	}
 
+	expectedResourcesInCursorRange := func(t *testing.T, startKey, endKey string) map[scopes.QualifiedName]struct{} {
+		t.Helper()
+
+		expected := make(map[scopes.QualifiedName]struct{})
+		for _, resource := range resources {
+			cursor, err := scopes.MakeResourceCursor(resource.GetScope(), resource.GetName())
+			require.NoError(t, err)
+			if startKey != "" && cursor < startKey {
+				continue
+			}
+			if endKey != "" && cursor >= endKey {
+				continue
+			}
+			expected[scopes.QualifiedName{Scope: resource.GetScope(), Name: resource.GetName()}] = struct{}{}
+		}
+		return expected
+	}
+
 	// Create all the resources.
 	for _, resource := range resources {
 		_, err := service.CreateResource(t.Context(), resource)
 		require.NoError(t, err)
 	}
+
+	t.Run("Resources", func(t *testing.T) {
+		checkExpectedResources(t, expectedResourceNames, service.Resources(t.Context(), "", ""))
+
+		foundScoped := false
+		for resource, err := range service.Resources(t.Context(), "", "") {
+			require.NoError(t, err)
+			if foundScoped && resource.GetScope() == "" {
+				t.Fatal("found unscoped resource after scoped resource")
+			}
+			foundScoped = foundScoped || resource.GetScope() != ""
+		}
+
+		countResources := func(resources iter.Seq2[*testResource, error]) int {
+			t.Helper()
+			var count int
+			for _, err := range resources {
+				require.NoError(t, err)
+				count++
+			}
+			return count
+		}
+
+		// The scoped start cursor is the boundary between unscoped resources and
+		// scoped resources in the unified logical resource stream.
+		require.Equal(t, numUnscopedResources,
+			countResources(service.Resources(t.Context(), "", scopes.ResourceCursorScopedStart())))
+		require.Equal(t, len(resources)-numUnscopedResources,
+			countResources(service.Resources(t.Context(), scopes.ResourceCursorScopedStart(), "")))
+
+		// Verify a range that starts in unscoped resources and ends in scoped
+		// resources, forcing Resources to concatenate both underlying services.
+		scopedEnd, err := scopes.MakeResourceCursor("/base1", "name0")
+		require.NoError(t, err)
+		checkExpectedResources(t,
+			expectedResourcesInCursorRange(t, "name5", scopedEnd),
+			service.Resources(t.Context(), "name5", scopedEnd),
+		)
+	})
 
 	// Check all resources can be listed, at various page sizes.
 	for _, pageSize := range []int{0, 1, 3, 5, 10, 11, 99, 100, 101} {
