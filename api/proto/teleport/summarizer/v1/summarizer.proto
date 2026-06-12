@@ -190,17 +190,29 @@ message ClassifierSpec {
 // always recorded on the stored session summary, regardless of the actions
 // configured here.
 message ClassifierActions {
-  // EmitAuditEvent, if true, emits an audit event when a session matches this
-  // classifier.
-  bool emit_audit_event = 1;
+  // EmitAuditEvent, if enabled, emits an audit event when a session matches
+  // this classifier.
+  ClassifierActionMode emit_audit_event = 1;
   // RiskLevelFloor, if set, raises the session's risk level (and risk score)
   // to at least this level on match. It never lowers the risk level. Leaving
   // it unspecified means a match does not change the risk level. Only applies
   // to summaries that carry an EnhancedSummary.
   RiskLevel risk_level_floor = 2;
-  // FlagForReview, if true, marks the session as needing further review on
+  // FlagForReview, if enabled, marks the session as needing further review on
   // match. Only applies to summaries that carry an EnhancedSummary.
-  bool flag_for_review = 3;
+  ClassifierActionMode flag_for_review = 3;
+}
+
+// ClassifierActionMode is a tri-state toggle for classifier match actions.
+enum ClassifierActionMode {
+  // ClassifierActionModeUnspecified is the default value and applies the
+  // default behavior of the action, which is the same as disabled. It is
+  // distinct from an explicitly disabled action.
+  CLASSIFIER_ACTION_MODE_UNSPECIFIED = 0;
+  // ClassifierActionModeEnabled explicitly enables the action.
+  CLASSIFIER_ACTION_MODE_ENABLED = 1;
+  // ClassifierActionModeDisabled explicitly disables the action.
+  CLASSIFIER_ACTION_MODE_DISABLED = 2;
 }
 
 // ClassifierMatch records a classifier that matched a session summary.

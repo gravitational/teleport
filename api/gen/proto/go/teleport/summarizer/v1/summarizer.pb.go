@@ -40,6 +40,56 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// ClassifierActionMode is a tri-state toggle for classifier match actions.
+type ClassifierActionMode int32
+
+const (
+	// ClassifierActionModeUnspecified is the default value and applies the
+	// default behavior of the action, which is the same as disabled. It is
+	// distinct from an explicitly disabled action.
+	ClassifierActionMode_CLASSIFIER_ACTION_MODE_UNSPECIFIED ClassifierActionMode = 0
+	// ClassifierActionModeEnabled explicitly enables the action.
+	ClassifierActionMode_CLASSIFIER_ACTION_MODE_ENABLED ClassifierActionMode = 1
+	// ClassifierActionModeDisabled explicitly disables the action.
+	ClassifierActionMode_CLASSIFIER_ACTION_MODE_DISABLED ClassifierActionMode = 2
+)
+
+// Enum value maps for ClassifierActionMode.
+var (
+	ClassifierActionMode_name = map[int32]string{
+		0: "CLASSIFIER_ACTION_MODE_UNSPECIFIED",
+		1: "CLASSIFIER_ACTION_MODE_ENABLED",
+		2: "CLASSIFIER_ACTION_MODE_DISABLED",
+	}
+	ClassifierActionMode_value = map[string]int32{
+		"CLASSIFIER_ACTION_MODE_UNSPECIFIED": 0,
+		"CLASSIFIER_ACTION_MODE_ENABLED":     1,
+		"CLASSIFIER_ACTION_MODE_DISABLED":    2,
+	}
+)
+
+func (x ClassifierActionMode) Enum() *ClassifierActionMode {
+	p := new(ClassifierActionMode)
+	*p = x
+	return p
+}
+
+func (x ClassifierActionMode) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ClassifierActionMode) Descriptor() protoreflect.EnumDescriptor {
+	return file_teleport_summarizer_v1_summarizer_proto_enumTypes[0].Descriptor()
+}
+
+func (ClassifierActionMode) Type() protoreflect.EnumType {
+	return &file_teleport_summarizer_v1_summarizer_proto_enumTypes[0]
+}
+
+func (x ClassifierActionMode) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
 // SummaryState is the state of the summarization process.
 type SummaryState int32
 
@@ -77,11 +127,11 @@ func (x SummaryState) String() string {
 }
 
 func (SummaryState) Descriptor() protoreflect.EnumDescriptor {
-	return file_teleport_summarizer_v1_summarizer_proto_enumTypes[0].Descriptor()
+	return file_teleport_summarizer_v1_summarizer_proto_enumTypes[1].Descriptor()
 }
 
 func (SummaryState) Type() protoreflect.EnumType {
-	return &file_teleport_summarizer_v1_summarizer_proto_enumTypes[0]
+	return &file_teleport_summarizer_v1_summarizer_proto_enumTypes[1]
 }
 
 func (x SummaryState) Number() protoreflect.EnumNumber {
@@ -193,11 +243,11 @@ func (x CommandCategory) String() string {
 }
 
 func (CommandCategory) Descriptor() protoreflect.EnumDescriptor {
-	return file_teleport_summarizer_v1_summarizer_proto_enumTypes[1].Descriptor()
+	return file_teleport_summarizer_v1_summarizer_proto_enumTypes[2].Descriptor()
 }
 
 func (CommandCategory) Type() protoreflect.EnumType {
-	return &file_teleport_summarizer_v1_summarizer_proto_enumTypes[1]
+	return &file_teleport_summarizer_v1_summarizer_proto_enumTypes[2]
 }
 
 func (x CommandCategory) Number() protoreflect.EnumNumber {
@@ -250,11 +300,11 @@ func (x RiskLevel) String() string {
 }
 
 func (RiskLevel) Descriptor() protoreflect.EnumDescriptor {
-	return file_teleport_summarizer_v1_summarizer_proto_enumTypes[2].Descriptor()
+	return file_teleport_summarizer_v1_summarizer_proto_enumTypes[3].Descriptor()
 }
 
 func (RiskLevel) Type() protoreflect.EnumType {
-	return &file_teleport_summarizer_v1_summarizer_proto_enumTypes[2]
+	return &file_teleport_summarizer_v1_summarizer_proto_enumTypes[3]
 }
 
 func (x RiskLevel) Number() protoreflect.EnumNumber {
@@ -350,11 +400,11 @@ func (x ThreatCategory) String() string {
 }
 
 func (ThreatCategory) Descriptor() protoreflect.EnumDescriptor {
-	return file_teleport_summarizer_v1_summarizer_proto_enumTypes[3].Descriptor()
+	return file_teleport_summarizer_v1_summarizer_proto_enumTypes[4].Descriptor()
 }
 
 func (ThreatCategory) Type() protoreflect.EnumType {
-	return &file_teleport_summarizer_v1_summarizer_proto_enumTypes[3]
+	return &file_teleport_summarizer_v1_summarizer_proto_enumTypes[4]
 }
 
 func (x ThreatCategory) Number() protoreflect.EnumNumber {
@@ -421,11 +471,11 @@ func (x NeedsReviewReason) String() string {
 }
 
 func (NeedsReviewReason) Descriptor() protoreflect.EnumDescriptor {
-	return file_teleport_summarizer_v1_summarizer_proto_enumTypes[4].Descriptor()
+	return file_teleport_summarizer_v1_summarizer_proto_enumTypes[5].Descriptor()
 }
 
 func (NeedsReviewReason) Type() protoreflect.EnumType {
-	return &file_teleport_summarizer_v1_summarizer_proto_enumTypes[4]
+	return &file_teleport_summarizer_v1_summarizer_proto_enumTypes[5]
 }
 
 func (x NeedsReviewReason) Number() protoreflect.EnumNumber {
@@ -1784,17 +1834,17 @@ func (b0 ClassifierSpec_builder) Build() *ClassifierSpec {
 // configured here.
 type ClassifierActions struct {
 	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// EmitAuditEvent, if true, emits an audit event when a session matches this
-	// classifier.
-	EmitAuditEvent bool `protobuf:"varint,1,opt,name=emit_audit_event,json=emitAuditEvent,proto3" json:"emit_audit_event,omitempty"`
+	// EmitAuditEvent, if enabled, emits an audit event when a session matches
+	// this classifier.
+	EmitAuditEvent ClassifierActionMode `protobuf:"varint,1,opt,name=emit_audit_event,json=emitAuditEvent,proto3,enum=teleport.summarizer.v1.ClassifierActionMode" json:"emit_audit_event,omitempty"`
 	// RiskLevelFloor, if set, raises the session's risk level (and risk score)
 	// to at least this level on match. It never lowers the risk level. Leaving
 	// it unspecified means a match does not change the risk level. Only applies
 	// to summaries that carry an EnhancedSummary.
 	RiskLevelFloor RiskLevel `protobuf:"varint,2,opt,name=risk_level_floor,json=riskLevelFloor,proto3,enum=teleport.summarizer.v1.RiskLevel" json:"risk_level_floor,omitempty"`
-	// FlagForReview, if true, marks the session as needing further review on
+	// FlagForReview, if enabled, marks the session as needing further review on
 	// match. Only applies to summaries that carry an EnhancedSummary.
-	FlagForReview bool `protobuf:"varint,3,opt,name=flag_for_review,json=flagForReview,proto3" json:"flag_for_review,omitempty"`
+	FlagForReview ClassifierActionMode `protobuf:"varint,3,opt,name=flag_for_review,json=flagForReview,proto3,enum=teleport.summarizer.v1.ClassifierActionMode" json:"flag_for_review,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1824,11 +1874,11 @@ func (x *ClassifierActions) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-func (x *ClassifierActions) GetEmitAuditEvent() bool {
+func (x *ClassifierActions) GetEmitAuditEvent() ClassifierActionMode {
 	if x != nil {
 		return x.EmitAuditEvent
 	}
-	return false
+	return ClassifierActionMode_CLASSIFIER_ACTION_MODE_UNSPECIFIED
 }
 
 func (x *ClassifierActions) GetRiskLevelFloor() RiskLevel {
@@ -1838,14 +1888,14 @@ func (x *ClassifierActions) GetRiskLevelFloor() RiskLevel {
 	return RiskLevel_RISK_LEVEL_UNSPECIFIED
 }
 
-func (x *ClassifierActions) GetFlagForReview() bool {
+func (x *ClassifierActions) GetFlagForReview() ClassifierActionMode {
 	if x != nil {
 		return x.FlagForReview
 	}
-	return false
+	return ClassifierActionMode_CLASSIFIER_ACTION_MODE_UNSPECIFIED
 }
 
-func (x *ClassifierActions) SetEmitAuditEvent(v bool) {
+func (x *ClassifierActions) SetEmitAuditEvent(v ClassifierActionMode) {
 	x.EmitAuditEvent = v
 }
 
@@ -1853,24 +1903,24 @@ func (x *ClassifierActions) SetRiskLevelFloor(v RiskLevel) {
 	x.RiskLevelFloor = v
 }
 
-func (x *ClassifierActions) SetFlagForReview(v bool) {
+func (x *ClassifierActions) SetFlagForReview(v ClassifierActionMode) {
 	x.FlagForReview = v
 }
 
 type ClassifierActions_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
-	// EmitAuditEvent, if true, emits an audit event when a session matches this
-	// classifier.
-	EmitAuditEvent bool
+	// EmitAuditEvent, if enabled, emits an audit event when a session matches
+	// this classifier.
+	EmitAuditEvent ClassifierActionMode
 	// RiskLevelFloor, if set, raises the session's risk level (and risk score)
 	// to at least this level on match. It never lowers the risk level. Leaving
 	// it unspecified means a match does not change the risk level. Only applies
 	// to summaries that carry an EnhancedSummary.
 	RiskLevelFloor RiskLevel
-	// FlagForReview, if true, marks the session as needing further review on
+	// FlagForReview, if enabled, marks the session as needing further review on
 	// match. Only applies to summaries that carry an EnhancedSummary.
-	FlagForReview bool
+	FlagForReview ClassifierActionMode
 }
 
 func (b0 ClassifierActions_builder) Build() *ClassifierActions {
@@ -4374,11 +4424,11 @@ const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"\x05kinds\x18\x01 \x03(\tR\x05kinds\x12\x16\n" +
 	"\x06filter\x18\x02 \x01(\tR\x06filter\x12\x1a\n" +
 	"\bcriteria\x18\x03 \x01(\tR\bcriteria\x12C\n" +
-	"\aactions\x18\x04 \x01(\v2).teleport.summarizer.v1.ClassifierActionsR\aactions\"\xb2\x01\n" +
-	"\x11ClassifierActions\x12(\n" +
-	"\x10emit_audit_event\x18\x01 \x01(\bR\x0eemitAuditEvent\x12K\n" +
-	"\x10risk_level_floor\x18\x02 \x01(\x0e2!.teleport.summarizer.v1.RiskLevelR\x0eriskLevelFloor\x12&\n" +
-	"\x0fflag_for_review\x18\x03 \x01(\bR\rflagForReview\"\x90\x01\n" +
+	"\aactions\x18\x04 \x01(\v2).teleport.summarizer.v1.ClassifierActionsR\aactions\"\x8e\x02\n" +
+	"\x11ClassifierActions\x12V\n" +
+	"\x10emit_audit_event\x18\x01 \x01(\x0e2,.teleport.summarizer.v1.ClassifierActionModeR\x0eemitAuditEvent\x12K\n" +
+	"\x10risk_level_floor\x18\x02 \x01(\x0e2!.teleport.summarizer.v1.RiskLevelR\x0eriskLevelFloor\x12T\n" +
+	"\x0fflag_for_review\x18\x03 \x01(\x0e2,.teleport.summarizer.v1.ClassifierActionModeR\rflagForReview\"\x90\x01\n" +
 	"\x0fClassifierMatch\x12'\n" +
 	"\x0fclassifier_name\x18\x01 \x01(\tR\x0eclassifierName\x12\x1c\n" +
 	"\treasoning\x18\x02 \x01(\tR\treasoning\x126\n" +
@@ -4502,7 +4552,11 @@ const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"\x06openai\x18\x01 \x01(\v2&.teleport.summarizer.v1.OpenAIProviderH\x00R\x06openai\x12C\n" +
 	"\abedrock\x18\x03 \x01(\v2'.teleport.summarizer.v1.BedrockProviderH\x00R\abedrock\x120\n" +
 	"\x14inference_model_name\x18\x02 \x01(\tR\x12inferenceModelNameB\x15\n" +
-	"\x13embeddings_provider*|\n" +
+	"\x13embeddings_provider*\x87\x01\n" +
+	"\x14ClassifierActionMode\x12&\n" +
+	"\"CLASSIFIER_ACTION_MODE_UNSPECIFIED\x10\x00\x12\"\n" +
+	"\x1eCLASSIFIER_ACTION_MODE_ENABLED\x10\x01\x12#\n" +
+	"\x1fCLASSIFIER_ACTION_MODE_DISABLED\x10\x02*|\n" +
 	"\fSummaryState\x12\x1d\n" +
 	"\x19SUMMARY_STATE_UNSPECIFIED\x10\x00\x12\x19\n" +
 	"\x15SUMMARY_STATE_PENDING\x10\x01\x12\x19\n" +
@@ -4556,92 +4610,95 @@ const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"-NEEDS_REVIEW_REASON_OUTPUT_NOT_FULLY_CAPTURED\x10\x05\x12*\n" +
 	"&NEEDS_REVIEW_REASON_CLASSIFIER_MATCHED\x10\x06BXZVgithub.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1;summarizerv1b\x06proto3"
 
-var file_teleport_summarizer_v1_summarizer_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
+var file_teleport_summarizer_v1_summarizer_proto_enumTypes = make([]protoimpl.EnumInfo, 6)
 var file_teleport_summarizer_v1_summarizer_proto_msgTypes = make([]protoimpl.MessageInfo, 22)
 var file_teleport_summarizer_v1_summarizer_proto_goTypes = []any{
-	(SummaryState)(0),              // 0: teleport.summarizer.v1.SummaryState
-	(CommandCategory)(0),           // 1: teleport.summarizer.v1.CommandCategory
-	(RiskLevel)(0),                 // 2: teleport.summarizer.v1.RiskLevel
-	(ThreatCategory)(0),            // 3: teleport.summarizer.v1.ThreatCategory
-	(NeedsReviewReason)(0),         // 4: teleport.summarizer.v1.NeedsReviewReason
-	(*InferenceModel)(nil),         // 5: teleport.summarizer.v1.InferenceModel
-	(*InferenceModelSpec)(nil),     // 6: teleport.summarizer.v1.InferenceModelSpec
-	(*OpenAIProvider)(nil),         // 7: teleport.summarizer.v1.OpenAIProvider
-	(*BedrockProvider)(nil),        // 8: teleport.summarizer.v1.BedrockProvider
-	(*InferenceSecret)(nil),        // 9: teleport.summarizer.v1.InferenceSecret
-	(*InferenceSecretSpec)(nil),    // 10: teleport.summarizer.v1.InferenceSecretSpec
-	(*InferencePolicy)(nil),        // 11: teleport.summarizer.v1.InferencePolicy
-	(*InferencePolicySpec)(nil),    // 12: teleport.summarizer.v1.InferencePolicySpec
-	(*Classifier)(nil),             // 13: teleport.summarizer.v1.Classifier
-	(*ClassifierSpec)(nil),         // 14: teleport.summarizer.v1.ClassifierSpec
-	(*ClassifierActions)(nil),      // 15: teleport.summarizer.v1.ClassifierActions
-	(*ClassifierMatch)(nil),        // 16: teleport.summarizer.v1.ClassifierMatch
-	(*Summary)(nil),                // 17: teleport.summarizer.v1.Summary
-	(*SessionEvent)(nil),           // 18: teleport.summarizer.v1.SessionEvent
-	(*CommandEventDetails)(nil),    // 19: teleport.summarizer.v1.CommandEventDetails
-	(*DesktopEventDetails)(nil),    // 20: teleport.summarizer.v1.DesktopEventDetails
-	(*CommandAnalysis)(nil),        // 21: teleport.summarizer.v1.CommandAnalysis
-	(*SecurityRecommendation)(nil), // 22: teleport.summarizer.v1.SecurityRecommendation
-	(*RiskScoreReason)(nil),        // 23: teleport.summarizer.v1.RiskScoreReason
-	(*EnhancedSummary)(nil),        // 24: teleport.summarizer.v1.EnhancedSummary
-	(*RetrievalModel)(nil),         // 25: teleport.summarizer.v1.RetrievalModel
-	(*RetrievalModelSpec)(nil),     // 26: teleport.summarizer.v1.RetrievalModelSpec
-	(*v1.Metadata)(nil),            // 27: teleport.header.v1.Metadata
-	(*timestamppb.Timestamp)(nil),  // 28: google.protobuf.Timestamp
-	(*structpb.Struct)(nil),        // 29: google.protobuf.Struct
-	(*durationpb.Duration)(nil),    // 30: google.protobuf.Duration
-	(AccessRequestConsistency)(0),  // 31: teleport.summarizer.v1.AccessRequestConsistency
-	(*AccessRequestSnapshot)(nil),  // 32: teleport.summarizer.v1.AccessRequestSnapshot
+	(ClassifierActionMode)(0),      // 0: teleport.summarizer.v1.ClassifierActionMode
+	(SummaryState)(0),              // 1: teleport.summarizer.v1.SummaryState
+	(CommandCategory)(0),           // 2: teleport.summarizer.v1.CommandCategory
+	(RiskLevel)(0),                 // 3: teleport.summarizer.v1.RiskLevel
+	(ThreatCategory)(0),            // 4: teleport.summarizer.v1.ThreatCategory
+	(NeedsReviewReason)(0),         // 5: teleport.summarizer.v1.NeedsReviewReason
+	(*InferenceModel)(nil),         // 6: teleport.summarizer.v1.InferenceModel
+	(*InferenceModelSpec)(nil),     // 7: teleport.summarizer.v1.InferenceModelSpec
+	(*OpenAIProvider)(nil),         // 8: teleport.summarizer.v1.OpenAIProvider
+	(*BedrockProvider)(nil),        // 9: teleport.summarizer.v1.BedrockProvider
+	(*InferenceSecret)(nil),        // 10: teleport.summarizer.v1.InferenceSecret
+	(*InferenceSecretSpec)(nil),    // 11: teleport.summarizer.v1.InferenceSecretSpec
+	(*InferencePolicy)(nil),        // 12: teleport.summarizer.v1.InferencePolicy
+	(*InferencePolicySpec)(nil),    // 13: teleport.summarizer.v1.InferencePolicySpec
+	(*Classifier)(nil),             // 14: teleport.summarizer.v1.Classifier
+	(*ClassifierSpec)(nil),         // 15: teleport.summarizer.v1.ClassifierSpec
+	(*ClassifierActions)(nil),      // 16: teleport.summarizer.v1.ClassifierActions
+	(*ClassifierMatch)(nil),        // 17: teleport.summarizer.v1.ClassifierMatch
+	(*Summary)(nil),                // 18: teleport.summarizer.v1.Summary
+	(*SessionEvent)(nil),           // 19: teleport.summarizer.v1.SessionEvent
+	(*CommandEventDetails)(nil),    // 20: teleport.summarizer.v1.CommandEventDetails
+	(*DesktopEventDetails)(nil),    // 21: teleport.summarizer.v1.DesktopEventDetails
+	(*CommandAnalysis)(nil),        // 22: teleport.summarizer.v1.CommandAnalysis
+	(*SecurityRecommendation)(nil), // 23: teleport.summarizer.v1.SecurityRecommendation
+	(*RiskScoreReason)(nil),        // 24: teleport.summarizer.v1.RiskScoreReason
+	(*EnhancedSummary)(nil),        // 25: teleport.summarizer.v1.EnhancedSummary
+	(*RetrievalModel)(nil),         // 26: teleport.summarizer.v1.RetrievalModel
+	(*RetrievalModelSpec)(nil),     // 27: teleport.summarizer.v1.RetrievalModelSpec
+	(*v1.Metadata)(nil),            // 28: teleport.header.v1.Metadata
+	(*timestamppb.Timestamp)(nil),  // 29: google.protobuf.Timestamp
+	(*structpb.Struct)(nil),        // 30: google.protobuf.Struct
+	(*durationpb.Duration)(nil),    // 31: google.protobuf.Duration
+	(AccessRequestConsistency)(0),  // 32: teleport.summarizer.v1.AccessRequestConsistency
+	(*AccessRequestSnapshot)(nil),  // 33: teleport.summarizer.v1.AccessRequestSnapshot
 }
 var file_teleport_summarizer_v1_summarizer_proto_depIdxs = []int32{
-	27, // 0: teleport.summarizer.v1.InferenceModel.metadata:type_name -> teleport.header.v1.Metadata
-	6,  // 1: teleport.summarizer.v1.InferenceModel.spec:type_name -> teleport.summarizer.v1.InferenceModelSpec
-	7,  // 2: teleport.summarizer.v1.InferenceModelSpec.openai:type_name -> teleport.summarizer.v1.OpenAIProvider
-	8,  // 3: teleport.summarizer.v1.InferenceModelSpec.bedrock:type_name -> teleport.summarizer.v1.BedrockProvider
-	27, // 4: teleport.summarizer.v1.InferenceSecret.metadata:type_name -> teleport.header.v1.Metadata
-	10, // 5: teleport.summarizer.v1.InferenceSecret.spec:type_name -> teleport.summarizer.v1.InferenceSecretSpec
-	27, // 6: teleport.summarizer.v1.InferencePolicy.metadata:type_name -> teleport.header.v1.Metadata
-	12, // 7: teleport.summarizer.v1.InferencePolicy.spec:type_name -> teleport.summarizer.v1.InferencePolicySpec
-	27, // 8: teleport.summarizer.v1.Classifier.metadata:type_name -> teleport.header.v1.Metadata
-	14, // 9: teleport.summarizer.v1.Classifier.spec:type_name -> teleport.summarizer.v1.ClassifierSpec
-	15, // 10: teleport.summarizer.v1.ClassifierSpec.actions:type_name -> teleport.summarizer.v1.ClassifierActions
-	2,  // 11: teleport.summarizer.v1.ClassifierActions.risk_level_floor:type_name -> teleport.summarizer.v1.RiskLevel
-	0,  // 12: teleport.summarizer.v1.Summary.state:type_name -> teleport.summarizer.v1.SummaryState
-	28, // 13: teleport.summarizer.v1.Summary.inference_started_at:type_name -> google.protobuf.Timestamp
-	28, // 14: teleport.summarizer.v1.Summary.inference_finished_at:type_name -> google.protobuf.Timestamp
-	29, // 15: teleport.summarizer.v1.Summary.session_end_event:type_name -> google.protobuf.Struct
-	24, // 16: teleport.summarizer.v1.Summary.enhanced_summary:type_name -> teleport.summarizer.v1.EnhancedSummary
-	16, // 17: teleport.summarizer.v1.Summary.classifier_matches:type_name -> teleport.summarizer.v1.ClassifierMatch
-	1,  // 18: teleport.summarizer.v1.SessionEvent.category:type_name -> teleport.summarizer.v1.CommandCategory
-	2,  // 19: teleport.summarizer.v1.SessionEvent.risk_level:type_name -> teleport.summarizer.v1.RiskLevel
-	3,  // 20: teleport.summarizer.v1.SessionEvent.threat_category:type_name -> teleport.summarizer.v1.ThreatCategory
-	30, // 21: teleport.summarizer.v1.SessionEvent.start_offset:type_name -> google.protobuf.Duration
-	30, // 22: teleport.summarizer.v1.SessionEvent.end_offset:type_name -> google.protobuf.Duration
-	19, // 23: teleport.summarizer.v1.SessionEvent.command_event_details:type_name -> teleport.summarizer.v1.CommandEventDetails
-	20, // 24: teleport.summarizer.v1.SessionEvent.desktop_event_details:type_name -> teleport.summarizer.v1.DesktopEventDetails
-	1,  // 25: teleport.summarizer.v1.CommandAnalysis.category:type_name -> teleport.summarizer.v1.CommandCategory
-	2,  // 26: teleport.summarizer.v1.CommandAnalysis.risk_level:type_name -> teleport.summarizer.v1.RiskLevel
-	3,  // 27: teleport.summarizer.v1.CommandAnalysis.threat_category:type_name -> teleport.summarizer.v1.ThreatCategory
-	30, // 28: teleport.summarizer.v1.CommandAnalysis.start_offset:type_name -> google.protobuf.Duration
-	30, // 29: teleport.summarizer.v1.CommandAnalysis.end_offset:type_name -> google.protobuf.Duration
-	2,  // 30: teleport.summarizer.v1.SecurityRecommendation.severity:type_name -> teleport.summarizer.v1.RiskLevel
-	2,  // 31: teleport.summarizer.v1.EnhancedSummary.risk_level:type_name -> teleport.summarizer.v1.RiskLevel
-	21, // 32: teleport.summarizer.v1.EnhancedSummary.commands:type_name -> teleport.summarizer.v1.CommandAnalysis
-	4,  // 33: teleport.summarizer.v1.EnhancedSummary.needs_further_review:type_name -> teleport.summarizer.v1.NeedsReviewReason
-	23, // 34: teleport.summarizer.v1.EnhancedSummary.risk_score_reasons:type_name -> teleport.summarizer.v1.RiskScoreReason
-	31, // 35: teleport.summarizer.v1.EnhancedSummary.access_request_consistency:type_name -> teleport.summarizer.v1.AccessRequestConsistency
-	32, // 36: teleport.summarizer.v1.EnhancedSummary.access_requests:type_name -> teleport.summarizer.v1.AccessRequestSnapshot
-	4,  // 37: teleport.summarizer.v1.EnhancedSummary.needs_further_review_reasons:type_name -> teleport.summarizer.v1.NeedsReviewReason
-	18, // 38: teleport.summarizer.v1.EnhancedSummary.session_events:type_name -> teleport.summarizer.v1.SessionEvent
-	27, // 39: teleport.summarizer.v1.RetrievalModel.metadata:type_name -> teleport.header.v1.Metadata
-	26, // 40: teleport.summarizer.v1.RetrievalModel.spec:type_name -> teleport.summarizer.v1.RetrievalModelSpec
-	7,  // 41: teleport.summarizer.v1.RetrievalModelSpec.openai:type_name -> teleport.summarizer.v1.OpenAIProvider
-	8,  // 42: teleport.summarizer.v1.RetrievalModelSpec.bedrock:type_name -> teleport.summarizer.v1.BedrockProvider
-	43, // [43:43] is the sub-list for method output_type
-	43, // [43:43] is the sub-list for method input_type
-	43, // [43:43] is the sub-list for extension type_name
-	43, // [43:43] is the sub-list for extension extendee
-	0,  // [0:43] is the sub-list for field type_name
+	28, // 0: teleport.summarizer.v1.InferenceModel.metadata:type_name -> teleport.header.v1.Metadata
+	7,  // 1: teleport.summarizer.v1.InferenceModel.spec:type_name -> teleport.summarizer.v1.InferenceModelSpec
+	8,  // 2: teleport.summarizer.v1.InferenceModelSpec.openai:type_name -> teleport.summarizer.v1.OpenAIProvider
+	9,  // 3: teleport.summarizer.v1.InferenceModelSpec.bedrock:type_name -> teleport.summarizer.v1.BedrockProvider
+	28, // 4: teleport.summarizer.v1.InferenceSecret.metadata:type_name -> teleport.header.v1.Metadata
+	11, // 5: teleport.summarizer.v1.InferenceSecret.spec:type_name -> teleport.summarizer.v1.InferenceSecretSpec
+	28, // 6: teleport.summarizer.v1.InferencePolicy.metadata:type_name -> teleport.header.v1.Metadata
+	13, // 7: teleport.summarizer.v1.InferencePolicy.spec:type_name -> teleport.summarizer.v1.InferencePolicySpec
+	28, // 8: teleport.summarizer.v1.Classifier.metadata:type_name -> teleport.header.v1.Metadata
+	15, // 9: teleport.summarizer.v1.Classifier.spec:type_name -> teleport.summarizer.v1.ClassifierSpec
+	16, // 10: teleport.summarizer.v1.ClassifierSpec.actions:type_name -> teleport.summarizer.v1.ClassifierActions
+	0,  // 11: teleport.summarizer.v1.ClassifierActions.emit_audit_event:type_name -> teleport.summarizer.v1.ClassifierActionMode
+	3,  // 12: teleport.summarizer.v1.ClassifierActions.risk_level_floor:type_name -> teleport.summarizer.v1.RiskLevel
+	0,  // 13: teleport.summarizer.v1.ClassifierActions.flag_for_review:type_name -> teleport.summarizer.v1.ClassifierActionMode
+	1,  // 14: teleport.summarizer.v1.Summary.state:type_name -> teleport.summarizer.v1.SummaryState
+	29, // 15: teleport.summarizer.v1.Summary.inference_started_at:type_name -> google.protobuf.Timestamp
+	29, // 16: teleport.summarizer.v1.Summary.inference_finished_at:type_name -> google.protobuf.Timestamp
+	30, // 17: teleport.summarizer.v1.Summary.session_end_event:type_name -> google.protobuf.Struct
+	25, // 18: teleport.summarizer.v1.Summary.enhanced_summary:type_name -> teleport.summarizer.v1.EnhancedSummary
+	17, // 19: teleport.summarizer.v1.Summary.classifier_matches:type_name -> teleport.summarizer.v1.ClassifierMatch
+	2,  // 20: teleport.summarizer.v1.SessionEvent.category:type_name -> teleport.summarizer.v1.CommandCategory
+	3,  // 21: teleport.summarizer.v1.SessionEvent.risk_level:type_name -> teleport.summarizer.v1.RiskLevel
+	4,  // 22: teleport.summarizer.v1.SessionEvent.threat_category:type_name -> teleport.summarizer.v1.ThreatCategory
+	31, // 23: teleport.summarizer.v1.SessionEvent.start_offset:type_name -> google.protobuf.Duration
+	31, // 24: teleport.summarizer.v1.SessionEvent.end_offset:type_name -> google.protobuf.Duration
+	20, // 25: teleport.summarizer.v1.SessionEvent.command_event_details:type_name -> teleport.summarizer.v1.CommandEventDetails
+	21, // 26: teleport.summarizer.v1.SessionEvent.desktop_event_details:type_name -> teleport.summarizer.v1.DesktopEventDetails
+	2,  // 27: teleport.summarizer.v1.CommandAnalysis.category:type_name -> teleport.summarizer.v1.CommandCategory
+	3,  // 28: teleport.summarizer.v1.CommandAnalysis.risk_level:type_name -> teleport.summarizer.v1.RiskLevel
+	4,  // 29: teleport.summarizer.v1.CommandAnalysis.threat_category:type_name -> teleport.summarizer.v1.ThreatCategory
+	31, // 30: teleport.summarizer.v1.CommandAnalysis.start_offset:type_name -> google.protobuf.Duration
+	31, // 31: teleport.summarizer.v1.CommandAnalysis.end_offset:type_name -> google.protobuf.Duration
+	3,  // 32: teleport.summarizer.v1.SecurityRecommendation.severity:type_name -> teleport.summarizer.v1.RiskLevel
+	3,  // 33: teleport.summarizer.v1.EnhancedSummary.risk_level:type_name -> teleport.summarizer.v1.RiskLevel
+	22, // 34: teleport.summarizer.v1.EnhancedSummary.commands:type_name -> teleport.summarizer.v1.CommandAnalysis
+	5,  // 35: teleport.summarizer.v1.EnhancedSummary.needs_further_review:type_name -> teleport.summarizer.v1.NeedsReviewReason
+	24, // 36: teleport.summarizer.v1.EnhancedSummary.risk_score_reasons:type_name -> teleport.summarizer.v1.RiskScoreReason
+	32, // 37: teleport.summarizer.v1.EnhancedSummary.access_request_consistency:type_name -> teleport.summarizer.v1.AccessRequestConsistency
+	33, // 38: teleport.summarizer.v1.EnhancedSummary.access_requests:type_name -> teleport.summarizer.v1.AccessRequestSnapshot
+	5,  // 39: teleport.summarizer.v1.EnhancedSummary.needs_further_review_reasons:type_name -> teleport.summarizer.v1.NeedsReviewReason
+	19, // 40: teleport.summarizer.v1.EnhancedSummary.session_events:type_name -> teleport.summarizer.v1.SessionEvent
+	28, // 41: teleport.summarizer.v1.RetrievalModel.metadata:type_name -> teleport.header.v1.Metadata
+	27, // 42: teleport.summarizer.v1.RetrievalModel.spec:type_name -> teleport.summarizer.v1.RetrievalModelSpec
+	8,  // 43: teleport.summarizer.v1.RetrievalModelSpec.openai:type_name -> teleport.summarizer.v1.OpenAIProvider
+	9,  // 44: teleport.summarizer.v1.RetrievalModelSpec.bedrock:type_name -> teleport.summarizer.v1.BedrockProvider
+	45, // [45:45] is the sub-list for method output_type
+	45, // [45:45] is the sub-list for method input_type
+	45, // [45:45] is the sub-list for extension type_name
+	45, // [45:45] is the sub-list for extension extendee
+	0,  // [0:45] is the sub-list for field type_name
 }
 
 func init() { file_teleport_summarizer_v1_summarizer_proto_init() }
@@ -4668,7 +4725,7 @@ func file_teleport_summarizer_v1_summarizer_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_summarizer_v1_summarizer_proto_rawDesc), len(file_teleport_summarizer_v1_summarizer_proto_rawDesc)),
-			NumEnums:      5,
+			NumEnums:      6,
 			NumMessages:   22,
 			NumExtensions: 0,
 			NumServices:   0,

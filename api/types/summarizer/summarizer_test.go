@@ -230,9 +230,9 @@ func TestValidateClassifier(t *testing.T) {
 		Filter:   `equals(resource.metadata.labels["env"], "prod")`,
 		Criteria: "Sessions that modify production database schemas",
 		Actions: &summarizerv1.ClassifierActions{
-			EmitAuditEvent: true,
+			EmitAuditEvent: summarizerv1.ClassifierActionMode_CLASSIFIER_ACTION_MODE_ENABLED,
 			RiskLevelFloor: summarizerv1.RiskLevel_RISK_LEVEL_HIGH,
-			FlagForReview:  true,
+			FlagForReview:  summarizerv1.ClassifierActionMode_CLASSIFIER_ACTION_MODE_ENABLED,
 		},
 	})
 	require.NoError(t, ValidateClassifier(valid))
@@ -298,6 +298,22 @@ func TestValidateClassifier(t *testing.T) {
 				}
 			},
 			msg: "spec.actions.risk_level_floor has an unsupported value 42",
+		},
+		{
+			fn: func(c *summarizerv1.Classifier) {
+				c.Spec.Actions = &summarizerv1.ClassifierActions{
+					EmitAuditEvent: summarizerv1.ClassifierActionMode(42),
+				}
+			},
+			msg: "spec.actions.emit_audit_event has an unsupported value 42",
+		},
+		{
+			fn: func(c *summarizerv1.Classifier) {
+				c.Spec.Actions = &summarizerv1.ClassifierActions{
+					FlagForReview: summarizerv1.ClassifierActionMode(42),
+				}
+			},
+			msg: "spec.actions.flag_for_review has an unsupported value 42",
 		},
 	}
 

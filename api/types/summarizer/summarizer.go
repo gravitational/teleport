@@ -288,10 +288,22 @@ func ValidateClassifier(c *summarizerv1.Classifier) error {
 	}
 
 	if a := c.GetSpec().GetActions(); a != nil {
+		if _, ok := summarizerv1.ClassifierActionMode_name[int32(a.GetEmitAuditEvent())]; !ok {
+			return trace.BadParameter(
+				"spec.actions.emit_audit_event has an unsupported value %d",
+				a.GetEmitAuditEvent(),
+			)
+		}
 		if _, ok := summarizerv1.RiskLevel_name[int32(a.GetRiskLevelFloor())]; !ok {
 			return trace.BadParameter(
 				"spec.actions.risk_level_floor has an unsupported value %d",
 				a.GetRiskLevelFloor(),
+			)
+		}
+		if _, ok := summarizerv1.ClassifierActionMode_name[int32(a.GetFlagForReview())]; !ok {
+			return trace.BadParameter(
+				"spec.actions.flag_for_review has an unsupported value %d",
+				a.GetFlagForReview(),
 			)
 		}
 	}
