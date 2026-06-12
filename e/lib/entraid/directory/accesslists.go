@@ -220,6 +220,10 @@ func convertGroupMember(
 				Joined:         time.Now().UTC(),
 				AddedBy:        teleport.UserSystem,
 				MembershipKind: accesslistv1.MembershipKind_MEMBERSHIP_KIND_LIST.String(),
+				// Nested Access Lists members imported from Entra ID are always eligible.
+				// Setting IneligibleStatus to ELIGIBLE allows the reconciler to skip
+				// unnecessary ineligibility updates, improving performance.
+				IneligibleStatus: accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE.String(),
 			},
 		)
 		if err != nil {
