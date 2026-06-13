@@ -140,8 +140,11 @@ spec:
     # both strings and template variables are supported in this field
     logins: [root, '{{internal.logins}}']
 
-    # Windows logins a user is allowed to use for desktop sessions.
+    # Windows logins a user is allowed to use for Windows desktop sessions.
     windows_desktop_logins: [Administrator, '{{internal.logins}}']
+
+    # Linux desktop logins a user is allowed to use for Linux desktop sessions.
+    linux_desktop_logins: [root, '{{internal.linux_desktop_logins}}']
 
     # node_labels: a user with this role will be allowed to connect to
     # SSH nodes with labels matching below.
@@ -336,6 +339,7 @@ spec:
     db_labels_expression: 'labels["env"] == "staging"'
     db_service_labels_expression: 'labels["env"] == "staging"'
     windows_desktop_labels_expression: 'labels["env"] == "staging"'
+    linux_desktop_labels_expression: 'labels["env"] == "staging"'
     group_labels_expression: 'labels["env"] == "staging"'
     workload_identity_labels_expression: 'labels["env"] == "staging"'
     beam_labels_expression: 'labels["env"] == "staging"'

@@ -9,7 +9,7 @@ tags:
 ---
 
 Teleport's RBAC allows administrators to set up granular access policies for
-Windows desktops connected to Teleport.
+Windows and Linux desktops connected to Teleport.
 
 Teleport's `role` resource provides the following options for controlling
 desktop access:
@@ -44,16 +44,23 @@ spec:
 
     # Specify whether local users should be created automatically at connection
     # time. By default, this feature is disabled, and the user must already exist.
-    # Note: this is applicable to local users only and is not supported in Active
-    # Directory environments.
+    # Note: this is applicable to local Windows users only and is not supported in
+    # Active Directory environments.
     create_desktop_user: true
   allow:
-    # Label selectors for desktops this role has access to.
+    # Label selectors for Windows desktops this role has access to.
     windows_desktop_labels:
       environment: ["dev", "stage"]
 
     # Windows user accounts this role can connect as.
     windows_desktop_logins: ["Administrator", "{{internal.windows_logins}}"]
+
+    # Label selectors for Linux desktops this role has access to.
+    linux_desktop_labels:
+      environment: ["dev", "stage"]
+
+    # Linux user accounts this role can connect as.
+    linux_desktop_logins: ["alice", "{{internal.linux_desktop_logins}}"]
 ```
 
 <Admonition type="warning" title="Active Directory Configuration">
@@ -207,7 +214,42 @@ windows_desktop_service:
 In this example, all hosts in the Engineering OU would have `team: engineering`
 while the hosts in the Sales OU would have `team: sales`.
 
+## Linux Desktop Labeling
+
+Both `allow` and `deny` rules support `linux_desktop_labels` selectors. These
+selectors are matched against the labels set on the Linux desktop resource.
+Wildcards (`"*"`) can be used to match all label values.
+
+Linux desktops acquire labels from the `labels` field in the
+`linux_desktop_service` section of the Teleport configuration file on the host:
+
+```yaml
+linux_desktop_service:
+  enabled: true
+  labels:
+    environment: dev
+    datacenter: us-east
+```
+
+These labels are then used in role `allow` and `deny` rules:
+
+```yaml
+allow:
+  # Allow access to all Linux desktops in the dev environment.
+  linux_desktop_labels:
+    environment: dev
+```
+
+```yaml
+deny:
+  # Deny access to production Linux desktops.
+  linux_desktop_labels:
+    environment: prod
+```
+
 ## Logins
+
+### Windows logins
 
 The `windows_desktop_logins` role setting lists the Windows user accounts that
 the role permits access to. For local users, the `{{internal.windows_logins}}`
@@ -220,6 +262,24 @@ New clusters automatically populate the preset `access` role with the following:
 ```yaml
 allow:
   windows_desktop_logins: ["{{internal.windows_logins}}"]
+```
+
+### Linux logins
+
+The `linux_desktop_logins` role setting lists the Linux user accounts that the
+role permits access to. The specified accounts must already exist on the Linux
+host. The `{{internal.linux_desktop_logins}}` variable can be used as a placeholder for
+the user's `linux_desktop_logins` trait. The `linux_desktop_logins` trait can be specified when
+the user is created:
+
+```code
+$ tctl users add alice --linux-desktop-logins=alice,admin
+```
+
+Or updated for an existing user:
+
+```code
+$ tctl users update alice --set-linux-desktop-logins=alice,admin
 ```
 
 ## Clipboard Access

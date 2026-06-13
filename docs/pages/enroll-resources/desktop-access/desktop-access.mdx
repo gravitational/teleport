@@ -1,6 +1,6 @@
 ---
-title: Windows Desktops
-description: Protect Windows Resources with Teleport's passwordless access and other features.
+title: Desktop Access
+description: Protect Windows and Linux desktop resources with Teleport's passwordless access and other features.
 sidebar_position: 7
 template: doc-page
 tags:
@@ -22,7 +22,7 @@ import windowsDesktopsSvg from "@site/src/components/Icon/teleport-svg/windows-d
 import folderNotchOpenSvg from "@site/src/components/Icon/svg/folder-notch-open.svg";
 
 <DocHero
-  title="Configure access for local Windows users"
+  title="Configure access for Windows and Linux desktops"
   youtubeVideoId={
     // cspell:disable-next-line
     "n2h0GisWdss"
@@ -34,12 +34,18 @@ import folderNotchOpenSvg from "@site/src/components/Icon/svg/folder-notch-open.
       variant: "secondary",
       arrow: true,
     },
+    {
+      title: "Get started with Linux access",
+      href: "./linux-desktop/",
+      variant: "secondary",
+      arrow: true,
+    },
   ]}
   linksDesktopColumnCount={3}
   links={[
     {
-      title: "Windows desktop RBAC",
-      description: "Set up granular access policies for Windows desktops connected to Teleport.",
+      title: "Desktop RBAC",
+      description: "Set up granular access policies for desktops connected to Teleport.",
       href: "./rbac/",
       icon: userCheckSvg,
     }, 
@@ -51,13 +57,13 @@ import folderNotchOpenSvg from "@site/src/components/Icon/svg/folder-notch-open.
     },
     {
       title: "Troubleshooting",
-      description: "Common Windows desktop access issues with Teleport and their solutions.",
+      description: "Common desktop access issues with Teleport and their solutions.",
       href: "./troubleshooting/",
       icon: questionSvg,
     },
   ]}
 >
-Provide secure, passwordless access to Microsoft Windows desktops and servers, backed by short-lived certificates, role-based access controls, clipboard and directory sharing, session recordings, and detailed audit logs.
+Provide secure, passwordless access to Windows and Linux desktops, backed by short-lived certificates, role-based access controls, clipboard and directory sharing, session recordings, and detailed audit logs.
 </DocHero>
 {/*vale messaging.protocol-products = NO*/}
 <Resources
@@ -66,8 +72,8 @@ Provide secure, passwordless access to Microsoft Windows desktops and servers, b
   desktopColumnsCount={3}
   resources={[
     {
-      title: "Intro to Windows desktop access",
-      description: "Windows desktop and server access with clipboard and file sharing, session recording, and audit logs.",
+      title: "Intro to desktop access",
+      description: "Windows and Linux desktop access with clipboard and file sharing, session recording, and audit logs.",
       iconComponent: keyholeSvg,
       href: "./introduction/"
     },
@@ -82,6 +88,12 @@ Provide secure, passwordless access to Microsoft Windows desktops and servers, b
       description: "Provide secure, passwordless access to Microsoft Windows desktops for local Windows users.",
       iconComponent: windowsSvg,
       href: "./getting-started/"
+    },
+    {
+      title: "Linux desktops",
+      description: "Provide secure, audited access to Linux desktops running X11 desktop environments.",
+      iconComponent: windowsSvg,
+      href: "./linux-desktop/"
     },
   ]}
 />

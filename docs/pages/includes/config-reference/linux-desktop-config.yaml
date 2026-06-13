@@ -1,0 +1,20 @@
+linux_desktop_service:
+  enabled: true
+
+  # (optional) Labels to attach to this Linux Desktop Service instance.
+  labels:
+    "env": "staging"
+
+  # (optional) Filters for available X sessions.
+  # X session types are discovered from .desktop files in /usr/share/xsessions.
+  # The filter patterns are Go regular expressions matched against the filename
+  # of each .desktop file, without the .desktop extension.
+  # For example, a file named "gnome.desktop" is matched as "gnome".
+  xsessions:
+    # (optional) Only expose X sessions whose name matches this pattern.
+    # If unset, all sessions are included (subject to excluded below).
+    included: "^(gnome|kde|xfce4)$"
+
+    # (optional) Exclude X sessions whose name matches this pattern.
+    # Applied after included. If unset, no sessions are excluded.
+    excluded: ".*-classic$"
