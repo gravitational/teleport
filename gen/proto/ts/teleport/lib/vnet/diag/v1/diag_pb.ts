@@ -192,6 +192,15 @@ export interface CheckReport {
          */
         sshConfigurationReport: SSHConfigurationReport;
     } | {
+        oneofKind: "dnsReport";
+        /**
+         * dns_report reports whether the system resolver routes queries for each VNet-managed DNS zone
+         * to VNet's nameserver.
+         *
+         * @generated from protobuf field: teleport.lib.vnet.diag.v1.DNSReport dns_report = 4;
+         */
+        dnsReport: DNSReport;
+    } | {
         oneofKind: undefined;
     };
 }
@@ -270,6 +279,145 @@ export interface RouteConflict {
      * @generated from protobuf field: string interface_app = 4;
      */
     interfaceApp: string;
+}
+/**
+ * DNSReport describes whether the system resolver routes DNS queries for VNet-managed zones to
+ * VNet's nameserver. It is the output of DNSDiag.
+ *
+ * The check uses a probe hostname of the form vnet-diag-<random>.<zone>. VNet's nameserver
+ * short-circuits any query with this prefix and answers with addresses derived from its IPv4 CIDR
+ * range and IPv6 prefix, addresses no other resolver can produce. The random label prevents DNS
+ * caches.
+ *
+ * The check first queries the probe directly against each VNet nameserver IPv4 and IPv6 addresses
+ * asking for both A and AAAA records, to confirm VNet's DNS server is reachable and to capture the
+ * expected responses per record type. If an IPv4 or IPv6 address is unreachable, the corresponding
+ * reachability field still records the failure but the check continues with whatever was captured
+ * from successful queries. If neither address produced a response for either record type,
+ * zone_results is empty. Otherwise, the check runs the same probe per zone through the system
+ * resolver, asking for A and AAAA independently, and compares each answer to the expected response.
+ * A mismatch means the per-zone OS resolver entry does not route to VNet.
+ *
+ * @generated from protobuf message teleport.lib.vnet.diag.v1.DNSReport
+ */
+export interface DNSReport {
+    /**
+     * ipv4_reachability is the outcome of probing VNet's IPv4 nameserver directly. Null if VNet is
+     * not serving DNS on IPv4.
+     *
+     * @generated from protobuf field: teleport.lib.vnet.diag.v1.VNetDNSReachability ipv4_reachability = 1;
+     */
+    ipv4Reachability?: VNetDNSReachability;
+    /**
+     * ipv6_reachability is the outcome of probing VNet's IPv6 nameserver directly. Null if VNet is
+     * not serving DNS on IPv6.
+     *
+     * @generated from protobuf field: teleport.lib.vnet.diag.v1.VNetDNSReachability ipv6_reachability = 2;
+     */
+    ipv6Reachability?: VNetDNSReachability;
+    /**
+     * zone_results contains one entry per zone in NetworkStack.dns_zones. Empty if neither
+     * reachability probe produced a response for either record type.
+     *
+     * @generated from protobuf field: repeated teleport.lib.vnet.diag.v1.DNSZoneResult zone_results = 3;
+     */
+    zoneResults: DNSZoneResult[];
+}
+/**
+ * VNetDNSReachability describes the outcome of probing one of VNet's DNS servers directly,
+ * bypassing the system resolver.
+ *
+ * @generated from protobuf message teleport.lib.vnet.diag.v1.VNetDNSReachability
+ */
+export interface VNetDNSReachability {
+    /**
+     * address is the server that was probed, e.g. "[fdec:1fed:139f::2]:53" or "100.64.0.2:53".
+     *
+     * @generated from protobuf field: string address = 1;
+     */
+    address: string;
+    /**
+     * reachable is true if the server returned an answer for at least one record type.
+     *
+     * @generated from protobuf field: bool reachable = 2;
+     */
+    reachable: boolean;
+    /**
+     * responded_a is true if the server returned an A record for the probe.
+     *
+     * @generated from protobuf field: bool responded_a = 3;
+     */
+    respondedA: boolean;
+    /**
+     * responded_aaaa is true if the server returned an AAAA record for the probe.
+     *
+     * @generated from protobuf field: bool responded_aaaa = 4;
+     */
+    respondedAaaa: boolean;
+    /**
+     * error explains the failure when reachable is false.
+     *
+     * @generated from protobuf field: string error = 5;
+     */
+    error: string;
+}
+/**
+ * DNSZoneResult describes the outcome of querying a probe hostname under a single VNet-managed
+ * DNS zone through the system resolver. The query is made for both A and AAAA records.
+ *
+ * @generated from protobuf message teleport.lib.vnet.diag.v1.DNSZoneResult
+ */
+export interface DNSZoneResult {
+    /**
+     * zone is the DNS zone that was tested, e.g. "company.test".
+     *
+     * @generated from protobuf field: string zone = 1;
+     */
+    zone: string;
+    /**
+     * a_record is the outcome of the A-record query for this zone, compared to the
+     * A returned by VNet's DNS server on direct query. The check is skipped and
+     * this field is null when VNet's DNS server failed to return an A on direct
+     * query.
+     *
+     * @generated from protobuf field: teleport.lib.vnet.diag.v1.RecordResult a_record = 2;
+     */
+    aRecord?: RecordResult;
+    /**
+     * aaaa_record is the outcome of the AAAA-record query for this zone, compared
+     * to the AAAA returned by VNet's DNS server on direct query. The check is
+     * skipped and this field is null when VNet's DNS server failed to return an
+     * AAAA on direct query.
+     *
+     * @generated from protobuf field: teleport.lib.vnet.diag.v1.RecordResult aaaa_record = 3;
+     */
+    aaaaRecord?: RecordResult;
+}
+/**
+ * RecordResult describes the outcome of querying a single record type for a single zone through
+ * the system resolver.
+ *
+ * @generated from protobuf message teleport.lib.vnet.diag.v1.RecordResult
+ */
+export interface RecordResult {
+    /**
+     * status describes the outcome of the query for this record type.
+     *
+     * @generated from protobuf field: teleport.lib.vnet.diag.v1.DNSZoneStatus status = 1;
+     */
+    status: DNSZoneStatus;
+    /**
+     * observed_ip is the IP returned by the system resolver. Populated for DNS_ZONE_STATUS_HIJACKED.
+     *
+     * @generated from protobuf field: string observed_ip = 2;
+     */
+    observedIp: string;
+    /**
+     * error is set on DNS_ZONE_STATUS_TIMEOUT and DNS_ZONE_STATUS_RESOLVER_ERROR.
+     *
+     * @generated from protobuf field: string error = 3;
+     */
+    error: string;
 }
 /**
  * SSHConfigurationReport describes the state of the system's SSH configuration.
@@ -379,6 +527,50 @@ export enum CommandAttemptStatus {
      * @generated from protobuf enum value: COMMAND_ATTEMPT_STATUS_ERROR = 2;
      */
     ERROR = 2
+}
+/**
+ * DNSZoneStatus is the outcome of querying a probe hostname for a single DNS zone.
+ *
+ * @generated from protobuf enum teleport.lib.vnet.diag.v1.DNSZoneStatus
+ */
+export enum DNSZoneStatus {
+    /**
+     * @generated from protobuf enum value: DNS_ZONE_STATUS_UNSPECIFIED = 0;
+     */
+    DNS_ZONE_STATUS_UNSPECIFIED = 0,
+    /**
+     * DNS_ZONE_STATUS_OK indicates the system resolver returned the IP we expected from VNet's
+     * nameserver, so per-zone routing works.
+     *
+     * @generated from protobuf enum value: DNS_ZONE_STATUS_OK = 1;
+     */
+    DNS_ZONE_STATUS_OK = 1,
+    /**
+     * DNS_ZONE_STATUS_HIJACKED indicates the system resolver returned an IP, but not the one VNet
+     * returned. Some other resolver answered for this zone.
+     *
+     * @generated from protobuf enum value: DNS_ZONE_STATUS_HIJACKED = 2;
+     */
+    DNS_ZONE_STATUS_HIJACKED = 2,
+    /**
+     * DNS_ZONE_STATUS_NOT_REGISTERED indicates the system resolver returned NXDOMAIN or SERVFAIL.
+     *
+     * @generated from protobuf enum value: DNS_ZONE_STATUS_NOT_REGISTERED = 3;
+     */
+    DNS_ZONE_STATUS_NOT_REGISTERED = 3,
+    /**
+     * DNS_ZONE_STATUS_TIMEOUT indicates the system resolver query timed out, likely because it
+     * was routed to a nameserver that is unreachable.
+     *
+     * @generated from protobuf enum value: DNS_ZONE_STATUS_TIMEOUT = 4;
+     */
+    DNS_ZONE_STATUS_TIMEOUT = 4,
+    /**
+     * DNS_ZONE_STATUS_RESOLVER_ERROR indicates an unexpected error from the system resolver.
+     *
+     * @generated from protobuf enum value: DNS_ZONE_STATUS_RESOLVER_ERROR = 5;
+     */
+    DNS_ZONE_STATUS_RESOLVER_ERROR = 5
 }
 // @generated message type with reflection information, may provide speed optimized methods
 class Report$Type extends MessageType<Report> {
@@ -650,7 +842,8 @@ class CheckReport$Type extends MessageType<CheckReport> {
         super("teleport.lib.vnet.diag.v1.CheckReport", [
             { no: 1, name: "status", kind: "enum", T: () => ["teleport.lib.vnet.diag.v1.CheckReportStatus", CheckReportStatus, "CHECK_REPORT_STATUS_"] },
             { no: 2, name: "route_conflict_report", kind: "message", oneof: "report", T: () => RouteConflictReport },
-            { no: 3, name: "ssh_configuration_report", kind: "message", oneof: "report", T: () => SSHConfigurationReport }
+            { no: 3, name: "ssh_configuration_report", kind: "message", oneof: "report", T: () => SSHConfigurationReport },
+            { no: 4, name: "dns_report", kind: "message", oneof: "report", T: () => DNSReport }
         ]);
     }
     create(value?: PartialMessage<CheckReport>): CheckReport {
@@ -681,6 +874,12 @@ class CheckReport$Type extends MessageType<CheckReport> {
                         sshConfigurationReport: SSHConfigurationReport.internalBinaryRead(reader, reader.uint32(), options, (message.report as any).sshConfigurationReport)
                     };
                     break;
+                case /* teleport.lib.vnet.diag.v1.DNSReport dns_report */ 4:
+                    message.report = {
+                        oneofKind: "dnsReport",
+                        dnsReport: DNSReport.internalBinaryRead(reader, reader.uint32(), options, (message.report as any).dnsReport)
+                    };
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -702,6 +901,9 @@ class CheckReport$Type extends MessageType<CheckReport> {
         /* teleport.lib.vnet.diag.v1.SSHConfigurationReport ssh_configuration_report = 3; */
         if (message.report.oneofKind === "sshConfigurationReport")
             SSHConfigurationReport.internalBinaryWrite(message.report.sshConfigurationReport, writer.tag(3, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.lib.vnet.diag.v1.DNSReport dns_report = 4; */
+        if (message.report.oneofKind === "dnsReport")
+            DNSReport.internalBinaryWrite(message.report.dnsReport, writer.tag(4, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -901,6 +1103,270 @@ class RouteConflict$Type extends MessageType<RouteConflict> {
  * @generated MessageType for protobuf message teleport.lib.vnet.diag.v1.RouteConflict
  */
 export const RouteConflict = new RouteConflict$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class DNSReport$Type extends MessageType<DNSReport> {
+    constructor() {
+        super("teleport.lib.vnet.diag.v1.DNSReport", [
+            { no: 1, name: "ipv4_reachability", kind: "message", T: () => VNetDNSReachability },
+            { no: 2, name: "ipv6_reachability", kind: "message", T: () => VNetDNSReachability },
+            { no: 3, name: "zone_results", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => DNSZoneResult }
+        ]);
+    }
+    create(value?: PartialMessage<DNSReport>): DNSReport {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.zoneResults = [];
+        if (value !== undefined)
+            reflectionMergePartial<DNSReport>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: DNSReport): DNSReport {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* teleport.lib.vnet.diag.v1.VNetDNSReachability ipv4_reachability */ 1:
+                    message.ipv4Reachability = VNetDNSReachability.internalBinaryRead(reader, reader.uint32(), options, message.ipv4Reachability);
+                    break;
+                case /* teleport.lib.vnet.diag.v1.VNetDNSReachability ipv6_reachability */ 2:
+                    message.ipv6Reachability = VNetDNSReachability.internalBinaryRead(reader, reader.uint32(), options, message.ipv6Reachability);
+                    break;
+                case /* repeated teleport.lib.vnet.diag.v1.DNSZoneResult zone_results */ 3:
+                    message.zoneResults.push(DNSZoneResult.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: DNSReport, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* teleport.lib.vnet.diag.v1.VNetDNSReachability ipv4_reachability = 1; */
+        if (message.ipv4Reachability)
+            VNetDNSReachability.internalBinaryWrite(message.ipv4Reachability, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.lib.vnet.diag.v1.VNetDNSReachability ipv6_reachability = 2; */
+        if (message.ipv6Reachability)
+            VNetDNSReachability.internalBinaryWrite(message.ipv6Reachability, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
+        /* repeated teleport.lib.vnet.diag.v1.DNSZoneResult zone_results = 3; */
+        for (let i = 0; i < message.zoneResults.length; i++)
+            DNSZoneResult.internalBinaryWrite(message.zoneResults[i], writer.tag(3, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.vnet.diag.v1.DNSReport
+ */
+export const DNSReport = new DNSReport$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class VNetDNSReachability$Type extends MessageType<VNetDNSReachability> {
+    constructor() {
+        super("teleport.lib.vnet.diag.v1.VNetDNSReachability", [
+            { no: 1, name: "address", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "reachable", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 3, name: "responded_a", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 4, name: "responded_aaaa", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 5, name: "error", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<VNetDNSReachability>): VNetDNSReachability {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.address = "";
+        message.reachable = false;
+        message.respondedA = false;
+        message.respondedAaaa = false;
+        message.error = "";
+        if (value !== undefined)
+            reflectionMergePartial<VNetDNSReachability>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: VNetDNSReachability): VNetDNSReachability {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string address */ 1:
+                    message.address = reader.string();
+                    break;
+                case /* bool reachable */ 2:
+                    message.reachable = reader.bool();
+                    break;
+                case /* bool responded_a */ 3:
+                    message.respondedA = reader.bool();
+                    break;
+                case /* bool responded_aaaa */ 4:
+                    message.respondedAaaa = reader.bool();
+                    break;
+                case /* string error */ 5:
+                    message.error = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: VNetDNSReachability, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string address = 1; */
+        if (message.address !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.address);
+        /* bool reachable = 2; */
+        if (message.reachable !== false)
+            writer.tag(2, WireType.Varint).bool(message.reachable);
+        /* bool responded_a = 3; */
+        if (message.respondedA !== false)
+            writer.tag(3, WireType.Varint).bool(message.respondedA);
+        /* bool responded_aaaa = 4; */
+        if (message.respondedAaaa !== false)
+            writer.tag(4, WireType.Varint).bool(message.respondedAaaa);
+        /* string error = 5; */
+        if (message.error !== "")
+            writer.tag(5, WireType.LengthDelimited).string(message.error);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.vnet.diag.v1.VNetDNSReachability
+ */
+export const VNetDNSReachability = new VNetDNSReachability$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class DNSZoneResult$Type extends MessageType<DNSZoneResult> {
+    constructor() {
+        super("teleport.lib.vnet.diag.v1.DNSZoneResult", [
+            { no: 1, name: "zone", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "a_record", kind: "message", T: () => RecordResult },
+            { no: 3, name: "aaaa_record", kind: "message", T: () => RecordResult }
+        ]);
+    }
+    create(value?: PartialMessage<DNSZoneResult>): DNSZoneResult {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.zone = "";
+        if (value !== undefined)
+            reflectionMergePartial<DNSZoneResult>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: DNSZoneResult): DNSZoneResult {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string zone */ 1:
+                    message.zone = reader.string();
+                    break;
+                case /* teleport.lib.vnet.diag.v1.RecordResult a_record */ 2:
+                    message.aRecord = RecordResult.internalBinaryRead(reader, reader.uint32(), options, message.aRecord);
+                    break;
+                case /* teleport.lib.vnet.diag.v1.RecordResult aaaa_record */ 3:
+                    message.aaaaRecord = RecordResult.internalBinaryRead(reader, reader.uint32(), options, message.aaaaRecord);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: DNSZoneResult, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string zone = 1; */
+        if (message.zone !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.zone);
+        /* teleport.lib.vnet.diag.v1.RecordResult a_record = 2; */
+        if (message.aRecord)
+            RecordResult.internalBinaryWrite(message.aRecord, writer.tag(2, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.lib.vnet.diag.v1.RecordResult aaaa_record = 3; */
+        if (message.aaaaRecord)
+            RecordResult.internalBinaryWrite(message.aaaaRecord, writer.tag(3, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.vnet.diag.v1.DNSZoneResult
+ */
+export const DNSZoneResult = new DNSZoneResult$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class RecordResult$Type extends MessageType<RecordResult> {
+    constructor() {
+        super("teleport.lib.vnet.diag.v1.RecordResult", [
+            { no: 1, name: "status", kind: "enum", T: () => ["teleport.lib.vnet.diag.v1.DNSZoneStatus", DNSZoneStatus] },
+            { no: 2, name: "observed_ip", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "error", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<RecordResult>): RecordResult {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.status = 0;
+        message.observedIp = "";
+        message.error = "";
+        if (value !== undefined)
+            reflectionMergePartial<RecordResult>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: RecordResult): RecordResult {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* teleport.lib.vnet.diag.v1.DNSZoneStatus status */ 1:
+                    message.status = reader.int32();
+                    break;
+                case /* string observed_ip */ 2:
+                    message.observedIp = reader.string();
+                    break;
+                case /* string error */ 3:
+                    message.error = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: RecordResult, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* teleport.lib.vnet.diag.v1.DNSZoneStatus status = 1; */
+        if (message.status !== 0)
+            writer.tag(1, WireType.Varint).int32(message.status);
+        /* string observed_ip = 2; */
+        if (message.observedIp !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.observedIp);
+        /* string error = 3; */
+        if (message.error !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.error);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.vnet.diag.v1.RecordResult
+ */
+export const RecordResult = new RecordResult$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class SSHConfigurationReport$Type extends MessageType<SSHConfigurationReport> {
     constructor() {
