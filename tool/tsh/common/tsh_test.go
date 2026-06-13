@@ -1503,13 +1503,21 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 
 	const password = "supersecretpassword"
 
-	rootAuth, rootProxy := makeTestServers(t,
-		withClusterName(t, "localhost"),
-		withBootstrap(connector, noAccessRole, sshLoginRole, perSessionMFARole),
-		withConfig(func(cfg *servicecfg.Config) {
+	rootServer, err := testserver.NewTeleportProcess(t.TempDir(),
+		testserver.WithClusterName("localhost"),
+		testserver.WithBootstrap(connector, noAccessRole, sshLoginRole, perSessionMFARole),
+		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.InsecureMode = true
+			// Run auth and proxy only; SSH nodes are added separately below.
+			cfg.SSH.Enabled = false
 		}),
 	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, rootServer.Close())
+		require.NoError(t, rootServer.Wait())
+	})
+	rootAuth, rootProxy := rootServer, rootServer
 
 	rootAuthAddr, err := rootAuth.AuthAddr()
 	require.NoError(t, err)
@@ -1542,13 +1550,21 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	leafAuth, leafProxy := makeTestServers(t,
-		withClusterName(t, "leafcluster"),
-		withBootstrap(connector, sshLoginRole, perSessionMFARole),
-		withConfig(func(cfg *servicecfg.Config) {
+	leafServer, err := testserver.NewTeleportProcess(t.TempDir(),
+		testserver.WithClusterName("leafcluster"),
+		testserver.WithBootstrap(connector, sshLoginRole, perSessionMFARole),
+		testserver.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.InsecureMode = true
+			// Run auth and proxy only; SSH nodes are added separately below.
+			cfg.SSH.Enabled = false
 		}),
 	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, leafServer.Close())
+		require.NoError(t, leafServer.Wait())
+	})
+	leafAuth, leafProxy := leafServer, leafServer
 	tryCreateTrustedCluster(t, leafAuth.GetAuthServer(), trustedCluster)
 
 	leafAuthAddr, err := leafAuth.AuthAddr()
