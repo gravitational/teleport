@@ -324,7 +324,10 @@ export const resourceIconSpecs = {
   slack: forAllThemes(i.slack),
   snowflake: forAllThemes(i.snowflake),
   snyk: { dark: i.snykDark, light: i.snykLight },
-  solveintelligence: { dark: i.solveintelligenceDark, light: i.solveintelligenceLight },
+  solveintelligence: {
+    dark: i.solveintelligenceDark,
+    light: i.solveintelligenceLight,
+  },
   spacelift: { dark: i.spaceliftDark, light: i.spaceliftLight },
   sparrow: forAllThemes(i.sparrow),
   strapi: forAllThemes(i.strapi),
