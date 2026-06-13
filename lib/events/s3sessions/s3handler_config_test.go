@@ -146,6 +146,20 @@ func TestConfig_SetFromURL(t *testing.T) {
 				})
 			},
 		},
+		{
+			name: "disable trailing checksum via url",
+			url:  "s3://bucket/audit?disablechecksum=true",
+			cfgAssertion: func(t *testing.T, config Config) {
+				require.True(t, config.DisableTrailingChecksum)
+			},
+		},
+		{
+			name: "disable trailing checksum disabled via url",
+			url:  "s3://bucket/audit?disablechecksum=false",
+			cfgAssertion: func(t *testing.T, config Config) {
+				require.False(t, config.DisableTrailingChecksum)
+			},
+		},
 	}
 
 	for _, tt := range cases {
