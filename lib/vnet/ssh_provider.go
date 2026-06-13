@@ -32,6 +32,7 @@ import (
 	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
+	clientssh "github.com/gravitational/teleport/lib/client/ssh"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/vnet/dns"
 )
@@ -234,6 +235,7 @@ func (p *sshProvider) sessionSSHConfig(
 				return []ssh.Signer{certSigner}, nil
 			},
 		},
+		AuthCallback:    buildAuthCallback(ctx, mode, target.profile, target.leafCluster, p.cfg.clt),
 		User:            user,
 		HostKeyCallback: hostKeyCallback,
 	}, nil
@@ -301,4 +303,27 @@ func newConnWithExtraCloser(conn net.Conn, extraCloser func() error) *connWithEx
 // Close closes the net.Conn and the extra closer.
 func (c *connWithExtraCloser) Close() error {
 	return trace.NewAggregate(c.Conn.Close(), c.extraCloser())
+}
+
+func buildAuthCallback(
+	ctx context.Context,
+	mode vnetv1.SessionSSHConfigCredentialMode,
+	profile string,
+	clusterName string,
+	clt *clientApplicationServiceClient,
+) ssh.ClientAuthCallback {
+	// If the credential mode is not direct, it means the session SSH cert cannot be used directly to authenticate to
+	// the target SSH node. In this case, no AuthCallback is needed.
+	if mode != vnetv1.SessionSSHConfigCredentialMode_SESSION_SSH_CONFIG_CREDENTIAL_MODE_DIRECT {
+		return nil
+	}
+
+	return clientssh.AuthCallback(
+		ctx,
+		func() (clientssh.Performer, error) {
+			return func(ctx context.Context, sessionID []byte) (string, error) {
+				return clt.PerformSessionMFACeremony(ctx, profile, clusterName, sessionID)
+			}, nil
+		},
+	)
 }

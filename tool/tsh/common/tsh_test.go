@@ -1950,7 +1950,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 				require.True(t, ok, i...)
 				require.Contains(t, out, "MFA response validation failed", i...)
 			},
-			mfaPromptCount: 1,
+			mfaPromptCount: 2,
 			errAssertion:   require.Error,
 		},
 		{
@@ -2017,7 +2017,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			stdoutAssertion: func(t require.TestingT, i any, i2 ...any) {
 				require.Equal(t, "test\n", i, i2...)
 			},
-			mfaPromptCount: 1,
+			mfaPromptCount: 2,
 			errAssertion:   require.NoError,
 		},
 		{
