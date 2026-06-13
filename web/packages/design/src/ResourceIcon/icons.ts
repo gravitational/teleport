@@ -75,7 +75,6 @@ export { default as awsmanagementconsole } from './assets/awsmanagementconsole.s
 export { default as awsmemorydb } from './assets/awsmemorydb.svg?no-inline';
 export { default as awsrds } from './assets/awsrds.svg?no-inline';
 export { default as awsredshift } from './assets/awsredshift.svg?no-inline';
-export { default as awsredshift2 } from './assets/awsredshift2.svg?no-inline';
 export { default as awssimplestorageservices3 } from './assets/awssimplestorageservices3.svg?no-inline';
 export { default as awssinglesignon } from './assets/awssinglesignon.svg?no-inline';
 export { default as awsquicksight } from './assets/awsquicksight.svg?no-inline';
@@ -152,7 +151,6 @@ export { default as driftLight } from './assets/drift-light.svg?no-inline';
 export { default as dropbox } from './assets/dropbox.svg?no-inline';
 export { default as duoDark } from './assets/duo-dark.svg?no-inline';
 export { default as duoLight } from './assets/duo-light.svg?no-inline';
-export { default as dynamo } from './assets/dynamo.svg?no-inline';
 export { default as ec2 } from './assets/ec2.svg?no-inline';
 export { default as eks } from './assets/eks.svg?no-inline';
 export { default as elastic } from './assets/elastic.svg?no-inline';
@@ -340,7 +338,6 @@ export { default as reachdeskDark } from './assets/reachdesk-dark.svg?no-inline'
 export { default as reachdeskLight } from './assets/reachdesk-light.svg?no-inline';
 export { default as redhat } from './assets/redhat.svg?no-inline';
 export { default as redis } from './assets/redis.svg?no-inline';
-export { default as redshift } from './assets/redshift.svg?no-inline';
 export { default as relay } from './assets/relay.svg?no-inline';
 export { default as replit } from './assets/replit.svg?no-inline';
 export { default as retellDark } from './assets/retellai-dark.svg?no-inline';
