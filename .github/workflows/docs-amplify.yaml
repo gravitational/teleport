@@ -4,18 +4,21 @@ on:
     paths:
       - 'docs/**'
       - .github/workflows/docs-amplify.yaml
+      - .github/scripts/preview-links.js
+      - .github/scripts/post-preview-links.js
   workflow_dispatch:
-  
+
 permissions:
   pull-requests: write
   id-token: write
-  
+  contents: read
+
 jobs:
   amplify-preview:
     name: Prepare Amplify preview URL
     runs-on: ubuntu-slim
     environment: docs-amplify
-    steps:    
+    steps:
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@a03048d87541d1d9fcf2ecf528a4a65ba9bd7838 # v4
       with:
@@ -30,6 +33,26 @@ jobs:
         create_branches: "true"
         github_token: ${{ secrets.GITHUB_TOKEN }}
         wait: "true"
+
+    # Check out the repository so the next step can read docs/pages/ from disk
+    # (to map changed images to the pages that reference them) and load the
+    # helper scripts in .github/scripts/. SHA-pin this to match the rest of
+    # the file once the repo's preferred actions/checkout SHA is confirmed.
+    - name: Check out repository
+      if: success()
+      uses: actions/checkout@v4
+
+    - name: Append per-page preview links to deployment status comment
+      if: success()
+      uses: actions/github-script@v7
+      env:
+        PREVIEW_BRANCH: ${{ steps.amplify_preview.outputs.amplify_branch_name }}
+        PREVIEW_APP_ID: ${{ steps.amplify_preview.outputs.amplify_app_id }}
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const { run } = require('./.github/scripts/post-preview-links.js');
+          await run({ github, context, core });
 
     - name: Print failure message
       if: failure()
