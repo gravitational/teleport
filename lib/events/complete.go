@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
 
@@ -45,7 +46,7 @@ type UploadCompleterConfig struct {
 	// AuditLog is used for storing logs
 	AuditLog AuditLogSessionStreamer
 	// Uploader allows the completer to list and complete uploads
-	Uploader MultipartUploader
+	Uploader MultipartHandler
 	// SessionTracker is used to discover the current state of a
 	// sesssions with active uploads.
 	SessionTracker services.SessionTrackerService
@@ -123,13 +124,25 @@ func NewUploadCompleter(cfg UploadCompleterConfig) (*UploadCompleter, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	u := &UploadCompleter{
-		cfg:    cfg,
-		log:    slog.With(teleport.ComponentKey, teleport.Component(cfg.Component, "completer")),
-		closeC: make(chan struct{}),
+
+	reuploadStreamer, err := NewProtoStreamer(ProtoStreamerConfig{
+		Uploader:                  cfg.Uploader,
+		MinUploadBytes:            MinUploadPartSizeBytes,
+		SessionSummarizerProvider: cfg.SessionSummarizerProvider,
+		RecordingMetadataProvider: cfg.RecordingMetadataProvider,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	err := metrics.RegisterPrometheusCollectors(incompleteSessionUploads)
+	u := &UploadCompleter{
+		cfg:              cfg,
+		log:              slog.With(teleport.ComponentKey, teleport.Component(cfg.Component, "completer")),
+		reuploadStreamer: reuploadStreamer,
+		closeC:           make(chan struct{}),
+	}
+
+	err = metrics.RegisterPrometheusCollectors(incompleteSessionUploads)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -151,9 +164,10 @@ func StartNewUploadCompleter(ctx context.Context, cfg UploadCompleterConfig) err
 // UploadCompleter periodically scans uploads that have not been completed
 // and completes them
 type UploadCompleter struct {
-	cfg    UploadCompleterConfig
-	log    *slog.Logger
-	closeC chan struct{}
+	cfg              UploadCompleterConfig
+	log              *slog.Logger
+	reuploadStreamer *ProtoStreamer
+	closeC           chan struct{}
 }
 
 // Close stops the UploadCompleter
@@ -176,11 +190,29 @@ func (u *UploadCompleter) Serve(ctx context.Context) error {
 	})
 	defer periodic.Stop()
 	u.log.InfoContext(ctx, "upload completer starting", "check_interval", u.cfg.CheckPeriod.String())
+	var reuploadCh <-chan time.Time
+	// Only the local audit log on the auth server can perform reuploads.
+	if _, ok := u.cfg.AuditLog.(TempSessionStreamer); ok {
+		reuploadPeriodic := interval.New(interval.Config{
+			Clock:         u.cfg.Clock,
+			Duration:      u.cfg.CheckPeriod,
+			FirstDuration: retryutils.HalfJitter(u.cfg.CheckPeriod),
+			Jitter:        retryutils.SeventhJitter,
+		})
+		defer reuploadPeriodic.Stop()
+		reuploadCh = reuploadPeriodic.Next()
+	}
 
 	for {
 		select {
 		case <-periodic.Next():
 			u.PerformPeriodicCheck(ctx)
+		case <-reuploadCh:
+			u.withSemaphore(ctx, func() {
+				if err := u.CheckReuploads(ctx); err != nil {
+					u.log.WarnContext(ctx, "Failed to check reuploads.", "error", err)
+				}
+			})
 		case <-u.closeC:
 			return nil
 		case <-ctx.Done():
@@ -189,7 +221,7 @@ func (u *UploadCompleter) Serve(ctx context.Context) error {
 	}
 }
 
-func (u *UploadCompleter) PerformPeriodicCheck(ctx context.Context) {
+func (u *UploadCompleter) withSemaphore(ctx context.Context, f func()) {
 	// If configured with a server ID, then acquire a semaphore prior to completing uploads.
 	// This is used for auth's upload completer and ensures that multiple auth servers do not
 	// attempt to complete the same uploads at the same time.
@@ -213,11 +245,17 @@ func (u *UploadCompleter) PerformPeriodicCheck(ctx context.Context) {
 			return
 		}
 	}
-	if err := u.CheckUploads(ctx); trace.IsAccessDenied(err) {
-		u.log.WarnContext(ctx, "Teleport does not have permission to list uploads. The upload completer will be unable to complete uploads of partial session recordings.")
-	} else if err != nil {
-		u.log.WarnContext(ctx, "Failed to check uploads.", "error", err)
-	}
+	f()
+}
+
+func (u *UploadCompleter) PerformPeriodicCheck(ctx context.Context) {
+	u.withSemaphore(ctx, func() {
+		if err := u.CheckUploads(ctx); trace.IsAccessDenied(err) {
+			u.log.WarnContext(ctx, "Teleport does not have permission to list uploads. The upload completer will be unable to complete uploads of partial session recordings.")
+		} else if err != nil {
+			u.log.WarnContext(ctx, "Failed to check uploads.", "error", err)
+		}
+	})
 }
 
 // CheckUploads fetches uploads and completes any abandoned uploads
@@ -247,6 +285,32 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 			// all further uploads will be closer in time to now and thus they
 			// will all be within the grace period
 			break
+		}
+
+		if upload.Temporary {
+			// Skip complete temporary uploads. The upload won't be removed until
+			// the temporary recording is merged with the real one.
+			version, err := u.cfg.Uploader.GetRecordingVersion(ctx, upload.SessionID, upload.ID)
+			if err != nil {
+				log.WarnContext(ctx, "could not check recording version", "error", err)
+				continue
+			}
+			if version != "" {
+				continue
+			}
+		} else {
+			// Delete abandoned append uploads, they will be recreated if needed.
+			version, err := u.cfg.Uploader.GetRecordingVersion(ctx, upload.SessionID, "")
+			if err != nil {
+				log.WarnContext(ctx, "could not check recording version", "error", err)
+				continue
+			}
+			if version != "" {
+				if err := u.cfg.Uploader.CompleteUpload(ctx, upload, nil); err != nil {
+					log.WarnContext(ctx, "could not clean up abandoned append upload", "error", err)
+				}
+				continue
+			}
 		}
 
 		switch _, err := u.cfg.SessionTracker.GetSessionTracker(ctx, upload.SessionID.String()); {
@@ -297,7 +361,7 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 			continue
 		}
 
-		uploadData := u.cfg.Uploader.GetUploadMetadata(upload.SessionID)
+		uploadData := u.cfg.Uploader.GetUploadMetadata(upload.SessionID, upload.ID)
 
 		// It's possible that we don't have a session ID here. For example,
 		// an S3 multipart upload may have been completed by another auth
@@ -315,7 +379,7 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 		// This is necessary because we'll need to download the session in order to
 		// enumerate its events, and the S3 API takes a little while after the upload
 		// is completed before version metadata becomes available.
-		if u.cfg.EnsureSessionEndEvent {
+		if u.cfg.EnsureSessionEndEvent && !upload.Temporary {
 			go func() {
 				select {
 				case <-ctx.Done():
@@ -348,6 +412,144 @@ func (u *UploadCompleter) CheckUploads(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+// CheckReuploads checks and merges temporary recordings that can be merged with
+// the real one.
+func (u *UploadCompleter) CheckReuploads(ctx context.Context) error {
+	uploads, err := u.cfg.Uploader.ListUploads(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for _, upload := range uploads {
+		log := u.log.With("upload_id", upload.ID, "session_id", upload.SessionID)
+		// Merge any complete temporary recordings.
+		if !upload.Temporary {
+			continue
+		}
+		version, err := u.cfg.Uploader.GetRecordingVersion(ctx, upload.SessionID, upload.ID)
+		if err != nil {
+			log.ErrorContext(ctx, "failed to check recording version", "error", err)
+			continue
+		}
+		if version == "" {
+			continue
+		}
+		if err := u.AppendUpload(ctx, upload); err != nil {
+			log.ErrorContext(ctx, "failed to merge recordings", "error", err)
+			continue
+		}
+		// Clean up temporary recording.
+		if err := u.cfg.Uploader.CompleteUpload(ctx, upload, nil); err != nil {
+			log.WarnContext(ctx, "failed to clean up temporary upload", "error", err)
+		}
+	}
+	return nil
+}
+
+// TempSessionStreamer is an alternate version of [SessionStreamer] that can stream
+// events from temporary recordings.
+type TempSessionStreamer interface {
+	StreamTempSessionEvents(ctx context.Context, sessionID session.ID, uploadID string, startIndex int64) (chan apievents.AuditEvent, chan error)
+}
+
+// AppendUpload appends a temporary recording to an existing session recording
+// and replaces the current recording with the new one.
+func (u *UploadCompleter) AppendUpload(
+	ctx context.Context,
+	upload StreamUpload,
+) (err error) {
+	uploadStreamer, ok := u.cfg.AuditLog.(TempSessionStreamer)
+	if !ok {
+		return trace.BadParameter("audit log does not implement UploadStreamer")
+	}
+	stream, err := u.reuploadStreamer.CreateOverwriteAuditStream(ctx, upload.SessionID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	uploadID := ""
+	select {
+	case status := <-stream.Status():
+		uploadID = status.UploadID
+	case <-ctx.Done():
+		_ = stream.Close(ctx)
+		return trace.Wrap(ctx.Err())
+	}
+
+	abortUpload := func() {
+		if closeErr := stream.Close(ctx); closeErr != nil {
+			slog.WarnContext(ctx, "Failed to close steam.", "error", closeErr)
+		}
+		if uploadID == "" {
+			return
+		}
+		// If this upload fails, delete it; it will be re-created on the next go around.
+		if err := u.cfg.Uploader.CompleteUpload(ctx, StreamUpload{
+			ID:        uploadID,
+			SessionID: upload.SessionID,
+		}, nil); err != nil {
+			u.log.WarnContext(ctx, "Failed to clean up upload.", "error", err)
+		}
+	}
+	defer func() {
+		if err != nil {
+			abortUpload()
+		}
+	}()
+
+	// Record all existing events first.
+	currentStream, currentErr := uploadStreamer.StreamTempSessionEvents(ctx, upload.SessionID, "" /* upload ID */, 0)
+	nopPreparer := NoOpPreparer{}
+	var lastEventIndex int64 = -1
+	for {
+		var event apievents.AuditEvent
+		select {
+		case event = <-currentStream:
+		case err := <-currentErr:
+			return trace.Wrap(err)
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
+		}
+		if event == nil {
+			break
+		}
+		lastEventIndex = event.GetIndex()
+		preparedEvent, _ := nopPreparer.PrepareSessionEvent(event)
+		if err := stream.RecordEvent(ctx, preparedEvent); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	// Record new events from incoming.
+	incomingStream, incomingErr := uploadStreamer.StreamTempSessionEvents(ctx, upload.SessionID, upload.ID, 0)
+	appendedEvent := false
+	for {
+		var event apievents.AuditEvent
+		select {
+		case event = <-incomingStream:
+		case err := <-incomingErr:
+			return trace.Wrap(err)
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
+		}
+		if event == nil {
+			break
+		}
+		if event.GetIndex() <= lastEventIndex {
+			continue
+		}
+		preparedEvent, _ := nopPreparer.PrepareSessionEvent(event)
+		if err := stream.RecordEvent(ctx, preparedEvent); err != nil {
+			return trace.Wrap(err)
+		}
+		appendedEvent = true
+	}
+	if !appendedEvent {
+		// Recording is unchanged, nothing to do.
+		abortUpload()
+		return nil
+	}
+	return trace.Wrap(stream.Complete(ctx))
 }
 
 func (u *UploadCompleter) ensureSessionEndEvent(ctx context.Context, uploadData UploadMetadata) error {

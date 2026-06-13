@@ -71,8 +71,8 @@ func TestErrorCounter(t *testing.T) {
 			steps: []testStep{
 				{
 					action: func(pack *testPack) {
-						pack.errHandler.StreamSessionRecording(ctx, "")
-						pack.successHandler.StreamSessionRecording(ctx, "")
+						pack.errHandler.StreamSessionRecording(ctx, "", "")
+						pack.successHandler.StreamSessionRecording(ctx, "", "")
 					},
 					repeat: 10,
 				},
@@ -387,7 +387,7 @@ func (h *errorHandler) UploadThumbnail(ctx context.Context, sessionID session.ID
 	return "", h.err
 }
 
-func (h *errorHandler) StreamSessionRecording(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+func (h *errorHandler) StreamSessionRecording(ctx context.Context, sessionID session.ID, uploadID string) (io.ReadCloser, error) {
 	return nil, h.err
 }
 
@@ -410,7 +410,7 @@ type bodyErrorHandler struct {
 	events.MultipartHandler
 }
 
-func (h *bodyErrorHandler) StreamSessionRecording(_ context.Context, _ session.ID) (io.ReadCloser, error) {
+func (h *bodyErrorHandler) StreamSessionRecording(_ context.Context, _ session.ID, _ string) (io.ReadCloser, error) {
 	return io.NopCloser(errorReader{h.readErr}), nil
 }
 
@@ -432,7 +432,7 @@ func TestDownloadBodyReadError(t *testing.T) {
 	handler := counter.WrapSessionHandler(&bodyErrorHandler{readErr: readErr})
 
 	for range 4 {
-		rc, err := handler.StreamSessionRecording(ctx, "")
+		rc, err := handler.StreamSessionRecording(ctx, "", "")
 		assert.NoError(t, err, "Download call itself must succeed")
 		_, readErr := io.ReadAll(rc)
 		assert.Error(t, readErr, "reading the body must fail")

@@ -363,7 +363,7 @@ func TestEncryptedRecordingIO(t *testing.T) {
 	case <-doneC:
 	}
 
-	rc, err := uploader.StreamSessionRecording(ctx, sid)
+	rc, err := uploader.StreamSessionRecording(ctx, sid, "" /* upload ID */)
 	require.NoError(t, err)
 	defer rc.Close()
 
@@ -1066,6 +1066,122 @@ func TestRecordingMetadataProcessing(t *testing.T) {
 			require.NoError(t, stream.Complete(t.Context()))
 
 			mockMetadata.AssertExpectations(t)
+		})
+	}
+}
+
+func TestResumeAuditStream(t *testing.T) {
+	t.Parallel()
+	assertUploadNotCreated := func(t *testing.T, _ session.ID, _ events.CreateUploadOptions) {
+		require.Fail(t, "CreateUpload should not be called")
+	}
+	sessionID := session.NewID()
+	uploadID := uuid.NewString()
+	tests := []struct {
+		name                 string
+		recordingVersion     string
+		tempRecordingVersion string
+		uploadMetadata       events.StreamUpload
+		existingParts        []events.StreamPart
+		assertCreateUpload   func(t *testing.T, sid session.ID, options events.CreateUploadOptions)
+	}{
+		{
+			name: "upload resumed",
+			existingParts: []events.StreamPart{
+				{Number: 1},
+				{Number: 2},
+				{Number: 3},
+			},
+			assertCreateUpload: assertUploadNotCreated,
+		},
+		{
+			name: "create upload with zero existing parts",
+			assertCreateUpload: func(t *testing.T, sid session.ID, options events.CreateUploadOptions) {
+				require.Equal(t, sessionID, sid)
+				require.Empty(t, options)
+			},
+		},
+		{
+			name:             "create temp upload for existing recording",
+			recordingVersion: "foo",
+			assertCreateUpload: func(t *testing.T, sid session.ID, options events.CreateUploadOptions) {
+				require.Equal(t, sessionID, sid)
+				require.True(t, options.Temporary)
+				require.Empty(t, options.ReplaceVersion)
+			},
+		},
+		{
+			name:             "resume temp upload",
+			recordingVersion: "foo",
+			existingParts: []events.StreamPart{
+				{Number: 1},
+				{Number: 2},
+				{Number: 3},
+			},
+			uploadMetadata: events.StreamUpload{
+				ID:        uploadID,
+				SessionID: sessionID,
+				Temporary: true,
+			},
+			assertCreateUpload: assertUploadNotCreated,
+		},
+		{
+			name:                 "resume merge upload",
+			recordingVersion:     "foo",
+			tempRecordingVersion: "bar",
+			existingParts: []events.StreamPart{
+				{Number: 1},
+				{Number: 2},
+				{Number: 3},
+			},
+			uploadMetadata: events.StreamUpload{
+				ID:             uploadID,
+				SessionID:      sessionID,
+				ReplaceVersion: "foo",
+			},
+			assertCreateUpload: assertUploadNotCreated,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
+				Uploader: &eventstest.MockUploader{
+					MockListParts: func(ctx context.Context, upload events.StreamUpload) ([]events.StreamPart, error) {
+						return tc.existingParts, nil
+					},
+					MockCreateUpload: func(ctx context.Context, sessionID session.ID, opts ...events.CreateUploadOption) (*events.StreamUpload, error) {
+						var options events.CreateUploadOptions
+						for _, opt := range opts {
+							opt(&options)
+						}
+						tc.assertCreateUpload(t, sessionID, options)
+						return &events.StreamUpload{
+							SessionID: sessionID,
+							ID:        uploadID,
+						}, nil
+					},
+					RecordingVersion:     tc.recordingVersion,
+					TempRecordingVersion: tc.tempRecordingVersion,
+					ExistingUpload:       tc.uploadMetadata,
+				},
+			})
+			require.NoError(t, err)
+
+			stream, err := streamer.ResumeAuditStream(t.Context(), sessionID, uploadID)
+			require.NoError(t, err)
+			require.NoError(t, stream.Close(t.Context()))
+		})
+		t.Run("don't create merge upload", func(t *testing.T) {
+			streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
+				Uploader: &eventstest.MockUploader{
+					RecordingVersion:     "foo",
+					TempRecordingVersion: "bar",
+				},
+			})
+			require.NoError(t, err)
+			stream, err := streamer.ResumeAuditStream(t.Context(), sessionID, uploadID)
+			require.True(t, trace.IsBadParameter(err), "expected BadParameter, got %v", err)
+			require.Nil(t, stream)
 		})
 	}
 }
