@@ -294,7 +294,9 @@ func (cfg *Config) CheckAndSetDefaults(ctx context.Context) error {
 		// override the default environment (region + credentials) with the values
 		// from the config.
 		if cfg.Region != "" {
-			awsCfg.Region = cfg.Region
+			if err := awsconfig.ConfigureRegion(&awsCfg, cfg.Region); err != nil {
+				return trace.Wrap(err)
+			}
 		}
 		cfg.PublisherConsumerAWSConfig = &awsCfg
 	}
