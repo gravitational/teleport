@@ -94,7 +94,10 @@ func (process *TeleportProcess) reconnectToAuthService(role types.SystemRole) (*
 			return connector, nil
 		} else {
 			switch {
-			case errors.As(connectErr, &invalidVersionErr{}):
+			// Version incompatibilities (the client is too new or too old for
+			// the cluster) are fatal. Retrying is pointless until the client is
+			// up or downgraded, so surface the error and stop reconnecting.
+			case errors.As(connectErr, &invalidVersionErr{}), errors.Is(connectErr, joinclient.ErrClientTooOld):
 				return nil, trace.Wrap(connectErr)
 			case strings.Contains(connectErr.Error(), auth.TokenExpiredOrNotFound):
 				process.logger.ErrorContext(process.ExitContext(), "Can not join the cluster, the token is expired or not found. Regenerate the token and try again.")
@@ -813,6 +816,10 @@ func (process *TeleportProcess) makeJoinParams(
 		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 		FIPS:                 process.Config.FIPS,
 		Insecure:             process.Config.InsecureMode,
+		SkipVersionCheck:     process.Config.SkipVersionCheck,
+		Testing: joinclient.JoinTestingParams{
+			TeleportVersion: process.Config.Testing.TeleportVersion,
+		},
 	}
 	if joinParams.JoinMethod == types.JoinMethodAzure {
 		joinParams.AzureParams = joinclient.AzureParams{
