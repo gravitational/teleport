@@ -1311,6 +1311,10 @@ func (a *ServerWithRoles) hasWatchPermissionForKind(
 		if filter.User != "" && a.currentUserAction(filter.User) == nil {
 			return nil
 		}
+	case types.KindPlugin:
+		if !kind.LoadSecrets {
+			verb = types.VerbReadNoSecrets
+		}
 	case types.KindWebSession:
 		if !kind.LoadSecrets {
 			verb = types.VerbReadNoSecrets
