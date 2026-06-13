@@ -1,0 +1,4 @@
+review:
+  enabled: true
+  slackUserIdTrait: "slack_uid"
+  allowEmailUsernameMatch: false

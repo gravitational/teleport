@@ -31,14 +31,15 @@ token = "xoxb-11xx"
 # Allows for native review of Teleport Access Requests within Slack.
 # Important: enabling this feature reduces the security of the Teleport cluster.
 # Access Request reviews submitted through Slack are bound to a Slack identity rather than
-# the reviewer's Teleport identity, and bypass Teleport authentication (and MFA for admin actions if enabled on the cluster).
+# the reviewer's Teleport identity, and bypass Teleport authentication
+# (and MFA for admin actions if enabled on cluster).
 # As a result, a compromised Slack account can approve requests from Slack and escalate privileges in Teleport.
 #
 # Toggles native review feature. Default is false.
 enabled = false
 # Slack App-level token.
+# Provides the plugin permissions to receive user interactions from Slack.
 # This is different from the Bot OAuth token, and must be set up separately.
-# The App-level token provides the plugin permissions to receive user interactions from Slack.
 # Set this up under "Basic Information" in your Slack app settings.
 #
 # You can also use an absolute path to a token file, e.g.,
