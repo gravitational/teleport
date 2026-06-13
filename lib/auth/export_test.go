@@ -77,10 +77,8 @@ const (
 )
 
 var (
-	ErrDeleteRoleUser       = errDeleteRoleUser
-	ErrDeleteRoleCA         = errDeleteRoleCA
-	ErrDeleteRoleAccessList = errDeleteRoleAccessList
-
+	ErrDeleteRoleUser                    = errDeleteRoleUser
+	ErrDeleteRoleCA                      = errDeleteRoleCA
 	CreateAuditStreamAcceptedTotalMetric = createAuditStreamAcceptedTotalMetric
 )
 
