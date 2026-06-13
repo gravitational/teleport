@@ -1,0 +1,59 @@
+suite: Resource Quantity
+templates:
+  - templates/resource_quantity.yaml
+tests:
+  - it: parses numeric input without a suffix
+    set:
+      quantity: 42
+    asserts:
+      - equal:
+          path: data.resourceQuantity
+          value: "42"
+
+  - it: parses SI suffixes
+    set:
+      quantity: "10.5G"
+    asserts:
+      - equal:
+          path: data.resourceQuantity
+          value: "1.05e+10"
+
+  - it: parses IEC suffixes
+    set:
+      quantity: "10.5Gi"
+    asserts:
+      - equal:
+          path: data.resourceQuantity
+          value: "1.1274289152e+10"
+
+  - it: parses scientific notation
+    set:
+      quantity: "10.5e9"
+    asserts:
+      - equal:
+          path: data.resourceQuantity
+          value: "1.05e+10"
+
+  - it: parses integer IEC suffix
+    set:
+      quantity: "512Mi"
+    asserts:
+      - equal:
+          path: data.resourceQuantity
+          value: "5.36870912e+08"
+
+  - it: parses integer SI suffix
+    set:
+      quantity: "512M"
+    asserts:
+      - equal:
+          path: data.resourceQuantity
+          value: "5.12e+08"
+
+  - it: parses milli suffix
+    set:
+      quantity: "500m"
+    asserts:
+      - equal:
+          path: data.resourceQuantity
+          value: "0.5"

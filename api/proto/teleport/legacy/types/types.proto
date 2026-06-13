@@ -2623,6 +2623,9 @@ message AgentMeshTunnelStrategy {}
 // ProxyPeeringTunnelStrategy requires reverse tunnels to dial a fixed number of proxies.
 message ProxyPeeringTunnelStrategy {
   int64 AgentConnectionCount = 1 [(gogoproto.jsontag) = "agent_connection_count,omitempty"];
+  // disconnect_threshold_seconds is the duration without connectivity or topology changes
+  // before an agent pool may disconnect excess connections.
+  uint32 disconnect_threshold_seconds = 2;
 }
 
 // ProxyListenerMode represents the cluster proxy listener mode.
@@ -3240,10 +3243,14 @@ message AccessReview {
     (gogoproto.jsontag) = "assume_start_time,omitempty"
   ];
 
-  // SubmittedBy is the Teleport plugin identity that submitted this review request
+  // SubmittedBy is the Teleport identity (eg. plugin) that submitted this review request
   // to the Auth Service on behalf of the Author.
   // Author remains the actual Teleport user that performed the review.
   string SubmittedBy = 11 [(gogoproto.jsontag) = "submitted_by,omitempty"];
+
+  // Determines if the review was submitted by a Teleport identity (eg. plugin) on behalf of
+  // the Author.
+  bool submitted_on_behalf_of_author = 12;
 }
 
 // AccessReviewSubmission encodes the necessary parameters for submitting

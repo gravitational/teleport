@@ -695,6 +695,9 @@ const (
 	// KindInferencePolicy is the kind of teleport.summarizer.v1.InferencePolicy.
 	KindInferencePolicy = "inference_policy"
 
+	// KindClassifier is the kind of teleport.summarizer.v1.Classifier.
+	KindClassifier = "classifier"
+
 	// MetaNameAccessGraphSettings is the exact name of the singleton resource holding
 	// access graph settings.
 	MetaNameAccessGraphSettings = "access-graph-settings"

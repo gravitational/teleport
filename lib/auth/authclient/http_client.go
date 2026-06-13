@@ -315,51 +315,6 @@ func (c *HTTPClient) Delete(ctx context.Context, u string) (*roundtrip.Response,
 	return httplib.ConvertResponse(c.Client.Delete(ctx, u))
 }
 
-// GetTunnelConnections returns tunnel connections for a given cluster
-func (c *HTTPClient) GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]types.TunnelConnection, error) {
-	if clusterName == "" {
-		return nil, trace.BadParameter("missing cluster name parameter")
-	}
-	out, err := c.Get(context.TODO(), c.Endpoint("tunnelconnections", clusterName), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var items []json.RawMessage
-	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	conns := make([]types.TunnelConnection, len(items))
-	for i, raw := range items {
-		conn, err := services.UnmarshalTunnelConnection(raw)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		conns[i] = conn
-	}
-	return conns, nil
-}
-
-// GetAllTunnelConnections returns all tunnel connections
-func (c *HTTPClient) GetAllTunnelConnections(opts ...services.MarshalOption) ([]types.TunnelConnection, error) {
-	out, err := c.Get(context.TODO(), c.Endpoint("tunnelconnections"), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var items []json.RawMessage
-	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	conns := make([]types.TunnelConnection, len(items))
-	for i, raw := range items {
-		conn, err := services.UnmarshalTunnelConnection(raw)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		conns[i] = conn
-	}
-	return conns, nil
-}
-
 type upsertServerRawReq struct {
 	Server json.RawMessage `json:"server"`
 	TTL    time.Duration   `json:"ttl"`
@@ -369,19 +324,6 @@ type upsertServerRawReq struct {
 // valid web session
 func (c *HTTPClient) ExtendWebSession(ctx context.Context, req WebSessionReq) (types.WebSession, error) {
 	out, err := c.PostJSON(ctx, c.Endpoint("users", req.User, "web", "sessions"), req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return services.UnmarshalWebSession(out.Bytes())
-}
-
-// CreateWebSession creates a new web session for a user
-func (c *HTTPClient) CreateWebSession(ctx context.Context, user string) (types.WebSession, error) {
-	out, err := c.PostJSON(
-		ctx,
-		c.Endpoint("users", url.PathEscape(user), "web", "sessions"),
-		WebSessionReq{User: user},
-	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -146,6 +146,87 @@ message InferencePolicySpec {
   string filter = 3;
 }
 
+// Classifier resource configures a classifier applied to sessions during
+// summarization. Classifiers are matched to sessions by session kind and by
+// an optional filter expression, the same way inference policies are.
+message Classifier {
+  // Kind is the resource kind. Should always be set to "classifier".
+  string kind = 1;
+  // SubKind is the resource sub-kind. Should be empty.
+  string sub_kind = 2;
+  // Version is the resource version. Should be set to "v1".
+  string version = 3;
+  // Metadata is the resource metadata.
+  teleport.header.v1.Metadata metadata = 4;
+  // Spec selects the sessions that this classifier applies to and defines
+  // what the classifier matches.
+  ClassifierSpec spec = 5;
+}
+
+// ClassifierSpec selects the sessions that a classifier applies to and
+// defines what the classifier matches. Fields may be added to this message as
+// long as they are backward compatible; incompatible schema changes require
+// bumping the resource version on the Classifier message instead.
+message ClassifierSpec {
+  // Kinds are session kinds matched by this classifier, e.g., "ssh", "k8s",
+  // "db".
+  repeated string kinds = 1;
+  // Filter is an optional filter expression using Teleport Predicate Language
+  // that selects the sessions this classifier applies to. It supports the
+  // same language and matching context as the inference policy filter, e.g.,
+  // `equals(resource.metadata.labels["env"], "prod")`. If empty, the
+  // classifier applies to all sessions of matching kinds.
+  string filter = 2;
+  // Criteria is a natural-language description of what this classifier
+  // matches. It is evaluated by the inference model against the session
+  // summary and, when available, the per-command analysis.
+  string criteria = 3;
+  // Actions configures the effects of a match. If unset, a match is only
+  // recorded on the stored session summary.
+  ClassifierActions actions = 4;
+}
+
+// ClassifierActions configures the effects of a classifier match. Matches are
+// always recorded on the stored session summary, regardless of the actions
+// configured here.
+message ClassifierActions {
+  // EmitAuditEvent, if enabled, emits an audit event when a session matches
+  // this classifier.
+  ClassifierActionMode emit_audit_event = 1;
+  // RiskLevelFloor, if set, raises the session's risk level (and risk score)
+  // to at least this level on match. It never lowers the risk level. Leaving
+  // it unspecified means a match does not change the risk level. Only applies
+  // to summaries that carry an EnhancedSummary.
+  RiskLevel risk_level_floor = 2;
+  // FlagForReview, if enabled, marks the session as needing further review on
+  // match. Only applies to summaries that carry an EnhancedSummary.
+  ClassifierActionMode flag_for_review = 3;
+}
+
+// ClassifierActionMode is a tri-state toggle for classifier match actions.
+enum ClassifierActionMode {
+  // ClassifierActionModeUnspecified is the default value and applies the
+  // default behavior of the action, which is the same as disabled. It is
+  // distinct from an explicitly disabled action.
+  CLASSIFIER_ACTION_MODE_UNSPECIFIED = 0;
+  // ClassifierActionModeEnabled explicitly enables the action.
+  CLASSIFIER_ACTION_MODE_ENABLED = 1;
+  // ClassifierActionModeDisabled explicitly disables the action.
+  CLASSIFIER_ACTION_MODE_DISABLED = 2;
+}
+
+// ClassifierMatch records a classifier that matched a session summary.
+message ClassifierMatch {
+  // ClassifierName is the name of the matching classifier resource.
+  string classifier_name = 1;
+  // Reasoning is the model's explanation of why the session matched.
+  string reasoning = 2;
+  // MatchedCommandIndexes are indexes into the session's analyzed commands
+  // that triggered the match. Empty for simple summaries, which carry no
+  // per-command analysis.
+  repeated int32 matched_command_indexes = 3;
+}
+
 // SummaryState is the state of the summarization process.
 enum SummaryState {
   SUMMARY_STATE_UNSPECIFIED = 0;
@@ -186,6 +267,9 @@ message Summary {
   string error_message = 8;
   // EnhancedSummary contains structured data extracted from the session.
   EnhancedSummary enhanced_summary = 9;
+  // ClassifierMatches records the classifiers that matched this session
+  // summary.
+  repeated ClassifierMatch classifier_matches = 10;
 }
 
 // The following enums and messages should be kept in sync with `e/lib/auth/summarizer/schema/command.go`
@@ -342,6 +426,10 @@ message SessionEvent {
   google.protobuf.Duration end_offset = 19;
   // InferenceErrorMessage is an error message if the inference provider failed to analyze this command.
   string inference_error_message = 20;
+  // OutputIncompleteReason explains why this command's reconstructed output was incomplete - for example, output
+  // scrolled off the screen faster than it could be captured or was truncated to bound size - and so the command
+  // was only partially analyzed. Empty when the output was fully captured.
+  string output_incomplete_reason = 23;
   // Details is the type-specific details of the event.
   oneof details {
     // CommandEventDetails holds the details for a command ran during a TTY session.
@@ -453,6 +541,13 @@ enum NeedsReviewReason {
   // NeedsReviewReasonAccessRequestResourceMismatch indicates that the session's access requests do not reference the
   // resource being connected to.
   NEEDS_REVIEW_REASON_ACCESS_REQUEST_RESOURCE_MISMATCH = 4;
+  // NeedsReviewReasonOutputNotFullyCaptured indicates that one or more commands' reconstructed output was incomplete -
+  // it scrolled off the screen faster than it could be captured or was truncated to bound size - and so was only
+  // partially analyzed.
+  NEEDS_REVIEW_REASON_OUTPUT_NOT_FULLY_CAPTURED = 5;
+  // NeedsReviewReasonClassifierMatched indicates that the session matched a
+  // classifier configured to flag matching sessions for review.
+  NEEDS_REVIEW_REASON_CLASSIFIER_MATCHED = 6;
 }
 
 // RiskScoreReason represents a reason that contributed to the overall risk score of a session.
