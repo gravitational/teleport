@@ -19,10 +19,12 @@ package server
 import (
 	"context"
 	"errors"
+	"maps"
 	"slices"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"github.com/gravitational/trace"
@@ -32,8 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/azure"
 )
 
-type mockRunCommandClient struct {
-}
+type mockRunCommandClient struct{}
 
 func (m *mockRunCommandClient) Run(ctx context.Context, req azure.RunCommandRequest) (*azure.RunCommandResult, error) {
 	if strings.HasPrefix(req.VMName, "bad") {
@@ -46,6 +47,114 @@ func (m *mockRunCommandClient) Run(ctx context.Context, req azure.RunCommandRequ
 		StdOut:         "Mock stdout",
 		StdErr:         "Mock stderr",
 	}, nil
+}
+
+type blockingFakeRunCommandClient struct {
+	started     chan struct{}
+	unblockOnce sync.Once
+	unblockCh   chan struct{}
+
+	mu      sync.Mutex
+	blocked map[string]struct{}
+}
+
+func newBlockingRunCommandClient(instanceCount int) *blockingFakeRunCommandClient {
+	return &blockingFakeRunCommandClient{
+		started:   make(chan struct{}, instanceCount),
+		unblockCh: make(chan struct{}),
+		blocked:   make(map[string]struct{}),
+	}
+}
+
+func (m *blockingFakeRunCommandClient) Run(ctx context.Context, req azure.RunCommandRequest) (*azure.RunCommandResult, error) {
+	m.mu.Lock()
+	m.blocked[req.VMName] = struct{}{}
+	m.mu.Unlock()
+	defer func() {
+		m.mu.Lock()
+		delete(m.blocked, req.VMName)
+		m.mu.Unlock()
+	}()
+
+	select {
+	case m.started <- struct{}{}:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+
+	// block so other installs can enter Run. If the installer becomes
+	// sequential, blockUntil will time out waiting for the later starts instead
+	// of observing the full instance set.
+	select {
+	case <-m.unblockCh:
+		return &azure.RunCommandResult{
+			ExecutionState: string(armcompute.ExecutionStateSucceeded),
+			ExitCode:       0,
+			StdOut:         "Mock stdout",
+			StdErr:         "Mock stderr",
+		}, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+func (m *blockingFakeRunCommandClient) blockUntil(count int) []string {
+	for len(m.blockedVMs()) < count {
+		select {
+		case <-m.started:
+		case <-time.After(5 * time.Second):
+			return m.blockedVMs()
+		}
+	}
+	return m.blockedVMs()
+}
+
+func (m *blockingFakeRunCommandClient) unblock() {
+	m.unblockOnce.Do(func() {
+		close(m.unblockCh)
+	})
+}
+
+func (m *blockingFakeRunCommandClient) blockedVMs() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	return slices.Collect(maps.Keys(m.blocked))
+}
+
+func newFakeSemaphore(maxLeases int) *fakeSemaphore {
+	return &fakeSemaphore{
+		sem:    make(chan struct{}, maxLeases),
+		closed: make(chan struct{}),
+	}
+}
+
+type fakeSemaphore struct {
+	sem    chan struct{}
+	closed chan struct{}
+}
+
+func (f *fakeSemaphore) acquire(ctx context.Context) (func(), error) {
+	select {
+	case f.sem <- struct{}{}:
+	case <-f.closed:
+		return nil, errors.New("fake semaphore closed")
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	return f.release, nil
+}
+
+func (f *fakeSemaphore) release() {
+	<-f.sem
+}
+
+func (f *fakeSemaphore) getActive() int {
+	return len(f.sem)
+}
+
+func (f *fakeSemaphore) close() {
+	close(f.closed)
 }
 
 func TestAzureInstallRequestRun(t *testing.T) {
@@ -149,4 +258,81 @@ func TestAzureInstallRequestRun(t *testing.T) {
 			}
 		})
 	}
+
+	runAzureInstallRequest := func(t *testing.T, req *AzureInstallRequest, client azure.RunCommandClient) <-chan error {
+		t.Helper()
+		errCh := make(chan error, 1)
+		go func() { errCh <- req.Run(t.Context(), client) }()
+		return errCh
+	}
+	makeTestAzureInstallRequest := func(instances []*azure.VirtualMachine) *AzureInstallRequest {
+		return &AzureInstallRequest{
+			Instances: instances,
+			InstallerParams: &types.InstallerParams{
+				JoinMethod: types.JoinMethodAzure,
+				JoinToken:  "test-token",
+			},
+			ProxyAddrGetter: func(ctx context.Context) (string, error) {
+				return "proxy.example.com:443", nil
+			},
+			Region:        "eastus",
+			ResourceGroup: "test-rg",
+			AcquireLease: func(context.Context) (func(), error) {
+				return func() {}, nil
+			},
+		}
+	}
+
+	t.Run("runs installations in parallel", func(t *testing.T) {
+		t.Parallel()
+
+		instances := makeVMs("vm-1", "vm-2", "vm-3")
+		client := newBlockingRunCommandClient(len(instances))
+		defer client.unblock()
+		req := makeTestAzureInstallRequest(instances)
+
+		runErrCh := runAzureInstallRequest(t, req, client)
+		require.ElementsMatch(t, []string{"vm-1", "vm-2", "vm-3"}, client.blockUntil(len(instances)))
+
+		client.unblock()
+		require.NoError(t, <-runErrCh)
+	})
+
+	t.Run("acquires and releases lease", func(t *testing.T) {
+		t.Parallel()
+
+		instances := makeVMs("vm-1", "vm-2", "vm-3")
+		client := newBlockingRunCommandClient(len(instances))
+		defer client.unblock()
+		leases := newFakeSemaphore(3)
+		req := makeTestAzureInstallRequest(instances)
+		req.AcquireLease = leases.acquire
+
+		runErrCh := runAzureInstallRequest(t, req, client)
+
+		require.ElementsMatch(t, []string{"vm-1", "vm-2", "vm-3"}, client.blockUntil(len(instances)))
+		require.Equal(t, len(instances), leases.getActive())
+		client.unblock()
+		require.NoError(t, <-runErrCh)
+		require.Zero(t, leases.getActive())
+	})
+
+	t.Run("returns acquire lease error", func(t *testing.T) {
+		t.Parallel()
+
+		instances := makeVMs("vm-1", "vm-2")
+		client := newBlockingRunCommandClient(len(instances))
+		defer client.unblock()
+		leases := newFakeSemaphore(1)
+		req := makeTestAzureInstallRequest(instances)
+		req.AcquireLease = leases.acquire
+
+		runErrCh := runAzureInstallRequest(t, req, client)
+		require.ElementsMatch(t, []string{"vm-1"}, client.blockUntil(1))
+		require.Equal(t, 1, leases.getActive())
+		leases.close()
+		require.ErrorContains(t, <-runErrCh, "fake semaphore closed")
+		require.Empty(t, client.blockedVMs())
+		require.Zero(t, leases.getActive())
+	})
 }
