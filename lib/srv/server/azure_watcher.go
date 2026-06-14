@@ -21,6 +21,7 @@ package server
 import (
 	"context"
 	"log/slog"
+	"os"
 	"slices"
 
 	"github.com/gravitational/trace"
@@ -293,17 +294,7 @@ type resourceGroupLocation struct {
 
 // GetInstances fetches all Azure virtual machines matching configured filters.
 func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]*AzureInstances, error) {
-	azureClients, err := f.AzureClientGetter(ctx, f.IntegrationName())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	client, err := azureClients.GetVirtualMachinesClient(ctx, f.Subscription)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	vms, err := client.ListVirtualMachines(ctx, f.ResourceGroup)
+	vms, err := f.fetchAzureVMs(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -313,6 +304,7 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]*Azu
 	allowAllLocations := slices.Contains(f.Regions, types.Wildcard)
 
 	for _, vm := range vms {
+		// TODO(marco): remove this check when only ResourceGraph API is used, which already supports filtering by location.
 		if !slices.Contains(f.Regions, vm.Location) && !allowAllLocations {
 			continue
 		}
@@ -356,4 +348,33 @@ func (f *azureInstanceFetcher) LogValue() slog.Value {
 		slog.String("resource_group", f.ResourceGroup),
 		slog.String("subscription_id", f.Subscription),
 	)
+}
+
+func (f *azureInstanceFetcher) fetchAzureVMs(ctx context.Context) ([]*azure.VirtualMachine, error) {
+	azureClients, err := f.AzureClientGetter(ctx, f.IntegrationName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if os.Getenv("TELEPORT_UNSTABLE_DISABLE_AZURE_RESOURCEGRAPH") != "" {
+		listVMsClient, err := azureClients.GetVirtualMachinesClient(ctx, f.Subscription)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		vms, err := listVMsClient.ListVirtualMachines(ctx, f.ResourceGroup)
+		return vms, trace.Wrap(err)
+	}
+
+	resourceGraphClient, err := azureClients.GetResourceGraphClient(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	vms, err := resourceGraphClient.QueryLinuxVMs(ctx, azure.QueryLinuxVMsParams{
+		SubscriptionID: f.Subscription,
+		ResourceGroup:  f.ResourceGroup,
+		Locations:      f.Regions,
+	})
+	return vms, trace.Wrap(err)
 }

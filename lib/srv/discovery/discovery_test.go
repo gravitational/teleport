@@ -3314,6 +3314,9 @@ func TestAzureVMDiscovery(t *testing.T) {
 	const noIntegrationLabel = "teleport"
 	const integrationLabel = "teleport-integration"
 
+	const subscriptionID = "testsub"
+	const resourceGroup = "testrg"
+
 	vmMatcherFn := func() Matchers {
 		return Matchers{
 			Azure: []types.AzureMatcher{
@@ -3357,30 +3360,30 @@ func TestAzureVMDiscovery(t *testing.T) {
 		return cfg.Clone()
 	}
 
-	makeVM := func(name string, integration bool) *armcompute.VirtualMachine {
+	makeVM := func(name string, integration bool) *azure.VirtualMachine {
 		label := noIntegrationLabel
 		if integration {
 			label = integrationLabel
 		}
 		resourceID := "/subscriptions/testsub/resourceGroups/testrg/providers/Microsoft.Compute/virtualMachines/" + name
-		return &armcompute.VirtualMachine{
-			ID:       aws.String(resourceID),
-			Name:     aws.String(name),
-			Location: aws.String("westcentralus"),
-			Tags: map[string]*string{
-				label: aws.String("yes"),
+		return &azure.VirtualMachine{
+			ID:            resourceID,
+			Name:          name,
+			ResourceGroup: resourceGroup,
+			Subscription:  subscriptionID,
+			Location:      "westcentralus",
+			Tags: map[string]string{
+				label: "yes",
 			},
-			Properties: &armcompute.VirtualMachineProperties{
-				VMID: aws.String(name + "-vmid"),
-			},
+			VMID: name + "-vmid",
 		}
 	}
 
 	const testVMName = "testvm"
 	const testVMNameIntegration = "testvm-integration"
 
-	makeFaultyVM := func(apiError bool, count int) []*armcompute.VirtualMachine {
-		var out []*armcompute.VirtualMachine
+	makeFaultyVM := func(apiError bool, count int) []*azure.VirtualMachine {
+		var out []*azure.VirtualMachine
 		for index := range count {
 			if apiError {
 				out = append(out, makeVM(azureApiErrorPrefix+strconv.Itoa(index), true))
@@ -3391,8 +3394,8 @@ func TestAzureVMDiscovery(t *testing.T) {
 		return out
 	}
 
-	foundAzureVMs := func() []*armcompute.VirtualMachine {
-		return []*armcompute.VirtualMachine{
+	foundAzureVMs := func() []*azure.VirtualMachine {
+		return []*azure.VirtualMachine{
 			makeVM(testVMName, false),
 			makeVM(testVMNameIntegration, true),
 		}
@@ -3416,7 +3419,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 	tests := []struct {
 		name                     string
 		presentVMs               []types.Server
-		foundVMS                 []*armcompute.VirtualMachine
+		foundVMS                 []*azure.VirtualMachine
 		discoveryConfig          *discoveryconfig.DiscoveryConfig
 		staticMatchers           Matchers
 		wantInstances            []string
@@ -3548,10 +3551,14 @@ func TestAzureVMDiscovery(t *testing.T) {
 
 			initAzureClients := func(opts ...azure.ClientsOption) (azure.Clients, error) {
 				return &azuretest.Clients{
-					AzureVirtualMachines: &mockAzureClient{
-						vms: tc.foundVMS,
-					},
 					AzureRunCommand: runClient,
+					AzureResourceGraph: &fakeResourceGraphClient{
+						vmsBySubscriptionAndResourceGroup: map[string]map[string][]*azure.VirtualMachine{
+							subscriptionID: {
+								resourceGroup: tc.foundVMS,
+							},
+						},
+					},
 				}, nil
 			}
 
@@ -3661,6 +3668,40 @@ func TestAzureVMDiscovery(t *testing.T) {
 		})
 
 	}
+}
+
+// fakeResourceGraphClient is an in-memory implementation of argResourcesAPI that lets each
+// test pin the exact response sequence (or error) for the Resources call.
+type fakeResourceGraphClient struct {
+	vmsBySubscriptionAndResourceGroup map[string]map[string][]*azure.VirtualMachine
+	queryError                        error
+}
+
+func (f *fakeResourceGraphClient) QueryLinuxVMs(_ context.Context, params azure.QueryLinuxVMsParams) ([]*azure.VirtualMachine, error) {
+	if f.queryError != nil {
+		return nil, f.queryError
+	}
+	vmsBySubscription, ok := f.vmsBySubscriptionAndResourceGroup[params.SubscriptionID]
+	if !ok {
+		return nil, trace.NotFound("subscription %s not found", params.SubscriptionID)
+	}
+
+	if params.ResourceGroup != "" && params.ResourceGroup != "*" {
+		vmsByResourceGroup, ok := vmsBySubscription[params.ResourceGroup]
+		if !ok {
+			return nil, trace.NotFound("resource group %s not found in subscription %s", params.ResourceGroup, params.SubscriptionID)
+		}
+
+		return vmsByResourceGroup, nil
+	}
+
+	// return vms from all resource groups in the subscription
+	var vms []*azure.VirtualMachine
+	for _, vmsInResourceGroup := range vmsBySubscription {
+		vms = append(vms, vmsInResourceGroup...)
+	}
+
+	return vms, nil
 }
 
 type mockGCPClient struct {
