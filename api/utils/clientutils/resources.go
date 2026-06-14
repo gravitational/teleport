@@ -145,6 +145,21 @@ func RangeResources[T any](ctx context.Context, start, end string,
 	})
 }
 
+// RangeResourcesWithPageSize is functionally the same as [RangeResources] but allows the caller to specify a page size for each request.
+func RangeResourcesWithPageSize[T any](ctx context.Context, start, end string,
+	pageFunc func(context.Context, int, string) ([]T, string, error),
+	keyFunc func(item T) string,
+	pageSize int) iter.Seq2[T, error] {
+
+	return rangeInternal(ctx, rangeParams[T]{
+		start:    start,
+		end:      end,
+		pageFunc: pageFunc,
+		keyFunc:  keyFunc,
+		pageSize: pageSize,
+	})
+}
+
 // CollectWithFallback collects all items in a collection using pageFunc, should the this be NotImplemented a fallbackFunc is attempted.
 // Example:
 //
