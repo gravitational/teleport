@@ -157,6 +157,13 @@
       ]
     },
     {
+      
+      "type": "doc",
+      "label": "Agentic Identity Framework",
+      "id": "agentic-identity-framework",
+      "customProps": {"tag" : "new"}
+    },
+    {
       "type": "category",
       "label": "Agentic Identity Framework",
       "customProps": { "tag": "new" },
