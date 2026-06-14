@@ -21,6 +21,7 @@ import (
 	"github.com/gravitational/trace"
 
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	conv "github.com/gravitational/teleport/api/types/accesslist/convert/v1"
 )
@@ -116,6 +117,31 @@ func (c *Client) GetAccessList(ctx context.Context, name string) (*accesslist.Ac
 	return accessList, trace.Wrap(err)
 }
 
+// GetAccessListWithDisplays returns the specified access list along with
+// read-time display values for its owner usernames, keyed by username. Owners
+// that no longer exist are absent from the map; live owners without a distinct
+// display value are present with empty values. It falls back to GetAccessList
+// (and no display values) when the cluster does not support GetAccessListV2.
+func (c *Client) GetAccessListWithDisplays(ctx context.Context, name string) (*accesslist.AccessList, map[string]types.UserDisplay, error) {
+	resp, err := c.grpcClient.GetAccessListV2(ctx, &accesslistv1.GetAccessListV2Request{
+		Name: name,
+	})
+	if err != nil {
+		if !trace.IsNotImplemented(err) {
+			return nil, nil, trace.Wrap(err)
+		}
+		accessList, err := c.GetAccessList(ctx, name)
+		return accessList, nil, trace.Wrap(err)
+	}
+
+	accessList, err := conv.FromProto(resp.GetAccessList(), conv.WithOwnersIneligibleStatusField(resp.GetAccessList().GetSpec().GetOwners()))
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return accessList, conv.FromUserDisplaysProto(resp.GetOwnerDisplays()), nil
+}
+
 // GetAccessListsToReview returns access lists that the user needs to review.
 func (c *Client) GetAccessListsToReview(ctx context.Context) ([]*accesslist.AccessList, error) {
 	resp, err := c.grpcClient.GetAccessListsToReview(ctx, &accesslistv1.GetAccessListsToReviewRequest{})
@@ -194,25 +220,40 @@ func (c *Client) CountAccessListMembers(ctx context.Context, accessListName stri
 
 // ListAccessListMembers returns a paginated list of all access list members for an access list.
 func (c *Client) ListAccessListMembers(ctx context.Context, accessList string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error) {
+	members, _, nextToken, err = c.listAccessListMembers(ctx, accessList, pageSize, pageToken, false)
+	return members, nextToken, trace.Wrap(err)
+}
+
+// ListAccessListMembersWithDisplays returns a paginated list of all access
+// list members for an access list, along with read-time display values for
+// the member and added_by usernames appearing in the page, keyed by username.
+// Users that no longer exist are absent from the map; live users without a
+// distinct display value are present with empty values.
+func (c *Client) ListAccessListMembersWithDisplays(ctx context.Context, accessList string, pageSize int, pageToken string) ([]*accesslist.AccessListMember, map[string]types.UserDisplay, string, error) {
+	return c.listAccessListMembers(ctx, accessList, pageSize, pageToken, true)
+}
+
+func (c *Client) listAccessListMembers(ctx context.Context, accessList string, pageSize int, pageToken string, includeUserDisplays bool) ([]*accesslist.AccessListMember, map[string]types.UserDisplay, string, error) {
 	resp, err := c.grpcClient.ListAccessListMembers(ctx, &accesslistv1.ListAccessListMembersRequest{
-		PageSize:   int32(pageSize),
-		PageToken:  pageToken,
-		AccessList: accessList,
+		PageSize:            int32(pageSize),
+		PageToken:           pageToken,
+		AccessList:          accessList,
+		IncludeUserDisplays: includeUserDisplays,
 	})
 	if err != nil {
-		return nil, "", trace.Wrap(err)
+		return nil, nil, "", trace.Wrap(err)
 	}
 
-	members = make([]*accesslist.AccessListMember, len(resp.Members))
+	members := make([]*accesslist.AccessListMember, len(resp.Members))
 	for i, member := range resp.Members {
 		var err error
 		members[i], err = conv.FromMemberProto(member, conv.WithMemberIneligibleStatusField(member))
 		if err != nil {
-			return nil, "", trace.Wrap(err)
+			return nil, nil, "", trace.Wrap(err)
 		}
 	}
 
-	return members, resp.GetNextPageToken(), nil
+	return members, conv.FromUserDisplaysProto(resp.GetUserDisplays()), resp.GetNextPageToken(), nil
 }
 
 // ListAllAccessListMembers returns a paginated list of all access list members for all access lists.

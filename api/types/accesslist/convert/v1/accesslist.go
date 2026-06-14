@@ -24,6 +24,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	headerv1 "github.com/gravitational/teleport/api/types/header/convert/v1"
 	traitv1 "github.com/gravitational/teleport/api/types/trait/convert/v1"
@@ -225,6 +226,52 @@ func WithOwnersIneligibleStatusField(protoOwners []*accesslistv1.AccessListOwner
 		}
 		a.SetOwners(updatedOwners)
 	}
+}
+
+// ToUserDisplayProto converts a user display into a v1 user display object.
+// The zero value converts to a non-nil empty message, so a present-but-empty
+// map entry stays representable on the wire.
+func ToUserDisplayProto(display types.UserDisplay) *accesslistv1.UserDisplay {
+	return &accesslistv1.UserDisplay{
+		Primary:   display.Primary,
+		Secondary: display.Secondary,
+	}
+}
+
+// FromUserDisplayProto converts a v1 user display object into an internal user
+// display. A nil message converts to the zero value.
+func FromUserDisplayProto(display *accesslistv1.UserDisplay) types.UserDisplay {
+	return types.UserDisplay{
+		Primary:   display.GetPrimary(),
+		Secondary: display.GetSecondary(),
+	}
+}
+
+// ToUserDisplaysProto converts a username-keyed display map into its v1
+// representation, preserving keys with empty displays.
+func ToUserDisplaysProto(displays map[string]types.UserDisplay) map[string]*accesslistv1.UserDisplay {
+	if displays == nil {
+		return nil
+	}
+	out := make(map[string]*accesslistv1.UserDisplay, len(displays))
+	for name, display := range displays {
+		out[name] = ToUserDisplayProto(display)
+	}
+	return out
+}
+
+// FromUserDisplaysProto converts a v1 username-keyed display map into its
+// internal representation. Nil values under present keys convert to zero
+// values.
+func FromUserDisplaysProto(displays map[string]*accesslistv1.UserDisplay) map[string]types.UserDisplay {
+	if displays == nil {
+		return nil
+	}
+	out := make(map[string]types.UserDisplay, len(displays))
+	for name, display := range displays {
+		out[name] = FromUserDisplayProto(display)
+	}
+	return out
 }
 
 func convertStatusToProto(status *accesslist.Status) *accesslistv1.AccessListStatus {

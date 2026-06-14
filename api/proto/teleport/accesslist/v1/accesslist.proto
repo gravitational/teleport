@@ -222,6 +222,16 @@ message MemberSpec {
   MembershipKind membership_kind = 9;
 }
 
+// UserDisplay holds read-time display values for a user, derived from the user
+// resource.
+message UserDisplay {
+  // primary is a display name when distinct from the username.
+  string primary = 1;
+
+  // secondary is extra context, when distinct from the username.
+  string secondary = 2;
+}
+
 // MembershipKind represents the different kinds of list membership
 enum MembershipKind {
   // MEMBERSHIP_KIND_UNSPECIFIED represents list members that are of
