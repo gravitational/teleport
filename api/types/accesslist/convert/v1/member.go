@@ -65,7 +65,7 @@ func FromMembersProto(msgs []*accesslistv1.Member) ([]*accesslist.AccessListMemb
 	members := make([]*accesslist.AccessListMember, len(msgs))
 	for i, msg := range msgs {
 		var err error
-		members[i], err = FromMemberProto(msg, WithMemberIneligibleStatusField(msg))
+		members[i], err = FromMemberProto(msg, WithMemberIneligibleStatusField(msg), WithMemberDisplayField(msg))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -96,6 +96,8 @@ func ToMemberProto(member *accesslist.AccessListMember) *accesslistv1.Member {
 			AddedBy:          member.Spec.AddedBy,
 			IneligibleStatus: ineligibleStatus,
 			MembershipKind:   membershipKind,
+			Display:          toProtoUserDisplay(member.Spec.Display),
+			AddedByDisplay:   toProtoUserDisplay(member.Spec.AddedByDisplay),
 		},
 	}
 }
@@ -118,5 +120,13 @@ func WithMemberIneligibleStatusField(protoMember *accesslistv1.Member) MemberOpt
 			ineligibleStatus = protoIneligibleStatus.String()
 		}
 		m.Spec.IneligibleStatus = ineligibleStatus
+	}
+}
+
+// WithMemberDisplayField sets the display fields to the provided proto values.
+func WithMemberDisplayField(protoMember *accesslistv1.Member) MemberOption {
+	return func(m *accesslist.AccessListMember) {
+		m.Spec.Display = fromProtoUserDisplay(protoMember.GetSpec().GetDisplay())
+		m.Spec.AddedByDisplay = fromProtoUserDisplay(protoMember.GetSpec().GetAddedByDisplay())
 	}
 }

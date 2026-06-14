@@ -49,4 +49,11 @@ var ignoredFields = map[string]stringSet{
 	"TrustedClusterSpecV2": {
 		"Roles": struct{}{}, // Deprecated, use RoleMap instead.
 	},
+	"AccessListOwner": {
+		"display": struct{}{},
+	},
+	"MemberSpec": {
+		"display":          struct{}{},
+		"added_by_display": struct{}{},
+	},
 }

@@ -231,7 +231,9 @@ func TestGenerate_AccessList(t *testing.T) {
 	require.NoError(t, err)
 
 	alProto := tfgen.WrapHeaderResource(accesslistconv.ToProto(al))
-	goldenTest(t, alProto)
+	goldenTest(t, alProto,
+		tfgen.WithOmitField("spec.owners.display"),
+	)
 }
 
 func TestGenerate_AccessListMember(t *testing.T) {
@@ -253,6 +255,8 @@ func TestGenerate_AccessListMember(t *testing.T) {
 
 	goldenTest(t,
 		tfgen.WrapHeaderResource(memberProto),
+		tfgen.WithOmitField("spec.display"),
+		tfgen.WithOmitField("spec.added_by_display"),
 	)
 }
 
@@ -314,6 +318,8 @@ func TestGenerate_AccessListMemberOmitField(t *testing.T) {
 	goldenTest(t,
 		tfgen.WrapHeaderResource(memberProto),
 		tfgen.WithOmitField("spec.ineligible_status"),
+		tfgen.WithOmitField("spec.display"),
+		tfgen.WithOmitField("spec.added_by_display"),
 		tfgen.WithOmitField("spec.reason"),
 		tfgen.WithOmitField("spec.added_by"),
 		tfgen.WithOmitField("header.metadata.description"),
@@ -393,6 +399,7 @@ func TestGenerate_AccessListOmitFields(t *testing.T) {
 		tfgen.WithOmitField("spec.owners.description"),
 		tfgen.WithOmitField("spec.audit.recurrence"),
 		tfgen.WithOmitField("spec.owners.ineligible_status"),
+		tfgen.WithOmitField("spec.owners.display"),
 		tfgen.WithOmitField("spec.grants"),
 	)
 }

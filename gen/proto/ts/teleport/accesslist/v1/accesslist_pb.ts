@@ -160,6 +160,12 @@ export interface AccessListOwner {
      * @generated from protobuf field: teleport.accesslist.v1.MembershipKind membership_kind = 4;
      */
     membershipKind: MembershipKind;
+    /**
+     * display holds read-time display values for the owner.
+     *
+     * @generated from protobuf field: teleport.accesslist.v1.UserDisplay display = 5;
+     */
+    display?: UserDisplay;
 }
 /**
  * AccessListAudit describes the audit configuration for an Access List.
@@ -365,6 +371,39 @@ export interface MemberSpec {
      * @generated from protobuf field: teleport.accesslist.v1.MembershipKind membership_kind = 9;
      */
     membershipKind: MembershipKind;
+    /**
+     * display holds read-time display values for the member.
+     *
+     * @generated from protobuf field: teleport.accesslist.v1.UserDisplay display = 10;
+     */
+    display?: UserDisplay;
+    /**
+     * added_by_display holds read-time display values for the user that added
+     * this member.
+     *
+     * @generated from protobuf field: teleport.accesslist.v1.UserDisplay added_by_display = 11;
+     */
+    addedByDisplay?: UserDisplay;
+}
+/**
+ * UserDisplay holds read-time display values for a user, derived from the user
+ * resource.
+ *
+ * @generated from protobuf message teleport.accesslist.v1.UserDisplay
+ */
+export interface UserDisplay {
+    /**
+     * primary is a display name when distinct from the username.
+     *
+     * @generated from protobuf field: string primary = 1;
+     */
+    primary: string;
+    /**
+     * secondary is extra context, when distinct from the username.
+     *
+     * @generated from protobuf field: string secondary = 2;
+     */
+    secondary: string;
 }
 /**
  * Review is a review of an Access List.
@@ -854,7 +893,8 @@ class AccessListOwner$Type extends MessageType<AccessListOwner> {
             { no: 1, name: "name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "description", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 3, name: "ineligible_status", kind: "enum", T: () => ["teleport.accesslist.v1.IneligibleStatus", IneligibleStatus, "INELIGIBLE_STATUS_"] },
-            { no: 4, name: "membership_kind", kind: "enum", T: () => ["teleport.accesslist.v1.MembershipKind", MembershipKind, "MEMBERSHIP_KIND_"] }
+            { no: 4, name: "membership_kind", kind: "enum", T: () => ["teleport.accesslist.v1.MembershipKind", MembershipKind, "MEMBERSHIP_KIND_"] },
+            { no: 5, name: "display", kind: "message", T: () => UserDisplay }
         ]);
     }
     create(value?: PartialMessage<AccessListOwner>): AccessListOwner {
@@ -884,6 +924,9 @@ class AccessListOwner$Type extends MessageType<AccessListOwner> {
                 case /* teleport.accesslist.v1.MembershipKind membership_kind */ 4:
                     message.membershipKind = reader.int32();
                     break;
+                case /* teleport.accesslist.v1.UserDisplay display */ 5:
+                    message.display = UserDisplay.internalBinaryRead(reader, reader.uint32(), options, message.display);
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -908,6 +951,9 @@ class AccessListOwner$Type extends MessageType<AccessListOwner> {
         /* teleport.accesslist.v1.MembershipKind membership_kind = 4; */
         if (message.membershipKind !== 0)
             writer.tag(4, WireType.Varint).int32(message.membershipKind);
+        /* teleport.accesslist.v1.UserDisplay display = 5; */
+        if (message.display)
+            UserDisplay.internalBinaryWrite(message.display, writer.tag(5, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -1316,7 +1362,9 @@ class MemberSpec$Type extends MessageType<MemberSpec> {
             { no: 5, name: "reason", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 6, name: "added_by", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 7, name: "ineligible_status", kind: "enum", T: () => ["teleport.accesslist.v1.IneligibleStatus", IneligibleStatus, "INELIGIBLE_STATUS_"] },
-            { no: 9, name: "membership_kind", kind: "enum", T: () => ["teleport.accesslist.v1.MembershipKind", MembershipKind, "MEMBERSHIP_KIND_"] }
+            { no: 9, name: "membership_kind", kind: "enum", T: () => ["teleport.accesslist.v1.MembershipKind", MembershipKind, "MEMBERSHIP_KIND_"] },
+            { no: 10, name: "display", kind: "message", T: () => UserDisplay },
+            { no: 11, name: "added_by_display", kind: "message", T: () => UserDisplay }
         ]);
     }
     create(value?: PartialMessage<MemberSpec>): MemberSpec {
@@ -1360,6 +1408,12 @@ class MemberSpec$Type extends MessageType<MemberSpec> {
                 case /* teleport.accesslist.v1.MembershipKind membership_kind */ 9:
                     message.membershipKind = reader.int32();
                     break;
+                case /* teleport.accesslist.v1.UserDisplay display */ 10:
+                    message.display = UserDisplay.internalBinaryRead(reader, reader.uint32(), options, message.display);
+                    break;
+                case /* teleport.accesslist.v1.UserDisplay added_by_display */ 11:
+                    message.addedByDisplay = UserDisplay.internalBinaryRead(reader, reader.uint32(), options, message.addedByDisplay);
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -1396,6 +1450,12 @@ class MemberSpec$Type extends MessageType<MemberSpec> {
         /* teleport.accesslist.v1.MembershipKind membership_kind = 9; */
         if (message.membershipKind !== 0)
             writer.tag(9, WireType.Varint).int32(message.membershipKind);
+        /* teleport.accesslist.v1.UserDisplay display = 10; */
+        if (message.display)
+            UserDisplay.internalBinaryWrite(message.display, writer.tag(10, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.accesslist.v1.UserDisplay added_by_display = 11; */
+        if (message.addedByDisplay)
+            UserDisplay.internalBinaryWrite(message.addedByDisplay, writer.tag(11, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -1406,6 +1466,61 @@ class MemberSpec$Type extends MessageType<MemberSpec> {
  * @generated MessageType for protobuf message teleport.accesslist.v1.MemberSpec
  */
 export const MemberSpec = new MemberSpec$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class UserDisplay$Type extends MessageType<UserDisplay> {
+    constructor() {
+        super("teleport.accesslist.v1.UserDisplay", [
+            { no: 1, name: "primary", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "secondary", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<UserDisplay>): UserDisplay {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.primary = "";
+        message.secondary = "";
+        if (value !== undefined)
+            reflectionMergePartial<UserDisplay>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UserDisplay): UserDisplay {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string primary */ 1:
+                    message.primary = reader.string();
+                    break;
+                case /* string secondary */ 2:
+                    message.secondary = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: UserDisplay, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string primary = 1; */
+        if (message.primary !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.primary);
+        /* string secondary = 2; */
+        if (message.secondary !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.secondary);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.accesslist.v1.UserDisplay
+ */
+export const UserDisplay = new UserDisplay$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class Review$Type extends MessageType<Review> {
     constructor() {

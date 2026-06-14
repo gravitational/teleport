@@ -106,6 +106,8 @@ func deriveTeleportEqual_1(this, that *AccessListMemberSpec) bool {
 			this.Expires.Equal(that.Expires) &&
 			this.Reason == that.Reason &&
 			this.AddedBy == that.AddedBy &&
+			this.Display == that.Display &&
+			this.AddedByDisplay == that.AddedByDisplay &&
 			this.IneligibleStatus == that.IneligibleStatus &&
 			this.MembershipKind == that.MembershipKind
 }
@@ -253,6 +255,8 @@ func deriveDeepCopy_2(dst, src *AccessListMemberSpec) {
 	}()
 	dst.Reason = src.Reason
 	dst.AddedBy = src.AddedBy
+	dst.Display = src.Display
+	dst.AddedByDisplay = src.AddedByDisplay
 	dst.IneligibleStatus = src.IneligibleStatus
 	dst.MembershipKind = src.MembershipKind
 }

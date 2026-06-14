@@ -24,6 +24,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	headerv1 "github.com/gravitational/teleport/api/types/header/convert/v1"
 	traitv1 "github.com/gravitational/teleport/api/types/trait/convert/v1"
@@ -134,7 +135,8 @@ func convertOwnersFromProto(protoOwners []*accesslistv1.AccessListOwner) []acces
 	owners := make([]accesslist.Owner, len(protoOwners))
 	for i, owner := range protoOwners {
 		owners[i] = FromOwnerProto(owner)
-		owners[i].IneligibleStatus = "" // default, overridden via option if needed
+		owners[i].IneligibleStatus = ""         // default, overridden via option if needed
+		owners[i].Display = types.UserDisplay{} // default, overridden via option if needed
 	}
 	return owners
 }
@@ -189,6 +191,7 @@ func ToOwnerProto(owner accesslist.Owner) *accesslistv1.AccessListOwner {
 		Description:      owner.Description,
 		IneligibleStatus: ineligibleStatus,
 		MembershipKind:   kind,
+		Display:          toProtoUserDisplay(owner.Display),
 	}
 }
 
@@ -205,6 +208,7 @@ func FromOwnerProto(protoOwner *accesslistv1.AccessListOwner) accesslist.Owner {
 	return accesslist.Owner{
 		Name:             protoOwner.GetName(),
 		Description:      protoOwner.GetDescription(),
+		Display:          fromProtoUserDisplay(protoOwner.GetDisplay()),
 		IneligibleStatus: ineligibleStatus,
 		MembershipKind:   protoOwner.GetMembershipKind().String(),
 	}
@@ -224,6 +228,38 @@ func WithOwnersIneligibleStatusField(protoOwners []*accesslistv1.AccessListOwner
 			updatedOwners[i] = owner
 		}
 		a.SetOwners(updatedOwners)
+	}
+}
+
+// WithOwnersDisplayField sets owner display fields to the provided proto values.
+func WithOwnersDisplayField(protoOwners []*accesslistv1.AccessListOwner) AccessListOption {
+	return func(a *accesslist.AccessList) {
+		updatedOwners := make([]accesslist.Owner, len(a.GetOwners()))
+		for i, owner := range a.GetOwners() {
+			owner.Display = fromProtoUserDisplay(protoOwners[i].GetDisplay())
+			updatedOwners[i] = owner
+		}
+		a.SetOwners(updatedOwners)
+	}
+}
+
+func toProtoUserDisplay(display types.UserDisplay) *accesslistv1.UserDisplay {
+	if display == (types.UserDisplay{}) {
+		return nil
+	}
+	return &accesslistv1.UserDisplay{
+		Primary:   display.Primary,
+		Secondary: display.Secondary,
+	}
+}
+
+func fromProtoUserDisplay(display *accesslistv1.UserDisplay) types.UserDisplay {
+	if display == nil {
+		return types.UserDisplay{}
+	}
+	return types.UserDisplay{
+		Primary:   display.GetPrimary(),
+		Secondary: display.GetSecondary(),
 	}
 }
 

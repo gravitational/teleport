@@ -44,11 +44,14 @@ exclude_fields:
     - "AccessList.header.metadata.id"
     # Read only field
     - "AccessList.spec.owners.ineligible_status"
+    - "AccessList.spec.owners.display"
     - "AccessList.status"
     # Metadata (we id resources by name on our side)
     - "Member.header.metadata.id"
     # Read only field
     - "Member.spec.ineligible_status"
+    - "Member.spec.display"
+    - "Member.spec.added_by_display"
 
 # These fields will be marked as Computed: true
 computed_fields:

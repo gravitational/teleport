@@ -224,6 +224,9 @@ type Owner struct {
 	// Description is the plaintext description of the owner and why they are an owner.
 	Description string `json:"description" yaml:"description"`
 
+	// Display contains read-time display values for this owner.
+	Display types.UserDisplay `json:"display" yaml:"display"`
+
 	// IneligibleStatus describes the reason why this owner is not eligible.
 	IneligibleStatus string `json:"ineligible_status" yaml:"ineligible_status"`
 
@@ -697,6 +700,7 @@ func WithSkipClone() EqualAccessListsOption {
 //   - Metadata.Revision: Managed by the backend
 //   - Status: Contains dynamically calculated fields (member counts, assignments, etc.)
 //   - Owner.IneligibleStatus: Managed by the IneligibleStatusReconciler
+//   - Owner.Display: Read-time display values derived from the user resource
 //
 // Note: This option causes the input access lists to be cloned (unless WithSkipClone
 // is also used) to avoid modifying the originals.
@@ -778,5 +782,6 @@ func resetEphemeralFieldsAccessList(a *AccessList) {
 	a.Status = Status{}
 	for i := range a.Spec.Owners {
 		a.Spec.Owners[i].IneligibleStatus = ""
+		a.Spec.Owners[i].Display = types.UserDisplay{}
 	}
 }
