@@ -120,6 +120,9 @@ func NewStreamer(cfg StreamerConfig) (*events.ProtoStreamer, error) {
 
 // CreateUpload creates a multipart upload
 func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID) (*events.StreamUpload, error) {
+	if err := sessionID.Check(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if err := os.MkdirAll(h.uploadsPath(), teleport.PrivateDirMode); err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
@@ -434,13 +437,16 @@ func partFromFileName(fileName string) (int64, error) {
 }
 
 // checkUpload checks that upload IDs are valid
-// and in addition verifies that upload ID is a valid UUID
-// to avoid file scanning by passing bogus upload ID file paths
+// and in addition verifies that the upload ID and session ID are valid UUIDs
+// to avoid file scanning by passing bogus IDs as file paths
 func checkUpload(upload events.StreamUpload) error {
 	if err := upload.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := checkUploadID(upload.ID); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := upload.SessionID.Check(); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
