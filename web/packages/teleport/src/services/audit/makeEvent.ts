@@ -1502,8 +1502,11 @@ export const formatters: Formatters = {
   [eventCodes.BOT_JOIN]: {
     type: 'bot.join',
     desc: 'Bot Joined',
-    format: ({ bot_name, method, token_name }) => {
-      return `Bot [${bot_name}] joined the cluster using the [${method}] join method and the [${token_name || 'unknown'}] token`;
+    format: ({ bot_name, method, token_name, scope }) => {
+      if (scope) {
+        return `Bot [${bot_name}] joined the cluster using the [${method}] join method and the [${token_name || 'unknown'}] token`;
+      }
+      return `Bot [${bot_name}] joined the cluster in scope [${scope}] using the [${method}] join method and the [${token_name || 'unknown'}] token`;
     },
   },
   [eventCodes.BOT_JOIN_FAILURE]: {
@@ -1513,10 +1516,20 @@ export const formatters: Formatters = {
       return `Bot [${bot_name || 'unknown'}] failed to join the cluster using the [${method || 'unknown'}] join method and the [${token_name || 'unknown'}] token`;
     },
   },
+  [eventCodes.BOT_JOIN_LIMIT]: {
+    type: 'bot.join',
+    desc: 'Bot Join Failed',
+    format: ({ bot_name }) => {
+      return `Bot [${bot_name || 'unknown'}] failed to join the cluster due to token limits`;
+    },
+  },
   [eventCodes.INSTANCE_JOIN]: {
     type: 'instance.join',
     desc: 'Instance Joined',
-    format: ({ node_name, role, method }) => {
+    format: ({ node_name, role, method, scope }) => {
+      if (scope) {
+        return `Instance [${node_name}] joined the cluster in scope [${scope}] with the [${role}] role using the [${method}] join method`;
+      }
       return `Instance [${node_name}] joined the cluster with the [${role}] role using the [${method}] join method`;
     },
   },
@@ -1525,6 +1538,13 @@ export const formatters: Formatters = {
     desc: 'Instance Join Failed',
     format: ({ node_name }) => {
       return `Instance [${node_name || 'unknown'}] failed to join the cluster`;
+    },
+  },
+  [eventCodes.INSTANCE_JOIN_LIMIT]: {
+    type: 'instance.join',
+    desc: 'Instance Join Limit',
+    format: ({ node_name }) => {
+      return `Instance [${node_name || 'unknown'}] failed to join the cluster due to token limits`;
     },
   },
   [eventCodes.BOT_CREATED]: {
@@ -2694,6 +2714,30 @@ export const formatters: Formatters = {
         ? `User [${user}] deleted a Certificate Authority Override [${name}]`
         : `User [${user}] failed to delete a Certificate Authority Override [${name}]`;
     },
+  },
+  [eventCodes.SCOPED_TOKEN_CREATE]: {
+    type: 'scoped_token.create',
+    desc: 'Scoped Join Token Created',
+    format: ({ user, roles, join_method, assigned_scope }) =>
+      `User [${user}] created a scoped join token with role(s) [${roles}] assigning to scope [${assigned_scope}] using join method [${join_method}]`,
+  },
+  [eventCodes.SCOPED_TOKEN_UPSERT]: {
+    type: 'scoped_token.upsert',
+    desc: 'Scoped Join Token Upserted',
+    format: ({ user, roles, join_method, assigned_scope }) =>
+      `User [${user}] upserted a scoped join token with role(s) [${roles}] assigning to scope [${assigned_scope}] using join method [${join_method}]`,
+  },
+  [eventCodes.SCOPED_TOKEN_UPDATE]: {
+    type: 'scoped_token.update',
+    desc: 'Scoped Join Token Updated',
+    format: ({ user, name, roles, join_method, assigned_scope }) =>
+      `User [${user}] updated scoped join token [${name}] with role(s) [${roles}] assigning to scope [${assigned_scope}] using join method [${join_method}]`,
+  },
+  [eventCodes.SCOPED_TOKEN_DELETE]: {
+    type: 'scoped_token.delete',
+    desc: 'Scoped Join Token Deleted',
+    format: ({ user, name }) =>
+      `User [${user}] deleted scoped join token [${name}]`,
   },
 };
 

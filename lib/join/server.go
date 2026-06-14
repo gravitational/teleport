@@ -44,6 +44,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/keystore"
+	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/join/azuredevops"
@@ -125,6 +126,7 @@ type ServerConfig struct {
 	OracleHTTPClient   utils.HTTPDoClient
 	Logger             *slog.Logger
 	Modules            modules.Modules
+	Emitter            apievents.Emitter
 }
 
 // Server implements cluster joining for nodes and bots.
@@ -279,6 +281,8 @@ func (s *Server) Join(stream messages.ServerStream) (err error) {
 		i.TokenJoinMethod = string(configuredJoinMethod(token))
 		i.TokenExpires = token.Expiry()
 		i.BotName = token.GetBotName()
+		i.AssignedScope = token.GetAssignedScope()
+		i.SystemRoles = token.GetRoles().StringSlice()
 
 		// It's not worth fetching the true bot scope here (via bot user label)
 		// so we'll just include the one embedded in the token.
@@ -323,6 +327,7 @@ func (s *Server) Join(stream messages.ServerStream) (err error) {
 		return trace.Wrap(err)
 	}
 
+	handleJoinSuccess(ctx, s.cfg.AuthService, diag)
 	// Finally, send the result back to the client.
 	return trace.Wrap(stream.Send(result))
 }
@@ -421,10 +426,18 @@ func (s *Server) authenticate(ctx context.Context, diag *diagnostic.Diagnostic, 
 
 	id := authCtx.Identity.GetIdentity()
 
-	isInstance := slices.Equal(id.Groups, []string{types.RoleInstance.String()})
+	var isInstance bool
 	var systemRoles types.SystemRoles
-	if isInstance {
+	if slices.Equal(id.Groups, []string{types.RoleInstance.String()}) {
+		isInstance = true
 		systemRoles, err = types.NewTeleportRoles(id.SystemRoles)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	if id.ScopePin.GetSystemRoles().GetPrimary() == types.RoleInstance.String() {
+		isInstance = true
+		systemRoles, err = types.NewTeleportRoles(id.ScopePin.GetSystemRoles().GetAdditional())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -540,6 +553,9 @@ func (s *Server) makeHostResult(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	diag.Set(func(i *diagnostic.Info) {
+		i.HostID = certsParams.HostID
+	})
 	return &messages.HostResult{
 		Certificates:    *certificates,
 		HostID:          certsParams.HostID,
@@ -624,6 +640,9 @@ func (s *Server) makeBotResult(
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
+	diag.Set(func(i *diagnostic.Info) {
+		i.BotInstanceID = botInstanceID
+	})
 	certificates, err := convertCerts(certs)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
@@ -760,20 +779,46 @@ func handleJoinFailure(ctx context.Context, emitter apievents.Emitter, diag *dia
 	}
 }
 
+func handleJoinSuccess(ctx context.Context, emitter apievents.Emitter, diag *diagnostic.Diagnostic) {
+	diagInfo := diag.Get()
+
+	// Fetch and encode RawJoinAttrs if they are available.
+	attributesStruct, err := joinutils.RawJoinAttrsToStruct(diagInfo.RawJoinAttrs)
+	if err != nil {
+		log.WarnContext(ctx, "Unable to fetch join attributes from join method", "error", err)
+	}
+
+	if err := emitter.EmitAuditEvent(context.WithoutCancel(ctx), makeAuditEvent(diagInfo, attributesStruct)); err != nil {
+		log.WarnContext(ctx, "Failed to emit join event", "error", err)
+	}
+}
+
 func makeAuditEvent(info diagnostic.Info, attributesStruct *apievents.Struct) apievents.AuditEvent {
-	errorMessage := info.Error.Error()
-	if errors.Is(info.Error, context.Canceled) || status.Code(info.Error) == codes.Canceled {
+	var errorMessage string
+	switch {
+	case errors.Is(info.Error, context.Canceled), status.Code(info.Error) == codes.Canceled:
 		errorMessage = "join attempt timed out or was aborted"
+	case info.Error != nil:
+		errorMessage = info.Error.Error()
 	}
 	status := apievents.Status{
-		Success: false,
+		Success: info.Error == nil,
 		Error:   errorMessage,
 	}
+	var code string
 	if info.Role == types.RoleBot.String() {
+		switch {
+		case errors.Is(info.Error, joining.ErrTokenExhausted):
+			code = events.BotJoinLimitCode
+		case info.Error != nil:
+			code = events.BotJoinFailureCode
+		default:
+			code = events.BotJoinCode
+		}
 		return &apievents.BotJoin{
 			Metadata: apievents.Metadata{
 				Type: events.BotJoinEvent,
-				Code: events.BotJoinFailureCode,
+				Code: code,
 				Time: time.Now(),
 			},
 			Status: status,
@@ -782,28 +827,40 @@ func makeAuditEvent(info diagnostic.Info, attributesStruct *apievents.Struct) ap
 			},
 			Method:        cmp.Or(info.TokenJoinMethod, info.RequestedJoinMethod),
 			TokenName:     info.SafeTokenName,
+			UserName:      machineidv1.BotResourceName(info.BotName),
 			BotName:       info.BotName,
 			BotInstanceID: info.BotInstanceID,
 			Scope:         info.BotScope,
 			Attributes:    attributesStruct,
 		}
 	}
+	switch {
+	case errors.Is(info.Error, joining.ErrTokenExhausted):
+		code = events.InstanceJoinLimitCode
+	case info.Error != nil:
+		code = events.InstanceJoinFailureCode
+	default:
+		code = events.InstanceJoinCode
+	}
 	return &apievents.InstanceJoin{
 		Metadata: apievents.Metadata{
 			Type: events.InstanceJoinEvent,
-			Code: events.InstanceJoinFailureCode,
+			Code: code,
 			Time: time.Now(),
 		},
 		Status: status,
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: info.RemoteAddr,
 		},
+		HostID:       info.HostID,
 		Method:       cmp.Or(info.TokenJoinMethod, info.RequestedJoinMethod),
 		TokenName:    info.SafeTokenName,
 		TokenExpires: info.TokenExpires,
 		Role:         info.Role,
 		NodeName:     info.NodeName,
 		Attributes:   attributesStruct,
+		Scope:        info.AssignedScope,
+		Roles:        info.SystemRoles,
 	}
 }
 

@@ -51,6 +51,8 @@ type Token interface {
 	// GetAssignedScope returns the scope that will be assigned to provisioned resources
 	// provisioned using the wrapped [joiningv1.ScopedToken].
 	GetAssignedScope() string
+	// GetScope returns the scope of the token itself.
+	GetScope() string
 	// GetImmutableLabels returns labels that must be applied to resources
 	// provisioned with this token.
 	GetImmutableLabels() *joiningv1.ImmutableLabels

@@ -393,6 +393,15 @@ const (
 	// [github.com/gravitational/teleport/api/types.ProvisionToken].
 	ProvisionTokenCreateCode = "TJT00I"
 
+	// ScopedTokenCreateCode is the event code for creating a scoped token.
+	ScopedTokenCreateCode = "TST000I"
+	// ScopedTokenUpsertCode is the event code for upserting a scoped token.
+	ScopedTokenUpsertCode = "TST001I"
+	// ScopedTokenUpdateCode is the event code for updating a scoped token.
+	ScopedTokenUpdateCode = "TST002I"
+	// ScopedTokenDeleteCode is the event code for deleting a scoped token.
+	ScopedTokenDeleteCode = "TST003I"
+
 	// GithubConnectorCreatedCode is the Github connector created event code.
 	GithubConnectorCreatedCode = "T8000I"
 	// GithubConnectorDeletedCode is the Github connector deleted event code.
@@ -425,10 +434,15 @@ const (
 	BotJoinCode = "TJ001I"
 	// BotJoinFailureCode is the 'bot.join' event code for failures.
 	BotJoinFailureCode = "TJ001E"
+	// BotJoinLimitCode is the 'bot.join' event code for failures due to token limits.
+	BotJoinLimitCode = "TJ001L"
 	// InstanceJoinCode is the 'node.join' event code.
 	InstanceJoinCode = "TJ002I"
 	// InstanceJoinFailureCode is the 'node.join' event code for failures.
 	InstanceJoinFailureCode = "TJ002E"
+	// InstanceJoinLimitCode is the 'node.join' event code for failures due to
+	// usage limits.
+	InstanceJoinLimitCode = "TJ002L"
 
 	// BotCreateCode is the `bot.create` event code.
 	BotCreateCode = "TB001I"

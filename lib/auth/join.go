@@ -318,11 +318,22 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 	// With all elements of the token validated, we can now generate & return
 	// certificates.
 	if req.Role == types.RoleBot {
-		certs, _, err = a.GenerateBotCertsForJoin(ctx, provisionToken, makeBotCertsParams(req, rawClaims, attrs))
+		var botInstanceID string
+		params := makeBotCertsParams(req, rawClaims, attrs)
+		certs, botInstanceID, err = a.GenerateBotCertsForJoin(ctx, provisionToken, params)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		a.emitBotJoinEvent(ctx, provisionToken, params, botInstanceID)
 	} else {
-		certs, err = a.GenerateHostCertsForJoin(ctx, provisionToken, makeHostCertsParams(req, rawClaims))
+		params := makeHostCertsParams(req, rawClaims)
+		certs, err = a.GenerateHostCertsForJoin(ctx, provisionToken, params)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		a.emitJoinEvent(ctx, provisionToken, params)
 	}
-	return certs, trace.Wrap(err)
+	return certs, nil
 }
 
 func makeHostCertsParams(req *types.RegisterUsingTokenRequest, rawClaims any) *join.HostCertsParams {
@@ -388,33 +399,6 @@ func (a *Server) GenerateBotCertsForJoin(
 		expires = *params.Expires
 	}
 
-	// Construct a Join event to be sent later.
-	joinEvent := &apievents.BotJoin{
-		Metadata: apievents.Metadata{
-			Type: events.BotJoinEvent,
-			Code: events.BotJoinCode,
-		},
-		Status: apievents.Status{
-			Success: true,
-		},
-		BotName:   botName,
-		Method:    string(joinMethod),
-		TokenName: token.GetSafeName(),
-		UserName:  machineidv1.BotResourceName(botName),
-		ConnectionMetadata: apievents.ConnectionMetadata{
-			RemoteAddr: params.RemoteAddr,
-		},
-	}
-	var err error
-	joinEvent.Attributes, err = joinutils.RawJoinAttrsToStruct(params.RawJoinClaims)
-	if err != nil {
-		a.logger.WarnContext(
-			ctx,
-			"Unable to encode join attributes for join audit event",
-			"error", err,
-		)
-	}
-
 	// Prepare join attributes for encoding into the X509 cert and for inclusion
 	// in audit logs.
 	if params.Attrs == nil {
@@ -438,6 +422,7 @@ func (a *Server) GenerateBotCertsForJoin(
 		JoinAttrs:  params.Attrs,
 	}.Build()
 
+	var err error
 	// TODO(noah): In v19, we can drop writing to the deprecated Metadata field.
 	auth.Metadata, err = rawJoinAttrsToGoogleStruct(params.RawJoinClaims)
 	if err != nil {
@@ -475,8 +460,6 @@ func (a *Server) GenerateBotCertsForJoin(
 		if !scopes.ResourceScope(botScope).IsSubjectToScopeOfEffect(scoped.GetScoped().GetScope()) {
 			return nil, "", trace.BadParameter("bot scope must be a equal to or descendant of its token's resource-level scope")
 		}
-
-		joinEvent.Scope = botScope
 	} else {
 		botScope, ok := user.GetLabel(types.BotScopeLabel)
 		if ok && botScope != "" {
@@ -502,7 +485,6 @@ func (a *Server) GenerateBotCertsForJoin(
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-	joinEvent.BotInstanceID = botInstanceID
 
 	if shouldDeleteToken {
 		// delete ephemeral bot join tokens so they can't be re-used
@@ -519,9 +501,6 @@ func (a *Server) GenerateBotCertsForJoin(
 		"bot_name", botName,
 		"bot_instance", botInstanceID,
 	)
-	if err := a.emitter.EmitAuditEvent(ctx, joinEvent); err != nil {
-		a.logger.WarnContext(ctx, "Failed to emit bot join event", "error", err)
-	}
 	return certs, botInstanceID, nil
 }
 
@@ -583,7 +562,63 @@ func (a *Server) GenerateHostCertsForJoin(
 		return nil, trace.Wrap(err)
 	}
 
-	// Emit audit event
+	return certs, nil
+}
+
+func (a *Server) emitBotJoinEvent(ctx context.Context, token provision.Token, params *join.BotCertsParams, botInstanceID string) {
+	joinEvent := &apievents.BotJoin{
+		Metadata: apievents.Metadata{
+			Type: events.BotJoinEvent,
+			Code: events.BotJoinCode,
+		},
+		Status: apievents.Status{
+			Success: true,
+		},
+		BotName:   token.GetBotName(),
+		Method:    string(token.GetJoinMethod()),
+		TokenName: token.GetSafeName(),
+		UserName:  machineidv1.BotResourceName(token.GetBotName()),
+		ConnectionMetadata: apievents.ConnectionMetadata{
+			RemoteAddr: params.RemoteAddr,
+		},
+		Scope:         token.GetBotScope(),
+		BotInstanceID: botInstanceID,
+	}
+
+	var err error
+	joinEvent.Attributes, err = joinutils.RawJoinAttrsToStruct(params.RawJoinClaims)
+	if err != nil {
+		a.logger.WarnContext(
+			ctx,
+			"Unable to encode join attributes for join audit event",
+			"error", err,
+		)
+	}
+
+	if err := a.emitter.EmitAuditEvent(ctx, joinEvent); err != nil {
+		a.logger.WarnContext(ctx, "Failed to emit bot join event", "error", err)
+	}
+}
+
+func (a *Server) emitJoinEvent(ctx context.Context, token provision.Token, params *join.HostCertsParams) {
+	// instance certs include an additional field that specifies the list of
+	// all services authorized by the token.
+	var systemRoles types.SystemRoles
+	if params.SystemRole == types.RoleInstance {
+		systemRolesSet := make(map[types.SystemRole]struct{})
+		for _, r := range token.GetRoles() {
+			if r.IsLocalService() {
+				systemRolesSet[r] = struct{}{}
+			}
+		}
+		for _, r := range params.AuthenticatedSystemRoles {
+			if r.IsLocalService() {
+				systemRolesSet[r] = struct{}{}
+			}
+		}
+		systemRoles = types.SystemRoles(slices.Collect(maps.Keys(systemRolesSet)))
+	}
+
 	if params.SystemRole == types.RoleInstance {
 		a.logger.InfoContext(ctx, "Instance has joined the cluster",
 			"node_name", params.HostName,
@@ -615,7 +650,11 @@ func (a *Server) GenerateHostCertsForJoin(
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: params.RemoteAddr,
 		},
+		Roles: token.GetRoles().StringSlice(),
+		Scope: token.GetAssignedScope(),
 	}
+
+	var err error
 	joinEvent.Attributes, err = joinutils.RawJoinAttrsToStruct(params.RawJoinClaims)
 	if err != nil {
 		a.logger.WarnContext(ctx, "Unable to fetch join attributes from join method", "error", err)
@@ -623,7 +662,6 @@ func (a *Server) GenerateHostCertsForJoin(
 	if err := a.emitter.EmitAuditEvent(ctx, joinEvent); err != nil {
 		a.logger.WarnContext(ctx, "Failed to emit instance join event", "error", err)
 	}
-	return certs, nil
 }
 
 func rawJoinAttrsToGoogleStruct(in any) (*structpb.Struct, error) {

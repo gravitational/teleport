@@ -6293,6 +6293,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		ScopedAuthorizer: cfg.ScopedAuthorizer,
 		Backend:          cfg.AuthServer,
 		Logger:           logger,
+		Emitter:          cfg.Emitter,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating scoped provisioning service")
@@ -6394,6 +6395,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 			ScopedTokenService: cfg.AuthServer.Services,
 			OracleHTTPClient:   cfg.OracleHTTPClient,
 			Modules:            cfg.AuthServer.modules,
+			Emitter:            cfg.Emitter,
 		}))
 	}
 
