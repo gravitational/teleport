@@ -363,6 +363,7 @@ func TestTeleportClient_Login_local(t *testing.T) {
 
 				require.NotNil(t, sshIdent.ScopePin)
 				require.Empty(t, cmp.Diff(&scopesv1.Pin{
+					Kind:  scopesv1.PinKind_PIN_KIND_USER,
 					Scope: "/aa",
 					AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 						"/aa": {"/aa": {"role-a"}},

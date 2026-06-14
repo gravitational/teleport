@@ -390,6 +390,7 @@ func newFakeScopedAuthorizer(t *testing.T) fakeScopedAuthorizer {
 	checkerContext, err := services.NewScopedAccessCheckerContext(t.Context(), &services.AccessInfo{
 		Username: "alice",
 		ScopePin: &scopesv1.Pin{
+			Kind:  scopesv1.PinKind_PIN_KIND_USER,
 			Scope: "/test",
 		},
 	}, "test-cluster", fakeScopedRoleReader{})

@@ -691,7 +691,7 @@ func (a *ServerWithRoles) GenerateHostCerts(ctx context.Context, req *proto.Host
 	identity := a.context.Identity.GetIdentity()
 	return a.authServer.GenerateHostCerts(ctx, HostCertsParams{
 		Req:                req,
-		AgentScope:         identity.AgentScope,
+		AgentScope:         identity.GetAgentScope(),
 		ImmutableLabelHash: identity.ImmutableLabelHash,
 		JoinToken:          identity.JoinToken,
 	})
@@ -829,7 +829,7 @@ func (a *ServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInve
 	// If the hello message's scope is non-empty, we can verify that it matches the authenticated
 	// scope in the identity. Otherwise, in order to support agents unaware of scopes, we fall back
 	// to the authenticated identity's scope.
-	agentScope := a.context.Identity.GetIdentity().AgentScope
+	agentScope := a.context.Identity.GetIdentity().GetAgentScope()
 	if hello.Scope != "" && hello.Scope != agentScope {
 		return nil, trace.AccessDenied("provided scope %q does not match agent identity %q", hello.Scope, agentScope)
 	}
@@ -1037,8 +1037,26 @@ func (a *ServerWithRoles) UpsertNode(ctx context.Context, s types.Server) (*type
 	if err := a.authorizeAction(types.KindNode, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if s.GetScope() != "" {
-		return nil, trace.BadParameter("UpsertNode does not yet support scoped resources")
+
+	agentScope := a.context.Identity.GetIdentity().GetAgentScope()
+	if nodeScope := s.GetScope(); agentScope != "" {
+		if nodeScope != agentScope {
+			return nil, trace.AccessDenied("node scope %q does not match agent identity scope %q", nodeScope, agentScope)
+		}
+
+		if a.hasBuiltinRole(types.RoleNode) {
+			clusterName, err := a.GetDomainName(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			callerID, err := ExtractHostID(a.context.User.GetName(), clusterName)
+			if err != nil {
+				return nil, trace.AccessDenied("access denied")
+			}
+			if s.GetName() != callerID {
+				return nil, trace.AccessDenied("node ID %q does not match agent identity ID %q", s.GetName(), callerID)
+			}
+		}
 	}
 	return a.authServer.UpsertNode(ctx, s)
 }

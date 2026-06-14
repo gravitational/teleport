@@ -448,6 +448,7 @@ func TestScopedRBAC(t *testing.T) {
 		{
 			name: "basic allow",
 			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 					"/staging/west": {"/staging/west": {"staging-west-red"}},
@@ -458,6 +459,7 @@ func TestScopedRBAC(t *testing.T) {
 		{
 			name: "too narrow scope",
 			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging/west/narrow",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 					"/staging/west": {"/staging/west": {"staging-west-red"}},
@@ -468,6 +470,7 @@ func TestScopedRBAC(t *testing.T) {
 		{
 			name: "label mismatch",
 			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 					"/staging/west": {"/staging/west": {"staging-west-blue"}},
@@ -478,6 +481,7 @@ func TestScopedRBAC(t *testing.T) {
 		{
 			name: "scope permission mismatch",
 			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 					"/staging/east": {"/staging/east": {"staging-east-red"}},
@@ -488,6 +492,7 @@ func TestScopedRBAC(t *testing.T) {
 		{
 			name: "orthogonal scope",
 			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/prod",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 					"/prod/west": {"/prod/west": {"prod-west-red"}},
@@ -498,6 +503,7 @@ func TestScopedRBAC(t *testing.T) {
 		{
 			name: "no labels",
 			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 					"/staging/west": {"/staging/west": {"staging-west-no-labels"}},
@@ -508,6 +514,7 @@ func TestScopedRBAC(t *testing.T) {
 		{
 			name: "wrong login",
 			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 					"/staging/west": {"/staging/west": {"staging-west-wrong-login"}},
@@ -1432,6 +1439,7 @@ func TestScopedClientIdleTimeout(t *testing.T) {
 		{
 			name: "no role timeout uses global default",
 			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 					"/staging/west": {"/staging/west": {"no-timeout"}},
@@ -1442,6 +1450,7 @@ func TestScopedClientIdleTimeout(t *testing.T) {
 		{
 			name: "role timeout more restrictive than global",
 			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 					"/staging/west": {"/staging/west": {"10m-timeout"}},
@@ -1452,6 +1461,7 @@ func TestScopedClientIdleTimeout(t *testing.T) {
 		{
 			name: "role timeout less restrictive than global",
 			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 					"/staging/west": {"/staging/west": {"1h-timeout"}},
@@ -1462,6 +1472,7 @@ func TestScopedClientIdleTimeout(t *testing.T) {
 		{
 			name: "winning role determines timeout (single-role evaluation)",
 			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 					"/staging":      {"/staging/west": {"25m-timeout"}},
@@ -1473,6 +1484,7 @@ func TestScopedClientIdleTimeout(t *testing.T) {
 		{
 			name: "more specific scope of effect wins (same origin)",
 			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 					"/staging": {
@@ -1486,6 +1498,7 @@ func TestScopedClientIdleTimeout(t *testing.T) {
 		{
 			name: "label selector mismatch causes fallback to next role",
 			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 					"/staging":      {"/staging/west": {"12m-timeout-team-blue"}},
@@ -1497,6 +1510,7 @@ func TestScopedClientIdleTimeout(t *testing.T) {
 		{
 			name: "login mismatch causes fallback to next role",
 			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 					"/staging":      {"/staging/west": {"18m-timeout-wrong-login"}},
@@ -1559,6 +1573,7 @@ func newScopedSSHPermitTestPack(t *testing.T, roles []*scopedaccessv1.ScopedRole
 
 func pinForRole(roleName string) *scopesv1.Pin {
 	return &scopesv1.Pin{
+		Kind:  scopesv1.PinKind_PIN_KIND_USER,
 		Scope: "/staging",
 		AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 			"/staging/west": {"/staging/west": {roleName}},

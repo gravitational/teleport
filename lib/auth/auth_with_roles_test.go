@@ -8135,9 +8135,9 @@ func TestGenerateHostCert(t *testing.T) {
 }
 
 // newScopedTestServerForHost creates a self-cleaning `ServerWithRoles`, configured
-// for a given host
-func newScopedTestServerForHost(t *testing.T, srv *authtest.AuthServer, hostID, scope string, role types.SystemRole) *auth.ServerWithRoles {
-	authzContext := authz.ContextWithUser(t.Context(), authtest.TestScopedHost(srv.ClusterName, hostID, scope, role).I)
+// for a given host. One or more roles must be provided.
+func newScopedTestServerForHost(t *testing.T, srv *authtest.AuthServer, hostID, scope string, roles ...types.SystemRole) *auth.ServerWithRoles {
+	authzContext := authz.ContextWithUser(t.Context(), authtest.TestScopedHost(srv.ClusterName, hostID, scope, roles...).I)
 	ctxIdentity, err := srv.Authorizer.Authorize(authzContext)
 	require.NoError(t, err)
 
