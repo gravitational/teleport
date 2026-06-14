@@ -950,6 +950,7 @@ func showJoinInstructions(ctx context.Context, in joinInstructionsInput) error {
 			map[string]any{
 				"proxy_server": proxies[0].GetPublicAddr(),
 				"token":        in.tokenName,
+				"secret":       in.tokenSecret,
 				"minutes":      in.ttl.Minutes(),
 				"set_roles":    setRoles,
 				"version":      proxies[0].GetTeleportVersion(),
