@@ -824,7 +824,7 @@ func (g *GRPCServer) generateUserSingleUseCerts(ctx context.Context, srv *Scoped
 }
 
 func (g *GRPCServer) GenerateHostCerts(ctx context.Context, req *authpb.HostCertsRequest) (*authpb.Certs, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -836,7 +836,7 @@ func (g *GRPCServer) GenerateHostCerts(ctx context.Context, req *authpb.HostCert
 	}
 	req.RemoteAddr = p.Addr.String()
 
-	certs, err := auth.ServerWithRoles.GenerateHostCerts(ctx, req)
+	certs, err := auth.GenerateHostCerts(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
