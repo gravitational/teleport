@@ -279,6 +279,58 @@ func TestEvaluateCondition(t *testing.T) {
 			match: true,
 		},
 		{
+			description: "(regexp.not_match_any) true when one trait does not match",
+			condition:   `regexp.not_match_any(user.traits["level"], "^L1$")`,
+			env: AccessRequestExpressionEnv{
+				UserTraits: map[string][]string{
+					"level": {"L1", "L2"},
+				},
+			},
+			match: true,
+		},
+		{
+			description: "(regexp.not_match_any) false when all traits match",
+			condition:   `!regexp.not_match_any(user.traits["teams"], "^(Cloud|Tools)$")`,
+			env: AccessRequestExpressionEnv{
+				UserTraits: map[string][]string{
+					"teams": {"Tools", "Cloud"},
+				},
+			},
+			match: true,
+		},
+		{
+			description: "(regexp.not_match_any) all match pattern from issue",
+			condition:   `regexp.match(access_request.spec.roles, "^.*-dev$") && !regexp.not_match_any(access_request.spec.roles, "^.*-dev$")`,
+			env: AccessRequestExpressionEnv{
+				Roles: []string{"admin-dev", "viewer-dev"},
+			},
+			match: true,
+		},
+		{
+			description: "(regexp.not_match_any) mixed roles fail pattern from issue",
+			condition:   `regexp.match(access_request.spec.roles, "^.*-dev$") && !regexp.not_match_any(access_request.spec.roles, "^.*-dev$")`,
+			env: AccessRequestExpressionEnv{
+				Roles: []string{"admin-dev", "viewer-prod"},
+			},
+			match: false,
+		},
+		{
+			description: "(regexp.not_match_all) true when no roles match",
+			condition:   `regexp.not_match_all(access_request.spec.roles, "^.*-dev$")`,
+			env: AccessRequestExpressionEnv{
+				Roles: []string{"admin-prod", "viewer-prod"},
+			},
+			match: true,
+		},
+		{
+			description: "(regexp.not_match_all) false when one role matches",
+			condition:   `regexp.not_match_all(access_request.spec.roles, "^.*-dev$")`,
+			env: AccessRequestExpressionEnv{
+				Roles: []string{"admin-dev", "viewer-prod"},
+			},
+			match: false,
+		},
+		{
 			description: "(==) matches user",
 			condition: `
                 access_request.spec.user == "example_user"`,

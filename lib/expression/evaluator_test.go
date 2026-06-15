@@ -231,6 +231,54 @@ var (
 			},
 		},
 		{
+			desc: "regexp.not_match_any true when element does not match",
+			expressions: map[string][]string{
+				"result": {`ifelse(regexp.not_match_any(user.spec.traits.groups, "^.*-dev$"), "true", "false")`},
+			},
+			inputTraits: map[string][]string{
+				"groups": {"team-dev", "ops-prod"},
+			},
+			expectedTraits: map[string][]string{
+				"result": {"true"},
+			},
+		},
+		{
+			desc: "regexp.not_match_any false when all match",
+			expressions: map[string][]string{
+				"result": {`ifelse(regexp.not_match_any(user.spec.traits.groups, "^.*-dev$"), "true", "false")`},
+			},
+			inputTraits: map[string][]string{
+				"groups": {"team-dev", "ops-dev"},
+			},
+			expectedTraits: map[string][]string{
+				"result": {"false"},
+			},
+		},
+		{
+			desc: "regexp.not_match_all true when none match",
+			expressions: map[string][]string{
+				"result": {`ifelse(regexp.not_match_all(user.spec.traits.groups, "^.*-dev$"), "true", "false")`},
+			},
+			inputTraits: map[string][]string{
+				"groups": {"team-prod", "ops-prod"},
+			},
+			expectedTraits: map[string][]string{
+				"result": {"true"},
+			},
+		},
+		{
+			desc: "regexp.not_match_all false when one matches",
+			expressions: map[string][]string{
+				"result": {`ifelse(regexp.not_match_all(user.spec.traits.groups, "^.*-dev$"), "true", "false")`},
+			},
+			inputTraits: map[string][]string{
+				"groups": {"team-dev", "ops-prod"},
+			},
+			expectedTraits: map[string][]string{
+				"result": {"false"},
+			},
+		},
+		{
 			desc: "strings.split",
 			expressions: map[string][]string{
 				"logins": {`strings.split(user.spec.traits.commaLogins, ",")`},

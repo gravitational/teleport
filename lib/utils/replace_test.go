@@ -158,6 +158,154 @@ func TestRegexMatchesAny(t *testing.T) {
 	}
 }
 
+func TestRegexNotMatchesAny(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		desc        string
+		inputs      []string
+		expr        string
+		expectError string
+		expectMatch bool
+	}{
+		{
+			desc:        "empty inputs returns false",
+			expr:        "test",
+			inputs:      []string{},
+			expectMatch: false,
+		},
+		{
+			desc:        "all match returns false",
+			expr:        "test",
+			inputs:      []string{"test"},
+			expectMatch: false,
+		},
+		{
+			desc:        "one does not match returns true",
+			expr:        "test",
+			inputs:      []string{"test", "other"},
+			expectMatch: true,
+		},
+		{
+			desc:        "none match returns true",
+			expr:        "test",
+			inputs:      []string{"first", "second"},
+			expectMatch: true,
+		},
+		{
+			desc:        "glob all match",
+			expr:        "env-*-staging",
+			inputs:      []string{"env-app-staging", "env-web-staging"},
+			expectMatch: false,
+		},
+		{
+			desc:        "glob one does not match",
+			expr:        "env-*-staging",
+			inputs:      []string{"env-app-staging", "env-app-production"},
+			expectMatch: true,
+		},
+		{
+			desc:        "regexp all match",
+			expr:        "^.*-dev$",
+			inputs:      []string{"admin-dev", "viewer-dev"},
+			expectMatch: false,
+		},
+		{
+			desc:        "regexp one does not match",
+			expr:        "^.*-dev$",
+			inputs:      []string{"admin-dev", "viewer-prod"},
+			expectMatch: true,
+		},
+		{
+			desc:        "bad regexp",
+			expr:        "^env-(?!prod)$",
+			expectError: "error parsing regexp",
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			match, err := RegexNotMatchesAny(tc.inputs, tc.expr)
+			if msg := tc.expectError; msg != "" {
+				require.ErrorContains(t, err, msg)
+				return
+			}
+			require.Equal(t, tc.expectMatch, match)
+		})
+	}
+}
+
+func TestRegexNotMatchesAll(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		desc        string
+		inputs      []string
+		expr        string
+		expectError string
+		expectMatch bool
+	}{
+		{
+			desc:        "empty inputs returns true",
+			expr:        "test",
+			inputs:      []string{},
+			expectMatch: true,
+		},
+		{
+			desc:        "all match returns false",
+			expr:        "test",
+			inputs:      []string{"test"},
+			expectMatch: false,
+		},
+		{
+			desc:        "one matches returns false",
+			expr:        "test",
+			inputs:      []string{"test", "other"},
+			expectMatch: false,
+		},
+		{
+			desc:        "none match returns true",
+			expr:        "test",
+			inputs:      []string{"first", "second"},
+			expectMatch: true,
+		},
+		{
+			desc:        "glob none match",
+			expr:        "env-*-staging",
+			inputs:      []string{"env-app-production", "env-web-production"},
+			expectMatch: true,
+		},
+		{
+			desc:        "glob one matches returns false",
+			expr:        "env-*-staging",
+			inputs:      []string{"env-app-staging", "env-app-production"},
+			expectMatch: false,
+		},
+		{
+			desc:        "regexp none match",
+			expr:        "^.*-dev$",
+			inputs:      []string{"admin-prod", "viewer-prod"},
+			expectMatch: true,
+		},
+		{
+			desc:        "regexp one matches returns false",
+			expr:        "^.*-dev$",
+			inputs:      []string{"admin-dev", "viewer-prod"},
+			expectMatch: false,
+		},
+		{
+			desc:        "bad regexp",
+			expr:        "^env-(?!prod)$",
+			expectError: "error parsing regexp",
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			match, err := RegexNotMatchesAll(tc.inputs, tc.expr)
+			if msg := tc.expectError; msg != "" {
+				require.ErrorContains(t, err, msg)
+				return
+			}
+			require.Equal(t, tc.expectMatch, match)
+		})
+	}
+}
+
 func TestKubeResourceMatchesRegex(t *testing.T) {
 	tests := []struct {
 		name          string

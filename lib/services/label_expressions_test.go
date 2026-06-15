@@ -141,6 +141,60 @@ func TestLabelExpressions(t *testing.T) {
 			expectMatch: true,
 		},
 		{
+			desc: "regexp.not_match_any true when element does not match",
+			expr: `regexp.not_match_any(user.spec.traits["roles"], "^.*-dev$")`,
+			userTraits: map[string][]string{
+				"roles": {"admin-dev", "viewer-prod"},
+			},
+			resourceLabels: map[string]string{},
+			expectMatch:    true,
+		},
+		{
+			desc: "regexp.not_match_any false when all match",
+			expr: `regexp.not_match_any(user.spec.traits["roles"], "^.*-dev$")`,
+			userTraits: map[string][]string{
+				"roles": {"admin-dev", "viewer-dev"},
+			},
+			resourceLabels: map[string]string{},
+			expectMatch:    false,
+		},
+		{
+			desc: "regexp.not_match_all true when none match",
+			expr: `regexp.not_match_all(user.spec.traits["roles"], "^.*-dev$")`,
+			userTraits: map[string][]string{
+				"roles": {"admin-prod", "viewer-prod"},
+			},
+			resourceLabels: map[string]string{},
+			expectMatch:    true,
+		},
+		{
+			desc: "regexp.not_match_all false when one matches",
+			expr: `regexp.not_match_all(user.spec.traits["roles"], "^.*-dev$")`,
+			userTraits: map[string][]string{
+				"roles": {"admin-dev", "viewer-prod"},
+			},
+			resourceLabels: map[string]string{},
+			expectMatch:    false,
+		},
+		{
+			desc: "not_match_any ensures all elements match pattern",
+			expr: `regexp.match(user.spec.traits["roles"], "^.*-dev$") && !regexp.not_match_any(user.spec.traits["roles"], "^.*-dev$")`,
+			userTraits: map[string][]string{
+				"roles": {"admin-dev", "viewer-dev"},
+			},
+			resourceLabels: map[string]string{},
+			expectMatch:    true,
+		},
+		{
+			desc: "not_match_any catches mixed elements",
+			expr: `regexp.match(user.spec.traits["roles"], "^.*-dev$") && !regexp.not_match_any(user.spec.traits["roles"], "^.*-dev$")`,
+			userTraits: map[string][]string{
+				"roles": {"admin-dev", "viewer-prod"},
+			},
+			resourceLabels: map[string]string{},
+			expectMatch:    false,
+		},
+		{
 			desc: "regexp.replace",
 			expr: `
 			contains(

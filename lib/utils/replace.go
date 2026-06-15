@@ -390,6 +390,38 @@ func RegexMatchesAny(inputs []string, expression string) (bool, error) {
 	return false, nil
 }
 
+// RegexNotMatchesAny returns true if any element of [inputs] does NOT match
+// [expression]. [expression] supports globbing ("env-*") or normal regexp
+// syntax if surrounded with ^$ ("^env-.*$").
+func RegexNotMatchesAny(inputs []string, expression string) (bool, error) {
+	expr, err := compileRegexCached(expression)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	for _, input := range inputs {
+		if !expr.MatchString(input) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// RegexNotMatchesAll returns true if ALL elements of [inputs] do NOT match
+// [expression] (i.e., no element matches). [expression] supports globbing
+// ("env-*") or normal regexp syntax if surrounded with ^$ ("^env-.*$").
+func RegexNotMatchesAll(inputs []string, expression string) (bool, error) {
+	expr, err := compileRegexCached(expression)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	for _, input := range inputs {
+		if expr.MatchString(input) {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
 // mustCache initializes a new [lru.Cache] with the provided size.
 // A panic will be triggered if the creation of the cache fails.
 func mustCache[K comparable, V any](size int) *lru.Cache[K, V] {

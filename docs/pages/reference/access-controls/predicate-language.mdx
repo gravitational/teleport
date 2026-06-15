@@ -111,6 +111,8 @@ The language also supports the following functions:
 |--------|-------------|-------------|---------|
 | `contains(list, item)` | Boolean | Returns true if `list` contains an exact match for `item` | `contains(user.spec.traits[teams], labels["team"])` |
 | `regexp.match(list, re)` | Boolean | Returns true if `list` contains a match for `re` | `regexp.match(labels["team"], "dev-team-\d+$")` |
+| `regexp.not_match_any(list, re)` | Boolean | Returns true if any element of `list` does NOT match `re` | `!regexp.not_match_any(user.spec.traits["roles"],` `"^.*-dev$")` (true only if all roles match) |
+| `regexp.not_match_all(list, re)` | Boolean | Returns true if NO element of `list` matches `re` | `regexp.not_match_all(user.spec.traits["roles"],` `"^.*-prod$")` |
 | `regexp.replace(list,` `re, replacement)` | `[]string` | Replaces all matches of `re` with replacement for all items in `list` | `contains(regexp.replace(user.spec.traits["allowed-env"],` `"^env-(.*)$", "$1"), labels["env"])` |
 | `email.local(list)` | `[]string` | Returns the local part of each email in `list`, or an error if any email fails to parse | `contains(email.local(user.spec.traits["email"]),` `labels["owner"])` |
 | `strings.upper(list)` | `[]string` | Converts all items of the list to uppercase | `contains(strings.upper(user.spec.traits["username"]),` `labels["owner"])` |
@@ -166,6 +168,8 @@ The language also supports the following functions:
 | `contains_all(set, items)` | Returns true if `set` contains an exact match for all elements of `items` | `contains_all(access_request.spec.roles, set("dev", "security", "cloud"))` |
 | `contains(set, item)`, `set.contains(item)` | Returns true if `set` contains an exact match for `item` | `contains(access_request.spec.roles, "dev")` |
 | `regexp.match(set, re)` | Returns true if `set` contains a match for `re` | `regexp.match(set(access_request.spec.request_reason), "*on-call*")` |
+| `regexp.not_match_any(set, re)` | Returns true if any element of `set` does NOT match `re` | `!regexp.not_match_any(access_request.spec.roles, "^.*-dev$")` (true only if all roles match) |
+| `regexp.not_match_all(set, re)` | Returns true if NO element of `set` matches `re` | `regexp.not_match_all(access_request.spec.roles, "^.*-prod$")` |
 | `is_empty(set)`| Returns true if `set` contains no elements | `is_empty(access_request.spec.roles)` |
 
 Note that expressions used in `regexp` functions support globbing (e.g., `"env-*"`),

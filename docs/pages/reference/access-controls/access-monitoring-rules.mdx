@@ -319,6 +319,12 @@ condition: access_request.spec.resource_labels_union["env"].contains("prod")
 
 # Applies if the request reason contains a phrase "on-call".
 condition: regexp.match(set(access_request.spec.request_reason), "*on-call*")
+
+# Applies only if ALL requested roles end in "-dev".
+condition: regexp.match(access_request.spec.roles, "^.*-dev$") && !regexp.not_match_any(access_request.spec.roles, "^.*-dev$")
+
+# Applies only if NONE of the requested roles end in "-prod".
+condition: regexp.not_match_all(access_request.spec.roles, "^.*-prod$")
 ```
 
 See [Predicate Language](predicate-language.mdx) for more details.

@@ -97,6 +97,22 @@ func newLabelExpressionParser() (*typical.CachedParser[labelExpressionEnv, bool]
 					}
 					return match, nil
 				}),
+			"regexp.not_match_any": typical.BinaryFunction[labelExpressionEnv](
+				func(list []string, re string) (bool, error) {
+					match, err := utils.RegexNotMatchesAny(list, re)
+					if err != nil {
+						return false, trace.Wrap(err, "invalid regular expression %q", re)
+					}
+					return match, nil
+				}),
+			"regexp.not_match_all": typical.BinaryFunction[labelExpressionEnv](
+				func(list []string, re string) (bool, error) {
+					match, err := utils.RegexNotMatchesAll(list, re)
+					if err != nil {
+						return false, trace.Wrap(err, "invalid regular expression %q", re)
+					}
+					return match, nil
+				}),
 			// Use regexp.replace and email.local from lib/utils/parse to get behavior identical
 			// to role templates.
 			"regexp.replace": typical.TernaryFunction[labelExpressionEnv](parse.RegexpReplace),

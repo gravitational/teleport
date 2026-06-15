@@ -2759,9 +2759,11 @@ func newReviewPermissionParser() (*typical.Parser[reviewPermissionContext, bool]
 			}),
 		},
 		Functions: map[string]typical.Function{
-			"equals":       typical.BinaryFunction[reviewPermissionContext](equalsFunc),
-			"contains":     typical.BinaryFunction[reviewPermissionContext](containsFunc),
-			"regexp.match": typical.BinaryFunction[reviewPermissionContext](regexpMatchFunc),
+			"equals":               typical.BinaryFunction[reviewPermissionContext](equalsFunc),
+			"contains":             typical.BinaryFunction[reviewPermissionContext](containsFunc),
+			"regexp.match":         typical.BinaryFunction[reviewPermissionContext](regexpMatchFunc),
+			"regexp.not_match_any": typical.BinaryFunction[reviewPermissionContext](regexpNotMatchAnyFunc),
+			"regexp.not_match_all": typical.BinaryFunction[reviewPermissionContext](regexpNotMatchAllFunc),
 		},
 	})
 }
@@ -2809,9 +2811,11 @@ func newThresholdFilterParser() (*typical.Parser[thresholdFilterContext, bool], 
 			}),
 		},
 		Functions: map[string]typical.Function{
-			"equals":       typical.BinaryFunction[thresholdFilterContext](equalsFunc),
-			"contains":     typical.BinaryFunction[thresholdFilterContext](containsFunc),
-			"regexp.match": typical.BinaryFunction[thresholdFilterContext](regexpMatchFunc),
+			"equals":               typical.BinaryFunction[thresholdFilterContext](equalsFunc),
+			"contains":             typical.BinaryFunction[thresholdFilterContext](containsFunc),
+			"regexp.match":         typical.BinaryFunction[thresholdFilterContext](regexpMatchFunc),
+			"regexp.not_match_any": typical.BinaryFunction[thresholdFilterContext](regexpNotMatchAnyFunc),
+			"regexp.not_match_all": typical.BinaryFunction[thresholdFilterContext](regexpNotMatchAllFunc),
 		},
 	})
 }
@@ -2855,6 +2859,22 @@ func containsFunc(s []string, v string) (bool, error) {
 
 func regexpMatchFunc(list []string, re string) (bool, error) {
 	match, err := utils.RegexMatchesAny(list, re)
+	if err != nil {
+		return false, trace.Wrap(err, "invalid regular expression %q", re)
+	}
+	return match, nil
+}
+
+func regexpNotMatchAnyFunc(list []string, re string) (bool, error) {
+	match, err := utils.RegexNotMatchesAny(list, re)
+	if err != nil {
+		return false, trace.Wrap(err, "invalid regular expression %q", re)
+	}
+	return match, nil
+}
+
+func regexpNotMatchAllFunc(list []string, re string) (bool, error) {
+	match, err := utils.RegexNotMatchesAll(list, re)
 	if err != nil {
 		return false, trace.Wrap(err, "invalid regular expression %q", re)
 	}
