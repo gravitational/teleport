@@ -1,14 +1,17 @@
 import useAttempt from 'shared/hooks/useAttemptNext';
 
-import cfg from 'e-teleport/config';
 import RecoveryService from 'e-teleport/services/recovery';
-import { RecoveryToken } from 'e-teleport/services/recovery/types';
+import {
+  RecoveryToken,
+  VerifyUserRequest,
+} from 'e-teleport/services/recovery/types';
+import auth from 'teleport/services/auth';
+import { DeviceType, MfaAuthenticateChallenge } from 'teleport/services/mfa';
 
 export default function useVerifyUser({ recoveryService, token, done }: Props) {
-  const { attempt, setAttempt, handleError } = useAttempt('');
-  const auth2faType = cfg.oss.getAuth2faType();
+  const { attempt: submitAttempt, setAttempt, handleError } = useAttempt('');
 
-  function submitPasswordCreds(password: string) {
+  function submitWithPassword(password: string) {
     setAttempt({ status: 'processing' });
     recoveryService
       .verifyUser({
@@ -20,34 +23,39 @@ export default function useVerifyUser({ recoveryService, token, done }: Props) {
       .catch(handleError);
   }
 
-  function submitTotpCreds(secondFactorToken: string) {
+  function submitWithMfa(
+    challenge: MfaAuthenticateChallenge,
+    mfaType: DeviceType,
+    totpCode?: string
+  ) {
     setAttempt({ status: 'processing' });
-    recoveryService
-      .verifyUser({
-        tokenId: token.id,
-        username: token.username,
-        secondFactorToken,
+    auth
+      .getMfaChallengeResponse(challenge, mfaType, totpCode)
+      .then(response => {
+        const req: VerifyUserRequest = {
+          tokenId: token.id,
+          username: token.username,
+        };
+        // Account recovery doesn't apply to SSO users, so the challenge only
+        // ever offers TOTP or WebAuthn. SSO MFA (response.sso_response) is
+        // intentionally not handled here, and the backend doesn't accept it for
+        // recovery either.
+        if (response.totp_code) {
+          req.secondFactorToken = response.totp_code;
+        } else if (response.webauthn_response) {
+          req.webauthnAssertionResponse = response.webauthn_response;
+        }
+        return recoveryService.verifyUser(req);
       })
       .then(done)
       .catch(handleError);
   }
 
-  function submitWebauthnCreds() {
-    setAttempt({ status: 'processing' });
-    recoveryService
-      .verifyUserWithWebauthn(token.id, token.username)
-      .then(done)
-      .catch(handleError);
-  }
-
   return {
-    attempt,
     token,
-    submitPasswordCreds,
-    submitTotpCreds,
-    submitWebauthnCreds,
-    auth2faType,
-    preferredMfaType: cfg.oss.getPreferredMfaType(),
+    submitAttempt,
+    submitWithPassword,
+    submitWithMfa,
   };
 }
 

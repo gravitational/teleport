@@ -10,13 +10,13 @@ export default {
 export const Loaded = () => <VerifyUser {...props} />;
 
 export const Processing = () => (
-  <VerifyUser {...props} attempt={{ status: 'processing' }} />
+  <VerifyUser {...props} submitAttempt={{ status: 'processing' }} />
 );
 
 export const Failed = () => (
   <VerifyUser
     {...props}
-    attempt={{ status: 'failed', statusText: 'wrong password' }}
+    submitAttempt={{ status: 'failed', statusText: 'wrong password' }}
   />
 );
 
@@ -25,10 +25,7 @@ const props: State = {
     username: 'joe@example.com',
     isRecoverPassword: false,
   } as RecoveryToken,
-  auth2faType: 'on',
-  preferredMfaType: '',
-  attempt: { status: '' },
-  submitPasswordCreds: () => null,
-  submitTotpCreds: () => null,
-  submitWebauthnCreds: () => null,
+  submitAttempt: { status: '' },
+  submitWithPassword: () => null,
+  submitWithMfa: () => null,
 };

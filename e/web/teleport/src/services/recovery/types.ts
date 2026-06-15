@@ -1,4 +1,5 @@
 import { NewCredentialRequest } from 'teleport/services/auth';
+import { WebauthnAssertionResponse } from 'teleport/services/mfa';
 
 export type StartRecoveryRequest = {
   username: string;
@@ -11,6 +12,7 @@ export type VerifyUserRequest = {
   username: string;
   password?: string;
   secondFactorToken?: string;
+  webauthnAssertionResponse?: WebauthnAssertionResponse;
 };
 
 export type RecoveryToken = {

@@ -1,9 +1,16 @@
 import { MemoryRouter } from 'react-router';
 
-import { fireEvent, render, screen, waitFor } from 'design/utils/testing';
+import {
+  fireEvent,
+  render,
+  screen,
+  testQueryClient,
+  waitFor,
+} from 'design/utils/testing';
 
 import cfg from 'e-teleport/config';
 import RecoveryService from 'e-teleport/services/recovery';
+import auth from 'teleport/services/auth';
 import history from 'teleport/services/history';
 import MfaService from 'teleport/services/mfa';
 
@@ -112,14 +119,19 @@ describe('all recovery flows should show correct screens', () => {
     return { rerenderWithPath };
   };
 
-  afterEach(() => {
+  afterEach(async () => {
     jest.clearAllMocks();
+    await testQueryClient.resetQueries();
+    testQueryClient.clear();
   });
 
   test('new password using otp', async () => {
     const { rerenderWithPath } = setup();
 
     jest.spyOn(cfg.oss, 'getAuth2faType').mockReturnValue('otp');
+    jest.spyOn(auth, 'createMfaAuthnChallengeWithToken').mockResolvedValue({
+      totpChallenge: true,
+    });
     jest
       .spyOn(RecoveryService.prototype, 'fetchRecoveryToken')
       .mockResolvedValue({

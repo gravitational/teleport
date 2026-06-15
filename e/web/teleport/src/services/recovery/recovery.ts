@@ -1,8 +1,7 @@
 import cfg from 'e-teleport/config';
 import api from 'teleport/services/api';
-import auth, {
+import {
   makeRecoveryCodes,
-  makeWebauthnAssertionResponse,
   makeWebauthnCreationResponse,
   NewCredentialRequest,
 } from 'teleport/services/auth';
@@ -24,32 +23,12 @@ class RecoveryService {
     return api.get(cfg.getRecoveryTokenUrl(tokenId)).then(makeRecoveryToken);
   }
 
-  // verifyUser authenticates the user defined in token with their password or totp token
-  verifyUser(credentials: VerifyUserRequest) {
+  // verifyUser authenticates the recovery token holder with either a password
+  // or an MFA challenge response.
+  verifyUser(req: VerifyUserRequest) {
     return api
-      .post(cfg.api.recoveryVerifyUserPath, credentials)
+      .post(cfg.api.recoveryVerifyUserPath, req)
       .then(makeRecoveryToken);
-  }
-
-  verifyUserWithWebauthn(tokenId: string, username: string) {
-    return auth
-      .checkWebauthnSupport()
-      .then(() => auth.createMfaAuthnChallengeWithToken(tokenId))
-      .then(res =>
-        navigator.credentials.get({
-          publicKey: res.webauthnPublicKey,
-        })
-      )
-      .then(res => {
-        const request = {
-          tokenId,
-          username,
-          webauthnAssertionResponse: makeWebauthnAssertionResponse(res),
-        };
-
-        return api.post(cfg.api.recoveryVerifyUserPath, request);
-      })
-      .then(res => makeRecoveryToken(res));
   }
 
   setNewTotpDeviceOrPassword(req: NewCredentialRequest) {
