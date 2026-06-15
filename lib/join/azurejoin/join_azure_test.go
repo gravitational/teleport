@@ -156,7 +156,7 @@ func makeToken(issuer, tenantID, managedIdentityResourceID, azureResourceID stri
 }
 
 func TestJoinAzure(t *testing.T) {
-	t.Parallel()
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
 	ctx := t.Context()
 
 	server, err := authtest.NewTestServer(authtest.ServerConfig{
@@ -656,7 +656,7 @@ func TestJoinAzure(t *testing.T) {
 // TestAuth_RegisterUsingAzureClaims tests the Azure join method by verifying
 // joining VMs by the token claims rather than from the Azure VM API.
 func TestJoinAzureClaims(t *testing.T) {
-	t.Parallel()
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
 	ctx := t.Context()
 
 	server, err := authtest.NewTestServer(authtest.ServerConfig{

@@ -61,6 +61,7 @@ func newFakeIDP(t *testing.T) *fakeissuer.IDP {
 }
 
 func TestJoinKubernetes(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
 	// Test setup
 
 	// Creating an auth server with mock Kubernetes token validator

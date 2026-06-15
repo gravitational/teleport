@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/sshca"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils/once"
 )
 
@@ -292,6 +293,37 @@ func (c *ScopedAccessCheckerContext) AccessStateFromSSHIdentity(ctx context.Cont
 		MFAVerified:              false,
 		EnableDeviceVerification: true,
 		DeviceVerified:           dtauthz.IsSSHDeviceVerified(ident),
+		IsBot:                    ident.IsBot(),
+	}, nil
+}
+
+// AccessStateFromTLSIdentity builds an AccessState from an TLS identity, abstracting over scoped and
+// unscoped access state construction.
+func (c *ScopedAccessCheckerContext) AccessStateFromTLSIdentity(ctx context.Context, ident *tlsca.Identity, authPrefGetter AuthPreferenceGetter) (AccessState, error) {
+	if !c.isScoped() {
+		return AccessStateFromTLSIdentity(ctx, ident, c.unscopedChecker, authPrefGetter)
+	}
+
+	authPref, err := authPrefGetter.GetAuthPreference(ctx)
+	if err != nil {
+		return AccessState{}, trace.Wrap(err)
+	}
+
+	if authPref.GetRequireMFAType().IsSessionMFARequired() {
+		// TODO(fspmarshall/scopes): implement scoped MFA
+		// NOTE: this will require additional refactoring of relevant access-checking logic. currently, we often
+		// check MFA requirements *before* we determine access to the underlying resource, but a scoped MFA model
+		// will need to first determine the scope of access *before* we can determine whether MFA is required for that scope.
+		return AccessState{}, trace.AccessDenied("cannot perform scoped access when cluster-level MFA is required (scoped MFA is not implemented)")
+	}
+
+	return AccessState{
+		// MFA state is hard-coded here because scoped roles do not support MFA yet, and the above check should reject
+		// cases where cluster-level config would obligate MFA.
+		MFARequired:              MFARequiredNever,
+		MFAVerified:              false,
+		EnableDeviceVerification: true,
+		DeviceVerified:           dtauthz.IsTLSDeviceVerified(&ident.DeviceExtensions),
 		IsBot:                    ident.IsBot(),
 	}, nil
 }

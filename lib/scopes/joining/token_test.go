@@ -1357,12 +1357,16 @@ func TestValidateTokenUpdate(t *testing.T) {
 }
 
 func TestValidateTokenForUse(t *testing.T) {
+	// TODO (eriktate): remove env var manipulation in this test once we've
+	// backported the [scopes.Features] work from #67073
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
 	token := &joiningv1.ScopedToken{
 		Scope: "/test",
 		Spec: &joiningv1.ScopedTokenSpec{
 			Roles:         []string{types.RoleNode.String()},
 			JoinMethod:    string(types.JoinMethodToken),
 			AssignedScope: "/test",
+			UsageMode:     string(joining.TokenUsageModeUnlimited),
 		},
 		Status: &joiningv1.ScopedTokenStatus{
 			Secret: "secret",
@@ -1375,4 +1379,36 @@ func TestValidateTokenForUse(t *testing.T) {
 	strongValidateErr := joining.StrongValidateToken(token)
 	assert.Error(t, strongValidateErr)
 	assert.ErrorIs(t, strongValidateErr, joining.ValidateTokenForUse(token))
+
+	// fix token so StrongValidate succeeds
+	token.Kind = types.KindScopedToken
+	token.Version = types.V1
+	token.Metadata = &headerv1.Metadata{
+		Name: "test-token",
+	}
+
+	// validation should succeed for node role if scopes are enabled
+	require.NoError(t, joining.ValidateTokenForUse(token))
+
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "no")
+	// validation should fail if scopes are disabled
+	require.ErrorContains(t, joining.ValidateTokenForUse(token), "scoping features are not enabled")
+
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	// validation should fail for kube role if agent pinning is disabled
+	token.Spec.Roles = append(token.Spec.Roles, string(types.RoleKube))
+	require.ErrorContains(t, joining.ValidateTokenForUse(token), "scoped token cannot be used to join [Node, Kube] role(s) without TELEPORT_UNSTABLE_AGENT_SCOPE_PIN=yes")
+
+	t.Setenv("TELEPORT_UNSTABLE_AGENT_SCOPE_PIN", "yes")
+	// validation should succeed for kube role if agent pinning is enabled
+	require.NoError(t, joining.ValidateTokenForUse(token))
+
+	// validation should succeed for bot role even if agent scope pins are disabled
+	token.Spec.BotName = "bot-name"
+	token.Spec.BotScope = token.Spec.AssignedScope
+	token.Spec.AssignedScope = ""
+	token.Spec.JoinMethod = string(types.JoinMethodBoundKeypair)
+	token.Spec.UsageMode = string(joining.TokenUsageModeBot)
+	token.Spec.Roles = []string{string(types.RoleBot)}
+	require.NoError(t, joining.ValidateTokenForUse(token))
 }

@@ -199,3 +199,33 @@ func (s *ScopedContext) GetDisconnectCertExpiry(authPref readonly.AuthPreference
 	// Otherwise, return the current certificates expiration
 	return identity.Expires
 }
+
+// LockTargets returns a list of [types.LockTarget] for scoped and unscoped identities.
+// For unscoped identities, the result is unchanged from [AuthContext.LockTargets()] and relies on
+// assigned roles in addition to identity attributes.
+// For scoped identities, the result is nearly identical to [services.LockTargetsFromTLSIdentity].
+// The only difference is that the Groups and AccessRequests are not considered
+// when generating the lock targets.
+func (s *ScopedContext) LockTargets() []types.LockTarget {
+	if unscopedCtx, isUnscoped := s.UnscopedContext(); isUnscoped {
+		return unscopedCtx.LockTargets()
+	}
+	id := s.Identity.GetIdentity()
+	lockTargets := []types.LockTarget{
+		{User: id.Username},
+	}
+
+	if id.MFAVerified != "" {
+		lockTargets = append(lockTargets, types.LockTarget{MFADevice: id.MFAVerified})
+	}
+	if id.DeviceExtensions.DeviceID != "" {
+		lockTargets = append(lockTargets, types.LockTarget{Device: id.DeviceExtensions.DeviceID})
+	}
+	if id.JoinToken != "" {
+		lockTargets = append(lockTargets, types.LockTarget{JoinToken: id.JoinToken})
+	}
+	if id.BotInstanceID != "" {
+		lockTargets = append(lockTargets, types.LockTarget{BotInstanceID: id.BotInstanceID})
+	}
+	return lockTargets
+}

@@ -52,7 +52,7 @@ func (m *mockGCPTokenValidator) Validate(_ context.Context, token string) (*gcp.
 }
 
 func TestJoinGCP(t *testing.T) {
-	t.Parallel()
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
 
 	validIDToken := "test.fake.jwt"
 	idTokenValidator := &mockGCPTokenValidator{

@@ -492,6 +492,10 @@ var ErrTokenExhausted = &trace.LimitExceededError{Message: "scoped token usage e
 // ValidateTokenForUse checks if a given scoped token can be used for
 // provisioning. Returns a [*trace.LimitExceededError] if the token is expired
 func ValidateTokenForUse(token *joiningv1.ScopedToken) error {
+	if err := scopes.AssertFeatureEnabled(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if err := StrongValidateToken(token); err != nil {
 		return trace.Wrap(err)
 	}
@@ -510,8 +514,26 @@ func ValidateTokenForUse(token *joiningv1.ScopedToken) error {
 			return trace.Wrap(ErrTokenExhausted)
 		}
 	}
+	// if agent scope pins are enabled, all system roles are allowed to join
+	// with a scoped token
+	if scopes.AgentPinEnabled() {
+		return nil
+	}
 
-	return nil
+	// if agent scope pins are disabled, then we need to ensure that only node and
+	// bot roles can be provisioned with a scoped token. Using [slices.ContainsFunc]
+	// to make it easier to fail closed
+	roles, err := types.NewTeleportRoles(token.GetSpec().GetRoles())
+	if err != nil {
+		return trace.Wrap(err, "normalizing system roles")
+	}
+	if !slices.ContainsFunc(roles, func(role types.SystemRole) bool {
+		return role != types.RoleNode && role != types.RoleBot
+	}) {
+		return nil
+	}
+
+	return trace.BadParameter("scoped token cannot be used to join [%s] role(s) without TELEPORT_UNSTABLE_AGENT_SCOPE_PIN=yes", strings.Join(token.GetSpec().GetRoles(), ", "))
 }
 
 // ValidateTokenUpdate checks for invalid updates between two tokens.

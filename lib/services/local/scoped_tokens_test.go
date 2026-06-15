@@ -47,6 +47,7 @@ import (
 )
 
 func TestScopedTokenService(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 	service, err := local.NewScopedTokenService(bk)
@@ -513,6 +514,7 @@ func TestScopedTokenNameCollisions(t *testing.T) {
 }
 
 func TestScopedTokenUse(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
 	synctest.Test(t, func(t *testing.T) {
 		bk, err := memory.New(memory.Config{})
 		require.NoError(t, err)
