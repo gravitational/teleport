@@ -373,7 +373,6 @@ func (q *sqliteQueue) writeLoop() {
 		var first writeRequest
 		select {
 		case <-q.ctx.Done():
-			q.drainShutdown()
 			return
 		case first = <-q.toBeWritten:
 		}
