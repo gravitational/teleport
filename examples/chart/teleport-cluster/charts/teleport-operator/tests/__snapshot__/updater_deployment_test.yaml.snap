@@ -22,7 +22,7 @@ sets the affinity:
           weight: 1
     containers:
     - args:
-      - --agent-name=RELEASE-NAME
+      - --agent-name=RELEASE-NAME-teleport-operator
       - --agent-namespace=NAMESPACE
       - --base-image=public.ecr.aws/gravitational/teleport-operator
       - --container-name=operator
@@ -72,6 +72,13 @@ sets the affinity:
     nodeSelector:
       gravitational.io/k8s-role: node
     priorityClassName: teleport-operator
+    securityContext:
+      fsGroup: 65532
+      runAsGroup: 65532
+      runAsNonRoot: true
+      runAsUser: 65532
+      seccompProfile:
+        type: RuntimeDefault
     serviceAccountName: teleport-operator-updater
     tolerations:
     - effect: NoExecute
@@ -110,7 +117,7 @@ sets the tolerations:
           weight: 1
     containers:
     - args:
-      - --agent-name=RELEASE-NAME
+      - --agent-name=RELEASE-NAME-teleport-operator
       - --agent-namespace=NAMESPACE
       - --base-image=public.ecr.aws/gravitational/teleport-operator
       - --container-name=operator
@@ -160,6 +167,13 @@ sets the tolerations:
     nodeSelector:
       gravitational.io/k8s-role: node
     priorityClassName: teleport-operator
+    securityContext:
+      fsGroup: 65532
+      runAsGroup: 65532
+      runAsNonRoot: true
+      runAsUser: 65532
+      seccompProfile:
+        type: RuntimeDefault
     serviceAccountName: teleport-operator-updater
     tolerations:
     - effect: NoExecute
