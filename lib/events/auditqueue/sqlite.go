@@ -117,6 +117,8 @@ type sqliteQueue struct {
 	cancel                  context.CancelFunc
 	wg                      sync.WaitGroup
 	closeOnce               sync.Once
+	drainOnce               sync.Once
+	drainCh                 chan struct{}
 	parentDir               string
 	selfStat                os.FileInfo
 	unlock                  func() error
@@ -175,6 +177,7 @@ func newBaseQueue(db *sql.DB, cfg Config) (*sqliteQueue, error) {
 	q := &sqliteQueue{
 		db:                      db,
 		toBeWritten:             make(chan writeRequest),
+		drainCh:                 make(chan struct{}),
 		maxBatch:                defaultMaxBatch,
 		ctx:                     ctx,
 		cancel:                  cancel,
@@ -407,6 +410,45 @@ func (q *sqliteQueue) runPollLoop(ctx context.Context, handler Handler) {
 			pollTimer.Reset(pollInterval)
 		}
 	}
+}
+
+// Drain exits when the audit log queue is empty. It allows one to await the
+// draining of the queue on shutdown. Run is executed in the background and will
+// continue to drain the queue.
+func (q *sqliteQueue) Drain(ctx context.Context) error {
+	q.drainOnce.Do(func() { close(q.drainCh) })
+
+	ticker := time.NewTicker(pollInterval)
+	defer ticker.Stop()
+	for {
+		isEmpty, err := isMainQueueEmpty(q.db)
+		if err != nil {
+			slog.ErrorContext(ctx,
+				"Failed to check whether audit queue is empty while draining.",
+				"error", err,
+			)
+		} else if isEmpty {
+			return nil
+		}
+
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-q.ctx.Done():
+			return nil
+		case <-ticker.C:
+		}
+	}
+}
+
+const isMainQueueEmptyQuery = `SELECT NOT EXISTS(SELECT 1 FROM audit_queue)`
+
+func isMainQueueEmpty(db *sql.DB) (bool, error) {
+	var isEmpty bool
+	if err := db.QueryRow(isMainQueueEmptyQuery).Scan(&isEmpty); err != nil {
+		return false, trace.Wrap(err)
+	}
+	return isEmpty, nil
 }
 
 func (q *sqliteQueue) handleDeliveryFailures(ctx context.Context, items []Item, successfullyDelivered []Item) {

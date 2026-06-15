@@ -3878,6 +3878,8 @@ func (process *TeleportProcess) initSSH() error {
 			relayTunnelClient.Close()
 		}
 
+		shutdownAsyncEmitter(process, asyncEmitter, event.Payload, logger)
+
 		logger.InfoContext(process.ExitContext(), "Exited.")
 		return nil
 	})
@@ -5294,7 +5296,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			_ = peerQUICTransport.Close()
 			_ = peerQUICTransport.Conn.Close()
 		}
-		warnOnErr(process.ExitContext(), asyncEmitter.Close(), logger)
+		shutdownAsyncEmitter(process, asyncEmitter, payload, logger)
 		warnOnErr(process.ExitContext(), conn.Close(), logger)
 		logger.InfoContext(process.ExitContext(), "Exited")
 	})
@@ -7059,11 +7061,8 @@ func (process *TeleportProcess) initApps() {
 				logger.InfoContext(process.ExitContext(), "Shutting down gracefully.")
 				warnOnErr(process.ExitContext(), appServer.Shutdown(payloadContext(payload)), logger)
 			}
-			if asyncEmitter != nil {
-				warnOnErr(process.ExitContext(), asyncEmitter.Close(), logger)
-			}
 			agentPool.Stop()
-			warnOnErr(process.ExitContext(), asyncEmitter.Close(), logger)
+			shutdownAsyncEmitter(process, asyncEmitter, payload, logger)
 			warnOnErr(process.ExitContext(), conn.Close(), logger)
 			logger.InfoContext(process.ExitContext(), "Exited.")
 		})
@@ -7075,6 +7074,20 @@ func (process *TeleportProcess) initApps() {
 		agentPool.Wait()
 		return nil
 	})
+}
+
+// shutdownAsyncEmitter attempts to drain the async emitter's queue.
+// `payload` carries a graceful shutdown context.
+// Blocks up to the duration of the graceful shutdown context.
+func shutdownAsyncEmitter(process *TeleportProcess, emitter *events.CheckingAsyncEmitter, payload any, logger *slog.Logger) {
+	if emitter == nil {
+		return
+	}
+	if payload == nil {
+		warnOnErr(process.ExitContext(), emitter.Close(), logger)
+		return
+	}
+	warnOnErr(process.ExitContext(), emitter.Shutdown(payloadContext(payload)), logger)
 }
 
 func warnOnErr(ctx context.Context, err error, log *slog.Logger) {

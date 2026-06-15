@@ -169,6 +169,22 @@ func (a *AsyncEmitter) Close() error {
 	return nil
 }
 
+// Shutdown makes a best effort attempt to flush pending audit events to the
+// inner emitter before closing.
+func (a *AsyncEmitter) Shutdown(ctx context.Context) error {
+	if a.queue != nil {
+		if err := a.queue.Drain(ctx); err != nil {
+			slog.WarnContext(ctx,
+				"Audit queue drain returned an error during graceful shutdown.",
+				"error", err,
+			)
+		}
+		return trace.Wrap(a.Close())
+	}
+
+	return trace.Wrap(a.Close())
+}
+
 func (a *AsyncEmitter) forward() {
 	for {
 		select {
@@ -332,6 +348,12 @@ func NewCheckingAsyncEmitter(checkingCfg CheckingEmitterConfig, asyncCfg AsyncEm
 // Close closes the underlying AsyncEmitter.
 func (c *CheckingAsyncEmitter) Close() error {
 	return c.asyncEmitter.Close()
+}
+
+// Shutdown attempts to drain the underlying AsyncEmitter before closing.
+// See AsyncEmitter.Shutdown.
+func (c *CheckingAsyncEmitter) Shutdown(ctx context.Context) error {
+	return c.asyncEmitter.Shutdown(ctx)
 }
 
 // checkAndSetEventFields updates passed event fields with additional information
