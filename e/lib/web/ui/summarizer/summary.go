@@ -119,6 +119,29 @@ func asOptionalTime(ts *timestamppb.Timestamp) *time.Time {
 	return &t
 }
 
+// SummaryMetadata is a web API representation of lightweight session summary  metadata, used to decorate session recording lists.
+type SummaryMetadata struct {
+	SessionID                 string   `json:"sessionId"`
+	State                     string   `json:"state,omitempty"`
+	RiskLevel                 string   `json:"riskLevel,omitempty"`
+	NeedsFurtherReviewReasons []string `json:"needsFurtherReviewReasons,omitempty"`
+}
+
+// MakeSummaryMetadata converts summary metadata into its Web API representation.
+func MakeSummaryMetadata(md *summarizerv1.SummaryMetadata) SummaryMetadata {
+	var riskLevel string
+	if rl := md.GetRiskLevel(); rl != summarizerv1.RiskLevel_RISK_LEVEL_UNSPECIFIED {
+		riskLevel = rl.String()
+	}
+
+	return SummaryMetadata{
+		SessionID:                 md.GetSessionId(),
+		State:                     md.GetState().String(),
+		RiskLevel:                 riskLevel,
+		NeedsFurtherReviewReasons: makeNeedsFurtherReviewReasons(md.GetNeedsFurtherReviewReasons()),
+	}
+}
+
 // MakeSummary converts a summary object into its Web API representation.
 func MakeSummary(summary *summarizerv1.Summary) Summary {
 	return Summary{

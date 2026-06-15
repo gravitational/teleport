@@ -4,9 +4,11 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
@@ -16,6 +18,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apisummarizer "github.com/gravitational/teleport/api/types/summarizer"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/bedrock"
 	summarizererrors "github.com/gravitational/teleport/e/lib/auth/summarizer/errors"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/openai"
@@ -984,6 +987,100 @@ func (s *Service) insecureGetSummary(
 	}
 
 	return summary, sessionAuditEvent, nil
+}
+
+// maxBatchGetSummaryMetadataSessions is the maximum number of sessions that may be requested in a single
+// BatchGetSummaryMetadata call.
+const maxBatchGetSummaryMetadataSessions = 100
+
+// batchGetSummaryMetadataConcurrency limits the number of concurrent summary downloads.
+const batchGetSummaryMetadataConcurrency = 8
+
+// BatchGetSummaryMetadata retrieves lightweight summary metadata for multiple sessions in a single call.
+// Sessions without summaries and sessions the user is not allowed to read are omitted from the response rather than
+// reported as errors.
+func (s *Service) BatchGetSummaryMetadata(
+	ctx context.Context, req *pb.BatchGetSummaryMetadataRequest,
+) (*pb.BatchGetSummaryMetadataResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Quick access check to see if the user can access any sessions at all, before we start downloading summaries.
+	sctx := &services.Context{User: authCtx.User}
+	err = authCtx.Checker.GuessIfAccessIsPossible(
+		sctx, defaults.Namespace, types.KindSession, types.VerbRead,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !s.isLicensed() {
+		return nil, errNotLicensed
+	}
+
+	sessionIDs := apiutils.Deduplicate(req.GetSessionIds())
+	if len(sessionIDs) > maxBatchGetSummaryMetadataSessions {
+		return nil, trace.BadParameter(
+			"at most %d sessions may be requested at once, got %d",
+			maxBatchGetSummaryMetadataSessions, len(sessionIDs),
+		)
+	}
+
+	metadata := make([]*pb.SummaryMetadata, len(sessionIDs))
+
+	// Use an errgroup to get limited concurrency, even though nothing reports an error.
+	var group errgroup.Group
+	group.SetLimit(batchGetSummaryMetadataConcurrency)
+	for i, sid := range sessionIDs {
+		group.Go(func() error {
+			summary, sessionAuditEvent, err := s.insecureGetSummary(ctx, session.ID(sid))
+			if err != nil {
+				if !trace.IsNotFound(err) {
+					s.logger.DebugContext(
+						ctx, "Unable to read session summary recording", "session_id", sid, "error", err,
+					)
+				}
+				return nil
+			}
+
+			sessionCtx := &services.Context{User: authCtx.User}
+			sessionCtx.ExtendWithSessionEnd(sessionAuditEvent, authCtx.Checker)
+			if authCtx.CheckAccessToRule(sessionCtx, types.KindSession, types.VerbRead) != nil {
+				return nil
+			}
+
+			metadata[i] = makeSummaryMetadata(summary)
+			return nil
+		})
+	}
+	_ = group.Wait()
+
+	return pb.BatchGetSummaryMetadataResponse_builder{
+		Metadata: slices.DeleteFunc(metadata, func(m *pb.SummaryMetadata) bool {
+			return m == nil
+		}),
+	}.Build(), nil
+}
+
+// makeSummaryMetadata trims a summary down to the metadata served by BatchGetSummaryMetadata.
+func makeSummaryMetadata(summary *pb.Summary) *pb.SummaryMetadata {
+	es := summary.GetEnhancedSummary()
+	reasons := es.GetNeedsFurtherReviewReasons()
+
+	// Summaries written by a pre-v19 auth carry only the deprecated singular reason field.
+	//nolint:staticcheck // deprecated field read for backwards compatibility
+	if len(reasons) == 0 && es.HasNeedsFurtherReview() {
+		//nolint:staticcheck // deprecated field read for backwards compatibility
+		reasons = []pb.NeedsReviewReason{es.GetNeedsFurtherReview()}
+	}
+
+	return pb.SummaryMetadata_builder{
+		SessionId:                 summary.GetSessionId(),
+		State:                     summary.GetState(),
+		RiskLevel:                 es.GetRiskLevel(),
+		NeedsFurtherReviewReasons: reasons,
+	}.Build()
 }
 
 // IsEnabled checks if the summarizer should be considered enabled. Session

@@ -1240,6 +1240,126 @@ func TestService_GetSummary_RBAC(t *testing.T) {
 	assert.True(t, trace.IsAccessDenied(err), "expected AccessDenied error, got %v", err)
 }
 
+func TestService_BatchGetSummaryMetadata(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	usageReporter := &fakeUsageReporter{}
+	srv := newTestTLSServer(t, withUsageReporter(usageReporter))
+	createTestUser(t, srv, "alice")
+
+	clt, err := srv.NewClient(authtest.TestUser("alice"))
+	require.NoError(t, err)
+	sclt := clt.SummarizerServiceClient()
+
+	// Session of Alice and Bob, with enhanced summary data.
+	sessionEnd1 := newSessionEndEvent()
+	summary1 := newTestSummary(t, sessionEnd1)
+	summary1.SetEnhancedSummary(summarizerv1pb.EnhancedSummary_builder{
+		RiskLevel: summarizerv1pb.RiskLevel_RISK_LEVEL_HIGH,
+		NeedsFurtherReviewReasons: []summarizerv1pb.NeedsReviewReason{
+			summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_TOO_LARGE,
+		},
+	}.Build())
+	b, err := protojson.MarshalOptions{UseProtoNames: true}.Marshal(summary1)
+	require.NoError(t, err)
+	_, err = srv.AuthServer.AuthServer.UploadSummary(ctx, session.ID(summary1.GetSessionId()), bytes.NewReader(b))
+	require.NoError(t, err)
+
+	// Session of Bob and Mary; Alice has no access to it.
+	sessionEnd2 := newSessionEndEvent()
+	sessionEnd2.UserMetadata.User = "bob"
+	sessionEnd2.Participants = []string{"bob", "mary"}
+	summary2 := newTestSummary(t, sessionEnd2)
+	b, err = protojson.MarshalOptions{UseProtoNames: true}.Marshal(summary2)
+	require.NoError(t, err)
+	_, err = srv.AuthServer.AuthServer.UploadSummary(ctx, session.ID(summary2.GetSessionId()), bytes.NewReader(b))
+	require.NoError(t, err)
+
+	// Session of Alice and Bob, carrying only the deprecated singular review reason, as written by a pre-v19 auth.
+	sessionEnd3 := newSessionEndEvent()
+	summary3 := newTestSummary(t, sessionEnd3)
+	es3 := summarizerv1pb.EnhancedSummary_builder{
+		RiskLevel: summarizerv1pb.RiskLevel_RISK_LEVEL_LOW,
+	}.Build()
+	//nolint:staticcheck // deprecated field write to simulate a pre-v19 summary
+	es3.SetNeedsFurtherReview(summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_COMMAND_ANALYSIS_FAILED)
+	summary3.SetEnhancedSummary(es3)
+	b, err = protojson.MarshalOptions{UseProtoNames: true}.Marshal(summary3)
+	require.NoError(t, err)
+	_, err = srv.AuthServer.AuthServer.UploadSummary(ctx, session.ID(summary3.GetSessionId()), bytes.NewReader(b))
+	require.NoError(t, err)
+
+	t.Run("mixed batch", func(t *testing.T) {
+		got, err := sclt.BatchGetSummaryMetadata(ctx, summarizerv1pb.BatchGetSummaryMetadataRequest_builder{
+			SessionIds: []string{
+				summary1.GetSessionId(),
+				summary2.GetSessionId(), // Inaccessible; omitted.
+				summary3.GetSessionId(),
+				uuid.NewString(), // Nonexistent; omitted.
+			},
+		}.Build())
+		require.NoError(t, err)
+
+		want := []*summarizerv1pb.SummaryMetadata{
+			summarizerv1pb.SummaryMetadata_builder{
+				SessionId: summary1.GetSessionId(),
+				State:     summarizerv1pb.SummaryState_SUMMARY_STATE_SUCCESS,
+				RiskLevel: summarizerv1pb.RiskLevel_RISK_LEVEL_HIGH,
+				NeedsFurtherReviewReasons: []summarizerv1pb.NeedsReviewReason{
+					summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_TOO_LARGE,
+				},
+			}.Build(),
+			summarizerv1pb.SummaryMetadata_builder{
+				SessionId: summary3.GetSessionId(),
+				State:     summarizerv1pb.SummaryState_SUMMARY_STATE_SUCCESS,
+				RiskLevel: summarizerv1pb.RiskLevel_RISK_LEVEL_LOW,
+				NeedsFurtherReviewReasons: []summarizerv1pb.NeedsReviewReason{
+					summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_COMMAND_ANALYSIS_FAILED,
+				},
+			}.Build(),
+		}
+		assert.Empty(t, cmp.Diff(want, got.GetMetadata(), protocmp.Transform()))
+	})
+
+	t.Run("empty request", func(t *testing.T) {
+		got, err := sclt.BatchGetSummaryMetadata(ctx, summarizerv1pb.BatchGetSummaryMetadataRequest_builder{}.Build())
+		require.NoError(t, err)
+		assert.Empty(t, got.GetMetadata())
+	})
+
+	t.Run("too many sessions", func(t *testing.T) {
+		ids := make([]string, maxBatchGetSummaryMetadataSessions+1)
+		for i := range ids {
+			ids[i] = uuid.NewString()
+		}
+		_, err := sclt.BatchGetSummaryMetadata(ctx, summarizerv1pb.BatchGetSummaryMetadataRequest_builder{
+			SessionIds: ids,
+		}.Build())
+		require.Error(t, err)
+		assert.True(t, trace.IsBadParameter(err), "expected BadParameter error, got %v", err)
+	})
+
+	t.Run("no access to any sessions", func(t *testing.T) {
+		_, _, err := authtest.CreateUserAndRole(srv.Auth(), "intern", []string{}, []types.Rule{})
+		require.NoError(t, err)
+		internClt, err := srv.NewClient(authtest.TestUser("intern"))
+		require.NoError(t, err)
+
+		_, err = internClt.SummarizerServiceClient().BatchGetSummaryMetadata(ctx,
+			summarizerv1pb.BatchGetSummaryMetadataRequest_builder{
+				SessionIds: []string{summary1.GetSessionId()},
+			}.Build())
+		require.Error(t, err)
+		assert.True(t, trace.IsAccessDenied(err), "expected AccessDenied error, got %v", err)
+	})
+
+	// Metadata reads decorate session lists and should not count as summary accesses.
+	for _, event := range usageReporter.events {
+		_, ok := event.(*usagereporter.SessionSummaryAccessEvent)
+		assert.False(t, ok, "BatchGetSummaryMetadata should not emit summary access usage events")
+	}
+}
+
 // encryptedIO is really just a reversible transform, so we fake encryption by encoding/decoding as hex
 type fakeEncryptedIO struct{}
 

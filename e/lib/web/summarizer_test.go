@@ -166,3 +166,80 @@ func TestGetRecordingSummary(t *testing.T) {
 		})
 	}
 }
+
+func TestBatchGetSessionSummaryMetadata(t *testing.T) {
+	ctx := t.Context()
+	s := newWebSuite(t,
+		withUploadHandler(eventstest.NewMemoryUploader()),
+		withModules(&modulestest.Modules{
+			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.Policy:           {Enabled: true},
+					entitlements.SessionSummaries: {Enabled: true},
+				},
+			},
+		}),
+	)
+	webPack := s.newAuthWebPack(t, "foo", withExtraRules(types.Rule{
+		Resources: []string{types.KindSession},
+		Verbs:     []string{types.VerbRead},
+	}))
+	clusterName := s.testAuthServer.ClusterName()
+
+	// A successful summary with enhanced summary data.
+	successfulSessionID := "d2f22f16-d3bb-4b0b-bcef-00daa17190d9"
+	uploadSummary(t, s, summarizerv1.Summary_builder{
+		SessionId:           successfulSessionID,
+		State:               summarizerv1.SummaryState_SUMMARY_STATE_SUCCESS,
+		InferenceStartedAt:  timestamppb.New(time.Date(2025, 8, 1, 11, 12, 0, 0, time.UTC)),
+		InferenceFinishedAt: timestamppb.New(time.Date(2025, 8, 1, 11, 12, 30, 0, time.UTC)),
+		Content:             "Thank you for a very enjoyable game.",
+		ModelName:           "HAL 9000",
+		SessionEndEvent:     makeSessionEndEvent(t, successfulSessionID),
+		EnhancedSummary: summarizerv1.EnhancedSummary_builder{
+			RiskLevel: summarizerv1.RiskLevel_RISK_LEVEL_HIGH,
+			NeedsFurtherReviewReasons: []summarizerv1.NeedsReviewReason{
+				summarizerv1.NeedsReviewReason_NEEDS_REVIEW_REASON_TOO_LARGE,
+			},
+		}.Build(),
+	}.Build())
+
+	// A pending summary without enhanced summary data.
+	pendingSessionID := "3c8f9e27-831d-4d0c-af3c-41893a863df0"
+	uploadSummary(t, s, summarizerv1.Summary_builder{
+		SessionId:          pendingSessionID,
+		State:              summarizerv1.SummaryState_SUMMARY_STATE_PENDING,
+		InferenceStartedAt: timestamppb.New(time.Date(2025, 8, 2, 11, 12, 0, 0, time.UTC)),
+		ModelName:          "HAL 9000",
+		SessionEndEvent:    makeSessionEndEvent(t, pendingSessionID),
+	}.Build())
+
+	endpoint := webPack.clt.Endpoint("webapi", "sites", clusterName, "session-summaries", "batch")
+	resp, err := webPack.clt.PostJSON(ctx, endpoint, map[string]any{
+		"sessionIds": []string{
+			successfulSessionID,
+			pendingSessionID,
+			"6fa2b7f1-b977-417f-bb2c-af255391cf5e", // Nonexistent; omitted from the response.
+		},
+	})
+	require.NoError(t, err)
+
+	var got map[string]any
+	require.NoError(t, json.Unmarshal(resp.Bytes(), &got))
+	expected := map[string]any{
+		"summaries": map[string]any{
+			successfulSessionID: map[string]any{
+				"sessionId":                 successfulSessionID,
+				"state":                     "SUMMARY_STATE_SUCCESS",
+				"riskLevel":                 "RISK_LEVEL_HIGH",
+				"needsFurtherReviewReasons": []any{"too_large"},
+			},
+			pendingSessionID: map[string]any{
+				"sessionId": pendingSessionID,
+				"state":     "SUMMARY_STATE_PENDING",
+			},
+		},
+	}
+	assert.Empty(t, cmp.Diff(expected, got))
+}
