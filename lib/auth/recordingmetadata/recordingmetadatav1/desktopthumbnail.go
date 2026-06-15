@@ -175,12 +175,12 @@ func (d *desktopThumbnailGenerator) consumeFrameActivity() frameActivity {
 	if d.disabled {
 		return frameActivity{}
 	}
+	defer d.rdpstate.ResetUpdatedRegions()
 
 	var changed int
 	for _, r := range d.rdpstate.UpdatedRegions() {
 		changed += r.Dx() * r.Dy()
 	}
-	d.rdpstate.ResetUpdatedRegions()
 
 	cursor := d.rdpstate.CursorState()
 	w, h := d.rdpstate.Dimensions()
