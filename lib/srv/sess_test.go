@@ -394,6 +394,16 @@ func TestSessionRegistrySetupFailureCleanup(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// Use strict recording mode so that recorder errors aren't ignored.
+	strictRecordingRole, err := types.NewRole("strict-recording", types.RoleSpecV6{
+		Options: types.RoleOptions{
+			RecordSession: &types.RecordSession{
+				Default: constants.SessionRecordingModeStrict,
+			},
+		},
+	})
+	require.NoError(t, err)
+
 	recordAtNodeSync := func() *types.SessionRecordingConfigV2 {
 		return &types.SessionRecordingConfigV2{
 			Kind:    types.KindSessionRecordingConfig,
@@ -429,8 +439,10 @@ func TestSessionRegistrySetupFailureCleanup(t *testing.T) {
 			openSession: func(ctx context.Context, reg *SessionRegistry, ch ssh.Channel, scx *ServerContext) error {
 				return reg.OpenSession(ctx, ch, scx)
 			},
+			sessionRoles: services.NewRoleSet(strictRecordingRole),
 			configure: func(t *testing.T, srv *mockServer, scx *ServerContext, _ *trackerService) {
 				srv.datadir = ""
+				srv.bpf = fakeBPF{}
 				scx.SessionRecordingConfig = recordAtNodeSync()
 			},
 		},
@@ -453,7 +465,7 @@ func TestSessionRegistrySetupFailureCleanup(t *testing.T) {
 				return reg.OpenExecSession(ctx, ch, scx)
 			},
 			configure: func(t *testing.T, _ *mockServer, scx *ServerContext, _ *trackerService) {
-				scx.SetEnv(sftp.EnvModeratedSessionID, string(rsession.NewID()))
+				scx.SetEnv(string(sftp.ModeratedSessionID), string(rsession.NewID()))
 			},
 			errAssertion: func(t require.TestingT, err error, _ ...any) {
 				require.True(t, trace.IsNotFound(err))
@@ -480,12 +492,7 @@ func TestSessionRegistrySetupFailureCleanup(t *testing.T) {
 			require.NoError(t, err)
 			t.Cleanup(func() { reg.Close() })
 
-			// Use strict recording mode so that recorder errors aren't ignored.
-			accessPermit := &decisionpb.SSHAccessPermit{
-				SessionRecordingMode: string(constants.SessionRecordingModeStrict),
-			}
-
-			scx := newTestServerContext(t, reg.Srv, tt.sessionRoles, accessPermit)
+			scx := newTestServerContext(t, reg.Srv, tt.sessionRoles)
 			t.Cleanup(func() { require.NoError(t, scx.Close()) })
 
 			tt.configure(t, srv, scx, trackingService)
