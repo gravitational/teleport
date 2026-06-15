@@ -128,7 +128,7 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.Router.UseRawPath = true
 
 	// Passwords and sessions
-	srv.POST("/:version/users/:user/web/sessions", srv.WithAuth(srv.createWebSession))
+	srv.POST("/:version/users/:user/web/sessions", srv.WithAuth(srv.extendWebSession))
 	srv.POST("/:version/users/:user/web/authenticate", srv.WithAuth(srv.authenticateWebUser))
 	srv.POST("/:version/users/:user/ssh/authenticate", srv.WithAuth(srv.authenticateSSHUser))
 	srv.GET("/:version/users/:user/web/sessions/:sid", srv.WithAuth(srv.getWebSession))
@@ -447,26 +447,29 @@ func (s *APIServer) getWebSession(auth *ServerWithRoles, w http.ResponseWriter, 
 	return rawMessage(services.MarshalWebSession(sess, services.WithVersion(version)))
 }
 
-func (s *APIServer) createWebSession(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) extendWebSession(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	// nb(strideynet): Historically this handler/endpoint provided both
+	// Create and Extend WebSession functionality, and was known as
+	// CreateWebSession. The web session creation functionality was unused for
+	// a long time and hence removed and this handler "renamed".
+
 	var req authclient.WebSessionReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if req.PrevSessionID != "" {
-		sess, err := auth.ExtendWebSession(r.Context(), req)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return sess, nil
+	// Requires that PrevSessionID is set. Historically, the lack of this field
+	// indicated that the caller wanted to create (rather than extend) a web
+	// session.
+	if req.PrevSessionID == "" {
+		return nil, trace.BadParameter("RPC cannot be used to create new web sessions")
 	}
 
-	sess, err := auth.CreateWebSession(r.Context(), req.User)
+	sess, err := auth.ExtendWebSession(r.Context(), req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	return rawMessage(services.MarshalWebSession(sess, services.WithVersion(version)))
+	return sess, nil
 }
 
 func (s *APIServer) authenticateWebUser(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {

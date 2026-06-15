@@ -833,8 +833,6 @@ type WebService interface {
 	// ExtendWebSession creates a new web session for a user based on another
 	// valid web session
 	ExtendWebSession(ctx context.Context, req WebSessionReq) (types.WebSession, error)
-	// CreateWebSession creates a new web session for a user
-	CreateWebSession(ctx context.Context, user string) (types.WebSession, error)
 
 	// AppSessionReader defines application session features available to remote clients.
 	services.AppSessionReader

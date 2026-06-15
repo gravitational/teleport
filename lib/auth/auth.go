@@ -5399,22 +5399,6 @@ func (a *Server) getValidatedAccessRequest(ctx context.Context, identity tlsca.I
 	return req, nil
 }
 
-// CreateWebSession creates a new web session for user without any
-// checks, is used by admins
-func (a *Server) CreateWebSession(ctx context.Context, user string) (types.WebSession, error) {
-	u, err := a.GetUserOrLoginState(ctx, user)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	session, err := a.CreateWebSessionFromReq(ctx, NewWebSessionRequest{
-		User:      user,
-		Roles:     u.GetRoles(),
-		Traits:    u.GetTraits(),
-		LoginTime: a.clock.Now().UTC(),
-	})
-	return session, trace.Wrap(err)
-}
-
 // ExtractHostID returns host id based on the hostname
 func ExtractHostID(hostName string, clusterName string) (string, error) {
 	suffix := "." + clusterName
