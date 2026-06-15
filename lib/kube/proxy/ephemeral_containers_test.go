@@ -125,55 +125,53 @@ func Test_patchPodWithDebugContainer(t *testing.T) {
 	podJSON, err := json.Marshal(basePod)
 	require.NoError(t, err)
 
-	t.Run("single interactive container is accepted", func(t *testing.T) {
-		patch := []byte(`{"spec":{"ephemeralContainers":[` +
-			`{"name":"debugger","image":"alpine","tty":true}` +
-			`]}}`)
-
-		patchedPod, ephemeralContName, err := patchPodWithDebugContainer(
-			decoder, podJSON, patch, basePod, apimachinerytypes.StrategicMergePatchType,
-		)
-		require.NoError(t, err)
-		require.Len(t, patchedPod.Spec.EphemeralContainers, 1)
-		require.Equal(t, "debugger", ephemeralContName)
-	})
-
-	t.Run("single non-interactive container is rejected", func(t *testing.T) {
-		patch := []byte(`{"spec":{"ephemeralContainers":[` +
-			`{"name":"debugger","image":"alpine","tty":false}` +
-			`]}}`)
-
-		_, _, err := patchPodWithDebugContainer(
-			decoder, podJSON, patch, basePod, apimachinerytypes.StrategicMergePatchType,
-		)
+	requireAccessDenied := func(t require.TestingT, err error, _ ...any) {
 		require.ErrorAs(t, err, new(*trace.AccessDeniedError))
-	})
+	}
 
-	t.Run("multiple added containers are rejected even when the last is interactive", func(t *testing.T) {
-		// A single strategic merge patch adding two ephemeral containers: a
-		// non-interactive one followed by an interactive one. Validating only
-		// the last entry would accept this; the non-interactive container must
-		// cause the whole patch to be rejected.
-		patch := []byte(`{"spec":{"ephemeralContainers":[` +
-			`{"name":"extra","image":"alpine","command":["/bin/sh","-c","id"],"tty":false},` +
-			`{"name":"debugger","image":"alpine","tty":true}` +
-			`]}}`)
+	tests := []struct {
+		name      string
+		patch     string
+		assertErr require.ErrorAssertionFunc
+		// wantContainerName, when set, is the ephemeral container name expected
+		// to be returned (only meaningful when the patch is accepted).
+		wantContainerName string
+	}{
+		{
+			name:              "single interactive container is accepted",
+			patch:             `{"spec":{"ephemeralContainers":[{"name":"debugger","image":"alpine","tty":true}]}}`,
+			assertErr:         require.NoError,
+			wantContainerName: "debugger",
+		},
+		{
+			name:      "single non-interactive container is rejected",
+			patch:     `{"spec":{"ephemeralContainers":[{"name":"debugger","image":"alpine","tty":false}]}}`,
+			assertErr: requireAccessDenied,
+		},
+		{
+			// Validating only the last entry would accept this; the
+			// non-interactive container must reject the whole patch.
+			name:      "multiple added containers are rejected even when the last is interactive",
+			patch:     `{"spec":{"ephemeralContainers":[{"name":"extra","image":"alpine","command":["/bin/sh","-c","id"],"tty":false},{"name":"debugger","image":"alpine","tty":true}]}}`,
+			assertErr: requireAccessDenied,
+		},
+		{
+			name:      "multiple added containers are rejected when the last is non-interactive",
+			patch:     `{"spec":{"ephemeralContainers":[{"name":"debugger","image":"alpine","tty":true},{"name":"extra","image":"alpine","command":["/bin/sh","-c","id"],"tty":false}]}}`,
+			assertErr: requireAccessDenied,
+		},
+	}
 
-		_, _, err := patchPodWithDebugContainer(
-			decoder, podJSON, patch, basePod, apimachinerytypes.StrategicMergePatchType,
-		)
-		require.ErrorAs(t, err, new(*trace.AccessDeniedError))
-	})
-
-	t.Run("multiple added containers are rejected when the last is non-interactive", func(t *testing.T) {
-		patch := []byte(`{"spec":{"ephemeralContainers":[` +
-			`{"name":"debugger","image":"alpine","tty":true},` +
-			`{"name":"extra","image":"alpine","command":["/bin/sh","-c","id"],"tty":false}` +
-			`]}}`)
-
-		_, _, err := patchPodWithDebugContainer(
-			decoder, podJSON, patch, basePod, apimachinerytypes.StrategicMergePatchType,
-		)
-		require.ErrorAs(t, err, new(*trace.AccessDeniedError))
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			patchedPod, ephemeralContName, err := patchPodWithDebugContainer(
+				decoder, podJSON, []byte(tt.patch), basePod, apimachinerytypes.StrategicMergePatchType,
+			)
+			tt.assertErr(t, err)
+			if tt.wantContainerName != "" {
+				require.Len(t, patchedPod.Spec.EphemeralContainers, 1)
+				require.Equal(t, tt.wantContainerName, ephemeralContName)
+			}
+		})
+	}
 }
