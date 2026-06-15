@@ -415,6 +415,11 @@ func TestValidateClassifier(t *testing.T) {
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "spec.filter has to be a valid predicate")
 
+	c.GetSpec().SetFilter("user.metadata.name")
+	err = ValidateClassifier(c)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "spec.filter has to be a boolean expression")
+
 	// Errors from the api-level validation propagate.
 	c.GetSpec().SetFilter("")
 	c.GetSpec().SetCriteria("")

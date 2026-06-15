@@ -324,8 +324,12 @@ func ValidateClassifier(c *summarizerv1.Classifier) error {
 			return trace.Wrap(err)
 		}
 
-		if _, err = parser.Parse(s.GetFilter()); err != nil {
+		parseResult, err := parser.Parse(s.GetFilter())
+		if err != nil {
 			return trace.Wrap(err, "spec.filter has to be a valid predicate")
+		}
+		if _, ok := parseResult.(predicate.BoolPredicate); !ok {
+			return trace.BadParameter("spec.filter has to be a boolean expression")
 		}
 	}
 
