@@ -1213,6 +1213,19 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		return nil
 	}
 
+	// A kind unknown to the cluster's discovery can't be matched against the
+	// role's kubernetes_resources rules, so reject it rather than forward it unenforced.
+	// It's reported as NotFound because the kind isn't served by the cluster,
+	// the same result a client would get talking to the API server.
+	if actx.metaResource.unsupportedResource {
+		return trace.NotFound(
+			"Kubernetes resource kind %q in API group %q is not known to cluster %q",
+			actx.metaResource.requestedResource.resourceKind,
+			actx.metaResource.requestedResource.apiGroup,
+			actx.kubeClusterName,
+		)
+	}
+
 	identity := actx.Identity.GetIdentity()
 	var err error
 	actx.accessState, err = actx.CheckerContext.AccessStateFromTLSIdentity(ctx, &identity, f.cfg.CachingAuthClient)
