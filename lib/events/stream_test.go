@@ -654,6 +654,11 @@ func (m *MockSummarizer) SummarizeDatabase(ctx context.Context, sessionEndEvent 
 	return args.Error(0)
 }
 
+func (m *MockSummarizer) SummarizeWindowsDesktop(ctx context.Context, sessionEndEvent *apievents.WindowsDesktopSessionEnd) error {
+	args := m.Called(ctx, sessionEndEvent)
+	return args.Error(0)
+}
+
 func (m *MockSummarizer) SummarizeWithoutEndEvent(ctx context.Context, sessionID session.ID) error {
 	args := m.Called(ctx, sessionID)
 	return args.Error(0)
@@ -769,6 +774,74 @@ func TestOnUploadComplete_MissingSessionEnd(t *testing.T) {
 	mockSummarizer.AssertExpectations(t)
 }
 
+// TestOnUploadComplete_MissingWindowsDesktopSessionEnd verifies that when a
+// desktop session stream is completed without a session end event, the end
+// event recovered by the OnUploadComplete callback is passed to
+// SummarizeWindowsDesktop.
+func TestOnUploadComplete_MissingWindowsDesktopSessionEnd(t *testing.T) {
+	uploader := eventstest.NewMemoryUploader()
+	summarizerProvider := &summarizer.SessionSummarizerProvider{}
+	mockSummarizer := &MockSummarizer{}
+	summarizerProvider.SetSummarizer(mockSummarizer)
+
+	sid := session.NewID()
+
+	startTime := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)
+	endTime := startTime.Add(15 * time.Minute)
+
+	// Build the session end that OnUploadComplete will return.
+	recoveredEnd := &apievents.WindowsDesktopSessionEnd{
+		Metadata: apievents.Metadata{
+			Type: events.WindowsDesktopSessionEndEvent,
+			Code: events.DesktopSessionEndCode,
+			Time: endTime,
+		},
+		SessionMetadata: apievents.SessionMetadata{SessionID: sid.String()},
+		StartTime:       startTime,
+		EndTime:         endTime,
+	}
+
+	called := false
+	streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
+		Uploader:                  uploader,
+		SessionSummarizerProvider: summarizerProvider,
+	})
+	require.NoError(t, err)
+	streamer.SetOnUploadComplete(func(_ context.Context, gotSID session.ID) (apievents.AuditEvent, error) {
+		called = true
+		require.Equal(t, sid, gotSID)
+		return recoveredEnd, nil
+	})
+
+	mockSummarizer.On("SummarizeWindowsDesktop", mock.Anything, mock.MatchedBy(func(e *apievents.WindowsDesktopSessionEnd) bool {
+		return e.GetSessionID() == sid.String()
+	})).Return(nil).Once()
+
+	stream, err := streamer.CreateAuditStream(t.Context(), sid)
+	require.NoError(t, err)
+
+	preparer, err := events.NewPreparer(events.PreparerConfig{
+		SessionID:   sid,
+		Namespace:   apidefaults.Namespace,
+		ClusterName: "cluster",
+	})
+	require.NoError(t, err)
+
+	// Emit a desktop recording frame but deliberately omit the session end.
+	rec := &apievents.DesktopRecording{
+		Metadata: apievents.Metadata{Type: events.DesktopRecordingEvent, Time: startTime.Add(5 * time.Minute)},
+	}
+	prepared, err := preparer.PrepareSessionEvent(rec)
+	require.NoError(t, err)
+	require.NoError(t, stream.RecordEvent(t.Context(), prepared))
+
+	require.NoError(t, stream.Complete(t.Context()))
+
+	require.True(t, called, "OnUploadComplete must be called when session end is missing")
+	mockSummarizer.AssertNotCalled(t, "SummarizeWithoutEndEvent", mock.Anything, mock.Anything)
+	mockSummarizer.AssertExpectations(t)
+}
+
 // MockRecordingMetadataService is a mock implementation of recordingmetadata.Service.
 type MockRecordingMetadataService struct {
 	mock.Mock
@@ -784,7 +857,8 @@ func (m *MockRecordingMetadataService) ProcessSessionRecording(ctx context.Conte
 // observe DesktopRecording followed by an in-band WindowsDesktopSessionEnd.
 // In this case OnUploadComplete is not invoked (hasSessionEnd is true), so
 // the in-band end branch must populate the desktop session metadata flags
-// itself, and SummarizeWithoutEndEvent must not be called.
+// itself and pass the captured end event to SummarizeWindowsDesktop rather
+// than falling back to SummarizeWithoutEndEvent.
 func TestInBandWindowsDesktopSessionEnd(t *testing.T) {
 	startTime := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)
 	endTime := startTime.Add(15 * time.Minute)
@@ -807,11 +881,9 @@ func TestInBandWindowsDesktopSessionEnd(t *testing.T) {
 
 	sid := session.NewID()
 
-	// Fail loudly if SummarizeWithoutEndEvent (or any summarize call) is
-	// invoked. shouldSkipSummarize must be set on the in-band desktop events.
-	mockSummarizer.AssertNotCalled(t, "SummarizeWithoutEndEvent", mock.Anything, mock.Anything)
-	mockSummarizer.AssertNotCalled(t, "SummarizeSSH", mock.Anything, mock.Anything)
-	mockSummarizer.AssertNotCalled(t, "SummarizeDatabase", mock.Anything, mock.Anything)
+	mockSummarizer.On("SummarizeWindowsDesktop", mock.Anything, mock.MatchedBy(func(e *apievents.WindowsDesktopSessionEnd) bool {
+		return e.GetSessionID() == sid.String()
+	})).Return(nil).Once()
 
 	mockMetadata.
 		On("ProcessSessionRecording", mock.Anything, sid, recordingmetadata.SessionTypeDesktop, startTime, endTime.Sub(startTime)).
@@ -847,6 +919,11 @@ func TestInBandWindowsDesktopSessionEnd(t *testing.T) {
 
 	require.NoError(t, stream.Complete(t.Context()))
 
+	// The captured end event must be used directly; the fallback lookup and
+	// the summarizers for other session kinds must not be involved.
+	mockSummarizer.AssertNotCalled(t, "SummarizeWithoutEndEvent", mock.Anything, mock.Anything)
+	mockSummarizer.AssertNotCalled(t, "SummarizeSSH", mock.Anything, mock.Anything)
+	mockSummarizer.AssertNotCalled(t, "SummarizeDatabase", mock.Anything, mock.Anything)
 	mockMetadata.AssertExpectations(t)
 	mockSummarizer.AssertExpectations(t)
 }
