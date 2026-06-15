@@ -145,12 +145,12 @@ func Test_generateJWTAndTraits(t *testing.T) {
 		clock:      clock,
 	}
 
-	jwt, traits, err := auth.generateJWTAndTraits(t.Context())
+	jwt, rewriteTraits, err := auth.generateJWTAndTraits(t.Context())
 	require.NoError(t, err)
 	require.Equal(t, "app-token-for-ai-by-jwt", jwt)
-	require.NotEmpty(t, traits)
-	require.Equal(t, []string{"app-token-for-ai-by-jwt"}, traits[constants.TraitJWT])
-	require.Equal(t, []string{"app-token-for-ai-by-oidc_idp"}, traits[constants.TraitIDToken])
+	require.NotEmpty(t, rewriteTraits)
+	require.Equal(t, []string{"app-token-for-ai-by-jwt"}, rewriteTraits[constants.TraitJWT])
+	require.Equal(t, []string{"app-token-for-ai-by-oidc_idp"}, rewriteTraits[constants.TraitIDToken])
 
 	// Two calls, one for JWT, and one for ID token.
 	appTokenRequests := authClient.getAppTokenRequests()

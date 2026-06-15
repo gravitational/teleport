@@ -21,7 +21,7 @@ import { useParams } from 'react-router';
 
 import {
   DisconnectedState,
-  DesktopSession as SharedDesktopSession,
+  DesktopSessionWithSharing as SharedDesktopSession,
 } from 'shared/components/DesktopSession';
 import { useAsync } from 'shared/hooks/useAsync';
 import { selectDirectoryInBrowser, TdpClient } from 'shared/libs/tdp';
@@ -56,6 +56,7 @@ export function DesktopSession() {
                 .replace(':clusterId', clusterId)
                 .replace(':desktopName', desktopName)
                 .replace(':username', username)
+                .replace(':version', 'teleport-tdpb-1.0')
             ),
             abortSignal
           ),

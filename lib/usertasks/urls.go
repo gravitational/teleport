@@ -241,3 +241,51 @@ func RDSDatabasesWithURLs(ut *usertasksv1.UserTask) *UserTaskDiscoverRDSWithURLs
 		Databases:   databasesWithURLs,
 	}
 }
+
+// UserTaskDiscoverAzureVMWithURLs contains the instances that failed to auto-enroll into the cluster.
+type UserTaskDiscoverAzureVMWithURLs struct {
+	*usertasksv1.DiscoverAzureVM
+	// Instances maps the instance ID name to the result of enrolling that instance into teleport.
+	Instances map[string]*DiscoverAzureVMInstanceWithURLs `json:"instances,omitempty"`
+}
+
+// DiscoverAzureVMInstanceWithURLs contains the result of enrolling an Azure VM.
+type DiscoverAzureVMInstanceWithURLs struct {
+	*usertasksv1.DiscoverAzureVMInstance
+
+	// ResourceURL is the Azure Portal URL to access this VM.
+	// Always present.
+	// Format: https://portal.azure.com/#resource/subscriptions/<subscription-id>/resourceGroups/<resource-group>/providers/Microsoft.Compute/virtualMachines/<vm-name>
+	ResourceURL string `json:"resourceUrl,omitempty"`
+}
+
+func withAzureVMInstanceIssueURL(instance *usertasksv1.DiscoverAzureVMInstance) *DiscoverAzureVMInstanceWithURLs {
+	ret := &DiscoverAzureVMInstanceWithURLs{
+		DiscoverAzureVMInstance: instance,
+	}
+
+	vmURL := url.URL{
+		Scheme:   "https",
+		Host:     "portal.azure.com",
+		Path:     "/",
+		Fragment: "resource" + instance.GetResourceId(),
+	}
+	ret.ResourceURL = vmURL.String()
+
+	return ret
+}
+
+// AzureVMInstancesWithURLs takes a UserTask and enriches the instance list with Azure Portal URLs.
+func AzureVMInstancesWithURLs(ut *usertasksv1.UserTask) *UserTaskDiscoverAzureVMWithURLs {
+	instances := ut.Spec.GetDiscoverAzureVm().GetInstances()
+	instancesWithURLs := make(map[string]*DiscoverAzureVMInstanceWithURLs, len(instances))
+
+	for instanceID, instance := range instances {
+		instancesWithURLs[instanceID] = withAzureVMInstanceIssueURL(instance)
+	}
+
+	return &UserTaskDiscoverAzureVMWithURLs{
+		DiscoverAzureVM: ut.Spec.GetDiscoverAzureVm(),
+		Instances:       instancesWithURLs,
+	}
+}

@@ -26,6 +26,7 @@ import (
 	"log/slog"
 	"math"
 	"math/rand/v2"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -111,7 +112,22 @@ func NewRecordingMetadataService(cfg RecordingMetadataServiceConfig) (*Recording
 
 // ProcessSessionRecording processes the session recording associated with the provided session ID.
 // It streams session events, generates metadata, and uploads thumbnails and metadata.
-func (s *RecordingMetadataService) ProcessSessionRecording(ctx context.Context, sessionID session.ID, duration time.Duration) error {
+//
+// Any panic in the downstream processing pipeline (e.g. a corrupt recording
+// driving vt10x into a bad state) is converted into an error return so that a
+// single bad recording cannot crash the auth server.
+func (s *RecordingMetadataService) ProcessSessionRecording(ctx context.Context, sessionID session.ID, duration time.Duration) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			s.logger.ErrorContext(ctx, "panic while processing session recording",
+				"session_id", sessionID,
+				"panic", r,
+				"stack", string(debug.Stack()),
+			)
+			err = trace.Errorf("internal error while processing session recording %s", sessionID)
+		}
+	}()
+
 	sessionsPendingMetric.Inc()
 
 	if err := s.concurrencyLimiter.Acquire(ctx, 1); err != nil {
@@ -380,8 +396,6 @@ loop:
 	if _, err := protodelim.MarshalTo(w, metadata); err != nil {
 		return trace.Wrap(err)
 	}
-
-	var err error
 
 	finish.Do(func() {
 		err = w.Close()

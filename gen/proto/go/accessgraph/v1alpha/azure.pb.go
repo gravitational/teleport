@@ -21,13 +21,14 @@
 // 	protoc        (unknown)
 // source: accessgraph/v1alpha/azure.proto
 
+//go:build !protoopaque
+
 package accessgraphv1alpha
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -40,7 +41,7 @@ const (
 
 // AzureResourceList is a list of Azure resources
 type AzureResourceList struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Resources     []*AzureResource       `protobuf:"bytes,1,rep,name=resources,proto3" json:"resources,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -71,11 +72,6 @@ func (x *AzureResourceList) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AzureResourceList.ProtoReflect.Descriptor instead.
-func (*AzureResourceList) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_azure_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *AzureResourceList) GetResources() []*AzureResource {
 	if x != nil {
 		return x.Resources
@@ -83,9 +79,27 @@ func (x *AzureResourceList) GetResources() []*AzureResource {
 	return nil
 }
 
+func (x *AzureResourceList) SetResources(v []*AzureResource) {
+	x.Resources = v
+}
+
+type AzureResourceList_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Resources []*AzureResource
+}
+
+func (b0 AzureResourceList_builder) Build() *AzureResourceList {
+	m0 := &AzureResourceList{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Resources = b.Resources
+	return m0
+}
+
 // AzureResource is a list of Azure resources supported by the access graph.
 type AzureResource struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Resource:
 	//
 	//	*AzureResource_Principal
@@ -120,11 +134,6 @@ func (x *AzureResource) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AzureResource.ProtoReflect.Descriptor instead.
-func (*AzureResource) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_azure_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *AzureResource) GetResource() isAzureResource_Resource {
@@ -170,6 +179,173 @@ func (x *AzureResource) GetVirtualMachine() *AzureVirtualMachine {
 	return nil
 }
 
+func (x *AzureResource) SetPrincipal(v *AzurePrincipal) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &AzureResource_Principal{v}
+}
+
+func (x *AzureResource) SetRoleDefinition(v *AzureRoleDefinition) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &AzureResource_RoleDefinition{v}
+}
+
+func (x *AzureResource) SetRoleAssignment(v *AzureRoleAssignment) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &AzureResource_RoleAssignment{v}
+}
+
+func (x *AzureResource) SetVirtualMachine(v *AzureVirtualMachine) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &AzureResource_VirtualMachine{v}
+}
+
+func (x *AzureResource) HasResource() bool {
+	if x == nil {
+		return false
+	}
+	return x.Resource != nil
+}
+
+func (x *AzureResource) HasPrincipal() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*AzureResource_Principal)
+	return ok
+}
+
+func (x *AzureResource) HasRoleDefinition() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*AzureResource_RoleDefinition)
+	return ok
+}
+
+func (x *AzureResource) HasRoleAssignment() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*AzureResource_RoleAssignment)
+	return ok
+}
+
+func (x *AzureResource) HasVirtualMachine() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*AzureResource_VirtualMachine)
+	return ok
+}
+
+func (x *AzureResource) ClearResource() {
+	x.Resource = nil
+}
+
+func (x *AzureResource) ClearPrincipal() {
+	if _, ok := x.Resource.(*AzureResource_Principal); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *AzureResource) ClearRoleDefinition() {
+	if _, ok := x.Resource.(*AzureResource_RoleDefinition); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *AzureResource) ClearRoleAssignment() {
+	if _, ok := x.Resource.(*AzureResource_RoleAssignment); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *AzureResource) ClearVirtualMachine() {
+	if _, ok := x.Resource.(*AzureResource_VirtualMachine); ok {
+		x.Resource = nil
+	}
+}
+
+const AzureResource_Resource_not_set_case case_AzureResource_Resource = 0
+const AzureResource_Principal_case case_AzureResource_Resource = 1
+const AzureResource_RoleDefinition_case case_AzureResource_Resource = 2
+const AzureResource_RoleAssignment_case case_AzureResource_Resource = 3
+const AzureResource_VirtualMachine_case case_AzureResource_Resource = 4
+
+func (x *AzureResource) WhichResource() case_AzureResource_Resource {
+	if x == nil {
+		return AzureResource_Resource_not_set_case
+	}
+	switch x.Resource.(type) {
+	case *AzureResource_Principal:
+		return AzureResource_Principal_case
+	case *AzureResource_RoleDefinition:
+		return AzureResource_RoleDefinition_case
+	case *AzureResource_RoleAssignment:
+		return AzureResource_RoleAssignment_case
+	case *AzureResource_VirtualMachine:
+		return AzureResource_VirtualMachine_case
+	default:
+		return AzureResource_Resource_not_set_case
+	}
+}
+
+type AzureResource_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Resource:
+	// principal  is an Azure principal
+	Principal *AzurePrincipal
+	// role_definition is an Azure role definition
+	RoleDefinition *AzureRoleDefinition
+	// role_assignment is an Azure role assignment, which assigns a role definition to a principal
+	RoleAssignment *AzureRoleAssignment
+	// virtual_machine is an Azure virtual machine, an instance of a compute resource
+	VirtualMachine *AzureVirtualMachine
+	// -- end of Resource
+}
+
+func (b0 AzureResource_builder) Build() *AzureResource {
+	m0 := &AzureResource{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Principal != nil {
+		x.Resource = &AzureResource_Principal{b.Principal}
+	}
+	if b.RoleDefinition != nil {
+		x.Resource = &AzureResource_RoleDefinition{b.RoleDefinition}
+	}
+	if b.RoleAssignment != nil {
+		x.Resource = &AzureResource_RoleAssignment{b.RoleAssignment}
+	}
+	if b.VirtualMachine != nil {
+		x.Resource = &AzureResource_VirtualMachine{b.VirtualMachine}
+	}
+	return m0
+}
+
+type case_AzureResource_Resource protoreflect.FieldNumber
+
+func (x case_AzureResource_Resource) String() string {
+	md := file_accessgraph_v1alpha_azure_proto_msgTypes[1].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isAzureResource_Resource interface {
 	isAzureResource_Resource()
 }
@@ -204,7 +380,7 @@ func (*AzureResource_VirtualMachine) isAzureResource_Resource() {}
 
 // AzureVirtualMachine is an Azure virtual machine
 type AzureVirtualMachine struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// id is the ID of the virtual machine
 	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	// subscription_id is the ID of the subscription to which the virtual machine belongs
@@ -244,11 +420,6 @@ func (x *AzureVirtualMachine) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AzureVirtualMachine.ProtoReflect.Descriptor instead.
-func (*AzureVirtualMachine) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_azure_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *AzureVirtualMachine) GetId() string {
@@ -293,9 +464,63 @@ func (x *AzureVirtualMachine) GetLocation() string {
 	return ""
 }
 
+func (x *AzureVirtualMachine) SetId(v string) {
+	x.Id = v
+}
+
+func (x *AzureVirtualMachine) SetSubscriptionId(v string) {
+	x.SubscriptionId = v
+}
+
+func (x *AzureVirtualMachine) SetName(v string) {
+	x.Name = v
+}
+
+func (x *AzureVirtualMachine) SetResourceGroup(v string) {
+	x.ResourceGroup = v
+}
+
+func (x *AzureVirtualMachine) SetTags(v map[string]string) {
+	x.Tags = v
+}
+
+func (x *AzureVirtualMachine) SetLocation(v string) {
+	x.Location = v
+}
+
+type AzureVirtualMachine_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// id is the ID of the virtual machine
+	Id string
+	// subscription_id is the ID of the subscription to which the virtual machine belongs
+	SubscriptionId string
+	// name is the given name of the virtual machine
+	Name string
+	// resource_group is the name of the resource group to which the virtual machine belongs
+	ResourceGroup string
+	// tags are a collection of arbitrary key-values applied to the virtual machine
+	Tags map[string]string
+	// location is the geographical location of the Virtual Machine
+	Location string
+}
+
+func (b0 AzureVirtualMachine_builder) Build() *AzureVirtualMachine {
+	m0 := &AzureVirtualMachine{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Id = b.Id
+	x.SubscriptionId = b.SubscriptionId
+	x.Name = b.Name
+	x.ResourceGroup = b.ResourceGroup
+	x.Tags = b.Tags
+	x.Location = b.Location
+	return m0
+}
+
 // AzureIdentity is a Graph API object identity
 type AzureIdentity struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// sign_in_type is the type of identity used when signing in, e.g. "emailAddress" or "userName"
 	SignInType string `protobuf:"bytes,1,opt,name=sign_in_type,json=signInType,proto3" json:"sign_in_type,omitempty"`
 	// issuer is the issuer of the identity, such as a domain name like "goteleport.com"
@@ -331,11 +556,6 @@ func (x *AzureIdentity) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AzureIdentity.ProtoReflect.Descriptor instead.
-func (*AzureIdentity) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_azure_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *AzureIdentity) GetSignInType() string {
 	if x != nil {
 		return x.SignInType
@@ -357,9 +577,42 @@ func (x *AzureIdentity) GetIssuerAssignedId() string {
 	return ""
 }
 
+func (x *AzureIdentity) SetSignInType(v string) {
+	x.SignInType = v
+}
+
+func (x *AzureIdentity) SetIssuer(v string) {
+	x.Issuer = v
+}
+
+func (x *AzureIdentity) SetIssuerAssignedId(v string) {
+	x.IssuerAssignedId = v
+}
+
+type AzureIdentity_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// sign_in_type is the type of identity used when signing in, e.g. "emailAddress" or "userName"
+	SignInType string
+	// issuer is the issuer of the identity, such as a domain name like "goteleport.com"
+	Issuer string
+	// issuer_assigned_id unique identifier assigned to the user by the issuer
+	IssuerAssignedId string
+}
+
+func (b0 AzureIdentity_builder) Build() *AzureIdentity {
+	m0 := &AzureIdentity{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.SignInType = b.SignInType
+	x.Issuer = b.Issuer
+	x.IssuerAssignedId = b.IssuerAssignedId
+	return m0
+}
+
 // AzurePrincipal is a Graph API principal (user, group, service principal)
 type AzurePrincipal struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// id is the ID of the principal
 	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	// subscription_id is the ID of the subscription to which the principal belongs
@@ -399,11 +652,6 @@ func (x *AzurePrincipal) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AzurePrincipal.ProtoReflect.Descriptor instead.
-func (*AzurePrincipal) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_azure_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *AzurePrincipal) GetId() string {
@@ -448,9 +696,63 @@ func (x *AzurePrincipal) GetObjectType() string {
 	return ""
 }
 
+func (x *AzurePrincipal) SetId(v string) {
+	x.Id = v
+}
+
+func (x *AzurePrincipal) SetSubscriptionId(v string) {
+	x.SubscriptionId = v
+}
+
+func (x *AzurePrincipal) SetDisplayName(v string) {
+	x.DisplayName = v
+}
+
+func (x *AzurePrincipal) SetMemberOf(v []string) {
+	x.MemberOf = v
+}
+
+func (x *AzurePrincipal) SetIdentities(v []*AzureIdentity) {
+	x.Identities = v
+}
+
+func (x *AzurePrincipal) SetObjectType(v string) {
+	x.ObjectType = v
+}
+
+type AzurePrincipal_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// id is the ID of the principal
+	Id string
+	// subscription_id is the ID of the subscription to which the principal belongs
+	SubscriptionId string
+	// display_name is the given name for the principal, e.g. a user's first+last name
+	DisplayName string
+	// member_of lists the groups and directories the principal is assigned to
+	MemberOf []string
+	// identities lists the identities that can be used to sign in to the account
+	Identities []*AzureIdentity
+	// object_type defines the type of principal, e.g. "user" or "group"
+	ObjectType string
+}
+
+func (b0 AzurePrincipal_builder) Build() *AzurePrincipal {
+	m0 := &AzurePrincipal{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Id = b.Id
+	x.SubscriptionId = b.SubscriptionId
+	x.DisplayName = b.DisplayName
+	x.MemberOf = b.MemberOf
+	x.Identities = b.Identities
+	x.ObjectType = b.ObjectType
+	return m0
+}
+
 // AzureRoleAssignment links an Azure principal to a role definition with a scope
 type AzureRoleAssignment struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// id is the ID of the role assignment
 	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	// subscription_id is the ID of the subscription to which the role assignment belongs
@@ -490,11 +792,6 @@ func (x *AzureRoleAssignment) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AzureRoleAssignment.ProtoReflect.Descriptor instead.
-func (*AzureRoleAssignment) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_azure_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *AzureRoleAssignment) GetId() string {
@@ -539,9 +836,63 @@ func (x *AzureRoleAssignment) GetCondition() string {
 	return ""
 }
 
+func (x *AzureRoleAssignment) SetId(v string) {
+	x.Id = v
+}
+
+func (x *AzureRoleAssignment) SetSubscriptionId(v string) {
+	x.SubscriptionId = v
+}
+
+func (x *AzureRoleAssignment) SetPrincipalId(v string) {
+	x.PrincipalId = v
+}
+
+func (x *AzureRoleAssignment) SetRoleDefinitionId(v string) {
+	x.RoleDefinitionId = v
+}
+
+func (x *AzureRoleAssignment) SetScope(v string) {
+	x.Scope = v
+}
+
+func (x *AzureRoleAssignment) SetCondition(v string) {
+	x.Condition = v
+}
+
+type AzureRoleAssignment_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// id is the ID of the role assignment
+	Id string
+	// subscription_id is the ID of the subscription to which the role assignment belongs
+	SubscriptionId string
+	// principal_id is the ID of the principal being assigned a role
+	PrincipalId string
+	// role_definition_id is the ID of the role definition assigned to the principal
+	RoleDefinitionId string
+	// scope constrains which resources the assignment applies to
+	Scope string
+	// condition further which resources the assignment applies to
+	Condition string
+}
+
+func (b0 AzureRoleAssignment_builder) Build() *AzureRoleAssignment {
+	m0 := &AzureRoleAssignment{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Id = b.Id
+	x.SubscriptionId = b.SubscriptionId
+	x.PrincipalId = b.PrincipalId
+	x.RoleDefinitionId = b.RoleDefinitionId
+	x.Scope = b.Scope
+	x.Condition = b.Condition
+	return m0
+}
+
 // AzureRoleDefinition defines a role by its permissions
 type AzureRoleDefinition struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// id is the ID of the role definition
 	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	// subscription_id is the ID of the subscription to which the role definition belongs
@@ -585,11 +936,6 @@ func (x *AzureRoleDefinition) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AzureRoleDefinition.ProtoReflect.Descriptor instead.
-func (*AzureRoleDefinition) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_azure_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *AzureRoleDefinition) GetId() string {
@@ -648,9 +994,77 @@ func (x *AzureRoleDefinition) GetType() string {
 	return ""
 }
 
+func (x *AzureRoleDefinition) SetId(v string) {
+	x.Id = v
+}
+
+func (x *AzureRoleDefinition) SetSubscriptionId(v string) {
+	x.SubscriptionId = v
+}
+
+func (x *AzureRoleDefinition) SetName(v string) {
+	x.Name = v
+}
+
+func (x *AzureRoleDefinition) SetDescription(v string) {
+	x.Description = v
+}
+
+func (x *AzureRoleDefinition) SetAssignableScopes(v []string) {
+	x.AssignableScopes = v
+}
+
+func (x *AzureRoleDefinition) SetPermissions(v []*AzureRBACPermission) {
+	x.Permissions = v
+}
+
+func (x *AzureRoleDefinition) SetRoleName(v string) {
+	x.RoleName = v
+}
+
+func (x *AzureRoleDefinition) SetType(v string) {
+	x.Type = v
+}
+
+type AzureRoleDefinition_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// id is the ID of the role definition
+	Id string
+	// subscription_id is the ID of the subscription to which the role definition belongs
+	SubscriptionId string
+	// name is the given name for the role definition
+	Name string
+	// description provides additional detail about the role definition
+	Description string
+	// assignable_scopes limits the scopes defined in corresponding role assignments
+	AssignableScopes []string
+	// permissions define the actions and not (disallowed) actions
+	Permissions []*AzureRBACPermission
+	// role_name is the given name for the role itself
+	RoleName string
+	// type defines the type of role
+	Type string
+}
+
+func (b0 AzureRoleDefinition_builder) Build() *AzureRoleDefinition {
+	m0 := &AzureRoleDefinition{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Id = b.Id
+	x.SubscriptionId = b.SubscriptionId
+	x.Name = b.Name
+	x.Description = b.Description
+	x.AssignableScopes = b.AssignableScopes
+	x.Permissions = b.Permissions
+	x.RoleName = b.RoleName
+	x.Type = b.Type
+	return m0
+}
+
 // AzureRBACPermission defines the actions and not (disallowed) actions for a role definition
 type AzureRBACPermission struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// actions define the resources and verbs allowed on the resources
 	Actions []string `protobuf:"bytes,1,rep,name=actions,proto3" json:"actions,omitempty"`
 	// not_actions define the resources and verbs disallowed on the resources
@@ -688,11 +1102,6 @@ func (x *AzureRBACPermission) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AzureRBACPermission.ProtoReflect.Descriptor instead.
-func (*AzureRBACPermission) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_azure_proto_rawDescGZIP(), []int{7}
-}
-
 func (x *AzureRBACPermission) GetActions() []string {
 	if x != nil {
 		return x.Actions
@@ -719,6 +1128,46 @@ func (x *AzureRBACPermission) GetNotDataActions() []string {
 		return x.NotDataActions
 	}
 	return nil
+}
+
+func (x *AzureRBACPermission) SetActions(v []string) {
+	x.Actions = v
+}
+
+func (x *AzureRBACPermission) SetNotActions(v []string) {
+	x.NotActions = v
+}
+
+func (x *AzureRBACPermission) SetDataActions(v []string) {
+	x.DataActions = v
+}
+
+func (x *AzureRBACPermission) SetNotDataActions(v []string) {
+	x.NotDataActions = v
+}
+
+type AzureRBACPermission_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// actions define the resources and verbs allowed on the resources
+	Actions []string
+	// not_actions define the resources and verbs disallowed on the resources
+	NotActions []string
+	// data_actions define fine-grained resources and verbs allowed within the resource
+	DataActions []string
+	// not_data_actions define fine-grained resources and verbs disallowed within the resource
+	NotDataActions []string
+}
+
+func (b0 AzureRBACPermission_builder) Build() *AzureRBACPermission {
+	m0 := &AzureRBACPermission{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Actions = b.Actions
+	x.NotActions = b.NotActions
+	x.DataActions = b.DataActions
+	x.NotDataActions = b.NotDataActions
+	return m0
 }
 
 var File_accessgraph_v1alpha_azure_proto protoreflect.FileDescriptor
@@ -782,18 +1231,6 @@ const file_accessgraph_v1alpha_azure_proto_rawDesc = "" +
 	"notActions\x12!\n" +
 	"\fdata_actions\x18\x03 \x03(\tR\vdataActions\x12(\n" +
 	"\x10not_data_actions\x18\x04 \x03(\tR\x0enotDataActionsBWZUgithub.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha;accessgraphv1alphab\x06proto3"
-
-var (
-	file_accessgraph_v1alpha_azure_proto_rawDescOnce sync.Once
-	file_accessgraph_v1alpha_azure_proto_rawDescData []byte
-)
-
-func file_accessgraph_v1alpha_azure_proto_rawDescGZIP() []byte {
-	file_accessgraph_v1alpha_azure_proto_rawDescOnce.Do(func() {
-		file_accessgraph_v1alpha_azure_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_accessgraph_v1alpha_azure_proto_rawDesc), len(file_accessgraph_v1alpha_azure_proto_rawDesc)))
-	})
-	return file_accessgraph_v1alpha_azure_proto_rawDescData
-}
 
 var file_accessgraph_v1alpha_azure_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_accessgraph_v1alpha_azure_proto_goTypes = []any{

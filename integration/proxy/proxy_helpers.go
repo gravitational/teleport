@@ -778,10 +778,10 @@ func kubeClientForLocalProxy(t *testing.T, kubeconfigPath, teleportCluster, kube
 		CAData:     config.Clusters[contextName].CertificateAuthorityData,
 		CertData:   config.AuthInfos[contextName].ClientCertificateData,
 		KeyData:    config.AuthInfos[contextName].ClientKeyData,
-		ServerName: alpncommon.KubeLocalProxySNI(teleportCluster, kubeCluster),
+		ServerName: teleportCluster,
 	}
 	client, err := kubernetes.NewForConfig(&rest.Config{
-		Host:            "https://" + teleportCluster,
+		Host:            "https://" + teleportCluster + alpncommon.KubeLocalProxyPathPrefix(teleportCluster, kubeCluster),
 		TLSClientConfig: tlsClientConfig,
 		Proxy:           http.ProxyURL(proxyURL),
 	})

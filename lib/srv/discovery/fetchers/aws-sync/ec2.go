@@ -106,7 +106,7 @@ func (a *Fetcher) fetchAWSEC2Instances(ctx context.Context) ([]*accessgraphv1alp
 				lHosts := make([]*accessgraphv1alpha.AWSInstanceV1, 0, len(page.Reservations))
 				for _, reservation := range page.Reservations {
 					for _, instance := range reservation.Instances {
-						hosts = append(hosts, awsInstanceToProtoInstance(instance, region, a.AccountID))
+						lHosts = append(lHosts, awsInstanceToProtoInstance(instance, region, a.AccountID))
 					}
 				}
 				collectHosts(lHosts, nil)
@@ -173,7 +173,7 @@ func (a *Fetcher) fetchInstanceProfiles(ctx context.Context) ([]*accessgraphv1al
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			return append(profiles, existing...), trace.Wrap(err)
+			return existing, trace.Wrap(err)
 		}
 		for _, profile := range page.InstanceProfiles {
 			profiles = append(profiles,

@@ -60,8 +60,8 @@ func TestValidateJamfSpecV1(t *testing.T) {
 				Inventory: []*types.JamfInventoryEntry{
 					{
 						FilterRsql:        `general.remoteManagement.managed==true and general.platform=="Mac"`,
-						SyncPeriodPartial: types.Duration(4 * time.Hour),
-						SyncPeriodFull:    types.Duration(48 * time.Hour),
+						SyncPeriodPartial: types.DurationStringForJamfSpecV1(4 * time.Hour),
+						SyncPeriodFull:    types.DurationStringForJamfSpecV1(48 * time.Hour),
 						OnMissing:         "DELETE",
 					},
 					{
@@ -106,8 +106,8 @@ func TestValidateJamfSpecV1(t *testing.T) {
 				spec.Inventory = []*types.JamfInventoryEntry{
 					validEntry,
 					{
-						SyncPeriodPartial: types.Duration(12 * time.Hour),
-						SyncPeriodFull:    types.Duration(8 * time.Hour),
+						SyncPeriodPartial: types.DurationStringForJamfSpecV1(12 * time.Hour),
+						SyncPeriodFull:    types.DurationStringForJamfSpecV1(8 * time.Hour),
 					},
 				}
 			}),
@@ -132,7 +132,7 @@ func TestValidateJamfSpecV1(t *testing.T) {
 					validEntry,
 					{
 						SyncPeriodPartial: -1,
-						SyncPeriodFull:    types.Duration(8 * time.Hour),
+						SyncPeriodFull:    types.DurationStringForJamfSpecV1(8 * time.Hour),
 					},
 				}
 			}),
@@ -143,7 +143,7 @@ func TestValidateJamfSpecV1(t *testing.T) {
 				spec.Inventory = []*types.JamfInventoryEntry{
 					validEntry,
 					{
-						SyncPeriodPartial: types.Duration(12 * time.Hour),
+						SyncPeriodPartial: types.DurationStringForJamfSpecV1(12 * time.Hour),
 						SyncPeriodFull:    -1,
 					},
 				}

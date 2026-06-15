@@ -18,21 +18,31 @@ package autoupdate
 
 import (
 	"context"
+	"net/url"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport/api/client/webclient"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/auto_update/v1"
 	"github.com/gravitational/teleport/lib/autoupdate"
-	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/teleterm/autoupdate/common"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 )
 
-const pingTimeout = 5 * time.Second
+const (
+	pingTimeout = 5 * time.Second
+
+	// When tsh runs as a daemon, auto-updates must be disabled. Connect enforces this by
+	// launching tsh with TELEPORT_TOOLS_VERSION=off, and forwards the real value via
+	// FORWARDED_TELEPORT_TOOLS_VERSION.
+	forwardedTeleportToolsEnvVar = "FORWARDED_TELEPORT_TOOLS_VERSION"
+)
 
 // Service implements gRPC service for autoupdate.
 type Service struct {
@@ -131,30 +141,74 @@ func (s *Service) pingCluster(ctx context.Context, cluster *clusters.Cluster) (*
 	return find, trace.Wrap(err)
 }
 
-// GetDownloadBaseUrl returns base URL for downloading Teleport packages.
-func (s *Service) GetDownloadBaseUrl(_ context.Context, _ *api.GetDownloadBaseUrlRequest) (*api.GetDownloadBaseUrlResponse, error) {
-	baseURL, err := resolveBaseURL()
+// GetConfig retrieves the local auto updates configuration.
+func (s *Service) GetConfig(_ context.Context, _ *api.GetConfigRequest) (*api.GetConfigResponse, error) {
+	config, err := platformGetConfig()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &api.GetDownloadBaseUrlResponse{
-		BaseUrl: baseURL,
-	}, trace.Wrap(err)
+	toolsVersionValue := strings.TrimSpace(config.GetToolsVersion().Value)
+	toolsVersionSource := config.GetToolsVersion().Source
+	switch toolsVersionValue {
+	case "":
+		toolsVersionSource = api.ConfigSource_CONFIG_SOURCE_UNSPECIFIED
+	case common.TeleportToolsVersionOff:
+		break
+	default:
+		if _, err = semver.NewVersion(toolsVersionValue); err != nil {
+			return nil, trace.BadParameter("invalid version %v for tools version", toolsVersionValue)
+		}
+	}
+
+	cdnBaseUrlValue := strings.TrimSpace(config.GetCdnBaseUrl().Value)
+	cdnBaseUrlSource := config.GetCdnBaseUrl().Source
+	if cdnBaseUrlValue == "" {
+		cdnBaseUrlSource = api.ConfigSource_CONFIG_SOURCE_UNSPECIFIED
+	} else {
+		if err = validateURL(cdnBaseUrlValue); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	defaultBaseUrlValue := common.GetDefaultBaseURL()
+	if cdnBaseUrlValue == "" && defaultBaseUrlValue != "" {
+		cdnBaseUrlValue = defaultBaseUrlValue
+		cdnBaseUrlSource = api.ConfigSource_CONFIG_SOURCE_DEFAULT
+	}
+
+	return &api.GetConfigResponse{
+		ToolsVersion: &api.ConfigValue{Value: toolsVersionValue, Source: toolsVersionSource},
+		CdnBaseUrl:   &api.ConfigValue{Value: cdnBaseUrlValue, Source: cdnBaseUrlSource},
+	}, nil
 }
 
-// resolveBaseURL generates the base URL using the same logic as the teleport/lib/autoupdate/tools package.
-func resolveBaseURL() (string, error) {
+func validateURL(raw string) error {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return trace.BadParameter("invalid CDN base URL: %v", err)
+	}
+	if u.Scheme != "https" {
+		return trace.BadParameter("CDN base URL must be https")
+	}
+	if u.Host == "" {
+		return trace.BadParameter("CDN base URL must include host")
+	}
+	return nil
+}
+
+func readConfigFromEnvVars() (*api.GetConfigResponse, error) {
 	envBaseURL := os.Getenv(autoupdate.BaseURLEnvVar)
-	if envBaseURL != "" {
-		// TODO(gzdunek): Validate if it's correct URL.
-		return envBaseURL, nil
-	}
+	envTeleportToolsVersion := os.Getenv(forwardedTeleportToolsEnvVar)
 
-	m := modules.GetModules()
-	if m.BuildType() == modules.BuildOSS {
-		return "", trace.BadParameter("Client tools updates are disabled as they are licensed under AGPL. To use Community Edition builds or custom binaries, set the 'TELEPORT_CDN_BASE_URL' environment variable.")
-	}
-
-	return autoupdate.DefaultBaseURL, nil
+	return &api.GetConfigResponse{
+		CdnBaseUrl: &api.ConfigValue{
+			Value:  envBaseURL,
+			Source: api.ConfigSource_CONFIG_SOURCE_ENV_VAR,
+		},
+		ToolsVersion: &api.ConfigValue{
+			Value:  envTeleportToolsVersion,
+			Source: api.ConfigSource_CONFIG_SOURCE_ENV_VAR,
+		},
+	}, nil
 }

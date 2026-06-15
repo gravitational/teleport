@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/join/joinutils"
 	"github.com/gravitational/teleport/lib/join/provision"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
@@ -104,6 +105,12 @@ type IDTokenClaims struct {
 	RepositoryOwner string `json:"repository_owner"`
 	// The ID of the organization in which the repository is stored.
 	RepositoryOwnerID string `json:"repository_owner_id"`
+	// The name of the enterprise that owns the repository.
+	// Can be empty if enterprise does not own org/repo.
+	Enterprise string `json:"enterprise"`
+	// The ID of the enterprise that owns the repository.
+	// Can be empty if enterprise does not own org/repo.
+	EnterpriseID string `json:"enterprise_id"`
 	// The ID of the workflow run that triggered the workflow.
 	RunID string `json:"run_id"`
 	// The number of times this workflow has been run.
@@ -136,6 +143,8 @@ func (c *IDTokenClaims) JoinAttrs() *workloadidentityv1pb.JoinAttrsGitHub {
 		EventName:       c.EventName,
 		Sha:             c.SHA,
 		RunId:           c.RunID,
+		Enterprise:      c.Enterprise,
+		EnterpriseId:    c.EnterpriseID,
 	}
 
 	return attrs
@@ -231,31 +240,65 @@ func CheckGithubIDToken(ctx context.Context, params *CheckGithubIDTokenParams) (
 
 func checkGithubAllowRules(token *types.ProvisionTokenV2, claims *IDTokenClaims) error {
 	// If a single rule passes, accept the IDToken
-	for _, rule := range token.Spec.GitHub.Allow {
+	for i, rule := range token.Spec.GitHub.Allow {
 		// Please consider keeping these field validators in the same order they
 		// are defined within the ProvisionTokenSpecV2Github proto spec.
-		if rule.Sub != "" && claims.Sub != rule.Sub {
+		subMatches, err := joinutils.GlobMatchAllowEmptyPattern(rule.Sub, claims.Sub)
+		if err != nil {
+			return trace.Wrap(err, "evaluating rule (%d) sub match", i)
+		}
+		if !subMatches {
 			continue
 		}
-		if rule.Repository != "" && claims.Repository != rule.Repository {
+		repoMatches, err := joinutils.GlobMatchAllowEmptyPattern(rule.Repository, claims.Repository)
+		if err != nil {
+			return trace.Wrap(err, "evaluating rule (%d) repository match", i)
+		}
+		if !repoMatches {
 			continue
 		}
-		if rule.RepositoryOwner != "" && claims.RepositoryOwner != rule.RepositoryOwner {
+		repoOwnerMatches, err := joinutils.GlobMatchAllowEmptyPattern(rule.RepositoryOwner, claims.RepositoryOwner)
+		if err != nil {
+			return trace.Wrap(err, "evaluating rule (%d) repository owner match", i)
+		}
+		if !repoOwnerMatches {
 			continue
 		}
-		if rule.Workflow != "" && claims.Workflow != rule.Workflow {
+		workflowMatches, err := joinutils.GlobMatchAllowEmptyPattern(rule.Workflow, claims.Workflow)
+		if err != nil {
+			return trace.Wrap(err, "evaluating rule (%d) workflow match", i)
+		}
+		if !workflowMatches {
 			continue
 		}
-		if rule.Environment != "" && claims.Environment != rule.Environment {
+		environmentMatches, err := joinutils.GlobMatchAllowEmptyPattern(rule.Environment, claims.Environment)
+		if err != nil {
+			return trace.Wrap(err, "evaluating rule (%d) environment match", i)
+		}
+		if !environmentMatches {
 			continue
 		}
-		if rule.Actor != "" && claims.Actor != rule.Actor {
+		actorMatches, err := joinutils.GlobMatchAllowEmptyPattern(rule.Actor, claims.Actor)
+		if err != nil {
+			return trace.Wrap(err, "evaluating rule (%d) actor match", i)
+		}
+		if !actorMatches {
 			continue
 		}
-		if rule.Ref != "" && claims.Ref != rule.Ref {
+		refMatches, err := joinutils.GlobMatchAllowEmptyPattern(rule.Ref, claims.Ref)
+		if err != nil {
+			return trace.Wrap(err, "evaluating rule (%d) ref match", i)
+		}
+		if !refMatches {
 			continue
 		}
 		if rule.RefType != "" && claims.RefType != rule.RefType {
+			continue
+		}
+		if rule.Enterprise != "" && claims.Enterprise != rule.Enterprise {
+			continue
+		}
+		if rule.EnterpriseID != "" && claims.EnterpriseID != rule.EnterpriseID {
 			continue
 		}
 

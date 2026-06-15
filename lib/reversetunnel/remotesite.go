@@ -92,6 +92,9 @@ type remoteSite struct {
 	// databaseServerWatcher is a database server watcher.
 	databaseServerWatcher *services.GenericWatcher[types.DatabaseServer, readonly.DatabaseServer]
 
+	// appServerWatcher is a app server watcher.
+	appServerWatcher *services.GenericWatcher[types.AppServer, readonly.AppServer]
+
 	// remoteCA is the last remote certificate authority recorded by the client.
 	// It is used to detect CA rotation status changes. If the rotation
 	// state has been changed, the tunnel will reconnect to re-create the client
@@ -171,6 +174,10 @@ func (s *remoteSite) CachingAccessPoint() (authclient.RemoteProxyAccessPoint, er
 // NodeWatcher returns the services.NodeWatcher for the remote cluster.
 func (s *remoteSite) NodeWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error) {
 	return s.nodeWatcher, nil
+}
+
+func (s *remoteSite) AppServerWatcher() (*services.GenericWatcher[types.AppServer, readonly.AppServer], error) {
+	return s.appServerWatcher, nil
 }
 
 // GitServerWatcher returns the Git server watcher for the remote cluster.
@@ -499,6 +506,9 @@ func (s *remoteSite) handleHeartbeat(ctx context.Context, conn *remoteConn, ch s
 			tm := s.clock.Now().UTC()
 			conn.setLastHeartbeat(tm)
 			go s.registerHeartbeat(tm)
+			if err := req.Reply(true, nil); err != nil {
+				pinglog.DebugContext(ctx, "Failed to respond to ping request", "remote_addr", logutils.StringerAttr(conn.conn.RemoteAddr()), "error", err)
+			}
 		case t := <-offlineThresholdTimer.C:
 			conn.markInvalid(trace.ConnectionProblem(nil, "no heartbeats for %v", s.offlineThreshold))
 

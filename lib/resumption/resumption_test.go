@@ -35,7 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/uds"
+	"github.com/gravitational/teleport/session/uds"
 )
 
 func TestResumption(t *testing.T) {

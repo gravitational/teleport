@@ -43,7 +43,14 @@ export const AppInitializer = () => {
       // activate it.
       const rootClusterUri =
         appContext.workspacesService.getRestoredState()?.rootClusterUri;
-      if (rootClusterUri) {
+      if (
+        rootClusterUri &&
+        // If the previously active workspace no longer has a cluster, start without an
+        // active workspace so ClusterConnectPanel is shown. This can happen when the
+        // profile was removed outside Connect. Recreating the profile should be a
+        // user-initiated reconnect action, not an automatic startup side effect.
+        appContext.clustersService.findCluster(rootClusterUri)
+      ) {
         void appContext.workspacesService.setActiveWorkspace(rootClusterUri);
       }
       appContext.mainProcessClient.signalUserInterfaceReadiness({

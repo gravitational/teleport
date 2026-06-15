@@ -21,6 +21,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"slices"
 
 	"github.com/gravitational/trace"
@@ -47,6 +48,18 @@ type GCPInstances struct {
 	Instances []*gcpimds.Instance
 	// DiscoveryConfigName is the name of the DiscoveryConfig that triggered this discovery.
 	DiscoveryConfigName string
+}
+
+func (instances *GCPInstances) LogValue() slog.Value {
+	if instances == nil {
+		return slog.StringValue("<nil>")
+	}
+	return slog.GroupValue(
+		slog.Int("total_instances", len(instances.Instances)),
+		slog.String("discovery_config", instances.DiscoveryConfigName),
+		slog.String("project_id", instances.ProjectID),
+		slog.String("zone", instances.Zone),
+	)
 }
 
 // MakeEvents generates MakeEvents for these instances.
@@ -96,7 +109,6 @@ type gcpInstanceFetcher struct {
 	GCP                 gcp.InstancesClient
 	ProjectIDs          []string
 	Zones               []string
-	ProjectID           string
 	ServiceAccounts     []string
 	Labels              types.Labels
 	projectsClient      gcp.ProjectsClient
@@ -198,4 +210,16 @@ func (f *gcpInstanceFetcher) getProjectIDs(ctx context.Context) ([]string, error
 		projectIDs = append(projectIDs, prj.ID)
 	}
 	return projectIDs, nil
+}
+
+// LogValue implements [slog.LogValuer].
+func (f *gcpInstanceFetcher) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.Any("labels", f.Labels),
+		slog.Any("project_ids", f.ProjectIDs),
+		slog.Any("service_accounts", f.ServiceAccounts),
+		slog.Any("zones", f.Zones),
+		slog.String("discovery_config", f.GetDiscoveryConfigName()),
+		slog.String("integration", f.IntegrationName()),
+	)
 }

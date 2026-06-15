@@ -13,7 +13,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=18.7.2
+VERSION=18.9.0-rc.2
 
 DOCKER_IMAGE ?= teleport
 
@@ -239,6 +239,13 @@ STATIC_LIBS_TSH += -lpcsclite
 endif
 endif
 
+SESSIONHELPER_EMBED_TAG :=
+SESSIONHELPER_MESSAGE := without-session-helper
+ifeq ($(OS),linux)
+SESSIONHELPER_EMBED_TAG = sessionhelper_embed
+SESSIONHELPER_MESSAGE := with-session-helper
+endif
+
 # Reproducible builds are only available on select targets, and only when OS=linux.
 REPRODUCIBLE ?=
 ifneq ("$(OS)","linux")
@@ -263,7 +270,7 @@ join-with = $(subst $(SPACE),$1,$(strip $2))
 
 # Separate TAG messages into comma-separated WITH and WITHOUT lists for readability.
 COMMA := ,
-MESSAGES := $(PAM_MESSAGE) $(FIPS_MESSAGE) $(BPF_MESSAGE) $(RDPCLIENT_MESSAGE) $(LIBFIDO2_MESSAGE) $(TOUCHID_MESSAGE) $(PIV_MESSAGE) $(VNETDAEMON_MESSAGE)
+MESSAGES := $(PAM_MESSAGE) $(FIPS_MESSAGE) $(BPF_MESSAGE) $(RDPCLIENT_MESSAGE) $(LIBFIDO2_MESSAGE) $(TOUCHID_MESSAGE) $(PIV_MESSAGE) $(VNETDAEMON_MESSAGE) $(SESSIONHELPER_MESSAGE)
 WITH := $(subst -," ",$(call join-with,$(COMMA) ,$(subst with-,,$(filter with-%,$(MESSAGES)))))
 WITHOUT := $(subst -," ",$(call join-with,$(COMMA) ,$(subst without-,,$(filter without-%,$(MESSAGES)))))
 RELEASE_MESSAGE := "Building with GOOS=$(OS) GOARCH=$(ARCH) REPRODUCIBLE=$(REPRODUCIBLE) and with $(WITH) and without $(WITHOUT)."
@@ -278,6 +285,14 @@ VERSRC = gitref.go api/version.go
 
 KUBECONFIG ?=
 TEST_KUBE ?=
+# This unexport statement is required for make to work with the `-e` flag.
+# With -e, the first Makefile sets HELMJANITOR=$$(go tool ...),
+# passes HELMJANITOR=$(go tool) to the child make process.
+# Because of the `-e` flag it takes precedence over the child's make definition
+# of HELMJANITOR and breaks environment variable expansion.
+# To avoid breaking other parts of the release pipeline, the easiest fix is to
+# unexport HELMJANITOR so the child uses the definition from its Makefile.
+unexport HELMJANITOR
 export
 
 TEST_LOG_DIR ?= ${abspath ./test-logs}
@@ -385,8 +400,21 @@ $(BUILDDIR)/tctl:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_BUILD_TAG) $(TOUCHID_TAG) $(PIV_BUILD_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) $(TOOLS_LDFLAGS) ./tool/tctl
 
 .PHONY: $(BUILDDIR)/teleport
-$(BUILDDIR)/teleport: ensure-webassets bpf-bytecode rdpclient
-	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "webassets_embed $(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG) $(RDPCLIENT_TAG) $(PIV_BUILD_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) $(TELEPORT_LDFLAGS) ./tool/teleport
+$(BUILDDIR)/teleport: ensure-webassets bpf-bytecode rdpclient session/reexec/embed/sessionhelper
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "webassets_embed $(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(SESSIONHELPER_EMBED_TAG) $(WEBASSETS_TAG) $(RDPCLIENT_TAG) $(PIV_BUILD_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) $(TELEPORT_LDFLAGS) ./tool/teleport
+
+.PHONY: $(BUILDDIR)/sessionhelper
+$(BUILDDIR)/sessionhelper:
+ifneq ($(SESSIONHELPER_EMBED_TAG),)
+	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go -C session build -buildvcs=false -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) gravitational_trace.nocrypto" -o '$(abspath $(BUILDDIR)/sessionhelper)' $(BUILDFLAGS) ./cmd/sessionhelper
+endif
+
+.PHONY: session/reexec/embed/sessionhelper
+session/reexec/embed/sessionhelper: $(BUILDDIR)/sessionhelper
+ifneq ($(SESSIONHELPER_EMBED_TAG),)
+	mkdir -p session/reexec/embed
+	gzip -9 -n < '$(BUILDDIR)/sessionhelper' > 'session/reexec/embed/sessionhelper_$(OS)_$(ARCH).gz'
+endif
 
 # NOTE: Any changes to the `tsh` build here must be copied to `build.assets/windows/build.ps1`
 # until we can use this Makefile for native Windows builds.
@@ -549,6 +577,7 @@ clean-build:
 ifneq ($(ER_BPF_BUILDDIR),)
 	rm -f $(ER_BPF_BUILDDIR)/*.o
 endif
+	rm -rf ./session/reexec/embed
 	-cargo clean
 	-go clean -cache
 	rm -f *.gz
@@ -901,25 +930,11 @@ helmunit/installed:
 # environment variable.
 .PHONY: test-helm
 test-helm: helmunit/installed
-	helm unittest -3 --with-subchart=false examples/chart/teleport-cluster
-	helm unittest -3 --with-subchart=false examples/chart/teleport-kube-agent
-	helm unittest -3 --with-subchart=false examples/chart/teleport-relay
-	helm unittest -3 --with-subchart=false examples/chart/teleport-cluster/charts/teleport-operator
-	helm unittest -3 --with-subchart=false examples/chart/access/*
-	helm unittest -3 --with-subchart=false examples/chart/event-handler
-	helm unittest -3 --with-subchart=false examples/chart/tbot
-	helm unittest -3 --with-subchart=false examples/chart/tbot-spiffe-daemon-set
+	$(HELMJANITOR) test
 
 .PHONY: test-helm-update-snapshots
 test-helm-update-snapshots: helmunit/installed
-	helm unittest -3 -u --with-subchart=false examples/chart/teleport-cluster
-	helm unittest -3 -u --with-subchart=false examples/chart/teleport-kube-agent
-	helm unittest -3 -u --with-subchart=false examples/chart/teleport-relay
-	helm unittest -3 -u --with-subchart=false examples/chart/teleport-cluster/charts/teleport-operator
-	helm unittest -3 -u --with-subchart=false examples/chart/access/*
-	helm unittest -3 -u --with-subchart=false examples/chart/event-handler
-	helm unittest -3 -u --with-subchart=false examples/chart/tbot
-	helm unittest -3 -u --with-subchart=false examples/chart/tbot-spiffe-daemon-set
+	$(HELMJANITOR) test --update-snapshots
 
 #
 # Runs all Go tests except integration, called by CI/CD.
@@ -960,7 +975,7 @@ test-go-unit: rdpclient
 test-go-unit: FLAGS ?= -race -shuffle on
 test-go-unit: SUBJECT ?= $(shell go list ./... | grep -vE 'teleport/(e2e|integration|tool/tsh|integrations/operator|integrations/access|integrations/lib)')
 test-go-unit: test-go-prepare | $(TEST_LOG_DIR)
-	$(CGOFLAG) GOEXPERIMENT=synctest go test -json -tags "enablesynctest $(PAM_TAG) $(RDPCLIENT_TAG) $(FIPS_TAG) $(BPF_TAG) $(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG) $(VNETDAEMON_TAG) $(ADDTAGS)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
+	$(CGOFLAG) go test -json -tags "$(PAM_TAG) $(RDPCLIENT_TAG) $(FIPS_TAG) $(BPF_TAG) $(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG) $(VNETDAEMON_TAG) $(ADDTAGS)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| $(GOTESTSUM) --junitfile $(TEST_LOG_DIR)/unit-tests.xml --jsonfile $(TEST_LOG_DIR)/unit-tests.json --raw-command -- cat
 
 # Runs tbot unit tests
@@ -1174,9 +1189,9 @@ run-etcd:
 .PHONY: integration
 integration: FLAGS ?= -v -race
 integration: PACKAGES = $(shell go list ./... | grep 'integration\([^s]\|$$\)' | grep -v integrations/lib/testing/integration )
-integration: | $(TEST_LOG_DIR)
+integration: session/reexec/embed/sessionhelper | $(TEST_LOG_DIR)
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
-	$(CGOFLAG) go test -timeout 30m -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) \
+	$(CGOFLAG) go test -timeout 30m -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(SESSIONHELPER_EMBED_TAG)" $(PACKAGES) $(FLAGS) \
 		| $(GOTESTSUM) --junitfile $(TEST_LOG_DIR)/unit-tests-integration.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-integration.json --raw-command -- cat
 
 #
@@ -1200,8 +1215,8 @@ INTEGRATION_ROOT_REGEX := ^TestRoot
 .PHONY: integration-root
 integration-root: FLAGS ?= -v -race
 integration-root: PACKAGES = $(shell go list ./... | grep 'integration\([^s]\|$$\)')
-integration-root: | $(TEST_LOG_DIR)
-	$(CGOFLAG) go test -json -run "$(INTEGRATION_ROOT_REGEX)" $(PACKAGES) $(FLAGS) \
+integration-root: session/reexec/embed/sessionhelper | $(TEST_LOG_DIR)
+	$(CGOFLAG) go test -json -tags '$(SESSIONHELPER_EMBED_TAG)' -run "$(INTEGRATION_ROOT_REGEX)" $(PACKAGES) $(FLAGS) \
 		| $(GOTESTSUM) --junitfile $(TEST_LOG_DIR)/unit-tests-integration-root.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-integration-root.json --raw-command -- cat
 
 
@@ -1284,7 +1299,7 @@ endif
 
 .PHONY: fix-imports/host
 fix-imports/host:
-	GOEXPERIMENT=synctest $(GCI) write -s standard -s default  -s 'prefix(github.com/gravitational/teleport)' -s 'prefix(github.com/gravitational/teleport/integrations/terraform,github.com/gravitational/teleport/integrations/event-handler)' --skip-generated .
+	$(GCI) write -s standard -s default  -s 'prefix(github.com/gravitational/teleport)' -s 'prefix(github.com/gravitational/teleport/integrations/terraform,github.com/gravitational/teleport/integrations/event-handler)' --skip-generated .
 
 lint-build-tooling: GO_LINT_FLAGS ?=
 lint-build-tooling:
@@ -1299,7 +1314,7 @@ lint-backport:
 .PHONY: lint-api
 lint-api: GO_LINT_API_FLAGS ?=
 lint-api:
-	cd api && golangci-lint run -c ../.golangci.yml $(GO_LINT_API_FLAGS)
+	cd api && golangci-lint run -c ../.golangci.yml  --build-tags='$(PIV_LINT_TAG)' $(GO_LINT_API_FLAGS)
 
 .PHONY: lint-kube-agent-updater
 lint-kube-agent-updater: GO_LINT_API_FLAGS ?=
@@ -1332,30 +1347,8 @@ lint-sh:
 # If errors are found, the file is printed with line numbers to aid in debugging.
 .PHONY: lint-helm
 lint-helm:
-	@if ! type yamllint 2>&1 >/dev/null; then \
-		echo "Not running 'lint-helm' target as 'yamllint' is not installed."; \
-		if [ "$${CI}" = "true" ]; then echo "This is a failure when running in CI." && exit 1; fi; \
-		exit 0; \
-	fi; \
-	for CHART in ./examples/chart/teleport-cluster ./examples/chart/teleport-kube-agent ./examples/chart/teleport-relay ./examples/chart/teleport-cluster/charts/teleport-operator ./examples/chart/tbot ./examples/chart/tbot-spiffe-daemon-set; do \
-		if [ -d $${CHART}/.lint ]; then \
-			for VALUES in $${CHART}/.lint/*.yaml; do \
-				export HELM_TEMP=$$(mktemp); \
-				echo -n "Using values from '$${VALUES}': "; \
-				yamllint -c examples/chart/.lint-config.yaml $${VALUES} || { cat -en $${VALUES}; exit 1; }; \
-				helm lint --quiet --strict $${CHART} -f $${VALUES} || exit 1; \
-				helm template test $${CHART} -f $${VALUES} 1>$${HELM_TEMP} || exit 1; \
-				yamllint -c examples/chart/.lint-config.yaml $${HELM_TEMP} || { cat -en $${HELM_TEMP}; exit 1; }; \
-				echo; \
-			done \
-		else \
-			export HELM_TEMP=$$(mktemp); \
-			helm lint --quiet --strict $${CHART} || exit 1; \
-			helm template test $${CHART} 1>$${HELM_TEMP} || exit 1; \
-			yamllint -c examples/chart/.lint-config.yaml $${HELM_TEMP} || { cat -en $${HELM_TEMP}; exit 1; }; \
-		fi; \
-	done
-	$(MAKE) -C examples/chart check-chart-ref
+	$(HELMJANITOR) reference -check
+	$(HELMJANITOR) lint
 
 ADDLICENSE_COMMON_ARGS := -c 'Gravitational, Inc.' \
 		-ignore '**/*.c' \
@@ -1366,25 +1359,27 @@ ADDLICENSE_COMMON_ARGS := -c 'Gravitational, Inc.' \
 		-ignore '**/*.sh' \
 		-ignore '**/*.sql' \
 		-ignore '**/*.tf' \
+		-ignore '**/*.tftest.hcl' \
 		-ignore '**/*.yaml' \
 		-ignore '**/*.yml' \
 		-ignore '**/.terraform.lock.hcl' \
 		-ignore '**/Dockerfile' \
 		-ignore '**/node_modules/**' \
-		-ignore 'build.assets/.cache/**' \
 		-ignore 'api/version.go' \
+		-ignore 'build.assets/.cache/**' \
 		-ignore 'docs/pages/includes/**/*.go' \
 		-ignore 'e/**' \
 		-ignore 'gen/**' \
 		-ignore 'gitref.go' \
+		-ignore 'lib/limiter/internal/ratelimit/**' \
+		-ignore 'lib/srv/desktop/rdp/decoder/target/**' \
 		-ignore 'lib/srv/desktop/rdp/rdpclient/target/**' \
 		-ignore 'lib/web/build/**' \
 		-ignore 'target/**' \
 		-ignore 'web/packages/design/src/assets/icomoon/style.css' \
 		-ignore 'web/packages/shared/libs/ironrdp/**' \
-		-ignore 'lib/limiter/internal/ratelimit/**' \
-		-ignore 'webassets/**' \
-		-ignore 'ignoreme'
+		-ignore 'web/packages/teleterm/build/**' \
+		-ignore 'webassets/**'
 ADDLICENSE_AGPL3_ARGS := $(ADDLICENSE_COMMON_ARGS) \
 		-ignore 'api/**' \
 		-f $(CURDIR)/build.assets/LICENSE.header
@@ -1996,9 +1991,12 @@ dump-preset-roles:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go run ./build.assets/dump-preset-roles/main.go
 	pnpm test web/packages/teleport/src/Roles/RoleEditor/StandardEditor/standardmodel.test.ts
 
+
 .PHONY: test-e2e
 test-e2e: ensure-webassets
 	(cd e2e && pnpm install) && $(CGOFLAG) go test -tags=webassets_embed ./e2e/web_e2e_test.go
+
+cli-docs: cli-docs-tsh cli-docs-tbot cli-docs-teleport cli-docs-tctl
 
 .PHONY: cli-docs-tsh
 cli-docs-tsh:
@@ -2031,6 +2029,18 @@ cli-docs-tctl:
 	go build -o $(BUILDDIR)/tctldocs -tags docs ./tool/tctl && \
 	$(BUILDDIR)/tctldocs help 2>docs/pages/reference/cli/tctl.mdx && \
 	rm $(BUILDDIR)/tctldocs
+
+# cli-docs-up-to-date checks if the generated CLI reference docs are up to date.
+.PHONY: cli-docs-up-to-date
+cli-docs-up-to-date: must-start-clean/host cli-docs
+	@if ! git diff --quiet -- docs/pages/reference/cli/; then \
+		echo ""; \
+		echo "CLI reference documentation is out of date."; \
+		echo "Please run 'make cli-docs' and commit the changes."; \
+		echo ""; \
+		git diff --stat -- docs/pages/reference/cli/; \
+		exit 1; \
+	fi
 
 # audit-event-reference generates audit event reference docs using the Web UI
 # source.

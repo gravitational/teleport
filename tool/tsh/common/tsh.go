@@ -99,14 +99,14 @@ import (
 	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/shell"
-	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/diagnostics/latency"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/mlock"
 	stacksignal "github.com/gravitational/teleport/lib/utils/signal"
+	"github.com/gravitational/teleport/session/networking/x11"
+	"github.com/gravitational/teleport/session/shell"
 	"github.com/gravitational/teleport/tool/common"
 	"github.com/gravitational/teleport/tool/common/fido2"
 	"github.com/gravitational/teleport/tool/common/touchid"
@@ -133,6 +133,8 @@ const (
 	mfaModeOTP = "otp"
 	// mfaModeSSO utilizes only SSO devices.
 	mfaModeSSO = "sso"
+	// mfaModeBrowser utilizes browser-based WebAuthn MFA via local server.
+	mfaModeBrowser = "browser"
 )
 
 const (
@@ -280,6 +282,9 @@ type CLIConf struct {
 
 	// AppName specifies proxied application name.
 	AppName string
+	// AppHTTPSTunnel enables a special mode to tunnel https for HTTP apps.
+	// Mainly used for debugging purpose so the flag should be hidden.
+	AppHTTPSTunnel bool
 	// Interactive sessions will allocate a PTY and create interactive "shell"
 	// sessions.
 	Interactive bool
@@ -427,6 +432,23 @@ type CLIConf struct {
 
 	// MaxDuration specifies how long the access will be granted for.
 	MaxDuration time.Duration
+
+	// DelegationAllowNodes is the list of SSH nodes to include in a delegation session.
+	DelegationAllowNodes []string
+	// DelegationAllowDatabases is the list of databases to include in a delegation session.
+	DelegationAllowDatabases []string
+	// DelegationAllowApps is the list of applications to include in a delegation session.
+	DelegationAllowApps []string
+	// DelegationAllowKubeClusters is the list of Kubernetes clusters to include in a delegation session.
+	DelegationAllowKubeClusters []string
+	// DelegationAllowWindowsDesktops is the list of Windows desktops to include in a delegation session.
+	DelegationAllowWindowsDesktops []string
+	// DelegationAllowGitServers is the list of Git servers to include in a delegation session.
+	DelegationAllowGitServers []string
+	// DelegationAllowAll requests wildcard resource access in a delegation session.
+	DelegationAllowAll bool
+	// DelegationBots is the list of bots allowed to use a delegation session.
+	DelegationBots []string
 
 	// executablePath is the absolute path to the current executable.
 	executablePath string
@@ -932,7 +954,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		fmt.Sprintf("Verbose logging to the unified logging system. This flag implies --debug. Also available through the %s env var. https://goteleport.com/docs/connect-your-client/tsh/#debug-logs",
 			osLogEnvVar)).
 		IsSetByUser(&cf.OSLogSetByUser)
-	if runtime.GOOS != constants.DarwinOS {
+	if runtime.GOOS != constants.DarwinOS && !utils.DocsMode {
 		osLogFlag.Hidden()
 	}
 	osLogFlag.BoolVar(&cf.OSLog)
@@ -948,8 +970,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	app.Flag("bind-addr", "Override host:port used when opening a browser for cluster logins").Envar(bindAddrEnvVar).StringVar(&cf.BindAddr)
 	app.Flag("callback", "Override the base URL (host:port) of the link shown when opening a browser for cluster logins. Must be used with --bind-addr.").StringVar(&cf.CallbackAddr)
 	app.Flag("browser-login", browserHelp).Hidden().Envar(browserEnvVar).StringVar(&cf.Browser)
-	modes := []string{mfaModeAuto, mfaModeCrossPlatform, mfaModePlatform, mfaModeOTP, mfaModeSSO}
-	app.Flag("mfa-mode", fmt.Sprintf("Preferred mode for MFA and Passwordless assertions (%v)", strings.Join(modes, ", "))).
+	modes := []string{mfaModeAuto, mfaModeCrossPlatform, mfaModePlatform, mfaModeOTP, mfaModeSSO, mfaModeBrowser}
+	app.Flag("mfa-mode", "Preferred mode for MFA and Passwordless assertions.").
 		Default(mfaModeAuto).
 		Envar(mfaModeEnvVar).
 		EnumVar(&cf.MFAMode, modes...)
@@ -1118,6 +1140,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	proxyApp.Arg("app", "The name of the application to start local proxy for").Required().StringVar(&cf.AppName)
 	proxyApp.Flag("port", "Specifies the listening port used by the proxy app listener. Accepts an optional target port of a multi-port TCP app after a colon, e.g. \"1234:5678\"").Short('p').StringVar(&cf.LocalProxyPortMapping)
 	proxyApp.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
+	proxyApp.Flag("https-tunnel", "Use the teleport-app-https ALPN protocol (HTTPS tunneled over mTLS) for HTTP apps.").Hidden().BoolVar(&cf.AppHTTPSTunnel)
 
 	proxyMCP := proxy.Command("mcp", "Start local proxy for MCP access.")
 	proxyMCP.Arg("app", "The name of the MCP application to start local proxy for.").Required().StringVar(&cf.AppName)
@@ -1182,8 +1205,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	dbConfig.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 	// --db flag is deprecated in favor of positional argument for consistency with other commands.
 	dbConfig.Flag("db", "Print information for the specified database.").Hidden().StringVar(&cf.DatabaseService)
-	dbConfig.Flag("format", fmt.Sprintf("Print format: %q to print in table format (default), %q to print connect command, %q or %q to print in JSON or YAML.",
-		dbFormatText, dbFormatCommand, dbFormatJSON, dbFormatYAML)).Short('f').EnumVar(&cf.Format, dbFormatText, dbFormatCommand, dbFormatJSON, dbFormatYAML)
+	dbConfig.Flag("format", "Print format: \"text\" to print in table format (default), \"cmd\" to print connect command, \"json\" or \"yaml\" to print in JSON or YAML.").Short('f').EnumVar(&cf.Format, dbFormatText, dbFormatCommand, dbFormatJSON, dbFormatYAML)
 	dbConnect := db.Command("connect", "Connect to a database.")
 	dbConnect.Arg("db", "Database service name to connect to.").StringVar(&cf.DatabaseService)
 	dbConnect.Flag("db-user", "Database user to log in as.").Short('u').StringVar(&cf.DatabaseUser)
@@ -1362,6 +1384,18 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	environment.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	environment.Flag("unset", "Print commands to clear Teleport session environment variables").BoolVar(&cf.unsetEnvironment)
 
+	delegation := app.Command("delegation", "Manage delegation sessions.")
+	delegationCreateSession := delegation.Command("create-session", "Create a delegation session, allowing a bot or workload to temporarily act on your behalf.")
+	delegationCreateSession.Flag("allow-node", "Allow access to an SSH node.").StringsVar(&cf.DelegationAllowNodes)
+	delegationCreateSession.Flag("allow-db", "Allow access to a database.").StringsVar(&cf.DelegationAllowDatabases)
+	delegationCreateSession.Flag("allow-app", "Allow access to an application.").StringsVar(&cf.DelegationAllowApps)
+	delegationCreateSession.Flag("allow-kube-cluster", "Allow access to a Kubernetes cluster.").StringsVar(&cf.DelegationAllowKubeClusters)
+	delegationCreateSession.Flag("allow-windows-desktop", "Allow access to a Windows desktop.").StringsVar(&cf.DelegationAllowWindowsDesktops)
+	delegationCreateSession.Flag("allow-git-server", "Allow access to a Git server.").StringsVar(&cf.DelegationAllowGitServers)
+	delegationCreateSession.Flag("allow-all", "Allow access to all resources, including destructive administrative actions. Mutually exclusive with the other --allow-* flags.").BoolVar(&cf.DelegationAllowAll)
+	delegationCreateSession.Flag("bot", "Name of a bot allowed to use the delegation session. Repeat to allow multiple bots.").StringsVar(&cf.DelegationBots)
+	delegationCreateSession.Flag("session-ttl", "How long the delegation session should remain valid.").DurationVar(&cf.SessionTTL)
+
 	req := app.Command("request", "Manage access requests.").Alias("requests")
 
 	reqList := req.Command("ls", "List access requests.").Alias("list")
@@ -1514,7 +1548,14 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	vnetInstallServiceCommand := newVnetInstallServiceCommand(app)
 	vnetUninstallServiceCommand := newVnetUninstallServiceCommand(app)
 
+	connectUpdater := app.Command("connect-updater", "Teleport Connect updater commands.").Hidden()
+	connectUpdaterServiceCommand := newConnectUpdaterServiceRunCommand(connectUpdater)
+	connectUpdaterServiceInstallCommand := newConnectUpdaterServiceInstallCommand(connectUpdater)
+	connectUpdaterServiceUninstallCommand := newConnectUpdaterServiceUninstallCommand(connectUpdater)
+	connectUpdaterServiceInstallUpdateCommand := newConnectUpdaterServiceInstallUpdateCommand(connectUpdater)
+
 	gitCmd := newGitCommands(app)
+	beamsCmd := newBeamsCommands(app)
 	pivCmd := newPIVCommands(app)
 	mcpCmd := newMCPCommands(app, &cf)
 
@@ -1881,6 +1922,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onDatabaseExec(&cf)
 	case environment.FullCommand():
 		err = onEnvironment(&cf)
+	case delegationCreateSession.FullCommand():
+		err = onDelegationCreateSession(&cf)
 	case mfa.ls.FullCommand():
 		err = mfa.ls.run(&cf)
 	case mfa.add.FullCommand():
@@ -1946,6 +1989,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = svidCmd.issue.run(&cf)
 	case workloadIdentityCmd.issueX509.FullCommand():
 		err = workloadIdentityCmd.issueX509.run(&cf)
+	case workloadIdentityCmd.issueJWT.FullCommand():
+		err = workloadIdentityCmd.issueJWT.run(&cf)
 	case vnetCommand.FullCommand():
 		err = vnetCommand.run(&cf)
 	case vnetSSHAutoConfigCommand.FullCommand():
@@ -1958,6 +2003,14 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = vnetServiceCommand.run(&cf)
 	case vnetInstallServiceCommand.FullCommand():
 		err = vnetInstallServiceCommand.run(&cf)
+	case connectUpdaterServiceInstallCommand.FullCommand():
+		err = connectUpdaterServiceInstallCommand.run(&cf)
+	case connectUpdaterServiceUninstallCommand.FullCommand():
+		err = connectUpdaterServiceUninstallCommand.run(&cf)
+	case connectUpdaterServiceCommand.FullCommand():
+		err = connectUpdaterServiceCommand.run(&cf)
+	case connectUpdaterServiceInstallUpdateCommand.FullCommand():
+		err = connectUpdaterServiceInstallUpdateCommand.run(&cf)
 	case vnetUninstallServiceCommand.FullCommand():
 		err = vnetUninstallServiceCommand.run(&cf)
 	case gitCmd.list.FullCommand():
@@ -1970,6 +2023,22 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = gitCmd.config.run(&cf)
 	case gitCmd.clone.FullCommand():
 		err = gitCmd.clone.run(&cf)
+	case beamsCmd.ls.FullCommand():
+		err = beamsCmd.ls.run(&cf)
+	case beamsCmd.add.FullCommand():
+		err = beamsCmd.add.run(&cf)
+	case beamsCmd.rm.FullCommand():
+		err = beamsCmd.rm.run(&cf)
+	case beamsCmd.ssh.FullCommand():
+		err = beamsCmd.ssh.run(&cf)
+	case beamsCmd.exec.FullCommand():
+		err = beamsCmd.exec.run(&cf)
+	case beamsCmd.publish.FullCommand():
+		err = beamsCmd.publish.run(&cf)
+	case beamsCmd.unpublish.FullCommand():
+		err = beamsCmd.unpublish.run(&cf)
+	case beamsCmd.scp.FullCommand():
+		err = beamsCmd.scp.run(&cf)
 	case pivCmd.agent.FullCommand():
 		err = pivCmd.agent.run(&cf)
 	case updateCommand.update.FullCommand():
@@ -4390,7 +4459,7 @@ func onResolve(cf *CLIConf) error {
 	// on the hostname of the server. Otherwise, this would end up listing
 	// the first two servers that the user has access to and yield unexpected results.
 	if len(tc.Labels) == 0 && len(tc.SearchKeywords) == 0 && tc.PredicateExpression == "" {
-		req.PredicateExpression = fmt.Sprintf(`name == "%s"`, tc.Host)
+		req.PredicateExpression = fmt.Sprintf(`name == %q`, tc.Host)
 	}
 
 	// Only enable the re-authentication behavior if not invoked with `-q`. When
@@ -4974,7 +5043,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	// If the client store was initialized for the identity file, but the wrong (or missing)
 	// proxy address, re-load the identity file for the provided proxy address.
 	if cf.IdentityFileIn != "" && cf.Proxy != proxy {
-		if err = identityfile.LoadIdentityFileIntoClientStore(c.ClientStore, cf.IdentityFileIn, proxy, c.SiteName); err == nil {
+		if err = identityfile.LoadIdentityFileIntoClientStore(c.ClientStore, cf.IdentityFileIn, proxy, c.SiteName, identityfile.WithHardwareKeyService(c.ClientStore.HardwareKeyService)); err == nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -5075,6 +5144,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	c.AuthenticatorAttachment = mfaOpts.AuthenticatorAttachment
 	c.PreferOTP = mfaOpts.PreferOTP
 	c.PreferSSO = mfaOpts.PreferSSO
+	c.PreferBrowser = mfaOpts.PreferBrowser
 
 	// If agent forwarding was specified on the command line enable it.
 	c.ForwardAgent = options.ForwardAgent
@@ -5235,7 +5305,7 @@ func (c *CLIConf) initClientStore() {
 	// fail if the user did not provide the --proxy flag, but in some cases the proxy, the proxy
 	// address will be provided later on and the client will attempt to load the identity file then.
 	if c.IdentityFileIn != "" {
-		if err := identityfile.LoadIdentityFileIntoClientStore(c.clientStore, c.IdentityFileIn, c.Proxy, c.SiteName); err == nil {
+		if err := identityfile.LoadIdentityFileIntoClientStore(c.clientStore, c.IdentityFileIn, c.Proxy, c.SiteName, identityfile.WithHardwareKeyService(hwks)); err == nil {
 			logger.DebugContext(c.Context, "failed to load identity file into client store", "err", err)
 		}
 	}
@@ -5297,6 +5367,7 @@ type mfaModeOpts struct {
 	AuthenticatorAttachment wancli.AuthenticatorAttachment
 	PreferOTP               bool
 	PreferSSO               bool
+	PreferBrowser           bool
 }
 
 func parseMFAMode(mode string) (*mfaModeOpts, error) {
@@ -5311,6 +5382,8 @@ func parseMFAMode(mode string) (*mfaModeOpts, error) {
 		opts.PreferOTP = true
 	case mfaModeSSO:
 		opts.PreferSSO = true
+	case mfaModeBrowser:
+		opts.PreferBrowser = true
 	default:
 		return nil, fmt.Errorf("invalid MFA mode: %q", mode)
 	}
@@ -5427,14 +5500,19 @@ func flattenIdentity(cf *CLIConf) error {
 	// Usually, initializing the client store with an identity file would result in
 	// an in-memory client store with a profile for cf.Proxy pre-loaded. Instead,
 	// initialize an FS client store and load the identity file into it.
-	hwks := piv.NewYubiKeyService(nil /*prompt*/)
+	var hwks hardwarekey.Service
+	if cf.disableHardwareKeyAgentClient {
+		hwks = piv.NewYubiKeyService(nil /*prompt*/)
+	} else {
+		hwks = libhwk.NewService(cf.Context, nil /*prompt*/)
+	}
 	clientStore := client.NewFSClientStore(cf.HomePath, client.WithHardwareKeyService(hwks))
 	if err := cf.setClientStore(clientStore); err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Load the identity file key and partial profile into the client store.
-	if err := identityfile.LoadIdentityFileIntoClientStore(clientStore, cf.IdentityFileIn, cf.Proxy, cf.SiteName); err != nil {
+	if err := identityfile.LoadIdentityFileIntoClientStore(clientStore, cf.IdentityFileIn, cf.Proxy, cf.SiteName, identityfile.WithHardwareKeyService(hwks)); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -5569,6 +5647,10 @@ func printStatus(w io.Writer, debug bool, p *profileInfo, env map[string]string,
 	}
 	fmt.Fprintf(w, "  Valid until:        %v [%v]\n", p.ValidUntil, humanFriendlyValidUntilDuration(p.ValidUntil, clock))
 	fmt.Fprintf(w, "  Extensions:         %v\n", strings.Join(p.Extensions, ", "))
+
+	if p.DelegationSessionID != "" {
+		fmt.Fprintf(w, "  Delegation session: %s\n", p.DelegationSessionID)
+	}
 
 	if debug {
 		first := true
@@ -5736,6 +5818,7 @@ type profileInfo struct {
 	CriticalOptions          map[string]string        `json:"critical_options,omitempty"`
 	AllowedResourceAccessIDs []types.ResourceAccessID `json:"allowed_resources,omitempty"`
 	GitHubIdentity           *client.GitHubIdentity   `json:"github_identity,omitempty"`
+	DelegationSessionID      string                   `json:"delegation_session_id,omitempty"`
 }
 
 func makeAllProfileInfo(active *client.ProfileStatus, others []*client.ProfileStatus, env map[string]string) (*profileInfo, []*profileInfo) {
@@ -5789,6 +5872,7 @@ func makeProfileInfo(p *client.ProfileStatus, env map[string]string, isActive bo
 		CriticalOptions:          p.CriticalOptions,
 		AllowedResourceAccessIDs: p.AllowedResourceAccessIDs,
 		GitHubIdentity:           p.GitHubIdentity,
+		DelegationSessionID:      p.DelegationSessionID,
 	}
 
 	// update active profile info from env

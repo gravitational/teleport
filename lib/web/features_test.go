@@ -42,26 +42,26 @@ type mockedFeatureGetter struct {
 	authclient.ClientI
 
 	mu       sync.Mutex
-	features proto.Features
+	features *proto.Features
 }
 
 func (m *mockedFeatureGetter) Ping(ctx context.Context) (proto.PingResponse, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return proto.PingResponse{
-		ServerFeatures: utils.CloneProtoMsg(&m.features),
+		ServerFeatures: utils.CloneProtoMsg(m.features),
 	}, nil
 }
 
 func (m *mockedFeatureGetter) setFeatures(f proto.Features) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.features = f
+	m.features = &f
 }
 
 func TestFeaturesWatcher(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		mockClient := &mockedFeatureGetter{features: proto.Features{
+		mockClient := &mockedFeatureGetter{features: &proto.Features{
 			Kubernetes:     true,
 			Entitlements:   map[string]*proto.EntitlementInfo{},
 			AccessRequests: &proto.AccessRequestsFeature{},
@@ -73,14 +73,13 @@ func TestFeaturesWatcher(t *testing.T) {
 			cfg: Config{
 				FeatureWatchInterval: 100 * time.Millisecond,
 				ProxyClient:          mockClient,
-				Context:              ctx,
 			},
 			clock:           clockwork.NewRealClock(),
 			clusterFeatures: proto.Features{},
 			logger:          slog.Default().With(teleport.ComponentKey, teleport.ComponentWeb),
 		}
 
-		go handler.startFeatureWatcher()
+		go handler.startFeatureWatcher(ctx)
 		synctest.Wait()
 
 		// before running the watcher, features should match the value passed to the handler
@@ -166,5 +165,40 @@ func TestFeaturesWatcher(t *testing.T) {
 
 		// assert the handler never get these last features as the watcher is stopped
 		require.NotEqual(t, *notExpected, handler.GetClusterFeatures())
+	})
+}
+
+func TestFeaturesWatcherDoesNotPanicOnNilFeatures(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		initialFeatures := proto.Features{
+			Entitlements: map[string]*proto.EntitlementInfo{
+				string(entitlements.App): {Enabled: true},
+			},
+		}
+
+		handler := &Handler{
+			cfg: Config{
+				FeatureWatchInterval: time.Nanosecond,
+				ProxyClient: &mockedFeatureGetter{
+					features: nil, // Simulate auth server returning nil features.
+				},
+			},
+			clock:           clockwork.NewRealClock(),
+			clusterFeatures: initialFeatures,
+			logger:          slog.Default().With(teleport.ComponentKey, teleport.ComponentWeb),
+		}
+
+		go handler.startFeatureWatcher(t.Context())
+		synctest.Wait()
+
+		time.Sleep(handler.cfg.FeatureWatchInterval)
+		synctest.Wait()
+
+		require.Equal(
+			t,
+			initialFeatures,
+			handler.clusterFeatures,
+			"Cluster features must remain unchanged when auth server returns nil features",
+		)
 	})
 }

@@ -13,7 +13,7 @@ databases (or update/unregister existing ones) without having to update the
 static configuration and restart Teleport Database Service instances. 
 
 Dynamic registration also enables administrators to deploy multiple Database
-Service instances for [high availability](../../agents/high-availability.mdx) by
+Service instances for [high availability](../../../installation/agents/high-availability.mdx) by
 configuring Database Service replicas to watch for the same database resources.
 
 To enable dynamic registration, include a `resources` section in your Teleport
@@ -133,10 +133,10 @@ $ tctl rm db/example
 
 Aside from `tctl`, dynamic resources can also be added by:
 - [Auto-Discovery](../../auto-discovery/databases/databases.mdx)
-- [Terraform Provider](../../../zero-trust-access/infrastructure-as-code/terraform-provider/terraform-provider.mdx)
-- [Kubernetes Operator](../../../zero-trust-access/infrastructure-as-code/teleport-operator/teleport-operator.mdx)
+- [Terraform Provider](../../../configuration/terraform-provider/terraform-provider.mdx)
+- [Kubernetes Operator](../../../configuration/teleport-operator/teleport-operator.mdx)
 - [Teleport API](../../../zero-trust-access/api/api.mdx)
 
-See [Using Dynamic Resources](../../../zero-trust-access/infrastructure-as-code/infrastructure-as-code.mdx) to learn
+See [Using Dynamic Resources](../../../configuration/configuration.mdx) to learn
 more about managing Teleport's dynamic resources in general.
 

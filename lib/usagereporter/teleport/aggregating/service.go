@@ -42,6 +42,7 @@ const (
 	botInstanceActivityReportsPrefix                = "botInstanceActivityReports"
 	userActivityReportsPrefix                       = "userActivityReports"
 	identitySecuritySummariesGeneratedReportsPrefix = "identitySecuritySummariesGeneratedReports"
+	identitySecurityReportsPrefix                   = "identitySecurityReports"
 	// usageReportingLock is a lock that should be held when submitting usage
 	// reports to the upstream service. Whilst the underlying key refers
 	// specifically to "userActivityReports", this is inaccurate.
@@ -235,6 +236,62 @@ func prepareIdentitySecuritySummariesGeneratedReports(
 		}
 
 		records = records[len(report.Records):]
+		reports = append(reports, report)
+	}
+
+	return reports, nil
+}
+
+// identitySecurityReportKey returns the backend key for an identity security report with
+// a given UUID and start time, such that reports with an earlier start time
+// will appear earlier in lexicographic ordering.
+func identitySecurityReportKey(reportUUID uuid.UUID, startTime time.Time) backend.Key {
+	return backend.NewKey(identitySecurityReportsPrefix, startTime.Format(time.RFC3339), reportUUID.String())
+}
+
+func prepareIdentitySecurityReports(
+	clusterName, reporterHostID []byte, startTime time.Time,
+	graphSizeRecords []*prehogv1.IdentitySecurityGraphSize,
+	logsIngestedRecords []*prehogv1.IdentitySecurityAuditLogsIngested,
+) ([]*prehogv1.IdentitySecurityReport, error) {
+
+	var reports []*prehogv1.IdentitySecurityReport
+
+	newReport := func() *prehogv1.IdentitySecurityReport {
+		reportUUID := uuid.New()
+		return &prehogv1.IdentitySecurityReport{
+			ReportUuid:     reportUUID[:],
+			ClusterName:    clusterName,
+			ReporterHostid: reporterHostID,
+			StartTime:      timestamppb.New(startTime),
+		}
+	}
+
+	for len(graphSizeRecords) > 0 {
+		report := newReport()
+		report.GraphSizeRecords = graphSizeRecords
+		for proto.Size(report) > maxItemSize {
+			if len(report.GraphSizeRecords) <= 1 {
+				return nil, trace.LimitExceeded("failed to marshal identity security report within size limit (this is a bug)")
+			}
+
+			report.GraphSizeRecords = report.GraphSizeRecords[:len(report.GraphSizeRecords)/2]
+		}
+		graphSizeRecords = graphSizeRecords[len(report.GraphSizeRecords):]
+		reports = append(reports, report)
+	}
+
+	for len(logsIngestedRecords) > 0 {
+		report := newReport()
+		report.AuditLogRecords = logsIngestedRecords
+		for proto.Size(report) > maxItemSize {
+			if len(report.AuditLogRecords) <= 1 {
+				return nil, trace.LimitExceeded("failed to marshal identity security report within size limit (this is a bug)")
+			}
+
+			report.AuditLogRecords = report.AuditLogRecords[:len(report.AuditLogRecords)/2]
+		}
+		logsIngestedRecords = logsIngestedRecords[len(report.AuditLogRecords):]
 		reports = append(reports, report)
 	}
 
@@ -543,6 +600,76 @@ func (r reportService) listIdentitySecuritySummariesGeneratedReports(
 	reports := make([]*prehogv1.IdentitySecuritySummariesGeneratedReport, 0, len(result.Items))
 	for _, item := range result.Items {
 		report := &prehogv1.IdentitySecuritySummariesGeneratedReport{}
+		if err := proto.Unmarshal(item.Value, report); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		reports = append(reports, report)
+	}
+
+	return reports, nil
+}
+
+func (r reportService) upsertIdentitySecurityReport(
+	ctx context.Context, report *prehogv1.IdentitySecurityReport, ttl time.Duration,
+) error {
+	marshaledReport, err := proto.Marshal(report)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	reportUUID, err := uuid.FromBytes(report.GetReportUuid())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	startTime := report.GetStartTime().AsTime()
+	if startTime.IsZero() {
+		return trace.BadParameter("missing start_time")
+	}
+
+	if _, err := r.b.Put(ctx, backend.Item{
+		Key:     identitySecurityReportKey(reportUUID, startTime),
+		Value:   marshaledReport,
+		Expires: startTime.Add(ttl),
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func (r reportService) deleteIdentitySecurityReport(
+	ctx context.Context, report *prehogv1.IdentitySecurityReport,
+) error {
+	reportUUID, err := uuid.FromBytes(report.GetReportUuid())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	startTime := report.GetStartTime().AsTime()
+	if startTime.IsZero() {
+		return trace.BadParameter("missing start_time")
+	}
+
+	if err := r.b.Delete(ctx, identitySecurityReportKey(reportUUID, startTime)); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func (r reportService) listIdentitySecurityReports(
+	ctx context.Context, count int,
+) ([]*prehogv1.IdentitySecurityReport, error) {
+	rangeStart := backend.ExactKey(identitySecurityReportsPrefix)
+	result, err := r.b.GetRange(ctx, rangeStart, backend.RangeEnd(rangeStart), count)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	reports := make([]*prehogv1.IdentitySecurityReport, 0, len(result.Items))
+	for _, item := range result.Items {
+		report := &prehogv1.IdentitySecurityReport{}
 		if err := proto.Unmarshal(item.Value, report); err != nil {
 			return nil, trace.Wrap(err)
 		}

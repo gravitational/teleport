@@ -39,7 +39,7 @@ import (
 // another service (e.g. the SPIFFE Workload API service) use NewSidecar instead.
 func ServiceBuilder(cfg *UnstableConfig, credentialLifetime bot.CredentialLifetime) bot.ServiceBuilder {
 	buildFn := func(deps bot.ServiceDependencies) (bot.Service, error) {
-		if err := cfg.CheckAndSetDefaults(); err != nil {
+		if err := cfg.CheckAndSetDefaults(deps.Scoped); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		svc := &Service{
@@ -123,10 +123,14 @@ func (s *Service) generate(ctx context.Context) error {
 	defer span.End()
 	s.log.InfoContext(ctx, "Generating output")
 
-	id, err := s.identityGenerator.Generate(ctx,
+	opts := []identity.GenerateOption{
 		identity.WithLifetime(s.credentialLifetime.TTL, s.credentialLifetime.RenewalInterval),
 		identity.WithLogger(s.log),
-	)
+	}
+	if s.cfg.DelegationSessionID != "" {
+		opts = append(opts, identity.WithDelegation(s.cfg.DelegationSessionID))
+	}
+	id, err := s.identityGenerator.Generate(ctx, opts...)
 	if err != nil {
 		return trace.Wrap(err, "generating identity")
 	}

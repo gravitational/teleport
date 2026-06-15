@@ -135,7 +135,8 @@ func TestTLSIdentity_roundtrip(t *testing.T) {
 			AssetTag:     "asset-tag",
 			CredentialId: "credential-id",
 		},
-		UserType: "user-type",
+		UserType:            "user-type",
+		DelegationSessionId: "delegation-session",
 	}
 
 	tests := []struct {

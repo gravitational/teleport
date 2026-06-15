@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
+	tctlmfa "github.com/gravitational/teleport/tool/tctl/common/mfa"
 )
 
 // InitFunc initiates connection to auth service, makes ping request and return the client instance.
@@ -98,13 +99,20 @@ func GetInitFunc(ccf tctlcfg.GlobalCLIFlags, cfg *servicecfg.Config) InitFunc {
 			return nil, nil, trace.NewAggregate(err, client.Close())
 		}
 		proxyAddr := resp.ProxyPublicAddr
+		mfaOpts, err := tctlmfa.ParseMFAMode(ccf.MFAMode)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
 		client.SetMFAPromptConstructor(func(opts ...mfa.PromptOpt) mfa.Prompt {
 			promptCfg := libmfa.NewPromptConfig(proxyAddr, opts...)
+			promptCfg.AuthenticatorAttachment = mfaOpts.AuthenticatorAttachment
 			return libmfa.NewCLIPrompt(&libmfa.CLIPromptConfig{
-				PromptConfig: *promptCfg,
+				PromptConfig:  *promptCfg,
+				PreferSSO:     mfaOpts.PreferSSO,
+				PreferBrowser: mfaOpts.PreferBrowser,
 			})
 		})
-		client.SetSSOMFACeremonyConstructor(func(ctx context.Context) (mfa.SSOMFACeremony, error) {
+		client.SetMFACeremonyConstructor(func(ctx context.Context) (mfa.CallbackCeremony, error) {
 			rdConfig := sso.RedirectorConfig{
 				ProxyAddr: proxyAddr,
 			}

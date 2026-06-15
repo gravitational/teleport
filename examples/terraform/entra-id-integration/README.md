@@ -15,7 +15,7 @@ Entra ID configuration involves:
 
   In both the cases, you will need to configure three API permissions: `Application.ReadWrite.OwnedBy, Group.Read.All, User.Read.All`.
 
-This example is best followed with the official [Teleport Entra ID integration](https://goteleport.com/docs/identity-governance/entra-id/terraform) guide. 
+This example is best followed with the official [Teleport Entra ID integration](https://goteleport.com/docs/identity-governance/integrations/entra-id/setup/terraform/) guide. 
 
 ### Set up Azure CLI
 

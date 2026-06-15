@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/sftputils"
 )
 
 type FileTransferProgressSender = func(progress *api.FileTransferProgress) error
@@ -81,7 +82,7 @@ func (c *Cluster) TransferFile(ctx context.Context, clt *client.ClusterClient, r
 
 	err := AddMetadataToRetryableError(ctx, func() error {
 		err := c.clusterClient.TransferFiles(ctx, sftpReq)
-		if errors.As(err, new(*sftp.NonRecursiveDirectoryTransferError)) {
+		if errors.As(err, new(*sftputils.NonRecursiveDirectoryTransferError)) {
 			return trace.Errorf("transferring directories through Teleport Connect is not supported at the moment, please use tsh scp -r")
 		}
 		return trace.Wrap(err)

@@ -30,7 +30,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"gvisor.dev/gvisor/pkg/tcpip"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -77,6 +77,24 @@ type UpstreamNameserverSource interface {
 	UpstreamNameservers(context.Context) ([]string, error)
 }
 
+type upstreamNameserverSourceFn func(context.Context) ([]string, error)
+
+func (fn upstreamNameserverSourceFn) UpstreamNameservers(ctx context.Context) ([]string, error) {
+	return fn(ctx)
+}
+
+// CachingUpstreamNameserverSource wraps an upstream nameserver source to cache
+// its results until the given TTL.
+func CachingUpstreamNameserverSource(src UpstreamNameserverSource, ttl time.Duration) (UpstreamNameserverSource, error) {
+	cache, err := utils.NewFnCache(utils.FnCacheConfig{TTL: ttl})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return upstreamNameserverSourceFn(func(ctx context.Context) ([]string, error) {
+		return utils.FnCacheGet(ctx, cache, 0, src.UpstreamNameservers)
+	}), nil
+}
+
 // Server is a DNS server.
 type Server struct {
 	resolver                 Resolver
@@ -88,7 +106,7 @@ type Server struct {
 // NewServer returns a DNS server that handles the details of the DNS protocol and asks [resolver] to answer
 // DNS questions. If [resolver] has no answer, requests will be forwarded to the upstream nameservers provided
 // by [upstreamNameserverSource].
-func NewServer(resolver Resolver, upstreamNameserverSource UpstreamNameserverSource) (*Server, error) {
+func NewServer(resolver Resolver, upstreamNameserverSource UpstreamNameserverSource, logger *slog.Logger) (*Server, error) {
 	return &Server{
 		resolver:                 resolver,
 		upstreamNameserverSource: upstreamNameserverSource,
@@ -98,7 +116,7 @@ func NewServer(resolver Resolver, upstreamNameserverSource UpstreamNameserverSou
 				return &buf
 			},
 		},
-		slog: slog.With(teleport.ComponentKey, teleport.Component("vnet", "dns")),
+		slog: logger,
 	}, nil
 }
 

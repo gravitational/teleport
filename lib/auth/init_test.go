@@ -79,6 +79,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/proxy"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 // TestReadIdentity makes parses identity from private key and certificate
@@ -1249,7 +1250,7 @@ func TestPresets(t *testing.T) {
 
 		// EXPECT that createPresets will try to create all expected
 		// non-system roles
-		remainingPresets := toSet(expectedPresetRoles)
+		remainingPresets := set.New(expectedPresetRoles...)
 		roleManager.
 			On("CreateRole", mock.Anything, mock.Anything).
 			Run(func(args mock.Arguments) {
@@ -1305,12 +1306,15 @@ func TestPresets(t *testing.T) {
 			teleport.PresetDeviceEnrollRoleName,
 			teleport.PresetRequireTrustedDeviceRoleName,
 			teleport.SystemOktaRequesterRoleName, // This is treated as a preset
+			teleport.PresetBeamUserRoleName,
+			teleport.PresetBeamAdminRoleName,
 		}, presetRoleNames...)
 
 		enterpriseSystemRoleNames := []string{
 			teleport.SystemAutomaticAccessApprovalRoleName,
 			teleport.SystemOktaAccessRoleName,
 			teleport.SystemIdentityCenterAccessRoleName,
+			teleport.SystemBeamRoleName,
 		}
 
 		enterpriseUsers := []types.User{
@@ -1529,14 +1533,6 @@ func requireSystemResource(t *testing.T, argno int) func(mock.Arguments) {
 		require.Implements(t, (*types.Resource)(nil), argOfInterest)
 		require.True(t, types.IsSystemResource(argOfInterest.(types.Resource)))
 	}
-}
-
-func toSet(items []string) map[string]struct{} {
-	result := make(map[string]struct{})
-	for _, v := range items {
-		result[v] = struct{}{}
-	}
-	return result
 }
 
 func setupConfig(t *testing.T) auth.InitConfig {
@@ -1926,6 +1922,18 @@ spec:
   github:
     allow:
       - repository: gravitational/example`
+	badTokenYAML = `kind: token
+version: v2
+metadata:
+  name: iam-token-without-orgid-but-ous
+  expires: "3000-01-01T00:00:00Z"
+spec:
+  roles: [Node]
+  join_method: iam
+  allow:
+   - aws_account: "123456789012"
+     aws_organizational_units:
+       include: [r-rootid]`
 	roleYAML = `kind: role
 version: v7
 metadata:
@@ -1971,6 +1979,14 @@ spec:
   type: local
 version: v2
 `
+	workloadIdentityYAML = `kind: workload_identity
+version: v1
+metadata:
+  name: example-workload-identity
+spec:
+  spiffe:
+    id: /svc/example
+`
 	botYAML = `kind: bot
 metadata:
   name: my-bot
@@ -1984,10 +2000,12 @@ func TestInit_ApplyOnStartup(t *testing.T) {
 
 	user := resourceFromYAML(t, userYAML).(types.User)
 	token := resourceFromYAML(t, tokenYAML).(types.ProvisionToken)
+	badToken := resourceFromYAML(t, badTokenYAML).(types.ProvisionToken)
 	role := resourceFromYAML(t, roleYAML).(types.Role)
 	lock := resourceFromYAML(t, lockYAML).(types.Lock)
 	clusterNetworkingConfig := resourceFromYAML(t, clusterNetworkingConfYAML).(types.ClusterNetworkingConfig)
 	authPref := resourceFromYAML(t, authPrefYAML).(types.AuthPreference)
+	workloadIdentity := resourceFromYAML(t, workloadIdentityYAML)
 	bot := resourceFromYAML(t, botYAML)
 
 	tests := []struct {
@@ -2002,6 +2020,13 @@ func TestInit_ApplyOnStartup(t *testing.T) {
 				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, user)
 				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, role)
 				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, token)
+			},
+			assertError: require.Error,
+		},
+		{
+			name: "Apply invalid provision token",
+			modifyConfig: func(cfg *auth.InitConfig) {
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, badToken)
 			},
 			assertError: require.Error,
 		},
@@ -2054,6 +2079,13 @@ func TestInit_ApplyOnStartup(t *testing.T) {
 			name: "Apply AuthPreference",
 			modifyConfig: func(cfg *auth.InitConfig) {
 				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, authPref)
+			},
+			assertError: require.NoError,
+		},
+		{
+			name: "Apply WorkloadIdentity",
+			modifyConfig: func(cfg *auth.InitConfig) {
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, workloadIdentity)
 			},
 			assertError: require.NoError,
 		},
@@ -2648,6 +2680,34 @@ version: v1`
 			version, err := auth.GetAutoUpdateVersion(ctx)
 			assert.NoError(t, err)
 			assert.Equal(t, "1.2.3", version.GetSpec().GetTools().GetTargetVersion())
+		})
+	}
+}
+
+func TestInitWithWorkloadIdentityResources(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	resources := []types.Resource{
+		resourceFromYAML(t, workloadIdentityYAML),
+	}
+
+	for _, test := range []struct {
+		name string
+		fn   func(cfg *auth.InitConfig)
+	}{
+		{name: "bootstrap", fn: func(cfg *auth.InitConfig) { cfg.BootstrapResources = resources }},
+		{name: "apply", fn: func(cfg *auth.InitConfig) { cfg.ApplyOnStartupResources = resources }},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := setupConfig(t)
+			test.fn(&cfg)
+			auth, err := auth.Init(ctx, cfg)
+			require.NoError(t, err)
+
+			workloadIdentity, err := auth.GetWorkloadIdentity(ctx, "example-workload-identity")
+			require.NoError(t, err)
+			require.Equal(t, "/svc/example", workloadIdentity.GetSpec().GetSpiffe().GetId())
 		})
 	}
 }

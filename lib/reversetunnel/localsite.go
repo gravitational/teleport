@@ -186,6 +186,11 @@ func (s *localSite) NodeWatcher() (*services.GenericWatcher[types.Server, readon
 	return s.srv.NodeWatcher, nil
 }
 
+// AppServerWatcher returns the watcher that maintains the app server set for the cluster
+func (s *localSite) AppServerWatcher() (*services.GenericWatcher[types.AppServer, readonly.AppServer], error) {
+	return s.srv.AppServerWatcher, nil
+}
+
 // GitServerWatcher returns a Git server watcher for this cluster.
 func (s *localSite) GitServerWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error) {
 	return s.srv.GitServerWatcher, nil
@@ -898,6 +903,9 @@ func (s *localSite) handleHeartbeat(ctx context.Context, rconn *remoteConn, ch s
 
 			rconn.setLastHeartbeat(s.clock.Now().UTC())
 			rconn.markValid()
+			if err := req.Reply(true, nil); err != nil {
+				log.DebugContext(ctx, "Failed to respond to ping request", "remote_addr", logutils.StringerAttr(rconn.conn.RemoteAddr()), "error", err)
+			}
 		case t := <-offlineThresholdTimer.Chan():
 			rconn.markInvalid(trace.ConnectionProblem(nil, "no heartbeats for %v", s.offlineThreshold))
 
@@ -926,6 +934,7 @@ func (s *localSite) removeRemoteConn(rconn *remoteConn) {
 	key := connKey{
 		uuid:     rconn.nodeID,
 		connType: types.TunnelType(rconn.tunnelType),
+		scope:    scopes.NormalizeForEquality(rconn.scope),
 	}
 
 	conns := s.remoteConns[key]

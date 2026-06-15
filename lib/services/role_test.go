@@ -41,6 +41,8 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -949,6 +951,9 @@ func TestValidateRole(t *testing.T) {
 					ClusterLabels: types.Labels{
 						"owner": {"{{email.localz(external.email)}}"},
 					},
+					BeamLabels: types.Labels{
+						"owner": {"{{email.localz(external.email)}}"},
+					},
 				},
 				Deny: types.RoleConditions{
 					Logins: []string{"test"},
@@ -970,6 +975,9 @@ func TestValidateRole(t *testing.T) {
 					ClusterLabels: types.Labels{
 						"owner": {"{{email.localz(external.email)}}"},
 					},
+					BeamLabels: types.Labels{
+						"owner": {"{{email.localz(external.email)}}"},
+					},
 				},
 			},
 			expectWarnings: []string{
@@ -979,12 +987,14 @@ func TestValidateRole(t *testing.T) {
 				"parsing allow.db_labels template expression",
 				"parsing allow.windows_desktop_labels template expression",
 				"parsing allow.cluster_labels template expression",
+				"parsing allow.beam_labels template expression",
 				"parsing deny.node_labels template expression",
 				"parsing deny.app_labels template expression",
 				"parsing deny.kubernetes_labels template expression",
 				"parsing deny.db_labels template expression",
 				"parsing deny.windows_desktop_labels template expression",
 				"parsing deny.cluster_labels template expression",
+				"parsing deny.beam_labels template expression",
 				"unsupported function: email.localz",
 			},
 		},
@@ -1000,6 +1010,7 @@ func TestValidateRole(t *testing.T) {
 					DatabaseServiceLabelsExpression: `containz(labels["env"], "staging")`,
 					WindowsDesktopLabelsExpression:  `containz(labels["env"], "staging")`,
 					GroupLabelsExpression:           `containz(labels["env"], "staging")`,
+					BeamLabelsExpression:            `containz(labels["env"], "staging")`,
 				},
 				Deny: types.RoleConditions{
 					ClusterLabelsExpression:         `containz(labels["env"], "staging")`,
@@ -1010,6 +1021,7 @@ func TestValidateRole(t *testing.T) {
 					DatabaseServiceLabelsExpression: `containz(labels["env"], "staging")`,
 					WindowsDesktopLabelsExpression:  `containz(labels["env"], "staging")`,
 					GroupLabelsExpression:           `containz(labels["env"], "staging")`,
+					BeamLabelsExpression:            `containz(labels["env"], "staging")`,
 				},
 			},
 			expectWarnings: []string{
@@ -1019,12 +1031,14 @@ func TestValidateRole(t *testing.T) {
 				"parsing allow.db_labels_expression",
 				"parsing allow.windows_desktop_labels_expression",
 				"parsing allow.cluster_labels_expression",
+				"parsing allow.beam_labels_expression",
 				"parsing deny.node_labels_expression",
 				"parsing deny.app_labels_expression",
 				"parsing deny.kubernetes_labels_expression",
 				"parsing deny.db_labels_expression",
 				"parsing deny.windows_desktop_labels_expression",
 				"parsing deny.cluster_labels_expression",
+				"parsing deny.beam_labels_expression",
 				"unsupported function: containz",
 			},
 		},
@@ -1204,6 +1218,7 @@ func BenchmarkValidateRole(b *testing.B) {
 			DatabaseLabels:       types.Labels{"env": {`{{regexp.replace(external["allow-envs"], "^env-(.*)$", "$1")}}`}},
 			WindowsDesktopLabels: types.Labels{"env": {`{{regexp.replace(external["allow-envs"], "^env-(.*)$", "$1")}}`}},
 			ClusterLabels:        types.Labels{"env": {`{{regexp.replace(external["allow-envs"], "^env-(.*)$", "$1")}}`}},
+			BeamLabels:           types.Labels{"env": {`{{regexp.replace(external["allow-envs"], "^env-(.*)$", "$1")}}`}},
 			Rules: []types.Rule{
 				{
 					Resources: []string{types.KindRole},
@@ -1222,6 +1237,88 @@ func BenchmarkValidateRole(b *testing.B) {
 
 	for b.Loop() {
 		require.NoError(b, ValidateRole(role))
+	}
+}
+
+func TestUnmarshalRole(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                string
+		json                string
+		disallowUnknown     bool
+		expectErrorContains string
+	}{
+		{
+			name: "valid role accepted with DisallowUnknown",
+			json: `{
+				"kind": "role",
+				"version": "v6",
+				"metadata": {"name": "test"},
+				"spec": {
+					"allow": {
+						"kubernetes_groups": ["system:masters"]
+					}
+				}
+			}`,
+			disallowUnknown: true,
+		},
+		{
+			name: "unknown field rejected with DisallowUnknown",
+			json: `{
+				"kind": "role",
+				"version": "v6",
+				"metadata": {"name": "test"},
+				"spec": {
+					"allow": {
+						"kubernetes_group": ["system:masters"]
+					}
+				}
+			}`,
+			disallowUnknown:     true,
+			expectErrorContains: "kubernetes_group",
+		},
+		{
+			name: "valid role accepted without DisallowUnknown",
+			json: `{
+				"kind": "role",
+				"version": "v6",
+				"metadata": {"name": "test"},
+				"spec": {
+					"allow": {
+						"kubernetes_groups": ["system:masters"]
+					}
+				}
+			}`,
+		},
+		{
+			name: "unknown field silently accepted without DisallowUnknown",
+			json: `{
+				"kind": "role",
+				"version": "v6",
+				"metadata": {"name": "test"},
+				"spec": {
+					"allow": {
+						"kubernetes_group": ["system:masters"]
+					}
+				}
+			}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var opts []MarshalOption
+			if tt.disallowUnknown {
+				opts = append(opts, DisallowUnknown())
+			}
+			_, err := UnmarshalRole([]byte(tt.json), opts...)
+			if tt.expectErrorContains != "" {
+				require.ErrorContains(t, err, tt.expectErrorContains)
+			} else {
+				require.NoError(t, err)
+			}
+		})
 	}
 }
 
@@ -3001,6 +3098,8 @@ func TestApplyTraits(t *testing.T) {
 		outGitHubPermissions    []types.GitHubPermission
 		inMCPPermissions        *types.MCPPermissions
 		outMCPPermissions       *types.MCPPermissions
+		inBeamLabels            types.Labels
+		outBeamLabels           types.Labels
 	}
 	tests := []struct {
 		comment  string
@@ -3825,6 +3924,29 @@ func TestApplyTraits(t *testing.T) {
 				},
 			},
 		},
+		{
+			comment: "Beam labels in allow and deny rules",
+			inTraits: map[string][]string{
+				"foo": {"bar"},
+				"baz": {"qux"},
+			},
+			allow: rule{
+				inBeamLabels: types.Labels{
+					"label1": {"{{external.foo}}"},
+				},
+				outBeamLabels: types.Labels{
+					"label1": {"bar"},
+				},
+			},
+			deny: rule{
+				inBeamLabels: types.Labels{
+					"label2": {"{{external.baz}}"},
+				},
+				outBeamLabels: types.Labels{
+					"label2": {"qux"},
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.comment, func(t *testing.T) {
@@ -3858,6 +3980,7 @@ func TestApplyTraits(t *testing.T) {
 						KubernetesResources:  tt.allow.inKubeResources,
 						GitHubPermissions:    tt.allow.inGitHubPermissions,
 						MCP:                  tt.allow.inMCPPermissions,
+						BeamLabels:           tt.allow.inBeamLabels,
 					},
 					Deny: types.RoleConditions{
 						Logins:               tt.deny.inLogins,
@@ -3881,6 +4004,7 @@ func TestApplyTraits(t *testing.T) {
 						KubernetesResources:  tt.deny.inKubeResources,
 						GitHubPermissions:    tt.deny.inGitHubPermissions,
 						MCP:                  tt.deny.inMCPPermissions,
+						BeamLabels:           tt.deny.inBeamLabels,
 					},
 				},
 			}
@@ -3915,9 +4039,27 @@ func TestApplyTraits(t *testing.T) {
 				require.Equal(t, rule.spec.outSudoers, outRole.GetHostSudoers(rule.condition))
 				require.Equal(t, rule.spec.outKubeResources, outRole.GetRoleConditions(rule.condition).KubernetesResources)
 				require.Equal(t, rule.spec.outGitHubPermissions, outRole.GetRoleConditions(rule.condition).GitHubPermissions)
+				require.Equal(t, rule.spec.outBeamLabels, outRole.GetRoleConditions(rule.condition).BeamLabels)
 			}
 		})
 	}
+}
+
+func TestFetchRolesForUser_ExpandsUserMetadataName(t *testing.T) {
+	role := newRole(func(r *types.RoleV6) {
+		r.Metadata.Name = "dev"
+		r.Spec.Allow.Logins = []string{"{{user.metadata.name}}"}
+	})
+
+	roleSet, err := FetchRolesForUser(mockCurrentUser{
+		roles: []string{"dev"},
+	}, mockCurrentUserRoleGetter{
+		nameToRole: map[string]types.Role{
+			"dev": role,
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, []string{"mockCurrentUser"}, roleSet[0].GetLogins(types.Allow))
 }
 
 // TestExtractFrom makes sure roles and traits are extracted from SSH and TLS
@@ -4041,6 +4183,58 @@ func TestCanCopyFiles(t *testing.T) {
 			}
 
 			require.Equal(t, tt.expect, roles.CanCopyFiles())
+		})
+	}
+}
+
+// TestGetWebTerminalClipboardMode verifies that the RoleSet.GetWebTerminalClipboardMode method calculates the correct clipboard mode from a set of roles.
+func TestGetWebTerminalClipboardMode(t *testing.T) {
+	tests := []struct {
+		name   string
+		values []types.WebTerminalClipboardMode
+		expect types.WebTerminalClipboardMode
+	}{
+		{
+			name:   "unspecified",
+			values: []types.WebTerminalClipboardMode{types.WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNSPECIFIED},
+			expect: types.WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNSPECIFIED,
+		},
+		{
+			name:   "unrestricted",
+			values: []types.WebTerminalClipboardMode{types.WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNRESTRICTED},
+			expect: types.WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNRESTRICTED,
+		},
+		{
+			name:   "no-copy",
+			values: []types.WebTerminalClipboardMode{types.WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_NO_COPY},
+			expect: types.WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_NO_COPY,
+		},
+		{
+			name:   "roles have both unrestricted and no-copy, no-copy takes precedence",
+			values: []types.WebTerminalClipboardMode{types.WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNRESTRICTED, types.WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_NO_COPY},
+			expect: types.WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_NO_COPY,
+		},
+		{
+			name:   "roles have both unspecified and no-copy, no-copy takes precedence",
+			values: []types.WebTerminalClipboardMode{types.WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNSPECIFIED, types.WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_NO_COPY},
+			expect: types.WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_NO_COPY,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var roles RoleSet
+			for _, v := range tt.values {
+				roles = append(roles, &types.RoleV6{
+					Spec: types.RoleSpecV6{
+						Options: types.RoleOptions{
+							WebTerminalClipboardMode: v,
+						},
+					},
+				})
+			}
+
+			require.Equal(t, tt.expect, roles.GetWebTerminalClipboardMode())
 		})
 	}
 }
@@ -4320,7 +4514,7 @@ func TestCheckAccessToDatabase(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, access := range tc.access {
-				err := tc.roles.checkAccess(access.server, wrappers.Traits{}, tc.state,
+				err := tc.roles.checkAccess(access.server, "", wrappers.Traits{}, tc.state,
 					NewDatabaseUserMatcher(access.server, access.dbUser),
 					&DatabaseNameMatcher{Name: access.dbName})
 				if access.access {
@@ -4533,7 +4727,7 @@ func TestCheckAccessToDatabaseUser(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, access := range tc.access {
-				err := tc.roles.checkAccess(access.server, wrappers.Traits{}, AccessState{}, NewDatabaseUserMatcher(access.server, access.dbUser))
+				err := tc.roles.checkAccess(access.server, "", wrappers.Traits{}, AccessState{}, NewDatabaseUserMatcher(access.server, access.dbUser))
 				if access.access {
 					require.NoError(t, err, "access check shouldn't have failed for username %q", access.dbUser)
 				} else {
@@ -5327,7 +5521,7 @@ func TestCheckDatabaseRoles(t *testing.T) {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
-				require.Equal(t, test.outRoles, roles)
+				require.ElementsMatch(t, test.outRoles, roles)
 			}
 
 			allow, deny, err := accessChecker.GetDatabasePermissions(database)
@@ -5653,7 +5847,7 @@ func TestCheckAccessToDatabaseService(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, access := range tc.access {
-				err := tc.roles.checkAccess(access.server, userTraits, AccessState{})
+				err := tc.roles.checkAccess(access.server, "", userTraits, AccessState{})
 				if access.access {
 					require.NoError(t, err)
 				} else {
@@ -5761,6 +5955,7 @@ func TestCheckAccessToAWSConsole(t *testing.T) {
 			for _, access := range test.access {
 				err := test.roles.checkAccess(
 					app,
+					"",
 					wrappers.Traits{},
 					AccessState{},
 					&AWSRoleARNMatcher{RoleARN: access.roleARN})
@@ -5861,7 +6056,7 @@ func TestCheckAccessToAzureCloud(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			for identity, hasAccess := range test.access {
-				err := test.roles.checkAccess(app, wrappers.Traits{}, AccessState{}, &AzureIdentityMatcher{Identity: identity})
+				err := test.roles.checkAccess(app, "", wrappers.Traits{}, AccessState{}, &AzureIdentityMatcher{Identity: identity})
 				if hasAccess {
 					require.NoError(t, err)
 				} else {
@@ -5959,7 +6154,7 @@ func TestCheckAccessToGCP(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			for account, hasAccess := range test.access {
-				err := test.roles.checkAccess(app, wrappers.Traits{}, AccessState{}, &GCPServiceAccountMatcher{ServiceAccount: account})
+				err := test.roles.checkAccess(app, "", wrappers.Traits{}, AccessState{}, &GCPServiceAccountMatcher{ServiceAccount: account})
 				if hasAccess {
 					require.NoError(t, err)
 				} else {
@@ -6346,7 +6541,7 @@ func TestCheckGCPServiceAccounts(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			accounts, err := tt.roles.CheckGCPServiceAccounts(tt.ttl, tt.overrideTTL)
-			require.Equal(t, tt.wantAccounts, accounts)
+			require.ElementsMatch(t, tt.wantAccounts, accounts)
 			tt.wantError(t, err)
 		})
 	}
@@ -7296,7 +7491,7 @@ func TestCheckAccessToWindowsDesktop(t *testing.T) {
 			for i, check := range test.checks {
 				msg := fmt.Sprintf("check=%d, user=%v, server=%v, should_have_access=%v",
 					i, check.login, check.desktop.GetName(), check.hasAccess)
-				err := test.roleSet.checkAccess(check.desktop, wrappers.Traits{}, AccessState{}, NewWindowsLoginMatcher(check.login))
+				err := test.roleSet.checkAccess(check.desktop, "", wrappers.Traits{}, AccessState{}, NewWindowsLoginMatcher(check.login))
 				if check.hasAccess {
 					require.NoError(t, err, msg)
 				} else {
@@ -7403,7 +7598,7 @@ func TestCheckAccessToUserGroups(t *testing.T) {
 			for i, check := range test.checks {
 				msg := fmt.Sprintf("check=%d, userGroup=%v, should_have_access=%v",
 					i, check.userGroup.GetName(), check.hasAccess)
-				err := test.roleSet.checkAccess(check.userGroup, wrappers.Traits{}, AccessState{})
+				err := test.roleSet.checkAccess(check.userGroup, "", wrappers.Traits{}, AccessState{})
 				if check.hasAccess {
 					require.NoError(t, err, msg)
 				} else {
@@ -7495,6 +7690,7 @@ func BenchmarkCheckAccessToServer(b *testing.B) {
 				// is testing the performance of failed RBAC checks
 				_ = set.checkAccess(
 					servers[i],
+					"",
 					userTraits,
 					AccessState{},
 					NewLoginMatcher(login),
@@ -7975,7 +8171,7 @@ func TestCheckKubeGroupsAndUsers(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			matcher := NewKubernetesClusterLabelMatcher(tc.kubeResLabels, userTraits)
+			matcher := NewKubernetesClusterLabelMatcher(tc.kubeResLabels, "alice", userTraits)
 			gotGroups, gotUsers, err := tc.roles.CheckKubeGroupsAndUsers(time.Hour, true, matcher)
 			if tc.errorFunc == nil {
 				require.NoError(t, err)
@@ -8127,6 +8323,17 @@ func TestGetKubeResources(t *testing.T) {
 				}),
 			},
 			clusterLabels: map[string]string{"env": "prod"},
+			expectAllowed: []types.KubernetesResource{podA, podB},
+		},
+		{
+			desc: "labels expression matches username",
+			roles: []types.Role{
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.KubernetesLabelsExpression = `labels["owner"] == user.metadata.name`
+					r.Spec.Allow.KubernetesResources = []types.KubernetesResource{podA, podB}
+				}),
+			},
+			clusterLabels: map[string]string{"owner": "alice"},
 			expectAllowed: []types.KubernetesResource{podA, podB},
 		},
 		{
@@ -8351,7 +8558,7 @@ func TestHostUsers_getGroups(t *testing.T) {
 			accessChecker := makeAccessCheckerWithRoleSet(tc.roles)
 			info, err := accessChecker.HostUsers(tc.server)
 			require.NoError(t, err)
-			require.Equal(t, tc.groups, info.Groups)
+			require.ElementsMatch(t, tc.groups, info.Groups)
 		})
 	}
 }
@@ -9643,6 +9850,13 @@ func TestCheckAccessWithLabelExpressions(t *testing.T) {
 		&types.WindowsDesktopV3{ResourceHeader: types.ResourceHeader{Kind: types.KindWindowsDesktop}},
 		&types.WindowsDesktopServiceV3{ResourceHeader: types.ResourceHeader{Kind: types.KindWindowsDesktopService}},
 		&types.UserGroupV1{ResourceHeader: types.ResourceHeader{Kind: types.KindUserGroup}},
+		types.Resource153ToResourceWithLabels(&beamsv1.Beam{
+			Kind:    types.KindBeam,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Labels: map[string]string{},
+			},
+		}),
 	}
 	for _, r := range resources {
 		r.SetStaticLabels(map[string]string{"env": "prod"})
@@ -9771,6 +9985,21 @@ func TestCheckAccessWithLabelExpressions(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestCheckAccess_WithLabelExpressionUsername(t *testing.T) {
+	t.Parallel()
+
+	role := newRole(func(r *types.RoleV6) {
+		r.Spec.Allow.NodeLabelsExpression = `labels["owner"] == user.metadata.name`
+	})
+
+	server := &types.ServerV2{Kind: types.KindNode}
+	server.SetStaticLabels(map[string]string{"owner": "alice"})
+
+	accessChecker := makeAccessCheckerWithRoleSet(NewRoleSet(role))
+	err := accessChecker.CheckAccess(server, AccessState{})
+	require.NoError(t, err)
 }
 
 func TestCheckSPIFFESVID(t *testing.T) {
@@ -11042,5 +11271,113 @@ func newDatabaseSessionEndEvent() *apievents.DatabaseSessionEnd {
 		},
 		StartTime: startTime,
 		EndTime:   endTime,
+	}
+}
+
+func TestCheckImpersonateRoles(t *testing.T) {
+	t.Parallel()
+	u, err := types.NewUser("myuser")
+	require.NoError(t, err)
+
+	newRole := func(t *testing.T, name string, allow, deny *types.ImpersonateConditions) types.Role {
+		role, err := types.NewRole(name, types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Impersonate: allow,
+			},
+			Deny: types.RoleConditions{
+				Impersonate: deny,
+			},
+		})
+		require.NoError(t, err)
+		return role
+	}
+
+	acceptTests := []struct {
+		name             string
+		roleSet          RoleSet
+		impersonateRoles []types.Role
+	}{
+		{
+			name: "allow rule",
+			roleSet: []types.Role{newRole(t, "myrole", &types.ImpersonateConditions{
+				Roles: []string{"foo"},
+			}, nil)},
+			impersonateRoles: []types.Role{newRole(t, "foo", nil, nil)},
+		},
+		{
+			name: "matching where clause",
+			roleSet: []types.Role{newRole(t, "myrole", &types.ImpersonateConditions{
+				Roles: []string{"*"},
+				Where: `equals(impersonate_role.metadata.name, "foo")`,
+			}, nil)},
+			impersonateRoles: []types.Role{newRole(t, "foo", nil, nil)},
+		},
+	}
+	for _, tc := range acceptTests {
+		t.Run("accept "+tc.name, func(t *testing.T) {
+			require.NoError(t, tc.roleSet.CheckImpersonateRoles(u, tc.impersonateRoles))
+		})
+	}
+	rejectTests := []struct {
+		name             string
+		roleSet          RoleSet
+		impersonateRoles []types.Role
+	}{
+		{
+			name:             "no allow rules",
+			roleSet:          []types.Role{newRole(t, "foo", nil, nil)},
+			impersonateRoles: []types.Role{newRole(t, "bar", nil, nil)},
+		},
+		{
+			name: "deny rule",
+			roleSet: []types.Role{newRole(t, "myrole", &types.ImpersonateConditions{
+				Roles: []string{"*"},
+			}, &types.ImpersonateConditions{
+				Roles: []string{"foo"},
+			})},
+			impersonateRoles: []types.Role{newRole(t, "foo", nil, nil)},
+		},
+		{
+			name: "users in allow rule",
+			roleSet: []types.Role{newRole(t, "myrole", &types.ImpersonateConditions{
+				Users: []string{"*"},
+				Roles: []string{"foo"},
+			}, nil)},
+			impersonateRoles: []types.Role{newRole(t, "foo", nil, nil)},
+		},
+		{
+			name: "users bypassing role check",
+			roleSet: []types.Role{newRole(t, "myrole", &types.ImpersonateConditions{
+				Roles: []string{"*"},
+			}, &types.ImpersonateConditions{
+				Roles: []string{"foo"},
+				Users: []string{"*"},
+			})},
+			impersonateRoles: []types.Role{newRole(t, "foo", nil, nil)},
+		},
+		{
+			name: "users in deny rule",
+			roleSet: []types.Role{newRole(t, "myrole", &types.ImpersonateConditions{
+				Roles: []string{"*"},
+			}, &types.ImpersonateConditions{
+				Roles: []string{"bar"},
+				Users: []string{"*"},
+			})},
+			impersonateRoles: []types.Role{newRole(t, "foo", nil, nil)},
+		},
+		{
+			name: "no matching where clause",
+			roleSet: []types.Role{newRole(t, "myRole", &types.ImpersonateConditions{
+				Roles: []string{"*"},
+				Where: `equals(impersonate_role.metadata.name, "wrongname")`,
+			}, nil)},
+			impersonateRoles: []types.Role{newRole(t, "foo", nil, nil)},
+		},
+	}
+	for _, tc := range rejectTests {
+		t.Run("reject "+tc.name, func(t *testing.T) {
+			err := tc.roleSet.CheckImpersonateRoles(u, tc.impersonateRoles)
+			require.True(t, trace.IsAccessDenied(err), "unexpected error: %v", err)
+		})
 	}
 }

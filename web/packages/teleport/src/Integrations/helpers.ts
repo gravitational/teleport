@@ -50,6 +50,18 @@ export function filterByIntegrationStatus(
   });
 }
 
+export function getAwsIcErrorMessage(
+  item: IntegrationLike
+): string | undefined {
+  if (
+    item.resourceType === 'plugin' &&
+    item.kind === 'aws-identity-center' &&
+    item.status?.errorMessage
+  ) {
+    return item.status.errorMessage;
+  }
+}
+
 export function filterBySearch(
   l: IntegrationLike[],
   s: string

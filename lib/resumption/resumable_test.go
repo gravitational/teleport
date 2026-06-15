@@ -27,7 +27,7 @@ import (
 	"golang.org/x/net/nettest"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/gravitational/teleport/lib/utils/uds"
+	"github.com/gravitational/teleport/session/uds"
 )
 
 func TestConnNetTest(t *testing.T) {

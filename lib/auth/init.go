@@ -47,6 +47,7 @@ import (
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
+	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/clusterconfig"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -164,13 +165,13 @@ type InitConfig struct {
 	Presence services.PresenceInternal
 
 	// Provisioner is a service that keeps track of provisioning tokens
-	Provisioner services.Provisioner
+	Provisioner services.ProvisionerInternal
 
 	// Identity is a service that manages users and credentials
-	Identity services.Identity
+	Identity services.IdentityInternal
 
 	// Access is service controlling access to resources
-	Access services.Access
+	Access services.AccessInternal
 
 	// DynamicAccessExt is a service that manages dynamic RBAC.
 	DynamicAccessExt services.DynamicAccessExt
@@ -188,13 +189,16 @@ type InitConfig struct {
 	Restrictions services.Restrictions
 
 	// Apps is a service that manages application resources.
-	Apps services.Applications
+	Apps services.ApplicationsInternal
 
 	// Databases is a service that manages database resources.
 	Databases services.Databases
 
 	// DatabaseServices is a service that manages DatabaseService resources.
 	DatabaseServices services.DatabaseServices
+
+	// DelegationSessions is a service that manages delegation sessions.
+	DelegationSessions services.DelegationSessions
 
 	// Status is a service that manages cluster status info.
 	Status services.Status
@@ -434,6 +438,12 @@ type InitConfig struct {
 
 	// WorkloadClusterService is the service that manages WorkloadClusters.
 	WorkloadClusterService services.WorkloadClusterService
+
+	// Beams is the service for reading and writing beams.
+	Beams services.Beams
+
+	// SubCAService manages CertAuthorityOverride resources.
+	SubCAService services.SubCAService
 
 	// FakePasswordHash is the password hash given to all users without a password.
 	// This helps eliminate timing attacks by ensuring that all authentication attempts
@@ -1386,6 +1396,9 @@ func GetPresetRoles(buildType string) []types.Role {
 		services.NewPresetAccessPluginRole(),
 		services.NewPresetListAccessRequestResourcesRole(),
 		services.NewPresetMCPUserRole(),
+		services.NewSystemBeamRole(buildType),
+		services.NewPresetBeamUserRole(buildType),
+		services.NewPresetBeamAdminRole(buildType),
 	}
 
 	// Certain `New$FooRole()` functions will return a nil role if the
@@ -1759,15 +1772,22 @@ func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
 // to avoid consistency issues. A lower priority means the resource is applied
 // before.
 var ResourceApplyPriority = map[string]int{
-	types.KindRole:                    1,
-	types.KindUser:                    2, // Users must be applied after Roles
+	types.KindRole:            1,
+	types.KindInferenceSecret: 1,
+
+	types.KindUser:           2, // Users must be applied after Roles
+	types.KindInferenceModel: 2,
+
 	types.KindToken:                   3,
 	types.KindClusterNetworkingConfig: 3,
 	types.KindClusterAuthPreference:   3,
+	types.KindWorkloadIdentity:        3,
 	// Bots should be applied after users and roles as at the moment they are actually converted to users and roles.
 	// This will ensure that Bot Users/Roles are properly created regardless of the Teleport version from which the
 	// resources have been exported.
-	types.KindBot: 3,
+	types.KindBot:             3,
+	types.KindInferencePolicy: 3,
+	types.KindRetrievalModel:  3,
 }
 
 // Unlike when resources are loaded via --bootstrap, we're inserting elements via their service.
@@ -1792,15 +1812,15 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 		// need to RegisterResourceUnmarshaler() your resource.
 		switch r := resource.(type) {
 		case types.ProvisionToken:
-			err = service.Provisioner.UpsertToken(ctx, r)
+			err = service.UpsertToken(ctx, r)
 		case types.User:
-			err = services.ValidateUserRoles(ctx, r, service.Access)
+			err = services.ValidateUserRoles(ctx, r, service)
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			_, err = service.Identity.UpsertUser(ctx, r)
+			_, err = service.UpsertUser(ctx, r)
 		case types.Role:
-			_, err = service.Access.UpsertRole(ctx, r)
+			_, err = service.UpsertRole(ctx, r)
 		case types.ClusterNetworkingConfig:
 			_, err = service.ClusterConfigurationInternal.UpsertClusterNetworkingConfig(ctx, r)
 		case types.AuthPreference:
@@ -1811,8 +1831,16 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 			_, err = autoupdatev1.UpsertAutoUpdateConfig(ctx, service, r.UnwrapT())
 		case types.Resource153UnwrapperT[*autoupdatev1pb.AutoUpdateVersion]:
 			_, err = autoupdatev1.UpsertAutoUpdateVersion(ctx, service, r.UnwrapT())
+		case types.Resource153UnwrapperT[*workloadidentityv1.WorkloadIdentity]:
+			_, err = service.WorkloadIdentities.UpsertWorkloadIdentity(ctx, r.UnwrapT())
 		case types.Resource153UnwrapperT[*summarizerv1.InferenceModel]:
 			_, err = service.Summarizer.UpsertInferenceModel(ctx, r.UnwrapT())
+		case types.Resource153UnwrapperT[*summarizerv1.InferencePolicy]:
+			_, err = service.Summarizer.UpsertInferencePolicy(ctx, r.UnwrapT())
+		case types.Resource153UnwrapperT[*summarizerv1.InferenceSecret]:
+			_, err = service.Summarizer.UpsertInferenceSecret(ctx, r.UnwrapT())
+		case types.Resource153UnwrapperT[*summarizerv1.RetrievalModel]:
+			_, err = service.Summarizer.UpsertRetrievalModel(ctx, r.UnwrapT())
 		default:
 			return trace.NotImplemented("cannot apply resource of type %T", resource)
 		}

@@ -505,16 +505,17 @@ func (cfg *DatabaseServerWatcherConfig) CheckAndSetDefaults() error {
 		const databaseServerMaxStaleness = time.Minute
 		cfg.MaxStaleness = databaseServerMaxStaleness
 	}
-
 	if cfg.DatabaseServersGetter == nil {
 		getter, ok := cfg.Client.(DatabaseServersGetter)
 		if !ok {
 			return trace.BadParameter("missing parameter DatabaseServersGetter and Client not usable as DatabaseServersGetter")
 		}
 		cfg.DatabaseServersGetter = getter
+		const appServerMaxStaleness = time.Minute
+		cfg.MaxStaleness = appServerMaxStaleness
 	}
-
 	return nil
+
 }
 
 func NewDatabaseServerWatcher(ctx context.Context, cfg DatabaseServerWatcherConfig) (*GenericWatcher[types.DatabaseServer, readonly.DatabaseServer], error) {
@@ -539,6 +540,61 @@ func NewDatabaseServerWatcher(ctx context.Context, cfg DatabaseServerWatcherConf
 		DisableUpdateBroadcast: true,
 		CloneFunc:              types.DatabaseServer.Copy,
 		ReadOnlyFunc:           readonly.NewDatabaseServer,
+	})
+
+	return w, trace.Wrap(err)
+}
+
+type AppServersWatcherConfig struct {
+	AppServersGetter
+	ResourceWatcherConfig
+}
+
+func (cfg *AppServersWatcherConfig) CheckAndSetDefaults() error {
+	if err := cfg.ResourceWatcherConfig.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if cfg.MaxStaleness == 0 {
+		const databaseServerMaxStaleness = time.Minute
+		cfg.MaxStaleness = databaseServerMaxStaleness
+	}
+
+	if cfg.AppServersGetter == nil {
+		getter, ok := cfg.Client.(AppServersGetter)
+		if !ok {
+			return trace.BadParameter("missing parameter AppServersGetter and Client not usable as AppServersGetter")
+		}
+		cfg.AppServersGetter = getter
+	}
+
+	return nil
+}
+
+func NewAppServersWatcher(ctx context.Context, cfg AppServersWatcherConfig) (*GenericWatcher[types.AppServer, readonly.AppServer], error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	w, err := NewGenericResourceWatcher(ctx, GenericWatcherConfig[types.AppServer, readonly.AppServer]{
+		ResourceWatcherConfig: cfg.ResourceWatcherConfig,
+		ResourceKind:          types.KindAppServer,
+		ResourceKey: func(r types.AppServer) string {
+			// the host ID is guaranteed not to contain "/"
+			return r.GetHostID() + "/" + r.GetName()
+		},
+		DeleteKey: func(r types.Resource) string {
+			// the host ID is stored in metadata.description in app server delete events
+			return r.GetMetadata().Description + "/" + r.GetName()
+		},
+		ResourceGetter: func(ctx context.Context) ([]types.AppServer, error) {
+			return cfg.AppServersGetter.GetApplicationServers(ctx, apidefaults.Namespace)
+		},
+		DisableUpdateBroadcast: true,
+		CloneFunc:              types.AppServer.Copy,
+		ReadOnlyFunc: func(resource types.AppServer) readonly.AppServer {
+			return resource
+		},
 	})
 
 	return w, trace.Wrap(err)
@@ -1088,6 +1144,11 @@ func (p *lockCollector) Subscribe(ctx context.Context, targets ...types.LockTarg
 // CheckLockInForce returns an AccessDenied error if there is a lock in force
 // matching at least one of the targets.
 func (p *lockCollector) CheckLockInForce(mode constants.LockingMode, targets ...types.LockTarget) error {
+	if len(targets) == 0 {
+		// A lock can't match any targets if there are no targets.
+		return nil
+	}
+
 	p.currentRW.RLock()
 	defer p.currentRW.RUnlock()
 	if p.isStale && mode == constants.LockingModeStrict {
@@ -1103,9 +1164,6 @@ func (p *lockCollector) findLockInForceUnderMutex(targets []types.LockTarget) ty
 	for _, lock := range p.current {
 		if !lock.IsInForce(p.Clock.Now()) {
 			continue
-		}
-		if len(targets) == 0 {
-			return lock
 		}
 		for _, target := range targets {
 			if target.Match(lock) {

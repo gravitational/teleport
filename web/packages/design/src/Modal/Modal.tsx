@@ -16,12 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, {
-  cloneElement,
-  ComponentProps,
-  MutableRefObject,
-  Ref,
-} from 'react';
+import React, { cloneElement, ComponentProps, Ref, RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import styled, { StyleFunction } from 'styled-components';
 
@@ -101,12 +96,21 @@ export type ModalProps = {
    * dialog itself.
    */
   modalRef?: Ref<HTMLDivElement | null>;
+
+  /**
+   * If `true`, focus is trapped inside the modal. When something outside the modal tries to grab
+   * focus programmatically, focus is returned to the last focused element inside the modal.
+   * Tab/Shift+Tab cycling wraps around at the modal boundaries.
+   */
+  trapFocus?: boolean;
 };
 
 export default class Modal extends React.Component<ModalProps> {
   lastFocus: HTMLElement | undefined;
+  lastModalFocus: HTMLElement | undefined;
   modalEl: HTMLDivElement | null = null;
   mounted = false;
+  lastTabKeyDirection: 'forward' | 'backward' | null = null;
 
   componentDidMount() {
     this.mounted = true;
@@ -121,6 +125,16 @@ export default class Modal extends React.Component<ModalProps> {
     } else if (!prevProps.open && this.props.open) {
       this.lastFocus = document.activeElement as HTMLElement;
       this.handleOpen();
+    } else if (
+      this.props.open &&
+      prevProps.trapFocus !== this.props.trapFocus
+    ) {
+      // open didn't change but trapFocus did — toggle the trap without a full open/close cycle.
+      if (this.props.trapFocus) {
+        this.enableFocusTrap();
+      } else {
+        this.disableFocusTrap();
+      }
     }
   }
 
@@ -147,6 +161,7 @@ export default class Modal extends React.Component<ModalProps> {
 
   handleOpen = () => {
     document.addEventListener('keydown', this.handleDocumentKeyDown);
+    this.enableFocusTrap();
 
     if (this.dialogEl()) {
       this.handleOpened();
@@ -162,6 +177,7 @@ export default class Modal extends React.Component<ModalProps> {
 
   handleClose = () => {
     document.removeEventListener('keydown', this.handleDocumentKeyDown);
+    this.disableFocusTrap();
 
     this.restoreLastFocus();
   };
@@ -181,10 +197,12 @@ export default class Modal extends React.Component<ModalProps> {
   };
 
   handleDocumentKeyDown = (event: KeyboardEvent) => {
-    const ESC = 'Escape';
+    if (event.key === 'Tab') {
+      this.handleFocusTrapTab(event);
+    }
 
     // Ignore events that have been `event.preventDefault()` marked.
-    if (event.key !== ESC || event.defaultPrevented) {
+    if (event.key !== 'Escape' || event.defaultPrevented) {
       return;
     }
 
@@ -195,6 +213,143 @@ export default class Modal extends React.Component<ModalProps> {
     if (!this.props.disableEscapeKeyDown && this.props.onClose) {
       this.props.onClose(event, 'escapeKeyDown');
     }
+  };
+
+  // Focus trap methods.
+  //
+  // When trapFocus is enabled, focus is kept inside the modal. Programmatic focus theft from
+  // outside (e.g., useRefAutoFocus on a Document) is reverted to the last focused element inside
+  // the modal. Tab/Shift+Tab cycling wraps around at the modal boundaries.
+
+  enableFocusTrap = () => {
+    if (!this.props.trapFocus) {
+      return;
+    }
+
+    // If focus is already inside the modal (e.g., from autoFocus on a button during render),
+    // remember it before registering the listener, so that programmatic focus theft can be
+    // reverted.
+    const activeEl = document.activeElement as HTMLElement;
+    if (activeEl && this.modalEl?.contains(activeEl)) {
+      this.lastModalFocus = activeEl;
+    }
+    document.addEventListener('focusin', this.handleFocusTrapFocusIn);
+  };
+
+  disableFocusTrap = () => {
+    document.removeEventListener('focusin', this.handleFocusTrapFocusIn);
+    this.lastModalFocus = undefined;
+    this.lastTabKeyDirection = null;
+  };
+
+  handleFocusTrapFocusIn = (event: FocusEvent) => {
+    if (!this.modalEl) {
+      return;
+    }
+
+    const target = event.target as HTMLElement;
+
+    if (this.modalEl.contains(target)) {
+      this.lastModalFocus = target;
+      this.lastTabKeyDirection = null;
+      return;
+    }
+
+    // Focus escaped the modal. Try to pull it back to the last focused element. The element may
+    // have been removed from the DOM (e.g., during a re-render) or become unfocusable (e.g.,
+    // dynamically disabled), in which case we fall through to the Tab/blur branches below.
+    if (this.tryFocusLastModalFocus()) {
+      this.lastTabKeyDirection = null;
+      return;
+    }
+
+    if (this.lastTabKeyDirection) {
+      // Tab/Shift+Tab moved focus outside the modal before anything inside was focused.
+      // Direct focus to the appropriate element inside the modal.
+      const focusable = this.getFocusableElements();
+      const el =
+        this.lastTabKeyDirection === 'forward'
+          ? focusable.at(0)
+          : focusable.at(-1);
+      el?.focus();
+    } else {
+      // Programmatic focus theft (Tab was not pressed) with nothing focused inside yet — just
+      // blur the thief.
+      target.blur();
+    }
+    this.lastTabKeyDirection = null;
+  };
+
+  /**
+   * Try to focus lastModalFocus. Returns true if focus was successfully moved. Clears the
+   * reference if the element is no longer in the DOM or is no longer focusable.
+   */
+  tryFocusLastModalFocus = (): boolean => {
+    if (!this.lastModalFocus) {
+      return false;
+    }
+    // Avoid calling .focus() on a detached node. This is redundant with the activeElement check
+    // below in JSDOM (where .focus() on detached nodes is a no-op), so tests pass without it,
+    // but in real browsers it skips an unnecessary .focus() call on a detached node.
+    if (!this.modalEl?.contains(this.lastModalFocus)) {
+      this.lastModalFocus = undefined;
+      return false;
+    }
+    this.lastModalFocus.focus();
+    if (document.activeElement !== this.lastModalFocus) {
+      this.lastModalFocus = undefined;
+      return false;
+    }
+    return true;
+  };
+
+  handleFocusTrapTab = (event: KeyboardEvent) => {
+    if (!this.props.trapFocus || !this.modalEl || event.defaultPrevented) {
+      return;
+    }
+
+    // Record the Tab direction so that handleFocusTrapFocusIn can tell a Tab keypress apart from
+    // programmatic focus theft.
+    this.lastTabKeyDirection = event.shiftKey ? 'backward' : 'forward';
+
+    const focusable = this.getFocusableElements();
+    if (focusable.length === 0) {
+      return;
+    }
+
+    const first = focusable.at(0);
+    const last = focusable.at(-1);
+
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last?.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first?.focus();
+    }
+  };
+
+  /** Return focusable elements within the modal that are visible and not disabled. */
+  getFocusableElements = (): HTMLElement[] => {
+    if (!this.modalEl) {
+      return [];
+    }
+
+    return [
+      ...this.modalEl.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      ),
+    ].filter(el => {
+      const style = getComputedStyle(el);
+      // offsetParent is null for elements hidden via an ancestor's display:none (which
+      // getComputedStyle on the element itself won't catch, since display isn't inherited).
+      // However, offsetParent is also null for position:fixed elements, so exclude those from
+      // the check.
+      if (el.offsetParent === null && style.position !== 'fixed') {
+        return false;
+      }
+      return style.display !== 'none' && style.visibility !== 'hidden';
+    });
   };
 
   restoreLastFocus() {
@@ -239,8 +394,7 @@ export default class Modal extends React.Component<ModalProps> {
             if (typeof modalRef === 'function') {
               modalRef(el);
             } else {
-              (modalRef as MutableRefObject<HTMLDivElement | null>).current =
-                el;
+              (modalRef as RefObject<HTMLDivElement | null>).current = el;
             }
           }
         }}

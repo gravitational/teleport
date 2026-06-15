@@ -60,15 +60,9 @@ func (s *Server) handleBoundKeypairJoin(
 	authCtx *authz.Context,
 	clientInit *messages.ClientInit,
 	token provision.Token,
-) (*messages.BotResult, error) {
+) (messages.Response, error) {
 	ctx := stream.Context()
 	diag := stream.Diagnostic()
-
-	// Scoped tokens currently validate against being created with the bot role, but just in case
-	// we'll check and return a more helpful error message if one happens to make it through.
-	if token.GetAssignedScope() != "" {
-		return nil, trace.BadParameter("bound keypair joining is not supported by scoped tokens")
-	}
 
 	boundKeypairInit, err := messages.RecvRequest[*messages.BoundKeypairInit](stream)
 	if err != nil {
@@ -134,8 +128,10 @@ func (s *Server) handleBoundKeypairJoin(
 
 		return certificates, certsParams.HostID, nil
 	}
+
 	return boundkeypair.HandleBoundKeypairJoin(ctx, &boundkeypair.JoinParams{
 		AuthService:          s.cfg.AuthService,
+		ScopedTokenService:   s.cfg.ScopedTokenService,
 		AuthCtx:              authCtx,
 		Diag:                 diag,
 		ProvisionToken:       token,
@@ -265,8 +261,9 @@ func AdaptRegisterUsingBoundKeypairMethod(
 		return nil, "", trace.NotImplemented("bound keypair joining for agents is not supported by the legacy join service")
 	}
 
-	botResult, err := boundkeypair.HandleBoundKeypairJoin(ctx, &boundkeypair.JoinParams{
+	joinResponse, err := boundkeypair.HandleBoundKeypairJoin(ctx, &boundkeypair.JoinParams{
 		AuthService:                 a,
+		ScopedTokenService:          nil, // Legacy does not support scoped tokens
 		AuthCtx:                     authCtx,
 		Diag:                        diag,
 		ProvisionToken:              provisionToken,
@@ -283,15 +280,23 @@ func AdaptRegisterUsingBoundKeypairMethod(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	certs, err := protoCertsFromCertificates(botResult.Certificates)
-	if err != nil {
-		return nil, trace.Wrap(err)
+
+	switch result := joinResponse.(type) {
+	case *messages.BotResult:
+		certs, err := protoCertsFromCertificates(result.Certificates)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &client.BoundKeypairRegistrationResponse{
+			Certs:          certs,
+			BoundPublicKey: string(result.BoundKeypairResult.PublicKey),
+			JoinState:      result.BoundKeypairResult.JoinState,
+		}, nil
+	case *messages.HostResult:
+		return nil, trace.BadParameter("bound keypair cannot join agents via the legacy join service")
+	default:
+		return nil, trace.BadParameter("received invalid bound keypair result type (%T)", result)
 	}
-	return &client.BoundKeypairRegistrationResponse{
-		Certs:          certs,
-		BoundPublicKey: string(botResult.BoundKeypairResult.PublicKey),
-		JoinState:      botResult.BoundKeypairResult.JoinState,
-	}, nil
 }
 
 func adaptBoundKeypairChallenge(challengeResponseFunc client.RegisterUsingBoundKeypairChallengeResponseFunc) boundkeypair.ChallengeResponseFunc {

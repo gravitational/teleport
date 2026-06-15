@@ -26,6 +26,7 @@ import (
 	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
+	orgtypes "github.com/aws/aws-sdk-go-v2/service/organizations/types"
 	"github.com/gravitational/trace"
 )
 
@@ -41,7 +42,8 @@ func ConvertRequestFailureError(err error) error {
 }
 
 var (
-	ecsClusterNotFoundException *ecstypes.ClusterNotFoundException
+	ecsClusterNotFoundException           *ecstypes.ClusterNotFoundException
+	organizationsAccountNotFoundException *orgtypes.AccountNotFoundException
 )
 
 func convertRequestFailureErrorFromStatusCode(statusCode int, requestErr error) error {
@@ -64,6 +66,10 @@ func convertRequestFailureErrorFromStatusCode(statusCode int, requestErr error) 
 		}
 
 		if strings.Contains(requestErr.Error(), ecsClusterNotFoundException.ErrorCode()) {
+			return trace.NotFound("%s", requestErr)
+		}
+
+		if strings.Contains(requestErr.Error(), organizationsAccountNotFoundException.ErrorCode()) {
 			return trace.NotFound("%s", requestErr)
 		}
 	}

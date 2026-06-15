@@ -95,12 +95,12 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv"
-	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
+	"github.com/gravitational/teleport/session/networking/x11"
+	"github.com/gravitational/teleport/session/reexec"
 	"github.com/gravitational/teleport/tool/common"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 )
@@ -124,6 +124,7 @@ var ports utils.PortList
 const initTestSentinel = "init_test"
 
 func TestMain(m *testing.M) {
+	reexec.MaybeReexec()
 	handleReexec()
 
 	var err error
@@ -169,7 +170,7 @@ func handleReexec() {
 	// is re-executed.
 	if addr := os.Getenv(tshBinMockHeadlessAddrEnv); addr != "" {
 		runOpts = append(runOpts, func(c *CLIConf) error {
-			c.MockHeadlessLogin = func(ctx context.Context, keyRing *client.KeyRing) (*authclient.SSHLoginResponse, error) {
+			c.MockHeadlessLogin = func(ctx context.Context, keyRing *client.KeyRing) (*authclient.CLILoginResponse, error) {
 				conn, err := net.Dial("tcp", addr)
 				if err != nil {
 					return nil, trace.Wrap(err, "dialing mock headless server")
@@ -203,7 +204,7 @@ func handleReexec() {
 				if err != nil {
 					return nil, trace.Wrap(err, "reading reply from mock headless server")
 				}
-				var loginResp authclient.SSHLoginResponse
+				var loginResp authclient.CLILoginResponse
 				if err := json.Unmarshal(reply, &loginResp); err != nil {
 					return nil, trace.Wrap(err, "decoding reply from mock headless server")
 				}
@@ -236,11 +237,6 @@ func handleReexec() {
 			utils.FatalError(err)
 		}
 		os.Exit(0)
-	}
-
-	// Re-exec teleport commands. Used to test tsh ssh command.
-	if srv.IsReexec() {
-		srv.RunAndExit(os.Args[1])
 	}
 }
 
@@ -1627,6 +1623,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 				Webauthn: &types.Webauthn{
 					RPID: cluster,
 				},
+				AllowCLIAuthViaBrowser: types.NewBoolOption(false),
 			},
 		}
 	}
@@ -1787,7 +1784,8 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 					Webauthn: &types.Webauthn{
 						RPID: "localhost",
 					},
-					RequireMFAType: types.RequireMFAType_SESSION,
+					RequireMFAType:         types.RequireMFAType_SESSION,
+					AllowCLIAuthViaBrowser: types.NewBoolOption(false),
 				},
 			},
 			proxyAddr:     rootProxyAddr.String(),
@@ -1815,7 +1813,8 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 					Webauthn: &types.Webauthn{
 						RPID: "localhost",
 					},
-					RequireMFAType: types.RequireMFAType_SESSION,
+					RequireMFAType:         types.RequireMFAType_SESSION,
+					AllowCLIAuthViaBrowser: types.NewBoolOption(false),
 				},
 			},
 			proxyAddr:     rootProxyAddr.String(),
@@ -1840,7 +1839,8 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 					Webauthn: &types.Webauthn{
 						RPID: "localhost",
 					},
-					RequireMFAType: types.RequireMFAType_SESSION,
+					RequireMFAType:         types.RequireMFAType_SESSION,
+					AllowCLIAuthViaBrowser: types.NewBoolOption(false),
 				},
 			},
 			proxyAddr:       rootProxyAddr.String(),
@@ -1860,6 +1860,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 					Webauthn: &types.Webauthn{
 						RPID: "localhost",
 					},
+					AllowCLIAuthViaBrowser: types.NewBoolOption(false),
 				},
 			},
 			proxyAddr:     rootProxyAddr.String(),
@@ -1932,6 +1933,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 					Webauthn: &types.Webauthn{
 						RPID: "localhost",
 					},
+					AllowCLIAuthViaBrowser: types.NewBoolOption(false),
 				},
 			},
 			proxyAddr:       rootProxyAddr.String(),
@@ -1957,6 +1959,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 					Webauthn: &types.Webauthn{
 						RPID: "localhost",
 					},
+					AllowCLIAuthViaBrowser: types.NewBoolOption(false),
 				},
 			},
 			proxyAddr:       rootProxyAddr.String(),
@@ -1981,6 +1984,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 					Webauthn: &types.Webauthn{
 						RPID: "localhost",
 					},
+					AllowCLIAuthViaBrowser: types.NewBoolOption(false),
 				},
 			},
 			proxyAddr:     rootProxyAddr.String(),
@@ -2149,6 +2153,11 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			// so we can assert how many times sign was called.
 			device.SetCounter(0)
 
+			// Sleep before attempting to access the nodes to give them time to show
+			// up on the server, otherwise a `no target host specified` error is returned.
+			// 400ms was the lowest sleep that consistently fixed the test.
+			time.Sleep(400 * time.Millisecond)
+
 			args := []string{"ssh", "-d", "--insecure"}
 			if tt.headless {
 				args = append(args, "--headless", "--proxy", tt.proxyAddr, "--user", user.GetName())
@@ -2160,18 +2169,22 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			}
 			args = append(args, tt.target, "echo", "test", "&&", "echo", "error", ">&2")
 
-			err = Run(ctx,
-				args,
-				setHomePath(tmpHomePath),
-				func(conf *CLIConf) error {
-					conf.overrideStdin = stdin
-					conf.OverrideStdout = stdout
-					conf.overrideStderr = stderr
-					conf.MockHeadlessLogin = mockHeadlessLogin(t, tt.auth, user)
-					conf.WebauthnLogin = tt.webauthnLogin
-					return nil
-				},
-			)
+			var runOpts []CliOption
+			runOpts = append(runOpts, setHomePath(tmpHomePath))
+			// Only add SSO mock for non-headless tests
+			if !tt.headless {
+				runOpts = append(runOpts, setMockSSOLogin(tt.auth, user, connector.GetName()))
+			}
+			runOpts = append(runOpts, func(conf *CLIConf) error {
+				conf.overrideStdin = stdin
+				conf.OverrideStdout = stdout
+				conf.overrideStderr = stderr
+				conf.MockHeadlessLogin = mockHeadlessLogin(t, tt.auth, user)
+				conf.WebauthnLogin = tt.webauthnLogin
+				return nil
+			})
+
+			err = Run(ctx, args, runOpts...)
 
 			tt.errAssertion(t, err)
 			tt.stdoutAssertion(t, stdout.String())
@@ -4511,7 +4524,7 @@ func mockConnector(t *testing.T) types.OIDCConnector {
 }
 
 func mockSSOLogin(authServer *auth.Server, user types.User) client.SSOLoginFunc {
-	return func(ctx context.Context, connectorID string, keyRing *client.KeyRing, protocol string) (*authclient.SSHLoginResponse, error) {
+	return func(ctx context.Context, connectorID string, keyRing *client.KeyRing, protocol string) (*authclient.CLILoginResponse, error) {
 		// generate certificates for our user
 		clusterName, err := authServer.GetClusterName(ctx)
 		if err != nil {
@@ -4546,7 +4559,7 @@ func mockSSOLogin(authServer *auth.Server, user types.User) client.SSOLoginFunc 
 		}
 
 		// build login response
-		return &authclient.SSHLoginResponse{
+		return &authclient.CLILoginResponse{
 			Username:    user.GetName(),
 			Cert:        sshCert,
 			TLSCert:     tlsCert,
@@ -4556,7 +4569,7 @@ func mockSSOLogin(authServer *auth.Server, user types.User) client.SSOLoginFunc 
 }
 
 func mockHeadlessLogin(t *testing.T, authServer *auth.Server, user types.User) client.SSHLoginFunc {
-	return func(ctx context.Context, keyRing *client.KeyRing) (*authclient.SSHLoginResponse, error) {
+	return func(ctx context.Context, keyRing *client.KeyRing) (*authclient.CLILoginResponse, error) {
 		// generate certificates for our user
 		clusterName, err := authServer.GetClusterName(ctx)
 		require.NoError(t, err)
@@ -4581,7 +4594,7 @@ func mockHeadlessLogin(t *testing.T, authServer *auth.Server, user types.User) c
 		require.NoError(t, err)
 
 		// build login response
-		return &authclient.SSHLoginResponse{
+		return &authclient.CLILoginResponse{
 			Username:    user.GetName(),
 			Cert:        sshCert,
 			TLSCert:     tlsCert,
@@ -6219,7 +6232,7 @@ func TestBenchmarkPostgres(t *testing.T) {
 	}, setHomePath(tmpHomePath), setMockSSOLogin(authServer, alice, connector.GetName()))
 	require.NoError(t, err)
 
-	benchmarkErrorLineParser := regexp.MustCompile("`host=(.+?) +user=(.+?) database=(.+?)`: (.+)$")
+	benchmarkErrorLineParser := regexp.MustCompile("`user=(.+?) database=(.+?)`:(.+)$")
 	args := []string{
 		"bench", "postgres", "--insecure",
 		// Benchmark options to limit benchmark to a single execution.
@@ -6273,18 +6286,20 @@ func TestBenchmarkPostgres(t *testing.T) {
 			for _, line := range lines {
 				if bytes.HasPrefix(line, []byte("* Last error:")) {
 					errorLine = string(line)
-					break
+				} else if errorLine != "" {
+					// pgx v5 error details are tab-indented on continuation lines.
+					errorLine += string(line)
 				}
 			}
 			require.NotEmpty(t, errorLine, "expected benchmark to fail")
 
 			parsed := benchmarkErrorLineParser.FindStringSubmatch(errorLine)
-			require.Len(t, parsed, 5, "unexpecter benchmark error: %q", errorLine)
+			require.Len(t, parsed, 4, "unexpected benchmark error: %q", errorLine)
 
-			host, username, database, benchmarkError := parsed[1], parsed[2], parsed[3], parsed[4]
+			username, database, benchmarkError := parsed[1], parsed[2], parsed[3]
 
 			require.Contains(t, benchmarkError, tc.expectedErrContains)
-			require.Equal(t, tc.expectedHost, host)
+			require.Contains(t, benchmarkError, tc.expectedHost)
 			require.Equal(t, tc.expectedUser, username)
 			require.Equal(t, tc.expectedDatabase, database)
 		})
@@ -8379,6 +8394,89 @@ func TestLogoutOneIdentity(t *testing.T) {
 				})
 			require.NoError(t, err)
 			require.Contains(t, buf.String(), fmt.Sprintf("Logged out %v from %v.\n", alice.GetName(), proxyAddr.Host()))
+		})
+	}
+}
+
+func TestSSHEnv(t *testing.T) {
+	local, err := user.Current()
+	require.NoError(t, err)
+
+	sshHostname := "test-ssh-server"
+	nodeAccess, err := types.NewRole("node-access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins:     []string{local.Username},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+	})
+	require.NoError(t, err)
+
+	alice, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	alice.SetRoles([]string{"access", nodeAccess.GetName()})
+
+	connector := mockConnector(t)
+	rootServer, err := testserver.NewTeleportProcess(t.TempDir(),
+		testserver.WithBootstrap(connector, nodeAccess, alice),
+		testserver.WithHostname(sshHostname),
+		testserver.WithSSHPublicAddrs("127.0.0.1:0"),
+		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.SSH.Enabled = true
+			cfg.SSH.PublicAddrs = []utils.NetAddr{cfg.SSH.Addr}
+			cfg.SSH.DisableCreateHostUser = true
+		}),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, rootServer.Close())
+		require.NoError(t, rootServer.Wait())
+	})
+
+	authServer := rootServer.GetAuthServer()
+	require.NotNil(t, authServer)
+	proxyAddr, err := rootServer.ProxyWebAddr()
+	require.NoError(t, err)
+
+	home := t.TempDir()
+	err = Run(t.Context(), []string{
+		"login",
+		"--insecure",
+		"--proxy", proxyAddr.String(),
+	}, setHomePath(home), setMockSSOLogin(authServer, alice, connector.GetName()))
+	require.NoError(t, err)
+
+	for _, tt := range []struct {
+		name string
+		args []string
+	}{
+		{
+			name: "interactive",
+			args: []string{"-t"},
+		},
+		{
+			name: "non-interactive",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			stdout := &output{buf: bytes.Buffer{}}
+			stderr := &output{buf: bytes.Buffer{}}
+			args := append([]string{
+				"ssh",
+				"--insecure",
+			}, tt.args...)
+			args = append(args, sshHostname, "echo $SSH_SESSION_WEBPROXY_ADDR")
+
+			err := Run(t.Context(), args,
+				setHomePath(home),
+				func(conf *CLIConf) error {
+					conf.OverrideStdout = stdout
+					conf.overrideStderr = stderr
+					return nil
+				},
+			)
+			require.NoError(t, err)
+			require.Equal(t, proxyAddr.String(), strings.TrimSpace(stdout.String()))
+			require.Empty(t, stderr.String())
 		})
 	}
 }

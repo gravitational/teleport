@@ -313,7 +313,7 @@ func (s *sessionHandler) makeToolsCallResponse(ctx context.Context, resp *mcputi
 }
 
 func (s *sessionHandler) rewriteHTTPRequestHeaders(r *http.Request) error {
-	jwt, traits, err := s.generateJWTAndTraits(r.Context())
+	jwt, rewriteTraits, err := s.generateJWTAndTraits(r.Context())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -327,7 +327,7 @@ func (s *sessionHandler) rewriteHTTPRequestHeaders(r *http.Request) error {
 	r.Header.Set(teleport.AppJWTHeader, jwt)
 	// Add headers from rewrite configuration.
 	rewriteHeaders := appcommon.AppRewriteHeaders(r.Context(), s.App.GetRewrite(), s.logger)
-	services.RewriteHeadersAndApplyValueTraits(r, rewriteHeaders, traits, s.logger)
+	services.RewriteHeadersAndApplyValueTraits(r, rewriteHeaders, rewriteTraits, s.logger)
 	return nil
 }
 

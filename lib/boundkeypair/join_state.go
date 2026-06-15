@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/join/provision"
 	libjwt "github.com/gravitational/teleport/lib/jwt"
 )
 
@@ -75,7 +76,7 @@ type JoinStateParams struct {
 	Clock clockwork.Clock
 
 	ClusterName string
-	Token       *types.ProvisionTokenV2
+	Token       provision.Token
 
 	// HostID is the ID if this JoinState is for a joining agent rather than
 	// bot, used as the JWT subject. This field is only required for newly
@@ -86,12 +87,12 @@ type JoinStateParams struct {
 
 func (p *JoinStateParams) GetSubject() (string, error) {
 	switch {
-	case p.Token.Spec.BotName != "":
-		return p.Token.Spec.BotName, nil
+	case p.Token.GetBotName() != "":
+		return p.Token.GetBotName(), nil
 	case p.HostID != "":
 		return p.HostID, nil
-	case p.Token.Status.BoundKeypair.BoundHostID != "":
-		return p.Token.Status.BoundKeypair.BoundHostID, nil
+	case p.Token.GetBoundKeypairStatus().BoundHostID != "":
+		return p.Token.GetBoundKeypairStatus().BoundHostID, nil
 	default:
 		return "", trace.BadParameter("invalid join state parameters, one of [.Token.Spec.BotName, .HostID] is required")
 	}
@@ -101,12 +102,13 @@ func (p *JoinStateParams) GetSubject() (string, error) {
 // returns a compact serialized, signed JWT. The token must be up-to-date at the
 // time of issuance, i.e. the recovery count must have been incremented already.
 func IssueJoinState(signer crypto.Signer, params *JoinStateParams) (string, error) {
-	spec := params.Token.Spec.BoundKeypair
+	spec := params.Token.GetBoundKeypair()
 	if spec == nil {
 		return "", trace.BadParameter("spec.bound_keypair: required field is missing")
 	}
 
-	if params.Token.Status == nil || params.Token.Status.BoundKeypair == nil {
+	status := params.Token.GetBoundKeypairStatus()
+	if status == nil {
 		return "", trace.BadParameter("status.bound_keypair: required field is missing")
 	}
 
@@ -114,8 +116,6 @@ func IssueJoinState(signer crypto.Signer, params *JoinStateParams) (string, erro
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-
-	status := params.Token.Status.BoundKeypair
 
 	state := &JoinState{
 		Claims: &jwt.Claims{
@@ -164,7 +164,8 @@ func IssueJoinState(signer crypto.Signer, params *JoinStateParams) (string, erro
 }
 
 func verifyJoinStateInner(key crypto.PublicKey, parsed *jwt.JSONWebToken, params *JoinStateParams) (*JoinState, error) {
-	if params.Token.Status == nil || params.Token.Status.BoundKeypair == nil {
+	status := params.Token.GetBoundKeypairStatus()
+	if status == nil {
 		return nil, trace.BadParameter("invalid token status")
 	}
 
@@ -196,13 +197,13 @@ func verifyJoinStateInner(key crypto.PublicKey, parsed *jwt.JSONWebToken, params
 	// Ensure the non-informational claims in the join state match what we
 	// expect.
 	var errors []error
-	if document.RecoverySequence != params.Token.Status.BoundKeypair.RecoveryCount {
+	if document.RecoverySequence != params.Token.GetBoundKeypairStatus().RecoveryCount {
 		errors = append(errors, trace.AccessDenied("recovery counter mismatch"))
 	}
-	if document.BotInstanceID != params.Token.Status.BoundKeypair.BoundBotInstanceID {
+	if document.BotInstanceID != params.Token.GetBoundKeypairStatus().BoundBotInstanceID {
 		errors = append(errors, trace.AccessDenied("bot instance mismatch"))
 	}
-	if document.HostID != params.Token.Status.BoundKeypair.BoundHostID {
+	if document.HostID != params.Token.GetBoundKeypairStatus().BoundHostID {
 		errors = append(errors, trace.AccessDenied("host mismatch"))
 	}
 

@@ -88,6 +88,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 // KubeServiceType specifies a Teleport service type which can forward Kubernetes requests
@@ -180,6 +181,8 @@ type ForwarderConfig struct {
 	// ClusterFeaturesGetter is a function that returns the Teleport cluster licensed features.
 	// It is used to determine if the cluster is licensed for Kubernetes usage.
 	ClusterFeatures ClusterFeaturesGetter
+	// Scope that the forwarder is pinned to.
+	Scope string
 }
 
 // ClusterFeaturesGetter is a function that returns the Teleport cluster licensed features.
@@ -482,8 +485,8 @@ func (c *authContext) eventClusterMeta(req *http.Request) apievents.KubernetesCl
 		kubeUsers = []string{impersonateUser}
 		kubeGroups = impersonateGroups
 	} else {
-		kubeUsers = utils.StringsSliceFromSet(c.kubeUsers)
-		kubeGroups = utils.StringsSliceFromSet(c.kubeGroups)
+		kubeUsers = slices.Collect(maps.Keys(c.kubeUsers))
+		kubeGroups = slices.Collect(maps.Keys(c.kubeGroups))
 	}
 
 	return apievents.KubernetesClusterMetadata{
@@ -727,11 +730,19 @@ func (f *Forwarder) writeResponseErrorToBody(rw http.ResponseWriter, respErr err
 func (f *Forwarder) formatStatusResponseError(rw http.ResponseWriter, respErr error) {
 	// This detects failed requests that were terminated by the server due to GOAWAY. There
 	// is no direct way to detect these errors. No exported constants or error types exist from the
-	// standard library, see https://github.com/golang/net/blob/5ac9daca088ab4f378d7df849f6c7d28bea86071/http2/transport.go#L694.
+	// standard library, so we have to match on the error message. The two error strings come from:
+	//   - golang.org/x/net/http2 when its internal retry path cannot replay the body:
+	//     https://github.com/golang/net/blob/5ac9daca088ab4f378d7df849f6c7d28bea86071/http2/transport.go#L694
+	//   - net/http (errCannotRewind) when, after the http2 conn pool is drained, the http1 retry
+	//     path tries to rewind the body and fails because Request.GetBody is unset:
+	//     https://github.com/golang/go/blob/go1.26.2/src/net/http/transport.go#L759
 	// When a failed request is found, we return a response that indicates  to clients that they
 	// should retry the request themselves.
-	if errString := respErr.Error(); strings.HasSuffix(errString, `after Request.Body was written; define Request.GetBody to avoid this error`) &&
-		strings.Contains(errString, `http2: Transport: cannot retry err`) {
+	errString := respErr.Error()
+	isHTTP2RetryErr := strings.Contains(errString, `http2: Transport: cannot retry err`) &&
+		strings.HasSuffix(errString, `after Request.Body was written; define Request.GetBody to avoid this error`)
+	isHTTP1RewindErr := strings.Contains(errString, `net/http: cannot rewind body after connection loss`)
+	if isHTTP2RetryErr || isHTTP1RewindErr {
 
 		data, err := runtime.Encode(globalKubeCodecs.LegacyCodec(), &kubeerrors.NewTooManyRequests("Connection closed by upstream Kubernetes server", 1).ErrStatus)
 		if err != nil {
@@ -750,7 +761,7 @@ func (f *Forwarder) formatStatusResponseError(rw http.ResponseWriter, respErr er
 		return
 	}
 
-	code := trace.ErrorToCode(respErr)
+	code, reason := kubeStatusCodeAndReason(respErr)
 	status := &metav1.Status{
 		Status: metav1.StatusFailure,
 		// Don't trace.Unwrap the error, in case it was wrapped with a
@@ -758,7 +769,7 @@ func (f *Forwarder) formatStatusResponseError(rw http.ResponseWriter, respErr er
 		// low-level to be useful.
 		Message: respErr.Error(),
 		Code:    int32(code),
-		Reason:  errorToKubeStatusReason(respErr, code),
+		Reason:  reason,
 	}
 	data, err := runtime.Encode(globalKubeCodecs.LegacyCodec(), status)
 	if err != nil {
@@ -771,10 +782,22 @@ func (f *Forwarder) formatStatusResponseError(rw http.ResponseWriter, respErr er
 	// it correctly. If response code and status.Code drift, kubectl prints
 	// `Error from server (InternalError): an error on the server ("unknown")
 	// has prevented the request from succeeding`` instead of the correct reason.
-	rw.WriteHeader(trace.ErrorToCode(respErr))
+	rw.WriteHeader(code)
 	if _, err := rw.Write(data); err != nil && !utils.IsOKNetworkError(err) {
 		f.log.WarnContext(f.ctx, "Failed writing kube error response body", "error", err)
 	}
+}
+
+// kubeStatusCodeAndReason returns HTTP status code and Kubernetes status reason to use when surfacing error to user.
+// Without this, trace.ErrorToCode falls back to 500 and rewrites the original 403 into an InternalError.
+func kubeStatusCodeAndReason(respErr error) (int, metav1.StatusReason) {
+	var statusErr *kubeerrors.StatusError
+	if errors.As(respErr, &statusErr) && statusErr.ErrStatus.Code != 0 {
+		return int(statusErr.ErrStatus.Code), statusErr.ErrStatus.Reason
+	}
+	code := trace.ErrorToCode(respErr)
+	reason := errorToKubeStatusReason(respErr, code)
+	return code, reason
 }
 
 func (f *Forwarder) setupContext(
@@ -1010,7 +1033,7 @@ func (f *Forwarder) getKubeAccessDetails(
 		// Creates a matcher that matches the cluster labels against `kubernetes_labels`
 		// defined for each user's role.
 		matchers = append(matchers,
-			services.NewKubernetesClusterLabelMatcher(labels, accessChecker.Traits()),
+			services.NewKubernetesClusterLabelMatcher(labels, accessChecker.AccessInfo().Username, accessChecker.Traits()),
 		)
 
 		// If the kubeResource is available, append an extra matcher that validates
@@ -1144,8 +1167,8 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 	// fillDefaultKubePrincipalDetails fills the default details in order to keep
 	// the correct behavior when forwarding the request to the Kubernetes API.
 	kubeUsers, kubeGroups = fillDefaultKubePrincipalDetails(kubeUsers, kubeGroups, actx.User.GetName())
-	actx.kubeUsers = utils.StringsSet(kubeUsers)
-	actx.kubeGroups = utils.StringsSet(kubeGroups)
+	actx.kubeUsers = set.New(kubeUsers...)
+	actx.kubeGroups = set.New(kubeGroups...)
 
 	// Check authz against the first match.
 	//

@@ -113,6 +113,7 @@ func TestSSHIdentityConversion(t *testing.T) {
 				"two": "2",
 			},
 		}),
+		DelegationSessionID: "delegation-session",
 	}
 
 	ignores := []string{

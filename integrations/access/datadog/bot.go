@@ -68,7 +68,7 @@ var resolutionNoteTemplate = template.Must(template.New("resolution note").Parse
 // SupportedApps are the apps supported by this bot.
 func (b Bot) SupportedApps() []common.App {
 	return []common.App{
-		accessrequest.NewApp(b),
+		accessrequest.NewApp(),
 	}
 }
 

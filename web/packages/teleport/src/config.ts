@@ -37,6 +37,7 @@ import {
   IntegrationKind,
   PluginKind,
   Regions,
+  AzureResource,
 } from 'teleport/services/integrations';
 import type { KubeResourceKind } from 'teleport/services/kube/types';
 import type { GroupAction } from 'teleport/services/managedUpdates';
@@ -99,6 +100,9 @@ const cfg = {
 
   // sessionSummarizerEnabled refers to the AI session summary feature
   sessionSummarizerEnabled: false,
+
+  // beamsUI indicates whether the Beams lite-mode UI is enabled
+  beamsUi: false,
 
   configDir: '$HOME/.config/teleport',
 
@@ -220,6 +224,7 @@ const cfg = {
     loginError: '/web/msg/error/login',
     loginErrorCallback: '/web/msg/error/login/callback',
     loginErrorUnauthorized: '/web/msg/error/login/auth',
+    loginErrorEntraIDGroupsOverage: '/web/msg/error/login/entra_groups_overage',
     samlSloFailed: '/web/msg/error/slo',
     userInvite: '/web/invite/:tokenId',
     userInviteContinue: '/web/invite/:tokenId/continue',
@@ -227,8 +232,11 @@ const cfg = {
     userResetContinue: '/web/reset/:tokenId/continue',
     kubernetes: '/web/cluster/:clusterId/kubernetes',
     headlessSso: `/web/headless/:requestId`,
+    browserMfa: `/web/mfa/browser/:requestId?`,
     integrations: '/web/integrations',
     integrationOverview: '/web/integrations/overview/:type/:name',
+    integrationOverviewSettings:
+      '/web/integrations/overview/:type/:name/settings',
     integrationStatus: '/web/integrations/status/:type/:name/:subPage?',
     integrationTasks: '/web/integrations/status/:type/:name/tasks',
     integrationStatusResources:
@@ -313,7 +321,7 @@ const cfg = {
     desktopsPath: `/v1/webapi/sites/:clusterId/desktops?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
     desktopPath: `/v1/webapi/sites/:clusterId/desktops/:desktopName`,
     desktopWsAddr:
-      'wss://:fqdn/v1/webapi/sites/:clusterId/desktops/:desktopName/connect/ws?username=:username',
+      'wss://:fqdn/v1/webapi/sites/:clusterId/desktops/:desktopName/connect/ws?username=:username&tdpb=:version',
     desktopPlaybackWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/desktopplayback/:sid/ws',
     desktopIsActive: '/v1/webapi/sites/:clusterId/desktops/:desktopName/active',
@@ -388,6 +396,8 @@ const cfg = {
     mfaLoginFinish: '/v1/webapi/mfa/login/finishsession', // creates a web session
 
     headlessSsoPath: `/v1/webapi/headless/:requestId`,
+
+    browserMfaPath: `/v1/webapi/mfa/browser/:requestId`,
 
     mfaCreateRegistrationChallengePath:
       '/v1/webapi/mfa/token/:tokenId/registerchallenge',
@@ -806,6 +816,13 @@ const cfg = {
     return generatePath(cfg.routes.integrationOverview, { type, name });
   },
 
+  getIaCIntegrationSettingsRoute(
+    type: PluginKind | IntegrationKind,
+    name: string
+  ) {
+    return generatePath(cfg.routes.integrationOverviewSettings, { type, name });
+  },
+
   getIntegrationStatusResourcesRoute(
     type: PluginKind | IntegrationKind,
     name: string,
@@ -1099,6 +1116,10 @@ const cfg = {
 
   getHeadlessSsoPath(requestId: string) {
     return generatePath(cfg.api.headlessSsoPath, { requestId });
+  },
+
+  getBrowserMfaPath(requestId: string) {
+    return generatePath(cfg.api.browserMfaPath, { requestId });
   },
 
   getUserInviteTokenRoute(tokenId = '') {
@@ -1490,7 +1511,7 @@ const cfg = {
 
   getIntegrationRulesUrl(
     name: string,
-    resourceType: AwsResource,
+    resourceType: AwsResource | AzureResource,
     regions?: string[]
   ) {
     const clusterId = cfg.proxyCluster;

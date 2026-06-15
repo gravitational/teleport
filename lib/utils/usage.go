@@ -72,3 +72,6 @@ func withCommandPrintfWidth(app *kingpin.Application, args []string) func(*usage
 		}
 	}
 }
+
+// DocsMode is false in regular builds. It is true when building with -tags docs.
+const DocsMode = false

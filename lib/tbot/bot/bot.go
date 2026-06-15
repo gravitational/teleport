@@ -273,6 +273,7 @@ func (b *Bot) buildServices(ctx context.Context, registry *readyz.Registry) ([]*
 				teleport.ComponentKey,
 				teleport.Component(teleport.ComponentTBot, "svc", handle.name),
 			),
+			Scoped: b.cfg.Scoped,
 		})
 		if err != nil {
 			return nil, closeFn, trace.Wrap(err, "building service [%d]", idx)
@@ -364,6 +365,7 @@ func (b *Bot) buildIdentityService(
 		ClientBuilder:  clientBuilder,
 		ReloadCh:       reloadCh,
 		StatusReporter: handle.statusReporter,
+		Scoped:         b.cfg.Scoped,
 	})
 	if err != nil {
 		unsubscribe()

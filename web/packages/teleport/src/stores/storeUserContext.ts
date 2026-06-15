@@ -44,6 +44,10 @@ export default class StoreUserContext extends Store<UserContext> {
     return this.state.cluster.authVersion;
   }
 
+  getClusterPublicUrl() {
+    return this.state.cluster.publicURL;
+  }
+
   getEventAccess() {
     return this.state.acl.events;
   }
@@ -166,6 +170,10 @@ export default class StoreUserContext extends Store<UserContext> {
 
   hasFileTransferAccess() {
     return this.state.acl.fileTransferAccess;
+  }
+
+  isWebTerminalCopyBlocked() {
+    return this.state.acl.webTerminalClipboardMode === 'no-copy';
   }
 
   // hasPrereqAccessToAddAgents checks if user meets the prerequisite
@@ -309,5 +317,9 @@ export default class StoreUserContext extends Store<UserContext> {
 
   getInferenceSecretAccess() {
     return this.state.acl.inferenceSecret;
+  }
+
+  getBeamAccess() {
+    return this.state.acl.beam;
   }
 }

@@ -225,6 +225,24 @@ const validAwsRaResourceName = (name: string): ValidationResult => {
   };
 };
 
+const AZURE_SUBSCRIPTION_ID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * requiredAzureSubscriptionId checks that a value is non-empty and a valid
+ * Azure subscription UUID.
+ */
+const requiredAzureSubscriptionId: Rule = id => (): ValidationResult => {
+  if (!id) {
+    return { valid: false, message: 'Subscription ID is required' };
+  }
+  if (!AZURE_SUBSCRIPTION_ID_REGEX.test(id)) {
+    return { valid: false, message: 'Must be a valid Azure subscription ID' };
+  }
+
+  return { valid: true };
+};
+
 /**
  * requiredIntegrationName is a required field and checks for a
  * value which must also be a valid Integration name.
@@ -552,6 +570,7 @@ export {
   requiredIamRoleName,
   requiredIamTrustAnchorName,
   requiredIamProfileName,
+  requiredAzureSubscriptionId,
   requiredEmailLike,
   requiredMaxLength,
   requiredAll,

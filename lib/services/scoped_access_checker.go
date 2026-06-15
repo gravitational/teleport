@@ -197,6 +197,12 @@ func (c *ScopedAccessChecker) SSH() *SSHAccessChecker {
 	return &SSHAccessChecker{checker: c}
 }
 
+// Kube returns a kube-specific access checker backed by this checker. All kube-specific methods
+// (users, groups, idle timeout, etc.) live on [KubeAccessChecker].
+func (c *ScopedAccessChecker) Kube() *KubeAccessChecker {
+	return &KubeAccessChecker{checker: c}
+}
+
 // AccessInfo returns the AccessInfo that this access checker is based on.
 func (c *ScopedAccessChecker) AccessInfo() *AccessInfo {
 	if !c.isScoped() {
@@ -274,6 +280,14 @@ func (c *ScopedAccessChecker) LockingMode(defaultMode constants.LockingMode) con
 		return c.unscopedChecker.LockingMode(defaultMode)
 	}
 	return c.scopedCompatChecker.LockingMode(defaultMode)
+}
+
+// DelegationSessionID returns the ID of the current Delegation Session.
+func (c *ScopedAccessChecker) DelegationSessionID() string {
+	if !c.isScoped() {
+		return c.unscopedChecker.DelegationSessionID()
+	}
+	return c.scopedCompatChecker.DelegationSessionID()
 }
 
 // checkAccessToRulesImpl verifies that *all* of a series of verbs are permitted for the specified resource. This

@@ -209,6 +209,7 @@ func (r resourceTeleportWorkloadIdentity) Update(ctx context.Context, req tfsdk.
 	}
 	workloadIdentityResource := workloadIdentity
 
+	workloadIdentityResource.Kind = "workload_identity"
 
 	
 	name := workloadIdentityResource.Metadata.Name

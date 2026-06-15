@@ -53,7 +53,7 @@ func ProxyServiceBuilder(
 	alpnUpgradeCache *internal.ALPNUpgradeCache,
 ) bot.ServiceBuilder {
 	buildFn := func(deps bot.ServiceDependencies) (bot.Service, error) {
-		if err := cfg.CheckAndSetDefaults(); err != nil {
+		if err := cfg.CheckAndSetDefaults(deps.Scoped); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		svc := &ProxyService{
@@ -226,6 +226,9 @@ func (s *ProxyService) issueCert(
 	identityOpts := []identity.GenerateOption{
 		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
 		identity.WithLogger(s.log),
+	}
+	if s.cfg.DelegationSessionID != "" {
+		identityOpts = append(identityOpts, identity.WithDelegation(s.cfg.DelegationSessionID))
 	}
 	impersonatedIdentity, err := s.identityGenerator.GenerateFacade(ctx, identityOpts...)
 	if err != nil {

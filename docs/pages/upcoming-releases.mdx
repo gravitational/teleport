@@ -30,43 +30,11 @@ We continue to support the following major versions of Teleport:
 
 We plan to release the following versions in the coming months:
 
-| Version | Date                   |
-|---------|------------------------|
-| 18.8.0  | Week of April 20, 2026 |
-| 18.9.0  | Week of May 4, 2026    |
-| 19.0.0  | August 2026            |
-
-### 18.8.0
-
-#### VNet for Linux
-
-Teleport VNet support will be extended to Linux workstations.
-
-*Delayed from 18.7.0.*
-
-#### Improvements to access list creation UX
-
-Teleport will provide guided in-product UX for creating common types of access
-lists centered around granting users permissions to resources and permissions
-to request access to resources.
-
-*Delayed from 18.7.0.*
-
-#### `tsh` MFA via browser
-
-`tsh` will be able to delegate MFA checks (both on login and for per-session
-MFA) to the browser, enabling the use of browser based passkeys or password
-managers with `tsh`.
-
-#### Multi-domain support for Windows desktop access
-
-Teleport will support RDP connections to Windows hosts where the Windows users
-belong to different Active Directory domains than the target hosts.
-
-#### Bound keypair joining for agents
-
-Teleport's bound keypair join method will be extended to support arbitrary
-Teleport agents in addition to bots.
+| Version | Date                  |
+|---------|-----------------------|
+| 18.9.0  | Week of June 15, 2026 |
+| 18.10.0 | Week of June 29, 2026 |
+| 19.0.0  | August 2026           |
 
 ### 18.9.0
 
@@ -76,20 +44,44 @@ Application access session cookies will be compatible with Google's [Device
 Bound Session Credentials](https://developer.chrome.com/docs/web-platform/device-bound-session-credentials),
 adding a layer of protection against session hijacking and cookie theft.
 
+#### High-DPI support for Windows desktop sessions
+
+Remote desktop sessions will support high-DPI mode, improving the clarity and
+quality of the display rendering on supported displays.
+
+#### Sub-CA
+
+Teleport will support operating as a sub-CA of an external root for the Windows
+Desktop and Database Client CAs. Subsequent releases will extend support for
+other CAs.
+
+### 18.10.0
+
+#### Linux Desktop Access
+
+Teleport will support remote desktop sessions to Linux hosts.
+
 #### Directory sharing enhancements for Windows desktop access
 
 Teleport will support sharing multiple directories in a single RDP session.  In
 addition, users will be able to unmount shared directories without terminating
 the session.
 
+#### Windows sessions summaries
+
+Identity Security will support AI summarization for Windows desktop access
+session recordings.
+
 ## Teleport Cloud
 
 The key deliverables for Teleport Cloud in the next quarter:
 
-| Week of          | Description                                                 |
-|------------------|-------------------------------------------------------------|
-| April 27, 2026   | Teleport 18.8 will begin rollout on Cloud.                   |
-| April 27, 2026   | Teleport 18.8 agents will begin rollout to eligible tenants. |
+| Week of       | Description                                                    |
+|---------------|----------------------------------------------------------------|
+| June 15, 2026 | Teleport 18.8.3 will begin rollout on Cloud.                   |
+| June 22, 2026 | Teleport 18.8.3 agents will begin rollout to eligible tenants. |
+| June 29, 2026 | Teleport 18.9.0 will begin rollout on Cloud.                   |
+| July 06, 2026 | Teleport 18.9.0 agents will begin rollout to eligible tenants. |
 
 ## Production readiness
 

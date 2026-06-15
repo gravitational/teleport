@@ -170,6 +170,9 @@ func setupTestCache(t *testing.T, setupConfig cache.SetupConfigFn) (*testCache, 
 	workloadIdentitySvc, err := local.NewWorkloadIdentityService(bkWrapper)
 	require.NoError(t, err)
 
+	beamService, err := local.NewBeamService(bkWrapper)
+	require.NoError(t, err)
+
 	databaseObjectsSvc, err := local.NewDatabaseObjectService(bkWrapper)
 	require.NoError(t, err)
 
@@ -208,10 +211,17 @@ func setupTestCache(t *testing.T, setupConfig cache.SetupConfigFn) (*testCache, 
 	recordingEncryption, err := local.NewRecordingEncryptionService(bkWrapper)
 	require.NoError(t, err)
 
-	workloadClusters, err := local.NewWorkloadClusterService(bkWrapper)
+	plugin := local.NewPluginsService(bkWrapper)
+
+	summaries, err := local.NewSummarizerService(local.SummarizerServiceConfig{
+		Backend: bkWrapper,
+	})
 	require.NoError(t, err)
 
-	plugin := local.NewPluginsService(bkWrapper)
+	subCA, err := local.NewSubCAService(local.SubCAServiceParams{
+		Backend: bkWrapper,
+	})
+	require.NoError(t, err)
 
 	c, err := cache.New(setupConfig(cache.Config{
 		Context:                 ctx,
@@ -226,6 +236,7 @@ func setupTestCache(t *testing.T, setupConfig cache.SetupConfigFn) (*testCache, 
 		AppSession:              idService,
 		WebSession:              idService.WebSessions(),
 		WebToken:                idService,
+		Beams:                   beamService,
 		SnowflakeSession:        idService,
 		Restrictions:            restrictions,
 		Apps:                    apps,
@@ -263,7 +274,8 @@ func setupTestCache(t *testing.T, setupConfig cache.SetupConfigFn) (*testCache, 
 		Plugin:                  plugin,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 eventsC,
-		WorkloadClusterService:  workloadClusters,
+		Summarizer:              summaries,
+		SubCAService:            subCA,
 	}))
 	require.NoError(t, err)
 

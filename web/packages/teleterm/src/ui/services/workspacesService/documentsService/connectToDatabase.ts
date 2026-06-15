@@ -59,7 +59,11 @@ export async function connectToDatabase(
       origin: telemetry.origin,
     });
   } else {
-    await ctx.workspacesService.setActiveWorkspace(rootClusterUri);
+    const { isAtDesiredWorkspace } =
+      await ctx.workspacesService.setActiveWorkspace(rootClusterUri);
+    if (!isAtDesiredWorkspace) {
+      return;
+    }
     documentsService.add(doc);
     documentsService.open(doc.uri);
   }

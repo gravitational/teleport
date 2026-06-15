@@ -83,6 +83,8 @@ func (s *TerraformSuiteEnterprise) TestImportInferencePolicy() {
 	t := s.T()
 	ctx := t.Context()
 
+	s.createInferenceModel(ctx, "some-model")
+
 	r := "teleport_inference_policy"
 	id := "test_import"
 	name := r + "." + id

@@ -759,6 +759,8 @@ type DatabaseAccessPoint interface {
 type ReadWindowsDesktopAccessPoint interface {
 	// Closer closes all the resources
 	io.Closer
+	// SubCAServiceGetter reads CA override resources.
+	services.SubCAServiceGetter
 
 	// NewWatcher returns a new event watcher.
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
@@ -876,8 +878,8 @@ type ReadDiscoveryAccessPoint interface {
 	// GetApp returns the specified application resource.
 	GetApp(ctx context.Context, name string) (types.Application, error)
 
-	// ListDiscoveryConfigs returns a paginated list of Discovery Config resources.
-	ListDiscoveryConfigs(ctx context.Context, pageSize int, nextKey string) ([]*discoveryconfig.DiscoveryConfig, string, error)
+	// DiscoveryConfigsGetter lists and reads discovery config resources.
+	services.DiscoveryConfigsGetter
 
 	// GetIntegration returns the specified integration resource.
 	GetIntegration(ctx context.Context, name string) (types.Integration, error)
@@ -1075,6 +1077,11 @@ type OktaAccessPoint interface {
 
 	// DeleteLock deletes a given lock
 	DeleteLock(ctx context.Context, name string) error
+
+	// ConditionalUpdateOktaAssignment updates an Okta assignment, protected by optimistic locking.
+	ConditionalUpdateOktaAssignment(ctx context.Context, assignment types.OktaAssignment) (types.OktaAssignment, error)
+	// UpsertOktaAssignment creates or updates an Okta assignment resource.
+	UpsertOktaAssignment(ctx context.Context, assignment types.OktaAssignment) (types.OktaAssignment, error)
 }
 
 // AccessCache is a subset of the interface working on the certificate authorities
@@ -1193,6 +1200,9 @@ type Cache interface {
 	// GetApplicationServers returns all registered application servers.
 	GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error)
 
+	// RangeApplicationServersWithName returns an iterator over application servers for a given app name.
+	RangeApplicationServersWithName(ctx context.Context, appName string) iter.Seq2[types.AppServer, error]
+
 	// GetAppSession gets an application web session.
 	GetAppSession(context.Context, types.GetAppSessionRequest) (types.WebSession, error)
 
@@ -1226,6 +1236,9 @@ type Cache interface {
 	// GetKubernetesServers returns a list of kubernetes servers registered in the cluster
 	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
 
+	// RangeKubernetesServersWithName returns an iterator over kubernetes servers for a given cluster name.
+	RangeKubernetesServersWithName(ctx context.Context, clusterName string) iter.Seq2[types.KubeServer, error]
+
 	// ListKubernetesWaitingContainers lists Kubernetes ephemeral
 	// containers that are waiting to be created until moderated
 	// session conditions are met.
@@ -1238,6 +1251,9 @@ type Cache interface {
 
 	// GetDatabaseServers returns all registered database proxy servers.
 	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
+
+	// RangeDatabaseServersWithName returns an iterator over database proxy servers for a given database name.
+	RangeDatabaseServersWithName(ctx context.Context, databaseName string) iter.Seq2[types.DatabaseServer, error]
 
 	// GetDatabases returns all database resources.
 	GetDatabases(ctx context.Context) ([]types.Database, error)
@@ -1424,9 +1440,9 @@ type Cache interface {
 
 	// GetWorkloadIdentity gets a WorkloadIdentity by name.
 	GetWorkloadIdentity(ctx context.Context, name string) (*workloadidentityv1pb.WorkloadIdentity, error)
-	// ListWorkloadIdentities lists all SPIFFE Federations using Google style
-	// pagination.
-	ListWorkloadIdentities(ctx context.Context, pageSize int, lastToken string, options *services.ListWorkloadIdentitiesRequestOptions) ([]*workloadidentityv1pb.WorkloadIdentity, string, error)
+	// RangeWorkloadIdentities returns WorkloadIdentity resources within the
+	// range [start, end), ordered by the given sort field and direction.
+	RangeWorkloadIdentities(ctx context.Context, start, end string, sortField services.WorkloadIdentitySortField, sortDesc bool) iter.Seq2[*workloadidentityv1pb.WorkloadIdentity, error]
 
 	// ListStaticHostUsers lists static host users.
 	ListStaticHostUsers(ctx context.Context, pageSize int, startKey string) ([]*userprovisioningpb.StaticHostUser, string, error)
@@ -1478,8 +1494,13 @@ type Cache interface {
 	// DiscoveryConfigsGetter defines methods for fetching discovery configs.
 	services.DiscoveryConfigsGetter
 
-	// WorkloadClusterServiceGetter defines methods for fetching workload clusters.
-	services.WorkloadClusterServiceGetter
+	// SummarizerServiceGetter defines methods for fetching summarizer resources.
+	services.SummarizerServiceGetter
+	// BeamReader defines methods for reading beam resources.
+	services.BeamReader
+
+	// SubCAServiceGetter reads CertAuthorityOverride resources.
+	services.SubCAServiceGetter
 }
 
 type NodeWrapper struct {
@@ -1763,6 +1784,12 @@ func (w *DiscoveryWrapper) UpdateDiscoveryConfigStatus(ctx context.Context, name
 	return w.NoCache.UpdateDiscoveryConfigStatus(ctx, name, status)
 }
 
+// GetDiscoveryConfig retrieves a discovery config by name.
+// This method is not cached to ensure that updating the DiscoveryConfig Status does not use (possibly) stale cache data.
+func (w *DiscoveryWrapper) GetDiscoveryConfig(ctx context.Context, name string) (*discoveryconfig.DiscoveryConfig, error) {
+	return w.NoCache.GetDiscoveryConfig(ctx, name)
+}
+
 // UpserUserTask creates or updates an User Task.
 func (w *DiscoveryWrapper) UpsertUserTask(ctx context.Context, req *usertasksv1.UserTask) (*usertasksv1.UserTask, error) {
 	return w.NoCache.UpsertUserTask(ctx, req)
@@ -1858,6 +1885,16 @@ func (w *OktaWrapper) DeleteOktaAssignment(ctx context.Context, name string) err
 // DeleteApplicationServer removes specified application server.
 func (w *OktaWrapper) DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error {
 	return w.NoCache.DeleteApplicationServer(ctx, namespace, hostID, name)
+}
+
+// UpsertOktaAssignment creates or updates an Okta assignment resource.
+func (w *OktaWrapper) UpsertOktaAssignment(ctx context.Context, item types.OktaAssignment) (types.OktaAssignment, error) {
+	return w.NoCache.UpsertOktaAssignment(ctx, item)
+}
+
+// ConditionalUpdateOktaAssignment updates an Okta assignment resource, protected by optimistic locking.
+func (w *OktaWrapper) ConditionalUpdateOktaAssignment(ctx context.Context, item types.OktaAssignment) (types.OktaAssignment, error) {
+	return w.NoCache.ConditionalUpdateOktaAssignment(ctx, item)
 }
 
 // GetLocks fetches locks that target a given set of resources

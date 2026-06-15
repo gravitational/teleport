@@ -18,13 +18,14 @@
 // 	protoc        (unknown)
 // source: teleport/workloadidentity/v1/join_attrs.proto
 
+//go:build !protoopaque
+
 package workloadidentityv1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -37,7 +38,7 @@ const (
 
 // The collection of attributes that result from the join process.
 type JoinAttrs struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The collection of attributes that result from the join process but are not
 	// specific to any particular join method.
 	Meta *JoinAttrsMeta `protobuf:"bytes,1,opt,name=meta,proto3" json:"meta,omitempty"`
@@ -96,11 +97,6 @@ func (x *JoinAttrs) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use JoinAttrs.ProtoReflect.Descriptor instead.
-func (*JoinAttrs) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_join_attrs_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *JoinAttrs) GetMeta() *JoinAttrsMeta {
@@ -208,10 +204,293 @@ func (x *JoinAttrs) GetEnv0() *JoinAttrsEnv0 {
 	return nil
 }
 
+func (x *JoinAttrs) SetMeta(v *JoinAttrsMeta) {
+	x.Meta = v
+}
+
+func (x *JoinAttrs) SetGitlab(v *JoinAttrsGitLab) {
+	x.Gitlab = v
+}
+
+func (x *JoinAttrs) SetGithub(v *JoinAttrsGitHub) {
+	x.Github = v
+}
+
+func (x *JoinAttrs) SetIam(v *JoinAttrsAWSIAM) {
+	x.Iam = v
+}
+
+func (x *JoinAttrs) SetTpm(v *JoinAttrsTPM) {
+	x.Tpm = v
+}
+
+func (x *JoinAttrs) SetAzure(v *JoinAttrsAzure) {
+	x.Azure = v
+}
+
+func (x *JoinAttrs) SetCircleci(v *JoinAttrsCircleCI) {
+	x.Circleci = v
+}
+
+func (x *JoinAttrs) SetBitbucket(v *JoinAttrsBitbucket) {
+	x.Bitbucket = v
+}
+
+func (x *JoinAttrs) SetTerraformCloud(v *JoinAttrsTerraformCloud) {
+	x.TerraformCloud = v
+}
+
+func (x *JoinAttrs) SetSpacelift(v *JoinAttrsSpacelift) {
+	x.Spacelift = v
+}
+
+func (x *JoinAttrs) SetGcp(v *JoinAttrsGCP) {
+	x.Gcp = v
+}
+
+func (x *JoinAttrs) SetKubernetes(v *JoinAttrsKubernetes) {
+	x.Kubernetes = v
+}
+
+func (x *JoinAttrs) SetOracle(v *JoinAttrsOracle) {
+	x.Oracle = v
+}
+
+func (x *JoinAttrs) SetAzureDevops(v *JoinAttrsAzureDevops) {
+	x.AzureDevops = v
+}
+
+func (x *JoinAttrs) SetEnv0(v *JoinAttrsEnv0) {
+	x.Env0 = v
+}
+
+func (x *JoinAttrs) HasMeta() bool {
+	if x == nil {
+		return false
+	}
+	return x.Meta != nil
+}
+
+func (x *JoinAttrs) HasGitlab() bool {
+	if x == nil {
+		return false
+	}
+	return x.Gitlab != nil
+}
+
+func (x *JoinAttrs) HasGithub() bool {
+	if x == nil {
+		return false
+	}
+	return x.Github != nil
+}
+
+func (x *JoinAttrs) HasIam() bool {
+	if x == nil {
+		return false
+	}
+	return x.Iam != nil
+}
+
+func (x *JoinAttrs) HasTpm() bool {
+	if x == nil {
+		return false
+	}
+	return x.Tpm != nil
+}
+
+func (x *JoinAttrs) HasAzure() bool {
+	if x == nil {
+		return false
+	}
+	return x.Azure != nil
+}
+
+func (x *JoinAttrs) HasCircleci() bool {
+	if x == nil {
+		return false
+	}
+	return x.Circleci != nil
+}
+
+func (x *JoinAttrs) HasBitbucket() bool {
+	if x == nil {
+		return false
+	}
+	return x.Bitbucket != nil
+}
+
+func (x *JoinAttrs) HasTerraformCloud() bool {
+	if x == nil {
+		return false
+	}
+	return x.TerraformCloud != nil
+}
+
+func (x *JoinAttrs) HasSpacelift() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spacelift != nil
+}
+
+func (x *JoinAttrs) HasGcp() bool {
+	if x == nil {
+		return false
+	}
+	return x.Gcp != nil
+}
+
+func (x *JoinAttrs) HasKubernetes() bool {
+	if x == nil {
+		return false
+	}
+	return x.Kubernetes != nil
+}
+
+func (x *JoinAttrs) HasOracle() bool {
+	if x == nil {
+		return false
+	}
+	return x.Oracle != nil
+}
+
+func (x *JoinAttrs) HasAzureDevops() bool {
+	if x == nil {
+		return false
+	}
+	return x.AzureDevops != nil
+}
+
+func (x *JoinAttrs) HasEnv0() bool {
+	if x == nil {
+		return false
+	}
+	return x.Env0 != nil
+}
+
+func (x *JoinAttrs) ClearMeta() {
+	x.Meta = nil
+}
+
+func (x *JoinAttrs) ClearGitlab() {
+	x.Gitlab = nil
+}
+
+func (x *JoinAttrs) ClearGithub() {
+	x.Github = nil
+}
+
+func (x *JoinAttrs) ClearIam() {
+	x.Iam = nil
+}
+
+func (x *JoinAttrs) ClearTpm() {
+	x.Tpm = nil
+}
+
+func (x *JoinAttrs) ClearAzure() {
+	x.Azure = nil
+}
+
+func (x *JoinAttrs) ClearCircleci() {
+	x.Circleci = nil
+}
+
+func (x *JoinAttrs) ClearBitbucket() {
+	x.Bitbucket = nil
+}
+
+func (x *JoinAttrs) ClearTerraformCloud() {
+	x.TerraformCloud = nil
+}
+
+func (x *JoinAttrs) ClearSpacelift() {
+	x.Spacelift = nil
+}
+
+func (x *JoinAttrs) ClearGcp() {
+	x.Gcp = nil
+}
+
+func (x *JoinAttrs) ClearKubernetes() {
+	x.Kubernetes = nil
+}
+
+func (x *JoinAttrs) ClearOracle() {
+	x.Oracle = nil
+}
+
+func (x *JoinAttrs) ClearAzureDevops() {
+	x.AzureDevops = nil
+}
+
+func (x *JoinAttrs) ClearEnv0() {
+	x.Env0 = nil
+}
+
+type JoinAttrs_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The collection of attributes that result from the join process but are not
+	// specific to any particular join method.
+	Meta *JoinAttrsMeta
+	// Attributes that are specific to the GitLab (`gitlab`) join method.
+	Gitlab *JoinAttrsGitLab
+	// Attributes that are specific to the GitHub (`github`) join method.
+	Github *JoinAttrsGitHub
+	// Attributes that are specific to the AWS IAM (`iam`) join method.
+	Iam *JoinAttrsAWSIAM
+	// Attributes that are specific to the TPM (`tpm`) join method.
+	Tpm *JoinAttrsTPM
+	// Attributes that are specific to the Azure (`azure`) join method.
+	Azure *JoinAttrsAzure
+	// Attributes that are specific to the CircleCI (`circleci`) join method.
+	Circleci *JoinAttrsCircleCI
+	// Attributes that are specific to the Bitbucket (`bitbucket`) join method.
+	Bitbucket *JoinAttrsBitbucket
+	// Attributes that are specific to the Terraform Cloud (`terraform_cloud`) join method.
+	TerraformCloud *JoinAttrsTerraformCloud
+	// Attributes that are specific to the Spacelift (`spacelift`) join method.
+	Spacelift *JoinAttrsSpacelift
+	// Attributes that are specific to the GCP (`gcp`) join method.
+	Gcp *JoinAttrsGCP
+	// Attributes that are specific to the Kubernetes (`kubernetes`) join method.
+	Kubernetes *JoinAttrsKubernetes
+	// Attributes that are specific to the Oracle (`oracle`) join method.
+	Oracle *JoinAttrsOracle
+	// Attributes that are specific to the Azure Devops (`azure_devops`) join method.
+	AzureDevops *JoinAttrsAzureDevops
+	// Attributes that are specific to the Env0 (`env0`) join method.
+	Env0 *JoinAttrsEnv0
+}
+
+func (b0 JoinAttrs_builder) Build() *JoinAttrs {
+	m0 := &JoinAttrs{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Meta = b.Meta
+	x.Gitlab = b.Gitlab
+	x.Github = b.Github
+	x.Iam = b.Iam
+	x.Tpm = b.Tpm
+	x.Azure = b.Azure
+	x.Circleci = b.Circleci
+	x.Bitbucket = b.Bitbucket
+	x.TerraformCloud = b.TerraformCloud
+	x.Spacelift = b.Spacelift
+	x.Gcp = b.Gcp
+	x.Kubernetes = b.Kubernetes
+	x.Oracle = b.Oracle
+	x.AzureDevops = b.AzureDevops
+	x.Env0 = b.Env0
+	return m0
+}
+
 // The collection of attributes that result from the join process but are not
 // specific to any particular join method.
 type JoinAttrsMeta struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The name of the join token that was used to join.
 	//
 	// This field is omitted if the join token that was used to join was of the
@@ -252,11 +531,6 @@ func (x *JoinAttrsMeta) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use JoinAttrsMeta.ProtoReflect.Descriptor instead.
-func (*JoinAttrsMeta) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_join_attrs_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *JoinAttrsMeta) GetJoinTokenName() string {
 	if x != nil {
 		return x.JoinTokenName
@@ -271,13 +545,46 @@ func (x *JoinAttrsMeta) GetJoinMethod() string {
 	return ""
 }
 
+func (x *JoinAttrsMeta) SetJoinTokenName(v string) {
+	x.JoinTokenName = v
+}
+
+func (x *JoinAttrsMeta) SetJoinMethod(v string) {
+	x.JoinMethod = v
+}
+
+type JoinAttrsMeta_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The name of the join token that was used to join.
+	//
+	// This field is omitted if the join token that was used to join was of the
+	// `token` method as in this case, the name of the join token is sensitive.
+	//
+	// Example: `my-gitlab-join-token`
+	JoinTokenName string
+	// The name of the join method that was used to join.
+	//
+	// Example: `gitlab`
+	JoinMethod string
+}
+
+func (b0 JoinAttrsMeta_builder) Build() *JoinAttrsMeta {
+	m0 := &JoinAttrsMeta{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.JoinTokenName = b.JoinTokenName
+	x.JoinMethod = b.JoinMethod
+	return m0
+}
+
 // Attributes that are specific to the GitLab join method.
 //
 // Typically, these are mapped directly from the claims of the GitLab JWT that
 // was used to join. You can view the documentation for those claims at:
 // https://docs.gitlab.com/ee/ci/secrets/id_token_authentication.html#token-payload
 type JoinAttrsGitLab struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The `sub` claim of the GitLab JWT that was used to join.
 	// For example: `project_path:mygroup/my-project:ref_type:branch:ref:main`
 	Sub string `protobuf:"bytes,1,opt,name=sub,proto3" json:"sub,omitempty"`
@@ -348,11 +655,6 @@ func (x *JoinAttrsGitLab) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use JoinAttrsGitLab.ProtoReflect.Descriptor instead.
-func (*JoinAttrsGitLab) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_join_attrs_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *JoinAttrsGitLab) GetSub() string {
@@ -474,13 +776,153 @@ func (x *JoinAttrsGitLab) GetCiConfigSha() string {
 	return ""
 }
 
+func (x *JoinAttrsGitLab) SetSub(v string) {
+	x.Sub = v
+}
+
+func (x *JoinAttrsGitLab) SetRef(v string) {
+	x.Ref = v
+}
+
+func (x *JoinAttrsGitLab) SetRefType(v string) {
+	x.RefType = v
+}
+
+func (x *JoinAttrsGitLab) SetRefProtected(v bool) {
+	x.RefProtected = v
+}
+
+func (x *JoinAttrsGitLab) SetNamespacePath(v string) {
+	x.NamespacePath = v
+}
+
+func (x *JoinAttrsGitLab) SetProjectPath(v string) {
+	x.ProjectPath = v
+}
+
+func (x *JoinAttrsGitLab) SetUserLogin(v string) {
+	x.UserLogin = v
+}
+
+func (x *JoinAttrsGitLab) SetUserEmail(v string) {
+	x.UserEmail = v
+}
+
+func (x *JoinAttrsGitLab) SetPipelineId(v string) {
+	x.PipelineId = v
+}
+
+func (x *JoinAttrsGitLab) SetPipelineSource(v string) {
+	x.PipelineSource = v
+}
+
+func (x *JoinAttrsGitLab) SetEnvironment(v string) {
+	x.Environment = v
+}
+
+func (x *JoinAttrsGitLab) SetEnvironmentProtected(v bool) {
+	x.EnvironmentProtected = v
+}
+
+func (x *JoinAttrsGitLab) SetRunnerId(v int64) {
+	x.RunnerId = v
+}
+
+func (x *JoinAttrsGitLab) SetRunnerEnvironment(v string) {
+	x.RunnerEnvironment = v
+}
+
+func (x *JoinAttrsGitLab) SetSha(v string) {
+	x.Sha = v
+}
+
+func (x *JoinAttrsGitLab) SetCiConfigRefUri(v string) {
+	x.CiConfigRefUri = v
+}
+
+func (x *JoinAttrsGitLab) SetCiConfigSha(v string) {
+	x.CiConfigSha = v
+}
+
+type JoinAttrsGitLab_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The `sub` claim of the GitLab JWT that was used to join.
+	// For example: `project_path:mygroup/my-project:ref_type:branch:ref:main`
+	Sub string
+	// The ref that the pipeline is running against.
+	// For example: `main`
+	Ref string
+	// The type of ref that the pipeline is running against.
+	// This is typically `branch` or `tag`.
+	RefType string
+	// Whether or not the ref that the pipeline is running against is protected.
+	RefProtected bool
+	// The path of the namespace of the project that the pipeline is running within.
+	// For example: `mygroup`
+	NamespacePath string
+	// The full qualified path of the project that the pipeline is running within.
+	// This includes the namespace path.
+	// For example: `mygroup/my-project`
+	ProjectPath string
+	// The name of the user that triggered the pipeline run.
+	UserLogin string
+	// The email of the user that triggered the pipeline run.
+	UserEmail string
+	// The ID of the pipeline.
+	PipelineId string
+	// The source of the pipeline.
+	// For example: `push` or `web`
+	PipelineSource string
+	// The environment the pipeline is running against, if any.
+	Environment string
+	// Whether or not the pipeline is running against a protected environment.
+	// If there is no configured environment, this field is false.
+	EnvironmentProtected bool
+	// The ID of the runner that this pipeline is running on.
+	RunnerId int64
+	// The type of runner that is processing the pipeline.
+	// Either `gitlab-hosted` or `self-hosted`.
+	RunnerEnvironment string
+	// The SHA of the commit that triggered the pipeline run.
+	Sha string
+	// The ref URI of the CI config configuring the pipeline.
+	CiConfigRefUri string
+	// The Git SHA of the CI config ref configuring the pipeline.
+	CiConfigSha string
+}
+
+func (b0 JoinAttrsGitLab_builder) Build() *JoinAttrsGitLab {
+	m0 := &JoinAttrsGitLab{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Sub = b.Sub
+	x.Ref = b.Ref
+	x.RefType = b.RefType
+	x.RefProtected = b.RefProtected
+	x.NamespacePath = b.NamespacePath
+	x.ProjectPath = b.ProjectPath
+	x.UserLogin = b.UserLogin
+	x.UserEmail = b.UserEmail
+	x.PipelineId = b.PipelineId
+	x.PipelineSource = b.PipelineSource
+	x.Environment = b.Environment
+	x.EnvironmentProtected = b.EnvironmentProtected
+	x.RunnerId = b.RunnerId
+	x.RunnerEnvironment = b.RunnerEnvironment
+	x.Sha = b.Sha
+	x.CiConfigRefUri = b.CiConfigRefUri
+	x.CiConfigSha = b.CiConfigSha
+	return m0
+}
+
 // Attributes that are specific to the GitHub (`github`) join method.
 //
 // Typically, these are mapped directly from the claims of the GitHub JWT that
 // was used to join. You can view the documentation for those claims at:
 // https://docs.github.com/en/actions/security-for-github-actions/security-hardening-your-deployments/about-security-hardening-with-openid-connect#understanding-the-oidc-token
 type JoinAttrsGitHub struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The `sub` claim of the GitHub JWT that was used to join.
 	Sub string `protobuf:"bytes,1,opt,name=sub,proto3" json:"sub,omitempty"`
 	// The username of the actor that initiated the workflow run.
@@ -503,7 +945,11 @@ type JoinAttrsGitHub struct {
 	// The SHA of the commit that triggered the workflow run.
 	Sha string `protobuf:"bytes,10,opt,name=sha,proto3" json:"sha,omitempty"`
 	// The ID of this GitHub actions workflow run.
-	RunId         string `protobuf:"bytes,11,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
+	RunId string `protobuf:"bytes,11,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
+	// The name of the enterprise that the repository belongs to, if any.
+	Enterprise string `protobuf:"bytes,12,opt,name=enterprise,proto3" json:"enterprise,omitempty"`
+	// The ID of the enterprise that the repository belongs to, if any.
+	EnterpriseId  string `protobuf:"bytes,13,opt,name=enterprise_id,json=enterpriseId,proto3" json:"enterprise_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -531,11 +977,6 @@ func (x *JoinAttrsGitHub) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use JoinAttrsGitHub.ProtoReflect.Descriptor instead.
-func (*JoinAttrsGitHub) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_join_attrs_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *JoinAttrsGitHub) GetSub() string {
@@ -615,12 +1056,130 @@ func (x *JoinAttrsGitHub) GetRunId() string {
 	return ""
 }
 
+func (x *JoinAttrsGitHub) GetEnterprise() string {
+	if x != nil {
+		return x.Enterprise
+	}
+	return ""
+}
+
+func (x *JoinAttrsGitHub) GetEnterpriseId() string {
+	if x != nil {
+		return x.EnterpriseId
+	}
+	return ""
+}
+
+func (x *JoinAttrsGitHub) SetSub(v string) {
+	x.Sub = v
+}
+
+func (x *JoinAttrsGitHub) SetActor(v string) {
+	x.Actor = v
+}
+
+func (x *JoinAttrsGitHub) SetEnvironment(v string) {
+	x.Environment = v
+}
+
+func (x *JoinAttrsGitHub) SetRef(v string) {
+	x.Ref = v
+}
+
+func (x *JoinAttrsGitHub) SetRefType(v string) {
+	x.RefType = v
+}
+
+func (x *JoinAttrsGitHub) SetRepository(v string) {
+	x.Repository = v
+}
+
+func (x *JoinAttrsGitHub) SetRepositoryOwner(v string) {
+	x.RepositoryOwner = v
+}
+
+func (x *JoinAttrsGitHub) SetWorkflow(v string) {
+	x.Workflow = v
+}
+
+func (x *JoinAttrsGitHub) SetEventName(v string) {
+	x.EventName = v
+}
+
+func (x *JoinAttrsGitHub) SetSha(v string) {
+	x.Sha = v
+}
+
+func (x *JoinAttrsGitHub) SetRunId(v string) {
+	x.RunId = v
+}
+
+func (x *JoinAttrsGitHub) SetEnterprise(v string) {
+	x.Enterprise = v
+}
+
+func (x *JoinAttrsGitHub) SetEnterpriseId(v string) {
+	x.EnterpriseId = v
+}
+
+type JoinAttrsGitHub_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The `sub` claim of the GitHub JWT that was used to join.
+	Sub string
+	// The username of the actor that initiated the workflow run.
+	Actor string
+	// The name of the environment that the workflow is running against, if any.
+	Environment string
+	// The ref that the workflow is running against.
+	Ref string
+	// The type of ref that the workflow is running against.
+	// For example, `branch`.
+	RefType string
+	// The name of the repository that the workflow is running within.
+	Repository string
+	// The name of the owner of the repository that the workflow is running within.
+	RepositoryOwner string
+	// The name of the workflow that is running.
+	Workflow string
+	// The name of the event that triggered the workflow run.
+	EventName string
+	// The SHA of the commit that triggered the workflow run.
+	Sha string
+	// The ID of this GitHub actions workflow run.
+	RunId string
+	// The name of the enterprise that the repository belongs to, if any.
+	Enterprise string
+	// The ID of the enterprise that the repository belongs to, if any.
+	EnterpriseId string
+}
+
+func (b0 JoinAttrsGitHub_builder) Build() *JoinAttrsGitHub {
+	m0 := &JoinAttrsGitHub{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Sub = b.Sub
+	x.Actor = b.Actor
+	x.Environment = b.Environment
+	x.Ref = b.Ref
+	x.RefType = b.RefType
+	x.Repository = b.Repository
+	x.RepositoryOwner = b.RepositoryOwner
+	x.Workflow = b.Workflow
+	x.EventName = b.EventName
+	x.Sha = b.Sha
+	x.RunId = b.RunId
+	x.Enterprise = b.Enterprise
+	x.EnterpriseId = b.EnterpriseId
+	return m0
+}
+
 // Attributes that are specific to the AWS IAM (`iam`) join method.
 //
 // Typically, these are mapped directly from the results of the
 // STS GetCallerIdentity call that is made as part of the join process.
 type JoinAttrsAWSIAM struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The identifier of the account that the joining entity is a part of.
 	// For example: `123456789012`
 	Account string `protobuf:"bytes,1,opt,name=account,proto3" json:"account,omitempty"`
@@ -656,11 +1215,6 @@ func (x *JoinAttrsAWSIAM) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use JoinAttrsAWSIAM.ProtoReflect.Descriptor instead.
-func (*JoinAttrsAWSIAM) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_join_attrs_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *JoinAttrsAWSIAM) GetAccount() string {
 	if x != nil {
 		return x.Account
@@ -675,9 +1229,37 @@ func (x *JoinAttrsAWSIAM) GetArn() string {
 	return ""
 }
 
+func (x *JoinAttrsAWSIAM) SetAccount(v string) {
+	x.Account = v
+}
+
+func (x *JoinAttrsAWSIAM) SetArn(v string) {
+	x.Arn = v
+}
+
+type JoinAttrsAWSIAM_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The identifier of the account that the joining entity is a part of.
+	// For example: `123456789012`
+	Account string
+	// The AWS ARN of the joining entity.
+	// For example: `arn:aws:sts::123456789012:assumed-role/my-role-name/my-role-session-name`
+	Arn string
+}
+
+func (b0 JoinAttrsAWSIAM_builder) Build() *JoinAttrsAWSIAM {
+	m0 := &JoinAttrsAWSIAM{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Account = b.Account
+	x.Arn = b.Arn
+	return m0
+}
+
 // Attributes that are specific to the TPM (`tpm`) join method.
 type JoinAttrsTPM struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The SHA256 hash of the PKIX formatted EK public key, encoded in hex.
 	// This effectively identifies a specific TPM.
 	EkPubHash string `protobuf:"bytes,1,opt,name=ek_pub_hash,json=ekPubHash,proto3" json:"ek_pub_hash,omitempty"`
@@ -715,11 +1297,6 @@ func (x *JoinAttrsTPM) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use JoinAttrsTPM.ProtoReflect.Descriptor instead.
-func (*JoinAttrsTPM) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_join_attrs_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *JoinAttrsTPM) GetEkPubHash() string {
 	if x != nil {
 		return x.EkPubHash
@@ -741,13 +1318,50 @@ func (x *JoinAttrsTPM) GetEkCertVerified() bool {
 	return false
 }
 
+func (x *JoinAttrsTPM) SetEkPubHash(v string) {
+	x.EkPubHash = v
+}
+
+func (x *JoinAttrsTPM) SetEkCertSerial(v string) {
+	x.EkCertSerial = v
+}
+
+func (x *JoinAttrsTPM) SetEkCertVerified(v bool) {
+	x.EkCertVerified = v
+}
+
+type JoinAttrsTPM_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The SHA256 hash of the PKIX formatted EK public key, encoded in hex.
+	// This effectively identifies a specific TPM.
+	EkPubHash string
+	// The serial number of the EK certificate, if present.
+	EkCertSerial string
+	// Whether or not the EK certificate was verified against a certificate
+	// authority.
+	EkCertVerified bool
+}
+
+func (b0 JoinAttrsTPM_builder) Build() *JoinAttrsTPM {
+	m0 := &JoinAttrsTPM{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.EkPubHash = b.EkPubHash
+	x.EkCertSerial = b.EkCertSerial
+	x.EkCertVerified = b.EkCertVerified
+	return m0
+}
+
 // Attributes that are specific to the Azure (`azure`) join method.
 type JoinAttrsAzure struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The subscription ID of the Azure account that the joining entity is a part of.
 	Subscription string `protobuf:"bytes,1,opt,name=subscription,proto3" json:"subscription,omitempty"`
 	// The resource group of the Azure account that the joining entity is a part of.
 	ResourceGroup string `protobuf:"bytes,2,opt,name=resource_group,json=resourceGroup,proto3" json:"resource_group,omitempty"`
+	// The tenant ID of the Azure account that the joining entity is a part of.
+	Tenant        string `protobuf:"bytes,3,opt,name=tenant,proto3" json:"tenant,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -777,11 +1391,6 @@ func (x *JoinAttrsAzure) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use JoinAttrsAzure.ProtoReflect.Descriptor instead.
-func (*JoinAttrsAzure) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_join_attrs_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *JoinAttrsAzure) GetSubscription() string {
 	if x != nil {
 		return x.Subscription
@@ -796,11 +1405,51 @@ func (x *JoinAttrsAzure) GetResourceGroup() string {
 	return ""
 }
 
+func (x *JoinAttrsAzure) GetTenant() string {
+	if x != nil {
+		return x.Tenant
+	}
+	return ""
+}
+
+func (x *JoinAttrsAzure) SetSubscription(v string) {
+	x.Subscription = v
+}
+
+func (x *JoinAttrsAzure) SetResourceGroup(v string) {
+	x.ResourceGroup = v
+}
+
+func (x *JoinAttrsAzure) SetTenant(v string) {
+	x.Tenant = v
+}
+
+type JoinAttrsAzure_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The subscription ID of the Azure account that the joining entity is a part of.
+	Subscription string
+	// The resource group of the Azure account that the joining entity is a part of.
+	ResourceGroup string
+	// The tenant ID of the Azure account that the joining entity is a part of.
+	Tenant string
+}
+
+func (b0 JoinAttrsAzure_builder) Build() *JoinAttrsAzure {
+	m0 := &JoinAttrsAzure{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Subscription = b.Subscription
+	x.ResourceGroup = b.ResourceGroup
+	x.Tenant = b.Tenant
+	return m0
+}
+
 // Attributes that are specific to the CircleCI (`circleci`) join method.
 // These are mapped from the claims of the JWT issued by CircleCI to runs,
 // which is documented at: https://circleci.com/docs/openid-connect-tokens/
 type JoinAttrsCircleCI struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The `sub` claim of the CircleCI JWT that was used to join.
 	// For example: `org/ORGANIZATION_ID/project/PROJECT_ID/user/USER_ID`
 	Sub string `protobuf:"bytes,1,opt,name=sub,proto3" json:"sub,omitempty"`
@@ -837,11 +1486,6 @@ func (x *JoinAttrsCircleCI) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use JoinAttrsCircleCI.ProtoReflect.Descriptor instead.
-func (*JoinAttrsCircleCI) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_join_attrs_proto_rawDescGZIP(), []int{7}
-}
-
 func (x *JoinAttrsCircleCI) GetSub() string {
 	if x != nil {
 		return x.Sub
@@ -863,11 +1507,45 @@ func (x *JoinAttrsCircleCI) GetProjectId() string {
 	return ""
 }
 
+func (x *JoinAttrsCircleCI) SetSub(v string) {
+	x.Sub = v
+}
+
+func (x *JoinAttrsCircleCI) SetContextIds(v []string) {
+	x.ContextIds = v
+}
+
+func (x *JoinAttrsCircleCI) SetProjectId(v string) {
+	x.ProjectId = v
+}
+
+type JoinAttrsCircleCI_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The `sub` claim of the CircleCI JWT that was used to join.
+	// For example: `org/ORGANIZATION_ID/project/PROJECT_ID/user/USER_ID`
+	Sub string
+	// The UUIDs of the contexts used in the job.
+	ContextIds []string
+	// The UUID of the project in which the job is running.
+	ProjectId string
+}
+
+func (b0 JoinAttrsCircleCI_builder) Build() *JoinAttrsCircleCI {
+	m0 := &JoinAttrsCircleCI{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Sub = b.Sub
+	x.ContextIds = b.ContextIds
+	x.ProjectId = b.ProjectId
+	return m0
+}
+
 // Attributes that are specific to the Bitbucket (`bitbucket`) join method.
 // These are mapped from the claims of the JWT issued by BitBucket to runs,
 // which is documented at: https://support.atlassian.com/bitbucket-cloud/docs/integrate-pipelines-with-resource-servers-using-oidc/
 type JoinAttrsBitbucket struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The `sub` claim of the Bitbucket JWT that was used to join.
 	Sub string `protobuf:"bytes,1,opt,name=sub,proto3" json:"sub,omitempty"`
 	// The UUID of the pipeline step.
@@ -909,11 +1587,6 @@ func (x *JoinAttrsBitbucket) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use JoinAttrsBitbucket.ProtoReflect.Descriptor instead.
-func (*JoinAttrsBitbucket) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_join_attrs_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *JoinAttrsBitbucket) GetSub() string {
@@ -965,11 +1638,72 @@ func (x *JoinAttrsBitbucket) GetBranchName() string {
 	return ""
 }
 
+func (x *JoinAttrsBitbucket) SetSub(v string) {
+	x.Sub = v
+}
+
+func (x *JoinAttrsBitbucket) SetStepUuid(v string) {
+	x.StepUuid = v
+}
+
+func (x *JoinAttrsBitbucket) SetRepositoryUuid(v string) {
+	x.RepositoryUuid = v
+}
+
+func (x *JoinAttrsBitbucket) SetPipelineUuid(v string) {
+	x.PipelineUuid = v
+}
+
+func (x *JoinAttrsBitbucket) SetWorkspaceUuid(v string) {
+	x.WorkspaceUuid = v
+}
+
+func (x *JoinAttrsBitbucket) SetDeploymentEnvironmentUuid(v string) {
+	x.DeploymentEnvironmentUuid = v
+}
+
+func (x *JoinAttrsBitbucket) SetBranchName(v string) {
+	x.BranchName = v
+}
+
+type JoinAttrsBitbucket_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The `sub` claim of the Bitbucket JWT that was used to join.
+	Sub string
+	// The UUID of the pipeline step.
+	StepUuid string
+	// The UUID of the repository the pipeline step is running within.
+	RepositoryUuid string
+	// The UUID of the pipeline the step is running within.
+	PipelineUuid string
+	// The UUID of the workspace the pipeline belongs to.
+	WorkspaceUuid string
+	// The UUID of the deployment environment the pipeline is running against.
+	DeploymentEnvironmentUuid string
+	// The name of the branch the pipeline is running against.
+	BranchName string
+}
+
+func (b0 JoinAttrsBitbucket_builder) Build() *JoinAttrsBitbucket {
+	m0 := &JoinAttrsBitbucket{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Sub = b.Sub
+	x.StepUuid = b.StepUuid
+	x.RepositoryUuid = b.RepositoryUuid
+	x.PipelineUuid = b.PipelineUuid
+	x.WorkspaceUuid = b.WorkspaceUuid
+	x.DeploymentEnvironmentUuid = b.DeploymentEnvironmentUuid
+	x.BranchName = b.BranchName
+	return m0
+}
+
 // Attributes that are specific to the Terraform Cloud (`terraform_cloud`) join method.
 // These are mapped from the claims of the JWT issued by Terraform Cloud to runs,
 // which is documented at: https://developer.hashicorp.com/terraform/enterprise/workspaces/dynamic-provider-credentials/workload-identity-tokens
 type JoinAttrsTerraformCloud struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The `sub` claim of the Terraform Cloud JWT that was used to join.
 	Sub string `protobuf:"bytes,1,opt,name=sub,proto3" json:"sub,omitempty"`
 	// The name of the organization the project and workspace belong to.
@@ -1013,11 +1747,6 @@ func (x *JoinAttrsTerraformCloud) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use JoinAttrsTerraformCloud.ProtoReflect.Descriptor instead.
-func (*JoinAttrsTerraformCloud) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_join_attrs_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *JoinAttrsTerraformCloud) GetSub() string {
@@ -1069,11 +1798,74 @@ func (x *JoinAttrsTerraformCloud) GetRunPhase() string {
 	return ""
 }
 
+func (x *JoinAttrsTerraformCloud) SetSub(v string) {
+	x.Sub = v
+}
+
+func (x *JoinAttrsTerraformCloud) SetOrganizationName(v string) {
+	x.OrganizationName = v
+}
+
+func (x *JoinAttrsTerraformCloud) SetProjectName(v string) {
+	x.ProjectName = v
+}
+
+func (x *JoinAttrsTerraformCloud) SetWorkspaceName(v string) {
+	x.WorkspaceName = v
+}
+
+func (x *JoinAttrsTerraformCloud) SetFullWorkspace(v string) {
+	x.FullWorkspace = v
+}
+
+func (x *JoinAttrsTerraformCloud) SetRunId(v string) {
+	x.RunId = v
+}
+
+func (x *JoinAttrsTerraformCloud) SetRunPhase(v string) {
+	x.RunPhase = v
+}
+
+type JoinAttrsTerraformCloud_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The `sub` claim of the Terraform Cloud JWT that was used to join.
+	Sub string
+	// The name of the organization the project and workspace belong to.
+	OrganizationName string
+	// The name of the project the workspace belongs to.
+	ProjectName string
+	// The name of the workspace that the plan/apply is running within.
+	WorkspaceName string
+	// The fully qualified workspace path, including the organization and project
+	// name.
+	// For example: `organization:<name>:project:<name>:workspace:<name>`
+	FullWorkspace string
+	// The ID of the run that is being executed.
+	RunId string
+	// The phase of the run that is being executed, either `plan` or `apply`.
+	RunPhase string
+}
+
+func (b0 JoinAttrsTerraformCloud_builder) Build() *JoinAttrsTerraformCloud {
+	m0 := &JoinAttrsTerraformCloud{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Sub = b.Sub
+	x.OrganizationName = b.OrganizationName
+	x.ProjectName = b.ProjectName
+	x.WorkspaceName = b.WorkspaceName
+	x.FullWorkspace = b.FullWorkspace
+	x.RunId = b.RunId
+	x.RunPhase = b.RunPhase
+	return m0
+}
+
 // Attributes that are specific to the Spacelift (`spacelift`) join method.
 // These are mapped from the claims of the JWT issued by Spacelift to runs,
 // which is documented at: https://docs.spacelift.io/integrations/cloud-providers/oidc/#standard-claims
 type JoinAttrsSpacelift struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The `sub` claim of the Spacelift JWT that was used to join.
 	Sub string `protobuf:"bytes,1,opt,name=sub,proto3" json:"sub,omitempty"`
 	// The ID of the space in which the run is executing.
@@ -1115,11 +1907,6 @@ func (x *JoinAttrsSpacelift) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use JoinAttrsSpacelift.ProtoReflect.Descriptor instead.
-func (*JoinAttrsSpacelift) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_join_attrs_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *JoinAttrsSpacelift) GetSub() string {
@@ -1171,10 +1958,71 @@ func (x *JoinAttrsSpacelift) GetScope() string {
 	return ""
 }
 
+func (x *JoinAttrsSpacelift) SetSub(v string) {
+	x.Sub = v
+}
+
+func (x *JoinAttrsSpacelift) SetSpaceId(v string) {
+	x.SpaceId = v
+}
+
+func (x *JoinAttrsSpacelift) SetCallerType(v string) {
+	x.CallerType = v
+}
+
+func (x *JoinAttrsSpacelift) SetCallerId(v string) {
+	x.CallerId = v
+}
+
+func (x *JoinAttrsSpacelift) SetRunType(v string) {
+	x.RunType = v
+}
+
+func (x *JoinAttrsSpacelift) SetRunId(v string) {
+	x.RunId = v
+}
+
+func (x *JoinAttrsSpacelift) SetScope(v string) {
+	x.Scope = v
+}
+
+type JoinAttrsSpacelift_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The `sub` claim of the Spacelift JWT that was used to join.
+	Sub string
+	// The ID of the space in which the run is executing.
+	SpaceId string
+	// The type of the caller that owns the run, either `stack` or `module`.
+	CallerType string
+	// The ID of the caller that generated the run.
+	CallerId string
+	// The type of the run, either `PROPOSED`, `TRACKED`, `TASK`, `TESTING` or `DESTROY`.
+	RunType string
+	// The ID of the run.
+	RunId string
+	// The configured scope of the token, either `read` or `write`.
+	Scope string
+}
+
+func (b0 JoinAttrsSpacelift_builder) Build() *JoinAttrsSpacelift {
+	m0 := &JoinAttrsSpacelift{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Sub = b.Sub
+	x.SpaceId = b.SpaceId
+	x.CallerType = b.CallerType
+	x.CallerId = b.CallerId
+	x.RunType = b.RunType
+	x.RunId = b.RunId
+	x.Scope = b.Scope
+	return m0
+}
+
 // Attributes specific to the GCP join method when the joining entity is on a
 // GCE instance.
 type JoinAttrsGCPGCE struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The name of the GCE instance that the joining entity is running on.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// The zone of the GCE instance that the joining entity is running on.
@@ -1212,11 +2060,6 @@ func (x *JoinAttrsGCPGCE) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use JoinAttrsGCPGCE.ProtoReflect.Descriptor instead.
-func (*JoinAttrsGCPGCE) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_join_attrs_proto_rawDescGZIP(), []int{11}
-}
-
 func (x *JoinAttrsGCPGCE) GetName() string {
 	if x != nil {
 		return x.Name
@@ -1245,11 +2088,51 @@ func (x *JoinAttrsGCPGCE) GetProject() string {
 	return ""
 }
 
+func (x *JoinAttrsGCPGCE) SetName(v string) {
+	x.Name = v
+}
+
+func (x *JoinAttrsGCPGCE) SetZone(v string) {
+	x.Zone = v
+}
+
+func (x *JoinAttrsGCPGCE) SetId(v string) {
+	x.Id = v
+}
+
+func (x *JoinAttrsGCPGCE) SetProject(v string) {
+	x.Project = v
+}
+
+type JoinAttrsGCPGCE_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The name of the GCE instance that the joining entity is running on.
+	Name string
+	// The zone of the GCE instance that the joining entity is running on.
+	Zone string
+	// The ID of the GCE instance that the joining entity is running on.
+	Id string
+	// The project ID of the GCP project that the instance is running within.
+	Project string
+}
+
+func (b0 JoinAttrsGCPGCE_builder) Build() *JoinAttrsGCPGCE {
+	m0 := &JoinAttrsGCPGCE{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.Zone = b.Zone
+	x.Id = b.Id
+	x.Project = b.Project
+	return m0
+}
+
 // Attributes that are specific to the GCP (`gcp`) join method.
 // These are mapped from the claims of the JWT instance identity token, which
 // is documented at: https://cloud.google.com/compute/docs/instances/verifying-instance-identity#payload
 type JoinAttrsGCP struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The service account email of the service account that the instance is running as.
 	ServiceAccount string `protobuf:"bytes,1,opt,name=service_account,json=serviceAccount,proto3" json:"service_account,omitempty"`
 	// Attributes specific to the GCP join method when the joining entity is on a
@@ -1285,11 +2168,6 @@ func (x *JoinAttrsGCP) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use JoinAttrsGCP.ProtoReflect.Descriptor instead.
-func (*JoinAttrsGCP) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_join_attrs_proto_rawDescGZIP(), []int{12}
-}
-
 func (x *JoinAttrsGCP) GetServiceAccount() string {
 	if x != nil {
 		return x.ServiceAccount
@@ -1304,10 +2182,49 @@ func (x *JoinAttrsGCP) GetGce() *JoinAttrsGCPGCE {
 	return nil
 }
 
+func (x *JoinAttrsGCP) SetServiceAccount(v string) {
+	x.ServiceAccount = v
+}
+
+func (x *JoinAttrsGCP) SetGce(v *JoinAttrsGCPGCE) {
+	x.Gce = v
+}
+
+func (x *JoinAttrsGCP) HasGce() bool {
+	if x == nil {
+		return false
+	}
+	return x.Gce != nil
+}
+
+func (x *JoinAttrsGCP) ClearGce() {
+	x.Gce = nil
+}
+
+type JoinAttrsGCP_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The service account email of the service account that the instance is running as.
+	ServiceAccount string
+	// Attributes specific to the GCP join method when the joining entity is on a
+	// GCE instance. This may not be present if the joining entity is not on
+	// GCE.
+	Gce *JoinAttrsGCPGCE
+}
+
+func (b0 JoinAttrsGCP_builder) Build() *JoinAttrsGCP {
+	m0 := &JoinAttrsGCP{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ServiceAccount = b.ServiceAccount
+	x.Gce = b.Gce
+	return m0
+}
+
 // Attributes that are specific to the Kubernetes (`kubernetes`) join method
 // when a pod-bound service account token is used.
 type JoinAttrsKubernetesPod struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The name of the service account that the joining entity is running as.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1339,11 +2256,6 @@ func (x *JoinAttrsKubernetesPod) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use JoinAttrsKubernetesPod.ProtoReflect.Descriptor instead.
-func (*JoinAttrsKubernetesPod) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_join_attrs_proto_rawDescGZIP(), []int{13}
-}
-
 func (x *JoinAttrsKubernetesPod) GetName() string {
 	if x != nil {
 		return x.Name
@@ -1351,10 +2263,29 @@ func (x *JoinAttrsKubernetesPod) GetName() string {
 	return ""
 }
 
+func (x *JoinAttrsKubernetesPod) SetName(v string) {
+	x.Name = v
+}
+
+type JoinAttrsKubernetesPod_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The name of the service account that the joining entity is running as.
+	Name string
+}
+
+func (b0 JoinAttrsKubernetesPod_builder) Build() *JoinAttrsKubernetesPod {
+	m0 := &JoinAttrsKubernetesPod{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // Attributes that are specific to the Kubernetes (`kubernetes`) join method
 // when a service account token is used.
 type JoinAttrsKubernetesServiceAccount struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The name of the service account that the joining entity is running as.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// The namespace of the service account that the joining entity is running as.
@@ -1388,11 +2319,6 @@ func (x *JoinAttrsKubernetesServiceAccount) ProtoReflect() protoreflect.Message 
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use JoinAttrsKubernetesServiceAccount.ProtoReflect.Descriptor instead.
-func (*JoinAttrsKubernetesServiceAccount) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_join_attrs_proto_rawDescGZIP(), []int{14}
-}
-
 func (x *JoinAttrsKubernetesServiceAccount) GetName() string {
 	if x != nil {
 		return x.Name
@@ -1407,9 +2333,35 @@ func (x *JoinAttrsKubernetesServiceAccount) GetNamespace() string {
 	return ""
 }
 
+func (x *JoinAttrsKubernetesServiceAccount) SetName(v string) {
+	x.Name = v
+}
+
+func (x *JoinAttrsKubernetesServiceAccount) SetNamespace(v string) {
+	x.Namespace = v
+}
+
+type JoinAttrsKubernetesServiceAccount_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The name of the service account that the joining entity is running as.
+	Name string
+	// The namespace of the service account that the joining entity is running as.
+	Namespace string
+}
+
+func (b0 JoinAttrsKubernetesServiceAccount_builder) Build() *JoinAttrsKubernetesServiceAccount {
+	m0 := &JoinAttrsKubernetesServiceAccount{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.Namespace = b.Namespace
+	return m0
+}
+
 // Attributes that are specific to the Kubernetes (`kubernetes`) join method.
 type JoinAttrsKubernetes struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The fully qualified identifier of the entity based on the Kubernetes
 	// token. For a service account, this takes the form of
 	// `system:serviceaccount:<namespace>:<service-account-name>`.
@@ -1452,11 +2404,6 @@ func (x *JoinAttrsKubernetes) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use JoinAttrsKubernetes.ProtoReflect.Descriptor instead.
-func (*JoinAttrsKubernetes) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_join_attrs_proto_rawDescGZIP(), []int{15}
-}
-
 func (x *JoinAttrsKubernetes) GetSubject() string {
 	if x != nil {
 		return x.Subject
@@ -1478,9 +2425,71 @@ func (x *JoinAttrsKubernetes) GetPod() *JoinAttrsKubernetesPod {
 	return nil
 }
 
+func (x *JoinAttrsKubernetes) SetSubject(v string) {
+	x.Subject = v
+}
+
+func (x *JoinAttrsKubernetes) SetServiceAccount(v *JoinAttrsKubernetesServiceAccount) {
+	x.ServiceAccount = v
+}
+
+func (x *JoinAttrsKubernetes) SetPod(v *JoinAttrsKubernetesPod) {
+	x.Pod = v
+}
+
+func (x *JoinAttrsKubernetes) HasServiceAccount() bool {
+	if x == nil {
+		return false
+	}
+	return x.ServiceAccount != nil
+}
+
+func (x *JoinAttrsKubernetes) HasPod() bool {
+	if x == nil {
+		return false
+	}
+	return x.Pod != nil
+}
+
+func (x *JoinAttrsKubernetes) ClearServiceAccount() {
+	x.ServiceAccount = nil
+}
+
+func (x *JoinAttrsKubernetes) ClearPod() {
+	x.Pod = nil
+}
+
+type JoinAttrsKubernetes_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The fully qualified identifier of the entity based on the Kubernetes
+	// token. For a service account, this takes the form of
+	// `system:serviceaccount:<namespace>:<service-account-name>`.
+	Subject string
+	// Attributes specific to the Kubernetes join method when the joining entity
+	// is a service account token. This will only be present if the joining entity
+	// is a service account (as opposed to a human user or similar).
+	ServiceAccount *JoinAttrsKubernetesServiceAccount
+	// Attributes specific to the Kubernetes join method when the joining entity
+	// is a pod-bound service account token. This will only be present if the
+	// joining entity is a service account, and, the token has been bound to a
+	// pod.
+	Pod *JoinAttrsKubernetesPod
+}
+
+func (b0 JoinAttrsKubernetes_builder) Build() *JoinAttrsKubernetes {
+	m0 := &JoinAttrsKubernetes{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Subject = b.Subject
+	x.ServiceAccount = b.ServiceAccount
+	x.Pod = b.Pod
+	return m0
+}
+
 // Attributes that are specific to the Oracle (`oracle`) join method.
 type JoinAttrsOracle struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The ID of the instance's tenant.
 	TenancyId string `protobuf:"bytes,1,opt,name=tenancy_id,json=tenancyId,proto3" json:"tenancy_id,omitempty"`
 	// The ID of the instance's compartment.
@@ -1516,11 +2525,6 @@ func (x *JoinAttrsOracle) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use JoinAttrsOracle.ProtoReflect.Descriptor instead.
-func (*JoinAttrsOracle) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_join_attrs_proto_rawDescGZIP(), []int{16}
-}
-
 func (x *JoinAttrsOracle) GetTenancyId() string {
 	if x != nil {
 		return x.TenancyId
@@ -1542,9 +2546,42 @@ func (x *JoinAttrsOracle) GetInstanceId() string {
 	return ""
 }
 
+func (x *JoinAttrsOracle) SetTenancyId(v string) {
+	x.TenancyId = v
+}
+
+func (x *JoinAttrsOracle) SetCompartmentId(v string) {
+	x.CompartmentId = v
+}
+
+func (x *JoinAttrsOracle) SetInstanceId(v string) {
+	x.InstanceId = v
+}
+
+type JoinAttrsOracle_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The ID of the instance's tenant.
+	TenancyId string
+	// The ID of the instance's compartment.
+	CompartmentId string
+	// The ID of the instance.
+	InstanceId string
+}
+
+func (b0 JoinAttrsOracle_builder) Build() *JoinAttrsOracle {
+	m0 := &JoinAttrsOracle{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.TenancyId = b.TenancyId
+	x.CompartmentId = b.CompartmentId
+	x.InstanceId = b.InstanceId
+	return m0
+}
+
 // Attributes that are specific to the Azure Devops (`azure_devops`) join method.
 type JoinAttrsAzureDevops struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Attributes specific to joins that occur with the pipeline ID token.
 	Pipeline      *JoinAttrsAzureDevopsPipeline `protobuf:"bytes,1,opt,name=pipeline,proto3" json:"pipeline,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1576,11 +2613,6 @@ func (x *JoinAttrsAzureDevops) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use JoinAttrsAzureDevops.ProtoReflect.Descriptor instead.
-func (*JoinAttrsAzureDevops) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_join_attrs_proto_rawDescGZIP(), []int{17}
-}
-
 func (x *JoinAttrsAzureDevops) GetPipeline() *JoinAttrsAzureDevopsPipeline {
 	if x != nil {
 		return x.Pipeline
@@ -1588,10 +2620,40 @@ func (x *JoinAttrsAzureDevops) GetPipeline() *JoinAttrsAzureDevopsPipeline {
 	return nil
 }
 
+func (x *JoinAttrsAzureDevops) SetPipeline(v *JoinAttrsAzureDevopsPipeline) {
+	x.Pipeline = v
+}
+
+func (x *JoinAttrsAzureDevops) HasPipeline() bool {
+	if x == nil {
+		return false
+	}
+	return x.Pipeline != nil
+}
+
+func (x *JoinAttrsAzureDevops) ClearPipeline() {
+	x.Pipeline = nil
+}
+
+type JoinAttrsAzureDevops_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Attributes specific to joins that occur with the pipeline ID token.
+	Pipeline *JoinAttrsAzureDevopsPipeline
+}
+
+func (b0 JoinAttrsAzureDevops_builder) Build() *JoinAttrsAzureDevops {
+	m0 := &JoinAttrsAzureDevops{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Pipeline = b.Pipeline
+	return m0
+}
+
 // Attributes that are specific to the Azure DevOps join method when the
 // pipeline ID token is used for authentication
 type JoinAttrsAzureDevopsPipeline struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The `sub` claim of the Azure DevOps pipeline ID token that was used to join.
 	Sub string `protobuf:"bytes,1,opt,name=sub,proto3" json:"sub,omitempty"`
 	// The name of the organization that the pipeline is running within.
@@ -1642,11 +2704,6 @@ func (x *JoinAttrsAzureDevopsPipeline) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use JoinAttrsAzureDevopsPipeline.ProtoReflect.Descriptor instead.
-func (*JoinAttrsAzureDevopsPipeline) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_join_attrs_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *JoinAttrsAzureDevopsPipeline) GetSub() string {
@@ -1726,9 +2783,99 @@ func (x *JoinAttrsAzureDevopsPipeline) GetRunId() string {
 	return ""
 }
 
+func (x *JoinAttrsAzureDevopsPipeline) SetSub(v string) {
+	x.Sub = v
+}
+
+func (x *JoinAttrsAzureDevopsPipeline) SetOrganizationName(v string) {
+	x.OrganizationName = v
+}
+
+func (x *JoinAttrsAzureDevopsPipeline) SetProjectName(v string) {
+	x.ProjectName = v
+}
+
+func (x *JoinAttrsAzureDevopsPipeline) SetPipelineName(v string) {
+	x.PipelineName = v
+}
+
+func (x *JoinAttrsAzureDevopsPipeline) SetOrganizationId(v string) {
+	x.OrganizationId = v
+}
+
+func (x *JoinAttrsAzureDevopsPipeline) SetProjectId(v string) {
+	x.ProjectId = v
+}
+
+func (x *JoinAttrsAzureDevopsPipeline) SetDefinitionId(v string) {
+	x.DefinitionId = v
+}
+
+func (x *JoinAttrsAzureDevopsPipeline) SetRepositoryId(v string) {
+	x.RepositoryId = v
+}
+
+func (x *JoinAttrsAzureDevopsPipeline) SetRepositoryVersion(v string) {
+	x.RepositoryVersion = v
+}
+
+func (x *JoinAttrsAzureDevopsPipeline) SetRepositoryRef(v string) {
+	x.RepositoryRef = v
+}
+
+func (x *JoinAttrsAzureDevopsPipeline) SetRunId(v string) {
+	x.RunId = v
+}
+
+type JoinAttrsAzureDevopsPipeline_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The `sub` claim of the Azure DevOps pipeline ID token that was used to join.
+	Sub string
+	// The name of the organization that the pipeline is running within.
+	OrganizationName string
+	// The name of the project that the pipeline is running within.
+	ProjectName string
+	// The name of the pipeline that is running.
+	PipelineName string
+	// The ID of the organization that the pipeline is running within.
+	OrganizationId string
+	// The ID of the project that the pipeline is running within.
+	ProjectId string
+	// The ID of the pipeline that is running.
+	DefinitionId string
+	// The ID of the repository that the pipeline is running within.
+	RepositoryId string
+	// The version of the repository that the pipeline is running against.
+	// For Git this will be the commit SHA.
+	RepositoryVersion string
+	// The ref of the repository that the pipeline is running against.
+	RepositoryRef string
+	// The ID of the run that is being executed.
+	RunId string
+}
+
+func (b0 JoinAttrsAzureDevopsPipeline_builder) Build() *JoinAttrsAzureDevopsPipeline {
+	m0 := &JoinAttrsAzureDevopsPipeline{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Sub = b.Sub
+	x.OrganizationName = b.OrganizationName
+	x.ProjectName = b.ProjectName
+	x.PipelineName = b.PipelineName
+	x.OrganizationId = b.OrganizationId
+	x.ProjectId = b.ProjectId
+	x.DefinitionId = b.DefinitionId
+	x.RepositoryId = b.RepositoryId
+	x.RepositoryVersion = b.RepositoryVersion
+	x.RepositoryRef = b.RepositoryRef
+	x.RunId = b.RunId
+	return m0
+}
+
 // Attributes that are specific to the Env0 (`env0`) join method.
 type JoinAttrsEnv0 struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The `sub` claim of an Env0 OIDC token.
 	Sub string `protobuf:"bytes,1,opt,name=sub,proto3" json:"sub,omitempty"`
 	// The unique organization identifier, corresponding to `organizationId` in an
@@ -1793,11 +2940,6 @@ func (x *JoinAttrsEnv0) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use JoinAttrsEnv0.ProtoReflect.Descriptor instead.
-func (*JoinAttrsEnv0) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_join_attrs_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *JoinAttrsEnv0) GetSub() string {
@@ -1891,6 +3033,120 @@ func (x *JoinAttrsEnv0) GetEnv0Tag() string {
 	return ""
 }
 
+func (x *JoinAttrsEnv0) SetSub(v string) {
+	x.Sub = v
+}
+
+func (x *JoinAttrsEnv0) SetOrganizationId(v string) {
+	x.OrganizationId = v
+}
+
+func (x *JoinAttrsEnv0) SetProjectId(v string) {
+	x.ProjectId = v
+}
+
+func (x *JoinAttrsEnv0) SetProjectName(v string) {
+	x.ProjectName = v
+}
+
+func (x *JoinAttrsEnv0) SetTemplateId(v string) {
+	x.TemplateId = v
+}
+
+func (x *JoinAttrsEnv0) SetTemplateName(v string) {
+	x.TemplateName = v
+}
+
+func (x *JoinAttrsEnv0) SetEnvironmentId(v string) {
+	x.EnvironmentId = v
+}
+
+func (x *JoinAttrsEnv0) SetEnvironmentName(v string) {
+	x.EnvironmentName = v
+}
+
+func (x *JoinAttrsEnv0) SetWorkspaceName(v string) {
+	x.WorkspaceName = v
+}
+
+func (x *JoinAttrsEnv0) SetDeploymentLogId(v string) {
+	x.DeploymentLogId = v
+}
+
+func (x *JoinAttrsEnv0) SetDeploymentType(v string) {
+	x.DeploymentType = v
+}
+
+func (x *JoinAttrsEnv0) SetDeployerEmail(v string) {
+	x.DeployerEmail = v
+}
+
+func (x *JoinAttrsEnv0) SetEnv0Tag(v string) {
+	x.Env0Tag = v
+}
+
+type JoinAttrsEnv0_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The `sub` claim of an Env0 OIDC token.
+	Sub string
+	// The unique organization identifier, corresponding to `organizationId` in an
+	// Env0 OIDC token.
+	OrganizationId string
+	// The unique project identifier, corresponding to `projectId` in an Env0 OIDC
+	// token.
+	ProjectId string
+	// The name of the project under which the job was run corresponding to
+	// `projectName` in an Env0 OIDC token.
+	ProjectName string
+	// The unique identifier of the Env0 template, corresponding to `templateId`
+	// in an Env0 OIDC token.
+	TemplateId string
+	// The name of the Env0 template, corresponding to `templateName` in an Env0
+	// OIDC token.
+	TemplateName string
+	// The unique identifier of the Env0 environment, corresponding to
+	// `environmentId` in an Env0 OIDC token.
+	EnvironmentId string
+	// The name of the Env0 environment, corresponding to `environmentName` in an
+	// Env0 OIDC token.
+	EnvironmentName string
+	// The name of the Env0 workspace, corresponding to `workspaceName` in an Env0
+	// OIDC token.
+	WorkspaceName string
+	// A unique ID for this deployment, corresponding to `deploymentLogId` in an
+	// Env0 OIDC token.
+	DeploymentLogId string
+	// The env0 deployment type, such as "deploy", "destroy", etc. Corresponds to
+	// `deploymentType` in an Env0 OIDC token.
+	DeploymentType string
+	// The email of the person that triggered the deployment, corresponding to
+	// `deployerEmail` in an Env0 OIDC token.
+	DeployerEmail string
+	// A custom tag value corresponding to `env0Tag` when `ENV0_OIDC_TAG` is set.
+	Env0Tag string
+}
+
+func (b0 JoinAttrsEnv0_builder) Build() *JoinAttrsEnv0 {
+	m0 := &JoinAttrsEnv0{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Sub = b.Sub
+	x.OrganizationId = b.OrganizationId
+	x.ProjectId = b.ProjectId
+	x.ProjectName = b.ProjectName
+	x.TemplateId = b.TemplateId
+	x.TemplateName = b.TemplateName
+	x.EnvironmentId = b.EnvironmentId
+	x.EnvironmentName = b.EnvironmentName
+	x.WorkspaceName = b.WorkspaceName
+	x.DeploymentLogId = b.DeploymentLogId
+	x.DeploymentType = b.DeploymentType
+	x.DeployerEmail = b.DeployerEmail
+	x.Env0Tag = b.Env0Tag
+	return m0
+}
+
 var File_teleport_workloadidentity_v1_join_attrs_proto protoreflect.FileDescriptor
 
 const file_teleport_workloadidentity_v1_join_attrs_proto_rawDesc = "" +
@@ -1940,7 +3196,7 @@ const file_teleport_workloadidentity_v1_join_attrs_proto_rawDesc = "" +
 	"\x12runner_environment\x18\x0e \x01(\tR\x11runnerEnvironment\x12\x10\n" +
 	"\x03sha\x18\x0f \x01(\tR\x03sha\x12)\n" +
 	"\x11ci_config_ref_uri\x18\x10 \x01(\tR\x0eciConfigRefUri\x12\"\n" +
-	"\rci_config_sha\x18\x11 \x01(\tR\vciConfigSha\"\xb7\x02\n" +
+	"\rci_config_sha\x18\x11 \x01(\tR\vciConfigSha\"\xfc\x02\n" +
 	"\x0fJoinAttrsGitHub\x12\x10\n" +
 	"\x03sub\x18\x01 \x01(\tR\x03sub\x12\x14\n" +
 	"\x05actor\x18\x02 \x01(\tR\x05actor\x12 \n" +
@@ -1956,17 +3212,22 @@ const file_teleport_workloadidentity_v1_join_attrs_proto_rawDesc = "" +
 	"event_name\x18\t \x01(\tR\teventName\x12\x10\n" +
 	"\x03sha\x18\n" +
 	" \x01(\tR\x03sha\x12\x15\n" +
-	"\x06run_id\x18\v \x01(\tR\x05runId\"=\n" +
+	"\x06run_id\x18\v \x01(\tR\x05runId\x12\x1e\n" +
+	"\n" +
+	"enterprise\x18\f \x01(\tR\n" +
+	"enterprise\x12#\n" +
+	"\renterprise_id\x18\r \x01(\tR\fenterpriseId\"=\n" +
 	"\x0fJoinAttrsAWSIAM\x12\x18\n" +
 	"\aaccount\x18\x01 \x01(\tR\aaccount\x12\x10\n" +
 	"\x03arn\x18\x02 \x01(\tR\x03arn\"~\n" +
 	"\fJoinAttrsTPM\x12\x1e\n" +
 	"\vek_pub_hash\x18\x01 \x01(\tR\tekPubHash\x12$\n" +
 	"\x0eek_cert_serial\x18\x02 \x01(\tR\fekCertSerial\x12(\n" +
-	"\x10ek_cert_verified\x18\x03 \x01(\bR\x0eekCertVerified\"[\n" +
+	"\x10ek_cert_verified\x18\x03 \x01(\bR\x0eekCertVerified\"s\n" +
 	"\x0eJoinAttrsAzure\x12\"\n" +
 	"\fsubscription\x18\x01 \x01(\tR\fsubscription\x12%\n" +
-	"\x0eresource_group\x18\x02 \x01(\tR\rresourceGroup\"e\n" +
+	"\x0eresource_group\x18\x02 \x01(\tR\rresourceGroup\x12\x16\n" +
+	"\x06tenant\x18\x03 \x01(\tR\x06tenant\"e\n" +
 	"\x11JoinAttrsCircleCI\x12\x10\n" +
 	"\x03sub\x18\x01 \x01(\tR\x03sub\x12\x1f\n" +
 	"\vcontext_ids\x18\x02 \x03(\tR\n" +
@@ -2055,18 +3316,6 @@ const file_teleport_workloadidentity_v1_join_attrs_proto_rawDesc = "" +
 	"\x0fdeployment_type\x18\v \x01(\tR\x0edeploymentType\x12%\n" +
 	"\x0edeployer_email\x18\f \x01(\tR\rdeployerEmail\x12\x19\n" +
 	"\benv0_tag\x18\r \x01(\tR\aenv0TagBdZbgithub.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1b\x06proto3"
-
-var (
-	file_teleport_workloadidentity_v1_join_attrs_proto_rawDescOnce sync.Once
-	file_teleport_workloadidentity_v1_join_attrs_proto_rawDescData []byte
-)
-
-func file_teleport_workloadidentity_v1_join_attrs_proto_rawDescGZIP() []byte {
-	file_teleport_workloadidentity_v1_join_attrs_proto_rawDescOnce.Do(func() {
-		file_teleport_workloadidentity_v1_join_attrs_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_workloadidentity_v1_join_attrs_proto_rawDesc), len(file_teleport_workloadidentity_v1_join_attrs_proto_rawDesc)))
-	})
-	return file_teleport_workloadidentity_v1_join_attrs_proto_rawDescData
-}
 
 var file_teleport_workloadidentity_v1_join_attrs_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
 var file_teleport_workloadidentity_v1_join_attrs_proto_goTypes = []any{

@@ -160,3 +160,40 @@ func (c *Client) DeleteInferencePolicy(ctx context.Context, name string) error {
 	})
 	return trace.Wrap(err)
 }
+
+// GetRetrievalModel retrieves the existing RetrievalModel.
+func (c *Client) GetRetrievalModel(ctx context.Context) (*summarizerv1.RetrievalModel, error) {
+	resp, err := c.grpcClient.GetRetrievalModel(ctx, &summarizerv1.GetRetrievalModelRequest{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp.Model, nil
+}
+
+// CreateRetrievalModel creates a new RetrievalModel.
+func (c *Client) CreateRetrievalModel(ctx context.Context, model *summarizerv1.RetrievalModel) (*summarizerv1.RetrievalModel, error) {
+	resp, err := c.grpcClient.CreateRetrievalModel(ctx, &summarizerv1.CreateRetrievalModelRequest{
+		Model: model,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp.Model, nil
+}
+
+// UpsertRetrievalModel creates a new RetrievalModel or updates the existing one.
+func (c *Client) UpsertRetrievalModel(ctx context.Context, model *summarizerv1.RetrievalModel) (*summarizerv1.RetrievalModel, error) {
+	resp, err := c.grpcClient.UpsertRetrievalModel(ctx, &summarizerv1.UpsertRetrievalModelRequest{
+		Model: model,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp.Model, nil
+}
+
+// DeleteRetrievalModel deletes the existing RetrievalModel.
+func (c *Client) DeleteRetrievalModel(ctx context.Context) error {
+	_, err := c.grpcClient.DeleteRetrievalModel(ctx, &summarizerv1.DeleteRetrievalModelRequest{})
+	return trace.Wrap(err)
+}

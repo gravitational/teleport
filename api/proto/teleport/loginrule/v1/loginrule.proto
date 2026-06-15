@@ -16,7 +16,7 @@ syntax = "proto3";
 
 package teleport.loginrule.v1;
 
-import "teleport/legacy/types/types.proto";
+import "teleport/legacy/types/metadata.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1;loginrulev1";

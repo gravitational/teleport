@@ -32,7 +32,7 @@ import { ResourceLabel } from 'teleport/services/agents';
 // eslint-disable-next-line no-restricted-imports -- FIXME
 import { AppMCP, PermissionSet } from 'teleport/services/apps';
 
-import { SortOrder } from '../Controls/SortMenuV2';
+import { SortOrder } from '../Controls/SortMenu';
 
 // "mixed" indicates the resource has a mix of health
 // statuses. This can happen when multiple agents proxy the same resource.
@@ -293,10 +293,14 @@ export type ResourceItemProps = {
    */
   resourceLabelConfig?: ResourceLabelConfig;
   /**
-   * If true, render a check icon at the top right corner of cards
+   * Controls rendering of a check icon at the top right corner of cards
    * and right next to resource name for list view rows.
+   *
+   * If a boolean, applies to all resources uniformly.
+   * If a function, called per resource with its labels to determine
+   * whether the icon should be shown.
    */
-  showResourceSelectedIcon?: boolean;
+  showResourceSelectedIcon?: boolean | ((labels: ResourceLabel[]) => boolean);
 };
 
 // Props that are needed for the Card view.
@@ -353,10 +357,15 @@ export type ResourceViewProps = {
    */
   resourceLabelConfig?: ResourceLabelConfig;
   /**
-   * If true, renders a check icon at the top right corner of cards
-   * and right next to resource name for list view rows.
+   * Controls rendering of a check icon at the top right corner of cards
+   * and right next to resource name for list view rows for all
+   * resources.
+   *
+   * If a boolean, applies to all resources uniformly.
+   * If a function, called per resource with its labels to determine
+   * whether the icon should be shown.
    */
-  showResourcesSelectedIcon?: boolean;
+  showResourceSelectedIcon?: boolean | ((labels: ResourceLabel[]) => boolean);
 };
 
 /**

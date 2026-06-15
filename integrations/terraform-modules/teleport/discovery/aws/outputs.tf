@@ -25,5 +25,5 @@ output "teleport_integration_name" {
 
 output "teleport_provision_token_name" {
   description = "Name of the Teleport provision `token` that allows Teleport nodes to join the Teleport cluster using AWS IAM credentials. Token details can be viewed with `tctl get token/<name>`."
-  value       = nonsensitive(try(teleport_provision_token.aws_iam[0].metadata.name, null))
+  value       = try(nonsensitive(teleport_provision_token.aws_iam[0].metadata.name), null)
 }

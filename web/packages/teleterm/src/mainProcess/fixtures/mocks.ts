@@ -204,6 +204,7 @@ export class MockMainProcessClient implements MainProcessClient {
     return { cleanup: () => undefined };
   }
   async logout(): Promise<void> {}
+  async forgetCluster(): Promise<void> {}
   async syncCluster(): Promise<void> {}
   async addCluster(): Promise<Cluster> {
     return makeRootCluster();

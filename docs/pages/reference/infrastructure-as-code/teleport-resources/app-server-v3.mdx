@@ -24,7 +24,7 @@ The Teleport Application Service creates an `app_server` in two situations:
   There can be multiple instances of an `app_server` for a single
   application, each corresponding to a different Teleport Application
   Service instance that proxies the application. Read more about [High
-  Availability](../../../enroll-resources/agents/high-availability.mdx)
+  Availability](../../../installation/agents/high-availability.mdx)
   for the Teleport Application Service. Read the [reference
   guide](./app-v3.mdx) for the `app` resource.
 
@@ -176,6 +176,8 @@ tcp_ports:
   - # [...]
 use_any_proxy_public_addr: true
 mcp: # [...]
+inference: # [...]
+tls: # [...]
 ```
 
 |Field Name|Description|Type|
@@ -186,6 +188,7 @@ mcp: # [...]
 |cors|Policy defines the Cross-Origin Resource Sharing settings for the app.|[CORS Policy](#cors-policy)|
 |dynamic_labels|The app's command labels.|map[string][Command Label V2](#command-label-v2)|
 |identity_center|Encapsulates information specific to AWS IAM Identity Center. Only valid for Identity Center account apps.|[App Identity Center](#app-identity-center)|
+|inference|Contains LLM inference endpoint related configurations.|[LLM](#llm)|
 |insecure_skip_verify|Disables app's TLS certificate verification.|Boolean|
 |integration|The integration name that must be used to access this Application. Only applicable to AWS App Access. If present, the Application must use the Integration's credentials instead of ambient credentials to access Cloud APIs.|string|
 |mcp|Contains MCP server related configurations.|[MCP](#mcp)|
@@ -193,8 +196,35 @@ mcp: # [...]
 |required_app_names|A list of app names that are required for this app to function. Any app listed here will be part of the authentication redirect flow and authenticate alongside this app.|[]string|
 |rewrite|A list of rewriting rules to apply to requests and responses.|[Rewrite](#rewrite)|
 |tcp_ports|A list of ports and port ranges that an app agent can forward connections to. Only applicable to TCP App Access. If this field is not empty, URI is expected to contain no port number and start with the tcp protocol.|[][Port Range](#port-range)|
+|tls|Contains the app TLS configuration.|[App TLS](#app-tls)|
 |uri|The web app endpoint.|string|
 |use_any_proxy_public_addr|Will rebuild this app's fqdn based on the proxy public addr that the request originated from. This should be true if your proxy has multiple proxy public addrs and you want the app to be accessible from any of them. If `public_addr` is explicitly set in the app spec, setting this value to true will overwrite that public address in the web UI.|Boolean|
+
+## App TLS
+
+Contains the app TLS configuration.
+
+
+Example:
+
+```yaml
+mode: "string"
+server_name: "string"
+server_spiffe_id: "string"
+allowed_cas: 
+  - "string"
+  - "string"
+  - "string"
+client_cert_mode: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|allowed_cas|The list of user provided CAs used for verifying upstream certificates. Accepted values are PEM-encoded CA certificates and Teleport CA aliases. Supported aliases:   "workload_identity" (workload Identity CA. Allows accepting certificates issued by `tbot`).|[]string|
+|client_cert_mode|Specifies which client certificate mode to use for the upstream connection. Supported values:   "managed" (app service will issue client certificates to use in the app upstream connection, establishing mTLS connections),   "disabled" (app upstream connection won't use client certificates).|string|
+|mode|Defines the TLS verification. Supported values:   "verify-full" (performs certificate validation, and asserts server name and SPIFFE ID),   "verify-server-name" (performs certificate validation, and asserts server name),   "verify-spiffe-id": (performs certificate validation, and asserts SPIFFE ID. Requires `server_spiffe_id` option),   "insecure": (accepts any certificate provided by app)|string|
+|server_name|Specifies a custom hostname used for TLS verification against the upstream certificate.|string|
+|server_spiffe_id|Specifies a SPIFFE ID that must be present on the server certificate.|string|
 
 ## App V3
 
@@ -341,6 +371,47 @@ assignment_name: "string"
 |arn|The fully-formed ARN of the Permission Set.|string|
 |assignment_name|The ID of the Teleport Account Assignment resource that represents this permission being assigned on the enclosing Account.|string|
 |name|The human-readable name of the Permission Set.|string|
+
+## LLM
+
+Contains LLM inference endpoint related configurations.
+
+
+Example:
+
+```yaml
+format: "string"
+provider: "string"
+models: 
+  - # [...]
+  - # [...]
+  - # [...]
+fallback_model: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|fallback_model|Defines a model that will be used if the model requested is not on the list. The fallback model must be in the "models" list.|string|
+|format|Defines the LLM inference API format.|string|
+|models|Defines the list of supported models, and optionally their name on the inference provider.|[][LLM_Model](#llm_model)|
+|provider|Defines which inference provider will be used to serve the requests.|string|
+
+## LLM_Model
+
+Model is a provider model definition.
+
+
+Example:
+
+```yaml
+name: "string"
+provider_name: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|name|Defines the model name. This is the requested value.|string|
+|provider_name|Represents the model name in the configured provider.|string|
 
 ## MCP
 

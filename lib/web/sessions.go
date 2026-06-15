@@ -50,6 +50,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/modules"
@@ -315,7 +316,7 @@ func clusterDialer(remoteCluster reversetunnelclient.Cluster, src, dst net.Addr)
 			dialParams.From = clientSrcAddr
 		}
 		if dialParams.OriginalClientDstAddr == nil && clientDstAddr != nil {
-			dialParams.OriginalClientDstAddr = clientSrcAddr
+			dialParams.OriginalClientDstAddr = clientDstAddr
 		}
 
 		return remoteCluster.DialAuthServer(dialParams)
@@ -636,6 +637,8 @@ type sessionCacheOptions struct {
 	proxySigner multiplexer.PROXYHeaderSigner
 	// See [sessionCache.sessionWatcherStartImmediately]. Used for testing.
 	sessionWatcherStartImmediately bool
+	// See [sessionCache.sessionWatcherInitializedChannel]. Used for testing.
+	sessionWatcherInitializedChannel chan struct{}
 	// See [sessionCache.sessionWatcherEventProcessedChannel]. Used for testing.
 	sessionWatcherEventProcessedChannel chan struct{}
 	logger                              *slog.Logger
@@ -659,19 +662,26 @@ func newSessionCache(ctx context.Context, config sessionCacheOptions) (*sessionC
 	}
 
 	cache := &sessionCache{
-		clusterName:                         clusterName.GetClusterName(),
-		proxyClient:                         config.proxyClient,
-		accessPoint:                         config.accessPoint,
-		sessions:                            make(map[string]*SessionContext),
-		resources:                           make(map[string]*sessionResources),
-		authServers:                         config.servers,
-		closer:                              utils.NewCloseBroadcaster(),
-		cipherSuites:                        config.cipherSuites,
-		log:                                 config.logger,
-		clock:                               config.clock,
-		sessionLingeringThreshold:           config.sessionLingeringThreshold,
-		proxySigner:                         config.proxySigner,
-		sessionWatcherStartImmediately:      config.sessionWatcherStartImmediately,
+		clusterName:                      clusterName.GetClusterName(),
+		proxyClient:                      config.proxyClient,
+		accessPoint:                      config.accessPoint,
+		sessions:                         make(map[string]*SessionContext),
+		resources:                        make(map[string]*sessionResources),
+		authServers:                      config.servers,
+		closer:                           utils.NewCloseBroadcaster(),
+		cipherSuites:                     config.cipherSuites,
+		log:                              config.logger,
+		clock:                            config.clock,
+		sessionLingeringThreshold:        config.sessionLingeringThreshold,
+		proxySigner:                      config.proxySigner,
+		sessionWatcherStartImmediately:   config.sessionWatcherStartImmediately,
+		sessionWatcherInitializedChannel: config.sessionWatcherInitializedChannel,
+		sessionWatcherMarkInitialized: sync.OnceFunc(func() {
+			c := config.sessionWatcherInitializedChannel
+			if c != nil {
+				close(c)
+			}
+		}),
 		sessionWatcherEventProcessedChannel: config.sessionWatcherEventProcessedChannel,
 	}
 
@@ -723,7 +733,14 @@ type sessionCache struct {
 	// backoff used to start the WebSession watcher.
 	// Used for testing.
 	sessionWatcherStartImmediately bool
-
+	// sessionWatcherInitializedChannel is used to signal that the sessionWatcher
+	// received its first OpInit event and is ready to observe updates.
+	// May be nil.
+	// Used for testing.
+	sessionWatcherInitializedChannel chan struct{}
+	// sessionWatcherMarkInitialized safely closes
+	// sessionWatcherInitializedChannel.
+	sessionWatcherMarkInitialized func()
 	// sessionWatcherEventProcessedChannel is used to signal that the
 	// sessionWatcher processed an event.
 	// May be nil.
@@ -853,6 +870,10 @@ func (s *sessionCache) watchWebSessionsOnce(ctx context.Context, reset func()) e
 				"event", logutils.StringerAttr(event),
 			)
 
+			if event.Type == types.OpInit {
+				s.sessionWatcherMarkInitialized()
+				continue
+			}
 			if event.Type != types.OpPut {
 				continue // We only care about OpPut at the moment.
 			}
@@ -953,7 +974,7 @@ func (s *sessionCache) AuthenticateWebUser(
 
 func (s *sessionCache) AuthenticateSSHUser(
 	ctx context.Context, c client.AuthenticateSSHUserRequest, clientMeta *authclient.ForwardedClientMetadata,
-) (*authclient.SSHLoginResponse, error) {
+) (*authclient.CLILoginResponse, error) {
 	authReq := authclient.AuthenticateUserRequest{
 		Username:       c.User,
 		Scope:          c.Scope,
@@ -971,6 +992,12 @@ func (s *sessionCache) AuthenticateSSHUser(
 		authReq.OTP = &authclient.OTPCreds{
 			Password: []byte(c.Password),
 			Token:    c.TOTPCode,
+		}
+	}
+	if c.BrowserMFAResponse != nil {
+		authReq.BrowserMFA = &proto.BrowserMFAResponse{
+			RequestId:        c.BrowserMFAResponse.RequestID,
+			WebauthnResponse: webauthntypes.CredentialAssertionResponseToProto(c.BrowserMFAResponse.WebauthnResponse),
 		}
 	}
 	return s.proxyClient.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{

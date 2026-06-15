@@ -33,7 +33,7 @@ import (
 )
 
 func TestConvertUsageEvent(t *testing.T) {
-	anonymizer, err := utils.NewHMACAnonymizer("anon-key-or-cluster-id")
+	anonymizer, err := utils.NewHMACAnonymizer(utils.AnonymizationKeyString("anon-key-or-cluster-id"))
 	require.NoError(t, err)
 
 	expectedAnonymizedUserString := anonymizer.AnonymizeString("myuser")
@@ -726,14 +726,15 @@ func TestConvertUsageEvent(t *testing.T) {
 			}},
 			identityUsername: "myuser",
 			errCheck:         require.NoError,
-			expected: &prehogv1a.SubmitEventRequest{Event: &prehogv1a.SubmitEventRequest_AccessListReviewDelete{
-				AccessListReviewDelete: &prehogv1a.AccessListReviewDeleteEvent{
-					UserName: expectedAnonymizedUserString,
-					Metadata: &prehogv1a.AccessListMetadata{
-						Id: expectedAnonymizedAccessListIDString,
+			expected: &prehogv1a.SubmitEventRequest{
+				Event: &prehogv1a.SubmitEventRequest_AccessListReviewDelete{
+					AccessListReviewDelete: &prehogv1a.AccessListReviewDeleteEvent{
+						UserName: expectedAnonymizedUserString,
+						Metadata: &prehogv1a.AccessListMetadata{
+							Id: expectedAnonymizedAccessListIDString,
+						},
 					},
 				},
-			},
 			},
 		},
 		{

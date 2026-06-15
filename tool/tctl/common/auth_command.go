@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/winpki"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
+	subcacmd "github.com/gravitational/teleport/tool/tctl/common/subca"
 )
 
 // authCommandClient is aggregated client interface for auth command.
@@ -108,10 +109,12 @@ type AuthCommand struct {
 	// testInsecureSkipVerify is used to skip TLS verification during tests
 	// when connecting to the proxy ping address.
 	testInsecureSkipVerify bool
+
+	subCACommand *subcacmd.Command
 }
 
 // Initialize allows TokenCommand to plug itself into the CLI parser
-func (a *AuthCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
+func (a *AuthCommand) Initialize(app *kingpin.Application, cliFlags *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	a.config = config
 	// operations with authorities
 	auth := app.Command("auth", "Operations with user and host certificate authorities (CAs).").Hidden()
@@ -171,13 +174,24 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 	a.authLS.Flag("format", "Output format: 'yaml', 'json' or 'text'").Default(teleport.YAML).StringVar(&a.format)
 
 	a.authCRL = auth.Command("crl", "Export empty certificate revocation list (CRL) for Teleport certificate authorities.")
-	a.authCRL.Flag("type", fmt.Sprintf("Certificate authority type, one of: %s", strings.Join(allowedCRLCertificateTypes, ", "))).Required().EnumVar(&a.caType, allowedCRLCertificateTypes...)
+	a.authCRL.Flag("type", "Certificate authority type.").Required().EnumVar(&a.caType, allowedCRLCertificateTypes...)
 	a.authCRL.Flag("out", "If set, writes exported revocation lists to files with the given path prefix").StringVar(&a.output)
+
+	a.subCACommand = &subcacmd.Command{}
+	a.subCACommand.Initialize(auth, cliFlags, config)
 }
 
 // TryRun takes the CLI command as an argument (like "auth gen") and executes it
 // or returns match=false if 'cmd' does not belong to it
 func (a *AuthCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
+	if a.subCACommand != nil {
+		cf := func(ctx context.Context) (_ subcacmd.SubCAClientSource, closeFn func(context.Context), _ error) {
+			return clientFunc(ctx)
+		}
+		if match, err := a.subCACommand.TryRun(ctx, cmd, cf); match || err != nil {
+			return match, trace.Wrap(err)
+		}
+	}
 	if match, err := a.authRotate.TryRun(ctx, cmd, clientFunc); match || err != nil {
 		return match, trace.Wrap(err)
 	}
@@ -411,7 +425,7 @@ func (a *AuthCommand) generateWindowsCert(ctx context.Context, clusterAPI certif
 		return trace.Wrap(err)
 	}
 
-	certDER, _, err := winpki.GenerateWindowsDesktopCredentials(ctx, clusterAPI, &winpki.GenerateCredentialsRequest{
+	genResp, err := winpki.GenerateWindowsDesktopCredentials(ctx, clusterAPI, &winpki.GenerateCredentialsRequest{
 		Username:           a.windowsUser,
 		Domain:             a.windowsDomain,
 		PKIDomain:          a.windowsPKIDomain,
@@ -426,7 +440,7 @@ func (a *AuthCommand) generateWindowsCert(ctx context.Context, clusterAPI certif
 
 	_, err = identityfile.Write(ctx, identityfile.WriteConfig{
 		OutputPath:           a.output,
-		WindowsDesktopCerts:  map[string][]byte{a.windowsUser: certDER},
+		WindowsDesktopCerts:  map[string][]byte{a.windowsUser: genResp.CertDER},
 		Format:               a.outputFormat,
 		OverwriteDestination: a.signOverwrite,
 		Writer:               a.identityWriter,
@@ -841,7 +855,7 @@ tls-key-file /path/to/{{.output}}.key
 tls-protocols "TLSv1.2 TLSv1.3"
 
 For information on enabling Redis Cluster bus communication TLS, see:
-https://goteleport.com/docs/database-access/guides/redis-cluster
+https://goteleport.com/docs/enroll-resources/database-access/enrollment/self-hosted/redis-cluster/
 `))
 
 	snowflakeAuthSignTpl = template.Must(template.New("").Parse(`Database credentials have been written to {{.files}}.

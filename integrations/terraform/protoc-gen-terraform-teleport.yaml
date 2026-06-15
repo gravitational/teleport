@@ -21,6 +21,7 @@ types:
     - "ServerV2"
     - "SessionRecordingConfigV2"
     - "TrustedClusterV2"
+    - "UIConfigV1"
     - "UserV2"
     - "InstallerV1"
     - "DynamicWindowsDesktopV1"
@@ -142,6 +143,13 @@ injected_fields:
       computed: true
       plan_modifiers:
         - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+  UIConfigV1:
+    -
+      name: id
+      type: github.com/hashicorp/terraform-plugin-framework/types.StringType
+      computed: true
+      plan_modifiers:
+        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
   UserV2:
     -
       name: id
@@ -178,6 +186,7 @@ exclude_fields:
 
     # AuthPreference
     - "AuthPreferenceV2.Metadata.Name" # It's a singleton resource
+    - "AuthPreferenceV2.Spec.AllowBrowserAuthentication" # Deprecated, use AllowCLIAuthViaBrowser
 
     # ClusterMaintenanceConfig
     - "ClusterMaintenanceConfigV1.Metadata.Name" # It's a singleton resource
@@ -198,6 +207,10 @@ exclude_fields:
 
     # SessionRecordingConfig
     - "SessionRecordingConfigV2.Metadata.Name" # It's a singleton resource
+
+    # UIConfig
+    - "UIConfigV1.Metadata.Name" # It's a singleton resource
+    - "UIConfigV1.Metadata.Revision"
 
     # User
     - "UserSpecV2.LocalAuth" # We do not need to set user auth data
@@ -226,6 +239,7 @@ computed_fields:
     # Auth preference
     - "AuthPreferenceV2.Spec.AllowPasswordless"
     - "AuthPreferenceV2.Spec.AllowHeadless"
+    - "AuthPreferenceV2.Spec.AllowCLIAuthViaBrowser"
     - "AuthPreferenceV2.Spec.DisconnectExpiredCert"
     - "AuthPreferenceV2.Spec.AllowLocalAuth"
     - "AuthPreferenceV2.Spec.SecondFactor"
@@ -343,6 +357,9 @@ computed_fields:
     # Trusted cluster
     - "TrustedClusterV2.Kind"
 
+    # UI config
+    - "UIConfigV1.Kind"
+
     # User
     - "UserV2.Kind"
 
@@ -419,6 +436,9 @@ required_fields:
     - "TrustedClusterV2.Version"
     - "TrustedClusterV2.Spec"
 
+    # UI config
+    - "UIConfigV1.Version"
+
     # User
     - "UserV2.Metadata.Name"
     - "UserV2.Version"
@@ -453,6 +473,7 @@ sensitive_fields:
     - "SAMLConnectorV2.Spec.SigningKeyPair.PrivateKey"
     - "SAMLConnectorV2.Spec.EncryptionKeyPair.PrivateKey"
     - "SAMLConnectorV2.Spec.EntityDescriptor"
+    - "SAMLConnectorV2.Spec.credentials.oauth.client_secret"
     - "GithubConnectorV3.Spec.ClientSecret"
     - "OIDCConnectorV3.Spec.ClientSecret"
     - "OIDCConnectorV3.Spec.GoogleServiceAccount"
@@ -538,6 +559,8 @@ validators:
     - UseVersionBetween(2,2)
   SessionRecordingConfigV2.Metadata.Labels:
     - UseMapKeysPresentValidator("teleport.dev/origin")
+  UIConfigV1.Version:
+    - UseVersionBetween(1,1)
   UserV2.Version:
     - UseVersionBetween(2,2)
   ClusterMaintenanceConfigV1.Version:

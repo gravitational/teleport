@@ -4,7 +4,7 @@ This chart sets up and configures a Deployment for the Access Request MsTeams pl
 
 ## Installation
 
-See the [Access Requests with Microsoft Teams guide](https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-msteams/).
+See the [Access Requests with Microsoft Teams guide](https://goteleport.com/docs/identity-governance/access-requests/plugins/msteams/).
 
 ## Values
 

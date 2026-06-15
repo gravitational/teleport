@@ -183,6 +183,7 @@ func generateSchema(file *File, groupName string, format crdFormatFunc, resp *go
 		{name: "SAMLIdPServiceProviderV1", opts: []resourceSchemaOption{withVersionOverride(types.V1)}},
 		{name: "OIDCConnectorV3", opts: []resourceSchemaOption{legacyWithoutVersionInKindOverride()}},
 		{name: "GithubConnectorV3", opts: []resourceSchemaOption{legacyWithoutVersionInKindOverride()}},
+		{name: "LockV2"},
 		{
 			name: "LoginRule",
 			opts: []resourceSchemaOption{
@@ -261,6 +262,13 @@ func generateSchema(file *File, groupName string, format crdFormatFunc, resp *go
 			},
 		},
 		{
+			name: "RetrievalModel",
+			opts: []resourceSchemaOption{
+				withVersionOverride(types.V1),
+				withSingletonName(types.MetaNameRetrievalModel),
+			},
+		},
+		{
 			name: "AccessMonitoringRule",
 			opts: []resourceSchemaOption{
 				withVersionOverride(types.V1),
@@ -270,7 +278,21 @@ func generateSchema(file *File, groupName string, format crdFormatFunc, resp *go
 			name: "ScopedToken",
 			opts: []resourceSchemaOption{
 				withVersionOverride(types.V1),
-				withAdditionalRootFields([]string{"scope"}),
+				withScope(),
+			},
+		},
+		{
+			name: "ScopedRole",
+			opts: []resourceSchemaOption{
+				withVersionOverride(types.V1),
+				withScope(),
+			},
+		},
+		{
+			name: "ScopedRoleAssignment",
+			opts: []resourceSchemaOption{
+				withVersionOverride(types.V1),
+				withScope(),
 			},
 		},
 	}

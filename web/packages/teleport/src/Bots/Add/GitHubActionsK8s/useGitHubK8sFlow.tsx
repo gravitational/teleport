@@ -25,6 +25,8 @@ import React, {
 } from 'react';
 import { useDebounceCallback } from 'usehooks-ts';
 
+import { usePrevious } from 'shared/hooks/usePrevious';
+
 import { generateGhaK8sTemplates } from 'teleport/services/bot/bot';
 import { RefType } from 'teleport/services/bot/types';
 import useTeleport from 'teleport/useTeleport';
@@ -356,15 +358,3 @@ const context = React.createContext<Context>({
     },
   },
 });
-
-function usePrevious<T>(value: T) {
-  const [current, setCurrent] = React.useState<T>(value);
-  const [previous, setPrevious] = React.useState<T | undefined>(undefined);
-
-  if (value !== current) {
-    setPrevious(current);
-    setCurrent(value);
-  }
-
-  return previous;
-}

@@ -157,7 +157,7 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export { Icon } from './Icon';
+export * from './Icon';
 
 ${lines.join('\n')}
 `;

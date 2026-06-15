@@ -25,7 +25,7 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/lib/utils/uds"
+	"github.com/gravitational/teleport/session/uds"
 )
 
 // DualPipeNetConn creates a pipe to connect a client and a server. The

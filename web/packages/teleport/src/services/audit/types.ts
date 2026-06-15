@@ -203,6 +203,8 @@ export const eventCodes = {
   SESSION_RECORDING_ACCESS: 'T2012I',
   SSMRUN_FAIL: 'TDS00W',
   SSMRUN_SUCCESS: 'TDS00I',
+  AZURERUN_FAIL: 'TDA00W',
+  AZURERUN_SUCCESS: 'TDA00I',
   SUBSYSTEM_FAILURE: 'T3001E',
   SUBSYSTEM: 'T3001I',
   TERMINAL_RESIZE: 'T2002I',
@@ -232,6 +234,7 @@ export const eventCodes = {
   X11_FORWARD_FAILURE: 'T3008W',
   CERTIFICATE_CREATED: 'TC000I',
   UPGRADE_WINDOW_UPDATED: 'TUW01I',
+  ENVIRONMENT_PROFILE_UPDATED: 'TEP01I',
   BOT_JOIN: 'TJ001I',
   BOT_JOIN_FAILURE: 'TJ001E',
   INSTANCE_JOIN: 'TJ002I',
@@ -382,6 +385,13 @@ export const eventCodes = {
   INFERENCE_POLICY_DELETE: 'INF009I',
   SESSION_SUMMARIZED: 'INF010I',
   SESSION_SUMMARIZED_FAILURE: 'INF010E',
+  RETRIEVAL_MODEL_CREATE: 'INF011I',
+  RETRIEVAL_MODEL_UPDATE: 'INF012I',
+  RETRIEVAL_MODEL_DELETE: 'INF013I',
+  CERT_AUTH_OVERRIDE_CREATE: 'TCO01I',
+  CERT_AUTH_OVERRIDE_UPDATE: 'TCO02I',
+  CERT_AUTH_OVERRIDE_UPSERT: 'TCO03I',
+  CERT_AUTH_OVERRIDE_DELETE: 'TCO04I',
 } as const;
 
 /**
@@ -1362,6 +1372,12 @@ export type RawEvents = {
       upgrade_window_start: string;
     }
   >;
+  [eventCodes.ENVIRONMENT_PROFILE_UPDATED]: RawEvent<
+    typeof eventCodes.ENVIRONMENT_PROFILE_UPDATED,
+    {
+      environment_profile: string;
+    }
+  >;
   [eventCodes.SESSION_RECORDING_ACCESS]: RawEvent<
     typeof eventCodes.SESSION_RECORDING_ACCESS,
     {
@@ -1389,6 +1405,40 @@ export type RawEvents = {
       region: string;
       status: string;
       exit_code: number;
+    }
+  >;
+  [eventCodes.AZURERUN_SUCCESS]: RawEvent<
+    typeof eventCodes.AZURERUN_SUCCESS,
+    {
+      subscription_id: string;
+      resource_group: string;
+      vm_id: string;
+      vm_name: string;
+      resource_id: string;
+      region: string;
+      exit_code: number;
+      execution_state: string;
+      stdout: string;
+      stderr: string;
+      api_error?: string;
+      status?: string;
+    }
+  >;
+  [eventCodes.AZURERUN_FAIL]: RawEvent<
+    typeof eventCodes.AZURERUN_FAIL,
+    {
+      subscription_id: string;
+      resource_group: string;
+      vm_id: string;
+      vm_name: string;
+      resource_id: string;
+      region: string;
+      exit_code: number;
+      execution_state: string;
+      stdout: string;
+      stderr: string;
+      api_error?: string;
+      status?: string;
     }
   >;
   [eventCodes.BOT_JOIN]: RawEvent<
@@ -2218,6 +2268,18 @@ export type RawEvents = {
     typeof eventCodes.INFERENCE_POLICY_DELETE,
     HasName
   >;
+  [eventCodes.RETRIEVAL_MODEL_CREATE]: RawEvent<
+    typeof eventCodes.RETRIEVAL_MODEL_CREATE,
+    HasName
+  >;
+  [eventCodes.RETRIEVAL_MODEL_UPDATE]: RawEvent<
+    typeof eventCodes.RETRIEVAL_MODEL_UPDATE,
+    HasName
+  >;
+  [eventCodes.RETRIEVAL_MODEL_DELETE]: RawEvent<
+    typeof eventCodes.RETRIEVAL_MODEL_DELETE,
+    HasName
+  >;
   [eventCodes.SESSION_SUMMARIZED]: RawEvent<
     typeof eventCodes.SESSION_SUMMARIZED,
     {
@@ -2237,6 +2299,18 @@ export type RawEvents = {
       risk_level?: string;
       short_description?: string;
     }
+  >;
+  [eventCodes.CERT_AUTH_OVERRIDE_CREATE]: RawCertAuthOverrideEvent<
+    typeof eventCodes.CERT_AUTH_OVERRIDE_CREATE
+  >;
+  [eventCodes.CERT_AUTH_OVERRIDE_UPDATE]: RawCertAuthOverrideEvent<
+    typeof eventCodes.CERT_AUTH_OVERRIDE_UPDATE
+  >;
+  [eventCodes.CERT_AUTH_OVERRIDE_UPSERT]: RawCertAuthOverrideEvent<
+    typeof eventCodes.CERT_AUTH_OVERRIDE_UPSERT
+  >;
+  [eventCodes.CERT_AUTH_OVERRIDE_DELETE]: RawCertAuthOverrideEvent<
+    typeof eventCodes.CERT_AUTH_OVERRIDE_DELETE
   >;
 };
 
@@ -2472,6 +2546,33 @@ type RawSCIMResourceEvent<T extends EventCode> = RawEvent<
     external_id: string;
     integration: string;
     display: string;
+  }
+>;
+
+type RawCertAuthOverrideEvent<T extends EventCode> = RawEvent<
+  T,
+  HasName & {
+    ca_override?: {
+      ca_type?: string;
+      cluster_name?: string;
+      certificate_overrides?: {
+        certificate?: {
+          issuer?: string;
+          subject?: string;
+          serial_number?: string;
+          public_key_hash?: string;
+        };
+        chain?: {
+          issuer?: string;
+          subject?: string;
+          serial_number?: string;
+          public_key_hash?: string;
+        }[];
+        disabled?: boolean;
+      }[];
+    };
+    success?: boolean;
+    user?: string;
   }
 >;
 

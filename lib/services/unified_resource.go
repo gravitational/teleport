@@ -421,6 +421,8 @@ func (c *UnifiedResourceCache) itemKindMatches(r resource, kinds map[string]stru
 			return true
 		}
 
+		// TODO(gabrielcorado): support LLM subkind.
+
 		_, ok := kinds[types.KindIdentityCenterAccount]
 		return ok
 	case types.KindKubeServer:
@@ -463,6 +465,8 @@ func (c *UnifiedResourceCache) itemKindMatches(r resource, kinds map[string]stru
 				return true
 			}
 		}
+
+		// TODO(gabrielcorado): support LLM subkind.
 		return false
 	default:
 		return false
@@ -1080,7 +1084,7 @@ func (a *aggregatedAppServer) GetComponentFeatures() *componentfeaturesv1.Compon
 func intersectComponentFeaturesForAppServers(servers map[string]types.AppServer) *componentfeaturesv1.ComponentFeatures {
 	allFeatures := make([]*componentfeaturesv1.ComponentFeatures, 0, len(servers))
 	for _, s := range servers {
-		allFeatures = append(allFeatures, s.GetComponentFeatures())
+		allFeatures = append(allFeatures, componentfeatures.GetEffectiveServerFeatures(s))
 	}
 	return componentfeatures.Intersect(allFeatures...)
 }

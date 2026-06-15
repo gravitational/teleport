@@ -1450,6 +1450,13 @@ export const formatters: Formatters = {
       return `Upgrade Window Start updated to [${upgrade_window_start}] by user [${user}]`;
     },
   },
+  [eventCodes.ENVIRONMENT_PROFILE_UPDATED]: {
+    type: 'environmentprofile.update',
+    desc: 'Environment Profile Updated',
+    format: ({ user, environment_profile }) => {
+      return `Environment profile updated to [${environment_profile}] by user [${user}]`;
+    },
+  },
   [eventCodes.SESSION_RECORDING_ACCESS]: {
     type: 'session.recording.access',
     desc: 'Session Recording Accessed',
@@ -1469,6 +1476,20 @@ export const formatters: Formatters = {
     desc: 'SSM Command Execution Failed',
     format: ({ account_id, instance_id, region, command_id }) => {
       return `SSM Command with ID [${command_id}] failed during execution on EC2 Instance [${instance_id}] on AWS Account [${account_id}] in [${region}]`;
+    },
+  },
+  [eventCodes.AZURERUN_SUCCESS]: {
+    type: 'azure.run',
+    desc: 'Azure Run Command Executed',
+    format: ({ vm_name, subscription_id, resource_group, region, status }) => {
+      return `Azure Run Command was successfully executed on VM [${vm_name}] in resource group [${resource_group}] on subscription [${subscription_id}] in [${region}]: [${status}]`;
+    },
+  },
+  [eventCodes.AZURERUN_FAIL]: {
+    type: 'azure.run',
+    desc: 'Azure Run Command Failed',
+    format: ({ vm_name, subscription_id, resource_group, region, status }) => {
+      return `Azure Run Command failed on VM [${vm_name}] in resource group [${resource_group}] on subscription [${subscription_id}] in [${region}]: [${status}]`;
     },
   },
   [eventCodes.BOT_JOIN]: {
@@ -2540,6 +2561,24 @@ export const formatters: Formatters = {
     format: ({ name, user }) =>
       `Inference Policy [${name}] was deleted by [${user}]`,
   },
+  [eventCodes.RETRIEVAL_MODEL_CREATE]: {
+    type: 'retrieval_model.create',
+    desc: 'Retrieval Model Created',
+    format: ({ name, user }) =>
+      `Retrieval Model [${name}] was created by [${user}]`,
+  },
+  [eventCodes.RETRIEVAL_MODEL_UPDATE]: {
+    type: 'retrieval_model.update',
+    desc: 'Retrieval Model Updated',
+    format: ({ name, user }) =>
+      `Retrieval Model [${name}] was updated by [${user}]`,
+  },
+  [eventCodes.RETRIEVAL_MODEL_DELETE]: {
+    type: 'retrieval_model.delete',
+    desc: 'Retrieval Model Deleted',
+    format: ({ name, user }) =>
+      `Retrieval Model [${name}] was deleted by [${user}]`,
+  },
   [eventCodes.SESSION_SUMMARIZED]: {
     type: 'session.summarized',
     desc: 'Session Summarized',
@@ -2551,6 +2590,42 @@ export const formatters: Formatters = {
     desc: 'Session Summarization Failed',
     format: ({ sid, session_type, model_name }) =>
       `Session summary for ${session_type || 'session'} [${sid}] failed to be summarized${model_name ? ` using [${model_name}]` : ''}`,
+  },
+  [eventCodes.CERT_AUTH_OVERRIDE_CREATE]: {
+    type: 'cert_auth_override.create',
+    desc: 'Certificate Authority Override Created',
+    format: ({ user, name, success }) => {
+      return success
+        ? `User [${user}] created a Certificate Authority Override [${name}]`
+        : `User [${user}] failed to create a Certificate Authority Override [${name}]`;
+    },
+  },
+  [eventCodes.CERT_AUTH_OVERRIDE_UPDATE]: {
+    type: 'cert_auth_override.update',
+    desc: 'Certificate Authority Override Updated',
+    format: ({ user, name, success }) => {
+      return success
+        ? `User [${user}] updated a Certificate Authority Override [${name}]`
+        : `User [${user}] failed to update a Certificate Authority Override [${name}]`;
+    },
+  },
+  [eventCodes.CERT_AUTH_OVERRIDE_UPSERT]: {
+    type: 'cert_auth_override.upsert',
+    desc: 'Certificate Authority Override Upserted',
+    format: ({ user, name, success }) => {
+      return success
+        ? `User [${user}] upserted a Certificate Authority Override [${name}]`
+        : `User [${user}] failed to upsert a Certificate Authority Override [${name}]`;
+    },
+  },
+  [eventCodes.CERT_AUTH_OVERRIDE_DELETE]: {
+    type: 'cert_auth_override.delete',
+    desc: 'Certificate Authority Override Deleted',
+    format: ({ user, name, success }) => {
+      return success
+        ? `User [${user}] deleted a Certificate Authority Override [${name}]`
+        : `User [${user}] failed to delete a Certificate Authority Override [${name}]`;
+    },
   },
 };
 

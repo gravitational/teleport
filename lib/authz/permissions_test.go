@@ -36,6 +36,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
@@ -44,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
@@ -224,6 +226,14 @@ func TestContextLockTargets(t *testing.T) {
 			require.ElementsMatch(t, authContext.LockTargets(), tt.want)
 		})
 	}
+
+	t.Run("UnauthenticatedRole lock targets", func(t *testing.T) {
+		authContext := &authz.Context{
+			Identity:         authz.UnauthenticatedRole{Role: types.RoleNop, Username: string(types.RoleNop)},
+			UnmappedIdentity: authz.UnauthenticatedRole{Role: types.RoleNop, Username: string(types.RoleNop)},
+		}
+		require.Empty(t, authContext.LockTargets())
+	})
 }
 
 func TestAuthorizeWithLocksForLocalUser(t *testing.T) {
@@ -487,6 +497,11 @@ func TestAuthorizer_Authorize_deviceTrust(t *testing.T) {
 				Identity:    userWithoutExtensions.Identity,
 			},
 		},
+		{
+			name:                 "UnauthenticatedRole: context device trust always disabled",
+			user:                 authz.UnauthenticatedRole{Role: types.RoleNop, Username: string(types.RoleNop)},
+			wantCtxAuthnDisabled: true,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -530,6 +545,74 @@ func TestAuthorizer_Authorize_deviceTrust(t *testing.T) {
 				"auth.Context.disableDeviceAuthorization not inherited from Authorizer")
 		})
 	}
+}
+
+// TestAuthorizer_Authorize_remoteUserDeviceTrust verifies that device trust
+// extensions are propagated through the authorizeRemoteUser path. A remote user
+// whose original identity carries DeviceExtensions should have DeviceVerified=true
+// in the resulting auth context.
+func TestAuthorizer_Authorize_remoteUserDeviceTrust(t *testing.T) {
+	t.Parallel()
+	client, watcher, _ := newTestResources(t)
+	_, localRole, err := authtest.CreateUserAndRole(client, "local-llama", []string{"local-llama"}, nil)
+	require.NoError(t, err, "CreateUserAndRole")
+
+	remoteClusterName := "remote-cluster"
+	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.UserCA,
+		ClusterName: remoteClusterName,
+		ActiveKeys: types.CAKeySet{
+			SSH: []*types.SSHKeyPair{{
+				PrivateKey: []byte(fixtures.SSHCAPrivateKey),
+				PublicKey:  []byte(fixtures.SSHCAPublicKey),
+			}},
+			TLS: []*types.TLSKeyPair{{
+				Cert: []byte(fixtures.TLSCACertPEM),
+				Key:  []byte(fixtures.TLSCAKeyPEM),
+			}},
+		},
+		RoleMap: types.RoleMap{{
+			Remote: localRole.GetName(),
+			Local:  []string{localRole.GetName()},
+		}},
+	})
+	require.NoError(t, err, "NewCertAuthority failed")
+	require.NoError(t, client.UpsertCertAuthority(t.Context(), ca), "UpsertCertAuthority failed")
+
+	deviceExt := tlsca.DeviceExtensions{
+		DeviceID:     "deviceid1",
+		AssetTag:     "assettag1",
+		CredentialID: "credentialid1",
+	}
+
+	remoteUser := authz.RemoteUser{
+		Username:    "llama",
+		ClusterName: remoteClusterName,
+		RemoteRoles: []string{localRole.GetName()},
+		Principals:  []string{"llama"},
+		Identity: tlsca.Identity{
+			Username:         "llama",
+			Groups:           []string{localRole.GetName()},
+			DeviceExtensions: deviceExt,
+		},
+	}
+
+	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
+		ClusterName: clusterName,
+		AccessPoint: client,
+		LockWatcher: watcher,
+	})
+	require.NoError(t, err, "NewAuthorizer failed")
+
+	userCtx := authz.ContextWithUser(t.Context(), remoteUser)
+	authCtx, err := authorizer.Authorize(userCtx)
+	require.NoError(t, err, "Authorize failed")
+
+	authPref, err := client.GetAuthPreference(t.Context())
+	require.NoError(t, err, "GetAuthPreference failed")
+	state := authCtx.GetAccessState(authPref)
+	assert.True(t, state.DeviceVerified,
+		"DeviceVerified should be true for remote user whose identity has device extensions")
 }
 
 // hostFQDN consists of host UUID and cluster name joined via .
@@ -756,6 +839,10 @@ func TestAuthorizer_AuthorizeAdminAction(t *testing.T) {
 			},
 			wantAdminActionAuthorized: true,
 		}, {
+			name:                      "NOK unauthenticated role cannot perform admin actions",
+			user:                      authz.UnauthenticatedRole{Role: types.RoleNop, Username: string(types.RoleNop)},
+			wantAdminActionAuthorized: false,
+		}, {
 			name: "OK admin impersonating local user",
 			user: authz.LocalUser{
 				Username: localUser.GetName(),
@@ -939,6 +1026,41 @@ func TestContext_GetAccessState(t *testing.T) {
 			}
 		})
 	}
+}
+
+type roleGetterFunc func(context.Context, string) (types.Role, error)
+
+func (f roleGetterFunc) GetRole(ctx context.Context, name string) (types.Role, error) {
+	return f(ctx, name)
+}
+
+func TestContext_WithExtraRoles_ExpandsUserMetadataName(t *testing.T) {
+	t.Parallel()
+
+	user, err := types.NewUser("llama")
+	require.NoError(t, err)
+
+	extraRole, err := types.NewRole("extra", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins: []string{"{{user.metadata.name}}"},
+		},
+	})
+	require.NoError(t, err)
+
+	ctx := authz.Context{
+		User:    user,
+		Checker: services.NewAccessCheckerWithRoleSet(&services.AccessInfo{}, clusterName, nil),
+	}
+
+	newCtx, err := ctx.WithExtraRoles(roleGetterFunc(func(ctx context.Context, name string) (types.Role, error) {
+		require.Equal(t, "extra", name)
+		return extraRole, nil
+	}), clusterName, []string{"extra"})
+	require.NoError(t, err)
+
+	logins, err := newCtx.Checker.CheckLoginDuration(0)
+	require.NoError(t, err)
+	require.Contains(t, logins, user.GetName())
 }
 
 func TestCheckIPPinning(t *testing.T) {
@@ -1161,6 +1283,161 @@ func TestIsUserFunctions(t *testing.T) {
 	}
 }
 
+func TestHasUnauthenticatedRole(t *testing.T) {
+	nopCtx := authz.Context{
+		Identity: authz.UnauthenticatedRole{
+			Role:     types.RoleNop,
+			Username: string(types.RoleNop),
+		},
+	}
+	// Populate Checker so HasRole works.
+	roleSet, err := authz.RoleSetForUnauthenticatedRoles(clusterName, types.RoleNop)
+	require.NoError(t, err)
+	nopCtx.Checker = services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
+		Roles: []string{string(types.RoleNop)},
+	}, clusterName, roleSet)
+
+	builtinCtx := authz.Context{
+		Identity: authz.BuiltinRole{Role: types.RoleProxy},
+	}
+	localCtx := authz.Context{
+		Identity: authz.LocalUser{},
+	}
+
+	tests := []struct {
+		name string
+		ctx  authz.Context
+		role string
+		want bool
+	}{
+		{
+			name: "unauthenticated role matches",
+			ctx:  nopCtx,
+			role: string(types.RoleNop),
+			want: true,
+		},
+		{
+			name: "unauthenticated role case-insensitive match",
+			ctx:  nopCtx,
+			role: "nop",
+			want: false, // HasRole is exact match, not case-insensitive
+		},
+		{
+			name: "builtin role does not match",
+			ctx:  builtinCtx,
+			role: string(types.RoleNop),
+			want: false,
+		},
+		{
+			name: "local user does not match",
+			ctx:  localCtx,
+			role: string(types.RoleNop),
+			want: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := authz.HasUnauthenticatedRole(tt.ctx, tt.role)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestRoleSetForUnauthenticatedRoles(t *testing.T) {
+	tests := []struct {
+		name      string
+		roles     []types.UnauthenticatedRole
+		assertErr require.ErrorAssertionFunc
+		assertRS  func(t *testing.T, rs services.RoleSet)
+	}{
+		{
+			name:      "RoleNop produces empty rule set",
+			roles:     []types.UnauthenticatedRole{types.RoleNop},
+			assertErr: require.NoError,
+			assertRS: func(t *testing.T, rs services.RoleSet) {
+				require.NotEmpty(t, rs)
+				for i, r := range rs {
+					assert.Empty(t, r.GetNamespaces(types.Allow), "rs[%d]: expected no namespaces for nop role", i)
+					assert.Empty(t, r.GetRules(types.Allow), "rs[%d]: expected no rules for nop role", i)
+				}
+			},
+		},
+		{
+			name:      "unknown role returns error",
+			roles:     []types.UnauthenticatedRole{types.UnauthenticatedRole("Unknown")},
+			assertErr: require.Error,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rs, err := authz.RoleSetForUnauthenticatedRoles(clusterName, tt.roles...)
+			tt.assertErr(t, err)
+			if tt.assertRS != nil {
+				tt.assertRS(t, rs)
+			}
+		})
+	}
+}
+
+// TestUnauthenticatedRoleHasNoPermissions verifies that the Nop unauthenticated
+// role carries an entirely empty allow/deny spec (no rules, no logins, no
+// namespaces, etc.) and is denied access to all common resources.
+func TestUnauthenticatedRoleHasNoPermissions(t *testing.T) {
+	ctx, err := authz.NewUnauthenticatedRoleContext(types.RoleNop)
+	require.NoError(t, err)
+
+	// Verify the entire Allow and Deny spec is zero-value (proto message is empty).
+	roleSet, err := authz.RoleSetForUnauthenticatedRoles(clusterName, types.RoleNop)
+	require.NoError(t, err)
+	require.Len(t, roleSet, 1, "RoleSetForUnAuthenticatedRoles should only return a single role")
+
+	rv6, ok := roleSet[0].(*types.RoleV6)
+	require.True(t, ok, "expected *types.RoleV6, got %T", roleSet[0])
+
+	require.Equal(t, rv6.GetName(), string(types.RoleNop), "role name MUST be nop")
+
+	require.Empty(t,
+		cmp.Diff(types.RoleSpecV6{
+			Deny: types.RoleConditions{
+				Namespaces: []string{defaults.Namespace},
+			},
+			Options: types.RoleOptions{
+				// these are the default values.
+				MaxSessionTTL:     types.NewDuration(defaults.MaxCertDuration),
+				CertificateFormat: constants.CertificateFormatStandard,
+				BPF:               []string{"command", "network"},
+				RecordSession: &types.RecordSession{
+					Desktop: types.NewBoolOption(true),
+					Default: constants.SessionRecordingModeBestEffort,
+				},
+				DesktopClipboard:        types.NewBoolOption(true),
+				DesktopDirectorySharing: types.NewBoolOption(true),
+				SSHFileCopy:             types.NewBoolOption(true),
+				CreateDesktopUser:       types.NewBoolOption(false),
+				CreateDatabaseUser:      types.NewBoolOption(false),
+			},
+		}, rv6.Spec, cmpopts.EquateEmpty()),
+		"Spec must be entirely empty for the Nop unauthenticated role",
+	)
+
+	// Functionally confirm that RBAC denies all access.
+	ruleCtx := &services.Context{User: ctx.User}
+	for _, resource := range []string{
+		types.KindEvent,
+		types.KindNode,
+		types.KindUser,
+		types.KindRole,
+		types.KindSession,
+		types.KindCertAuthority,
+	} {
+		for _, verb := range services.RW() {
+			err := ctx.Checker.CheckAccessToRule(ruleCtx, defaults.Namespace, resource, verb)
+			assert.Truef(t, trace.IsAccessDenied(err),
+				"expected access denied for %s/%s, got %v", resource, verb, err)
+		}
+	}
+}
+
 func TestConnectionMetadata(t *testing.T) {
 	for name, test := range map[string]struct {
 		ctx                        context.Context
@@ -1253,6 +1530,7 @@ func newTestResources(t *testing.T) (*testClient, *services.LockWatcher, authz.A
 		LockGetter: lockSvc,
 	})
 	require.NoError(t, err)
+	t.Cleanup(lockWatcher.Close)
 
 	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
 		ClusterName: clusterName,

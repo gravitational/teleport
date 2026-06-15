@@ -26,10 +26,9 @@ import (
 	"io"
 	"iter"
 	"log/slog"
+	"math"
 	"net"
-	"os"
 	goslices "slices"
-	"strconv"
 	"strings"
 	"time"
 
@@ -39,6 +38,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	collectortracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
+	"golang.org/x/time/rate"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	_ "google.golang.org/grpc/encoding/gzip" // gzip compressor for gRPC.
@@ -62,6 +62,7 @@ import (
 	dbobjectv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
+	delegationv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	discoveryconfigv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	dynamicwindowsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/dynamicwindows/v1"
 	gitserverv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1"
@@ -107,6 +108,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/crownjewel/crownjewelv1"
 	"github.com/gravitational/teleport/lib/auth/dbobject/dbobjectv1"
 	"github.com/gravitational/teleport/lib/auth/dbobjectimportrule/dbobjectimportrulev1"
+	"github.com/gravitational/teleport/lib/auth/delegation/delegationv1"
 	"github.com/gravitational/teleport/lib/auth/discoveryconfig/discoveryconfigv1"
 	"github.com/gravitational/teleport/lib/auth/dynamicwindows/dynamicwindowsv1"
 	"github.com/gravitational/teleport/lib/auth/gitserver/gitserverv1"
@@ -118,6 +120,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/loginrule/loginrulev1"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
+	"github.com/gravitational/teleport/lib/auth/mfa/mfav1"
 	"github.com/gravitational/teleport/lib/auth/notifications/notificationsv1"
 	"github.com/gravitational/teleport/lib/auth/presence/presencev1"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption/recordingencryptionv1"
@@ -153,7 +156,6 @@ import (
 	"github.com/gravitational/teleport/lib/services/local/generic"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/server/installer"
-	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/slices"
@@ -222,17 +224,23 @@ type GRPCServer struct {
 	// collect and forward spans
 	collectortracepb.TraceServiceServer
 
-	// createAuditStreamSemaphore, if not nil, is used to limit the amount of
-	// in-flight CreateAuditStream RPCs, by sending a value in at the beginning
-	// of the RPC and pulling one out before returning.
-	createAuditStreamSemaphore chan struct{}
-
 	// createAuthenticateChallengeLimiter is a rate limiter for invocations of
 	// /proto.AuthService/CreateAuthenticateChallenge that don't rely on a user
 	// context and thus warrant additional rate limiting since they are
 	// unauthenticated (either through direct API connections or coming from the
 	// proxy on behalf of a remote unauthenticated user).
 	createAuthenticateChallengeLimiter *limiter.RateLimiter
+
+	// createAuditStreamSemaphore, if not nil, is used to limit the amount of
+	// in-flight CreateAuditStream RPCs, by sending a value in at the beginning
+	// of the RPC and pulling one out before returning.
+	createAuditStreamSemaphore chan struct{}
+
+	// resolveSSHTargetRateLimiter is an optional (server-wide) rate limiter for
+	// calls to ResolveSSHTarget, since those might end up iterating over the
+	// whole inventory of nodes and that can be quite heavy. Calls beyond the
+	// rate limit will block until their execution would be allowed.
+	resolveSSHTargetRateLimiter *rate.Limiter
 }
 
 func (g *GRPCServer) SetServingStatus(service string, servingStatus grpc_health_v1.HealthCheckResponse_ServingStatus) {
@@ -549,12 +557,13 @@ func (g *GRPCServer) WatchEvents(watch *authpb.Watch, stream authpb.AuthService_
 				stream,
 				scopedAuth.scopedContext.User.GetName(),
 				scopedAuth,
+				modules.GetModules(),
 			))
 		}
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(WatchEvents(watch, stream, auth.User.GetName(), auth))
+	return trace.Wrap(WatchEvents(watch, stream, auth.User.GetName(), auth, modules.GetModules()))
 }
 
 // WatchEvent is a stream interface for sending events.
@@ -567,14 +576,18 @@ type Watcher interface {
 	NewStream(ctx context.Context, watch types.Watch) (stream.Stream[types.Event], error)
 }
 
-// WatchEvents watches for events and streams them to the provided stream.
-func WatchEvents(watch *authpb.Watch, stream WatchEvent, componentName string, auth Watcher) error {
-	servicesWatch := types.Watch{
-		Name:                componentName,
-		Kinds:               watch.Kinds,
-		AllowPartialSuccess: watch.AllowPartialSuccess,
-	}
+var enterpriseOnlyWatchKinds = []string{
+	types.KindCertAuthorityOverride,
+}
 
+// WatchEvents watches for events and streams them to the provided stream.
+func WatchEvents(
+	watch *authpb.Watch,
+	stream WatchEvent,
+	componentName string,
+	auth Watcher,
+	mods modules.Modules,
+) error {
 	// KindNamespace is being removed but v17 agents will still try to include
 	// it in their cache and they will occasionally do a GetNamespace, so we
 	// pretend to support it as a resource kind here; it's sound to do so
@@ -589,9 +602,27 @@ func WatchEvents(watch *authpb.Watch, stream WatchEvent, componentName string, a
 			removedNamespaceWatch = true
 			continue
 		}
+
+		// Deny watchers for Enteprise-only Kinds if we are running OSS.
+		// This simplifies remote event streams that would otherwise try to hit
+		// unimplemented endpoints (Enterprise-only services tend to only bind in
+		// Enterprise builds).
+		if mods.IsOSSBuild() && goslices.Contains(enterpriseOnlyWatchKinds, k.Kind) {
+			if watch.AllowPartialSuccess {
+				continue
+			}
+			return trace.BadParameter("watch for kind %s only available in Teleport Enterprise", k.Kind)
+		}
+
 		filteredKinds = append(filteredKinds, k)
 	}
 	watch.Kinds = filteredKinds
+
+	servicesWatch := types.Watch{
+		Name:                componentName,
+		Kinds:               watch.Kinds,
+		AllowPartialSuccess: watch.AllowPartialSuccess,
+	}
 
 	events, err := auth.NewStream(stream.Context(), servicesWatch)
 	if err != nil {
@@ -1878,6 +1909,47 @@ func (g *GRPCServer) DeleteUserAppSessions(ctx context.Context, req *authpb.Dele
 	return &emptypb.Empty{}, nil
 }
 
+// SetAppSessionDBSCPublicKey sets the DBSC public key on an application web session.
+func (g *GRPCServer) SetAppSessionDBSCPublicKey(ctx context.Context, req *authpb.SetAppSessionDBSCPublicKeyRequest) (*authpb.SetAppSessionDBSCPublicKeyResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if req.SessionId == "" {
+		return nil, trace.BadParameter("missing session ID")
+	}
+
+	if len(req.PublicKey) == 0 {
+		return nil, trace.BadParameter("DBSC response must not be empty")
+	}
+
+	if err := auth.SetAppSessionDBSCPublicKey(ctx, req.SessionId, req.PublicKey); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &authpb.SetAppSessionDBSCPublicKeyResponse{}, nil
+}
+
+// SignDBSCChallenge signs a DBSC challenge for an application web session.
+func (g *GRPCServer) SignDBSCChallenge(ctx context.Context, req *authpb.SignDBSCChallengeRequest) (*authpb.SignDBSCChallengeResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if req.SessionId == "" {
+		return nil, trace.BadParameter("missing session ID")
+	}
+
+	challenge, err := auth.SignDBSCChallenge(ctx, req.SessionId)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &authpb.SignDBSCChallengeResponse{Challenge: challenge}, nil
+}
+
 // GenerateAppToken creates a JWT token with application access.
 func (g *GRPCServer) GenerateAppToken(ctx context.Context, req *authpb.GenerateAppTokenRequest) (*authpb.GenerateAppTokenResponse, error) {
 	auth, err := g.authenticate(ctx)
@@ -2625,7 +2697,29 @@ func (g *GRPCServer) DeleteRole(ctx context.Context, req *authpb.DeleteRoleReque
 func doMFAPresenceChallenge(ctx context.Context, actx *grpcContext, stream authpb.AuthService_MaintainSessionPresenceServer, challengeReq *authpb.PresenceMFAChallengeRequest) error {
 	user := actx.User.GetName()
 	chalExt := &mfav1pb.ChallengeExtensions{Scope: mfav1pb.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION}
-	authChallenge, err := actx.authServer.mfaAuthChallenge(ctx, user, challengeReq.SSOClientRedirectURL, challengeReq.ProxyAddress, chalExt)
+
+	// When completing a Browser MFA flow, only a WebAuthn challenge is needed, so
+	// clear the redirect URLs so SSO and Browser MFA challenges are not generated.
+	ssoClientRedirectURL := ""
+	browserMFATSHRedirectURL := ""
+	if challengeReq.BrowserMfaRequestId == "" {
+		ssoClientRedirectURL = challengeReq.SSOClientRedirectURL
+		browserMFATSHRedirectURL = challengeReq.BrowserMFATSHRedirectURL
+		if ssoClientRedirectURL != "" && browserMFATSHRedirectURL != "" && ssoClientRedirectURL != browserMFATSHRedirectURL {
+			slog.WarnContext(ctx, "SSO and Browser MFA redirect URLs do not match, this is a bug.",
+				// Strip out the sensitive query params before printing
+				"sso_url", strings.Split(ssoClientRedirectURL, "?")[0],
+				"browser_url", strings.Split(browserMFATSHRedirectURL, "?")[0],
+			)
+		}
+	}
+	authChallenge, err := actx.authServer.mfaAuthChallenge(ctx, mfaAuthChallengeParams{
+		user:                     user,
+		ssoClientRedirectURL:     ssoClientRedirectURL,
+		browserMFATSHRedirectURL: browserMFATSHRedirectURL,
+		proxyAddress:             challengeReq.ProxyAddress,
+		challengeExtensions:      chalExt,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -4158,7 +4252,6 @@ func (g *GRPCServer) ListLocks(ctx context.Context, req *authpb.ListLocksRequest
 		req.PageToken,
 		req.Filter,
 	)
-
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4964,12 +5057,23 @@ func (g *GRPCServer) scopedListUnifiedResources(ctx context.Context, req *authpb
 
 // ListResources retrieves a paginated list of resources.
 func (g *GRPCServer) ListResources(ctx context.Context, req *authpb.ListResourcesRequest) (*authpb.ListResourcesResponse, error) {
+
+	var swr *ServerWithRoles
 	auth, err := g.authenticate(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		if !errors.Is(err, services.ErrScopedIdentity) {
+			return nil, trace.Wrap(err)
+		}
+		scopedAuth, err := g.scopedAuthenticate(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		swr = scopedAuth.ServerWithRoles
+	} else {
+		swr = auth.ServerWithRoles
 	}
 
-	resp, err := auth.ListResources(ctx, *req)
+	resp, err := swr.ListResources(ctx, *req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5027,6 +5131,12 @@ func (g *GRPCServer) ResolveSSHTarget(ctx context.Context, req *authpb.ResolveSS
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if l := g.resolveSSHTargetRateLimiter; l != nil {
+		if err := l.Wait(ctx); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	rsp, err := auth.ServerWithRoles.ResolveSSHTarget(ctx, req)
@@ -6126,7 +6236,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	machineidv1pb.RegisterBotServiceServer(server, botService)
 
 	botInstanceService, err := machineidv1.NewBotInstanceService(machineidv1.BotInstanceServiceConfig{
-		Authorizer: cfg.Authorizer,
+		Authorizer: cfg.ScopedAuthorizer,
 		Cache:      cfg.AuthServer.Cache,
 		Backend:    cfg.AuthServer.Services.BotInstance,
 		Clock:      cfg.AuthServer.GetClock(),
@@ -6233,6 +6343,23 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	dbobjectv1pb.RegisterDatabaseObjectServiceServer(server, dbObjectService)
 
+	delegationSessionService, err := delegationv1.NewSessionService(delegationv1.SessionServiceConfig{
+		Authorizer:        cfg.Authorizer,
+		SessionReader:     cfg.AuthServer,
+		SessionWriter:     cfg.AuthServer,
+		ResourceLister:    cfg.AuthServer,
+		RoleGetter:        cfg.AuthServer,
+		UserGetter:        cfg.AuthServer,
+		CertGenerator:     cfg.AuthServer,
+		ClusterNameGetter: cfg.AuthServer,
+		AppSessionCreator: delegationv1.AppSessionCreatorFunc(cfg.AuthServer.CreateAppSessionFromReq),
+		Logger:            cfg.AuthServer.logger.With(teleport.ComponentKey, "delegation_sessions"),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "creating delegation session service")
+	}
+	delegationv1pb.RegisterDelegationSessionServiceServer(server, delegationSessionService)
+
 	stableUNIXUsersServiceServer, err := stableunixusers.New(stableunixusers.Config{
 		Authorizer: cfg.Authorizer,
 		Emitter:    cfg.Emitter,
@@ -6288,6 +6415,23 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	var createAuditStreamSemaphore chan struct{}
+	if cfg.CreateAuditStreamInflightLimit != nil {
+		metrics.RegisterPrometheusCollectors(
+			createAuditStreamAcceptedTotalMetric,
+			createAuditStreamRejectedTotalMetric,
+			createAuditStreamLimitMetric,
+		)
+		limit := max(0, *cfg.CreateAuditStreamInflightLimit)
+		createAuditStreamLimitMetric.Set(float64(limit))
+		createAuditStreamSemaphore = make(chan struct{}, limit)
+	}
+
+	var resolveSSHTargetRateLimiter *rate.Limiter
+	if cfg.ResolveSSHTargetRateLimit != nil {
+		resolveSSHTargetRateLimiter = rate.NewLimiter(rate.Limit(*cfg.ResolveSSHTargetRateLimit), int(math.Ceil(*cfg.ResolveSSHTargetRateLimit)))
+	}
+
 	authServer := &GRPCServer{
 		APIConfig:   cfg.APIConfig,
 		logger:      logger,
@@ -6295,26 +6439,8 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		healthcheck: health.NewServer(),
 
 		createAuthenticateChallengeLimiter: createAuthenticateChallengeLimiter,
-	}
-
-	if en := os.Getenv("TELEPORT_UNSTABLE_CREATEAUDITSTREAM_INFLIGHT_LIMIT"); en != "" {
-		inflightLimit, err := strconv.ParseInt(en, 10, 64)
-		if err != nil {
-			logger.ErrorContext(context.Background(), "Failed to parse the TELEPORT_UNSTABLE_CREATEAUDITSTREAM_INFLIGHT_LIMIT envvar, limit will not be enforced")
-			inflightLimit = -1
-		}
-		if inflightLimit == 0 {
-			logger.WarnContext(context.Background(), "TELEPORT_UNSTABLE_CREATEAUDITSTREAM_INFLIGHT_LIMIT is set to 0, no CreateAuditStream RPCs will be allowed")
-		}
-		metrics.RegisterPrometheusCollectors(
-			createAuditStreamAcceptedTotalMetric,
-			createAuditStreamRejectedTotalMetric,
-			createAuditStreamLimitMetric,
-		)
-		createAuditStreamLimitMetric.Set(float64(inflightLimit))
-		if inflightLimit >= 0 {
-			authServer.createAuditStreamSemaphore = make(chan struct{}, inflightLimit)
-		}
+		createAuditStreamSemaphore:         createAuditStreamSemaphore,
+		resolveSSHTargetRateLimiter:        resolveSSHTargetRateLimiter,
 	}
 
 	authpb.RegisterAuthServiceServer(server, authServer)
@@ -6349,7 +6475,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 
 	if !cfg.DisableJoinV1 {
 		joinv1.RegisterJoinServiceServer(server, join.NewServer(&join.ServerConfig{
-			Authorizer:         cfg.Authorizer,
+			ScopedAuthorizer:   cfg.ScopedAuthorizer,
 			AuthService:        cfg.AuthServer,
 			FIPS:               cfg.AuthServer.fips,
 			OracleHTTPClient:   cfg.OracleHTTPClient,
@@ -6395,12 +6521,10 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	integrationv1pb.RegisterAWSRolesAnywhereServiceServer(server, integrationAWSRolesAnywhereServiceServer)
 
 	userTask, err := usertasksv1.NewService(usertasksv1.ServiceConfig{
-		Authorizer: cfg.Authorizer,
-		Backend:    cfg.AuthServer.Services,
-		Cache:      cfg.AuthServer.Cache,
-		// This must be a function because cfg.AuthServer.UsageReporter is changed after `NewGRPCServer` is called.
-		// It starts as a DiscardUsageReporter, but when running in Cloud, gets replaced by a real reporter.
-		UsageReporter: func() usagereporter.UsageReporter { return cfg.AuthServer.UsageReporter },
+		Authorizer:    cfg.Authorizer,
+		Backend:       cfg.AuthServer.Services,
+		Cache:         cfg.AuthServer.Cache,
+		UsageReporter: cfg.AuthServer.UsageReporter,
 		Emitter:       cfg.Emitter,
 	})
 	if err != nil {
@@ -6409,13 +6533,11 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	usertaskv1pb.RegisterUserTaskServiceServer(server, userTask)
 
 	discoveryConfig, err := discoveryconfigv1.NewService(discoveryconfigv1.ServiceConfig{
-		Authorizer: cfg.Authorizer,
-		Backend:    cfg.AuthServer.Services,
-		Clock:      cfg.AuthServer.clock,
-		Emitter:    cfg.Emitter,
-		// This must be a function because cfg.AuthServer.UsageReporter is changed after `NewGRPCServer` is called.
-		// It starts as a DiscardUsageReporter, but when running in Cloud, gets replaced by a real reporter.
-		UsageReporter: func() usagereporter.UsageReporter { return cfg.AuthServer.UsageReporter },
+		Authorizer:    cfg.Authorizer,
+		Backend:       cfg.AuthServer.Services,
+		Clock:         cfg.AuthServer.clock,
+		Emitter:       cfg.Emitter,
+		UsageReporter: cfg.AuthServer.UsageReporter,
 		Logger:        cfg.AuthServer.logger.With(teleport.ComponentKey, "discoveryconfig_crud_service"),
 	})
 	if err != nil {
@@ -6466,7 +6588,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Logger:                    cfg.AuthServer.logger.With(teleport.ComponentKey, teleport.ComponentRecordingEncryption),
 		SessionSummarizerProvider: cfg.APIConfig.AuthServer.sessionSummarizerProvider,
 		RecordingMetadataProvider: cfg.AuthServer.recordingMetadataProvider,
-		SessionStreamer:           cfg.AuthServer,
+		OnUploadComplete:          cfg.AuthServer.OnUploadComplete,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -6533,9 +6655,9 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	notificationsv1pb.RegisterNotificationServiceServer(server, notificationsServer)
 
 	vnetConfigServiceServer, err := vnetconfigv1.NewService(vnetconfigv1.ServiceConfig{
-		Authorizer: cfg.Authorizer,
-		Storage:    cfg.AuthServer.VnetConfigService,
-		Emitter:    cfg.Emitter,
+		ScopedAuthorizer: cfg.ScopedAuthorizer,
+		Storage:          cfg.AuthServer.VnetConfigService,
+		Emitter:          cfg.Emitter,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -6620,6 +6742,15 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	decisionpb.RegisterDecisionServiceServer(server, decisionService)
+
+	mfaService, err := mfav1.NewService(mfav1.ServiceConfig{
+		Authorizer: cfg.Authorizer,
+		AuthServer: cfg.AuthServer,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	mfav1pb.RegisterMFAServiceServer(server, mfaService)
 
 	healthCheckConfigSvc, err := healthcheckconfigv1.NewService(healthcheckconfigv1.ServiceConfig{
 		Authorizer: cfg.Authorizer,

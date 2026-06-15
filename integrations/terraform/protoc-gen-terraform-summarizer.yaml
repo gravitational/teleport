@@ -9,6 +9,7 @@ types:
   - "InferenceModel"
   - "InferenceSecret"
   - "InferencePolicy"
+  - "RetrievalModel"
 
 # These import paths were not being automatically picked up by
 # protoc-gen-terraform without these overrides
@@ -47,12 +48,24 @@ injected_fields:
       plan_modifiers:
         - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
 
+  RetrievalModel:
+    -
+      name: id
+      type: github.com/hashicorp/terraform-plugin-framework/types.StringType
+      computed: true
+      plan_modifiers:
+        - "github.com/hashicorp/terraform-plugin-framework/tfsdk.UseStateForUnknown()"
+
 # These fields will be excluded
 exclude_fields:
   # Metadata (we id resources by name on our side)
   - "InferenceModel.metadata.id"
   - "InferenceSecret.metadata.id"
   - "InferencePolicy.metadata.id"
+  - "RetrievalModel.metadata.id"
+  # RetrievalModel is a singleton; its name is always "retrieval-model" and is set
+  # automatically by the provider, so it must not be exposed as a schema field.
+  - "RetrievalModel.metadata.name"
 
   # Temperature fields need to be excluded because of
   # https://discuss.hashicorp.com/t/terraform-plugin-framework-float64-type-validation-error/48645/4
@@ -60,6 +73,8 @@ exclude_fields:
   # later.
   - "InferenceModel.spec.openai.temperature"
   - "InferenceModel.spec.bedrock.temperature"
+  - "RetrievalModel.spec.openai.temperature"
+  - "RetrievalModel.spec.bedrock.temperature"
 
 # These fields will be marked as Computed: true
 computed_fields:
@@ -75,23 +90,28 @@ computed_fields:
   - "InferencePolicy.metadata.expires"
   - "InferencePolicy.metadata.namespace"
   - "InferencePolicy.metadata.revision"
+  - "RetrievalModel.kind"
+  - "RetrievalModel.metadata.expires"
+  - "RetrievalModel.metadata.namespace"
+  - "RetrievalModel.metadata.revision"
 
 # These fields will be marked as Required: true
 required_fields:
-  - "InferenceModel.metadata"  
-  - "InferenceModel.metadata.name"  
-  - "InferenceModel.spec"  
-  - "InferenceSecret.metadata"  
-  - "InferenceSecret.metadata.name"  
-  - "InferenceSecret.spec"  
-  - "InferenceSecret.spec.value"  
-  - "InferencePolicy.metadata"  
-  - "InferencePolicy.metadata.name"  
-  - "InferencePolicy.metadata"  
-  - "InferencePolicy.metadata.name"  
-  - "InferencePolicy.spec"  
-  - "InferencePolicy.spec.kinds"  
-  - "InferencePolicy.spec.model"  
+  - "InferenceModel.metadata"
+  - "InferenceModel.metadata.name"
+  - "InferenceModel.spec"
+  - "InferenceSecret.metadata"
+  - "InferenceSecret.metadata.name"
+  - "InferenceSecret.spec"
+  - "InferenceSecret.spec.value"
+  - "InferencePolicy.metadata"
+  - "InferencePolicy.metadata.name"
+  - "InferencePolicy.metadata"
+  - "InferencePolicy.metadata.name"
+  - "InferencePolicy.spec"
+  - "InferencePolicy.spec.kinds"
+  - "InferencePolicy.spec.model"
+  - "RetrievalModel.spec"
 
 plan_modifiers:
   # Force to recreate resource if it's name changes
@@ -115,8 +135,8 @@ custom_types:
   "InferenceModel.metadata.expires": Timestamp
   "InferenceSecret.metadata.expires": Timestamp
   "InferencePolicy.metadata.expires": Timestamp
+  "RetrievalModel.metadata.expires": Timestamp
 
 sensitive_fields:
   - "InferenceSecret.spec"
   - "InferenceSecret.spec.value"
- 

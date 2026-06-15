@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/parse"
+	"github.com/gravitational/teleport/lib/utils/set"
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
@@ -1207,6 +1208,13 @@ func NewRequestValidatorForUser(ctx context.Context, clock clockwork.Clock, gett
 	return m, nil
 }
 
+func (m *RequestValidator) roleTemplateContext() RoleTemplateContext {
+	return RoleTemplateContext{
+		Username: m.userState.GetName(),
+		Traits:   m.userState.GetTraits(),
+	}
+}
+
 // validate validates an access request and potentially modifies it depending on what the validator
 // options were configured in the requestValidator.
 //
@@ -1736,6 +1744,7 @@ func (m *RequestValidator) getRequestableRoles(ctx context.Context, identity tls
 		Traits:                   m.userState.GetTraits(),
 		Username:                 m.userState.GetName(),
 		AllowedResourceAccessIDs: identity.AllowedResourceAccessIDs,
+		DelegationSessionID:      identity.DelegationSessionID,
 	}, cluster.GetClusterName(), m.getter)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2223,7 +2232,7 @@ func (m *RequestValidator) insertAllowedAnnotations(ctx context.Context, conditi
 		// iterate through all new values and expand any
 		// variable interpolation syntax they contain.
 		for _, template := range annotationValueTemplates {
-			expandedValues, err := ApplyValueTraits(template, m.userState.GetTraits())
+			expandedValues, err := ApplyValueTraitsWithContext(template, m.roleTemplateContext())
 			if err != nil {
 				// skip values that failed variable expansion
 				m.logger.WarnContext(ctx, "Failed to expand trait template in access request annotation",
@@ -2248,7 +2257,7 @@ func (m *RequestValidator) insertDeniedAnnotations(ctx context.Context, conditio
 		// iterate through all new values and expand any
 		// variable interpolation syntax they contain.
 		for _, template := range annotationValueTemplates {
-			expandedValues, err := ApplyValueTraits(template, m.userState.GetTraits())
+			expandedValues, err := ApplyValueTraitsWithContext(template, m.roleTemplateContext())
 			if err != nil {
 				// skip values that failed variable expansion
 				m.logger.WarnContext(ctx, "Failed to expand trait template in access request annotation",
@@ -2446,7 +2455,7 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 		}
 	}
 
-	allRoles, err := FetchRoles(roles, m.getter, m.userState.GetTraits())
+	allRoles, err := FetchRolesWithContext(roles, m.getter, m.roleTemplateContext())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2571,14 +2580,11 @@ func fewestLogins(roles []types.Role) []types.Role {
 }
 
 func countAllowedLogins(role types.Role) int {
-	allowed := make(map[string]struct{})
-	for _, a := range role.GetLogins(types.Allow) {
-		allowed[a] = struct{}{}
-	}
+	allowed := set.New(role.GetLogins(types.Allow)...)
 	for _, d := range role.GetLogins(types.Deny) {
-		delete(allowed, d)
+		allowed.Remove(d)
 	}
-	return len(allowed)
+	return allowed.Len()
 }
 
 func (m *RequestValidator) roleAllowsResource(
@@ -2593,7 +2599,7 @@ func (m *RequestValidator) roleAllowsResource(
 		matchers = append(matchers, NewLoginMatcher(loginHint))
 	}
 	matchers = append(matchers, extraMatchers...)
-	err := roleSet.checkAccess(resource, m.userState.GetTraits(), AccessState{MFAVerified: true}, matchers...)
+	err := roleSet.checkAccess(resource, m.userState.GetName(), m.userState.GetTraits(), AccessState{MFAVerified: true}, matchers...)
 	if trace.IsAccessDenied(err) {
 		// Access denied, this role does not allow access to this resource, no
 		// unexpected error to report.

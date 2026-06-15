@@ -24,12 +24,12 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/cloud/azure"
 )
 
 type testRoleDefCli struct {
@@ -58,10 +58,10 @@ func (t testRoleAssignCli) ListRoleAssignments(ctx context.Context, scope string
 
 type testVmCli struct {
 	returnErr bool
-	vms       []*armcompute.VirtualMachine
+	vms       []*azure.VirtualMachine
 }
 
-func (t testVmCli) ListVirtualMachines(ctx context.Context, resourceGroup string) ([]*armcompute.VirtualMachine, error) {
+func (t testVmCli) ListVirtualMachines(ctx context.Context, resourceGroup string) ([]*azure.VirtualMachine, error) {
 	if t.returnErr {
 		return nil, fmt.Errorf("error")
 	}
@@ -105,10 +105,10 @@ func newRoleAssign(id string, name string) *armauthorization.RoleAssignment {
 	}
 }
 
-func newVm(id string, name string) *armcompute.VirtualMachine {
-	return &armcompute.VirtualMachine{
-		ID:   &id,
-		Name: &name,
+func newVm(id string, name string) *azure.VirtualMachine {
+	return &azure.VirtualMachine{
+		ID:   id,
+		Name: name,
 	}
 }
 
@@ -221,7 +221,7 @@ func TestPoll(t *testing.T) {
 	roleAssigns := []*armauthorization.RoleAssignment{
 		newRoleAssign("id1", "name1"),
 	}
-	vms := []*armcompute.VirtualMachine{
+	vms := []*azure.VirtualMachine{
 		newVm("id1", "name2"),
 	}
 	roleDefClient := testRoleDefCli{}
@@ -248,7 +248,7 @@ func TestPoll(t *testing.T) {
 		returnErr   bool
 		roleDefs    []*armauthorization.RoleDefinition
 		roleAssigns []*armauthorization.RoleAssignment
-		vms         []*armcompute.VirtualMachine
+		vms         []*azure.VirtualMachine
 		feats       Features
 	}{
 		// Process no results from clients
@@ -257,7 +257,7 @@ func TestPoll(t *testing.T) {
 			returnErr:   false,
 			roleDefs:    []*armauthorization.RoleDefinition{},
 			roleAssigns: []*armauthorization.RoleAssignment{},
-			vms:         []*armcompute.VirtualMachine{},
+			vms:         []*azure.VirtualMachine{},
 			feats:       allFeats,
 		},
 		// Process test results from clients
@@ -331,9 +331,9 @@ func TestPoll(t *testing.T) {
 			require.Equal(t, tt.feats.VirtualMachines == false || len(tt.vms) == 0, len(resources.VirtualMachines) == 0)
 			for idx, resource := range resources.VirtualMachines {
 				vm := tt.vms[idx]
-				require.Equal(t, *vm.ID, resource.Id)
+				require.Equal(t, vm.ID, resource.Id)
 				require.Equal(t, fetcher.SubscriptionID, resource.SubscriptionId)
-				require.Equal(t, *vm.Name, resource.Name)
+				require.Equal(t, vm.Name, resource.Name)
 			}
 		})
 	}

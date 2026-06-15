@@ -294,11 +294,10 @@ func TestAuditSpanner(t *testing.T) {
 		require.Equal(t, "googlesql", startEvt.DatabaseName)
 
 		eventsByProcedure := map[string][]*events.SpannerRPC{}
-		for range 3 {
+		for range 2 {
 			rpcEvt := requireSpannerRPCEvent(t, testCtx)
 			eventsByProcedure[rpcEvt.Procedure] = append(eventsByProcedure[rpcEvt.Procedure], rpcEvt)
 		}
-		require.Contains(t, eventsByProcedure, "BatchCreateSessions")
 		require.Contains(t, eventsByProcedure, "CreateSession")
 		require.Contains(t, eventsByProcedure, "ExecuteStreamingSql")
 		for name, rpcEvts := range eventsByProcedure {

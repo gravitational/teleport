@@ -30,6 +30,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -226,6 +228,50 @@ func TestServiceAccess(t *testing.T) {
 	})
 }
 
+func TestServiceScopedAccess(t *testing.T) {
+	t.Parallel()
+
+	vnetConfig := &vnet.VnetConfig{
+		Kind:    types.KindVnetConfig,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: types.MetaNameVnetConfig,
+		},
+	}
+
+	t.Run("read allowed despite scope pin", func(t *testing.T) {
+		service, _ := newServiceWithScopedAuthorizer(t, newFakeScopedAuthorizer(t))
+
+		// First create a VnetConfig at the storage later so the next step can read it.
+		_, err := service.storage.CreateVnetConfig(t.Context(), vnetConfig)
+		require.NoError(t, err)
+
+		// The read should be allowed.
+		_, err = service.GetVnetConfig(t.Context(), &vnet.GetVnetConfigRequest{})
+		require.NoError(t, err)
+	})
+
+	t.Run("write denied for scoped identity", func(t *testing.T) {
+		service, emitter := newServiceWithScopedAuthorizer(t, newFakeScopedAuthorizer(t))
+
+		_, err := service.CreateVnetConfig(t.Context(), &vnet.CreateVnetConfigRequest{VnetConfig: vnetConfig})
+		require.ErrorAs(t, err, new(*trace.AccessDeniedError))
+		require.Empty(t, emitter.Events(), "expected no audit events on access denied")
+
+		_, err = service.UpdateVnetConfig(t.Context(), &vnet.UpdateVnetConfigRequest{VnetConfig: vnetConfig})
+		require.ErrorAs(t, err, new(*trace.AccessDeniedError))
+		require.Empty(t, emitter.Events(), "expected no audit events on access denied")
+
+		_, err = service.UpsertVnetConfig(t.Context(), &vnet.UpsertVnetConfigRequest{VnetConfig: vnetConfig})
+		require.ErrorAs(t, err, new(*trace.AccessDeniedError))
+		require.Empty(t, emitter.Events(), "expected no audit events on access denied")
+
+		_, err = service.DeleteVnetConfig(t.Context(), &vnet.DeleteVnetConfigRequest{})
+		require.ErrorAs(t, err, new(*trace.AccessDeniedError))
+		require.Empty(t, emitter.Events(), "expected no audit events on access denied")
+	})
+}
+
 func eventStatusSuccess(t *testing.T, evt apievents.AuditEvent) bool {
 	t.Helper()
 
@@ -284,6 +330,81 @@ func (f fakeChecker) CheckAccessToRule(_ services.RuleContext, _ string, resourc
 	return trace.AccessDenied("access denied to rule=%v/verb=%v", resource, verb)
 }
 
+type fakeAuthorizer struct {
+	authState authz.AdminActionAuthState
+	checker   services.AccessChecker
+}
+
+func (f *fakeAuthorizer) Authorize(ctx context.Context) (*authz.Context, error) {
+	user, err := types.NewUser("alice")
+	if err != nil {
+		return nil, err
+	}
+
+	return &authz.Context{
+		User:                 user,
+		Checker:              f.checker,
+		AdminActionAuthState: f.authState,
+	}, nil
+}
+
+func (f *fakeAuthorizer) AuthorizeScoped(ctx context.Context) (*authz.ScopedContext, error) {
+	authzCtx, err := f.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return authz.ScopedContextFromUnscopedContext(authzCtx), nil
+}
+
+type fakeScopedAuthorizer struct {
+	ctx *authz.ScopedContext
+}
+
+func (f fakeScopedAuthorizer) AuthorizeScoped(context.Context) (*authz.ScopedContext, error) {
+	return f.ctx, nil
+}
+
+type fakeScopedRoleReader struct {
+	roles map[string]*scopedaccessv1.ScopedRole
+}
+
+func (f fakeScopedRoleReader) GetScopedRole(_ context.Context, req *scopedaccessv1.GetScopedRoleRequest) (*scopedaccessv1.GetScopedRoleResponse, error) {
+	role := f.roles[req.GetName()]
+	if role == nil {
+		return nil, trace.NotFound("scoped role %q not found", req.GetName())
+	}
+	return &scopedaccessv1.GetScopedRoleResponse{Role: role}, nil
+}
+
+func (f fakeScopedRoleReader) ListScopedRoles(context.Context, *scopedaccessv1.ListScopedRolesRequest) (*scopedaccessv1.ListScopedRolesResponse, error) {
+	roles := make([]*scopedaccessv1.ScopedRole, 0, len(f.roles))
+	for _, role := range f.roles {
+		roles = append(roles, role)
+	}
+	return &scopedaccessv1.ListScopedRolesResponse{Roles: roles}, nil
+}
+
+func newFakeScopedAuthorizer(t *testing.T) fakeScopedAuthorizer {
+	t.Helper()
+
+	checkerContext, err := services.NewScopedAccessCheckerContext(t.Context(), &services.AccessInfo{
+		Username: "alice",
+		ScopePin: &scopesv1.Pin{
+			Scope: "/test",
+		},
+	}, "test-cluster", fakeScopedRoleReader{})
+	require.NoError(t, err)
+
+	return fakeScopedAuthorizer{
+		ctx: &authz.ScopedContext{
+			User: &types.UserV2{
+				Metadata: types.Metadata{Name: "alice"},
+			},
+			CheckerContext: checkerContext,
+		},
+	}
+}
+
 func newService(t *testing.T, authState authz.AdminActionAuthState, checker services.AccessChecker) (*Service, *eventstest.MockRecorderEmitter) {
 	t.Helper()
 
@@ -300,22 +421,35 @@ func newServiceWithStorage(t *testing.T, authState authz.AdminActionAuthState, c
 	t.Helper()
 
 	emitter := &eventstest.MockRecorderEmitter{}
-	authorizer := authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
-		user, err := types.NewUser("alice")
-		if err != nil {
-			return nil, err
-		}
-		return &authz.Context{
-			User:                 user,
-			Checker:              checker,
-			AdminActionAuthState: authState,
-		}, nil
-	})
+
+	authorizer := &fakeAuthorizer{
+		authState: authState,
+		checker:   checker,
+	}
 
 	service, err := NewService(ServiceConfig{
-		Authorizer: authorizer,
-		Storage:    storage,
-		Emitter:    emitter,
+		ScopedAuthorizer: authorizer,
+		Storage:          storage,
+		Emitter:          emitter,
+	})
+	require.NoError(t, err)
+	return service, emitter
+}
+
+func newServiceWithScopedAuthorizer(t *testing.T, authorizer authz.ScopedAuthorizer) (*Service, *eventstest.MockRecorderEmitter) {
+	t.Helper()
+
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+
+	storage, err := local.NewVnetConfigService(bk)
+	require.NoError(t, err)
+
+	emitter := &eventstest.MockRecorderEmitter{}
+	service, err := NewService(ServiceConfig{
+		ScopedAuthorizer: authorizer,
+		Storage:          storage,
+		Emitter:          emitter,
 	})
 	require.NoError(t, err)
 	return service, emitter

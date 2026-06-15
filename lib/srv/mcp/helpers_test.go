@@ -31,10 +31,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/docker/docker/api/types/container"
-	docker "github.com/docker/docker/client"
 	"github.com/gravitational/trace"
 	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/moby/moby/api/types/container"
+	docker "github.com/moby/moby/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -313,9 +313,8 @@ func checkToolsListResult(t *testing.T, result *mcp.ListToolsResult, wantTools [
 
 func newDockerClient(t *testing.T) *docker.Client {
 	t.Helper()
-	dockerClient, err := docker.NewClientWithOpts(
+	dockerClient, err := docker.New(
 		docker.FromEnv,
-		docker.WithAPIVersionNegotiation(),
 		docker.WithTimeout(10*time.Second),
 	)
 	require.NoError(t, err)
@@ -326,13 +325,13 @@ func newDockerClient(t *testing.T) *docker.Client {
 }
 
 func findDockerContainer(ctx context.Context, dockerClient *docker.Client, containerName string) container.Summary {
-	containers, err := dockerClient.ContainerList(ctx, container.ListOptions{All: true})
+	res, err := dockerClient.ContainerList(ctx, docker.ContainerListOptions{All: true})
 	if err != nil {
 		return container.Summary{}
 	}
-	for _, container := range containers {
-		if slices.Contains(container.Names, "/"+containerName) {
-			return container
+	for _, c := range res.Items {
+		if slices.Contains(c.Names, "/"+containerName) {
+			return c
 		}
 	}
 	return container.Summary{}
@@ -344,7 +343,7 @@ func findDockerContainerID(ctx context.Context, dockerClient *docker.Client, con
 
 func forceRemoveContainer(t *testing.T, dockerClient *docker.Client, containerName string) {
 	if containerID := findDockerContainerID(context.Background(), dockerClient, containerName); containerID != "" {
-		if err := dockerClient.ContainerRemove(context.Background(), containerID, container.RemoveOptions{Force: true}); err != nil {
+		if _, err := dockerClient.ContainerRemove(context.Background(), containerID, docker.ContainerRemoveOptions{Force: true}); err != nil {
 			t.Log("Failed to remove container", err)
 		}
 	}

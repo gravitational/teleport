@@ -112,6 +112,10 @@ type MFAChallengeRequest struct {
 	Pass string `json:"pass"`
 	// Passwordless explicitly requests a passwordless/usernameless challenge.
 	Passwordless bool `json:"passwordless"`
+	// BrowserMFATSHRedirectURL is the redirect url that tsh provides with a
+	// secret key that the server will use to return a WebAuthn response to.
+	// Format: http://localhost:12345/callback?secret_key=X
+	BrowserMFATSHRedirectURL string `json:"browser_mfa_tsh_redirect_url,omitempty"`
 }
 
 // MFAChallengeResponse holds the response to a MFA challenge.
@@ -124,12 +128,21 @@ type MFAChallengeResponse struct {
 	SSOResponse *SSOResponse `json:"sso_response"`
 	// TODO(Joerger): DELETE IN v19.0.0, WebauthnResponse used instead.
 	WebauthnAssertionResponse *wantypes.CredentialAssertionResponse `json:"webauthnAssertionResponse"`
+	// BrowserMFAResponse is a response the browser completing an MFA challenge
+	// as part of the Browser MFA flow.
+	BrowserMFAResponse *BrowserMFAResponse `json:"browser_response"`
 }
 
 // SSOResponse is a json compatible [proto.SSOResponse].
 type SSOResponse struct {
 	RequestID string `json:"requestId,omitempty"`
 	Token     string `json:"token,omitempty"`
+}
+
+// BrowserMFAResponse is a json compatible [proto.BrowserMFAResponse].
+type BrowserMFAResponse struct {
+	RequestID        string                                `json:"requestId,omitempty"`
+	WebauthnResponse *wantypes.CredentialAssertionResponse `json:"webauthnResponse,omitempty"`
 }
 
 // GetOptionalMFAResponseProtoReq converts response to a type proto.MFAAuthenticateResponse,
@@ -257,6 +270,9 @@ type AuthenticateSSHUserRequest struct {
 	WebauthnChallengeResponse *wantypes.CredentialAssertionResponse `json:"webauthn_challenge_response"`
 	// TOTPCode is a code from the TOTP device.
 	TOTPCode string `json:"totp_code"`
+	// BrowserMFAResponse is a response from a Browser MFA flow containing a
+	// webauthn response.
+	BrowserMFAResponse *BrowserMFAResponse `json:"browser_response,omitempty"`
 	// UserPublicKeys is embedded and holds user SSH and TLS public keys that
 	// should be used as the subject of issued certificates, and optional
 	// hardware key attestation statements for each key.
@@ -357,6 +373,9 @@ type SSHLoginMFA struct {
 	SSHLogin
 	// MFAPromptConstructor is a custom MFA prompt constructor to use when prompting for MFA.
 	MFAPromptConstructor mfa.PromptConstructor
+	// MFACeremonyConstructor is an optional MFA ceremony constructor.
+	// Currently used for Browser MFA during the login process.
+	MFACeremonyConstructor mfa.MFACeremonyConstructor
 	// User is the login username.
 	User string
 	// Password is the login password.
@@ -405,6 +424,8 @@ type MFAAuthenticateChallenge struct {
 	TOTPChallenge bool `json:"totp_challenge"`
 	// SSOChallenge is an SSO MFA challenge.
 	SSOChallenge *SSOChallenge `json:"sso_challenge"`
+	// BrowserMFAChallenge is a Browser MFA challenge.
+	BrowserMFAChallenge *BrowserMFAChallenge `json:"browser_challenge"`
 }
 
 // SSOChallenge is a json compatible [proto.SSOChallenge].
@@ -447,6 +468,25 @@ type MFARegisterChallenge struct {
 // TOTPRegisterChallenge contains a TOTP challenge.
 type TOTPRegisterChallenge struct {
 	QRCode []byte `json:"qrCode"`
+}
+
+// BrowserMFAChallenge is a json compatible [proto.BrowserMFAChallenge].
+type BrowserMFAChallenge struct {
+	RequestID string `json:"requestId,omitempty"`
+}
+
+// BrowserChallengeToProto converts an BrowserChallenge to proto format.
+func BrowserChallengeToProto(browserChal *BrowserMFAChallenge) *proto.BrowserMFAChallenge {
+	return &proto.BrowserMFAChallenge{
+		RequestId: browserChal.RequestID,
+	}
+}
+
+// BrowserChallengeFromProto converts a BrowserChallenge to json compatible format
+func BrowserChallengeFromProto(browserChal *proto.BrowserMFAChallenge) *BrowserMFAChallenge {
+	return &BrowserMFAChallenge{
+		RequestID: browserChal.RequestId,
+	}
 }
 
 // initClient creates a new client to the HTTPS web proxy.
@@ -506,7 +546,7 @@ func initClient(proxyAddr string, insecure bool, pool *x509.CertPool, extraHeade
 }
 
 // SSHAgentHeadlessLogin begins the headless login ceremony, returning new user certificates if successful.
-func SSHAgentHeadlessLogin(ctx context.Context, login SSHLoginHeadless) (*authclient.SSHLoginResponse, error) {
+func SSHAgentHeadlessLogin(ctx context.Context, login SSHLoginHeadless) (*authclient.CLILoginResponse, error) {
 	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -536,7 +576,7 @@ func SSHAgentHeadlessLogin(ctx context.Context, login SSHLoginHeadless) (*authcl
 		return nil, trace.Wrap(err)
 	}
 
-	var out authclient.SSHLoginResponse
+	var out authclient.CLILoginResponse
 	err = json.Unmarshal(re.Bytes(), &out)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -550,7 +590,7 @@ func SSHAgentHeadlessLogin(ctx context.Context, login SSHLoginHeadless) (*authcl
 // end user.
 //
 // Returns the SSH certificate if authn is successful or an error.
-func SSHAgentPasswordlessLogin(ctx context.Context, login SSHLoginPasswordless) (*authclient.SSHLoginResponse, error) {
+func SSHAgentPasswordlessLogin(ctx context.Context, login SSHLoginPasswordless) (*authclient.CLILoginResponse, error) {
 	webClient, webURL, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -620,7 +660,7 @@ func SSHAgentPasswordlessLogin(ctx context.Context, login SSHLoginPasswordless) 
 		return nil, trace.Wrap(err)
 	}
 
-	loginResp := &authclient.SSHLoginResponse{}
+	loginResp := &authclient.CLILoginResponse{}
 	if err := json.Unmarshal(loginRespJSON.Bytes(), loginResp); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -631,7 +671,7 @@ func SSHAgentPasswordlessLogin(ctx context.Context, login SSHLoginPasswordless) 
 // If the credentials are valid, the proxy will return a challenge. We then
 // prompt the user to provide 2nd factor and pass the response to the proxy.
 // If the authentication succeeds, we will get a temporary certificate back.
-func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*authclient.SSHLoginResponse, error) {
+func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*authclient.CLILoginResponse, error) {
 	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -664,6 +704,11 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*authclient.SSHLo
 		challengeResp.TOTPCode = r.TOTP.Code
 	case *proto.MFAAuthenticateResponse_Webauthn:
 		challengeResp.WebauthnChallengeResponse = wantypes.CredentialAssertionResponseFromProto(r.Webauthn)
+	case *proto.MFAAuthenticateResponse_Browser:
+		challengeResp.BrowserMFAResponse = &BrowserMFAResponse{
+			RequestID:        r.Browser.RequestId,
+			WebauthnResponse: wantypes.CredentialAssertionResponseFromProto(r.Browser.WebauthnResponse),
+		}
 	default:
 		// No challenge was sent, so we send back just username/password.
 	}
@@ -673,7 +718,7 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*authclient.SSHLo
 		return nil, trace.Wrap(err)
 	}
 
-	loginResp := &authclient.SSHLoginResponse{}
+	loginResp := &authclient.CLILoginResponse{}
 	return loginResp, trace.Wrap(json.Unmarshal(loginRespJSON.Bytes(), loginResp))
 }
 
@@ -683,6 +728,9 @@ func newMFALoginCeremony(clt *WebClient, login SSHLoginMFA) *mfa.Ceremony {
 			beginReq := MFAChallengeRequest{
 				User: login.User,
 				Pass: login.Password,
+			}
+			if req != nil && req.BrowserMFATSHRedirectURL != "" {
+				beginReq.BrowserMFATSHRedirectURL = req.BrowserMFATSHRedirectURL
 			}
 			challengeJSON, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "mfa", "login", "begin"), beginReq)
 			if err != nil {
@@ -702,9 +750,13 @@ func newMFALoginCeremony(clt *WebClient, login SSHLoginMFA) *mfa.Ceremony {
 			if challenge.WebauthnChallenge != nil {
 				chal.WebauthnChallenge = wantypes.CredentialAssertionToProto(challenge.WebauthnChallenge)
 			}
+			if challenge.BrowserMFAChallenge != nil {
+				chal.BrowserMFAChallenge = BrowserChallengeToProto(challenge.BrowserMFAChallenge)
+			}
 			return chal, nil
 		},
-		PromptConstructor: login.MFAPromptConstructor,
+		PromptConstructor:      login.MFAPromptConstructor,
+		MFACeremonyConstructor: login.MFACeremonyConstructor,
 	}
 }
 

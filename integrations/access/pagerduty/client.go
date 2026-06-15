@@ -35,7 +35,7 @@ import (
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
-	"github.com/gravitational/teleport/integrations/lib/stringset"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 const (
@@ -340,8 +340,8 @@ func (p Pagerduty) FindServicesByNames(ctx context.Context, serviceNames []strin
 
 // RangeOnCallPolicies iterates over the escalation policy IDs for which a given user is currently on-call.
 func (p *Pagerduty) FilterOnCallPolicies(ctx context.Context, userID string, escalationPolicyIDs []string) ([]string, error) {
-	policyIDSet := stringset.New(escalationPolicyIDs...)
-	filteredIDSet := stringset.New()
+	policyIDSet := set.New(escalationPolicyIDs...)
+	filteredIDSet := set.New[string]()
 
 	var offset uint
 	more := true
@@ -397,7 +397,7 @@ func (p *Pagerduty) FilterOnCallPolicies(ctx context.Context, userID string, esc
 		return nil, nil
 	}
 
-	return filteredIDSet.ToSlice(), nil
+	return filteredIDSet.Elements(), nil
 }
 
 func (p Pagerduty) buildIncidentBody(reqID string, reqData RequestData) (string, error) {

@@ -257,22 +257,8 @@ export class WindowsManager {
     );
   }
 
-  /** Shows the window when it's hidden or minimized. */
-  showWindow(): void {
-    if (!this.isWindowUsable()) {
-      return;
-    }
-
-    if (this.window.isMinimized()) {
-      this.window.restore();
-    }
-
-    if (this.window.isVisible()) {
-      this.window.focus();
-      return;
-    }
-
-    this.window.show();
+  /** Shows the window when it's hidden or minimized. Also brings it out of background mode. */
+  private showWindow(): void {
     if (this.isInBackgroundMode) {
       this.window.webContents.send(RendererIpc.IsInBackgroundMode, {
         isInBackgroundMode: false,
@@ -280,65 +266,14 @@ export class WindowsManager {
       void app.dock?.show();
       this.isInBackgroundMode = false;
     }
-  }
 
-  /**
-   * Hides the window if it's visible.
-   * On macOS, it also hides the dock icon.
-   */
-  enterBackgroundMode(): void {
-    if (!this.isWindowUsable()) {
-      return;
+    if (this.window.isMinimized()) {
+      this.window.restore();
     }
 
-    if (!this.window.isVisible()) {
-      return;
-    }
-
-    this.window.hide();
-    this.window.webContents.send(RendererIpc.IsInBackgroundMode, {
-      isInBackgroundMode: true,
-    });
-    // One side effect to be aware of:
-    // If you close the app window in one macOS space, switch to another space,
-    // and then show the app again, macOS will return you to the original space.
-    // If you close the window again, macOS automatically switches back
-    // to the space where you requested showing the window.
-    // This behavior can feel a bit awkward.
-    app.dock?.hide();
-    this.isInBackgroundMode = true;
-  }
-
-  /**
-   * focusWindow is for situations where the app has privileges to do so, for example in a scenario
-   * where the user attempts to launch a second instance of the app – the same process that the user
-   * interacted with asks for its window to receive focus.
-   */
-  focusWindow(): void {
-    if (!this.isWindowUsable()) {
-      return;
-    }
-
-    this.showWindow();
-    this.window.focus();
-  }
-
-  /**
-   * forceFocusWindow if for situations where Connect wants to essentially steal focus.
-   *
-   * One example would be 3rd party apps interacting with resources exposed by Connect, e.g.
-   * gateways. If the user attempts to make a connection through a gateway but the certs have
-   * expired, Connect should receive focus and show an appropriate message to the user.
-   */
-  forceFocusWindow(): void {
-    if (!this.isWindowUsable()) {
-      return;
-    }
-
-    if (this.window.isFocused()) {
-      return;
-    }
-
+    // Menu bar clicks don't automatically make the app the active application on macOS, so let's
+    // steal focus first.
+    //
     // On Windows, app.focus() doesn't work the same as on the other platforms.
     // If the window is minimized, app.focus() will bring it to the front and give it focus.
     // If the window is not minimized but simply covered by other another window, app.focus() will
@@ -370,12 +305,69 @@ export class WindowsManager {
     // https://devblogs.microsoft.com/oldnewthing/20090220-00/?p=19083
     // https://github.com/electron/electron/issues/2867#issuecomment-142480964
     // https://github.com/electron/electron/issues/2867#issuecomment-142511956
+    app.focus({ steal: true });
+    // window.show() both makes the window visible and gives it focus.
+    this.window.show();
+  }
+
+  /**
+   * Hides the window if it's visible.
+   * On macOS, it also hides the dock icon.
+   */
+  enterBackgroundMode(): void {
+    if (!this.isWindowUsable()) {
+      return;
+    }
+
+    if (!this.window.isVisible()) {
+      return;
+    }
+
+    this.window.hide();
+    this.window.webContents.send(RendererIpc.IsInBackgroundMode, {
+      isInBackgroundMode: true,
+    });
+    // One side effect to be aware of:
+    // If you close the app window in one macOS space, switch to another space,
+    // and then show the app again, macOS will return you to the original space.
+    // If you close the window again, macOS automatically switches back
+    // to the space where you requested showing the window.
+    // This behavior can feel a bit awkward.
+    app.dock?.hide();
+    this.isInBackgroundMode = true;
+  }
+
+  /**
+   * focusWindow is for situations where the user explicitly asks for the window to receive focus,
+   * for example they select "Open Teleport Connect" from the tray or they attempt to launch a
+   * second instance of the app.
+   *
+   * At the moment, the only difference is that forceFocusWindow does not bounce the dock icon on
+   * macOS.
+   */
+  focusWindow(): void {
+    if (!this.isWindowUsable()) {
+      return;
+    }
+
+    this.showWindow();
+  }
+
+  /**
+   * forceFocusWindow if for situations where Connect wants to essentially steal focus.
+   *
+   * One example would be 3rd party apps interacting with resources exposed by Connect, e.g.
+   * gateways. If the user attempts to make a connection through a gateway but the certs have
+   * expired, Connect should receive focus and show an appropriate message to the user.
+   */
+  forceFocusWindow(): void {
+    if (!this.isWindowUsable()) {
+      return;
+    }
 
     this.showWindow();
 
     app.dock?.bounce('informational');
-
-    app.focus({ steal: true });
   }
 
   /**

@@ -1139,10 +1139,18 @@ func TestListUsers(t *testing.T) {
 	clt, err := testSrv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 
-	// set up some users with distinct names/labels (the only to user attributes currently relevant to filtering)
+	// set up some roles to assign users
+	_, err = authtest.CreateRole(ctx, clt, "good-role", types.RoleSpecV6{})
+	require.NoError(t, err)
+	_, err = authtest.CreateRole(ctx, clt, "evil-role", types.RoleSpecV6{})
+	require.NoError(t, err)
+
+	// set up some users with distinct names/labels/roles/traits
 	usersToCreate := []struct {
 		name   string
 		labels map[string]string
+		roles  []string
+		traits map[string][]string
 	}{
 		{
 			name: "alice@good.example.com",
@@ -1150,6 +1158,8 @@ func TestListUsers(t *testing.T) {
 				"group":    "red",
 				"location": "mauka",
 			},
+			roles:  []string{"good-role"},
+			traits: map[string][]string{"logins": {"good-login"}},
 		},
 		{
 			name: "bob@good.example.com",
@@ -1157,6 +1167,8 @@ func TestListUsers(t *testing.T) {
 				"group":    "blue",
 				"location": "mauka",
 			},
+			roles:  []string{"good-role"},
+			traits: map[string][]string{"logins": {"good-login"}},
 		},
 		{
 			name: "carol@evil.example.com",
@@ -1164,6 +1176,8 @@ func TestListUsers(t *testing.T) {
 				"group":    "red",
 				"location": "mauka",
 			},
+			roles:  []string{"evil-role"},
+			traits: map[string][]string{"logins": {"evil-login"}},
 		},
 		{
 			name: "dave@evil.example.com",
@@ -1171,6 +1185,8 @@ func TestListUsers(t *testing.T) {
 				"group":    "blue",
 				"location": "makai",
 			},
+			roles:  []string{"evil-role"},
+			traits: map[string][]string{"logins": {"evil-login"}},
 		},
 	}
 
@@ -1182,6 +1198,8 @@ func TestListUsers(t *testing.T) {
 		require.NoError(t, err)
 
 		user.SetStaticLabels(u.labels)
+		user.SetRoles(u.roles)
+		user.SetTraits(u.traits)
 
 		_, err = clt.CreateUser(ctx, user)
 		require.NoError(t, err)
@@ -1255,6 +1273,43 @@ func TestListUsers(t *testing.T) {
 		"alice@good.example.com",
 		"bob@good.example.com",
 		"carol@evil.example.com",
+	}, namesOf(users))
+
+	users = getUsers(t, &userspb.ListUsersRequest{
+		Filter: &types.UserFilter{
+			SearchKeywords: []string{
+				"good-role",
+			},
+		},
+	})
+
+	require.ElementsMatch(t, []string{
+		"alice@good.example.com",
+		"bob@good.example.com",
+	}, namesOf(users))
+
+	users = getUsers(t, &userspb.ListUsersRequest{
+		Filter: &types.UserFilter{
+			SearchKeywords: []string{
+				"good-login",
+			},
+		},
+	})
+
+	require.ElementsMatch(t, []string{
+		"alice@good.example.com",
+		"bob@good.example.com",
+	}, namesOf(users))
+
+	users = getUsers(t, &userspb.ListUsersRequest{
+		Filter: &types.UserFilter{
+			Traits: map[string][]string{"logins": {"good-login"}},
+		},
+	})
+
+	require.ElementsMatch(t, []string{
+		"alice@good.example.com",
+		"bob@good.example.com",
 	}, namesOf(users))
 }
 
@@ -3820,7 +3875,7 @@ func TestTLSFailover(t *testing.T) {
 func TestJoinCAPin(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	testSrv := newTestTLSServer(t)
 	clock := testSrv.AuthServer.AuthServerConfig.Clock
 
@@ -3832,6 +3887,18 @@ func TestJoinCAPin(t *testing.T) {
 		time.Time{},
 		testSrv.Auth(),
 	)
+	joinParams := func() joinclient.JoinParams {
+		return joinclient.JoinParams{
+			AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
+			Token:       token,
+			ID: state.IdentityID{
+				NodeName: "node-name",
+				Role:     types.RoleInstance,
+			},
+			AdditionalPrincipals: []string{"example.com"},
+			Clock:                clock,
+		}
+	}
 
 	// Calculate what CA pin should be.
 	localCAResponse, err := testSrv.AuthServer.AuthServer.GetClusterCACert(ctx)
@@ -3842,60 +3909,54 @@ func TestJoinCAPin(t *testing.T) {
 	caPin := caPins[0]
 
 	// Attempt to join with valid CA pin, should work.
-	_, err = joinclient.Join(ctx, joinclient.JoinParams{
-		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
-		Token:       token,
-		ID: state.IdentityID{
-			NodeName: "node-name",
-			Role:     types.RoleInstance,
-		},
-		AdditionalPrincipals: []string{"example.com"},
-		CAPins:               []string{caPin},
-		Clock:                clock,
+	params := joinParams()
+	params.CAPins = []string{caPin}
+	_, err = joinclient.Join(ctx, params)
+	require.NoError(t, err)
+
+	// An unrelated active lock should not block unauthenticated CA pin bootstrap.
+	lockTarget := types.LockTarget{User: "definitely-not-a-real-user"}
+	lock, err := types.NewLock("test-join-ca-pin-unrelated-lock", types.LockSpecV2{
+		Target: lockTarget,
 	})
+	require.NoError(t, err)
+	// Wait for the lock to actually propagate through the cache and be
+	// enforced before attempting to join.
+	lockWatcher, err := testSrv.Auth().SubscribeToLockTarget(ctx, lockTarget)
+	require.NoError(t, err)
+	require.NoError(t, testSrv.Auth().UpsertLock(ctx, lock))
+	select {
+	case evt := <-lockWatcher.Events():
+		require.Equal(t, types.OpPut, evt.Type)
+		require.Equal(t, types.KindLock, evt.Resource.GetKind())
+	case <-time.After(10 * time.Second):
+		require.FailNow(t, "did not receive lock put event within 10 seconds")
+	}
+	lockInForceErr := testSrv.Auth().CheckLockInForce(constants.LockingModeStrict, []types.LockTarget{{User: "definitely-not-a-real-user"}})
+	require.ErrorAs(t, lockInForceErr, new(*trace.AccessDeniedError))
+
+	params = joinParams()
+	params.CAPins = []string{caPin}
+	_, err = joinclient.Join(ctx, params)
 	require.NoError(t, err)
 
 	// Attempt to join with multiple CA pins where the auth server only
 	// matches one, should work.
-	_, err = joinclient.Join(ctx, joinclient.JoinParams{
-		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
-		Token:       token,
-		ID: state.IdentityID{
-			NodeName: "node-name",
-			Role:     types.RoleInstance,
-		},
-		AdditionalPrincipals: []string{"example.com"},
-		CAPins:               []string{"sha256:123", caPin},
-		Clock:                clock,
-	})
+	params = joinParams()
+	params.CAPins = []string{"sha256:123", caPin}
+	_, err = joinclient.Join(ctx, params)
 	require.NoError(t, err)
 
 	// Attempt to join with invalid CA pin, should fail.
-	_, err = joinclient.Join(ctx, joinclient.JoinParams{
-		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
-		Token:       token,
-		ID: state.IdentityID{
-			NodeName: "node-name",
-			Role:     types.RoleInstance,
-		},
-		AdditionalPrincipals: []string{"example.com"},
-		CAPins:               []string{"sha256:123"},
-		Clock:                clock,
-	})
+	params = joinParams()
+	params.CAPins = []string{"sha256:123"}
+	_, err = joinclient.Join(ctx, params)
 	require.Error(t, err)
 
 	// Attempt to join with multiple invalid CA pins, should fail.
-	_, err = joinclient.Join(ctx, joinclient.JoinParams{
-		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
-		Token:       token,
-		ID: state.IdentityID{
-			NodeName: "node-name",
-			Role:     types.RoleInstance,
-		},
-		AdditionalPrincipals: []string{"example.com"},
-		CAPins:               []string{"sha256:123", "sha256:456"},
-		Clock:                clock,
-	})
+	params = joinParams()
+	params.CAPins = []string{"sha256:123", "sha256:456"}
+	_, err = joinclient.Join(ctx, params)
 	require.Error(t, err)
 
 	// Add another cert to the CA (dupe the current one for simplicity)
@@ -3918,17 +3979,9 @@ func TestJoinCAPin(t *testing.T) {
 	require.Len(t, caPins, 2)
 
 	// Attempt to join with multiple CA pins, should work
-	_, err = joinclient.Join(ctx, joinclient.JoinParams{
-		AuthServers: []utils.NetAddr{utils.FromAddr(testSrv.Addr())},
-		Token:       token,
-		ID: state.IdentityID{
-			NodeName: "node-name",
-			Role:     types.RoleInstance,
-		},
-		AdditionalPrincipals: []string{"example.com"},
-		CAPins:               caPins,
-		Clock:                clock,
-	})
+	params = joinParams()
+	params.CAPins = caPins
+	_, err = joinclient.Join(ctx, params)
 	require.NoError(t, err)
 }
 
@@ -4172,7 +4225,7 @@ func TestClusterAlertAccessControls(t *testing.T) {
 	}
 
 	// verify that we still reject unauthenticated clients
-	nopClt, err := testSrv.NewClient(authtest.TestBuiltin(types.RoleNop))
+	nopClt, err := testSrv.NewClient(authtest.TestUnauthenticated(types.RoleNop))
 	require.NoError(t, err)
 	defer nopClt.Close()
 
@@ -4271,7 +4324,7 @@ func TestEventsNodePresence(t *testing.T) {
 	}
 
 	// upsert node and keep alives will fail for users with no privileges
-	nopClt, err := testSrv.NewClient(authtest.TestBuiltin(types.RoleNop))
+	nopClt, err := testSrv.NewClient(authtest.TestUnauthenticated(types.RoleNop))
 	require.NoError(t, err)
 	defer nopClt.Close()
 
@@ -4414,7 +4467,7 @@ func TestEventsPermissions(t *testing.T) {
 		},
 		{
 			name:     "nop role is not authorized to watch users and roles",
-			identity: authtest.TestBuiltin(types.RoleNop),
+			identity: authtest.TestUnauthenticated(types.RoleNop),
 			watches: []types.WatchKind{
 				{Kind: types.KindUser},
 				{Kind: types.KindRole},
@@ -4422,12 +4475,12 @@ func TestEventsPermissions(t *testing.T) {
 		},
 		{
 			name:     "nop role is not authorized to watch cert authorities",
-			identity: authtest.TestBuiltin(types.RoleNop),
+			identity: authtest.TestUnauthenticated(types.RoleNop),
 			watches:  []types.WatchKind{{Kind: types.KindCertAuthority, LoadSecrets: false}},
 		},
 		{
 			name:     "nop role is not authorized to watch cluster config resources",
-			identity: authtest.TestBuiltin(types.RoleNop),
+			identity: authtest.TestUnauthenticated(types.RoleNop),
 			watches: []types.WatchKind{
 				{Kind: types.KindClusterAuthPreference},
 				{Kind: types.KindClusterNetworkingConfig},
@@ -5999,6 +6052,7 @@ func withClock(clock clockwork.Clock) testTLSServerOption {
 		options.clock = clock
 	}
 }
+
 func withBufconnListener() testTLSServerOption {
 	return func(options *testTLSServerOptions) {
 		options.bufconnListener = true

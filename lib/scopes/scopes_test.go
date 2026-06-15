@@ -216,12 +216,12 @@ func TestStrongValidate(t *testing.T) {
 		},
 		{
 			name:  "long but ok segment",
-			scope: "/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			scope: "/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 			ok:    true,
 		},
 		{
 			name:  "segment too long",
-			scope: "/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			scope: "/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 			ok:    false,
 		},
 	}

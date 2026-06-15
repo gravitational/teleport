@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/desktop"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -116,16 +117,17 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 		agentPool, err = reversetunnel.NewAgentPool(
 			process.ExitContext(),
 			reversetunnel.AgentPoolConfig{
-				Component:            teleport.ComponentWindowsDesktop,
-				HostUUID:             conn.HostID(),
-				Resolver:             conn.TunnelProxyResolver(),
-				Client:               conn.Client,
-				AccessPoint:          accessPoint,
-				AuthMethods:          conn.ClientAuthMethods(),
-				Cluster:              conn.ClusterName(),
-				Server:               shtl,
-				FIPS:                 process.Config.FIPS,
-				ConnectedProxyGetter: proxyGetter,
+				Component:                teleport.ComponentWindowsDesktop,
+				HostUUID:                 conn.HostID(),
+				Resolver:                 conn.TunnelProxyResolver(),
+				Client:                   conn.Client,
+				AccessPoint:              accessPoint,
+				AuthMethods:              conn.ClientAuthMethods(),
+				Cluster:                  conn.ClusterName(),
+				Server:                   shtl,
+				FIPS:                     process.Config.FIPS,
+				ConnectedProxyGetter:     proxyGetter,
+				StaleConnTimeoutDisabled: reversetunnel.IsAgentStaleConnTimeoutDisabledByEnv(),
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -175,6 +177,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 		return trace.Wrap(err)
 	}
 	tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+	tlsConfig.NextProtos = []string{tdpb.ProtocolName}
 	// Populate the correct CAs for the incoming client connection.
 	tlsConfig.GetConfigForClient = func(info *tls.ClientHelloInfo) (*tls.Config, error) {
 		var clusterName string

@@ -5,6 +5,7 @@ template: doc-page
 tags:
  - zero-trust
  - infrastructure-identity
+page_type: landing
 ---
 import DocHero from "@site/src/components/Pages/Landing/DocHero";
 import UseCasesList from "@site/src/components/Pages/Landing/UseCasesList";
@@ -312,11 +313,6 @@ The Teleport Database Service provides secure database access with short-lived c
   itemLayout="row"
   variant="doc"
   useCases={[
-    {
-      title: "High availability",
-      description: "Deploy multiple instances of the Teleport Database Service to proxy the same set of databases.",
-      href: "../agents/high-availability/",
-    },
     {
       title: "Dynamic registration",
       description: "Add or remove databases without redeploying the Database Service.",

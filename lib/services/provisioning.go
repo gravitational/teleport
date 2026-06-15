@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -60,6 +61,27 @@ type Provisioner interface {
 
 	// ListProvisionTokens retrieves a paginated list of provision tokens.
 	ListProvisionTokens(ctx context.Context, pageSize int, pageToken string, anyRoles types.SystemRoles, botName string) ([]types.ProvisionToken, string, error)
+}
+
+// ProvisionerInternal extends the Provisioner interface with auth-specific internal methods.
+type ProvisionerInternal interface {
+	Provisioner
+
+	// AppendPutProvisionTokenActions adds conditional actions to an atomic write
+	// to create or update a provision token.
+	AppendPutProvisionTokenActions(
+		actions []backend.ConditionalAction,
+		token types.ProvisionToken,
+		condition backend.Condition,
+	) ([]backend.ConditionalAction, error)
+
+	// AppendDeleteProvisionTokenActions adds conditional actions to an atomic
+	// write to delete a provision token.
+	AppendDeleteProvisionTokenActions(
+		actions []backend.ConditionalAction,
+		token string,
+		condition backend.Condition,
+	) ([]backend.ConditionalAction, error)
 }
 
 // MustCreateProvisionToken returns a new valid provision token
@@ -136,15 +158,19 @@ func strongValidateProvisionTokenWithDefaults(token *types.ProvisionTokenV2) err
 	}
 
 	for i, rule := range kube.Allow {
+		serviceAccountSet := rule.ServiceAccount != ""
+
 		// validation for empty namespace and account was added much later than the rest of the validations
 		// in CheckAndSetDefaults(), so we only enforce them when marshaling a token rather than when unmarshaling
-		namespace, account, _ := strings.Cut(rule.ServiceAccount, ":")
-		if namespace == "" || account == "" {
-			return trace.BadParameter(
-				`allow[%d].service_account: name of service account should be in format "namespace:service_account", got %q instead`,
-				i,
-				rule.ServiceAccount,
-			)
+		if serviceAccountSet {
+			namespace, account, _ := strings.Cut(rule.ServiceAccount, ":")
+			if namespace == "" || account == "" {
+				return trace.BadParameter(
+					`allow[%d].service_account: name of service account should be in format "namespace:service_account", got %q instead`,
+					i,
+					rule.ServiceAccount,
+				)
+			}
 		}
 	}
 

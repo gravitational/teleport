@@ -458,6 +458,33 @@ func TestConfigReading(t *testing.T) {
 						Args:          []string{"run", "-i", "--rm", "mcp/everything"},
 					},
 				},
+				{
+					Name:         "anthropic",
+					StaticLabels: Labels,
+					LLM: &LLM{
+						Format:   "anthropic",
+						Provider: "bedrock",
+						Models: []LLMModel{
+							{
+								Name:         "claude-opus-4-6",
+								ProviderName: "arn:bedrock:inference-profile",
+							},
+						},
+						FallbackModel: "claude-opus-4-6",
+					},
+				},
+				{
+					Name:         "grpc-with-mtls",
+					StaticLabels: Labels,
+					URI:          "tcp://127.0.0.1:8080",
+					TLS: &AppTLS{
+						Mode:           types.AppTLSModeVerifyFull,
+						ServerName:     "example.com",
+						ServerSpiffeId: "spiffe://mycluster/svc/example",
+						AllowedCas:     []string{types.AppTLSInternalCAWorkloadIdentity},
+						ClientCertMode: types.AppClientCertModeManaged,
+					},
+				},
 			},
 			ResourceMatchers: []ResourceMatcher{
 				{
@@ -1666,6 +1693,33 @@ func makeConfigFixture() string {
 				RunAsHostUser: "docker",
 			},
 		},
+		{
+			Name:         "anthropic",
+			StaticLabels: Labels,
+			LLM: &LLM{
+				Format:   "anthropic",
+				Provider: "bedrock",
+				Models: []LLMModel{
+					{
+						Name:         "claude-opus-4-6",
+						ProviderName: "arn:bedrock:inference-profile",
+					},
+				},
+				FallbackModel: "claude-opus-4-6",
+			},
+		},
+		{
+			Name:         "grpc-with-mtls",
+			StaticLabels: Labels,
+			URI:          "tcp://127.0.0.1:8080",
+			TLS: &AppTLS{
+				Mode:           types.AppTLSModeVerifyFull,
+				ServerName:     "example.com",
+				ServerSpiffeId: "spiffe://mycluster/svc/example",
+				AllowedCas:     []string{types.AppTLSInternalCAWorkloadIdentity},
+				ClientCertMode: types.AppClientCertModeManaged,
+			},
+		},
 	}
 	conf.Apps.ResourceMatchers = []ResourceMatcher{
 		{
@@ -2642,6 +2696,48 @@ app_service:
 			name:   "TCP app with port bigger than 65535",
 			outErr: require.Error,
 		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
+    - name: anthropic
+      inference:
+        format: anthropic
+        provider: anthropic
+`,
+			name:   "LLM inference endpoint",
+			outErr: require.NoError,
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
+    - name: app-tls
+      uri: https://localhost:8080
+      tls:
+        mode: verify-full
+        client_cert_mode: managed
+`,
+			name:   "App TLS configuration",
+			outErr: require.NoError,
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
+    - name: app-tls
+      uri: https://localhost:8080
+      tls:
+        mode: verify-full
+        allowed_cas_files:
+        - _random-file.pem
+`,
+			name:   "App TLS configuration fails to read file",
+			outErr: require.Error,
+		},
 	}
 
 	for _, tt := range tests {
@@ -3297,6 +3393,76 @@ func TestTLSCert(t *testing.T) {
 	}
 }
 
+func TestAppTLSCert(t *testing.T) {
+	tmpDir := t.TempDir()
+	tmpCA := filepath.Join(tmpDir, "ca.pem")
+
+	err := os.WriteFile(tmpCA, fixtures.LocalhostCert, 0o644)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name               string
+		conf               *FileConfig
+		expectedAllowedCas []string
+	}{
+		{
+			"only files",
+			&FileConfig{
+				Apps: Apps{
+					Service: Service{
+						EnabledFlag: "true",
+					},
+					Apps: []*App{
+						{
+							Name: "test-app-1",
+							URI:  "https://localhost:1234",
+							TLS: &AppTLS{
+								Mode:            types.AppTLSModeVerifyFull,
+								AllowedCasFiles: []string{tmpCA},
+							},
+						},
+					},
+				},
+			},
+			[]string{string(fixtures.LocalhostCert)},
+		},
+		{
+			"mixed configuration",
+			&FileConfig{
+				Apps: Apps{
+					Service: Service{
+						EnabledFlag: "true",
+					},
+					Apps: []*App{
+						{
+							Name: "test-app-1",
+							URI:  "https://localhost:1234",
+							TLS: &AppTLS{
+								Mode:            types.AppTLSModeVerifyFull,
+								AllowedCas:      []string{types.AppTLSInternalCAWorkloadIdentity, string(fixtures.LocalhostCert)},
+								AllowedCasFiles: []string{tmpCA},
+							},
+						},
+					},
+				},
+			},
+			[]string{types.AppTLSInternalCAWorkloadIdentity, string(fixtures.LocalhostCert), string(fixtures.LocalhostCert)},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := servicecfg.MakeDefaultConfig()
+
+			err = ApplyFileConfig(tt.conf, cfg)
+			require.NoError(t, err)
+
+			require.Len(t, cfg.Apps.Apps, 1)
+			require.ElementsMatch(t, tt.expectedAllowedCas, cfg.Apps.Apps[0].TLS.AllowedCas)
+		})
+	}
+}
+
 func TestApplyKeyStoreConfig(t *testing.T) {
 	slotNumber := 1
 
@@ -3603,6 +3769,7 @@ func TestJoinParams(t *testing.T) {
 		expectToken      string
 		expectJoinMethod types.JoinMethod
 		expectError      bool
+		expectParsed     *servicecfg.JoinParams
 	}{
 		{
 			desc: "empty",
@@ -3670,6 +3837,60 @@ teleport:
 `,
 			expectError: true,
 		},
+		{
+			desc: "bound keypair with registration secret value",
+			input: `
+teleport:
+  join_params:
+    token_name: example
+    method: bound_keypair
+    bound_keypair:
+      registration_secret_value: "example-secret"
+`,
+			expectToken:      "example",
+			expectJoinMethod: types.JoinMethodBoundKeypair,
+			expectParsed: &servicecfg.JoinParams{
+				BoundKeypair: servicecfg.BoundKeypairParams{
+					RegistrationSecretValue: "example-secret",
+				},
+			},
+		},
+		{
+			desc: "bound keypair with registration secret path",
+			input: `
+teleport:
+  join_params:
+    token_name: example
+    method: bound_keypair
+    bound_keypair:
+      registration_secret_path: "/path/to/secret"
+`,
+			expectToken:      "example",
+			expectJoinMethod: types.JoinMethodBoundKeypair,
+			expectParsed: &servicecfg.JoinParams{
+				BoundKeypair: servicecfg.BoundKeypairParams{
+					RegistrationSecretPath: "/path/to/secret",
+				},
+			},
+		},
+		{
+			desc: "bound keypair with static keypair path",
+			input: `
+teleport:
+  join_params:
+    token_name: example
+    method: bound_keypair
+    bound_keypair:
+      static_key_path: "/path/to/secret"
+`,
+			expectToken:      "example",
+			expectJoinMethod: types.JoinMethodBoundKeypair,
+			expectParsed: &servicecfg.JoinParams{
+				BoundKeypair: servicecfg.BoundKeypairParams{
+					StaticPrivateKeyPath: "/path/to/secret",
+				},
+			},
+		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			conf, err := ReadConfig(strings.NewReader(tc.input))
@@ -3688,6 +3909,10 @@ teleport:
 			require.NoError(t, err)
 			require.Equal(t, tc.expectToken, token)
 			require.Equal(t, tc.expectJoinMethod, cfg.JoinMethod)
+
+			if tc.expectParsed != nil {
+				require.Empty(t, cmp.Diff(cfg.JoinParams, *tc.expectParsed))
+			}
 		})
 	}
 }
@@ -3764,13 +3989,13 @@ jamf_service:
 				Spec: &types.JamfSpecV1{
 					Enabled:     true,
 					Name:        "jamf2",
-					SyncDelay:   types.Duration(1 * time.Minute),
+					SyncDelay:   types.DurationStringForJamfSpecV1(1 * time.Minute),
 					ApiEndpoint: "https://yourtenant.jamfcloud.com",
 					Inventory: []*types.JamfInventoryEntry{
 						{
 							FilterRsql:        "1==1",
-							SyncPeriodPartial: types.Duration(4 * time.Hour),
-							SyncPeriodFull:    types.Duration(48 * time.Hour),
+							SyncPeriodPartial: types.DurationStringForJamfSpecV1(4 * time.Hour),
+							SyncPeriodFull:    types.DurationStringForJamfSpecV1(48 * time.Hour),
 							OnMissing:         "NOOP",
 							PageSize:          10,
 						},
@@ -5093,15 +5318,6 @@ func TestDiscoveryConfig(t *testing.T) {
 				Tags: map[string]apiutils.Strings{
 					"discover_teleport": []string{"yes"},
 				},
-				Params: &types.InstallerParams{
-					JoinMethod:      types.JoinMethodIAM,
-					JoinToken:       "aws-discovery-iam-token",
-					SSHDConfig:      "/etc/ssh/sshd_config",
-					ScriptName:      "default-installer",
-					InstallTeleport: true,
-					EnrollMode:      types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
-				},
-				SSM: &types.AWSSSM{DocumentName: "TeleportDiscoveryInstaller"},
 				AssumeRole: &types.AssumeRole{
 					RoleARN:    "",
 					ExternalID: "externalid123",

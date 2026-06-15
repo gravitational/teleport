@@ -7,6 +7,7 @@ tags:
  - zero-trust
  - infrastructure-identity
  - google-cloud
+page_type: how-to
 ---
 
 (!docs/pages/includes/database-access/db-introduction.mdx dbType="Cloud Spanner" dbConfigure="with a service account"!)
@@ -200,6 +201,8 @@ it:
 ```code
 $ tsh db connect --db-user=spanner-user --db-name=example-db spanner-example
 ```
+
+(!docs/pages/includes/database-access/proxy-db-tunnel.mdx db="spanner-example" dbArgs="--db-user=spanner-user --db-name=example-db"!)
 
 To log out of the database and remove credentials:
 

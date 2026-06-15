@@ -53,6 +53,7 @@ required_fields:
   - "ScopedToken.spec.usage_mode"
 
 sensitive_fields:
+  - "ScopedToken.spec.bound_keypair.onboarding.registration_secret"
 
 plan_modifiers:
   # Force to recreate resource if its name changes
@@ -72,3 +73,5 @@ validators:
 
 custom_types:
   "ScopedToken.metadata.expires": Timestamp
+  "ScopedToken.spec.bound_keypair.onboarding.must_register_before": Timestamp
+  "ScopedToken.spec.bound_keypair.rotate_after": Timestamp

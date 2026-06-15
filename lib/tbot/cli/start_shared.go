@@ -20,10 +20,8 @@ package cli
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"reflect"
-	"strings"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -119,6 +117,11 @@ type sharedStartArgs struct {
 	StaticKeyPath          string
 	Keypair                string
 
+	// Scoped indicates if the user expects this instance of tbot to interact
+	// with a scoped Bot.
+	Scoped          bool
+	scopedSetByUser bool
+
 	Oneshot              bool
 	DiagAddr             string
 	DiagSocketForUpdater string
@@ -132,15 +135,11 @@ func newSharedStartArgs(cmd *kingpin.CmdClause) *sharedStartArgs {
 	args := &sharedStartArgs{}
 	args.AuthProxyArgs = newAuthProxyArgs(cmd)
 
-	joinMethodList := fmt.Sprintf(
-		"(%s)",
-		strings.Join(onboarding.SupportedJoinMethods, ", "),
-	)
 	cmd.Flag("token", "A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.").Envar(TokenEnvVar).StringVar(&args.Token)
 	cmd.Flag("ca-pin", "CA pin to validate the Teleport Auth Server; used on first connect.").StringsVar(&args.CAPins)
 	cmd.Flag("certificate-ttl", "TTL of short-lived machine certificates.").DurationVar(&args.CertificateTTL)
 	cmd.Flag("renewal-interval", "Interval at which short-lived certificates are renewed; must be less than the certificate TTL.").DurationVar(&args.RenewalInterval)
-	cmd.Flag("join-method", "Method to use to join the cluster. "+joinMethodList).EnumVar(&args.JoinMethod, onboarding.SupportedJoinMethods...)
+	cmd.Flag("join-method", "Method to use to join the cluster.").EnumVar(&args.JoinMethod, onboarding.SupportedJoinMethods...)
 	cmd.Flag("oneshot", "If set, quit after the first renewal.").IsSetByUser(&args.oneshotSetByUser).BoolVar(&args.Oneshot)
 	cmd.Flag("diag-addr", "If set and the bot is in debug mode, a diagnostics service will listen on specified address.").StringVar(&args.DiagAddr)
 	cmd.Flag("storage", "A destination URI for tbot's internal storage, e.g. file:///foo/bar").StringVar(&args.Storage)
@@ -150,6 +149,7 @@ func newSharedStartArgs(cmd *kingpin.CmdClause) *sharedStartArgs {
 	cmd.Flag("join-uri", "An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.").StringVar(&args.JoiningURI)
 	cmd.Flag("diag-socket-for-updater", "If set, run the diagnostics service on the specified socket path for teleport-update to consume.").Hidden().StringVar(&args.DiagSocketForUpdater)
 	cmd.Flag("pid-file", "Full path to the PID file. By default no PID file will be created.").StringVar(&args.PIDFile)
+	cmd.Flag("scoped", "Indicates whether tbot should run in scoped mode. This is required when authenticating as a scoped Bot.").IsSetByUser(&args.scopedSetByUser).BoolVar(&args.Scoped)
 
 	return args
 }
@@ -169,6 +169,10 @@ func (s *sharedStartArgs) ApplyConfig(cfg *config.BotConfig, l *slog.Logger) err
 
 	if s.oneshotSetByUser {
 		cfg.Oneshot = s.Oneshot
+	}
+
+	if s.scopedSetByUser {
+		cfg.Scoped = s.Scoped
 	}
 
 	if s.CertificateTTL != 0 {

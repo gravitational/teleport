@@ -192,6 +192,10 @@ func (p *Pack) RootTCPAppName() string {
 	return p.rootTCPAppName
 }
 
+func (p *Pack) RootAppMessage() string {
+	return p.rootMessage
+}
+
 func (p *Pack) RootTCPMessage() string {
 	return p.rootTCPMessage
 }

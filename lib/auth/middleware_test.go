@@ -118,11 +118,10 @@ func TestMiddlewareGetUser(t *testing.T) {
 	}{
 		{
 			desc: "no client cert",
-			wantID: authz.BuiltinRole{
+			wantID: authz.UnauthenticatedRole{
 				Role:        types.RoleNop,
 				Username:    string(types.RoleNop),
 				ClusterName: localClusterName,
-				Identity:    tlsca.Identity{},
 			},
 			assertErr: require.NoError,
 		},

@@ -52,6 +52,7 @@ import (
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/session/reexec/reexecsftp"
 )
 
 func TestIsApprovedFileTransfer(t *testing.T) {
@@ -105,7 +106,7 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 		name           string
 		expectedResult bool
 		expectedError  string
-		req            *FileTransferRequest
+		req            *fileTransferRequestWithApprovers
 		reqID          string
 		location       string
 	}{
@@ -121,9 +122,11 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 			expectedResult: false,
 			expectedError:  "Teleport user does not match original requester",
 			reqID:          "123",
-			req: &FileTransferRequest{
-				ID:        "123",
-				Requester: "michael",
+			req: &fileTransferRequestWithApprovers{
+				FileTransferRequest: reexecsftp.FileTransferRequest{
+					ID:        "123",
+					Requester: "michael",
+				},
 				approvers: make(map[string]*party),
 			},
 		},
@@ -133,11 +136,13 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 			expectedError:  "requested destination path does not match the current request",
 			reqID:          "123",
 			location:       "~/Downloads",
-			req: &FileTransferRequest{
-				ID:        "123",
-				Requester: "teleportUser",
+			req: &fileTransferRequestWithApprovers{
+				FileTransferRequest: reexecsftp.FileTransferRequest{
+					ID:        "123",
+					Requester: "teleportUser",
+					Location:  "~/badlocation",
+				},
 				approvers: make(map[string]*party),
-				Location:  "~/badlocation",
 			},
 		},
 		{
@@ -146,11 +151,13 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 			expectedError:  "",
 			reqID:          "123",
 			location:       "~/Downloads",
-			req: &FileTransferRequest{
-				ID:        "123",
-				Requester: "teleportUser",
+			req: &fileTransferRequestWithApprovers{
+				FileTransferRequest: reexecsftp.FileTransferRequest{
+					ID:        "123",
+					Requester: "teleportUser",
+					Location:  "~/Downloads",
+				},
 				approvers: approvers,
-				Location:  "~/Downloads",
 			},
 		},
 	}
@@ -833,6 +840,78 @@ func TestSessionRecordingModes(t *testing.T) {
 				}
 				assert.Empty(t, slices.Collect(maps.Keys(eventsNotReceived)))
 			}, time.Second*5, time.Millisecond*500, "Some events not received")
+		})
+	}
+}
+
+func TestStopSessionWithoutClientDisconnect(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name      string
+		component string
+		setTerm   func(*testing.T, *ServerContext)
+	}{
+		{
+			name:      "local terminal",
+			component: teleport.ComponentNode,
+			setTerm: func(t *testing.T, scx *ServerContext) {
+				term, err := newLocalTerminal(scx)
+				require.NoError(t, err)
+				scx.term = term
+			},
+		},
+		{
+			name:      "remote terminal",
+			component: teleport.ComponentForwardingNode,
+			setTerm: func(t *testing.T, scx *ServerContext) {
+				term, err := newRemoteTerminal(scx)
+				require.NoError(t, err)
+				scx.term = term
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv := newMockServer(t)
+			srv.component = tt.component
+
+			reg, err := NewSessionRegistry(SessionRegistryConfig{
+				Srv:                   srv,
+				SessionTrackerService: srv.auth,
+			})
+			require.NoError(t, err)
+			t.Cleanup(func() { reg.Close() })
+
+			scx := newTestServerContext(t, reg.Srv, nil, &decisionpb.SSHAccessPermit{})
+			if tt.setTerm != nil {
+				tt.setTerm(t, scx)
+			}
+
+			// Unlike real SSH clients, the mock SSH channel does not automatically close
+			// when the session ends, which is the misbehavior this test is meant to ensure
+			// is handled.
+			sshChanOpen := newMockSSHChannel()
+			t.Cleanup(func() { require.NoError(t, sshChanOpen.Close()) })
+			go func() {
+				_, _ = io.ReadAll(sshChanOpen)
+			}()
+
+			require.NoError(t, reg.OpenSession(t.Context(), sshChanOpen, scx))
+			require.NotNil(t, scx.session)
+
+			stopDone := make(chan struct{})
+			go func() {
+				scx.session.Stop()
+				close(stopDone)
+			}()
+
+			select {
+			case <-stopDone:
+			case <-time.After(5 * time.Second):
+				require.Fail(t, "session Stop blocked while client channel remained open")
+			}
 		})
 	}
 }
@@ -1744,4 +1823,65 @@ func (f *fakeSudoersBackend) RemoveSudoers(name string) error {
 
 	delete(f.sudoers, name)
 	return f.err
+}
+
+func TestServerContextEmitters(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		component     string
+		recordingMode string
+		wantDiscard   bool
+	}{
+		{
+			name:          "node component, node recording",
+			component:     teleport.ComponentNode,
+			recordingMode: types.RecordAtNode,
+			wantDiscard:   false,
+		},
+		{
+			name:          "node component, proxy recording",
+			component:     teleport.ComponentNode,
+			recordingMode: types.RecordAtProxy,
+			wantDiscard:   true,
+		},
+		{
+			name:          "node component, proxy-sync recording",
+			component:     teleport.ComponentNode,
+			recordingMode: types.RecordAtProxySync,
+			wantDiscard:   true,
+		},
+		{
+			name:          "forwarding node component, proxy recording",
+			component:     teleport.ComponentForwardingNode,
+			recordingMode: types.RecordAtProxy,
+			wantDiscard:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
+				Mode: tt.recordingMode,
+			})
+			require.NoError(t, err)
+
+			srv := &mockServer{component: tt.component}
+			scx := &ServerContext{
+				SessionRecordingConfig: recConfig,
+				srv:                    srv,
+			}
+
+			// BPFEmitter must always be the underlying server so ESR events
+			// reach the audit log regardless of cluster recording mode.
+			require.Same(t, srv, scx.BPFEmitter())
+
+			if tt.wantDiscard {
+				require.IsType(t, (*events.DiscardAuditLog)(nil), scx.AuditEmitter())
+			} else {
+				require.Same(t, srv, scx.AuditEmitter())
+			}
+		})
+	}
 }

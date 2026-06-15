@@ -111,7 +111,7 @@ func newKubeJoinCommand(parent *kingpin.CmdClause) *kubeJoinCommand {
 		CmdClause: parent.Command("join", "Join an active Kubernetes session."),
 	}
 
-	c.Flag("mode", "Mode of joining the session, valid modes are observer, moderator and peer.").Short('m').Default("observer").EnumVar(&c.mode, "observer", "moderator", "peer")
+	c.Flag("mode", "Mode of joining the session.").Short('m').Default("observer").EnumVar(&c.mode, "observer", "moderator", "peer")
 	c.Flag("cluster", clusterHelp).Short('c').StringVar(&c.siteName)
 	c.Arg("session", "The ID of the target session.").Required().StringVar(&c.session)
 	return c
@@ -371,6 +371,21 @@ type ExecOptions struct {
 	reason string
 }
 
+// termSizeQueueAdapter adapts term.TerminalSizeQueue to
+// remotecommand.TerminalSizeQueue.
+type termSizeQueueAdapter struct {
+	q term.TerminalSizeQueue
+}
+
+func (a *termSizeQueueAdapter) Next() *remotecommand.TerminalSize {
+	s := a.q.Next()
+	if s == nil {
+		return nil
+	}
+
+	return &remotecommand.TerminalSize{Width: s.Width, Height: s.Height}
+}
+
 // Run executes a validated remote execution against a pod.
 func (p *ExecOptions) Run(ctx context.Context) error {
 	var err error
@@ -420,7 +435,9 @@ func (p *ExecOptions) Run(ctx context.Context) error {
 	var sizeQueue remotecommand.TerminalSizeQueue
 	if t.Raw {
 		// this call spawns a goroutine to monitor/update the terminal size
-		sizeQueue = t.MonitorSize(t.GetSize())
+		if q := t.MonitorSize(t.GetSize()); q != nil {
+			sizeQueue = &termSizeQueueAdapter{q: q}
+		}
 
 		// unset p.Err if it was previously set because both stdout and stderr go over p.Out when tty is
 		// true

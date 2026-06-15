@@ -70,7 +70,7 @@ func (s *Server) updateDiscoveryConfigStatus(discoveryConfigNames ...string) {
 		discoveryConfigStatus := discoveryconfig.Status{
 			State:                          discoveryconfigv1.DiscoveryConfigState_DISCOVERY_CONFIG_STATE_SYNCING.String(),
 			LastSyncTime:                   s.clock.Now(),
-			IntegrationDiscoveredResources: make(map[string]*discoveryconfigv1.IntegrationDiscoveredSummary),
+			IntegrationDiscoveredResources: make(map[string]*discoveryconfig.IntegrationDiscoveredSummary),
 		}
 
 		// Merge AWS or Azure Sync (TAG) status
@@ -92,18 +92,9 @@ func (s *Server) updateDiscoveryConfigStatus(discoveryConfigNames ...string) {
 		// Too large error messages will cause failures when clients (which use the default MaxCallRecvMsgSize of 4MB) try to read DiscoveryConfigs.
 		discoveryConfigStatus.ErrorMessage = truncateErrorMessage(discoveryConfigStatus)
 
-		func() {
-			ctx, cancel := context.WithTimeout(s.ctx, 5*time.Second)
-			defer cancel()
-
-			_, err := s.AccessPoint.UpdateDiscoveryConfigStatus(ctx, discoveryConfigName, discoveryConfigStatus)
-			switch {
-			case trace.IsNotImplemented(err):
-				s.Log.WarnContext(ctx, "UpdateDiscoveryConfigStatus method is not implemented in Auth Server. Please upgrade it to a recent version.")
-			case err != nil:
-				s.Log.WarnContext(ctx, "Error updating discovery config status", "discovery_config_name", discoveryConfigName, "error", err)
-			}
-		}()
+		if err := s.newDiscoveryConfigStatusUpdaterFromServer().update(s.ctx, discoveryConfigName, discoveryConfigStatus); err != nil {
+			s.Log.WarnContext(s.ctx, "Failed to update discovery config status", "discovery_config_name", discoveryConfigName, "error", err)
+		}
 	}
 }
 
@@ -253,7 +244,7 @@ func newAWSResourceStatusCollector(resourceType string) awsResourcesStatus {
 type awsResourcesStatus struct {
 	mu sync.RWMutex
 	// awsResourcesResults maps the DiscoveryConfig name and integration to a summary of discovered/enrolled resources.
-	awsResourcesResults map[awsResourceGroup]awsResourceGroupResult
+	awsResourcesResults map[awsResourceGroup]*awsResourceGroupResult
 	resourceType        string
 }
 
@@ -272,16 +263,11 @@ func awsResourceGroupFromLabels(labels map[string]string) awsResourceGroup {
 
 // awsResourceGroupResult stores the result of the aws_sync Matchers for a given DiscoveryConfig.
 type awsResourceGroupResult struct {
-	found    int
-	enrolled int
-	failed   int
-}
-
-func (d *awsResourcesStatus) reset() {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
-	d.awsResourcesResults = make(map[awsResourceGroup]awsResourceGroupResult)
+	found     int
+	enrolled  int
+	failed    int
+	syncStart *time.Time
+	syncEnd   *time.Time
 }
 
 func (ars *awsResourcesStatus) mergeIntoGlobalStatus(discoveryConfigName string, existingStatus discoveryconfig.Status) discoveryconfig.Status {
@@ -299,13 +285,25 @@ func (ars *awsResourcesStatus) mergeIntoGlobalStatus(discoveryConfigName string,
 		// Update counters specific to AWS resources discovered.
 		existingIntegrationResources, ok := existingStatus.IntegrationDiscoveredResources[group.integration]
 		if !ok {
-			existingIntegrationResources = &discoveryconfigv1.IntegrationDiscoveredSummary{}
+			existingIntegrationResources = &discoveryconfig.IntegrationDiscoveredSummary{}
+		}
+
+		var syncEnd *timestamppb.Timestamp
+		if groupResult.syncEnd != nil {
+			syncEnd = timestamppb.New(*groupResult.syncEnd)
+		}
+
+		var syncStart *timestamppb.Timestamp
+		if groupResult.syncStart != nil {
+			syncStart = timestamppb.New(*groupResult.syncStart)
 		}
 
 		resourcesSummary := &discoveryconfigv1.ResourcesDiscoveredSummary{
-			Found:    uint64(groupResult.found),
-			Enrolled: uint64(groupResult.enrolled),
-			Failed:   uint64(groupResult.failed),
+			Found:     uint64(groupResult.found),
+			Enrolled:  uint64(groupResult.enrolled),
+			Failed:    uint64(groupResult.failed),
+			SyncStart: syncStart,
+			SyncEnd:   syncEnd,
 		}
 
 		integrationDiscoveredSummaryUpdate(existingIntegrationResources, ars.resourceType, resourcesSummary)
@@ -317,45 +315,68 @@ func (ars *awsResourcesStatus) mergeIntoGlobalStatus(discoveryConfigName string,
 }
 
 func (ars *awsResourcesStatus) incrementFailed(g awsResourceGroup, count int) {
-	ars.mu.Lock()
-	defer ars.mu.Unlock()
-	if ars.awsResourcesResults == nil {
-		ars.awsResourcesResults = make(map[awsResourceGroup]awsResourceGroupResult)
-	}
-	groupStats := ars.awsResourcesResults[g]
-	groupStats.failed = groupStats.failed + count
-	ars.awsResourcesResults[g] = groupStats
+	ars.incrementField(g, func(groupStats *awsResourceGroupResult) {
+		groupStats.failed = groupStats.failed + count
+	})
 }
 
-func (ars *awsResourcesStatus) iterationStarted(g awsResourceGroup) {
+func (ars *awsResourcesStatus) iterationStarted(resourceGroups []awsResourceGroup, syncStartTime time.Time) {
 	ars.mu.Lock()
 	defer ars.mu.Unlock()
-	if ars.awsResourcesResults == nil {
-		ars.awsResourcesResults = make(map[awsResourceGroup]awsResourceGroupResult)
+
+	ars.awsResourcesResults = make(map[awsResourceGroup]*awsResourceGroupResult, len(resourceGroups))
+	for _, g := range resourceGroups {
+		ars.awsResourcesResults[g] = &awsResourceGroupResult{
+			syncStart: &syncStartTime,
+		}
 	}
-	ars.awsResourcesResults[g] = awsResourceGroupResult{}
+}
+
+func (ars *awsResourcesStatus) iterationEnded(syncEndTime time.Time) {
+	ars.mu.Lock()
+	defer ars.mu.Unlock()
+
+	for _, g := range ars.awsResourcesResults {
+		g.syncEnd = &syncEndTime
+	}
+}
+
+func (ars *awsResourcesStatus) iterationDiscoveryConfigs() []string {
+	ars.mu.RLock()
+	defer ars.mu.RUnlock()
+
+	uniqueDiscoveryConfigs := make(map[string]struct{})
+	for group := range ars.awsResourcesResults {
+		uniqueDiscoveryConfigs[group.discoveryConfigName] = struct{}{}
+	}
+
+	return slices.Collect(maps.Keys(uniqueDiscoveryConfigs))
 }
 
 func (ars *awsResourcesStatus) incrementFound(g awsResourceGroup, count int) {
+	ars.incrementField(g, func(groupStats *awsResourceGroupResult) {
+		groupStats.found = groupStats.found + count
+	})
+}
+
+func (ars *awsResourcesStatus) incrementField(g awsResourceGroup, f func(groupStats *awsResourceGroupResult)) {
+	if g.discoveryConfigName == "" {
+		return
+	}
+
 	ars.mu.Lock()
 	defer ars.mu.Unlock()
-	if ars.awsResourcesResults == nil {
-		ars.awsResourcesResults = make(map[awsResourceGroup]awsResourceGroupResult)
+	groupStats, ok := ars.awsResourcesResults[g]
+	if !ok {
+		return
 	}
-	groupStats := ars.awsResourcesResults[g]
-	groupStats.found = groupStats.found + count
-	ars.awsResourcesResults[g] = groupStats
+	f(groupStats)
 }
 
 func (ars *awsResourcesStatus) incrementEnrolled(g awsResourceGroup, count int) {
-	ars.mu.Lock()
-	defer ars.mu.Unlock()
-	if ars.awsResourcesResults == nil {
-		ars.awsResourcesResults = make(map[awsResourceGroup]awsResourceGroupResult)
-	}
-	groupStats := ars.awsResourcesResults[g]
-	groupStats.enrolled = groupStats.enrolled + count
-	ars.awsResourcesResults[g] = groupStats
+	ars.incrementField(g, func(groupStats *awsResourceGroupResult) {
+		groupStats.enrolled = groupStats.enrolled + count
+	})
 }
 
 // ReportEC2SSMInstallationResult is called when discovery gets the result of running the installation script in a EC2 instance.
@@ -390,7 +411,7 @@ func (s *Server) ReportEC2SSMInstallationResult(ctx context.Context, result *ser
 			InvocationUrl:   result.SSMRunEvent.InvocationURL,
 			DiscoveryConfig: result.DiscoveryConfigName,
 			DiscoveryGroup:  s.DiscoveryGroup,
-			SyncTime:        timestamppb.New(result.SSMRunEvent.Time),
+			SyncTime:        timestamppb.New(s.clock.Now()),
 			InstanceId:      result.SSMRunEvent.InstanceID,
 			Name:            result.InstanceName,
 		},
@@ -1068,13 +1089,20 @@ type fetcherGroupKey struct {
 type resourceStatusMap struct {
 	resourceType string
 	results      map[fetcherGroupKey]map[statusType]int
+	syncStart    *time.Time
+	syncEnd      *time.Time
 }
 
-func newStatusMap(resourceType string) *resourceStatusMap {
+func newStatusMap(resourceType string, syncStart time.Time) *resourceStatusMap {
 	return &resourceStatusMap{
 		resourceType: resourceType,
 		results:      make(map[fetcherGroupKey]map[statusType]int),
+		syncStart:    &syncStart,
 	}
+}
+
+func (s *resourceStatusMap) syncEnded(syncEnd time.Time) {
+	s.syncEnd = &syncEnd
 }
 
 func (s *resourceStatusMap) add(key fetcherGroupKey, results map[statusType]int) {
@@ -1102,24 +1130,34 @@ func (s *resourceStatusMap) mergeIntoGlobalStatus(discoveryConfigName string, ex
 		}
 
 		// Update global discovered resources count.
-		existingStatus.DiscoveredResources = existingStatus.DiscoveredResources + uint64(results[statusFailed])
+		existingStatus.DiscoveredResources = existingStatus.DiscoveredResources + uint64(results[statusFound])
 
 		// Initialize map if needed.
 		if existingStatus.IntegrationDiscoveredResources == nil {
-			existingStatus.IntegrationDiscoveredResources = make(map[string]*discoveryconfigv1.IntegrationDiscoveredSummary)
+			existingStatus.IntegrationDiscoveredResources = make(map[string]*discoveryconfig.IntegrationDiscoveredSummary)
 		}
 
-		// Update counters specific to resources discovered.
-		var summary *discoveryconfigv1.IntegrationDiscoveredSummary
-		summary = existingStatus.IntegrationDiscoveredResources[key.integration]
+		summary := existingStatus.IntegrationDiscoveredResources[key.integration]
 		if summary == nil {
-			summary = &discoveryconfigv1.IntegrationDiscoveredSummary{}
+			summary = &discoveryconfig.IntegrationDiscoveredSummary{}
+		}
+
+		var syncStart *timestamppb.Timestamp
+		if s.syncStart != nil {
+			syncStart = timestamppb.New(*s.syncStart)
+		}
+
+		var syncEnd *timestamppb.Timestamp
+		if s.syncEnd != nil {
+			syncEnd = timestamppb.New(*s.syncEnd)
 		}
 
 		resourcesSummary := &discoveryconfigv1.ResourcesDiscoveredSummary{
-			Found:    uint64(results[statusFound]),
-			Enrolled: uint64(results[statusEnrolled]),
-			Failed:   uint64(results[statusFailed]),
+			Found:     uint64(results[statusFound]),
+			Enrolled:  uint64(results[statusEnrolled]),
+			Failed:    uint64(results[statusFailed]),
+			SyncStart: syncStart,
+			SyncEnd:   syncEnd,
 		}
 
 		integrationDiscoveredSummaryUpdate(summary, s.resourceType, resourcesSummary)
@@ -1142,7 +1180,11 @@ func (s *resourceStatusMap) discoveryConfigs() []string {
 	return slices.Collect(maps.Keys(names))
 }
 
-func integrationDiscoveredSummaryUpdate(summary *discoveryconfigv1.IntegrationDiscoveredSummary, resourceType string, resourcesSummary *discoveryconfigv1.ResourcesDiscoveredSummary) {
+func integrationDiscoveredSummaryUpdate(summary *discoveryconfig.IntegrationDiscoveredSummary, resourceType string, resourcesSummary *discoveryconfigv1.ResourcesDiscoveredSummary) {
+	if summary.IntegrationDiscoveredSummary == nil {
+		summary.IntegrationDiscoveredSummary = &discoveryconfigv1.IntegrationDiscoveredSummary{}
+	}
+
 	switch resourceType {
 	case types.AWSMatcherEC2:
 		summary.AwsEc2 = resourcesSummary

@@ -72,6 +72,11 @@ type OutputV2Config struct {
 	// RelayAddress specifies the address of a relay transport server to use in
 	// the generated Kubernetes config file.
 	RelayAddress string `yaml:"relay_server,omitempty"`
+
+	// DelegationSessionID optionally identifies the delegation session the
+	// generated credentials will be associated with, enabling the bot to act
+	// on a (human) user's behalf.
+	DelegationSessionID string `yaml:"delegation_session_id,omitempty"`
 }
 
 // GetName returns the user-given name of the service, used for validation purposes.
@@ -84,7 +89,10 @@ func (o *OutputV2Config) SetName(name string) {
 	o.Name = name
 }
 
-func (o *OutputV2Config) CheckAndSetDefaults() error {
+func (o *OutputV2Config) CheckAndSetDefaults(scoped bool) error {
+	if scoped {
+		return trace.BadParameter("service type %q is not supported in scoped mode", OutputV2ServiceType)
+	}
 	if o.Destination == nil {
 		return trace.BadParameter("no destination configured for output")
 	}

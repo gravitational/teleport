@@ -1,0 +1,23 @@
+kind: workload_cluster
+version: v1
+metadata:
+  name: company-organization
+spec:
+  regions:
+    - name: us-west-2
+  bot:
+    # Teleport Cloud creates a bot, token, and role with this name
+    # in the child cluster.
+    name: example-iam
+  token:
+    # Allow tbot to join the child cluster using the below IAM assumed role.
+    join_method: iam
+    allow:
+      - aws_account: "123456789012"
+        aws_arn: "arn:aws:sts::123456789012:assumed-role/example-tbot-role/session-name"
+# Status will be set by Teleport with status from Teleport Cloud.
+status:
+  # The Teleport Proxy address of the child cluster.
+  domain: company-organization.teleport.sh
+  # The current state of the child cluster in Teleport Cloud.
+  state: active

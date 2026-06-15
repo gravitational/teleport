@@ -49,6 +49,9 @@ const (
 	ClientApplicationService_SessionSSHConfig_FullMethodName         = "/teleport.lib.vnet.v1.ClientApplicationService/SessionSSHConfig"
 	ClientApplicationService_SignForSSHSession_FullMethodName        = "/teleport.lib.vnet.v1.ClientApplicationService/SignForSSHSession"
 	ClientApplicationService_ExchangeSSHKeys_FullMethodName          = "/teleport.lib.vnet.v1.ClientApplicationService/ExchangeSSHKeys"
+	ClientApplicationService_ReissueDBCert_FullMethodName            = "/teleport.lib.vnet.v1.ClientApplicationService/ReissueDBCert"
+	ClientApplicationService_SignForDB_FullMethodName                = "/teleport.lib.vnet.v1.ClientApplicationService/SignForDB"
+	ClientApplicationService_OnNewDBConnection_FullMethodName        = "/teleport.lib.vnet.v1.ClientApplicationService/OnNewDBConnection"
 )
 
 // ClientApplicationServiceClient is the client API for ClientApplicationService service.
@@ -98,6 +101,14 @@ type ClientApplicationServiceClient interface {
 	// ExchangeSSHKeys sends VNet's SSH host CA key to the client application and
 	// returns the user public key.
 	ExchangeSSHKeys(ctx context.Context, in *ExchangeSSHKeysRequest, opts ...grpc.CallOption) (*ExchangeSSHKeysResponse, error)
+	// ReissueDBCert issues a new database cert.
+	ReissueDBCert(ctx context.Context, in *ReissueDBCertRequest, opts ...grpc.CallOption) (*ReissueDBCertResponse, error)
+	// SignForDB issues a signature with the private key associated with an x509
+	// certificate previously issued for a requested database.
+	SignForDB(ctx context.Context, in *SignForDBRequest, opts ...grpc.CallOption) (*SignForDBResponse, error)
+	// OnNewDBConnection gets called whenever a new database connection is about to
+	// be established through VNet for observability.
+	OnNewDBConnection(ctx context.Context, in *OnNewDBConnectionRequest, opts ...grpc.CallOption) (*OnNewDBConnectionResponse, error)
 }
 
 type clientApplicationServiceClient struct {
@@ -248,6 +259,36 @@ func (c *clientApplicationServiceClient) ExchangeSSHKeys(ctx context.Context, in
 	return out, nil
 }
 
+func (c *clientApplicationServiceClient) ReissueDBCert(ctx context.Context, in *ReissueDBCertRequest, opts ...grpc.CallOption) (*ReissueDBCertResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReissueDBCertResponse)
+	err := c.cc.Invoke(ctx, ClientApplicationService_ReissueDBCert_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clientApplicationServiceClient) SignForDB(ctx context.Context, in *SignForDBRequest, opts ...grpc.CallOption) (*SignForDBResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SignForDBResponse)
+	err := c.cc.Invoke(ctx, ClientApplicationService_SignForDB_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *clientApplicationServiceClient) OnNewDBConnection(ctx context.Context, in *OnNewDBConnectionRequest, opts ...grpc.CallOption) (*OnNewDBConnectionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(OnNewDBConnectionResponse)
+	err := c.cc.Invoke(ctx, ClientApplicationService_OnNewDBConnection_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ClientApplicationServiceServer is the server API for ClientApplicationService service.
 // All implementations must embed UnimplementedClientApplicationServiceServer
 // for forward compatibility.
@@ -295,6 +336,14 @@ type ClientApplicationServiceServer interface {
 	// ExchangeSSHKeys sends VNet's SSH host CA key to the client application and
 	// returns the user public key.
 	ExchangeSSHKeys(context.Context, *ExchangeSSHKeysRequest) (*ExchangeSSHKeysResponse, error)
+	// ReissueDBCert issues a new database cert.
+	ReissueDBCert(context.Context, *ReissueDBCertRequest) (*ReissueDBCertResponse, error)
+	// SignForDB issues a signature with the private key associated with an x509
+	// certificate previously issued for a requested database.
+	SignForDB(context.Context, *SignForDBRequest) (*SignForDBResponse, error)
+	// OnNewDBConnection gets called whenever a new database connection is about to
+	// be established through VNet for observability.
+	OnNewDBConnection(context.Context, *OnNewDBConnectionRequest) (*OnNewDBConnectionResponse, error)
 	mustEmbedUnimplementedClientApplicationServiceServer()
 }
 
@@ -346,6 +395,15 @@ func (UnimplementedClientApplicationServiceServer) SignForSSHSession(context.Con
 }
 func (UnimplementedClientApplicationServiceServer) ExchangeSSHKeys(context.Context, *ExchangeSSHKeysRequest) (*ExchangeSSHKeysResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ExchangeSSHKeys not implemented")
+}
+func (UnimplementedClientApplicationServiceServer) ReissueDBCert(context.Context, *ReissueDBCertRequest) (*ReissueDBCertResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ReissueDBCert not implemented")
+}
+func (UnimplementedClientApplicationServiceServer) SignForDB(context.Context, *SignForDBRequest) (*SignForDBResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SignForDB not implemented")
+}
+func (UnimplementedClientApplicationServiceServer) OnNewDBConnection(context.Context, *OnNewDBConnectionRequest) (*OnNewDBConnectionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method OnNewDBConnection not implemented")
 }
 func (UnimplementedClientApplicationServiceServer) mustEmbedUnimplementedClientApplicationServiceServer() {
 }
@@ -621,6 +679,60 @@ func _ClientApplicationService_ExchangeSSHKeys_Handler(srv interface{}, ctx cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ClientApplicationService_ReissueDBCert_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReissueDBCertRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClientApplicationServiceServer).ReissueDBCert(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClientApplicationService_ReissueDBCert_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClientApplicationServiceServer).ReissueDBCert(ctx, req.(*ReissueDBCertRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ClientApplicationService_SignForDB_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SignForDBRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClientApplicationServiceServer).SignForDB(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClientApplicationService_SignForDB_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClientApplicationServiceServer).SignForDB(ctx, req.(*SignForDBRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ClientApplicationService_OnNewDBConnection_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(OnNewDBConnectionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ClientApplicationServiceServer).OnNewDBConnection(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ClientApplicationService_OnNewDBConnection_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ClientApplicationServiceServer).OnNewDBConnection(ctx, req.(*OnNewDBConnectionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ClientApplicationService_ServiceDesc is the grpc.ServiceDesc for ClientApplicationService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -683,6 +795,18 @@ var ClientApplicationService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ExchangeSSHKeys",
 			Handler:    _ClientApplicationService_ExchangeSSHKeys_Handler,
+		},
+		{
+			MethodName: "ReissueDBCert",
+			Handler:    _ClientApplicationService_ReissueDBCert_Handler,
+		},
+		{
+			MethodName: "SignForDB",
+			Handler:    _ClientApplicationService_SignForDB_Handler,
+		},
+		{
+			MethodName: "OnNewDBConnection",
+			Handler:    _ClientApplicationService_OnNewDBConnection_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

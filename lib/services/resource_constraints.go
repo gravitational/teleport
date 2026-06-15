@@ -60,12 +60,17 @@ func WithConstraints(rc *types.ResourceConstraints) MatcherTransform {
 		}
 
 		return func(m RoleMatcher) RoleMatcher {
-			lm, ok := m.(*awsAppLoginMatcher)
-			if !ok {
+			var awsRole string
+			switch lm := m.(type) {
+			case *awsAppLoginMatcher:
+				awsRole = lm.awsRole
+			case *AWSRoleARNMatcher:
+				awsRole = lm.RoleARN
+			default:
 				return m
 			}
 			return RoleMatcherFunc(func(role types.Role, cond types.RoleConditionType) (bool, error) {
-				if _, ok := allowedSet[lm.awsRole]; !ok {
+				if _, ok := allowedSet[awsRole]; !ok {
 					return false, nil
 				}
 				return m.Match(role, cond)

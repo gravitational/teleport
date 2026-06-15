@@ -165,6 +165,41 @@ step.
 
 Again, we need to install the plugin using `tctl`.
 
+Choose the installation command for your Teleport deployment:
+
+<Tabs>
+<TabItem label="Teleport Cloud">
+
+Teleport Cloud clusters authenticate with AWS through an [AWS OIDC integration](../../../enroll-resources/application-access/cloud-apis/awsoidc-integration.mdx).
+Create the AWS OIDC integration first, then use this command.
+
+```console
+$ tctl plugins install awsic \
+    --instance-arn ${IDENTITY_CENTER_INSTANCE_ARN} \
+    --instance-region ${IDENTITY_CENTER_INSTANCE_REGION} \
+    --no-use-system-credentials \
+    --oidc-integration ${AWS_OIDC_INTEGRATION_NAME} \
+    --scim-url ${IDENTITY_CENTER_SCIM_BASE_URL} \
+    --scim-token ${IDENTITY_CENTER_SCIM_BEARER_TOKEN} \
+    --access-list-default-owner ${TELEPORT_ACCESS_LIST_DEFAULT_OWNER} \
+    --user-origin okta \
+    --account-name ${ACCOUNT_NAME_ALLOW_FILTER} \
+    --group-name ${GROUP_NAME_ALLOW_FILTER}
+```
+
+</TabItem>
+<TabItem label="Self-Hosted">
+
+Self-hosted clusters can use either ambient system credentials or AWS OIDC. For
+guidance choosing a credential source, see [AWS authentication
+methods](./advanced-options.mdx#aws-authentication-methods).
+
+**Ambient system credentials**
+
+This command uses the AWS credential provider chain available to the Auth
+Service. The credentials must be able to assume the IAM role passed in
+`--assume-role-arn`.
+
 ```console
 $ tctl plugins install awsic \
     --instance-arn ${IDENTITY_CENTER_INSTANCE_ARN} \
@@ -179,23 +214,40 @@ $ tctl plugins install awsic \
     --group-name ${GROUP_NAME_ALLOW_FILTER}
 ```
 
+**AWS OIDC integration**
+
+This command uses the AWS OIDC integration named by `--oidc-integration` instead
+of ambient AWS credentials. Create the AWS OIDC integration before running the
+installer.
+
+```console
+$ tctl plugins install awsic \
+    --instance-arn ${IDENTITY_CENTER_INSTANCE_ARN} \
+    --instance-region ${IDENTITY_CENTER_INSTANCE_REGION} \
+    --no-use-system-credentials \
+    --oidc-integration ${AWS_OIDC_INTEGRATION_NAME} \
+    --scim-url ${IDENTITY_CENTER_SCIM_BASE_URL} \
+    --scim-token ${IDENTITY_CENTER_SCIM_BEARER_TOKEN} \
+    --access-list-default-owner ${TELEPORT_ACCESS_LIST_DEFAULT_OWNER} \
+    --user-origin okta \
+    --account-name ${ACCOUNT_NAME_ALLOW_FILTER} \
+    --group-name ${GROUP_NAME_ALLOW_FILTER}
+```
+
+</TabItem>
+</Tabs>
+
 This will install the Teleport AWS IAM Identity Center integration with a
 Teleport configuration that:
 - Controls the AWS IAM Identity Center instance indicated by `--instance-arn`.
-- Uses the system AWS credentials to authenticate with AWS (from `--use-system-credentials`)
-  and assumes the IAM role indicated by `--assume-role-arn`.
-- Manages account assignments all AWS accounts that match the `${ACCOUNT_NAME_ALLOW_FILTER}`.
+- Authenticates with AWS using the credential source selected in the install
+  command: an AWS OIDC integration on Teleport Cloud or self-hosted clusters, or
+  system AWS credentials and the IAM role indicated by `--assume-role-arn` on
+  self-hosted clusters.
+- Manages account assignments for all AWS accounts that match the `${ACCOUNT_NAME_ALLOW_FILTER}`.
 - Provisions all users imported from Okta into AWS IAM Identity Center (from the `--user-origin okta` flag).
 - Only imports all groups matching `${GROUP_NAME_ALLOW_FILTER}` into Teleport as Access
   Lists, with `${TELEPORT_ACCESS_LIST_DEFAULT_OWNER}` as the owner.
-
-<Admonition type="note">
-Note that the `tctl` installer currently only supports installations using
-system-level AWS credentials with `--use-system-credentials`.
-
-Using system-level credential is also the recommended way to provide AWS credential when
-configuring integration in the Teleport Enterprise self-hosted deployment.
-</Admonition>
 
 You can change the AWS account, group and user filters later by following the
 instructions in the [Extending the Integration](#extending-the-integration) section

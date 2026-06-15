@@ -47,15 +47,31 @@ func TestMakeIntegration(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	terraformManagedIntegration, err := types.NewIntegrationAWSOIDC(
+	terraformManagedAwsIntegration, err := types.NewIntegrationAWSOIDC(
 		types.Metadata{
-			Name: "terraform-managed",
+			Name: "terraform-managed-aws",
 			Labels: map[string]string{
 				types.CreatedByIaCLabel: IaCTerraformLabel,
 			},
 		},
 		&types.AWSOIDCIntegrationSpecV1{
 			RoleARN: "arn:aws:iam::123456789012:role/TerraformRole",
+		},
+	)
+	require.NoError(t, err)
+
+	terraformManagedAzureIntegration, err := types.NewIntegrationAzureOIDC(
+		types.Metadata{
+			Name: "terraform-managed-azure",
+			Labels: map[string]string{
+				types.CreatedByIaCLabel:                      IaCTerraformLabel,
+				types.AzureManagedIdentityRegionLabel:        "eastus",
+				types.AzureManagedIdentityResourceGroupLabel: "my-azure-resource-group",
+			},
+		},
+		&types.AzureOIDCIntegrationSpecV1{
+			TenantID: "foo",
+			ClientID: "bar",
 		},
 	)
 	require.NoError(t, err)
@@ -85,12 +101,28 @@ func TestMakeIntegration(t *testing.T) {
 			},
 		},
 		{
-			integration: terraformManagedIntegration,
+			integration: terraformManagedAwsIntegration,
 			want: Integration{
-				Name:    "terraform-managed",
+				Name:    "terraform-managed-aws",
 				SubKind: types.IntegrationSubKindAWSOIDC,
 				AWSOIDC: &IntegrationAWSOIDCSpec{
 					RoleARN: "arn:aws:iam::123456789012:role/TerraformRole",
+				},
+				IsManagedByTerraform: true,
+			},
+		},
+		{
+			integration: terraformManagedAzureIntegration,
+			want: Integration{
+				Name:    "terraform-managed-azure",
+				SubKind: types.IntegrationSubKindAzureOIDC,
+				AzureOIDC: &IntegrationAzureOIDCSpec{
+					TenantID: "foo",
+					ClientID: "bar",
+					ManagedIdentity: &IntegrationAzureManagedIdentitySpec{
+						Region:        "eastus",
+						ResourceGroup: "my-azure-resource-group",
+					},
 				},
 				IsManagedByTerraform: true,
 			},

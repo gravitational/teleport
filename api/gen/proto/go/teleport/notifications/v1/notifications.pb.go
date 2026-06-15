@@ -21,6 +21,8 @@
 // 	protoc        (unknown)
 // source: teleport/notifications/v1/notifications.proto
 
+//go:build !protoopaque
+
 package notificationsv1
 
 import (
@@ -30,7 +32,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -88,14 +89,9 @@ func (x NotificationState) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use NotificationState.Descriptor instead.
-func (NotificationState) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_notifications_v1_notifications_proto_rawDescGZIP(), []int{0}
-}
-
 // Notification represents a notification item.
 type Notification struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// kind is the resource kind ("notification").
 	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	// sub_kind represents the unique kind of notification this is, eg. `access-request-approved`
@@ -135,11 +131,6 @@ func (x *Notification) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Notification.ProtoReflect.Descriptor instead.
-func (*Notification) Descriptor() ([]byte, []int) {
-	return file_teleport_notifications_v1_notifications_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *Notification) GetKind() string {
 	if x != nil {
 		return x.Kind
@@ -175,9 +166,78 @@ func (x *Notification) GetSpec() *NotificationSpec {
 	return nil
 }
 
+func (x *Notification) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *Notification) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+func (x *Notification) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *Notification) SetMetadata(v *v1.Metadata) {
+	x.Metadata = v
+}
+
+func (x *Notification) SetSpec(v *NotificationSpec) {
+	x.Spec = v
+}
+
+func (x *Notification) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *Notification) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *Notification) ClearMetadata() {
+	x.Metadata = nil
+}
+
+func (x *Notification) ClearSpec() {
+	x.Spec = nil
+}
+
+type Notification_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// kind is the resource kind ("notification").
+	Kind string
+	// sub_kind represents the unique kind of notification this is, eg. `access-request-approved`
+	SubKind string
+	// version is the resource version.
+	Version string
+	// metadata is the notification's metadata. This contains the notification's labels, and expiry. All custom notification metadata should be stored in labels.
+	Metadata *v1.Metadata
+	// spec is the notification specification.
+	Spec *NotificationSpec
+}
+
+func (b0 Notification_builder) Build() *Notification {
+	m0 := &Notification{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.SubKind = b.SubKind
+	x.Version = b.Version
+	x.Metadata = b.Metadata
+	x.Spec = b.Spec
+	return m0
+}
+
 // NotificationSpec is the notification specification.
 type NotificationSpec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// created is when the notification was created, in UNIX time.
 	Created *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=created,proto3" json:"created,omitempty"`
 	// unscoped is whether the notification shouldn't be restricted to a specific audience. This is to prevent the potential future possibility that a user-specific notification contains information that the user should no longer be allowed to see. Default is true.
@@ -213,11 +273,6 @@ func (x *NotificationSpec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use NotificationSpec.ProtoReflect.Descriptor instead.
-func (*NotificationSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_notifications_v1_notifications_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *NotificationSpec) GetCreated() *timestamppb.Timestamp {
 	if x != nil {
 		return x.Created
@@ -239,9 +294,53 @@ func (x *NotificationSpec) GetUsername() string {
 	return ""
 }
 
+func (x *NotificationSpec) SetCreated(v *timestamppb.Timestamp) {
+	x.Created = v
+}
+
+func (x *NotificationSpec) SetUnscoped(v bool) {
+	x.Unscoped = v
+}
+
+func (x *NotificationSpec) SetUsername(v string) {
+	x.Username = v
+}
+
+func (x *NotificationSpec) HasCreated() bool {
+	if x == nil {
+		return false
+	}
+	return x.Created != nil
+}
+
+func (x *NotificationSpec) ClearCreated() {
+	x.Created = nil
+}
+
+type NotificationSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// created is when the notification was created, in UNIX time.
+	Created *timestamppb.Timestamp
+	// unscoped is whether the notification shouldn't be restricted to a specific audience. This is to prevent the potential future possibility that a user-specific notification contains information that the user should no longer be allowed to see. Default is true.
+	Unscoped bool
+	// username is the username of the target user if this is a user-specific notification. Requests for global notifications with a username will be rejected.
+	Username string
+}
+
+func (b0 NotificationSpec_builder) Build() *NotificationSpec {
+	m0 := &NotificationSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Created = b.Created
+	x.Unscoped = b.Unscoped
+	x.Username = b.Username
+	return m0
+}
+
 // GlobalNotification represents a global notification.
 type GlobalNotification struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// kind is the resource kind ("global_notification").
 	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	// sub_kind is the optional resource subkind. This is unused.
@@ -281,11 +380,6 @@ func (x *GlobalNotification) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GlobalNotification.ProtoReflect.Descriptor instead.
-func (*GlobalNotification) Descriptor() ([]byte, []int) {
-	return file_teleport_notifications_v1_notifications_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *GlobalNotification) GetKind() string {
 	if x != nil {
 		return x.Kind
@@ -321,9 +415,78 @@ func (x *GlobalNotification) GetSpec() *GlobalNotificationSpec {
 	return nil
 }
 
+func (x *GlobalNotification) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *GlobalNotification) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+func (x *GlobalNotification) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *GlobalNotification) SetMetadata(v *v1.Metadata) {
+	x.Metadata = v
+}
+
+func (x *GlobalNotification) SetSpec(v *GlobalNotificationSpec) {
+	x.Spec = v
+}
+
+func (x *GlobalNotification) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *GlobalNotification) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *GlobalNotification) ClearMetadata() {
+	x.Metadata = nil
+}
+
+func (x *GlobalNotification) ClearSpec() {
+	x.Spec = nil
+}
+
+type GlobalNotification_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// kind is the resource kind ("global_notification").
+	Kind string
+	// sub_kind is the optional resource subkind. This is unused.
+	SubKind string
+	// version is the resource version.
+	Version string
+	// metadata is the user last seen notification object's metadata.
+	Metadata *v1.Metadata
+	// spec is the global notification's specification.
+	Spec *GlobalNotificationSpec
+}
+
+func (b0 GlobalNotification_builder) Build() *GlobalNotification {
+	m0 := &GlobalNotification{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.SubKind = b.SubKind
+	x.Version = b.Version
+	x.Metadata = b.Metadata
+	x.Spec = b.Spec
+	return m0
+}
+
 // GlobalNotificationSpec is the global notification's specification.
 type GlobalNotificationSpec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Matcher for determining the target of this notification.
 	//
 	// Types that are valid to be assigned to Matcher:
@@ -368,11 +531,6 @@ func (x *GlobalNotificationSpec) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GlobalNotificationSpec.ProtoReflect.Descriptor instead.
-func (*GlobalNotificationSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_notifications_v1_notifications_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *GlobalNotificationSpec) GetMatcher() isGlobalNotificationSpec_Matcher {
@@ -439,6 +597,210 @@ func (x *GlobalNotificationSpec) GetExcludeUsers() []string {
 	return nil
 }
 
+func (x *GlobalNotificationSpec) SetByPermissions(v *ByPermissions) {
+	if v == nil {
+		x.Matcher = nil
+		return
+	}
+	x.Matcher = &GlobalNotificationSpec_ByPermissions{v}
+}
+
+func (x *GlobalNotificationSpec) SetByRoles(v *ByRoles) {
+	if v == nil {
+		x.Matcher = nil
+		return
+	}
+	x.Matcher = &GlobalNotificationSpec_ByRoles{v}
+}
+
+func (x *GlobalNotificationSpec) SetAll(v bool) {
+	x.Matcher = &GlobalNotificationSpec_All{v}
+}
+
+func (x *GlobalNotificationSpec) SetByUsers(v *ByUsers) {
+	if v == nil {
+		x.Matcher = nil
+		return
+	}
+	x.Matcher = &GlobalNotificationSpec_ByUsers{v}
+}
+
+func (x *GlobalNotificationSpec) SetMatchAllConditions(v bool) {
+	x.MatchAllConditions = v
+}
+
+func (x *GlobalNotificationSpec) SetNotification(v *Notification) {
+	x.Notification = v
+}
+
+func (x *GlobalNotificationSpec) SetExcludeUsers(v []string) {
+	x.ExcludeUsers = v
+}
+
+func (x *GlobalNotificationSpec) HasMatcher() bool {
+	if x == nil {
+		return false
+	}
+	return x.Matcher != nil
+}
+
+func (x *GlobalNotificationSpec) HasByPermissions() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Matcher.(*GlobalNotificationSpec_ByPermissions)
+	return ok
+}
+
+func (x *GlobalNotificationSpec) HasByRoles() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Matcher.(*GlobalNotificationSpec_ByRoles)
+	return ok
+}
+
+func (x *GlobalNotificationSpec) HasAll() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Matcher.(*GlobalNotificationSpec_All)
+	return ok
+}
+
+func (x *GlobalNotificationSpec) HasByUsers() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Matcher.(*GlobalNotificationSpec_ByUsers)
+	return ok
+}
+
+func (x *GlobalNotificationSpec) HasNotification() bool {
+	if x == nil {
+		return false
+	}
+	return x.Notification != nil
+}
+
+func (x *GlobalNotificationSpec) ClearMatcher() {
+	x.Matcher = nil
+}
+
+func (x *GlobalNotificationSpec) ClearByPermissions() {
+	if _, ok := x.Matcher.(*GlobalNotificationSpec_ByPermissions); ok {
+		x.Matcher = nil
+	}
+}
+
+func (x *GlobalNotificationSpec) ClearByRoles() {
+	if _, ok := x.Matcher.(*GlobalNotificationSpec_ByRoles); ok {
+		x.Matcher = nil
+	}
+}
+
+func (x *GlobalNotificationSpec) ClearAll() {
+	if _, ok := x.Matcher.(*GlobalNotificationSpec_All); ok {
+		x.Matcher = nil
+	}
+}
+
+func (x *GlobalNotificationSpec) ClearByUsers() {
+	if _, ok := x.Matcher.(*GlobalNotificationSpec_ByUsers); ok {
+		x.Matcher = nil
+	}
+}
+
+func (x *GlobalNotificationSpec) ClearNotification() {
+	x.Notification = nil
+}
+
+const GlobalNotificationSpec_Matcher_not_set_case case_GlobalNotificationSpec_Matcher = 0
+const GlobalNotificationSpec_ByPermissions_case case_GlobalNotificationSpec_Matcher = 1
+const GlobalNotificationSpec_ByRoles_case case_GlobalNotificationSpec_Matcher = 2
+const GlobalNotificationSpec_All_case case_GlobalNotificationSpec_Matcher = 3
+const GlobalNotificationSpec_ByUsers_case case_GlobalNotificationSpec_Matcher = 7
+
+func (x *GlobalNotificationSpec) WhichMatcher() case_GlobalNotificationSpec_Matcher {
+	if x == nil {
+		return GlobalNotificationSpec_Matcher_not_set_case
+	}
+	switch x.Matcher.(type) {
+	case *GlobalNotificationSpec_ByPermissions:
+		return GlobalNotificationSpec_ByPermissions_case
+	case *GlobalNotificationSpec_ByRoles:
+		return GlobalNotificationSpec_ByRoles_case
+	case *GlobalNotificationSpec_All:
+		return GlobalNotificationSpec_All_case
+	case *GlobalNotificationSpec_ByUsers:
+		return GlobalNotificationSpec_ByUsers_case
+	default:
+		return GlobalNotificationSpec_Matcher_not_set_case
+	}
+}
+
+type GlobalNotificationSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Matcher for determining the target of this notification.
+
+	// Fields of oneof Matcher:
+	// by_permissions represents the RoleConditions needed for a user to receive this notification.
+	// If multiple permissions are defined and `MatchAllConditions` is true, the user will need to have
+	// all of them to receive this notification.
+	ByPermissions *ByPermissions
+	// by_roles represents the roles targeted by this notification.
+	// If multiple roles are defined and `MatchAllConditions` is true, the user will need to have all
+	// of them to receive this notification.
+	ByRoles *ByRoles
+	// all represents whether to target all users, regardless of roles or permissions.
+	All *bool
+	// by_users represents a list of usernames of the users targeted by this notification.
+	// If only one user is being targeted, please create a user-specific notification instead.
+	ByUsers *ByUsers
+	// -- end of Matcher
+	// match_all_conditions is whether or not all the conditions specified by the matcher must be met,
+	// if false, only one of the conditions needs to be met.
+	MatchAllConditions bool
+	// notification is the notification itself.
+	Notification *Notification
+	// exclude_users is a list of usernames of users who should never match this notification
+	// under any circumstances.
+	ExcludeUsers []string
+}
+
+func (b0 GlobalNotificationSpec_builder) Build() *GlobalNotificationSpec {
+	m0 := &GlobalNotificationSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.ByPermissions != nil {
+		x.Matcher = &GlobalNotificationSpec_ByPermissions{b.ByPermissions}
+	}
+	if b.ByRoles != nil {
+		x.Matcher = &GlobalNotificationSpec_ByRoles{b.ByRoles}
+	}
+	if b.All != nil {
+		x.Matcher = &GlobalNotificationSpec_All{*b.All}
+	}
+	if b.ByUsers != nil {
+		x.Matcher = &GlobalNotificationSpec_ByUsers{b.ByUsers}
+	}
+	x.MatchAllConditions = b.MatchAllConditions
+	x.Notification = b.Notification
+	x.ExcludeUsers = b.ExcludeUsers
+	return m0
+}
+
+type case_GlobalNotificationSpec_Matcher protoreflect.FieldNumber
+
+func (x case_GlobalNotificationSpec_Matcher) String() string {
+	md := file_teleport_notifications_v1_notifications_proto_msgTypes[3].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isGlobalNotificationSpec_Matcher interface {
 	isGlobalNotificationSpec_Matcher()
 }
@@ -478,7 +840,7 @@ func (*GlobalNotificationSpec_ByUsers) isGlobalNotificationSpec_Matcher() {}
 
 // ByPermissions represents the RoleConditions needed for a user to receive this notification.
 type ByPermissions struct {
-	state          protoimpl.MessageState  `protogen:"open.v1"`
+	state          protoimpl.MessageState  `protogen:"hybrid.v1"`
 	RoleConditions []*types.RoleConditions `protobuf:"bytes,1,rep,name=role_conditions,json=roleConditions,proto3" json:"role_conditions,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
@@ -509,11 +871,6 @@ func (x *ByPermissions) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ByPermissions.ProtoReflect.Descriptor instead.
-func (*ByPermissions) Descriptor() ([]byte, []int) {
-	return file_teleport_notifications_v1_notifications_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *ByPermissions) GetRoleConditions() []*types.RoleConditions {
 	if x != nil {
 		return x.RoleConditions
@@ -521,9 +878,27 @@ func (x *ByPermissions) GetRoleConditions() []*types.RoleConditions {
 	return nil
 }
 
+func (x *ByPermissions) SetRoleConditions(v []*types.RoleConditions) {
+	x.RoleConditions = v
+}
+
+type ByPermissions_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	RoleConditions []*types.RoleConditions
+}
+
+func (b0 ByPermissions_builder) Build() *ByPermissions {
+	m0 := &ByPermissions{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.RoleConditions = b.RoleConditions
+	return m0
+}
+
 // ByRoles represents the roles targeted by this notification.
 type ByRoles struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Roles         []string               `protobuf:"bytes,1,rep,name=roles,proto3" json:"roles,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -554,11 +929,6 @@ func (x *ByRoles) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ByRoles.ProtoReflect.Descriptor instead.
-func (*ByRoles) Descriptor() ([]byte, []int) {
-	return file_teleport_notifications_v1_notifications_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *ByRoles) GetRoles() []string {
 	if x != nil {
 		return x.Roles
@@ -566,9 +936,27 @@ func (x *ByRoles) GetRoles() []string {
 	return nil
 }
 
+func (x *ByRoles) SetRoles(v []string) {
+	x.Roles = v
+}
+
+type ByRoles_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Roles []string
+}
+
+func (b0 ByRoles_builder) Build() *ByRoles {
+	m0 := &ByRoles{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Roles = b.Roles
+	return m0
+}
+
 // ByUsers represents the users targeted by this notification.
 type ByUsers struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Users         []string               `protobuf:"bytes,1,rep,name=users,proto3" json:"users,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -599,11 +987,6 @@ func (x *ByUsers) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ByUsers.ProtoReflect.Descriptor instead.
-func (*ByUsers) Descriptor() ([]byte, []int) {
-	return file_teleport_notifications_v1_notifications_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *ByUsers) GetUsers() []string {
 	if x != nil {
 		return x.Users
@@ -611,10 +994,28 @@ func (x *ByUsers) GetUsers() []string {
 	return nil
 }
 
+func (x *ByUsers) SetUsers(v []string) {
+	x.Users = v
+}
+
+type ByUsers_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Users []string
+}
+
+func (b0 ByUsers_builder) Build() *ByUsers {
+	m0 := &ByUsers{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Users = b.Users
+	return m0
+}
+
 // UserNotificationState represents a notification's state for a user. This is to keep track
 // of whether the user has clicked on or dismissed the notification.
 type UserNotificationState struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// kind is the resource kind ("user_notification_state").
 	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	// sub_kind is the optional resource subkind. This is unused.
@@ -654,11 +1055,6 @@ func (x *UserNotificationState) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use UserNotificationState.ProtoReflect.Descriptor instead.
-func (*UserNotificationState) Descriptor() ([]byte, []int) {
-	return file_teleport_notifications_v1_notifications_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *UserNotificationState) GetKind() string {
@@ -703,9 +1099,96 @@ func (x *UserNotificationState) GetStatus() *UserNotificationStateStatus {
 	return nil
 }
 
+func (x *UserNotificationState) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *UserNotificationState) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+func (x *UserNotificationState) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *UserNotificationState) SetMetadata(v *v1.Metadata) {
+	x.Metadata = v
+}
+
+func (x *UserNotificationState) SetSpec(v *UserNotificationStateSpec) {
+	x.Spec = v
+}
+
+func (x *UserNotificationState) SetStatus(v *UserNotificationStateStatus) {
+	x.Status = v
+}
+
+func (x *UserNotificationState) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *UserNotificationState) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *UserNotificationState) HasStatus() bool {
+	if x == nil {
+		return false
+	}
+	return x.Status != nil
+}
+
+func (x *UserNotificationState) ClearMetadata() {
+	x.Metadata = nil
+}
+
+func (x *UserNotificationState) ClearSpec() {
+	x.Spec = nil
+}
+
+func (x *UserNotificationState) ClearStatus() {
+	x.Status = nil
+}
+
+type UserNotificationState_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// kind is the resource kind ("user_notification_state").
+	Kind string
+	// sub_kind is the optional resource subkind. This is unused.
+	SubKind string
+	// version is the resource version.
+	Version string
+	// metadata is the user notification state's metadata.
+	Metadata *v1.Metadata
+	// spec is the user notification state's specification.
+	Spec *UserNotificationStateSpec
+	// status is the state of this user notification state, it contains the notification state itself which will be dynamically modified.
+	Status *UserNotificationStateStatus
+}
+
+func (b0 UserNotificationState_builder) Build() *UserNotificationState {
+	m0 := &UserNotificationState{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.SubKind = b.SubKind
+	x.Version = b.Version
+	x.Metadata = b.Metadata
+	x.Spec = b.Spec
+	x.Status = b.Status
+	return m0
+}
+
 // UserNotificationStateSpec is the user notification state's specification.
 type UserNotificationStateSpec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// notification_id is the ID of the notification this state is for.
 	NotificationId string `protobuf:"bytes,1,opt,name=notification_id,json=notificationId,proto3" json:"notification_id,omitempty"`
 	// username is the username of the user this notification state is for.
@@ -739,11 +1222,6 @@ func (x *UserNotificationStateSpec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UserNotificationStateSpec.ProtoReflect.Descriptor instead.
-func (*UserNotificationStateSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_notifications_v1_notifications_proto_rawDescGZIP(), []int{8}
-}
-
 func (x *UserNotificationStateSpec) GetNotificationId() string {
 	if x != nil {
 		return x.NotificationId
@@ -758,9 +1236,35 @@ func (x *UserNotificationStateSpec) GetUsername() string {
 	return ""
 }
 
+func (x *UserNotificationStateSpec) SetNotificationId(v string) {
+	x.NotificationId = v
+}
+
+func (x *UserNotificationStateSpec) SetUsername(v string) {
+	x.Username = v
+}
+
+type UserNotificationStateSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// notification_id is the ID of the notification this state is for.
+	NotificationId string
+	// username is the username of the user this notification state is for.
+	Username string
+}
+
+func (b0 UserNotificationStateSpec_builder) Build() *UserNotificationStateSpec {
+	m0 := &UserNotificationStateSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.NotificationId = b.NotificationId
+	x.Username = b.Username
+	return m0
+}
+
 // UserNotificationStateStatus is the status of this user notification state, it contains the notification state itself which will be dynamically modified.
 type UserNotificationStateStatus struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// notification_state is the state of this notification for the user. This can represent either "clicked" or "dismissed".
 	NotificationState NotificationState `protobuf:"varint,1,opt,name=notification_state,json=notificationState,proto3,enum=teleport.notifications.v1.NotificationState" json:"notification_state,omitempty"`
 	unknownFields     protoimpl.UnknownFields
@@ -792,11 +1296,6 @@ func (x *UserNotificationStateStatus) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UserNotificationStateStatus.ProtoReflect.Descriptor instead.
-func (*UserNotificationStateStatus) Descriptor() ([]byte, []int) {
-	return file_teleport_notifications_v1_notifications_proto_rawDescGZIP(), []int{9}
-}
-
 func (x *UserNotificationStateStatus) GetNotificationState() NotificationState {
 	if x != nil {
 		return x.NotificationState
@@ -804,9 +1303,28 @@ func (x *UserNotificationStateStatus) GetNotificationState() NotificationState {
 	return NotificationState_NOTIFICATION_STATE_UNSPECIFIED
 }
 
+func (x *UserNotificationStateStatus) SetNotificationState(v NotificationState) {
+	x.NotificationState = v
+}
+
+type UserNotificationStateStatus_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// notification_state is the state of this notification for the user. This can represent either "clicked" or "dismissed".
+	NotificationState NotificationState
+}
+
+func (b0 UserNotificationStateStatus_builder) Build() *UserNotificationStateStatus {
+	m0 := &UserNotificationStateStatus{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.NotificationState = b.NotificationState
+	return m0
+}
+
 // UserLastSeenNotification represents the timestamp of the last notification a user has seen.
 type UserLastSeenNotification struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// kind is the resource kind ("user_last_seen_notification").
 	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	// sub_kind is the optional resource subkind. This is unused.
@@ -846,11 +1364,6 @@ func (x *UserLastSeenNotification) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use UserLastSeenNotification.ProtoReflect.Descriptor instead.
-func (*UserLastSeenNotification) Descriptor() ([]byte, []int) {
-	return file_teleport_notifications_v1_notifications_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *UserLastSeenNotification) GetKind() string {
@@ -895,9 +1408,96 @@ func (x *UserLastSeenNotification) GetStatus() *UserLastSeenNotificationStatus {
 	return nil
 }
 
+func (x *UserLastSeenNotification) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *UserLastSeenNotification) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+func (x *UserLastSeenNotification) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *UserLastSeenNotification) SetMetadata(v *v1.Metadata) {
+	x.Metadata = v
+}
+
+func (x *UserLastSeenNotification) SetSpec(v *UserLastSeenNotificationSpec) {
+	x.Spec = v
+}
+
+func (x *UserLastSeenNotification) SetStatus(v *UserLastSeenNotificationStatus) {
+	x.Status = v
+}
+
+func (x *UserLastSeenNotification) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *UserLastSeenNotification) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *UserLastSeenNotification) HasStatus() bool {
+	if x == nil {
+		return false
+	}
+	return x.Status != nil
+}
+
+func (x *UserLastSeenNotification) ClearMetadata() {
+	x.Metadata = nil
+}
+
+func (x *UserLastSeenNotification) ClearSpec() {
+	x.Spec = nil
+}
+
+func (x *UserLastSeenNotification) ClearStatus() {
+	x.Status = nil
+}
+
+type UserLastSeenNotification_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// kind is the resource kind ("user_last_seen_notification").
+	Kind string
+	// sub_kind is the optional resource subkind. This is unused.
+	SubKind string
+	// version is the resource version.
+	Version string
+	// metadata is the user last seen notification object's metadata.
+	Metadata *v1.Metadata
+	// UserLastSeenNotificationSpec is the user last seen notification item's specification.
+	Spec *UserLastSeenNotificationSpec
+	// status is the timestamp of this user's last seen notification, it contains the timestamp of the notification which will be dynamically modified.
+	Status *UserLastSeenNotificationStatus
+}
+
+func (b0 UserLastSeenNotification_builder) Build() *UserLastSeenNotification {
+	m0 := &UserLastSeenNotification{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.SubKind = b.SubKind
+	x.Version = b.Version
+	x.Metadata = b.Metadata
+	x.Spec = b.Spec
+	x.Status = b.Status
+	return m0
+}
+
 // UserLastSeenNotificationSpec is a user last seen notification specification.
 type UserLastSeenNotificationSpec struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -927,14 +1527,21 @@ func (x *UserLastSeenNotificationSpec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UserLastSeenNotificationSpec.ProtoReflect.Descriptor instead.
-func (*UserLastSeenNotificationSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_notifications_v1_notifications_proto_rawDescGZIP(), []int{11}
+type UserLastSeenNotificationSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 UserLastSeenNotificationSpec_builder) Build() *UserLastSeenNotificationSpec {
+	m0 := &UserLastSeenNotificationSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // UserLastSeenNotificationStatus is the timestamp of this user's last seen notification, it contains the timestamp of the notification which will be dynamically modified.
 type UserLastSeenNotificationStatus struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// last_seen_time is the timestamp of the last notification that the user has seen.
 	LastSeenTime  *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=last_seen_time,json=lastSeenTime,proto3" json:"last_seen_time,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -966,16 +1573,41 @@ func (x *UserLastSeenNotificationStatus) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UserLastSeenNotificationStatus.ProtoReflect.Descriptor instead.
-func (*UserLastSeenNotificationStatus) Descriptor() ([]byte, []int) {
-	return file_teleport_notifications_v1_notifications_proto_rawDescGZIP(), []int{12}
-}
-
 func (x *UserLastSeenNotificationStatus) GetLastSeenTime() *timestamppb.Timestamp {
 	if x != nil {
 		return x.LastSeenTime
 	}
 	return nil
+}
+
+func (x *UserLastSeenNotificationStatus) SetLastSeenTime(v *timestamppb.Timestamp) {
+	x.LastSeenTime = v
+}
+
+func (x *UserLastSeenNotificationStatus) HasLastSeenTime() bool {
+	if x == nil {
+		return false
+	}
+	return x.LastSeenTime != nil
+}
+
+func (x *UserLastSeenNotificationStatus) ClearLastSeenTime() {
+	x.LastSeenTime = nil
+}
+
+type UserLastSeenNotificationStatus_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// last_seen_time is the timestamp of the last notification that the user has seen.
+	LastSeenTime *timestamppb.Timestamp
+}
+
+func (b0 UserLastSeenNotificationStatus_builder) Build() *UserLastSeenNotificationStatus {
+	m0 := &UserLastSeenNotificationStatus{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.LastSeenTime = b.LastSeenTime
+	return m0
 }
 
 // UniqueNotificationIdentifier represents a unique notification identifier.
@@ -985,7 +1617,7 @@ func (x *UserLastSeenNotificationStatus) GetLastSeenTime() *timestamppb.Timestam
 // it will detect that the identifier already exists, and thus know not to create a duplicate.
 // Note that using this system does not always guarantee accuracy/concurrency, so this shouldn't be used for security critical notifications.
 type UniqueNotificationIdentifier struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// kind is the resource kind ("unique_notification_identifier").
 	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	// version is the resource version.
@@ -1023,11 +1655,6 @@ func (x *UniqueNotificationIdentifier) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UniqueNotificationIdentifier.ProtoReflect.Descriptor instead.
-func (*UniqueNotificationIdentifier) Descriptor() ([]byte, []int) {
-	return file_teleport_notifications_v1_notifications_proto_rawDescGZIP(), []int{13}
-}
-
 func (x *UniqueNotificationIdentifier) GetKind() string {
 	if x != nil {
 		return x.Kind
@@ -1056,9 +1683,71 @@ func (x *UniqueNotificationIdentifier) GetSpec() *UniqueNotificationIdentifierSp
 	return nil
 }
 
+func (x *UniqueNotificationIdentifier) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *UniqueNotificationIdentifier) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *UniqueNotificationIdentifier) SetMetadata(v *v1.Metadata) {
+	x.Metadata = v
+}
+
+func (x *UniqueNotificationIdentifier) SetSpec(v *UniqueNotificationIdentifierSpec) {
+	x.Spec = v
+}
+
+func (x *UniqueNotificationIdentifier) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *UniqueNotificationIdentifier) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *UniqueNotificationIdentifier) ClearMetadata() {
+	x.Metadata = nil
+}
+
+func (x *UniqueNotificationIdentifier) ClearSpec() {
+	x.Spec = nil
+}
+
+type UniqueNotificationIdentifier_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// kind is the resource kind ("unique_notification_identifier").
+	Kind string
+	// version is the resource version.
+	Version string
+	// metadata is the unique notification identifier metadata.
+	Metadata *v1.Metadata
+	// spec is the unique notification identifier spec.
+	Spec *UniqueNotificationIdentifierSpec
+}
+
+func (b0 UniqueNotificationIdentifier_builder) Build() *UniqueNotificationIdentifier {
+	m0 := &UniqueNotificationIdentifier{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.Version = b.Version
+	x.Metadata = b.Metadata
+	x.Spec = b.Spec
+	return m0
+}
+
 // UniqueNotificationIdentifierSpec is the unique notification identifier specification.
 type UniqueNotificationIdentifierSpec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// unique_identifier is the unique identifier string. This is what is used to keep track of the unique notification and what is used in the resource's backend key.
 	UniqueIdentifier string `protobuf:"bytes,1,opt,name=unique_identifier,json=uniqueIdentifier,proto3" json:"unique_identifier,omitempty"`
 	// unique_identifier_prefix is the prefix for this unique notiifcation identifier, this is used to group notification identifiers together, eg. "access_list_30d_reminder"
@@ -1092,11 +1781,6 @@ func (x *UniqueNotificationIdentifierSpec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UniqueNotificationIdentifierSpec.ProtoReflect.Descriptor instead.
-func (*UniqueNotificationIdentifierSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_notifications_v1_notifications_proto_rawDescGZIP(), []int{14}
-}
-
 func (x *UniqueNotificationIdentifierSpec) GetUniqueIdentifier() string {
 	if x != nil {
 		return x.UniqueIdentifier
@@ -1109,6 +1793,32 @@ func (x *UniqueNotificationIdentifierSpec) GetUniqueIdentifierPrefix() string {
 		return x.UniqueIdentifierPrefix
 	}
 	return ""
+}
+
+func (x *UniqueNotificationIdentifierSpec) SetUniqueIdentifier(v string) {
+	x.UniqueIdentifier = v
+}
+
+func (x *UniqueNotificationIdentifierSpec) SetUniqueIdentifierPrefix(v string) {
+	x.UniqueIdentifierPrefix = v
+}
+
+type UniqueNotificationIdentifierSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// unique_identifier is the unique identifier string. This is what is used to keep track of the unique notification and what is used in the resource's backend key.
+	UniqueIdentifier string
+	// unique_identifier_prefix is the prefix for this unique notiifcation identifier, this is used to group notification identifiers together, eg. "access_list_30d_reminder"
+	UniqueIdentifierPrefix string
+}
+
+func (b0 UniqueNotificationIdentifierSpec_builder) Build() *UniqueNotificationIdentifierSpec {
+	m0 := &UniqueNotificationIdentifierSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.UniqueIdentifier = b.UniqueIdentifier
+	x.UniqueIdentifierPrefix = b.UniqueIdentifierPrefix
+	return m0
 }
 
 var File_teleport_notifications_v1_notifications_proto protoreflect.FileDescriptor
@@ -1181,18 +1891,6 @@ const file_teleport_notifications_v1_notifications_proto_rawDesc = "" +
 	"\x1eNOTIFICATION_STATE_UNSPECIFIED\x10\x00\x12\x1e\n" +
 	"\x1aNOTIFICATION_STATE_CLICKED\x10\x01\x12 \n" +
 	"\x1cNOTIFICATION_STATE_DISMISSED\x10\x02B^Z\\github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1;notificationsv1b\x06proto3"
-
-var (
-	file_teleport_notifications_v1_notifications_proto_rawDescOnce sync.Once
-	file_teleport_notifications_v1_notifications_proto_rawDescData []byte
-)
-
-func file_teleport_notifications_v1_notifications_proto_rawDescGZIP() []byte {
-	file_teleport_notifications_v1_notifications_proto_rawDescOnce.Do(func() {
-		file_teleport_notifications_v1_notifications_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_notifications_v1_notifications_proto_rawDesc), len(file_teleport_notifications_v1_notifications_proto_rawDesc)))
-	})
-	return file_teleport_notifications_v1_notifications_proto_rawDescData
-}
 
 var file_teleport_notifications_v1_notifications_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_teleport_notifications_v1_notifications_proto_msgTypes = make([]protoimpl.MessageInfo, 15)

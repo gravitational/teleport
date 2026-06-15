@@ -174,13 +174,13 @@ func TestGenericWrapperCRUD(t *testing.T) {
 	}
 	require.Empty(t, cmp.Diff(paginatedOut, streamedResources, protocmp.Transform()))
 
-	// Retrieve all resources from the stream
+	// Retrieve resources within an exclusive end range from the stream.
 	streamedResources = nil
 	for r, err := range service.Resources(ctx, r1.GetMetadata().GetName(), r2.GetMetadata().GetName()) {
 		require.NoError(t, err)
 		streamedResources = append(streamedResources, r)
 	}
-	require.Empty(t, cmp.Diff(paginatedOut, streamedResources, protocmp.Transform()))
+	require.Empty(t, cmp.Diff([]*testResource153{r1}, streamedResources, protocmp.Transform()))
 
 	// Retrieve a single resource from the stream
 	streamedResources = nil
@@ -190,13 +190,13 @@ func TestGenericWrapperCRUD(t *testing.T) {
 	}
 	require.Empty(t, cmp.Diff([]*testResource153{r2}, streamedResources, protocmp.Transform()))
 
-	// Retrieve a single resource from the stream
+	// An exclusive end equal to the first resource yields nothing.
 	streamedResources = nil
 	for r, err := range service.Resources(ctx, "", r1.GetMetadata().GetName()) {
 		require.NoError(t, err)
 		streamedResources = append(streamedResources, r)
 	}
-	require.Empty(t, cmp.Diff([]*testResource153{r1}, streamedResources, protocmp.Transform()))
+	require.Empty(t, streamedResources)
 
 	// Fetch a specific service provider.
 	r, err := service.GetResource(ctx, r2.GetMetadata().GetName())

@@ -22,6 +22,7 @@ import (
 	"os"
 
 	"github.com/gravitational/teleport/lib/observability/metrics"
+	"github.com/gravitational/teleport/session/reexec"
 	"github.com/gravitational/teleport/tool/teleport/common"
 )
 
@@ -30,6 +31,8 @@ func init() {
 }
 
 func main() {
+	reexec.MaybeReexec()
+
 	common.Run(common.Options{
 		Args: os.Args[1:],
 	})

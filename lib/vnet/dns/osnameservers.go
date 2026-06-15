@@ -17,45 +17,21 @@
 package dns
 
 import (
-	"context"
+	"log/slog"
 	"net/netip"
 	"time"
-
-	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/lib/utils"
 )
 
-// OSUpstreamNameserverSource provides the list of upstream DNS nameservers
-// configured in the OS. The VNet DNS resolver will forward unhandles queries to
-// these nameservers.
-type OSUpstreamNameserverSource struct {
-	ttlCache *utils.FnCache
+// NewOSUpstreamNameserverSource returns an upstream nameserver source for the
+// current platform. Its results will be cached for 10 seconds.
+func NewOSUpstreamNameserverSource(logger *slog.Logger) (UpstreamNameserverSource, error) {
+	return CachingUpstreamNameserverSource(
+		platformUpstreamNameserverSource(logger),
+		10*time.Second,
+	)
 }
 
-// NewOSUpstreamNameserverSource returns a new *OSUpstreamNameserverSource.
-func NewOSUpstreamNameserverSource() (*OSUpstreamNameserverSource, error) {
-	ttlCache, err := utils.NewFnCache(utils.FnCacheConfig{
-		TTL: 10 * time.Second,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &OSUpstreamNameserverSource{
-		ttlCache: ttlCache,
-	}, nil
-}
-
-// UpstreamNameservers returns a cached view of the host OS's current default
-// nameservers.
-func (s *OSUpstreamNameserverSource) UpstreamNameservers(ctx context.Context) ([]string, error) {
-	return utils.FnCacheGet(ctx, s.ttlCache, 0, loadUpstreamNameservers)
-}
-
-func loadUpstreamNameservers(ctx context.Context) ([]string, error) {
-	return platformLoadUpstreamNameservers(ctx)
-}
-
-func withDNSPort(addr netip.Addr) string {
+// AddrWithDNSPort returns addr with DNS port 53.
+func AddrWithDNSPort(addr netip.Addr) string {
 	return netip.AddrPortFrom(addr, 53).String()
 }

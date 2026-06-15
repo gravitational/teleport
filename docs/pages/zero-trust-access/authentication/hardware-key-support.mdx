@@ -86,7 +86,8 @@ like `tctl edit`. With touch required, hardware key support provides better secu
 - Install a smart card driver for your operating system. Teleport clients will connect to your YubiKey through the smart card driver to generate keys and perform cryptographic operations.
   - macOS and Windows both ship with smart card drivers.
     - If you run into problems on Windows, try the official [YubiKey Smart Card Minidriver](https://www.yubico.com/support/download/smart-card-drivers-tools/).
-  - On Linux distributions, download the [YubiKey Manager or Yubico PIV tool](https://www.yubico.com/support/download/smart-card-drivers-tools/), which both include the Linux smart card driver as a dependency.
+  - On Linux distributions, make sure the system smart card service (pcscd, typically provided by the pcsc-lite package) is installed and up to date.
+    - pcsc-lite version 2.4.1+ is recommended for maximum compatibility. If 2.4.1+ is not available, ensure at least version 1.8.24+ is installed, since some distro-provided versions can cause hardware key compatibility issues.
 - (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/2. Enforce hardware key support

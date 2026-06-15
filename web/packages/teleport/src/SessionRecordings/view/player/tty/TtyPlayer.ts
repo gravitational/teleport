@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { CanvasAddon } from '@xterm/addon-canvas';
 import { ImageAddon } from '@xterm/addon-image';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { WebglAddon } from '@xterm/addon-webgl';
@@ -68,9 +67,8 @@ export class TtyPlayer extends Player<TtyEvent> {
     });
 
     const linksAddon = new WebLinksAddon();
-    const imageAddon = new ImageAddon();
 
-    this.addons.push(this.aspectFitAddon, linksAddon, imageAddon);
+    this.addons.push(this.aspectFitAddon, linksAddon);
 
     this.aspectFitAddon.activate(this.terminal);
 
@@ -78,24 +76,30 @@ export class TtyPlayer extends Player<TtyEvent> {
       this.terminal.loadAddon(addon);
     }
 
-    const createCanvasAddon = () => {
-      const canvasAddon = new CanvasAddon();
-
-      this.addons.push(canvasAddon);
-      this.terminal.loadAddon(canvasAddon);
-    };
-
+    // @xterm/addon-image relies on WebAssembly internally. The vite plugin
+    // guard-wasm-globals rewrites bare WebAssembly references so the module can
+    // be statically imported without crashing; construction and activation will
+    // still throw when WebAssembly is genuinely unavailable, so we catch that here.
     try {
-      const webglAddon = new WebglAddon();
+      const imageAddon = new ImageAddon();
+      this.terminal.loadAddon(imageAddon);
+      this.addons.push(imageAddon);
+    } catch (e) {
+      this.logger.error(`Failed to load image addon: ${e.message}`);
+    }
+
+    let webglAddon: WebglAddon | undefined;
+    try {
+      webglAddon = new WebglAddon();
 
       webglAddon.onContextLoss(() => {
-        createCanvasAddon();
+        webglAddon?.dispose();
       });
 
       this.terminal.loadAddon(webglAddon);
       this.addons.push(webglAddon);
     } catch {
-      createCanvasAddon();
+      webglAddon?.dispose();
     }
 
     this.terminal.open(element);

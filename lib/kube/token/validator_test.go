@@ -201,8 +201,10 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 				},
 			},
 			wantResult: &ValidationResult{
-				Type:     types.KubernetesJoinTypeInCluster,
-				Username: "system:serviceaccount:namespace:my-service-account",
+				Type:                    types.KubernetesJoinTypeInCluster,
+				Username:                "system:serviceaccount:namespace:my-service-account",
+				ServiceAccountNamespace: "namespace",
+				ServiceAccountName:      "my-service-account",
 				// Raw will be filled in during test run to value of review
 			},
 			wantAttrs: &workloadidentityv1pb.JoinAttrsKubernetes{
@@ -241,8 +243,10 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 				},
 			},
 			wantResult: &ValidationResult{
-				Type:     types.KubernetesJoinTypeInCluster,
-				Username: "system:serviceaccount:namespace:my-service-account",
+				Type:                    types.KubernetesJoinTypeInCluster,
+				Username:                "system:serviceaccount:namespace:my-service-account",
+				ServiceAccountNamespace: "namespace",
+				ServiceAccountName:      "my-service-account",
 				// Raw will be filled in during test run to value of review
 			},
 			wantAttrs: &workloadidentityv1pb.JoinAttrsKubernetes{
@@ -278,8 +282,10 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 				},
 			},
 			wantResult: &ValidationResult{
-				Type:     types.KubernetesJoinTypeInCluster,
-				Username: "system:serviceaccount:namespace:my-service-account",
+				Type:                    types.KubernetesJoinTypeInCluster,
+				Username:                "system:serviceaccount:namespace:my-service-account",
+				ServiceAccountNamespace: "namespace",
+				ServiceAccountName:      "my-service-account",
 				// Raw will be filled in during test run to value of review
 			},
 			wantAttrs: &workloadidentityv1pb.JoinAttrsKubernetes{
@@ -505,8 +511,10 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 				Kubernetes: validKubeSubclaim,
 			},
 			wantResult: &ValidationResult{
-				Type:     types.KubernetesJoinTypeStaticJWKS,
-				Username: "system:serviceaccount:default:my-service-account",
+				Type:                    types.KubernetesJoinTypeStaticJWKS,
+				Username:                "system:serviceaccount:default:my-service-account",
+				ServiceAccountNamespace: "default",
+				ServiceAccountName:      "my-service-account",
 			},
 			wantAttrs: &workloadidentityv1pb.JoinAttrsKubernetes{
 				Subject: "system:serviceaccount:default:my-service-account",
@@ -534,6 +542,28 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 					ServiceAccount: &claims.ServiceAccountSubClaim{
 						Name: "my-service-account",
 						UID:  "8b77ea6d-3144-4203-9a8b-36eb5ad65596",
+					},
+					Namespace: "default",
+				},
+			},
+			wantErr: "static_jwks joining requires the use of projected pod bound service account token",
+		},
+		{
+			// A token with a pod claim but no service account claim must be rejected, not panic.
+			name:   "missing service account claim",
+			signer: signer,
+			claims: claims.ServiceAccountClaims{
+				Claims: jwt.Claims{
+					Subject:   "system:serviceaccount:default:my-service-account",
+					Audience:  jwt.Audience{clusterName},
+					IssuedAt:  jwt.NewNumericDate(now.Add(-1 * time.Minute)),
+					NotBefore: jwt.NewNumericDate(now.Add(-1 * time.Minute)),
+					Expiry:    jwt.NewNumericDate(now.Add(10 * time.Minute)),
+				},
+				Kubernetes: &claims.KubernetesSubClaim{
+					Pod: &claims.PodSubClaim{
+						Name: "my-pod-797959fdf-wptbj",
+						UID:  "413b22ca-4833-48d9-b6db-76219d583173",
 					},
 					Namespace: "default",
 				},
@@ -744,6 +774,8 @@ func TestValidateTokenWithOIDC(t *testing.T) {
 					},
 					Kubernetes: k8sClaim,
 				},
+				ServiceAccountName:      "example",
+				ServiceAccountNamespace: "default",
 			},
 		},
 		{
@@ -839,6 +871,29 @@ func TestValidateTokenWithOIDC(t *testing.T) {
 			)),
 			assertError: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "signature verification failed")
+			},
+			want: nil,
+		},
+		{
+			// A token with a pod claim but no service account claim must be rejected, not panic.
+			name:     "missing-service-account",
+			audience: idpAudience,
+			token: mustIssueToken(idp.IssueToken(
+				idp.IssuerURL(),
+				idpAudience,
+				"example",
+				time.Now().Add(-5*time.Minute),
+				time.Now().Add(5*time.Minute),
+				&claims.KubernetesSubClaim{
+					Namespace: "default",
+					Pod: &claims.PodSubClaim{
+						Name: "example-pod",
+						UID:  "zxcv-1234",
+					},
+				},
+			)),
+			assertError: func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, "requires the use of a projected pod")
 			},
 			want: nil,
 		},

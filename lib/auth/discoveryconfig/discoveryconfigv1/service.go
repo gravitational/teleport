@@ -65,7 +65,7 @@ type ServiceConfig struct {
 	Emitter apievents.Emitter
 
 	// UsageReporter is the reporter for sending usage events.
-	UsageReporter func() usagereporter.UsageReporter
+	UsageReporter usagereporter.UsageReporter
 }
 
 // CheckAndSetDefaults checks the ServiceConfig fields and returns an error if
@@ -105,7 +105,7 @@ type Service struct {
 	backend       services.DiscoveryConfigs
 	clock         clockwork.Clock
 	emitter       apievents.Emitter
-	usageReporter func() usagereporter.UsageReporter
+	usageReporter usagereporter.UsageReporter
 }
 
 // NewService returns a new DiscoveryConfigs gRPC service.
@@ -428,11 +428,11 @@ func (s *Service) emitUsageEvent(dc *discoveryconfig.DiscoveryConfig, action pre
 	resourceTypes, cloudProviders := extractDiscoveryConfigMetadata(dc)
 
 	creationMethod := CreationMethodGuided
-	if _, ok := dc.GetMetadata().Labels[types.DiscoveryIACToolLabel]; ok {
+	if _, ok := dc.GetMetadata().Labels[types.IACToolLabel]; ok {
 		creationMethod = CreationMethodIAC
 	}
 
-	s.usageReporter().AnonymizeAndSubmit(&usagereporter.DiscoveryConfigEvent{
+	s.usageReporter.AnonymizeAndSubmit(&usagereporter.DiscoveryConfigEvent{
 		Action:              action,
 		DiscoveryConfigName: dc.GetName(),
 		ResourceTypes:       resourceTypes,

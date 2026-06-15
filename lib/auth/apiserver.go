@@ -30,6 +30,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -69,6 +70,16 @@ type APIConfig struct {
 	// DisableJoinV1 disables registration of the new join gRPC service.
 	// Intended for tests that need to exercise legacy join fallback paths.
 	DisableJoinV1 bool
+	// CreateAuditStreamInflightLimit, if set, is the maximum amount of allowed
+	// in-flight CreateAuditStream rpc calls. Calls beyond the limit will
+	// immediately return with an error. A non-positive limit means that no
+	// calls will be allowed.
+	CreateAuditStreamInflightLimit *int
+	// ResolveSSHTargetRateLimit, if set, is the (server-wide) rate limit for
+	// the ResolveSSHTarget rpc (i.e. the number of allowed calls per second),
+	// with an allowed burst rate equal to the rate per second (rounded up).
+	// Calls beyond the limit will block and wait for their turn.
+	ResolveSSHTargetRateLimit *float64
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -117,7 +128,7 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.Router.UseRawPath = true
 
 	// Passwords and sessions
-	srv.POST("/:version/users/:user/web/sessions", srv.WithAuth(srv.createWebSession))
+	srv.POST("/:version/users/:user/web/sessions", srv.WithAuth(srv.extendWebSession))
 	srv.POST("/:version/users/:user/web/authenticate", srv.WithAuth(srv.authenticateWebUser))
 	srv.POST("/:version/users/:user/ssh/authenticate", srv.WithAuth(srv.authenticateSSHUser))
 	srv.GET("/:version/users/:user/web/sessions/:sid", srv.WithAuth(srv.getWebSession))
@@ -161,6 +172,17 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.POST("/:version/reversetunnels", httpMigratedHandler)
 	srv.GET("/:version/reversetunnels", httpMigratedHandler)
 	srv.DELETE("/:version/reversetunnels/:domain", httpMigratedHandler)
+
+	// Return an explicit "too old" error rather than a 404, so that outdated clients
+	// using the deprecated legacy join endpoint get an actionable message.
+	srv.POST("/:version/tokens/register", httplib.MakeHandler(func(
+		w http.ResponseWriter, r *http.Request, p httprouter.Params,
+	) (any, error) {
+		return nil, trace.AccessDenied(
+			"this client is too old to join the cluster, please upgrade to at least v%d.0.0",
+			teleport.MinClientSemVer().Major,
+		)
+	}))
 
 	if config.PluginRegistry != nil {
 		if err := config.PluginRegistry.RegisterAuthWebHandlers(&srv); err != nil {
@@ -425,26 +447,29 @@ func (s *APIServer) getWebSession(auth *ServerWithRoles, w http.ResponseWriter, 
 	return rawMessage(services.MarshalWebSession(sess, services.WithVersion(version)))
 }
 
-func (s *APIServer) createWebSession(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) extendWebSession(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	// nb(strideynet): Historically this handler/endpoint provided both
+	// Create and Extend WebSession functionality, and was known as
+	// CreateWebSession. The web session creation functionality was unused for
+	// a long time and hence removed and this handler "renamed".
+
 	var req authclient.WebSessionReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if req.PrevSessionID != "" {
-		sess, err := auth.ExtendWebSession(r.Context(), req)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return sess, nil
+	// Requires that PrevSessionID is set. Historically, the lack of this field
+	// indicated that the caller wanted to create (rather than extend) a web
+	// session.
+	if req.PrevSessionID == "" {
+		return nil, trace.BadParameter("RPC cannot be used to create new web sessions")
 	}
 
-	sess, err := auth.CreateWebSession(r.Context(), req.User)
+	sess, err := auth.ExtendWebSession(r.Context(), req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	return rawMessage(services.MarshalWebSession(sess, services.WithVersion(version)))
+	return sess, nil
 }
 
 func (s *APIServer) authenticateWebUser(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {

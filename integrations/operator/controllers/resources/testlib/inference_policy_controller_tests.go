@@ -50,7 +50,16 @@ func (p *inferencePolicyTestingPrimitives) Init(setup *TestSetup) {
 }
 
 func (p *inferencePolicyTestingPrimitives) SetupTeleportFixtures(ctx context.Context) error {
-	return nil
+	model := &summarizerv1.InferenceModel{
+		Kind:    types.KindInferenceModel,
+		Version: types.V1,
+		Metadata: &headerv1.Metadata{
+			Name: inferencePolicySpec.Model,
+		},
+		Spec: inferenceModelSpec,
+	}
+	_, err := p.setup.TeleportClient.SummarizerClient().UpsertInferenceModel(ctx, model)
+	return trace.Wrap(err)
 }
 
 func (p *inferencePolicyTestingPrimitives) CreateTeleportResource(

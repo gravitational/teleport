@@ -1225,7 +1225,7 @@ func TestServer_AuthenticateUser_setsPasswordState(t *testing.T) {
 	makeRun := func(authenticate func(*auth.Server, authclient.AuthenticateUserRequest) error) func(t *testing.T) {
 		return func(t *testing.T) {
 			// Enforce unspecified password state.
-			u, err := authServer.Identity.UpdateAndSwapUser(ctx, username, false, /* withSecrets */
+			u, err := authServer.UpdateAndSwapUser(ctx, username, false, /* withSecrets */
 				func(u types.User) (bool, error) {
 					u.SetPasswordState(types.PasswordState_PASSWORD_STATE_UNSPECIFIED)
 					return true, nil
@@ -1694,7 +1694,7 @@ func TestSSOPasswordBypass(t *testing.T) {
 		// proxyClient.AuthenticateSSHUser to something else (eg,
 		// proxyClient.AuthenticateWebUser).
 		// Optional.
-		authenticateOverride func(context.Context, authclient.AuthenticateSSHRequest) (*authclient.SSHLoginResponse, error)
+		authenticateOverride func(context.Context, authclient.AuthenticateSSHRequest) (*authclient.CLILoginResponse, error)
 	}{
 		{
 			name: "OTP",
@@ -1716,7 +1716,7 @@ func TestSSOPasswordBypass(t *testing.T) {
 		{
 			name:            "AuthenticateWeb",
 			setSecondFactor: solveWebauthn,
-			authenticateOverride: func(ctx context.Context, req authclient.AuthenticateSSHRequest) (*authclient.SSHLoginResponse, error) {
+			authenticateOverride: func(ctx context.Context, req authclient.AuthenticateSSHRequest) (*authclient.CLILoginResponse, error) {
 				// We only care about the error here, it's OK to swallow the session.
 				_, err := proxyClient.AuthenticateWebUser(ctx, req.AuthenticateUserRequest)
 				return nil, err

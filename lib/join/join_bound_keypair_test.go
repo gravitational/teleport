@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
@@ -40,6 +41,8 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
@@ -48,6 +51,8 @@ import (
 	"github.com/gravitational/teleport/lib/boundkeypair"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/join/joinclient"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -70,7 +75,7 @@ func parseJoinState(t *testing.T, state []byte) *boundkeypair.JoinState {
 	return &doc
 }
 
-func newTestTLSServer(t *testing.T, clock clockwork.Clock) *authtest.TLSServer {
+func newTestTLSServer(t *testing.T, clock clockwork.Clock, opts ...authtest.TestTLSServerOption) *authtest.TLSServer {
 	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:   t.TempDir(),
 		Clock: clock,
@@ -78,7 +83,7 @@ func newTestTLSServer(t *testing.T, clock clockwork.Clock) *authtest.TLSServer {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, as.Close()) })
 
-	srv, err := as.NewTestTLSServer()
+	srv, err := as.NewTestTLSServer(opts...)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		err := srv.Close()
@@ -1659,6 +1664,393 @@ func TestJoinBoundKeypair_JoinStateFailureDuringRenewal(t *testing.T) {
 		require.Error(t, err)
 		require.ErrorContains(t, err, "a client failed to verify its join state")
 	}, 5*time.Second, 100*time.Millisecond)
+}
+
+// TestJoinBoundKeypair_JoinStateFailure_Instance tests that join state
+// verification will trigger a lock if the original client and a secondary
+// client both attempt to recover in sequence.
+func TestJoinBoundKeypair_JoinStateFailure_Instance(t *testing.T) {
+	ctx := t.Context()
+	correctSigner, correctPublicKey := testBoundKeypair(t)
+	signers := map[string]crypto.Signer{
+		correctPublicKey: correctSigner,
+	}
+
+	srv := newTestTLSServer(t, clockwork.NewRealClock())
+	defer srv.Close()
+	authServer := srv.Auth()
+
+	_, err := authtest.CreateRole(ctx, authServer, "example", types.RoleSpecV6{})
+	require.NoError(t, err)
+
+	token, err := types.NewProvisionTokenFromSpecAndStatus(
+		"bound-keypair-test",
+		time.Now().Add(2*time.Hour),
+		types.ProvisionTokenSpecV2{
+			JoinMethod: types.JoinMethodBoundKeypair,
+			Roles:      []types.SystemRole{types.RoleInstance, types.RoleApp},
+			BoundKeypair: &types.ProvisionTokenSpecV2BoundKeypair{
+				Onboarding: &types.ProvisionTokenSpecV2BoundKeypair_OnboardingSpec{
+					InitialPublicKey: correctPublicKey,
+				},
+				Recovery: &types.ProvisionTokenSpecV2BoundKeypair_RecoverySpec{
+					Limit: 3,
+				},
+			},
+		},
+		&types.ProvisionTokenStatusV2{},
+	)
+	require.NoError(t, err)
+	require.NoError(t, authServer.CreateBoundKeypairToken(ctx, token))
+
+	// Make an unauthenticated auth client that will be used for joining.
+	nopClient, err := srv.NewClient(authtest.TestNop())
+	require.NoError(t, err)
+	defer nopClient.Close()
+
+	clientState := makeMockBoundKeypairState(signers,
+		withSingleSigningKey(correctPublicKey),
+		withNoRotation(),
+	)
+
+	originalJoinResult, err := joinclient.Join(t.Context(), joinclient.JoinParams{
+		Token: token.GetName(),
+		ID: state.IdentityID{
+			Role: types.RoleInstance,
+		},
+		AuthClient:        nopClient,
+		BoundKeypairState: clientState,
+	})
+	require.NoError(t, err)
+
+	// Perform a recovery, this time with a join state.
+	recoverResult, err := joinclient.Join(t.Context(), joinclient.JoinParams{
+		Token: token.GetName(),
+		ID: state.IdentityID{
+			Role: types.RoleInstance,
+		},
+		AuthClient: nopClient,
+		// Note: the client state manages prev join state internally in
+		// UpdateFromRegisterResult().
+		BoundKeypairState: clientState,
+	})
+	require.NoError(t, err)
+
+	recoveredClient, err := clientFromJoinResult(srv, recoverResult)
+	require.NoError(t, err)
+	defer recoveredClient.Close()
+
+	// Try an API call with these certs.
+	_, err = recoveredClient.Ping(ctx)
+	require.NoError(t, err)
+
+	// Subscribe to events from the LockWatcher
+	lockSub, err := srv.AuthServer.LockWatcher.Subscribe(ctx, types.LockTarget{
+		JoinToken: "bound-keypair-test",
+	})
+	require.NoError(t, err)
+	defer lockSub.Close()
+
+	// Try to recover again, but with the original join state.
+	outdatedClientState := makeMockBoundKeypairState(signers,
+		withSingleSigningKey(correctPublicKey),
+		withPreviousJoinState(originalJoinResult.BoundKeypair.JoinState),
+		withNoRotation(),
+	)
+	_, err = joinclient.Join(ctx, joinclient.JoinParams{
+		Token: token.GetName(),
+		ID: state.IdentityID{
+			Role: types.RoleInstance,
+		},
+		AuthClient:        nopClient,
+		BoundKeypairState: outdatedClientState,
+	})
+	require.Error(t, err)
+
+	// The token should now be locked - but only once.
+	locks, err := srv.Auth().GetLocks(ctx, true, types.LockTarget{
+		JoinToken: "bound-keypair-test",
+	})
+	require.NoError(t, err)
+	require.Len(t, locks, 1, "only one lock should be generated")
+	require.Contains(t, locks[0].Message(), "failed to verify its join state")
+
+	// Wait for the LockWatcher to notify us about the new lock. Since this
+	// otherwise happens async, we need to wait explicitly, otherwise the lock
+	// may exist in the backend without being enforced.
+	select {
+	case event := <-lockSub.Events():
+		require.Equal(t, types.OpPut, event.Type)
+	case <-lockSub.Done():
+		t.Fatal("lock subscription closed unexpectedly")
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for lock event")
+	}
+
+	// The previously working client should be locked.
+	_, err = recoveredClient.Ping(ctx)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "access denied")
+
+	// Try joining again with the same parameters to try to generate another
+	// lock - they should not be duplicated.
+	tempClientState := makeMockBoundKeypairState(signers,
+		withSingleSigningKey(correctPublicKey),
+		withPreviousJoinState(originalJoinResult.BoundKeypair.JoinState),
+		withNoRotation(),
+	)
+	_, err = joinclient.Join(ctx, joinclient.JoinParams{
+		Token: token.GetName(),
+		ID: state.IdentityID{
+			Role: types.RoleInstance,
+		},
+		AuthClient:        nopClient,
+		BoundKeypairState: tempClientState,
+	})
+	require.ErrorContains(t, err, "a client failed to verify its join state")
+
+	// Check the lock count again - only one lock should be created.
+	locks, err = srv.Auth().GetLocks(ctx, true, types.LockTarget{
+		JoinToken: "bound-keypair-test",
+	})
+	require.NoError(t, err)
+	require.Len(t, locks, 1, "only one lock should be generated")
+	require.Contains(t, locks[0].Message(), "failed to verify its join state")
+}
+
+// createScopedBot creates a scoped bot with necessary role assignments for testing.
+func createScopedBot(t *testing.T, srv *authtest.TLSServer, adminClient *authclient.Client) {
+	t.Helper()
+
+	// Create a scoped role for the bot.
+	scopedSvc := adminClient.ScopedAccessServiceClient()
+	_, err := scopedSvc.CreateScopedRole(t.Context(), &scopedaccessv1.CreateScopedRoleRequest{
+		Role: &scopedaccessv1.ScopedRole{
+			Kind:    scopedaccess.KindScopedRole,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: "scoped-example",
+			},
+			Scope: "/test",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/test"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// Create the scoped bot.
+	_, err = adminClient.BotServiceClient().CreateBot(t.Context(), &machineidv1pb.CreateBotRequest{
+		Bot: &machineidv1pb.Bot{
+			Kind:    types.KindBot,
+			Version: types.V1,
+			Scope:   "/test",
+			Metadata: &headerv1.Metadata{
+				Name: "test-scoped",
+			},
+			Spec: &machineidv1pb.BotSpec{},
+		},
+	})
+	require.NoError(t, err)
+
+	// Create a scoped role assignment for the bot.
+	resp, err := srv.Auth().ScopedAccess().CreateScopedRoleAssignment(t.Context(), &scopedaccessv1.CreateScopedRoleAssignmentRequest{
+		Assignment: &scopedaccessv1.ScopedRoleAssignment{
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: uuid.NewString(),
+			},
+			SubKind: scopedaccess.SubKindDynamic,
+			Scope:   "/test",
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				BotName:  "test-scoped",
+				BotScope: "/test",
+				Assignments: []*scopedaccessv1.Assignment{
+					{Role: "scoped-example", Scope: "/test"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	ctx := t.Context()
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		_, err := srv.Auth().ScopedAccessCache.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
+			Name:    resp.GetAssignment().GetMetadata().GetName(),
+			SubKind: resp.GetAssignment().GetSubKind(),
+		})
+		require.NoError(t, err)
+	}, time.Second*10, 100*time.Millisecond)
+}
+
+func TestJoinBoundKeypair_ScopedToken(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+
+	ctx := t.Context()
+
+	correctSigner, correctPublicKey := testBoundKeypair(t)
+	signers := map[string]crypto.Signer{
+		correctPublicKey: correctSigner,
+	}
+
+	clock := clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC())
+
+	srv := newTestTLSServer(t, clock)
+	authServer := srv.Auth()
+
+	_, err := authtest.CreateRole(ctx, authServer, "example", types.RoleSpecV6{})
+	require.NoError(t, err)
+
+	adminClient, err := srv.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+
+	_, err = adminClient.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
+		Bot: &machineidv1pb.Bot{
+			Kind:    types.KindBot,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: "test",
+			},
+			Spec: &machineidv1pb.BotSpec{
+				Roles: []string{"example"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	createScopedBot(t, srv, adminClient)
+
+	scopedToken := &joiningv1.ScopedToken{
+		Kind:    types.KindScopedToken,
+		Version: types.V1,
+		Scope:   "/test",
+		Metadata: &headerv1.Metadata{
+			Name: "example-token",
+		},
+		Spec: &joiningv1.ScopedTokenSpec{
+			JoinMethod: string(types.JoinMethodBoundKeypair),
+			Roles:      []string{string(types.RoleBot)},
+			UsageMode:  joining.TokenUsageModeBot,
+			BotName:    "test-scoped",
+			BotScope:   "/test",
+			BoundKeypair: &joiningv1.BoundKeypairSpec{
+				Onboarding: &joiningv1.BoundKeypairSpec_OnboardingSpec{
+					InitialPublicKey: correctPublicKey,
+				},
+				Recovery: &joiningv1.BoundKeypairSpec_RecoverySpec{
+					Limit: 2,
+				},
+			},
+		},
+	}
+
+	_, err = adminClient.CreateScopedToken(ctx, scopedToken)
+	require.NoError(t, err)
+
+	// Make an unauthenticated auth client that will be used for joining.
+	nopClient, err := srv.NewClient(authtest.TestNop())
+	require.NoError(t, err)
+
+	clientState := makeMockBoundKeypairState(signers,
+		withSingleSigningKey(correctPublicKey),
+		withNoRotation(),
+	)
+
+	// Perform the first join.
+	joinResult, err := joinclient.Join(t.Context(), joinclient.JoinParams{
+		Token: scopedToken.GetMetadata().GetName(),
+		ID: state.IdentityID{
+			Role: types.RoleBot,
+		},
+		AuthClient:        nopClient,
+		BoundKeypairState: clientState,
+	})
+	require.NoError(t, err)
+
+	firstInstance, generation := testExtractBotParamsFromCerts(t, joinResult.Certs)
+	require.Equal(t, uint64(1), generation)
+
+	// The BotInstance should have the scope set.
+	botInstance, err := adminClient.BotInstanceServiceClient().GetBotInstance(ctx, &machineidv1pb.GetBotInstanceRequest{
+		BotName:    "test-scoped",
+		InstanceId: firstInstance,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "/test", botInstance.GetScope())
+
+	// Status should be updated.
+	token, err := adminClient.GetScopedToken(ctx, "example-token", false)
+	require.NoError(t, err)
+	require.Equal(t, firstInstance, token.GetStatus().GetUsage().GetBoundKeypair().GetBoundBotInstanceId())
+	require.Equal(t, correctPublicKey, token.GetStatus().GetUsage().GetBoundKeypair().GetBoundPublicKey())
+	require.NotEmpty(t, token.GetStatus().GetUsage().GetBoundKeypair().GetLastRecoveredAt())
+	require.Empty(t, token.GetStatus().GetUsage().GetBoundKeypair().GetRegistrationSecret())
+	require.EqualValues(t, 1, token.GetStatus().GetUsage().GetBoundKeypair().GetRecoveryCount())
+
+	// Make a new client with the returned certs and try to rejoin normally.
+	botClient, err := clientFromJoinResult(srv, joinResult)
+	require.NoError(t, err)
+
+	joinResult, err = joinclient.Join(t.Context(), joinclient.JoinParams{
+		Token: scopedToken.GetMetadata().GetName(),
+		ID: state.IdentityID{
+			Role: types.RoleBot,
+		},
+		AuthClient:        botClient,
+		BoundKeypairState: clientState,
+	})
+	require.NoError(t, err)
+
+	secondInstance, generation := testExtractBotParamsFromCerts(t, joinResult.Certs)
+	require.Equal(t, firstInstance, secondInstance, "no new bot instance should be created")
+	require.EqualValues(t, 2, generation, "new certs should be issued with an incremented generation counter")
+
+	// Status should be updated (or not)
+	token, err = adminClient.GetScopedToken(ctx, "example-token", false)
+	require.NoError(t, err)
+	require.Equal(t, firstInstance, token.GetStatus().GetUsage().GetBoundKeypair().GetBoundBotInstanceId())
+	require.Equal(t, correctPublicKey, token.GetStatus().GetUsage().GetBoundKeypair().GetBoundPublicKey())
+	require.NotEmpty(t, token.GetStatus().GetUsage().GetBoundKeypair().GetLastRecoveredAt())
+	require.EqualValues(t, 1, token.GetStatus().GetUsage().GetBoundKeypair().GetRecoveryCount())
+
+	// Now, discard those certs and attempt a recovery.
+	joinResult, err = joinclient.Join(t.Context(), joinclient.JoinParams{
+		Token: scopedToken.GetMetadata().GetName(),
+		ID: state.IdentityID{
+			Role: types.RoleBot,
+		},
+		AuthClient:        nopClient,
+		BoundKeypairState: clientState,
+	})
+	require.NoError(t, err)
+
+	thirdInstance, generation := testExtractBotParamsFromCerts(t, joinResult.Certs)
+	require.NotEqual(t, secondInstance, thirdInstance, "a new bot instance should be created")
+	require.EqualValues(t, 1, generation, "generation counter should be reset for the new bot instance")
+
+	// Status should indicate a recovery
+	thirdToken, err := adminClient.GetScopedToken(ctx, "example-token", false)
+	require.NoError(t, err)
+	require.Equal(t, thirdInstance, thirdToken.GetStatus().GetUsage().GetBoundKeypair().GetBoundBotInstanceId())
+	require.Equal(t, correctPublicKey, thirdToken.GetStatus().GetUsage().GetBoundKeypair().GetBoundPublicKey())
+	require.Greater(t,
+		thirdToken.GetStatus().GetUsage().GetBoundKeypair().GetLastRecoveredAt().AsTime(),
+		token.GetStatus().GetUsage().GetBoundKeypair().GetLastRecoveredAt().AsTime(),
+		"recovery timestamp must be updated",
+	)
+	require.EqualValues(t, 2, thirdToken.GetStatus().GetUsage().GetBoundKeypair().GetRecoveryCount())
+
+	// Try once more - should hit a limit.
+	_, err = joinclient.Join(t.Context(), joinclient.JoinParams{
+		Token: scopedToken.GetMetadata().GetName(),
+		ID: state.IdentityID{
+			Role: types.RoleBot,
+		},
+		AuthClient:        nopClient,
+		BoundKeypairState: clientState,
+	})
+	require.ErrorContains(t, err, "no recovery attempts remaining")
 }
 
 func clientFromJoinResult(srv *authtest.TLSServer, joinResult *joinclient.JoinResult) (*authclient.Client, error) {

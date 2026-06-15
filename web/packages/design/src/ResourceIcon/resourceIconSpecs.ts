@@ -284,6 +284,7 @@ export const resourceIconSpecs = {
   stripe: { dark: i.stripeDark, light: i.stripeLight },
 
   tableau: forAllThemes(i.tableau),
+  temporal: { dark: i.temporalDark, light: i.temporalLight },
   terraform: forAllThemes(i.terraform),
   torq: { dark: i.torqDark, light: i.torqLight },
   'troops.ai': { dark: i.troopsAiDark, light: i.troopsAiLight },

@@ -6,6 +6,7 @@ tags:
  - how-to
  - zero-trust
  - infrastructure-identity
+page_type: how-to
 ---
 
 (!docs/pages/includes/database-access/self-hosted-introduction.mdx dbType="CockroachDB"!)
@@ -255,6 +256,8 @@ $ tsh db connect --db-user=alice roach
   Either the `cockroach` or `psql` command-line client should be available in `PATH`
   in order to be able to connect.
 </Admonition>
+
+(!docs/pages/includes/database-access/proxy-db-tunnel.mdx db="roach" dbArgs="--db-user=alice"!)
 
 (!docs/pages/includes/database-access/db-access-webui-ad.mdx dbType="CockroachDB"!)
 

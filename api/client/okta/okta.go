@@ -121,7 +121,7 @@ func (c *Client) ListOktaAssignments(ctx context.Context, pageSize int, pageToke
 	return assignments, resp.NextPageToken, nil
 }
 
-// GetOktaAssignmentreturns the specified Okta assignment resources.
+// GetOktaAssignment returns the specified Okta assignment resources.
 func (c *Client) GetOktaAssignment(ctx context.Context, name string) (types.OktaAssignment, error) {
 	resp, err := c.grpcClient.GetOktaAssignment(ctx, &oktapb.GetOktaAssignmentRequest{
 		Name: name,
@@ -129,11 +129,11 @@ func (c *Client) GetOktaAssignment(ctx context.Context, name string) (types.Okta
 	return resp, trace.Wrap(err)
 }
 
-// CreateOktaAssignmentcreates a new Okta assignment resource.
+// CreateOktaAssignment creates a new Okta assignment resource.
 func (c *Client) CreateOktaAssignment(ctx context.Context, assignment types.OktaAssignment) (types.OktaAssignment, error) {
 	assignmentV1, ok := assignment.(*types.OktaAssignmentV1)
 	if !ok {
-		return nil, trace.BadParameter("import rule expected to be OktaAssignmentV1, got %T", assignment)
+		return nil, trace.BadParameter("expected to be OktaAssignmentV1, got %T", assignment)
 	}
 	resp, err := c.grpcClient.CreateOktaAssignment(ctx, &oktapb.CreateOktaAssignmentRequest{
 		Assignment: assignmentV1,
@@ -141,11 +141,11 @@ func (c *Client) CreateOktaAssignment(ctx context.Context, assignment types.Okta
 	return resp, trace.Wrap(err)
 }
 
-// UpdateOktaAssignmentupdates an existing Okta assignment resource.
+// UpdateOktaAssignment updates an existing Okta assignment resource.
 func (c *Client) UpdateOktaAssignment(ctx context.Context, assignment types.OktaAssignment) (types.OktaAssignment, error) {
 	assignmentV1, ok := assignment.(*types.OktaAssignmentV1)
 	if !ok {
-		return nil, trace.BadParameter("import rule expected to be OktaAssignmentV1, got %T", assignment)
+		return nil, trace.BadParameter("expected to be OktaAssignmentV1, got %T", assignment)
 	}
 	resp, err := c.grpcClient.UpdateOktaAssignment(ctx, &oktapb.UpdateOktaAssignmentRequest{
 		Assignment: assignmentV1,
@@ -164,7 +164,7 @@ func (c *Client) UpdateOktaAssignmentStatus(ctx context.Context, name, status st
 	return trace.Wrap(err)
 }
 
-// DeleteOktaAssignmentremoves the specified Okta assignment resource.
+// DeleteOktaAssignment removes the specified Okta assignment resource.
 func (c *Client) DeleteOktaAssignment(ctx context.Context, name string) error {
 	_, err := c.grpcClient.DeleteOktaAssignment(ctx, &oktapb.DeleteOktaAssignmentRequest{
 		Name: name,
@@ -176,4 +176,34 @@ func (c *Client) DeleteOktaAssignment(ctx context.Context, name string) error {
 func (c *Client) DeleteAllOktaAssignments(ctx context.Context) error {
 	_, err := c.grpcClient.DeleteAllOktaAssignments(ctx, &oktapb.DeleteAllOktaAssignmentsRequest{})
 	return trace.Wrap(err)
+}
+
+// ConditionalUpdateOktaAssignment updates an existing Okta assignment resource, protected by optimistic locking.
+func (c *Client) ConditionalUpdateOktaAssignment(ctx context.Context, assignment types.OktaAssignment) (types.OktaAssignment, error) {
+	assignmentV1, ok := assignment.(*types.OktaAssignmentV1)
+	if !ok {
+		return nil, trace.BadParameter("expected to be OktaAssignmentV1, got %T", assignment)
+	}
+	resp, err := c.grpcClient.ConditionalUpdateOktaAssignment(ctx, &oktapb.ConditionalUpdateOktaAssignmentRequest{
+		Assignment: assignmentV1,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp.GetAssignment(), trace.Wrap(err)
+}
+
+// UpsertOktaAssignment upsert the Okta assignment resource, creating it if it doesn't exist or updating it if it does.
+func (c *Client) UpsertOktaAssignment(ctx context.Context, assignment types.OktaAssignment) (types.OktaAssignment, error) {
+	assignmentV1, ok := assignment.(*types.OktaAssignmentV1)
+	if !ok {
+		return nil, trace.BadParameter("expected to be OktaAssignmentV1, got %T", assignment)
+	}
+	resp, err := c.grpcClient.UpsertOktaAssignment(ctx, &oktapb.UpsertOktaAssignmentRequest{
+		Assignment: assignmentV1,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp.GetAssignment(), trace.Wrap(err)
 }

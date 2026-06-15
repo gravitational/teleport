@@ -551,6 +551,8 @@ type HostResult struct {
 	// ImmutableLabels are the immutable labels that have been assigned to
 	// the host.
 	ImmutableLabels *joiningv1.ImmutableLabels
+	// BoundKeypairResult holds extra result parameters relevant to the bound keypair join method.
+	BoundKeypairResult *BoundKeypairResult
 }
 
 // BotResult holds results for bot joining.

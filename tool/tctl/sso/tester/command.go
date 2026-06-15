@@ -186,7 +186,7 @@ type AuthRequestInfo struct {
 // SSOLoginConsoleRequestFn allows customizing issuance of SSOLoginConsoleReq. Optional.
 type SSOLoginConsoleRequestFn func(req client.SSOLoginConsoleReq) (*client.SSOLoginConsoleResponse, error)
 
-func (cmd *SSOTestCommand) runSSOLoginFlow(ctx context.Context, connectorType string, c *authclient.Client, initiateSSOLoginFn SSOLoginConsoleRequestFn) (*authclient.SSHLoginResponse, error) {
+func (cmd *SSOTestCommand) runSSOLoginFlow(ctx context.Context, connectorType string, c *authclient.Client, initiateSSOLoginFn SSOLoginConsoleRequestFn) (*authclient.CLILoginResponse, error) {
 	proxies, err := clientutils.CollectWithFallback(ctx, c.ListProxyServers, func(context.Context) ([]types.Server, error) {
 		//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 		return c.GetProxies()
@@ -254,7 +254,7 @@ func GetDiagMessage(present bool, show bool, msg string) string {
 	return ""
 }
 
-func (cmd *SSOTestCommand) reportLoginResult(authKind string, diag *types.SSODiagnosticInfo, infoErr error, loginResponse *authclient.SSHLoginResponse, loginErr error) (errResult error) {
+func (cmd *SSOTestCommand) reportLoginResult(authKind string, diag *types.SSODiagnosticInfo, infoErr error, loginResponse *authclient.CLILoginResponse, loginErr error) (errResult error) {
 	success := diag != nil && diag.Success
 
 	// check for errors

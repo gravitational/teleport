@@ -28,30 +28,27 @@ import { WidgetView } from './WidgetView';
 test('download button is available when autoDownload is false', async () => {
   render(
     <WidgetView
-      updateEvent={makeUpdateAvailableEvent(
-        makeUpdateInfo(false, '18.0.0', 'upgrade'),
-        {
-          enabled: true,
-          version: '18.0.0',
-          source: 'highest-compatible',
-          options: {
-            highestCompatibleVersion: '18.0.0',
-            managingClusterUri: undefined,
-            clusters: [
-              {
-                clusterUri: '/cluster/bar',
-                toolsAutoUpdate: true,
-                toolsVersion: '18.0.0',
-                minToolsVersion: '17.0.0-aa',
-                otherCompatibleClusters: [],
-              },
-            ],
-            unreachableClusters: [
-              { clusterUri: '/clusters/foo', errorMessage: 'NET_ERR' },
-            ],
-          },
-        }
-      )}
+      updateEvent={makeUpdateAvailableEvent(makeUpdateInfo(false, '18.0.0'), {
+        enabled: true,
+        version: '18.0.0',
+        source: 'highest-compatible',
+        options: {
+          highestCompatibleVersion: '18.0.0',
+          managingClusterUri: undefined,
+          clusters: [
+            {
+              clusterUri: '/cluster/bar',
+              toolsAutoUpdate: true,
+              toolsVersion: '18.0.0',
+              minToolsVersion: '17.0.0-aa',
+              otherCompatibleClusters: [],
+            },
+          ],
+          unreachableClusters: [
+            { clusterUri: '/clusters/foo', errorMessage: 'NET_ERR' },
+          ],
+        },
+      })}
       platform="darwin"
       onDownload={() => {}}
       onMore={() => {}}

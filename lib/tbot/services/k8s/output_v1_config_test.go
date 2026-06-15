@@ -32,9 +32,10 @@ func TestKubernetesOutput_YAML(t *testing.T) {
 		{
 			name: "full",
 			in: OutputV1Config{
-				Destination:       dest,
-				Roles:             []string{"access"},
-				KubernetesCluster: "k8s.example.com",
+				Destination:         dest,
+				Roles:               []string{"access"},
+				KubernetesCluster:   "k8s.example.com",
+				DelegationSessionID: "8a50ba48-2fad-4c2c-a8ce-f48bc18db9ee",
 				CredentialLifetime: bot.CredentialLifetime{
 					TTL:             1 * time.Minute,
 					RenewalInterval: 30 * time.Second,
@@ -82,6 +83,29 @@ func TestKubernetesOutput_CheckAndSetDefaults(t *testing.T) {
 				}
 			},
 			wantErr: "kubernetes_cluster must not be empty",
+		},
+		{
+			name:   "scoped",
+			scoped: true,
+			in: func() *OutputV1Config {
+				return &OutputV1Config{
+					Destination:       destination.NewMemory(),
+					KubernetesCluster: "my-cluster",
+				}
+			},
+			wantErr: "is not supported in scoped mode",
+		},
+		{
+			name: "delegation session id conflicts with roles",
+			in: func() *OutputV1Config {
+				return &OutputV1Config{
+					Destination:         destination.NewMemory(),
+					Roles:               []string{"access"},
+					KubernetesCluster:   "my-cluster",
+					DelegationSessionID: "8a50ba48-2fad-4c2c-a8ce-f48bc18db9ee",
+				}
+			},
+			wantErr: "delegation_session_id: is mutually-exclusive with roles",
 		},
 	}
 	testCheckAndSetDefaults(t, tests)

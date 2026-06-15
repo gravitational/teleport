@@ -186,7 +186,7 @@ func Test_filterBuffer(t *testing.T) {
 					},
 					verb: types.KubeVerbList,
 				}
-				err = filterBuffer(newResourceFilterer(mr, &globalKubeCodecs, allowedResources, nil, logtest.NewLogger()), buf)
+				err = filterBuffer(newResourceFilterer(mr, &globalKubeCodecs, newMatcher(mr, allowedResources, nil, logtest.NewLogger()), logtest.NewLogger()), buf)
 				require.NoError(t, err)
 
 				// Decompress the buffer to compare the result.

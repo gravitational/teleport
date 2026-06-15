@@ -139,6 +139,7 @@ func TestProfileStatusAccessInfo(t *testing.T) {
 		Roles:                    []string{"role1", "role2"},
 		Traits:                   traits,
 		AllowedResourceAccessIDs: allowedResourceAccessIDs,
+		DelegationSessionID:      "delegation-session-1234",
 	}
 
 	profileStatus := ProfileStatus{
@@ -146,6 +147,7 @@ func TestProfileStatusAccessInfo(t *testing.T) {
 		Roles:                    []string{"role1", "role2"},
 		Traits:                   traits,
 		AllowedResourceAccessIDs: allowedResourceAccessIDs,
+		DelegationSessionID:      "delegation-session-1234",
 	}
 
 	require.Equal(t, wantAccessInfo, profileStatus.AccessInfo())

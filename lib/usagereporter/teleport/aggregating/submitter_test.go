@@ -56,14 +56,16 @@ func TestSubmitOnce(t *testing.T) {
 	var submittedPresence []*prehogv1.ResourcePresenceReport
 	var submittedBotInstanceActivity []*prehogv1.BotInstanceActivityReport
 	var submittedIdentitySecuritySummaries []*prehogv1.IdentitySecuritySummariesGeneratedReport
+	var submittedIdentitySecurityReports []*prehogv1.IdentitySecurityReport
 	submitOk := func(ctx context.Context, req *prehogv1.SubmitUsageReportsRequest) (uuid.UUID, error) {
-		if l := len(req.UserActivity) + len(req.ResourcePresence) + len(req.BotInstanceActivity) + len(req.IdentitySecuritySummariesReport); l > submitBatchSize {
+		if l := len(req.UserActivity) + len(req.ResourcePresence) + len(req.BotInstanceActivity) + len(req.IdentitySecuritySummariesReport) + len(req.IdentitySecurityReport); l > submitBatchSize {
 			return uuid.Nil, trace.LimitExceeded("got %v reports, expected at most %v", l, submitBatchSize)
 		}
 		submitted = append(submitted, req.UserActivity...)
 		submittedPresence = append(submittedPresence, req.ResourcePresence...)
 		submittedBotInstanceActivity = append(submittedBotInstanceActivity, req.BotInstanceActivity...)
 		submittedIdentitySecuritySummaries = append(submittedIdentitySecuritySummaries, req.IdentitySecuritySummariesReport...)
+		submittedIdentitySecurityReports = append(submittedIdentitySecurityReports, req.IdentitySecurityReport...)
 		return uuid.New(), nil
 	}
 	submitErr := func(ctx context.Context, req *prehogv1.SubmitUsageReportsRequest) (uuid.UUID, error) {
@@ -84,16 +86,24 @@ func TestSubmitOnce(t *testing.T) {
 	resCountReport := newResourcePresenceReport(time.Now().UTC())
 	require.NoError(t, svc.upsertResourcePresenceReport(ctx, resCountReport, reportTTL))
 
+	identityReport := newIdentitySecurityReport(time.Now().UTC())
+	require.NoError(t, svc.upsertIdentitySecurityReport(ctx, identityReport, reportTTL))
+
 	// successful submit, no alerts, no leftover reports
 	submitOnce(ctx, scfg)
 	require.Len(t, submitted, 1)
 	require.True(t, proto.Equal(reportFresh, submitted[0]))
+	require.Len(t, submittedIdentitySecurityReports, 1)
+	require.True(t, proto.Equal(identityReport, submittedIdentitySecurityReports[0]))
 	reports, err := svc.listUserActivityReports(ctx, 10)
 	require.NoError(t, err)
 	require.Empty(t, reports)
 	rReports, err := svc.listResourcePresenceReports(ctx, 10)
 	require.NoError(t, err)
 	require.Empty(t, rReports)
+	identityReports, err := svc.listIdentitySecurityReports(ctx, 10)
+	require.NoError(t, err)
+	require.Empty(t, identityReports)
 
 	submitted = nil
 
@@ -215,9 +225,10 @@ func testSubmitOnceIdentitySecuritySummaries(t *testing.T) {
 	var submittedResourcePresence []*prehogv1.ResourcePresenceReport
 	var submittedBotInstanceActivity []*prehogv1.BotInstanceActivityReport
 	var submittedIdentitySecuritySummaries []*prehogv1.IdentitySecuritySummariesGeneratedReport
+	var submittedIdentitySecurityReports []*prehogv1.IdentitySecurityReport
 
 	submitOk := func(ctx context.Context, req *prehogv1.SubmitUsageReportsRequest) (uuid.UUID, error) {
-		totalReports := len(req.UserActivity) + len(req.ResourcePresence) + len(req.BotInstanceActivity) + len(req.IdentitySecuritySummariesReport)
+		totalReports := len(req.UserActivity) + len(req.ResourcePresence) + len(req.BotInstanceActivity) + len(req.IdentitySecuritySummariesReport) + len(req.IdentitySecurityReport)
 		if totalReports > submitBatchSize {
 			return uuid.Nil, trace.LimitExceeded("got %v reports, expected at most %v", totalReports, submitBatchSize)
 		}
@@ -225,6 +236,7 @@ func testSubmitOnceIdentitySecuritySummaries(t *testing.T) {
 		submittedResourcePresence = append(submittedResourcePresence, req.ResourcePresence...)
 		submittedBotInstanceActivity = append(submittedBotInstanceActivity, req.BotInstanceActivity...)
 		submittedIdentitySecuritySummaries = append(submittedIdentitySecuritySummaries, req.IdentitySecuritySummariesReport...)
+		submittedIdentitySecurityReports = append(submittedIdentitySecurityReports, req.IdentitySecurityReport...)
 		return uuid.New(), nil
 	}
 
@@ -242,6 +254,7 @@ func testSubmitOnceIdentitySecuritySummaries(t *testing.T) {
 	submitOnce(ctx, scfg)
 	require.Len(t, submittedIdentitySecuritySummaries, 1)
 	require.True(t, proto.Equal(identityReport1, submittedIdentitySecuritySummaries[0]))
+	require.Empty(t, submittedIdentitySecurityReports)
 
 	// Verify report was deleted after submission
 	reports, err := svc.listIdentitySecuritySummariesGeneratedReports(ctx, 10)
@@ -253,6 +266,7 @@ func testSubmitOnceIdentitySecuritySummaries(t *testing.T) {
 	submittedResourcePresence = nil
 	submittedBotInstanceActivity = nil
 	submittedIdentitySecuritySummaries = nil
+	submittedIdentitySecurityReports = nil
 
 	// Test 2: Submit mixed report types respecting batch size
 	// Add 5 user activity reports
@@ -299,6 +313,7 @@ func testSubmitOnceIdentitySecuritySummaries(t *testing.T) {
 	submittedResourcePresence = nil
 	submittedBotInstanceActivity = nil
 	submittedIdentitySecuritySummaries = nil
+	submittedIdentitySecurityReports = nil
 
 	// Test 3: Priority ordering - user activity fills batch first, then resource, then bot, then identity
 	// Add enough reports to test multiple batches

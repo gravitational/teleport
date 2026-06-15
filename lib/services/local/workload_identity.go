@@ -18,6 +18,7 @@ package local
 
 import (
 	"context"
+	"iter"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -26,6 +27,7 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
 )
@@ -75,35 +77,23 @@ func (b *WorkloadIdentityService) GetWorkloadIdentity(
 	return resource, trace.Wrap(err)
 }
 
-// ListWorkloadIdentities lists all WorkloadIdentities using a given page size
-// and last key.
-func (b *WorkloadIdentityService) ListWorkloadIdentities(
-	ctx context.Context,
-	pageSize int,
-	currentToken string,
-	options *services.ListWorkloadIdentitiesRequestOptions,
-) ([]*workloadidentityv1pb.WorkloadIdentity, string, error) {
-	if options.GetSortField() != "" && options.GetSortField() != "name" {
-		return nil, "", trace.CompareFailed("unsupported sort, only name field is supported, but got %q", options.GetSortField())
+// RangeWorkloadIdentities returns WorkloadIdentity resources within the range
+// [start, end). The backend only supports ordering by name in ascending order;
+// any other sort field or a descending order returns an error.
+func (b *WorkloadIdentityService) RangeWorkloadIdentities(
+	ctx context.Context, start, end string, sortField services.WorkloadIdentitySortField, sortDesc bool,
+) iter.Seq2[*workloadidentityv1pb.WorkloadIdentity, error] {
+	if sortField != "" && sortField != services.WorkloadIdentitySortFieldName {
+		return stream.Fail[*workloadidentityv1pb.WorkloadIdentity](
+			trace.BadParameter("unsupported sort, only name field is supported, but got %q", sortField),
+		)
 	}
-	if options.GetSortDesc() {
-		return nil, "", trace.CompareFailed("unsupported sort, only ascending order is supported")
+	if sortDesc {
+		return stream.Fail[*workloadidentityv1pb.WorkloadIdentity](
+			trace.BadParameter("unsupported sort, only ascending order is supported"),
+		)
 	}
-
-	if options.GetFilterSearchTerm() == "" {
-		r, nextToken, err := b.service.ListResources(ctx, pageSize, currentToken)
-		return r, nextToken, trace.Wrap(err)
-	}
-
-	r, nextToken, err := b.service.ListResourcesWithFilter(
-		ctx,
-		pageSize,
-		currentToken,
-		func(item *workloadidentityv1pb.WorkloadIdentity) bool {
-			return services.MatchWorkloadIdentity(item, options.GetFilterSearchTerm())
-		},
-	)
-	return r, nextToken, trace.Wrap(err)
+	return b.service.Resources(ctx, start, end)
 }
 
 // DeleteWorkloadIdentity deletes a specific WorkloadIdentity.
@@ -139,6 +129,41 @@ func (b *WorkloadIdentityService) UpdateWorkloadIdentity(
 ) (*workloadidentityv1pb.WorkloadIdentity, error) {
 	updated, err := b.service.ConditionalUpdateResource(ctx, resource)
 	return updated, trace.Wrap(err)
+}
+
+// AppendPutWorkloadIdentityActions adds conditional actions to an atomic write
+// to create or update a WorkloadIdentity.
+func (b *WorkloadIdentityService) AppendPutWorkloadIdentityActions(
+	actions []backend.ConditionalAction,
+	resource *workloadidentityv1pb.WorkloadIdentity,
+	condition backend.Condition,
+) ([]backend.ConditionalAction, error) {
+	if err := services.ValidateWorkloadIdentity(resource); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	item, err := b.service.MakeBackendItem(resource)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return append(actions, backend.ConditionalAction{
+		Key:       item.Key,
+		Condition: condition,
+		Action:    backend.Put(item),
+	}), nil
+}
+
+// AppendDeleteWorkloadIdentityActions adds conditional actions to an atomic
+// write to delete a WorkloadIdentity.
+func (b *WorkloadIdentityService) AppendDeleteWorkloadIdentityActions(
+	actions []backend.ConditionalAction,
+	name string,
+	condition backend.Condition,
+) ([]backend.ConditionalAction, error) {
+	return append(actions, backend.ConditionalAction{
+		Key:       b.service.BackendKey(name),
+		Condition: condition,
+		Action:    backend.Delete(),
+	}), nil
 }
 
 func newWorkloadIdentityParser() *workloadIdentityParser {

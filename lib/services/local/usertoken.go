@@ -45,7 +45,6 @@ func (s *IdentityService) ListUserTokens(ctx context.Context, limit int, startKe
 	for item, err := range s.Backend.Items(ctx, backend.ItemsParams{
 		StartKey: rangeStart,
 		EndKey:   rangeEnd,
-		Limit:    limit + 1,
 	}) {
 		if err != nil {
 			return nil, "", trace.Wrap(err)

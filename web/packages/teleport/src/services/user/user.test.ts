@@ -296,6 +296,7 @@ test('undefined values in context response gives proper default values', async (
     desktopSessionRecordingEnabled: true,
     directorySharingEnabled: true,
     fileTransferAccess: true,
+    webTerminalClipboardMode: '',
     gitServers: {
       list: false,
       read: false,
@@ -374,6 +375,13 @@ test('undefined values in context response gives proper default values', async (
       remove: false,
     },
     inferenceSecret: {
+      list: false,
+      read: false,
+      edit: false,
+      create: false,
+      remove: false,
+    },
+    beam: {
       list: false,
       read: false,
       edit: false,

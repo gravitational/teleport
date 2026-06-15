@@ -22,6 +22,8 @@ import (
 	"context"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
+	ststypes "github.com/aws/aws-sdk-go-v2/service/sts/types"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
@@ -48,13 +50,36 @@ func (f *AWSConfigProvider) GetConfig(ctx context.Context, region string, optFns
 	if stsClt == nil {
 		stsClt = &STSClient{}
 	}
-	optFns = append([]awsconfig.OptionsFn{
-		awsconfig.WithOIDCIntegrationClient(f.OIDCIntegrationClient),
-		awsconfig.WithSTSClientProvider(
-			NewAssumeRoleClientProviderFunc(stsClt),
-		),
-	}, optFns...)
-	return awsconfig.GetConfig(ctx, region, optFns...)
+
+	// Build a minimal aws.Config without loading the local machines shared config (~/.aws/config).
+	// Apply the assume-role chain manually using the mock STS client so tests can verify which roles were assumed.
+	cfg := aws.Config{Region: region}
+	stsClientProvider := NewAssumeRoleClientProviderFunc(stsClt)
+	roles := awsconfig.AssumedRoles(optFns...)
+	for _, r := range roles {
+		cfg.Credentials = stscreds.NewAssumeRoleProvider(stsClientProvider(cfg), r.RoleARN, func(aro *stscreds.AssumeRoleOptions) {
+			if r.ExternalID != "" {
+				aro.ExternalID = aws.String(r.ExternalID)
+			}
+			if r.SessionName != "" {
+				aro.RoleSessionName = r.SessionName
+			}
+			aro.Duration = r.Duration
+			for k, v := range r.Tags {
+				aro.Tags = append(aro.Tags, ststypes.Tag{
+					Key:   aws.String(k),
+					Value: aws.String(v),
+				})
+			}
+		})
+	}
+	if len(roles) > 0 {
+		cfg.Credentials = aws.NewCredentialsCache(cfg.Credentials)
+		if _, err := cfg.Credentials.Retrieve(ctx); err != nil {
+			return aws.Config{}, trace.Wrap(err)
+		}
+	}
+	return cfg, nil
 }
 
 type FakeOIDCIntegrationClient struct {

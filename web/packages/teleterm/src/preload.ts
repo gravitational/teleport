@@ -70,6 +70,9 @@ async function getElectronGlobals(): Promise<ElectronGlobals> {
     host: addresses.tsh,
     channelCredentials: credentials.tshd,
     interceptors: [loggingInterceptor(new Logger('tshd'))],
+    // This gRPC client talks to a localhost endpoint on Windows.
+    // Do not route it through HTTP proxies.
+    clientOptions: { 'grpc.enable_http_proxy': 0 },
   });
   const tshClient = withoutInsecureTshdMethods(createTshdClient(tshdTransport));
   const vnetClient = createVnetClient(tshdTransport);
@@ -93,9 +96,17 @@ async function getElectronGlobals(): Promise<ElectronGlobals> {
   // All uses of tshClient must wait before updateTshdEventsServerAddress finishes to ensure that
   // the client is ready. Otherwise we run into a risk of causing panics in tshd due to a missing
   // tshd events client.
-  await tshClient.updateTshdEventsServerAddress({
-    address: tshdEventsServerAddress,
-  });
+  await tshClient.updateTshdEventsServerAddress(
+    {
+      address: tshdEventsServerAddress,
+    },
+    {
+      timeout: 15_000,
+      // On Windows, this first local gRPC call has been observed to fail fast
+      // with ETIMEDOUT even though the channel becomes ready shortly after.
+      metadataOptions: { waitForReady: true },
+    }
+  );
 
   return {
     mainProcessClient,

@@ -135,16 +135,17 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 		agentPool, err = reversetunnel.NewAgentPool(
 			process.ExitContext(),
 			reversetunnel.AgentPoolConfig{
-				Component:            teleport.ComponentKube,
-				HostUUID:             conn.HostID(),
-				Resolver:             conn.TunnelProxyResolver(),
-				Client:               conn.Client,
-				AccessPoint:          accessPoint,
-				AuthMethods:          conn.ClientAuthMethods(),
-				Cluster:              teleportClusterName,
-				Server:               shtl,
-				FIPS:                 process.Config.FIPS,
-				ConnectedProxyGetter: proxyGetter,
+				Component:                teleport.ComponentKube,
+				HostUUID:                 conn.HostID(),
+				Resolver:                 conn.TunnelProxyResolver(),
+				Client:                   conn.Client,
+				AccessPoint:              accessPoint,
+				AuthMethods:              conn.ClientAuthMethods(),
+				Cluster:                  teleportClusterName,
+				Server:                   shtl,
+				FIPS:                     process.Config.FIPS,
+				ConnectedProxyGetter:     proxyGetter,
+				StaleConnTimeoutDisabled: reversetunnel.IsAgentStaleConnTimeoutDisabledByEnv(),
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -280,6 +281,7 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 			CheckImpersonationPermissions: cfg.Kube.CheckImpersonationPermissions,
 			PublicAddr:                    publicAddr,
 			ClusterFeatures:               process.GetClusterFeatures,
+			Scope:                         conn.Scope(),
 		},
 		TLS:                  tlsConfig,
 		AccessPoint:          accessPoint,

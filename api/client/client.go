@@ -66,17 +66,20 @@ import (
 	"github.com/gravitational/teleport/api/client/summarizer"
 	"github.com/gravitational/teleport/api/client/userloginstate"
 	usertaskapi "github.com/gravitational/teleport/api/client/usertask"
+	"github.com/gravitational/teleport/api/client/vnetconfig"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	accessmonitoringrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
+	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
+	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	dynamicwindowsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dynamicwindows/v1"
@@ -91,6 +94,7 @@ import (
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
@@ -102,7 +106,9 @@ import (
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	secreportsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1"
+	sessionsearchv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/sessionsearch/v1"
 	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
+	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userloginstatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1"
@@ -669,9 +675,9 @@ type Config struct {
 	// MFAPromptConstructor is used to create MFA prompts when needed.
 	// If nil, the client will not prompt for MFA.
 	MFAPromptConstructor mfa.PromptConstructor
-	// SSOMFACeremonyConstructor is used to handle SSO MFA when needed.
+	// MFACeremonyConstructor is used to handle SSO or Browser MFA when needed.
 	// If nil, the client will not prompt for MFA.
-	SSOMFACeremonyConstructor mfa.SSOMFACeremonyConstructor
+	MFACeremonyConstructor mfa.MFACeremonyConstructor
 }
 
 // CheckAndSetDefaults checks and sets default config values.
@@ -738,9 +744,9 @@ func (c *Client) SetMFAPromptConstructor(pc mfa.PromptConstructor) {
 	c.c.MFAPromptConstructor = pc
 }
 
-// SetSSOMFACeremonyConstructor sets the SSO MFA ceremony constructor for this client.
-func (c *Client) SetSSOMFACeremonyConstructor(scc mfa.SSOMFACeremonyConstructor) {
-	c.c.SSOMFACeremonyConstructor = scc
+// SetMFACeremonyConstructor sets the MFA ceremony constructor for this client.
+func (c *Client) SetMFACeremonyConstructor(mcc mfa.MFACeremonyConstructor) {
+	c.c.MFACeremonyConstructor = mcc
 }
 
 // Close closes the Client connection to the auth server.
@@ -940,6 +946,8 @@ func (c *Client) NotificationServiceClient() notificationsv1pb.NotificationServi
 }
 
 // VnetConfigServiceClient returns an unadorned client for the VNet config service.
+//
+// Deprecated: Prefer VnetConfigClient.
 func (c *Client) VnetConfigServiceClient() vnet.VnetConfigServiceClient {
 	return vnet.NewVnetConfigServiceClient(c.conn)
 }
@@ -953,6 +961,12 @@ func (c *Client) JoinV1Client() joinv1.JoinServiceClient {
 // recording summarizer service.
 func (c *Client) SummarizerServiceClient() summarizerv1.SummarizerServiceClient {
 	return summarizerv1.NewSummarizerServiceClient(c.conn)
+}
+
+// SessionSearchServiceClient returns a client for the session search
+// service.
+func (c *Client) SessionSearchServiceClient() sessionsearchv1pb.SessionSearchServiceClient {
+	return sessionsearchv1pb.NewSessionSearchServiceClient(c.conn)
 }
 
 // SummarizerClient returns a client for the session summarizer service that
@@ -972,6 +986,17 @@ func (c *Client) RecordingMetadataServiceClient() recordingmetadatav1.RecordingM
 // recording encryption service.
 func (c *Client) RecordingEncryptionServiceClient() recordingencryptionv1pb.RecordingEncryptionServiceClient {
 	return recordingencryptionv1pb.NewRecordingEncryptionServiceClient(c.conn)
+}
+
+// BeamServiceClient returns a client for the beam service.
+func (c *Client) BeamServiceClient() beamsv1.BeamServiceClient {
+	return beamsv1.NewBeamServiceClient(c.conn)
+}
+
+// DelegationSessionServiceClient returns a client for the delegation session
+// service.
+func (c *Client) DelegationSessionServiceClient() delegationv1.DelegationSessionServiceClient {
+	return delegationv1.NewDelegationSessionServiceClient(c.conn)
 }
 
 // GetVnetConfig returns the singleton VnetConfig resource.
@@ -1646,6 +1671,27 @@ func (c *Client) CreateAppSession(ctx context.Context, req *proto.CreateAppSessi
 	}
 
 	return resp.GetSession(), nil
+}
+
+// SetAppSessionDBSCPublicKey verifies a browser DBSC response and binds the
+// resulting public key to an application web session.
+func (c *Client) SetAppSessionDBSCPublicKey(ctx context.Context, sessionID string, responseJWT []byte) error {
+	_, err := c.grpc.SetAppSessionDBSCPublicKey(ctx, &proto.SetAppSessionDBSCPublicKeyRequest{
+		SessionId: sessionID,
+		PublicKey: responseJWT,
+	})
+	return trace.Wrap(err)
+}
+
+// SignDBSCChallenge signs a DBSC challenge.
+func (c *Client) SignDBSCChallenge(ctx context.Context, sessionID string) (string, error) {
+	resp, err := c.grpc.SignDBSCChallenge(ctx, &proto.SignDBSCChallengeRequest{
+		SessionId: sessionID,
+	})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return resp.Challenge, nil
 }
 
 // CreateSnowflakeSession creates a Snowflake web session.
@@ -5449,6 +5495,17 @@ func (c *Client) DiscoveryConfigClient() *discoveryconfig.Client {
 	return discoveryconfig.NewClient(discoveryconfigv1.NewDiscoveryConfigServiceClient(c.conn))
 }
 
+// VnetConfigClient returns a VnetConfig client.
+// Clients connecting to older Teleport versions, still get an VnetConfig client
+// when calling this method, but all RPCs will return "not implemented" errors
+// (as per the default gRPC behavior).
+//
+// TODO: Add this method to lib/auth/authclient.ClientI so higher-level callers
+// can use the wrapper without reaching for the raw gRPC client.
+func (c *Client) VnetConfigClient() *vnetconfig.Client {
+	return vnetconfig.NewClient(vnet.NewVnetConfigServiceClient(c.conn))
+}
+
 // CrownJewelServiceClient returns a CrownJewel client.
 // Clients connecting to older Teleport versions, still get a CrownJewel client
 // when calling this method, but all RPCs will return "not implemented" errors
@@ -5486,6 +5543,11 @@ func (c *Client) GitServerReadOnlyClient() gitserverclient.ReadOnlyClient {
 // StableUNIXUsersClient returns a client for the stable UNIX users API.
 func (c *Client) StableUNIXUsersClient() stableunixusersv1.StableUNIXUsersServiceClient {
 	return stableunixusersv1.NewStableUNIXUsersServiceClient(c.conn)
+}
+
+// MFAServiceClient returns a client for the MFA service.
+func (c *Client) MFAServiceClient() mfav1.MFAServiceClient {
+	return mfav1.NewMFAServiceClient(c.conn)
 }
 
 // GetCertAuthority retrieves a CA by type and domain.
@@ -6106,6 +6168,59 @@ func (c *Client) DeleteWorkloadCluster(ctx context.Context, name string) error {
 		Name: name,
 	})
 	return trace.Wrap(err)
+}
+
+// SubCAClient returns an unadorned Sub CA client, using the underlying Auth
+// gRPC connection.
+func (c *Client) SubCAClient() subcav1.SubCAServiceClient {
+	return subcav1.NewSubCAServiceClient(c.conn)
+}
+
+// GetCertAuthorityOverride reads a CA override resource by ID.
+//
+// It's equivalent to `c.SubCAClient().GetCertAuthorityOverride(ctx, req)`.
+//
+// If the cluster name is empty it's assumed that the default cluster is being
+// queried (like its namesake RPC). If the cluster name is non-empty, then it's
+// checked against the RPC response.
+func (c *Client) GetCertAuthorityOverride(
+	ctx context.Context,
+	id types.CertAuthorityOverrideID,
+) (*subcav1.CertAuthorityOverride, error) {
+	resp, err := c.SubCAClient().GetCertAuthorityOverride(ctx, subcav1.GetCertAuthorityOverrideRequest_builder{
+		CaId: subcav1.CertAuthorityOverrideID_builder{
+			CaType: id.CAType,
+		}.Build(),
+	}.Build())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// TODO(codingllama): Consider adding ClusterName to requests so the server
+	//  can handle them appropriately/uniformly.
+	if id.ClusterName != "" && resp.GetCaOverride().GetMetadata().GetName() != id.ClusterName {
+		return nil, trace.NotFound("%s %s/%s not found", types.KindCertAuthorityOverride, id.CAType, id.ClusterName)
+	}
+
+	return resp.GetCaOverride(), nil
+}
+
+// ListCertAuthorityOverrides lists all CA overrides.
+//
+// It's equivalent to `c.SubCAClient().ListCertAuthorityOverrides(ctx, req)`.
+func (c *Client) ListCertAuthorityOverrides(
+	ctx context.Context,
+	pageSize int,
+	pageToken string,
+) (_ []*subcav1.CertAuthorityOverride, nextPageToken string, _ error) {
+	resp, err := c.SubCAClient().ListCertAuthorityOverride(ctx, subcav1.ListCertAuthorityOverrideRequest_builder{
+		PageSize:  int32(pageSize),
+		PageToken: pageToken,
+	}.Build())
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return resp.GetCaOverrides(), resp.GetNextPageToken(), nil
 }
 
 // IssuanceClient returns an [issuancev1pb.IssuanceServiceClient].

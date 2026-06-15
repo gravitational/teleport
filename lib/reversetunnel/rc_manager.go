@@ -261,6 +261,8 @@ func realNewAgentPool(ctx context.Context, cfg RemoteClusterTunnelManagerConfig,
 		Resolver:        reversetunnelclient.StaticResolver(addr, apitypes.ProxyListenerMode_Separate),
 		IsRemoteCluster: true,
 		PROXYSigner:     cfg.PROXYSigner,
+
+		StaleConnTimeoutDisabled: IsAgentStaleConnTimeoutDisabledByEnv(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "failed creating reverse tunnel pool for remote cluster %q at address %q: %v", cluster, addr, err)

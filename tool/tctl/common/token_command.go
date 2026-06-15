@@ -170,7 +170,7 @@ func (c *TokensCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCL
 	c.tokenAdd.Flag("db-name", "Name of the database to add").StringVar(&c.dbName)
 	c.tokenAdd.Flag("db-protocol", fmt.Sprintf("Database protocol to use. Supported are: %v", defaults.DatabaseProtocols)).StringVar(&c.dbProtocol)
 	c.tokenAdd.Flag("db-uri", "Address the database is reachable at").StringVar(&c.dbURI)
-	c.tokenAdd.Flag("format", "Output format, 'text', 'json', or 'yaml'").EnumVar(&c.format, formats...)
+	c.tokenAdd.Flag("format", "Output format.").EnumVar(&c.format, formats...)
 
 	// "tctl tokens rm ..."
 	c.tokenDel = tokens.Command("rm", "Delete/revoke an invitation token.").Alias("del")
@@ -178,7 +178,7 @@ func (c *TokensCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCL
 
 	// "tctl tokens ls"
 	c.tokenList = tokens.Command("ls", "List node and user invitation tokens.")
-	c.tokenList.Flag("format", "Output format, 'text', 'json' or 'yaml'").EnumVar(&c.format, formats...)
+	c.tokenList.Flag("format", "Output format.").EnumVar(&c.format, formats...)
 	c.tokenList.Flag("with-secrets", "Do not redact join tokens").BoolVar(&c.withSecrets)
 	c.tokenList.Flag("labels", labelHelp).StringVar(&c.labels)
 

@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types/common"
 )
 
@@ -183,10 +184,18 @@ const (
 	// SubKindMCP represents an MCP server as a subkind of app.
 	SubKindMCP = KindMCP
 
+	// SubKindLLM represents an LLM inference endpoint as a subkind of app.
+	SubKindLLM = KindLLM
+
 	// KindMCP is an MCP server resource.
 	// Currently, MCP servers are accessed through apps.
 	// In the future, they may become a standalone resource kind.
 	KindMCP = "mcp"
+
+	// KindLLM is an LLM inference endpoint server resource.
+	// Currently, inference endpoints are accessed through apps.
+	// In the future, they may become a standalone resource kind.
+	KindLLM = "llm"
 
 	// KindDatabaseServer is a database proxy server resource.
 	KindDatabaseServer = "db_server"
@@ -671,6 +680,9 @@ const (
 	// stable UNIX users.
 	KindStableUNIXUser = "stable_unix_user"
 
+	// KindRetrievalModel is the kind of teleport.summarizer.v1.RetrievalModel.
+	KindRetrievalModel = "retrieval_model"
+
 	// KindInferenceModel is the kind of teleport.summarizer.v1.InferenceModel.
 	KindInferenceModel = "inference_model"
 
@@ -687,6 +699,10 @@ const (
 	// MetaNameVnetConfig is the exact name of the singleton resource holding VNet config.
 	MetaNameVnetConfig = "vnet-config"
 
+	// MetaNameRetrievalModel is the name of the singleton resource holding
+	// the default retrieval model configuration.
+	MetaNameRetrievalModel = "retrieval-model"
+
 	// KindRelayServer is the resource kind for a Relay service heartbeat.
 	KindRelayServer = "relay_server"
 
@@ -695,6 +711,18 @@ const (
 
 	// KindWorkloadCluster is the resource kind for workload clusters.
 	KindWorkloadCluster = "workload_cluster"
+
+	// KindCertAuthorityOverride is the resource kind for CA overrides.
+	KindCertAuthorityOverride = "cert_authority_override"
+
+	// KindDelegationSession is the resource kind for Delegation Sessions.
+	//
+	// Delegation Sessions allow users to temporarily lend (a subset of) their
+	// access to a bot or workload, such as an AI Agent.
+	KindDelegationSession = "delegation_session"
+
+	// KindBeam is an ephemeral AI-optimized compute environment.
+	KindBeam = "beam"
 
 	// V8 is the eighth version of resources.
 	V8 = "v8"
@@ -871,6 +899,12 @@ const (
 	// to identify Azure VMs by resource group during auto-discovery.
 	// Preserved for backward compatibility; superseded by ResourceGroupLabel.
 	ResourceGroupLabelInternal = TeleportInternalLabelPrefix + "resource-group"
+	// AzureManagedIdentityRegionLabel is the label key for the Azure region for
+	// the managed identity created by the Azure discovery Terraform module.
+	AzureManagedIdentityRegionLabel = TeleportNamespace + "/azure-managed-identity-region"
+	// AzureManagedIdentityResourceGroupLabel is the label key for the Azure resource
+	// group for the managed identity created by the Azure discovery Terraform module.
+	AzureManagedIdentityResourceGroupLabel = TeleportNamespace + "/azure-managed-identity-resource-group"
 	// ZoneLabelDiscovery is used to identify virtual machines by GCP zone
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
@@ -972,7 +1006,9 @@ const (
 	// DiscoveryDescription specifies the description for a discovered app created from a Kubernetes service.
 	DiscoveryDescription = TeleportNamespace + "/description"
 	// IACToolLabel is a resource metadata label that identifies which infrastructure-as-code tool created the resource.
-	DiscoveryIACToolLabel = TeleportNamespace + "/iac-tool"
+	IACToolLabel = TeleportNamespace + "/iac-tool"
+	// IACToolTerraform identifies that a IAC tool is Terraform.
+	IACToolTerraform = "terraform"
 
 	// ReqAnnotationApproveSchedulesLabel is the request annotation key at which schedules are stored for access plugins.
 	ReqAnnotationApproveSchedulesLabel = "/schedules"
@@ -1008,6 +1044,13 @@ const (
 	SchemeMCPHTTPS = "mcp+https"
 	// MCPTransportHTTP indicates the MCP server uses SSE transport.
 	MCPTransportHTTP = "Streamable HTTP"
+
+	// SchemeLLMEndpoint is a URI scheme for LLM inference endpoints.
+	SchemeLLMEndpoint = "llm"
+
+	// SchemeTLS is a URI scheme for TCP apps that Teleport terminate TLS
+	// connections with upstream.
+	SchemeTLS = "tls"
 
 	// DiscoveredResourceNode identifies a discovered SSH node.
 	DiscoveredResourceNode = "node"
@@ -1302,6 +1345,24 @@ const (
 
 	// AppSubKindLabel is the label that has the same value of "app.sub_kind".
 	AppSubKindLabel = TeleportInternalLabelPrefix + "app-sub-kind"
+
+	// BeamsInternalLabelPrefix is the prefix used by internal beams labels.
+	BeamsInternalLabelPrefix = TeleportInternalLabelPrefix + "beams/"
+
+	// BeamIDLabel is the label used to track which Beam a resource belongs to.
+	BeamIDLabel = BeamsInternalLabelPrefix + "id"
+
+	// BeamOwnerLabel is the label used to track which user's Beam a resource
+	// belongs to.
+	BeamOwnerLabel = BeamsInternalLabelPrefix + "owner"
+
+	// BeamAliasLabel is the label used to track the alias of the Beam a
+	// resource belongs to.
+	BeamAliasLabel = BeamsInternalLabelPrefix + "alias"
+
+	// BeamAppTypeLabel is the label used to denote the type of app created for
+	// Beams. Valid values: "ingress" and "llm".
+	BeamAppTypeLabel = BeamsInternalLabelPrefix + "app-type"
 )
 
 const (
@@ -1648,6 +1709,11 @@ const (
 	KubeVerbExec = "exec"
 	// KubeVerbPortForward is the Kubernetes verb for "pod/portforward".
 	KubeVerbPortForward = "portforward"
+	// KubeVerbProxy is the Kubernetes verb for the pods/proxy,
+	// services/proxy, and nodes/proxy subresources. These endpoints
+	// reach pod ports, service endpoints, or the kubelet API over HTTP
+	// (distinct from portforward, which tunnels raw TCP).
+	KubeVerbProxy = "proxy"
 )
 
 // The list below needs to be kept in sync with `kubernetesResourceVerbOptions`
@@ -1668,6 +1734,7 @@ var KubernetesVerbs = []string{
 	KubeVerbDeleteCollection,
 	KubeVerbExec,
 	KubeVerbPortForward,
+	KubeVerbProxy,
 }
 
 // KubernetesClusterWideResourceKinds is the list of supported Kubernetes cluster resource kinds
@@ -1753,18 +1820,22 @@ var KubernetesCoreResourceKinds = map[string]struct{}{
 	"services":               {},
 }
 
+// TODO(espadolini): deprecate in v19, delete in v20
 const (
 	// TeleportDropGroup is a default group that users of the teleport automated user
 	// provisioning system get added to when provisioned in INSECURE_DROP mode. This
 	// prevents already existing users from being tampered with or deleted.
-	TeleportDropGroup = "teleport-system"
+	//go:fix inline
+	TeleportDropGroup = constants.TeleportDropGroup
 	// TeleportKeepGroup is a default group that users of the teleport automated user
 	// provisioning system get added to when provisioned in KEEP mode. This prevents
 	// already existing users from being tampered with or deleted.
-	TeleportKeepGroup = "teleport-keep"
+	//go:fix inline
+	TeleportKeepGroup = constants.TeleportKeepGroup
 	// TeleportStaticGroup is a default group that static host users get added to. This
 	// prevents already existing users from being tampered with or deleted.
-	TeleportStaticGroup = "teleport-static"
+	//go:fix inline
+	TeleportStaticGroup = constants.TeleportStaticGroup
 )
 
 const (
@@ -1793,6 +1864,12 @@ const (
 	ApplicationProtocolHTTP = "HTTP"
 	// ApplicationProtocolTCP is the TCP apps protocol.
 	ApplicationProtocolTCP = "TCP"
+	// ApplicationProtocolMCP is the protocol for MCP (Model Context Protocol)
+	// server applications.
+	ApplicationProtocolMCP = "MCP"
+	// ApplicationProtocolLLM is the protocol for applications that expose an
+	// LLM inference endpoint.
+	ApplicationProtocolLLM = "LLM"
 )
 
 const (
@@ -1871,3 +1948,6 @@ const (
 // BuiltInAutomaticReview is used within access monitoring rules and indicates
 // that the automatic_review rule should be monitored by Teleport.
 const BuiltInAutomaticReview = "builtin"
+
+// BeamsLogin is the login that should be used when SSHing into beams.
+const BeamsLogin = "beams"

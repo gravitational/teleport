@@ -48,7 +48,7 @@ func TunnelServiceBuilder(
 	leeway time.Duration,
 ) bot.ServiceBuilder {
 	buildFn := func(deps bot.ServiceDependencies) (bot.Service, error) {
-		if err := cfg.CheckAndSetDefaults(); err != nil {
+		if err := cfg.CheckAndSetDefaults(deps.Scoped); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		svc := &TunnelService{
@@ -267,9 +267,13 @@ func (s *TunnelService) issueCert(
 	// routeToApp once.
 	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
 	identityOpts := []identity.GenerateOption{
-		identity.WithRoles(s.cfg.Roles),
 		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
 		identity.WithLogger(s.log),
+	}
+	if s.cfg.DelegationSessionID == "" {
+		identityOpts = append(identityOpts, identity.WithRoles(s.cfg.Roles))
+	} else {
+		identityOpts = append(identityOpts, identity.WithDelegation(s.cfg.DelegationSessionID))
 	}
 	impersonatedIdentity, err := s.identityGenerator.GenerateFacade(ctx, identityOpts...)
 	if err != nil {

@@ -20,7 +20,13 @@ import { createHash } from 'node:crypto';
 
 import { MacUpdater } from 'electron-updater';
 
-import type { GetClusterVersionsResponse } from 'gen-proto-ts/teleport/lib/teleterm/auto_update/v1/auto_update_service_pb';
+import {
+  ConfigSource,
+  ConfigValue,
+  GetClusterVersionsResponse,
+  GetInstallationMetadataResponse,
+} from 'gen-proto-ts/teleport/lib/teleterm/auto_update/v1/auto_update_service_pb';
+import { compare } from 'shared/utils/semVer';
 import { wait } from 'shared/utils/wait';
 
 import Logger, { NullService } from 'teleterm/logger';
@@ -100,25 +106,35 @@ class MockedMacUpdater extends MacUpdater {
 function setUpAppUpdater(options: {
   clusters: GetClusterVersionsResponse;
   storage?: AppUpdaterStorage;
-  processEnvVar?: string;
+  configToolsVersion?: ConfigValue;
+  installationMetadata?: GetInstallationMetadataResponse;
 }) {
-  const clusterGetter = async () => {
-    return options.clusters;
-  };
-
   const nativeUpdater = new MockedMacUpdater();
 
   const checkForUpdatesSpy = jest.spyOn(nativeUpdater, 'checkForUpdates');
   const downloadUpdateSpy = jest.spyOn(nativeUpdater, 'downloadUpdate');
   let lastEvent: { value?: AppUpdateEvent } = {};
   const appUpdater = new AppUpdater(
+    'path/to/tsh',
     options.storage || makeUpdaterStorage(),
-    clusterGetter,
-    async () => 'https://cdn.teleport.dev',
+    {
+      getClusterVersions: async () => options.clusters,
+      getConfig: async () => ({
+        cdnBaseUrl: {
+          value: 'https://cdn.teleport.dev',
+          source: ConfigSource.ENV_VAR,
+        },
+        toolsVersion: options.configToolsVersion ?? {
+          value: '',
+          source: ConfigSource.UNSPECIFIED,
+        },
+      }),
+      getInstallationMetadata: async () =>
+        options.installationMetadata ?? { isPerMachineInstall: false },
+    },
     event => {
       lastEvent.value = event;
     },
-    options.processEnvVar,
     nativeUpdater
   );
 
@@ -193,9 +209,12 @@ test('does not auto-download update when there are unreachable clusters', async 
   expect(setup.downloadUpdateSpy).toHaveBeenCalledTimes(0);
 });
 
-test('does not auto-download update when env var is set to off', async () => {
+test('does not auto-download update when local config tools version is set to off', async () => {
   const setup = setUpAppUpdater({
-    processEnvVar: 'off',
+    configToolsVersion: {
+      value: 'off',
+      source: ConfigSource.ENV_VAR,
+    },
     clusters: {
       reachableClusters: [
         {
@@ -214,7 +233,7 @@ test('does not auto-download update when env var is set to off', async () => {
     expect.objectContaining({
       kind: 'update-not-available',
       autoUpdatesStatus: expect.objectContaining({
-        reason: 'disabled-by-env-var',
+        reason: 'disabled-by-env-config',
       }),
     })
   );
@@ -349,34 +368,41 @@ test('discards previous update if the latest check returns no update', async () 
   expect(setup.nativeUpdater.autoInstallOnAppQuit).toBeFalsy();
 });
 
-test('when the update is older than app updateKind equals downgrade', async () => {
+test('downgrades are not allowed', async () => {
+  const toolsVersion = '17.7.4';
+  const clusters = {
+    reachableClusters: [
+      {
+        clusterUri: '/clusters/foo',
+        toolsAutoUpdate: true,
+        toolsVersion,
+        minToolsVersion: '16.0.0-aa',
+      },
+    ],
+    unreachableClusters: [],
+  };
+
   const setup = setUpAppUpdater({
-    clusters: {
-      reachableClusters: [
-        {
-          clusterUri: '/clusters/foo',
-          toolsAutoUpdate: true,
-          toolsVersion: '17.7.5',
-          minToolsVersion: '16.0.0-aa',
-        },
-      ],
-      unreachableClusters: [],
-    },
+    clusters,
   });
 
+  // Ensure the app version is greater than the update version.
+  expect(compare(toolsVersion, mockedAppVersion)).toBe(-1);
   await setup.appUpdater.checkForUpdates();
   expect(setup.lastEvent.value).toEqual(
     expect.objectContaining({
-      kind: 'update-available',
-      update: expect.objectContaining({
-        updateKind: 'downgrade',
-      }),
+      kind: 'update-not-available',
     })
   );
 });
 
-test('when the update is newer than app updateKind equals upgrade', async () => {
+test('when the app is installed per-machine and configured with env vars, UAC prompt is required to install', async () => {
   const setup = setUpAppUpdater({
+    configToolsVersion: {
+      value: '20.0.0',
+      source: ConfigSource.ENV_VAR,
+    },
+    installationMetadata: { isPerMachineInstall: true },
     clusters: {
       reachableClusters: [
         {
@@ -395,7 +421,32 @@ test('when the update is newer than app updateKind equals upgrade', async () => 
     expect.objectContaining({
       kind: 'update-available',
       update: expect.objectContaining({
-        updateKind: 'upgrade',
+        requiresUacPrompt: true,
+      }),
+    })
+  );
+});
+
+test("quitAndInstall emits 'installing' event", async () => {
+  const setup = setUpAppUpdater({
+    configToolsVersion: {
+      value: '20.0.0',
+      source: ConfigSource.POLICY,
+    },
+    clusters: {
+      reachableClusters: [],
+      unreachableClusters: [],
+    },
+  });
+
+  await setup.appUpdater.checkForUpdates();
+  setup.appUpdater.quitAndInstall();
+
+  expect(setup.lastEvent.value).toEqual(
+    expect.objectContaining({
+      kind: 'installing',
+      update: expect.objectContaining({
+        version: '20.0.0',
       }),
     })
   );

@@ -184,16 +184,11 @@ func (s *Server) DeleteScopedRole(ctx context.Context, req *scopedaccessv1.Delet
 		return s.cfg.Writer.DeleteScopedRole(ctx, req)
 	}
 
-	// load the role so we can determine the resource scope
-	grsp, err := s.cfg.Reader.GetScopedRole(ctx, &scopedaccessv1.GetScopedRoleRequest{
+	// load the role so we can determine the resource scope.
+	grsp, err := s.cfg.BackendReader.GetScopedRole(ctx, &scopedaccessv1.GetScopedRoleRequest{
 		Name: req.GetName(),
 	})
 	if err != nil {
-		if trace.IsNotFound(err) {
-			// this API deliberately does not distinguish between kinds of concurrent modification
-			// in its error kinds.
-			return nil, trace.CompareFailed("scoped role %q has been concurrently modified and/or deleted", req.GetName())
-		}
 		return nil, trace.Wrap(err)
 	}
 
@@ -243,17 +238,12 @@ func (s *Server) DeleteScopedRoleAssignment(ctx context.Context, req *scopedacce
 		return s.cfg.Writer.DeleteScopedRoleAssignment(ctx, req)
 	}
 
-	// load the assignment so we can determine the resource scope
-	grsp, err := s.cfg.Reader.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
+	// load the assignment so we can determine the resource scope.
+	grsp, err := s.cfg.BackendReader.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
 		Name:    req.GetName(),
 		SubKind: req.GetSubKind(),
 	})
 	if err != nil {
-		if trace.IsNotFound(err) {
-			// this API deliberately does not distinguish between kinds of concurrent modification
-			// in its error kinds.
-			return nil, trace.CompareFailed("scoped role assignment %q has been concurrently modified and/or deleted", req.GetName())
-		}
 		return nil, trace.Wrap(err)
 	}
 

@@ -13,7 +13,7 @@ To use it, you will need:
 - a reachable proxy endpoint (`$PROXY_ENDPOINT` e.g. `teleport.example.com:3080` or `teleport.example.com:443`)
 - a reachable reverse tunnel port on the proxy (e.g. `teleport.example.com:3024`). The address is automatically
   retrieved from the Teleport proxy configuration.
-- a join token for the Teleport Cluster. For this Teleport cluster (`$JOIN_TOKEN`) is used by default. See the [Join Methods and Token Reference](https://goteleport.com/docs/reference/join-methods/) for supported join methods and creating tokens.
+- a join token for the Teleport Cluster. For this Teleport cluster (`$JOIN_TOKEN`) is used by default. See the [Join Methods and Token Reference](https://goteleport.com/docs/reference/deployment/join-methods/) for supported join methods and creating tokens.
 
 ## Combining roles
 
@@ -88,7 +88,7 @@ detailed below.
 
 ### Dynamic Registration mode
 
-To use Teleport application access in [dynamic registration mode](https://goteleport.com/docs/enroll-resources/application-access/guides/dynamic-registration/),
+To use Teleport application access in [dynamic registration mode](https://goteleport.com/docs/enroll-resources/application-access/configuration/dynamic-registration/),
 you will need to know the application resource selector. (`$APP_RESOURCE_KEY` and `$APP_RESOURCE_VALUE`)
 
 To listen for all application resources, set both variables to `*`.
@@ -251,7 +251,7 @@ for the app service, so it can expose discovered apps.
 
 ## Jamf service
 
-To use [Teleport Jamf service](https://goteleport.com/docs/access-controls/device-trust/jamf-integration/), 
+To use [Teleport Jamf service](https://goteleport.com/docs/identity-governance/device-trust/jamf-integration/), 
 you will also need:
 - provide your Jamf Pro API endpoint
 - provide your Jamf Pro API credentials

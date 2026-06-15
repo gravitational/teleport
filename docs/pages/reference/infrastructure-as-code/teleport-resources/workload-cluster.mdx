@@ -1,0 +1,198 @@
+---
+title: Workload Cluster Reference
+description: Provides a reference of fields within the Workload Cluster resource, which you can manage with tctl.
+sidebar_label: Workload Cluster
+---
+{/* vale 3rd-party-products.former-names = NO */}
+{/* vale messaging.capitalization = NO */}
+{/* Automatically generated from: gen/proto/go/teleport/workloadcluster/v1/workloadcluster.pb.go */}
+{/* DO NOT EDIT */}
+
+**Kind**: `workload_cluster`<br/>
+**Version**: `v1`
+
+Represents a child Teleport Cloud cluster
+
+Example definition:
+```yaml
+kind: workload_cluster
+version: v1
+metadata:
+  name: company-organization
+spec:
+  regions:
+    - name: us-west-2
+  bot:
+    # Teleport Cloud creates a bot, token, and role with this name
+    # in the child cluster.
+    name: example-iam
+  token:
+    # Allow tbot to join the child cluster using the below IAM assumed role.
+    join_method: iam
+    allow:
+      - aws_account: "123456789012"
+        aws_arn: "arn:aws:sts::123456789012:assumed-role/example-tbot-role/session-name"
+# Status will be set by Teleport with status from Teleport Cloud.
+status:
+  # The Teleport Proxy address of the child cluster.
+  domain: company-organization.teleport.sh
+  # The current state of the child cluster in Teleport Cloud.
+  state: active
+
+```
+
+## Top-level fields
+
+Example:
+
+```yaml
+kind: "string"
+sub_kind: "string"
+version: "string"
+metadata: # [...]
+spec: # [...]
+status: # [...]
+```
+|Field Name|Description|Type|
+|---|---|---|
+|kind||string|
+|metadata||[Metadata](#metadata)|
+|spec||[Workload Cluster Spec](#workload-cluster-spec)|
+|status||[Workload Cluster Status](#workload-cluster-status)|
+|sub_kind||string|
+|version||string|
+
+## Allow
+
+Configures rules for using the corresponding join method
+
+
+Example:
+
+```yaml
+aws_account: "string"
+aws_arn: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|aws_account||string|
+|aws_arn||string|
+
+## Bot
+
+Configures a bot for the child Teleport Cloud cluster
+
+
+Example:
+
+```yaml
+name: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|name|Name of the bot, token, and role that will be created|string|
+
+## Metadata
+
+Resource metadata.
+
+
+Example:
+
+```yaml
+name: "string"
+namespace: "string"
+description: "string"
+labels: 
+  "string": "string"
+  "string": "string"
+  "string": "string"
+expires: # See description
+revision: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|description|Description is object description.|string|
+|expires|Expires is a global expiry time header can be set on any resource in the system.||
+|labels|Labels is a set of labels.|map[string]string|
+|name|Name is an object name.|string|
+|namespace|Namespace is object namespace. The field should be called "namespace" when it returns in Teleport 2.4.|string|
+|revision|Revision is an opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.|string|
+
+## Region
+
+Configures a region for deploying Teleport services
+
+
+Example:
+
+```yaml
+name: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|name|Name is the region's name|string|
+
+## Token
+
+Configures a token for a bot
+
+
+Example:
+
+```yaml
+join_method: "string"
+allow: 
+  - # [...]
+  - # [...]
+  - # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|allow|Allow defines the AWS Accounts and ARNs to allow joining from|[][Allow](#allow)|
+|join_method|Join_method is type of join method to allow for the token|string|
+
+## Workload Cluster Spec
+
+Configures where a child Teleport Cloud cluster should be created and the initial bot
+
+
+Example:
+
+```yaml
+regions: 
+  - # [...]
+  - # [...]
+  - # [...]
+bot: # [...]
+token: # [...]
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|bot||[Bot](#bot)|
+|regions||[][Region](#region)|
+|token||[Token](#token)|
+
+## Workload Cluster Status
+
+Populated with status from Teleport Cloud about the child Teleport Cloud cluster
+
+
+Example:
+
+```yaml
+state: "string"
+domain: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|domain|Domain is the Teleport Proxy address of the child Teleport Cloud cluster|string|
+|state|State is the status of the child cluster running in Teleport Cloud|string|
+

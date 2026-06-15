@@ -38,6 +38,8 @@ import {
 
 import { MockedUnaryCall } from 'teleterm/services/tshd/cloneableClient';
 import {
+  leafClusterUri,
+  makeLeafCluster,
   makeRootCluster,
   makeServer,
   rootClusterUri,
@@ -272,7 +274,7 @@ test.each([
   {
     name: 'refreshes resources when the document cluster URI matches the requested cluster URI',
     conditions: {
-      documentClusterUri: '/clusters/teleport-local',
+      documentClusterUri: rootClusterUri,
     },
     expect: {
       resourcesRefreshed: true,
@@ -281,7 +283,7 @@ test.each([
   {
     name: 'refreshes resources when the document cluster URI is a leaf of the requested cluster URI',
     conditions: {
-      documentClusterUri: '/clusters/teleport-local/leaves/leaf',
+      documentClusterUri: leafClusterUri,
     },
     expect: {
       resourcesRefreshed: true,
@@ -297,6 +299,9 @@ test.each([
   const serverResource = makeServer();
   const appContext = new MockAppContext();
   appContext.addRootClusterWithDoc(rootCluster, doc);
+  appContext.clustersService.setState(draft => {
+    draft.clusters.set(leafClusterUri, makeLeafCluster());
+  });
 
   jest
     .spyOn(appContext.resourcesService, 'listUnifiedResources')

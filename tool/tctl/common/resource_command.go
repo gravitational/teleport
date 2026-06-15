@@ -19,7 +19,6 @@
 package common
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -200,10 +199,12 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindInferenceModel:                     rc.createInferenceModel,
 		types.KindInferenceSecret:                    rc.createInferenceSecret,
 		types.KindInferencePolicy:                    rc.createInferencePolicy,
+		types.KindRetrievalModel:                     rc.createRetrievalModel,
 		scopedaccess.KindScopedRole:                  rc.createScopedRole,
 		scopedaccess.KindScopedRoleAssignment:        rc.createScopedRoleAssignment,
 		scopedaccess.KindScopedToken:                 rc.createScopedToken,
 		types.KindWorkloadCluster:                    rc.createWorkloadCluster,
+		types.KindCertAuthorityOverride:              rc.createCAOverride,
 	}
 	rc.UpdateHandlers = map[ResourceKind]ResourceCreateHandler{
 		types.KindUser:                               rc.updateUser,
@@ -232,10 +233,12 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		types.KindHealthCheckConfig:                  rc.updateHealthCheckConfig,
 		types.KindInferenceModel:                     rc.updateInferenceModel,
 		types.KindInferencePolicy:                    rc.updateInferencePolicy,
+		types.KindRetrievalModel:                     rc.updateRetrievalModel,
 		scopedaccess.KindScopedRole:                  rc.updateScopedRole,
 		scopedaccess.KindScopedRoleAssignment:        rc.updateScopedRoleAssignment,
 		scopedaccess.KindScopedToken:                 rc.updateScopedToken,
 		types.KindWorkloadCluster:                    rc.updateWorkloadCluster,
+		types.KindCertAuthorityOverride:              rc.updateCAOverride,
 	}
 	rc.config = config
 
@@ -373,6 +376,15 @@ func (rc *ResourceCommand) Get(ctx context.Context, client *authclient.Client) e
 }
 
 func (rc *ResourceCommand) GetMany(ctx context.Context, client *authclient.Client) error {
+	const skipNotSupported = false
+	return trace.Wrap(rc.getMany(ctx, client, skipNotSupported))
+}
+
+func (rc *ResourceCommand) getMany(
+	ctx context.Context,
+	client *authclient.Client,
+	skipNotSupported bool,
+) error {
 	if rc.format != teleport.YAML {
 		return trace.BadParameter("mixed resource types only support YAML formatting")
 	}
@@ -381,6 +393,9 @@ func (rc *ResourceCommand) GetMany(ctx context.Context, client *authclient.Clien
 	for _, ref := range rc.refs {
 		rc.ref = ref
 		collection, err := rc.getCollection(ctx, client)
+		if skipNotSupported && trace.IsNotImplemented(err) {
+			continue
+		}
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -403,7 +418,12 @@ func (rc *ResourceCommand) GetAll(ctx context.Context, client *authclient.Client
 		allRefs = append(allRefs, ref)
 	}
 	rc.refs = services.Refs(allRefs)
-	return rc.GetMany(ctx, client)
+
+	// This lets OSS query Enterprise-only kinds without failing when the
+	// corresponding RPCs return "NotImplemented".
+	const skipNotSupported = true
+
+	return rc.getMany(ctx, client, skipNotSupported)
 }
 
 // Create updates or inserts one or many resources
@@ -1984,6 +2004,10 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		return trace.BadParameter("provide a full resource name to delete, for example:\n$ tctl rm cluster/east\n")
 	}
 
+	errNotSupported := func() error {
+		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
+	}
+
 	switch rc.ref.Kind {
 	case types.KindNode:
 		if err = client.DeleteNode(ctx, apidefaults.Namespace, rc.ref.Name); err != nil {
@@ -2423,6 +2447,12 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			rc.ref.Name,
 		)
 	case scopedaccess.KindScopedRoleAssignment:
+		if rc.ref.SubKind == "" {
+			return trace.BadParameter("scoped_role_assignment requires an explicit subkind when deleting a resource, try: tctl rm scoped_role_assignment/%s/%s", scopedaccess.SubKindDynamic, rc.ref.Name)
+		}
+		if rc.ref.SubKind == scopedaccess.SubKindMaterialized {
+			return trace.BadParameter("%s scoped_role_assignments are derived from access lists and cannot be deleted directly", scopedaccess.SubKindMaterialized)
+		}
 		if _, err := client.ScopedAccessServiceClient().DeleteScopedRoleAssignment(ctx, &scopedaccessv1.DeleteScopedRoleAssignmentRequest{
 			Name:    rc.ref.Name,
 			SubKind: rc.ref.SubKind,
@@ -2509,8 +2539,12 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		return trace.Wrap(rc.deleteInferenceSecret(ctx, client))
 	case types.KindInferencePolicy:
 		return trace.Wrap(rc.deleteInferencePolicy(ctx, client))
+	case types.KindRetrievalModel:
+		return trace.Wrap(rc.deleteRetrievalModel(ctx, client))
+	case types.KindCertAuthorityOverride:
+		return trace.Wrap(rc.deleteCAOverride(ctx, client))
 	default:
-		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
+		return errNotSupported()
 	}
 	return nil
 }
@@ -3163,7 +3197,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			ResourceType: types.KindDatabaseService,
 		}
 		if resourceName != "" {
-			listReq.PredicateExpression = fmt.Sprintf(`name == "%s"`, resourceName)
+			listReq.PredicateExpression = fmt.Sprintf(`name == %q`, resourceName)
 		}
 
 		getResp, err := apiclient.GetResourcesWithFilters(ctx, client, listReq)
@@ -3507,7 +3541,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 
 		return &accessListCollection{accessLists: accessLists}, trace.Wrap(err)
 	case types.KindVnetConfig:
-		vnetConfig, err := client.VnetConfigServiceClient().GetVnetConfig(ctx, &vnet.GetVnetConfigRequest{})
+		vnetConfig, err := client.VnetConfigClient().GetVnetConfig(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -3873,6 +3907,9 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 	case types.KindInferencePolicy:
 		policies, err := rc.getInferencePolicies(ctx, client)
 		return policies, trace.Wrap(err)
+	case types.KindRetrievalModel:
+		models, err := rc.getRetrievalModel(ctx, client)
+		return models, trace.Wrap(err)
 	case scopedaccess.KindScopedRole:
 		if rc.ref.Name != "" {
 			rsp, err := client.ScopedAccessServiceClient().GetScopedRole(ctx, &scopedaccessv1.GetScopedRoleRequest{
@@ -3892,11 +3929,12 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		return &scopedRoleCollection{items: items}, nil
 	case scopedaccess.KindScopedRoleAssignment:
 		if rc.ref.Name != "" {
-			// Default to dynamic if the user didn't specify a subkind.
-			subKind := cmp.Or(rc.ref.SubKind, scopedaccess.SubKindDynamic)
+			if rc.ref.SubKind == "" {
+				return nil, trace.BadParameter("scoped_role_assignment requires an explicit subkind when getting a single resource, try: tctl get scoped_role_assignment/dynamic/%s", rc.ref.Name)
+			}
 			rsp, err := client.ScopedAccessServiceClient().GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
 				Name:    rc.ref.Name,
-				SubKind: subKind,
+				SubKind: rc.ref.SubKind,
 			})
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -3920,6 +3958,11 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			if !rc.withSecrets && token.GetStatus().GetSecret() != "" {
 				token.GetStatus().Secret = "******"
 			}
+			// As a note, this seems to be dead code, these secrets are always empty
+			// if WithSecrets is unset, since the server will strip the value.
+			if !rc.withSecrets && token.GetStatus().GetUsage().GetBoundKeypair().GetRegistrationSecret() != "" {
+				token.GetStatus().GetUsage().GetBoundKeypair().RegistrationSecret = "******"
+			}
 			return &scopedTokenCollection{[]*joiningv1.ScopedToken{token}}, nil
 		}
 
@@ -3936,6 +3979,9 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 				for _, token := range res.GetTokens() {
 					if token.GetStatus().GetSecret() != "" {
 						token.GetStatus().Secret = "******"
+					}
+					if token.GetStatus().GetUsage().GetBoundKeypair().GetRegistrationSecret() != "" {
+						token.GetStatus().GetUsage().GetBoundKeypair().RegistrationSecret = "******"
 					}
 				}
 			}
@@ -3965,6 +4011,8 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return nil, trace.Wrap(err)
 		}
 		return &workloadClusterCollection{workloadClusters: clusters}, nil
+	case types.KindCertAuthorityOverride:
+		return rc.getCAOverrides(ctx, client)
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }
@@ -4261,9 +4309,9 @@ func (rc *ResourceCommand) createVnetConfig(ctx context.Context, client *authcli
 	}
 
 	if rc.IsForced() {
-		_, err = client.VnetConfigServiceClient().UpsertVnetConfig(ctx, &vnet.UpsertVnetConfigRequest{VnetConfig: vnetConfig})
+		_, err = client.VnetConfigClient().UpsertVnetConfig(ctx, vnetConfig)
 	} else {
-		_, err = client.VnetConfigServiceClient().CreateVnetConfig(ctx, &vnet.CreateVnetConfigRequest{VnetConfig: vnetConfig})
+		_, err = client.VnetConfigClient().CreateVnetConfig(ctx, vnetConfig)
 	}
 	if err != nil {
 		return trace.Wrap(err)
@@ -4278,7 +4326,7 @@ func (rc *ResourceCommand) updateVnetConfig(ctx context.Context, client *authcli
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if _, err := client.VnetConfigServiceClient().UpdateVnetConfig(ctx, &vnet.UpdateVnetConfigRequest{VnetConfig: vnetConfig}); err != nil {
+	if _, err := client.VnetConfigClient().UpdateVnetConfig(ctx, vnetConfig); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Println("vnet_config has been updated")

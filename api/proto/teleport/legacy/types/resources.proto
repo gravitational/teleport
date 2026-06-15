@@ -50,6 +50,9 @@ message ResourceConstraints {
     // aws_console scopes an AWS Console app to a subset of role ARNs
     // the requester is allowed to use.
     AWSConsoleResourceConstraints aws_console = 10;
+    // ssh scopes an SSH node to a subset of logins the requester is
+    // allowed to use.
+    SSHResourceConstraints ssh = 11;
   }
 }
 
@@ -57,6 +60,12 @@ message ResourceConstraints {
 // the requester is allowed to use.
 message AWSConsoleResourceConstraints {
   repeated string role_arns = 1;
+}
+
+// SSHResourceConstraints scopes an SSH node to a subset of logins the
+// requester is allowed to use.
+message SSHResourceConstraints {
+  repeated string logins = 1;
 }
 
 // ResourceAccessID represents a ResourceID in an Access Request-related context,

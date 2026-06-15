@@ -21,7 +21,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
@@ -201,14 +200,14 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 		}
 	}
 
+	const invalidChars = "{}^$*"
+	const invalidLabelChars = "{}^$"
 	// verify that ssh logins are well-formed
-	for _, login := range role.GetSpec().GetSsh().GetLogins() {
+	if login := validateDoesNotContain(role.GetSpec().GetSsh().GetLogins(), invalidChars); login != "" {
 		// we currently don't support any form of wildcard/regex/substitution in scoped role
 		// logins. we likely will support substitution in the future, but its best to disallow
 		// it until that has landed.
-		if strings.ContainsAny(login, "{}^$*") {
-			return trace.BadParameter("scoped role %q has invalid login %q", role.GetMetadata().GetName(), login)
-		}
+		return trace.BadParameter("scoped role %q has invalid login %q", role.GetMetadata().GetName(), login)
 	}
 
 	// verify that ssh node labels are well-formed
@@ -217,13 +216,11 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 		// node labels. we likely will support such things in the future, but its best to disallow
 		// them until that has landed.
 
-		if strings.ContainsAny(label.GetName(), "{}^$") {
+		if strings.ContainsAny(label.GetName(), invalidLabelChars) {
 			return trace.BadParameter("scoped role %q has invalid node label name %q", role.GetMetadata().GetName(), label.GetName())
 		}
-		for _, value := range label.GetValues() {
-			if strings.ContainsAny(value, "{}^$") {
-				return trace.BadParameter("scoped role %q has invalid node label value %q for label %q", role.GetMetadata().GetName(), value, label.GetName())
-			}
+		if value := validateDoesNotContain(label.GetValues(), invalidLabelChars); value != "" {
+			return trace.BadParameter("scoped role %q has invalid node label value %q for label %q", role.GetMetadata().GetName(), value, label.GetName())
 		}
 	}
 
@@ -231,6 +228,11 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 	if s := role.GetSpec().GetSsh().GetClientIdleTimeout(); s != "" {
 		if _, err := time.ParseDuration(s); err != nil {
 			return trace.BadParameter("scoped role %q has invalid ssh.client_idle_timeout %q: %v", role.GetMetadata().GetName(), s, err)
+		}
+	}
+	if s := role.GetSpec().GetKube().GetClientIdleTimeout(); s != "" {
+		if _, err := time.ParseDuration(s); err != nil {
+			return trace.BadParameter("scoped role %q has invalid kube.client_idle_timeout %q: %v", role.GetMetadata().GetName(), s, err)
 		}
 	}
 	if s := role.GetSpec().GetDefaults().GetClientIdleTimeout(); s != "" {
@@ -252,12 +254,54 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 		return trace.BadParameter("scoped role %q has invalid ssh.max_sessions %d: must be non-negative", role.GetMetadata().GetName(), ms)
 	}
 
+	// verify that kube labels are well-formed
+	for _, label := range role.GetSpec().GetKube().GetLabels() {
+		// we currently don't support any form of wildcard/regex/substitution in scoped role
+		// node labels. we likely will support such things in the future, but its best to disallow
+		// them until that has landed.
+
+		if strings.ContainsAny(label.GetName(), invalidLabelChars) {
+			return trace.BadParameter("scoped role %q has invalid kube label name %q", role.GetMetadata().GetName(), label.GetName())
+		}
+		if value := validateDoesNotContain(label.GetValues(), invalidLabelChars); value != "" {
+			return trace.BadParameter("scoped role %q has invalid kube label value %q for label %q", role.GetMetadata().GetName(), value, label.GetName())
+		}
+	}
+
+	// verify that kube groups are well-formed
+	if group := validateDoesNotContain(role.GetSpec().GetKube().GetGroups(), invalidChars); group != "" {
+		// we currently don't support any form of wildcard/regex/substitution in scoped role
+		// kube gruops. we likely will support substitution in the future, but its best to disallow
+		// it until that has landed.
+		return trace.BadParameter("scoped role %q has invalid kube group %q", role.GetMetadata().GetName(), group)
+	}
+
+	// verify that kube users are well-formed
+	if user := validateDoesNotContain(role.GetSpec().GetKube().GetUsers(), invalidChars); user != "" {
+		// we currently don't support any form of wildcard/regex/substitution in scoped role
+		// kube users. we likely will support substitution in the future, but its best to disallow
+		// it until that has landed.
+		return trace.BadParameter("scoped role %q has invalid kube user %q", role.GetMetadata().GetName(), user)
+	}
+
 	// verify that scoped role converts to a valid unscoped role
 	if _, err := ScopedRoleToRole(role, role.GetScope()); err != nil {
 		return trace.BadParameter("scoped role %q is malformed: %v", role.GetMetadata().GetName(), err)
 	}
 
 	return nil
+}
+
+// validateDoestNotContain checks that a given slice of string values do not contain any of the characters in the given
+// invalid set. The first invalid value is returned to be included in any error messages.
+func validateDoesNotContain(values []string, invalidSet string) string {
+	for _, val := range values {
+		if strings.ContainsAny(val, invalidSet) {
+			return val
+		}
+	}
+
+	return ""
 }
 
 func validateRoleName(name string) error {
@@ -366,8 +410,8 @@ func StrongValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 		return trace.BadParameter("scoped role assignment %q has invalid sub_kind %q", assignment.GetMetadata().GetName(), assignment.GetSubKind())
 	}
 
-	if _, err := uuid.Parse(assignment.GetMetadata().GetName()); err != nil {
-		return trace.BadParameter("scoped role assignment %q has invalid name (must be uuid): %v", assignment.GetMetadata().GetName(), err)
+	if err := scopes.StrongValidateSegment(assignment.GetMetadata().GetName()); err != nil {
+		return trace.BadParameter("scoped role assignment name %q does not conform to segment naming rules: %v", assignment.GetMetadata().GetName(), err)
 	}
 
 	if err := scopes.StrongValidate(assignment.GetScope()); err != nil {

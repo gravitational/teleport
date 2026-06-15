@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/summarizer/v1/summarizer.proto
 
+//go:build !protoopaque
+
 package summarizerv1
 
 import (
@@ -28,7 +30,6 @@ import (
 	structpb "google.golang.org/protobuf/types/known/structpb"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -87,11 +88,6 @@ func (x SummaryState) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use SummaryState.Descriptor instead.
-func (SummaryState) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{0}
-}
-
 // CommandCategory represents the category of a command.
 type CommandCategory int32
 
@@ -120,29 +116,69 @@ const (
 	// CommandCategoryOther indicates that the command does not fit into any of the
 	// other categories.
 	CommandCategory_COMMAND_CATEGORY_OTHER CommandCategory = 7
+	// CommandCategoryPackageManagement indicates that the command is related to
+	// package management, such as installing or updating packages.
+	CommandCategory_COMMAND_CATEGORY_PACKAGE_MANAGEMENT CommandCategory = 8
+	// CommandCategoryContainer indicates that the command is related to container
+	// operations, such as Docker or Kubernetes commands.
+	CommandCategory_COMMAND_CATEGORY_CONTAINER CommandCategory = 9
+	// CommandCategorySourceControl indicates that the command is related to source
+	// control, such as Git operations.
+	CommandCategory_COMMAND_CATEGORY_SOURCE_CONTROL CommandCategory = 10
+	// CommandCategoryScheduling indicates that the command is related to scheduling,
+	// such as cron or systemd timer operations.
+	CommandCategory_COMMAND_CATEGORY_SCHEDULING CommandCategory = 11
+	// CommandCategoryMonitoring indicates that the command is related to monitoring
+	// and observability.
+	CommandCategory_COMMAND_CATEGORY_MONITORING CommandCategory = 12
+	// CommandCategoryUserManagement indicates that the command is related to user
+	// and group management.
+	CommandCategory_COMMAND_CATEGORY_USER_MANAGEMENT CommandCategory = 13
+	// CommandCategoryTransfer indicates that the command is related to data transfer
+	// operations, such as scp or rsync.
+	CommandCategory_COMMAND_CATEGORY_TRANSFER CommandCategory = 14
+	// CommandCategoryDevelopment indicates that the command is related to development
+	// tools, such as compilers or build tools.
+	CommandCategory_COMMAND_CATEGORY_DEVELOPMENT CommandCategory = 15
 )
 
 // Enum value maps for CommandCategory.
 var (
 	CommandCategory_name = map[int32]string{
-		0: "COMMAND_CATEGORY_UNSPECIFIED",
-		1: "COMMAND_CATEGORY_FILE_OPERATION",
-		2: "COMMAND_CATEGORY_NETWORK",
-		3: "COMMAND_CATEGORY_PROCESS",
-		4: "COMMAND_CATEGORY_SYSTEM_CONFIG",
-		5: "COMMAND_CATEGORY_DATA_ACCESS",
-		6: "COMMAND_CATEGORY_AUTHENTICATION",
-		7: "COMMAND_CATEGORY_OTHER",
+		0:  "COMMAND_CATEGORY_UNSPECIFIED",
+		1:  "COMMAND_CATEGORY_FILE_OPERATION",
+		2:  "COMMAND_CATEGORY_NETWORK",
+		3:  "COMMAND_CATEGORY_PROCESS",
+		4:  "COMMAND_CATEGORY_SYSTEM_CONFIG",
+		5:  "COMMAND_CATEGORY_DATA_ACCESS",
+		6:  "COMMAND_CATEGORY_AUTHENTICATION",
+		7:  "COMMAND_CATEGORY_OTHER",
+		8:  "COMMAND_CATEGORY_PACKAGE_MANAGEMENT",
+		9:  "COMMAND_CATEGORY_CONTAINER",
+		10: "COMMAND_CATEGORY_SOURCE_CONTROL",
+		11: "COMMAND_CATEGORY_SCHEDULING",
+		12: "COMMAND_CATEGORY_MONITORING",
+		13: "COMMAND_CATEGORY_USER_MANAGEMENT",
+		14: "COMMAND_CATEGORY_TRANSFER",
+		15: "COMMAND_CATEGORY_DEVELOPMENT",
 	}
 	CommandCategory_value = map[string]int32{
-		"COMMAND_CATEGORY_UNSPECIFIED":    0,
-		"COMMAND_CATEGORY_FILE_OPERATION": 1,
-		"COMMAND_CATEGORY_NETWORK":        2,
-		"COMMAND_CATEGORY_PROCESS":        3,
-		"COMMAND_CATEGORY_SYSTEM_CONFIG":  4,
-		"COMMAND_CATEGORY_DATA_ACCESS":    5,
-		"COMMAND_CATEGORY_AUTHENTICATION": 6,
-		"COMMAND_CATEGORY_OTHER":          7,
+		"COMMAND_CATEGORY_UNSPECIFIED":        0,
+		"COMMAND_CATEGORY_FILE_OPERATION":     1,
+		"COMMAND_CATEGORY_NETWORK":            2,
+		"COMMAND_CATEGORY_PROCESS":            3,
+		"COMMAND_CATEGORY_SYSTEM_CONFIG":      4,
+		"COMMAND_CATEGORY_DATA_ACCESS":        5,
+		"COMMAND_CATEGORY_AUTHENTICATION":     6,
+		"COMMAND_CATEGORY_OTHER":              7,
+		"COMMAND_CATEGORY_PACKAGE_MANAGEMENT": 8,
+		"COMMAND_CATEGORY_CONTAINER":          9,
+		"COMMAND_CATEGORY_SOURCE_CONTROL":     10,
+		"COMMAND_CATEGORY_SCHEDULING":         11,
+		"COMMAND_CATEGORY_MONITORING":         12,
+		"COMMAND_CATEGORY_USER_MANAGEMENT":    13,
+		"COMMAND_CATEGORY_TRANSFER":           14,
+		"COMMAND_CATEGORY_DEVELOPMENT":        15,
 	}
 )
 
@@ -166,11 +202,6 @@ func (CommandCategory) Type() protoreflect.EnumType {
 
 func (x CommandCategory) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use CommandCategory.Descriptor instead.
-func (CommandCategory) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{1}
 }
 
 // RiskLevel represents the risk level associated with a command.
@@ -228,11 +259,6 @@ func (RiskLevel) Type() protoreflect.EnumType {
 
 func (x RiskLevel) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use RiskLevel.Descriptor instead.
-func (RiskLevel) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{2}
 }
 
 // ThreatCategory represents the category of a detected threat.
@@ -335,11 +361,6 @@ func (x ThreatCategory) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use ThreatCategory.Descriptor instead.
-func (ThreatCategory) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{3}
-}
-
 // NeedsReviewReason represents the reason why a session needs further review.
 type NeedsReviewReason int32
 
@@ -390,16 +411,11 @@ func (x NeedsReviewReason) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use NeedsReviewReason.Descriptor instead.
-func (NeedsReviewReason) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{4}
-}
-
 // InferenceModel resource specifies a session summarization inference model
 // configuration. It tells Teleport how to use a specific provider and model to
 // summarize sessions.
 type InferenceModel struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Kind is the resource kind. Should always be set to "inference_model".
 	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	// SubKind is the resource sub-kind. Should be empty.
@@ -437,11 +453,6 @@ func (x *InferenceModel) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use InferenceModel.ProtoReflect.Descriptor instead.
-func (*InferenceModel) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *InferenceModel) GetKind() string {
 	if x != nil {
 		return x.Kind
@@ -477,10 +488,77 @@ func (x *InferenceModel) GetSpec() *InferenceModelSpec {
 	return nil
 }
 
+func (x *InferenceModel) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *InferenceModel) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+func (x *InferenceModel) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *InferenceModel) SetMetadata(v *v1.Metadata) {
+	x.Metadata = v
+}
+
+func (x *InferenceModel) SetSpec(v *InferenceModelSpec) {
+	x.Spec = v
+}
+
+func (x *InferenceModel) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *InferenceModel) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *InferenceModel) ClearMetadata() {
+	x.Metadata = nil
+}
+
+func (x *InferenceModel) ClearSpec() {
+	x.Spec = nil
+}
+
+type InferenceModel_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Kind is the resource kind. Should always be set to "inference_model".
+	Kind string
+	// SubKind is the resource sub-kind. Should be empty.
+	SubKind string
+	// Version is the resource version. Should be set to "v1".
+	Version  string
+	Metadata *v1.Metadata
+	Spec     *InferenceModelSpec
+}
+
+func (b0 InferenceModel_builder) Build() *InferenceModel {
+	m0 := &InferenceModel{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.SubKind = b.SubKind
+	x.Version = b.Version
+	x.Metadata = b.Metadata
+	x.Spec = b.Spec
+	return m0
+}
+
 // InferenceModelSpec specifies the inference provider and provider-specific
 // parameters.
 type InferenceModelSpec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Provider:
 	//
 	//	*InferenceModelSpec_Openai
@@ -531,11 +609,6 @@ func (x *InferenceModelSpec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use InferenceModelSpec.ProtoReflect.Descriptor instead.
-func (*InferenceModelSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *InferenceModelSpec) GetProvider() isInferenceModelSpec_Provider {
 	if x != nil {
 		return x.Provider
@@ -568,6 +641,136 @@ func (x *InferenceModelSpec) GetMaxSessionLengthBytes() int64 {
 	return 0
 }
 
+func (x *InferenceModelSpec) SetOpenai(v *OpenAIProvider) {
+	if v == nil {
+		x.Provider = nil
+		return
+	}
+	x.Provider = &InferenceModelSpec_Openai{v}
+}
+
+func (x *InferenceModelSpec) SetBedrock(v *BedrockProvider) {
+	if v == nil {
+		x.Provider = nil
+		return
+	}
+	x.Provider = &InferenceModelSpec_Bedrock{v}
+}
+
+func (x *InferenceModelSpec) SetMaxSessionLengthBytes(v int64) {
+	x.MaxSessionLengthBytes = v
+}
+
+func (x *InferenceModelSpec) HasProvider() bool {
+	if x == nil {
+		return false
+	}
+	return x.Provider != nil
+}
+
+func (x *InferenceModelSpec) HasOpenai() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Provider.(*InferenceModelSpec_Openai)
+	return ok
+}
+
+func (x *InferenceModelSpec) HasBedrock() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Provider.(*InferenceModelSpec_Bedrock)
+	return ok
+}
+
+func (x *InferenceModelSpec) ClearProvider() {
+	x.Provider = nil
+}
+
+func (x *InferenceModelSpec) ClearOpenai() {
+	if _, ok := x.Provider.(*InferenceModelSpec_Openai); ok {
+		x.Provider = nil
+	}
+}
+
+func (x *InferenceModelSpec) ClearBedrock() {
+	if _, ok := x.Provider.(*InferenceModelSpec_Bedrock); ok {
+		x.Provider = nil
+	}
+}
+
+const InferenceModelSpec_Provider_not_set_case case_InferenceModelSpec_Provider = 0
+const InferenceModelSpec_Openai_case case_InferenceModelSpec_Provider = 1
+const InferenceModelSpec_Bedrock_case case_InferenceModelSpec_Provider = 3
+
+func (x *InferenceModelSpec) WhichProvider() case_InferenceModelSpec_Provider {
+	if x == nil {
+		return InferenceModelSpec_Provider_not_set_case
+	}
+	switch x.Provider.(type) {
+	case *InferenceModelSpec_Openai:
+		return InferenceModelSpec_Openai_case
+	case *InferenceModelSpec_Bedrock:
+		return InferenceModelSpec_Bedrock_case
+	default:
+		return InferenceModelSpec_Provider_not_set_case
+	}
+}
+
+type InferenceModelSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Provider:
+	// Openai indicates that this model uses OpenAI as the inference provider
+	// and specifies OpenAI-specific parameters.
+	Openai *OpenAIProvider
+	// Bedrock indicates that this model uses Amazon Bedrock as the inference
+	// provider and specifies Bedrock-specific parameters.
+	Bedrock *BedrockProvider
+	// -- end of Provider
+	// MaxSessionLengthBytes is the maximum session length that can be sent to
+	// inference provider. Currently, it's determined by the size of model's
+	// context window; future versions of Teleport will allow summarizing larger
+	// sessions by splitting them.
+	//
+	// Inference providers will reject requests that are larger than given
+	// model's context window. Since context windows are usually sized in tokens,
+	// this value is an approximation. Assuming 2 bytes per input token should be
+	// safe.
+	//
+	// Currently, Teleport will outright reject sessions larger than this limit;
+	// future versions will split sessions in chunks, treating this size as a
+	// maximum.
+	//
+	// If unset or set to 0, defaults to 1MB.
+	MaxSessionLengthBytes int64
+}
+
+func (b0 InferenceModelSpec_builder) Build() *InferenceModelSpec {
+	m0 := &InferenceModelSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Openai != nil {
+		x.Provider = &InferenceModelSpec_Openai{b.Openai}
+	}
+	if b.Bedrock != nil {
+		x.Provider = &InferenceModelSpec_Bedrock{b.Bedrock}
+	}
+	x.MaxSessionLengthBytes = b.MaxSessionLengthBytes
+	return m0
+}
+
+type case_InferenceModelSpec_Provider protoreflect.FieldNumber
+
+func (x case_InferenceModelSpec_Provider) String() string {
+	md := file_teleport_summarizer_v1_summarizer_proto_msgTypes[1].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isInferenceModelSpec_Provider interface {
 	isInferenceModelSpec_Provider()
 }
@@ -591,7 +794,7 @@ func (*InferenceModelSpec_Bedrock) isInferenceModelSpec_Provider() {}
 // OpenAIProvider specifies OpenAI-specific parameters. It can be used to
 // configure OpenAI or an OpenAI-compatible API, such as LiteLLM.
 type OpenAIProvider struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// OpenaiModelId specifies the model ID, as understood by the OpenAI API.
 	OpenaiModelId string `protobuf:"bytes,1,opt,name=openai_model_id,json=openaiModelId,proto3" json:"openai_model_id,omitempty"`
 	// Temperature controls the randomness of the model's output.
@@ -633,11 +836,6 @@ func (x *OpenAIProvider) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use OpenAIProvider.ProtoReflect.Descriptor instead.
-func (*OpenAIProvider) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *OpenAIProvider) GetOpenaiModelId() string {
 	if x != nil {
 		return x.OpenaiModelId
@@ -666,9 +864,53 @@ func (x *OpenAIProvider) GetBaseUrl() string {
 	return ""
 }
 
+func (x *OpenAIProvider) SetOpenaiModelId(v string) {
+	x.OpenaiModelId = v
+}
+
+func (x *OpenAIProvider) SetTemperature(v float64) {
+	x.Temperature = v
+}
+
+func (x *OpenAIProvider) SetApiKeySecretRef(v string) {
+	x.ApiKeySecretRef = v
+}
+
+func (x *OpenAIProvider) SetBaseUrl(v string) {
+	x.BaseUrl = v
+}
+
+type OpenAIProvider_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// OpenaiModelId specifies the model ID, as understood by the OpenAI API.
+	OpenaiModelId string
+	// Temperature controls the randomness of the model's output.
+	Temperature float64
+	// ApiKeySecretRef is a reference to an InferenceSecret that contains the
+	// OpenAI API key.
+	ApiKeySecretRef string
+	// BaseUrl is the OpenAI API base URL. Optional, defaults to the public
+	// OpenAI API URL. May be used to point to a custom OpenAI-compatible API,
+	// such as LiteLLM. In such case, the `api_key_secret_ref` must point to a
+	// secret that contains the API key for that custom API.
+	BaseUrl string
+}
+
+func (b0 OpenAIProvider_builder) Build() *OpenAIProvider {
+	m0 := &OpenAIProvider{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.OpenaiModelId = b.OpenaiModelId
+	x.Temperature = b.Temperature
+	x.ApiKeySecretRef = b.ApiKeySecretRef
+	x.BaseUrl = b.BaseUrl
+	return m0
+}
+
 // BedrockProvider specifies parameters specific to Amazon Bedrock.
 type BedrockProvider struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Region is the AWS region which will be used for inference.
 	Region string `protobuf:"bytes,1,opt,name=region,proto3" json:"region,omitempty"`
 	// BedrockModelId specifies a model ID or an inference profile as understood
@@ -709,11 +951,6 @@ func (x *BedrockProvider) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use BedrockProvider.ProtoReflect.Descriptor instead.
-func (*BedrockProvider) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *BedrockProvider) GetRegion() string {
 	if x != nil {
 		return x.Region
@@ -742,11 +979,54 @@ func (x *BedrockProvider) GetIntegration() string {
 	return ""
 }
 
+func (x *BedrockProvider) SetRegion(v string) {
+	x.Region = v
+}
+
+func (x *BedrockProvider) SetBedrockModelId(v string) {
+	x.BedrockModelId = v
+}
+
+func (x *BedrockProvider) SetTemperature(v float32) {
+	x.Temperature = v
+}
+
+func (x *BedrockProvider) SetIntegration(v string) {
+	x.Integration = v
+}
+
+type BedrockProvider_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Region is the AWS region which will be used for inference.
+	Region string
+	// BedrockModelId specifies a model ID or an inference profile as understood
+	// by the Bedrock API.
+	BedrockModelId string
+	// Temperature controls the randomness of the model's output.
+	Temperature float32
+	// Integration is the AWS OIDC Integration name. If unset, Teleport will use
+	// AWS credentials available on the Auth Service machine; otherwise, it will
+	// use the specified OIDC integration for assuming appropriate role.
+	Integration string
+}
+
+func (b0 BedrockProvider_builder) Build() *BedrockProvider {
+	m0 := &BedrockProvider{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Region = b.Region
+	x.BedrockModelId = b.BedrockModelId
+	x.Temperature = b.Temperature
+	x.Integration = b.Integration
+	return m0
+}
+
 // InferenceSecret resource stores session summarization inference provider
 // secrets, such as API keys. They need to be referenced by appropriate
 // provider configuration inside `InferenceModelSpec`.
 type InferenceSecret struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Kind is the resource kind. Should always be set to "inference_secret".
 	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	// SubKind is the resource sub-kind. Should be empty.
@@ -786,11 +1066,6 @@ func (x *InferenceSecret) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use InferenceSecret.ProtoReflect.Descriptor instead.
-func (*InferenceSecret) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *InferenceSecret) GetKind() string {
 	if x != nil {
 		return x.Kind
@@ -826,9 +1101,78 @@ func (x *InferenceSecret) GetSpec() *InferenceSecretSpec {
 	return nil
 }
 
+func (x *InferenceSecret) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *InferenceSecret) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+func (x *InferenceSecret) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *InferenceSecret) SetMetadata(v *v1.Metadata) {
+	x.Metadata = v
+}
+
+func (x *InferenceSecret) SetSpec(v *InferenceSecretSpec) {
+	x.Spec = v
+}
+
+func (x *InferenceSecret) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *InferenceSecret) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *InferenceSecret) ClearMetadata() {
+	x.Metadata = nil
+}
+
+func (x *InferenceSecret) ClearSpec() {
+	x.Spec = nil
+}
+
+type InferenceSecret_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Kind is the resource kind. Should always be set to "inference_secret".
+	Kind string
+	// SubKind is the resource sub-kind. Should be empty.
+	SubKind string
+	// Version is the resource version. Should be set to "v1".
+	Version  string
+	Metadata *v1.Metadata
+	// Spec contains the secret value. Once set, it can only be read by Teleport
+	// itself; it will not be returned in API responses.
+	Spec *InferenceSecretSpec
+}
+
+func (b0 InferenceSecret_builder) Build() *InferenceSecret {
+	m0 := &InferenceSecret{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.SubKind = b.SubKind
+	x.Version = b.Version
+	x.Metadata = b.Metadata
+	x.Spec = b.Spec
+	return m0
+}
+
 // InferenceSecretSpec defines the secret value for the inference model.
 type InferenceSecretSpec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Value is the secret value, such as an API key.
 	Value         string `protobuf:"bytes,1,opt,name=value,proto3" json:"value,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -860,11 +1204,6 @@ func (x *InferenceSecretSpec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use InferenceSecretSpec.ProtoReflect.Descriptor instead.
-func (*InferenceSecretSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *InferenceSecretSpec) GetValue() string {
 	if x != nil {
 		return x.Value
@@ -872,9 +1211,28 @@ func (x *InferenceSecretSpec) GetValue() string {
 	return ""
 }
 
+func (x *InferenceSecretSpec) SetValue(v string) {
+	x.Value = v
+}
+
+type InferenceSecretSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Value is the secret value, such as an API key.
+	Value string
+}
+
+func (b0 InferenceSecretSpec_builder) Build() *InferenceSecretSpec {
+	m0 := &InferenceSecretSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Value = b.Value
+	return m0
+}
+
 // InferencePolicy resource maps sessions to summarization models.
 type InferencePolicy struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Kind is the resource kind. Should always be set to "inference_policy".
 	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	// SubKind is the resource sub-kind. Should be empty.
@@ -912,11 +1270,6 @@ func (x *InferencePolicy) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use InferencePolicy.ProtoReflect.Descriptor instead.
-func (*InferencePolicy) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *InferencePolicy) GetKind() string {
 	if x != nil {
 		return x.Kind
@@ -952,9 +1305,76 @@ func (x *InferencePolicy) GetSpec() *InferencePolicySpec {
 	return nil
 }
 
+func (x *InferencePolicy) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *InferencePolicy) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+func (x *InferencePolicy) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *InferencePolicy) SetMetadata(v *v1.Metadata) {
+	x.Metadata = v
+}
+
+func (x *InferencePolicy) SetSpec(v *InferencePolicySpec) {
+	x.Spec = v
+}
+
+func (x *InferencePolicy) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *InferencePolicy) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *InferencePolicy) ClearMetadata() {
+	x.Metadata = nil
+}
+
+func (x *InferencePolicy) ClearSpec() {
+	x.Spec = nil
+}
+
+type InferencePolicy_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Kind is the resource kind. Should always be set to "inference_policy".
+	Kind string
+	// SubKind is the resource sub-kind. Should be empty.
+	SubKind string
+	// Version is the resource version. Should be set to "v1".
+	Version  string
+	Metadata *v1.Metadata
+	Spec     *InferencePolicySpec
+}
+
+func (b0 InferencePolicy_builder) Build() *InferencePolicy {
+	m0 := &InferencePolicy{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.SubKind = b.SubKind
+	x.Version = b.Version
+	x.Metadata = b.Metadata
+	x.Spec = b.Spec
+	return m0
+}
+
 // InferencePolicySpec maps sessions to summarization models using a filter.
 type InferencePolicySpec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Kinds are session kinds matched by this policy, e.g., "ssh", "k8s", "db"
 	Kinds []string `protobuf:"bytes,1,rep,name=kinds,proto3" json:"kinds,omitempty"`
 	// Model is the name of the `InferenceModel` resource to be used for
@@ -993,11 +1413,6 @@ func (x *InferencePolicySpec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use InferencePolicySpec.ProtoReflect.Descriptor instead.
-func (*InferencePolicySpec) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{7}
-}
-
 func (x *InferencePolicySpec) GetKinds() []string {
 	if x != nil {
 		return x.Kinds
@@ -1019,10 +1434,46 @@ func (x *InferencePolicySpec) GetFilter() string {
 	return ""
 }
 
+func (x *InferencePolicySpec) SetKinds(v []string) {
+	x.Kinds = v
+}
+
+func (x *InferencePolicySpec) SetModel(v string) {
+	x.Model = v
+}
+
+func (x *InferencePolicySpec) SetFilter(v string) {
+	x.Filter = v
+}
+
+type InferencePolicySpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Kinds are session kinds matched by this policy, e.g., "ssh", "k8s", "db"
+	Kinds []string
+	// Model is the name of the `InferenceModel` resource to be used for
+	// summarization.
+	Model string
+	// Filter is an optional filter expression using Teleport Predicate Language
+	// to select sessions for summarization. If it's empty, all sessions that
+	// match the list of kinds will be summarized using this model.
+	Filter string
+}
+
+func (b0 InferencePolicySpec_builder) Build() *InferencePolicySpec {
+	m0 := &InferencePolicySpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kinds = b.Kinds
+	x.Model = b.Model
+	x.Filter = b.Filter
+	return m0
+}
+
 // Summary represents a summary of a session recording. This format is used to
 // store the summaries in the session storage and return it with gRPC.
 type Summary struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// sessionId is an ID of the session whose recording got summarized.
 	SessionId string `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
 	// State is the state of the summarization process.
@@ -1079,11 +1530,6 @@ func (x *Summary) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Summary.ProtoReflect.Descriptor instead.
-func (*Summary) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *Summary) GetSessionId() string {
@@ -1149,10 +1595,140 @@ func (x *Summary) GetEnhancedSummary() *EnhancedSummary {
 	return nil
 }
 
+func (x *Summary) SetSessionId(v string) {
+	x.SessionId = v
+}
+
+func (x *Summary) SetState(v SummaryState) {
+	x.State = v
+}
+
+func (x *Summary) SetInferenceStartedAt(v *timestamppb.Timestamp) {
+	x.InferenceStartedAt = v
+}
+
+func (x *Summary) SetInferenceFinishedAt(v *timestamppb.Timestamp) {
+	x.InferenceFinishedAt = v
+}
+
+func (x *Summary) SetContent(v string) {
+	x.Content = v
+}
+
+func (x *Summary) SetModelName(v string) {
+	x.ModelName = v
+}
+
+func (x *Summary) SetSessionEndEvent(v *structpb.Struct) {
+	x.SessionEndEvent = v
+}
+
+func (x *Summary) SetErrorMessage(v string) {
+	x.ErrorMessage = v
+}
+
+func (x *Summary) SetEnhancedSummary(v *EnhancedSummary) {
+	x.EnhancedSummary = v
+}
+
+func (x *Summary) HasInferenceStartedAt() bool {
+	if x == nil {
+		return false
+	}
+	return x.InferenceStartedAt != nil
+}
+
+func (x *Summary) HasInferenceFinishedAt() bool {
+	if x == nil {
+		return false
+	}
+	return x.InferenceFinishedAt != nil
+}
+
+func (x *Summary) HasSessionEndEvent() bool {
+	if x == nil {
+		return false
+	}
+	return x.SessionEndEvent != nil
+}
+
+func (x *Summary) HasEnhancedSummary() bool {
+	if x == nil {
+		return false
+	}
+	return x.EnhancedSummary != nil
+}
+
+func (x *Summary) ClearInferenceStartedAt() {
+	x.InferenceStartedAt = nil
+}
+
+func (x *Summary) ClearInferenceFinishedAt() {
+	x.InferenceFinishedAt = nil
+}
+
+func (x *Summary) ClearSessionEndEvent() {
+	x.SessionEndEvent = nil
+}
+
+func (x *Summary) ClearEnhancedSummary() {
+	x.EnhancedSummary = nil
+}
+
+type Summary_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// sessionId is an ID of the session whose recording got summarized.
+	SessionId string
+	// State is the state of the summarization process.
+	State SummaryState
+	// InferenceStartedAt is the time when the summarization process started.
+	InferenceStartedAt *timestamppb.Timestamp
+	// InferenceFinishedAt is the time when the summarization process finished.
+	InferenceFinishedAt *timestamppb.Timestamp
+	// Content is the main text content of the summary, stored in Markdown
+	// format. Available if the state is SUMMARY_STATE_SUCCESS.
+	Content string
+	// ModelName is the name of the `InferenceModel` resource that was used to
+	// generate this summary.
+	ModelName string
+	// SessionEndEvent is the event that ended the summarized session. Session
+	// end events carry the most complete set of data that Teleport has about a
+	// given session. Used for checking access based on RBAC rule "where"
+	// filters.
+	//
+	// The event is stored in an unstructured form, as storing an instance of
+	// events.OneOf posed a number of technical challenges with JSON
+	// serialization as a subcomponent of this message. These challenges stem
+	// from the fact that audit events have gogoproto extensions.
+	SessionEndEvent *structpb.Struct
+	// ErrorMessage is an error message if the summarization failed. Available if
+	// the state is SUMMARY_STATE_ERROR.
+	ErrorMessage string
+	// EnhancedSummary contains structured data extracted from the session.
+	EnhancedSummary *EnhancedSummary
+}
+
+func (b0 Summary_builder) Build() *Summary {
+	m0 := &Summary{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.SessionId = b.SessionId
+	x.State = b.State
+	x.InferenceStartedAt = b.InferenceStartedAt
+	x.InferenceFinishedAt = b.InferenceFinishedAt
+	x.Content = b.Content
+	x.ModelName = b.ModelName
+	x.SessionEndEvent = b.SessionEndEvent
+	x.ErrorMessage = b.ErrorMessage
+	x.EnhancedSummary = b.EnhancedSummary
+	return m0
+}
+
 // CommandAnalysis represents a summary of a single command executed during a
 // session.
 type CommandAnalysis struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Command is the command that was executed.
 	Command string `protobuf:"bytes,1,opt,name=command,proto3" json:"command,omitempty"`
 	// Category is the category of the command.
@@ -1227,11 +1803,6 @@ func (x *CommandAnalysis) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use CommandAnalysis.ProtoReflect.Descriptor instead.
-func (*CommandAnalysis) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *CommandAnalysis) GetCommand() string {
@@ -1395,9 +1966,205 @@ func (x *CommandAnalysis) GetInferenceErrorMessage() string {
 	return ""
 }
 
+func (x *CommandAnalysis) SetCommand(v string) {
+	x.Command = v
+}
+
+func (x *CommandAnalysis) SetCategory(v CommandCategory) {
+	x.Category = v
+}
+
+func (x *CommandAnalysis) SetSuccess(v bool) {
+	x.Success = v
+}
+
+func (x *CommandAnalysis) SetRiskLevel(v RiskLevel) {
+	x.RiskLevel = v
+}
+
+func (x *CommandAnalysis) SetRiskScore(v int32) {
+	x.RiskScore = v
+}
+
+func (x *CommandAnalysis) SetThreatCategory(v ThreatCategory) {
+	x.ThreatCategory = v
+}
+
+func (x *CommandAnalysis) SetTimelineTitle(v string) {
+	x.TimelineTitle = v
+}
+
+func (x *CommandAnalysis) SetTimelineSubtitle(v string) {
+	x.TimelineSubtitle = v
+}
+
+func (x *CommandAnalysis) SetShortDescription(v string) {
+	x.ShortDescription = v
+}
+
+func (x *CommandAnalysis) SetDetailedDescription(v string) {
+	x.DetailedDescription = v
+}
+
+func (x *CommandAnalysis) SetErrorMessages(v []string) {
+	x.ErrorMessages = v
+}
+
+func (x *CommandAnalysis) SetSuspiciousFlags(v []string) {
+	x.SuspiciousFlags = v
+}
+
+func (x *CommandAnalysis) SetSensitiveItems(v []string) {
+	x.SensitiveItems = v
+}
+
+func (x *CommandAnalysis) SetSuspiciousPatterns(v []string) {
+	x.SuspiciousPatterns = v
+}
+
+func (x *CommandAnalysis) SetIocs(v []string) {
+	x.Iocs = v
+}
+
+func (x *CommandAnalysis) SetMitreAttackIds(v []string) {
+	x.MitreAttackIds = v
+}
+
+func (x *CommandAnalysis) SetHasSensitiveData(v bool) {
+	x.HasSensitiveData = v
+}
+
+func (x *CommandAnalysis) SetPrivilegeEscalation(v bool) {
+	x.PrivilegeEscalation = v
+}
+
+func (x *CommandAnalysis) SetDataExfiltration(v bool) {
+	x.DataExfiltration = v
+}
+
+func (x *CommandAnalysis) SetPersistence(v bool) {
+	x.Persistence = v
+}
+
+func (x *CommandAnalysis) SetStartOffset(v *durationpb.Duration) {
+	x.StartOffset = v
+}
+
+func (x *CommandAnalysis) SetEndOffset(v *durationpb.Duration) {
+	x.EndOffset = v
+}
+
+func (x *CommandAnalysis) SetInferenceErrorMessage(v string) {
+	x.InferenceErrorMessage = v
+}
+
+func (x *CommandAnalysis) HasStartOffset() bool {
+	if x == nil {
+		return false
+	}
+	return x.StartOffset != nil
+}
+
+func (x *CommandAnalysis) HasEndOffset() bool {
+	if x == nil {
+		return false
+	}
+	return x.EndOffset != nil
+}
+
+func (x *CommandAnalysis) ClearStartOffset() {
+	x.StartOffset = nil
+}
+
+func (x *CommandAnalysis) ClearEndOffset() {
+	x.EndOffset = nil
+}
+
+type CommandAnalysis_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Command is the command that was executed.
+	Command string
+	// Category is the category of the command.
+	Category CommandCategory
+	// Success indicates whether the command executed successfully.
+	Success bool
+	// RiskLevel is the risk level associated with the command.
+	RiskLevel RiskLevel
+	// RiskScore is a numerical score representing the risk associated with the command.
+	RiskScore int32
+	// ThreatCategory is the category of any detected threat associated with the command.
+	ThreatCategory ThreatCategory
+	// TimelineTitle is a brief title for the command's entry in the session timeline.
+	TimelineTitle string
+	// TimelineSubtitle is a more detailed subtitle for the command's entry in the session timeline.
+	TimelineSubtitle string
+	// ShortDescription is a concise description of the command and its purpose.
+	ShortDescription string
+	// DetailedDescription is an in-depth explanation of the command, its function,
+	// and any relevant context.
+	DetailedDescription string
+	// ErrorMessages contains any error messages produced during the execution of the command.
+	ErrorMessages []string
+	// SuspiciousFlags contains any suspicious flags or indicators associated with the command.
+	SuspiciousFlags []string
+	// SensitiveItems contains any sensitive items accessed or modified by the command.
+	SensitiveItems []string
+	// SuspiciousPatterns contains any suspicious patterns detected in relation to the command.
+	SuspiciousPatterns []string
+	// IOCs contains any indicators of compromise associated with the command.
+	Iocs []string
+	// MitreAttackIDs contains any MITRE ATT&CK IDs relevant to the command.
+	MitreAttackIds []string
+	// HasSensitiveData indicates whether the command involved access to or modification of sensitive data.
+	HasSensitiveData bool
+	// PrivilegeEscalation indicates whether the command involved privilege escalation.
+	PrivilegeEscalation bool
+	// DataExfiltration indicates whether the command involved data exfiltration.
+	DataExfiltration bool
+	// Persistence indicates whether the command involved persistence mechanisms.
+	Persistence bool
+	// StartOffset is the start time of the command, relative to the start of the session.
+	StartOffset *durationpb.Duration
+	// EndOffset is the end time of the command, relative to the start of the session.
+	EndOffset *durationpb.Duration
+	// InferenceErrorMessage is an error message if the inference provider failed to analyze this command.
+	InferenceErrorMessage string
+}
+
+func (b0 CommandAnalysis_builder) Build() *CommandAnalysis {
+	m0 := &CommandAnalysis{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Command = b.Command
+	x.Category = b.Category
+	x.Success = b.Success
+	x.RiskLevel = b.RiskLevel
+	x.RiskScore = b.RiskScore
+	x.ThreatCategory = b.ThreatCategory
+	x.TimelineTitle = b.TimelineTitle
+	x.TimelineSubtitle = b.TimelineSubtitle
+	x.ShortDescription = b.ShortDescription
+	x.DetailedDescription = b.DetailedDescription
+	x.ErrorMessages = b.ErrorMessages
+	x.SuspiciousFlags = b.SuspiciousFlags
+	x.SensitiveItems = b.SensitiveItems
+	x.SuspiciousPatterns = b.SuspiciousPatterns
+	x.Iocs = b.Iocs
+	x.MitreAttackIds = b.MitreAttackIds
+	x.HasSensitiveData = b.HasSensitiveData
+	x.PrivilegeEscalation = b.PrivilegeEscalation
+	x.DataExfiltration = b.DataExfiltration
+	x.Persistence = b.Persistence
+	x.StartOffset = b.StartOffset
+	x.EndOffset = b.EndOffset
+	x.InferenceErrorMessage = b.InferenceErrorMessage
+	return m0
+}
+
 // SecurityRecommendation represents a security recommendation related to a command
 type SecurityRecommendation struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Title is a brief title for the security recommendation.
 	Title string `protobuf:"bytes,1,opt,name=title,proto3" json:"title,omitempty"`
 	// Description is a detailed description of the security recommendation.
@@ -1433,11 +2200,6 @@ func (x *SecurityRecommendation) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SecurityRecommendation.ProtoReflect.Descriptor instead.
-func (*SecurityRecommendation) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{10}
-}
-
 func (x *SecurityRecommendation) GetTitle() string {
 	if x != nil {
 		return x.Title
@@ -1459,10 +2221,43 @@ func (x *SecurityRecommendation) GetSeverity() RiskLevel {
 	return RiskLevel_RISK_LEVEL_UNSPECIFIED
 }
 
+func (x *SecurityRecommendation) SetTitle(v string) {
+	x.Title = v
+}
+
+func (x *SecurityRecommendation) SetDescription(v string) {
+	x.Description = v
+}
+
+func (x *SecurityRecommendation) SetSeverity(v RiskLevel) {
+	x.Severity = v
+}
+
+type SecurityRecommendation_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Title is a brief title for the security recommendation.
+	Title string
+	// Description is a detailed description of the security recommendation.
+	Description string
+	// Severity indicates the severity level of the recommendation.
+	Severity RiskLevel
+}
+
+func (b0 SecurityRecommendation_builder) Build() *SecurityRecommendation {
+	m0 := &SecurityRecommendation{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Title = b.Title
+	x.Description = b.Description
+	x.Severity = b.Severity
+	return m0
+}
+
 // EnhancedSummary represents an enhanced summary of a session recording,
 // with structured data extracted from the session.
 type EnhancedSummary struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// ShortDescription is a concise description of the session.
 	ShortDescription string `protobuf:"bytes,1,opt,name=short_description,json=shortDescription,proto3" json:"short_description,omitempty"`
 	// DetailedDescription is an in-depth explanation of the session.
@@ -1506,11 +2301,6 @@ func (x *EnhancedSummary) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use EnhancedSummary.ProtoReflect.Descriptor instead.
-func (*EnhancedSummary) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *EnhancedSummary) GetShortDescription() string {
@@ -1568,6 +2358,451 @@ func (x *EnhancedSummary) GetNeedsFurtherReview() NeedsReviewReason {
 	}
 	return NeedsReviewReason_NEEDS_REVIEW_REASON_UNSPECIFIED
 }
+
+func (x *EnhancedSummary) SetShortDescription(v string) {
+	x.ShortDescription = v
+}
+
+func (x *EnhancedSummary) SetDetailedDescription(v string) {
+	x.DetailedDescription = v
+}
+
+func (x *EnhancedSummary) SetRiskLevel(v RiskLevel) {
+	x.RiskLevel = v
+}
+
+func (x *EnhancedSummary) SetSuspiciousActivities(v []string) {
+	x.SuspiciousActivities = v
+}
+
+func (x *EnhancedSummary) SetCompromiseIndicators(v bool) {
+	x.CompromiseIndicators = v
+}
+
+func (x *EnhancedSummary) SetNotableCommandIndexes(v []int32) {
+	x.NotableCommandIndexes = v
+}
+
+func (x *EnhancedSummary) SetCommands(v []*CommandAnalysis) {
+	x.Commands = v
+}
+
+func (x *EnhancedSummary) SetNeedsFurtherReview(v NeedsReviewReason) {
+	x.NeedsFurtherReview = &v
+}
+
+func (x *EnhancedSummary) HasNeedsFurtherReview() bool {
+	if x == nil {
+		return false
+	}
+	return x.NeedsFurtherReview != nil
+}
+
+func (x *EnhancedSummary) ClearNeedsFurtherReview() {
+	x.NeedsFurtherReview = nil
+}
+
+type EnhancedSummary_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ShortDescription is a concise description of the session.
+	ShortDescription string
+	// DetailedDescription is an in-depth explanation of the session.
+	DetailedDescription string
+	// RiskLevel is the overall risk level associated with the session.
+	RiskLevel RiskLevel
+	// SuspiciousActivities is a list of suspicious activities detected during the session.
+	SuspiciousActivities []string
+	// CompromiseIndicators indicates whether any indicators of compromise were detected during the session.
+	CompromiseIndicators bool
+	// NotableCommandIndexes is a list of indexes of commands that are considered notable.
+	NotableCommandIndexes []int32
+	// Commands is a list of command summaries extracted from the session.
+	Commands []*CommandAnalysis
+	// NeedsFurtherReview indicates the reason why the session needs further review.
+	NeedsFurtherReview *NeedsReviewReason
+}
+
+func (b0 EnhancedSummary_builder) Build() *EnhancedSummary {
+	m0 := &EnhancedSummary{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ShortDescription = b.ShortDescription
+	x.DetailedDescription = b.DetailedDescription
+	x.RiskLevel = b.RiskLevel
+	x.SuspiciousActivities = b.SuspiciousActivities
+	x.CompromiseIndicators = b.CompromiseIndicators
+	x.NotableCommandIndexes = b.NotableCommandIndexes
+	x.Commands = b.Commands
+	x.NeedsFurtherReview = b.NeedsFurtherReview
+	return m0
+}
+
+// RetrievalModel resource specifies the model configuration used to
+// generate embeddings for the session and perform search inference.
+// It tells Teleport how to generate embeddings for a specific session summary
+// and how to convert natural language queries into API requests.
+type RetrievalModel struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// Kind is the resource kind. Should always be set to "retrieval_model".
+	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
+	// SubKind is the resource sub-kind. Should be empty.
+	SubKind string `protobuf:"bytes,2,opt,name=sub_kind,json=subKind,proto3" json:"sub_kind,omitempty"`
+	// Version is the resource version. Should be set to "v1".
+	Version  string       `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
+	Metadata *v1.Metadata `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	// spec contains the configuration for the retrieval model, including the
+	// embeddings provider and the search inference model.
+	// In the future it can be extended with re-rankers configuration and
+	// other settings.
+	Spec          *RetrievalModelSpec `protobuf:"bytes,5,opt,name=spec,proto3" json:"spec,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RetrievalModel) Reset() {
+	*x = RetrievalModel{}
+	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RetrievalModel) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RetrievalModel) ProtoMessage() {}
+
+func (x *RetrievalModel) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *RetrievalModel) GetKind() string {
+	if x != nil {
+		return x.Kind
+	}
+	return ""
+}
+
+func (x *RetrievalModel) GetSubKind() string {
+	if x != nil {
+		return x.SubKind
+	}
+	return ""
+}
+
+func (x *RetrievalModel) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+func (x *RetrievalModel) GetMetadata() *v1.Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+func (x *RetrievalModel) GetSpec() *RetrievalModelSpec {
+	if x != nil {
+		return x.Spec
+	}
+	return nil
+}
+
+func (x *RetrievalModel) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *RetrievalModel) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+func (x *RetrievalModel) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *RetrievalModel) SetMetadata(v *v1.Metadata) {
+	x.Metadata = v
+}
+
+func (x *RetrievalModel) SetSpec(v *RetrievalModelSpec) {
+	x.Spec = v
+}
+
+func (x *RetrievalModel) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *RetrievalModel) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *RetrievalModel) ClearMetadata() {
+	x.Metadata = nil
+}
+
+func (x *RetrievalModel) ClearSpec() {
+	x.Spec = nil
+}
+
+type RetrievalModel_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Kind is the resource kind. Should always be set to "retrieval_model".
+	Kind string
+	// SubKind is the resource sub-kind. Should be empty.
+	SubKind string
+	// Version is the resource version. Should be set to "v1".
+	Version  string
+	Metadata *v1.Metadata
+	// spec contains the configuration for the retrieval model, including the
+	// embeddings provider and the search inference model.
+	// In the future it can be extended with re-rankers configuration and
+	// other settings.
+	Spec *RetrievalModelSpec
+}
+
+func (b0 RetrievalModel_builder) Build() *RetrievalModel {
+	m0 := &RetrievalModel{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.SubKind = b.SubKind
+	x.Version = b.Version
+	x.Metadata = b.Metadata
+	x.Spec = b.Spec
+	return m0
+}
+
+// RetrievalModelSpec specifies the embeddings provider and search inference model.
+// In the future it can be extended with re-rankers configuration and
+// other settings.
+type RetrievalModelSpec struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// Types that are valid to be assigned to EmbeddingsProvider:
+	//
+	//	*RetrievalModelSpec_Openai
+	//	*RetrievalModelSpec_Bedrock
+	EmbeddingsProvider isRetrievalModelSpec_EmbeddingsProvider `protobuf_oneof:"embeddings_provider"`
+	// inference_model_name is the name of the model used to convert natural
+	// language search queries into API requests and generate prose from a session
+	// summary.
+	InferenceModelName string `protobuf:"bytes,2,opt,name=inference_model_name,json=inferenceModelName,proto3" json:"inference_model_name,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *RetrievalModelSpec) Reset() {
+	*x = RetrievalModelSpec{}
+	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RetrievalModelSpec) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RetrievalModelSpec) ProtoMessage() {}
+
+func (x *RetrievalModelSpec) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_summarizer_v1_summarizer_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *RetrievalModelSpec) GetEmbeddingsProvider() isRetrievalModelSpec_EmbeddingsProvider {
+	if x != nil {
+		return x.EmbeddingsProvider
+	}
+	return nil
+}
+
+func (x *RetrievalModelSpec) GetOpenai() *OpenAIProvider {
+	if x != nil {
+		if x, ok := x.EmbeddingsProvider.(*RetrievalModelSpec_Openai); ok {
+			return x.Openai
+		}
+	}
+	return nil
+}
+
+func (x *RetrievalModelSpec) GetBedrock() *BedrockProvider {
+	if x != nil {
+		if x, ok := x.EmbeddingsProvider.(*RetrievalModelSpec_Bedrock); ok {
+			return x.Bedrock
+		}
+	}
+	return nil
+}
+
+func (x *RetrievalModelSpec) GetInferenceModelName() string {
+	if x != nil {
+		return x.InferenceModelName
+	}
+	return ""
+}
+
+func (x *RetrievalModelSpec) SetOpenai(v *OpenAIProvider) {
+	if v == nil {
+		x.EmbeddingsProvider = nil
+		return
+	}
+	x.EmbeddingsProvider = &RetrievalModelSpec_Openai{v}
+}
+
+func (x *RetrievalModelSpec) SetBedrock(v *BedrockProvider) {
+	if v == nil {
+		x.EmbeddingsProvider = nil
+		return
+	}
+	x.EmbeddingsProvider = &RetrievalModelSpec_Bedrock{v}
+}
+
+func (x *RetrievalModelSpec) SetInferenceModelName(v string) {
+	x.InferenceModelName = v
+}
+
+func (x *RetrievalModelSpec) HasEmbeddingsProvider() bool {
+	if x == nil {
+		return false
+	}
+	return x.EmbeddingsProvider != nil
+}
+
+func (x *RetrievalModelSpec) HasOpenai() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.EmbeddingsProvider.(*RetrievalModelSpec_Openai)
+	return ok
+}
+
+func (x *RetrievalModelSpec) HasBedrock() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.EmbeddingsProvider.(*RetrievalModelSpec_Bedrock)
+	return ok
+}
+
+func (x *RetrievalModelSpec) ClearEmbeddingsProvider() {
+	x.EmbeddingsProvider = nil
+}
+
+func (x *RetrievalModelSpec) ClearOpenai() {
+	if _, ok := x.EmbeddingsProvider.(*RetrievalModelSpec_Openai); ok {
+		x.EmbeddingsProvider = nil
+	}
+}
+
+func (x *RetrievalModelSpec) ClearBedrock() {
+	if _, ok := x.EmbeddingsProvider.(*RetrievalModelSpec_Bedrock); ok {
+		x.EmbeddingsProvider = nil
+	}
+}
+
+const RetrievalModelSpec_EmbeddingsProvider_not_set_case case_RetrievalModelSpec_EmbeddingsProvider = 0
+const RetrievalModelSpec_Openai_case case_RetrievalModelSpec_EmbeddingsProvider = 1
+const RetrievalModelSpec_Bedrock_case case_RetrievalModelSpec_EmbeddingsProvider = 3
+
+func (x *RetrievalModelSpec) WhichEmbeddingsProvider() case_RetrievalModelSpec_EmbeddingsProvider {
+	if x == nil {
+		return RetrievalModelSpec_EmbeddingsProvider_not_set_case
+	}
+	switch x.EmbeddingsProvider.(type) {
+	case *RetrievalModelSpec_Openai:
+		return RetrievalModelSpec_Openai_case
+	case *RetrievalModelSpec_Bedrock:
+		return RetrievalModelSpec_Bedrock_case
+	default:
+		return RetrievalModelSpec_EmbeddingsProvider_not_set_case
+	}
+}
+
+type RetrievalModelSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof EmbeddingsProvider:
+	// Openai indicates that this model uses OpenAI as the embeddings provider
+	// and specifies OpenAI-specific parameters.
+	Openai *OpenAIProvider
+	// Bedrock indicates that this model uses Amazon Bedrock as the embeddings
+	// provider and specifies Bedrock-specific parameters.
+	Bedrock *BedrockProvider
+	// -- end of EmbeddingsProvider
+	// inference_model_name is the name of the model used to convert natural
+	// language search queries into API requests and generate prose from a session
+	// summary.
+	InferenceModelName string
+}
+
+func (b0 RetrievalModelSpec_builder) Build() *RetrievalModelSpec {
+	m0 := &RetrievalModelSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Openai != nil {
+		x.EmbeddingsProvider = &RetrievalModelSpec_Openai{b.Openai}
+	}
+	if b.Bedrock != nil {
+		x.EmbeddingsProvider = &RetrievalModelSpec_Bedrock{b.Bedrock}
+	}
+	x.InferenceModelName = b.InferenceModelName
+	return m0
+}
+
+type case_RetrievalModelSpec_EmbeddingsProvider protoreflect.FieldNumber
+
+func (x case_RetrievalModelSpec_EmbeddingsProvider) String() string {
+	md := file_teleport_summarizer_v1_summarizer_proto_msgTypes[13].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
+type isRetrievalModelSpec_EmbeddingsProvider interface {
+	isRetrievalModelSpec_EmbeddingsProvider()
+}
+
+type RetrievalModelSpec_Openai struct {
+	// Openai indicates that this model uses OpenAI as the embeddings provider
+	// and specifies OpenAI-specific parameters.
+	Openai *OpenAIProvider `protobuf:"bytes,1,opt,name=openai,proto3,oneof"`
+}
+
+type RetrievalModelSpec_Bedrock struct {
+	// Bedrock indicates that this model uses Amazon Bedrock as the embeddings
+	// provider and specifies Bedrock-specific parameters.
+	Bedrock *BedrockProvider `protobuf:"bytes,3,opt,name=bedrock,proto3,oneof"`
+}
+
+func (*RetrievalModelSpec_Openai) isRetrievalModelSpec_EmbeddingsProvider() {}
+
+func (*RetrievalModelSpec_Bedrock) isRetrievalModelSpec_EmbeddingsProvider() {}
 
 var File_teleport_summarizer_v1_summarizer_proto protoreflect.FileDescriptor
 
@@ -1668,12 +2903,23 @@ const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"\x17notable_command_indexes\x18\x06 \x03(\x05R\x15notableCommandIndexes\x12C\n" +
 	"\bcommands\x18\a \x03(\v2'.teleport.summarizer.v1.CommandAnalysisR\bcommands\x12`\n" +
 	"\x14needs_further_review\x18\b \x01(\x0e2).teleport.summarizer.v1.NeedsReviewReasonH\x00R\x12needsFurtherReview\x88\x01\x01B\x17\n" +
-	"\x15_needs_further_review*|\n" +
+	"\x15_needs_further_review\"\xd3\x01\n" +
+	"\x0eRetrievalModel\x12\x12\n" +
+	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
+	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
+	"\aversion\x18\x03 \x01(\tR\aversion\x128\n" +
+	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12>\n" +
+	"\x04spec\x18\x05 \x01(\v2*.teleport.summarizer.v1.RetrievalModelSpecR\x04spec\"\xe4\x01\n" +
+	"\x12RetrievalModelSpec\x12@\n" +
+	"\x06openai\x18\x01 \x01(\v2&.teleport.summarizer.v1.OpenAIProviderH\x00R\x06openai\x12C\n" +
+	"\abedrock\x18\x03 \x01(\v2'.teleport.summarizer.v1.BedrockProviderH\x00R\abedrock\x120\n" +
+	"\x14inference_model_name\x18\x02 \x01(\tR\x12inferenceModelNameB\x15\n" +
+	"\x13embeddings_provider*|\n" +
 	"\fSummaryState\x12\x1d\n" +
 	"\x19SUMMARY_STATE_UNSPECIFIED\x10\x00\x12\x19\n" +
 	"\x15SUMMARY_STATE_PENDING\x10\x01\x12\x19\n" +
 	"\x15SUMMARY_STATE_SUCCESS\x10\x02\x12\x17\n" +
-	"\x13SUMMARY_STATE_ERROR\x10\x03*\x9b\x02\n" +
+	"\x13SUMMARY_STATE_ERROR\x10\x03*\xb2\x04\n" +
 	"\x0fCommandCategory\x12 \n" +
 	"\x1cCOMMAND_CATEGORY_UNSPECIFIED\x10\x00\x12#\n" +
 	"\x1fCOMMAND_CATEGORY_FILE_OPERATION\x10\x01\x12\x1c\n" +
@@ -1682,7 +2928,16 @@ const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"\x1eCOMMAND_CATEGORY_SYSTEM_CONFIG\x10\x04\x12 \n" +
 	"\x1cCOMMAND_CATEGORY_DATA_ACCESS\x10\x05\x12#\n" +
 	"\x1fCOMMAND_CATEGORY_AUTHENTICATION\x10\x06\x12\x1a\n" +
-	"\x16COMMAND_CATEGORY_OTHER\x10\a*\x80\x01\n" +
+	"\x16COMMAND_CATEGORY_OTHER\x10\a\x12'\n" +
+	"#COMMAND_CATEGORY_PACKAGE_MANAGEMENT\x10\b\x12\x1e\n" +
+	"\x1aCOMMAND_CATEGORY_CONTAINER\x10\t\x12#\n" +
+	"\x1fCOMMAND_CATEGORY_SOURCE_CONTROL\x10\n" +
+	"\x12\x1f\n" +
+	"\x1bCOMMAND_CATEGORY_SCHEDULING\x10\v\x12\x1f\n" +
+	"\x1bCOMMAND_CATEGORY_MONITORING\x10\f\x12$\n" +
+	" COMMAND_CATEGORY_USER_MANAGEMENT\x10\r\x12\x1d\n" +
+	"\x19COMMAND_CATEGORY_TRANSFER\x10\x0e\x12 \n" +
+	"\x1cCOMMAND_CATEGORY_DEVELOPMENT\x10\x0f*\x80\x01\n" +
 	"\tRiskLevel\x12\x1a\n" +
 	"\x16RISK_LEVEL_UNSPECIFIED\x10\x00\x12\x12\n" +
 	"\x0eRISK_LEVEL_LOW\x10\x01\x12\x15\n" +
@@ -1709,20 +2964,8 @@ const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"\x1dNEEDS_REVIEW_REASON_TOO_LARGE\x10\x01\x12/\n" +
 	"+NEEDS_REVIEW_REASON_COMMAND_ANALYSIS_FAILED\x10\x02BXZVgithub.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1;summarizerv1b\x06proto3"
 
-var (
-	file_teleport_summarizer_v1_summarizer_proto_rawDescOnce sync.Once
-	file_teleport_summarizer_v1_summarizer_proto_rawDescData []byte
-)
-
-func file_teleport_summarizer_v1_summarizer_proto_rawDescGZIP() []byte {
-	file_teleport_summarizer_v1_summarizer_proto_rawDescOnce.Do(func() {
-		file_teleport_summarizer_v1_summarizer_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_summarizer_v1_summarizer_proto_rawDesc), len(file_teleport_summarizer_v1_summarizer_proto_rawDesc)))
-	})
-	return file_teleport_summarizer_v1_summarizer_proto_rawDescData
-}
-
 var file_teleport_summarizer_v1_summarizer_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
-var file_teleport_summarizer_v1_summarizer_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_teleport_summarizer_v1_summarizer_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_teleport_summarizer_v1_summarizer_proto_goTypes = []any{
 	(SummaryState)(0),              // 0: teleport.summarizer.v1.SummaryState
 	(CommandCategory)(0),           // 1: teleport.summarizer.v1.CommandCategory
@@ -1741,39 +2984,45 @@ var file_teleport_summarizer_v1_summarizer_proto_goTypes = []any{
 	(*CommandAnalysis)(nil),        // 14: teleport.summarizer.v1.CommandAnalysis
 	(*SecurityRecommendation)(nil), // 15: teleport.summarizer.v1.SecurityRecommendation
 	(*EnhancedSummary)(nil),        // 16: teleport.summarizer.v1.EnhancedSummary
-	(*v1.Metadata)(nil),            // 17: teleport.header.v1.Metadata
-	(*timestamppb.Timestamp)(nil),  // 18: google.protobuf.Timestamp
-	(*structpb.Struct)(nil),        // 19: google.protobuf.Struct
-	(*durationpb.Duration)(nil),    // 20: google.protobuf.Duration
+	(*RetrievalModel)(nil),         // 17: teleport.summarizer.v1.RetrievalModel
+	(*RetrievalModelSpec)(nil),     // 18: teleport.summarizer.v1.RetrievalModelSpec
+	(*v1.Metadata)(nil),            // 19: teleport.header.v1.Metadata
+	(*timestamppb.Timestamp)(nil),  // 20: google.protobuf.Timestamp
+	(*structpb.Struct)(nil),        // 21: google.protobuf.Struct
+	(*durationpb.Duration)(nil),    // 22: google.protobuf.Duration
 }
 var file_teleport_summarizer_v1_summarizer_proto_depIdxs = []int32{
-	17, // 0: teleport.summarizer.v1.InferenceModel.metadata:type_name -> teleport.header.v1.Metadata
+	19, // 0: teleport.summarizer.v1.InferenceModel.metadata:type_name -> teleport.header.v1.Metadata
 	6,  // 1: teleport.summarizer.v1.InferenceModel.spec:type_name -> teleport.summarizer.v1.InferenceModelSpec
 	7,  // 2: teleport.summarizer.v1.InferenceModelSpec.openai:type_name -> teleport.summarizer.v1.OpenAIProvider
 	8,  // 3: teleport.summarizer.v1.InferenceModelSpec.bedrock:type_name -> teleport.summarizer.v1.BedrockProvider
-	17, // 4: teleport.summarizer.v1.InferenceSecret.metadata:type_name -> teleport.header.v1.Metadata
+	19, // 4: teleport.summarizer.v1.InferenceSecret.metadata:type_name -> teleport.header.v1.Metadata
 	10, // 5: teleport.summarizer.v1.InferenceSecret.spec:type_name -> teleport.summarizer.v1.InferenceSecretSpec
-	17, // 6: teleport.summarizer.v1.InferencePolicy.metadata:type_name -> teleport.header.v1.Metadata
+	19, // 6: teleport.summarizer.v1.InferencePolicy.metadata:type_name -> teleport.header.v1.Metadata
 	12, // 7: teleport.summarizer.v1.InferencePolicy.spec:type_name -> teleport.summarizer.v1.InferencePolicySpec
 	0,  // 8: teleport.summarizer.v1.Summary.state:type_name -> teleport.summarizer.v1.SummaryState
-	18, // 9: teleport.summarizer.v1.Summary.inference_started_at:type_name -> google.protobuf.Timestamp
-	18, // 10: teleport.summarizer.v1.Summary.inference_finished_at:type_name -> google.protobuf.Timestamp
-	19, // 11: teleport.summarizer.v1.Summary.session_end_event:type_name -> google.protobuf.Struct
+	20, // 9: teleport.summarizer.v1.Summary.inference_started_at:type_name -> google.protobuf.Timestamp
+	20, // 10: teleport.summarizer.v1.Summary.inference_finished_at:type_name -> google.protobuf.Timestamp
+	21, // 11: teleport.summarizer.v1.Summary.session_end_event:type_name -> google.protobuf.Struct
 	16, // 12: teleport.summarizer.v1.Summary.enhanced_summary:type_name -> teleport.summarizer.v1.EnhancedSummary
 	1,  // 13: teleport.summarizer.v1.CommandAnalysis.category:type_name -> teleport.summarizer.v1.CommandCategory
 	2,  // 14: teleport.summarizer.v1.CommandAnalysis.risk_level:type_name -> teleport.summarizer.v1.RiskLevel
 	3,  // 15: teleport.summarizer.v1.CommandAnalysis.threat_category:type_name -> teleport.summarizer.v1.ThreatCategory
-	20, // 16: teleport.summarizer.v1.CommandAnalysis.start_offset:type_name -> google.protobuf.Duration
-	20, // 17: teleport.summarizer.v1.CommandAnalysis.end_offset:type_name -> google.protobuf.Duration
+	22, // 16: teleport.summarizer.v1.CommandAnalysis.start_offset:type_name -> google.protobuf.Duration
+	22, // 17: teleport.summarizer.v1.CommandAnalysis.end_offset:type_name -> google.protobuf.Duration
 	2,  // 18: teleport.summarizer.v1.SecurityRecommendation.severity:type_name -> teleport.summarizer.v1.RiskLevel
 	2,  // 19: teleport.summarizer.v1.EnhancedSummary.risk_level:type_name -> teleport.summarizer.v1.RiskLevel
 	14, // 20: teleport.summarizer.v1.EnhancedSummary.commands:type_name -> teleport.summarizer.v1.CommandAnalysis
 	4,  // 21: teleport.summarizer.v1.EnhancedSummary.needs_further_review:type_name -> teleport.summarizer.v1.NeedsReviewReason
-	22, // [22:22] is the sub-list for method output_type
-	22, // [22:22] is the sub-list for method input_type
-	22, // [22:22] is the sub-list for extension type_name
-	22, // [22:22] is the sub-list for extension extendee
-	0,  // [0:22] is the sub-list for field type_name
+	19, // 22: teleport.summarizer.v1.RetrievalModel.metadata:type_name -> teleport.header.v1.Metadata
+	18, // 23: teleport.summarizer.v1.RetrievalModel.spec:type_name -> teleport.summarizer.v1.RetrievalModelSpec
+	7,  // 24: teleport.summarizer.v1.RetrievalModelSpec.openai:type_name -> teleport.summarizer.v1.OpenAIProvider
+	8,  // 25: teleport.summarizer.v1.RetrievalModelSpec.bedrock:type_name -> teleport.summarizer.v1.BedrockProvider
+	26, // [26:26] is the sub-list for method output_type
+	26, // [26:26] is the sub-list for method input_type
+	26, // [26:26] is the sub-list for extension type_name
+	26, // [26:26] is the sub-list for extension extendee
+	0,  // [0:26] is the sub-list for field type_name
 }
 
 func init() { file_teleport_summarizer_v1_summarizer_proto_init() }
@@ -1786,13 +3035,17 @@ func file_teleport_summarizer_v1_summarizer_proto_init() {
 		(*InferenceModelSpec_Bedrock)(nil),
 	}
 	file_teleport_summarizer_v1_summarizer_proto_msgTypes[11].OneofWrappers = []any{}
+	file_teleport_summarizer_v1_summarizer_proto_msgTypes[13].OneofWrappers = []any{
+		(*RetrievalModelSpec_Openai)(nil),
+		(*RetrievalModelSpec_Bedrock)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_summarizer_v1_summarizer_proto_rawDesc), len(file_teleport_summarizer_v1_summarizer_proto_rawDesc)),
 			NumEnums:      5,
-			NumMessages:   12,
+			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

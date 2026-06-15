@@ -50,7 +50,7 @@ func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authcl
 	clientStore := client.NewFSClientStore(cfg.TeleportHome, client.WithHardwareKeyService(hwks))
 	if ccf.IdentityFilePath != "" {
 		clientStore = client.NewMemClientStore(client.WithHardwareKeyService(hwks))
-		if err := identityfile.LoadIdentityFileIntoClientStore(clientStore, ccf.IdentityFilePath, proxyAddr, ""); err != nil {
+		if err := identityfile.LoadIdentityFileIntoClientStore(clientStore, ccf.IdentityFilePath, proxyAddr, "", identityfile.WithHardwareKeyService(hwks)); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}

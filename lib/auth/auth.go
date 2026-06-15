@@ -38,7 +38,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"maps"
 	mathrand "math/rand/v2"
 	"net"
 	"os"
@@ -95,6 +94,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
+	"github.com/gravitational/teleport/lib/auth/mfatypes"
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/auth/recordingmetadata"
@@ -147,6 +147,8 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/readonly"
+	libsession "github.com/gravitational/teleport/lib/session"
+	dbvnet "github.com/gravitational/teleport/lib/srv/db/vnet"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -155,6 +157,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/utils/set"
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
 	"github.com/gravitational/teleport/lib/versioncontrol/github"
 	uw "github.com/gravitational/teleport/lib/versioncontrol/upgradewindow"
@@ -332,6 +335,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 	}
 	if cfg.DatabaseServices == nil {
 		cfg.DatabaseServices = local.NewDatabaseServicesService(cfg.Backend)
+	}
+	if cfg.DelegationSessions == nil {
+		cfg.DelegationSessions, err = local.NewDelegationSessionService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	if cfg.Kubernetes == nil {
 		cfg.Kubernetes = local.NewKubernetesService(cfg.Backend)
@@ -585,7 +594,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 			return organizations.NewFromConfig(c)
 		}
 
-		cfg.AWSOrganizationsClientGetter, err = awsOrganizationsClientGetter(closeCtx, cfg.Clock, organizationsClientFromSDK)
+		cfg.AWSOrganizationsClientGetter, err = awsOrganizationsClientGetterWithCache(closeCtx, cfg.Clock, organizationsClientFromSDK)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -628,20 +637,38 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		}
 	}
 
+	if cfg.Beams == nil {
+		cfg.Beams, err = local.NewBeamService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating BeamsService")
+		}
+	}
+
+	if cfg.SubCAService == nil {
+		var err error
+		cfg.SubCAService, err = local.NewSubCAService(local.SubCAServiceParams{
+			Backend: cfg.Backend,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err, "creating SubCAService")
+		}
+	}
+
 	services := &Services{
 		TrustInternal:                   cfg.Trust,
 		PresenceInternal:                cfg.Presence,
-		Provisioner:                     cfg.Provisioner,
-		Identity:                        cfg.Identity,
-		Access:                          cfg.Access,
+		ProvisionerInternal:             cfg.Provisioner,
+		IdentityInternal:                cfg.Identity,
+		AccessInternal:                  cfg.Access,
 		DynamicAccessExt:                cfg.DynamicAccessExt,
 		ClusterConfigurationInternal:    cfg.ClusterConfiguration,
 		AutoUpdateService:               cfg.AutoUpdateService,
 		Restrictions:                    cfg.Restrictions,
-		Applications:                    cfg.Apps,
+		ApplicationsInternal:            cfg.Apps,
 		Kubernetes:                      cfg.Kubernetes,
 		Databases:                       cfg.Databases,
 		DatabaseServices:                cfg.DatabaseServices,
+		DelegationSessions:              cfg.DelegationSessions,
 		AuditLogSessionStreamer:         cfg.AuditLog,
 		Events:                          cfg.Events,
 		WindowsDesktops:                 cfg.WindowsDesktops,
@@ -688,6 +715,8 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		RecordingEncryptionManager:      cfg.RecordingEncryption,
 		ScopedTokenService:              cfg.ScopedTokenService,
 		WorkloadClusterService:          cfg.WorkloadClusterService,
+		Beams:                           cfg.Beams,
+		SubCAService:                    cfg.SubCAService,
 	}
 
 	if cfg.FakePasswordHash == nil {
@@ -927,16 +956,17 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 type Services struct {
 	services.TrustInternal
 	services.PresenceInternal
-	services.Provisioner
-	services.Identity
-	services.Access
+	services.ProvisionerInternal
+	services.IdentityInternal
+	services.AccessInternal
 	services.DynamicAccessExt
 	services.ClusterConfigurationInternal
 	services.Restrictions
-	services.Applications
+	services.ApplicationsInternal
 	services.Kubernetes
 	services.Databases
 	services.DatabaseServices
+	services.DelegationSessions
 	services.WindowsDesktops
 	services.DynamicWindowsDesktops
 	services.SAMLIdPServiceProviders
@@ -988,10 +1018,12 @@ type Services struct {
 	RecordingEncryptionManager
 	services.ScopedTokenService
 	services.WorkloadClusterService
+	services.Beams
+	services.SubCAService
 }
 
-// awsOrganizationsClientGetter returns an AWS Organizations client getter.
-func awsOrganizationsClientGetter(ctx context.Context, clock clockwork.Clock, organizationsClientFromConfig func(aws.Config) iamjoin.OrganizationsAPI) (*organizationsClientGetter, error) {
+// awsOrganizationsClientGetterWithCache returns an AWS Organizations client getter with caching.
+func awsOrganizationsClientGetterWithCache(ctx context.Context, clock clockwork.Clock, organizationsClientFromConfig func(aws.Config) iamjoin.OrganizationsAPI) (*organizationsClientGetter, error) {
 	awsConfigProvider, err := awsconfig.NewCache()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1053,18 +1085,28 @@ func (o *organizationsClientGetter) Get(ctx context.Context, integration string,
 	}
 
 	return &organizationsClient{
+		integration:             integration,
 		describeAccountAPICache: o.describeAccountAPICache,
 		remoteAPI:               o.organizationsClientFromConfig(awsConfig),
 	}, nil
 }
 
 type organizationsClient struct {
+	integration             string
 	describeAccountAPICache *utils.FnCache
 	remoteAPI               iamjoin.OrganizationsAPI
 }
 
 func (o *organizationsClient) DescribeAccount(ctx context.Context, params *organizations.DescribeAccountInput, optFns ...func(*organizations.Options)) (*organizations.DescribeAccountOutput, error) {
-	describeAccountOutput, err := utils.FnCacheGet(ctx, o.describeAccountAPICache, aws.ToString(params.AccountId), func(ctx context.Context) (*organizations.DescribeAccountOutput, error) {
+	cacheKey := struct {
+		AccountID   string
+		Integration string
+	}{
+		AccountID:   aws.ToString(params.AccountId),
+		Integration: o.integration,
+	}
+
+	describeAccountOutput, err := utils.FnCacheGet(ctx, o.describeAccountAPICache, cacheKey, func(ctx context.Context) (*organizations.DescribeAccountOutput, error) {
 		remoteDescribeAccountOutput, err := o.remoteAPI.DescribeAccount(ctx, params, optFns...)
 		return remoteDescribeAccountOutput, trace.Wrap(err)
 	})
@@ -1075,7 +1117,7 @@ func (o *organizationsClient) DescribeAccount(ctx context.Context, params *organ
 // GetWebSession returns existing web session described by req.
 // Implements ReadAccessPoint
 func (r *Services) GetWebSession(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error) {
-	return r.Identity.WebSessions().Get(ctx, req)
+	return r.IdentityInternal.WebSessions().Get(ctx, req)
 }
 
 // GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
@@ -1519,6 +1561,11 @@ type Server struct {
 	// normally be fetched from the GitHub API. Used for testing.
 	GithubUserAndTeamsOverride func() (*GithubUserResponse, []GithubTeamResponse, error)
 
+	// ObserveBrowserMFAChallengeExtensionsForTesting, if set, is called with the resolved
+	// challenge extensions when a BrowserMFARequestID is provided to
+	// CreateAuthenticateChallenge. Used for testing.
+	ObserveBrowserMFAChallengeExtensionsForTesting func(*mfav1.ChallengeExtensions)
+
 	// AWSRolesAnywhereCreateSessionOverride overrides the AWS Roles Anywhere Create Session API wrapper with a mocked one.
 	// Used for testing.
 	AWSRolesAnywhereCreateSessionOverride func(ctx context.Context, req createsession.CreateSessionRequest) (*createsession.CreateSessionResponse, error)
@@ -1556,6 +1603,9 @@ type Server struct {
 	// RemoteClusterRefreshBuckets is the maximum number of refresh cycles that should guarantee the status update
 	// of all remote clusters if their number exceeds RemoteClusterRefreshLimit × RemoteClusterRefreshBuckets.
 	remoteClusterRefreshBuckets int
+	// anonymizationKey is used to anonymize sensitive data in a consistent way for
+	// use in telemetry and logging without exposing the original values.
+	anonymizationKey []byte
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -1814,19 +1864,9 @@ func (a *Server) bcryptCost() int {
 	return bcrypt.DefaultCost
 }
 
-// syncUpgradeWindowStartHour attempts to load the cloud UpgradeWindowStartHour value and set
-// the ClusterMaintenanceConfig resource's AgentUpgrade.UTCStartHour field to match it.
-func (a *Server) syncUpgradeWindowStartHour(ctx context.Context) error {
-	getter := a.getUpgradeWindowStartHourGetter()
-	if getter == nil {
-		return trace.Errorf("getter has not been registered")
-	}
-
-	startHour, err := getter(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
+// SetAgentUpgradeWindowStartHour updates the ClusterMaintenanceConfig resource's
+// AgentUpgrade.UTCStartHour to the provided value.
+func (a *Server) SetAgentUpgradeWindowStartHour(ctx context.Context, startHour int64) error {
 	cmc, err := a.GetClusterMaintenanceConfig(ctx)
 	if err != nil {
 		if !trace.IsNotFound(err) {
@@ -1844,11 +1884,23 @@ func (a *Server) syncUpgradeWindowStartHour(ctx context.Context) error {
 
 	cmc.SetAgentUpgradeWindow(agentWindow)
 
-	if err := a.UpdateClusterMaintenanceConfig(ctx, cmc); err != nil {
+	return trace.Wrap(a.UpdateClusterMaintenanceConfig(ctx, cmc))
+}
+
+// syncUpgradeWindowStartHour attempts to load the cloud UpgradeWindowStartHour value and set
+// the ClusterMaintenanceConfig resource's AgentUpgrade.UTCStartHour field to match it.
+func (a *Server) syncUpgradeWindowStartHour(ctx context.Context) error {
+	getter := a.getUpgradeWindowStartHourGetter()
+	if getter == nil {
+		return trace.BadParameter("getter is not set")
+	}
+
+	startHour, err := getter(ctx)
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return nil
+	return trace.Wrap(a.SetAgentUpgradeWindowStartHour(ctx, startHour))
 }
 
 // periodicIntervalKey is used to uniquely identify the subintervals registered with
@@ -2563,6 +2615,32 @@ func (a *Server) SetClock(clock clockwork.Clock) {
 	a.clock = clock
 }
 
+// OnUploadComplete is called after a session recording upload completes. It
+// streams the session events to find the existing session end event, or
+// reconstructs and emits one from the session start event if none is found.
+// It is the canonical OnUploadComplete callback used by the ProtoStreamer,
+// AuditLog, and recording encryption service.
+//
+// TODO(tigrato): this check is not 100% correct. Instead of streaming the file,
+// one should query the audit log to ensure the event exists. The file can contain
+// the session end event but for some reason the the audit log event was lost.
+// There are many reasons for that to happen such as audit queue in the agent being
+// full, audit backend being down, agent restarting after writing the session complete.
+func (a *Server) OnUploadComplete(ctx context.Context, sessionID libsession.ID) (apievents.AuditEvent, error) {
+	clusterName, err := a.GetClusterName(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return events.FindOrRecoverSessionEnd(ctx, events.FindOrRecoverSessionEndConfig{
+		ClusterName: clusterName.GetClusterName(),
+		Streamer:    a,
+		SessionID:   sessionID,
+		AuditLog:    a,
+		Log:         a.logger,
+		Clock:       a.clock,
+	})
+}
+
 // SetBcryptCost sets bcryptCostOverride, used in tests
 func (a *Server) SetBcryptCost(cost int) {
 	a.lock.Lock()
@@ -2622,21 +2700,65 @@ func (a *Server) GetClusterID(ctx context.Context) (string, error) {
 	return clusterName.GetClusterID(), nil
 }
 
-// GetAnonymizationKey returns the anonymization key that identifies this client.
+// InitializeAnonymizationKey initializes the HMAC anonymization key for this auth server.
+// The anonymization key is used for hashing any PII data (like usernames, hostnames, etc.)
+// that may be included in events emitted by this auth server.
 // The anonymization key may be any of the following, in order of precedence:
 // - (Teleport Cloud) a key provided by the Teleport Cloud API
 // - a key embedded in the license file
 // - the cluster's UUID
-func (a *Server) GetAnonymizationKey(ctx context.Context) (string, error) {
+// If the anonymization key was already initialized, this function is a no-op.
+func (a *Server) InitializeAnonymizationKey() error {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	if len(a.anonymizationKey) > 0 {
+		// already initialized, no need to do anything
+		return nil
+	}
+
 	if key := modules.GetModules().Features().CloudAnonymizationKey; len(key) > 0 {
-		return string(key), nil
+		a.anonymizationKey = key
+		return nil
 	}
 
 	if a.license != nil && len(a.license.AnonymizationKey) > 0 {
-		return string(a.license.AnonymizationKey), nil
+		a.anonymizationKey = a.license.AnonymizationKey
+		return nil
 	}
-	id, err := a.GetClusterID(ctx)
-	return id, trace.Wrap(err)
+
+	// load the cluster name from the backend to get the cluster ID for anonymization key generation
+	clusterName, err := a.Services.GetClusterName(a.closeCtx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	id := clusterName.GetClusterID()
+	if len(id) == 0 {
+		// this should never happen since cluster ID is a required field,
+		// but we check just in case to avoid panics and to provide a more helpful error message.
+		return trace.BadParameter("cluster ID is empty, cannot initialize anonymization key")
+	}
+	a.anonymizationKey = []byte(id)
+	return nil
+}
+
+// GetAnonymizationKey returns the anonymization key for this auth server.
+// Before calling this function, InitializeAnonymizationKey should have been called
+// to ensure the key is properly initialized.
+func (a *Server) GetAnonymizationKey() []byte {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+
+	return a.anonymizationKey
+}
+
+// SetAnonymizationKey sets the anonymization key for this auth server.
+// This is only used by Teleport Cloud where the anonymization key can be
+// refreshed.
+func (a *Server) SetAnonymizationKey(key []byte) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	a.anonymizationKey = key
 }
 
 // GetDomainName returns the domain name that identifies this authority server.
@@ -2804,7 +2926,10 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 	roles := make([]types.Role, len(req.Roles))
 	for i := range req.Roles {
 		var err error
-		roles[i], err = services.ApplyTraits(req.Roles[i], req.User.GetTraits())
+		roles[i], err = services.ApplyTraitsWithContext(req.Roles[i], services.RoleTemplateContext{
+			Username: req.User.GetName(),
+			Traits:   req.User.GetTraits(),
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -3738,6 +3863,7 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 	var (
 		scopePin                 *scopesv1.Pin
 		roleNames                []string
+		allowedResourceIDs       []types.ResourceID
 		allowedResourceAccessIDs []types.ResourceAccessID
 	)
 
@@ -3748,6 +3874,15 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 	if unscoped := certParams.UnscopedCertParams(); unscoped != nil {
 		roleNames = unscoped.RoleNames()
 		allowedResourceAccessIDs = unscoped.GetAllowedResourceAccessIDs()
+		// Separate out any plain ResourceIDs (those without constraints) so they
+		// can be written to the legacy AllowedResourceIDs cert extension. This
+		// ensures older agents/proxies that don't understand AllowedResourceAccessIDs
+		// still see the actual resource IDs instead of only the backwards-compat sentinel.
+		// ResourceAccessIDs are swallowed; we already have them
+		// and only want the plain (unconstrained) ResourceIDs.
+		//
+		// TODO(kiosion): DELETE in 20.0.0
+		allowedResourceIDs, _ = types.UnwrapResourceAccessIDs(allowedResourceAccessIDs)
 	}
 
 	var signedSSHCert []byte
@@ -3789,8 +3924,10 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 				Generation:               req.Generation,
 				BotName:                  req.BotName,
 				BotInstanceID:            req.BotInstanceID,
+				DelegationSessionID:      req.DelegationSessionID,
 				JoinToken:                req.JoinToken,
 				CertificateExtensions:    certificateExtensions,
+				AllowedResourceIDs:       allowedResourceIDs,
 				AllowedResourceAccessIDs: allowedResourceAccessIDs,
 				ConnectionDiagnosticID:   req.ConnectionDiagnosticID,
 				PrivateKeyPolicy:         attestedKeyPolicy,
@@ -3932,7 +4069,9 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 		BotName:                  req.BotName,
 		BotInstanceID:            req.BotInstanceID,
 		BotInternal:              req.BotInternal,
+		DelegationSessionID:      req.DelegationSessionID,
 		JoinToken:                req.JoinToken,
+		AllowedResourceIDs:       allowedResourceIDs,
 		AllowedResourceAccessIDs: allowedResourceAccessIDs,
 		PrivateKeyPolicy:         attestedKeyPolicy,
 		ConnectionDiagnosticID:   req.ConnectionDiagnosticID,
@@ -4337,6 +4476,37 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 		return nil
 	}
 
+	// If a BrowserMFARequestID is provided, look up the request and apply its challenge extensions.
+	var browserMFAReq *services.MFASessionData
+	if req.BrowserMFARequestID != "" {
+		if req.ChallengeExtensions != nil {
+			return nil, trace.BadParameter("challenge extensions must not be set when a browser MFA request ID is provided")
+		}
+
+		var err error
+		browserMFAReq, err = a.GetMFASession(ctx, req.BrowserMFARequestID)
+		if err != nil {
+			a.logger.WarnContext(ctx, "Failed to read MFA session for browser MFA request", "error", err)
+			return nil, trace.AccessDenied("invalid browser MFA request")
+		}
+
+		chalExts := browserMFAReq.ChallengeExtensions
+		if chalExts == nil {
+			a.logger.WarnContext(ctx, "MFA session for browser MFA recorded with empty challenge extensions", "request_id", req.BrowserMFARequestID)
+			return nil, trace.BadParameter("stored session lacks challenge extensions")
+		}
+
+		// Replace the challenge extensions with the ones found in the MFA object.
+		// These are the ones from the original tsh request.
+		challengeExtensions = mfatypes.ChallengeExtensionsToProto(chalExts)
+
+		// Used for testing. If observer function is set, call it with
+		// challenge extensions from MFA session.
+		if a.ObserveBrowserMFAChallengeExtensionsForTesting != nil {
+			a.ObserveBrowserMFAChallengeExtensionsForTesting(challengeExtensions)
+		}
+	}
+
 	switch req.GetRequest().(type) {
 	case *proto.CreateAuthenticateChallengeRequest_UserCredentials:
 		username = req.GetUserCredentials().GetUsername()
@@ -4395,7 +4565,33 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 		}
 	}
 
-	challenges, err := a.mfaAuthChallenge(ctx, username, req.SSOClientRedirectURL, req.ProxyAddress, challengeExtensions)
+	if browserMFAReq != nil && browserMFAReq.Username != username {
+		a.logger.WarnContext(
+			ctx,
+			"Username stored in MFA session does not match requester's username",
+			"request_id", req.BrowserMFARequestID,
+			"session_username", browserMFAReq.Username,
+			"requestor_username", username,
+		)
+		return nil, trace.AccessDenied("invalid browser MFA request")
+	}
+
+	// When completing a Browser MFA flow, only a WebAuthn challenge is needed, so
+	// clear the redirect URLs so SSO and Browser MFA challenges are not generated.
+	ssoClientRedirectURL := ""
+	browserMFATSHRedirectURL := ""
+	if req.BrowserMFARequestID == "" {
+		ssoClientRedirectURL = req.SSOClientRedirectURL
+		browserMFATSHRedirectURL = req.BrowserMFATSHRedirectURL
+	}
+
+	challenges, err := a.mfaAuthChallenge(ctx, mfaAuthChallengeParams{
+		user:                     username,
+		ssoClientRedirectURL:     ssoClientRedirectURL,
+		browserMFATSHRedirectURL: browserMFATSHRedirectURL,
+		proxyAddress:             req.ProxyAddress,
+		challengeExtensions:      challengeExtensions,
+	})
 	if err != nil {
 		// Do not obfuscate config-related errors.
 		if errors.Is(err, types.ErrPasswordlessRequiresWebauthn) || errors.Is(err, types.ErrPasswordlessDisabledBySettings) {
@@ -4996,7 +5192,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req authclient.WebSession
 		// We don't call from the cache layer because we want to
 		// retrieve the recently updated user. Otherwise, the cache
 		// returns stale data.
-		user, err := a.Identity.GetUser(ctx, req.User, false)
+		user, err := a.IdentityInternal.GetUser(ctx, req.User, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -5053,7 +5249,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req authclient.WebSession
 		allowedResourceAccessIDs = nil
 
 		// Calculate expiry time.
-		roleSet, err := services.FetchRoles(userState.GetRoles(), a, userState.GetTraits())
+		roleSet, err := services.FetchRolesForUser(userState, a)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -5203,22 +5399,6 @@ func (a *Server) getValidatedAccessRequest(ctx context.Context, identity tlsca.I
 	return req, nil
 }
 
-// CreateWebSession creates a new web session for user without any
-// checks, is used by admins
-func (a *Server) CreateWebSession(ctx context.Context, user string) (types.WebSession, error) {
-	u, err := a.GetUserOrLoginState(ctx, user)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	session, err := a.CreateWebSessionFromReq(ctx, NewWebSessionRequest{
-		User:      user,
-		Roles:     u.GetRoles(),
-		Traits:    u.GetTraits(),
-		LoginTime: a.clock.Now().UTC(),
-	})
-	return session, trace.Wrap(err)
-}
-
 // ExtractHostID returns host id based on the hostname
 func ExtractHostID(hostName string, clusterName string) (string, error) {
 	suffix := "." + clusterName
@@ -5237,6 +5417,8 @@ type HostCertsParams struct {
 	AgentScope string
 	// The ImmutableLabelHash that should be encoded into the resulting certificates.
 	ImmutableLabelHash string
+	// JoinToken is the name of the join token that was used to join this host.
+	JoinToken string
 }
 
 // GenerateHostCerts generates new host certificates (signed
@@ -5400,6 +5582,7 @@ func (a *Server) GenerateHostCerts(ctx context.Context, params HostCertsParams) 
 		SystemRoles:        systemRoles,
 		AgentScope:         params.AgentScope,
 		ImmutableLabelHash: params.ImmutableLabelHash,
+		JoinToken:          params.JoinToken,
 	}
 	subject, err := identity.Subject()
 	if err != nil {
@@ -5999,7 +6182,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 // appendImplicitlyRequiredResources examines the set of requested resources and adds
 // any extra resources that are implicitly required by the request.
 func (a *Server) appendImplicitlyRequiredResources(ctx context.Context, resources []types.ResourceID) ([]types.ResourceID, error) {
-	addedApps := utils.NewSet[string]()
+	addedApps := set.New[string]()
 	var userGroups []types.ResourceID
 	var accountAssignments []types.ResourceID
 
@@ -6033,7 +6216,7 @@ func (a *Server) appendImplicitlyRequiredResources(ctx context.Context, resource
 		}
 	}
 
-	icAccounts := utils.NewSet[string]()
+	icAccounts := set.New[string]()
 	for _, resource := range accountAssignments {
 		// The UI needs access to the account associated with an Account Assignment
 		// in order to display the enclosing Account, otherwise the user will not
@@ -6124,15 +6307,15 @@ func updateAccessRequestWithAdditionalReviewers(req types.AccessRequest, suggest
 	}
 
 	// Add additional suggested reviewers and ensure deduplicated.
-	additionalReviewers := map[string]struct{}{}
+	additionalReviewers := set.New[string]()
 
 	for _, suggestedReviewer := range slices.Concat(req.GetSuggestedReviewers(), suggestedReviewers) {
-		additionalReviewers[suggestedReviewer] = struct{}{}
+		additionalReviewers.Add(suggestedReviewer)
 	}
 
 	// Only modify the original request if additional reviewers were found.
-	if len(additionalReviewers) > len(req.GetSuggestedReviewers()) {
-		req.SetSuggestedReviewers(slices.Collect(maps.Keys(additionalReviewers)))
+	if additionalReviewers.Len() > len(req.GetSuggestedReviewers()) {
+		req.SetSuggestedReviewers(additionalReviewers.Elements())
 	}
 }
 
@@ -6617,6 +6800,14 @@ func (a *Server) UpsertApplicationServer(ctx context.Context, server types.AppSe
 // UpsertDatabaseServer implements [services.Presence] by delegating to
 // [Server.Services] and then potentially emitting a [usagereporter] event.
 func (a *Server) UpsertDatabaseServer(ctx context.Context, server types.DatabaseServer) (*types.KeepAlive, error) {
+	// TODO(nibrasohin): DELETE IN v21.0.0 - db agents set this themselves in
+	// getServerInfo starting in v20, so this block only remains to populate
+	// the field for older agents that haven't been upgraded yet. If this
+	// change is backported to v18, we can drop it on the v20
+	if db := server.GetDatabase(); db != nil && db.GetStatusVNetDNSName() == "" {
+		db.SetStatusVNetDNSName(dbvnet.DNSName(db.GetName()))
+	}
+
 	lease, err := a.Services.UpsertDatabaseServer(ctx, server)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -7068,11 +7259,10 @@ func (a *Server) CreateAccessListReminderNotifications(ctx context.Context, opts
 			identifiers = append(identifiers, identifiersResp)
 		}
 
-		// Create a map of identifiers for quick lookup
-		identifiersMap := make(map[string]struct{})
+		accessListIDs := set.New[string]()
 		for _, id := range identifiers {
 			// id.Spec.UniqueIdentifier is the access list ID
-			identifiersMap[id.Spec.UniqueIdentifier] = struct{}{}
+			accessListIDs.Add(id.Spec.UniqueIdentifier)
 		}
 
 		// owners is the combined list of owners for relevant access lists we are creating the notification for.
@@ -7089,7 +7279,7 @@ func (a *Server) CreateAccessListReminderNotifications(ctx context.Context, opts
 				return
 			}
 
-			if _, exists := identifiersMap[accessList.GetName()]; !exists {
+			if !accessListIDs.Contains(accessList.GetName()) {
 				needsNotification = true
 				// Create a unique identifier for this access list so that we know it has been accounted for.
 				// Note that if the auth server crashes between creating this identifier and creating the notification,
@@ -7802,18 +7992,13 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		if t.KubernetesCluster == "" {
 			return nil, trace.BadParameter("missing KubernetesCluster field in a kubernetes-only UserCertsRequest")
 		}
-		// Find the target cluster and check whether MFA is required.
-		svcs, err := a.GetKubernetesServers(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
 		var cluster types.KubeCluster
-		for _, svc := range svcs {
-			kubeCluster := svc.GetCluster()
-			if kubeCluster.GetName() == t.KubernetesCluster {
-				cluster = kubeCluster
-				break
+		for server, err := range a.RangeKubernetesServersWithName(ctx, t.KubernetesCluster) {
+			if err != nil {
+				return nil, trace.Wrap(err)
 			}
+			cluster = server.GetCluster()
+			break
 		}
 		if cluster == nil {
 			return nil, trace.NotFound("kubernetes cluster %q not found", t.KubernetesCluster)
@@ -7825,16 +8010,13 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		if t.Database.ServiceName == "" {
 			return nil, trace.BadParameter("missing ServiceName field in a database-only UserCertsRequest")
 		}
-		servers, err := a.GetDatabaseServers(ctx, apidefaults.Namespace)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
 		var db types.Database
-		for _, server := range servers {
-			if server.GetDatabase().GetName() == t.Database.ServiceName {
-				db = server.GetDatabase()
-				break
+		for server, err := range a.RangeDatabaseServersWithName(ctx, t.Database.ServiceName) {
+			if err != nil {
+				return nil, trace.Wrap(err)
 			}
+			db = server.GetDatabase()
+			break
 		}
 		if db == nil {
 			return nil, trace.NotFound("database service %q not found", t.Database.ServiceName)
@@ -7847,15 +8029,18 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		noMFAAccessErr = checker.CheckAccess(db, services.AccessState{})
 
 	case *proto.IsMFARequiredRequest_WindowsDesktop:
-		desktops, err := a.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{Name: t.WindowsDesktop.GetWindowsDesktop()})
+		resp, err := a.ListWindowsDesktops(ctx, types.ListWindowsDesktopsRequest{
+			WindowsDesktopFilter: types.WindowsDesktopFilter{Name: t.WindowsDesktop.GetWindowsDesktop()},
+			Limit:                1,
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if len(desktops) == 0 {
+		if len(resp.Desktops) == 0 {
 			return nil, trace.NotFound("windows desktop %q not found", t.WindowsDesktop.GetWindowsDesktop())
 		}
 
-		noMFAAccessErr = checker.CheckAccess(desktops[0],
+		noMFAAccessErr = checker.CheckAccess(resp.Desktops[0],
 			services.AccessState{},
 			services.NewWindowsLoginMatcher(t.WindowsDesktop.GetLogin()))
 
@@ -7864,19 +8049,18 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			return nil, trace.BadParameter("missing Name field in an app-only UserCertsRequest")
 		}
 
-		servers, err := a.GetApplicationServers(ctx, apidefaults.Namespace)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		var app types.Application
+		for server, err := range a.RangeApplicationServersWithName(ctx, t.App.Name) {
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			app = server.GetApp()
+			break
 		}
-
-		i := slices.IndexFunc(servers, func(server types.AppServer) bool {
-			return server.GetApp().GetName() == t.App.Name
-		})
-		if i == -1 {
+		if app == nil {
 			return nil, trace.NotFound("application service %q not found", t.App.Name)
 		}
 
-		app := servers[i].GetApp()
 		noMFAAccessErr = checker.CheckAccess(app, services.AccessState{})
 
 	default:
@@ -7911,10 +8095,18 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 	}, nil
 }
 
+type mfaAuthChallengeParams struct {
+	user                     string
+	ssoClientRedirectURL     string
+	browserMFATSHRedirectURL string
+	proxyAddress             string
+	challengeExtensions      *mfav1.ChallengeExtensions
+}
+
 // mfaAuthChallenge constructs an MFAAuthenticateChallenge for all MFA devices
 // registered by the user.
-func (a *Server) mfaAuthChallenge(ctx context.Context, user, ssoClientRedirectURL, proxyAddress string, challengeExtensions *mfav1.ChallengeExtensions) (*proto.MFAAuthenticateChallenge, error) {
-	isPasswordless := challengeExtensions.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN
+func (a *Server) mfaAuthChallenge(ctx context.Context, p mfaAuthChallengeParams) (*proto.MFAAuthenticateChallenge, error) {
+	isPasswordless := p.challengeExtensions.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN
 
 	// Check what kind of MFA is enabled.
 	apref, err := a.GetAuthPreference(ctx)
@@ -7924,6 +8116,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user, ssoClientRedirectUR
 	enableTOTP := apref.IsSecondFactorTOTPAllowed()
 	enableWebauthn := apref.IsSecondFactorWebauthnAllowed()
 	enableSSO := apref.IsSecondFactorSSOAllowed()
+	enableBrowserMFA := apref.GetAllowCLIAuthViaBrowser()
 
 	// Fetch configurations. The IsSecondFactor*Allowed calls above already
 	// include the necessary checks of config empty, disabled, etc.
@@ -7973,9 +8166,9 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user, ssoClientRedirectUR
 				Code:        events.CreateMFAAuthChallengeCode,
 				ClusterName: clusterName.GetClusterName(),
 			},
-			UserMetadata:        authz.ClientUserMetadataWithUser(ctx, user),
-			ChallengeScope:      challengeExtensions.Scope.String(),
-			ChallengeAllowReuse: challengeExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+			UserMetadata:        authz.ClientUserMetadataWithUser(ctx, p.user),
+			ChallengeScope:      p.challengeExtensions.Scope.String(),
+			ChallengeAllowReuse: p.challengeExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
 		}); err != nil {
 			a.logger.WarnContext(ctx, "Failed to emit CreateMFAAuthChallenge event", "error", err)
 		}
@@ -7986,11 +8179,11 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user, ssoClientRedirectUR
 	}
 
 	// User required for non-passwordless.
-	if user == "" {
+	if p.user == "" {
 		return nil, trace.BadParameter("user required")
 	}
 
-	devs, err := a.Services.GetMFADevices(ctx, user, true /* withSecrets */)
+	devs, err := a.Services.GetMFADevices(ctx, p.user, true /* withSecrets */)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -8009,7 +8202,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user, ssoClientRedirectUR
 			Webauthn: webConfig,
 			Identity: wanlib.WithDevices(a.Services, groupedDevs.Webauthn),
 		}
-		assertion, err := webLogin.Begin(ctx, user, challengeExtensions)
+		assertion, err := webLogin.Begin(ctx, p.user, p.challengeExtensions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -8018,8 +8211,24 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user, ssoClientRedirectUR
 
 	// If the user has an SSO device and the client provided a redirect URL to handle
 	// the MFA SSO flow, create an SSO challenge.
-	if enableSSO && groupedDevs.SSO != nil && ssoClientRedirectURL != "" {
-		if challenge.SSOChallenge, err = a.beginSSOMFAChallenge(ctx, user, groupedDevs.SSO.GetSso(), ssoClientRedirectURL, proxyAddress, challengeExtensions); err != nil {
+	if enableSSO && groupedDevs.SSO != nil && p.ssoClientRedirectURL != "" {
+		if challenge.SSOChallenge, err = a.beginSSOMFAChallenge(ctx, p.user, groupedDevs.SSO.GetSso(), p.ssoClientRedirectURL, p.proxyAddress, p.challengeExtensions); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	// If the user has a WebAuthn device, return a Browser MFA challenge. This
+	// challenge is useful in cases where a user only has a browser-associated
+	// WebAuthn device, but is trying to MFA via a CLI tool (tsh, tctl etc.)
+	if enableBrowserMFA && groupedDevs.Browser != nil && p.browserMFATSHRedirectURL != "" {
+		if challenge.BrowserMFAChallenge, err = a.BeginBrowserMFAChallenge(
+			ctx,
+			mfatypes.BeginBrowserMFAChallengeParams{
+				User:                     p.user,
+				BrowserMFATSHRedirectURL: p.browserMFATSHRedirectURL,
+				Ext:                      p.challengeExtensions,
+			},
+		); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -8035,9 +8244,9 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user, ssoClientRedirectUR
 			Code:        events.CreateMFAAuthChallengeCode,
 			ClusterName: clusterName.GetClusterName(),
 		},
-		UserMetadata:        authz.ClientUserMetadataWithUser(ctx, user),
-		ChallengeScope:      challengeExtensions.Scope.String(),
-		ChallengeAllowReuse: challengeExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+		UserMetadata:        authz.ClientUserMetadataWithUser(ctx, p.user),
+		ChallengeScope:      p.challengeExtensions.Scope.String(),
+		ChallengeAllowReuse: p.challengeExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
 	}); err != nil {
 		a.logger.WarnContext(ctx, "Failed to emit CreateMFAAuthChallenge event", "error", err)
 	}
@@ -8049,6 +8258,7 @@ type devicesByType struct {
 	TOTP     bool
 	Webauthn []*types.MFADevice
 	SSO      *types.MFADevice
+	Browser  *types.MFADevice
 }
 
 func groupByDeviceType(devs []*types.MFADevice) devicesByType {
@@ -8067,6 +8277,18 @@ func groupByDeviceType(devs []*types.MFADevice) devicesByType {
 			logger.WarnContext(context.Background(), "Skipping MFA device with unknown type", "device_type", logutils.TypeAttr(dev.Device))
 		}
 	}
+
+	// Create a synthetic Browser device if the user has a WebAuthn device.
+	// This enables browser-based MFA for users who have WebAuthn/passkey devices.
+	if len(res.Webauthn) > 0 {
+		res.Browser = &types.MFADevice{
+			Id: "browser",
+			Device: &types.MFADevice_Browser{
+				Browser: &types.BrowserMFADevice{},
+			},
+		}
+	}
+
 	return res
 }
 
@@ -8078,7 +8300,7 @@ func groupByDeviceType(devs []*types.MFADevice) devicesByType {
 // Use only for registration purposes.
 func (a *Server) validateMFAAuthResponseForRegister(ctx context.Context, resp *proto.MFAAuthenticateResponse, username string, requiredExtensions *mfav1.ChallengeExtensions) (hasDevices bool, err error) {
 	// Let users without a useable device go through registration.
-	if resp == nil || (resp.GetTOTP() == nil && resp.GetWebauthn() == nil && resp.GetSSO() == nil) {
+	if resp == nil || (resp.GetTOTP() == nil && resp.GetWebauthn() == nil && resp.GetSSO() == nil && resp.GetBrowser() == nil) {
 		devices, err := a.Services.GetMFADevices(ctx, username, false /* withSecrets */)
 		if err != nil {
 			return false, trace.Wrap(err)
@@ -8097,8 +8319,9 @@ func (a *Server) validateMFAAuthResponseForRegister(ctx context.Context, resp *p
 		hasTOTP := authPref.IsSecondFactorTOTPAllowed() && devsByType.TOTP
 		hasWebAuthn := authPref.IsSecondFactorWebauthnAllowed() && len(devsByType.Webauthn) > 0
 		hasSSO := authPref.IsSecondFactorSSOAllowed() && devsByType.SSO != nil
+		hasBrowser := authPref.GetAllowCLIAuthViaBrowser() && devsByType.Browser != nil
 
-		if hasTOTP || hasWebAuthn || hasSSO {
+		if hasTOTP || hasWebAuthn || hasSSO || hasBrowser {
 			return false, trace.BadParameter("second factor authentication required")
 		}
 
@@ -8166,6 +8389,7 @@ func (a *Server) ValidateMFAAuthResponse(
 		auditEvent.Code = events.ValidateMFAAuthResponseCode
 		auditEvent.Success = true
 		deviceMetadata := mfaDeviceEventMetadata(authData.Device)
+		deviceMetadata.MFAViaBrowser = authData.MFAViaBrowser
 		auditEvent.MFADevice = &deviceMetadata
 		auditEvent.ChallengeAllowReuse = authData.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES
 	}
@@ -8277,6 +8501,9 @@ func (a *Server) validateMFAAuthResponseInternal(
 
 	case *proto.MFAAuthenticateResponse_SSO:
 		mfaAuthData, err := a.verifySSOMFASession(ctx, user, res.SSO.RequestId, res.SSO.Token, requiredExtensions)
+		return mfaAuthData, trace.Wrap(err)
+	case *proto.MFAAuthenticateResponse_Browser:
+		mfaAuthData, err := a.VerifyBrowserMFASession(ctx, user, res.Browser.RequestId, res.Browser.WebauthnResponse, requiredExtensions)
 		return mfaAuthData, trace.Wrap(err)
 	default:
 		return nil, trace.BadParameter("unknown or missing MFAAuthenticateResponse type %T", resp.Response)

@@ -13,16 +13,13 @@ locals {
     ? null
     : var.aws_iam_role_name
   )
-  trust_roles = try({
-    local.trust_role.role_arn = local.trust_role
-  }, {})
 }
 
 data "aws_iam_policy_document" "teleport_discovery_service_iam_role_trust" {
   count = local.create ? 1 : 0
 
   dynamic "statement" {
-    for_each = local.use_oidc_integration ? [1] : []
+    for_each = var.discovery_service_iam_credential_source.use_oidc_integration ? [1] : []
     iterator = trust
 
     content {
@@ -37,14 +34,14 @@ data "aws_iam_policy_document" "teleport_discovery_service_iam_role_trust" {
 
       condition {
         test     = "StringEquals"
-        variable = "${local.teleport_cluster_name}:aud"
+        variable = "${local.aws_iam_oidc_provider_name}:aud"
         values   = [local.aws_iam_oidc_provider_aud]
       }
     }
   }
 
   dynamic "statement" {
-    for_each = local.trust_roles
+    for_each = var.discovery_service_iam_credential_source.trust_role[*]
     iterator = trust
 
     content {
@@ -52,13 +49,17 @@ data "aws_iam_policy_document" "teleport_discovery_service_iam_role_trust" {
 
       principals {
         type        = "AWS"
-        identifiers = trust.value.role_arn
+        identifiers = [trust.value.role_arn]
       }
 
-      condition {
-        test     = "StringEquals"
-        variable = "sts:ExternalId"
-        values   = [trust.value.external_id]
+      dynamic "condition" {
+        for_each = trust.value.external_id != "" ? [trust.value.external_id] : []
+
+        content {
+          test     = "StringEquals"
+          variable = "sts:ExternalId"
+          values   = [condition.value]
+        }
       }
     }
   }

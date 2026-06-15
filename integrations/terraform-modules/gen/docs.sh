@@ -76,7 +76,10 @@ EOF
     module_index_doc="${module_docs_dir}/${module_name}.mdx"
 
     remote_system="${module_name##*-}" # trim everything up to the last dash, which is the "system" component, e.g., "aws".
-    remote_system=$(echo "${remote_system}" | tr '[:lower:]' '[:upper:]') # uppercase it, e.g., "aws" -> "AWS".
+    case "${remote_system}" in
+      azure) remote_system="Azure" ;;
+      *)     remote_system=$(echo "${remote_system}" | tr '[:lower:]' '[:upper:]') ;; # uppercase it, e.g., "aws" -> "AWS".
+    esac
 
     # inject a generated docs header
     cat <<EOF > "${module_index_doc}"

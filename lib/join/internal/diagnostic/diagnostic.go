@@ -44,6 +44,7 @@ type Info struct {
 	HostID              string
 	SystemRoles         []string
 	BotName             string
+	BotScope            string
 	BotGeneration       uint64
 	BotInstanceID       string
 	Error               error

@@ -18,6 +18,7 @@
 
 import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
+
 import Logger, { NullService } from 'teleterm/logger';
 
 import { CatchError } from './CatchError';

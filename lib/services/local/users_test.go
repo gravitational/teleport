@@ -1753,35 +1753,35 @@ func TestIdentityService_SSOMFASessionDataCRUD(t *testing.T) {
 	identity := newIdentityService(t, clockwork.NewFakeClock())
 
 	// Verify create.
-	sd := &services.SSOMFASessionData{
+	sd := &services.MFASessionData{
 		RequestID:     "request",
 		Username:      "alice",
 		ConnectorID:   "saml",
 		ConnectorType: "saml",
 	}
-	err := identity.UpsertSSOMFASessionData(ctx, sd)
+	err := identity.UpsertMFASessionData(ctx, sd)
 	require.NoError(t, err)
 
 	// Verify read.
-	got, err := identity.GetSSOMFASessionData(ctx, sd.RequestID)
+	got, err := identity.GetMFASessionData(ctx, sd.RequestID)
 	require.NoError(t, err)
 	if diff := cmp.Diff(sd, got); diff != "" {
-		t.Fatalf("GetSSOMFASessionData() mismatch (-want +got):\n%s", diff)
+		t.Fatalf("GetMFASessionData() mismatch (-want +got):\n%s", diff)
 	}
 
 	// Verify update.
 	sd.Token = "token"
-	err = identity.UpsertSSOMFASessionData(ctx, sd)
+	err = identity.UpsertMFASessionData(ctx, sd)
 	require.NoError(t, err)
-	got, err = identity.GetSSOMFASessionData(ctx, sd.RequestID)
+	got, err = identity.GetMFASessionData(ctx, sd.RequestID)
 	require.NoError(t, err)
 	if diff := cmp.Diff(sd, got); diff != "" {
-		t.Fatalf("GetSSOMFASessionData() mismatch (-want +got):\n%s", diff)
+		t.Fatalf("GetMFASessionData() mismatch (-want +got):\n%s", diff)
 	}
 
 	// Verify delete.
-	err = identity.DeleteSSOMFASessionData(ctx, sd.RequestID)
+	err = identity.DeleteMFASessionData(ctx, sd.RequestID)
 	require.NoError(t, err)
-	_, err = identity.GetSSOMFASessionData(ctx, sd.RequestID)
+	_, err = identity.GetMFASessionData(ctx, sd.RequestID)
 	require.True(t, trace.IsNotFound(err))
 }
