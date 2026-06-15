@@ -78,6 +78,12 @@ func createGenericSCIMPlugin(t *testing.T, sut *common.SUT, opts ...createSCIMPl
 	return rawToken
 }
 
+func withRateLimit(rl *types.PluginSCIMRateLimit) createSCIMPluginOptionsFunc {
+	return func(o *createSCIMPluginOptions) {
+		o.scimSettings.RateLimit = rl
+	}
+}
+
 func buildSCIMCredentials(scimToken string) *types.PluginStaticCredentialsV1 {
 	return &types.PluginStaticCredentialsV1{
 		ResourceHeader: types.ResourceHeader{

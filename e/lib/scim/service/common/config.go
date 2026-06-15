@@ -52,6 +52,10 @@ type Config struct {
 	ClusterName string
 	// Modules defines build time constraints and licensed features.
 	Modules modules.Modules
+	// RateLimit overrides the default SCIM rate limits. Nil is
+	// replaced by the standard defaults in [Config.CheckAndSetDefaults].
+	// Intended for testing.
+	RateLimit RateLimitConfig
 }
 
 func (cfg *Config) CheckAndSetDefaults() error {
@@ -82,6 +86,14 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	}
 	if cfg.ClusterName == "" {
 		return trace.BadParameter("missing cluster name")
+	}
+	if cfg.RateLimit == (RateLimitConfig{}) {
+		cfg.RateLimit = RateLimitConfig{
+			Average:                 600,
+			Burst:                   1200,
+			PeriodSeconds:           60,
+			MaxConcurrentOperations: 300,
+		}
 	}
 	return nil
 }

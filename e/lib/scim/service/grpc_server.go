@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -14,14 +15,23 @@ import (
 	"github.com/gravitational/teleport/e/lib/scim/service/provider"
 )
 
+// TODO(smallinsky): Just in case the TELEPORT_UNSTABLE_DISABLE_SCIM_RATE_LIMIT allow to disable rate limits.
+// Remove after no side effects of rate limits are observed  in customers environments.
+func isSCIMRateLimitDisabled() bool {
+	return os.Getenv("TELEPORT_UNSTABLE_DISABLE_SCIM_RATE_LIMIT") == "yes"
+}
+
 // Service contact point for all SCIM requests, before farming them out to resource-
 // and IdP-specific handlers.
 type Service struct {
 	pb.UnimplementedSCIMServiceServer
 	common.Config
 	CreatePluginHandler func(plugin types.Plugin, config common.Config, resourceType string) (common.ResourceHandler, error)
+	locker              common.Locker
 
-	locker common.Locker
+	// rateLimiter allows to create middleware per plugin request execution.
+	// Is manage the rate limiting state since quota should be shared across all requests.
+	rateLimit *middleware.RateLimitMiddleware
 }
 
 // NewService creates and configures a new SCIM service
@@ -35,9 +45,15 @@ func NewService(cfg *common.Config) (*Service, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	rateLimit, err := middleware.NewRateLimitMiddleware(cfg.RateLimit)
+	if err != nil {
+		return nil, trace.Wrap(err, "creating rate limit middleware")
+	}
+
 	return &Service{
 		Config:              *cfg,
 		CreatePluginHandler: provider.CreatePluginHandler,
+		rateLimit:           rateLimit,
 		locker: common.NewLockerChain(
 			common.NewSingleProcessLocker(),
 			distributeLock,
@@ -63,10 +79,22 @@ func (s *Service) createMiddlewaresChain(plugin types.Plugin) (*middleware.Chain
 		return nil, trace.Wrap(err)
 	}
 
-	return middleware.NewMiddlewareChain(
-		loggingMiddleware,
-		lockMiddleware,
-	), nil
+	middlewares := []middleware.Middleware{loggingMiddleware}
+
+	if !isSCIMRateLimitDisabled() {
+		// Create the rate limiting for SCIM operation shared between all SCIM operations.
+		// The authorize calls are limited on the Web Handler level via WithAccessDeniedLimiter
+		// handler by the Proxy SCIM web handler.
+		pluginRateLimit, err := s.rateLimit.ForPlugin(plugin)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating rate limit middleware")
+		}
+		middlewares = append(middlewares, pluginRateLimit)
+	}
+
+	middlewares = append(middlewares, lockMiddleware)
+
+	return middleware.NewMiddlewareChain(middlewares...), nil
 }
 
 func (s *Service) createHandlerWithMiddleware(plugin types.Plugin, resourceType string) (common.ResourceHandler, error) {
@@ -114,6 +142,7 @@ func (s *Service) GetSCIMResource(ctx context.Context, req *pb.GetSCIMResourceRe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	handler, err := s.createHandlerWithMiddleware(plugin, req.GetTarget().GetResourceType())
 	if err != nil {
 		return nil, trace.Wrap(err)

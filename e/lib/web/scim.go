@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"strconv"
@@ -12,6 +13,7 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/gravitational/teleport"
+	scimclient "github.com/gravitational/teleport/api/client/scim"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -113,7 +115,20 @@ func (p *Plugin) wrapSCIMRequest(fn func(http.ResponseWriter, *http.Request, htt
 			statusCode = http.StatusBadRequest
 
 		case trace.IsLimitExceeded(err):
-			statusCode = http.StatusRequestEntityTooLarge
+			var rlErr *scimclient.RateLimitError
+			if errors.As(err, &rlErr) {
+				// This is explicit rate limiting error returned by the client.
+				// The IsLimitExceeded with RateLimitError error should be mapped to StatusTooManyRequests.
+				statusCode = http.StatusTooManyRequests
+				if rlErr.RetryAfterSeconds > 0 {
+					w.Header().Set("Retry-After", strconv.FormatInt(rlErr.RetryAfterSeconds, 10))
+				}
+			} else {
+				// Standalone IsLimitExceeded means that the request body is too large, which is a bad request.
+				// This is different from the rate limit error above which is returned by the client when it detects that it's being rate limited by the server
+				// We want to return BadRequest in this case to be consistent with the behavior when the request body exceeds the max size limit defined in the handler
+				statusCode = http.StatusBadRequest
+			}
 
 		case trace.IsNotImplemented(err):
 			statusCode = http.StatusNotImplemented
