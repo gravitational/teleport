@@ -466,6 +466,8 @@ gcp:
   # - The container will need an appropriately-provisioned IAM role/service account with permissions to create Firestore collections
   # - The service account credentials provided via 'credentialSecretName' will need permissions to create Firestore collections.
   backendTable: ""
+  # databaseId is the optional Firestore database ID. When empty, uses the default firestore database.
+  databaseId: ""
   # The Firestore collection to use for audit log storage. Teleport will attempt to create this collection automatically if it does not exist.
   # Either of the following must be true:
   # - The container will need an appropriately-provisioned IAM role/service account with permissions to create Firestore collections

@@ -270,6 +270,17 @@ tests:
       - matchSnapshot:
           path: data.teleport\.yaml
 
+  - it: matches snapshot for gcp-database-id.yaml
+    values:
+      - ../.lint/gcp-database-id.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
   - it: matches snapshot for initcontainers.yaml
     values:
       - ../.lint/initcontainers.yaml
