@@ -94,11 +94,11 @@ type resourceMutator[T Resource] interface {
 }
 
 type Config struct {
-	// Scoped represents if the controller reconciles a scoped reosurces.
+	// Scoped represents if the controller reconciles scoped resources.
 	// Scoped controllers always run.
 	// Unscoped controllers don't run when the controller runs in scoped mode.
 	Scoped bool
-	// CheckFeatures checks if the reconciler should run against the cluster iven its features.
+	// CheckFeatures checks if the reconciler should run against the cluster given its features.
 	// This is used to disable controllers if the cluster doesn't support their resource (e.g.
 	// OSS clusters might not support enterprise resources).
 	CheckFeatures controllers.CheckFeaturesFunc
