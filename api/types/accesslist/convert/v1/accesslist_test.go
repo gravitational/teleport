@@ -534,9 +534,7 @@ func TestUserDisplaysConversion(t *testing.T) {
 	// An absent wire map converts to a nil Go map (the un-enriched response).
 	require.Nil(t, FromUserDisplaysProto(nil))
 
-	// Present keys are preserved, including present-but-empty displays. proto3
-	// may decode an empty message value as an empty message or as nil; both
-	// must yield a present zero-value entry (the live-user-no-display signal).
+	// Present keys are preserved, including present-but-empty displays.
 	require.Equal(t,
 		map[string]types.UserDisplay{
 			"alice":      {Primary: "Alice Doe", Secondary: "alice@example.com"},

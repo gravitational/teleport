@@ -921,9 +921,7 @@ type GetAccessListV2Response_builder struct {
 	// access_list is the requested access list.
 	AccessList *AccessList
 	// owner_displays maps the access list's owner usernames to read-time display
-	// values derived from the user resource. A present key with empty values is
-	// a live user with no distinct display; an absent key is a user that no
-	// longer exists. Callers render the username as the fallback either way.
+	// values derived from the user resource.
 	OwnerDisplays map[string]*UserDisplay
 }
 
@@ -1606,10 +1604,7 @@ type ListAccessListMembersResponse_builder struct {
 	NextPageToken string
 	// user_displays maps member and added_by usernames appearing in this page's
 	// members to read-time display values derived from the user resource.
-	// Populated only when include_user_displays is set on the request. A present
-	// key with empty values is a live user with no distinct display; an absent
-	// key is a user that no longer exists. Callers render the username as the
-	// fallback either way.
+	// Populated only when include_user_displays is set on the request.
 	UserDisplays map[string]*UserDisplay
 }
 

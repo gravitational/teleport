@@ -118,10 +118,8 @@ func (c *Client) GetAccessList(ctx context.Context, name string) (*accesslist.Ac
 }
 
 // GetAccessListWithDisplays returns the specified access list along with
-// read-time display values for its owner usernames, keyed by username. Owners
-// that no longer exist are absent from the map; live owners without a distinct
-// display value are present with empty values. It falls back to GetAccessList
-// (and no display values) when the cluster does not support GetAccessListV2.
+// read-time display values for its owner usernames, keyed by username. It
+// falls back to GetAccessList (no display values) when the cluster does not support GetAccessListV2.
 func (c *Client) GetAccessListWithDisplays(ctx context.Context, name string) (*accesslist.AccessList, map[string]types.UserDisplay, error) {
 	resp, err := c.grpcClient.GetAccessListV2(ctx, &accesslistv1.GetAccessListV2Request{
 		Name: name,
@@ -227,8 +225,6 @@ func (c *Client) ListAccessListMembers(ctx context.Context, accessList string, p
 // ListAccessListMembersWithDisplays returns a paginated list of all access
 // list members for an access list, along with read-time display values for
 // the member and added_by usernames appearing in the page, keyed by username.
-// Users that no longer exist are absent from the map; live users without a
-// distinct display value are present with empty values.
 func (c *Client) ListAccessListMembersWithDisplays(ctx context.Context, accessList string, pageSize int, pageToken string) ([]*accesslist.AccessListMember, map[string]types.UserDisplay, string, error) {
 	return c.listAccessListMembers(ctx, accessList, pageSize, pageToken, true)
 }
