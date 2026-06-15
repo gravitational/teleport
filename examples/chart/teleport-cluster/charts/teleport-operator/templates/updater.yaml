@@ -1,7 +1,7 @@
 {{- if .Values.updater.enabled -}}
 {{- $updater := mustMergeOverwrite (mustDeepCopy .Values) .Values.updater }}
 {{/* Pass additional value from outside of updater. */}}
-{{- $_ := set $updater "releaseName" .Release.Name }}
+{{- $_ := set $updater "releaseName" ( include "teleport-cluster.operator.fullname" . ) }}
 {{- $_ = set $updater "releaseNamespace" .Release.Namespace }}
 
 {{/* Unset updater-specific values so we don't accidentally pick up teleport-specific things. */}}
