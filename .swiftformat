@@ -1,0 +1,127 @@
+--acronyms ID,JSON,URL,UUID
+--allman false
+--allow-partial-wrapping true
+--anonymous-for-each convert
+--asset-literals visual-width
+--async-capturing 
+--before-marks 
+--binary-grouping 4,8
+--blank-line-after-switch-case multiline-only
+--call-site-paren default
+--category-mark "MARK: %c"
+--class-threshold 0
+--closing-paren balanced
+--closure-void remove
+--complex-attributes preserve
+--computed-var-attributes prev-line
+--conditional-assignment after-property
+--conflict-markers reject
+--date-format system
+--decimal-grouping 3,6
+--default-test-suite-attributes 
+--doc-comments before-declarations
+--else-position same-line
+--empty-braces no-space
+--enum-namespaces always
+--enum-threshold 0
+--equatable-macro none
+--exponent-case lowercase
+--exponent-grouping disabled
+--extension-acl on-extension
+--extension-mark "MARK: - %t + %c"
+--extension-threshold 0
+--file-macro "#file"
+--fraction-grouping disabled
+--fragment false
+--func-attributes prev-line
+--generic-types 
+--group-blank-lines true
+--grouped-extension "MARK: %c"
+--guard-else auto
+--header ignore
+--hex-grouping 4,8
+--hex-literal-case uppercase
+--ifdef indent
+--import-grouping alpha
+--indent tab
+--indent-case true
+--indent-strings true
+--inferred-types always
+--init-coder-nil false
+--language-mode 0
+--lifecycle body
+--line-after-marks true
+--line-between-guards false
+--linebreaks lf
+--mark-categories true
+--mark-class-threshold 0
+--mark-enum-threshold 0
+--mark-extension-threshold 0
+--mark-extensions always
+--mark-struct-threshold 0
+--mark-types always
+--markdown-files ignore
+--max-width 120
+--modifier-order 
+--never-trailing 
+--nil-init insert
+--no-space-operators 
+--no-wrap-operators 
+--non-complex-attributes 
+--octal-grouping 4,8
+--operator-func spaced
+--organization-mode visibility
+--organize-types actor,class,enum,struct
+--pattern-let hoist
+--preserve-acronyms 
+--preserve-decls 
+--preserved-property-types Package
+--property-types infer-locals-only
+--ranges spaced
+--redundant-async tests-only
+--redundant-throws tests-only
+--self init-only
+--self-required error,info,log,warning
+--semicolons inline-only
+--short-optionals always
+--single-line-for-each ignore
+--smart-tabs enabled
+--some-any false
+--sort-swiftui-properties none
+--sorted-patterns 
+--stored-var-attributes prev-line
+--strip-unused-args closure-only
+--struct-threshold 0
+--swift-version 6.2
+--tab-width unspecified
+--throw-capturing 
+--timezone system
+--trailing-closures 
+--trailing-commas always
+--trim-whitespace always
+--type-attributes prev-line
+--type-blank-lines remove
+--type-body-marks preserve
+--type-delimiter space-after
+--type-mark "MARK: - %t"
+--type-marks 
+--type-order 
+--url-macro none
+--visibility-marks 
+--visibility-order 
+--void-type Void
+--wrap-arguments before-first
+--wrap-collections before-first
+--wrap-conditions before-first
+--wrap-effects preserve
+--wrap-enum-cases always
+--wrap-parameters before-first
+--wrap-return-type preserve
+--wrap-string-interpolation default
+--wrap-ternary default
+--wrap-type-aliases preserve
+--xcode-indentation disabled
+--xctest-symbols 
+--yoda-swap always
+--disable redundantLet,unusedArguments
+--enable acronyms,blankLinesBetweenImports,docComments,isEmpty,wrapEnumCases
