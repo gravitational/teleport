@@ -694,7 +694,7 @@ func (s *Server) ec2WatcherIterationStarted(fetchers []server.Fetcher[*server.EC
 	awsResultGroups := libslices.FilterMapUnique(
 		fetchers,
 		func(f server.Fetcher[*server.EC2Instances]) (awsResourceGroup, bool) {
-			include := f.GetDiscoveryConfigName() != "" && f.IntegrationName() != ""
+			include := f.GetDiscoveryConfigName() != ""
 			resourceGroup := awsResourceGroup{
 				discoveryConfigName: f.GetDiscoveryConfigName(),
 				integration:         f.IntegrationName(),
