@@ -288,10 +288,14 @@ const useDesktopPlayer = ({
         durationMs
       );
 
-      currentTimeRef.current = current;
+      // Skip while the time is unchanged (paused, loading, complete) to avoid
+      // redrawing the timeline and rescanning events every frame.
+      if (current !== currentTimeRef.current) {
+        currentTimeRef.current = current;
 
-      onTimeChange?.(current);
-      eventInfoRef.current?.setTime(current);
+        onTimeChange?.(current);
+        eventInfoRef.current?.setTime(current);
+      }
 
       if (
         !progressSuspendedRef.current &&
