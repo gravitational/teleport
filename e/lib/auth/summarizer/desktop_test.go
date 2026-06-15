@@ -224,11 +224,12 @@ func TestDesktopSessionSummarizer_FlushChunkResetsState(t *testing.T) {
 
 	provider := &countingProvider{
 		analysis: &schema.DesktopScreenshotAnalysis{
-			NotableSessionEvents: []schema.DesktopSessionEvent{{StartTime: "0:00", TimelineTitle: "ev"}},
+			NotableSessionEvents: []schema.DesktopSessionEvent{{TimelineTitle: "ev"}},
 		},
 	}
 	d := newTestSummarizer(t, provider)
 	d.chunk = append(d.chunk, []byte("png-bytes"))
+	d.chunkTimes = append(d.chunkTimes, chunkScreenshotTime{start: 0, end: 0})
 	d.chunkTokens = 100
 	d.chunkBytes = 200
 
@@ -237,10 +238,101 @@ func TestDesktopSessionSummarizer_FlushChunkResetsState(t *testing.T) {
 	require.EqualValues(t, 1, provider.imageCalls.Load())
 	require.Equal(t, 1, d.chunkIndex)
 	require.Empty(t, d.chunk)
+	require.Empty(t, d.chunkTimes)
 	require.Equal(t, 0, d.chunkTokens)
 	require.Equal(t, 0, d.chunkBytes)
 	require.Len(t, d.allEvents, 1)
 	require.Equal(t, provider.analysis, d.prevAnalysis)
+}
+
+func TestDesktopSessionSummarizer_ResolveEventTimestamps(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	tests := []struct {
+		name        string
+		chunkTimes  []chunkScreenshotTime
+		chunkStart  time.Duration
+		events      []schema.DesktopSessionEvent
+		wantStart   []string
+		wantEnd     []string
+		wantIndices [][2]int // expected post-clamp [start, end]
+	}{
+		{
+			name: "in-range indices resolve to bar timestamps",
+			chunkTimes: []chunkScreenshotTime{
+				{start: 0, end: 0},
+				{start: 5 * time.Second, end: 5 * time.Second},
+				{start: 12 * time.Second, end: 30 * time.Second},
+			},
+			events: []schema.DesktopSessionEvent{
+				{StartScreenshotIndex: 0, EndScreenshotIndex: 0},
+				{StartScreenshotIndex: 1, EndScreenshotIndex: 2},
+			},
+			wantStart:   []string{"0:00", "0:05"},
+			wantEnd:     []string{"0:00", "0:30"},
+			wantIndices: [][2]int{{0, 0}, {1, 2}},
+		},
+		{
+			name: "out-of-range indices clamp to chunk bounds",
+			chunkTimes: []chunkScreenshotTime{
+				{start: 2 * time.Second, end: 2 * time.Second},
+				{start: 8 * time.Second, end: 8 * time.Second},
+			},
+			events: []schema.DesktopSessionEvent{
+				{StartScreenshotIndex: -3, EndScreenshotIndex: 99},
+			},
+			wantStart:   []string{"0:02"},
+			wantEnd:     []string{"0:08"},
+			wantIndices: [][2]int{{0, 1}},
+		},
+		{
+			name: "inverted indices swap",
+			chunkTimes: []chunkScreenshotTime{
+				{start: 1 * time.Second, end: 1 * time.Second},
+				{start: 7 * time.Second, end: 7 * time.Second},
+			},
+			events: []schema.DesktopSessionEvent{
+				{StartScreenshotIndex: 1, EndScreenshotIndex: 0},
+			},
+			wantStart:   []string{"0:01"},
+			wantEnd:     []string{"0:07"},
+			wantIndices: [][2]int{{0, 1}},
+		},
+		{
+			name:       "empty chunkTimes falls back to chunkStart",
+			chunkTimes: nil,
+			chunkStart: 4 * time.Second,
+			events: []schema.DesktopSessionEvent{
+				{StartScreenshotIndex: 0, EndScreenshotIndex: 0},
+			},
+			wantStart:   []string{"0:04"},
+			wantEnd:     []string{"0:04"},
+			wantIndices: [][2]int{{0, 0}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			d := newTestSummarizer(t, &countingProvider{})
+			d.chunkTimes = tt.chunkTimes
+			d.chunkStart = tt.chunkStart
+
+			events := append([]schema.DesktopSessionEvent(nil), tt.events...)
+			d.resolveEventTimestamps(ctx, events)
+
+			require.Len(t, events, len(tt.wantStart))
+			for i := range events {
+				require.Equal(t, tt.wantStart[i], events[i].StartTime, "event %d start", i)
+				require.Equal(t, tt.wantEnd[i], events[i].EndTime, "event %d end", i)
+				require.Equal(t, tt.wantIndices[i][0], events[i].StartScreenshotIndex, "event %d start idx", i)
+				require.Equal(t, tt.wantIndices[i][1], events[i].EndScreenshotIndex, "event %d end idx", i)
+			}
+		})
+	}
 }
 
 func TestDesktopSessionSummarizer_FlushChunkProviderError(t *testing.T) {
@@ -371,6 +463,201 @@ func TestDesktopSessionSummarizer_SynthesizeTrimsToFitBudget(t *testing.T) {
 	_, err := d.synthesize(t.Context())
 	require.NoError(t, err)
 	require.True(t, d.tooLarge, "synthesis must mark tooLarge when events were trimmed")
+}
+
+func TestConsolidateAdjacentEvents(t *testing.T) {
+	t.Parallel()
+
+	mk := func(start, end string, startIdx, endIdx int, category, title string) schema.DesktopSessionEvent {
+		return schema.DesktopSessionEvent{
+			Category:             category,
+			StartTime:            start,
+			EndTime:              end,
+			StartScreenshotIndex: startIdx,
+			EndScreenshotIndex:   endIdx,
+			TimelineTitle:        title,
+			ThreatCategory:       "none",
+			RiskLevel:            "low",
+			RiskScore:            10,
+		}
+	}
+
+	tests := []struct {
+		name      string
+		in        []schema.DesktopSessionEvent
+		wantTitle []string
+		wantStart []string
+		wantEnd   []string
+	}{
+		{
+			name: "empty list unchanged",
+			in:   nil,
+		},
+		{
+			name:      "single event unchanged",
+			in:        []schema.DesktopSessionEvent{mk("0:05", "0:10", 1, 3, "network", "Browsed YouTube")},
+			wantTitle: []string{"Browsed YouTube"},
+			wantStart: []string{"0:05"},
+			wantEnd:   []string{"0:10"},
+		},
+		{
+			name: "near-duplicate fireplace events collapse to one",
+			in: []schema.DesktopSessionEvent{
+				mk("1:39", "1:48", 5, 7, "network", "Watching fireplace video on YouTube"),
+				mk("1:48", "1:56", 8, 10, "network", "Watching fireplace video with pre-roll ad"),
+				mk("1:56", "2:07", 11, 13, "network", "Watching YouTube fireplace video with ads"),
+				mk("2:07", "2:25", 14, 17, "network", "Watched fireplace YouTube video with ads"),
+				mk("2:25", "2:29", 18, 19, "network", "Watching fireplace YouTube video"),
+			},
+			// Longest title wins after the merges; all five collapse since each adjacent pair Jaccards >= 0.5.
+			wantTitle: []string{"Watching fireplace video with pre-roll ad"},
+			wantStart: []string{"1:39"},
+			wantEnd:   []string{"2:29"},
+		},
+		{
+			name: "different categories never merge",
+			in: []schema.DesktopSessionEvent{
+				mk("0:05", "0:10", 1, 2, "network", "Browsed YouTube"),
+				mk("0:10", "0:14", 3, 4, "process", "Browsed YouTube"),
+			},
+			wantTitle: []string{"Browsed YouTube", "Browsed YouTube"},
+			wantStart: []string{"0:05", "0:10"},
+			wantEnd:   []string{"0:10", "0:14"},
+		},
+		{
+			name: "low title overlap leaves events distinct",
+			in: []schema.DesktopSessionEvent{
+				mk("0:05", "0:10", 1, 2, "network", "Browsed YouTube"),
+				mk("0:10", "0:14", 3, 4, "network", "Visited GitHub repository"),
+			},
+			wantTitle: []string{"Browsed YouTube", "Visited GitHub repository"},
+			wantStart: []string{"0:05", "0:10"},
+			wantEnd:   []string{"0:10", "0:14"},
+		},
+		{
+			name: "inference-error placeholder never merges",
+			in: []schema.DesktopSessionEvent{
+				mk("0:05", "0:10", 1, 2, "network", "Watching fireplace video on YouTube"),
+				func() schema.DesktopSessionEvent {
+					e := mk("0:10", "0:14", 3, 4, "network", "Watching fireplace YouTube video")
+					e.InferenceErrorMessage = "chunk inference failed"
+					return e
+				}(),
+				mk("0:14", "0:20", 5, 6, "network", "Watching fireplace video on YouTube"),
+			},
+			wantTitle: []string{
+				"Watching fireplace video on YouTube",
+				"Watching fireplace YouTube video",
+				"Watching fireplace video on YouTube",
+			},
+			wantStart: []string{"0:05", "0:10", "0:14"},
+			wantEnd:   []string{"0:10", "0:14", "0:20"},
+		},
+		{
+			name: "merge spans through a chain of adjacent similar events",
+			in: []schema.DesktopSessionEvent{
+				mk("0:00", "0:05", 0, 1, "network", "Browsed YouTube"),
+				mk("0:05", "0:10", 2, 3, "network", "Browsed YouTube videos"),
+				mk("0:10", "0:14", 4, 4, "network", "Browsed YouTube"),
+				mk("0:14", "0:20", 5, 7, "system_config", "Opened settings panel"),
+			},
+			wantTitle: []string{"Browsed YouTube videos", "Opened settings panel"},
+			wantStart: []string{"0:00", "0:14"},
+			wantEnd:   []string{"0:14", "0:20"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := consolidateAdjacentEvents(append([]schema.DesktopSessionEvent(nil), tt.in...))
+			require.Len(t, got, len(tt.wantTitle))
+			for i := range got {
+				require.Equal(t, tt.wantTitle[i], got[i].TimelineTitle, "event %d title", i)
+				require.Equal(t, tt.wantStart[i], got[i].StartTime, "event %d start", i)
+				require.Equal(t, tt.wantEnd[i], got[i].EndTime, "event %d end", i)
+			}
+		})
+	}
+}
+
+func TestConsolidateAdjacentEvents_UnionsIndicatorsAndTakesHigherRisk(t *testing.T) {
+	t.Parallel()
+
+	in := []schema.DesktopSessionEvent{
+		{
+			Category:        "network",
+			TimelineTitle:   "Watching fireplace video on YouTube",
+			StartTime:       "1:39",
+			EndTime:         "1:48",
+			RiskLevel:       "low",
+			RiskScore:       15,
+			ThreatCategory:  "none",
+			SuspiciousFlags: []string{"watching ad-supported content"},
+			VisibleURLs:     []string{"youtube.com"},
+			Applications:    []string{"Chrome"},
+		},
+		{
+			Category:            "network",
+			TimelineTitle:       "Watching fireplace video on YouTube",
+			StartTime:           "1:48",
+			EndTime:             "2:29",
+			RiskLevel:           "high",
+			RiskScore:           70,
+			ThreatCategory:      "exfiltration",
+			SuspiciousFlags:     []string{"watching ad-supported content", "extremely long idle"},
+			VisibleURLs:         []string{"youtube.com", "doubleclick.net"},
+			Applications:        []string{"Chrome"},
+			HasSensitiveData:    true,
+			PrivilegeEscalation: true,
+		},
+	}
+
+	got := consolidateAdjacentEvents(in)
+	require.Len(t, got, 1)
+	merged := got[0]
+
+	require.Equal(t, "1:39", merged.StartTime, "earlier start kept")
+	require.Equal(t, "2:29", merged.EndTime, "later end taken")
+	require.Equal(t, "high", merged.RiskLevel, "higher risk level wins")
+	require.Equal(t, 70, merged.RiskScore, "higher risk score wins")
+	require.Equal(t, "exfiltration", merged.ThreatCategory, "specific threat category replaces 'none'")
+	require.ElementsMatch(t,
+		[]string{"watching ad-supported content", "extremely long idle"},
+		merged.SuspiciousFlags,
+	)
+	require.ElementsMatch(t, []string{"youtube.com", "doubleclick.net"}, merged.VisibleURLs)
+	require.ElementsMatch(t, []string{"Chrome"}, merged.Applications)
+	require.True(t, merged.HasSensitiveData)
+	require.True(t, merged.PrivilegeEscalation)
+	require.False(t, merged.DataExfiltration)
+}
+
+func TestTitleSimilarity(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		a, b    string
+		wantMin float64
+		wantMax float64
+	}{
+		{name: "identical", a: "Browsed YouTube", b: "Browsed YouTube", wantMin: 0.99, wantMax: 1.0},
+		{name: "disjoint", a: "Browsed YouTube", b: "Edited /etc/hosts", wantMin: 0, wantMax: 0},
+		{name: "stopwords only differ", a: "Watching video on YouTube", b: "Watching video YouTube", wantMin: 0.99, wantMax: 1.0},
+		{name: "moderate overlap", a: "Watching fireplace video on YouTube", b: "Watched fireplace YouTube video with ads", wantMin: 0.4, wantMax: 0.7},
+		{name: "empty a", a: "", b: "x", wantMin: 0, wantMax: 0},
+		{name: "empty b", a: "x", b: "", wantMin: 0, wantMax: 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := titleSimilarity(tt.a, tt.b)
+			require.GreaterOrEqual(t, got, tt.wantMin, "got %f", got)
+			require.LessOrEqual(t, got, tt.wantMax, "got %f", got)
+		})
+	}
 }
 
 func TestStreamScreenshots_FlushForwardsAllResults(t *testing.T) {

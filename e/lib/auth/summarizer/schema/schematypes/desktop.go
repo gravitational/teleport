@@ -13,9 +13,11 @@ type DesktopSessionEvent struct {
 	// Core classification
 	Category string `json:"category" jsonschema:"required,enum=file_operation,enum=network,enum=process,enum=system_config,enum=data_access,enum=authentication,enum=other" jsonschema_description:"Primary category of the desktop activity. file_operation: file explorer, save/open dialogs. network: web browsing, network settings. process: launching/closing applications. system_config: settings panels, control panel. data_access: viewing documents, database clients. authentication: login screens, credential prompts. other: anything not fitting above"`
 
-	// Time bounds
-	StartTime string `json:"start_time" jsonschema:"required" jsonschema_description:"The time that the first screenshot was taken in the event"`
-	EndTime   string `json:"end_time" jsonschema:"required" jsonschema_description:"The time that the last screenshot was taken in the event"`
+	// Time bounds, referenced by 0-based screenshot position within this batch. The server resolves these to
+	// real durations (StartTime/EndTime) using the per-screenshot timestamps recorded at capture time, so the
+	// LLM never has to read or copy text off the timestamp bar.
+	StartScreenshotIndex int `json:"start_screenshot_index" jsonschema:"required" jsonschema_description:"0-based index of the first screenshot in this batch where the event becomes visible. Determined independently for each event from its own screenshots."`
+	EndScreenshotIndex   int `json:"end_screenshot_index" jsonschema:"required" jsonschema_description:"0-based index of the last screenshot in this batch where the event is still visible. Equal to start_screenshot_index when only one screenshot covers the event."`
 
 	// Risk assessment
 	RiskLevel string `json:"risk_level" jsonschema:"required,enum=none,enum=low,enum=medium,enum=high,enum=critical" jsonschema_description:"Context-aware risk level based on the event. Examples: opening a public website=none, accessing personal email=low, viewing confidential documents=high, displaying credentials=critical. Assess actual visible content not user intent"`
@@ -52,7 +54,12 @@ type DesktopSessionEvent struct {
 	ActiveWindowTitle string   `json:"active_window_title" jsonschema:"required" jsonschema_description:"The title of the active/focused window during this event"`
 
 	// Server-populated; not produced by the LLM.
-	InferenceErrorMessage string `jsonschema:"-"`
+	InferenceErrorMessage string `json:"-" jsonschema:"-"`
+	// StartTime and EndTime are the M:SS / H:MM:SS-formatted session-relative offsets resolved from
+	// StartScreenshotIndex / EndScreenshotIndex. They drive mergeEvents dedup, the synthesis prompt's
+	// "previous analysis context" block, and the proto conversion via parseDesktopTimestamp.
+	StartTime string `json:"-" jsonschema:"-"`
+	EndTime   string `json:"-" jsonschema:"-"`
 }
 
 // DesktopSessionAnalysis is the structured output schema for the final synthesis of a desktop session, combining

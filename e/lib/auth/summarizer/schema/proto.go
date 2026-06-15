@@ -1,9 +1,14 @@
 package schema
 
 import (
+	"strconv"
+	"strings"
+	"time"
+
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	summarizerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
+	"github.com/gravitational/teleport/e/lib/auth/summarizer/schema/schematypes"
 )
 
 func commandCategoryToProto(category string) summarizerv1pb.CommandCategory {
@@ -223,6 +228,114 @@ func SessionAnalysisToProto(analysis *SessionAnalysis, commands []*CommandAnalys
 	// Mirror the first reason into the deprecated NeedsFurtherReview field so a
 	// pre-v19 auth serving a recording written by a v19+ auth still has data to
 	// return. TODO(ryanclark): DELETE IN v21.0.0.
+	if len(es.GetNeedsFurtherReviewReasons()) > 0 {
+		first := es.GetNeedsFurtherReviewReasons()[0]
+		//nolint:staticcheck // deprecated field populated for cross-version compatibility
+		es.SetNeedsFurtherReview(first)
+	}
+
+	return es
+}
+
+// parseDesktopTimestamp parses the "M:SS" / "H:MM:SS" form produced by
+// desktop.FormatTimestamp. Returns 0 on any parse failure since the LLM is
+// instructed to use this format but may produce malformed strings.
+func parseDesktopTimestamp(s string) time.Duration {
+	if s == "" {
+		return 0
+	}
+	parts := strings.Split(s, ":")
+	var h, m, sec int
+	var err error
+	switch len(parts) {
+	case 2:
+		m, err = strconv.Atoi(parts[0])
+		if err != nil {
+			return 0
+		}
+		sec, err = strconv.Atoi(parts[1])
+		if err != nil {
+			return 0
+		}
+	case 3:
+		h, err = strconv.Atoi(parts[0])
+		if err != nil {
+			return 0
+		}
+		m, err = strconv.Atoi(parts[1])
+		if err != nil {
+			return 0
+		}
+		sec, err = strconv.Atoi(parts[2])
+		if err != nil {
+			return 0
+		}
+	default:
+		return 0
+	}
+	return time.Duration(h)*time.Hour + time.Duration(m)*time.Minute + time.Duration(sec)*time.Second
+}
+
+func desktopSessionEventToSessionEvent(e schematypes.DesktopSessionEvent) *summarizerv1pb.SessionEvent {
+	return summarizerv1pb.SessionEvent_builder{
+		Category:              commandCategoryToProto(e.Category),
+		RiskLevel:             riskLevelToProto(e.RiskLevel),
+		RiskScore:             int32(e.RiskScore),
+		ThreatCategory:        threatCategoryToProto(e.ThreatCategory),
+		TimelineTitle:         e.TimelineTitle,
+		TimelineSubtitle:      e.TimelineSubtitle,
+		ShortDescription:      e.ShortDescription,
+		DetailedDescription:   e.DetailedDescription,
+		SuspiciousFlags:       e.SuspiciousFlags,
+		SensitiveItems:        e.SensitiveItems,
+		SuspiciousPatterns:    e.SuspiciousPatterns,
+		Iocs:                  e.IOCs,
+		MitreAttackIds:        e.MitreAttackIDs,
+		HasSensitiveData:      e.HasSensitiveData,
+		PrivilegeEscalation:   e.PrivilegeEscalation,
+		DataExfiltration:      e.DataExfiltration,
+		Persistence:           e.Persistence,
+		StartOffset:           durationpb.New(parseDesktopTimestamp(e.StartTime)),
+		EndOffset:             durationpb.New(parseDesktopTimestamp(e.EndTime)),
+		InferenceErrorMessage: e.InferenceErrorMessage,
+		DesktopEventDetails: summarizerv1pb.DesktopEventDetails_builder{
+			Applications:      e.Applications,
+			VisibleUrls:       e.VisibleURLs,
+			VisibleFilePaths:  e.VisibleFilePaths,
+			ActiveWindowTitle: e.ActiveWindowTitle,
+		}.Build(),
+	}.Build()
+}
+
+// DesktopSessionAnalysisToProto converts the final desktop session synthesis
+// plus its per-screenshot event stream into an EnhancedSummary for storage.
+func DesktopSessionAnalysisToProto(analysis *schematypes.DesktopSessionAnalysis, events []schematypes.DesktopSessionEvent) *summarizerv1pb.EnhancedSummary {
+	sessionEvents := make([]*summarizerv1pb.SessionEvent, len(events))
+	for i, e := range events {
+		sessionEvents[i] = desktopSessionEventToSessionEvent(e)
+	}
+
+	es := summarizerv1pb.EnhancedSummary_builder{
+		ShortDescription:     analysis.ShortDescription,
+		DetailedDescription:  analysis.SessionDescription,
+		RiskLevel:            riskLevelToProto(analysis.RiskLevel),
+		RiskScore:            int32(analysis.RiskScore),
+		SuspiciousActivities: analysis.SuspiciousActivities,
+		CompromiseIndicators: analysis.CompromiseIndicators,
+		SessionEvents:        sessionEvents,
+	}.Build()
+
+	if analysis.TooLarge {
+		es.SetNeedsFurtherReviewReasons(append(es.GetNeedsFurtherReviewReasons(),
+			summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_TOO_LARGE))
+	}
+	if analysis.ScreenshotAnalysisFailed {
+		es.SetNeedsFurtherReviewReasons(append(es.GetNeedsFurtherReviewReasons(),
+			summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_COMMAND_ANALYSIS_FAILED))
+	}
+
+	// Mirror the first reason into the deprecated NeedsFurtherReview field for
+	// pre-v19 clients. TODO(ryanclark): DELETE IN v21.0.0.
 	if len(es.GetNeedsFurtherReviewReasons()) > 0 {
 		first := es.GetNeedsFurtherReviewReasons()[0]
 		//nolint:staticcheck // deprecated field populated for cross-version compatibility

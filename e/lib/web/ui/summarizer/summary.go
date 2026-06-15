@@ -21,9 +21,11 @@ type Summary struct {
 }
 
 type EnhancedSummary struct {
+	ShortTitle                string            `json:"shortTitle,omitempty"`
 	ShortDescription          string            `json:"shortDescription,omitempty"`
 	DetailedDescription       string            `json:"detailedDescription,omitempty"`
 	RiskLevel                 string            `json:"riskLevel,omitempty"`
+	RiskScore                 int32             `json:"riskScore,omitempty"`
 	SuspiciousActivities      []string          `json:"suspiciousActivities,omitempty"`
 	CompromiseIndicators      bool              `json:"compromiseIndicators,omitempty"`
 	NotableCommandIndexes     []int32           `json:"notableCommandIndexes,omitempty"`
@@ -135,9 +137,11 @@ func makeEnhancedSummary(es *summarizerv1.EnhancedSummary) *EnhancedSummary {
 		return nil
 	}
 	out := &EnhancedSummary{
+		ShortTitle:                es.GetShortTitle(),
 		ShortDescription:          es.GetShortDescription(),
 		DetailedDescription:       es.GetDetailedDescription(),
 		RiskLevel:                 es.GetRiskLevel().String(),
+		RiskScore:                 es.GetRiskScore(),
 		SuspiciousActivities:      es.GetSuspiciousActivities(),
 		CompromiseIndicators:      es.GetCompromiseIndicators(),
 		NotableCommandIndexes:     es.GetNotableCommandIndexes(),

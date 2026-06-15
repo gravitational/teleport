@@ -328,8 +328,8 @@ func handleBedrockDesktopScreenshotAnalysis(params *bedrockruntime.ConverseInput
 	}
 
 	systemPrompt := params.System[0].(*bedrocktypes.SystemContentBlockMemberText).Value
-	if !strings.Contains(systemPrompt, "EXACT timestamps from the screenshots") {
-		return nil, errors.New("system prompt missing timestamp instructions")
+	if !strings.Contains(systemPrompt, "start_screenshot_index") {
+		return nil, errors.New("system prompt missing screenshot index instructions")
 	}
 
 	return structuredResponse(map[string]any{
@@ -339,20 +339,20 @@ func handleBedrockDesktopScreenshotAnalysis(params *bedrockruntime.ConverseInput
 		"risk_level":           "low",
 		"notable_session_events": []map[string]any{
 			{
-				"start_time":           "0:00",
-				"end_time":             "0:05",
-				"category":             "data_access",
-				"risk_level":           "low",
-				"risk_score":           15,
-				"threat_category":      "none",
-				"timeline_title":       "Reviewed budget worksheet",
-				"timeline_subtitle":    "",
-				"short_description":    "Reviewed budget figures in a spreadsheet",
-				"detailed_description": "User scrolled through a budget worksheet in Excel.",
-				"suspicious_flags":     []string{},
-				"sensitive_items":      []string{},
-				"suspicious_patterns":  []string{},
-				"iocs":                 []string{},
+				"start_screenshot_index": 0,
+				"end_screenshot_index":   0,
+				"category":               "data_access",
+				"risk_level":             "low",
+				"risk_score":             15,
+				"threat_category":        "none",
+				"timeline_title":         "Reviewed budget worksheet",
+				"timeline_subtitle":      "",
+				"short_description":      "Reviewed budget figures in a spreadsheet",
+				"detailed_description":   "User scrolled through a budget worksheet in Excel.",
+				"suspicious_flags":       []string{},
+				"sensitive_items":        []string{},
+				"suspicious_patterns":    []string{},
+				"iocs":                   []string{},
 				//nolint:misspell // ignore MITRE
 				"mitre_attack_ids":     []string{},
 				"has_sensitive_data":   false,

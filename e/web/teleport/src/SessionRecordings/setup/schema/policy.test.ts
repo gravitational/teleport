@@ -61,3 +61,15 @@ test('rejects invalid resource kind', () => {
 
   expect(result.success).toBe(false);
 });
+
+test('validates with desktop kind', () => {
+  const input = {
+    providedByTeleportCloud: false,
+    kinds: ['desktop'],
+    model: 'gpt-4',
+  };
+
+  const result = inferencePolicySchema.safeParse(input);
+
+  expect(result.success).toBe(true);
+});

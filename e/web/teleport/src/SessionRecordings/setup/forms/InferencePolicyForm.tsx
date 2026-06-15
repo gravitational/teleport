@@ -10,7 +10,7 @@ import Box from 'design/Box';
 import { ButtonPrimary, ButtonSecondary } from 'design/Button';
 import { DialogContent, DialogFooter } from 'design/Dialog';
 import Flex from 'design/Flex';
-import { Database, Kubernetes, Server } from 'design/Icon';
+import { Database, Desktop, Kubernetes, Server } from 'design/Icon';
 import type { Option } from 'shared/components/Select';
 import { getErrorMessage } from 'shared/utils/error';
 
@@ -132,6 +132,11 @@ export function InferencePolicyForm({
                 icon: <Database size="small" />,
               },
               { label: 'SSH', value: 'ssh', icon: <Server size="small" /> },
+              {
+                label: 'Desktop',
+                value: 'desktop',
+                icon: <Desktop size="small" />,
+              },
             ]}
             required={true}
           />

@@ -1,4 +1,4 @@
-import { Database, Kubernetes, Server } from 'design/Icon';
+import { Database, Desktop, Kubernetes, Server } from 'design/Icon';
 
 import { type ResourceKind } from './schema/types';
 
@@ -10,6 +10,8 @@ export function resourceTypeIcon(type: ResourceKind) {
       return <Kubernetes size="small" />;
     case 'ssh':
       return <Server size="small" />;
+    case 'desktop':
+      return <Desktop size="small" />;
   }
 }
 
@@ -21,6 +23,8 @@ export function resourceTypeToLabel(type: ResourceKind) {
       return 'Kubernetes';
     case 'ssh':
       return 'SSH';
+    case 'desktop':
+      return 'Desktop';
     default:
       return type;
   }

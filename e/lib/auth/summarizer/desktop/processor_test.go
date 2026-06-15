@@ -642,20 +642,36 @@ func TestDesktopRecordingProcessor_ProcessEvent_PropagatesHandleMessageError(t *
 	require.ErrorContains(t, err, "processing desktop recording event")
 }
 
-func TestDesktopRecordingProcessor_HandleWindowsDesktopSessionStart(t *testing.T) {
+func TestDesktopRecordingProcessor_HandleSessionStart(t *testing.T) {
 	t.Parallel()
 
-	d := NewRecordingProcessor(NewGlyphCache())
-	defer d.Release()
-
-	want := time.Unix(1_700_000_000, 0).UTC()
-	evt := &apievents.WindowsDesktopSessionStart{
-		Metadata: apievents.Metadata{Time: want},
+	tests := []struct {
+		name string
+		evt  func(time.Time) apievents.AuditEvent
+	}{
+		{
+			name: "windows",
+			evt: func(ts time.Time) apievents.AuditEvent {
+				return &apievents.WindowsDesktopSessionStart{
+					Metadata: apievents.Metadata{Time: ts},
+				}
+			},
+		},
 	}
 
-	_, err := d.ProcessEvent(evt)
-	require.NoError(t, err)
-	require.Equal(t, want, d.StartTime())
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			d := NewRecordingProcessor(NewGlyphCache())
+			defer d.Release()
+
+			want := time.Unix(1_700_000_000, 0).UTC()
+			_, err := d.ProcessEvent(tt.evt(want))
+			require.NoError(t, err)
+			require.Equal(t, want, d.StartTime())
+		})
+	}
 }
 
 func TestDesktopRecordingProcessor_Flush_NoPending(t *testing.T) {

@@ -355,16 +355,46 @@ func (s *SessionSummarizer) SummarizeDatabase(ctx context.Context, sessionEndEve
 	return trace.Wrap(s.summarize(ctx, details))
 }
 
+// SummarizeWindowsDesktop summarizes the Windows desktop session recording associated with the provided
+// [apievents.WindowsDesktopSessionEnd] event.
+func (s *SessionSummarizer) SummarizeWindowsDesktop(ctx context.Context, sessionEndEvent *apievents.WindowsDesktopSessionEnd) error {
+	if !s.isLicensed() {
+		return nil
+	}
+	if sessionEndEvent == nil {
+		return trace.BadParameter("session end event is required to summarize a Windows desktop session")
+	}
+
+	sessionID := session.ID(sessionEndEvent.SessionID)
+
+	s.logger.DebugContext(
+		ctx, "Summarizing a Windows desktop session", "session_id", sessionID, "user", sessionEndEvent.User,
+	)
+
+	details := sessionDetails{
+		sessionID:    sessionID,
+		resourceName: sessionEndEvent.DesktopAddr,
+		username:     sessionEndEvent.User,
+		loginName:    sessionEndEvent.WindowsUser,
+		kind:         types.WindowsDesktopSessionKind,
+		sessionEnd:   sessionEndEvent,
+		now:          s.clock.Now(),
+	}
+
+	return trace.Wrap(s.summarize(ctx, details))
+}
+
 // summarize picks the appropriate inference provider and launches a
 // summarization goroutine.
 func (s *SessionSummarizer) summarize(ctx context.Context, details sessionDetails) error {
 	if !s.isLicensed() {
 		return nil
 	}
-	supportedSessionKinds := [3]types.SessionKind{
+	supportedSessionKinds := [4]types.SessionKind{
 		types.SSHSessionKind,
 		types.KubernetesSessionKind,
 		types.DatabaseSessionKind,
+		types.WindowsDesktopSessionKind,
 	}
 
 	if !slices.Contains(supportedSessionKinds[:], details.kind) {
@@ -436,7 +466,11 @@ func (s *SessionSummarizer) summarize(ctx context.Context, details sessionDetail
 	// wildly inconsistent behavior when overwriting existing files, so we can
 	// only save the terminal state. Fix this and then enable the pending state.
 
-	go s.summarizeNowAndReportMetrics(ctx, details)
+	// Detach from the caller's cancellation: callers (e.g. the proto stream)
+	// cancel their context immediately after this returns, but inference can
+	// take minutes and the final UploadSummary must still run so the summary
+	// doesn't get stranded in SUMMARY_STATE_PENDING.
+	go s.summarizeNowAndReportMetrics(context.WithoutCancel(ctx), details)
 	return nil
 }
 
@@ -526,6 +560,8 @@ func (s *SessionSummarizer) summarizeNow(ctx context.Context, details *sessionDe
 			sumErr = s.summarizeSession(ctx, log, result, details)
 		case types.DatabaseSessionKind:
 			sumErr = s.summarizeSimple(ctx, log, result, details)
+		case types.WindowsDesktopSessionKind:
+			sumErr = s.summarizeDesktopSession(ctx, result, *details)
 		// This should be unreachable due to checks in the caller.
 		default:
 			sumErr = trace.BadParameter("unsupported session kind: %v", details.kind)
@@ -740,6 +776,8 @@ func (s *SessionSummarizer) SummarizeWithoutEndEvent(ctx context.Context, sessio
 		return trace.Wrap(s.SummarizeSSH(ctx, o))
 	case *apievents.DatabaseSessionEnd:
 		return trace.Wrap(s.SummarizeDatabase(ctx, o))
+	case *apievents.WindowsDesktopSessionEnd:
+		return trace.Wrap(s.SummarizeWindowsDesktop(ctx, o))
 	default:
 		return trace.BadParameter("unsupported session end event type %T", sEnd)
 	}

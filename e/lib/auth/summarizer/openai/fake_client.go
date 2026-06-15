@@ -144,32 +144,32 @@ func handleOpenAIDesktopScreenshotAnalysis(body openai.ChatCompletionNewParams) 
 		return nil, errors.New("expected system message")
 	}
 	systemText := systemContent.Content.OfString.Value
-	if !strings.Contains(systemText, "EXACT timestamps from the screenshots") {
-		return nil, errors.New("system prompt missing timestamp instructions")
+	if !strings.Contains(systemText, "start_screenshot_index") {
+		return nil, errors.New("system prompt missing screenshot index instructions")
 	}
 
 	analysis := schema.DesktopScreenshotAnalysis{
 		NotableSessionEvents: []schema.DesktopSessionEvent{
 			{
-				Category:            "data_access",
-				StartTime:           "0:00",
-				EndTime:             "0:05",
-				RiskLevel:           "low",
-				RiskScore:           15,
-				ThreatCategory:      "none",
-				TimelineTitle:       "Reviewed budget worksheet",
-				TimelineSubtitle:    "",
-				ShortDescription:    "Reviewed budget figures in a spreadsheet",
-				DetailedDescription: "User scrolled through a budget worksheet in Excel.",
-				SuspiciousFlags:     []string{},
-				SensitiveItems:      []string{},
-				SuspiciousPatterns:  []string{},
-				IOCs:                []string{},
-				MitreAttackIDs:      []string{},
-				Applications:        []string{"Microsoft Excel"},
-				VisibleURLs:         []string{},
-				VisibleFilePaths:    []string{"/Users/test/budget.xlsx"},
-				ActiveWindowTitle:   "budget.xlsx - Excel",
+				Category:             "data_access",
+				StartScreenshotIndex: 0,
+				EndScreenshotIndex:   0,
+				RiskLevel:            "low",
+				RiskScore:            15,
+				ThreatCategory:       "none",
+				TimelineTitle:        "Reviewed budget worksheet",
+				TimelineSubtitle:     "",
+				ShortDescription:     "Reviewed budget figures in a spreadsheet",
+				DetailedDescription:  "User scrolled through a budget worksheet in Excel.",
+				SuspiciousFlags:      []string{},
+				SensitiveItems:       []string{},
+				SuspiciousPatterns:   []string{},
+				IOCs:                 []string{},
+				MitreAttackIDs:       []string{},
+				Applications:         []string{"Microsoft Excel"},
+				VisibleURLs:          []string{},
+				VisibleFilePaths:     []string{"/Users/test/budget.xlsx"},
+				ActiveWindowTitle:    "budget.xlsx - Excel",
 			},
 		},
 	}

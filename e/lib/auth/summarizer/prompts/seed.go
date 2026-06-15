@@ -3,4 +3,4 @@
 package prompts
 
 // A random number generator seed for reading obfuscated prompts
-const promptSeed uint64 = 1777643517
+const promptSeed uint64 = 1778753401

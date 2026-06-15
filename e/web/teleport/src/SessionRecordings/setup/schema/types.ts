@@ -18,7 +18,7 @@ export const BedrockMode = z.enum([
   'integration',
 ]);
 export const ApiKeyMode = z.enum(['new', 'existing']);
-export const ResourceKind = z.enum(['ssh', 'k8s', 'db']);
+export const ResourceKind = z.enum(['ssh', 'k8s', 'db', 'desktop']);
 
 export type AccessMethod = z.infer<typeof AccessMethod>;
 export type ApiKeyMode = z.infer<typeof ApiKeyMode>;

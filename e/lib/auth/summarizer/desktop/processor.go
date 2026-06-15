@@ -145,7 +145,7 @@ func NewRecordingProcessor(glyphs *GlyphCache) *RecordingProcessor {
 	}
 }
 
-// StartTime returns the session start time recorded from the WindowsDesktopSessionStart event.
+// StartTime returns the session start time recorded from the session start event.
 func (d *RecordingProcessor) StartTime() time.Time {
 	return d.startTime
 }
@@ -159,7 +159,7 @@ func (d *RecordingProcessor) Release() {
 func (d *RecordingProcessor) ProcessEvent(evt apievents.AuditEvent) (*ScreenshotResult, error) {
 	switch evt := evt.(type) {
 	case *apievents.WindowsDesktopSessionStart:
-		d.handleWindowsDesktopSessionStart(evt)
+		d.handleSessionStart(evt.GetTime())
 
 	case *apievents.DesktopRecording:
 		return d.handleDesktopRecording(evt)
@@ -194,9 +194,9 @@ func (d *RecordingProcessor) Flush() ([]ScreenshotResult, error) {
 	return results, nil
 }
 
-func (d *RecordingProcessor) handleWindowsDesktopSessionStart(evt *apievents.WindowsDesktopSessionStart) {
-	d.startTime = evt.GetTime()
-	d.lastDesktopRecordingTime = evt.GetTime()
+func (d *RecordingProcessor) handleSessionStart(startTime time.Time) {
+	d.startTime = startTime
+	d.lastDesktopRecordingTime = startTime
 }
 
 func (d *RecordingProcessor) handleDesktopRecording(evt *apievents.DesktopRecording) (*ScreenshotResult, error) {
@@ -391,7 +391,7 @@ func (d *RecordingProcessor) emitPending() (ScreenshotResult, error) {
 	}, nil
 }
 
-// acquireFinalImage returns a zeroed w×h *image.RGBA backed by the processor's reusable final-image buffer.
+// acquireFinalImage returns a zeroed w x h *image.RGBA backed by the processor's reusable final-image buffer.
 func (d *RecordingProcessor) acquireFinalImage(w, h int) *image.RGBA {
 	need := w * h * bytesPerPixel
 	if cap(d.finalScratch) < need {
@@ -408,7 +408,7 @@ func (d *RecordingProcessor) acquireFinalImage(w, h int) *image.RGBA {
 	}
 }
 
-// sampleImageHash returns an FNV-64a digest of ~hashSampleCount² pixels sampled from img.
+// sampleImageHash returns an FNV-64a digest of ~hashSampleCount^2 pixels sampled from img.
 func sampleImageHash(img *image.RGBA) uint64 {
 	if img == nil {
 		return 0
