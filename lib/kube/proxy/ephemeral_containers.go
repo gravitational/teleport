@@ -329,8 +329,25 @@ func patchPodWithDebugContainer(decoder runtime.Decoder, podJson, podPatch []byt
 		return nil, "", trace.CompareFailed("expected *corev1.Pod, got %T", decodedObj)
 	}
 
-	// The last container in the list is the one we just added.
-	ephemeralCont := patchedPod.Spec.EphemeralContainers[len(patchedPod.Spec.EphemeralContainers)-1]
+	// Determine which ephemeral containers the patch added relative to the
+	// pre-patch pod. A strategic merge patch can append more than one entry,
+	// so inspecting only the final element is not enough: every added
+	// container must be accounted for and validated.
+	existing := make(map[string]struct{}, len(pod.Spec.EphemeralContainers))
+	for _, c := range pod.Spec.EphemeralContainers {
+		existing[c.Name] = struct{}{}
+	}
+	var added []corev1.EphemeralContainer
+	for _, c := range patchedPod.Spec.EphemeralContainers {
+		if _, ok := existing[c.Name]; !ok {
+			added = append(added, c)
+		}
+	}
+	if len(added) != 1 {
+		return nil, "", trace.AccessDenied("exactly one ephemeral container may be added per request, got %d", len(added))
+	}
+
+	ephemeralCont := added[0]
 	if !ephemeralCont.TTY {
 		return nil, "", trace.AccessDenied("only interactive ephemeral containers are supported")
 	}
