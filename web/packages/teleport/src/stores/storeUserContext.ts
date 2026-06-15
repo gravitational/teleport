@@ -172,6 +172,10 @@ export default class StoreUserContext extends Store<UserContext> {
     return this.state.acl.fileTransferAccess;
   }
 
+  isWebTerminalCopyBlocked() {
+    return this.state.acl.webTerminalClipboardMode === 'no-copy';
+  }
+
   // hasPrereqAccessToAddAgents checks if user meets the prerequisite
   // access to add an agent:
   //  - user should be able to create provisioning tokens

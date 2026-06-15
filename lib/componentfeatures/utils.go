@@ -209,13 +209,23 @@ type versionedComponent interface {
 }
 
 // GetEffectiveServerFeatures computes a server's effective feature support.
-// Servers between v18.6.4 and v18.7.5 advertise FeatureResourceConstraintsV1
-// but predate the constraint parsing implementation; for those versions, the
-// advertisement should be stripped prior to intersection so clients don't show
-// constraints UI flows.
 //
-// TODO(kiosion): DELETE in 20.0.0
+// "Agentless" resources with no backing agent process to heartbeat
+// ComponentFeatures to presence have features computed from their type
+// instead of read from their spec field:
+//   - AppServer with integration set (served directly by Proxy, not an
+//     app agent; see lib/web/app/transport.go).
+//
+// Agent-backed resources use the field from spec set by presence heartbeat,
+// with version-gating applied to strip premature advertisements from servers <18.7.6.
+//
+// TODO(kiosion): DELETE version-gating logic in 20.0.0
 func GetEffectiveServerFeatures(component versionedComponent) *componentfeaturesv1.ComponentFeatures {
+	// Agentless app servers: no heartbeat, compute from app type.
+	if appServer, ok := component.(types.AppServer); ok && appServer.GetApp().GetIntegration() != "" {
+		return ForAppServer(appServer)
+	}
+	// Agent-backed: read stored field with version-gating.
 	f := component.GetComponentFeatures()
 	if f == nil {
 		return f

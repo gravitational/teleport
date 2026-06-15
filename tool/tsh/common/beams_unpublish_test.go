@@ -47,7 +47,7 @@ func TestBeamsUnpublishCommand(t *testing.T) {
 				"alice",
 				"alpha-app",
 				time.Date(2026, time.January, 2, 3, 4, 5, 0, time.UTC),
-				&beamsv1.PublishSpec{Protocol: beamsv1.Protocol_PROTOCOL_HTTP, Port: 8080},
+				beamsv1.PublishSpec_builder{Protocol: beamsv1.Protocol_PROTOCOL_HTTP, Port: 8080}.Build(),
 			),
 			wantOutput: "Beam \"alpha\" successfully unpublished.\n",
 		},

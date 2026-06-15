@@ -19,14 +19,25 @@
 package service
 
 import (
+	"crypto/tls"
+	"crypto/x509"
+	"errors"
+	"fmt"
+	"net"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
+	apiconstants "github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/state"
@@ -34,7 +45,9 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/join/joinclient"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
@@ -171,4 +184,91 @@ func TestMakeJoinParams_BoundKeypair(t *testing.T) {
 			tt.assertJoinParams(t, params)
 		})
 	}
+}
+
+func TestUnwrappedConnection(t *testing.T) {
+	t.Setenv(apidefaults.TLSRoutingConnUpgradeEnvVar, "false")
+
+	l, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+	defer l.Close()
+
+	p := &TeleportProcess{
+		Supervisor: &LocalSupervisor{
+			exitContext: t.Context(),
+		},
+		Config:   &servicecfg.Config{},
+		logger:   logtest.NewLogger(),
+		resolver: reversetunnelclient.StaticResolver(l.Addr().String(), types.ProxyListenerMode_Multiplex),
+	}
+
+	var eg errgroup.Group
+	eg.Go(func() error {
+		c, err := l.Accept()
+		if err != nil {
+			return err
+		}
+		defer c.Close()
+
+		var clientHelloInfo *tls.ClientHelloInfo
+		_ = tls.Server(c, &tls.Config{
+			GetConfigForClient: func(chi *tls.ClientHelloInfo) (*tls.Config, error) {
+				clientHelloInfo = chi
+				return nil, errors.New("no")
+			},
+		}).Handshake()
+		if clientHelloInfo == nil {
+			return errors.New("missing client hello")
+		}
+		if len(clientHelloInfo.SupportedProtos) < 1 || !strings.HasPrefix(clientHelloInfo.SupportedProtos[0], apiconstants.ALPNSNIAuthProtocol) {
+			return fmt.Errorf("expected teleport-auth@, got %+q next protos", clientHelloInfo.SupportedProtos)
+		}
+		return nil
+	})
+
+	_, _, err = p.newClientThroughProxy(
+		&tls.Config{},
+		apissh.ClientConfig{},
+		types.RoleNode,
+		"foo",
+		func() (*x509.CertPool, error) { return nil, nil },
+	)
+	require.Error(t, err)
+	require.NoError(t, eg.Wait())
+
+	eg = *new(errgroup.Group)
+	eg.Go(func() error {
+		c, err := l.Accept()
+		if err != nil {
+			return err
+		}
+		defer c.Close()
+
+		var clientHelloInfo *tls.ClientHelloInfo
+		_ = tls.Server(c, &tls.Config{
+			GetConfigForClient: func(chi *tls.ClientHelloInfo) (*tls.Config, error) {
+				clientHelloInfo = chi
+				return nil, errors.New("no")
+			},
+		}).Handshake()
+		if clientHelloInfo == nil {
+			return errors.New("missing client hello")
+		}
+
+		if slices.ContainsFunc(clientHelloInfo.SupportedProtos, func(s string) bool {
+			return strings.HasPrefix(s, apiconstants.ALPNSNIAuthProtocol)
+		}) {
+			return errors.New("expected direct connection, got teleport-auth@ alpn")
+		}
+
+		return nil
+	})
+
+	_, _, err = p.newClientDirect(
+		[]utils.NetAddr{{Addr: l.Addr().String(), AddrNetwork: l.Addr().Network()}},
+		&tls.Config{},
+		types.RoleNode,
+	)
+	require.Error(t, err)
+	require.NoError(t, eg.Wait())
 }

@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: teleport-util-lib-test-version
+data:
+  version: {{ include "teleport-util-lib.version" . | quote }}
+  majorVersion: {{ include "teleport-util-lib.majorVersion" . | quote }}

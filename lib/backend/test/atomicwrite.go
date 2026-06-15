@@ -62,6 +62,7 @@ func RunAtomicWriteComplianceSuite(t *testing.T, newBackend Constructor) {
 func testAtomicWriteMove(t *testing.T, newBackend Constructor) {
 	bk, _, err := newBackend()
 	require.NoError(t, err)
+	defer bk.Close()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -124,6 +125,7 @@ func testAtomicWriteMove(t *testing.T, newBackend Constructor) {
 func testAtomicWriteLock(t *testing.T, newBackend Constructor) {
 	bk, _, err := newBackend()
 	require.NoError(t, err)
+	defer bk.Close()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -278,6 +280,7 @@ func testAtomicWriteLock(t *testing.T, newBackend Constructor) {
 func testAtomicWriteMax(t *testing.T, newBackend Constructor) {
 	bk, _, err := newBackend()
 	require.NoError(t, err)
+	defer bk.Close()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -368,6 +371,7 @@ func testAtomicWriteConcurrent(t *testing.T, newBackend Constructor) {
 	)
 	bk, _, err := newBackend()
 	require.NoError(t, err)
+	defer bk.Close()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -459,6 +463,7 @@ func testAtomicWriteNonConflicting(t *testing.T, newBackend Constructor) {
 
 	bk, _, err := newBackend()
 	require.NoError(t, err)
+	defer bk.Close()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -524,6 +529,7 @@ func testAtomicWriteNonConflicting(t *testing.T, newBackend Constructor) {
 func testAtomicWriteOther(t *testing.T, newBackend Constructor) {
 	bk, _, err := newBackend()
 	require.NoError(t, err)
+	defer bk.Close()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

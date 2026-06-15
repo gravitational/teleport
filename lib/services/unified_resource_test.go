@@ -1200,32 +1200,32 @@ func newICAccount(t *testing.T, ctx context.Context, svc services.IdentityCenter
 
 	accountID := t.Name()
 
-	icAcct, err := svc.CreateIdentityCenterAccount(ctx, &identitycenterv1.Account{
+	icAcct, err := svc.CreateIdentityCenterAccount(ctx, identitycenterv1.Account_builder{
 		Kind:    types.KindIdentityCenterAccount,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: t.Name(),
 			Labels: map[string]string{
 				types.OriginLabel: common.OriginAWSIdentityCenter,
 			},
-		},
-		Spec: &identitycenterv1.AccountSpec{
+		}.Build(),
+		Spec: identitycenterv1.AccountSpec_builder{
 			Id:          accountID,
 			Arn:         "arn:aws:sso:::account/" + accountID,
 			Name:        "Test AWS Account",
 			Description: "Used for testing",
 			PermissionSetInfo: []*identitycenterv1.PermissionSetInfo{
-				{
+				identitycenterv1.PermissionSetInfo_builder{
 					Name: "Alpha",
 					Arn:  "arn:aws:sso:::permissionSet/ssoins-1234567890/ps-alpha",
-				},
-				{
+				}.Build(),
+				identitycenterv1.PermissionSetInfo_builder{
 					Name: "Beta",
 					Arn:  "arn:aws:sso:::permissionSet/ssoins-1234567890/ps-beta",
-				},
+				}.Build(),
 			},
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.NoError(t, err, "creating Identity Center Account")
 	return icAcct
 }
@@ -1442,22 +1442,22 @@ func TestUnifiedResourceLinuxDesktop(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create and upsert a Linux desktop
-	linuxDesktop1 := &linuxdesktopv1.LinuxDesktop{
+	linuxDesktop1 := linuxdesktopv1.LinuxDesktop_builder{
 		Kind:    types.KindLinuxDesktop,
 		Version: types.V3,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: "linux-desktop-1",
 			Labels: map[string]string{
 				"env":    "production",
 				"region": "us-west-1",
 			},
-		},
-		Spec: &linuxdesktopv1.LinuxDesktopSpec{
+		}.Build(),
+		Spec: linuxdesktopv1.LinuxDesktopSpec_builder{
 			Addr:     "10.0.0.1:22",
 			Hostname: "linux-host-1",
 			ProxyIds: []string{"proxy-1"},
-		},
-	}
+		}.Build(),
+	}.Build()
 	_, err = clt.UpsertLinuxDesktop(ctx, linuxDesktop1)
 	require.NoError(t, err)
 
@@ -1481,26 +1481,26 @@ func TestUnifiedResourceLinuxDesktop(t *testing.T) {
 	unwrapper, ok := resource.(types.Resource153UnwrapperT[*linuxdesktopv1.LinuxDesktop])
 	require.True(t, ok, "resource should be unwrappable to LinuxDesktop")
 	unwrapped := unwrapper.UnwrapT()
-	require.Equal(t, "linux-desktop-1", unwrapped.Metadata.Name)
-	require.Equal(t, "10.0.0.1:22", unwrapped.Spec.Addr)
-	require.Equal(t, "linux-host-1", unwrapped.Spec.Hostname)
+	require.Equal(t, "linux-desktop-1", unwrapped.GetMetadata().GetName())
+	require.Equal(t, "10.0.0.1:22", unwrapped.GetSpec().GetAddr())
+	require.Equal(t, "linux-host-1", unwrapped.GetSpec().GetHostname())
 
 	// Add a second Linux desktop
-	linuxDesktop2 := &linuxdesktopv1.LinuxDesktop{
+	linuxDesktop2 := linuxdesktopv1.LinuxDesktop_builder{
 		Kind:    types.KindLinuxDesktop,
 		Version: types.V3,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: "linux-desktop-2",
 			Labels: map[string]string{
 				"env": "staging",
 			},
-		},
-		Spec: &linuxdesktopv1.LinuxDesktopSpec{
+		}.Build(),
+		Spec: linuxdesktopv1.LinuxDesktopSpec_builder{
 			Addr:     "10.0.0.2:22",
 			Hostname: "linux-host-2",
 			ProxyIds: []string{"proxy-2"},
-		},
-	}
+		}.Build(),
+	}.Build()
 	_, err = clt.UpsertLinuxDesktop(ctx, linuxDesktop2)
 	require.NoError(t, err)
 
@@ -1549,20 +1549,20 @@ func TestUnifiedResourceLinuxDesktopFiltering(t *testing.T) {
 	assert.Eventually(t, w.IsInitialized, 5*time.Second, 10*time.Millisecond, "Timed out waiting for all resources cache initialization")
 
 	// Add a Linux desktop
-	linuxDesktop := &linuxdesktopv1.LinuxDesktop{
+	linuxDesktop := linuxdesktopv1.LinuxDesktop_builder{
 		Kind:    types.KindLinuxDesktop,
 		Version: types.V3,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: "linux-desktop",
 			Labels: map[string]string{
 				"env": "test",
 			},
-		},
-		Spec: &linuxdesktopv1.LinuxDesktopSpec{
+		}.Build(),
+		Spec: linuxdesktopv1.LinuxDesktopSpec_builder{
 			Addr:     "10.0.0.10:22",
 			Hostname: "test-host",
-		},
-	}
+		}.Build(),
+	}.Build()
 	_, err = clt.UpsertLinuxDesktop(ctx, linuxDesktop)
 	require.NoError(t, err)
 
@@ -1636,37 +1636,37 @@ func TestMakePaginatedResourceLinuxDesktop(t *testing.T) {
 	}{
 		{
 			name: "basic linux desktop",
-			desktop: &linuxdesktopv1.LinuxDesktop{
+			desktop: linuxdesktopv1.LinuxDesktop_builder{
 				Kind:    types.KindLinuxDesktop,
 				Version: types.V3,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "test-desktop",
 					Labels: map[string]string{
 						"env": "production",
 					},
-				},
-				Spec: &linuxdesktopv1.LinuxDesktopSpec{
+				}.Build(),
+				Spec: linuxdesktopv1.LinuxDesktopSpec_builder{
 					Addr:     "192.168.1.100:22",
 					Hostname: "desktop-host",
 					ProxyIds: []string{"proxy-1"},
-				},
-			},
+				}.Build(),
+			}.Build(),
 			requiresRequest: false,
 			logins:          []string{"ubuntu", "root"},
 		},
 		{
 			name: "linux desktop requiring request",
-			desktop: &linuxdesktopv1.LinuxDesktop{
+			desktop: linuxdesktopv1.LinuxDesktop_builder{
 				Kind:    types.KindLinuxDesktop,
 				Version: types.V3,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "protected-desktop",
-				},
-				Spec: &linuxdesktopv1.LinuxDesktopSpec{
+				}.Build(),
+				Spec: linuxdesktopv1.LinuxDesktopSpec_builder{
 					Addr:     "10.0.0.50:22",
 					Hostname: "protected-host",
-				},
-			},
+				}.Build(),
+			}.Build(),
 			requiresRequest: true,
 			logins:          []string{"admin"},
 		},
@@ -1687,27 +1687,27 @@ func TestMakePaginatedResourceLinuxDesktop(t *testing.T) {
 			require.NotNil(t, wireDesktop, "paginated resource should contain LinuxDesktop")
 
 			// Verify fields match
-			require.Equal(t, tt.desktop.Kind, wireDesktop.Kind)
-			require.Equal(t, tt.desktop.Version, wireDesktop.Version)
-			require.Equal(t, tt.desktop.Metadata.Name, wireDesktop.Metadata.Name)
-			require.Equal(t, tt.desktop.Spec.Addr, wireDesktop.Addr)
-			require.Equal(t, tt.desktop.Spec.Hostname, wireDesktop.Hostname)
-			require.Equal(t, tt.desktop.Spec.ProxyIds, wireDesktop.ProxyIds)
+			require.Equal(t, tt.desktop.GetKind(), wireDesktop.Kind)
+			require.Equal(t, tt.desktop.GetVersion(), wireDesktop.Version)
+			require.Equal(t, tt.desktop.GetMetadata().GetName(), wireDesktop.Metadata.Name)
+			require.Equal(t, tt.desktop.GetSpec().GetAddr(), wireDesktop.Addr)
+			require.Equal(t, tt.desktop.GetSpec().GetHostname(), wireDesktop.Hostname)
+			require.Equal(t, tt.desktop.GetSpec().GetProxyIds(), wireDesktop.ProxyIds)
 			require.Equal(t, tt.requiresRequest, paginated.RequiresRequest)
 
 			// Test unpacking
 			unpacked := proto.UnpackLinuxDesktop(wireDesktop)
 			require.NotNil(t, unpacked)
 			require.Equal(t, types.KindLinuxDesktop, unpacked.GetKind())
-			require.Equal(t, tt.desktop.Metadata.Name, unpacked.GetName())
+			require.Equal(t, tt.desktop.GetMetadata().GetName(), unpacked.GetName())
 
 			// Verify it can be unwrapped back to the original type
 			unwrapper, ok := unpacked.(types.Resource153UnwrapperT[*linuxdesktopv1.LinuxDesktop])
 			require.True(t, ok, "unpacked resource should be unwrappable")
 			unpackedDesktop := unwrapper.UnwrapT()
-			require.Equal(t, tt.desktop.Metadata.Name, unpackedDesktop.Metadata.Name)
-			require.Equal(t, tt.desktop.Spec.Addr, unpackedDesktop.Spec.Addr)
-			require.Equal(t, tt.desktop.Spec.Hostname, unpackedDesktop.Spec.Hostname)
+			require.Equal(t, tt.desktop.GetMetadata().GetName(), unpackedDesktop.GetMetadata().GetName())
+			require.Equal(t, tt.desktop.GetSpec().GetAddr(), unpackedDesktop.GetSpec().GetAddr())
+			require.Equal(t, tt.desktop.GetSpec().GetHostname(), unpackedDesktop.GetSpec().GetHostname())
 		})
 	}
 }

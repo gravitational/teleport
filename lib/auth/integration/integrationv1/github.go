@@ -46,26 +46,26 @@ func (s *Service) GenerateGitHubUserCert(ctx context.Context, in *integrationpb.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	caSigner, err := s.getGitHubSigner(ctx, in.Integration)
+	caSigner, err := s.getGitHubSigner(ctx, in.GetIntegration())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := cert.SignCert(rand.Reader, caSigner); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &integrationpb.GenerateGitHubUserCertResponse{
+	return integrationpb.GenerateGitHubUserCertResponse_builder{
 		AuthorizedKey: ssh.MarshalAuthorizedKey(cert),
-	}, nil
+	}.Build(), nil
 }
 
 func (s *Service) prepareGitHubCert(in *integrationpb.GenerateGitHubUserCertRequest) (*ssh.Certificate, error) {
-	if in.UserId == "" {
+	if in.GetUserId() == "" {
 		return nil, trace.BadParameter("missing UserId for GenerateGitHubUserCert")
 	}
-	if in.KeyId == "" {
+	if in.GetKeyId() == "" {
 		return nil, trace.BadParameter("missing KeyId for GenerateGitHubUserCert")
 	}
-	key, _, _, _, err := ssh.ParseAuthorizedKey(in.PublicKey)
+	key, _, _, _, err := ssh.ParseAuthorizedKey(in.GetPublicKey())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -75,12 +75,12 @@ func (s *Service) prepareGitHubCert(in *integrationpb.GenerateGitHubUserCertRequ
 	cert := &ssh.Certificate{
 		Key:         key,
 		CertType:    ssh.UserCert,
-		KeyId:       in.KeyId,
+		KeyId:       in.GetKeyId(),
 		ValidAfter:  uint64(now.Add(-time.Minute).Unix()),
-		ValidBefore: uint64(now.Add(in.Ttl.AsDuration()).Unix()),
+		ValidBefore: uint64(now.Add(in.GetTtl().AsDuration()).Unix()),
 		Permissions: ssh.Permissions{
 			Extensions: map[string]string{
-				"id@github.com": in.UserId,
+				"id@github.com": in.GetUserId(),
 			},
 		},
 	}

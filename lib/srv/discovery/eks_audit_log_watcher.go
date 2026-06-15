@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	aws_sync "github.com/gravitational/teleport/lib/srv/discovery/fetchers/aws-sync"
@@ -212,7 +213,7 @@ func (w *eksAuditLogWatcher) reconcile(ctx context.Context, clusters []eksAuditL
 	// the existing clusters we are fetching audit logs for.
 	discoveredClusters := make(map[string]eksAuditLogCluster)
 	for _, discovered := range clusters {
-		discoveredClusters[discovered.cluster.Arn] = discovered
+		discoveredClusters[discovered.cluster.GetArn()] = discovered
 	}
 	// Stop any fetchers for clusters we are running a fetcher for that discovery did not return.
 	for arn, fetcherCancel := range mapDifference(w.fetchers, discoveredClusters) {
@@ -277,9 +278,9 @@ func mapDifference[K comparable, V1 any, V2 any](m1 map[K]V1, m2 map[K]V2) iter.
 
 func sendTAGKubeAuditLogConfig(ctx context.Context, stream accessgraphv1alpha.AccessGraphService_KubeAuditLogStreamClient, config *accessgraphv1alpha.KubeAuditLogConfig) error {
 	err := stream.Send(
-		&accessgraphv1alpha.KubeAuditLogStreamRequest{
-			Action: &accessgraphv1alpha.KubeAuditLogStreamRequest_Config{Config: config},
-		},
+		accessgraphv1alpha.KubeAuditLogStreamRequest_builder{
+			Config: proto.ValueOrDefault(config),
+		}.Build(),
 	)
 	if err != nil {
 		err = consumeTillErr(stream)

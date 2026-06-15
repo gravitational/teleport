@@ -84,59 +84,59 @@ func (h *haltOnErrorStrategy) progressRollout(ctx context.Context, spec *autoupd
 	// to transition "staging" to DONE.
 	previousGroupsAreDone := true
 
-	for i, group := range status.Groups {
+	for i, group := range status.GetGroups() {
 		var agentCount, agentUpToDateCount int
-		if i == len(status.Groups)-1 {
+		if i == len(status.GetGroups())-1 {
 			agentCount, agentUpToDateCount = countCatchAll(status, countByGroup, upToDateByGroup)
 		} else {
 			agentCount = countByGroup[group.GetName()]
 			agentUpToDateCount = upToDateByGroup[group.GetName()]
 		}
 
-		group.PresentCount = uint64(agentCount)
-		group.UpToDateCount = uint64(agentUpToDateCount)
+		group.SetPresentCount(uint64(agentCount))
+		group.SetUpToDateCount(uint64(agentUpToDateCount))
 
-		switch group.State {
+		switch group.GetState() {
 		case autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED:
 			var previousGroup *autoupdate.AutoUpdateAgentRolloutStatusGroup
 			if i != 0 {
-				previousGroup = status.Groups[i-1]
+				previousGroup = status.GetGroups()[i-1]
 			}
 			canStart, err := canStartHaltOnError(group, previousGroup, now)
 			if err != nil {
 				// In halt-on-error rollouts, groups are dependent.
 				// Failing to transition a group should prevent other groups from transitioning.
-				setGroupState(group, group.State, updateReasonReconcilerError, now)
+				setGroupState(group, group.GetState(), updateReasonReconcilerError, now)
 				return err
 			}
 
 			// Check if the rollout got created after the theoretical group start time
-			rolloutChangedDuringWindow, err := rolloutChangedInWindow(group, now, status.StartTime.AsTime(), haltOnErrorWindowDuration)
+			rolloutChangedDuringWindow, err := rolloutChangedInWindow(group, now, status.GetStartTime().AsTime(), haltOnErrorWindowDuration)
 			if err != nil {
-				setGroupState(group, group.State, updateReasonReconcilerError, now)
+				setGroupState(group, group.GetState(), updateReasonReconcilerError, now)
 				return err
 			}
 
 			switch {
 			case !previousGroupsAreDone:
 				// All previous groups are not DONE
-				setGroupState(group, group.State, updateReasonPreviousGroupsNotDone, now)
+				setGroupState(group, group.GetState(), updateReasonPreviousGroupsNotDone, now)
 			case !canStart:
 				// All previous groups are DONE, but time-related criteria are not met
 				// This can be because we are outside an update window, or because the
 				// specified wait_hours doesn't let us update yet.
-				setGroupState(group, group.State, updateReasonCannotStart, now)
+				setGroupState(group, group.GetState(), updateReasonCannotStart, now)
 			case rolloutChangedDuringWindow:
 				// All previous groups are DONE and time-related criteria are met.
 				// However, the rollout changed during the maintenance window.
-				setGroupState(group, group.State, updateReasonRolloutChanged, now)
+				setGroupState(group, group.GetState(), updateReasonRolloutChanged, now)
 			default:
 				// All previous groups are DONE and time-related criteria are met.
 				// We can start.
 
 				// We pass the list of groups to the sampler because it must compute the catch-call group
-				groups := make([]string, len(status.Groups))
-				for j, g := range status.Groups {
+				groups := make([]string, len(status.GetGroups()))
+				for j, g := range status.GetGroups() {
 					groups[j] = g.GetName()
 				}
 				h.startGroup(ctx, group, now, agentCount, status)
@@ -155,12 +155,12 @@ func (h *haltOnErrorStrategy) progressRollout(ctx context.Context, spec *autoupd
 			successfulCanaries := h.updateCanariesStatus(ctx, group, *targetVersion)
 
 			// If all canaries are OK, we can transition to the active state
-			if successfulCanaries == int(group.CanaryCount) {
-				h.log.DebugContext(ctx, "All canaries came back alive, transitioning to the active state", "group", group, "got", successfulCanaries, "want", int(group.CanaryCount))
+			if successfulCanaries == int(group.GetCanaryCount()) {
+				h.log.DebugContext(ctx, "All canaries came back alive, transitioning to the active state", "group", group, "got", successfulCanaries, "want", int(group.GetCanaryCount()))
 				setGroupState(group, autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE, updateReasonCanariesAlive, now)
 			} else {
-				h.log.DebugContext(ctx, "Not all canaries came back yet, staying into canary state", "group", group, "got", successfulCanaries, "want", int(group.CanaryCount))
-				setGroupState(group, group.State, updateReasonWaitingForCanaries, now)
+				h.log.DebugContext(ctx, "Not all canaries came back yet, staying into canary state", "group", group, "got", successfulCanaries, "want", int(group.GetCanaryCount()))
+				setGroupState(group, group.GetState(), updateReasonWaitingForCanaries, now)
 
 			}
 			previousGroupsAreDone = false
@@ -183,7 +183,7 @@ func (h *haltOnErrorStrategy) progressRollout(ctx context.Context, spec *autoupd
 			}
 
 		default:
-			return trace.BadParameter("unknown autoupdate group state: %v", group.State)
+			return trace.BadParameter("unknown autoupdate group state: %v", group.GetState())
 		}
 	}
 	return nil
@@ -192,14 +192,14 @@ func (h *haltOnErrorStrategy) progressRollout(ctx context.Context, spec *autoupd
 func shouldUseCanaries(group *autoupdate.AutoUpdateAgentRolloutStatusGroup) bool {
 	// in the future we might change this logic to be a multiple of the required canary count
 	// and make the canary count dynamic
-	return group.CanaryCount > 0
+	return group.GetCanaryCount() > 0
 }
 
 func (h *haltOnErrorStrategy) startGroup(ctx context.Context, group *autoupdate.AutoUpdateAgentRolloutStatusGroup, now time.Time, agentCount int, status *autoupdate.AutoUpdateAgentRolloutStatus) {
-	group.InitialCount = uint64(agentCount)
+	group.SetInitialCount(uint64(agentCount))
 
 	if !shouldUseCanaries(group) {
-		h.log.DebugContext(ctx, "Skipping canary rollout, transitioning directly to the active state", "group", group.Name)
+		h.log.DebugContext(ctx, "Skipping canary rollout, transitioning directly to the active state", "group", group.GetName())
 		setGroupState(group, autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE, updateReasonCanStart, now)
 		return
 	}
@@ -208,31 +208,31 @@ func (h *haltOnErrorStrategy) startGroup(ctx context.Context, group *autoupdate.
 	// This is a small optimization, as we just transitioned into the canary state we can sample canaries.
 	// This will allow us to start updating without having to wait for the next reconciliation cycle.
 	if err := h.sampleCanaries(ctx, group, status); err != nil {
-		h.log.WarnContext(ctx, "Failed to sample canaries", "group", group.Name)
+		h.log.WarnContext(ctx, "Failed to sample canaries", "group", group.GetName())
 	}
 }
 
 func (h *haltOnErrorStrategy) sampleCanaries(ctx context.Context, group *autoupdate.AutoUpdateAgentRolloutStatusGroup, status *autoupdate.AutoUpdateAgentRolloutStatus) error {
 	// Check if we need to pick more canaries
-	if len(group.Canaries) < int(group.CanaryCount) {
-		previousLength := len(group.Canaries)
-		h.log.DebugContext(ctx, "Group is missing canaries, sampling some more", "group", group, "got", previousLength, "want", int(group.CanaryCount))
+	if len(group.GetCanaries()) < int(group.GetCanaryCount()) {
+		previousLength := len(group.GetCanaries())
+		h.log.DebugContext(ctx, "Group is missing canaries, sampling some more", "group", group, "got", previousLength, "want", int(group.GetCanaryCount()))
 
 		// We pass the list of groups to the sampler because it must compute the catch-all group.
-		groups := make([]string, len(status.Groups))
-		for j, g := range status.Groups {
+		groups := make([]string, len(status.GetGroups()))
+		for j, g := range status.GetGroups() {
 			groups[j] = g.GetName()
 		}
 		// We sample as many canaries as possible instead of just the missing ones
 		// Because we might sample an already sampled canary.
-		additionalCanaries, err := h.clt.SampleAgentsFromAutoUpdateGroup(ctx, group.Name, int(group.CanaryCount), groups)
+		additionalCanaries, err := h.clt.SampleAgentsFromAutoUpdateGroup(ctx, group.GetName(), int(group.GetCanaryCount()), groups)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		injectCanaries(group, additionalCanaries)
-		h.log.DebugContext(ctx, "Additional canaries sampled", "group", group, "before", previousLength, "after", len(group.Canaries))
+		h.log.DebugContext(ctx, "Additional canaries sampled", "group", group, "before", previousLength, "after", len(group.GetCanaries()))
 	} else {
-		h.log.DebugContext(ctx, "Canaries already sampled", "group", group.Name, "got", len(group.Canaries))
+		h.log.DebugContext(ctx, "Canaries already sampled", "group", group.GetName(), "got", len(group.GetCanaries()))
 	}
 	return nil
 }
@@ -241,8 +241,8 @@ func injectCanaries(group *autoupdate.AutoUpdateAgentRolloutStatusGroup, additio
 	for _, canary := range additionalCanaries {
 		// We first check if the canary has already been sampled
 		alreadySampled := false
-		for _, existingCanary := range group.Canaries {
-			if existingCanary.UpdaterId == canary.UpdaterId {
+		for _, existingCanary := range group.GetCanaries() {
+			if existingCanary.GetUpdaterId() == canary.GetUpdaterId() {
 				alreadySampled = true
 				break
 			}
@@ -250,31 +250,31 @@ func injectCanaries(group *autoupdate.AutoUpdateAgentRolloutStatusGroup, additio
 
 		// If it was not, great, we have a new canary.
 		if !alreadySampled {
-			group.Canaries = append(group.Canaries, canary)
+			group.SetCanaries(append(group.GetCanaries(), canary))
 		}
 
 		// Stop adding canaries once we have the right amount
-		if len(group.Canaries) == int(group.CanaryCount) {
+		if len(group.GetCanaries()) == int(group.GetCanaryCount()) {
 			return
 		}
 	}
 }
 
 func (h *haltOnErrorStrategy) updateCanariesStatus(ctx context.Context, group *autoupdate.AutoUpdateAgentRolloutStatusGroup, targetVersion semver.Version) int {
-	h.log.DebugContext(ctx, "Checking canaries", "group", group.Name)
+	h.log.DebugContext(ctx, "Checking canaries", "group", group.GetName())
 	var successfulCanaries int
-	for _, canary := range group.Canaries {
+	for _, canary := range group.GetCanaries() {
 		// If the canary already came back healthy, nothing to do
-		if canary.Success {
+		if canary.GetSuccess() {
 			successfulCanaries++
 			continue
 		}
 
-		canaryLogInfo := slog.Group("canary", "host_id", canary.HostId, "updater_id", canary.UpdaterId, "hostname", canary.Hostname)
-		log := h.log.With(canaryLogInfo).With("group", group.Name)
+		canaryLogInfo := slog.Group("canary", "host_id", canary.GetHostId(), "updater_id", canary.GetUpdaterId(), "hostname", canary.GetHostname())
+		log := h.log.With(canaryLogInfo).With("group", group.GetName())
 
 		// Check if the canary is connected to our auth
-		hellos, err := h.clt.LookupAgentInInventory(ctx, canary.HostId)
+		hellos, err := h.clt.LookupAgentInInventory(ctx, canary.GetHostId())
 		if err != nil {
 			if trace.IsNotFound(err) {
 				// Canary is not registered to our Auth Service.
@@ -288,7 +288,7 @@ func (h *haltOnErrorStrategy) updateCanariesStatus(ctx context.Context, group *a
 		}
 
 		if canaryIsRunningTargetVersion(ctx, hellos, targetVersion, log) {
-			canary.Success = true
+			canary.SetSuccess(true)
 			successfulCanaries++
 		}
 	}
@@ -299,9 +299,9 @@ func (h *haltOnErrorStrategy) updateCanariesStatus(ctx context.Context, group *a
 // the canary is running the target version.
 func canaryIsRunningTargetVersion(ctx context.Context, hellos []*proto.UpstreamInventoryHello, targetVersion semver.Version, log *slog.Logger) bool {
 	for _, hello := range hellos {
-		canaryVersion, err := version.EnsureSemver(hello.Version)
+		canaryVersion, err := version.EnsureSemver(hello.GetVersion())
 		if err != nil {
-			log.WarnContext(ctx, "Failed to parse canary version", "err", err, "current_version", hello.Version)
+			log.WarnContext(ctx, "Failed to parse canary version", "err", err, "current_version", hello.GetVersion())
 			continue
 		}
 		if !targetVersion.Equal(*canaryVersion) {
@@ -316,18 +316,18 @@ func canaryIsRunningTargetVersion(ctx context.Context, hellos []*proto.UpstreamI
 
 func canStartHaltOnError(group, previousGroup *autoupdate.AutoUpdateAgentRolloutStatusGroup, now time.Time) (bool, error) {
 	// check wait hours
-	if group.ConfigWaitHours != 0 {
+	if group.GetConfigWaitHours() != 0 {
 		if previousGroup == nil {
 			return false, trace.BadParameter("the first group cannot have non-zero wait hours")
 		}
 
-		previousStart := previousGroup.StartTime.AsTime()
+		previousStart := previousGroup.GetStartTime().AsTime()
 		if previousStart.IsZero() || previousStart.Unix() == 0 {
 			return false, trace.BadParameter("the previous group doesn't have a start time, cannot check the 'wait_hours' criterion")
 		}
 
 		// Check if the wait_hours criterion is OK, if we are at least after 'wait_hours' hours since the previous start.
-		if now.Before(previousGroup.StartTime.AsTime().Add(time.Duration(group.ConfigWaitHours) * time.Hour)) {
+		if now.Before(previousGroup.GetStartTime().AsTime().Add(time.Duration(group.GetConfigWaitHours()) * time.Hour)) {
 			return false, nil
 		}
 	}
@@ -344,14 +344,14 @@ const (
 
 func isDoneHaltOnError(group *autoupdate.AutoUpdateAgentRolloutStatusGroup, now time.Time) (bool, string) {
 	switch {
-	case group.InitialCount == 0:
+	case group.GetInitialCount() == 0:
 		// Currently we don't implement status reporting from groups/agents.
 		// So we just wait 60 minutes and consider the maintenance done.
-		if group.StartTime.AsTime().Add(haltOnErrorWindowDuration).Before(now) {
+		if group.GetStartTime().AsTime().Add(haltOnErrorWindowDuration).Before(now) {
 			return true, updateReasonUpdateComplete
 		}
 		return false, updateReasonUpdateInProgress
-	case float64(group.PresentCount)/float64(group.InitialCount) >= doneThreshold && float64(group.UpToDateCount)/float64(group.PresentCount) >= doneThreshold:
+	case float64(group.GetPresentCount())/float64(group.GetInitialCount()) >= doneThreshold && float64(group.GetUpToDateCount())/float64(group.GetPresentCount()) >= doneThreshold:
 		return true, updateReasonUpdateComplete
 	default:
 		return false, updateReasonUpdateInProgress

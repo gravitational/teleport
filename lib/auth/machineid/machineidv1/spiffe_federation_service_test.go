@@ -26,6 +26,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
@@ -34,10 +35,13 @@ import (
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	libevents "github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/scopes"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 )
 
 // TestSPIFFEFederationService_CreateSPIFFEFederation is an integration test
@@ -78,20 +82,20 @@ func TestSPIFFEFederationService_CreateSPIFFEFederation(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	good := &machineidv1pb.SPIFFEFederation{
+	good := machineidv1pb.SPIFFEFederation_builder{
 		Kind:    types.KindSPIFFEFederation,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: "example.com",
-		},
-		Spec: &machineidv1pb.SPIFFEFederationSpec{
-			BundleSource: &machineidv1pb.SPIFFEFederationBundleSource{
-				HttpsWeb: &machineidv1pb.SPIFFEFederationBundleSourceHTTPSWeb{
+		}.Build(),
+		Spec: machineidv1pb.SPIFFEFederationSpec_builder{
+			BundleSource: machineidv1pb.SPIFFEFederationBundleSource_builder{
+				HttpsWeb: machineidv1pb.SPIFFEFederationBundleSourceHTTPSWeb_builder{
 					BundleEndpointUrl: "https://example.com/bundle.json",
-				},
-			},
-		},
-	}
+				}.Build(),
+			}.Build(),
+		}.Build(),
+	}.Build()
 
 	tests := []struct {
 		name           string
@@ -104,9 +108,9 @@ func TestSPIFFEFederationService_CreateSPIFFEFederation(t *testing.T) {
 		{
 			name: "success",
 			user: authorizedUser.GetName(),
-			req: &machineidv1pb.CreateSPIFFEFederationRequest{
+			req: machineidv1pb.CreateSPIFFEFederationRequest_builder{
 				SpiffeFederation: good,
-			},
+			}.Build(),
 			requireError:   require.NoError,
 			requireSuccess: true,
 			requireEvent: &events.SPIFFEFederationCreate{
@@ -128,15 +132,15 @@ func TestSPIFFEFederationService_CreateSPIFFEFederation(t *testing.T) {
 		{
 			name: "unable to set status",
 			user: authorizedUser.GetName(),
-			req: &machineidv1pb.CreateSPIFFEFederationRequest{
+			req: machineidv1pb.CreateSPIFFEFederationRequest_builder{
 				SpiffeFederation: func() *machineidv1pb.SPIFFEFederation {
 					fed := proto.Clone(good).(*machineidv1pb.SPIFFEFederation)
-					fed.Status = &machineidv1pb.SPIFFEFederationStatus{
+					fed.SetStatus(machineidv1pb.SPIFFEFederationStatus_builder{
 						CurrentBundleSyncedAt: timestamppb.Now(),
-					}
+					}.Build())
 					return fed
 				}(),
-			},
+			}.Build(),
 			requireError: func(t require.TestingT, err error, i ...any) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err))
@@ -146,13 +150,13 @@ func TestSPIFFEFederationService_CreateSPIFFEFederation(t *testing.T) {
 		{
 			name: "validation is run",
 			user: authorizedUser.GetName(),
-			req: &machineidv1pb.CreateSPIFFEFederationRequest{
+			req: machineidv1pb.CreateSPIFFEFederationRequest_builder{
 				SpiffeFederation: func() *machineidv1pb.SPIFFEFederation {
 					fed := proto.Clone(good).(*machineidv1pb.SPIFFEFederation)
-					fed.Metadata.Name = "spiffe://im----invalid"
+					fed.GetMetadata().SetName("spiffe://im----invalid")
 					return fed
 				}(),
-			},
+			}.Build(),
 			requireError: func(t require.TestingT, err error, i ...any) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err))
@@ -162,9 +166,9 @@ func TestSPIFFEFederationService_CreateSPIFFEFederation(t *testing.T) {
 		{
 			name: "unauthorized",
 			user: unauthorizedUser.GetName(),
-			req: &machineidv1pb.CreateSPIFFEFederationRequest{
+			req: machineidv1pb.CreateSPIFFEFederationRequest_builder{
 				SpiffeFederation: good,
-			},
+			}.Build(),
 			requireError: func(t require.TestingT, err error, i ...any) {
 				require.Error(t, err)
 				require.True(t, trace.IsAccessDenied(err))
@@ -185,7 +189,7 @@ func TestSPIFFEFederationService_CreateSPIFFEFederation(t *testing.T) {
 				require.Empty(
 					t,
 					cmp.Diff(
-						tt.req.SpiffeFederation,
+						tt.req.GetSpiffeFederation(),
 						got,
 						protocmp.Transform(),
 						protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
@@ -194,13 +198,13 @@ func TestSPIFFEFederationService_CreateSPIFFEFederation(t *testing.T) {
 
 				// Then check the response is actually stored in the backend
 				got, err := srv.Auth().Services.SPIFFEFederations.GetSPIFFEFederation(
-					ctx, got.Metadata.GetName(),
+					ctx, got.GetMetadata().GetName(),
 				)
 				require.NoError(t, err)
 				require.Empty(
 					t,
 					cmp.Diff(
-						tt.req.SpiffeFederation,
+						tt.req.GetSpiffeFederation(),
 						got,
 						protocmp.Transform(),
 						protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
@@ -318,20 +322,20 @@ func TestSPIFFEFederationService_DeleteSPIFFEFederation(t *testing.T) {
 			client, err := srv.NewClient(authtest.TestUser(tt.user))
 			require.NoError(t, err)
 
-			resource := &machineidv1pb.SPIFFEFederation{
+			resource := machineidv1pb.SPIFFEFederation_builder{
 				Kind:    types.KindSPIFFEFederation,
 				Version: types.V1,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: name,
-				},
-				Spec: &machineidv1pb.SPIFFEFederationSpec{
-					BundleSource: &machineidv1pb.SPIFFEFederationBundleSource{
-						HttpsWeb: &machineidv1pb.SPIFFEFederationBundleSourceHTTPSWeb{
+				}.Build(),
+				Spec: machineidv1pb.SPIFFEFederationSpec_builder{
+					BundleSource: machineidv1pb.SPIFFEFederationBundleSource_builder{
+						HttpsWeb: machineidv1pb.SPIFFEFederationBundleSourceHTTPSWeb_builder{
 							BundleEndpointUrl: "https://example.com/bundle.json",
-						},
-					},
-				},
-			}
+						}.Build(),
+					}.Build(),
+				}.Build(),
+			}.Build()
 
 			if tt.create {
 				_, err := srv.Auth().Services.SPIFFEFederations.CreateSPIFFEFederation(
@@ -341,14 +345,14 @@ func TestSPIFFEFederationService_DeleteSPIFFEFederation(t *testing.T) {
 			}
 
 			mockEmitter.Reset()
-			_, err = client.SPIFFEFederationServiceClient().DeleteSPIFFEFederation(ctx, &machineidv1pb.DeleteSPIFFEFederationRequest{
-				Name: resource.Metadata.GetName(),
-			})
+			_, err = client.SPIFFEFederationServiceClient().DeleteSPIFFEFederation(ctx, machineidv1pb.DeleteSPIFFEFederationRequest_builder{
+				Name: resource.GetMetadata().GetName(),
+			}.Build())
 			tt.requireError(t, err)
 			if tt.requireSuccess {
 				// Check that it is no longer in the backend
 				_, err := srv.Auth().Services.SPIFFEFederations.GetSPIFFEFederation(
-					ctx, resource.Metadata.GetName(),
+					ctx, resource.GetMetadata().GetName(),
 				)
 				require.True(t, trace.IsNotFound(err))
 			}
@@ -397,20 +401,20 @@ func TestSPIFFEFederationService_GetSPIFFEFederation(t *testing.T) {
 
 	name := "example.com"
 	resource, err := srv.Auth().Services.SPIFFEFederations.CreateSPIFFEFederation(
-		ctx, &machineidv1pb.SPIFFEFederation{
+		ctx, machineidv1pb.SPIFFEFederation_builder{
 			Kind:    types.KindSPIFFEFederation,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: name,
-			},
-			Spec: &machineidv1pb.SPIFFEFederationSpec{
-				BundleSource: &machineidv1pb.SPIFFEFederationBundleSource{
-					HttpsWeb: &machineidv1pb.SPIFFEFederationBundleSourceHTTPSWeb{
+			}.Build(),
+			Spec: machineidv1pb.SPIFFEFederationSpec_builder{
+				BundleSource: machineidv1pb.SPIFFEFederationBundleSource_builder{
+					HttpsWeb: machineidv1pb.SPIFFEFederationBundleSourceHTTPSWeb_builder{
 						BundleEndpointUrl: "https://example.com/bundle.json",
-					},
-				},
-			},
-		},
+					}.Build(),
+				}.Build(),
+			}.Build(),
+		}.Build(),
 	)
 	require.NoError(t, err)
 
@@ -444,9 +448,9 @@ func TestSPIFFEFederationService_GetSPIFFEFederation(t *testing.T) {
 			client, err := srv.NewClient(authtest.TestUser(tt.user))
 			require.NoError(t, err)
 
-			got, err := client.SPIFFEFederationServiceClient().GetSPIFFEFederation(ctx, &machineidv1pb.GetSPIFFEFederationRequest{
+			got, err := client.SPIFFEFederationServiceClient().GetSPIFFEFederation(ctx, machineidv1pb.GetSPIFFEFederationRequest_builder{
 				Name: tt.getName,
-			})
+			}.Build())
 			tt.requireError(t, err)
 			if tt.requireSuccess {
 				require.Empty(
@@ -495,20 +499,20 @@ func TestSPIFFEFederationService_ListSPIFFEFederations(t *testing.T) {
 	for i := range 49 {
 		created, err := srv.AuthServer.AuthServer.Services.SPIFFEFederations.CreateSPIFFEFederation(
 			ctx,
-			&machineidv1pb.SPIFFEFederation{
+			machineidv1pb.SPIFFEFederation_builder{
 				Kind:    types.KindSPIFFEFederation,
 				Version: types.V1,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: fmt.Sprintf("%d.example.com", i),
-				},
-				Spec: &machineidv1pb.SPIFFEFederationSpec{
-					BundleSource: &machineidv1pb.SPIFFEFederationBundleSource{
-						HttpsWeb: &machineidv1pb.SPIFFEFederationBundleSourceHTTPSWeb{
+				}.Build(),
+				Spec: machineidv1pb.SPIFFEFederationSpec_builder{
+					BundleSource: machineidv1pb.SPIFFEFederationBundleSource_builder{
+						HttpsWeb: machineidv1pb.SPIFFEFederationBundleSourceHTTPSWeb_builder{
 							BundleEndpointUrl: "https://example.com/bundle.json",
-						},
-					},
-				},
-			},
+						}.Build(),
+					}.Build(),
+				}.Build(),
+			}.Build(),
 		)
 		require.NoError(t, err)
 		createdObjects = append(createdObjects, created)
@@ -549,19 +553,19 @@ func TestSPIFFEFederationService_ListSPIFFEFederations(t *testing.T) {
 			iterations := 0
 			for {
 				iterations++
-				resp, err := client.SPIFFEFederationServiceClient().ListSPIFFEFederations(ctx, &machineidv1pb.ListSPIFFEFederationsRequest{
+				resp, err := client.SPIFFEFederationServiceClient().ListSPIFFEFederations(ctx, machineidv1pb.ListSPIFFEFederationsRequest_builder{
 					PageSize:  int32(tt.pageSize),
 					PageToken: token,
-				})
+				}.Build())
 				tt.requireError(t, err)
 				if err != nil {
 					return
 				}
-				fetched = append(fetched, resp.SpiffeFederations...)
-				if resp.NextPageToken == "" {
+				fetched = append(fetched, resp.GetSpiffeFederations()...)
+				if resp.GetNextPageToken() == "" {
 					break
 				}
-				token = resp.NextPageToken
+				token = resp.GetNextPageToken()
 			}
 			if tt.assertResponse {
 				require.Equal(t, tt.wantIterations, iterations)
@@ -574,4 +578,101 @@ func TestSPIFFEFederationService_ListSPIFFEFederations(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestSPIFFEFederationService_ScopedIdentity verifies that a scope-pinned
+// identity can read SPIFFE federations via GetSPIFFEFederation and
+// ListSPIFFEFederations. SPIFFE federations are cluster-global config readable
+// by all identities (via the default implicit role), so an empty scoped role is
+// sufficient.
+func TestSPIFFEFederationService_ScopedIdentity(t *testing.T) {
+	srv, _ := newTestTLSServerWithScopesFeatures(t, scopes.Features{Enabled: true})
+	ctx := t.Context()
+
+	adminClient, err := srv.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = adminClient.Close()
+	})
+
+	// Create a scoped role with an empty allow block (no explicit rules). Reads
+	// of cluster-global SPIFFE federations are granted via the default implicit
+	// role, so no extra permissions are required.
+	scopedSvc := adminClient.ScopedAccessServiceClient()
+	scopedRole, err := scopedSvc.CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
+		Role: scopedaccessv1.ScopedRole_builder{
+			Kind:    scopedaccess.KindScopedRole,
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name: "spiffe-federation-reader",
+			}.Build(),
+			Scope: "/scopes",
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
+				AssignableScopes: []string{"/scopes/granted"},
+			}.Build(),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	scopedUser, err := authtest.CreateUser(ctx, srv.Auth(), "scoped-reader")
+	require.NoError(t, err)
+
+	sraResp, err := scopedSvc.CreateScopedRoleAssignment(ctx, scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
+		Assignment: scopedaccessv1.ScopedRoleAssignment_builder{
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			SubKind: scopedaccess.SubKindDynamic,
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name: uuid.NewString(),
+			}.Build(),
+			Scope: "/scopes",
+			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
+				User: scopedUser.GetName(),
+				Assignments: []*scopedaccessv1.Assignment{
+					scopedaccessv1.Assignment_builder{Role: scopedRole.GetRole().GetMetadata().GetName(), Scope: "/scopes/granted"}.Build(),
+				},
+			}.Build(),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+	waitForSRACache(t, srv, sraResp)
+
+	name := "example.com"
+	resource, err := srv.Auth().Services.SPIFFEFederations.CreateSPIFFEFederation(
+		ctx, machineidv1pb.SPIFFEFederation_builder{
+			Kind:    types.KindSPIFFEFederation,
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name: name,
+			}.Build(),
+			Spec: machineidv1pb.SPIFFEFederationSpec_builder{
+				BundleSource: machineidv1pb.SPIFFEFederationBundleSource_builder{
+					HttpsWeb: machineidv1pb.SPIFFEFederationBundleSourceHTTPSWeb_builder{
+						BundleEndpointUrl: "https://example.com/bundle.json",
+					}.Build(),
+				}.Build(),
+			}.Build(),
+		}.Build(),
+	)
+	require.NoError(t, err)
+
+	scopedClient, err := srv.NewClient(authtest.TestScopedUser(scopedUser.GetName(), "/scopes/granted"))
+	require.NoError(t, err)
+	defer scopedClient.Close()
+
+	t.Run("GetSPIFFEFederation", func(t *testing.T) {
+		got, err := scopedClient.SPIFFEFederationServiceClient().GetSPIFFEFederation(ctx, machineidv1pb.GetSPIFFEFederationRequest_builder{
+			Name: name,
+		}.Build())
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(resource, got, protocmp.Transform()))
+	})
+
+	t.Run("ListSPIFFEFederations", func(t *testing.T) {
+		resp, err := scopedClient.SPIFFEFederationServiceClient().ListSPIFFEFederations(ctx, machineidv1pb.ListSPIFFEFederationsRequest_builder{}.Build())
+		require.NoError(t, err)
+		require.True(t, slices.ContainsFunc(resp.GetSpiffeFederations(), func(federation *machineidv1pb.SPIFFEFederation) bool {
+			return proto.Equal(resource, federation)
+		}))
+	})
 }

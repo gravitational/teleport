@@ -32,30 +32,30 @@ import (
 func TestMarshalWorkloadClusterRoundTrip(t *testing.T) {
 	t.Parallel()
 
-	obj := &workloadclusterv1.WorkloadCluster{
-		Metadata: &headerv1.Metadata{
+	obj := workloadclusterv1.WorkloadCluster_builder{
+		Metadata: headerv1.Metadata_builder{
 			Name: "test-workload-cluster",
-		},
-		Spec: &workloadclusterv1.WorkloadClusterSpec{
+		}.Build(),
+		Spec: workloadclusterv1.WorkloadClusterSpec_builder{
 			Regions: []*workloadclusterv1.Region{
-				{
+				workloadclusterv1.Region_builder{
 					Name: "us-west-2",
-				},
+				}.Build(),
 			},
-			Bot: &workloadclusterv1.Bot{
+			Bot: workloadclusterv1.Bot_builder{
 				Name: "test",
-			},
-			Token: &workloadclusterv1.Token{
+			}.Build(),
+			Token: workloadclusterv1.Token_builder{
 				JoinMethod: "iam",
 				Allow: []*workloadclusterv1.Allow{
-					{
+					workloadclusterv1.Allow_builder{
 						AwsAccount: "account",
 						AwsArn:     "arn",
-					},
+					}.Build(),
 				},
-			},
-		},
-	}
+			}.Build(),
+		}.Build(),
+	}.Build()
 
 	out, err := MarshalWorkloadCluster(obj)
 	require.NoError(t, err)
@@ -70,35 +70,35 @@ func TestUnmarshalWorkloadCluster(t *testing.T) {
 	data, err := utils.ToJSON([]byte(correctWorkloadClusterYAML))
 	require.NoError(t, err)
 
-	expected := &workloadclusterv1.WorkloadCluster{
+	expected := workloadclusterv1.WorkloadCluster_builder{
 		Version: "v1",
 		Kind:    "workload_cluster",
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: "test-workload-cluster",
 			Labels: map[string]string{
 				"env": "example",
 			},
-		},
-		Spec: &workloadclusterv1.WorkloadClusterSpec{
+		}.Build(),
+		Spec: workloadclusterv1.WorkloadClusterSpec_builder{
 			Regions: []*workloadclusterv1.Region{
-				{
+				workloadclusterv1.Region_builder{
 					Name: "us-west-2",
-				},
+				}.Build(),
 			},
-			Bot: &workloadclusterv1.Bot{
+			Bot: workloadclusterv1.Bot_builder{
 				Name: "test",
-			},
-			Token: &workloadclusterv1.Token{
+			}.Build(),
+			Token: workloadclusterv1.Token_builder{
 				JoinMethod: "iam",
 				Allow: []*workloadclusterv1.Allow{
-					{
+					workloadclusterv1.Allow_builder{
 						AwsAccount: "account",
 						AwsArn:     "arn",
-					},
+					}.Build(),
 				},
-			},
-		},
-	}
+			}.Build(),
+		}.Build(),
+	}.Build()
 
 	obj, err := UnmarshalWorkloadCluster(data)
 	require.NoError(t, err)

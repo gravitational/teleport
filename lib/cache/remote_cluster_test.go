@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -99,17 +100,17 @@ func TestTunnelConnections(t *testing.T) {
 				LastHeartbeat: time.Now().UTC(),
 			})
 		},
-		create:    modifyNoContext(p.trustS.UpsertTunnelConnection),
-		list:      getAllAdapter(func(ctx context.Context) ([]types.TunnelConnection, error) { return p.trustS.GetAllTunnelConnections() }),
-		cacheList: getAllAdapter(func(ctx context.Context) ([]types.TunnelConnection, error) { return p.cache.GetAllTunnelConnections() }),
-		update:    modifyNoContext(p.trustS.UpsertTunnelConnection),
+		create:    p.trustS.UpsertTunnelConnection,
+		list:      getAllAdapter(p.trustS.GetAllTunnelConnections),
+		cacheList: getAllAdapter(p.cache.GetAllTunnelConnections),
+		update:    p.trustS.UpsertTunnelConnection,
 		deleteAll: func(ctx context.Context) error {
-			all, err := p.trustS.GetAllTunnelConnections()
+			all, err := p.trustS.GetAllTunnelConnections(ctx)
 			if err != nil {
 				return err
 			}
 			for _, tc := range all {
-				err := p.trustS.DeleteTunnelConnection(tc.GetClusterName(), tc.GetName())
+				err := p.trustS.DeleteTunnelConnection(ctx, tc.GetClusterName(), tc.GetName())
 				if err != nil {
 					return err
 				}
@@ -126,7 +127,7 @@ func TestTunnelConnections(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		require.NoError(t, p.trustS.UpsertTunnelConnection(tunnel))
+		require.NoError(t, p.trustS.UpsertTunnelConnection(t.Context(), tunnel))
 	}
 
 	for i := range 3 {
@@ -136,21 +137,96 @@ func TestTunnelConnections(t *testing.T) {
 			LastHeartbeat: time.Now().UTC(),
 		})
 		require.NoError(t, err)
-		require.NoError(t, p.trustS.UpsertTunnelConnection(tunnel))
+		require.NoError(t, p.trustS.UpsertTunnelConnection(t.Context(), tunnel))
 	}
 
 	require.EventuallyWithT(t, func(tt *assert.CollectT) {
-		tunnels, err := p.cache.GetAllTunnelConnections()
+		tunnels, err := p.cache.GetAllTunnelConnections(t.Context())
 		assert.NoError(tt, err)
 		assert.Len(tt, tunnels, 20)
 
 	}, 15*time.Second, 100*time.Millisecond)
 
-	tunnels, err := p.cache.GetTunnelConnections(clusterName)
+	tunnels, err := p.cache.GetTunnelConnections(t.Context(), clusterName)
 	require.NoError(t, err)
 	require.Len(t, tunnels, 17)
 
-	tunnels, err = p.cache.GetTunnelConnections("other-cluster")
+	tunnels, err = p.cache.GetTunnelConnections(t.Context(), "other-cluster")
 	require.NoError(t, err)
 	require.Len(t, tunnels, 3)
+
+	// TODO(noah): In v20, we'll be able to strip out the GetTunnelConnections/
+	// GetAllTunnelConnections implementation, and we can roll testing of
+	// ListTunnelConnections into testResources instead. For now, this is here
+	// so that we're still covering Get/GetAll but also covering
+	// ListTunnelConnections.
+	t.Run("ListTunnelConnections", func(t *testing.T) {
+		ctx := t.Context()
+
+		// Unfiltered list should page through all 20 tunnel connections.
+		var all []types.TunnelConnection
+		var pageToken string
+		for {
+			page, next, err := p.cache.ListTunnelConnections(ctx, 0, pageToken, nil)
+			require.NoError(t, err)
+			all = append(all, page...)
+			if next == "" {
+				break
+			}
+			pageToken = next
+		}
+		require.Len(t, all, 20)
+
+		// Filter by cluster name should only return matching tunnel connections.
+		filtered, next, err := p.cache.ListTunnelConnections(ctx, 0, "", &trustpb.ListTunnelConnectionsFilter{
+			ClusterName: clusterName,
+		})
+		require.NoError(t, err)
+		require.Empty(t, next)
+		require.Len(t, filtered, 17)
+		for _, tc := range filtered {
+			require.Equal(t, clusterName, tc.GetClusterName())
+		}
+
+		filtered, next, err = p.cache.ListTunnelConnections(ctx, 0, "", &trustpb.ListTunnelConnectionsFilter{
+			ClusterName: "other-cluster",
+		})
+		require.NoError(t, err)
+		require.Empty(t, next)
+		require.Len(t, filtered, 3)
+		for _, tc := range filtered {
+			require.Equal(t, "other-cluster", tc.GetClusterName())
+		}
+
+		// Filter for a cluster with no tunnel connections.
+		filtered, next, err = p.cache.ListTunnelConnections(ctx, 0, "", &trustpb.ListTunnelConnectionsFilter{
+			ClusterName: "does-not-exist",
+		})
+		require.NoError(t, err)
+		require.Empty(t, next)
+		require.Empty(t, filtered)
+
+		// Paginate with a small page size and a cluster filter.
+		var paginated []types.TunnelConnection
+		pageToken = ""
+		pages := 0
+		for {
+			page, next, err := p.cache.ListTunnelConnections(ctx, 5, pageToken, &trustpb.ListTunnelConnectionsFilter{
+				ClusterName: clusterName,
+			})
+			require.NoError(t, err)
+			require.LessOrEqual(t, len(page), 5)
+			pages++
+			paginated = append(paginated, page...)
+			if next == "" {
+				break
+			}
+			pageToken = next
+		}
+		require.Len(t, paginated, 17)
+		require.Greater(t, pages, 1, "expected multiple pages with page size 5 and 17 items")
+		for _, tc := range paginated {
+			require.Equal(t, clusterName, tc.GetClusterName())
+		}
+	})
 }

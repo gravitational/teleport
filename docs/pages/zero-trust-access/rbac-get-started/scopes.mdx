@@ -82,6 +82,8 @@ be assumed unsupported in scoped mode.
   whose privileges are limited to the target scope.
 - Basic scoped SSH access, including joining SSH Services at a
   scope and assigning scoped SSH access to users.
+- Basic scoped Kubernetes access, including joining Kubernetes services
+  at a scope and assigning scoped Kubernetes access to users.
 - Granting scoped roles to users via Access Lists.
 - Scoped Bots for Machine and Workload Identity (MWI), supporting both
   identity output and SSH access.
@@ -98,6 +100,8 @@ scoped mode:
 - `tsh logout` (required to exit a scoped session)
 - `tsh ls` (lists SSH instances available at the current scope)
 - `tsh ssh <login>@<host>` (for SSH instances available at the current scope)
+- `tsh kube ls` (lists Kubernetes clusters available at the current scope)
+- `tsh kube login <cluster>` (for Kubernetes clusters available at the current scope)
 - `tctl get|create|edit|rm <resource>` (for scoped resources)
 - `tctl scoped tokens add|rm|ls ...` (for managing scoped tokens)
 - `tctl scopes status` (overview of scoped privilege usage in the cluster)
@@ -117,8 +121,8 @@ role includes the ability to create and assign scoped roles, so an unscoped
 administrator can bootstrap the first scoped admin.
 
 While logged in as a user with the `editor` role, create a scoped admin
-role that can manage scoped permissions and SSH into instances
-within `/examples` (replace `ubuntu` with your desired OS login):
+role that can manage scoped permissions, SSH into instances, and connect
+to Kubernetes clusters within `/examples` (replace `ubuntu` with your desired OS login):
 
 ```code
 $ tctl create <<EOF
@@ -129,6 +133,11 @@ scope: /examples
 spec:
   assignable_scopes:
     - /examples
+  kube:
+    labels:
+      - name: '*'
+        values: ['*']
+    groups: [cluster-admin]
   ssh:
     logins: [ubuntu]
     labels:
@@ -150,6 +159,9 @@ spec:
 version: v1
 EOF
 ```
+
+Note that the `kube` configuration block does not yet support configuring
+`kubernetes_resources`.
 
 Next, create a scoped role assignment to grant `example-admin` to the user
 who will become the scoped admin (replace `alice` with your user):
@@ -222,6 +234,65 @@ Finally, SSH into the SSH Service instance using the scoped admin user:
 ```code
 $ tsh ssh ubuntu@example-node
 ```
+
+## Joining a scoped Kubernetes Service
+
+Only static Kubernetes clusters support joining with scopes. Dynamic
+cluster registration, including those discovered by the Teleport Discovery
+Service, dot not yet support scopes.
+
+Log the scoped admin into the desired scope:
+
+```code
+$ tsh login --user=alice --scope=/examples/basic --proxy=teleport.example.com
+```
+
+Create a scoped token that can be used to join a Kubernetes Service at
+the desired scope:
+
+```code
+$ tctl scoped tokens add --scope=/examples/basic --assign-scope=/examples/basic --ttl=8h --type=kube
+```
+
+A scoped token has two distinct scopes:
+
+- `--scope` sets the scope that the token resource itself lives in. This is
+  the administrative scope of the token, and determines who can manage it.
+  A scoped admin can only create tokens within their own scope or a
+  descendant scope.
+- `--assign-scope` sets the scope that will be assigned to any resource
+  (such as a Kubernetes Service) that joins the cluster using this token. The
+  assigned scope must be equal to or a descendant of the token's `--scope`.
+
+In this example, both values are `/examples/basic` because the scoped admin
+is creating a token within their scope and using it to provision a Kubernetes
+Service instance in the same scope. To provision a Kubernetes Service
+into a more specific scope, use a more specific `--assign-scope`. For
+example, with `--scope=/examples/basic --assign-scope=/examples/basic/west`,
+the token is owned at `/examples/basic` but the joined Kubernetes Service
+will live at `/examples/basic/west`.
+
+Follow the printed instructions to join a Kubernetes cluster using helm and the
+generated token. Once the instance has joined, the scoped admin can list it:
+
+```code
+$ tsh kube ls
+Kube Cluster Name Labels Scope         Selected
+----------------- ------ ------------- --------
+example-cluster          /example/west
+
+```
+
+Login to the Kubernetes cluster using the scoped admin user:
+
+```code
+$ tsh kube login example-cluster
+```
+
+This generates the kubeconfig necessary to access the cluster using scoped
+credentials. You can either use `kubectl` directly by specifying the correct
+context or use the `tsh kubectl` sub-command to interact with the selected
+cluster.
 
 ### Adding immutable labels via a token
 

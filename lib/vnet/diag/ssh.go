@@ -30,6 +30,7 @@ import (
 
 	"github.com/dustin/go-humanize"
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/profile"
@@ -74,7 +75,7 @@ func (d *SSHDiag) Commands(ctx context.Context) []*exec.Cmd {
 
 // EmptyCheckReport returns an empty SSH configuration report.
 func (d *SSHDiag) EmptyCheckReport() *diagv1.CheckReport {
-	return &diagv1.CheckReport{Report: &diagv1.CheckReport_SshConfigurationReport{}}
+	return diagv1.CheckReport_builder{SshConfigurationReport: &diagv1.SSHConfigurationReport{}}.Build()
 }
 
 // Run runs the diagnostic.
@@ -83,39 +84,37 @@ func (d *SSHDiag) Run(ctx context.Context) (*diagv1.CheckReport, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &diagv1.CheckReport{
+	return diagv1.CheckReport_builder{
 		// This intentionally always returns CHECK_REPORT_STATUS_OK even if
 		// ~/.ssh/config does not include the VNet generated SSH config. It is
 		// not mandatory to configure SSH and returning an error status would
 		// cause an alert and notification in Connect.
-		Status: diagv1.CheckReportStatus_CHECK_REPORT_STATUS_OK,
-		Report: &diagv1.CheckReport_SshConfigurationReport{
-			SshConfigurationReport: report,
-		},
-	}, nil
+		Status:                 diagv1.CheckReportStatus_CHECK_REPORT_STATUS_OK,
+		SshConfigurationReport: proto.ValueOrDefault(report),
+	}.Build(), nil
 }
 
 func (d *SSHDiag) run(ctx context.Context) (*diagv1.SSHConfigurationReport, error) {
 	userOpenSSHConfigContents, included, err := d.sshConfigChecker.OpenSSHConfigIncludesVNetSSHConfig()
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return &diagv1.SSHConfigurationReport{
+			return diagv1.SSHConfigurationReport_builder{
 				UserOpensshConfigPath: d.sshConfigChecker.UserOpenSSHConfigPath,
 				VnetSshConfigPath:     d.sshConfigChecker.VNetSSHConfigPath,
-			}, nil
+			}.Build(), nil
 		}
 		return nil, trace.Wrap(err)
 	}
 	if !utf8.Valid(userOpenSSHConfigContents) {
 		return nil, trace.Errorf("%s is not valid UTF-8", d.sshConfigChecker.UserOpenSSHConfigPath)
 	}
-	return &diagv1.SSHConfigurationReport{
+	return diagv1.SSHConfigurationReport_builder{
 		UserOpensshConfigPath:                  d.sshConfigChecker.UserOpenSSHConfigPath,
 		VnetSshConfigPath:                      d.sshConfigChecker.VNetSSHConfigPath,
 		UserOpensshConfigIncludesVnetSshConfig: included,
 		UserOpensshConfigExists:                true,
 		UserOpensshConfigContents:              string(userOpenSSHConfigContents),
-	}, nil
+	}.Build(), nil
 }
 
 // SSHConfigChecker checks the state of the user's SSH configuration.

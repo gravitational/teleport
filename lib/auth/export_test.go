@@ -223,10 +223,6 @@ func ChangeUserAuthentication(ctx context.Context, a *Server, req *proto.ChangeU
 	return a.changeUserAuthentication(ctx, req)
 }
 
-func ValidateOracleJoinToken(token types.ProvisionToken) error {
-	return validateOracleJoinToken(token)
-}
-
 func CreatePresetUsers(ctx context.Context, buildType string, um PresetUsers) error {
 	return createPresetUsers(ctx, buildType, um)
 }
@@ -276,16 +272,14 @@ func UpsertServer(srv *APIServer, auth presenceForAPIServer, role types.SystemRo
 
 func NewServerWithRoles(srv *Server, alog events.AuditLogSessionStreamer, authzContext authz.Context) *ServerWithRoles {
 	return &ServerWithRoles{
-		authServer: srv,
-		alog:       alog,
+		serverBase: serverBase{authServer: srv, alog: alog},
 		context:    authzContext,
 	}
 }
 
-func NewScopedServerWithRoles(srv *Server, alog events.AuditLogSessionStreamer, scopedContext *authz.ScopedContext) *ServerWithRoles {
-	return &ServerWithRoles{
-		authServer:    srv,
-		alog:          alog,
+func NewScopedServerWithRoles(srv *Server, alog events.AuditLogSessionStreamer, scopedContext *authz.ScopedContext) *ScopedServerWithRoles {
+	return &ScopedServerWithRoles{
+		serverBase:    serverBase{authServer: srv, alog: alog},
 		scopedContext: scopedContext,
 	}
 }

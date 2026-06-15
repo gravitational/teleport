@@ -53,13 +53,13 @@ func fetchRoleAssignments(ctx context.Context, subscriptionID string, cli RoleAs
 				trace.BadParameter("nil values on AzureRoleAssignment object: %v", roleAssign))
 			continue
 		}
-		pbRoleAssign := &accessgraphv1alpha.AzureRoleAssignment{
+		pbRoleAssign := accessgraphv1alpha.AzureRoleAssignment_builder{
 			Id:               *roleAssign.ID,
 			SubscriptionId:   subscriptionID,
 			PrincipalId:      *roleAssign.Properties.PrincipalID,
 			RoleDefinitionId: *roleAssign.Properties.RoleDefinitionID,
 			Scope:            *roleAssign.Properties.Scope,
-		}
+		}.Build()
 		pbRoleAssigns = append(pbRoleAssigns, pbRoleAssign)
 	}
 	return pbRoleAssigns, trace.NewAggregate(fetchErrs...)

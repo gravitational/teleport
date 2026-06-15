@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/workloadidentity/v1/sigstore_policy_service.proto
 
+//go:build !protoopaque
+
 package workloadidentityv1
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -38,7 +39,7 @@ const (
 
 // The request for CreateSigstorePolicy.
 type CreateSigstorePolicyRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The Sigstore policy to create.
 	SigstorePolicy *SigstorePolicy `protobuf:"bytes,1,opt,name=sigstore_policy,json=sigstorePolicy,proto3" json:"sigstore_policy,omitempty"`
 	unknownFields  protoimpl.UnknownFields
@@ -70,11 +71,6 @@ func (x *CreateSigstorePolicyRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateSigstorePolicyRequest.ProtoReflect.Descriptor instead.
-func (*CreateSigstorePolicyRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_sigstore_policy_service_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *CreateSigstorePolicyRequest) GetSigstorePolicy() *SigstorePolicy {
 	if x != nil {
 		return x.SigstorePolicy
@@ -82,9 +78,39 @@ func (x *CreateSigstorePolicyRequest) GetSigstorePolicy() *SigstorePolicy {
 	return nil
 }
 
+func (x *CreateSigstorePolicyRequest) SetSigstorePolicy(v *SigstorePolicy) {
+	x.SigstorePolicy = v
+}
+
+func (x *CreateSigstorePolicyRequest) HasSigstorePolicy() bool {
+	if x == nil {
+		return false
+	}
+	return x.SigstorePolicy != nil
+}
+
+func (x *CreateSigstorePolicyRequest) ClearSigstorePolicy() {
+	x.SigstorePolicy = nil
+}
+
+type CreateSigstorePolicyRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The Sigstore policy to create.
+	SigstorePolicy *SigstorePolicy
+}
+
+func (b0 CreateSigstorePolicyRequest_builder) Build() *CreateSigstorePolicyRequest {
+	m0 := &CreateSigstorePolicyRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.SigstorePolicy = b.SigstorePolicy
+	return m0
+}
+
 // The request for UpdateSigstorePolicy.
 type UpdateSigstorePolicyRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The Sigstore policy to update.
 	SigstorePolicy *SigstorePolicy `protobuf:"bytes,1,opt,name=sigstore_policy,json=sigstorePolicy,proto3" json:"sigstore_policy,omitempty"`
 	unknownFields  protoimpl.UnknownFields
@@ -116,11 +142,6 @@ func (x *UpdateSigstorePolicyRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateSigstorePolicyRequest.ProtoReflect.Descriptor instead.
-func (*UpdateSigstorePolicyRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_sigstore_policy_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *UpdateSigstorePolicyRequest) GetSigstorePolicy() *SigstorePolicy {
 	if x != nil {
 		return x.SigstorePolicy
@@ -128,9 +149,39 @@ func (x *UpdateSigstorePolicyRequest) GetSigstorePolicy() *SigstorePolicy {
 	return nil
 }
 
+func (x *UpdateSigstorePolicyRequest) SetSigstorePolicy(v *SigstorePolicy) {
+	x.SigstorePolicy = v
+}
+
+func (x *UpdateSigstorePolicyRequest) HasSigstorePolicy() bool {
+	if x == nil {
+		return false
+	}
+	return x.SigstorePolicy != nil
+}
+
+func (x *UpdateSigstorePolicyRequest) ClearSigstorePolicy() {
+	x.SigstorePolicy = nil
+}
+
+type UpdateSigstorePolicyRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The Sigstore policy to update.
+	SigstorePolicy *SigstorePolicy
+}
+
+func (b0 UpdateSigstorePolicyRequest_builder) Build() *UpdateSigstorePolicyRequest {
+	m0 := &UpdateSigstorePolicyRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.SigstorePolicy = b.SigstorePolicy
+	return m0
+}
+
 // The request for UpsertSigstorePolicy.
 type UpsertSigstorePolicyRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The Sigstore policy to upsert.
 	SigstorePolicy *SigstorePolicy `protobuf:"bytes,1,opt,name=sigstore_policy,json=sigstorePolicy,proto3" json:"sigstore_policy,omitempty"`
 	unknownFields  protoimpl.UnknownFields
@@ -162,11 +213,6 @@ func (x *UpsertSigstorePolicyRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpsertSigstorePolicyRequest.ProtoReflect.Descriptor instead.
-func (*UpsertSigstorePolicyRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_sigstore_policy_service_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *UpsertSigstorePolicyRequest) GetSigstorePolicy() *SigstorePolicy {
 	if x != nil {
 		return x.SigstorePolicy
@@ -174,9 +220,39 @@ func (x *UpsertSigstorePolicyRequest) GetSigstorePolicy() *SigstorePolicy {
 	return nil
 }
 
+func (x *UpsertSigstorePolicyRequest) SetSigstorePolicy(v *SigstorePolicy) {
+	x.SigstorePolicy = v
+}
+
+func (x *UpsertSigstorePolicyRequest) HasSigstorePolicy() bool {
+	if x == nil {
+		return false
+	}
+	return x.SigstorePolicy != nil
+}
+
+func (x *UpsertSigstorePolicyRequest) ClearSigstorePolicy() {
+	x.SigstorePolicy = nil
+}
+
+type UpsertSigstorePolicyRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The Sigstore policy to upsert.
+	SigstorePolicy *SigstorePolicy
+}
+
+func (b0 UpsertSigstorePolicyRequest_builder) Build() *UpsertSigstorePolicyRequest {
+	m0 := &UpsertSigstorePolicyRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.SigstorePolicy = b.SigstorePolicy
+	return m0
+}
+
 // The request for GetSigstorePolicy.
 type GetSigstorePolicyRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The name of the Sigstore policy to retrieve.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -208,11 +284,6 @@ func (x *GetSigstorePolicyRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetSigstorePolicyRequest.ProtoReflect.Descriptor instead.
-func (*GetSigstorePolicyRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_sigstore_policy_service_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *GetSigstorePolicyRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -220,9 +291,28 @@ func (x *GetSigstorePolicyRequest) GetName() string {
 	return ""
 }
 
+func (x *GetSigstorePolicyRequest) SetName(v string) {
+	x.Name = v
+}
+
+type GetSigstorePolicyRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The name of the Sigstore policy to retrieve.
+	Name string
+}
+
+func (b0 GetSigstorePolicyRequest_builder) Build() *GetSigstorePolicyRequest {
+	m0 := &GetSigstorePolicyRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // The request for DeleteSigstorePolicy.
 type DeleteSigstorePolicyRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The name of the Sigstore policy to delete.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -254,11 +344,6 @@ func (x *DeleteSigstorePolicyRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteSigstorePolicyRequest.ProtoReflect.Descriptor instead.
-func (*DeleteSigstorePolicyRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_sigstore_policy_service_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *DeleteSigstorePolicyRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -266,9 +351,28 @@ func (x *DeleteSigstorePolicyRequest) GetName() string {
 	return ""
 }
 
+func (x *DeleteSigstorePolicyRequest) SetName(v string) {
+	x.Name = v
+}
+
+type DeleteSigstorePolicyRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The name of the Sigstore policy to delete.
+	Name string
+}
+
+func (b0 DeleteSigstorePolicyRequest_builder) Build() *DeleteSigstorePolicyRequest {
+	m0 := &DeleteSigstorePolicyRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // The request for ListSigstorePolicies.
 type ListSigstorePoliciesRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The maximum number of items to return. The server may impose a different
 	// page size at its discretion.
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
@@ -304,11 +408,6 @@ func (x *ListSigstorePoliciesRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListSigstorePoliciesRequest.ProtoReflect.Descriptor instead.
-func (*ListSigstorePoliciesRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_sigstore_policy_service_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *ListSigstorePoliciesRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
@@ -323,9 +422,37 @@ func (x *ListSigstorePoliciesRequest) GetPageToken() string {
 	return ""
 }
 
+func (x *ListSigstorePoliciesRequest) SetPageSize(v int32) {
+	x.PageSize = v
+}
+
+func (x *ListSigstorePoliciesRequest) SetPageToken(v string) {
+	x.PageToken = v
+}
+
+type ListSigstorePoliciesRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The maximum number of items to return. The server may impose a different
+	// page size at its discretion.
+	PageSize int32
+	// The page_token value returned from a previous ListSigstorePolicies request,
+	// if any.
+	PageToken string
+}
+
+func (b0 ListSigstorePoliciesRequest_builder) Build() *ListSigstorePoliciesRequest {
+	m0 := &ListSigstorePoliciesRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PageSize = b.PageSize
+	x.PageToken = b.PageToken
+	return m0
+}
+
 // The response for ListSigstorePolicies.
 type ListSigstorePoliciesResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The page of Sigstore policies that matched the request.
 	SigstorePolicies []*SigstorePolicy `protobuf:"bytes,1,rep,name=sigstore_policies,json=sigstorePolicies,proto3" json:"sigstore_policies,omitempty"`
 	// Token to retrieve the next page of results, or empty if there are no more
@@ -360,11 +487,6 @@ func (x *ListSigstorePoliciesResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListSigstorePoliciesResponse.ProtoReflect.Descriptor instead.
-func (*ListSigstorePoliciesResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_sigstore_policy_service_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *ListSigstorePoliciesResponse) GetSigstorePolicies() []*SigstorePolicy {
 	if x != nil {
 		return x.SigstorePolicies
@@ -377,6 +499,33 @@ func (x *ListSigstorePoliciesResponse) GetNextPageToken() string {
 		return x.NextPageToken
 	}
 	return ""
+}
+
+func (x *ListSigstorePoliciesResponse) SetSigstorePolicies(v []*SigstorePolicy) {
+	x.SigstorePolicies = v
+}
+
+func (x *ListSigstorePoliciesResponse) SetNextPageToken(v string) {
+	x.NextPageToken = v
+}
+
+type ListSigstorePoliciesResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The page of Sigstore policies that matched the request.
+	SigstorePolicies []*SigstorePolicy
+	// Token to retrieve the next page of results, or empty if there are no more
+	// results in the list.
+	NextPageToken string
+}
+
+func (b0 ListSigstorePoliciesResponse_builder) Build() *ListSigstorePoliciesResponse {
+	m0 := &ListSigstorePoliciesResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.SigstorePolicies = b.SigstorePolicies
+	x.NextPageToken = b.NextPageToken
+	return m0
 }
 
 var File_teleport_workloadidentity_v1_sigstore_policy_service_proto protoreflect.FileDescriptor
@@ -408,18 +557,6 @@ const file_teleport_workloadidentity_v1_sigstore_policy_service_proto_rawDesc = 
 	"\x11GetSigstorePolicy\x126.teleport.workloadidentity.v1.GetSigstorePolicyRequest\x1a,.teleport.workloadidentity.v1.SigstorePolicy\x12i\n" +
 	"\x14DeleteSigstorePolicy\x129.teleport.workloadidentity.v1.DeleteSigstorePolicyRequest\x1a\x16.google.protobuf.Empty\x12\x8d\x01\n" +
 	"\x14ListSigstorePolicies\x129.teleport.workloadidentity.v1.ListSigstorePoliciesRequest\x1a:.teleport.workloadidentity.v1.ListSigstorePoliciesResponseBdZbgithub.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1b\x06proto3"
-
-var (
-	file_teleport_workloadidentity_v1_sigstore_policy_service_proto_rawDescOnce sync.Once
-	file_teleport_workloadidentity_v1_sigstore_policy_service_proto_rawDescData []byte
-)
-
-func file_teleport_workloadidentity_v1_sigstore_policy_service_proto_rawDescGZIP() []byte {
-	file_teleport_workloadidentity_v1_sigstore_policy_service_proto_rawDescOnce.Do(func() {
-		file_teleport_workloadidentity_v1_sigstore_policy_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_workloadidentity_v1_sigstore_policy_service_proto_rawDesc), len(file_teleport_workloadidentity_v1_sigstore_policy_service_proto_rawDesc)))
-	})
-	return file_teleport_workloadidentity_v1_sigstore_policy_service_proto_rawDescData
-}
 
 var file_teleport_workloadidentity_v1_sigstore_policy_service_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_teleport_workloadidentity_v1_sigstore_policy_service_proto_goTypes = []any{

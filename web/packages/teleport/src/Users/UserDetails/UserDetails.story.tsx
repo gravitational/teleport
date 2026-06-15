@@ -38,6 +38,8 @@ export type UserDetailsStoryProps = {
   userType: UserDetailsAuthType;
   isBot: boolean;
   userName: string;
+  displayPrimary?: string;
+  displaySecondary?: string;
   rolesCount: number;
   traitsCount: number;
 };
@@ -83,6 +85,12 @@ const meta: Meta<UserDetailsStoryProps> = {
     userName: {
       control: { type: 'text' },
     },
+    displayPrimary: {
+      control: { type: 'text' },
+    },
+    displaySecondary: {
+      control: { type: 'text' },
+    },
     rolesCount: {
       control: { type: 'select' },
       options: [0, 5, 16, 128],
@@ -96,6 +104,8 @@ const meta: Meta<UserDetailsStoryProps> = {
     userType: 'local' as const,
     isBot: false,
     userName: 'john.the.user',
+    displayPrimary: 'John The User',
+    displaySecondary: 'john.the.user@example.com',
     rolesCount: 16,
     traitsCount: 5,
   },
@@ -227,6 +237,8 @@ export function createMockUser(props: UserDetailsStoryProps): User {
 
   return {
     name: props.userName,
+    displayPrimary: props.displayPrimary,
+    displaySecondary: props.displaySecondary,
     authType: config.authType,
     origin: config.origin,
     isBot: props.isBot,

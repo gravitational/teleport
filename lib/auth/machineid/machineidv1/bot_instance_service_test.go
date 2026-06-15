@@ -53,7 +53,7 @@ const (
 func insertTestBotInstance(t *testing.T, backend *local.BotInstanceService) {
 	t.Helper()
 	bi := newBotInstance(testBotName)
-	bi.Spec.InstanceId = testInstanceID
+	bi.GetSpec().SetInstanceId(testInstanceID)
 	_, err := backend.CreateBotInstance(t.Context(), bi)
 	require.NoError(t, err)
 }
@@ -195,61 +195,61 @@ func TestBotInstanceServiceReadDelete(t *testing.T) {
 
 	// Make sure we can get all foo instances
 	for id := range idsFoo {
-		ins, err := service.GetBotInstance(ctx, &machineidv1.GetBotInstanceRequest{
+		ins, err := service.GetBotInstance(ctx, machineidv1.GetBotInstanceRequest_builder{
 			BotName:    "foo",
 			InstanceId: id,
-		})
+		}.Build())
 		require.NoError(t, err)
 
-		require.Equal(t, "foo", ins.Spec.BotName)
-		require.Equal(t, id, ins.Spec.InstanceId)
+		require.Equal(t, "foo", ins.GetSpec().GetBotName())
+		require.Equal(t, id, ins.GetSpec().GetInstanceId())
 	}
 
 	// Make sure we can get all bar instances
 	for id := range idsBar {
-		ins, err := service.GetBotInstance(ctx, &machineidv1.GetBotInstanceRequest{
+		ins, err := service.GetBotInstance(ctx, machineidv1.GetBotInstanceRequest_builder{
 			BotName:    "bar",
 			InstanceId: id,
-		})
+		}.Build())
 		require.NoError(t, err)
 
-		require.Equal(t, "bar", ins.Spec.BotName)
-		require.Equal(t, id, ins.Spec.InstanceId)
+		require.Equal(t, "bar", ins.GetSpec().GetBotName())
+		require.Equal(t, id, ins.GetSpec().GetInstanceId())
 	}
 
 	// List should work
 	fooInstances := listInstances(t, ctx, service, "foo")
 	require.Len(t, fooInstances, 3)
 	for _, bi := range fooInstances {
-		require.Contains(t, idsFoo, bi.Spec.InstanceId)
+		require.Contains(t, idsFoo, bi.GetSpec().GetInstanceId())
 	}
 
 	barInstances := listInstances(t, ctx, service, "bar")
 	require.Len(t, barInstances, 3)
 	for _, bi := range barInstances {
-		require.Contains(t, idsBar, bi.Spec.InstanceId)
+		require.Contains(t, idsBar, bi.GetSpec().GetInstanceId())
 	}
 
 	allInstances := listInstances(t, ctx, service, "")
 	require.Len(t, allInstances, 6)
 	for _, bi := range allInstances {
-		require.Contains(t, idsAll, bi.Spec.InstanceId)
+		require.Contains(t, idsAll, bi.GetSpec().GetInstanceId())
 	}
 
 	// Attempt to delete everything
 	for id := range idsFoo {
-		_, err := service.DeleteBotInstance(ctx, &machineidv1.DeleteBotInstanceRequest{
+		_, err := service.DeleteBotInstance(ctx, machineidv1.DeleteBotInstanceRequest_builder{
 			BotName:    "foo",
 			InstanceId: id,
-		})
+		}.Build())
 		require.NoError(t, err)
 	}
 
 	for id := range idsBar {
-		_, err := service.DeleteBotInstance(ctx, &machineidv1.DeleteBotInstanceRequest{
+		_, err := service.DeleteBotInstance(ctx, machineidv1.DeleteBotInstanceRequest_builder{
 			BotName:    "bar",
 			InstanceId: id,
-		})
+		}.Build())
 		require.NoError(t, err)
 	}
 
@@ -287,43 +287,43 @@ func TestBotInstanceServiceSubmitHeartbeat(t *testing.T) {
 		{
 			name:              "success",
 			createBotInstance: true,
-			req: &machineidv1.SubmitHeartbeatRequest{
-				Heartbeat: &machineidv1.BotInstanceStatusHeartbeat{
+			req: machineidv1.SubmitHeartbeatRequest_builder{
+				Heartbeat: machineidv1.BotInstanceStatusHeartbeat_builder{
 					Hostname: "llama",
-				},
+				}.Build(),
 				ServiceHealth: []*machineidv1.BotInstanceServiceHealth{
-					{
-						Service: &machineidv1.BotInstanceServiceIdentifier{
+					machineidv1.BotInstanceServiceHealth_builder{
+						Service: machineidv1.BotInstanceServiceIdentifier_builder{
 							Type: "application-tunnel",
 							Name: "my-application-tunnel",
-						},
+						}.Build(),
 						Status: machineidv1.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY,
 						Reason: ptr("application is broken"),
-					},
+					}.Build(),
 				},
-			},
+			}.Build(),
 			identity:      goodIdentity,
 			assertErr:     assert.NoError,
 			wantHeartbeat: true,
 			wantServiceHealth: []*machineidv1.BotInstanceServiceHealth{
-				{
-					Service: &machineidv1.BotInstanceServiceIdentifier{
+				machineidv1.BotInstanceServiceHealth_builder{
+					Service: machineidv1.BotInstanceServiceIdentifier_builder{
 						Type: "application-tunnel",
 						Name: "my-application-tunnel",
-					},
+					}.Build(),
 					Status: machineidv1.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY,
 					Reason: ptr("application is broken"),
-				},
+				}.Build(),
 			},
 		},
 		{
 			name:              "missing bot name",
 			createBotInstance: true,
-			req: &machineidv1.SubmitHeartbeatRequest{
-				Heartbeat: &machineidv1.BotInstanceStatusHeartbeat{
+			req: machineidv1.SubmitHeartbeatRequest_builder{
+				Heartbeat: machineidv1.BotInstanceStatusHeartbeat_builder{
 					Hostname: "llama",
-				},
-			},
+				}.Build(),
+			}.Build(),
 			identity: tlsca.Identity{
 				BotInstanceID: botInstanceID,
 			},
@@ -335,11 +335,11 @@ func TestBotInstanceServiceSubmitHeartbeat(t *testing.T) {
 		{
 			name:              "missing instance id",
 			createBotInstance: true,
-			req: &machineidv1.SubmitHeartbeatRequest{
-				Heartbeat: &machineidv1.BotInstanceStatusHeartbeat{
+			req: machineidv1.SubmitHeartbeatRequest_builder{
+				Heartbeat: machineidv1.BotInstanceStatusHeartbeat_builder{
 					Hostname: "llama",
-				},
-			},
+				}.Build(),
+			}.Build(),
 			identity: tlsca.Identity{
 				BotName: botName,
 			},
@@ -351,11 +351,11 @@ func TestBotInstanceServiceSubmitHeartbeat(t *testing.T) {
 		{
 			name:              "bot instance does not exist",
 			createBotInstance: false,
-			req: &machineidv1.SubmitHeartbeatRequest{
-				Heartbeat: &machineidv1.BotInstanceStatusHeartbeat{
+			req: machineidv1.SubmitHeartbeatRequest_builder{
+				Heartbeat: machineidv1.BotInstanceStatusHeartbeat_builder{
 					Hostname: "llama",
-				},
-			},
+				}.Build(),
+			}.Build(),
 			identity: goodIdentity,
 			assertErr: func(t assert.TestingT, err error, i ...any) bool {
 				return assert.True(t, trace.IsNotFound(err))
@@ -364,9 +364,9 @@ func TestBotInstanceServiceSubmitHeartbeat(t *testing.T) {
 		{
 			name:              "missing heartbeat",
 			createBotInstance: true,
-			req: &machineidv1.SubmitHeartbeatRequest{
+			req: machineidv1.SubmitHeartbeatRequest_builder{
 				Heartbeat: nil,
-			},
+			}.Build(),
 			identity: goodIdentity,
 			assertErr: func(t assert.TestingT, err error, i ...any) bool {
 				return assert.True(t, trace.IsBadParameter(err)) && assert.Contains(t, err.Error(), "heartbeat: must be non-nil")
@@ -376,21 +376,21 @@ func TestBotInstanceServiceSubmitHeartbeat(t *testing.T) {
 		{
 			name:              "service name too long",
 			createBotInstance: true,
-			req: &machineidv1.SubmitHeartbeatRequest{
-				Heartbeat: &machineidv1.BotInstanceStatusHeartbeat{
+			req: machineidv1.SubmitHeartbeatRequest_builder{
+				Heartbeat: machineidv1.BotInstanceStatusHeartbeat_builder{
 					Hostname: "llama",
-				},
+				}.Build(),
 				ServiceHealth: []*machineidv1.BotInstanceServiceHealth{
-					{
-						Service: &machineidv1.BotInstanceServiceIdentifier{
+					machineidv1.BotInstanceServiceHealth_builder{
+						Service: machineidv1.BotInstanceServiceIdentifier_builder{
 							Type: "application-tunnel",
 							Name: strings.Repeat("a", 100),
-						},
+						}.Build(),
 						Status: machineidv1.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY,
 						Reason: ptr("application is broken"),
-					},
+					}.Build(),
 				},
-			},
+			}.Build(),
 			identity: goodIdentity,
 			assertErr: func(t assert.TestingT, err error, i ...any) bool {
 				return assert.True(t, trace.IsBadParameter(err)) && assert.Contains(t, err.Error(), "is longer than 64 bytes")
@@ -400,21 +400,21 @@ func TestBotInstanceServiceSubmitHeartbeat(t *testing.T) {
 		{
 			name:              "status reason too long",
 			createBotInstance: true,
-			req: &machineidv1.SubmitHeartbeatRequest{
-				Heartbeat: &machineidv1.BotInstanceStatusHeartbeat{
+			req: machineidv1.SubmitHeartbeatRequest_builder{
+				Heartbeat: machineidv1.BotInstanceStatusHeartbeat_builder{
 					Hostname: "llama",
-				},
+				}.Build(),
 				ServiceHealth: []*machineidv1.BotInstanceServiceHealth{
-					{
-						Service: &machineidv1.BotInstanceServiceIdentifier{
+					machineidv1.BotInstanceServiceHealth_builder{
+						Service: machineidv1.BotInstanceServiceIdentifier_builder{
 							Type: "application-tunnel",
 							Name: "my-application-tunnel",
-						},
+						}.Build(),
 						Status: machineidv1.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY,
 						Reason: ptr(strings.Repeat("a", 300)),
-					},
+					}.Build(),
 				},
-			},
+			}.Build(),
 			identity: goodIdentity,
 			assertErr: func(t assert.TestingT, err error, i ...any) bool {
 				return assert.True(t, trace.IsBadParameter(err)) && assert.Contains(t, err.Error(), "status reason longer than 256 bytes")
@@ -424,13 +424,13 @@ func TestBotInstanceServiceSubmitHeartbeat(t *testing.T) {
 		{
 			name:              "scoped identity without BotInternal",
 			createBotInstance: true,
-			req: &machineidv1.SubmitHeartbeatRequest{
-				Heartbeat: &machineidv1.BotInstanceStatusHeartbeat{Hostname: "llama"},
-			},
+			req: machineidv1.SubmitHeartbeatRequest_builder{
+				Heartbeat: machineidv1.BotInstanceStatusHeartbeat_builder{Hostname: "llama"}.Build(),
+			}.Build(),
 			identity: tlsca.Identity{
 				BotName:       botName,
 				BotInstanceID: botInstanceID,
-				ScopePin:      &scopesv1.Pin{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: "/scopes/test"},
+				ScopePin:      scopesv1.Pin_builder{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: "/scopes/test"}.Build(),
 				BotInternal:   false,
 			},
 			assertErr: func(t assert.TestingT, err error, i ...any) bool {
@@ -442,13 +442,13 @@ func TestBotInstanceServiceSubmitHeartbeat(t *testing.T) {
 		{
 			name:              "scoped identity with BotInternal",
 			createBotInstance: true,
-			req: &machineidv1.SubmitHeartbeatRequest{
-				Heartbeat: &machineidv1.BotInstanceStatusHeartbeat{Hostname: "llama"},
-			},
+			req: machineidv1.SubmitHeartbeatRequest_builder{
+				Heartbeat: machineidv1.BotInstanceStatusHeartbeat_builder{Hostname: "llama"}.Build(),
+			}.Build(),
 			identity: tlsca.Identity{
 				BotName:       botName,
 				BotInstanceID: botInstanceID,
-				ScopePin:      &scopesv1.Pin{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: "/scopes/test"},
+				ScopePin:      scopesv1.Pin_builder{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: "/scopes/test"}.Build(),
 				BotInternal:   true,
 			},
 			assertErr:     assert.NoError,
@@ -475,7 +475,7 @@ func TestBotInstanceServiceSubmitHeartbeat(t *testing.T) {
 
 			if tt.createBotInstance {
 				bi := newBotInstance(botName)
-				bi.Spec.InstanceId = botInstanceID
+				bi.GetSpec().SetInstanceId(botInstanceID)
 				_, err := backend.CreateBotInstance(ctx, bi)
 				require.NoError(t, err)
 			}
@@ -489,25 +489,25 @@ func TestBotInstanceServiceSubmitHeartbeat(t *testing.T) {
 					assert.Empty(
 						t,
 						cmp.Diff(
-							bi.Status.InitialHeartbeat,
-							tt.req.Heartbeat,
+							bi.GetStatus().GetInitialHeartbeat(),
+							tt.req.GetHeartbeat(),
 							protocmp.Transform()),
 					)
-					assert.Len(t, bi.Status.LatestHeartbeats, 1)
+					assert.Len(t, bi.GetStatus().GetLatestHeartbeats(), 1)
 					assert.Empty(
 						t,
 						cmp.Diff(
-							bi.Status.LatestHeartbeats[0],
-							tt.req.Heartbeat,
+							bi.GetStatus().GetLatestHeartbeats()[0],
+							tt.req.GetHeartbeat(),
 							protocmp.Transform()),
 					)
 				} else {
-					assert.Nil(t, bi.Status.InitialHeartbeat)
-					assert.Empty(t, bi.Status.LatestHeartbeats)
+					assert.Nil(t, bi.GetStatus().GetInitialHeartbeat())
+					assert.Empty(t, bi.GetStatus().GetLatestHeartbeats())
 				}
 				assert.Empty(t,
 					cmp.Diff(
-						bi.Status.ServiceHealth,
+						bi.GetStatus().GetServiceHealth(),
 						tt.wantServiceHealth,
 						protocmp.Transform(),
 					),
@@ -543,28 +543,28 @@ func TestBotInstanceServiceSubmitHeartbeat_HeartbeatLimit(t *testing.T) {
 	require.NoError(t, err)
 
 	bi := newBotInstance(botName)
-	bi.Spec.InstanceId = botInstanceID
+	bi.GetSpec().SetInstanceId(botInstanceID)
 	_, err = backend.CreateBotInstance(ctx, bi)
 	require.NoError(t, err)
 
 	extraHeartbeats := 5
 	for i := range heartbeatHistoryLimit + extraHeartbeats {
-		_, err = service.SubmitHeartbeat(ctx, &machineidv1.SubmitHeartbeatRequest{
-			Heartbeat: &machineidv1.BotInstanceStatusHeartbeat{
+		_, err = service.SubmitHeartbeat(ctx, machineidv1.SubmitHeartbeatRequest_builder{
+			Heartbeat: machineidv1.BotInstanceStatusHeartbeat_builder{
 				Hostname: strconv.Itoa(i),
-			},
-		})
+			}.Build(),
+		}.Build())
 		require.NoError(t, err)
 	}
 
 	bi, err = backend.GetBotInstance(ctx, botName, botInstanceID)
 	require.NoError(t, err)
-	assert.Len(t, bi.Status.LatestHeartbeats, heartbeatHistoryLimit)
-	assert.Equal(t, "0", bi.Status.InitialHeartbeat.Hostname)
+	assert.Len(t, bi.GetStatus().GetLatestHeartbeats(), heartbeatHistoryLimit)
+	assert.Equal(t, "0", bi.GetStatus().GetInitialHeartbeat().GetHostname())
 	// Ensure we have the last 10 heartbeats
 	for i := range heartbeatHistoryLimit {
 		wantHostname := strconv.Itoa(i + extraHeartbeats)
-		assert.Equal(t, wantHostname, bi.Status.LatestHeartbeats[i].Hostname)
+		assert.Equal(t, wantHostname, bi.GetStatus().GetLatestHeartbeats()[i].GetHostname())
 	}
 }
 
@@ -635,11 +635,11 @@ func callMethod(t *testing.T, service *BotInstanceService, method string) error 
 			_, err := desc.Handler(service, context.Background(), func(req any) error {
 				switch r := req.(type) {
 				case *machineidv1.GetBotInstanceRequest:
-					r.BotName = testBotName
-					r.InstanceId = testInstanceID
+					r.SetBotName(testBotName)
+					r.SetInstanceId(testInstanceID)
 				case *machineidv1.DeleteBotInstanceRequest:
-					r.BotName = testBotName
-					r.InstanceId = testInstanceID
+					r.SetBotName(testBotName)
+					r.SetInstanceId(testInstanceID)
 				}
 				return nil
 			}, nil)
@@ -654,15 +654,15 @@ func callMethod(t *testing.T, service *BotInstanceService, method string) error 
 func newBotInstance(botName string) *machineidv1.BotInstance {
 	id := uuid.New()
 
-	bi := &machineidv1.BotInstance{
+	bi := machineidv1.BotInstance_builder{
 		Kind:    types.KindBotInstance,
 		Version: types.V1,
-		Spec: &machineidv1.BotInstanceSpec{
+		Spec: machineidv1.BotInstanceSpec_builder{
 			BotName:    botName,
 			InstanceId: id.String(),
-		},
+		}.Build(),
 		Status: &machineidv1.BotInstanceStatus{},
-	}
+	}.Build()
 
 	return bi
 }
@@ -678,7 +678,7 @@ func createInstances(t *testing.T, ctx context.Context, backend *local.BotInstan
 		_, err := backend.CreateBotInstance(ctx, bi)
 		require.NoError(t, err)
 
-		ids[bi.Spec.InstanceId] = struct{}{}
+		ids[bi.GetSpec().GetInstanceId()] = struct{}{}
 	}
 
 	return ids
@@ -692,16 +692,16 @@ func listInstances(t *testing.T, ctx context.Context, service *BotInstanceServic
 	var nextKey string
 
 	for {
-		res, err := service.ListBotInstances(ctx, &machineidv1.ListBotInstancesRequest{
+		res, err := service.ListBotInstances(ctx, machineidv1.ListBotInstancesRequest_builder{
 			FilterBotName: botName,
 			PageSize:      0,
 			PageToken:     nextKey,
-		})
+		}.Build())
 		require.NoError(t, err)
 
-		resources = append(resources, res.BotInstances...)
+		resources = append(resources, res.GetBotInstances()...)
 
-		nextKey = res.NextPageToken
+		nextKey = res.GetNextPageToken()
 		if nextKey == "" {
 			break
 		}
