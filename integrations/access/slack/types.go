@@ -62,6 +62,11 @@ type Message struct {
 	Text       string      `json:"text,omitempty"`
 }
 
+type UsersLookupResponse struct {
+	APIResponse
+	User User `json:"user"`
+}
+
 type User struct {
 	ID      string      `json:"id"`
 	Name    string      `json:"name"`
@@ -82,6 +87,11 @@ type AccessResponse struct {
 }
 
 // Slack API: Socket Mode (interactivity)
+
+type AppsOpenResponse struct {
+	APIResponse
+	URL string `json:"url"`
+}
 
 type SocketModeAckResponse struct {
 	EnvelopeID string          `json:"envelope_id"`
