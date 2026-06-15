@@ -68,6 +68,12 @@ func NewSAMLIdPServiceProviderV1Reconciler(client kclient.Client, tClient *clien
 	resourceReconciler, err := reconcilers.NewTeleportResourceWithLabelsReconciler[types.SAMLIdPServiceProvider, *resourcesv1.TeleportSAMLIdPServiceProviderV1](
 		client,
 		spClient,
+		// Although the WebUi doesn't show "SAML Application (Generic)" for
+		// oss builds when adding a resource due to the BuildType() check in
+		// lib/auth/auth_with_roles.go, the API allows creating
+		// saml_idp_service_provider objects using tctl for any build. We
+		// therefore enable it here unconditionally to mirror tctl behavior.
+		reconcilers.Config{},
 	)
 
 	return resourceReconciler, trace.Wrap(err, "building teleport resource reconciler")

@@ -85,6 +85,7 @@ func NewTrustedClusterV2Reconciler(client kclient.Client, tClient *client.Client
 	resourceReconciler, err := reconcilers.NewTeleportResourceWithoutLabelsReconciler[types.TrustedCluster, *resourcesv1.TeleportTrustedClusterV2](
 		client,
 		trustedClusterClient,
+		reconcilers.Config{},
 	)
 
 	return resourceReconciler, trace.Wrap(err, "building teleport resource reconciler")

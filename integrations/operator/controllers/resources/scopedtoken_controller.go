@@ -57,5 +57,8 @@ func NewScopedTokenV1Reconciler(client kclient.Client, tClient *client.Client) (
 		&scopedTokenClient{
 			teleportClient: tClient,
 		},
+		reconcilers.Config{
+			Scoped: true,
+		},
 	)
 }

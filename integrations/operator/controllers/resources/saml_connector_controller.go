@@ -25,10 +25,13 @@ import (
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/entitlements"
 	resourcesv2 "github.com/gravitational/teleport/integrations/operator/apis/resources/v2"
 	"github.com/gravitational/teleport/integrations/operator/controllers"
 	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 // samlConnectorClient implements TeleportResourceClient and offers CRUD methods needed to reconcile saml_connectors
@@ -68,6 +71,12 @@ func NewSAMLConnectorReconciler(client kclient.Client, tClient *client.Client) (
 	resourceReconciler, err := reconcilers.NewTeleportResourceWithoutLabelsReconciler[types.SAMLConnector, *resourcesv2.TeleportSAMLConnector](
 		client,
 		samlClient,
+		reconcilers.Config{
+			CheckFeatures: func(features *proto.Features) bool {
+				saml := modules.GetProtoEntitlement(features, entitlements.SAML)
+				return saml.Enabled
+			},
+		},
 	)
 
 	return resourceReconciler, trace.Wrap(err, "building teleport resource reconciler")

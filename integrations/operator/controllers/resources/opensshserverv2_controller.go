@@ -81,6 +81,7 @@ func NewOpenSSHServerV2Reconciler(client kclient.Client, tClient *client.Client)
 	resourceReconciler, err := reconcilers.NewTeleportResourceWithLabelsReconciler[types.Server, *resourcesv1.TeleportOpenSSHServerV2](
 		client,
 		serverClient,
+		reconcilers.Config{},
 	)
 
 	return resourceReconciler, trace.Wrap(err, "building teleport resource reconciler")

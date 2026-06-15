@@ -72,6 +72,7 @@ func NewRoleReconciler(client kclient.Client, tClient *client.Client) (controlle
 	resourceReconciler, err := reconcilers.NewTeleportResourceWithLabelsReconciler[types.Role, *resourcesv5.TeleportRole](
 		client,
 		roleClient,
+		reconcilers.Config{},
 	)
 
 	return resourceReconciler, trace.Wrap(err, "building teleport resource reconciler")
@@ -86,6 +87,7 @@ func NewRoleV6Reconciler(client kclient.Client, tClient *client.Client) (control
 	resourceReconciler, err := reconcilers.NewTeleportResourceWithLabelsReconciler[types.Role, *resourcesv1.TeleportRoleV6](
 		client,
 		roleClient,
+		reconcilers.Config{},
 	)
 
 	return resourceReconciler, trace.Wrap(err, "building teleport resource reconciler")
@@ -100,6 +102,7 @@ func NewRoleV7Reconciler(client kclient.Client, tClient *client.Client) (control
 	resourceReconciler, err := reconcilers.NewTeleportResourceWithLabelsReconciler[types.Role, *resourcesv1.TeleportRoleV7](
 		client,
 		roleClient,
+		reconcilers.Config{},
 	)
 
 	return resourceReconciler, trace.Wrap(err, "building teleport resource reconciler")
@@ -114,6 +117,7 @@ func NewRoleV8Reconciler(client kclient.Client, tClient *client.Client) (control
 	resourceReconciler, err := reconcilers.NewTeleportResourceWithLabelsReconciler[types.Role, *resourcesv1.TeleportRoleV8](
 		client,
 		roleClient,
+		reconcilers.Config{},
 	)
 
 	return resourceReconciler, trace.Wrap(err, "building teleport resource reconciler")

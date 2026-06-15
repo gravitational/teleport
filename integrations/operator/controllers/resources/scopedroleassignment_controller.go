@@ -73,5 +73,8 @@ func NewScopedRoleAssignmentV1Reconciler(client kclient.Client, tClient *client.
 		&scopedRoleAssignmentClient{
 			teleportClient: tClient,
 		},
+		reconcilers.Config{
+			Scoped: true,
+		},
 	)
 }

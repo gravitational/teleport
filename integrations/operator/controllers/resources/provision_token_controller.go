@@ -66,6 +66,7 @@ func NewProvisionTokenReconciler(client kclient.Client, tClient *client.Client) 
 	resourceReconciler, err := reconcilers.NewTeleportResourceWithoutLabelsReconciler[types.ProvisionToken, *resourcesv2.TeleportProvisionToken](
 		client,
 		tokenClient,
+		reconcilers.Config{},
 	)
 
 	return resourceReconciler, trace.Wrap(err, "building teleport resource reconciler")

@@ -77,6 +77,7 @@ func NewAutoUpdateVersionV1Reconciler(client kclient.Client, tClient *client.Cli
 	](
 		client,
 		autoUpdateVersionClient,
+		reconcilers.Config{},
 	)
 
 	return resourceReconciler, trace.Wrap(err, "building teleport resource reconciler")

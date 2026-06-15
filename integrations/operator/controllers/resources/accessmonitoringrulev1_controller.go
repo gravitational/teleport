@@ -77,6 +77,7 @@ func NewAccessMonitoringRuleV1Reconciler(client kclient.Client, tClient *client.
 	](
 		client,
 		accessMonitoringRuleClient,
+		reconcilers.Config{},
 	)
 
 	return resourceReconciler, trace.Wrap(err, "building teleport resource reconciler")

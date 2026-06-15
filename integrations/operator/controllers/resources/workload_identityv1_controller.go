@@ -104,6 +104,7 @@ func NewWorkloadIdentityV1Reconciler(client kclient.Client, tClient *client.Clie
 	](
 		client,
 		workloadIdentityClient,
+		reconcilers.Config{},
 	)
 
 	return resourceReconciler, trace.Wrap(err, "building teleport resource reconciler")

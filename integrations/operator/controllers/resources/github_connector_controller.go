@@ -83,6 +83,7 @@ func NewGithubConnectorReconciler(client kclient.Client, tClient *client.Client)
 	resourceReconciler, err := reconcilers.NewTeleportResourceWithoutLabelsReconciler[types.GithubConnector, *resourcesv3.TeleportGithubConnector](
 		client,
 		githubClient,
+		reconcilers.Config{},
 	)
 
 	return resourceReconciler, trace.Wrap(err, "building teleport resource reconciler")

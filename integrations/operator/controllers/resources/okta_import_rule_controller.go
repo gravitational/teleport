@@ -68,6 +68,9 @@ func NewOktaImportRuleReconciler(client kclient.Client, tClient *client.Client) 
 	resourceReconciler, err := reconcilers.NewTeleportResourceWithLabelsReconciler[types.OktaImportRule, *resourcesv1.TeleportOktaImportRule](
 		client,
 		oktaImportRuleClient,
+		reconcilers.Config{
+			CheckFeatures: controllers.RequireEnterprise,
+		},
 	)
 
 	return resourceReconciler, trace.Wrap(err, "building teleport resource reconciler")
