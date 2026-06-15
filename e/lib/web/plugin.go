@@ -22,6 +22,7 @@ import (
 	"golang.org/x/net/http2"
 
 	"github.com/gravitational/teleport"
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -38,6 +39,7 @@ import (
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/web"
 )
 
@@ -138,6 +140,9 @@ type Plugin struct {
 
 	accessGraphForwarder   *reverseproxy.Forwarder
 	accessGraphForwarderMu sync.RWMutex
+
+	// testOnAccessGraphInit is called instead of the real init sequence in tests. nil in production.
+	testOnAccessGraphInit func()
 }
 
 // GetName returns plugin name
@@ -236,15 +241,14 @@ func (p *Plugin) RegisterProxyWebHandlers(handler any) error {
 			}
 		}
 
+		// If still no config after startup fetch, watch for it to appear on the auth server.
+		if p.Config.AccessGraph == nil {
+			go p.watchAccessGraphConfig()
+		}
 	}
 
 	if p.Config.AccessGraph != nil {
-		setProxyAccessGraphConnected(false)
-		go p.monitorAccessGraphConnection()
-
-		// If proxy is configured to use AccessGraph, check if it supports HTTP.
-		// If it does, build the forwarder now. Otherwise, periodically check if/when it does.
-		if err := p.checkAndBuildAccessGraphHTTPTransport(); err != nil {
+		if err := p.initAccessGraph(); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -623,6 +627,14 @@ func buildAccessGraphForwarder(tlsConfig *tls.Config) (*reverseproxy.Forwarder, 
 	return accessGraphForwarder, trace.Wrap(err)
 }
 
+// initAccessGraph marks access graph as disconnected, starts the connection
+// monitor, and builds the HTTP transport if the service supports it.
+func (p *Plugin) initAccessGraph() error {
+	setProxyAccessGraphConnected(false)
+	go p.monitorAccessGraphConnection()
+	return trace.Wrap(p.checkAndBuildAccessGraphHTTPTransport())
+}
+
 // monitorAccessGraphConnection periodically probes the Access Graph service by
 // fetching features.json and updates the proxy_connected gauge every minute.
 func (p *Plugin) monitorAccessGraphConnection() {
@@ -633,22 +645,77 @@ func (p *Plugin) monitorAccessGraphConnection() {
 	}
 }
 
+// watchAccessGraphConfig polls the auth server every 60 seconds until the
+// cluster's access graph config becomes available, then initializes access
+// graph support and returns. It is only started when the proxy has no local
+// access graph config.
+func (p *Plugin) watchAccessGraphConfig() {
+	p.watchAccessGraphConfigWithFetcher(func(ctx context.Context) (*clusterconfigpb.AccessGraphConfig, error) {
+		return p.h.GetProxyClient().GetClusterAccessGraphConfig(ctx)
+	})
+}
+
+func (p *Plugin) watchAccessGraphConfigWithFetcher(
+	fetch func(ctx context.Context) (*clusterconfigpb.AccessGraphConfig, error),
+) {
+	ticker := time.NewTicker(2 * time.Minute)
+	defer ticker.Stop()
+	for range ticker.C {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		rsp, err := fetch(ctx)
+		cancel()
+		switch {
+		case trace.IsNotImplemented(err):
+			p.Logger.Log(ctx, logutils.TraceLevel, "Auth server does not implement access graph's GetClusterAccessGraphConfig")
+			continue
+		case err != nil:
+			p.Logger.WarnContext(ctx, "Failed to get access graph config from the Auth server", "error", err)
+			continue
+		case !rsp.GetEnabled():
+			p.Logger.Log(ctx, logutils.TraceLevel, "Access graph is not enabled on the Auth server yet")
+			continue
+		}
+
+		p.mu.Lock()
+		p.Config.AccessGraph = &AccessGraphConfig{
+			Addr:     rsp.GetAddress(),
+			CA:       rsp.GetCa(),
+			Insecure: rsp.GetInsecure(),
+		}
+		p.mu.Unlock()
+
+		if p.testOnAccessGraphInit != nil {
+			p.testOnAccessGraphInit()
+			return
+		}
+
+		if err := p.initAccessGraph(); err != nil {
+			p.Logger.WarnContext(ctx, "Failed to initialize access graph", "error", err)
+		}
+		return
+	}
+}
+
 // checkAndBuildAccessGraphHTTPTransport checks if the access graph supports
 // HTTP and builds the forwarder if it does.
 // It builds the TLS config using the proxy identity and the cipher suites
 // specified in the configuration.
 func (p *Plugin) checkAndBuildAccessGraphHTTPTransport() error {
-	tlsConfig, err := getAccessGraphTLSConfig(p.Config.AccessGraph, p.getProxyClientCertificate)
+	cfg := p.getAccessGraphConfig()
+	tlsConfig, err := getAccessGraphTLSConfig(cfg, p.getProxyClientCertificate)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// If the access graph supports HTTP, build the forwarder now.
 	if p.accessGraphSupportsHTTP() {
-		p.accessGraphForwarder, err = buildAccessGraphForwarder(tlsConfig)
+		accessGraphForwarder, err := buildAccessGraphForwarder(tlsConfig)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		p.accessGraphForwarderMu.Lock()
+		p.accessGraphForwarder = accessGraphForwarder
+		p.accessGraphForwarderMu.Unlock()
 	} else {
 		// Otherwise, periodically check if the access graph supports HTTP.
 		// If it does, build the forwarder and replace the existing one.
@@ -670,7 +737,7 @@ func (p *Plugin) checkAndBuildAccessGraphHTTPTransport() error {
 			for {
 				<-retry.After()
 
-				p.Logger.DebugContext(context.Background(), "Checking if access graph supports HTTP", "addr", p.Config.AccessGraph.Addr)
+				p.Logger.DebugContext(context.Background(), "Checking if access graph supports HTTP", "addr", cfg.Addr)
 				retry.Inc()
 				if p.accessGraphSupportsHTTP() {
 					accessGraphForwarder, err := buildAccessGraphForwarder(tlsConfig)
@@ -693,6 +760,7 @@ func (p *Plugin) checkAndBuildAccessGraphHTTPTransport() error {
 // This is determined by the presence of the grv_teleport_access_graph_http_enabled feature flag.
 // This function uses the gRPC client through Auth to figure out if the feature is enabled.
 func (p *Plugin) accessGraphSupportsHTTP() bool {
+	cfg := p.getAccessGraphConfig()
 	client, err := p.getAuthClient()
 	if err != nil {
 		p.Logger.DebugContext(context.Background(), "Failed to get auth client", "error", err)
@@ -730,7 +798,7 @@ func (p *Plugin) accessGraphSupportsHTTP() bool {
 	}
 
 	// now that we know the access graph supports HTTP, check if it's reachable.
-	tlsConfig, err := getAccessGraphTLSConfig(p.Config.AccessGraph, p.getProxyClientCertificate)
+	tlsConfig, err := getAccessGraphTLSConfig(cfg, p.getProxyClientCertificate)
 	if err != nil {
 		p.Logger.DebugContext(ctx, "Failed to get access graph TLS config", "error", err)
 		return false
@@ -752,7 +820,7 @@ func (p *Plugin) accessGraphSupportsHTTP() bool {
 	// Check if the access graph static assets are reachable.
 	u := &url.URL{
 		Scheme: "https",
-		Host:   p.Config.AccessGraph.Addr,
+		Host:   cfg.Addr,
 		Path:   "/static/" + featuresFile,
 	}
 	// Use a context with a timeout to make the request.
@@ -765,13 +833,13 @@ func (p *Plugin) accessGraphSupportsHTTP() bool {
 	}
 	httpRsp, err := httpClient.Do(req)
 	if err != nil {
-		p.Logger.WarnContext(ctx, "Failed to make request, ensure the proxy can reach the access graph service", "access_graph_addr", p.Config.AccessGraph.Addr, "error", err)
+		p.Logger.WarnContext(ctx, "Failed to make request, ensure the proxy can reach the access graph service", "access_graph_addr", cfg.Addr, "error", err)
 		return false
 	}
 	defer httpRsp.Body.Close()
 	io.Copy(io.Discard, httpRsp.Body)
 	if httpRsp.StatusCode != http.StatusOK {
-		p.Logger.WarnContext(ctx, "Access graph static assets are not reachable, Please ensure the proxy can reach the access graph service", "access_graph_addr", p.Config.AccessGraph.Addr, "error", err)
+		p.Logger.WarnContext(ctx, "Access graph static assets are not reachable, Please ensure the proxy can reach the access graph service", "access_graph_addr", cfg.Addr, "error", err)
 	}
 	return httpRsp.StatusCode == http.StatusOK
 }
@@ -782,6 +850,15 @@ func (p *Plugin) getProxyClientCertificate() (*tls.Certificate, error) {
 		return nil, trace.Wrap(err)
 	}
 	return cert, nil
+}
+
+// getAccessGraphConfig returns a consistent snapshot of the current AccessGraph
+// config. It holds the read lock to avoid racing with watchAccessGraphConfigWithFetcher,
+// which replaces the pointer from a background goroutine.
+func (p *Plugin) getAccessGraphConfig() *AccessGraphConfig {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.Config.AccessGraph
 }
 
 // getAccessGraphTLSConfig builds the TLS config used to retrieve static assets from access graph service.

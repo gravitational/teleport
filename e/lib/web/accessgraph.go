@@ -80,7 +80,7 @@ func (p *Plugin) accessGraphHandler(h *web.Handler) httprouter.Handle {
 // It queries the access graph and returns the results.
 func (p *Plugin) queryAccessGraph(_ http.ResponseWriter, r *http.Request, _ httprouter.Params, webCtx *web.SessionContext) (any, error) {
 	features := p.h.GetClusterFeatures()
-	policy := modules.GetProtoEntitlement(&features, entitlements.Policy)
+	policy := modules.GetProtoEntitlement(&features, entitlements.AccessGraph)
 	if !policy.Enabled {
 		return nil, trace.AccessDenied("not authorized to use access graph")
 	}
@@ -128,7 +128,7 @@ var demoModePaths = map[string]struct{}{
 // the Demo Mode state on subsequent requests to skip redundant checks.
 func (p *Plugin) canUseAccessGraph(ctx context.Context, requestedPath string) (bool, error) {
 	features := p.h.GetClusterFeatures()
-	policyEnabled := modules.GetProtoEntitlement(&features, entitlements.Policy).Enabled
+	policyEnabled := modules.GetProtoEntitlement(&features, entitlements.AccessGraph).Enabled
 
 	if policyEnabled {
 		return true, nil
@@ -272,7 +272,10 @@ func (p *Plugin) getAccessGraphUsingHTTPUnauthenticated(w http.ResponseWriter, r
 	urlPath := params.ByName("path")
 	r = r.Clone(r.Context())
 	r.URL.Scheme = "https"
-	r.URL.Host, r.Host = p.AccessGraph.Addr, p.AccessGraph.Addr
+	p.mu.RLock()
+	addr := p.AccessGraph.Addr
+	p.mu.RUnlock()
+	r.URL.Host, r.Host = addr, addr
 	r.URL.Path, r.RequestURI = urlPath, "" /* we reset RequestURI and forwarder will build it from r.URL */
 	forwarder.ServeHTTP(w, r)
 	return nil, nil
@@ -404,7 +407,7 @@ func (p *Plugin) submitUsageReport(usageReport *usageeventsv1.TAGExecuteQueryEve
 // and enabled for the access graph.
 func (p *Plugin) listIntegrations(_ http.ResponseWriter, r *http.Request, _ httprouter.Params, webCtx *web.SessionContext) (any, error) {
 	features := p.h.GetClusterFeatures()
-	policy := modules.GetProtoEntitlement(&features, entitlements.Policy)
+	policy := modules.GetProtoEntitlement(&features, entitlements.AccessGraph)
 	if !policy.Enabled {
 		return nil, trace.AccessDenied("not authorized to use access graph")
 	}

@@ -8,9 +8,11 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/crewjam/saml"
@@ -18,6 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/html"
 
+	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	"github.com/gravitational/teleport/api/types"
 	samlidp "github.com/gravitational/teleport/e/lib/idp/saml"
 	"github.com/gravitational/teleport/e/lib/idp/saml/testenv"
@@ -299,6 +302,74 @@ func box[T any](v T) *T {
 	result := new(T)
 	*result = v
 	return result
+}
+
+func TestWatchAccessGraphConfig(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		callCount := 0
+		responses := []*clusterconfigpb.AccessGraphConfig{
+			clusterconfigpb.AccessGraphConfig_builder{Enabled: false}.Build(),
+			// Invalid CA causes getAccessGraphTLSConfig to fail early, so
+			// initAccessGraph returns an error without starting the retry goroutine.
+			clusterconfigpb.AccessGraphConfig_builder{Enabled: true, Address: "localhost:1234", Insecure: true, Ca: []byte("not-a-valid-cert")}.Build(),
+		}
+
+		fetcher := func(_ context.Context) (*clusterconfigpb.AccessGraphConfig, error) {
+			rsp := responses[callCount]
+			callCount++
+			return rsp, nil
+		}
+
+		plugin := &Plugin{
+			Config: Config{
+				Logger: slog.Default(),
+				Clock:  clockwork.NewRealClock(),
+			},
+		}
+		// Non-nil h with nil ProxyClient: getAuthClient returns a BadParameter
+		// error instead of panicking, so monitorAccessGraphConnection won't crash.
+		plugin.h = new(web.Handler)
+		initCalled := make(chan struct{}, 1)
+		plugin.testOnAccessGraphInit = func() { initCalled <- struct{}{} }
+
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			plugin.watchAccessGraphConfigWithFetcher(fetcher)
+		}()
+
+		synctest.Wait()
+
+		time.Sleep(2 * time.Minute)
+		synctest.Wait()
+
+		plugin.mu.RLock()
+		require.Nil(t, plugin.Config.AccessGraph, "config should still be nil after first tick")
+		plugin.mu.RUnlock()
+
+		time.Sleep(2 * time.Minute)
+		synctest.Wait()
+
+		select {
+		case <-done:
+		default:
+			t.Fatal("watchAccessGraphConfigWithFetcher did not return after config became available")
+		}
+
+		select {
+		case <-initCalled:
+		default:
+			t.Error("testOnAccessGraphInit was never called")
+		}
+
+		plugin.mu.RLock()
+		cfg := plugin.Config.AccessGraph
+		plugin.mu.RUnlock()
+		require.NotNil(t, cfg)
+		require.Equal(t, "localhost:1234", cfg.Addr)
+		require.True(t, cfg.Insecure)
+		require.Equal(t, 2, callCount)
+	})
 }
 
 func TestPluginOktaStatusDetails(t *testing.T) {

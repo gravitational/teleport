@@ -55,6 +55,7 @@ func TestGetRecordingSummary(t *testing.T) {
 				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 					entitlements.Policy:           {Enabled: true},
 					entitlements.SessionSummaries: {Enabled: true},
+					entitlements.AccessGraph:      {Enabled: true},
 				},
 			},
 		}),

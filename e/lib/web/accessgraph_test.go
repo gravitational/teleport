@@ -123,11 +123,9 @@ func TestGetAccessGraph(t *testing.T) {
 				withModules(&modulestest.Modules{
 					TestFeatures: modules.Features{
 						Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-							entitlements.Identity: {Enabled: true},
-							entitlements.Policy:   {Enabled: true},
-							// TODO(emargetis): update after https://github.com/gravitational/teleport/pull/63117 merges
-							// ensures that /e does not break when new Access Graph entitlement is added to Teleport
-							"AccessGraph": {Enabled: true},
+							entitlements.Identity:    {Enabled: true},
+							entitlements.Policy:      {Enabled: true},
+							entitlements.AccessGraph: {Enabled: true},
 						},
 					},
 				}),
@@ -161,7 +159,13 @@ var expectedListIntegrationsResponse string
 
 func TestGetAccessGraphIntegrations(t *testing.T) {
 	t.Parallel()
-	s := newWebSuite(t)
+	s := newWebSuite(t, withModules(&modulestest.Modules{
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.AccessGraph: {Enabled: true},
+			},
+		},
+	}))
 	webPack := s.newAuthWebPack(t, "foo")
 	authClient := s.newAdminAuthClient(s.ctx, t)
 
@@ -414,11 +418,9 @@ func TestAccessGraphSettings(t *testing.T) {
 			s := newWebSuite(t, withModules(&modulestest.Modules{
 				TestFeatures: modules.Features{
 					Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-						entitlements.Identity: {Enabled: true},
-						entitlements.Policy:   {Enabled: true},
-						// TODO(emargetis): update after https://github.com/gravitational/teleport/pull/63117 merges
-						// ensures that /e does not break when new Access Graph entitlement is added to Teleport
-						"AccessGraph": {Enabled: true},
+						entitlements.Identity:    {Enabled: true},
+						entitlements.Policy:      {Enabled: true},
+						entitlements.AccessGraph: {Enabled: true},
 					},
 				},
 			}),
@@ -544,8 +546,9 @@ func TestAccessGraphCertAuth(t *testing.T) {
 					TestBuildType: modules.BuildEnterprise,
 					TestFeatures: modules.Features{
 						Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-							entitlements.Policy: {Enabled: true},
-							entitlements.App:    {Enabled: true},
+							entitlements.Policy:      {Enabled: true},
+							entitlements.App:         {Enabled: true},
+							entitlements.AccessGraph: {Enabled: true},
 						},
 					},
 				}),
@@ -725,11 +728,9 @@ func TestAccessGraphEndpoints(t *testing.T) {
 				withModules(&modulestest.Modules{
 					TestFeatures: modules.Features{
 						Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-							entitlements.Identity: {Enabled: true},
-							entitlements.Policy:   {Enabled: true},
-							// TODO(emargetis): update after https://github.com/gravitational/teleport/pull/63117 merges
-							// ensures that /e does not break when new Access Graph entitlement is added to Teleport
-							"AccessGraph": {Enabled: true},
+							entitlements.Identity:    {Enabled: true},
+							entitlements.Policy:      {Enabled: true},
+							entitlements.AccessGraph: {Enabled: true},
 						},
 					},
 				}),

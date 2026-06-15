@@ -186,8 +186,8 @@ func (s *Service) initializeAndWatchAccessGraph(ctx context.Context) error {
 	)
 
 	clusterFeatures := s.clusterFeatures()
-	policy := modules.GetProtoEntitlement(&clusterFeatures, entitlements.Policy)
-	if !clusterFeatures.AccessGraph && !policy.Enabled {
+	accessGraph := modules.GetProtoEntitlement(&clusterFeatures, entitlements.AccessGraph)
+	if !clusterFeatures.AccessGraph && !accessGraph.Enabled {
 		return trace.Wrap(ErrTAGFeatureNotEnabled)
 	}
 	const (

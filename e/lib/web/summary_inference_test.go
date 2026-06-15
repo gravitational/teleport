@@ -30,6 +30,7 @@ func TestListInferenceResources(t *testing.T) {
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.Policy:           {Enabled: true},
 				entitlements.SessionSummaries: {Enabled: true},
+				entitlements.AccessGraph:      {Enabled: true},
 			},
 		},
 	}))
@@ -213,6 +214,7 @@ func TestInferenceModelCRUD(t *testing.T) {
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.Policy:           {Enabled: true},
 				entitlements.SessionSummaries: {Enabled: true},
+				entitlements.AccessGraph:      {Enabled: true},
 			},
 		},
 	}))
@@ -312,6 +314,7 @@ func TestInferenceSecretCRUD(t *testing.T) {
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.Policy:           {Enabled: true},
 				entitlements.SessionSummaries: {Enabled: true},
+				entitlements.AccessGraph:      {Enabled: true},
 			},
 		},
 	}))
@@ -398,6 +401,7 @@ func TestInferencePolicyCRUD(t *testing.T) {
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.Policy:           {Enabled: true},
 				entitlements.SessionSummaries: {Enabled: true},
+				entitlements.AccessGraph:      {Enabled: true},
 			},
 		},
 	}))
@@ -592,6 +596,7 @@ func TestTestInferenceModel(t *testing.T) {
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.Policy:           {Enabled: true},
 				entitlements.SessionSummaries: {Enabled: true},
+				entitlements.AccessGraph:      {Enabled: true},
 			},
 		},
 	}))

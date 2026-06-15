@@ -202,12 +202,12 @@ func RegisterAccessGraphService(cfg *servicecfg.Config, process *service.Telepor
 		features := cfg.Modules.Features()
 		demoModeEnabled := getDemoModeEnabled(accessGraphSettings, features)
 
-		policyEnabled := features.GetEntitlement(entitlements.Policy).Enabled
-		if !policyEnabled && !demoModeEnabled {
-			cfg.Logger.InfoContext(ctx, "Access Graph specified in config, but the license does not include Teleport Policy and demo mode not enabled. Access graph sync will not be enabled.")
+		accessGraphEnabled := features.GetEntitlement(entitlements.AccessGraph).Enabled
+		if !accessGraphEnabled && !demoModeEnabled {
+			cfg.Logger.InfoContext(ctx, "Access Graph specified in config, but the license does not include Teleport Access Graph and demo mode not enabled. Access graph sync will not be enabled.")
 			return nil
 		}
-		if policyEnabled {
+		if accessGraphEnabled {
 			cfg.Modules.EnableAccessGraph()
 			cfg.Logger.InfoContext(ctx, "Starting access graph service")
 		} else {
@@ -342,64 +342,100 @@ func RegisterAccessGraphService(cfg *servicecfg.Config, process *service.Telepor
 		return trace.Wrap(err)
 	}
 	features := cfg.Modules.Features()
-	// demoModeEnabled is true if demo mode is enabled in AccessGraphSettings and they have the demo mode entitlment.
-	demoModeEnabled := getDemoModeEnabled(accessGraphSettings, features)
-	// if the license has policy enabled, or they've already enabled demo mode, start the access graph service
-	if features.GetEntitlement(entitlements.Policy).Enabled || demoModeEnabled {
+	// if the license has access graph enabled, or they've already enabled demo mode, start the access graph service
+	if features.GetEntitlement(entitlements.AccessGraph).Enabled || getDemoModeEnabled(accessGraphSettings, features) {
 		// Register as non-critical service. We don't want to fail the startup if
 		// access graph is not available.
 		process.RegisterFunc("access-graph-service", registerFunc)
 
 		return nil
 	}
-	// demo mode is only accessible in cloud, so we can skip creating a watcher for everyone else
-	if !features.Cloud {
-		return nil
-	}
 
 	// otherwise, start a watcher that will watch the AccessGraphSettings resource for updates to demo mode
-	go func() error {
-		demoModeWatcher, err := process.GetAuthServer().NewWatcher(ctx, types.Watch{
-			Kinds: []types.WatchKind{{
-				Kind: types.KindAccessGraphSettings,
-			}},
-		})
-		if err != nil {
-			cfg.Logger.ErrorContext(ctx, "Unable to start AccessGraphSettings watcher.", "error", err)
-			return nil
+	go func() {
+		if err := waitForAccessGraphEntitlement(ctx, cfg.Logger, process.GetAuthServer(), cfg.Modules); err != nil {
+			cfg.Logger.ErrorContext(ctx, "Error while waiting for AccessGraphSettings condition", "error", err)
+			return
 		}
-		defer demoModeWatcher.Close()
-		for {
-			select {
-			case <-ctx.Done():
-				return nil
-			case event := <-demoModeWatcher.Events():
-				if event.Type != types.OpPut {
-					continue
-				}
-				unwrapper, ok := event.Resource.(types.Resource153UnwrapperT[*clusterconfigv1.AccessGraphSettings])
-				if !ok {
-					cfg.Logger.ErrorContext(ctx, "Received unknown type in AccessGraphSettings watcher", "kind", event.Resource.GetKind())
-					continue
-				}
-				accessGraphSettings := unwrapper.UnwrapT()
-				demoModeEnabled := getDemoModeEnabled(accessGraphSettings, features)
-
-				// because entitlements can change during the lifetime of the service, we have to check
-				// if they are entitled to use AccessGraphDemoMode before turning demo mode on
-				if !demoModeEnabled {
-					continue
-				}
-
-				process.RegisterFunc("access-graph-service", registerFunc)
-				return nil
-			case <-demoModeWatcher.Done():
-				return demoModeWatcher.Error()
-			}
-		}
+		cfg.Logger.DebugContext(ctx, "AccessGraphSettings condition satisfied, registering access graph service")
+		process.RegisterFunc("access-graph-service", registerFunc)
 	}()
 
 	return nil
+}
+
+// waitForAccessGraphEntitlement blocks until the AccessGraph or AccessGraphDemoMode
+// entitlement becomes active, then returns nil. Returns a non-nil error only
+// when the process is shutting down or ctx is canceled.
+func waitForAccessGraphEntitlement(ctx context.Context, log *slog.Logger, auth conditionWatcher, module modules.Modules) error {
+	for {
+		retry, err := watchAccessGraphEntitlementOnce(ctx, log, auth, module)
+		if err != nil || !retry {
+			return trace.Wrap(err)
+		}
+		select {
+		case <-time.After(1 * time.Minute):
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+}
+
+type conditionWatcher interface {
+	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
+}
+
+// watchAccessGraphEntitlementOnce runs a single watch iteration. It returns (true, nil) to
+// signal that the caller should retry with a fresh watcher, and (false, nil)
+// when the condition is met.
+func watchAccessGraphEntitlementOnce(ctx context.Context, log *slog.Logger, auth conditionWatcher, module modules.Modules) (retry bool, err error) {
+	watcher, err := auth.NewWatcher(ctx, types.Watch{
+		Kinds: []types.WatchKind{{Kind: types.KindAccessGraphSettings}},
+	})
+	if err != nil {
+		log.ErrorContext(ctx, "Unable to start AccessGraphSettings watcher, will retry.", "error", err)
+		return true, nil
+	}
+	defer watcher.Close()
+
+	const timerInterval = 5 * time.Minute
+	timer := time.NewTimer(timerInterval)
+	defer timer.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return false, ctx.Err()
+		case <-timer.C:
+			// Fallback: if the AccessGraph entitlement was activated (e.g. via a
+			// license update) but the corresponding AccessGraphSettings event was
+			// missed, detect it here so we don't wait indefinitely.
+			if module.Features().GetEntitlement(entitlements.AccessGraph).Enabled {
+				return false, nil
+			}
+			timer.Reset(timerInterval)
+		case event := <-watcher.Events():
+			if event.Type != types.OpPut {
+				continue
+			}
+			unwrapper, ok := event.Resource.(types.Resource153UnwrapperT[*clusterconfigv1.AccessGraphSettings])
+			if !ok {
+				log.ErrorContext(ctx, "Received unknown type in AccessGraphSettings watcher", "kind", event.Resource.GetKind())
+				continue
+			}
+			// because entitlements can change during the lifetime of the service, we have to check
+			// if they are entitled to use AccessGraphDemoMode before turning demo mode on
+			if !getDemoModeEnabled(unwrapper.UnwrapT(), module.Features()) {
+				continue
+			}
+			return false, nil
+		case <-watcher.Done():
+			if err := ctx.Err(); err != nil {
+				return false, err
+			}
+			return true, nil
+		}
+	}
 }
 
 func getDemoModeEnabled(accessGraphSettings *clusterconfigv1.AccessGraphSettings, features modules.Features) bool {

@@ -38,6 +38,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	eauth "github.com/gravitational/teleport/e/lib/auth"
 	"github.com/gravitational/teleport/e/lib/idp/saml"
+	"github.com/gravitational/teleport/entitlements"
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -330,7 +331,8 @@ func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
 			Cloud:         true,
 			RecoveryCodes: true,
 			Entitlements: map[string]*proto.EntitlementInfo{
-				"Policy": {Enabled: true},
+				string(entitlements.Policy):      {Enabled: true},
+				string(entitlements.AccessGraph): {Enabled: true},
 			},
 		},
 		IntegrationAppHandler: &mockIntegrationAppHandler{},
