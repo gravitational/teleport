@@ -455,20 +455,6 @@ func isSQLiteFullError(err error) bool {
 	return errors.As(err, &e) && (e.Code() == sqlite3.SQLITE_FULL)
 }
 
-func (q *sqliteQueue) drainShutdown() {
-	for {
-		select {
-		case req := <-q.toBeWritten:
-			// During shutdown, respond to all calls to `Enqueue` with an error
-			// to indicate that we are shutting down and are unable to take any
-			// more events.
-			req.resp <- trace.Wrap(ErrClosed)
-		default:
-			return
-		}
-	}
-}
-
 // Run drains the queue. `handler` is the function called for each audit log
 // event that is held within the queue. The audit log queue follows a single
 // consumer model in order to batch events together and commit them as groups.
