@@ -1241,6 +1241,52 @@ func TestSummarizerSessionRouting(t *testing.T) {
 	})
 }
 
+func TestSummarizerNoMatchingInferencePolicy(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	mockReporter := &mockUsageReporter{}
+	mockEmitter := &eventstest.MockRecorderEmitter{}
+	srv := newSummarizerTestTLSServer(t, summarizerTestTLSServerConfig{
+		uploader:                         eventstest.NewMemoryUploader(),
+		enableBedrockWithoutRestrictions: true,
+		usageReporter:                    mockReporter,
+		mockEmitter:                      mockEmitter,
+	})
+
+	createTestUser(t, srv, "alice")
+	clt, err := srv.NewClient(authtest.TestUser("alice"))
+	require.NoError(t, err)
+	sclt := clt.SummarizerServiceClient()
+	createSummarizerConfig(t, ctx, sclt)
+
+	sessionID := uuid.NewString()
+	sessEvents := eventstest.GenerateTestSession(eventstest.SessionParams{
+		ClusterName: "unmatched-cluster",
+		UserName:    "alice",
+		SessionID:   sessionID,
+		ServerID:    "9d68b09f-8c0c-49a3-b54d-f8791f0c3941",
+		PrintData:   []string{"net", "stat"},
+	})
+
+	ingestSession(t, ctx, srv.Auth(), sessionID, sessEvents)
+
+	summary := waitForSummary(t, ctx, sclt, sessionID)
+	require.Equal(t, summarizerv1pb.SummaryState_SUMMARY_STATE_NO_INFERENCE_POLICY, summary.GetState())
+	require.Empty(t, summary.GetContent())
+	require.Nil(t, summary.GetEnhancedSummary())
+	require.Empty(t, summary.GetModelName())
+
+	for _, e := range mockReporter.getEvents() {
+		_, ok := e.(*usagereporter.SessionSummaryCreateEvent)
+		require.False(t, ok, "no SessionSummaryCreateEvent should be emitted when no policy matches")
+	}
+	for _, e := range mockEmitter.Events() {
+		_, ok := e.(*apievents.SessionSummarized)
+		require.False(t, ok, "no SessionSummarized audit event should be emitted when no policy matches")
+	}
+}
+
 // generateEnhancedTestSession creates session events with bracketed paste mode
 // escape sequences to trigger the enhanced summarization path.
 func generateEnhancedTestSession(clusterName, userName, sessionID, command string) []apievents.AuditEvent {

@@ -285,6 +285,17 @@ function SessionSummaryContent({
     );
   }
 
+  if (data.state === RecordingSummaryState.NoInferencePolicy) {
+    return (
+      <SessionSummaryContainer>
+        <Text color="text.slightlyMuted">
+          This session was not summarized because no inference policy applies to
+          it.
+        </Text>
+      </SessionSummaryContainer>
+    );
+  }
+
   if (data.state === RecordingSummaryState.Success) {
     const inferenceStartedAt = new Date(data.inferenceStartedAt);
     const inferenceFinishedAt = new Date(data.inferenceFinishedAt);

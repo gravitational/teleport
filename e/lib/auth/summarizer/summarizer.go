@@ -416,17 +416,6 @@ func (s *SessionSummarizer) summarize(ctx context.Context, details sessionDetail
 		return trace.Wrap(err)
 	}
 
-	if policy == nil {
-		s.logger.DebugContext(ctx,
-			"No matching summary inference policy found, session will not be summarized",
-			"session_id", details.sessionID,
-		)
-		return nil
-	}
-	s.logger.DebugContext(
-		ctx, "Matched summary inference policy", "session_id", details.sessionID, "policy", policy.GetMetadata().GetName(),
-	)
-
 	endEventFields, err := events.ToEventFields(details.sessionEnd)
 	if err != nil {
 		return trace.Wrap(err)
@@ -435,6 +424,25 @@ func (s *SessionSummarizer) summarize(ctx context.Context, details sessionDetail
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	if policy == nil {
+		s.logger.DebugContext(ctx,
+			"No matching summary inference policy found, session will not be summarized",
+			"session_id", details.sessionID,
+		)
+		noPolicySummary := summarizerv1pb.Summary_builder{
+			SessionId:       details.sessionID.String(),
+			State:           summarizerv1pb.SummaryState_SUMMARY_STATE_NO_INFERENCE_POLICY,
+			SessionEndEvent: endEventStruct,
+		}.Build()
+		if _, err := s.persistSummary(ctx, details.sessionID, noPolicySummary); err != nil {
+			return trace.Wrap(err, "failed to upload no-inference-policy summary result")
+		}
+		return nil
+	}
+	s.logger.DebugContext(
+		ctx, "Matched summary inference policy", "session_id", details.sessionID, "policy", policy.GetMetadata().GetName(),
+	)
 
 	provider, errorFormatter, err := s.newProvider(ctx, policy.GetSpec().GetModel())
 	if err != nil {
@@ -675,6 +683,27 @@ func (s *SessionSummarizer) finalizeFailedSummary(ctx context.Context, details *
 	}
 }
 
+func (s *SessionSummarizer) persistSummary(
+	ctx context.Context, sid session.ID, result *summarizerv1pb.Summary,
+) (string, error) {
+	rBytes, err := protojson.MarshalOptions{UseProtoNames: true}.Marshal(result)
+	if err != nil {
+		return "", trace.Wrap(err, "failed to marshal summary result")
+	}
+
+	if s.encrypter != nil {
+		encrypted, err := s.encryptBytes(ctx, rBytes)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		if len(encrypted) > 0 {
+			rBytes = encrypted
+		}
+	}
+
+	return s.summaryUploader.UploadSummary(ctx, sid, bytes.NewReader(rBytes))
+}
+
 func (s *SessionSummarizer) uploadSummary(
 	ctx context.Context,
 	log *slog.Logger,
@@ -682,23 +711,8 @@ func (s *SessionSummarizer) uploadSummary(
 	result *summarizerv1pb.Summary,
 	sumErr error,
 ) error {
-	rBytes, err := protojson.MarshalOptions{UseProtoNames: true}.Marshal(result)
-	if err != nil {
-		return trace.NewAggregate(sumErr, trace.Wrap(err, "failed to marshal summary result"))
-	}
-
-	if s.encrypter != nil {
-		encrypted, err := s.encryptBytes(ctx, rBytes)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if len(encrypted) > 0 {
-			rBytes = encrypted
-		}
-	}
-
 	log.DebugContext(ctx, "Uploading session summary")
-	path, err := s.summaryUploader.UploadSummary(ctx, details.sessionID, bytes.NewReader(rBytes))
+	path, err := s.persistSummary(ctx, details.sessionID, result)
 	if err != nil {
 		return trace.NewAggregate(sumErr, trace.Wrap(err, "failed to upload summary result"))
 	}

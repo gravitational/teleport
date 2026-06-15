@@ -38,6 +38,7 @@ export enum RecordingSummaryState {
   Pending = 'SUMMARY_STATE_PENDING',
   Success = 'SUMMARY_STATE_SUCCESS',
   Error = 'SUMMARY_STATE_ERROR',
+  NoInferencePolicy = 'SUMMARY_STATE_NO_INFERENCE_POLICY',
 }
 
 interface BaseRecordingSummary {
@@ -62,10 +63,15 @@ interface RecordingSummaryError extends BaseRecordingSummary {
   errorMessage: string;
 }
 
+interface RecordingSummaryNoInferencePolicy extends BaseRecordingSummary {
+  state: RecordingSummaryState.NoInferencePolicy;
+}
+
 export type SessionRecordingSummary =
   | RecordingSummaryPending
   | RecordingSummarySuccess
-  | RecordingSummaryError;
+  | RecordingSummaryError
+  | RecordingSummaryNoInferencePolicy;
 
 interface RecordingSummarySuccessResponse extends Omit<
   RecordingSummarySuccess,
@@ -77,7 +83,8 @@ interface RecordingSummarySuccessResponse extends Omit<
 export type SessionRecordingSummaryResponse =
   | RecordingSummaryPending
   | RecordingSummarySuccessResponse
-  | RecordingSummaryError;
+  | RecordingSummaryError
+  | RecordingSummaryNoInferencePolicy;
 
 export enum NeedsFurtherReview {
   TooLarge = 'too_large',

@@ -285,6 +285,26 @@ describe('summary states', () => {
     ).toBeInTheDocument();
   });
 
+  it('displays a message when the session was not summarized due to no matching inference policy', async () => {
+    withRecordingSummary({
+      sessionId: mockSessionId,
+      state: RecordingSummaryState.NoInferencePolicy,
+    });
+
+    setupTest();
+
+    const button = screen.getByRole('button', {
+      name: 'View session summary',
+    });
+    await userEvent.click(button);
+
+    expect(
+      await screen.findByText(
+        'This session was not summarized because no inference policy applies to it.'
+      )
+    ).toBeInTheDocument();
+  });
+
   it('displays success state with markdown content', async () => {
     const markdownContent = `# Session Overview
 ## Key Actions
