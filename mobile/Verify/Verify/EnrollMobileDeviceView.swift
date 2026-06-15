@@ -17,110 +17,111 @@
 import SwiftUI
 
 struct EnrollMobileDeviceView: View {
-    let deepURL: EnrollMobileDeviceDeepURL
-    let onCancel: () -> Void
-    @State private var viewModel: EnrollMobileDeviceViewModel
+	let deepURL: EnrollMobileDeviceDeepURL
+	let onCancel: () -> Void
+	@State
+	private var viewModel: EnrollMobileDeviceViewModel
 
-    init(deepURL: EnrollMobileDeviceDeepURL, onCancel: @escaping () -> Void) {
-        self.deepURL = deepURL
-        self.onCancel = onCancel
-        _viewModel = State(
-            initialValue: EnrollMobileDeviceViewModel(deepURL: deepURL)
-        )
-    }
+	init(deepURL: EnrollMobileDeviceDeepURL, onCancel: @escaping () -> Void) {
+		self.deepURL = deepURL
+		self.onCancel = onCancel
+		_viewModel = State(
+			initialValue: EnrollMobileDeviceViewModel(deepURL: deepURL),
+		)
+	}
 
-    var body: some View {
-        VStack(spacing: 16) {
-            Spacer()
-            Image(systemName: "ipad.and.iphone")
-                .font(.system(size: 37))
-                .foregroundStyle(.primary)
-                .frame(width: 75, height: 75)
-                .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(Color(.systemBackground))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .strokeBorder(Color(.separator), lineWidth: 1)
-                )
-            VStack(spacing: 8) {
-                Text("Enroll Your Device")
-                    .font(.title2)
-                    .fontWeight(.semibold)
-                Text(
-                    "To finish enrolling this device, approve the request from your account settings on another device."
-                )
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.secondary)
-            }
-            Spacer()
-            VStack(spacing: 16) {
-                Button {
-                    Task { await viewModel.requestEnrollToken() }
-                } label: {
-                    Group {
-                        if viewModel.attempt.isLoading {
-                            Label(
-                                "Request in progress",
-                                systemImage: "progress.indicator"
-                            )
-                            .labelStyle(.iconOnly)
-                            .symbolEffect(
-                                .variableColor.iterative,
-                                options: .repeat(.continuous),
-                                isActive: true
-                            )
-                        } else {
-                            Text("Request Now")
-                        }
-                    }
-                    .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .animation(.easeInOut, value: viewModel.attempt.isLoading)
-                .disabled(viewModel.attempt.isLoading)
+	var body: some View {
+		VStack(spacing: 16) {
+			Spacer()
+			Image(systemName: "ipad.and.iphone")
+				.font(.system(size: 37))
+				.foregroundStyle(.primary)
+				.frame(width: 75, height: 75)
+				.background(
+					RoundedRectangle(cornerRadius: 16)
+						.fill(Color(.systemBackground)),
+				)
+				.overlay(
+					RoundedRectangle(cornerRadius: 16)
+						.strokeBorder(Color(.separator), lineWidth: 1),
+				)
+			VStack(spacing: 8) {
+				Text("Enroll Your Device")
+					.font(.title2)
+					.fontWeight(.semibold)
+				Text(
+					"To finish enrolling this device, approve the request from your account settings on another device.",
+				)
+				.multilineTextAlignment(.center)
+				.foregroundStyle(.secondary)
+			}
+			Spacer()
+			VStack(spacing: 16) {
+				Button {
+					Task { await viewModel.requestEnrollToken() }
+				} label: {
+					Group {
+						if viewModel.attempt.isLoading {
+							Label(
+								"Request in progress",
+								systemImage: "progress.indicator",
+							)
+							.labelStyle(.iconOnly)
+							.symbolEffect(
+								.variableColor.iterative,
+								options: .repeat(.continuous),
+								isActive: true,
+							)
+						} else {
+							Text("Request Now")
+						}
+					}
+					.frame(maxWidth: .infinity)
+				}
+				.buttonStyle(.borderedProminent)
+				.controlSize(.large)
+				.animation(.easeInOut, value: viewModel.attempt.isLoading)
+				.disabled(viewModel.attempt.isLoading)
 
-                Button(role: .cancel, action: onCancel) {
-                    Text("Cancel").frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.large)
-                .disabled(viewModel.attempt.isLoading)
-            }
-        }
-        .padding()
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(.systemGroupedBackground))
-        .sheet(
-            isPresented: Binding(
-                get: {
-                    switch viewModel.attempt {
-                    case .idle: false
-                    default: true
-                    }
-                },
-                set: { if !$0 { viewModel.attempt = .idle } }
-            )
-        ) {
-            EnrollRequestStatusView(
-                attempt: viewModel.attempt,
-                onDismiss: { viewModel.attempt = .idle }
-            )
-            .presentationDetents([.medium])
-            .interactiveDismissDisabled(viewModel.attempt.isLoading)
-        }
-    }
+				Button(role: .cancel, action: onCancel) {
+					Text("Cancel").frame(maxWidth: .infinity)
+				}
+				.buttonStyle(.bordered)
+				.controlSize(.large)
+				.disabled(viewModel.attempt.isLoading)
+			}
+		}
+		.padding()
+		.frame(maxWidth: .infinity, maxHeight: .infinity)
+		.background(Color(.systemGroupedBackground))
+		.sheet(
+			isPresented: Binding(
+				get: {
+					switch viewModel.attempt {
+						case .idle: false
+						default: true
+					}
+				},
+				set: { if !$0 { viewModel.attempt = .idle } },
+			),
+		) {
+			EnrollRequestStatusView(
+				attempt: viewModel.attempt,
+				onDismiss: { viewModel.attempt = .idle },
+			)
+			.presentationDetents([.medium])
+			.interactiveDismissDisabled(viewModel.attempt.isLoading)
+		}
+	}
 }
 
 #Preview("In ContentView") {
-    ContentView(
-        initialScreen: .enroll(
-            EnrollMobileDeviceDeepURL(
-                url: DeepURL(hostname: "example.com", port: 3080),
-                enrollPairingToken: "abc123"
-            )
-        )
-    )
+	ContentView(
+		initialScreen: .enroll(
+			EnrollMobileDeviceDeepURL(
+				url: DeepURL(hostname: "example.com", port: 3080),
+				enrollPairingToken: "abc123",
+			),
+		),
+	)
 }

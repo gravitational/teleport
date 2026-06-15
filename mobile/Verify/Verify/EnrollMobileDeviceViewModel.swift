@@ -20,49 +20,49 @@ import Observation
 @Observable
 @MainActor
 class EnrollMobileDeviceViewModel {
-    enum Attempt {
-        case idle
-        case loading
-        case success(token: String)
-        case failure(Error)
+	enum Attempt {
+		case idle
+		case loading
+		case success(token: String)
+		case failure(Error)
 
-        var isLoading: Bool {
-            if case .loading = self { return true }
-            return false
-        }
-    }
+		var isLoading: Bool {
+			if case .loading = self { return true }
+			return false
+		}
+	}
 
-    var attempt: Attempt = .idle
-    private let deepURL: EnrollMobileDeviceDeepURL
+	var attempt: Attempt = .idle
+	private let deepURL: EnrollMobileDeviceDeepURL
 
-    init(deepURL: EnrollMobileDeviceDeepURL) {
-        self.deepURL = deepURL
-    }
+	init(deepURL: EnrollMobileDeviceDeepURL) {
+		self.deepURL = deepURL
+	}
 
-    func requestEnrollToken() async {
-        attempt = .loading
-        let proxyServer = "\(deepURL.url.hostname):\(deepURL.url.port ?? 443)"
-        let pairingToken = deepURL.enrollPairingToken
+	func requestEnrollToken() async {
+		attempt = .loading
+		let proxyServer = "\(deepURL.url.hostname):\(deepURL.url.port ?? 443)"
+		let pairingToken = deepURL.enrollPairingToken
 
-        let outcome: Attempt = await Task.detached(priority: .userInitiated) {
-            guard let client = EnrollClient(proxyServer, insecure: false) else {
-                return .failure(EnrollViewModelError.clientCreationFailed)
-            }
-            do {
-                let token = try client.createMobileEnrollToken(
-                    pairingToken,
-                    deviceData: EnrollDeviceCollectedData()
-                )
-                return .success(token: token.token)
-            } catch {
-                return .failure(error)
-            }
-        }.value
+		let outcome: Attempt = await Task.detached(priority: .userInitiated) {
+			guard let client = EnrollClient(proxyServer, insecure: false) else {
+				return .failure(EnrollViewModelError.clientCreationFailed)
+			}
+			do {
+				let token = try client.createMobileEnrollToken(
+					pairingToken,
+					deviceData: EnrollDeviceCollectedData(),
+				)
+				return .success(token: token.token)
+			} catch {
+				return .failure(error)
+			}
+		}.value
 
-        attempt = outcome
-    }
+		attempt = outcome
+	}
 }
 
 enum EnrollViewModelError: Error {
-    case clientCreationFailed
+	case clientCreationFailed
 }
