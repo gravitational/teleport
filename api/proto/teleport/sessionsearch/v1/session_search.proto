@@ -210,6 +210,16 @@ message DatabaseProperties {
   optional string database_name = 1;
 }
 
+// DesktopType identifies the platform of a desktop session.
+enum DesktopType {
+  // DESKTOP_TYPE_UNSPECIFIED is the default when the desktop platform is unknown.
+  DESKTOP_TYPE_UNSPECIFIED = 0;
+  // DESKTOP_TYPE_WINDOWS is a Windows desktop session.
+  DESKTOP_TYPE_WINDOWS = 1;
+  // DESKTOP_TYPE_LINUX is a Linux desktop session.
+  DESKTOP_TYPE_LINUX = 2;
+}
+
 // DesktopProperties are the kind-specific properties for desktop sessions.
 message DesktopProperties {
   // desktop_name is the name of the desktop.
@@ -220,6 +230,8 @@ message DesktopProperties {
   optional string login = 3;
   // windows_domain is the Active Directory domain of the desktop.
   optional string windows_domain = 4;
+  // type identifies the desktop platform (Windows or Linux).
+  DesktopType type = 5;
 }
 
 // SearchSessionSummariesResponse is sent by the server on the
