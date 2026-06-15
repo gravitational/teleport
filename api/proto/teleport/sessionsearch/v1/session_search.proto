@@ -183,6 +183,8 @@ message ResourceProperties {
     KubernetesProperties kubernetes = 2;
     // database holds database session properties.
     DatabaseProperties database = 3;
+    // desktop holds Windows desktop session properties.
+    DesktopProperties desktop = 4;
   }
 }
 
@@ -206,6 +208,18 @@ message KubernetesProperties {
 message DatabaseProperties {
   // database_name is the name of the database accessed.
   optional string database_name = 1;
+}
+
+// DesktopProperties are the kind-specific properties for desktop sessions.
+message DesktopProperties {
+  // desktop_name is the name of the desktop.
+  optional string desktop_name = 1;
+  // desktop_addr is the address of the desktop.
+  optional string desktop_addr = 2;
+  // login is the OS login used for the session.
+  optional string login = 3;
+  // windows_domain is the Active Directory domain of the desktop.
+  optional string windows_domain = 4;
 }
 
 // SearchSessionSummariesResponse is sent by the server on the

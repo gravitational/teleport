@@ -909,6 +909,15 @@ func (x *ResourceProperties) GetDatabase() *DatabaseProperties {
 	return nil
 }
 
+func (x *ResourceProperties) GetDesktop() *DesktopProperties {
+	if x != nil {
+		if x, ok := x.xxx_hidden_Type.(*resourceProperties_Desktop); ok {
+			return x.Desktop
+		}
+	}
+	return nil
+}
+
 func (x *ResourceProperties) SetSsh(v *SSHProperties) {
 	if v == nil {
 		x.xxx_hidden_Type = nil
@@ -931,6 +940,14 @@ func (x *ResourceProperties) SetDatabase(v *DatabaseProperties) {
 		return
 	}
 	x.xxx_hidden_Type = &resourceProperties_Database{v}
+}
+
+func (x *ResourceProperties) SetDesktop(v *DesktopProperties) {
+	if v == nil {
+		x.xxx_hidden_Type = nil
+		return
+	}
+	x.xxx_hidden_Type = &resourceProperties_Desktop{v}
 }
 
 func (x *ResourceProperties) HasType() bool {
@@ -964,6 +981,14 @@ func (x *ResourceProperties) HasDatabase() bool {
 	return ok
 }
 
+func (x *ResourceProperties) HasDesktop() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.xxx_hidden_Type.(*resourceProperties_Desktop)
+	return ok
+}
+
 func (x *ResourceProperties) ClearType() {
 	x.xxx_hidden_Type = nil
 }
@@ -986,10 +1011,17 @@ func (x *ResourceProperties) ClearDatabase() {
 	}
 }
 
+func (x *ResourceProperties) ClearDesktop() {
+	if _, ok := x.xxx_hidden_Type.(*resourceProperties_Desktop); ok {
+		x.xxx_hidden_Type = nil
+	}
+}
+
 const ResourceProperties_Type_not_set_case case_ResourceProperties_Type = 0
 const ResourceProperties_Ssh_case case_ResourceProperties_Type = 1
 const ResourceProperties_Kubernetes_case case_ResourceProperties_Type = 2
 const ResourceProperties_Database_case case_ResourceProperties_Type = 3
+const ResourceProperties_Desktop_case case_ResourceProperties_Type = 4
 
 func (x *ResourceProperties) WhichType() case_ResourceProperties_Type {
 	if x == nil {
@@ -1002,6 +1034,8 @@ func (x *ResourceProperties) WhichType() case_ResourceProperties_Type {
 		return ResourceProperties_Kubernetes_case
 	case *resourceProperties_Database:
 		return ResourceProperties_Database_case
+	case *resourceProperties_Desktop:
+		return ResourceProperties_Desktop_case
 	default:
 		return ResourceProperties_Type_not_set_case
 	}
@@ -1017,6 +1051,8 @@ type ResourceProperties_builder struct {
 	Kubernetes *KubernetesProperties
 	// database holds database session properties.
 	Database *DatabaseProperties
+	// desktop holds Windows desktop session properties.
+	Desktop *DesktopProperties
 	// -- end of xxx_hidden_Type
 }
 
@@ -1032,6 +1068,9 @@ func (b0 ResourceProperties_builder) Build() *ResourceProperties {
 	}
 	if b.Database != nil {
 		x.xxx_hidden_Type = &resourceProperties_Database{b.Database}
+	}
+	if b.Desktop != nil {
+		x.xxx_hidden_Type = &resourceProperties_Desktop{b.Desktop}
 	}
 	return m0
 }
@@ -1065,11 +1104,18 @@ type resourceProperties_Database struct {
 	Database *DatabaseProperties `protobuf:"bytes,3,opt,name=database,proto3,oneof"`
 }
 
+type resourceProperties_Desktop struct {
+	// desktop holds Windows desktop session properties.
+	Desktop *DesktopProperties `protobuf:"bytes,4,opt,name=desktop,proto3,oneof"`
+}
+
 func (*resourceProperties_Ssh) isResourceProperties_Type() {}
 
 func (*resourceProperties_Kubernetes) isResourceProperties_Type() {}
 
 func (*resourceProperties_Database) isResourceProperties_Type() {}
+
+func (*resourceProperties_Desktop) isResourceProperties_Type() {}
 
 // SSHProperties are the kind-specific properties for SSH sessions.
 type SSHProperties struct {
@@ -1379,6 +1425,188 @@ func (b0 DatabaseProperties_builder) Build() *DatabaseProperties {
 	return m0
 }
 
+// DesktopProperties are the kind-specific properties for desktop sessions.
+type DesktopProperties struct {
+	state                    protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_DesktopName   *string                `protobuf:"bytes,1,opt,name=desktop_name,json=desktopName,proto3,oneof"`
+	xxx_hidden_DesktopAddr   *string                `protobuf:"bytes,2,opt,name=desktop_addr,json=desktopAddr,proto3,oneof"`
+	xxx_hidden_Login         *string                `protobuf:"bytes,3,opt,name=login,proto3,oneof"`
+	xxx_hidden_WindowsDomain *string                `protobuf:"bytes,4,opt,name=windows_domain,json=windowsDomain,proto3,oneof"`
+	XXX_raceDetectHookData   protoimpl.RaceDetectHookData
+	XXX_presence             [1]uint32
+	unknownFields            protoimpl.UnknownFields
+	sizeCache                protoimpl.SizeCache
+}
+
+func (x *DesktopProperties) Reset() {
+	*x = DesktopProperties{}
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DesktopProperties) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DesktopProperties) ProtoMessage() {}
+
+func (x *DesktopProperties) ProtoReflect() protoreflect.Message {
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *DesktopProperties) GetDesktopName() string {
+	if x != nil {
+		if x.xxx_hidden_DesktopName != nil {
+			return *x.xxx_hidden_DesktopName
+		}
+		return ""
+	}
+	return ""
+}
+
+func (x *DesktopProperties) GetDesktopAddr() string {
+	if x != nil {
+		if x.xxx_hidden_DesktopAddr != nil {
+			return *x.xxx_hidden_DesktopAddr
+		}
+		return ""
+	}
+	return ""
+}
+
+func (x *DesktopProperties) GetLogin() string {
+	if x != nil {
+		if x.xxx_hidden_Login != nil {
+			return *x.xxx_hidden_Login
+		}
+		return ""
+	}
+	return ""
+}
+
+func (x *DesktopProperties) GetWindowsDomain() string {
+	if x != nil {
+		if x.xxx_hidden_WindowsDomain != nil {
+			return *x.xxx_hidden_WindowsDomain
+		}
+		return ""
+	}
+	return ""
+}
+
+func (x *DesktopProperties) SetDesktopName(v string) {
+	x.xxx_hidden_DesktopName = &v
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 0, 4)
+}
+
+func (x *DesktopProperties) SetDesktopAddr(v string) {
+	x.xxx_hidden_DesktopAddr = &v
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 1, 4)
+}
+
+func (x *DesktopProperties) SetLogin(v string) {
+	x.xxx_hidden_Login = &v
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 2, 4)
+}
+
+func (x *DesktopProperties) SetWindowsDomain(v string) {
+	x.xxx_hidden_WindowsDomain = &v
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 3, 4)
+}
+
+func (x *DesktopProperties) HasDesktopName() bool {
+	if x == nil {
+		return false
+	}
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 0)
+}
+
+func (x *DesktopProperties) HasDesktopAddr() bool {
+	if x == nil {
+		return false
+	}
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 1)
+}
+
+func (x *DesktopProperties) HasLogin() bool {
+	if x == nil {
+		return false
+	}
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 2)
+}
+
+func (x *DesktopProperties) HasWindowsDomain() bool {
+	if x == nil {
+		return false
+	}
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 3)
+}
+
+func (x *DesktopProperties) ClearDesktopName() {
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 0)
+	x.xxx_hidden_DesktopName = nil
+}
+
+func (x *DesktopProperties) ClearDesktopAddr() {
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 1)
+	x.xxx_hidden_DesktopAddr = nil
+}
+
+func (x *DesktopProperties) ClearLogin() {
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 2)
+	x.xxx_hidden_Login = nil
+}
+
+func (x *DesktopProperties) ClearWindowsDomain() {
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 3)
+	x.xxx_hidden_WindowsDomain = nil
+}
+
+type DesktopProperties_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// desktop_name is the name of the desktop.
+	DesktopName *string
+	// desktop_addr is the address of the desktop.
+	DesktopAddr *string
+	// login is the OS login used for the session.
+	Login *string
+	// windows_domain is the Active Directory domain of the desktop.
+	WindowsDomain *string
+}
+
+func (b0 DesktopProperties_builder) Build() *DesktopProperties {
+	m0 := &DesktopProperties{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.DesktopName != nil {
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 0, 4)
+		x.xxx_hidden_DesktopName = b.DesktopName
+	}
+	if b.DesktopAddr != nil {
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 1, 4)
+		x.xxx_hidden_DesktopAddr = b.DesktopAddr
+	}
+	if b.Login != nil {
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 2, 4)
+		x.xxx_hidden_Login = b.Login
+	}
+	if b.WindowsDomain != nil {
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 3, 4)
+		x.xxx_hidden_WindowsDomain = b.WindowsDomain
+	}
+	return m0
+}
+
 // SearchSessionSummariesResponse is sent by the server on the
 // SearchSessionSummaries stream. For each batch the server sends zero or more
 // summary messages (one per SessionSummary) followed by exactly one
@@ -1417,7 +1645,7 @@ type SearchSessionSummariesResponse struct {
 
 func (x *SearchSessionSummariesResponse) Reset() {
 	*x = SearchSessionSummariesResponse{}
-	mi := &file_accessgraph_v1_session_search_proto_msgTypes[7]
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1429,7 +1657,7 @@ func (x *SearchSessionSummariesResponse) String() string {
 func (*SearchSessionSummariesResponse) ProtoMessage() {}
 
 func (x *SearchSessionSummariesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1_session_search_proto_msgTypes[7]
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1561,7 +1789,7 @@ func (b0 SearchSessionSummariesResponse_builder) Build() *SearchSessionSummaries
 type case_SearchSessionSummariesResponse_Payload protoreflect.FieldNumber
 
 func (x case_SearchSessionSummariesResponse_Payload) String() string {
-	md := file_accessgraph_v1_session_search_proto_msgTypes[7].Descriptor()
+	md := file_accessgraph_v1_session_search_proto_msgTypes[8].Descriptor()
 	if x == 0 {
 		return "not set"
 	}
@@ -1604,7 +1832,7 @@ type SummaryAndCheckpoint struct {
 
 func (x *SummaryAndCheckpoint) Reset() {
 	*x = SummaryAndCheckpoint{}
-	mi := &file_accessgraph_v1_session_search_proto_msgTypes[8]
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1616,7 +1844,7 @@ func (x *SummaryAndCheckpoint) String() string {
 func (*SummaryAndCheckpoint) ProtoMessage() {}
 
 func (x *SummaryAndCheckpoint) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1_session_search_proto_msgTypes[8]
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1710,7 +1938,7 @@ type SessionSummary struct {
 
 func (x *SessionSummary) Reset() {
 	*x = SessionSummary{}
-	mi := &file_accessgraph_v1_session_search_proto_msgTypes[9]
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1722,7 +1950,7 @@ func (x *SessionSummary) String() string {
 func (*SessionSummary) ProtoMessage() {}
 
 func (x *SessionSummary) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1_session_search_proto_msgTypes[9]
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2077,7 +2305,7 @@ type StoreSessionSummaryRequest struct {
 
 func (x *StoreSessionSummaryRequest) Reset() {
 	*x = StoreSessionSummaryRequest{}
-	mi := &file_accessgraph_v1_session_search_proto_msgTypes[10]
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2089,7 +2317,7 @@ func (x *StoreSessionSummaryRequest) String() string {
 func (*StoreSessionSummaryRequest) ProtoMessage() {}
 
 func (x *StoreSessionSummaryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1_session_search_proto_msgTypes[10]
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2452,7 +2680,7 @@ type EmbeddingChunk struct {
 
 func (x *EmbeddingChunk) Reset() {
 	*x = EmbeddingChunk{}
-	mi := &file_accessgraph_v1_session_search_proto_msgTypes[11]
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2464,7 +2692,7 @@ func (x *EmbeddingChunk) String() string {
 func (*EmbeddingChunk) ProtoMessage() {}
 
 func (x *EmbeddingChunk) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1_session_search_proto_msgTypes[11]
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2558,7 +2786,7 @@ type StoreSessionSummaryResponse struct {
 
 func (x *StoreSessionSummaryResponse) Reset() {
 	*x = StoreSessionSummaryResponse{}
-	mi := &file_accessgraph_v1_session_search_proto_msgTypes[12]
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2570,7 +2798,7 @@ func (x *StoreSessionSummaryResponse) String() string {
 func (*StoreSessionSummaryResponse) ProtoMessage() {}
 
 func (x *StoreSessionSummaryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1_session_search_proto_msgTypes[12]
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2602,7 +2830,7 @@ type IsSessionSearchEnabledRequest struct {
 
 func (x *IsSessionSearchEnabledRequest) Reset() {
 	*x = IsSessionSearchEnabledRequest{}
-	mi := &file_accessgraph_v1_session_search_proto_msgTypes[13]
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2614,7 +2842,7 @@ func (x *IsSessionSearchEnabledRequest) String() string {
 func (*IsSessionSearchEnabledRequest) ProtoMessage() {}
 
 func (x *IsSessionSearchEnabledRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1_session_search_proto_msgTypes[13]
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2648,7 +2876,7 @@ type IsSessionSearchEnabledResponse struct {
 
 func (x *IsSessionSearchEnabledResponse) Reset() {
 	*x = IsSessionSearchEnabledResponse{}
-	mi := &file_accessgraph_v1_session_search_proto_msgTypes[14]
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2660,7 +2888,7 @@ func (x *IsSessionSearchEnabledResponse) String() string {
 func (*IsSessionSearchEnabledResponse) ProtoMessage() {}
 
 func (x *IsSessionSearchEnabledResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1_session_search_proto_msgTypes[14]
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2709,7 +2937,7 @@ type SearchSessionSummariesRequest_FetchMore struct {
 
 func (x *SearchSessionSummariesRequest_FetchMore) Reset() {
 	*x = SearchSessionSummariesRequest_FetchMore{}
-	mi := &file_accessgraph_v1_session_search_proto_msgTypes[15]
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2721,7 +2949,7 @@ func (x *SearchSessionSummariesRequest_FetchMore) String() string {
 func (*SearchSessionSummariesRequest_FetchMore) ProtoMessage() {}
 
 func (x *SearchSessionSummariesRequest_FetchMore) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1_session_search_proto_msgTypes[15]
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2771,7 +2999,7 @@ type SearchSessionSummariesResponse_BatchComplete struct {
 
 func (x *SearchSessionSummariesResponse_BatchComplete) Reset() {
 	*x = SearchSessionSummariesResponse_BatchComplete{}
-	mi := &file_accessgraph_v1_session_search_proto_msgTypes[17]
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2783,7 +3011,7 @@ func (x *SearchSessionSummariesResponse_BatchComplete) String() string {
 func (*SearchSessionSummariesResponse_BatchComplete) ProtoMessage() {}
 
 func (x *SearchSessionSummariesResponse_BatchComplete) ProtoReflect() protoreflect.Message {
-	mi := &file_accessgraph_v1_session_search_proto_msgTypes[17]
+	mi := &file_accessgraph_v1_session_search_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2865,13 +3093,14 @@ const file_accessgraph_v1_session_search_proto_rawDesc = "" +
 	"embeddings\x18\x02 \x03(\x02R\n" +
 	"embeddings\x12\x1d\n" +
 	"\n" +
-	"model_name\x18\x03 \x01(\tR\tmodelName\"\xd9\x01\n" +
+	"model_name\x18\x03 \x01(\tR\tmodelName\"\x98\x02\n" +
 	"\x12ResourceProperties\x121\n" +
 	"\x03ssh\x18\x01 \x01(\v2\x1d.accessgraph.v1.SSHPropertiesH\x00R\x03ssh\x12F\n" +
 	"\n" +
 	"kubernetes\x18\x02 \x01(\v2$.accessgraph.v1.KubernetesPropertiesH\x00R\n" +
 	"kubernetes\x12@\n" +
-	"\bdatabase\x18\x03 \x01(\v2\".accessgraph.v1.DatabasePropertiesH\x00R\bdatabaseB\x06\n" +
+	"\bdatabase\x18\x03 \x01(\v2\".accessgraph.v1.DatabasePropertiesH\x00R\bdatabase\x12=\n" +
+	"\adesktop\x18\x04 \x01(\v2!.accessgraph.v1.DesktopPropertiesH\x00R\adesktopB\x06\n" +
 	"\x04type\"\x87\x01\n" +
 	"\rSSHProperties\x12,\n" +
 	"\x0fserver_hostname\x18\x01 \x01(\tH\x00R\x0eserverHostname\x88\x01\x01\x12$\n" +
@@ -2886,7 +3115,16 @@ const file_accessgraph_v1_session_search_proto_rawDesc = "" +
 	"\t_pod_name\"P\n" +
 	"\x12DatabaseProperties\x12(\n" +
 	"\rdatabase_name\x18\x01 \x01(\tH\x00R\fdatabaseName\x88\x01\x01B\x10\n" +
-	"\x0e_database_name\"\x80\x02\n" +
+	"\x0e_database_name\"\xe9\x01\n" +
+	"\x11DesktopProperties\x12&\n" +
+	"\fdesktop_name\x18\x01 \x01(\tH\x00R\vdesktopName\x88\x01\x01\x12&\n" +
+	"\fdesktop_addr\x18\x02 \x01(\tH\x01R\vdesktopAddr\x88\x01\x01\x12\x19\n" +
+	"\x05login\x18\x03 \x01(\tH\x02R\x05login\x88\x01\x01\x12*\n" +
+	"\x0ewindows_domain\x18\x04 \x01(\tH\x03R\rwindowsDomain\x88\x01\x01B\x0f\n" +
+	"\r_desktop_nameB\x0f\n" +
+	"\r_desktop_addrB\b\n" +
+	"\x06_loginB\x11\n" +
+	"\x0f_windows_domain\"\x80\x02\n" +
 	"\x1eSearchSessionSummariesResponse\x12@\n" +
 	"\asummary\x18\x01 \x01(\v2$.accessgraph.v1.SummaryAndCheckpointH\x00R\asummary\x12e\n" +
 	"\x0ebatch_complete\x18\x02 \x01(\v2<.accessgraph.v1.SearchSessionSummariesResponse.BatchCompleteH\x00R\rbatchComplete\x1a*\n" +
@@ -2982,7 +3220,7 @@ const file_accessgraph_v1_session_search_proto_rawDesc = "" +
 	"\x16IsSessionSearchEnabled\x12-.accessgraph.v1.IsSessionSearchEnabledRequest\x1a..accessgraph.v1.IsSessionSearchEnabledResponseBMZKgithub.com/gravitational/teleport/gen/proto/go/accessgraph/v1;accessgraphv1b\x06proto3"
 
 var file_accessgraph_v1_session_search_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_accessgraph_v1_session_search_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
+var file_accessgraph_v1_session_search_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
 var file_accessgraph_v1_session_search_proto_goTypes = []any{
 	(SearchMode)(0),                                 // 0: accessgraph.v1.SearchMode
 	(SessionSearchAvailability)(0),                  // 1: accessgraph.v1.SessionSearchAvailability
@@ -2993,66 +3231,68 @@ var file_accessgraph_v1_session_search_proto_goTypes = []any{
 	(*SSHProperties)(nil),                           // 6: accessgraph.v1.SSHProperties
 	(*KubernetesProperties)(nil),                    // 7: accessgraph.v1.KubernetesProperties
 	(*DatabaseProperties)(nil),                      // 8: accessgraph.v1.DatabaseProperties
-	(*SearchSessionSummariesResponse)(nil),          // 9: accessgraph.v1.SearchSessionSummariesResponse
-	(*SummaryAndCheckpoint)(nil),                    // 10: accessgraph.v1.SummaryAndCheckpoint
-	(*SessionSummary)(nil),                          // 11: accessgraph.v1.SessionSummary
-	(*StoreSessionSummaryRequest)(nil),              // 12: accessgraph.v1.StoreSessionSummaryRequest
-	(*EmbeddingChunk)(nil),                          // 13: accessgraph.v1.EmbeddingChunk
-	(*StoreSessionSummaryResponse)(nil),             // 14: accessgraph.v1.StoreSessionSummaryResponse
-	(*IsSessionSearchEnabledRequest)(nil),           // 15: accessgraph.v1.IsSessionSearchEnabledRequest
-	(*IsSessionSearchEnabledResponse)(nil),          // 16: accessgraph.v1.IsSessionSearchEnabledResponse
-	(*SearchSessionSummariesRequest_FetchMore)(nil), // 17: accessgraph.v1.SearchSessionSummariesRequest.FetchMore
-	nil, // 18: accessgraph.v1.SearchSessionSummariesParams.ResourceLabelsEntry
-	(*SearchSessionSummariesResponse_BatchComplete)(nil), // 19: accessgraph.v1.SearchSessionSummariesResponse.BatchComplete
-	nil,                           // 20: accessgraph.v1.SessionSummary.ResourceLabelsEntry
-	nil,                           // 21: accessgraph.v1.StoreSessionSummaryRequest.ResourceLabelsEntry
-	(*timestamppb.Timestamp)(nil), // 22: google.protobuf.Timestamp
-	(v1.RiskLevel)(0),             // 23: teleport.summarizer.v1.RiskLevel
-	(*structpb.Struct)(nil),       // 24: google.protobuf.Struct
+	(*DesktopProperties)(nil),                       // 9: accessgraph.v1.DesktopProperties
+	(*SearchSessionSummariesResponse)(nil),          // 10: accessgraph.v1.SearchSessionSummariesResponse
+	(*SummaryAndCheckpoint)(nil),                    // 11: accessgraph.v1.SummaryAndCheckpoint
+	(*SessionSummary)(nil),                          // 12: accessgraph.v1.SessionSummary
+	(*StoreSessionSummaryRequest)(nil),              // 13: accessgraph.v1.StoreSessionSummaryRequest
+	(*EmbeddingChunk)(nil),                          // 14: accessgraph.v1.EmbeddingChunk
+	(*StoreSessionSummaryResponse)(nil),             // 15: accessgraph.v1.StoreSessionSummaryResponse
+	(*IsSessionSearchEnabledRequest)(nil),           // 16: accessgraph.v1.IsSessionSearchEnabledRequest
+	(*IsSessionSearchEnabledResponse)(nil),          // 17: accessgraph.v1.IsSessionSearchEnabledResponse
+	(*SearchSessionSummariesRequest_FetchMore)(nil), // 18: accessgraph.v1.SearchSessionSummariesRequest.FetchMore
+	nil, // 19: accessgraph.v1.SearchSessionSummariesParams.ResourceLabelsEntry
+	(*SearchSessionSummariesResponse_BatchComplete)(nil), // 20: accessgraph.v1.SearchSessionSummariesResponse.BatchComplete
+	nil,                           // 21: accessgraph.v1.SessionSummary.ResourceLabelsEntry
+	nil,                           // 22: accessgraph.v1.StoreSessionSummaryRequest.ResourceLabelsEntry
+	(*timestamppb.Timestamp)(nil), // 23: google.protobuf.Timestamp
+	(v1.RiskLevel)(0),             // 24: teleport.summarizer.v1.RiskLevel
+	(*structpb.Struct)(nil),       // 25: google.protobuf.Struct
 }
 var file_accessgraph_v1_session_search_proto_depIdxs = []int32{
 	3,  // 0: accessgraph.v1.SearchSessionSummariesRequest.search_params:type_name -> accessgraph.v1.SearchSessionSummariesParams
-	17, // 1: accessgraph.v1.SearchSessionSummariesRequest.fetch_more:type_name -> accessgraph.v1.SearchSessionSummariesRequest.FetchMore
-	22, // 2: accessgraph.v1.SearchSessionSummariesParams.start_time:type_name -> google.protobuf.Timestamp
-	22, // 3: accessgraph.v1.SearchSessionSummariesParams.end_time:type_name -> google.protobuf.Timestamp
-	18, // 4: accessgraph.v1.SearchSessionSummariesParams.resource_labels:type_name -> accessgraph.v1.SearchSessionSummariesParams.ResourceLabelsEntry
+	18, // 1: accessgraph.v1.SearchSessionSummariesRequest.fetch_more:type_name -> accessgraph.v1.SearchSessionSummariesRequest.FetchMore
+	23, // 2: accessgraph.v1.SearchSessionSummariesParams.start_time:type_name -> google.protobuf.Timestamp
+	23, // 3: accessgraph.v1.SearchSessionSummariesParams.end_time:type_name -> google.protobuf.Timestamp
+	19, // 4: accessgraph.v1.SearchSessionSummariesParams.resource_labels:type_name -> accessgraph.v1.SearchSessionSummariesParams.ResourceLabelsEntry
 	5,  // 5: accessgraph.v1.SearchSessionSummariesParams.resource_properties:type_name -> accessgraph.v1.ResourceProperties
-	23, // 6: accessgraph.v1.SearchSessionSummariesParams.severity:type_name -> teleport.summarizer.v1.RiskLevel
+	24, // 6: accessgraph.v1.SearchSessionSummariesParams.severity:type_name -> teleport.summarizer.v1.RiskLevel
 	4,  // 7: accessgraph.v1.SearchSessionSummariesParams.search_queries:type_name -> accessgraph.v1.EmbeddedQuery
 	0,  // 8: accessgraph.v1.SearchSessionSummariesParams.search_mode:type_name -> accessgraph.v1.SearchMode
 	6,  // 9: accessgraph.v1.ResourceProperties.ssh:type_name -> accessgraph.v1.SSHProperties
 	7,  // 10: accessgraph.v1.ResourceProperties.kubernetes:type_name -> accessgraph.v1.KubernetesProperties
 	8,  // 11: accessgraph.v1.ResourceProperties.database:type_name -> accessgraph.v1.DatabaseProperties
-	10, // 12: accessgraph.v1.SearchSessionSummariesResponse.summary:type_name -> accessgraph.v1.SummaryAndCheckpoint
-	19, // 13: accessgraph.v1.SearchSessionSummariesResponse.batch_complete:type_name -> accessgraph.v1.SearchSessionSummariesResponse.BatchComplete
-	11, // 14: accessgraph.v1.SummaryAndCheckpoint.summary:type_name -> accessgraph.v1.SessionSummary
-	22, // 15: accessgraph.v1.SessionSummary.session_start:type_name -> google.protobuf.Timestamp
-	24, // 16: accessgraph.v1.SessionSummary.user_traits:type_name -> google.protobuf.Struct
-	20, // 17: accessgraph.v1.SessionSummary.resource_labels:type_name -> accessgraph.v1.SessionSummary.ResourceLabelsEntry
-	5,  // 18: accessgraph.v1.SessionSummary.resource_properties:type_name -> accessgraph.v1.ResourceProperties
-	23, // 19: accessgraph.v1.SessionSummary.severity:type_name -> teleport.summarizer.v1.RiskLevel
-	24, // 20: accessgraph.v1.SessionSummary.session_end_event:type_name -> google.protobuf.Struct
-	22, // 21: accessgraph.v1.SessionSummary.session_end:type_name -> google.protobuf.Timestamp
-	22, // 22: accessgraph.v1.StoreSessionSummaryRequest.session_start:type_name -> google.protobuf.Timestamp
-	22, // 23: accessgraph.v1.StoreSessionSummaryRequest.session_end:type_name -> google.protobuf.Timestamp
-	24, // 24: accessgraph.v1.StoreSessionSummaryRequest.user_traits:type_name -> google.protobuf.Struct
-	21, // 25: accessgraph.v1.StoreSessionSummaryRequest.resource_labels:type_name -> accessgraph.v1.StoreSessionSummaryRequest.ResourceLabelsEntry
-	5,  // 26: accessgraph.v1.StoreSessionSummaryRequest.resource_properties:type_name -> accessgraph.v1.ResourceProperties
-	23, // 27: accessgraph.v1.StoreSessionSummaryRequest.severity:type_name -> teleport.summarizer.v1.RiskLevel
-	24, // 28: accessgraph.v1.StoreSessionSummaryRequest.session_end_event:type_name -> google.protobuf.Struct
-	13, // 29: accessgraph.v1.StoreSessionSummaryRequest.embeddings:type_name -> accessgraph.v1.EmbeddingChunk
-	1,  // 30: accessgraph.v1.IsSessionSearchEnabledResponse.availability:type_name -> accessgraph.v1.SessionSearchAvailability
-	2,  // 31: accessgraph.v1.SessionRecordingService.SearchSessionSummaries:input_type -> accessgraph.v1.SearchSessionSummariesRequest
-	12, // 32: accessgraph.v1.SessionRecordingService.StoreSessionSummary:input_type -> accessgraph.v1.StoreSessionSummaryRequest
-	15, // 33: accessgraph.v1.SessionRecordingService.IsSessionSearchEnabled:input_type -> accessgraph.v1.IsSessionSearchEnabledRequest
-	9,  // 34: accessgraph.v1.SessionRecordingService.SearchSessionSummaries:output_type -> accessgraph.v1.SearchSessionSummariesResponse
-	14, // 35: accessgraph.v1.SessionRecordingService.StoreSessionSummary:output_type -> accessgraph.v1.StoreSessionSummaryResponse
-	16, // 36: accessgraph.v1.SessionRecordingService.IsSessionSearchEnabled:output_type -> accessgraph.v1.IsSessionSearchEnabledResponse
-	34, // [34:37] is the sub-list for method output_type
-	31, // [31:34] is the sub-list for method input_type
-	31, // [31:31] is the sub-list for extension type_name
-	31, // [31:31] is the sub-list for extension extendee
-	0,  // [0:31] is the sub-list for field type_name
+	9,  // 12: accessgraph.v1.ResourceProperties.desktop:type_name -> accessgraph.v1.DesktopProperties
+	11, // 13: accessgraph.v1.SearchSessionSummariesResponse.summary:type_name -> accessgraph.v1.SummaryAndCheckpoint
+	20, // 14: accessgraph.v1.SearchSessionSummariesResponse.batch_complete:type_name -> accessgraph.v1.SearchSessionSummariesResponse.BatchComplete
+	12, // 15: accessgraph.v1.SummaryAndCheckpoint.summary:type_name -> accessgraph.v1.SessionSummary
+	23, // 16: accessgraph.v1.SessionSummary.session_start:type_name -> google.protobuf.Timestamp
+	25, // 17: accessgraph.v1.SessionSummary.user_traits:type_name -> google.protobuf.Struct
+	21, // 18: accessgraph.v1.SessionSummary.resource_labels:type_name -> accessgraph.v1.SessionSummary.ResourceLabelsEntry
+	5,  // 19: accessgraph.v1.SessionSummary.resource_properties:type_name -> accessgraph.v1.ResourceProperties
+	24, // 20: accessgraph.v1.SessionSummary.severity:type_name -> teleport.summarizer.v1.RiskLevel
+	25, // 21: accessgraph.v1.SessionSummary.session_end_event:type_name -> google.protobuf.Struct
+	23, // 22: accessgraph.v1.SessionSummary.session_end:type_name -> google.protobuf.Timestamp
+	23, // 23: accessgraph.v1.StoreSessionSummaryRequest.session_start:type_name -> google.protobuf.Timestamp
+	23, // 24: accessgraph.v1.StoreSessionSummaryRequest.session_end:type_name -> google.protobuf.Timestamp
+	25, // 25: accessgraph.v1.StoreSessionSummaryRequest.user_traits:type_name -> google.protobuf.Struct
+	22, // 26: accessgraph.v1.StoreSessionSummaryRequest.resource_labels:type_name -> accessgraph.v1.StoreSessionSummaryRequest.ResourceLabelsEntry
+	5,  // 27: accessgraph.v1.StoreSessionSummaryRequest.resource_properties:type_name -> accessgraph.v1.ResourceProperties
+	24, // 28: accessgraph.v1.StoreSessionSummaryRequest.severity:type_name -> teleport.summarizer.v1.RiskLevel
+	25, // 29: accessgraph.v1.StoreSessionSummaryRequest.session_end_event:type_name -> google.protobuf.Struct
+	14, // 30: accessgraph.v1.StoreSessionSummaryRequest.embeddings:type_name -> accessgraph.v1.EmbeddingChunk
+	1,  // 31: accessgraph.v1.IsSessionSearchEnabledResponse.availability:type_name -> accessgraph.v1.SessionSearchAvailability
+	2,  // 32: accessgraph.v1.SessionRecordingService.SearchSessionSummaries:input_type -> accessgraph.v1.SearchSessionSummariesRequest
+	13, // 33: accessgraph.v1.SessionRecordingService.StoreSessionSummary:input_type -> accessgraph.v1.StoreSessionSummaryRequest
+	16, // 34: accessgraph.v1.SessionRecordingService.IsSessionSearchEnabled:input_type -> accessgraph.v1.IsSessionSearchEnabledRequest
+	10, // 35: accessgraph.v1.SessionRecordingService.SearchSessionSummaries:output_type -> accessgraph.v1.SearchSessionSummariesResponse
+	15, // 36: accessgraph.v1.SessionRecordingService.StoreSessionSummary:output_type -> accessgraph.v1.StoreSessionSummaryResponse
+	17, // 37: accessgraph.v1.SessionRecordingService.IsSessionSearchEnabled:output_type -> accessgraph.v1.IsSessionSearchEnabledResponse
+	35, // [35:38] is the sub-list for method output_type
+	32, // [32:35] is the sub-list for method input_type
+	32, // [32:32] is the sub-list for extension type_name
+	32, // [32:32] is the sub-list for extension extendee
+	0,  // [0:32] is the sub-list for field type_name
 }
 
 func init() { file_accessgraph_v1_session_search_proto_init() }
@@ -3069,11 +3309,13 @@ func file_accessgraph_v1_session_search_proto_init() {
 		(*resourceProperties_Ssh)(nil),
 		(*resourceProperties_Kubernetes)(nil),
 		(*resourceProperties_Database)(nil),
+		(*resourceProperties_Desktop)(nil),
 	}
 	file_accessgraph_v1_session_search_proto_msgTypes[4].OneofWrappers = []any{}
 	file_accessgraph_v1_session_search_proto_msgTypes[5].OneofWrappers = []any{}
 	file_accessgraph_v1_session_search_proto_msgTypes[6].OneofWrappers = []any{}
-	file_accessgraph_v1_session_search_proto_msgTypes[7].OneofWrappers = []any{
+	file_accessgraph_v1_session_search_proto_msgTypes[7].OneofWrappers = []any{}
+	file_accessgraph_v1_session_search_proto_msgTypes[8].OneofWrappers = []any{
 		(*searchSessionSummariesResponse_Summary)(nil),
 		(*searchSessionSummariesResponse_BatchComplete_)(nil),
 	}
@@ -3083,7 +3325,7 @@ func file_accessgraph_v1_session_search_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_accessgraph_v1_session_search_proto_rawDesc), len(file_accessgraph_v1_session_search_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   20,
+			NumMessages:   21,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
