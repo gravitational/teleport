@@ -1312,6 +1312,10 @@ type SearchEventsRequest struct {
 	StartKey string
 	// Search is an optional search query to filter events.
 	Search string
+	// BeamID filters events to only those associated with the given Beam.
+	// Only supported by backends that store beam_id as a queryable column
+	// (e.g. Athena). Other backends silently ignore this field.
+	BeamID string
 }
 
 type SearchSessionEventsRequest struct {

@@ -426,6 +426,11 @@ func (a *Server) CreateAppSession(ctx context.Context, req *proto.CreateAppSessi
 			// service on behalf of the user's Web Session. We can safely attest this child app session
 			// as a "web_session" as a result.
 			AttestWebSession: identity.PrivateKeyPolicy == keys.PrivateKeyPolicyWebSession,
+			// Propagate delegation and beam attribution from the caller's identity
+			// so the app-session cert remains linked to the same delegation session
+			// and beam.
+			DelegationSessionID: identity.DelegationSessionID,
+			BeamID:              identity.BeamID,
 		},
 		PublicAddr:        req.PublicAddr,
 		ClusterName:       req.ClusterName,
@@ -539,6 +544,7 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 		BotName:             req.BotName,
 		BotInstanceID:       req.BotInstanceID,
 		DelegationSessionID: req.DelegationSessionID,
+		BeamID:              req.BeamID,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

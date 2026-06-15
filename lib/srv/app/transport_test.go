@@ -331,8 +331,6 @@ func TestTransport_HTTPRecording(t *testing.T) {
 	tr := newTestTransport(t, func(context.Context, string, string) (net.Conn, error) {
 		return clientConn, nil
 	})
-	// Enable recording directly rather than via env var to keep the test hermetic.
-	tr.httpRecording = true
 
 	audit := &recordingAudit{}
 
@@ -351,6 +349,11 @@ func TestTransport_HTTPRecording(t *testing.T) {
 		App:   app,
 		Audit: audit,
 	})
+	// A non-empty request ID in the context enables recording. The handler is
+	// responsible for generating it and for recording the bodies; the transport
+	// only emits the request/response metadata events.
+	const requestID = "test-request-id"
+	req = req.WithContext(withRequestID(req.Context(), requestID))
 
 	resp, err := tr.RoundTrip(req)
 	require.NoError(t, err)
@@ -358,24 +361,14 @@ func TestTransport_HTTPRecording(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, resp.Body.Close())
 
-	// One request event with a non-empty request ID.
-	require.Len(t, audit.requests, 1)
-	require.NotEmpty(t, audit.requests[0])
-	// Request body "body" present across chunks.
-	var reqBody []byte
-	for _, c := range audit.reqChunks {
-		reqBody = append(reqBody, c...)
-	}
-	require.Equal(t, "body", string(reqBody))
+	// One request event carrying the request ID from the context.
+	require.Equal(t, []string{requestID}, audit.requests)
 	// One response event with status 200.
 	require.Len(t, audit.responses, 1)
 	require.Equal(t, http.StatusOK, audit.responses[0])
-	// Response body "hello" present across chunks.
-	var respBody []byte
-	for _, c := range audit.respChunks {
-		respBody = append(respBody, c...)
-	}
-	require.Equal(t, "hello", string(respBody))
+	// The transport no longer records bodies; that is now the handler's job.
+	require.Empty(t, audit.reqChunks)
+	require.Empty(t, audit.respChunks)
 }
 
 type emptyCertAuthorityGetter struct{}

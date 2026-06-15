@@ -153,6 +153,9 @@ type Identity struct {
 	// DelegationSessionID is the identifier of the Delegation Session this
 	// certificate was created for.
 	DelegationSessionID string
+	// BeamID is the identifier of the Beam this certificate was created for,
+	// derived from the delegation session's types.BeamIDLabel label.
+	BeamID string
 	// HeadlessAuthenticationID is the ID of the headless authentication
 	// resource this certificate is being generated for.
 	HeadlessAuthenticationID string
@@ -327,6 +330,9 @@ func (i *Identity) Encode(certFormat string) (*ssh.Certificate, error) {
 	}
 	if i.DelegationSessionID != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionDelegationSessionID] = i.DelegationSessionID
+	}
+	if i.BeamID != "" {
+		cert.Permissions.Extensions[teleport.CertExtensionBeamID] = i.BeamID
 	}
 	if i.GitHubUserID != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionGitHubUserID] = i.GitHubUserID
@@ -586,6 +592,7 @@ func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 	ident.DeviceAssetTag = takeValue(teleport.CertExtensionDeviceAssetTag)
 	ident.DeviceCredentialID = takeValue(teleport.CertExtensionDeviceCredentialID)
 	ident.DelegationSessionID = takeValue(teleport.CertExtensionDelegationSessionID)
+	ident.BeamID = takeValue(teleport.CertExtensionBeamID)
 	ident.GitHubUserID = takeValue(teleport.CertExtensionGitHubUserID)
 	ident.GitHubUsername = takeValue(teleport.CertExtensionGitHubUsername)
 	ident.HeadlessAuthenticationID = takeValue(teleport.CertExtensionHeadlessAuthenticationID)

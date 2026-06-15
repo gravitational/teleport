@@ -255,6 +255,39 @@ func TestSearchEvents(t *testing.T) {
 			},
 		},
 		{
+			name: "beam_id filter",
+			searchParams: &events.SearchEventsRequest{
+				From:   fromUTC,
+				To:     toUTC,
+				Limit:  100,
+				BeamID: "my-beam-id",
+			},
+			queryResultsResps: singleCallResults(100),
+			check: func(t *testing.T, mock *mockAthenaExecutor, paginationKey string) {
+				wantSingleCallToAthena(t, mock)
+				wantQuery(t, mock, selectFromPrefix+whereTimeRange+
+					` AND json_extract_scalar(event_data, '$.beam_id') = ? ORDER BY event_time ASC, uid ASC LIMIT 100;`)
+				wantQueryParams(t, mock, append(timeRangeParams, "'my-beam-id'")...)
+			},
+		},
+		{
+			name: "beam_id combined with event type",
+			searchParams: &events.SearchEventsRequest{
+				From:       fromUTC,
+				To:         toUTC,
+				Limit:      100,
+				BeamID:     "my-beam-id",
+				EventTypes: []string{"app.session.request"},
+			},
+			queryResultsResps: singleCallResults(100),
+			check: func(t *testing.T, mock *mockAthenaExecutor, paginationKey string) {
+				wantSingleCallToAthena(t, mock)
+				wantQuery(t, mock, selectFromPrefix+whereTimeRange+
+					` AND json_extract_scalar(event_data, '$.beam_id') = ? AND event_type IN (?) ORDER BY event_time ASC, uid ASC LIMIT 100;`)
+				wantQueryParams(t, mock, append(timeRangeParams, "'my-beam-id'", "'app.session.request'")...)
+			},
+		},
+		{
 			name: "query on time range with keyset",
 			searchParams: &events.SearchEventsRequest{
 				From:  fromUTC,

@@ -162,6 +162,69 @@ func TestSessionService_GenerateCerts(t *testing.T) {
 		})
 	})
 
+	t.Run("beam id label is carried into the certificate", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			service, pack := sessionServiceTestPack(t)
+			pack.createUser(t, "bob", types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					AppLabels: types.Labels{
+						"*": []string{"*"},
+					},
+				},
+			})
+
+			session := pack.createSessionWithLabels(t, &delegationv1pb.DelegationSessionSpec{
+				User: "bob",
+				Resources: []*delegationv1pb.DelegationResourceSpec{
+					{Kind: types.Wildcard, Name: types.Wildcard},
+				},
+				AuthorizedUsers: []*delegationv1pb.DelegationUserSpec{
+					{
+						Kind: types.KindBot,
+						Matcher: &delegationv1pb.DelegationUserSpec_BotName{
+							BotName: "payroll-agent",
+						},
+					},
+				},
+			}, map[string]string{
+				types.BeamIDLabel: "my-beam",
+			})
+
+			appSession, err := types.NewWebSession(
+				uuid.NewString(),
+				types.KindAppSession,
+				types.WebSessionSpecV2{User: "bob"},
+			)
+			require.NoError(t, err)
+			pack.onCreateAppSession = func(_ context.Context, _ sessionreq.NewAppSessionRequest) (types.WebSession, error) {
+				return appSession, nil
+			}
+
+			pack.onGenerateCert = func(_ context.Context, req cert.Request) (*proto.Certs, error) {
+				require.Equal(t, "my-beam", req.BeamID)
+				return &proto.Certs{TLS: tlsCertificate, SSH: sshCertificate}, nil
+			}
+			pack.authenticateBot("payroll-agent")
+
+			_, err = service.GenerateCerts(t.Context(), &delegationv1pb.GenerateCertsRequest{
+				DelegationSessionId: session.GetMetadata().GetName(),
+				SshPublicKey:        sshPublicKey,
+				TlsPublicKey:        tlsPublicKey,
+				Ttl:                 durationpb.New(5 * time.Minute),
+				Routing: &delegationv1pb.GenerateCertsRequest_RouteToApp{
+					RouteToApp: &delegationv1pb.RouteToApp{
+						Name:        "hr-system",
+						PublicAddr:  "hr-system.test.teleport.sh",
+						ClusterName: "test.teleport.sh",
+						Uri:         "http://localhost:9000",
+						TargetPort:  9000,
+					},
+				},
+			})
+			require.NoError(t, err)
+		})
+	})
+
 	t.Run("success with wildcard resource", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			service, pack := sessionServiceTestPack(t)

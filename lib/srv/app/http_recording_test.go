@@ -19,8 +19,12 @@
 package app
 
 import (
+	"bufio"
 	"bytes"
 	"io"
+	"net"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -133,4 +137,95 @@ func TestRecordingBody_CloseBeforeEOF(t *testing.T) {
 	require.NotEmpty(t, chunks)
 	last := chunks[len(chunks)-1]
 	require.True(t, last.isLast)
+}
+
+func TestRecordingResponseWriter(t *testing.T) {
+	t.Parallel()
+	type chunk struct {
+		index  int64
+		isLast bool
+		data   []byte
+	}
+	var chunks []chunk
+	rec := httptest.NewRecorder()
+	rw := newRecordingResponseWriter(rec, func(data []byte, index int64, isLast bool) {
+		cp := make([]byte, len(data))
+		copy(cp, data)
+		chunks = append(chunks, chunk{index, isLast, cp})
+	})
+
+	rw.WriteHeader(http.StatusCreated)
+	_, err := rw.Write([]byte("hello "))
+	require.NoError(t, err)
+	_, err = rw.Write([]byte("world"))
+	require.NoError(t, err)
+	rw.finish()
+
+	// The underlying writer must receive the status and full body unchanged.
+	require.Equal(t, http.StatusCreated, rec.Code)
+	require.Equal(t, "hello world", rec.Body.String())
+
+	// Data chunks must reconstruct the full body.
+	var got []byte
+	for _, c := range chunks {
+		got = append(got, c.data...)
+	}
+	require.Equal(t, "hello world", string(got))
+
+	// Indices must be sequential starting at 0.
+	for i, c := range chunks {
+		require.Equal(t, int64(i), c.index)
+	}
+
+	// Exactly one terminating chunk: the last one, empty and isLast=true.
+	for i, c := range chunks[:len(chunks)-1] {
+		require.False(t, c.isLast, "chunk %d must not be last", i)
+	}
+	last := chunks[len(chunks)-1]
+	require.True(t, last.isLast)
+	require.Empty(t, last.data)
+}
+
+// flushHijackRecorder is an http.ResponseWriter that also implements
+// http.Flusher and http.Hijacker, used to verify the recording writer
+// forwards those optional interfaces.
+type flushHijackRecorder struct {
+	*httptest.ResponseRecorder
+	flushed  bool
+	hijacked bool
+}
+
+func (f *flushHijackRecorder) Flush() { f.flushed = true }
+
+func (f *flushHijackRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	f.hijacked = true
+	return nil, nil, nil
+}
+
+func TestRecordingResponseWriter_ForwardsFlushAndHijack(t *testing.T) {
+	t.Parallel()
+	inner := &flushHijackRecorder{ResponseRecorder: httptest.NewRecorder()}
+	rw := newRecordingResponseWriter(inner, func([]byte, int64, bool) {})
+
+	// The wrapper must expose Flusher and Hijacker so the reverse proxy's
+	// streaming and protocol upgrades keep working.
+	flusher, ok := any(rw).(http.Flusher)
+	require.True(t, ok, "recordingResponseWriter must implement http.Flusher")
+	flusher.Flush()
+	require.True(t, inner.flushed)
+
+	hijacker, ok := any(rw).(http.Hijacker)
+	require.True(t, ok, "recordingResponseWriter must implement http.Hijacker")
+	_, _, err := hijacker.Hijack()
+	require.NoError(t, err)
+	require.True(t, inner.hijacked)
+}
+
+// TestRecordingResponseWriter_HijackUnsupported verifies the wrapper reports
+// ErrNotSupported when the underlying writer is not a Hijacker.
+func TestRecordingResponseWriter_HijackUnsupported(t *testing.T) {
+	t.Parallel()
+	rw := newRecordingResponseWriter(httptest.NewRecorder(), func([]byte, int64, bool) {})
+	_, _, err := rw.Hijack()
+	require.ErrorIs(t, err, http.ErrNotSupported)
 }

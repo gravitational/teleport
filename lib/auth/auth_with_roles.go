@@ -4212,6 +4212,11 @@ func (a *ScopedServerWithRoles) generateUserCerts(ctx context.Context, req proto
 				// through the "web_session" attestation. User's will be required to provide
 				// MFA instead.
 				AttestWebSession: true,
+				// Propagate delegation and beam attribution from the caller's identity
+				// so the app-session cert remains linked to the same delegation session
+				// and beam.
+				DelegationSessionID: a.getIdentity().DelegationSessionID,
+				BeamID:              a.getIdentity().BeamID,
 			},
 			PublicAddr:        req.RouteToApp.PublicAddr,
 			ClusterName:       req.RouteToApp.ClusterName,
@@ -4310,6 +4315,11 @@ func (a *ScopedServerWithRoles) generateUserCerts(ctx context.Context, req proto
 		// identity.
 		JoinAttributes: a.scopedContext.Identity.GetIdentity().JoinAttributes,
 		WebSessionID:   webSessionID,
+		// Propagate delegation and beam attribution from the current identity so
+		// reissued certificates remain attributed to the same delegation session
+		// and beam.
+		DelegationSessionID: a.getIdentity().DelegationSessionID,
+		BeamID:              a.getIdentity().BeamID,
 	}
 
 	if user.GetName() != a.scopedContext.User.GetName() {

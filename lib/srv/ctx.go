@@ -1167,6 +1167,7 @@ func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
 		UserRoles:       slices.Clone(id.MappedRoles),
 		UserTraits:      id.Traits.Clone(),
 		ScopePin:        pinning.ToEventsPin(scopePin),
+		BeamID:          id.UnmappedIdentity.BeamID,
 	}
 }
 

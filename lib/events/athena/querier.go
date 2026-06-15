@@ -197,31 +197,33 @@ func (q *querier) SearchEvents(ctx context.Context, req events.SearchEventsReque
 		}
 	}
 
+	filter := searchEventsFilter{eventTypes: req.EventTypes, search: req.Search}
+
 	// If pagination key was used and range is big, try to optimize costs by
 	// doing queries on smaller range.
 	// This is temporary workaround for polling of event exporter
 	// until we have new API for exporting events.
 	if q.canOptimizePaginatedSearchCosts(ctx, startKeyset, from, to) {
 		events, keyset, err := q.costOptimizedPaginatedSearch(ctx, searchEventsRequest{
-			fromUTC:   from.UTC(),
-			toUTC:     to.UTC(),
-			limit:     req.Limit,
-			order:     req.Order,
-			startKey:  startKeyset,
-			filter:    searchEventsFilter{eventTypes: req.EventTypes, search: req.Search},
-			sessionID: "",
+			fromUTC:  from.UTC(),
+			toUTC:    to.UTC(),
+			limit:    req.Limit,
+			order:    req.Order,
+			startKey: startKeyset,
+			filter:   filter,
+			beamID:   req.BeamID,
 		})
 		return events, keyset, trace.Wrap(err)
 	}
 
 	events, keyset, err := q.searchEvents(ctx, searchEventsRequest{
-		fromUTC:   from.UTC(),
-		toUTC:     to.UTC(),
-		limit:     req.Limit,
-		order:     req.Order,
-		startKey:  startKeyset,
-		filter:    searchEventsFilter{eventTypes: req.EventTypes, search: req.Search},
-		sessionID: "",
+		fromUTC:  from.UTC(),
+		toUTC:    to.UTC(),
+		limit:    req.Limit,
+		order:    req.Order,
+		startKey: startKeyset,
+		filter:   filter,
+		beamID:   req.BeamID,
 	})
 	return events, keyset, trace.Wrap(err)
 }
@@ -498,6 +500,7 @@ func (q *querier) costOptimizedPaginatedSearch(ctx context.Context, req searchEv
 			startKey:  req.startKey,
 			filter:    req.filter,
 			sessionID: req.sessionID,
+			beamID:    req.beamID,
 		})
 		if err != nil {
 			return nil, "", trace.Wrap(err)
@@ -613,6 +616,7 @@ type searchEventsRequest struct {
 	startKey       *keyset
 	filter         searchEventsFilter
 	sessionID      string
+	beamID         string
 }
 
 func (q *querier) searchEvents(ctx context.Context, req searchEventsRequest) ([]events.EventFields, string, error) {
@@ -633,6 +637,7 @@ func (q *querier) searchEvents(ctx context.Context, req searchEventsRequest) ([]
 		filter:      req.filter,
 		sessionID:   req.sessionID,
 		tablename:   q.tablename,
+		beamID:      req.beamID,
 	})
 	if err != nil {
 		return nil, "", trace.Wrap(err)
@@ -663,6 +668,7 @@ func (q *querier) searchEvents(ctx context.Context, req searchEventsRequest) ([]
 type searchEventsFilter struct {
 	eventTypes []string
 	search     string
+	beamID     string
 	condition  utils.FieldsCondition
 }
 
@@ -707,6 +713,7 @@ type searchParams struct {
 	filter         searchEventsFilter
 	sessionID      string
 	tablename      string
+	beamID         string
 }
 
 // prepareQuery returns query string with parameter placeholders and execution parameters.
@@ -727,6 +734,12 @@ func prepareQuery(params searchParams) (query string, execParams []string, err e
 
 	if params.sessionID != "" {
 		qb.Append(" AND session_id = ?", withTicks(params.sessionID))
+	}
+
+	if params.beamID != "" {
+		// beam_id is stored inside the event_data JSON blob (not a dedicated
+		// column), so use json_extract_scalar to filter without a schema change.
+		qb.Append(" AND json_extract_scalar(event_data, '$.beam_id') = ?", withTicks(params.beamID))
 	}
 
 	if len(params.filter.eventTypes) > 0 {

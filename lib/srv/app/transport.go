@@ -25,13 +25,11 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"path"
 	"slices"
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
@@ -62,9 +60,6 @@ type transportConfig struct {
 	insecureMode        bool
 	clusterName         string
 	certAuthorityGetter upstreamtls.CertificateAuthorityGetter
-	// httpRecording enables per-request HTTP audit events.
-	// Controlled by the TELEPORT_APP_HTTP_RECORDING environment variable.
-	httpRecording bool
 }
 
 // Check validates configuration.
@@ -108,7 +103,6 @@ func newTransport(ctx context.Context, c *transportConfig) (*transport, error) {
 	if err := c.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	c.httpRecording = utils.AsBool(os.Getenv("TELEPORT_APP_HTTP_RECORDING"))
 
 	// Parse the target address once then inject it into all requests.
 	uri, err := url.Parse(c.app.GetURI())
@@ -197,11 +191,16 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// The handler generates the request ID, records the request and response
+	// bodies (by wrapping the request body and response writer), and stores
+	// the ID in the request context. A non-empty ID means HTTP recording is
+	// enabled for this request, so the transport emits the request/response
+	// metadata events that the body chunks are correlated against.
+	requestID := requestIDFromContext(r.Context())
+
 	// Emit the request event before rewriteRequest mutates r.URL to the
 	// upstream backend coordinates.
-	var requestID string
-	if t.httpRecording {
-		requestID = uuid.New().String()
+	if requestID != "" {
 		if err := sessCtx.Audit.OnHTTPRequest(t.closeContext, sessCtx, requestID, r); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -212,16 +211,7 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if t.httpRecording {
-		if r.Body != nil && r.Body != http.NoBody {
-			rid := requestID
-			r.Body = newRecordingBody(r.Body, func(data []byte, index int64, isLast bool) {
-				if err := sessCtx.Audit.OnHTTPRequestBodyChunk(t.closeContext, sessCtx, rid, index, isLast, data); err != nil {
-					t.log.WarnContext(t.closeContext, "failed to record request body chunk", "error", err)
-				}
-			})
-		}
-
+	if requestID != "" {
 		start := time.Now()
 		resp, err := t.tr.RoundTrip(r)
 		waitMs := time.Since(start).Milliseconds()
@@ -241,15 +231,6 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 
 		if err := sessCtx.Audit.OnHTTPResponse(t.closeContext, sessCtx, requestID, resp, waitMs); err != nil {
 			return nil, trace.Wrap(err)
-		}
-
-		if resp.Body != nil && resp.Body != http.NoBody {
-			rid := requestID
-			resp.Body = newRecordingBody(resp.Body, func(data []byte, index int64, isLast bool) {
-				if err := sessCtx.Audit.OnHTTPResponseBodyChunk(t.closeContext, sessCtx, rid, index, isLast, data); err != nil {
-					t.log.WarnContext(t.closeContext, "failed to record response body chunk", "error", err)
-				}
-			})
 		}
 
 		if err := sessCtx.Audit.OnRequest(t.closeContext, sessCtx, r, uint32(resp.StatusCode), nil); err != nil {

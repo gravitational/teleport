@@ -550,6 +550,10 @@ const (
 	// CertExtensionDelegationSessionID contains the identifier of the
 	// Delegation Session this certificate was created for.
 	CertExtensionDelegationSessionID = "delegation-session-id@goteleport.com"
+	// CertExtensionBeamID contains the identifier of the Beam this certificate
+	// was created for, derived from the delegation session's
+	// types.BeamIDLabel label.
+	CertExtensionBeamID = "beam-id@goteleport.com"
 
 	// CertCriticalOptionSourceAddress is a critical option that defines IP addresses (in CIDR notation)
 	// from which this certificate is accepted for authentication.
