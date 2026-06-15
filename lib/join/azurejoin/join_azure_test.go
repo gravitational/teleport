@@ -162,7 +162,8 @@ func TestJoinAzure(t *testing.T) {
 
 	server, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
-			Dir: t.TempDir(),
+			Dir:            t.TempDir(),
+			ScopesFeatures: scopes.Features{Enabled: true},
 		},
 	})
 	require.NoError(t, err)
@@ -662,7 +663,8 @@ func TestJoinAzureClaims(t *testing.T) {
 
 	server, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
-			Dir: t.TempDir(),
+			Dir:            t.TempDir(),
+			ScopesFeatures: scopes.Features{Enabled: true},
 		},
 	})
 	require.NoError(t, err)
@@ -1174,7 +1176,8 @@ func TestJoinAzureClaims(t *testing.T) {
 func TestAzureIssuerCert(t *testing.T) {
 	server, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
-			Dir: t.TempDir(),
+			Dir:            t.TempDir(),
+			ScopesFeatures: scopes.Features{Enabled: true},
 		}})
 	require.NoError(t, err)
 	a := server.Auth()
@@ -1335,7 +1338,8 @@ func TestAzureIssuerCert(t *testing.T) {
 func TestAzureJoinFetchesCompleteIntermediateChain(t *testing.T) {
 	server, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
-			Dir: t.TempDir(),
+			Dir:            t.TempDir(),
+			ScopesFeatures: scopes.Features{Enabled: true},
 		}})
 	require.NoError(t, err)
 	a := server.Auth()
