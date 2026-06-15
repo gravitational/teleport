@@ -459,6 +459,36 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dump.Flag("node-name", "Name for the Teleport node.").StringVar(&dumpFlags.NodeName)
 	dump.Flag("node-labels", "Comma-separated list of labels to add to newly created nodes, for example env=staging,cloud=aws.").StringVar(&dumpFlags.NodeLabels)
 
+	// "teleport configure modify" subcommand
+	dumpModify := dump.Command("modify", "Modify an existing Teleport configuration file.")
+	var modFlags modifyFlags
+	dumpModify.Flag("input", "Path to existing configuration file to modify.").Required().StringVar(&modFlags.input)
+	dumpModify.Flag("output", `Output destination. Default stdout. Use file:///path for file output.`).Default(teleport.SchemeStdout).StringVar(&modFlags.output)
+	dumpModify.Flag("overwrite", "Allow overwriting an existing output file.").BoolVar(&modFlags.overwrite)
+	dumpModify.Flag("enable-service", "Enable a service (must already exist in config).").StringsVar(&modFlags.enableService)
+	dumpModify.Flag("disable-service", "Disable a service (must already exist in config).").StringsVar(&modFlags.disableService)
+	dumpModify.Flag("set", "Set a field by dot-path (format: path=value).").StringsVar(&modFlags.set)
+	dumpModify.Flag("unset", "Remove a field by dot-path.").StringsVar(&modFlags.unset)
+	dumpModify.Flag("roles", "Comma-separated list of roles. Creates service sections with defaults if missing.").StringVar(&modFlags.roles)
+	dumpModify.Flag("cluster-name", "Set teleport.cluster_name.").StringVar(&modFlags.clusterName)
+	dumpModify.Flag("token", "Set teleport.auth_token.").StringVar(&modFlags.token)
+	dumpModify.Flag("join-method", "Set teleport.join_params.method.").StringVar(&modFlags.joinMethod)
+	dumpModify.Flag("auth-server", "Set teleport.auth_server.").StringVar(&modFlags.authServer)
+	dumpModify.Flag("proxy", "Set teleport.proxy_server.").StringVar(&modFlags.proxy)
+	dumpModify.Flag("public-addr", "Set proxy_service.public_addr.").StringVar(&modFlags.publicAddr)
+	dumpModify.Flag("data-dir", "Set teleport.data_dir.").StringVar(&modFlags.dataDir)
+	dumpModify.Flag("node-name", "Set teleport.nodename.").StringVar(&modFlags.nodeName)
+	dumpModify.Flag("node-labels", "Set ssh_service.labels (comma-separated key=value).").StringVar(&modFlags.nodeLabels)
+	dumpModify.Flag("ca-pin", "Set teleport.ca_pin.").StringVar(&modFlags.caPin)
+	dumpModify.Flag("cert-file", "Set proxy_service.https_cert_file.").StringVar(&modFlags.certFile)
+	dumpModify.Flag("key-file", "Set proxy_service.https_key_file.").StringVar(&modFlags.keyFile)
+	dumpModify.Flag("acme", "Set proxy_service.acme.enabled.").BoolVar(&modFlags.acmeEnabled)
+	dumpModify.Flag("acme-email", "Set proxy_service.acme.email.").StringVar(&modFlags.acmeEmail)
+	dumpModify.Flag("version", "Set version field.").StringVar(&modFlags.version)
+	dumpModify.Flag("app-name", "Set app_service.apps[0].name.").StringVar(&modFlags.appName)
+	dumpModify.Flag("app-uri", "Set app_service.apps[0].uri.").StringVar(&modFlags.appURI)
+	dumpModify.Flag("mcp-demo-server", "Set app_service.apps[0].mcp_demo_server.").BoolVar(&modFlags.mcpDemoServer)
+
 	ver.Flag("raw", "Print the raw teleport version string.").BoolVar(&rawVersion)
 
 	dumpNode := app.Command("node", "SSH Node configuration commands")
@@ -758,6 +788,8 @@ Examples:
 	case dumpNodeConfigure.FullCommand():
 		dumpFlags.Roles = defaults.RoleNode
 		err = onConfigDump(dumpFlags)
+	case dumpModify.FullCommand():
+		err = onConfigModify(modFlags)
 
 	case exec.FullCommand(),
 		networking.FullCommand(),
