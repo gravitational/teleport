@@ -152,6 +152,7 @@ enum SummaryState {
   SUMMARY_STATE_PENDING = 1;
   SUMMARY_STATE_SUCCESS = 2;
   SUMMARY_STATE_ERROR = 3;
+  SUMMARY_STATE_NO_INFERENCE_POLICY = 4;
 }
 
 // Summary represents a summary of a session recording. This format is used to
