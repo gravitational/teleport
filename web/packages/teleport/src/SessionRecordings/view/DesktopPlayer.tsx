@@ -175,7 +175,7 @@ const useDesktopPlayer = ({
   const [playerStatus, setPlayerStatus] = useState(StatusEnum.LOADING);
   const [statusText, setStatusText] = useState('');
 
-  // latest authoritative playback position, interpolated between by the rAF loop
+  // latest authoritative playback position, interpolated between by the requestAnimationFrame loop
   const anchorRef = useRef<TimeAnchor>({
     ms: 0,
     speed: 1,
