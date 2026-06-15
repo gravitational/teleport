@@ -68,7 +68,7 @@ import (
 // Finally, it tests various scenarios where a node attempts to join by
 // connecting to the proxy's gRPC join service.
 func TestJoinToken(t *testing.T) {
-	t.Parallel()
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
 
 	token1, err := types.NewProvisionTokenFromSpec("token1", time.Now().Add(time.Minute), types.ProvisionTokenSpecV2{
 		Roles: []types.SystemRole{

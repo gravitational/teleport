@@ -149,6 +149,7 @@ func (c ec2ClientRunning) DescribeInstances(ctx context.Context, params *ec2.Des
 }
 
 func TestJoinEC2(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
 	ctx := context.Background()
 
 	testServer, err := authtest.NewTestServer(authtest.ServerConfig{

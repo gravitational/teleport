@@ -136,7 +136,7 @@ type iamJoinTestCase struct {
 }
 
 func TestJoinIAM(t *testing.T) {
-	t.Parallel()
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
 	ctx := t.Context()
 
 	allowedOrgIDUsingAmbientCredentials := "o-allowedorg"
