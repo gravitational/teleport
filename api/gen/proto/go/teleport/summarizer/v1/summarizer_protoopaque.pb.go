@@ -94,10 +94,11 @@ func (x ClassifierActionMode) Number() protoreflect.EnumNumber {
 type SummaryState int32
 
 const (
-	SummaryState_SUMMARY_STATE_UNSPECIFIED SummaryState = 0
-	SummaryState_SUMMARY_STATE_PENDING     SummaryState = 1
-	SummaryState_SUMMARY_STATE_SUCCESS     SummaryState = 2
-	SummaryState_SUMMARY_STATE_ERROR       SummaryState = 3
+	SummaryState_SUMMARY_STATE_UNSPECIFIED         SummaryState = 0
+	SummaryState_SUMMARY_STATE_PENDING             SummaryState = 1
+	SummaryState_SUMMARY_STATE_SUCCESS             SummaryState = 2
+	SummaryState_SUMMARY_STATE_ERROR               SummaryState = 3
+	SummaryState_SUMMARY_STATE_NO_INFERENCE_POLICY SummaryState = 4
 )
 
 // Enum value maps for SummaryState.
@@ -107,12 +108,14 @@ var (
 		1: "SUMMARY_STATE_PENDING",
 		2: "SUMMARY_STATE_SUCCESS",
 		3: "SUMMARY_STATE_ERROR",
+		4: "SUMMARY_STATE_NO_INFERENCE_POLICY",
 	}
 	SummaryState_value = map[string]int32{
-		"SUMMARY_STATE_UNSPECIFIED": 0,
-		"SUMMARY_STATE_PENDING":     1,
-		"SUMMARY_STATE_SUCCESS":     2,
-		"SUMMARY_STATE_ERROR":       3,
+		"SUMMARY_STATE_UNSPECIFIED":         0,
+		"SUMMARY_STATE_PENDING":             1,
+		"SUMMARY_STATE_SUCCESS":             2,
+		"SUMMARY_STATE_ERROR":               3,
+		"SUMMARY_STATE_NO_INFERENCE_POLICY": 4,
 	}
 )
 
@@ -4343,12 +4346,13 @@ const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"\x14ClassifierActionMode\x12&\n" +
 	"\"CLASSIFIER_ACTION_MODE_UNSPECIFIED\x10\x00\x12\"\n" +
 	"\x1eCLASSIFIER_ACTION_MODE_ENABLED\x10\x01\x12#\n" +
-	"\x1fCLASSIFIER_ACTION_MODE_DISABLED\x10\x02*|\n" +
+	"\x1fCLASSIFIER_ACTION_MODE_DISABLED\x10\x02*\xa3\x01\n" +
 	"\fSummaryState\x12\x1d\n" +
 	"\x19SUMMARY_STATE_UNSPECIFIED\x10\x00\x12\x19\n" +
 	"\x15SUMMARY_STATE_PENDING\x10\x01\x12\x19\n" +
 	"\x15SUMMARY_STATE_SUCCESS\x10\x02\x12\x17\n" +
-	"\x13SUMMARY_STATE_ERROR\x10\x03*\xb2\x04\n" +
+	"\x13SUMMARY_STATE_ERROR\x10\x03\x12%\n" +
+	"!SUMMARY_STATE_NO_INFERENCE_POLICY\x10\x04*\xb2\x04\n" +
 	"\x0fCommandCategory\x12 \n" +
 	"\x1cCOMMAND_CATEGORY_UNSPECIFIED\x10\x00\x12#\n" +
 	"\x1fCOMMAND_CATEGORY_FILE_OPERATION\x10\x01\x12\x1c\n" +
