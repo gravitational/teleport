@@ -72,7 +72,7 @@ const getSsoMfaOption = (ssoChallenge: SsoChallenge): MfaOption => {
 };
 
 // Returns the MFA options available for the given auth2faType.
-// 
+//
 // 'none' is included only when auth2faType is 'optional'. Callers that
 // don't want to offer 'none' (e.g. login) should filter it out.
 export function getMfaRegisterOptions(

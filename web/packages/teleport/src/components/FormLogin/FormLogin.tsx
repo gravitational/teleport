@@ -51,7 +51,10 @@ import {
 import cfg from 'teleport/config';
 import { UserCredentials } from 'teleport/services/auth';
 import history from 'teleport/services/history';
-import { getMfaRegisterOptions, MfaRegisterOption } from 'teleport/services/mfa';
+import {
+  getMfaRegisterOptions,
+  MfaRegisterOption,
+} from 'teleport/services/mfa';
 
 import { PasskeyIcons } from '../Passkeys';
 import { FormIdentifierFirst, ViewSwitchButton } from './FormIdentifierFirst';
@@ -232,8 +235,7 @@ const LocalForm = ({
   const [token, setToken] = useState('');
 
   const mfaOptions = useMemo(
-    () =>
-      getMfaRegisterOptions(auth2faType).filter(o => o.value !== 'none'),
+    () => getMfaRegisterOptions(auth2faType).filter(o => o.value !== 'none'),
     []
   );
 
