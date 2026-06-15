@@ -320,16 +320,6 @@ type upsertServerRawReq struct {
 	TTL    time.Duration   `json:"ttl"`
 }
 
-// ExtendWebSession creates a new web session for a user based on another
-// valid web session
-func (c *HTTPClient) ExtendWebSession(ctx context.Context, req WebSessionReq) (types.WebSession, error) {
-	out, err := c.PostJSON(ctx, c.Endpoint("users", req.User, "web", "sessions"), req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return services.UnmarshalWebSession(out.Bytes())
-}
-
 // AuthenticateWebUser authenticates web user, creates and  returns web session
 // in case if authentication is successful
 func (c *HTTPClient) AuthenticateWebUser(ctx context.Context, req AuthenticateUserRequest) (types.WebSession, error) {
