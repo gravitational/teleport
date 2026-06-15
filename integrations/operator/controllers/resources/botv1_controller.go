@@ -83,6 +83,9 @@ func NewBotV1Reconciler(client kclient.Client, tClient *client.Client) (controll
 	](
 		client,
 		botClient,
+		reconcilers.Config{
+			Scoped: true,
+		},
 	)
 
 	return resourceReconciler, trace.Wrap(err, "building teleport resource reconciler")
