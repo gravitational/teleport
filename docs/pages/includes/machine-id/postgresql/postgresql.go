@@ -15,7 +15,7 @@ func main() {
 	// Open connection to database.
 	db, err := sql.Open("pgx", fmt.Sprint(
 		"host=localhost ",
-		"port=1234 ",
+		"port=12345 ",
 		"dbname=example ",
 		"user=alice ",
 		// The next four options should be omitted if the local proxy has been
