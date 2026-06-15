@@ -247,19 +247,6 @@ func FromUserDisplayProto(display *accesslistv1.UserDisplay) types.UserDisplay {
 	}
 }
 
-// ToUserDisplaysProto converts a username-keyed display map into its v1
-// representation, preserving keys with empty displays.
-func ToUserDisplaysProto(displays map[string]types.UserDisplay) map[string]*accesslistv1.UserDisplay {
-	if displays == nil {
-		return nil
-	}
-	out := make(map[string]*accesslistv1.UserDisplay, len(displays))
-	for name, display := range displays {
-		out[name] = ToUserDisplayProto(display)
-	}
-	return out
-}
-
 // FromUserDisplaysProto converts a v1 username-keyed display map into its
 // internal representation. Nil values under present keys convert to zero
 // values.

@@ -504,3 +504,48 @@ func Test_convertGrantsToProto_never_nil(t *testing.T) {
 	emptyGrants := accesslist.Grants{}
 	require.NotNil(t, ConvertGrantsToProto(emptyGrants))
 }
+
+func TestUserDisplayConversion(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		display types.UserDisplay
+	}{
+		{name: "both values", display: types.UserDisplay{Primary: "Alice Doe", Secondary: "alice@example.com"}},
+		{name: "primary only", display: types.UserDisplay{Primary: "Alice Doe"}},
+		{name: "secondary only", display: types.UserDisplay{Secondary: "alice@example.com"}},
+		{name: "empty", display: types.UserDisplay{}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			msg := ToUserDisplayProto(tc.display)
+			// The zero value must stay a non-nil message so a present-but-empty
+			// map entry remains representable on the wire.
+			require.NotNil(t, msg)
+			require.Equal(t, tc.display, FromUserDisplayProto(msg))
+		})
+	}
+}
+
+func TestUserDisplaysConversion(t *testing.T) {
+	t.Parallel()
+
+	// An absent wire map converts to a nil Go map (the un-enriched response).
+	require.Nil(t, FromUserDisplaysProto(nil))
+
+	// Present keys are preserved, including present-but-empty displays. proto3
+	// may decode an empty message value as an empty message or as nil; both
+	// must yield a present zero-value entry (the live-user-no-display signal).
+	require.Equal(t,
+		map[string]types.UserDisplay{
+			"alice":      {Primary: "Alice Doe", Secondary: "alice@example.com"},
+			"emptyValue": {},
+			"nilValue":   {},
+		},
+		FromUserDisplaysProto(map[string]*accesslistv1.UserDisplay{
+			"alice":      {Primary: "Alice Doe", Secondary: "alice@example.com"},
+			"emptyValue": {},
+			"nilValue":   nil,
+		}))
+}
