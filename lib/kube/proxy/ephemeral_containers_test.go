@@ -146,8 +146,7 @@ func Test_patchPodWithDebugContainer(t *testing.T) {
 		_, _, err := patchPodWithDebugContainer(
 			decoder, podJSON, patch, basePod, apimachinerytypes.StrategicMergePatchType,
 		)
-		require.Error(t, err)
-		require.True(t, trace.IsAccessDenied(err), "expected AccessDenied, got %v", err)
+		require.ErrorAs(t, err, new(*trace.AccessDeniedError))
 	})
 
 	t.Run("multiple added containers are rejected even when the last is interactive", func(t *testing.T) {
@@ -163,8 +162,7 @@ func Test_patchPodWithDebugContainer(t *testing.T) {
 		_, _, err := patchPodWithDebugContainer(
 			decoder, podJSON, patch, basePod, apimachinerytypes.StrategicMergePatchType,
 		)
-		require.Error(t, err)
-		require.True(t, trace.IsAccessDenied(err), "expected AccessDenied, got %v", err)
+		require.ErrorAs(t, err, new(*trace.AccessDeniedError))
 	})
 
 	t.Run("multiple added containers are rejected when the last is non-interactive", func(t *testing.T) {
@@ -176,7 +174,6 @@ func Test_patchPodWithDebugContainer(t *testing.T) {
 		_, _, err := patchPodWithDebugContainer(
 			decoder, podJSON, patch, basePod, apimachinerytypes.StrategicMergePatchType,
 		)
-		require.Error(t, err)
-		require.True(t, trace.IsAccessDenied(err), "expected AccessDenied, got %v", err)
+		require.ErrorAs(t, err, new(*trace.AccessDeniedError))
 	})
 }
