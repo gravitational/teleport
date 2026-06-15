@@ -76,6 +76,7 @@ func NewUserReconciler(client kclient.Client, tClient *client.Client) (controlle
 	resourceReconciler, err := reconcilers.NewTeleportResourceWithLabelsReconciler[types.User, *resourcesv2.TeleportUser](
 		client,
 		userClient,
+		reconcilers.Config{},
 	)
 
 	return resourceReconciler, trace.Wrap(err, "building teleport resource reconciler")

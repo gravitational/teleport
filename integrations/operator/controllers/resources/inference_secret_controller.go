@@ -101,6 +101,9 @@ func NewInferenceSecretReconciler(
 	](
 		client,
 		secretClient,
+		reconcilers.Config{
+			CheckFeatures: controllers.RequirePolicy,
+		},
 	)
 
 	return resourceReconciler, trace.Wrap(err)
