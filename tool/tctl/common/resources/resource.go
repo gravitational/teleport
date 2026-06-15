@@ -89,6 +89,7 @@ func Handlers() map[string]Handler {
 		types.KindSigstorePolicy:                     sigstorePolicyHandler(),
 		types.KindStaticHostUser:                     staticHostUserHandler(),
 		types.KindToken:                              tokenHandler(),
+		types.KindTrustedCluster:                     trustedClusterHandler(),
 		types.KindUIConfig:                           uiConfigHandler(),
 		types.KindUser:                               userHandler(),
 		types.KindUserTask:                           userTasksHandler(),
