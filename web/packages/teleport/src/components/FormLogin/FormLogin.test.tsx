@@ -81,9 +81,7 @@ test('login MFA dropdown excludes "None" even when auth is optional', async () =
   // Open the FieldSelect menu.
   await user.click(screen.getByText('Passkey or Security Key'));
 
-  const optionLabels = screen
-    .getAllByRole('option')
-    .map(o => o.textContent);
+  const optionLabels = screen.getAllByRole('option').map(o => o.textContent);
   expect(optionLabels).not.toContain('None');
   expect(optionLabels).toEqual(
     expect.arrayContaining(['Passkey or Security Key', 'Authenticator App'])
