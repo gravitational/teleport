@@ -4,7 +4,9 @@ import type { ComponentProps } from 'react';
 import { render as testingRender, userEvent } from 'design/utils/testing';
 
 import {
+  MOCK_DESKTOP_EVENTS,
   MOCK_EVENTS,
+  MOCK_FAILED_DESKTOP_EVENT,
   MOCK_FAILED_EVENT,
 } from 'e-teleport/SessionRecordings/summary/mock';
 import { TimelineItem } from 'e-teleport/SessionRecordings/summary/TimelineItem';
@@ -78,6 +80,74 @@ describe('TimelineItem', () => {
 
     expect(
       screen.getByText(MOCK_EVENTS[0].commandEventDetails!.command)
+    ).toBeInTheDocument();
+  });
+
+  it('renders the timeline title of a desktop event', () => {
+    render({ event: MOCK_DESKTOP_EVENTS[0] });
+
+    expect(
+      screen.getByText('Uploaded Payroll Data to Personal Cloud Storage')
+    ).toBeInTheDocument();
+  });
+
+  it('shows desktop event details in popover', () => {
+    render({ event: MOCK_DESKTOP_EVENTS[0], selected: true });
+
+    expect(screen.getByText('Active window')).toBeInTheDocument();
+    expect(screen.getByText('My Drive - Google Chrome')).toBeInTheDocument();
+
+    expect(screen.getByText('Applications')).toBeInTheDocument();
+    expect(
+      screen.getByText('Google Chrome, File Explorer')
+    ).toBeInTheDocument();
+
+    expect(screen.getByText('Visible URLs')).toBeInTheDocument();
+    expect(
+      screen.getByText('https://drive.google.com/drive/my-drive')
+    ).toBeInTheDocument();
+
+    expect(screen.getByText('Visible file paths')).toBeInTheDocument();
+    expect(
+      screen.getByText('C:\\Users\\Administrator\\Documents\\payroll.xlsx')
+    ).toBeInTheDocument();
+  });
+
+  it('omits desktop detail sections without values', () => {
+    render({ event: MOCK_DESKTOP_EVENTS[1], selected: true });
+
+    expect(screen.getByText('Active window')).toBeInTheDocument();
+    expect(screen.queryByText('Visible URLs')).not.toBeInTheDocument();
+    expect(screen.queryByText('Visible file paths')).not.toBeInTheDocument();
+  });
+
+  it('does not render visible URLs as links', () => {
+    render({ event: MOCK_DESKTOP_EVENTS[0], selected: true });
+
+    expect(
+      screen.getByText('https://drive.google.com/drive/my-drive')
+    ).not.toHaveAttribute('href');
+    expect(
+      screen.queryByRole('link', {
+        name: 'https://drive.google.com/drive/my-drive',
+      })
+    ).not.toBeInTheDocument();
+  });
+
+  it('falls back to the active window title when a desktop event has no timeline title', () => {
+    render({ event: MOCK_FAILED_DESKTOP_EVENT });
+
+    expect(screen.getByText('Remote Desktop Connection')).toBeInTheDocument();
+  });
+
+  it('shows error alert in popover for failed desktop event', () => {
+    render({ event: MOCK_FAILED_DESKTOP_EVENT, selected: true });
+
+    expect(
+      screen.getByText('There was an error analyzing this event:')
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('temporary fake error for UI testing')
     ).toBeInTheDocument();
   });
 });

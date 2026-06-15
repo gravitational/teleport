@@ -2,6 +2,7 @@ import {
   CommandCategory,
   ThreatCategory,
   type CommandSessionEvent,
+  type SessionEvent,
 } from 'e-teleport/services/recordings/types';
 import { RiskLevel } from 'teleport/services/recordings';
 
@@ -116,3 +117,109 @@ export const MOCK_EVENTS: CommandSessionEvent[] = [
     },
   },
 ];
+
+export const MOCK_DESKTOP_EVENTS: SessionEvent[] = [
+  {
+    category: CommandCategory.Transfer,
+    riskLevel: RiskLevel.High,
+    riskScore: 82,
+    threatCategory: ThreatCategory.Exfiltration,
+    timelineTitle: 'Uploaded Payroll Data to Personal Cloud Storage',
+    timelineSubtitle: 'Company document uploaded via browser',
+    shortDescription:
+      'Uploaded a payroll spreadsheet to a personal Google Drive account',
+    detailedDescription:
+      'The user opened a payroll spreadsheet from the Documents folder and uploaded it to a personal Google Drive account through the browser, moving sensitive company data outside of corporate storage.',
+    suspiciousFlags: ['personal_cloud_storage', 'sensitive_document_upload'],
+    sensitiveItems: ['C:\\Users\\Administrator\\Documents\\payroll.xlsx'],
+    suspiciousPatterns: [],
+    iocs: [],
+    hasSensitiveData: true,
+    privilegeEscalation: false,
+    dataExfiltration: true,
+    persistence: false,
+    startOffset: 3000,
+    endOffset: 9000,
+    desktopEventDetails: {
+      applications: ['Google Chrome', 'File Explorer'],
+      visibleUrls: ['https://drive.google.com/drive/my-drive'],
+      visibleFilePaths: ['C:\\Users\\Administrator\\Documents\\payroll.xlsx'],
+      activeWindowTitle: 'My Drive - Google Chrome',
+    },
+  },
+  {
+    category: CommandCategory.SystemConfiguration,
+    riskLevel: RiskLevel.Critical,
+    riskScore: 90,
+    threatCategory: ThreatCategory.DefenseEvasion,
+    timelineTitle: 'Disabled Real-Time Antivirus Protection',
+    shortDescription:
+      'Turned off Windows Defender real-time protection in Windows Security',
+    detailedDescription:
+      'The user navigated to the Virus & threat protection settings in Windows Security and disabled real-time protection, leaving the host without active malware scanning.',
+    suspiciousFlags: ['security_control_disabled'],
+    sensitiveItems: [],
+    suspiciousPatterns: [],
+    iocs: [],
+    hasSensitiveData: false,
+    privilegeEscalation: false,
+    dataExfiltration: false,
+    persistence: false,
+    startOffset: 12000,
+    endOffset: 15000,
+    desktopEventDetails: {
+      applications: ['Windows Security'],
+      activeWindowTitle: 'Windows Security',
+    },
+  },
+  {
+    category: CommandCategory.Other,
+    riskLevel: RiskLevel.Low,
+    riskScore: 5,
+    threatCategory: ThreatCategory.None,
+    timelineTitle: 'Browsed Internal Documentation',
+    shortDescription: 'Read internal wiki pages in the browser',
+    detailedDescription:
+      'The user browsed internal documentation pages. No suspicious activity was observed during this period.',
+    suspiciousFlags: [],
+    sensitiveItems: [],
+    suspiciousPatterns: [],
+    iocs: [],
+    hasSensitiveData: false,
+    privilegeEscalation: false,
+    dataExfiltration: false,
+    persistence: false,
+    startOffset: 16000,
+    endOffset: 21000,
+    desktopEventDetails: {
+      applications: ['Microsoft Edge'],
+      visibleUrls: ['https://wiki.internal.example.com/runbooks'],
+      activeWindowTitle: 'Runbooks - Internal Wiki - Microsoft Edge',
+    },
+  },
+];
+
+export const MOCK_FAILED_DESKTOP_EVENT: SessionEvent = {
+  category: CommandCategory.Other,
+  riskLevel: RiskLevel.Medium,
+  riskScore: 40,
+  threatCategory: ThreatCategory.Unspecified,
+  timelineTitle: '',
+  shortDescription: 'Screen analysis failed for this segment',
+  detailedDescription:
+    'The inference provider failed to analyze this segment of the desktop session.',
+  suspiciousFlags: [],
+  sensitiveItems: [],
+  suspiciousPatterns: [],
+  iocs: [],
+  hasSensitiveData: false,
+  privilegeEscalation: false,
+  dataExfiltration: false,
+  persistence: false,
+  startOffset: 22000,
+  endOffset: 24000,
+  inferenceErrorMessage: 'temporary fake error for UI testing',
+  desktopEventDetails: {
+    activeWindowTitle: 'Remote Desktop Connection',
+  },
+};

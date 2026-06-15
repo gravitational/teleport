@@ -155,21 +155,21 @@ function RecordingWithMetadataE({
       return data.metadata.events;
     }
 
-    const riskyCommandEvents = summary.sessionEvents
-      .filter(
-        e =>
-          !!e.commandEventDetails &&
-          [
-            RiskLevelValue.Medium,
-            RiskLevelValue.High,
-            RiskLevelValue.Critical,
-          ].includes(e.riskLevel)
+    const riskyEvents = summary.sessionEvents
+      .filter(e =>
+        [
+          RiskLevelValue.Medium,
+          RiskLevelValue.High,
+          RiskLevelValue.Critical,
+        ].includes(e.riskLevel)
       )
       .map(e => {
         if (e.inferenceErrorMessage) {
           return {
             type: SessionRecordingEventType.Risk,
-            description: 'Error analyzing command, review it further',
+            description: e.commandEventDetails
+              ? 'Error analyzing command, review it further'
+              : 'Error analyzing event, review it further',
             riskLevel: e.riskLevel,
             startTime: e.startOffset,
             endTime: e.endOffset,
@@ -186,7 +186,7 @@ function RecordingWithMetadataE({
         } as SessionRecordingRiskEvent;
       });
 
-    return [...(data.metadata?.events || []), ...riskyCommandEvents];
+    return [...(data.metadata?.events || []), ...riskyEvents];
   }, [data.metadata, summary]);
 
   return (

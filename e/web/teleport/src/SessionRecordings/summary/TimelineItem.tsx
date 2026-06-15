@@ -39,7 +39,8 @@ import {
   getCommandCategoryIcon,
   getThreatCategoryIcon,
   ThreatCategory,
-  type CommandSessionEvent,
+  type DesktopEventDetails,
+  type SessionEvent,
 } from 'e-teleport/services/recordings/types';
 import {
   getRiskColor,
@@ -52,7 +53,7 @@ import { MitreAttackLogo } from './MitreAttackLogo';
 import { RiskScore } from './RiskScore';
 
 interface TimelineItemProps {
-  event: CommandSessionEvent;
+  event: SessionEvent;
   selected: boolean;
   onOpenChange: (open: boolean) => void;
   onPlay?: () => void;
@@ -67,6 +68,7 @@ export function TimelineItem({
   nextRiskLevel,
 }: TimelineItemProps) {
   const command = event.commandEventDetails;
+  const desktop = event.desktopEventDetails;
   const [arrowEl, setArrowEl] = useState<HTMLDivElement>(null);
 
   const { context, floatingStyles, middlewareData, refs } = useFloating({
@@ -193,8 +195,12 @@ export function TimelineItem({
         >
           {event.timelineTitle ? (
             <Markdown text={event.timelineTitle} />
-          ) : (
+          ) : command ? (
             <RawCommand>{command.command}</RawCommand>
+          ) : (
+            <TruncatedTitle>
+              {desktop?.activeWindowTitle || event.shortDescription}
+            </TruncatedTitle>
           )}
         </StyledBox>
       </Flex>
@@ -286,23 +292,30 @@ export function TimelineItem({
                 </Flex>
               )}
 
-              <Box
-                fontFamily="mono"
-                fontSize="13px"
-                backgroundColor="spotBackground.0"
-                px={2}
-                py={1}
-                borderRadius="8px"
-                mt={2}
-                mx={3}
-                style={{ wordBreak: 'break-all' }}
-              >
-                {command.command}
-              </Box>
+              {command && (
+                <Box
+                  fontFamily="mono"
+                  fontSize="13px"
+                  backgroundColor="spotBackground.0"
+                  px={2}
+                  py={1}
+                  borderRadius="8px"
+                  mt={2}
+                  mx={3}
+                  style={{ wordBreak: 'break-all' }}
+                >
+                  {command.command}
+                </Box>
+              )}
+
+              {desktop && <DesktopEventDetailsSection details={desktop} />}
 
               {hasError && (
                 <Alert kind="danger" mx={3} mt={3}>
-                  <Box>There was an error analyzing this command:</Box>
+                  <Box>
+                    There was an error analyzing this{' '}
+                    {command ? 'command' : 'event'}:
+                  </Box>
                   {event.inferenceErrorMessage}
                 </Alert>
               )}
@@ -383,6 +396,71 @@ function MitreAttackList({ mitreAttackIds }: MitreAttackListProps) {
       <Flex flexWrap="wrap" gap={2}>
         {items}
       </Flex>
+    </Flex>
+  );
+}
+
+interface DesktopEventDetailsSectionProps {
+  details: DesktopEventDetails;
+}
+
+function DesktopEventDetailsSection({
+  details,
+}: DesktopEventDetailsSectionProps) {
+  const sections = [
+    {
+      label: 'Active window',
+      items: details.activeWindowTitle ? [details.activeWindowTitle] : [],
+    },
+    {
+      label: 'Applications',
+      items: details.applications?.length
+        ? [details.applications.join(', ')]
+        : [],
+    },
+    {
+      label: 'Visible URLs',
+      items: details.visibleUrls ?? [],
+    },
+    {
+      label: 'Visible file paths',
+      items: details.visibleFilePaths ?? [],
+    },
+  ].filter(section => section.items.length > 0);
+
+  if (sections.length === 0) {
+    return null;
+  }
+
+  return (
+    <Flex
+      flexDirection="column"
+      gap={2}
+      backgroundColor="spotBackground.0"
+      px={2}
+      py={2}
+      borderRadius="8px"
+      mt={2}
+      mx={3}
+    >
+      {sections.map(section => (
+        <Box key={section.label}>
+          <Text color="text.slightlyMuted" fontSize="small" fontWeight="500">
+            {section.label}
+          </Text>
+
+          {section.items.map(item => (
+            <Box
+              key={item}
+              fontFamily="mono"
+              fontSize="13px"
+              style={{ wordBreak: 'break-all' }}
+            >
+              {item}
+            </Box>
+          ))}
+        </Box>
+      ))}
     </Flex>
   );
 }
@@ -491,6 +569,14 @@ const Divider = styled(Box)`
 
 const RawCommand = styled(Box)`
   font-family: ${p => p.theme.fonts.mono};
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 13px;
+  min-width: 0;
+`;
+
+const TruncatedTitle = styled(Box)`
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

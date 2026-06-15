@@ -5,7 +5,6 @@ import { useTheme } from 'styled-components';
 import Box from 'design/Box';
 import Flex from 'design/Flex';
 
-import { isCommandSessionEvent } from 'e-teleport/services/recordings/normalize';
 import { type SessionEvent } from 'e-teleport/services/recordings/types';
 import { getRiskColor } from 'e-teleport/SessionRecordings/summary/RiskLevel';
 import {
@@ -29,16 +28,9 @@ export function SessionRecordingTimeline({
 }: SessionRecordingTimelineProps) {
   const [selectedEventIndex, setSelectedEventIndex] = useState(-1);
 
-  // Only command events are rendered today; desktop events flow through the
-  // wire but aren't displayed yet.
-  const commandEvents = useMemo(
-    () => events.filter(isCommandSessionEvent),
-    [events]
-  );
-
   const items = useMemo(
     () =>
-      commandEvents.map((event, index) => (
+      events.map((event, index) => (
         <TimelineItem
           key={index}
           event={event}
@@ -47,16 +39,16 @@ export function SessionRecordingTimeline({
             setSelectedEventIndex(open ? index : -1)
           }
           onPlay={onPlay ? () => onPlay(event.startOffset ?? 0) : undefined}
-          nextRiskLevel={commandEvents[index + 1]?.riskLevel}
+          nextRiskLevel={events[index + 1]?.riskLevel}
         />
       )),
-    [commandEvents, onPlay, selectedEventIndex]
+    [events, onPlay, selectedEventIndex]
   );
 
   const lastTimestamp = sessionDuration
     ? sessionDuration
-    : commandEvents.length > 0
-      ? commandEvents[commandEvents.length - 1].endOffset
+    : events.length > 0
+      ? events[events.length - 1].endOffset
       : 0;
 
   return (
@@ -80,7 +72,7 @@ export function SessionRecordingTimeline({
           />
         </Box>
 
-        <StartMarker firstRiskLevel={commandEvents[0]?.riskLevel}>
+        <StartMarker firstRiskLevel={events[0]?.riskLevel}>
           Session started
         </StartMarker>
 
