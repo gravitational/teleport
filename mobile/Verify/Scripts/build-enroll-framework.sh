@@ -47,14 +47,12 @@ fi
 
 log_info "using tools in $GO_COMMANDS_DIR/"
 
-# gomobile may invoke `go` internally, so put the discovered tool locations on
-# PATH before running the bind command.
+# gomobile invokes `go` and `gobind` internally, so put the discovered tool
+# locations on PATH before running the bind command.
 export PATH="$(dirname "$GO_EXECUTABLE"):$GO_COMMANDS_DIR:$PATH"
 
-GOMOBILE_EXECUTABLE="$(find_gomobile_executable || true)"
-
-if [ -z "$GOMOBILE_EXECUTABLE" ]; then
-  xcode_error "gomobile was not found. Install it with: \"$GO_EXECUTABLE\" install golang.org/x/mobile/cmd/gomobile@latest && \"$GO_COMMANDS_DIR/gomobile\" init"
+if ! command -v gobind >/dev/null 2>&1; then
+  xcode_error "gobind was not found. Run: \"$GO_EXECUTABLE\" tool gomobile init"
   exit 1
 fi
 
@@ -62,12 +60,12 @@ fi
 ENROLL_IMPORT_PATH="github.com/gravitational/teleport/lib/mobile/verify/enroll"
 ENROLL_XCFRAMEWORK="$TARGET_TEMP_DIR/GeneratedFrameworks/Enroll.xcframework"
 
-log_info "using gomobile at $GOMOBILE_EXECUTABLE"
+log_info "using gomobile via $GO_EXECUTABLE tool gomobile"
 log_info "building $ENROLL_IMPORT_PATH"
 log_info "writing $ENROLL_XCFRAMEWORK"
 
 mkdir -p "$(dirname "$ENROLL_XCFRAMEWORK")"
 
-"$GOMOBILE_EXECUTABLE" bind -target=ios -o "$ENROLL_XCFRAMEWORK" "$ENROLL_IMPORT_PATH"
+"$GO_EXECUTABLE" tool gomobile bind -target=ios -o "$ENROLL_XCFRAMEWORK" "$ENROLL_IMPORT_PATH"
 
 log_info "finished building Enroll.xcframework"

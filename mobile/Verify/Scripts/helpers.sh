@@ -23,19 +23,3 @@ find_go_executable() {
 
   return 1
 }
-
-find_gomobile_executable() {
-  # `go install` writes command binaries to GOBIN, or GOPATH/bin when GOBIN is
-  # unset. Check that computed install directory before falling back to PATH.
-  if [ -n "${GO_COMMANDS_DIR:-}" ] && [ -x "$GO_COMMANDS_DIR/gomobile" ]; then
-    printf '%s\n' "$GO_COMMANDS_DIR/gomobile"
-    return 0
-  fi
-
-  if command -v gomobile >/dev/null 2>&1; then
-    command -v gomobile
-    return 0
-  fi
-
-  return 1
-}
