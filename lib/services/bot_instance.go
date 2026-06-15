@@ -29,6 +29,12 @@ import (
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
+// BotUserPrefix is the prefix appended to bot users. Users with this prefix are
+// plausibly bots, but this prefix is not sufficient to establish that a given
+// user actually is a bot user. The existence of [types.BotLabel] in the user
+// labels is the definitive indicator that a user is a bot.
+const BotUserPrefix = "bot-"
+
 // BotInstance is an interface for the BotInstance service.
 type BotInstance interface {
 	// CreateBotInstance
@@ -55,19 +61,19 @@ type BotInstance interface {
 
 // ValidateBotInstance verifies that required fields for a new BotInstance are present
 func ValidateBotInstance(b *machineidv1.BotInstance) error {
-	if b.Spec == nil {
+	if !b.HasSpec() {
 		return trace.BadParameter("spec is required")
 	}
 
-	if b.Spec.BotName == "" {
+	if b.GetSpec().GetBotName() == "" {
 		return trace.BadParameter("spec.bot_name is required")
 	}
 
-	if b.Spec.InstanceId == "" {
+	if b.GetSpec().GetInstanceId() == "" {
 		return trace.BadParameter("spec.instance_id is required")
 	}
 
-	if b.Status == nil {
+	if !b.HasStatus() {
 		return trace.BadParameter("status is required")
 	}
 
@@ -108,12 +114,12 @@ func MatchBotInstance(b *machineidv1.BotInstance, botName string, search string,
 	}
 
 	values := []string{
-		b.Spec.BotName,
-		b.Spec.InstanceId,
+		b.GetSpec().GetBotName(),
+		b.GetSpec().GetInstanceId(),
 	}
 
 	if heartbeat != nil {
-		values = append(values, heartbeat.Hostname, heartbeat.JoinMethod, heartbeat.Version, "v"+heartbeat.Version)
+		values = append(values, heartbeat.GetHostname(), heartbeat.GetJoinMethod(), heartbeat.GetVersion(), "v"+heartbeat.GetVersion())
 	}
 
 	return slices.ContainsFunc(values, func(val string) bool {
@@ -207,5 +213,5 @@ func (o *ListBotInstancesRequestOptions) GetFilterFn() func(*machineidv1.BotInst
 // BotResourceName returns the default name for resources associated with the
 // given named bot.
 func BotResourceName(botName string) string {
-	return "bot-" + strings.ReplaceAll(botName, " ", "-")
+	return BotUserPrefix + strings.ReplaceAll(botName, " ", "-")
 }

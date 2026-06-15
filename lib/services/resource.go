@@ -989,7 +989,7 @@ func maybeResetProtoRevisionv2[T ProtoResource](preserveRevision bool, r T) T {
 	}
 
 	cp := proto.Clone(r).(T)
-	cp.GetMetadata().Revision = ""
+	cp.GetMetadata().SetRevision("")
 	return cp
 }
 
@@ -1025,10 +1025,10 @@ func UnmarshalProtoResource[T ProtoResourcePtr[U], U any](data []byte, opts ...M
 		return nil, trace.Wrap(err)
 	}
 	if cfg.Revision != "" {
-		resource.GetMetadata().Revision = cfg.Revision
+		resource.GetMetadata().SetRevision(cfg.Revision)
 	}
 	if !cfg.Expires.IsZero() {
-		resource.GetMetadata().Expires = timestamppb.New(cfg.Expires)
+		resource.GetMetadata().SetExpires(timestamppb.New(cfg.Expires))
 	}
 	return resource, nil
 }
@@ -1091,10 +1091,10 @@ func FastUnmarshalProtoResourceDeprecated[T ProtoResourcePtr[U], U any](data []b
 		return nil, trace.Wrap(err)
 	}
 	if cfg.Revision != "" {
-		resource.GetMetadata().Revision = cfg.Revision
+		resource.GetMetadata().SetRevision(cfg.Revision)
 	}
 	if !cfg.Expires.IsZero() {
-		resource.GetMetadata().Expires = timestamppb.New(cfg.Expires)
+		resource.GetMetadata().SetExpires(timestamppb.New(cfg.Expires))
 	}
 	return resource, nil
 }

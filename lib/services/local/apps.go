@@ -88,7 +88,6 @@ func (s *AppService) ListApps(ctx context.Context, limit int, startKey string) (
 	for item, err := range s.Backend.Items(ctx, backend.ItemsParams{
 		StartKey: appKey.AppendKey(backend.KeyFromString(startKey)),
 		EndKey:   backend.RangeEnd(appKey),
-		Limit:    limit + 1,
 	}) {
 		if err != nil {
 			return nil, "", trace.Wrap(err)

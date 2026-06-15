@@ -92,14 +92,14 @@ func UnmarshalAccessGraphSettings(raw []byte) (*clusterconfigpb.AccessGraphSetti
 // implements types.Resource and can be marshaled to YAML or JSON in a
 // human-friendly format.
 func ProtoToResource(set *clusterconfigpb.AccessGraphSettings) (*AccessGraphSettings, error) {
-	conf, err := secretsScanConfigToString(set.Spec.SecretsScanConfig)
+	conf, err := secretsScanConfigToString(set.GetSpec().GetSecretsScanConfig())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	r := &AccessGraphSettings{
 		ResourceHeader: types.ResourceHeader{
-			Kind:     set.Kind,
-			Version:  set.Version,
+			Kind:     set.GetKind(),
+			Version:  set.GetVersion(),
 			Metadata: legacy.FromHeaderMetadata(headerv1.FromMetadataProto(set.GetMetadata())),
 		},
 		Spec: accessGraphSettingsSpec{
@@ -114,15 +114,15 @@ func resourceToProto(r *AccessGraphSettings) (*clusterconfigpb.AccessGraphSettin
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &clusterconfigpb.AccessGraphSettings{
+	return clusterconfigpb.AccessGraphSettings_builder{
 		Kind:     r.Kind,
 		SubKind:  r.SubKind,
 		Version:  r.Version,
 		Metadata: headerv1.ToMetadataProto(legacy.ToHeaderMetadata(r.Metadata)),
-		Spec: &clusterconfigpb.AccessGraphSettingsSpec{
+		Spec: clusterconfigpb.AccessGraphSettingsSpec_builder{
 			SecretsScanConfig: secretsScanConfig,
-		},
-	}, nil
+		}.Build(),
+	}.Build(), nil
 }
 
 func secretsScanConfigToString(secretsScanConfig clusterconfigpb.AccessGraphSecretsScanConfig) (string, error) {

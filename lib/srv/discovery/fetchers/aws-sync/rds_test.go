@@ -59,46 +59,46 @@ func TestPollAWSRDS(t *testing.T) {
 
 	resourcesFixture := Resources{
 		RDSDatabases: []*accessgraphv1alpha.AWSRDSDatabaseV1{
-			{
+			accessgraphv1alpha.AWSRDSDatabaseV1_builder{
 				Arn:    "arn:us-west1:rds:instance1",
 				Status: string(rdstypes.DBProxyStatusAvailable),
 				Name:   "db1",
-				EngineDetails: &accessgraphv1alpha.AWSRDSEngineV1{
+				EngineDetails: accessgraphv1alpha.AWSRDSEngineV1_builder{
 					Engine:  string(rdstypes.EngineFamilyMysql),
 					Version: "v1.1",
-				},
+				}.Build(),
 				CreatedAt: timestamppb.New(date),
 				Tags: []*accessgraphv1alpha.AWSTag{
-					{
+					accessgraphv1alpha.AWSTag_builder{
 						Key:   "tag",
 						Value: wrapperspb.String("val"),
-					},
+					}.Build(),
 				},
 				Region:     "eu-west-1",
 				IsCluster:  false,
 				AccountId:  "12345678",
 				ResourceId: "db1",
-			},
-			{
+			}.Build(),
+			accessgraphv1alpha.AWSRDSDatabaseV1_builder{
 				Arn:    "arn:us-west1:rds:cluster1",
 				Status: string(rdstypes.DBProxyStatusAvailable),
 				Name:   "cluster1",
-				EngineDetails: &accessgraphv1alpha.AWSRDSEngineV1{
+				EngineDetails: accessgraphv1alpha.AWSRDSEngineV1_builder{
 					Engine:  string(rdstypes.EngineFamilyMysql),
 					Version: "v1.1",
-				},
+				}.Build(),
 				CreatedAt: timestamppb.New(date),
 				Tags: []*accessgraphv1alpha.AWSTag{
-					{
+					accessgraphv1alpha.AWSTag_builder{
 						Key:   "tag",
 						Value: wrapperspb.String("val"),
-					},
+					}.Build(),
 				},
 				Region:     "eu-west-1",
 				IsCluster:  true,
 				AccountId:  "12345678",
 				ResourceId: "cluster1",
-			},
+			}.Build(),
 		},
 	}
 
@@ -169,7 +169,7 @@ func TestPollAWSRDS(t *testing.T) {
 				// tags originate from a map so we must sort them before comparing.
 				protocmp.SortRepeated(
 					func(a, b *accessgraphv1alpha.AWSTag) bool {
-						return a.Key < b.Key
+						return a.GetKey() < b.GetKey()
 					},
 				),
 			),

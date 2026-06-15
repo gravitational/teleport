@@ -33,6 +33,7 @@ import (
 	"github.com/stretchr/testify/require"
 	core "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/rest"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -234,8 +235,19 @@ func (s *TestSetup) StartKubernetesOperator(t *testing.T) {
 	pong, err := s.TeleportClient.Ping(context.Background())
 	require.NoError(t, err)
 
-	const scoped = false
-	err = resources.SetupAllControllers(setupLog, k8sManager, s.TeleportClient, pong.ServerFeatures, scoped)
+	discoveryClient, err := discovery.NewDiscoveryClientForConfig(s.K8sRestConfig)
+	require.NoError(t, err)
+	if err != nil {
+		setupLog.Error(err, "unable to create kubernetes client")
+	}
+
+	err = resources.SetupAllControllers(resources.Config{
+		Log:            setupLog,
+		TeleportClient: s.TeleportClient,
+		KubeClient:     k8sManager.GetClient(),
+		Scoped:         false,
+		Features:       pong.ServerFeatures,
+	}, k8sManager, discoveryClient)
 	require.NoError(t, err)
 
 	ctx, ctxCancel := context.WithCancel(context.Background())

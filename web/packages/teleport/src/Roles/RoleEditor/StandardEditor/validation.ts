@@ -385,7 +385,7 @@ const validKubernetesGroup = (
 };
 
 const validKubernetesVerbs = (
-  verbs: readonly KubernetesVerbOption[]
+  verbs: KubernetesVerbOption[]
 ): ValidationResult => {
   // Don't allow mixing '*' and other resource types.
   const valid = verbs.length < 2 || verbs.every(v => v.value !== '*');

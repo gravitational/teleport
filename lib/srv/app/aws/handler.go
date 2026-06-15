@@ -210,6 +210,11 @@ func (s *signerHandler) serveRequestByAssumedRole(sessCtx *common.SessionContext
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	if strings.EqualFold(re.SigningName, sts.ServiceID) {
+		if err := denyLongAssumeRoleDuration(sessCtx.Identity, req, s.Clock); err != nil {
+			return trace.Wrap(err)
+		}
+	}
 
 	reqCloneForAudit, err := cloneRequest(req)
 	if err != nil {

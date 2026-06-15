@@ -482,20 +482,20 @@ func (p *fakeClientApp) GetVnetConfig(ctx context.Context, profileName, leafClus
 		if rootCluster.cidrRange == "" {
 			return nil, trace.NotFound("vnet_config not found")
 		}
-		cfg := &vnet.VnetConfig{
+		cfg := vnet.VnetConfig_builder{
 			Kind:    types.KindVnetConfig,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "vnet-config",
-			},
-			Spec: &vnet.VnetConfigSpec{
+			}.Build(),
+			Spec: vnet.VnetConfigSpec_builder{
 				Ipv4CidrRange: rootCluster.cidrRange,
-			},
-		}
+			}.Build(),
+		}.Build()
 		for _, zone := range rootCluster.customDNSZones {
-			cfg.Spec.CustomDnsZones = append(cfg.Spec.CustomDnsZones,
-				&vnet.CustomDNSZone{Suffix: zone},
-			)
+			cfg.GetSpec().SetCustomDnsZones(append(cfg.GetSpec().GetCustomDnsZones(),
+				vnet.CustomDNSZone_builder{Suffix: zone}.Build(),
+			))
 		}
 		return cfg, nil
 	}
@@ -506,20 +506,20 @@ func (p *fakeClientApp) GetVnetConfig(ctx context.Context, profileName, leafClus
 	if leafCluster.cidrRange == "" {
 		return nil, trace.NotFound("vnet_config not found")
 	}
-	cfg := &vnet.VnetConfig{
+	cfg := vnet.VnetConfig_builder{
 		Kind:    types.KindVnetConfig,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: "vnet-config",
-		},
-		Spec: &vnet.VnetConfigSpec{
+		}.Build(),
+		Spec: vnet.VnetConfigSpec_builder{
 			Ipv4CidrRange: leafCluster.cidrRange,
-		},
-	}
+		}.Build(),
+	}.Build()
 	for _, zone := range leafCluster.customDNSZones {
-		cfg.Spec.CustomDnsZones = append(cfg.Spec.CustomDnsZones,
-			&vnet.CustomDNSZone{Suffix: zone},
-		)
+		cfg.GetSpec().SetCustomDnsZones(append(cfg.GetSpec().GetCustomDnsZones(),
+			vnet.CustomDNSZone_builder{Suffix: zone}.Build(),
+		))
 	}
 	return cfg, nil
 }
@@ -788,15 +788,15 @@ func (c *fakeAuthClient) Ping(ctx context.Context) (proto.PingResponse, error) {
 }
 
 func (c *fakeAuthClient) GetVnetConfig(ctx context.Context) (*vnet.VnetConfig, error) {
-	vnetConfig := &vnet.VnetConfig{
-		Spec: &vnet.VnetConfigSpec{
+	vnetConfig := vnet.VnetConfig_builder{
+		Spec: vnet.VnetConfigSpec_builder{
 			Ipv4CidrRange: c.clusterSpec.cidrRange,
-		},
-	}
+		}.Build(),
+	}.Build()
 	for _, zone := range c.clusterSpec.customDNSZones {
-		vnetConfig.Spec.CustomDnsZones = append(vnetConfig.Spec.CustomDnsZones, &vnet.CustomDNSZone{
+		vnetConfig.GetSpec().SetCustomDnsZones(append(vnetConfig.GetSpec().GetCustomDnsZones(), vnet.CustomDNSZone_builder{
 			Suffix: zone,
-		})
+		}.Build()))
 	}
 	return vnetConfig, nil
 }
@@ -2287,11 +2287,11 @@ func mustStartFakeWebProxy(
 
 	caPEM, err := tlsca.MarshalCertificatePEM(caX509)
 	require.NoError(t, err)
-	dialOpts := &vnetv1.DialOptions{
+	dialOpts := vnetv1.DialOptions_builder{
 		WebProxyAddr:          listener.Addr().String(),
 		RootClusterCaCertPool: caPEM,
 		Sni:                   proxyCN,
-	}
+	}.Build()
 	return dialOpts
 }
 

@@ -34,8 +34,7 @@ VNet delivers an experience like a VPN through this local virtual network,
 while maintaining all of Teleport's identity verification and zero trust
 features that traditional VPNs cannot provide.
 
-VNet is available on macOS and Windows in Teleport Connect and tsh, with plans
-for Linux support in a future version.
+VNet is available on macOS, Windows, and Linux in Teleport Connect and tsh.
 
 <Admonition type="warning">
 VNet's VPN-like experience for app access means that any software running on
@@ -67,6 +66,10 @@ following mitigations for DNS rebinding attacks:
 - A client machine running Windows 10 or higher.
 - [Teleport Connect](teleport-connect.mdx), version 17.3.0 or higher, installed in per-machine mode ("Anyone who uses this computer").
 </TabItem>
+<TabItem label="Linux">
+- A client machine running a Linux distro with systemd, systemd-resolved, polkit, and D-Bus.
+- [Teleport Connect](teleport-connect.mdx), version 18.8.0 or higher.
+</TabItem>
 </Tabs>
 
 ## Step 1/3. Start VNet
@@ -87,6 +90,7 @@ Connect.
 
 <details>
 <summary>First launch on macOS</summary>
+
 During the first launch, macOS will prompt you to enable a background item for tsh.app. VNet needs
 this background item in order to configure DNS on your device. To enable the background item, either
 interact with the system notification or go to System Settings > General > Login Items and look for
@@ -174,6 +178,18 @@ for running VNet.
 Teleport Connect offers better visibility for MFA prompts and cluster logins, and
 automatically runs diagnostics that are useful for troubleshooting.
 
+<details>
+<summary>Running tsh vnet on Linux without Teleport Connect</summary>
+
+VNet on Linux requires a systemd unit, a polkit policy, and a D-Bus service
+file to be installed on the system. These files are bundled with the
+[Teleport Connect](teleport-connect.mdx) package and deployed during installation.
+If you use `tsh vnet` without Teleport Connect, you should install these files
+manually.
+See [`examples/systemd/vnet`](https://github.com/gravitational/teleport/tree/branch/v(=teleport.major_version=)/examples/systemd/vnet)
+in the Teleport repository.
+</details>
+
 ## Troubleshooting
 
 ### Conflicting IPv4 ranges
@@ -197,7 +213,7 @@ connect to your app without VNet. Make sure your app appears in the Connect reso
 output of `tsh apps ls`. Turn off VNet and try creating a local proxy to your app (with debug
 logging enabled) with `tsh proxy app -d <app-name>`.
 
-### Timeouts when trying to reach a Teleport cluster
+### Timeouts when trying to reach a Teleport cluster on macOS
 
 If VNet doesn't have a chance to clean up before stopping, such as during sudden device shut down,
 it may leave leftover DNS configuration files in `/etc/resolver`. Those files tell your computer to
@@ -235,6 +251,17 @@ Name                                           Type   TTL   Section    IPAddress
 ----                                           ----   ---   -------    ---------
 tcp-app.teleport.example.com                   AAAA   10    Answer     fd60:67ec:4325::647a:547d
 tcp-app.teleport.example.com                   A      10    Answer     100.68.51.151
+```
+</TabItem>
+<TabItem label="Linux">
+```code
+$ resolvectl query <Var name="tcp-app.teleport.example.com" />
+tcp-app.teleport.example.com: 100.68.51.151               -- link: TeleportVNet
+                              fd60:67ec:4325::647a:547d   -- link: TeleportVNet
+
+-- Information acquired via protocol DNS in 3.9ms.
+-- Data is authenticated: no; Data was acquired via local or encrypted transport: no
+-- Data from: network
 ```
 </TabItem>
 </Tabs>
@@ -350,6 +377,50 @@ $ Get-WinEvent -LogName Teleport -FilterXPath "*[System[Provider[@Name='vnet']]]
 
 {/* TODO: DELETE IN 21.0.0 */}
 Before version 18.0.0, VNet logs were saved in `C:\Program Files\Teleport Connect\resources\bin\logs.txt`.
+</TabItem>
+<TabItem label="Linux">
+To enable debug logs in VNet, first stop Teleport Connect. Then edit the VNet systemd service to
+add a debug environment variable:
+
+```code
+$ sudo systemctl edit teleport-vnet.service
+```
+
+In the editor add the following, then save and exit:
+
+```
+[Service]
+Environment=TELEPORT_DEBUG=1
+```
+
+Restart the service to pick up the new setting:
+
+```code
+$ sudo systemctl restart teleport-vnet.service
+```
+
+Next, start capturing VNet logs into a file:
+
+```code
+$ journalctl -fu teleport-vnet.service > vnet.log
+```
+
+In a separate terminal, start Teleport Connect with debug logs enabled:
+
+```code
+$ teleport-connect --connect-debug
+```
+
+Next, attempt to reproduce the issue with VNet.
+
+Once that's done, stop capturing `journalctl` output, then disable debug logs in VNet with:
+
+```code
+$ sudo systemctl revert teleport-vnet.service
+```
+
+To gather logs from Teleport Connect, attach all files from
+`~/.config/Teleport Connect/logs/` together with `vnet.log` produced in the earlier step.
 </TabItem>
 </Tabs>
 

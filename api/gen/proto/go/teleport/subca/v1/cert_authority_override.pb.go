@@ -291,7 +291,8 @@ func (b0 CertAuthorityOverrideSpec_builder) Build() *CertAuthorityOverrideSpec {
 // CertAuthorityOverride resource.
 type CertAuthorityOverrideStatus struct {
 	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// CRLs generated for each certificate override.
+	// CRLs generated for each certificate override, keyed by normalized/lowercase
+	// public_key_hash.
 	PublicKeyHashToCrl map[string]*CertificateRevocationList `protobuf:"bytes,1,rep,name=public_key_hash_to_crl,json=publicKeyHashToCrl,proto3" json:"public_key_hash_to_crl,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
@@ -336,7 +337,8 @@ func (x *CertAuthorityOverrideStatus) SetPublicKeyHashToCrl(v map[string]*Certif
 type CertAuthorityOverrideStatus_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
-	// CRLs generated for each certificate override.
+	// CRLs generated for each certificate override, keyed by normalized/lowercase
+	// public_key_hash.
 	PublicKeyHashToCrl map[string]*CertificateRevocationList
 }
 

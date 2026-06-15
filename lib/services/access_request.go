@@ -445,41 +445,42 @@ type reviewPermissionContext struct {
 // backwards compatibility with older nodes/proxies (which never need to evaluate
 // these predicates).
 func ValidateAccessPredicates(role types.Role) error {
+	var errs []error
 	if len(role.GetAccessRequestConditions(types.Deny).Thresholds) != 0 {
 		// deny blocks never contain thresholds.  a threshold which happens to describe a *denial condition* is
 		// still part of the "allow" block.  thresholds are not part of deny blocks because thresholds describe the
 		// state-transition scenarios supported by a request (including potentially being denied).  deny.request blocks match
 		// requests which are *never* allowable, and therefore will never reach the point of needing to encode thresholds.
-		return trace.BadParameter("deny.request cannot contain thresholds, set denial counts in allow.request.thresholds instead")
+		errs = append(errs, trace.BadParameter("deny.request cannot contain thresholds, set denial counts in allow.request.thresholds instead"))
 	}
 
-	for _, t := range role.GetAccessRequestConditions(types.Allow).Thresholds {
+	for i, t := range role.GetAccessRequestConditions(types.Allow).Thresholds {
 		if t.Filter == "" {
 			continue
 		}
 		if _, err := parseThresholdFilterExpression(t.Filter); err != nil {
-			return trace.BadParameter("invalid threshold predicate: %q, %v", t.Filter, err)
+			errs = append(errs, trace.BadParameter("invalid threshold predicate at allow.request.thresholds[%d]: %q, %v", i, t.Filter, err))
 		}
 	}
 
 	if w := role.GetAccessReviewConditions(types.Deny).Where; w != "" {
 		if _, err := parseReviewPermissionExpression(w); err != nil {
-			return trace.BadParameter("invalid review predicate: %q, %v", w, err)
+			errs = append(errs, trace.BadParameter("invalid review predicate at deny.review_requests.where: %q, %v", w, err))
 		}
 	}
 
 	if w := role.GetAccessReviewConditions(types.Allow).Where; w != "" {
 		if _, err := parseReviewPermissionExpression(w); err != nil {
-			return trace.BadParameter("invalid review predicate: %q, %v", w, err)
+			errs = append(errs, trace.BadParameter("invalid review predicate at allow.review_requests.where: %q, %v", w, err))
 		}
 	}
 
 	if maxDuration := role.GetAccessRequestConditions(types.Allow).MaxDuration; maxDuration.Duration() != 0 &&
 		maxDuration.Duration() > MaxAccessDuration {
-		return trace.BadParameter("max access duration must be less than or equal to %v", MaxAccessDuration)
+		errs = append(errs, trace.BadParameter("max access duration must be less than or equal to %v", MaxAccessDuration))
 	}
 
-	return nil
+	return trace.NewAggregate(errs...)
 }
 
 // ApplyAccessReview attempts to apply the specified access review to the specified request.
@@ -567,6 +568,12 @@ func checkReviewCompat(req types.AccessRequest, rev types.AccessReview) error {
 	// the backend by a teleport instance which does not support the review feature.
 	if len(req.GetThresholds()) == 0 {
 		return trace.BadParameter("request is uninitialized or does not support reviews")
+	}
+
+	// A review submitted by an identity (eg. plugin), for another user, cannot be applied to the submitter's
+	// own request.
+	if rev.SubmittedBy == req.GetUser() {
+		return trace.AccessDenied("review submitter %q cannot apply a review on their own request", rev.SubmittedBy)
 	}
 
 	// user must not have previously reviewed this request
@@ -996,6 +1003,11 @@ func (u userStateRoleOverride) GetRoles() []string {
 	return u.Roles
 }
 
+// NewReviewPermissionChecker creates a review permission checker for the Teleport user given
+// by the username and identity. The identity is used for bot users that must retain minimal
+// permissions granted by the bot identity's roles.
+// The caller of this function should verify that the username (review author) and identity
+// refer to the same user, or otherwise pass in a nil identity.
 func NewReviewPermissionChecker(
 	ctx context.Context,
 	getter RequestValidatorGetter,
@@ -1018,6 +1030,11 @@ func NewReviewPermissionChecker(
 		if identity == nil {
 			// Handle an edge case where SubmitAccessReview is being invoked
 			// in-memory but as a bot user.
+			//
+			// There should not be a scenario where a different identity (eg. plugin) submits
+			// a review for a bot user, and this check enforces it.
+			// Identities submitting for other users should only be able to create
+			// permission checkers for human users, if they are granted `submit_for_users` permissions.
 			return ReviewPermissionChecker{}, trace.BadParameter(
 				"bot user provided but identity parameter is nil",
 			)

@@ -240,13 +240,13 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 	}
 	clusterUpserter := func(ctx context.Context, authServer *auth.Server, request *integrationpb.EnrollEKSClustersRequest) (*integrationpb.EnrollEKSClustersResponse, error) {
 		response := &integrationpb.EnrollEKSClustersResponse{}
-		for _, c := range request.EksClusterNames {
+		for _, c := range request.GetEksClusterNames() {
 			eksCluster := clusterFinder(c)
 			if eksCluster == nil {
-				response.Results = append(response.Results, &integrationpb.EnrollEKSClusterResult{
+				response.SetResults(append(response.GetResults(), integrationpb.EnrollEKSClusterResult_builder{
 					EksClusterName: c,
 					Error:          "not found",
-				})
+				}.Build()))
 				continue
 			}
 
@@ -258,10 +258,10 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 			}
 			assert.NoError(t, err)
 
-			response.Results = append(response.Results, &integrationpb.EnrollEKSClusterResult{
+			response.SetResults(append(response.GetResults(), integrationpb.EnrollEKSClusterResult_builder{
 				EksClusterName: c,
 				ResourceId:     "resourceID",
-			})
+			}.Build()))
 		}
 		return response, nil
 	}
@@ -313,7 +313,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 				return &accessPointWrapper{
 					DiscoveryAccessPoint: getDiscoveryAccessPoint(authServer, authClient),
 					enrollEKSClusters: func(ctx context.Context, request *integrationpb.EnrollEKSClustersRequest, _ ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error) {
-						assert.Len(t, request.EksClusterNames, 1)
+						assert.Len(t, request.GetEksClusterNames(), 1)
 
 						response, err := clusterUpserter(ctx, authServer, request)
 						assert.NoError(t, err)
@@ -344,7 +344,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 				return &accessPointWrapper{
 					DiscoveryAccessPoint: getDiscoveryAccessPoint(authServer, authClient),
 					enrollEKSClusters: func(ctx context.Context, request *integrationpb.EnrollEKSClustersRequest, _ ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error) {
-						assert.Len(t, request.EksClusterNames, 2)
+						assert.Len(t, request.GetEksClusterNames(), 2)
 
 						response, err := clusterUpserter(ctx, authServer, request)
 						assert.NoError(t, err)

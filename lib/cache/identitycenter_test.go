@@ -29,19 +29,19 @@ import (
 )
 
 func newIdentityCenterAccount(id string) *identitycenterv1.Account {
-	return &identitycenterv1.Account{
+	return identitycenterv1.Account_builder{
 		Kind:    types.KindIdentityCenterAccount,
 		SubKind: "",
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: id,
-		},
-		Spec: &identitycenterv1.AccountSpec{
+		}.Build(),
+		Spec: identitycenterv1.AccountSpec_builder{
 			Id:  id,
 			Arn: "arn:aws:sso:::permissionSet/ssoins-722326ecc902a06a/" + id,
-		},
+		}.Build(),
 		Status: &identitycenterv1.AccountStatus{},
-	}
+	}.Build()
 }
 
 // TestIdentityCenterAccount asserts that an Identity Center Account can be cached
@@ -75,22 +75,22 @@ func TestIdentityCenterAccount(t *testing.T) {
 }
 
 func newIdentityCenterPrincipalAssignment(id string) *identitycenterv1.PrincipalAssignment {
-	return &identitycenterv1.PrincipalAssignment{
+	return identitycenterv1.PrincipalAssignment_builder{
 		Kind:    types.KindIdentityCenterPrincipalAssignment,
 		SubKind: "",
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: id,
-		},
-		Spec: &identitycenterv1.PrincipalAssignmentSpec{
+		}.Build(),
+		Spec: identitycenterv1.PrincipalAssignmentSpec_builder{
 			PrincipalType: identitycenterv1.PrincipalType_PRINCIPAL_TYPE_USER,
 			PrincipalId:   id,
 			ExternalId:    "ext_" + id,
-		},
-		Status: &identitycenterv1.PrincipalAssignmentStatus{
+		}.Build(),
+		Status: identitycenterv1.PrincipalAssignmentStatus_builder{
 			ProvisioningState: identitycenterv1.ProvisioningState_PROVISIONING_STATE_PROVISIONED,
-		},
-	}
+		}.Build(),
+	}.Build()
 }
 
 // TestIdentityCenterPrincipalAssignment asserts that an Identity Center PrincipalAssignment can be cached
@@ -127,20 +127,20 @@ func TestIdentityCenterPrincipalAssignment(t *testing.T) {
 }
 
 func newIdentityCenterAccountAssignment(id string) *identitycenterv1.AccountAssignment {
-	return &identitycenterv1.AccountAssignment{
+	return identitycenterv1.AccountAssignment_builder{
 		Kind:    types.KindIdentityCenterAccountAssignment,
 		SubKind: "",
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: id,
-		},
-		Spec: &identitycenterv1.AccountAssignmentSpec{
+		}.Build(),
+		Spec: identitycenterv1.AccountAssignmentSpec_builder{
 			Display:       "account " + id,
 			PermissionSet: &identitycenterv1.PermissionSetInfo{},
 			AccountName:   id,
 			AccountId:     id,
-		},
-	}
+		}.Build(),
+	}.Build()
 }
 
 // TestIdentityCenterAccountAssignment asserts that an Identity Center

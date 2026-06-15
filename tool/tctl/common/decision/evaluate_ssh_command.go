@@ -65,26 +65,26 @@ func (c *EvaluateSSHCommand) Run(ctx context.Context, clt Client) error {
 		return trace.Wrap(err)
 	}
 
-	resp, err := clt.DecisionClient().EvaluateSSHAccess(ctx, &decisionpb.EvaluateSSHAccessRequest{
-		Metadata: &decisionpb.RequestMetadata{
+	resp, err := clt.DecisionClient().EvaluateSSHAccess(ctx, decisionpb.EvaluateSSHAccessRequest_builder{
+		Metadata: decisionpb.RequestMetadata_builder{
 			PepVersionHint: teleport.Version,
 			DryRun:         true,
-			DryRunOptions: &decisionpb.DryRunOptions{
-				GenerateIdentity: &decisionpb.DryRunIdentity{
+			DryRunOptions: decisionpb.DryRunOptions_builder{
+				GenerateIdentity: decisionpb.DryRunIdentity_builder{
 					Username: c.Username,
-				},
-			},
-		},
-		SshAuthority: &decisionpb.SSHAuthority{
+				}.Build(),
+			}.Build(),
+		}.Build(),
+		SshAuthority: decisionpb.SSHAuthority_builder{
 			ClusterName:   clusterName.GetClusterName(),
 			AuthorityType: string(types.UserCA),
-		},
-		Node: &decisionpb.Resource{
+		}.Build(),
+		Node: decisionpb.Resource_builder{
 			Kind: types.KindNode,
 			Name: c.ServerID,
-		},
+		}.Build(),
 		OsUser: c.Login,
-	})
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}

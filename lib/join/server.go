@@ -171,10 +171,10 @@ func (s *Server) getProvisionToken(ctx context.Context, name string) (provision.
 			}
 		}
 
-		res, err := s.cfg.ScopedTokenService.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
+		res, err := s.cfg.ScopedTokenService.GetScopedToken(ctx, joiningv1.GetScopedTokenRequest_builder{
 			Name:       name,
 			WithSecret: true,
-		})
+		}.Build())
 		if err != nil {
 			scopedErr = err
 			return

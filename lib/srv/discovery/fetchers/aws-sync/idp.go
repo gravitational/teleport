@@ -59,7 +59,7 @@ func (a *Fetcher) pollAWSSAMLProviders(ctx context.Context, result *Resources, c
 			if err != nil {
 				collectErr(trace.Wrap(err, "failed to get info for SAML provider %s", arn))
 				provider = sliceFilterPickFirst(existing.SAMLProviders, func(p *accessgraphv1alpha.AWSSAMLProviderV1) bool {
-					return p.Arn == arn
+					return p.GetArn() == arn
 				})
 			}
 			if provider != nil {
@@ -88,10 +88,10 @@ func (a *Fetcher) fetchAWSSAMLProvider(ctx context.Context, client iamClient, ar
 func awsSAMLProviderOutputToProto(arn string, accountID string, provider *iam.GetSAMLProviderOutput) (*accessgraphv1alpha.AWSSAMLProviderV1, error) {
 	var tags []*accessgraphv1alpha.AWSTag
 	for _, v := range provider.Tags {
-		tags = append(tags, &accessgraphv1alpha.AWSTag{
+		tags = append(tags, accessgraphv1alpha.AWSTag_builder{
 			Key:   aws.ToString(v.Key),
 			Value: strPtrToWrapper(v.Value),
-		})
+		}.Build())
 	}
 
 	var metadata samltypes.EntityDescriptor
@@ -118,7 +118,7 @@ func awsSAMLProviderOutputToProto(arn string, accountID string, provider *iam.Ge
 		}
 	}
 
-	return &accessgraphv1alpha.AWSSAMLProviderV1{
+	return accessgraphv1alpha.AWSSAMLProviderV1_builder{
 		Arn:                 arn,
 		CreatedAt:           awsTimeToProtoTime(provider.CreateDate),
 		ValidUntil:          awsTimeToProtoTime(provider.ValidUntil),
@@ -127,7 +127,7 @@ func awsSAMLProviderOutputToProto(arn string, accountID string, provider *iam.Ge
 		EntityId:            metadata.EntityID,
 		SsoUrls:             ssoURLs,
 		SigningCertificates: signingCerts,
-	}, nil
+	}.Build(), nil
 }
 
 func (a *Fetcher) pollAWSOIDCProviders(ctx context.Context, result *Resources, collectErr func(error)) func() error {
@@ -159,7 +159,7 @@ func (a *Fetcher) pollAWSOIDCProviders(ctx context.Context, result *Resources, c
 			if err != nil {
 				collectErr(trace.Wrap(err, "failed to get info for OIDC provider %s", arn))
 				provider = sliceFilterPickFirst(existing.OIDCProviders, func(p *accessgraphv1alpha.AWSOIDCProviderV1) bool {
-					return p.Arn == arn
+					return p.GetArn() == arn
 				})
 			}
 			if provider != nil {
@@ -188,13 +188,13 @@ func (a *Fetcher) fetchAWSOIDCProvider(ctx context.Context, client iamClient, ar
 func awsOIDCProviderOutputToProto(arn string, accountID string, provider *iam.GetOpenIDConnectProviderOutput) (*accessgraphv1alpha.AWSOIDCProviderV1, error) {
 	var tags []*accessgraphv1alpha.AWSTag
 	for _, v := range provider.Tags {
-		tags = append(tags, &accessgraphv1alpha.AWSTag{
+		tags = append(tags, accessgraphv1alpha.AWSTag_builder{
 			Key:   aws.ToString(v.Key),
 			Value: strPtrToWrapper(v.Value),
-		})
+		}.Build())
 	}
 
-	return &accessgraphv1alpha.AWSOIDCProviderV1{
+	return accessgraphv1alpha.AWSOIDCProviderV1_builder{
 		Arn:         arn,
 		CreatedAt:   awsTimeToProtoTime(provider.CreateDate),
 		Tags:        tags,
@@ -202,5 +202,5 @@ func awsOIDCProviderOutputToProto(arn string, accountID string, provider *iam.Ge
 		ClientIds:   provider.ClientIDList,
 		Thumbprints: provider.ThumbprintList,
 		Url:         aws.ToString(provider.Url),
-	}, nil
+	}.Build(), nil
 }

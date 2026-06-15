@@ -325,12 +325,12 @@ func (f *mockRolesAnywhereClient) GetIntegration(ctx context.Context, name strin
 }
 
 func (m *mockRolesAnywhereClient) GenerateAWSRACredentials(ctx context.Context, req *integrationpb.GenerateAWSRACredentialsRequest) (*integrationpb.GenerateAWSRACredentialsResponse, error) {
-	return &integrationpb.GenerateAWSRACredentialsResponse{
+	return integrationpb.GenerateAWSRACredentialsResponse_builder{
 		Expiration:      timestamppb.New(time.Now().Add(1 * time.Hour)),
 		AccessKeyId:     "mock-access-key-id",
 		SecretAccessKey: "mock-secret-access-key",
 		SessionToken:    "mock-session-token",
-	}, nil
+	}.Build(), nil
 }
 
 func TestNewCacheKey(t *testing.T) {

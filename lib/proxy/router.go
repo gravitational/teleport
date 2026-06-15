@@ -397,7 +397,7 @@ func (c *checkedPrefixWriter) Write(p []byte) (int, error) {
 // getRemoteCluster looks up the provided clusterName to determine if a remote cluster exists with
 // that name and determines if the user has access to it.
 func (r *Router) getRemoteCluster(ctx context.Context, clusterName string, clusterAccessChecker func(types.RemoteCluster) error) (reversetunnelclient.Cluster, error) {
-	_, span := r.tracer.Start(
+	ctx, span := r.tracer.Start(
 		ctx,
 		"router/getRemoteCluster",
 		oteltrace.WithAttributes(
@@ -615,7 +615,7 @@ func getServerWithResolver(ctx context.Context, scopePin *scopesv1.Pin, host, po
 // cluster. If the clusterName is an empty string then a connection to
 // the local auth server will be established.
 func (r *Router) DialSite(ctx context.Context, clusterName string, clientSrcAddr, clientDstAddr net.Addr) (_ net.Conn, err error) {
-	_, span := r.tracer.Start(
+	ctx, span := r.tracer.Start(
 		ctx,
 		"router/DialSite",
 		oteltrace.WithAttributes(
