@@ -504,6 +504,8 @@ type CLIConf struct {
 	Exec string
 	// AWSRole is Amazon Role ARN or role name that will be used for AWS CLI access.
 	AWSRole string
+	// ListLogins requests all AWS roles for the resources to be printed.
+	ListLogins bool
 	// AppLoginAWSEnvOutput indicates whether tsh will output the AWS credentials as an export shell script instead of writing them to `~/.aws/config`.
 	// Only applicable to apps using AWS Roles Anywhere integration.
 	// E.g.,
@@ -1089,6 +1091,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	lsApps.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	lsApps.Arg("labels", labelHelp).StringVar(&cf.Labels)
 	lsApps.Flag("all", "List apps from all clusters and proxies.").Short('R').BoolVar(&cf.ListAll)
+	lsApps.Flag("logins", "List of available logins for the resource").BoolVar(&cf.ListLogins)
 	appLogin := apps.Command("login", "Retrieve short-lived certificate for an app.")
 	appLogin.Arg("app", "App name to retrieve credentials for. Can be obtained from `tsh apps ls` output.").Required().StringVar(&cf.AppName)
 	appLogin.Flag("aws-role", "(For AWS CLI access only) Amazon IAM role ARN or role name.").StringVar(&cf.AWSRole)
@@ -3487,23 +3490,34 @@ func printNodesAsText[T types.Server](output io.Writer, nodes []T, verbose bool)
 	return nil
 }
 
-func showApps(apps []types.Application, active []tlsca.RouteToApp, w io.Writer, format string, verbose bool) error {
+func showApps(enrichedResources []*types.EnrichedResource, active []tlsca.RouteToApp, w io.Writer, format string, verbose bool) error {
 	format = strings.ToLower(format)
+
+	appServers, err := types.EnrichedResources(enrichedResources).ToResourcesWithLabels().AsAppServers()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	switch format {
 	case teleport.Text, "":
-		appListings := make([]appListing, 0, len(apps))
-		for _, app := range apps {
-			appListings = append(appListings, appListing{App: app})
+		appListings := make([]appListing, 0, len(appServers))
+		for i, appServer := range appServers {
+			appListings = append(appListings, appListing{App: appServer.GetApp(), Roles: enrichedResources[i].Logins})
 		}
 
 		if err := writeAppTable(w, appListings, appTableConfig{
-			listAll: false, // showApps lists apps from a single cluster.
+			listAll: false, // showEnrichedApps lists apps from a single cluster.
 			active:  active,
 			verbose: verbose,
 		}); err != nil {
 			return trace.Wrap(err)
 		}
 	case teleport.JSON, teleport.YAML:
+		apps := make([]types.Application, 0, len(appServers))
+		for _, appServer := range appServers {
+			apps = append(apps, appServer.GetApp())
+		}
+
 		out, err := serializeApps(apps, format)
 		if err != nil {
 			return trace.Wrap(err)
@@ -3608,6 +3622,11 @@ func writeAppTable(w io.Writer, appListings []appListing, config appTableConfig)
 		appTableColumn{
 			name: labelsColumn,
 			get:  getLabels,
+		},
+		appTableColumn{
+			name:           "Roles",
+			getFromListing: appListing.GetRoles,
+			hide:           !config.verbose,
 		},
 	}
 	columns := slices.DeleteFunc(allColumns, func(column appTableColumn) bool { return column.hide })
@@ -6100,9 +6119,9 @@ func onApps(cf *CLIConf) error {
 	}
 
 	// Get a list of all applications.
-	var apps []types.Application
+	var enriched []*types.EnrichedResource
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		apps, err = tc.ListApps(cf.Context, nil /* custom filter */)
+		enriched, err = tc.ListEnrichedAppServersWithFilters(cf.Context, nil /* custom filter */)
 		return err
 	})
 	if err != nil {
@@ -6116,17 +6135,18 @@ func onApps(cf *CLIConf) error {
 	}
 
 	// Sort by app name.
-	sort.Slice(apps, func(i, j int) bool {
-		return apps[i].GetName() < apps[j].GetName()
+	sort.Slice(enriched, func(i, j int) bool {
+		return enriched[i].GetName() < enriched[j].GetName()
 	})
 
-	return trace.Wrap(showApps(apps, profile.Apps, cf.Stdout(), cf.Format, cf.Verbose))
+	return trace.Wrap(showApps(enriched, profile.Apps, cf.Stdout(), cf.Format, cf.Verbose))
 }
 
 type appListing struct {
 	Proxy   string            `json:"proxy"`
 	Cluster string            `json:"cluster"`
 	App     types.Application `json:"app"`
+	Roles   []string          `json:"roles"`
 }
 
 func (al appListing) GetProxy() string {
@@ -6135,6 +6155,10 @@ func (al appListing) GetProxy() string {
 
 func (al appListing) GetCluster() string {
 	return al.Cluster
+}
+
+func (al appListing) GetRoles() string {
+	return strings.Join(al.Roles, ",")
 }
 
 type appListings []appListing

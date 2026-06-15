@@ -1265,6 +1265,17 @@ func (c *Config) ResourceFilter(kind string) *proto.ListResourcesRequest {
 	}
 }
 
+// UnifiedResourceFilter returns the default unified list resource request for the provided resource kind.
+func (c *Config) UnifiedResourceFilter(kind string) *proto.ListUnifiedResourcesRequest {
+	return &proto.ListUnifiedResourcesRequest{
+		Kinds:               []string{kind},
+		Labels:              c.Labels,
+		SearchKeywords:      c.SearchKeywords,
+		PredicateExpression: c.PredicateExpression,
+		UseSearchAsRoles:    c.UseSearchAsRoles,
+	}
+}
+
 // DTAuthnRunCeremonyFunc matches the signature of [dtauthn.Ceremony.Run].
 type DTAuthnRunCeremonyFunc func(context.Context, *dtauthntypes.CeremonyRunParams) (*devicepb.UserCertificates, error)
 
@@ -2768,6 +2779,33 @@ func (tc *TeleportClient) ListAppServersWithFilters(ctx context.Context, customF
 
 	servers, err := client.GetAllResources[types.AppServer](ctx, clusterClient.AuthClient, filter)
 	return servers, trace.Wrap(err)
+}
+
+// ListEnrichedAppServersWithFilters returns an enriched list of application servers.
+func (tc *TeleportClient) ListEnrichedAppServersWithFilters(ctx context.Context, customFilter *proto.ListUnifiedResourcesRequest) ([]*types.EnrichedResource, error) {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/ListEnrichedAppServersWithFilters",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
+	clusterClient, err := tc.ConnectToCluster(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer clusterClient.Close()
+
+	filter := customFilter
+	if filter == nil {
+		filter = tc.UnifiedResourceFilter(types.KindApp)
+	}
+
+	filter.IncludeLogins = true
+
+	resources, err := client.GetAllUnifiedResources(ctx, clusterClient.AuthClient, filter)
+
+	return resources, trace.Wrap(err)
 }
 
 // ListApps returns all registered applications.
