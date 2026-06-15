@@ -432,7 +432,7 @@ func (b Bot) slackAccessRequestMsgSections(reqID string, reqData pd.AccessReques
 
 // slackAccessReviewMsgSection builds an access review Slack message section.
 // This should only be returned when native review is enabled.
-func (b Bot) slackAccessReviewMsgSection(reqID string) []BlockItem {
+func (b Bot) slackAccessReviewMsgSection(reqID string) []BlockItem { //nolint:unused // TODO(kshi36): used in follow-up PR.
 	return []BlockItem{
 		NewBlockItem(ActionsBlock{
 			ElementItems: []ActionElementItem{
