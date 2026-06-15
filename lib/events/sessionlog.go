@@ -24,11 +24,26 @@ import (
 	"sync"
 
 	"github.com/gravitational/trace"
+	kgzip "github.com/klauspost/compress/gzip"
 )
 
-// gzipWriter wraps file, on close close both gzip writer and file
+// gzipWriter wraps file, on close close both gzip writer and file.
+//
+// The writer uses github.com/klauspost/compress/gzip rather than the standard
+// library's compress/gzip. At gzip.BestSpeed the stdlib flate compressor embeds
+// two fixed arrays by value (hashHead [1<<17]uint32 and hashPrev [1<<15]uint32,
+// ~640KB total) that the BestSpeed code path never uses. A writer is pooled and
+// held for the lifetime of each open recording slice, so that overhead is
+// retained per concurrent slice. The klauspost encoder only allocates those
+// arrays for levels 7-9, so at BestSpeed each writer retains ~380KB less (see
+// BenchmarkNewGzipWriter) while emitting standard gzip that the reader below
+// decodes unchanged.
+//
+// The underlying stdlib behavior is tracked upstream in
+// https://github.com/golang/go/issues/32371; if it is fixed we can reevaluate
+// whether the standard library compressor is sufficient here.
 type gzipWriter struct {
-	*gzip.Writer
+	*kgzip.Writer
 	inner io.WriteCloser
 }
 
@@ -54,13 +69,13 @@ func (f *gzipWriter) Close() error {
 // internal buffers to avoid too many objects on the heap
 var writerPool = sync.Pool{
 	New: func() any {
-		w, _ := gzip.NewWriterLevel(io.Discard, gzip.BestSpeed)
+		w, _ := kgzip.NewWriterLevel(io.Discard, kgzip.BestSpeed)
 		return w
 	},
 }
 
 func newGzipWriter(writer io.WriteCloser) *gzipWriter {
-	g := writerPool.Get().(*gzip.Writer)
+	g := writerPool.Get().(*kgzip.Writer)
 	g.Reset(writer)
 	return &gzipWriter{
 		Writer: g,
