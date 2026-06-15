@@ -19,6 +19,7 @@
 package proxy
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -121,7 +122,8 @@ func Test_patchPodWithDebugContainer(t *testing.T) {
 			Containers: []corev1.Container{{Name: "main", Image: "nginx"}},
 		},
 	}
-	podJSON := []byte(`{"kind":"Pod","apiVersion":"v1","metadata":{"name":"target","namespace":"default"},"spec":{"containers":[{"name":"main","image":"nginx"}]}}`)
+	podJSON, err := json.Marshal(basePod)
+	require.NoError(t, err)
 
 	t.Run("single interactive container is accepted", func(t *testing.T) {
 		patch := []byte(`{"spec":{"ephemeralContainers":[` +
