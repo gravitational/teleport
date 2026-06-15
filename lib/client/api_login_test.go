@@ -72,6 +72,8 @@ import (
 )
 
 func TestTeleportClient_Login_local(t *testing.T) {
+	t.Logf("Touch this test to trigger CI to run it in Flaky Test Detector 👇")
+
 	type webauthnFunc func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error)
 
 	waitForCancelFn := func(ctx context.Context) (string, error) {
