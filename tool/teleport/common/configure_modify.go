@@ -73,7 +73,6 @@ var flagPathMap = map[string]string{
 	"public-addr":  "proxy_service.public_addr",
 	"data-dir":     "teleport.data_dir",
 	"node-name":    "teleport.nodename",
-	"node-labels":  "ssh_service.labels",
 	"ca-pin":       "teleport.ca_pin",
 	"cert-file":    "proxy_service.https_cert_file",
 	"key-file":     "proxy_service.https_key_file",
@@ -110,6 +109,8 @@ var validServices = map[string]bool{
 
 // onConfigModify is the handler for "teleport configure modify".
 func onConfigModify(flags modifyFlags) error {
+	flags.output = normalizeOutput(flags.output)
+
 	data, err := os.ReadFile(flags.input)
 	if err != nil {
 		return trace.ConvertSystemError(err)
@@ -188,7 +189,6 @@ func applyNamedFlags(doc *yaml.Node, flags modifyFlags) error {
 		"public-addr":  flags.publicAddr,
 		"data-dir":     flags.dataDir,
 		"node-name":    flags.nodeName,
-		"node-labels":  flags.nodeLabels,
 		"ca-pin":       flags.caPin,
 		"cert-file":    flags.certFile,
 		"key-file":     flags.keyFile,
@@ -211,6 +211,16 @@ func applyNamedFlags(doc *yaml.Node, flags modifyFlags) error {
 		}
 	}
 
+	if flags.nodeLabels != "" {
+		labels, err := parseLabels(flags.nodeLabels)
+		if err != nil {
+			return trace.Wrap(err, "parsing --node-labels")
+		}
+		if err := yamlmod.SetMap(doc, "ssh_service.labels", labels); err != nil {
+			return trace.Wrap(err, "setting ssh_service.labels via --node-labels")
+		}
+	}
+
 	if flags.acmeEnabled {
 		if err := yamlmod.SetBool(doc, "proxy_service.acme.enabled", true); err != nil {
 			return trace.Wrap(err)
@@ -223,6 +233,26 @@ func applyNamedFlags(doc *yaml.Node, flags modifyFlags) error {
 	}
 
 	return nil
+}
+
+// parseLabels parses a comma-separated list of key=value pairs into a map.
+func parseLabels(s string) (map[string]string, error) {
+	labels := make(map[string]string)
+	for _, pair := range strings.Split(s, ",") {
+		pair = strings.TrimSpace(pair)
+		if pair == "" {
+			continue
+		}
+		k, v, ok := strings.Cut(pair, "=")
+		if !ok {
+			return nil, trace.BadParameter("label %q must be in format key=value", pair)
+		}
+		labels[strings.TrimSpace(k)] = strings.TrimSpace(v)
+	}
+	if len(labels) == 0 {
+		return nil, trace.BadParameter("no valid labels found in %q", s)
+	}
+	return labels, nil
 }
 
 func applyRoles(doc *yaml.Node, rolesStr string) error {
@@ -284,7 +314,7 @@ func generateServiceDefaults(role string) ([]byte, error) {
 func writeModifyOutput(flags modifyFlags, data []byte) error {
 	output := flags.output
 	switch output {
-	case teleport.SchemeStdout, "stdout://", "stdout":
+	case teleport.SchemeStdout, "stdout://":
 		_, err := os.Stdout.Write(data)
 		return trace.Wrap(err)
 	}

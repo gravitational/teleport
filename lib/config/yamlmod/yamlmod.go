@@ -1,8 +1,28 @@
+/*
+ * Teleport
+ * Copyright (C) 2023  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package yamlmod
 
 import (
 	"bytes"
+	"maps"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -96,17 +116,22 @@ func findKeyIndex(mapping *yaml.Node, key string) int {
 }
 
 // ensureMapping ensures that the given segment exists as a mapping under the
-// parent. Creates it if missing. Returns the mapping node for the segment.
-func ensureMapping(parent *yaml.Node, seg segment) *yaml.Node {
+// parent. Creates it if missing. Returns the mapping node for the segment or
+// an error if the existing node structure is incompatible.
+func ensureMapping(parent *yaml.Node, seg segment) (*yaml.Node, error) {
 	idx := findKeyIndex(parent, seg.key)
 	if idx >= 0 {
 		val := parent.Content[idx+1]
 		if seg.index >= 0 {
-			if val.Kind == yaml.SequenceNode && seg.index < len(val.Content) {
-				return val.Content[seg.index]
+			if val.Kind != yaml.SequenceNode {
+				return nil, trace.BadParameter("expected sequence at %q, got kind %d", seg.key, val.Kind)
 			}
+			if seg.index >= len(val.Content) {
+				return nil, trace.BadParameter("index %d out of range for %q (len %d)", seg.index, seg.key, len(val.Content))
+			}
+			return val.Content[seg.index], nil
 		}
-		return val
+		return val, nil
 	}
 	keyNode := &yaml.Node{Kind: yaml.ScalarNode, Value: seg.key, Tag: "!!str"}
 	valNode := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
@@ -116,9 +141,44 @@ func ensureMapping(parent *yaml.Node, seg segment) *yaml.Node {
 		mapNode := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
 		seqNode.Content = append(seqNode.Content, mapNode)
 		parent.Content[len(parent.Content)-1] = seqNode
-		return mapNode
+		return mapNode, nil
 	}
-	return valNode
+	return valNode, nil
+}
+
+// navigateToParent navigates the document tree along the given path segments,
+// creating intermediate mapping nodes as needed. Returns the parent node and
+// the final segment that should be set/modified.
+func navigateToParent(doc *yaml.Node, segs []segment) (*yaml.Node, segment, error) {
+	current := doc.Content[0]
+	for i, seg := range segs[:len(segs)-1] {
+		if seg.index >= 0 {
+			idx := findKeyIndex(current, seg.key)
+			if idx < 0 {
+				node, err := ensureMapping(current, seg)
+				if err != nil {
+					return nil, segment{}, trace.Wrap(err, "at segment %d (%q)", i, seg.key)
+				}
+				current = node
+			} else {
+				val := current.Content[idx+1]
+				if val.Kind != yaml.SequenceNode {
+					return nil, segment{}, trace.BadParameter("expected sequence at segment %d (%q)", i, seg.key)
+				}
+				if seg.index >= len(val.Content) {
+					return nil, segment{}, trace.BadParameter("index %d out of range at segment %d (%q)", seg.index, i, seg.key)
+				}
+				current = val.Content[seg.index]
+			}
+		} else {
+			node, err := ensureMapping(current, seg)
+			if err != nil {
+				return nil, segment{}, trace.Wrap(err, "at segment %d (%q)", i, seg.key)
+			}
+			current = node
+		}
+	}
+	return current, segs[len(segs)-1], nil
 }
 
 // Set sets a scalar string value at the given dot-path.
@@ -129,45 +189,60 @@ func Set(doc *yaml.Node, path string, value string) error {
 		return trace.Wrap(err)
 	}
 
-	// Navigate/create intermediate nodes
-	current := doc.Content[0]
-	for i, seg := range segs[:len(segs)-1] {
-		if seg.index >= 0 {
-			idx := findKeyIndex(current, seg.key)
-			if idx < 0 {
-				current = ensureMapping(current, seg)
-			} else {
-				val := current.Content[idx+1]
-				if val.Kind != yaml.SequenceNode {
-					return trace.BadParameter("expected sequence at segment %d (%q)", i, seg.key)
-				}
-				if seg.index >= len(val.Content) {
-					return trace.BadParameter("index %d out of range at segment %d (%q)", seg.index, i, seg.key)
-				}
-				current = val.Content[seg.index]
-			}
-		} else {
-			current = ensureMapping(current, seg)
-		}
+	current, final, err := navigateToParent(doc, segs)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
-	// Set the final key
-	final := segs[len(segs)-1]
 	if final.index >= 0 {
 		return trace.BadParameter("cannot set a value using array index on final segment; use the full path to the scalar")
 	}
 
 	idx := findKeyIndex(current, final.key)
 	if idx >= 0 {
-		// Replace existing value, preserve line comment
 		current.Content[idx+1].Value = value
 		current.Content[idx+1].Tag = "!!str"
 		current.Content[idx+1].Kind = yaml.ScalarNode
 	} else {
-		// Append new key-value
 		keyNode := &yaml.Node{Kind: yaml.ScalarNode, Value: final.key, Tag: "!!str"}
 		valNode := &yaml.Node{Kind: yaml.ScalarNode, Value: value, Tag: "!!str"}
 		current.Content = append(current.Content, keyNode, valNode)
+	}
+
+	return nil
+}
+
+// SetMap sets a mapping value at the given dot-path from a map of key-value pairs.
+// Creates intermediate mapping nodes if they don't exist.
+// Replaces any existing value at the path with the new mapping.
+func SetMap(doc *yaml.Node, path string, values map[string]string) error {
+	segs, err := parsePath(path)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	current, final, err := navigateToParent(doc, segs)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if final.index >= 0 {
+		return trace.BadParameter("cannot set a map using array index on final segment")
+	}
+
+	mapNode := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
+	for _, k := range slices.Sorted(maps.Keys(values)) {
+		keyNode := &yaml.Node{Kind: yaml.ScalarNode, Value: k, Tag: "!!str"}
+		valNode := &yaml.Node{Kind: yaml.ScalarNode, Value: values[k], Tag: "!!str"}
+		mapNode.Content = append(mapNode.Content, keyNode, valNode)
+	}
+
+	idx := findKeyIndex(current, final.key)
+	if idx >= 0 {
+		current.Content[idx+1] = mapNode
+	} else {
+		keyNode := &yaml.Node{Kind: yaml.ScalarNode, Value: final.key, Tag: "!!str"}
+		current.Content = append(current.Content, keyNode, mapNode)
 	}
 
 	return nil
@@ -213,7 +288,7 @@ func Exists(doc *yaml.Node, path string) bool {
 	return true
 }
 
-// Delete removes the key at the given dot-path.
+// Delete removes the key (or array element) at the given dot-path.
 func Delete(doc *yaml.Node, path string) error {
 	segs, err := parsePath(path)
 	if err != nil {
@@ -236,6 +311,25 @@ func Delete(doc *yaml.Node, path string) error {
 			parent = next
 		}
 		finalSeg = segs[len(segs)-1]
+	}
+
+	if finalSeg.index >= 0 {
+		if parent.Kind != yaml.MappingNode {
+			return trace.BadParameter("parent of %q is not a mapping", path)
+		}
+		idx := findKeyIndex(parent, finalSeg.key)
+		if idx < 0 {
+			return trace.NotFound("path %q not found", path)
+		}
+		seqNode := parent.Content[idx+1]
+		if seqNode.Kind != yaml.SequenceNode {
+			return trace.BadParameter("expected sequence at %q, got kind %d", finalSeg.key, seqNode.Kind)
+		}
+		if finalSeg.index >= len(seqNode.Content) {
+			return trace.BadParameter("index %d out of range for %q (len %d)", finalSeg.index, finalSeg.key, len(seqNode.Content))
+		}
+		seqNode.Content = append(seqNode.Content[:finalSeg.index], seqNode.Content[finalSeg.index+1:]...)
+		return nil
 	}
 
 	if parent.Kind != yaml.MappingNode {
@@ -270,8 +364,7 @@ func Merge(dst *yaml.Node, key string, src *yaml.Node) error {
 	return nil
 }
 
-// SetBool sets a boolean value at the given dot-path.
-// Uses "yes"/"no" string representation with quotes to match Teleport config style.
+// SetBool sets a quoted "yes" or "no" string at the given dot-path, matching Teleport's config convention for enabled/disabled flags (not a YAML boolean).
 func SetBool(doc *yaml.Node, path string, value bool) error {
 	v := "no"
 	if value {
@@ -282,29 +375,11 @@ func SetBool(doc *yaml.Node, path string, value bool) error {
 		return trace.Wrap(err)
 	}
 
-	// Navigate/create intermediate nodes
-	current := doc.Content[0]
-	for i, seg := range segs[:len(segs)-1] {
-		if seg.index >= 0 {
-			idx := findKeyIndex(current, seg.key)
-			if idx < 0 {
-				current = ensureMapping(current, seg)
-			} else {
-				val := current.Content[idx+1]
-				if val.Kind != yaml.SequenceNode {
-					return trace.BadParameter("expected sequence at segment %d (%q)", i, seg.key)
-				}
-				if seg.index >= len(val.Content) {
-					return trace.BadParameter("index %d out of range at segment %d (%q)", seg.index, i, seg.key)
-				}
-				current = val.Content[seg.index]
-			}
-		} else {
-			current = ensureMapping(current, seg)
-		}
+	current, final, err := navigateToParent(doc, segs)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
-	final := segs[len(segs)-1]
 	idx := findKeyIndex(current, final.key)
 	if idx >= 0 {
 		current.Content[idx+1].Value = v

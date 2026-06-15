@@ -77,6 +77,44 @@ func TestOnConfigModify(t *testing.T) {
 		require.Contains(t, err.Error(), "does not exist")
 	})
 
+	t.Run("disable existing service", func(t *testing.T) {
+		inputFile := filepath.Join(t.TempDir(), "input.yaml")
+		require.NoError(t, os.WriteFile(inputFile, []byte("ssh_service:\n  enabled: \"yes\"\n  listen_addr: 0.0.0.0:3022\n"), 0644))
+
+		outputFile := filepath.Join(t.TempDir(), "output.yaml")
+
+		err := onConfigModify(modifyFlags{
+			input:          inputFile,
+			output:         "file://" + outputFile,
+			disableService: []string{"ssh_service"},
+		})
+		require.NoError(t, err)
+
+		got, err := os.ReadFile(outputFile)
+		require.NoError(t, err)
+		require.Contains(t, string(got), `enabled: "no"`)
+	})
+
+	t.Run("node-labels produces map", func(t *testing.T) {
+		inputFile := filepath.Join(t.TempDir(), "input.yaml")
+		require.NoError(t, os.WriteFile(inputFile, []byte("ssh_service:\n  enabled: \"yes\"\n"), 0644))
+
+		outputFile := filepath.Join(t.TempDir(), "output.yaml")
+
+		err := onConfigModify(modifyFlags{
+			input:      inputFile,
+			output:     "file://" + outputFile,
+			nodeLabels: "env=staging,cloud=aws",
+		})
+		require.NoError(t, err)
+
+		got, err := os.ReadFile(outputFile)
+		require.NoError(t, err)
+		require.Contains(t, string(got), "labels:")
+		require.Contains(t, string(got), "env: staging")
+		require.Contains(t, string(got), "cloud: aws")
+	})
+
 	t.Run("unset removes field", func(t *testing.T) {
 		inputFile := filepath.Join(t.TempDir(), "input.yaml")
 		require.NoError(t, os.WriteFile(inputFile, []byte("teleport:\n  data_dir: /var/lib/teleport\n  auth_token: old-token\n"), 0644))
@@ -181,6 +219,24 @@ func TestOnConfigModify(t *testing.T) {
 		})
 		require.Error(t, err)
 	})
+
+	t.Run("--set value containing equals sign", func(t *testing.T) {
+		inputFile := filepath.Join(t.TempDir(), "input.yaml")
+		require.NoError(t, os.WriteFile(inputFile, []byte("teleport:\n  data_dir: /var/lib/teleport\n"), 0644))
+
+		outputFile := filepath.Join(t.TempDir(), "output.yaml")
+
+		err := onConfigModify(modifyFlags{
+			input:  inputFile,
+			output: "file://" + outputFile,
+			set:    []string{"teleport.auth_token=https://auth.example.com?token=abc=def"},
+		})
+		require.NoError(t, err)
+
+		got, err := os.ReadFile(outputFile)
+		require.NoError(t, err)
+		require.Contains(t, string(got), "auth_token: https://auth.example.com?token=abc=def")
+	})
 }
 
 func TestOnConfigModifyRoles(t *testing.T) {
@@ -279,4 +335,153 @@ func TestOnConfigModifyPreservesComments(t *testing.T) {
 	require.Contains(t, string(got), "# SSH service configuration")
 	require.Contains(t, string(got), "auth_token: new-token")
 	require.NotContains(t, string(got), "old-token")
+}
+
+func TestOnConfigModifyRealisticConfigs(t *testing.T) {
+	const fullConfig = `# Teleport configuration file
+version: v3
+teleport:
+  nodename: node1.example.com
+  data_dir: /var/lib/teleport
+  auth_token: original-token
+  auth_server: auth.example.com:3025
+  # CA pin for secure cluster joining
+  ca_pin: sha256:abc123def456
+  log:
+    severity: INFO
+    output: /var/log/teleport.log
+
+# SSH access service
+ssh_service:
+  enabled: "yes"
+  listen_addr: 0.0.0.0:3022
+  labels:
+    env: production
+    region: us-east-1
+
+# Web proxy service
+proxy_service:
+  enabled: "yes"
+  web_listen_addr: 0.0.0.0:3080
+  # Public address for external access
+  public_addr: proxy.example.com:3080
+
+# Application service
+app_service:
+  enabled: "yes"
+  apps:
+    - name: grafana
+      uri: http://localhost:3000
+    - name: jenkins
+      uri: http://localhost:8080
+
+# Database service
+db_service:
+  enabled: "no"
+`
+
+	t.Run("modify token and add labels in full config", func(t *testing.T) {
+		inputFile := filepath.Join(t.TempDir(), "input.yaml")
+		require.NoError(t, os.WriteFile(inputFile, []byte(fullConfig), 0644))
+
+		outputFile := filepath.Join(t.TempDir(), "output.yaml")
+
+		err := onConfigModify(modifyFlags{
+			input:      inputFile,
+			output:     "file://" + outputFile,
+			token:      "new-cluster-token",
+			nodeLabels: "team=platform,tier=frontend",
+		})
+		require.NoError(t, err)
+
+		got, err := os.ReadFile(outputFile)
+		require.NoError(t, err)
+		result := string(got)
+
+		// Modifications applied
+		require.Contains(t, result, "auth_token: new-cluster-token")
+		require.Contains(t, result, "team: platform")
+		require.Contains(t, result, "tier: frontend")
+
+		// Comments preserved
+		require.Contains(t, result, "# Teleport configuration file")
+		require.Contains(t, result, "# CA pin for secure cluster joining")
+		require.Contains(t, result, "# SSH access service")
+		require.Contains(t, result, "# Web proxy service")
+		require.Contains(t, result, "# Public address for external access")
+		require.Contains(t, result, "# Application service")
+		require.Contains(t, result, "# Database service")
+
+		// Unmodified values preserved
+		require.Contains(t, result, "nodename: node1.example.com")
+		require.Contains(t, result, "ca_pin: sha256:abc123def456")
+		require.Contains(t, result, "web_listen_addr: 0.0.0.0:3080")
+		require.Contains(t, result, "name: grafana")
+		require.Contains(t, result, "name: jenkins")
+
+		// Original token gone
+		require.NotContains(t, result, "original-token")
+	})
+
+	t.Run("unset deeply nested key", func(t *testing.T) {
+		inputFile := filepath.Join(t.TempDir(), "input.yaml")
+		require.NoError(t, os.WriteFile(inputFile, []byte(fullConfig), 0644))
+
+		outputFile := filepath.Join(t.TempDir(), "output.yaml")
+
+		err := onConfigModify(modifyFlags{
+			input:  inputFile,
+			output: "file://" + outputFile,
+			unset:  []string{"teleport.log.severity"},
+		})
+		require.NoError(t, err)
+
+		got, err := os.ReadFile(outputFile)
+		require.NoError(t, err)
+		result := string(got)
+
+		// Severity removed
+		require.NotContains(t, result, "severity: INFO")
+
+		// Sibling key under log preserved
+		require.Contains(t, result, "output: /var/log/teleport.log")
+
+		// Rest of config intact
+		require.Contains(t, result, "version: v3")
+		require.Contains(t, result, "nodename: node1.example.com")
+		require.Contains(t, result, "# SSH access service")
+		require.Contains(t, result, "proxy_service:")
+	})
+
+	t.Run("enable and disable services in full config", func(t *testing.T) {
+		inputFile := filepath.Join(t.TempDir(), "input.yaml")
+		require.NoError(t, os.WriteFile(inputFile, []byte(fullConfig), 0644))
+
+		outputFile := filepath.Join(t.TempDir(), "output.yaml")
+
+		err := onConfigModify(modifyFlags{
+			input:          inputFile,
+			output:         "file://" + outputFile,
+			enableService:  []string{"db_service"},
+			disableService: []string{"proxy_service"},
+		})
+		require.NoError(t, err)
+
+		got, err := os.ReadFile(outputFile)
+		require.NoError(t, err)
+		result := string(got)
+
+		// db_service enabled
+		require.Contains(t, result, "db_service:")
+
+		// All comments preserved
+		require.Contains(t, result, "# Teleport configuration file")
+		require.Contains(t, result, "# Web proxy service")
+		require.Contains(t, result, "# Database service")
+
+		// Unmodified sections remain
+		require.Contains(t, result, "nodename: node1.example.com")
+		require.Contains(t, result, "name: grafana")
+		require.Contains(t, result, "listen_addr: 0.0.0.0:3022")
+	})
 }
