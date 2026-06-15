@@ -14,6 +14,7 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/e/tests/common"
 	"github.com/gravitational/teleport/lib/msgraph/models"
+	"github.com/gravitational/teleport/lib/msgraph/msgraphtest"
 )
 
 func TestResourceImportDelta(t *testing.T) {
@@ -124,6 +125,167 @@ func TestResourceImportDelta(t *testing.T) {
 		// group3 was deleted and bob should no longer have this group trait.
 		// group3 grants "access" role.
 		requireRoleAndTraits(t, ctx, authClt, "bob@example.com", []string{"requester"}, []string{group1ID, group2ID}, "expected access role and group3 trait to be removed")
+	})
+}
+
+// TestUserGroupTraitGrantsInDeltaSync tests that user's group membership in
+// office 365 groups should not be added to user's group trait.
+func TestUserGroupTraitGrantsInDeltaSync(t *testing.T) {
+	ctx := t.Context()
+	defaultStorage := newDefaultStorage()
+
+	// User: alice.
+	// Groups: group1, group2, o365Group1, o365Group2, o365Group3.
+	// Group membership:
+	//   Alice as a:
+	//   - direct member of group1, o365Group1, o365Group3.
+	//   - indirect member of group2 and o365Group2.
+	storage := msgraphtest.NewStorage()
+	storage.Applications = defaultStorage.Applications
+
+	// User
+	storage.Users = make(map[string]*models.User)
+	storage.Users[aliceID] = defaultStorage.Users[aliceID]
+
+	// Groups
+	storage.Groups = make(map[string]*models.Group)
+	storage.Groups[group1ID] = defaultStorage.Groups[group1ID]
+	storage.Groups[group2ID] = defaultStorage.Groups[group2ID]
+
+	const o365Group1ID = "6a2c61d0-9519-402d-9f0e-37f76590d8b2"
+	o365Group1 := newEntraGroup(o365Group1ID, "o365Group1")
+	o365Group1.GroupTypes = []string{"Unified"} // Unified signifies office 365 group.
+	storage.Groups[o365Group1ID] = o365Group1
+
+	const o365Group2ID = "47c5e3eb-a0c7-4d17-b00f-993a2682d4fd"
+	o365Group2 := newEntraGroup(o365Group2ID, "o365Group2")
+	o365Group2.GroupTypes = []string{"Unified"}
+	storage.Groups[o365Group2ID] = o365Group2
+
+	const o365Group3ID = "549e7c31-e5df-455c-8e8f-406284cac2e6"
+	o365Group3 := newEntraGroup(o365Group3ID, "o365Group3")
+	o365Group3.GroupTypes = []string{"Unified"}
+	storage.Groups[o365Group3ID] = o365Group3
+
+	// Group membership
+	alice := defaultStorage.Users[aliceID]
+	storage.GroupMembers[group1ID] = []models.GroupMember{alice}
+	storage.GroupMembers[group2ID] = []models.GroupMember{o365Group1}
+	storage.GroupMembers[o365Group1ID] = []models.GroupMember{alice}
+	storage.GroupMembers[o365Group2ID] = []models.GroupMember{o365Group3}
+	storage.GroupMembers[o365Group3ID] = []models.GroupMember{alice}
+
+	clock := clockwork.NewFakeClock()
+	env := newTestEnv(t, storage, common.WithClock(clock))
+	authClient := env.authClient
+
+	// Install the plugin, should trigger resource import on first start.
+	plugin := newDefaultPluginSpec(t)
+	settings := plugin.Spec.GetEntraId().SyncSettings
+	settings.SyncIntervals = &types.PluginEntraIDSyncIntervals{
+		Delta: "15s",
+		Full:  "1h",
+	}
+	plugin.Spec.Settings = &types.PluginSpecV1_EntraId{
+		EntraId: &types.PluginEntraIDSettings{
+			SyncSettings: settings,
+		},
+	}
+	err := createEntraIDPlugin(ctx, authClient, plugin)
+	require.NoError(t, err, "expected Entra ID plugin to be created")
+
+	aliceMembership := []string{"alice@example.com"}
+	expectedAccessListTitles := []string{"group1", "group2", "o365Group1", "o365Group2", "o365Group3"}
+	expectedGroupTraits := []string{group1ID}
+	expectUser := func(t *testing.T) {
+		t.Helper()
+		require.EventuallyWithT(t,
+			func(t *assert.CollectT) {
+				requireEntraIDUsers(t, ctx, authClient, []string{"alice@example.com"})
+			},
+			time.Second*15, time.Millisecond*30)
+	}
+	expectGroupAndMembership := func(t *testing.T) {
+		t.Helper()
+		require.EventuallyWithT(t,
+			func(t *assert.CollectT) {
+				gotAccesslists, err := listEntraIDAccessLists(ctx, authClient.AccessListClient())
+				require.NoError(t, err)
+				require.NotNil(t, gotAccesslists)
+				require.ElementsMatch(t, expectedAccessListTitles, slices.Collect(maps.Keys(gotAccesslists)), "expected Entra ID groups to be created")
+
+				requireEntraIDAccessListMembers(t, ctx, authClient, gotAccesslists["group1"], aliceMembership)
+				requireEntraIDAccessListMembers(t, ctx, authClient, gotAccesslists["group2"], []string{gotAccesslists["o365Group1"].GetName()})
+				requireEntraIDAccessListMembers(t, ctx, authClient, gotAccesslists["o365Group1"], aliceMembership)
+				requireEntraIDAccessListMembers(t, ctx, authClient, gotAccesslists["o365Group2"], []string{gotAccesslists["o365Group3"].GetName()})
+				requireEntraIDAccessListMembers(t, ctx, authClient, gotAccesslists["o365Group3"], aliceMembership)
+			},
+			time.Second*15, time.Millisecond*30)
+	}
+
+	// First full sync, should import all the user, group and group membership
+	// defined in [newDefaultStorage].
+	t.Run("First full sync", func(t *testing.T) {
+		expectPluginStatusUpdated(t, ctx, env.authClient, plugin.GetName(), clock)
+		expectUser(t)
+		expectGroupAndMembership(t)
+		// Trait value representing for o365Group1, o365Group2 and o365Group3 should have been filtered out.
+		requireRoleAndTraits(t, ctx, authClient, "alice@example.com", []string{"requester"}, expectedGroupTraits, "expected alice traits to match")
+	})
+
+	t.Run("First delta sync", func(t *testing.T) {
+		// Wait for the next sync, which is the first delta sync.
+		// Items synced with first full sync should remain unchanged.
+		expectPluginStatusUpdated(t, ctx, env.authClient, plugin.GetName(), clock)
+		expectUser(t)
+		expectGroupAndMembership(t)
+		requireRoleAndTraits(t, ctx, authClient, "alice@example.com", []string{"requester"}, expectedGroupTraits, "expected alice traits to match")
+	})
+
+	// Mimic delta sync with two groups - one security and one O365 group
+	// are added where alice is member of both the groups.
+	// Alice should be granted with a new group trait that matches non-o365 group.
+	t.Run("Second delta sync with a new security and O365 group with membership", func(t *testing.T) {
+		const group3ID = "e12d20ab-0104-495e-bc24-75989f88f590"
+		group3 := newEntraGroup(group3ID, "group3")
+		const o365Group4ID = "ab617c7d-674d-429e-843c-38c0ee762013"
+		o365Group4 := newEntraGroup(o365Group4ID, "o365Group4")
+		o365Group4.GroupTypes = []string{"Unified"}
+		env.fakeServer.SetGroups([]*models.Group{group3, o365Group4})
+
+		env.fakeServer.SetGroupMembers(group3ID, []models.GroupMember{alice})
+		env.fakeServer.SetGroupMembers(o365Group4ID, []models.GroupMember{alice})
+
+		// Wait for plugin status to be updated.
+		expectPluginStatusUpdated(t, ctx, env.authClient, plugin.GetName(), clock)
+
+		expectedAccessListTitlesAfterDelta := slices.Concat(expectedAccessListTitles, []string{"group3", "o365Group4"})
+		require.EventuallyWithT(t,
+			func(t *assert.CollectT) {
+				gotAccesslists, err := listEntraIDAccessLists(ctx, env.authClient.AccessListClient())
+				require.NoError(t, err)
+				require.NotNil(t, gotAccesslists)
+				require.ElementsMatch(t, expectedAccessListTitlesAfterDelta, slices.Collect(maps.Keys(gotAccesslists)), "expected Entra ID groups to be created")
+
+				requireEntraIDAccessListMembers(t, ctx, authClient, gotAccesslists["group1"], aliceMembership)
+				requireEntraIDAccessListMembers(t, ctx, authClient, gotAccesslists["group2"], []string{gotAccesslists["o365Group1"].GetName()})
+				requireEntraIDAccessListMembers(t, ctx, authClient, gotAccesslists["group3"], aliceMembership)
+				requireEntraIDAccessListMembers(t, ctx, authClient, gotAccesslists["o365Group1"], aliceMembership)
+				requireEntraIDAccessListMembers(t, ctx, authClient, gotAccesslists["o365Group2"], []string{gotAccesslists["o365Group3"].GetName()})
+				requireEntraIDAccessListMembers(t, ctx, authClient, gotAccesslists["o365Group3"], aliceMembership)
+				requireEntraIDAccessListMembers(t, ctx, authClient, gotAccesslists["o365Group4"], aliceMembership)
+			},
+			time.Second*30, time.Millisecond*30)
+
+		// Trait value representing for o365Group1, o365Group2, o365Group3 and o365Group4 should have been filtered out.
+		expectedGroupTraits = []string{group1ID, group3ID}
+		requireRoleAndTraits(t, ctx, authClient, "alice@example.com", []string{"requester"}, expectedGroupTraits, "expected alice traits to match")
+	})
+
+	t.Run("Subsequent delta sync", func(t *testing.T) {
+		// Double check trait remains the same on a subsequent noop delta sync.
+		expectPluginStatusUpdated(t, ctx, env.authClient, plugin.GetName(), clock)
+		requireRoleAndTraits(t, ctx, authClient, "alice@example.com", []string{"requester"}, expectedGroupTraits, "expected alice traits to match")
 	})
 }
 

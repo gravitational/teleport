@@ -215,6 +215,78 @@ func TestUnwindGroupMembership(t *testing.T) {
 				"group3": {"group3", "group2", "group1"},
 			},
 		},
+		{
+			// `unwindGroupMembership` only calls IsOffice365Group() which checks for "Unified" type.
+			name: "Office 365 groups are filtered.",
+			groups: groupsByID{
+				"group1": {
+					DirectoryObject: models.DirectoryObject{
+						ID: valToPTR("group1"),
+					},
+				},
+				"group2": {
+					DirectoryObject: models.DirectoryObject{
+						ID: valToPTR("group2"),
+					},
+					GroupTypes: []string{"Unified"}, // o365 group.
+				},
+				"group3": {
+					DirectoryObject: models.DirectoryObject{
+						ID: valToPTR("group3"),
+					},
+					GroupTypes: []string{"Unified"}, // o365 group.
+				},
+				"group4": {
+					DirectoryObject: models.DirectoryObject{
+						ID: valToPTR("group4"),
+					},
+				},
+				"group5": {
+					DirectoryObject: models.DirectoryObject{
+						ID: valToPTR("group5"),
+					},
+				},
+			},
+			groupMembers: groupMembersByGroupID{
+				"group1": {
+					&models.Group{
+						DirectoryObject: models.DirectoryObject{
+							ID: valToPTR("group2"),
+						},
+					},
+					&models.Group{
+						DirectoryObject: models.DirectoryObject{
+							ID: valToPTR("group3"),
+						},
+					},
+					&models.Group{
+						DirectoryObject: models.DirectoryObject{
+							ID: valToPTR("group4"),
+						},
+					},
+				},
+				"group2": {
+					&models.Group{
+						DirectoryObject: models.DirectoryObject{
+							ID: valToPTR("group4"),
+						},
+					},
+				},
+				"group4": {
+					&models.Group{
+						DirectoryObject: models.DirectoryObject{
+							ID: valToPTR("group5"),
+						},
+					},
+				},
+			},
+			expected: map[string][]string{
+				"group1": {"group1"},
+				// group2 and group3 are filtered out.
+				"group4": {"group4", "group1"},
+				"group5": {"group5", "group4", "group1"},
+			},
+		},
 	}
 
 	for _, tt := range tests {

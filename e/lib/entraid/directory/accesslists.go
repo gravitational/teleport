@@ -37,6 +37,8 @@ const (
 	// onPremisesNetBiosNameLabel is the Entra ID onPremisesNetBiosName
 	// property which represents the on-premise netBios name.
 	onPremisesNetBiosNameLabel = types.TeleportInternalLabelPrefix + "on-premises-net-bios-name"
+	// groupTypeLabel is the Entra ID group type property.
+	groupTypeLabel = types.TeleportInternalLabelPrefix + "group-types"
 )
 
 // groupsByID is a Entra group map with Entra
@@ -156,6 +158,9 @@ func convertGroup(in *models.Group, tenantID string, owners []accesslist.Owner) 
 	}
 	if in.OnPremisesSamAccountName != nil {
 		staticLabels[onPremisesSamAccountNameLabel] = *in.OnPremisesSamAccountName
+	}
+	if len(in.GroupTypes) != 0 {
+		staticLabels[groupTypeLabel] = strings.Join(in.GroupTypes, ",")
 	}
 	out.SetStaticLabels(staticLabels)
 	out.SetOrigin(types.OriginEntraID)
@@ -337,11 +342,20 @@ func unwindGroupMembership(in entraGroups) map[string][]string {
 		for _, member := range in.groupMembersMap[entraUniqueID(groupID)] {
 			if nestedGroup, ok := member.(*models.Group); ok {
 				// Skip Office 365 groups, we only care about security groups.
-				if nestedGroup.IsOffice365Group() {
+
+				// In delta sync, a group is constructed from the corresponding Access List
+				// resource and its group member is constructured from the corresponding
+				// Access List member resource. Access List resources persist group type label
+				// but member resources do not. So IsOffice365Group is checked against the group
+				// in `groupsMap` which is a canonical map of all the parent and nested groups.
+				// This works for both full and delta sync scenario.
+				id := *nestedGroup.ID
+				group, ok := in.groupsMap[entraUniqueID(id)]
+				if !ok || group.IsOffice365Group() {
 					continue
 				}
 				// recursively collect the path for nested groups.
-				nestedPath := collectPaths(*nestedGroup.ID)
+				nestedPath := collectPaths(id)
 				path = append(path, nestedPath...)
 			}
 		}

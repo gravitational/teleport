@@ -391,7 +391,7 @@ func (c *graphClient) setupUserAndGroupDelta(ctx context.Context) error {
 		msgraph.WithSelect("id,displayName,userPrincipalName,mail,onPremisesSamAccountName,givenName,surname"),
 	}
 
-	groupProperties := "id,displayName,description,onPremisesSamAccountName,onPremisesDomainName,onPremisesNetBiosName,members"
+	groupProperties := "id,displayName,description,onPremisesSamAccountName,onPremisesDomainName,onPremisesNetBiosName,members,groupTypes"
 	if c.setEntraGroupOwners {
 		groupProperties += ",owners"
 	}

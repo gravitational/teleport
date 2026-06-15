@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"maps"
 	"slices"
+	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/gravitational/trace"
@@ -443,6 +444,9 @@ func newGroupFromAccessList(id string, accessList *accesslist.AccessList) *model
 	}
 	if netbiosName, ok := accessList.GetLabel(onPremisesNetBiosNameLabel); ok && netbiosName != "" {
 		out.OnPremisesNetBiosName = &netbiosName
+	}
+	if groupTypes, ok := accessList.GetLabel(groupTypeLabel); ok && groupTypes != "" {
+		out.GroupTypes = strings.Split(strings.TrimSpace(groupTypes), ",")
 	}
 
 	return out
