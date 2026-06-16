@@ -1053,6 +1053,8 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 	cfg.Auth.LoadAllCAs = fc.Auth.LoadAllCAs
 
+	cfg.Auth.AppSessionExpiryService = fc.Auth.AppSessionExpiryService
+
 	// Setting this to true at all times to allow self hosting
 	// of plugins that were previously cloud only.
 	cfg.Auth.HostedPlugins.Enabled = true

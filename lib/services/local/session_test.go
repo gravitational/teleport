@@ -244,7 +244,7 @@ func TestListExpiredAppSessions(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		ctx := t.Context()
 		backend, _ := memory.New(memory.Config{Context: ctx})
-		identity, _ := NewTestIdentityService(backend)
+		identity, _ := NewTestIdentityService(backend, WithAppSessionExpiryService(true))
 
 		const totalExpired = 200
 		const totalValid = 10
@@ -302,22 +302,24 @@ func TestListExpiredAppSessions(t *testing.T) {
 	})
 }
 
-func TestUpdateAppSession_UnsetBackendExpiry(t *testing.T) {
+func TestUpdateAppSession_ExtendsBackendExpiry(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
 	mem, err := memory.New(memory.Config{Context: ctx})
 	require.NoError(t, err)
 
-	identity, err := NewTestIdentityService(mem)
+	identity, err := NewTestIdentityService(mem, WithAppSessionExpiryService(true))
 	require.NoError(t, err)
 
 	session := newTestAppSession(t, "updated-session")
 	require.NoError(t, identity.UpsertAppSession(ctx, session))
 
+	expectedExpiry := session.GetExpiryTime().Add(appSessionBackendBufferTTL)
+
 	item, err := mem.Get(ctx, backend.NewKey(appsPrefix, sessionsPrefix, session.GetName()))
 	require.NoError(t, err)
-	require.True(t, item.Expires.IsZero(), "new app sessions should not have backend TTL")
+	require.True(t, item.Expires.Equal(expectedExpiry), "new app sessions should have extended backend TTL")
 
 	session, err = identity.GetAppSession(ctx, types.GetAppSessionRequest{SessionID: session.GetName()})
 	require.NoError(t, err)
@@ -328,7 +330,36 @@ func TestUpdateAppSession_UnsetBackendExpiry(t *testing.T) {
 
 	item, err = mem.Get(ctx, backend.NewKey(appsPrefix, sessionsPrefix, session.GetName()))
 	require.NoError(t, err)
-	require.True(t, item.Expires.IsZero(), "updated app sessions should not regain backend TTL")
+	require.True(t, item.Expires.Equal(expectedExpiry), "updated app sessions should keep extended backend TTL")
+}
+
+// TestUpdateAppSession_PreservesBackendExpiry verifies that when the expiry
+// service opt-in is off (the default), app sessions are stored with their
+// session expiry as the backend TTL so the backend handles deletion.
+func TestUpdateAppSession_PreservesBackendExpiry(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	mem, err := memory.New(memory.Config{Context: ctx})
+	require.NoError(t, err)
+
+	identity, err := NewTestIdentityService(mem)
+	require.NoError(t, err)
+
+	session := newTestAppSession(t, "default-session")
+	require.NoError(t, identity.UpsertAppSession(ctx, session))
+
+	item, err := mem.Get(ctx, backend.NewKey(appsPrefix, sessionsPrefix, session.GetName()))
+	require.NoError(t, err)
+	require.True(t, item.Expires.Equal(session.GetExpiryTime()), "backend TTL should match session expiry by default")
+
+	session, err = identity.GetAppSession(ctx, types.GetAppSessionRequest{SessionID: session.GetName()})
+	require.NoError(t, err)
+	require.NoError(t, identity.UpdateAppSession(ctx, session))
+
+	item, err = mem.Get(ctx, backend.NewKey(appsPrefix, sessionsPrefix, session.GetName()))
+	require.NoError(t, err)
+	require.True(t, item.Expires.Equal(session.GetExpiryTime()), "backend TTL should match session expiry after update")
 }
 
 // Helper for quick session generation
