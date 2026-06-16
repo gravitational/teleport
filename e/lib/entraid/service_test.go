@@ -27,18 +27,20 @@ import (
 type fakeDirectoryReconciler struct {
 	timesCalled int64
 
-	mu  sync.Mutex
-	err error
+	mu           sync.Mutex
+	err          error
+	lastSyncMode mdmsync.SyncMode
 
 	importedUsers  int
 	importedGroups int
 }
 
-func (r *fakeDirectoryReconciler) Reconcile(ctx context.Context, _ mdmsync.SyncMode) (directory.Result, error) {
+func (r *fakeDirectoryReconciler) Reconcile(ctx context.Context, syncMode mdmsync.SyncMode) (directory.Result, error) {
 	atomic.AddInt64(&r.timesCalled, 1)
 
 	r.mu.Lock()
 	err := r.err
+	r.lastSyncMode = syncMode
 	r.mu.Unlock()
 
 	out := directory.Result{
@@ -52,6 +54,12 @@ func (r *fakeDirectoryReconciler) setErr(err error) {
 	r.mu.Lock()
 	r.err = err
 	r.mu.Unlock()
+}
+
+func (r *fakeDirectoryReconciler) getLastSyncMode() mdmsync.SyncMode {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.lastSyncMode
 }
 
 // fakeTAGSynchronizer that "does nothing" until the context is canceled.
@@ -184,6 +192,63 @@ func TestDirectoryReconcilerStatus(t *testing.T) {
 		require.Equal(t, uint32(34), entraStatus.ImportedUsers)
 		require.Equal(t, uint32(12), entraStatus.ImportedGroups)
 	})
+}
+
+func TestFullSyncOnStart(t *testing.T) {
+	// fullSyncInterval configured to be greater than
+	// DefaultFullSyncInterval which is 5 minutes.
+	const fullSyncInterval = time.Hour
+	const deltaSyncInterval = 2 * time.Minute
+	tests := []struct {
+		name         string
+		syncInterval SyncIntervals
+	}{
+		{
+			name: "full sync enabled",
+			syncInterval: SyncIntervals{
+				Full: fullSyncInterval,
+			},
+		},
+		{
+			name: "delta sync enabled",
+			syncInterval: SyncIntervals{
+				Delta: deltaSyncInterval,
+			},
+		},
+		{
+			name: "both full and delta sync enabled",
+			syncInterval: SyncIntervals{
+				Full:  fullSyncInterval,
+				Delta: deltaSyncInterval,
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				env := newTestEnv(t, tEnvConfig{
+					syncIntervals: tc.syncInterval,
+				})
+
+				ctx, cancel := context.WithCancel(t.Context())
+				returned := make(chan error, 1)
+				go func() {
+					returned <- env.service.Run(ctx)
+				}()
+
+				synctest.Wait()
+				// Expect directory reconciler to get called once.
+				require.Equal(t, int64(1), atomic.LoadInt64(&env.reconciler.timesCalled))
+				// First sync is always full sync.
+				require.Equal(t, mdmsync.SyncModeFull, env.reconciler.getLastSyncMode())
+
+				cancel()
+				synctest.Wait()
+				require.ErrorIs(t, <-returned, context.Canceled)
+			})
+		})
+	}
 }
 
 func TestMaybeResetSyncScheduleOnStart(t *testing.T) {
@@ -354,5 +419,42 @@ func TestMaybeResetSyncSchedule_SyncModePartial(t *testing.T) {
 
 			require.Equal(t, deltaSyncInterval, scheduler.NextOffset())
 		})
+	}
+}
+
+type tEnv struct {
+	service    *Service
+	reconciler *fakeDirectoryReconciler
+}
+
+type tEnvConfig struct {
+	syncIntervals SyncIntervals
+}
+
+func newTestEnv(t *testing.T, cfg tEnvConfig) tEnv {
+	backend, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+
+	scheduler, err := newScheduler(cfg.syncIntervals)
+	require.NoError(t, err)
+	deltaEnabled := cfg.syncIntervals.Delta > 0
+
+	clock := clockwork.NewRealClock()
+
+	directoryReconciler := &fakeDirectoryReconciler{}
+	semaphoreSvc := local.NewPresenceService(backend)
+	svc := &Service{
+		clock:               clock,
+		log:                 logtest.NewLogger(),
+		directoryReconciler: directoryReconciler,
+		syncIntervals:       scheduler,
+		deltaSyncEnabled:    deltaEnabled,
+		pluginStatusSink:    &integration.FakeStatusSink{},
+		semaphoreSvc:        semaphoreSvc,
+		hostID:              "foo",
+	}
+	return tEnv{
+		service:    svc,
+		reconciler: directoryReconciler,
 	}
 }

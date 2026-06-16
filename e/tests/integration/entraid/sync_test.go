@@ -1,27 +1,20 @@
 package entraid
 
 import (
-	"context"
 	"maps"
-	"net/url"
 	"slices"
 	"testing"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/e/tests/common"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/msgraph/models"
-	"github.com/gravitational/teleport/lib/services"
 )
 
 func TestResourceImport(t *testing.T) {
@@ -307,147 +300,53 @@ func TestResourceImportWithCyclicGroupMembers(t *testing.T) {
 	expectFilteredMembers(t)
 }
 
-func expectDefaultUserSync(t *testing.T, authClt authclient.ClientI) {
-	t.Helper()
-
+func TestFullSyncReImportsDirectory(t *testing.T) {
 	ctx := t.Context()
-	require.EventuallyWithT(t,
-		func(t *assert.CollectT) {
-			// Users are expected to be created before Access List and members.
-			// User names matches with default payload available in newDefaultStorage().
-			expected := []string{"alice@example.com", "bob@example.com", "carol@example.com"}
-			requireEntraIDUsers(t, ctx, authClt, expected)
-		},
-		time.Second*10, time.Millisecond*30)
-}
 
-func expectDefaultGroupSync(t *testing.T, authClt authclient.ClientI) {
-	t.Helper()
+	// Setup.
+	clock := clockwork.NewFakeClock()
+	env := newTestEnv(t, newDefaultStorage(), common.WithClock(clock))
+	pluginWatcher := env.sut.NewResourceWatcher(t, types.KindPlugin)
+	defer pluginWatcher.Close()
+	userWatcher := env.sut.NewResourceWatcher(t, types.KindUser)
+	defer userWatcher.Close()
+	aclWatcher := env.sut.NewResourceWatcher(t, types.KindAccessList)
+	defer aclWatcher.Close()
 
-	ctx := t.Context()
-	require.EventuallyWithT(t,
-		func(t *assert.CollectT) {
-			// Entra ID groups are created as Access List and
-			// group members created as Access List members.
+	const fullSyncInterval = 15 * time.Second
+	mustCreatePlugin(t,
+		ctx,
+		env.authClient,
+		withSyncIntervals(&types.PluginEntraIDSyncIntervals{
+			Delta: "0", // delta sync disabled
+			Full:  fullSyncInterval.String(),
+		}),
+		withAclOwnersConfig(types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_ENTRAID),
+	)
 
-			// Group names matches with default payload available in newDefaultStorage().
-			expectedAccessListTitles := []string{"group1", "group2", "group3"}
-			gotAccesslists, err := listEntraIDAccessLists(ctx, authClt.AccessListClient())
-			require.NoError(t, err)
-			require.NotNil(t, gotAccesslists)
-			require.ElementsMatch(t, expectedAccessListTitles, slices.Collect(maps.Keys(gotAccesslists)), "expected Entra ID groups to be created")
+	// First full sync.
+	lastSyncTime := waitForPluginStatusUpdate(t, pluginWatcher, time.Time{} /* last sync time empty on first sync */)
+	expectDefaultResourcesWithEntraOwners(t, ctx, env.authClient)
 
-			requireEntraIDAccessListMembers(t, ctx, authClt,
-				gotAccesslists["group1"],
-				[]string{gotAccesslists["group2"].GetName(), "alice@example.com"}, // group2 is nested member of group1.
-			)
-
-			requireEntraIDAccessListMembers(t, ctx, authClt,
-				gotAccesslists["group2"],
-				[]string{"alice@example.com", "bob@example.com", "carol@example.com"},
-			)
-
-			requireEntraIDAccessListMembers(t, ctx, authClt,
-				gotAccesslists["group3"],
-				[]string{"alice@example.com", "bob@example.com", "carol@example.com"},
-			)
-
-		},
-		time.Second*10, time.Millisecond*30)
-}
-
-func expectDefaultGroupOwners(t *testing.T, authClt authclient.ClientI) {
-	t.Helper()
-
-	ctx := t.Context()
-	require.EventuallyWithT(t,
-		func(t *assert.CollectT) {
-			gotAccesslists, err := listEntraIDAccessLists(ctx, authClt.AccessListClient())
-			require.NoError(t, err)
-			require.NotNil(t, gotAccesslists)
-			requireDefaultEntraIDAccessListOwners(t, gotAccesslists)
-		},
-		time.Second*10, time.Millisecond*30)
-}
-
-func expectDefaultPluginStatus(t *testing.T, authClt authclient.ClientI, name string) {
-	t.Helper()
-
-	ctx := t.Context()
-	require.EventuallyWithT(t,
-		func(t *assert.CollectT) {
-			updatedPlugin, err := authClt.PluginsClient().GetPlugin(ctx, pluginsv1.GetPluginRequest_builder{
-				Name: name,
-			}.Build())
-			require.NoError(t, err)
-
-			status := updatedPlugin.GetStatus()
-			require.Empty(t, status.GetLastRawError())
-			require.Empty(t, status.GetErrorMessage())
-			require.Equal(t, types.PluginStatusCode_RUNNING, status.GetCode(), `expected plugin status to be "running"`)
-
-			entraStatus := status.GetEntraId()
-			require.NotNil(t, entraStatus)
-			require.Equal(t, uint32(3), entraStatus.ImportedUsers)
-			require.Equal(t, uint32(3), entraStatus.ImportedGroups)
-		},
-		time.Second*15, time.Millisecond*30, "expected successful plugins status")
-}
-
-func mustParseURL(t *testing.T, in string) *url.URL {
-	t.Helper()
-	url, err := url.Parse(in)
+	// Delete user resources alice, bob and carol created from default storage.
+	const userToDelete = "bob@example.com"
+	mustDeleteUsersFromTeleport(t, env.authClient, []string{userToDelete})
+	common.WaitForDeleteEvent(t, userWatcher, func(r types.Resource) bool {
+		return r.GetName() == userToDelete
+	})
+	// Default groups - group1, group2, group3.
+	gotAccesslists, err := listEntraIDAccessLists(ctx, env.authClient.AccessListClient())
 	require.NoError(t, err)
-	require.Equal(t, "https", url.Scheme, "expected URL with https scheme")
-	return url
-}
+	aclToDelete := gotAccesslists["group3"].GetName()
+	mustDeleteAccessLists(t, env.authClient, []string{aclToDelete})
+	common.WaitForDeleteEvent(t, aclWatcher, func(r types.Resource) bool {
+		return r.GetName() == aclToDelete
+	})
 
-func requireEntraIDUsers(t *assert.CollectT, ctx context.Context, authClient authclient.ClientI, expectedUsers []string) {
-	t.Helper()
+	// Wait for another sync.
+	clock.Advance(fullSyncInterval)
+	waitForPluginStatusUpdate(t, pluginWatcher, lastSyncTime)
 
-	got, err := listEntraIDUsers(ctx, authClient)
-	require.NoError(t, err)
-	require.NotNil(t, got)
-
-	require.ElementsMatch(t, expectedUsers, got, "expected Entra ID users to be created in Teleport")
-}
-
-func requireEntraIDAccessListMembers(t *assert.CollectT, ctx context.Context, authClient authclient.ClientI, acl *accesslist.AccessList, expectedMembers []string) {
-	t.Helper()
-
-	gotMembers, err := listEntraIDMembers(ctx, acl.GetName(), authClient.AccessListClient())
-	require.NoError(t, err, "listing Access List members for Entra ID groups")
-	require.NotNil(t, gotMembers, "expected membership to not to be nil")
-
-	require.ElementsMatch(t, expectedMembers, gotMembers, "expected Entra ID group members to match. acl=%s", acl.Spec.Title)
-}
-
-func requireDefaultEntraIDAccessListOwners(t *assert.CollectT, acls map[string]*accesslist.AccessList) {
-	t.Helper()
-
-	for _, acl := range acls {
-		require.Empty(t,
-			cmp.Diff(acl.Spec.Owners, []accesslist.Owner{defaultOwner},
-				cmpopts.IgnoreFields(accesslist.Owner{}, "IneligibleStatus"),
-			), "expected Entra ID group owners to match")
-	}
-}
-
-func requireRoleAndTraits(t *testing.T, ctx context.Context, authClt authclient.ClientI, username string, expectedRoles []string, expectedTraits []string, msg string) {
-	t.Helper()
-
-	user, err := authClt.GetUser(ctx, username, false)
-	require.NoError(t, err)
-	require.ElementsMatch(t, expectedRoles, user.GetRoles(), msg)
-	userGroupTraits := user.GetTraits()["http://schemas.microsoft.com/ws/2008/06/identity/claims/groups"]
-	require.ElementsMatch(t, expectedTraits, userGroupTraits, msg)
-}
-
-func mustListMembers(t *assert.CollectT, ctx context.Context, accessListName string, aclClient services.AccessLists) []string {
-	t.Helper()
-
-	members, err := listEntraIDMembers(ctx, accessListName, aclClient)
-	require.NoError(t, err)
-
-	return members
+	// Expect all the same resources checked after first full sync.
+	expectDefaultResourcesWithEntraOwners(t, ctx, env.authClient)
 }

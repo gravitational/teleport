@@ -201,23 +201,5 @@ func TestAccessListMergePluginAndEntraIDGroupOwners(t *testing.T) {
 	expectDefaultUserSync(t, env.authClient)
 	expectDefaultGroupSync(t, env.authClient)
 
-	require.EventuallyWithT(t,
-		func(t *assert.CollectT) {
-			gotAccesslists, err := listEntraIDAccessLists(ctx, env.authClient.AccessListClient())
-			require.NoError(t, err, "listing entra id access lists")
-
-			defaultOwners := []accesslist.Owner{defaultOwner}
-			// Merge Entra ID group owners and plugin default owners.
-			expectedGroup1Owners := slices.Concat(aclOwners(t, defaultStorage.GroupOwners[group1ID]), defaultOwners)
-			compareOwners(t, "group1", expectedGroup1Owners, gotAccesslists["group1"].Spec.Owners)
-
-			// group2 has zero owners, should fallback to default owners.
-			compareOwners(t, "group2", defaultOwners, gotAccesslists["group2"].Spec.Owners)
-
-			// Merge Entra ID group owners and plugin default owners.
-			expectedGroup3Owners := slices.Concat(aclOwners(t, defaultStorage.GroupOwners[group3ID]), defaultOwners)
-			compareOwners(t, "group3", expectedGroup3Owners, gotAccesslists["group3"].Spec.Owners)
-
-		},
-		time.Second*10, time.Millisecond*30)
+	expectDefaultEntraAndPluginOwner(t, ctx, env.authClient.AccessListClient())
 }

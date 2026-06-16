@@ -1,11 +1,14 @@
 package entraid
 
 import (
+	"fmt"
 	"maps"
 	"slices"
 	"testing"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	"github.com/google/go-cmp/cmp"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -488,7 +491,7 @@ func TestResourceImportWithCyclicGroupMembersDelta(t *testing.T) {
 
 			gotAccesslists, err := listEntraIDAccessLists(ctx, accessListClient)
 			require.NoError(t, err)
-			require.ElementsMatch(t, []string{"group1", "group2", "group3"}, slices.Collect(maps.Keys(gotAccesslists)), "expected Entra ID groups to be created")
+			require.ElementsMatch(t, defaultGroupDisplayNames, slices.Collect(maps.Keys(gotAccesslists)), "expected Entra ID groups to be created")
 
 			group1members := mustListMembers(t, ctx, gotAccesslists["group1"].GetName(), accessListClient)
 			require.ElementsMatch(t, []string{"alice@example.com"}, group1members, "expected Entra group1 members to match")
@@ -527,4 +530,309 @@ func TestResourceImportWithCyclicGroupMembersDelta(t *testing.T) {
 			require.ElementsMatch(t, []string{gotAccesslists["group1"].GetName(), "alice@example.com", "bob@example.com"}, group3Members, "expected Entra group3 members to match")
 		},
 		time.Second*20, time.Millisecond*30)
+}
+
+// TestResourcesUnchangedOnNoopDeltaSync checks that a Noop delta sync,
+// i.e. no changes tracked should not have any backend writes.
+func TestResourcesUnchangedOnNoopDeltaSync(t *testing.T) {
+	ctx := t.Context()
+
+	// Setup.
+	defaultStorage := newDefaultStorage()
+	clock := clockwork.NewFakeClock()
+	env := newTestEnv(t, defaultStorage, common.WithClock(clock))
+	w := env.sut.NewResourceWatcher(t, types.KindPlugin)
+	defer w.Close()
+
+	mustCreatePlugin(t,
+		ctx,
+		env.authClient,
+		withSyncIntervals(&types.PluginEntraIDSyncIntervals{
+			Delta: deltaSyncInterval.String(),
+			Full:  "0", // full sync disabled
+		}),
+		// Owners source to be plugin and Entra ID.
+		withAclOwnersConfig(types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_PLUGIN_AND_ENTRAID),
+	)
+
+	// First full sync, should import all the user, group and group membership
+	// defined in [newDefaultStorage].
+	lastSyncTime := waitForPluginStatusUpdate(t, w, time.Time{} /* last sync time empty on first sync */)
+	expectDefaultResourcesWithPluginAndEntraOwners(t, ctx, env.authClient)
+
+	// Test that the resource revisions from the first sync matches with
+	// resource revisions in subsequent delta sync.
+
+	// Get revision of users and access lists.
+	userRevisionsOnFirstSync := mustGetUserRevisions(t, ctx, env.authClient, defaultUsernames)
+	require.Len(t, userRevisionsOnFirstSync, 3)
+	aclNames := mustGetAclNames(t, ctx, env.authClient.AccessListClient(), defaultGroupDisplayNames)
+	aclRevisionsOnFullSync := mustGetAclWithMembersRevision(t, ctx, env.authClient, aclNames)
+
+	// Delta syncs.
+	for _, v := range []string{"First", "Second", "Third"} {
+		t.Run(fmt.Sprintf("%s delta sync", v), func(t *testing.T) {
+			clock.Advance(deltaSyncInterval)
+			lastSyncTime = waitForPluginStatusUpdate(t, w, lastSyncTime)
+
+			userRevisionsAfter := mustGetUserRevisions(t, ctx, env.authClient, defaultUsernames)
+			require.ElementsMatch(t, userRevisionsOnFirstSync, userRevisionsAfter, "user revision changed")
+
+			aclRevisionsAfter := mustGetAclWithMembersRevision(t, ctx, env.authClient, aclNames)
+			require.ElementsMatch(t, aclRevisionsOnFullSync, aclRevisionsAfter, "acl revision changed")
+		})
+	}
+}
+
+func TestOnlyTrackedResourceIsUpdated_UserDelta(t *testing.T) {
+	ctx := t.Context()
+
+	// Setup.
+	defaultStorage := newDefaultStorage()
+	clock := clockwork.NewFakeClock()
+	env := newTestEnv(t, defaultStorage, common.WithClock(clock))
+	pluginWatcher := env.sut.NewResourceWatcher(t, types.KindPlugin)
+	defer pluginWatcher.Close()
+	userWatcher := env.sut.NewResourceWatcher(t, types.KindUser)
+	defer userWatcher.Close()
+
+	mustCreatePlugin(t,
+		ctx,
+		env.authClient,
+		withSyncIntervals(&types.PluginEntraIDSyncIntervals{
+			Delta: deltaSyncInterval.String(),
+			Full:  "0", // full sync disabled
+		}),
+	)
+
+	// First full sync, should import all the user, group and group membership
+	// defined in [newDefaultStorage].
+	lastSyncTime := waitForPluginStatusUpdate(t, pluginWatcher, time.Time{} /* last sync time empty on first sync */)
+	expectDefaultResources(t, env.authClient)
+
+	// Get revision of users and access lists.
+	usernames := []string{"alice@example.com", "carol@example.com"}
+	userRevisionsOnFirstSync := mustGetUserRevisions(t, ctx, env.authClient, usernames)
+
+	aclNames := mustGetAclNames(t, ctx, env.authClient.AccessListClient(), defaultGroupDisplayNames)
+	aclRevisionsOnFullSync := mustGetAclWithMembersRevision(t, ctx, env.authClient, aclNames)
+	// Sanity check on expected acl and member counts.
+	require.Len(t, aclRevisionsOnFullSync, 3)
+	require.NotEmpty(t, aclRevisionsOnFullSync[0].MembersRevision)
+	require.NotEmpty(t, aclRevisionsOnFullSync[1].MembersRevision)
+	require.NotEmpty(t, aclRevisionsOnFullSync[2].MembersRevision)
+
+	// Update Bob display
+	bobUpdatedDisplay := "New Bob"
+	bob := defaultStorage.Users[bobID]
+	bob.DisplayName = to.Ptr(bobUpdatedDisplay)
+
+	// Creates a delta diff for Bob.
+	env.fakeServer.SetUsers([]*models.User{bob})
+
+	// First delta sync.
+	clock.Advance(deltaSyncInterval)
+	waitForPluginStatusUpdate(t, pluginWatcher, lastSyncTime)
+	expectDefaultResources(t, env.authClient)
+
+	userRevisionsAfter := mustGetUserRevisions(t, ctx, env.authClient, usernames)
+	require.ElementsMatch(t, userRevisionsOnFirstSync, userRevisionsAfter, "user revision changed")
+	common.WaitForPutEvent(t, userWatcher, func(r types.User) bool {
+		displayTrait := "http://schemas.microsoft.com/identity/claims/displayname"
+		return r.GetName() == "bob@example.com" && r.GetTraits()[displayTrait][0] == bobUpdatedDisplay
+	})
+	aclWithMembersAfter := mustGetAclWithMembersRevision(t, ctx, env.authClient, aclNames)
+	require.Empty(t, cmp.Diff(aclRevisionsOnFullSync, aclWithMembersAfter))
+}
+
+func TestOnlyTrackedResourceIsUpdated_GroupDelta(t *testing.T) {
+	ctx := t.Context()
+
+	// Setup.
+	defaultStorage := newDefaultStorage()
+	clock := clockwork.NewFakeClock()
+	env := newTestEnv(t, defaultStorage, common.WithClock(clock))
+	pluginWatcher := env.sut.NewResourceWatcher(t, types.KindPlugin)
+	defer pluginWatcher.Close()
+
+	mustCreatePlugin(t,
+		ctx,
+		env.authClient,
+		withSyncIntervals(&types.PluginEntraIDSyncIntervals{
+			Delta: deltaSyncInterval.String(),
+			Full:  "0", // full sync disabled
+		}),
+	)
+
+	// First full sync, should import all the user, group and group membership
+	// defined in [newDefaultStorage].
+	lastSyncTime := waitForPluginStatusUpdate(t, pluginWatcher, time.Time{} /* last sync time empty on first sync */)
+	expectDefaultResources(t, env.authClient)
+
+	// Get revision of users and access lists.
+	userRevisionsOnFirstSync := mustGetUserRevisions(t, ctx, env.authClient, defaultUsernames)
+
+	// group1 and group2 collected, group3 will be checked separately because it will be updated.
+	group1Andgroup2 := mustGetAclNames(t, ctx, env.authClient.AccessListClient(), []string{"group1", "group2"})
+	aclRevisionsOnFullSync := mustGetAclWithMembersRevision(t, ctx, env.authClient, group1Andgroup2)
+	// Sanity check on expected acl and member count.
+	require.Len(t, aclRevisionsOnFullSync, 2)
+	require.NotEmpty(t, aclRevisionsOnFullSync[0].MembersRevision)
+	require.NotEmpty(t, aclRevisionsOnFullSync[1].MembersRevision)
+
+	const group3UpdatedDisplay = "group3-updated"
+	// First delta sync.
+	t.Run("Group display updated", func(t *testing.T) {
+		group3 := defaultStorage.Groups[group3ID]
+		group3.DisplayName = to.Ptr(group3UpdatedDisplay)
+
+		aclWatcher := env.sut.NewResourceWatcher(t, types.KindAccessList)
+		defer aclWatcher.Close()
+
+		// Updating group3 also creates a delta diff for group3.
+		env.fakeServer.SetGroups([]*models.Group{group3})
+		clock.Advance(deltaSyncInterval)
+		lastSyncTime = waitForPluginStatusUpdate(t, pluginWatcher, lastSyncTime)
+		expectDefaultPluginStatus(t, env.authClient, pluginName)
+		expectDefaultUserSync(t, env.authClient)
+
+		userRevisionsAfter := mustGetUserRevisions(t, ctx, env.authClient, defaultUsernames)
+		require.ElementsMatch(t, userRevisionsOnFirstSync, userRevisionsAfter, "user revision changed")
+
+		// Wait for group3 Access List to be updated.
+		// The display name of the group is used to generate Access List resource ID.
+		// So a new display name causes exsting Access List and its members to be recreated.
+		// This behavior is the same for both "full" and "delta" sync.
+		group3NewName := ""
+		common.WaitForPutEvent(t, aclWatcher, func(r *accesslist.AccessList) bool {
+			if r.Spec.Title == group3UpdatedDisplay {
+				group3NewName = r.GetName()
+				return true
+			}
+			return false
+		})
+		// Get updated access group 3 from the backend.
+		updatedGroup3, err := env.authClient.AccessListClient().GetAccessList(ctx, group3NewName)
+		require.NoError(t, err, "expected updated Access List")
+
+		// group3 membership also updated to point to new Access List resource ID.
+		group3MembersAfter, err := listEntraIDMembers(ctx, updatedGroup3.GetName(), env.authClient.AccessListClient())
+		require.NoError(t, err)
+
+		// Expect updated group3 members to be the same.
+		group3MembersAfterNames := slices.Collect(func(yield func(string) bool) {
+			for _, u := range group3MembersAfter {
+				if !yield(u.GetName()) {
+					return
+				}
+			}
+		})
+		require.ElementsMatch(t, defaultUsernames, group3MembersAfterNames, "expected updated Access List members to match")
+
+		// Check group1 and group2 Access List and its members remains unchanged.
+		aclWithMembersAfter := mustGetAclWithMembersRevision(t, ctx, env.authClient, group1Andgroup2)
+		require.Empty(t, cmp.Diff(aclRevisionsOnFullSync, aclWithMembersAfter))
+	})
+
+	// Second delta sync.
+	t.Run("Group member removed", func(t *testing.T) {
+		group3 := defaultStorage.Groups[group3ID]
+		group3.DisplayName = to.Ptr(group3UpdatedDisplay)
+
+		aliceBeforeMembershipRemoval, err := env.authClient.GetUser(ctx, "alice@example.com", false)
+		require.NoError(t, err)
+		groupTraitKey := "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups"
+		require.True(t, slices.Contains(aliceBeforeMembershipRemoval.GetTraits()[groupTraitKey], group3ID))
+
+		// Get user revisions for Bob and Carol which should be unchanged.
+		usernames := []string{"bob@example.com", "carol@example.com"}
+		bobAndCarolRevisionBefore := mustGetUserRevisions(t, ctx, env.authClient, usernames)
+
+		// Create user watcher.
+		userWatcher := env.sut.NewResourceWatcher(t, types.KindUser)
+		defer userWatcher.Close()
+
+		// Removing group member also creates a delta diff for group3.
+		env.fakeServer.DeleteGroupMembers(group3ID, []string{aliceID})
+		clock.Advance(deltaSyncInterval)
+		lastSyncTime = waitForPluginStatusUpdate(t, pluginWatcher, lastSyncTime)
+		expectDefaultPluginStatus(t, env.authClient, pluginName)
+
+		// Check user trait has been updated.
+		common.WaitForPutEvent(t, userWatcher, func(r types.User) bool {
+			return r.GetName() == "alice@example.com" && !slices.Contains(r.GetTraits()[groupTraitKey], group3ID)
+		})
+		bobAndCrolRevisionAfter := mustGetUserRevisions(t, ctx, env.authClient, usernames)
+		require.ElementsMatch(t, bobAndCarolRevisionBefore, bobAndCrolRevisionAfter, "user revision changed")
+
+		// Get new access lists from the backend.
+		// group3 membership also updated to point to new Access List resource ID.
+		gotAccesslists, err := listEntraIDAccessLists(ctx, env.authClient.AccessListClient())
+		require.NoError(t, err, "list entra access lists")
+		group3After, err := env.authClient.AccessListClient().GetAccessList(ctx, gotAccesslists[group3UpdatedDisplay].GetName())
+		require.NoError(t, err)
+
+		require.Equal(t, uint32(2), *group3After.GetStatus().MemberCount, "expected group3 to be updated with new member count status")
+
+		// Check group1 and group3 Access List and its members remains unchanged.
+		aclWithMembersAfter := mustGetAclWithMembersRevision(t, ctx, env.authClient, group1Andgroup2)
+		require.Empty(t, cmp.Diff(aclRevisionsOnFullSync, aclWithMembersAfter))
+	})
+}
+
+// Group filter should be applied to delta sync.
+// If a group display is updated, and the new display matches with exclude filter,
+// corresponding Access List should be removed from Teleport.
+func TestGroupFilterAppliesOnGroupDisplayUpdate(t *testing.T) {
+	ctx := t.Context()
+
+	// Setup.
+	defaultStorage := newDefaultStorage()
+	clock := clockwork.NewFakeClock()
+	env := newTestEnv(t, defaultStorage, common.WithClock(clock))
+	pluginWatcher := env.sut.NewResourceWatcher(t, types.KindPlugin)
+	defer pluginWatcher.Close()
+
+	const disallowedGroupName = "group3-disallowed"
+	mustCreatePlugin(t,
+		ctx,
+		env.authClient,
+		withSyncIntervals(&types.PluginEntraIDSyncIntervals{
+			Delta: deltaSyncInterval.String(),
+			Full:  "0", // full sync disabled
+		}),
+		withGroupFilters([]*types.PluginSyncFilter{
+			{Exclude: &types.PluginSyncFilter_ExcludeNameRegex{ExcludeNameRegex: disallowedGroupName}},
+		}),
+	)
+
+	// First full sync, should import all the user, group and group membership
+	// defined in [newDefaultStorage].
+	lastSyncTime := waitForPluginStatusUpdate(t, pluginWatcher, time.Time{} /* last sync time empty on first sync */)
+	expectDefaultResources(t, env.authClient)
+
+	gotAccesslists, err := listEntraIDAccessLists(ctx, env.authClient.AccessListClient())
+	require.NoError(t, err, "list entra access lists")
+	require.Len(t, gotAccesslists, 3) // Three groups defined in newDefaultStorage.
+
+	// First delta sync.
+
+	// Update group3 display so it matches with the exclude name filter.
+	// This group should be eventually deleted.
+	group3 := defaultStorage.Groups[group3ID]
+	group3.DisplayName = to.Ptr(disallowedGroupName)
+
+	aclWatcher := env.sut.NewResourceWatcher(t, types.KindAccessList)
+	defer aclWatcher.Close()
+	// Updating group3 also creates a delta diff for group3.
+	env.fakeServer.SetGroups([]*models.Group{group3})
+	clock.Advance(deltaSyncInterval)
+	waitForPluginStatusUpdate(t, pluginWatcher, lastSyncTime)
+
+	common.WaitForDeleteEvent(t, aclWatcher, func(r types.Resource) bool {
+		return r.GetName() == gotAccesslists["group3"].GetName()
+	})
+	gotAccesslists, err = listEntraIDAccessLists(ctx, env.authClient.AccessListClient())
+	require.NoError(t, err, "list entra access lists")
+	require.Len(t, gotAccesslists, 2, "group3 not deleted")
 }
