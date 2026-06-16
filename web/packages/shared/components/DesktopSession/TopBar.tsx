@@ -99,7 +99,8 @@ export default function TopBar(props: Props) {
             screenIsHiDpi={screenIsHiDpi}
             hiDpiSupported={hiDpiSupported}
           />
-          <ActionMenu
+          {/* TODO(rhammonds): Remove sharing from the action menu in v20 */}
+          <ActionMenu            
             showShareDirectory={
               canShareDirectory &&
               sharedDirectories.length < maxSharedDirectories
