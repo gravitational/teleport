@@ -345,8 +345,7 @@ func TestScopedBotJoinAuth(t *testing.T) {
 					Scope: testRootScope,
 				}.Build(),
 			},
-			BotName:  testBotName,
-			BotScope: testRootScope,
+			Bot: scopes.QualifiedName{Scope: testRootScope, Name: testBotName}.String(),
 		}.Build(),
 	}.Build()
 	_, err = adminClient.ScopedAccessServiceClient().CreateScopedRoleAssignment(
