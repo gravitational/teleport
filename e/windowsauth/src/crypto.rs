@@ -104,7 +104,10 @@ impl CryptContext {
             CERT_TRUST_IS_NOT_TIME_VALID => Err(Error::from(STATUS_SMARTCARD_CERT_EXPIRED).into()),
             CERT_TRUST_IS_REVOKED => Err(Error::from(STATUS_SMARTCARD_CERT_REVOKED).into()),
             other => {
-                warn!("Certificate chain validation failed with error status: {:#010x}", other);
+                warn!(
+                    "Certificate chain validation failed with error status: {:#010x}",
+                    other
+                );
                 Err(Error::from(STATUS_PKINIT_CLIENT_FAILURE).into())
             }
         };

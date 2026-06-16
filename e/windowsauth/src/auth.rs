@@ -488,26 +488,48 @@ fn sync_groups(
             for group in requested_groups.difference(&groups) {
                 create_group(group)?;
                 let ugroup = UTF16::from(group);
-                let members_info = LOCALGROUP_MEMBERS_INFO_0 { lgrmi0_sid: user.psid() };
+                let members_info = LOCALGROUP_MEMBERS_INFO_0 {
+                    lgrmi0_sid: user.psid(),
+                };
+                const ERR_MEMBER_IN_ALIAS: u32 = ERROR_MEMBER_IN_ALIAS.0;
                 match unsafe {
-                    NetLocalGroupAddMembers(None, ugroup.pcwstr(), 0, &members_info as *const LOCALGROUP_MEMBERS_INFO_0 as _, 1)
+                    NetLocalGroupAddMembers(
+                        None,
+                        ugroup.pcwstr(),
+                        0,
+                        &members_info as *const LOCALGROUP_MEMBERS_INFO_0 as _,
+                        1,
+                    )
                 } {
-                    NERR_Success => {}
-                    e => return Err(Error::from(WIN32_ERROR(e)))
-                        .context(format!("Can't add user {} to group {}", name, group)),
+                    NERR_Success | ERR_MEMBER_IN_ALIAS => {}
+                    e => {
+                        return Err(Error::from(WIN32_ERROR(e)))
+                            .context(format!("Can't add user {} to group {}", name, group))
+                    }
                 }
             }
 
             groups.remove(TELEPORT_USERS_GROUP);
             for group in groups.difference(&requested_groups) {
                 let ugroup = UTF16::from(group);
-                let members_info = LOCALGROUP_MEMBERS_INFO_0 { lgrmi0_sid: user.psid() };
+                let members_info = LOCALGROUP_MEMBERS_INFO_0 {
+                    lgrmi0_sid: user.psid(),
+                };
+                const ERR_MEMBER_NOT_IN_ALIAS: u32 = ERROR_MEMBER_NOT_IN_ALIAS.0;
                 match unsafe {
-                    NetLocalGroupDelMembers(None, ugroup.pcwstr(), 0, &members_info as *const LOCALGROUP_MEMBERS_INFO_0 as _, 1)
+                    NetLocalGroupDelMembers(
+                        None,
+                        ugroup.pcwstr(),
+                        0,
+                        &members_info as *const LOCALGROUP_MEMBERS_INFO_0 as _,
+                        1,
+                    )
                 } {
-                    NERR_Success => {}
-                    e => return Err(Error::from(WIN32_ERROR(e)))
-                        .context(format!("Can't remove user {} from group {}", name, group)),
+                    NERR_Success | ERR_MEMBER_NOT_IN_ALIAS => {}
+                    e => {
+                        return Err(Error::from(WIN32_ERROR(e)))
+                            .context(format!("Can't remove user {} from group {}", name, group))
+                    }
                 }
             }
             groups = requested_groups;
