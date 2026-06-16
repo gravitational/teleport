@@ -638,6 +638,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.ClassifierCreate{}
 	case ClassifierUpdateEvent:
 		e = &events.ClassifierUpdate{}
+	case ClassifierDeleteEvent:
+		e = &events.ClassifierDelete{}
 
 	case SessionSummarizedEvent:
 		e = &events.SessionSummarized{}
