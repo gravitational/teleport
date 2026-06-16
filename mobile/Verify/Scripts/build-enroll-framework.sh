@@ -49,7 +49,8 @@ log_info "using tools in $GO_COMMANDS_DIR/"
 
 # gomobile invokes `go` and `gobind` internally, so put the discovered tool
 # locations on PATH before running the bind command.
-export PATH="$(dirname "$GO_EXECUTABLE"):$GO_COMMANDS_DIR:$PATH"
+PATH="$(dirname "$GO_EXECUTABLE"):$GO_COMMANDS_DIR:$PATH"
+export PATH
 
 if ! command -v gobind >/dev/null 2>&1; then
   xcode_error "gobind was not found. Run: \"$GO_EXECUTABLE\" tool gomobile init"
