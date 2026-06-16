@@ -63,7 +63,7 @@
     "storybook": "^10.4.1",
     "svgo": "^4.0.1",
     "typescript": "^6.0.3",
-    "vite": "^8.0.14"
+    "vite": "^8.0.16"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.2",

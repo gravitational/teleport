@@ -2143,6 +2143,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		authSettings = webclient.WebConfigAuthSettings{
 			Providers:                   authProviders,
 			SecondFactor:                types.LegacySecondFactorFromSecondFactors(cap.GetSecondFactors()),
+			SecondFactors:               cap.GetSecondFactors(),
 			LocalAuthEnabled:            cap.GetAllowLocalAuth(),
 			AllowPasswordless:           cap.GetAllowPasswordless(),
 			AuthType:                    authType,
