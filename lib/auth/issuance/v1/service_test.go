@@ -134,8 +134,7 @@ func TestIssueScopedBotCerts(t *testing.T) {
 			},
 			Scope: botScope,
 			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
-				BotName:  bot.Metadata.Name,
-				BotScope: botScope,
+				Bot: scopes.QualifiedName{Scope: botScope, Name: bot.Metadata.Name}.String(),
 				Assignments: []*scopedaccessv1.Assignment{
 					{Role: "bot-role", Scope: botScope},
 				},
@@ -365,8 +364,7 @@ func TestIssueScopedBotCerts_Unauthorized(t *testing.T) {
 			},
 			Scope: testScope,
 			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
-				BotName:  scopedBot.Metadata.Name,
-				BotScope: testScope,
+				Bot: scopes.QualifiedName{Scope: testScope, Name: scopedBot.Metadata.Name}.String(),
 				Assignments: []*scopedaccessv1.Assignment{
 					{Role: "test-role", Scope: testScope},
 				},

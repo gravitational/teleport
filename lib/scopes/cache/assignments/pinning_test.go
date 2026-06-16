@@ -31,6 +31,7 @@ import (
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/scopes/pinning"
 )
@@ -390,8 +391,7 @@ func TestPopulatePinnedAssignmentsForBot(t *testing.T) {
 			},
 			Scope: bernardScope,
 			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
-				BotName:  "bernard",
-				BotScope: bernardScope,
+				Bot: scopes.QualifiedName{Scope: bernardScope, Name: "bernard"}.String(),
 				Assignments: []*scopedaccessv1.Assignment{
 					{
 						Role:  "role-01",
@@ -410,8 +410,7 @@ func TestPopulatePinnedAssignmentsForBot(t *testing.T) {
 			},
 			Scope: bernardScope,
 			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
-				BotName:  "bernard",
-				BotScope: bernardScope,
+				Bot: scopes.QualifiedName{Scope: bernardScope, Name: "bernard"}.String(),
 				Assignments: []*scopedaccessv1.Assignment{
 					{
 						Role:  "role-02",
@@ -430,8 +429,7 @@ func TestPopulatePinnedAssignmentsForBot(t *testing.T) {
 			},
 			Scope: "/",
 			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
-				BotName:  "bernard",
-				BotScope: bernardScope,
+				Bot: scopes.QualifiedName{Scope: bernardScope, Name: "bernard"}.String(),
 				Assignments: []*scopedaccessv1.Assignment{
 					{
 						Role:  "role-03",
@@ -450,8 +448,7 @@ func TestPopulatePinnedAssignmentsForBot(t *testing.T) {
 			},
 			Scope: "/",
 			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
-				BotName:  "bernard",
-				BotScope: bernardScope,
+				Bot: scopes.QualifiedName{Scope: bernardScope, Name: "bernard"}.String(),
 				Assignments: []*scopedaccessv1.Assignment{
 					{
 						Role:  "role-04",
@@ -461,7 +458,7 @@ func TestPopulatePinnedAssignmentsForBot(t *testing.T) {
 			},
 			Version: types.V1,
 		},
-		// `bot_scope` mismatches bot's actual scope - this should be ignored.
+		// Scope component of `bot` mismatches bot's actual scope - this should be ignored.
 		{
 			Kind:    scopedaccess.KindScopedRoleAssignment,
 			SubKind: scopedaccess.SubKindDynamic,
@@ -470,8 +467,7 @@ func TestPopulatePinnedAssignmentsForBot(t *testing.T) {
 			},
 			Scope: bernardScope,
 			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
-				BotName:  "bernard",
-				BotScope: "/mismatched",
+				Bot: scopes.QualifiedName{Scope: "/mismatched", Name: "bernard"}.String(),
 				Assignments: []*scopedaccessv1.Assignment{
 					{
 						Role:  "bernard-invalid-01",
@@ -491,8 +487,7 @@ func TestPopulatePinnedAssignmentsForBot(t *testing.T) {
 			},
 			Scope: "/",
 			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
-				BotName:  "bernard",
-				BotScope: bernardScope,
+				Bot: scopes.QualifiedName{Scope: bernardScope, Name: "bernard"}.String(),
 				Assignments: []*scopedaccessv1.Assignment{
 					{
 						Role:  "bernard-invalid-02",
