@@ -274,3 +274,40 @@ func TestCompileRejectsEmptyRule(t *testing.T) {
 	_, err := Rule{}.Compile()
 	require.Error(t, err)
 }
+
+// TestNodeToSourceContractsLiterals checks that a run of single-child literals
+// renders as one slash-joined literal, while globs, captures, and branches
+// stop the contraction. The Literal constructor splits the text back on "/", so
+// the contracted source parses to the same tree.
+func TestNodeToSourceContractsLiterals(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		node *Node
+		want string
+	}{
+		{
+			name: "literal chain contracts",
+			node: Literal("api", Literal("v4", Literal("health"))),
+			want: `literal("api/v4/health")`,
+		},
+		{
+			name: "trailing greedy stays a child",
+			node: Literal("api", Literal("v4", Greedy())),
+			want: `literal("api/v4", greedy())`,
+		},
+		{
+			name: "capture ends the run",
+			node: Literal("api", Literal("v4", Capture("project", Greedy()))),
+			want: `literal("api/v4", capture("project", greedy()))`,
+		},
+		{
+			name: "glob is not contracted",
+			node: Literal("data", Glob(Capture("letter", Greedy()))),
+			want: `literal("data", glob(capture("letter", greedy())))`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.want, nodeToSource(tc.node))
+		})
+	}
+}

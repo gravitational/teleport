@@ -143,8 +143,10 @@ func (r Rule) desugar() (string, error) {
 }
 
 // nodeToSource renders a matcher tree as the constructor source the predicate
-// parser accepts. A compiled tree carries single-segment literals, so the
-// rendered literal("seg", ...) round-trips back to the same tree.
+// parser accepts. A run of single-child literals is contracted into one
+// slash-joined literal, so literal("api", literal("v4", literal("health")))
+// renders as literal("api/v4/health"). The Literal constructor splits the text
+// back on "/", so the contracted form parses to the same tree and round-trips.
 func nodeToSource(n *Node) string {
 	// args is the constructor's full argument list. literal and capture lead
 	// with their quoted name; glob and greedy take no leading argument. The
@@ -152,7 +154,23 @@ func nodeToSource(n *Node) string {
 	// argument-less constructor that has children, such as a glob wrapping a
 	// capture, does not emit a stray leading comma.
 	var args []string
-	if n.kind == kindLiteral || n.kind == kindCapture {
+	switch n.kind {
+	case kindLiteral:
+		// Walk down while this literal has exactly one child that is itself a
+		// literal, joining the segments with "/". The last literal in the run
+		// carries the continuation, which becomes this literal's children.
+		segments := []string{n.text}
+		last := n
+		for len(last.children) == 1 && last.children[0].kind == kindLiteral {
+			last = last.children[0]
+			segments = append(segments, last.text)
+		}
+		args = append(args, strconv.Quote(strings.Join(segments, "/")))
+		for _, c := range last.children {
+			args = append(args, nodeToSource(c))
+		}
+		return "literal(" + strings.Join(args, ", ") + ")"
+	case kindCapture:
 		args = append(args, strconv.Quote(n.text))
 	}
 	for _, c := range n.children {
@@ -160,8 +178,6 @@ func nodeToSource(n *Node) string {
 	}
 	joined := strings.Join(args, ", ")
 	switch n.kind {
-	case kindLiteral:
-		return "literal(" + joined + ")"
 	case kindCapture:
 		return "capture(" + joined + ")"
 	case kindGlob:
