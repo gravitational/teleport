@@ -241,7 +241,13 @@ func (r Rule) desugar() (string, error) {
 	}
 	var where string
 	if r.Where != "" {
-		where = "(" + r.Where + ")"
+		// Wrap the where in parentheses only when it is ANDed with a path or
+		// method clause, where the grouping matters. When the where is the
+		// whole predicate, the parentheses add nothing.
+		where = r.Where
+		if path != "" || r.methodClause() != "" {
+			where = "(" + where + ")"
+		}
 	}
 	return joinClauses(path, r.methodClause(), where), nil
 }
