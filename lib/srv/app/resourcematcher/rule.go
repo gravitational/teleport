@@ -146,23 +146,26 @@ func (r Rule) desugar() (string, error) {
 // parser accepts. A compiled tree carries single-segment literals, so the
 // rendered literal("seg", ...) round-trips back to the same tree.
 func nodeToSource(n *Node) string {
-	childArgs := func(prefix string) string {
-		parts := make([]string, 0, len(n.children))
-		for _, c := range n.children {
-			parts = append(parts, nodeToSource(c))
-		}
-		if len(parts) == 0 {
-			return prefix + ")"
-		}
-		return prefix + ", " + strings.Join(parts, ", ") + ")"
+	// args is the constructor's full argument list. literal and capture lead
+	// with their quoted name; glob and greedy take no leading argument. The
+	// children follow in every case. Build the list and join it once, so an
+	// argument-less constructor that has children, such as a glob wrapping a
+	// capture, does not emit a stray leading comma.
+	var args []string
+	if n.kind == kindLiteral || n.kind == kindCapture {
+		args = append(args, strconv.Quote(n.text))
 	}
+	for _, c := range n.children {
+		args = append(args, nodeToSource(c))
+	}
+	joined := strings.Join(args, ", ")
 	switch n.kind {
 	case kindLiteral:
-		return childArgs("literal(" + strconv.Quote(n.text))
+		return "literal(" + joined + ")"
 	case kindCapture:
-		return childArgs("capture(" + strconv.Quote(n.text))
+		return "capture(" + joined + ")"
 	case kindGlob:
-		return childArgs("glob(")
+		return "glob(" + joined + ")"
 	case kindGreedy:
 		return "greedy()"
 	default:

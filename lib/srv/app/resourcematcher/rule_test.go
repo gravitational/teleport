@@ -126,6 +126,40 @@ pred: |
 				},
 			},
 		},
+		{
+			// A glob in a non-final position desugars to a glob node that
+			// carries the following segments as children. The renderer must
+			// emit glob(child, ...) with no leading comma, since glob takes no
+			// name argument the way literal and capture do.
+			name: "glob before a capture",
+			sugared: `
+paths: ["/api/v4/projects/*/{project}/**"]
+methods: [GET]
+`,
+			desugared: `
+pred: |
+  path.match(
+    literal("api", literal("v4", literal("projects",
+      glob(capture("project", greedy())))))) &&
+  contains(set("GET"), request.method)
+`,
+			probes: []probe{
+				{
+					method: "GET",
+					path:   "/api/v4/projects/anyteam/myproj/issues",
+					allow:  true,
+					vars:   map[string]string{"project": "myproj"},
+				},
+				{
+					// The glob and the capture each require a segment, so a
+					// path that ends at the glob position leaves the capture
+					// with nothing to bind and does not match.
+					method: "GET",
+					path:   "/api/v4/projects/onlyteam",
+					allow:  false,
+				},
+			},
+		},
 	}
 
 	for _, sc := range scenarios {
