@@ -8,7 +8,7 @@ resource "teleport_classifier" "test-classifier" {
     filter   = "equals(resource.metadata.labels[\"env\"], \"prod\")"
     criteria = "The user ran a potentially destructive command."
     actions = {
-      emit_audit_event = 1
+      emit_audit_event = true
     }
   }
 }
