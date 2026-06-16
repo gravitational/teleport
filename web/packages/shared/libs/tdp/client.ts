@@ -1042,7 +1042,7 @@ class SharedDirectoryManager {
   constructor(
     private selectSharedDirectory: () => Promise<SharedDirectoryAccess>,
     private logger: Logger,
-    private maxDirectories: number = 10
+    private maxDirectories: number
   ) {
     // The teleport RDP client uses deviceId '1' for its emulated smart card device.
     // Reserve enough device identifiers for double the number of allowed directories.
