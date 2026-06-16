@@ -51,11 +51,14 @@ type Rule struct {
 	// Pred is the bare predicate form. It is mutually exclusive with the
 	// declarative path, method, and where fields.
 	Pred string `yaml:"pred,omitempty"`
-	// AllowCode is emitted on the allow audit event when this rule matches.
-	// Without it, an allow emits no event.
+	// AllowCode is the structured code emitted on the allow audit event when
+	// this rule matches. Without it, an allow emits no event.
 	AllowCode string `yaml:"allow_code,omitempty"`
+	// AllowReason is the human-readable explanation emitted alongside
+	// AllowCode on an allow.
+	AllowReason string `yaml:"allow_reason,omitempty"`
 	// DenyHints explain a deny. On a deny, every hint whose On predicate
-	// matches contributes its DenyCode and Reason to the decision.
+	// matches contributes its DenyCode and DenyReason to the decision.
 	DenyHints []DenyHint `yaml:"deny_hint,omitempty"`
 	// URLDecoding controls path normalization before matching. It defaults to
 	// the strict, reject-everything zero value.
@@ -76,8 +79,8 @@ type DenyHint struct {
 	// DenyCode is the structured code emitted on the deny audit event when the
 	// hint fires.
 	DenyCode string `yaml:"deny_code"`
-	// Reason is the human-readable explanation emitted alongside DenyCode.
-	Reason string `yaml:"reason,omitempty"`
+	// DenyReason is the human-readable explanation emitted alongside DenyCode.
+	DenyReason string `yaml:"deny_reason,omitempty"`
 }
 
 // Decision is the outcome of evaluating a rule or rule set against a request.
@@ -92,6 +95,8 @@ type Decision struct {
 	Vars map[string]string
 	// AllowCode is the matching rule's allow_code, set only on an allow.
 	AllowCode string
+	// AllowReason is the matching rule's allow_reason, set only on an allow.
+	AllowReason string
 	// DenyHints lists every hint that fired on a deny, in rule order. It is
 	// nil on an allow.
 	DenyHints []FiredHint
@@ -99,23 +104,24 @@ type Decision struct {
 
 // FiredHint is a deny hint that matched on a deny.
 type FiredHint struct {
-	DenyCode string
-	Reason   string
+	DenyCode   string
+	DenyReason string
 }
 
 // CompiledRule is a parsed, ready-to-evaluate rule.
 type CompiledRule struct {
-	pred      predicate
-	decode    DecodeConfig
-	allowCode string
-	denyHints []compiledHint
+	pred        predicate
+	decode      DecodeConfig
+	allowCode   string
+	allowReason string
+	denyHints   []compiledHint
 }
 
 // compiledHint is a parsed deny hint.
 type compiledHint struct {
-	on       predicate
-	denyCode string
-	reason   string
+	on         predicate
+	denyCode   string
+	denyReason string
 }
 
 // Compile validates a rule and compiles its authoring surface to one internal
@@ -160,10 +166,11 @@ func (r Rule) Compile() (*CompiledRule, error) {
 	}
 
 	return &CompiledRule{
-		pred:      pred,
-		decode:    r.URLDecoding,
-		allowCode: r.AllowCode,
-		denyHints: hints,
+		pred:        pred,
+		decode:      r.URLDecoding,
+		allowCode:   r.AllowCode,
+		allowReason: r.AllowReason,
+		denyHints:   hints,
 	}, nil
 }
 
@@ -206,7 +213,7 @@ func (r Rule) compileDenyHints() ([]compiledHint, error) {
 		if err := validateCaptures(on); err != nil {
 			return nil, trace.Wrap(err, "deny_hint %d", i)
 		}
-		hints = append(hints, compiledHint{on: onPred, denyCode: h.DenyCode, reason: h.Reason})
+		hints = append(hints, compiledHint{on: onPred, denyCode: h.DenyCode, denyReason: h.DenyReason})
 	}
 	return hints, nil
 }
@@ -335,7 +342,7 @@ func (c *CompiledRule) Evaluate(request Request, identity Identity) (Decision, e
 	// rule to no-match, so an unbound capture can only deny, never widen, no
 	// matter which operator read it.
 	if allowed && !e.state.unboundRead {
-		return Decision{Allowed: true, Vars: e.vars, AllowCode: c.allowCode}, nil
+		return Decision{Allowed: true, Vars: e.vars, AllowCode: c.allowCode, AllowReason: c.allowReason}, nil
 	}
 
 	var fired []FiredHint
@@ -345,7 +352,7 @@ func (c *CompiledRule) Evaluate(request Request, identity Identity) (Decision, e
 			return Decision{}, trace.Wrap(err)
 		}
 		if ok {
-			fired = append(fired, FiredHint{DenyCode: h.denyCode, Reason: h.reason})
+			fired = append(fired, FiredHint{DenyCode: h.denyCode, DenyReason: h.denyReason})
 		}
 	}
 	return Decision{DenyHints: fired}, nil

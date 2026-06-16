@@ -25,25 +25,28 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestAllowCode pins that a matching rule carries its allow_code on the
-// decision, and that a rule with no allow_code carries none.
+// TestAllowCode pins that a matching rule carries its allow_code and
+// allow_reason on the decision, and that neither appears on a deny.
 func TestAllowCode(t *testing.T) {
 	rule, err := ruleFromYAML(t, `
 paths: ["/api/v4/projects/{project}/repository/**"]
 methods: [GET]
-allow_code: project_read
+allow_code: allowed_project
+allow_reason: "User has access to project"
 `).Compile()
 	require.NoError(t, err)
 
 	got, err := rule.Evaluate(Request{Method: "GET", Path: "/api/v4/projects/x/repository/tree"}, Identity{})
 	require.NoError(t, err)
 	require.True(t, got.Allowed)
-	require.Equal(t, "project_read", got.AllowCode)
+	require.Equal(t, "allowed_project", got.AllowCode)
+	require.Equal(t, "User has access to project", got.AllowReason)
 
 	denied, err := rule.Evaluate(Request{Method: "POST", Path: "/api/v4/projects/x/repository/tree"}, Identity{})
 	require.NoError(t, err)
 	require.False(t, denied.Allowed)
 	require.Empty(t, denied.AllowCode)
+	require.Empty(t, denied.AllowReason)
 }
 
 func TestAllowCodeValidation(t *testing.T) {
@@ -72,7 +75,7 @@ where: contains(user.traits["allowed_projects"], vars.project)
 allow_code: project_read
 deny_hint:
   - deny_code: not_in_allowlist
-    reason: "Project is not in your allowlist."
+    deny_reason: "Project is not in your allowlist."
 `).Compile()
 	require.NoError(t, err)
 
@@ -89,7 +92,7 @@ deny_hint:
 	got, err = rule.Evaluate(Request{Method: "GET", Path: "/api/v4/projects/secret/issues"}, allowed)
 	require.NoError(t, err)
 	require.False(t, got.Allowed)
-	require.Equal(t, []FiredHint{{DenyCode: "not_in_allowlist", Reason: "Project is not in your allowlist."}}, got.DenyHints)
+	require.Equal(t, []FiredHint{{DenyCode: "not_in_allowlist", DenyReason: "Project is not in your allowlist."}}, got.DenyHints)
 
 	// Method miss: the path matches but the method does not, so the default-on
 	// hint, which requires both, does not fire.
@@ -116,7 +119,7 @@ methods: [GET]
 where: contains(user.traits["allowed_projects"], vars.project)
 deny_hint:
   - deny_code: not_in_allowlist
-    reason: "Project is not in your allowlist."
+    deny_reason: "Project is not in your allowlist."
 `).Compile()
 	require.NoError(t, err)
 
@@ -130,7 +133,7 @@ deny_hint:
       path.match(literal("api/v4/projects", capture("project", greedy()))) &&
       contains(set("GET"), request.method)
     deny_code: not_in_allowlist
-    reason: "Project is not in your allowlist."
+    deny_reason: "Project is not in your allowlist."
 `).Compile()
 	require.NoError(t, err)
 
@@ -157,7 +160,7 @@ func TestDenyHintRequiresOnInPredicateForm(t *testing.T) {
 pred: path.match(literal("api", greedy()))
 deny_hint:
   - deny_code: nope
-    reason: "no on, no territory"
+    deny_reason: "no on, no territory"
 `).Compile()
 	require.Error(t, err)
 }
@@ -172,10 +175,10 @@ where: contains(user.traits["allowed_projects"], vars.project)
 deny_hint:
   - on: contains(set("POST"), request.method)
     deny_code: writes_need_review
-    reason: "Writes require a review."
+    deny_reason: "Writes require a review."
   - on: path.match(literal("api/v4/projects", capture("project", greedy())))
     deny_code: project_scope
-    reason: "Check the project scope."
+    deny_reason: "Check the project scope."
 `).Compile()
 	require.NoError(t, err)
 
@@ -185,7 +188,7 @@ deny_hint:
 	require.NoError(t, err)
 	require.False(t, got.Allowed)
 	require.Equal(t, []FiredHint{
-		{DenyCode: "writes_need_review", Reason: "Writes require a review."},
-		{DenyCode: "project_scope", Reason: "Check the project scope."},
+		{DenyCode: "writes_need_review", DenyReason: "Writes require a review."},
+		{DenyCode: "project_scope", DenyReason: "Check the project scope."},
 	}, got.DenyHints)
 }
