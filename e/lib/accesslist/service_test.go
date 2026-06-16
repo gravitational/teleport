@@ -258,6 +258,108 @@ func TestService_ListAccessLists(t *testing.T) {
 	require.Empty(t, cmp.Diff([]*accesslist.AccessList{a6}, accessLists, cmpOpts...))
 }
 
+func TestService_ListAccessLists_CurrentUserAssignments(t *testing.T) {
+	c := initSvc(t)
+
+	a1 := newAccessList(t, "1", c.clock)
+	a2 := newAccessList(t, "2", c.clock)
+	a1m := newAccessListMember(t, a1.GetName(), member1, accesslist.MembershipKindUser, c.clock)
+
+	createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, nil,
+		[]*accesslist.AccessList{a1, a2}, []*accesslist.AccessListMember{a1m})
+
+	// memberCtx meets the membership requirements (mrole1/2, mtrait1/2)
+	// and is a member of a1 but not a2.
+	memberCtx := genUserContext(t.Context(), member1, []string{"mrole1", "mrole2"}, map[string][]string{
+		"mtrait1": {"mvalue1", "mvalue2"},
+		"mtrait2": {"mvalue3", "mvalue4"},
+	})
+
+	assertAssignments := func(t *testing.T, accessLists []*accesslistv1.AccessList, desc string) {
+		t.Helper()
+		for _, al := range accessLists {
+			require.NotNil(t, al.GetStatus().GetCurrentUserAssignments(),
+				"%s: CurrentUserAssignments should be populated (list %s)", desc, al.GetHeader().GetMetadata().GetName())
+		}
+	}
+
+	for _, tc := range []struct {
+		name    string
+		listV1  func() []*accesslistv1.AccessList
+		listV2  func() []*accesslistv1.AccessList
+		checkFn func(t *testing.T, accessLists []*accesslistv1.AccessList)
+	}{
+		{
+			name: "RBAC user gets assignments populated",
+			listV1: func() []*accesslistv1.AccessList {
+				resp, err := c.svc.ListAccessLists(c.userCtx, accesslistv1.ListAccessListsRequest_builder{PageSize: 100}.Build())
+				require.NoError(t, err)
+				return resp.GetAccessLists()
+			},
+			listV2: func() []*accesslistv1.AccessList {
+				resp, err := c.svc.ListAccessListsV2(c.userCtx, accesslistv1.ListAccessListsV2Request_builder{PageSize: 100}.Build())
+				require.NoError(t, err)
+				return resp.GetAccessLists()
+			},
+			checkFn: func(t *testing.T, accessLists []*accesslistv1.AccessList) {
+				assertAssignments(t, accessLists, "RBAC user")
+				require.Len(t, accessLists, 2)
+			},
+		},
+		{
+			name: "non-RBAC owner gets explicit ownership",
+			listV1: func() []*accesslistv1.AccessList {
+				resp, err := c.svc.ListAccessLists(c.ownerCtx, accesslistv1.ListAccessListsRequest_builder{PageSize: 100}.Build())
+				require.NoError(t, err)
+				return resp.GetAccessLists()
+			},
+			listV2: func() []*accesslistv1.AccessList {
+				resp, err := c.svc.ListAccessListsV2(c.ownerCtx, accesslistv1.ListAccessListsV2Request_builder{PageSize: 100}.Build())
+				require.NoError(t, err)
+				return resp.GetAccessLists()
+			},
+			checkFn: func(t *testing.T, accessLists []*accesslistv1.AccessList) {
+				assertAssignments(t, accessLists, "owner")
+				for _, al := range accessLists {
+					require.Equal(t,
+						accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_EXPLICIT,
+						al.GetStatus().GetCurrentUserAssignments().GetOwnershipType(),
+						"ownerUser should have EXPLICIT ownership on list %s", al.GetHeader().GetMetadata().GetName())
+				}
+			},
+		},
+		{
+			name: "non-RBAC member gets explicit membership",
+			listV1: func() []*accesslistv1.AccessList {
+				resp, err := c.svc.ListAccessLists(memberCtx, accesslistv1.ListAccessListsRequest_builder{PageSize: 100}.Build())
+				require.NoError(t, err)
+				return resp.GetAccessLists()
+			},
+			listV2: func() []*accesslistv1.AccessList {
+				resp, err := c.svc.ListAccessListsV2(memberCtx, accesslistv1.ListAccessListsV2Request_builder{PageSize: 100}.Build())
+				require.NoError(t, err)
+				return resp.GetAccessLists()
+			},
+			checkFn: func(t *testing.T, accessLists []*accesslistv1.AccessList) {
+				assertAssignments(t, accessLists, "member")
+				// member1 is a member of a1 only.
+				require.Len(t, accessLists, 1)
+				require.Equal(t,
+					accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_EXPLICIT,
+					accessLists[0].GetStatus().GetCurrentUserAssignments().GetMembershipType(),
+					"member1 should have EXPLICIT membership")
+			},
+		},
+	} {
+		t.Run(tc.name+"/v1", func(t *testing.T) {
+			tc.checkFn(t, tc.listV1())
+		})
+		t.Run(tc.name+"/v2", func(t *testing.T) {
+			tc.checkFn(t, tc.listV2())
+		})
+	}
+}
+
 func listAccessLists(ctx context.Context, t *testing.T, svc *Service, pageSize int) []*accesslist.AccessList {
 	t.Helper()
 

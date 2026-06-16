@@ -27,15 +27,13 @@ import { MissingPermissionsTooltip } from 'shared/components/MissingPermissionsT
 import { LoadingSkeleton } from 'shared/components/UnifiedResources/shared/LoadingSkeleton';
 import { useInfiniteScroll } from 'shared/hooks/useInfiniteScroll';
 
-import {
-  accessListRequiresReview,
-  useAccessListManagementContext,
-} from 'e-teleport/AccessListManagement/AccessListManagementContext';
+import { useAccessListManagementContext } from 'e-teleport/AccessListManagement/AccessListManagementContext';
 import {
   AccessCard,
   renderRolesAndTraits,
 } from 'e-teleport/AccessListManagement/AccessLists/AccessCard';
 import { FeatureLimitBlurb } from 'e-teleport/AccessListManagement/Shared/FeatureLimitReached';
+import { useAccessListReviewStatus } from 'e-teleport/AccessListManagement/ViewEditAccessList/Shared';
 import cfg from 'e-teleport/config';
 import {
   AccessList,
@@ -274,7 +272,7 @@ function MainContent({
       </Box>
       <Flex justifyContent="space-between" alignItems="center" mb={3}>
         <Flex justifyContent="flex-start" alignItems="center" gap={2}>
-          <Flex alignItems="center">
+          <Flex as="label" alignItems="center">
             <CheckboxInput
               checked={filters.owners.includes(currentUserName)}
               onChange={val => {
@@ -339,7 +337,6 @@ function MainContent({
             <AccessCard
               key={a.id}
               accessList={a}
-              isOktaReadOnly={isOktaPluginReadOnly}
               onClick={() => navigate(cfg.getAccessListManagementRoute(a.id))}
             />
           ))
@@ -480,17 +477,12 @@ const AccessListTable = ({
           }
           return aDate.getTime() - bDate.getTime();
         },
-        render: acl => (
-          <TableAuditNextDateCell
-            accessList={acl}
-            isOktaReadOnly={isOktaReadOnly}
-          />
-        ),
+        render: acl => <TableAuditNextDateCell accessList={acl} />,
       }
     );
 
     return cols;
-  }, [showListTypes, navigate, isOktaReadOnly]);
+  }, [showListTypes, isOktaReadOnly]);
 
   return (
     <Table
@@ -530,26 +522,25 @@ const friendlyListOrigin = (listType: string) => {
 
 const TableAuditNextDateCell = ({
   accessList,
-  isOktaReadOnly = false,
 }: {
   accessList: AccessListWithModifiedGrants;
-  isOktaReadOnly?: boolean;
 }) => {
   const navigate = useNavigate();
-  const auditNextDate = getEffectiveAuditNextDate(accessList, isOktaReadOnly);
+  const { isOktaPluginReadOnly } = useAccessListManagementContext();
+  const { canReview, requiresReview } = useAccessListReviewStatus(accessList);
+  const auditNextDate = getEffectiveAuditNextDate(
+    accessList,
+    isOktaPluginReadOnly
+  );
 
   if (!auditNextDate) {
     return <Cell></Cell>;
   }
-
-  const requiresReview = accessListRequiresReview({
-    todayDate: new Date(Date.now()),
-    reviewDate: auditNextDate,
-  });
-  const isOverdue = auditNextDate < new Date();
+  const showReviewBadge = canReview && requiresReview;
+  const isOverdue = showReviewBadge && auditNextDate < new Date();
   const formatted = format(auditNextDate, DATE_FORMAT);
 
-  if (!requiresReview && !isOverdue) {
+  if (!showReviewBadge) {
     return (
       <Cell>
         <Text>{formatted}</Text>

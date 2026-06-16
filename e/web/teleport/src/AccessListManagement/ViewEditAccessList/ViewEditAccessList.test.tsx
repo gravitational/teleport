@@ -211,7 +211,7 @@ test('direct review navigation for a static access list shows a static message',
 
   expect(screen.queryByText(/reviewing access list/i)).not.toBeInTheDocument();
   expect(
-    screen.getByText(/static access lists do not support reviews/i)
+    screen.getByText(/does not require review.*static/i)
   ).toBeInTheDocument();
   expect(
     screen.queryByText(/does not require review until/i)

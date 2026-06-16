@@ -1,4 +1,5 @@
 import { QueryClientProvider } from '@tanstack/react-query';
+import { addWeeks } from 'date-fns';
 import { mockIntersectionObserver } from 'jsdom-testing-mocks';
 import { http, HttpResponse } from 'msw';
 import { MemoryRouter } from 'react-router';
@@ -14,6 +15,7 @@ import {
   userEvent,
   waitFor,
 } from 'design/utils/testing';
+import { AccessListUserAssignmentType } from 'gen-proto-ts/teleport/accesslist/v1/accesslist_pb';
 import { ToastNotificationProvider } from 'shared/components/ToastNotification';
 
 import { AccessListManagementContextProvider } from 'e-teleport/AccessListManagement/AccessListManagementContext';
@@ -238,4 +240,130 @@ test('static access list with zero next audit date does not render review UI in 
   await screen.findByText('static list');
   expect(screen.queryByText('0001-01-01')).not.toBeInTheDocument();
   expect(screen.queryByText(/review now/i)).not.toBeInTheDocument();
+});
+
+describe('review badge visibility', () => {
+  const reviewDueDate = addWeeks(new Date(), 1);
+
+  const makeReviewableList = (
+    overrides: Partial<AccessList> = {}
+  ): AccessList => ({
+    ...mockAccessListApple,
+    audit: {
+      ...mockAccessListApple.audit,
+      nextDate: reviewDueDate,
+    },
+    ...overrides,
+  });
+
+  beforeEach(() => {
+    jest.spyOn(pluginsService, 'fetchPlugin').mockResolvedValue({} as Plugin);
+  });
+
+  afterEach(async () => {
+    jest.resetAllMocks();
+    testQueryClient.clear();
+    await testQueryClient.resetQueries();
+  });
+
+  test('owner sees review badge when review is due', async () => {
+    const list = makeReviewableList({
+      currentUserAssignments: {
+        ownershipType: AccessListUserAssignmentType.EXPLICIT,
+        membershipType: AccessListUserAssignmentType.UNSPECIFIED,
+      },
+    });
+    jest
+      .spyOn(accessManagementService, 'fetchAccessListsV2')
+      .mockResolvedValue({ agents: [list] });
+
+    renderComponent(createTeleportContextE());
+    act(mio.enterAll);
+
+    await waitFor(() => {
+      expect(screen.getByText(/review now/i)).toBeInTheDocument();
+    });
+  });
+
+  test('owner who is also a member sees review badge', async () => {
+    const list = makeReviewableList({
+      currentUserAssignments: {
+        ownershipType: AccessListUserAssignmentType.EXPLICIT,
+        membershipType: AccessListUserAssignmentType.EXPLICIT,
+      },
+      membersCount: undefined,
+    });
+    jest
+      .spyOn(accessManagementService, 'fetchAccessListsV2')
+      .mockResolvedValue({ agents: [list] });
+
+    renderComponent(createTeleportContextE());
+    act(mio.enterAll);
+
+    await waitFor(() => {
+      expect(screen.getByText(/review now/i)).toBeInTheDocument();
+    });
+  });
+
+  test('pure member without admin perms does not see review badge', async () => {
+    const list = makeReviewableList({
+      currentUserAssignments: {
+        ownershipType: AccessListUserAssignmentType.UNSPECIFIED,
+        membershipType: AccessListUserAssignmentType.EXPLICIT,
+      },
+      membersCount: undefined,
+    });
+    jest
+      .spyOn(accessManagementService, 'fetchAccessListsV2')
+      .mockResolvedValue({ agents: [list] });
+
+    renderComponent(
+      createTeleportContextE({ customAcl: getAcl({ noAccess: true }) })
+    );
+    act(mio.enterAll);
+
+    await waitFor(() => {
+      expect(screen.getByText(/apple/i)).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/review now/i)).not.toBeInTheDocument();
+  });
+
+  test('review badge not shown when review is not due', async () => {
+    const list = makeReviewableList({
+      currentUserAssignments: {
+        ownershipType: AccessListUserAssignmentType.EXPLICIT,
+        membershipType: AccessListUserAssignmentType.UNSPECIFIED,
+      },
+      audit: {
+        ...mockAccessListApple.audit,
+        nextDate: addWeeks(new Date(), 4),
+      },
+    });
+    jest
+      .spyOn(accessManagementService, 'fetchAccessListsV2')
+      .mockResolvedValue({ agents: [list] });
+
+    renderComponent(createTeleportContextE());
+    act(mio.enterAll);
+
+    await waitFor(() => {
+      expect(screen.getByText(/apple/i)).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/review now/i)).not.toBeInTheDocument();
+  });
+
+  test('admin with edit permission sees review badge', async () => {
+    // No currentUserAssignments (not an owner), but has admin edit permission.
+    const list = makeReviewableList();
+    jest
+      .spyOn(accessManagementService, 'fetchAccessListsV2')
+      .mockResolvedValue({ agents: [list] });
+
+    renderComponent(createTeleportContextE());
+    act(mio.enterAll);
+
+    await waitFor(() => {
+      expect(screen.getByText(/review now/i)).toBeInTheDocument();
+    });
+  });
 });

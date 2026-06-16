@@ -7,10 +7,8 @@ import { User, UserList } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
 import { pluralize } from 'shared/utils/text';
 
-import {
-  AccessListOrigin,
-  isReviewable,
-} from 'e-teleport/services/accessmanagement';
+import { useAccessListReviewStatus } from 'e-teleport/AccessListManagement/ViewEditAccessList/Shared';
+import { AccessListOrigin } from 'e-teleport/services/accessmanagement';
 
 import { TruncatingLabel } from '../Shared/Shared';
 import { TypeBadge } from '../Shared/TypeBadge';
@@ -21,18 +19,12 @@ export type Props = {
   // onlyRender flag makes access card non-interactable.
   onlyRender?: boolean;
   onClick(): void;
-  isOktaReadOnly?: boolean;
 };
 
 // TODO(lisa): design is very similar to unifiedresources/ResourceCard.tsx
 // consider moving shared styles to a more general place eg: `SingleLineBox`
 // and `TruncatingLabel`
-export function AccessCard({
-  accessList,
-  onlyRender = false,
-  onClick,
-  isOktaReadOnly = false,
-}: Props) {
+export function AccessCard({ accessList, onlyRender = false, onClick }: Props) {
   const {
     id,
     title,
@@ -52,20 +44,10 @@ export function AccessCard({
     truncatedDesc = `${description.substring(0, 110)}...`;
   }
 
-  // Users can have permission levels of Member, Owner, or Admin.
-  // If the value of `membersCount` is null, the user does not
-  // have permission to list other members, which is only the
-  // case for Members.
-  const isMember = membersCount == null;
-  const canViewMembers = !isMember && membersCount >= 0;
-  // If list is Okta-synced and Okta Integration is set to read-only,
-  // reviews are irrelevant as members and grants may not be edited in Teleport.
-  const requiresReview =
-    isReviewable(accessList.type) &&
-    needsReviewBy &&
-    !isMember &&
-    !(isOktaReadOnly && type === AccessListOrigin.Okta);
-  const isOverdue = requiresReview && needsReviewBy < new Date();
+  const canViewMembers = membersCount != null && membersCount >= 0;
+  const { canReview, requiresReview } = useAccessListReviewStatus(accessList);
+  const showReviewBadge = canReview && requiresReview;
+  const isOverdue = showReviewBadge && needsReviewBy < new Date();
 
   return (
     <AccessCardContainer
@@ -76,14 +58,14 @@ export function AccessCard({
       tabIndex={0}
       role="listitem"
     >
-      {requiresReview && (
+      {showReviewBadge && (
         <ReviewBadge isOverdue={isOverdue}>
           Review by {format(needsReviewBy, 'MM/dd')}
         </ReviewBadge>
       )}
       <Box width="100%">
         <Flex gap={1}>
-          <SingleLineBox bold title={title} $requiresReview={requiresReview}>
+          <SingleLineBox bold title={title} $showReviewBadge={showReviewBadge}>
             {title}
           </SingleLineBox>
           {type !== AccessListOrigin.Unspecified && <TypeBadge type={type} />}
@@ -237,11 +219,11 @@ const AccessCardContainer = styled(Flex)<{ $onlyRender?: boolean }>`
   }}
 `;
 
-const SingleLineBox = styled(Text)<{ $requiresReview: boolean }>`
+const SingleLineBox = styled(Text)<{ $showReviewBadge: boolean }>`
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  max-width: ${p => (p.$requiresReview ? '155' : '235')}px;
+  max-width: ${p => (p.$showReviewBadge ? '155' : '235')}px;
 `;
 
 const ReviewBadge = styled.div<{ isOverdue?: boolean }>`

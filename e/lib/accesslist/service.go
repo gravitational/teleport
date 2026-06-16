@@ -297,7 +297,7 @@ func (s *Service) GetAccessLists(ctx context.Context, _ *accesslistv1.GetAccessL
 		return nil, trace.Wrap(authErr)
 	}
 
-	results, err = s.filterResults(ctx, results, false, getErr, authErr)
+	results, err = s.filterResults(ctx, authCtx, results, false, getErr, authErr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -335,7 +335,7 @@ func (s *Service) ListAccessListsV2(ctx context.Context, req *accesslistv1.ListA
 		page, nextToken, getErr = s.cache.ListAccessListsV2(ctx, req)
 
 		var err error
-		page, err = s.filterResults(ctx, page, true, getErr, authErr)
+		page, err = s.filterResults(ctx, authCtx, page, true, getErr, authErr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -400,7 +400,7 @@ func (s *Service) ListAccessLists(ctx context.Context, req *accesslistv1.ListAcc
 		page, nextToken, getErr = s.cache.ListAccessLists(ctx, 0, nextToken)
 
 		var err error
-		page, err = s.filterResults(ctx, page, true, getErr, authErr)
+		page, err = s.filterResults(ctx, authCtx, page, true, getErr, authErr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -432,11 +432,16 @@ func (s *Service) ListAccessLists(ctx context.Context, req *accesslistv1.ListAcc
 	}.Build(), nil
 }
 
-// filterResults will return the following:
-// * If the user has RBAC access to the access lists (authErr == nil), the access lists will be returned with membership information added.
-// * If the user owns any access lists, these will be returned with membership information added.
-// * If the user is a member of any access lists, these will be returned without membership information.
-func (s *Service) filterResults(ctx context.Context, results []*accesslist.AccessList, isPaginated bool, getErr, authErr error) ([]*accesslist.AccessList, error) {
+// filterResults populates per-caller ownership/membership info on each access list
+// and, when the caller lacks RBAC access, filters the results down to the lists they
+// own or are members of. Specifically:
+//   - Every returned access list has Status.CurrentUserAssignments populated.
+//   - If the caller has RBAC access (authErr == nil), all lists are returned, with
+//     member counts added for lists where the caller is not themselves a member.
+//   - If the caller lacks RBAC access (authErr != nil), only lists they own or are
+//     members of are returned; member counts are added for lists they own but not
+//     for lists where they are only a member.
+func (s *Service) filterResults(ctx context.Context, authCtx *authz.Context, results []*accesslist.AccessList, isPaginated bool, getErr, authErr error) ([]*accesslist.AccessList, error) {
 	isMemberMap := map[string]bool{}
 
 	// There was an error getting the access lists and an auth error, so return the auth error.
@@ -444,27 +449,20 @@ func (s *Service) filterResults(ctx context.Context, results []*accesslist.Acces
 		return nil, trace.Wrap(authErr)
 	}
 
-	// We successfully got the access lists but had an issue authorizing. Check to see if the user is an
-	// owner for any of these lists.
-	if authErr != nil {
-		var filteredResults []*accesslist.AccessList
-
-		authCtx, err := s.authorizer.Authorize(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
+	// Always populate CurrentUserAssignments so the frontend can determine
+	// the caller's ownership/membership for each list. When the user lacks
+	// RBAC access (authErr != nil), also filter the results to only include
+	// lists the user owns or is a member of.
+	var filteredResults []*accesslist.AccessList
+	for _, result := range results {
+		currentAssignments, readErr := s.userCanReadAccessList(ctx, authCtx, result, types.VerbRead, types.VerbList)
+		isMemberMap[result.GetName()] = currentAssignments.IsMember()
+		result.Status.CurrentUserAssignments = &currentAssignments
+		if authErr == nil || readErr == nil {
+			filteredResults = append(filteredResults, result)
 		}
-
-		for _, result := range results {
-			currentAssignments, err := s.userCanReadAccessList(ctx, authCtx, result, types.VerbRead, types.VerbList)
-			isMemberMap[result.GetName()] = currentAssignments.IsMember()
-			result.Status.CurrentUserAssignments = &currentAssignments
-			if err == nil {
-				filteredResults = append(filteredResults, result)
-			}
-		}
-
-		results = filteredResults
 	}
+	results = filteredResults
 
 	// The user owns no access lists and received an auth err earlier. Also, we're not looking
 	// at paginated lists.
@@ -2318,7 +2316,7 @@ func (s *Service) ListUserAccessLists(ctx context.Context, req *accesslistv1.Lis
 		return nil, trace.Wrap(err)
 	}
 
-	filteredAcls, err := s.filterResults(ctx, userAcls, false, nil, nil)
+	filteredAcls, err := s.filterResults(ctx, authCtx, userAcls, false, nil, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

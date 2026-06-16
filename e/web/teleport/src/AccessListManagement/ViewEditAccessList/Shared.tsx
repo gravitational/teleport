@@ -17,15 +17,19 @@ import {
   AccessList,
   AccessListGrant,
   AccessListMember,
+  AccessListOrigin,
   AccessListOwner,
   AccessListRequires,
+  isReviewable,
   ScopedRoleGrant,
 } from 'e-teleport/services/accessmanagement';
+import useTeleport from 'e-teleport/useTeleportE';
 import type { Access } from 'teleport/services/user';
 
 import {
   accessListRequiresReview,
   getReviewDate,
+  useAccessListManagementContext,
 } from '../AccessListManagementContext';
 import { TruncatingLabel, type MemberSelection } from '../Shared/Shared';
 
@@ -76,6 +80,60 @@ export const getPerms = ({
     adminWhoCanDelete: accessListAccess?.remove,
   };
 };
+
+export type ReviewNotApplicableReason =
+  | 'okta-read-only'
+  | 'not-due'
+  | 'static'
+  | null;
+
+export type AccessListReviewStatus = {
+  canReview: boolean;
+  requiresReview: boolean;
+  reason: ReviewNotApplicableReason;
+};
+
+/**
+ * Centralized hook for determining access list review status.
+ * Reads user permissions and Okta config from AccessListManagementContext.
+ */
+export function useAccessListReviewStatus(
+  accessList: AccessList | undefined
+): AccessListReviewStatus {
+  const { isOktaPluginReadOnly } = useAccessListManagementContext();
+  const ctx = useTeleport();
+
+  if (!accessList) {
+    return { canReview: false, requiresReview: false, reason: null };
+  }
+
+  const accessListAccess = ctx.storeUser.getAccessListAccess();
+  const { isOwner, adminWhoCanEdit } = getPerms({
+    accessListAccess,
+    accessList,
+  });
+  const canReview = isOwner || adminWhoCanEdit;
+
+  if (!isReviewable(accessList.type)) {
+    return { canReview, requiresReview: false, reason: 'static' };
+  }
+
+  if (isOktaPluginReadOnly && accessList.origin === AccessListOrigin.Okta) {
+    return { canReview, requiresReview: false, reason: 'okta-read-only' };
+  }
+
+  const reviewDate = getReviewDate(accessList);
+  const requiresReview = accessListRequiresReview({
+    todayDate: new Date(),
+    reviewDate,
+  });
+
+  return {
+    canReview,
+    requiresReview,
+    reason: requiresReview ? null : 'not-due',
+  };
+}
 
 export const modifyAccessList = (acl: AccessList): AccessListModified => {
   const modifiedAccessList: AccessListModified = {

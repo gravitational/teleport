@@ -22,11 +22,7 @@ import { HoverTooltip } from 'design/Tooltip';
 import Validation from 'shared/components/Validation';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
-import {
-  accessListRequiresReview,
-  getReviewDate,
-  useAccessListManagementContext,
-} from 'e-teleport/AccessListManagement/AccessListManagementContext';
+import { useAccessListManagementContext } from 'e-teleport/AccessListManagement/AccessListManagementContext';
 import cfg from 'e-teleport/config';
 import {
   AccessListMemberKind,
@@ -55,6 +51,7 @@ import {
   ButtonPencil,
   getPerms,
   modifyAccessList,
+  useAccessListReviewStatus,
   type AccessListModified,
   type Perms,
 } from './Shared';
@@ -161,14 +158,10 @@ export function ViewEditAccessList() {
     accessList,
   });
 
-  showReview: if (location.hash === '#review' && !!accessList) {
-    const canReview = perms.isOwner || perms.adminWhoCanEdit;
-    const requiresReview = accessListRequiresReview({
-      todayDate: new Date(),
-      reviewDate: getReviewDate(accessList),
-    });
+  const reviewStatus = useAccessListReviewStatus(accessList);
 
-    if (!requiresReview || !canReview) {
+  showReview: if (location.hash === '#review' && !!accessList) {
+    if (!reviewStatus.requiresReview || !reviewStatus.canReview) {
       break showReview;
     }
 
@@ -420,11 +413,7 @@ const MainContent = ({
 
   return (
     <>
-      <ReviewBanner
-        accessList={accessList}
-        isReadOnlyOktaList={isReadOnlyOktaList}
-        perms={perms}
-      />
+      <ReviewBanner accessList={accessList} />
 
       <TabsContainer ref={parentRef} mb={3}>
         <TabContainer
