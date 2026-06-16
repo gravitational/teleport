@@ -462,7 +462,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	// "teleport configure-modify" top-level command for modifying an existing config file.
 	// Registered at the app level (not under "configure") to avoid kingpin inheriting
 	// the parent configure flags and causing duplicate-flag errors.
-	configureModify := app.Command("configure-modify", "Modify an existing Teleport configuration file.")
+	configureModify := app.Command("configure-modify", "Modify an existing Teleport configuration file.").Hidden()
 	var modFlags modifyFlags
 	configureModify.Flag("input", "Path to existing configuration file to modify.").Required().StringVar(&modFlags.input)
 	configureModify.Flag("output", `Output destination. Default stdout. Use file:///path for file output.`).Default(teleport.SchemeStdout).StringVar(&modFlags.output)

@@ -173,47 +173,6 @@ Flags:
 |`--token`|*no default*|Invitation token or path to file with token value to register with an auth server.|
 |`--version`|`v3`|Teleport configuration version.|
 
-## teleport configure-modify
-
-Modify an existing Teleport configuration file.
-
-Usage:
-
-```code
-$ teleport configure-modify --input=INPUT [<flags>]
-```
-
-Flags:
-
-|Flag|Default|Description|
-|---|---|---|
-|`--acme-email`|*no default*|Set proxy_service.acme.email.|
-|`--app-name`|*no default*|Set app_service.apps\[0\].name.|
-|`--app-uri`|*no default*|Set app_service.apps\[0\].uri.|
-|`--auth-server`|*no default*|Set teleport.auth_server.|
-|`--ca-pin`|*no default*|Set teleport.ca_pin.|
-|`--cert-file`|*no default*|Set proxy_service.https_cert_file.|
-|`--cluster-name`|*no default*|Set teleport.cluster_name.|
-|`--data-dir`|*no default*|Set teleport.data_dir.|
-|`--disable-service`|*no default*|Disable a service (must already exist in config).|
-|`--enable-service`|*no default*|Enable a service (must already exist in config).|
-|`--input`|*no default*|Path to existing configuration file to modify.|
-|`--join-method`|*no default*|Set teleport.join_params.method.|
-|`--key-file`|*no default*|Set proxy_service.https_key_file.|
-|`--[no-]acme`|`false`|Set proxy_service.acme.enabled.|
-|`--node-labels`|*no default*|Set ssh_service.labels (comma-separated key=value).|
-|`--node-name`|*no default*|Set teleport.nodename.|
-|`--[no-]mcp-demo-server`|`false`|Set app_service.apps\[0\].mcp_demo_server.|
-|`--[no-]overwrite`|`false`|Allow overwriting an existing output file.|
-|`--output`|`stdout`|Output destination. Default stdout. Use file:///path for file output.|
-|`--proxy`|*no default*|Set teleport.proxy_server.|
-|`--public-addr`|*no default*|Set proxy_service.public_addr.|
-|`--roles`|*no default*|Comma-separated list of roles. Creates service sections with defaults if missing.|
-|`--set`|*no default*|Set a field by dot-path (format: path=value).|
-|`--token`|*no default*|Set the join token. Updates teleport.join_params.token_name, or teleport.auth_token if that field already exists and --join-method is not provided.|
-|`--unset`|*no default*|Remove a field by dot-path.|
-|`--version`|*no default*|Set version field.|
-
 ## teleport db configure aws create-iam
 
 Generate, create and attach IAM policies.
