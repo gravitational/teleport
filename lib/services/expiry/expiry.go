@@ -84,6 +84,10 @@ type Config struct {
 	AccessPoint AccessPoint
 	// HostID is a unique ID of this host.
 	HostID string
+	// AppSessionExpiryService enables the app session expiry task. Must match
+	// the IdentityService option, or sessions written without a backend TTL
+	// will accumulate.
+	AppSessionExpiryService bool
 }
 
 // CheckAndSetDefaults checks required fields and sets default values.
@@ -100,9 +104,9 @@ func (c *Config) CheckAndSetDefaults() error {
 // expiryTask defines a task for expiring resources.
 type expiryTask struct {
 	semaphoreName string
-	resourceKind string
-	intervalCfg  interval.Config
-	processFunc  func(context.Context)
+	resourceKind  string
+	intervalCfg   interval.Config
+	processFunc   func(context.Context)
 }
 
 // Service is an expiry service.
@@ -130,16 +134,19 @@ func New(cfg *Config) (*Service, error) {
 	s.expiryTasks = []expiryTask{
 		{
 			semaphoreName: semaphoreNameAccessRequest,
-			resourceKind: types.KindAccessRequest,
-			intervalCfg:  intervalCfg,
-			processFunc:  s.processRequests,
+			resourceKind:  types.KindAccessRequest,
+			intervalCfg:   intervalCfg,
+			processFunc:   s.processRequests,
 		},
-		{
+	}
+
+	if cfg.AppSessionExpiryService {
+		s.expiryTasks = append(s.expiryTasks, expiryTask{
 			semaphoreName: semaphoreNameAppSession,
-			resourceKind: types.KindAppSession,
-			intervalCfg:  intervalCfg,
-			processFunc:  s.processAppSessions,
-		},
+			resourceKind:  types.KindAppSession,
+			intervalCfg:   intervalCfg,
+			processFunc:   s.processAppSessions,
+		})
 	}
 
 	return s, nil

@@ -165,16 +165,10 @@ func (s *IdentityService) UpdateAppSession(ctx context.Context, session types.We
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// App sessions are expired manually so it can emit an
-	// app.session.expire audit event prior to expiry.
-	backendExpiry := session.GetExpiryTime()
-	if session.GetSubKind() == types.KindAppSession {
-		backendExpiry = time.Time{}
-	}
 	item := backend.Item{
 		Key:      backend.NewKey(appsPrefix, sessionsPrefix, session.GetName()),
 		Value:    value,
-		Expires:  backendExpiry,
+		Expires:  s.appSessionBackendExpiry(session),
 		Revision: rev,
 	}
 	if _, err = s.ConditionalUpdate(ctx, item); err != nil {
@@ -195,16 +189,10 @@ func (s *IdentityService) upsertSession(ctx context.Context, session types.WebSe
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// App sessions are expired manually so it can emit an
-	// app.session.expire audit event prior to expiry.
-	backendExpiry := session.GetExpiryTime()
-	if session.GetSubKind() == types.KindAppSession {
-		backendExpiry = time.Time{}
-	}
 	item := backend.Item{
 		Key:      backend.NewKey(append(keyPrefix, session.GetName())...),
 		Value:    value,
-		Expires:  backendExpiry,
+		Expires:  s.appSessionBackendExpiry(session),
 		Revision: rev,
 	}
 
@@ -214,26 +202,31 @@ func (s *IdentityService) upsertSession(ctx context.Context, session types.WebSe
 	return nil
 }
 
-// ListExpiredAppSessions lists all application sessions that are expired. This is used by
-// the expiry service. Application session expiration handling is done outside the backend
-// because we need to emit audit events on the app session expiry.
+// appSessionBackendBufferTTL is how much past the session's logical expiry
+// the backend will keep an app session before reaping it on its own.
+const appSessionBackendBufferTTL = 30 * 24 * time.Hour
+
+// appSessionBackendExpiry returns the backend TTL for a session. App sessions
+// extend their TTL by appSessionBackendBufferTTL when the expiry service is
+// enabled so it can emit an app.session.expire audit event before deletion.
+func (s *IdentityService) appSessionBackendExpiry(session types.WebSession) time.Time {
+	if s.appSessionExpiryService && session.GetSubKind() == types.KindAppSession {
+		return session.GetExpiryTime().Add(appSessionBackendBufferTTL)
+	}
+	return session.GetExpiryTime()
+}
+
+// ListExpiredAppSessions lists all application sessions that are expired. The expiry service
+// calls this when its app session opt-in is enabled, so it can emit an app.session.expire
+// audit event before deletion. When the opt-in is disabled, the backend handles expiration
+// via its TTL and no event is emitted.
 func (s *IdentityService) ListExpiredAppSessions(ctx context.Context, limit int, pageToken string) ([]types.WebSession, string, error) {
 	now := time.Now()
-
 	allSessions := s.rangeSessions(ctx, pageToken, "", "", appsPrefix, sessionsPrefix)
-
-	expiredSessions := stream.FilterMap(allSessions, func(session types.WebSession) (types.WebSession, bool) {
-		if now.After(session.Expiry()) {
-			return session, true
-		}
-		return nil, false
+	expired := stream.FilterMap(allSessions, func(session types.WebSession) (types.WebSession, bool) {
+		return session, now.After(session.Expiry())
 	})
-
-	return generic.CollectPageAndCursor(
-		expiredSessions,
-		limit,
-		types.WebSession.GetName,
-	)
+	return generic.CollectPageAndCursor(expired, limit, types.WebSession.GetName)
 }
 
 // DeleteAppSession removes an application web session.

@@ -65,31 +65,47 @@ var GlobalSessionDataMaxEntries = 5000 // arbitrary
 // user accounts as well
 type IdentityService struct {
 	backend.Backend
-	logger           *slog.Logger
-	bcryptCost       int
-	notificationsSvc *NotificationsService
+	logger                  *slog.Logger
+	bcryptCost              int
+	notificationsSvc        *NotificationsService
+	appSessionExpiryService bool
+}
+
+// IdentityServiceOption is a functional option for IdentityService.
+type IdentityServiceOption func(*IdentityService)
+
+// WithAppSessionExpiryService stores app sessions without a backend TTL so the
+// expiry service can handle deletion and emit audit events.
+func WithAppSessionExpiryService(enabled bool) IdentityServiceOption {
+	return func(s *IdentityService) {
+		s.appSessionExpiryService = enabled
+	}
 }
 
 // NewIdentityService returns a new instance of IdentityService object
-func NewIdentityService(backend backend.Backend) (*IdentityService, error) {
+func NewIdentityService(backend backend.Backend, opts ...IdentityServiceOption) (*IdentityService, error) {
 	notificationsSvc, err := NewNotificationsService(backend, backend.Clock())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &IdentityService{
+	s := &IdentityService{
 		Backend:          backend,
 		logger:           slog.With(teleport.ComponentKey, "identity"),
 		bcryptCost:       bcrypt.DefaultCost,
 		notificationsSvc: notificationsSvc,
-	}, nil
+	}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s, nil
 }
 
 // NewTestIdentityService returns a new instance of IdentityService object to be
 // used in tests. It will use weaker cryptography to minimize the time it takes
 // to perform flakiness tests and decrease the probability of timeouts.
-func NewTestIdentityService(backend backend.Backend) (*IdentityService, error) {
-	s, err := NewIdentityService(backend)
+func NewTestIdentityService(backend backend.Backend, opts ...IdentityServiceOption) (*IdentityService, error) {
+	s, err := NewIdentityService(backend, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

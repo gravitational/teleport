@@ -53,7 +53,7 @@ func (t testAccessPoint) ListExpiredAppSessions(ctx context.Context, limit int, 
 func TestAccessRequestExpiryBasic(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
-		expiry, authServer, emitter := setupExpiryService(t)
+		expiry, authServer, emitter := setupExpiryService(t, true)
 		runExpiryBackground(t, func(ctx context.Context) error {
 			return expiry.Run(ctx)
 		})
@@ -85,7 +85,7 @@ func TestAccessRequestExpiryInterval(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		const testInterval = time.Hour
 
-		expiry, authServer, emitter := setupExpiryService(t)
+		expiry, authServer, emitter := setupExpiryService(t, true)
 		expiry.expiryTasks[0].intervalCfg = interval.Config{
 			Duration:      testInterval,
 			FirstDuration: testInterval,
@@ -149,7 +149,7 @@ func TestAccessRequestExpiryPendingGracePeriod(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		const testInterval = time.Hour
 
-		expiryService, authServer, emitter := setupExpiryService(t)
+		expiryService, authServer, emitter := setupExpiryService(t, true)
 		expiryService.expiryTasks[0].intervalCfg = interval.Config{
 			Duration:      testInterval,
 			FirstDuration: testInterval,
@@ -199,7 +199,7 @@ func TestAccessRequestExpiryPendingGracePeriod(t *testing.T) {
 func TestAppSessionExpiry(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
-		expiry, authServer, emitter := setupExpiryService(t)
+		expiry, authServer, emitter := setupExpiryService(t, true)
 		runExpiryBackground(t, func(ctx context.Context) error {
 			return expiry.Run(ctx)
 		})
@@ -238,7 +238,7 @@ func TestAppSessionExpiryInvalidTLSCert(t *testing.T) {
 
 		const testInterval = time.Hour
 
-		expiry, authServer, emitter := setupExpiryService(t)
+		expiry, authServer, emitter := setupExpiryService(t, true)
 		expiry.expiryTasks[1].intervalCfg = interval.Config{
 			Duration:      testInterval,
 			FirstDuration: testInterval,
@@ -278,7 +278,7 @@ func TestAppSessionExpiryInterval(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		const testInterval = time.Hour
 
-		expiry, authServer, emitter := setupExpiryService(t)
+		expiry, authServer, emitter := setupExpiryService(t, true)
 		expiry.expiryTasks[1].intervalCfg = interval.Config{
 			Duration:      testInterval,
 			FirstDuration: testInterval,
@@ -340,7 +340,28 @@ func TestAppSessionExpiryInterval(t *testing.T) {
 	})
 }
 
-func setupExpiryService(t *testing.T) (*Service, *auth.Server, *eventstest.MockRecorderEmitter) {
+// TestAppSessionExpiryTaskRegistration verifies that the app session expiry
+// task is only registered when the opt-in flag is enabled.
+func TestAppSessionExpiryTaskRegistration(t *testing.T) {
+	t.Parallel()
+
+	t.Run("disabled: only the access request task is registered", func(t *testing.T) {
+		t.Parallel()
+		expiry, _, _ := setupExpiryService(t, false)
+		require.Len(t, expiry.expiryTasks, 1)
+		require.Equal(t, types.KindAccessRequest, expiry.expiryTasks[0].resourceKind)
+	})
+
+	t.Run("enabled: both access request and app session tasks are registered", func(t *testing.T) {
+		t.Parallel()
+		expiry, _, _ := setupExpiryService(t, true)
+		require.Len(t, expiry.expiryTasks, 2)
+		require.Equal(t, types.KindAccessRequest, expiry.expiryTasks[0].resourceKind)
+		require.Equal(t, types.KindAppSession, expiry.expiryTasks[1].resourceKind)
+	})
+}
+
+func setupExpiryService(t *testing.T, appSessionExpiryService bool) (*Service, *auth.Server, *eventstest.MockRecorderEmitter) {
 	t.Helper()
 
 	logger := logtest.NewLogger()
@@ -354,11 +375,12 @@ func setupExpiryService(t *testing.T) (*Service, *auth.Server, *eventstest.MockR
 				RPID: "localhost",
 			},
 		},
+		AppSessionExpiryService: appSessionExpiryService,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { authServer.Close() })
 
-	identity, err := local.NewTestIdentityService(authServer.Backend)
+	identity, err := local.NewTestIdentityService(authServer.Backend, local.WithAppSessionExpiryService(appSessionExpiryService))
 	require.NoError(t, err)
 
 	expiry, err := New(&Config{
@@ -368,6 +390,7 @@ func setupExpiryService(t *testing.T) (*Service, *auth.Server, *eventstest.MockR
 			Server:      authServer.AuthServer,
 			appSessions: identity,
 		},
+		AppSessionExpiryService: appSessionExpiryService,
 	})
 	require.NoError(t, err)
 
