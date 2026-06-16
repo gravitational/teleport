@@ -734,27 +734,65 @@ func (q *sqliteQueue) deadLetterSweepLoop(ctx context.Context, handler Handler) 
 }
 
 func (q *sqliteQueue) sweepDeadLetter(ctx context.Context, handler Handler) {
-	items, err := q.fetchDeadLetter(dequeueBatchSize)
+	maxID, err := q.maxDeadLetterID()
 	if err != nil {
 		slog.ErrorContext(q.ctx,
-			"Failed to fetch dead-letter audit events.",
+			"Failed to read dead-letter bounds.",
 			"error", err,
 		)
 		return
 	}
-	if len(items) == 0 {
-		return
+
+	var afterID int64
+	for afterID < maxID {
+		if ctx.Err() != nil || q.ctx.Err() != nil {
+			return
+		}
+
+		items, err := q.fetchDeadLetterRange(afterID, maxID, dequeueBatchSize)
+		if err != nil {
+			slog.ErrorContext(q.ctx,
+				"Failed to fetch dead-letter audit events.",
+				"error", err,
+			)
+			return
+		}
+		if len(items) == 0 {
+			return
+		}
+
+		afterID = items[len(items)-1].ID
+
+		delivered := handler(ctx, items)
+		if len(delivered) == 0 {
+			continue
+		}
+		if err := q.ackDeadLetter(delivered); err != nil {
+			slog.ErrorContext(q.ctx,
+				"Failed to ack dead-letter audit events.",
+				"error", err,
+			)
+		}
 	}
-	delivered := handler(ctx, items)
-	if len(delivered) == 0 {
-		return
+}
+
+func (q *sqliteQueue) maxDeadLetterID() (int64, error) {
+	var maxID int64
+	if err := q.db.QueryRowContext(q.ctx,
+		"SELECT COALESCE(MAX(id), 0) FROM audit_dead_letter").Scan(&maxID); err != nil {
+		return 0, trace.Wrap(err)
 	}
-	if err := q.ackDeadLetter(delivered); err != nil {
-		slog.ErrorContext(q.ctx,
-			"Failed to ack dead-letter audit events.",
-			"error", err,
-		)
+	return maxID, nil
+}
+
+func (q *sqliteQueue) fetchDeadLetterRange(afterID, maxID int64, limit int) ([]Item, error) {
+	rows, err := q.db.QueryContext(q.ctx,
+		"SELECT id, payload FROM audit_dead_letter WHERE id > ? AND id <= ? ORDER BY id ASC LIMIT ?",
+		afterID, maxID, limit)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+	return scanItems(rows)
 }
 
 // fetchDeadLetter reads up to limit items from audit_dead_letter ordered by id.
