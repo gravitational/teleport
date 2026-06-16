@@ -633,6 +633,7 @@ func (p *Provider) GetDataSources(_ context.Context) (map[string]tfsdk.DataSourc
 		"teleport_scoped_role":                dataSourceTeleportScopedRoleType{},
 		"teleport_scoped_role_assignment":     dataSourceTeleportScopedRoleAssignmentType{},
 		"teleport_db_object_import_rule":      dataSourceTeleportDatabaseObjectImportRuleType{},
+		"teleport_classifier":                 dataSourceTeleportClassifierType{},
 		// TODO(bl-nero): Add teleport_inference_* data sources after data sources
 		// are fixed. The current problems with data sources include:
 		// - Data sources only perform a "shallow fill", which means only setting

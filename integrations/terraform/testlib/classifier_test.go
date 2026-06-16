@@ -84,6 +84,51 @@ func (s *TerraformSuiteEnterprise) TestClassifier() {
 	})
 }
 
+func (s *TerraformSuiteEnterprise) TestClassifierDataSource() {
+	t := s.T()
+	// TODO(ryan): unskip once the enterprise SummarizerService implements the
+	// Classifier RPCs.
+	t.Skip("the enterprise SummarizerService does not implement Classifier RPCs yet")
+	ctx := t.Context()
+
+	checkDestroyed := func(state *terraform.State) error {
+		_, err := s.client.SummarizerClient().GetClassifier(ctx, "test-classifier")
+		if trace.IsNotFound(err) {
+			return nil
+		}
+
+		return err
+	}
+
+	classifier := summarizer.NewClassifier("test-classifier", &summarizerv1.ClassifierSpec{
+		Kinds:    []string{"ssh", "k8s"},
+		Criteria: "The user ran a potentially destructive command.",
+	})
+
+	_, err := s.client.SummarizerClient().CreateClassifier(ctx, classifier)
+	s.Require().NoError(err)
+
+	name := "data.teleport_classifier.test"
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: s.terraformProviders,
+		CheckDestroy:             checkDestroyed,
+		IsUnitTest:               true,
+		Steps: []resource.TestStep{
+			{
+				Config: s.getFixture("classifier_data_source.tf"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "kind", types.KindClassifier),
+					resource.TestCheckResourceAttr(name, "metadata.name", "test-classifier"),
+					resource.TestCheckResourceAttr(name, "spec.kinds.0", "ssh"),
+					resource.TestCheckResourceAttr(name, "spec.kinds.1", "k8s"),
+					resource.TestCheckResourceAttr(name, "spec.criteria", "The user ran a potentially destructive command."),
+				),
+			},
+		},
+	})
+}
+
 func (s *TerraformSuiteEnterprise) TestImportClassifier() {
 	t := s.T()
 	// TODO(ryan): unskip once the enterprise SummarizerService implements the
