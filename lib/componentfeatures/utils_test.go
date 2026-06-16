@@ -407,6 +407,46 @@ func TestGetEffectiveServerFeatures(t *testing.T) {
 		result := GetEffectiveServerFeatures(srv)
 		require.Nil(t, result)
 	})
+
+	t.Run("agentless OpenSSH node computes features from type", func(t *testing.T) {
+		node, err := types.NewNode("openssh-node", types.SubKindOpenSSHNode, types.ServerSpecV2{
+			Addr:     "1.2.3.4:22",
+			Hostname: "openssh-host",
+		}, nil)
+		require.NoError(t, err)
+		// No heartbeat ever sets ComponentFeatures on an agentless node.
+		require.Nil(t, node.GetComponentFeatures())
+		result := GetEffectiveServerFeatures(node)
+		require.ElementsMatch(t, New(rcv1).GetFeatures(), result.GetFeatures())
+	})
+	t.Run("agentless OpenSSH-EICE node computes features from type", func(t *testing.T) {
+		node, err := types.NewNode("eice-node", types.SubKindOpenSSHEICENode, types.ServerSpecV2{
+			Addr:     "1.2.3.4:22",
+			Hostname: "eice-host",
+			CloudMetadata: &types.CloudMetadata{
+				AWS: &types.AWSInfo{
+					AccountID:   "123456789012",
+					InstanceID:  "i-123",
+					Region:      "us-east-1",
+					Integration: "some-integration",
+					VPCID:       "vpc-abcd",
+					SubnetID:    "subnet-123",
+				},
+			},
+		}, nil)
+		require.NoError(t, err)
+		require.Nil(t, node.GetComponentFeatures())
+		result := GetEffectiveServerFeatures(node)
+		require.ElementsMatch(t, New(rcv1).GetFeatures(), result.GetFeatures())
+	})
+	t.Run("agent-backed SSH node uses features from presence heartbeat", func(t *testing.T) {
+		node, err := types.NewServer("ssh-node", types.KindNode, types.ServerSpecV2{Version: "18.7.6"})
+		require.NoError(t, err)
+		node.SetComponentFeatures(New(rcv1))
+		require.False(t, node.IsOpenSSHNode())
+		result := GetEffectiveServerFeatures(node)
+		require.ElementsMatch(t, New(rcv1).GetFeatures(), result.GetFeatures())
+	})
 }
 
 type fakeAuthProxyServersLister struct {
