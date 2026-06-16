@@ -65,6 +65,16 @@ where: vars.project == user.name || vars.user == user.name
 			wantErr: true,
 		},
 		{
+			name: "sugared: capture path mixed with a captureless path",
+			yaml: `
+paths:
+  - "/api/v4/projects/{project}/**"
+  - "/api/status"
+where: contains(user.traits["allowed_projects"], vars.project)
+`,
+			wantErr: true,
+		},
+		{
 			name: "sugared: capture bound on every path",
 			yaml: `
 paths: ["/project/{project}/issues", "/project/{project}/merge_requests"]
