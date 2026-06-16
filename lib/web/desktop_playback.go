@@ -46,6 +46,11 @@ func (h *Handler) desktopPlaybackHandle(
 		return nil, trace.BadParameter("missing session ID in request URL")
 	}
 
+	sessionID, err := session.ParseID(sID)
+	if err != nil {
+		return nil, trace.BadParameter("invalid session ID in request URL - %v", err)
+	}
+
 	clt, err := sctx.GetUserClient(r.Context(), cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -54,7 +59,7 @@ func (h *Handler) desktopPlaybackHandle(
 	player, err := player.New(&player.Config{
 		Clock:     h.clock,
 		Log:       h.logger,
-		SessionID: session.ID(sID),
+		SessionID: *sessionID,
 		Streamer:  clt,
 		Context:   r.Context(),
 	})
