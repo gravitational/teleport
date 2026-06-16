@@ -183,19 +183,21 @@ func (c *CLIPrompt) filterMFAMethods(state mfaPromptState, isPerSessionMFA bool,
 	// notify the user about the available methods and how to select a specific one.
 	if len(availableMethods) > len(chosenMethods) && len(chosenMethods) > 0 && !userSpecifiedMethod {
 		chosenMethodsString := strings.Join(chosenMethods, " and ")
-		modeValuesString := strings.ToLower(strings.Join(expandMFAMethods(availableMethods), ","))
+		availableMethodsString := strings.ToLower(strings.Join(availableMethods, ","))
+		flagModeValuesString := strings.ToLower(strings.Join(expandMFAMethods(availableMethods), ","))
 
 		const msg = "" +
 			"Available MFA methods [%v]. Continuing with %v.\r\n" +
 			"If you wish to perform MFA with another method, specify with flag --mfa-mode=<%v> or environment variable TELEPORT_MFA_MODE=<%v>.\r\n\r\n"
-		fmt.Fprintf(c.writer(), msg, modeValuesString, chosenMethodsString, modeValuesString, modeValuesString)
+		fmt.Fprintf(c.writer(), msg, availableMethodsString, chosenMethodsString, flagModeValuesString, flagModeValuesString)
 	}
 
 	return state, userSpecifiedMethod
 }
 
-// expandMFAMethods replaces the WEBAUTHN method name with the valid --mfa-mode
-// values it maps to ("cross-platform" and "platform"), since "webauthn" is not
+// expandMFAMethods replaces the MFA type with the appropriate --mfa-mode.
+// Currently this is only a concern for the WEBAUTHN MFA type name which maps to
+// "cross-platform" and "platform", since "webauthn" is not
 // itself a valid mode.
 func expandMFAMethods(methods []string) []string {
 	expanded := make([]string, 0, len(methods)+1)
@@ -315,7 +317,7 @@ func (c *CLIPrompt) promptWithFallback(ctx context.Context, chal *proto.MFAAuthe
 			if lastErr != nil {
 				return nil, trace.Wrap(lastErr)
 			}
-			return nil, trace.BadParameter("client does not support any available MFA methods [%v], see debug logs for details", strings.ToLower(strings.Join(expandMFAMethods(availableMethods), ", ")))
+			return nil, trace.BadParameter("client does not support any available MFA methods [%v], see debug logs for details", strings.Join(availableMethods, ", "))
 		}
 
 		// If we're retrying after a failure, inform the user.
