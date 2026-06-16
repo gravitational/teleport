@@ -141,7 +141,11 @@ See below for CA-specific instructions.
 ### db_client
 
 Most databases only need to trust the external root CA and intermediate CAs.
-They do not need to trust the override CA certificate directly.
+It's not necessary to trust the override CA certificate directly. Those include,
+but are not limited to, MariaDB, MySQL, PostgreSQL, Redis and Oracle.
+
+We recommend checking your database documentation and verifying access after
+applying the CA override in a controlled environment.
 
 ### windows
 
