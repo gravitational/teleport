@@ -17,3 +17,22 @@ If you can connect to the cluster and run the `tctl status` command, you can use
 current credentials to run subsequent `tctl` commands from your workstation.
 If you host your own Teleport cluster, you can also run `tctl` commands on the computer that 
 hosts the Teleport Auth Service for full permissions.
+
+<details>
+<summary>Running `tctl` on a Teleport beam</summary>
+
+In some environments, for example on a Teleport beam, Teleport authentication
+must take place through a local identity file. On a Teleport beam, the identity
+file is available automatically, and `tctl` reads the file path from the
+`TELEPORT_IDENTITY_FILE` environment variable. You must pass the `--auth-server`
+flag to provide the Teleport Auth Service address, which is not included in the
+identity file:
+
+```code
+$ tctl status --auth-server=${TELEPORT_PROXY}
+```
+
+On a Teleport beam, `TELEPORT_PROXY` points to the Teleport Proxy Service
+address.
+
+</details>
