@@ -14,13 +14,6 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//
-//  VerifyApp.swift
-//  Verify
-//
-//  Created by Maja Cieślak on 2026-04-29.
-//
-
 import SwiftUI
 
 @main
