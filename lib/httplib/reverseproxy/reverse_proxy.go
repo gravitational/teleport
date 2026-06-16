@@ -133,6 +133,19 @@ func (f *Forwarder) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			nil,
 		),
 	)
+	// Handle RFC 8441 (WebSocket over HTTP/2) extended CONNECT requests.
+	// Chrome sends these when HTTP/2 is negotiated via ALPN and a WebSocket
+	// connection is requested.
+	if r.Method == "CONNECT" && r.ProtoMajor == 2 && r.Header.Get(":protocol") == "websocket" {
+		if err := f.handleH2WebSocket(w, r); err != nil {
+			if f.ReverseProxy.ErrorHandler != nil {
+				f.ReverseProxy.ErrorHandler(w, r, err)
+			} else {
+				DefaultHandler.ServeHTTP(w, r, err)
+			}
+		}
+		return
+	}
 	f.ReverseProxy.ServeHTTP(w, r)
 }
 
