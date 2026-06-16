@@ -1937,8 +1937,7 @@ func TestJoinBoundKeypair_ScopedToken(t *testing.T) {
 			JoinMethod: string(types.JoinMethodBoundKeypair),
 			Roles:      []string{string(types.RoleBot)},
 			UsageMode:  joining.TokenUsageModeBot,
-			BotName:    "test-scoped",
-			BotScope:   "/test",
+			Bot:        scopes.QualifiedName{Scope: "/test", Name: "test-scoped"}.String(),
 			BoundKeypair: joiningv1.BoundKeypairSpec_builder{
 				Onboarding: joiningv1.BoundKeypairSpec_OnboardingSpec_builder{
 					InitialPublicKey: correctPublicKey,

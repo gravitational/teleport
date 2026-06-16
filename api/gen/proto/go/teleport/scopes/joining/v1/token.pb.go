@@ -265,11 +265,13 @@ type ScopedTokenSpec struct {
 	Kubernetes *Kubernetes `protobuf:"bytes,11,opt,name=kubernetes,proto3" json:"kubernetes,omitempty"`
 	// Configuration specific to the "bound_keypair" join method.
 	BoundKeypair *BoundKeypairSpec `protobuf:"bytes,12,opt,name=bound_keypair,json=boundKeypair,proto3" json:"bound_keypair,omitempty"`
-	// Name of the bot associated with this join token, if any.
-	BotName string `protobuf:"bytes,13,opt,name=bot_name,json=botName,proto3" json:"bot_name,omitempty"`
-	// Scope of the bot associated with this join token. Required if bot_name is
-	// set, and mutually exclusive with assigned_scope.
-	BotScope      string `protobuf:"bytes,14,opt,name=bot_scope,json=botScope,proto3" json:"bot_scope,omitempty"`
+	// The bot associated with this join token, if any, as a scope-qualified name
+	// of the form `<scope>::<bot-name>` (e.g. "/staging/west::mybot"). The scope
+	// component must be a descendant of or equivalent to the token's resource
+	// scope.
+	//
+	// Mutually exclusive with assigned_scope.
+	Bot           string `protobuf:"bytes,15,opt,name=bot,proto3" json:"bot,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -383,16 +385,9 @@ func (x *ScopedTokenSpec) GetBoundKeypair() *BoundKeypairSpec {
 	return nil
 }
 
-func (x *ScopedTokenSpec) GetBotName() string {
+func (x *ScopedTokenSpec) GetBot() string {
 	if x != nil {
-		return x.BotName
-	}
-	return ""
-}
-
-func (x *ScopedTokenSpec) GetBotScope() string {
-	if x != nil {
-		return x.BotScope
+		return x.Bot
 	}
 	return ""
 }
@@ -445,12 +440,8 @@ func (x *ScopedTokenSpec) SetBoundKeypair(v *BoundKeypairSpec) {
 	x.BoundKeypair = v
 }
 
-func (x *ScopedTokenSpec) SetBotName(v string) {
-	x.BotName = v
-}
-
-func (x *ScopedTokenSpec) SetBotScope(v string) {
-	x.BotScope = v
+func (x *ScopedTokenSpec) SetBot(v string) {
+	x.Bot = v
 }
 
 func (x *ScopedTokenSpec) HasImmutableLabels() bool {
@@ -576,11 +567,13 @@ type ScopedTokenSpec_builder struct {
 	Kubernetes *Kubernetes
 	// Configuration specific to the "bound_keypair" join method.
 	BoundKeypair *BoundKeypairSpec
-	// Name of the bot associated with this join token, if any.
-	BotName string
-	// Scope of the bot associated with this join token. Required if bot_name is
-	// set, and mutually exclusive with assigned_scope.
-	BotScope string
+	// The bot associated with this join token, if any, as a scope-qualified name
+	// of the form `<scope>::<bot-name>` (e.g. "/staging/west::mybot"). The scope
+	// component must be a descendant of or equivalent to the token's resource
+	// scope.
+	//
+	// Mutually exclusive with assigned_scope.
+	Bot string
 }
 
 func (b0 ScopedTokenSpec_builder) Build() *ScopedTokenSpec {
@@ -599,8 +592,7 @@ func (b0 ScopedTokenSpec_builder) Build() *ScopedTokenSpec {
 	x.Oracle = b.Oracle
 	x.Kubernetes = b.Kubernetes
 	x.BoundKeypair = b.BoundKeypair
-	x.BotName = b.BotName
-	x.BotScope = b.BotScope
+	x.Bot = b.Bot
 	return m0
 }
 
@@ -3457,7 +3449,7 @@ const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12\x14\n" +
 	"\x05scope\x18\x05 \x01(\tR\x05scope\x12?\n" +
 	"\x04spec\x18\x06 \x01(\v2+.teleport.scopes.joining.v1.ScopedTokenSpecR\x04spec\x12E\n" +
-	"\x06status\x18\a \x01(\v2-.teleport.scopes.joining.v1.ScopedTokenStatusR\x06status\"\xe0\x05\n" +
+	"\x06status\x18\a \x01(\v2-.teleport.scopes.joining.v1.ScopedTokenStatusR\x06status\"\xdb\x05\n" +
 	"\x0fScopedTokenSpec\x12%\n" +
 	"\x0eassigned_scope\x18\x01 \x01(\tR\rassignedScope\x12\x14\n" +
 	"\x05roles\x18\x02 \x03(\tR\x05roles\x12\x1f\n" +
@@ -3475,9 +3467,8 @@ const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
 	"\n" +
 	"kubernetes\x18\v \x01(\v2&.teleport.scopes.joining.v1.KubernetesR\n" +
 	"kubernetes\x12Q\n" +
-	"\rbound_keypair\x18\f \x01(\v2,.teleport.scopes.joining.v1.BoundKeypairSpecR\fboundKeypair\x12\x19\n" +
-	"\bbot_name\x18\r \x01(\tR\abotName\x12\x1b\n" +
-	"\tbot_scope\x18\x0e \x01(\tR\bbotScope\"\xb6\x01\n" +
+	"\rbound_keypair\x18\f \x01(\v2,.teleport.scopes.joining.v1.BoundKeypairSpecR\fboundKeypair\x12\x10\n" +
+	"\x03bot\x18\x0f \x01(\tR\x03botJ\x04\b\r\x10\x0eJ\x04\b\x0e\x10\x0fR\bbot_nameR\tbot_scope\"\xb6\x01\n" +
 	"\x0eHostCertParams\x12\x17\n" +
 	"\ahost_id\x18\x01 \x01(\tR\x06hostId\x12\x1b\n" +
 	"\tnode_name\x18\x02 \x01(\tR\bnodeName\x12\x12\n" +
