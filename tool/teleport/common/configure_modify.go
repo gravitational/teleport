@@ -225,7 +225,9 @@ func applyNamedFlags(doc *yaml.Node, flags modifyFlags) error {
 			if err := yamlmod.Set(doc, "teleport.join_params.token_name", flags.token); err != nil {
 				return trace.Wrap(err, "setting teleport.join_params.token_name via --token")
 			}
-			_ = yamlmod.Delete(doc, "teleport.auth_token")
+			if err := yamlmod.Delete(doc, "teleport.auth_token"); err != nil && !trace.IsNotFound(err) {
+				return trace.Wrap(err, "removing teleport.auth_token")
+			}
 		}
 	}
 

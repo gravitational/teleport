@@ -473,7 +473,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	configureModify.Flag("unset", "Remove a field by dot-path.").StringsVar(&modFlags.unset)
 	configureModify.Flag("roles", "Comma-separated list of roles. Creates service sections with defaults if missing.").StringVar(&modFlags.roles)
 	configureModify.Flag("cluster-name", "Set teleport.cluster_name.").StringVar(&modFlags.clusterName)
-	configureModify.Flag("token", "Set teleport.auth_token.").StringVar(&modFlags.token)
+	configureModify.Flag("token", "Set the join token. Updates teleport.join_params.token_name, or teleport.auth_token if that field already exists and --join-method is not provided.").StringVar(&modFlags.token)
 	configureModify.Flag("join-method", "Set teleport.join_params.method.").StringVar(&modFlags.joinMethod)
 	configureModify.Flag("auth-server", "Set teleport.auth_server.").StringVar(&modFlags.authServer)
 	configureModify.Flag("proxy", "Set teleport.proxy_server.").StringVar(&modFlags.proxy)
