@@ -74,7 +74,7 @@ const getSsoMfaOption = (ssoChallenge: SsoChallenge): MfaOption => {
 // Returns the MFA options available for the given auth2faType.
 //
 // 'none' is included only when auth2faType is 'optional'. Callers that
-// don't want to offer 'none' (e.g. login) should filter it out.
+// don't want to offer 'none' (e.g. adding a new device) should filter it out.
 export function getMfaRegisterOptions(
   auth2faType: Auth2faType
 ): MfaRegisterOption[] {
@@ -102,7 +102,7 @@ export function getMfaRegisterOptions(
 }
 
 // Registration adds a 'none' option to skip MFA setup when auth2faType is 'optional'.
-// Callers that don't want to offer 'none' (e.g., login) should filter it out.
+// Callers that don't want to offer 'none' (e.g. adding a new device) should filter it out.
 export type MfaRegisterOption = {
   value: DeviceType | 'none';
   label: string;

@@ -234,10 +234,7 @@ const LocalForm = ({
   const [user, setUser] = useState('');
   const [token, setToken] = useState('');
 
-  const mfaOptions = useMemo(
-    () => getMfaRegisterOptions(auth2faType).filter(o => o.value !== 'none'),
-    []
-  );
+  const mfaOptions = useMemo(() => getMfaRegisterOptions(auth2faType), []);
 
   const usernameInputRef = useRefAutoFocus<HTMLInputElement>({
     shouldFocus: hasTransitionEnded && autoFocus,

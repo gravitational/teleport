@@ -74,18 +74,36 @@ test('auth2faType: otp', () => {
   expect(onLogin).toHaveBeenCalledWith('username', '123', '456');
 });
 
-test('login MFA dropdown excludes "None" even when auth is optional', async () => {
+test('login MFA dropdown includes "None" when auth is optional, allowing password-only login', async () => {
   const user = userEvent.setup();
-  render(<FormLogin {...props} auth2faType="optional" />);
+  const onLogin = jest.fn();
+  render(<FormLogin {...props} auth2faType="optional" onLogin={onLogin} />);
 
   // Open the FieldSelect menu.
   await user.click(screen.getByText('Passkey or Security Key'));
 
+  // 'None' must be offered so a user with no registered MFA device can submit a
+  // password-only login (the server allows this under second_factor: optional).
   const optionLabels = screen.getAllByRole('option').map(o => o.textContent);
-  expect(optionLabels).not.toContain('None');
   expect(optionLabels).toEqual(
-    expect.arrayContaining(['Passkey or Security Key', 'Authenticator App'])
+    expect.arrayContaining([
+      'Passkey or Security Key',
+      'Authenticator App',
+      'None',
+    ])
   );
+
+  // Selecting 'None' submits a password-only login (empty second factor token).
+  await user.click(screen.getByText('None'));
+  fireEvent.change(screen.getByPlaceholderText(/username/i), {
+    target: { value: 'username' },
+  });
+  fireEvent.change(screen.getByPlaceholderText(/password/i), {
+    target: { value: '123' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: /sign in/i }));
+
+  expect(onLogin).toHaveBeenCalledWith('username', '123', '');
 });
 
 test('auth2faType: webauthn', async () => {
