@@ -123,7 +123,7 @@ func TestListPodRBAC(t *testing.T) {
 		},
 	)
 
-	scopedUserWithFullAccess, _ := testCtx.CreateUserAndScopedRole(
+	scopedUserWithFullAccess, scopedRoleWithFullAccess := testCtx.CreateUserAndScopedRole(
 		t,
 		"scoped-"+usernameWithFullAccess,
 		scope,
@@ -140,6 +140,7 @@ func TestListPodRBAC(t *testing.T) {
 				},
 			},
 		})
+	waitForSRACache(t, testCtx.TLSServer, scopedRoleWithFullAccess)
 
 	// create a user with full access to kubernetes Pods.
 	// (kubernetes_user and kubernetes_groups specified)
@@ -1182,7 +1183,7 @@ func TestDeletePodCollectionRBAC(t *testing.T) {
 		},
 	)
 
-	scopedUserWithFullAccess, _ := testCtx.CreateUserAndScopedRole(
+	scopedUserWithFullAccess, scopedRoleWithFullAccess := testCtx.CreateUserAndScopedRole(
 		t,
 		"scoped-"+usernameWithFullAccess,
 		scope,
@@ -1199,6 +1200,7 @@ func TestDeletePodCollectionRBAC(t *testing.T) {
 				},
 			},
 		})
+	waitForSRACache(t, testCtx.TLSServer, scopedRoleWithFullAccess)
 
 	// create a user with full access to kubernetes Pods.
 	// (kubernetes_user and kubernetes_groups specified)
@@ -1422,7 +1424,7 @@ func TestDeleteCRDCollectionRBAC(t *testing.T) {
 
 	// create a scoped user with full access to kubernetes Pods.
 	// (kubernetes_user and kubernetes_groups specified)
-	scopedUserWithFullAccess, _ := testCtx.CreateUserAndScopedRole(
+	scopedUserWithFullAccess, scopedRoleWithFullAccess := testCtx.CreateUserAndScopedRole(
 		t,
 		"scoped-"+usernameWithFullAccess,
 		scope,
@@ -1439,6 +1441,7 @@ func TestDeleteCRDCollectionRBAC(t *testing.T) {
 				},
 			},
 		})
+	waitForSRACache(t, testCtx.TLSServer, scopedRoleWithFullAccess)
 
 	// create a user with full access to kubernetes Pods.
 	// (kubernetes_user and kubernetes_groups specified)
@@ -1666,7 +1669,7 @@ func TestListClusterRoleRBAC(t *testing.T) {
 
 	// create a scoped user with full access to kubernetes Pods.
 	// (kubernetes_user and kubernetes_groups specified)
-	scopedUserWithFullAccess, _ := testCtx.CreateUserAndScopedRole(
+	scopedUserWithFullAccess, scopedRoleWithFullAccess := testCtx.CreateUserAndScopedRole(
 		t,
 		"scoped-"+usernameWithFullAccess,
 		scope,
@@ -1683,6 +1686,7 @@ func TestListClusterRoleRBAC(t *testing.T) {
 				},
 			},
 		})
+	waitForSRACache(t, testCtx.TLSServer, scopedRoleWithFullAccess)
 
 	// Create a moderator user with access to kubernetes
 	// (kubernetes_user and kubernetes_groups specified).
@@ -1902,7 +1906,7 @@ func TestGenericCustomResourcesRBAC(t *testing.T) {
 
 	// create a scoped user with full access to all namespaces.
 	// (kubernetes_user and kubernetes_groups specified)
-	scopedUserWithFullAccess, _ := testCtx.CreateUserAndScopedRole(
+	scopedUserWithFullAccess, scopedRoleWithFullAccess := testCtx.CreateUserAndScopedRole(
 		t,
 		"scoped-"+usernameWithFullAccess,
 		scope,
@@ -1919,6 +1923,7 @@ func TestGenericCustomResourcesRBAC(t *testing.T) {
 				},
 			},
 		})
+	waitForSRACache(t, testCtx.TLSServer, scopedRoleWithFullAccess)
 
 	// create a user with limited access to kubernetes namespaces.
 	userWithLimitedAccess, _ := testCtx.CreateUserAndRoleVersion(
