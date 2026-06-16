@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -58,11 +59,15 @@ func (s *ServerCollection) WriteText(w io.Writer, verbose bool) error {
 	rows := make([][]string, 0, len(s.servers))
 	for _, se := range s.servers {
 		labels := common.FormatLabels(se.GetAllLabels(), verbose)
+		id := se.GetName()
+		if scope := se.GetScope(); scope != "" {
+			id = scopes.QualifiedName{Scope: scope, Name: se.GetName()}.String()
+		}
 		rows = append(rows, []string{
-			se.GetHostname(), se.GetName(), se.GetAddr(), labels, se.GetTeleportVersion(),
+			se.GetHostname(), id, se.GetAddr(), labels, se.GetTeleportVersion(),
 		})
 	}
-	headers := []string{"Host", "UUID", "Public Address", "Labels", "Version"}
+	headers := []string{"Host", "ID", "Public Address", "Labels", "Version"}
 	var t asciitable.Table
 	if verbose {
 		t = asciitable.MakeTable(headers, rows...)
@@ -91,6 +96,56 @@ func serverHandler() Handler {
 		mfaRequired:   false,
 		description:   "Represents an SSH instance in the cluster, either a Teleport SSH agent or OpenSSH",
 	}
+}
+
+// serverScopedHandler returns a limited [ScopedHandler] for nodes that are registered with a scope. This is necessary to support
+// nodes being accessed with a mix of scoped and unscoped semantics.
+//
+// TODO(fspmmarshall/scopes): revisit this pattern. would it be better to represent handlers with mixed semantics in some more
+// unified manner?
+func serverScopedHandler() ScopedHandler {
+	return ScopedHandler{
+		getHandler:    getScopedNode,
+		deleteHandler: deleteScopedNode,
+		description:   "Represents an SSH instance in the cluster, either a Teleport SSH agent or OpenSSH",
+	}
+}
+
+func getScopedNode(ctx context.Context, client *authclient.Client, subKind string, sqn *scopes.QualifiedName, opts GetOpts) (Collection, error) {
+	if subKind != "" {
+		return nil, rejectSubKind(types.KindNode, subKind)
+	}
+	if sqn == nil {
+		// this isn't expected to happen, the unscoped handler should catch anything that didn't include an explicit SQN, but there's no
+		// harm in falling back to the unscoped handler here.
+		return getServer(ctx, client, services.Ref{Kind: types.KindNode}, opts)
+	}
+	node, err := client.GetNode(ctx, defaults.Namespace, sqn.Name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if node.GetScope() != sqn.Scope {
+		return nil, scopeMismatchNotFound(types.KindNode, *sqn, node.GetScope())
+	}
+	return &ServerCollection{servers: []types.Server{node}}, nil
+}
+
+func deleteScopedNode(ctx context.Context, client *authclient.Client, subKind string, sqn scopes.QualifiedName) error {
+	if subKind != "" {
+		return rejectSubKind(types.KindNode, subKind)
+	}
+	node, err := client.GetNode(ctx, defaults.Namespace, sqn.Name)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if node.GetScope() != sqn.Scope {
+		return scopeMismatchNotFound(types.KindNode, sqn, node.GetScope())
+	}
+	if err := client.DeleteNode(ctx, defaults.Namespace, sqn.Name); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("node %v has been deleted\n", sqn.String())
+	return nil
 }
 
 func createServer(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts CreateOpts) error {

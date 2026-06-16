@@ -43,9 +43,9 @@ func TestKeyboardInteractiveAuth_PreCondInBandMFA_Success(t *testing.T) {
 	h, id := setupKeyboardInteractiveAuthTestWithVerifier(t, &mockMFAServiceClient{})
 
 	preconds := []*decisionpb.Precondition{
-		{
+		decisionpb.Precondition_builder{
 			Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA,
-		},
+		}.Build(),
 	}
 
 	inPerms := &ssh.Permissions{
@@ -62,13 +62,11 @@ func TestKeyboardInteractiveAuth_PreCondInBandMFA_Success(t *testing.T) {
 	require.NotNil(t, sshErr.Next)
 	require.NotNil(t, sshErr.Next.KeyboardInteractiveCallback)
 
-	resp := &sshpb.MFAPromptResponse{
-		Response: &sshpb.MFAPromptResponse_Reference{
-			Reference: &sshpb.MFAPromptResponseReference{
-				ChallengeName: "test-challenge-name",
-			},
-		},
-	}
+	resp := sshpb.MFAPromptResponse_builder{
+		Reference: sshpb.MFAPromptResponseReference_builder{
+			ChallengeName: "test-challenge-name",
+		}.Build(),
+	}.Build()
 	respJSON, err := protojson.Marshal(resp)
 	require.NoError(t, err)
 
@@ -102,9 +100,9 @@ func TestKeyboardInteractiveAuth_PreCondInBandMFA_UsesRouteToCluster(t *testing.
 	id.RouteToCluster = "root-cluster"
 
 	preconds := []*decisionpb.Precondition{
-		{
+		decisionpb.Precondition_builder{
 			Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA,
-		},
+		}.Build(),
 	}
 
 	inPerms := &ssh.Permissions{}
@@ -116,13 +114,11 @@ func TestKeyboardInteractiveAuth_PreCondInBandMFA_UsesRouteToCluster(t *testing.
 	require.ErrorAs(t, err, &sshErr)
 	require.NotNil(t, sshErr.Next.KeyboardInteractiveCallback)
 
-	resp := &sshpb.MFAPromptResponse{
-		Response: &sshpb.MFAPromptResponse_Reference{
-			Reference: &sshpb.MFAPromptResponseReference{
-				ChallengeName: "test-challenge-name",
-			},
-		},
-	}
+	resp := sshpb.MFAPromptResponse_builder{
+		Reference: sshpb.MFAPromptResponseReference_builder{
+			ChallengeName: "test-challenge-name",
+		}.Build(),
+	}.Build()
 	respJSON, err := protojson.Marshal(resp)
 	require.NoError(t, err)
 
@@ -149,9 +145,9 @@ func TestKeyboardInteractiveAuth_PreCondInBandMFA_EmptySessionID(t *testing.T) {
 	h, id := setupKeyboardInteractiveAuthTestWithVerifier(t, &mockMFAServiceClient{})
 
 	preconds := []*decisionpb.Precondition{
-		{
+		decisionpb.Precondition_builder{
 			Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA,
-		},
+		}.Build(),
 	}
 
 	outPerms, err := h.KeyboardInteractiveAuth(t.Context(), preconds, id, &ssh.Permissions{})
@@ -178,9 +174,9 @@ func TestKeyboardInteractiveAuth_EmptyClusterName(t *testing.T) {
 	id.RouteToCluster = ""
 
 	preconds := []*decisionpb.Precondition{
-		{
+		decisionpb.Precondition_builder{
 			Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA,
-		},
+		}.Build(),
 	}
 
 	outPerms, err := h.KeyboardInteractiveAuth(t.Context(), preconds, id, &ssh.Permissions{})

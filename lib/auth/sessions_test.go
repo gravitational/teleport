@@ -181,20 +181,20 @@ func TestServer_CreateWebSessionFromReq_deviceWebToken(t *testing.T) {
 
 	var storedWebTokens utils.SyncMap[string, *devicepb.DeviceWebToken]
 	authServer.SetCreateDeviceWebTokenFunc(func(ctx context.Context, dwt *devicepb.DeviceWebToken) (*devicepb.DeviceWebToken, error) {
-		if dwt.BrowserMaxTouchPoints > 1 {
+		if dwt.GetBrowserMaxTouchPoints() > 1 {
 			// Simulate CreateDeviceWebToken not creating tokens for iPads.
 			return nil, nil
 		}
 
-		dwt.Id = uuid.NewString()
-		dwt.Token = uuid.NewString()
+		dwt.SetId(uuid.NewString())
+		dwt.SetToken(uuid.NewString())
 
-		storedWebTokens.Store(dwt.Id, dwt)
+		storedWebTokens.Store(dwt.GetId(), dwt)
 
-		return &devicepb.DeviceWebToken{
-			Id:    dwt.Id,
-			Token: dwt.Token,
-		}, nil
+		return devicepb.DeviceWebToken_builder{
+			Id:    dwt.GetId(),
+			Token: dwt.GetToken(),
+		}.Build(), nil
 	})
 
 	const userLlama = "llama"
@@ -249,10 +249,10 @@ func TestServer_CreateWebSessionFromReq_deviceWebToken(t *testing.T) {
 			storedWebToken, ok := storedWebTokens.Load(gotToken.Id)
 			require.True(t, ok, "created web token was not found")
 
-			require.Equal(t, storedWebToken.Token, gotToken.Token)
-			require.Equal(t, loginIP, storedWebToken.BrowserIp)
-			require.Equal(t, loginUserAgent, storedWebToken.BrowserUserAgent)
-			require.Equal(t, test.loginMaxTouchPoints, int(storedWebToken.BrowserMaxTouchPoints))
+			require.Equal(t, storedWebToken.GetToken(), gotToken.Token)
+			require.Equal(t, loginIP, storedWebToken.GetBrowserIp())
+			require.Equal(t, loginUserAgent, storedWebToken.GetBrowserUserAgent())
+			require.Equal(t, test.loginMaxTouchPoints, int(storedWebToken.GetBrowserMaxTouchPoints()))
 		})
 	}
 }

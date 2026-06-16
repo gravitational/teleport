@@ -156,16 +156,16 @@ func (s *server) listStableUNIXUsers(ctx context.Context, req *stableunixusersv1
 
 	userspb := make([]*stableunixusersv1.StableUNIXUser, 0, len(users))
 	for _, user := range users {
-		userspb = append(userspb, &stableunixusersv1.StableUNIXUser{
+		userspb = append(userspb, stableunixusersv1.StableUNIXUser_builder{
 			Username: user.Username,
 			Uid:      user.UID,
-		})
+		}.Build())
 	}
 
-	return &stableunixusersv1.ListStableUNIXUsersResponse{
+	return stableunixusersv1.ListStableUNIXUsersResponse_builder{
 		StableUnixUsers: userspb,
 		NextPageToken:   nextPageToken,
-	}, nil
+	}.Build(), nil
 }
 
 // ObtainUIDForUsername implements [stableunixusersv1.StableUNIXUsersServiceServer].
@@ -184,9 +184,9 @@ func (s *server) ObtainUIDForUsername(ctx context.Context, req *stableunixusersv
 		return nil, trace.Wrap(err)
 	}
 
-	return &stableunixusersv1.ObtainUIDForUsernameResponse{
+	return stableunixusersv1.ObtainUIDForUsernameResponse_builder{
 		Uid: uid,
-	}, nil
+	}.Build(), nil
 }
 
 // obtainUIDForUsernameCached calls [*server.obtainUIDForUsernameUncached]

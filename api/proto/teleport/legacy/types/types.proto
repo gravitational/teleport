@@ -2623,6 +2623,9 @@ message AgentMeshTunnelStrategy {}
 // ProxyPeeringTunnelStrategy requires reverse tunnels to dial a fixed number of proxies.
 message ProxyPeeringTunnelStrategy {
   int64 AgentConnectionCount = 1 [(gogoproto.jsontag) = "agent_connection_count,omitempty"];
+  // disconnect_threshold_seconds is the duration without connectivity or topology changes
+  // before an agent pool may disconnect excess connections.
+  uint32 disconnect_threshold_seconds = 2;
 }
 
 // ProxyListenerMode represents the cluster proxy listener mode.
@@ -3240,10 +3243,14 @@ message AccessReview {
     (gogoproto.jsontag) = "assume_start_time,omitempty"
   ];
 
-  // SubmittedBy is the Teleport plugin identity that submitted this review request
+  // SubmittedBy is the Teleport identity (eg. plugin) that submitted this review request
   // to the Auth Service on behalf of the Author.
   // Author remains the actual Teleport user that performed the review.
   string SubmittedBy = 11 [(gogoproto.jsontag) = "submitted_by,omitempty"];
+
+  // Determines if the review was submitted by a Teleport identity (eg. plugin) on behalf of
+  // the Author.
+  bool submitted_on_behalf_of_author = 12;
 }
 
 // AccessReviewSubmission encodes the necessary parameters for submitting
@@ -7865,6 +7872,25 @@ message PluginSCIMSettings {
   // by the SCIM plugin. It enables matching a SAML/OIDC external user
   // with a SCIM-persisted user, allowing the ephemeral user entry to be updated to SCIM user.
   ConnectorInfo connector_info = 3 [(gogoproto.jsontag) = "connector_info"];
+
+  // RateLimit configures scim integration rate limiting.
+  PluginSCIMRateLimit rate_limit = 4 [(gogoproto.jsontag) = "rate_limit,omitempty"];
+}
+
+// PluginSCIMRateLimit configures per request rate limiting for a SCIM plugin.
+// If unset, server defaults are applied.
+message PluginSCIMRateLimit {
+  option (gogoproto.equal) = true;
+  // Average is the maximum average number of requests per period.
+  int64 average = 1 [(gogoproto.jsontag) = "average"];
+  // Burst is the maximum number of requests allowed in a burst above the average.
+  int64 burst = 2 [(gogoproto.jsontag) = "burst"];
+  // PeriodSeconds is the rate limiting window duration in seconds.
+  int64 period_seconds = 3 [(gogoproto.jsontag) = "period_seconds"];
+  // MaxConcurrentMutations limits the number of simultaneous mutating operations
+  // (Create, Update, Delete, Patch) allowed for this integration. Zero means no limit.
+  // Note that List and Read operations are not affected by this limit.
+  int64 max_concurrent_operations = 5 [(gogoproto.jsontag) = "max_concurrent_operations"];
 }
 
 // PluginDatadogAccessSettings defines the settings for a Datadog Incident Management plugin
@@ -8872,6 +8898,25 @@ message OktaAssignmentTargetV1 {
   OktaAssignmentTargetType type = 1 [(gogoproto.jsontag) = "type"];
   // ID is the ID of the Okta resource that's being targeted.
   string id = 2 [(gogoproto.jsontag) = "id"];
+
+  // Status stores the status of the last processing attempt for the target.
+  OktaAssignmentTargetStatus status = 3;
+}
+
+// OktaAssignmentTargetStatus represents the status of a target processing attempt.
+message OktaAssignmentTargetStatus {
+  // Outcome stores the outcome of processing the target.
+  string outcome = 1;
+  // Op stores the operation that was performed for the target.
+  string op = 2;
+  // LastProcessed stores the time the target was processed.
+  google.protobuf.Timestamp last_processed = 3 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "last_processed,omitempty"
+  ];
+  // FailureCount stores the number of consecutive target processing failures.
+  int32 failure_count = 4;
 }
 
 // IntegrationV1 represents a connection between Teleport and some other 3rd party system.

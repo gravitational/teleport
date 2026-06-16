@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport/api/constants"
 	accessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
@@ -46,7 +47,7 @@ func (c *ScopedAccessChecker) adjustScopedClientIdleTimeout(idleStr string, time
 // adjustScopedDisconnectExpiredCert returns the disconnect on Expired Cert condition - - applying the default if applicable.
 func (c *ScopedAccessChecker) adjustScopedDisconnectExpiredCert(roleSpecifiedDisconnect *bool, defaultdisconnect bool) bool {
 	if roleSpecifiedDisconnect == nil && c.role.GetSpec().GetDefaults() != nil {
-		roleSpecifiedDisconnect = c.role.GetSpec().GetDefaults().DisconnectExpiredCert
+		roleSpecifiedDisconnect = proto.ValueOrNil(c.role.GetSpec().GetDefaults().HasDisconnectExpiredCert(), c.role.GetSpec().GetDefaults().GetDisconnectExpiredCert)
 	}
 
 	if roleSpecifiedDisconnect != nil {

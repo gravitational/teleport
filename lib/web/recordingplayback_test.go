@@ -19,6 +19,7 @@
 package web
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"errors"
@@ -27,6 +28,7 @@ import (
 	"net/http/httptest"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -104,6 +106,135 @@ func TestResizeTerminalEvent(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestStreamEvents_RecoversFromPanic verifies that a panic inside streamEvents
+// (e.g. vt10x tripping over a corrupt recording) is converted into an error
+// reported to the client, rather than propagating and crashing the proxy.
+//
+// The test leaves s.terminal.vt as a nil interface so that the first
+// vt10x.Terminal method call (from a SessionStart event) panics with a nil
+// pointer dereference, exercising the defer/recover at the top of
+// streamEvents.
+func TestStreamEvents_RecoversFromPanic(t *testing.T) {
+	s := &recordingPlayback{
+		ctx:       t.Context(),
+		logger:    slog.Default(),
+		sessionID: "test-session-id",
+		writeChan: make(chan websocketMessage, 16),
+	}
+
+	eventsChan := make(chan apievents.AuditEvent, 1)
+	errorsChan := make(chan error, 1)
+
+	eventsChan <- &apievents.SessionStart{
+		Metadata:     apievents.Metadata{Type: "session.start"},
+		TerminalSize: "80:24",
+	}
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		s.streamEvents(t.Context(), &fetchRequest{requestID: 42, endOffset: time.Hour}, eventsChan, errorsChan)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		require.FailNow(t, "streamEvents did not return; defer/recover likely did not fire")
+	}
+
+	// The recover handler must emit both an error event (surfacing the failure) and a stop event (clearing the web
+	// client's loading state — without this the UI hangs forever after a malformed recording).
+	types := collectEventTypes(t, s.writeChan)
+	require.Contains(t, types, eventTypeError)
+	require.Contains(t, types, eventTypeStop)
+}
+
+func collectEventTypes(t *testing.T, ch <-chan websocketMessage) []responseType {
+	t.Helper()
+
+	var types []responseType
+	for {
+		select {
+		case msg := <-ch:
+			require.Equal(t, websocket.BinaryMessage, msg.messageType)
+			require.NotEmpty(t, msg.data)
+			types = append(types, responseType(msg.data[0]))
+		default:
+			return types
+		}
+	}
+}
+
+// TestRun_RecoversFromReadLoopPanic verifies that a panic in the read-loop
+// goroutine (e.g. vt10x.New() blowing up inside handleFetchRequest) is
+// converted into a logged error rather than propagating.
+//
+// handleFetchRequest calls s.clt.StreamSessionEvents before touching vt10x,
+// so a panicking SessionStreamer is a reliable way to trip a panic on that
+// goroutine.
+func TestRun_RecoversFromReadLoopPanic(t *testing.T) {
+	logBuf := &syncBuffer{}
+	logger := slog.New(slog.NewTextHandler(logBuf, nil))
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upgrader := websocket.Upgrader{}
+		ws, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer ws.Close()
+
+		playback := newRecordingPlayback(r.Context(), ws, &panickingStreamClient{}, "test-session", logger)
+		playback.run()
+	}))
+	defer server.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	ws, resp, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	require.NoError(t, err)
+
+	if resp != nil {
+		resp.Body.Close()
+	}
+	defer ws.Close()
+
+	require.NoError(t, ws.WriteMessage(websocket.BinaryMessage, createFetchRequest(0, 1000, 1, false)))
+	require.NoError(t, ws.SetReadDeadline(time.Now().Add(time.Second)))
+
+	for {
+		_, _, err := ws.ReadMessage()
+		if err != nil {
+			break
+		}
+	}
+
+	require.Contains(t, logBuf.String(), "panic on recording playback read loop")
+	require.Contains(t, logBuf.String(), "simulated streamer panic")
+}
+
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (s *syncBuffer) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.buf.Write(p)
+}
+
+func (s *syncBuffer) String() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.buf.String()
+}
+
+type panickingStreamClient struct{}
+
+func (p *panickingStreamClient) StreamSessionEvents(context.Context, session.ID, int64) (chan apievents.AuditEvent, chan error) {
+	panic("simulated streamer panic")
 }
 
 func TestCreateTaskContext(t *testing.T) {

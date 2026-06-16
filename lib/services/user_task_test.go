@@ -35,35 +35,35 @@ import (
 func TestMarshalUserTaskRoundTrip(t *testing.T) {
 	t.Parallel()
 
-	obj := &usertasksv1.UserTask{
+	obj := usertasksv1.UserTask_builder{
 		Version: "v1",
 		Kind:    "user_task",
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: "example-user-task",
 			Labels: map[string]string{
 				"env": "example",
 			},
-		},
-		Spec: &usertasksv1.UserTaskSpec{
+		}.Build(),
+		Spec: usertasksv1.UserTaskSpec_builder{
 			Integration: "my-integration",
 			TaskType:    "discover-ec2",
 			IssueType:   "SSM_AGENT_MISSING",
 			State:       "OPEN",
-			DiscoverEc2: &usertasksv1.DiscoverEC2{
+			DiscoverEc2: usertasksv1.DiscoverEC2_builder{
 				Region:    "us-east-1",
 				AccountId: "123456789012",
 				Instances: map[string]*usertasksv1.DiscoverEC2Instance{
-					"i-1234567890": {
+					"i-1234567890": usertasksv1.DiscoverEC2Instance_builder{
 						Name:            "instance-name",
 						InvocationUrl:   "https://example.com/",
 						DiscoveryConfig: "config",
 						DiscoveryGroup:  "group",
 						SyncTime:        timestamppb.Now(),
-					},
+					}.Build(),
 				},
-			},
-		},
-	}
+			}.Build(),
+		}.Build(),
+	}.Build()
 
 	out, err := MarshalUserTask(obj)
 	require.NoError(t, err)
@@ -105,35 +105,35 @@ spec:
 	data, err := utils.ToJSON([]byte(correctUserTaskYAML))
 	require.NoError(t, err)
 
-	expected := &usertasksv1.UserTask{
+	expected := usertasksv1.UserTask_builder{
 		Version: "v1",
 		Kind:    "user_task",
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: "example-user-task",
 			Labels: map[string]string{
 				"env": "example",
 			},
-		},
-		Spec: &usertasksv1.UserTaskSpec{
+		}.Build(),
+		Spec: usertasksv1.UserTaskSpec_builder{
 			Integration: "my-integration",
 			TaskType:    "discover-ec2",
 			IssueType:   "SSM_AGENT_MISSING",
 			State:       "OPEN",
-			DiscoverEc2: &usertasksv1.DiscoverEC2{
+			DiscoverEc2: usertasksv1.DiscoverEC2_builder{
 				Region:    "us-east-1",
 				AccountId: "123456789012",
 				Instances: map[string]*usertasksv1.DiscoverEC2Instance{
-					"i-1234567890": {
+					"i-1234567890": usertasksv1.DiscoverEC2Instance_builder{
 						Name:            "instance-name",
 						InvocationUrl:   "https://example.com/",
 						DiscoveryConfig: "config",
 						DiscoveryGroup:  "group",
 						SyncTime:        syncTime,
-					},
+					}.Build(),
 				},
-			},
-		},
-	}
+			}.Build(),
+		}.Build(),
+	}.Build()
 
 	obj, err := UnmarshalUserTask(data)
 	require.NoError(t, err)

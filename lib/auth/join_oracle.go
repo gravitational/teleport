@@ -92,9 +92,9 @@ func (a *Server) registerUsingOracleMethod(
 	}
 
 	if tokenReq.Role == types.RoleBot {
-		params := makeBotCertsParams(tokenReq, claims, &workloadidentityv1pb.JoinAttrs{
+		params := makeBotCertsParams(tokenReq, claims, workloadidentityv1pb.JoinAttrs_builder{
 			Oracle: claims.JoinAttrs(),
-		})
+		}.Build())
 		certs, _, err := a.GenerateBotCertsForJoin(ctx, provisionToken, params)
 		return certs, trace.Wrap(err, "generating bot certs")
 	}

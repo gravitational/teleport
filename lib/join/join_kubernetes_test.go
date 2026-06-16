@@ -286,18 +286,18 @@ func TestJoinKubernetes(t *testing.T) {
 	for _, pt := range []types.ProvisionToken{implicitInClusterPT, explicitInClusterPT, staticJWKSPT, oidcPT, wildcardInClusterPT, wildcardStaticJWKSPT, wildcardOIDCPT, exactInClusterPT, namespaceOnlyInClusterPT, combinedInClusterPT, combinedStrictInClusterPT} {
 		ptv2, ok := pt.(*types.ProvisionTokenV2)
 		require.True(t, ok, "expected provision token to be types.ProvisionTokenSpecV2")
-		scoped, err := jointest.ScopedTokenFromProvisionTokenSpec(ptv2.Spec, &joiningv1.ScopedToken{
+		scoped, err := jointest.ScopedTokenFromProvisionTokenSpec(ptv2.Spec, joiningv1.ScopedToken_builder{
 			Scope: "/test",
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "scoped_" + pt.GetName(),
-			},
-			Spec: &joiningv1.ScopedTokenSpec{
+			}.Build(),
+			Spec: joiningv1.ScopedTokenSpec_builder{
 				AssignedScope: "/test/one",
 				UsageMode:     string(joining.TokenUsageModeUnlimited),
-			},
-		})
+			}.Build(),
+		}.Build())
 		require.NoError(t, err)
-		_, err = auth.CreateScopedToken(ctx, &joiningv1.CreateScopedTokenRequest{Token: scoped})
+		_, err = auth.CreateScopedToken(ctx, joiningv1.CreateScopedTokenRequest_builder{Token: scoped}.Build())
 		require.NoError(t, err)
 	}
 

@@ -182,16 +182,18 @@ func (b0 KubernetesWaitingContainer_builder) Build() *KubernetesWaitingContainer
 
 // KubernetesWaitingContainerSpec is the Kubernetes waiting ephemeral container spec.
 type KubernetesWaitingContainerSpec struct {
-	state                    protoimpl.MessageState `protogen:"opaque.v1"`
-	xxx_hidden_Username      string                 `protobuf:"bytes,1,opt,name=username,proto3"`
-	xxx_hidden_Cluster       string                 `protobuf:"bytes,2,opt,name=cluster,proto3"`
-	xxx_hidden_Namespace     string                 `protobuf:"bytes,3,opt,name=namespace,proto3"`
-	xxx_hidden_PodName       string                 `protobuf:"bytes,4,opt,name=pod_name,json=podName,proto3"`
-	xxx_hidden_ContainerName string                 `protobuf:"bytes,5,opt,name=container_name,json=containerName,proto3"`
-	xxx_hidden_Patch         []byte                 `protobuf:"bytes,6,opt,name=patch,proto3"`
-	xxx_hidden_PatchType     string                 `protobuf:"bytes,7,opt,name=patch_type,json=patchType,proto3"`
-	unknownFields            protoimpl.UnknownFields
-	sizeCache                protoimpl.SizeCache
+	state                       protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Username         string                 `protobuf:"bytes,1,opt,name=username,proto3"`
+	xxx_hidden_Cluster          string                 `protobuf:"bytes,2,opt,name=cluster,proto3"`
+	xxx_hidden_Namespace        string                 `protobuf:"bytes,3,opt,name=namespace,proto3"`
+	xxx_hidden_PodName          string                 `protobuf:"bytes,4,opt,name=pod_name,json=podName,proto3"`
+	xxx_hidden_ContainerName    string                 `protobuf:"bytes,5,opt,name=container_name,json=containerName,proto3"`
+	xxx_hidden_Patch            []byte                 `protobuf:"bytes,6,opt,name=patch,proto3"`
+	xxx_hidden_PatchType        string                 `protobuf:"bytes,7,opt,name=patch_type,json=patchType,proto3"`
+	xxx_hidden_KubernetesUser   string                 `protobuf:"bytes,8,opt,name=kubernetes_user,json=kubernetesUser,proto3"`
+	xxx_hidden_KubernetesGroups []string               `protobuf:"bytes,9,rep,name=kubernetes_groups,json=kubernetesGroups,proto3"`
+	unknownFields               protoimpl.UnknownFields
+	sizeCache                   protoimpl.SizeCache
 }
 
 func (x *KubernetesWaitingContainerSpec) Reset() {
@@ -268,6 +270,20 @@ func (x *KubernetesWaitingContainerSpec) GetPatchType() string {
 	return ""
 }
 
+func (x *KubernetesWaitingContainerSpec) GetKubernetesUser() string {
+	if x != nil {
+		return x.xxx_hidden_KubernetesUser
+	}
+	return ""
+}
+
+func (x *KubernetesWaitingContainerSpec) GetKubernetesGroups() []string {
+	if x != nil {
+		return x.xxx_hidden_KubernetesGroups
+	}
+	return nil
+}
+
 func (x *KubernetesWaitingContainerSpec) SetUsername(v string) {
 	x.xxx_hidden_Username = v
 }
@@ -299,6 +315,14 @@ func (x *KubernetesWaitingContainerSpec) SetPatchType(v string) {
 	x.xxx_hidden_PatchType = v
 }
 
+func (x *KubernetesWaitingContainerSpec) SetKubernetesUser(v string) {
+	x.xxx_hidden_KubernetesUser = v
+}
+
+func (x *KubernetesWaitingContainerSpec) SetKubernetesGroups(v []string) {
+	x.xxx_hidden_KubernetesGroups = v
+}
+
 type KubernetesWaitingContainerSpec_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
@@ -317,6 +341,14 @@ type KubernetesWaitingContainerSpec_builder struct {
 	Patch []byte
 	// patch_type identifies the patch model to be applied.
 	PatchType string
+	// kubernetes_user is the impersonated Kubernetes user resolved from the
+	// creating request's Impersonate-User header and the user's kubernetes_users role set.
+	// Stored so that the moderated wait path can re-apply the same impersonation
+	// when fetching the target pod after the live request is gone.
+	KubernetesUser string
+	// kubernetes_groups are the impersonated Kubernetes groups resolved at creation time,
+	// stored for the same reason as kubernetes_user.
+	KubernetesGroups []string
 }
 
 func (b0 KubernetesWaitingContainerSpec_builder) Build() *KubernetesWaitingContainerSpec {
@@ -330,6 +362,8 @@ func (b0 KubernetesWaitingContainerSpec_builder) Build() *KubernetesWaitingConta
 	x.xxx_hidden_ContainerName = b.ContainerName
 	x.xxx_hidden_Patch = b.Patch
 	x.xxx_hidden_PatchType = b.PatchType
+	x.xxx_hidden_KubernetesUser = b.KubernetesUser
+	x.xxx_hidden_KubernetesGroups = b.KubernetesGroups
 	return m0
 }
 
@@ -343,7 +377,7 @@ const file_teleport_kubewaitingcontainer_v1_kubewaitingcontainer_proto_rawDesc =
 	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x128\n" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12T\n" +
-	"\x04spec\x18\x05 \x01(\v2@.teleport.kubewaitingcontainer.v1.KubernetesWaitingContainerSpecR\x04spec\"\xeb\x01\n" +
+	"\x04spec\x18\x05 \x01(\v2@.teleport.kubewaitingcontainer.v1.KubernetesWaitingContainerSpecR\x04spec\"\xc1\x02\n" +
 	"\x1eKubernetesWaitingContainerSpec\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\tR\busername\x12\x18\n" +
 	"\acluster\x18\x02 \x01(\tR\acluster\x12\x1c\n" +
@@ -352,7 +386,9 @@ const file_teleport_kubewaitingcontainer_v1_kubewaitingcontainer_proto_rawDesc =
 	"\x0econtainer_name\x18\x05 \x01(\tR\rcontainerName\x12\x14\n" +
 	"\x05patch\x18\x06 \x01(\fR\x05patch\x12\x1d\n" +
 	"\n" +
-	"patch_type\x18\a \x01(\tR\tpatchTypeBlZjgithub.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1;kubewaitingcontainerv1b\x06proto3"
+	"patch_type\x18\a \x01(\tR\tpatchType\x12'\n" +
+	"\x0fkubernetes_user\x18\b \x01(\tR\x0ekubernetesUser\x12+\n" +
+	"\x11kubernetes_groups\x18\t \x03(\tR\x10kubernetesGroupsBlZjgithub.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1;kubewaitingcontainerv1b\x06proto3"
 
 var file_teleport_kubewaitingcontainer_v1_kubewaitingcontainer_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_teleport_kubewaitingcontainer_v1_kubewaitingcontainer_proto_goTypes = []any{

@@ -102,6 +102,54 @@ func (x SearchMode) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
+// DesktopType identifies the platform of a desktop session.
+type DesktopType int32
+
+const (
+	// DESKTOP_TYPE_UNSPECIFIED is the default when the desktop platform is unknown.
+	DesktopType_DESKTOP_TYPE_UNSPECIFIED DesktopType = 0
+	// DESKTOP_TYPE_WINDOWS is a Windows desktop session.
+	DesktopType_DESKTOP_TYPE_WINDOWS DesktopType = 1
+	// DESKTOP_TYPE_LINUX is a Linux desktop session.
+	DesktopType_DESKTOP_TYPE_LINUX DesktopType = 2
+)
+
+// Enum value maps for DesktopType.
+var (
+	DesktopType_name = map[int32]string{
+		0: "DESKTOP_TYPE_UNSPECIFIED",
+		1: "DESKTOP_TYPE_WINDOWS",
+		2: "DESKTOP_TYPE_LINUX",
+	}
+	DesktopType_value = map[string]int32{
+		"DESKTOP_TYPE_UNSPECIFIED": 0,
+		"DESKTOP_TYPE_WINDOWS":     1,
+		"DESKTOP_TYPE_LINUX":       2,
+	}
+)
+
+func (x DesktopType) Enum() *DesktopType {
+	p := new(DesktopType)
+	*p = x
+	return p
+}
+
+func (x DesktopType) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (DesktopType) Descriptor() protoreflect.EnumDescriptor {
+	return file_teleport_sessionsearch_v1_session_search_proto_enumTypes[1].Descriptor()
+}
+
+func (DesktopType) Type() protoreflect.EnumType {
+	return &file_teleport_sessionsearch_v1_session_search_proto_enumTypes[1]
+}
+
+func (x DesktopType) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
 // SessionSearchAvailability describes the availability state of the session
 // search feature as reported by the access graph.
 type SessionSearchAvailability int32
@@ -155,11 +203,11 @@ func (x SessionSearchAvailability) String() string {
 }
 
 func (SessionSearchAvailability) Descriptor() protoreflect.EnumDescriptor {
-	return file_teleport_sessionsearch_v1_session_search_proto_enumTypes[1].Descriptor()
+	return file_teleport_sessionsearch_v1_session_search_proto_enumTypes[2].Descriptor()
 }
 
 func (SessionSearchAvailability) Type() protoreflect.EnumType {
-	return &file_teleport_sessionsearch_v1_session_search_proto_enumTypes[1]
+	return &file_teleport_sessionsearch_v1_session_search_proto_enumTypes[2]
 }
 
 func (x SessionSearchAvailability) Number() protoreflect.EnumNumber {
@@ -533,8 +581,10 @@ type SearchSessionSummariesRequest_builder struct {
 	// batch_token resumes a previous search from a known cursor position.
 	// Set this to the next_batch_token returned in a prior BatchComplete message
 	// to continue from where an earlier stream left off.
-	// The token encodes the complete search state of the original request;
-	// all other filter fields in this message are ignored when batch_token is set.
+	// The token is only a cursor: it does not encode the search filters, so all
+	// other filter fields (start_time, end_time, ...) must be set to the same
+	// values as the original request when batch_token is set. Resuming with a
+	// different time range than the original search is rejected.
 	// An empty value starts a new search from the beginning.
 	BatchToken string
 	// search_mode controls which search strategy to apply when search_queries
@@ -641,6 +691,15 @@ func (x *ResourceProperties) GetDatabase() *DatabaseProperties {
 	return nil
 }
 
+func (x *ResourceProperties) GetDesktop() *DesktopProperties {
+	if x != nil {
+		if x, ok := x.xxx_hidden_Type.(*resourceProperties_Desktop); ok {
+			return x.Desktop
+		}
+	}
+	return nil
+}
+
 func (x *ResourceProperties) SetSsh(v *SSHProperties) {
 	if v == nil {
 		x.xxx_hidden_Type = nil
@@ -663,6 +722,14 @@ func (x *ResourceProperties) SetDatabase(v *DatabaseProperties) {
 		return
 	}
 	x.xxx_hidden_Type = &resourceProperties_Database{v}
+}
+
+func (x *ResourceProperties) SetDesktop(v *DesktopProperties) {
+	if v == nil {
+		x.xxx_hidden_Type = nil
+		return
+	}
+	x.xxx_hidden_Type = &resourceProperties_Desktop{v}
 }
 
 func (x *ResourceProperties) HasType() bool {
@@ -696,6 +763,14 @@ func (x *ResourceProperties) HasDatabase() bool {
 	return ok
 }
 
+func (x *ResourceProperties) HasDesktop() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.xxx_hidden_Type.(*resourceProperties_Desktop)
+	return ok
+}
+
 func (x *ResourceProperties) ClearType() {
 	x.xxx_hidden_Type = nil
 }
@@ -718,10 +793,17 @@ func (x *ResourceProperties) ClearDatabase() {
 	}
 }
 
+func (x *ResourceProperties) ClearDesktop() {
+	if _, ok := x.xxx_hidden_Type.(*resourceProperties_Desktop); ok {
+		x.xxx_hidden_Type = nil
+	}
+}
+
 const ResourceProperties_Type_not_set_case case_ResourceProperties_Type = 0
 const ResourceProperties_Ssh_case case_ResourceProperties_Type = 1
 const ResourceProperties_Kubernetes_case case_ResourceProperties_Type = 2
 const ResourceProperties_Database_case case_ResourceProperties_Type = 3
+const ResourceProperties_Desktop_case case_ResourceProperties_Type = 4
 
 func (x *ResourceProperties) WhichType() case_ResourceProperties_Type {
 	if x == nil {
@@ -734,6 +816,8 @@ func (x *ResourceProperties) WhichType() case_ResourceProperties_Type {
 		return ResourceProperties_Kubernetes_case
 	case *resourceProperties_Database:
 		return ResourceProperties_Database_case
+	case *resourceProperties_Desktop:
+		return ResourceProperties_Desktop_case
 	default:
 		return ResourceProperties_Type_not_set_case
 	}
@@ -749,6 +833,8 @@ type ResourceProperties_builder struct {
 	Kubernetes *KubernetesProperties
 	// database holds database session properties.
 	Database *DatabaseProperties
+	// desktop holds Windows desktop session properties.
+	Desktop *DesktopProperties
 	// -- end of xxx_hidden_Type
 }
 
@@ -764,6 +850,9 @@ func (b0 ResourceProperties_builder) Build() *ResourceProperties {
 	}
 	if b.Database != nil {
 		x.xxx_hidden_Type = &resourceProperties_Database{b.Database}
+	}
+	if b.Desktop != nil {
+		x.xxx_hidden_Type = &resourceProperties_Desktop{b.Desktop}
 	}
 	return m0
 }
@@ -797,11 +886,18 @@ type resourceProperties_Database struct {
 	Database *DatabaseProperties `protobuf:"bytes,3,opt,name=database,proto3,oneof"`
 }
 
+type resourceProperties_Desktop struct {
+	// desktop holds Windows desktop session properties.
+	Desktop *DesktopProperties `protobuf:"bytes,4,opt,name=desktop,proto3,oneof"`
+}
+
 func (*resourceProperties_Ssh) isResourceProperties_Type() {}
 
 func (*resourceProperties_Kubernetes) isResourceProperties_Type() {}
 
 func (*resourceProperties_Database) isResourceProperties_Type() {}
+
+func (*resourceProperties_Desktop) isResourceProperties_Type() {}
 
 // SSHProperties are the kind-specific properties for SSH sessions.
 type SSHProperties struct {
@@ -1111,6 +1207,203 @@ func (b0 DatabaseProperties_builder) Build() *DatabaseProperties {
 	return m0
 }
 
+// DesktopProperties are the kind-specific properties for desktop sessions.
+type DesktopProperties struct {
+	state                    protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_DesktopName   *string                `protobuf:"bytes,1,opt,name=desktop_name,json=desktopName,proto3,oneof"`
+	xxx_hidden_DesktopAddr   *string                `protobuf:"bytes,2,opt,name=desktop_addr,json=desktopAddr,proto3,oneof"`
+	xxx_hidden_Login         *string                `protobuf:"bytes,3,opt,name=login,proto3,oneof"`
+	xxx_hidden_WindowsDomain *string                `protobuf:"bytes,4,opt,name=windows_domain,json=windowsDomain,proto3,oneof"`
+	xxx_hidden_Type          DesktopType            `protobuf:"varint,5,opt,name=type,proto3,enum=teleport.sessionsearch.v1.DesktopType"`
+	XXX_raceDetectHookData   protoimpl.RaceDetectHookData
+	XXX_presence             [1]uint32
+	unknownFields            protoimpl.UnknownFields
+	sizeCache                protoimpl.SizeCache
+}
+
+func (x *DesktopProperties) Reset() {
+	*x = DesktopProperties{}
+	mi := &file_teleport_sessionsearch_v1_session_search_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DesktopProperties) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DesktopProperties) ProtoMessage() {}
+
+func (x *DesktopProperties) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_sessionsearch_v1_session_search_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *DesktopProperties) GetDesktopName() string {
+	if x != nil {
+		if x.xxx_hidden_DesktopName != nil {
+			return *x.xxx_hidden_DesktopName
+		}
+		return ""
+	}
+	return ""
+}
+
+func (x *DesktopProperties) GetDesktopAddr() string {
+	if x != nil {
+		if x.xxx_hidden_DesktopAddr != nil {
+			return *x.xxx_hidden_DesktopAddr
+		}
+		return ""
+	}
+	return ""
+}
+
+func (x *DesktopProperties) GetLogin() string {
+	if x != nil {
+		if x.xxx_hidden_Login != nil {
+			return *x.xxx_hidden_Login
+		}
+		return ""
+	}
+	return ""
+}
+
+func (x *DesktopProperties) GetWindowsDomain() string {
+	if x != nil {
+		if x.xxx_hidden_WindowsDomain != nil {
+			return *x.xxx_hidden_WindowsDomain
+		}
+		return ""
+	}
+	return ""
+}
+
+func (x *DesktopProperties) GetType() DesktopType {
+	if x != nil {
+		return x.xxx_hidden_Type
+	}
+	return DesktopType_DESKTOP_TYPE_UNSPECIFIED
+}
+
+func (x *DesktopProperties) SetDesktopName(v string) {
+	x.xxx_hidden_DesktopName = &v
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 0, 5)
+}
+
+func (x *DesktopProperties) SetDesktopAddr(v string) {
+	x.xxx_hidden_DesktopAddr = &v
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 1, 5)
+}
+
+func (x *DesktopProperties) SetLogin(v string) {
+	x.xxx_hidden_Login = &v
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 2, 5)
+}
+
+func (x *DesktopProperties) SetWindowsDomain(v string) {
+	x.xxx_hidden_WindowsDomain = &v
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 3, 5)
+}
+
+func (x *DesktopProperties) SetType(v DesktopType) {
+	x.xxx_hidden_Type = v
+}
+
+func (x *DesktopProperties) HasDesktopName() bool {
+	if x == nil {
+		return false
+	}
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 0)
+}
+
+func (x *DesktopProperties) HasDesktopAddr() bool {
+	if x == nil {
+		return false
+	}
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 1)
+}
+
+func (x *DesktopProperties) HasLogin() bool {
+	if x == nil {
+		return false
+	}
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 2)
+}
+
+func (x *DesktopProperties) HasWindowsDomain() bool {
+	if x == nil {
+		return false
+	}
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 3)
+}
+
+func (x *DesktopProperties) ClearDesktopName() {
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 0)
+	x.xxx_hidden_DesktopName = nil
+}
+
+func (x *DesktopProperties) ClearDesktopAddr() {
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 1)
+	x.xxx_hidden_DesktopAddr = nil
+}
+
+func (x *DesktopProperties) ClearLogin() {
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 2)
+	x.xxx_hidden_Login = nil
+}
+
+func (x *DesktopProperties) ClearWindowsDomain() {
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 3)
+	x.xxx_hidden_WindowsDomain = nil
+}
+
+type DesktopProperties_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// desktop_name is the name of the desktop.
+	DesktopName *string
+	// desktop_addr is the address of the desktop.
+	DesktopAddr *string
+	// login is the OS login used for the session.
+	Login *string
+	// windows_domain is the Active Directory domain of the desktop.
+	WindowsDomain *string
+	// type identifies the desktop platform (Windows or Linux).
+	Type DesktopType
+}
+
+func (b0 DesktopProperties_builder) Build() *DesktopProperties {
+	m0 := &DesktopProperties{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.DesktopName != nil {
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 0, 5)
+		x.xxx_hidden_DesktopName = b.DesktopName
+	}
+	if b.DesktopAddr != nil {
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 1, 5)
+		x.xxx_hidden_DesktopAddr = b.DesktopAddr
+	}
+	if b.Login != nil {
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 2, 5)
+		x.xxx_hidden_Login = b.Login
+	}
+	if b.WindowsDomain != nil {
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 3, 5)
+		x.xxx_hidden_WindowsDomain = b.WindowsDomain
+	}
+	x.xxx_hidden_Type = b.Type
+	return m0
+}
+
 // SearchSessionSummariesResponse is sent by the server on the
 // SearchSessionSummaries stream. Each message carries either one
 // SessionSummary or a BatchComplete signal. The stream contains zero or more
@@ -1124,7 +1417,7 @@ type SearchSessionSummariesResponse struct {
 
 func (x *SearchSessionSummariesResponse) Reset() {
 	*x = SearchSessionSummariesResponse{}
-	mi := &file_teleport_sessionsearch_v1_session_search_proto_msgTypes[5]
+	mi := &file_teleport_sessionsearch_v1_session_search_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1136,7 +1429,7 @@ func (x *SearchSessionSummariesResponse) String() string {
 func (*SearchSessionSummariesResponse) ProtoMessage() {}
 
 func (x *SearchSessionSummariesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_sessionsearch_v1_session_search_proto_msgTypes[5]
+	mi := &file_teleport_sessionsearch_v1_session_search_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1266,7 +1559,7 @@ func (b0 SearchSessionSummariesResponse_builder) Build() *SearchSessionSummaries
 type case_SearchSessionSummariesResponse_Payload protoreflect.FieldNumber
 
 func (x case_SearchSessionSummariesResponse_Payload) String() string {
-	md := file_teleport_sessionsearch_v1_session_search_proto_msgTypes[5].Descriptor()
+	md := file_teleport_sessionsearch_v1_session_search_proto_msgTypes[6].Descriptor()
 	if x == 0 {
 		return "not set"
 	}
@@ -1318,7 +1611,7 @@ type SessionSummary struct {
 
 func (x *SessionSummary) Reset() {
 	*x = SessionSummary{}
-	mi := &file_teleport_sessionsearch_v1_session_search_proto_msgTypes[6]
+	mi := &file_teleport_sessionsearch_v1_session_search_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1330,7 +1623,7 @@ func (x *SessionSummary) String() string {
 func (*SessionSummary) ProtoMessage() {}
 
 func (x *SessionSummary) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_sessionsearch_v1_session_search_proto_msgTypes[6]
+	mi := &file_teleport_sessionsearch_v1_session_search_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1642,7 +1935,7 @@ type IsEnabledRequest struct {
 
 func (x *IsEnabledRequest) Reset() {
 	*x = IsEnabledRequest{}
-	mi := &file_teleport_sessionsearch_v1_session_search_proto_msgTypes[7]
+	mi := &file_teleport_sessionsearch_v1_session_search_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1654,7 +1947,7 @@ func (x *IsEnabledRequest) String() string {
 func (*IsEnabledRequest) ProtoMessage() {}
 
 func (x *IsEnabledRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_sessionsearch_v1_session_search_proto_msgTypes[7]
+	mi := &file_teleport_sessionsearch_v1_session_search_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1687,7 +1980,7 @@ type IsEnabledResponse struct {
 
 func (x *IsEnabledResponse) Reset() {
 	*x = IsEnabledResponse{}
-	mi := &file_teleport_sessionsearch_v1_session_search_proto_msgTypes[8]
+	mi := &file_teleport_sessionsearch_v1_session_search_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1699,7 +1992,7 @@ func (x *IsEnabledResponse) String() string {
 func (*IsEnabledResponse) ProtoMessage() {}
 
 func (x *IsEnabledResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_sessionsearch_v1_session_search_proto_msgTypes[8]
+	mi := &file_teleport_sessionsearch_v1_session_search_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1750,7 +2043,7 @@ type SearchSessionSummariesResponse_BatchComplete struct {
 
 func (x *SearchSessionSummariesResponse_BatchComplete) Reset() {
 	*x = SearchSessionSummariesResponse_BatchComplete{}
-	mi := &file_teleport_sessionsearch_v1_session_search_proto_msgTypes[10]
+	mi := &file_teleport_sessionsearch_v1_session_search_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1762,7 +2055,7 @@ func (x *SearchSessionSummariesResponse_BatchComplete) String() string {
 func (*SearchSessionSummariesResponse_BatchComplete) ProtoMessage() {}
 
 func (x *SearchSessionSummariesResponse_BatchComplete) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_sessionsearch_v1_session_search_proto_msgTypes[10]
+	mi := &file_teleport_sessionsearch_v1_session_search_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1849,13 +2142,14 @@ const file_teleport_sessionsearch_v1_session_search_proto_rawDesc = "" +
 	"\t_usernameB\x10\n" +
 	"\x0e_resource_kindB\x10\n" +
 	"\x0e_resource_nameB\v\n" +
-	"\t_severity\"\xfa\x01\n" +
+	"\t_severity\"\xc4\x02\n" +
 	"\x12ResourceProperties\x12<\n" +
 	"\x03ssh\x18\x01 \x01(\v2(.teleport.sessionsearch.v1.SSHPropertiesH\x00R\x03ssh\x12Q\n" +
 	"\n" +
 	"kubernetes\x18\x02 \x01(\v2/.teleport.sessionsearch.v1.KubernetesPropertiesH\x00R\n" +
 	"kubernetes\x12K\n" +
-	"\bdatabase\x18\x03 \x01(\v2-.teleport.sessionsearch.v1.DatabasePropertiesH\x00R\bdatabaseB\x06\n" +
+	"\bdatabase\x18\x03 \x01(\v2-.teleport.sessionsearch.v1.DatabasePropertiesH\x00R\bdatabase\x12H\n" +
+	"\adesktop\x18\x04 \x01(\v2,.teleport.sessionsearch.v1.DesktopPropertiesH\x00R\adesktopB\x06\n" +
 	"\x04type\"\x87\x01\n" +
 	"\rSSHProperties\x12,\n" +
 	"\x0fserver_hostname\x18\x01 \x01(\tH\x00R\x0eserverHostname\x88\x01\x01\x12$\n" +
@@ -1870,7 +2164,17 @@ const file_teleport_sessionsearch_v1_session_search_proto_rawDesc = "" +
 	"\t_pod_name\"P\n" +
 	"\x12DatabaseProperties\x12(\n" +
 	"\rdatabase_name\x18\x01 \x01(\tH\x00R\fdatabaseName\x88\x01\x01B\x10\n" +
-	"\x0e_database_name\"\xba\x02\n" +
+	"\x0e_database_name\"\xa5\x02\n" +
+	"\x11DesktopProperties\x12&\n" +
+	"\fdesktop_name\x18\x01 \x01(\tH\x00R\vdesktopName\x88\x01\x01\x12&\n" +
+	"\fdesktop_addr\x18\x02 \x01(\tH\x01R\vdesktopAddr\x88\x01\x01\x12\x19\n" +
+	"\x05login\x18\x03 \x01(\tH\x02R\x05login\x88\x01\x01\x12*\n" +
+	"\x0ewindows_domain\x18\x04 \x01(\tH\x03R\rwindowsDomain\x88\x01\x01\x12:\n" +
+	"\x04type\x18\x05 \x01(\x0e2&.teleport.sessionsearch.v1.DesktopTypeR\x04typeB\x0f\n" +
+	"\r_desktop_nameB\x0f\n" +
+	"\r_desktop_addrB\b\n" +
+	"\x06_loginB\x11\n" +
+	"\x0f_windows_domain\"\xba\x02\n" +
 	"\x1eSearchSessionSummariesResponse\x12E\n" +
 	"\asummary\x18\x01 \x01(\v2).teleport.sessionsearch.v1.SessionSummaryH\x00R\asummary\x12p\n" +
 	"\x0ebatch_complete\x18\x02 \x01(\v2G.teleport.sessionsearch.v1.SearchSessionSummariesResponse.BatchCompleteH\x00R\rbatchComplete\x1aT\n" +
@@ -1912,7 +2216,11 @@ const file_teleport_sessionsearch_v1_session_search_proto_rawDesc = "" +
 	"\x17SEARCH_MODE_UNSPECIFIED\x10\x00\x12\x16\n" +
 	"\x12SEARCH_MODE_HYBRID\x10\x01\x12\x1c\n" +
 	"\x18SEARCH_MODE_KEYWORD_ONLY\x10\x02\x12\x1e\n" +
-	"\x1aSEARCH_MODE_EMBEDDING_ONLY\x10\x03*\x90\x02\n" +
+	"\x1aSEARCH_MODE_EMBEDDING_ONLY\x10\x03*]\n" +
+	"\vDesktopType\x12\x1c\n" +
+	"\x18DESKTOP_TYPE_UNSPECIFIED\x10\x00\x12\x18\n" +
+	"\x14DESKTOP_TYPE_WINDOWS\x10\x01\x12\x16\n" +
+	"\x12DESKTOP_TYPE_LINUX\x10\x02*\x90\x02\n" +
 	"\x19SessionSearchAvailability\x12+\n" +
 	"'SESSION_SEARCH_AVAILABILITY_UNSPECIFIED\x10\x00\x12)\n" +
 	"%SESSION_SEARCH_AVAILABILITY_AVAILABLE\x10\x01\x12/\n" +
@@ -1923,55 +2231,59 @@ const file_teleport_sessionsearch_v1_session_search_proto_rawDesc = "" +
 	"\x16SearchSessionSummaries\x128.teleport.sessionsearch.v1.SearchSessionSummariesRequest\x1a9.teleport.sessionsearch.v1.SearchSessionSummariesResponse0\x01\x12f\n" +
 	"\tIsEnabled\x12+.teleport.sessionsearch.v1.IsEnabledRequest\x1a,.teleport.sessionsearch.v1.IsEnabledResponseB^Z\\github.com/gravitational/teleport/api/gen/proto/go/teleport/sessionsearch/v1;sessionsearchv1b\x06proto3"
 
-var file_teleport_sessionsearch_v1_session_search_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_teleport_sessionsearch_v1_session_search_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_teleport_sessionsearch_v1_session_search_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
+var file_teleport_sessionsearch_v1_session_search_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_teleport_sessionsearch_v1_session_search_proto_goTypes = []any{
 	(SearchMode)(0),                                      // 0: teleport.sessionsearch.v1.SearchMode
-	(SessionSearchAvailability)(0),                       // 1: teleport.sessionsearch.v1.SessionSearchAvailability
-	(*SearchSessionSummariesRequest)(nil),                // 2: teleport.sessionsearch.v1.SearchSessionSummariesRequest
-	(*ResourceProperties)(nil),                           // 3: teleport.sessionsearch.v1.ResourceProperties
-	(*SSHProperties)(nil),                                // 4: teleport.sessionsearch.v1.SSHProperties
-	(*KubernetesProperties)(nil),                         // 5: teleport.sessionsearch.v1.KubernetesProperties
-	(*DatabaseProperties)(nil),                           // 6: teleport.sessionsearch.v1.DatabaseProperties
-	(*SearchSessionSummariesResponse)(nil),               // 7: teleport.sessionsearch.v1.SearchSessionSummariesResponse
-	(*SessionSummary)(nil),                               // 8: teleport.sessionsearch.v1.SessionSummary
-	(*IsEnabledRequest)(nil),                             // 9: teleport.sessionsearch.v1.IsEnabledRequest
-	(*IsEnabledResponse)(nil),                            // 10: teleport.sessionsearch.v1.IsEnabledResponse
-	nil,                                                  // 11: teleport.sessionsearch.v1.SearchSessionSummariesRequest.ResourceLabelsEntry
-	(*SearchSessionSummariesResponse_BatchComplete)(nil), // 12: teleport.sessionsearch.v1.SearchSessionSummariesResponse.BatchComplete
-	nil,                           // 13: teleport.sessionsearch.v1.SessionSummary.ResourceLabelsEntry
-	(*timestamppb.Timestamp)(nil), // 14: google.protobuf.Timestamp
-	(v1.RiskLevel)(0),             // 15: teleport.summarizer.v1.RiskLevel
-	(*structpb.Struct)(nil),       // 16: google.protobuf.Struct
+	(DesktopType)(0),                                     // 1: teleport.sessionsearch.v1.DesktopType
+	(SessionSearchAvailability)(0),                       // 2: teleport.sessionsearch.v1.SessionSearchAvailability
+	(*SearchSessionSummariesRequest)(nil),                // 3: teleport.sessionsearch.v1.SearchSessionSummariesRequest
+	(*ResourceProperties)(nil),                           // 4: teleport.sessionsearch.v1.ResourceProperties
+	(*SSHProperties)(nil),                                // 5: teleport.sessionsearch.v1.SSHProperties
+	(*KubernetesProperties)(nil),                         // 6: teleport.sessionsearch.v1.KubernetesProperties
+	(*DatabaseProperties)(nil),                           // 7: teleport.sessionsearch.v1.DatabaseProperties
+	(*DesktopProperties)(nil),                            // 8: teleport.sessionsearch.v1.DesktopProperties
+	(*SearchSessionSummariesResponse)(nil),               // 9: teleport.sessionsearch.v1.SearchSessionSummariesResponse
+	(*SessionSummary)(nil),                               // 10: teleport.sessionsearch.v1.SessionSummary
+	(*IsEnabledRequest)(nil),                             // 11: teleport.sessionsearch.v1.IsEnabledRequest
+	(*IsEnabledResponse)(nil),                            // 12: teleport.sessionsearch.v1.IsEnabledResponse
+	nil,                                                  // 13: teleport.sessionsearch.v1.SearchSessionSummariesRequest.ResourceLabelsEntry
+	(*SearchSessionSummariesResponse_BatchComplete)(nil), // 14: teleport.sessionsearch.v1.SearchSessionSummariesResponse.BatchComplete
+	nil,                           // 15: teleport.sessionsearch.v1.SessionSummary.ResourceLabelsEntry
+	(*timestamppb.Timestamp)(nil), // 16: google.protobuf.Timestamp
+	(v1.RiskLevel)(0),             // 17: teleport.summarizer.v1.RiskLevel
+	(*structpb.Struct)(nil),       // 18: google.protobuf.Struct
 }
 var file_teleport_sessionsearch_v1_session_search_proto_depIdxs = []int32{
-	14, // 0: teleport.sessionsearch.v1.SearchSessionSummariesRequest.start_time:type_name -> google.protobuf.Timestamp
-	14, // 1: teleport.sessionsearch.v1.SearchSessionSummariesRequest.end_time:type_name -> google.protobuf.Timestamp
-	11, // 2: teleport.sessionsearch.v1.SearchSessionSummariesRequest.resource_labels:type_name -> teleport.sessionsearch.v1.SearchSessionSummariesRequest.ResourceLabelsEntry
-	3,  // 3: teleport.sessionsearch.v1.SearchSessionSummariesRequest.resource_properties:type_name -> teleport.sessionsearch.v1.ResourceProperties
-	15, // 4: teleport.sessionsearch.v1.SearchSessionSummariesRequest.severity:type_name -> teleport.summarizer.v1.RiskLevel
+	16, // 0: teleport.sessionsearch.v1.SearchSessionSummariesRequest.start_time:type_name -> google.protobuf.Timestamp
+	16, // 1: teleport.sessionsearch.v1.SearchSessionSummariesRequest.end_time:type_name -> google.protobuf.Timestamp
+	13, // 2: teleport.sessionsearch.v1.SearchSessionSummariesRequest.resource_labels:type_name -> teleport.sessionsearch.v1.SearchSessionSummariesRequest.ResourceLabelsEntry
+	4,  // 3: teleport.sessionsearch.v1.SearchSessionSummariesRequest.resource_properties:type_name -> teleport.sessionsearch.v1.ResourceProperties
+	17, // 4: teleport.sessionsearch.v1.SearchSessionSummariesRequest.severity:type_name -> teleport.summarizer.v1.RiskLevel
 	0,  // 5: teleport.sessionsearch.v1.SearchSessionSummariesRequest.search_mode:type_name -> teleport.sessionsearch.v1.SearchMode
-	4,  // 6: teleport.sessionsearch.v1.ResourceProperties.ssh:type_name -> teleport.sessionsearch.v1.SSHProperties
-	5,  // 7: teleport.sessionsearch.v1.ResourceProperties.kubernetes:type_name -> teleport.sessionsearch.v1.KubernetesProperties
-	6,  // 8: teleport.sessionsearch.v1.ResourceProperties.database:type_name -> teleport.sessionsearch.v1.DatabaseProperties
-	8,  // 9: teleport.sessionsearch.v1.SearchSessionSummariesResponse.summary:type_name -> teleport.sessionsearch.v1.SessionSummary
-	12, // 10: teleport.sessionsearch.v1.SearchSessionSummariesResponse.batch_complete:type_name -> teleport.sessionsearch.v1.SearchSessionSummariesResponse.BatchComplete
-	14, // 11: teleport.sessionsearch.v1.SessionSummary.session_start:type_name -> google.protobuf.Timestamp
-	16, // 12: teleport.sessionsearch.v1.SessionSummary.user_traits:type_name -> google.protobuf.Struct
-	13, // 13: teleport.sessionsearch.v1.SessionSummary.resource_labels:type_name -> teleport.sessionsearch.v1.SessionSummary.ResourceLabelsEntry
-	3,  // 14: teleport.sessionsearch.v1.SessionSummary.resource_properties:type_name -> teleport.sessionsearch.v1.ResourceProperties
-	15, // 15: teleport.sessionsearch.v1.SessionSummary.severity:type_name -> teleport.summarizer.v1.RiskLevel
-	14, // 16: teleport.sessionsearch.v1.SessionSummary.session_end:type_name -> google.protobuf.Timestamp
-	1,  // 17: teleport.sessionsearch.v1.IsEnabledResponse.availability:type_name -> teleport.sessionsearch.v1.SessionSearchAvailability
-	2,  // 18: teleport.sessionsearch.v1.SessionSearchService.SearchSessionSummaries:input_type -> teleport.sessionsearch.v1.SearchSessionSummariesRequest
-	9,  // 19: teleport.sessionsearch.v1.SessionSearchService.IsEnabled:input_type -> teleport.sessionsearch.v1.IsEnabledRequest
-	7,  // 20: teleport.sessionsearch.v1.SessionSearchService.SearchSessionSummaries:output_type -> teleport.sessionsearch.v1.SearchSessionSummariesResponse
-	10, // 21: teleport.sessionsearch.v1.SessionSearchService.IsEnabled:output_type -> teleport.sessionsearch.v1.IsEnabledResponse
-	20, // [20:22] is the sub-list for method output_type
-	18, // [18:20] is the sub-list for method input_type
-	18, // [18:18] is the sub-list for extension type_name
-	18, // [18:18] is the sub-list for extension extendee
-	0,  // [0:18] is the sub-list for field type_name
+	5,  // 6: teleport.sessionsearch.v1.ResourceProperties.ssh:type_name -> teleport.sessionsearch.v1.SSHProperties
+	6,  // 7: teleport.sessionsearch.v1.ResourceProperties.kubernetes:type_name -> teleport.sessionsearch.v1.KubernetesProperties
+	7,  // 8: teleport.sessionsearch.v1.ResourceProperties.database:type_name -> teleport.sessionsearch.v1.DatabaseProperties
+	8,  // 9: teleport.sessionsearch.v1.ResourceProperties.desktop:type_name -> teleport.sessionsearch.v1.DesktopProperties
+	1,  // 10: teleport.sessionsearch.v1.DesktopProperties.type:type_name -> teleport.sessionsearch.v1.DesktopType
+	10, // 11: teleport.sessionsearch.v1.SearchSessionSummariesResponse.summary:type_name -> teleport.sessionsearch.v1.SessionSummary
+	14, // 12: teleport.sessionsearch.v1.SearchSessionSummariesResponse.batch_complete:type_name -> teleport.sessionsearch.v1.SearchSessionSummariesResponse.BatchComplete
+	16, // 13: teleport.sessionsearch.v1.SessionSummary.session_start:type_name -> google.protobuf.Timestamp
+	18, // 14: teleport.sessionsearch.v1.SessionSummary.user_traits:type_name -> google.protobuf.Struct
+	15, // 15: teleport.sessionsearch.v1.SessionSummary.resource_labels:type_name -> teleport.sessionsearch.v1.SessionSummary.ResourceLabelsEntry
+	4,  // 16: teleport.sessionsearch.v1.SessionSummary.resource_properties:type_name -> teleport.sessionsearch.v1.ResourceProperties
+	17, // 17: teleport.sessionsearch.v1.SessionSummary.severity:type_name -> teleport.summarizer.v1.RiskLevel
+	16, // 18: teleport.sessionsearch.v1.SessionSummary.session_end:type_name -> google.protobuf.Timestamp
+	2,  // 19: teleport.sessionsearch.v1.IsEnabledResponse.availability:type_name -> teleport.sessionsearch.v1.SessionSearchAvailability
+	3,  // 20: teleport.sessionsearch.v1.SessionSearchService.SearchSessionSummaries:input_type -> teleport.sessionsearch.v1.SearchSessionSummariesRequest
+	11, // 21: teleport.sessionsearch.v1.SessionSearchService.IsEnabled:input_type -> teleport.sessionsearch.v1.IsEnabledRequest
+	9,  // 22: teleport.sessionsearch.v1.SessionSearchService.SearchSessionSummaries:output_type -> teleport.sessionsearch.v1.SearchSessionSummariesResponse
+	12, // 23: teleport.sessionsearch.v1.SessionSearchService.IsEnabled:output_type -> teleport.sessionsearch.v1.IsEnabledResponse
+	22, // [22:24] is the sub-list for method output_type
+	20, // [20:22] is the sub-list for method input_type
+	20, // [20:20] is the sub-list for extension type_name
+	20, // [20:20] is the sub-list for extension extendee
+	0,  // [0:20] is the sub-list for field type_name
 }
 
 func init() { file_teleport_sessionsearch_v1_session_search_proto_init() }
@@ -1984,11 +2296,13 @@ func file_teleport_sessionsearch_v1_session_search_proto_init() {
 		(*resourceProperties_Ssh)(nil),
 		(*resourceProperties_Kubernetes)(nil),
 		(*resourceProperties_Database)(nil),
+		(*resourceProperties_Desktop)(nil),
 	}
 	file_teleport_sessionsearch_v1_session_search_proto_msgTypes[2].OneofWrappers = []any{}
 	file_teleport_sessionsearch_v1_session_search_proto_msgTypes[3].OneofWrappers = []any{}
 	file_teleport_sessionsearch_v1_session_search_proto_msgTypes[4].OneofWrappers = []any{}
-	file_teleport_sessionsearch_v1_session_search_proto_msgTypes[5].OneofWrappers = []any{
+	file_teleport_sessionsearch_v1_session_search_proto_msgTypes[5].OneofWrappers = []any{}
+	file_teleport_sessionsearch_v1_session_search_proto_msgTypes[6].OneofWrappers = []any{
 		(*searchSessionSummariesResponse_Summary)(nil),
 		(*searchSessionSummariesResponse_BatchComplete_)(nil),
 	}
@@ -1997,8 +2311,8 @@ func file_teleport_sessionsearch_v1_session_search_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_sessionsearch_v1_session_search_proto_rawDesc), len(file_teleport_sessionsearch_v1_session_search_proto_rawDesc)),
-			NumEnums:      2,
-			NumMessages:   12,
+			NumEnums:      3,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

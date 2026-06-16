@@ -155,9 +155,9 @@ func Test_setVersionMetric(t *testing.T) {
 func Test_setGroupStates(t *testing.T) {
 	testMetricLabels := []string{metricsGroupNumberLabelName}
 	testGroups := []*autoupdatepb.AutoUpdateAgentRolloutStatusGroup{
-		{State: autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE},
-		{State: autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE},
-		{State: autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED},
+		autoupdatepb.AutoUpdateAgentRolloutStatusGroup_builder{State: autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE}.Build(),
+		autoupdatepb.AutoUpdateAgentRolloutStatusGroup_builder{State: autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE}.Build(),
+		autoupdatepb.AutoUpdateAgentRolloutStatusGroup_builder{State: autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED}.Build(),
 	}
 	tests := []struct {
 		name               string

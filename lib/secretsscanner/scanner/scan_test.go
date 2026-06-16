@@ -114,7 +114,7 @@ func TestNewScanner(t *testing.T) {
 
 func sortPrivateKeys(keys []*accessgraphsecretsv1pb.PrivateKey) {
 	sort.Slice(keys, func(i, j int) bool {
-		return keys[i].Metadata.Name < keys[j].Metadata.Name
+		return keys[i].GetMetadata().GetName() < keys[j].GetMetadata().GetName()
 	})
 }
 
@@ -148,11 +148,11 @@ func writeEncryptedKeys(t *testing.T, dir string) []*accessgraphsecretsv1pb.Priv
 
 		key, err := accessgraph.NewPrivateKeyWithName(
 			privateKeyNameGen(filePath, deviceID, fingerprint),
-			&accessgraphsecretsv1pb.PrivateKeySpec{
+			accessgraphsecretsv1pb.PrivateKeySpec_builder{
 				PublicKeyFingerprint: fingerprint,
 				DeviceId:             deviceID,
 				PublicKeyMode:        mode,
-			},
+			}.Build(),
 		)
 		require.NoError(t, err)
 
@@ -181,11 +181,11 @@ func writeUnEncryptedKeys(t *testing.T, dir string) []*accessgraphsecretsv1pb.Pr
 
 		key, err := accessgraph.NewPrivateKeyWithName(
 			privateKeyNameGen(filePath, deviceID, fingerprint),
-			&accessgraphsecretsv1pb.PrivateKeySpec{
+			accessgraphsecretsv1pb.PrivateKeySpec_builder{
 				PublicKeyFingerprint: fingerprint,
 				DeviceId:             deviceID,
 				PublicKeyMode:        accessgraphsecretsv1pb.PublicKeyMode_PUBLIC_KEY_MODE_DERIVED,
-			},
+			}.Build(),
 		)
 		require.NoError(t, err)
 
@@ -209,11 +209,11 @@ func writeEncryptedKeyWithoutPubFile(t *testing.T, dir string) []*accessgraphsec
 
 	key, err := accessgraph.NewPrivateKeyWithName(
 		privateKeyNameGen(filePath, deviceID, ""),
-		&accessgraphsecretsv1pb.PrivateKeySpec{
+		accessgraphsecretsv1pb.PrivateKeySpec_builder{
 			PublicKeyFingerprint: "",
 			DeviceId:             deviceID,
 			PublicKeyMode:        accessgraphsecretsv1pb.PublicKeyMode_PUBLIC_KEY_MODE_PROTECTED,
-		},
+		}.Build(),
 	)
 	require.NoError(t, err)
 

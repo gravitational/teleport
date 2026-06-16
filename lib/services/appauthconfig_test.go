@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 
 	appauthconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -32,13 +33,11 @@ func TestValidatAppAuthConfig(t *testing.T) {
 
 	t.Run("Base", func(t *testing.T) {
 		validConfig := &appauthconfigv1.AppAuthConfigSpec_Jwt{
-			Jwt: &appauthconfigv1.AppAuthConfigJWTSpec{
+			Jwt: appauthconfigv1.AppAuthConfigJWTSpec_builder{
 				Audience: "teleport",
 				Issuer:   "https://issuer-url/",
-				KeysSource: &appauthconfigv1.AppAuthConfigJWTSpec_JwksUrl{
-					JwksUrl: "https://issuer-url/.well-known/jwks.json",
-				},
-			},
+				JwksUrl:  proto.String("https://issuer-url/.well-known/jwks.json"),
+			}.Build(),
 		}
 		require.NoError(t, validateJWTAppAuthConfig(validConfig.Jwt), "this test expects the config to be valid, ensure it is up-to-date")
 
@@ -47,77 +46,77 @@ func TestValidatAppAuthConfig(t *testing.T) {
 			assertErr require.ErrorAssertionFunc
 		}{
 			"default is valid": {
-				res: &appauthconfigv1.AppAuthConfig{
+				res: appauthconfigv1.AppAuthConfig_builder{
 					Version: types.V1,
 					Kind:    types.KindAppAuthConfig,
-					Metadata: &headerv1.Metadata{
+					Metadata: headerv1.Metadata_builder{
 						Name: "example",
-					},
+					}.Build(),
 					Spec: &appauthconfigv1.AppAuthConfigSpec{
 						AppLabels: []*labelv1.Label{
-							{Name: "*", Values: []string{"*"}},
+							labelv1.Label_builder{Name: "*", Values: []string{"*"}}.Build(),
 						},
 						SubKindSpec: validConfig,
 					},
-				},
+				}.Build(),
 				assertErr: require.NoError,
 			},
 			"unknown is invalid": {
-				res: &appauthconfigv1.AppAuthConfig{
+				res: appauthconfigv1.AppAuthConfig_builder{
 					Version: "999",
 					Kind:    types.KindAppAuthConfig,
-					Metadata: &headerv1.Metadata{
+					Metadata: headerv1.Metadata_builder{
 						Name: "example",
-					},
+					}.Build(),
 					Spec: &appauthconfigv1.AppAuthConfigSpec{
 						AppLabels: []*labelv1.Label{
-							{Name: "*", Values: []string{"*"}},
+							labelv1.Label_builder{Name: "*", Values: []string{"*"}}.Build(),
 						},
 						SubKindSpec: validConfig,
 					},
-				},
+				}.Build(),
 				assertErr: require.Error,
 			},
 			"missing metadata is invalid": {
-				res: &appauthconfigv1.AppAuthConfig{
+				res: appauthconfigv1.AppAuthConfig_builder{
 					Version: types.V1,
 					Kind:    types.KindAppAuthConfig,
 					Spec: &appauthconfigv1.AppAuthConfigSpec{
 						AppLabels: []*labelv1.Label{
-							{Name: "*", Values: []string{"*"}},
+							labelv1.Label_builder{Name: "*", Values: []string{"*"}}.Build(),
 						},
 						SubKindSpec: validConfig,
 					},
-				},
+				}.Build(),
 				assertErr: require.Error,
 			},
 			"missing app labels is invalid": {
-				res: &appauthconfigv1.AppAuthConfig{
+				res: appauthconfigv1.AppAuthConfig_builder{
 					Version: types.V1,
 					Kind:    types.KindAppAuthConfig,
-					Metadata: &headerv1.Metadata{
+					Metadata: headerv1.Metadata_builder{
 						Name: "example",
-					},
+					}.Build(),
 					Spec: &appauthconfigv1.AppAuthConfigSpec{
 						SubKindSpec: validConfig,
 					},
-				},
+				}.Build(),
 				assertErr: require.Error,
 			},
 			"invalid app labels wildcard is invalid": {
-				res: &appauthconfigv1.AppAuthConfig{
+				res: appauthconfigv1.AppAuthConfig_builder{
 					Version: types.V1,
 					Kind:    types.KindAppAuthConfig,
-					Metadata: &headerv1.Metadata{
+					Metadata: headerv1.Metadata_builder{
 						Name: "example",
-					},
+					}.Build(),
 					Spec: &appauthconfigv1.AppAuthConfigSpec{
 						AppLabels: []*labelv1.Label{
-							{Name: "*", Values: []string{"some-random-value"}},
+							labelv1.Label_builder{Name: "*", Values: []string{"some-random-value"}}.Build(),
 						},
 						SubKindSpec: validConfig,
 					},
-				},
+				}.Build(),
 				assertErr: require.Error,
 			},
 			"nil is invalid": {
@@ -137,28 +136,24 @@ func TestValidatAppAuthConfig(t *testing.T) {
 			assertErr require.ErrorAssertionFunc
 		}{
 			"minimal is valid": {
-				res: &appauthconfigv1.AppAuthConfigJWTSpec{
+				res: appauthconfigv1.AppAuthConfigJWTSpec_builder{
 					Audience: "teleport",
 					Issuer:   "https://issuer-url/",
-					KeysSource: &appauthconfigv1.AppAuthConfigJWTSpec_JwksUrl{
-						JwksUrl: "https://issuer-url/.well-known/jwks.json",
-					},
-				},
+					JwksUrl:  proto.String("https://issuer-url/.well-known/jwks.json"),
+				}.Build(),
 				assertErr: require.NoError,
 			},
 			"missing jwks_url and static_jwks is invalid": {
-				res: &appauthconfigv1.AppAuthConfigJWTSpec{
+				res: appauthconfigv1.AppAuthConfigJWTSpec_builder{
 					Audience: "teleport",
-				},
+				}.Build(),
 				assertErr: require.Error,
 			},
 			"missing audience is invalid": {
-				res: &appauthconfigv1.AppAuthConfigJWTSpec{
-					Issuer: "https://issuer-url/",
-					KeysSource: &appauthconfigv1.AppAuthConfigJWTSpec_JwksUrl{
-						JwksUrl: "https://issuer-url/.well-known/jwks.json",
-					},
-				},
+				res: appauthconfigv1.AppAuthConfigJWTSpec_builder{
+					Issuer:  "https://issuer-url/",
+					JwksUrl: proto.String("https://issuer-url/.well-known/jwks.json"),
+				}.Build(),
 				assertErr: require.Error,
 			},
 			"nil is invalid": {

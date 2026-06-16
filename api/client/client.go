@@ -2538,6 +2538,24 @@ func (c *Client) RangeTrustedClusters(ctx context.Context, start, end string) it
 	return clientutils.RangeResources(ctx, start, end, c.ListTrustedClusters, types.TrustedCluster.GetName)
 }
 
+// ListTunnelConnections returns a page of tunnel connections matching the
+// given filter.
+func (c *Client) ListTunnelConnections(ctx context.Context, pageSize int, pageToken string, filter *trustpb.ListTunnelConnectionsFilter) ([]types.TunnelConnection, string, error) {
+	resp, err := c.TrustClient().ListTunnelConnections(ctx, &trustpb.ListTunnelConnectionsRequest{
+		PageSize:  int32(pageSize),
+		PageToken: pageToken,
+		Filter:    filter,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	conns := make([]types.TunnelConnection, len(resp.TunnelConnections))
+	for i, v2 := range resp.TunnelConnections {
+		conns[i] = v2
+	}
+	return conns, resp.NextPageToken, nil
+}
+
 // UpsertTrustedCluster creates or updates a Trusted Cluster.
 //
 // Deprecated: Use [Client.UpsertTrustedClusterV2] instead.
@@ -6103,6 +6121,19 @@ func (c *Client) ValidateTrustedCluster(
 	return resp, nil
 }
 
+// ExtendWebSession creates a new web session for a user based on a valid
+// existing web session, e.g. to apply an approved access request, switch
+// back to default roles, or pick up recent user changes.
+func (c *Client) ExtendWebSession(
+	ctx context.Context, req *proto.ExtendWebSessionRequest,
+) (*proto.ExtendWebSessionResponse, error) {
+	resp, err := c.grpc.ExtendWebSession(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
 // ListScopedTokens fetches pages of scoped tokens.
 func (c *Client) ListScopedTokens(ctx context.Context, req *joiningv1.ListScopedTokensRequest) (*joiningv1.ListScopedTokensResponse, error) {
 	res, err := c.grpc.ListScopedTokens(ctx, req)
@@ -6311,11 +6342,11 @@ func (c *Client) GetCertAuthorityOverride(
 	ctx context.Context,
 	id types.CertAuthorityOverrideID,
 ) (*subcav1.CertAuthorityOverride, error) {
-	resp, err := c.SubCAClient().GetCertAuthorityOverride(ctx, &subcav1.GetCertAuthorityOverrideRequest{
-		CaId: &subcav1.CertAuthorityOverrideID{
+	resp, err := c.SubCAClient().GetCertAuthorityOverride(ctx, subcav1.GetCertAuthorityOverrideRequest_builder{
+		CaId: subcav1.CertAuthorityOverrideID_builder{
 			CaType: id.CAType,
-		},
-	})
+		}.Build(),
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -6326,7 +6357,7 @@ func (c *Client) GetCertAuthorityOverride(
 		return nil, trace.NotFound("%s %s/%s not found", types.KindCertAuthorityOverride, id.CAType, id.ClusterName)
 	}
 
-	return resp.CaOverride, nil
+	return resp.GetCaOverride(), nil
 }
 
 // ListCertAuthorityOverrides lists all CA overrides.
@@ -6337,14 +6368,14 @@ func (c *Client) ListCertAuthorityOverrides(
 	pageSize int,
 	pageToken string,
 ) (_ []*subcav1.CertAuthorityOverride, nextPageToken string, _ error) {
-	resp, err := c.SubCAClient().ListCertAuthorityOverride(ctx, &subcav1.ListCertAuthorityOverrideRequest{
+	resp, err := c.SubCAClient().ListCertAuthorityOverride(ctx, subcav1.ListCertAuthorityOverrideRequest_builder{
 		PageSize:  int32(pageSize),
 		PageToken: pageToken,
-	})
+	}.Build())
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-	return resp.CaOverrides, resp.NextPageToken, nil
+	return resp.GetCaOverrides(), resp.GetNextPageToken(), nil
 }
 
 // IssuanceClient returns an [issuancev1pb.IssuanceServiceClient].

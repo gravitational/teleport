@@ -57,15 +57,15 @@ func TestJoinTPM(t *testing.T) {
 
 	adminClient, err := server.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
-	_, err = adminClient.BotServiceClient().CreateBot(t.Context(), &machineidv1.CreateBotRequest{
-		Bot: &machineidv1.Bot{
-			Metadata: &headerv1.Metadata{
+	_, err = adminClient.BotServiceClient().CreateBot(t.Context(), machineidv1.CreateBotRequest_builder{
+		Bot: machineidv1.Bot_builder{
+			Metadata: headerv1.Metadata_builder{
 				Name: "testbot",
-			},
+			}.Build(),
 			Kind: types.KindBot,
 			Spec: &machineidv1.BotSpec{},
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	nopClient, err := server.NewClient(authtest.TestNop())
@@ -303,12 +303,12 @@ func TestJoinTPM(t *testing.T) {
 
 				id, err := tlsca.FromSubject(botCert.Subject, botCert.NotAfter)
 				require.NoError(t, err)
-				tpmAttrs := id.JoinAttributes.Tpm
+				tpmAttrs := id.JoinAttributes.GetTpm()
 				require.NotNil(t, tpmAttrs)
 				gotAttrs := verifiedAttrs{
-					ekPubHash:      tpmAttrs.EkPubHash,
-					ekCertSerial:   tpmAttrs.EkCertSerial,
-					ekCertVerified: tpmAttrs.EkCertVerified,
+					ekPubHash:      tpmAttrs.GetEkPubHash(),
+					ekCertSerial:   tpmAttrs.GetEkCertSerial(),
+					ekCertVerified: tpmAttrs.GetEkCertVerified(),
 				}
 				assert.Equal(t, tc.expectJoinAttrs, gotAttrs)
 			}
