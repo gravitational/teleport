@@ -750,6 +750,7 @@ func (a *appInfo) pickCloudAppLogin(cf *CLIConf, logins []string) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		logger.DebugContext(cf.Context, "Retrieved AWS role ARN", "aws_role_arn", awsRoleARN)
 		a.AWSRoleARN = awsRoleARN
 
 	case a.app.IsAzureCloud():
@@ -872,4 +873,48 @@ func tlscaRouteToAppToProto(route tlsca.RouteToApp) proto.RouteToApp {
 		GCPServiceAccount:               route.GCPServiceAccount,
 		URI:                             route.URI,
 	}
+}
+
+// onAppLogins implements "tsh app logins" command for listing AWS roles.
+func onAppLogins(cf *CLIConf) error {
+	tc, err := makeClient(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var (
+		app    types.Application
+		logins []string
+	)
+	if err := client.RetryWithRelogin(cf.Context, tc, func() error {
+		clusterClient, err := tc.ConnectToCluster(cf.Context)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer clusterClient.Close()
+
+		app, logins, err = getApp(cf.Context, clusterClient.AuthClient, cf.AppName)
+		return trace.Wrap(err)
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = printCloudAppLogins(cf, app, logins)
+	return trace.Wrap(err)
+}
+
+// printCloudAppLogins prints the available logins for cloud apps based on provided CLI
+// flags and/or available logins of the Teleport user.
+func printCloudAppLogins(cf *CLIConf, app types.Application, logins []string) error {
+	switch {
+	case app.IsAWSConsole():
+		if err := printAWSAppLogins(cf, app, logins); err != nil {
+			return trace.Wrap(err)
+		}
+
+	default:
+		return trace.BadParameter("only AWS apps are supported at the moment")
+	}
+
+	return nil
 }
