@@ -38,11 +38,12 @@ type desktopProcessor struct {
 	lastCursorX, lastCursorY uint16
 	cursorInitialized        bool
 
-	// activityFootprint holds the distinct regions changed since the last activity; distinctActivityFrames
-	// counts the frames that added a new one. A clock or caret repaints one spot so its count stays low;
-	// typing keeps moving to new spots. Both reset when a frame counts as activity.
-	activityFootprint      []image.Rectangle
-	distinctActivityFrames int
+	// The current run of repaints landing in new places, used to tell typing (new places, frame after
+	// frame) from a clock or caret (one place repainted over and over).
+	activityFootprint  []image.Rectangle
+	activityFrames     int       // frames that changed a place not already in activityFootprint
+	activityStartedAt  time.Time // first such frame in the run
+	activityLastSeenAt time.Time // most recent such frame
 }
 
 func newDesktopProcessor(base baseRecordingProcessor, duration time.Duration) *desktopProcessor {
@@ -108,31 +109,54 @@ func (d *desktopProcessor) trackActivity(eventTime time.Time) {
 	d.lastCursorX, d.lastCursorY = fa.cursorX, fa.cursorY
 	d.cursorInitialized = true
 
-	frameAddedLocation := false
+	// Abandon a stale run so a later typing burst dates from its own first repaint, not earlier
+	// incidental noise like a clock tick.
+	if !d.activityLastSeenAt.IsZero() && eventTime.Sub(d.activityLastSeenAt) > inactivityThreshold {
+		d.resetActivityRun()
+	}
+
+	addedLocation := false
 	for _, r := range fa.regions {
 		if !overlapsAny(d.activityFootprint, r) {
 			d.activityFootprint = append(d.activityFootprint, r)
-			frameAddedLocation = true
+			addedLocation = true
 		}
 	}
-	if frameAddedLocation {
-		d.distinctActivityFrames++
+	if addedLocation {
+		if d.activityStartedAt.IsZero() {
+			d.activityStartedAt = eventTime
+		}
+		d.activityLastSeenAt = eventTime
+		d.activityFrames++
 	}
 
 	bigRepaint := fa.changedPixels >= desktopActivityMinPixels(fa.screenW, fa.screenH)
-	spreadAcrossScreen := d.distinctActivityFrames >= desktopActivityMinLocations
+	typing := d.activityFrames >= desktopActivityMinLocations
 
-	if !cursorMoved && !bigRepaint && !spreadAcrossScreen {
+	if !cursorMoved && !bigRepaint && !typing {
 		// Incidental change (clock tick, blinking caret) confined to a static spot, not activity.
 		return
 	}
 
-	if !d.lastActivityTime.IsZero() && eventTime.Sub(d.lastActivityTime) > inactivityThreshold {
-		d.addInactivityEvent(d.lastActivityTime, eventTime)
+	// Date typing from its first repaint, not the keystroke that crossed the threshold, so the inactive
+	// span ends when the user resumed.
+	activityTime := eventTime
+	if typing {
+		activityTime = d.activityStartedAt
+	}
+
+	if !d.lastActivityTime.IsZero() && activityTime.Sub(d.lastActivityTime) > inactivityThreshold {
+		d.addInactivityEvent(d.lastActivityTime, activityTime)
 	}
 	d.lastActivityTime = eventTime
+	d.resetActivityRun()
+}
+
+func (d *desktopProcessor) resetActivityRun() {
 	d.activityFootprint = d.activityFootprint[:0]
-	d.distinctActivityFrames = 0
+	d.activityFrames = 0
+	d.activityStartedAt = time.Time{}
+	d.activityLastSeenAt = time.Time{}
 }
 
 // overlapsAny reports whether r intersects any region in the footprint. Edge-adjacent repaints (e.g.

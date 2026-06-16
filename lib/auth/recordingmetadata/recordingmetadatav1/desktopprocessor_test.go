@@ -291,6 +291,39 @@ func TestDesktopRecordingProcessor_InactivityEvents(t *testing.T) {
 			},
 			expected: []offsets{{start: 1 * time.Second, end: 14 * time.Second}},
 		},
+		{
+			// Typing resumes after a long idle. The inactive span must end when the user resumed (20s),
+			// not a few keystrokes later when the run crosses the threshold.
+			name: "typing after idle ends the inactive span at the first repaint",
+			events: []apievents.AuditEvent{
+				desktopSessionStartEvent(startTime),
+				desktopServerHelloEvent(t, startTime.Add(100*time.Millisecond), 256, 256),
+				bigFrame(startTime.Add(1*time.Second), rdpstatetest.RGB565White),
+				typingFrame(startTime.Add(20*time.Second), 0),
+				typingFrame(startTime.Add(22*time.Second), 4),
+				typingFrame(startTime.Add(24*time.Second), 8),
+				typingFrame(startTime.Add(26*time.Second), 12),
+				desktopSessionEndEvent(startTime.Add(30 * time.Second)),
+			},
+			expected: []offsets{{start: 1 * time.Second, end: 20 * time.Second}},
+		},
+		{
+			// A clock ticks once early in a long idle, then typing resumes much later. The stale tick must
+			// not be folded into the run, or the span would end at the tick (3s) not at the typing (20s).
+			name: "clock tick during idle does not shorten a later typing run's inactive span",
+			events: []apievents.AuditEvent{
+				desktopSessionStartEvent(startTime),
+				desktopServerHelloEvent(t, startTime.Add(100*time.Millisecond), 256, 256),
+				bigFrame(startTime.Add(1*time.Second), rdpstatetest.RGB565White),
+				smallFrame(startTime.Add(3 * time.Second)),
+				typingFrame(startTime.Add(20*time.Second), 10),
+				typingFrame(startTime.Add(21*time.Second), 14),
+				typingFrame(startTime.Add(22*time.Second), 18),
+				typingFrame(startTime.Add(23*time.Second), 22),
+				desktopSessionEndEvent(startTime.Add(30 * time.Second)),
+			},
+			expected: []offsets{{start: 1 * time.Second, end: 20 * time.Second}},
+		},
 	}
 
 	for _, tt := range tests {
