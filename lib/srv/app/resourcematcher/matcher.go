@@ -220,11 +220,19 @@ func compileSegment(pattern, seg string) (*Node, error) {
 		if name == "" {
 			return nil, trace.BadParameter("empty capture name in %q", pattern)
 		}
+		if strings.ContainsAny(name, "{}*") {
+			return nil, trace.BadParameter("malformed capture %q in %q", seg, pattern)
+		}
 		return Capture(name), nil
 	default:
-		// A bare segment is a single literal. It must not itself contain a
-		// metacharacter; the strict URL rules and the segment split guarantee
-		// it cannot contain "/".
+		// A bare segment is a single literal. A metacharacter is only valid as
+		// a whole segment: "*", "**", or "{name}". Any other appearance, such
+		// as "***", "a*", or a stray brace, is a malformed pattern rather than
+		// a literal, so reject it instead of treating it as literal text. The
+		// segment cannot contain "/", which the split already guaranteed.
+		if strings.ContainsAny(seg, "*{}") {
+			return nil, trace.BadParameter("segment %q in %q is not a valid literal, glob (*), greedy (**), or capture ({name})", seg, pattern)
+		}
 		return &Node{kind: kindLiteral, text: seg}, nil
 	}
 }

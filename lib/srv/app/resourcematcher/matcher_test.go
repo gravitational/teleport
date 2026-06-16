@@ -83,6 +83,14 @@ func TestCompileErrors(t *testing.T) {
 		{"empty segment", "/api//v4"},
 		{"trailing slash", "/api/v4/"},
 		{"empty capture name", "/api/{}"},
+		{"triple star", "/api/v4/sd/{project}/***"},
+		{"star suffix", "/api/v4/*x"},
+		{"star prefix", "/api/v4/x*"},
+		{"star inside segment", "/api/v4/a*b"},
+		{"stray open brace", "/api/{project"},
+		{"stray close brace", "/api/project}"},
+		{"brace and text", "/api/a{project}"},
+		{"nested braces", "/api/{{project}}"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
