@@ -634,6 +634,11 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 	case RetrievalModelDeleteEvent:
 		e = &events.RetrievalModelDelete{}
 
+	case ClassifierCreateEvent:
+		e = &events.ClassifierCreate{}
+	case ClassifierUpdateEvent:
+		e = &events.ClassifierUpdate{}
+
 	case SessionSummarizedEvent:
 		e = &events.SessionSummarized{}
 

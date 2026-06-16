@@ -1056,6 +1056,14 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_BeamsConfigDelete{
 			BeamsConfigDelete: e,
 		}
+	case *ClassifierCreate:
+		out.Event = &OneOf_ClassifierCreate{
+			ClassifierCreate: e,
+		}
+	case *ClassifierUpdate:
+		out.Event = &OneOf_ClassifierUpdate{
+			ClassifierUpdate: e,
+		}
 
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", in.GetType())
