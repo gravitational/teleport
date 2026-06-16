@@ -3013,9 +3013,6 @@ func (process *TeleportProcess) initAuthService() error {
 
 	// execute this when process is asked to exit:
 	process.OnExit("auth.shutdown", func(payload any) {
-		if fallbackEmitter != nil {
-			warnOnErr(process.ExitContext(), fallbackEmitter.Close(), logger)
-		}
 		// The listeners have to be closed here, because if shutdown
 		// was called before the start of the http server,
 		// the http server would have not started tracking the listeners
@@ -3046,6 +3043,7 @@ func (process *TeleportProcess) initAuthService() error {
 				}
 			}
 		}
+		shutdownFallbackEmitter(process, fallbackEmitter, payload, logger)
 		logger.InfoContext(process.ExitContext(), "Exited.")
 	})
 	return nil
@@ -7080,6 +7078,20 @@ func (process *TeleportProcess) initApps() {
 // `payload` carries a graceful shutdown context.
 // Blocks up to the duration of the graceful shutdown context.
 func shutdownAsyncEmitter(process *TeleportProcess, emitter *events.CheckingAsyncEmitter, payload any, logger *slog.Logger) {
+	if emitter == nil {
+		return
+	}
+	if payload == nil {
+		warnOnErr(process.ExitContext(), emitter.Close(), logger)
+		return
+	}
+	warnOnErr(process.ExitContext(), emitter.Shutdown(payloadContext(payload)), logger)
+}
+
+// shutdownFallbackEmitter drains the auth fallback emitter's queue to the audit
+// backend when payload carries a graceful shutdown context, otherwise it closes
+// the emitter immediately. Safe to call with a nil emitter.
+func shutdownFallbackEmitter(process *TeleportProcess, emitter *events.FallbackEmitter, payload any, logger *slog.Logger) {
 	if emitter == nil {
 		return
 	}
