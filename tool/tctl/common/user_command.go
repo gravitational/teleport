@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/gcp"
+	toolcommon "github.com/gravitational/teleport/tool/common"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
@@ -541,9 +542,11 @@ func (u *UserCommand) List(ctx context.Context, client *authclient.Client) error
 			return nil
 		}
 		t := asciitable.MakeTable([]string{"User", "Roles"})
-		for _, u := range users {
+		for _, user := range users {
+			display := user.GetDisplay()
 			t.AddRow([]string{
-				u.GetName(), strings.Join(u.GetRoles(), ","),
+				toolcommon.FormatUserDisplay(display.Primary, display.Secondary, user.GetName()),
+				strings.Join(user.GetRoles(), ","),
 			})
 		}
 		fmt.Println(t.AsBuffer().String())
