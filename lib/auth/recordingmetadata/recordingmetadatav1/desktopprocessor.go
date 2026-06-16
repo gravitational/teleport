@@ -185,7 +185,9 @@ func (d *desktopProcessor) handleWindowsDesktopSessionEnd(evt *apievents.Windows
 		d.metadata.SetType(pb.SessionRecordingType_SESSION_RECORDING_TYPE_WINDOWS_DESKTOP)
 	}
 
-	if !d.lastActivityTime.IsZero() && evt.GetTime().Sub(d.lastActivityTime) > inactivityThreshold {
+	// Without the decoder, lastActivityTime never advances past the session start, so this would mark the whole
+	// recording inactive even when the user was active.
+	if d.gen.decoderAvailable() && !d.lastActivityTime.IsZero() && evt.GetTime().Sub(d.lastActivityTime) > inactivityThreshold {
 		d.addInactivityEvent(d.lastActivityTime, evt.GetTime())
 	}
 
