@@ -53,4 +53,12 @@ message KubernetesWaitingContainerSpec {
   bytes patch = 6;
   // patch_type identifies the patch model to be applied.
   string patch_type = 7;
+  // kubernetes_user is the impersonated Kubernetes user resolved from the
+  // creating request's Impersonate-User header and the user's kubernetes_users role set.
+  // Stored so that the moderated wait path can re-apply the same impersonation
+  // when fetching the target pod after the live request is gone.
+  string kubernetes_user = 8;
+  // kubernetes_groups are the impersonated Kubernetes groups resolved at creation time,
+  // stored for the same reason as kubernetes_user.
+  repeated string kubernetes_groups = 9;
 }
