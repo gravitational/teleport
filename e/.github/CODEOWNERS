@@ -3,10 +3,6 @@
 /.github/ @klizhentas @russjones @r0mant @zmb3 @mjsmithnh @doggydogworld @aadc-dev @rosstimothy
 /.environments/ @klizhentas @russjones @r0mant @mjsmithnh @doggydogworld @aadc-dev
 
-
-# Owners for Go dependency updates.
-/tooling/os-package-repo-tool/go.mod @russjones @r0mant @zmb3 @rosstimothy @mjsmithnh @doggydogworld @aadc-dev
-
 # Internal Tools files
 /tooling/ @russjones @r0mant @mjsmithnh @doggydogworld @aadc-dev
 /.sops.yaml @russjones @r0mant @mjsmithnh @doggydogworld @aadc-dev
@@ -20,3 +16,9 @@
 
 # Owners for Rust dependency updates.
 /windowsauth/Cargo.toml @russjones @r0mant @zmb3 @rosstimothy @fspmarshall @espadolini @probakowski
+
+# Owners for Go dependency updates.
+**/go.mod @russjones @r0mant @zmb3 @rosstimothy
+**/go.sum @russjones @r0mant @zmb3 @rosstimothy
+/tooling/os-package-repo-tool/go.mod @russjones @r0mant @zmb3 @rosstimothy @mjsmithnh @doggydogworld @aadc-dev
+/tooling/os-package-repo-tool/go.sum @russjones @r0mant @zmb3 @rosstimothy @mjsmithnh @doggydogworld @aadc-dev
