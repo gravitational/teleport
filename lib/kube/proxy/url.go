@@ -247,10 +247,8 @@ func getResourceFromRequest(req *http.Request, kubeDetails *kubeDetails) (metaRe
 		return out, nil
 	}
 
-	// Surfaces an offline-cluster error and provides the codec factory used below
-	// for create requests.
-	codecFactory, _, err := kubeDetails.getClusterSupportedResources()
-	if err != nil {
+	// Surface an offline-cluster error before doing any work.
+	if _, _, err := kubeDetails.getClusterSupportedResources(); err != nil {
 		return out, trace.Wrap(err)
 	}
 
@@ -280,6 +278,12 @@ func getResourceFromRequest(req *http.Request, kubeDetails *kubeDetails) (metaRe
 
 	if apiResource.resourceName == "" && out.verb == types.KubeVerbCreate {
 		// If the request is a create request, extract the resource name from the request body.
+		// Re-read the codecs: resolveResource above may have just discovered this CRD and
+		// rebuilt them, so decode against a scheme that knows the new kind.
+		codecFactory, _, err := kubeDetails.getClusterSupportedResources()
+		if err != nil {
+			return out, trace.Wrap(err)
+		}
 		resourceName, err := extractResourceNameFromPostRequest(req, codecFactory, kubeDetails.getObjectGVK(apiResource))
 		if err != nil {
 			return out, trace.Wrap(err)
