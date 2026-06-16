@@ -30,7 +30,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authtest"
-	"github.com/gravitational/teleport/lib/modules/modulestest"
 )
 
 type mockReviewBot struct {
@@ -43,14 +42,13 @@ func (m *mockReviewBot) LookupEmailByUserID(ctx context.Context, userID string) 
 	return args.String(0), args.Error(1)
 }
 
-func newTestAuth(t *testing.T, m *modulestest.Modules) *auth.Server {
+func newTestAuth(t *testing.T) *auth.Server {
 	t.Helper()
 
 	server, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
-			Dir:     t.TempDir(),
-			Clock:   clockwork.NewFakeClock(),
-			Modules: m,
+			Dir:   t.TempDir(),
+			Clock: clockwork.NewFakeClock(),
 			AuthPreferenceSpec: &types.AuthPreferenceSpecV2{
 				SecondFactor: constants.SecondFactorOn,
 				Webauthn: &types.Webauthn{
@@ -95,7 +93,7 @@ func createUserInSlackAndTeleport(t *testing.T, mockBot *mockReviewBot, authServ
 }
 
 func TestResolveTeleportUser(t *testing.T) {
-	authServer := newTestAuth(t, modulestest.OSSModules())
+	authServer := newTestAuth(t)
 
 	aliceUser := user{
 		slackUserId:      "U_alice",
