@@ -18,11 +18,13 @@ package resources
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/encoding/protojson"
 
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -40,9 +42,31 @@ type classifierCollection []*summarizerv1.Classifier
 func (c classifierCollection) Resources() []types.Resource {
 	out := make([]types.Resource, 0, len(c))
 	for _, item := range c {
-		out = append(out, types.ProtoResource153ToLegacy(item))
+		out = append(out, classifierResource{
+			Resource:   types.ProtoResource153ToLegacy(item),
+			classifier: item,
+		})
 	}
 	return out
+}
+
+// classifierResource renders a Classifier with the tri-state ClassifierActionMode
+// fields (emit_audit_event, flag_for_review) presented as booleans in "tctl get"
+// YAML/JSON output.
+type classifierResource struct {
+	types.Resource
+	classifier *summarizerv1.Classifier
+}
+
+// MarshalJSON renders the wrapped Classifier, converting the tri-state action
+// mode enums into booleans. It mirrors the protojson options used by the generic
+// RFD 153 adapter so that every other field is encoded identically.
+func (r classifierResource) MarshalJSON() ([]byte, error) {
+	data, err := protojson.MarshalOptions{UseProtoNames: true}.Marshal(r.classifier)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return classifierActionsToBool(data)
 }
 
 func (c classifierCollection) WriteText(w io.Writer, verbose bool) error {
@@ -85,8 +109,12 @@ func classifierHandler() Handler {
 func createClassifier(
 	ctx context.Context, clt *authclient.Client, raw services.UnknownResource, opts CreateOpts,
 ) error {
+	rawJSON, err := classifierActionsFromBool(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	classifier, err := services.UnmarshalProtoResource[*summarizerv1.Classifier](
-		raw.Raw, services.DisallowUnknown())
+		rawJSON, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -114,8 +142,12 @@ func createClassifier(
 func updateClassifier(
 	ctx context.Context, clt *authclient.Client, raw services.UnknownResource, opts CreateOpts,
 ) error {
+	rawJSON, err := classifierActionsFromBool(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	classifier, err := services.UnmarshalProtoResource[*summarizerv1.Classifier](
-		raw.Raw, services.DisallowUnknown())
+		rawJSON, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -173,4 +205,82 @@ func deleteClassifier(
 	}
 	fmt.Printf("classifier %q has been deleted\n", ref.Name)
 	return nil
+}
+
+const (
+	classifierActionModeEnabled  = "CLASSIFIER_ACTION_MODE_ENABLED"
+	classifierActionModeDisabled = "CLASSIFIER_ACTION_MODE_DISABLED"
+)
+
+// classifierActionBoolFields are the spec.actions ClassifierActionMode toggles
+// that tctl renders as booleans. risk_level_floor is a level rather than a
+// toggle, so it is intentionally left as its enum value.
+var classifierActionBoolFields = []string{"emit_audit_event", "flag_for_review"}
+
+// classifierActionsToBool rewrites the ClassifierActionMode fields of a
+// protojson-encoded Classifier from their enum string form into booleans.
+// CLASSIFIER_ACTION_MODE_UNSPECIFIED is omitted by protojson, so it stays absent.
+func classifierActionsToBool(data []byte) ([]byte, error) {
+	return rewriteClassifierActions(data, func(v any) (any, bool) {
+		switch v {
+		case classifierActionModeEnabled:
+			return true, true
+		case classifierActionModeDisabled:
+			return false, true
+		default:
+			return nil, false
+		}
+	})
+}
+
+// classifierActionsFromBool rewrites boolean ClassifierActionMode fields of a
+// JSON-encoded Classifier into their enum string form so protojson can decode
+// them. Non-boolean values (enum strings or numbers) are left untouched so
+// existing manifests keep working.
+func classifierActionsFromBool(data []byte) ([]byte, error) {
+	return rewriteClassifierActions(data, func(v any) (any, bool) {
+		b, ok := v.(bool)
+		if !ok {
+			return nil, false
+		}
+		if b {
+			return classifierActionModeEnabled, true
+		}
+		return classifierActionModeDisabled, true
+	})
+}
+
+// rewriteClassifierActions applies convert to each ClassifierActionMode field
+// under spec.actions, replacing a value only when convert reports a change. The
+// input and output are JSON. If the document has no spec.actions, or no fields
+// change, the original bytes are returned unmodified.
+func rewriteClassifierActions(data []byte, convert func(any) (any, bool)) ([]byte, error) {
+	var root map[string]any
+	if err := json.Unmarshal(data, &root); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	spec, ok := root["spec"].(map[string]any)
+	if !ok {
+		return data, nil
+	}
+	actions, ok := spec["actions"].(map[string]any)
+	if !ok {
+		return data, nil
+	}
+	changed := false
+	for _, field := range classifierActionBoolFields {
+		v, ok := actions[field]
+		if !ok {
+			continue
+		}
+		if nv, ok := convert(v); ok {
+			actions[field] = nv
+			changed = true
+		}
+	}
+	if !changed {
+		return data, nil
+	}
+	out, err := json.Marshal(root)
+	return out, trace.Wrap(err)
 }
