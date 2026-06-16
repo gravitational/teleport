@@ -195,3 +195,4 @@ func createBotUser(
 	user.SetTraits(traits)
 	return user, nil
 }
+
