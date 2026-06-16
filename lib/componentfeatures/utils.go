@@ -215,6 +215,11 @@ type versionedComponent interface {
 // instead of read from their spec field:
 //   - AppServer with integration set (served directly by Proxy, not an
 //     app agent; see lib/web/app/transport.go).
+//   - OpenSSH nodes (registered backend records with no Teleport SSH
+//     agent; see types.Server.IsOpenSSHNode).
+//
+// See RFD 230 (TODO(kiosion): link the agentless section once raised) for the
+// rationale behind computing features from only type for certain resources.
 //
 // Agent-backed resources use the field from spec set by presence heartbeat,
 // with version-gating applied to strip premature advertisements from servers <18.7.6.
@@ -224,6 +229,10 @@ func GetEffectiveServerFeatures(component versionedComponent) *componentfeatures
 	// Agentless app servers: no heartbeat, compute from app type.
 	if appServer, ok := component.(types.AppServer); ok && appServer.GetApp().GetIntegration() != "" {
 		return ForAppServer(appServer)
+	}
+	// Agentless OpenSSH nodes: no heartbeat, compute from node type.
+	if node, ok := component.(types.Server); ok && node.IsOpenSSHNode() {
+		return ForSSHServer()
 	}
 	// Agent-backed: read stored field with version-gating.
 	f := component.GetComponentFeatures()
