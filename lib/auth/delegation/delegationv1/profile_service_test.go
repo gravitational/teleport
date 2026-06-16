@@ -97,7 +97,7 @@ func TestProfileService_CreateProfile(t *testing.T) {
 func TestProfileService_GetProfile(t *testing.T) {
 	t.Parallel()
 
-	t.Run("success", func(t *testing.T) {
+	t.Run("success - with admin access", func(t *testing.T) {
 		service, pack := profileServiceTestPack(t, &authz.Context{
 			Checker: fakeChecker{allowedVerbs: []string{types.VerbRead}},
 		})
@@ -111,6 +111,48 @@ func TestProfileService_GetProfile(t *testing.T) {
 			})
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff(profile, got, protocmp.Transform()))
+	})
+
+	t.Run("success - with matching labels", func(t *testing.T) {
+		service, pack := profileServiceTestPack(t, &authz.Context{
+			Checker: fakeChecker{allowResourceAccess: true},
+		})
+
+		profile, err := pack.backend.CreateDelegationProfile(t.Context(), newDelegationProfile("test-profile"))
+		require.NoError(t, err)
+
+		got, err := service.GetDelegationProfile(t.Context(),
+			&delegationv1pb.GetDelegationProfileRequest{
+				Name: profile.GetMetadata().GetName(),
+			})
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(profile, got, protocmp.Transform()))
+	})
+
+	t.Run("not found - with admin access", func(t *testing.T) {
+		service, _ := profileServiceTestPack(t, &authz.Context{
+			Checker: fakeChecker{allowedVerbs: []string{types.VerbRead}},
+		})
+
+		_, err := service.GetDelegationProfile(t.Context(),
+			&delegationv1pb.GetDelegationProfileRequest{
+				Name: "does-not-exist",
+			})
+		require.Error(t, err)
+		require.True(t, trace.IsNotFound(err))
+	})
+
+	t.Run("not found - without admin access", func(t *testing.T) {
+		service, _ := profileServiceTestPack(t, &authz.Context{
+			Checker: fakeChecker{allowedVerbs: []string{}},
+		})
+
+		_, err := service.GetDelegationProfile(t.Context(),
+			&delegationv1pb.GetDelegationProfileRequest{
+				Name: "does-not-exist",
+			})
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err))
 	})
 
 	t.Run("permission denied", func(t *testing.T) {
@@ -372,8 +414,17 @@ func TestProfileService_ListProfiles(t *testing.T) {
 }
 
 type fakeChecker struct {
-	allowedVerbs []string
+	allowResourceAccess bool
+	allowedVerbs        []string
+
 	services.AccessChecker
+}
+
+func (f fakeChecker) CheckAccess(r services.AccessCheckable, state services.AccessState, matchers ...services.RoleMatcher) error {
+	if f.allowResourceAccess {
+		return nil
+	}
+	return trace.AccessDenied("access to resource %T not allowed", r)
 }
 
 func (f fakeChecker) CheckAccessToRule(_ services.RuleContext, _ string, resource string, verb string) error {
