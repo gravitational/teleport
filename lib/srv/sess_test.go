@@ -504,7 +504,7 @@ func TestSessionRegistrySetupFailureCleanup(t *testing.T) {
 
 			err = tt.openSession(t.Context(), reg, channel, scx)
 			require.Error(t, err)
-			require.Nil(t, scx.session)
+			require.Nil(t, scx.party)
 
 			if tt.errAssertion != nil {
 				tt.errAssertion(t, err)
@@ -604,18 +604,18 @@ func TestInteractiveSession(t *testing.T) {
 		io.ReadAll(sshChanOpen)
 	}()
 	require.NoError(t, reg.OpenSession(context.Background(), sshChanOpen, scx))
-	require.NotNil(t, scx.session)
+	require.NotNil(t, scx.party)
 
 	// Simulate changing window size to capture an additional event.
 	require.NoError(t, reg.NotifyWinChange(context.Background(), rsession.TerminalParams{W: 100, H: 100}, scx))
 
 	// Stopping the session should trigger the session
 	// to end and cleanup in the background
-	scx.session.Stop()
+	scx.party.s.Stop()
 
 	// Wait for the session to be removed from the registry.
 	require.Eventually(t, func() bool {
-		_, found := reg.findSession(scx.session.id)
+		_, found := reg.findSession(scx.party.s.id)
 		return !found
 	}, time.Second*15, time.Millisecond*500)
 
@@ -689,11 +689,11 @@ func TestNonInteractiveSession(t *testing.T) {
 			io.ReadAll(sshChanOpen)
 		}()
 		require.NoError(t, reg.OpenExecSession(context.Background(), sshChanOpen, scx))
-		require.NotNil(t, scx.session)
+		require.NotNil(t, scx.party)
 
 		// Wait for the command execution to complete and the session to be terminated.
 		require.Eventually(t, func() bool {
-			_, found := reg.findSession(scx.session.id)
+			_, found := reg.findSession(scx.party.s.id)
 			return !found
 		}, time.Second*15, time.Millisecond*500)
 
@@ -752,11 +752,11 @@ func TestNonInteractiveSession(t *testing.T) {
 			io.ReadAll(sshChanOpen)
 		}()
 		require.NoError(t, reg.OpenExecSession(context.Background(), sshChanOpen, scx))
-		require.NotNil(t, scx.session)
+		require.NotNil(t, scx.party)
 
 		// Wait for the command execution to complete and the session to be terminated.
 		require.Eventually(t, func() bool {
-			_, found := reg.findSession(scx.session.id)
+			_, found := reg.findSession(scx.party.s.id)
 			return !found
 		}, time.Second*15, time.Millisecond*500)
 
@@ -925,8 +925,8 @@ func TestParties(t *testing.T) {
 
 func testJoinSession(t *testing.T, reg *SessionRegistry, sess *session) {
 	scx := newTestServerContext(t, reg.Srv, nil)
+	scx.sessionID = sess.id
 	sshChanOpen := newMockSSHChannel()
-	scx.setSession(sess, sshChanOpen)
 
 	// Open a new session
 	go func() {
@@ -1039,8 +1039,8 @@ func testOpenSession(t *testing.T, reg *SessionRegistry, roleSet services.RoleSe
 	err := reg.OpenSession(context.Background(), sshChanOpen, scx)
 	require.NoError(t, err)
 
-	require.NotNil(t, scx.session)
-	return scx.session, sshChanOpen
+	require.NotNil(t, scx.party)
+	return scx.party.s, sshChanOpen
 }
 
 type mockRecorder struct {
@@ -1374,13 +1374,13 @@ func TestCloseProxySession(t *testing.T) {
 
 	err = reg.OpenSession(context.Background(), sshChanOpen, scx)
 	require.NoError(t, err)
-	require.NotNil(t, scx.session)
+	require.NotNil(t, scx.party)
 
 	// After the session is open, we force a close coming from the server. Do
 	// this inside a goroutine to avoid being blocked.
 	closeChan := make(chan error)
 	go func() {
-		closeChan <- scx.session.Close()
+		closeChan <- scx.party.s.Close()
 	}()
 
 	select {
@@ -1421,13 +1421,13 @@ func TestCloseRemoteSession(t *testing.T) {
 
 	err := reg.OpenSession(context.Background(), sshChanOpen, scx)
 	require.NoError(t, err)
-	require.NotNil(t, scx.session)
+	require.NotNil(t, scx.party)
 
 	// After the session is open, we force a close coming from the server. Do
 	// this inside a goroutine to avoid being blocked.
 	closeChan := make(chan error)
 	go func() {
-		closeChan <- scx.session.Close()
+		closeChan <- scx.party.s.Close()
 	}()
 
 	select {
@@ -1922,4 +1922,59 @@ func (f *fakeSudoersBackend) RemoveSudoers(name string) error {
 
 	delete(f.sudoers, name)
 	return f.err
+}
+
+func TestHandleForceTerminate(t *testing.T) {
+	t.Parallel()
+
+	srv := newMockServer(t)
+	reg, err := NewSessionRegistry(SessionRegistryConfig{
+		Srv:                   srv,
+		SessionTrackerService: srv.auth,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { reg.Close() })
+
+	termHandlers := &TermHandlers{SessionRegistry: reg}
+
+	tests := []struct {
+		name         string
+		joinMode     types.SessionParticipantMode
+		accessDenied bool
+	}{
+		{
+			name:         "empty join mode denied",
+			accessDenied: true,
+		},
+		{
+			name:         "peer denied",
+			joinMode:     types.SessionPeerMode,
+			accessDenied: true,
+		},
+		{
+			name:         "observer denied",
+			joinMode:     types.SessionObserverMode,
+			accessDenied: true,
+		},
+		{
+			name:     "moderator allowed",
+			joinMode: types.SessionModeratorMode,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			hostSess, _ := testOpenSession(t, reg, nil)
+			t.Cleanup(hostSess.Stop)
+
+			hostSess.scx.party.mode = tt.joinMode
+
+			err := termHandlers.HandleForceTerminate(nil, nil, hostSess.scx)
+			if tt.accessDenied {
+				require.True(t, trace.IsAccessDenied(err), "expected AccessDenied, got %v", err)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
 }
