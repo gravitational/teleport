@@ -236,7 +236,7 @@ importers:
         specifier: ^4.22.3
         version: 4.22.3
       undici:
-        specifier: ^8.3.0
+        specifier: ^8.4.1
         version: 8.4.1
 
   web/packages/build:
