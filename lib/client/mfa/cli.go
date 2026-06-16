@@ -182,14 +182,14 @@ func (c *CLIPrompt) filterMFAMethods(state mfaPromptState, isPerSessionMFA bool,
 	// If there are multiple options and we chose fewer without explicit user preference,
 	// notify the user about the available methods and how to select a specific one.
 	if len(availableMethods) > len(chosenMethods) && len(chosenMethods) > 0 && !userSpecifiedMethod {
-		chosenMethodsString := strings.Join(chosenMethods, " and ")
-		availableMethodsString := strings.ToLower(strings.Join(availableMethods, ","))
-		flagModeValuesString := strings.ToLower(strings.Join(expandMFAMethods(availableMethods), ","))
+		joinedChosenMethods := strings.Join(chosenMethods, " and ")
+		joinedAvailableMethods := strings.Join(availableMethods, ", ")
+		joinedFlags := strings.ToLower(strings.Join(expandMFAMethods(availableMethods), ","))
 
 		const msg = "" +
 			"Available MFA methods [%v]. Continuing with %v.\r\n" +
 			"If you wish to perform MFA with another method, specify with flag --mfa-mode=<%v> or environment variable TELEPORT_MFA_MODE=<%v>.\r\n\r\n"
-		fmt.Fprintf(c.writer(), msg, availableMethodsString, chosenMethodsString, flagModeValuesString, flagModeValuesString)
+		fmt.Fprintf(c.writer(), msg, joinedAvailableMethods, joinedChosenMethods, joinedFlags, joinedFlags)
 	}
 
 	return state, userSpecifiedMethod
