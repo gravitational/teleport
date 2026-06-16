@@ -100,7 +100,7 @@ export default function TopBar(props: Props) {
             hiDpiSupported={hiDpiSupported}
           />
           {/* TODO(rhammonds): Remove sharing from the action menu in v20 */}
-          <ActionMenu            
+          <ActionMenu
             showShareDirectory={
               canShareDirectory &&
               sharedDirectories.length < maxSharedDirectories
