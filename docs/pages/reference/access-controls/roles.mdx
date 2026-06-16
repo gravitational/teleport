@@ -696,6 +696,11 @@ spec:
 
 ## Access Requests
 
+Access Requests are Teleport's mechanism for *just-in-time (JIT) access*: rather
+than holding elevated permissions permanently, a user requests them, a reviewer
+approves the request, and the elevated access expires automatically after a
+configurable duration.
+
 The following role fields configure Access Requests. For a full description of
 Access Request configuration fields and their relationship to one another, see
 the [Access Request configuration
@@ -737,6 +742,73 @@ The `options` field, a property of `spec`, applies additional settings:
 |---|---|---|
 |`options.request_access`|Configures Teleport client behavior for creating Access Requests|[How clients request access](../../identity-governance/access-requests/access-request-configuration.mdx)|
 |`options.request_prompt`|Configures the prompt that Teleport clients display when a user requests access|[How clients request access](../../identity-governance/access-requests/access-request-configuration.mdx)|
+
+### Example roles
+
+The following examples show common just-in-time access patterns. For the full
+range of configuration options, see the [Access Request configuration
+guide](../../identity-governance/access-requests/access-request-configuration.mdx).
+
+The role below lets a user request temporary access to the `dba` role. The
+`max_duration` field limits how long the elevated access lasts before it
+expires:
+
+```yaml
+kind: role
+version: v8
+metadata:
+  name: dba-requester
+spec:
+  allow:
+    request:
+      # Users with this role can request temporary access to the `dba` role.
+      roles: ['dba']
+      # Granted access lasts at most 4 hours, then expires automatically.
+      max_duration: 4h
+```
+
+<Admonition type="tip">
+The `max_duration` field is what makes access *just-in-time*: it caps how long
+elevated privileges last (up to a maximum of 14 days) so access is granted
+temporarily rather than permanently.
+</Admonition>
+
+To let users request access to specific resources—such as a single server or
+database—rather than a whole role, use `search_as_roles`. Users can search for
+any resource the listed roles can reach, without holding those roles
+permanently:
+
+```yaml
+kind: role
+version: v8
+metadata:
+  name: db-resource-requester
+spec:
+  allow:
+    request:
+      # Users can search for and request access to any resource the
+      # `db-access` role can reach.
+      search_as_roles: ['db-access']
+      max_duration: 4h
+```
+
+A reviewer role grants the ability to approve or deny requests. Adding
+`preview_as_roles` lets reviewers inspect the resources a requester would gain
+access to before making a decision:
+
+```yaml
+kind: role
+version: v8
+metadata:
+  name: dba-reviewer
+spec:
+  allow:
+    review_requests:
+      # Users with this role can approve or deny requests for the `dba` role.
+      roles: ['dba']
+      # Allow reviewers to preview the resources the requester would gain.
+      preview_as_roles: ['dba']
+```
 
 ## Role templates
 
