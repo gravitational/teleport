@@ -2134,4 +2134,4 @@ endif
 
 .PHONY: mobile/Verify/Verify/gen/Enroll.xcframework
 mobile/Verify/Verify/gen/Enroll.xcframework:
-	go tool gomobile bind -target=ios -o $@ github.com/gravitational/teleport/lib/mobile/verify/enroll
+	$(GOMOBILE) bind -target=ios -o $@ github.com/gravitational/teleport/lib/mobile/verify/enroll
