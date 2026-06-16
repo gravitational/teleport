@@ -798,13 +798,7 @@ func (a *ScopedServerWithRoles) GenerateHostCerts(ctx context.Context, req *prot
 // checkAdditionalSystemRoles verifies additional system roles in host cert request.
 func (a *ScopedServerWithRoles) checkAdditionalSystemRoles(ctx context.Context, req *proto.HostCertsRequest) error {
 	// ensure requesting cert's primary role is a server role.
-	var isServer bool
-	switch role := a.scopedContext.Identity.(type) {
-	case authz.BuiltinRole:
-		isServer = role.IsServer()
-	case authz.ScopedBuiltinRole:
-		isServer = role.IsServer()
-	}
+	_, isServer := getBuiltinServerID(a.scopedContext.Identity)
 	if !isServer {
 		return trace.AccessDenied("additional system roles can only be claimed by a teleport built-in server")
 	}
@@ -886,10 +880,10 @@ func (a *ServerWithRoles) AssertSystemRole(ctx context.Context, req proto.System
 // RegisterInventoryControlStream handles the upstream half of the control stream handshake, then passes the control stream to
 // the auth server's main control logic. We also return the post-auth hello message back up to the grpcserver layer in order to
 // use it for metrics purposes.
-func (a *ServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInventoryControlStream) (*proto.UpstreamInventoryHello, error) {
+func (a *ScopedServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInventoryControlStream) (*proto.UpstreamInventoryHello, error) {
 	// Ensure that caller is a teleport server
-	role, ok := a.context.Identity.(authz.BuiltinRole)
-	if !ok || !role.IsServer() {
+	serverID, isBuiltinServer := getBuiltinServerID(a.scopedContext.Identity)
+	if !isBuiltinServer {
 		return nil, trace.AccessDenied("inventory control streams can only be created by a teleport built-in server")
 	}
 
@@ -910,8 +904,8 @@ func (a *ServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInve
 	}
 
 	// verify that server is creating stream on behalf of itself.
-	if hello.GetServerID() != role.GetServerID() {
-		return nil, trace.AccessDenied("control streams do not support impersonation (%q -> %q)", role.GetServerID(), hello.GetServerID())
+	if hello.GetServerID() != serverID {
+		return nil, trace.AccessDenied("control streams do not support impersonation (%q -> %q)", serverID, hello.GetServerID())
 	}
 
 	// in order to reduce sensitivity to downgrades/misconfigurations, we simply filter out
@@ -921,7 +915,7 @@ func (a *ServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInve
 		if !a.hasBuiltinRole(types.SystemRole(service)) {
 			a.authServer.logger.WarnContext(a.CloseContext(), "Omitting unknown or unauthorized service for instance control stream",
 				"omitted_service", service,
-				"instance", role.GetServerID(),
+				"instance", serverID,
 			)
 			continue
 		}
@@ -933,12 +927,12 @@ func (a *ServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInve
 	// If the hello message's scope is non-empty, we can verify that it matches the authenticated
 	// scope in the identity. Otherwise, in order to support agents unaware of scopes, we fall back
 	// to the authenticated identity's scope.
-	agentScope := a.context.Identity.GetIdentity().GetAgentScope()
-	if hello.Scope != "" && hello.Scope != agentScope {
-		return nil, trace.AccessDenied("provided scope %q does not match agent identity %q", hello.Scope, agentScope)
+	agentScope := a.scopedContext.Identity.GetIdentity().GetAgentScope()
+	if hello.GetScope() != "" && hello.GetScope() != agentScope {
+		return nil, trace.AccessDenied("provided scope %q does not match agent identity %q", hello.GetScope(), agentScope)
 	}
-	hello.Scope = agentScope
-	labelHash := a.context.Identity.GetIdentity().ImmutableLabelHash
+	hello.SetScope(agentScope)
+	labelHash := a.scopedContext.Identity.GetIdentity().ImmutableLabelHash
 	if labels := hello.GetImmutableLabels(); labels != nil || labelHash != "" {
 		if !joining.VerifyImmutableLabelsHash(labels, labelHash) {
 			return nil, trace.AccessDenied("immutable labels do not match their agent identity")
@@ -1276,6 +1270,7 @@ func (a *ScopedServerWithRoles) NewStream(ctx context.Context, watch types.Watch
 	if err := a.authorizeWatchRequest(ctx, &watch); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return a.authServer.NewStream(ctx, watch)
 }
 
@@ -1352,7 +1347,12 @@ func (a *ScopedServerWithRoles) authorizeWatchRequest(ctx context.Context, watch
 	if len(validKinds) == 0 {
 		return trace.BadParameter("none of the requested kinds can be watched")
 	}
+
 	watch.Kinds = validKinds
+	if a.hasBuiltinRole(types.RoleNode) {
+		watch.QueueSize = defaults.NodeQueueSize
+	}
+
 	return nil
 }
 
@@ -5800,12 +5800,18 @@ func (a *ServerWithRoles) GetClusterAuditConfig(ctx context.Context) (types.Clus
 }
 
 // GetClusterNetworkingConfig gets cluster networking configuration.
-func (a *ServerWithRoles) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
-	if err := a.authorizeAction(types.KindClusterNetworkingConfig, types.VerbRead); err != nil {
-		if err2 := a.authorizeAction(types.KindClusterConfig, types.VerbRead); err2 != nil {
+func (a *ScopedServerWithRoles) GetClusterNetworkingConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
+	ruleCtx := a.scopedContext.RuleContext()
+	if err := a.scopedContext.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadClusterNetworkingConfig, &ruleCtx); err != nil {
+		unscopedCtx, isUnscoped := a.scopedContext.UnscopedContext()
+		if !isUnscoped {
+			return nil, trace.Wrap(err)
+		}
+		if err2 := unscopedCtx.CheckAccessToKind(types.KindClusterConfig, types.VerbRead); err2 != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
+
 	cfg, err := a.authServer.GetReadOnlyClusterNetworkingConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -5928,9 +5934,14 @@ func (a *ServerWithRoles) ResetClusterNetworkingConfig(ctx context.Context) erro
 }
 
 // GetSessionRecordingConfig gets session recording configuration.
-func (a *ServerWithRoles) GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error) {
-	if err := a.authorizeAction(types.KindSessionRecordingConfig, types.VerbRead); err != nil {
-		if err2 := a.authorizeAction(types.KindClusterConfig, types.VerbRead); err2 != nil {
+func (a *ScopedServerWithRoles) GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error) {
+	ruleCtx := a.scopedContext.RuleContext()
+	if err := a.scopedContext.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadSessionRecordingConfig, &ruleCtx); err != nil {
+		unscopedCtx, isUnscoped := a.scopedContext.UnscopedContext()
+		if !isUnscoped {
+			return nil, trace.Wrap(err)
+		}
+		if err2 := unscopedCtx.CheckAccessToKind(types.KindClusterConfig, types.VerbRead); err2 != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -8936,4 +8947,17 @@ func checkOktaLockAccess(ctx context.Context, authzCtx *authz.Context, locks ser
 	}
 
 	return okta.CheckAccess(authzCtx, existingLock, verb)
+}
+
+// getBuiltinServerID returns the builtin server ID associated with the identity.
+// If the identity is not a builtin server role, and empty string and false are returned.
+func getBuiltinServerID(identityGetter authz.IdentityGetter) (serverID string, isBuiltinServer bool) {
+	switch role := identityGetter.(type) {
+	case authz.BuiltinRole:
+		return role.GetServerID(), role.IsServer()
+	case authz.ScopedBuiltinRole:
+		return role.GetServerID(), role.IsServer()
+	}
+
+	return "", false
 }

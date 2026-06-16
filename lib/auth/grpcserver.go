@@ -547,7 +547,17 @@ func (g *GRPCServer) WatchEvents(watch *authpb.Watch, stream authpb.AuthService_
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(WatchEvents(watch, stream, auth.scopedContext.User.GetName(), auth, modules.GetModules()))
+	var componentName string
+	if auth.scopedContext.User != nil {
+		componentName = auth.scopedContext.User.GetName()
+	} else {
+		var isBuiltinServer bool
+		componentName, isBuiltinServer = getBuiltinServerID(auth.scopedContext.Identity)
+		if !isBuiltinServer {
+			return trace.BadParameter("could not derive component name from auth context")
+		}
+	}
+	return trace.Wrap(WatchEvents(watch, stream, componentName, auth, modules.GetModules()))
 }
 
 // WatchEvent is a stream interface for sending events.
@@ -850,7 +860,7 @@ var icsServiceToMetricName = map[types.SystemRole]string{
 }
 
 func (g *GRPCServer) InventoryControlStream(stream authpb.AuthService_InventoryControlStreamServer) error {
-	auth, err := g.authenticate(stream.Context())
+	auth, err := g.scopedAuthenticate(stream.Context())
 	if err != nil {
 		return trail.ToGRPC(err)
 	}
@@ -3902,11 +3912,11 @@ func (g *GRPCServer) GetClusterAuditConfig(ctx context.Context, _ *emptypb.Empty
 
 // GetClusterNetworkingConfig gets cluster networking configuration.
 func (g *GRPCServer) GetClusterNetworkingConfig(ctx context.Context, _ *emptypb.Empty) (*types.ClusterNetworkingConfigV2, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	netConfig, err := auth.ServerWithRoles.GetClusterNetworkingConfig(ctx)
+	netConfig, err := auth.GetClusterNetworkingConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3944,11 +3954,11 @@ func (g *GRPCServer) ResetClusterNetworkingConfig(ctx context.Context, _ *emptyp
 
 // GetSessionRecordingConfig gets session recording configuration.
 func (g *GRPCServer) GetSessionRecordingConfig(ctx context.Context, _ *emptypb.Empty) (*types.SessionRecordingConfigV2, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	recConfig, err := auth.ServerWithRoles.GetSessionRecordingConfig(ctx)
+	recConfig, err := auth.GetSessionRecordingConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
