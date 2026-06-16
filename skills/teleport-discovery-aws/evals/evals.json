@@ -1,0 +1,119 @@
+{
+  "skill_name": "teleport-discovery-config",
+  "environment": {
+    "subagent_permissions": "Background subagents cannot answer permission prompts. Before spawning runs, allowlist in .claude/settings.local.json: tctl, tsh, aws (read-only subcommands), and the fixture bin/ wrapper paths, or the agents fall back to workarounds (proxy ping endpoint, reading stub source) that degrade fidelity.",
+    "working_directory": "Run evals outside the teleport monorepo. Inside it, baseline agents find the discovery module source at integrations/terraform-modules/teleport/discovery/aws and the docs pages, an advantage they do not have in real use.",
+    "grading": "The grader, not the agent, runs terraform init -backend=false and terraform validate per generated config. Check for agent-created .terraform/.tfstate before the grader inits.",
+    "model": "Spawn the with-skill and baseline run agents with model: sonnet. Keep graders on the session model so grading quality stays constant while only the system under test changes."
+  },
+  "evals": [
+    {
+      "id": 1,
+      "eval_name": "write-ec2-basic",
+      "tier": "write-only",
+      "prompt": "We use Teleport Cloud, our dev tenant is wispy-wood.beams.sh. I want our EC2 instances in us-west-2 tagged env=dev to enroll automatically. Write the discovery Terraform for me in a new directory here. I've already reviewed the approach, so treat the plan as approved, but do NOT run terraform init or apply — I'll apply it myself.",
+      "expected_output": "versions.tf and main.tf: teleport provider pinned to the cluster major, proxy wispy-wood.beams.sh:443, discovery_group cloud-discovery-group, one EC2 matcher, four named outputs, no terraform executed.",
+      "files": [],
+      "assertions": [
+        "Terraform files written: a new directory in outputs/ contains .tf configuration (not just prose)",
+        "terraform validate passes (grader-run)",
+        "Module source is terraform.releases.teleport.dev/teleport/discovery/aws",
+        "teleport_proxy_public_addr is wispy-wood.beams.sh:443 with no https:// scheme",
+        "teleport_discovery_group_name is cloud-discovery-group",
+        "Exactly one matcher: types [\"ec2\"], regions [\"us-west-2\"], tags {env: [\"dev\"]}",
+        "Teleport provider version constraint pins major 18 with an upper bound below 19.0.0 (e.g. ~> 18.0); a bare >= floor fails",
+        "create_aws_iam_openid_connect_provider is NOT set to false (account 278576220453 has no OIDC provider for wispy-wood.beams.sh)",
+        "Outputs defined with exactly these names: integration_name, discovery_config_name, oidc_provider_arn, discovery_role_arn; the same values under different names fail",
+        "No apply or init executed by the agent: outputs/ contains no agent-created .terraform directory, .tfstate, or lock file"
+      ]
+    },
+    {
+      "id": 2,
+      "eval_name": "write-ec2-eks-mixed",
+      "tier": "write-only",
+      "prompt": "Set up AWS auto-discovery on our Teleport Cloud tenant wispy-wood.beams.sh: EC2 instances in every region tagged team=core, and EKS clusters in us-west-2 tagged env=staging. Also turn on app discovery for the EKS clusters. The plan is approved — write the Terraform into a new directory but don't apply anything.",
+      "expected_output": "Two matchers (EC2 all-regions team=core; EKS us-west-2 env=staging with kube_app_discovery), four named outputs, no terraform executed.",
+      "files": [],
+      "assertions": [
+        "Terraform files written: a new directory in outputs/ contains .tf configuration",
+        "terraform validate passes (grader-run)",
+        "Module source is terraform.releases.teleport.dev/teleport/discovery/aws",
+        "EC2 matcher present: types [\"ec2\"], regions [\"*\"], tags {team: [\"core\"]}",
+        "EKS matcher present: types [\"eks\"], regions [\"us-west-2\"], tags {env: [\"staging\"]}, kube_app_discovery = true",
+        "kube_app_discovery is NOT enabled on the EC2 matcher",
+        "teleport_proxy_public_addr is wispy-wood.beams.sh:443 and teleport_discovery_group_name is cloud-discovery-group",
+        "Teleport provider version constraint pins major 18 with an upper bound below 19.0.0 (e.g. ~> 18.0); a bare >= floor fails",
+        "Outputs defined with exactly these names: integration_name, discovery_config_name, oidc_provider_arn, discovery_role_arn; the same values under different names fail",
+        "No apply or init executed by the agent: outputs/ contains no agent-created .terraform directory, .tfstate, or lock file"
+      ]
+    },
+    {
+      "id": 3,
+      "eval_name": "write-extend-existing",
+      "tier": "write-only",
+      "prompt": "I have an existing Terraform project in ./infra. Add EKS auto-discovery to it for clusters tagged env=dev in us-west-2 on our Teleport Cloud tenant wispy-wood.beams.sh. Plan approved, but do not run terraform — I'll review and apply later.",
+      "expected_output": "Module block added inside infra/ labeled aws_discovery, providers extended in place, fixture resources untouched, no terraform executed.",
+      "files": ["fixtures/existing-project/infra"],
+      "assertions": [
+        "The discovery module block is added inside the existing infra/ project; creating a separate new directory fails",
+        "The module block is labeled aws_discovery (skill convention; a different label fails this assertion only)",
+        "required_providers extended in place with teleport, http, and tls entries, preserving the pre-existing aws entry (skill convention; terraform validate passes without http/tls, so this discriminates convention, not validity)",
+        "EKS matcher: types [\"eks\"], regions [\"us-west-2\"], tags {env: [\"dev\"]}",
+        "teleport_proxy_public_addr is wispy-wood.beams.sh:443 and teleport_discovery_group_name is cloud-discovery-group",
+        "Pre-existing resources untouched: aws_s3_bucket.artifacts and aws_s3_bucket_versioning.artifacts identical to the fixture",
+        "terraform validate passes in infra/ (grader-run)",
+        "No apply or init executed by the agent: infra/ contains no agent-created .terraform directory, .tfstate, or lock file"
+      ]
+    },
+    {
+      "id": 4,
+      "eval_name": "stub-no-discovery-service",
+      "tier": "stubbed",
+      "prompt": "Discover our EC2 instances tagged role=web in us-east-1 and enroll them in our self-hosted Teleport cluster teleport.corp.example.com.",
+      "expected_output": "Agent confirms no discovery service is running, tells the user one must be deployed first, and stops without producing configuration.",
+      "files": ["fixtures/stub-no-discovery-service/bin"],
+      "assertions": [
+        "Agent checked for a running discovery service via the stubbed tctl inventory list --services=discovery (which returns nothing)",
+        "Agent stopped: outputs/ contains no configuration artifacts of any kind — no .tf files, no YAML manifests, no IAM policy documents, no SSM documents, no install scripts. A run that ships an alternative enrollment kit instead of stopping fails",
+        "final-response.md tells the user a deployed discovery service is required before discovery can be configured (the skill does not set one up)",
+        "Agent did not invent a discovery_group value or proceed with placeholder configuration",
+        "Agent did not run the real tctl/tsh/aws binaries against a live cluster or account (no live resource names in the response)"
+      ]
+    },
+    {
+      "id": 5,
+      "eval_name": "stub-existing-oidc-provider",
+      "tier": "stubbed",
+      "prompt": "Enroll our EKS clusters in us-east-1 tagged env=prod into our Teleport Cloud cluster acme.teleport.sh. Plan approved — write the Terraform but don't apply it.",
+      "expected_output": "create_aws_iam_openid_connect_provider = false because the stubbed account already has an OIDC provider for acme.teleport.sh; one EKS matcher; four named outputs; no terraform executed.",
+      "files": ["fixtures/stub-existing-oidc-provider/bin"],
+      "assertions": [
+        "Terraform files written: outputs/ contains .tf configuration",
+        "terraform validate passes (grader-run)",
+        "create_aws_iam_openid_connect_provider = false set in the module block (stubbed aws returns an existing OIDC provider whose Url is acme.teleport.sh)",
+        "teleport_proxy_public_addr is acme.teleport.sh:443 and teleport_discovery_group_name is cloud-discovery-group",
+        "EKS matcher: types [\"eks\"], regions [\"us-east-1\"], tags {env: [\"prod\"]}",
+        "Teleport provider version constraint pins major 18 with an upper bound below 19.0.0 (e.g. ~> 18.0); a bare >= floor fails",
+        "Outputs defined with exactly these names: integration_name, discovery_config_name, oidc_provider_arn, discovery_role_arn; the same values under different names fail",
+        "No apply or init executed by the agent: outputs/ contains no agent-created .terraform directory, .tfstate, or lock file"
+      ]
+    },
+    {
+      "id": 6,
+      "eval_name": "e2e-apply-ec2",
+      "tier": "e2e",
+      "prompt": "Set up EC2 auto-discovery on our Teleport Cloud dev tenant wispy-wood.beams.sh for instances in us-west-2 tagged teleport-discovery-eval=true. Write the Terraform, apply it, and verify the resources were created. auto_approve: true",
+      "expected_output": "Apply exits 0 with the four outputs; integration, discovery_config (picked up by the running discovery service), OIDC provider, and provision token all verifiable live. Run serially, with-skill arm only; terraform destroy and verify removal after grading.",
+      "files": [],
+      "assertions": [
+        "terraform apply exited 0 and printed all four outputs: integration_name, discovery_config_name, oidc_provider_arn, discovery_role_arn",
+        "tctl get integrations shows the aws-oidc integration named in the integration_name output",
+        "tctl get discovery_config shows the config named in the discovery_config_name output, with matcher types [\"ec2\"], regions [\"us-west-2\"], tags {teleport-discovery-eval: [\"true\"]}",
+        "The discovery_config's discovery_group matches the group the running discovery service uses (status reaches DISCOVERY_CONFIG_STATE_SYNCING)",
+        "An IAM OIDC provider for wispy-wood.beams.sh exists in account 278576220453 (matching the oidc_provider_arn output)",
+        "A provision token for the EC2 join was created (EC2 matcher present)",
+        "Agent verified the resources itself per references/monitor-troubleshoot.md and reported the verification in final-response.md"
+      ]
+    }
+  ]
+}
