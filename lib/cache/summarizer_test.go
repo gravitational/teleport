@@ -21,9 +21,7 @@ import (
 	"iter"
 	"testing"
 	"testing/synctest"
-	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
@@ -145,59 +143,94 @@ func createClassifiers(t *testing.T, ctx context.Context, p *testPack, names []s
 		require.NoError(t, err, "failed to create Classifier %q", name)
 	}
 
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		results := collectClassifiers(t, p.cache.RangeClassifiers(ctx, "", ""))
-		require.Len(t, results, len(names))
-	}, 10*time.Second, 100*time.Millisecond)
+	// Wait for the cache to observe all created classifiers.
+	synctest.Wait()
+	results := collectClassifiers(t, p.cache.RangeClassifiers(ctx, "", ""))
+	require.Len(t, results, len(names))
 }
 
 // TestClassifierCacheRange tests that RangeClassifiers iterates in name order
 // and honors range bounds.
 func TestClassifierCacheRange(t *testing.T) {
-	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		ctx := t.Context()
 
-	ctx := t.Context()
+		p := newTestPack(t, ForAuth)
+		t.Cleanup(p.Close)
 
-	p := newTestPack(t, ForAuth)
-	t.Cleanup(p.Close)
+		createClassifiers(t, ctx, p, []string{
+			"test-classifier-2",
+			"test-classifier-1",
+			"test-classifier-3",
+		})
 
-	createClassifiers(t, ctx, p, []string{
-		"test-classifier-2",
-		"test-classifier-1",
-		"test-classifier-3",
-	})
-
-	names := func(in []*summarizerv1.Classifier) []string {
-		out := make([]string, len(in))
-		for i, c := range in {
-			out[i] = c.GetMetadata().GetName()
+		names := func(in []*summarizerv1.Classifier) []string {
+			out := make([]string, len(in))
+			for i, c := range in {
+				out[i] = c.GetMetadata().GetName()
+			}
+			return out
 		}
-		return out
-	}
 
-	t.Run("full range is ascending by name", func(t *testing.T) {
+		// Full range is ascending by name. (t.Run subtests are not permitted
+		// inside a synctest bubble, so the cases are inlined.)
 		got := collectClassifiers(t, p.cache.RangeClassifiers(ctx, "", ""))
 		require.Equal(t, []string{
 			"test-classifier-1",
 			"test-classifier-2",
 			"test-classifier-3",
 		}, names(got))
-	})
 
-	t.Run("bounded range is exclusive of end", func(t *testing.T) {
-		got := collectClassifiers(t, p.cache.RangeClassifiers(ctx, "test-classifier-2", "test-classifier-3"))
+		// Bounded range is exclusive of end.
+		got = collectClassifiers(t, p.cache.RangeClassifiers(ctx, "test-classifier-2", "test-classifier-3"))
 		require.Equal(t, []string{
 			"test-classifier-2",
 		}, names(got))
-	})
 
-	t.Run("open-ended range starts at the given name", func(t *testing.T) {
-		got := collectClassifiers(t, p.cache.RangeClassifiers(ctx, "test-classifier-2", ""))
+		// Open-ended range starts at the given name.
+		got = collectClassifiers(t, p.cache.RangeClassifiers(ctx, "test-classifier-2", ""))
 		require.Equal(t, []string{
 			"test-classifier-2",
 			"test-classifier-3",
 		}, names(got))
 	})
+}
+
+// TestClassifierCacheRangeUpstreamFallback tests that RangeClassifiers falls
+// back to the upstream service when the cache is unhealthy.
+func TestClassifierCacheRangeUpstreamFallback(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	// neverOK keeps the cache permanently unhealthy, forcing reads to fall back
+	// to the upstream service.
+	p := newTestPack(t, func(cfg Config) Config {
+		cfg = ForAuth(cfg)
+		cfg.neverOK = true
+		return cfg
+	})
+	t.Cleanup(p.Close)
+
+	want := []string{
+		"test-classifier-2",
+		"test-classifier-1",
+		"test-classifier-3",
+	}
+	for _, name := range want {
+		_, err := p.summarizer.CreateClassifier(ctx, summarizer.NewClassifier(name, summarizerv1.ClassifierSpec_builder{
+			Kinds:    []string{string(types.SSHSessionKind)},
+			Criteria: "sessions that touch production data",
+		}.Build()))
+		require.NoError(t, err, "failed to create Classifier %q", name)
+	}
+
+	got := collectClassifiers(t, p.cache.RangeClassifiers(ctx, "", ""))
+	gotNames := make([]string, len(got))
+	for i, c := range got {
+		gotNames[i] = c.GetMetadata().GetName()
+	}
+	require.ElementsMatch(t, want, gotNames)
 }
 
 func TestRetrievalModelCache(t *testing.T) {
