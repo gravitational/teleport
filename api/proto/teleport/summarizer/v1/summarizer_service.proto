@@ -66,8 +66,14 @@ service SummarizerService {
   // ListInferencePolicies lists all InferencePolicies that match the request.
   rpc ListInferencePolicies(ListInferencePoliciesRequest) returns (ListInferencePoliciesResponse);
 
+  // CreateClassifier creates a new Classifier.
+  rpc CreateClassifier(CreateClassifierRequest) returns (CreateClassifierResponse);
   // GetClassifier retrieves an existing Classifier by name.
   rpc GetClassifier(GetClassifierRequest) returns (GetClassifierResponse);
+  // UpdateClassifier updates an existing Classifier.
+  rpc UpdateClassifier(UpdateClassifierRequest) returns (UpdateClassifierResponse);
+  // UpsertClassifier creates a new Classifier or updates an existing one.
+  rpc UpsertClassifier(UpsertClassifierRequest) returns (UpsertClassifierResponse);
   // DeleteClassifier deletes an existing Classifier by name.
   rpc DeleteClassifier(DeleteClassifierRequest) returns (DeleteClassifierResponse);
   // ListClassifiers lists all Classifiers that match the request.
@@ -353,6 +359,18 @@ message ListInferencePoliciesResponse {
 
 // Summarization classifiers
 
+// CreateClassifierRequest is a request for creating a Classifier.
+message CreateClassifierRequest {
+  // Classifier is the Classifier resource to create.
+  Classifier classifier = 1;
+}
+
+// CreateClassifierResponse is a response to creating a Classifier.
+message CreateClassifierResponse {
+  // Classifier is the Classifier resource that was created.
+  Classifier classifier = 1;
+}
+
 // GetClassifierRequest is a request for retrieving a Classifier.
 message GetClassifierRequest {
   // Name is the resource name of the Classifier to retrieve.
@@ -362,6 +380,31 @@ message GetClassifierRequest {
 // GetClassifierResponse is a response to retrieving a Classifier.
 message GetClassifierResponse {
   // Classifier is the Classifier resource that was retrieved.
+  Classifier classifier = 1;
+}
+
+// UpdateClassifierRequest is a request for updating a Classifier.
+message UpdateClassifierRequest {
+  // Classifier is the Classifier resource to update.
+  Classifier classifier = 1;
+}
+
+// UpdateClassifierResponse is a response to updating a Classifier.
+message UpdateClassifierResponse {
+  // Classifier is the Classifier resource that was updated.
+  Classifier classifier = 1;
+}
+
+// UpsertClassifierRequest is a request for creating or updating a Classifier.
+message UpsertClassifierRequest {
+  // Classifier is the Classifier resource to create or update.
+  Classifier classifier = 1;
+}
+
+// UpsertClassifierResponse is a response to creating or updating a
+// Classifier.
+message UpsertClassifierResponse {
+  // Classifier is the Classifier resource that was created or updated.
   Classifier classifier = 1;
 }
 
