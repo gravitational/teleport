@@ -20,11 +20,13 @@ package expiry
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"testing/synctest"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -338,6 +340,113 @@ func TestAppSessionExpiryInterval(t *testing.T) {
 		require.Empty(t, mustListAppSessions(t, authServer))
 		require.Len(t, emitter.Events(), 3)
 	})
+}
+
+// metricsTestResource bundles the per-kind helpers needed by TestExpiryMetrics
+// so the table can stay declarative.
+type metricsTestResource struct {
+	// label is the value used for the resource_kind gauge label.
+	label string
+	// taskIndex is the position of this resource's task in expiryTasks.
+	taskIndex int
+	// create produces one resource that is expired (or expires within ns of
+	// the scan firing). The index argument disambiguates resources that need
+	// unique names (e.g. app sessions tied to distinct users).
+	create func(t *testing.T, authServer *auth.Server, i int)
+	// remaining returns the number of resources of this kind still in the
+	// backend.
+	remaining func(t *testing.T, authServer *auth.Server) int
+}
+
+var (
+	appSessionMetricsResource = metricsTestResource{
+		label:     types.KindAppSession,
+		taskIndex: 1,
+		create: func(t *testing.T, authServer *auth.Server, i int) {
+			createAppSession(t, authServer, fmt.Sprintf("user-%d", i), time.Now().Add(1))
+		},
+		remaining: func(t *testing.T, authServer *auth.Server) int {
+			return len(mustListAppSessions(t, authServer))
+		},
+	}
+	accessRequestMetricsResource = metricsTestResource{
+		label:     types.KindAccessRequest,
+		taskIndex: 0,
+		create: func(t *testing.T, authServer *auth.Server, _ int) {
+			_ = createAccessRequest(t, authServer, types.RequestState_DENIED, time.Now().Add(1))
+		},
+		remaining: func(t *testing.T, authServer *auth.Server) int {
+			return len(mustListAccessRequests(t, authServer))
+		},
+	}
+)
+
+// TestExpiryMetrics verifies the before-scan and after-scan gauges for both
+// resource kinds and the behavior when expired resources exceed maxExpiresPerCycle.
+func TestExpiryMetrics(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		resource        metricsTestResource
+		numCreate       int
+		expectProcessed int // capped by maxExpiresPerCycle
+	}{
+		{
+			name:            "app session: all processed",
+			resource:        appSessionMetricsResource,
+			numCreate:       3,
+			expectProcessed: 3,
+		},
+		{
+			name:            "access request: all processed",
+			resource:        accessRequestMetricsResource,
+			numCreate:       3,
+			expectProcessed: 3,
+		},
+		{
+			name:            "access request: cap hit, remainder expected",
+			resource:        accessRequestMetricsResource,
+			numCreate:       maxExpiresPerCycle + 5,
+			expectProcessed: maxExpiresPerCycle,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			synctest.Test(t, func(t *testing.T) {
+				const testInterval = time.Hour
+
+				expiry, authServer, emitter := setupExpiryService(t, true)
+				expiry.expiryTasks[tc.resource.taskIndex].intervalCfg = interval.Config{
+					Duration:      testInterval,
+					FirstDuration: testInterval,
+				}
+				runExpiryBackground(t, func(ctx context.Context) error {
+					return expiry.run(ctx, expiry.expiryTasks[tc.resource.taskIndex])
+				})
+
+				for i := range tc.numCreate {
+					tc.resource.create(t, authServer, i)
+				}
+				require.Equal(t, tc.numCreate, tc.resource.remaining(t, authServer))
+
+				// Trigger exactly one sweep.
+				time.Sleep(testInterval)
+				synctest.Wait()
+
+				expectAfter := tc.numCreate - tc.expectProcessed
+				require.Equal(t, expectAfter, tc.resource.remaining(t, authServer))
+				require.Len(t, emitter.Events(), tc.expectProcessed)
+
+				beforeMetric := expiry.metrics.expiredBeforeScan.WithLabelValues(tc.resource.label)
+				afterMetric := expiry.metrics.expiredAfterScan.WithLabelValues(tc.resource.label)
+				require.Equal(t, float64(tc.numCreate), testutil.ToFloat64(beforeMetric))
+				require.Equal(t, float64(expectAfter), testutil.ToFloat64(afterMetric))
+			})
+		})
+	}
 }
 
 // TestAppSessionExpiryTaskRegistration verifies that the app session expiry
