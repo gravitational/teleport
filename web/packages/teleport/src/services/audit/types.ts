@@ -2444,7 +2444,7 @@ type EventResourceConstraints = {
     role_arns_preview?: string[];
   };
   ssh?: {
-    logins_count: string[];
+    logins_count: number;
     logins_preview?: string[];
   };
 };
@@ -2452,7 +2452,8 @@ type EventResourceConstraints = {
 // EventResourceAccessId mirrors the JSON encoding of events.ResourceAccessId.
 type EventResourceAccessId = {
   id: EventResourceId;
-  // constraints is the JSON key produced by the Go oneof field encoding.
+  // constraints is emitted by the ResourceAccessID marshaler in
+  // api/types/events/resource_access_id_json.go.
   constraints?: EventResourceConstraints;
 };
 

@@ -31,7 +31,13 @@ type constraintsJSON struct {
 // field so that encoding/json can marshal and unmarshal the value without
 // needing to know the concrete interface type at runtime.
 type resourceAccessIDJSON struct {
-	Id          ResourceID       `json:"id"`
+	Id ResourceID `json:"id"`
+	// Constraints uses a lowercase "constraints" key for consistency with the
+	// rest of the audit schema. AWS Console constrained events emitted before
+	// this custom marshaler existed used the capitalized "Constraints" key
+	// (the generated oneof field has no json tag, so encoding/json fell back to
+	// the Go field name). Those legacy events still decode here because
+	// encoding/json matches keys case-insensitively on unmarshal.
 	Constraints *constraintsJSON `json:"constraints,omitempty"`
 }
 

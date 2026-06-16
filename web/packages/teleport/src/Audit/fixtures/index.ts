@@ -249,8 +249,8 @@ export const events = [
           kind: 'node',
           name: 'server-01',
         },
-        Constraints: {
-          ssh: { logins: ['alice', 'root'] },
+        constraints: {
+          ssh: { logins_count: 2, logins_preview: ['alice', 'root'] },
         },
       },
       {
@@ -259,7 +259,7 @@ export const events = [
           kind: 'app',
           name: 'aws-console',
         },
-        Constraints: {
+        constraints: {
           aws_console: {
             role_arns_count: 3,
             role_arns_preview: [
@@ -275,7 +275,7 @@ export const events = [
           kind: 'node',
           name: 'legacy-server',
         },
-        Constraints: { unknown_constraints: {} },
+        constraints: { unknown_constraints: {} },
       },
     ],
   },

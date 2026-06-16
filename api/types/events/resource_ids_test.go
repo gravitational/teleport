@@ -191,3 +191,21 @@ func TestResourceAccessIDJSONRoundTrip(t *testing.T) {
 		})
 	}
 }
+
+// TestResourceAccessIDJSONDecodesLegacyCapitalKey guards the read path for audit
+// events written before the custom marshaler existed. Those events used a
+// capitalized "Constraints" key (the generated oneof field has no json tag, so
+// encoding/json fell back to the Go field name). The marshaler now emits a
+// lowercase "constraints" key, but legacy events must still decode.
+func TestResourceAccessIDJSONDecodesLegacyCapitalKey(t *testing.T) {
+	legacy := []byte(`{"id":{"cluster":"example.teleport.sh","kind":"app","name":"aws-console"},` +
+		`"Constraints":{"aws_console":{"role_arns_count":3}}}`)
+
+	var got ResourceAccessID
+	require.NoError(t, json.Unmarshal(legacy, &got))
+
+	require.Equal(t, "aws-console", got.Id.Name)
+	awsConsole, ok := got.Constraints.(*ResourceAccessID_AwsConsole)
+	require.True(t, ok, "legacy capitalized Constraints key should decode into the AWS Console variant")
+	require.Equal(t, uint32(3), awsConsole.AwsConsole.RoleArnsCount)
+}
