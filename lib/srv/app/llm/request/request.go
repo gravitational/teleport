@@ -20,8 +20,9 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 // Config is config used to create a new provide request.

@@ -27,13 +27,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/app/common"
-	"github.com/gravitational/trace"
 )
 
 // TestHandleRequest covers `handleRequest` function which is responsible for
