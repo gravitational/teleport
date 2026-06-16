@@ -22,6 +22,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
@@ -300,6 +301,66 @@ func TestCloudGetAWSSigninToken(t *testing.T) {
 				require.Equal(t, test.expectedToken, actualToken)
 			}
 		})
+	}
+}
+
+func TestCloudGetAWSSigninTokenTransportErrorDoesNotLeakSession(t *testing.T) {
+	ctx := t.Context()
+
+	// Inject recognizable, sensitive STS credentials so we can assert they
+	// never appear in the returned error.
+	mockProviderClient := func(provider *stscreds.AssumeRoleProvider) {
+		provider.Client = &mockAssumeRoler{
+			output: &sts.AssumeRoleOutput{
+				Credentials: &sts.Credentials{
+					AccessKeyId:     aws.String("FAKEACCESSKEYID"),
+					Expiration:      aws.Time(time.Now().Add(time.Hour)),
+					SecretAccessKey: aws.String("FAKESECRETACCESSKEY"),
+					SessionToken:    aws.String("FAKESESSIONTOKEN"),
+				},
+			},
+		}
+	}
+
+	awsSession := &awssession.Session{
+		Config: &aws.Config{
+			Credentials: credentials.NewStaticCredentials("id", "secret", ""),
+			Endpoint:    aws.String("http://localhost"),
+		},
+	}
+	c, err := NewCloud(CloudConfig{
+		SessionGetter: awsutils.StaticAWSSessionProvider(awsSession),
+	})
+	require.NoError(t, err)
+
+	cloud, ok := c.(*cloud)
+	require.True(t, ok)
+
+	req := &AWSSigninRequest{
+		Identity: &tlsca.Identity{
+			RouteToApp: tlsca.RouteToApp{
+				AWSRoleARN: "arn:aws:iam::123456789012:role/test",
+			},
+			Expires: time.Now().Add(24 * time.Hour),
+		},
+		Issuer: "test",
+	}
+
+	// An unsupported URL scheme makes http.Get fail with a *url.Error that
+	// embeds the full federation URL, including the session credentials in its
+	// query string. The error must be sanitized before being returned.
+	_, err = cloud.getAWSSigninToken(ctx, req, "ftp://signin.aws.amazon.com/federation", mockProviderClient)
+	require.Error(t, err)
+	require.True(t, trace.IsConnectionProblem(err), "expected connection problem, got %v", err)
+	require.Contains(t, err.Error(), "failed to request AWS federation sign-in token")
+
+	errMsg := err.Error()
+	for _, sensitive := range []string{
+		"sessionId", "sessionKey", "sessionToken",
+		"FAKEACCESSKEYID", "FAKESECRETACCESSKEY", "FAKESESSIONTOKEN",
+	} {
+		require.NotContains(t, errMsg, sensitive)
+		require.NotContains(t, errMsg, url.QueryEscape(sensitive))
 	}
 }
 
