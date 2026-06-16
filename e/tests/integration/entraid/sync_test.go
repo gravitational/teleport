@@ -210,7 +210,7 @@ func TestResourceImportWithCyclicGroupMembers(t *testing.T) {
 	plugin := newDefaultPluginSpec(t)
 	settings := plugin.Spec.GetEntraId().SyncSettings
 	settings.SyncIntervals = &types.PluginEntraIDSyncIntervals{
-		Full: "5m",
+		Full: "15s",
 	}
 	plugin.Spec.Settings = &types.PluginSpecV1_EntraId{
 		EntraId: &types.PluginEntraIDSettings{
@@ -223,6 +223,7 @@ func TestResourceImportWithCyclicGroupMembers(t *testing.T) {
 
 	// First full sync, should import all the user, group and group membership
 	// defined in [newDefaultStorage].
+	expectPluginStatusUpdated(t, ctx, env.authClient, plugin.GetName(), clock)
 	expectFailedPluginStatus := func(t *testing.T) {
 		t.Helper()
 
@@ -276,21 +277,8 @@ func TestResourceImportWithCyclicGroupMembers(t *testing.T) {
 	}
 	expectFilteredMembers(t)
 
-	// Update plugin to trigger re-sync.
-	// This time, the sync will skip bulk collection insert and will move to reconciler.
-	pluginToUpdate, err := env.authClient.PluginsClient().GetPlugin(ctx, pluginsv1.GetPluginRequest_builder{
-		Name: plugin.GetName(),
-	}.Build())
-	require.NoError(t, err)
-	settings = pluginToUpdate.Spec.GetEntraId().SyncSettings
-	settings.SyncIntervals.Full = "2h"
-	plugin.Spec.Settings = &types.PluginSpecV1_EntraId{
-		EntraId: &types.PluginEntraIDSettings{
-			SyncSettings: settings,
-		},
-	}
-	err = updateEntraIDPlugin(ctx, env.authClient, pluginToUpdate)
-	require.NoError(t, err, "expected Entra ID plugin to be updated")
+	// Wait for the next full sync,.
+	expectPluginStatusUpdated(t, ctx, env.authClient, plugin.GetName(), clock)
 
 	// In the first sync, resources are bulk inserted. In subsequent full sync
 	// resources are upserted using reconciler. But the resource assertion

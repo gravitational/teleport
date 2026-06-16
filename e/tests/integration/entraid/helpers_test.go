@@ -151,11 +151,6 @@ func mustCreatePlugin(t *testing.T, ctx context.Context, authClient authclient.C
 	require.NoError(t, err, "expected Entra ID plugin to be created")
 }
 
-func updateEntraIDPlugin(ctx context.Context, authClient authclient.ClientI, plugin *types.PluginV1) error {
-	_, err := authClient.PluginsClient().UpdatePlugin(ctx, pluginspb.UpdatePluginRequest_builder{Plugin: plugin}.Build())
-	return trace.Wrap(err)
-}
-
 func listEntraIDUsers(ctx context.Context, authClient authclient.ClientI) ([]string, error) {
 	resp, err := authClient.ListUsers(ctx, usersv1.ListUsersRequest_builder{
 		WithSecrets: false,

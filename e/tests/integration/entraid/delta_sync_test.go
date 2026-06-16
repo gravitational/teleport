@@ -45,6 +45,7 @@ func TestResourceImportDelta(t *testing.T) {
 
 	// First full sync, should import all the user, group and group membership
 	// defined in [newDefaultStorage].
+	expectPluginStatusUpdated(t, ctx, env.authClient, plugin.GetName(), clock)
 	expectDefaultPluginStatus(t, env.authClient, plugin.GetName())
 	expectDefaultUserSync(t, env.authClient)
 	expectDefaultGroupSync(t, env.authClient)
@@ -482,6 +483,7 @@ func TestResourceImportWithCyclicGroupMembersDelta(t *testing.T) {
 
 	// First full sync, should import all the user, group and group membership
 	// defined in [newDefaultStorage].
+	expectPluginStatusUpdated(t, ctx, env.authClient, plugin.GetName(), clock)
 	expectDefaultPluginStatus(t, env.authClient, plugin.GetName())
 	accessListClient := env.authClient.AccessListClient()
 	expectDefaultUserSync(t, env.authClient)
