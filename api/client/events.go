@@ -204,6 +204,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_InferencePolicy{
 			InferencePolicy: r.UnwrapT(),
 		}
+	case types.Resource153UnwrapperT[*summaryv1.Classifier]:
+		out.Resource = &proto.Event_Classifier{
+			Classifier: r.UnwrapT(),
+		}
 	case types.Resource153UnwrapperT[*summaryv1.RetrievalModel]:
 		out.Resource = &proto.Event_RetrievalModel{
 			RetrievalModel: r.UnwrapT(),
@@ -741,6 +745,9 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 		out.Resource = types.ProtoResource153ToLegacy(r)
 		return &out, nil
 	} else if r := in.GetInferencePolicy(); r != nil {
+		out.Resource = types.ProtoResource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetClassifier(); r != nil {
 		out.Resource = types.ProtoResource153ToLegacy(r)
 		return &out, nil
 	} else if r := in.GetRetrievalModel(); r != nil {

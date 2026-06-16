@@ -214,6 +214,10 @@ type AccessChecker interface {
 	// GetAllowedPreviewAsRoles returns all of the allowed PreviewAsRoles.
 	GetAllowedPreviewAsRoles() []string
 
+	// CheckSubmitForUser checks whether the current user is allowed to
+	// submit reviews for other users, to be used by plugins.
+	CheckSubmitForUser(currentUser, submitForUser types.User) error
+
 	// MaxConnections returns the maximum number of concurrent ssh connections
 	// allowed.  If MaxConnections is zero then no maximum was defined and the
 	// number of concurrent connections is unconstrained.

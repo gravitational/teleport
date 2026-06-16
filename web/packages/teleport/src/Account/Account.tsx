@@ -64,7 +64,7 @@ export function AccountPage({
   const manageDevicesState = useManageDevices(ctx);
 
   const canAddPasskeys = cfg.isPasswordlessEnabled();
-  const canAddMfa = cfg.isMfaEnabled();
+  const canAddMfa = cfg.isMfaUserConfigurable();
 
   function onPasswordChange() {
     storeUser.setState({ passwordState: PasswordState.PASSWORD_STATE_SET });

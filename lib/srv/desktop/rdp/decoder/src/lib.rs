@@ -41,6 +41,7 @@ pub struct RdpDecoder {
     cursor_state: CursorState,
     updated_regions: UpdatedRegions,
     resizer: Resizer,
+    composite_scratch: Vec<u8>,
 }
 
 impl RdpDecoder {
@@ -69,6 +70,7 @@ impl RdpDecoder {
             cursor_state: Default::default(),
             updated_regions: Default::default(),
             resizer: Resizer::new(),
+            composite_scratch: Vec::new(),
         }
     }
 
@@ -112,7 +114,7 @@ impl RdpDecoder {
                     }
                     UpdateKind::PointerBitmap(pointer) => {
                         self.cursor_state.set_visible(true);
-                        self.cursor_state.set_bitmap(&pointer);
+                        self.cursor_state.set_bitmap(pointer);
                     }
                     UpdateKind::PointerDefault => {
                         self.cursor_state.set_visible(true);
@@ -299,14 +301,18 @@ pub unsafe extern "C" fn rdp_decoder_image_data(
 }
 
 /// Writes a CatmullRom-resized copy of the source crop region into `out_buf`,
-/// scaled to exactly `out_width` x `out_height`. The crop must be within the
-/// current frame bounds; out-of-bounds crops are rejected.
+/// scaled to exactly `out_width` x `out_height`. When `with_cursor` is non-zero
+/// and the decoder's tracked cursor is visible, it is composited onto the full
+/// source frame before the crop is taken, so the cursor scales with the screen.
+/// The crop must lie within the current frame bounds; out-of-bounds crops are
+/// rejected.
 ///
 /// # Safety
 ///
 /// - `ptr` must be a valid pointer previously returned by `rdp_decoder_new`.
 /// - `out_buf` must point to `out_buf_len` writable bytes.
 #[no_mangle]
+#[allow(clippy::too_many_arguments)]
 pub unsafe extern "C" fn rdp_decoder_resize_crop(
     ptr: *mut RdpDecoder,
     crop_x: u16,
@@ -317,6 +323,7 @@ pub unsafe extern "C" fn rdp_decoder_resize_crop(
     out_height: u16,
     out_buf: *mut u8,
     out_buf_len: usize,
+    with_cursor: u8,
 ) -> bool {
     if ptr.is_null()
         || out_buf.is_null()
@@ -327,6 +334,8 @@ pub unsafe extern "C" fn rdp_decoder_resize_crop(
     {
         return false;
     }
+
+    let with_cursor = with_cursor != 0;
 
     catch_unwind(AssertUnwindSafe(move || unsafe {
         let decoder = &mut *ptr;
@@ -343,10 +352,52 @@ pub unsafe extern "C" fn rdp_decoder_resize_crop(
                 (crop_w, crop_h),
                 (out_width, out_height),
                 dst,
+                with_cursor,
             )
             .is_ok()
     }))
     .unwrap_or(false)
+}
+
+/// Override the decoder's tracked cursor position. Useful for cursor updates
+/// that arrive outside of the RDP fast-path stream (e.g., Teleport TDPB
+/// MouseMove events). Does not change visibility — visibility is still driven
+/// by RDP fast-path pointer updates.
+///
+/// # Safety
+///
+/// - `ptr` must be a valid pointer previously returned by `rdp_decoder_new`.
+#[no_mangle]
+pub unsafe extern "C" fn rdp_decoder_set_cursor_position(ptr: *mut RdpDecoder, x: u16, y: u16) {
+    if ptr.is_null() {
+        return;
+    }
+
+    let _ = catch_unwind(AssertUnwindSafe(move || unsafe {
+        let decoder = &mut *ptr;
+        decoder.cursor_state.move_cursor(x, y);
+    }));
+}
+
+/// Returns an FNV-1a 64-bit digest of pixels sampled on a fixed grid from the
+/// current frame buffer. `sample_count` controls the per-axis sample density.
+/// Returns 0 on null pointer or empty frame; the cursor is not composited so
+/// callers can match a non-cursor Go-side sampler exactly.
+///
+/// # Safety
+///
+/// - `ptr` must be a valid pointer previously returned by `rdp_decoder_new`.
+#[no_mangle]
+pub unsafe extern "C" fn rdp_decoder_sample_hash(ptr: *mut RdpDecoder, sample_count: u16) -> u64 {
+    if ptr.is_null() {
+        return 0;
+    }
+
+    catch_unwind(AssertUnwindSafe(move || unsafe {
+        let decoder = &*ptr;
+        decoder.sample_hash(sample_count)
+    }))
+    .unwrap_or(0)
 }
 
 /// Returns the current frame dimensions via out-params. Sets both to 0 on
@@ -400,27 +451,6 @@ pub unsafe extern "C" fn rdp_decoder_bytes_per_pixel(ptr: *mut RdpDecoder) -> u8
     .unwrap_or(0)
 }
 
-/// Returns an FNV-1a 64-bit digest of pixels sampled on a fixed grid from the
-/// current frame buffer. `sample_count` controls the per-axis sample density.
-/// Returns 0 on null pointer or empty frame; the cursor is not composited so
-/// callers can match a non-cursor Go-side sampler exactly.
-///
-/// # Safety
-///
-/// - `ptr` must be a valid pointer previously returned by `rdp_decoder_new`.
-#[no_mangle]
-pub unsafe extern "C" fn rdp_decoder_sample_hash(ptr: *mut RdpDecoder, sample_count: u16) -> u64 {
-    if ptr.is_null() {
-        return 0;
-    }
-
-    catch_unwind(AssertUnwindSafe(move || unsafe {
-        let decoder = &*ptr;
-        decoder.sample_hash(sample_count)
-    }))
-    .unwrap_or(0)
-}
-
 /// Returns the current cursor position and visibility state.
 ///
 /// # Safety
@@ -446,42 +476,6 @@ pub unsafe extern "C" fn rdp_decoder_cursor_state(
         *out_x = x;
         *out_y = y;
     }));
-}
-
-/// Returns a pointer to the cursor bitmap data and its dimensions via out-params.
-/// Returns null if no cursor bitmap is available. The returned pointer is valid
-/// as long as the decoder is alive and no new PointerBitmap update is processed.
-///
-/// # Safety
-///
-/// - `ptr` must be a valid pointer previously returned by `rdp_decoder_new`.
-/// - All out-params must be valid, non-null pointers.
-#[no_mangle]
-pub unsafe extern "C" fn rdp_decoder_cursor_bitmap(
-    ptr: *mut RdpDecoder,
-    out_width: *mut u16,
-    out_height: *mut u16,
-    out_hotspot_x: *mut u16,
-    out_hotspot_y: *mut u16,
-) -> *const u8 {
-    if ptr.is_null()
-        || out_width.is_null()
-        || out_height.is_null()
-        || out_hotspot_x.is_null()
-        || out_hotspot_y.is_null()
-    {
-        return ptr::null();
-    }
-
-    catch_unwind(AssertUnwindSafe(move || unsafe {
-        let decoder = &*ptr;
-        let Some(bmp) = decoder.cursor_state.bitmap() else {
-            return ptr::null();
-        };
-        bmp.write_metadata(out_width, out_height, out_hotspot_x, out_hotspot_y);
-        bmp.data_ptr()
-    }))
-    .unwrap_or(ptr::null())
 }
 
 /// Copies update regions into the caller-provided buffer as (left, top, right, bottom)
@@ -567,7 +561,7 @@ mod tests {
         let mut buf = vec![0xAAu8; 10 * 10 * 4];
 
         let ok = unsafe {
-            rdp_decoder_resize_crop(ptr, 90, 0, 20, 10, 10, 10, buf.as_mut_ptr(), buf.len())
+            rdp_decoder_resize_crop(ptr, 90, 0, 20, 10, 10, 10, buf.as_mut_ptr(), buf.len(), 0)
         };
 
         // Crop extends past right edge → call returns without writing.
@@ -583,7 +577,7 @@ mod tests {
         let mut buf = vec![0xAAu8; 10 * 10 * 4];
 
         let ok = unsafe {
-            rdp_decoder_resize_crop(ptr, 0, 95, 10, 10, 10, 10, buf.as_mut_ptr(), buf.len())
+            rdp_decoder_resize_crop(ptr, 0, 95, 10, 10, 10, 10, buf.as_mut_ptr(), buf.len(), 0)
         };
 
         assert!(!ok);
@@ -599,12 +593,14 @@ mod tests {
 
         unsafe {
             // crop_w = 0
-            let ok = rdp_decoder_resize_crop(ptr, 0, 0, 0, 10, 10, 10, buf.as_mut_ptr(), buf.len());
+            let ok =
+                rdp_decoder_resize_crop(ptr, 0, 0, 0, 10, 10, 10, buf.as_mut_ptr(), buf.len(), 0);
             assert!(!ok);
             assert!(buf.iter().all(|&b| b == 0xAA));
 
             // crop_h = 0
-            let ok = rdp_decoder_resize_crop(ptr, 0, 0, 10, 0, 10, 10, buf.as_mut_ptr(), buf.len());
+            let ok =
+                rdp_decoder_resize_crop(ptr, 0, 0, 10, 0, 10, 10, buf.as_mut_ptr(), buf.len(), 0);
             assert!(!ok);
             assert!(buf.iter().all(|&b| b == 0xAA));
 
@@ -619,7 +615,7 @@ mod tests {
 
         // Exactly fills the right edge: 90 + 10 == 100.
         let ok = unsafe {
-            rdp_decoder_resize_crop(ptr, 90, 90, 10, 10, 10, 10, buf.as_mut_ptr(), buf.len())
+            rdp_decoder_resize_crop(ptr, 90, 90, 10, 10, 10, 10, buf.as_mut_ptr(), buf.len(), 0)
         };
 
         assert!(ok);
@@ -643,6 +639,9 @@ mod tests {
 
     #[test]
     fn sample_hash_matches_fnv1a_reference() {
+        // 1x1 RGBA = single 4-byte tuple; sampler walks exactly that pixel.
+        // Reference value computed by hand against FNV-1a 64-bit (offset
+        // 0xcbf29ce484222325, prime 0x100000001b3), processing bytes 1,2,3,4.
         let mut h = FNV_OFFSET_BASIS;
         for b in [1u8, 2, 3, 4] {
             h ^= u64::from(b);
@@ -676,5 +675,48 @@ mod tests {
         let mut b = vec![0u8; 4];
         b[0] = 2;
         assert_ne!(sample_hash(&a, 1, 1, 4, 64), sample_hash(&b, 1, 1, 4, 64));
+    }
+
+    #[test]
+    fn resize_crop_with_cursor_accepts_in_bounds_crop() {
+        let ptr = make_decoder(100, 100);
+        let mut buf = vec![0xAAu8; 10 * 10 * 4];
+
+        unsafe {
+            (*ptr).cursor_state.set_visible(true);
+            rdp_decoder_set_cursor_position(ptr, 50, 50);
+        }
+
+        let ok = unsafe {
+            rdp_decoder_resize_crop(ptr, 0, 0, 100, 100, 10, 10, buf.as_mut_ptr(), buf.len(), 1)
+        };
+
+        assert!(ok);
+        assert!(
+            buf.iter().any(|&b| b != 0xAA),
+            "expected buffer to be written"
+        );
+
+        unsafe { rdp_decoder_free(ptr) };
+    }
+
+    #[test]
+    fn resize_crop_with_cursor_rejects_out_of_bounds_crop() {
+        let ptr = make_decoder(100, 100);
+        let mut buf = vec![0xAAu8; 10 * 10 * 4];
+
+        unsafe {
+            (*ptr).cursor_state.set_visible(true);
+            rdp_decoder_set_cursor_position(ptr, 50, 50);
+        }
+
+        let ok = unsafe {
+            rdp_decoder_resize_crop(ptr, 95, 0, 10, 10, 10, 10, buf.as_mut_ptr(), buf.len(), 1)
+        };
+
+        assert!(!ok);
+        assert!(buf.iter().all(|&b| b == 0xAA));
+
+        unsafe { rdp_decoder_free(ptr) };
     }
 }

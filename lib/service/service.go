@@ -614,7 +614,7 @@ func (c *Connector) TunnelProxyResolver() reversetunnelclient.Resolver {
 	}
 
 	switch dialer := c.Client.Dialer().(type) {
-	case *reversetunnelclient.TunnelAuthDialer:
+	case *reversetunnelclient.AuthDialerThroughProxy:
 		return dialer.Resolver
 	default:
 		return nil

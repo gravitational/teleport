@@ -1194,7 +1194,9 @@ func TestTCPIPForward(t *testing.T) {
 			// calculated with the updated rules.
 			clientConn, err := apissh.Dial(t.Context(), "tcp", f.ssh.srvAddress, f.ssh.cltConfig)
 			require.NoError(t, err)
-			defer clientConn.Close()
+			t.Cleanup(func() {
+				assert.NoError(t, clientConn.Close())
+			})
 
 			// Request a listener from the server.
 			listener, err := clientConn.Listen("tcp", tc.listenAddr)

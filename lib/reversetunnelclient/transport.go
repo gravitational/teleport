@@ -35,18 +35,19 @@ import (
 	"github.com/gravitational/teleport/lib/utils/proxy"
 )
 
-// NewTunnelAuthDialer creates a new instance of TunnelAuthDialer
-func NewTunnelAuthDialer(config TunnelAuthDialerConfig) (*TunnelAuthDialer, error) {
+// NewAuthDialerThroughProxy creates a new instance of [AuthDialerThroughProxy].
+func NewAuthDialerThroughProxy(config AuthDialerThroughProxyConfig) (*AuthDialerThroughProxy, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &TunnelAuthDialer{
-		TunnelAuthDialerConfig: config,
+	return &AuthDialerThroughProxy{
+		AuthDialerThroughProxyConfig: config,
 	}, nil
 }
 
-// TunnelAuthDialerConfig specifies TunnelAuthDialer configuration.
-type TunnelAuthDialerConfig struct {
+// AuthDialerThroughProxyConfig is the configuration of
+// [AuthDialerThroughProxy].
+type AuthDialerThroughProxyConfig struct {
 	// Resolver retrieves the address of the proxy
 	Resolver Resolver
 	// ClientConfig is SSH tunnel client config
@@ -55,11 +56,15 @@ type TunnelAuthDialerConfig struct {
 	Log *slog.Logger
 	// InsecureSkipTLSVerify is whether to skip certificate validation.
 	InsecureSkipTLSVerify bool
+	// AllowALPNRouting allows the dialer to return connections to the auth
+	// service that will only succeed when carrying the correct ALPN tag for
+	// auth connections.
+	AllowALPNRouting bool
 	// GetClusterCAs contains cluster CAs.
 	GetClusterCAs client.GetClusterCAsFunc
 }
 
-func (c *TunnelAuthDialerConfig) CheckAndSetDefaults() error {
+func (c *AuthDialerThroughProxyConfig) CheckAndSetDefaults() error {
 	switch {
 	case c.Resolver == nil:
 		return trace.BadParameter("missing tunnel address resolver")
@@ -71,14 +76,18 @@ func (c *TunnelAuthDialerConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// TunnelAuthDialer connects to the Auth Server through the reverse tunnel.
-type TunnelAuthDialer struct {
-	// TunnelAuthDialerConfig is the TunnelAuthDialer configuration.
-	TunnelAuthDialerConfig
+// AuthDialerThroughProxy is a dialer to open connections to the Auth service
+// through a Proxy. Depending on the configuration and the environment, it might
+// connect directly through the use of ALPN tags or through the reverse tunnel
+// SSH server, and, if necessary, it will connect through the Proxy webapi
+// connection upgrade mechanism, to get connections through TLS terminators and
+// HTTP-level reverse proxies.
+type AuthDialerThroughProxy struct {
+	AuthDialerThroughProxyConfig
 }
 
-// DialContext dials auth server via SSH tunnel
-func (t *TunnelAuthDialer) DialContext(ctx context.Context, _, _ string) (net.Conn, error) {
+// DialContext opens a connection to the Auth service through a Proxy.
+func (t *AuthDialerThroughProxy) DialContext(ctx context.Context, _, _ string) (net.Conn, error) {
 	// Connect to the reverse tunnel server.
 	opts := []proxy.DialerOptionFunc{
 		proxy.WithInsecureSkipTLSVerify(t.InsecureSkipTLSVerify),
@@ -94,6 +103,17 @@ func (t *TunnelAuthDialer) DialContext(ctx context.Context, _, _ string) (net.Co
 	}
 
 	if mode == types.ProxyListenerMode_Multiplex {
+		alpnConnUpgradeRequired := client.IsALPNConnUpgradeRequired(ctx, addr.Addr, t.InsecureSkipTLSVerify)
+		if t.AllowALPNRouting && !alpnConnUpgradeRequired {
+			// in multiplex mode the address of the tunnel returned by the
+			// resolver is also the address of the web listener which also
+			// allows ALPN-tagged connections to the auth without further
+			// wrapping
+			t.Log.DebugContext(ctx, "Connecting to the Auth Server through a proxy using an unwrapped connection")
+			dialer := proxy.DialerFromEnvironment(addr.Addr, opts...)
+			return dialer.DialTimeout(ctx, addr.AddrNetwork, addr.Addr, t.ClientConfig.Timeout)
+		}
+
 		opts = append(opts, proxy.WithALPNDialer(client.ALPNDialerConfig{
 			TLSConfig: &tls.Config{
 				NextProtos: []string{
@@ -103,7 +123,7 @@ func (t *TunnelAuthDialer) DialContext(ctx context.Context, _, _ string) (net.Co
 				InsecureSkipVerify: t.InsecureSkipTLSVerify,
 			},
 			DialTimeout:             t.ClientConfig.Timeout,
-			ALPNConnUpgradeRequired: client.IsALPNConnUpgradeRequired(ctx, addr.Addr, t.InsecureSkipTLSVerify),
+			ALPNConnUpgradeRequired: alpnConnUpgradeRequired,
 			GetClusterCAs:           t.GetClusterCAs,
 		}))
 	}

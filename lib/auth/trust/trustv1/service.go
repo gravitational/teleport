@@ -64,12 +64,20 @@ type authServer interface {
 	ListTrustedClusters(ctx context.Context, limit int, startKey string) ([]types.TrustedCluster, string, error)
 }
 
+// cacheReader is the subset of cache reads used by the trust gRPC service.
+type cacheReader interface {
+	services.AuthorityGetter
+	// ListTunnelConnections returns a page of tunnel connections matching the
+	// given filter.
+	ListTunnelConnections(ctx context.Context, pageSize int, pageToken string, filter *trustpb.ListTunnelConnectionsFilter) ([]types.TunnelConnection, string, error)
+}
+
 // ServiceConfig holds configuration options for
 // the trust gRPC service.
 type ServiceConfig struct {
 	Authorizer       authz.Authorizer
 	ScopedAuthorizer authz.ScopedAuthorizer
-	Cache            services.AuthorityGetter
+	Cache            cacheReader
 	Backend          services.TrustInternal
 	AuthServer       authServer
 	Modules          modules.Modules
@@ -80,7 +88,7 @@ type Service struct {
 	trustpb.UnimplementedTrustServiceServer
 	authorizer       authz.Authorizer
 	scopedAuthorizer authz.ScopedAuthorizer
-	cache            services.AuthorityGetter
+	cache            cacheReader
 	backend          services.TrustInternal
 	authServer       authServer
 	modules          modules.Modules
