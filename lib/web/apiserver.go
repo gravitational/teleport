@@ -3218,6 +3218,11 @@ func (h *Handler) mfaLoginBegin(w http.ResponseWriter, r *http.Request, p httpro
 		mfaReq.BrowserMFATSHRedirectURL = req.BrowserMFATSHRedirectURL
 	}
 
+	// Forward the end client's address so that audit events emitted on a failed
+	// credential check record the real source address rather than the
+	// Proxy->Auth connection address.
+	mfaReq.ClientRemoteAddr = r.RemoteAddr
+
 	mfaChallenge, err := h.auth.proxyClient.CreateAuthenticateChallenge(r.Context(), mfaReq)
 	if err != nil {
 		// Do not obfuscate config-related errors.

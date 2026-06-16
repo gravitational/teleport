@@ -2178,6 +2178,12 @@ message CreateAuthenticateChallengeRequest {
   // for browser MFA. The auth server will look up the SSOMFASession with this ID to retrieve
   // the challenge extensions and validate the requesting user matches the session owner.
   string BrowserMFARequestID = 10 [(gogoproto.jsontag) = "browser_mfa_request_id,omitempty"];
+  // ClientRemoteAddr is the remote address of the end client as observed by the
+  // Proxy. It is forwarded by the Proxy on unauthenticated login paths (such as
+  // /webapi/mfa/login/begin), where the Auth gRPC peer is the Proxy connection
+  // rather than the client, so that audit events emitted on credential
+  // verification failures record the real client source address.
+  string ClientRemoteAddr = 11 [(gogoproto.jsontag) = "client_remote_addr,omitempty"];
 }
 
 // CreatePrivilegeTokenRequest defines a request to obtain a privilege token.
