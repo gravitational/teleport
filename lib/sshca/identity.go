@@ -638,3 +638,12 @@ func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 
 	return ident, nil
 }
+
+// GetPrimaryRole returns the primary role for the identity regardless of
+// whether or not it is scope pinned.
+func (i *Identity) GetPrimaryRole() types.SystemRole {
+	if i.ScopePin.GetKind() == scopesv1.PinKind_PIN_KIND_AGENT {
+		return types.SystemRole(i.ScopePin.GetSystemRoles().GetPrimary())
+	}
+	return i.SystemRole
+}

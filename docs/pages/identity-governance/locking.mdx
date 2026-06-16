@@ -6,6 +6,7 @@ tags:
  - identity-governance
  - resiliency
 enterprise: Identity Governance
+page_type: how-to
 ---
 
 System administrators can disable a compromised user or Teleport Agent—or
@@ -29,6 +30,9 @@ A lock can target the following objects or attributes:
 - an [Access Request](access-requests/access-requests.mdx) by UUID
 - a bot instance ID (for Machine & Workload Identity bots)
 - a join token name (for Machine & Workload Identity bots using a [delegated join method](../reference/deployment/join-methods.mdx#delegated-join-methods))
+
+In this guide, you will create a lock, list active locks, and delete a lock you
+no longer need.
 
 ## How it works
 

@@ -345,8 +345,7 @@ func TestScopedBotJoinAuth(t *testing.T) {
 					Scope: testRootScope,
 				}.Build(),
 			},
-			BotName:  testBotName,
-			BotScope: testRootScope,
+			Bot: scopes.QualifiedName{Scope: testRootScope, Name: testBotName}.String(),
 		}.Build(),
 	}.Build()
 	_, err = adminClient.ScopedAccessServiceClient().CreateScopedRoleAssignment(
@@ -406,9 +405,8 @@ func TestScopedBotJoinAuth(t *testing.T) {
 				Type:       string(types.KubernetesJoinTypeStaticJWKS),
 				StaticJwks: scopedjoiningv1.Kubernetes_StaticJWKSConfig_builder{Jwks: jwks}.Build(),
 			}.Build(),
-			BotName:  testBotName,
-			BotScope: testRootScope,
-			Roles:    []string{string(types.RoleBot)},
+			Bot:   scopes.QualifiedName{Scope: testRootScope, Name: testBotName}.String(),
+			Roles: []string{string(types.RoleBot)},
 		}.Build(),
 	}.Build()
 	// Somehow the admin client interface doesn't expose CreateScopedToken ¯\_(ツ)_/¯

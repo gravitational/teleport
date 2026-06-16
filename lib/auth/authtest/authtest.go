@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -782,7 +783,28 @@ func generateCertificate(authServer *auth.Server, identity TestIdentity) ([]byte
 				PublicSSHKey: sshPublicKeyPEM,
 				SystemRoles:  id.AdditionalSystemRoles,
 			},
-			AgentScope: id.Identity.AgentScope,
+			AgentScope: id.Identity.GetAgentScope(),
+		})
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		return certs.TLS, privateKeyPEM, nil
+	case authz.ScopedBuiltinRole:
+		systemRoles, err := types.NewTeleportRoles(id.ScopePin.GetSystemRoles().GetAdditional())
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		certs, err := authServer.GenerateHostCerts(ctx, auth.HostCertsParams{
+			Req: &proto.HostCertsRequest{
+				HostID:       id.ServerFQDN,
+				NodeName:     id.ServerFQDN,
+				Role:         types.SystemRole(id.ScopePin.GetSystemRoles().GetPrimary()),
+				PublicTLSKey: tlsPublicKeyPEM,
+				PublicSSHKey: sshPublicKeyPEM,
+				SystemRoles:  systemRoles,
+			},
+			AgentScope: id.Identity.GetAgentScope(),
 		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
@@ -1256,7 +1278,35 @@ func TestScopedHost(clusterName, hostID, scope string, roles ...types.SystemRole
 			Username:              username,
 			AdditionalSystemRoles: types.SystemRoles(roles),
 			Identity: tlsca.Identity{
+				Username:   hostID,
 				AgentScope: scope,
+			},
+		},
+	}
+}
+
+// TestScopePinnedHost returns TestIdentity for a scoped host with an agent pin. One or more roles may be provided;
+// all are included as AdditionalSystemRoles on an instance cert identity.
+func TestScopePinnedHost(clusterName, hostID, scope string, roles ...types.SystemRole) TestIdentity {
+	serverFQDN := hostID
+	if clusterName != "" {
+		serverFQDN = utils.HostFQDN(hostID, clusterName)
+	}
+	pin := &scopesv1.Pin{
+		Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
+		Scope: scope,
+		SystemRoles: &scopesv1.SystemRoles{
+			Primary:    string(types.RoleInstance),
+			Additional: types.SystemRoles(roles).StringSlice(),
+		},
+	}
+	return TestIdentity{
+		I: authz.ScopedBuiltinRole{
+			ClusterName: clusterName,
+			ServerFQDN:  serverFQDN,
+			ScopePin:    pin,
+			Identity: tlsca.Identity{
+				ScopePin: pin,
 			},
 		},
 	}

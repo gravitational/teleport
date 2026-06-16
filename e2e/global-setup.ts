@@ -20,7 +20,8 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-const authDir = join(dirname(fileURLToPath(import.meta.url)), '.auth');
+const e2eDir = process.env.E2E_DIR ?? dirname(fileURLToPath(import.meta.url));
+const authDir = join(e2eDir, '.auth');
 
 async function globalSetup() {
   const browser = process.env.E2E_BROWSER;
