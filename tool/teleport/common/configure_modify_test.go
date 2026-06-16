@@ -42,8 +42,29 @@ func TestOnConfigModify(t *testing.T) {
 
 		got, err := os.ReadFile(outputFile)
 		require.NoError(t, err)
-		require.Contains(t, string(got), "auth_token: new-token")
+		require.Contains(t, string(got), "token_name: new-token")
 		require.Contains(t, string(got), "data_dir: /var/lib/teleport")
+	})
+
+	t.Run("token with join-method migrates legacy auth_token to join_params", func(t *testing.T) {
+		inputFile := filepath.Join(t.TempDir(), "input.yaml")
+		require.NoError(t, os.WriteFile(inputFile, []byte("teleport:\n  data_dir: /var/lib/teleport\n  auth_token: old-token\n"), 0644))
+
+		outputFile := filepath.Join(t.TempDir(), "output.yaml")
+
+		err := onConfigModify(modifyFlags{
+			input:      inputFile,
+			output:     "file://" + outputFile,
+			token:      "new-token",
+			joinMethod: "iam",
+		})
+		require.NoError(t, err)
+
+		got, err := os.ReadFile(outputFile)
+		require.NoError(t, err)
+		require.Contains(t, string(got), "token_name: new-token")
+		require.Contains(t, string(got), "method: iam")
+		require.NotContains(t, string(got), "auth_token")
 	})
 
 	t.Run("enable existing service", func(t *testing.T) {
@@ -184,7 +205,7 @@ func TestOnConfigModify(t *testing.T) {
 
 		got, err := os.ReadFile(outputFile)
 		require.NoError(t, err)
-		require.Contains(t, string(got), "auth_token: new-token")
+		require.Contains(t, string(got), "token_name: new-token")
 	})
 
 	t.Run("stdout output", func(t *testing.T) {

@@ -459,35 +459,37 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dump.Flag("node-name", "Name for the Teleport node.").StringVar(&dumpFlags.NodeName)
 	dump.Flag("node-labels", "Comma-separated list of labels to add to newly created nodes, for example env=staging,cloud=aws.").StringVar(&dumpFlags.NodeLabels)
 
-	// "teleport configure modify" subcommand
-	dumpModify := dump.Command("modify", "Modify an existing Teleport configuration file.")
+	// "teleport configure-modify" top-level command for modifying an existing config file.
+	// Registered at the app level (not under "configure") to avoid kingpin inheriting
+	// the parent configure flags and causing duplicate-flag errors.
+	configureModify := app.Command("configure-modify", "Modify an existing Teleport configuration file.")
 	var modFlags modifyFlags
-	dumpModify.Flag("input", "Path to existing configuration file to modify.").Required().StringVar(&modFlags.input)
-	dumpModify.Flag("output", `Output destination. Default stdout. Use file:///path for file output.`).Default(teleport.SchemeStdout).StringVar(&modFlags.output)
-	dumpModify.Flag("overwrite", "Allow overwriting an existing output file.").BoolVar(&modFlags.overwrite)
-	dumpModify.Flag("enable-service", "Enable a service (must already exist in config).").StringsVar(&modFlags.enableService)
-	dumpModify.Flag("disable-service", "Disable a service (must already exist in config).").StringsVar(&modFlags.disableService)
-	dumpModify.Flag("set", "Set a field by dot-path (format: path=value).").StringsVar(&modFlags.set)
-	dumpModify.Flag("unset", "Remove a field by dot-path.").StringsVar(&modFlags.unset)
-	dumpModify.Flag("roles", "Comma-separated list of roles. Creates service sections with defaults if missing.").StringVar(&modFlags.roles)
-	dumpModify.Flag("cluster-name", "Set teleport.cluster_name.").StringVar(&modFlags.clusterName)
-	dumpModify.Flag("token", "Set teleport.auth_token.").StringVar(&modFlags.token)
-	dumpModify.Flag("join-method", "Set teleport.join_params.method.").StringVar(&modFlags.joinMethod)
-	dumpModify.Flag("auth-server", "Set teleport.auth_server.").StringVar(&modFlags.authServer)
-	dumpModify.Flag("proxy", "Set teleport.proxy_server.").StringVar(&modFlags.proxy)
-	dumpModify.Flag("public-addr", "Set proxy_service.public_addr.").StringVar(&modFlags.publicAddr)
-	dumpModify.Flag("data-dir", "Set teleport.data_dir.").StringVar(&modFlags.dataDir)
-	dumpModify.Flag("node-name", "Set teleport.nodename.").StringVar(&modFlags.nodeName)
-	dumpModify.Flag("node-labels", "Set ssh_service.labels (comma-separated key=value).").StringVar(&modFlags.nodeLabels)
-	dumpModify.Flag("ca-pin", "Set teleport.ca_pin.").StringVar(&modFlags.caPin)
-	dumpModify.Flag("cert-file", "Set proxy_service.https_cert_file.").StringVar(&modFlags.certFile)
-	dumpModify.Flag("key-file", "Set proxy_service.https_key_file.").StringVar(&modFlags.keyFile)
-	dumpModify.Flag("acme", "Set proxy_service.acme.enabled.").BoolVar(&modFlags.acmeEnabled)
-	dumpModify.Flag("acme-email", "Set proxy_service.acme.email.").StringVar(&modFlags.acmeEmail)
-	dumpModify.Flag("version", "Set version field.").StringVar(&modFlags.version)
-	dumpModify.Flag("app-name", "Set app_service.apps[0].name.").StringVar(&modFlags.appName)
-	dumpModify.Flag("app-uri", "Set app_service.apps[0].uri.").StringVar(&modFlags.appURI)
-	dumpModify.Flag("mcp-demo-server", "Set app_service.apps[0].mcp_demo_server.").BoolVar(&modFlags.mcpDemoServer)
+	configureModify.Flag("input", "Path to existing configuration file to modify.").Required().StringVar(&modFlags.input)
+	configureModify.Flag("output", `Output destination. Default stdout. Use file:///path for file output.`).Default(teleport.SchemeStdout).StringVar(&modFlags.output)
+	configureModify.Flag("overwrite", "Allow overwriting an existing output file.").BoolVar(&modFlags.overwrite)
+	configureModify.Flag("enable-service", "Enable a service (must already exist in config).").StringsVar(&modFlags.enableService)
+	configureModify.Flag("disable-service", "Disable a service (must already exist in config).").StringsVar(&modFlags.disableService)
+	configureModify.Flag("set", "Set a field by dot-path (format: path=value).").StringsVar(&modFlags.set)
+	configureModify.Flag("unset", "Remove a field by dot-path.").StringsVar(&modFlags.unset)
+	configureModify.Flag("roles", "Comma-separated list of roles. Creates service sections with defaults if missing.").StringVar(&modFlags.roles)
+	configureModify.Flag("cluster-name", "Set teleport.cluster_name.").StringVar(&modFlags.clusterName)
+	configureModify.Flag("token", "Set teleport.auth_token.").StringVar(&modFlags.token)
+	configureModify.Flag("join-method", "Set teleport.join_params.method.").StringVar(&modFlags.joinMethod)
+	configureModify.Flag("auth-server", "Set teleport.auth_server.").StringVar(&modFlags.authServer)
+	configureModify.Flag("proxy", "Set teleport.proxy_server.").StringVar(&modFlags.proxy)
+	configureModify.Flag("public-addr", "Set proxy_service.public_addr.").StringVar(&modFlags.publicAddr)
+	configureModify.Flag("data-dir", "Set teleport.data_dir.").StringVar(&modFlags.dataDir)
+	configureModify.Flag("node-name", "Set teleport.nodename.").StringVar(&modFlags.nodeName)
+	configureModify.Flag("node-labels", "Set ssh_service.labels (comma-separated key=value).").StringVar(&modFlags.nodeLabels)
+	configureModify.Flag("ca-pin", "Set teleport.ca_pin.").StringVar(&modFlags.caPin)
+	configureModify.Flag("cert-file", "Set proxy_service.https_cert_file.").StringVar(&modFlags.certFile)
+	configureModify.Flag("key-file", "Set proxy_service.https_key_file.").StringVar(&modFlags.keyFile)
+	configureModify.Flag("acme", "Set proxy_service.acme.enabled.").BoolVar(&modFlags.acmeEnabled)
+	configureModify.Flag("acme-email", "Set proxy_service.acme.email.").StringVar(&modFlags.acmeEmail)
+	configureModify.Flag("version", "Set version field.").StringVar(&modFlags.version)
+	configureModify.Flag("app-name", "Set app_service.apps[0].name.").StringVar(&modFlags.appName)
+	configureModify.Flag("app-uri", "Set app_service.apps[0].uri.").StringVar(&modFlags.appURI)
+	configureModify.Flag("mcp-demo-server", "Set app_service.apps[0].mcp_demo_server.").BoolVar(&modFlags.mcpDemoServer)
 
 	ver.Flag("raw", "Print the raw teleport version string.").BoolVar(&rawVersion)
 
@@ -788,7 +790,7 @@ Examples:
 	case dumpNodeConfigure.FullCommand():
 		dumpFlags.Roles = defaults.RoleNode
 		err = onConfigDump(dumpFlags)
-	case dumpModify.FullCommand():
+	case configureModify.FullCommand():
 		err = onConfigModify(modFlags)
 
 	case exec.FullCommand(),

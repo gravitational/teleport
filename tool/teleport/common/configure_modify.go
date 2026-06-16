@@ -31,7 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 )
 
-// modifyFlags holds all flags for the "teleport configure modify" command.
+// modifyFlags holds all flags for the "teleport configure-modify" command.
 type modifyFlags struct {
 	input          string
 	output         string
@@ -66,7 +66,6 @@ type modifyFlags struct {
 // flagPathMap maps CLI flag names to their YAML dot-paths.
 var flagPathMap = map[string]string{
 	"cluster-name": "teleport.cluster_name",
-	"token":        "teleport.auth_token",
 	"join-method":  "teleport.join_params.method",
 	"auth-server":  "teleport.auth_server",
 	"proxy":        "teleport.proxy_server",
@@ -107,8 +106,11 @@ var validServices = map[string]bool{
 	"okta_service":            true,
 }
 
-// onConfigModify is the handler for "teleport configure modify".
+// onConfigModify is the handler for "teleport configure-modify".
 func onConfigModify(flags modifyFlags) error {
+	if flags.output == "" {
+		flags.output = teleport.SchemeStdout
+	}
 	flags.output = normalizeOutput(flags.output)
 
 	data, err := os.ReadFile(flags.input)
@@ -182,7 +184,6 @@ func onConfigModify(flags modifyFlags) error {
 func applyNamedFlags(doc *yaml.Node, flags modifyFlags) error {
 	namedValues := map[string]string{
 		"cluster-name": flags.clusterName,
-		"token":        flags.token,
 		"join-method":  flags.joinMethod,
 		"auth-server":  flags.authServer,
 		"proxy":        flags.proxy,
@@ -208,6 +209,23 @@ func applyNamedFlags(doc *yaml.Node, flags modifyFlags) error {
 		}
 		if err := yamlmod.Set(doc, path, value); err != nil {
 			return trace.Wrap(err, "setting %s via --%s", path, flagName)
+		}
+	}
+
+	if flags.token != "" {
+		if flags.joinMethod == "" && yamlmod.Exists(doc, "teleport.auth_token") {
+			// Preserve legacy format: the config uses auth_token and no join-method
+			// change was requested, so keep updating the existing field in place.
+			if err := yamlmod.Set(doc, "teleport.auth_token", flags.token); err != nil {
+				return trace.Wrap(err, "setting teleport.auth_token via --token")
+			}
+		} else {
+			// Use the modern join_params.token_name field, and remove the legacy
+			// auth_token if present so both fields don't coexist.
+			if err := yamlmod.Set(doc, "teleport.join_params.token_name", flags.token); err != nil {
+				return trace.Wrap(err, "setting teleport.join_params.token_name via --token")
+			}
+			_ = yamlmod.Delete(doc, "teleport.auth_token")
 		}
 	}
 
