@@ -127,20 +127,25 @@ func Tokenize(path string, cfg DecodeConfig) ([]string, error) {
 // "/" separator, and "%" for percent-encoding.
 const legalPathPunct = "-._~" + "!$&'()*+,;=" + ":@" + "/%"
 
+// isLegalPathByte reports whether b may appear in a raw URL path under
+// RFC 3986: an alphanumeric, a pchar punctuation mark, the "/" separator, or
+// "%" for encoding.
+func isLegalPathByte(b byte) bool {
+	switch {
+	case b >= 'A' && b <= 'Z', b >= 'a' && b <= 'z', b >= '0' && b <= '9':
+		return true
+	}
+	return strings.IndexByte(legalPathPunct, b) >= 0
+}
+
 // rejectIllegalPathBytes rejects any byte that cannot appear in a raw URL path
 // under RFC 3986. It validates the path as it arrives, before decoding, so a
 // percent-encoded byte ("%XX") is admitted here and governed later by the
 // decode and allow_percent rules.
 func rejectIllegalPathBytes(path string) error {
 	for i := range len(path) {
-		b := path[i]
-		switch {
-		case b >= 'A' && b <= 'Z', b >= 'a' && b <= 'z', b >= '0' && b <= '9':
-			continue
-		case strings.IndexByte(legalPathPunct, b) >= 0:
-			continue
-		default:
-			return trace.BadParameter("path %q contains an illegal URL byte %q", path, string(b))
+		if !isLegalPathByte(path[i]) {
+			return trace.BadParameter("path %q contains an illegal URL byte %q", path, string(path[i]))
 		}
 	}
 	return nil

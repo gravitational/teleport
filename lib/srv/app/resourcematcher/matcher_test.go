@@ -54,6 +54,11 @@ func TestCompileEqualsConstructors(t *testing.T) {
 			pattern: "/a/b/c",
 			want:    Literal("a/b/c"),
 		},
+		{
+			name:    "sub-delims and pchar punctuation are legal literals",
+			pattern: "/api/(group)/a:b@c",
+			want:    Literal("api", Literal("(group)", Literal("a:b@c"))),
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -91,6 +96,14 @@ func TestCompileErrors(t *testing.T) {
 		{"stray close brace", "/api/project}"},
 		{"brace and text", "/api/a{project}"},
 		{"nested braces", "/api/{{project}}"},
+		{"illegal byte angle bracket", "/api/<"},
+		{"illegal byte space", "/api/a b"},
+		{"illegal byte pipe", "/api/a|b"},
+		{"illegal byte backslash", "/api/a\\b"},
+		{"illegal byte non-ascii", "/api/café"},
+		{"capture name with dash", "/api/{a-b}"},
+		{"capture name with space", "/api/{a b}"},
+		{"capture name leading digit", "/api/{1st}"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

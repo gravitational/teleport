@@ -217,11 +217,8 @@ func compileSegment(pattern, seg string) (*Node, error) {
 		return Glob(), nil
 	case strings.HasPrefix(seg, "{") && strings.HasSuffix(seg, "}"):
 		name := seg[1 : len(seg)-1]
-		if name == "" {
-			return nil, trace.BadParameter("empty capture name in %q", pattern)
-		}
-		if strings.ContainsAny(name, "{}*") {
-			return nil, trace.BadParameter("malformed capture %q in %q", seg, pattern)
+		if !isIdentifier(name) {
+			return nil, trace.BadParameter("capture name %q in %q must be a valid identifier so it reads as vars.<name>", name, pattern)
 		}
 		return Capture(name), nil
 	default:
@@ -233,6 +230,32 @@ func compileSegment(pattern, seg string) (*Node, error) {
 		if strings.ContainsAny(seg, "*{}") {
 			return nil, trace.BadParameter("segment %q in %q is not a valid literal, glob (*), greedy (**), or capture ({name})", seg, pattern)
 		}
+		// A literal can only match a request path, so it must itself be a legal
+		// URL path segment. A byte that cannot appear in a request path, such
+		// as "<" or a space, would make the pattern match nothing, so reject it
+		// at load rather than compile a dead rule.
+		for i := range len(seg) {
+			if !isLegalPathByte(seg[i]) {
+				return nil, trace.BadParameter("literal segment %q in %q contains an illegal URL byte %q", seg, pattern, string(seg[i]))
+			}
+		}
 		return &Node{kind: kindLiteral, text: seg}, nil
 	}
+}
+
+// isIdentifier reports whether s is a non-empty Go-style identifier, the form a
+// capture name must take so it reads as vars.<name> in a predicate.
+func isIdentifier(s string) bool {
+	if s == "" {
+		return false
+	}
+	for i := range len(s) {
+		b := s[i]
+		isLetter := b >= 'A' && b <= 'Z' || b >= 'a' && b <= 'z' || b == '_'
+		isDigit := b >= '0' && b <= '9'
+		if !isLetter && !(i > 0 && isDigit) {
+			return false
+		}
+	}
+	return true
 }
