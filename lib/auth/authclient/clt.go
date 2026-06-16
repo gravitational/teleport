@@ -1943,6 +1943,10 @@ type ClientI interface {
 	// support GetAccessRequests.
 	ListAllAccessRequests(ctx context.Context, req *proto.ListAccessRequestsRequest) ([]*types.AccessRequestV3, error)
 
+	// ListAllAccessRequestsWithDisplays is like ListAllAccessRequests and also
+	// returns server-resolved display values keyed by username.
+	ListAllAccessRequestsWithDisplays(ctx context.Context, req *proto.ListAccessRequestsRequest) ([]*types.AccessRequestV3, map[string]types.UserDisplay, error)
+
 	// ListUnifiedResources returns a paginated list of unified resources.
 	ListUnifiedResources(ctx context.Context, req *proto.ListUnifiedResourcesRequest) (*proto.ListUnifiedResourcesResponse, error)
 

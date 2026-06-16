@@ -2965,6 +2965,13 @@ message ListAccessRequestsRequest {
   string StartKey = 5;
 }
 
+// UserDisplay holds read-time display values derived from a user resource.
+// Empty/absent values mean callers render the username instead.
+message UserDisplay {
+  string Primary = 1 [(gogoproto.jsontag) = "primary,omitempty"];
+  string Secondary = 2 [(gogoproto.jsontag) = "secondary,omitempty"];
+}
+
 // ListAccessRequestsResponse is a page of access requests.
 message ListAccessRequestsResponse {
   // AccessRequests is a page of access requests.
@@ -2972,6 +2979,12 @@ message ListAccessRequestsResponse {
 
   // NextKey will serve as the StartKey for the next page of requests.
   string NextKey = 2;
+
+  // UserDisplays maps usernames referenced by this page's requests
+  // (requester, review authors, suggested reviewers) to display values.
+  // A present key with empty values is a live user with no distinct display;
+  // an absent key is a user that no longer exists.
+  map<string, UserDisplay> UserDisplays = 3 [(gogoproto.jsontag) = "user_displays,omitempty"];
 }
 
 // AccessRequestAllowedPromotionRequest is the request to AccessRequestAllowedPromotion RPC call.

@@ -986,6 +986,122 @@ func (p preparedSessionEvent) GetAuditEvent() events.AuditEvent {
 	return p.event
 }
 
+func TestListAllAccessRequestsWithDisplays(t *testing.T) {
+	t.Parallel()
+
+	reqA := clientAccessRequest("request-a", "alice")
+	reqB := clientAccessRequest("request-b", "bob")
+	service := &accessRequestListService{
+		pages: []*proto.ListAccessRequestsResponse{
+			{
+				AccessRequests: []*types.AccessRequestV3{reqA},
+				NextKey:        "page-2",
+				UserDisplays: map[string]*proto.UserDisplay{
+					"alice": {
+						Primary:   "Alice",
+						Secondary: "alice@example.com",
+					},
+					"plain": nil,
+				},
+			},
+			{
+				AccessRequests: []*types.AccessRequestV3{reqB},
+				UserDisplays: map[string]*proto.UserDisplay{
+					"bob": {
+						Primary:   "Bob",
+						Secondary: "bob@example.com",
+					},
+				},
+			},
+		},
+	}
+
+	srv := startMockServer(t, mockServices{auth: service})
+	clt, err := New(t.Context(), srv.clientCfg())
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, clt.Close()) })
+
+	requests, displays, err := clt.ListAllAccessRequestsWithDisplays(t.Context(), &proto.ListAccessRequestsRequest{
+		Limit: 1,
+	})
+	require.NoError(t, err)
+
+	require.Equal(t, []*types.AccessRequestV3{reqA, reqB}, requests)
+	require.Equal(t, map[string]types.UserDisplay{
+		"alice": {
+			Primary:   "Alice",
+			Secondary: "alice@example.com",
+		},
+		"bob": {
+			Primary:   "Bob",
+			Secondary: "bob@example.com",
+		},
+		"plain": {},
+	}, displays)
+	require.Equal(t, []string{"", "page-2"}, service.startKeys)
+}
+
+func TestListAllAccessRequestsWithDisplaysCompat(t *testing.T) {
+	t.Parallel()
+
+	req := clientAccessRequest("request-a", "alice")
+	service := &accessRequestListService{
+		listErr:        trace.NotImplemented("old control plane"),
+		compatRequests: []*types.AccessRequestV3{req},
+	}
+
+	srv := startMockServer(t, mockServices{auth: service})
+	clt, err := New(t.Context(), srv.clientCfg())
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, clt.Close()) })
+
+	requests, displays, err := clt.ListAllAccessRequestsWithDisplays(t.Context(), &proto.ListAccessRequestsRequest{})
+	require.NoError(t, err)
+
+	require.Equal(t, []*types.AccessRequestV3{req}, requests)
+	require.Empty(t, displays)
+}
+
+type accessRequestListService struct {
+	proto.UnimplementedAuthServiceServer
+
+	pages          []*proto.ListAccessRequestsResponse
+	startKeys      []string
+	listErr        error
+	compatRequests []*types.AccessRequestV3
+}
+
+func (s *accessRequestListService) ListAccessRequests(ctx context.Context, req *proto.ListAccessRequestsRequest) (*proto.ListAccessRequestsResponse, error) {
+	if s.listErr != nil {
+		return nil, trail.ToGRPC(s.listErr)
+	}
+
+	s.startKeys = append(s.startKeys, req.StartKey)
+	pageIndex := len(s.startKeys) - 1
+	if pageIndex >= len(s.pages) {
+		return nil, trail.ToGRPC(trace.NotFound("page %d not found", pageIndex))
+	}
+	return s.pages[pageIndex], nil
+}
+
+func (s *accessRequestListService) GetAccessRequestsV2(filter *types.AccessRequestFilter, stream proto.AuthService_GetAccessRequestsV2Server) error {
+	for _, req := range s.compatRequests {
+		if err := stream.Send(req); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func clientAccessRequest(name, user string) *types.AccessRequestV3 {
+	return &types.AccessRequestV3{
+		Metadata: types.Metadata{Name: name},
+		Spec: types.AccessRequestSpecV3{
+			User: user,
+		},
+	}
+}
+
 func TestWindowsCAFallback(t *testing.T) {
 	t.Parallel()
 
