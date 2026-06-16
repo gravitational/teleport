@@ -43,17 +43,17 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// accessPoint used to retrieve CA public information and the cluster auth
+// AccessPoint is used to retrieve CA public information and the cluster auth
 // preference.
-type accessPoint interface {
+type AccessPoint interface {
 	// GetCertAuthority returns cert authority by id.
 	GetCertAuthority(context.Context, types.CertAuthID, bool) (types.CertAuthority, error)
 	// GetAuthPreference returns the current cluster auth preference.
 	GetAuthPreference(context.Context) (types.AuthPreference, error)
 }
 
-// workloadIdentityClientGetter used to retrieve Workload identity clients.
-type workloadIdentityClientGetter interface {
+// WorkloadIdentityClientGetter used to retrieve Workload identity clients.
+type WorkloadIdentityClientGetter interface {
 	// WorkloadIdentityIssuanceClient returns an unadorned client for the
 	// workload identity service.
 	WorkloadIdentityIssuanceClient() workloadidentityv1pb.WorkloadIdentityIssuanceServiceClient
@@ -64,7 +64,7 @@ type Options struct {
 	// Logger is the slog.Logger used by the configurator.
 	Logger *slog.Logger
 	// AccessPoint is a caching client connected to the Auth Server.
-	AccessPoint accessPoint
+	AccessPoint AccessPoint
 	// ClusterName is the current cluster name.
 	ClusterName string
 	// App is the app being configured.
@@ -77,7 +77,7 @@ type Options struct {
 	Clock clockwork.Clock
 	// WorkloadIdentityClientGetter is the interface used to retrieve Workload
 	// identity clients.
-	WorkloadIdentityClientGetter workloadIdentityClientGetter
+	WorkloadIdentityClientGetter WorkloadIdentityClientGetter
 	// GetUserCertFunc is the function used to retrieve user certificate.
 	GetUserCertFunc func() ([]byte, error)
 }
@@ -258,7 +258,7 @@ func tlsVerifyPeerCertificateWithSPIFFE(roots *x509.CertPool, spiffeID spiffeid.
 }
 
 // newTLSCertPool creates a new x509 cert pool using the list of allowed CAs.
-func newTLSCertPool(ctx context.Context, logger *slog.Logger, getter accessPoint, clusterName string, cas []string) (*x509.CertPool, error) {
+func newTLSCertPool(ctx context.Context, logger *slog.Logger, getter AccessPoint, clusterName string, cas []string) (*x509.CertPool, error) {
 	// If no options are provided, use the host's root CA (default behavior).
 	// This is mainly to keep backwards compatibility for apps using TLS
 	// connections, and that doesn't configure the CA list.
@@ -303,7 +303,7 @@ func newTLSCertPool(ctx context.Context, logger *slog.Logger, getter accessPoint
 }
 
 // loadCACertificates takes a "CA alias" and resolve to Teleport CA certificates.
-func loadCACertificates(ctx context.Context, getter accessPoint, clusterName string, alias types.AppTLSInternalCA) (iter.Seq2[*x509.Certificate, error], error) {
+func loadCACertificates(ctx context.Context, getter AccessPoint, clusterName string, alias types.AppTLSInternalCA) (iter.Seq2[*x509.Certificate, error], error) {
 	var caType types.CertAuthType
 	switch alias {
 	case types.AppTLSInternalCAWorkloadIdentity:

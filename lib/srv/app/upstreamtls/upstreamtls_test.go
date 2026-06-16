@@ -61,7 +61,7 @@ func TestNewTLSCertPool(t *testing.T) {
 
 	for name, tc := range map[string]struct {
 		cas          []string
-		getter       accessPoint
+		getter       AccessPoint
 		expectedErr  require.ErrorAssertionFunc
 		expectedPool require.ValueAssertionFunc
 	}{
