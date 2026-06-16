@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
@@ -342,7 +343,9 @@ func TestServerConfigCheckDefaults(t *testing.T) {
 			name: "OpenSSH Node",
 			modifyCfg: func(c *ServerConfig) {
 				c.TargetServer = openSSHNode
-				c.AgentlessSigner = &sshutils.LegacySHA1Signer{}
+				c.AgentlessSignerCreator = func(_ context.Context, _ agentless.LocalAccessPoint, _ string) (ssh.Signer, error) {
+					return &sshutils.LegacySHA1Signer{}, nil
+				}
 			},
 			errorAssertion: require.NoError,
 		}, {
@@ -352,7 +355,7 @@ func TestServerConfigCheckDefaults(t *testing.T) {
 			},
 			errorAssertion: func(tt require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
-				require.ErrorContains(t, err, "agentless signer is required")
+				require.ErrorContains(t, err, "agentless signer creator is required for OpenSSH Nodes")
 			},
 		}, {
 			name: "OpenSSH EICE Node",
