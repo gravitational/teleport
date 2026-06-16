@@ -35,10 +35,8 @@ func makeClassifierWithActions(actions *summarizerv1.ClassifierActions) *summari
 	}.Build())
 }
 
-// TestClassifierActionsMarshalBooleans verifies that "tctl get" renders the
-// tri-state ClassifierActionMode toggles as booleans, leaves risk_level_floor as
-// its enum, and omits unspecified toggles entirely.
-func TestClassifierActionsMarshalBooleans(t *testing.T) {
+// "tctl get" renders toggles as booleans and risk_level_floor as a short string.
+func TestClassifierActionsMarshalFriendly(t *testing.T) {
 	c := makeClassifierWithActions(summarizerv1.ClassifierActions_builder{
 		EmitAuditEvent: summarizerv1.ClassifierActionMode_CLASSIFIER_ACTION_MODE_ENABLED,
 		FlagForReview:  summarizerv1.ClassifierActionMode_CLASSIFIER_ACTION_MODE_DISABLED,
@@ -51,14 +49,13 @@ func TestClassifierActionsMarshalBooleans(t *testing.T) {
 	actions := unmarshalActions(t, data)
 	require.Equal(t, true, actions["emit_audit_event"])
 	require.Equal(t, false, actions["flag_for_review"])
-	// risk_level_floor is a level, not a toggle, so it stays an enum string.
-	require.Equal(t, "RISK_LEVEL_HIGH", actions["risk_level_floor"])
+	require.Equal(t, "high", actions["risk_level_floor"])
 }
 
 func TestClassifierActionsUnspecifiedOmitted(t *testing.T) {
 	c := makeClassifierWithActions(summarizerv1.ClassifierActions_builder{
 		EmitAuditEvent: summarizerv1.ClassifierActionMode_CLASSIFIER_ACTION_MODE_ENABLED,
-		// FlagForReview is left unspecified.
+		// flag_for_review and risk_level_floor are left unspecified.
 	}.Build())
 
 	data, err := classifierResource{classifier: c}.MarshalJSON()
@@ -66,49 +63,62 @@ func TestClassifierActionsUnspecifiedOmitted(t *testing.T) {
 
 	actions := unmarshalActions(t, data)
 	require.Equal(t, true, actions["emit_audit_event"])
-	_, ok := actions["flag_for_review"]
-	require.False(t, ok, "an unspecified action toggle should be omitted, not printed")
+	_, hasFlag := actions["flag_for_review"]
+	require.False(t, hasFlag, "an unspecified toggle should be omitted, not printed")
+	_, hasRisk := actions["risk_level_floor"]
+	require.False(t, hasRisk, "an unspecified risk level should be omitted, not printed")
 }
 
-// TestClassifierActionsRoundTrip verifies booleans survive a get -> create
-// round-trip, and that the legacy enum-string form is still accepted on input.
+// Friendly values survive a get -> create round-trip across every risk level.
 func TestClassifierActionsRoundTrip(t *testing.T) {
-	c := makeClassifierWithActions(summarizerv1.ClassifierActions_builder{
-		EmitAuditEvent: summarizerv1.ClassifierActionMode_CLASSIFIER_ACTION_MODE_ENABLED,
-		FlagForReview:  summarizerv1.ClassifierActionMode_CLASSIFIER_ACTION_MODE_DISABLED,
-		RiskLevelFloor: summarizerv1.RiskLevel_RISK_LEVEL_HIGH,
-	}.Build())
+	for _, level := range []summarizerv1.RiskLevel{
+		summarizerv1.RiskLevel_RISK_LEVEL_LOW,
+		summarizerv1.RiskLevel_RISK_LEVEL_MEDIUM,
+		summarizerv1.RiskLevel_RISK_LEVEL_HIGH,
+		summarizerv1.RiskLevel_RISK_LEVEL_CRITICAL,
+	} {
+		t.Run(level.String(), func(t *testing.T) {
+			c := makeClassifierWithActions(summarizerv1.ClassifierActions_builder{
+				EmitAuditEvent: summarizerv1.ClassifierActionMode_CLASSIFIER_ACTION_MODE_ENABLED,
+				FlagForReview:  summarizerv1.ClassifierActionMode_CLASSIFIER_ACTION_MODE_DISABLED,
+				RiskLevelFloor: level,
+			}.Build())
 
-	// "get" renders booleans...
-	data, err := classifierResource{classifier: c}.MarshalJSON()
-	require.NoError(t, err)
+			data, err := classifierResource{classifier: c}.MarshalJSON()
+			require.NoError(t, err)
 
-	// ...and "create" accepts them back.
-	back, err := classifierActionsFromBool(data)
-	require.NoError(t, err)
-	got, err := services.UnmarshalProtoResource[*summarizerv1.Classifier](back, services.DisallowUnknown())
-	require.NoError(t, err)
+			back, err := classifierActionsFromFriendly(data)
+			require.NoError(t, err)
+			got, err := services.UnmarshalProtoResource[*summarizerv1.Classifier](back, services.DisallowUnknown())
+			require.NoError(t, err)
 
-	gotActions := got.GetSpec().GetActions()
-	require.Equal(t, summarizerv1.ClassifierActionMode_CLASSIFIER_ACTION_MODE_ENABLED, gotActions.GetEmitAuditEvent())
-	require.Equal(t, summarizerv1.ClassifierActionMode_CLASSIFIER_ACTION_MODE_DISABLED, gotActions.GetFlagForReview())
-	require.Equal(t, summarizerv1.RiskLevel_RISK_LEVEL_HIGH, gotActions.GetRiskLevelFloor())
+			gotActions := got.GetSpec().GetActions()
+			require.Equal(t, summarizerv1.ClassifierActionMode_CLASSIFIER_ACTION_MODE_ENABLED, gotActions.GetEmitAuditEvent())
+			require.Equal(t, summarizerv1.ClassifierActionMode_CLASSIFIER_ACTION_MODE_DISABLED, gotActions.GetFlagForReview())
+			require.Equal(t, level, gotActions.GetRiskLevelFloor())
+		})
+	}
 }
 
-// TestClassifierActionsFromBoolAcceptsEnumStrings verifies backward
-// compatibility: a manifest still using the enum string form decodes unchanged.
-func TestClassifierActionsFromBoolAcceptsEnumStrings(t *testing.T) {
-	in := []byte(`{"kind":"classifier","version":"v1","metadata":{"name":"test"},` +
-		`"spec":{"kinds":["ssh"],"criteria":"c",` +
-		`"actions":{"emit_audit_event":"CLASSIFIER_ACTION_MODE_ENABLED"}}}`)
-
-	out, err := classifierActionsFromBool(in)
-	require.NoError(t, err)
-	got, err := services.UnmarshalProtoResource[*summarizerv1.Classifier](out, services.DisallowUnknown())
-	require.NoError(t, err)
-	require.Equal(t,
-		summarizerv1.ClassifierActionMode_CLASSIFIER_ACTION_MODE_ENABLED,
-		got.GetSpec().GetActions().GetEmitAuditEvent())
+// Raw enum names, integers, and unknown values are rejected on input.
+func TestClassifierActionsFromFriendlyRejectsInvalid(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		actions string
+	}{
+		{"toggle as enum string", `{"emit_audit_event":"CLASSIFIER_ACTION_MODE_ENABLED"}`},
+		{"toggle as integer", `{"flag_for_review":1}`},
+		{"risk level as enum string", `{"risk_level_floor":"RISK_LEVEL_HIGH"}`},
+		{"risk level as integer", `{"risk_level_floor":3}`},
+		{"risk level unknown", `{"risk_level_floor":"severe"}`},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			in := []byte(`{"kind":"classifier","version":"v1","metadata":{"name":"t"},` +
+				`"spec":{"kinds":["ssh"],"criteria":"c","actions":` + tt.actions + `}}`)
+			_, err := classifierActionsFromFriendly(in)
+			require.Error(t, err)
+		})
+	}
 }
 
 func unmarshalActions(t *testing.T, data []byte) map[string]any {
