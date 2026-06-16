@@ -27,23 +27,35 @@ import (
 
 // DecodeConfig controls how a request path is normalized before it is split
 // into segments for matching. Both fields default to the zero value, which is
-// maximally strict: reject every percent-encoded byte and do not decode. This
-// keeps the matcher's view byte-identical to the request, so the agent matches
-// on exactly the bytes the upstream receives.
+// maximally strict: do not decode, and reject any percent byte. This keeps the
+// matcher's view byte-identical to the request, so the agent matches on
+// exactly the bytes the upstream receives.
 //
-// Loosening is an explicit, deliberate opt-in. AllowPercent must be set true
-// before any percent-encoding is admitted at all. The author must align
+// Decoding runs first: DecodeIterations percent-decode passes are applied, and
+// then AllowPercent governs whether any percent byte that survives those
+// passes is admitted. So the two fields compose: DecodeIterations sets how deep
+// to decode, AllowPercent decides whether over-encoding beyond that depth is
+// tolerated.
+//
+//   - decode 0, allow_percent false (default): no decode, no percent at all.
+//   - decode 1, allow_percent false: a single-encoded %2F decodes to "/" and
+//     is admitted, but a double-encoded %252F leaves a residual "%" after one
+//     pass and is rejected.
+//   - decode N, allow_percent true: decode N times and admit whatever percent
+//     bytes remain.
+//
+// Loosening is an explicit, deliberate opt-in. The author must align
 // DecodeIterations with how the real upstream decodes the path, or the
 // matcher's view diverges from the upstream's and a rule can match less, or
 // more, than the upstream acts on.
 type DecodeConfig struct {
-	// AllowPercent admits percent-encoded bytes. When false, any "%" in the
-	// path is rejected before a rule evaluates.
+	// AllowPercent admits percent bytes that remain after DecodeIterations
+	// passes. When false, any residual "%" is rejected before a rule
+	// evaluates.
 	AllowPercent bool `yaml:"allow_percent"`
 	// DecodeIterations is the number of percent-decode passes applied before
-	// splitting into segments. Zero leaves the path untouched. It is only
-	// consulted when AllowPercent is true. Set it to match the upstream's own
-	// decoding.
+	// splitting into segments. Zero leaves the path untouched. Set it to match
+	// the upstream's own decoding.
 	DecodeIterations int `yaml:"decode_iterations"`
 }
 
@@ -62,18 +74,9 @@ func Tokenize(path string, cfg DecodeConfig) ([]string, error) {
 	if !strings.HasPrefix(path, "/") {
 		return nil, trace.BadParameter("path %q must start with /", path)
 	}
-	if !cfg.AllowPercent && strings.Contains(path, "%") {
-		return nil, trace.BadParameter("percent-encoding is not permitted unless allow_percent is set")
-	}
-	// Reject consecutive slashes outright. An empty interior segment would let
-	// a greedy matcher absorb it and could split differently upstream. A
-	// single trailing slash is left intact and significant: it produces a
-	// trailing empty segment, so "/foo/" simply does not match the pattern
-	// "/foo".
-	if strings.Contains(path, "//") {
-		return nil, trace.BadParameter("path %q has consecutive slashes", path)
-	}
 
+	// Decode first, then apply every safety check to the decoded form, since
+	// that is the byte sequence that gets split and matched.
 	decoded := path
 	for range cfg.DecodeIterations {
 		next, err := url.PathUnescape(decoded)
@@ -83,6 +86,21 @@ func Tokenize(path string, cfg DecodeConfig) ([]string, error) {
 		decoded = next
 	}
 
+	// AllowPercent governs whatever percent bytes survive the decode passes. A
+	// residual "%" with AllowPercent false means the path was encoded more
+	// deeply than DecodeIterations unwound, such as a double-encoded %252F
+	// under a single pass; reject it.
+	if !cfg.AllowPercent && strings.Contains(decoded, "%") {
+		return nil, trace.BadParameter("percent-encoding remains after %d decode pass(es) and allow_percent is not set", cfg.DecodeIterations)
+	}
+	// Reject consecutive slashes outright. An empty interior segment would let
+	// a greedy matcher absorb it and could split differently upstream. A
+	// single trailing slash is left intact and significant: it produces a
+	// trailing empty segment, so "/foo/" simply does not match the pattern
+	// "/foo".
+	if strings.Contains(decoded, "//") {
+		return nil, trace.BadParameter("path %q has consecutive slashes", path)
+	}
 	if err := rejectUnsafe(decoded); err != nil {
 		return nil, trace.Wrap(err)
 	}

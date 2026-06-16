@@ -68,6 +68,31 @@ func TestTokenizeDecodeIterations(t *testing.T) {
 			cfg:  DecodeConfig{AllowPercent: true, DecodeIterations: 3},
 			want: []string{"a", "plain", "d"},
 		},
+		{
+			// allow_percent is the residual check after decoding: one pass
+			// fully unwinds a single-encoded slash, so nothing is left to
+			// reject.
+			name: "one iteration, no allow_percent, single-encoded is admitted",
+			path: "/a/b%2Fc",
+			cfg:  DecodeConfig{AllowPercent: false, DecodeIterations: 1},
+			want: []string{"a", "b", "c"},
+		},
+		{
+			// One pass leaves %2F behind from a double-encoded slash; with
+			// allow_percent false that residual is rejected.
+			name:    "one iteration, no allow_percent, double-encoded is rejected",
+			path:    "/a/b%252Fc",
+			cfg:     DecodeConfig{AllowPercent: false, DecodeIterations: 1},
+			wantErr: true,
+		},
+		{
+			// Two passes fully unwind the double-encoded slash, so the same
+			// strict residual policy now admits it.
+			name: "two iterations, no allow_percent, double-encoded is admitted",
+			path: "/a/b%252Fc",
+			cfg:  DecodeConfig{AllowPercent: false, DecodeIterations: 2},
+			want: []string{"a", "b", "c"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
