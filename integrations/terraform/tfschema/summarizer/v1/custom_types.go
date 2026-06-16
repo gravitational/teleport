@@ -19,6 +19,7 @@ package v1
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -93,4 +94,91 @@ func CopyToClassifierActionMode(diags diag.Diagnostics, o summarizerv1.Classifie
 	}
 
 	return value
+}
+
+var riskLevelToString = map[summarizerv1.RiskLevel]string{
+	summarizerv1.RiskLevel_RISK_LEVEL_LOW:      "low",
+	summarizerv1.RiskLevel_RISK_LEVEL_MEDIUM:   "medium",
+	summarizerv1.RiskLevel_RISK_LEVEL_HIGH:     "high",
+	summarizerv1.RiskLevel_RISK_LEVEL_CRITICAL: "critical",
+}
+
+var riskLevelFromString = map[string]summarizerv1.RiskLevel{
+	"low":      summarizerv1.RiskLevel_RISK_LEVEL_LOW,
+	"medium":   summarizerv1.RiskLevel_RISK_LEVEL_MEDIUM,
+	"high":     summarizerv1.RiskLevel_RISK_LEVEL_HIGH,
+	"critical": summarizerv1.RiskLevel_RISK_LEVEL_CRITICAL,
+}
+
+// GenSchemaRiskLevel exposes a RiskLevel enum as an optional "low".."critical" string.
+func GenSchemaRiskLevel(_ context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
+	return tfsdk.Attribute{
+		Optional:      true,
+		Type:          types.StringType,
+		Description:   attr.Description,
+		Computed:      attr.Computed,
+		PlanModifiers: attr.PlanModifiers,
+		Validators:    append(attr.Validators, riskLevelValidator{}),
+	}
+}
+
+func CopyFromRiskLevel(diags diag.Diagnostics, v attr.Value, o *summarizerv1.RiskLevel) {
+	value, ok := v.(types.String)
+	if !ok {
+		diags.AddError("Error reading from Terraform object", fmt.Sprintf("Can not convert %T to types.String", v))
+		return
+	}
+
+	if value.Null || value.Unknown {
+		*o = summarizerv1.RiskLevel_RISK_LEVEL_UNSPECIFIED
+		return
+	}
+
+	level, ok := riskLevelFromString[strings.ToLower(value.Value)]
+	if !ok {
+		diags.AddError("Invalid risk_level_floor", fmt.Sprintf("%q must be one of low, medium, high, critical", value.Value))
+		return
+	}
+	*o = level
+}
+
+func CopyToRiskLevel(diags diag.Diagnostics, o summarizerv1.RiskLevel, t attr.Type, v attr.Value) attr.Value {
+	value, ok := v.(types.String)
+	if !ok {
+		value = types.String{}
+	}
+
+	s, ok := riskLevelToString[o]
+	if !ok { // RISK_LEVEL_UNSPECIFIED
+		value.Null = true
+		value.Unknown = false
+		return value
+	}
+
+	value.Null = false
+	value.Unknown = false
+	value.Value = s
+
+	return value
+}
+
+const riskLevelAllowed = `must be one of "low", "medium", "high", "critical"`
+
+// riskLevelValidator rejects risk_level_floor values outside the allowed set at plan time.
+type riskLevelValidator struct{}
+
+func (riskLevelValidator) Description(context.Context) string         { return riskLevelAllowed }
+func (riskLevelValidator) MarkdownDescription(context.Context) string { return riskLevelAllowed }
+
+func (riskLevelValidator) Validate(_ context.Context, req tfsdk.ValidateAttributeRequest, resp *tfsdk.ValidateAttributeResponse) {
+	if req.AttributeConfig == nil {
+		return
+	}
+	value, ok := req.AttributeConfig.(types.String)
+	if !ok || value.Null || value.Unknown {
+		return
+	}
+	if _, ok := riskLevelFromString[strings.ToLower(value.Value)]; !ok {
+		resp.Diagnostics.AddError("Invalid risk_level_floor", fmt.Sprintf("%q "+riskLevelAllowed, value.Value))
+	}
 }

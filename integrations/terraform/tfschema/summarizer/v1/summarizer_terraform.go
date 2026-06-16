@@ -419,11 +419,10 @@ func GenSchemaClassifier(ctx context.Context) (github_com_hashicorp_terraform_pl
 							Description: "FlagForReview, if enabled, marks the session as needing further review on match. Only applies to summaries that carry an EnhancedSummary.",
 							Optional:    true,
 						}),
-						"risk_level_floor": {
+						"risk_level_floor": GenSchemaRiskLevel(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 							Description: "RiskLevelFloor, if set, raises the session's risk level (and risk score) to at least this level on match. It never lowers the risk level. Leaving it unspecified means a match does not change the risk level. Only applies to summaries that carry an EnhancedSummary.",
 							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
-						},
+						}),
 					}),
 					Description: "Actions configures the effects of a match. If unset, a match is only recorded on the stored session summary.",
 					Optional:    true,
@@ -2882,18 +2881,8 @@ func CopyClassifierFromTerraform(_ context.Context, tf github_com_hashicorp_terr
 										a, ok := tf.Attrs["risk_level_floor"]
 										if !ok {
 											diags.Append(attrReadMissingDiag{"Classifier.spec.actions.risk_level_floor"})
-										} else {
-											v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
-											if !ok {
-												diags.Append(attrReadConversionFailureDiag{"Classifier.spec.actions.risk_level_floor", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
-											} else {
-												var t github_com_gravitational_teleport_api_gen_proto_go_teleport_summarizer_v1.RiskLevel
-												if !v.Null && !v.Unknown {
-													t = github_com_gravitational_teleport_api_gen_proto_go_teleport_summarizer_v1.RiskLevel(v.Value)
-												}
-												obj.RiskLevelFloor = t
-											}
 										}
+										CopyFromRiskLevel(diags, a, &obj.RiskLevelFloor)
 									}
 									{
 										a, ok := tf.Attrs["flag_for_review"]
@@ -3329,20 +3318,7 @@ func CopyClassifierToTerraform(ctx context.Context, obj *github_com_gravitationa
 										if !ok {
 											diags.Append(attrWriteMissingDiag{"Classifier.spec.actions.risk_level_floor"})
 										} else {
-											v, ok := tf.Attrs["risk_level_floor"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
-											if !ok {
-												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-												if err != nil {
-													diags.Append(attrWriteGeneralError{"Classifier.spec.actions.risk_level_floor", err})
-												}
-												v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
-												if !ok {
-													diags.Append(attrWriteConversionFailureDiag{"Classifier.spec.actions.risk_level_floor", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
-												}
-												v.Null = int64(obj.RiskLevelFloor) == 0
-											}
-											v.Value = int64(obj.RiskLevelFloor)
-											v.Unknown = false
+											v := CopyToRiskLevel(diags, obj.RiskLevelFloor, t, tf.Attrs["risk_level_floor"])
 											tf.Attrs["risk_level_floor"] = v
 										}
 									}

@@ -62,5 +62,5 @@ Optional:
 
 - `emit_audit_event` (Boolean) EmitAuditEvent, if enabled, emits an audit event when a session matches this classifier.
 - `flag_for_review` (Boolean) FlagForReview, if enabled, marks the session as needing further review on match. Only applies to summaries that carry an EnhancedSummary.
-- `risk_level_floor` (Number) RiskLevelFloor, if set, raises the session's risk level (and risk score) to at least this level on match. It never lowers the risk level. Leaving it unspecified means a match does not change the risk level. Only applies to summaries that carry an EnhancedSummary.
+- `risk_level_floor` (String) RiskLevelFloor, if set, raises the session's risk level (and risk score) to at least this level on match. It never lowers the risk level. Leaving it unspecified means a match does not change the risk level. Only applies to summaries that carry an EnhancedSummary.
 

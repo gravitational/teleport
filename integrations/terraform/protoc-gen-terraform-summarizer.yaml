@@ -157,6 +157,7 @@ custom_types:
   "Classifier.metadata.expires": Timestamp
   "Classifier.spec.actions.emit_audit_event": ClassifierActionMode
   "Classifier.spec.actions.flag_for_review": ClassifierActionMode
+  "Classifier.spec.actions.risk_level_floor": RiskLevel
   "RetrievalModel.metadata.expires": Timestamp
 
 sensitive_fields:
