@@ -33,6 +33,15 @@ peerDependencyRules:
     # This dep is needed only when using Squirrel.Windows as an installer in electron-build which we
     # don't use. https://www.electron.build/squirrel-windows.html
     - electron-builder-squirrel-windows
+# create-react-class and @hookform/resolvers import react/zod without declaring them, which fails to
+# resolve under the global virtual store. Declare the peers so pnpm co-locates them.
+packageExtensions:
+  create-react-class:
+    peerDependencies:
+      react: '*'
+  '@hookform/resolvers':
+    peerDependencies:
+      zod: '*'
 # shellEmulator enables cross-platform scripting, allowing POSIX-style shell variables to work on Windows.
 shellEmulator: true
 # packageImportMethod avoids an issue building the web UI in docker on mac. It does not seem to
