@@ -81,6 +81,7 @@ func NewOpenSSHEICEServerV2Reconciler(client kclient.Client, tClient *client.Cli
 	resourceReconciler, err := reconcilers.NewTeleportResourceWithLabelsReconciler[types.Server, *resourcesv1.TeleportOpenSSHEICEServerV2](
 		client,
 		serverClient,
+		reconcilers.Config{},
 	)
 
 	return resourceReconciler, trace.Wrap(err, "building teleport resource reconciler")

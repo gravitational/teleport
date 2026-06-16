@@ -6170,6 +6170,19 @@ func (c *Client) ValidateTrustedCluster(
 	return resp, nil
 }
 
+// ExtendWebSession creates a new web session for a user based on a valid
+// existing web session, e.g. to apply an approved access request, switch
+// back to default roles, or pick up recent user changes.
+func (c *Client) ExtendWebSession(
+	ctx context.Context, req *proto.ExtendWebSessionRequest,
+) (*proto.ExtendWebSessionResponse, error) {
+	resp, err := c.grpc.ExtendWebSession(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
 // ListScopedTokens fetches pages of scoped tokens.
 func (c *Client) ListScopedTokens(ctx context.Context, req *joiningv1.ListScopedTokensRequest) (*joiningv1.ListScopedTokensResponse, error) {
 	res, err := c.grpc.ListScopedTokens(ctx, req)

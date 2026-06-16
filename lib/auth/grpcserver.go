@@ -824,7 +824,7 @@ func (g *GRPCServer) generateUserSingleUseCerts(ctx context.Context, srv *Scoped
 }
 
 func (g *GRPCServer) GenerateHostCerts(ctx context.Context, req *authpb.HostCertsRequest) (*authpb.Certs, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -836,7 +836,7 @@ func (g *GRPCServer) GenerateHostCerts(ctx context.Context, req *authpb.HostCert
 	}
 	req.RemoteAddr = p.Addr.String()
 
-	certs, err := auth.ServerWithRoles.GenerateHostCerts(ctx, req)
+	certs, err := auth.GenerateHostCerts(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2032,6 +2032,34 @@ func (g *GRPCServer) GetWebSession(ctx context.Context, req *types.GetWebSession
 
 	return &authpb.GetWebSessionResponse{
 		Session: sess,
+	}, nil
+}
+
+// ExtendWebSession creates a new web session for a user based on a valid
+// existing web session.
+func (g *GRPCServer) ExtendWebSession(ctx context.Context, req *authpb.ExtendWebSessionRequest) (*authpb.ExtendWebSessionResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sess, err := auth.ExtendWebSession(ctx, authclient.WebSessionReq{
+		User:            req.GetUser(),
+		PrevSessionID:   req.GetPrevSessionId(),
+		AccessRequestID: req.GetAccessRequestId(),
+		Switchback:      req.GetSwitchback(),
+		ReloadUser:      req.GetReloadUser(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sessv2, ok := sess.(*types.WebSessionV2)
+	if !ok {
+		return nil, trace.BadParameter("unexpected session type %T", sess)
+	}
+
+	return &authpb.ExtendWebSessionResponse{
+		Session: sessv2,
 	}, nil
 }
 
