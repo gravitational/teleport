@@ -163,7 +163,10 @@ func (d *desktopThumbnailGenerator) release() {
 // frameActivity captures the per-frame signals the desktop processor uses to decide whether a frame represents real user
 // activity: how much of the screen changed, where the cursor is, and the screen size.
 type frameActivity struct {
-	changedPixels    int
+	changedPixels int
+	// regions are the rectangles that changed this frame; their positions let the processor tell typing
+	// apart from a fixed clock or caret.
+	regions          []image.Rectangle
 	cursorX, cursorY uint16
 	screenW, screenH uint16
 }
@@ -177,8 +180,13 @@ func (d *desktopThumbnailGenerator) consumeFrameActivity() frameActivity {
 	}
 	defer d.rdpstate.ResetUpdatedRegions()
 
+	regions := d.rdpstate.UpdatedRegions()
+
+	// UpdatedRegions can overlap, so a pixel changed twice is counted twice and changed
+	// can exceed the true changed area. We accept the overcount as a worthwhile trade-off
+	// for keeping the comparison simple, rather than computing the exact union area.
 	var changed int
-	for _, r := range d.rdpstate.UpdatedRegions() {
+	for _, r := range regions {
 		changed += r.Dx() * r.Dy()
 	}
 
@@ -187,6 +195,7 @@ func (d *desktopThumbnailGenerator) consumeFrameActivity() frameActivity {
 
 	return frameActivity{
 		changedPixels: changed,
+		regions:       regions,
 		cursorX:       cursor.X,
 		cursorY:       cursor.Y,
 		screenW:       w,

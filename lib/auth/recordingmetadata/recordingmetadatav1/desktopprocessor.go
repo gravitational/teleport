@@ -19,6 +19,7 @@
 package recordingmetadatav1
 
 import (
+	"image"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -36,6 +37,12 @@ type desktopProcessor struct {
 
 	lastCursorX, lastCursorY uint16
 	cursorInitialized        bool
+
+	// activityFootprint holds the distinct regions changed since the last activity; distinctActivityFrames
+	// counts the frames that added a new one. A clock or caret repaints one spot so its count stays low;
+	// typing keeps moving to new spots. Both reset when a frame counts as activity.
+	activityFootprint      []image.Rectangle
+	distinctActivityFrames int
 }
 
 func newDesktopProcessor(base baseRecordingProcessor, duration time.Duration) *desktopProcessor {
@@ -101,8 +108,22 @@ func (d *desktopProcessor) trackActivity(eventTime time.Time) {
 	d.lastCursorX, d.lastCursorY = fa.cursorX, fa.cursorY
 	d.cursorInitialized = true
 
-	if fa.changedPixels < desktopActivityMinPixels(fa.screenW, fa.screenH) && !cursorMoved {
-		// Incidental change (clock tick, blinking caret) with a static cursor — not activity.
+	frameAddedLocation := false
+	for _, r := range fa.regions {
+		if !overlapsAny(d.activityFootprint, r) {
+			d.activityFootprint = append(d.activityFootprint, r)
+			frameAddedLocation = true
+		}
+	}
+	if frameAddedLocation {
+		d.distinctActivityFrames++
+	}
+
+	bigRepaint := fa.changedPixels >= desktopActivityMinPixels(fa.screenW, fa.screenH)
+	spreadAcrossScreen := d.distinctActivityFrames >= desktopActivityMinLocations
+
+	if !cursorMoved && !bigRepaint && !spreadAcrossScreen {
+		// Incidental change (clock tick, blinking caret) confined to a static spot, not activity.
 		return
 	}
 
@@ -110,6 +131,19 @@ func (d *desktopProcessor) trackActivity(eventTime time.Time) {
 		d.addInactivityEvent(d.lastActivityTime, eventTime)
 	}
 	d.lastActivityTime = eventTime
+	d.activityFootprint = d.activityFootprint[:0]
+	d.distinctActivityFrames = 0
+}
+
+// overlapsAny reports whether r intersects any region in the footprint. Edge-adjacent repaints (e.g.
+// consecutive glyphs while typing) don't intersect, so they count as new places.
+func overlapsAny(footprint []image.Rectangle, r image.Rectangle) bool {
+	for _, existing := range footprint {
+		if existing.Overlaps(r) {
+			return true
+		}
+	}
+	return false
 }
 
 // desktopActivityMinPixels is the minimum changed-pixel area for a frame to count as activity on a screen of

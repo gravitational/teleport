@@ -158,7 +158,6 @@ func TestDesktopRecordingProcessor_ThumbnailsWrittenToWriter(t *testing.T) {
 	require.NotEmpty(t, buf.Bytes(), "thumbnails should have been written to the writer")
 }
 
-
 func TestDesktopRecordingProcessor_InactivityEvents(t *testing.T) {
 	startTime := time.Now()
 
@@ -166,9 +165,15 @@ func TestDesktopRecordingProcessor_InactivityEvents(t *testing.T) {
 	bigFrame := func(at time.Time, color uint16) *apievents.DesktopRecording {
 		return desktopFastPathEvent(t, at, rdpstatetest.BuildBitmapPDU(0, 0, 64, 64, color))
 	}
-	// smallFrame paints a 2x2 region (~4px), far below the threshold — clock/caret-scale noise.
+	// smallFrame paints a 2x2 region (~4px) at a fixed position, far below the threshold: a ticking
+	// clock or blinking caret that keeps repainting the same spot.
 	smallFrame := func(at time.Time) *apievents.DesktopRecording {
 		return desktopFastPathEvent(t, at, rdpstatetest.BuildBitmapPDU(0, 0, 2, 2, rdpstatetest.RGB565Red))
+	}
+	// typingFrame paints a 2x2 region at an advancing x offset: a glyph repaint marching across the
+	// screen as the user types. Below the per-frame threshold, but always in a new place.
+	typingFrame := func(at time.Time, x int) *apievents.DesktopRecording {
+		return desktopFastPathEvent(t, at, rdpstatetest.BuildBitmapPDU(x, 0, 2, 2, rdpstatetest.RGB565Red))
 	}
 
 	type offsets struct{ start, end time.Duration }
@@ -239,6 +244,52 @@ func TestDesktopRecordingProcessor_InactivityEvents(t *testing.T) {
 				desktopSessionEndEvent(startTime.Add(20 * time.Second)),
 			},
 			expected: []offsets{{start: 0, end: 20 * time.Second}},
+		},
+		{
+			// Typing without the mouse reaches the processor only as small repaints that land in new
+			// places frame after frame. Each is below the area threshold, but together they're activity.
+			name: "continuous typing without mouse movement is not inactive",
+			events: []apievents.AuditEvent{
+				desktopSessionStartEvent(startTime),
+				desktopServerHelloEvent(t, startTime.Add(100*time.Millisecond), 256, 256),
+				typingFrame(startTime.Add(1*time.Second), 0),
+				typingFrame(startTime.Add(2*time.Second), 4),
+				typingFrame(startTime.Add(3*time.Second), 8),
+				typingFrame(startTime.Add(4*time.Second), 12),
+				typingFrame(startTime.Add(5*time.Second), 16),
+				typingFrame(startTime.Add(6*time.Second), 20),
+				typingFrame(startTime.Add(7*time.Second), 24),
+				typingFrame(startTime.Add(8*time.Second), 28),
+				typingFrame(startTime.Add(9*time.Second), 32),
+				typingFrame(startTime.Add(10*time.Second), 36),
+				typingFrame(startTime.Add(11*time.Second), 40),
+				typingFrame(startTime.Add(12*time.Second), 44),
+				desktopSessionEndEvent(startTime.Add(13 * time.Second)),
+			},
+			expected: nil,
+		},
+		{
+			// A taskbar clock repaints the same spot once per second while the user is away. It stays in
+			// one place, so the whole span remains inactive.
+			name: "clock ticking in a fixed position stays inactive",
+			events: []apievents.AuditEvent{
+				desktopSessionStartEvent(startTime),
+				desktopServerHelloEvent(t, startTime.Add(100*time.Millisecond), 256, 256),
+				bigFrame(startTime.Add(1*time.Second), rdpstatetest.RGB565White),
+				smallFrame(startTime.Add(3 * time.Second)),
+				smallFrame(startTime.Add(4 * time.Second)),
+				smallFrame(startTime.Add(5 * time.Second)),
+				smallFrame(startTime.Add(6 * time.Second)),
+				smallFrame(startTime.Add(7 * time.Second)),
+				smallFrame(startTime.Add(8 * time.Second)),
+				smallFrame(startTime.Add(9 * time.Second)),
+				smallFrame(startTime.Add(10 * time.Second)),
+				smallFrame(startTime.Add(11 * time.Second)),
+				smallFrame(startTime.Add(12 * time.Second)),
+				smallFrame(startTime.Add(13 * time.Second)),
+				desktopSessionEndEvent(startTime.Add(14 * time.Second)),
+			},
+			expected: []offsets{{start: 1 * time.Second, end: 14 * time.Second}},
 		},
 	}
 

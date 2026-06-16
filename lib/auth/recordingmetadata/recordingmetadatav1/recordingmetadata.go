@@ -104,6 +104,11 @@ const (
 	// real recordings.
 	desktopActivityAreaFraction = 0.001 // 0.1%
 
+	// desktopActivityMinLocations is how many distinct places must change since the last activity for a
+	// run of small, sub-threshold repaints to count as activity. A clock or caret repaints one fixed
+	// spot; typing keeps moving to new ones. Validate against real recordings.
+	desktopActivityMinLocations = 4
+
 	// concurrencyLimit limits the number of concurrent processing operations (matches the session summarizer).
 	concurrencyLimit = 150
 
