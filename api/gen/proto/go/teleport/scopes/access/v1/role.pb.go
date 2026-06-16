@@ -380,8 +380,17 @@ type ScopedRoleDefaults struct {
 	// ClientIdleTimeout sets the default idle timeout for access sessions across all protocols
 	// that do not specify their own value. Must be a valid Go duration string (e.g. "30m", "1h").
 	ClientIdleTimeout string `protobuf:"bytes,1,opt,name=client_idle_timeout,json=clientIdleTimeout,proto3" json:"client_idle_timeout,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	// SessionRecording configures the session recording strategy for all protocols that don't
+	// explicitly set their session recording mode.
+	SessionRecording *SessionRecording `protobuf:"bytes,2,opt,name=session_recording,json=sessionRecording,proto3" json:"session_recording,omitempty"`
+	// DisconnectExpiredCert defines the default behavior of all protocols when certs expire for a session.
+	// If unset, cluster wide defaults are used.
+	DisconnectExpiredCert *bool `protobuf:"varint,3,opt,name=disconnect_expired_cert,json=disconnectExpiredCert,proto3,oneof" json:"disconnect_expired_cert,omitempty"`
+	// Lock specifies the default locking mode for access sessions across all protocols that
+	// do not specify their own value. If unset, cluster wide defaults are used.
+	Lock          *Lock `protobuf:"bytes,4,opt,name=lock,proto3" json:"lock,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ScopedRoleDefaults) Reset() {
@@ -416,8 +425,74 @@ func (x *ScopedRoleDefaults) GetClientIdleTimeout() string {
 	return ""
 }
 
+func (x *ScopedRoleDefaults) GetSessionRecording() *SessionRecording {
+	if x != nil {
+		return x.SessionRecording
+	}
+	return nil
+}
+
+func (x *ScopedRoleDefaults) GetDisconnectExpiredCert() bool {
+	if x != nil && x.DisconnectExpiredCert != nil {
+		return *x.DisconnectExpiredCert
+	}
+	return false
+}
+
+func (x *ScopedRoleDefaults) GetLock() *Lock {
+	if x != nil {
+		return x.Lock
+	}
+	return nil
+}
+
 func (x *ScopedRoleDefaults) SetClientIdleTimeout(v string) {
 	x.ClientIdleTimeout = v
+}
+
+func (x *ScopedRoleDefaults) SetSessionRecording(v *SessionRecording) {
+	x.SessionRecording = v
+}
+
+func (x *ScopedRoleDefaults) SetDisconnectExpiredCert(v bool) {
+	x.DisconnectExpiredCert = &v
+}
+
+func (x *ScopedRoleDefaults) SetLock(v *Lock) {
+	x.Lock = v
+}
+
+func (x *ScopedRoleDefaults) HasSessionRecording() bool {
+	if x == nil {
+		return false
+	}
+	return x.SessionRecording != nil
+}
+
+func (x *ScopedRoleDefaults) HasDisconnectExpiredCert() bool {
+	if x == nil {
+		return false
+	}
+	return x.DisconnectExpiredCert != nil
+}
+
+func (x *ScopedRoleDefaults) HasLock() bool {
+	if x == nil {
+		return false
+	}
+	return x.Lock != nil
+}
+
+func (x *ScopedRoleDefaults) ClearSessionRecording() {
+	x.SessionRecording = nil
+}
+
+func (x *ScopedRoleDefaults) ClearDisconnectExpiredCert() {
+	x.DisconnectExpiredCert = nil
+}
+
+func (x *ScopedRoleDefaults) ClearLock() {
+	x.Lock = nil
 }
 
 type ScopedRoleDefaults_builder struct {
@@ -426,6 +501,15 @@ type ScopedRoleDefaults_builder struct {
 	// ClientIdleTimeout sets the default idle timeout for access sessions across all protocols
 	// that do not specify their own value. Must be a valid Go duration string (e.g. "30m", "1h").
 	ClientIdleTimeout string
+	// SessionRecording configures the session recording strategy for all protocols that don't
+	// explicitly set their session recording mode.
+	SessionRecording *SessionRecording
+	// DisconnectExpiredCert defines the default behavior of all protocols when certs expire for a session.
+	// If unset, cluster wide defaults are used.
+	DisconnectExpiredCert *bool
+	// Lock specifies the default locking mode for access sessions across all protocols that
+	// do not specify their own value. If unset, cluster wide defaults are used.
+	Lock *Lock
 }
 
 func (b0 ScopedRoleDefaults_builder) Build() *ScopedRoleDefaults {
@@ -433,6 +517,9 @@ func (b0 ScopedRoleDefaults_builder) Build() *ScopedRoleDefaults {
 	b, x := &b0, m0
 	_, _ = b, x
 	x.ClientIdleTimeout = b.ClientIdleTimeout
+	x.SessionRecording = b.SessionRecording
+	x.DisconnectExpiredCert = b.DisconnectExpiredCert
+	x.Lock = b.Lock
 	return m0
 }
 
@@ -467,7 +554,17 @@ type ScopedRoleSSH struct {
 	HostSudoers []string `protobuf:"bytes,10,rep,name=host_sudoers,json=hostSudoers,proto3" json:"host_sudoers,omitempty"`
 	// FileCopy indicates whether remote file operations via SCP or SFTP are allowed
 	// over an SSH session. It defaults to allowing the user to download and upload files by default.
-	FileCopy      *bool `protobuf:"varint,11,opt,name=file_copy,json=fileCopy,proto3,oneof" json:"file_copy,omitempty"`
+	FileCopy *bool `protobuf:"varint,11,opt,name=file_copy,json=fileCopy,proto3,oneof" json:"file_copy,omitempty"`
+	// EnhancedRecording is the set of BPF events to record for enhanced session recording.
+	EnhancedRecording *EnhancedRecording `protobuf:"bytes,12,opt,name=enhanced_recording,json=enhancedRecording,proto3" json:"enhanced_recording,omitempty"`
+	// SessionRecording configures the session recording strategy for SSH sessions.
+	SessionRecording *SessionRecording `protobuf:"bytes,13,opt,name=session_recording,json=sessionRecording,proto3" json:"session_recording,omitempty"`
+	// DisconnectExpiredCert controls whether SSH sessions are disconnected when the
+	// user certificate expires.
+	// Defaults to value cluster wide auth preference if not set.
+	DisconnectExpiredCert *bool `protobuf:"varint,14,opt,name=disconnect_expired_cert,json=disconnectExpiredCert,proto3,oneof" json:"disconnect_expired_cert,omitempty"`
+	// Lock configures the role's locking behavior for SSH sessions.
+	Lock          *Lock `protobuf:"bytes,15,opt,name=lock,proto3" json:"lock,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -567,6 +664,34 @@ func (x *ScopedRoleSSH) GetFileCopy() bool {
 	return false
 }
 
+func (x *ScopedRoleSSH) GetEnhancedRecording() *EnhancedRecording {
+	if x != nil {
+		return x.EnhancedRecording
+	}
+	return nil
+}
+
+func (x *ScopedRoleSSH) GetSessionRecording() *SessionRecording {
+	if x != nil {
+		return x.SessionRecording
+	}
+	return nil
+}
+
+func (x *ScopedRoleSSH) GetDisconnectExpiredCert() bool {
+	if x != nil && x.DisconnectExpiredCert != nil {
+		return *x.DisconnectExpiredCert
+	}
+	return false
+}
+
+func (x *ScopedRoleSSH) GetLock() *Lock {
+	if x != nil {
+		return x.Lock
+	}
+	return nil
+}
+
 func (x *ScopedRoleSSH) SetLogins(v []string) {
 	x.Logins = v
 }
@@ -605,6 +730,22 @@ func (x *ScopedRoleSSH) SetHostSudoers(v []string) {
 
 func (x *ScopedRoleSSH) SetFileCopy(v bool) {
 	x.FileCopy = &v
+}
+
+func (x *ScopedRoleSSH) SetEnhancedRecording(v *EnhancedRecording) {
+	x.EnhancedRecording = v
+}
+
+func (x *ScopedRoleSSH) SetSessionRecording(v *SessionRecording) {
+	x.SessionRecording = v
+}
+
+func (x *ScopedRoleSSH) SetDisconnectExpiredCert(v bool) {
+	x.DisconnectExpiredCert = &v
+}
+
+func (x *ScopedRoleSSH) SetLock(v *Lock) {
+	x.Lock = v
 }
 
 func (x *ScopedRoleSSH) HasPermitX11Forwarding() bool {
@@ -649,6 +790,34 @@ func (x *ScopedRoleSSH) HasFileCopy() bool {
 	return x.FileCopy != nil
 }
 
+func (x *ScopedRoleSSH) HasEnhancedRecording() bool {
+	if x == nil {
+		return false
+	}
+	return x.EnhancedRecording != nil
+}
+
+func (x *ScopedRoleSSH) HasSessionRecording() bool {
+	if x == nil {
+		return false
+	}
+	return x.SessionRecording != nil
+}
+
+func (x *ScopedRoleSSH) HasDisconnectExpiredCert() bool {
+	if x == nil {
+		return false
+	}
+	return x.DisconnectExpiredCert != nil
+}
+
+func (x *ScopedRoleSSH) HasLock() bool {
+	if x == nil {
+		return false
+	}
+	return x.Lock != nil
+}
+
 func (x *ScopedRoleSSH) ClearPermitX11Forwarding() {
 	x.PermitX11Forwarding = nil
 }
@@ -671,6 +840,22 @@ func (x *ScopedRoleSSH) ClearMaxSessions() {
 
 func (x *ScopedRoleSSH) ClearFileCopy() {
 	x.FileCopy = nil
+}
+
+func (x *ScopedRoleSSH) ClearEnhancedRecording() {
+	x.EnhancedRecording = nil
+}
+
+func (x *ScopedRoleSSH) ClearSessionRecording() {
+	x.SessionRecording = nil
+}
+
+func (x *ScopedRoleSSH) ClearDisconnectExpiredCert() {
+	x.DisconnectExpiredCert = nil
+}
+
+func (x *ScopedRoleSSH) ClearLock() {
+	x.Lock = nil
 }
 
 type ScopedRoleSSH_builder struct {
@@ -701,6 +886,16 @@ type ScopedRoleSSH_builder struct {
 	// FileCopy indicates whether remote file operations via SCP or SFTP are allowed
 	// over an SSH session. It defaults to allowing the user to download and upload files by default.
 	FileCopy *bool
+	// EnhancedRecording is the set of BPF events to record for enhanced session recording.
+	EnhancedRecording *EnhancedRecording
+	// SessionRecording configures the session recording strategy for SSH sessions.
+	SessionRecording *SessionRecording
+	// DisconnectExpiredCert controls whether SSH sessions are disconnected when the
+	// user certificate expires.
+	// Defaults to value cluster wide auth preference if not set.
+	DisconnectExpiredCert *bool
+	// Lock configures the role's locking behavior for SSH sessions.
+	Lock *Lock
 }
 
 func (b0 ScopedRoleSSH_builder) Build() *ScopedRoleSSH {
@@ -717,6 +912,10 @@ func (b0 ScopedRoleSSH_builder) Build() *ScopedRoleSSH {
 	x.MaxSessions = b.MaxSessions
 	x.HostSudoers = b.HostSudoers
 	x.FileCopy = b.FileCopy
+	x.EnhancedRecording = b.EnhancedRecording
+	x.SessionRecording = b.SessionRecording
+	x.DisconnectExpiredCert = b.DisconnectExpiredCert
+	x.Lock = b.Lock
 	return m0
 }
 
@@ -737,8 +936,12 @@ type ScopedRoleKube struct {
 	// Must be a valid Go duration string (e.g. "30m", "1h"). If empty, the defaults block value
 	// (or global default) applies.
 	ClientIdleTimeout string `protobuf:"bytes,5,opt,name=client_idle_timeout,json=clientIdleTimeout,proto3" json:"client_idle_timeout,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	// DisconnectExpiredCert controls whether Kube sessions are disconnected when the user certificate expires.
+	DisconnectExpiredCert *bool `protobuf:"varint,6,opt,name=disconnect_expired_cert,json=disconnectExpiredCert,proto3,oneof" json:"disconnect_expired_cert,omitempty"`
+	// Lock configures the role's locking behavior for kubernetes sessions.
+	Lock          *Lock `protobuf:"bytes,7,opt,name=lock,proto3" json:"lock,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ScopedRoleKube) Reset() {
@@ -794,6 +997,20 @@ func (x *ScopedRoleKube) GetClientIdleTimeout() string {
 	return ""
 }
 
+func (x *ScopedRoleKube) GetDisconnectExpiredCert() bool {
+	if x != nil && x.DisconnectExpiredCert != nil {
+		return *x.DisconnectExpiredCert
+	}
+	return false
+}
+
+func (x *ScopedRoleKube) GetLock() *Lock {
+	if x != nil {
+		return x.Lock
+	}
+	return nil
+}
+
 func (x *ScopedRoleKube) SetLabels(v []*v11.Label) {
 	x.Labels = v
 }
@@ -810,6 +1027,36 @@ func (x *ScopedRoleKube) SetClientIdleTimeout(v string) {
 	x.ClientIdleTimeout = v
 }
 
+func (x *ScopedRoleKube) SetDisconnectExpiredCert(v bool) {
+	x.DisconnectExpiredCert = &v
+}
+
+func (x *ScopedRoleKube) SetLock(v *Lock) {
+	x.Lock = v
+}
+
+func (x *ScopedRoleKube) HasDisconnectExpiredCert() bool {
+	if x == nil {
+		return false
+	}
+	return x.DisconnectExpiredCert != nil
+}
+
+func (x *ScopedRoleKube) HasLock() bool {
+	if x == nil {
+		return false
+	}
+	return x.Lock != nil
+}
+
+func (x *ScopedRoleKube) ClearDisconnectExpiredCert() {
+	x.DisconnectExpiredCert = nil
+}
+
+func (x *ScopedRoleKube) ClearLock() {
+	x.Lock = nil
+}
+
 type ScopedRoleKube_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
@@ -823,6 +1070,10 @@ type ScopedRoleKube_builder struct {
 	// Must be a valid Go duration string (e.g. "30m", "1h"). If empty, the defaults block value
 	// (or global default) applies.
 	ClientIdleTimeout string
+	// DisconnectExpiredCert controls whether Kube sessions are disconnected when the user certificate expires.
+	DisconnectExpiredCert *bool
+	// Lock configures the role's locking behavior for kubernetes sessions.
+	Lock *Lock
 }
 
 func (b0 ScopedRoleKube_builder) Build() *ScopedRoleKube {
@@ -833,6 +1084,8 @@ func (b0 ScopedRoleKube_builder) Build() *ScopedRoleKube {
 	x.Groups = b.Groups
 	x.Users = b.Users
 	x.ClientIdleTimeout = b.ClientIdleTimeout
+	x.DisconnectExpiredCert = b.DisconnectExpiredCert
+	x.Lock = b.Lock
 	return m0
 }
 
@@ -1241,6 +1494,254 @@ func (b0 CreateHostUser_builder) Build() *CreateHostUser {
 	return m0
 }
 
+// EnhancedRecording enables what events to record for the BPF-based session recorder.
+type EnhancedRecording struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// Command enables session.command in audit logs
+	Command *bool `protobuf:"varint,1,opt,name=command,proto3,oneof" json:"command,omitempty"`
+	// Network enables session.network in audit logs
+	Network *bool `protobuf:"varint,2,opt,name=network,proto3,oneof" json:"network,omitempty"`
+	// Disk enables session.disk in audit logs
+	Disk          *bool `protobuf:"varint,3,opt,name=disk,proto3,oneof" json:"disk,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EnhancedRecording) Reset() {
+	*x = EnhancedRecording{}
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EnhancedRecording) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EnhancedRecording) ProtoMessage() {}
+
+func (x *EnhancedRecording) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *EnhancedRecording) GetCommand() bool {
+	if x != nil && x.Command != nil {
+		return *x.Command
+	}
+	return false
+}
+
+func (x *EnhancedRecording) GetNetwork() bool {
+	if x != nil && x.Network != nil {
+		return *x.Network
+	}
+	return false
+}
+
+func (x *EnhancedRecording) GetDisk() bool {
+	if x != nil && x.Disk != nil {
+		return *x.Disk
+	}
+	return false
+}
+
+func (x *EnhancedRecording) SetCommand(v bool) {
+	x.Command = &v
+}
+
+func (x *EnhancedRecording) SetNetwork(v bool) {
+	x.Network = &v
+}
+
+func (x *EnhancedRecording) SetDisk(v bool) {
+	x.Disk = &v
+}
+
+func (x *EnhancedRecording) HasCommand() bool {
+	if x == nil {
+		return false
+	}
+	return x.Command != nil
+}
+
+func (x *EnhancedRecording) HasNetwork() bool {
+	if x == nil {
+		return false
+	}
+	return x.Network != nil
+}
+
+func (x *EnhancedRecording) HasDisk() bool {
+	if x == nil {
+		return false
+	}
+	return x.Disk != nil
+}
+
+func (x *EnhancedRecording) ClearCommand() {
+	x.Command = nil
+}
+
+func (x *EnhancedRecording) ClearNetwork() {
+	x.Network = nil
+}
+
+func (x *EnhancedRecording) ClearDisk() {
+	x.Disk = nil
+}
+
+type EnhancedRecording_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Command enables session.command in audit logs
+	Command *bool
+	// Network enables session.network in audit logs
+	Network *bool
+	// Disk enables session.disk in audit logs
+	Disk *bool
+}
+
+func (b0 EnhancedRecording_builder) Build() *EnhancedRecording {
+	m0 := &EnhancedRecording{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Command = b.Command
+	x.Network = b.Network
+	x.Disk = b.Disk
+	return m0
+}
+
+// SessionRecording sets the session recording behavior.
+type SessionRecording struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// Mode sets the session recording mode. Allowed values: strict or best_effort.
+	Mode          string `protobuf:"bytes,1,opt,name=mode,proto3" json:"mode,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SessionRecording) Reset() {
+	*x = SessionRecording{}
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SessionRecording) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SessionRecording) ProtoMessage() {}
+
+func (x *SessionRecording) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *SessionRecording) GetMode() string {
+	if x != nil {
+		return x.Mode
+	}
+	return ""
+}
+
+func (x *SessionRecording) SetMode(v string) {
+	x.Mode = v
+}
+
+type SessionRecording_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Mode sets the session recording mode. Allowed values: strict or best_effort.
+	Mode string
+}
+
+func (b0 SessionRecording_builder) Build() *SessionRecording {
+	m0 := &SessionRecording{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Mode = b.Mode
+	return m0
+}
+
+// Lock controls locking mode for sessions authorized via this
+// scoped role.
+type Lock struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// Allowed values: strict or best_effort.
+	// Defaults to value cluster wide auth preference if not set.
+	Mode          string `protobuf:"bytes,1,opt,name=mode,proto3" json:"mode,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Lock) Reset() {
+	*x = Lock{}
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Lock) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Lock) ProtoMessage() {}
+
+func (x *Lock) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *Lock) GetMode() string {
+	if x != nil {
+		return x.Mode
+	}
+	return ""
+}
+
+func (x *Lock) SetMode(v string) {
+	x.Mode = v
+}
+
+type Lock_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Allowed values: strict or best_effort.
+	// Defaults to value cluster wide auth preference if not set.
+	Mode string
+}
+
+func (b0 Lock_builder) Build() *Lock {
+	m0 := &Lock{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Mode = b.Mode
+	return m0
+}
+
 var File_teleport_scopes_access_v1_role_proto protoreflect.FileDescriptor
 
 const file_teleport_scopes_access_v1_role_proto_rawDesc = "" +
@@ -1259,9 +1760,13 @@ const file_teleport_scopes_access_v1_role_proto_rawDesc = "" +
 	"\bdefaults\x18\x05 \x01(\v2-.teleport.scopes.access.v1.ScopedRoleDefaultsR\bdefaults\x12;\n" +
 	"\x05rules\x18\x06 \x03(\v2%.teleport.scopes.access.v1.ScopedRuleR\x05rules\x12:\n" +
 	"\x03ssh\x18\a \x01(\v2(.teleport.scopes.access.v1.ScopedRoleSSHR\x03ssh\x12=\n" +
-	"\x04kube\x18\b \x01(\v2).teleport.scopes.access.v1.ScopedRoleKubeR\x04kubeJ\x04\b\x02\x10\x03J\x04\b\x03\x10\x04R\x05allowR\aoptions\"D\n" +
+	"\x04kube\x18\b \x01(\v2).teleport.scopes.access.v1.ScopedRoleKubeR\x04kubeJ\x04\b\x02\x10\x03J\x04\b\x03\x10\x04R\x05allowR\aoptions\"\xac\x02\n" +
 	"\x12ScopedRoleDefaults\x12.\n" +
-	"\x13client_idle_timeout\x18\x01 \x01(\tR\x11clientIdleTimeout\"\xd4\x04\n" +
+	"\x13client_idle_timeout\x18\x01 \x01(\tR\x11clientIdleTimeout\x12X\n" +
+	"\x11session_recording\x18\x02 \x01(\v2+.teleport.scopes.access.v1.SessionRecordingR\x10sessionRecording\x12;\n" +
+	"\x17disconnect_expired_cert\x18\x03 \x01(\bH\x00R\x15disconnectExpiredCert\x88\x01\x01\x123\n" +
+	"\x04lock\x18\x04 \x01(\v2\x1f.teleport.scopes.access.v1.LockR\x04lockB\x1a\n" +
+	"\x18_disconnect_expired_cert\"\x99\a\n" +
 	"\rScopedRoleSSH\x12\x16\n" +
 	"\x06logins\x18\x01 \x03(\tR\x06logins\x120\n" +
 	"\x06labels\x18\x02 \x03(\v2\x18.teleport.label.v1.LabelR\x06labels\x12.\n" +
@@ -1273,17 +1778,25 @@ const file_teleport_scopes_access_v1_role_proto_rawDesc = "" +
 	"\fmax_sessions\x18\t \x01(\x03H\x02R\vmaxSessions\x88\x01\x01\x12!\n" +
 	"\fhost_sudoers\x18\n" +
 	" \x03(\tR\vhostSudoers\x12 \n" +
-	"\tfile_copy\x18\v \x01(\bH\x03R\bfileCopy\x88\x01\x01B\x18\n" +
+	"\tfile_copy\x18\v \x01(\bH\x03R\bfileCopy\x88\x01\x01\x12[\n" +
+	"\x12enhanced_recording\x18\f \x01(\v2,.teleport.scopes.access.v1.EnhancedRecordingR\x11enhancedRecording\x12X\n" +
+	"\x11session_recording\x18\r \x01(\v2+.teleport.scopes.access.v1.SessionRecordingR\x10sessionRecording\x12;\n" +
+	"\x17disconnect_expired_cert\x18\x0e \x01(\bH\x04R\x15disconnectExpiredCert\x88\x01\x01\x123\n" +
+	"\x04lock\x18\x0f \x01(\v2\x1f.teleport.scopes.access.v1.LockR\x04lockB\x18\n" +
 	"\x16_permit_x11_forwardingB\x10\n" +
 	"\x0e_forward_agentB\x0f\n" +
 	"\r_max_sessionsB\f\n" +
 	"\n" +
-	"_file_copy\"\xb1\x01\n" +
+	"_file_copyB\x1a\n" +
+	"\x18_disconnect_expired_cert\"\xbf\x02\n" +
 	"\x0eScopedRoleKube\x120\n" +
 	"\x06labels\x18\x01 \x03(\v2\x18.teleport.label.v1.LabelR\x06labels\x12\x16\n" +
 	"\x06groups\x18\x02 \x03(\tR\x06groups\x12\x14\n" +
 	"\x05users\x18\x03 \x03(\tR\x05users\x12.\n" +
-	"\x13client_idle_timeout\x18\x05 \x01(\tR\x11clientIdleTimeoutJ\x04\b\x04\x10\x05R\tresources\"@\n" +
+	"\x13client_idle_timeout\x18\x05 \x01(\tR\x11clientIdleTimeout\x12;\n" +
+	"\x17disconnect_expired_cert\x18\x06 \x01(\bH\x00R\x15disconnectExpiredCert\x88\x01\x01\x123\n" +
+	"\x04lock\x18\a \x01(\v2\x1f.teleport.scopes.access.v1.LockR\x04lockB\x1a\n" +
+	"\x18_disconnect_expired_certJ\x04\b\x04\x10\x05R\tresources\"@\n" +
 	"\n" +
 	"ScopedRule\x12\x1c\n" +
 	"\tresources\x18\x01 \x03(\tR\tresources\x12\x14\n" +
@@ -1302,9 +1815,22 @@ const file_teleport_scopes_access_v1_role_proto_rawDesc = "" +
 	"\x0eCreateHostUser\x12\x12\n" +
 	"\x04mode\x18\x01 \x01(\tR\x04mode\x12\x16\n" +
 	"\x06groups\x18\x02 \x03(\tR\x06groups\x12\x14\n" +
-	"\x05shell\x18\x03 \x01(\tR\x05shellBWZUgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1;accessv1b\x06proto3"
+	"\x05shell\x18\x03 \x01(\tR\x05shell\"\x8b\x01\n" +
+	"\x11EnhancedRecording\x12\x1d\n" +
+	"\acommand\x18\x01 \x01(\bH\x00R\acommand\x88\x01\x01\x12\x1d\n" +
+	"\anetwork\x18\x02 \x01(\bH\x01R\anetwork\x88\x01\x01\x12\x17\n" +
+	"\x04disk\x18\x03 \x01(\bH\x02R\x04disk\x88\x01\x01B\n" +
+	"\n" +
+	"\b_commandB\n" +
+	"\n" +
+	"\b_networkB\a\n" +
+	"\x05_disk\"&\n" +
+	"\x10SessionRecording\x12\x12\n" +
+	"\x04mode\x18\x01 \x01(\tR\x04mode\"\x1a\n" +
+	"\x04Lock\x12\x12\n" +
+	"\x04mode\x18\x01 \x01(\tR\x04modeBWZUgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1;accessv1b\x06proto3"
 
-var file_teleport_scopes_access_v1_role_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
+var file_teleport_scopes_access_v1_role_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_teleport_scopes_access_v1_role_proto_goTypes = []any{
 	(*ScopedRole)(nil),              // 0: teleport.scopes.access.v1.ScopedRole
 	(*ScopedRoleSpec)(nil),          // 1: teleport.scopes.access.v1.ScopedRoleSpec
@@ -1316,27 +1842,36 @@ var file_teleport_scopes_access_v1_role_proto_goTypes = []any{
 	(*SSHLocalPortForwarding)(nil),  // 7: teleport.scopes.access.v1.SSHLocalPortForwarding
 	(*SSHRemotePortForwarding)(nil), // 8: teleport.scopes.access.v1.SSHRemotePortForwarding
 	(*CreateHostUser)(nil),          // 9: teleport.scopes.access.v1.CreateHostUser
-	(*v1.Metadata)(nil),             // 10: teleport.header.v1.Metadata
-	(*v11.Label)(nil),               // 11: teleport.label.v1.Label
+	(*EnhancedRecording)(nil),       // 10: teleport.scopes.access.v1.EnhancedRecording
+	(*SessionRecording)(nil),        // 11: teleport.scopes.access.v1.SessionRecording
+	(*Lock)(nil),                    // 12: teleport.scopes.access.v1.Lock
+	(*v1.Metadata)(nil),             // 13: teleport.header.v1.Metadata
+	(*v11.Label)(nil),               // 14: teleport.label.v1.Label
 }
 var file_teleport_scopes_access_v1_role_proto_depIdxs = []int32{
-	10, // 0: teleport.scopes.access.v1.ScopedRole.metadata:type_name -> teleport.header.v1.Metadata
+	13, // 0: teleport.scopes.access.v1.ScopedRole.metadata:type_name -> teleport.header.v1.Metadata
 	1,  // 1: teleport.scopes.access.v1.ScopedRole.spec:type_name -> teleport.scopes.access.v1.ScopedRoleSpec
 	2,  // 2: teleport.scopes.access.v1.ScopedRoleSpec.defaults:type_name -> teleport.scopes.access.v1.ScopedRoleDefaults
 	5,  // 3: teleport.scopes.access.v1.ScopedRoleSpec.rules:type_name -> teleport.scopes.access.v1.ScopedRule
 	3,  // 4: teleport.scopes.access.v1.ScopedRoleSpec.ssh:type_name -> teleport.scopes.access.v1.ScopedRoleSSH
 	4,  // 5: teleport.scopes.access.v1.ScopedRoleSpec.kube:type_name -> teleport.scopes.access.v1.ScopedRoleKube
-	11, // 6: teleport.scopes.access.v1.ScopedRoleSSH.labels:type_name -> teleport.label.v1.Label
-	6,  // 7: teleport.scopes.access.v1.ScopedRoleSSH.port_forwarding:type_name -> teleport.scopes.access.v1.SSHPortForwarding
-	9,  // 8: teleport.scopes.access.v1.ScopedRoleSSH.host_user_creation:type_name -> teleport.scopes.access.v1.CreateHostUser
-	11, // 9: teleport.scopes.access.v1.ScopedRoleKube.labels:type_name -> teleport.label.v1.Label
-	7,  // 10: teleport.scopes.access.v1.SSHPortForwarding.local:type_name -> teleport.scopes.access.v1.SSHLocalPortForwarding
-	8,  // 11: teleport.scopes.access.v1.SSHPortForwarding.remote:type_name -> teleport.scopes.access.v1.SSHRemotePortForwarding
-	12, // [12:12] is the sub-list for method output_type
-	12, // [12:12] is the sub-list for method input_type
-	12, // [12:12] is the sub-list for extension type_name
-	12, // [12:12] is the sub-list for extension extendee
-	0,  // [0:12] is the sub-list for field type_name
+	11, // 6: teleport.scopes.access.v1.ScopedRoleDefaults.session_recording:type_name -> teleport.scopes.access.v1.SessionRecording
+	12, // 7: teleport.scopes.access.v1.ScopedRoleDefaults.lock:type_name -> teleport.scopes.access.v1.Lock
+	14, // 8: teleport.scopes.access.v1.ScopedRoleSSH.labels:type_name -> teleport.label.v1.Label
+	6,  // 9: teleport.scopes.access.v1.ScopedRoleSSH.port_forwarding:type_name -> teleport.scopes.access.v1.SSHPortForwarding
+	9,  // 10: teleport.scopes.access.v1.ScopedRoleSSH.host_user_creation:type_name -> teleport.scopes.access.v1.CreateHostUser
+	10, // 11: teleport.scopes.access.v1.ScopedRoleSSH.enhanced_recording:type_name -> teleport.scopes.access.v1.EnhancedRecording
+	11, // 12: teleport.scopes.access.v1.ScopedRoleSSH.session_recording:type_name -> teleport.scopes.access.v1.SessionRecording
+	12, // 13: teleport.scopes.access.v1.ScopedRoleSSH.lock:type_name -> teleport.scopes.access.v1.Lock
+	14, // 14: teleport.scopes.access.v1.ScopedRoleKube.labels:type_name -> teleport.label.v1.Label
+	12, // 15: teleport.scopes.access.v1.ScopedRoleKube.lock:type_name -> teleport.scopes.access.v1.Lock
+	7,  // 16: teleport.scopes.access.v1.SSHPortForwarding.local:type_name -> teleport.scopes.access.v1.SSHLocalPortForwarding
+	8,  // 17: teleport.scopes.access.v1.SSHPortForwarding.remote:type_name -> teleport.scopes.access.v1.SSHRemotePortForwarding
+	18, // [18:18] is the sub-list for method output_type
+	18, // [18:18] is the sub-list for method input_type
+	18, // [18:18] is the sub-list for extension type_name
+	18, // [18:18] is the sub-list for extension extendee
+	0,  // [0:18] is the sub-list for field type_name
 }
 
 func init() { file_teleport_scopes_access_v1_role_proto_init() }
@@ -1344,16 +1879,19 @@ func file_teleport_scopes_access_v1_role_proto_init() {
 	if File_teleport_scopes_access_v1_role_proto != nil {
 		return
 	}
+	file_teleport_scopes_access_v1_role_proto_msgTypes[2].OneofWrappers = []any{}
 	file_teleport_scopes_access_v1_role_proto_msgTypes[3].OneofWrappers = []any{}
+	file_teleport_scopes_access_v1_role_proto_msgTypes[4].OneofWrappers = []any{}
 	file_teleport_scopes_access_v1_role_proto_msgTypes[7].OneofWrappers = []any{}
 	file_teleport_scopes_access_v1_role_proto_msgTypes[8].OneofWrappers = []any{}
+	file_teleport_scopes_access_v1_role_proto_msgTypes[10].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_scopes_access_v1_role_proto_rawDesc), len(file_teleport_scopes_access_v1_role_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   10,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

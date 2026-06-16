@@ -25,6 +25,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
+	"github.com/gravitational/teleport/api/constants"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
@@ -394,8 +395,285 @@ func TestValidateRole(t *testing.T) {
 			strongOk: true,
 			weakOk:   true,
 		},
-	}
+		{
+			name: "invalid defaults.session_recording_mode",
+			role: &scopedaccessv1.ScopedRole{
+				Kind:     KindScopedRole,
+				Metadata: &headerv1.Metadata{Name: "test"},
+				Scope:    "/",
+				Spec: &scopedaccessv1.ScopedRoleSpec{
+					AssignableScopes: []string{"/foo"},
+					Defaults: &scopedaccessv1.ScopedRoleDefaults{
+						SessionRecording: &scopedaccessv1.SessionRecording{
+							Mode: "blah",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "invalid defaults.lock.mode",
+			role: &scopedaccessv1.ScopedRole{
+				Kind: KindScopedRole,
+				Metadata: &headerv1.Metadata{
+					Name: "test",
+				},
+				Scope: "/",
+				Spec: &scopedaccessv1.ScopedRoleSpec{
+					AssignableScopes: []string{"/foo"},
+					Defaults: &scopedaccessv1.ScopedRoleDefaults{
+						Lock: &scopedaccessv1.Lock{
+							Mode: "invalid",
+						},
+					},
+				},
+				Version: types.V1,
+			},
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "valid defaults.session_recording_mode",
+			role: &scopedaccessv1.ScopedRole{
+				Kind:     KindScopedRole,
+				Metadata: &headerv1.Metadata{Name: "test"},
+				Scope:    "/",
+				Spec: &scopedaccessv1.ScopedRoleSpec{
+					AssignableScopes: []string{"/foo"},
+					Defaults: &scopedaccessv1.ScopedRoleDefaults{
+						SessionRecording: &scopedaccessv1.SessionRecording{
+							Mode: string(constants.SessionRecordingModeStrict),
+						},
+					},
+				},
+				Version: types.V1,
+			},
+			strongOk: true,
+			weakOk:   true,
+		},
+		{
+			name: "invalid ssh.session_recording_mode",
+			role: &scopedaccessv1.ScopedRole{
+				Kind:     KindScopedRole,
+				Metadata: &headerv1.Metadata{Name: "test"},
+				Scope:    "/",
+				Spec: &scopedaccessv1.ScopedRoleSpec{
+					AssignableScopes: []string{"/foo"},
+					Ssh: &scopedaccessv1.ScopedRoleSSH{
+						SessionRecording: &scopedaccessv1.SessionRecording{
+							Mode: "blah",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "invalid ssh.lock.mode",
+			role: &scopedaccessv1.ScopedRole{
+				Kind: KindScopedRole,
+				Metadata: &headerv1.Metadata{
+					Name: "test",
+				},
+				Scope: "/",
+				Spec: &scopedaccessv1.ScopedRoleSpec{
+					AssignableScopes: []string{"/foo"},
+					Ssh: &scopedaccessv1.ScopedRoleSSH{
+						Lock: &scopedaccessv1.Lock{
+							Mode: "invalid",
+						},
+					},
+				},
+				Version: types.V1,
+			},
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "valid ssh.session_recording_mode",
+			role: &scopedaccessv1.ScopedRole{
+				Kind:     KindScopedRole,
+				Metadata: &headerv1.Metadata{Name: "test"},
+				Scope:    "/",
+				Spec: &scopedaccessv1.ScopedRoleSpec{
+					AssignableScopes: []string{"/foo"},
+					Ssh: &scopedaccessv1.ScopedRoleSSH{
+						SessionRecording: &scopedaccessv1.SessionRecording{
+							Mode: string(constants.SessionRecordingModeStrict),
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "valid ssh.lock.mode",
+			role: &scopedaccessv1.ScopedRole{
+				Kind: KindScopedRole,
+				Metadata: &headerv1.Metadata{
+					Name: "test",
+				},
+				Scope: "/",
+				Spec: &scopedaccessv1.ScopedRoleSpec{
+					AssignableScopes: []string{"/foo"},
+					Ssh: &scopedaccessv1.ScopedRoleSSH{
+						Lock: &scopedaccessv1.Lock{
+							Mode: string(constants.LockingModeStrict),
+						},
+					},
+				},
+				Version: types.V1,
+			},
+			strongOk: true,
+			weakOk:   true,
+		},
 
+		{
+			name: "empty ssh.lock.mode",
+			role: &scopedaccessv1.ScopedRole{
+				Kind: KindScopedRole,
+				Metadata: &headerv1.Metadata{
+					Name: "test",
+				},
+				Scope: "/",
+				Spec: &scopedaccessv1.ScopedRoleSpec{
+					AssignableScopes: []string{"/foo"},
+					Ssh: &scopedaccessv1.ScopedRoleSSH{
+						Lock: &scopedaccessv1.Lock{
+							Mode: "",
+						},
+					},
+				},
+				Version: types.V1,
+			},
+			strongOk: true,
+			weakOk:   true,
+		},
+		{
+			name: "invalid kube.lock.mode",
+			role: &scopedaccessv1.ScopedRole{
+				Kind: KindScopedRole,
+				Metadata: &headerv1.Metadata{
+					Name: "test",
+				},
+				Scope: "/",
+				Spec: &scopedaccessv1.ScopedRoleSpec{
+					AssignableScopes: []string{"/foo"},
+					Kube: &scopedaccessv1.ScopedRoleKube{
+						Lock: &scopedaccessv1.Lock{
+							Mode: "invalid",
+						},
+					},
+				},
+				Version: types.V1,
+			},
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "valid Kube.lock.mode",
+			role: &scopedaccessv1.ScopedRole{
+				Kind: KindScopedRole,
+				Metadata: &headerv1.Metadata{
+					Name: "test",
+				},
+				Scope: "/",
+				Spec: &scopedaccessv1.ScopedRoleSpec{
+					AssignableScopes: []string{"/foo"},
+					Kube: &scopedaccessv1.ScopedRoleKube{
+						Lock: &scopedaccessv1.Lock{
+							Mode: string(constants.LockingModeStrict),
+						},
+					},
+				},
+				Version: types.V1,
+			},
+			strongOk: true,
+			weakOk:   true,
+		},
+		{
+			name: "empty Kube.lock.mode",
+			role: &scopedaccessv1.ScopedRole{
+				Kind: KindScopedRole,
+				Metadata: &headerv1.Metadata{
+					Name: "test",
+				},
+				Scope: "/",
+				Spec: &scopedaccessv1.ScopedRoleSpec{
+					AssignableScopes: []string{"/foo"},
+					Kube: &scopedaccessv1.ScopedRoleKube{
+						Lock: &scopedaccessv1.Lock{
+							Mode: "",
+						},
+					},
+				},
+				Version: types.V1,
+			},
+			strongOk: true,
+			weakOk:   true,
+		},
+		{
+			name: "invalid defaults.lock.mode",
+			role: &scopedaccessv1.ScopedRole{
+				Kind: KindScopedRole,
+				Metadata: &headerv1.Metadata{
+					Name: "test",
+				},
+				Scope: "/",
+				Spec: &scopedaccessv1.ScopedRoleSpec{
+					AssignableScopes: []string{"/foo"},
+					Defaults: &scopedaccessv1.ScopedRoleDefaults{
+						Lock: &scopedaccessv1.Lock{
+							Mode: "invalid",
+						},
+					},
+				},
+				Version: types.V1,
+			},
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "valid defaults.lock.mode",
+			role: &scopedaccessv1.ScopedRole{
+				Kind: KindScopedRole,
+				Metadata: &headerv1.Metadata{
+					Name: "test",
+				},
+				Scope: "/",
+				Spec: &scopedaccessv1.ScopedRoleSpec{
+					AssignableScopes: []string{"/foo"},
+					Defaults: &scopedaccessv1.ScopedRoleDefaults{
+						Lock: &scopedaccessv1.Lock{
+							Mode: string(constants.LockingModeStrict),
+						},
+					},
+				},
+				Version: types.V1,
+			},
+			strongOk: true,
+			weakOk:   true,
+		},
+		{
+			name: "empty defaults.lock.mode",
+			role: &scopedaccessv1.ScopedRole{
+				Kind: KindScopedRole,
+				Metadata: &headerv1.Metadata{
+					Name: "test",
+				},
+				Scope: "/",
+				Spec: &scopedaccessv1.ScopedRoleSpec{
+					AssignableScopes: []string{"/foo"},
+					Defaults: &scopedaccessv1.ScopedRoleDefaults{
+						Lock: &scopedaccessv1.Lock{
+							Mode: "",
+						},
+					},
+				},
+				Version: types.V1,
+			},
+			strongOk: true,
+			weakOk:   true,
+		},
+	}
 	for _, tt := range tts {
 		t.Run(tt.name, func(t *testing.T) {
 			err := StrongValidateRole(tt.role)
@@ -1217,6 +1495,13 @@ func TestStrongValidateRoleSpecAllFieldsValidated(t *testing.T) {
 		AssignableScopes: []string{"/foo"},
 		Defaults: &scopedaccessv1.ScopedRoleDefaults{
 			ClientIdleTimeout: "30m",
+			SessionRecording: &scopedaccessv1.SessionRecording{
+				Mode: string(constants.SessionRecordingModeStrict),
+			},
+			Lock: &scopedaccessv1.Lock{
+				Mode: "strict",
+			},
+			DisconnectExpiredCert: ptr(true),
 		},
 		Rules: []*scopedaccessv1.ScopedRule{
 			{
@@ -1244,6 +1529,18 @@ func TestStrongValidateRoleSpecAllFieldsValidated(t *testing.T) {
 			},
 			HostSudoers: []string{"ALL=(ALL) NOPASSWD:ALL"},
 			MaxSessions: proto.Int64(10),
+			EnhancedRecording: &scopedaccessv1.EnhancedRecording{
+				Disk:    proto.Bool(true),
+				Network: proto.Bool(true),
+				Command: proto.Bool(true),
+			},
+			SessionRecording: &scopedaccessv1.SessionRecording{
+				Mode: string(constants.SessionRecordingModeStrict),
+			},
+			Lock: &scopedaccessv1.Lock{
+				Mode: string(constants.LockingModeBestEffort),
+			},
+			DisconnectExpiredCert: proto.Bool(true),
 		},
 		Kube: &scopedaccessv1.ScopedRoleKube{
 			Groups: []string{"viewer"},
@@ -1251,7 +1548,11 @@ func TestStrongValidateRoleSpecAllFieldsValidated(t *testing.T) {
 			Labels: []*labelv1.Label{
 				{Name: "env", Values: []string{"prod"}},
 			},
-			ClientIdleTimeout: "1h",
+			ClientIdleTimeout:     "1h",
+			DisconnectExpiredCert: ptr(true),
+			Lock: &scopedaccessv1.Lock{
+				Mode: "strict",
+			},
 		},
 	}
 
