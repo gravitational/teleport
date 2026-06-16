@@ -369,6 +369,42 @@ func (a *ServerWithRoles) hasBuiltinRole(roles ...types.SystemRole) bool {
 	return false
 }
 
+// hasBuiltinRole checks that the attached identity is a builtin role and
+// whether any of the given roles match the role set.
+func (a *ScopedServerWithRoles) hasBuiltinRole(roles ...types.SystemRole) bool {
+	unscopedCtx, isUnscoped := a.scopedContext.UnscopedContext()
+	if isUnscoped {
+		for _, role := range roles {
+			if authz.HasBuiltinRole(*unscopedCtx, string(role)) {
+				return true
+			}
+		}
+		return false
+	}
+
+	// since we check if the underlying SWR is unscoped, and defer to the
+	// unscoped behavior if it is, the only valid role type at this point
+	// will be a [authz.ScopedBuiltinRole].
+	role, isBuiltin := a.scopedContext.Identity.(authz.ScopedBuiltinRole)
+	if !isBuiltin {
+		return false
+	}
+	// for service certs, the additional system roles will be empty so we only check if the
+	// primary role is included in the given roles
+	if primary := types.SystemRole(role.ScopePin.GetSystemRoles().GetPrimary()); primary != types.RoleInstance {
+		return types.SystemRoles(roles).Include(primary)
+	}
+	// for instance certs, we check if there is any overlap between the given roles and the
+	// additional system roles included in the scope pin
+	existingRoles := role.ScopePin.GetSystemRoles().GetAdditional()
+	for _, role := range roles {
+		if slices.Contains(existingRoles, string(role)) {
+			return true
+		}
+	}
+	return false
+}
+
 // HasBuiltinRole checks if the identity is a builtin role with the matching
 // name.
 // Deprecated: use authz.HasBuiltinRole instead.
@@ -703,14 +739,28 @@ func (a *ScopedServerWithRoles) GetClusterCACert(ctx context.Context) (*proto.Ge
 
 // GenerateHostCerts generates new host certificates (signed
 // by the host certificate authority) for a node.
-func (a *ServerWithRoles) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequest) (*proto.Certs, error) {
+func (a *ScopedServerWithRoles) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequest) (*proto.Certs, error) {
 	clusterName, err := a.authServer.GetDomainName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// username is hostID + cluster name, so make sure server requests new keys for itself
-	if a.context.User.GetName() != utils.HostFQDN(req.HostID, clusterName) {
-		return nil, trace.AccessDenied("username mismatch %q and %q", a.context.User.GetName(), utils.HostFQDN(req.HostID, clusterName))
+
+	var existingRoles []string
+	var serverFQDN string
+	switch role := a.scopedContext.Identity.(type) {
+	case authz.ScopedBuiltinRole:
+		serverFQDN = role.ServerFQDN
+		existingRoles = role.ScopePin.GetSystemRoles().GetAdditional()
+	case authz.BuiltinRole:
+		serverFQDN = a.scopedContext.User.GetName()
+		existingRoles = a.scopedContext.User.GetRoles()
+	default:
+		return nil, trace.AccessDenied("cannot generate host cert as non-builtin role")
+	}
+
+	// serverFQDN is hostID + cluster name, so make sure server requests new keys for itself
+	if serverFQDN != utils.HostFQDN(req.HostID, clusterName) {
+		return nil, trace.AccessDenied("server FQDN mismatch %q and %q", serverFQDN, utils.HostFQDN(req.HostID, clusterName))
 	}
 
 	if req.Role == types.RoleInstance {
@@ -723,16 +773,20 @@ func (a *ServerWithRoles) GenerateHostCerts(ctx context.Context, req *proto.Host
 		}
 	}
 
-	existingRoles, err := types.NewTeleportRoles(a.context.User.GetRoles())
+	existingServerRoles, err := types.NewTeleportRoles(existingRoles)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "parsing existing server roles")
 	}
 
 	// prohibit privilege escalations through role changes (except the instance cert exception, handled above).
 	if !a.hasBuiltinRole(req.Role) && req.Role != types.RoleInstance {
-		return nil, trace.AccessDenied("roles do not match: %v and %v", existingRoles, req.Role)
+		return nil, trace.AccessDenied(
+			"roles do not match: %v and %v",
+			existingServerRoles,
+			req.Role,
+		)
 	}
-	identity := a.context.Identity.GetIdentity()
+	identity := a.scopedContext.Identity.GetIdentity()
 	return a.authServer.GenerateHostCerts(ctx, HostCertsParams{
 		Req:                req,
 		AgentScope:         identity.GetAgentScope(),
@@ -742,10 +796,16 @@ func (a *ServerWithRoles) GenerateHostCerts(ctx context.Context, req *proto.Host
 }
 
 // checkAdditionalSystemRoles verifies additional system roles in host cert request.
-func (a *ServerWithRoles) checkAdditionalSystemRoles(ctx context.Context, req *proto.HostCertsRequest) error {
+func (a *ScopedServerWithRoles) checkAdditionalSystemRoles(ctx context.Context, req *proto.HostCertsRequest) error {
 	// ensure requesting cert's primary role is a server role.
-	role, ok := a.context.Identity.(authz.BuiltinRole)
-	if !ok || !role.IsServer() {
+	var isServer bool
+	switch role := a.scopedContext.Identity.(type) {
+	case authz.BuiltinRole:
+		isServer = role.IsServer()
+	case authz.ScopedBuiltinRole:
+		isServer = role.IsServer()
+	}
+	if !isServer {
 		return trace.AccessDenied("additional system roles can only be claimed by a teleport built-in server")
 	}
 
@@ -6701,6 +6761,10 @@ func (a *ServerWithRoles) GenerateAppToken(ctx context.Context, req types.Genera
 }
 
 func (a *ServerWithRoles) Close() error {
+	return a.authServer.Close()
+}
+
+func (a *ScopedServerWithRoles) Close() error {
 	return a.authServer.Close()
 }
 

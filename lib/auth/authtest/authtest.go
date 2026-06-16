@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -1244,6 +1245,32 @@ func TestScopedHost(clusterName, hostID, scope string, roles ...types.SystemRole
 			AdditionalSystemRoles: types.SystemRoles(roles),
 			Identity: tlsca.Identity{
 				AgentScope: scope,
+			},
+		},
+	}
+}
+
+// TestScopePinnedHost returns TestIdentity for a scoped host with an agent pin. One or more roles may be provided;
+// all are included as AdditionalSystemRoles on an instance cert identity.
+func TestScopePinnedHost(clusterName, hostID, scope string, roles ...types.SystemRole) TestIdentity {
+	serverFQDN := hostID
+	if clusterName != "" {
+		serverFQDN = utils.HostFQDN(hostID, clusterName)
+	}
+	pin := &scopesv1.Pin{
+		Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
+		Scope: scope,
+		SystemRoles: &scopesv1.SystemRoles{
+			Primary:    string(types.RoleInstance),
+			Additional: types.SystemRoles(roles).StringSlice(),
+		},
+	}
+	return TestIdentity{
+		I: authz.ScopedBuiltinRole{
+			ServerFQDN: serverFQDN,
+			ScopePin:   pin,
+			Identity: tlsca.Identity{
+				ScopePin: pin,
 			},
 		},
 	}
