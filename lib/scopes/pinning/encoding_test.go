@@ -176,16 +176,6 @@ func TestEncodeDecodeErrors(t *testing.T) {
 		_, err := Decode("")
 		require.Error(t, err)
 	})
-
-	t.Run("encode empty pin", func(t *testing.T) {
-		_, err := Encode(&scopesv1.Pin{})
-		require.Error(t, err)
-	})
-
-	t.Run("encode nil pin", func(t *testing.T) {
-		_, err := Encode(nil)
-		require.Error(t, err)
-	})
 }
 
 // TestDecodeKnown tests that decoding a known encoding returns the expected Pin. This includes

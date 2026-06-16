@@ -113,7 +113,7 @@ export const Connected = () => {
 export const DisconnectedWithNoMessage = () => {
   const client = fakeClient();
   client.connect = async () => {
-    client.emit(TdpClientEvent.TRANSPORT_CLOSE, undefined);
+    client.emit(TdpClientEvent.CONNECTION_CLOSE, undefined);
   };
 
   return <DesktopSessionWithSharing {...props} client={client} />;

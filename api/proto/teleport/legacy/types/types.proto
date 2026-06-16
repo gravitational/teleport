@@ -19,9 +19,9 @@ package types;
 import "gogoproto/gogo.proto";
 import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
-import "google/protobuf/wrappers.proto";
 import "teleport/attestation/v1/attestation.proto";
 import "teleport/componentfeatures/v1/component_features.proto";
+import "teleport/legacy/types/metadata.proto";
 import "teleport/legacy/types/mfa_device.proto";
 import "teleport/legacy/types/resources.proto";
 import "teleport/legacy/types/trusted_device_requirement.proto";
@@ -72,33 +72,6 @@ message KeepAlive {
   KeepAliveType Type = 9 [(gogoproto.jsontag) = "type"];
   // HostID is an optional UUID of the host the resource belongs to.
   string HostID = 10 [(gogoproto.jsontag) = "host_id,omitempty"];
-}
-
-// Metadata is resource metadata
-message Metadata {
-  reserved 7; // ID
-  reserved "ID";
-
-  // Name is an object name
-  string Name = 1 [(gogoproto.jsontag) = "name"];
-  // Namespace is object namespace. The field should be called "namespace"
-  // when it returns in Teleport 2.4.
-  string Namespace = 2 [(gogoproto.jsontag) = "-"];
-  // Description is object description
-  string Description = 3 [(gogoproto.jsontag) = "description,omitempty"];
-  // Labels is a set of labels
-  map<string, string> Labels = 5 [(gogoproto.jsontag) = "labels,omitempty"];
-  // Expires is a global expiry time header can be set on any resource in the
-  // system.
-  google.protobuf.Timestamp Expires = 6 [
-    (gogoproto.stdtime) = true,
-    (gogoproto.nullable) = true,
-    (gogoproto.jsontag) = "expires,omitempty"
-  ];
-  // Revision is an opaque identifier which tracks the versions of a resource
-  // over time. Clients should ignore and not alter its value but must return
-  // the revision in any updates of a resource.
-  string Revision = 8 [(gogoproto.jsontag) = "revision,omitempty"];
 }
 
 // Rotation is a status of the rotation of the certificate authority
@@ -406,6 +379,9 @@ message DatabaseStatusV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "azure"
   ];
+  // VNetDNSName is a DNS-safe, deterministic hash of the database name
+  // used by VNet for database FQDN resolution.
+  string VNetDNSName = 6 [(gogoproto.jsontag) = "vnet_dns_name,omitempty"];
 }
 
 // IAMPolicyStatus represents states that describe if an AWS database
@@ -1196,6 +1172,8 @@ message AppSpecV3 {
   MCP MCP = 15 [(gogoproto.jsontag) = "mcp,omitempty"];
   // LLM contains LLM inference endpoint related configurations.
   LLM LLM = 16 [(gogoproto.jsontag) = "inference,omitempty"];
+  // TLS contains the app TLS configuration.
+  AppTLS TLS = 17 [(gogoproto.jsontag) = "tls,omitempty"];
 }
 
 // MCP contains MCP server-related configurations.
@@ -1263,6 +1241,35 @@ message LLM {
   // Defines a model that will be used if the model requested is not on the list.
   // The fallback model must be in the "models" list.
   string fallback_model = 4;
+}
+
+// AppTLS contains the app TLS configuration.
+message AppTLS {
+  // Mode defines the TLS verification.
+  // Supported values:
+  //   "verify-full" (performs certificate validation, and asserts server name and SPIFFE ID),
+  //   "verify-server-name" (performs certificate validation, and asserts server name),
+  //   "verify-spiffe-id": (performs certificate validation, and asserts SPIFFE ID. Requires `server_spiffe_id` option),
+  //   "insecure": (accepts any certificate provided by app)
+  string mode = 1;
+  // ServerName specifies a custom hostname used for TLS verification against
+  // the upstream certificate.
+  string server_name = 2;
+  // ServerSpiffeId specifies a SPIFFE ID that must be present on the server
+  // certificate.
+  string server_spiffe_id = 3;
+  // AllowedCas is the list of user provided CAs used for verifying upstream
+  // certificates. Accepted values are PEM-encoded CA certificates and
+  // Teleport CA aliases.
+  // Supported aliases:
+  //   "workload_identity" (workload Identity CA. Allows accepting certificates issued by `tbot`).
+  repeated string allowed_cas = 4;
+  // ClientCertMode specifies which client certificate mode to use for the
+  // upstream connection.
+  // Supported values:
+  //   "managed" (app service will issue client certificates to use in the app upstream connection, establishing mTLS connections),
+  //   "disabled" (app upstream connection won't use client certificates).
+  string client_cert_mode = 5;
 }
 
 // CommandLabelV2 is a label that has a value as a result of the
@@ -1534,6 +1541,10 @@ message TokenRule {
   // AWSOrganizationID is used for the IAM join method, the AWS identity of joining nodes
   // must belong to this organization.
   string AWSOrganizationID = 5 [(gogoproto.jsontag) = "aws_organization_id,omitempty"];
+  // AWSOrganizationalUnits contains rules for matching AWS accounts based on their Organizational Units.
+  // Requires AWS Organization ID to be specified.
+  // The account's root ID is considered an Organizational Unit when validating the rule.
+  AWSOrganizationUnitsMatcher AWSOrganizationalUnits = 6 [(gogoproto.jsontag) = "aws_organizational_units,omitempty"];
 }
 
 // ProvisionTokenSpecV2 is a specification for V2 token
@@ -3694,6 +3705,15 @@ enum CreateDatabaseUserMode {
   DB_USER_MODE_BEST_EFFORT_DROP = 3;
 }
 
+// WebTerminalClipboardMode determines clipboard behavior in the Web UI terminal.
+enum WebTerminalClipboardMode {
+  WEB_TERMINAL_CLIPBOARD_MODE_UNSPECIFIED = 0;
+  // WEB_TERMINAL_CLIPBOARD_MODE_UNRESTRICTED enables copying from the Web UI terminal.
+  WEB_TERMINAL_CLIPBOARD_MODE_UNRESTRICTED = 1;
+  // WEB_TERMINAL_CLIPBOARD_MODE_NO_COPY prevents copying from the Web UI terminal.
+  WEB_TERMINAL_CLIPBOARD_MODE_NO_COPY = 2;
+}
+
 // SSHLocalPortForwarding configures access controls for local SSH port forwarding.
 message SSHLocalPortForwarding {
   BoolValue Enabled = 1 [
@@ -3915,6 +3935,11 @@ message RoleOptions {
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "ssh_port_forwarding,omitempty"
   ];
+
+  // WebTerminalClipboardMode determines clipboard behavior in the Web UI terminal.
+  // Valid values are "unrestricted" and "no-copy".
+  // Defaults to "unrestricted" if unspecified.
+  WebTerminalClipboardMode WebTerminalClipboardMode = 33 [(gogoproto.jsontag) = "web_terminal_clipboard_mode,omitempty"];
 }
 
 message RecordSession {
@@ -4164,6 +4189,17 @@ message RoleConditions {
 
   // MCPPermissions defines MCP servers related permissions.
   MCPPermissions MCP = 46 [(gogoproto.jsontag) = "mcp,omitempty"];
+
+  // BeamLabels are used in the RBAC system to allow/deny access to beams.
+  wrappers.LabelValues BeamLabels = 50 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "beam_labels,omitempty",
+    (gogoproto.customtype) = "Labels"
+  ];
+
+  // BeamLabelsExpression is a predicate expression used to allow/deny access
+  // to beams.
+  string BeamLabelsExpression = 51 [(gogoproto.jsontag) = "beam_labels_expression,omitempty"];
 }
 
 // IdentityCenterAccountAssignment captures an AWS Identity Center account
@@ -4717,107 +4753,6 @@ message LocalAuthSecrets {
   WebauthnLocalAuth Webauthn = 6 [(gogoproto.jsontag) = "webauthn,omitempty"];
 }
 
-// MFADevice is a multi-factor authentication device, such as a security key or
-// an OTP app.
-message MFADevice {
-  // Boilerplate for implementing the Resource interface.
-  string kind = 1;
-  string sub_kind = 2;
-  string version = 3;
-  Metadata metadata = 4 [(gogoproto.nullable) = false];
-
-  // ID is a UUID of this device.
-  string id = 5;
-
-  google.protobuf.Timestamp added_at = 6 [
-    (gogoproto.stdtime) = true,
-    (gogoproto.nullable) = false
-  ];
-  google.protobuf.Timestamp last_used = 7 [
-    (gogoproto.stdtime) = true,
-    (gogoproto.nullable) = false
-  ];
-
-  oneof device {
-    TOTPDevice totp = 8;
-    U2FDevice u2f = 9;
-    WebauthnDevice webauthn = 10;
-    SSOMFADevice sso = 11;
-    BrowserMFADevice browser = 12;
-  }
-}
-
-// TOTPDevice holds the TOTP-specific fields of MFADevice.
-message TOTPDevice {
-  string key = 1;
-}
-
-// U2FDevice holds the U2F-specific fields of MFADevice.
-message U2FDevice {
-  // KeyHandle uniquely identifies a key on a device
-  bytes key_handle = 1;
-  // PubKey is an DER encoded ecdsa public key
-  bytes pub_key = 2;
-  // Counter is the latest seen value of the U2F usage counter.
-  uint32 counter = 3;
-}
-
-// WebauthnDevice holds Webauthn-specific fields of MFADevice.
-message WebauthnDevice {
-  // Credential ID for the authenticator.
-  bytes credential_id = 1;
-  // Public key encoded in CBOR format.
-  // Webauthn support various key algorithms; CBOR encoding is used to reflect
-  // those choices.
-  // See https://w3c.github.io/webauthn/#sctn-alg-identifier for a starter
-  // reference.
-  bytes public_key_cbor = 2;
-  // Attestation format used by the authenticator, if any.
-  string attestation_type = 3;
-  // AAGUID is the globally unique identifier of the authenticator model.
-  // Zeroed for U2F devices.
-  bytes aaguid = 4;
-  // Signature counter for login operations.
-  // Actual counter values received from the authenticator are expected to be
-  // higher than the previously-stored value.
-  uint32 signature_counter = 5;
-  // Raw attestation object, as returned by the authentication during
-  // registration.
-  // Absent for legacy entries (Teleport 8.x).
-  bytes attestation_object = 6;
-  // True if a resident key was requested during registration.
-  // Marks passwordless-capable devices.
-  // (Note that resident_key=true represents the server-side / Relying Party
-  // view of the registration process; the authenticator alone can determine
-  // if a key is truly resident.)
-  bool resident_key = 7;
-  // Relying Party ID used by the credential.
-  // Recorded on registration for new credentials, or on first successful
-  // authentication for "old" credentials (created before the field existed).
-  // Ideally, this is always the same as the configured RPID.
-  // If an RPID change does happen, this helps Teleport detect it and react
-  // accordingly.
-  string credential_rp_id = 8;
-  // Authenticator Backup Eligibility (BE) bit, recorded during registration or
-  // backfill (for older authenticators).
-  // https://w3c.github.io/webauthn/#authdata-flags-be
-  google.protobuf.BoolValue credential_backup_eligible = 9;
-  // Authenticator Backup State (BS) bit, recorded during registration or
-  // backfill (for older authenticators).
-  // https://w3c.github.io/webauthn/#authdata-flags-bs
-  google.protobuf.BoolValue credential_backed_up = 10;
-}
-
-// SSOMFADevice contains details of an SSO MFA method.
-message SSOMFADevice {
-  // connector_id is the ID of the SSO connector.
-  string connector_id = 1;
-  // connector_type is the type of the SSO connector.
-  string connector_type = 2;
-  // display_name is the display name of the SSO connector
-  string display_name = 3;
-}
-
 // WebauthnLocalAuth holds settings necessary for local webauthn use.
 message WebauthnLocalAuth {
   // UserID is the random user handle generated for the user.
@@ -5095,6 +5030,10 @@ message WebSessionSpecV2 {
   // TLSPriv is the TLS private key for the user, in PEM-encoded PKCS#1 or PKCS#8
   // format. If unset, then Priv is used as both the SSH and TLS private key.
   bytes TLSPriv = 15 [(gogoproto.jsontag) = "tls_priv,omitempty"];
+  // DBSCPublicKey is the device-bound public key (JWK format) for Device Bound
+  // Session Credentials. When set, session refresh requires proof of possession
+  // of the corresponding private key. See https://www.w3.org/TR/dbsc/
+  bytes DBSCPublicKey = 16 [(gogoproto.jsontag) = "dbsc_public_key,omitempty"];
 }
 
 // Web-focused view of teleport.devicetrust.v1.DeviceWebToken.
@@ -7857,6 +7796,25 @@ message PluginSCIMSettings {
   // by the SCIM plugin. It enables matching a SAML/OIDC external user
   // with a SCIM-persisted user, allowing the ephemeral user entry to be updated to SCIM user.
   ConnectorInfo connector_info = 3 [(gogoproto.jsontag) = "connector_info"];
+
+  // RateLimit configures scim integration rate limiting.
+  PluginSCIMRateLimit rate_limit = 4 [(gogoproto.jsontag) = "rate_limit,omitempty"];
+}
+
+// PluginSCIMRateLimit configures per request rate limiting for a SCIM plugin.
+// If unset, server defaults are applied.
+message PluginSCIMRateLimit {
+  option (gogoproto.equal) = true;
+  // Average is the maximum average number of requests per period.
+  int64 average = 1 [(gogoproto.jsontag) = "average"];
+  // Burst is the maximum number of requests allowed in a burst above the average.
+  int64 burst = 2 [(gogoproto.jsontag) = "burst"];
+  // PeriodSeconds is the rate limiting window duration in seconds.
+  int64 period_seconds = 3 [(gogoproto.jsontag) = "period_seconds"];
+  // MaxConcurrentMutations limits the number of simultaneous mutating operations
+  // (Create, Update, Delete, Patch) allowed for this integration. Zero means no limit.
+  // Note that List and Read operations are not affected by this limit.
+  int64 max_concurrent_operations = 5 [(gogoproto.jsontag) = "max_concurrent_operations"];
 }
 
 // PluginDatadogAccessSettings defines the settings for a Datadog Incident Management plugin

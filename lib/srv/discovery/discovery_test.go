@@ -1151,6 +1151,72 @@ func TestDiscoveryServer_dynamicMatcherRestart(t *testing.T) {
 	})
 }
 
+// TestDiscoveryServer_dynamicMatcherGroupReassign covers the OpPut branch
+// where a tracked DiscoveryConfig is reassigned to a non-matching group.
+func TestDiscoveryServer_dynamicMatcherGroupReassign(t *testing.T) {
+	const localGroup = "dg-local"
+	const otherGroup = "dg-other"
+
+	synctest.Test(t, func(t *testing.T) {
+		backend, err := memory.New(memory.Config{})
+		require.NoError(t, err)
+
+		mockAuthServer := &mockAuthServer{events: local.NewEventsService(backend)}
+		mockAccessPoint := &fakeAccessPointWithWatcher{mockAuthServer: mockAuthServer}
+
+		server, err := New(t.Context(), &Config{
+			ClusterFeatures: func() proto.Features { return proto.Features{} },
+			AccessPoint:     mockAccessPoint,
+			Matchers:        Matchers{},
+			Emitter:         &mockEmitter{},
+			Log:             logtest.NewLogger(),
+			DiscoveryGroup:  localGroup,
+		})
+		require.NoError(t, err)
+		err = server.Start()
+		require.NoError(t, err)
+		t.Cleanup(server.Stop)
+
+		synctest.Wait()
+
+		dc, err := discoveryconfig.NewDiscoveryConfig(
+			header.Metadata{Name: "dc-reassign"},
+			discoveryconfig.Spec{DiscoveryGroup: localGroup},
+		)
+		require.NoError(t, err)
+		go mockAccessPoint.createDiscoveryConfig(dc)
+		synctest.Wait()
+
+		server.dynamicDiscoveryConfigMu.RLock()
+		require.Len(t, server.dynamicDiscoveryConfig, 1)
+		server.dynamicDiscoveryConfigMu.RUnlock()
+
+		reassigned, err := discoveryconfig.NewDiscoveryConfig(
+			header.Metadata{Name: "dc-reassign"},
+			discoveryconfig.Spec{DiscoveryGroup: otherGroup},
+		)
+		require.NoError(t, err)
+		go mockAccessPoint.createDiscoveryConfig(reassigned)
+		synctest.Wait()
+
+		server.dynamicDiscoveryConfigMu.RLock()
+		require.Empty(t, server.dynamicDiscoveryConfig)
+		server.dynamicDiscoveryConfigMu.RUnlock()
+
+		next, err := discoveryconfig.NewDiscoveryConfig(
+			header.Metadata{Name: "dc-next"},
+			discoveryconfig.Spec{DiscoveryGroup: localGroup},
+		)
+		require.NoError(t, err)
+		go mockAccessPoint.createDiscoveryConfig(next)
+		synctest.Wait()
+
+		server.dynamicDiscoveryConfigMu.RLock()
+		require.Contains(t, server.dynamicDiscoveryConfig, "dc-next")
+		server.dynamicDiscoveryConfigMu.RUnlock()
+	})
+}
+
 func TestDiscoveryServerConcurrency(t *testing.T) {
 	t.Parallel()
 	logger := logtest.NewLogger()

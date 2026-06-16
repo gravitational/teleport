@@ -605,6 +605,9 @@ type KubernetesAccessPoint interface {
 
 	// accessPoint provides common access point functionality
 	accessPoint
+
+	// ScopedRoleReader returns a read-only scoped role client.
+	ScopedRoleReader() services.ScopedRoleReader
 }
 
 // ReadAppsAccessPoint is a read only API interface implemented by a certificate authority (CA) to be
@@ -759,6 +762,8 @@ type DatabaseAccessPoint interface {
 type ReadWindowsDesktopAccessPoint interface {
 	// Closer closes all the resources
 	io.Closer
+	// SubCAServiceGetter reads CA override resources.
+	services.SubCAServiceGetter
 
 	// NewWatcher returns a new event watcher.
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
@@ -1198,6 +1203,9 @@ type Cache interface {
 	// GetApplicationServers returns all registered application servers.
 	GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error)
 
+	// RangeApplicationServersWithName returns an iterator over application servers for a given app name.
+	RangeApplicationServersWithName(ctx context.Context, appName string) iter.Seq2[types.AppServer, error]
+
 	// GetAppSession gets an application web session.
 	GetAppSession(context.Context, types.GetAppSessionRequest) (types.WebSession, error)
 
@@ -1231,6 +1239,9 @@ type Cache interface {
 	// GetKubernetesServers returns a list of kubernetes servers registered in the cluster
 	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
 
+	// RangeKubernetesServersWithName returns an iterator over kubernetes servers for a given cluster name.
+	RangeKubernetesServersWithName(ctx context.Context, clusterName string) iter.Seq2[types.KubeServer, error]
+
 	// ListKubernetesWaitingContainers lists Kubernetes ephemeral
 	// containers that are waiting to be created until moderated
 	// session conditions are met.
@@ -1243,6 +1254,9 @@ type Cache interface {
 
 	// GetDatabaseServers returns all registered database proxy servers.
 	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
+
+	// RangeDatabaseServersWithName returns an iterator over database proxy servers for a given database name.
+	RangeDatabaseServersWithName(ctx context.Context, databaseName string) iter.Seq2[types.DatabaseServer, error]
 
 	// GetDatabases returns all database resources.
 	GetDatabases(ctx context.Context) ([]types.Database, error)
@@ -1429,9 +1443,9 @@ type Cache interface {
 
 	// GetWorkloadIdentity gets a WorkloadIdentity by name.
 	GetWorkloadIdentity(ctx context.Context, name string) (*workloadidentityv1pb.WorkloadIdentity, error)
-	// ListWorkloadIdentities lists all SPIFFE Federations using Google style
-	// pagination.
-	ListWorkloadIdentities(ctx context.Context, pageSize int, lastToken string, options *services.ListWorkloadIdentitiesRequestOptions) ([]*workloadidentityv1pb.WorkloadIdentity, string, error)
+	// RangeWorkloadIdentities returns WorkloadIdentity resources within the
+	// range [start, end), ordered by the given sort field and direction.
+	RangeWorkloadIdentities(ctx context.Context, start, end string, sortField services.WorkloadIdentitySortField, sortDesc bool) iter.Seq2[*workloadidentityv1pb.WorkloadIdentity, error]
 
 	// ListStaticHostUsers lists static host users.
 	ListStaticHostUsers(ctx context.Context, pageSize int, startKey string) ([]*userprovisioningpb.StaticHostUser, string, error)
@@ -1485,6 +1499,11 @@ type Cache interface {
 
 	// SummarizerServiceGetter defines methods for fetching summarizer resources.
 	services.SummarizerServiceGetter
+	// BeamReader defines methods for reading beam resources.
+	services.BeamReader
+
+	// SubCAServiceGetter reads CertAuthorityOverride resources.
+	services.SubCAServiceGetter
 }
 
 type NodeWrapper struct {
@@ -1605,6 +1624,12 @@ func NewKubernetesWrapper(base KubernetesAccessPoint, cache ReadKubernetesAccess
 		accessPoint:               base,
 		ReadKubernetesAccessPoint: cache,
 	}
+}
+
+func (w *KubernetesWrapper) ScopedRoleReader() services.ScopedRoleReader {
+	// TODO(fspmarshall/scopes): implement caching for scoped roles
+	// on kube agents.
+	return w.NoCache.ScopedRoleReader()
 }
 
 // Close closes all associated resources

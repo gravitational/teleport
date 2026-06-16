@@ -33,33 +33,34 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	SummarizerService_CreateInferenceModel_FullMethodName  = "/teleport.summarizer.v1.SummarizerService/CreateInferenceModel"
-	SummarizerService_GetInferenceModel_FullMethodName     = "/teleport.summarizer.v1.SummarizerService/GetInferenceModel"
-	SummarizerService_UpdateInferenceModel_FullMethodName  = "/teleport.summarizer.v1.SummarizerService/UpdateInferenceModel"
-	SummarizerService_UpsertInferenceModel_FullMethodName  = "/teleport.summarizer.v1.SummarizerService/UpsertInferenceModel"
-	SummarizerService_DeleteInferenceModel_FullMethodName  = "/teleport.summarizer.v1.SummarizerService/DeleteInferenceModel"
-	SummarizerService_ListInferenceModels_FullMethodName   = "/teleport.summarizer.v1.SummarizerService/ListInferenceModels"
-	SummarizerService_CreateInferenceSecret_FullMethodName = "/teleport.summarizer.v1.SummarizerService/CreateInferenceSecret"
-	SummarizerService_GetInferenceSecret_FullMethodName    = "/teleport.summarizer.v1.SummarizerService/GetInferenceSecret"
-	SummarizerService_UpdateInferenceSecret_FullMethodName = "/teleport.summarizer.v1.SummarizerService/UpdateInferenceSecret"
-	SummarizerService_UpsertInferenceSecret_FullMethodName = "/teleport.summarizer.v1.SummarizerService/UpsertInferenceSecret"
-	SummarizerService_DeleteInferenceSecret_FullMethodName = "/teleport.summarizer.v1.SummarizerService/DeleteInferenceSecret"
-	SummarizerService_ListInferenceSecrets_FullMethodName  = "/teleport.summarizer.v1.SummarizerService/ListInferenceSecrets"
-	SummarizerService_CreateInferencePolicy_FullMethodName = "/teleport.summarizer.v1.SummarizerService/CreateInferencePolicy"
-	SummarizerService_GetInferencePolicy_FullMethodName    = "/teleport.summarizer.v1.SummarizerService/GetInferencePolicy"
-	SummarizerService_UpdateInferencePolicy_FullMethodName = "/teleport.summarizer.v1.SummarizerService/UpdateInferencePolicy"
-	SummarizerService_UpsertInferencePolicy_FullMethodName = "/teleport.summarizer.v1.SummarizerService/UpsertInferencePolicy"
-	SummarizerService_DeleteInferencePolicy_FullMethodName = "/teleport.summarizer.v1.SummarizerService/DeleteInferencePolicy"
-	SummarizerService_ListInferencePolicies_FullMethodName = "/teleport.summarizer.v1.SummarizerService/ListInferencePolicies"
-	SummarizerService_GetSummary_FullMethodName            = "/teleport.summarizer.v1.SummarizerService/GetSummary"
-	SummarizerService_IsEnabled_FullMethodName             = "/teleport.summarizer.v1.SummarizerService/IsEnabled"
-	SummarizerService_TestInferenceModel_FullMethodName    = "/teleport.summarizer.v1.SummarizerService/TestInferenceModel"
-	SummarizerService_CreateRetrievalModel_FullMethodName  = "/teleport.summarizer.v1.SummarizerService/CreateRetrievalModel"
-	SummarizerService_GetRetrievalModel_FullMethodName     = "/teleport.summarizer.v1.SummarizerService/GetRetrievalModel"
-	SummarizerService_UpdateRetrievalModel_FullMethodName  = "/teleport.summarizer.v1.SummarizerService/UpdateRetrievalModel"
-	SummarizerService_UpsertRetrievalModel_FullMethodName  = "/teleport.summarizer.v1.SummarizerService/UpsertRetrievalModel"
-	SummarizerService_DeleteRetrievalModel_FullMethodName  = "/teleport.summarizer.v1.SummarizerService/DeleteRetrievalModel"
-	SummarizerService_TestRetrievalModel_FullMethodName    = "/teleport.summarizer.v1.SummarizerService/TestRetrievalModel"
+	SummarizerService_CreateInferenceModel_FullMethodName    = "/teleport.summarizer.v1.SummarizerService/CreateInferenceModel"
+	SummarizerService_GetInferenceModel_FullMethodName       = "/teleport.summarizer.v1.SummarizerService/GetInferenceModel"
+	SummarizerService_UpdateInferenceModel_FullMethodName    = "/teleport.summarizer.v1.SummarizerService/UpdateInferenceModel"
+	SummarizerService_UpsertInferenceModel_FullMethodName    = "/teleport.summarizer.v1.SummarizerService/UpsertInferenceModel"
+	SummarizerService_DeleteInferenceModel_FullMethodName    = "/teleport.summarizer.v1.SummarizerService/DeleteInferenceModel"
+	SummarizerService_ListInferenceModels_FullMethodName     = "/teleport.summarizer.v1.SummarizerService/ListInferenceModels"
+	SummarizerService_CreateInferenceSecret_FullMethodName   = "/teleport.summarizer.v1.SummarizerService/CreateInferenceSecret"
+	SummarizerService_GetInferenceSecret_FullMethodName      = "/teleport.summarizer.v1.SummarizerService/GetInferenceSecret"
+	SummarizerService_UpdateInferenceSecret_FullMethodName   = "/teleport.summarizer.v1.SummarizerService/UpdateInferenceSecret"
+	SummarizerService_UpsertInferenceSecret_FullMethodName   = "/teleport.summarizer.v1.SummarizerService/UpsertInferenceSecret"
+	SummarizerService_DeleteInferenceSecret_FullMethodName   = "/teleport.summarizer.v1.SummarizerService/DeleteInferenceSecret"
+	SummarizerService_ListInferenceSecrets_FullMethodName    = "/teleport.summarizer.v1.SummarizerService/ListInferenceSecrets"
+	SummarizerService_CreateInferencePolicy_FullMethodName   = "/teleport.summarizer.v1.SummarizerService/CreateInferencePolicy"
+	SummarizerService_GetInferencePolicy_FullMethodName      = "/teleport.summarizer.v1.SummarizerService/GetInferencePolicy"
+	SummarizerService_UpdateInferencePolicy_FullMethodName   = "/teleport.summarizer.v1.SummarizerService/UpdateInferencePolicy"
+	SummarizerService_UpsertInferencePolicy_FullMethodName   = "/teleport.summarizer.v1.SummarizerService/UpsertInferencePolicy"
+	SummarizerService_DeleteInferencePolicy_FullMethodName   = "/teleport.summarizer.v1.SummarizerService/DeleteInferencePolicy"
+	SummarizerService_ListInferencePolicies_FullMethodName   = "/teleport.summarizer.v1.SummarizerService/ListInferencePolicies"
+	SummarizerService_GetSummary_FullMethodName              = "/teleport.summarizer.v1.SummarizerService/GetSummary"
+	SummarizerService_BatchGetSummaryMetadata_FullMethodName = "/teleport.summarizer.v1.SummarizerService/BatchGetSummaryMetadata"
+	SummarizerService_IsEnabled_FullMethodName               = "/teleport.summarizer.v1.SummarizerService/IsEnabled"
+	SummarizerService_TestInferenceModel_FullMethodName      = "/teleport.summarizer.v1.SummarizerService/TestInferenceModel"
+	SummarizerService_CreateRetrievalModel_FullMethodName    = "/teleport.summarizer.v1.SummarizerService/CreateRetrievalModel"
+	SummarizerService_GetRetrievalModel_FullMethodName       = "/teleport.summarizer.v1.SummarizerService/GetRetrievalModel"
+	SummarizerService_UpdateRetrievalModel_FullMethodName    = "/teleport.summarizer.v1.SummarizerService/UpdateRetrievalModel"
+	SummarizerService_UpsertRetrievalModel_FullMethodName    = "/teleport.summarizer.v1.SummarizerService/UpsertRetrievalModel"
+	SummarizerService_DeleteRetrievalModel_FullMethodName    = "/teleport.summarizer.v1.SummarizerService/DeleteRetrievalModel"
+	SummarizerService_TestRetrievalModel_FullMethodName      = "/teleport.summarizer.v1.SummarizerService/TestRetrievalModel"
 )
 
 // SummarizerServiceClient is the client API for SummarizerService service.
@@ -112,6 +113,10 @@ type SummarizerServiceClient interface {
 	// GetSummary retrieves the inference result for a session, which
 	// contains the session summary.
 	GetSummary(ctx context.Context, in *GetSummaryRequest, opts ...grpc.CallOption) (*GetSummaryResponse, error)
+	// BatchGetSummaryMetadata retrieves lightweight summary metadata (state,
+	// risk level, and needs-further-review reasons) for multiple sessions in a
+	// single call.
+	BatchGetSummaryMetadata(ctx context.Context, in *BatchGetSummaryMetadataRequest, opts ...grpc.CallOption) (*BatchGetSummaryMetadataResponse, error)
 	// IsEnabled tells if the summarizer is enabled by the license and
 	// configured. (Note that this doesn't tell anything about actual correctness
 	// of the configuration or presence of recording summaries.)
@@ -334,6 +339,16 @@ func (c *summarizerServiceClient) GetSummary(ctx context.Context, in *GetSummary
 	return out, nil
 }
 
+func (c *summarizerServiceClient) BatchGetSummaryMetadata(ctx context.Context, in *BatchGetSummaryMetadataRequest, opts ...grpc.CallOption) (*BatchGetSummaryMetadataResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(BatchGetSummaryMetadataResponse)
+	err := c.cc.Invoke(ctx, SummarizerService_BatchGetSummaryMetadata_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *summarizerServiceClient) IsEnabled(ctx context.Context, in *IsEnabledRequest, opts ...grpc.CallOption) (*IsEnabledResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(IsEnabledResponse)
@@ -464,6 +479,10 @@ type SummarizerServiceServer interface {
 	// GetSummary retrieves the inference result for a session, which
 	// contains the session summary.
 	GetSummary(context.Context, *GetSummaryRequest) (*GetSummaryResponse, error)
+	// BatchGetSummaryMetadata retrieves lightweight summary metadata (state,
+	// risk level, and needs-further-review reasons) for multiple sessions in a
+	// single call.
+	BatchGetSummaryMetadata(context.Context, *BatchGetSummaryMetadataRequest) (*BatchGetSummaryMetadataResponse, error)
 	// IsEnabled tells if the summarizer is enabled by the license and
 	// configured. (Note that this doesn't tell anything about actual correctness
 	// of the configuration or presence of recording summaries.)
@@ -552,6 +571,9 @@ func (UnimplementedSummarizerServiceServer) ListInferencePolicies(context.Contex
 }
 func (UnimplementedSummarizerServiceServer) GetSummary(context.Context, *GetSummaryRequest) (*GetSummaryResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetSummary not implemented")
+}
+func (UnimplementedSummarizerServiceServer) BatchGetSummaryMetadata(context.Context, *BatchGetSummaryMetadataRequest) (*BatchGetSummaryMetadataResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BatchGetSummaryMetadata not implemented")
 }
 func (UnimplementedSummarizerServiceServer) IsEnabled(context.Context, *IsEnabledRequest) (*IsEnabledResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method IsEnabled not implemented")
@@ -940,6 +962,24 @@ func _SummarizerService_GetSummary_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SummarizerService_BatchGetSummaryMetadata_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BatchGetSummaryMetadataRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SummarizerServiceServer).BatchGetSummaryMetadata(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SummarizerService_BatchGetSummaryMetadata_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SummarizerServiceServer).BatchGetSummaryMetadata(ctx, req.(*BatchGetSummaryMetadataRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _SummarizerService_IsEnabled_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(IsEnabledRequest)
 	if err := dec(in); err != nil {
@@ -1166,6 +1206,10 @@ var SummarizerService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetSummary",
 			Handler:    _SummarizerService_GetSummary_Handler,
+		},
+		{
+			MethodName: "BatchGetSummaryMetadata",
+			Handler:    _SummarizerService_BatchGetSummaryMetadata_Handler,
 		},
 		{
 			MethodName: "IsEnabled",

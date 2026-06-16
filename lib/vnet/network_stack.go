@@ -60,7 +60,7 @@ const (
 // networkStackConfig holds configuration parameters for the VNet network stack.
 type networkStackConfig struct {
 	// tunDevice is the OS TUN virtual network interface.
-	tunDevice tunDevice
+	tunDevice TUNDevice
 	// ipv6Prefix is the IPv6 ULA prefix to use for all assigned VNet IP addresses.
 	ipv6Prefix tcpip.Address
 	// dnsIPv6 is the IPv6 address on which to host the DNS server. It must be under IPv6Prefix.
@@ -117,8 +117,11 @@ type udpHandler interface {
 	HandleUDP(context.Context, net.Conn) error
 }
 
-// tunDevice abstracts a virtual network TUN device.
-type tunDevice interface {
+// TUNDevice abstracts a virtual network TUN device.
+type TUNDevice interface {
+	// Name returns the current name of the Device.
+	Name() (string, error)
+
 	// Write one or more packets to the device (without any additional headers).
 	// On a successful write it returns the number of packets written. A nonzero
 	// offset can be used to instruct the Device on where to begin writing from
@@ -148,7 +151,7 @@ type networkStack struct {
 
 	// tun is the OS TUN device. Incoming IP/L3 packets will be copied from here to [linkEndpoint], and
 	// outgoing packets from [linkEndpoint] will be written here.
-	tun tunDevice
+	tun TUNDevice
 
 	// linkEndpoint is the gVisor-side endpoint that emulates the OS TUN device. All incoming IP/L3 packets
 	// from the OS TUN device will be injected as inbound packets to this endpoint to be processed by the
@@ -690,7 +693,7 @@ func (ns *networkStack) assignedIPv4(fqdn string) (ipv4, bool) {
 	return ipv4, ok
 }
 
-func forwardBetweenTunAndNetstack(ctx context.Context, tun tunDevice, linkEndpoint *channel.Endpoint) error {
+func forwardBetweenTunAndNetstack(ctx context.Context, tun TUNDevice, linkEndpoint *channel.Endpoint) error {
 	slog.DebugContext(ctx, "Forwarding IP packets between OS and VNet.")
 	g, ctx := errgroup.WithContext(ctx)
 	g.Go(func() error { return forwardNetstackToTUN(ctx, linkEndpoint, tun) })
@@ -700,7 +703,7 @@ func forwardBetweenTunAndNetstack(ctx context.Context, tun tunDevice, linkEndpoi
 	return trace.Wrap(err)
 }
 
-func forwardNetstackToTUN(ctx context.Context, linkEndpoint *channel.Endpoint, tun tunDevice) error {
+func forwardNetstackToTUN(ctx context.Context, linkEndpoint *channel.Endpoint, tun TUNDevice) error {
 	bufs := [][]byte{make([]byte, device.MessageTransportHeaderSize+mtu)}
 	for {
 		packet := linkEndpoint.ReadContext(ctx)
@@ -723,7 +726,7 @@ func forwardNetstackToTUN(ctx context.Context, linkEndpoint *channel.Endpoint, t
 
 // forwardTUNtoNetstack does not abort on ctx being canceled, but it does check the ctx error before
 // returning os.ErrClosed from tun.Read.
-func forwardTUNtoNetstack(ctx context.Context, tun tunDevice, linkEndpoint *channel.Endpoint) error {
+func forwardTUNtoNetstack(ctx context.Context, tun TUNDevice, linkEndpoint *channel.Endpoint) error {
 	const readOffset = device.MessageTransportHeaderSize
 	bufs := make([][]byte, tun.BatchSize())
 	for i := range bufs {

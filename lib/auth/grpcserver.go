@@ -26,10 +26,9 @@ import (
 	"io"
 	"iter"
 	"log/slog"
+	"math"
 	"net"
-	"os"
 	goslices "slices"
-	"strconv"
 	"strings"
 	"time"
 
@@ -39,6 +38,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	collectortracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
+	"golang.org/x/time/rate"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	_ "google.golang.org/grpc/encoding/gzip" // gzip compressor for gRPC.
@@ -224,17 +224,23 @@ type GRPCServer struct {
 	// collect and forward spans
 	collectortracepb.TraceServiceServer
 
-	// createAuditStreamSemaphore, if not nil, is used to limit the amount of
-	// in-flight CreateAuditStream RPCs, by sending a value in at the beginning
-	// of the RPC and pulling one out before returning.
-	createAuditStreamSemaphore chan struct{}
-
 	// createAuthenticateChallengeLimiter is a rate limiter for invocations of
 	// /proto.AuthService/CreateAuthenticateChallenge that don't rely on a user
 	// context and thus warrant additional rate limiting since they are
 	// unauthenticated (either through direct API connections or coming from the
 	// proxy on behalf of a remote unauthenticated user).
 	createAuthenticateChallengeLimiter *limiter.RateLimiter
+
+	// createAuditStreamSemaphore, if not nil, is used to limit the amount of
+	// in-flight CreateAuditStream RPCs, by sending a value in at the beginning
+	// of the RPC and pulling one out before returning.
+	createAuditStreamSemaphore chan struct{}
+
+	// resolveSSHTargetRateLimiter is an optional (server-wide) rate limiter for
+	// calls to ResolveSSHTarget, since those might end up iterating over the
+	// whole inventory of nodes and that can be quite heavy. Calls beyond the
+	// rate limit will block until their execution would be allowed.
+	resolveSSHTargetRateLimiter *rate.Limiter
 }
 
 func (g *GRPCServer) SetServingStatus(service string, servingStatus grpc_health_v1.HealthCheckResponse_ServingStatus) {
@@ -551,12 +557,13 @@ func (g *GRPCServer) WatchEvents(watch *authpb.Watch, stream authpb.AuthService_
 				stream,
 				scopedAuth.scopedContext.User.GetName(),
 				scopedAuth,
+				modules.GetModules(),
 			))
 		}
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(WatchEvents(watch, stream, auth.User.GetName(), auth))
+	return trace.Wrap(WatchEvents(watch, stream, auth.User.GetName(), auth, modules.GetModules()))
 }
 
 // WatchEvent is a stream interface for sending events.
@@ -569,14 +576,18 @@ type Watcher interface {
 	NewStream(ctx context.Context, watch types.Watch) (stream.Stream[types.Event], error)
 }
 
-// WatchEvents watches for events and streams them to the provided stream.
-func WatchEvents(watch *authpb.Watch, stream WatchEvent, componentName string, auth Watcher) error {
-	servicesWatch := types.Watch{
-		Name:                componentName,
-		Kinds:               watch.Kinds,
-		AllowPartialSuccess: watch.AllowPartialSuccess,
-	}
+var enterpriseOnlyWatchKinds = []string{
+	types.KindCertAuthorityOverride,
+}
 
+// WatchEvents watches for events and streams them to the provided stream.
+func WatchEvents(
+	watch *authpb.Watch,
+	stream WatchEvent,
+	componentName string,
+	auth Watcher,
+	mods modules.Modules,
+) error {
 	// KindNamespace is being removed but v17 agents will still try to include
 	// it in their cache and they will occasionally do a GetNamespace, so we
 	// pretend to support it as a resource kind here; it's sound to do so
@@ -591,9 +602,27 @@ func WatchEvents(watch *authpb.Watch, stream WatchEvent, componentName string, a
 			removedNamespaceWatch = true
 			continue
 		}
+
+		// Deny watchers for Enteprise-only Kinds if we are running OSS.
+		// This simplifies remote event streams that would otherwise try to hit
+		// unimplemented endpoints (Enterprise-only services tend to only bind in
+		// Enterprise builds).
+		if mods.IsOSSBuild() && goslices.Contains(enterpriseOnlyWatchKinds, k.Kind) {
+			if watch.AllowPartialSuccess {
+				continue
+			}
+			return trace.BadParameter("watch for kind %s only available in Teleport Enterprise", k.Kind)
+		}
+
 		filteredKinds = append(filteredKinds, k)
 	}
 	watch.Kinds = filteredKinds
+
+	servicesWatch := types.Watch{
+		Name:                componentName,
+		Kinds:               watch.Kinds,
+		AllowPartialSuccess: watch.AllowPartialSuccess,
+	}
 
 	events, err := auth.NewStream(stream.Context(), servicesWatch)
 	if err != nil {
@@ -666,17 +695,23 @@ func resourceLabel(event types.Event) string {
 }
 
 func (g *GRPCServer) GenerateUserCerts(ctx context.Context, req *authpb.UserCertsRequest) (*authpb.Certs, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := validateUserCertsRequest(auth, req); err != nil {
+
+	// deny access to scoped bots
+	if ident := auth.getIdentity(); ident.IsBot() && ident.ScopePin != nil {
+		return nil, trace.AccessDenied("scoped bots can not generate user certs")
+	}
+
+	if err := validateUserCertsRequest(auth.ServerWithRoles, req); err != nil {
 		g.logger.DebugContext(ctx, "Validation of user certs request failed", "error", err)
 		return nil, trace.Wrap(err)
 	}
 
 	if req.Purpose == authpb.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS {
-		certs, err := g.generateUserSingleUseCerts(ctx, auth, req)
+		certs, err := g.generateUserSingleUseCerts(ctx, auth.ServerWithRoles, req)
 		return certs, trace.Wrap(err)
 	}
 
@@ -687,7 +722,7 @@ func (g *GRPCServer) GenerateUserCerts(ctx context.Context, req *authpb.UserCert
 	return certs, nil
 }
 
-func validateUserCertsRequest(actx *grpcContext, req *authpb.UserCertsRequest) error {
+func validateUserCertsRequest(srv *ServerWithRoles, req *authpb.UserCertsRequest) error {
 	switch req.Usage {
 	case authpb.UserCertsRequest_All:
 		if req.Purpose == authpb.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS {
@@ -737,7 +772,7 @@ func validateUserCertsRequest(actx *grpcContext, req *authpb.UserCertsRequest) e
 	}
 
 	// Single-use certs require current user.
-	if err := actx.currentUserAction(req.Username); err != nil {
+	if err := srv.scopedCurrentUserAction(req.Username); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -745,8 +780,8 @@ func validateUserCertsRequest(actx *grpcContext, req *authpb.UserCertsRequest) e
 }
 
 // generateUserSingleUseCerts issues single-use user certificates.
-func (g *GRPCServer) generateUserSingleUseCerts(ctx context.Context, actx *grpcContext, req *authpb.UserCertsRequest) (*authpb.Certs, error) {
-	setUserSingleUseCertsTTL(actx, req)
+func (g *GRPCServer) generateUserSingleUseCerts(ctx context.Context, srv *ServerWithRoles, req *authpb.UserCertsRequest) (*authpb.Certs, error) {
+	setUserSingleUseCertsTTL(srv, req)
 
 	// We don't do MFA requirement validations here.
 	// Callers are supposed to use either use
@@ -759,7 +794,7 @@ func (g *GRPCServer) generateUserSingleUseCerts(ctx context.Context, actx *grpcC
 	// Generate the cert
 	singleUseCert, err := userSingleUseCertsGenerate(
 		ctx,
-		actx,
+		srv,
 		*req)
 	if err != nil {
 		g.logger.WarnContext(ctx, "Failed to generate single-use cert", "error", err)
@@ -1880,6 +1915,47 @@ func (g *GRPCServer) DeleteUserAppSessions(ctx context.Context, req *authpb.Dele
 	return &emptypb.Empty{}, nil
 }
 
+// SetAppSessionDBSCPublicKey sets the DBSC public key on an application web session.
+func (g *GRPCServer) SetAppSessionDBSCPublicKey(ctx context.Context, req *authpb.SetAppSessionDBSCPublicKeyRequest) (*authpb.SetAppSessionDBSCPublicKeyResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if req.SessionId == "" {
+		return nil, trace.BadParameter("missing session ID")
+	}
+
+	if len(req.PublicKey) == 0 {
+		return nil, trace.BadParameter("DBSC response must not be empty")
+	}
+
+	if err := auth.SetAppSessionDBSCPublicKey(ctx, req.SessionId, req.PublicKey); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &authpb.SetAppSessionDBSCPublicKeyResponse{}, nil
+}
+
+// SignDBSCChallenge signs a DBSC challenge for an application web session.
+func (g *GRPCServer) SignDBSCChallenge(ctx context.Context, req *authpb.SignDBSCChallengeRequest) (*authpb.SignDBSCChallengeResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if req.SessionId == "" {
+		return nil, trace.BadParameter("missing session ID")
+	}
+
+	challenge, err := auth.SignDBSCChallenge(ctx, req.SessionId)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &authpb.SignDBSCChallengeResponse{Challenge: challenge}, nil
+}
+
 // GenerateAppToken creates a JWT token with application access.
 func (g *GRPCServer) GenerateAppToken(ctx context.Context, req *authpb.GenerateAppTokenRequest) (*authpb.GenerateAppTokenResponse, error) {
 	auth, err := g.authenticate(ctx)
@@ -2787,7 +2863,7 @@ func (g *GRPCServer) GenerateUserSingleUseCerts(stream authpb.AuthService_Genera
 	return trace.NotImplemented("method GenerateUserSingleUseCerts is deprecated, use GenerateUserCerts instead")
 }
 
-func setUserSingleUseCertsTTL(actx *grpcContext, req *authpb.UserCertsRequest) {
+func setUserSingleUseCertsTTL(srv *ServerWithRoles, req *authpb.UserCertsRequest) {
 	if !isCertWrittenToDiskFlow(req) {
 		// Don't limit the cert expiry to 1 minute for certs that are not written to disk.
 		// When MFA is required, cert expiration time is bounded by the lifetime of the local proxy process
@@ -2795,7 +2871,7 @@ func setUserSingleUseCertsTTL(actx *grpcContext, req *authpb.UserCertsRequest) {
 		return
 	}
 
-	maxExpiry := actx.authServer.GetClock().Now().Add(teleport.UserSingleUseCertTTL)
+	maxExpiry := srv.authServer.GetClock().Now().Add(teleport.UserSingleUseCertTTL)
 	if req.Expires.After(maxExpiry) {
 		req.Expires = maxExpiry
 	}
@@ -2828,7 +2904,7 @@ func isCertWrittenToDiskFlow(req *authpb.UserCertsRequest) bool {
 	return !isInMemoryCertRequest(req) && !isCredentialsStdoutCertRequest(req)
 }
 
-func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req authpb.UserCertsRequest) (*authpb.Certs, error) {
+func userSingleUseCertsGenerate(ctx context.Context, srv *ServerWithRoles, req authpb.UserCertsRequest) (*authpb.Certs, error) {
 	// Get the client IP.
 	clientPeer, ok := peer.FromContext(ctx)
 	if !ok {
@@ -2842,13 +2918,13 @@ func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req auth
 	// MFA certificates are supposed to be always pinned to IP, but it was decided to turn this off until
 	// IP pinning comes out of preview. Here we would add option to pin the cert, see commit of this comment for restoring.
 	opts := []certRequestOption{
-		certRequestPreviousIdentityExpires(actx.Identity.GetIdentity().Expires),
+		certRequestPreviousIdentityExpires(srv.getIdentity().Expires),
 		certRequestLoginIP(clientIP),
-		certRequestDeviceExtensions(actx.Identity.GetIdentity().DeviceExtensions),
+		certRequestDeviceExtensions(srv.getIdentity().DeviceExtensions),
 	}
 
 	// Generate the cert.
-	certs, err := actx.generateUserCerts(ctx, req, opts...)
+	certs, err := srv.generateUserCerts(ctx, req, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2868,7 +2944,7 @@ func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req auth
 }
 
 func (g *GRPCServer) IsMFARequired(ctx context.Context, req *authpb.IsMFARequiredRequest) (*authpb.IsMFARequiredResponse, error) {
-	actx, err := g.authenticate(ctx)
+	actx, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4986,12 +5062,23 @@ func (g *GRPCServer) scopedListUnifiedResources(ctx context.Context, req *authpb
 
 // ListResources retrieves a paginated list of resources.
 func (g *GRPCServer) ListResources(ctx context.Context, req *authpb.ListResourcesRequest) (*authpb.ListResourcesResponse, error) {
+
+	var swr *ServerWithRoles
 	auth, err := g.authenticate(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		if !errors.Is(err, services.ErrScopedIdentity) {
+			return nil, trace.Wrap(err)
+		}
+		scopedAuth, err := g.scopedAuthenticate(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		swr = scopedAuth.ServerWithRoles
+	} else {
+		swr = auth.ServerWithRoles
 	}
 
-	resp, err := auth.ListResources(ctx, *req)
+	resp, err := swr.ListResources(ctx, *req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5049,6 +5136,12 @@ func (g *GRPCServer) ResolveSSHTarget(ctx context.Context, req *authpb.ResolveSS
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if l := g.resolveSSHTargetRateLimiter; l != nil {
+		if err := l.Wait(ctx); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	rsp, err := auth.ServerWithRoles.ResolveSSHTarget(ctx, req)
@@ -6327,6 +6420,23 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	var createAuditStreamSemaphore chan struct{}
+	if cfg.CreateAuditStreamInflightLimit != nil {
+		metrics.RegisterPrometheusCollectors(
+			createAuditStreamAcceptedTotalMetric,
+			createAuditStreamRejectedTotalMetric,
+			createAuditStreamLimitMetric,
+		)
+		limit := max(0, *cfg.CreateAuditStreamInflightLimit)
+		createAuditStreamLimitMetric.Set(float64(limit))
+		createAuditStreamSemaphore = make(chan struct{}, limit)
+	}
+
+	var resolveSSHTargetRateLimiter *rate.Limiter
+	if cfg.ResolveSSHTargetRateLimit != nil {
+		resolveSSHTargetRateLimiter = rate.NewLimiter(rate.Limit(*cfg.ResolveSSHTargetRateLimit), int(math.Ceil(*cfg.ResolveSSHTargetRateLimit)))
+	}
+
 	authServer := &GRPCServer{
 		APIConfig:   cfg.APIConfig,
 		logger:      logger,
@@ -6334,26 +6444,8 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		healthcheck: health.NewServer(),
 
 		createAuthenticateChallengeLimiter: createAuthenticateChallengeLimiter,
-	}
-
-	if en := os.Getenv("TELEPORT_UNSTABLE_CREATEAUDITSTREAM_INFLIGHT_LIMIT"); en != "" {
-		inflightLimit, err := strconv.ParseInt(en, 10, 64)
-		if err != nil {
-			logger.ErrorContext(context.Background(), "Failed to parse the TELEPORT_UNSTABLE_CREATEAUDITSTREAM_INFLIGHT_LIMIT envvar, limit will not be enforced")
-			inflightLimit = -1
-		}
-		if inflightLimit == 0 {
-			logger.WarnContext(context.Background(), "TELEPORT_UNSTABLE_CREATEAUDITSTREAM_INFLIGHT_LIMIT is set to 0, no CreateAuditStream RPCs will be allowed")
-		}
-		metrics.RegisterPrometheusCollectors(
-			createAuditStreamAcceptedTotalMetric,
-			createAuditStreamRejectedTotalMetric,
-			createAuditStreamLimitMetric,
-		)
-		createAuditStreamLimitMetric.Set(float64(inflightLimit))
-		if inflightLimit >= 0 {
-			authServer.createAuditStreamSemaphore = make(chan struct{}, inflightLimit)
-		}
+		createAuditStreamSemaphore:         createAuditStreamSemaphore,
+		resolveSSHTargetRateLimiter:        resolveSSHTargetRateLimiter,
 	}
 
 	authpb.RegisterAuthServiceServer(server, authServer)

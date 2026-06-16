@@ -21,15 +21,16 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { UserEvent } from '@testing-library/user-event';
 import { createMemoryHistory } from 'history';
-import { setupServer } from 'msw/node';
 import { PropsWithChildren } from 'react';
 import { MemoryRouter, Route, Router } from 'react-router';
 
 import darkTheme from 'design/theme/themes/darkTheme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
+  enableMswServer,
   render,
   screen,
+  server,
   testQueryClient,
   userEvent,
   waitFor,
@@ -65,20 +66,12 @@ import {
 
 import { BotDetails } from './BotDetails';
 
-const server = setupServer();
-
-beforeAll(() => {
-  server.listen();
-});
+enableMswServer();
 
 afterEach(async () => {
-  server.resetHandlers();
   await testQueryClient.resetQueries();
-
   jest.clearAllMocks();
 });
-
-afterAll(() => server.close());
 
 describe('BotDetails', () => {
   it('should show a page error state', async () => {

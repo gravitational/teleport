@@ -38,6 +38,8 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |app_labels_expression|string|AppLabelsExpression is a predicate expression used to allow/deny access to Apps.|
 |aws_role_arns|[]string|AWSRoleARNs is a list of AWS role ARNs this role is allowed to assume.|
 |azure_identities|[]string|AzureIdentities is a list of Azure identities this role is allowed to assume.|
+|beam_labels|[object](#specallowbeam_labels)|BeamLabels are used in the RBAC system to allow/deny access to beams.|
+|beam_labels_expression|string|BeamLabelsExpression is a predicate expression used to allow/deny access to beams.|
 |cluster_labels|[object](#specallowcluster_labels)|ClusterLabels is a map of node labels (used to dynamically grant access to clusters).|
 |cluster_labels_expression|string|ClusterLabelsExpression is a predicate expression used to allow/deny access to remote Teleport clusters.|
 |db_labels|[object](#specallowdb_labels)|DatabaseLabels are used in RBAC system to allow/deny access to databases.|
@@ -85,6 +87,13 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |permission_set|string||
 
 ### spec.allow.app_labels
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
+
+### spec.allow.beam_labels
 
 |Field|Type|Description|
 |---|---|---|
@@ -306,6 +315,8 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |app_labels_expression|string|AppLabelsExpression is a predicate expression used to allow/deny access to Apps.|
 |aws_role_arns|[]string|AWSRoleARNs is a list of AWS role ARNs this role is allowed to assume.|
 |azure_identities|[]string|AzureIdentities is a list of Azure identities this role is allowed to assume.|
+|beam_labels|[object](#specdenybeam_labels)|BeamLabels are used in the RBAC system to allow/deny access to beams.|
+|beam_labels_expression|string|BeamLabelsExpression is a predicate expression used to allow/deny access to beams.|
 |cluster_labels|[object](#specdenycluster_labels)|ClusterLabels is a map of node labels (used to dynamically grant access to clusters).|
 |cluster_labels_expression|string|ClusterLabelsExpression is a predicate expression used to allow/deny access to remote Teleport clusters.|
 |db_labels|[object](#specdenydb_labels)|DatabaseLabels are used in RBAC system to allow/deny access to databases.|
@@ -353,6 +364,13 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |permission_set|string||
 
 ### spec.deny.app_labels
+
+|Field|Type|Description|
+|---|---|---|
+|key|string||
+|value|string||
+
+### spec.deny.beam_labels
 
 |Field|Type|Description|
 |---|---|---|
@@ -600,6 +618,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |require_session_mfa|string or integer|RequireMFAType is the type of MFA requirement enforced for this user. 0 is "OFF", 1 is "SESSION", 2 is "SESSION_AND_HARDWARE_KEY", 3 is "HARDWARE_KEY_TOUCH", 4 is "HARDWARE_KEY_PIN", 5 is "HARDWARE_KEY_TOUCH_AND_PIN". Can be either the string or the integer representation of each option.|
 |ssh_file_copy|boolean|SSHFileCopy indicates whether remote file operations via SCP or SFTP are allowed over an SSH session. It defaults to true unless explicitly set to false.|
 |ssh_port_forwarding|[object](#specoptionsssh_port_forwarding)|SSHPortForwarding configures what types of SSH port forwarding are allowed by a role.|
+|web_terminal_clipboard_mode|string or integer|WebTerminalClipboardMode determines clipboard behavior in the Web UI terminal. Valid values are "unrestricted" and "no-copy". Defaults to "unrestricted" if unspecified. Can be either the string or the integer representation of each option.|
 
 ### spec.options.cert_extensions items
 

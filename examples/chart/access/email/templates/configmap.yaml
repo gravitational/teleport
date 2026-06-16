@@ -11,15 +11,17 @@ metadata:
 data:
   teleport-email.toml: |
     [teleport]
-    addr = {{ coalesce .Values.teleport.address .Values.tbot.teleportProxyAddress .Values.tbot.teleportAuthAddress | quote }}
+    addr = {{ default "" (coalesce .Values.teleport.address .Values.tbot.teleportProxyAddress .Values.tbot.teleportAuthAddress) | quote }}
     identity = "/var/lib/teleport/plugins/email/teleport-identity/{{ include "email.identitySecretPath" . }}"
     refresh_identity = true
 
-    {{ if .Values.mailgun.enabled -}}
+    {{- if .Values.mailgun.enabled }}
+
     [mailgun]
     domain           = "{{ .Values.mailgun.domain }}"
     private_key_file = "/var/lib/teleport/plugins/email/mailgun_private_key"
-    {{ else if .Values.smtp.enabled -}}
+    {{- else if .Values.smtp.enabled }}
+
     [smtp]
     host            = "{{ .Values.smtp.host }}"
     port            = {{ .Values.smtp.port }}

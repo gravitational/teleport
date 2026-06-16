@@ -204,6 +204,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		scopedaccess.KindScopedRoleAssignment:        rc.createScopedRoleAssignment,
 		scopedaccess.KindScopedToken:                 rc.createScopedToken,
 		types.KindWorkloadCluster:                    rc.createWorkloadCluster,
+		types.KindCertAuthorityOverride:              rc.createCAOverride,
 	}
 	rc.UpdateHandlers = map[ResourceKind]ResourceCreateHandler{
 		types.KindUser:                               rc.updateUser,
@@ -237,6 +238,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		scopedaccess.KindScopedRoleAssignment:        rc.updateScopedRoleAssignment,
 		scopedaccess.KindScopedToken:                 rc.updateScopedToken,
 		types.KindWorkloadCluster:                    rc.updateWorkloadCluster,
+		types.KindCertAuthorityOverride:              rc.updateCAOverride,
 	}
 	rc.config = config
 
@@ -374,6 +376,15 @@ func (rc *ResourceCommand) Get(ctx context.Context, client *authclient.Client) e
 }
 
 func (rc *ResourceCommand) GetMany(ctx context.Context, client *authclient.Client) error {
+	const skipNotSupported = false
+	return trace.Wrap(rc.getMany(ctx, client, skipNotSupported))
+}
+
+func (rc *ResourceCommand) getMany(
+	ctx context.Context,
+	client *authclient.Client,
+	skipNotSupported bool,
+) error {
 	if rc.format != teleport.YAML {
 		return trace.BadParameter("mixed resource types only support YAML formatting")
 	}
@@ -382,6 +393,9 @@ func (rc *ResourceCommand) GetMany(ctx context.Context, client *authclient.Clien
 	for _, ref := range rc.refs {
 		rc.ref = ref
 		collection, err := rc.getCollection(ctx, client)
+		if skipNotSupported && trace.IsNotImplemented(err) {
+			continue
+		}
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -404,7 +418,12 @@ func (rc *ResourceCommand) GetAll(ctx context.Context, client *authclient.Client
 		allRefs = append(allRefs, ref)
 	}
 	rc.refs = services.Refs(allRefs)
-	return rc.GetMany(ctx, client)
+
+	// This lets OSS query Enterprise-only kinds without failing when the
+	// corresponding RPCs return "NotImplemented".
+	const skipNotSupported = true
+
+	return rc.getMany(ctx, client, skipNotSupported)
 }
 
 // Create updates or inserts one or many resources
@@ -1985,6 +2004,10 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		return trace.BadParameter("provide a full resource name to delete, for example:\n$ tctl rm cluster/east\n")
 	}
 
+	errNotSupported := func() error {
+		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
+	}
+
 	switch rc.ref.Kind {
 	case types.KindNode:
 		if err = client.DeleteNode(ctx, apidefaults.Namespace, rc.ref.Name); err != nil {
@@ -2518,8 +2541,10 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		return trace.Wrap(rc.deleteInferencePolicy(ctx, client))
 	case types.KindRetrievalModel:
 		return trace.Wrap(rc.deleteRetrievalModel(ctx, client))
+	case types.KindCertAuthorityOverride:
+		return trace.Wrap(rc.deleteCAOverride(ctx, client))
 	default:
-		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
+		return errNotSupported()
 	}
 	return nil
 }
@@ -3172,7 +3197,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			ResourceType: types.KindDatabaseService,
 		}
 		if resourceName != "" {
-			listReq.PredicateExpression = fmt.Sprintf(`name == "%s"`, resourceName)
+			listReq.PredicateExpression = fmt.Sprintf(`name == %q`, resourceName)
 		}
 
 		getResp, err := apiclient.GetResourcesWithFilters(ctx, client, listReq)
@@ -3986,6 +4011,8 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return nil, trace.Wrap(err)
 		}
 		return &workloadClusterCollection{workloadClusters: clusters}, nil
+	case types.KindCertAuthorityOverride:
+		return rc.getCAOverrides(ctx, client)
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }

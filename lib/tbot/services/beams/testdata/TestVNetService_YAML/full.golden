@@ -1,0 +1,7 @@
+name: beams-vnet
+credential_ttl: 1m0s
+renewal_interval: 30s
+delegation_session_id: 8a50ba48-2fad-4c2c-a8ce-f48bc18db9ee
+upstream_nameservers:
+  - 1.1.1.1:53
+  - '[2606:4700:4700::1111]:53'

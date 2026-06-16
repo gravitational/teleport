@@ -67,7 +67,7 @@ import (
 
 // TestJoinOracle tests the Oracle join method, with faked OCI IMDS and API servers.
 func TestJoinOracle(t *testing.T) {
-	t.Parallel()
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
 
 	imdsListener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
@@ -184,7 +184,7 @@ func TestJoinOracle(t *testing.T) {
 						makeCompartmentID("othercompartment"),
 						makeCompartmentID("mycompartment"),
 					},
-					Regions: []string{"otherregion", "phx"},
+					Regions: []string{"us-phoenix-1", "phx"},
 				},
 			},
 			tokenName:        "mytoken",
@@ -205,7 +205,7 @@ func TestJoinOracle(t *testing.T) {
 						makeCompartmentID("othercompartment"),
 						makeCompartmentID("mycompartment"),
 					},
-					Regions: []string{"otherregion", "phx"},
+					Regions: []string{"us-phoenix-1", "phx"},
 					Instances: []string{
 						makeInstanceID("phx", "otherinstance"),
 						makeInstanceID("phx", "myinstance"),
@@ -304,7 +304,7 @@ func TestJoinOracle(t *testing.T) {
 						makeCompartmentID("othercompartment"),
 						makeCompartmentID("mycompartment"),
 					},
-					Regions: []string{"otherregion", "phx"},
+					Regions: []string{"us-phoenix-1", "phx"},
 				},
 			},
 			tokenName:        "mytoken",
@@ -325,7 +325,7 @@ func TestJoinOracle(t *testing.T) {
 						makeCompartmentID("othercompartment"),
 						makeCompartmentID("mycompartment"),
 					},
-					Regions: []string{"otherregion", "phx"},
+					Regions: []string{"us-phoenix-1", "phx"},
 					Instances: []string{
 						makeInstanceID("phx", "otherinstance"),
 						makeInstanceID("phx", "myinstance"),

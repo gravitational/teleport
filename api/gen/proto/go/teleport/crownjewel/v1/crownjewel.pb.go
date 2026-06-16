@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/crownjewel/v1/crownjewel.proto
 
+//go:build !protoopaque
+
 package crownjewelv1
 
 import (
@@ -27,7 +29,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	wrapperspb "google.golang.org/protobuf/types/known/wrapperspb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -43,7 +44,7 @@ const (
 // considered critical to the organization. Access Graph uses Crown Jewel to
 // generate audit events if access to a resource has changed.
 type CrownJewel struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The kind of resource represented.
 	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	// Mandatory field for all resources. Not populated for this resource type.
@@ -83,11 +84,6 @@ func (x *CrownJewel) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CrownJewel.ProtoReflect.Descriptor instead.
-func (*CrownJewel) Descriptor() ([]byte, []int) {
-	return file_teleport_crownjewel_v1_crownjewel_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *CrownJewel) GetKind() string {
 	if x != nil {
 		return x.Kind
@@ -123,9 +119,78 @@ func (x *CrownJewel) GetSpec() *CrownJewelSpec {
 	return nil
 }
 
+func (x *CrownJewel) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *CrownJewel) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+func (x *CrownJewel) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *CrownJewel) SetMetadata(v *v1.Metadata) {
+	x.Metadata = v
+}
+
+func (x *CrownJewel) SetSpec(v *CrownJewelSpec) {
+	x.Spec = v
+}
+
+func (x *CrownJewel) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *CrownJewel) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *CrownJewel) ClearMetadata() {
+	x.Metadata = nil
+}
+
+func (x *CrownJewel) ClearSpec() {
+	x.Spec = nil
+}
+
+type CrownJewel_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The kind of resource represented.
+	Kind string
+	// Mandatory field for all resources. Not populated for this resource type.
+	SubKind string
+	// The version of the resource being represented.
+	Version string
+	// Common metadata that all resources share.
+	Metadata *v1.Metadata
+	// Spec is the crown jewel spec.
+	Spec *CrownJewelSpec
+}
+
+func (b0 CrownJewel_builder) Build() *CrownJewel {
+	m0 := &CrownJewel{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.SubKind = b.SubKind
+	x.Version = b.Version
+	x.Metadata = b.Metadata
+	x.Spec = b.Spec
+	return m0
+}
+
 // CrownJewelSpec is the specification of a Crown Jewel.
 type CrownJewelSpec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// TeleportMatchers is a list of teleport matchers.
 	// DEPRECATED: Use query instead.
 	TeleportMatchers []*TeleportMatcher `protobuf:"bytes,1,rep,name=teleport_matchers,json=teleportMatchers,proto3" json:"teleport_matchers,omitempty"`
@@ -163,11 +228,6 @@ func (x *CrownJewelSpec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CrownJewelSpec.ProtoReflect.Descriptor instead.
-func (*CrownJewelSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_crownjewel_v1_crownjewel_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *CrownJewelSpec) GetTeleportMatchers() []*TeleportMatcher {
 	if x != nil {
 		return x.TeleportMatchers
@@ -189,9 +249,44 @@ func (x *CrownJewelSpec) GetQuery() string {
 	return ""
 }
 
+func (x *CrownJewelSpec) SetTeleportMatchers(v []*TeleportMatcher) {
+	x.TeleportMatchers = v
+}
+
+func (x *CrownJewelSpec) SetAwsMatchers(v []*AWSMatcher) {
+	x.AwsMatchers = v
+}
+
+func (x *CrownJewelSpec) SetQuery(v string) {
+	x.Query = v
+}
+
+type CrownJewelSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// TeleportMatchers is a list of teleport matchers.
+	// DEPRECATED: Use query instead.
+	TeleportMatchers []*TeleportMatcher
+	// AWSMatchers is a list of AWS matchers.
+	// DEPRECATED: Use query instead.
+	AwsMatchers []*AWSMatcher
+	// Query is a Access Graph query to match resources.
+	Query string
+}
+
+func (b0 CrownJewelSpec_builder) Build() *CrownJewelSpec {
+	m0 := &CrownJewelSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.TeleportMatchers = b.TeleportMatchers
+	x.AwsMatchers = b.AwsMatchers
+	x.Query = b.Query
+	return m0
+}
+
 // TeleportMatcher represents a matcher for Teleport resources.
 type TeleportMatcher struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Kind is the kind of the resource: ssh, k8s, db, etc
 	// Multiple kinds can be provided to match multiple kinds.
 	Kinds []string `protobuf:"bytes,2,rep,name=kinds,proto3" json:"kinds,omitempty"`
@@ -229,11 +324,6 @@ func (x *TeleportMatcher) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TeleportMatcher.ProtoReflect.Descriptor instead.
-func (*TeleportMatcher) Descriptor() ([]byte, []int) {
-	return file_teleport_crownjewel_v1_crownjewel_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *TeleportMatcher) GetKinds() []string {
 	if x != nil {
 		return x.Kinds
@@ -255,11 +345,46 @@ func (x *TeleportMatcher) GetNames() []string {
 	return nil
 }
 
+func (x *TeleportMatcher) SetKinds(v []string) {
+	x.Kinds = v
+}
+
+func (x *TeleportMatcher) SetLabels(v []*v11.Label) {
+	x.Labels = v
+}
+
+func (x *TeleportMatcher) SetNames(v []string) {
+	x.Names = v
+}
+
+type TeleportMatcher_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Kind is the kind of the resource: ssh, k8s, db, etc
+	// Multiple kinds can be provided to match multiple kinds.
+	Kinds []string
+	// Labels is a set of labels.
+	Labels []*v11.Label
+	// Names are the name of resources. When the name is provided, it will match
+	// resources with the same name.
+	Names []string
+}
+
+func (b0 TeleportMatcher_builder) Build() *TeleportMatcher {
+	m0 := &TeleportMatcher{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kinds = b.Kinds
+	x.Labels = b.Labels
+	x.Names = b.Names
+	return m0
+}
+
 // AWSMatcher represents a matcher for AWS resources.
 // Those matchers are used only by Access Graph. Teleport related matchers are
 // defined in the TeleportMatcher.
 type AWSMatcher struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types are AWS database types to match, "ec2", "rds", "s3", etc
 	Types []string `protobuf:"bytes,1,rep,name=types,proto3" json:"types,omitempty"`
 	// Regions are AWS regions to query for resources.
@@ -298,11 +423,6 @@ func (x *AWSMatcher) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AWSMatcher.ProtoReflect.Descriptor instead.
-func (*AWSMatcher) Descriptor() ([]byte, []int) {
-	return file_teleport_crownjewel_v1_crownjewel_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *AWSMatcher) GetTypes() []string {
 	if x != nil {
 		return x.Types
@@ -331,9 +451,50 @@ func (x *AWSMatcher) GetArns() []string {
 	return nil
 }
 
+func (x *AWSMatcher) SetTypes(v []string) {
+	x.Types = v
+}
+
+func (x *AWSMatcher) SetRegions(v []string) {
+	x.Regions = v
+}
+
+func (x *AWSMatcher) SetTags(v []*AWSTag) {
+	x.Tags = v
+}
+
+func (x *AWSMatcher) SetArns(v []string) {
+	x.Arns = v
+}
+
+type AWSMatcher_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Types are AWS database types to match, "ec2", "rds", "s3", etc
+	Types []string
+	// Regions are AWS regions to query for resources.
+	Regions []string
+	// Tags are AWS resource Tags to match.
+	// labels is a set of labels.
+	Tags []*AWSTag
+	// ARNs are AWS resources ARN to match.
+	Arns []string
+}
+
+func (b0 AWSMatcher_builder) Build() *AWSMatcher {
+	m0 := &AWSMatcher{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Types = b.Types
+	x.Regions = b.Regions
+	x.Tags = b.Tags
+	x.Arns = b.Arns
+	return m0
+}
+
 // AWSTag is a tag that is attached to an AWS resource.
 type AWSTag struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Key is the key of the tag.
 	Key string `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
 	// Value is the value of the tag.
@@ -367,11 +528,6 @@ func (x *AWSTag) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AWSTag.ProtoReflect.Descriptor instead.
-func (*AWSTag) Descriptor() ([]byte, []int) {
-	return file_teleport_crownjewel_v1_crownjewel_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *AWSTag) GetKey() string {
 	if x != nil {
 		return x.Key
@@ -384,6 +540,32 @@ func (x *AWSTag) GetValues() []*wrapperspb.StringValue {
 		return x.Values
 	}
 	return nil
+}
+
+func (x *AWSTag) SetKey(v string) {
+	x.Key = v
+}
+
+func (x *AWSTag) SetValues(v []*wrapperspb.StringValue) {
+	x.Values = v
+}
+
+type AWSTag_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Key is the key of the tag.
+	Key string
+	// Value is the value of the tag.
+	Values []*wrapperspb.StringValue
+}
+
+func (b0 AWSTag_builder) Build() *AWSTag {
+	m0 := &AWSTag{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Key = b.Key
+	x.Values = b.Values
+	return m0
 }
 
 var File_teleport_crownjewel_v1_crownjewel_proto protoreflect.FileDescriptor
@@ -415,18 +597,6 @@ const file_teleport_crownjewel_v1_crownjewel_proto_rawDesc = "" +
 	"\x06AWSTag\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x124\n" +
 	"\x06values\x18\x02 \x03(\v2\x1c.google.protobuf.StringValueR\x06valuesBXZVgithub.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1;crownjewelv1b\x06proto3"
-
-var (
-	file_teleport_crownjewel_v1_crownjewel_proto_rawDescOnce sync.Once
-	file_teleport_crownjewel_v1_crownjewel_proto_rawDescData []byte
-)
-
-func file_teleport_crownjewel_v1_crownjewel_proto_rawDescGZIP() []byte {
-	file_teleport_crownjewel_v1_crownjewel_proto_rawDescOnce.Do(func() {
-		file_teleport_crownjewel_v1_crownjewel_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_crownjewel_v1_crownjewel_proto_rawDesc), len(file_teleport_crownjewel_v1_crownjewel_proto_rawDesc)))
-	})
-	return file_teleport_crownjewel_v1_crownjewel_proto_rawDescData
-}
 
 var file_teleport_crownjewel_v1_crownjewel_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_teleport_crownjewel_v1_crownjewel_proto_goTypes = []any{

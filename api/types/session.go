@@ -117,6 +117,12 @@ type WebSession interface {
 	// requirement.
 	// See [TrustedDeviceRequirement].
 	GetTrustedDeviceRequirement() TrustedDeviceRequirement
+	// GetDBSCPublicKey returns the device-bound public key (JWK format) for
+	// Device Bound Session Credentials.
+	GetDBSCPublicKey() []byte
+	// SetDBSCPublicKey sets the device-bound public key (JWK format) for
+	// Device Bound Session Credentials.
+	SetDBSCPublicKey([]byte)
 	// Copy returns a clone of the session resource.
 	Copy() WebSession
 }
@@ -260,6 +266,18 @@ func (ws *WebSessionV2) SetTrustedDeviceRequirement(r TrustedDeviceRequirement) 
 // requirement.
 func (ws *WebSessionV2) GetTrustedDeviceRequirement() TrustedDeviceRequirement {
 	return ws.Spec.TrustedDeviceRequirement
+}
+
+// GetDBSCPublicKey returns the device-bound public key (JWK format) for
+// Device Bound Session Credentials.
+func (ws *WebSessionV2) GetDBSCPublicKey() []byte {
+	return ws.Spec.DBSCPublicKey
+}
+
+// SetDBSCPublicKey sets the device-bound public key (JWK format) for
+// Device Bound Session Credentials.
+func (ws *WebSessionV2) SetDBSCPublicKey(pubKey []byte) {
+	ws.Spec.DBSCPublicKey = pubKey
 }
 
 // setStaticFields sets static resource header and metadata fields.

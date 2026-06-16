@@ -20,15 +20,28 @@ package identity
 
 import (
 	"bytes"
+	"log/slog"
+	"net"
 	"os"
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
 	"github.com/gravitational/teleport/lib/tbot/internal"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
+	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 func TestMain(m *testing.M) {
@@ -104,5 +117,60 @@ func testCheckAndSetDefaults[T checkAndSetDefaulter](t *testing.T, tests []testC
 			require.NoError(t, err)
 			require.Equal(t, want, got)
 		})
+	}
+}
+
+func defaultTestServerOpts(log *slog.Logger) testenv.TestServerOptFunc {
+	return func(o *testenv.TestServersOpts) error {
+		testenv.WithClusterName("root")(o)
+		testenv.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.Logger = log
+			cfg.Proxy.PublicAddrs = []utils.NetAddr{
+				{AddrNetwork: "tcp", Addr: net.JoinHostPort("localhost", strconv.Itoa(cfg.Proxy.WebAddr.Port(0)))},
+			}
+			cfg.Proxy.TunnelPublicAddrs = []utils.NetAddr{
+				cfg.Proxy.ReverseTunnelListenAddr,
+			}
+		})(o)
+
+		return nil
+	}
+}
+
+func makeBot(t *testing.T, client *authclient.Client, name string, roles ...string) onboarding.Config {
+	t.Helper()
+
+	b, err := client.BotServiceClient().CreateBot(t.Context(), &machineidv1pb.CreateBotRequest{
+		Bot: &machineidv1pb.Bot{
+			Kind:    types.KindBot,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: name,
+			},
+			Spec: &machineidv1pb.BotSpec{
+				Roles: roles,
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	tokenName, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
+	require.NoError(t, err)
+
+	tok, err := types.NewProvisionTokenFromSpec(
+		tokenName,
+		time.Now().Add(10*time.Minute),
+		types.ProvisionTokenSpecV2{
+			Roles:   []types.SystemRole{types.RoleBot},
+			BotName: b.Metadata.Name,
+		})
+	require.NoError(t, err)
+
+	err = client.CreateToken(t.Context(), tok)
+	require.NoError(t, err)
+
+	return onboarding.Config{
+		TokenValue: tok.GetName(),
+		JoinMethod: types.JoinMethodToken,
 	}
 }

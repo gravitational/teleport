@@ -497,7 +497,7 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 	}
 
 	l := &Log{
-		publisher: newPublisherFromAthenaConfig(cfg),
+		publisher: newPublisherFromAthenaConfig(ctx, cfg),
 		querier:   querier,
 	}
 

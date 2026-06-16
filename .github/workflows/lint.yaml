@@ -4,7 +4,6 @@ on:
   merge_group:
 env:
   GOFLAGS: '-buildvcs=false'
-  GOEXPERIMENT: 'synctest'
 
 jobs:
   changes:
@@ -81,6 +80,8 @@ jobs:
               - 'docs/pages/reference/infrastructure-as-code/terraform-modules/**'
               - 'examples/chart/teleport-cluster/charts/teleport-operator/operator-crds'
               - 'build.assets/tooling/cmd/resource-ref-generator/**'
+              - 'buf-go.gen.yaml'
+              - 'buf.yaml'
             has_ui:
               - '.github/workflows/lint.yaml'
               - 'web/**'
@@ -92,10 +93,10 @@ jobs:
               - 'tsconfig.node.json'
             has_cli:
               - '.github/workflows/lint.yaml'
-              - 'tool/tsh/**.go'
-              - 'tool/tctl/**.go'
-              - 'tool/tbot/**.go'
-              - 'tool/teleport/**.go'
+              - 'tool/tsh/**'
+              - 'tool/tctl/**'
+              - 'tool/tbot/**'
+              - 'tool/teleport/**'
               - 'lib/utils/usage_docs.go'
               - 'lib/utils/usage_docs_test.go'
               - 'lib/utils/docs-usage.md.tmpl'
@@ -373,7 +374,7 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport19
+      image: ghcr.io/gravitational/teleport-buildbox:teleport18
 
     steps:
       - name: Checkout

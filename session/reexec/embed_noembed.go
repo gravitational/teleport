@@ -18,6 +18,14 @@
 
 package reexec
 
-func initEmbeddedReexec() (bool, error) {
-	return false, nil
+import "github.com/gravitational/trace"
+
+// embeddedReexecAvailable is the definition of [EmbeddedReexecAvailable] in
+// this build.
+const embeddedReexecAvailable = false
+
+// initEmbeddedReexec is the implementation of [InitEmbeddedReexec] in this
+// build.
+func initEmbeddedReexec() error {
+	return trace.Errorf("the embedded session helper is not available in this build")
 }

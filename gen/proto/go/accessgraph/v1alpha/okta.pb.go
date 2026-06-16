@@ -21,6 +21,8 @@
 // 	protoc        (unknown)
 // source: accessgraph/v1alpha/okta.proto
 
+//go:build !protoopaque
+
 package accessgraphv1alpha
 
 import (
@@ -29,7 +31,6 @@ import (
 	structpb "google.golang.org/protobuf/types/known/structpb"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -42,7 +43,7 @@ const (
 
 // OktaEventV1 holds the data for a single audit event that happened in an Okta organization.
 type OktaEventV1 struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The user or application that did the action of the event, ex.: "user_id_123", "OktaMobile".
 	Identity *OktaIdentityV1 `protobuf:"bytes,1,opt,name=identity,proto3" json:"identity,omitempty"`
 	// The network place (like an IP address) where the event started.
@@ -86,11 +87,6 @@ func (x *OktaEventV1) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use OktaEventV1.ProtoReflect.Descriptor instead.
-func (*OktaEventV1) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_okta_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *OktaEventV1) GetIdentity() *OktaIdentityV1 {
@@ -149,10 +145,122 @@ func (x *OktaEventV1) GetEventData() *structpb.Struct {
 	return nil
 }
 
+func (x *OktaEventV1) SetIdentity(v *OktaIdentityV1) {
+	x.Identity = v
+}
+
+func (x *OktaEventV1) SetLocation(v *OktaLocationV1) {
+	x.Location = v
+}
+
+func (x *OktaEventV1) SetEventType(v string) {
+	x.EventType = v
+}
+
+func (x *OktaEventV1) SetPublished(v *timestamppb.Timestamp) {
+	x.Published = v
+}
+
+func (x *OktaEventV1) SetResult(v string) {
+	x.Result = v
+}
+
+func (x *OktaEventV1) SetTargets(v []*OktaTargetV1) {
+	x.Targets = v
+}
+
+func (x *OktaEventV1) SetOrigin(v string) {
+	x.Origin = v
+}
+
+func (x *OktaEventV1) SetEventData(v *structpb.Struct) {
+	x.EventData = v
+}
+
+func (x *OktaEventV1) HasIdentity() bool {
+	if x == nil {
+		return false
+	}
+	return x.Identity != nil
+}
+
+func (x *OktaEventV1) HasLocation() bool {
+	if x == nil {
+		return false
+	}
+	return x.Location != nil
+}
+
+func (x *OktaEventV1) HasPublished() bool {
+	if x == nil {
+		return false
+	}
+	return x.Published != nil
+}
+
+func (x *OktaEventV1) HasEventData() bool {
+	if x == nil {
+		return false
+	}
+	return x.EventData != nil
+}
+
+func (x *OktaEventV1) ClearIdentity() {
+	x.Identity = nil
+}
+
+func (x *OktaEventV1) ClearLocation() {
+	x.Location = nil
+}
+
+func (x *OktaEventV1) ClearPublished() {
+	x.Published = nil
+}
+
+func (x *OktaEventV1) ClearEventData() {
+	x.EventData = nil
+}
+
+type OktaEventV1_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The user or application that did the action of the event, ex.: "user_id_123", "OktaMobile".
+	Identity *OktaIdentityV1
+	// The network place (like an IP address) where the event started.
+	Location *OktaLocationV1
+	// The specific type of event that happened, ex.: "user.session.start", "user.lifecycle.create".
+	EventType string
+	// The time when Okta saved or showed the event.
+	Published *timestamppb.Timestamp
+	// The result of the event, ex.: "SUCCESS", "FAILURE", "ALLOWED", "DENIED".
+	Result string
+	// A list of one or more items (like users or applications) that this event's action changed or affected.
+	Targets []*OktaTargetV1
+	// Information about the client app or system part that began the event.
+	Origin string
+	// The actual unstructured, homgeneous event data.
+	EventData *structpb.Struct
+}
+
+func (b0 OktaEventV1_builder) Build() *OktaEventV1 {
+	m0 := &OktaEventV1{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Identity = b.Identity
+	x.Location = b.Location
+	x.EventType = b.EventType
+	x.Published = b.Published
+	x.Result = b.Result
+	x.Targets = b.Targets
+	x.Origin = b.Origin
+	x.EventData = b.EventData
+	return m0
+}
+
 // OktaIdentityV1 holds details about an identity (ex.: a user or an application)
 // that is part of an Okta event.
 type OktaIdentityV1 struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The unique ID of this identity, ex.: "00u1a2b3c4d5e6f7g8h9".
 	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	// The display name or human-readable name of the identity, ex.: "John Doe", "Okta Admin Console".
@@ -192,11 +300,6 @@ func (x *OktaIdentityV1) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use OktaIdentityV1.ProtoReflect.Descriptor instead.
-func (*OktaIdentityV1) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_okta_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *OktaIdentityV1) GetId() string {
 	if x != nil {
 		return x.Id
@@ -232,10 +335,57 @@ func (x *OktaIdentityV1) GetUserAgent() string {
 	return ""
 }
 
+func (x *OktaIdentityV1) SetId(v string) {
+	x.Id = v
+}
+
+func (x *OktaIdentityV1) SetName(v string) {
+	x.Name = v
+}
+
+func (x *OktaIdentityV1) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *OktaIdentityV1) SetToken(v string) {
+	x.Token = v
+}
+
+func (x *OktaIdentityV1) SetUserAgent(v string) {
+	x.UserAgent = v
+}
+
+type OktaIdentityV1_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The unique ID of this identity, ex.: "00u1a2b3c4d5e6f7g8h9".
+	Id string
+	// The display name or human-readable name of the identity, ex.: "John Doe", "Okta Admin Console".
+	Name string
+	// The kind or type of identity, ex.: "USER", "APP", "CLIENT", "SYSTEM".
+	Kind string
+	// An API token ID or session identifier associated with the identity, if applicable to the event.
+	Token string
+	// The user agent string of the client software used by this identity, ex.: "Mozilla/5.0 (...) Chrome/...".
+	UserAgent string
+}
+
+func (b0 OktaIdentityV1_builder) Build() *OktaIdentityV1 {
+	m0 := &OktaIdentityV1{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Id = b.Id
+	x.Name = b.Name
+	x.Kind = b.Kind
+	x.Token = b.Token
+	x.UserAgent = b.UserAgent
+	return m0
+}
+
 // OktaLocationV1 holds network location information, like an IP address,
 // related to an Okta event.
 type OktaLocationV1 struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The IP address (IPv4 or IPv6) from which the event originated, ex.: "198.51.100.5", "2001:db8::a:b:c:d".
 	Ip            string `protobuf:"bytes,1,opt,name=ip,proto3" json:"ip,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -267,11 +417,6 @@ func (x *OktaLocationV1) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use OktaLocationV1.ProtoReflect.Descriptor instead.
-func (*OktaLocationV1) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_okta_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *OktaLocationV1) GetIp() string {
 	if x != nil {
 		return x.Ip
@@ -279,10 +424,29 @@ func (x *OktaLocationV1) GetIp() string {
 	return ""
 }
 
+func (x *OktaLocationV1) SetIp(v string) {
+	x.Ip = v
+}
+
+type OktaLocationV1_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The IP address (IPv4 or IPv6) from which the event originated, ex.: "198.51.100.5", "2001:db8::a:b:c:d".
+	Ip string
+}
+
+func (b0 OktaLocationV1_builder) Build() *OktaLocationV1 {
+	m0 := &OktaLocationV1{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Ip = b.Ip
+	return m0
+}
+
 // OktaTargetV1 describes a resource or entity (ex.: a user, an application, or a group)
 // that was a target of an action in an Okta event.
 type OktaTargetV1 struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The unique identifier of this target, ex.: "00u1a2b3c4d5e6f7g8h9" (for a user), "appId123".
 	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	// The human-readable name or display name of the target, ex.: "John Doe", "Okta HR App", "Contractors Group".
@@ -318,11 +482,6 @@ func (x *OktaTargetV1) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use OktaTargetV1.ProtoReflect.Descriptor instead.
-func (*OktaTargetV1) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_okta_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *OktaTargetV1) GetId() string {
 	if x != nil {
 		return x.Id
@@ -344,9 +503,42 @@ func (x *OktaTargetV1) GetKind() string {
 	return ""
 }
 
+func (x *OktaTargetV1) SetId(v string) {
+	x.Id = v
+}
+
+func (x *OktaTargetV1) SetName(v string) {
+	x.Name = v
+}
+
+func (x *OktaTargetV1) SetKind(v string) {
+	x.Kind = v
+}
+
+type OktaTargetV1_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The unique identifier of this target, ex.: "00u1a2b3c4d5e6f7g8h9" (for a user), "appId123".
+	Id string
+	// The human-readable name or display name of the target, ex.: "John Doe", "Okta HR App", "Contractors Group".
+	Name string
+	// The kind or type of the target, ex.: "User", "AppInstance", "Group", "Policy".
+	Kind string
+}
+
+func (b0 OktaTargetV1_builder) Build() *OktaTargetV1 {
+	m0 := &OktaTargetV1{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Id = b.Id
+	x.Name = b.Name
+	x.Kind = b.Kind
+	return m0
+}
+
 // OktaAuditLogV1Cursor holds the necessary state for resuming Okta audit log collection.
 type OktaAuditLogV1Cursor struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The pagination token or cursor provided by Okta to fetch the next set of audit events.
 	Token string `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
 	// The ID of the last Okta audit event that was successfully processed or seen.
@@ -382,11 +574,6 @@ func (x *OktaAuditLogV1Cursor) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use OktaAuditLogV1Cursor.ProtoReflect.Descriptor instead.
-func (*OktaAuditLogV1Cursor) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_okta_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *OktaAuditLogV1Cursor) GetToken() string {
 	if x != nil {
 		return x.Token
@@ -408,9 +595,53 @@ func (x *OktaAuditLogV1Cursor) GetLastEventTime() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *OktaAuditLogV1Cursor) SetToken(v string) {
+	x.Token = v
+}
+
+func (x *OktaAuditLogV1Cursor) SetLastEventId(v string) {
+	x.LastEventId = v
+}
+
+func (x *OktaAuditLogV1Cursor) SetLastEventTime(v *timestamppb.Timestamp) {
+	x.LastEventTime = v
+}
+
+func (x *OktaAuditLogV1Cursor) HasLastEventTime() bool {
+	if x == nil {
+		return false
+	}
+	return x.LastEventTime != nil
+}
+
+func (x *OktaAuditLogV1Cursor) ClearLastEventTime() {
+	x.LastEventTime = nil
+}
+
+type OktaAuditLogV1Cursor_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The pagination token or cursor provided by Okta to fetch the next set of audit events.
+	Token string
+	// The ID of the last Okta audit event that was successfully processed or seen.
+	LastEventId string
+	// The timestamp of the last Okta audit event that was successfully processed or seen.
+	LastEventTime *timestamppb.Timestamp
+}
+
+func (b0 OktaAuditLogV1Cursor_builder) Build() *OktaAuditLogV1Cursor {
+	m0 := &OktaAuditLogV1Cursor{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Token = b.Token
+	x.LastEventId = b.LastEventId
+	x.LastEventTime = b.LastEventTime
+	return m0
+}
+
 // OktaAuditLogV1 bundles a batch of Okta audit log events and the client's current resume cursor.
 type OktaAuditLogV1 struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// A list of Okta audit log events in this batch.
 	Events []*OktaEventV1 `protobuf:"bytes,1,rep,name=events,proto3" json:"events,omitempty"`
 	// The client's current cursor information, sent with this batch of events to allow for resumable log collection.
@@ -444,11 +675,6 @@ func (x *OktaAuditLogV1) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use OktaAuditLogV1.ProtoReflect.Descriptor instead.
-func (*OktaAuditLogV1) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_okta_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *OktaAuditLogV1) GetEvents() []*OktaEventV1 {
 	if x != nil {
 		return x.Events
@@ -463,9 +689,46 @@ func (x *OktaAuditLogV1) GetCursor() *OktaAuditLogV1Cursor {
 	return nil
 }
 
+func (x *OktaAuditLogV1) SetEvents(v []*OktaEventV1) {
+	x.Events = v
+}
+
+func (x *OktaAuditLogV1) SetCursor(v *OktaAuditLogV1Cursor) {
+	x.Cursor = v
+}
+
+func (x *OktaAuditLogV1) HasCursor() bool {
+	if x == nil {
+		return false
+	}
+	return x.Cursor != nil
+}
+
+func (x *OktaAuditLogV1) ClearCursor() {
+	x.Cursor = nil
+}
+
+type OktaAuditLogV1_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// A list of Okta audit log events in this batch.
+	Events []*OktaEventV1
+	// The client's current cursor information, sent with this batch of events to allow for resumable log collection.
+	Cursor *OktaAuditLogV1Cursor
+}
+
+func (b0 OktaAuditLogV1_builder) Build() *OktaAuditLogV1 {
+	m0 := &OktaAuditLogV1{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Events = b.Events
+	x.Cursor = b.Cursor
+	return m0
+}
+
 // OktaConfigV1 specifies configuration settings for Okta audit log exports.
 type OktaConfigV1 struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The desired start date from which to begin exporting Okta audit logs.
 	StartDate *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=start_date,json=startDate,proto3" json:"start_date,omitempty"`
 	// organization is the Okta organization name.
@@ -499,11 +762,6 @@ func (x *OktaConfigV1) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use OktaConfigV1.ProtoReflect.Descriptor instead.
-func (*OktaConfigV1) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_okta_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *OktaConfigV1) GetStartDate() *timestamppb.Timestamp {
 	if x != nil {
 		return x.StartDate
@@ -518,10 +776,47 @@ func (x *OktaConfigV1) GetOrganization() string {
 	return ""
 }
 
+func (x *OktaConfigV1) SetStartDate(v *timestamppb.Timestamp) {
+	x.StartDate = v
+}
+
+func (x *OktaConfigV1) SetOrganization(v string) {
+	x.Organization = v
+}
+
+func (x *OktaConfigV1) HasStartDate() bool {
+	if x == nil {
+		return false
+	}
+	return x.StartDate != nil
+}
+
+func (x *OktaConfigV1) ClearStartDate() {
+	x.StartDate = nil
+}
+
+type OktaConfigV1_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The desired start date from which to begin exporting Okta audit logs.
+	StartDate *timestamppb.Timestamp
+	// organization is the Okta organization name.
+	Organization string
+}
+
+func (b0 OktaConfigV1_builder) Build() *OktaConfigV1 {
+	m0 := &OktaConfigV1{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.StartDate = b.StartDate
+	x.Organization = b.Organization
+	return m0
+}
+
 // OktaTokenV1 holds information about an Okta token (ex.: an API token),
 // such as its ID, owner, and lifecycle dates (created, updated, expires).
 type OktaTokenV1 struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The unique identifier of the Okta token, ex.: "00AbcDefG1hIjKlMnOpQ".
 	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	// A human-readable name or label given to the Okta token, ex.: "Reporting API Key".
@@ -563,11 +858,6 @@ func (x *OktaTokenV1) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use OktaTokenV1.ProtoReflect.Descriptor instead.
-func (*OktaTokenV1) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_okta_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *OktaTokenV1) GetId() string {
@@ -619,9 +909,103 @@ func (x *OktaTokenV1) GetUpdated() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *OktaTokenV1) SetId(v string) {
+	x.Id = v
+}
+
+func (x *OktaTokenV1) SetName(v string) {
+	x.Name = v
+}
+
+func (x *OktaTokenV1) SetOwner(v string) {
+	x.Owner = v
+}
+
+func (x *OktaTokenV1) SetExpires(v *timestamppb.Timestamp) {
+	x.Expires = v
+}
+
+func (x *OktaTokenV1) SetOrganization(v string) {
+	x.Organization = v
+}
+
+func (x *OktaTokenV1) SetCreated(v *timestamppb.Timestamp) {
+	x.Created = v
+}
+
+func (x *OktaTokenV1) SetUpdated(v *timestamppb.Timestamp) {
+	x.Updated = v
+}
+
+func (x *OktaTokenV1) HasExpires() bool {
+	if x == nil {
+		return false
+	}
+	return x.Expires != nil
+}
+
+func (x *OktaTokenV1) HasCreated() bool {
+	if x == nil {
+		return false
+	}
+	return x.Created != nil
+}
+
+func (x *OktaTokenV1) HasUpdated() bool {
+	if x == nil {
+		return false
+	}
+	return x.Updated != nil
+}
+
+func (x *OktaTokenV1) ClearExpires() {
+	x.Expires = nil
+}
+
+func (x *OktaTokenV1) ClearCreated() {
+	x.Created = nil
+}
+
+func (x *OktaTokenV1) ClearUpdated() {
+	x.Updated = nil
+}
+
+type OktaTokenV1_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The unique identifier of the Okta token, ex.: "00AbcDefG1hIjKlMnOpQ".
+	Id string
+	// A human-readable name or label given to the Okta token, ex.: "Reporting API Key".
+	Name string
+	// The ID or username of the Okta user or client application that owns this token, ex.: "john.doe@example.com", "00u123abc456".
+	Owner string
+	// The timestamp when this Okta token expires. This may not be set if the token does not expire.
+	Expires *timestamppb.Timestamp
+	// The Okta organization (ex.: "mycompany.okta.com" or an org ID) this token is associated with.
+	Organization string
+	// The timestamp when this Okta token was created.
+	Created *timestamppb.Timestamp
+	// The timestamp when this Okta token was last updated.
+	Updated *timestamppb.Timestamp
+}
+
+func (b0 OktaTokenV1_builder) Build() *OktaTokenV1 {
+	m0 := &OktaTokenV1{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Id = b.Id
+	x.Name = b.Name
+	x.Owner = b.Owner
+	x.Expires = b.Expires
+	x.Organization = b.Organization
+	x.Created = b.Created
+	x.Updated = b.Updated
+	return m0
+}
+
 // OktaRoleAssignmentV1 links an Okta user to a specific role within an Okta organization.
 type OktaRoleAssignmentV1 struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The unique ID of the Okta role being assigned, ex.: "ORG_ADMIN", "API_ACCESS_MANAGEMENT_ADMIN", "00r1a2b3c4d5e6f7g8h9".
 	RoleId string `protobuf:"bytes,1,opt,name=role_id,json=roleId,proto3" json:"role_id,omitempty"`
 	// The unique ID of the Okta user who is being assigned the role, ex.: "00u1a2b3c4d5e6f7g8h9".
@@ -657,11 +1041,6 @@ func (x *OktaRoleAssignmentV1) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use OktaRoleAssignmentV1.ProtoReflect.Descriptor instead.
-func (*OktaRoleAssignmentV1) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_okta_proto_rawDescGZIP(), []int{8}
-}
-
 func (x *OktaRoleAssignmentV1) GetRoleId() string {
 	if x != nil {
 		return x.RoleId
@@ -683,10 +1062,43 @@ func (x *OktaRoleAssignmentV1) GetOrganization() string {
 	return ""
 }
 
+func (x *OktaRoleAssignmentV1) SetRoleId(v string) {
+	x.RoleId = v
+}
+
+func (x *OktaRoleAssignmentV1) SetUserId(v string) {
+	x.UserId = v
+}
+
+func (x *OktaRoleAssignmentV1) SetOrganization(v string) {
+	x.Organization = v
+}
+
+type OktaRoleAssignmentV1_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The unique ID of the Okta role being assigned, ex.: "ORG_ADMIN", "API_ACCESS_MANAGEMENT_ADMIN", "00r1a2b3c4d5e6f7g8h9".
+	RoleId string
+	// The unique ID of the Okta user who is being assigned the role, ex.: "00u1a2b3c4d5e6f7g8h9".
+	UserId string
+	// The Okta organization (ex.: "mycompany.okta.com" or an org ID) where this role assignment applies.
+	Organization string
+}
+
+func (b0 OktaRoleAssignmentV1_builder) Build() *OktaRoleAssignmentV1 {
+	m0 := &OktaRoleAssignmentV1{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.RoleId = b.RoleId
+	x.UserId = b.UserId
+	x.Organization = b.Organization
+	return m0
+}
+
 // OktaRoleV1 represents a role (ex.: an administrator role or a custom-defined role)
 // within an Okta organization.
 type OktaRoleV1 struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The unique identifier of the Okta role, ex.: "ORG_ADMIN", "API_ACCESS_MANAGEMENT_ADMIN", "00rCustomRole123xyz".
 	RoleId string `protobuf:"bytes,1,opt,name=role_id,json=roleId,proto3" json:"role_id,omitempty"`
 	// The specific type or classification of the Okta role, ex.: "SUPER_ADMIN", "APP_ADMIN", "CUSTOM_ROLE_TYPE_A".
@@ -722,11 +1134,6 @@ func (x *OktaRoleV1) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use OktaRoleV1.ProtoReflect.Descriptor instead.
-func (*OktaRoleV1) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_okta_proto_rawDescGZIP(), []int{9}
-}
-
 func (x *OktaRoleV1) GetRoleId() string {
 	if x != nil {
 		return x.RoleId
@@ -748,10 +1155,43 @@ func (x *OktaRoleV1) GetOrganization() string {
 	return ""
 }
 
+func (x *OktaRoleV1) SetRoleId(v string) {
+	x.RoleId = v
+}
+
+func (x *OktaRoleV1) SetType(v string) {
+	x.Type = v
+}
+
+func (x *OktaRoleV1) SetOrganization(v string) {
+	x.Organization = v
+}
+
+type OktaRoleV1_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The unique identifier of the Okta role, ex.: "ORG_ADMIN", "API_ACCESS_MANAGEMENT_ADMIN", "00rCustomRole123xyz".
+	RoleId string
+	// The specific type or classification of the Okta role, ex.: "SUPER_ADMIN", "APP_ADMIN", "CUSTOM_ROLE_TYPE_A".
+	Type string
+	// The Okta organization (ex.: "mycompany.okta.com" or an org ID) where this role is defined.
+	Organization string
+}
+
+func (b0 OktaRoleV1_builder) Build() *OktaRoleV1 {
+	m0 := &OktaRoleV1{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.RoleId = b.RoleId
+	x.Type = b.Type
+	x.Organization = b.Organization
+	return m0
+}
+
 // OktaSync is an empty message that signals a synchronization point
 // in an Okta data stream, ex.: indicating the end of an initial full data sync by the client.
 type OktaSync struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -781,15 +1221,22 @@ func (x *OktaSync) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use OktaSync.ProtoReflect.Descriptor instead.
-func (*OktaSync) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_okta_proto_rawDescGZIP(), []int{10}
+type OktaSync_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 OktaSync_builder) Build() *OktaSync {
+	m0 := &OktaSync{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // OktaResourceList contains a list of Okta resources,
 // used for sending multiple resources in a single operation (ex.: batch upsert or delete).
 type OktaResourceList struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Resources     []*OktaResource        `protobuf:"bytes,1,rep,name=resources,proto3" json:"resources,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -820,11 +1267,6 @@ func (x *OktaResourceList) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use OktaResourceList.ProtoReflect.Descriptor instead.
-func (*OktaResourceList) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_okta_proto_rawDescGZIP(), []int{11}
-}
-
 func (x *OktaResourceList) GetResources() []*OktaResource {
 	if x != nil {
 		return x.Resources
@@ -832,10 +1274,28 @@ func (x *OktaResourceList) GetResources() []*OktaResource {
 	return nil
 }
 
+func (x *OktaResourceList) SetResources(v []*OktaResource) {
+	x.Resources = v
+}
+
+type OktaResourceList_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Resources []*OktaResource
+}
+
+func (b0 OktaResourceList_builder) Build() *OktaResourceList {
+	m0 := &OktaResourceList{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Resources = b.Resources
+	return m0
+}
+
 // OktaResource acts as a container that holds one specific type of Okta resource,
 // such as a token, a role assignment, or a role definition, using a 'oneof'.
 type OktaResource struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Resource:
 	//
 	//	*OktaResource_Token
@@ -871,11 +1331,6 @@ func (x *OktaResource) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use OktaResource.ProtoReflect.Descriptor instead.
-func (*OktaResource) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_okta_proto_rawDescGZIP(), []int{12}
-}
-
 func (x *OktaResource) GetResource() isOktaResource_Resource {
 	if x != nil {
 		return x.Resource
@@ -908,6 +1363,143 @@ func (x *OktaResource) GetRole() *OktaRoleV1 {
 		}
 	}
 	return nil
+}
+
+func (x *OktaResource) SetToken(v *OktaTokenV1) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &OktaResource_Token{v}
+}
+
+func (x *OktaResource) SetRoleAssignment(v *OktaRoleAssignmentV1) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &OktaResource_RoleAssignment{v}
+}
+
+func (x *OktaResource) SetRole(v *OktaRoleV1) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &OktaResource_Role{v}
+}
+
+func (x *OktaResource) HasResource() bool {
+	if x == nil {
+		return false
+	}
+	return x.Resource != nil
+}
+
+func (x *OktaResource) HasToken() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*OktaResource_Token)
+	return ok
+}
+
+func (x *OktaResource) HasRoleAssignment() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*OktaResource_RoleAssignment)
+	return ok
+}
+
+func (x *OktaResource) HasRole() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*OktaResource_Role)
+	return ok
+}
+
+func (x *OktaResource) ClearResource() {
+	x.Resource = nil
+}
+
+func (x *OktaResource) ClearToken() {
+	if _, ok := x.Resource.(*OktaResource_Token); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *OktaResource) ClearRoleAssignment() {
+	if _, ok := x.Resource.(*OktaResource_RoleAssignment); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *OktaResource) ClearRole() {
+	if _, ok := x.Resource.(*OktaResource_Role); ok {
+		x.Resource = nil
+	}
+}
+
+const OktaResource_Resource_not_set_case case_OktaResource_Resource = 0
+const OktaResource_Token_case case_OktaResource_Resource = 1
+const OktaResource_RoleAssignment_case case_OktaResource_Resource = 2
+const OktaResource_Role_case case_OktaResource_Resource = 3
+
+func (x *OktaResource) WhichResource() case_OktaResource_Resource {
+	if x == nil {
+		return OktaResource_Resource_not_set_case
+	}
+	switch x.Resource.(type) {
+	case *OktaResource_Token:
+		return OktaResource_Token_case
+	case *OktaResource_RoleAssignment:
+		return OktaResource_RoleAssignment_case
+	case *OktaResource_Role:
+		return OktaResource_Role_case
+	default:
+		return OktaResource_Resource_not_set_case
+	}
+}
+
+type OktaResource_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Resource:
+	// An Okta token, like an API token.
+	Token *OktaTokenV1
+	// An assignment of an Okta role to a user.
+	RoleAssignment *OktaRoleAssignmentV1
+	// An Okta role definition.
+	Role *OktaRoleV1
+	// -- end of Resource
+}
+
+func (b0 OktaResource_builder) Build() *OktaResource {
+	m0 := &OktaResource{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Token != nil {
+		x.Resource = &OktaResource_Token{b.Token}
+	}
+	if b.RoleAssignment != nil {
+		x.Resource = &OktaResource_RoleAssignment{b.RoleAssignment}
+	}
+	if b.Role != nil {
+		x.Resource = &OktaResource_Role{b.Role}
+	}
+	return m0
+}
+
+type case_OktaResource_Resource protoreflect.FieldNumber
+
+func (x case_OktaResource_Resource) String() string {
+	md := file_accessgraph_v1alpha_okta_proto_msgTypes[12].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
 }
 
 type isOktaResource_Resource interface {
@@ -1002,18 +1594,6 @@ const file_accessgraph_v1alpha_okta_proto_rawDesc = "" +
 	"\x04role\x18\x03 \x01(\v2\x1f.accessgraph.v1alpha.OktaRoleV1H\x00R\x04roleB\n" +
 	"\n" +
 	"\bresourceBWZUgithub.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha;accessgraphv1alphab\x06proto3"
-
-var (
-	file_accessgraph_v1alpha_okta_proto_rawDescOnce sync.Once
-	file_accessgraph_v1alpha_okta_proto_rawDescData []byte
-)
-
-func file_accessgraph_v1alpha_okta_proto_rawDescGZIP() []byte {
-	file_accessgraph_v1alpha_okta_proto_rawDescOnce.Do(func() {
-		file_accessgraph_v1alpha_okta_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_accessgraph_v1alpha_okta_proto_rawDesc), len(file_accessgraph_v1alpha_okta_proto_rawDesc)))
-	})
-	return file_accessgraph_v1alpha_okta_proto_rawDescData
-}
 
 var file_accessgraph_v1alpha_okta_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_accessgraph_v1alpha_okta_proto_goTypes = []any{

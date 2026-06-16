@@ -21,13 +21,14 @@
 // 	protoc        (unknown)
 // source: teleport/lib/teleterm/v1/kube.proto
 
+//go:build !protoopaque
+
 package teletermv1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -40,7 +41,7 @@ const (
 
 // Kube describes connected Kubernetes cluster
 type Kube struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// uri is the kube resource URI
 	Uri string `protobuf:"bytes,1,opt,name=uri,proto3" json:"uri,omitempty"`
 	// name is the kube name
@@ -78,11 +79,6 @@ func (x *Kube) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Kube.ProtoReflect.Descriptor instead.
-func (*Kube) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_kube_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *Kube) GetUri() string {
 	if x != nil {
 		return x.Uri
@@ -111,9 +107,60 @@ func (x *Kube) GetTargetHealth() *TargetHealth {
 	return nil
 }
 
+func (x *Kube) SetUri(v string) {
+	x.Uri = v
+}
+
+func (x *Kube) SetName(v string) {
+	x.Name = v
+}
+
+func (x *Kube) SetLabels(v []*Label) {
+	x.Labels = v
+}
+
+func (x *Kube) SetTargetHealth(v *TargetHealth) {
+	x.TargetHealth = v
+}
+
+func (x *Kube) HasTargetHealth() bool {
+	if x == nil {
+		return false
+	}
+	return x.TargetHealth != nil
+}
+
+func (x *Kube) ClearTargetHealth() {
+	x.TargetHealth = nil
+}
+
+type Kube_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// uri is the kube resource URI
+	Uri string
+	// name is the kube name
+	Name string
+	// labels is the kube labels
+	Labels []*Label
+	// target_health is the health of the kube cluster
+	TargetHealth *TargetHealth
+}
+
+func (b0 Kube_builder) Build() *Kube {
+	m0 := &Kube{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Uri = b.Uri
+	x.Name = b.Name
+	x.Labels = b.Labels
+	x.TargetHealth = b.TargetHealth
+	return m0
+}
+
 // KubeResource describes a kube_cluster's subresource eg: pods, namespaces, etc.
 type KubeResource struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// uri is the kube resource URI
 	Uri string `protobuf:"bytes,1,opt,name=uri,proto3" json:"uri,omitempty"`
 	// kind is the kube subresource kind eg: pods, namespace
@@ -158,11 +205,6 @@ func (x *KubeResource) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use KubeResource.ProtoReflect.Descriptor instead.
-func (*KubeResource) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_kube_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *KubeResource) GetUri() string {
 	if x != nil {
 		return x.Uri
@@ -205,11 +247,68 @@ func (x *KubeResource) GetNamespace() string {
 	return ""
 }
 
+func (x *KubeResource) SetUri(v string) {
+	x.Uri = v
+}
+
+func (x *KubeResource) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *KubeResource) SetName(v string) {
+	x.Name = v
+}
+
+func (x *KubeResource) SetLabels(v []*Label) {
+	x.Labels = v
+}
+
+func (x *KubeResource) SetCluster(v string) {
+	x.Cluster = v
+}
+
+func (x *KubeResource) SetNamespace(v string) {
+	x.Namespace = v
+}
+
+type KubeResource_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// uri is the kube resource URI
+	Uri string
+	// kind is the kube subresource kind eg: pods, namespace
+	Kind string
+	// name is the kube resource name eg: pod name, namespace name
+	Name string
+	// labels is the kube resource labels
+	Labels []*Label
+	// cluster is the kube cluster name that this kube resource belongs to
+	// eg: the kube cluster that a namespace belongs to
+	Cluster string
+	// namespace is the kube namespace where the resource is located
+	// note: this field will be blank if this resource "kind" is "namespace",
+	// refer to field "name" for the name of namespace
+	Namespace string
+}
+
+func (b0 KubeResource_builder) Build() *KubeResource {
+	m0 := &KubeResource{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Uri = b.Uri
+	x.Kind = b.Kind
+	x.Name = b.Name
+	x.Labels = b.Labels
+	x.Cluster = b.Cluster
+	x.Namespace = b.Namespace
+	return m0
+}
+
 // KubeServer (kube_server) describes a Kube heartbeat signal
 // reported from an agent (kubernetes_service) that is proxying
 // the Kubernetes cluster.
 type KubeServer struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Uri           string                 `protobuf:"bytes,1,opt,name=uri,proto3" json:"uri,omitempty"`
 	Hostname      string                 `protobuf:"bytes,2,opt,name=hostname,proto3" json:"hostname,omitempty"`
 	HostId        string                 `protobuf:"bytes,3,opt,name=host_id,json=hostId,proto3" json:"host_id,omitempty"`
@@ -243,11 +342,6 @@ func (x *KubeServer) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use KubeServer.ProtoReflect.Descriptor instead.
-func (*KubeServer) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_kube_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *KubeServer) GetUri() string {
 	if x != nil {
 		return x.Uri
@@ -276,6 +370,53 @@ func (x *KubeServer) GetTargetHealth() *TargetHealth {
 	return nil
 }
 
+func (x *KubeServer) SetUri(v string) {
+	x.Uri = v
+}
+
+func (x *KubeServer) SetHostname(v string) {
+	x.Hostname = v
+}
+
+func (x *KubeServer) SetHostId(v string) {
+	x.HostId = v
+}
+
+func (x *KubeServer) SetTargetHealth(v *TargetHealth) {
+	x.TargetHealth = v
+}
+
+func (x *KubeServer) HasTargetHealth() bool {
+	if x == nil {
+		return false
+	}
+	return x.TargetHealth != nil
+}
+
+func (x *KubeServer) ClearTargetHealth() {
+	x.TargetHealth = nil
+}
+
+type KubeServer_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Uri          string
+	Hostname     string
+	HostId       string
+	TargetHealth *TargetHealth
+}
+
+func (b0 KubeServer_builder) Build() *KubeServer {
+	m0 := &KubeServer{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Uri = b.Uri
+	x.Hostname = b.Hostname
+	x.HostId = b.HostId
+	x.TargetHealth = b.TargetHealth
+	return m0
+}
+
 var File_teleport_lib_teleterm_v1_kube_proto protoreflect.FileDescriptor
 
 const file_teleport_lib_teleterm_v1_kube_proto_rawDesc = "" +
@@ -299,18 +440,6 @@ const file_teleport_lib_teleterm_v1_kube_proto_rawDesc = "" +
 	"\bhostname\x18\x02 \x01(\tR\bhostname\x12\x17\n" +
 	"\ahost_id\x18\x03 \x01(\tR\x06hostId\x12K\n" +
 	"\rtarget_health\x18\x04 \x01(\v2&.teleport.lib.teleterm.v1.TargetHealthR\ftargetHealthBTZRgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1b\x06proto3"
-
-var (
-	file_teleport_lib_teleterm_v1_kube_proto_rawDescOnce sync.Once
-	file_teleport_lib_teleterm_v1_kube_proto_rawDescData []byte
-)
-
-func file_teleport_lib_teleterm_v1_kube_proto_rawDescGZIP() []byte {
-	file_teleport_lib_teleterm_v1_kube_proto_rawDescOnce.Do(func() {
-		file_teleport_lib_teleterm_v1_kube_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_lib_teleterm_v1_kube_proto_rawDesc), len(file_teleport_lib_teleterm_v1_kube_proto_rawDesc)))
-	})
-	return file_teleport_lib_teleterm_v1_kube_proto_rawDescData
-}
 
 var file_teleport_lib_teleterm_v1_kube_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_teleport_lib_teleterm_v1_kube_proto_goTypes = []any{

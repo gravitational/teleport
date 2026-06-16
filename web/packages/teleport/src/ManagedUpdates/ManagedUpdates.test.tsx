@@ -17,10 +17,16 @@
  */
 
 import { http, HttpResponse } from 'msw';
-import { setupServer } from 'msw/node';
 import { PropsWithChildren } from 'react';
 
-import { Providers, render, screen, waitFor } from 'design/utils/testing';
+import {
+  enableMswServer,
+  Providers,
+  render,
+  screen,
+  server,
+  waitFor,
+} from 'design/utils/testing';
 import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import cfg from 'teleport/config';
@@ -37,11 +43,7 @@ import {
 } from './fixtures';
 import { ManagedUpdates } from './ManagedUpdates';
 
-const server = setupServer();
-
-beforeAll(() => server.listen());
-afterEach(() => server.resetHandlers());
-afterAll(() => server.close());
+enableMswServer();
 
 function makeWrapper(customAcl?: ReturnType<typeof makeAcl>) {
   return ({ children }: PropsWithChildren) => {

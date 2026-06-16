@@ -18,13 +18,14 @@
 // 	protoc        (unknown)
 // source: teleport/devicetrust/v1/os_type.proto
 
+//go:build !protoopaque
+
 package devicetrustv1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -86,11 +87,6 @@ func (x OSType) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use OSType.Descriptor instead.
-func (OSType) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_os_type_proto_rawDescGZIP(), []int{0}
-}
-
 var File_teleport_devicetrust_v1_os_type_proto protoreflect.FileDescriptor
 
 const file_teleport_devicetrust_v1_os_type_proto_rawDesc = "" +
@@ -101,18 +97,6 @@ const file_teleport_devicetrust_v1_os_type_proto_rawDesc = "" +
 	"\rOS_TYPE_LINUX\x10\x01\x12\x11\n" +
 	"\rOS_TYPE_MACOS\x10\x02\x12\x13\n" +
 	"\x0fOS_TYPE_WINDOWS\x10\x03BZZXgithub.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1;devicetrustv1b\x06proto3"
-
-var (
-	file_teleport_devicetrust_v1_os_type_proto_rawDescOnce sync.Once
-	file_teleport_devicetrust_v1_os_type_proto_rawDescData []byte
-)
-
-func file_teleport_devicetrust_v1_os_type_proto_rawDescGZIP() []byte {
-	file_teleport_devicetrust_v1_os_type_proto_rawDescOnce.Do(func() {
-		file_teleport_devicetrust_v1_os_type_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_devicetrust_v1_os_type_proto_rawDesc), len(file_teleport_devicetrust_v1_os_type_proto_rawDesc)))
-	})
-	return file_teleport_devicetrust_v1_os_type_proto_rawDescData
-}
 
 var file_teleport_devicetrust_v1_os_type_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_teleport_devicetrust_v1_os_type_proto_goTypes = []any{

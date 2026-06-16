@@ -1441,6 +1441,9 @@ func (r *ProtoReader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 			if messageSize == 0 {
 				return nil, r.setError(trace.BadParameter("unexpected message size 0"))
 			}
+			if messageSize > uint32(cap(r.messageBytes)) {
+				return nil, r.setError(trace.BadParameter("unexpected message size %d", messageSize))
+			}
 			if _, err := io.ReadFull(r.gzipReader, r.messageBytes[:messageSize]); err != nil {
 				return nil, r.setError(trace.ConvertSystemError(err))
 			}

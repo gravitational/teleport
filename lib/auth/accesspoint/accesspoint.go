@@ -72,8 +72,9 @@ type Config struct {
 	Access                  services.Access
 	AccessLists             services.AccessLists
 	AccessMonitoringRules   services.AccessMonitoringRules
-	AppSession              services.AppSession
+	AppSession              services.AppSessionReader
 	Apps                    services.Applications
+	Beams                   services.BeamReader
 	BotInstance             services.BotInstance
 	ClusterConfig           services.ClusterConfiguration
 	StaticScopedToken       services.StaticScopedTokenService
@@ -117,6 +118,7 @@ type Config struct {
 	Plugin                  services.Plugins
 	RecordingEncryption     services.RecordingEncryption
 	Summarizer              services.Summarizer
+	SubCAService            services.SubCAServiceGetter
 }
 
 func (c *Config) CheckAndSetDefaults() error {
@@ -163,6 +165,7 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		AccessMonitoringRules:   cfg.AccessMonitoringRules,
 		AppSession:              cfg.AppSession,
 		Apps:                    cfg.Apps,
+		Beams:                   cfg.Beams,
 		ClusterConfig:           cfg.ClusterConfig,
 		StaticScopedToken:       cfg.StaticScopedToken,
 		AutoUpdateService:       cfg.AutoUpdateService,
@@ -205,6 +208,7 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		Plugin:                  cfg.Plugin,
 		RecordingEncryption:     cfg.RecordingEncryption,
 		Summarizer:              cfg.Summarizer,
+		SubCAService:            cfg.SubCAService,
 	}
 
 	return cache.New(cfg.Setup(cacheCfg))

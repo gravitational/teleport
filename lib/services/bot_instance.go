@@ -19,6 +19,7 @@ package services
 import (
 	"context"
 	"slices"
+	"strings"
 
 	"github.com/charlievieth/strcase"
 	"github.com/gravitational/trace"
@@ -27,6 +28,12 @@ import (
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1/expression"
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
+
+// BotUserPrefix is the prefix appended to bot users. Users with this prefix are
+// plausibly bots, but this prefix is not sufficient to establish that a given
+// user actually is a bot user. The existence of [types.BotLabel] in the user
+// labels is the definitive indicator that a user is a bot.
+const BotUserPrefix = "bot-"
 
 // BotInstance is an interface for the BotInstance service.
 type BotInstance interface {
@@ -201,4 +208,10 @@ func (o *ListBotInstancesRequestOptions) GetFilterFn() func(*machineidv1.BotInst
 		return nil
 	}
 	return o.FilterFn
+}
+
+// BotResourceName returns the default name for resources associated with the
+// given named bot.
+func BotResourceName(botName string) string {
+	return BotUserPrefix + strings.ReplaceAll(botName, " ", "-")
 }

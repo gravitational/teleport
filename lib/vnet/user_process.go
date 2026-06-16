@@ -19,10 +19,12 @@ package vnet
 import (
 	"context"
 	"crypto/tls"
+	"os"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
+	apiutils "github.com/gravitational/teleport/api/utils"
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
@@ -67,6 +69,17 @@ type ClientApplication interface {
 	// OnInvalidLocalPort gets called before VNet refuses to handle a connection to a multi-port TCP app
 	// because the provided port does not match any of the TCP ports in the app spec.
 	OnInvalidLocalPort(ctx context.Context, appInfo *vnetv1.AppInfo, targetPort uint16)
+
+	// ReissueDBCert issues a new cert for the target database.
+	ReissueDBCert(ctx context.Context, dbInfo *vnetv1.DatabaseInfo) (tls.Certificate, error)
+
+	// OnNewDBConnection gets called whenever a new database connection is about to be established
+	// through VNet. By the time OnNewDBConnection is called, VNet has already verified that the user
+	// holds a valid cert for the database.
+	//
+	// The connection won't be established until OnNewDBConnection returns. Returning an error prevents
+	// the connection from being made.
+	OnNewDBConnection(ctx context.Context, dbKey *vnetv1.DatabaseKey) error
 }
 
 // ClusterClient is an interface defining the subset of [client.ClusterClient]
@@ -97,10 +110,23 @@ func RunUserProcess(ctx context.Context, clientApplication ClientApplication) (*
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// TODO(greedy52) VNet config may have a flag like `allow_app_https_tunnel`
+	// to opt-in this feature once browser support is added for app HTTPS
+	// tunnel. Using an unstable env var for testing purpose for now.
+	allowAppHTTPSTunnel, _ := apiutils.ParseBool(os.Getenv("TELEPORT_UNSTABLE_VNET_APP_HTTPS_TUNNEL"))
+	if allowAppHTTPSTunnel {
+		log.InfoContext(ctx, "App HTTPS tunnel is enabled")
+	}
 	fqdnResolver := newFQDNResolver(&fqdnResolverConfig{
 		clientApplication:  clientApplication,
 		clusterConfigCache: clusterConfigCache,
 		leafClusterCache:   leafClusterCache,
+		// DB access via VNet is currently only supported by the tbot beams, but
+		// disabled for tsh/Connect by default. flip to true to enable DB access via VNet
+		// for tsh/Connect to validate locally.
+		allowDatabaseAccess: false,
+		allowAppHTTPSTunnel: allowAppHTTPSTunnel,
 	})
 	unifiedClusterConfigProvider := NewUnifiedClusterConfigProvider(&UnifiedClusterConfigProviderConfig{
 		clientApplication:  clientApplication,

@@ -31,6 +31,7 @@ const (
 	AccessMonitoring           EntitlementKind = "AccessMonitoring"
 	AccessRequests             EntitlementKind = "AccessRequests"
 	App                        EntitlementKind = "App"
+	Beams                      EntitlementKind = "Beams"
 	CloudAuditLogRetention     EntitlementKind = "CloudAuditLogRetention"
 	DB                         EntitlementKind = "DB"
 	Desktop                    EntitlementKind = "Desktop"
@@ -59,7 +60,7 @@ const (
 
 // AllEntitlements returns all Entitlements; should be 1:1 with the const declared above.
 var AllEntitlements = []EntitlementKind{
-	AccessLists, AccessMonitoring, AccessRequests, App, CloudAuditLogRetention, DB, Desktop, DeviceTrust,
+	AccessLists, AccessMonitoring, AccessRequests, App, Beams, CloudAuditLogRetention, DB, Desktop, DeviceTrust,
 	ExternalAuditStorage, FeatureHiding, HSM, Identity, JoinActiveSessions, K8s, MobileDeviceManagement, OIDC, OktaSCIM,
 	OktaUserSync, Policy, SAML, SessionLocks, UnrestrictedManagedUpdates, UpsellAlert, UsageReporting, LicenseAutoUpdate, AccessGraphDemoMode,
 	ClientIPRestrictions, WorkloadClusters,

@@ -146,6 +146,7 @@ export function Terminal(props: TerminalProps) {
         {refCtrl.current && props.terminalAddons?.(refCtrl.current)}
       </TerminalAddonsContainer>
       <StyledXterm
+        data-testid="terminal-container"
         ref={refElement}
         style={{
           fontFamily: props.unsanitizedFontFamily,

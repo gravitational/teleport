@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
@@ -544,6 +545,74 @@ func TestAuthorizer_Authorize_deviceTrust(t *testing.T) {
 				"auth.Context.disableDeviceAuthorization not inherited from Authorizer")
 		})
 	}
+}
+
+// TestAuthorizer_Authorize_remoteUserDeviceTrust verifies that device trust
+// extensions are propagated through the authorizeRemoteUser path. A remote user
+// whose original identity carries DeviceExtensions should have DeviceVerified=true
+// in the resulting auth context.
+func TestAuthorizer_Authorize_remoteUserDeviceTrust(t *testing.T) {
+	t.Parallel()
+	client, watcher, _ := newTestResources(t)
+	_, localRole, err := authtest.CreateUserAndRole(client, "local-llama", []string{"local-llama"}, nil)
+	require.NoError(t, err, "CreateUserAndRole")
+
+	remoteClusterName := "remote-cluster"
+	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.UserCA,
+		ClusterName: remoteClusterName,
+		ActiveKeys: types.CAKeySet{
+			SSH: []*types.SSHKeyPair{{
+				PrivateKey: []byte(fixtures.SSHCAPrivateKey),
+				PublicKey:  []byte(fixtures.SSHCAPublicKey),
+			}},
+			TLS: []*types.TLSKeyPair{{
+				Cert: []byte(fixtures.TLSCACertPEM),
+				Key:  []byte(fixtures.TLSCAKeyPEM),
+			}},
+		},
+		RoleMap: types.RoleMap{{
+			Remote: localRole.GetName(),
+			Local:  []string{localRole.GetName()},
+		}},
+	})
+	require.NoError(t, err, "NewCertAuthority failed")
+	require.NoError(t, client.UpsertCertAuthority(t.Context(), ca), "UpsertCertAuthority failed")
+
+	deviceExt := tlsca.DeviceExtensions{
+		DeviceID:     "deviceid1",
+		AssetTag:     "assettag1",
+		CredentialID: "credentialid1",
+	}
+
+	remoteUser := authz.RemoteUser{
+		Username:    "llama",
+		ClusterName: remoteClusterName,
+		RemoteRoles: []string{localRole.GetName()},
+		Principals:  []string{"llama"},
+		Identity: tlsca.Identity{
+			Username:         "llama",
+			Groups:           []string{localRole.GetName()},
+			DeviceExtensions: deviceExt,
+		},
+	}
+
+	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
+		ClusterName: clusterName,
+		AccessPoint: client,
+		LockWatcher: watcher,
+	})
+	require.NoError(t, err, "NewAuthorizer failed")
+
+	userCtx := authz.ContextWithUser(t.Context(), remoteUser)
+	authCtx, err := authorizer.Authorize(userCtx)
+	require.NoError(t, err, "Authorize failed")
+
+	authPref, err := client.GetAuthPreference(t.Context())
+	require.NoError(t, err, "GetAuthPreference failed")
+	state := authCtx.GetAccessState(authPref)
+	assert.True(t, state.DeviceVerified,
+		"DeviceVerified should be true for remote user whose identity has device extensions")
 }
 
 // hostFQDN consists of host UUID and cluster name joined via .
@@ -1102,7 +1171,9 @@ func TestRoleSetForBuiltinRoles(t *testing.T) {
 		clusterName   string
 		recConfig     types.SessionRecordingConfig
 		roles         []types.SystemRole
+		isScoped      bool
 		assertRoleSet func(t *testing.T, rs services.RoleSet)
+		expectErr     string
 	}{
 		{
 			name:        "RoleMDM is mapped",
@@ -1115,13 +1186,83 @@ func TestRoleSetForBuiltinRoles(t *testing.T) {
 				}
 			},
 		},
+		{
+			name:        "RoleKube is mapped",
+			clusterName: clusterName,
+			roles:       []types.SystemRole{types.RoleKube},
+			assertRoleSet: func(t *testing.T, rs services.RoleSet) {
+				for i, r := range rs {
+					assert.NotEmpty(t, r.GetNamespaces(types.Allow), "RoleSetForBuiltinRoles: rs[%v]: role has no namespaces", i)
+					assert.NotEmpty(t, r.GetRules(types.Allow), "RoleSetForBuiltinRoles: rs[%v]: role has no rules", i)
+
+					if r.GetName() == constants.DefaultImplicitRole {
+						continue
+					}
+					allowedResourceKinds := make(map[string]bool)
+					for _, rule := range r.GetRules(types.Allow) {
+						for _, resource := range rule.Resources {
+							allowedResourceKinds[resource] = true
+						}
+					}
+					requiredKinds := []string{types.KindKubeServer, types.KindKubernetesCluster, types.KindKubeWaitingContainer}
+					for _, kind := range requiredKinds {
+						assert.True(t, allowedResourceKinds[kind], "expected RoleKube to allow resource kind %s", kind)
+					}
+				}
+			},
+		},
+		{
+			name:        "Scoped RoleKube is mapped",
+			clusterName: clusterName,
+			roles:       []types.SystemRole{types.RoleKube},
+			isScoped:    true,
+			assertRoleSet: func(t *testing.T, rs services.RoleSet) {
+				for i, r := range rs {
+					assert.NotEmpty(t, r.GetNamespaces(types.Allow), "RoleSetForBuiltinRoles: rs[%v]: role has no namespaces", i)
+					assert.NotEmpty(t, r.GetRules(types.Allow), "RoleSetForBuiltinRoles: rs[%v]: role has no rules", i)
+					if r.GetName() == constants.DefaultImplicitRole {
+						continue
+					}
+					for _, rule := range r.GetRules(types.Allow) {
+						assert.NotContains(t, rule.Resources, types.KindKubeServer)
+						assert.NotContains(t, rule.Resources, types.KindKubernetesCluster)
+						assert.NotContains(t, rule.Resources, types.KindKubeWaitingContainer)
+					}
+				}
+			},
+		},
+		{
+			name:        "Scoped RoleNode is mapped",
+			clusterName: clusterName,
+			roles:       []types.SystemRole{types.RoleNode},
+			isScoped:    true,
+			assertRoleSet: func(t *testing.T, rs services.RoleSet) {
+				for i, r := range rs {
+					assert.NotEmpty(t, r.GetNamespaces(types.Allow), "RoleSetForBuiltinRoles: rs[%v]: role has no namespaces", i)
+					assert.NotEmpty(t, r.GetRules(types.Allow), "RoleSetForBuiltinRoles: rs[%v]: role has no rules", i)
+				}
+			},
+		},
+		{
+			name:        "Scoped RoleMDM is not mapped",
+			clusterName: clusterName,
+			roles:       []types.SystemRole{types.RoleMDM},
+			isScoped:    true,
+			expectErr:   fmt.Sprintf("builtin role for scoped %q is not recognized", types.RoleMDM),
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			rs, err := authz.RoleSetForBuiltinRoles(test.clusterName, test.recConfig, test.roles...)
+			rs, err := authz.RoleSetForBuiltinRoles(test.clusterName, test.recConfig, test.isScoped, test.roles...)
+			if test.expectErr != "" {
+				require.ErrorContains(t, err, test.expectErr)
+				return
+			}
 			require.NoError(t, err, "RoleSetForBuiltinRoles failed")
 			assert.NotEmpty(t, rs, "RoleSetForBuiltinRoles returned a nil RoleSet")
-			test.assertRoleSet(t, rs)
+			if test.assertRoleSet != nil {
+				test.assertRoleSet(t, rs)
+			}
 		})
 	}
 }
@@ -1461,6 +1602,7 @@ func newTestResources(t *testing.T) (*testClient, *services.LockWatcher, authz.A
 		LockGetter: lockSvc,
 	})
 	require.NoError(t, err)
+	t.Cleanup(lockWatcher.Close)
 
 	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
 		ClusterName: clusterName,

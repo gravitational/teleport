@@ -64,7 +64,7 @@ func runUnixAdminProcess(ctx context.Context, clt *clientApplicationServiceClien
 	if err != nil {
 		return trace.Wrap(err, "creating OS config provider")
 	}
-	osConfigurator := newOSConfigurator(osConfigProvider)
+	osConfigurator := newOSConfigurator(osConfigProvider, nil)
 
 	g, ctx := errgroup.WithContext(ctx)
 	g.Go(func() error {

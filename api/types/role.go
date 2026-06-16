@@ -1294,6 +1294,9 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 	if _, ok := CreateHostUserMode_name[int32(r.Spec.Options.CreateHostUserMode)]; !ok {
 		return trace.BadParameter("invalid host user mode %q, expected one of off, drop or keep", r.Spec.Options.CreateHostUserMode)
 	}
+	if _, ok := WebTerminalClipboardMode_name[int32(r.Spec.Options.WebTerminalClipboardMode)]; !ok {
+		return trace.BadParameter("invalid web terminal clipboard mode %v, expected unrestricted or no-copy", r.Spec.Options.WebTerminalClipboardMode)
+	}
 
 	switch r.Version {
 	case V3:
@@ -1458,6 +1461,7 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 		r.Spec.Allow.WindowsDesktopLabels,
 		r.Spec.Allow.GroupLabels,
 		r.Spec.Allow.WorkloadIdentityLabels,
+		r.Spec.Allow.BeamLabels,
 	} {
 		if err := checkWildcardSelector(labels); err != nil {
 			return trace.Wrap(err)
@@ -2248,6 +2252,8 @@ func (r *RoleV6) GetLabelMatchers(rct RoleConditionType, kind string) (LabelMatc
 		return r.makeGitServerLabelMatchers(cond), nil
 	case KindWorkloadIdentity:
 		return LabelMatchers{cond.WorkloadIdentityLabels, cond.WorkloadIdentityLabelsExpression}, nil
+	case KindBeam:
+		return LabelMatchers{cond.BeamLabels, cond.BeamLabelsExpression}, nil
 	}
 	return LabelMatchers{}, trace.BadParameter("can't get label matchers for resource kind %q", kind)
 }
@@ -2304,6 +2310,10 @@ func (r *RoleV6) SetLabelMatchers(rct RoleConditionType, kind string, labelMatch
 	case KindWorkloadIdentity:
 		cond.WorkloadIdentityLabels = labelMatchers.Labels
 		cond.WorkloadIdentityLabelsExpression = labelMatchers.Expression
+		return nil
+	case KindBeam:
+		cond.BeamLabels = labelMatchers.Labels
+		cond.BeamLabelsExpression = labelMatchers.Expression
 		return nil
 	}
 	return trace.BadParameter("can't set label matchers for resource kind %q", kind)
@@ -2419,6 +2429,7 @@ var LabelMatcherKinds = []string{
 	KindWindowsDesktop,
 	KindWindowsDesktopService,
 	KindUserGroup,
+	KindBeam,
 }
 
 const (
@@ -2665,6 +2676,103 @@ func (h *CreateDatabaseUserMode) UnmarshalJSON(data []byte) error {
 // IsEnabled returns true if database automatic user provisioning is enabled.
 func (m CreateDatabaseUserMode) IsEnabled() bool {
 	return m != CreateDatabaseUserMode_DB_USER_MODE_UNSPECIFIED && m != CreateDatabaseUserMode_DB_USER_MODE_OFF
+}
+
+const (
+	webTerminalClipboardModeUnrestrictedString = "unrestricted"
+	webTerminalClipboardModeNoCopyString       = "no-copy"
+)
+
+func (m WebTerminalClipboardMode) encode() (string, error) {
+	switch m {
+	case WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNSPECIFIED:
+		return "", nil
+	case WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNRESTRICTED:
+		return webTerminalClipboardModeUnrestrictedString, nil
+	case WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_NO_COPY:
+		return webTerminalClipboardModeNoCopyString, nil
+	default:
+		return "", trace.BadParameter("invalid web terminal clipboard mode %v", m)
+	}
+}
+
+func (m *WebTerminalClipboardMode) decode(val any) error {
+	var str string
+	switch val := val.(type) {
+	case int32:
+		return trace.Wrap(m.setFromEnum(val))
+	case int64:
+		return trace.Wrap(m.setFromEnum(int32(val)))
+	case int:
+		return trace.Wrap(m.setFromEnum(int32(val)))
+	case float64:
+		return trace.Wrap(m.setFromEnum(int32(val)))
+	case float32:
+		return trace.Wrap(m.setFromEnum(int32(val)))
+	case string:
+		str = val
+	default:
+		return trace.BadParameter("bad value type %T, expected string or int", val)
+	}
+
+	switch str {
+	case "":
+		*m = WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNSPECIFIED
+	case webTerminalClipboardModeUnrestrictedString:
+		*m = WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNRESTRICTED
+	case webTerminalClipboardModeNoCopyString:
+		*m = WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_NO_COPY
+	default:
+		return trace.BadParameter("invalid web terminal clipboard mode %v", val)
+	}
+	return nil
+}
+
+func (m *WebTerminalClipboardMode) setFromEnum(val int32) error {
+	if _, ok := WebTerminalClipboardMode_name[val]; !ok {
+		return trace.BadParameter("invalid web terminal clipboard mode %v", val)
+	}
+	*m = WebTerminalClipboardMode(val)
+	return nil
+}
+
+// MarshalYAML marshals WebTerminalClipboardMode to yaml.
+func (m WebTerminalClipboardMode) MarshalYAML() (interface{}, error) {
+	val, err := m.encode()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return val, nil
+}
+
+// UnmarshalYAML supports parsing WebTerminalClipboardMode from string.
+func (m *WebTerminalClipboardMode) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var val interface{}
+	err := unmarshal(&val)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(m.decode(val))
+}
+
+// MarshalJSON marshals WebTerminalClipboardMode to json bytes.
+func (m WebTerminalClipboardMode) MarshalJSON() ([]byte, error) {
+	val, err := m.encode()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out, err := json.Marshal(val)
+	return out, trace.Wrap(err)
+}
+
+// UnmarshalJSON supports parsing WebTerminalClipboardMode from string.
+func (m *WebTerminalClipboardMode) UnmarshalJSON(data []byte) error {
+	var val interface{}
+	err := json.Unmarshal(data, &val)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(m.decode(val))
 }
 
 // GetAccount fetches the Account ID from a Role Condition Account Assignment

@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -136,16 +137,16 @@ loop:
 			case *apievents.SessionStart:
 				return frameCount, trace.BadParameter("only desktop recordings can be exported")
 			case *apievents.DesktopRecording:
-				msg, err := tdp.Decode(evt.Message)
+				msg, err := legacy.Decode(bytes.NewBuffer(evt.Message))
 				if err != nil {
 					logger.WarnContext(ctx, "failed to decode desktop recording message", "error", err)
 					break loop
 				}
 
 				switch msg := msg.(type) {
-				case tdp.RDPFastPathPDU:
+				case legacy.RDPFastPathPDU:
 					fastPathReceived = true
-				case tdp.ClientScreenSpec:
+				case legacy.ClientScreenSpec:
 					if screen != nil {
 						return frameCount, trace.BadParameter("invalid recording: received multiple screen specs")
 					}
@@ -166,7 +167,7 @@ loop:
 						return frameCount, trace.Wrap(err)
 					}
 
-				case tdp.PNGFrame, tdp.PNG2Frame:
+				case legacy.PNGFrame, legacy.PNG2Frame:
 					if screen == nil {
 						return frameCount, trace.BadParameter("this session is missing required start metadata")
 					}
@@ -256,9 +257,9 @@ loop:
 
 func imgFromPNGMessage(msg tdp.Message) (image.Image, error) {
 	switch msg := msg.(type) {
-	case tdp.PNG2Frame:
+	case legacy.PNG2Frame:
 		return png.Decode(bytes.NewReader(msg.Data()))
-	case tdp.PNGFrame:
+	case legacy.PNGFrame:
 		return msg.Img, nil
 	default:
 		// this should never happen based on what we pass at the call site
@@ -268,14 +269,14 @@ func imgFromPNGMessage(msg tdp.Message) (image.Image, error) {
 
 func rectFromPNGMessage(msg tdp.Message) image.Rectangle {
 	switch msg := msg.(type) {
-	case tdp.PNG2Frame:
+	case legacy.PNG2Frame:
 		return image.Rect(
 			// add one to bottom and right dimension, as RDP
 			// bounds are inclusive
 			int(msg.Left()), int(msg.Top()),
 			int(msg.Right()+1), int(msg.Bottom()+1),
 		)
-	case tdp.PNGFrame:
+	case legacy.PNGFrame:
 		return msg.Img.Bounds()
 	default:
 		// this should never happen based on what we pass at the call site

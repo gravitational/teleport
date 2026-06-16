@@ -25,10 +25,13 @@ import "teleport/legacy/client/proto/event.proto";
 import "teleport/legacy/client/proto/inventory.proto";
 import "teleport/legacy/client/proto/requestable_roles.proto";
 import "teleport/legacy/types/events/events.proto";
+import "teleport/legacy/types/metadata.proto";
+import "teleport/legacy/types/mfa_device.proto";
 import "teleport/legacy/types/types.proto";
 import "teleport/legacy/types/webauthn/webauthn.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
 import "teleport/mfa/v1/mfa.proto";
+import "teleport/scopes/v1/scopes.proto";
 import "teleport/usageevents/v1/usageevents.proto";
 
 option go_package = "github.com/gravitational/teleport/api/client/proto";
@@ -98,6 +101,9 @@ message HostCertsRequest {
 // OpenSSHCertRequest specifies certificate-generation parameters
 // for a certificates used to connect to Agentless nodes.
 message OpenSSHCertRequest {
+  option (gogoproto.marshaler) = false;
+  option (gogoproto.sizer) = false;
+  option (gogoproto.unmarshaler) = false;
   reserved 1; // Username, jsontag "username"
   reserved "Username";
   // PublicKey is the public key to sign.
@@ -114,6 +120,11 @@ message OpenSSHCertRequest {
   // Roles are the roles of the Teleport user the certificate will be
   // generated for.
   repeated types.RoleV6 Roles = 6 [(gogoproto.jsontag) = "roles"];
+  // The scope pin from the user's certificate.
+  teleport.scopes.v1.Pin scope_pin = 7;
+  // The OS login the user wants to use for the session. The authserver relies on the proxy
+  // to have already preformed authorization checks to ensure that this login is usable for the openssh node.
+  string login = 8;
 }
 
 // OpenSSHCert is a SSH certificate signed by OpenSSH CA.
@@ -651,6 +662,8 @@ message Features {
   bool AccessGraphDemoMode = 38 [(gogoproto.jsontag) = "access_graph_demo_mode,omitempty"];
   // ClientIPRestrictions allows Cloud users to setup a client IP allowlist
   bool ClientIPRestrictions = 39 [(gogoproto.jsontag) = "client_ip_restrictions,omitempty"];
+  // BeamsUI enables the Beams lite-mode UI
+  bool BeamsUI = 40 [(gogoproto.jsontag) = "beams_ui,omitempty"];
 }
 
 // EntitlementInfo is the state and limits of a particular entitlement
@@ -1003,6 +1016,29 @@ message DeleteUserAppSessionsRequest {
   string Username = 1 [(gogoproto.jsontag) = "username"];
 }
 
+// SetAppSessionDBSCPublicKeyRequest contains the parameters to set the DBSC public key
+// on an application web session.
+message SetAppSessionDBSCPublicKeyRequest {
+  // The ID of the application session to update.
+  string session_id = 1;
+  // The device-bound public key (JWK format) for Device Bound
+  // Session Credentials. See https://www.w3.org/TR/dbsc/
+  bytes public_key = 2;
+}
+
+// SetAppSessionDBSCPublicKeyResponse is the response for SetAppSessionDBSCPublicKey.
+message SetAppSessionDBSCPublicKeyResponse {}
+
+// SignDBSCChallengeRequest contains the parameters to sign a DBSC challenge.
+message SignDBSCChallengeRequest {
+  string session_id = 1;
+}
+
+// SignDBSCChallengeResponse contains the signed DBSC challenge.
+message SignDBSCChallengeResponse {
+  string challenge = 1;
+}
+
 // DeleteUserAppSessionsRequest contains the parameters used to remove the
 // user's SAML IdP sessions.
 message DeleteUserSAMLIdPSessionsRequest {
@@ -1179,7 +1215,22 @@ message DatabaseCertResponse {
   // Cert is the signed certificate.
   bytes Cert = 1 [(gogoproto.jsontag) = "cert"];
   // CACerts is a list of certificate authorities.
+  //
+  // CACerts are the root CAs that the client itself should trust
+  // (tls.Config.RootCAs).
   repeated bytes CACerts = 2 [(gogoproto.jsontag) = "ca_certs"];
+  // Certificate trust chain, in PEM form. Sorted from leaf to root.
+  //
+  // Cert and TrustChain are the certificates the client should present
+  // (tls.Config.Certificates). Pseudocode:
+  //
+  // 	tlsConfig.Certificates = []tls.Certificate{{
+  // 		Certificate: append([][]byte{resp.Cert}, resp.TrustChain...),
+  // 	}}
+  repeated bytes TrustChain = 3 [(gogoproto.jsontag) = "trust_chain"];
+  // CA override details. Optional.
+  // If present then a CA override was active during certificate issuance.
+  CAOverrideCertificateDetails CAOverride = 4 [(gogoproto.jsontag) = "ca_override"];
 }
 
 // SnowflakeJWTRequest contains data required to generate Snowflake JWT used for authorization.
@@ -1845,6 +1896,15 @@ message WindowsDesktopCertRequest {
 message WindowsDesktopCertResponse {
   // Cert is the signed certificate in PEM format.
   bytes Cert = 1;
+  // CA override details. Optional.
+  // If present then a CA override was active during certificate issuance.
+  CAOverrideCertificateDetails ca_override = 2;
+}
+
+// CAOverrideCertificateDetails holds information about an active
+// CertAuthorityOverride that took effect during certificate issuance.
+message CAOverrideCertificateDetails {
+  string public_key_hash = 1;
 }
 
 // Response message for GetDesktopBootstrapScript.
@@ -3208,6 +3268,10 @@ service AuthService {
   rpc DeleteAllAppSessions(google.protobuf.Empty) returns (google.protobuf.Empty);
   // DeleteUserAppSessions deletes all user’s application sessions.
   rpc DeleteUserAppSessions(DeleteUserAppSessionsRequest) returns (google.protobuf.Empty);
+  // SetAppSessionDBSCPublicKey sets the DBSC public key on an application web session.
+  rpc SetAppSessionDBSCPublicKey(SetAppSessionDBSCPublicKeyRequest) returns (SetAppSessionDBSCPublicKeyResponse);
+  // SignDBSCChallenge signs a DBSC challenge for an application web session.
+  rpc SignDBSCChallenge(SignDBSCChallengeRequest) returns (SignDBSCChallengeResponse);
 
   // CreateSnowflakeSession creates web session with sub kind Snowflake used by Database access
   // Snowflake integration.

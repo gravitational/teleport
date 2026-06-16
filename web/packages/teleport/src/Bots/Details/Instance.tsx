@@ -16,9 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import format from 'date-fns/format';
-import formatDistanceToNowStrict from 'date-fns/formatDistanceToNowStrict';
-import parseISO from 'date-fns/parseISO';
+import { format } from 'date-fns/format';
+import { formatDistanceToNowStrict } from 'date-fns/formatDistanceToNowStrict';
+import { parseISO } from 'date-fns/parseISO';
 import styled, { css } from 'styled-components';
 
 import Flex from 'design/Flex/Flex';

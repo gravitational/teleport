@@ -18,7 +18,7 @@
 
 import { screen } from '@testing-library/react';
 
-import { render } from 'design/utils/testing';
+import { render, userEvent } from 'design/utils/testing';
 
 import { Markdown, MarkdownOptions } from './Markdown';
 
@@ -737,7 +737,12 @@ This is **bold <script>alert('xss')</script>** text.
 - List with <script>alert('xss')</script>
 - [Link](javascript:alert('xss'))
 
-\`code <script>alert('xss')</script>\``;
+\`code <script>alert('xss')</script>\`
+
+<details open>
+<summary>summary <script>alert('xss')</script></summary>
+details <script>alert('xss')</script>
+</details>`;
 
       renderMarkdown(text, { enableLinks: true });
 
@@ -750,6 +755,149 @@ This is **bold <script>alert('xss')</script>** text.
       expect(
         screen.getByText("code <script>alert('xss')</script>")
       ).toBeInTheDocument();
+      expect(
+        screen.getByText("summary <script>alert('xss')</script>")
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("details <script>alert('xss')</script>")
+      ).toBeInTheDocument();
+    });
+  });
+
+  describe('collapsible sections', () => {
+    it('renders a closed section', async () => {
+      const text = `
+<details>
+  <summary>title goes here</summary>
+  content goes here
+</details>
+more content here`;
+
+      const user = userEvent.setup();
+      renderMarkdown(text);
+
+      expect(screen.getByText('title goes here')).toBeInTheDocument();
+      expect(screen.queryByText('content goes here')).not.toBeVisible();
+      expect(screen.getByText('more content here')).toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: 'title goes here' }));
+      expect(screen.getByText('content goes here')).toBeVisible();
+    });
+
+    it('renders an open section', async () => {
+      const text = `
+<details open>
+  <summary>title goes here</summary>
+  content goes here
+</details>
+more content here`;
+
+      const user = userEvent.setup();
+      renderMarkdown(text);
+
+      expect(screen.getByText('title goes here')).toBeInTheDocument();
+      expect(screen.getByText('content goes here')).toBeVisible();
+      expect(screen.getByText('more content here')).toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: 'title goes here' }));
+      expect(screen.queryByText('content goes here')).not.toBeVisible();
+    });
+
+    it('renders nested sections', async () => {
+      const text = `
+<details>
+  <summary>outer title</summary>
+  outer content
+  <details>
+    <summary>inner title</summary>
+    inner content
+  </details>
+  inner other content
+</details>
+outer other content`;
+
+      const user = userEvent.setup();
+      renderMarkdown(text);
+
+      expect(screen.getByText('outer title')).toBeInTheDocument();
+      expect(screen.getByText('outer content')).not.toBeVisible();
+      expect(screen.getByText('inner title')).not.toBeVisible();
+      expect(screen.getByText('outer other content')).toBeVisible();
+
+      await user.click(screen.getByRole('button', { name: 'outer title' }));
+      expect(screen.getByText('outer content')).toBeVisible();
+      expect(screen.getByText('inner title')).toBeVisible();
+      expect(screen.getByText('inner content')).not.toBeVisible();
+
+      await user.click(screen.getByRole('button', { name: 'inner title' }));
+      expect(screen.getByText('inner content')).toBeVisible();
+    });
+
+    it('caps at 16 levels of nesting', () => {
+      const text = Array.from({ length: 17 }, (_, i) => 17 - i).reduce(
+        (acc, cur) => {
+          return `<details open>
+                    level:${cur}
+                    ${acc}
+                  </details>`;
+        },
+        ''
+      );
+
+      renderMarkdown(text);
+
+      expect(screen.getByText('level:16')).toBeInTheDocument();
+      expect(screen.queryByText('level:17')).not.toBeInTheDocument();
+    });
+
+    it('renders an empty section', () => {
+      const text = `
+<details open>
+  <summary>title goes here</summary>
+</details>`;
+
+      renderMarkdown(text);
+
+      expect(screen.getByText('title goes here')).toBeInTheDocument();
+    });
+
+    it('renders stacked sections', () => {
+      const text = `
+<details open>
+  <summary>section 1</summary>
+  section content 1
+</details>
+<details open>
+  <summary>section 2</summary>
+  section content 2
+</details>`;
+
+      renderMarkdown(text);
+
+      expect(screen.getByText('section 1')).toBeInTheDocument();
+      expect(screen.getByText('section 2')).toBeInTheDocument();
+      expect(screen.getByText('section content 1')).toBeVisible();
+      expect(screen.getByText('section content 2')).toBeVisible();
+    });
+
+    it('renders a malformed/incomplete closed section', () => {
+      const text = `
+<details>
+  some other content`;
+
+      renderMarkdown(text);
+
+      expect(screen.queryByText('some other content')).not.toBeVisible();
+    });
+
+    it('renders a malformed/incomplete open section', () => {
+      const text = `
+<details open>
+  some other content`;
+
+      renderMarkdown(text);
+
+      expect(screen.getByText('some other content')).toBeVisible();
     });
   });
 });

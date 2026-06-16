@@ -21,13 +21,14 @@
 // 	protoc        (unknown)
 // source: accessgraph/v1alpha/entra.proto
 
+//go:build !protoopaque
+
 package accessgraphv1alpha
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -40,7 +41,7 @@ const (
 
 // EntraSyncOperation is a request to sync Entra resources
 type EntraSyncOperation struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -70,14 +71,21 @@ func (x *EntraSyncOperation) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use EntraSyncOperation.ProtoReflect.Descriptor instead.
-func (*EntraSyncOperation) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_entra_proto_rawDescGZIP(), []int{0}
+type EntraSyncOperation_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 EntraSyncOperation_builder) Build() *EntraSyncOperation {
+	m0 := &EntraSyncOperation{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // EntraResourceList is a request that contains resources to be sync.
 type EntraResourceList struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// resources is a list of entra resources to sync.
 	Resources     []*EntraResource `protobuf:"bytes,1,rep,name=resources,proto3" json:"resources,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -109,11 +117,6 @@ func (x *EntraResourceList) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use EntraResourceList.ProtoReflect.Descriptor instead.
-func (*EntraResourceList) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_entra_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *EntraResourceList) GetResources() []*EntraResource {
 	if x != nil {
 		return x.Resources
@@ -121,9 +124,28 @@ func (x *EntraResourceList) GetResources() []*EntraResource {
 	return nil
 }
 
+func (x *EntraResourceList) SetResources(v []*EntraResource) {
+	x.Resources = v
+}
+
+type EntraResourceList_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// resources is a list of entra resources to sync.
+	Resources []*EntraResource
+}
+
+func (b0 EntraResourceList_builder) Build() *EntraResourceList {
+	m0 := &EntraResourceList{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Resources = b.Resources
+	return m0
+}
+
 // EntraResource represents a Entra resource.
 type EntraResource struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Resource:
 	//
 	//	*EntraResource_Application
@@ -157,11 +179,6 @@ func (x *EntraResource) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use EntraResource.ProtoReflect.Descriptor instead.
-func (*EntraResource) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_entra_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *EntraResource) GetResource() isEntraResource_Resource {
 	if x != nil {
 		return x.Resource
@@ -178,6 +195,83 @@ func (x *EntraResource) GetApplication() *EntraApplication {
 	return nil
 }
 
+func (x *EntraResource) SetApplication(v *EntraApplication) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &EntraResource_Application{v}
+}
+
+func (x *EntraResource) HasResource() bool {
+	if x == nil {
+		return false
+	}
+	return x.Resource != nil
+}
+
+func (x *EntraResource) HasApplication() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*EntraResource_Application)
+	return ok
+}
+
+func (x *EntraResource) ClearResource() {
+	x.Resource = nil
+}
+
+func (x *EntraResource) ClearApplication() {
+	if _, ok := x.Resource.(*EntraResource_Application); ok {
+		x.Resource = nil
+	}
+}
+
+const EntraResource_Resource_not_set_case case_EntraResource_Resource = 0
+const EntraResource_Application_case case_EntraResource_Resource = 1
+
+func (x *EntraResource) WhichResource() case_EntraResource_Resource {
+	if x == nil {
+		return EntraResource_Resource_not_set_case
+	}
+	switch x.Resource.(type) {
+	case *EntraResource_Application:
+		return EntraResource_Application_case
+	default:
+		return EntraResource_Resource_not_set_case
+	}
+}
+
+type EntraResource_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Resource:
+	// application represents an Entra ID enterprise application.
+	Application *EntraApplication
+	// -- end of Resource
+}
+
+func (b0 EntraResource_builder) Build() *EntraResource {
+	m0 := &EntraResource{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Application != nil {
+		x.Resource = &EntraResource_Application{b.Application}
+	}
+	return m0
+}
+
+type case_EntraResource_Resource protoreflect.FieldNumber
+
+func (x case_EntraResource_Resource) String() string {
+	md := file_accessgraph_v1alpha_entra_proto_msgTypes[2].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isEntraResource_Resource interface {
 	isEntraResource_Resource()
 }
@@ -191,7 +285,7 @@ func (*EntraResource_Application) isEntraResource_Resource() {}
 
 // EntraApplication represents an Entra ID enterprise application together with its service principal.
 type EntraApplication struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// id is the unique Entra object ID.
 	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	// app_id is the application ID.
@@ -232,11 +326,6 @@ func (x *EntraApplication) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use EntraApplication.ProtoReflect.Descriptor instead.
-func (*EntraApplication) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_entra_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *EntraApplication) GetId() string {
@@ -281,6 +370,61 @@ func (x *EntraApplication) GetFederatedSsoV2() string {
 	return ""
 }
 
+func (x *EntraApplication) SetId(v string) {
+	x.Id = v
+}
+
+func (x *EntraApplication) SetAppId(v string) {
+	x.AppId = v
+}
+
+func (x *EntraApplication) SetDisplayName(v string) {
+	x.DisplayName = v
+}
+
+func (x *EntraApplication) SetTenantId(v string) {
+	x.TenantId = v
+}
+
+func (x *EntraApplication) SetSigningCertificates(v []string) {
+	x.SigningCertificates = v
+}
+
+func (x *EntraApplication) SetFederatedSsoV2(v string) {
+	x.FederatedSsoV2 = v
+}
+
+type EntraApplication_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// id is the unique Entra object ID.
+	Id string
+	// app_id is the application ID.
+	AppId string
+	// display_name is a human-friendly application name.
+	DisplayName string
+	// tenant_id is the ID of Entra tenant that this application is under.
+	TenantId string
+	// signing_certificates is a list of SAML signing certificates for this app.
+	SigningCertificates []string
+	// federated_sso_v2 contains payload from the /ApplicationSso/{servicePrincipalId}/FederatedSSOV2 endpoint.
+	// It is exposed from the internal plugin cache as an opaque JSON blob.
+	FederatedSsoV2 string
+}
+
+func (b0 EntraApplication_builder) Build() *EntraApplication {
+	m0 := &EntraApplication{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Id = b.Id
+	x.AppId = b.AppId
+	x.DisplayName = b.DisplayName
+	x.TenantId = b.TenantId
+	x.SigningCertificates = b.SigningCertificates
+	x.FederatedSsoV2 = b.FederatedSsoV2
+	return m0
+}
+
 var File_accessgraph_v1alpha_entra_proto protoreflect.FileDescriptor
 
 const file_accessgraph_v1alpha_entra_proto_rawDesc = "" +
@@ -300,18 +444,6 @@ const file_accessgraph_v1alpha_entra_proto_rawDesc = "" +
 	"\ttenant_id\x18\x04 \x01(\tR\btenantId\x121\n" +
 	"\x14signing_certificates\x18\x05 \x03(\tR\x13signingCertificates\x12(\n" +
 	"\x10federated_sso_v2\x18\x06 \x01(\tR\x0efederatedSsoV2BWZUgithub.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha;accessgraphv1alphab\x06proto3"
-
-var (
-	file_accessgraph_v1alpha_entra_proto_rawDescOnce sync.Once
-	file_accessgraph_v1alpha_entra_proto_rawDescData []byte
-)
-
-func file_accessgraph_v1alpha_entra_proto_rawDescGZIP() []byte {
-	file_accessgraph_v1alpha_entra_proto_rawDescOnce.Do(func() {
-		file_accessgraph_v1alpha_entra_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_accessgraph_v1alpha_entra_proto_rawDesc), len(file_accessgraph_v1alpha_entra_proto_rawDesc)))
-	})
-	return file_accessgraph_v1alpha_entra_proto_rawDescData
-}
 
 var file_accessgraph_v1alpha_entra_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_accessgraph_v1alpha_entra_proto_goTypes = []any{

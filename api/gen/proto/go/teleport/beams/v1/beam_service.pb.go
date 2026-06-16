@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/beams/v1/beam_service.proto
 
+//go:build !protoopaque
+
 package beamsv1
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -36,9 +37,111 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// BeamSortField specifies the sort field for listing.
+type BeamSortField int32
+
+const (
+	BeamSortField_BEAM_SORT_FIELD_UNSPECIFIED BeamSortField = 0
+	// BEAM_SORT_FIELD_NAME sorts by metadata.name.
+	BeamSortField_BEAM_SORT_FIELD_NAME BeamSortField = 1
+	// BEAM_SORT_FIELD_ALIAS sorts by spec.alias.
+	BeamSortField_BEAM_SORT_FIELD_ALIAS BeamSortField = 2
+	// BEAM_SORT_FIELD_USER sorts by spec.user and metadata.name.
+	BeamSortField_BEAM_SORT_FIELD_USER BeamSortField = 3
+	// BEAM_SORT_FIELD_EXPIRES sorts by spec.expires and metadata.name.
+	BeamSortField_BEAM_SORT_FIELD_EXPIRES BeamSortField = 4
+)
+
+// Enum value maps for BeamSortField.
+var (
+	BeamSortField_name = map[int32]string{
+		0: "BEAM_SORT_FIELD_UNSPECIFIED",
+		1: "BEAM_SORT_FIELD_NAME",
+		2: "BEAM_SORT_FIELD_ALIAS",
+		3: "BEAM_SORT_FIELD_USER",
+		4: "BEAM_SORT_FIELD_EXPIRES",
+	}
+	BeamSortField_value = map[string]int32{
+		"BEAM_SORT_FIELD_UNSPECIFIED": 0,
+		"BEAM_SORT_FIELD_NAME":        1,
+		"BEAM_SORT_FIELD_ALIAS":       2,
+		"BEAM_SORT_FIELD_USER":        3,
+		"BEAM_SORT_FIELD_EXPIRES":     4,
+	}
+)
+
+func (x BeamSortField) Enum() *BeamSortField {
+	p := new(BeamSortField)
+	*p = x
+	return p
+}
+
+func (x BeamSortField) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (BeamSortField) Descriptor() protoreflect.EnumDescriptor {
+	return file_teleport_beams_v1_beam_service_proto_enumTypes[0].Descriptor()
+}
+
+func (BeamSortField) Type() protoreflect.EnumType {
+	return &file_teleport_beams_v1_beam_service_proto_enumTypes[0]
+}
+
+func (x BeamSortField) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// BeamSortOrder specifies the sort order for listing.
+type BeamSortOrder int32
+
+const (
+	BeamSortOrder_BEAM_SORT_ORDER_UNSPECIFIED BeamSortOrder = 0
+	// SORT_ORDER_ASCENDING sorts in ascending order.
+	BeamSortOrder_BEAM_SORT_ORDER_ASCENDING BeamSortOrder = 1
+	// SORT_ORDER_DESCENDING sorts in descending order.
+	BeamSortOrder_BEAM_SORT_ORDER_DESCENDING BeamSortOrder = 2
+)
+
+// Enum value maps for BeamSortOrder.
+var (
+	BeamSortOrder_name = map[int32]string{
+		0: "BEAM_SORT_ORDER_UNSPECIFIED",
+		1: "BEAM_SORT_ORDER_ASCENDING",
+		2: "BEAM_SORT_ORDER_DESCENDING",
+	}
+	BeamSortOrder_value = map[string]int32{
+		"BEAM_SORT_ORDER_UNSPECIFIED": 0,
+		"BEAM_SORT_ORDER_ASCENDING":   1,
+		"BEAM_SORT_ORDER_DESCENDING":  2,
+	}
+)
+
+func (x BeamSortOrder) Enum() *BeamSortOrder {
+	p := new(BeamSortOrder)
+	*p = x
+	return p
+}
+
+func (x BeamSortOrder) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (BeamSortOrder) Descriptor() protoreflect.EnumDescriptor {
+	return file_teleport_beams_v1_beam_service_proto_enumTypes[1].Descriptor()
+}
+
+func (BeamSortOrder) Type() protoreflect.EnumType {
+	return &file_teleport_beams_v1_beam_service_proto_enumTypes[1]
+}
+
+func (x BeamSortOrder) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
 // CreateBeamRequest contains the parameters to the CreateBeam RPC.
 type CreateBeamRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Configures outgoing network connectivity from the beam.
 	Egress EgressMode `protobuf:"varint,1,opt,name=egress,proto3,enum=teleport.beams.v1.EgressMode" json:"egress,omitempty"`
 	// An allow-list of FQDNs that can be dialed from inside the beam. Can only
@@ -73,11 +176,6 @@ func (x *CreateBeamRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateBeamRequest.ProtoReflect.Descriptor instead.
-func (*CreateBeamRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_beams_v1_beam_service_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *CreateBeamRequest) GetEgress() EgressMode {
 	if x != nil {
 		return x.Egress
@@ -92,9 +190,36 @@ func (x *CreateBeamRequest) GetAllowedDomains() []string {
 	return nil
 }
 
+func (x *CreateBeamRequest) SetEgress(v EgressMode) {
+	x.Egress = v
+}
+
+func (x *CreateBeamRequest) SetAllowedDomains(v []string) {
+	x.AllowedDomains = v
+}
+
+type CreateBeamRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Configures outgoing network connectivity from the beam.
+	Egress EgressMode
+	// An allow-list of FQDNs that can be dialed from inside the beam. Can only
+	// be provided when EGRESS_MODE_RESTRICTED is set.
+	AllowedDomains []string
+}
+
+func (b0 CreateBeamRequest_builder) Build() *CreateBeamRequest {
+	m0 := &CreateBeamRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Egress = b.Egress
+	x.AllowedDomains = b.AllowedDomains
+	return m0
+}
+
 // CreateBeamResponse contains the results of the CreateBeam RPC.
 type CreateBeamResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Beam that was created.
 	Beam          *Beam `protobuf:"bytes,1,opt,name=beam,proto3" json:"beam,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -126,11 +251,6 @@ func (x *CreateBeamResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateBeamResponse.ProtoReflect.Descriptor instead.
-func (*CreateBeamResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_beams_v1_beam_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *CreateBeamResponse) GetBeam() *Beam {
 	if x != nil {
 		return x.Beam
@@ -138,9 +258,39 @@ func (x *CreateBeamResponse) GetBeam() *Beam {
 	return nil
 }
 
+func (x *CreateBeamResponse) SetBeam(v *Beam) {
+	x.Beam = v
+}
+
+func (x *CreateBeamResponse) HasBeam() bool {
+	if x == nil {
+		return false
+	}
+	return x.Beam != nil
+}
+
+func (x *CreateBeamResponse) ClearBeam() {
+	x.Beam = nil
+}
+
+type CreateBeamResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Beam that was created.
+	Beam *Beam
+}
+
+func (b0 CreateBeamResponse_builder) Build() *CreateBeamResponse {
+	m0 := &CreateBeamResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Beam = b.Beam
+	return m0
+}
+
 // UpdateBeamRequest contains the parameters to the UpdateBeam RPC.
 type UpdateBeamRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Beam to be updated. See the UpdateBeam RPC docs for details of which
 	// fields can be updated.
 	Beam          *Beam `protobuf:"bytes,1,opt,name=beam,proto3" json:"beam,omitempty"`
@@ -173,11 +323,6 @@ func (x *UpdateBeamRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateBeamRequest.ProtoReflect.Descriptor instead.
-func (*UpdateBeamRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_beams_v1_beam_service_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *UpdateBeamRequest) GetBeam() *Beam {
 	if x != nil {
 		return x.Beam
@@ -185,9 +330,40 @@ func (x *UpdateBeamRequest) GetBeam() *Beam {
 	return nil
 }
 
+func (x *UpdateBeamRequest) SetBeam(v *Beam) {
+	x.Beam = v
+}
+
+func (x *UpdateBeamRequest) HasBeam() bool {
+	if x == nil {
+		return false
+	}
+	return x.Beam != nil
+}
+
+func (x *UpdateBeamRequest) ClearBeam() {
+	x.Beam = nil
+}
+
+type UpdateBeamRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Beam to be updated. See the UpdateBeam RPC docs for details of which
+	// fields can be updated.
+	Beam *Beam
+}
+
+func (b0 UpdateBeamRequest_builder) Build() *UpdateBeamRequest {
+	m0 := &UpdateBeamRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Beam = b.Beam
+	return m0
+}
+
 // UpdateBeamResponse contains the results of the UpdateBeam RPC.
 type UpdateBeamResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Beam that was updated.
 	Beam          *Beam `protobuf:"bytes,1,opt,name=beam,proto3" json:"beam,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -219,11 +395,6 @@ func (x *UpdateBeamResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateBeamResponse.ProtoReflect.Descriptor instead.
-func (*UpdateBeamResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_beams_v1_beam_service_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *UpdateBeamResponse) GetBeam() *Beam {
 	if x != nil {
 		return x.Beam
@@ -231,9 +402,39 @@ func (x *UpdateBeamResponse) GetBeam() *Beam {
 	return nil
 }
 
+func (x *UpdateBeamResponse) SetBeam(v *Beam) {
+	x.Beam = v
+}
+
+func (x *UpdateBeamResponse) HasBeam() bool {
+	if x == nil {
+		return false
+	}
+	return x.Beam != nil
+}
+
+func (x *UpdateBeamResponse) ClearBeam() {
+	x.Beam = nil
+}
+
+type UpdateBeamResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Beam that was updated.
+	Beam *Beam
+}
+
+func (b0 UpdateBeamResponse_builder) Build() *UpdateBeamResponse {
+	m0 := &UpdateBeamResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Beam = b.Beam
+	return m0
+}
+
 // DeleteBeamRequest contains the parameters to the DeleteBeam RPC.
 type DeleteBeamRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name is the UUID name of the beam that will be deleted.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -265,11 +466,6 @@ func (x *DeleteBeamRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteBeamRequest.ProtoReflect.Descriptor instead.
-func (*DeleteBeamRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_beams_v1_beam_service_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *DeleteBeamRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -277,9 +473,28 @@ func (x *DeleteBeamRequest) GetName() string {
 	return ""
 }
 
+func (x *DeleteBeamRequest) SetName(v string) {
+	x.Name = v
+}
+
+type DeleteBeamRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name is the UUID name of the beam that will be deleted.
+	Name string
+}
+
+func (b0 DeleteBeamRequest_builder) Build() *DeleteBeamRequest {
+	m0 := &DeleteBeamRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // GetBeamRequest contains the parameters to the GetBeam RPC.
 type GetBeamRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Id:
 	//
 	//	*GetBeamRequest_Name
@@ -314,11 +529,6 @@ func (x *GetBeamRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetBeamRequest.ProtoReflect.Descriptor instead.
-func (*GetBeamRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_beams_v1_beam_service_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *GetBeamRequest) GetId() isGetBeamRequest_Id {
 	if x != nil {
 		return x.Id
@@ -344,6 +554,105 @@ func (x *GetBeamRequest) GetAlias() string {
 	return ""
 }
 
+func (x *GetBeamRequest) SetName(v string) {
+	x.Id = &GetBeamRequest_Name{v}
+}
+
+func (x *GetBeamRequest) SetAlias(v string) {
+	x.Id = &GetBeamRequest_Alias{v}
+}
+
+func (x *GetBeamRequest) HasId() bool {
+	if x == nil {
+		return false
+	}
+	return x.Id != nil
+}
+
+func (x *GetBeamRequest) HasName() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Id.(*GetBeamRequest_Name)
+	return ok
+}
+
+func (x *GetBeamRequest) HasAlias() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Id.(*GetBeamRequest_Alias)
+	return ok
+}
+
+func (x *GetBeamRequest) ClearId() {
+	x.Id = nil
+}
+
+func (x *GetBeamRequest) ClearName() {
+	if _, ok := x.Id.(*GetBeamRequest_Name); ok {
+		x.Id = nil
+	}
+}
+
+func (x *GetBeamRequest) ClearAlias() {
+	if _, ok := x.Id.(*GetBeamRequest_Alias); ok {
+		x.Id = nil
+	}
+}
+
+const GetBeamRequest_Id_not_set_case case_GetBeamRequest_Id = 0
+const GetBeamRequest_Name_case case_GetBeamRequest_Id = 1
+const GetBeamRequest_Alias_case case_GetBeamRequest_Id = 2
+
+func (x *GetBeamRequest) WhichId() case_GetBeamRequest_Id {
+	if x == nil {
+		return GetBeamRequest_Id_not_set_case
+	}
+	switch x.Id.(type) {
+	case *GetBeamRequest_Name:
+		return GetBeamRequest_Name_case
+	case *GetBeamRequest_Alias:
+		return GetBeamRequest_Alias_case
+	default:
+		return GetBeamRequest_Id_not_set_case
+	}
+}
+
+type GetBeamRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Id:
+	// Name is the UUID name of the beam.
+	Name *string
+	// Alias is the human-friendly handle of the beam.
+	Alias *string
+	// -- end of Id
+}
+
+func (b0 GetBeamRequest_builder) Build() *GetBeamRequest {
+	m0 := &GetBeamRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Name != nil {
+		x.Id = &GetBeamRequest_Name{*b.Name}
+	}
+	if b.Alias != nil {
+		x.Id = &GetBeamRequest_Alias{*b.Alias}
+	}
+	return m0
+}
+
+type case_GetBeamRequest_Id protoreflect.FieldNumber
+
+func (x case_GetBeamRequest_Id) String() string {
+	md := file_teleport_beams_v1_beam_service_proto_msgTypes[5].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isGetBeamRequest_Id interface {
 	isGetBeamRequest_Id()
 }
@@ -364,7 +673,7 @@ func (*GetBeamRequest_Alias) isGetBeamRequest_Id() {}
 
 // GetBeamResponse contains the results of the GetBeam RPC.
 type GetBeamResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Beam that was retrieved.
 	Beam          *Beam `protobuf:"bytes,1,opt,name=beam,proto3" json:"beam,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -396,11 +705,6 @@ func (x *GetBeamResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetBeamResponse.ProtoReflect.Descriptor instead.
-func (*GetBeamResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_beams_v1_beam_service_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *GetBeamResponse) GetBeam() *Beam {
 	if x != nil {
 		return x.Beam
@@ -408,16 +712,52 @@ func (x *GetBeamResponse) GetBeam() *Beam {
 	return nil
 }
 
+func (x *GetBeamResponse) SetBeam(v *Beam) {
+	x.Beam = v
+}
+
+func (x *GetBeamResponse) HasBeam() bool {
+	if x == nil {
+		return false
+	}
+	return x.Beam != nil
+}
+
+func (x *GetBeamResponse) ClearBeam() {
+	x.Beam = nil
+}
+
+type GetBeamResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Beam that was retrieved.
+	Beam *Beam
+}
+
+func (b0 GetBeamResponse_builder) Build() *GetBeamResponse {
+	m0 := &GetBeamResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Beam = b.Beam
+	return m0
+}
+
 // ListBeamsRequest contains the parameters to the ListBeams RPC.
 type ListBeamsRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The maximum number of items to return. The server may impose a different
 	// page size at its discretion.
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	// The next_page_token value returned from a previous List request, if any.
 	PageToken string `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
 	// Filters that will be applied to filter the list of results.
-	Filters       *ListBeamsRequest_Filters `protobuf:"bytes,3,opt,name=filters,proto3" json:"filters,omitempty"`
+	Filters *ListBeamsRequest_Filters `protobuf:"bytes,3,opt,name=filters,proto3" json:"filters,omitempty"`
+	// The sort field to use for the results. If unspecified, the default sort
+	// field is used.
+	SortField BeamSortField `protobuf:"varint,4,opt,name=sort_field,json=sortField,proto3,enum=teleport.beams.v1.BeamSortField" json:"sort_field,omitempty"`
+	// The sort order to use for the results. If unspecified, the default sort
+	// order is used.
+	SortOrder     BeamSortOrder `protobuf:"varint,5,opt,name=sort_order,json=sortOrder,proto3,enum=teleport.beams.v1.BeamSortOrder" json:"sort_order,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -447,11 +787,6 @@ func (x *ListBeamsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListBeamsRequest.ProtoReflect.Descriptor instead.
-func (*ListBeamsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_beams_v1_beam_service_proto_rawDescGZIP(), []int{7}
-}
-
 func (x *ListBeamsRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
@@ -473,9 +808,84 @@ func (x *ListBeamsRequest) GetFilters() *ListBeamsRequest_Filters {
 	return nil
 }
 
+func (x *ListBeamsRequest) GetSortField() BeamSortField {
+	if x != nil {
+		return x.SortField
+	}
+	return BeamSortField_BEAM_SORT_FIELD_UNSPECIFIED
+}
+
+func (x *ListBeamsRequest) GetSortOrder() BeamSortOrder {
+	if x != nil {
+		return x.SortOrder
+	}
+	return BeamSortOrder_BEAM_SORT_ORDER_UNSPECIFIED
+}
+
+func (x *ListBeamsRequest) SetPageSize(v int32) {
+	x.PageSize = v
+}
+
+func (x *ListBeamsRequest) SetPageToken(v string) {
+	x.PageToken = v
+}
+
+func (x *ListBeamsRequest) SetFilters(v *ListBeamsRequest_Filters) {
+	x.Filters = v
+}
+
+func (x *ListBeamsRequest) SetSortField(v BeamSortField) {
+	x.SortField = v
+}
+
+func (x *ListBeamsRequest) SetSortOrder(v BeamSortOrder) {
+	x.SortOrder = v
+}
+
+func (x *ListBeamsRequest) HasFilters() bool {
+	if x == nil {
+		return false
+	}
+	return x.Filters != nil
+}
+
+func (x *ListBeamsRequest) ClearFilters() {
+	x.Filters = nil
+}
+
+type ListBeamsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The maximum number of items to return. The server may impose a different
+	// page size at its discretion.
+	PageSize int32
+	// The next_page_token value returned from a previous List request, if any.
+	PageToken string
+	// Filters that will be applied to filter the list of results.
+	Filters *ListBeamsRequest_Filters
+	// The sort field to use for the results. If unspecified, the default sort
+	// field is used.
+	SortField BeamSortField
+	// The sort order to use for the results. If unspecified, the default sort
+	// order is used.
+	SortOrder BeamSortOrder
+}
+
+func (b0 ListBeamsRequest_builder) Build() *ListBeamsRequest {
+	m0 := &ListBeamsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PageSize = b.PageSize
+	x.PageToken = b.PageToken
+	x.Filters = b.Filters
+	x.SortField = b.SortField
+	x.SortOrder = b.SortOrder
+	return m0
+}
+
 // ListBeamsResponse contains the results of the ListBeams RPC.
 type ListBeamsResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The page of beams that matched the request.
 	Beams []*Beam `protobuf:"bytes,1,rep,name=beams,proto3" json:"beams,omitempty"`
 	// Token to retrieve the next page of results, or empty if there are no more
@@ -510,11 +920,6 @@ func (x *ListBeamsResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListBeamsResponse.ProtoReflect.Descriptor instead.
-func (*ListBeamsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_beams_v1_beam_service_proto_rawDescGZIP(), []int{8}
-}
-
 func (x *ListBeamsResponse) GetBeams() []*Beam {
 	if x != nil {
 		return x.Beams
@@ -529,10 +934,37 @@ func (x *ListBeamsResponse) GetNextPageToken() string {
 	return ""
 }
 
+func (x *ListBeamsResponse) SetBeams(v []*Beam) {
+	x.Beams = v
+}
+
+func (x *ListBeamsResponse) SetNextPageToken(v string) {
+	x.NextPageToken = v
+}
+
+type ListBeamsResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The page of beams that matched the request.
+	Beams []*Beam
+	// Token to retrieve the next page of results, or empty if there are no more
+	// results in the list.
+	NextPageToken string
+}
+
+func (b0 ListBeamsResponse_builder) Build() *ListBeamsResponse {
+	m0 := &ListBeamsResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Beams = b.Beams
+	x.NextPageToken = b.NextPageToken
+	return m0
+}
+
 // Filters contains fields that will be used to filter the results. When
 // multiple filters are provided, they will be combined with AND.
 type ListBeamsRequest_Filters struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Users filters the list of beams to those belonging only to the given
 	// users.
 	Users         []string `protobuf:"bytes,1,rep,name=users,proto3" json:"users,omitempty"`
@@ -565,16 +997,31 @@ func (x *ListBeamsRequest_Filters) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListBeamsRequest_Filters.ProtoReflect.Descriptor instead.
-func (*ListBeamsRequest_Filters) Descriptor() ([]byte, []int) {
-	return file_teleport_beams_v1_beam_service_proto_rawDescGZIP(), []int{7, 0}
-}
-
 func (x *ListBeamsRequest_Filters) GetUsers() []string {
 	if x != nil {
 		return x.Users
 	}
 	return nil
+}
+
+func (x *ListBeamsRequest_Filters) SetUsers(v []string) {
+	x.Users = v
+}
+
+type ListBeamsRequest_Filters_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Users filters the list of beams to those belonging only to the given
+	// users.
+	Users []string
+}
+
+func (b0 ListBeamsRequest_Filters_builder) Build() *ListBeamsRequest_Filters {
+	m0 := &ListBeamsRequest_Filters{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Users = b.Users
+	return m0
 }
 
 var File_teleport_beams_v1_beam_service_proto protoreflect.FileDescriptor
@@ -598,17 +1045,31 @@ const file_teleport_beams_v1_beam_service_proto_rawDesc = "" +
 	"\x05alias\x18\x02 \x01(\tH\x00R\x05aliasB\x04\n" +
 	"\x02id\">\n" +
 	"\x0fGetBeamResponse\x12+\n" +
-	"\x04beam\x18\x01 \x01(\v2\x17.teleport.beams.v1.BeamR\x04beam\"\xb6\x01\n" +
+	"\x04beam\x18\x01 \x01(\v2\x17.teleport.beams.v1.BeamR\x04beam\"\xb8\x02\n" +
 	"\x10ListBeamsRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
 	"page_token\x18\x02 \x01(\tR\tpageToken\x12E\n" +
-	"\afilters\x18\x03 \x01(\v2+.teleport.beams.v1.ListBeamsRequest.FiltersR\afilters\x1a\x1f\n" +
+	"\afilters\x18\x03 \x01(\v2+.teleport.beams.v1.ListBeamsRequest.FiltersR\afilters\x12?\n" +
+	"\n" +
+	"sort_field\x18\x04 \x01(\x0e2 .teleport.beams.v1.BeamSortFieldR\tsortField\x12?\n" +
+	"\n" +
+	"sort_order\x18\x05 \x01(\x0e2 .teleport.beams.v1.BeamSortOrderR\tsortOrder\x1a\x1f\n" +
 	"\aFilters\x12\x14\n" +
 	"\x05users\x18\x01 \x03(\tR\x05users\"j\n" +
 	"\x11ListBeamsResponse\x12-\n" +
 	"\x05beams\x18\x01 \x03(\v2\x17.teleport.beams.v1.BeamR\x05beams\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken2\xb9\x03\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken*\x9c\x01\n" +
+	"\rBeamSortField\x12\x1f\n" +
+	"\x1bBEAM_SORT_FIELD_UNSPECIFIED\x10\x00\x12\x18\n" +
+	"\x14BEAM_SORT_FIELD_NAME\x10\x01\x12\x19\n" +
+	"\x15BEAM_SORT_FIELD_ALIAS\x10\x02\x12\x18\n" +
+	"\x14BEAM_SORT_FIELD_USER\x10\x03\x12\x1b\n" +
+	"\x17BEAM_SORT_FIELD_EXPIRES\x10\x04*o\n" +
+	"\rBeamSortOrder\x12\x1f\n" +
+	"\x1bBEAM_SORT_ORDER_UNSPECIFIED\x10\x00\x12\x1d\n" +
+	"\x19BEAM_SORT_ORDER_ASCENDING\x10\x01\x12\x1e\n" +
+	"\x1aBEAM_SORT_ORDER_DESCENDING\x10\x022\xb9\x03\n" +
 	"\vBeamService\x12Y\n" +
 	"\n" +
 	"CreateBeam\x12$.teleport.beams.v1.CreateBeamRequest\x1a%.teleport.beams.v1.CreateBeamResponse\x12Y\n" +
@@ -619,57 +1080,50 @@ const file_teleport_beams_v1_beam_service_proto_rawDesc = "" +
 	"\aGetBeam\x12!.teleport.beams.v1.GetBeamRequest\x1a\".teleport.beams.v1.GetBeamResponse\x12V\n" +
 	"\tListBeams\x12#.teleport.beams.v1.ListBeamsRequest\x1a$.teleport.beams.v1.ListBeamsResponseBNZLgithub.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1;beamsv1b\x06proto3"
 
-var (
-	file_teleport_beams_v1_beam_service_proto_rawDescOnce sync.Once
-	file_teleport_beams_v1_beam_service_proto_rawDescData []byte
-)
-
-func file_teleport_beams_v1_beam_service_proto_rawDescGZIP() []byte {
-	file_teleport_beams_v1_beam_service_proto_rawDescOnce.Do(func() {
-		file_teleport_beams_v1_beam_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_beams_v1_beam_service_proto_rawDesc), len(file_teleport_beams_v1_beam_service_proto_rawDesc)))
-	})
-	return file_teleport_beams_v1_beam_service_proto_rawDescData
-}
-
+var file_teleport_beams_v1_beam_service_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
 var file_teleport_beams_v1_beam_service_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_teleport_beams_v1_beam_service_proto_goTypes = []any{
-	(*CreateBeamRequest)(nil),        // 0: teleport.beams.v1.CreateBeamRequest
-	(*CreateBeamResponse)(nil),       // 1: teleport.beams.v1.CreateBeamResponse
-	(*UpdateBeamRequest)(nil),        // 2: teleport.beams.v1.UpdateBeamRequest
-	(*UpdateBeamResponse)(nil),       // 3: teleport.beams.v1.UpdateBeamResponse
-	(*DeleteBeamRequest)(nil),        // 4: teleport.beams.v1.DeleteBeamRequest
-	(*GetBeamRequest)(nil),           // 5: teleport.beams.v1.GetBeamRequest
-	(*GetBeamResponse)(nil),          // 6: teleport.beams.v1.GetBeamResponse
-	(*ListBeamsRequest)(nil),         // 7: teleport.beams.v1.ListBeamsRequest
-	(*ListBeamsResponse)(nil),        // 8: teleport.beams.v1.ListBeamsResponse
-	(*ListBeamsRequest_Filters)(nil), // 9: teleport.beams.v1.ListBeamsRequest.Filters
-	(EgressMode)(0),                  // 10: teleport.beams.v1.EgressMode
-	(*Beam)(nil),                     // 11: teleport.beams.v1.Beam
-	(*emptypb.Empty)(nil),            // 12: google.protobuf.Empty
+	(BeamSortField)(0),               // 0: teleport.beams.v1.BeamSortField
+	(BeamSortOrder)(0),               // 1: teleport.beams.v1.BeamSortOrder
+	(*CreateBeamRequest)(nil),        // 2: teleport.beams.v1.CreateBeamRequest
+	(*CreateBeamResponse)(nil),       // 3: teleport.beams.v1.CreateBeamResponse
+	(*UpdateBeamRequest)(nil),        // 4: teleport.beams.v1.UpdateBeamRequest
+	(*UpdateBeamResponse)(nil),       // 5: teleport.beams.v1.UpdateBeamResponse
+	(*DeleteBeamRequest)(nil),        // 6: teleport.beams.v1.DeleteBeamRequest
+	(*GetBeamRequest)(nil),           // 7: teleport.beams.v1.GetBeamRequest
+	(*GetBeamResponse)(nil),          // 8: teleport.beams.v1.GetBeamResponse
+	(*ListBeamsRequest)(nil),         // 9: teleport.beams.v1.ListBeamsRequest
+	(*ListBeamsResponse)(nil),        // 10: teleport.beams.v1.ListBeamsResponse
+	(*ListBeamsRequest_Filters)(nil), // 11: teleport.beams.v1.ListBeamsRequest.Filters
+	(EgressMode)(0),                  // 12: teleport.beams.v1.EgressMode
+	(*Beam)(nil),                     // 13: teleport.beams.v1.Beam
+	(*emptypb.Empty)(nil),            // 14: google.protobuf.Empty
 }
 var file_teleport_beams_v1_beam_service_proto_depIdxs = []int32{
-	10, // 0: teleport.beams.v1.CreateBeamRequest.egress:type_name -> teleport.beams.v1.EgressMode
-	11, // 1: teleport.beams.v1.CreateBeamResponse.beam:type_name -> teleport.beams.v1.Beam
-	11, // 2: teleport.beams.v1.UpdateBeamRequest.beam:type_name -> teleport.beams.v1.Beam
-	11, // 3: teleport.beams.v1.UpdateBeamResponse.beam:type_name -> teleport.beams.v1.Beam
-	11, // 4: teleport.beams.v1.GetBeamResponse.beam:type_name -> teleport.beams.v1.Beam
-	9,  // 5: teleport.beams.v1.ListBeamsRequest.filters:type_name -> teleport.beams.v1.ListBeamsRequest.Filters
-	11, // 6: teleport.beams.v1.ListBeamsResponse.beams:type_name -> teleport.beams.v1.Beam
-	0,  // 7: teleport.beams.v1.BeamService.CreateBeam:input_type -> teleport.beams.v1.CreateBeamRequest
-	2,  // 8: teleport.beams.v1.BeamService.UpdateBeam:input_type -> teleport.beams.v1.UpdateBeamRequest
-	4,  // 9: teleport.beams.v1.BeamService.DeleteBeam:input_type -> teleport.beams.v1.DeleteBeamRequest
-	5,  // 10: teleport.beams.v1.BeamService.GetBeam:input_type -> teleport.beams.v1.GetBeamRequest
-	7,  // 11: teleport.beams.v1.BeamService.ListBeams:input_type -> teleport.beams.v1.ListBeamsRequest
-	1,  // 12: teleport.beams.v1.BeamService.CreateBeam:output_type -> teleport.beams.v1.CreateBeamResponse
-	3,  // 13: teleport.beams.v1.BeamService.UpdateBeam:output_type -> teleport.beams.v1.UpdateBeamResponse
-	12, // 14: teleport.beams.v1.BeamService.DeleteBeam:output_type -> google.protobuf.Empty
-	6,  // 15: teleport.beams.v1.BeamService.GetBeam:output_type -> teleport.beams.v1.GetBeamResponse
-	8,  // 16: teleport.beams.v1.BeamService.ListBeams:output_type -> teleport.beams.v1.ListBeamsResponse
-	12, // [12:17] is the sub-list for method output_type
-	7,  // [7:12] is the sub-list for method input_type
-	7,  // [7:7] is the sub-list for extension type_name
-	7,  // [7:7] is the sub-list for extension extendee
-	0,  // [0:7] is the sub-list for field type_name
+	12, // 0: teleport.beams.v1.CreateBeamRequest.egress:type_name -> teleport.beams.v1.EgressMode
+	13, // 1: teleport.beams.v1.CreateBeamResponse.beam:type_name -> teleport.beams.v1.Beam
+	13, // 2: teleport.beams.v1.UpdateBeamRequest.beam:type_name -> teleport.beams.v1.Beam
+	13, // 3: teleport.beams.v1.UpdateBeamResponse.beam:type_name -> teleport.beams.v1.Beam
+	13, // 4: teleport.beams.v1.GetBeamResponse.beam:type_name -> teleport.beams.v1.Beam
+	11, // 5: teleport.beams.v1.ListBeamsRequest.filters:type_name -> teleport.beams.v1.ListBeamsRequest.Filters
+	0,  // 6: teleport.beams.v1.ListBeamsRequest.sort_field:type_name -> teleport.beams.v1.BeamSortField
+	1,  // 7: teleport.beams.v1.ListBeamsRequest.sort_order:type_name -> teleport.beams.v1.BeamSortOrder
+	13, // 8: teleport.beams.v1.ListBeamsResponse.beams:type_name -> teleport.beams.v1.Beam
+	2,  // 9: teleport.beams.v1.BeamService.CreateBeam:input_type -> teleport.beams.v1.CreateBeamRequest
+	4,  // 10: teleport.beams.v1.BeamService.UpdateBeam:input_type -> teleport.beams.v1.UpdateBeamRequest
+	6,  // 11: teleport.beams.v1.BeamService.DeleteBeam:input_type -> teleport.beams.v1.DeleteBeamRequest
+	7,  // 12: teleport.beams.v1.BeamService.GetBeam:input_type -> teleport.beams.v1.GetBeamRequest
+	9,  // 13: teleport.beams.v1.BeamService.ListBeams:input_type -> teleport.beams.v1.ListBeamsRequest
+	3,  // 14: teleport.beams.v1.BeamService.CreateBeam:output_type -> teleport.beams.v1.CreateBeamResponse
+	5,  // 15: teleport.beams.v1.BeamService.UpdateBeam:output_type -> teleport.beams.v1.UpdateBeamResponse
+	14, // 16: teleport.beams.v1.BeamService.DeleteBeam:output_type -> google.protobuf.Empty
+	8,  // 17: teleport.beams.v1.BeamService.GetBeam:output_type -> teleport.beams.v1.GetBeamResponse
+	10, // 18: teleport.beams.v1.BeamService.ListBeams:output_type -> teleport.beams.v1.ListBeamsResponse
+	14, // [14:19] is the sub-list for method output_type
+	9,  // [9:14] is the sub-list for method input_type
+	9,  // [9:9] is the sub-list for extension type_name
+	9,  // [9:9] is the sub-list for extension extendee
+	0,  // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_teleport_beams_v1_beam_service_proto_init() }
@@ -687,13 +1141,14 @@ func file_teleport_beams_v1_beam_service_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_beams_v1_beam_service_proto_rawDesc), len(file_teleport_beams_v1_beam_service_proto_rawDesc)),
-			NumEnums:      0,
+			NumEnums:      2,
 			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_teleport_beams_v1_beam_service_proto_goTypes,
 		DependencyIndexes: file_teleport_beams_v1_beam_service_proto_depIdxs,
+		EnumInfos:         file_teleport_beams_v1_beam_service_proto_enumTypes,
 		MessageInfos:      file_teleport_beams_v1_beam_service_proto_msgTypes,
 	}.Build()
 	File_teleport_beams_v1_beam_service_proto = out.File

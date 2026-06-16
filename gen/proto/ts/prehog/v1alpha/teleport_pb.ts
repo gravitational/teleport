@@ -3561,6 +3561,52 @@ export interface UIAccessListIntegrateEvent {
     integrate: AccessListIntegrate;
 }
 /**
+ * UIInteractionEvent is emitted when a user interacts with a configurable view within a page.
+ *
+ * PostHog event: tp.ui.interaction
+ *
+ * @generated from protobuf message prehog.v1alpha.UIInteractionEvent
+ */
+export interface UIInteractionEvent {
+    /**
+     * anonymized Teleport username, 32 bytes (HMAC-SHA-256) encoded in base64; it
+     * can be the username of a bot user rather than of a regular user
+     *
+     * PostHog property: tp.user_name
+     *
+     * @generated from protobuf field: string user_name = 1;
+     */
+    userName: string;
+    /**
+     * path is the route template of the page viewed, e.g. "/web/summary/mau"
+     *
+     * PostHog property: tp.ui_interaction.path
+     *
+     * @generated from protobuf field: string path = 2;
+     */
+    path: string;
+    /**
+     * page_id is a stable identifier for the page that does not change when the
+     * route template changes, e.g. "observability_graph"
+     *
+     * PostHog property: tp.ui_interaction.page_id
+     *
+     * @generated from protobuf field: string page_id = 3;
+     */
+    pageId: string;
+    /**
+     * params holds arbitrary key/value config for the interaction, e.g.
+     * view="custom", graph="bar", scope="tenant", granularity="day"
+     *
+     * PostHog properties: tp.ui_interaction.<key> for each entry
+     *
+     * @generated from protobuf field: map<string, string> params = 4;
+     */
+    params: {
+        [key: string]: string;
+    };
+}
+/**
  * @generated from protobuf message prehog.v1alpha.SubmitEventRequest
  */
 export interface SubmitEventRequest {
@@ -4292,6 +4338,12 @@ export interface SubmitEventRequest {
          * @generated from protobuf field: prehog.v1alpha.SessionSummarySearchEvent session_summary_search_event = 121;
          */
         sessionSummarySearchEvent: SessionSummarySearchEvent;
+    } | {
+        oneofKind: "uiInteraction";
+        /**
+         * @generated from protobuf field: prehog.v1alpha.UIInteractionEvent ui_interaction = 122;
+         */
+        uiInteraction: UIInteractionEvent;
     } | {
         oneofKind: undefined;
     };
@@ -13351,6 +13403,93 @@ class UIAccessListIntegrateEvent$Type extends MessageType<UIAccessListIntegrateE
  */
 export const UIAccessListIntegrateEvent = new UIAccessListIntegrateEvent$Type();
 // @generated message type with reflection information, may provide speed optimized methods
+class UIInteractionEvent$Type extends MessageType<UIInteractionEvent> {
+    constructor() {
+        super("prehog.v1alpha.UIInteractionEvent", [
+            { no: 1, name: "user_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "path", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 3, name: "page_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "params", kind: "map", K: 9 /*ScalarType.STRING*/, V: { kind: "scalar", T: 9 /*ScalarType.STRING*/ } }
+        ]);
+    }
+    create(value?: PartialMessage<UIInteractionEvent>): UIInteractionEvent {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.userName = "";
+        message.path = "";
+        message.pageId = "";
+        message.params = {};
+        if (value !== undefined)
+            reflectionMergePartial<UIInteractionEvent>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UIInteractionEvent): UIInteractionEvent {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string user_name */ 1:
+                    message.userName = reader.string();
+                    break;
+                case /* string path */ 2:
+                    message.path = reader.string();
+                    break;
+                case /* string page_id */ 3:
+                    message.pageId = reader.string();
+                    break;
+                case /* map<string, string> params */ 4:
+                    this.binaryReadMap4(message.params, reader, options);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    private binaryReadMap4(map: UIInteractionEvent["params"], reader: IBinaryReader, options: BinaryReadOptions): void {
+        let len = reader.uint32(), end = reader.pos + len, key: keyof UIInteractionEvent["params"] | undefined, val: UIInteractionEvent["params"][any] | undefined;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case 1:
+                    key = reader.string();
+                    break;
+                case 2:
+                    val = reader.string();
+                    break;
+                default: throw new globalThis.Error("unknown map entry field for field prehog.v1alpha.UIInteractionEvent.params");
+            }
+        }
+        map[key ?? ""] = val ?? "";
+    }
+    internalBinaryWrite(message: UIInteractionEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string user_name = 1; */
+        if (message.userName !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.userName);
+        /* string path = 2; */
+        if (message.path !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.path);
+        /* string page_id = 3; */
+        if (message.pageId !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.pageId);
+        /* map<string, string> params = 4; */
+        for (let k of globalThis.Object.keys(message.params))
+            writer.tag(4, WireType.LengthDelimited).fork().tag(1, WireType.LengthDelimited).string(k).tag(2, WireType.LengthDelimited).string(message.params[k]).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.UIInteractionEvent
+ */
+export const UIInteractionEvent = new UIInteractionEvent$Type();
+// @generated message type with reflection information, may provide speed optimized methods
 class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
     constructor() {
         super("prehog.v1alpha.SubmitEventRequest", [
@@ -13471,7 +13610,8 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
             { no: 118, name: "ui_access_list_custom_event", kind: "message", oneof: "event", T: () => UIAccessListCustomEvent },
             { no: 119, name: "ui_page_view", kind: "message", oneof: "event", T: () => UIPageViewEvent },
             { no: 120, name: "ui_usage_reporting_alert_cta_click", kind: "message", oneof: "event", T: () => UIUsageReportingAlertCtaClickEvent },
-            { no: 121, name: "session_summary_search_event", kind: "message", oneof: "event", T: () => SessionSummarySearchEvent }
+            { no: 121, name: "session_summary_search_event", kind: "message", oneof: "event", T: () => SessionSummarySearchEvent },
+            { no: 122, name: "ui_interaction", kind: "message", oneof: "event", T: () => UIInteractionEvent }
         ]);
     }
     create(value?: PartialMessage<SubmitEventRequest>): SubmitEventRequest {
@@ -14187,6 +14327,12 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
                         sessionSummarySearchEvent: SessionSummarySearchEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).sessionSummarySearchEvent)
                     };
                     break;
+                case /* prehog.v1alpha.UIInteractionEvent ui_interaction */ 122:
+                    message.event = {
+                        oneofKind: "uiInteraction",
+                        uiInteraction: UIInteractionEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).uiInteraction)
+                    };
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -14553,6 +14699,9 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
         /* prehog.v1alpha.SessionSummarySearchEvent session_summary_search_event = 121; */
         if (message.event.oneofKind === "sessionSummarySearchEvent")
             SessionSummarySearchEvent.internalBinaryWrite(message.event.sessionSummarySearchEvent, writer.tag(121, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.UIInteractionEvent ui_interaction = 122; */
+        if (message.event.oneofKind === "uiInteraction")
+            UIInteractionEvent.internalBinaryWrite(message.event.uiInteraction, writer.tag(122, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

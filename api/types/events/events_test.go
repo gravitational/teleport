@@ -323,6 +323,22 @@ func TestTrimToMaxSize(t *testing.T) {
 			},
 		},
 		{
+			name:    "CertAuthorityOverrideEvent trimmed",
+			maxSize: 200,
+			in: &CertAuthorityOverrideEvent{
+				Status: Status{
+					Error:       strings.Repeat("A", 200),
+					UserMessage: strings.Repeat("B", 200),
+				},
+			},
+			want: &CertAuthorityOverrideEvent{
+				Status: Status{
+					Error:       strings.Repeat("A", 70),
+					UserMessage: strings.Repeat("B", 70),
+				},
+			},
+		},
+		{
 			name:    "AppSessionLLMRequest trimmed",
 			maxSize: 200,
 			in: &AppSessionLLMRequest{

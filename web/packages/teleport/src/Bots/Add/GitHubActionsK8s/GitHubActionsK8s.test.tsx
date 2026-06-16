@@ -18,7 +18,6 @@
 
 import { QueryClientProvider } from '@tanstack/react-query';
 import { createMemoryHistory } from 'history';
-import { setupServer } from 'msw/node';
 import { PropsWithChildren } from 'react';
 import { Router } from 'react-router';
 import selectEvent from 'react-select-event';
@@ -27,8 +26,10 @@ import darkTheme from 'design/theme/themes/darkTheme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
   act,
+  enableMswServer,
   render,
   screen,
+  server,
   testQueryClient,
   userEvent,
 } from 'design/utils/testing';
@@ -47,11 +48,9 @@ import { trackingTester } from '../Shared/trackingTester';
 import { TrackingProvider } from '../Shared/useTracking';
 import { GitHubActionsK8sWithoutTracking } from './GitHubActionsK8s';
 
-const server = setupServer();
+enableMswServer();
 
-beforeAll(() => {
-  server.listen();
-
+beforeEach(() => {
   server.use(genWizardCiCdSuccess());
   server.use(userEventCaptureSuccess());
   server.use(fetchUnifiedResourcesSuccess());
@@ -60,8 +59,6 @@ beforeAll(() => {
 });
 
 afterAll(() => {
-  server.close();
-
   jest.useRealTimers();
   jest.resetAllMocks();
 });

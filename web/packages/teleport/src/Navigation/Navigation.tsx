@@ -44,6 +44,7 @@ import { useUser } from 'teleport/User/UserContext';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import {
+  BEAMS_NAVIGATION_CATEGORIES,
   CustomNavigationSubcategory,
   NAVIGATION_CATEGORIES,
   SidenavCategory,
@@ -123,7 +124,11 @@ export type NavigationSubsection = {
 function getNavigationSections(
   features: TeleportFeature[]
 ): NavigationSection[] {
-  const navigationSections = NAVIGATION_CATEGORIES.map(category => ({
+  // Override the order for beams UI
+  const categories = cfg.beamsUi
+    ? BEAMS_NAVIGATION_CATEGORIES
+    : NAVIGATION_CATEGORIES;
+  const navigationSections = categories.map(category => ({
     category,
     subsections: getSubsectionsForCategory(category, features),
   }));

@@ -994,6 +994,24 @@ func (c *ServerContext) ShouldHandleSessionRecording() bool {
 	return c.srv.Component() != teleport.ComponentNode || !services.IsRecordAtProxy(c.SessionRecordingConfig.GetMode())
 }
 
+// AuditEmitter returns the emitter to use for session-level audit events.
+// On a Teleport Node in proxy recording mode it returns a discard emitter
+// so the node does not duplicate events the proxy forwarding node already emits.
+func (c *ServerContext) AuditEmitter() apievents.Emitter {
+	if c.ShouldHandleSessionRecording() {
+		return c.srv
+	}
+	return events.NewDiscardAuditLog()
+}
+
+// BPFEmitter returns the emitter to use for Enhanced Session Recording
+// (BPF) events. BPF programs only run on the Teleport Node where the
+// session executes, so these events must always reach the audit log
+// regardless of cluster recording mode.
+func (c *ServerContext) BPFEmitter() apievents.Emitter {
+	return c.srv
+}
+
 func (c *ServerContext) Close() error {
 	// If the underlying connection is holding tracking information, report that
 	// to the audit log at close.

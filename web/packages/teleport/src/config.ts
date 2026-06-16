@@ -101,6 +101,9 @@ const cfg = {
   // sessionSummarizerEnabled refers to the AI session summary feature
   sessionSummarizerEnabled: false,
 
+  // beamsUI indicates whether the Beams lite-mode UI is enabled
+  beamsUi: false,
+
   configDir: '$HOME/.config/teleport',
 
   baseUrl: window.location.origin,
@@ -232,6 +235,8 @@ const cfg = {
     browserMfa: `/web/mfa/browser/:requestId?`,
     integrations: '/web/integrations',
     integrationOverview: '/web/integrations/overview/:type/:name',
+    integrationOverviewSettings:
+      '/web/integrations/overview/:type/:name/settings',
     integrationStatus: '/web/integrations/status/:type/:name/:subPage?',
     integrationTasks: '/web/integrations/status/:type/:name/tasks',
     integrationStatusResources:
@@ -314,7 +319,7 @@ const cfg = {
     desktopsPath: `/v1/webapi/sites/:clusterId/desktops?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
     desktopPath: `/v1/webapi/sites/:clusterId/desktops/:desktopName`,
     desktopWsAddr:
-      'wss://:fqdn/v1/webapi/sites/:clusterId/desktops/:desktopName/connect/ws?username=:username',
+      'wss://:fqdn/v1/webapi/sites/:clusterId/desktops/:desktopName/connect/ws?username=:username&tdpb=:version',
     desktopPlaybackWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/desktopplayback/:sid/ws',
     desktopIsActive: '/v1/webapi/sites/:clusterId/desktops/:desktopName/active',
@@ -800,6 +805,13 @@ const cfg = {
 
   getIaCIntegrationRoute(type: PluginKind | IntegrationKind, name: string) {
     return generatePath(cfg.routes.integrationOverview, { type, name });
+  },
+
+  getIaCIntegrationSettingsRoute(
+    type: PluginKind | IntegrationKind,
+    name: string
+  ) {
+    return generatePath(cfg.routes.integrationOverviewSettings, { type, name });
   },
 
   getIntegrationStatusResourcesRoute(

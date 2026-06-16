@@ -93,7 +93,7 @@ func Test_transport_rewriteRedirect(t *testing.T) {
 				caCert:      caCert,
 				clusterName: clusterName,
 			},
-			ws:                    createAppSession(t, clock, caKey, caCert, clusterName, clusterName),
+			ws:                    createAppSession(t, clock, caKey, caCert, clusterName, clusterName, "testapp"),
 			integrationAppHandler: &mockIntegrationAppHandler{},
 		}
 	}
@@ -296,7 +296,7 @@ func Test_transport_rewriteRequest(t *testing.T) {
 
 	clock := clockwork.NewFakeClock()
 
-	appSession := createAppSession(t, clock, caKey, caCert, rootCluster, rootCluster)
+	appSession := createAppSession(t, clock, caKey, caCert, rootCluster, rootCluster, "testapp")
 	tr, err := newTransport(&transportConfig{
 		clock:       clock,
 		clusterName: rootCluster,
@@ -349,7 +349,7 @@ func Test_transport_rewriteRequest(t *testing.T) {
 			Resource: "root",
 		}
 
-		clientKey, clientCertPEM := createAppKeyCertPair(t, clock, caKey, caCert, rootCluster, rootCluster)
+		clientKey, clientCertPEM := createAppKeyCertPair(t, clock, caKey, caCert, rootCluster, rootCluster, "testapp")
 		b, _ := pem.Decode(clientCertPEM)
 		clientCert, err := x509.ParseCertificate(b.Bytes)
 		require.NoError(t, err)
@@ -472,7 +472,7 @@ func Test_transport_with_integration(t *testing.T) {
 
 	integrationAppHandler := &mockIntegrationAppHandler{}
 
-	appSession := createAppSession(t, clock, caKey, caCert, rootCluster, rootCluster)
+	appSession := createAppSession(t, clock, caKey, caCert, rootCluster, rootCluster, "testapp")
 	tr, err := newTransport(&transportConfig{
 		clock:       clock,
 		clusterName: rootCluster,
@@ -521,4 +521,60 @@ func Test_transport_with_integration(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, message, string(bs))
+}
+
+func Test_isAppServerDialable(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string // description of this test case
+		dialErr error
+		match   bool
+		app     func() types.AppServer
+	}{
+		{
+			name:  "WithHealthyApp",
+			match: true,
+			app:   mustNewAppServer(t, types.OriginDynamic),
+		},
+		{
+			name:    "WithUnhealthyApp",
+			dialErr: errors.New("failed to connect"),
+			match:   false,
+			app:     mustNewAppServer(t, types.OriginDynamic),
+		},
+		{
+			name:    "WithUnhealthyOktaApp",
+			dialErr: errors.New("failed to connect"),
+			match:   true,
+			app:     mustNewAppServer(t, types.OriginOkta),
+		},
+		{
+			name:    "WithIntegrationApp",
+			dialErr: errors.New("failed to connect"),
+			match:   true,
+			app: func() types.AppServer {
+				appServer := mustNewAppServer(t, types.OriginDynamic)()
+				app := appServer.GetApp().Copy()
+				app.Spec.Integration = "my-integration"
+				appServer.SetApp(app)
+
+				return appServer
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := t.Context()
+			clusterGetter := &mockClusterGetter{
+				cluster: &mockCluster{
+					dialErr: tt.dialErr,
+				},
+			}
+
+			clusterClient, _ := clusterGetter.Cluster(ctx, "")
+			got := isAppServerDialable(ctx, clusterClient, tt.app())
+			require.Equal(t, tt.match, got, tt.app())
+		})
+	}
 }

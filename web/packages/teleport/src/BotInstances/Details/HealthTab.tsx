@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import format from 'date-fns/format';
-import formatDistanceToNowStrict from 'date-fns/formatDistanceToNowStrict';
+import { format } from 'date-fns/format';
+import { formatDistanceToNowStrict } from 'date-fns/formatDistanceToNowStrict';
 import styled from 'styled-components';
 
 import Flex from 'design/Flex';

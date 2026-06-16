@@ -259,8 +259,8 @@ func TestValidateScopedToken(t *testing.T) {
 			modFn: func(tok *joiningv1.ScopedToken) {
 				tok.Spec.JoinMethod = string(types.JoinMethodEC2)
 			},
-			expectedStrongErr: "aws configuration must be defined for a scoped token when using the ec2 or iam join methods",
-			expectedWeakErr:   "aws configuration must be defined for a scoped token when using the ec2 or iam join methods",
+			expectedStrongErr: "aws configuration with at least one allow rule must be defined",
+			expectedWeakErr:   "aws configuration with at least one allow rule must be defined",
 		},
 		{
 			name: "ec2 token with invalid IID TTL",
@@ -279,44 +279,221 @@ func TestValidateScopedToken(t *testing.T) {
 			expectedWeakErr:   "invalid IID TTL value",
 		},
 		{
+			name: "ec2 token with aws_arn",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodEC2)
+				tok.Spec.Aws = &joiningv1.AWS{
+					Allow: []*joiningv1.AWS_Rule{
+						{
+							AwsAccount: "1234567890",
+							AwsArn:     "arn:aws:sts::1234567890:assumed-role/role/i-1234567890abcdef0",
+						},
+					},
+				}
+			},
+			expectedStrongErr: `allow[0]: "aws_arn" parameter not supported`,
+			expectedWeakErr:   `allow[0]: "aws_arn" parameter not supported`,
+		},
+		{
+			name: "ec2 token with aws_organization_id",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodEC2)
+				tok.Spec.Aws = &joiningv1.AWS{
+					Allow: []*joiningv1.AWS_Rule{
+						{
+							AwsAccount:        "1234567890",
+							AwsOrganizationId: "o-123abcd",
+						},
+					},
+				}
+			},
+			expectedStrongErr: `allow[0]: "aws_organization_id" parameter not supported`,
+			expectedWeakErr:   `allow[0]: "aws_organization_id" parameter not supported`,
+		},
+		{
+			name: "ec2 token with empty allow rule",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodEC2)
+				tok.Spec.Aws = &joiningv1.AWS{
+					Allow: []*joiningv1.AWS_Rule{{}},
+				}
+			},
+			expectedStrongErr: `allow[0]: must set "aws_account" or "aws_role"`,
+			expectedWeakErr:   `allow[0]: must set "aws_account" or "aws_role"`,
+		},
+		{
 			name: "iam token without aws configuration",
 			modFn: func(tok *joiningv1.ScopedToken) {
 				tok.Spec.JoinMethod = string(types.JoinMethodIAM)
 			},
-			expectedStrongErr: "aws configuration must be defined for a scoped token when using the ec2 or iam join methods",
-			expectedWeakErr:   "aws configuration must be defined for a scoped token when using the ec2 or iam join methods",
+			expectedStrongErr: "aws configuration with at least one allow rule must be defined",
+			expectedWeakErr:   "aws configuration with at least one allow rule must be defined",
+		},
+		{
+			name: "iam token with aws_role",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodIAM)
+				tok.Spec.Aws = &joiningv1.AWS{
+					Allow: []*joiningv1.AWS_Rule{
+						{
+							AwsAccount: "1234567890",
+							AwsRole:    "arn:aws:iam::1234567890:role/TeleportJoin",
+						},
+					},
+				}
+			},
+			expectedStrongErr: `allow[0]: "aws_role" parameter not supported`,
+			expectedWeakErr:   `allow[0]: "aws_role" parameter not supported`,
+		},
+		{
+			name: "iam token with aws_regions",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodIAM)
+				tok.Spec.Aws = &joiningv1.AWS{
+					Allow: []*joiningv1.AWS_Rule{
+						{
+							AwsAccount: "1234567890",
+							AwsRegions: []string{"us-west-2"},
+						},
+					},
+				}
+			},
+			expectedStrongErr: `allow[0]: "aws_regions" parameter not supported`,
+			expectedWeakErr:   `allow[0]: "aws_regions" parameter not supported`,
+		},
+		{
+			name: "iam token with empty allow rule",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodIAM)
+				tok.Spec.Aws = &joiningv1.AWS{
+					Allow: []*joiningv1.AWS_Rule{{}},
+				}
+			},
+			expectedStrongErr: `allow[0]: must set "aws_account", "aws_arn", or "aws_organization"`,
+			expectedWeakErr:   `allow[0]: must set "aws_account", "aws_arn", or "aws_organization"`,
 		},
 		{
 			name: "gcp token without gcp configuration",
 			modFn: func(tok *joiningv1.ScopedToken) {
 				tok.Spec.JoinMethod = string(types.JoinMethodGCP)
 			},
-			expectedStrongErr: "gcp configuration must be defined for a scoped token when using the gcp join method",
-			expectedWeakErr:   "gcp configuration must be defined for a scoped token when using the gcp join method",
+			expectedStrongErr: "gcp configuration with at least one allow rule must be defined",
+			expectedWeakErr:   "gcp configuration with at least one allow rule must be defined",
+		},
+		{
+			name: "gcp token with empty allow rule",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodGCP)
+				tok.Spec.Gcp = &joiningv1.GCP{
+					Allow: []*joiningv1.GCP_Rule{{}},
+				}
+			},
+			expectedStrongErr: "allow[0]: requires at least one project ID",
+			expectedWeakErr:   "allow[0]: requires at least one project ID",
+		},
+		{
+			name: "gcp token with allow rule with empty project ID",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodGCP)
+				tok.Spec.Gcp = &joiningv1.GCP{
+					Allow: []*joiningv1.GCP_Rule{{ProjectIds: []string{""}}},
+				}
+			},
+			expectedStrongErr: "allow[0].project_ids[0]: must not be empty",
+			expectedWeakErr:   "allow[0].project_ids[0]: must not be empty",
 		},
 		{
 			name: "azure token without azure configuration",
 			modFn: func(tok *joiningv1.ScopedToken) {
 				tok.Spec.JoinMethod = string(types.JoinMethodAzure)
 			},
-			expectedStrongErr: "azure configuration must be defined for a scoped token when using the azure join method",
-			expectedWeakErr:   "azure configuration must be defined for a scoped token when using the azure join method",
+			expectedStrongErr: "azure configuration with at least one allow rule must be defined",
+			expectedWeakErr:   "azure configuration with at least one allow rule must be defined",
+		},
+		{
+			name: "azure token with empty allow rule",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodAzure)
+				tok.Spec.Azure = &joiningv1.Azure{
+					Allow: []*joiningv1.Azure_Rule{{}},
+				}
+			},
+			expectedStrongErr: `allow[0]: must set "subscription" or "tenant"`,
+			expectedWeakErr:   `allow[0]: must set "subscription" or "tenant"`,
 		},
 		{
 			name: "azure_devops token without azure configuration",
 			modFn: func(tok *joiningv1.ScopedToken) {
 				tok.Spec.JoinMethod = string(types.JoinMethodAzureDevops)
 			},
-			expectedStrongErr: "azure_devops configuration must be defined for a scoped token when using the azure_devops join method",
-			expectedWeakErr:   "azure_devops configuration must be defined for a scoped token when using the azure_devops join method",
+			expectedStrongErr: "azure_devops configuration with at least one allow rule must be defined",
+			expectedWeakErr:   "azure_devops configuration with at least one allow rule must be defined",
+		},
+		{
+			name: "azure_devops token without organization_id",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodAzureDevops)
+				tok.Spec.AzureDevops = &joiningv1.AzureDevops{
+					Allow: []*joiningv1.AzureDevops_Rule{
+						{
+							Sub: "p://my-org/my-project/my-pipeline",
+						},
+					},
+				}
+			},
+			expectedStrongErr: `"organization_id" must be set`,
+			expectedWeakErr:   `"organization_id" must be set`,
+		},
+		{
+			name: "azure_devops token with allow rule missing key field",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodAzureDevops)
+				tok.Spec.AzureDevops = &joiningv1.AzureDevops{
+					OrganizationId: "00000000-0000-0000-0000-000000000000",
+					Allow: []*joiningv1.AzureDevops_Rule{
+						{
+							RepositoryVersion: "aaabbccddeefgghhjjiii",
+						},
+					},
+				}
+			},
+			expectedStrongErr: `allow[0]: must set "sub", "project_name", or "project_id"`,
+			expectedWeakErr:   `allow[0]: must set "sub", "project_name", or "project_id"`,
 		},
 		{
 			name: "oracle token without oracle configuration",
 			modFn: func(tok *joiningv1.ScopedToken) {
 				tok.Spec.JoinMethod = string(types.JoinMethodOracle)
 			},
-			expectedStrongErr: "oracle configuration must be defined for a scoped token when using the oracle join method",
-			expectedWeakErr:   "oracle configuration must be defined for a scoped token when using the oracle join method",
+			expectedStrongErr: "oracle configuration with at least one allow rule must be defined",
+			expectedWeakErr:   "oracle configuration with at least one allow rule must be defined",
+		},
+		{
+			name: "oracle token without tenancy",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodOracle)
+				tok.Spec.Oracle = &joiningv1.Oracle{
+					Allow: []*joiningv1.Oracle_Rule{{}},
+				}
+			},
+			expectedStrongErr: `allow[0]: "tenancy" must be set`,
+			expectedWeakErr:   `allow[0]: "tenancy" must be set`,
+		},
+		{
+			name: "oracle token with too many instance IDs",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodOracle)
+				tok.Spec.Oracle = &joiningv1.Oracle{
+					Allow: []*joiningv1.Oracle_Rule{
+						{
+							Tenancy:   "ocid1.tenancy.oc1..aaaaaaaa",
+							Instances: make([]string, 101),
+						},
+					},
+				}
+			},
+			expectedStrongErr: "allow[0]: maximum 100 instances may be set (found 101)",
+			expectedWeakErr:   "allow[0]: maximum 100 instances may be set (found 101)",
 		},
 		{
 			name: "kubernetes token without configuration",
@@ -678,6 +855,7 @@ func TestValidateScopedToken(t *testing.T) {
 			modFn: func(tok *joiningv1.ScopedToken) {
 				tok.Spec.JoinMethod = string(types.JoinMethodAzureDevops)
 				tok.Spec.AzureDevops = &joiningv1.AzureDevops{
+					OrganizationId: "00000000-0000-0000-0000-000000000000",
 					Allow: []*joiningv1.AzureDevops_Rule{
 						{
 							Sub: "1234567890",
@@ -939,6 +1117,116 @@ func TestScopedTokenAzureRoundTrip(t *testing.T) {
 	}, token.GetAzure())
 }
 
+func TestNewTokenGetBot(t *testing.T) {
+	t.Parallel()
+
+	newBotToken := func() *joiningv1.ScopedToken {
+		return joiningv1.ScopedToken_builder{
+			Kind:    types.KindScopedToken,
+			Scope:   "/aa/bb",
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name: "testtoken",
+			}.Build(),
+			Spec: joiningv1.ScopedTokenSpec_builder{
+				Roles:      []string{types.RoleBot.String()},
+				BotScope:   "/aa/bb",
+				BotName:    "test-bot",
+				JoinMethod: string(types.JoinMethodBoundKeypair),
+				UsageMode:  joining.TokenUsageModeBot,
+			}.Build(),
+		}.Build()
+	}
+	newNonBotToken := func() *joiningv1.ScopedToken {
+		return joiningv1.ScopedToken_builder{
+			Kind:    types.KindScopedToken,
+			Scope:   "/aa/bb",
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name: "testtoken",
+			}.Build(),
+			Spec: joiningv1.ScopedTokenSpec_builder{
+				Roles:         []string{types.RoleNode.String()},
+				AssignedScope: "/aa/bb",
+				JoinMethod:    string(types.JoinMethodToken),
+				UsageMode:     string(joining.TokenUsageModeUnlimited),
+			}.Build(),
+		}.Build()
+	}
+
+	cases := []struct {
+		name             string
+		token            *joiningv1.ScopedToken
+		modFn            func(*joiningv1.ScopedToken)
+		expectedBotName  string
+		expectedBotScope string
+		expectedErr      string
+	}{
+		{
+			name:             "bot token",
+			token:            newBotToken(),
+			expectedBotName:  "test-bot",
+			expectedBotScope: "/aa/bb",
+		},
+		{
+			name:  "non-bot token",
+			token: newNonBotToken(),
+		},
+		{
+			// Stray bot fields on a non-bot token are rejected by strong
+			// validation at write time but tolerated when wrapping, matching
+			// weak validation; the bot reference is empty.
+			name:  "non-bot token with stray bot fields",
+			token: newNonBotToken(),
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetBotName("test-bot")
+				tok.GetSpec().SetBotScope("/aa/bb")
+			},
+		},
+		{
+			name:  "bot token without bot_name",
+			token: newBotToken(),
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetBotName("")
+			},
+			expectedErr: "expected non-empty bot_name",
+		},
+		{
+			name:  "bot token without bot_scope",
+			token: newBotToken(),
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetBotScope("")
+			},
+			expectedErr: "expected non-empty bot_scope",
+		},
+		{
+			name:  "bot token with malformed bot_scope",
+			token: newBotToken(),
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetBotScope("aa/bb}")
+			},
+			expectedErr: "validating scoped token bot_scope",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.modFn != nil {
+				tc.modFn(tc.token)
+			}
+			token, err := joining.NewToken(tc.token)
+			if tc.expectedErr != "" {
+				require.ErrorContains(t, err, tc.expectedErr)
+				return
+			}
+			require.NoError(t, err)
+			botName, botScope := token.GetBot()
+			require.Equal(t, tc.expectedBotName, botName)
+			require.Equal(t, tc.expectedBotScope, botScope)
+		})
+	}
+}
+
 func TestImmutableLabelHashing(t *testing.T) {
 	labels := &joiningv1.ImmutableLabels{
 		Ssh: map[string]string{
@@ -1176,4 +1464,61 @@ func TestValidateTokenUpdate(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestValidateTokenForUse(t *testing.T) {
+	// TODO (eriktate): remove env var manipulation in this test once we've
+	// backported the [scopes.Features] work from #67073
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	token := &joiningv1.ScopedToken{
+		Scope: "/test",
+		Spec: &joiningv1.ScopedTokenSpec{
+			Roles:         []string{types.RoleNode.String()},
+			JoinMethod:    string(types.JoinMethodToken),
+			AssignedScope: "/test",
+			UsageMode:     string(joining.TokenUsageModeUnlimited),
+		},
+		Status: &joiningv1.ScopedTokenStatus{
+			Secret: "secret",
+		},
+	}
+	// we want to ensure that token validation before use is always the strongest
+	// available, so we confirm that the test token passes weak validation and then
+	// assert that StrongValidateToken and ValidateTokenForUse fail with the same error
+	assert.NoError(t, joining.WeakValidateToken(token))
+	strongValidateErr := joining.StrongValidateToken(token)
+	assert.Error(t, strongValidateErr)
+	assert.ErrorIs(t, strongValidateErr, joining.ValidateTokenForUse(token))
+
+	// fix token so StrongValidate succeeds
+	token.Kind = types.KindScopedToken
+	token.Version = types.V1
+	token.Metadata = &headerv1.Metadata{
+		Name: "test-token",
+	}
+
+	// validation should succeed for node role if scopes are enabled
+	require.NoError(t, joining.ValidateTokenForUse(token))
+
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "no")
+	// validation should fail if scopes are disabled
+	require.ErrorContains(t, joining.ValidateTokenForUse(token), "scoping features are not enabled")
+
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	// validation should fail for kube role if agent pinning is disabled
+	token.Spec.Roles = append(token.Spec.Roles, string(types.RoleKube))
+	require.ErrorContains(t, joining.ValidateTokenForUse(token), "scoped token cannot be used to join [Node, Kube] role(s) without TELEPORT_UNSTABLE_AGENT_SCOPE_PIN=yes")
+
+	t.Setenv("TELEPORT_UNSTABLE_AGENT_SCOPE_PIN", "yes")
+	// validation should succeed for kube role if agent pinning is enabled
+	require.NoError(t, joining.ValidateTokenForUse(token))
+
+	// validation should succeed for bot role even if agent scope pins are disabled
+	token.Spec.BotName = "bot-name"
+	token.Spec.BotScope = token.Spec.AssignedScope
+	token.Spec.AssignedScope = ""
+	token.Spec.JoinMethod = string(types.JoinMethodBoundKeypair)
+	token.Spec.UsageMode = string(joining.TokenUsageModeBot)
+	token.Spec.Roles = []string{string(types.RoleBot)}
+	require.NoError(t, joining.ValidateTokenForUse(token))
 }

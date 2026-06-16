@@ -910,7 +910,7 @@ func (process *TeleportProcess) addConnector(connector *Connector) {
 
 // WaitForConnector is a utility function to wait for an identity event and cast
 // the resulting payload as a *Connector. Returns (nil, nil) when the
-// ExitContext is done, so error checking should happen on the connector rather
+// GracefulExitContext is done, so error checking should happen on the connector rather
 // than the error:
 //
 //	conn, err := process.WaitForConnector("FooIdentity", log)
@@ -918,7 +918,7 @@ func (process *TeleportProcess) addConnector(connector *Connector) {
 //		return trace.Wrap(err)
 //	}
 func (process *TeleportProcess) WaitForConnector(identityEvent string, log *slog.Logger) (*Connector, error) {
-	event, err := process.WaitForEvent(process.ExitContext(), identityEvent)
+	event, err := process.WaitForEvent(process.GracefulExitContext(), identityEvent)
 	if err != nil {
 		if log != nil {
 			log.DebugContext(process.ExitContext(), "Process is exiting.")
@@ -2667,6 +2667,34 @@ func (process *TeleportProcess) initAuthService() error {
 			return trace.Wrap(err)
 		}
 	}
+
+	var createAuditStreamInflightLimit *int
+	if en := os.Getenv("TELEPORT_UNSTABLE_CREATEAUDITSTREAM_INFLIGHT_LIMIT"); en != "" {
+		limit, err := strconv.ParseInt(en, 10, 0)
+		if err != nil {
+			logger.ErrorContext(process.ExitContext(), "Failed to parse the TELEPORT_UNSTABLE_CREATEAUDITSTREAM_INFLIGHT_LIMIT envvar, limit will not be enforced", "error", err)
+		} else if limit >= 0 {
+			l := int(limit)
+			createAuditStreamInflightLimit = &l
+			if *createAuditStreamInflightLimit == 0 {
+				logger.WarnContext(process.ExitContext(), "TELEPORT_UNSTABLE_CREATEAUDITSTREAM_INFLIGHT_LIMIT is set to 0, no CreateAuditStream RPCs will be allowed")
+			} else {
+				logger.DebugContext(process.ExitContext(), "TELEPORT_UNSTABLE_CREATEAUDITSTREAM_INFLIGHT_LIMIT is set, enabling in-flight limit for CreateAuditStream", "limit", *createAuditStreamInflightLimit)
+			}
+		}
+	}
+
+	var resolveSSHTargetRateLimit *float64
+	if en := os.Getenv("TELEPORT_UNSTABLE_RESOLVESSHTARGET_RATE_LIMIT"); en != "" {
+		limit, err := strconv.ParseFloat(en, 64)
+		if err != nil {
+			logger.ErrorContext(process.ExitContext(), "Failed to parse the TELEPORT_UNSTABLE_RESOLVESSHTARGET_RATE_LIMIT envvar, limit will not be enforced", "error", err)
+		} else {
+			resolveSSHTargetRateLimit = &limit
+			logger.DebugContext(process.ExitContext(), "TELEPORT_UNSTABLE_RESOLVESSHTARGET_RATE_LIMIT is set, enabling rate limit for ResolveSSHTarget", "limit", *resolveSSHTargetRateLimit)
+		}
+	}
+
 	apiConf := &auth.APIConfig{
 		AuthServer:       authServer,
 		Authorizer:       authorizer,
@@ -2681,6 +2709,8 @@ func (process *TeleportProcess) initAuthService() error {
 			CA:       accessGraphCAData,
 			Insecure: cfg.AccessGraph.Insecure,
 		},
+		CreateAuditStreamInflightLimit: createAuditStreamInflightLimit,
+		ResolveSSHTargetRateLimit:      resolveSSHTargetRateLimit,
 	}
 
 	// Auth initialization is done (including creation/updating of all singleton
@@ -3080,11 +3110,13 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.MaxRetryPeriod = process.Config.CachePolicy.MaxRetryPeriod
 	cfg.Registerer = process.metricsRegistry
 
-	cfg.Access = services.Access
+	cfg.Access = services.AccessInternal
 	cfg.AccessLists = services.AccessListsInternal
 	cfg.AccessMonitoringRules = services.AccessMonitoringRules
-	cfg.AppSession = services.Identity
-	cfg.Apps = services.Applications
+	cfg.AppSession = services.IdentityInternal
+	cfg.Apps = services.ApplicationsInternal
+	cfg.Beams = services.Beams
+	cfg.DelegationSessions = services.DelegationSessions
 	cfg.ClusterConfig = services.ClusterConfigurationInternal
 	cfg.StaticScopedToken = services.ClusterConfigurationInternal
 	cfg.CrownJewels = services.CrownJewels
@@ -3101,20 +3133,20 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.Notifications = services.Notifications
 	cfg.Okta = services.Okta
 	cfg.Presence = services.PresenceInternal
-	cfg.Provisioner = services.Provisioner
+	cfg.Provisioner = services.ProvisionerInternal
 	cfg.Restrictions = services.Restrictions
 	cfg.SAMLIdPServiceProviders = services.SAMLIdPServiceProviders
 	cfg.SecReports = services.SecReports
-	cfg.SnowflakeSession = services.Identity
+	cfg.SnowflakeSession = services.IdentityInternal
 	cfg.SPIFFEFederations = services.SPIFFEFederations
 	cfg.StaticHostUsers = services.StaticHostUser
 	cfg.Trust = services.TrustInternal
 	cfg.UserGroups = services.UserGroups
 	cfg.UserTasks = services.UserTasks
 	cfg.UserLoginStates = services.UserLoginStates
-	cfg.Users = services.Identity
-	cfg.WebSession = services.Identity.WebSessions()
-	cfg.WebToken = services.Identity
+	cfg.Users = services.IdentityInternal
+	cfg.WebSession = services.IdentityInternal.WebSessions()
+	cfg.WebToken = services.IdentityInternal
 	cfg.WindowsDesktops = services.WindowsDesktops
 	cfg.WorkloadIdentity = services.WorkloadIdentities
 	cfg.DynamicWindowsDesktops = services.DynamicWindowsDesktops
@@ -3128,6 +3160,7 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.Plugin = services.Plugins
 	cfg.RecordingEncryption = services.RecordingEncryptionManager
 	cfg.Summarizer = services.Summarizer
+	cfg.SubCAService = services.SubCAService
 
 	return accesspoint.NewCache(cfg)
 }
@@ -3176,6 +3209,7 @@ func (process *TeleportProcess) newAccessCacheForClient(cfg accesspoint.Config, 
 	cfg.AutoUpdateService = client
 	cfg.GitServers = client.GitServerClient()
 	cfg.HealthCheckConfig = client
+	cfg.SubCAService = client
 
 	return accesspoint.NewCache(cfg)
 }
@@ -3507,14 +3541,7 @@ func (process *TeleportProcess) initSSH() error {
 			logger.WarnContext(process.ExitContext(), warn)
 		}
 
-		// TODO(espadolini): relax this once the selinux module is updated to support the potentially embedded reexec helper
-		if !cfg.SSH.EnableSELinux {
-			checkEmbeddedReexecAndLog(process.ExitContext(), logger)
-		} else {
-			logger.DebugContext(process.ExitContext(),
-				"The embedded session helper is not supported when SELinux support is enabled.",
-			)
-		}
+		checkEmbeddedReexecAndLog(process.ExitContext(), cfg.SSH.EnableSELinux, logger)
 
 		useLocalListener := cfg.SSH.ForceListen || !conn.UseTunnel()
 
@@ -3803,19 +3830,75 @@ func (process *TeleportProcess) initSSH() error {
 	return nil
 }
 
-func checkEmbeddedReexecAndLog(ctx context.Context, logger *slog.Logger) {
-	if ok, err := reexec.InitEmbeddedReexec(); err != nil {
-		logger.WarnContext(ctx,
-			"This Teleport build supports the embedded session helper but it is not available in this environment, performance of user sessions might be impacted.",
-			"error", err,
+func checkEmbeddedReexecAndLog(ctx context.Context, selinux bool, logger *slog.Logger) {
+	var explicitlyDisabled, explicitlyEnabled bool
+	if e := os.Getenv("TELEPORT_UNSTABLE_DISABLE_EMBEDDED_REEXEC"); e != "" {
+		b, err := apiutils.ParseBool(e)
+		if err != nil {
+			logger.WarnContext(ctx,
+				"Failed to parse the TELEPORT_UNSTABLE_DISABLE_EMBEDDED_REEXEC envvar, proceeding as if it was set to true",
+				"error", err,
+			)
+			b = true
+		}
+		if b {
+			explicitlyDisabled = true
+		} else {
+			explicitlyEnabled = true
+		}
+	}
+
+	if !reexec.EmbeddedReexecAvailable {
+		level := slog.LevelDebug
+		if explicitlyEnabled {
+			level = slog.LevelWarn
+		}
+		logger.LogAttrs(ctx, level,
+			"This Teleport build does not support the embedded session helper for user sessions.",
 		)
-	} else if ok {
-		logger.DebugContext(ctx,
-			"The embedded session helper is available and will be used for user sessions.",
+		return
+	}
+
+	// TODO(espadolini): relax this once the selinux module is updated to support the potentially embedded reexec helper
+	if selinux {
+		level := slog.LevelDebug
+		if explicitlyEnabled {
+			level = slog.LevelWarn
+		}
+		logger.LogAttrs(ctx, level,
+			"The embedded session helper is not supported when SELinux support is enabled.",
+		)
+		return
+	}
+
+	if explicitlyDisabled {
+		slog.InfoContext(ctx, "The embedded session helper was explicitly disabled and will not be used for user sessions.")
+		return
+	}
+
+	// TODO(espadolini): enable by default in v19
+	if !explicitlyEnabled {
+		slog.DebugContext(ctx, "The embedded session helper is not enabled and will not be used for user sessions.")
+		return
+	}
+
+	if err := reexec.InitEmbeddedReexec(); err != nil {
+		// TODO(espadolini): always warn in v19
+		level := slog.LevelDebug
+		if explicitlyEnabled {
+			level = slog.LevelWarn
+		}
+		logger.LogAttrs(ctx, level,
+			"This Teleport build supports the embedded session helper but it is not available in this environment, performance of user sessions might be impacted.",
+			slog.Any("error", err),
 		)
 	} else {
-		logger.DebugContext(ctx,
-			"This Teleport build does not support the embedded session helper for user sessions.",
+		level := slog.LevelDebug
+		if explicitlyEnabled {
+			level = slog.LevelInfo
+		}
+		logger.LogAttrs(ctx, level,
+			"The embedded session helper is available and will be used for user sessions.",
 		)
 	}
 }
@@ -5013,7 +5096,19 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	alpnRouter, reverseTunnelALPNRouter := setupALPNRouter(listeners, serverTLSConfig, cfg)
+
+	appServerWatcher, err := services.NewAppServersWatcher(process.ExitContext(), services.AppServersWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentProxy,
+			Logger:    process.logger.With(teleport.ComponentKey, teleport.ComponentProxy),
+			Client:    accessPoint,
+		},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	alpnRouter, reverseTunnelALPNRouter, appHTTPSTunnelHandler := setupALPNRouter(listeners, serverTLSConfig, cfg, conn.ClusterName())
 	alpnAddr := ""
 	if listeners.alpn != nil {
 		alpnAddr = listeners.alpn.Addr().String()
@@ -5281,6 +5376,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				NodeWatcher:             nodeWatcher,
 				GitServerWatcher:        gitServerWatcher,
 				DatabaseServerWatcher:   databaseServerWatcher,
+				AppServerWatcher:        appServerWatcher,
 				CertAuthorityWatcher:    caWatcher,
 				CircuitBreakerConfig:    process.Config.CircuitBreakerConfig,
 				LocalAuthAddresses:      utils.NetAddrsToStrings(process.Config.AuthServerAddresses()),
@@ -5309,6 +5405,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		tlsConfigWeb, err = process.setupProxyTLSConfig(conn, tsrv, accessPoint, clusterName)
 		if err != nil {
 			return trace.Wrap(err)
+		}
+		if appHTTPSTunnelHandler != nil {
+			appHTTPSTunnelHandler.SetTLSConfig(tlsConfigWeb)
 		}
 	}
 
@@ -5452,17 +5551,15 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			return trace.Wrap(err)
 		}
 		connectionsHandler.SetApplicationsProvider(func(ctx context.Context, publicAddr string) (types.Application, error) {
-			allAppServers, err := accessPoint.GetApplicationServers(ctx, apidefaults.Namespace)
+			allAppServers, err := appServerWatcher.CurrentResourcesWithFilter(ctx, webapp.MatchPublicAddr(publicAddr))
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			publicAddressMatches := webapp.MatchPublicAddr(publicAddr)
-			for _, a := range allAppServers {
-				if publicAddressMatches(ctx, a) {
-					return a.GetApp(), nil
-				}
+			if len(allAppServers) == 0 {
+				return nil, trace.NotFound("no app found for endpoint %q", publicAddr)
 			}
-			return nil, trace.NotFound("no app found for endpoint %q", publicAddr)
+			// TODO(okraport): determine if we should shuffle app servers here.
+			return allAppServers[0].GetApp(), nil
 		})
 
 		if !cfg.Proxy.DisableTLS && cfg.Proxy.DisableALPNSNIListener {
@@ -5517,6 +5614,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			}),
 			PROXYSigner:               proxySigner,
 			NodeWatcher:               nodeWatcher,
+			AppServerWatcher:          appServerWatcher,
 			AccessGraphAddr:           accessGraphAddr,
 			TracerProvider:            process.TracingProvider,
 			AutomaticUpgradesChannels: cfg.Proxy.AutomaticUpgradesChannels,
@@ -5809,15 +5907,16 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		FIPS:   cfg.FIPS,
 		Logger: process.logger.With(teleport.ComponentKey, "transport"),
 		Dialer: proxyRouter,
-		SignerFn: func(authzCtx *authz.ScopedContext, clusterName string) agentless.SignerCreator {
+		SignerFn: func(ctx context.Context, authzCtx *authz.ScopedContext, clusterName string) (agentless.SignerCreator, error) {
+			certGen, err := proxyRouter.GetSiteClient(ctx, clusterName)
+			if err != nil {
+				return nil, trace.Wrap(err, "getting site client for cluster %q", clusterName)
+			}
 			if unscopedCtx, ok := authzCtx.UnscopedContext(); ok {
-				return agentless.SignerFromAuthzContext(unscopedCtx, accessPoint, clusterName)
+				return agentless.SignerFromAuthzContext(unscopedCtx, accessPoint, certGen, clusterName), nil
 			}
 
-			return func(ctx context.Context, localAccessPoint agentless.LocalAccessPoint, certGen agentless.CertGenerator) (ssh.Signer, error) {
-				// TODO(fspamarshall/scopes): implement agentless transport signer for scoped identities
-				return nil, trace.NotImplemented("agentless transport signer is not implemented for scoped identities")
-			}
+			return agentless.SignerFromScopedContext(authzCtx, accessPoint, certGen, clusterName), nil
 		},
 		ConnectionMonitor: connMonitor,
 		LocalAddr:         listeners.sshGRPC.Addr(),
@@ -5896,12 +5995,13 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	})
 
 	if listeners.kube != nil && !process.Config.Proxy.DisableReverseTunnel {
-		authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
-			ClusterName:   clusterName,
-			AccessPoint:   accessPoint,
-			LockWatcher:   lockWatcher,
-			Logger:        process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)),
-			PermitCaching: process.Config.CachePolicy.Enabled,
+		scopedAuthorizer, err := authz.NewScopedAuthorizer(authz.AuthorizerOpts{
+			ClusterName:      clusterName,
+			AccessPoint:      accessPoint,
+			ScopedRoleReader: accessPoint.ScopedRoleReader(),
+			LockWatcher:      lockWatcher,
+			Logger:           process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)),
+			PermitCaching:    process.Config.CachePolicy.Enabled,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -5952,7 +6052,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				Keygen:                        cfg.Keygen,
 				ClusterName:                   clusterName,
 				ReverseTunnelSrv:              tsrv,
-				Authz:                         authorizer,
+				ScopedAuthz:                   scopedAuthorizer,
 				AuthClient:                    conn.Client,
 				Emitter:                       asyncEmitter,
 				DataDir:                       cfg.DataDir,
@@ -6336,7 +6436,6 @@ func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv revers
 		}
 		hostChecker, err := newHostPolicyChecker(hostPolicyCheckerConfig{
 			publicAddrs:   process.Config.Proxy.PublicAddrs,
-			clt:           conn.Client,
 			clusterGetter: tsrv,
 			clusterName:   conn.ClusterName(),
 		})
@@ -6438,9 +6537,9 @@ func (process *TeleportProcess) setupALPNTLSConfigForWeb(tlsConfig *tls.Config, 
 	return tlsConfig, nil
 }
 
-func setupALPNRouter(listeners *proxyListeners, serverTLSConfig *tls.Config, cfg *servicecfg.Config) (router, rtRouter *alpnproxy.Router) {
+func setupALPNRouter(listeners *proxyListeners, serverTLSConfig *tls.Config, cfg *servicecfg.Config, clusterName string) (router, rtRouter *alpnproxy.Router, appHTTPSTunnelHandler *webapp.HTTPSTunnelHandler) {
 	if listeners.web == nil || cfg.Proxy.DisableTLS || cfg.Proxy.DisableALPNSNIListener {
-		return nil, nil
+		return nil, nil, nil
 	}
 	// ALPN proxy service will use web listener where listener.web will be overwritten by alpn wrapper
 	// that allows to dispatch the http/1.1 and h2 traffic to webService.
@@ -6493,6 +6592,13 @@ func setupALPNRouter(listeners *proxyListeners, serverTLSConfig *tls.Config, cfg
 			ForwardTLS: false,
 		})
 		listeners.web = webWrapper
+
+		// tlsConfigWeb is set later via SetTLSConfig as it's not available yet.
+		appHTTPSTunnelHandler = webapp.NewHTTPSTunnelHandler(webWrapper.HandleConnection, clusterName)
+		router.Add(alpnproxy.HandlerDecs{
+			MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolAppHTTPS),
+			Handler:   appHTTPSTunnelHandler.HandleConnection,
+		})
 	}
 	// grpcPublicListener is a listener that does not enforce mTLS authentication.
 	// It must not be used for any services that require authentication and currently
@@ -6547,7 +6653,7 @@ func setupALPNRouter(listeners *proxyListeners, serverTLSConfig *tls.Config, cfg
 	router.AddDBTLSHandler(webTLSDB.HandleConnection)
 	listeners.db.tls = webTLSDB
 
-	return router, rtRouter
+	return router, rtRouter, appHTTPSTunnelHandler
 }
 
 // waitForAppDepend waits until all dependencies for an application service
@@ -6757,6 +6863,7 @@ func (process *TeleportProcess) initApps() {
 				TCPPorts:              makeApplicationTCPPorts(app.TCPPorts),
 				MCP:                   app.MCP,
 				LLM:                   app.LLM,
+				TLS:                   app.TLS,
 			})
 			if err != nil {
 				return trace.Wrap(err)

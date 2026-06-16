@@ -52,22 +52,16 @@ var leafPreferencesMock = &userpreferencesv1.UserPreferences{
 }
 
 func TestUserPreferencesGet(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-
 	mockedRootClient := &mockClient{preferences: rootPreferencesMock}
 	mockedLeafClient := &mockClient{preferences: leafPreferencesMock}
 
-	response, err := Get(ctx, mockedRootClient, mockedLeafClient)
+	response, err := Get(t.Context(), mockedRootClient, mockedLeafClient)
 	require.NoError(t, err)
 	require.Equal(t, rootPreferencesMock.GetUnifiedResourcePreferences(), response.GetUnifiedResourcePreferences())
 	require.Equal(t, leafPreferencesMock.GetClusterPreferences(), response.GetClusterPreferences())
 }
 
 func TestUserPreferencesUpdateForRoot(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-
 	mockedClient := &mockClient{preferences: rootPreferencesMock}
 
 	newPreferences := &api.UserPreferences{
@@ -79,7 +73,7 @@ func TestUserPreferencesUpdateForRoot(t *testing.T) {
 		UnifiedResourcePreferences: nil,
 	}
 
-	updatedPreferences, err := Update(ctx, mockedClient, nil, newPreferences)
+	updatedPreferences, err := Update(t.Context(), mockedClient, nil, newPreferences)
 	require.NoError(t, err)
 	// ClusterPreferences field has been updated with the new value.
 	require.Equal(t, newPreferences.ClusterPreferences, mockedClient.upsertCalledWith.ClusterPreferences)
@@ -91,10 +85,34 @@ func TestUserPreferencesUpdateForRoot(t *testing.T) {
 	require.Equal(t, rootPreferencesMock.Theme, mockedClient.upsertCalledWith.Theme)
 }
 
-func TestUserPreferencesUpdateForRootAndLeaf(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
+func TestUserPreferencesUpdateForRootWithNoExistingPinnedResources(t *testing.T) {
+	rootPreferences := &userpreferencesv1.UserPreferences{
+		Theme: userpreferencesv1.Theme_THEME_LIGHT,
+		ClusterPreferences: &userpreferencesv1.ClusterUserPreferences{
+			PinnedResources: nil,
+		},
+		UnifiedResourcePreferences: rootPreferencesMock.UnifiedResourcePreferences,
+	}
+	mockedClient := &mockClient{preferences: rootPreferences}
 
+	newPreferences := &api.UserPreferences{
+		ClusterPreferences: &userpreferencesv1.ClusterUserPreferences{
+			PinnedResources: &userpreferencesv1.PinnedResourcesUserPreferences{
+				ResourceIds: []string{"foo", "bar"},
+			},
+		},
+	}
+
+	updatedPreferences, err := Update(t.Context(), mockedClient, nil, newPreferences)
+	require.NoError(t, err)
+
+	require.Equal(t, newPreferences.ClusterPreferences, mockedClient.upsertCalledWith.ClusterPreferences)
+	require.Equal(t, newPreferences.ClusterPreferences, updatedPreferences.ClusterPreferences)
+	require.Equal(t, rootPreferencesMock.UnifiedResourcePreferences, mockedClient.upsertCalledWith.UnifiedResourcePreferences)
+	require.Equal(t, userpreferencesv1.Theme_THEME_LIGHT, mockedClient.upsertCalledWith.Theme)
+}
+
+func TestUserPreferencesUpdateForRootAndLeaf(t *testing.T) {
 	mockedRootClient := &mockClient{preferences: rootPreferencesMock}
 	mockedLeafClient := &mockClient{preferences: leafPreferencesMock}
 
@@ -112,7 +130,7 @@ func TestUserPreferencesUpdateForRootAndLeaf(t *testing.T) {
 		},
 	}
 
-	updatedPreferences, err := Update(ctx, mockedRootClient, mockedLeafClient, newPreferences)
+	updatedPreferences, err := Update(t.Context(), mockedRootClient, mockedLeafClient, newPreferences)
 	require.NoError(t, err)
 	// ClusterPreferences field has been updated with the leaf cluster value.
 	require.Equal(t, updatedPreferences.ClusterPreferences, mockedLeafClient.upsertCalledWith.ClusterPreferences)
@@ -122,6 +140,48 @@ func TestUserPreferencesUpdateForRootAndLeaf(t *testing.T) {
 	require.Equal(t, newPreferences.UnifiedResourcePreferences, updatedPreferences.UnifiedResourcePreferences)
 	// Other user preferences have not been touched.
 	require.Equal(t, rootPreferencesMock.Theme, mockedRootClient.upsertCalledWith.Theme)
+}
+
+func TestNilUserPreferencesUpdate(t *testing.T) {
+	tests := []struct {
+		name                       string
+		leafPreferences            *userpreferencesv1.UserPreferences
+		expectedClusterPreferences *userpreferencesv1.ClusterUserPreferences
+	}{
+		{
+			name:                       "root",
+			expectedClusterPreferences: rootPreferencesMock.ClusterPreferences,
+		},
+		{
+			name:                       "leaf",
+			leafPreferences:            leafPreferencesMock,
+			expectedClusterPreferences: leafPreferencesMock.ClusterPreferences,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := t.Context()
+
+			mockedRootClient := &mockClient{preferences: rootPreferencesMock}
+			var leafClient Client
+			var mockedLeafClient *mockClient
+			if tt.leafPreferences != nil {
+				mockedLeafClient = &mockClient{preferences: tt.leafPreferences}
+				leafClient = mockedLeafClient
+			}
+
+			updatedPreferences, err := Update(ctx, mockedRootClient, leafClient, nil)
+			require.NoError(t, err)
+
+			require.Nil(t, mockedRootClient.upsertCalledWith)
+			if mockedLeafClient != nil {
+				require.Nil(t, mockedLeafClient.upsertCalledWith)
+			}
+			require.Equal(t, rootPreferencesMock.UnifiedResourcePreferences, updatedPreferences.UnifiedResourcePreferences)
+			require.Equal(t, tt.expectedClusterPreferences, updatedPreferences.ClusterPreferences)
+		})
+	}
 }
 
 type mockClient struct {

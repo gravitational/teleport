@@ -364,6 +364,7 @@ func validateRoleExpressions(r types.Role) error {
 			{"windows_desktop_labels", types.KindWindowsDesktop},
 			{"windows_desktop_labels", types.KindDynamicWindowsDesktop},
 			{"group_labels", types.KindUserGroup},
+			{"beam_labels", types.KindBeam},
 		} {
 			labelMatchers, err := r.GetLabelMatchers(condition.condition, labels.kind)
 			if err != nil {
@@ -589,6 +590,7 @@ func ApplyTraitsWithContext(r types.Role, ctx RoleTemplateContext) (types.Role, 
 			types.KindUserGroup,
 			types.KindSAMLIdPServiceProvider,
 			types.KindWorkloadIdentity,
+			types.KindBeam,
 		} {
 			labelMatchers, err := r.GetLabelMatchers(condition, kind)
 			if err != nil {
@@ -1931,8 +1933,7 @@ func (set RoleSet) CheckImpersonateRoles(currentUser types.User, impersonateRole
 
 	// check deny: a single match on a deny rule prohibits access
 	for _, role := range set {
-		cond := role.GetImpersonateConditions(types.Deny)
-		matched, err := matchDenyRoleImpersonateCondition(cond, impersonateRoles)
+		matched, err := matchDenyRoleImpersonateCondition(role, impersonateRoles)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1943,8 +1944,7 @@ func (set RoleSet) CheckImpersonateRoles(currentUser types.User, impersonateRole
 
 	// check allow: if any one Role satisfies all the role requests, allow impersonation
 	for _, role := range set {
-		cond := role.GetImpersonateConditions(types.Allow)
-		matched, err := matchAllowRoleImpersonateCondition(ctx, whereParser, cond, impersonateRoles)
+		matched, err := matchAllowRoleImpersonateCondition(ctx, whereParser, role, impersonateRoles)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -2214,7 +2214,8 @@ func matchDenyImpersonateCondition(cond types.ImpersonateConditions, impersonate
 
 // matchAllowRoleImpersonateCondition matches an allow impersonate condition
 // specifically for role-only impersonation, where only roles are matched.
-func matchAllowRoleImpersonateCondition(ctx *impersonateContext, whereParser predicate.Parser, cond types.ImpersonateConditions, impersonateRoles []types.Role) (bool, error) {
+func matchAllowRoleImpersonateCondition(ctx *impersonateContext, whereParser predicate.Parser, role types.Role, impersonateRoles []types.Role) (bool, error) {
+	cond := role.GetImpersonateConditions(types.Allow)
 	// an empty set matches nothing
 	if len(cond.Users) == 0 && len(cond.Roles) == 0 {
 		return false, nil
@@ -2222,6 +2223,10 @@ func matchAllowRoleImpersonateCondition(ctx *impersonateContext, whereParser pre
 
 	// Role impersonation can never apply to users.
 	if len(cond.Users) != 0 {
+		slog.WarnContext(context.Background(),
+			"Allow rule did not match due to users being set. For role-only impersonation, only roles should be set in allow/deny rules.",
+			"role", role.GetName(),
+		)
 		return false, nil
 	}
 
@@ -2255,15 +2260,23 @@ func matchAllowRoleImpersonateCondition(ctx *impersonateContext, whereParser pre
 
 // matchDenyRoleImpersonateCondition matches a deny impersonate condition
 // specifically for role impersonation, where only roles are matched.
-func matchDenyRoleImpersonateCondition(cond types.ImpersonateConditions, impersonateRoles []types.Role) (bool, error) {
+func matchDenyRoleImpersonateCondition(role types.Role, impersonateRoles []types.Role) (bool, error) {
+	cond := role.GetImpersonateConditions(types.Deny)
 	// an empty set matches nothing
 	if len(cond.Users) == 0 && len(cond.Roles) == 0 {
 		return false, nil
 	}
 
-	// Role impersonation can never apply to users.
+	// If any users are defined in a role-impersonation deny rule, it always
+	// matches. This functionally disables role impersonation for rules
+	// containing a `users` deny entry, which is acceptable because only bots
+	// should ever use role impersonation.
 	if len(cond.Users) != 0 {
-		return false, nil
+		slog.WarnContext(context.Background(),
+			"Deny rule matched due to users being set. For role-only impersonation, only roles should be set in allow/deny rules.",
+			"role", role.GetName(),
+		)
+		return true, nil
 	}
 
 	// By this point, at least 1 role is guaranteed.
@@ -3137,6 +3150,21 @@ func (set RoleSet) CanCopyFiles() bool {
 	return true
 }
 
+// GetWebTerminalClipboardMode returns the Web UI terminal clipboard mode from the role set.
+func (set RoleSet) GetWebTerminalClipboardMode() types.WebTerminalClipboardMode {
+	var mode types.WebTerminalClipboardMode
+	for _, r := range set {
+		switch r.GetOptions().WebTerminalClipboardMode {
+		// Return immediately if any role has explicitly set the clipboard mode to no-copy, as that should take precedence over any unrestricted's.
+		case types.WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_NO_COPY:
+			return types.WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_NO_COPY
+		case types.WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNRESTRICTED:
+			mode = types.WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNRESTRICTED
+		}
+	}
+	return mode
+}
+
 // CanJoinSessions returns true if at least one role in the role set
 // allows the user to join active sessions.
 func (set RoleSet) CanJoinSessions() bool {
@@ -3843,6 +3871,26 @@ func AccessStateFromSSHIdentity(ctx context.Context, ident *sshca.Identity, chec
 
 	state.EnableDeviceVerification = true
 	state.DeviceVerified = dtauthz.IsSSHDeviceVerified(ident)
+	state.IsBot = ident.IsBot()
+	return state, nil
+}
+
+// AccessStateFromTLSIdentity populates access state based on user's TLS
+// identity and auth preference.
+func AccessStateFromTLSIdentity(ctx context.Context, ident *tlsca.Identity, checker AccessChecker, authPrefGetter AuthPreferenceGetter) (AccessState, error) {
+	authPref, err := authPrefGetter.GetAuthPreference(ctx)
+	if err != nil {
+		return AccessState{}, trace.Wrap(err)
+	}
+	state := checker.GetAccessState(authPref)
+	state.MFAVerified = ident.MFAVerified != ""
+	// Certain hardware-key based private key policies are treated as MFA verification.
+	if ident.PrivateKeyPolicy.MFAVerified() {
+		state.MFAVerified = true
+	}
+
+	state.EnableDeviceVerification = true
+	state.DeviceVerified = dtauthz.IsTLSDeviceVerified(&ident.DeviceExtensions)
 	state.IsBot = ident.IsBot()
 	return state, nil
 }

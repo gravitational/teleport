@@ -2071,6 +2071,31 @@ message UIAccessListIntegrateEvent {
   AccessListIntegrate integrate = 2;
 }
 
+// UIInteractionEvent is emitted when a user interacts with a configurable view within a page.
+//
+// PostHog event: tp.ui.interaction
+message UIInteractionEvent {
+  // anonymized Teleport username, 32 bytes (HMAC-SHA-256) encoded in base64; it
+  // can be the username of a bot user rather than of a regular user
+  //
+  // PostHog property: tp.user_name
+  string user_name = 1;
+  // path is the route template of the page viewed, e.g. "/web/summary/mau"
+  //
+  // PostHog property: tp.ui_interaction.path
+  string path = 2;
+  // page_id is a stable identifier for the page that does not change when the
+  // route template changes, e.g. "observability_graph"
+  //
+  // PostHog property: tp.ui_interaction.page_id
+  string page_id = 3;
+  // params holds arbitrary key/value config for the interaction, e.g.
+  // view="custom", graph="bar", scope="tenant", granularity="day"
+  //
+  // PostHog properties: tp.ui_interaction.<key> for each entry
+  map<string, string> params = 4;
+}
+
 message SubmitEventRequest {
   // anonymized, 32 bytes (HMAC-SHA-256) encoded in base64
   //
@@ -2267,6 +2292,7 @@ message SubmitEventRequest {
     UIPageViewEvent ui_page_view = 119;
     UIUsageReportingAlertCtaClickEvent ui_usage_reporting_alert_cta_click = 120;
     SessionSummarySearchEvent session_summary_search_event = 121;
+    UIInteractionEvent ui_interaction = 122;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent

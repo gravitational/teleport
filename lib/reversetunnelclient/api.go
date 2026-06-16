@@ -25,9 +25,8 @@ import (
 	"net"
 	"time"
 
-	"golang.org/x/crypto/ssh"
-
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/proxy/peer"
 	"github.com/gravitational/teleport/lib/services"
@@ -47,9 +46,10 @@ type DialParams struct {
 	// forwarding proxy.
 	GetUserAgent sshagent.ClientGetter
 
-	// AgentlessSigner is used for authenticating to the remote host when it is an
-	// agentless node.
-	AgentlessSigner ssh.Signer
+	// AgentlessSignerCreator is called lazily by the forwarding server after
+	// the SSH handshake to create an ssh.Signer for authenticating to agentless
+	// nodes.
+	AgentlessSignerCreator agentless.SignerCreator
 
 	// Address is used by the forwarding proxy to generate a host certificate for
 	// the target node. This is needed because while dialing occurs via IP
@@ -126,6 +126,8 @@ type Cluster interface {
 	GitServerWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error)
 	// DatabaseServerWatcher returns the watcher that maintains the database server set for the cluster
 	DatabaseServerWatcher() (*services.GenericWatcher[types.DatabaseServer, readonly.DatabaseServer], error)
+	// AppServerWatcher returns the watcher that maintains the app server set for the cluster
+	AppServerWatcher() (*services.GenericWatcher[types.AppServer, readonly.AppServer], error)
 	// GetTunnelsCount returns the amount of active inbound tunnels
 	// from the remote cluster
 	GetTunnelsCount() int

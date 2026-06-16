@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/client"
 )
@@ -85,7 +86,7 @@ func sshBeam(cf *CLIConf, tc *client.TeleportClient, beam *beamsv1.Beam, command
 	}
 
 	target := fmt.Sprintf("%s:0", beam.GetStatus().GetNodeId())
-	tc.HostLogin = beamsLogin
+	tc.HostLogin = types.BeamsLogin
 	tc.Stdin = cf.Stdin()
 
 	retry, err := retryutils.NewLinear(retryutils.LinearConfig{

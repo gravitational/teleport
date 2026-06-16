@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/integration/v1/integration_service.proto
 
+//go:build !protoopaque
+
 package integrationv1
 
 import (
@@ -28,7 +30,6 @@ import (
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -41,7 +42,7 @@ const (
 
 // ListIntegrationsRequest is a request for a paginated list of Integrations.
 type ListIntegrationsRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Limit is the maximum amount of resources to retrieve.
 	Limit int32 `protobuf:"varint,1,opt,name=limit,proto3" json:"limit,omitempty"`
 	// NextKey is the key for the next page of Integrations.
@@ -75,11 +76,6 @@ func (x *ListIntegrationsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListIntegrationsRequest.ProtoReflect.Descriptor instead.
-func (*ListIntegrationsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *ListIntegrationsRequest) GetLimit() int32 {
 	if x != nil {
 		return x.Limit
@@ -94,9 +90,35 @@ func (x *ListIntegrationsRequest) GetNextKey() string {
 	return ""
 }
 
+func (x *ListIntegrationsRequest) SetLimit(v int32) {
+	x.Limit = v
+}
+
+func (x *ListIntegrationsRequest) SetNextKey(v string) {
+	x.NextKey = v
+}
+
+type ListIntegrationsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Limit is the maximum amount of resources to retrieve.
+	Limit int32
+	// NextKey is the key for the next page of Integrations.
+	NextKey string
+}
+
+func (b0 ListIntegrationsRequest_builder) Build() *ListIntegrationsRequest {
+	m0 := &ListIntegrationsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Limit = b.Limit
+	x.NextKey = b.NextKey
+	return m0
+}
+
 // ListIntegrationsResponse is the response for ListIntegrationsRequest.
 type ListIntegrationsResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Integrations is a list of Integrations.
 	Integrations []*types.IntegrationV1 `protobuf:"bytes,1,rep,name=integrations,proto3" json:"integrations,omitempty"`
 	// NextKey is the key for the next page of Integrations.
@@ -132,11 +154,6 @@ func (x *ListIntegrationsResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListIntegrationsResponse.ProtoReflect.Descriptor instead.
-func (*ListIntegrationsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *ListIntegrationsResponse) GetIntegrations() []*types.IntegrationV1 {
 	if x != nil {
 		return x.Integrations
@@ -158,9 +175,42 @@ func (x *ListIntegrationsResponse) GetTotalCount() int32 {
 	return 0
 }
 
+func (x *ListIntegrationsResponse) SetIntegrations(v []*types.IntegrationV1) {
+	x.Integrations = v
+}
+
+func (x *ListIntegrationsResponse) SetNextKey(v string) {
+	x.NextKey = v
+}
+
+func (x *ListIntegrationsResponse) SetTotalCount(v int32) {
+	x.TotalCount = v
+}
+
+type ListIntegrationsResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Integrations is a list of Integrations.
+	Integrations []*types.IntegrationV1
+	// NextKey is the key for the next page of Integrations.
+	NextKey string
+	// TotalCount is the total number of integrations in all pages.
+	TotalCount int32
+}
+
+func (b0 ListIntegrationsResponse_builder) Build() *ListIntegrationsResponse {
+	m0 := &ListIntegrationsResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Integrations = b.Integrations
+	x.NextKey = b.NextKey
+	x.TotalCount = b.TotalCount
+	return m0
+}
+
 // GetIntegrationRequest is a request for a specific Integration resource.
 type GetIntegrationRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name is the name of the Integration to be requested.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -192,11 +242,6 @@ func (x *GetIntegrationRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetIntegrationRequest.ProtoReflect.Descriptor instead.
-func (*GetIntegrationRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *GetIntegrationRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -204,9 +249,28 @@ func (x *GetIntegrationRequest) GetName() string {
 	return ""
 }
 
+func (x *GetIntegrationRequest) SetName(v string) {
+	x.Name = v
+}
+
+type GetIntegrationRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name is the name of the Integration to be requested.
+	Name string
+}
+
+func (b0 GetIntegrationRequest_builder) Build() *GetIntegrationRequest {
+	m0 := &GetIntegrationRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // CreateIntegrationRequest is the request to create the provided integration.
 type CreateIntegrationRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Integration is the integration to be created.
 	Integration   *types.IntegrationV1 `protobuf:"bytes,1,opt,name=integration,proto3" json:"integration,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -238,11 +302,6 @@ func (x *CreateIntegrationRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateIntegrationRequest.ProtoReflect.Descriptor instead.
-func (*CreateIntegrationRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *CreateIntegrationRequest) GetIntegration() *types.IntegrationV1 {
 	if x != nil {
 		return x.Integration
@@ -250,9 +309,39 @@ func (x *CreateIntegrationRequest) GetIntegration() *types.IntegrationV1 {
 	return nil
 }
 
+func (x *CreateIntegrationRequest) SetIntegration(v *types.IntegrationV1) {
+	x.Integration = v
+}
+
+func (x *CreateIntegrationRequest) HasIntegration() bool {
+	if x == nil {
+		return false
+	}
+	return x.Integration != nil
+}
+
+func (x *CreateIntegrationRequest) ClearIntegration() {
+	x.Integration = nil
+}
+
+type CreateIntegrationRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Integration is the integration to be created.
+	Integration *types.IntegrationV1
+}
+
+func (b0 CreateIntegrationRequest_builder) Build() *CreateIntegrationRequest {
+	m0 := &CreateIntegrationRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Integration = b.Integration
+	return m0
+}
+
 // UpdateIntegrationRequest is the request to update the provided integration.
 type UpdateIntegrationRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Integration is the integration to be created.
 	Integration   *types.IntegrationV1 `protobuf:"bytes,1,opt,name=integration,proto3" json:"integration,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -284,11 +373,6 @@ func (x *UpdateIntegrationRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateIntegrationRequest.ProtoReflect.Descriptor instead.
-func (*UpdateIntegrationRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *UpdateIntegrationRequest) GetIntegration() *types.IntegrationV1 {
 	if x != nil {
 		return x.Integration
@@ -296,9 +380,39 @@ func (x *UpdateIntegrationRequest) GetIntegration() *types.IntegrationV1 {
 	return nil
 }
 
+func (x *UpdateIntegrationRequest) SetIntegration(v *types.IntegrationV1) {
+	x.Integration = v
+}
+
+func (x *UpdateIntegrationRequest) HasIntegration() bool {
+	if x == nil {
+		return false
+	}
+	return x.Integration != nil
+}
+
+func (x *UpdateIntegrationRequest) ClearIntegration() {
+	x.Integration = nil
+}
+
+type UpdateIntegrationRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Integration is the integration to be created.
+	Integration *types.IntegrationV1
+}
+
+func (b0 UpdateIntegrationRequest_builder) Build() *UpdateIntegrationRequest {
+	m0 := &UpdateIntegrationRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Integration = b.Integration
+	return m0
+}
+
 // DeleteIntegrationRequest is a request for deleting a specific Integration resource.
 type DeleteIntegrationRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name is the name of the Integration to be deleted.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// DeleteAssociatedResources allows the request to search associated resources
@@ -333,11 +447,6 @@ func (x *DeleteIntegrationRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteIntegrationRequest.ProtoReflect.Descriptor instead.
-func (*DeleteIntegrationRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *DeleteIntegrationRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -352,10 +461,37 @@ func (x *DeleteIntegrationRequest) GetDeleteAssociatedResources() bool {
 	return false
 }
 
+func (x *DeleteIntegrationRequest) SetName(v string) {
+	x.Name = v
+}
+
+func (x *DeleteIntegrationRequest) SetDeleteAssociatedResources(v bool) {
+	x.DeleteAssociatedResources = v
+}
+
+type DeleteIntegrationRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name is the name of the Integration to be deleted.
+	Name string
+	// DeleteAssociatedResources allows the request to search associated resources
+	// and attempt to delete them.
+	DeleteAssociatedResources bool
+}
+
+func (b0 DeleteIntegrationRequest_builder) Build() *DeleteIntegrationRequest {
+	m0 := &DeleteIntegrationRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.DeleteAssociatedResources = b.DeleteAssociatedResources
+	return m0
+}
+
 // DeleteAllIntegrationsRequest is the request for deleting all integrations.
 // DEPRECATED: Can't delete all integrations over gRPC.
 type DeleteAllIntegrationsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -385,15 +521,22 @@ func (x *DeleteAllIntegrationsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteAllIntegrationsRequest.ProtoReflect.Descriptor instead.
-func (*DeleteAllIntegrationsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{6}
+type DeleteAllIntegrationsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 DeleteAllIntegrationsRequest_builder) Build() *DeleteAllIntegrationsRequest {
+	m0 := &DeleteAllIntegrationsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // GenerateAWSOIDCTokenRequest are the parameters used to request an AWS OIDC
 // Integration token.
 type GenerateAWSOIDCTokenRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Issuer is the entity that is signing the JWT.
 	// This value must contain the AWS OIDC Integration configured provider (Teleport Proxy's Public URL)
 	//
@@ -433,11 +576,6 @@ func (x *GenerateAWSOIDCTokenRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GenerateAWSOIDCTokenRequest.ProtoReflect.Descriptor instead.
-func (*GenerateAWSOIDCTokenRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{7}
-}
-
 // Deprecated: Marked as deprecated in teleport/integration/v1/integration_service.proto.
 func (x *GenerateAWSOIDCTokenRequest) GetIssuer() string {
 	if x != nil {
@@ -453,9 +591,42 @@ func (x *GenerateAWSOIDCTokenRequest) GetIntegration() string {
 	return ""
 }
 
+// Deprecated: Marked as deprecated in teleport/integration/v1/integration_service.proto.
+func (x *GenerateAWSOIDCTokenRequest) SetIssuer(v string) {
+	x.Issuer = v
+}
+
+func (x *GenerateAWSOIDCTokenRequest) SetIntegration(v string) {
+	x.Integration = v
+}
+
+type GenerateAWSOIDCTokenRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Issuer is the entity that is signing the JWT.
+	// This value must contain the AWS OIDC Integration configured provider (Teleport Proxy's Public URL)
+	//
+	// Deprecated: Ignored because value is calculated server side.
+	//
+	// Deprecated: Marked as deprecated in teleport/integration/v1/integration_service.proto.
+	Issuer string
+	// Integration is the AWS OIDC Integration name.
+	// Required.
+	Integration string
+}
+
+func (b0 GenerateAWSOIDCTokenRequest_builder) Build() *GenerateAWSOIDCTokenRequest {
+	m0 := &GenerateAWSOIDCTokenRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Issuer = b.Issuer
+	x.Integration = b.Integration
+	return m0
+}
+
 // GenerateAWSOIDCTokenResponse contains a signed AWS OIDC Integration token.
 type GenerateAWSOIDCTokenResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Token is the signed JWT ready to be used
 	Token         string `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -487,11 +658,6 @@ func (x *GenerateAWSOIDCTokenResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GenerateAWSOIDCTokenResponse.ProtoReflect.Descriptor instead.
-func (*GenerateAWSOIDCTokenResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{8}
-}
-
 func (x *GenerateAWSOIDCTokenResponse) GetToken() string {
 	if x != nil {
 		return x.Token
@@ -499,10 +665,29 @@ func (x *GenerateAWSOIDCTokenResponse) GetToken() string {
 	return ""
 }
 
+func (x *GenerateAWSOIDCTokenResponse) SetToken(v string) {
+	x.Token = v
+}
+
+type GenerateAWSOIDCTokenResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Token is the signed JWT ready to be used
+	Token string
+}
+
+func (b0 GenerateAWSOIDCTokenResponse_builder) Build() *GenerateAWSOIDCTokenResponse {
+	m0 := &GenerateAWSOIDCTokenResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Token = b.Token
+	return m0
+}
+
 // GenerateAzureOIDCTokenRequest are the parameters used to request an Azure OIDC
 // Integration token.
 type GenerateAzureOIDCTokenRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Integration is the Azure OIDC Integration name.
 	// Required.
 	Integration   string `protobuf:"bytes,1,opt,name=integration,proto3" json:"integration,omitempty"`
@@ -535,11 +720,6 @@ func (x *GenerateAzureOIDCTokenRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GenerateAzureOIDCTokenRequest.ProtoReflect.Descriptor instead.
-func (*GenerateAzureOIDCTokenRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{9}
-}
-
 func (x *GenerateAzureOIDCTokenRequest) GetIntegration() string {
 	if x != nil {
 		return x.Integration
@@ -547,9 +727,29 @@ func (x *GenerateAzureOIDCTokenRequest) GetIntegration() string {
 	return ""
 }
 
+func (x *GenerateAzureOIDCTokenRequest) SetIntegration(v string) {
+	x.Integration = v
+}
+
+type GenerateAzureOIDCTokenRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Integration is the Azure OIDC Integration name.
+	// Required.
+	Integration string
+}
+
+func (b0 GenerateAzureOIDCTokenRequest_builder) Build() *GenerateAzureOIDCTokenRequest {
+	m0 := &GenerateAzureOIDCTokenRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Integration = b.Integration
+	return m0
+}
+
 // GenerateAzureOIDCTokenResponse contains a signed Azure OIDC Integration token.
 type GenerateAzureOIDCTokenResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Token is the signed JWT ready to be used
 	Token         string `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -581,11 +781,6 @@ func (x *GenerateAzureOIDCTokenResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GenerateAzureOIDCTokenResponse.ProtoReflect.Descriptor instead.
-func (*GenerateAzureOIDCTokenResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{10}
-}
-
 func (x *GenerateAzureOIDCTokenResponse) GetToken() string {
 	if x != nil {
 		return x.Token
@@ -593,10 +788,29 @@ func (x *GenerateAzureOIDCTokenResponse) GetToken() string {
 	return ""
 }
 
+func (x *GenerateAzureOIDCTokenResponse) SetToken(v string) {
+	x.Token = v
+}
+
+type GenerateAzureOIDCTokenResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Token is the signed JWT ready to be used
+	Token string
+}
+
+func (b0 GenerateAzureOIDCTokenResponse_builder) Build() *GenerateAzureOIDCTokenResponse {
+	m0 := &GenerateAzureOIDCTokenResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Token = b.Token
+	return m0
+}
+
 // GenerateGitHubUserCertRequest is a request to sign a client certificate used by
 // GitHub integration to authenticate with GitHub enterprise.
 type GenerateGitHubUserCertRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Integration is the name of the integration;
 	Integration string `protobuf:"bytes,1,opt,name=integration,proto3" json:"integration,omitempty"`
 	// PublicKey is the public key to be signed.
@@ -636,11 +850,6 @@ func (x *GenerateGitHubUserCertRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GenerateGitHubUserCertRequest.ProtoReflect.Descriptor instead.
-func (*GenerateGitHubUserCertRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{11}
-}
-
 func (x *GenerateGitHubUserCertRequest) GetIntegration() string {
 	if x != nil {
 		return x.Integration
@@ -676,9 +885,70 @@ func (x *GenerateGitHubUserCertRequest) GetTtl() *durationpb.Duration {
 	return nil
 }
 
+func (x *GenerateGitHubUserCertRequest) SetIntegration(v string) {
+	x.Integration = v
+}
+
+func (x *GenerateGitHubUserCertRequest) SetPublicKey(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.PublicKey = v
+}
+
+func (x *GenerateGitHubUserCertRequest) SetUserId(v string) {
+	x.UserId = v
+}
+
+func (x *GenerateGitHubUserCertRequest) SetKeyId(v string) {
+	x.KeyId = v
+}
+
+func (x *GenerateGitHubUserCertRequest) SetTtl(v *durationpb.Duration) {
+	x.Ttl = v
+}
+
+func (x *GenerateGitHubUserCertRequest) HasTtl() bool {
+	if x == nil {
+		return false
+	}
+	return x.Ttl != nil
+}
+
+func (x *GenerateGitHubUserCertRequest) ClearTtl() {
+	x.Ttl = nil
+}
+
+type GenerateGitHubUserCertRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Integration is the name of the integration;
+	Integration string
+	// PublicKey is the public key to be signed.
+	PublicKey []byte
+	// UserId is the GitHub user id.
+	UserId string
+	// KeyId is the certificate ID, usually the Teleport username.
+	KeyId string
+	// Ttl is the duration the certificate will be valid for.
+	Ttl *durationpb.Duration
+}
+
+func (b0 GenerateGitHubUserCertRequest_builder) Build() *GenerateGitHubUserCertRequest {
+	m0 := &GenerateGitHubUserCertRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Integration = b.Integration
+	x.PublicKey = b.PublicKey
+	x.UserId = b.UserId
+	x.KeyId = b.KeyId
+	x.Ttl = b.Ttl
+	return m0
+}
+
 // GenerateGitHubUserCertResponse contains a signed certificate.
 type GenerateGitHubUserCertResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// AuthorizedKey is the signed certificate.
 	AuthorizedKey []byte `protobuf:"bytes,1,opt,name=authorized_key,json=authorizedKey,proto3" json:"authorized_key,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -710,11 +980,6 @@ func (x *GenerateGitHubUserCertResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GenerateGitHubUserCertResponse.ProtoReflect.Descriptor instead.
-func (*GenerateGitHubUserCertResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{12}
-}
-
 func (x *GenerateGitHubUserCertResponse) GetAuthorizedKey() []byte {
 	if x != nil {
 		return x.AuthorizedKey
@@ -722,10 +987,32 @@ func (x *GenerateGitHubUserCertResponse) GetAuthorizedKey() []byte {
 	return nil
 }
 
+func (x *GenerateGitHubUserCertResponse) SetAuthorizedKey(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.AuthorizedKey = v
+}
+
+type GenerateGitHubUserCertResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// AuthorizedKey is the signed certificate.
+	AuthorizedKey []byte
+}
+
+func (b0 GenerateGitHubUserCertResponse_builder) Build() *GenerateGitHubUserCertResponse {
+	m0 := &GenerateGitHubUserCertResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.AuthorizedKey = b.AuthorizedKey
+	return m0
+}
+
 // ExportIntegrationCertAuthoritiesRequest is the request to export cert
 // authorities for an integration.
 type ExportIntegrationCertAuthoritiesRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Integration is the name of the integration;
 	Integration   string `protobuf:"bytes,1,opt,name=integration,proto3" json:"integration,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -757,11 +1044,6 @@ func (x *ExportIntegrationCertAuthoritiesRequest) ProtoReflect() protoreflect.Me
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ExportIntegrationCertAuthoritiesRequest.ProtoReflect.Descriptor instead.
-func (*ExportIntegrationCertAuthoritiesRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{13}
-}
-
 func (x *ExportIntegrationCertAuthoritiesRequest) GetIntegration() string {
 	if x != nil {
 		return x.Integration
@@ -769,10 +1051,29 @@ func (x *ExportIntegrationCertAuthoritiesRequest) GetIntegration() string {
 	return ""
 }
 
+func (x *ExportIntegrationCertAuthoritiesRequest) SetIntegration(v string) {
+	x.Integration = v
+}
+
+type ExportIntegrationCertAuthoritiesRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Integration is the name of the integration;
+	Integration string
+}
+
+func (b0 ExportIntegrationCertAuthoritiesRequest_builder) Build() *ExportIntegrationCertAuthoritiesRequest {
+	m0 := &ExportIntegrationCertAuthoritiesRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Integration = b.Integration
+	return m0
+}
+
 // ExportIntegrationCertAuthoritiesResponse is the response to
 // ExportIntegrationCertAuthorities.
 type ExportIntegrationCertAuthoritiesResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// CertAuthorities are the CA key sets used to sign any new certificates.
 	CertAuthorities *types.CAKeySet `protobuf:"bytes,1,opt,name=cert_authorities,json=certAuthorities,proto3" json:"cert_authorities,omitempty"`
 	unknownFields   protoimpl.UnknownFields
@@ -804,11 +1105,6 @@ func (x *ExportIntegrationCertAuthoritiesResponse) ProtoReflect() protoreflect.M
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ExportIntegrationCertAuthoritiesResponse.ProtoReflect.Descriptor instead.
-func (*ExportIntegrationCertAuthoritiesResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{14}
-}
-
 func (x *ExportIntegrationCertAuthoritiesResponse) GetCertAuthorities() *types.CAKeySet {
 	if x != nil {
 		return x.CertAuthorities
@@ -816,10 +1112,40 @@ func (x *ExportIntegrationCertAuthoritiesResponse) GetCertAuthorities() *types.C
 	return nil
 }
 
+func (x *ExportIntegrationCertAuthoritiesResponse) SetCertAuthorities(v *types.CAKeySet) {
+	x.CertAuthorities = v
+}
+
+func (x *ExportIntegrationCertAuthoritiesResponse) HasCertAuthorities() bool {
+	if x == nil {
+		return false
+	}
+	return x.CertAuthorities != nil
+}
+
+func (x *ExportIntegrationCertAuthoritiesResponse) ClearCertAuthorities() {
+	x.CertAuthorities = nil
+}
+
+type ExportIntegrationCertAuthoritiesResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// CertAuthorities are the CA key sets used to sign any new certificates.
+	CertAuthorities *types.CAKeySet
+}
+
+func (b0 ExportIntegrationCertAuthoritiesResponse_builder) Build() *ExportIntegrationCertAuthoritiesResponse {
+	m0 := &ExportIntegrationCertAuthoritiesResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.CertAuthorities = b.CertAuthorities
+	return m0
+}
+
 // GenerateAWSRACredentialsRequest is a request to generate AWS credentials
 // using the AWS IAM Roles Anywhere integration.
 type GenerateAWSRACredentialsRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Integration is the name of the integration;
 	// Must be an AWS IAM Roles Anywhere integration.
 	Integration string `protobuf:"bytes,1,opt,name=integration,proto3" json:"integration,omitempty"`
@@ -864,11 +1190,6 @@ func (x *GenerateAWSRACredentialsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GenerateAWSRACredentialsRequest.ProtoReflect.Descriptor instead.
-func (*GenerateAWSRACredentialsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{15}
-}
-
 func (x *GenerateAWSRACredentialsRequest) GetIntegration() string {
 	if x != nil {
 		return x.Integration
@@ -911,10 +1232,78 @@ func (x *GenerateAWSRACredentialsRequest) GetSessionMaxDuration() *durationpb.Du
 	return nil
 }
 
+func (x *GenerateAWSRACredentialsRequest) SetIntegration(v string) {
+	x.Integration = v
+}
+
+func (x *GenerateAWSRACredentialsRequest) SetProfileArn(v string) {
+	x.ProfileArn = v
+}
+
+func (x *GenerateAWSRACredentialsRequest) SetProfileAcceptsRoleSessionName(v bool) {
+	x.ProfileAcceptsRoleSessionName = v
+}
+
+func (x *GenerateAWSRACredentialsRequest) SetRoleArn(v string) {
+	x.RoleArn = v
+}
+
+func (x *GenerateAWSRACredentialsRequest) SetSubjectName(v string) {
+	x.SubjectName = v
+}
+
+func (x *GenerateAWSRACredentialsRequest) SetSessionMaxDuration(v *durationpb.Duration) {
+	x.SessionMaxDuration = v
+}
+
+func (x *GenerateAWSRACredentialsRequest) HasSessionMaxDuration() bool {
+	if x == nil {
+		return false
+	}
+	return x.SessionMaxDuration != nil
+}
+
+func (x *GenerateAWSRACredentialsRequest) ClearSessionMaxDuration() {
+	x.SessionMaxDuration = nil
+}
+
+type GenerateAWSRACredentialsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Integration is the name of the integration;
+	// Must be an AWS IAM Roles Anywhere integration.
+	Integration string
+	// ProfileARN is the ARN of the AWS IAM Roles Anywhere profile.
+	ProfileArn string
+	// ProfileAcceptsRoleSessionName indicates whether this Profile accepts a role session name.
+	// Setting the role session name when the Profile does not accept it will result in an error.
+	ProfileAcceptsRoleSessionName bool
+	// RoleARN is the ARN of the AWS IAM Role.
+	RoleArn string
+	// SubjectName is the name of the subject to be used in the certificate.
+	SubjectName string
+	// SessionMaxDuration is the maximum duration of the session.
+	// Omit the field to use the Profile's default max session duration.
+	SessionMaxDuration *durationpb.Duration
+}
+
+func (b0 GenerateAWSRACredentialsRequest_builder) Build() *GenerateAWSRACredentialsRequest {
+	m0 := &GenerateAWSRACredentialsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Integration = b.Integration
+	x.ProfileArn = b.ProfileArn
+	x.ProfileAcceptsRoleSessionName = b.ProfileAcceptsRoleSessionName
+	x.RoleArn = b.RoleArn
+	x.SubjectName = b.SubjectName
+	x.SessionMaxDuration = b.SessionMaxDuration
+	return m0
+}
+
 // GenerateAWSRACredentialsResponse contains the AWS credentials generated by the GenerateAWSRACredentialsRequest.
 // The credentials are temporary and will expire after the specified expiration time.
 type GenerateAWSRACredentialsResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// AccessKeyId is an AWS access key id.
 	AccessKeyId string `protobuf:"bytes,1,opt,name=access_key_id,json=accessKeyId,proto3" json:"access_key_id,omitempty"`
 	// SecretAccessKey is the AWS secret access key.
@@ -952,11 +1341,6 @@ func (x *GenerateAWSRACredentialsResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GenerateAWSRACredentialsResponse.ProtoReflect.Descriptor instead.
-func (*GenerateAWSRACredentialsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{16}
-}
-
 func (x *GenerateAWSRACredentialsResponse) GetAccessKeyId() string {
 	if x != nil {
 		return x.AccessKeyId
@@ -983,6 +1367,57 @@ func (x *GenerateAWSRACredentialsResponse) GetExpiration() *timestamppb.Timestam
 		return x.Expiration
 	}
 	return nil
+}
+
+func (x *GenerateAWSRACredentialsResponse) SetAccessKeyId(v string) {
+	x.AccessKeyId = v
+}
+
+func (x *GenerateAWSRACredentialsResponse) SetSecretAccessKey(v string) {
+	x.SecretAccessKey = v
+}
+
+func (x *GenerateAWSRACredentialsResponse) SetSessionToken(v string) {
+	x.SessionToken = v
+}
+
+func (x *GenerateAWSRACredentialsResponse) SetExpiration(v *timestamppb.Timestamp) {
+	x.Expiration = v
+}
+
+func (x *GenerateAWSRACredentialsResponse) HasExpiration() bool {
+	if x == nil {
+		return false
+	}
+	return x.Expiration != nil
+}
+
+func (x *GenerateAWSRACredentialsResponse) ClearExpiration() {
+	x.Expiration = nil
+}
+
+type GenerateAWSRACredentialsResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// AccessKeyId is an AWS access key id.
+	AccessKeyId string
+	// SecretAccessKey is the AWS secret access key.
+	SecretAccessKey string
+	// SessionToken is the the AWS session token for temporary credentials.
+	SessionToken string
+	// Expiration is the timestamp string when the credentials expires.
+	Expiration *timestamppb.Timestamp
+}
+
+func (b0 GenerateAWSRACredentialsResponse_builder) Build() *GenerateAWSRACredentialsResponse {
+	m0 := &GenerateAWSRACredentialsResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.AccessKeyId = b.AccessKeyId
+	x.SecretAccessKey = b.SecretAccessKey
+	x.SessionToken = b.SessionToken
+	x.Expiration = b.Expiration
+	return m0
 }
 
 var File_teleport_integration_v1_integration_service_proto protoreflect.FileDescriptor
@@ -1058,18 +1493,6 @@ const file_teleport_integration_v1_integration_service_proto_rawDesc = "" +
 	"\x16GenerateGitHubUserCert\x126.teleport.integration.v1.GenerateGitHubUserCertRequest\x1a7.teleport.integration.v1.GenerateGitHubUserCertResponse\x12\xa7\x01\n" +
 	" ExportIntegrationCertAuthorities\x12@.teleport.integration.v1.ExportIntegrationCertAuthoritiesRequest\x1aA.teleport.integration.v1.ExportIntegrationCertAuthoritiesResponse\x12\x8f\x01\n" +
 	"\x18GenerateAWSRACredentials\x128.teleport.integration.v1.GenerateAWSRACredentialsRequest\x1a9.teleport.integration.v1.GenerateAWSRACredentialsResponseBZZXgithub.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1;integrationv1b\x06proto3"
-
-var (
-	file_teleport_integration_v1_integration_service_proto_rawDescOnce sync.Once
-	file_teleport_integration_v1_integration_service_proto_rawDescData []byte
-)
-
-func file_teleport_integration_v1_integration_service_proto_rawDescGZIP() []byte {
-	file_teleport_integration_v1_integration_service_proto_rawDescOnce.Do(func() {
-		file_teleport_integration_v1_integration_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_integration_v1_integration_service_proto_rawDesc), len(file_teleport_integration_v1_integration_service_proto_rawDesc)))
-	})
-	return file_teleport_integration_v1_integration_service_proto_rawDescData
-}
 
 var file_teleport_integration_v1_integration_service_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_teleport_integration_v1_integration_service_proto_goTypes = []any{

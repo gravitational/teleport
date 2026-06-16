@@ -574,7 +574,7 @@ pub struct SharedDirectoryTruncateRequest {
     pub completion_id: u32,
     pub directory_id: u32,
     pub path: UnixPath,
-    pub end_of_file: u32,
+    pub end_of_file: u64,
 }
 
 impl SharedDirectoryTruncateRequest {

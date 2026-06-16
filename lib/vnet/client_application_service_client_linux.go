@@ -43,7 +43,7 @@ func newUnixClientApplicationServiceClient(_ context.Context, socketPath string)
 		return nil, trace.Wrap(err, "creating user process gRPC client")
 	}
 	return &clientApplicationServiceClient{
-		clt:  vnetv1.NewClientApplicationServiceClient(conn),
-		conn: conn,
+		clt:    vnetv1.NewClientApplicationServiceClient(conn),
+		closer: conn,
 	}, nil
 }

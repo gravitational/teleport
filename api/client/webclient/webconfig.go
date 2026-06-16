@@ -136,6 +136,8 @@ type WebConfig struct {
 	MobileDeviceManagement bool `json:"mobileDeviceManagement"`
 	// IdentitySecurity contains identity security features and settings.
 	IdentitySecurity IdentitySecurity `json:"identitySecurity"`
+	// BeamsUI indicates whether the Beams lite-mode UI is enabled
+	BeamsUI bool `json:"beamsUi"`
 }
 
 // IdentitySecurity contains identity security features and settings.

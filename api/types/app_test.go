@@ -1045,3 +1045,98 @@ func TestLLMConfiguration(t *testing.T) {
 		}
 	})
 }
+
+func TestAppTLSMode(t *testing.T) {
+	for name, tc := range map[string]struct {
+		spec         AppSpecV3
+		expectedMode AppTLSMode
+	}{
+		"unsupported protocol": {
+			spec:         AppSpecV3{URI: "tcp://0.0.0.0:8000"},
+			expectedMode: "",
+		},
+		"https insecure": {
+			spec: AppSpecV3{
+				URI: "https://localhost:443",
+				TLS: &AppTLS{
+					Mode: AppTLSModeInsecure,
+				},
+			},
+			expectedMode: AppTLSModeInsecure,
+		},
+		"insecure skip verify is respected": {
+			spec: AppSpecV3{
+				URI:                "https://localhost:80",
+				InsecureSkipVerify: true,
+			},
+			expectedMode: AppTLSModeInsecure,
+		},
+		"https default": {
+			spec:         AppSpecV3{URI: "https://localhost:443"},
+			expectedMode: AppTLSModeVerifyServerName,
+		},
+		"mcp https default": {
+			spec:         AppSpecV3{URI: "mcp+https://localhost:8080"},
+			expectedMode: AppTLSModeVerifyServerName,
+		},
+		"insecure skip verify with mode insecure": {
+			spec: AppSpecV3{
+				URI:                "https://localhost",
+				InsecureSkipVerify: true,
+				TLS:                &AppTLS{Mode: AppTLSModeInsecure},
+			},
+			expectedMode: AppTLSModeInsecure,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			app, err := NewAppV3(Metadata{Name: "myapp"}, tc.spec)
+			require.NoError(t, err)
+			require.Equal(t, tc.expectedMode, app.GetTLSMode())
+		})
+	}
+}
+
+func TestAppClientCertMode(t *testing.T) {
+	for name, tc := range map[string]struct {
+		spec         AppSpecV3
+		expectedMode AppClientCertMode
+	}{
+		"default disabled": {
+			spec:         AppSpecV3{URI: "https://0.0.0.0:8000"},
+			expectedMode: AppClientCertModeDisabled,
+		},
+		"empty tls block returns disabled": {
+			spec: AppSpecV3{
+				URI: "tls://0.0.0.0:8000",
+				TLS: &AppTLS{},
+			},
+			expectedMode: AppClientCertModeDisabled,
+		},
+		"explicit disable": {
+			spec: AppSpecV3{
+				URI: "tls://0.0.0.0:8000",
+				TLS: &AppTLS{
+					Mode:           AppTLSModeVerifyServerName,
+					ClientCertMode: AppClientCertModeDisabled,
+				},
+			},
+			expectedMode: AppClientCertModeDisabled,
+		},
+		"managed": {
+			spec: AppSpecV3{
+				URI: "tls://0.0.0.0:8000",
+				TLS: &AppTLS{
+					Mode:           AppTLSModeVerifyServerName,
+					ClientCertMode: AppClientCertModeManaged,
+				},
+			},
+			expectedMode: AppClientCertModeManaged,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			app, err := NewAppV3(Metadata{Name: "myapp"}, tc.spec)
+			require.NoError(t, err)
+			require.Equal(t, tc.expectedMode, app.GetClientCertMode())
+		})
+	}
+}
