@@ -827,6 +827,48 @@ func TestDeadLetterSweep_RedeliversOnRecovery(t *testing.T) {
 	require.NoError(t, <-runErr)
 }
 
+func TestDeadLetterSweep_DrainsEntireBacklog(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	q, err := newSQLiteQueue(Config{
+		Path:                    filepath.Join(t.TempDir(), queueDir),
+		MaxAttempts:             1,         // promote on the first failure
+		DeadLetterSweepInterval: time.Hour, // we drive the sweep manually
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = q.Close() })
+
+	const total = dequeueBatchSize*2 + 10
+	for i := int64(0); i < total; i++ {
+		require.NoError(t, q.Enqueue(ctx, newTestEvent(i)))
+	}
+	items, err := q.fetch(total)
+	require.NoError(t, err)
+	require.Len(t, items, total)
+	promoted, err := q.processFailedDeliveries(items)
+	require.NoError(t, err)
+	require.Equal(t, total, promoted)
+
+	dlItems, err := q.fetchDeadLetter(total)
+	require.NoError(t, err)
+	require.Len(t, dlItems, total, "all events should be in the dead-letter table before the sweep")
+
+	var delivered atomic.Int64
+	handler := func(_ context.Context, items []Item) []Item {
+		delivered.Add(int64(len(items)))
+		return items
+	}
+	q.sweepDeadLetter(ctx, handler)
+
+	require.Equal(t, int64(total), delivered.Load(),
+		"a single sweep should redeliver the entire dead-letter backlog")
+
+	remaining, err := q.fetchDeadLetter(total)
+	require.NoError(t, err)
+	require.Empty(t, remaining, "dead-letter table should be empty after a full sweep")
+}
+
 func TestDeadLetterTTL_ExpiresOldRows(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
