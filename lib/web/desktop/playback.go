@@ -26,9 +26,9 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/player"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -53,13 +53,47 @@ const (
 	actionSeek = playbackAction("seek")
 )
 
+// Validate ensures that playback action matches one of the
+// playbackAction constants.
+func (a *playbackAction) Validate() error {
+	switch *a {
+	case actionPlayPause, actionSpeed, actionSeek:
+		return nil
+	default:
+		return trace.BadParameter("invalid playback action")
+	}
+}
+
+type playbackSpeed float64
+
+// Coerce coerces playback speed into the acceptable
+// range [minPlaybackSpeed, maxPlaybackSpeed].
+func (p *playbackSpeed) Coerce() {
+	*p = max(*p, minPlaybackSpeed)
+	*p = min(*p, maxPlaybackSpeed)
+}
+
 // actionMessage is a message passed from the playback client
 // to the server over the websocket connection in order to
 // control playback.
 type actionMessage struct {
 	Action        playbackAction `json:"action"`
-	PlaybackSpeed float64        `json:"speed,omitempty"`
+	PlaybackSpeed playbackSpeed  `json:"speed,omitempty"`
 	Pos           int64          `json:"pos"`
+}
+
+// JSONReader is used to read JSON messages containing
+// commands for the session player.
+type JSONReader interface {
+	ReadJSON(v any) error
+}
+
+// PlayerController models the session player.
+type PlayerController interface {
+	SetPos(time.Duration) error
+	SetSpeed(float64) error
+	Pause() error
+	Play() error
 }
 
 // ReceivePlaybackActions handles logic for receiving playbackAction messages
@@ -67,21 +101,21 @@ type actionMessage struct {
 func ReceivePlaybackActions(
 	ctx context.Context,
 	logger *slog.Logger,
-	ws *websocket.Conn,
-	player *player.Player) {
+	reader JSONReader,
+	player PlayerController) error {
 	// playback always starts in a playing state
 	playing := true
 
 	for {
 		var action actionMessage
+		err := reader.ReadJSON(&action)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 
-		if err := ws.ReadJSON(&action); err != nil {
-			// Connection close errors are expected if the user closes the tab.
-			// Only log unexpected errors to avoid cluttering the logs.
-			if !utils.IsOKNetworkError(err) {
-				logger.WarnContext(ctx, "websocket read error", "error", err)
-			}
-			return
+		err = action.Action.Validate()
+		if err != nil {
+			return trace.Wrap(err)
 		}
 
 		switch action.Action {
@@ -93,26 +127,32 @@ func ReceivePlaybackActions(
 			}
 			playing = !playing
 		case actionSpeed:
-			action.PlaybackSpeed = max(action.PlaybackSpeed, minPlaybackSpeed)
-			action.PlaybackSpeed = min(action.PlaybackSpeed, maxPlaybackSpeed)
-			player.SetSpeed(action.PlaybackSpeed)
+			action.PlaybackSpeed.Coerce()
+			player.SetSpeed(float64(action.PlaybackSpeed))
 		case actionSeek:
 			player.SetPos(time.Duration(action.Pos) * time.Millisecond)
 		default:
 			slog.WarnContext(ctx, "invalid desktop playback action", "action", action.Action)
-			return
+			return trace.BadParameter("invalid desktop action")
 		}
 	}
 }
 
-// PlayRecording feeds recorded events from a player
-// over a websocket.
-func PlayRecording(
+// RecordingPlayer models the read actions of the session player.
+type RecordingPlayer interface {
+	C() <-chan events.AuditEvent
+	Err() error
+}
+
+// StreamRecording adapts the RecordingPlayer to a websocket by reading from C(),
+// marshaling events to JSON, and writing them to the connection. Automatically
+// writes a sentinel or error message to the websocket when the player exits.
+// It does *not* drain the player's event channel upon context cancellation.
+func StreamRecording(
 	ctx context.Context,
 	log *slog.Logger,
 	ws *websocket.Conn,
-	player *player.Player) {
-	player.Play()
+	player RecordingPlayer) {
 	for {
 		select {
 		case <-ctx.Done():

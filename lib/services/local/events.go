@@ -291,6 +291,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newInferencePolicyParser()
 		case types.KindInferenceSecret:
 			parser = newInferenceSecretParser()
+		case types.KindClassifier:
+			parser = newClassifierParser()
 		case types.KindRetrievalModel:
 			parser = newRetrievalModelParser()
 		case types.KindCertAuthorityOverride:

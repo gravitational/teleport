@@ -318,3 +318,110 @@ func TestValidateInferencePolicy(t *testing.T) {
 		})
 	}
 }
+
+func newTestClassifier(name string, kinds []string, filter string) *summarizerv1.Classifier {
+	return apisummarizer.NewClassifier(name, summarizerv1.ClassifierSpec_builder{
+		Kinds:    kinds,
+		Filter:   filter,
+		Criteria: "sessions that touch production data",
+	}.Build())
+}
+
+func TestMatchingClassifiers(t *testing.T) {
+	t.Parallel()
+
+	user, err := types.NewUser("alice")
+	require.NoError(t, err)
+
+	server, err := types.NewServer("server-1", types.KindNode, types.ServerSpecV2{Hostname: "host-1"})
+	require.NoError(t, err)
+	server.SetStaticLabels(map[string]string{"env": "prod"})
+
+	matchingCtx := &InferencePolicyMatchingContext{
+		User:     user,
+		Resource: server,
+	}
+
+	all := []*summarizerv1.Classifier{
+		newTestClassifier("ssh-any", []string{"ssh"}, ""),
+		newTestClassifier("ssh-prod", []string{"ssh"}, `equals(resource.metadata.labels["env"], "prod")`),
+		newTestClassifier("ssh-dev", []string{"ssh"}, `equals(resource.metadata.labels["env"], "dev")`),
+		newTestClassifier("ssh-alice", []string{"ssh"}, `equals(user.metadata.name, "alice")`),
+		newTestClassifier("db-any", []string{"db"}, ""),
+	}
+	classifiers := func(yield func(*summarizerv1.Classifier, error) bool) {
+		for _, c := range all {
+			if !yield(c, nil) {
+				return
+			}
+		}
+	}
+
+	matched, err := MatchingClassifiers(classifiers, types.SSHSessionKind, matchingCtx)
+	require.NoError(t, err)
+	names := make([]string, 0, len(matched))
+	for _, c := range matched {
+		names = append(names, c.GetMetadata().GetName())
+	}
+	assert.Equal(t, []string{"ssh-any", "ssh-prod", "ssh-alice"}, names)
+
+	matched, err = MatchingClassifiers(classifiers, types.DatabaseSessionKind, matchingCtx)
+	require.NoError(t, err)
+	require.Len(t, matched, 1)
+	assert.Equal(t, "db-any", matched[0].GetMetadata().GetName())
+
+	matched, err = MatchingClassifiers(classifiers, types.KubernetesSessionKind, matchingCtx)
+	require.NoError(t, err)
+	assert.Empty(t, matched)
+
+	iterErr := trace.BadParameter("backend failure")
+	failing := func(yield func(*summarizerv1.Classifier, error) bool) {
+		yield(nil, iterErr)
+	}
+	_, err = MatchingClassifiers(failing, types.SSHSessionKind, matchingCtx)
+	require.ErrorIs(t, err, iterErr)
+
+	invalid := []*summarizerv1.Classifier{
+		newTestClassifier("bad-filter", []string{"ssh"}, "$%^@$"),
+	}
+	invalidSeq := func(yield func(*summarizerv1.Classifier, error) bool) {
+		for _, c := range invalid {
+			if !yield(c, nil) {
+				return
+			}
+		}
+	}
+	_, err = MatchingClassifiers(invalidSeq, types.SSHSessionKind, matchingCtx)
+	require.Error(t, err)
+}
+
+func TestValidateClassifier(t *testing.T) {
+	t.Parallel()
+
+	c := newTestClassifier(
+		"my-classifier",
+		[]string{"ssh", "k8s", "db"},
+		`equals(resource.metadata.labels["env"], "prod") || equals(user.metadata.name, "admin")`,
+	)
+	require.NoError(t, ValidateClassifier(c))
+
+	// Empty filter should also be valid.
+	c.GetSpec().SetFilter("")
+	require.NoError(t, ValidateClassifier(c))
+
+	// Filter syntax errors are rejected.
+	c.GetSpec().SetFilter("$%^@$")
+	err := ValidateClassifier(c)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "spec.filter has to be a valid predicate")
+
+	c.GetSpec().SetFilter("user.metadata.name")
+	err = ValidateClassifier(c)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "spec.filter has to be a boolean expression")
+
+	// Errors from the api-level validation propagate.
+	c.GetSpec().SetFilter("")
+	c.GetSpec().SetCriteria("")
+	assert.ErrorContains(t, ValidateClassifier(c), "spec.criteria is required")
+}
