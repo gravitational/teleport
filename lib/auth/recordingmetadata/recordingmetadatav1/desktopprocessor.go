@@ -133,7 +133,7 @@ func (d *desktopProcessor) trackActivity(eventTime time.Time) {
 	bigRepaint := fa.changedPixels >= desktopActivityMinPixels(fa.screenW, fa.screenH)
 	typing := d.activityFrames >= desktopActivityMinLocations
 
-	if !cursorMoved && !bigRepaint && !typing {
+	if !cursorMoved && !fa.mouseButton && !bigRepaint && !typing {
 		// Incidental change (clock tick, blinking caret) confined to a static spot, not activity.
 		return
 	}

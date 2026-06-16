@@ -166,7 +166,9 @@ type frameActivity struct {
 	changedPixels int
 	// regions are the rectangles that changed this frame; their positions let the processor tell typing
 	// apart from a fixed clock or caret.
-	regions          []image.Rectangle
+	regions []image.Rectangle
+	// mouseButton is set when this frame carried a mouse button press or release.
+	mouseButton      bool
 	cursorX, cursorY uint16
 	screenW, screenH uint16
 }
@@ -179,6 +181,7 @@ func (d *desktopThumbnailGenerator) consumeFrameActivity() frameActivity {
 		return frameActivity{}
 	}
 	defer d.rdpstate.ResetUpdatedRegions()
+	defer d.rdpstate.ResetMouseButtonInput()
 
 	regions := d.rdpstate.UpdatedRegions()
 
@@ -196,6 +199,7 @@ func (d *desktopThumbnailGenerator) consumeFrameActivity() frameActivity {
 	return frameActivity{
 		changedPixels: changed,
 		regions:       regions,
+		mouseButton:   d.rdpstate.MouseButtonInput(),
 		cursorX:       cursor.X,
 		cursorY:       cursor.Y,
 		screenW:       w,

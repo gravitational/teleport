@@ -324,6 +324,22 @@ func TestDesktopRecordingProcessor_InactivityEvents(t *testing.T) {
 			},
 			expected: []offsets{{start: 1 * time.Second, end: 20 * time.Second}},
 		},
+		{
+			// A mouse click is recorded as input but doesn't move the cursor or repaint; it must still
+			// count as activity.
+			name: "mouse click without a repaint counts as activity",
+			events: []apievents.AuditEvent{
+				desktopSessionStartEvent(startTime),
+				desktopServerHelloEvent(t, startTime.Add(100*time.Millisecond), 256, 256),
+				bigFrame(startTime.Add(1*time.Second), rdpstatetest.RGB565White),
+				desktopMouseButtonEvent(t, startTime.Add(15*time.Second)),
+				desktopSessionEndEvent(startTime.Add(40 * time.Second)),
+			},
+			expected: []offsets{
+				{start: 1 * time.Second, end: 15 * time.Second},
+				{start: 15 * time.Second, end: 40 * time.Second},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -450,6 +466,18 @@ func desktopMouseMoveEvent(t *testing.T, eventTime time.Time, x, y uint32) *apie
 	t.Helper()
 
 	evt, err := rdpstatetest.LegacyMouseMove(x, y)
+	require.NoError(t, err)
+
+	evt.Metadata.Time = eventTime
+
+	return evt
+}
+
+// desktopMouseButtonEvent builds a DesktopRecording carrying a mouse button press at eventTime.
+func desktopMouseButtonEvent(t *testing.T, eventTime time.Time) *apievents.DesktopRecording {
+	t.Helper()
+
+	evt, err := rdpstatetest.EncodeTDPBMouseButton(true)
 	require.NoError(t, err)
 
 	evt.Metadata.Time = eventTime
