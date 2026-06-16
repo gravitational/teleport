@@ -5029,6 +5029,11 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 
+	alpnLimiter, err := limiter.NewLimiter(cfg.Proxy.Limiter)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// make a caching auth client for the auth server:
 	accessPoint, err := process.newLocalCacheForProxy(conn.Client, []string{teleport.ComponentProxy})
 	if err != nil {
@@ -6334,7 +6339,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			Listener:          listeners.alpn,
 			ClusterName:       clusterName,
 			AccessPoint:       accessPoint,
-			Limiter:           proxyLimiter,
+			Limiter:           alpnLimiter,
 		})
 		if err != nil {
 			return trace.Wrap(err)
