@@ -41,9 +41,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authtest"
@@ -336,6 +338,51 @@ func subject(t *testing.T, id tlsca.Identity) pkix.Name {
 	// Since we're just mimicking certs in memory, move manually.
 	s.Names = s.ExtraNames
 	return s
+}
+
+// TestMiddlewareGetUserAgentScopePin verifies that GetUser returns a
+// ScopedBuiltinRole when the TLS certificate carries an AgentScopePin.
+func TestMiddlewareGetUserAgentScopePin(t *testing.T) {
+	t.Parallel()
+	const (
+		localClusterName = "local"
+		serverFQDN       = "node-uuid.local"
+	)
+
+	now := time.Now().UTC()
+
+	agentPin := &scopesv1.Pin{
+		Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
+		Scope: "/",
+		SystemRoles: &scopesv1.SystemRoles{
+			Primary: string(types.RoleNode),
+		},
+	}
+
+	identity := tlsca.Identity{
+		Username:          serverFQDN,
+		TeleportCluster:   localClusterName,
+		OriginClusterName: localClusterName,
+		ScopePin:          agentPin,
+		Expires:           now,
+	}
+
+	m := &auth.Middleware{ClusterName: localClusterName}
+	id, err := m.GetUser(tls.ConnectionState{
+		PeerCertificates: []*x509.Certificate{{
+			Subject:  subject(t, identity),
+			NotAfter: now,
+			Issuer:   pkix.Name{Organization: []string{localClusterName}},
+		}},
+	})
+	require.NoError(t, err)
+
+	got, ok := id.(authz.ScopedBuiltinRole)
+	require.True(t, ok, "expected ScopedBuiltinRole, got %T", id)
+	require.Empty(t, cmp.Diff(agentPin, got.ScopePin, protocmp.Transform()))
+	require.Equal(t, serverFQDN, got.ServerFQDN)
+	require.Equal(t, localClusterName, got.ClusterName)
+	require.Empty(t, cmp.Diff(identity, got.Identity, cmpopts.EquateEmpty(), protocmp.Transform()))
 }
 
 func TestMiddleware_ServeHTTP(t *testing.T) {

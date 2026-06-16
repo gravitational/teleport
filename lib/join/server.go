@@ -459,7 +459,7 @@ func (s *Server) authenticate(ctx context.Context, diag *diagnostic.Diagnostic, 
 		HostID:        hostID,
 		BotInstanceID: botInstanceID,
 		BotGeneration: botGeneration,
-		Scope:         id.AgentScope,
+		Scope:         id.GetAgentScope(),
 	}, nil
 }
 
