@@ -84,6 +84,22 @@ func TestKubeDetails_ResolveResourceTargetedDiscoveryOnMiss(t *testing.T) {
 	require.Equal(t, calls, client.calls)
 }
 
+// A SelfSubjectAccessReview (kubectl auth can-i) often omits the API version. A miss still
+// discovers the kind by resolving the group's preferred version, matching the data path.
+func TestKubeDetails_ResolveResourceWithoutVersion(t *testing.T) {
+	t.Parallel()
+	client := &fakeDiscoveryClientSet{resources: []*metav1.APIResourceList{coreList()}}
+	codecs, rbac, gvk, err := newClusterSchemaBuilder(logtest.NewLogger(), client)
+	require.NoError(t, err)
+	details := &kubeDetails{kubeCreds: &staticKubeCreds{kubeClient: client}, kubeCodecs: codecs, rbacSupportedTypes: rbac, gvkSupportedResources: gvk}
+
+	// Install the CRD after startup, then resolve it without a version.
+	client.resources = []*metav1.APIResourceList{coreList(), argoList()}
+	res, found := details.resolveResource("argoproj.io", "", "applications")
+	require.True(t, found)
+	require.Equal(t, "applications", res.Name)
+}
+
 // fakeDiscoveryClientSet serves a swappable set of API resources and counts
 // discovery calls. Not safe for concurrent use.
 type fakeDiscoveryClientSet struct {
@@ -108,6 +124,17 @@ func (c *fakeDiscoveryClientSet) ServerResourcesForGroupVersion(gv string) (*met
 		}
 	}
 	return nil, apierrors.NewNotFound(schema.GroupResource{Group: gv}, "")
+}
+
+func (c *fakeDiscoveryClientSet) ServerGroups() (*metav1.APIGroupList, error) {
+	c.calls++
+	out := &metav1.APIGroupList{}
+	for _, l := range c.resources {
+		group, version := getKubeAPIGroupAndVersion(l.GroupVersion)
+		gvfd := metav1.GroupVersionForDiscovery{GroupVersion: l.GroupVersion, Version: version}
+		out.Groups = append(out.Groups, metav1.APIGroup{Name: group, Versions: []metav1.GroupVersionForDiscovery{gvfd}, PreferredVersion: gvfd})
+	}
+	return out, nil
 }
 
 func coreList() *metav1.APIResourceList {

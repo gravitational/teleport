@@ -279,15 +279,22 @@ func (k *kubeDetails) resolveResource(apiGroup, apiGroupVersion, resourceKind st
 }
 
 // refreshGroupVersion discovers a single API group-version and merges any new resources into the cache.
-// Concurrent calls for the same group-version are coalesced.
-// A discovery error leaves the kind absent (and thus denied).
+// When the version is empty (SelfSubjectAccessReview requests often omit it) it resolves the group's
+// preferred version first. Concurrent calls for the same group(-version) are coalesced — including the
+// preferred-version lookup — so version-less requests don't each hit discovery. A discovery error leaves
+// the kind absent (and thus denied).
 func (k *kubeDetails) refreshGroupVersion(apiGroup, apiGroupVersion string) {
-	if k.kubeCreds == nil || apiGroupVersion == "" {
+	if k.kubeCreds == nil {
 		return
 	}
-	gv := schema.GroupVersion{Group: apiGroup, Version: apiGroupVersion}
-
-	_, _, _ = k.refreshGroup.Do(gv.String(), func() (any, error) {
+	_, _, _ = k.refreshGroup.Do(apiGroup+"/"+apiGroupVersion, func() (any, error) {
+		version := apiGroupVersion
+		if version == "" {
+			if version = k.preferredVersionForGroup(apiGroup); version == "" {
+				return nil, nil
+			}
+		}
+		gv := schema.GroupVersion{Group: apiGroup, Version: version}
 		list, err := k.getKubeClient().Discovery().ServerResourcesForGroupVersion(gv.String())
 		if err != nil {
 			return nil, nil
@@ -295,6 +302,21 @@ func (k *kubeDetails) refreshGroupVersion(apiGroup, apiGroupVersion string) {
 		k.mergeGroupVersion(gv, list)
 		return nil, nil
 	})
+}
+
+// preferredVersionForGroup returns the cluster's preferred version for an API group, or "" if the
+// group can't be resolved. Lets resolveResource discover a group whose version the caller didn't supply.
+func (k *kubeDetails) preferredVersionForGroup(apiGroup string) string {
+	groups, err := k.getKubeClient().Discovery().ServerGroups()
+	if err != nil {
+		return ""
+	}
+	for _, g := range groups.Groups {
+		if g.Name == apiGroup {
+			return g.PreferredVersion.Version
+		}
+	}
+	return ""
 }
 
 // mergeGroupVersion merges a group-version's resources into the cached RBAC types, GVK map, and codec scheme,
