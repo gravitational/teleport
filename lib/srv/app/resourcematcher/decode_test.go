@@ -107,6 +107,47 @@ func TestTokenizeDecodeIterations(t *testing.T) {
 	}
 }
 
+// TestRejectIllegalPathBytes pins the RFC 3986 path-character gate: pchar,
+// "/", and "%" are admitted; anything else in the raw path is rejected.
+func TestRejectIllegalPathBytes(t *testing.T) {
+	legal := []string{
+		"/api/v4/projects",
+		"/api/@@@",                        // "@" is a pchar
+		"/api/(group)/sub.tree",           // sub-delims and unreserved
+		"/api/a:b/c,d/e=f/g;h",            // ":" and sub-delims
+		"/api/a-b_c~d!$&'()*+,;=",         // the full unreserved and sub-delim set
+		"/api/v4/projects/group%2Frepo/x", // percent-encoded, admitted here
+	}
+	for _, p := range legal {
+		t.Run("legal "+p, func(t *testing.T) {
+			_, err := Tokenize(p, DecodeConfig{AllowPercent: true})
+			require.NoError(t, err)
+		})
+	}
+
+	illegal := []string{
+		"/api/a b",  // space
+		"/api/a\"b", // double quote
+		"/api/a<b",  // angle bracket
+		"/api/a>b",  // angle bracket
+		"/api/a{b}", // braces
+		"/api/a|b",  // pipe
+		"/api/a^b",  // caret
+		"/api/a`b",  // backtick
+		"/api/a\\b", // backslash
+		"/api/a[b]", // square brackets
+		"/api/a#b",  // fragment delimiter
+		"/api/a?b",  // query delimiter
+		"/api/café", // raw non-ASCII, must be percent-encoded
+	}
+	for _, p := range illegal {
+		t.Run("illegal "+p, func(t *testing.T) {
+			_, err := Tokenize(p, DecodeConfig{AllowPercent: true})
+			require.Error(t, err)
+		})
+	}
+}
+
 // TestDecodeIterationsChangesMatch pins the end-to-end effect through a rule:
 // the same request and pattern match or not depending on the iteration count,
 // because the count decides whether an encoded slash is one segment or two.

@@ -74,6 +74,14 @@ func Tokenize(path string, cfg DecodeConfig) ([]string, error) {
 	if !strings.HasPrefix(path, "/") {
 		return nil, trace.BadParameter("path %q must start with /", path)
 	}
+	// Reject bytes that cannot legally appear in a raw URL path. This is the
+	// RFC 3986 path set: pchar plus the "/" separator and "%" for encoding.
+	// It is deliberately loose, admitting "@", ":", and every sub-delim, but
+	// it refuses what is definitely not a URL path, such as a raw space, a
+	// control byte, or a non-ASCII byte that should have been percent-encoded.
+	if err := rejectIllegalPathBytes(path); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// Decode first, then apply every safety check to the decoded form, since
 	// that is the byte sequence that gets split and matched.
@@ -114,9 +122,33 @@ func Tokenize(path string, cfg DecodeConfig) ([]string, error) {
 	return segments, nil
 }
 
+// legalPathPunct is the non-alphanumeric byte set allowed in a raw URL path:
+// the RFC 3986 sub-delims, the unreserved marks, ":" and "@" from pchar, the
+// "/" separator, and "%" for percent-encoding.
+const legalPathPunct = "-._~" + "!$&'()*+,;=" + ":@" + "/%"
+
+// rejectIllegalPathBytes rejects any byte that cannot appear in a raw URL path
+// under RFC 3986. It validates the path as it arrives, before decoding, so a
+// percent-encoded byte ("%XX") is admitted here and governed later by the
+// decode and allow_percent rules.
+func rejectIllegalPathBytes(path string) error {
+	for i := range len(path) {
+		b := path[i]
+		switch {
+		case b >= 'A' && b <= 'Z', b >= 'a' && b <= 'z', b >= '0' && b <= '9':
+			continue
+		case strings.IndexByte(legalPathPunct, b) >= 0:
+			continue
+		default:
+			return trace.BadParameter("path %q contains an illegal URL byte %q", path, string(b))
+		}
+	}
+	return nil
+}
+
 // rejectUnsafe rejects bytes whose interpretation may differ between the agent
-// and the upstream. This is the strict default the RFD requires before any
-// rule evaluates.
+// and the upstream and that decoding can surface even when the raw path was
+// legal, such as a backslash from %5C or a control byte from %00.
 func rejectUnsafe(path string) error {
 	if strings.Contains(path, "\\") {
 		return trace.BadParameter("path contains a backslash")
