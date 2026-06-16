@@ -147,7 +147,9 @@ func (f *Forwarder) validateSelfSubjectAccessReview(sess *clusterSession, w http
 			if encodeErr := encoder.Encode(accessReview, w); encodeErr != nil {
 				return trace.Wrap(encodeErr)
 			}
-			return nil
+			// The denied response is already written; signal the caller to stop
+			// forwarding, like the other denial branches below.
+			return trace.AccessDenied("Kubernetes resource kind %q in API group %q is not known to this cluster", resourceKind, group)
 		}
 	}
 	name := accessReview.Spec.ResourceAttributes.Name
