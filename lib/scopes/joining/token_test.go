@@ -1115,6 +1115,116 @@ func TestScopedTokenAzureRoundTrip(t *testing.T) {
 	}, token.GetAzure())
 }
 
+func TestNewTokenGetBot(t *testing.T) {
+	t.Parallel()
+
+	newBotToken := func() *joiningv1.ScopedToken {
+		return joiningv1.ScopedToken_builder{
+			Kind:    types.KindScopedToken,
+			Scope:   "/aa/bb",
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name: "testtoken",
+			}.Build(),
+			Spec: joiningv1.ScopedTokenSpec_builder{
+				Roles:      []string{types.RoleBot.String()},
+				BotScope:   "/aa/bb",
+				BotName:    "test-bot",
+				JoinMethod: string(types.JoinMethodBoundKeypair),
+				UsageMode:  joining.TokenUsageModeBot,
+			}.Build(),
+		}.Build()
+	}
+	newNonBotToken := func() *joiningv1.ScopedToken {
+		return joiningv1.ScopedToken_builder{
+			Kind:    types.KindScopedToken,
+			Scope:   "/aa/bb",
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name: "testtoken",
+			}.Build(),
+			Spec: joiningv1.ScopedTokenSpec_builder{
+				Roles:         []string{types.RoleNode.String()},
+				AssignedScope: "/aa/bb",
+				JoinMethod:    string(types.JoinMethodToken),
+				UsageMode:     string(joining.TokenUsageModeUnlimited),
+			}.Build(),
+		}.Build()
+	}
+
+	cases := []struct {
+		name             string
+		token            *joiningv1.ScopedToken
+		modFn            func(*joiningv1.ScopedToken)
+		expectedBotName  string
+		expectedBotScope string
+		expectedErr      string
+	}{
+		{
+			name:             "bot token",
+			token:            newBotToken(),
+			expectedBotName:  "test-bot",
+			expectedBotScope: "/aa/bb",
+		},
+		{
+			name:  "non-bot token",
+			token: newNonBotToken(),
+		},
+		{
+			// Stray bot fields on a non-bot token are rejected by strong
+			// validation at write time but tolerated when wrapping, matching
+			// weak validation; the bot reference is empty.
+			name:  "non-bot token with stray bot fields",
+			token: newNonBotToken(),
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetBotName("test-bot")
+				tok.GetSpec().SetBotScope("/aa/bb")
+			},
+		},
+		{
+			name:  "bot token without bot_name",
+			token: newBotToken(),
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetBotName("")
+			},
+			expectedErr: "expected non-empty bot_name",
+		},
+		{
+			name:  "bot token without bot_scope",
+			token: newBotToken(),
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetBotScope("")
+			},
+			expectedErr: "expected non-empty bot_scope",
+		},
+		{
+			name:  "bot token with malformed bot_scope",
+			token: newBotToken(),
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetBotScope("aa/bb}")
+			},
+			expectedErr: "validating scoped token bot_scope",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.modFn != nil {
+				tc.modFn(tc.token)
+			}
+			token, err := joining.NewToken(tc.token)
+			if tc.expectedErr != "" {
+				require.ErrorContains(t, err, tc.expectedErr)
+				return
+			}
+			require.NoError(t, err)
+			botName, botScope := token.GetBot()
+			require.Equal(t, tc.expectedBotName, botName)
+			require.Equal(t, tc.expectedBotScope, botScope)
+		})
+	}
+}
+
 func TestImmutableLabelHashing(t *testing.T) {
 	labels := joiningv1.ImmutableLabels_builder{
 		Ssh: map[string]string{
