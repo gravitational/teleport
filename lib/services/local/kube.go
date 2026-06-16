@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
 )
@@ -120,7 +121,7 @@ func (s *KubernetesService) GetKubernetesCluster(ctx context.Context, name strin
 
 // CreateKubernetesCluster creates a new kubernetes cluster resource.
 func (s *KubernetesService) CreateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
-	if err := services.CheckAndSetDefaults(cluster); err != nil {
+	if err := validateKubeCluster(cluster); err != nil {
 		return trace.Wrap(err)
 	}
 	value, err := services.MarshalKubeCluster(cluster)
@@ -145,7 +146,7 @@ func (s *KubernetesService) CreateKubernetesCluster(ctx context.Context, cluster
 
 // UpdateKubernetesCluster updates an existing kubernetes cluster resource.
 func (s *KubernetesService) UpdateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
-	if err := services.CheckAndSetDefaults(cluster); err != nil {
+	if err := validateKubeCluster(cluster); err != nil {
 		return trace.Wrap(err)
 	}
 	rev := cluster.GetRevision()
@@ -188,6 +189,26 @@ func (s *KubernetesService) DeleteAllKubernetesClusters(ctx context.Context) err
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	return nil
+}
+
+func validateKubeCluster(cluster types.KubeCluster) error {
+	if err := services.CheckAndSetDefaults(cluster); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if cluster.GetScope() == "" {
+		return nil
+	}
+
+	if err := scopes.StrongValidate(cluster.GetScope()); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if len(cluster.GetDynamicLabels()) > 0 {
+		return trace.BadParameter("scoped kubernetes clusters do not support dynamic labels")
+	}
+
 	return nil
 }
 

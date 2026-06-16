@@ -5481,7 +5481,7 @@ func (g *GRPCServer) AppendDiagnosticTrace(ctx context.Context, in *authpb.Appen
 
 // GetKubernetesCluster returns the specified kubernetes cluster resource.
 func (g *GRPCServer) GetKubernetesCluster(ctx context.Context, req *types.ResourceRequest) (*types.KubernetesClusterV3, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5498,7 +5498,7 @@ func (g *GRPCServer) GetKubernetesCluster(ctx context.Context, req *types.Resour
 
 // CreateKubernetesCluster creates a new kubernetes cluster resource.
 func (g *GRPCServer) CreateKubernetesCluster(ctx context.Context, cluster *types.KubernetesClusterV3) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5514,7 +5514,7 @@ func (g *GRPCServer) CreateKubernetesCluster(ctx context.Context, cluster *types
 
 // UpdateKubernetesCluster updates existing kubernetes cluster resource.
 func (g *GRPCServer) UpdateKubernetesCluster(ctx context.Context, cluster *types.KubernetesClusterV3) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5530,7 +5530,7 @@ func (g *GRPCServer) UpdateKubernetesCluster(ctx context.Context, cluster *types
 
 // GetKubernetesClusters returns all kubernetes cluster resources.
 func (g *GRPCServer) GetKubernetesClusters(ctx context.Context, _ *emptypb.Empty) (*types.KubernetesClusterV3List, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5554,7 +5554,7 @@ func (g *GRPCServer) GetKubernetesClusters(ctx context.Context, _ *emptypb.Empty
 
 // ListKubernetesClusters returns a page of registered kubernetes clusters.
 func (g *GRPCServer) ListKubernetesClusters(ctx context.Context, req *authpb.ListKubernetesClustersRequest) (*authpb.ListKubernetesClustersResponse, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5582,7 +5582,7 @@ func (g *GRPCServer) ListKubernetesClusters(ctx context.Context, req *authpb.Lis
 
 // DeleteKubernetesCluster removes the specified kubernetes cluster.
 func (g *GRPCServer) DeleteKubernetesCluster(ctx context.Context, req *types.ResourceRequest) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5592,9 +5592,9 @@ func (g *GRPCServer) DeleteKubernetesCluster(ctx context.Context, req *types.Res
 	return &emptypb.Empty{}, nil
 }
 
-// DeleteAllKubernetesClusters removes all kubernetes cluster.
+// DeleteAllKubernetesClusters removes all accessible kubernetes cluster.
 func (g *GRPCServer) DeleteAllKubernetesClusters(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
