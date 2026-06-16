@@ -290,8 +290,9 @@ type ServerContext struct {
 	// session is created.
 	sessionID rsession.ID
 
-	// session holds the active session (if there's an active one).
-	session *session
+	// party holds the active party (if there's an active one). This party should have
+	// already passed basic authz checks (e.g. joining permissions).
+	party *party
 
 	// closers is a list of io.Closer that will be called when session closes
 	// this is handy as sometimes client closes session, in this case resources
@@ -567,10 +568,10 @@ func (c *ServerContext) ID() int {
 func (c *ServerContext) SessionID() rsession.ID {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	if c.session == nil {
-		return c.sessionID
+	if c.party != nil {
+		return c.party.s.id
 	}
-	return c.session.id
+	return c.sessionID
 }
 
 // GetServer returns the underlying server which this context was created in.
@@ -623,11 +624,10 @@ func (c *ServerContext) CreateOrJoinSession(reg *SessionRegistry) error {
 		return trace.BadParameter("invalid session ID")
 	}
 
-	// update ctx with the session if it exists
+	// update ctx with the session ID if a matching session exists
 	if sess, found := reg.findSession(*id); found {
 		c.sessionID = *id
-		c.session = sess
-		c.Logger.Debugf("Will join session %v for SSH connection %v.", c.session.id, c.ServerConn.RemoteAddr())
+		c.Logger.Debugf("Will join session %v for SSH connection %v.", sess.id, c.ServerConn.RemoteAddr())
 	} else {
 		// TODO(capnspacehook): DELETE IN 17.0.0 - by then all supported
 		// clients should only set TELEPORT_SESSION when they want to
@@ -707,14 +707,21 @@ func (c *ServerContext) getEnvLocked(key string) (string, bool) {
 	return c.Parent().GetEnv(key)
 }
 
-// setSession sets the context's session
-func (c *ServerContext) setSession(sess *session, ch ssh.Channel) {
+// setParty sets the context's party to an active session.
+func (c *ServerContext) setParty(p *party) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.session = sess
+	if c.party != nil {
+		return trace.BadParameter("already party to another session")
+	}
+	c.party = p
+	c.closers = append(c.closers, p)
+	return nil
+}
 
-	// inform the client of the session ID that is being used in a new
-	// goroutine to reduce latency
+// sendCurrentSessionID informs the client of the session ID that is being used
+// in a new goroutine to reduce latency.
+func (c *ServerContext) sendCurrentSessionID(ch ssh.Channel, sess *session) {
 	go func() {
 		c.Logger.Debug("Sending current session ID.")
 		_, err := ch.SendRequest(teleport.CurrentSessionIDRequest, false, []byte(sess.ID()))
@@ -724,11 +731,20 @@ func (c *ServerContext) setSession(sess *session, ch ssh.Channel) {
 	}()
 }
 
-// getSession returns the context's session
-func (c *ServerContext) getSession() *session {
+// getParty returns the context's party to an active session, if there is one.
+func (c *ServerContext) getParty() *party {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return c.session
+	return c.party
+}
+
+// getSession returns the session the context's party belongs to, if there is
+// an active party. Callers that don't need the party itself should prefer this.
+func (c *ServerContext) getSession() *session {
+	if p := c.getParty(); p != nil {
+		return p.s
+	}
+	return nil
 }
 
 func (c *ServerContext) SetAllowFileCopying(allow bool) {
