@@ -260,6 +260,85 @@ func TestOnConfigModify(t *testing.T) {
 	})
 }
 
+func TestOnConfigModifyBugFixes(t *testing.T) {
+	t.Run("token on config with no join_params sets default method token", func(t *testing.T) {
+		inputFile := filepath.Join(t.TempDir(), "input.yaml")
+		require.NoError(t, os.WriteFile(inputFile, []byte("teleport:\n  data_dir: /var/lib/teleport\n"), 0644))
+
+		outputFile := filepath.Join(t.TempDir(), "output.yaml")
+
+		err := onConfigModify(modifyFlags{
+			input:  inputFile,
+			output: "file://" + outputFile,
+			token:  "my-token",
+		})
+		require.NoError(t, err)
+
+		got, err := os.ReadFile(outputFile)
+		require.NoError(t, err)
+		require.Contains(t, string(got), "token_name: my-token")
+		require.Contains(t, string(got), "method: token")
+	})
+
+	t.Run("token with existing join_params.method preserves existing method", func(t *testing.T) {
+		inputFile := filepath.Join(t.TempDir(), "input.yaml")
+		require.NoError(t, os.WriteFile(inputFile, []byte("teleport:\n  data_dir: /var/lib/teleport\n  join_params:\n    method: iam\n    token_name: old\n"), 0644))
+
+		outputFile := filepath.Join(t.TempDir(), "output.yaml")
+
+		err := onConfigModify(modifyFlags{
+			input:  inputFile,
+			output: "file://" + outputFile,
+			token:  "new-token",
+		})
+		require.NoError(t, err)
+
+		got, err := os.ReadFile(outputFile)
+		require.NoError(t, err)
+		require.Contains(t, string(got), "token_name: new-token")
+		require.Contains(t, string(got), "method: iam")
+		require.NotContains(t, string(got), "method: token")
+	})
+
+	t.Run("setting proxy clears auth_server", func(t *testing.T) {
+		inputFile := filepath.Join(t.TempDir(), "input.yaml")
+		require.NoError(t, os.WriteFile(inputFile, []byte("teleport:\n  data_dir: /var/lib/teleport\n  auth_server: auth.example.com:3025\n"), 0644))
+
+		outputFile := filepath.Join(t.TempDir(), "output.yaml")
+
+		err := onConfigModify(modifyFlags{
+			input:  inputFile,
+			output: "file://" + outputFile,
+			proxy:  "proxy.example.com:443",
+		})
+		require.NoError(t, err)
+
+		got, err := os.ReadFile(outputFile)
+		require.NoError(t, err)
+		require.Contains(t, string(got), "proxy_server: proxy.example.com:443")
+		require.NotContains(t, string(got), "auth_server")
+	})
+
+	t.Run("setting auth_server clears proxy_server", func(t *testing.T) {
+		inputFile := filepath.Join(t.TempDir(), "input.yaml")
+		require.NoError(t, os.WriteFile(inputFile, []byte("teleport:\n  data_dir: /var/lib/teleport\n  proxy_server: proxy.example.com:443\n"), 0644))
+
+		outputFile := filepath.Join(t.TempDir(), "output.yaml")
+
+		err := onConfigModify(modifyFlags{
+			input:      inputFile,
+			output:     "file://" + outputFile,
+			authServer: "auth.example.com:3025",
+		})
+		require.NoError(t, err)
+
+		got, err := os.ReadFile(outputFile)
+		require.NoError(t, err)
+		require.Contains(t, string(got), "auth_server: auth.example.com:3025")
+		require.NotContains(t, string(got), "proxy_server")
+	})
+}
+
 func TestOnConfigModifyRoles(t *testing.T) {
 	t.Run("creates ssh_service section", func(t *testing.T) {
 		inputFile := filepath.Join(t.TempDir(), "input.yaml")

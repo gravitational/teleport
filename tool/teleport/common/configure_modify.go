@@ -212,6 +212,19 @@ func applyNamedFlags(doc *yaml.Node, flags modifyFlags) error {
 		}
 	}
 
+	// For v3 configs, auth_server and proxy_server are mutually exclusive.
+	// Delete the opposing field when either is explicitly set to avoid validation errors.
+	if flags.proxy != "" {
+		if err := yamlmod.Delete(doc, "teleport.auth_server"); err != nil && !trace.IsNotFound(err) {
+			return trace.Wrap(err, "removing teleport.auth_server when setting proxy_server")
+		}
+	}
+	if flags.authServer != "" {
+		if err := yamlmod.Delete(doc, "teleport.proxy_server"); err != nil && !trace.IsNotFound(err) {
+			return trace.Wrap(err, "removing teleport.proxy_server when setting auth_server")
+		}
+	}
+
 	if flags.token != "" {
 		if flags.joinMethod == "" && yamlmod.Exists(doc, "teleport.auth_token") {
 			// Preserve legacy format: the config uses auth_token and no join-method
@@ -227,6 +240,14 @@ func applyNamedFlags(doc *yaml.Node, flags modifyFlags) error {
 			}
 			if err := yamlmod.Delete(doc, "teleport.auth_token"); err != nil && !trace.IsNotFound(err) {
 				return trace.Wrap(err, "removing teleport.auth_token")
+			}
+			// Teleport rejects a join_params block with no method set. Default to
+			// "token" unless the user already specified --join-method or the config
+			// already has a method.
+			if flags.joinMethod == "" && !yamlmod.Exists(doc, "teleport.join_params.method") {
+				if err := yamlmod.Set(doc, "teleport.join_params.method", "token"); err != nil {
+					return trace.Wrap(err, "setting default teleport.join_params.method")
+				}
 			}
 		}
 	}
@@ -348,20 +369,30 @@ func writeModifyOutput(flags modifyFlags, data []byte) error {
 		return trace.BadParameter("output path must be absolute: %s", path)
 	}
 
-	if !flags.overwrite {
-		if _, err := os.Stat(path); err == nil {
-			return trace.AlreadyExists("output file %s already exists; use --overwrite to replace it", path)
-		}
-	}
-
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return trace.ConvertSystemError(err)
 	}
 
-	if err := os.WriteFile(path, data, teleport.FileMaskOwnerOnly); err != nil {
-		return trace.ConvertSystemError(err)
+	if flags.overwrite {
+		if err := os.WriteFile(path, data, teleport.FileMaskOwnerOnly); err != nil {
+			return trace.ConvertSystemError(err)
+		}
+		return nil
 	}
 
-	return nil
+	// Use O_EXCL so the kernel rejects symlinks atomically — os.Stat+os.WriteFile
+	// has a TOCTOU race where a dangling symlink appears nonexistent but WriteFile
+	// follows it to an arbitrary target.
+	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_EXCL, teleport.FileMaskOwnerOnly)
+	if err != nil {
+		err = trace.ConvertSystemError(err)
+		if trace.IsAlreadyExists(err) {
+			return trace.AlreadyExists("output file %s already exists; use --overwrite to replace it", path)
+		}
+		return err
+	}
+	defer f.Close()
+	_, err = f.Write(data)
+	return trace.ConvertSystemError(err)
 }
