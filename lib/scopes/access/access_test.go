@@ -1549,6 +1549,11 @@ func TestStrongValidateRoleSpecAllFieldsValidated(t *testing.T) {
 				Mode: "strict",
 			}.Build(),
 		}.Build(),
+		WorkloadIdentity: scopedaccessv1.ScopedRoleWorkloadIdentity_builder{
+			Labels: []*labelv1.Label{
+				labelv1.Label_builder{Name: "env", Values: []string{"prod"}}.Build(),
+			},
+		}.Build(),
 	}.Build()
 
 	require.True(t, testutils.ExhaustiveNonEmpty(spec),
