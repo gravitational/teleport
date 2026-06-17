@@ -56,9 +56,9 @@ type AsyncEmitterConfig struct {
 	// DataDir is the Teleport data directory. This is required for sqlite
 	// backed queues.
 	DataDir string
-	// EnableSQLiteQueue enables the SQLite-backed audit queue. When false,
+	// EnableAuditQueue enables the audit queue subsystem. When false,
 	// the legacy in-memory channel is used.
-	EnableSQLiteQueue bool
+	EnableAuditQueue bool
 	// AuditQueueCfg holds the options from the Teleport yaml config.
 	AuditQueueCfg auditqueue.Config
 	// AuditQueueBackends is the ordered list of backends to try on startup.
@@ -85,17 +85,17 @@ func NewAsyncEmitter(cfg AsyncEmitterConfig) (*AsyncEmitter, error) {
 	}
 
 	var queue auditqueue.Queue
-	if cfg.EnableSQLiteQueue {
+	if cfg.EnableAuditQueue {
 		var err error
-		queue, err = makeQueue(cfg)
+		queue, err = makeQueue(cfg.DataDir, cfg.AuditQueueCfg, cfg.AuditQueueBackends)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 	if queue == nil {
-		slog.InfoContext(context.TODO(), "Using default in-memory audit event channel. SQLite-backed audit queue is disabled.")
+		slog.InfoContext(context.TODO(), "Using default in-memory audit event channel. Audit queue is disabled.")
 	} else {
-		slog.InfoContext(context.TODO(), "SQLite-backed audit queue is enabled.")
+		slog.InfoContext(context.TODO(), "Audit queue is enabled.")
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -119,11 +119,9 @@ func NewAsyncEmitter(cfg AsyncEmitterConfig) (*AsyncEmitter, error) {
 	return a, nil
 }
 
-func makeQueue(cfg AsyncEmitterConfig) (auditqueue.Queue, error) {
-	queueCfg := cfg.AuditQueueCfg
-	queueCfg.Path = filepath.Join(cfg.DataDir, auditQueueDir, uuid.NewString())
+func makeQueue(dataDir string, queueCfg auditqueue.Config, backends []auditqueue.Kind) (auditqueue.Queue, error) {
+	queueCfg.Path = filepath.Join(dataDir, auditQueueDir, uuid.NewString())
 
-	backends := cfg.AuditQueueBackends
 	if len(backends) == 0 {
 		backends = []auditqueue.Kind{auditqueue.KindSQLiteDisk}
 	}

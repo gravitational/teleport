@@ -319,7 +319,7 @@ func TestAsyncEmitterAuditQueueBackends(t *testing.T) {
 	t.Run("in-memory backend", func(t *testing.T) {
 		emitter, err := events.NewAsyncEmitter(events.AsyncEmitterConfig{
 			Inner:              eventstest.NewChannelEmitter(10),
-			EnableSQLiteQueue:  true,
+			EnableAuditQueue:   true,
 			AuditQueueBackends: []auditqueue.Kind{auditqueue.KindSQLiteMemory},
 		})
 		require.NoError(t, err)
@@ -336,7 +336,7 @@ func TestAsyncEmitterAuditQueueBackends(t *testing.T) {
 	t.Run("fallback to in-memory", func(t *testing.T) {
 		emitter, err := events.NewAsyncEmitter(events.AsyncEmitterConfig{
 			Inner:              eventstest.NewChannelEmitter(10),
-			EnableSQLiteQueue:  true,
+			EnableAuditQueue:   true,
 			AuditQueueBackends: []auditqueue.Kind{"invalid_backend", auditqueue.KindSQLiteMemory},
 		})
 		require.NoError(t, err)
@@ -346,7 +346,7 @@ func TestAsyncEmitterAuditQueueBackends(t *testing.T) {
 	t.Run("all backends fail", func(t *testing.T) {
 		_, err := events.NewAsyncEmitter(events.AsyncEmitterConfig{
 			Inner:              eventstest.NewChannelEmitter(10),
-			EnableSQLiteQueue:  true,
+			EnableAuditQueue:   true,
 			AuditQueueBackends: []auditqueue.Kind{"invalid_backend"},
 		})
 		require.Error(t, err)
@@ -356,7 +356,7 @@ func TestAsyncEmitterAuditQueueBackends(t *testing.T) {
 		inner := eventstest.NewChannelEmitter(1)
 		emitter, err := events.NewAsyncEmitter(events.AsyncEmitterConfig{
 			Inner:              inner,
-			EnableSQLiteQueue:  true,
+			EnableAuditQueue:   true,
 			AuditQueueBackends: []auditqueue.Kind{auditqueue.KindSQLiteMemory},
 		})
 		require.NoError(t, err)
