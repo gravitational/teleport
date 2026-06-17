@@ -188,6 +188,32 @@ pred: |
 				},
 			},
 		},
+		{
+			// The bare root "/" is the trailing-slash rule taken to its limit:
+			// a single empty segment that matches only the root request "/".
+			name: "bare root path",
+			sugared: `
+paths: ["/"]
+methods: [GET]
+`,
+			desugared: `
+pred: |
+  path.match(literal("")) &&
+  contains(set("GET"), request.method)
+`,
+			probes: []probe{
+				{
+					method: "GET",
+					path:   "/",
+					allow:  true,
+				},
+				{
+					method: "GET",
+					path:   "/foo",
+					allow:  false,
+				},
+			},
+		},
 	}
 
 	for _, sc := range scenarios {

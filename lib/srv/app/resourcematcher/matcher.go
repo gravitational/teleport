@@ -169,12 +169,12 @@ func matchChildren(node *Node, tokens []string, i int, caps map[string]string) b
 // Literal.
 //
 // A leading "/" is required and stripped. An interior or leading empty
-// segment (from "//" or a bare "/") is a compile error, since the strict
-// URL rules reject the request bytes that would produce one. A single
-// trailing "/" is significant: it compiles to a terminal literal matching
-// the trailing empty segment a request path produces, so "/foo/" matches
-// the request "/foo/" but not "/foo". A `**` in any non-final position is a
-// compile error.
+// segment (from "//") is a compile error, since the strict URL rules reject
+// the request bytes that would produce one. A trailing "/" is significant:
+// it compiles to a terminal literal matching the trailing empty segment a
+// request path produces, so "/foo/" matches the request "/foo/" but not
+// "/foo", and the bare root "/" matches only the request "/". A `**` in any
+// non-final position is a compile error.
 func Compile(pattern string) (*Node, error) {
 	if !strings.HasPrefix(pattern, "/") {
 		return nil, trace.BadParameter("path pattern %q must start with /", pattern)
@@ -182,12 +182,13 @@ func Compile(pattern string) (*Node, error) {
 	segments := strings.Split(strings.TrimPrefix(pattern, "/"), "/")
 	for i, seg := range segments {
 		if seg == "" {
-			// Permit an empty segment only as the final one of a
-			// multi-segment pattern, the trailing slash. Reject a leading
-			// empty segment (from "//" or a bare "/") and an interior empty
-			// segment (from "//"); the strict URL rules reject the request
-			// bytes that would produce one anywhere but the trailing spot.
-			if i == 0 || i != len(segments)-1 {
+			// Permit an empty segment only as the final one. That is the
+			// trailing slash, "/foo/", or the bare root "/", both of which
+			// match the trailing empty segment a request path produces.
+			// Reject a leading empty segment and an interior empty segment
+			// (both from "//"); the strict URL rules reject the request bytes
+			// that would produce one anywhere but the trailing spot.
+			if i != len(segments)-1 {
 				return nil, trace.BadParameter("path pattern %q has an empty segment", pattern)
 			}
 			continue

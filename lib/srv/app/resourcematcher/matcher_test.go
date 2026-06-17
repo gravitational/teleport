@@ -64,6 +64,11 @@ func TestCompileEqualsConstructors(t *testing.T) {
 			pattern: "/api/v4/health/",
 			want:    Literal("api", Literal("v4", Literal("health", Literal("")))),
 		},
+		{
+			name:    "bare root compiles to a terminal empty literal",
+			pattern: "/",
+			want:    Literal(""),
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -93,7 +98,6 @@ func TestCompileErrors(t *testing.T) {
 		{"interior empty segment", "/api//v4"},
 		{"leading empty segment", "//api"},
 		{"bare double slash", "//"},
-		{"bare root slash", "/"},
 		{"empty capture name", "/api/{}"},
 		{"triple star", "/api/v4/sd/{project}/***"},
 		{"star suffix", "/api/v4/*x"},
@@ -132,6 +136,8 @@ func TestEval(t *testing.T) {
 		{"trailing slash differs", "/foo", "/foo/", false, nil},
 		{"trailing slash pattern matches trailing slash path", "/api/v4/health/", "/api/v4/health/", true, map[string]string{}},
 		{"trailing slash pattern rejects bare path", "/api/v4/health/", "/api/v4/health", false, nil},
+		{"bare root matches root path", "/", "/", true, map[string]string{}},
+		{"bare root rejects non-root path", "/", "/foo", false, nil},
 		{"glob one segment", "/foo/*", "/foo/bar", true, map[string]string{}},
 		{"glob rejects empty", "/foo/*", "/foo/", false, nil},
 		{"glob no extra segment", "/foo/*", "/foo/bar/baz", false, nil},
