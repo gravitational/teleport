@@ -256,6 +256,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_AppSessionHTTPResponseBodyChunk{
 			AppSessionHTTPResponseBodyChunk: e,
 		}
+	case *BeamSessionEnd:
+		out.Event = &OneOf_BeamSessionEnd{
+			BeamSessionEnd: e,
+		}
 	case *AppCreate:
 		out.Event = &OneOf_AppCreate{
 			AppCreate: e,

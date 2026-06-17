@@ -130,6 +130,8 @@ const (
 	SessionConnectCode = "T2010I"
 	// AppSessionEndCode is the application session end event code.
 	AppSessionEndCode = "T2011I"
+	// BeamSessionEndCode is the beam session end event code.
+	BeamSessionEndCode = "T2019I"
 	// SessionRecordingAccessCode is the session recording view data event code.
 	SessionRecordingAccessCode = "T2012I"
 	// AppSessionDynamoDBRequestCode is the application request/response code.

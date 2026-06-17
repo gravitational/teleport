@@ -411,6 +411,10 @@ const (
 	// AppSessionEndEvent is emitted when a user connects to a TCP application.
 	AppSessionEndEvent = "app.session.end"
 
+	// BeamSessionEndEvent is emitted when a beam's session ends, summarizing the
+	// beam's combined app-session HTTP activity.
+	BeamSessionEndEvent = "beam.session.end"
+
 	// AppSessionChunkEvent is emitted at the start of a 5 minute chunk on each
 	// proxy. This chunk is used to buffer 5 minutes of audit events at a time
 	// for applications.

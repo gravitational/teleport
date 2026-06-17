@@ -3356,6 +3356,52 @@ message AppSessionHTTPResponseBodyChunk {
   bytes data = 6 [(gogoproto.jsontag) = "data"];
 }
 
+// BeamSessionEnd is emitted when a beam's session ends. It summarizes the
+// beam's combined app-session HTTP activity and references the stored HAR
+// artifact and analysis summary. Modeled on WindowsDesktopSessionEnd.
+message BeamSessionEnd {
+  // Common event metadata.
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User that owned the beam session.
+  UserMetadata user = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // StartTime is the start of the analyzed beam activity window.
+  google.protobuf.Timestamp start_time = 3 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "start_time"
+  ];
+  // EndTime is the end of the analyzed beam activity window.
+  google.protobuf.Timestamp end_time = 4 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "end_time"
+  ];
+  // BeamID is the identifier of the beam whose session ended.
+  string beam_id = 5 [(gogoproto.jsontag) = "beam_id"];
+  // Recorded is true when at least one app-session recording chunk was found
+  // for this beam.
+  bool recorded = 6 [(gogoproto.jsontag) = "recorded"];
+  // HTTPExchangeCount is the number of reconstructed HTTP exchanges in the
+  // combined beam session.
+  int64 http_exchange_count = 7 [(gogoproto.jsontag) = "http_exchange_count,omitempty"];
+  // RiskLevel is the risk level from the beam activity analysis.
+  string risk_level = 8 [(gogoproto.jsontag) = "risk_level,omitempty"];
+  // ChunkSessionIDs are the app-session recording IDs merged into this beam
+  // session.
+  repeated string chunk_session_ids = 9 [(gogoproto.jsontag) = "chunk_session_ids,omitempty"];
+  // ArtifactSessionID is the synthetic session ID ("beam-<id>") keying the
+  // stored HAR artifact and summary.
+  string artifact_session_id = 10 [(gogoproto.jsontag) = "artifact_session_id,omitempty"];
+}
+
 // AWSRequestMetadata contains extra AWS metadata of an AppSessionRequest.
 message AWSRequestMetadata {
   // AWSRegion is the requested AWS region.
@@ -5346,6 +5392,7 @@ message OneOf {
     events.AppSessionHTTPRequestBodyChunk AppSessionHTTPRequestBodyChunk = 261;
     events.AppSessionHTTPResponse AppSessionHTTPResponse = 262;
     events.AppSessionHTTPResponseBodyChunk AppSessionHTTPResponseBodyChunk = 263;
+    events.BeamSessionEnd BeamSessionEnd = 264;
   }
 }
 

@@ -203,6 +203,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.AppSessionHTTPResponse{}
 	case AppSessionHTTPResponseBodyChunkEvent:
 		e = &events.AppSessionHTTPResponseBodyChunk{}
+	case BeamSessionEndEvent:
+		e = &events.BeamSessionEnd{}
 	case AppCreateEvent:
 		e = &events.AppCreate{}
 	case AppUpdateEvent:
