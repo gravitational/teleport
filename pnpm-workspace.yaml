@@ -42,6 +42,9 @@ packageExtensions:
   '@hookform/resolvers':
     peerDependencies:
       zod: '*'
+  storybook:
+    peerDependencies:
+      '@storybook/react-vite': '*'
 # shellEmulator enables cross-platform scripting, allowing POSIX-style shell variables to work on Windows.
 shellEmulator: true
 # packageImportMethod avoids an issue building the web UI in docker on mac. It does not seem to
