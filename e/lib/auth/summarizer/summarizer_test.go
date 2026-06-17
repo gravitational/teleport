@@ -497,6 +497,7 @@ func waitForSummary(
 		sr, err = sclt.GetSummary(ctx, summarizerv1pb.GetSummaryRequest_builder{
 			SessionId: sid,
 		}.Build())
+		//nolint:staticcheck // SA1019. Pending state is deprecated but will be replaced with other states.
 		return err == nil && sr.GetSummary().GetState() != summarizerv1pb.SummaryState_SUMMARY_STATE_PENDING
 	}, time.Second*5, time.Millisecond*100)
 	return sr.GetSummary()

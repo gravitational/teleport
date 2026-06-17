@@ -81,7 +81,8 @@ func TestGetRecordingSummary(t *testing.T) {
 	// Upload an example pending summary.
 	pendingSessionID := "3c8f9e27-831d-4d0c-af3c-41893a863df0"
 	uploadSummary(t, s, summarizerv1.Summary_builder{
-		SessionId:           pendingSessionID,
+		SessionId: pendingSessionID,
+		//nolint:staticcheck // SA1019. Pending state is deprecated but will be replaced with other states.
 		State:               summarizerv1.SummaryState_SUMMARY_STATE_PENDING,
 		InferenceStartedAt:  timestamppb.New(time.Date(2025, 8, 2, 11, 12, 0, 0, time.UTC)),
 		InferenceFinishedAt: nil,
@@ -208,7 +209,8 @@ func TestBatchGetSessionSummaryMetadata(t *testing.T) {
 	// A pending summary without enhanced summary data.
 	pendingSessionID := "3c8f9e27-831d-4d0c-af3c-41893a863df0"
 	uploadSummary(t, s, summarizerv1.Summary_builder{
-		SessionId:          pendingSessionID,
+		SessionId: pendingSessionID,
+		//nolint:staticcheck // SA1019. Pending state is deprecated but will be replaced with other states.
 		State:              summarizerv1.SummaryState_SUMMARY_STATE_PENDING,
 		InferenceStartedAt: timestamppb.New(time.Date(2025, 8, 2, 11, 12, 0, 0, time.UTC)),
 		ModelName:          "HAL 9000",

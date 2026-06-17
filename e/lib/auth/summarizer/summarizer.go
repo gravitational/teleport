@@ -452,7 +452,8 @@ func (s *SessionSummarizer) summarize(ctx context.Context, details sessionDetail
 	details.provider = provider
 	details.errorFormatFunc = errorFormatter
 	details.summary = summarizerv1pb.Summary_builder{
-		SessionId:          details.sessionID.String(),
+		SessionId: details.sessionID.String(),
+		//nolint:staticcheck // SA1019. Pending state is deprecated but will be replaced with other states.
 		State:              summarizerv1pb.SummaryState_SUMMARY_STATE_PENDING,
 		InferenceStartedAt: timestamppb.New(s.clock.Now().UTC()),
 		ModelName:          policy.GetSpec().GetModel(),

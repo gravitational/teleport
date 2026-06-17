@@ -1035,6 +1035,7 @@ func TestService_GetSummary(t *testing.T) {
 		summary1 := newTestSummary(t, session1End)
 		summary1.SetContent("")
 		summary1.ClearInferenceFinishedAt()
+		//nolint:staticcheck // SA1019. Pending state is deprecated but will be replaced with other states.
 		summary1.SetState(summarizerv1pb.SummaryState_SUMMARY_STATE_PENDING)
 		b, err := protojson.MarshalOptions{UseProtoNames: true}.Marshal(summary1)
 		require.NoError(t, err)
@@ -1046,6 +1047,7 @@ func TestService_GetSummary(t *testing.T) {
 		summary2Pending := proto.CloneOf(summary2)
 		summary2Pending.SetContent("")
 		summary2Pending.ClearInferenceFinishedAt()
+		//nolint:staticcheck // SA1019. Pending state is deprecated but will be replaced with other states.
 		summary2Pending.SetState(summarizerv1pb.SummaryState_SUMMARY_STATE_PENDING)
 
 		// Upload the pending state of summary 2.
