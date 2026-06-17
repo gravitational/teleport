@@ -45,6 +45,22 @@ Global environment variables:
 |`TELEPORT_IDENTITY_FILE`|*no default*|Path to an identity file. Must be provided to make remote connections to auth. An identity file can be exported with 'tctl auth sign'|
 |`TELEPORT_MFA_MODE`|`auto` (one of: `auto`, `cross-platform`, `platform`, `sso`, `browser`)|Preferred mode for MFA assertions.|
 
+## tctl access-changes get
+
+Get details about an access path change
+
+Usage:
+
+```code
+$ tctl access-changes get <change-id>
+```
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|change-id|*no default* (required)|The ID of the access path change to retrieve.|
+
 ## tctl access-changes ls
 
 List access path changes for your crown jewels
