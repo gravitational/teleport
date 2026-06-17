@@ -382,6 +382,7 @@ export const EventIconMap: Record<EventCode, any> = {
   [eventCodes.BEAMS_CONFIG_CREATE]: Icons.Info,
   [eventCodes.BEAMS_CONFIG_UPDATE]: Icons.Info,
   [eventCodes.BEAMS_CONFIG_DELETE]: Icons.Info,
+  [eventCodes.BEAM_SESSION_END]: Icons.CircleStop,
 };
 
 export default function renderTypeCell(event: Event) {

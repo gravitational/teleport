@@ -2539,6 +2539,13 @@ export const formatters: Formatters = {
       return `User [${user}] deleted the Beams config`;
     },
   },
+  [eventCodes.BEAM_SESSION_END]: {
+    type: 'beam.session.end',
+    desc: 'Beam Session Ended',
+    format: ({ user, beam_id, risk_level }) =>
+      `User [${user}] ended beam session [${beam_id}]` +
+      (risk_level ? ` (risk: ${risk_level})` : ''),
+  },
   [eventCodes.WORKLOAD_CLUSTER_CREATE]: {
     type: 'workload_cluster.create',
     desc: 'Workload Cluster Created',

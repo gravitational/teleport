@@ -2267,6 +2267,15 @@ export type RawEvents = {
     typeof eventCodes.BEAMS_CONFIG_DELETE,
     HasName
   >;
+  [eventCodes.BEAM_SESSION_END]: RawEvent<
+    typeof eventCodes.BEAM_SESSION_END,
+    {
+      user: string;
+      beam_id: string;
+      risk_level: string;
+      http_exchange_count: number;
+    }
+  >;
   [eventCodes.WORKLOAD_CLUSTER_CREATE]: RawEvent<
     typeof eventCodes.WORKLOAD_CLUSTER_CREATE,
     HasName
