@@ -685,6 +685,31 @@ export type RawEvents = {
       app_name: string;
     }
   >;
+  [eventCodes.APP_SESSION_HTTP_REQUEST]: RawEvent<
+    typeof eventCodes.APP_SESSION_HTTP_REQUEST,
+    {
+      method: string;
+      url: string;
+    }
+  >;
+  [eventCodes.APP_SESSION_HTTP_REQUEST_BODY_CHUNK]: RawEvent<
+    typeof eventCodes.APP_SESSION_HTTP_REQUEST_BODY_CHUNK,
+    {
+      request_id: string;
+    }
+  >;
+  [eventCodes.APP_SESSION_HTTP_RESPONSE]: RawEvent<
+    typeof eventCodes.APP_SESSION_HTTP_RESPONSE,
+    {
+      status_code: number;
+    }
+  >;
+  [eventCodes.APP_SESSION_HTTP_RESPONSE_BODY_CHUNK]: RawEvent<
+    typeof eventCodes.APP_SESSION_HTTP_RESPONSE_BODY_CHUNK,
+    {
+      request_id: string;
+    }
+  >;
   [eventCodes.APP_SESSION_CHUNK]: RawEvent<
     typeof eventCodes.APP_SESSION_CHUNK,
     {
