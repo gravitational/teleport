@@ -26,7 +26,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"strings"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -289,86 +288,6 @@ func (noopAudit) OnHTTPResponse(context.Context, *common.SessionContext, string,
 
 func (noopAudit) OnHTTPResponseBodyChunk(context.Context, *common.SessionContext, string, int64, bool, []byte) error {
 	return nil
-}
-
-// recordingAudit collects HTTP recording event calls.
-type recordingAudit struct {
-	noopAudit
-	requests   []string // requestIDs from OnHTTPRequest
-	reqChunks  [][]byte
-	responses  []int // status codes from OnHTTPResponse
-	respChunks [][]byte
-}
-
-func (a *recordingAudit) OnHTTPRequest(_ context.Context, _ *common.SessionContext, reqID string, _ *http.Request) error {
-	a.requests = append(a.requests, reqID)
-	return nil
-}
-
-func (a *recordingAudit) OnHTTPRequestBodyChunk(_ context.Context, _ *common.SessionContext, _ string, _ int64, _ bool, data []byte) error {
-	cp := make([]byte, len(data))
-	copy(cp, data)
-	a.reqChunks = append(a.reqChunks, cp)
-	return nil
-}
-
-func (a *recordingAudit) OnHTTPResponse(_ context.Context, _ *common.SessionContext, _ string, resp *http.Response, _ int64) error {
-	a.responses = append(a.responses, resp.StatusCode)
-	return nil
-}
-
-func (a *recordingAudit) OnHTTPResponseBodyChunk(_ context.Context, _ *common.SessionContext, _ string, _ int64, _ bool, data []byte) error {
-	cp := make([]byte, len(data))
-	copy(cp, data)
-	a.respChunks = append(a.respChunks, cp)
-	return nil
-}
-
-func TestTransport_HTTPRecording(t *testing.T) {
-	t.Parallel()
-
-	clientConn, serverConn := net.Pipe()
-	tr := newTestTransport(t, func(context.Context, string, string) (net.Conn, error) {
-		return clientConn, nil
-	})
-
-	audit := &recordingAudit{}
-
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-	go fakeUpstream(ctx, serverConn, 0, "hello")
-
-	app, err := types.NewAppV3(types.Metadata{Name: "test"}, types.AppSpecV3{
-		URI: "http://upstream.invalid",
-	})
-	require.NoError(t, err)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://upstream.invalid/foo?bar=1",
-		strings.NewReader("body"))
-	require.NoError(t, err)
-	req = common.WithSessionContext(req, &common.SessionContext{
-		App:   app,
-		Audit: audit,
-	})
-	// A non-empty request ID in the context enables recording. The handler is
-	// responsible for generating it and for recording the bodies; the transport
-	// only emits the request/response metadata events.
-	const requestID = "test-request-id"
-	req = req.WithContext(withRequestID(req.Context(), requestID))
-
-	resp, err := tr.RoundTrip(req)
-	require.NoError(t, err)
-	_, err = io.ReadAll(resp.Body)
-	require.NoError(t, err)
-	require.NoError(t, resp.Body.Close())
-
-	// One request event carrying the request ID from the context.
-	require.Equal(t, []string{requestID}, audit.requests)
-	// One response event with status 200.
-	require.Len(t, audit.responses, 1)
-	require.Equal(t, http.StatusOK, audit.responses[0])
-	// The transport no longer records bodies; that is now the handler's job.
-	require.Empty(t, audit.reqChunks)
-	require.Empty(t, audit.respChunks)
 }
 
 type emptyCertAuthorityGetter struct{}

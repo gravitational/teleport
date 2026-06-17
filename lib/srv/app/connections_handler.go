@@ -30,13 +30,11 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
@@ -215,10 +213,6 @@ type ConnectionsHandler struct {
 	proxyPort   string
 	clusterName string
 
-	// httpRecording enables per-request HTTP recording for proxied HTTP apps.
-	// Controlled by the TELEPORT_APP_HTTP_RECORDING environment variable.
-	httpRecording bool
-
 	// getAppByPublicAddress returns a types.Application using the public address as matcher.
 	getAppByPublicAddress func(context.Context, string) (types.Application, error)
 }
@@ -268,16 +262,15 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 	}
 
 	c := &ConnectionsHandler{
-		cfg:           cfg,
-		closeContext:  closeContext,
-		awsHandler:    awsHandler,
-		azureHandler:  azureHandler,
-		gcpHandler:    gcpHandler,
-		llmHandler:    llmHandler,
-		httpRecording: utils.AsBool(os.Getenv("TELEPORT_APP_HTTP_RECORDING")),
-		connAuth:      make(map[net.Conn]error),
-		log:           slog.With(teleport.ComponentKey, cfg.ServiceComponent),
-		clusterName:   clusterName.GetClusterName(),
+		cfg:          cfg,
+		closeContext: closeContext,
+		awsHandler:   awsHandler,
+		azureHandler: azureHandler,
+		gcpHandler:   gcpHandler,
+		llmHandler:   llmHandler,
+		connAuth:     make(map[net.Conn]error),
+		log:          slog.With(teleport.ComponentKey, cfg.ServiceComponent),
+		clusterName:  clusterName.GetClusterName(),
 		getAppByPublicAddress: func(ctx context.Context, s string) (types.Application, error) {
 			return nil, trace.NotFound("no applications are being proxied")
 		},
@@ -425,45 +418,9 @@ func (c *ConnectionsHandler) serveSession(w http.ResponseWriter, r *http.Request
 
 	r = common.WithSessionContext(r, sessionCtx)
 
-	// When HTTP recording is enabled, replace the request and response writer
-	// with recording versions that capture their bodies, and stamp the request
-	// ID into the context so the transport correlates its metadata events with
-	// the recorded body chunks.
-	if session.recordHTTP {
-		var rw *recordingResponseWriter
-		rw, r = c.recordHTTP(w, r, sessionCtx)
-		defer rw.finish()
-		w = rw
-	}
-
 	// Forward request to the target application.
 	session.handler.ServeHTTP(w, r)
 	return nil
-}
-
-// recordHTTP wraps the response writer and request body so the proxied HTTP
-// request and response bodies are recorded as audit body chunks, and stamps a
-// freshly generated request ID into the request context. The request ID
-// correlates the body chunks with the request/response metadata events emitted
-// by the transport.
-func (c *ConnectionsHandler) recordHTTP(w http.ResponseWriter, r *http.Request, sessionCtx *common.SessionContext) (*recordingResponseWriter, *http.Request) {
-	requestID := uuid.New().String()
-	r = r.WithContext(withRequestID(r.Context(), requestID))
-
-	if r.Body != nil && r.Body != http.NoBody {
-		r.Body = newRecordingBody(r.Body, func(data []byte, index int64, isLast bool) {
-			if err := sessionCtx.Audit.OnHTTPRequestBodyChunk(c.closeContext, sessionCtx, requestID, index, isLast, data); err != nil {
-				c.log.WarnContext(c.closeContext, "failed to record request body chunk", "error", err)
-			}
-		})
-	}
-
-	rw := newRecordingResponseWriter(w, func(data []byte, index int64, isLast bool) {
-		if err := sessionCtx.Audit.OnHTTPResponseBodyChunk(c.closeContext, sessionCtx, requestID, index, isLast, data); err != nil {
-			c.log.WarnContext(c.closeContext, "failed to record response body chunk", "error", err)
-		}
-	})
-	return rw, r
 }
 
 // sessionStartTime fetches the session start time based on the certificate

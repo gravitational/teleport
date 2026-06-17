@@ -1,22 +1,20 @@
-/*
- * Teleport
- * Copyright (C) 2026  Gravitational, Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+// Teleport
+// Copyright (C) 2026 Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package app
+package llm
 
 import (
 	"bufio"
@@ -27,6 +25,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -148,11 +147,13 @@ func TestRecordingResponseWriter(t *testing.T) {
 	}
 	var chunks []chunk
 	rec := httptest.NewRecorder()
-	rw := newRecordingResponseWriter(rec, func(data []byte, index int64, isLast bool) {
-		cp := make([]byte, len(data))
-		copy(cp, data)
-		chunks = append(chunks, chunk{index, isLast, cp})
-	})
+	rw := newRecordingResponseWriter(rec, time.Now(),
+		func(int, http.Header, int64) {},
+		func(data []byte, index int64, isLast bool) {
+			cp := make([]byte, len(data))
+			copy(cp, data)
+			chunks = append(chunks, chunk{index, isLast, cp})
+		})
 
 	rw.WriteHeader(http.StatusCreated)
 	_, err := rw.Write([]byte("hello "))
@@ -186,6 +187,64 @@ func TestRecordingResponseWriter(t *testing.T) {
 	require.Empty(t, last.data)
 }
 
+// TestRecordingResponseWriter_HeaderEmittedOnce verifies the header callback
+// fires exactly once with the status and headers the client receives, and that
+// it reports the implicit-200 status when the handler writes a body without
+// calling WriteHeader.
+func TestRecordingResponseWriter_HeaderEmittedOnce(t *testing.T) {
+	t.Parallel()
+	t.Run("explicit WriteHeader", func(t *testing.T) {
+		t.Parallel()
+		var (
+			calls   int
+			status  int
+			headers http.Header
+		)
+		rec := httptest.NewRecorder()
+		rw := newRecordingResponseWriter(rec, time.Now(),
+			func(s int, h http.Header, _ int64) {
+				calls++
+				status = s
+				headers = h
+			},
+			func([]byte, int64, bool) {})
+
+		rw.Header().Set("Content-Type", "application/json")
+		rw.WriteHeader(http.StatusBadGateway)
+		_, err := rw.Write([]byte("a"))
+		require.NoError(t, err)
+		_, err = rw.Write([]byte("b"))
+		require.NoError(t, err)
+		rw.finish()
+
+		require.Equal(t, 1, calls, "header callback must fire exactly once")
+		require.Equal(t, http.StatusBadGateway, status)
+		require.Equal(t, "application/json", headers.Get("Content-Type"))
+	})
+
+	t.Run("implicit 200 on first Write", func(t *testing.T) {
+		t.Parallel()
+		var (
+			calls  int
+			status int
+		)
+		rec := httptest.NewRecorder()
+		rw := newRecordingResponseWriter(rec, time.Now(),
+			func(s int, _ http.Header, _ int64) {
+				calls++
+				status = s
+			},
+			func([]byte, int64, bool) {})
+
+		_, err := rw.Write([]byte("body"))
+		require.NoError(t, err)
+		rw.finish()
+
+		require.Equal(t, 1, calls)
+		require.Equal(t, http.StatusOK, status)
+	})
+}
+
 // flushHijackRecorder is an http.ResponseWriter that also implements
 // http.Flusher and http.Hijacker, used to verify the recording writer
 // forwards those optional interfaces.
@@ -205,7 +264,7 @@ func (f *flushHijackRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 func TestRecordingResponseWriter_ForwardsFlushAndHijack(t *testing.T) {
 	t.Parallel()
 	inner := &flushHijackRecorder{ResponseRecorder: httptest.NewRecorder()}
-	rw := newRecordingResponseWriter(inner, func([]byte, int64, bool) {})
+	rw := newRecordingResponseWriter(inner, time.Now(), func(int, http.Header, int64) {}, func([]byte, int64, bool) {})
 
 	// The wrapper must expose Flusher and Hijacker so the reverse proxy's
 	// streaming and protocol upgrades keep working.
@@ -225,7 +284,7 @@ func TestRecordingResponseWriter_ForwardsFlushAndHijack(t *testing.T) {
 // ErrNotSupported when the underlying writer is not a Hijacker.
 func TestRecordingResponseWriter_HijackUnsupported(t *testing.T) {
 	t.Parallel()
-	rw := newRecordingResponseWriter(httptest.NewRecorder(), func([]byte, int64, bool) {})
+	rw := newRecordingResponseWriter(httptest.NewRecorder(), time.Now(), func(int, http.Header, int64) {}, func([]byte, int64, bool) {})
 	_, _, err := rw.Hijack()
 	require.ErrorIs(t, err, http.ErrNotSupported)
 }

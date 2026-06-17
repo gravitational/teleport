@@ -184,26 +184,9 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 		}, nil
 	}
 
-	// Get session context before rewriting so that recording captures the
-	// original public-facing URL rather than the rewritten upstream address.
 	sessCtx, err := common.GetSessionContext(r)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	// The handler generates the request ID, records the request and response
-	// bodies (by wrapping the request body and response writer), and stores
-	// the ID in the request context. A non-empty ID means HTTP recording is
-	// enabled for this request, so the transport emits the request/response
-	// metadata events that the body chunks are correlated against.
-	requestID := requestIDFromContext(r.Context())
-
-	// Emit the request event before rewriteRequest mutates r.URL to the
-	// upstream backend coordinates.
-	if requestID != "" {
-		if err := sessCtx.Audit.OnHTTPRequest(t.closeContext, sessCtx, requestID, r); err != nil {
-			return nil, trace.Wrap(err)
-		}
 	}
 
 	// Perform any request rewriting needed before forwarding the request.
@@ -211,37 +194,6 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if requestID != "" {
-		start := time.Now()
-		resp, err := t.tr.RoundTrip(r)
-		waitMs := time.Since(start).Milliseconds()
-
-		if message, ok := utils.CanExplainNetworkError(err); ok {
-			return t.networkErrorResponse(r, message, err), nil
-		}
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		// Rewrite response headers (e.g. Location) before recording so the
-		// audit event captures the public-facing values, not the upstream ones.
-		if err := t.rewriteResponse(resp); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		if err := sessCtx.Audit.OnHTTPResponse(t.closeContext, sessCtx, requestID, resp, waitMs); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		if err := sessCtx.Audit.OnRequest(t.closeContext, sessCtx, r, uint32(resp.StatusCode), nil); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return resp, nil
-	}
-
-	// Non-recording path (original behaviour).
-	//
 	// If a network error occurred when connecting to the target application,
 	// log and return a helpful error message to the user and Teleport
 	// administrator.

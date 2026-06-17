@@ -70,11 +70,6 @@ type sessionChunk struct {
 	audit common.Audit
 	// handler handles requests for this session chunk.
 	handler http.Handler
-	// recordHTTP enables per-request HTTP recording (request/response metadata
-	// events and request/response body chunks) for this session chunk. It is
-	// only set for the HTTP forwarder, which is the handler that emits the
-	// metadata events the body chunks are correlated against.
-	recordHTTP bool
 
 	// inflightCond protects and signals change of inflight
 	inflightCond *sync.Cond
@@ -190,7 +185,6 @@ func (c *ConnectionsHandler) withJWTTokenForwarder(ctx context.Context, sess *se
 		return trace.Wrap(err)
 	}
 
-	sess.recordHTTP = c.httpRecording
 	return nil
 }
 

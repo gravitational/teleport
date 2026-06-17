@@ -18,6 +18,7 @@ package llm
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -25,6 +26,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
@@ -37,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/app/llm/anthropic"
 	llmerrors "github.com/gravitational/teleport/lib/srv/app/llm/errors"
 	llmrequest "github.com/gravitational/teleport/lib/srv/app/llm/request"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Handler proxies LLM API requests for authorized app sessions.
@@ -61,6 +64,11 @@ type HandlerConfig struct {
 	// Transport is the transport used to issue requests to the upstream
 	// LLM provider.
 	Transport *http.Transport
+	// RecordHTTP enables per-request HTTP recording (request/response metadata
+	// events and request/response body chunks) for proxied LLM requests,
+	// capturing what the client sent and receives. When unset, it defaults to
+	// the TELEPORT_APP_HTTP_RECORDING environment variable.
+	RecordHTTP bool
 }
 
 // CheckAndSetDefaults validates required dependencies and sets defaults.
@@ -84,6 +92,11 @@ func (c *HandlerConfig) CheckAndSetDefaults() error {
 			return trace.Wrap(err)
 		}
 		c.Transport = tr
+	}
+	// HTTP recording is opt-in via the environment variable unless explicitly
+	// enabled through the config.
+	if !c.RecordHTTP {
+		c.RecordHTTP = utils.AsBool(os.Getenv(recordingEnvVarName))
 	}
 	return nil
 }
@@ -145,6 +158,22 @@ func (h *Handler) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 			llm.Provider,
 		).Observe(time.Since(start).Seconds())
 	}()
+
+	// When HTTP recording is enabled, capture the request and response exactly
+	// as the client sent and receives them. The request body is wrapped before
+	// the provider request is built from it, and the response writer is wrapped
+	// beneath the provider recorder so the recorded status, headers and body are
+	// the final downstream-facing ones.
+	if h.cfg.RecordHTTP {
+		log := h.cfg.Log.With(
+			"app", sessionCtx.App.GetName(),
+			"format", llm.Format,
+			"provider", llm.Provider,
+		)
+		var finish func()
+		w, finish = h.recordHTTP(sessionCtx, log, w, r)
+		defer finish()
+	}
 
 	// TODO(gabrielcorado): implement OpenAI handler.
 	switch llm.Format {
@@ -335,6 +364,50 @@ func (h *Handler) handleRequest(
 	).Add(float64(rec.OutputTokensCount()))
 }
 
+// recordHTTP wraps the request body and response writer so the proxied LLM
+// request and response are recorded as audit events and body chunks. The
+// recording captures what the client sent (the downstream request body, before
+// it is rewritten into the provider request) and what the client receives (the
+// final downstream-facing status, headers and body). It returns the wrapped
+// response writer and a finish func that must be called once after the handler
+// returns.
+func (h *Handler) recordHTTP(sessionCtx *common.SessionContext, log *slog.Logger, w http.ResponseWriter, r *http.Request) (http.ResponseWriter, func()) {
+	requestID := uuid.New().String()
+
+	// Emit the request metadata before forwarding so it reflects the
+	// public-facing request the client sent.
+	if err := sessionCtx.Audit.OnHTTPRequest(h.closeContext, sessionCtx, requestID, r); err != nil {
+		log.WarnContext(h.closeContext, "failed to record HTTP request", "error", err)
+	}
+
+	if r.Body != nil && r.Body != http.NoBody {
+		r.Body = newRecordingBody(r.Body, func(data []byte, index int64, isLast bool) {
+			if err := sessionCtx.Audit.OnHTTPRequestBodyChunk(h.closeContext, sessionCtx, requestID, index, isLast, data); err != nil {
+				log.WarnContext(h.closeContext, "failed to record request body chunk", "error", err)
+			}
+		})
+	}
+
+	rw := newRecordingResponseWriter(w, time.Now(),
+		func(status int, header http.Header, waitMs int64) {
+			resp := &http.Response{
+				StatusCode: status,
+				Status:     fmt.Sprintf("%d %s", status, http.StatusText(status)),
+				Proto:      r.Proto,
+				Header:     header,
+			}
+			if err := sessionCtx.Audit.OnHTTPResponse(h.closeContext, sessionCtx, requestID, resp, waitMs); err != nil {
+				log.WarnContext(h.closeContext, "failed to record HTTP response", "error", err)
+			}
+		},
+		func(data []byte, index int64, isLast bool) {
+			if err := sessionCtx.Audit.OnHTTPResponseBodyChunk(h.closeContext, sessionCtx, requestID, index, isLast, data); err != nil {
+				log.WarnContext(h.closeContext, "failed to record response body chunk", "error", err)
+			}
+		})
+	return rw, rw.finish
+}
+
 const (
 	// anthropicAddressEnvVarName is the Anthropic's default environment
 	// variable used to set base API address.
@@ -346,4 +419,7 @@ const (
 	//
 	// https://code.claude.com/docs/en/env-vars#variables
 	anthropicApiKeyEnvVarName = "ANTHROPIC_API_KEY"
+	// recordingEnvVarName enables per-request HTTP recording for proxied LLM
+	// requests.
+	recordingEnvVarName = "TELEPORT_APP_HTTP_RECORDING"
 )
