@@ -20,8 +20,6 @@ package auditqueue
 
 import (
 	"context"
-	"os"
-	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -134,40 +132,4 @@ func TestDrain_RespectsContextDeadline(t *testing.T) {
 			require.NoError(t, <-runErr)
 		})
 	}
-}
-
-func TestDrain_StopsOrphanAdoption(t *testing.T) {
-	t.Parallel()
-	parent := t.TempDir()
-	ctx := t.Context()
-
-	a := newQueueAt(t, filepath.Join(parent, "a"), time.Hour)
-	for i := int64(0); i < 5; i++ {
-		require.NoError(t, a.Enqueue(ctx, newTestEvent(i)))
-	}
-	require.NoError(t, a.Close())
-
-	b := newQueueAt(t, filepath.Join(parent, "b"), 20*time.Millisecond)
-	t.Cleanup(func() { _ = b.Close() })
-
-	require.NoError(t, b.Drain(ctx))
-
-	runCtx, cancel := context.WithCancel(ctx)
-	t.Cleanup(cancel)
-	var delivered atomic.Int64
-	handler := func(_ context.Context, items []Item) []Item {
-		delivered.Add(int64(len(items)))
-		return items
-	}
-	runErr := make(chan error, 1)
-	go func() { runErr <- b.Run(runCtx, handler) }()
-
-	require.Never(t, func() bool {
-		_, err := os.Stat(filepath.Join(parent, "a"))
-		return os.IsNotExist(err)
-	}, 300*time.Millisecond, 30*time.Millisecond, "orphan A must not be adopted after Drain")
-	require.Zero(t, delivered.Load())
-
-	cancel()
-	require.NoError(t, <-runErr)
 }

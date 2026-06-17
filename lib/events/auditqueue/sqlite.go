@@ -119,6 +119,7 @@ type sqliteQueue struct {
 	closeOnce               sync.Once
 	drainOnce               sync.Once
 	drainCh                 chan struct{}
+	deadLetterSweepLoopDone chan struct{}
 	parentDir               string
 	selfStat                os.FileInfo
 	unlock                  func() error
@@ -178,6 +179,7 @@ func newBaseQueue(db *sql.DB, cfg Config) (*sqliteQueue, error) {
 		db:                      db,
 		toBeWritten:             make(chan writeRequest),
 		drainCh:                 make(chan struct{}),
+		deadLetterSweepLoopDone: make(chan struct{}),
 		maxBatch:                defaultMaxBatch,
 		ctx:                     ctx,
 		cancel:                  cancel,
@@ -401,7 +403,15 @@ func (q *sqliteQueue) runPollLoop(ctx context.Context, handler Handler) {
 // draining of the queue on shutdown. Run is executed in the background and will
 // continue to drain the queue.
 func (q *sqliteQueue) Drain(ctx context.Context) error {
+	// Trigger and wait for a final dead letter sweep.
 	q.drainOnce.Do(func() { close(q.drainCh) })
+	select {
+	case <-q.deadLetterSweepLoopDone:
+	case <-ctx.Done():
+		return trace.Wrap(ctx.Err())
+	case <-q.ctx.Done():
+		return trace.Wrap(q.ctx.Err())
+	}
 
 	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
@@ -555,6 +565,7 @@ func (q *sqliteQueue) processFailedDeliveries(failed []Item) (int, error) {
 // deadLetterSweepLoop periodically re-attempts delivery of dead-letter events
 // and deletes entries that have exceeded the TTL.
 func (q *sqliteQueue) deadLetterSweepLoop(ctx context.Context, handler Handler) {
+	defer close(q.deadLetterSweepLoopDone)
 	timer := time.NewTimer(q.deadLetterSweepInterval)
 	defer timer.Stop()
 	for {
@@ -563,14 +574,21 @@ func (q *sqliteQueue) deadLetterSweepLoop(ctx context.Context, handler Handler) 
 			return
 		case <-q.ctx.Done():
 			return
+		case <-q.drainCh:
+			q.runSweeps(ctx, handler)
+			return
 		case <-timer.C:
-			q.sweepDeadLetter(ctx, handler)
-			q.expireDeadLetter()
-			q.recoverCorruptEvents()
-			q.expireCorruptEvents()
+			q.runSweeps(ctx, handler)
 			timer.Reset(q.deadLetterSweepInterval)
 		}
 	}
+}
+
+func (q *sqliteQueue) runSweeps(ctx context.Context, handler Handler) {
+	q.sweepDeadLetter(ctx, handler)
+	q.expireDeadLetter()
+	q.recoverCorruptEvents()
+	q.expireCorruptEvents()
 }
 
 func (q *sqliteQueue) sweepDeadLetter(ctx context.Context, handler Handler) {
