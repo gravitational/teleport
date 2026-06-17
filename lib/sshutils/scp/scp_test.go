@@ -852,3 +852,26 @@ var testNow = time.Date(1984, time.April, 4, 0, 0, 0, 0, time.UTC)
 func args(params ...string) []string {
 	return params
 }
+
+func TestParseNewFileRejectsPathComponents(t *testing.T) {
+	t.Parallel()
+
+	rejected := []string{
+		"",
+		".",
+		"..",
+		"/etc/passwd",
+		"../../../tmp/evil",
+		"sub/../../etc/passwd",
+		"sub/evil",
+		`sub\evil`,
+	}
+	for _, name := range rejected {
+		_, err := parseNewFile("0644 10 " + name)
+		require.Error(t, err, "name %q must be rejected", name)
+	}
+
+	c, err := parseNewFile("0644 10 file.txt")
+	require.NoError(t, err)
+	require.Equal(t, "file.txt", c.Name)
+}

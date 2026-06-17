@@ -192,9 +192,9 @@ func TestMFA(t *testing.T) {
 
 func TestIsNonFatalErr(t *testing.T) {
 	// Test that nil returns false
-	require.False(t, IsNonFatalErr(nil))
+	require.False(t, tdp.IsNonFatalErr(nil))
 	// Test that any other error returns false
-	require.False(t, IsNonFatalErr(errors.New("some other error")))
+	require.False(t, tdp.IsNonFatalErr(errors.New("some other error")))
 }
 
 // TDP messages must have size limits in order to prevent attacks that
@@ -222,20 +222,20 @@ func TestSizeLimitsAreNonFatal(t *testing.T) {
 		},
 		{
 			name:  "rejects long Clipboard",
-			msg:   ClipboardData(bytes.Repeat([]byte("a"), maxClipboardDataLength+1)),
+			msg:   ClipboardData(bytes.Repeat([]byte("a"), tdp.MaxClipboardDataLength+1)),
 			fatal: false,
 		},
 		{
 			name: "rejects long Error",
 			msg: Error{
-				Message: string(bytes.Repeat([]byte("a"), tdpMaxAlertMessageLength+1)),
+				Message: string(bytes.Repeat([]byte("a"), tdp.MaxAlertMessageLength+1)),
 			},
 			fatal: false,
 		},
 		{
 			name: "rejects long Alert",
 			msg: Alert{
-				Message: string(bytes.Repeat([]byte("a"), tdpMaxAlertMessageLength+1)),
+				Message: string(bytes.Repeat([]byte("a"), tdp.MaxAlertMessageLength+1)),
 			},
 			fatal: false,
 		},
@@ -249,56 +249,63 @@ func TestSizeLimitsAreNonFatal(t *testing.T) {
 		{
 			name: "rejects long SharedDirectoryInfoRequest",
 			msg: SharedDirectoryInfoRequest{
-				Path: string(bytes.Repeat([]byte("a"), tdpMaxPathLength+1)),
+				Path: string(bytes.Repeat([]byte("a"), tdp.MaxPathLength+1)),
 			},
 			fatal: false,
 		},
 		{
 			name: "rejects long SharedDirectoryCreateRequest",
 			msg: SharedDirectoryCreateRequest{
-				Path: string(bytes.Repeat([]byte("a"), tdpMaxPathLength+1)),
+				Path: string(bytes.Repeat([]byte("a"), tdp.MaxPathLength+1)),
 			},
 			fatal: false,
 		},
 		{
 			name: "rejects long SharedDirectoryDeleteRequest",
 			msg: SharedDirectoryDeleteRequest{
-				Path: string(bytes.Repeat([]byte("a"), tdpMaxPathLength+1)),
+				Path: string(bytes.Repeat([]byte("a"), tdp.MaxPathLength+1)),
 			},
 			fatal: false,
 		},
 		{
 			name: "rejects long SharedDirectoryListRequest",
 			msg: SharedDirectoryListRequest{
-				Path: string(bytes.Repeat([]byte("a"), tdpMaxPathLength+1)),
+				Path: string(bytes.Repeat([]byte("a"), tdp.MaxPathLength+1)),
 			},
 			fatal: false,
 		},
 		{
-			name: "rejects long SharedDirectoryReadRequest",
+			name: "rejects long SharedDirectoryReadRequest path",
 			msg: SharedDirectoryReadRequest{
-				Path: string(bytes.Repeat([]byte("a"), tdpMaxPathLength+1)),
+				Path: string(bytes.Repeat([]byte("a"), tdp.MaxPathLength+1)),
+			},
+			fatal: false,
+		},
+		{
+			name: "rejects long SharedDirectoryReadRequest length",
+			msg: SharedDirectoryReadRequest{
+				Length: tdp.MaxFileReadWriteLength + 1,
 			},
 			fatal: false,
 		},
 		{
 			name: "rejects long SharedDirectoryReadResponse",
 			msg: SharedDirectoryReadResponse{
-				ReadDataLength: tdpMaxFileReadWriteLength + 1,
+				ReadDataLength: tdp.MaxFileReadWriteLength + 1,
 			},
 			fatal: false,
 		},
 		{
 			name: "rejects long SharedDirectoryWriteRequest",
 			msg: SharedDirectoryWriteRequest{
-				WriteDataLength: tdpMaxFileReadWriteLength + 1,
+				WriteDataLength: tdp.MaxFileReadWriteLength + 1,
 			},
 			fatal: false,
 		},
 		{
 			name: "rejects long SharedDirectoryMoveRequest",
 			msg: SharedDirectoryMoveRequest{
-				OriginalPath: string(bytes.Repeat([]byte("a"), tdpMaxPathLength+1)),
+				OriginalPath: string(bytes.Repeat([]byte("a"), tdp.MaxPathLength+1)),
 			},
 			fatal: false,
 		},
@@ -308,7 +315,7 @@ func TestSizeLimitsAreNonFatal(t *testing.T) {
 				CompletionID: 0,
 				ErrCode:      0,
 				Fso: FileSystemObject{
-					Path: string(bytes.Repeat([]byte("a"), tdpMaxPathLength+1)),
+					Path: string(bytes.Repeat([]byte("a"), tdp.MaxPathLength+1)),
 				},
 			},
 			fatal: false,
@@ -319,7 +326,7 @@ func TestSizeLimitsAreNonFatal(t *testing.T) {
 				CompletionID: 0,
 				ErrCode:      0,
 				Fso: FileSystemObject{
-					Path: string(bytes.Repeat([]byte("a"), tdpMaxPathLength+1)),
+					Path: string(bytes.Repeat([]byte("a"), tdp.MaxPathLength+1)),
 				},
 			},
 			fatal: false,
@@ -330,7 +337,7 @@ func TestSizeLimitsAreNonFatal(t *testing.T) {
 				CompletionID: 0,
 				ErrCode:      0,
 				FsoList: []FileSystemObject{{
-					Path: string(bytes.Repeat([]byte("a"), tdpMaxPathLength+1)),
+					Path: string(bytes.Repeat([]byte("a"), tdp.MaxPathLength+1)),
 				}},
 			},
 			fatal: false,
@@ -341,8 +348,8 @@ func TestSizeLimitsAreNonFatal(t *testing.T) {
 			require.NoError(t, err)
 			_, err = decode(bytes)
 			require.True(t, trace.IsLimitExceeded(err))
-			require.Equal(t, test.fatal, IsFatalErr(err))
-			require.Equal(t, !test.fatal, IsNonFatalErr(err))
+			require.Equal(t, test.fatal, tdp.IsFatalErr(err))
+			require.Equal(t, !test.fatal, tdp.IsNonFatalErr(err))
 		})
 	}
 }

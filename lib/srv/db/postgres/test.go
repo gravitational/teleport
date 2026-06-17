@@ -83,6 +83,8 @@ type TestServer struct {
 	log       *slog.Logger
 	// queryCount keeps track of the number of queries the server has received.
 	queryCount uint32
+	// pingCount tracks internal ping queries from pgconn.
+	pingCount uint32
 	// parametersCh receives startup message connection parameters.
 	parametersCh chan map[string]string
 	// storedProcedures are the stored procedures created on the server.
@@ -113,7 +115,7 @@ type TestServer struct {
 // cancellable.
 type pidHandle struct {
 	// secretKey is checked for equality when cancel request is received.
-	secretKey uint32
+	secretKey []byte
 	// cancel cancels the operation in progress, if any.
 	cancel context.CancelFunc
 }
@@ -186,7 +188,7 @@ func NewTestServer(config common.TestServerConfig) (svr *TestServer, err error) 
 // Serve starts serving client connections.
 func (s *TestServer) Serve() error {
 	s.log.DebugContext(context.Background(), "Starting test Postgres server.", "address", s.listener.Addr())
-	defer s.log.DebugContext(context.Background(), "Test Postgres server stopped.")
+	defer s.log.DebugContext(context.Background(), "Test Postgres server stopped.", "query_count", s.QueryCount(), "ping_count", atomic.LoadUint32(&s.pingCount))
 	for {
 		conn, err := s.listener.Accept()
 		if err != nil {
@@ -361,7 +363,7 @@ func (s *TestServer) handleCancelRequest(client *pgproto3.Backend, req *pgproto3
 	s.pidMu.Lock()
 	defer s.pidMu.Unlock()
 	p, ok := s.pids[req.ProcessID]
-	if ok && p != nil && p.secretKey == req.SecretKey && p.cancel != nil {
+	if ok && p != nil && bytes.Equal(p.secretKey, req.SecretKey) && p.cancel != nil {
 		p.cancel()
 	}
 }
@@ -390,7 +392,11 @@ func (s *TestServer) handlePasswordAuth(client *pgproto3.Backend) error {
 }
 
 func (s *TestServer) handleQuery(client *pgproto3.Backend, query string, pid uint32) error {
-	atomic.AddUint32(&s.queryCount, 1)
+	if strings.TrimSpace(query) == "-- ping" {
+		atomic.AddUint32(&s.pingCount, 1)
+	} else {
+		atomic.AddUint32(&s.queryCount, 1)
+	}
 	if query == TestLongRunningQuery {
 		return trace.Wrap(s.fakeLongRunningQuery(client, pid))
 	}
@@ -604,11 +610,6 @@ func (s *TestServer) handleActivateUser(client *pgproto3.Backend) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// Expect Describe message.
-	_, err = s.receiveDescribeMessage(client)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	// Expect Execute message.
 	_, err = s.receiveExecuteMessage(client)
 	if err != nil {
@@ -662,11 +663,6 @@ func (s *TestServer) handleDeactivateUser(client *pgproto3.Backend, sendDeleteRe
 	}
 	// Extract user name.
 	name, err := getVarchar(bind.ParameterFormatCodes[0], bind.Parameters[0])
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	// Expect Describe message.
-	_, err = s.receiveDescribeMessage(client)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -743,11 +739,6 @@ func (s *TestServer) handleUpdatePermissions(client *pgproto3.Backend) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// Expect Describe message.
-	_, err = s.receiveDescribeMessage(client)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	// Expect Execute message.
 	_, err = s.receiveExecuteMessage(client)
 	if err != nil {
@@ -795,11 +786,6 @@ func (s *TestServer) handleSchemaInfo(client *pgproto3.Backend) error {
 	}
 	// Expect Bind message.
 	_, err = s.receiveBindMessage(client)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	// Expect Describe message.
-	_, err = s.receiveDescribeMessage(client)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -982,6 +968,7 @@ func (s *TestServer) Port() string {
 }
 
 // QueryCount returns the number of queries the server has received.
+// It excludes internal ping queries from pgconn.
 func (s *TestServer) QueryCount() uint32 {
 	return atomic.LoadUint32(&s.queryCount)
 }
@@ -1078,7 +1065,7 @@ const TestLongRunningQuery = "pg_sleep(forever)"
 const TestErrorQuery = "select err"
 
 // testSecretKey is the secret key stub for all connections, used for cancel requests.
-const testSecretKey = 1234
+var testSecretKey = []byte{0, 0, 0x04, 0xD2}
 
 // userParameterName is the parameter name that contains the username used to
 // connect.

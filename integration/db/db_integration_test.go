@@ -36,12 +36,10 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -63,10 +61,12 @@ func TestDatabaseAccess(t *testing.T) {
 	pack := SetupDatabaseTest(t,
 		// set tighter rotation intervals
 		WithLeafConfig(func(config *servicecfg.Config) {
+			config.Modules = modulestest.EnterpriseModules()
 			config.PollingPeriod = 5 * time.Second
 			config.RotationConnectionInterval = 2 * time.Second
 		}),
 		WithRootConfig(func(config *servicecfg.Config) {
+			config.Modules = modulestest.EnterpriseModules()
 			config.PollingPeriod = 5 * time.Second
 			config.RotationConnectionInterval = 2 * time.Second
 			config.Proxy.MySQLServerVersion = "8.0.1"
@@ -104,15 +104,6 @@ func TestDatabaseAccessSeparateListeners(t *testing.T) {
 // testIPPinning tests a scenario where a user with IP pinning
 // connects to a database
 func (p *DatabasePack) testIPPinning(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.DB: {Enabled: true},
-			},
-		},
-	})
-
 	type testCase struct {
 		desc          string
 		targetCluster databaseClusterPack

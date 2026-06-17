@@ -41,7 +41,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/accesslists"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -70,6 +69,9 @@ type GeneratorConfig struct {
 
 	// Emitter is the emitter for audit events.
 	Emitter apievents.Emitter
+
+	// Cloud indicates if Teleport is running in Cloud.
+	Cloud bool
 }
 
 // UsageEventsClient is an interface that allows for submitting usage events to Posthog.
@@ -95,7 +97,7 @@ func (g *GeneratorConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing audit event emitter")
 	}
 
-	if modules.GetModules().Features().Cloud {
+	if g.Cloud {
 		if g.UsageEvents == nil {
 			return trace.BadParameter("missing usage events")
 		}

@@ -7,6 +7,7 @@ tags:
  - zero-trust
  - infrastructure-identity
  - google-cloud
+page_type: how-to
 ---
 
 (!docs/pages/includes/database-access/db-introduction.mdx dbType="AlloyDB" dbConfigure="with a service account"!)
@@ -287,7 +288,7 @@ endpoint instead, set `endpoint_type` in the config:
 
 ```yaml
 db_service:
-  resources:
+  databases:
     - name: alloydb
       protocol: postgres
       uri: alloydb://projects/PROJECT-ID/locations/REGION/clusters/CLUSTER/instances/INSTANCE
@@ -346,6 +347,18 @@ Connect using the service account name (minus `.gserviceaccount.com`):
 ```code
 $ tsh db connect --db-user=alloydb-user@<Var name="project-id"/>.iam --db-name=postgres alloydb
 ```
+
+<Admonition type="tip">
+To connect to the database using a tool of your choice, like a graphical
+database client, you can create a local tunnel and point it to your software:
+
+```code
+$ tsh proxy db alloydb --tunnel --db-user=alloydb-user@<Var name="project-id"/>.iam --db-name=postgres
+```
+
+See [Database GUI Clients](../../../../connect-your-client/third-party/gui-clients.mdx)
+guide for more information on specific tools.
+</Admonition>
 
 <Admonition type="tip">
 From version `17.1`, you can also 

@@ -43,8 +43,11 @@ type Token interface {
 	GetRoles() types.SystemRoles
 	// Expiry returns the token's expiration time.
 	Expiry() time.Time
-	// GetBotName returns the BotName field which must be set for joining bots.
-	GetBotName() string
+	// GetBot returns the name and scope of the bot that this token can join.
+	// An empty name indicates that this is not a bot token. An empty scope
+	// refers to an unscoped bot; scoped bot tokens always carry both
+	// components.
+	GetBot() (name, scope string)
 	// GetAssignedScope returns the scope that will be assigned to provisioned resources
 	// provisioned using the wrapped [joiningv1.ScopedToken].
 	GetAssignedScope() string
@@ -68,4 +71,8 @@ type Token interface {
 	GetOracle() *types.ProvisionTokenSpecV2Oracle
 	// GetKubernetes returns the Kubernetes-specific configuration for this token.
 	GetKubernetes() *types.ProvisionTokenSpecV2Kubernetes
+	// GetBoundKeypair returns bound keypair specific configuration for this token.
+	GetBoundKeypair() *types.ProvisionTokenSpecV2BoundKeypair
+	// GetBoundKeypairStatus returns bound keypair status for this token.
+	GetBoundKeypairStatus() *types.ProvisionTokenStatusV2BoundKeypair
 }

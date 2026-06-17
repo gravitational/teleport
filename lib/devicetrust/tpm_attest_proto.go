@@ -29,12 +29,12 @@ import (
 // AttestationParametersToProto converts an attest.AttestationParameters to
 // its protobuf representation.
 func AttestationParametersToProto(in attest.AttestationParameters) *devicepb.TPMAttestationParameters {
-	return &devicepb.TPMAttestationParameters{
+	return devicepb.TPMAttestationParameters_builder{
 		Public:            in.Public,
 		CreateData:        in.CreateData,
 		CreateAttestation: in.CreateAttestation,
 		CreateSignature:   in.CreateSignature,
-	}
+	}.Build()
 }
 
 // AttestationParametersFromProto extracts an attest.AttestationParameters from
@@ -44,10 +44,10 @@ func AttestationParametersFromProto(in *devicepb.TPMAttestationParameters) attes
 		return attest.AttestationParameters{}
 	}
 	return attest.AttestationParameters{
-		Public:            in.Public,
-		CreateData:        in.CreateData,
-		CreateAttestation: in.CreateAttestation,
-		CreateSignature:   in.CreateSignature,
+		Public:            in.GetPublic(),
+		CreateData:        in.GetCreateData(),
+		CreateAttestation: in.GetCreateAttestation(),
+		CreateSignature:   in.GetCreateSignature(),
 	}
 }
 
@@ -57,10 +57,10 @@ func EncryptedCredentialToProto(in *attest.EncryptedCredential) *devicepb.TPMEnc
 	if in == nil {
 		return nil
 	}
-	return &devicepb.TPMEncryptedCredential{
+	return devicepb.TPMEncryptedCredential_builder{
 		CredentialBlob: in.Credential,
 		Secret:         in.Secret,
-	}
+	}.Build()
 }
 
 // EncryptedCredentialFromProto extracts an attest.EncryptedCredential from
@@ -70,8 +70,8 @@ func EncryptedCredentialFromProto(in *devicepb.TPMEncryptedCredential) *attest.E
 		return nil
 	}
 	return &attest.EncryptedCredential{
-		Credential: in.CredentialBlob,
-		Secret:     in.Secret,
+		Credential: in.GetCredentialBlob(),
+		Secret:     in.GetSecret(),
 	}
 }
 
@@ -81,11 +81,11 @@ func PlatformParametersToProto(in *attest.PlatformParameters) *devicepb.TPMPlatf
 	if in == nil {
 		return nil
 	}
-	return &devicepb.TPMPlatformParameters{
+	return devicepb.TPMPlatformParameters_builder{
 		EventLog: in.EventLog,
 		Quotes:   quotesToProto(in.Quotes),
 		Pcrs:     pcrsToProto(in.PCRs),
-	}
+	}.Build()
 }
 
 // PlatformParametersFromProto extracts an attest.PlatformParameters from
@@ -95,9 +95,9 @@ func PlatformParametersFromProto(in *devicepb.TPMPlatformParameters) *attest.Pla
 		return nil
 	}
 	return &attest.PlatformParameters{
-		Quotes:   quotesFromProto(in.Quotes),
-		PCRs:     pcrsFromProto(in.Pcrs),
-		EventLog: in.EventLog,
+		Quotes:   quotesFromProto(in.GetQuotes()),
+		PCRs:     pcrsFromProto(in.GetPcrs()),
+		EventLog: in.GetEventLog(),
 	}
 }
 
@@ -108,10 +108,10 @@ func PlatformAttestationToProto(in *attest.PlatformParameters, nonce []byte) *de
 		return nil
 	}
 	platParams := PlatformParametersToProto(in)
-	return &devicepb.TPMPlatformAttestation{
+	return devicepb.TPMPlatformAttestation_builder{
 		PlatformParameters: platParams,
 		Nonce:              nonce,
-	}
+	}.Build()
 }
 
 // PlatformAttestationFromProto extracts a attest.PlatformParameters and nonce
@@ -120,16 +120,16 @@ func PlatformAttestationFromProto(in *devicepb.TPMPlatformAttestation) (platPara
 	if in == nil {
 		return nil, nil
 	}
-	return PlatformParametersFromProto(in.PlatformParameters), in.Nonce
+	return PlatformParametersFromProto(in.GetPlatformParameters()), in.GetNonce()
 }
 
 func quotesToProto(in []attest.Quote) []*devicepb.TPMQuote {
 	out := make([]*devicepb.TPMQuote, len(in))
 	for i, q := range in {
-		out[i] = &devicepb.TPMQuote{
+		out[i] = devicepb.TPMQuote_builder{
 			Quote:     q.Quote,
 			Signature: q.Signature,
-		}
+		}.Build()
 	}
 	return out
 }
@@ -138,8 +138,8 @@ func quotesFromProto(in []*devicepb.TPMQuote) []attest.Quote {
 	out := make([]attest.Quote, len(in))
 	for i, q := range in {
 		out[i] = attest.Quote{
-			Quote:     q.Quote,
-			Signature: q.Signature,
+			Quote:     q.GetQuote(),
+			Signature: q.GetSignature(),
 		}
 	}
 	return out
@@ -148,11 +148,11 @@ func quotesFromProto(in []*devicepb.TPMQuote) []attest.Quote {
 func pcrsToProto(in []attest.PCR) []*devicepb.TPMPCR {
 	out := make([]*devicepb.TPMPCR, len(in))
 	for i, pcr := range in {
-		out[i] = &devicepb.TPMPCR{
+		out[i] = devicepb.TPMPCR_builder{
 			Index:     int32(pcr.Index),
 			Digest:    pcr.Digest,
 			DigestAlg: uint64(pcr.DigestAlg),
-		}
+		}.Build()
 	}
 	return out
 }
@@ -161,9 +161,9 @@ func pcrsFromProto(in []*devicepb.TPMPCR) []attest.PCR {
 	out := make([]attest.PCR, len(in))
 	for i, pcr := range in {
 		out[i] = attest.PCR{
-			Index:     int(pcr.Index),
-			Digest:    pcr.Digest,
-			DigestAlg: crypto.Hash(pcr.DigestAlg),
+			Index:     int(pcr.GetIndex()),
+			Digest:    pcr.GetDigest(),
+			DigestAlg: crypto.Hash(pcr.GetDigestAlg()),
 		}
 	}
 	return out

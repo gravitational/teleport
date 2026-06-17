@@ -20,6 +20,7 @@ package server
 
 import (
 	"context"
+	"sync"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
@@ -62,6 +63,9 @@ func (gi *GCPInstaller) Run(ctx context.Context, req GCPRunRequest) error {
 	// hundreds of nodes at once.
 	g.SetLimit(10)
 
+	var runErrors []error
+	runErrorsMu := &sync.Mutex{}
+
 	for _, inst := range req.Instances {
 		g.Go(func() error {
 			runRequest := gcp.RunCommandRequest{
@@ -74,8 +78,16 @@ func (gi *GCPInstaller) Run(ctx context.Context, req GCPRunRequest) error {
 				Script:     script,
 				SSHKeyAlgo: req.SSHKeyAlgo,
 			}
-			return trace.Wrap(gcp.RunCommand(ctx, &runRequest))
+
+			if runError := gcp.RunCommand(ctx, &runRequest); runError != nil {
+				runErrorsMu.Lock()
+				runErrors = append(runErrors, trace.Wrap(runError, "running installer script on instance %q", inst.Name))
+				runErrorsMu.Unlock()
+			}
+			return nil
 		})
 	}
-	return trace.Wrap(g.Wait())
+	_ = g.Wait()
+
+	return trace.NewAggregate(runErrors...)
 }

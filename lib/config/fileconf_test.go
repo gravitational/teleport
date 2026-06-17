@@ -41,8 +41,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/session/networking/x11"
@@ -676,28 +674,28 @@ teleport:
 `,
 			expectError: require.NoError,
 			expectTokens: []*joiningv1.ScopedToken{
-				{
+				joiningv1.ScopedToken_builder{
 					Version: types.V1,
 					Kind:    types.KindScopedToken,
-					Metadata: &headerv1.Metadata{
+					Metadata: headerv1.Metadata_builder{
 						Name: "fully_defined_token",
-					},
+					}.Build(),
 					Scope: "/",
-					Spec: &joiningv1.ScopedTokenSpec{
+					Spec: joiningv1.ScopedTokenSpec_builder{
 						Roles:         []string{string(types.RoleNode)},
 						AssignedScope: "/test",
 						JoinMethod:    string(types.JoinMethodToken),
 						UsageMode:     string(joining.TokenUsageModeUnlimited),
-						ImmutableLabels: &joiningv1.ImmutableLabels{
+						ImmutableLabels: joiningv1.ImmutableLabels_builder{
 							Ssh: map[string]string{
 								"hello": "world",
 							},
-						},
-					},
-					Status: &joiningv1.ScopedTokenStatus{
+						}.Build(),
+					}.Build(),
+					Status: joiningv1.ScopedTokenStatus_builder{
 						Secret: "secret_token_value",
-					},
-				},
+					}.Build(),
+				}.Build(),
 			},
 		},
 		{
@@ -711,23 +709,23 @@ teleport:
 `, tokenFilePath),
 			expectError: require.NoError,
 			expectTokens: []*joiningv1.ScopedToken{
-				{
+				joiningv1.ScopedToken_builder{
 					Version: types.V1,
 					Kind:    types.KindScopedToken,
-					Metadata: &headerv1.Metadata{
+					Metadata: headerv1.Metadata_builder{
 						Name: "file_scoped_token",
-					},
+					}.Build(),
 					Scope: "/",
-					Spec: &joiningv1.ScopedTokenSpec{
+					Spec: joiningv1.ScopedTokenSpec_builder{
 						Roles:         []string{string(types.RoleNode)},
 						AssignedScope: "/test",
 						JoinMethod:    string(types.JoinMethodToken),
 						UsageMode:     string(joining.TokenUsageModeUnlimited),
-					},
-					Status: &joiningv1.ScopedTokenStatus{
+					}.Build(),
+					Status: joiningv1.ScopedTokenStatus_builder{
 						Secret: "secret_token_value",
-					},
-				},
+					}.Build(),
+				}.Build(),
 			},
 		},
 		{
@@ -760,40 +758,40 @@ teleport:
 `, tokenFilePath),
 			expectError: require.NoError,
 			expectTokens: []*joiningv1.ScopedToken{
-				{
+				joiningv1.ScopedToken_builder{
 					Version: types.V1,
 					Kind:    types.KindScopedToken,
-					Metadata: &headerv1.Metadata{
+					Metadata: headerv1.Metadata_builder{
 						Name: "fully_defined_token",
-					},
+					}.Build(),
 					Scope: "/",
-					Spec: &joiningv1.ScopedTokenSpec{
+					Spec: joiningv1.ScopedTokenSpec_builder{
 						Roles:         []string{string(types.RoleNode)},
 						AssignedScope: "/test",
 						JoinMethod:    string(types.JoinMethodToken),
 						UsageMode:     string(joining.TokenUsageModeUnlimited),
-					},
-					Status: &joiningv1.ScopedTokenStatus{
+					}.Build(),
+					Status: joiningv1.ScopedTokenStatus_builder{
 						Secret: "secret_token_value",
-					},
-				},
-				{
+					}.Build(),
+				}.Build(),
+				joiningv1.ScopedToken_builder{
 					Version: types.V1,
 					Kind:    types.KindScopedToken,
-					Metadata: &headerv1.Metadata{
+					Metadata: headerv1.Metadata_builder{
 						Name: "file_scoped_token",
-					},
+					}.Build(),
 					Scope: "/",
-					Spec: &joiningv1.ScopedTokenSpec{
+					Spec: joiningv1.ScopedTokenSpec_builder{
 						Roles:         []string{string(types.RoleNode)},
 						AssignedScope: "/test",
 						JoinMethod:    string(types.JoinMethodToken),
 						UsageMode:     string(joining.TokenUsageModeUnlimited),
-					},
-					Status: &joiningv1.ScopedTokenStatus{
+					}.Build(),
+					Status: joiningv1.ScopedTokenStatus_builder{
 						Secret: "secret_token_value",
-					},
-				},
+					}.Build(),
+				}.Build(),
 			},
 		},
 	}
@@ -996,11 +994,7 @@ func TestAuthenticationConfig_RequireSessionMFA(t *testing.T) {
 }
 
 func TestAuthenticationConfig_Parse_deviceTrustPB(t *testing.T) {
-	// Device trust mode=required is an Enterprise feature.
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-	})
-
+	t.Parallel()
 	tpmEKCertPath := "testdata/tpm_ekcert_ca.pem"
 	tpmEKCertPEM, err := os.ReadFile(tpmEKCertPath)
 	require.NoError(t, err)

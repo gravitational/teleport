@@ -20,6 +20,7 @@ package common
 
 import (
 	"context"
+	"maps"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -37,7 +38,8 @@ type AppTokenGenerator interface {
 }
 
 // GenerateJWTAndTraits is helper that generates a JWT for an application and
-// populates the user traits with the result JWT for templating.
+// populates the rewrite traits with the result JWT for templating. On success, the
+// returned rewrite traits map is guaranteed to be non-nil.
 func GenerateJWTAndTraits(
 	ctx context.Context,
 	identity *tlsca.Identity,
@@ -58,11 +60,12 @@ func GenerateJWTAndTraits(
 	if err != nil {
 		return "", nil, trace.Wrap(err)
 	}
-	if traits == nil {
-		traits = make(wrappers.Traits)
+	rewriteTraits := maps.Clone(traits)
+	if rewriteTraits == nil {
+		rewriteTraits = make(wrappers.Traits)
 	}
-	traits[constants.TraitJWT] = []string{jwt}
-	return jwt, traits, trace.Wrap(err)
+	rewriteTraits[constants.TraitJWT] = []string{jwt}
+	return jwt, rewriteTraits, nil
 }
 
 // RolesAndTraitsForAppToken is a helper to populate roles and traits that are

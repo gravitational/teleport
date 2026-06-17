@@ -36,7 +36,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/constants"
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -98,7 +98,7 @@ type leafCluster struct {
 	databaseServerWatcher *services.GenericWatcher[types.DatabaseServer, readonly.DatabaseServer]
 
 	// validatedMFAChallengeWatcher is a ValidatedMFAChallenge resource watcher.
-	validatedMFAChallengeWatcher *services.GenericWatcher[*mfav1.ValidatedMFAChallenge, *mfav1.ValidatedMFAChallenge]
+	validatedMFAChallengeWatcher *services.GenericWatcher[*mfav2.ValidatedMFAChallenge, *mfav2.ValidatedMFAChallenge]
 
 	// remoteCA is the last remote certificate authority recorded by the client.
 	// It is used to detect CA rotation status changes. If the rotation
@@ -312,14 +312,18 @@ func (s *leafCluster) addConn(conn net.Conn, sconn ssh.Conn) (*remoteConn, error
 	s.Lock()
 	defer s.Unlock()
 
-	rconn := newRemoteConn(&connConfig{
-		conn:             conn,
-		sconn:            sconn,
-		tunnelType:       string(types.ProxyTunnel),
-		proxyName:        s.connInfo.GetProxyName(),
-		clusterName:      s.domainName,
-		offlineThreshold: s.offlineThreshold,
+	rconn, err := newRemoteConn(&connConfig{
+		conn:                     conn,
+		sconn:                    sconn,
+		tunnelType:               string(types.ProxyTunnel),
+		proxyName:                s.connInfo.GetProxyName(),
+		clusterName:              s.domainName,
+		offlineThreshold:         s.offlineThreshold,
+		proxyDiscoverySubscriber: s.srv.proxyDiscoveryPublisher.Subscribe(),
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	s.connections = append(s.connections, rconn)
 	s.lastUsed = 0
@@ -389,7 +393,7 @@ func (s *leafCluster) registerHeartbeat(t time.Time) {
 	connInfo.SetLastHeartbeat(t)
 	connInfo.SetExpiry(s.clock.Now().Add(s.offlineThreshold))
 	s.setLastConnInfo(connInfo)
-	err := s.localCache.UpsertTunnelConnection(connInfo)
+	err := s.localCache.UpsertTunnelConnection(s.ctx, connInfo)
 	if err != nil {
 		s.logger.WarnContext(s.ctx, "Failed to register heartbeat", "error", err)
 	}
@@ -398,19 +402,8 @@ func (s *leafCluster) registerHeartbeat(t time.Time) {
 // deleteConnectionRecord deletes connection record to let know peer proxies
 // that this node lost the connection and needs to be discovered
 func (s *leafCluster) deleteConnectionRecord() {
-	if err := s.localCache.DeleteTunnelConnection(s.connInfo.GetClusterName(), s.connInfo.GetName()); err != nil {
+	if err := s.localCache.DeleteTunnelConnection(s.ctx, s.connInfo.GetClusterName(), s.connInfo.GetName()); err != nil {
 		s.logger.WarnContext(s.ctx, "Failed to delete tunnel connection", "error", err)
-	}
-}
-
-// fanOutProxies is a non-blocking call that puts the new proxies
-// list so that remote connection can notify the remote agent
-// about the list update
-func (s *leafCluster) fanOutProxies(proxies []types.Server) {
-	s.Lock()
-	defer s.Unlock()
-	for _, conn := range s.connections {
-		conn.updateProxies(proxies)
 	}
 }
 
@@ -432,7 +425,6 @@ func (s *leafCluster) handleHeartbeat(ctx context.Context, conn *remoteConn, ch 
 		}()
 	}
 
-	firstHeartbeat := true
 	proxyResyncTicker := s.clock.NewTicker(s.proxySyncInterval)
 	defer func() {
 		proxyResyncTicker.Stop()
@@ -456,21 +448,19 @@ func (s *leafCluster) handleHeartbeat(ctx context.Context, conn *remoteConn, ch 
 			return
 		case <-proxyResyncTicker.Chan():
 			var req discoveryRequest
-			proxies, err := s.srv.proxyWatcher.CurrentResources(s.srv.ctx)
-			if err != nil {
-				logger.WarnContext(ctx, "Failed to get proxy set", "error", err)
-			}
-			req.SetProxies(proxies)
+			req.Proxies = conn.proxyDiscoverySubscriber.GetAll()
 
 			if err := conn.sendDiscoveryRequest(ctx, req); err != nil {
 				logger.DebugContext(ctx, "Marking connection invalid on error", "error", err)
 				conn.markInvalid(err)
 				return
 			}
-		case proxies := <-conn.newProxiesC:
+		case <-conn.proxyDiscoverySubscriber.Wait():
 			var req discoveryRequest
-			req.SetProxies(proxies)
-
+			req.Proxies = conn.proxyDiscoverySubscriber.Get()
+			if len(req.Proxies) == 0 {
+				continue
+			}
 			if err := conn.sendDiscoveryRequest(ctx, req); err != nil {
 				logger.DebugContext(ctx, "Marking connection invalid on error", "error", err)
 				conn.markInvalid(err)
@@ -485,18 +475,6 @@ func (s *leafCluster) handleHeartbeat(ctx context.Context, conn *remoteConn, ch 
 					s.deleteConnectionRecord()
 				}
 				return
-			}
-			if firstHeartbeat {
-				// as soon as the agent connects and sends a first heartbeat
-				// send it the list of current proxies back
-				proxies, err := s.srv.proxyWatcher.CurrentResources(ctx)
-				if err != nil {
-					logger.WarnContext(ctx, "Failed to get proxy set", "error", err)
-				}
-				if len(proxies) > 0 {
-					conn.updateProxies(proxies)
-				}
-				firstHeartbeat = false
 			}
 			var timeSent time.Time
 			var roundtrip time.Duration
@@ -924,7 +902,7 @@ func (s *leafCluster) dialAndForward(params reversetunnelclient.DialParams) (_ n
 		LocalAuthClient:          s.localClient,
 		TargetClusterAccessPoint: s.leafCache,
 		UserAgent:                userAgent,
-		AgentlessSigner:          params.AgentlessSigner,
+		AgentlessSignerCreator:   params.AgentlessSignerCreator,
 		TargetConn:               targetConn,
 		SrcAddr:                  params.From,
 		DstAddr:                  params.To,
@@ -1204,12 +1182,12 @@ func (s *leafCluster) syncValidatedMFAChallenges(
 		// that have already expired in the root cluster for a certain grace period. This is to prevent potential auth
 		// bypass in the case where a challenge expires while we're attempting to sync it to the leaf cluster, as well
 		// as to account for potential clock skew between the root and leaf clusters.
-		if challenge.GetMetadata().Expiry().Sub(s.clock.Now()) < expiredValidatedMFAChallengeGracePeriod {
+		if challenge.GetMetadata().GetExpires().AsTime().Sub(s.clock.Now()) < expiredValidatedMFAChallengeGracePeriod {
 			log.WarnContext(
 				ctx,
 				"Skipping sync of expired ValidatedMFAChallenge to leaf cluster",
 				"challenge_name", challenge.GetMetadata().GetName(),
-				"expiry_time", challenge.GetMetadata().Expiry(),
+				"expiry_time", challenge.GetMetadata().GetExpires().AsTime(),
 			)
 
 			continue
@@ -1217,15 +1195,15 @@ func (s *leafCluster) syncValidatedMFAChallenges(
 
 		rpcCtx, cancel := context.WithTimeout(ctx, replicateValidatedMFAChallengeTimeout)
 
-		if _, err := s.leafClient.MFAServiceClient().ReplicateValidatedMFAChallenge(
+		if _, err := s.leafClient.MFAServiceClientV2().ReplicateValidatedMFAChallenge(
 			rpcCtx,
-			&mfav1.ReplicateValidatedMFAChallengeRequest{
+			mfav2.ReplicateValidatedMFAChallengeRequest_builder{
 				Name:          challenge.GetMetadata().GetName(),
 				Payload:       challenge.GetSpec().GetPayload(),
 				SourceCluster: challenge.GetSpec().GetSourceCluster(),
 				TargetCluster: challenge.GetSpec().GetTargetCluster(),
 				Username:      challenge.GetSpec().GetUsername(),
-			},
+			}.Build(),
 		); err != nil && !trace.IsAlreadyExists(err) {
 			log.ErrorContext(
 				ctx,
@@ -1249,9 +1227,9 @@ func (s *leafCluster) syncValidatedMFAChallenges(
 	return failed
 }
 
-type validatedMFAChallengeSet map[string]*mfav1.ValidatedMFAChallenge
+type validatedMFAChallengeSet map[string]*mfav2.ValidatedMFAChallenge
 
-func newValidatedMFAChallengeSet(challenges ...*mfav1.ValidatedMFAChallenge) validatedMFAChallengeSet {
+func newValidatedMFAChallengeSet(challenges ...*mfav2.ValidatedMFAChallenge) validatedMFAChallengeSet {
 	set := make(validatedMFAChallengeSet, len(challenges))
 
 	set.add(challenges...)
@@ -1259,7 +1237,7 @@ func newValidatedMFAChallengeSet(challenges ...*mfav1.ValidatedMFAChallenge) val
 	return set
 }
 
-func (s validatedMFAChallengeSet) add(challenges ...*mfav1.ValidatedMFAChallenge) {
+func (s validatedMFAChallengeSet) add(challenges ...*mfav2.ValidatedMFAChallenge) {
 	for _, chal := range challenges {
 		s[chal.GetMetadata().GetName()] = chal
 	}

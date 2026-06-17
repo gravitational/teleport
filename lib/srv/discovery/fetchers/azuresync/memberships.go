@@ -26,6 +26,7 @@ import (
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/msgraph"
+	"github.com/gravitational/teleport/lib/msgraph/models"
 )
 
 const parallelism = 10 //nolint:unused // invoked in a dependent PR
@@ -35,21 +36,21 @@ func expandMemberships(ctx context.Context, cli *msgraph.Client, principals []*a
 	// Map principals by ID
 	var principalsMap = make(map[string]*accessgraphv1alpha.AzurePrincipal)
 	for _, principal := range principals {
-		principalsMap[principal.Id] = principal
+		principalsMap[principal.GetId()] = principal
 	}
 	// Iterate through the Azure groups and add the group ID as a membership for its corresponding principal
 	eg, _ := errgroup.WithContext(ctx)
 	eg.SetLimit(parallelism)
 	errCh := make(chan error, len(principals))
 	for _, principal := range principals {
-		if principal.ObjectType != "group" {
+		if principal.GetObjectType() != "group" {
 			continue
 		}
 		group := principal
 		eg.Go(func() error {
-			err := cli.IterateGroupMembers(ctx, group.Id, func(member msgraph.GroupMember) bool {
+			err := cli.IterateGroupMembers(ctx, group.GetId(), func(member models.GroupMember) bool {
 				if memberPrincipal, ok := principalsMap[*member.GetID()]; ok {
-					memberPrincipal.MemberOf = append(memberPrincipal.MemberOf, group.Id)
+					memberPrincipal.SetMemberOf(append(memberPrincipal.GetMemberOf(), group.GetId()))
 				}
 				return true
 			})

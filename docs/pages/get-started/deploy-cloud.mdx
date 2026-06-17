@@ -4,6 +4,7 @@ description: "Sign up for Teleport Enterprise Cloud and deploy your hosted clust
 tags:
   - get-started
   - platform-wide
+page_type: how-to
 ---
 
 import Button from '@site/src/components/Button';
@@ -12,7 +13,10 @@ Teleport Enterprise Cloud is the **fastest and easiest way to get started**.
 
 Infrastructure and certificates are managed for you. All that's left is deploying agents to enroll your resources.
 
-To get started, simply sign up for a 14-day free trial. We'll automatically provision and manage a fully featured Teleport cluster in a dedicated tenant with a unique `example.teleport.sh` domain.
+To get started, you simply sign up for a 14-day free trial. We'll automatically provision and manage a fully featured Teleport cluster in a dedicated tenant with a unique `example.teleport.sh` domain.
+
+In this guide, you will sign up for a Teleport Cloud trial, create a backup
+user, and save your recovery codes.
 
 ## Deploy your cluster
 
@@ -51,10 +55,18 @@ relying on it for day-to-day usage:
    Tools](https://goteleport.com/download/client-tools/), select your platform,
    and choose "CLI Client Tools" in the **Download Type** menu.
 
+1. Sign in to your Teleport cluster from the command line so you can perform
+   administrative actions in your shell. Replace 
+   <Var name="example.teleport.sh" /> with the address of your Teleport cluster:
+
+   ```code
+   $ tsh login --proxy=<Var name="example.teleport.sh" /> --user=teleport-admin
+   ```
+
 1. On your workstation, run the following command:
 
    ```code
-   $ sudo tctl users add teleport-admin-backup --roles=editor,access,auditor --logins=root,ubuntu,ec2-user
+   $ tctl users add teleport-admin-backup --roles=editor,access,auditor --logins=root,ubuntu,ec2-user
    ```
 
    The command prints a message similar to the following:

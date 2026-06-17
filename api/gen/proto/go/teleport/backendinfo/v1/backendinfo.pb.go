@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/backendinfo/v1/backendinfo.proto
 
+//go:build !protoopaque
+
 package backendinfov1
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -41,7 +42,7 @@ const (
 // check validator. After a cluster upgrade with a new version of the auth service, this
 // information is overridden with data from the new auth instance.
 type BackendInfo struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Kind          string                 `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	SubKind       string                 `protobuf:"bytes,2,opt,name=sub_kind,json=subKind,proto3" json:"sub_kind,omitempty"`
 	Version       string                 `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
@@ -74,11 +75,6 @@ func (x *BackendInfo) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use BackendInfo.ProtoReflect.Descriptor instead.
-func (*BackendInfo) Descriptor() ([]byte, []int) {
-	return file_teleport_backendinfo_v1_backendinfo_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *BackendInfo) GetKind() string {
@@ -116,9 +112,73 @@ func (x *BackendInfo) GetSpec() *BackendInfoSpec {
 	return nil
 }
 
+func (x *BackendInfo) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *BackendInfo) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+func (x *BackendInfo) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *BackendInfo) SetMetadata(v *v1.Metadata) {
+	x.Metadata = v
+}
+
+func (x *BackendInfo) SetSpec(v *BackendInfoSpec) {
+	x.Spec = v
+}
+
+func (x *BackendInfo) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *BackendInfo) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *BackendInfo) ClearMetadata() {
+	x.Metadata = nil
+}
+
+func (x *BackendInfo) ClearSpec() {
+	x.Spec = nil
+}
+
+type BackendInfo_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Kind     string
+	SubKind  string
+	Version  string
+	Metadata *v1.Metadata
+	Spec     *BackendInfoSpec
+}
+
+func (b0 BackendInfo_builder) Build() *BackendInfo {
+	m0 := &BackendInfo{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.SubKind = b.SubKind
+	x.Version = b.Version
+	x.Metadata = b.Metadata
+	x.Spec = b.Spec
+	return m0
+}
+
 // BackendInfoSpec encodes the parameters auth server meta-information.
 type BackendInfoSpec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// teleport_version advertises the version of the auth server, e.g., "17.3.3" (without the leading "v").
 	TeleportVersion string `protobuf:"bytes,1,opt,name=teleport_version,json=teleportVersion,proto3" json:"teleport_version,omitempty"`
 	unknownFields   protoimpl.UnknownFields
@@ -150,16 +210,30 @@ func (x *BackendInfoSpec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use BackendInfoSpec.ProtoReflect.Descriptor instead.
-func (*BackendInfoSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_backendinfo_v1_backendinfo_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *BackendInfoSpec) GetTeleportVersion() string {
 	if x != nil {
 		return x.TeleportVersion
 	}
 	return ""
+}
+
+func (x *BackendInfoSpec) SetTeleportVersion(v string) {
+	x.TeleportVersion = v
+}
+
+type BackendInfoSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// teleport_version advertises the version of the auth server, e.g., "17.3.3" (without the leading "v").
+	TeleportVersion string
+}
+
+func (b0 BackendInfoSpec_builder) Build() *BackendInfoSpec {
+	m0 := &BackendInfoSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.TeleportVersion = b.TeleportVersion
+	return m0
 }
 
 var File_teleport_backendinfo_v1_backendinfo_proto protoreflect.FileDescriptor
@@ -175,18 +249,6 @@ const file_teleport_backendinfo_v1_backendinfo_proto_rawDesc = "" +
 	"\x04spec\x18\x05 \x01(\v2(.teleport.backendinfo.v1.BackendInfoSpecR\x04spec\"<\n" +
 	"\x0fBackendInfoSpec\x12)\n" +
 	"\x10teleport_version\x18\x01 \x01(\tR\x0fteleportVersionBZZXgithub.com/gravitational/teleport/api/gen/proto/go/teleport/backendinfo/v1;backendinfov1b\x06proto3"
-
-var (
-	file_teleport_backendinfo_v1_backendinfo_proto_rawDescOnce sync.Once
-	file_teleport_backendinfo_v1_backendinfo_proto_rawDescData []byte
-)
-
-func file_teleport_backendinfo_v1_backendinfo_proto_rawDescGZIP() []byte {
-	file_teleport_backendinfo_v1_backendinfo_proto_rawDescOnce.Do(func() {
-		file_teleport_backendinfo_v1_backendinfo_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_backendinfo_v1_backendinfo_proto_rawDesc), len(file_teleport_backendinfo_v1_backendinfo_proto_rawDesc)))
-	})
-	return file_teleport_backendinfo_v1_backendinfo_proto_rawDescData
-}
 
 var file_teleport_backendinfo_v1_backendinfo_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_teleport_backendinfo_v1_backendinfo_proto_goTypes = []any{

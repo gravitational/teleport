@@ -21,14 +21,19 @@ package slack
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"testing/synctest"
 	"time"
 
+	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/integrations/access/common/auth/storage"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
@@ -188,5 +193,224 @@ func TestOAuth(t *testing.T) {
 		_, err := authorizer.Refresh(context.Background(), refreshToken)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "expired_token")
+	})
+}
+
+type mockAuthorizer struct {
+	mock.Mock
+}
+
+// Refresh implements oauth.Refresher
+func (r *mockAuthorizer) Refresh(ctx context.Context, refreshToken string) (*storage.Credentials, error) {
+	args := r.Called(ctx, refreshToken)
+	return args.Get(0).(*storage.Credentials), args.Error(1)
+}
+
+func TestOauthTokenRefresher(t *testing.T) {
+	const testCredDuration = 2 * time.Hour
+	t.Run("Init", func(t *testing.T) {
+		clock := clockwork.NewFakeClock()
+		initialCreds := storage.Credentials{
+			AccessToken:  "my-access-token",
+			RefreshToken: "my-refresh-token",
+			ExpiresAt:    clock.Now().Add(testCredDuration),
+		}
+
+		authorizer := &mockAuthorizer{}
+
+		provider := OauthTokenRefresher{
+			retryInterval:       defaultRefreshRetryInterval,
+			tokenBufferInterval: defaultTokenBufferInterval,
+			saveCreds: func(ctx context.Context, credentials storage.Credentials) error {
+				require.Fail(t, "should not be called")
+				return nil
+			},
+			authorizer: authorizer,
+			clock:      clock,
+			log:        logtest.NewLogger(),
+			creds:      initialCreds,
+		}
+		creds, err := provider.GetAccessToken()
+		require.NoError(t, err)
+		require.Equal(t, initialCreds.AccessToken, creds)
+	})
+
+	t.Run("Refresh successful on second try", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			clock := clockwork.NewFakeClock()
+			initialCreds := storage.Credentials{
+				AccessToken:  "my-access-token",
+				RefreshToken: "my-refresh-token",
+				ExpiresAt:    clock.Now().Add(testCredDuration),
+			}
+			newCreds := storage.Credentials{
+				AccessToken:  "my-access-token2",
+				RefreshToken: "my-refresh-token2",
+				ExpiresAt:    clock.Now().Add(2 * testCredDuration),
+			}
+
+			var storedCreds *storage.Credentials
+
+			refresher := &mockAuthorizer{}
+			refresher.On("Refresh", mock.Anything, initialCreds.RefreshToken).Return((*storage.Credentials)(nil), errors.New("Oooops")).Once()
+			refresher.On("Refresh", mock.Anything, initialCreds.RefreshToken).Return(&newCreds, nil).Once()
+
+			ctx := t.Context()
+
+			provider := OauthTokenRefresher{
+				retryInterval:       defaultRefreshRetryInterval,
+				tokenBufferInterval: defaultTokenBufferInterval,
+				saveCreds: func(ctx context.Context, credentials storage.Credentials) error {
+					storedCreds = &credentials
+					return nil
+				},
+				authorizer: refresher,
+				clock:      clock,
+				log:        logtest.NewLogger(),
+				creds:      initialCreds,
+			}
+
+			go provider.RefreshLoop(ctx)
+
+			// Wait for all routines to block
+			synctest.Wait()
+			// Currently creds are valid, no need to refresh them
+
+			clock.Advance(testCredDuration)
+			// Wait for the first refresh attempt, it should fail.
+			synctest.Wait()
+			// creds should be unchanged
+			require.Equal(t, initialCreds, provider.creds)
+			require.Nil(t, storedCreds)
+
+			clock.Advance(2 * defaultRefreshRetryInterval) // trigger refresh (after retry period)
+			synctest.Wait()
+			require.Equal(t, newCreds, provider.creds)
+			require.NotNil(t, storedCreds)
+			require.Equal(t, newCreds, *storedCreds)
+		})
+	})
+
+	// If the context is canceled before the creds are refreshed, nothing should happen.
+	t.Run("Context canceled before refresh", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			clock := clockwork.NewFakeClock()
+			initialCreds := storage.Credentials{
+				AccessToken:  "my-access-token",
+				RefreshToken: "my-refresh-token",
+				ExpiresAt:    clock.Now().Add(testCredDuration),
+			}
+
+			var storedCreds *storage.Credentials
+			refresher := &mockAuthorizer{}
+
+			ctx, cancel := context.WithCancel(t.Context())
+			provider := OauthTokenRefresher{
+				retryInterval:       defaultRefreshRetryInterval,
+				tokenBufferInterval: defaultTokenBufferInterval,
+				saveCreds: func(ctx context.Context, credentials storage.Credentials) error {
+					t.Fatal("should not be called")
+					return nil
+				},
+				authorizer: refresher,
+				clock:      clock,
+				log:        logtest.NewLogger(),
+				creds:      initialCreds,
+			}
+
+			go provider.RefreshLoop(ctx)
+			synctest.Wait()
+
+			// creds should be unchanged
+			require.Equal(t, initialCreds, provider.creds)
+			require.Nil(t, storedCreds)
+
+			cancel()
+			synctest.Wait()
+
+			// creds should be unchanged
+			require.Equal(t, initialCreds, provider.creds)
+			require.Nil(t, storedCreds)
+
+			clock.Advance(testCredDuration)
+			synctest.Wait()
+
+			// creds should be unchanged
+			require.Equal(t, initialCreds, provider.creds)
+			require.Nil(t, storedCreds)
+
+		})
+	})
+	// If the context is canceled after the creds are refreshed, we must retry and persist the creds.
+	t.Run("Context canceled after refresh", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			clock := clockwork.NewFakeClock()
+			initialCreds := storage.Credentials{
+				AccessToken:  "my-access-token",
+				RefreshToken: "my-refresh-token",
+				ExpiresAt:    clock.Now().Add(testCredDuration),
+			}
+			newCreds := storage.Credentials{
+				AccessToken:  "my-access-token2",
+				RefreshToken: "my-refresh-token2",
+				ExpiresAt:    clock.Now().Add(2 * testCredDuration),
+			}
+
+			var (
+				storedCreds     *storage.Credentials
+				storedCallCount int
+			)
+
+			refresher := &mockAuthorizer{}
+			refresher.On("Refresh", mock.Anything, initialCreds.RefreshToken).Return(&newCreds, nil).Once()
+
+			ctx, cancel := context.WithCancel(t.Context())
+			provider := OauthTokenRefresher{
+				retryInterval:       defaultRefreshRetryInterval,
+				tokenBufferInterval: defaultTokenBufferInterval,
+				saveCreds: func(ctx context.Context, credentials storage.Credentials) error {
+					storedCallCount += 1
+					// Fail the first 3 calls
+					if storedCallCount <= 3 {
+						return errors.New("Oooops")
+					}
+					storedCreds = &credentials
+					return nil
+				},
+				authorizer: refresher,
+				clock:      clock,
+				log:        logtest.NewLogger(),
+				creds:      initialCreds,
+			}
+
+			go provider.RefreshLoop(ctx)
+			synctest.Wait()
+
+			clock.Advance(testCredDuration)
+			synctest.Wait()
+
+			// provider creds should be refreshed but not stored
+			require.Equal(t, newCreds, provider.creds)
+			require.Nil(t, storedCreds)
+
+			// Note: the retry logic will immediately retry once
+			require.Equal(t, 2, storedCallCount)
+
+			cancel()
+			// The linear retry starts at 1 second.
+			clock.Advance(1 * time.Second)
+			synctest.Wait()
+
+			require.Equal(t, newCreds, provider.creds)
+			require.Nil(t, storedCreds)
+			require.Equal(t, 3, storedCallCount)
+
+			// Third time is the charm.
+			clock.Advance(2 * time.Second)
+			synctest.Wait()
+			require.Equal(t, newCreds, provider.creds)
+			require.NotNil(t, storedCreds)
+			require.Equal(t, newCreds, *storedCreds)
+		})
 	})
 }

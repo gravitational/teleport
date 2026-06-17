@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/userloginstate/v1/userloginstate.proto
 
+//go:build !protoopaque
+
 package userloginstatev1
 
 import (
@@ -26,7 +28,6 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -39,7 +40,7 @@ const (
 
 // UserLoginState describes the ephemeral user login state for a user.
 type UserLoginState struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// header is the header for the resource.
 	Header *v1.ResourceHeader `protobuf:"bytes,1,opt,name=header,proto3" json:"header,omitempty"`
 	// spec is the specification for the user login state.
@@ -73,11 +74,6 @@ func (x *UserLoginState) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UserLoginState.ProtoReflect.Descriptor instead.
-func (*UserLoginState) Descriptor() ([]byte, []int) {
-	return file_teleport_userloginstate_v1_userloginstate_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *UserLoginState) GetHeader() *v1.ResourceHeader {
 	if x != nil {
 		return x.Header
@@ -92,9 +88,57 @@ func (x *UserLoginState) GetSpec() *Spec {
 	return nil
 }
 
+func (x *UserLoginState) SetHeader(v *v1.ResourceHeader) {
+	x.Header = v
+}
+
+func (x *UserLoginState) SetSpec(v *Spec) {
+	x.Spec = v
+}
+
+func (x *UserLoginState) HasHeader() bool {
+	if x == nil {
+		return false
+	}
+	return x.Header != nil
+}
+
+func (x *UserLoginState) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *UserLoginState) ClearHeader() {
+	x.Header = nil
+}
+
+func (x *UserLoginState) ClearSpec() {
+	x.Spec = nil
+}
+
+type UserLoginState_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// header is the header for the resource.
+	Header *v1.ResourceHeader
+	// spec is the specification for the user login state.
+	Spec *Spec
+}
+
+func (b0 UserLoginState_builder) Build() *UserLoginState {
+	m0 := &UserLoginState{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Header = b.Header
+	x.Spec = b.Spec
+	return m0
+}
+
 // Spec is the specification for a user login state.
 type Spec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// roles are the user roles attached to the user. Basically, [roles] = [original_roles] +
 	// [access_list_roles].
 	Roles []string `protobuf:"bytes,1,rep,name=roles,proto3" json:"roles,omitempty"`
@@ -170,11 +214,6 @@ func (x *Spec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Spec.ProtoReflect.Descriptor instead.
-func (*Spec) Descriptor() ([]byte, []int) {
-	return file_teleport_userloginstate_v1_userloginstate_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *Spec) GetRoles() []string {
 	if x != nil {
 		return x.Roles
@@ -238,9 +277,123 @@ func (x *Spec) GetAccessListTraits() []*v11.Trait {
 	return nil
 }
 
+func (x *Spec) SetRoles(v []string) {
+	x.Roles = v
+}
+
+func (x *Spec) SetTraits(v []*v11.Trait) {
+	x.Traits = v
+}
+
+func (x *Spec) SetUserType(v string) {
+	x.UserType = v
+}
+
+func (x *Spec) SetOriginalRoles(v []string) {
+	x.OriginalRoles = v
+}
+
+func (x *Spec) SetOriginalTraits(v []*v11.Trait) {
+	x.OriginalTraits = v
+}
+
+func (x *Spec) SetGitHubIdentity(v *ExternalIdentity) {
+	x.GitHubIdentity = v
+}
+
+func (x *Spec) SetSamlIdentities(v []*ExternalIdentity) {
+	x.SamlIdentities = v
+}
+
+func (x *Spec) SetAccessListRoles(v []string) {
+	x.AccessListRoles = v
+}
+
+func (x *Spec) SetAccessListTraits(v []*v11.Trait) {
+	x.AccessListTraits = v
+}
+
+func (x *Spec) HasGitHubIdentity() bool {
+	if x == nil {
+		return false
+	}
+	return x.GitHubIdentity != nil
+}
+
+func (x *Spec) ClearGitHubIdentity() {
+	x.GitHubIdentity = nil
+}
+
+type Spec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// roles are the user roles attached to the user. Basically, [roles] = [original_roles] +
+	// [access_list_roles].
+	Roles []string
+	// traits are the traits attached to the user. Basically, [roles] = [original_traits] +
+	// [access_list_traits].
+	Traits []*v11.Trait
+	// user_type is the type of user this state represents.
+	UserType string
+	// original_roles are the user roles that are part of the user's static definition. These roles
+	// are not affected by access granted by access lists and are obtained prior to granting access
+	// list access. Basically, [original_roles] = [roles] - [access_list_roles].
+	OriginalRoles []string
+	// original_traits are the user traits that are part of the user's static definition. These
+	// traits are not affected by access granted by access lists and are obtained prior to granting
+	// access list access. Basically, [original_traits] = [traits] - [access_list_traits].
+	OriginalTraits []*v11.Trait
+	// GitHubIdentity is the external identity attached to this user state.
+	GitHubIdentity *ExternalIdentity
+	// saml_identities are the identities created from the SAML connectors used to log in by this
+	// user name. They are useful for RBAC calculation when there is a user with same username form
+	// multiple SSO connectors, i.e. having multiple SSO indentities.
+	//
+	// NOTE: There is no mechanism to clean those identities. If the the user is deleted, the
+	// user_login_state and it's saml_identities will not be deleted. Or even if the user still
+	// exists, but it's SAML identity expires it isn't cleared from the user_login_state. This means
+	// the information stored here can be used only as long as there is a background sync running and
+	// making sure the user's info is up-to-date. E.g. Okta assignment creator is using this
+	// information, but it is running only when Okta user sync is active and periodically updates the
+	// user which in turn updates the user_login_state.
+	//
+	// NOTE2: This field isn't currently used. It's introduced so we can resolve the
+	// https://github.com/gravitational/teleport.e/issues/6723 issue in stages.
+	// The STAGE 1 is to introduce this field and give enough time to get existing Teleport
+	// installations to get updated and populate this field.
+	// The STAGE 2 is in the v19 release (or maybe even v20) to deploy the actual fix PR
+	// (https://github.com/gravitational/teleport.e/pull/7168) reading this field and calculating
+	// access to Okta resources. See more details in the description of the fix PR.
+	//
+	// TODO(kopiczko) v19: consider proceeding with the STAGE 2 described above.
+	SamlIdentities []*ExternalIdentity
+	// access_list_roles are roles granted to this user by the Access Lists
+	// membership/ownership.  Basically, [access_list_roles] = [roles] - [original_roles].
+	AccessListRoles []string
+	// access_list_traits are traits granted to this user by the Access Lists membership/ownership.
+	// Basically, [access_list_traits] = [traits] - [original_traits].
+	AccessListTraits []*v11.Trait
+}
+
+func (b0 Spec_builder) Build() *Spec {
+	m0 := &Spec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Roles = b.Roles
+	x.Traits = b.Traits
+	x.UserType = b.UserType
+	x.OriginalRoles = b.OriginalRoles
+	x.OriginalTraits = b.OriginalTraits
+	x.GitHubIdentity = b.GitHubIdentity
+	x.SamlIdentities = b.SamlIdentities
+	x.AccessListRoles = b.AccessListRoles
+	x.AccessListTraits = b.AccessListTraits
+	return m0
+}
+
 // ExternalIdentity defines an external identity attached to this user state.
 type ExternalIdentity struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// UserID is the unique identifier of the external identity such as GitHub user
 	// ID.
 	UserId string `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
@@ -281,11 +434,6 @@ func (x *ExternalIdentity) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ExternalIdentity.ProtoReflect.Descriptor instead.
-func (*ExternalIdentity) Descriptor() ([]byte, []int) {
-	return file_teleport_userloginstate_v1_userloginstate_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *ExternalIdentity) GetUserId() string {
 	if x != nil {
 		return x.UserId
@@ -321,6 +469,54 @@ func (x *ExternalIdentity) GetGrantedTraits() []*v11.Trait {
 	return nil
 }
 
+func (x *ExternalIdentity) SetUserId(v string) {
+	x.UserId = v
+}
+
+func (x *ExternalIdentity) SetUsername(v string) {
+	x.Username = v
+}
+
+func (x *ExternalIdentity) SetConnectorId(v string) {
+	x.ConnectorId = v
+}
+
+func (x *ExternalIdentity) SetGrantedRoles(v []string) {
+	x.GrantedRoles = v
+}
+
+func (x *ExternalIdentity) SetGrantedTraits(v []*v11.Trait) {
+	x.GrantedTraits = v
+}
+
+type ExternalIdentity_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// UserID is the unique identifier of the external identity such as GitHub user
+	// ID.
+	UserId string
+	// Username is the username of the external identity.
+	Username string
+	// ConnectorID is the connector this identity was created with. It's empty for the local user.
+	ConnectorId string
+	// GrantedRoles specific for this identity. E.g.: from connector attributes mapping.
+	GrantedRoles []string
+	// GrantedTraits specific for this identity. E.g.: from connector roles attributes mapping.
+	GrantedTraits []*v11.Trait
+}
+
+func (b0 ExternalIdentity_builder) Build() *ExternalIdentity {
+	m0 := &ExternalIdentity{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.UserId = b.UserId
+	x.Username = b.Username
+	x.ConnectorId = b.ConnectorId
+	x.GrantedRoles = b.GrantedRoles
+	x.GrantedTraits = b.GrantedTraits
+	return m0
+}
+
 var File_teleport_userloginstate_v1_userloginstate_proto protoreflect.FileDescriptor
 
 const file_teleport_userloginstate_v1_userloginstate_proto_rawDesc = "" +
@@ -345,18 +541,6 @@ const file_teleport_userloginstate_v1_userloginstate_proto_rawDesc = "" +
 	"\fconnector_id\x18\x03 \x01(\tR\vconnectorId\x12#\n" +
 	"\rgranted_roles\x18\x04 \x03(\tR\fgrantedRoles\x12?\n" +
 	"\x0egranted_traits\x18\x05 \x03(\v2\x18.teleport.trait.v1.TraitR\rgrantedTraitsB`Z^github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1;userloginstatev1b\x06proto3"
-
-var (
-	file_teleport_userloginstate_v1_userloginstate_proto_rawDescOnce sync.Once
-	file_teleport_userloginstate_v1_userloginstate_proto_rawDescData []byte
-)
-
-func file_teleport_userloginstate_v1_userloginstate_proto_rawDescGZIP() []byte {
-	file_teleport_userloginstate_v1_userloginstate_proto_rawDescOnce.Do(func() {
-		file_teleport_userloginstate_v1_userloginstate_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_userloginstate_v1_userloginstate_proto_rawDesc), len(file_teleport_userloginstate_v1_userloginstate_proto_rawDesc)))
-	})
-	return file_teleport_userloginstate_v1_userloginstate_proto_rawDescData
-}
 
 var file_teleport_userloginstate_v1_userloginstate_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_teleport_userloginstate_v1_userloginstate_proto_goTypes = []any{

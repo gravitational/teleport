@@ -139,6 +139,7 @@ func ForAuth(cfg Config) Config {
 	cfg.EnableRelativeExpiry = true
 	cfg.Watches = []types.WatchKind{
 		{Kind: types.KindCertAuthority, LoadSecrets: true},
+		{Kind: types.KindCertAuthorityOverride},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
@@ -174,6 +175,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindWindowsDesktopService},
 		{Kind: types.KindWindowsDesktop},
 		{Kind: types.KindDynamicWindowsDesktop},
+		{Kind: types.KindLinuxDesktop},
 		{Kind: types.KindKubeServer},
 		{Kind: types.KindInstaller},
 		{Kind: types.KindKubernetesCluster},
@@ -219,10 +221,10 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindBotInstance},
 		{Kind: types.KindRecordingEncryption},
 		{Kind: types.KindAppAuthConfig},
-		{Kind: types.KindWorkloadCluster},
 		{Kind: types.KindInferenceModel},
 		{Kind: types.KindInferencePolicy},
 		{Kind: types.KindInferenceSecret},
+		{Kind: types.KindClassifier},
 		{Kind: types.KindRetrievalModel},
 		{Kind: types.KindValidatedMFAChallenge},
 	}
@@ -266,6 +268,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindWindowsDesktopService},
 		{Kind: types.KindWindowsDesktop},
 		{Kind: types.KindDynamicWindowsDesktop},
+		{Kind: types.KindLinuxDesktop},
 		{Kind: types.KindKubeServer},
 		{Kind: types.KindKubernetesCluster},
 		{Kind: types.KindSAMLIdPServiceProvider},
@@ -321,6 +324,7 @@ func ForRemoteProxy(cfg Config) Config {
 		{Kind: types.KindNode},
 		{Kind: types.KindWindowsDesktop},
 		{Kind: types.KindWindowsDesktopService},
+		{Kind: types.KindLinuxDesktop},
 		{Kind: types.KindProxy},
 		{Kind: types.KindAuthServer},
 		{Kind: types.KindReverseTunnel},
@@ -430,6 +434,7 @@ func ForWindowsDesktop(cfg Config) Config {
 	cfg.target = "windows_desktop"
 	cfg.Watches = []types.WatchKind{
 		{Kind: types.KindCertAuthority, LoadSecrets: false, Filter: makeAllKnownCAsFilter().IntoMap()},
+		{Kind: types.KindCertAuthorityOverride},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
@@ -442,6 +447,33 @@ func ForWindowsDesktop(cfg Config) Config {
 		{Kind: types.KindDynamicWindowsDesktop},
 	}
 	cfg.QueueSize = defaults.WindowsDesktopQueueSize
+	return cfg
+}
+
+// ForLinuxDesktop sets up watch configuration for a Linux desktop service.
+func ForLinuxDesktop(cfg Config) Config {
+	var caFilter map[string]string
+	if cfg.ClusterConfig != nil {
+		clusterName, err := cfg.ClusterConfig.GetClusterName(context.TODO())
+		if err == nil {
+			caFilter = types.CertAuthorityFilter{
+				types.HostCA: clusterName.GetClusterName(),
+			}.IntoMap()
+		}
+	}
+	cfg.target = "linux_desktop"
+	cfg.Watches = []types.WatchKind{
+		{Kind: types.KindCertAuthority, LoadSecrets: false, Filter: caFilter},
+		{Kind: types.KindClusterName},
+		{Kind: types.KindClusterAuditConfig},
+		{Kind: types.KindClusterNetworkingConfig},
+		{Kind: types.KindClusterAuthPreference},
+		{Kind: types.KindSessionRecordingConfig},
+		{Kind: types.KindUser},
+		{Kind: types.KindRole},
+		{Kind: types.KindLinuxDesktop},
+	}
+	cfg.QueueSize = defaults.LinuxDesktopQueueSize
 	return cfg
 }
 
@@ -702,10 +734,12 @@ type Config struct {
 	WebSession types.WebSessionInterface
 	// WebToken holds web tokens.
 	WebToken services.WebToken
-	// WindowsDesktops is a windows desktop service.
+	// WindowsDesktops is a Windows desktop service.
 	WindowsDesktops services.WindowsDesktops
 	// DynamicWindowsDesktops is a dynamic Windows desktop service.
 	DynamicWindowsDesktops services.DynamicWindowsDesktops
+	// LinuxDesktops is a Linux desktop service.
+	LinuxDesktops services.LinuxDesktops
 	// SAMLIdPServiceProviders is a SAML IdP service providers service.
 	SAMLIdPServiceProviders services.SAMLIdPServiceProviders
 	// UserGroups is a user groups service.
@@ -803,10 +837,10 @@ type Config struct {
 	Plugin services.Plugins
 	// AppAuthConfig is a app auth config service.
 	AppAuthConfig services.AppAuthConfigReader
-	// WorkloadClusterService is a workload cluster service
-	WorkloadClusterService services.WorkloadClusterService
 	// Summarizer is a summarizer service.
 	Summarizer services.Summarizer
+	// SubCAService reads CertAuthorityOverride resources.
+	SubCAService services.SubCAServiceGetter
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -1706,7 +1740,8 @@ func (c *Cache) listResourcesFallback(ctx context.Context, req authproto.ListRes
 }
 
 func (c *Cache) listResources(ctx context.Context, req authproto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
-	_, span := c.Tracer.Start(ctx, "cache/listResources")
+	//nolint:ineffassign,staticcheck // ctx is shadowed so future downstream calls inherit the span.
+	ctx, span := c.Tracer.Start(ctx, "cache/listResources")
 	defer span.End()
 
 	filter, err := services.MatchResourceFilterFromListResourceRequest(&req)

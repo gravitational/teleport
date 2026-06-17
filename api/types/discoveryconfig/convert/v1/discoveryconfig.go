@@ -96,12 +96,19 @@ func StatusFromProto(msg *discoveryconfigv1.DiscoveryConfigStatus) discoveryconf
 		}
 	}
 
+	serverStatus := make(map[string]*discoveryconfig.DiscoveryStatusServer, len(msg.ServerStatus))
+	for k, v := range msg.ServerStatus {
+		serverStatus[k] = &discoveryconfig.DiscoveryStatusServer{
+			DiscoveryStatusServer: v,
+		}
+	}
 	return discoveryconfig.Status{
 		State:                          discoveryconfigv1.DiscoveryConfigState_name[int32(msg.State)],
 		ErrorMessage:                   msg.ErrorMessage,
 		DiscoveredResources:            msg.GetDiscoveredResources(),
 		LastSyncTime:                   lastSyncTime,
 		IntegrationDiscoveredResources: integrationDiscoveredResources,
+		ServerStatus:                   serverStatus,
 	}
 }
 
@@ -154,7 +161,21 @@ func StatusToProto(status discoveryconfig.Status) *discoveryconfigv1.DiscoveryCo
 		if v == nil {
 			v = &discoveryconfig.IntegrationDiscoveredSummary{}
 		}
+		if v.IntegrationDiscoveredSummary == nil {
+			v.IntegrationDiscoveredSummary = &discoveryconfigv1.IntegrationDiscoveredSummary{}
+		}
 		integrationDiscoveredResources[k] = v.IntegrationDiscoveredSummary
+	}
+
+	serverStatus := make(map[string]*discoveryconfigv1.DiscoveryStatusServer, len(status.ServerStatus))
+	for k, v := range status.ServerStatus {
+		if v == nil {
+			v = &discoveryconfig.DiscoveryStatusServer{}
+		}
+		if v.DiscoveryStatusServer == nil {
+			v.DiscoveryStatusServer = &discoveryconfigv1.DiscoveryStatusServer{}
+		}
+		serverStatus[k] = v.DiscoveryStatusServer
 	}
 
 	return &discoveryconfigv1.DiscoveryConfigStatus{
@@ -163,5 +184,6 @@ func StatusToProto(status discoveryconfig.Status) *discoveryconfigv1.DiscoveryCo
 		DiscoveredResources:            status.DiscoveredResources,
 		LastSyncTime:                   lastSyncTime,
 		IntegrationDiscoveredResources: integrationDiscoveredResources,
+		ServerStatus:                   serverStatus,
 	}
 }

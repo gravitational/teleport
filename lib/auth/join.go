@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/joinutils"
 	"github.com/gravitational/teleport/lib/join/legacyjoin"
 	"github.com/gravitational/teleport/lib/join/provision"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 )
 
@@ -134,7 +135,10 @@ func (a *Server) handleJoinFailure(
 		if pt != nil {
 			botJoinEvent.Method = string(pt.GetJoinMethod())
 			botJoinEvent.TokenName = pt.GetSafeName()
-			botJoinEvent.BotName = pt.GetBotName()
+			// We don't want to perform a backend fetch here, so we'll use the
+			// bot scope indicated in the token rather than the one embedded in
+			// the user.
+			botJoinEvent.BotName, botJoinEvent.Scope = pt.GetBot()
 		}
 		evt = botJoinEvent
 	} else {
@@ -223,7 +227,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		claims, err := a.checkGitHubJoinRequest(ctx, req, provisionToken)
 		if claims != nil {
 			rawClaims = claims
-			attrs.Github = claims.JoinAttrs()
+			attrs.SetGithub(claims.JoinAttrs())
 		}
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -232,7 +236,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		claims, err := a.checkGitLabJoinRequest(ctx, req, provisionToken)
 		if claims != nil {
 			rawClaims = claims
-			attrs.Gitlab = claims.JoinAttrs()
+			attrs.SetGitlab(claims.JoinAttrs())
 		}
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -241,7 +245,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		claims, err := a.checkCircleCIJoinRequest(ctx, req, provisionToken)
 		if claims != nil {
 			rawClaims = claims
-			attrs.Circleci = claims.JoinAttrs()
+			attrs.SetCircleci(claims.JoinAttrs())
 		}
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -250,7 +254,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		claims, err := a.checkKubernetesJoinRequest(ctx, req, provisionToken)
 		if claims != nil {
 			rawClaims = claims
-			attrs.Kubernetes = claims.JoinAttrs()
+			attrs.SetKubernetes(claims.JoinAttrs())
 		}
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -259,7 +263,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		claims, err := a.checkGCPJoinRequest(ctx, req, provisionToken)
 		if claims != nil {
 			rawClaims = claims
-			attrs.Gcp = claims.JoinAttrs()
+			attrs.SetGcp(claims.JoinAttrs())
 		}
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -268,7 +272,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		claims, err := a.checkSpaceliftJoinRequest(ctx, req, provisionToken)
 		if claims != nil {
 			rawClaims = claims
-			attrs.Spacelift = claims.JoinAttrs()
+			attrs.SetSpacelift(claims.JoinAttrs())
 		}
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -277,7 +281,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		claims, err := a.checkTerraformCloudJoinRequest(ctx, req, provisionToken)
 		if claims != nil {
 			rawClaims = claims
-			attrs.TerraformCloud = claims.JoinAttrs()
+			attrs.SetTerraformCloud(claims.JoinAttrs())
 		}
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -286,7 +290,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		claims, err := a.checkBitbucketJoinRequest(ctx, req, provisionToken)
 		if claims != nil {
 			rawClaims = claims
-			attrs.Bitbucket = claims.JoinAttrs()
+			attrs.SetBitbucket(claims.JoinAttrs())
 		}
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -295,7 +299,7 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 		claims, err := a.checkAzureDevopsJoinRequest(ctx, req, provisionToken)
 		if claims != nil {
 			rawClaims = claims.ForAudit()
-			attrs.AzureDevops = claims.JoinAttrs()
+			attrs.SetAzureDevops(claims.JoinAttrs())
 		}
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -355,7 +359,7 @@ func (a *Server) GenerateBotCertsForJoin(
 ) (*proto.Certs, string, error) {
 	// bots use this endpoint but get a user cert
 	// botResourceName must be set, enforced in CheckAndSetDefaults
-	botName := token.GetBotName()
+	botName, tokenBotScope := token.GetBot()
 	joinMethod := token.GetJoinMethod()
 
 	// Check this is a join method for bots we support.
@@ -414,14 +418,14 @@ func (a *Server) GenerateBotCertsForJoin(
 	if params.Attrs == nil {
 		params.Attrs = &workloadidentityv1pb.JoinAttrs{}
 	}
-	params.Attrs.Meta = &workloadidentityv1pb.JoinAttrsMeta{
+	params.Attrs.SetMeta(workloadidentityv1pb.JoinAttrsMeta_builder{
 		JoinMethod: string(joinMethod),
-	}
+	}.Build())
 	if joinMethod != types.JoinMethodToken {
-		params.Attrs.Meta.JoinTokenName = token.GetName()
+		params.Attrs.GetMeta().SetJoinTokenName(token.GetName())
 	}
 
-	auth := &machineidv1pb.BotInstanceStatusAuthentication{
+	auth := machineidv1pb.BotInstanceStatusAuthentication_builder{
 		AuthenticatedAt: timestamppb.New(a.GetClock().Now()),
 		// TODO: GetSafeName may not return an appropriate value for later
 		// comparison / locking purposes, and this also shouldn't contain
@@ -430,12 +434,55 @@ func (a *Server) GenerateBotCertsForJoin(
 		JoinMethod: string(token.GetJoinMethod()),
 		PublicKey:  params.PublicTLSKey,
 		JoinAttrs:  params.Attrs,
-	}
+	}.Build()
 
 	// TODO(noah): In v19, we can drop writing to the deprecated Metadata field.
 	auth.Metadata, err = rawJoinAttrsToGoogleStruct(params.RawJoinClaims)
 	if err != nil {
 		a.logger.WarnContext(ctx, "Unable to encode struct value for join metadata", "error", err)
+	}
+
+	// TODO(strideynet): scoped bots are currently looked up by their bare name
+	// and scope-checked via the BotScopeLabel below. Once scoped bots are
+	// namespaced by scope in the backend, the bare name is no longer a unique
+	// identifier and this lookup must key on the scope-qualified name instead.
+	user, err := a.GetUserOrLoginState(ctx, machineidv1.BotResourceName(botName))
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	if scoped, ok := token.(*joining.Token); ok {
+		botScope, ok := user.GetLabel(types.BotScopeLabel)
+		if !ok {
+			return nil, "", trace.BadParameter("a scoped token cannot be used to join an unscoped bot")
+		}
+
+		if mode := scoped.GetScoped().GetSpec().GetUsageMode(); joining.TokenUsageMode(mode) != joining.TokenUsageModeBot {
+			a.logger.WarnContext(ctx, "scoped token usage mode must be 'bot' for bot joining",
+				"usage_mode", mode,
+				"token_name", token.GetSafeName(),
+			)
+			return nil, "", trace.AccessDenied("scoped token usage mode must be 'bot' for bot joining")
+		}
+
+		if botScope != tokenBotScope {
+			a.logger.WarnContext(ctx, "bot scope must match token scope",
+				"token_scope", tokenBotScope,
+				"bot_scope", botScope,
+			)
+			return nil, "", trace.AccessDenied("bot scope must match token's spec.bot")
+		}
+
+		if !scopes.ResourceScope(botScope).IsSubjectToScopeOfEffect(scoped.GetScoped().GetScope()) {
+			return nil, "", trace.BadParameter("bot scope must be a equal to or descendant of its token's resource-level scope")
+		}
+
+		joinEvent.Scope = botScope
+	} else {
+		botScope, ok := user.GetLabel(types.BotScopeLabel)
+		if ok && botScope != "" {
+			return nil, "", trace.AccessDenied("scoped bots cannot join with an unscoped token")
+		}
 	}
 
 	certs, botInstanceID, err := a.generateInitialBotCerts(
@@ -524,6 +571,14 @@ func (a *Server) GenerateHostCertsForJoin(
 			},
 			AgentScope:         token.GetAssignedScope(),
 			ImmutableLabelHash: joining.HashImmutableLabels(token.GetImmutableLabels()),
+
+			// Include the join token name for bound keypair locking.
+			// `GetSafeName()` produces a censored name for `token` joining,
+			// which isn't ideal, but that's better than embedding the token in
+			// plaintext and we don't automatically target locks at `token`-type
+			// tokens. Other join methods (especially bound_keypair) return the
+			// full token name.
+			JoinToken: token.GetSafeName(),
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)

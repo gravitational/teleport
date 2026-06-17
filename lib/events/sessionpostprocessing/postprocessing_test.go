@@ -45,6 +45,7 @@ func TestSessionPostProcessor(t *testing.T) {
 		sessionID,
 		mock.Anything,
 		mock.Anything,
+		mock.Anything,
 	).
 		Return(nil).Once()
 	metadataProvider.SetService(recorderMetadata)
@@ -79,12 +80,58 @@ func TestSessionPostProcessor(t *testing.T) {
 	sessionSummarizer.AssertExpectations(t)
 }
 
+func TestSessionPostProcessor_Desktop(t *testing.T) {
+	sessionID := session.ID(uuid.NewString())
+	startTime := time.Now().UTC().Add(-5 * time.Minute)
+	endTime := startTime.Add(3 * time.Minute)
+
+	metadataProvider := recordingmetadata.NewProvider()
+	recorderMetadata := &fakeRecordingMetadata{}
+	recorderMetadata.On(
+		"ProcessSessionRecording",
+		mock.Anything,
+		sessionID,
+		recordingmetadata.SessionTypeDesktop,
+		startTime,
+		endTime.Sub(startTime),
+	).Return(nil).Once()
+	metadataProvider.SetService(recorderMetadata)
+
+	summarizerProvider := summarizer.NewSessionSummarizerProvider()
+	sessionSummarizer := &fakeSummarizer{}
+	sessionSummarizer.On(
+		"SummarizeWindowsDesktop",
+		mock.Anything,
+		mock.MatchedBy(func(e *apievents.WindowsDesktopSessionEnd) bool {
+			return e.GetSessionID() == string(sessionID)
+		}),
+	).Return(nil).Once()
+	summarizerProvider.SetSummarizer(sessionSummarizer)
+
+	cfg := sessionpostprocessing.Config{
+		SessionEnd: &apievents.WindowsDesktopSessionEnd{
+			SessionMetadata: apievents.SessionMetadata{SessionID: string(sessionID)},
+			StartTime:       startTime,
+			EndTime:         endTime,
+		},
+		RecordingMetadataProvider: metadataProvider,
+		SessionSummarizerProvider: summarizerProvider,
+		SessionID:                 sessionID,
+	}
+
+	err := sessionpostprocessing.Process(t.Context(), cfg)
+	require.NoError(t, err)
+
+	recorderMetadata.AssertExpectations(t)
+	sessionSummarizer.AssertExpectations(t)
+}
+
 type fakeRecordingMetadata struct {
 	mock.Mock
 }
 
-func (f *fakeRecordingMetadata) ProcessSessionRecording(ctx context.Context, sessionID session.ID, sessionType recordingmetadata.SessionType, duration time.Duration) error {
-	args := f.Called(ctx, sessionID, sessionType, duration)
+func (f *fakeRecordingMetadata) ProcessSessionRecording(ctx context.Context, sessionID session.ID, sessionType recordingmetadata.SessionType, startTime time.Time, duration time.Duration) error {
+	args := f.Called(ctx, sessionID, sessionType, startTime, duration)
 	return args.Error(0)
 }
 
@@ -98,6 +145,11 @@ func (f *fakeSummarizer) SummarizeSSH(ctx context.Context, sessionEndEvent *apie
 }
 
 func (f *fakeSummarizer) SummarizeDatabase(ctx context.Context, sessionEndEvent *apievents.DatabaseSessionEnd) error {
+	args := f.Called(ctx, sessionEndEvent)
+	return args.Error(0)
+}
+
+func (f *fakeSummarizer) SummarizeWindowsDesktop(ctx context.Context, sessionEndEvent *apievents.WindowsDesktopSessionEnd) error {
 	args := f.Called(ctx, sessionEndEvent)
 	return args.Error(0)
 }

@@ -17,6 +17,7 @@
  */
 
 import { EventEmitter } from 'node:events';
+import type { WatchEventType } from 'node:fs';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -24,6 +25,7 @@ import path from 'node:path';
 import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 import { wait } from 'shared/utils/wait';
 
+import Logger, { NullService } from 'teleterm/logger';
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import { RootClusterUri, routing } from 'teleterm/ui/uri';
 
@@ -32,6 +34,7 @@ import { CreateFsWatcher, FsWatcher, watchProfiles } from './profileWatcher';
 let tempDir: string;
 
 beforeAll(async () => {
+  Logger.init(new NullService());
   tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'profile-watcher-test'));
 });
 
@@ -140,7 +143,10 @@ function mockClusterStore(initial: { clusters: Cluster[] }) {
 class VirtualWatcher extends EventEmitter implements FsWatcher {
   private closed = false;
   constructor(
-    private readonly onEvent: () => void,
+    private readonly onEvent: (
+      event: WatchEventType,
+      filename: string | null
+    ) => void,
     signal?: AbortSignal
   ) {
     super();
@@ -149,7 +155,7 @@ class VirtualWatcher extends EventEmitter implements FsWatcher {
 
   emitFileSystemEvent(): void {
     if (!this.closed) {
-      this.onEvent();
+      this.onEvent('change', 'profile');
     }
   }
 

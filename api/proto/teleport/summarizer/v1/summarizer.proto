@@ -20,6 +20,7 @@ import "google/protobuf/duration.proto";
 import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 import "teleport/header/v1/metadata.proto";
+import "teleport/summarizer/v1/access_request.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1;summarizerv1";
 
@@ -145,12 +146,94 @@ message InferencePolicySpec {
   string filter = 3;
 }
 
+// Classifier resource configures a classifier applied to sessions during
+// summarization. Classifiers are matched to sessions by session kind and by
+// an optional filter expression, the same way inference policies are.
+message Classifier {
+  // Kind is the resource kind. Should always be set to "classifier".
+  string kind = 1;
+  // SubKind is the resource sub-kind. Should be empty.
+  string sub_kind = 2;
+  // Version is the resource version. Should be set to "v1".
+  string version = 3;
+  // Metadata is the resource metadata.
+  teleport.header.v1.Metadata metadata = 4;
+  // Spec selects the sessions that this classifier applies to and defines
+  // what the classifier matches.
+  ClassifierSpec spec = 5;
+}
+
+// ClassifierSpec selects the sessions that a classifier applies to and
+// defines what the classifier matches. Fields may be added to this message as
+// long as they are backward compatible; incompatible schema changes require
+// bumping the resource version on the Classifier message instead.
+message ClassifierSpec {
+  // Kinds are session kinds matched by this classifier, e.g., "ssh", "k8s",
+  // "db".
+  repeated string kinds = 1;
+  // Filter is an optional filter expression using Teleport Predicate Language
+  // that selects the sessions this classifier applies to. It supports the
+  // same language and matching context as the inference policy filter, e.g.,
+  // `equals(resource.metadata.labels["env"], "prod")`. If empty, the
+  // classifier applies to all sessions of matching kinds.
+  string filter = 2;
+  // Criteria is a natural-language description of what this classifier
+  // matches. It is evaluated by the inference model against the session
+  // summary and, when available, the per-command analysis.
+  string criteria = 3;
+  // Actions configures the effects of a match. If unset, a match is only
+  // recorded on the stored session summary.
+  ClassifierActions actions = 4;
+}
+
+// ClassifierActions configures the effects of a classifier match. Matches are
+// always recorded on the stored session summary, regardless of the actions
+// configured here.
+message ClassifierActions {
+  // EmitAuditEvent, if enabled, emits an audit event when a session matches
+  // this classifier.
+  ClassifierActionMode emit_audit_event = 1;
+  // RiskLevelFloor, if set, raises the session's risk level (and risk score)
+  // to at least this level on match. It never lowers the risk level. Leaving
+  // it unspecified means a match does not change the risk level. Only applies
+  // to summaries that carry an EnhancedSummary.
+  RiskLevel risk_level_floor = 2;
+  // FlagForReview, if enabled, marks the session as needing further review on
+  // match. Only applies to summaries that carry an EnhancedSummary.
+  ClassifierActionMode flag_for_review = 3;
+}
+
+// ClassifierActionMode is a tri-state toggle for classifier match actions.
+enum ClassifierActionMode {
+  // ClassifierActionModeUnspecified is the default value and applies the
+  // default behavior of the action, which is the same as disabled. It is
+  // distinct from an explicitly disabled action.
+  CLASSIFIER_ACTION_MODE_UNSPECIFIED = 0;
+  // ClassifierActionModeEnabled explicitly enables the action.
+  CLASSIFIER_ACTION_MODE_ENABLED = 1;
+  // ClassifierActionModeDisabled explicitly disables the action.
+  CLASSIFIER_ACTION_MODE_DISABLED = 2;
+}
+
+// ClassifierMatch records a classifier that matched a session summary.
+message ClassifierMatch {
+  // ClassifierName is the name of the matching classifier resource.
+  string classifier_name = 1;
+  // Reasoning is the model's explanation of why the session matched.
+  string reasoning = 2;
+  // MatchedCommandIndexes are indexes into the session's analyzed commands
+  // that triggered the match. Empty for simple summaries, which carry no
+  // per-command analysis.
+  repeated int32 matched_command_indexes = 3;
+}
+
 // SummaryState is the state of the summarization process.
 enum SummaryState {
   SUMMARY_STATE_UNSPECIFIED = 0;
   SUMMARY_STATE_PENDING = 1;
   SUMMARY_STATE_SUCCESS = 2;
   SUMMARY_STATE_ERROR = 3;
+  SUMMARY_STATE_NO_INFERENCE_POLICY = 4;
 }
 
 // Summary represents a summary of a session recording. This format is used to
@@ -185,6 +268,9 @@ message Summary {
   string error_message = 8;
   // EnhancedSummary contains structured data extracted from the session.
   EnhancedSummary enhanced_summary = 9;
+  // ClassifierMatches records the classifiers that matched this session
+  // summary.
+  repeated ClassifierMatch classifier_matches = 10;
 }
 
 // The following enums and messages should be kept in sync with `e/lib/auth/summarizer/schema/command.go`
@@ -298,8 +384,88 @@ enum ThreatCategory {
   THREAT_CATEGORY_NONE = 12;
 }
 
+// SessionEvent represents a single event during a session.
+message SessionEvent {
+  // Category is the category of the command.
+  CommandCategory category = 1;
+  // RiskLevel is the risk level associated with the command.
+  RiskLevel risk_level = 2;
+  // RiskScore is a numerical score representing the risk associated with the command.
+  int32 risk_score = 3;
+  // ThreatCategory is the category of any detected threat associated with the command.
+  ThreatCategory threat_category = 4;
+  // TimelineTitle is a brief title for the command's entry in the session timeline.
+  string timeline_title = 5;
+  // TimelineSubtitle is a more detailed subtitle for the command's entry in the session timeline.
+  string timeline_subtitle = 6;
+  // ShortDescription is a concise description of the command and its purpose.
+  string short_description = 7;
+  // DetailedDescription is an in-depth explanation of the command, its function,
+  // and any relevant context.
+  string detailed_description = 8;
+  // SuspiciousFlags contains any suspicious flags or indicators associated with the command.
+  repeated string suspicious_flags = 9;
+  // SensitiveItems contains any sensitive items accessed or modified by the command.
+  repeated string sensitive_items = 10;
+  // SuspiciousPatterns contains any suspicious patterns detected in relation to the command.
+  repeated string suspicious_patterns = 11;
+  // IOCs contains any indicators of compromise associated with the command.
+  repeated string iocs = 12;
+  // MitreAttackIDs contains any MITRE ATT&CK IDs relevant to the command.
+  repeated string mitre_attack_ids = 13;
+  // HasSensitiveData indicates whether the command involved access to or modification of sensitive data.
+  bool has_sensitive_data = 14;
+  // PrivilegeEscalation indicates whether the command involved privilege escalation.
+  bool privilege_escalation = 15;
+  // DataExfiltration indicates whether the command involved data exfiltration.
+  bool data_exfiltration = 16;
+  // Persistence indicates whether the command involved persistence mechanisms.
+  bool persistence = 17;
+  // StartOffset is the start time of the command, relative to the start of the session.
+  google.protobuf.Duration start_offset = 18;
+  // EndOffset is the end time of the command, relative to the start of the session.
+  google.protobuf.Duration end_offset = 19;
+  // InferenceErrorMessage is an error message if the inference provider failed to analyze this command.
+  string inference_error_message = 20;
+  // OutputIncompleteReason explains why this command's reconstructed output was incomplete - for example, output
+  // scrolled off the screen faster than it could be captured or was truncated to bound size - and so the command
+  // was only partially analyzed. Empty when the output was fully captured.
+  string output_incomplete_reason = 23;
+  // Details is the type-specific details of the event.
+  oneof details {
+    // CommandEventDetails holds the details for a command ran during a TTY session.
+    CommandEventDetails command_event_details = 21;
+    // DesktopEventDetails holds the details for an event during a desktop session.
+    DesktopEventDetails desktop_event_details = 22;
+  }
+}
+
+// CommandEventDetails represents the details of a command event during a TTY session.
+message CommandEventDetails {
+  // Command is the command that was executed.
+  string command = 1;
+  // Success indicates whether the command executed successfully.
+  bool success = 2;
+  // ErrorMessages contains any error messages produced during the execution of the command.
+  repeated string error_messages = 3;
+}
+
+// DesktopEventDetails represents the details of a desktop session event.
+message DesktopEventDetails {
+  // Applications visible or interacted with during this event.
+  repeated string applications = 1;
+  // URLs visible on screen (browser address bars, etc).
+  repeated string visible_urls = 2;
+  // File paths visible on screen (Explorer, save dialogs, terminals).
+  repeated string visible_file_paths = 3;
+  // The title of the active/focused window.
+  string active_window_title = 4;
+}
+
 // CommandAnalysis represents a summary of a single command executed during a
 // session.
+// Deprecated: This message is deprecated in favor of SessionEvent with CommandEventDetails.
+// DO NOT DELETE: This is used for backwards compatibility with summaries generated by older versions of Teleport.
 message CommandAnalysis {
   // Command is the command that was executed.
   string command = 1;
@@ -370,6 +536,27 @@ enum NeedsReviewReason {
   // NeedsReviewReasonCommandAnalysisFailed indicates that one or more commands failed to be analyzed by the
   // inference provider.
   NEEDS_REVIEW_REASON_COMMAND_ANALYSIS_FAILED = 2;
+  // NeedsReviewReasonFailedToFetchAccessRequest indicates that Teleport failed to fetch the access request associated
+  // with this session, if any.
+  NEEDS_REVIEW_REASON_FAILED_TO_FETCH_ACCESS_REQUEST = 3;
+  // NeedsReviewReasonAccessRequestResourceMismatch indicates that the session's access requests do not reference the
+  // resource being connected to.
+  NEEDS_REVIEW_REASON_ACCESS_REQUEST_RESOURCE_MISMATCH = 4;
+  // NeedsReviewReasonOutputNotFullyCaptured indicates that one or more commands' reconstructed output was incomplete -
+  // it scrolled off the screen faster than it could be captured or was truncated to bound size - and so was only
+  // partially analyzed.
+  NEEDS_REVIEW_REASON_OUTPUT_NOT_FULLY_CAPTURED = 5;
+  // NeedsReviewReasonClassifierMatched indicates that the session matched a
+  // classifier configured to flag matching sessions for review.
+  NEEDS_REVIEW_REASON_CLASSIFIER_MATCHED = 6;
+}
+
+// RiskScoreReason represents a reason that contributed to the overall risk score of a session.
+message RiskScoreReason {
+  // Reason is a concise sentence explaining this risk factor.
+  string reason = 1;
+  // ScoreImpact is a numerical value representing how much this reason contributed to the overall risk score of the session.
+  int32 score_impact = 2;
 }
 
 // EnhancedSummary represents an enhanced summary of a session recording,
@@ -388,9 +575,31 @@ message EnhancedSummary {
   // NotableCommandIndexes is a list of indexes of commands that are considered notable.
   repeated int32 notable_command_indexes = 6;
   // Commands is a list of command summaries extracted from the session.
-  repeated CommandAnalysis commands = 7;
+  // Deprecated: This field is deprecated in favor of SessionEvents with CommandEventDetails.
+  // DO NOT DELETE: This is used for backwards compatibility with summaries generated by older versions of Teleport.
+  repeated CommandAnalysis commands = 7 [deprecated = true];
   // NeedsFurtherReview indicates the reason why the session needs further review.
-  optional NeedsReviewReason needs_further_review = 8;
+  // Deprecated: This field is deprecated in favor of NeedsFurtherReviewReasons, which allows specifying multiple reasons.
+  // DO NOT DELETE: This is used for backwards compatibility with summaries generated by older versions of Teleport.
+  optional NeedsReviewReason needs_further_review = 8 [deprecated = true];
+  // RiskScore is a numerical score representing the overall risk associated with the session.
+  int32 risk_score = 9;
+  // ShortTitle is a brief title for the session summary, suitable for display in a list of sessions.
+  string short_title = 10;
+  // RiskScoreReasons contains a list of reasons that contributed to the overall risk score of the session.
+  repeated RiskScoreReason risk_score_reasons = 11;
+  // AccessRequestConsistency indicates whether session activity was consistent with the stated access request reason.
+  AccessRequestConsistency access_request_consistency = 12;
+  // AccessRequestAssessment is a free-text explanation of how session activity  relates to the stated access request
+  // reason. Empty if no access request.
+  string access_request_assessment = 13;
+  // AccessRequests contains snapshots of access requests associated with this session, if any.
+  repeated AccessRequestSnapshot access_requests = 14;
+  // NeedsFurtherReviewReasons contains a list of reasons why the session needs further review.
+  repeated NeedsReviewReason needs_further_review_reasons = 15;
+  // SessionEvents contains a list of significant events that occurred during the session, such as command executions or
+  // desktop interactions.
+  repeated SessionEvent session_events = 16;
 }
 
 // RetrievalModel resource specifies the model configuration used to

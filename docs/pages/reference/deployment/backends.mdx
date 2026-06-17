@@ -17,7 +17,7 @@ read/write ratio, mutability, etc.).
 |-------------------------|---------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------|
 | core cluster state      | Cluster configuration (e.g. users, roles, auth connectors) and identity (e.g. certificate authorities, registered nodes, trusted clusters). | Local directory (SQLite), etcd, PostgreSQL, Amazon DynamoDB, GCP Firestore, CockroachDB                |
 | audit events            | Events from the audit log (e.g. user logins, RBAC changes)                                                                                  | Local directory, PostgreSQL, CockroachDB, Amazon DynamoDB, Amazon S3, GCP Firestore |
-| session recordings      | Raw terminal recordings of interactive user sessions                                                                                        | Local directory, Amazon S3 (and any S3-compatible product), GCP Cloud Storage, Azure Blob Storage         |
+| session recordings      | Raw terminal recordings of interactive user sessions                                                                                        | Local directory, Amazon S3 (and certain S3-compatible services), GCP Cloud Storage, Azure Blob Storage         |
 | teleport instance state | ID and credentials of a non-auth teleport instance (e.g. node, proxy)                                                                       | Local directory, Kubernetes Secret                                                                     |
 
 ## Cluster state
@@ -703,6 +703,26 @@ section.
 S3 buckets must have versioning enabled, which ensures that a session log cannot
 be permanently altered or deleted. Teleport will always look at the oldest
 version of a recording.
+
+### S3-compatible services
+
+The Teleport Auth Service uses the [S3 SDK for Go
+V2](https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/s3) to communicate
+with Amazon S3. In the default Teleport Auth Service configuration, your
+S3-compatible service must support [S3 data integrity
+protection](https://docs.aws.amazon.com/sdkref/latest/guide/feature-dataintegrity.html).
+
+If your service does not support S3 data integrity protection as implemented by
+recent versions of the S3 SDK, you can start the Teleport Auth Service with the
+following environment variable assignments:
+
+```ini
+AWS_REQUEST_CHECKSUM_CALCULATION=WHEN_REQUIRED
+AWS_RESPONSE_CHECKSUM_VALIDATION=WHEN_REQUIRED
+```
+
+We recommend testing backend operations between Teleport and your S3-compatible
+solution in a non-production environment before deploying to production.
 
 ### Authenticating to AWS
 

@@ -190,6 +190,9 @@ message LockTarget {
   // joined. This only applies to bot identities, and cannot be used to target
   // bots that joined via the `token` join method.
   string join_token = 10;
+
+  // LinuxDesktop specifies the name of a Linux desktop.
+  string linux_desktop = 11;
 }
 
 // HostUserMode determines how host users should be created.

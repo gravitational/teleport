@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/devicetrust/v1/devicetrust_service.proto
 
+//go:build !protoopaque
+
 package devicetrustv1
 
 import (
@@ -28,7 +30,6 @@ import (
 	fieldmaskpb "google.golang.org/protobuf/types/known/fieldmaskpb"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -88,14 +89,9 @@ func (x DeviceView) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use DeviceView.Descriptor instead.
-func (DeviceView) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_devicetrust_service_proto_rawDescGZIP(), []int{0}
-}
-
 // Request for CreateDevice.
 type CreateDeviceRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Device to create.
 	Device *Device `protobuf:"bytes,1,opt,name=device,proto3" json:"device,omitempty"`
 	// If true, a DeviceEnrollToken is created along with the Device.
@@ -137,11 +133,6 @@ func (x *CreateDeviceRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateDeviceRequest.ProtoReflect.Descriptor instead.
-func (*CreateDeviceRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_devicetrust_service_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *CreateDeviceRequest) GetDevice() *Device {
 	if x != nil {
 		return x.Device
@@ -170,9 +161,75 @@ func (x *CreateDeviceRequest) GetEnrollTokenExpireTime() *timestamppb.Timestamp 
 	return nil
 }
 
+func (x *CreateDeviceRequest) SetDevice(v *Device) {
+	x.Device = v
+}
+
+func (x *CreateDeviceRequest) SetCreateEnrollToken(v bool) {
+	x.CreateEnrollToken = v
+}
+
+func (x *CreateDeviceRequest) SetCreateAsResource(v bool) {
+	x.CreateAsResource = v
+}
+
+func (x *CreateDeviceRequest) SetEnrollTokenExpireTime(v *timestamppb.Timestamp) {
+	x.EnrollTokenExpireTime = v
+}
+
+func (x *CreateDeviceRequest) HasDevice() bool {
+	if x == nil {
+		return false
+	}
+	return x.Device != nil
+}
+
+func (x *CreateDeviceRequest) HasEnrollTokenExpireTime() bool {
+	if x == nil {
+		return false
+	}
+	return x.EnrollTokenExpireTime != nil
+}
+
+func (x *CreateDeviceRequest) ClearDevice() {
+	x.Device = nil
+}
+
+func (x *CreateDeviceRequest) ClearEnrollTokenExpireTime() {
+	x.EnrollTokenExpireTime = nil
+}
+
+type CreateDeviceRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Device to create.
+	Device *Device
+	// If true, a DeviceEnrollToken is created along with the Device.
+	CreateEnrollToken bool
+	// If true, create the device as a Teleport resource, meaning that fields that
+	// are usually considered read-only or system managed are copied as provided
+	// to storage.
+	// Prefer using non-resource creation semantics if possible.
+	CreateAsResource bool
+	// Custom expiration time for enrollment tokens.
+	// A short (for humans) server default is used if unset.
+	EnrollTokenExpireTime *timestamppb.Timestamp
+}
+
+func (b0 CreateDeviceRequest_builder) Build() *CreateDeviceRequest {
+	m0 := &CreateDeviceRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Device = b.Device
+	x.CreateEnrollToken = b.CreateEnrollToken
+	x.CreateAsResource = b.CreateAsResource
+	x.EnrollTokenExpireTime = b.EnrollTokenExpireTime
+	return m0
+}
+
 // Request for UpdateDevice.
 type UpdateDeviceRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Device to update.
 	Device *Device `protobuf:"bytes,1,opt,name=device,proto3" json:"device,omitempty"`
 	// Update mask applied to the resource.
@@ -207,11 +264,6 @@ func (x *UpdateDeviceRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateDeviceRequest.ProtoReflect.Descriptor instead.
-func (*UpdateDeviceRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_devicetrust_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *UpdateDeviceRequest) GetDevice() *Device {
 	if x != nil {
 		return x.Device
@@ -226,9 +278,58 @@ func (x *UpdateDeviceRequest) GetUpdateMask() *fieldmaskpb.FieldMask {
 	return nil
 }
 
+func (x *UpdateDeviceRequest) SetDevice(v *Device) {
+	x.Device = v
+}
+
+func (x *UpdateDeviceRequest) SetUpdateMask(v *fieldmaskpb.FieldMask) {
+	x.UpdateMask = v
+}
+
+func (x *UpdateDeviceRequest) HasDevice() bool {
+	if x == nil {
+		return false
+	}
+	return x.Device != nil
+}
+
+func (x *UpdateDeviceRequest) HasUpdateMask() bool {
+	if x == nil {
+		return false
+	}
+	return x.UpdateMask != nil
+}
+
+func (x *UpdateDeviceRequest) ClearDevice() {
+	x.Device = nil
+}
+
+func (x *UpdateDeviceRequest) ClearUpdateMask() {
+	x.UpdateMask = nil
+}
+
+type UpdateDeviceRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Device to update.
+	Device *Device
+	// Update mask applied to the resource.
+	// Fields are masked according to their proto name.
+	UpdateMask *fieldmaskpb.FieldMask
+}
+
+func (b0 UpdateDeviceRequest_builder) Build() *UpdateDeviceRequest {
+	m0 := &UpdateDeviceRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Device = b.Device
+	x.UpdateMask = b.UpdateMask
+	return m0
+}
+
 // Request for UpsertDevice.
 type UpsertDeviceRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Device to create or update.
 	Device *Device `protobuf:"bytes,1,opt,name=device,proto3" json:"device,omitempty"`
 	// If true, creates the device using resource semantics.
@@ -264,11 +365,6 @@ func (x *UpsertDeviceRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpsertDeviceRequest.ProtoReflect.Descriptor instead.
-func (*UpsertDeviceRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_devicetrust_service_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *UpsertDeviceRequest) GetDevice() *Device {
 	if x != nil {
 		return x.Device
@@ -283,9 +379,48 @@ func (x *UpsertDeviceRequest) GetCreateAsResource() bool {
 	return false
 }
 
+func (x *UpsertDeviceRequest) SetDevice(v *Device) {
+	x.Device = v
+}
+
+func (x *UpsertDeviceRequest) SetCreateAsResource(v bool) {
+	x.CreateAsResource = v
+}
+
+func (x *UpsertDeviceRequest) HasDevice() bool {
+	if x == nil {
+		return false
+	}
+	return x.Device != nil
+}
+
+func (x *UpsertDeviceRequest) ClearDevice() {
+	x.Device = nil
+}
+
+type UpsertDeviceRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Device to create or update.
+	Device *Device
+	// If true, creates the device using resource semantics.
+	// Has no effect on device updates.
+	// See create_as_resource in CreateDeviceRequest.
+	CreateAsResource bool
+}
+
+func (b0 UpsertDeviceRequest_builder) Build() *UpsertDeviceRequest {
+	m0 := &UpsertDeviceRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Device = b.Device
+	x.CreateAsResource = b.CreateAsResource
+	return m0
+}
+
 // Request for DeleteDevice.
 type DeleteDeviceRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// ID of the Device to delete.
 	DeviceId      string `protobuf:"bytes,1,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -317,11 +452,6 @@ func (x *DeleteDeviceRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteDeviceRequest.ProtoReflect.Descriptor instead.
-func (*DeleteDeviceRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_devicetrust_service_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *DeleteDeviceRequest) GetDeviceId() string {
 	if x != nil {
 		return x.DeviceId
@@ -329,12 +459,31 @@ func (x *DeleteDeviceRequest) GetDeviceId() string {
 	return ""
 }
 
+func (x *DeleteDeviceRequest) SetDeviceId(v string) {
+	x.DeviceId = v
+}
+
+type DeleteDeviceRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ID of the Device to delete.
+	DeviceId string
+}
+
+func (b0 DeleteDeviceRequest_builder) Build() *DeleteDeviceRequest {
+	m0 := &DeleteDeviceRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.DeviceId = b.DeviceId
+	return m0
+}
+
 // Request for FindDevices.
 //
 // Inspect the returned devices to determine whether the match was by ID or
 // asset tag.
 type FindDevicesRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Device ID or asset tag.
 	IdOrTag       string `protobuf:"bytes,1,opt,name=id_or_tag,json=idOrTag,proto3" json:"id_or_tag,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -366,11 +515,6 @@ func (x *FindDevicesRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use FindDevicesRequest.ProtoReflect.Descriptor instead.
-func (*FindDevicesRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_devicetrust_service_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *FindDevicesRequest) GetIdOrTag() string {
 	if x != nil {
 		return x.IdOrTag
@@ -378,9 +522,28 @@ func (x *FindDevicesRequest) GetIdOrTag() string {
 	return ""
 }
 
+func (x *FindDevicesRequest) SetIdOrTag(v string) {
+	x.IdOrTag = v
+}
+
+type FindDevicesRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Device ID or asset tag.
+	IdOrTag string
+}
+
+func (b0 FindDevicesRequest_builder) Build() *FindDevicesRequest {
+	m0 := &FindDevicesRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.IdOrTag = b.IdOrTag
+	return m0
+}
+
 // Response for FindDevices.
 type FindDevicesResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Devices that matched the search.
 	// The number of resulting devices is expected to be low and may be
 	// artificially capped by the server otherwise.
@@ -414,11 +577,6 @@ func (x *FindDevicesResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use FindDevicesResponse.ProtoReflect.Descriptor instead.
-func (*FindDevicesResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_devicetrust_service_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *FindDevicesResponse) GetDevices() []*Device {
 	if x != nil {
 		return x.Devices
@@ -426,9 +584,30 @@ func (x *FindDevicesResponse) GetDevices() []*Device {
 	return nil
 }
 
+func (x *FindDevicesResponse) SetDevices(v []*Device) {
+	x.Devices = v
+}
+
+type FindDevicesResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Devices that matched the search.
+	// The number of resulting devices is expected to be low and may be
+	// artificially capped by the server otherwise.
+	Devices []*Device
+}
+
+func (b0 FindDevicesResponse_builder) Build() *FindDevicesResponse {
+	m0 := &FindDevicesResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Devices = b.Devices
+	return m0
+}
+
 // Request for GetDevice.
 type GetDeviceRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// ID of the device.
 	DeviceId      string `protobuf:"bytes,1,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -460,11 +639,6 @@ func (x *GetDeviceRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetDeviceRequest.ProtoReflect.Descriptor instead.
-func (*GetDeviceRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_devicetrust_service_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *GetDeviceRequest) GetDeviceId() string {
 	if x != nil {
 		return x.DeviceId
@@ -472,12 +646,31 @@ func (x *GetDeviceRequest) GetDeviceId() string {
 	return ""
 }
 
+func (x *GetDeviceRequest) SetDeviceId(v string) {
+	x.DeviceId = v
+}
+
+type GetDeviceRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ID of the device.
+	DeviceId string
+}
+
+func (b0 GetDeviceRequest_builder) Build() *GetDeviceRequest {
+	m0 := &GetDeviceRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.DeviceId = b.DeviceId
+	return m0
+}
+
 // Request for ListDevices.
 //
 // Follows the pagination semantics of
 // https://cloud.google.com/apis/design/standard_methods#list.
 type ListDevicesRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The maximum number of items to return.
 	// The server may impose a different page size at its discretion.
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
@@ -515,11 +708,6 @@ func (x *ListDevicesRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListDevicesRequest.ProtoReflect.Descriptor instead.
-func (*ListDevicesRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_devicetrust_service_proto_rawDescGZIP(), []int{7}
-}
-
 func (x *ListDevicesRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
@@ -541,9 +729,44 @@ func (x *ListDevicesRequest) GetView() DeviceView {
 	return DeviceView_DEVICE_VIEW_UNSPECIFIED
 }
 
+func (x *ListDevicesRequest) SetPageSize(v int32) {
+	x.PageSize = v
+}
+
+func (x *ListDevicesRequest) SetPageToken(v string) {
+	x.PageToken = v
+}
+
+func (x *ListDevicesRequest) SetView(v DeviceView) {
+	x.View = v
+}
+
+type ListDevicesRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The maximum number of items to return.
+	// The server may impose a different page size at its discretion.
+	PageSize int32
+	// The next_page_token value returned from a previous List request, if any.
+	PageToken string
+	// Specifies which fields of the resource should be returned in the response.
+	// Defaults to DEVICE_VIEW_LIST.
+	View DeviceView
+}
+
+func (b0 ListDevicesRequest_builder) Build() *ListDevicesRequest {
+	m0 := &ListDevicesRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PageSize = b.PageSize
+	x.PageToken = b.PageToken
+	x.View = b.View
+	return m0
+}
+
 // Response for ListDevices.
 type ListDevicesResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Devices that matched the search.
 	Devices []*Device `protobuf:"bytes,1,rep,name=devices,proto3" json:"devices,omitempty"`
 	// Token to retrieve the next page of results, or empty if there are no
@@ -578,11 +801,6 @@ func (x *ListDevicesResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListDevicesResponse.ProtoReflect.Descriptor instead.
-func (*ListDevicesResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_devicetrust_service_proto_rawDescGZIP(), []int{8}
-}
-
 func (x *ListDevicesResponse) GetDevices() []*Device {
 	if x != nil {
 		return x.Devices
@@ -597,12 +815,39 @@ func (x *ListDevicesResponse) GetNextPageToken() string {
 	return ""
 }
 
+func (x *ListDevicesResponse) SetDevices(v []*Device) {
+	x.Devices = v
+}
+
+func (x *ListDevicesResponse) SetNextPageToken(v string) {
+	x.NextPageToken = v
+}
+
+type ListDevicesResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Devices that matched the search.
+	Devices []*Device
+	// Token to retrieve the next page of results, or empty if there are no
+	// more results in the list.
+	NextPageToken string
+}
+
+func (b0 ListDevicesResponse_builder) Build() *ListDevicesResponse {
+	m0 := &ListDevicesResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Devices = b.Devices
+	x.NextPageToken = b.NextPageToken
+	return m0
+}
+
 // Request for ListDevicesByUser.
 //
 // Follows the pagination semantics of
 // https://cloud.google.com/apis/design/standard_methods#list.
 type ListDevicesByUserRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The maximum number of items to return.
 	// The server may impose a different page size at its discretion.
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
@@ -637,11 +882,6 @@ func (x *ListDevicesByUserRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListDevicesByUserRequest.ProtoReflect.Descriptor instead.
-func (*ListDevicesByUserRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_devicetrust_service_proto_rawDescGZIP(), []int{9}
-}
-
 func (x *ListDevicesByUserRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
@@ -656,9 +896,36 @@ func (x *ListDevicesByUserRequest) GetPageToken() string {
 	return ""
 }
 
+func (x *ListDevicesByUserRequest) SetPageSize(v int32) {
+	x.PageSize = v
+}
+
+func (x *ListDevicesByUserRequest) SetPageToken(v string) {
+	x.PageToken = v
+}
+
+type ListDevicesByUserRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The maximum number of items to return.
+	// The server may impose a different page size at its discretion.
+	PageSize int32
+	// The next_page_token value returned from a previous List request, if any.
+	PageToken string
+}
+
+func (b0 ListDevicesByUserRequest_builder) Build() *ListDevicesByUserRequest {
+	m0 := &ListDevicesByUserRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PageSize = b.PageSize
+	x.PageToken = b.PageToken
+	return m0
+}
+
 // Response for ListDevicesByUser.
 type ListDevicesByUserResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Devices owned by the user.
 	Devices []*Device `protobuf:"bytes,1,rep,name=devices,proto3" json:"devices,omitempty"`
 	// Token to retrieve the next page of results, or empty if there are no
@@ -693,11 +960,6 @@ func (x *ListDevicesByUserResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListDevicesByUserResponse.ProtoReflect.Descriptor instead.
-func (*ListDevicesByUserResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_devicetrust_service_proto_rawDescGZIP(), []int{10}
-}
-
 func (x *ListDevicesByUserResponse) GetDevices() []*Device {
 	if x != nil {
 		return x.Devices
@@ -712,9 +974,36 @@ func (x *ListDevicesByUserResponse) GetNextPageToken() string {
 	return ""
 }
 
+func (x *ListDevicesByUserResponse) SetDevices(v []*Device) {
+	x.Devices = v
+}
+
+func (x *ListDevicesByUserResponse) SetNextPageToken(v string) {
+	x.NextPageToken = v
+}
+
+type ListDevicesByUserResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Devices owned by the user.
+	Devices []*Device
+	// Token to retrieve the next page of results, or empty if there are no
+	// more results in the list.
+	NextPageToken string
+}
+
+func (b0 ListDevicesByUserResponse_builder) Build() *ListDevicesByUserResponse {
+	m0 := &ListDevicesByUserResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Devices = b.Devices
+	x.NextPageToken = b.NextPageToken
+	return m0
+}
+
 // Request for BulkCreateDevices.
 type BulkCreateDevicesRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Devices to create.
 	Devices []*Device `protobuf:"bytes,1,rep,name=devices,proto3" json:"devices,omitempty"`
 	// If true, create the device as a Teleport resource, meaning that fields that
@@ -751,11 +1040,6 @@ func (x *BulkCreateDevicesRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use BulkCreateDevicesRequest.ProtoReflect.Descriptor instead.
-func (*BulkCreateDevicesRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_devicetrust_service_proto_rawDescGZIP(), []int{11}
-}
-
 func (x *BulkCreateDevicesRequest) GetDevices() []*Device {
 	if x != nil {
 		return x.Devices
@@ -770,9 +1054,38 @@ func (x *BulkCreateDevicesRequest) GetCreateAsResource() bool {
 	return false
 }
 
+func (x *BulkCreateDevicesRequest) SetDevices(v []*Device) {
+	x.Devices = v
+}
+
+func (x *BulkCreateDevicesRequest) SetCreateAsResource(v bool) {
+	x.CreateAsResource = v
+}
+
+type BulkCreateDevicesRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Devices to create.
+	Devices []*Device
+	// If true, create the device as a Teleport resource, meaning that fields that
+	// are usually considered read-only or system managed are copied as provided
+	// to storage.
+	// Prefer using non-resource creation semantics if possible.
+	CreateAsResource bool
+}
+
+func (b0 BulkCreateDevicesRequest_builder) Build() *BulkCreateDevicesRequest {
+	m0 := &BulkCreateDevicesRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Devices = b.Devices
+	x.CreateAsResource = b.CreateAsResource
+	return m0
+}
+
 // Response for BulkCreateDevices.
 type BulkCreateDevicesResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Created devices or a failure reason.
 	// Responses are sorted according to the request.
 	Devices       []*DeviceOrStatus `protobuf:"bytes,1,rep,name=devices,proto3" json:"devices,omitempty"`
@@ -805,11 +1118,6 @@ func (x *BulkCreateDevicesResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use BulkCreateDevicesResponse.ProtoReflect.Descriptor instead.
-func (*BulkCreateDevicesResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_devicetrust_service_proto_rawDescGZIP(), []int{12}
-}
-
 func (x *BulkCreateDevicesResponse) GetDevices() []*DeviceOrStatus {
 	if x != nil {
 		return x.Devices
@@ -817,10 +1125,30 @@ func (x *BulkCreateDevicesResponse) GetDevices() []*DeviceOrStatus {
 	return nil
 }
 
+func (x *BulkCreateDevicesResponse) SetDevices(v []*DeviceOrStatus) {
+	x.Devices = v
+}
+
+type BulkCreateDevicesResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Created devices or a failure reason.
+	// Responses are sorted according to the request.
+	Devices []*DeviceOrStatus
+}
+
+func (b0 BulkCreateDevicesResponse_builder) Build() *BulkCreateDevicesResponse {
+	m0 := &BulkCreateDevicesResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Devices = b.Devices
+	return m0
+}
+
 // DeviceOrStatus contains either a device ID, in case of success, or a status
 // in case of failures.
 type DeviceOrStatus struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Status of the operation.
 	// May either be absent or contain the OK code for successes, at the
 	// implementation's discretion.
@@ -860,11 +1188,6 @@ func (x *DeviceOrStatus) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeviceOrStatus.ProtoReflect.Descriptor instead.
-func (*DeviceOrStatus) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_devicetrust_service_proto_rawDescGZIP(), []int{13}
-}
-
 func (x *DeviceOrStatus) GetStatus() *status.Status {
 	if x != nil {
 		return x.Status
@@ -886,9 +1209,57 @@ func (x *DeviceOrStatus) GetDeleted() bool {
 	return false
 }
 
+func (x *DeviceOrStatus) SetStatus(v *status.Status) {
+	x.Status = v
+}
+
+func (x *DeviceOrStatus) SetId(v string) {
+	x.Id = v
+}
+
+func (x *DeviceOrStatus) SetDeleted(v bool) {
+	x.Deleted = v
+}
+
+func (x *DeviceOrStatus) HasStatus() bool {
+	if x == nil {
+		return false
+	}
+	return x.Status != nil
+}
+
+func (x *DeviceOrStatus) ClearStatus() {
+	x.Status = nil
+}
+
+type DeviceOrStatus_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Status of the operation.
+	// May either be absent or contain the OK code for successes, at the
+	// implementation's discretion.
+	Status *status.Status
+	// ID of the created device.
+	// Only present if the status is OK.
+	Id string
+	// If true the action attempted against the device was a delete, instead of a
+	// create or update.
+	Deleted bool
+}
+
+func (b0 DeviceOrStatus_builder) Build() *DeviceOrStatus {
+	m0 := &DeviceOrStatus{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Status = b.Status
+	x.Id = b.Id
+	x.Deleted = b.Deleted
+	return m0
+}
+
 // Request for CreateDeviceEnrollToken.
 type CreateDeviceEnrollTokenRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// ID of the device.
 	DeviceId string `protobuf:"bytes,1,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
 	// Device collected data.
@@ -927,11 +1298,6 @@ func (x *CreateDeviceEnrollTokenRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateDeviceEnrollTokenRequest.ProtoReflect.Descriptor instead.
-func (*CreateDeviceEnrollTokenRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_devicetrust_service_proto_rawDescGZIP(), []int{14}
-}
-
 func (x *CreateDeviceEnrollTokenRequest) GetDeviceId() string {
 	if x != nil {
 		return x.DeviceId
@@ -953,9 +1319,67 @@ func (x *CreateDeviceEnrollTokenRequest) GetExpireTime() *timestamppb.Timestamp 
 	return nil
 }
 
+func (x *CreateDeviceEnrollTokenRequest) SetDeviceId(v string) {
+	x.DeviceId = v
+}
+
+func (x *CreateDeviceEnrollTokenRequest) SetDeviceData(v *DeviceCollectedData) {
+	x.DeviceData = v
+}
+
+func (x *CreateDeviceEnrollTokenRequest) SetExpireTime(v *timestamppb.Timestamp) {
+	x.ExpireTime = v
+}
+
+func (x *CreateDeviceEnrollTokenRequest) HasDeviceData() bool {
+	if x == nil {
+		return false
+	}
+	return x.DeviceData != nil
+}
+
+func (x *CreateDeviceEnrollTokenRequest) HasExpireTime() bool {
+	if x == nil {
+		return false
+	}
+	return x.ExpireTime != nil
+}
+
+func (x *CreateDeviceEnrollTokenRequest) ClearDeviceData() {
+	x.DeviceData = nil
+}
+
+func (x *CreateDeviceEnrollTokenRequest) ClearExpireTime() {
+	x.ExpireTime = nil
+}
+
+type CreateDeviceEnrollTokenRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ID of the device.
+	DeviceId string
+	// Device collected data.
+	// Used to authorize issuance of device enrollment tokens for auto-enrollment.
+	// Not required otherwise.
+	DeviceData *DeviceCollectedData
+	// Custom expiration time for enrollment tokens.
+	// A short (for humans) server default is used if unset.
+	ExpireTime *timestamppb.Timestamp
+}
+
+func (b0 CreateDeviceEnrollTokenRequest_builder) Build() *CreateDeviceEnrollTokenRequest {
+	m0 := &CreateDeviceEnrollTokenRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.DeviceId = b.DeviceId
+	x.DeviceData = b.DeviceData
+	x.ExpireTime = b.ExpireTime
+	return m0
+}
+
 // Request for EnrollDevice.
 type EnrollDeviceRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Payload:
 	//
 	//	*EnrollDeviceRequest_Init
@@ -989,11 +1413,6 @@ func (x *EnrollDeviceRequest) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use EnrollDeviceRequest.ProtoReflect.Descriptor instead.
-func (*EnrollDeviceRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_devicetrust_service_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *EnrollDeviceRequest) GetPayload() isEnrollDeviceRequest_Payload {
@@ -1030,6 +1449,140 @@ func (x *EnrollDeviceRequest) GetTpmChallengeResponse() *TPMEnrollChallengeRespo
 	return nil
 }
 
+func (x *EnrollDeviceRequest) SetInit(v *EnrollDeviceInit) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &EnrollDeviceRequest_Init{v}
+}
+
+func (x *EnrollDeviceRequest) SetMacosChallengeResponse(v *MacOSEnrollChallengeResponse) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &EnrollDeviceRequest_MacosChallengeResponse{v}
+}
+
+func (x *EnrollDeviceRequest) SetTpmChallengeResponse(v *TPMEnrollChallengeResponse) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &EnrollDeviceRequest_TpmChallengeResponse{v}
+}
+
+func (x *EnrollDeviceRequest) HasPayload() bool {
+	if x == nil {
+		return false
+	}
+	return x.Payload != nil
+}
+
+func (x *EnrollDeviceRequest) HasInit() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*EnrollDeviceRequest_Init)
+	return ok
+}
+
+func (x *EnrollDeviceRequest) HasMacosChallengeResponse() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*EnrollDeviceRequest_MacosChallengeResponse)
+	return ok
+}
+
+func (x *EnrollDeviceRequest) HasTpmChallengeResponse() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*EnrollDeviceRequest_TpmChallengeResponse)
+	return ok
+}
+
+func (x *EnrollDeviceRequest) ClearPayload() {
+	x.Payload = nil
+}
+
+func (x *EnrollDeviceRequest) ClearInit() {
+	if _, ok := x.Payload.(*EnrollDeviceRequest_Init); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *EnrollDeviceRequest) ClearMacosChallengeResponse() {
+	if _, ok := x.Payload.(*EnrollDeviceRequest_MacosChallengeResponse); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *EnrollDeviceRequest) ClearTpmChallengeResponse() {
+	if _, ok := x.Payload.(*EnrollDeviceRequest_TpmChallengeResponse); ok {
+		x.Payload = nil
+	}
+}
+
+const EnrollDeviceRequest_Payload_not_set_case case_EnrollDeviceRequest_Payload = 0
+const EnrollDeviceRequest_Init_case case_EnrollDeviceRequest_Payload = 1
+const EnrollDeviceRequest_MacosChallengeResponse_case case_EnrollDeviceRequest_Payload = 2
+const EnrollDeviceRequest_TpmChallengeResponse_case case_EnrollDeviceRequest_Payload = 3
+
+func (x *EnrollDeviceRequest) WhichPayload() case_EnrollDeviceRequest_Payload {
+	if x == nil {
+		return EnrollDeviceRequest_Payload_not_set_case
+	}
+	switch x.Payload.(type) {
+	case *EnrollDeviceRequest_Init:
+		return EnrollDeviceRequest_Init_case
+	case *EnrollDeviceRequest_MacosChallengeResponse:
+		return EnrollDeviceRequest_MacosChallengeResponse_case
+	case *EnrollDeviceRequest_TpmChallengeResponse:
+		return EnrollDeviceRequest_TpmChallengeResponse_case
+	default:
+		return EnrollDeviceRequest_Payload_not_set_case
+	}
+}
+
+type EnrollDeviceRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Payload:
+	Init                   *EnrollDeviceInit
+	MacosChallengeResponse *MacOSEnrollChallengeResponse
+	TpmChallengeResponse   *TPMEnrollChallengeResponse
+	// -- end of Payload
+}
+
+func (b0 EnrollDeviceRequest_builder) Build() *EnrollDeviceRequest {
+	m0 := &EnrollDeviceRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Init != nil {
+		x.Payload = &EnrollDeviceRequest_Init{b.Init}
+	}
+	if b.MacosChallengeResponse != nil {
+		x.Payload = &EnrollDeviceRequest_MacosChallengeResponse{b.MacosChallengeResponse}
+	}
+	if b.TpmChallengeResponse != nil {
+		x.Payload = &EnrollDeviceRequest_TpmChallengeResponse{b.TpmChallengeResponse}
+	}
+	return m0
+}
+
+type case_EnrollDeviceRequest_Payload protoreflect.FieldNumber
+
+func (x case_EnrollDeviceRequest_Payload) String() string {
+	md := file_teleport_devicetrust_v1_devicetrust_service_proto_msgTypes[15].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isEnrollDeviceRequest_Payload interface {
 	isEnrollDeviceRequest_Payload()
 }
@@ -1054,7 +1607,7 @@ func (*EnrollDeviceRequest_TpmChallengeResponse) isEnrollDeviceRequest_Payload()
 
 // Response for EnrollDevice.
 type EnrollDeviceResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Payload:
 	//
 	//	*EnrollDeviceResponse_Success
@@ -1088,11 +1641,6 @@ func (x *EnrollDeviceResponse) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use EnrollDeviceResponse.ProtoReflect.Descriptor instead.
-func (*EnrollDeviceResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_devicetrust_service_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *EnrollDeviceResponse) GetPayload() isEnrollDeviceResponse_Payload {
@@ -1129,6 +1677,140 @@ func (x *EnrollDeviceResponse) GetTpmChallenge() *TPMEnrollChallenge {
 	return nil
 }
 
+func (x *EnrollDeviceResponse) SetSuccess(v *EnrollDeviceSuccess) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &EnrollDeviceResponse_Success{v}
+}
+
+func (x *EnrollDeviceResponse) SetMacosChallenge(v *MacOSEnrollChallenge) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &EnrollDeviceResponse_MacosChallenge{v}
+}
+
+func (x *EnrollDeviceResponse) SetTpmChallenge(v *TPMEnrollChallenge) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &EnrollDeviceResponse_TpmChallenge{v}
+}
+
+func (x *EnrollDeviceResponse) HasPayload() bool {
+	if x == nil {
+		return false
+	}
+	return x.Payload != nil
+}
+
+func (x *EnrollDeviceResponse) HasSuccess() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*EnrollDeviceResponse_Success)
+	return ok
+}
+
+func (x *EnrollDeviceResponse) HasMacosChallenge() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*EnrollDeviceResponse_MacosChallenge)
+	return ok
+}
+
+func (x *EnrollDeviceResponse) HasTpmChallenge() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*EnrollDeviceResponse_TpmChallenge)
+	return ok
+}
+
+func (x *EnrollDeviceResponse) ClearPayload() {
+	x.Payload = nil
+}
+
+func (x *EnrollDeviceResponse) ClearSuccess() {
+	if _, ok := x.Payload.(*EnrollDeviceResponse_Success); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *EnrollDeviceResponse) ClearMacosChallenge() {
+	if _, ok := x.Payload.(*EnrollDeviceResponse_MacosChallenge); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *EnrollDeviceResponse) ClearTpmChallenge() {
+	if _, ok := x.Payload.(*EnrollDeviceResponse_TpmChallenge); ok {
+		x.Payload = nil
+	}
+}
+
+const EnrollDeviceResponse_Payload_not_set_case case_EnrollDeviceResponse_Payload = 0
+const EnrollDeviceResponse_Success_case case_EnrollDeviceResponse_Payload = 1
+const EnrollDeviceResponse_MacosChallenge_case case_EnrollDeviceResponse_Payload = 2
+const EnrollDeviceResponse_TpmChallenge_case case_EnrollDeviceResponse_Payload = 3
+
+func (x *EnrollDeviceResponse) WhichPayload() case_EnrollDeviceResponse_Payload {
+	if x == nil {
+		return EnrollDeviceResponse_Payload_not_set_case
+	}
+	switch x.Payload.(type) {
+	case *EnrollDeviceResponse_Success:
+		return EnrollDeviceResponse_Success_case
+	case *EnrollDeviceResponse_MacosChallenge:
+		return EnrollDeviceResponse_MacosChallenge_case
+	case *EnrollDeviceResponse_TpmChallenge:
+		return EnrollDeviceResponse_TpmChallenge_case
+	default:
+		return EnrollDeviceResponse_Payload_not_set_case
+	}
+}
+
+type EnrollDeviceResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Payload:
+	Success        *EnrollDeviceSuccess
+	MacosChallenge *MacOSEnrollChallenge
+	TpmChallenge   *TPMEnrollChallenge
+	// -- end of Payload
+}
+
+func (b0 EnrollDeviceResponse_builder) Build() *EnrollDeviceResponse {
+	m0 := &EnrollDeviceResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Success != nil {
+		x.Payload = &EnrollDeviceResponse_Success{b.Success}
+	}
+	if b.MacosChallenge != nil {
+		x.Payload = &EnrollDeviceResponse_MacosChallenge{b.MacosChallenge}
+	}
+	if b.TpmChallenge != nil {
+		x.Payload = &EnrollDeviceResponse_TpmChallenge{b.TpmChallenge}
+	}
+	return m0
+}
+
+type case_EnrollDeviceResponse_Payload protoreflect.FieldNumber
+
+func (x case_EnrollDeviceResponse_Payload) String() string {
+	md := file_teleport_devicetrust_v1_devicetrust_service_proto_msgTypes[16].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isEnrollDeviceResponse_Payload interface {
 	isEnrollDeviceResponse_Payload()
 }
@@ -1153,7 +1835,7 @@ func (*EnrollDeviceResponse_TpmChallenge) isEnrollDeviceResponse_Payload() {}
 
 // EnrollDeviceInit initiates the enrollment ceremony.
 type EnrollDeviceInit struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Device enrollment token.
 	// See CreateDevice or CreateDeviceEnrollToken.
 	Token string `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
@@ -1196,11 +1878,6 @@ func (x *EnrollDeviceInit) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use EnrollDeviceInit.ProtoReflect.Descriptor instead.
-func (*EnrollDeviceInit) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_devicetrust_service_proto_rawDescGZIP(), []int{17}
-}
-
 func (x *EnrollDeviceInit) GetToken() string {
 	if x != nil {
 		return x.Token
@@ -1236,9 +1913,92 @@ func (x *EnrollDeviceInit) GetTpm() *TPMEnrollPayload {
 	return nil
 }
 
+func (x *EnrollDeviceInit) SetToken(v string) {
+	x.Token = v
+}
+
+func (x *EnrollDeviceInit) SetCredentialId(v string) {
+	x.CredentialId = v
+}
+
+func (x *EnrollDeviceInit) SetDeviceData(v *DeviceCollectedData) {
+	x.DeviceData = v
+}
+
+func (x *EnrollDeviceInit) SetMacos(v *MacOSEnrollPayload) {
+	x.Macos = v
+}
+
+func (x *EnrollDeviceInit) SetTpm(v *TPMEnrollPayload) {
+	x.Tpm = v
+}
+
+func (x *EnrollDeviceInit) HasDeviceData() bool {
+	if x == nil {
+		return false
+	}
+	return x.DeviceData != nil
+}
+
+func (x *EnrollDeviceInit) HasMacos() bool {
+	if x == nil {
+		return false
+	}
+	return x.Macos != nil
+}
+
+func (x *EnrollDeviceInit) HasTpm() bool {
+	if x == nil {
+		return false
+	}
+	return x.Tpm != nil
+}
+
+func (x *EnrollDeviceInit) ClearDeviceData() {
+	x.DeviceData = nil
+}
+
+func (x *EnrollDeviceInit) ClearMacos() {
+	x.Macos = nil
+}
+
+func (x *EnrollDeviceInit) ClearTpm() {
+	x.Tpm = nil
+}
+
+type EnrollDeviceInit_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Device enrollment token.
+	// See CreateDevice or CreateDeviceEnrollToken.
+	Token string
+	// ID of the device credential.
+	CredentialId string
+	// Device collected data.
+	// Matched against the device registration information and any previously
+	// collected data.
+	DeviceData *DeviceCollectedData
+	// Payload for macOS-specific data.
+	Macos *MacOSEnrollPayload
+	// Payload for TPM-specific data. Used for Windows/Linux.
+	Tpm *TPMEnrollPayload
+}
+
+func (b0 EnrollDeviceInit_builder) Build() *EnrollDeviceInit {
+	m0 := &EnrollDeviceInit{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Token = b.Token
+	x.CredentialId = b.CredentialId
+	x.DeviceData = b.DeviceData
+	x.Macos = b.Macos
+	x.Tpm = b.Tpm
+	return m0
+}
+
 // EnrollDeviceSuccess marks a successful device enrollment ceremony.
 type EnrollDeviceSuccess struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The enrolled device.
 	Device        *Device `protobuf:"bytes,1,opt,name=device,proto3" json:"device,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1270,11 +2030,6 @@ func (x *EnrollDeviceSuccess) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use EnrollDeviceSuccess.ProtoReflect.Descriptor instead.
-func (*EnrollDeviceSuccess) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_devicetrust_service_proto_rawDescGZIP(), []int{18}
-}
-
 func (x *EnrollDeviceSuccess) GetDevice() *Device {
 	if x != nil {
 		return x.Device
@@ -1282,9 +2037,39 @@ func (x *EnrollDeviceSuccess) GetDevice() *Device {
 	return nil
 }
 
+func (x *EnrollDeviceSuccess) SetDevice(v *Device) {
+	x.Device = v
+}
+
+func (x *EnrollDeviceSuccess) HasDevice() bool {
+	if x == nil {
+		return false
+	}
+	return x.Device != nil
+}
+
+func (x *EnrollDeviceSuccess) ClearDevice() {
+	x.Device = nil
+}
+
+type EnrollDeviceSuccess_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The enrolled device.
+	Device *Device
+}
+
+func (b0 EnrollDeviceSuccess_builder) Build() *EnrollDeviceSuccess {
+	m0 := &EnrollDeviceSuccess{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Device = b.Device
+	return m0
+}
+
 // MacOSEnrollPayload is the macOS-specific enrollment payload.
 type MacOSEnrollPayload struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Device public key marshaled as a PKIX, ASN.1 DER.
 	PublicKeyDer  []byte `protobuf:"bytes,2,opt,name=public_key_der,json=publicKeyDer,proto3" json:"public_key_der,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1316,11 +2101,6 @@ func (x *MacOSEnrollPayload) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use MacOSEnrollPayload.ProtoReflect.Descriptor instead.
-func (*MacOSEnrollPayload) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_devicetrust_service_proto_rawDescGZIP(), []int{19}
-}
-
 func (x *MacOSEnrollPayload) GetPublicKeyDer() []byte {
 	if x != nil {
 		return x.PublicKeyDer
@@ -1328,9 +2108,31 @@ func (x *MacOSEnrollPayload) GetPublicKeyDer() []byte {
 	return nil
 }
 
+func (x *MacOSEnrollPayload) SetPublicKeyDer(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.PublicKeyDer = v
+}
+
+type MacOSEnrollPayload_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Device public key marshaled as a PKIX, ASN.1 DER.
+	PublicKeyDer []byte
+}
+
+func (b0 MacOSEnrollPayload_builder) Build() *MacOSEnrollPayload {
+	m0 := &MacOSEnrollPayload{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PublicKeyDer = b.PublicKeyDer
+	return m0
+}
+
 // MacOSEnrollChallenge is a macOS enrollment challenge.
 type MacOSEnrollChallenge struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Randomly-generated, opaque challenge to be signed using the device key.
 	Challenge     []byte `protobuf:"bytes,1,opt,name=challenge,proto3" json:"challenge,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1362,11 +2164,6 @@ func (x *MacOSEnrollChallenge) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use MacOSEnrollChallenge.ProtoReflect.Descriptor instead.
-func (*MacOSEnrollChallenge) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_devicetrust_service_proto_rawDescGZIP(), []int{20}
-}
-
 func (x *MacOSEnrollChallenge) GetChallenge() []byte {
 	if x != nil {
 		return x.Challenge
@@ -1374,9 +2171,31 @@ func (x *MacOSEnrollChallenge) GetChallenge() []byte {
 	return nil
 }
 
+func (x *MacOSEnrollChallenge) SetChallenge(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Challenge = v
+}
+
+type MacOSEnrollChallenge_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Randomly-generated, opaque challenge to be signed using the device key.
+	Challenge []byte
+}
+
+func (b0 MacOSEnrollChallenge_builder) Build() *MacOSEnrollChallenge {
+	m0 := &MacOSEnrollChallenge{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Challenge = b.Challenge
+	return m0
+}
+
 // MacOSEnrollChallengeResponse is a macOS enrollment challenge response.
 type MacOSEnrollChallengeResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Signature over the challenge, using the device key.
 	Signature     []byte `protobuf:"bytes,2,opt,name=signature,proto3" json:"signature,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1408,11 +2227,6 @@ func (x *MacOSEnrollChallengeResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use MacOSEnrollChallengeResponse.ProtoReflect.Descriptor instead.
-func (*MacOSEnrollChallengeResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_devicetrust_service_proto_rawDescGZIP(), []int{21}
-}
-
 func (x *MacOSEnrollChallengeResponse) GetSignature() []byte {
 	if x != nil {
 		return x.Signature
@@ -1420,10 +2234,32 @@ func (x *MacOSEnrollChallengeResponse) GetSignature() []byte {
 	return nil
 }
 
+func (x *MacOSEnrollChallengeResponse) SetSignature(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Signature = v
+}
+
+type MacOSEnrollChallengeResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Signature over the challenge, using the device key.
+	Signature []byte
+}
+
+func (b0 MacOSEnrollChallengeResponse_builder) Build() *MacOSEnrollChallengeResponse {
+	m0 := &MacOSEnrollChallengeResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Signature = b.Signature
+	return m0
+}
+
 // The payload containing TPM specific information required on device
 // enrollment.
 type TPMEnrollPayload struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Ek:
 	//
 	//	*TPMEnrollPayload_EkCert
@@ -1461,11 +2297,6 @@ func (x *TPMEnrollPayload) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TPMEnrollPayload.ProtoReflect.Descriptor instead.
-func (*TPMEnrollPayload) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_devicetrust_service_proto_rawDescGZIP(), []int{22}
-}
-
 func (x *TPMEnrollPayload) GetEk() isTPMEnrollPayload_Ek {
 	if x != nil {
 		return x.Ek
@@ -1498,6 +2329,133 @@ func (x *TPMEnrollPayload) GetAttestationParameters() *TPMAttestationParameters 
 	return nil
 }
 
+func (x *TPMEnrollPayload) SetEkCert(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Ek = &TPMEnrollPayload_EkCert{v}
+}
+
+func (x *TPMEnrollPayload) SetEkKey(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Ek = &TPMEnrollPayload_EkKey{v}
+}
+
+func (x *TPMEnrollPayload) SetAttestationParameters(v *TPMAttestationParameters) {
+	x.AttestationParameters = v
+}
+
+func (x *TPMEnrollPayload) HasEk() bool {
+	if x == nil {
+		return false
+	}
+	return x.Ek != nil
+}
+
+func (x *TPMEnrollPayload) HasEkCert() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Ek.(*TPMEnrollPayload_EkCert)
+	return ok
+}
+
+func (x *TPMEnrollPayload) HasEkKey() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Ek.(*TPMEnrollPayload_EkKey)
+	return ok
+}
+
+func (x *TPMEnrollPayload) HasAttestationParameters() bool {
+	if x == nil {
+		return false
+	}
+	return x.AttestationParameters != nil
+}
+
+func (x *TPMEnrollPayload) ClearEk() {
+	x.Ek = nil
+}
+
+func (x *TPMEnrollPayload) ClearEkCert() {
+	if _, ok := x.Ek.(*TPMEnrollPayload_EkCert); ok {
+		x.Ek = nil
+	}
+}
+
+func (x *TPMEnrollPayload) ClearEkKey() {
+	if _, ok := x.Ek.(*TPMEnrollPayload_EkKey); ok {
+		x.Ek = nil
+	}
+}
+
+func (x *TPMEnrollPayload) ClearAttestationParameters() {
+	x.AttestationParameters = nil
+}
+
+const TPMEnrollPayload_Ek_not_set_case case_TPMEnrollPayload_Ek = 0
+const TPMEnrollPayload_EkCert_case case_TPMEnrollPayload_Ek = 1
+const TPMEnrollPayload_EkKey_case case_TPMEnrollPayload_Ek = 2
+
+func (x *TPMEnrollPayload) WhichEk() case_TPMEnrollPayload_Ek {
+	if x == nil {
+		return TPMEnrollPayload_Ek_not_set_case
+	}
+	switch x.Ek.(type) {
+	case *TPMEnrollPayload_EkCert:
+		return TPMEnrollPayload_EkCert_case
+	case *TPMEnrollPayload_EkKey:
+		return TPMEnrollPayload_EkKey_case
+	default:
+		return TPMEnrollPayload_Ek_not_set_case
+	}
+}
+
+type TPMEnrollPayload_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Ek:
+	// The device's endorsement certificate in X509, ASN.1 DER form. This
+	// certificate contains the public key of the endorsement key. This is
+	// preferred to ek_key.
+	EkCert []byte
+	// The device's public endorsement key in PKIX, ASN.1 DER form. This is
+	// used when a TPM does not contain any endorsement certificates.
+	EkKey []byte
+	// -- end of Ek
+	// The attestation key and the parameters necessary to remotely verify it as
+	// related to the endorsement key.
+	AttestationParameters *TPMAttestationParameters
+}
+
+func (b0 TPMEnrollPayload_builder) Build() *TPMEnrollPayload {
+	m0 := &TPMEnrollPayload{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.EkCert != nil {
+		x.Ek = &TPMEnrollPayload_EkCert{b.EkCert}
+	}
+	if b.EkKey != nil {
+		x.Ek = &TPMEnrollPayload_EkKey{b.EkKey}
+	}
+	x.AttestationParameters = b.AttestationParameters
+	return m0
+}
+
+type case_TPMEnrollPayload_Ek protoreflect.FieldNumber
+
+func (x case_TPMEnrollPayload_Ek) String() string {
+	md := file_teleport_devicetrust_v1_devicetrust_service_proto_msgTypes[22].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isTPMEnrollPayload_Ek interface {
 	isTPMEnrollPayload_Ek()
 }
@@ -1525,7 +2483,7 @@ func (*TPMEnrollPayload_EkKey) isTPMEnrollPayload_Ek() {}
 // This message excludes the `UseTCSDActivationFormat` field from the link above
 // as it is TMP 1.x specific and always false.
 type TPMAttestationParameters struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The encoded TPMT_PUBLIC structure containing the attestation public key
 	// and signing parameters.
 	Public []byte `protobuf:"bytes,1,opt,name=public,proto3" json:"public,omitempty"`
@@ -1566,11 +2524,6 @@ func (x *TPMAttestationParameters) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TPMAttestationParameters.ProtoReflect.Descriptor instead.
-func (*TPMAttestationParameters) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_devicetrust_service_proto_rawDescGZIP(), []int{23}
-}
-
 func (x *TPMAttestationParameters) GetPublic() []byte {
 	if x != nil {
 		return x.Public
@@ -1599,12 +2552,67 @@ func (x *TPMAttestationParameters) GetCreateSignature() []byte {
 	return nil
 }
 
+func (x *TPMAttestationParameters) SetPublic(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Public = v
+}
+
+func (x *TPMAttestationParameters) SetCreateData(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.CreateData = v
+}
+
+func (x *TPMAttestationParameters) SetCreateAttestation(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.CreateAttestation = v
+}
+
+func (x *TPMAttestationParameters) SetCreateSignature(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.CreateSignature = v
+}
+
+type TPMAttestationParameters_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The encoded TPMT_PUBLIC structure containing the attestation public key
+	// and signing parameters.
+	Public []byte
+	// The properties of the attestation key, encoded as a TPMS_CREATION_DATA
+	// structure.
+	CreateData []byte
+	// An assertion as to the details of the key, encoded as a TPMS_ATTEST
+	// structure.
+	CreateAttestation []byte
+	// A signature of create_attestation, encoded as a TPMT_SIGNATURE structure.
+	CreateSignature []byte
+}
+
+func (b0 TPMAttestationParameters_builder) Build() *TPMAttestationParameters {
+	m0 := &TPMAttestationParameters{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Public = b.Public
+	x.CreateData = b.CreateData
+	x.CreateAttestation = b.CreateAttestation
+	x.CreateSignature = b.CreateSignature
+	return m0
+}
+
 // The challenge sent to the client by the server during enrollment.
 // The challenge involves two parts:
 // - Solving an encrypted credential with `ActivateCredential`.
 // - Producing a platform attestation using the provided nonce.
 type TPMEnrollChallenge struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The encrypted credential for the client to prove possession of the EK and
 	// AK.
 	EncryptedCredential *TPMEncryptedCredential `protobuf:"bytes,1,opt,name=encrypted_credential,json=encryptedCredential,proto3" json:"encrypted_credential,omitempty"`
@@ -1640,11 +2648,6 @@ func (x *TPMEnrollChallenge) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TPMEnrollChallenge.ProtoReflect.Descriptor instead.
-func (*TPMEnrollChallenge) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_devicetrust_service_proto_rawDescGZIP(), []int{24}
-}
-
 func (x *TPMEnrollChallenge) GetEncryptedCredential() *TPMEncryptedCredential {
 	if x != nil {
 		return x.EncryptedCredential
@@ -1659,6 +2662,48 @@ func (x *TPMEnrollChallenge) GetAttestationNonce() []byte {
 	return nil
 }
 
+func (x *TPMEnrollChallenge) SetEncryptedCredential(v *TPMEncryptedCredential) {
+	x.EncryptedCredential = v
+}
+
+func (x *TPMEnrollChallenge) SetAttestationNonce(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.AttestationNonce = v
+}
+
+func (x *TPMEnrollChallenge) HasEncryptedCredential() bool {
+	if x == nil {
+		return false
+	}
+	return x.EncryptedCredential != nil
+}
+
+func (x *TPMEnrollChallenge) ClearEncryptedCredential() {
+	x.EncryptedCredential = nil
+}
+
+type TPMEnrollChallenge_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The encrypted credential for the client to prove possession of the EK and
+	// AK.
+	EncryptedCredential *TPMEncryptedCredential
+	// The nonce to use when producing the quotes over the PCRs with the TPM
+	// during the platform attestation.
+	AttestationNonce []byte
+}
+
+func (b0 TPMEnrollChallenge_builder) Build() *TPMEnrollChallenge {
+	m0 := &TPMEnrollChallenge{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.EncryptedCredential = b.EncryptedCredential
+	x.AttestationNonce = b.AttestationNonce
+	return m0
+}
+
 // These values are used by the TPM2.0 `ActivateCredential` command to produce
 // the solution which proves possession of the EK and AK.
 //
@@ -1668,7 +2713,7 @@ func (x *TPMEnrollChallenge) GetAttestationNonce() []byte {
 // - https://github.com/google/go-attestation/blob/v0.4.3/attest/activation.go#L199
 // - https://github.com/google/go-tpm/blob/v0.3.3/tpm2/credactivation/credential_activation.go#L61
 type TPMEncryptedCredential struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The `credential_blob` parameter to be used with the `ActivateCredential`
 	// command. This is used with the decrypted value of `secret` in a
 	// cryptographic process to decrypt the solution.
@@ -1706,11 +2751,6 @@ func (x *TPMEncryptedCredential) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TPMEncryptedCredential.ProtoReflect.Descriptor instead.
-func (*TPMEncryptedCredential) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_devicetrust_service_proto_rawDescGZIP(), []int{25}
-}
-
 func (x *TPMEncryptedCredential) GetCredentialBlob() []byte {
 	if x != nil {
 		return x.CredentialBlob
@@ -1725,11 +2765,47 @@ func (x *TPMEncryptedCredential) GetSecret() []byte {
 	return nil
 }
 
+func (x *TPMEncryptedCredential) SetCredentialBlob(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.CredentialBlob = v
+}
+
+func (x *TPMEncryptedCredential) SetSecret(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Secret = v
+}
+
+type TPMEncryptedCredential_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The `credential_blob` parameter to be used with the `ActivateCredential`
+	// command. This is used with the decrypted value of `secret` in a
+	// cryptographic process to decrypt the solution.
+	CredentialBlob []byte
+	// The `secret` parameter to be used with `ActivateCredential`. This is a
+	// seed which can be decrypted with the EK. The decrypted seed is then used
+	// when decrypting `credential_blob`.
+	Secret []byte
+}
+
+func (b0 TPMEncryptedCredential_builder) Build() *TPMEncryptedCredential {
+	m0 := &TPMEncryptedCredential{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.CredentialBlob = b.CredentialBlob
+	x.Secret = b.Secret
+	return m0
+}
+
 // The enrollment challenge response containing the solution returned by
 // calling the TPM2.0 `ActivateCredential` command on the client with the
 // parameters provided in `TPMEnrollChallenge`.
 type TPMEnrollChallengeResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The client's solution to `TPMEncryptedCredential` included in
 	// `TPMEnrollChallenge` using ActivateCredential.
 	Solution []byte `protobuf:"bytes,1,opt,name=solution,proto3" json:"solution,omitempty"`
@@ -1765,11 +2841,6 @@ func (x *TPMEnrollChallengeResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TPMEnrollChallengeResponse.ProtoReflect.Descriptor instead.
-func (*TPMEnrollChallengeResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_devicetrust_service_proto_rawDescGZIP(), []int{26}
-}
-
 func (x *TPMEnrollChallengeResponse) GetSolution() []byte {
 	if x != nil {
 		return x.Solution
@@ -1784,6 +2855,48 @@ func (x *TPMEnrollChallengeResponse) GetPlatformParameters() *TPMPlatformParamet
 	return nil
 }
 
+func (x *TPMEnrollChallengeResponse) SetSolution(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Solution = v
+}
+
+func (x *TPMEnrollChallengeResponse) SetPlatformParameters(v *TPMPlatformParameters) {
+	x.PlatformParameters = v
+}
+
+func (x *TPMEnrollChallengeResponse) HasPlatformParameters() bool {
+	if x == nil {
+		return false
+	}
+	return x.PlatformParameters != nil
+}
+
+func (x *TPMEnrollChallengeResponse) ClearPlatformParameters() {
+	x.PlatformParameters = nil
+}
+
+type TPMEnrollChallengeResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The client's solution to `TPMEncryptedCredential` included in
+	// `TPMEnrollChallenge` using ActivateCredential.
+	Solution []byte
+	// The result of the client's platform attestation with the nonce provided
+	// in `TPMEnrollChallenge`.
+	PlatformParameters *TPMPlatformParameters
+}
+
+func (b0 TPMEnrollChallengeResponse_builder) Build() *TPMEnrollChallengeResponse {
+	m0 := &TPMEnrollChallengeResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Solution = b.Solution
+	x.PlatformParameters = b.PlatformParameters
+	return m0
+}
+
 // Request for AuthenticateDevice.
 //
 // Authentication ceremony flow:
@@ -1792,7 +2905,7 @@ func (x *TPMEnrollChallengeResponse) GetPlatformParameters() *TPMPlatformParamet
 // -> AuthenticateDeviceChallengeResponse
 // <- UserCertificates (regular authn) or ConfirmationToken (web authn)
 type AuthenticateDeviceRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Payload:
 	//
 	//	*AuthenticateDeviceRequest_Init
@@ -1826,11 +2939,6 @@ func (x *AuthenticateDeviceRequest) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AuthenticateDeviceRequest.ProtoReflect.Descriptor instead.
-func (*AuthenticateDeviceRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_devicetrust_service_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *AuthenticateDeviceRequest) GetPayload() isAuthenticateDeviceRequest_Payload {
@@ -1867,6 +2975,140 @@ func (x *AuthenticateDeviceRequest) GetTpmChallengeResponse() *TPMAuthenticateDe
 	return nil
 }
 
+func (x *AuthenticateDeviceRequest) SetInit(v *AuthenticateDeviceInit) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &AuthenticateDeviceRequest_Init{v}
+}
+
+func (x *AuthenticateDeviceRequest) SetChallengeResponse(v *AuthenticateDeviceChallengeResponse) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &AuthenticateDeviceRequest_ChallengeResponse{v}
+}
+
+func (x *AuthenticateDeviceRequest) SetTpmChallengeResponse(v *TPMAuthenticateDeviceChallengeResponse) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &AuthenticateDeviceRequest_TpmChallengeResponse{v}
+}
+
+func (x *AuthenticateDeviceRequest) HasPayload() bool {
+	if x == nil {
+		return false
+	}
+	return x.Payload != nil
+}
+
+func (x *AuthenticateDeviceRequest) HasInit() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*AuthenticateDeviceRequest_Init)
+	return ok
+}
+
+func (x *AuthenticateDeviceRequest) HasChallengeResponse() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*AuthenticateDeviceRequest_ChallengeResponse)
+	return ok
+}
+
+func (x *AuthenticateDeviceRequest) HasTpmChallengeResponse() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*AuthenticateDeviceRequest_TpmChallengeResponse)
+	return ok
+}
+
+func (x *AuthenticateDeviceRequest) ClearPayload() {
+	x.Payload = nil
+}
+
+func (x *AuthenticateDeviceRequest) ClearInit() {
+	if _, ok := x.Payload.(*AuthenticateDeviceRequest_Init); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *AuthenticateDeviceRequest) ClearChallengeResponse() {
+	if _, ok := x.Payload.(*AuthenticateDeviceRequest_ChallengeResponse); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *AuthenticateDeviceRequest) ClearTpmChallengeResponse() {
+	if _, ok := x.Payload.(*AuthenticateDeviceRequest_TpmChallengeResponse); ok {
+		x.Payload = nil
+	}
+}
+
+const AuthenticateDeviceRequest_Payload_not_set_case case_AuthenticateDeviceRequest_Payload = 0
+const AuthenticateDeviceRequest_Init_case case_AuthenticateDeviceRequest_Payload = 1
+const AuthenticateDeviceRequest_ChallengeResponse_case case_AuthenticateDeviceRequest_Payload = 2
+const AuthenticateDeviceRequest_TpmChallengeResponse_case case_AuthenticateDeviceRequest_Payload = 3
+
+func (x *AuthenticateDeviceRequest) WhichPayload() case_AuthenticateDeviceRequest_Payload {
+	if x == nil {
+		return AuthenticateDeviceRequest_Payload_not_set_case
+	}
+	switch x.Payload.(type) {
+	case *AuthenticateDeviceRequest_Init:
+		return AuthenticateDeviceRequest_Init_case
+	case *AuthenticateDeviceRequest_ChallengeResponse:
+		return AuthenticateDeviceRequest_ChallengeResponse_case
+	case *AuthenticateDeviceRequest_TpmChallengeResponse:
+		return AuthenticateDeviceRequest_TpmChallengeResponse_case
+	default:
+		return AuthenticateDeviceRequest_Payload_not_set_case
+	}
+}
+
+type AuthenticateDeviceRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Payload:
+	Init                 *AuthenticateDeviceInit
+	ChallengeResponse    *AuthenticateDeviceChallengeResponse
+	TpmChallengeResponse *TPMAuthenticateDeviceChallengeResponse
+	// -- end of Payload
+}
+
+func (b0 AuthenticateDeviceRequest_builder) Build() *AuthenticateDeviceRequest {
+	m0 := &AuthenticateDeviceRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Init != nil {
+		x.Payload = &AuthenticateDeviceRequest_Init{b.Init}
+	}
+	if b.ChallengeResponse != nil {
+		x.Payload = &AuthenticateDeviceRequest_ChallengeResponse{b.ChallengeResponse}
+	}
+	if b.TpmChallengeResponse != nil {
+		x.Payload = &AuthenticateDeviceRequest_TpmChallengeResponse{b.TpmChallengeResponse}
+	}
+	return m0
+}
+
+type case_AuthenticateDeviceRequest_Payload protoreflect.FieldNumber
+
+func (x case_AuthenticateDeviceRequest_Payload) String() string {
+	md := file_teleport_devicetrust_v1_devicetrust_service_proto_msgTypes[27].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isAuthenticateDeviceRequest_Payload interface {
 	isAuthenticateDeviceRequest_Payload()
 }
@@ -1891,7 +3133,7 @@ func (*AuthenticateDeviceRequest_TpmChallengeResponse) isAuthenticateDeviceReque
 
 // Response for AuthenticateDevice.
 type AuthenticateDeviceResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Payload:
 	//
 	//	*AuthenticateDeviceResponse_Challenge
@@ -1926,11 +3168,6 @@ func (x *AuthenticateDeviceResponse) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AuthenticateDeviceResponse.ProtoReflect.Descriptor instead.
-func (*AuthenticateDeviceResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_devicetrust_service_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *AuthenticateDeviceResponse) GetPayload() isAuthenticateDeviceResponse_Payload {
@@ -1976,6 +3213,175 @@ func (x *AuthenticateDeviceResponse) GetConfirmationToken() *DeviceConfirmationT
 	return nil
 }
 
+func (x *AuthenticateDeviceResponse) SetChallenge(v *AuthenticateDeviceChallenge) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &AuthenticateDeviceResponse_Challenge{v}
+}
+
+func (x *AuthenticateDeviceResponse) SetUserCertificates(v *UserCertificates) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &AuthenticateDeviceResponse_UserCertificates{v}
+}
+
+func (x *AuthenticateDeviceResponse) SetTpmChallenge(v *TPMAuthenticateDeviceChallenge) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &AuthenticateDeviceResponse_TpmChallenge{v}
+}
+
+func (x *AuthenticateDeviceResponse) SetConfirmationToken(v *DeviceConfirmationToken) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &AuthenticateDeviceResponse_ConfirmationToken{v}
+}
+
+func (x *AuthenticateDeviceResponse) HasPayload() bool {
+	if x == nil {
+		return false
+	}
+	return x.Payload != nil
+}
+
+func (x *AuthenticateDeviceResponse) HasChallenge() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*AuthenticateDeviceResponse_Challenge)
+	return ok
+}
+
+func (x *AuthenticateDeviceResponse) HasUserCertificates() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*AuthenticateDeviceResponse_UserCertificates)
+	return ok
+}
+
+func (x *AuthenticateDeviceResponse) HasTpmChallenge() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*AuthenticateDeviceResponse_TpmChallenge)
+	return ok
+}
+
+func (x *AuthenticateDeviceResponse) HasConfirmationToken() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*AuthenticateDeviceResponse_ConfirmationToken)
+	return ok
+}
+
+func (x *AuthenticateDeviceResponse) ClearPayload() {
+	x.Payload = nil
+}
+
+func (x *AuthenticateDeviceResponse) ClearChallenge() {
+	if _, ok := x.Payload.(*AuthenticateDeviceResponse_Challenge); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *AuthenticateDeviceResponse) ClearUserCertificates() {
+	if _, ok := x.Payload.(*AuthenticateDeviceResponse_UserCertificates); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *AuthenticateDeviceResponse) ClearTpmChallenge() {
+	if _, ok := x.Payload.(*AuthenticateDeviceResponse_TpmChallenge); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *AuthenticateDeviceResponse) ClearConfirmationToken() {
+	if _, ok := x.Payload.(*AuthenticateDeviceResponse_ConfirmationToken); ok {
+		x.Payload = nil
+	}
+}
+
+const AuthenticateDeviceResponse_Payload_not_set_case case_AuthenticateDeviceResponse_Payload = 0
+const AuthenticateDeviceResponse_Challenge_case case_AuthenticateDeviceResponse_Payload = 1
+const AuthenticateDeviceResponse_UserCertificates_case case_AuthenticateDeviceResponse_Payload = 2
+const AuthenticateDeviceResponse_TpmChallenge_case case_AuthenticateDeviceResponse_Payload = 3
+const AuthenticateDeviceResponse_ConfirmationToken_case case_AuthenticateDeviceResponse_Payload = 4
+
+func (x *AuthenticateDeviceResponse) WhichPayload() case_AuthenticateDeviceResponse_Payload {
+	if x == nil {
+		return AuthenticateDeviceResponse_Payload_not_set_case
+	}
+	switch x.Payload.(type) {
+	case *AuthenticateDeviceResponse_Challenge:
+		return AuthenticateDeviceResponse_Challenge_case
+	case *AuthenticateDeviceResponse_UserCertificates:
+		return AuthenticateDeviceResponse_UserCertificates_case
+	case *AuthenticateDeviceResponse_TpmChallenge:
+		return AuthenticateDeviceResponse_TpmChallenge_case
+	case *AuthenticateDeviceResponse_ConfirmationToken:
+		return AuthenticateDeviceResponse_ConfirmationToken_case
+	default:
+		return AuthenticateDeviceResponse_Payload_not_set_case
+	}
+}
+
+type AuthenticateDeviceResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Payload:
+	Challenge *AuthenticateDeviceChallenge
+	// User certificates are returned as the result of a successful device
+	// authentication attempt ("regular" or non-web authentication).
+	UserCertificates *UserCertificates
+	TpmChallenge     *TPMAuthenticateDeviceChallenge
+	// A confirmation token is returned as the result of a successful device web
+	// authentication.
+	//
+	// See AuthenticateDeviceInit.device_web_token.
+	ConfirmationToken *DeviceConfirmationToken
+	// -- end of Payload
+}
+
+func (b0 AuthenticateDeviceResponse_builder) Build() *AuthenticateDeviceResponse {
+	m0 := &AuthenticateDeviceResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Challenge != nil {
+		x.Payload = &AuthenticateDeviceResponse_Challenge{b.Challenge}
+	}
+	if b.UserCertificates != nil {
+		x.Payload = &AuthenticateDeviceResponse_UserCertificates{b.UserCertificates}
+	}
+	if b.TpmChallenge != nil {
+		x.Payload = &AuthenticateDeviceResponse_TpmChallenge{b.TpmChallenge}
+	}
+	if b.ConfirmationToken != nil {
+		x.Payload = &AuthenticateDeviceResponse_ConfirmationToken{b.ConfirmationToken}
+	}
+	return m0
+}
+
+type case_AuthenticateDeviceResponse_Payload protoreflect.FieldNumber
+
+func (x case_AuthenticateDeviceResponse_Payload) String() string {
+	md := file_teleport_devicetrust_v1_devicetrust_service_proto_msgTypes[28].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isAuthenticateDeviceResponse_Payload interface {
 	isAuthenticateDeviceResponse_Payload()
 }
@@ -2012,7 +3418,7 @@ func (*AuthenticateDeviceResponse_ConfirmationToken) isAuthenticateDeviceRespons
 
 // AuthenticateDeviceInit initiates the device authentication ceremony.
 type AuthenticateDeviceInit struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// In-band user certificates to augment with device extensions.
 	//   - The x509 certificate is acquired from the mTLS connection, thus the
 	//     in-band certificate is ignored.
@@ -2067,11 +3473,6 @@ func (x *AuthenticateDeviceInit) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AuthenticateDeviceInit.ProtoReflect.Descriptor instead.
-func (*AuthenticateDeviceInit) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_devicetrust_service_proto_rawDescGZIP(), []int{29}
-}
-
 func (x *AuthenticateDeviceInit) GetUserCertificates() *UserCertificates {
 	if x != nil {
 		return x.UserCertificates
@@ -2100,9 +3501,99 @@ func (x *AuthenticateDeviceInit) GetDeviceWebToken() *DeviceWebToken {
 	return nil
 }
 
+func (x *AuthenticateDeviceInit) SetUserCertificates(v *UserCertificates) {
+	x.UserCertificates = v
+}
+
+func (x *AuthenticateDeviceInit) SetCredentialId(v string) {
+	x.CredentialId = v
+}
+
+func (x *AuthenticateDeviceInit) SetDeviceData(v *DeviceCollectedData) {
+	x.DeviceData = v
+}
+
+func (x *AuthenticateDeviceInit) SetDeviceWebToken(v *DeviceWebToken) {
+	x.DeviceWebToken = v
+}
+
+func (x *AuthenticateDeviceInit) HasUserCertificates() bool {
+	if x == nil {
+		return false
+	}
+	return x.UserCertificates != nil
+}
+
+func (x *AuthenticateDeviceInit) HasDeviceData() bool {
+	if x == nil {
+		return false
+	}
+	return x.DeviceData != nil
+}
+
+func (x *AuthenticateDeviceInit) HasDeviceWebToken() bool {
+	if x == nil {
+		return false
+	}
+	return x.DeviceWebToken != nil
+}
+
+func (x *AuthenticateDeviceInit) ClearUserCertificates() {
+	x.UserCertificates = nil
+}
+
+func (x *AuthenticateDeviceInit) ClearDeviceData() {
+	x.DeviceData = nil
+}
+
+func (x *AuthenticateDeviceInit) ClearDeviceWebToken() {
+	x.DeviceWebToken = nil
+}
+
+type AuthenticateDeviceInit_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// In-band user certificates to augment with device extensions.
+	//   - The x509 certificate is acquired from the mTLS connection, thus the
+	//     in-band certificate is ignored.
+	//   - All certificates must be valid and issued by the Teleport CA.
+	//   - TLS and SSH certificates must match (same Teleport user, plus whatever
+	//     additional checks the backend sees fit).
+	//   - TLS and SSH certificates must either have matching public keys, or
+	//     (TPM)AuthenticateDeviceChallengeResponse.SshSignature must be a valid
+	//     signature over the challenge by the SSH private key.
+	//   - Augmented certificates have the same expiration as the original
+	//     certificates.
+	UserCertificates *UserCertificates
+	// ID of the enrolled device credential.
+	CredentialId string
+	// Device collected data.
+	// Matched against the device registration information and any previously
+	// collected data.
+	DeviceData *DeviceCollectedData
+	// If present, on-behalf-of device authentication is performed.
+	// The user_certificates input field is ignored and no certificate data is
+	// returned to the caller, instead a confirmation_token is returned in
+	// the last step.
+	//
+	// See ConfirmDeviceWebAuthentication.
+	DeviceWebToken *DeviceWebToken
+}
+
+func (b0 AuthenticateDeviceInit_builder) Build() *AuthenticateDeviceInit {
+	m0 := &AuthenticateDeviceInit{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.UserCertificates = b.UserCertificates
+	x.CredentialId = b.CredentialId
+	x.DeviceData = b.DeviceData
+	x.DeviceWebToken = b.DeviceWebToken
+	return m0
+}
+
 // Request for ConfirmDeviceWebAuthentication.
 type ConfirmDeviceWebAuthenticationRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Confirmation token to be spent.
 	ConfirmationToken *DeviceConfirmationToken `protobuf:"bytes,1,opt,name=confirmation_token,json=confirmationToken,proto3" json:"confirmation_token,omitempty"`
 	// Web Session identifier of the session that started this request, via
@@ -2140,11 +3631,6 @@ func (x *ConfirmDeviceWebAuthenticationRequest) ProtoReflect() protoreflect.Mess
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ConfirmDeviceWebAuthenticationRequest.ProtoReflect.Descriptor instead.
-func (*ConfirmDeviceWebAuthenticationRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_devicetrust_service_proto_rawDescGZIP(), []int{30}
-}
-
 func (x *ConfirmDeviceWebAuthenticationRequest) GetConfirmationToken() *DeviceConfirmationToken {
 	if x != nil {
 		return x.ConfirmationToken
@@ -2159,9 +3645,50 @@ func (x *ConfirmDeviceWebAuthenticationRequest) GetCurrentWebSessionId() string 
 	return ""
 }
 
+func (x *ConfirmDeviceWebAuthenticationRequest) SetConfirmationToken(v *DeviceConfirmationToken) {
+	x.ConfirmationToken = v
+}
+
+func (x *ConfirmDeviceWebAuthenticationRequest) SetCurrentWebSessionId(v string) {
+	x.CurrentWebSessionId = v
+}
+
+func (x *ConfirmDeviceWebAuthenticationRequest) HasConfirmationToken() bool {
+	if x == nil {
+		return false
+	}
+	return x.ConfirmationToken != nil
+}
+
+func (x *ConfirmDeviceWebAuthenticationRequest) ClearConfirmationToken() {
+	x.ConfirmationToken = nil
+}
+
+type ConfirmDeviceWebAuthenticationRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Confirmation token to be spent.
+	ConfirmationToken *DeviceConfirmationToken
+	// Web Session identifier of the session that started this request, via
+	// Teleport Proxy.
+	//
+	// For the request to be successful the Web Session must match the session
+	// that started the authentication attempt.
+	CurrentWebSessionId string
+}
+
+func (b0 ConfirmDeviceWebAuthenticationRequest_builder) Build() *ConfirmDeviceWebAuthenticationRequest {
+	m0 := &ConfirmDeviceWebAuthenticationRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ConfirmationToken = b.ConfirmationToken
+	x.CurrentWebSessionId = b.CurrentWebSessionId
+	return m0
+}
+
 // Response for ConfirmDeviceWebAuthentication.
 type ConfirmDeviceWebAuthenticationResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2191,9 +3718,16 @@ func (x *ConfirmDeviceWebAuthenticationResponse) ProtoReflect() protoreflect.Mes
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ConfirmDeviceWebAuthenticationResponse.ProtoReflect.Descriptor instead.
-func (*ConfirmDeviceWebAuthenticationResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_devicetrust_service_proto_rawDescGZIP(), []int{31}
+type ConfirmDeviceWebAuthenticationResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 ConfirmDeviceWebAuthenticationResponse_builder) Build() *ConfirmDeviceWebAuthenticationResponse {
+	m0 := &ConfirmDeviceWebAuthenticationResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // Request for SyncInventory.
@@ -2213,7 +3747,7 @@ func (*ConfirmDeviceWebAuthenticationResponse) Descriptor() ([]byte, []int) {
 // <- SyncInventoryResult
 // (end loop)
 type SyncInventoryRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Payload:
 	//
 	//	*SyncInventoryRequest_Start
@@ -2248,11 +3782,6 @@ func (x *SyncInventoryRequest) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use SyncInventoryRequest.ProtoReflect.Descriptor instead.
-func (*SyncInventoryRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_devicetrust_service_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *SyncInventoryRequest) GetPayload() isSyncInventoryRequest_Payload {
@@ -2298,6 +3827,169 @@ func (x *SyncInventoryRequest) GetDevicesToRemove() *SyncInventoryDevices {
 	return nil
 }
 
+func (x *SyncInventoryRequest) SetStart(v *SyncInventoryStart) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &SyncInventoryRequest_Start{v}
+}
+
+func (x *SyncInventoryRequest) SetEnd(v *SyncInventoryEnd) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &SyncInventoryRequest_End{v}
+}
+
+func (x *SyncInventoryRequest) SetDevicesToUpsert(v *SyncInventoryDevices) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &SyncInventoryRequest_DevicesToUpsert{v}
+}
+
+func (x *SyncInventoryRequest) SetDevicesToRemove(v *SyncInventoryDevices) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &SyncInventoryRequest_DevicesToRemove{v}
+}
+
+func (x *SyncInventoryRequest) HasPayload() bool {
+	if x == nil {
+		return false
+	}
+	return x.Payload != nil
+}
+
+func (x *SyncInventoryRequest) HasStart() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*SyncInventoryRequest_Start)
+	return ok
+}
+
+func (x *SyncInventoryRequest) HasEnd() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*SyncInventoryRequest_End)
+	return ok
+}
+
+func (x *SyncInventoryRequest) HasDevicesToUpsert() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*SyncInventoryRequest_DevicesToUpsert)
+	return ok
+}
+
+func (x *SyncInventoryRequest) HasDevicesToRemove() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*SyncInventoryRequest_DevicesToRemove)
+	return ok
+}
+
+func (x *SyncInventoryRequest) ClearPayload() {
+	x.Payload = nil
+}
+
+func (x *SyncInventoryRequest) ClearStart() {
+	if _, ok := x.Payload.(*SyncInventoryRequest_Start); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *SyncInventoryRequest) ClearEnd() {
+	if _, ok := x.Payload.(*SyncInventoryRequest_End); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *SyncInventoryRequest) ClearDevicesToUpsert() {
+	if _, ok := x.Payload.(*SyncInventoryRequest_DevicesToUpsert); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *SyncInventoryRequest) ClearDevicesToRemove() {
+	if _, ok := x.Payload.(*SyncInventoryRequest_DevicesToRemove); ok {
+		x.Payload = nil
+	}
+}
+
+const SyncInventoryRequest_Payload_not_set_case case_SyncInventoryRequest_Payload = 0
+const SyncInventoryRequest_Start_case case_SyncInventoryRequest_Payload = 1
+const SyncInventoryRequest_End_case case_SyncInventoryRequest_Payload = 2
+const SyncInventoryRequest_DevicesToUpsert_case case_SyncInventoryRequest_Payload = 3
+const SyncInventoryRequest_DevicesToRemove_case case_SyncInventoryRequest_Payload = 4
+
+func (x *SyncInventoryRequest) WhichPayload() case_SyncInventoryRequest_Payload {
+	if x == nil {
+		return SyncInventoryRequest_Payload_not_set_case
+	}
+	switch x.Payload.(type) {
+	case *SyncInventoryRequest_Start:
+		return SyncInventoryRequest_Start_case
+	case *SyncInventoryRequest_End:
+		return SyncInventoryRequest_End_case
+	case *SyncInventoryRequest_DevicesToUpsert:
+		return SyncInventoryRequest_DevicesToUpsert_case
+	case *SyncInventoryRequest_DevicesToRemove:
+		return SyncInventoryRequest_DevicesToRemove_case
+	default:
+		return SyncInventoryRequest_Payload_not_set_case
+	}
+}
+
+type SyncInventoryRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Payload:
+	Start           *SyncInventoryStart
+	End             *SyncInventoryEnd
+	DevicesToUpsert *SyncInventoryDevices
+	DevicesToRemove *SyncInventoryDevices
+	// -- end of Payload
+}
+
+func (b0 SyncInventoryRequest_builder) Build() *SyncInventoryRequest {
+	m0 := &SyncInventoryRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Start != nil {
+		x.Payload = &SyncInventoryRequest_Start{b.Start}
+	}
+	if b.End != nil {
+		x.Payload = &SyncInventoryRequest_End{b.End}
+	}
+	if b.DevicesToUpsert != nil {
+		x.Payload = &SyncInventoryRequest_DevicesToUpsert{b.DevicesToUpsert}
+	}
+	if b.DevicesToRemove != nil {
+		x.Payload = &SyncInventoryRequest_DevicesToRemove{b.DevicesToRemove}
+	}
+	return m0
+}
+
+type case_SyncInventoryRequest_Payload protoreflect.FieldNumber
+
+func (x case_SyncInventoryRequest_Payload) String() string {
+	md := file_teleport_devicetrust_v1_devicetrust_service_proto_msgTypes[32].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isSyncInventoryRequest_Payload interface {
 	isSyncInventoryRequest_Payload()
 }
@@ -2328,7 +4020,7 @@ func (*SyncInventoryRequest_DevicesToRemove) isSyncInventoryRequest_Payload() {}
 
 // Response for SyncInventory.
 type SyncInventoryResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Payload:
 	//
 	//	*SyncInventoryResponse_Ack
@@ -2362,11 +4054,6 @@ func (x *SyncInventoryResponse) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use SyncInventoryResponse.ProtoReflect.Descriptor instead.
-func (*SyncInventoryResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_devicetrust_service_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *SyncInventoryResponse) GetPayload() isSyncInventoryResponse_Payload {
@@ -2403,6 +4090,140 @@ func (x *SyncInventoryResponse) GetMissingDevices() *SyncInventoryMissingDevices
 	return nil
 }
 
+func (x *SyncInventoryResponse) SetAck(v *SyncInventoryAck) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &SyncInventoryResponse_Ack{v}
+}
+
+func (x *SyncInventoryResponse) SetResult(v *SyncInventoryResult) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &SyncInventoryResponse_Result{v}
+}
+
+func (x *SyncInventoryResponse) SetMissingDevices(v *SyncInventoryMissingDevices) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &SyncInventoryResponse_MissingDevices{v}
+}
+
+func (x *SyncInventoryResponse) HasPayload() bool {
+	if x == nil {
+		return false
+	}
+	return x.Payload != nil
+}
+
+func (x *SyncInventoryResponse) HasAck() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*SyncInventoryResponse_Ack)
+	return ok
+}
+
+func (x *SyncInventoryResponse) HasResult() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*SyncInventoryResponse_Result)
+	return ok
+}
+
+func (x *SyncInventoryResponse) HasMissingDevices() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*SyncInventoryResponse_MissingDevices)
+	return ok
+}
+
+func (x *SyncInventoryResponse) ClearPayload() {
+	x.Payload = nil
+}
+
+func (x *SyncInventoryResponse) ClearAck() {
+	if _, ok := x.Payload.(*SyncInventoryResponse_Ack); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *SyncInventoryResponse) ClearResult() {
+	if _, ok := x.Payload.(*SyncInventoryResponse_Result); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *SyncInventoryResponse) ClearMissingDevices() {
+	if _, ok := x.Payload.(*SyncInventoryResponse_MissingDevices); ok {
+		x.Payload = nil
+	}
+}
+
+const SyncInventoryResponse_Payload_not_set_case case_SyncInventoryResponse_Payload = 0
+const SyncInventoryResponse_Ack_case case_SyncInventoryResponse_Payload = 1
+const SyncInventoryResponse_Result_case case_SyncInventoryResponse_Payload = 2
+const SyncInventoryResponse_MissingDevices_case case_SyncInventoryResponse_Payload = 3
+
+func (x *SyncInventoryResponse) WhichPayload() case_SyncInventoryResponse_Payload {
+	if x == nil {
+		return SyncInventoryResponse_Payload_not_set_case
+	}
+	switch x.Payload.(type) {
+	case *SyncInventoryResponse_Ack:
+		return SyncInventoryResponse_Ack_case
+	case *SyncInventoryResponse_Result:
+		return SyncInventoryResponse_Result_case
+	case *SyncInventoryResponse_MissingDevices:
+		return SyncInventoryResponse_MissingDevices_case
+	default:
+		return SyncInventoryResponse_Payload_not_set_case
+	}
+}
+
+type SyncInventoryResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Payload:
+	Ack            *SyncInventoryAck
+	Result         *SyncInventoryResult
+	MissingDevices *SyncInventoryMissingDevices
+	// -- end of Payload
+}
+
+func (b0 SyncInventoryResponse_builder) Build() *SyncInventoryResponse {
+	m0 := &SyncInventoryResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Ack != nil {
+		x.Payload = &SyncInventoryResponse_Ack{b.Ack}
+	}
+	if b.Result != nil {
+		x.Payload = &SyncInventoryResponse_Result{b.Result}
+	}
+	if b.MissingDevices != nil {
+		x.Payload = &SyncInventoryResponse_MissingDevices{b.MissingDevices}
+	}
+	return m0
+}
+
+type case_SyncInventoryResponse_Payload protoreflect.FieldNumber
+
+func (x case_SyncInventoryResponse_Payload) String() string {
+	md := file_teleport_devicetrust_v1_devicetrust_service_proto_msgTypes[33].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isSyncInventoryResponse_Payload interface {
 	isSyncInventoryResponse_Payload()
 }
@@ -2427,7 +4248,7 @@ func (*SyncInventoryResponse_MissingDevices) isSyncInventoryResponse_Payload() {
 
 // SyncInventoryStart starts the inventory sync.
 type SyncInventoryStart struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Source of the inventory sync.
 	// Used for all devices. The `source` field in individual devices is ignored
 	// by this RPC.
@@ -2438,8 +4259,17 @@ type SyncInventoryStart struct {
 	// upserts.
 	// See [SyncInventoryRequest] and [SyncInventoryMissingDevices] for details.
 	TrackMissingDevices bool `protobuf:"varint,4,opt,name=track_missing_devices,json=trackMissingDevices,proto3" json:"track_missing_devices,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	// os_types declares the OS types this sync covers.
+	//
+	// track_missing_devices only reports devices whose os_type is in this list.
+	// Upserts and removals whose os_type is not in this list are rejected with a
+	// per-device error.
+	//
+	// Empty is treated as [OS_TYPE_MACOS, OS_TYPE_WINDOWS, OS_TYPE_LINUX] for
+	// backwards compatibility.
+	OsTypes       []OSType `protobuf:"varint,5,rep,packed,name=os_types,json=osTypes,proto3,enum=teleport.devicetrust.v1.OSType" json:"os_types,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *SyncInventoryStart) Reset() {
@@ -2467,11 +4297,6 @@ func (x *SyncInventoryStart) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SyncInventoryStart.ProtoReflect.Descriptor instead.
-func (*SyncInventoryStart) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_devicetrust_service_proto_rawDescGZIP(), []int{34}
-}
-
 func (x *SyncInventoryStart) GetSource() *DeviceSource {
 	if x != nil {
 		return x.Source
@@ -2486,10 +4311,74 @@ func (x *SyncInventoryStart) GetTrackMissingDevices() bool {
 	return false
 }
 
+func (x *SyncInventoryStart) GetOsTypes() []OSType {
+	if x != nil {
+		return x.OsTypes
+	}
+	return nil
+}
+
+func (x *SyncInventoryStart) SetSource(v *DeviceSource) {
+	x.Source = v
+}
+
+func (x *SyncInventoryStart) SetTrackMissingDevices(v bool) {
+	x.TrackMissingDevices = v
+}
+
+func (x *SyncInventoryStart) SetOsTypes(v []OSType) {
+	x.OsTypes = v
+}
+
+func (x *SyncInventoryStart) HasSource() bool {
+	if x == nil {
+		return false
+	}
+	return x.Source != nil
+}
+
+func (x *SyncInventoryStart) ClearSource() {
+	x.Source = nil
+}
+
+type SyncInventoryStart_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Source of the inventory sync.
+	// Used for all devices. The `source` field in individual devices is ignored
+	// by this RPC.
+	Source *DeviceSource
+	// If true, the server keeps track of the devices upserted during the sync.
+	// After receiving the [SyncInventoryEnd] message, the server informs the
+	// client of all devices that are present in storage but not observed in the
+	// upserts.
+	// See [SyncInventoryRequest] and [SyncInventoryMissingDevices] for details.
+	TrackMissingDevices bool
+	// os_types declares the OS types this sync covers.
+	//
+	// track_missing_devices only reports devices whose os_type is in this list.
+	// Upserts and removals whose os_type is not in this list are rejected with a
+	// per-device error.
+	//
+	// Empty is treated as [OS_TYPE_MACOS, OS_TYPE_WINDOWS, OS_TYPE_LINUX] for
+	// backwards compatibility.
+	OsTypes []OSType
+}
+
+func (b0 SyncInventoryStart_builder) Build() *SyncInventoryStart {
+	m0 := &SyncInventoryStart{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Source = b.Source
+	x.TrackMissingDevices = b.TrackMissingDevices
+	x.OsTypes = b.OsTypes
+	return m0
+}
+
 // SyncInventoryEnd ends the inventory sync, signaling that no more
 // SyncInventoryDevices messages will be sent by the client.
 type SyncInventoryEnd struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2519,15 +4408,22 @@ func (x *SyncInventoryEnd) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SyncInventoryEnd.ProtoReflect.Descriptor instead.
-func (*SyncInventoryEnd) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_devicetrust_service_proto_rawDescGZIP(), []int{35}
+type SyncInventoryEnd_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 SyncInventoryEnd_builder) Build() *SyncInventoryEnd {
+	m0 := &SyncInventoryEnd{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // SyncInventoryDevices transports devices to add/update/remove.
 // Removals only need identifying fields to be set.
 type SyncInventoryDevices struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Devices to sync.
 	Devices       []*Device `protobuf:"bytes,1,rep,name=devices,proto3" json:"devices,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -2559,11 +4455,6 @@ func (x *SyncInventoryDevices) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SyncInventoryDevices.ProtoReflect.Descriptor instead.
-func (*SyncInventoryDevices) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_devicetrust_service_proto_rawDescGZIP(), []int{36}
-}
-
 func (x *SyncInventoryDevices) GetDevices() []*Device {
 	if x != nil {
 		return x.Devices
@@ -2571,10 +4462,29 @@ func (x *SyncInventoryDevices) GetDevices() []*Device {
 	return nil
 }
 
+func (x *SyncInventoryDevices) SetDevices(v []*Device) {
+	x.Devices = v
+}
+
+type SyncInventoryDevices_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Devices to sync.
+	Devices []*Device
+}
+
+func (b0 SyncInventoryDevices_builder) Build() *SyncInventoryDevices {
+	m0 := &SyncInventoryDevices{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Devices = b.Devices
+	return m0
+}
+
 // SyncInventoryAck is used to confirm successful processing of messages that
 // lack a more specific response.
 type SyncInventoryAck struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2604,16 +4514,23 @@ func (x *SyncInventoryAck) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SyncInventoryAck.ProtoReflect.Descriptor instead.
-func (*SyncInventoryAck) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_devicetrust_service_proto_rawDescGZIP(), []int{37}
+type SyncInventoryAck_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 SyncInventoryAck_builder) Build() *SyncInventoryAck {
+	m0 := &SyncInventoryAck{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // SyncInventoryResult is the response for SyncInventoryDevices or
 // SyncInventoryEnd
 // It lists all synced/deleted devices.
 type SyncInventoryResult struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Devices modified, in the same order as the input when applicable.
 	Devices       []*DeviceOrStatus `protobuf:"bytes,1,rep,name=devices,proto3" json:"devices,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -2645,16 +4562,30 @@ func (x *SyncInventoryResult) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SyncInventoryResult.ProtoReflect.Descriptor instead.
-func (*SyncInventoryResult) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_devicetrust_service_proto_rawDescGZIP(), []int{38}
-}
-
 func (x *SyncInventoryResult) GetDevices() []*DeviceOrStatus {
 	if x != nil {
 		return x.Devices
 	}
 	return nil
+}
+
+func (x *SyncInventoryResult) SetDevices(v []*DeviceOrStatus) {
+	x.Devices = v
+}
+
+type SyncInventoryResult_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Devices modified, in the same order as the input when applicable.
+	Devices []*DeviceOrStatus
+}
+
+func (b0 SyncInventoryResult_builder) Build() *SyncInventoryResult {
+	m0 := &SyncInventoryResult{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Devices = b.Devices
+	return m0
 }
 
 // SyncInventoryMissingDevices informs the sync client of all stored devices
@@ -2666,7 +4597,7 @@ func (x *SyncInventoryResult) GetDevices() []*DeviceOrStatus {
 // The client must follow up with a [SyncInventoryDevices] message, including
 // any devices to be deleted.
 type SyncInventoryMissingDevices struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Devices missing from the client-side sync.
 	// Guaranteed to have the following fields: id, os_type, asset_tag and
 	// profile.external_id.
@@ -2700,11 +4631,6 @@ func (x *SyncInventoryMissingDevices) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SyncInventoryMissingDevices.ProtoReflect.Descriptor instead.
-func (*SyncInventoryMissingDevices) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_devicetrust_service_proto_rawDescGZIP(), []int{39}
-}
-
 func (x *SyncInventoryMissingDevices) GetDevices() []*Device {
 	if x != nil {
 		return x.Devices
@@ -2712,48 +4638,32 @@ func (x *SyncInventoryMissingDevices) GetDevices() []*Device {
 	return nil
 }
 
-// Superseded by ResourceUsageService.GetUsage.
-type GetDevicesUsageRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+func (x *SyncInventoryMissingDevices) SetDevices(v []*Device) {
+	x.Devices = v
 }
 
-func (x *GetDevicesUsageRequest) Reset() {
-	*x = GetDevicesUsageRequest{}
-	mi := &file_teleport_devicetrust_v1_devicetrust_service_proto_msgTypes[40]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
+type SyncInventoryMissingDevices_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Devices missing from the client-side sync.
+	// Guaranteed to have the following fields: id, os_type, asset_tag and
+	// profile.external_id.
+	Devices []*Device
 }
 
-func (x *GetDevicesUsageRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GetDevicesUsageRequest) ProtoMessage() {}
-
-func (x *GetDevicesUsageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_devicetrust_v1_devicetrust_service_proto_msgTypes[40]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GetDevicesUsageRequest.ProtoReflect.Descriptor instead.
-func (*GetDevicesUsageRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_devicetrust_service_proto_rawDescGZIP(), []int{40}
+func (b0 SyncInventoryMissingDevices_builder) Build() *SyncInventoryMissingDevices {
+	m0 := &SyncInventoryMissingDevices{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Devices = b.Devices
+	return m0
 }
 
 var File_teleport_devicetrust_v1_devicetrust_service_proto protoreflect.FileDescriptor
 
 const file_teleport_devicetrust_v1_devicetrust_service_proto_rawDesc = "" +
 	"\n" +
-	"1teleport/devicetrust/v1/devicetrust_service.proto\x12\x17teleport.devicetrust.v1\x1a\x1bgoogle/protobuf/empty.proto\x1a google/protobuf/field_mask.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x17google/rpc/status.proto\x1a4teleport/devicetrust/v1/authenticate_challenge.proto\x1a$teleport/devicetrust/v1/device.proto\x1a3teleport/devicetrust/v1/device_collected_data.proto\x1a7teleport/devicetrust/v1/device_confirmation_token.proto\x1a1teleport/devicetrust/v1/device_enroll_token.proto\x1a+teleport/devicetrust/v1/device_source.proto\x1a.teleport/devicetrust/v1/device_web_token.proto\x1a!teleport/devicetrust/v1/tpm.proto\x1a#teleport/devicetrust/v1/usage.proto\x1a/teleport/devicetrust/v1/user_certificates.proto\"\x81\x02\n" +
+	"1teleport/devicetrust/v1/devicetrust_service.proto\x12\x17teleport.devicetrust.v1\x1a\x1bgoogle/protobuf/empty.proto\x1a google/protobuf/field_mask.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x17google/rpc/status.proto\x1a4teleport/devicetrust/v1/authenticate_challenge.proto\x1a$teleport/devicetrust/v1/device.proto\x1a3teleport/devicetrust/v1/device_collected_data.proto\x1a7teleport/devicetrust/v1/device_confirmation_token.proto\x1a1teleport/devicetrust/v1/device_enroll_token.proto\x1a+teleport/devicetrust/v1/device_source.proto\x1a.teleport/devicetrust/v1/device_web_token.proto\x1a%teleport/devicetrust/v1/os_type.proto\x1a!teleport/devicetrust/v1/tpm.proto\x1a/teleport/devicetrust/v1/user_certificates.proto\"\x81\x02\n" +
 	"\x13CreateDeviceRequest\x127\n" +
 	"\x06device\x18\x01 \x01(\v2\x1f.teleport.devicetrust.v1.DeviceR\x06device\x12.\n" +
 	"\x13create_enroll_token\x18\x02 \x01(\bR\x11createEnrollToken\x12,\n" +
@@ -2880,10 +4790,11 @@ const file_teleport_devicetrust_v1_devicetrust_service_proto_rawDesc = "" +
 	"\x03ack\x18\x01 \x01(\v2).teleport.devicetrust.v1.SyncInventoryAckH\x00R\x03ack\x12F\n" +
 	"\x06result\x18\x02 \x01(\v2,.teleport.devicetrust.v1.SyncInventoryResultH\x00R\x06result\x12_\n" +
 	"\x0fmissing_devices\x18\x03 \x01(\v24.teleport.devicetrust.v1.SyncInventoryMissingDevicesH\x00R\x0emissingDevicesB\t\n" +
-	"\apayload\"\xac\x01\n" +
+	"\apayload\"\xe8\x01\n" +
 	"\x12SyncInventoryStart\x12=\n" +
 	"\x06source\x18\x01 \x01(\v2%.teleport.devicetrust.v1.DeviceSourceR\x06source\x122\n" +
-	"\x15track_missing_devices\x18\x04 \x01(\bR\x13trackMissingDevicesJ\x04\b\x02\x10\x03J\x04\b\x03\x10\x04R\x04modeR\x11on_missing_action\"2\n" +
+	"\x15track_missing_devices\x18\x04 \x01(\bR\x13trackMissingDevices\x12:\n" +
+	"\bos_types\x18\x05 \x03(\x0e2\x1f.teleport.devicetrust.v1.OSTypeR\aosTypesJ\x04\b\x02\x10\x03J\x04\b\x03\x10\x04R\x04modeR\x11on_missing_action\"2\n" +
 	"\x10SyncInventoryEndJ\x04\b\x01\x10\x02R\x18external_sync_successful\"Q\n" +
 	"\x14SyncInventoryDevices\x129\n" +
 	"\adevices\x18\x01 \x03(\v2\x1f.teleport.devicetrust.v1.DeviceR\adevices\"\x12\n" +
@@ -2891,13 +4802,12 @@ const file_teleport_devicetrust_v1_devicetrust_service_proto_rawDesc = "" +
 	"\x13SyncInventoryResult\x12A\n" +
 	"\adevices\x18\x01 \x03(\v2'.teleport.devicetrust.v1.DeviceOrStatusR\adevices\"X\n" +
 	"\x1bSyncInventoryMissingDevices\x129\n" +
-	"\adevices\x18\x01 \x03(\v2\x1f.teleport.devicetrust.v1.DeviceR\adevices\"\x18\n" +
-	"\x16GetDevicesUsageRequest*Y\n" +
+	"\adevices\x18\x01 \x03(\v2\x1f.teleport.devicetrust.v1.DeviceR\adevices*Y\n" +
 	"\n" +
 	"DeviceView\x12\x1b\n" +
 	"\x17DEVICE_VIEW_UNSPECIFIED\x10\x00\x12\x14\n" +
 	"\x10DEVICE_VIEW_LIST\x10\x01\x12\x18\n" +
-	"\x14DEVICE_VIEW_RESOURCE\x10\x022\xa9\r\n" +
+	"\x14DEVICE_VIEW_RESOURCE\x10\x022\xb9\f\n" +
 	"\x12DeviceTrustService\x12]\n" +
 	"\fCreateDevice\x12,.teleport.devicetrust.v1.CreateDeviceRequest\x1a\x1f.teleport.devicetrust.v1.Device\x12]\n" +
 	"\fUpdateDevice\x12,.teleport.devicetrust.v1.UpdateDeviceRequest\x1a\x1f.teleport.devicetrust.v1.Device\x12]\n" +
@@ -2912,23 +4822,10 @@ const file_teleport_devicetrust_v1_devicetrust_service_proto_rawDesc = "" +
 	"\fEnrollDevice\x12,.teleport.devicetrust.v1.EnrollDeviceRequest\x1a-.teleport.devicetrust.v1.EnrollDeviceResponse(\x010\x01\x12\x81\x01\n" +
 	"\x12AuthenticateDevice\x122.teleport.devicetrust.v1.AuthenticateDeviceRequest\x1a3.teleport.devicetrust.v1.AuthenticateDeviceResponse(\x010\x01\x12\xa1\x01\n" +
 	"\x1eConfirmDeviceWebAuthentication\x12>.teleport.devicetrust.v1.ConfirmDeviceWebAuthenticationRequest\x1a?.teleport.devicetrust.v1.ConfirmDeviceWebAuthenticationResponse\x12r\n" +
-	"\rSyncInventory\x12-.teleport.devicetrust.v1.SyncInventoryRequest\x1a..teleport.devicetrust.v1.SyncInventoryResponse(\x010\x01\x12n\n" +
-	"\x0fGetDevicesUsage\x12/.teleport.devicetrust.v1.GetDevicesUsageRequest\x1a%.teleport.devicetrust.v1.DevicesUsage\"\x03\x88\x02\x01BZZXgithub.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1;devicetrustv1b\x06proto3"
-
-var (
-	file_teleport_devicetrust_v1_devicetrust_service_proto_rawDescOnce sync.Once
-	file_teleport_devicetrust_v1_devicetrust_service_proto_rawDescData []byte
-)
-
-func file_teleport_devicetrust_v1_devicetrust_service_proto_rawDescGZIP() []byte {
-	file_teleport_devicetrust_v1_devicetrust_service_proto_rawDescOnce.Do(func() {
-		file_teleport_devicetrust_v1_devicetrust_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_devicetrust_v1_devicetrust_service_proto_rawDesc), len(file_teleport_devicetrust_v1_devicetrust_service_proto_rawDesc)))
-	})
-	return file_teleport_devicetrust_v1_devicetrust_service_proto_rawDescData
-}
+	"\rSyncInventory\x12-.teleport.devicetrust.v1.SyncInventoryRequest\x1a..teleport.devicetrust.v1.SyncInventoryResponse(\x010\x01BZZXgithub.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1;devicetrustv1b\x06proto3"
 
 var file_teleport_devicetrust_v1_devicetrust_service_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_teleport_devicetrust_v1_devicetrust_service_proto_msgTypes = make([]protoimpl.MessageInfo, 41)
+var file_teleport_devicetrust_v1_devicetrust_service_proto_msgTypes = make([]protoimpl.MessageInfo, 40)
 var file_teleport_devicetrust_v1_devicetrust_service_proto_goTypes = []any{
 	(DeviceView)(0),                                // 0: teleport.devicetrust.v1.DeviceView
 	(*CreateDeviceRequest)(nil),                    // 1: teleport.devicetrust.v1.CreateDeviceRequest
@@ -2971,64 +4868,63 @@ var file_teleport_devicetrust_v1_devicetrust_service_proto_goTypes = []any{
 	(*SyncInventoryAck)(nil),                       // 38: teleport.devicetrust.v1.SyncInventoryAck
 	(*SyncInventoryResult)(nil),                    // 39: teleport.devicetrust.v1.SyncInventoryResult
 	(*SyncInventoryMissingDevices)(nil),            // 40: teleport.devicetrust.v1.SyncInventoryMissingDevices
-	(*GetDevicesUsageRequest)(nil),                 // 41: teleport.devicetrust.v1.GetDevicesUsageRequest
-	(*Device)(nil),                                 // 42: teleport.devicetrust.v1.Device
-	(*timestamppb.Timestamp)(nil),                  // 43: google.protobuf.Timestamp
-	(*fieldmaskpb.FieldMask)(nil),                  // 44: google.protobuf.FieldMask
-	(*status.Status)(nil),                          // 45: google.rpc.Status
-	(*DeviceCollectedData)(nil),                    // 46: teleport.devicetrust.v1.DeviceCollectedData
-	(*TPMPlatformParameters)(nil),                  // 47: teleport.devicetrust.v1.TPMPlatformParameters
-	(*AuthenticateDeviceChallengeResponse)(nil),    // 48: teleport.devicetrust.v1.AuthenticateDeviceChallengeResponse
-	(*TPMAuthenticateDeviceChallengeResponse)(nil), // 49: teleport.devicetrust.v1.TPMAuthenticateDeviceChallengeResponse
-	(*AuthenticateDeviceChallenge)(nil),            // 50: teleport.devicetrust.v1.AuthenticateDeviceChallenge
-	(*UserCertificates)(nil),                       // 51: teleport.devicetrust.v1.UserCertificates
-	(*TPMAuthenticateDeviceChallenge)(nil),         // 52: teleport.devicetrust.v1.TPMAuthenticateDeviceChallenge
-	(*DeviceConfirmationToken)(nil),                // 53: teleport.devicetrust.v1.DeviceConfirmationToken
-	(*DeviceWebToken)(nil),                         // 54: teleport.devicetrust.v1.DeviceWebToken
-	(*DeviceSource)(nil),                           // 55: teleport.devicetrust.v1.DeviceSource
+	(*Device)(nil),                                 // 41: teleport.devicetrust.v1.Device
+	(*timestamppb.Timestamp)(nil),                  // 42: google.protobuf.Timestamp
+	(*fieldmaskpb.FieldMask)(nil),                  // 43: google.protobuf.FieldMask
+	(*status.Status)(nil),                          // 44: google.rpc.Status
+	(*DeviceCollectedData)(nil),                    // 45: teleport.devicetrust.v1.DeviceCollectedData
+	(*TPMPlatformParameters)(nil),                  // 46: teleport.devicetrust.v1.TPMPlatformParameters
+	(*AuthenticateDeviceChallengeResponse)(nil),    // 47: teleport.devicetrust.v1.AuthenticateDeviceChallengeResponse
+	(*TPMAuthenticateDeviceChallengeResponse)(nil), // 48: teleport.devicetrust.v1.TPMAuthenticateDeviceChallengeResponse
+	(*AuthenticateDeviceChallenge)(nil),            // 49: teleport.devicetrust.v1.AuthenticateDeviceChallenge
+	(*UserCertificates)(nil),                       // 50: teleport.devicetrust.v1.UserCertificates
+	(*TPMAuthenticateDeviceChallenge)(nil),         // 51: teleport.devicetrust.v1.TPMAuthenticateDeviceChallenge
+	(*DeviceConfirmationToken)(nil),                // 52: teleport.devicetrust.v1.DeviceConfirmationToken
+	(*DeviceWebToken)(nil),                         // 53: teleport.devicetrust.v1.DeviceWebToken
+	(*DeviceSource)(nil),                           // 54: teleport.devicetrust.v1.DeviceSource
+	(OSType)(0),                                    // 55: teleport.devicetrust.v1.OSType
 	(*emptypb.Empty)(nil),                          // 56: google.protobuf.Empty
 	(*DeviceEnrollToken)(nil),                      // 57: teleport.devicetrust.v1.DeviceEnrollToken
-	(*DevicesUsage)(nil),                           // 58: teleport.devicetrust.v1.DevicesUsage
 }
 var file_teleport_devicetrust_v1_devicetrust_service_proto_depIdxs = []int32{
-	42, // 0: teleport.devicetrust.v1.CreateDeviceRequest.device:type_name -> teleport.devicetrust.v1.Device
-	43, // 1: teleport.devicetrust.v1.CreateDeviceRequest.enroll_token_expire_time:type_name -> google.protobuf.Timestamp
-	42, // 2: teleport.devicetrust.v1.UpdateDeviceRequest.device:type_name -> teleport.devicetrust.v1.Device
-	44, // 3: teleport.devicetrust.v1.UpdateDeviceRequest.update_mask:type_name -> google.protobuf.FieldMask
-	42, // 4: teleport.devicetrust.v1.UpsertDeviceRequest.device:type_name -> teleport.devicetrust.v1.Device
-	42, // 5: teleport.devicetrust.v1.FindDevicesResponse.devices:type_name -> teleport.devicetrust.v1.Device
+	41, // 0: teleport.devicetrust.v1.CreateDeviceRequest.device:type_name -> teleport.devicetrust.v1.Device
+	42, // 1: teleport.devicetrust.v1.CreateDeviceRequest.enroll_token_expire_time:type_name -> google.protobuf.Timestamp
+	41, // 2: teleport.devicetrust.v1.UpdateDeviceRequest.device:type_name -> teleport.devicetrust.v1.Device
+	43, // 3: teleport.devicetrust.v1.UpdateDeviceRequest.update_mask:type_name -> google.protobuf.FieldMask
+	41, // 4: teleport.devicetrust.v1.UpsertDeviceRequest.device:type_name -> teleport.devicetrust.v1.Device
+	41, // 5: teleport.devicetrust.v1.FindDevicesResponse.devices:type_name -> teleport.devicetrust.v1.Device
 	0,  // 6: teleport.devicetrust.v1.ListDevicesRequest.view:type_name -> teleport.devicetrust.v1.DeviceView
-	42, // 7: teleport.devicetrust.v1.ListDevicesResponse.devices:type_name -> teleport.devicetrust.v1.Device
-	42, // 8: teleport.devicetrust.v1.ListDevicesByUserResponse.devices:type_name -> teleport.devicetrust.v1.Device
-	42, // 9: teleport.devicetrust.v1.BulkCreateDevicesRequest.devices:type_name -> teleport.devicetrust.v1.Device
+	41, // 7: teleport.devicetrust.v1.ListDevicesResponse.devices:type_name -> teleport.devicetrust.v1.Device
+	41, // 8: teleport.devicetrust.v1.ListDevicesByUserResponse.devices:type_name -> teleport.devicetrust.v1.Device
+	41, // 9: teleport.devicetrust.v1.BulkCreateDevicesRequest.devices:type_name -> teleport.devicetrust.v1.Device
 	14, // 10: teleport.devicetrust.v1.BulkCreateDevicesResponse.devices:type_name -> teleport.devicetrust.v1.DeviceOrStatus
-	45, // 11: teleport.devicetrust.v1.DeviceOrStatus.status:type_name -> google.rpc.Status
-	46, // 12: teleport.devicetrust.v1.CreateDeviceEnrollTokenRequest.device_data:type_name -> teleport.devicetrust.v1.DeviceCollectedData
-	43, // 13: teleport.devicetrust.v1.CreateDeviceEnrollTokenRequest.expire_time:type_name -> google.protobuf.Timestamp
+	44, // 11: teleport.devicetrust.v1.DeviceOrStatus.status:type_name -> google.rpc.Status
+	45, // 12: teleport.devicetrust.v1.CreateDeviceEnrollTokenRequest.device_data:type_name -> teleport.devicetrust.v1.DeviceCollectedData
+	42, // 13: teleport.devicetrust.v1.CreateDeviceEnrollTokenRequest.expire_time:type_name -> google.protobuf.Timestamp
 	18, // 14: teleport.devicetrust.v1.EnrollDeviceRequest.init:type_name -> teleport.devicetrust.v1.EnrollDeviceInit
 	22, // 15: teleport.devicetrust.v1.EnrollDeviceRequest.macos_challenge_response:type_name -> teleport.devicetrust.v1.MacOSEnrollChallengeResponse
 	27, // 16: teleport.devicetrust.v1.EnrollDeviceRequest.tpm_challenge_response:type_name -> teleport.devicetrust.v1.TPMEnrollChallengeResponse
 	19, // 17: teleport.devicetrust.v1.EnrollDeviceResponse.success:type_name -> teleport.devicetrust.v1.EnrollDeviceSuccess
 	21, // 18: teleport.devicetrust.v1.EnrollDeviceResponse.macos_challenge:type_name -> teleport.devicetrust.v1.MacOSEnrollChallenge
 	25, // 19: teleport.devicetrust.v1.EnrollDeviceResponse.tpm_challenge:type_name -> teleport.devicetrust.v1.TPMEnrollChallenge
-	46, // 20: teleport.devicetrust.v1.EnrollDeviceInit.device_data:type_name -> teleport.devicetrust.v1.DeviceCollectedData
+	45, // 20: teleport.devicetrust.v1.EnrollDeviceInit.device_data:type_name -> teleport.devicetrust.v1.DeviceCollectedData
 	20, // 21: teleport.devicetrust.v1.EnrollDeviceInit.macos:type_name -> teleport.devicetrust.v1.MacOSEnrollPayload
 	23, // 22: teleport.devicetrust.v1.EnrollDeviceInit.tpm:type_name -> teleport.devicetrust.v1.TPMEnrollPayload
-	42, // 23: teleport.devicetrust.v1.EnrollDeviceSuccess.device:type_name -> teleport.devicetrust.v1.Device
+	41, // 23: teleport.devicetrust.v1.EnrollDeviceSuccess.device:type_name -> teleport.devicetrust.v1.Device
 	24, // 24: teleport.devicetrust.v1.TPMEnrollPayload.attestation_parameters:type_name -> teleport.devicetrust.v1.TPMAttestationParameters
 	26, // 25: teleport.devicetrust.v1.TPMEnrollChallenge.encrypted_credential:type_name -> teleport.devicetrust.v1.TPMEncryptedCredential
-	47, // 26: teleport.devicetrust.v1.TPMEnrollChallengeResponse.platform_parameters:type_name -> teleport.devicetrust.v1.TPMPlatformParameters
+	46, // 26: teleport.devicetrust.v1.TPMEnrollChallengeResponse.platform_parameters:type_name -> teleport.devicetrust.v1.TPMPlatformParameters
 	30, // 27: teleport.devicetrust.v1.AuthenticateDeviceRequest.init:type_name -> teleport.devicetrust.v1.AuthenticateDeviceInit
-	48, // 28: teleport.devicetrust.v1.AuthenticateDeviceRequest.challenge_response:type_name -> teleport.devicetrust.v1.AuthenticateDeviceChallengeResponse
-	49, // 29: teleport.devicetrust.v1.AuthenticateDeviceRequest.tpm_challenge_response:type_name -> teleport.devicetrust.v1.TPMAuthenticateDeviceChallengeResponse
-	50, // 30: teleport.devicetrust.v1.AuthenticateDeviceResponse.challenge:type_name -> teleport.devicetrust.v1.AuthenticateDeviceChallenge
-	51, // 31: teleport.devicetrust.v1.AuthenticateDeviceResponse.user_certificates:type_name -> teleport.devicetrust.v1.UserCertificates
-	52, // 32: teleport.devicetrust.v1.AuthenticateDeviceResponse.tpm_challenge:type_name -> teleport.devicetrust.v1.TPMAuthenticateDeviceChallenge
-	53, // 33: teleport.devicetrust.v1.AuthenticateDeviceResponse.confirmation_token:type_name -> teleport.devicetrust.v1.DeviceConfirmationToken
-	51, // 34: teleport.devicetrust.v1.AuthenticateDeviceInit.user_certificates:type_name -> teleport.devicetrust.v1.UserCertificates
-	46, // 35: teleport.devicetrust.v1.AuthenticateDeviceInit.device_data:type_name -> teleport.devicetrust.v1.DeviceCollectedData
-	54, // 36: teleport.devicetrust.v1.AuthenticateDeviceInit.device_web_token:type_name -> teleport.devicetrust.v1.DeviceWebToken
-	53, // 37: teleport.devicetrust.v1.ConfirmDeviceWebAuthenticationRequest.confirmation_token:type_name -> teleport.devicetrust.v1.DeviceConfirmationToken
+	47, // 28: teleport.devicetrust.v1.AuthenticateDeviceRequest.challenge_response:type_name -> teleport.devicetrust.v1.AuthenticateDeviceChallengeResponse
+	48, // 29: teleport.devicetrust.v1.AuthenticateDeviceRequest.tpm_challenge_response:type_name -> teleport.devicetrust.v1.TPMAuthenticateDeviceChallengeResponse
+	49, // 30: teleport.devicetrust.v1.AuthenticateDeviceResponse.challenge:type_name -> teleport.devicetrust.v1.AuthenticateDeviceChallenge
+	50, // 31: teleport.devicetrust.v1.AuthenticateDeviceResponse.user_certificates:type_name -> teleport.devicetrust.v1.UserCertificates
+	51, // 32: teleport.devicetrust.v1.AuthenticateDeviceResponse.tpm_challenge:type_name -> teleport.devicetrust.v1.TPMAuthenticateDeviceChallenge
+	52, // 33: teleport.devicetrust.v1.AuthenticateDeviceResponse.confirmation_token:type_name -> teleport.devicetrust.v1.DeviceConfirmationToken
+	50, // 34: teleport.devicetrust.v1.AuthenticateDeviceInit.user_certificates:type_name -> teleport.devicetrust.v1.UserCertificates
+	45, // 35: teleport.devicetrust.v1.AuthenticateDeviceInit.device_data:type_name -> teleport.devicetrust.v1.DeviceCollectedData
+	53, // 36: teleport.devicetrust.v1.AuthenticateDeviceInit.device_web_token:type_name -> teleport.devicetrust.v1.DeviceWebToken
+	52, // 37: teleport.devicetrust.v1.ConfirmDeviceWebAuthenticationRequest.confirmation_token:type_name -> teleport.devicetrust.v1.DeviceConfirmationToken
 	35, // 38: teleport.devicetrust.v1.SyncInventoryRequest.start:type_name -> teleport.devicetrust.v1.SyncInventoryStart
 	36, // 39: teleport.devicetrust.v1.SyncInventoryRequest.end:type_name -> teleport.devicetrust.v1.SyncInventoryEnd
 	37, // 40: teleport.devicetrust.v1.SyncInventoryRequest.devices_to_upsert:type_name -> teleport.devicetrust.v1.SyncInventoryDevices
@@ -3036,31 +4932,31 @@ var file_teleport_devicetrust_v1_devicetrust_service_proto_depIdxs = []int32{
 	38, // 42: teleport.devicetrust.v1.SyncInventoryResponse.ack:type_name -> teleport.devicetrust.v1.SyncInventoryAck
 	39, // 43: teleport.devicetrust.v1.SyncInventoryResponse.result:type_name -> teleport.devicetrust.v1.SyncInventoryResult
 	40, // 44: teleport.devicetrust.v1.SyncInventoryResponse.missing_devices:type_name -> teleport.devicetrust.v1.SyncInventoryMissingDevices
-	55, // 45: teleport.devicetrust.v1.SyncInventoryStart.source:type_name -> teleport.devicetrust.v1.DeviceSource
-	42, // 46: teleport.devicetrust.v1.SyncInventoryDevices.devices:type_name -> teleport.devicetrust.v1.Device
-	14, // 47: teleport.devicetrust.v1.SyncInventoryResult.devices:type_name -> teleport.devicetrust.v1.DeviceOrStatus
-	42, // 48: teleport.devicetrust.v1.SyncInventoryMissingDevices.devices:type_name -> teleport.devicetrust.v1.Device
-	1,  // 49: teleport.devicetrust.v1.DeviceTrustService.CreateDevice:input_type -> teleport.devicetrust.v1.CreateDeviceRequest
-	2,  // 50: teleport.devicetrust.v1.DeviceTrustService.UpdateDevice:input_type -> teleport.devicetrust.v1.UpdateDeviceRequest
-	3,  // 51: teleport.devicetrust.v1.DeviceTrustService.UpsertDevice:input_type -> teleport.devicetrust.v1.UpsertDeviceRequest
-	4,  // 52: teleport.devicetrust.v1.DeviceTrustService.DeleteDevice:input_type -> teleport.devicetrust.v1.DeleteDeviceRequest
-	5,  // 53: teleport.devicetrust.v1.DeviceTrustService.FindDevices:input_type -> teleport.devicetrust.v1.FindDevicesRequest
-	7,  // 54: teleport.devicetrust.v1.DeviceTrustService.GetDevice:input_type -> teleport.devicetrust.v1.GetDeviceRequest
-	8,  // 55: teleport.devicetrust.v1.DeviceTrustService.ListDevices:input_type -> teleport.devicetrust.v1.ListDevicesRequest
-	10, // 56: teleport.devicetrust.v1.DeviceTrustService.ListDevicesByUser:input_type -> teleport.devicetrust.v1.ListDevicesByUserRequest
-	12, // 57: teleport.devicetrust.v1.DeviceTrustService.BulkCreateDevices:input_type -> teleport.devicetrust.v1.BulkCreateDevicesRequest
-	15, // 58: teleport.devicetrust.v1.DeviceTrustService.CreateDeviceEnrollToken:input_type -> teleport.devicetrust.v1.CreateDeviceEnrollTokenRequest
-	16, // 59: teleport.devicetrust.v1.DeviceTrustService.EnrollDevice:input_type -> teleport.devicetrust.v1.EnrollDeviceRequest
-	28, // 60: teleport.devicetrust.v1.DeviceTrustService.AuthenticateDevice:input_type -> teleport.devicetrust.v1.AuthenticateDeviceRequest
-	31, // 61: teleport.devicetrust.v1.DeviceTrustService.ConfirmDeviceWebAuthentication:input_type -> teleport.devicetrust.v1.ConfirmDeviceWebAuthenticationRequest
-	33, // 62: teleport.devicetrust.v1.DeviceTrustService.SyncInventory:input_type -> teleport.devicetrust.v1.SyncInventoryRequest
-	41, // 63: teleport.devicetrust.v1.DeviceTrustService.GetDevicesUsage:input_type -> teleport.devicetrust.v1.GetDevicesUsageRequest
-	42, // 64: teleport.devicetrust.v1.DeviceTrustService.CreateDevice:output_type -> teleport.devicetrust.v1.Device
-	42, // 65: teleport.devicetrust.v1.DeviceTrustService.UpdateDevice:output_type -> teleport.devicetrust.v1.Device
-	42, // 66: teleport.devicetrust.v1.DeviceTrustService.UpsertDevice:output_type -> teleport.devicetrust.v1.Device
+	54, // 45: teleport.devicetrust.v1.SyncInventoryStart.source:type_name -> teleport.devicetrust.v1.DeviceSource
+	55, // 46: teleport.devicetrust.v1.SyncInventoryStart.os_types:type_name -> teleport.devicetrust.v1.OSType
+	41, // 47: teleport.devicetrust.v1.SyncInventoryDevices.devices:type_name -> teleport.devicetrust.v1.Device
+	14, // 48: teleport.devicetrust.v1.SyncInventoryResult.devices:type_name -> teleport.devicetrust.v1.DeviceOrStatus
+	41, // 49: teleport.devicetrust.v1.SyncInventoryMissingDevices.devices:type_name -> teleport.devicetrust.v1.Device
+	1,  // 50: teleport.devicetrust.v1.DeviceTrustService.CreateDevice:input_type -> teleport.devicetrust.v1.CreateDeviceRequest
+	2,  // 51: teleport.devicetrust.v1.DeviceTrustService.UpdateDevice:input_type -> teleport.devicetrust.v1.UpdateDeviceRequest
+	3,  // 52: teleport.devicetrust.v1.DeviceTrustService.UpsertDevice:input_type -> teleport.devicetrust.v1.UpsertDeviceRequest
+	4,  // 53: teleport.devicetrust.v1.DeviceTrustService.DeleteDevice:input_type -> teleport.devicetrust.v1.DeleteDeviceRequest
+	5,  // 54: teleport.devicetrust.v1.DeviceTrustService.FindDevices:input_type -> teleport.devicetrust.v1.FindDevicesRequest
+	7,  // 55: teleport.devicetrust.v1.DeviceTrustService.GetDevice:input_type -> teleport.devicetrust.v1.GetDeviceRequest
+	8,  // 56: teleport.devicetrust.v1.DeviceTrustService.ListDevices:input_type -> teleport.devicetrust.v1.ListDevicesRequest
+	10, // 57: teleport.devicetrust.v1.DeviceTrustService.ListDevicesByUser:input_type -> teleport.devicetrust.v1.ListDevicesByUserRequest
+	12, // 58: teleport.devicetrust.v1.DeviceTrustService.BulkCreateDevices:input_type -> teleport.devicetrust.v1.BulkCreateDevicesRequest
+	15, // 59: teleport.devicetrust.v1.DeviceTrustService.CreateDeviceEnrollToken:input_type -> teleport.devicetrust.v1.CreateDeviceEnrollTokenRequest
+	16, // 60: teleport.devicetrust.v1.DeviceTrustService.EnrollDevice:input_type -> teleport.devicetrust.v1.EnrollDeviceRequest
+	28, // 61: teleport.devicetrust.v1.DeviceTrustService.AuthenticateDevice:input_type -> teleport.devicetrust.v1.AuthenticateDeviceRequest
+	31, // 62: teleport.devicetrust.v1.DeviceTrustService.ConfirmDeviceWebAuthentication:input_type -> teleport.devicetrust.v1.ConfirmDeviceWebAuthenticationRequest
+	33, // 63: teleport.devicetrust.v1.DeviceTrustService.SyncInventory:input_type -> teleport.devicetrust.v1.SyncInventoryRequest
+	41, // 64: teleport.devicetrust.v1.DeviceTrustService.CreateDevice:output_type -> teleport.devicetrust.v1.Device
+	41, // 65: teleport.devicetrust.v1.DeviceTrustService.UpdateDevice:output_type -> teleport.devicetrust.v1.Device
+	41, // 66: teleport.devicetrust.v1.DeviceTrustService.UpsertDevice:output_type -> teleport.devicetrust.v1.Device
 	56, // 67: teleport.devicetrust.v1.DeviceTrustService.DeleteDevice:output_type -> google.protobuf.Empty
 	6,  // 68: teleport.devicetrust.v1.DeviceTrustService.FindDevices:output_type -> teleport.devicetrust.v1.FindDevicesResponse
-	42, // 69: teleport.devicetrust.v1.DeviceTrustService.GetDevice:output_type -> teleport.devicetrust.v1.Device
+	41, // 69: teleport.devicetrust.v1.DeviceTrustService.GetDevice:output_type -> teleport.devicetrust.v1.Device
 	9,  // 70: teleport.devicetrust.v1.DeviceTrustService.ListDevices:output_type -> teleport.devicetrust.v1.ListDevicesResponse
 	11, // 71: teleport.devicetrust.v1.DeviceTrustService.ListDevicesByUser:output_type -> teleport.devicetrust.v1.ListDevicesByUserResponse
 	13, // 72: teleport.devicetrust.v1.DeviceTrustService.BulkCreateDevices:output_type -> teleport.devicetrust.v1.BulkCreateDevicesResponse
@@ -3069,12 +4965,11 @@ var file_teleport_devicetrust_v1_devicetrust_service_proto_depIdxs = []int32{
 	29, // 75: teleport.devicetrust.v1.DeviceTrustService.AuthenticateDevice:output_type -> teleport.devicetrust.v1.AuthenticateDeviceResponse
 	32, // 76: teleport.devicetrust.v1.DeviceTrustService.ConfirmDeviceWebAuthentication:output_type -> teleport.devicetrust.v1.ConfirmDeviceWebAuthenticationResponse
 	34, // 77: teleport.devicetrust.v1.DeviceTrustService.SyncInventory:output_type -> teleport.devicetrust.v1.SyncInventoryResponse
-	58, // 78: teleport.devicetrust.v1.DeviceTrustService.GetDevicesUsage:output_type -> teleport.devicetrust.v1.DevicesUsage
-	64, // [64:79] is the sub-list for method output_type
-	49, // [49:64] is the sub-list for method input_type
-	49, // [49:49] is the sub-list for extension type_name
-	49, // [49:49] is the sub-list for extension extendee
-	0,  // [0:49] is the sub-list for field type_name
+	64, // [64:78] is the sub-list for method output_type
+	50, // [50:64] is the sub-list for method input_type
+	50, // [50:50] is the sub-list for extension type_name
+	50, // [50:50] is the sub-list for extension extendee
+	0,  // [0:50] is the sub-list for field type_name
 }
 
 func init() { file_teleport_devicetrust_v1_devicetrust_service_proto_init() }
@@ -3089,8 +4984,8 @@ func file_teleport_devicetrust_v1_devicetrust_service_proto_init() {
 	file_teleport_devicetrust_v1_device_enroll_token_proto_init()
 	file_teleport_devicetrust_v1_device_source_proto_init()
 	file_teleport_devicetrust_v1_device_web_token_proto_init()
+	file_teleport_devicetrust_v1_os_type_proto_init()
 	file_teleport_devicetrust_v1_tpm_proto_init()
-	file_teleport_devicetrust_v1_usage_proto_init()
 	file_teleport_devicetrust_v1_user_certificates_proto_init()
 	file_teleport_devicetrust_v1_devicetrust_service_proto_msgTypes[15].OneofWrappers = []any{
 		(*EnrollDeviceRequest_Init)(nil),
@@ -3134,7 +5029,7 @@ func file_teleport_devicetrust_v1_devicetrust_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_devicetrust_v1_devicetrust_service_proto_rawDesc), len(file_teleport_devicetrust_v1_devicetrust_service_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   41,
+			NumMessages:   40,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

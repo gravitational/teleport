@@ -17,6 +17,10 @@
 package discovery
 
 import (
+	"maps"
+	"slices"
+
+	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	libevents "github.com/gravitational/teleport/lib/events"
@@ -30,14 +34,15 @@ type awsInfo struct {
 	AccountID  string `json:"account_id"`
 }
 
-func (a *awsInfo) cloudName() string       { return cloudAWS }
-func (a *awsInfo) cloudInstanceID() string { return a.InstanceID }
-func (a *awsInfo) cloudAccountID() string  { return a.AccountID }
+func (a *awsInfo) cloudName() string      { return cloudAWS }
+func (a *awsInfo) cloudAccountID() string { return a.AccountID }
+func (a *awsInfo) instanceText() string   { return a.InstanceID }
 
-// correlateSSMEvents processes SSM run events into the instances map.
+// correlateSSMEvents builds an instance map from SSM run events.
 // Events must be in descending order (most recent first); only the first
 // event per instance ID is kept.
-func correlateSSMEvents(instances map[string]*instanceInfo, events []*apievents.SSMRun) {
+func correlateSSMEvents(events []*apievents.SSMRun) map[string]instanceInfo {
+	instances := make(map[string]instanceInfo)
 	for _, run := range events {
 		if run.InstanceID == "" {
 			continue
@@ -45,7 +50,7 @@ func correlateSSMEvents(instances map[string]*instanceInfo, events []*apievents.
 		if _, ok := instances[run.InstanceID]; ok {
 			continue // events are most-recent-first; keep only the latest
 		}
-		instances[run.InstanceID] = &instanceInfo{
+		instances[run.InstanceID] = instanceInfo{
 			Region: run.Region,
 			AWS: &awsInfo{
 				InstanceID: run.InstanceID,
@@ -59,41 +64,37 @@ func correlateSSMEvents(instances map[string]*instanceInfo, events []*apievents.
 			},
 		}
 	}
+	return instances
 }
 
-// correlateNodes merges online Teleport nodes into the instances map. For nodes
-// that already have an entry (from audit events), it sets IsOnline and fills in
-// any missing region/account fields. For nodes with no prior entry, it creates
-// a new one with only online status and cloud metadata.
-func correlateNodes(instances map[string]*instanceInfo, nodes []types.Server) {
+// correlateAWSNodes builds an instance map from online AWS-discovered Teleport
+// nodes. Nodes without an AWS instance ID label are not AWS-discovered and are
+// skipped. First node wins if two nodes share an instance ID.
+func correlateAWSNodes(nodes []types.Server) map[string]instanceInfo {
+	instances := make(map[string]instanceInfo)
 	for _, node := range nodes {
-		// TODO(Tener): handle Azure and GCP nodes once CloudMetadata supports them.
-
 		id := node.GetAWSInstanceID()
 		if id == "" {
 			continue
 		}
-		info, ok := instances[id]
-		if !ok {
-			info = &instanceInfo{}
-			instances[id] = info
-		}
-		info.IsOnline = true
-
-		if info.AWS == nil {
-			info.AWS = &awsInfo{InstanceID: id}
+		info := instanceInfo{
+			IsOnline: true,
+			AWS:      &awsInfo{InstanceID: id, AccountID: node.GetAWSAccountID()},
 		}
 		if aws := node.GetAWSInfo(); aws != nil {
-			if info.Region == "" {
-				info.Region = aws.Region
-			}
+			info.Region = aws.Region
 		}
-		if info.AWS.AccountID == "" {
-			info.AWS.AccountID = node.GetAWSAccountID()
-		}
-
 		if !node.Expiry().IsZero() {
 			info.Expiry = node.Expiry()
 		}
+		instances[id] = info
 	}
+	return instances
+}
+
+func awsTaskInstanceKeys(task *usertasksv1.UserTask) []string {
+	if instanceGroup := task.GetSpec().GetDiscoverEc2(); instanceGroup != nil {
+		return slices.Collect(maps.Keys(instanceGroup.GetInstances()))
+	}
+	return nil
 }

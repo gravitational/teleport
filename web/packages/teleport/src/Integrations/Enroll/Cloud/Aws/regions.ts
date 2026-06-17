@@ -74,12 +74,14 @@ const regions: { name: string; regions: AwsRegion[] }[] = [
   },
 ];
 
-export const awsRegionOptions = regions.map(({ name, regions }) => ({
+export const awsRegionOptionGroups = regions.map(({ name, regions }) => ({
   label: name,
-  options: regions
-    .filter(id => id in awsRegionMap)
-    .map(id => ({
-      value: id,
-      label: awsRegionMap[id],
-    })),
+  options: regions.map(id => ({
+    value: id,
+    label: awsRegionMap[id],
+  })),
 }));
+
+export const awsRegionOptions = awsRegionOptionGroups.flatMap(
+  group => group.options
+);

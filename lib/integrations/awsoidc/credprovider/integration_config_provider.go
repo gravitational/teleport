@@ -150,7 +150,7 @@ func newAWSCredCache(ctx context.Context, cfg Config, stsClient stscreds.AssumeR
 
 func newAWSConfig(ctx context.Context, awsRegion string, options ...func(*awssdkconfig.LoadOptions) error) (*aws.Config, error) {
 	var useFIPS aws.FIPSEndpointState
-	if modules.GetModules().IsBoringBinary() {
+	if modules.GetModules().IsFIPSBuild() {
 		useFIPS = aws.FIPSEndpointStateEnabled
 	}
 	options = append(options,

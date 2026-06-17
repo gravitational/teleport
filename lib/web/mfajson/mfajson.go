@@ -25,15 +25,15 @@ import (
 
 	authproto "github.com/gravitational/teleport/api/client/proto"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
-	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/mfatypes"
 )
 
-// TODO(Joerger): DELETE IN v19.0.0 and use client.MFAChallengeResponse instead.
+// TODO(Joerger): DELETE IN v19.0.0 and use mfatypes.MFAChallengeResponse instead.
 // Before v17, the WebUI sends a flattened webauthn response instead of a full
 // MFA challenge response. Newer WebUI versions v17+ will send both for
 // backwards compatibility.
 type challengeResponse struct {
-	client.MFAChallengeResponse
+	mfatypes.MFAChallengeResponse
 	*wantypes.CredentialAssertionResponse
 }
 

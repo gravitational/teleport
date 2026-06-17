@@ -53,10 +53,13 @@ required_fields:
   - "ScopedToken.spec.usage_mode"
 
 sensitive_fields:
+  - "ScopedToken.spec.bound_keypair.onboarding.registration_secret"
 
 plan_modifiers:
   # Force to recreate resource if its name changes
   Metadata.name:
+    - "github.com/hashicorp/terraform-plugin-framework/tfsdk.RequiresReplace()"
+  ScopedToken.scope:
     - "github.com/hashicorp/terraform-plugin-framework/tfsdk.RequiresReplace()"
 
 # This must be defined for the generator to be happy, but in reality all time
@@ -72,3 +75,5 @@ validators:
 
 custom_types:
   "ScopedToken.metadata.expires": Timestamp
+  "ScopedToken.spec.bound_keypair.onboarding.must_register_before": Timestamp
+  "ScopedToken.spec.bound_keypair.rotate_after": Timestamp

@@ -30,9 +30,9 @@ import (
 	"slices"
 	"sort"
 	"strings"
-	"text/template"
 	"time"
 
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/go-jose/go-jose/v4"
 	"github.com/gravitational/trace"
@@ -48,13 +48,13 @@ import (
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/otelhttp"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/parse"
 	"github.com/gravitational/teleport/lib/utils/teleportassets"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
@@ -170,7 +170,7 @@ func (c *TokensCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCL
 	c.tokenAdd.Flag("db-name", "Name of the database to add").StringVar(&c.dbName)
 	c.tokenAdd.Flag("db-protocol", fmt.Sprintf("Database protocol to use. Supported are: %v", defaults.DatabaseProtocols)).StringVar(&c.dbProtocol)
 	c.tokenAdd.Flag("db-uri", "Address the database is reachable at").StringVar(&c.dbURI)
-	c.tokenAdd.Flag("format", "Output format, 'text', 'json', or 'yaml'").EnumVar(&c.format, formats...)
+	c.tokenAdd.Flag("format", "Output format.").EnumVar(&c.format, formats...)
 
 	// "tctl tokens rm ..."
 	c.tokenDel = tokens.Command("rm", "Delete/revoke an invitation token.").Alias("del")
@@ -178,7 +178,7 @@ func (c *TokensCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCL
 
 	// "tctl tokens ls"
 	c.tokenList = tokens.Command("ls", "List node and user invitation tokens.")
-	c.tokenList.Flag("format", "Output format, 'text', 'json' or 'yaml'").EnumVar(&c.format, formats...)
+	c.tokenList.Flag("format", "Output format.").EnumVar(&c.format, formats...)
 	c.tokenList.Flag("with-secrets", "Do not redact join tokens").BoolVar(&c.withSecrets)
 	c.tokenList.Flag("labels", labelHelp).StringVar(&c.labels)
 
@@ -255,7 +255,7 @@ func (c *TokensCommand) Add(ctx context.Context, client *authclient.Client) erro
 	}
 
 	if c.labels != "" {
-		labels, err := libclient.ParseLabelSpec(c.labels)
+		labels, err := parse.LabelSelectorSpec(c.labels)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -345,7 +345,7 @@ func (c *TokensCommand) Del(ctx context.Context, client *authclient.Client) erro
 
 // List is called to execute "tokens ls" command.
 func (c *TokensCommand) List(ctx context.Context, client *authclient.Client) error {
-	labels, err := libclient.ParseLabelSpec(c.labels)
+	labels, err := parse.LabelSelectorSpec(c.labels)
 	if err != nil {
 		return trace.Wrap(err)
 	}

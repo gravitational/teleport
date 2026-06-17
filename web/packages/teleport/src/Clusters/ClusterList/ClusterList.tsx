@@ -54,6 +54,9 @@ export default function ClustersList(props: Props) {
         clusters.find(c => c.clusterId === cfg.proxyCluster)
       }
       pagination={{ pageSize }}
+      row={{
+        getKey: cluster => cluster.clusterId,
+      }}
     />
   );
 }

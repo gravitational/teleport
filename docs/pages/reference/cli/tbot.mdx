@@ -25,9 +25,9 @@ Global flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`-c`, `--config`|none|Path to a configuration file.|
+|`-c`, `--config`|*no default*|Path to a configuration file.|
 |`-d`, `--[no-]debug`|`false`|Enables verbose logging to stdout.|
-|`--log-format`|`text`|Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.|
+|`--log-format`|`text` (one of: `json`, `text`)|Controls the format of output logs. Can be `json` or `text`. Defaults to `text`.|
 |`--[no-]fips`|`false`|Enables FIPS compliance mode. This requires the FIPS binary is in use.|
 |`--[no-]insecure`|`false`|Insecure configures the bot to trust the certificates from the Auth Server or Proxy on first connect without verification. Do not use in production.|
 
@@ -35,7 +35,7 @@ Global environment variables:
 
 |Variable|Default|Description|
 |---|---|---|
-|`TBOT_CONFIG_PATH`|none|Path to a configuration file.|
+|`TBOT_CONFIG_PATH`|*no default*|Path to a configuration file.|
 |`TBOT_DEBUG`|`false`|Enables verbose logging to stdout.|
 
 ## tbot configure application
@@ -52,34 +52,35 @@ Environment variables:
 
 |Variable|Default|Description|
 |---|---|---|
-|`TELEPORT_AUTH_SERVER`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`TELEPORT_BOT_TOKEN`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
-|`TELEPORT_PROXY`|none|Address of the Teleport Proxy Server.|
+|`TELEPORT_AUTH_SERVER`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`TELEPORT_BOT_TOKEN`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`TELEPORT_PROXY`|*no default*|Address of the Teleport Proxy Server.|
 
 Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`-a`, `--auth-server`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`--app`|none|The name of the app in Teleport|
-|`--ca-pin`|none|CA pin to validate the Teleport Auth Server; used on first connect.|
-|`--certificate-ttl`|none|TTL of short-lived machine certificates.|
-|`--destination`|none|A destination URI, such as file:///foo/bar|
-|`--diag-addr`|none|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|none|Method to use to join the cluster. (azure, azure_devops, bitbucket, circleci, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm, terraform_cloud, oracle, bound_keypair, env0)|
-|`--join-uri`|none|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
+|`-a`, `--auth-server`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`--app`|*no default*|The name of the app in Teleport|
+|`--ca-pin`|*no default*|CA pin to validate the Teleport Auth Server; used on first connect.|
+|`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
+|`--destination`|*no default*|A destination URI, such as file:///foo/bar|
+|`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
+|`--[no-]scoped`|`false`|Indicates whether tbot should run in scoped mode. This is required when authenticating as a scoped Bot.|
 |`--[no-]specific-tls-extensions`|`false`|If set, includes additional `tls.crt`, `tls.key`, and `tls.cas` for apps that require these file extensions|
-|`--pid-file`|none|Full path to the PID file. By default no PID file will be created.|
-|`--proxy-server`|none|Address of the Teleport Proxy Server.|
-|`--reader-group`|none|An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
-|`--reader-user`|none|An additional user name or UID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
-|`--registration-secret`|none|For bound keypair joining, specifies a registration secret for use at first join.|
-|`--registration-secret-path`|none|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
-|`--renewal-interval`|none|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
-|`--static-key-path`|none|For bound keypair joining, specifies a path to a static key.|
-|`--storage`|none|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
-|`--token`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`--pid-file`|*no default*|Full path to the PID file. By default no PID file will be created.|
+|`--proxy-server`|*no default*|Address of the Teleport Proxy Server.|
+|`--reader-group`|*no default*|An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
+|`--reader-user`|*no default*|An additional user name or UID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
+|`--registration-secret`|*no default*|For bound keypair joining, specifies a registration secret for use at first join.|
+|`--registration-secret-path`|*no default*|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
+|`--renewal-interval`|*no default*|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
+|`--static-key-path`|*no default*|For bound keypair joining, specifies a path to a static key.|
+|`--storage`|*no default*|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
+|`--token`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
 
 ## tbot configure application-proxy
 
@@ -95,30 +96,31 @@ Environment variables:
 
 |Variable|Default|Description|
 |---|---|---|
-|`TELEPORT_AUTH_SERVER`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`TELEPORT_BOT_TOKEN`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
-|`TELEPORT_PROXY`|none|Address of the Teleport Proxy Server.|
+|`TELEPORT_AUTH_SERVER`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`TELEPORT_BOT_TOKEN`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`TELEPORT_PROXY`|*no default*|Address of the Teleport Proxy Server.|
 
 Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`-a`, `--auth-server`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`--ca-pin`|none|CA pin to validate the Teleport Auth Server; used on first connect.|
-|`--certificate-ttl`|none|TTL of short-lived machine certificates.|
-|`--diag-addr`|none|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|none|Method to use to join the cluster. (azure, azure_devops, bitbucket, circleci, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm, terraform_cloud, oracle, bound_keypair, env0)|
-|`--join-uri`|none|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
-|`--listen`|none|The socket URI on which the local proxy should listen, such as `tcp://0.0.0.0:8080`.|
+|`-a`, `--auth-server`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`--ca-pin`|*no default*|CA pin to validate the Teleport Auth Server; used on first connect.|
+|`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
+|`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
+|`--listen`|*no default*|The socket URI on which the local proxy should listen, such as `tcp://0.0.0.0:8080`.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
-|`--pid-file`|none|Full path to the PID file. By default no PID file will be created.|
-|`--proxy-server`|none|Address of the Teleport Proxy Server.|
-|`--registration-secret`|none|For bound keypair joining, specifies a registration secret for use at first join.|
-|`--registration-secret-path`|none|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
-|`--renewal-interval`|none|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
-|`--static-key-path`|none|For bound keypair joining, specifies a path to a static key.|
-|`--storage`|none|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
-|`--token`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`--[no-]scoped`|`false`|Indicates whether tbot should run in scoped mode. This is required when authenticating as a scoped Bot.|
+|`--pid-file`|*no default*|Full path to the PID file. By default no PID file will be created.|
+|`--proxy-server`|*no default*|Address of the Teleport Proxy Server.|
+|`--registration-secret`|*no default*|For bound keypair joining, specifies a registration secret for use at first join.|
+|`--registration-secret-path`|*no default*|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
+|`--renewal-interval`|*no default*|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
+|`--static-key-path`|*no default*|For bound keypair joining, specifies a path to a static key.|
+|`--storage`|*no default*|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
+|`--token`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
 
 ## tbot configure application-tunnel
 
@@ -134,31 +136,32 @@ Environment variables:
 
 |Variable|Default|Description|
 |---|---|---|
-|`TELEPORT_AUTH_SERVER`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`TELEPORT_BOT_TOKEN`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
-|`TELEPORT_PROXY`|none|Address of the Teleport Proxy Server.|
+|`TELEPORT_AUTH_SERVER`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`TELEPORT_BOT_TOKEN`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`TELEPORT_PROXY`|*no default*|Address of the Teleport Proxy Server.|
 
 Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`-a`, `--auth-server`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`--app`|none|The name of the app in Teleport|
-|`--ca-pin`|none|CA pin to validate the Teleport Auth Server; used on first connect.|
-|`--certificate-ttl`|none|TTL of short-lived machine certificates.|
-|`--diag-addr`|none|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|none|Method to use to join the cluster. (azure, azure_devops, bitbucket, circleci, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm, terraform_cloud, oracle, bound_keypair, env0)|
-|`--join-uri`|none|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
-|`--listen`|none|The socket URI on which the tunnel should listen, such as `tcp://0.0.0.0:8080`.|
+|`-a`, `--auth-server`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`--app`|*no default*|The name of the app in Teleport|
+|`--ca-pin`|*no default*|CA pin to validate the Teleport Auth Server; used on first connect.|
+|`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
+|`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
+|`--listen`|*no default*|The socket URI on which the tunnel should listen, such as `tcp://0.0.0.0:8080`.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
-|`--pid-file`|none|Full path to the PID file. By default no PID file will be created.|
-|`--proxy-server`|none|Address of the Teleport Proxy Server.|
-|`--registration-secret`|none|For bound keypair joining, specifies a registration secret for use at first join.|
-|`--registration-secret-path`|none|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
-|`--renewal-interval`|none|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
-|`--static-key-path`|none|For bound keypair joining, specifies a path to a static key.|
-|`--storage`|none|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
-|`--token`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`--[no-]scoped`|`false`|Indicates whether tbot should run in scoped mode. This is required when authenticating as a scoped Bot.|
+|`--pid-file`|*no default*|Full path to the PID file. By default no PID file will be created.|
+|`--proxy-server`|*no default*|Address of the Teleport Proxy Server.|
+|`--registration-secret`|*no default*|For bound keypair joining, specifies a registration secret for use at first join.|
+|`--registration-secret-path`|*no default*|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
+|`--renewal-interval`|*no default*|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
+|`--static-key-path`|*no default*|For bound keypair joining, specifies a path to a static key.|
+|`--storage`|*no default*|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
+|`--token`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
 
 ## tbot configure database
 
@@ -174,36 +177,37 @@ Environment variables:
 
 |Variable|Default|Description|
 |---|---|---|
-|`TELEPORT_AUTH_SERVER`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`TELEPORT_BOT_TOKEN`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
-|`TELEPORT_PROXY`|none|Address of the Teleport Proxy Server.|
+|`TELEPORT_AUTH_SERVER`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`TELEPORT_BOT_TOKEN`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`TELEPORT_PROXY`|*no default*|Address of the Teleport Proxy Server.|
 
 Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`-a`, `--auth-server`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`--ca-pin`|none|CA pin to validate the Teleport Auth Server; used on first connect.|
-|`--certificate-ttl`|none|TTL of short-lived machine certificates.|
-|`--database`|none|The name of the database available in the requested database service.|
-|`--destination`|none|A destination URI, such as file:///foo/bar|
-|`--diag-addr`|none|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--format`|``|The format of the credentials to generate. If specified, must be `tls`, `mongo` or `cockroach`.|
-|`--join-method`|none|Method to use to join the cluster. (azure, azure_devops, bitbucket, circleci, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm, terraform_cloud, oracle, bound_keypair, env0)|
-|`--join-uri`|none|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
+|`-a`, `--auth-server`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`--ca-pin`|*no default*|CA pin to validate the Teleport Auth Server; used on first connect.|
+|`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
+|`--database`|*no default*|The name of the database available in the requested database service.|
+|`--destination`|*no default*|A destination URI, such as file:///foo/bar|
+|`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
+|`--format`|`` (one of: ``, `tls`, `mongo`, `cockroach`)|The format of the credentials to generate.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
-|`--pid-file`|none|Full path to the PID file. By default no PID file will be created.|
-|`--proxy-server`|none|Address of the Teleport Proxy Server.|
-|`--reader-group`|none|An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
-|`--reader-user`|none|An additional user name or UID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
-|`--registration-secret`|none|For bound keypair joining, specifies a registration secret for use at first join.|
-|`--registration-secret-path`|none|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
-|`--renewal-interval`|none|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
-|`--service`|none|The database service name.|
-|`--static-key-path`|none|For bound keypair joining, specifies a path to a static key.|
-|`--storage`|none|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
-|`--token`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
-|`--username`|none|The database user name.|
+|`--[no-]scoped`|`false`|Indicates whether tbot should run in scoped mode. This is required when authenticating as a scoped Bot.|
+|`--pid-file`|*no default*|Full path to the PID file. By default no PID file will be created.|
+|`--proxy-server`|*no default*|Address of the Teleport Proxy Server.|
+|`--reader-group`|*no default*|An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
+|`--reader-user`|*no default*|An additional user name or UID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
+|`--registration-secret`|*no default*|For bound keypair joining, specifies a registration secret for use at first join.|
+|`--registration-secret-path`|*no default*|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
+|`--renewal-interval`|*no default*|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
+|`--service`|*no default*|The database service name.|
+|`--static-key-path`|*no default*|For bound keypair joining, specifies a path to a static key.|
+|`--storage`|*no default*|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
+|`--token`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`--username`|*no default*|The database user name.|
 
 ## tbot configure database-tunnel
 
@@ -219,33 +223,34 @@ Environment variables:
 
 |Variable|Default|Description|
 |---|---|---|
-|`TELEPORT_AUTH_SERVER`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`TELEPORT_BOT_TOKEN`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
-|`TELEPORT_PROXY`|none|Address of the Teleport Proxy Server.|
+|`TELEPORT_AUTH_SERVER`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`TELEPORT_BOT_TOKEN`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`TELEPORT_PROXY`|*no default*|Address of the Teleport Proxy Server.|
 
 Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`-a`, `--auth-server`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`--ca-pin`|none|CA pin to validate the Teleport Auth Server; used on first connect.|
-|`--certificate-ttl`|none|TTL of short-lived machine certificates.|
-|`--database`|none|The name of the database available in the requested database service.|
-|`--diag-addr`|none|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|none|Method to use to join the cluster. (azure, azure_devops, bitbucket, circleci, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm, terraform_cloud, oracle, bound_keypair, env0)|
-|`--join-uri`|none|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
-|`--listen`|none|A socket URI to listen on, such as `tcp://0.0.0.0:3306`.|
+|`-a`, `--auth-server`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`--ca-pin`|*no default*|CA pin to validate the Teleport Auth Server; used on first connect.|
+|`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
+|`--database`|*no default*|The name of the database available in the requested database service.|
+|`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
+|`--listen`|*no default*|A socket URI to listen on, such as `tcp://0.0.0.0:3306`.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
-|`--pid-file`|none|Full path to the PID file. By default no PID file will be created.|
-|`--proxy-server`|none|Address of the Teleport Proxy Server.|
-|`--registration-secret`|none|For bound keypair joining, specifies a registration secret for use at first join.|
-|`--registration-secret-path`|none|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
-|`--renewal-interval`|none|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
-|`--service`|none|The database service name.|
-|`--static-key-path`|none|For bound keypair joining, specifies a path to a static key.|
-|`--storage`|none|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
-|`--token`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
-|`--username`|none|The database user name.|
+|`--[no-]scoped`|`false`|Indicates whether tbot should run in scoped mode. This is required when authenticating as a scoped Bot.|
+|`--pid-file`|*no default*|Full path to the PID file. By default no PID file will be created.|
+|`--proxy-server`|*no default*|Address of the Teleport Proxy Server.|
+|`--registration-secret`|*no default*|For bound keypair joining, specifies a registration secret for use at first join.|
+|`--registration-secret-path`|*no default*|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
+|`--renewal-interval`|*no default*|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
+|`--service`|*no default*|The database service name.|
+|`--static-key-path`|*no default*|For bound keypair joining, specifies a path to a static key.|
+|`--storage`|*no default*|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
+|`--token`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`--username`|*no default*|The database user name.|
 
 ## tbot configure identity
 
@@ -261,34 +266,35 @@ Environment variables:
 
 |Variable|Default|Description|
 |---|---|---|
-|`TELEPORT_AUTH_SERVER`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`TELEPORT_BOT_TOKEN`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
-|`TELEPORT_PROXY`|none|Address of the Teleport Proxy Server.|
+|`TELEPORT_AUTH_SERVER`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`TELEPORT_BOT_TOKEN`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`TELEPORT_PROXY`|*no default*|Address of the Teleport Proxy Server.|
 
 Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`-a`, `--auth-server`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`--ca-pin`|none|CA pin to validate the Teleport Auth Server; used on first connect.|
-|`--certificate-ttl`|none|TTL of short-lived machine certificates.|
-|`--cluster`|none|The name of a specific cluster for which to issue an identity if using a leaf cluster.|
-|`--destination`|none|A destination URI, such as file:///foo/bar|
-|`--diag-addr`|none|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|none|Method to use to join the cluster. (azure, azure_devops, bitbucket, circleci, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm, terraform_cloud, oracle, bound_keypair, env0)|
-|`--join-uri`|none|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
+|`-a`, `--auth-server`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`--ca-pin`|*no default*|CA pin to validate the Teleport Auth Server; used on first connect.|
+|`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
+|`--cluster`|*no default*|The name of a specific cluster for which to issue an identity if using a leaf cluster.|
+|`--destination`|*no default*|A destination URI, such as file:///foo/bar|
+|`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
 |`--[no-]allow-reissue`|`false`|Allow the credentials output by this command to be reissued.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
-|`--pid-file`|none|Full path to the PID file. By default no PID file will be created.|
-|`--proxy-server`|none|Address of the Teleport Proxy Server.|
-|`--reader-group`|none|An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
-|`--reader-user`|none|An additional user name or UID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
-|`--registration-secret`|none|For bound keypair joining, specifies a registration secret for use at first join.|
-|`--registration-secret-path`|none|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
-|`--renewal-interval`|none|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
-|`--static-key-path`|none|For bound keypair joining, specifies a path to a static key.|
-|`--storage`|none|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
-|`--token`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`--[no-]scoped`|`false`|Indicates whether tbot should run in scoped mode. This is required when authenticating as a scoped Bot.|
+|`--pid-file`|*no default*|Full path to the PID file. By default no PID file will be created.|
+|`--proxy-server`|*no default*|Address of the Teleport Proxy Server.|
+|`--reader-group`|*no default*|An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
+|`--reader-user`|*no default*|An additional user name or UID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
+|`--registration-secret`|*no default*|For bound keypair joining, specifies a registration secret for use at first join.|
+|`--registration-secret-path`|*no default*|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
+|`--renewal-interval`|*no default*|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
+|`--static-key-path`|*no default*|For bound keypair joining, specifies a path to a static key.|
+|`--storage`|*no default*|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
+|`--token`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
 
 ## tbot configure kubernetes
 
@@ -304,34 +310,35 @@ Environment variables:
 
 |Variable|Default|Description|
 |---|---|---|
-|`TELEPORT_AUTH_SERVER`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`TELEPORT_BOT_TOKEN`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
-|`TELEPORT_PROXY`|none|Address of the Teleport Proxy Server.|
+|`TELEPORT_AUTH_SERVER`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`TELEPORT_BOT_TOKEN`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`TELEPORT_PROXY`|*no default*|Address of the Teleport Proxy Server.|
 
 Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`-a`, `--auth-server`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`--ca-pin`|none|CA pin to validate the Teleport Auth Server; used on first connect.|
-|`--certificate-ttl`|none|TTL of short-lived machine certificates.|
-|`--destination`|none|A destination URI, such as file:///foo/bar|
-|`--diag-addr`|none|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|none|Method to use to join the cluster. (azure, azure_devops, bitbucket, circleci, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm, terraform_cloud, oracle, bound_keypair, env0)|
-|`--join-uri`|none|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
-|`--kubernetes-cluster`|none|The name of the Kubernetes cluster in Teleport for which to fetch credentials.|
+|`-a`, `--auth-server`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`--ca-pin`|*no default*|CA pin to validate the Teleport Auth Server; used on first connect.|
+|`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
+|`--destination`|*no default*|A destination URI, such as file:///foo/bar|
+|`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
+|`--kubernetes-cluster`|*no default*|The name of the Kubernetes cluster in Teleport for which to fetch credentials.|
 |`--[no-]disable-exec-plugin`|`false`|If set, disables the exec plugin. This allows credentials to be used without the `tbot` binary.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
-|`--pid-file`|none|Full path to the PID file. By default no PID file will be created.|
-|`--proxy-server`|none|Address of the Teleport Proxy Server.|
-|`--reader-group`|none|An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
-|`--reader-user`|none|An additional user name or UID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
-|`--registration-secret`|none|For bound keypair joining, specifies a registration secret for use at first join.|
-|`--registration-secret-path`|none|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
-|`--renewal-interval`|none|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
-|`--static-key-path`|none|For bound keypair joining, specifies a path to a static key.|
-|`--storage`|none|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
-|`--token`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`--[no-]scoped`|`false`|Indicates whether tbot should run in scoped mode. This is required when authenticating as a scoped Bot.|
+|`--pid-file`|*no default*|Full path to the PID file. By default no PID file will be created.|
+|`--proxy-server`|*no default*|Address of the Teleport Proxy Server.|
+|`--reader-group`|*no default*|An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
+|`--reader-user`|*no default*|An additional user name or UID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
+|`--registration-secret`|*no default*|For bound keypair joining, specifies a registration secret for use at first join.|
+|`--registration-secret-path`|*no default*|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
+|`--renewal-interval`|*no default*|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
+|`--static-key-path`|*no default*|For bound keypair joining, specifies a path to a static key.|
+|`--storage`|*no default*|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
+|`--token`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
 
 ## tbot configure kubernetes/v2
 
@@ -347,35 +354,36 @@ Environment variables:
 
 |Variable|Default|Description|
 |---|---|---|
-|`TELEPORT_AUTH_SERVER`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`TELEPORT_BOT_TOKEN`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
-|`TELEPORT_PROXY`|none|Address of the Teleport Proxy Server.|
+|`TELEPORT_AUTH_SERVER`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`TELEPORT_BOT_TOKEN`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`TELEPORT_PROXY`|*no default*|Address of the Teleport Proxy Server.|
 
 Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`-a`, `--auth-server`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`--ca-pin`|none|CA pin to validate the Teleport Auth Server; used on first connect.|
-|`--certificate-ttl`|none|TTL of short-lived machine certificates.|
-|`--destination`|none|A destination URI, such as file:///foo/bar|
-|`--diag-addr`|none|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|none|Method to use to join the cluster. (azure, azure_devops, bitbucket, circleci, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm, terraform_cloud, oracle, bound_keypair, env0)|
-|`--join-uri`|none|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
-|`--label-selector`|none|A set of Kubernetes labels to match in k1=v1,k2=v2 form. Repeatable.|
-|`--name-selector`|none|An explicit Kubernetes cluster name to include. Repeatable.|
+|`-a`, `--auth-server`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`--ca-pin`|*no default*|CA pin to validate the Teleport Auth Server; used on first connect.|
+|`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
+|`--destination`|*no default*|A destination URI, such as file:///foo/bar|
+|`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
+|`--label-selector`|*no default*|A set of Kubernetes labels to match in k1=v1,k2=v2 form. Repeatable.|
+|`--name-selector`|*no default*|An explicit Kubernetes cluster name to include. Repeatable.|
 |`--[no-]disable-exec-plugin`|`false`|If set, disables the exec plugin. This allows credentials to be used without the `tbot` binary.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
-|`--pid-file`|none|Full path to the PID file. By default no PID file will be created.|
-|`--proxy-server`|none|Address of the Teleport Proxy Server.|
-|`--reader-group`|none|An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
-|`--reader-user`|none|An additional user name or UID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
-|`--registration-secret`|none|For bound keypair joining, specifies a registration secret for use at first join.|
-|`--registration-secret-path`|none|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
-|`--renewal-interval`|none|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
-|`--static-key-path`|none|For bound keypair joining, specifies a path to a static key.|
-|`--storage`|none|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
-|`--token`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`--[no-]scoped`|`false`|Indicates whether tbot should run in scoped mode. This is required when authenticating as a scoped Bot.|
+|`--pid-file`|*no default*|Full path to the PID file. By default no PID file will be created.|
+|`--proxy-server`|*no default*|Address of the Teleport Proxy Server.|
+|`--reader-group`|*no default*|An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
+|`--reader-user`|*no default*|An additional user name or UID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
+|`--registration-secret`|*no default*|For bound keypair joining, specifies a registration secret for use at first join.|
+|`--registration-secret-path`|*no default*|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
+|`--renewal-interval`|*no default*|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
+|`--static-key-path`|*no default*|For bound keypair joining, specifies a path to a static key.|
+|`--storage`|*no default*|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
+|`--token`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
 
 ## tbot configure legacy
 
@@ -391,26 +399,27 @@ Environment variables:
 
 |Variable|Default|Description|
 |---|---|---|
-|`TELEPORT_AUTH_SERVER`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`TELEPORT_BOT_TOKEN`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
-|`TELEPORT_PROXY`|none|Address of the Teleport Proxy Server.|
+|`TELEPORT_AUTH_SERVER`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`TELEPORT_BOT_TOKEN`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`TELEPORT_PROXY`|*no default*|Address of the Teleport Proxy Server.|
 
 Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`-a`, `--auth-server`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`--ca-pin`|none|CA pin to validate the Teleport Auth Server; used on first connect.|
-|`--certificate-ttl`|none|TTL of short-lived machine certificates.|
-|`--data-dir`|none|Directory to store internal bot data. Access to this directory should be limited.|
-|`--destination-dir`|none|Directory to write short-lived machine certificates.|
-|`--diag-addr`|none|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|none|Method to use to join the cluster. (azure, azure_devops, bitbucket, circleci, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm, terraform_cloud, oracle, bound_keypair, env0)|
+|`-a`, `--auth-server`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`--ca-pin`|*no default*|CA pin to validate the Teleport Auth Server; used on first connect.|
+|`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
+|`--data-dir`|*no default*|Directory to store internal bot data. Access to this directory should be limited.|
+|`--destination-dir`|*no default*|Directory to write short-lived machine certificates.|
+|`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
-|`--pid-file`|none|Full path to the PID file. By default no PID file will be created.|
-|`--proxy-server`|none|Address of the Teleport Proxy Server.|
-|`--renewal-interval`|none|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
-|`--token`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`--[no-]scoped`|`false`|Indicates whether tbot should run in scoped mode. This is required when authenticating as a scoped Bot.|
+|`--pid-file`|*no default*|Full path to the PID file. By default no PID file will be created.|
+|`--proxy-server`|*no default*|Address of the Teleport Proxy Server.|
+|`--renewal-interval`|*no default*|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
+|`--token`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
 
 ## tbot configure noop
 
@@ -426,29 +435,30 @@ Environment variables:
 
 |Variable|Default|Description|
 |---|---|---|
-|`TELEPORT_AUTH_SERVER`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`TELEPORT_BOT_TOKEN`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
-|`TELEPORT_PROXY`|none|Address of the Teleport Proxy Server.|
+|`TELEPORT_AUTH_SERVER`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`TELEPORT_BOT_TOKEN`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`TELEPORT_PROXY`|*no default*|Address of the Teleport Proxy Server.|
 
 Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`-a`, `--auth-server`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`--ca-pin`|none|CA pin to validate the Teleport Auth Server; used on first connect.|
-|`--certificate-ttl`|none|TTL of short-lived machine certificates.|
-|`--diag-addr`|none|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|none|Method to use to join the cluster. (azure, azure_devops, bitbucket, circleci, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm, terraform_cloud, oracle, bound_keypair, env0)|
-|`--join-uri`|none|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
+|`-a`, `--auth-server`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`--ca-pin`|*no default*|CA pin to validate the Teleport Auth Server; used on first connect.|
+|`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
+|`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
-|`--pid-file`|none|Full path to the PID file. By default no PID file will be created.|
-|`--proxy-server`|none|Address of the Teleport Proxy Server.|
-|`--registration-secret`|none|For bound keypair joining, specifies a registration secret for use at first join.|
-|`--registration-secret-path`|none|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
-|`--renewal-interval`|none|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
-|`--static-key-path`|none|For bound keypair joining, specifies a path to a static key.|
-|`--storage`|none|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
-|`--token`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`--[no-]scoped`|`false`|Indicates whether tbot should run in scoped mode. This is required when authenticating as a scoped Bot.|
+|`--pid-file`|*no default*|Full path to the PID file. By default no PID file will be created.|
+|`--proxy-server`|*no default*|Address of the Teleport Proxy Server.|
+|`--registration-secret`|*no default*|For bound keypair joining, specifies a registration secret for use at first join.|
+|`--registration-secret-path`|*no default*|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
+|`--renewal-interval`|*no default*|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
+|`--static-key-path`|*no default*|For bound keypair joining, specifies a path to a static key.|
+|`--storage`|*no default*|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
+|`--token`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
 
 ## tbot configure ssh-multiplexer
 
@@ -464,35 +474,36 @@ Environment variables:
 
 |Variable|Default|Description|
 |---|---|---|
-|`TELEPORT_AUTH_SERVER`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`TELEPORT_BOT_TOKEN`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
-|`TELEPORT_PROXY`|none|Address of the Teleport Proxy Server.|
+|`TELEPORT_AUTH_SERVER`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`TELEPORT_BOT_TOKEN`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`TELEPORT_PROXY`|*no default*|Address of the Teleport Proxy Server.|
 
 Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`-a`, `--auth-server`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`--ca-pin`|none|CA pin to validate the Teleport Auth Server; used on first connect.|
-|`--certificate-ttl`|none|TTL of short-lived machine certificates.|
-|`--destination`|none|A destination URI, such as file:///foo/bar|
-|`--diag-addr`|none|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|none|Method to use to join the cluster. (azure, azure_devops, bitbucket, circleci, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm, terraform_cloud, oracle, bound_keypair, env0)|
-|`--join-uri`|none|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
+|`-a`, `--auth-server`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`--ca-pin`|*no default*|CA pin to validate the Teleport Auth Server; used on first connect.|
+|`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
+|`--destination`|*no default*|A destination URI, such as file:///foo/bar|
+|`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
 |`--[no-]enable-resumption`|`false`|If set, disables SSH session resumption.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
-|`--pid-file`|none|Full path to the PID file. By default no PID file will be created.|
-|`--proxy-command`|none|The command to run as the SSH ProxyCommand, such as `fdpass-teleport`. Defaults to this tbot binary. Repeatable to add additional args.|
-|`--proxy-server`|none|Address of the Teleport Proxy Server.|
-|`--proxy-templates-path`|none|A path to a proxy template config file. Optional.|
-|`--reader-group`|none|An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
-|`--reader-user`|none|An additional user name or UID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
-|`--registration-secret`|none|For bound keypair joining, specifies a registration secret for use at first join.|
-|`--registration-secret-path`|none|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
-|`--renewal-interval`|none|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
-|`--static-key-path`|none|For bound keypair joining, specifies a path to a static key.|
-|`--storage`|none|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
-|`--token`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`--[no-]scoped`|`false`|Indicates whether tbot should run in scoped mode. This is required when authenticating as a scoped Bot.|
+|`--pid-file`|*no default*|Full path to the PID file. By default no PID file will be created.|
+|`--proxy-command`|*no default*|The command to run as the SSH ProxyCommand, such as `fdpass-teleport`. Defaults to this tbot binary. Repeatable to add additional args.|
+|`--proxy-server`|*no default*|Address of the Teleport Proxy Server.|
+|`--proxy-templates-path`|*no default*|A path to a proxy template config file. Optional.|
+|`--reader-group`|*no default*|An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
+|`--reader-user`|*no default*|An additional user name or UID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
+|`--registration-secret`|*no default*|For bound keypair joining, specifies a registration secret for use at first join.|
+|`--registration-secret-path`|*no default*|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
+|`--renewal-interval`|*no default*|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
+|`--static-key-path`|*no default*|For bound keypair joining, specifies a path to a static key.|
+|`--storage`|*no default*|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
+|`--token`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
 
 ## tbot configure workload-identity-api
 
@@ -509,32 +520,33 @@ Environment variables:
 
 |Variable|Default|Description|
 |---|---|---|
-|`TELEPORT_AUTH_SERVER`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`TELEPORT_BOT_TOKEN`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
-|`TELEPORT_PROXY`|none|Address of the Teleport Proxy Server.|
+|`TELEPORT_AUTH_SERVER`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`TELEPORT_BOT_TOKEN`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`TELEPORT_PROXY`|*no default*|Address of the Teleport Proxy Server.|
 
 Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`-a`, `--auth-server`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`--ca-pin`|none|CA pin to validate the Teleport Auth Server; used on first connect.|
-|`--certificate-ttl`|none|TTL of short-lived machine certificates.|
-|`--diag-addr`|none|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|none|Method to use to join the cluster. (azure, azure_devops, bitbucket, circleci, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm, terraform_cloud, oracle, bound_keypair, env0)|
-|`--join-uri`|none|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
-|`--label-selector`|none|A label-based selector for which workload identities to issue. Multiple labels can be provided using ','. Mutually exclusive with --name-selector.|
-|`--listen`|none|The address on which the workload identity API should listen. This should either be prefixed with 'unix://' or 'tcp://'.|
-|`--name-selector`|none|The name of the workload identity to issue. Mutually exclusive with --label-selector.|
+|`-a`, `--auth-server`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`--ca-pin`|*no default*|CA pin to validate the Teleport Auth Server; used on first connect.|
+|`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
+|`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
+|`--label-selector`|*no default*|A label-based selector for which workload identities to issue. Multiple labels can be provided using ','. Mutually exclusive with --name-selector.|
+|`--listen`|*no default*|The address on which the workload identity API should listen. This should either be prefixed with 'unix://' or 'tcp://'.|
+|`--name-selector`|*no default*|The name of the workload identity to issue. Mutually exclusive with --label-selector.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
-|`--pid-file`|none|Full path to the PID file. By default no PID file will be created.|
-|`--proxy-server`|none|Address of the Teleport Proxy Server.|
-|`--registration-secret`|none|For bound keypair joining, specifies a registration secret for use at first join.|
-|`--registration-secret-path`|none|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
-|`--renewal-interval`|none|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
-|`--static-key-path`|none|For bound keypair joining, specifies a path to a static key.|
-|`--storage`|none|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
-|`--token`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`--[no-]scoped`|`false`|Indicates whether tbot should run in scoped mode. This is required when authenticating as a scoped Bot.|
+|`--pid-file`|*no default*|Full path to the PID file. By default no PID file will be created.|
+|`--proxy-server`|*no default*|Address of the Teleport Proxy Server.|
+|`--registration-secret`|*no default*|For bound keypair joining, specifies a registration secret for use at first join.|
+|`--registration-secret-path`|*no default*|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
+|`--renewal-interval`|*no default*|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
+|`--static-key-path`|*no default*|For bound keypair joining, specifies a path to a static key.|
+|`--storage`|*no default*|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
+|`--token`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
 
 ## tbot configure workload-identity-aws-roles-anywhere
 
@@ -551,40 +563,41 @@ Environment variables:
 
 |Variable|Default|Description|
 |---|---|---|
-|`TELEPORT_AUTH_SERVER`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`TELEPORT_BOT_TOKEN`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
-|`TELEPORT_PROXY`|none|Address of the Teleport Proxy Server.|
+|`TELEPORT_AUTH_SERVER`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`TELEPORT_BOT_TOKEN`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`TELEPORT_PROXY`|*no default*|Address of the Teleport Proxy Server.|
 
 Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`-a`, `--auth-server`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`--ca-pin`|none|CA pin to validate the Teleport Auth Server; used on first connect.|
-|`--certificate-ttl`|none|TTL of short-lived machine certificates.|
-|`--destination`|none|A destination URI, such as file:///foo/bar|
-|`--diag-addr`|none|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|none|Method to use to join the cluster. (azure, azure_devops, bitbucket, circleci, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm, terraform_cloud, oracle, bound_keypair, env0)|
-|`--join-uri`|none|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
-|`--label-selector`|none|A label-based selector for which workload identities to issue. Multiple labels can be provided using ','. Mutually exclusive with --name-selector.|
-|`--name-selector`|none|The name of the workload identity to issue. Mutually exclusive with --label-selector.|
+|`-a`, `--auth-server`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`--ca-pin`|*no default*|CA pin to validate the Teleport Auth Server; used on first connect.|
+|`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
+|`--destination`|*no default*|A destination URI, such as file:///foo/bar|
+|`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
+|`--label-selector`|*no default*|A label-based selector for which workload identities to issue. Multiple labels can be provided using ','. Mutually exclusive with --name-selector.|
+|`--name-selector`|*no default*|The name of the workload identity to issue. Mutually exclusive with --label-selector.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
-|`--pid-file`|none|Full path to the PID file. By default no PID file will be created.|
-|`--profile-arn`|none|The ARN of the Roles Anywhere profile to use.|
-|`--proxy-server`|none|Address of the Teleport Proxy Server.|
-|`--reader-group`|none|An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
-|`--reader-user`|none|An additional user name or UID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
-|`--region`|none|The AWS region to use. If unset, value will be used from the AWS config or the AWS_REGION environment variable.|
-|`--registration-secret`|none|For bound keypair joining, specifies a registration secret for use at first join.|
-|`--registration-secret-path`|none|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
-|`--renewal-interval`|none|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
-|`--role-arn`|none|The ARN of the role to assume.|
-|`--session-duration`|none|The duration of the resulting AWS session and credentials. This may be up to 12 hours. When unset, this defaults to 6 hours.|
-|`--session-renewal-interval`|none|How often the session should be renewed. This should be less than the session duration. When unset, this defaults to 1 hour.|
-|`--static-key-path`|none|For bound keypair joining, specifies a path to a static key.|
-|`--storage`|none|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
-|`--token`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
-|`--trust-anchor-arn`|none|The ARN of the Roles Anywhere trust anchor to use.|
+|`--[no-]scoped`|`false`|Indicates whether tbot should run in scoped mode. This is required when authenticating as a scoped Bot.|
+|`--pid-file`|*no default*|Full path to the PID file. By default no PID file will be created.|
+|`--profile-arn`|*no default*|The ARN of the Roles Anywhere profile to use.|
+|`--proxy-server`|*no default*|Address of the Teleport Proxy Server.|
+|`--reader-group`|*no default*|An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
+|`--reader-user`|*no default*|An additional user name or UID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
+|`--region`|*no default*|The AWS region to use. If unset, value will be used from the AWS config or the AWS_REGION environment variable.|
+|`--registration-secret`|*no default*|For bound keypair joining, specifies a registration secret for use at first join.|
+|`--registration-secret-path`|*no default*|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
+|`--renewal-interval`|*no default*|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
+|`--role-arn`|*no default*|The ARN of the role to assume.|
+|`--session-duration`|*no default*|The duration of the resulting AWS session and credentials. This may be up to 12 hours. When unset, this defaults to 6 hours.|
+|`--session-renewal-interval`|*no default*|How often the session should be renewed. This should be less than the session duration. When unset, this defaults to 1 hour.|
+|`--static-key-path`|*no default*|For bound keypair joining, specifies a path to a static key.|
+|`--storage`|*no default*|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
+|`--token`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`--trust-anchor-arn`|*no default*|The ARN of the Roles Anywhere trust anchor to use.|
 
 ## tbot configure workload-identity-jwt
 
@@ -600,35 +613,36 @@ Environment variables:
 
 |Variable|Default|Description|
 |---|---|---|
-|`TELEPORT_AUTH_SERVER`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`TELEPORT_BOT_TOKEN`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
-|`TELEPORT_PROXY`|none|Address of the Teleport Proxy Server.|
+|`TELEPORT_AUTH_SERVER`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`TELEPORT_BOT_TOKEN`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`TELEPORT_PROXY`|*no default*|Address of the Teleport Proxy Server.|
 
 Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`-a`, `--auth-server`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`--audience`|none|Specify the audiences to include in the JWT. At least one audience must be specified.|
-|`--ca-pin`|none|CA pin to validate the Teleport Auth Server; used on first connect.|
-|`--certificate-ttl`|none|TTL of short-lived machine certificates.|
-|`--destination`|none|A destination URI, such as file:///foo/bar|
-|`--diag-addr`|none|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|none|Method to use to join the cluster. (azure, azure_devops, bitbucket, circleci, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm, terraform_cloud, oracle, bound_keypair, env0)|
-|`--join-uri`|none|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
-|`--label-selector`|none|A label-based selector for which workload identities to issue. Multiple labels can be provided using ','. Mutually exclusive with --name-selector.|
-|`--name-selector`|none|The name of the workload identity to issue. Mutually exclusive with --label-selector.|
+|`-a`, `--auth-server`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`--audience`|*no default*|Specify the audiences to include in the JWT. At least one audience must be specified.|
+|`--ca-pin`|*no default*|CA pin to validate the Teleport Auth Server; used on first connect.|
+|`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
+|`--destination`|*no default*|A destination URI, such as file:///foo/bar|
+|`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
+|`--label-selector`|*no default*|A label-based selector for which workload identities to issue. Multiple labels can be provided using ','. Mutually exclusive with --name-selector.|
+|`--name-selector`|*no default*|The name of the workload identity to issue. Mutually exclusive with --label-selector.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
-|`--pid-file`|none|Full path to the PID file. By default no PID file will be created.|
-|`--proxy-server`|none|Address of the Teleport Proxy Server.|
-|`--reader-group`|none|An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
-|`--reader-user`|none|An additional user name or UID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
-|`--registration-secret`|none|For bound keypair joining, specifies a registration secret for use at first join.|
-|`--registration-secret-path`|none|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
-|`--renewal-interval`|none|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
-|`--static-key-path`|none|For bound keypair joining, specifies a path to a static key.|
-|`--storage`|none|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
-|`--token`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`--[no-]scoped`|`false`|Indicates whether tbot should run in scoped mode. This is required when authenticating as a scoped Bot.|
+|`--pid-file`|*no default*|Full path to the PID file. By default no PID file will be created.|
+|`--proxy-server`|*no default*|Address of the Teleport Proxy Server.|
+|`--reader-group`|*no default*|An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
+|`--reader-user`|*no default*|An additional user name or UID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
+|`--registration-secret`|*no default*|For bound keypair joining, specifies a registration secret for use at first join.|
+|`--registration-secret-path`|*no default*|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
+|`--renewal-interval`|*no default*|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
+|`--static-key-path`|*no default*|For bound keypair joining, specifies a path to a static key.|
+|`--storage`|*no default*|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
+|`--token`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
 
 ## tbot configure workload-identity-x509
 
@@ -644,35 +658,36 @@ Environment variables:
 
 |Variable|Default|Description|
 |---|---|---|
-|`TELEPORT_AUTH_SERVER`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`TELEPORT_BOT_TOKEN`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
-|`TELEPORT_PROXY`|none|Address of the Teleport Proxy Server.|
+|`TELEPORT_AUTH_SERVER`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`TELEPORT_BOT_TOKEN`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`TELEPORT_PROXY`|*no default*|Address of the Teleport Proxy Server.|
 
 Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`-a`, `--auth-server`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`--ca-pin`|none|CA pin to validate the Teleport Auth Server; used on first connect.|
-|`--certificate-ttl`|none|TTL of short-lived machine certificates.|
-|`--destination`|none|A destination URI, such as file:///foo/bar|
-|`--diag-addr`|none|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|none|Method to use to join the cluster. (azure, azure_devops, bitbucket, circleci, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm, terraform_cloud, oracle, bound_keypair, env0)|
-|`--join-uri`|none|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
-|`--label-selector`|none|A label-based selector for which workload identities to issue. Multiple labels can be provided using ','. Mutually exclusive with --name-selector.|
-|`--name-selector`|none|The name of the workload identity to issue. Mutually exclusive with --label-selector.|
+|`-a`, `--auth-server`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`--ca-pin`|*no default*|CA pin to validate the Teleport Auth Server; used on first connect.|
+|`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
+|`--destination`|*no default*|A destination URI, such as file:///foo/bar|
+|`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
+|`--label-selector`|*no default*|A label-based selector for which workload identities to issue. Multiple labels can be provided using ','. Mutually exclusive with --name-selector.|
+|`--name-selector`|*no default*|The name of the workload identity to issue. Mutually exclusive with --label-selector.|
 |`--[no-]include-federated-trust-bundles`|`false`|If set, include federated trust bundles in the output.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
-|`--pid-file`|none|Full path to the PID file. By default no PID file will be created.|
-|`--proxy-server`|none|Address of the Teleport Proxy Server.|
-|`--reader-group`|none|An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
-|`--reader-user`|none|An additional user name or UID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
-|`--registration-secret`|none|For bound keypair joining, specifies a registration secret for use at first join.|
-|`--registration-secret-path`|none|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
-|`--renewal-interval`|none|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
-|`--static-key-path`|none|For bound keypair joining, specifies a path to a static key.|
-|`--storage`|none|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
-|`--token`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`--[no-]scoped`|`false`|Indicates whether tbot should run in scoped mode. This is required when authenticating as a scoped Bot.|
+|`--pid-file`|*no default*|Full path to the PID file. By default no PID file will be created.|
+|`--proxy-server`|*no default*|Address of the Teleport Proxy Server.|
+|`--reader-group`|*no default*|An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
+|`--reader-user`|*no default*|An additional user name or UID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
+|`--registration-secret`|*no default*|For bound keypair joining, specifies a registration secret for use at first join.|
+|`--registration-secret-path`|*no default*|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
+|`--renewal-interval`|*no default*|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
+|`--static-key-path`|*no default*|For bound keypair joining, specifies a path to a static key.|
+|`--storage`|*no default*|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
+|`--token`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
 
 ## tbot copy-binaries
 
@@ -694,7 +709,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|destination-dir|none (required)|The destination path to write the copy of the tbot binary.|
+|destination-dir|*no default* (required)|The destination path to write the copy of the tbot binary.|
 
 ## tbot db
 
@@ -710,15 +725,15 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--cluster`|none|The cluster name. Extracted from the certificate if unset.|
-|`--destination-dir`|none|The destination directory to provide tsh for authentication.|
-|`--proxy-server`|none|The address of the Teleport proxy server to use, in host:port form.|
+|`--cluster`|*no default*|The cluster name. Extracted from the certificate if unset.|
+|`--destination-dir`|*no default*|The destination directory to provide tsh for authentication.|
+|`--proxy-server`|*no default*|The address of the Teleport proxy server to use, in host:port form.|
 
 Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|args|none (optional)|Arguments to `tsh db ...`; prefix with `-- ` to ensure flags are passed correctly.|
+|args|*no default* (optional)|Arguments to `tsh db ...`; prefix with `-- ` to ensure flags are passed correctly.|
 
 ## tbot help
 
@@ -734,7 +749,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|command|none (optional)|Show help on command.|
+|command|*no default* (optional)|Show help on command.|
 
 ## tbot init
 
@@ -750,21 +765,21 @@ Environment variables:
 
 |Variable|Default|Description|
 |---|---|---|
-|`TELEPORT_AUTH_SERVER`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`TELEPORT_PROXY`|none|Address of the Teleport Proxy Server.|
+|`TELEPORT_AUTH_SERVER`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`TELEPORT_PROXY`|*no default*|Address of the Teleport Proxy Server.|
 
 Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`-a`, `--auth-server`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`--bot-user`|none|Enables POSIX ACLs and defines Linux user that can read/write short-lived certificates to "--destination-dir".|
-|`--destination-dir`|none|Directory to write short-lived machine certificates.|
-|`--init-dir`|none|If using a config file and multiple destinations are configured, controls which destination dir to configure.|
+|`-a`, `--auth-server`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`--bot-user`|*no default*|Enables POSIX ACLs and defines Linux user that can read/write short-lived certificates to "--destination-dir".|
+|`--destination-dir`|*no default*|Directory to write short-lived machine certificates.|
+|`--init-dir`|*no default*|If using a config file and multiple destinations are configured, controls which destination dir to configure.|
 |`--[no-]clean`|`false`|If set, removes unexpected files and directories from the destination.|
-|`--owner`|none|Defines Linux "user:group" owner of "--destination-dir". Defaults to the Linux user running tbot if unspecified.|
-|`--proxy-server`|none|Address of the Teleport Proxy Server.|
-|`--reader-user`|none|Enables POSIX ACLs and defines Linux user that will read short-lived certificates from "--destination-dir".|
+|`--owner`|*no default*|Defines Linux "user:group" owner of "--destination-dir". Defaults to the Linux user running tbot if unspecified.|
+|`--proxy-server`|*no default*|Address of the Teleport Proxy Server.|
+|`--reader-user`|*no default*|Enables POSIX ACLs and defines Linux user that will read short-lived certificates from "--destination-dir".|
 
 ## tbot install systemd
 
@@ -786,7 +801,7 @@ Flags:
 |`--[no-]anonymous-telemetry`|`false`|Enable anonymous telemetry.|
 |`--[no-]force`|`false`|Overwrite existing systemd unit file if present.|
 |`--[no-]write`|`false`|Write the systemd unit file. If not specified, this command runs in a dry-run mode that outputs the generated content to stdout.|
-|`--pid-file`|none|Overrides the PID file path that should be set in the systemd unit files.|
+|`--pid-file`|*no default*|Overrides the PID file path that should be set in the systemd unit files.|
 |`--systemd-directory`|`/etc/systemd/system`|Path to the directory that the systemd unit file should be written. Defaults to '/etc/systemd/system'.|
 |`--user`|`teleport`|The user that the service should run as. Defaults to 'teleport'.|
 
@@ -804,12 +819,12 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--format`|`text`|Output format, one of: text, json|
+|`--format`|`text` (one of: `text`, `json`)|Output format.|
 |`--[no-]overwrite`|`false`|If set, overwrite any existing keypair. If unset and a keypair already exists, its key will be printed for use.|
 |`--[no-]static`|`false`|If set, creates a static private key instead of writing a mutable key into bot storage. If --static-key-path is unset, the key will be printed to the terminal.|
-|`--proxy-server`|none|The proxy server, which will be pinged to determine the current cryptographic suite in use.|
-|`--static-key-path`|none|If set, writes the static private key to a file.|
-|`--storage`|none|The internal storage URI to write the keypair to, such as `file:///var/lib/teleport/bot`.|
+|`--proxy-server`|*no default*|The proxy server, which will be pinged to determine the current cryptographic suite in use.|
+|`--static-key-path`|*no default*|If set, writes the static private key to a file.|
+|`--storage`|*no default*|The internal storage URI to write the keypair to, such as `file:///var/lib/teleport/bot`.|
 
 ## tbot migrate
 
@@ -826,7 +841,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`-o`, `--output`|none|The path to write the generated configuration file to. If unset, it will be written to stdout.|
+|`-o`, `--output`|*no default*|The path to write the generated configuration file to. If unset, it will be written to stdout.|
 
 ## tbot proxy
 
@@ -842,15 +857,15 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--cluster`|none|The cluster name. Extracted from the certificate if unset.|
-|`--destination-dir`|none|The destination directory to provide tsh for authentication.|
-|`--proxy-server`|none|The address of the Teleport proxy server to use, in host:port form.|
+|`--cluster`|*no default*|The cluster name. Extracted from the certificate if unset.|
+|`--destination-dir`|*no default*|The destination directory to provide tsh for authentication.|
+|`--proxy-server`|*no default*|The address of the Teleport proxy server to use, in host:port form.|
 
 Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|args|none (optional)|Arguments to `tsh proxy ...`; prefix with `-- ` to ensure flags are passed correctly.|
+|args|*no default* (optional)|Arguments to `tsh proxy ...`; prefix with `-- ` to ensure flags are passed correctly.|
 
 ## tbot spiffe-inspect
 
@@ -866,7 +881,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--path`|none|The path to the SPIFFE Workload API endpoint to test.|
+|`--path`|*no default*|The path to the SPIFFE Workload API endpoint to test.|
 
 ## tbot start application
 
@@ -882,34 +897,35 @@ Environment variables:
 
 |Variable|Default|Description|
 |---|---|---|
-|`TELEPORT_AUTH_SERVER`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`TELEPORT_BOT_TOKEN`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
-|`TELEPORT_PROXY`|none|Address of the Teleport Proxy Server.|
+|`TELEPORT_AUTH_SERVER`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`TELEPORT_BOT_TOKEN`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`TELEPORT_PROXY`|*no default*|Address of the Teleport Proxy Server.|
 
 Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`-a`, `--auth-server`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`--app`|none|The name of the app in Teleport|
-|`--ca-pin`|none|CA pin to validate the Teleport Auth Server; used on first connect.|
-|`--certificate-ttl`|none|TTL of short-lived machine certificates.|
-|`--destination`|none|A destination URI, such as file:///foo/bar|
-|`--diag-addr`|none|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|none|Method to use to join the cluster. (azure, azure_devops, bitbucket, circleci, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm, terraform_cloud, oracle, bound_keypair, env0)|
-|`--join-uri`|none|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
+|`-a`, `--auth-server`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`--app`|*no default*|The name of the app in Teleport|
+|`--ca-pin`|*no default*|CA pin to validate the Teleport Auth Server; used on first connect.|
+|`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
+|`--destination`|*no default*|A destination URI, such as file:///foo/bar|
+|`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
+|`--[no-]scoped`|`false`|Indicates whether tbot should run in scoped mode. This is required when authenticating as a scoped Bot.|
 |`--[no-]specific-tls-extensions`|`false`|If set, includes additional `tls.crt`, `tls.key`, and `tls.cas` for apps that require these file extensions|
-|`--pid-file`|none|Full path to the PID file. By default no PID file will be created.|
-|`--proxy-server`|none|Address of the Teleport Proxy Server.|
-|`--reader-group`|none|An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
-|`--reader-user`|none|An additional user name or UID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
-|`--registration-secret`|none|For bound keypair joining, specifies a registration secret for use at first join.|
-|`--registration-secret-path`|none|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
-|`--renewal-interval`|none|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
-|`--static-key-path`|none|For bound keypair joining, specifies a path to a static key.|
-|`--storage`|none|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
-|`--token`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`--pid-file`|*no default*|Full path to the PID file. By default no PID file will be created.|
+|`--proxy-server`|*no default*|Address of the Teleport Proxy Server.|
+|`--reader-group`|*no default*|An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
+|`--reader-user`|*no default*|An additional user name or UID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
+|`--registration-secret`|*no default*|For bound keypair joining, specifies a registration secret for use at first join.|
+|`--registration-secret-path`|*no default*|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
+|`--renewal-interval`|*no default*|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
+|`--static-key-path`|*no default*|For bound keypair joining, specifies a path to a static key.|
+|`--storage`|*no default*|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
+|`--token`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
 
 ## tbot start application-proxy
 
@@ -925,30 +941,31 @@ Environment variables:
 
 |Variable|Default|Description|
 |---|---|---|
-|`TELEPORT_AUTH_SERVER`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`TELEPORT_BOT_TOKEN`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
-|`TELEPORT_PROXY`|none|Address of the Teleport Proxy Server.|
+|`TELEPORT_AUTH_SERVER`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`TELEPORT_BOT_TOKEN`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`TELEPORT_PROXY`|*no default*|Address of the Teleport Proxy Server.|
 
 Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`-a`, `--auth-server`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`--ca-pin`|none|CA pin to validate the Teleport Auth Server; used on first connect.|
-|`--certificate-ttl`|none|TTL of short-lived machine certificates.|
-|`--diag-addr`|none|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|none|Method to use to join the cluster. (azure, azure_devops, bitbucket, circleci, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm, terraform_cloud, oracle, bound_keypair, env0)|
-|`--join-uri`|none|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
-|`--listen`|none|The socket URI on which the local proxy should listen, such as `tcp://0.0.0.0:8080`.|
+|`-a`, `--auth-server`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`--ca-pin`|*no default*|CA pin to validate the Teleport Auth Server; used on first connect.|
+|`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
+|`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
+|`--listen`|*no default*|The socket URI on which the local proxy should listen, such as `tcp://0.0.0.0:8080`.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
-|`--pid-file`|none|Full path to the PID file. By default no PID file will be created.|
-|`--proxy-server`|none|Address of the Teleport Proxy Server.|
-|`--registration-secret`|none|For bound keypair joining, specifies a registration secret for use at first join.|
-|`--registration-secret-path`|none|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
-|`--renewal-interval`|none|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
-|`--static-key-path`|none|For bound keypair joining, specifies a path to a static key.|
-|`--storage`|none|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
-|`--token`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`--[no-]scoped`|`false`|Indicates whether tbot should run in scoped mode. This is required when authenticating as a scoped Bot.|
+|`--pid-file`|*no default*|Full path to the PID file. By default no PID file will be created.|
+|`--proxy-server`|*no default*|Address of the Teleport Proxy Server.|
+|`--registration-secret`|*no default*|For bound keypair joining, specifies a registration secret for use at first join.|
+|`--registration-secret-path`|*no default*|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
+|`--renewal-interval`|*no default*|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
+|`--static-key-path`|*no default*|For bound keypair joining, specifies a path to a static key.|
+|`--storage`|*no default*|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
+|`--token`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
 
 ## tbot start application-tunnel
 
@@ -964,31 +981,32 @@ Environment variables:
 
 |Variable|Default|Description|
 |---|---|---|
-|`TELEPORT_AUTH_SERVER`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`TELEPORT_BOT_TOKEN`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
-|`TELEPORT_PROXY`|none|Address of the Teleport Proxy Server.|
+|`TELEPORT_AUTH_SERVER`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`TELEPORT_BOT_TOKEN`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`TELEPORT_PROXY`|*no default*|Address of the Teleport Proxy Server.|
 
 Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`-a`, `--auth-server`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`--app`|none|The name of the app in Teleport|
-|`--ca-pin`|none|CA pin to validate the Teleport Auth Server; used on first connect.|
-|`--certificate-ttl`|none|TTL of short-lived machine certificates.|
-|`--diag-addr`|none|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|none|Method to use to join the cluster. (azure, azure_devops, bitbucket, circleci, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm, terraform_cloud, oracle, bound_keypair, env0)|
-|`--join-uri`|none|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
-|`--listen`|none|The socket URI on which the tunnel should listen, such as `tcp://0.0.0.0:8080`.|
+|`-a`, `--auth-server`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`--app`|*no default*|The name of the app in Teleport|
+|`--ca-pin`|*no default*|CA pin to validate the Teleport Auth Server; used on first connect.|
+|`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
+|`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
+|`--listen`|*no default*|The socket URI on which the tunnel should listen, such as `tcp://0.0.0.0:8080`.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
-|`--pid-file`|none|Full path to the PID file. By default no PID file will be created.|
-|`--proxy-server`|none|Address of the Teleport Proxy Server.|
-|`--registration-secret`|none|For bound keypair joining, specifies a registration secret for use at first join.|
-|`--registration-secret-path`|none|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
-|`--renewal-interval`|none|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
-|`--static-key-path`|none|For bound keypair joining, specifies a path to a static key.|
-|`--storage`|none|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
-|`--token`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`--[no-]scoped`|`false`|Indicates whether tbot should run in scoped mode. This is required when authenticating as a scoped Bot.|
+|`--pid-file`|*no default*|Full path to the PID file. By default no PID file will be created.|
+|`--proxy-server`|*no default*|Address of the Teleport Proxy Server.|
+|`--registration-secret`|*no default*|For bound keypair joining, specifies a registration secret for use at first join.|
+|`--registration-secret-path`|*no default*|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
+|`--renewal-interval`|*no default*|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
+|`--static-key-path`|*no default*|For bound keypair joining, specifies a path to a static key.|
+|`--storage`|*no default*|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
+|`--token`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
 
 ## tbot start database
 
@@ -1004,36 +1022,37 @@ Environment variables:
 
 |Variable|Default|Description|
 |---|---|---|
-|`TELEPORT_AUTH_SERVER`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`TELEPORT_BOT_TOKEN`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
-|`TELEPORT_PROXY`|none|Address of the Teleport Proxy Server.|
+|`TELEPORT_AUTH_SERVER`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`TELEPORT_BOT_TOKEN`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`TELEPORT_PROXY`|*no default*|Address of the Teleport Proxy Server.|
 
 Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`-a`, `--auth-server`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`--ca-pin`|none|CA pin to validate the Teleport Auth Server; used on first connect.|
-|`--certificate-ttl`|none|TTL of short-lived machine certificates.|
-|`--database`|none|The name of the database available in the requested database service.|
-|`--destination`|none|A destination URI, such as file:///foo/bar|
-|`--diag-addr`|none|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--format`|``|The format of the credentials to generate. If specified, must be `tls`, `mongo` or `cockroach`.|
-|`--join-method`|none|Method to use to join the cluster. (azure, azure_devops, bitbucket, circleci, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm, terraform_cloud, oracle, bound_keypair, env0)|
-|`--join-uri`|none|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
+|`-a`, `--auth-server`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`--ca-pin`|*no default*|CA pin to validate the Teleport Auth Server; used on first connect.|
+|`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
+|`--database`|*no default*|The name of the database available in the requested database service.|
+|`--destination`|*no default*|A destination URI, such as file:///foo/bar|
+|`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
+|`--format`|`` (one of: ``, `tls`, `mongo`, `cockroach`)|The format of the credentials to generate.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
-|`--pid-file`|none|Full path to the PID file. By default no PID file will be created.|
-|`--proxy-server`|none|Address of the Teleport Proxy Server.|
-|`--reader-group`|none|An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
-|`--reader-user`|none|An additional user name or UID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
-|`--registration-secret`|none|For bound keypair joining, specifies a registration secret for use at first join.|
-|`--registration-secret-path`|none|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
-|`--renewal-interval`|none|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
-|`--service`|none|The database service name.|
-|`--static-key-path`|none|For bound keypair joining, specifies a path to a static key.|
-|`--storage`|none|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
-|`--token`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
-|`--username`|none|The database user name.|
+|`--[no-]scoped`|`false`|Indicates whether tbot should run in scoped mode. This is required when authenticating as a scoped Bot.|
+|`--pid-file`|*no default*|Full path to the PID file. By default no PID file will be created.|
+|`--proxy-server`|*no default*|Address of the Teleport Proxy Server.|
+|`--reader-group`|*no default*|An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
+|`--reader-user`|*no default*|An additional user name or UID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
+|`--registration-secret`|*no default*|For bound keypair joining, specifies a registration secret for use at first join.|
+|`--registration-secret-path`|*no default*|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
+|`--renewal-interval`|*no default*|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
+|`--service`|*no default*|The database service name.|
+|`--static-key-path`|*no default*|For bound keypair joining, specifies a path to a static key.|
+|`--storage`|*no default*|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
+|`--token`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`--username`|*no default*|The database user name.|
 
 ## tbot start database-tunnel
 
@@ -1049,33 +1068,34 @@ Environment variables:
 
 |Variable|Default|Description|
 |---|---|---|
-|`TELEPORT_AUTH_SERVER`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`TELEPORT_BOT_TOKEN`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
-|`TELEPORT_PROXY`|none|Address of the Teleport Proxy Server.|
+|`TELEPORT_AUTH_SERVER`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`TELEPORT_BOT_TOKEN`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`TELEPORT_PROXY`|*no default*|Address of the Teleport Proxy Server.|
 
 Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`-a`, `--auth-server`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`--ca-pin`|none|CA pin to validate the Teleport Auth Server; used on first connect.|
-|`--certificate-ttl`|none|TTL of short-lived machine certificates.|
-|`--database`|none|The name of the database available in the requested database service.|
-|`--diag-addr`|none|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|none|Method to use to join the cluster. (azure, azure_devops, bitbucket, circleci, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm, terraform_cloud, oracle, bound_keypair, env0)|
-|`--join-uri`|none|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
-|`--listen`|none|A socket URI to listen on, such as `tcp://0.0.0.0:3306`.|
+|`-a`, `--auth-server`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`--ca-pin`|*no default*|CA pin to validate the Teleport Auth Server; used on first connect.|
+|`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
+|`--database`|*no default*|The name of the database available in the requested database service.|
+|`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
+|`--listen`|*no default*|A socket URI to listen on, such as `tcp://0.0.0.0:3306`.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
-|`--pid-file`|none|Full path to the PID file. By default no PID file will be created.|
-|`--proxy-server`|none|Address of the Teleport Proxy Server.|
-|`--registration-secret`|none|For bound keypair joining, specifies a registration secret for use at first join.|
-|`--registration-secret-path`|none|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
-|`--renewal-interval`|none|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
-|`--service`|none|The database service name.|
-|`--static-key-path`|none|For bound keypair joining, specifies a path to a static key.|
-|`--storage`|none|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
-|`--token`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
-|`--username`|none|The database user name.|
+|`--[no-]scoped`|`false`|Indicates whether tbot should run in scoped mode. This is required when authenticating as a scoped Bot.|
+|`--pid-file`|*no default*|Full path to the PID file. By default no PID file will be created.|
+|`--proxy-server`|*no default*|Address of the Teleport Proxy Server.|
+|`--registration-secret`|*no default*|For bound keypair joining, specifies a registration secret for use at first join.|
+|`--registration-secret-path`|*no default*|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
+|`--renewal-interval`|*no default*|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
+|`--service`|*no default*|The database service name.|
+|`--static-key-path`|*no default*|For bound keypair joining, specifies a path to a static key.|
+|`--storage`|*no default*|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
+|`--token`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`--username`|*no default*|The database user name.|
 
 ## tbot start identity
 
@@ -1091,34 +1111,35 @@ Environment variables:
 
 |Variable|Default|Description|
 |---|---|---|
-|`TELEPORT_AUTH_SERVER`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`TELEPORT_BOT_TOKEN`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
-|`TELEPORT_PROXY`|none|Address of the Teleport Proxy Server.|
+|`TELEPORT_AUTH_SERVER`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`TELEPORT_BOT_TOKEN`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`TELEPORT_PROXY`|*no default*|Address of the Teleport Proxy Server.|
 
 Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`-a`, `--auth-server`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`--ca-pin`|none|CA pin to validate the Teleport Auth Server; used on first connect.|
-|`--certificate-ttl`|none|TTL of short-lived machine certificates.|
-|`--cluster`|none|The name of a specific cluster for which to issue an identity if using a leaf cluster.|
-|`--destination`|none|A destination URI, such as file:///foo/bar|
-|`--diag-addr`|none|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|none|Method to use to join the cluster. (azure, azure_devops, bitbucket, circleci, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm, terraform_cloud, oracle, bound_keypair, env0)|
-|`--join-uri`|none|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
+|`-a`, `--auth-server`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`--ca-pin`|*no default*|CA pin to validate the Teleport Auth Server; used on first connect.|
+|`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
+|`--cluster`|*no default*|The name of a specific cluster for which to issue an identity if using a leaf cluster.|
+|`--destination`|*no default*|A destination URI, such as file:///foo/bar|
+|`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
 |`--[no-]allow-reissue`|`false`|Allow the credentials output by this command to be reissued.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
-|`--pid-file`|none|Full path to the PID file. By default no PID file will be created.|
-|`--proxy-server`|none|Address of the Teleport Proxy Server.|
-|`--reader-group`|none|An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
-|`--reader-user`|none|An additional user name or UID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
-|`--registration-secret`|none|For bound keypair joining, specifies a registration secret for use at first join.|
-|`--registration-secret-path`|none|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
-|`--renewal-interval`|none|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
-|`--static-key-path`|none|For bound keypair joining, specifies a path to a static key.|
-|`--storage`|none|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
-|`--token`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`--[no-]scoped`|`false`|Indicates whether tbot should run in scoped mode. This is required when authenticating as a scoped Bot.|
+|`--pid-file`|*no default*|Full path to the PID file. By default no PID file will be created.|
+|`--proxy-server`|*no default*|Address of the Teleport Proxy Server.|
+|`--reader-group`|*no default*|An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
+|`--reader-user`|*no default*|An additional user name or UID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
+|`--registration-secret`|*no default*|For bound keypair joining, specifies a registration secret for use at first join.|
+|`--registration-secret-path`|*no default*|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
+|`--renewal-interval`|*no default*|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
+|`--static-key-path`|*no default*|For bound keypair joining, specifies a path to a static key.|
+|`--storage`|*no default*|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
+|`--token`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
 
 ## tbot start kubernetes
 
@@ -1134,34 +1155,35 @@ Environment variables:
 
 |Variable|Default|Description|
 |---|---|---|
-|`TELEPORT_AUTH_SERVER`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`TELEPORT_BOT_TOKEN`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
-|`TELEPORT_PROXY`|none|Address of the Teleport Proxy Server.|
+|`TELEPORT_AUTH_SERVER`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`TELEPORT_BOT_TOKEN`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`TELEPORT_PROXY`|*no default*|Address of the Teleport Proxy Server.|
 
 Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`-a`, `--auth-server`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`--ca-pin`|none|CA pin to validate the Teleport Auth Server; used on first connect.|
-|`--certificate-ttl`|none|TTL of short-lived machine certificates.|
-|`--destination`|none|A destination URI, such as file:///foo/bar|
-|`--diag-addr`|none|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|none|Method to use to join the cluster. (azure, azure_devops, bitbucket, circleci, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm, terraform_cloud, oracle, bound_keypair, env0)|
-|`--join-uri`|none|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
-|`--kubernetes-cluster`|none|The name of the Kubernetes cluster in Teleport for which to fetch credentials.|
+|`-a`, `--auth-server`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`--ca-pin`|*no default*|CA pin to validate the Teleport Auth Server; used on first connect.|
+|`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
+|`--destination`|*no default*|A destination URI, such as file:///foo/bar|
+|`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
+|`--kubernetes-cluster`|*no default*|The name of the Kubernetes cluster in Teleport for which to fetch credentials.|
 |`--[no-]disable-exec-plugin`|`false`|If set, disables the exec plugin. This allows credentials to be used without the `tbot` binary.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
-|`--pid-file`|none|Full path to the PID file. By default no PID file will be created.|
-|`--proxy-server`|none|Address of the Teleport Proxy Server.|
-|`--reader-group`|none|An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
-|`--reader-user`|none|An additional user name or UID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
-|`--registration-secret`|none|For bound keypair joining, specifies a registration secret for use at first join.|
-|`--registration-secret-path`|none|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
-|`--renewal-interval`|none|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
-|`--static-key-path`|none|For bound keypair joining, specifies a path to a static key.|
-|`--storage`|none|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
-|`--token`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`--[no-]scoped`|`false`|Indicates whether tbot should run in scoped mode. This is required when authenticating as a scoped Bot.|
+|`--pid-file`|*no default*|Full path to the PID file. By default no PID file will be created.|
+|`--proxy-server`|*no default*|Address of the Teleport Proxy Server.|
+|`--reader-group`|*no default*|An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
+|`--reader-user`|*no default*|An additional user name or UID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
+|`--registration-secret`|*no default*|For bound keypair joining, specifies a registration secret for use at first join.|
+|`--registration-secret-path`|*no default*|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
+|`--renewal-interval`|*no default*|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
+|`--static-key-path`|*no default*|For bound keypair joining, specifies a path to a static key.|
+|`--storage`|*no default*|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
+|`--token`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
 
 ## tbot start kubernetes/v2
 
@@ -1177,35 +1199,36 @@ Environment variables:
 
 |Variable|Default|Description|
 |---|---|---|
-|`TELEPORT_AUTH_SERVER`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`TELEPORT_BOT_TOKEN`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
-|`TELEPORT_PROXY`|none|Address of the Teleport Proxy Server.|
+|`TELEPORT_AUTH_SERVER`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`TELEPORT_BOT_TOKEN`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`TELEPORT_PROXY`|*no default*|Address of the Teleport Proxy Server.|
 
 Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`-a`, `--auth-server`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`--ca-pin`|none|CA pin to validate the Teleport Auth Server; used on first connect.|
-|`--certificate-ttl`|none|TTL of short-lived machine certificates.|
-|`--destination`|none|A destination URI, such as file:///foo/bar|
-|`--diag-addr`|none|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|none|Method to use to join the cluster. (azure, azure_devops, bitbucket, circleci, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm, terraform_cloud, oracle, bound_keypair, env0)|
-|`--join-uri`|none|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
-|`--label-selector`|none|A set of Kubernetes labels to match in k1=v1,k2=v2 form. Repeatable.|
-|`--name-selector`|none|An explicit Kubernetes cluster name to include. Repeatable.|
+|`-a`, `--auth-server`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`--ca-pin`|*no default*|CA pin to validate the Teleport Auth Server; used on first connect.|
+|`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
+|`--destination`|*no default*|A destination URI, such as file:///foo/bar|
+|`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
+|`--label-selector`|*no default*|A set of Kubernetes labels to match in k1=v1,k2=v2 form. Repeatable.|
+|`--name-selector`|*no default*|An explicit Kubernetes cluster name to include. Repeatable.|
 |`--[no-]disable-exec-plugin`|`false`|If set, disables the exec plugin. This allows credentials to be used without the `tbot` binary.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
-|`--pid-file`|none|Full path to the PID file. By default no PID file will be created.|
-|`--proxy-server`|none|Address of the Teleport Proxy Server.|
-|`--reader-group`|none|An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
-|`--reader-user`|none|An additional user name or UID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
-|`--registration-secret`|none|For bound keypair joining, specifies a registration secret for use at first join.|
-|`--registration-secret-path`|none|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
-|`--renewal-interval`|none|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
-|`--static-key-path`|none|For bound keypair joining, specifies a path to a static key.|
-|`--storage`|none|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
-|`--token`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`--[no-]scoped`|`false`|Indicates whether tbot should run in scoped mode. This is required when authenticating as a scoped Bot.|
+|`--pid-file`|*no default*|Full path to the PID file. By default no PID file will be created.|
+|`--proxy-server`|*no default*|Address of the Teleport Proxy Server.|
+|`--reader-group`|*no default*|An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
+|`--reader-user`|*no default*|An additional user name or UID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
+|`--registration-secret`|*no default*|For bound keypair joining, specifies a registration secret for use at first join.|
+|`--registration-secret-path`|*no default*|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
+|`--renewal-interval`|*no default*|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
+|`--static-key-path`|*no default*|For bound keypair joining, specifies a path to a static key.|
+|`--storage`|*no default*|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
+|`--token`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
 
 ## tbot start legacy
 
@@ -1221,26 +1244,27 @@ Environment variables:
 
 |Variable|Default|Description|
 |---|---|---|
-|`TELEPORT_AUTH_SERVER`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`TELEPORT_BOT_TOKEN`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
-|`TELEPORT_PROXY`|none|Address of the Teleport Proxy Server.|
+|`TELEPORT_AUTH_SERVER`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`TELEPORT_BOT_TOKEN`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`TELEPORT_PROXY`|*no default*|Address of the Teleport Proxy Server.|
 
 Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`-a`, `--auth-server`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`--ca-pin`|none|CA pin to validate the Teleport Auth Server; used on first connect.|
-|`--certificate-ttl`|none|TTL of short-lived machine certificates.|
-|`--data-dir`|none|Directory to store internal bot data. Access to this directory should be limited.|
-|`--destination-dir`|none|Directory to write short-lived machine certificates.|
-|`--diag-addr`|none|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|none|Method to use to join the cluster. (azure, azure_devops, bitbucket, circleci, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm, terraform_cloud, oracle, bound_keypair, env0)|
+|`-a`, `--auth-server`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`--ca-pin`|*no default*|CA pin to validate the Teleport Auth Server; used on first connect.|
+|`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
+|`--data-dir`|*no default*|Directory to store internal bot data. Access to this directory should be limited.|
+|`--destination-dir`|*no default*|Directory to write short-lived machine certificates.|
+|`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
-|`--pid-file`|none|Full path to the PID file. By default no PID file will be created.|
-|`--proxy-server`|none|Address of the Teleport Proxy Server.|
-|`--renewal-interval`|none|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
-|`--token`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`--[no-]scoped`|`false`|Indicates whether tbot should run in scoped mode. This is required when authenticating as a scoped Bot.|
+|`--pid-file`|*no default*|Full path to the PID file. By default no PID file will be created.|
+|`--proxy-server`|*no default*|Address of the Teleport Proxy Server.|
+|`--renewal-interval`|*no default*|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
+|`--token`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
 
 ## tbot start noop
 
@@ -1256,29 +1280,30 @@ Environment variables:
 
 |Variable|Default|Description|
 |---|---|---|
-|`TELEPORT_AUTH_SERVER`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`TELEPORT_BOT_TOKEN`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
-|`TELEPORT_PROXY`|none|Address of the Teleport Proxy Server.|
+|`TELEPORT_AUTH_SERVER`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`TELEPORT_BOT_TOKEN`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`TELEPORT_PROXY`|*no default*|Address of the Teleport Proxy Server.|
 
 Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`-a`, `--auth-server`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`--ca-pin`|none|CA pin to validate the Teleport Auth Server; used on first connect.|
-|`--certificate-ttl`|none|TTL of short-lived machine certificates.|
-|`--diag-addr`|none|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|none|Method to use to join the cluster. (azure, azure_devops, bitbucket, circleci, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm, terraform_cloud, oracle, bound_keypair, env0)|
-|`--join-uri`|none|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
+|`-a`, `--auth-server`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`--ca-pin`|*no default*|CA pin to validate the Teleport Auth Server; used on first connect.|
+|`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
+|`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
-|`--pid-file`|none|Full path to the PID file. By default no PID file will be created.|
-|`--proxy-server`|none|Address of the Teleport Proxy Server.|
-|`--registration-secret`|none|For bound keypair joining, specifies a registration secret for use at first join.|
-|`--registration-secret-path`|none|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
-|`--renewal-interval`|none|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
-|`--static-key-path`|none|For bound keypair joining, specifies a path to a static key.|
-|`--storage`|none|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
-|`--token`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`--[no-]scoped`|`false`|Indicates whether tbot should run in scoped mode. This is required when authenticating as a scoped Bot.|
+|`--pid-file`|*no default*|Full path to the PID file. By default no PID file will be created.|
+|`--proxy-server`|*no default*|Address of the Teleport Proxy Server.|
+|`--registration-secret`|*no default*|For bound keypair joining, specifies a registration secret for use at first join.|
+|`--registration-secret-path`|*no default*|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
+|`--renewal-interval`|*no default*|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
+|`--static-key-path`|*no default*|For bound keypair joining, specifies a path to a static key.|
+|`--storage`|*no default*|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
+|`--token`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
 
 ## tbot start ssh-multiplexer
 
@@ -1294,35 +1319,36 @@ Environment variables:
 
 |Variable|Default|Description|
 |---|---|---|
-|`TELEPORT_AUTH_SERVER`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`TELEPORT_BOT_TOKEN`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
-|`TELEPORT_PROXY`|none|Address of the Teleport Proxy Server.|
+|`TELEPORT_AUTH_SERVER`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`TELEPORT_BOT_TOKEN`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`TELEPORT_PROXY`|*no default*|Address of the Teleport Proxy Server.|
 
 Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`-a`, `--auth-server`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`--ca-pin`|none|CA pin to validate the Teleport Auth Server; used on first connect.|
-|`--certificate-ttl`|none|TTL of short-lived machine certificates.|
-|`--destination`|none|A destination URI, such as file:///foo/bar|
-|`--diag-addr`|none|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|none|Method to use to join the cluster. (azure, azure_devops, bitbucket, circleci, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm, terraform_cloud, oracle, bound_keypair, env0)|
-|`--join-uri`|none|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
+|`-a`, `--auth-server`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`--ca-pin`|*no default*|CA pin to validate the Teleport Auth Server; used on first connect.|
+|`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
+|`--destination`|*no default*|A destination URI, such as file:///foo/bar|
+|`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
 |`--[no-]enable-resumption`|`false`|If set, disables SSH session resumption.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
-|`--pid-file`|none|Full path to the PID file. By default no PID file will be created.|
-|`--proxy-command`|none|The command to run as the SSH ProxyCommand, such as `fdpass-teleport`. Defaults to this tbot binary. Repeatable to add additional args.|
-|`--proxy-server`|none|Address of the Teleport Proxy Server.|
-|`--proxy-templates-path`|none|A path to a proxy template config file. Optional.|
-|`--reader-group`|none|An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
-|`--reader-user`|none|An additional user name or UID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
-|`--registration-secret`|none|For bound keypair joining, specifies a registration secret for use at first join.|
-|`--registration-secret-path`|none|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
-|`--renewal-interval`|none|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
-|`--static-key-path`|none|For bound keypair joining, specifies a path to a static key.|
-|`--storage`|none|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
-|`--token`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`--[no-]scoped`|`false`|Indicates whether tbot should run in scoped mode. This is required when authenticating as a scoped Bot.|
+|`--pid-file`|*no default*|Full path to the PID file. By default no PID file will be created.|
+|`--proxy-command`|*no default*|The command to run as the SSH ProxyCommand, such as `fdpass-teleport`. Defaults to this tbot binary. Repeatable to add additional args.|
+|`--proxy-server`|*no default*|Address of the Teleport Proxy Server.|
+|`--proxy-templates-path`|*no default*|A path to a proxy template config file. Optional.|
+|`--reader-group`|*no default*|An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
+|`--reader-user`|*no default*|An additional user name or UID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
+|`--registration-secret`|*no default*|For bound keypair joining, specifies a registration secret for use at first join.|
+|`--registration-secret-path`|*no default*|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
+|`--renewal-interval`|*no default*|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
+|`--static-key-path`|*no default*|For bound keypair joining, specifies a path to a static key.|
+|`--storage`|*no default*|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
+|`--token`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
 
 ## tbot start workload-identity-api
 
@@ -1339,32 +1365,33 @@ Environment variables:
 
 |Variable|Default|Description|
 |---|---|---|
-|`TELEPORT_AUTH_SERVER`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`TELEPORT_BOT_TOKEN`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
-|`TELEPORT_PROXY`|none|Address of the Teleport Proxy Server.|
+|`TELEPORT_AUTH_SERVER`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`TELEPORT_BOT_TOKEN`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`TELEPORT_PROXY`|*no default*|Address of the Teleport Proxy Server.|
 
 Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`-a`, `--auth-server`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`--ca-pin`|none|CA pin to validate the Teleport Auth Server; used on first connect.|
-|`--certificate-ttl`|none|TTL of short-lived machine certificates.|
-|`--diag-addr`|none|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|none|Method to use to join the cluster. (azure, azure_devops, bitbucket, circleci, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm, terraform_cloud, oracle, bound_keypair, env0)|
-|`--join-uri`|none|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
-|`--label-selector`|none|A label-based selector for which workload identities to issue. Multiple labels can be provided using ','. Mutually exclusive with --name-selector.|
-|`--listen`|none|The address on which the workload identity API should listen. This should either be prefixed with 'unix://' or 'tcp://'.|
-|`--name-selector`|none|The name of the workload identity to issue. Mutually exclusive with --label-selector.|
+|`-a`, `--auth-server`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`--ca-pin`|*no default*|CA pin to validate the Teleport Auth Server; used on first connect.|
+|`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
+|`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
+|`--label-selector`|*no default*|A label-based selector for which workload identities to issue. Multiple labels can be provided using ','. Mutually exclusive with --name-selector.|
+|`--listen`|*no default*|The address on which the workload identity API should listen. This should either be prefixed with 'unix://' or 'tcp://'.|
+|`--name-selector`|*no default*|The name of the workload identity to issue. Mutually exclusive with --label-selector.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
-|`--pid-file`|none|Full path to the PID file. By default no PID file will be created.|
-|`--proxy-server`|none|Address of the Teleport Proxy Server.|
-|`--registration-secret`|none|For bound keypair joining, specifies a registration secret for use at first join.|
-|`--registration-secret-path`|none|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
-|`--renewal-interval`|none|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
-|`--static-key-path`|none|For bound keypair joining, specifies a path to a static key.|
-|`--storage`|none|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
-|`--token`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`--[no-]scoped`|`false`|Indicates whether tbot should run in scoped mode. This is required when authenticating as a scoped Bot.|
+|`--pid-file`|*no default*|Full path to the PID file. By default no PID file will be created.|
+|`--proxy-server`|*no default*|Address of the Teleport Proxy Server.|
+|`--registration-secret`|*no default*|For bound keypair joining, specifies a registration secret for use at first join.|
+|`--registration-secret-path`|*no default*|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
+|`--renewal-interval`|*no default*|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
+|`--static-key-path`|*no default*|For bound keypair joining, specifies a path to a static key.|
+|`--storage`|*no default*|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
+|`--token`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
 
 ## tbot start workload-identity-aws-roles-anywhere
 
@@ -1381,40 +1408,41 @@ Environment variables:
 
 |Variable|Default|Description|
 |---|---|---|
-|`TELEPORT_AUTH_SERVER`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`TELEPORT_BOT_TOKEN`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
-|`TELEPORT_PROXY`|none|Address of the Teleport Proxy Server.|
+|`TELEPORT_AUTH_SERVER`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`TELEPORT_BOT_TOKEN`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`TELEPORT_PROXY`|*no default*|Address of the Teleport Proxy Server.|
 
 Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`-a`, `--auth-server`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`--ca-pin`|none|CA pin to validate the Teleport Auth Server; used on first connect.|
-|`--certificate-ttl`|none|TTL of short-lived machine certificates.|
-|`--destination`|none|A destination URI, such as file:///foo/bar|
-|`--diag-addr`|none|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|none|Method to use to join the cluster. (azure, azure_devops, bitbucket, circleci, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm, terraform_cloud, oracle, bound_keypair, env0)|
-|`--join-uri`|none|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
-|`--label-selector`|none|A label-based selector for which workload identities to issue. Multiple labels can be provided using ','. Mutually exclusive with --name-selector.|
-|`--name-selector`|none|The name of the workload identity to issue. Mutually exclusive with --label-selector.|
+|`-a`, `--auth-server`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`--ca-pin`|*no default*|CA pin to validate the Teleport Auth Server; used on first connect.|
+|`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
+|`--destination`|*no default*|A destination URI, such as file:///foo/bar|
+|`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
+|`--label-selector`|*no default*|A label-based selector for which workload identities to issue. Multiple labels can be provided using ','. Mutually exclusive with --name-selector.|
+|`--name-selector`|*no default*|The name of the workload identity to issue. Mutually exclusive with --label-selector.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
-|`--pid-file`|none|Full path to the PID file. By default no PID file will be created.|
-|`--profile-arn`|none|The ARN of the Roles Anywhere profile to use.|
-|`--proxy-server`|none|Address of the Teleport Proxy Server.|
-|`--reader-group`|none|An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
-|`--reader-user`|none|An additional user name or UID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
-|`--region`|none|The AWS region to use. If unset, value will be used from the AWS config or the AWS_REGION environment variable.|
-|`--registration-secret`|none|For bound keypair joining, specifies a registration secret for use at first join.|
-|`--registration-secret-path`|none|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
-|`--renewal-interval`|none|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
-|`--role-arn`|none|The ARN of the role to assume.|
-|`--session-duration`|none|The duration of the resulting AWS session and credentials. This may be up to 12 hours. When unset, this defaults to 6 hours.|
-|`--session-renewal-interval`|none|How often the session should be renewed. This should be less than the session duration. When unset, this defaults to 1 hour.|
-|`--static-key-path`|none|For bound keypair joining, specifies a path to a static key.|
-|`--storage`|none|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
-|`--token`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
-|`--trust-anchor-arn`|none|The ARN of the Roles Anywhere trust anchor to use.|
+|`--[no-]scoped`|`false`|Indicates whether tbot should run in scoped mode. This is required when authenticating as a scoped Bot.|
+|`--pid-file`|*no default*|Full path to the PID file. By default no PID file will be created.|
+|`--profile-arn`|*no default*|The ARN of the Roles Anywhere profile to use.|
+|`--proxy-server`|*no default*|Address of the Teleport Proxy Server.|
+|`--reader-group`|*no default*|An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
+|`--reader-user`|*no default*|An additional user name or UID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
+|`--region`|*no default*|The AWS region to use. If unset, value will be used from the AWS config or the AWS_REGION environment variable.|
+|`--registration-secret`|*no default*|For bound keypair joining, specifies a registration secret for use at first join.|
+|`--registration-secret-path`|*no default*|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
+|`--renewal-interval`|*no default*|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
+|`--role-arn`|*no default*|The ARN of the role to assume.|
+|`--session-duration`|*no default*|The duration of the resulting AWS session and credentials. This may be up to 12 hours. When unset, this defaults to 6 hours.|
+|`--session-renewal-interval`|*no default*|How often the session should be renewed. This should be less than the session duration. When unset, this defaults to 1 hour.|
+|`--static-key-path`|*no default*|For bound keypair joining, specifies a path to a static key.|
+|`--storage`|*no default*|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
+|`--token`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`--trust-anchor-arn`|*no default*|The ARN of the Roles Anywhere trust anchor to use.|
 
 ## tbot start workload-identity-jwt
 
@@ -1430,35 +1458,36 @@ Environment variables:
 
 |Variable|Default|Description|
 |---|---|---|
-|`TELEPORT_AUTH_SERVER`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`TELEPORT_BOT_TOKEN`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
-|`TELEPORT_PROXY`|none|Address of the Teleport Proxy Server.|
+|`TELEPORT_AUTH_SERVER`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`TELEPORT_BOT_TOKEN`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`TELEPORT_PROXY`|*no default*|Address of the Teleport Proxy Server.|
 
 Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`-a`, `--auth-server`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`--audience`|none|Specify the audiences to include in the JWT. At least one audience must be specified.|
-|`--ca-pin`|none|CA pin to validate the Teleport Auth Server; used on first connect.|
-|`--certificate-ttl`|none|TTL of short-lived machine certificates.|
-|`--destination`|none|A destination URI, such as file:///foo/bar|
-|`--diag-addr`|none|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|none|Method to use to join the cluster. (azure, azure_devops, bitbucket, circleci, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm, terraform_cloud, oracle, bound_keypair, env0)|
-|`--join-uri`|none|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
-|`--label-selector`|none|A label-based selector for which workload identities to issue. Multiple labels can be provided using ','. Mutually exclusive with --name-selector.|
-|`--name-selector`|none|The name of the workload identity to issue. Mutually exclusive with --label-selector.|
+|`-a`, `--auth-server`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`--audience`|*no default*|Specify the audiences to include in the JWT. At least one audience must be specified.|
+|`--ca-pin`|*no default*|CA pin to validate the Teleport Auth Server; used on first connect.|
+|`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
+|`--destination`|*no default*|A destination URI, such as file:///foo/bar|
+|`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
+|`--label-selector`|*no default*|A label-based selector for which workload identities to issue. Multiple labels can be provided using ','. Mutually exclusive with --name-selector.|
+|`--name-selector`|*no default*|The name of the workload identity to issue. Mutually exclusive with --label-selector.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
-|`--pid-file`|none|Full path to the PID file. By default no PID file will be created.|
-|`--proxy-server`|none|Address of the Teleport Proxy Server.|
-|`--reader-group`|none|An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
-|`--reader-user`|none|An additional user name or UID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
-|`--registration-secret`|none|For bound keypair joining, specifies a registration secret for use at first join.|
-|`--registration-secret-path`|none|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
-|`--renewal-interval`|none|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
-|`--static-key-path`|none|For bound keypair joining, specifies a path to a static key.|
-|`--storage`|none|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
-|`--token`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`--[no-]scoped`|`false`|Indicates whether tbot should run in scoped mode. This is required when authenticating as a scoped Bot.|
+|`--pid-file`|*no default*|Full path to the PID file. By default no PID file will be created.|
+|`--proxy-server`|*no default*|Address of the Teleport Proxy Server.|
+|`--reader-group`|*no default*|An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
+|`--reader-user`|*no default*|An additional user name or UID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
+|`--registration-secret`|*no default*|For bound keypair joining, specifies a registration secret for use at first join.|
+|`--registration-secret-path`|*no default*|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
+|`--renewal-interval`|*no default*|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
+|`--static-key-path`|*no default*|For bound keypair joining, specifies a path to a static key.|
+|`--storage`|*no default*|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
+|`--token`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
 
 ## tbot start workload-identity-x509
 
@@ -1474,35 +1503,36 @@ Environment variables:
 
 |Variable|Default|Description|
 |---|---|---|
-|`TELEPORT_AUTH_SERVER`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`TELEPORT_BOT_TOKEN`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
-|`TELEPORT_PROXY`|none|Address of the Teleport Proxy Server.|
+|`TELEPORT_AUTH_SERVER`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`TELEPORT_BOT_TOKEN`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`TELEPORT_PROXY`|*no default*|Address of the Teleport Proxy Server.|
 
 Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`-a`, `--auth-server`|none|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
-|`--ca-pin`|none|CA pin to validate the Teleport Auth Server; used on first connect.|
-|`--certificate-ttl`|none|TTL of short-lived machine certificates.|
-|`--destination`|none|A destination URI, such as file:///foo/bar|
-|`--diag-addr`|none|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
-|`--join-method`|none|Method to use to join the cluster. (azure, azure_devops, bitbucket, circleci, gcp, github, gitlab, iam, kubernetes, spacelift, token, tpm, terraform_cloud, oracle, bound_keypair, env0)|
-|`--join-uri`|none|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
-|`--label-selector`|none|A label-based selector for which workload identities to issue. Multiple labels can be provided using ','. Mutually exclusive with --name-selector.|
-|`--name-selector`|none|The name of the workload identity to issue. Mutually exclusive with --label-selector.|
+|`-a`, `--auth-server`|*no default*|Address of the Teleport Auth Server. Prefer using --proxy-server where possible.|
+|`--ca-pin`|*no default*|CA pin to validate the Teleport Auth Server; used on first connect.|
+|`--certificate-ttl`|*no default*|TTL of short-lived machine certificates.|
+|`--destination`|*no default*|A destination URI, such as file:///foo/bar|
+|`--diag-addr`|*no default*|If set and the bot is in debug mode, a diagnostics service will listen on specified address.|
+|`--join-method`|*no default* (one of: `azure`, `azure_devops`, `bitbucket`, `circleci`, `gcp`, `github`, `gitlab`, `iam`, `kubernetes`, `spacelift`, `token`, `tpm`, `terraform_cloud`, `oracle`, `bound_keypair`, `env0`)|Method to use to join the cluster.|
+|`--join-uri`|*no default*|An optional URI with joining and authentication parameters. Individual flags for proxy, join method, token, etc may be used instead.|
+|`--label-selector`|*no default*|A label-based selector for which workload identities to issue. Multiple labels can be provided using ','. Mutually exclusive with --name-selector.|
+|`--name-selector`|*no default*|The name of the workload identity to issue. Mutually exclusive with --label-selector.|
 |`--[no-]include-federated-trust-bundles`|`false`|If set, include federated trust bundles in the output.|
 |`--[no-]oneshot`|`false`|If set, quit after the first renewal.|
-|`--pid-file`|none|Full path to the PID file. By default no PID file will be created.|
-|`--proxy-server`|none|Address of the Teleport Proxy Server.|
-|`--reader-group`|none|An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
-|`--reader-user`|none|An additional user name or UID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
-|`--registration-secret`|none|For bound keypair joining, specifies a registration secret for use at first join.|
-|`--registration-secret-path`|none|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
-|`--renewal-interval`|none|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
-|`--static-key-path`|none|For bound keypair joining, specifies a path to a static key.|
-|`--storage`|none|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
-|`--token`|none|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
+|`--[no-]scoped`|`false`|Indicates whether tbot should run in scoped mode. This is required when authenticating as a scoped Bot.|
+|`--pid-file`|*no default*|Full path to the PID file. By default no PID file will be created.|
+|`--proxy-server`|*no default*|Address of the Teleport Proxy Server.|
+|`--reader-group`|*no default*|An additional group name or GID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
+|`--reader-user`|*no default*|An additional user name or UID that should be allowed by ACLs to read this destination. Only valid for file destinations on Linux.|
+|`--registration-secret`|*no default*|For bound keypair joining, specifies a registration secret for use at first join.|
+|`--registration-secret-path`|*no default*|For bound keypair joining, specifies a file containing a registration secret for use at first join.|
+|`--renewal-interval`|*no default*|Interval at which short-lived certificates are renewed; must be less than the certificate TTL.|
+|`--static-key-path`|*no default*|For bound keypair joining, specifies a path to a static key.|
+|`--storage`|*no default*|A destination URI for tbot's internal storage, e.g. file:///foo/bar|
+|`--token`|*no default*|A bot join token or path to file with token value, if attempting to onboard a new bot; used on first connect.|
 
 ## tbot tpm identify
 
@@ -1538,7 +1568,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--diag-addr`|none|The configured --diag-addr of a running bot, in host:port form.|
-|`--service`|none|An optional name. If set, waits for only the named service to become healthy. If unset, waits for all services.|
-|`--timeout`|none|An optional timeout. If set, returns an error if all specified services have reported healthy by the timeout.|
+|`--diag-addr`|*no default*|The configured --diag-addr of a running bot, in host:port form.|
+|`--service`|*no default*|An optional name. If set, waits for only the named service to become healthy. If unset, waits for all services.|
+|`--timeout`|*no default*|An optional timeout. If set, returns an error if not all specified services have reported healthy by the timeout.|
 

@@ -29,24 +29,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestAccessRequestSearch(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.K8s: {Enabled: true},
-			},
-		},
-	},
-	)
 	ctx := context.Background()
 	const (
 		rootClusterName = "root-cluster"
@@ -56,6 +45,7 @@ func TestAccessRequestSearch(t *testing.T) {
 	)
 	s := newTestSuite(t,
 		withRootConfigFunc(func(cfg *servicecfg.Config) {
+			cfg.Modules = modulestest.EnterpriseModules()
 			cfg.InsecureMode = true
 			cfg.Auth.ClusterName.SetClusterName(rootClusterName)
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
@@ -67,6 +57,7 @@ func TestAccessRequestSearch(t *testing.T) {
 		withLeafCluster(),
 		withLeafConfigFunc(
 			func(cfg *servicecfg.Config) {
+				cfg.Modules = modulestest.EnterpriseModules()
 				cfg.InsecureMode = true
 				cfg.Auth.ClusterName.SetClusterName(leafClusterName)
 				cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)

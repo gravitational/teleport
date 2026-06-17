@@ -33,7 +33,7 @@ func (a *Server) validateSpaceliftToken(
 	pt provision.Token,
 	idToken []byte,
 ) (any, *workloadidentityv1.JoinAttrs, error) {
-	claims, err := spacelift.CheckIDToken(ctx, &spacelift.CheckIDTokenParams{
+	claims, err := spacelift.CheckIDToken(ctx, a.cfg.Modules, &spacelift.CheckIDTokenParams{
 		ProvisionToken: pt,
 		IDToken:        idToken,
 		Validator:      a.cfg.AuthService.GetSpaceliftIDTokenValidator(),
@@ -44,9 +44,9 @@ func (a *Server) validateSpaceliftToken(
 	// events remain useful.
 	var workloadIDAttrs *workloadidentityv1.JoinAttrs
 	if claims != nil {
-		workloadIDAttrs = &workloadidentityv1.JoinAttrs{
+		workloadIDAttrs = workloadidentityv1.JoinAttrs_builder{
 			Spacelift: claims.JoinAttrs(),
-		}
+		}.Build()
 	}
 
 	return claims, workloadIDAttrs, trace.Wrap(err)

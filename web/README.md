@@ -16,7 +16,7 @@ You can make production builds locally, or you can use Docker to do that.
 
 ### Local Build
 
-Install Node.js (you can take the version by executing 
+Install Node.js (you can take the version by executing
 `make -C build.assets print-node-version` from the root directory).
 After that, run `corepack enable pnpm` to enable installing a package manager.
 
@@ -35,7 +35,7 @@ To build the Teleport open source version
 pnpm build-ui-oss
 ```
 
-The resulting output will be in the `webassets` folder. By default, the webassets are compressed with Brotli. If you 
+The resulting output will be in the `webassets` folder. By default, the webassets are compressed with Brotli. If you
 want to disable this for faster local builds, set the environment variable `VITE_DISABLE_COMPRESSION` to any value:
 
 ```
@@ -260,7 +260,7 @@ not own.
 We use [pnpm workspaces](https://pnpm.io/workspaces) to manage dependencies.
 
 To add a package to the workspace, run `pnpm --filter=<workspace-name> add <package-name>`.
-Alternatively, you can add a line to the workspace's `package.json` file and then 
+Alternatively, you can add a line to the workspace's `package.json` file and then
 run `pnpm install` (or `pnpm i`) from the root of this repository.
 
 Dependencies should generally be added to the specific workspaces that use them.
@@ -289,5 +289,6 @@ When a new event is added to Teleport, the web UI has to be updated to display i
 4. Define an icon to the event on [`EventIconMap`](https://github.com/gravitational/teleport/blob/master/web/packages/teleport/src/Audit/EventList/EventTypeCell.tsx).
 5. Add an entry to the [`events`](https://github.com/gravitational/teleport/blob/master/web/packages/teleport/src/Audit/fixtures/index.ts) array so it will show up on the [`AllPossibleEvents` story](https://github.com/gravitational/teleport/blob/master/web/packages/teleport/src/Audit/Audit.story.tsx). Keep in mind that we generate the audit event reference in the documentation from audit event fixtures, so the fixture should be something you are comfortable including as an example in public-facing documentation (see the [generator](https://github.com/gravitational/teleport/tree/master/web/packages/teleport/src/services/audit/gen-event-reference)).
 6. Check that the fixture is rendered in storybook, then update the snapshot for `Audit.story.test.tsx` using `pnpm test-update-snapshot`.
+7. Run `make audit-event-reference`
 
 You can see an example in [this PR](https://github.com/gravitational/teleport/pull/39872).

@@ -52,7 +52,7 @@ func NewDatabaseCommand(parentCmd *kingpin.CmdClause, action MutatorAction, mode
 	c.sharedDestinationArgs = newSharedDestinationArgs(cmd)
 	c.genericMutatorHandler = newGenericMutatorHandler(cmd, c, action)
 
-	cmd.Flag("format", "The format of the credentials to generate. If specified, must be `tls`, `mongo` or `cockroach`.").Default("").EnumVar(&c.Format, database.SupportedDatabaseFormatStrings()...)
+	cmd.Flag("format", "The format of the credentials to generate.").Default("").EnumVar(&c.Format, database.SupportedDatabaseFormatStrings()...)
 	cmd.Flag("service", "The database service name.").Required().StringVar(&c.Service)
 	cmd.Flag("username", "The database user name.").Required().StringVar(&c.Username)
 	cmd.Flag("database", "The name of the database available in the requested database service.").Required().StringVar(&c.Database)

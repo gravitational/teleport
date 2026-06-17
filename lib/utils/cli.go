@@ -30,7 +30,6 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"text/template"
 	"unicode"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -344,20 +343,7 @@ func InitCLIParser(appName, appHelp string) (app *kingpin.Application) {
 	// write --help output to stdout instead of stderr
 	app.UsageWriter(os.Stdout)
 
-	// set our own help template
-	app.UsageFuncs(template.FuncMap{
-		"CommandPrintfWidth": func(cmds []*kingpin.CmdModel) int {
-			cmdWidth := defaultCommandPrintfWidth
-			for _, cmd := range cmds {
-				if cmd.Hidden {
-					continue
-				}
-				cmdWidth = max(cmdWidth, len(cmd.Name))
-			}
-			return cmdWidth
-		},
-	})
-	return app.UsageTemplate(defaultUsageTemplate)
+	return app.UsageRenderer(renderCompactUsage)
 }
 
 // InitHiddenCLIParser initializes a `kingpin.Application` that does not terminate the application
@@ -447,65 +433,76 @@ func needsQuoting(text string) bool {
 // defaultCommandPrintfWidth is the default command printf width.
 const defaultCommandPrintfWidth = 12
 
-// defaultUsageTemplate is a fmt format that defines the usage template with
-// compactly formatted commands. Should be only used in createUsageTemplate.
-const defaultUsageTemplate = `{{define "FormatCommand" -}}
-{{if .FlagSummary}} {{.FlagSummary}}{{end -}}
-{{range .Args}} {{if not .Required}}[{{end}}<{{.Name}}>{{if .Value|IsCumulative}}...{{end}}{{if not .Required}}]{{end}}{{end -}}
-{{end -}}
+// renderCompactUsage is a kingpin UsageRenderer used by all binaries to
+// output usage text. It uses a kingpin UsageRenderer instead of
+// UsageTemplate/UsageFuncs in order to avoid text/template (and reflect.MethodByName)
+// so that the linker can enable dead-code elimination.
+func renderCompactUsage(w io.Writer, ctx *kingpin.UsageContext) error {
+	width := ctx.Width
 
-{{define "FormatCommands" -}}
-{{- $cmdWidth := .Commands | CommandPrintfWidth -}}
-{{range .Commands -}}
-{{if not .Hidden -}}
-{{"  "}}{{printf (printf "%%-%ds" $cmdWidth) .Name}}{{if .Default}} (Default){{end}} {{ .Help }}
-{{end -}}
-{{end -}}
-{{end -}}
+	if ctx.Context.SelectedCommand != nil {
+		cmd := ctx.Context.SelectedCommand
+		fmt.Fprintf(w, "usage: %s %s", ctx.App.Name, cmd.String())
+		kingpin.WriteFormatUsage(w, cmd.FlagGroupModel, cmd.ArgGroupModel, cmd.CmdGroupModel, cmd.Help, width)
+	} else {
+		fmt.Fprintf(w, "Usage: %s", ctx.App.Name)
+		kingpin.WriteFormatUsage(w, ctx.App.FlagGroupModel, ctx.App.ArgGroupModel, ctx.App.CmdGroupModel, ctx.App.Help, width)
+	}
+	fmt.Fprintln(w)
 
-{{define "FormatUsage" -}}
-{{template "FormatCommand" .}}{{if .Commands}} <command> [<args> ...]{{end}}
-{{if .Help}}
-{{.Help|Wrap 0 -}}
-{{end -}}
+	if len(ctx.Context.Flags) > 0 {
+		fmt.Fprintln(w, "Flags:")
+		kingpin.FormatTwoColumns(w, ctx.Indent, 2, width, kingpin.FlagsToTwoColumns(ctx.Context.Flags))
+		fmt.Fprintln(w)
+	}
+	if len(ctx.Context.Args) > 0 {
+		fmt.Fprintln(w, "Args:")
+		kingpin.FormatTwoColumns(w, ctx.Indent, 2, width, kingpin.ArgsToTwoColumns(ctx.Context.Args))
+		fmt.Fprintln(w)
+	}
 
-{{end -}}
+	writeCommands := func(cmds []*kingpin.CmdModel) {
+		cmdWidth := defaultCommandPrintfWidth
+		for _, cmd := range cmds {
+			if cmd.Hidden {
+				continue
+			}
+			cmdWidth = max(cmdWidth, len(cmd.Name))
+		}
+		for _, cmd := range cmds {
+			if cmd.Hidden {
+				continue
+			}
+			fmt.Fprintf(w, "  %-*s", cmdWidth, cmd.Name)
+			if cmd.Default {
+				fmt.Fprint(w, " (Default)")
+			}
+			fmt.Fprintf(w, " %s\n", cmd.Help)
+		}
+	}
 
-{{if .Context.SelectedCommand -}}
-usage: {{.App.Name}} {{.Context.SelectedCommand}}{{template "FormatUsage" .Context.SelectedCommand}}
-{{else -}}
-Usage: {{.App.Name}}{{template "FormatUsage" .App}}
-{{end -}}
-{{if .Context.Flags -}}
-Flags:
-{{.Context.Flags|FlagsToTwoColumns|FormatTwoColumns}}
-{{end -}}
-{{if .Context.Args -}}
-Args:
-{{.Context.Args|ArgsToTwoColumns|FormatTwoColumns}}
-{{end -}}
-{{if .Context.SelectedCommand -}}
+	if ctx.Context.SelectedCommand != nil {
+		if ctx.Context.SelectedCommand.CmdGroupModel != nil && len(ctx.Context.SelectedCommand.Commands) > 0 {
+			fmt.Fprintln(w, "Commands:")
+			writeCommands(ctx.Context.SelectedCommand.Commands)
+			fmt.Fprintln(w)
+		}
+		if len(ctx.Context.SelectedCommand.Aliases) > 0 {
+			fmt.Fprintln(w, "Aliases:")
+			for _, alias := range ctx.Context.SelectedCommand.Aliases {
+				fmt.Fprintln(w, alias)
+			}
+			fmt.Fprintln(w)
+		}
+	} else if ctx.App.CmdGroupModel != nil && len(ctx.App.Commands) > 0 {
+		fmt.Fprintln(w, "Commands:")
+		writeCommands(ctx.App.Commands)
+		fmt.Fprintln(w)
+		fmt.Fprintf(w, "Try '%s help [command]' to get help for a given command.\n\n", ctx.App.Name)
+	}
 
-{{ if .Context.SelectedCommand.Commands -}}
-Commands:
-{{if .Context.SelectedCommand.Commands -}}
-{{template "FormatCommands" .Context.SelectedCommand}}
-{{end -}}
-{{end -}}
-
-{{else if .App.Commands -}}
-Commands:
-{{template "FormatCommands" .App}}
-Try '{{.App.Name}} help [command]' to get help for a given command.
-{{end -}}
-
-{{ if .Context.SelectedCommand  -}}
-Aliases:
-{{ range .Context.SelectedCommand.Aliases -}}
-{{ . }}
-{{end -}}
-{{end}}
-`
+	return nil
+}
 
 // IsPredicateError determines if the error is from failing to parse predicate expression
 // by checking if the error as a string contains predicate keywords.

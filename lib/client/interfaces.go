@@ -129,6 +129,12 @@ type KeyRing struct {
 	// TLSCert is a PEM encoded client TLS x509 certificate.
 	// It's used to authenticate to the Teleport APIs.
 	TLSCert []byte
+	// AccessGraphTLSCert is a PEM encoded client TLS x509 certificate used to
+	// authenticate directly to the proxy for Access Graph API queries. It
+	// shares the same private key as TLSCert. The proxy enforces a specific
+	// identity shape on this certificate (Usage=UsageAccessGraphAPIOnly plus a
+	// non-empty WebSessionID); see lib/web.Handler.AuthenticateReqForAccessGraphAPI.
+	AccessGraphTLSCert []byte
 
 	// KubeTLSCredentials are TLS credentials for individual kubernetes clusters.
 	// Map key is a kubernetes cluster name.
@@ -352,6 +358,38 @@ func (k *KeyRing) clientCertPoolPEM(clusters ...string) ([]byte, error) {
 	return certPoolPEM.Bytes(), nil
 }
 
+// AccessGraphClientTLSConfig returns a TLS config that can be used to
+// authenticate directly to the proxy for Access Graph API queries.
+func (k *KeyRing) AccessGraphClientTLSConfig(cipherSuites []uint16) (*tls.Config, error) {
+	if len(k.AccessGraphTLSCert) == 0 {
+		return nil, trace.NotFound("Access Graph TLS certificate not found")
+	}
+	return k.proxyClientTLSConfig(cipherSuites, TLSCredential{
+		PrivateKey: k.TLSPrivateKey,
+		Cert:       k.AccessGraphTLSCert,
+	})
+}
+
+// proxyClientTLSConfig is similar to clientTLSConfig but does not set RootCAs,
+// since the caller communicates directly with the public proxy and relies on
+// the system CA bundle to verify its public certificate.
+//
+// TODO: accept a custom RootCAs pool so self-hosted clusters whose web cert
+// isn't in the machine's system trust store (ephemeral dev environments, CI
+// runners outside MDM, etc.) can pass their own bundle — mirrors the
+// --ca-bundle / --insecure escape hatches used elsewhere in the client.
+func (k *KeyRing) proxyClientTLSConfig(cipherSuites []uint16, cred TLSCredential) (*tls.Config, error) {
+	tlsCert, err := cred.TLSCertificate()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsConfig := utils.TLSConfig(cipherSuites)
+	tlsConfig.Certificates = append(tlsConfig.Certificates, tlsCert)
+	tlsConfig.ServerName = k.ProxyHost
+	tlsConfig.MinVersion = tls.VersionTLS12
+	return tlsConfig, nil
+}
+
 // ProxyClientSSHConfig returns an ssh.ClientConfig with SSH credentials from this
 // KeyRing and HostKeyCallback matching SSH CAs in the KeyRing.
 //
@@ -484,6 +522,15 @@ func (k *KeyRing) TeleportTLSCertificate() (*x509.Certificate, error) {
 	return tlsca.ParseCertificatePEM(k.TLSCert)
 }
 
+// AccessGraphTLSCertificate returns the parsed x509 certificate for
+// authentication directly to the proxy for Access Graph API queries.
+func (k *KeyRing) AccessGraphTLSCertificate() (*x509.Certificate, error) {
+	if len(k.AccessGraphTLSCert) == 0 {
+		return nil, trace.NotFound("Access Graph TLS certificate not found")
+	}
+	return tlsca.ParseCertificatePEM(k.AccessGraphTLSCert)
+}
+
 // KubeX509Cert returns the parsed x509 certificate for authentication against
 // a named kubernetes cluster.
 func (k *KeyRing) KubeX509Cert(kubeClusterName string) (*x509.Certificate, error) {
@@ -562,6 +609,15 @@ func (k *KeyRing) AppTLSCertificates() (certs []x509.Certificate, err error) {
 // TeleportTLSCertValidBefore returns the time of the TLS cert expiration
 func (k *KeyRing) TeleportTLSCertValidBefore() (t time.Time, err error) {
 	cert, err := k.TeleportTLSCertificate()
+	if err != nil {
+		return t, trace.Wrap(err)
+	}
+	return cert.NotAfter, nil
+}
+
+// AccessGraphTLSCertValidBefore returns the time of the Access Graph TLS cert expiration
+func (k *KeyRing) AccessGraphTLSCertValidBefore() (t time.Time, err error) {
+	cert, err := k.AccessGraphTLSCertificate()
 	if err != nil {
 		return t, trace.Wrap(err)
 	}

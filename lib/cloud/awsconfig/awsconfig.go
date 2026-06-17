@@ -392,7 +392,7 @@ func buildConfigOptions(region string, cred aws.CredentialsProvider, opts *optio
 		awsconfig.WithCredentialsProvider(cred),
 		awsconfig.WithCredentialsCacheOptions(awsCredentialsCacheOptions),
 	}
-	if modules.GetModules().IsBoringBinary() {
+	if modules.GetModules().IsFIPSBuild() {
 		configOpts = append(configOpts, awsconfig.WithUseFIPSEndpoint(aws.FIPSEndpointStateEnabled))
 	}
 	if opts.customRetryer != nil {
@@ -537,23 +537,23 @@ func (p *integrationCredentialsProvider) Retrieve(ctx context.Context) (aws.Cred
 			return aws.Credentials{}, trace.BadParameter("missing roles anywhere integration client")
 		}
 
-		resp, err := p.rolesAnywhereIntegrationClient.GenerateAWSRACredentials(ctx, &integrationpb.GenerateAWSRACredentialsRequest{
+		resp, err := p.rolesAnywhereIntegrationClient.GenerateAWSRACredentials(ctx, integrationpb.GenerateAWSRACredentialsRequest_builder{
 			Integration:                   p.integrationName,
 			ProfileArn:                    p.rolesAnywhereProfileMetadata.ProfileARN,
 			ProfileAcceptsRoleSessionName: p.rolesAnywhereProfileMetadata.ProfileAcceptsRoleSessionName,
 			RoleArn:                       p.rolesAnywhereProfileMetadata.RoleARN,
 			SubjectName:                   p.rolesAnywhereProfileMetadata.IdentityUsername,
 			SessionMaxDuration:            durationpb.New(p.rolesAnywhereProfileMetadata.SessionDuration),
-		})
+		}.Build())
 		if err != nil {
 			return aws.Credentials{}, trace.Wrap(err)
 		}
 
 		return aws.Credentials{
-			AccessKeyID:     resp.AccessKeyId,
-			SecretAccessKey: resp.SecretAccessKey,
-			SessionToken:    resp.SessionToken,
-			Expires:         resp.Expiration.AsTime(),
+			AccessKeyID:     resp.GetAccessKeyId(),
+			SecretAccessKey: resp.GetSecretAccessKey(),
+			SessionToken:    resp.GetSessionToken(),
+			Expires:         resp.GetExpiration().AsTime(),
 			Source:          awsra.AWSCredentialsSourceRolesAnywhere,
 		}, nil
 

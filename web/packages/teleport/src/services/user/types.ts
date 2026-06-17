@@ -21,6 +21,8 @@ import { MfaChallengeResponse } from 'teleport/services/mfa';
 
 export type AuthType = 'local' | 'sso' | 'passwordless';
 
+export type WebTerminalClipboardMode = '' | 'unrestricted' | 'no-copy';
+
 export interface AccessStrategy {
   type: 'optional' | 'always' | 'reason';
   prompt: string;
@@ -110,6 +112,10 @@ export interface Acl {
   accessMonitoringRule: Access;
   contacts: Access;
   fileTransferAccess: boolean;
+  /**
+   * webTerminalClipboardMode determines clipboard behavior in the Web UI terminal.
+   */
+  webTerminalClipboardMode: WebTerminalClipboardMode;
   gitServers: Access;
   accessGraphSettings: Access;
   botInstances: Access;
@@ -123,6 +129,7 @@ export interface Acl {
   inferencePolicy: Access;
   inferenceModel: Access;
   inferenceSecret: Access;
+  beam: Access;
 }
 
 // AllTraits represent all the traits defined for a user.
@@ -133,6 +140,10 @@ export type UserOrigin = 'okta' | 'saml' | 'scim';
 export interface User {
   // name is the teleport username.
   name: string;
+  // displayPrimary is the human-readable name resolved server-side.
+  displayPrimary?: string;
+  // displaySecondary is supporting display context resolved server-side.
+  displaySecondary?: string;
   // roles is the list of roles user is assigned to.
   roles: string[];
   // authType describes how the user authenticated

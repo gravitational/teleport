@@ -51,13 +51,13 @@ import (
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/parse"
 	"github.com/gravitational/teleport/session/networking/x11"
 	"github.com/gravitational/teleport/session/pam/pamcfg"
 )
@@ -339,7 +339,7 @@ func makeSampleSSHConfig(conf *servicecfg.Config, flags SampleFlags, enabled boo
 	if enabled {
 		s.EnabledFlag = "yes"
 		s.ListenAddress = conf.SSH.Addr.Addr
-		labels, err := client.ParseLabelSpec(flags.NodeLabels)
+		labels, err := parse.LabelSelectorSpec(flags.NodeLabels)
 		if err != nil {
 			return s, trace.Wrap(err)
 		}
@@ -461,13 +461,14 @@ func roleMapFromFlags(flags SampleFlags) map[string]bool {
 	return m
 }
 
-// DebugDumpToYAML allows for quick YAML dumping of the config
-func (conf *FileConfig) DebugDumpToYAML() string {
-	bytes, err := yaml.Marshal(&conf)
+// YAMLString returns the YAML representation of the config.
+func (conf *FileConfig) YAMLString() (string, error) {
+	raw, err := yaml.Marshal(&conf)
 	if err != nil {
-		panic(err)
+		return "", err
 	}
-	return string(bytes)
+
+	return string(raw), nil
 }
 
 // CheckAndSetDefaults sets defaults and ensures that the ciphers, kex
@@ -1133,24 +1134,24 @@ func (t StaticScopedTokens) Parse() (*joiningv1.StaticScopedTokens, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		scopedToken := &joiningv1.ScopedToken{
+		scopedToken := joiningv1.ScopedToken_builder{
 			Version: types.V1,
 			Kind:    types.KindScopedToken,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: st.Name,
-			},
+			}.Build(),
 			Scope: scopes.Root,
-			Spec: &joiningv1.ScopedTokenSpec{
+			Spec: joiningv1.ScopedTokenSpec_builder{
 				Roles:           roles.StringSlice(),
 				AssignedScope:   st.Scope,
 				JoinMethod:      string(types.JoinMethodToken),
 				UsageMode:       string(joining.TokenUsageModeUnlimited),
 				ImmutableLabels: immutableLabels,
-			},
-			Status: &joiningv1.ScopedTokenStatus{
+			}.Build(),
+			Status: joiningv1.ScopedTokenStatus_builder{
 				Secret: st.Secret,
-			},
-		}
+			}.Build(),
+		}.Build()
 
 		if err := joining.StrongValidateToken(scopedToken); err != nil {
 			return nil, trace.Wrap(err)
@@ -1159,17 +1160,17 @@ func (t StaticScopedTokens) Parse() (*joiningv1.StaticScopedTokens, error) {
 		scopedTokens = append(scopedTokens, scopedToken)
 	}
 
-	return &joiningv1.StaticScopedTokens{
+	return joiningv1.StaticScopedTokens_builder{
 		Version: types.V1,
 		Kind:    types.KindStaticScopedTokens,
 		Scope:   scopes.Root,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: types.MetaNameStaticScopedTokens,
-		},
-		Spec: &joiningv1.StaticScopedTokensSpec{
+		}.Build(),
+		Spec: joiningv1.StaticScopedTokensSpec_builder{
 			Tokens: scopedTokens,
-		},
-	}, nil
+		}.Build(),
+	}.Build(), nil
 }
 
 // ImmutableLabels capture yaml configuration used to generate [joiningv1.ImmutableLabels].
@@ -1184,9 +1185,9 @@ func (il *ImmutableLabels) Parse() (*joiningv1.ImmutableLabels, error) {
 		return nil, nil
 	}
 
-	return &joiningv1.ImmutableLabels{
+	return joiningv1.ImmutableLabels_builder{
 		Ssh: il.SSH,
-	}, nil
+	}.Build(), nil
 }
 
 // StaticScopedToken is a statically defined scoped token. It is meant to capture
@@ -2465,6 +2466,12 @@ type App struct {
 
 	// MCP contains MCP server-related configurations.
 	MCP *MCP `yaml:"mcp,omitempty"`
+
+	// LLM contains LLM inference endpoint related configurations.
+	LLM *LLM `yaml:"inference,omitempty"`
+
+	// TLS contains the app TLS configuration.
+	TLS *AppTLS `yaml:"tls,omitempty"`
 }
 
 // CORS represents the configuration for Cross-Origin Resource Sharing (CORS)
@@ -2532,6 +2539,51 @@ type MCP struct {
 	// RunAsHostUser is the host user account under which the command will be
 	// executed. Required for stdio-based MCP servers.
 	RunAsHostUser string `yaml:"run_as_host_user,omitempty"`
+}
+
+// LLM contains LLM inference endpoint related configurations.
+type LLM struct {
+	// Format is the LLM inference API format.
+	Format string `yaml:"format"`
+	// Provider is the inference provider that will be used to serve the
+	// requests.
+	Provider string `yaml:"provider"`
+	// Models is the list of supported models, and optionally their name on the
+	// inference provider.
+	Models []LLMModel `yaml:"models,omitempty"`
+	// FallbackModel is a model that will be used if the model requested is not
+	// on the list.
+	FallbackModel string `yaml:"fallback_model,omitempty"`
+}
+
+// LLMModel is a provider model definition.
+type LLMModel struct {
+	// Name defines the model name.
+	Name string `yaml:"name"`
+	// ProviderName is the model name in the configured provider.
+	ProviderName string `yaml:"provider_name,omitempty"`
+}
+
+// AppTLS contains the app TLS configuration.
+type AppTLS struct {
+	// Mode defines the TLS verification.
+	Mode string `yaml:"mode,omitempty"`
+	// ServerName specifies a custom hostname used for TLS verification against
+	// the upstream certificate.
+	ServerName string `yaml:"server_name,omitempty"`
+	// ServerSpiffeId specifies a SPIFFE ID that must be present on the server
+	// certificate.
+	ServerSpiffeId string `yaml:"server_spiffe_id,omitempty"`
+	// AllowedCas is the list of user provided CAs used for verifying upstream
+	// certificates. Accepted values are PEM-encoded CA certificates and
+	// Teleport CA aliases.
+	AllowedCas []string `yaml:"allowed_cas,omitempty"`
+	// AllowedCasFiles list of CA certificates file paths that will be used for
+	// verifying upstream certificates.
+	AllowedCasFiles []string `yaml:"allowed_cas_files,omitempty"`
+	// ClientCertMode specifies which client certificate mode to use for the
+	// upstream connection.
+	ClientCertMode string `yaml:"client_cert_mode,omitempty"`
 }
 
 // Proxy is a `proxy_service` section of the config file:
@@ -3114,7 +3166,8 @@ type JamfService struct {
 // entry.
 // Corresponds to [types.JamfInventoryEntry].
 type JamfInventoryEntry struct {
-	// FilterRSQL is a Jamf Pro API RSQL filter string.
+	// FilterRSQL is a Jamf Pro API RSQL filter string. The set of filterable
+	// fields depends on DeviceType. Empty means no filter.
 	FilterRSQL string `yaml:"filter_rsql,omitempty"`
 	// SyncPeriodPartial is the period for PARTIAL syncs.
 	// Zero means "server default", negative means "disabled".
@@ -3128,6 +3181,10 @@ type JamfInventoryEntry struct {
 	// Custom page size for inventory queries.
 	// A server default is used if zeroed or negative.
 	PageSize int32 `yaml:"page_size,omitempty"`
+	// DeviceType is the Jamf device type to sync.
+	// Valid values are "computers" and "mobile_devices".
+	// If empty, defaults to "computers" for backwards compatibility.
+	DeviceType string `yaml:"device_type,omitempty"`
 }
 
 func (j *JamfService) toJamfSpecV1() (*types.JamfSpecV1, error) {
@@ -3143,16 +3200,17 @@ func (j *JamfService) toJamfSpecV1() (*types.JamfSpecV1, error) {
 	for i, e := range j.Inventory {
 		inventory[i] = &types.JamfInventoryEntry{
 			FilterRsql:        e.FilterRSQL,
-			SyncPeriodPartial: types.Duration(e.SyncPeriodPartial),
-			SyncPeriodFull:    types.Duration(e.SyncPeriodFull),
+			SyncPeriodPartial: types.DurationStringForJamfSpecV1(e.SyncPeriodPartial),
+			SyncPeriodFull:    types.DurationStringForJamfSpecV1(e.SyncPeriodFull),
 			OnMissing:         e.OnMissing,
 			PageSize:          e.PageSize,
+			DeviceType:        e.DeviceType,
 		}
 	}
 	spec := &types.JamfSpecV1{
 		Enabled:     j.Enabled(),
 		Name:        j.Name,
-		SyncDelay:   types.Duration(j.SyncDelay),
+		SyncDelay:   types.DurationStringForJamfSpecV1(j.SyncDelay),
 		ApiEndpoint: j.APIEndpoint,
 		Inventory:   inventory,
 	}

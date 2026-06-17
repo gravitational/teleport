@@ -150,6 +150,24 @@ func TestWorkloadIdentityJWTService_CheckAndSetDefaults(t *testing.T) {
 			},
 			wantErr: "no destination configured for output",
 		},
+		{
+			name:   "scoped",
+			scoped: true,
+			in: func() *JWTOutputConfig {
+				return &JWTOutputConfig{
+					Selector: bot.WorkloadIdentitySelector{
+						Name: "my-workload-identity",
+					},
+					Destination: &destination.Directory{
+						Path:     "/opt/machine-id",
+						ACLs:     botfs.ACLOff,
+						Symlinks: botfs.SymlinksInsecure,
+					},
+					Audiences: []string{"audience1"},
+				}
+			},
+			wantErr: "is not supported in scoped mode",
+		},
 	}
 	testCheckAndSetDefaults(t, tests)
 }

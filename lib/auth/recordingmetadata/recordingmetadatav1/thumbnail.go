@@ -31,5 +31,9 @@ type thumbnailGenerator interface {
 	// metadata generation process is aborted for this recording.
 	handleEvent(event apievents.AuditEvent) error
 	// produceThumbnail creates a thumbnail using the current state of the generator.
-	produceThumbnail() *pb.SessionRecordingThumbnail
+	// maxDim caps the longer side (in pixels) of the encoded image. Generators that
+	// emit resolution-independent formats (e.g. SVG) may ignore this argument.
+	produceThumbnail(maxDim int) (*pb.SessionRecordingThumbnail, error)
+	// release releases any resources held by the generator. It should be called after thumbnail generation is complete.
+	release()
 }

@@ -3,6 +3,8 @@
 This directory contains files needed for VNet to work on Linux.
 Teleport Connect ships these files in its package.
 
+The `teleport-vnet.service` unit is Teleport Connect-specific: its `ExecStart` points at the tsh binary bundled with Connect at `/opt/Teleport Connect/resources/bin/tsh`. To use a different tsh (such as `/usr/local/bin/tsh`), edit the `ExecStart` line.
+
 ## Files
 
 - `teleport-vnet.service`: systemd unit for the privileged VNet daemon.

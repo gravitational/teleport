@@ -36,11 +36,12 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/client/proto"
+	clientproto "github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	appauthconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1"
@@ -54,16 +55,18 @@ import (
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	summaryv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
-	workloadclusterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadcluster/v1"
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -147,6 +150,7 @@ type testPack struct {
 	webTokenS               *local.IdentityService
 	windowsDesktops         *local.WindowsDesktopService
 	dynamicWindowsDesktops  *local.DynamicWindowsDesktopService
+	linuxDesktops           *local.LinuxDesktopService
 	samlIDPServiceProviders *local.SAMLIdPServiceProviderService
 	userGroups              *local.UserGroupService
 	okta                    *local.OktaService
@@ -175,8 +179,8 @@ type testPack struct {
 	recordingEncryption     *local.RecordingEncryptionService
 	plugin                  *local.PluginsService
 	appAuthConfigs          *local.AppAuthConfigService
-	workloadClusters        *local.WorkloadClusterService
 	summarizer              *local.SummarizerService
+	subCA                   *local.SubCAService
 }
 
 // resourceOps contains helpers to modify the state of either types.Resource or types.Resource153  which
@@ -218,23 +222,23 @@ func defaultResource153Ops[T types.Resource153]() *resourceOps[T] {
 	return &resourceOps[T]{
 		Setup: func(t T) {
 			metadata := t.GetMetadata()
-			if metadata.Expires == nil {
-				metadata.Expires = timestamppb.New(time.Now().Add(30 * time.Minute))
+			if !metadata.HasExpires() {
+				metadata.SetExpires(timestamppb.New(time.Now().Add(30 * time.Minute)))
 			} else {
-				expiry := metadata.Expires.AsTime()
-				metadata.Expires = timestamppb.New(expiry.Add(30 * time.Minute))
+				expiry := metadata.GetExpires().AsTime()
+				metadata.SetExpires(timestamppb.New(expiry.Add(30 * time.Minute)))
 			}
-			metadata.Labels = map[string]string{"label": "value1"}
+			metadata.SetLabels(map[string]string{"label": "value1"})
 		},
 		Modify: func(t T) {
 			metadata := t.GetMetadata()
-			if metadata.Expires == nil {
-				metadata.Expires = timestamppb.New(time.Now().Add(30 * time.Minute))
+			if !metadata.HasExpires() {
+				metadata.SetExpires(timestamppb.New(time.Now().Add(30 * time.Minute)))
 			} else {
-				expiry := metadata.Expires.AsTime()
-				metadata.Expires = timestamppb.New(expiry.Add(30 * time.Minute))
+				expiry := metadata.GetExpires().AsTime()
+				metadata.SetExpires(timestamppb.New(expiry.Add(30 * time.Minute)))
 			}
-			metadata.Labels["label"] = "value2"
+			metadata.GetLabels()["label"] = "value2"
 		},
 		Name: func(t T) string { return t.GetMetadata().GetName() },
 		cmpOpts: []cmp.Option{
@@ -251,20 +255,6 @@ func getAllAdapter[T any](fn func(context.Context) ([]T, error)) func(context.Co
 	return func(ctx context.Context, _ int, _ string) ([]T, string, error) {
 		out, err := fn(ctx)
 		return out, "", trace.Wrap(err)
-	}
-}
-
-// singletonListAdapter adapts a singleton getter to conform to [testFuncs] interface
-func singletonListAdapter[T any](fn func(context.Context) (T, error)) func(context.Context, int, string) ([]T, string, error) {
-	return func(ctx context.Context, _ int, _ string) ([]T, string, error) {
-		out, err := fn(ctx)
-		if err != nil {
-			if trace.IsNotFound(err) {
-				return nil, "", nil
-			}
-			return nil, "", trace.Wrap(err)
-		}
-		return []T{out}, "", nil
 	}
 }
 
@@ -389,6 +379,10 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	p.databases = local.NewDatabasesService(p.backend)
 	p.databaseServices = local.NewDatabaseServicesService(p.backend)
 	p.windowsDesktops = local.NewWindowsDesktopService(p.backend)
+	p.linuxDesktops, err = local.NewLinuxDesktopService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	p.dynamicWindowsDesktops = dynamicWindowsDesktopService
 	p.samlIDPServiceProviders, err = local.NewSAMLIdPServiceProviderService(p.backend)
 	if err != nil {
@@ -543,13 +537,14 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	workloadClusterSvc, err := local.NewWorkloadClusterService(p.backend)
+	p.summarizer, err = local.NewSummarizerService(local.SummarizerServiceConfig{
+		Backend: p.backend,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	p.workloadClusters = workloadClusterSvc
 
-	p.summarizer, err = local.NewSummarizerService(local.SummarizerServiceConfig{
+	p.subCA, err = local.NewSubCAService(local.SubCAServiceParams{
 		Backend: p.backend,
 	})
 	if err != nil {
@@ -591,6 +586,7 @@ func newPack(t testing.TB, setupConfig func(c Config) Config, opts ...packOption
 		Databases:               p.databases,
 		WindowsDesktops:         p.windowsDesktops,
 		DynamicWindowsDesktops:  p.dynamicWindowsDesktops,
+		LinuxDesktops:           p.linuxDesktops,
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		UserGroups:              p.userGroups,
 		Okta:                    p.okta,
@@ -621,8 +617,8 @@ func newPack(t testing.TB, setupConfig func(c Config) Config, opts ...packOption
 		EventsC:                 p.eventsC,
 		AppAuthConfig:           p.appAuthConfigs,
 		StaticScopedToken:       p.clusterConfigS,
-		WorkloadClusterService:  p.workloadClusters,
 		Summarizer:              p.summarizer,
+		SubCAService:            p.subCA,
 	}))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -865,6 +861,7 @@ func TestCompletenessInit(t *testing.T) {
 			Databases:               p.databases,
 			WindowsDesktops:         p.windowsDesktops,
 			DynamicWindowsDesktops:  p.dynamicWindowsDesktops,
+			LinuxDesktops:           p.linuxDesktops,
 			SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 			UserGroups:              p.userGroups,
 			Okta:                    p.okta,
@@ -895,8 +892,8 @@ func TestCompletenessInit(t *testing.T) {
 			Plugin:                  p.plugin,
 			AppAuthConfig:           p.appAuthConfigs,
 			StaticScopedToken:       p.clusterConfigS,
-			WorkloadClusterService:  p.workloadClusters,
 			Summarizer:              p.summarizer,
+			SubCAService:            p.subCA,
 		}))
 		require.NoError(t, err)
 
@@ -958,6 +955,7 @@ func TestCompletenessReset(t *testing.T) {
 		Databases:               p.databases,
 		WindowsDesktops:         p.windowsDesktops,
 		DynamicWindowsDesktops:  p.dynamicWindowsDesktops,
+		LinuxDesktops:           p.linuxDesktops,
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		UserGroups:              p.userGroups,
 		Okta:                    p.okta,
@@ -988,8 +986,8 @@ func TestCompletenessReset(t *testing.T) {
 		Plugin:                  p.plugin,
 		AppAuthConfig:           p.appAuthConfigs,
 		StaticScopedToken:       p.clusterConfigS,
-		WorkloadClusterService:  p.workloadClusters,
 		Summarizer:              p.summarizer,
+		SubCAService:            p.subCA,
 	}))
 	require.NoError(t, err)
 
@@ -1069,7 +1067,7 @@ func BenchmarkListResourcesWithSort(b *testing.B) {
 		for _, totalCount := range []bool{true, false} {
 			b.Run(fmt.Sprintf("limit=%d,needTotal=%t", limit, totalCount), func(b *testing.B) {
 				for b.Loop() {
-					resp, err := p.cache.ListResources(ctx, proto.ListResourcesRequest{
+					resp, err := p.cache.ListResources(ctx, clientproto.ListResourcesRequest{
 						ResourceType: types.KindNode,
 						Namespace:    apidefaults.Namespace,
 						SortBy: types.SortBy{
@@ -1126,6 +1124,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		Databases:               p.databases,
 		WindowsDesktops:         p.windowsDesktops,
 		DynamicWindowsDesktops:  p.dynamicWindowsDesktops,
+		LinuxDesktops:           p.linuxDesktops,
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		UserGroups:              p.userGroups,
 		Okta:                    p.okta,
@@ -1157,8 +1156,8 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		Plugin:                  p.plugin,
 		AppAuthConfig:           p.appAuthConfigs,
 		StaticScopedToken:       p.clusterConfigS,
-		WorkloadClusterService:  p.workloadClusters,
 		Summarizer:              p.summarizer,
+		SubCAService:            p.subCA,
 	}))
 	require.NoError(t, err)
 
@@ -1181,7 +1180,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		IsDesc: true,
 	}
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		resp, err := p.cache.ListResources(ctx, proto.ListResourcesRequest{
+		resp, err := p.cache.ListResources(ctx, clientproto.ListResourcesRequest{
 			Namespace:    apidefaults.Namespace,
 			ResourceType: types.KindNode,
 			StartKey:     listResourcesStartKey,
@@ -1231,6 +1230,7 @@ func initStrategy(t *testing.T) {
 		Databases:               p.databases,
 		WindowsDesktops:         p.windowsDesktops,
 		DynamicWindowsDesktops:  p.dynamicWindowsDesktops,
+		LinuxDesktops:           p.linuxDesktops,
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		UserGroups:              p.userGroups,
 		Okta:                    p.okta,
@@ -1261,8 +1261,8 @@ func initStrategy(t *testing.T) {
 		Plugin:                  p.plugin,
 		AppAuthConfig:           p.appAuthConfigs,
 		StaticScopedToken:       p.clusterConfigS,
-		WorkloadClusterService:  p.workloadClusters,
 		Summarizer:              p.summarizer,
+		SubCAService:            p.subCA,
 	}))
 	require.NoError(t, err)
 
@@ -1370,7 +1370,7 @@ func TestRecovery(t *testing.T) {
 	require.Empty(t, cmp.Diff(ca2, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 }
 
-func mustCreateDatabase(t *testing.T, name, protocol, uri string) *types.DatabaseV3 {
+func mustCreateDatabase(t testing.TB, name, protocol, uri string) *types.DatabaseV3 {
 	database, err := types.NewDatabaseV3(
 		types.Metadata{
 			Name: name,
@@ -1384,27 +1384,27 @@ func mustCreateDatabase(t *testing.T, name, protocol, uri string) *types.Databas
 	return database
 }
 
-func newUserTasks(t *testing.T) *usertasksv1.UserTask {
+func newUserTasks(t *testing.T, name string) *usertasksv1.UserTask {
 	t.Helper()
 
-	ut, err := usertasks.NewDiscoverEC2UserTask(&usertasksv1.UserTaskSpec{
-		Integration: "my-integration",
+	ut, err := usertasks.NewDiscoverEC2UserTask(usertasksv1.UserTaskSpec_builder{
+		Integration: "my-integration-" + name,
 		TaskType:    usertasks.TaskTypeDiscoverEC2,
 		IssueType:   "ec2-ssm-agent-not-registered",
 		State:       "OPEN",
-		DiscoverEc2: &usertasksv1.DiscoverEC2{
+		DiscoverEc2: usertasksv1.DiscoverEC2_builder{
 			AccountId: "123456789012",
 			Region:    "us-east-1",
 			Instances: map[string]*usertasksv1.DiscoverEC2Instance{
-				"i-123": {
+				"i-123": usertasksv1.DiscoverEC2Instance_builder{
 					InstanceId:      "i-123",
 					DiscoveryConfig: "dc01",
 					DiscoveryGroup:  "dg01",
 					SyncTime:        timestamppb.Now(),
-				},
+				}.Build(),
 			},
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	return ut
@@ -1431,11 +1431,6 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 
 // testResources153 is a wrapper for testing resources conforming to types.Resource153
 func testResources153[T types.Resource153](t *testing.T, p *testPack, funcs testFuncs[T], opts ...optionsFunc) {
-	// TODO(rana): Add broader support for virtual resources in list operations.
-	// Virtual resources change the total count returned by list operations,
-	// and is unexpected for the current test. When updated, we can remove virtual
-	// resource filtering and paging from lib/cache/health_check_config_test.go.
-	opts = append(opts, withSkipPaginationTest())
 	funcs.resource = defaultResource153Ops[T]()
 	testResourcesInternal(t, p, funcs, opts...)
 }
@@ -1459,6 +1454,10 @@ func testResourcesInternal[T any](t *testing.T, p *testPack, funcs testFuncs[T],
 	if !options.skipPaginationTest {
 		testResourcePagination(t, p, funcs)
 	}
+
+	// Ensure the cache is healthy before proceeding to
+	// prevent running the tests falling back to upstream reads.
+	require.True(t, p.cache.ok)
 
 	// Create a resource.
 	r, err := funcs.newResource("test-resource-1")
@@ -1963,6 +1962,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindWindowsDesktopService:             &types.WindowsDesktopServiceV3{},
 		types.KindWindowsDesktop:                    &types.WindowsDesktopV3{},
 		types.KindDynamicWindowsDesktop:             &types.DynamicWindowsDesktopV1{},
+		types.KindLinuxDesktop:                      types.ProtoResource153ToLegacy(newLinuxDesktop("linux-desktop")),
 		types.KindInstaller:                         &types.InstallerV1{},
 		types.KindKubernetesCluster:                 &types.KubernetesClusterV3{},
 		types.KindSAMLIdPServiceProvider:            &types.SAMLIdPServiceProviderV1{},
@@ -1994,7 +1994,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindAutoUpdateAgentRollout:            types.Resource153ToLegacy(newAutoUpdateAgentRollout(t)),
 		types.KindAutoUpdateAgentReport:             types.Resource153ToLegacy(newAutoUpdateAgentReport(t, "test")),
 		types.KindAutoUpdateBotInstanceReport:       types.Resource153ToLegacy(newAutoUpdateBotInstanceReport(t)),
-		types.KindUserTask:                          types.Resource153ToLegacy(newUserTasks(t)),
+		types.KindUserTask:                          types.Resource153ToLegacy(newUserTasks(t, "test")),
 		types.KindProvisioningPrincipalState:        types.Resource153ToLegacy(newProvisioningPrincipalState("u-alice@example.com")),
 		types.KindIdentityCenterAccount:             types.Resource153ToLegacy(newIdentityCenterAccount("some_account")),
 		types.KindIdentityCenterAccountAssignment:   types.Resource153ToLegacy(newIdentityCenterAccountAssignment("some_account_assignment")),
@@ -2010,12 +2010,13 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindRelayServer:                       types.ProtoResource153ToLegacy(new(presencev1.RelayServer)),
 		types.KindBotInstance:                       types.ProtoResource153ToLegacy(new(machineidv1.BotInstance)),
 		types.KindAppAuthConfig:                     types.Resource153ToLegacy(new(appauthconfigv1.AppAuthConfig)),
-		types.KindWorkloadCluster:                   types.Resource153ToLegacy(newWorkloadCluster(t, "test")),
 		types.KindInferenceModel:                    types.Resource153ToLegacy(new(summaryv1.InferenceModel)),
 		types.KindInferenceSecret:                   types.Resource153ToLegacy(new(summaryv1.InferenceSecret)),
 		types.KindInferencePolicy:                   types.Resource153ToLegacy(new(summaryv1.InferencePolicy)),
+		types.KindClassifier:                        types.Resource153ToLegacy(new(summaryv1.Classifier)),
 		types.KindRetrievalModel:                    types.Resource153ToLegacy(new(summaryv1.RetrievalModel)),
-		types.KindValidatedMFAChallenge:             &types.ResourceHeader{Kind: types.KindValidatedMFAChallenge},
+		types.KindCertAuthorityOverride:             types.Resource153ToLegacy(&subcav1.CertAuthorityOverride{}),
+		types.KindValidatedMFAChallenge:             types.Resource153ToLegacy(new(mfav2.ValidatedMFAChallenge)),
 	}
 
 	for name, cfg := range cases {
@@ -2037,6 +2038,8 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 				switch uw := event.Resource.(type) {
 				case types.Resource153UnwrapperT[*workloadidentityv1.WorkloadIdentity]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*workloadidentityv1.WorkloadIdentity]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*linuxdesktopv1.LinuxDesktop]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*linuxdesktopv1.LinuxDesktop]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*identitycenterv1.PrincipalAssignment]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*identitycenterv1.PrincipalAssignment]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*identitycenterv1.AccountAssignment]:
@@ -2089,19 +2092,22 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*machineidv1.BotInstance]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*appauthconfigv1.AppAuthConfig]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*appauthconfigv1.AppAuthConfig]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*workloadclusterv1.WorkloadCluster]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*workloadclusterv1.WorkloadCluster]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*summaryv1.InferenceModel]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*summaryv1.InferenceModel]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*summaryv1.InferenceSecret]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*summaryv1.InferenceSecret]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*summaryv1.InferencePolicy]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*summaryv1.InferencePolicy]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*summaryv1.Classifier]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*summaryv1.Classifier]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*summaryv1.RetrievalModel]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*summaryv1.RetrievalModel]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-
+				case types.Resource153UnwrapperT[*subcav1.CertAuthorityOverride]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*subcav1.CertAuthorityOverride]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*beamsv1.Beam]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*beamsv1.Beam]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*mfav2.ValidatedMFAChallenge]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*mfav2.ValidatedMFAChallenge]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				default:
 					require.Empty(t, cmp.Diff(resource, event.Resource))
 				}
@@ -2502,7 +2508,7 @@ func newAccessListReview(t *testing.T, accessList, name string) *accesslist.Revi
 func newKubeWaitingContainer(t *testing.T) types.Resource {
 	t.Helper()
 
-	waitingCont, err := kubewaitingcontainer.NewKubeWaitingContainer("container", &kubewaitingcontainerpb.KubernetesWaitingContainerSpec{
+	waitingCont, err := kubewaitingcontainer.NewKubeWaitingContainer("container", kubewaitingcontainerpb.KubernetesWaitingContainerSpec_builder{
 		Username:      "user",
 		Cluster:       "cluster",
 		Namespace:     "namespace",
@@ -2510,7 +2516,7 @@ func newKubeWaitingContainer(t *testing.T) types.Resource {
 		ContainerName: "container",
 		Patch:         []byte("patch"),
 		PatchType:     "application/json-patch+json",
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	return types.Resource153ToLegacy(waitingCont)
@@ -2519,11 +2525,11 @@ func newKubeWaitingContainer(t *testing.T) types.Resource {
 func newCrownJewel(t *testing.T, name string) *crownjewelv1.CrownJewel {
 	t.Helper()
 
-	crownJewel := &crownjewelv1.CrownJewel{
-		Metadata: &headerv1.Metadata{
+	crownJewel := crownjewelv1.CrownJewel_builder{
+		Metadata: headerv1.Metadata_builder{
 			Name: name,
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	return crownJewel
 }
@@ -2531,12 +2537,12 @@ func newCrownJewel(t *testing.T, name string) *crownjewelv1.CrownJewel {
 func newDatabaseObject(t *testing.T, name string) *dbobjectv1.DatabaseObject {
 	t.Helper()
 
-	r, err := databaseobject.NewDatabaseObject(name, &dbobjectv1.DatabaseObjectSpec{
+	r, err := databaseobject.NewDatabaseObject(name, dbobjectv1.DatabaseObjectSpec_builder{
 		Name:                name,
 		Protocol:            "postgres",
 		DatabaseServiceName: "pg",
 		ObjectKind:          "table",
-	})
+	}.Build())
 	require.NoError(t, err)
 	return r
 }
@@ -2544,25 +2550,39 @@ func newDatabaseObject(t *testing.T, name string) *dbobjectv1.DatabaseObject {
 func newAccessGraphSettings(t *testing.T) *clusterconfigpb.AccessGraphSettings {
 	t.Helper()
 
-	r, err := clusterconfig.NewAccessGraphSettings(&clusterconfigpb.AccessGraphSettingsSpec{
+	r, err := clusterconfig.NewAccessGraphSettings(clusterconfigpb.AccessGraphSettingsSpec_builder{
 		SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED,
-	})
+	}.Build())
 	require.NoError(t, err)
 	return r
+}
+
+func newLinuxDesktop(name string) *linuxdesktopv1.LinuxDesktop {
+	return linuxdesktopv1.LinuxDesktop_builder{
+		Kind:    types.KindLinuxDesktop,
+		Version: types.V1,
+		Metadata: headerv1.Metadata_builder{
+			Name: name,
+		}.Build(),
+		Spec: linuxdesktopv1.LinuxDesktopSpec_builder{
+			Addr:     "127.0.0.1:22",
+			Hostname: "host",
+		}.Build(),
+	}.Build()
 }
 
 func newUserNotification(t *testing.T, name string) *notificationsv1.Notification {
 	t.Helper()
 
-	notification := &notificationsv1.Notification{
+	notification := notificationsv1.Notification_builder{
 		SubKind: "test-subkind",
-		Spec: &notificationsv1.NotificationSpec{
+		Spec: notificationsv1.NotificationSpec_builder{
 			Username: name,
-		},
-		Metadata: &headerv1.Metadata{
+		}.Build(),
+		Metadata: headerv1.Metadata_builder{
 			Labels: map[string]string{types.NotificationTitleLabel: "test-title"},
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	return notification
 }
@@ -2570,68 +2590,66 @@ func newUserNotification(t *testing.T, name string) *notificationsv1.Notificatio
 func newGlobalNotification(t *testing.T, title string) *notificationsv1.GlobalNotification {
 	t.Helper()
 
-	notification := &notificationsv1.GlobalNotification{
-		Spec: &notificationsv1.GlobalNotificationSpec{
-			Matcher: &notificationsv1.GlobalNotificationSpec_All{
-				All: true,
-			},
-			Notification: &notificationsv1.Notification{
+	notification := notificationsv1.GlobalNotification_builder{
+		Spec: notificationsv1.GlobalNotificationSpec_builder{
+			All: proto.Bool(true),
+			Notification: notificationsv1.Notification_builder{
 				SubKind: "test-subkind",
 				Spec:    &notificationsv1.NotificationSpec{},
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Labels: map[string]string{types.NotificationTitleLabel: title},
-				},
-			},
-		},
-	}
+				}.Build(),
+			}.Build(),
+		}.Build(),
+	}.Build()
 
 	return notification
 }
 
 func newAccessMonitoringRule(t *testing.T, name string) *accessmonitoringrulesv1.AccessMonitoringRule {
 	t.Helper()
-	notification := &accessmonitoringrulesv1.AccessMonitoringRule{
+	notification := accessmonitoringrulesv1.AccessMonitoringRule_builder{
 		Kind:    types.KindAccessMonitoringRule,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: name,
-		},
-		Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
-			Notification: &accessmonitoringrulesv1.Notification{
+		}.Build(),
+		Spec: accessmonitoringrulesv1.AccessMonitoringRuleSpec_builder{
+			Notification: accessmonitoringrulesv1.Notification_builder{
 				Name: "test",
-			},
+			}.Build(),
 			Subjects:  []string{"llama", "shark"},
 			Condition: "test",
-		},
-	}
+		}.Build(),
+	}.Build()
 	return notification
 }
 
 func newStaticHostUser(t *testing.T, name string) *userprovisioningpb.StaticHostUser {
 	t.Helper()
-	return userprovisioning.NewStaticHostUser(name, &userprovisioningpb.StaticHostUserSpec{
+	return userprovisioning.NewStaticHostUser(name, userprovisioningpb.StaticHostUserSpec_builder{
 		Matchers: []*userprovisioningpb.Matcher{
-			{
+			userprovisioningpb.Matcher_builder{
 				NodeLabels: []*labelv1.Label{
-					{
+					labelv1.Label_builder{
 						Name:   "foo",
 						Values: []string{"bar"},
-					},
+					}.Build(),
 				},
 				Groups: []string{"foo", "bar"},
-			},
+			}.Build(),
 		},
-	})
+	}.Build())
 }
 
 func newAutoUpdateConfig(t *testing.T) *autoupdate.AutoUpdateConfig {
 	t.Helper()
 
-	r, err := update.NewAutoUpdateConfig(&autoupdate.AutoUpdateConfigSpec{
-		Tools: &autoupdate.AutoUpdateConfigSpecTools{
+	r, err := update.NewAutoUpdateConfig(autoupdate.AutoUpdateConfigSpec_builder{
+		Tools: autoupdate.AutoUpdateConfigSpecTools_builder{
 			Mode: update.ToolsUpdateModeEnabled,
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 	return r
 }
@@ -2639,11 +2657,11 @@ func newAutoUpdateConfig(t *testing.T) *autoupdate.AutoUpdateConfig {
 func newAutoUpdateVersion(t *testing.T) *autoupdate.AutoUpdateVersion {
 	t.Helper()
 
-	r, err := update.NewAutoUpdateVersion(&autoupdate.AutoUpdateVersionSpec{
-		Tools: &autoupdate.AutoUpdateVersionSpecTools{
+	r, err := update.NewAutoUpdateVersion(autoupdate.AutoUpdateVersionSpec_builder{
+		Tools: autoupdate.AutoUpdateVersionSpecTools_builder{
 			TargetVersion: "1.2.3",
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 	return r
 }
@@ -2651,13 +2669,13 @@ func newAutoUpdateVersion(t *testing.T) *autoupdate.AutoUpdateVersion {
 func newAutoUpdateAgentRollout(t *testing.T) *autoupdate.AutoUpdateAgentRollout {
 	t.Helper()
 
-	r, err := update.NewAutoUpdateAgentRollout(&autoupdate.AutoUpdateAgentRolloutSpec{
+	r, err := update.NewAutoUpdateAgentRollout(autoupdate.AutoUpdateAgentRolloutSpec_builder{
 		StartVersion:   "1.2.3",
 		TargetVersion:  "2.3.4",
 		Schedule:       update.AgentsScheduleImmediate,
 		AutoupdateMode: update.AgentsUpdateModeEnabled,
 		Strategy:       update.AgentsStrategyTimeBased,
-	})
+	}.Build())
 	require.NoError(t, err)
 	return r
 }
@@ -2665,23 +2683,23 @@ func newAutoUpdateAgentRollout(t *testing.T) *autoupdate.AutoUpdateAgentRollout 
 func newAutoUpdateAgentReport(t *testing.T, name string) *autoupdate.AutoUpdateAgentReport {
 	t.Helper()
 
-	r, err := update.NewAutoUpdateAgentReport(&autoupdate.AutoUpdateAgentReportSpec{
+	r, err := update.NewAutoUpdateAgentReport(autoupdate.AutoUpdateAgentReportSpec_builder{
 		Timestamp: timestamppb.Now(),
 		Groups: map[string]*autoupdate.AutoUpdateAgentReportSpecGroup{
-			"foo": {
+			"foo": autoupdate.AutoUpdateAgentReportSpecGroup_builder{
 				Versions: map[string]*autoupdate.AutoUpdateAgentReportSpecGroupVersion{
-					"1.2.3": {Count: 1},
-					"1.2.4": {Count: 2},
+					"1.2.3": autoupdate.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 1}.Build(),
+					"1.2.4": autoupdate.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 2}.Build(),
 				},
-			},
-			"bar": {
+			}.Build(),
+			"bar": autoupdate.AutoUpdateAgentReportSpecGroup_builder{
 				Versions: map[string]*autoupdate.AutoUpdateAgentReportSpecGroupVersion{
-					"2.3.4": {Count: 3},
-					"2.3.5": {Count: 4},
+					"2.3.4": autoupdate.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 3}.Build(),
+					"2.3.5": autoupdate.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 4}.Build(),
 				},
-			},
+			}.Build(),
 		},
-	}, name)
+	}.Build(), name)
 	require.NoError(t, err)
 	return r
 }
@@ -2689,54 +2707,36 @@ func newAutoUpdateAgentReport(t *testing.T, name string) *autoupdate.AutoUpdateA
 func newAutoUpdateBotInstanceReport(t *testing.T) *autoupdate.AutoUpdateBotInstanceReport {
 	t.Helper()
 
-	return &autoupdate.AutoUpdateBotInstanceReport{
+	return autoupdate.AutoUpdateBotInstanceReport_builder{
 		Kind:    types.KindAutoUpdateBotInstanceReport,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: types.MetaNameAutoUpdateBotInstanceReport,
-		},
-		Spec: &autoupdate.AutoUpdateBotInstanceReportSpec{
+		}.Build(),
+		Spec: autoupdate.AutoUpdateBotInstanceReportSpec_builder{
 			Timestamp: timestamppb.Now(),
 			Groups: map[string]*autoupdate.AutoUpdateBotInstanceReportSpecGroup{
-				"foo": {
+				"foo": autoupdate.AutoUpdateBotInstanceReportSpecGroup_builder{
 					Versions: map[string]*autoupdate.AutoUpdateBotInstanceReportSpecGroupVersion{
-						"1.2.3": {Count: 1},
-						"1.2.4": {Count: 2},
+						"1.2.3": autoupdate.AutoUpdateBotInstanceReportSpecGroupVersion_builder{Count: 1}.Build(),
+						"1.2.4": autoupdate.AutoUpdateBotInstanceReportSpecGroupVersion_builder{Count: 2}.Build(),
 					},
-				},
-				"bar": {
+				}.Build(),
+				"bar": autoupdate.AutoUpdateBotInstanceReportSpecGroup_builder{
 					Versions: map[string]*autoupdate.AutoUpdateBotInstanceReportSpecGroupVersion{
-						"2.3.4": {Count: 3},
-						"2.3.5": {Count: 4},
+						"2.3.4": autoupdate.AutoUpdateBotInstanceReportSpecGroupVersion_builder{Count: 3}.Build(),
+						"2.3.5": autoupdate.AutoUpdateBotInstanceReportSpecGroupVersion_builder{Count: 4}.Build(),
 					},
-				},
+				}.Build(),
 			},
-		},
-	}
-}
-
-func newWorkloadCluster(t *testing.T, name string) *workloadclusterv1.WorkloadCluster {
-	t.Helper()
-
-	workloadCluster := &workloadclusterv1.WorkloadCluster{
-		Metadata: &headerv1.Metadata{
-			Name: name,
-		},
-	}
-
-	return workloadCluster
+		}.Build(),
+	}.Build()
 }
 
 func withKeepalive[T any](fn func(context.Context, T) (*types.KeepAlive, error)) func(context.Context, T) error {
 	return func(ctx context.Context, resource T) error {
 		_, err := fn(ctx, resource)
 		return err
-	}
-}
-
-func modifyNoContext[T any](fn func(T) error) func(context.Context, T) error {
-	return func(_ context.Context, resource T) error {
-		return fn(resource)
 	}
 }
 
@@ -2822,10 +2822,7 @@ func testResourcePagination[T any](t *testing.T, p *testPack, funcs testFuncs[T]
 	assert.Len(t, page3, 1)
 	assert.Empty(t, end)
 
-	var listed []T
-	listed = append(listed, page1...)
-	listed = append(listed, page2...)
-	listed = append(listed, page3...)
+	listed := slices.Concat(page1, page2, page3)
 
 	// All items have been returned as expected
 	assert.Empty(t, cmp.Diff(expected, listed, cmpOpts...))
@@ -2835,6 +2832,31 @@ func testResourcePagination[T any](t *testing.T, p *testPack, funcs testFuncs[T]
 	require.NoError(t, err)
 	assert.Len(t, pageSmall, 1)
 	assert.NotEmpty(t, pageSmallNext)
+
+	// Verify pagination behaves correctly through the upstream-fallback path
+	// when the cache is not healthy.
+	p.cache.ok = false
+
+	upstreamPage1, upstreamNext1, err := funcs.cacheList(ctx, defaultTestPageSize, "")
+	require.NoError(t, err)
+	assert.Len(t, upstreamPage1, defaultTestPageSize)
+	assert.NotEmpty(t, upstreamNext1)
+
+	upstreamPage2, upstreamNext2, err := funcs.cacheList(ctx, defaultTestPageSize, upstreamNext1)
+	require.NoError(t, err)
+	assert.Len(t, upstreamPage2, defaultTestPageSize)
+	assert.NotEmpty(t, upstreamNext2)
+	assert.NotEqual(t, upstreamPage1, upstreamPage2)
+
+	upstreamPage3, end, err := funcs.cacheList(ctx, defaultTestPageSize, upstreamNext2)
+	require.NoError(t, err)
+	assert.Len(t, upstreamPage3, 1)
+	assert.Empty(t, end)
+
+	upstreamListed := slices.Concat(upstreamPage1, upstreamPage2, upstreamPage3)
+	assert.Empty(t, cmp.Diff(expected, upstreamListed, cmpOpts...))
+
+	p.cache.ok = true
 
 	if funcs.Range != nil && funcs.cacheRange != nil {
 		out, err := stream.Collect(funcs.cacheRange(ctx, "", page2Start))
@@ -2870,6 +2892,7 @@ func testResourcePagination[T any](t *testing.T, p *testPack, funcs testFuncs[T]
 	require.NoError(t, funcs.deleteAll(ctx))
 
 	// Wait for the cache to be empty.
+	p.cache.ok = true
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		items, err := funcs.cacheListAll(ctx)
 		assert.NoError(t, err)
@@ -2878,11 +2901,11 @@ func testResourcePagination[T any](t *testing.T, p *testPack, funcs testFuncs[T]
 }
 
 type resourcesLister interface {
-	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
+	ListResources(ctx context.Context, req clientproto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 }
 
 func listResource(ctx context.Context, lister resourcesLister, kind string, pageSize int, pageToken string) ([]types.ResourceWithLabels, string, error) {
-	resp, err := lister.ListResources(ctx, proto.ListResourcesRequest{
+	resp, err := lister.ListResources(ctx, clientproto.ListResourcesRequest{
 		ResourceType: kind,
 		Limit:        int32(pageSize),
 		StartKey:     pageToken,

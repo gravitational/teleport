@@ -73,6 +73,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/snowflake"
 	"github.com/gravitational/teleport/lib/srv/db/spanner"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver"
+	dbvnet "github.com/gravitational/teleport/lib/srv/db/vnet"
 	discoverycommon "github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
 	"github.com/gravitational/teleport/lib/utils"
@@ -842,10 +843,10 @@ func (s *Server) sendUpstreamInventoryStopHeartbeat(ctx context.Context, name st
 		// get latest sender
 		case sender := <-s.cfg.InventoryHandle.Sender():
 			if sender.Hello().GetCapabilities().GetDatabaseHeartbeatGracefulStop() {
-				err := sender.Send(ctx, &proto.UpstreamInventoryStopHeartbeat{
+				err := sender.Send(ctx, proto.UpstreamInventoryStopHeartbeat_builder{
 					Kind: proto.StopHeartbeatKind_STOP_HEARTBEAT_KIND_DATABASE_SERVER,
 					Name: name,
-				})
+				}.Build())
 				return trace.Wrap(err)
 			}
 			return trace.BadParameter("upstream inventory controller does not support database heartbeat graceful stop")
@@ -880,6 +881,7 @@ func (s *Server) getServerInfo(ctx context.Context, database types.Database) (*t
 	if s.cfg.CloudIAM != nil {
 		s.cfg.CloudIAM.UpdateIAMStatus(ctx, copy)
 	}
+	copy.SetStatusVNetDNSName(dbvnet.DNSName(copy.GetName()))
 	expires := s.cfg.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
 
 	server, err := types.NewDatabaseServerV3(types.Metadata{
@@ -1058,8 +1060,8 @@ func (s *Server) close(ctx context.Context) error {
 		// Manual deletion per database is only required if the auth server
 		// doesn't support actively cleaning up database resources when the
 		// inventory control stream is terminated during shutdown.
-		if capabilities := sender.Hello().Capabilities; capabilities != nil {
-			shouldDeleteDBs = shouldDeleteDBs && !capabilities.DatabaseCleanup
+		if capabilities := sender.Hello().GetCapabilities(); capabilities != nil {
+			shouldDeleteDBs = shouldDeleteDBs && !capabilities.GetDatabaseCleanup()
 		}
 	}
 	g, gctx := errgroup.WithContext(ctx)

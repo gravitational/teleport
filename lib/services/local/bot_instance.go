@@ -69,16 +69,16 @@ func NewBotInstanceService(b backend.Backend, clock clockwork.Clock) (*BotInstan
 // Note that new BotInstances will have their .Metadata.Name overwritten by the
 // instance UUID.
 func (b *BotInstanceService) CreateBotInstance(ctx context.Context, instance *machineidv1.BotInstance) (*machineidv1.BotInstance, error) {
-	instance.Kind = types.KindBotInstance
-	instance.Version = types.V1
+	instance.SetKind(types.KindBotInstance)
+	instance.SetVersion(types.V1)
 
-	if instance.Metadata == nil {
-		instance.Metadata = &headerv1.Metadata{}
+	if !instance.HasMetadata() {
+		instance.SetMetadata(&headerv1.Metadata{})
 	}
 
-	instance.Metadata.Name = instance.Spec.InstanceId
+	instance.GetMetadata().SetName(instance.GetSpec().GetInstanceId())
 
-	serviceWithPrefix := b.service.WithPrefix(instance.Spec.BotName)
+	serviceWithPrefix := b.service.WithPrefix(instance.GetSpec().GetBotName())
 	created, err := serviceWithPrefix.CreateResource(ctx, instance)
 	return created, trace.Wrap(err)
 }
@@ -124,13 +124,20 @@ func (b *BotInstanceService) ListBotInstances(ctx context.Context, pageSize int,
 		}
 	}
 
-	if options.GetFilterSearchTerm() == "" && exp == nil {
+	filterFn := options.GetFilterFn()
+	if options.GetFilterSearchTerm() == "" && exp == nil && filterFn == nil {
 		r, nextToken, err := service.ListResources(ctx, pageSize, lastKey)
 		return r, nextToken, trace.Wrap(err)
 	}
 
 	r, nextToken, err := service.ListResourcesWithFilter(ctx, pageSize, lastKey, func(item *machineidv1.BotInstance) bool {
-		return services.MatchBotInstance(item, "", options.GetFilterSearchTerm(), exp)
+		if !services.MatchBotInstance(item, "", options.GetFilterSearchTerm(), exp) {
+			return false
+		}
+		if filterFn != nil {
+			return filterFn(item)
+		}
+		return true
 	})
 
 	return r, nextToken, trace.Wrap(err)
@@ -191,7 +198,7 @@ func (b *BotInstanceService) PatchBotInstance(
 			return nil, trace.Wrap(err)
 		}
 
-		updated.GetMetadata().Revision = lease.GetMetadata().Revision
+		updated.GetMetadata().SetRevision(lease.GetMetadata().GetRevision())
 		return updated, nil
 	}
 

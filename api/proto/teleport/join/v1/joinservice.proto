@@ -496,6 +496,8 @@ message HostResult {
   string host_id = 2;
   // The immutable labels assigned to the host by their join token.
   teleport.scopes.joining.v1.ImmutableLabels immutable_labels = 3;
+  // BoundKeypairResult holds extra result parameters relevant to the bound keypair join method.
+  optional BoundKeypairResult bound_keypair_result = 4;
 }
 
 // HostResult holds results for bot joining.

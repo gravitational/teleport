@@ -132,6 +132,10 @@ func (m *MFACeremony) Run(ctx context.Context, chal *proto.MFAAuthenticateChalle
 	// this MFA ceremony. In which case, don't print the redirect URL and listen
 	// for either response to be returned.
 	case chal.SSOChallenge != nil && chal.BrowserMFAChallenge != nil:
+		if m.GetCallbackResponse == nil {
+			return nil, trace.BadParameter("GetCallbackResponse is required for combined SSO and Browser MFA challenges")
+		}
+
 		loginResp, err := m.GetCallbackResponse(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)

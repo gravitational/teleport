@@ -6,10 +6,7 @@ locals {
   teleport_provision_token_name = (
     var.teleport_provision_token_use_name_prefix
     ? "${var.teleport_provision_token_name}-${local.teleport_resource_name_suffix}"
-    : coalesce(
-      var.teleport_provision_token_name,
-      local.teleport_resource_name_suffix,
-    )
+    : var.teleport_provision_token_name
   )
 }
 

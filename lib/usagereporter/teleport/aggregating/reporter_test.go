@@ -125,10 +125,17 @@ func TestReporter(t *testing.T) {
 	r.AnonymizeAndSubmit(&usagereporter.AccessListGrantsToUserEvent{
 		UserName: "alice",
 	})
+	r.AnonymizeAndSubmit(&usagereporter.SessionSummarySearchEvent{
+		UserName:   "alice",
+		UserKind:   prehogv1a.UserKind_USER_KIND_HUMAN,
+		QueryCount: 3,
+		HasFilters: true,
+	})
 	r.AnonymizeAndSubmit(&usagereporter.SessionStartEvent{
 		UserName:    "alice",
 		SessionType: usagereporter.SAMLIdPSessionType,
 	})
+	recvIngested()
 	recvIngested()
 	recvIngested()
 	recvIngested()
@@ -158,6 +165,8 @@ func TestReporter(t *testing.T) {
 	require.Equal(t, uint64(1), record.GetAccessRequestsReviewed())
 	require.Equal(t, uint64(1), record.GetAccessListsReviewed())
 	require.Equal(t, uint64(1), record.GetAccessListsGrants())
+	require.Equal(t, uint64(1), record.GetSessionSummarySearchQueries())
+	require.Equal(t, uint64(1), record.GetSessionSummarySearchQueriesWithFilters())
 	require.Equal(t, uint64(1), record.SamlIdpSessions)
 
 	r.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{

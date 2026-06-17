@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Acl } from './types';
+import { Acl, WebTerminalClipboardMode } from './types';
 
 export function makeAcl(json): Acl {
   json = json || {};
@@ -45,6 +45,8 @@ export function makeAcl(json): Acl {
   // doesn't return the valid permission. If they don't have access, the action will
   // still fail with an error, so this is merely a UX improvment.
   const fileTransferAccess = json.fileTransferAccess ?? true; // use nullish coalescing to prevent default from overriding a strictly false value
+  const webTerminalClipboardMode: WebTerminalClipboardMode =
+    json.webTerminalClipboardMode ?? '';
   const connectionDiagnostic = json.connectionDiagnostic || defaultAccess;
   // Defaults to true, see RFD 0049
   // https://github.com/gravitational/teleport/blob/master/rfd/0049-desktop-clipboard.md#security
@@ -101,6 +103,8 @@ export function makeAcl(json): Acl {
   const inferenceModel = json.inferenceModel || defaultAccess;
   const inferenceSecret = json.inferenceSecret || defaultAccess;
 
+  const beam = json.beam || defaultAccess;
+
   return {
     accessList,
     authConnectors,
@@ -140,6 +144,7 @@ export function makeAcl(json): Acl {
     discoverConfigs,
     contacts,
     fileTransferAccess,
+    webTerminalClipboardMode,
     gitServers,
     accessGraphSettings,
     botInstances,
@@ -153,6 +158,7 @@ export function makeAcl(json): Acl {
     inferencePolicy,
     inferenceModel,
     inferenceSecret,
+    beam,
   };
 }
 

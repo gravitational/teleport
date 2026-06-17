@@ -30,6 +30,7 @@ import (
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 var beamAliasRegexp = regexp.MustCompile(`^[a-z]+-[a-z]+$`)
@@ -45,8 +46,16 @@ type BeamReader interface {
 	// ListBeams lists beams with pagination.
 	ListBeams(ctx context.Context, limit int, startKey string) ([]*beamsv1.Beam, string, error)
 
-	// IterateBeams returns a sequence of beams starting from the given pageToken.
+	// ListBeamsV2 lists beams with pagination, sorting and filtering.
+	ListBeamsV2(ctx context.Context, limit int, startKey string, options *ListBeamsRequestOptions) ([]*beamsv1.Beam, string, error)
+
+	// IterateBeams returns a sequence of beams starting from the given
+	// pageToken.
 	IterateBeams(ctx context.Context, pageToken string) iter.Seq2[*beamsv1.Beam, error]
+
+	// IterateBeamsV2 returns a sequence of beams starting from the given
+	// pageToken with sorting and filtering.
+	IterateBeamsV2(ctx context.Context, pageToken string, options *ListBeamsRequestOptions) iter.Seq2[*beamsv1.Beam, error]
 }
 
 // BeamWriter defines methods for writing beam resources. We always write beams
@@ -81,25 +90,25 @@ func ValidateBeam(b *beamsv1.Beam) error {
 	switch {
 	case b == nil:
 		return trace.BadParameter("beam must not be nil")
-	case b.Version != types.V1:
-		return trace.BadParameter("version: only supports version %q, got %q", types.V1, b.Version)
-	case b.Kind != types.KindBeam:
-		return trace.BadParameter("kind: must be %q, got %q", types.KindBeam, b.Kind)
-	case b.Metadata == nil:
+	case b.GetVersion() != types.V1:
+		return trace.BadParameter("version: only supports version %q, got %q", types.V1, b.GetVersion())
+	case b.GetKind() != types.KindBeam:
+		return trace.BadParameter("kind: must be %q, got %q", types.KindBeam, b.GetKind())
+	case !b.HasMetadata():
 		return trace.BadParameter("metadata: is required")
-	case b.Metadata.Name == "":
+	case b.GetMetadata().GetName() == "":
 		return trace.BadParameter("metadata.name: is required")
-	case b.Spec == nil:
+	case !b.HasSpec():
 		return trace.BadParameter("spec: is required")
-	case b.Spec.Expires == nil:
+	case !b.GetSpec().HasExpires():
 		return trace.BadParameter("spec.expires: is required")
-	case b.Status == nil:
+	case !b.HasStatus():
 		return trace.BadParameter("status: is required")
 	}
 
-	switch b.Spec.GetEgress() {
+	switch b.GetSpec().GetEgress() {
 	case beamsv1.EgressMode_EGRESS_MODE_RESTRICTED:
-		for i, domain := range b.Spec.GetAllowedDomains() {
+		for i, domain := range b.GetSpec().GetAllowedDomains() {
 			// Must be fully-qualified, up to the root.
 			if !strings.HasSuffix(domain, ".") {
 				return trace.BadParameter("spec.allowed_domains[%d]: %q must be a fully qualified domain name ending with '.'", i, domain)
@@ -118,18 +127,18 @@ func ValidateBeam(b *beamsv1.Beam) error {
 			}
 		}
 	case beamsv1.EgressMode_EGRESS_MODE_UNRESTRICTED:
-		if len(b.Spec.GetAllowedDomains()) > 0 {
+		if len(b.GetSpec().GetAllowedDomains()) > 0 {
 			return trace.BadParameter("spec.allowed_domains: may only be set when spec.egress is EGRESS_MODE_RESTRICTED")
 		}
 	default:
-		return trace.BadParameter("spec.egress: must be EGRESS_MODE_RESTRICTED or EGRESS_MODE_UNRESTRICTED, got %s", b.Spec.GetEgress())
+		return trace.BadParameter("spec.egress: must be EGRESS_MODE_RESTRICTED or EGRESS_MODE_UNRESTRICTED, got %s", b.GetSpec().GetEgress())
 	}
 
-	if pub := b.Spec.Publish; pub != nil {
-		if pub.Port != 8080 {
+	if pub := b.GetSpec().GetPublish(); pub != nil {
+		if pub.GetPort() != 8080 {
 			return trace.BadParameter("spec.publish.port: must be 8080")
 		}
-		switch pub.Protocol {
+		switch pub.GetProtocol() {
 		case beamsv1.Protocol_PROTOCOL_HTTP, beamsv1.Protocol_PROTOCOL_TCP:
 		default:
 			return trace.BadParameter("spec.publish.protocol: must be HTTP or TCP")
@@ -148,4 +157,66 @@ func ValidateBeamAlias(alias string) error {
 		return nil
 	}
 	return trace.BadParameter("beam alias must be a hyphen-separated pair of two lowercase words")
+}
+
+// MakeBeamFilterFunc creates a filter function for beams based on the provided
+// options.
+func MakeBeamFilterFunc(options *ListBeamsRequestOptions) func(beam *beamsv1.Beam) bool {
+	return func(b *beamsv1.Beam) bool {
+		if options.GetFilterUsers().Len() > 0 && !options.FilterUsers.Contains(b.GetStatus().GetUser()) {
+			return false
+		}
+		if options.GetFilterFn() != nil && !options.FilterFn(b) {
+			return false
+		}
+		return true
+	}
+}
+
+type ListBeamsRequestOptions struct {
+	// The sort field to use for the results. If unspecified, the default sort
+	// field is used.
+	SortField beamsv1.BeamSortField
+	// The sort order to use for the results. If unspecified, the default sort
+	// order is used.
+	SortOrder beamsv1.BeamSortOrder
+	// FilterUsers filters the results to only include beams owned by the
+	// provided users.
+	FilterUsers set.Set[string]
+	// FilterFn is a general-use filter delegate. Useful when the state required
+	// for a filter means the filter can't be easily implemented in the backend
+	// or cache (e.g. access control context).
+	FilterFn func(*beamsv1.Beam) bool
+}
+
+// GetSortField is a nil-safe getter for SortField
+func (o *ListBeamsRequestOptions) GetSortField() beamsv1.BeamSortField {
+	if o == nil {
+		return beamsv1.BeamSortField_BEAM_SORT_FIELD_UNSPECIFIED
+	}
+	return o.SortField
+}
+
+// GetSortOrder is a nil-safe getter for SortDesc
+func (o *ListBeamsRequestOptions) GetSortOrder() beamsv1.BeamSortOrder {
+	if o == nil {
+		return beamsv1.BeamSortOrder_BEAM_SORT_ORDER_UNSPECIFIED
+	}
+	return o.SortOrder
+}
+
+// GetFilterUsers is a nil-safe getter for FilterOwners
+func (o *ListBeamsRequestOptions) GetFilterUsers() set.Set[string] {
+	if o == nil {
+		return set.Set[string]{}
+	}
+	return o.FilterUsers
+}
+
+// GetFilterFn is a nil-safe getter for FilterFn
+func (o *ListBeamsRequestOptions) GetFilterFn() func(*beamsv1.Beam) bool {
+	if o == nil {
+		return nil
+	}
+	return o.FilterFn
 }

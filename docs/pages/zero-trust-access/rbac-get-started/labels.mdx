@@ -286,10 +286,10 @@ host server every one hour.
 
 1. Save your changes and close the file.
 
-1. Start Teleport with the invitation token you saved in the `INVITE_TOKEN` environment variable:
+1. Start Teleport with the invitation token you saved in the `/tmp/token` file:
 
    ```code
-   $ sudo teleport start --token=${INVITE_TOKEN?}
+   $ sudo teleport start --token=/tmp/token
    ```
 
 1. Verify that you have added the label by running the following command on your local

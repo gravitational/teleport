@@ -49,6 +49,8 @@ func TestMarshalPluginRoundTrip(t *testing.T) {
 
 	plugin := types.NewPluginV1(types.Metadata{Name: "foobar"}, spec, creds)
 
+	err := plugin.CheckAndSetDefaults()
+	require.NoError(t, err)
 	payload, err := MarshalPlugin(plugin)
 	require.NoError(t, err)
 
@@ -89,6 +91,51 @@ func TestUnmarshalPluginUnknownField(t *testing.T) {
 		require.Equal(t, "plugin", plugin.GetName())
 		require.Equal(t, types.PluginTypeUnknown, plugin.GetType())
 	})
+}
+
+// TestMarshalPluginJamfDurationRoundTrip checks that a PluginV1 with a Jamf
+// spec with non-zero duration fields roundtrips correctly through MarshalPlugin
+// and UnmarshalPlugin. See https://github.com/gravitational/teleport/issues/57747.
+func TestMarshalPluginJamfDurationRoundTrip(t *testing.T) {
+	spec := types.PluginSpecV1{
+		Settings: &types.PluginSpecV1_Jamf{
+			Jamf: &types.PluginJamfSettings{
+				JamfSpec: &types.JamfSpecV1{
+					ApiEndpoint: "https://test.jamfcloud.com",
+					SyncDelay:   types.DurationStringForJamfSpecV1(6 * time.Hour),
+					Inventory: []*types.JamfInventoryEntry{
+						{
+							FilterRsql:        "general.remoteManagement.managed==true",
+							SyncPeriodPartial: types.DurationStringForJamfSpecV1(6 * time.Hour),
+							SyncPeriodFull:    types.DurationStringForJamfSpecV1(24 * time.Hour),
+							OnMissing:         "DELETE",
+							PageSize:          50,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	creds := &types.PluginCredentialsV1{
+		Credentials: &types.PluginCredentialsV1_StaticCredentialsRef{
+			StaticCredentialsRef: &types.PluginStaticCredentialsRef{
+				Labels: map[string]string{"label": "value"},
+			},
+		},
+	}
+
+	plugin := types.NewPluginV1(types.Metadata{Name: "test-jamf"}, spec, creds)
+
+	err := plugin.CheckAndSetDefaults()
+	require.NoError(t, err)
+
+	payload, err := MarshalPlugin(plugin)
+	require.NoError(t, err)
+
+	unmarshaled, err := UnmarshalPlugin(payload)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(plugin, unmarshaled))
 }
 
 func TestMarshalPluginWithStatus(t *testing.T) {
@@ -132,7 +179,8 @@ func TestMarshalPluginWithStatus(t *testing.T) {
 		},
 	}
 	require.NoError(t, plugin.SetStatus(status))
-
+	err := plugin.CheckAndSetDefaults()
+	require.NoError(t, err)
 	payload, err := MarshalPlugin(plugin)
 	require.NoError(t, err)
 

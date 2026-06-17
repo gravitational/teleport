@@ -30,12 +30,13 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/defaults"
+	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // CA is local implementation of Trust service that
@@ -814,27 +815,38 @@ func (s *CA) DeleteTrustedClusterInternal(ctx context.Context, name string, caID
 	return nil
 }
 
-// UpsertTunnelConnection updates or creates tunnel connection
-func (s *CA) UpsertTunnelConnection(conn types.TunnelConnection) error {
+// UpsertTunnelConnection updates or creates tunnel connection.
+func (s *CA) UpsertTunnelConnection(ctx context.Context, conn types.TunnelConnection) error {
+	_, err := s.UpsertTunnelConnectionV2(ctx, conn)
+	return trace.Wrap(err)
+}
+
+// UpsertTunnelConnectionV2 updates or creates a tunnel connection and returns
+// the upserted value with its revision populated from the backend.
+//
+// TODO(strideynet): In v20.0.0, once the legacy HTTP fallback is removed, this
+// can be renamed to UpsertTunnelConnection.
+func (s *CA) UpsertTunnelConnectionV2(ctx context.Context, conn types.TunnelConnection) (types.TunnelConnection, error) {
 	if err := services.CheckAndSetDefaults(conn); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	rev := conn.GetRevision()
 	value, err := services.MarshalTunnelConnection(conn)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	_, err = s.Put(context.TODO(), backend.Item{
+	lease, err := s.Put(ctx, backend.Item{
 		Key:      backend.NewKey(tunnelConnectionsPrefix, conn.GetClusterName(), conn.GetName()),
 		Value:    value,
 		Expires:  conn.Expiry(),
 		Revision: rev,
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	return nil
+	conn.SetRevision(lease.Revision)
+	return conn, nil
 }
 
 // GetTunnelConnection returns connection by cluster name and connection name
@@ -855,77 +867,77 @@ func (s *CA) GetTunnelConnection(clusterName, connectionName string, opts ...ser
 }
 
 // GetTunnelConnections returns connections for a trusted cluster
-func (s *CA) GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]types.TunnelConnection, error) {
+func (s *CA) GetTunnelConnections(ctx context.Context, clusterName string) ([]types.TunnelConnection, error) {
 	if clusterName == "" {
 		return nil, trace.BadParameter("missing cluster name")
 	}
-	startKey := backend.ExactKey(tunnelConnectionsPrefix, clusterName)
-	result, err := s.GetRange(context.TODO(), startKey, backend.RangeEnd(startKey), backend.NoLimit)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	conns := make([]types.TunnelConnection, len(result.Items))
-	for i, item := range result.Items {
+	conns, err := stream.Collect(s.rangeTunnelConnections(ctx, clusterName, ""))
+	return conns, trace.Wrap(err)
+}
+
+// ListTunnelConnections returns a page of tunnel connections, optionally
+// filtered to a single cluster.
+func (s *CA) ListTunnelConnections(ctx context.Context, pageSize int, pageToken string, filter *trustpb.ListTunnelConnectionsFilter) ([]types.TunnelConnection, string, error) {
+	return generic.CollectPageAndCursor(
+		s.rangeTunnelConnections(ctx, filter.GetClusterName(), pageToken),
+		pageSize,
+		func(tc types.TunnelConnection) string {
+			return tc.GetClusterName() + backend.SeparatorString + tc.GetName()
+		},
+	)
+}
+
+// rangeTunnelConnections returns tunnel connection resources starting from the
+// given page token, optionally restricted to a single cluster.
+func (s *CA) rangeTunnelConnections(ctx context.Context, clusterName, pageToken string) iter.Seq2[types.TunnelConnection, error] {
+	mapFn := func(item backend.Item) (types.TunnelConnection, bool) {
 		conn, err := services.UnmarshalTunnelConnection(item.Value,
-			services.AddOptions(opts, services.WithExpires(item.Expires), services.WithRevision(item.Revision))...)
+			services.WithExpires(item.Expires),
+			services.WithRevision(item.Revision))
 		if err != nil {
-			return nil, trace.Wrap(err)
+			s.logger.WarnContext(ctx, "Failed to unmarshal tunnel connection from backend item",
+				"key", item.Key,
+				"error", err,
+			)
+			return nil, false
 		}
-		conns[i] = conn
+		return conn, true
 	}
 
-	return conns, nil
+	prefix := backend.ExactKey(tunnelConnectionsPrefix)
+	if clusterName != "" {
+		prefix = backend.ExactKey(tunnelConnectionsPrefix, clusterName)
+	}
+	startKey := prefix
+	if pageToken != "" {
+		startKey = backend.NewKey(tunnelConnectionsPrefix).AppendKey(backend.KeyFromString(pageToken))
+	}
+	endKey := backend.RangeEnd(prefix)
+
+	return stream.FilterMap(
+		s.Backend.Items(ctx, backend.ItemsParams{
+			StartKey: startKey,
+			EndKey:   endKey,
+		}),
+		mapFn,
+	)
 }
 
 // GetAllTunnelConnections returns all tunnel connections
-func (s *CA) GetAllTunnelConnections(opts ...services.MarshalOption) ([]types.TunnelConnection, error) {
-	startKey := backend.ExactKey(tunnelConnectionsPrefix)
-	result, err := s.GetRange(context.TODO(), startKey, backend.RangeEnd(startKey), backend.NoLimit)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	conns := make([]types.TunnelConnection, len(result.Items))
-	for i, item := range result.Items {
-		conn, err := services.UnmarshalTunnelConnection(item.Value,
-			services.AddOptions(opts,
-				services.WithExpires(item.Expires),
-				services.WithRevision(item.Revision))...)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		conns[i] = conn
-	}
-
-	return conns, nil
+func (s *CA) GetAllTunnelConnections(ctx context.Context) ([]types.TunnelConnection, error) {
+	conns, err := stream.Collect(s.rangeTunnelConnections(ctx, "", ""))
+	return conns, trace.Wrap(err)
 }
 
 // DeleteTunnelConnection deletes tunnel connection by name
-func (s *CA) DeleteTunnelConnection(clusterName, connectionName string) error {
+func (s *CA) DeleteTunnelConnection(ctx context.Context, clusterName, connectionName string) error {
 	if clusterName == "" {
 		return trace.BadParameter("missing cluster name")
 	}
 	if connectionName == "" {
 		return trace.BadParameter("missing connection name")
 	}
-	return s.Delete(context.TODO(), backend.NewKey(tunnelConnectionsPrefix, clusterName, connectionName))
-}
-
-// DeleteTunnelConnections deletes all tunnel connections for cluster
-func (s *CA) DeleteTunnelConnections(clusterName string) error {
-	if clusterName == "" {
-		return trace.BadParameter("missing cluster name")
-	}
-	startKey := backend.ExactKey(tunnelConnectionsPrefix, clusterName)
-	err := s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey))
-	return trace.Wrap(err)
-}
-
-// DeleteAllTunnelConnections deletes all tunnel connections
-func (s *CA) DeleteAllTunnelConnections() error {
-	startKey := backend.ExactKey(tunnelConnectionsPrefix)
-	err := s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey))
-	return trace.Wrap(err)
+	return s.Delete(ctx, backend.NewKey(tunnelConnectionsPrefix, clusterName, connectionName))
 }
 
 // CreateRemoteCluster creates a remote cluster
@@ -1112,45 +1124,50 @@ func (s *CA) GetRemoteClusters(ctx context.Context) ([]types.RemoteCluster, erro
 }
 
 // ListRemoteClusters returns a page of remote clusters
-func (s *CA) ListRemoteClusters(
-	ctx context.Context, pageSize int, pageToken string,
-) ([]types.RemoteCluster, string, error) {
-	rangeStart := backend.NewKey(remoteClustersPrefix, pageToken)
-	rangeEnd := backend.RangeEnd(backend.ExactKey(remoteClustersPrefix))
+func (s *CA) ListRemoteClusters(ctx context.Context, pageSize int, pageToken string) ([]types.RemoteCluster, string, error) {
+	return generic.CollectPageAndCursor(s.rangeRemoteClusters(ctx, pageToken, ""), pageSize, func(c types.RemoteCluster) string {
+		return backend.GetPaginationKey(c)
+	})
+}
 
-	// Adjust page size, so it can't be too large.
-	if pageSize <= 0 || pageSize > defaults.DefaultChunkSize {
-		pageSize = defaults.DefaultChunkSize
-	}
-
-	limit := pageSize + 1
-
-	result, err := s.GetRange(ctx, rangeStart, rangeEnd, limit)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
-	clusters := make([]types.RemoteCluster, 0, len(result.Items))
-	for _, item := range result.Items {
+// rangeRemoteClusters returns remote cluster resources within the range [start, end).
+func (s *CA) rangeRemoteClusters(ctx context.Context, start, end string) iter.Seq2[types.RemoteCluster, error] {
+	mapFn := func(item backend.Item) (types.RemoteCluster, bool) {
 		cluster, err := services.UnmarshalRemoteCluster(item.Value,
 			services.WithExpires(item.Expires),
-			services.WithRevision(item.Revision),
-		)
+			services.WithRevision(item.Revision))
+
 		if err != nil {
-			slog.WarnContext(ctx, "Skipping item during ListRemoteClusters because conversion from backend item failed", "key", item.Key, "error", err)
-			continue
+			slog.WarnContext(ctx, "Failed to unmarshal remote cluster from backend item",
+				"key", logutils.StringerAttr(item.Key),
+				"error", err,
+			)
+			return nil, false
 		}
-		clusters = append(clusters, cluster)
+
+		return cluster, true
 	}
 
-	next := ""
-	if len(clusters) > pageSize {
-		next = backend.GetPaginationKey(clusters[pageSize])
-		clear(clusters[pageSize:])
-		// Truncate the last item that was used to determine next row existence.
-		clusters = clusters[:pageSize]
+	rcKey := backend.NewKey(remoteClustersPrefix)
+	startKey := rcKey.AppendKey(backend.KeyFromString(start))
+	endKey := backend.RangeEnd(rcKey)
+	if end != "" {
+		endKey = rcKey.AppendKey(backend.KeyFromString(end)).ExactKey()
 	}
-	return clusters, next, nil
+
+	return stream.TakeWhile(
+		stream.FilterMap(
+			s.Backend.Items(ctx, backend.ItemsParams{
+				StartKey: startKey,
+				EndKey:   endKey,
+			}),
+			mapFn, // mapping function
+		),
+		func(cluster types.RemoteCluster) bool {
+			// The range is not inclusive of the end key, so return early
+			// if the end has been reached.
+			return end == "" || cluster.GetName() < end
+		})
 }
 
 // GetRemoteCluster returns a remote cluster by name

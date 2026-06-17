@@ -301,21 +301,43 @@ func RemoveUserExpirations(username string) (exitCode int, err error) {
 
 var ErrInvalidSudoers = errors.New("visudo: invalid sudoers file")
 
-// CheckSudoers tests a suders file using `visudo`. The contents
-// are written to the process via stdin pipe.
+// CheckSudoers tests a sudoers file using `visudo`. The contents are written
+// to a temp file which is then passed to `visudo --check --file <path>`.
+//
+// A temp file is used rather than piping via `--file -` because of
+// https://github.com/trifectatechfoundation/sudo-rs/issues/1358. Newer Linux
+// distributions ship with an older version of sudo-rs that are impacted by
+// the above issue.
 func CheckSudoers(contents []byte) error {
 	visudoBin, err := exec.LookPath("visudo")
 	if err != nil {
 		return trace.Wrap(err, "cant find visudo binary")
 	}
-	cmd := exec.Command(visudoBin, "--check", "--file", "-")
 
-	cmd.Stdin = bytes.NewBuffer(contents)
-	output, err := cmd.Output()
-	if cmd.ProcessState.ExitCode() != 0 {
-		return trace.WrapWithMessage(ErrInvalidSudoers, string(output))
+	f, err := os.CreateTemp("", "teleport-sudoers-*")
+	if err != nil {
+		return trace.Wrap(err, "creating sudoers temp file")
 	}
-	return trace.Wrap(err)
+	defer os.Remove(f.Name())
+
+	if _, err := f.Write(contents); err != nil {
+		f.Close()
+		return trace.Wrap(err, "writing sudoers temp file")
+	}
+	if err := f.Close(); err != nil {
+		return trace.Wrap(err, "closing sudoers temp file")
+	}
+
+	cmd := exec.Command(visudoBin, "--check", "--file", f.Name())
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			return trace.WrapWithMessage(ErrInvalidSudoers, string(output))
+		}
+		return trace.Wrap(err, "running visudo")
+	}
+	return nil
 }
 
 // UserShell invokes the 'getent' binary in order to fetch the default shell for the

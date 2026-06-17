@@ -222,22 +222,22 @@ func TestRootCheckHomeDir(t *testing.T) {
 	require.NoError(t, os.Chown(home, uid, gid))
 	require.NoError(t, os.Chown(file, uid, gid))
 
-	hasAccess, err := CheckHomeDir(testUser)
+	hasAccess, err := checkHomeDir(testUser)
 	require.NoError(t, err)
 	require.True(t, hasAccess)
 
 	changeHomeDir(t, login, file)
-	hasAccess, err = CheckHomeDir(testUser)
+	hasAccess, err = checkHomeDir(testUser)
 	require.NoError(t, err)
 	require.False(t, hasAccess)
 
 	changeHomeDir(t, login, notFound)
-	hasAccess, err = CheckHomeDir(testUser)
+	hasAccess, err = checkHomeDir(testUser)
 	require.NoError(t, err)
 	require.False(t, hasAccess)
 
 	changeHomeDir(t, login, noAccess)
-	hasAccess, err = CheckHomeDir(testUser)
+	hasAccess, err = checkHomeDir(testUser)
 	require.NoError(t, err)
 	require.False(t, hasAccess)
 }

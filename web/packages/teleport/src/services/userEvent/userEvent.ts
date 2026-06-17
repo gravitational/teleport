@@ -30,7 +30,9 @@ import {
   FeatureRecommendationEvent,
   FeatureRecommendationEventRequest,
   IntegrationEnrollEventRequest,
+  PageViewEventRequest,
   PreUserEvent,
+  UiInteractionEventRequest,
   UserEvent,
 } from './types';
 
@@ -46,7 +48,9 @@ function captureEvent({
     | CtaEventRequest
     | FeatureRecommendationEventRequest
     | CreateNewRoleSaveClickEvent
-    | AccessListEventRequest;
+    | AccessListEventRequest
+    | PageViewEventRequest
+    | UiInteractionEventRequest;
   path?: string;
 }) {
   // using api.fetch instead of api.fetchJSON
@@ -78,6 +82,10 @@ export const userEventService = {
     captureEvent({ event });
   },
 
+  capturePageViewEvent(event: PageViewEventRequest) {
+    captureEvent({ event });
+  },
+
   captureCtaEvent(eventData: CtaEvent) {
     captureEvent({
       event: {
@@ -105,5 +113,8 @@ export const userEventService = {
         eventData,
       },
     });
+  },
+  captureUiInteractionEvent(event: UiInteractionEventRequest) {
+    captureEvent({ event });
   },
 };

@@ -43,6 +43,7 @@ export type PersistedWorkspace = Omit<
   // TODO(gzdunek) DELETE IN v19.0.0: Make the field required by removing the 'color' type below and the omitted 'color' above.
   // This only expresses that existing persisted state from older versions might not have color defined.
   color?: WorkspaceColor;
+  proxyHost?: string;
 };
 
 export type WorkspacesPersistedState = Omit<

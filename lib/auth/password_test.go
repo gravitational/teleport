@@ -36,7 +36,9 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/header"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authcatest"
@@ -705,6 +707,97 @@ func TestChangeUserAuthentication(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestChangeUserAuthentication_AccessListRolesApplied verifies that roles
+// granted via Access Lists are included in the web session created by the
+// password-reset flow (ChangeUserAuthentication).
+//
+// Regression test for: https://github.com/gravitational/teleport/issues/65722
+func TestChangeUserAuthentication_AccessListRolesApplied(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
+	authServer := as.AuthServer
+
+	// Disable second factor so the reset request only needs a password.
+	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:         constants.Local,
+		SecondFactor: constants.SecondFactorOff,
+	})
+	require.NoError(t, err)
+	_, err = authServer.UpsertAuthPreference(ctx, authPref)
+	require.NoError(t, err)
+
+	// Create the role that the access list will grant.
+	grantedRole, err := types.NewRole("al-granted-role", types.RoleSpecV6{})
+	require.NoError(t, err)
+	_, err = authServer.UpsertRole(ctx, grantedRole)
+	require.NoError(t, err)
+
+	// Create a user with a single static role only.
+	username := "reset-al-test@goteleport.com"
+	_, _, err = authtest.CreateUserAndRole(authServer, username, []string{"access"}, nil)
+	require.NoError(t, err)
+
+	user, err := authServer.GetUser(ctx, username, false)
+	require.NoError(t, err)
+
+	// Create an access list that grants al-granted-role to its members.
+	al, err := accesslist.NewAccessList(header.Metadata{
+		Name: "test-access-list",
+	}, accesslist.Spec{
+		Title: "Test Access List",
+		Owners: []accesslist.Owner{
+			{Name: username, Description: "owner"},
+		},
+		Audit: accesslist.Audit{
+			NextAuditDate: authServer.GetClock().Now().Add(24 * time.Hour),
+		},
+		Grants: accesslist.Grants{
+			Roles: []string{"al-granted-role"},
+		},
+	})
+	require.NoError(t, err)
+	_, err = authServer.UpsertAccessList(ctx, al)
+	require.NoError(t, err)
+
+	// Add the user as a member of the access list.
+	member, err := accesslist.NewAccessListMember(header.Metadata{
+		Name: username,
+	}, accesslist.AccessListMemberSpec{
+		AccessList: al.GetName(),
+		Name:       username,
+		Joined:     authServer.GetClock().Now(),
+		Expires:    authServer.GetClock().Now().Add(24 * time.Hour),
+		Reason:     "test",
+		AddedBy:    user.GetName(),
+	})
+	require.NoError(t, err)
+	_, err = authServer.UpsertAccessListMember(ctx, member)
+	require.NoError(t, err)
+
+	// Create a reset password token and call ChangeUserAuthentication.
+	resetToken, err := authServer.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
+		Name: username,
+	})
+	require.NoError(t, err)
+
+	resp, err := authServer.ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
+		TokenID:     resetToken.GetName(),
+		NewPassword: []byte("newpassword123!"),
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp.WebSession)
+
+	// Parse the TLS certificate from the web session and verify it contains
+	// the Access List-granted role.
+	_, identity := parseX509PEMAndIdentity(t, resp.WebSession.GetTLSCert())
+	require.Contains(t, identity.Groups, "al-granted-role",
+		"expected Access List-granted role in session certificate, got roles: %v", identity.Groups)
 }
 
 func TestChangeUserAuthenticationWithErrors(t *testing.T) {

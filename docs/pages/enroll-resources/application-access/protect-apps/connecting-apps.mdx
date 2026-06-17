@@ -6,6 +6,7 @@ tags:
  - how-to
  - zero-trust
  - infrastructure-identity
+page_type: how-to
 ---
 
 This guide shows you how to enroll a web application with your Teleport cluster
@@ -22,6 +23,20 @@ the Teleport Proxy Service address. The Teleport Proxy Service routes browser
 traffic to the Teleport Application Service, which forwards HTTP requests to and
 from target applications.
 
+Once the Teleport Application Service is proxying traffic to your web
+application, the Teleport Proxy Service makes the application available at the
+following URL:
+
+```text
+https://<APPLICATION_NAME>.<TELEPORT_DOMAIN>
+```
+
+For example, if your Teleport domain name is `teleport.example.com`, the
+application named `my-app` would be available at
+`https://my-app.teleport.example.com`. The Proxy Service must present a TLS
+certificate for this domain name that browsers can verify against a certificate
+authority.
+
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
@@ -29,11 +44,43 @@ from target applications.
 - A web application that you want to protect with Teleport. The web application
   should be running in a private network. In this guide, we assume that the web
   application is available on `app.example.com:3000`.
+
 - A Linux server where you will run the Teleport Application Service. Your
   network must enable the server to connect to your web application.
+
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/3. Deploy the Teleport Application Service
+- **If you are self-hosting Teleport**, one of the following DNS records, which
+  allow users and API clients to reach Teleport-protected applications:
+  - A DNS A record that associates a wildcard subdomain of your Teleport Proxy
+    Service domain, e.g., `*.teleport.example.com`, with the IP address of the
+    Teleport Proxy Service.
+  - A DNS CNAME record that associates a wildcard subdomain of your Proxy
+    Service domain, e.g., `*.teleport.example.com`, with the domain name of the
+    Teleport Proxy Service.
+
+  If you are using Teleport Enterprise (Cloud), DNS records and TLS certificates
+  for this domain name are provisioned automatically.
+
+  <Admonition type="warning">
+
+   Do not create DNS records that map the Teleport cluster subdomain of a
+   registered application to the application's own host, as attempts to navigate
+   to the application will fail.
+
+  </Admonition>
+
+- **If you are self-hosting Teleport** Ensure that your system provisions TLS
+  certificates for Teleport-registered applications. The method to use depends
+  on how you originally set up TLS for your self-hosted Teleport deployment, and
+  is outside the scope of this guide. 
+
+  In general, the same system that provisions TLS certificates signed for the
+  web address of the Proxy Service (e.g., `teleport.example.com`) must also
+  provision certificates for the wildcard address used for applications (e.g.,
+  `*.teleport.example.com`).
+
+## Step 1/2. Deploy the Teleport Application Service
 
 In this step, you will configure the Teleport Application Service to proxy a
 target application, then deploy a Teleport Agent to run the service.
@@ -110,11 +157,37 @@ Application Service:
 
 (!docs/pages/includes/start-teleport.mdx service="the Teleport Application Service"!)
 
-## Step 2/3. [Optional] Configure TLS and DNS for your web applications
+<Checkpoint
+  title="Verify the Application Service is running"
+  description="Confirm that the Teleport Application Service has started and connected to your cluster."
+>
+  Here are some troubleshooting tips:
 
-(!docs/pages/includes/dns-app-access.mdx!)
+  - Check the service status on the Application Service host:
 
-## Step 3/3. Configure RBAC and access the application
+    ```code
+    $ systemctl status teleport
+    ```
+
+  - Review logs for connection errors:
+
+    ```code
+    $ sudo journalctl -u teleport
+    ```
+
+  - Verify the token hasn't expired (tokens are valid for 30 minutes by default).
+
+  - Ensure the Linux server can reach both the Teleport Proxy and the target application.
+
+  - Verify the application is registered in the cluster:
+
+    ```code
+    $ tctl apps ls
+    ```
+
+</Checkpoint>
+
+## Step 2/2. Configure RBAC and access the application
 
 1. Create a role called `demo-app-access` that allows access to applications
    with the `env:demo` label that you assigned to the application that you
@@ -149,18 +222,69 @@ Application Service:
 1. Sign in to the Teleport Web UI as `appuser`. You should see the option to
    visit the web application that you enrolled.
 
+<Checkpoint
+  title="Verify application access"
+  description="Confirm that you can access the web application through the Teleport Web UI."
+>
+  Here are some troubleshooting tips:
+
+  - Ensure the `appuser` account has the `demo-app-access` role assigned.
+
+  - If the application doesn't appear in the **Applications** tab, verify that the role's `app_labels` match the labels assigned to your application:
+
+    ```code
+    $ tctl get roles/demo-app-access
+    ```
+
+  - Review Application Service logs for connection errors:
+
+    ```code
+    $ sudo journalctl -u teleport
+    ```
+  
+  - Test connectivity to the target app from the Application Service host: 
+  
+    ```code
+    $ curl -v http://app.example.com:3000
+    ```
+  
+</Checkpoint>
+
 ## Advanced options
 
 ### Application name
 
 {/*
 Note: this section of the docs is linked to from error messages in the product.
-Please make sure to update lib/srv/servicecfg/app.go if you change this section
-header or move this page.
+Please make sure to update lib/service/servicecfg/app.go and lib/services/app.go
+if you change this section header or move this page.
 */}
 
-An application name should make a valid sub-domain (\<=63 characters, no spaces, only `a-z 0-9 -` allowed).
-It should also be unique across root and leaf clusters if you are deploying in a trusted clusters environment.
+An application name must be unique across root and leaf clusters in a
+trusted clusters environment. Validation rules depend on where the app
+is registered:
+
+- **Static config (`app_service.apps` in YAML)**: lowercase
+  alphanumeric and `-`, max 63 characters, no dots, must start and end
+  with alphanumeric. Mixed-case names are rejected at startup, as are
+  duplicate names.
+- **Dynamic resources (`tctl create app`, integrations, Kubernetes
+  operator)**: lowercase alphanumeric, `-`, `_`, or `.`, max 253
+  characters. On Teleport Cloud, avoid `.` in app names: the tenant
+  wildcard certificate only covers one subdomain level
+  (`*.<tenant>.teleport.sh`), so dotted names will fail TLS
+  validation. Underscores are accepted by the Auth Service and the
+  cluster's wildcard cert, but strict TLS clients
+  (OpenSSL with `verify_hostname`) and proxies like NGINX (with
+  `underscores_in_headers off`) may reject them at access time.
+
+`public_addr` (if set) must be a bare, lowercase DNS hostname. URI
+schemes, ports, IP addresses, and uppercase letters are rejected.
+
+Two apps that route to the same FQDN create an ambiguous request, so
+Teleport does its best to reject such collisions. When `proxy_service`
+is colocated in the same static configuration, it rejects them at
+startup.
 
 After Teleport is running, users can access the app at `app-name.proxy_public_addr.com`
 e.g. `grafana.teleport.example.com`. You can also override `public_addr` e.g

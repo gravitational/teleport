@@ -35,6 +35,9 @@ const (
 	// spawning the intended child process.
 	ParkSubCommand = "park"
 
+	// TrueSubCommand is a sub-command that exits with a success exit code.
+	TrueSubCommand = "true"
+
 	// SFTPSubCommand is the sub-command Teleport uses to re-exec itself to
 	// handle SFTP connections.
 	SFTPSubCommand = "sftp"

@@ -24,6 +24,28 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestIsAWSEndpoint(t *testing.T) {
+	t.Run("valid", func(t *testing.T) {
+		for _, endpoint := range []string{
+			"aurora-instance-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com",
+			"example.amazonaws.com",
+			"foo.amazonaws.com.cn",
+			"example.amazonaws.com:12345", // port numbers must be allowed here
+		} {
+			require.True(t, IsAWSEndpoint(endpoint))
+		}
+	})
+	t.Run("invalid", func(t *testing.T) {
+		for _, endpoint := range []string{
+			"example.com",
+			"foo.amazonaws.com.cn.example.com",
+			"bad.amazonaws.com.example.com",
+		} {
+			require.False(t, IsAWSEndpoint(endpoint))
+		}
+	})
+}
+
 func TestParseRDSEndpoint(t *testing.T) {
 	tests := []struct {
 		name                string
@@ -535,7 +557,6 @@ func TestCassandraEndpointRegion(t *testing.T) {
 			}
 		})
 	}
-
 }
 
 func TestRedshiftServerlessEndpoint(t *testing.T) {

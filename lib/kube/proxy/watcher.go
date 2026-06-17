@@ -43,11 +43,14 @@ func (s *TLSServer) startReconciler(ctx context.Context) (err error) {
 	s.reconciler, err = services.NewReconciler(services.ReconcilerConfig[types.KubeCluster]{
 		Matcher:             s.matcher,
 		GetCurrentResources: s.getResources,
-		GetNewResources:     s.monitoredKubeClusters.get,
-		OnCreate:            s.onCreate,
-		OnUpdate:            s.onUpdate,
-		OnDelete:            s.onDelete,
-		Logger:              s.log.With("kind", types.KindKubernetesCluster),
+		CompareResources: func(kc1, kc2 types.KubeCluster) int {
+			return services.EqualFromBool(kc1.IsEqual(kc2))
+		},
+		GetNewResources: s.monitoredKubeClusters.get,
+		OnCreate:        s.onCreate,
+		OnUpdate:        s.onUpdate,
+		OnDelete:        s.onDelete,
+		Logger:          s.log.With("kind", types.KindKubernetesCluster),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -90,7 +93,7 @@ func (s *TLSServer) startReconciler(ctx context.Context) (err error) {
 // startKubeClusterResourceWatcher starts watching changes to Kube Clusters resources and
 // registers/unregisters the proxied Kube Cluster accordingly.
 func (s *TLSServer) startKubeClusterResourceWatcher(ctx context.Context) (*services.GenericWatcher[types.KubeCluster, readonly.KubeCluster], error) {
-	if len(s.ResourceMatchers) == 0 || s.KubeServiceType != KubeService {
+	if len(s.ResourceMatchers) == 0 || s.KubeServiceType != KubeService || s.GetScope() != "" {
 		s.log.DebugContext(ctx, "Not initializing Kube Cluster resource watcher")
 		return nil, nil
 	}
@@ -230,8 +233,8 @@ func (s *TLSServer) unregisterKubeCluster(ctx context.Context, cluster types.Kub
 		// Manual deletion per cluster is only required if the auth server
 		// doesn't support actively cleaning up database resources when the
 		// inventory control stream is terminated during shutdown.
-		if capabilities := sender.Hello().Capabilities; capabilities != nil {
-			shouldDeleteOnShutdown = shouldDeleteOnShutdown && !capabilities.KubernetesCleanup
+		if capabilities := sender.Hello().GetCapabilities(); capabilities != nil {
+			shouldDeleteOnShutdown = shouldDeleteOnShutdown && !capabilities.GetKubernetesCleanup()
 		}
 	}
 

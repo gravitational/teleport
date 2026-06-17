@@ -25,6 +25,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -173,4 +174,12 @@ func (e *SafeEnv) isUnsafeKey(preventDuplicates bool, key string) bool {
 // AddExecEnvironment will add safe values from [os.Environ], ignoring any duplicates that may have already been added.
 func (e *SafeEnv) AddExecEnvironment() {
 	e.addFull(true, os.Environ())
+}
+
+// Remove deletes the key and value from the environment if it exists.
+func (e *SafeEnv) Remove(key string) {
+	keyPrefix := key + "="
+	*e = slices.DeleteFunc(*e, func(s string) bool {
+		return strings.HasPrefix(s, keyPrefix)
+	})
 }

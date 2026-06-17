@@ -34,12 +34,18 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	"github.com/gravitational/teleport/lib/auth/authtest"
+	"github.com/gravitational/teleport/lib/auth/mfatypes"
+	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/web"
 )
 
 func TestCLICeremony(t *testing.T) {
-	ctx := context.Background()
+	t.Parallel()
+	ctx := t.Context()
 
 	mockProxy := newMockProxy(t)
 	username := "alice"
@@ -101,7 +107,8 @@ func TestCLICeremony(t *testing.T) {
 }
 
 func TestCLISAMLCeremony(t *testing.T) {
-	ctx := context.Background()
+	t.Parallel()
+	ctx := t.Context()
 	const username = "alice"
 
 	mockProxy := newMockProxy(t)
@@ -132,6 +139,7 @@ func TestCLISAMLCeremony(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			// Capture stderr.
 			stderr := &bytes.Buffer{}
 
@@ -230,10 +238,11 @@ const postform = `
 `
 
 func TestCLICeremony_MFA(t *testing.T) {
+	t.Parallel()
 	const token = "sso-mfa-token"
 	const requestID = "sso-mfa-request-id"
 
-	ctx := context.Background()
+	ctx := t.Context()
 	mockProxy := newMockProxy(t)
 
 	// Capture stderr.
@@ -298,6 +307,101 @@ func TestCLICeremony_MFA(t *testing.T) {
 	assert.Equal(t, requestID, mfaResponse.GetSSO().RequestId)
 }
 
-// TODO(danielashare): Add full Browser MFA ceremony test once server-side
-// Browser MFA functions have been merged. Test similar to above that tests
-// CLI output, redirect handling, and MFA response.
+func TestCLICeremony_BrowserMFA(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	mockProxy := newMockProxy(t)
+	const username = "alice"
+
+	// 1. User runs "tsh login" with browser MFA. tsh creates a redirector that
+	// opens a local callback server and will later open a browser to the proxy.
+	stderr := bytes.NewBuffer([]byte{})
+	rd, err := sso.NewRedirector(sso.RedirectorConfig{
+		ProxyAddr: mockProxy.URL,
+		Browser:   teleport.BrowserNone,
+		Stderr:    stderr,
+	})
+	require.NoError(t, err)
+
+	testServer, err := authtest.NewTestServer(authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
+			Dir: t.TempDir(),
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { assert.NoError(t, testServer.Close()) })
+
+	auth := testServer.Auth()
+
+	// 2. The proxy issues a browser MFA challenge tied to the
+	// redirector's callback URL so the result is delivered back to tsh.
+	chal, err := auth.BeginBrowserMFAChallenge(ctx, mfatypes.BeginBrowserMFAChallengeParams{
+		User:                     username,
+		BrowserMFATSHRedirectURL: rd.ClientCallbackURL,
+		Ext: &mfav1.ChallengeExtensions{
+			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+		},
+	})
+	require.NoError(t, err)
+
+	// 3. User solves the WebAuthn challenge in their browser. Pre-compute the
+	// success redirect URL that the proxy would produce after validating the
+	// response. In reality this would happen after the CLI ceremony that is
+	// created below, but we need the redirect URL before we test the CLI ceremony.
+	webauthnResponse := &wantypes.CredentialAssertionResponse{
+		PublicKeyCredential: wantypes.PublicKeyCredential{
+			Credential: wantypes.Credential{ID: "fake-id", Type: "public-key"},
+		},
+		AssertionResponse: wantypes.AuthenticatorAssertionResponse{
+			AuthenticatorResponse: wantypes.AuthenticatorResponse{
+				ClientDataJSON: []byte(`{"type":"webauthn.get","challenge":"test"}`),
+			},
+			AuthenticatorData: []byte("test-data"),
+			Signature:         []byte("test-sig"),
+		},
+	}
+
+	userCtx := authz.ContextWithUser(ctx, authtest.TestUserWithRoles(username, []string{"role"}).I)
+	successResponseURL, err := auth.CompleteBrowserMFAChallenge(
+		userCtx,
+		chal.RequestId,
+		wantypes.CredentialAssertionResponseToProto(webauthnResponse),
+	)
+	require.NoError(t, err)
+
+	ceremony := sso.NewCLIMFACeremony(rd)
+	t.Cleanup(ceremony.Close)
+
+	// 4. tsh opens the browser to the MFA URL (HandleRedirect). We intercept
+	// this to simulate the browser hitting the proxy's success redirect, which
+	// delivers the MFA result to tsh's local callback server.
+	baseHandleRedirect := ceremony.HandleRedirect
+	ceremony.HandleRedirect = func(ctx context.Context, redirectURL string) error {
+		if err := baseHandleRedirect(ctx, redirectURL); err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Simulate the browser calling the redirect URL it gets from the proxy
+		// that redirects the MFA result to tsh
+		resp, err := http.Get(successResponseURL)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		// User should be redirected to success screen.
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.Equal(t, sso.LoginSuccessRedirectURL, string(body))
+		return nil
+	}
+
+	// 5. tsh ceremony completes and the MFA response is returned to the caller.
+	mfaResponse, err := ceremony.Run(ctx, &proto.MFAAuthenticateChallenge{
+		BrowserMFAChallenge: &proto.BrowserMFAChallenge{
+			RequestId: chal.RequestId,
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, mfaResponse.GetBrowser())
+	assert.Equal(t, wantypes.CredentialAssertionResponseToProto(webauthnResponse), mfaResponse.GetBrowser().WebauthnResponse)
+	assert.Equal(t, chal.RequestId, mfaResponse.GetBrowser().RequestId)
+}

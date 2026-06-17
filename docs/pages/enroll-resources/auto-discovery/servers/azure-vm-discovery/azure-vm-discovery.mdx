@@ -1,0 +1,25 @@
+---
+title: Server Auto-Discovery for Azure Virtual Machines
+sidebar_label: Azure Virtual Machines
+description: How to configure Teleport to automatically enroll Azure virtual machines.
+tags:
+ - how-to
+ - zero-trust
+ - infrastructure-identity
+ - azure
+---
+
+This guide shows you how to configure Teleport to automatically enroll Azure
+virtual machines in your cluster.
+
+## How it works
+
+The Teleport Discovery Service can connect to Azure and automatically discover
+and enroll virtual machines matching configured labels. It will then execute a
+script on these discovered instances that will install Teleport, start it and
+join the cluster.
+
+## Guides
+
+- [Manual Azure VM Auto-Discovery](azure-vm-discovery-manual.mdx)
+- [Terraform Azure VM Auto-Discovery Configuration](azure-vm-discovery-terraform.mdx)

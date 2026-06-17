@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 )
 
+// TODO(gabrielcorado): add support to LLM.
 var supportedResourceKinds = []string{
 	types.KindNode,
 	types.KindDatabase,
@@ -177,11 +178,19 @@ func List(ctx context.Context, cluster *clusters.Cluster, authClient AuthClient,
 			}
 			response.Resources = append(response.Resources, ur)
 		case types.WindowsDesktop:
+			logins := enrichedResource.Logins
+			if req.IncludeRequestable || req.UseSearchAsRoles {
+				var err error
+				logins, err = accessChecker.GetAllowedLoginsForResource(r)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+			}
 			response.Resources = append(response.Resources, UnifiedResource{
 				WindowsDesktop: &clusters.WindowsDesktop{
 					URI:            cluster.URI.AppendWindowsDesktop(r.GetName()),
 					WindowsDesktop: r,
-					Logins:         enrichedResource.Logins,
+					Logins:         logins,
 				},
 				RequiresRequest: requiresRequest,
 			})

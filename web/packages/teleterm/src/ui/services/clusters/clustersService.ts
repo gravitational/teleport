@@ -362,6 +362,10 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     return gateway;
   }
 
+  async addCluster(proxy: string) {
+    return await this.mainProcessClient.addCluster(proxy);
+  }
+
   findCluster(clusterUri: uri.ClusterUri) {
     return this.state.clusters.get(clusterUri);
   }

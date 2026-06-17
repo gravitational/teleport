@@ -22,6 +22,3 @@ import {
 } from 'teleport/services/integrations';
 
 export type CloudRegion = AwsRegion | AzureRegion;
-export type WildcardRegion = '*';
-
-export type RegionOrWildcard<R extends CloudRegion> = R | WildcardRegion;

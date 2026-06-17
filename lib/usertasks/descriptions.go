@@ -70,3 +70,10 @@ func DescriptionForDiscoverEKSIssue(issueType string) (string, string) {
 func DescriptionForDiscoverRDSIssue(issueType string) (string, string) {
 	return loadIssueTitleDescription(issueType)
 }
+
+// DescriptionForDiscoverAzureVMIssue returns the description of the issue and fixing steps.
+// The returned string contains a markdown document.
+// If issue type is not recognized or doesn't have a specific description, an empty string is returned.
+func DescriptionForDiscoverAzureVMIssue(issueType string) (string, string) {
+	return loadIssueTitleDescription(issueType)
+}

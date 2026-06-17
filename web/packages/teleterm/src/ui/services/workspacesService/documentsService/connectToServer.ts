@@ -42,7 +42,11 @@ export async function connectToServer(
   doc.title = `${target.login}@${target.hostname}`;
   doc.login = target.login;
 
-  await ctx.workspacesService.setActiveWorkspace(rootClusterUri);
+  const { isAtDesiredWorkspace } =
+    await ctx.workspacesService.setActiveWorkspace(rootClusterUri);
+  if (!isAtDesiredWorkspace) {
+    return;
+  }
   documentsService.add(doc);
   documentsService.open(doc.uri);
 }

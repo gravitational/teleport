@@ -75,6 +75,8 @@ func IsKeySafe(key Key) bool {
 }
 
 var _ Backend = (*Sanitizer)(nil)
+var _ BatchDeleter = (*Sanitizer)(nil)
+var _ BatchPutter = (*Sanitizer)(nil)
 
 // Sanitizer wraps a [Backend] implementation to make sure all
 // [Key]s written to the backend are allowed. Retrieval and deletion
@@ -168,6 +170,11 @@ func (s *Sanitizer) CompareAndSwap(ctx context.Context, expected Item, replaceWi
 // Delete deletes item by key
 func (s *Sanitizer) Delete(ctx context.Context, key Key) error {
 	return s.backend.Delete(ctx, key)
+}
+
+// DeleteBatch deletes multiple items from the backend.
+func (s *Sanitizer) DeleteBatch(ctx context.Context, keys []Key) error {
+	return trace.Wrap(DeleteBatch(ctx, s.backend, keys))
 }
 
 // ConditionalDelete deletes the item by key if the revision matches the stored revision.

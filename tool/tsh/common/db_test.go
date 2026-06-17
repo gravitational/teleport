@@ -42,12 +42,10 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/service"
@@ -77,16 +75,6 @@ func TestTshDB(t *testing.T) {
 	// will fail. The fake engine registered are not functional. But other
 	// Enterprise features like Access Request can still be tested.
 	registerFakeEnterpriseDBEngines(t)
-	modulestest.SetTestModules(t,
-		modulestest.Modules{
-			TestBuildType: modules.BuildEnterprise,
-			TestFeatures: modules.Features{
-				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-					entitlements.DB: {Enabled: true},
-				},
-			},
-		},
-	)
 
 	// this speeds up test suite setup substantially, which is where
 	// tests spend the majority of their time, especially when leaf
@@ -150,6 +138,7 @@ func testDatabaseLogin(t *testing.T) {
 	alice.SetRoles([]string{"dev-access", "autouser", "access-requestor"})
 	s := newTestSuite(t,
 		withRootConfigFunc(func(cfg *servicecfg.Config) {
+			cfg.Modules = modulestest.EnterpriseModules()
 			cfg.InsecureMode = true
 			cfg.Auth.BootstrapResources = append(
 				cfg.Auth.BootstrapResources,
@@ -698,6 +687,7 @@ func testListDatabase(t *testing.T) {
 	fullName := "root-postgres-rds-us-west-1-123456789012"
 	s := newTestSuite(t,
 		withRootConfigFunc(func(cfg *servicecfg.Config) {
+			cfg.Modules = modulestest.EnterpriseModules()
 			cfg.InsecureMode = true
 			cfg.Auth.StorageConfig.Params["poll_stream_period"] = 50 * time.Millisecond
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
@@ -721,6 +711,7 @@ func testListDatabase(t *testing.T) {
 		}),
 		withLeafCluster(),
 		withLeafConfigFunc(func(cfg *servicecfg.Config) {
+			cfg.Modules = modulestest.EnterpriseModules()
 			cfg.Auth.StorageConfig.Params["poll_stream_period"] = 50 * time.Millisecond
 			cfg.InsecureMode = true
 			cfg.SSH.Enabled = false
@@ -1592,6 +1583,7 @@ func testDatabaseSelection(t *testing.T) {
 	alice.SetRoles([]string{"access"})
 	s := newTestSuite(t,
 		withRootConfigFunc(func(cfg *servicecfg.Config) {
+			cfg.Modules = modulestest.EnterpriseModules()
 			cfg.Auth.BootstrapResources = append(cfg.Auth.BootstrapResources, alice)
 			cfg.InsecureMode = true
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)

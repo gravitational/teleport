@@ -475,7 +475,10 @@ func TestShutdown(t *testing.T) {
 				dbServers, err := testCtx.authClient.GetDatabaseServers(ctx, apidefaults.Namespace)
 				require.NoError(t, err)
 				require.Len(t, dbServers, 1)
-				require.Empty(t, cmp.Diff(dbServers[0].GetDatabase(), db0, cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Expires")))
+				require.Empty(t, cmp.Diff(dbServers[0].GetDatabase(), db0,
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Expires"),
+					cmpopts.IgnoreFields(types.DatabaseStatusV3{}, "VNetDNSName"),
+				))
 			}, 10*time.Second, 100*time.Millisecond)
 
 			require.NoError(t, server.Shutdown(ctx))
@@ -491,7 +494,10 @@ func TestShutdown(t *testing.T) {
 				dbServersAfterShutdown, err := server.cfg.AuthClient.GetDatabaseServers(ctx, apidefaults.Namespace)
 				require.NoError(t, err)
 				require.Len(t, dbServersAfterShutdown, 1)
-				require.Empty(t, cmp.Diff(dbServersAfterShutdown[0].GetDatabase(), db0, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+				require.Empty(t, cmp.Diff(dbServersAfterShutdown[0].GetDatabase(), db0,
+					cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+					cmpopts.IgnoreFields(types.DatabaseStatusV3{}, "VNetDNSName"),
+				))
 			} else {
 				require.EventuallyWithT(t, func(t *assert.CollectT) {
 					dbServersAfterShutdown, err := server.cfg.AuthClient.GetDatabaseServers(ctx, apidefaults.Namespace)
@@ -757,18 +763,18 @@ func TestHealthCheck(t *testing.T) {
 func newHealthCheckConfig(t *testing.T, name string) *healthcheckconfigv1.HealthCheckConfig {
 	t.Helper()
 	out, err := healthcheckconfig.NewHealthCheckConfig(name,
-		&healthcheckconfigv1.HealthCheckConfigSpec{
-			Match: &healthcheckconfigv1.Matcher{
-				DbLabels: []*labelv1.Label{{
+		healthcheckconfigv1.HealthCheckConfigSpec_builder{
+			Match: healthcheckconfigv1.Matcher_builder{
+				DbLabels: []*labelv1.Label{labelv1.Label_builder{
 					Name:   types.Wildcard,
 					Values: []string{types.Wildcard},
-				}},
-			},
+				}.Build()},
+			}.Build(),
 			Interval:           durationpb.New(apidefaults.HealthCheckInterval),
 			Timeout:            durationpb.New(apidefaults.HealthCheckTimeout),
 			HealthyThreshold:   1,
 			UnhealthyThreshold: 1,
-		},
+		}.Build(),
 	)
 	require.NoError(t, err)
 	return out

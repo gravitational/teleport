@@ -61,7 +61,31 @@ test('integration list does not display action menu for aws-oidc, row click navi
   );
 });
 
-test('integration list details prefer plugin status error message over details', () => {
+test('integration list details prefer AWS IC status error message over details', () => {
+  const plugin: Plugin = {
+    resourceType: 'plugin',
+    name: 'aws-ic-plugin',
+    kind: 'aws-identity-center',
+    details: 'fallback details',
+    statusCode: IntegrationStatusCode.Unauthorized,
+    status: {
+      code: IntegrationStatusCode.Unauthorized,
+      lastRun: new Date('2026-03-31T00:00:00Z'),
+      errorMessage: 'scim token rejected',
+    },
+  };
+
+  render(
+    <MemoryRouter>
+      <IntegrationList list={[plugin]} />
+    </MemoryRouter>
+  );
+
+  expect(screen.getByText('scim token rejected')).toBeInTheDocument();
+  expect(screen.queryByText('fallback details')).not.toBeInTheDocument();
+});
+
+test('integration list details ignore status error message for non-AWS-IC plugins', () => {
   const plugin: Plugin = {
     resourceType: 'plugin',
     name: 'okta-plugin',
@@ -81,6 +105,6 @@ test('integration list details prefer plugin status error message over details',
     </MemoryRouter>
   );
 
-  expect(screen.getByText('sync failed')).toBeInTheDocument();
-  expect(screen.queryByText('fallback details')).not.toBeInTheDocument();
+  expect(screen.getByText('fallback details')).toBeInTheDocument();
+  expect(screen.queryByText('sync failed')).not.toBeInTheDocument();
 });

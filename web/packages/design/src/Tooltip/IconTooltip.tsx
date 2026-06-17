@@ -69,7 +69,6 @@ export const IconTooltip: React.FC<
   return (
     <>
       <span
-        role="icon"
         aria-owns={open ? 'mouse-over-popover' : undefined}
         {...(trigger === 'hover' && triggerOnHoverProps)}
         {...(trigger === 'click' && triggerOnClickProps)}
@@ -117,11 +116,32 @@ const ToolTipIcon = ({
 }) => {
   switch (kind) {
     case 'info':
-      return <InfoIcon $muteIconColor={muteIconColor} size="medium" />;
+      return (
+        <InfoIcon
+          role="graphics-symbol"
+          aria-label="Information"
+          $muteIconColor={muteIconColor}
+          size="medium"
+        />
+      );
     case 'warning':
-      return <WarningIcon $muteIconColor={muteIconColor} size="medium" />;
+      return (
+        <WarningIcon
+          role="graphics-symbol"
+          aria-label="Warning"
+          $muteIconColor={muteIconColor}
+          size="medium"
+        />
+      );
     case 'error':
-      return <ErrorIcon $muteIconColor={muteIconColor} size="medium" />;
+      return (
+        <ErrorIcon
+          role="graphics-symbol"
+          aria-label="Error"
+          $muteIconColor={muteIconColor}
+          size="medium"
+        />
+      );
   }
 };
 

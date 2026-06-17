@@ -33,6 +33,10 @@ import (
 )
 
 const (
+	// XAuthFileEnvVar is the environment variable used to specify the path to the
+	// X11 authorization file.
+	XAuthFileEnvVar = "XAUTHORITY"
+
 	// mitMagicCookieProto is the default xauth protocol used for X11 forwarding.
 	mitMagicCookieProto = "MIT-MAGIC-COOKIE-1"
 	// mitMagicCookieSize is the number of bytes in an mit magic cookie.

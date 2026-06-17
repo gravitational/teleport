@@ -86,6 +86,8 @@ type Status struct {
 	LastSyncTime time.Time `json:"last_sync_time,omitempty" yaml:"last_sync_time,omitempty"`
 	// IntegrationDiscoveredResources maps an integration to a summary of resources that were found using that integration.
 	IntegrationDiscoveredResources map[string]*IntegrationDiscoveredSummary `json:"integration_discovered_resources,omitempty" yaml:"integration_discovered_resources,omitempty"`
+	// ServerStatus tracks the discovery iteration status for multiple discovery servers, keyed by Server ID.
+	ServerStatus map[string]*DiscoveryStatusServer `json:"server_status,omitempty" yaml:"server_status,omitempty"`
 }
 
 // NewDiscoveryConfig will create a new discovery config.
@@ -124,6 +126,30 @@ func (s *IntegrationDiscoveredSummary) UnmarshalJSON(data []byte) error {
 	return protojson.UnmarshalOptions{
 		DiscardUnknown: true,
 	}.Unmarshal(data, s.IntegrationDiscoveredSummary)
+}
+
+// ServerStatus holds the status of a discovery server.
+type DiscoveryStatusServer struct {
+	*discoveryconfigv1.DiscoveryStatusServer
+}
+
+// MarshalJSON marshals the ServerStatus into JSON.
+func (s *DiscoveryStatusServer) MarshalJSON() ([]byte, error) {
+	if s == nil {
+		s = &DiscoveryStatusServer{}
+	}
+	return protojson.Marshal(s.DiscoveryStatusServer)
+}
+
+// UnmarshalJSON unmarshals JSON data into the ServerStatus.
+func (s *DiscoveryStatusServer) UnmarshalJSON(data []byte) error {
+	if s.DiscoveryStatusServer == nil {
+		s.DiscoveryStatusServer = &discoveryconfigv1.DiscoveryStatusServer{}
+	}
+
+	return protojson.UnmarshalOptions{
+		DiscardUnknown: true,
+	}.Unmarshal(data, s.DiscoveryStatusServer)
 }
 
 // CheckAndSetDefaults validates fields and populates empty fields with default values.

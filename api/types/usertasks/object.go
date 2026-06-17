@@ -252,6 +252,10 @@ const (
 	// because the SSM Script Run (also known as Invocation) failed.
 	// This happens when there's a failure with permissions or an invalid configuration (eg, invalid document name).
 	AutoDiscoverEC2IssueSSMInvocationFailure = "ec2-ssm-invocation-failure"
+
+	// AutoDiscoverEC2IssueJoinFailure is used to identify instances where Teleport was installed
+	// but the agent failed to join the cluster.
+	AutoDiscoverEC2IssueJoinFailure = "ec2-join-failure"
 )
 
 // DiscoverEC2IssueTypes is a list of issue types that can occur when trying to auto enroll EC2 instances.
@@ -261,6 +265,7 @@ var DiscoverEC2IssueTypes = []string{
 	AutoDiscoverEC2IssueSSMInstanceUnsupportedOS,
 	AutoDiscoverEC2IssueSSMScriptFailure,
 	AutoDiscoverEC2IssueSSMInvocationFailure,
+	AutoDiscoverEC2IssueJoinFailure,
 	AutoDiscoverEC2IssuePermAccountDenied,
 	AutoDiscoverEC2IssuePermOrgDenied,
 }

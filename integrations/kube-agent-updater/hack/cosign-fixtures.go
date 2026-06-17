@@ -31,8 +31,8 @@ import (
 	"log"
 	"maps"
 	"strings"
-	"text/template"
 
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/Masterminds/sprig/v3"
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"

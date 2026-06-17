@@ -96,6 +96,7 @@ it('opens cluster connect dialog if the cluster is not added yet', async () => {
     clustersService.setState(draft => {
       draft.clusters.set(cluster.uri, { ...cluster, connected: true });
     });
+    workspacesService.addWorkspace(cluster);
 
     dialog.onSuccess(dialog.clusterUri);
 
@@ -119,6 +120,7 @@ it('switches to the workspace if the cluster already exists', async () => {
   clustersService.setState(draft => {
     draft.clusters.set(cluster.uri, { ...cluster, connected: true });
   });
+  workspacesService.addWorkspace(cluster);
 
   await launchDeepLink(appCtx, auxCtx, successResult);
 
@@ -136,6 +138,7 @@ it('does not switch workspaces if the user does not log in to the cluster when a
   clustersService.setState(draft => {
     draft.clusters.set(cluster.uri, { ...cluster });
   });
+  workspacesService.addWorkspace(cluster);
 
   jest.spyOn(modalsService, 'openRegularDialog').mockImplementation(dialog => {
     if (dialog.kind !== 'cluster-connect') {

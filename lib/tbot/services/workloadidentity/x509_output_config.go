@@ -43,6 +43,9 @@ type X509OutputConfig struct {
 	// IncludeFederatedTrustBundles controls whether to include federated trust
 	// bundles in the output.
 	IncludeFederatedTrustBundles bool `yaml:"include_federated_trust_bundles,omitempty"`
+	// TrustDomainSelector is the selector of trust domains that will be included in
+	// the bundle.
+	TrustDomainSelector bot.TrustDomainsSelector `yaml:"trust_domains,omitempty"`
 
 	// CredentialLifetime contains configuration for how long credentials will
 	// last and the frequency at which they'll be renewed.
@@ -70,7 +73,10 @@ func (o *X509OutputConfig) GetDestination() destination.Destination {
 }
 
 // CheckAndSetDefaults checks the SPIFFESVIDOutput values and sets any defaults.
-func (o *X509OutputConfig) CheckAndSetDefaults() error {
+func (o *X509OutputConfig) CheckAndSetDefaults(scoped bool) error {
+	if scoped {
+		return trace.BadParameter("service type %q is not supported in scoped mode", X509OutputServiceType)
+	}
 	if o.Destination == nil {
 		return trace.BadParameter("no destination configured for output")
 	}
@@ -79,6 +85,9 @@ func (o *X509OutputConfig) CheckAndSetDefaults() error {
 	}
 	if err := o.Selector.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err, "validating selector")
+	}
+	if err := o.TrustDomainSelector.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err, "validating trust_domains")
 	}
 	return nil
 }

@@ -140,18 +140,18 @@ func (s *adminActionTestSuite) testBots(t *testing.T) {
 	ctx := context.Background()
 
 	botName := "bot"
-	botReq := &machineidv1pb.CreateBotRequest{
-		Bot: &machineidv1pb.Bot{
+	botReq := machineidv1pb.CreateBotRequest_builder{
+		Bot: machineidv1pb.Bot_builder{
 			Kind:    types.KindBot,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: botName,
-			},
-			Spec: &machineidv1pb.BotSpec{
+			}.Build(),
+			Spec: machineidv1pb.BotSpec_builder{
 				Roles: []string{teleport.PresetAccessRoleName},
-			},
-		},
-	}
+			}.Build(),
+		}.Build(),
+	}.Build()
 
 	createBot := func() error {
 		_, err := s.localAdminClient.BotServiceClient().CreateBot(ctx, botReq)
@@ -159,9 +159,9 @@ func (s *adminActionTestSuite) testBots(t *testing.T) {
 	}
 
 	deleteBot := func() error {
-		_, err := s.localAdminClient.BotServiceClient().DeleteBot(ctx, &machineidv1pb.DeleteBotRequest{
+		_, err := s.localAdminClient.BotServiceClient().DeleteBot(ctx, machineidv1pb.DeleteBotRequest_builder{
 			BotName: botName,
-		})
+		}.Build())
 		return trace.Wrap(err)
 	}
 
@@ -304,7 +304,8 @@ func (s *adminActionTestSuite) testAccessRequests(t *testing.T) {
 	}})
 
 	createAccessRequest := func() error {
-		return s.authServer.CreateAccessRequest(ctx, accessRequest)
+		_, err := s.authServer.CreateAccessRequestV2(ctx, accessRequest, tlsca.Identity{})
+		return trace.Wrap(err)
 	}
 
 	deleteAllAccessRequests := func() error {
@@ -1056,15 +1057,6 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 
 	t.Helper()
 	ctx := context.Background()
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.OIDC: {Enabled: true},
-				entitlements.SAML: {Enabled: true},
-			},
-		},
-	})
 
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
@@ -1080,6 +1072,15 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 	process, err := testserver.NewTeleportProcess(t.TempDir(),
 		testserver.WithAuthPreference(authPref),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.Modules = &modulestest.Modules{
+				TestBuildType: modules.BuildEnterprise,
+				TestFeatures: modules.Features{
+					Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+						entitlements.OIDC: {Enabled: true},
+						entitlements.SAML: {Enabled: true},
+					},
+				},
+			}
 			proxyPublicAddr = cfg.Proxy.WebAddr
 			proxyPublicAddr.Addr = fmt.Sprintf("localhost:%v", proxyPublicAddr.Port(0))
 			cfg.Proxy.PublicAddrs = []utils.NetAddr{proxyPublicAddr}

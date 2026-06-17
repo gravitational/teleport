@@ -32,14 +32,12 @@ import (
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -150,6 +148,8 @@ func TestProxyTunnelStrategyAgentMesh(t *testing.T) {
 
 // TestProxyTunnelStrategyProxyPeering tests the proxy-peer tunnel strategy.
 func TestProxyTunnelStrategyProxyPeering(t *testing.T) {
+	t.Parallel()
+
 	// NOTE(eriktate): Testing database tunnels appears to be flaky (or possibly never works?)
 	// so we currently skip adding a database altogether in order to ensure peered tunnels have
 	// some automatic test coverage. Gating this behind a flag in case we want to restore the
@@ -159,16 +159,6 @@ func TestProxyTunnelStrategyProxyPeering(t *testing.T) {
 }
 
 func testProxyTunnelStrategyProxyPeering(t *testing.T, withDB bool) {
-	// This test cannot run in parallel as set module changes the global state.
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.DB: {Enabled: true},
-			},
-		},
-	})
-
 	p := newProxyTunnelStrategy(t, "proxy-tunnel-proxy-peer",
 		&types.TunnelStrategyV1{
 			Strategy: &types.TunnelStrategyV1_ProxyPeering{
@@ -313,11 +303,13 @@ func (p *proxyTunnelStrategy) makeAuth(t *testing.T) {
 		Priv:        privateKey,
 		Pub:         publicKey,
 		Logger:      logtest.NewLogger(),
+		Modules:     modulestest.EnterpriseModules(),
 	})
 
 	auth.AddUser(p.username, []string{p.username})
 
 	conf := servicecfg.MakeDefaultConfig()
+	conf.Modules = auth.Modules
 	conf.DataDir = t.TempDir()
 	conf.Logger = auth.Log
 
@@ -342,11 +334,13 @@ func (p *proxyTunnelStrategy) makeProxy(t *testing.T) {
 		HostID:      uuid.New().String(),
 		NodeName:    helpers.Loopback,
 		Logger:      logtest.NewLogger(),
+		Modules:     modulestest.EnterpriseModules(),
 	})
 
 	authAddr := utils.MustParseAddr(p.auth.Auth)
 
 	conf := servicecfg.MakeDefaultConfig()
+	conf.Modules = proxy.Modules
 	conf.DebugService.Enabled = false
 	conf.SetAuthServerAddress(*authAddr)
 	conf.SetToken("token")
@@ -391,9 +385,11 @@ func (p *proxyTunnelStrategy) makeNode(t *testing.T) {
 		HostID:      uuid.New().String(),
 		NodeName:    helpers.Loopback,
 		Logger:      logtest.NewLogger(),
+		Modules:     modulestest.EnterpriseModules(),
 	})
 
 	conf := servicecfg.MakeDefaultConfig()
+	conf.Modules = node.Modules
 	conf.Version = types.V3
 	conf.SetToken("token")
 	conf.DataDir = t.TempDir()
@@ -439,9 +435,11 @@ func (p *proxyTunnelStrategy) makeDatabase(t *testing.T) {
 		HostID:      uuid.New().String(),
 		NodeName:    helpers.Loopback,
 		Logger:      logtest.NewLogger(),
+		Modules:     modulestest.EnterpriseModules(),
 	})
 
 	conf := servicecfg.MakeDefaultConfig()
+	conf.Modules = db.Modules
 	conf.DebugService.Enabled = false
 	conf.Version = types.V3
 	conf.SetToken("token")

@@ -39,8 +39,8 @@ func ec2InitFromMessage(msg *messages.EC2Init) (*joinv1.EC2Init, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &joinv1.EC2Init{
+	return joinv1.EC2Init_builder{
 		ClientParams: clientParams,
 		Document:     msg.Document,
-	}, nil
+	}.Build(), nil
 }

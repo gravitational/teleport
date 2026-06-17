@@ -340,7 +340,7 @@ func (tc *testCtx) processMessages() error {
 		// support canceling requests.
 		tc.pgClient.Send(&pgproto3.BackendKeyData{
 			ProcessID: 0,
-			SecretKey: 123,
+			SecretKey: []byte{0, 0, 0, 123},
 		})
 		tc.pgClient.Send(&pgproto3.ReadyForQuery{})
 		if err := tc.pgClient.Flush(); err != nil {

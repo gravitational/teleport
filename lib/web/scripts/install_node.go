@@ -27,8 +27,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"text/template"
 
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/google/safetext/shsprintf"
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
@@ -133,8 +133,8 @@ func GetNodeInstallScript(ctx context.Context, opts InstallNodeScriptOptions) (s
 	var appServerResourceLabels []string
 
 	if opts.AppServiceEnabled {
-		if errs := validation.IsDNS1035Label(opts.AppName); len(errs) > 0 {
-			return "", trace.BadParameter("appName %q must be a lower case valid DNS subdomain: https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/#application-name", opts.AppName)
+		if errs := validation.IsDNS1123Label(opts.AppName); len(errs) > 0 {
+			return "", trace.BadParameter("appName %q must be a valid DNS label (lowercase alphanumeric or '-', must start and end with alphanumeric, max 63 chars): https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/#application-name", opts.AppName)
 		}
 		if !appURIPattern.MatchString(opts.AppURI) {
 			return "", trace.BadParameter("appURI %q contains invalid characters", opts.AppURI)

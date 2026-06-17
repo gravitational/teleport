@@ -123,7 +123,7 @@ func newPrehogSubmitter(ctx context.Context, prehogEndpoint string) (SubmitFunc,
 }
 
 func GetAnonymizedPrehogEvent(req *teletermv1.ReportUsageEventRequest) (*prehogv1a.SubmitConnectEventRequest, error) {
-	prehogEvent := req.PrehogReq
+	prehogEvent := req.GetPrehogReq()
 
 	// non-anonymized
 	switch prehogEvent.GetEvent().(type) {

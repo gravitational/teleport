@@ -601,7 +601,7 @@ func TestAccessCheckerHostUsersShell(t *testing.T) {
 
 	// the first value for shell encountered while checking roles should be used, which means
 	// secondaryShell should never be the result here
-	require.Equal(t, expectedShell, hui.Info.Shell)
+	require.Equal(t, expectedShell, hui.Info.GetShell())
 }
 
 func TestAccessCheckerDesktopGroups(t *testing.T) {
@@ -924,6 +924,49 @@ func TestAccessChecker_CheckConditionalAccess_RoleRequiresMFA_ForceInBandMFAEnv_
 	)
 }
 
+// TODO(cthach): Remove in v20.0 when the legacy out-of-band MFA flow is removed.
+func TestAccessChecker_CheckAccess_ReadOnlyBypassWhenMFAForced(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA", "yes")
+
+	const roleName = "mfa-required"
+
+	roleSet := NewRoleSet(newRole(func(r *types.RoleV6) {
+		r.SetName(roleName)
+
+		r.SetOptions(types.RoleOptions{
+			RequireMFAType: types.RequireMFAType_SESSION,
+		})
+	}))
+
+	accessInfo := &AccessInfo{
+		Roles: []string{roleName},
+	}
+
+	accessChecker := NewAccessCheckerWithRoleSet(accessInfo, "cluster", roleSet)
+
+	srv, err := types.NewServer(
+		"test-server",
+		types.KindNode,
+		types.ServerSpecV2{},
+	)
+	require.NoError(t, err)
+
+	node := &serverStub{Server: srv}
+
+	err = accessChecker.CheckAccess(
+		node,
+		AccessState{
+			// Simulate a read-only access check that is being allowed to bypass MFA requirements even when the role
+			// requires MFA and the force in-band MFA env var is set. This is to allow users to perform read-only
+			// operations like listing nodes without being forced to complete MFA verification.
+			MFARequired:         MFARequiredPerRole,
+			MFAVerified:         true,
+			ReturnPreconditions: false,
+		},
+	)
+	require.NoError(t, err)
+}
+
 func TestSSHPortForwarding(t *testing.T) {
 	anyLabels := types.Labels{"*": {"*"}}
 	localCluster := "cluster"
@@ -1142,21 +1185,21 @@ func (serverStub) GetKind() string {
 func TestAccessCheckerWorkloadIdentity(t *testing.T) {
 	localCluster := "cluster"
 
-	noLabelsWI := &workloadidentityv1pb.WorkloadIdentity{
+	noLabelsWI := workloadidentityv1pb.WorkloadIdentity_builder{
 		Kind: types.KindWorkloadIdentity,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: "no-labels",
-		},
-	}
-	fooLabeledWI := &workloadidentityv1pb.WorkloadIdentity{
+		}.Build(),
+	}.Build()
+	fooLabeledWI := workloadidentityv1pb.WorkloadIdentity_builder{
 		Kind: types.KindWorkloadIdentity,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: "foo-labeled",
 			Labels: map[string]string{
 				"foo": "bar",
 			},
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	roleNoLabels := newRole(func(rv *types.RoleV6) {})
 	roleWildcard := newRole(func(rv *types.RoleV6) {

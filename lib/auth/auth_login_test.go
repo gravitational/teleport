@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/scopes/pinning"
 	scopedutils "github.com/gravitational/teleport/lib/scopes/utils"
@@ -940,10 +941,9 @@ func TestServer_AuthenticateUser_passwordOnly(t *testing.T) {
 // TestBasicSSHScopedLogin verifies the basic expected behavior of a scoped login attempt using password-only
 // auth and a rudimentary set of scoped roles.
 func TestBasicSSHScopedLogin(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
-
+	t.Parallel()
 	ctx := context.Background()
-	testServer := newTestTLSServer(t)
+	testServer := newTestTLSServer(t, withScopesFeatures(scopes.Features{Enabled: true}))
 	authServer := testServer.Auth()
 
 	adminClient, err := testServer.NewClient(authtest.TestBuiltin(types.RoleAdmin))
@@ -975,69 +975,69 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 
 	// set up some scoped roles
 	scopedRoles := []*scopedaccessv1.ScopedRole{
-		{
+		scopedaccessv1.ScopedRole_builder{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "role-a",
-			},
+			}.Build(),
 			Scope: "/aa",
-			Spec: &scopedaccessv1.ScopedRoleSpec{
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{"/aa"},
-				Ssh: &scopedaccessv1.ScopedRoleSSH{
+				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
 					Logins: []string{"login-a"},
-				},
-			},
+				}.Build(),
+			}.Build(),
 			Version: types.V1,
-		},
-		{
+		}.Build(),
+		scopedaccessv1.ScopedRole_builder{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "role-b",
-			},
+			}.Build(),
 			Scope: "/aa/bb",
-			Spec: &scopedaccessv1.ScopedRoleSpec{
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{"/aa/bb"},
-				Ssh: &scopedaccessv1.ScopedRoleSSH{
+				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
 					Logins: []string{"login-b"},
-				},
-			},
+				}.Build(),
+			}.Build(),
 			Version: types.V1,
-		},
-		{
+		}.Build(),
+		scopedaccessv1.ScopedRole_builder{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "role-c",
-			},
+			}.Build(),
 			Scope: "/aa/bb/cc",
-			Spec: &scopedaccessv1.ScopedRoleSpec{
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{"/aa/bb/cc"},
-				Ssh: &scopedaccessv1.ScopedRoleSSH{
+				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
 					Logins: []string{"login-c"},
-				},
-			},
+				}.Build(),
+			}.Build(),
 			Version: types.V1,
-		},
-		{
+		}.Build(),
+		scopedaccessv1.ScopedRole_builder{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "role-x",
-			},
+			}.Build(),
 			Scope: "/xx",
-			Spec: &scopedaccessv1.ScopedRoleSpec{
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{"/xx"},
-				Ssh: &scopedaccessv1.ScopedRoleSSH{
+				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
 					Logins: []string{"login-x"},
-				},
-			},
+				}.Build(),
+			}.Build(),
 			Version: types.V1,
-		},
+		}.Build(),
 	}
 
 	// Create the roles.
 	for _, role := range scopedRoles {
-		_, err := adminClient.ScopedAccessServiceClient().CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+		_, err := adminClient.ScopedAccessServiceClient().CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
 			Role: role,
-		})
+		}.Build())
 		require.NoError(t, err)
 	}
 
@@ -1045,26 +1045,26 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 	for _, role := range scopedRoles {
 		assignmentID := uuid.NewString()
 		assignmentIDs = append(assignmentIDs, assignmentID)
-		_, err = adminClient.ScopedAccessServiceClient().CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
-			Assignment: &scopedaccessv1.ScopedRoleAssignment{
+		_, err = adminClient.ScopedAccessServiceClient().CreateScopedRoleAssignment(ctx, scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
+			Assignment: scopedaccessv1.ScopedRoleAssignment_builder{
 				Kind:    scopedaccess.KindScopedRoleAssignment,
 				SubKind: scopedaccess.SubKindDynamic,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: assignmentID,
-				},
+				}.Build(),
 				Scope: role.GetScope(),
-				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 					User: "alice",
 					Assignments: []*scopedaccessv1.Assignment{
-						{
+						scopedaccessv1.Assignment_builder{
 							Role:  role.GetMetadata().GetName(),
 							Scope: role.GetScope(),
-						},
+						}.Build(),
 					},
-				},
+				}.Build(),
 				Version: types.V1,
-			},
-		})
+			}.Build(),
+		}.Build())
 		require.NoError(t, err)
 	}
 
@@ -1095,14 +1095,15 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 	require.NoError(t, err)
 
 	// verify that the expected scope pin is applied to ssh and tls certificates
-	expectedPin := &scopesv1.Pin{
+	expectedPin := scopesv1.Pin_builder{
+		Kind:  scopesv1.PinKind_PIN_KIND_USER,
 		Scope: "/aa/bb",
 		AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 			"/aa":       {"/aa": {"role-a"}},
 			"/aa/bb":    {"/aa/bb": {"role-b"}},
 			"/aa/bb/cc": {"/aa/bb/cc": {"role-c"}},
 		}),
-	}
+	}.Build()
 
 	// parse and examine the ssh cert
 	sshCert, err := sshutils.ParseCertificate(authrsp.Cert)
@@ -2020,7 +2021,7 @@ func TestServer_Authenticate_nonPasswordlessRequiresUsername(t *testing.T) {
 func TestServer_Authenticate_headless(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	headlessID := services.NewHeadlessAuthenticationID([]byte(sshPubKey))
 
 	for _, tc := range []struct {
@@ -2028,6 +2029,7 @@ func TestServer_Authenticate_headless(t *testing.T) {
 		timeout     time.Duration
 		update      func(*types.HeadlessAuthentication, *types.MFADevice)
 		assertError require.ErrorAssertionFunc
+		assertResp  func(*testing.T, *authclient.CLILoginResponse, *authtest.Device)
 	}{
 		{
 			name:    "OK approved",
@@ -2037,6 +2039,20 @@ func TestServer_Authenticate_headless(t *testing.T) {
 				ha.MfaDevice = mfa
 			},
 			assertError: require.NoError,
+			assertResp: func(t *testing.T, resp *authclient.CLILoginResponse, webDev *authtest.Device) {
+				require.NotNil(t, resp)
+				require.NotNil(t, webDev)
+				require.NotNil(t, webDev.MFA)
+
+				sshCert, err := sshutils.ParseCertificate(resp.Cert)
+				require.NoError(t, err)
+
+				identity, err := sshca.DecodeIdentity(sshCert)
+				require.NoError(t, err)
+
+				assert.Equal(t, webDev.MFA.GetName(), identity.MFAVerified)
+				assert.Equal(t, headlessID, identity.HeadlessAuthenticationID)
+			},
 		}, {
 			name:    "NOK approved without MFA",
 			timeout: 10 * time.Second,
@@ -2044,7 +2060,10 @@ func TestServer_Authenticate_headless(t *testing.T) {
 				ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED
 			},
 			assertError: func(t require.TestingT, err error, i ...any) {
-				require.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
+				assert.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
+			},
+			assertResp: func(t *testing.T, resp *authclient.CLILoginResponse, _ *authtest.Device) {
+				assert.Nil(t, resp)
 			},
 		}, {
 			name:    "NOK denied",
@@ -2053,18 +2072,23 @@ func TestServer_Authenticate_headless(t *testing.T) {
 				ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED
 			},
 			assertError: func(t require.TestingT, err error, i ...any) {
-				require.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
+				assert.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
+			},
+			assertResp: func(t *testing.T, resp *authclient.CLILoginResponse, _ *authtest.Device) {
+				assert.Nil(t, resp)
 			},
 		}, {
 			name:    "NOK timeout",
 			timeout: 100 * time.Millisecond,
 			assertError: func(t require.TestingT, err error, i ...any) {
-				require.ErrorIs(t, err, context.DeadlineExceeded)
+				assert.ErrorIs(t, err, context.DeadlineExceeded)
+			},
+			assertResp: func(t *testing.T, resp *authclient.CLILoginResponse, _ *authtest.Device) {
+				assert.Nil(t, resp)
 			},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			tc := tc
 			t.Parallel()
 
 			srv := newTestTLSServer(t)
@@ -2110,7 +2134,7 @@ func TestServer_Authenticate_headless(t *testing.T) {
 				}
 			}()
 
-			_, err = proxyClient.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
+			resp, err := proxyClient.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
 				AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 					// HeadlessAuthenticationID should take precedence over WebAuthn and OTP fields.
 					HeadlessAuthenticationID: headlessID,
@@ -2130,6 +2154,7 @@ func TestServer_Authenticate_headless(t *testing.T) {
 			assert.NoError(t, <-errC, "Failed to get and update headless authentication in background")
 
 			tc.assertError(t, err, trace.DebugReport(err))
+			tc.assertResp(t, resp, mfa.WebDev)
 		})
 	}
 }

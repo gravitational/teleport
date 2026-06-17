@@ -2,6 +2,7 @@
 title: Run Teleport as a launchd Service on macOS
 description: Configure Teleport to run as a persistent launchd service on macOS.
 sidebar_label: macOS launchd Service
+page_type: how-to
 ---
 
 This guide explains how to configure Teleport to run as a persistent
@@ -15,6 +16,9 @@ that node enrollment is complete and a valid `/etc/teleport.yaml`
 configuration file is already in place. See the
 [configuration reference page](../../reference/deployment/config.mdx)
 for more information.
+
+In this guide, you will configure a `launchd` service on your Mac to run the
+locally installed `teleport` binary.
 
 ## How it works
 
@@ -31,11 +35,10 @@ a join token.
 
 ## Prerequisites
 
-- The `teleport` binary is installed on your Mac. See
-  [Installing Teleport on macOS](../../installation/macos.mdx) for
-  instructions.
-- A valid `/etc/teleport.yaml` configuration file is in place and the
-  node has successfully joined the cluster.
+- The `teleport` binary is installed on your Mac. See [Installing Teleport on
+  macOS](../../installation/single-machine/macos.mdx) for instructions.
+- A valid `/etc/teleport.yaml` configuration file is in place and the node has
+  successfully joined the cluster.
 - You have confirmed that Teleport runs successfully with:
 
 ```code

@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package teleport.discoveryconfig.v1;
 
+import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 import "teleport/header/v1/resourceheader.proto";
 import "teleport/legacy/types/types.proto";
@@ -72,6 +73,9 @@ message DiscoveryConfigStatus {
 
   // IntegrationDiscoveredResources maps an integration to discovered resources summary.
   map<string, IntegrationDiscoveredSummary> integration_discovered_resources = 6;
+
+  // ServerStatus contains the status from each Discovery Service that is watching this Discovery Config.
+  map<string, DiscoveryStatusServer> server_status = 7;
 }
 
 // DiscoveryConfigState is the state of the discovery config resource.
@@ -85,6 +89,41 @@ enum DiscoveryConfigState {
   DISCOVERY_CONFIG_STATE_ERROR = 2;
   // DISCOVERY_CONFIG_STATE_SYNCING is used when the discovery process has started but didn't finished yet.
   DISCOVERY_CONFIG_STATE_SYNCING = 3;
+}
+
+// DiscoveryStatusServer contains the status last reported by a server.
+message DiscoveryStatusServer {
+  // LastUpdate is the timestamp when the server last updated the status.
+  google.protobuf.Timestamp last_update = 1;
+  // PollInterval is the interval at which the server polls for new resources.
+  google.protobuf.Duration poll_interval = 2;
+  // IntegrationSummaries maps an integration to a summary of the discovered resources.
+  // An empty integration means that ambient credentials were used to discover the resources.
+  map<string, DiscoverSummary> integration_summaries = 3;
+}
+
+// DiscoverSummary contains the per-resource-type discovery summary with current and previous iteration tracking.
+message DiscoverSummary {
+  // AWSEC2 contains the summary for the AWS EC2 discovered instances.
+  ResourceSummary aws_ec2 = 1;
+
+  // AWSRDS contains the summary for the AWS RDS discovered databases.
+  ResourceSummary aws_rds = 2;
+
+  // AWSEKS contains the summary for the AWS EKS discovered clusters.
+  ResourceSummary aws_eks = 3;
+
+  // The summary for the Azure VM discovered instances.
+  ResourceSummary azure_vms = 4;
+}
+
+// ResourceSummary represents the summary of the discovered resources.
+message ResourceSummary {
+  // Current holds the in-progress summary for the ongoing discovery iteration.
+  // Populated while sync is running, cleared when the iteration completes.
+  ResourcesDiscoveredSummary current = 1;
+  // Previous holds the final summary from the last completed discovery iteration.
+  ResourcesDiscoveredSummary previous = 2;
 }
 
 // IntegrationDiscoveredSummary contains the a summary for each resource type that was discovered.

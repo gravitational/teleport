@@ -7,9 +7,22 @@ tags:
  - infrastructure-identity
  - zero-trust
  - how-to
+page_type: how-to
 ---
 
-This guide explains how to connect to your **PostgreSQL** Teleport databases with MCP clients.
+<Callout
+  variant="tip"
+  title="Did you know? MCP access is part of a broader Agentic Identity Framework."
+  description="The Agentic Identity Framework is a standards-driven set of designs, SDKs, and reference implementations for deploying AI agents securely."
+  icon="gearStack"
+  link={{
+    title: "Explore framework",
+    href: "../../../agentic-identity-framework",
+  }}
+/>
+
+This guide shows you how to connect to your **PostgreSQL** Teleport databases
+with MCP clients.
 
 {/* lint ignore page-structure remark-lint */}
 
@@ -49,7 +62,7 @@ provisioning](../../enroll-resources/database-access/auto-user-provisioning/post
 or [Database Access Controls](../../enroll-resources/database-access/rbac.mdx).
 </Admonition>
 
-## Step 1/2. Configure MCP clients
+## Step 1/2. List available MCP servers
 
 First, sign in into your Teleport cluster using `tsh login`:
 
@@ -67,6 +80,8 @@ $ tsh db ls
 # postgres-dev    Development database [* postgres]       env=dev
 # postgres-prod   Production database  [mcp_read_only]    env=prod
 ```
+
+## Step 2/2. Configure MCP clients
 
 Each database you want accessible through MCP must be configured with your MCP
 client individually. This is done using the `tsh mcp db config` command. Like
@@ -150,8 +165,6 @@ teleport://clusters/<Var name="teleport.example.com:443" />/databases/postgres-d
 ```
 </TabItem>
 </Tabs>
-
-## Step 2/2. Access Teleport-protected resources over MCP
 
 After configuring your MCP client, the following tools will be available:
 

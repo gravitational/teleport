@@ -105,7 +105,7 @@ func TestListRolesAnywhereProfilesPage(t *testing.T) {
 			},
 			expectedResp: func(t *testing.T, page []*integrationv1.RolesAnywhereProfile) {
 				require.Len(t, page, 1)
-				require.Equal(t, "ExampleProfile", page[0].Name)
+				require.Equal(t, "ExampleProfile", page[0].GetName())
 			},
 			expectedErrCheck: require.NoError,
 		},
@@ -128,8 +128,8 @@ func TestListRolesAnywhereProfilesPage(t *testing.T) {
 			expectedResp: func(t *testing.T, page []*integrationv1.RolesAnywhereProfile) {
 				require.Len(t, page, 3)
 				profile := page[0]
-				require.NotEmpty(t, profile.Arn)
-				require.Contains(t, profile.Name, "TeamB-subteam")
+				require.NotEmpty(t, profile.GetArn())
+				require.Contains(t, profile.GetName(), "TeamB-subteam")
 			},
 			expectedErrCheck: require.NoError,
 		},
@@ -159,7 +159,7 @@ func TestListRolesAnywhereProfilesPage(t *testing.T) {
 				require.Len(t, page, 6)
 				profileNames := make([]string, 0, len(page))
 				for _, profile := range page {
-					profileNames = append(profileNames, profile.Name)
+					profileNames = append(profileNames, profile.GetName())
 				}
 				require.Contains(t, profileNames, "TeamA-subteam1")
 			},
@@ -186,11 +186,11 @@ func TestListRolesAnywhereProfilesPage(t *testing.T) {
 					cmpopts.IgnoreUnexported(integrationv1.RolesAnywhereProfile{}),
 				}
 				require.Empty(t, cmp.Diff(page, []*integrationv1.RolesAnywhereProfile{
-					{Arn: "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/id2", Name: "TeamA-subteam2", Tags: make(map[string]string)},
-					{Arn: "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/id3", Name: "TeamA-subteam3", Tags: make(map[string]string)},
-					{Arn: "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/id4", Name: "TeamB-subteam1", Tags: make(map[string]string)},
-					{Arn: "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/id5", Name: "TeamB-subteam2", Tags: make(map[string]string)},
-					{Arn: "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/id6", Name: "TeamB-subteam3", Tags: make(map[string]string)},
+					integrationv1.RolesAnywhereProfile_builder{Arn: "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/id2", Name: "TeamA-subteam2", Tags: make(map[string]string)}.Build(),
+					integrationv1.RolesAnywhereProfile_builder{Arn: "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/id3", Name: "TeamA-subteam3", Tags: make(map[string]string)}.Build(),
+					integrationv1.RolesAnywhereProfile_builder{Arn: "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/id4", Name: "TeamB-subteam1", Tags: make(map[string]string)}.Build(),
+					integrationv1.RolesAnywhereProfile_builder{Arn: "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/id5", Name: "TeamB-subteam2", Tags: make(map[string]string)}.Build(),
+					integrationv1.RolesAnywhereProfile_builder{Arn: "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/id6", Name: "TeamB-subteam3", Tags: make(map[string]string)}.Build(),
 				}, cmpOpts...))
 			},
 			expectedErrCheck: require.NoError,

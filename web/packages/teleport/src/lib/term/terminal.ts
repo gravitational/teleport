@@ -22,6 +22,7 @@ import { WebLinksAddon } from '@xterm/addon-web-links';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { ITheme, Terminal } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
+
 import {
   SearchAddon,
   TerminalSearcher,
@@ -53,18 +54,34 @@ export default class TtyTerminal implements TerminalSearcher {
   _convertEol: boolean;
   _debouncedResize: DebouncedFunc<() => void>;
   _fitAddon = new FitAddon();
-  _imageAddon = new ImageAddon();
+  _imageAddon: ImageAddon | undefined;
   _searchAddon = new SearchAddon();
   _webLinksAddon = new WebLinksAddon();
   _webglAddon: WebglAddon | undefined;
 
   private customKeyEventHandlers = new Set<(event: KeyboardEvent) => boolean>();
 
+  private _disableCopy: boolean;
+  private _onCopyBlocked?: () => void;
+  private _blockCopy = (e: ClipboardEvent) => {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    this._onCopyBlocked?.();
+  };
+
   constructor(
     tty: Tty,
     private options: Options
   ) {
-    const { el, scrollBack, fontFamily, fontSize, convertEol } = options;
+    const {
+      el,
+      scrollBack,
+      fontFamily,
+      fontSize,
+      convertEol,
+      disableCopy,
+      onCopyBlocked,
+    } = options;
     this._el = el;
     this._fontFamily = fontFamily || undefined;
     this._fontSize = fontSize || 14;
@@ -72,6 +89,8 @@ export default class TtyTerminal implements TerminalSearcher {
     // Default to the config when not passed anything, which is the normal usecase
     this._scrollBack = scrollBack || cfg.ui.scrollbackLines;
     this._convertEol = convertEol || false;
+    this._disableCopy = !!disableCopy;
+    this._onCopyBlocked = onCopyBlocked;
     this.tty = tty;
     this.term = null;
 
@@ -103,8 +122,18 @@ export default class TtyTerminal implements TerminalSearcher {
 
     this.term.loadAddon(this._fitAddon);
     this.term.loadAddon(this._webLinksAddon);
-    this.term.loadAddon(this._imageAddon);
     this.term.loadAddon(this._searchAddon);
+
+    // @xterm/addon-image relies on WebAssembly internally. The vite plugin guard-wasm
+    // rewrites bare WebAssembly references so the module can be statically imported
+    // without crashing; construction will still throw when WebAssembly is genuinely
+    // unavailable, so we catch that here.
+    try {
+      this._imageAddon = new ImageAddon();
+      this.term.loadAddon(this._imageAddon);
+    } catch (e) {
+      logger.error('Failed to load image addon:', e.message);
+    }
 
     try {
       // The constructor may throw if WebGL is not supported.
@@ -124,6 +153,11 @@ export default class TtyTerminal implements TerminalSearcher {
 
     this.term.open(this._el);
     this._fitAddon.fit();
+
+    if (this._disableCopy) {
+      // Intercept copy events if disableCopy is true to block copying to the clipboard.
+      this._el.addEventListener('copy', this._blockCopy, true);
+    }
     this.term.onData(data => {
       this.tty.send(data);
     });
@@ -208,9 +242,12 @@ export default class TtyTerminal implements TerminalSearcher {
     this._disconnect();
     this._debouncedResize.cancel();
     this._fitAddon.dispose();
-    this._imageAddon.dispose();
+    this._imageAddon?.dispose();
     this._searchAddon?.dispose();
     this._webglAddon?.dispose();
+    if (this._disableCopy) {
+      this._el.removeEventListener('copy', this._blockCopy, true);
+    }
     this._el.innerHTML = null;
     this.term?.dispose();
 
@@ -295,4 +332,8 @@ type Options = {
   fontFamily?: string;
   fontSize?: number;
   convertEol?: boolean;
+  // disableCopy blocks copying terminal text to clipboard.
+  disableCopy?: boolean;
+  // onCopyBlocked is called whenever a copy attempt is blocked because disableCopy is true.
+  onCopyBlocked?: () => void;
 };

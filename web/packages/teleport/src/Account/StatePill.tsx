@@ -19,7 +19,7 @@
 import styled, { css } from 'styled-components';
 
 /** State of an authentication method (password, MFA method, or passkey). */
-export type AuthMethodState = 'active' | 'inactive';
+export type AuthMethodState = 'active' | 'inactive' | 'disabled';
 
 interface StatePillProps {
   state: AuthMethodState | undefined;
@@ -62,6 +62,7 @@ function statePillStyles({ state }: StatePillProps): ReturnType<typeof css> {
         color: ${props => props.theme.colors.success.main};
       `;
     case 'inactive':
+    case 'disabled':
       return css`
         background-color: ${props =>
           props.theme.colors.interactive.tonal.neutral[0]};

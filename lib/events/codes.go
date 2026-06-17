@@ -134,6 +134,10 @@ const (
 	SessionRecordingAccessCode = "T2012I"
 	// AppSessionDynamoDBRequestCode is the application request/response code.
 	AppSessionDynamoDBRequestCode = "T2013I"
+	// AppSessionLLMRequestSuccessCode is the LLM app request/response success code.
+	AppSessionLLMRequestSuccessCode = "T2014I"
+	// AppSessionLLMRequestFailureCode is the LLM app request/response success code.
+	AppSessionLLMRequestFailureCode = "T2014E"
 
 	// AppCreateCode is the app.create event code.
 	AppCreateCode = "TAP03I"
@@ -447,11 +451,18 @@ const (
 
 	// UpgradeWindowStartUpdatedCode is the edit code of UpgradeWindowStartUpdateEvent.
 	UpgradeWindowStartUpdatedCode = "TUW01I"
+	// EnvironmentProfileUpdatedCode is the edit code of EnvironmentProfileUpdateEvent.
+	EnvironmentProfileUpdatedCode = "TEP01I"
 
 	// SSMRunSuccessCode is the discovery script success code.
 	SSMRunSuccessCode = "TDS00I"
-	// SSMRunFailCode is the discovery script success code.
+	// SSMRunFailCode is the discovery script failure code.
 	SSMRunFailCode = "TDS00W"
+
+	// AzureRunSuccessCode is the Azure discovery script success code.
+	AzureRunSuccessCode = "TDA00I"
+	// AzureRunFailCode is the Azure discovery script failure code.
+	AzureRunFailCode = "TDA00W"
 
 	// DeviceCreateCode is the device creation/registration code.
 	DeviceCreateCode = "TV001I"
@@ -880,6 +891,26 @@ const (
 	// SessionSummarizedErrorCode is the session summarized error event code.
 	SessionSummarizedErrorCode = "INF010E"
 
+	// RetrievalModelCreateCode is the retrieval model create event code.
+	RetrievalModelCreateCode = "INF011I"
+	// RetrievalModelUpdateCode is the retrieval model update event code.
+	RetrievalModelUpdateCode = "INF012I"
+	// RetrievalModelDeleteCode is the retrieval model delete event code.
+	RetrievalModelDeleteCode = "INF013I"
+
+	// ClassifierCreateCode is the classifier create event code.
+	ClassifierCreateCode = "INF014I"
+	// ClassifierCreateFailureCode is the classifier create failure event code.
+	ClassifierCreateFailureCode = "INF014E"
+	// ClassifierUpdateCode is the classifier update event code.
+	ClassifierUpdateCode = "INF015I"
+	// ClassifierUpdateFailureCode is the classifier update failure event code.
+	ClassifierUpdateFailureCode = "INF015E"
+	// ClassifierDeleteCode is the classifier delete event code.
+	ClassifierDeleteCode = "INF016I"
+	// ClassifierDeleteFailureCode is the classifier delete failure event code.
+	ClassifierDeleteFailureCode = "INF016E"
+
 	// CertAuthOverrideCreateCode is the cert_auth_override create event code.
 	CertAuthOverrideCreateCode = "TCO01I"
 	// CertAuthOverrideUpdateCode is the cert_auth_override update event code.
@@ -897,6 +928,13 @@ const (
 	// CertAuthOverrideCertificatesRemoveCode is the event code for specialized
 	// RemoveCertificateOverride operation.
 	CertAuthOverrideCertificatesRemoveCode = "TCO07I"
+
+	// BeamsConfigCreateCode is the Beams config create event code.
+	BeamsConfigCreateCode = "TBEAM001I"
+	// BeamsConfigUpdateCode is the Beams config update event code.
+	BeamsConfigUpdateCode = "TBEAM002I"
+	// BeamsConfigDeleteCode is the Beams config delete event code.
+	BeamsConfigDeleteCode = "TBEAM003I"
 
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode

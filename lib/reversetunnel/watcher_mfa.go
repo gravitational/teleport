@@ -21,11 +21,11 @@ package reversetunnel
 import (
 	"context"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/proto"
 
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/clientutils"
@@ -38,9 +38,9 @@ import (
 type ValidatedMFAChallengeLister interface {
 	ListValidatedMFAChallenges(
 		ctx context.Context,
-		in *mfav1.ListValidatedMFAChallengesRequest,
+		in *mfav2.ListValidatedMFAChallengesRequest,
 		opts ...grpc.CallOption,
-	) (*mfav1.ListValidatedMFAChallengesResponse, error)
+	) (*mfav2.ListValidatedMFAChallengesResponse, error)
 }
 
 // ValidatedMFAChallengeWatcherConfig represents the configuration for a ValidatedMFAChallengeWatcher.
@@ -54,7 +54,7 @@ type ValidatedMFAChallengeWatcherConfig struct {
 func NewValidatedMFAChallengeWatcher(
 	ctx context.Context,
 	cfg ValidatedMFAChallengeWatcherConfig,
-) (*services.GenericWatcher[*mfav1.ValidatedMFAChallenge, *mfav1.ValidatedMFAChallenge], error) {
+) (*services.GenericWatcher[*mfav2.ValidatedMFAChallenge, *mfav2.ValidatedMFAChallenge], error) {
 	switch {
 	case cfg.ValidatedMFAChallengeLister == nil:
 		return nil, trace.BadParameter("cfg.ValidatedMFAChallengeLister must be set")
@@ -66,18 +66,18 @@ func NewValidatedMFAChallengeWatcher(
 		return nil, trace.BadParameter("cfg.ResourceWatcherConfig must be set")
 	}
 
-	paginatedGetFunc := func(ctx context.Context, limit int, startKey string) ([]*mfav1.ValidatedMFAChallenge, string, error) {
+	clusterName := cfg.ClusterName
+
+	paginatedGetFunc := func(ctx context.Context, limit int, startKey string) ([]*mfav2.ValidatedMFAChallenge, string, error) {
 		resp, err := cfg.ValidatedMFAChallengeLister.ListValidatedMFAChallenges(
 			ctx,
-			&mfav1.ListValidatedMFAChallengesRequest{
+			mfav2.ListValidatedMFAChallengesRequest_builder{
 				PageToken: startKey,
 				PageSize:  int32(limit),
-				Filter: &mfav1.ListValidatedMFAChallengesFilter{
-					XTargetCluster: &mfav1.ListValidatedMFAChallengesFilter_TargetCluster{
-						TargetCluster: cfg.ClusterName,
-					},
-				},
-			},
+				Filter: mfav2.ListValidatedMFAChallengesFilter_builder{
+					TargetCluster: &clusterName,
+				}.Build(),
+			}.Build(),
 		)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
@@ -87,32 +87,32 @@ func NewValidatedMFAChallengeWatcher(
 	}
 
 	filter := &types.ValidatedMFAChallengeFilter{
-		TargetCluster: cfg.ClusterName,
+		TargetCluster: clusterName,
 	}
 
 	w, err := services.NewGenericResourceWatcher(
 		ctx,
-		services.GenericWatcherConfig[*mfav1.ValidatedMFAChallenge, *mfav1.ValidatedMFAChallenge]{
+		services.GenericWatcherConfig[*mfav2.ValidatedMFAChallenge, *mfav2.ValidatedMFAChallenge]{
 			ResourceKind:          types.KindValidatedMFAChallenge,
 			ResourceFilter:        filter.IntoMap(),
 			ResourceWatcherConfig: *cfg.ResourceWatcherConfig,
-			CloneFunc:             apiutils.CloneProtoMsg[*mfav1.ValidatedMFAChallenge],
-			ReadOnlyFunc:          apiutils.CloneProtoMsg[*mfav1.ValidatedMFAChallenge],
+			CloneFunc:             apiutils.CloneProtoMsg[*mfav2.ValidatedMFAChallenge],
+			ReadOnlyFunc:          apiutils.CloneProtoMsg[*mfav2.ValidatedMFAChallenge],
 			// This watcher's consumer waits on WaitInitialization before it starts reading ResourcesC. Keep one slot
 			// buffered to avoid deadlocking initial broadcast when there are already resources present.
-			ResourcesC:                          make(chan []*mfav1.ValidatedMFAChallenge, 1),
+			ResourcesC:                          make(chan []*mfav2.ValidatedMFAChallenge, 1),
 			RequireResourcesForInitialBroadcast: false,
-			ResourceGetter: func(ctx context.Context) ([]*mfav1.ValidatedMFAChallenge, error) {
+			ResourceGetter: func(ctx context.Context) ([]*mfav2.ValidatedMFAChallenge, error) {
 				return stream.Collect(clientutils.Resources(ctx, paginatedGetFunc))
 			},
-			ResourceKey: func(r *mfav1.ValidatedMFAChallenge) string {
+			ResourceKey: func(r *mfav2.ValidatedMFAChallenge) string {
 				return backend.NewKey(
 					r.GetSpec().GetTargetCluster(),
 					r.GetMetadata().GetName(),
 				).String()
 			},
 			DeleteKey: func(resource types.Resource) string {
-				chal, err := types.ConvertResource[*mfav1.ValidatedMFAChallenge](resource)
+				chal, err := types.ConvertResource[*mfav2.ValidatedMFAChallenge](resource)
 				if err != nil {
 					return resource.GetMetadata().Description + resource.GetName()
 				}
@@ -122,7 +122,7 @@ func NewValidatedMFAChallengeWatcher(
 					chal.GetMetadata().GetName(),
 				).String()
 			},
-			ResourceDiffer: func(oldR, newR *mfav1.ValidatedMFAChallenge) bool {
+			ResourceDiffer: func(oldR, newR *mfav2.ValidatedMFAChallenge) bool {
 				return !proto.Equal(oldR, newR)
 			},
 		},

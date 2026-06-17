@@ -19,7 +19,7 @@ package auth
 import (
 	"context"
 
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -47,6 +47,7 @@ type Services struct {
 	services.DelegationSessions
 	services.WindowsDesktops
 	services.DynamicWindowsDesktops
+	services.LinuxDesktops
 	services.SAMLIdPServiceProviders
 	services.UserGroups
 	services.SessionTrackerService
@@ -99,6 +100,7 @@ type Services struct {
 	MFAService
 	services.WorkloadClusterService
 	services.Beams
+	services.SubCAService
 }
 
 // MFAService defines the interface for managing MFA resources in the backend.
@@ -107,15 +109,15 @@ type MFAService interface {
 	CreateValidatedMFAChallenge(
 		ctx context.Context,
 		targetCluster string,
-		challenge *mfav1.ValidatedMFAChallenge,
-	) (*mfav1.ValidatedMFAChallenge, error)
+		challenge *mfav2.ValidatedMFAChallenge,
+	) (*mfav2.ValidatedMFAChallenge, error)
 
 	// GetValidatedMFAChallenge retrieves a ValidatedMFAChallenge resource by target cluster and challenge name.
 	GetValidatedMFAChallenge(
 		ctx context.Context,
 		targetCluster string,
 		challengeName string,
-	) (*mfav1.ValidatedMFAChallenge, error)
+	) (*mfav2.ValidatedMFAChallenge, error)
 
 	// ListValidatedMFAChallenges lists ValidatedMFAChallenge resources for all users.
 	ListValidatedMFAChallenges(
@@ -123,5 +125,5 @@ type MFAService interface {
 		pageSize int32,
 		pageToken string,
 		targetCluster string,
-	) ([]*mfav1.ValidatedMFAChallenge, string, error)
+	) ([]*mfav2.ValidatedMFAChallenge, string, error)
 }

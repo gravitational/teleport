@@ -127,6 +127,7 @@ func RouteToDatabaseToProto(dbRoute tlsca.RouteToDatabase) proto.RouteToDatabase
 type ReissueParams struct {
 	RouteToCluster    string
 	NodeName          string
+	SSHLogin          string
 	KubernetesCluster string
 	AccessRequests    []string
 	// See [proto.UserCertsRequest.DropAccessRequests].

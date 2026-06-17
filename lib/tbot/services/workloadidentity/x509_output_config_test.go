@@ -53,6 +53,16 @@ func TestWorkloadIdentityX509Service_YAML(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "with trust domains",
+			in: X509OutputConfig{
+				Destination: dest,
+				Selector: bot.WorkloadIdentitySelector{
+					Name: "my-workload-identity",
+				},
+				TrustDomainSelector: bot.TrustDomainsSelector{bot.TrustDomainAppClient},
+			},
+		},
 	}
 	testYAML(t, tests)
 }
@@ -134,6 +144,56 @@ func TestWorkloadIdentityX509Service_CheckAndSetDefaults(t *testing.T) {
 				}
 			},
 			wantErr: "no destination configured for output",
+		},
+		{
+			name:   "scoped",
+			scoped: true,
+			in: func() *X509OutputConfig {
+				return &X509OutputConfig{
+					Selector: bot.WorkloadIdentitySelector{
+						Name: "my-workload-identity",
+					},
+					Destination: &destination.Directory{
+						Path:     "/opt/machine-id",
+						ACLs:     botfs.ACLOff,
+						Symlinks: botfs.SymlinksInsecure,
+					},
+				}
+			},
+			wantErr: "is not supported in scoped mode",
+		},
+		{
+			name: "valid trust domains",
+			in: func() *X509OutputConfig {
+				return &X509OutputConfig{
+					Selector: bot.WorkloadIdentitySelector{
+						Name: "my-workload-identity",
+					},
+					Destination: &destination.Directory{
+						Path:     "/opt/machine-id",
+						ACLs:     botfs.ACLOff,
+						Symlinks: botfs.SymlinksInsecure,
+					},
+					TrustDomainSelector: bot.TrustDomainsSelector{bot.TrustDomainAppClient},
+				}
+			},
+		},
+		{
+			name: "invalid trust domains",
+			in: func() *X509OutputConfig {
+				return &X509OutputConfig{
+					Selector: bot.WorkloadIdentitySelector{
+						Name: "my-workload-identity",
+					},
+					Destination: &destination.Directory{
+						Path:     "/opt/machine-id",
+						ACLs:     botfs.ACLOff,
+						Symlinks: botfs.SymlinksInsecure,
+					},
+					TrustDomainSelector: bot.TrustDomainsSelector{bot.TrustDomain("random")},
+				}
+			},
+			wantErr: `invalid trust domain "random"`,
 		},
 	}
 	testCheckAndSetDefaults(t, tests)

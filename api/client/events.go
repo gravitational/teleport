@@ -28,17 +28,18 @@ import (
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	summaryv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
-	workloadclusterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadcluster/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -143,6 +144,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_AutoUpdateBotInstanceReport{
 			AutoUpdateBotInstanceReport: r.UnwrapT(),
 		}
+	case types.Resource153UnwrapperT[*linuxdesktopv1.LinuxDesktop]:
+		out.Resource = &proto.Event_LinuxDesktop{
+			LinuxDesktop: r.UnwrapT(),
+		}
 	case types.Resource153UnwrapperT[*scopedaccessv1.ScopedRole]:
 		out.Resource = &proto.Event_ScopedRole{
 			ScopedRole: r.UnwrapT(),
@@ -187,10 +192,6 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_AppAuthConfig{
 			AppAuthConfig: r.UnwrapT(),
 		}
-	case types.Resource153UnwrapperT[*workloadclusterv1.WorkloadCluster]:
-		out.Resource = &proto.Event_WorkloadCluster{
-			WorkloadCluster: r.UnwrapT(),
-		}
 	case types.Resource153UnwrapperT[*summaryv1.InferenceModel]:
 		out.Resource = &proto.Event_InferenceModel{
 			InferenceModel: r.UnwrapT(),
@@ -203,13 +204,21 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_InferencePolicy{
 			InferencePolicy: r.UnwrapT(),
 		}
+	case types.Resource153UnwrapperT[*summaryv1.Classifier]:
+		out.Resource = &proto.Event_Classifier{
+			Classifier: r.UnwrapT(),
+		}
 	case types.Resource153UnwrapperT[*summaryv1.RetrievalModel]:
 		out.Resource = &proto.Event_RetrievalModel{
 			RetrievalModel: r.UnwrapT(),
 		}
-	case validatedMFAChallengeUnwrapper:
-		out.Resource = &proto.Event_ValidatedMFAChallenge{
-			ValidatedMFAChallenge: r.UnwrapT(),
+	case types.Resource153UnwrapperT[*subcav1.CertAuthorityOverride]:
+		out.Resource = &proto.Event_CertAuthorityOverride{
+			CertAuthorityOverride: r.UnwrapT(),
+		}
+	case types.Resource153UnwrapperT[*mfav2.ValidatedMFAChallenge]:
+		out.Resource = &proto.Event_ValidatedMFAChallengeV2{
+			ValidatedMFAChallengeV2: r.UnwrapT(),
 		}
 	case *types.ResourceHeader:
 		out.Resource = &proto.Event_ResourceHeader{
@@ -726,8 +735,8 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 	} else if r := in.GetAppAuthConfig(); r != nil {
 		out.Resource = types.ProtoResource153ToLegacy(r)
 		return &out, nil
-	} else if r := in.GetWorkloadCluster(); r != nil {
-		out.Resource = types.Resource153ToLegacy(r)
+	} else if r := in.GetLinuxDesktop(); r != nil {
+		out.Resource = types.ProtoResource153ToLegacy(r)
 		return &out, nil
 	} else if r := in.GetInferenceModel(); r != nil {
 		out.Resource = types.ProtoResource153ToLegacy(r)
@@ -738,14 +747,17 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 	} else if r := in.GetInferencePolicy(); r != nil {
 		out.Resource = types.ProtoResource153ToLegacy(r)
 		return &out, nil
+	} else if r := in.GetClassifier(); r != nil {
+		out.Resource = types.ProtoResource153ToLegacy(r)
+		return &out, nil
 	} else if r := in.GetRetrievalModel(); r != nil {
 		out.Resource = types.Resource153ToLegacy(r)
 		return &out, nil
-	} else if r := in.GetValidatedMFAChallenge(); r != nil {
-		out.Resource = &validatedMFAChallengeResourceWrapper{
-			Resource: types.LegacyMetadataToResource(r),
-			inner:    r,
-		}
+	} else if r := in.GetCertAuthorityOverride(); r != nil {
+		out.Resource = types.ProtoResource153ToLegacy(r)
+		return &out, nil
+	} else if r := in.GetValidatedMFAChallengeV2(); r != nil {
+		out.Resource = types.ProtoResource153ToLegacy(r)
 		return &out, nil
 	} else {
 		return nil, trace.BadParameter("received unsupported resource %T", in.Resource)
@@ -764,32 +776,4 @@ func EventTypeFromGRPC(in proto.Operation) (types.OpType, error) {
 	default:
 		return types.OpInvalid, trace.BadParameter("unsupported operation type: %v", in)
 	}
-}
-
-// TODO(cthach): Delete when ValidatedMFAChallenge resource is converted to a full Resource153 implementation.
-type validatedMFAChallengeUnwrapper interface {
-	UnwrapT() *mfav1.ValidatedMFAChallenge
-}
-
-// TODO(cthach): Delete when ValidatedMFAChallenge resource is converted to a full Resource153 implementation.
-type validatedMFAChallengeResourceWrapper struct {
-	types.Resource
-
-	inner *mfav1.ValidatedMFAChallenge
-}
-
-func (r *validatedMFAChallengeResourceWrapper) GetTargetCluster() string {
-	if r.inner == nil || r.inner.GetSpec() == nil {
-		return ""
-	}
-
-	return r.inner.GetSpec().GetTargetCluster()
-}
-
-func (r *validatedMFAChallengeResourceWrapper) UnwrapT() *mfav1.ValidatedMFAChallenge {
-	if r == nil {
-		return nil
-	}
-
-	return r.inner
 }

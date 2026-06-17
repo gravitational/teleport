@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/kubewaitingcontainer/v1/kubewaitingcontainer_service.proto
 
+//go:build !protoopaque
+
 package kubewaitingcontainerv1
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -38,7 +39,7 @@ const (
 
 // ListKubernetesWaitingContainersRequest is the request for ListKubernetesWaitingContainers.
 type ListKubernetesWaitingContainersRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The maximum number of items to return.
 	// The server may impose a different page size at its discretion.
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
@@ -73,11 +74,6 @@ func (x *ListKubernetesWaitingContainersRequest) ProtoReflect() protoreflect.Mes
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListKubernetesWaitingContainersRequest.ProtoReflect.Descriptor instead.
-func (*ListKubernetesWaitingContainersRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_kubewaitingcontainer_v1_kubewaitingcontainer_service_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *ListKubernetesWaitingContainersRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
@@ -92,9 +88,36 @@ func (x *ListKubernetesWaitingContainersRequest) GetPageToken() string {
 	return ""
 }
 
+func (x *ListKubernetesWaitingContainersRequest) SetPageSize(v int32) {
+	x.PageSize = v
+}
+
+func (x *ListKubernetesWaitingContainersRequest) SetPageToken(v string) {
+	x.PageToken = v
+}
+
+type ListKubernetesWaitingContainersRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The maximum number of items to return.
+	// The server may impose a different page size at its discretion.
+	PageSize int32
+	// The next_page_token value returned from a previous ListFoo request, if any.
+	PageToken string
+}
+
+func (b0 ListKubernetesWaitingContainersRequest_builder) Build() *ListKubernetesWaitingContainersRequest {
+	m0 := &ListKubernetesWaitingContainersRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PageSize = b.PageSize
+	x.PageToken = b.PageToken
+	return m0
+}
+
 // ListKubernetesWaitingContainersResponse is the response for ListKubernetesWaitingContainers.
 type ListKubernetesWaitingContainersResponse struct {
-	state             protoimpl.MessageState        `protogen:"open.v1"`
+	state             protoimpl.MessageState        `protogen:"hybrid.v1"`
 	WaitingContainers []*KubernetesWaitingContainer `protobuf:"bytes,1,rep,name=waiting_containers,json=waitingContainers,proto3" json:"waiting_containers,omitempty"`
 	// Token to retrieve the next page of results, or empty if there are no
 	// more results exist.
@@ -128,11 +151,6 @@ func (x *ListKubernetesWaitingContainersResponse) ProtoReflect() protoreflect.Me
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListKubernetesWaitingContainersResponse.ProtoReflect.Descriptor instead.
-func (*ListKubernetesWaitingContainersResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_kubewaitingcontainer_v1_kubewaitingcontainer_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *ListKubernetesWaitingContainersResponse) GetWaitingContainers() []*KubernetesWaitingContainer {
 	if x != nil {
 		return x.WaitingContainers
@@ -147,9 +165,35 @@ func (x *ListKubernetesWaitingContainersResponse) GetNextPageToken() string {
 	return ""
 }
 
+func (x *ListKubernetesWaitingContainersResponse) SetWaitingContainers(v []*KubernetesWaitingContainer) {
+	x.WaitingContainers = v
+}
+
+func (x *ListKubernetesWaitingContainersResponse) SetNextPageToken(v string) {
+	x.NextPageToken = v
+}
+
+type ListKubernetesWaitingContainersResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	WaitingContainers []*KubernetesWaitingContainer
+	// Token to retrieve the next page of results, or empty if there are no
+	// more results exist.
+	NextPageToken string
+}
+
+func (b0 ListKubernetesWaitingContainersResponse_builder) Build() *ListKubernetesWaitingContainersResponse {
+	m0 := &ListKubernetesWaitingContainersResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.WaitingContainers = b.WaitingContainers
+	x.NextPageToken = b.NextPageToken
+	return m0
+}
+
 // GetKubernetesWaitingContainerRequest is the request for GetKubernetesWaitingContainer.
 type GetKubernetesWaitingContainerRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// username is the Teleport user that attempted to create the container
 	Username string `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
 	// cluster is the Kubernetes cluster of this container
@@ -189,11 +233,6 @@ func (x *GetKubernetesWaitingContainerRequest) ProtoReflect() protoreflect.Messa
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetKubernetesWaitingContainerRequest.ProtoReflect.Descriptor instead.
-func (*GetKubernetesWaitingContainerRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_kubewaitingcontainer_v1_kubewaitingcontainer_service_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *GetKubernetesWaitingContainerRequest) GetUsername() string {
 	if x != nil {
 		return x.Username
@@ -229,9 +268,56 @@ func (x *GetKubernetesWaitingContainerRequest) GetContainerName() string {
 	return ""
 }
 
+func (x *GetKubernetesWaitingContainerRequest) SetUsername(v string) {
+	x.Username = v
+}
+
+func (x *GetKubernetesWaitingContainerRequest) SetCluster(v string) {
+	x.Cluster = v
+}
+
+func (x *GetKubernetesWaitingContainerRequest) SetNamespace(v string) {
+	x.Namespace = v
+}
+
+func (x *GetKubernetesWaitingContainerRequest) SetPodName(v string) {
+	x.PodName = v
+}
+
+func (x *GetKubernetesWaitingContainerRequest) SetContainerName(v string) {
+	x.ContainerName = v
+}
+
+type GetKubernetesWaitingContainerRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// username is the Teleport user that attempted to create the container
+	Username string
+	// cluster is the Kubernetes cluster of this container
+	Cluster string
+	// namespace is the Kubernetes namespace of this container
+	Namespace string
+	// pod_name is the name of the parent pod
+	PodName string
+	// container_name is the name of the ephemeral container
+	ContainerName string
+}
+
+func (b0 GetKubernetesWaitingContainerRequest_builder) Build() *GetKubernetesWaitingContainerRequest {
+	m0 := &GetKubernetesWaitingContainerRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Username = b.Username
+	x.Cluster = b.Cluster
+	x.Namespace = b.Namespace
+	x.PodName = b.PodName
+	x.ContainerName = b.ContainerName
+	return m0
+}
+
 // CreateKubernetesWaitingContainerRequest is the request for CreateKubernetesWaitingContainer.
 type CreateKubernetesWaitingContainerRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// waiting_container is the waiting container resource.
 	WaitingContainer *KubernetesWaitingContainer `protobuf:"bytes,1,opt,name=waiting_container,json=waitingContainer,proto3" json:"waiting_container,omitempty"`
 	unknownFields    protoimpl.UnknownFields
@@ -263,11 +349,6 @@ func (x *CreateKubernetesWaitingContainerRequest) ProtoReflect() protoreflect.Me
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateKubernetesWaitingContainerRequest.ProtoReflect.Descriptor instead.
-func (*CreateKubernetesWaitingContainerRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_kubewaitingcontainer_v1_kubewaitingcontainer_service_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *CreateKubernetesWaitingContainerRequest) GetWaitingContainer() *KubernetesWaitingContainer {
 	if x != nil {
 		return x.WaitingContainer
@@ -275,9 +356,39 @@ func (x *CreateKubernetesWaitingContainerRequest) GetWaitingContainer() *Kuberne
 	return nil
 }
 
+func (x *CreateKubernetesWaitingContainerRequest) SetWaitingContainer(v *KubernetesWaitingContainer) {
+	x.WaitingContainer = v
+}
+
+func (x *CreateKubernetesWaitingContainerRequest) HasWaitingContainer() bool {
+	if x == nil {
+		return false
+	}
+	return x.WaitingContainer != nil
+}
+
+func (x *CreateKubernetesWaitingContainerRequest) ClearWaitingContainer() {
+	x.WaitingContainer = nil
+}
+
+type CreateKubernetesWaitingContainerRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// waiting_container is the waiting container resource.
+	WaitingContainer *KubernetesWaitingContainer
+}
+
+func (b0 CreateKubernetesWaitingContainerRequest_builder) Build() *CreateKubernetesWaitingContainerRequest {
+	m0 := &CreateKubernetesWaitingContainerRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.WaitingContainer = b.WaitingContainer
+	return m0
+}
+
 // DeleteKubernetesWaitingContainerRequest is the request for DeleteKubernetesWaitingContainer.
 type DeleteKubernetesWaitingContainerRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// username is the Teleport user that attempted to create the container
 	Username string `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
 	// cluster is the Kubernetes cluster of this container
@@ -317,11 +428,6 @@ func (x *DeleteKubernetesWaitingContainerRequest) ProtoReflect() protoreflect.Me
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteKubernetesWaitingContainerRequest.ProtoReflect.Descriptor instead.
-func (*DeleteKubernetesWaitingContainerRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_kubewaitingcontainer_v1_kubewaitingcontainer_service_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *DeleteKubernetesWaitingContainerRequest) GetUsername() string {
 	if x != nil {
 		return x.Username
@@ -357,6 +463,53 @@ func (x *DeleteKubernetesWaitingContainerRequest) GetContainerName() string {
 	return ""
 }
 
+func (x *DeleteKubernetesWaitingContainerRequest) SetUsername(v string) {
+	x.Username = v
+}
+
+func (x *DeleteKubernetesWaitingContainerRequest) SetCluster(v string) {
+	x.Cluster = v
+}
+
+func (x *DeleteKubernetesWaitingContainerRequest) SetNamespace(v string) {
+	x.Namespace = v
+}
+
+func (x *DeleteKubernetesWaitingContainerRequest) SetPodName(v string) {
+	x.PodName = v
+}
+
+func (x *DeleteKubernetesWaitingContainerRequest) SetContainerName(v string) {
+	x.ContainerName = v
+}
+
+type DeleteKubernetesWaitingContainerRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// username is the Teleport user that attempted to create the container
+	Username string
+	// cluster is the Kubernetes cluster of this container
+	Cluster string
+	// namespace is the Kubernetes namespace of this container
+	Namespace string
+	// pod_name is the name of the parent pod
+	PodName string
+	// container_name is the name of the ephemeral container
+	ContainerName string
+}
+
+func (b0 DeleteKubernetesWaitingContainerRequest_builder) Build() *DeleteKubernetesWaitingContainerRequest {
+	m0 := &DeleteKubernetesWaitingContainerRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Username = b.Username
+	x.Cluster = b.Cluster
+	x.Namespace = b.Namespace
+	x.PodName = b.PodName
+	x.ContainerName = b.ContainerName
+	return m0
+}
+
 var File_teleport_kubewaitingcontainer_v1_kubewaitingcontainer_service_proto protoreflect.FileDescriptor
 
 const file_teleport_kubewaitingcontainer_v1_kubewaitingcontainer_service_proto_rawDesc = "" +
@@ -388,18 +541,6 @@ const file_teleport_kubewaitingcontainer_v1_kubewaitingcontainer_service_proto_r
 	"\x1dGetKubernetesWaitingContainer\x12F.teleport.kubewaitingcontainer.v1.GetKubernetesWaitingContainerRequest\x1a<.teleport.kubewaitingcontainer.v1.KubernetesWaitingContainer\x12\xab\x01\n" +
 	" CreateKubernetesWaitingContainer\x12I.teleport.kubewaitingcontainer.v1.CreateKubernetesWaitingContainerRequest\x1a<.teleport.kubewaitingcontainer.v1.KubernetesWaitingContainer\x12\x85\x01\n" +
 	" DeleteKubernetesWaitingContainer\x12I.teleport.kubewaitingcontainer.v1.DeleteKubernetesWaitingContainerRequest\x1a\x16.google.protobuf.EmptyBlZjgithub.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1;kubewaitingcontainerv1b\x06proto3"
-
-var (
-	file_teleport_kubewaitingcontainer_v1_kubewaitingcontainer_service_proto_rawDescOnce sync.Once
-	file_teleport_kubewaitingcontainer_v1_kubewaitingcontainer_service_proto_rawDescData []byte
-)
-
-func file_teleport_kubewaitingcontainer_v1_kubewaitingcontainer_service_proto_rawDescGZIP() []byte {
-	file_teleport_kubewaitingcontainer_v1_kubewaitingcontainer_service_proto_rawDescOnce.Do(func() {
-		file_teleport_kubewaitingcontainer_v1_kubewaitingcontainer_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_kubewaitingcontainer_v1_kubewaitingcontainer_service_proto_rawDesc), len(file_teleport_kubewaitingcontainer_v1_kubewaitingcontainer_service_proto_rawDesc)))
-	})
-	return file_teleport_kubewaitingcontainer_v1_kubewaitingcontainer_service_proto_rawDescData
-}
 
 var file_teleport_kubewaitingcontainer_v1_kubewaitingcontainer_service_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_teleport_kubewaitingcontainer_v1_kubewaitingcontainer_service_proto_goTypes = []any{

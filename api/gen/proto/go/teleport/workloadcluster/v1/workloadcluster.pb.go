@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/workloadcluster/v1/workloadcluster.proto
 
+//go:build !protoopaque
+
 package workloadcluster
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -38,7 +39,7 @@ const (
 
 // WorkloadCluster represents a child Teleport Cloud cluster
 type WorkloadCluster struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Kind          string                 `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	SubKind       string                 `protobuf:"bytes,2,opt,name=sub_kind,json=subKind,proto3" json:"sub_kind,omitempty"`
 	Version       string                 `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
@@ -72,11 +73,6 @@ func (x *WorkloadCluster) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use WorkloadCluster.ProtoReflect.Descriptor instead.
-func (*WorkloadCluster) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadcluster_v1_workloadcluster_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *WorkloadCluster) GetKind() string {
@@ -121,9 +117,90 @@ func (x *WorkloadCluster) GetStatus() *WorkloadClusterStatus {
 	return nil
 }
 
+func (x *WorkloadCluster) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *WorkloadCluster) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+func (x *WorkloadCluster) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *WorkloadCluster) SetMetadata(v *v1.Metadata) {
+	x.Metadata = v
+}
+
+func (x *WorkloadCluster) SetSpec(v *WorkloadClusterSpec) {
+	x.Spec = v
+}
+
+func (x *WorkloadCluster) SetStatus(v *WorkloadClusterStatus) {
+	x.Status = v
+}
+
+func (x *WorkloadCluster) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *WorkloadCluster) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *WorkloadCluster) HasStatus() bool {
+	if x == nil {
+		return false
+	}
+	return x.Status != nil
+}
+
+func (x *WorkloadCluster) ClearMetadata() {
+	x.Metadata = nil
+}
+
+func (x *WorkloadCluster) ClearSpec() {
+	x.Spec = nil
+}
+
+func (x *WorkloadCluster) ClearStatus() {
+	x.Status = nil
+}
+
+type WorkloadCluster_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Kind     string
+	SubKind  string
+	Version  string
+	Metadata *v1.Metadata
+	Spec     *WorkloadClusterSpec
+	Status   *WorkloadClusterStatus
+}
+
+func (b0 WorkloadCluster_builder) Build() *WorkloadCluster {
+	m0 := &WorkloadCluster{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.SubKind = b.SubKind
+	x.Version = b.Version
+	x.Metadata = b.Metadata
+	x.Spec = b.Spec
+	x.Status = b.Status
+	return m0
+}
+
 // WorkloadClusterSpec configures where a child Teleport Cloud cluster should be created and the initial bot
 type WorkloadClusterSpec struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Regions       []*Region              `protobuf:"bytes,1,rep,name=regions,proto3" json:"regions,omitempty"`
 	Bot           *Bot                   `protobuf:"bytes,2,opt,name=bot,proto3" json:"bot,omitempty"`
 	Token         *Token                 `protobuf:"bytes,3,opt,name=token,proto3" json:"token,omitempty"`
@@ -156,11 +233,6 @@ func (x *WorkloadClusterSpec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use WorkloadClusterSpec.ProtoReflect.Descriptor instead.
-func (*WorkloadClusterSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadcluster_v1_workloadcluster_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *WorkloadClusterSpec) GetRegions() []*Region {
 	if x != nil {
 		return x.Regions
@@ -182,9 +254,61 @@ func (x *WorkloadClusterSpec) GetToken() *Token {
 	return nil
 }
 
+func (x *WorkloadClusterSpec) SetRegions(v []*Region) {
+	x.Regions = v
+}
+
+func (x *WorkloadClusterSpec) SetBot(v *Bot) {
+	x.Bot = v
+}
+
+func (x *WorkloadClusterSpec) SetToken(v *Token) {
+	x.Token = v
+}
+
+func (x *WorkloadClusterSpec) HasBot() bool {
+	if x == nil {
+		return false
+	}
+	return x.Bot != nil
+}
+
+func (x *WorkloadClusterSpec) HasToken() bool {
+	if x == nil {
+		return false
+	}
+	return x.Token != nil
+}
+
+func (x *WorkloadClusterSpec) ClearBot() {
+	x.Bot = nil
+}
+
+func (x *WorkloadClusterSpec) ClearToken() {
+	x.Token = nil
+}
+
+type WorkloadClusterSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Regions []*Region
+	Bot     *Bot
+	Token   *Token
+}
+
+func (b0 WorkloadClusterSpec_builder) Build() *WorkloadClusterSpec {
+	m0 := &WorkloadClusterSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Regions = b.Regions
+	x.Bot = b.Bot
+	x.Token = b.Token
+	return m0
+}
+
 // Region configures a region for deploying Teleport services
 type Region struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// name is the region's name
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -216,11 +340,6 @@ func (x *Region) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Region.ProtoReflect.Descriptor instead.
-func (*Region) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadcluster_v1_workloadcluster_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *Region) GetName() string {
 	if x != nil {
 		return x.Name
@@ -228,10 +347,29 @@ func (x *Region) GetName() string {
 	return ""
 }
 
+func (x *Region) SetName(v string) {
+	x.Name = v
+}
+
+type Region_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// name is the region's name
+	Name string
+}
+
+func (b0 Region_builder) Build() *Region {
+	m0 := &Region{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // Bot configures a bot for the child Teleport Cloud cluster
 type Bot struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// name is the name of the bot, token, and role that will be created
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// name of the bot, token, and role that will be created
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -262,11 +400,6 @@ func (x *Bot) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Bot.ProtoReflect.Descriptor instead.
-func (*Bot) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadcluster_v1_workloadcluster_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *Bot) GetName() string {
 	if x != nil {
 		return x.Name
@@ -274,9 +407,28 @@ func (x *Bot) GetName() string {
 	return ""
 }
 
+func (x *Bot) SetName(v string) {
+	x.Name = v
+}
+
+type Bot_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// name of the bot, token, and role that will be created
+	Name string
+}
+
+func (b0 Bot_builder) Build() *Bot {
+	m0 := &Bot{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // Token configures a token for a bot
 type Token struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// join_method is type of join method to allow for the token
 	JoinMethod string `protobuf:"bytes,1,opt,name=join_method,json=joinMethod,proto3" json:"join_method,omitempty"`
 	// allow defines the AWS Accounts and ARNs to allow joining from
@@ -310,11 +462,6 @@ func (x *Token) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Token.ProtoReflect.Descriptor instead.
-func (*Token) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadcluster_v1_workloadcluster_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *Token) GetJoinMethod() string {
 	if x != nil {
 		return x.JoinMethod
@@ -329,9 +476,35 @@ func (x *Token) GetAllow() []*Allow {
 	return nil
 }
 
+func (x *Token) SetJoinMethod(v string) {
+	x.JoinMethod = v
+}
+
+func (x *Token) SetAllow(v []*Allow) {
+	x.Allow = v
+}
+
+type Token_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// join_method is type of join method to allow for the token
+	JoinMethod string
+	// allow defines the AWS Accounts and ARNs to allow joining from
+	Allow []*Allow
+}
+
+func (b0 Token_builder) Build() *Token {
+	m0 := &Token{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.JoinMethod = b.JoinMethod
+	x.Allow = b.Allow
+	return m0
+}
+
 // Allow configures rules for using the corresponding join method
 type Allow struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	AwsAccount    string                 `protobuf:"bytes,1,opt,name=aws_account,json=awsAccount,proto3" json:"aws_account,omitempty"`
 	AwsArn        string                 `protobuf:"bytes,2,opt,name=aws_arn,json=awsArn,proto3" json:"aws_arn,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -363,11 +536,6 @@ func (x *Allow) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Allow.ProtoReflect.Descriptor instead.
-func (*Allow) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadcluster_v1_workloadcluster_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *Allow) GetAwsAccount() string {
 	if x != nil {
 		return x.AwsAccount
@@ -382,9 +550,33 @@ func (x *Allow) GetAwsArn() string {
 	return ""
 }
 
+func (x *Allow) SetAwsAccount(v string) {
+	x.AwsAccount = v
+}
+
+func (x *Allow) SetAwsArn(v string) {
+	x.AwsArn = v
+}
+
+type Allow_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	AwsAccount string
+	AwsArn     string
+}
+
+func (b0 Allow_builder) Build() *Allow {
+	m0 := &Allow{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.AwsAccount = b.AwsAccount
+	x.AwsArn = b.AwsArn
+	return m0
+}
+
 // WorkloadClusterStatus is populated with status from Teleport Cloud about the child Teleport Cloud cluster
 type WorkloadClusterStatus struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// state is the status of the child cluster running in Teleport Cloud
 	State string `protobuf:"bytes,1,opt,name=state,proto3" json:"state,omitempty"`
 	// domain is the Teleport Proxy address of the child Teleport Cloud cluster
@@ -418,11 +610,6 @@ func (x *WorkloadClusterStatus) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use WorkloadClusterStatus.ProtoReflect.Descriptor instead.
-func (*WorkloadClusterStatus) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadcluster_v1_workloadcluster_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *WorkloadClusterStatus) GetState() string {
 	if x != nil {
 		return x.State
@@ -435,6 +622,32 @@ func (x *WorkloadClusterStatus) GetDomain() string {
 		return x.Domain
 	}
 	return ""
+}
+
+func (x *WorkloadClusterStatus) SetState(v string) {
+	x.State = v
+}
+
+func (x *WorkloadClusterStatus) SetDomain(v string) {
+	x.Domain = v
+}
+
+type WorkloadClusterStatus_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// state is the status of the child cluster running in Teleport Cloud
+	State string
+	// domain is the Teleport Proxy address of the child Teleport Cloud cluster
+	Domain string
+}
+
+func (b0 WorkloadClusterStatus_builder) Build() *WorkloadClusterStatus {
+	m0 := &WorkloadClusterStatus{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.State = b.State
+	x.Domain = b.Domain
+	return m0
 }
 
 var File_teleport_workloadcluster_v1_workloadcluster_proto protoreflect.FileDescriptor
@@ -468,18 +681,6 @@ const file_teleport_workloadcluster_v1_workloadcluster_proto_rawDesc = "" +
 	"\x15WorkloadClusterStatus\x12\x14\n" +
 	"\x05state\x18\x01 \x01(\tR\x05state\x12\x16\n" +
 	"\x06domain\x18\x02 \x01(\tR\x06domainB`Z^github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadcluster/v1;workloadclusterb\x06proto3"
-
-var (
-	file_teleport_workloadcluster_v1_workloadcluster_proto_rawDescOnce sync.Once
-	file_teleport_workloadcluster_v1_workloadcluster_proto_rawDescData []byte
-)
-
-func file_teleport_workloadcluster_v1_workloadcluster_proto_rawDescGZIP() []byte {
-	file_teleport_workloadcluster_v1_workloadcluster_proto_rawDescOnce.Do(func() {
-		file_teleport_workloadcluster_v1_workloadcluster_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_workloadcluster_v1_workloadcluster_proto_rawDesc), len(file_teleport_workloadcluster_v1_workloadcluster_proto_rawDesc)))
-	})
-	return file_teleport_workloadcluster_v1_workloadcluster_proto_rawDescData
-}
 
 var file_teleport_workloadcluster_v1_workloadcluster_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_teleport_workloadcluster_v1_workloadcluster_proto_goTypes = []any{

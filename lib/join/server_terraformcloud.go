@@ -40,7 +40,7 @@ func (a *Server) validateTerraformCloudToken(
 		return nil, nil, trace.Wrap(err)
 	}
 
-	claims, err := terraformcloud.CheckIDToken(ctx, &terraformcloud.CheckIDTokenParams{
+	claims, err := terraformcloud.CheckIDToken(ctx, a.cfg.Modules, &terraformcloud.CheckIDTokenParams{
 		ProvisionToken: pt,
 		IDToken:        idToken,
 		Validator:      a.cfg.AuthService.GetTerraformIDTokenValidator(),
@@ -52,9 +52,9 @@ func (a *Server) validateTerraformCloudToken(
 	// events remain useful.
 	var workloadIDAttrs *workloadidentityv1.JoinAttrs
 	if claims != nil {
-		workloadIDAttrs = &workloadidentityv1.JoinAttrs{
+		workloadIDAttrs = workloadidentityv1.JoinAttrs_builder{
 			TerraformCloud: claims.JoinAttrs(),
-		}
+		}.Build()
 	}
 
 	return claims, workloadIDAttrs, trace.Wrap(err)

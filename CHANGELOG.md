@@ -6,6 +6,15 @@
 
 ### Breaking changes
 
+#### Kubernetes proxy subresource access
+
+Access to the Kubernetes API server proxy subresources
+(`pods/{name}/proxy/{path}`, `services/{name}/proxy/{path}`, and
+`nodes/{name}/proxy/{path}`) now requires the new `proxy` verb in
+`kubernetes_resources`. Previously these endpoints were authorized as
+the `get` verb. Roles that use the Kubernetes API server proxy must
+add `"proxy"` to the relevant `verbs` list.
+
 #### macOS 12
 
 The minimum version of macOS required to run Teleport or associated client tools
@@ -20,6 +29,40 @@ other services. The limit is aggregated across all apps on the
 `app_service` instance, not tracked per app. If you have
 `connection_limits` configured, those values apply to app access
 connections after upgrading to v19.
+
+#### Stricter application validation
+
+The application service now applies stricter naming rules on every
+write path (static config in `teleport.yaml`, the dynamic API via
+`tctl create`, the Terraform provider, the Kubernetes operator,
+direct API calls, and apps registered by existing agents). The
+change is backwards compatible apart from three cases:
+
+- Names in `teleport.yaml` static config must now be a valid DNS
+  label (lowercase alphanumeric and `-`, max 63 chars). Update the
+  config before upgrading.
+- `public_addr` values that remain unroutable after normalization
+  (IP addresses, IDN Unicode, trailing dots, underscores) are
+  rejected. The affected app drops from the registry until
+  corrected.
+- Duplicate `name` entries in the `app_service.apps` block of a
+  single agent's `teleport.yaml` now fail validation at startup.
+  Previously, the second entry silently overwrote the first, so
+  only one of the two apps was actually served. Deduplicate the
+  config before upgrading. The check is per-agent; multiple agents
+  heartbeating the same app name remain supported for load
+  balancing.
+
+Rolling upgrades are supported: older-agent heartbeats are
+normalized so previously valid names still pass.
+
+Static configs with two apps that route to the same effective FQDN
+(either the same explicit `public_addr`, or one app's
+`<name>.<proxy_public_addr>` default colliding with another app's
+`public_addr`) are now rejected at startup. Previously Teleport
+accepted the config and routed non-deterministically. The check uses
+this agent's `proxy_service.public_addr`; apps served via another
+proxy's public address in a multi-proxy cluster are not checked.
 
 #### CLI --help Output Improvements
 
@@ -3015,7 +3058,7 @@ customers running **Teleport Enterprise Self-Hosted**. No action is required for
 customers running Teleport Enterprise (Cloud) or Teleport Community Edition.
 
 If, after updating to Teleport 16, you receive an error message regarding an
-outdated license file, follow our step-by-step [guide](docs/pages/zero-trust-access/deploy-a-cluster/license.mdx)
+outdated license file, follow our step-by-step [guide](docs/pages/installation/self-hosted/license.mdx)
 to update your license file.
 
 #### Multi-factor authentication is now required for local users
@@ -3894,7 +3937,7 @@ access start time up to a week in advance.
 
 The Teleport Terraform provider and Kubernetes operator now support declaring
 agentless OpenSSH and OpenSSH EC2 ICE servers. You can follow [this
-guide](docs/pages/zero-trust-access/infrastructure-as-code/managing-resources/agentless-ssh-servers.mdx)
+guide](docs/pages/configuration/resource-guides/agentless-ssh-servers.mdx)
 to register OpenSSH agents with infrastructure as code.
 
 Setting up EC2 ICE automatic discovery with IaC will come in a future update.
@@ -4274,7 +4317,7 @@ When deployed with the `teleport-cluster` chart, the operator now runs in a
 separate pod. This ensures that Teleport's availability won't be impacted if the
 operator becomes unready.
 
-See [the Standalone Operator guide](docs/pages/zero-trust-access/infrastructure-as-code/teleport-operator/teleport-operator-standalone.mdx)
+See [the Standalone Operator guide](docs/pages/configuration/teleport-operator/teleport-operator-standalone.mdx)
 for installation instructions.
 
 #### Roles v6 and v7 support for Kubernetes Operator
@@ -4365,7 +4408,7 @@ published to these repos for the remainder of those releases' lifecycle.
 
 All users are recommended to switch to `apt.releases.teleport.dev` and
 `yum.releases.teleport.dev` repositories as described in installation
-[instructions](docs/pages/installation/installation.mdx).
+[instructions](docs/pages/installation/single-machine/single-machine.mdx).
 
 The legacy package repos will be shut off in mid 2025 after Teleport 14 has been
 out of support for many months.
@@ -5386,7 +5429,7 @@ repositories at `apt.releases.teleport.dev` and `yum.releases.teleport.dev`.
 
 All users are recommended to switch to `apt.releases.teleport.dev` and
 `yum.releases.teleport.dev` repositories as described in installation
-[instructions](docs/pages/installation/installation.mdx).
+[instructions](docs/pages/installation/single-machine/single-machine.mdx).
 
 #### `Cf-Access-Token` header no longer included with requests to Teleport-protected applications
 
@@ -7188,7 +7231,7 @@ redirect_url = [ "http://example.com" ]
 
 Starting with Teleport 11, Quay.io as a container registry has been deprecated.
 Customers should use the new AWS ECR registry to pull [Teleport Docker
-images](./docs/pages/installation/docker.mdx).
+images](docs/pages/installation/single-machine/docker.mdx).
 
 Quay.io registry support will be removed in a future release.
 
@@ -7197,7 +7240,7 @@ Quay.io registry support will be removed in a future release.
 In Teleport 11, old deb/rpm repositories (deb.releases.teleport.dev and
 rpm.releases.teleport.dev) have been deprecated. Customers should use the new
 repositories (apt.releases.teleport.dev and yum.releases.teleport.dev) to
-[install Teleport](docs/pages/installation/linux.mdx).
+[install Teleport](docs/pages/installation/single-machine/linux.mdx).
 
 Support for our old deb/rpm repositories will be removed in a future release.
 
@@ -8590,7 +8633,7 @@ Learn more about [Teleport's RBAC Resources](docs/pages/zero-trust-access/authen
 
 #### Cluster Labels
 
-Teleport 5.0 also adds the ability to set labels on Trusted Clusters. The labels are set when creating a trusted cluster invite token. This lets teams use the same RBAC controls used on nodes to approve or deny access to clusters. This can be especially useful for MSPs that connect hundreds of customers' clusters - when combined with access workflows, cluster access can be delegated. Learn more by reviewing our [Truster Cluster Setup & RBAC Docs](docs/pages/zero-trust-access/deploy-a-cluster/trustedclusters.mdx)
+Teleport 5.0 also adds the ability to set labels on Trusted Clusters. The labels are set when creating a trusted cluster invite token. This lets teams use the same RBAC controls used on nodes to approve or deny access to clusters. This can be especially useful for MSPs that connect hundreds of customers' clusters - when combined with access workflows, cluster access can be delegated. Learn more by reviewing our [Truster Cluster Setup & RBAC Docs](docs/pages/zero-trust-access/management/trustedclusters.mdx)
 
 Creating a trusted cluster join token for a production environment:
 
@@ -8959,7 +9002,7 @@ the “prefix” config value when storing data. Upgrading from 4.2 to 4.3 will
 migrate the data as needed at startup. Make sure you follow our Teleport
 [upgrade guidance](docs/pages/upgrading/upgrading.mdx).
 
-**Note: If you use an etcd backend with a non-default prefix and need to downgrade from 4.3 to 4.2, you should [backup Teleport data and restore it](docs/pages/zero-trust-access/deploy-a-cluster/reliability/backup-restore.mdx) into the downgraded cluster.**
+**Note: If you use an etcd backend with a non-default prefix and need to downgrade from 4.3 to 4.2, you should [backup Teleport data and restore it](docs/pages/zero-trust-access/management/backup-restore.mdx) into the downgraded cluster.**
 
 ## 4.2.12
 
@@ -9081,7 +9124,7 @@ This is a minor Teleport release with a focus on new features and bug fixes.
 
 * Alpha: Enhanced Session Recording lets you know what's really happening during a Teleport Session. [#2948](https://github.com/gravitational/teleport/issues/2948)
 * Alpha: Workflows API lets admins escalate RBAC roles in response to user requests. [Read the docs](docs/pages/identity-governance/access-requests/access-requests.mdx). [#3006](https://github.com/gravitational/teleport/issues/3006)
-* Beta: Teleport provides HA Support using Firestore and Google Cloud Storage using Google Cloud Platform. [Read the docs](docs/pages/zero-trust-access/deploy-a-cluster/deployments/gcp.mdx). [#2821](https://github.com/gravitational/teleport/pull/2821)
+* Beta: Teleport provides HA Support using Firestore and Google Cloud Storage using Google Cloud Platform. [Read the docs](docs/pages/installation/self-hosted/deployments/gcp.mdx). [#2821](https://github.com/gravitational/teleport/pull/2821)
 * Remote tctl execution is now possible. [Read the docs](./docs/pages/reference/cli/tctl.mdx). [#1525](https://github.com/gravitational/teleport/issues/1525) [#2991](https://github.com/gravitational/teleport/issues/2991)
 
 ### Fixes
@@ -9090,7 +9133,7 @@ This is a minor Teleport release with a focus on new features and bug fixes.
 
 ### Documentation
 
-* Adopting root/leaf terminology for trusted clusters. [Trusted cluster documentation](docs/pages/zero-trust-access/deploy-a-cluster/trustedclusters.mdx).
+* Adopting root/leaf terminology for trusted clusters. [Trusted cluster documentation](docs/pages/zero-trust-access/management/trustedclusters.mdx).
 * Documented Teleport FedRAMP & FIPS Support. [FedRAMP & FIPS documentation](docs/pages/zero-trust-access/compliance-frameworks/fedramp.mdx).
 
 ## 4.1.13

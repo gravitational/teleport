@@ -56,6 +56,7 @@ Optional:
 - `bot_instance_id` (String) BotInstanceID is the bot instance ID if this is a bot identity and is ignored otherwise.
 - `device` (String) Device is the device ID of a trusted device. Requires Teleport Enterprise.
 - `join_token` (String) JoinToken is the name of the join token used when this identity originally joined. This is only valid for bot identities, and cannot be used to target `token`-joined bots.
+- `linux_desktop` (String) LinuxDesktop specifies the name of a Linux desktop.
 - `login` (String) Login specifies the name of a local UNIX user.
 - `mfa_device` (String) MFADevice specifies the UUID of a user MFA device.
 - `role` (String) Role specifies the name of an RBAC role known to the root cluster. In remote clusters, this constraint is evaluated before translating to local roles.

@@ -45,18 +45,16 @@ func TestGetServiceConfigEnvVar(t *testing.T) {
 		{
 			name: "custom service config envvar",
 			env:  ptr(`{"loadBalancingConfig": [{"teleport_pick_healthy": {"mode": "MODE_RECONNECT"}}], "healthCheckConfig":{"serviceName": "test"}}`),
-			expected: &grpcv1.ServiceConfig{
-				LoadBalancingConfig: []*grpcv1.LoadBalancerConfig{{
-					Config: &grpcv1.LoadBalancerConfig_TeleportPickHealthy{
-						TeleportPickHealthy: &grpcv1.TeleportPickHealthyConfig{
-							Mode: grpcv1.Mode_MODE_RECONNECT,
-						},
-					},
-				}},
-				HealthCheckConfig: &grpcv1.HealthCheckConfig{
+			expected: grpcv1.ServiceConfig_builder{
+				LoadBalancingConfig: []*grpcv1.LoadBalancerConfig{grpcv1.LoadBalancerConfig_builder{
+					TeleportPickHealthy: grpcv1.TeleportPickHealthyConfig_builder{
+						Mode: grpcv1.Mode_MODE_RECONNECT,
+					}.Build(),
+				}.Build()},
+				HealthCheckConfig: grpcv1.HealthCheckConfig_builder{
 					ServiceName: ptr("test"),
-				},
-			},
+				}.Build(),
+			}.Build(),
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

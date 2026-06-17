@@ -97,9 +97,9 @@ func (a *Server) RegisterUsingAzureMethod(
 	}
 
 	if req.RegisterUsingTokenRequest.Role == types.RoleBot {
-		params := makeBotCertsParams(req.RegisterUsingTokenRequest, nil /*rawClaims*/, &workloadidentityv1pb.JoinAttrs{
+		params := makeBotCertsParams(req.RegisterUsingTokenRequest, nil /*rawClaims*/, workloadidentityv1pb.JoinAttrs_builder{
 			Azure: joinAttrs,
-		})
+		}.Build())
 		certs, _, err := a.GenerateBotCertsForJoin(ctx, provisionToken, params)
 		return certs, trace.Wrap(err)
 	}

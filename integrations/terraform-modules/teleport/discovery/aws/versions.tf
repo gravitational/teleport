@@ -12,7 +12,7 @@ terraform {
     }
     teleport = {
       source  = "terraform.releases.teleport.dev/gravitational/teleport"
-      version = ">= 18.7.4"
+      version = ">= 18.8.0"
     }
     tls = {
       source  = "hashicorp/tls"

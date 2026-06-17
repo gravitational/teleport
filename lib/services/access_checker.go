@@ -214,6 +214,10 @@ type AccessChecker interface {
 	// GetAllowedPreviewAsRoles returns all of the allowed PreviewAsRoles.
 	GetAllowedPreviewAsRoles() []string
 
+	// CheckSubmitForUser checks whether the current user is allowed to
+	// submit reviews for other users, to be used by plugins.
+	CheckSubmitForUser(currentUser, submitForUser types.User) error
+
 	// MaxConnections returns the maximum number of concurrent ssh connections
 	// allowed.  If MaxConnections is zero then no maximum was defined and the
 	// number of concurrent connections is unconstrained.
@@ -1114,6 +1118,8 @@ func (a *accessChecker) GetAllowedLoginsForResource(resource AccessCheckable) ([
 			loginGetter = role.GetLogins
 		case types.KindWindowsDesktop:
 			loginGetter = role.GetWindowsLogins
+		case types.KindLinuxDesktop:
+			loginGetter = role.GetLinuxDesktopLogins
 		case types.KindApp:
 			if !resourceIsApp {
 				return nil, trace.BadParameter("received unsupported resource type for Application kind: %T", resource)
@@ -1154,6 +1160,8 @@ func (a *accessChecker) GetAllowedLoginsForResource(resource AccessCheckable) ([
 		newLoginMatcher = NewLoginMatcher
 	case types.KindWindowsDesktop:
 		newLoginMatcher = NewWindowsLoginMatcher
+	case types.KindLinuxDesktop:
+		newLoginMatcher = NewLinuxDesktopLoginMatcher
 	case types.KindApp:
 		if !resourceIsApp || !resourceAsApp.IsAWSConsole() {
 			return nil, trace.BadParameter("received unsupported resource type for Application: %T", resource)
@@ -1363,17 +1371,17 @@ func (a *accessChecker) HostUsers(s types.Server) (*HostUsersDecision, error) {
 		}
 
 		if createHostUserMode == types.CreateHostUserMode_HOST_USER_MODE_OFF {
-			decision.DeniedBy = append(decision.DeniedBy, &decisionpb.Determinant{
+			decision.DeniedBy = append(decision.DeniedBy, decisionpb.Determinant_builder{
 				Kind: role.GetKind(),
 				Name: role.GetName(),
-			})
+			}.Build())
 			continue
 		}
 
-		decision.AllowedBy = append(decision.AllowedBy, &decisionpb.Determinant{
+		decision.AllowedBy = append(decision.AllowedBy, decisionpb.Determinant_builder{
 			Kind: role.GetKind(),
 			Name: role.GetName(),
-		})
+		}.Build())
 
 		if mode == types.CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED {
 			mode = createHostUserMode
@@ -1439,13 +1447,13 @@ func (a *accessChecker) HostUsers(s types.Server) (*HostUsersDecision, error) {
 		uid = uidL[0]
 	}
 
-	decision.Info = &decisionpb.HostUsersInfo{
+	decision.Info = decisionpb.HostUsersInfo_builder{
 		Groups: groups.Elements(),
 		Mode:   convertHostUserMode(mode),
 		Uid:    uid,
 		Gid:    gid,
 		Shell:  shell,
-	}
+	}.Build()
 
 	return decision, nil
 }

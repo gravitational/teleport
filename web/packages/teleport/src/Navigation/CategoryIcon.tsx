@@ -62,7 +62,7 @@ export function CategoryIcon({
       Icon = Icons.Bots;
       break;
     case NavigationCategory.Beams:
-      Icon = Icons.Planet;
+      Icon = Icons.Beams;
       break;
     default:
       return null;

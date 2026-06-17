@@ -156,6 +156,9 @@ function SearchBar() {
         height: 100%;
         border: 1px ${props => props.theme.colors.buttons.border.border} solid;
         border-radius: ${props => props.theme.radii[2]}px;
+        * {
+          font-weight: 400;
+        }
 
         &:hover {
           background: ${props => props.theme.colors.spotBackground[0]};

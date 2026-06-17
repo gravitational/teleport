@@ -24,6 +24,13 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// OktaAssignmentTargetOp is the operation performed on an Okta assignment target.
+type OktaAssignmentTargetOp string
+
+// OktaAssignmentTargetOutcome is the outcome of an operation performed on an Okta
+// assignment target.
+type OktaAssignmentTargetOutcome string
+
 const (
 	// DefaultImplicitRole is implicit role that gets added to all service.RoleSet
 	// objects.
@@ -176,6 +183,18 @@ const (
 
 	// OktaAssignmentTargetUnknown is an unknown target of an Okta assignment.
 	OktaAssignmentTargetUnknown = "unknown"
+
+	// OktaAssignmentTargetOpProvision indicates an Okta assignment target provision operation.
+	OktaAssignmentTargetOpProvision OktaAssignmentTargetOp = "provision"
+	// OktaAssignmentTargetOpCleanup indicates an Okta assignment target cleanup operation.
+	OktaAssignmentTargetOpCleanup OktaAssignmentTargetOp = "cleanup"
+
+	// OktaAssignmentTargetOutcomeSuccessful indicates the Okta assignment target was
+	// processed successfully, including being skipped for any non-failure reason.
+	OktaAssignmentTargetOutcomeSuccessful OktaAssignmentTargetOutcome = "successful"
+	// OktaAssignmentTargetOutcomeFailed indicates the Okta assignment target failed
+	// to be processed successfully.
+	OktaAssignmentTargetOutcomeFailed OktaAssignmentTargetOutcome = "failed"
 )
 
 // LocalConnectors are the system connectors that use local auth.
@@ -341,10 +360,13 @@ const (
 	ALPNSNIAuthProtocol = "teleport-auth@"
 	// ALPNSNIProtocolReverseTunnel is TLS ALPN protocol value used to indicate Proxy reversetunnel protocol.
 	ALPNSNIProtocolReverseTunnel = "teleport-reversetunnel"
+	// ALPNSNIProtocolReverseTunnelV2 is the pseudo ALPN protocol used to
+	// indicate that a TLS-tunneled reverse tunnel connection is initiated by a
+	// client that understands proxy peering (and, as such, can be routed to a
+	// subset of all available proxies).
+	ALPNSNIProtocolReverseTunnelV2 = "teleport-reversetunnelv2"
 	// ALPNSNIProtocolSSH is the TLS ALPN protocol value used to indicate Proxy SSH protocol.
 	ALPNSNIProtocolSSH = "teleport-proxy-ssh"
-	// ALPNSNIProtocolPingSuffix is TLS ALPN suffix used to wrap connections with Ping.
-	ALPNSNIProtocolPingSuffix = "-ping"
 )
 
 const (

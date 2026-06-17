@@ -78,6 +78,10 @@ func newLabelExpressionParser() (*typical.CachedParser[labelExpressionEnv, bool]
 				}),
 		},
 		Functions: map[string]typical.Function{
+			"set": typical.UnaryVariadicFunction[labelExpressionEnv](
+				func(args ...string) ([]string, error) {
+					return args, nil
+				}),
 			"labels_matching": typical.UnaryFunctionWithEnv(labelsMatching),
 			"contains": typical.BinaryFunction[labelExpressionEnv](
 				func(list []string, item string) (bool, error) {

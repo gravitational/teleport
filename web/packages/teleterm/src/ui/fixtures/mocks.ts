@@ -62,7 +62,7 @@ export class MockAppContext extends AppContext {
       draftState.clusters.set(cluster.uri, cluster);
     });
     const docs = Array.isArray(doc) ? doc : [doc];
-    this.workspacesService.addWorkspace(cluster.uri);
+    this.workspacesService.addWorkspace(cluster);
     this.workspacesService.setState(draftState => {
       if (!options?.noActivate) {
         draftState.rootClusterUri = cluster.uri;

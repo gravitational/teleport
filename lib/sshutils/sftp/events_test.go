@@ -17,6 +17,7 @@
 package sftp
 
 import (
+	"encoding/json"
 	"errors"
 	"io/fs"
 	"os"
@@ -27,7 +28,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/pkg/sftp"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/testing/protocmp"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
@@ -37,11 +37,11 @@ import (
 // legacyParseSFTPEvent is the original implementation of event conversion from
 // [sftp.Request] to audit log event, before the change to custom types used by
 // the SFTP server process.
-func legacyParseSFTPEvent(req *sftp.Request, workingDirectory string, reqErr error) (*apievents.SFTP, error) {
+func legacyParseSFTPEvent(now time.Time, req *sftp.Request, workingDirectory string, reqErr error) (*apievents.SFTP, error) {
 	event := &apievents.SFTP{
 		Metadata: apievents.Metadata{
 			Type: events.SFTPEvent,
-			Time: time.Now(),
+			Time: now,
 		},
 	}
 
@@ -215,15 +215,104 @@ func TestSFTPEventMatchesLegacy(t *testing.T) {
 	}
 
 	for _, input := range inputs {
-		legacyEvent, err := legacyParseSFTPEvent(input.req, input.workingDirectory, input.reqErr)
-		require.NoError(t, err)
-
 		sftpEvent, err := sftputils.ParseSFTPEvent(input.req, input.workingDirectory, input.reqErr)
 		require.NoError(t, err)
 
 		newEvent, err := SFTPEventToProto(sftpEvent)
 		require.NoError(t, err)
 
-		require.Empty(t, cmp.Diff(legacyEvent, newEvent, protocmp.Transform()))
+		legacyEvent, err := legacyParseSFTPEvent(time.Unix(0, sftpEvent.Time).UTC(), input.req, input.workingDirectory, input.reqErr)
+		require.NoError(t, err)
+
+		requireEqualEvents(t, legacyEvent, newEvent)
 	}
+}
+
+func TestSFTPSummaryEventRoundtrip(t *testing.T) {
+	type testCase struct {
+		source   *sftputils.SFTPSummaryEvent
+		expected *apievents.SFTPSummary
+	}
+
+	testCases := []testCase{
+		{
+			source: &sftputils.SFTPSummaryEvent{
+				Time: 1777386995863701123,
+			},
+			expected: &apievents.SFTPSummary{
+				Metadata: apievents.Metadata{
+					Type: "sftp_summary",
+					Code: "TS021I",
+					Time: time.Date(2026, 4, 28, 14, 36, 35, 863701123, time.UTC),
+				},
+			},
+		},
+		{
+			source: &sftputils.SFTPSummaryEvent{
+				Stats: []sftputils.SFTPSummaryEventFileTransferStat{},
+			},
+			expected: &apievents.SFTPSummary{
+				Metadata: apievents.Metadata{
+					Type: "sftp_summary",
+					Code: "TS021I",
+					Time: time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC),
+				},
+				FileTransferStats: []*apievents.FileTransferStat(nil),
+			},
+		},
+		{
+			source: &sftputils.SFTPSummaryEvent{
+				Time: 1777386995863701123,
+				Stats: []sftputils.SFTPSummaryEventFileTransferStat{
+					{
+						Path:    "foo",
+						Read:    12345,
+						Written: 0,
+					}, {
+						Path:    "/bar/baz",
+						Read:    0,
+						Written: 678,
+					},
+				},
+			},
+			expected: &apievents.SFTPSummary{
+				Metadata: apievents.Metadata{
+					Type: "sftp_summary",
+					Code: "TS021I",
+					Time: time.Date(2026, 4, 28, 14, 36, 35, 863701123, time.UTC),
+				},
+				FileTransferStats: []*apievents.FileTransferStat{
+					{
+						Path:         "foo",
+						BytesRead:    12345,
+						BytesWritten: 0,
+					},
+					{
+						Path:         "/bar/baz",
+						BytesRead:    0,
+						BytesWritten: 678,
+					},
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		j, err := json.Marshal(tc.source)
+		require.NoError(t, err)
+		var unmarshaled *sftputils.SFTPSummaryEvent
+		require.NoError(t, json.Unmarshal(j, &unmarshaled))
+		require.NotNil(t, unmarshaled)
+		actual := SFTPSummaryEventToProto(unmarshaled)
+		requireEqualEvents(t, tc.expected, actual)
+	}
+}
+
+func requireEqualEvents(t testing.TB, expected, actual apievents.AuditEvent) {
+	t.Helper()
+	e, err := events.ToEventFields(expected)
+	require.NoError(t, err)
+	a, err := events.ToEventFields(actual)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(e, a))
 }

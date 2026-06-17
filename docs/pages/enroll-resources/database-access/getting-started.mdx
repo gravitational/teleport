@@ -6,6 +6,7 @@ tags:
  - get-started
  - zero-trust
  - infrastructure-identity
+page_type: how-to
 ---
 
 (!docs/pages/includes/database-access/db-introduction.mdx dbType="PostgreSQL Amazon Aurora" dbConfigure="with IAM authentication"!)
@@ -236,6 +237,8 @@ Finally, connect to the database:
 ```code
 $ tsh db connect --db-user=alice --db-name postgres aurora
 ```
+
+(!docs/pages/includes/database-access/proxy-db-tunnel.mdx db="aurora" dbArgs="--db-user=alice --db-name=postgres"!)
 
 ### Auditing
 

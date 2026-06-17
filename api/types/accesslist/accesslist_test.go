@@ -625,3 +625,232 @@ func TestEqualIgnoreEphemeralFields(t *testing.T) {
 		require.False(t, EqualAccessLists(al2, al1, WithIgnoreEphemeralFields()))
 	})
 }
+
+func TestEqualIgnoreOktaUserManagedFields(t *testing.T) {
+	t.Parallel()
+
+	baseTime := time.Now()
+	createAccessList := func(name string) *AccessList {
+		al, err := NewAccessList(
+			header.Metadata{
+				Name:     name,
+				Revision: "rev1",
+			},
+			Spec{
+				Title:       "Test Access List",
+				Description: "Test description",
+				Owners: []Owner{
+					{
+						Name:             "owner1",
+						Description:      "First owner",
+						IneligibleStatus: "ineligible-reason",
+						MembershipKind:   MembershipKindUser,
+					},
+					{
+						Name:             "owner2",
+						Description:      "Second owner",
+						IneligibleStatus: "another-reason",
+						MembershipKind:   MembershipKindUser,
+					},
+				},
+				Audit: Audit{
+					NextAuditDate: baseTime,
+					Recurrence: Recurrence{
+						Frequency:  SixMonths,
+						DayOfMonth: FirstDayOfMonth,
+					},
+					Notifications: Notifications{
+						Start: 14 * 24 * time.Hour,
+					},
+				},
+				MembershipRequires: Requires{
+					Roles:  []string{"role1"},
+					Traits: map[string][]string{"trait1": {"value1"}},
+				},
+				OwnershipRequires: Requires{
+					Roles:  []string{"owner-role"},
+					Traits: map[string][]string{"owner-trait": {"owner-value"}},
+				},
+				Grants: Grants{
+					Roles:  []string{"granted-role"},
+					Traits: map[string][]string{"granted-trait": {"granted-value"}},
+				},
+				OwnerGrants: Grants{
+					Roles:  []string{"owner-granted-role"},
+					Traits: map[string][]string{"owner-granted-trait": {"owner-granted-value"}},
+				},
+			},
+		)
+		require.NoError(t, err)
+
+		al.Status = Status{
+			OwnerOf:  []string{"list1", "list2"},
+			MemberOf: []string{"list3", "list4"},
+		}
+
+		return al
+	}
+
+	t.Run("identical access lists are equal", func(t *testing.T) {
+		al1 := createAccessList("test1")
+		al2 := createAccessList("test1")
+
+		require.True(t, EqualAccessLists(al1, al2, WithIgnoreOktaUserManagedFields()))
+	})
+
+	t.Run("default behavior does not mutate originals", func(t *testing.T) {
+		al1 := createAccessList("test1")
+		al2 := createAccessList("test1")
+
+		originalOwners := al1.Spec.Owners
+		originalMembershipRequires := al1.Spec.MembershipRequires
+		originalOwnershipRequires := al1.Spec.OwnershipRequires
+		originalAudit := al1.Spec.Audit
+		originalRevision := al1.Metadata.Revision
+
+		EqualAccessLists(al1, al2, WithIgnoreOktaUserManagedFields())
+
+		require.Equal(t, originalOwners, al1.Spec.Owners)
+		require.Equal(t, originalMembershipRequires, al1.Spec.MembershipRequires)
+		require.Equal(t, originalOwnershipRequires, al1.Spec.OwnershipRequires)
+		require.Equal(t, originalAudit, al1.Spec.Audit)
+		require.Equal(t, originalRevision, al1.Metadata.Revision)
+	})
+
+	t.Run("WithSkipClone mutates originals", func(t *testing.T) {
+		al1 := createAccessList("test1")
+		al2 := createAccessList("test1")
+
+		EqualAccessLists(al1, al2, WithSkipClone(), WithIgnoreOktaUserManagedFields())
+
+		require.Nil(t, al1.Spec.Owners)
+		require.Equal(t, Requires{}, al1.Spec.MembershipRequires)
+		require.Equal(t, Requires{}, al1.Spec.OwnershipRequires)
+		require.Equal(t, Audit{}, al1.Spec.Audit)
+		require.Empty(t, al1.Metadata.Revision)
+	})
+
+	t.Run("ephemeral fields are also ignored", func(t *testing.T) {
+		al1 := createAccessList("test1")
+		al2 := createAccessList("test1")
+		al2.Metadata.Revision = "different-revision"
+		al2.Status.OwnerOf = []string{"different", "lists"}
+		al2.Spec.Owners[0].IneligibleStatus = "completely-different-reason"
+
+		require.True(t, EqualAccessLists(al1, al2, WithIgnoreOktaUserManagedFields()))
+	})
+
+	t.Run("different owners are ignored", func(t *testing.T) {
+		al1 := createAccessList("test1")
+		al2 := createAccessList("test1")
+		al2.Spec.Owners = []Owner{
+			{
+				Name:           "completely-different-owner",
+				Description:    "Replaced owner",
+				MembershipKind: MembershipKindUser,
+			},
+		}
+
+		require.True(t, EqualAccessLists(al1, al2, WithIgnoreOktaUserManagedFields()))
+	})
+
+	t.Run("different membership requires are ignored", func(t *testing.T) {
+		al1 := createAccessList("test1")
+		al2 := createAccessList("test1")
+		al2.Spec.MembershipRequires = Requires{
+			Roles:  []string{"different-role"},
+			Traits: map[string][]string{"different-trait": {"different-value"}},
+		}
+
+		require.True(t, EqualAccessLists(al1, al2, WithIgnoreOktaUserManagedFields()))
+	})
+
+	t.Run("different ownership requires are ignored", func(t *testing.T) {
+		al1 := createAccessList("test1")
+		al2 := createAccessList("test1")
+		al2.Spec.OwnershipRequires = Requires{
+			Roles:  []string{"different-owner-role"},
+			Traits: map[string][]string{"different-owner-trait": {"different-owner-value"}},
+		}
+
+		require.True(t, EqualAccessLists(al1, al2, WithIgnoreOktaUserManagedFields()))
+	})
+
+	t.Run("different audit settings are ignored", func(t *testing.T) {
+		al1 := createAccessList("test1")
+		al2 := createAccessList("test1")
+		al2.Spec.Audit = Audit{
+			NextAuditDate: baseTime.Add(24 * time.Hour),
+			Recurrence: Recurrence{
+				Frequency:  OneMonth,
+				DayOfMonth: FifteenthDayOfMonth,
+			},
+			Notifications: Notifications{
+				Start: 7 * 24 * time.Hour,
+			},
+		}
+
+		require.True(t, EqualAccessLists(al1, al2, WithIgnoreOktaUserManagedFields()))
+	})
+
+	t.Run("all ignored fields different at once", func(t *testing.T) {
+		al1 := createAccessList("test1")
+		al2 := createAccessList("test1")
+
+		al2.Metadata.Revision = "rev999"
+		al2.Status.OwnerOf = []string{"completely", "different", "lists"}
+		al2.Spec.Owners = nil
+		al2.Spec.MembershipRequires = Requires{Roles: []string{"new-role"}}
+		al2.Spec.OwnershipRequires = Requires{Roles: []string{"new-owner-role"}}
+		al2.Spec.Audit = Audit{}
+
+		require.True(t, EqualAccessLists(al1, al2, WithIgnoreOktaUserManagedFields()))
+	})
+
+	t.Run("different name causes inequality", func(t *testing.T) {
+		al1 := createAccessList("test1")
+		al2 := createAccessList("test2")
+
+		require.False(t, EqualAccessLists(al1, al2, WithIgnoreOktaUserManagedFields()))
+	})
+
+	t.Run("different title causes inequality", func(t *testing.T) {
+		al1 := createAccessList("test1")
+		al2 := createAccessList("test1")
+		al2.Spec.Title = "Different Title"
+
+		require.False(t, EqualAccessLists(al1, al2, WithIgnoreOktaUserManagedFields()))
+	})
+
+	t.Run("different description causes inequality", func(t *testing.T) {
+		al1 := createAccessList("test1")
+		al2 := createAccessList("test1")
+		al2.Spec.Description = "Different description"
+
+		require.False(t, EqualAccessLists(al1, al2, WithIgnoreOktaUserManagedFields()))
+	})
+
+	t.Run("different grants cause inequality", func(t *testing.T) {
+		al1 := createAccessList("test1")
+		al2 := createAccessList("test1")
+		al2.Spec.Grants.Roles = []string{"different-role"}
+
+		require.False(t, EqualAccessLists(al1, al2, WithIgnoreOktaUserManagedFields()))
+	})
+
+	t.Run("different owner grants cause inequality", func(t *testing.T) {
+		al1 := createAccessList("test1")
+		al2 := createAccessList("test1")
+		al2.Spec.OwnerGrants.Roles = []string{"different-owner-granted-role"}
+
+		require.False(t, EqualAccessLists(al1, al2, WithIgnoreOktaUserManagedFields()))
+	})
+
+	t.Run("one nil access list", func(t *testing.T) {
+		al1 := createAccessList("test1")
+		var al2 *AccessList
+
+		require.False(t, EqualAccessLists(al1, al2, WithIgnoreOktaUserManagedFields()))
+		require.False(t, EqualAccessLists(al2, al1, WithIgnoreOktaUserManagedFields()))
+	})
+}

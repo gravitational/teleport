@@ -25,6 +25,11 @@ import type {
   AuthType,
   PreferredMfaType,
   PrimaryAuthType,
+  SecondFactor,
+} from 'shared/services';
+import {
+  legacySecondFactorToSecondFactors,
+  secondFactorsToLegacySecondFactor,
 } from 'shared/services';
 import { mergeDeep } from 'shared/utils/highbar';
 
@@ -33,6 +38,7 @@ import { TaskState } from 'teleport/Integrations/status/AwsOidc/Tasks/constants'
 import type { SortType } from 'teleport/services/agents';
 import {
   AwsOidcPolicyPreset,
+  AzureResource,
   IntegrationDeleteRequest,
   IntegrationKind,
   PluginKind,
@@ -161,6 +167,7 @@ export const ossRoutes = {
   loginErrorCallback: '/web/msg/error/login/callback',
   loginErrorCallbackMissingRole: '/web/msg/error/login/callback_missing_role',
   loginErrorUnauthorized: '/web/msg/error/login/auth',
+  loginErrorEntraIDGroupsOverage: '/web/msg/error/login/entra_groups_overage',
   samlSloFailed: '/web/msg/error/slo',
   userInvite: '/web/invite/:tokenId',
   userInviteContinue: '/web/invite/:tokenId/continue',
@@ -171,6 +178,8 @@ export const ossRoutes = {
   browserMfa: `/web/mfa/browser/:requestId?`,
   integrations: '/web/integrations',
   integrationOverview: '/web/integrations/overview/:type/:name',
+  integrationOverviewSettings:
+    '/web/integrations/overview/:type/:name/settings',
   integrationStatus: '/web/integrations/status/:type/:name',
   integrationTasks: '/web/integrations/status/:type/:name/tasks',
   integrationStatusResources:
@@ -286,6 +295,7 @@ const cfg = {
     localConnectorName: '',
     providers: [] as AuthProvider[],
     second_factor: 'off' as Auth2faType,
+    second_factors: [] as SecondFactor[],
     authType: 'local' as AuthType,
     /** defaultConnectorName is the name of the default connector from the cluster's auth preferences. This will empty if the auth type is "local" */
     defaultConnectorName: '',
@@ -638,6 +648,10 @@ const cfg = {
     return cfg.playable_db_protocols;
   },
 
+  getBeamsUi() {
+    return cfg.beamsUi;
+  },
+
   getClusterInfoPath(clusterId: string) {
     return generatePath(cfg.api.clusterInfoPath, {
       clusterId,
@@ -710,8 +724,33 @@ const cfg = {
     return cfg.auth && cfg.auth.providers ? cfg.auth.providers : [];
   },
 
+  // auth2faType is derived from second_factors. Prefer calling secondFactors directly.
   getAuth2faType() {
-    return cfg.auth ? cfg.auth.second_factor : null;
+    if (!cfg.auth) {
+      return null;
+    }
+
+    // If second_factors isn't set, use second_factor to determine the auth2faType.
+    // TODO(Joerger): DELETE in v20 - v19 server sets second_factors.
+    if (!cfg.auth.second_factors?.length) {
+      return cfg.auth.second_factor;
+    }
+
+    return secondFactorsToLegacySecondFactor(cfg.auth.second_factors);
+  },
+
+  secondFactors(): SecondFactor[] {
+    if (!cfg.auth) {
+      return null;
+    }
+
+    if (cfg.auth.second_factors?.length) {
+      return cfg.auth.second_factors;
+    }
+
+    // If second_factors isn't set, use second_factor to populate it.
+    // TODO(Joerger): DELETE IN v20 - v19 server sets second_factors.
+    return legacySecondFactorToSecondFactors(cfg.auth.second_factor);
   },
 
   getDefaultConnectorName() {
@@ -734,12 +773,28 @@ const cfg = {
     return cfg.auth.allowPasswordless;
   },
 
-  isMfaEnabled() {
-    return cfg.auth.second_factor !== 'off';
+  isMfaUserConfigurable() {
+    // Users can add/remove MFA devices when at least one non-SSO factor is allowed.
+    // (SSO MFA is managed by the auth connector, not by the user.)
+    return cfg.secondFactors().some(f => f !== 'sso');
   },
 
-  isAdminActionMfaEnforced() {
-    return cfg.auth.second_factor === 'webauthn';
+  // Mirrors authpref.IsAdminActionMFAEnforced server-side. Returns undefined
+  // when the answer is unknowable from the webcfg (older proxy/auth with an
+  // SSO-only cluster), signaling callers to fall back to a server-side check.
+  isAdminActionMfaEnforced(): boolean | undefined {
+    const factors = cfg.secondFactors();
+
+    // If second_factors is empty, it could mean that `second_factors: ["sso"]`,
+    // but the old server only sent us `second_factor: "off"`.
+    // TODO(Joerger): DELETE IN v20 - v19 server sets second_factors.
+    if (factors.length === 0) {
+      return undefined;
+    }
+
+    // OTP is not supported for admin actions, so admin MFA is only enforced
+    // when every configured factor can satisfy an admin action.
+    return !factors.includes('otp');
   },
 
   getPrimaryAuthType(): PrimaryAuthType {
@@ -855,6 +910,13 @@ const cfg = {
 
   getIaCIntegrationRoute(type: PluginKind | IntegrationKind, name: string) {
     return generatePath(cfg.routes.integrationOverview, { type, name });
+  },
+
+  getIaCIntegrationSettingsRoute(
+    type: PluginKind | IntegrationKind,
+    name: string
+  ) {
+    return generatePath(cfg.routes.integrationOverviewSettings, { type, name });
   },
 
   getIntegrationStatusResourcesRoute(
@@ -1559,7 +1621,7 @@ const cfg = {
 
   getIntegrationRulesUrl(
     name: string,
-    resourceType: AwsResource,
+    resourceType: AwsResource | AzureResource,
     regions?: string[]
   ) {
     const clusterId = cfg.proxyCluster;

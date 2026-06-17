@@ -40,38 +40,74 @@ package decoder
 #cgo noescape rdp_decoder_process
 #cgo nocallback rdp_decoder_image_data
 #cgo noescape rdp_decoder_image_data
+#cgo nocallback rdp_decoder_cursor_state
+#cgo noescape rdp_decoder_cursor_state
+#cgo nocallback rdp_decoder_updated_regions_count
+#cgo noescape rdp_decoder_updated_regions_count
+#cgo nocallback rdp_decoder_updated_regions
+#cgo noescape rdp_decoder_updated_regions
+#cgo nocallback rdp_decoder_reset_updated_regions
+#cgo noescape rdp_decoder_reset_updated_regions
+#cgo nocallback rdp_decoder_resize_crop
+#cgo noescape rdp_decoder_resize_crop
+#cgo nocallback rdp_decoder_set_cursor_position
+#cgo noescape rdp_decoder_set_cursor_position
+#cgo nocallback rdp_decoder_dimensions
+#cgo noescape rdp_decoder_dimensions
+#cgo nocallback rdp_decoder_bytes_per_pixel
+#cgo noescape rdp_decoder_bytes_per_pixel
+#cgo nocallback rdp_decoder_sample_hash
+#cgo noescape rdp_decoder_sample_hash
 
 #include <stdint.h>
+#include <stdbool.h>
 
 typedef struct RdpDecoder RdpDecoder;
 
-RdpDecoder* rdp_decoder_new(uint16_t width, uint16_t height);
+RdpDecoder* rdp_decoder_new(uint16_t width, uint16_t height, uint16_t io_channel_id, uint16_t user_channel_id);
 void rdp_decoder_free(RdpDecoder* ptr);
 
 void rdp_decoder_resize(RdpDecoder* ptr, uint16_t width, uint16_t height);
 void rdp_decoder_process(RdpDecoder* ptr, const uint8_t* data, size_t len);
 const uint8_t* rdp_decoder_image_data(RdpDecoder* ptr, uint16_t* width, uint16_t* height);
+void rdp_decoder_cursor_state(RdpDecoder* ptr, uint8_t* out_visible, uint16_t* out_x, uint16_t* out_y);
+uint32_t rdp_decoder_updated_regions_count(RdpDecoder* ptr);
+uint32_t rdp_decoder_updated_regions(RdpDecoder* ptr, uint16_t* out_buf, uint32_t max_count);
+void rdp_decoder_reset_updated_regions(RdpDecoder* ptr);
+bool rdp_decoder_resize_crop(RdpDecoder* ptr, uint16_t crop_x, uint16_t crop_y, uint16_t crop_w, uint16_t crop_h, uint16_t out_width, uint16_t out_height, uint8_t* out_buf, size_t out_buf_len, uint8_t with_cursor);
+void rdp_decoder_set_cursor_position(RdpDecoder* ptr, uint16_t x, uint16_t y);
+void rdp_decoder_dimensions(RdpDecoder* ptr, uint16_t* out_width, uint16_t* out_height);
+uint8_t rdp_decoder_bytes_per_pixel(RdpDecoder* ptr);
+uint64_t rdp_decoder_sample_hash(RdpDecoder* ptr, uint16_t sample_count);
 */
 import "C"
 
 import (
 	"errors"
 	"image"
-	"math"
 	"unsafe"
-
-	"golang.org/x/image/draw"
 )
 
 type Decoder struct {
 	ptr *C.RdpDecoder
 }
 
-func New(width, height uint16) (*Decoder, error) {
-	ptr := C.rdp_decoder_new(C.uint16_t(width), C.uint16_t(height))
+func New(width, height uint16, opts ...Option) (*Decoder, error) {
+	var config decoderConfig
+	for _, opt := range opts {
+		opt(&config)
+	}
+
+	ptr := C.rdp_decoder_new(
+		C.uint16_t(width),
+		C.uint16_t(height),
+		C.uint16_t(config.ioChannelID),
+		C.uint16_t(config.userChannelID),
+	)
 	if ptr == nil {
 		return nil, errors.New("failed to create decoder")
 	}
+
 	return &Decoder{ptr: ptr}, nil
 }
 
@@ -124,42 +160,142 @@ func (d *Decoder) Image() *image.RGBA {
 	return rgba
 }
 
-// Thumbnail produces a scaled image of the current state of the screen.
-// It uses a low-quality interpolator so it shouldn't be used for large
-// size images.
-func (d *Decoder) Thumbnail(width, height int) *image.RGBA {
-	fullSize := d.Image()
-	if fullSize == nil || width <= 0 || height <= 0 {
+// ResizeCrop returns the source crop region (cropX, cropY, cropW, cropH) scaled to exactly outWidth x outHeight using
+// high-quality CatmullRom convolution. The crop must lie within the current frame bounds. When withCursor is true and
+// the decoder's tracked cursor is visible, it is composited onto the source frame before the crop is taken, so the
+// cursor scales with the screen.
+func (d *Decoder) ResizeCrop(cropX, cropY, cropW, cropH, outWidth, outHeight uint16, withCursor bool) (*image.RGBA, error) {
+	if d == nil || d.ptr == nil {
+		return nil, errors.New("decoder not initialized")
+	}
+	if outWidth == 0 || outHeight == 0 || cropW == 0 || cropH == 0 {
+		return nil, errors.New("invalid resize dimensions")
+	}
+
+	bpp := int(C.rdp_decoder_bytes_per_pixel(d.ptr))
+	if bpp == 0 {
+		return nil, errors.New("decoder has no pixel format")
+	}
+
+	w, h := int(outWidth), int(outHeight)
+	buf := make([]byte, w*h*bpp)
+
+	var withCursorC C.uint8_t
+	if withCursor {
+		withCursorC = 1
+	}
+
+	ok := C.rdp_decoder_resize_crop(
+		d.ptr,
+		C.uint16_t(cropX),
+		C.uint16_t(cropY),
+		C.uint16_t(cropW),
+		C.uint16_t(cropH),
+		C.uint16_t(outWidth),
+		C.uint16_t(outHeight),
+		(*C.uint8_t)(unsafe.SliceData(buf)),
+		C.size_t(len(buf)),
+		withCursorC,
+	)
+	if !bool(ok) {
+		return nil, errors.New("failed to resize crop region")
+	}
+
+	return &image.RGBA{
+		Pix:    buf,
+		Stride: w * bpp,
+		Rect:   image.Rect(0, 0, w, h),
+	}, nil
+}
+
+// SetCursorPosition overrides the decoder's tracked cursor position. Useful for cursor updates that arrive outside of
+// the RDP fast-path stream (e.g., TDPB MouseMove events). Does not change visibility — visibility is still driven by
+// RDP fast-path pointer updates.
+func (d *Decoder) SetCursorPosition(x, y uint16) {
+	if d == nil || d.ptr == nil {
+		return
+	}
+
+	C.rdp_decoder_set_cursor_position(d.ptr, C.uint16_t(x), C.uint16_t(y))
+}
+
+// SampleHash returns a 64-bit FNV-1a digest of pixels sampled on a fixed grid from the current frame buffer.
+// sampleCount controls the per-axis sample density; the effective step is max(1, dim / sampleCount).
+// Matches Go hash/fnv.New64a() byte-for-byte for the same inputs.
+func (d *Decoder) SampleHash(sampleCount uint16) uint64 {
+	if d == nil || d.ptr == nil {
+		return 0
+	}
+
+	return uint64(C.rdp_decoder_sample_hash(d.ptr, C.uint16_t(sampleCount)))
+}
+
+// Dimensions returns the current frame width and height in pixels. Returns (0, 0) if the decoder has not been initialized.
+func (d *Decoder) Dimensions() (width, height uint16) {
+	if d == nil || d.ptr == nil {
+		return 0, 0
+	}
+
+	var w, h C.uint16_t
+	C.rdp_decoder_dimensions(d.ptr, &w, &h)
+
+	return uint16(w), uint16(h)
+}
+
+// CursorState returns the cursor position and visibility as tracked by the
+// Rust decoder.
+func (d *Decoder) CursorState() CursorState {
+	if d == nil || d.ptr == nil {
+		return CursorState{}
+	}
+
+	var outVisible C.uint8_t
+	var outX, outY C.uint16_t
+
+	C.rdp_decoder_cursor_state(d.ptr, &outVisible, &outX, &outY)
+
+	return CursorState{
+		Visible: outVisible != 0,
+		X:       uint16(outX),
+		Y:       uint16(outY),
+	}
+}
+
+// UpdatedRegions returns the individual screen regions updated since the last
+// call to ResetUpdatedRegions. Each rectangle uses Go's exclusive Max convention
+// (converted from the Rust decoder's inclusive coordinates).
+func (d *Decoder) UpdatedRegions() []image.Rectangle {
+	if d == nil || d.ptr == nil {
 		return nil
 	}
 
-	srcBounds := fullSize.Bounds()
-	srcW := srcBounds.Dx()
-	srcH := srcBounds.Dy()
-	if srcW == 0 || srcH == 0 {
+	count := int(C.rdp_decoder_updated_regions_count(d.ptr))
+	if count == 0 {
 		return nil
 	}
 
-	// Compute scale to fit the source inside the requested thumbnail
-	// while preserving aspect ratio.
-	scaleW := float64(width) / float64(srcW)
-	scaleH := float64(height) / float64(srcH)
-	scale := math.Min(scaleW, scaleH)
+	buf := make([]C.uint16_t, count*4)
+	written := int(C.rdp_decoder_updated_regions(d.ptr, &buf[0], C.uint32_t(count)))
 
-	// Calculate destination size after scaling.
-	dstW := int(math.Max(1, math.Floor(float64(srcW)*scale+0.5)))
-	dstH := int(math.Max(1, math.Floor(float64(srcH)*scale+0.5)))
+	regions := make([]image.Rectangle, written)
+	for i := range written {
+		base := i * 4
+		// Rust uses inclusive right/bottom, Go uses exclusive — add 1.
+		regions[i] = image.Rect(
+			int(buf[base]),
+			int(buf[base+1]),
+			int(buf[base+2])+1,
+			int(buf[base+3])+1,
+		)
+	}
 
-	thumbnail := image.NewRGBA(image.Rect(0, 0, width, height))
+	return regions
+}
 
-	// Center the scaled image within the thumbnail.
-	offsetX := (width - dstW) / 2
-	offsetY := (height - dstH) / 2
-	dstRect := image.Rect(offsetX, offsetY, offsetX+dstW, offsetY+dstH)
-
-	// Note: the nearest neighbor interpolator is fast, but produces the lowest quality
-	// results. We're okay with this for thumbnails.
-	draw.NearestNeighbor.Scale(thumbnail, dstRect, fullSize, srcBounds, draw.Over, nil)
-
-	return thumbnail
+// ResetUpdatedRegions clears the accumulated update regions.
+func (d *Decoder) ResetUpdatedRegions() {
+	if d == nil || d.ptr == nil {
+		return
+	}
+	C.rdp_decoder_reset_updated_regions(d.ptr)
 }

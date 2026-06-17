@@ -27,8 +27,8 @@ import "teleport/devicetrust/v1/device_confirmation_token.proto";
 import "teleport/devicetrust/v1/device_enroll_token.proto";
 import "teleport/devicetrust/v1/device_source.proto";
 import "teleport/devicetrust/v1/device_web_token.proto";
+import "teleport/devicetrust/v1/os_type.proto";
 import "teleport/devicetrust/v1/tpm.proto";
-import "teleport/devicetrust/v1/usage.proto";
 import "teleport/devicetrust/v1/user_certificates.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1;devicetrustv1";
@@ -166,11 +166,6 @@ service DeviceTrustService {
   // Authorized either by a valid MDM service certificate or the appropriate
   // "device" permissions (create/update/delete).
   rpc SyncInventory(stream SyncInventoryRequest) returns (stream SyncInventoryResponse);
-
-  // Superseded by ResourceUsageService.GetUsage.
-  rpc GetDevicesUsage(GetDevicesUsageRequest) returns (DevicesUsage) {
-    option deprecated = true;
-  }
 }
 
 // Request for CreateDevice.
@@ -636,6 +631,16 @@ message SyncInventoryStart {
   // upserts.
   // See [SyncInventoryRequest] and [SyncInventoryMissingDevices] for details.
   bool track_missing_devices = 4;
+
+  // os_types declares the OS types this sync covers.
+  //
+  // track_missing_devices only reports devices whose os_type is in this list.
+  // Upserts and removals whose os_type is not in this list are rejected with a
+  // per-device error.
+  //
+  // Empty is treated as [OS_TYPE_MACOS, OS_TYPE_WINDOWS, OS_TYPE_LINUX] for
+  // backwards compatibility.
+  repeated OSType os_types = 5;
 }
 
 // SyncInventoryEnd ends the inventory sync, signaling that no more
@@ -678,6 +683,3 @@ message SyncInventoryMissingDevices {
   // profile.external_id.
   repeated Device devices = 1;
 }
-
-// Superseded by ResourceUsageService.GetUsage.
-message GetDevicesUsageRequest {}

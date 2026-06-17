@@ -367,6 +367,9 @@ const (
 	// WindowsDesktopQueueSize is windows_desktop service watch queue size.
 	WindowsDesktopQueueSize = 128
 
+	// LinuxDesktopQueueSize is linux_desktop service watch queue size.
+	LinuxDesktopQueueSize = 128
+
 	// DiscoveryQueueSize is discovery service queue size.
 	DiscoveryQueueSize = 128
 )
@@ -678,11 +681,6 @@ func SSHServerListenAddr() *utils.NetAddr {
 // blocks inbound connecions to ssh_nodes
 func ReverseTunnelListenAddr() *utils.NetAddr {
 	return makeAddr(BindIP, SSHProxyTunnelListenPort)
-}
-
-// MetricsServiceListenAddr returns the default listening address for the metrics service
-func MetricsServiceListenAddr() *utils.NetAddr {
-	return makeAddr(BindIP, MetricsListenPort)
 }
 
 func ProxyPeeringListenAddr() *utils.NetAddr {

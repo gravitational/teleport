@@ -21,13 +21,14 @@
 // 	protoc        (unknown)
 // source: teleport/lib/teleterm/v1/windows_desktop.proto
 
+//go:build !protoopaque
+
 package teletermv1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -40,7 +41,7 @@ const (
 
 // WindowsDesktop describes a Windows desktop resource.
 type WindowsDesktop struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// uri uniquely identifies the Windows desktop within Teleport Connect.
 	Uri string `protobuf:"bytes,1,opt,name=uri,proto3" json:"uri,omitempty"`
 	// name is the name of the desktop.
@@ -81,11 +82,6 @@ func (x *WindowsDesktop) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use WindowsDesktop.ProtoReflect.Descriptor instead.
-func (*WindowsDesktop) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_windows_desktop_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *WindowsDesktop) GetUri() string {
 	if x != nil {
 		return x.Uri
@@ -121,6 +117,54 @@ func (x *WindowsDesktop) GetLabels() []*Label {
 	return nil
 }
 
+func (x *WindowsDesktop) SetUri(v string) {
+	x.Uri = v
+}
+
+func (x *WindowsDesktop) SetName(v string) {
+	x.Name = v
+}
+
+func (x *WindowsDesktop) SetAddr(v string) {
+	x.Addr = v
+}
+
+func (x *WindowsDesktop) SetLogins(v []string) {
+	x.Logins = v
+}
+
+func (x *WindowsDesktop) SetLabels(v []*Label) {
+	x.Labels = v
+}
+
+type WindowsDesktop_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// uri uniquely identifies the Windows desktop within Teleport Connect.
+	Uri string
+	// name is the name of the desktop.
+	Name string
+	// address of the desktop.
+	// Omits the port if it's the default RDP port (3389).
+	Addr string
+	// logins available for the desktop.
+	Logins []string
+	// labels is a list of labels for the desktop.
+	Labels []*Label
+}
+
+func (b0 WindowsDesktop_builder) Build() *WindowsDesktop {
+	m0 := &WindowsDesktop{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Uri = b.Uri
+	x.Name = b.Name
+	x.Addr = b.Addr
+	x.Logins = b.Logins
+	x.Labels = b.Labels
+	return m0
+}
+
 var File_teleport_lib_teleterm_v1_windows_desktop_proto protoreflect.FileDescriptor
 
 const file_teleport_lib_teleterm_v1_windows_desktop_proto_rawDesc = "" +
@@ -132,18 +176,6 @@ const file_teleport_lib_teleterm_v1_windows_desktop_proto_rawDesc = "" +
 	"\x04addr\x18\x03 \x01(\tR\x04addr\x12\x16\n" +
 	"\x06logins\x18\x04 \x03(\tR\x06logins\x127\n" +
 	"\x06labels\x18\x05 \x03(\v2\x1f.teleport.lib.teleterm.v1.LabelR\x06labelsBTZRgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1b\x06proto3"
-
-var (
-	file_teleport_lib_teleterm_v1_windows_desktop_proto_rawDescOnce sync.Once
-	file_teleport_lib_teleterm_v1_windows_desktop_proto_rawDescData []byte
-)
-
-func file_teleport_lib_teleterm_v1_windows_desktop_proto_rawDescGZIP() []byte {
-	file_teleport_lib_teleterm_v1_windows_desktop_proto_rawDescOnce.Do(func() {
-		file_teleport_lib_teleterm_v1_windows_desktop_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_lib_teleterm_v1_windows_desktop_proto_rawDesc), len(file_teleport_lib_teleterm_v1_windows_desktop_proto_rawDesc)))
-	})
-	return file_teleport_lib_teleterm_v1_windows_desktop_proto_rawDescData
-}
 
 var file_teleport_lib_teleterm_v1_windows_desktop_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_teleport_lib_teleterm_v1_windows_desktop_proto_goTypes = []any{

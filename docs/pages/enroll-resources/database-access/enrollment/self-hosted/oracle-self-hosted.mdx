@@ -6,6 +6,7 @@ tags:
  - how-to
  - zero-trust
  - infrastructure-identity
+page_type: how-to
 ---
 
 (!docs/pages/includes/database-access/self-hosted-introduction.mdx dbType="Oracle"!)
@@ -253,6 +254,8 @@ $ tsh db connect --db-user=alice --db-name=XE oracle
 #
 # SQL>
 ```
+
+(!docs/pages/includes/database-access/proxy-db-tunnel.mdx db="oracle" dbArgs="--db-user=alice --db-name=XE"!)
 
 To log out of the database and remove credentials:
 

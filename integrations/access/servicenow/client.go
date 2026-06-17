@@ -25,9 +25,9 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"text/template"
 	"time"
 
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/go-resty/resty/v2"
 	"github.com/gravitational/trace"
 
@@ -315,7 +315,7 @@ var (
 `,
 	))
 	reviewNoteTemplate = template.Must(template.New("review note").Parse(
-		`{{.Author}} reviewed the request at {{.Created.Format .TimeFormat}}.
+		`{{.Author}} reviewed the request at {{.CreatedTime}}.
 Resolution: {{.ProposedState}}.
 {{if .Reason}}Reason: {{.Reason}}.{{end}}`,
 	))
@@ -340,13 +340,13 @@ func buildIncidentBody(webProxyURL *url.URL, reqID string, reqData RequestData, 
 	}
 	err := template.Execute(&builder, struct {
 		ID          string
-		TimeFormat  string
+		CreatedTime string
 		RequestLink string
 		ClusterName string
 		RequestData
 	}{
 		ID:          reqID,
-		TimeFormat:  time.RFC822,
+		CreatedTime: reqData.Created.Format(time.RFC822),
 		RequestLink: requestLink,
 		ClusterName: clusterName,
 		RequestData: reqData,
@@ -362,11 +362,11 @@ func buildReviewNoteBody(review types.AccessReview) (string, error) {
 	err := reviewNoteTemplate.Execute(&builder, struct {
 		types.AccessReview
 		ProposedState string
-		TimeFormat    string
+		CreatedTime   string
 	}{
 		review,
 		review.ProposedState.String(),
-		time.RFC822,
+		review.Created.Format(time.RFC822),
 	})
 	if err != nil {
 		return "", trace.Wrap(err)

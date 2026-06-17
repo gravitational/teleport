@@ -17,6 +17,7 @@
 package joining_test
 
 import (
+	"cmp"
 	"fmt"
 	"maps"
 	"testing"
@@ -28,6 +29,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/join/jointest"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 )
 
@@ -35,68 +37,92 @@ func TestValidateScopedToken(t *testing.T) {
 	// baseToken contains a valid scoped token using the token join method.
 	// It's used as a base for constructing scoped tokens in various valid
 	// and invalid states.
-	baseToken := &joiningv1.ScopedToken{
+	baseToken := joiningv1.ScopedToken_builder{
 		Kind:    types.KindScopedToken,
 		Scope:   "/aa/bb",
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: "testtoken",
-		},
-		Spec: &joiningv1.ScopedTokenSpec{
+		}.Build(),
+		Spec: joiningv1.ScopedTokenSpec_builder{
 			Roles:         []string{types.RoleNode.String()},
 			AssignedScope: "/aa/bb",
 			JoinMethod:    string(types.JoinMethodToken),
 			UsageMode:     string(joining.TokenUsageModeUnlimited),
-			ImmutableLabels: &joiningv1.ImmutableLabels{
+			ImmutableLabels: joiningv1.ImmutableLabels_builder{
 				Ssh: map[string]string{
 					"one":   "1",
 					"two":   "2",
 					"three": "3",
 				},
-			},
-		},
-		Status: &joiningv1.ScopedTokenStatus{
+			}.Build(),
+		}.Build(),
+		Status: joiningv1.ScopedTokenStatus_builder{
 			Secret: "secret",
-		},
-	}
+		}.Build(),
+	}.Build()
+
+	baseBotToken := joiningv1.ScopedToken_builder{
+		Kind:    types.KindScopedToken,
+		Scope:   "/aa/bb",
+		Version: types.V1,
+		Metadata: headerv1.Metadata_builder{
+			Name: "testtoken",
+		}.Build(),
+		Spec: joiningv1.ScopedTokenSpec_builder{
+			Roles:      []string{types.RoleBot.String()},
+			Bot:        "/aa/bb::test-bot",
+			JoinMethod: string(types.JoinMethodBoundKeypair),
+			UsageMode:  joining.TokenUsageModeBot,
+		}.Build(),
+		Status: joiningv1.ScopedTokenStatus_builder{
+			Usage: joiningv1.UsageStatus_builder{
+				BoundKeypair: joiningv1.BoundKeypairStatus_builder{
+					RegistrationSecret: "secret",
+				}.Build(),
+			}.Build(),
+		}.Build(),
+	}.Build()
+
 	cases := []struct {
 		name              string
 		modFn             func(*joiningv1.ScopedToken)
 		expectedStrongErr string
 		expectedWeakErr   string
+		baseToken         *joiningv1.ScopedToken
 	}{
 		{
 			name: "invalid kind",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Kind = ""
+				tok.SetKind("")
 			},
 			expectedStrongErr: fmt.Sprintf("expected kind %v, got %q", types.KindScopedToken, ""),
 		},
 		{
 			name: "invalid version",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Version = ""
+				tok.SetVersion("")
 			},
 			expectedStrongErr: fmt.Sprintf("expected version %v, got %q", types.V1, ""),
 		},
 		{
 			name: "invalid subkind",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.SubKind = "subkind"
+				tok.SetSubKind("subkind")
 			},
 			expectedStrongErr: fmt.Sprintf("expected sub_kind %v, got %q", "", "subkind"),
 		},
 		{
 			name: "missing name",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Metadata.Name = ""
+				tok.GetMetadata().SetName("")
 			},
 			expectedStrongErr: "missing name",
 		},
 		{
 			name: "missing spec",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec = nil
+				tok.ClearSpec()
 			},
 			expectedStrongErr: "spec must not be nil",
 			expectedWeakErr:   "validating scoped token assigned scope",
@@ -104,7 +130,7 @@ func TestValidateScopedToken(t *testing.T) {
 		{
 			name: "missing scope",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Scope = ""
+				tok.SetScope("")
 			},
 			expectedStrongErr: "scoped token must have a scope assigned",
 			expectedWeakErr:   "validating scoped token resource scope",
@@ -112,14 +138,14 @@ func TestValidateScopedToken(t *testing.T) {
 		{
 			name: "non-absolute scope",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Scope = "aa/bb"
+				tok.SetScope("aa/bb")
 			},
 			expectedStrongErr: "validating scoped token resource scope",
 		},
 		{
 			name: "scope with invalid characters",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Scope = "/aa/bb}"
+				tok.SetScope("/aa/bb}")
 			},
 			expectedStrongErr: "validating scoped token resource scope",
 			expectedWeakErr:   "validating scoped token resource scope",
@@ -127,7 +153,7 @@ func TestValidateScopedToken(t *testing.T) {
 		{
 			name: "missing assigned scope",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.AssignedScope = ""
+				tok.GetSpec().SetAssignedScope("")
 			},
 			expectedStrongErr: "validating scoped token assigned scope",
 			expectedWeakErr:   "validating scoped token assigned scope",
@@ -135,14 +161,14 @@ func TestValidateScopedToken(t *testing.T) {
 		{
 			name: "non-absolute assigned scope",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.AssignedScope = "aa/bb"
+				tok.GetSpec().SetAssignedScope("aa/bb")
 			},
 			expectedStrongErr: "validating scoped token assigned scope",
 		},
 		{
 			name: "assigned scope with invalid character",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.AssignedScope = "aa/bb}"
+				tok.GetSpec().SetAssignedScope("aa/bb}")
 			},
 			expectedStrongErr: "validating scoped token assigned scope",
 			expectedWeakErr:   "validating scoped token assigned scope",
@@ -150,14 +176,14 @@ func TestValidateScopedToken(t *testing.T) {
 		{
 			name: "assigned scope is not descendant of token scope",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.AssignedScope = "/bb/aa"
+				tok.GetSpec().SetAssignedScope("/bb/aa")
 			},
 			expectedStrongErr: "scoped token assigned scope must be descendant of or equivalent to the token's resource scope",
 		},
 		{
 			name: "invalid join method",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.JoinMethod = string(types.JoinMethodUnspecified)
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodUnspecified))
 			},
 			expectedStrongErr: fmt.Sprintf("join method %q does not support scoping", types.JoinMethodUnspecified),
 			expectedWeakErr:   fmt.Sprintf("join method %q does not support scoping", types.JoinMethodUnspecified),
@@ -165,7 +191,7 @@ func TestValidateScopedToken(t *testing.T) {
 		{
 			name: "missing roles",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.Roles = nil
+				tok.GetSpec().SetRoles(nil)
 			},
 			expectedStrongErr: "scoped token must have at least one role",
 			expectedWeakErr:   "scoped token must have at least one role",
@@ -173,54 +199,54 @@ func TestValidateScopedToken(t *testing.T) {
 		{
 			name: "invalid roles",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.Roles = []string{"random_role"}
+				tok.GetSpec().SetRoles([]string{"random_role"})
 			},
 			expectedStrongErr: "validating scoped token roles",
 		},
 		{
 			name: "unsupported roles",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.Roles = []string{types.RoleNode.String(), types.RoleInstance.String()}
+				tok.GetSpec().SetRoles([]string{types.RoleNode.String(), types.RoleInstance.String()})
 			},
 			expectedStrongErr: fmt.Sprintf("role %q does not support scoping", types.RoleInstance),
 		},
 		{
 			name: "invalid usage mode",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.UsageMode = "invalid"
+				tok.GetSpec().SetUsageMode("invalid")
 			},
 			expectedStrongErr: "scoped token mode is not supported",
 		},
 		{
 			name: "invalid labels key",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.ImmutableLabels = &joiningv1.ImmutableLabels{
+				tok.GetSpec().SetImmutableLabels(joiningv1.ImmutableLabels_builder{
 					Ssh: map[string]string{
 						"one":  "1",
 						"two;": "2",
 					},
-				}
+				}.Build())
 			},
 			expectedStrongErr: "invalid immutable label key \"two;\"",
 		},
 		{
 			name: "setting ssh labels for role other than node",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.Roles = []string{types.RoleBot.String()}
-				tok.Spec.ImmutableLabels = &joiningv1.ImmutableLabels{
+				tok.GetSpec().SetRoles([]string{types.RoleApp.String()})
+				tok.GetSpec().SetImmutableLabels(joiningv1.ImmutableLabels_builder{
 					Ssh: map[string]string{
 						"one":   "1",
 						"two":   "2",
 						"three": "3",
 					},
-				}
+				}.Build())
 			},
 			expectedStrongErr: "immutable ssh labels are only supported for tokens that allow the node role",
 		},
 		{
 			name: "no secret with token join method",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Status = nil
+				tok.ClearStatus()
 			},
 			expectedStrongErr: "secret value must be defined for a scoped token when using the token join method",
 			expectedWeakErr:   "secret value must be defined for a scoped token when using the token join method",
@@ -228,71 +254,248 @@ func TestValidateScopedToken(t *testing.T) {
 		{
 			name: "ec2 token without aws configuration",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.JoinMethod = string(types.JoinMethodEC2)
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodEC2))
 			},
-			expectedStrongErr: "aws configuration must be defined for a scoped token when using the ec2 or iam join methods",
-			expectedWeakErr:   "aws configuration must be defined for a scoped token when using the ec2 or iam join methods",
+			expectedStrongErr: "aws configuration with at least one allow rule must be defined",
+			expectedWeakErr:   "aws configuration with at least one allow rule must be defined",
 		},
 		{
 			name: "ec2 token with invalid IID TTL",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.JoinMethod = string(types.JoinMethodEC2)
-				tok.Spec.Aws = &joiningv1.AWS{
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodEC2))
+				tok.GetSpec().SetAws(joiningv1.AWS_builder{
 					Allow: []*joiningv1.AWS_Rule{
-						{
+						joiningv1.AWS_Rule_builder{
 							AwsAccount: "1234567890",
-						},
+						}.Build(),
 					},
 					IidTtl: "123", // no unit specified
-				}
+				}.Build())
 			},
 			expectedStrongErr: "invalid IID TTL value",
 			expectedWeakErr:   "invalid IID TTL value",
 		},
 		{
+			name: "ec2 token with aws_arn",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodEC2))
+				tok.GetSpec().SetAws(joiningv1.AWS_builder{
+					Allow: []*joiningv1.AWS_Rule{
+						joiningv1.AWS_Rule_builder{
+							AwsAccount: "1234567890",
+							AwsArn:     "arn:aws:sts::1234567890:assumed-role/role/i-1234567890abcdef0",
+						}.Build(),
+					},
+				}.Build())
+			},
+			expectedStrongErr: `allow[0]: "aws_arn" parameter not supported`,
+			expectedWeakErr:   `allow[0]: "aws_arn" parameter not supported`,
+		},
+		{
+			name: "ec2 token with aws_organization_id",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodEC2))
+				tok.GetSpec().SetAws(joiningv1.AWS_builder{
+					Allow: []*joiningv1.AWS_Rule{
+						joiningv1.AWS_Rule_builder{
+							AwsAccount:        "1234567890",
+							AwsOrganizationId: "o-123abcd",
+						}.Build(),
+					},
+				}.Build())
+			},
+			expectedStrongErr: `allow[0]: "aws_organization_id" parameter not supported`,
+			expectedWeakErr:   `allow[0]: "aws_organization_id" parameter not supported`,
+		},
+		{
+			name: "ec2 token with empty allow rule",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodEC2))
+				tok.GetSpec().SetAws(joiningv1.AWS_builder{
+					Allow: []*joiningv1.AWS_Rule{{}},
+				}.Build())
+			},
+			expectedStrongErr: `allow[0]: must set "aws_account" or "aws_role"`,
+			expectedWeakErr:   `allow[0]: must set "aws_account" or "aws_role"`,
+		},
+		{
 			name: "iam token without aws configuration",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.JoinMethod = string(types.JoinMethodIAM)
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodIAM))
 			},
-			expectedStrongErr: "aws configuration must be defined for a scoped token when using the ec2 or iam join methods",
-			expectedWeakErr:   "aws configuration must be defined for a scoped token when using the ec2 or iam join methods",
+			expectedStrongErr: "aws configuration with at least one allow rule must be defined",
+			expectedWeakErr:   "aws configuration with at least one allow rule must be defined",
+		},
+		{
+			name: "iam token with aws_role",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodIAM))
+				tok.GetSpec().SetAws(joiningv1.AWS_builder{
+					Allow: []*joiningv1.AWS_Rule{
+						joiningv1.AWS_Rule_builder{
+							AwsAccount: "1234567890",
+							AwsRole:    "arn:aws:iam::1234567890:role/TeleportJoin",
+						}.Build(),
+					},
+				}.Build())
+			},
+			expectedStrongErr: `allow[0]: "aws_role" parameter not supported`,
+			expectedWeakErr:   `allow[0]: "aws_role" parameter not supported`,
+		},
+		{
+			name: "iam token with aws_regions",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodIAM))
+				tok.GetSpec().SetAws(joiningv1.AWS_builder{
+					Allow: []*joiningv1.AWS_Rule{
+						joiningv1.AWS_Rule_builder{
+							AwsAccount: "1234567890",
+							AwsRegions: []string{"us-west-2"},
+						}.Build(),
+					},
+				}.Build())
+			},
+			expectedStrongErr: `allow[0]: "aws_regions" parameter not supported`,
+			expectedWeakErr:   `allow[0]: "aws_regions" parameter not supported`,
+		},
+		{
+			name: "iam token with empty allow rule",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodIAM))
+				tok.GetSpec().SetAws(joiningv1.AWS_builder{
+					Allow: []*joiningv1.AWS_Rule{{}},
+				}.Build())
+			},
+			expectedStrongErr: `allow[0]: must set "aws_account", "aws_arn", or "aws_organization"`,
+			expectedWeakErr:   `allow[0]: must set "aws_account", "aws_arn", or "aws_organization"`,
 		},
 		{
 			name: "gcp token without gcp configuration",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.JoinMethod = string(types.JoinMethodGCP)
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodGCP))
 			},
-			expectedStrongErr: "gcp configuration must be defined for a scoped token when using the gcp join method",
-			expectedWeakErr:   "gcp configuration must be defined for a scoped token when using the gcp join method",
+			expectedStrongErr: "gcp configuration with at least one allow rule must be defined",
+			expectedWeakErr:   "gcp configuration with at least one allow rule must be defined",
+		},
+		{
+			name: "gcp token with empty allow rule",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodGCP))
+				tok.GetSpec().SetGcp(joiningv1.GCP_builder{
+					Allow: []*joiningv1.GCP_Rule{{}},
+				}.Build())
+			},
+			expectedStrongErr: "allow[0]: requires at least one project ID",
+			expectedWeakErr:   "allow[0]: requires at least one project ID",
+		},
+		{
+			name: "gcp token with allow rule with empty project ID",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodGCP))
+				tok.GetSpec().SetGcp(joiningv1.GCP_builder{
+					Allow: []*joiningv1.GCP_Rule{joiningv1.GCP_Rule_builder{ProjectIds: []string{""}}.Build()},
+				}.Build())
+			},
+			expectedStrongErr: "allow[0].project_ids[0]: must not be empty",
+			expectedWeakErr:   "allow[0].project_ids[0]: must not be empty",
 		},
 		{
 			name: "azure token without azure configuration",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.JoinMethod = string(types.JoinMethodAzure)
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodAzure))
 			},
-			expectedStrongErr: "azure configuration must be defined for a scoped token when using the azure join method",
-			expectedWeakErr:   "azure configuration must be defined for a scoped token when using the azure join method",
+			expectedStrongErr: "azure configuration with at least one allow rule must be defined",
+			expectedWeakErr:   "azure configuration with at least one allow rule must be defined",
+		},
+		{
+			name: "azure token with empty allow rule",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodAzure))
+				tok.GetSpec().SetAzure(joiningv1.Azure_builder{
+					Allow: []*joiningv1.Azure_Rule{{}},
+				}.Build())
+			},
+			expectedStrongErr: `allow[0]: must set "subscription" or "tenant"`,
+			expectedWeakErr:   `allow[0]: must set "subscription" or "tenant"`,
 		},
 		{
 			name: "azure_devops token without azure configuration",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.JoinMethod = string(types.JoinMethodAzureDevops)
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodAzureDevops))
 			},
-			expectedStrongErr: "azure_devops configuration must be defined for a scoped token when using the azure_devops join method",
-			expectedWeakErr:   "azure_devops configuration must be defined for a scoped token when using the azure_devops join method",
+			expectedStrongErr: "azure_devops configuration with at least one allow rule must be defined",
+			expectedWeakErr:   "azure_devops configuration with at least one allow rule must be defined",
+		},
+		{
+			name: "azure_devops token without organization_id",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodAzureDevops))
+				tok.GetSpec().SetAzureDevops(joiningv1.AzureDevops_builder{
+					Allow: []*joiningv1.AzureDevops_Rule{
+						joiningv1.AzureDevops_Rule_builder{
+							Sub: "p://my-org/my-project/my-pipeline",
+						}.Build(),
+					},
+				}.Build())
+			},
+			expectedStrongErr: `"organization_id" must be set`,
+			expectedWeakErr:   `"organization_id" must be set`,
+		},
+		{
+			name: "azure_devops token with allow rule missing key field",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodAzureDevops))
+				tok.GetSpec().SetAzureDevops(joiningv1.AzureDevops_builder{
+					OrganizationId: "00000000-0000-0000-0000-000000000000",
+					Allow: []*joiningv1.AzureDevops_Rule{
+						joiningv1.AzureDevops_Rule_builder{
+							RepositoryVersion: "aaabbccddeefgghhjjiii",
+						}.Build(),
+					},
+				}.Build())
+			},
+			expectedStrongErr: `allow[0]: must set "sub", "project_name", or "project_id"`,
+			expectedWeakErr:   `allow[0]: must set "sub", "project_name", or "project_id"`,
 		},
 		{
 			name: "oracle token without oracle configuration",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.JoinMethod = string(types.JoinMethodOracle)
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodOracle))
 			},
-			expectedStrongErr: "oracle configuration must be defined for a scoped token when using the oracle join method",
-			expectedWeakErr:   "oracle configuration must be defined for a scoped token when using the oracle join method",
+			expectedStrongErr: "oracle configuration with at least one allow rule must be defined",
+			expectedWeakErr:   "oracle configuration with at least one allow rule must be defined",
+		},
+		{
+			name: "oracle token without tenancy",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodOracle))
+				tok.GetSpec().SetOracle(joiningv1.Oracle_builder{
+					Allow: []*joiningv1.Oracle_Rule{{}},
+				}.Build())
+			},
+			expectedStrongErr: `allow[0]: "tenancy" must be set`,
+			expectedWeakErr:   `allow[0]: "tenancy" must be set`,
+		},
+		{
+			name: "oracle token with too many instance IDs",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodOracle))
+				tok.GetSpec().SetOracle(joiningv1.Oracle_builder{
+					Allow: []*joiningv1.Oracle_Rule{
+						joiningv1.Oracle_Rule_builder{
+							Tenancy:   "ocid1.tenancy.oc1..aaaaaaaa",
+							Instances: make([]string, 101),
+						}.Build(),
+					},
+				}.Build())
+			},
+			expectedStrongErr: "allow[0]: maximum 100 instances may be set (found 101)",
+			expectedWeakErr:   "allow[0]: maximum 100 instances may be set (found 101)",
 		},
 		{
 			name: "kubernetes token without configuration",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.JoinMethod = string(types.JoinMethodKubernetes)
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodKubernetes))
 			},
 			expectedStrongErr: "at least one allow rule must be set",
 			expectedWeakErr:   "at least one allow rule must be set",
@@ -300,10 +503,10 @@ func TestValidateScopedToken(t *testing.T) {
 		{
 			name: "kubernetes token with empty allow rules",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.JoinMethod = string(types.JoinMethodKubernetes)
-				tok.Spec.Kubernetes = &joiningv1.Kubernetes{
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodKubernetes))
+				tok.GetSpec().SetKubernetes(joiningv1.Kubernetes_builder{
 					Allow: []*joiningv1.Kubernetes_Rule{},
-				}
+				}.Build())
 			},
 			expectedStrongErr: "at least one allow rule must be set",
 			expectedWeakErr:   "at least one allow rule must be set",
@@ -311,23 +514,47 @@ func TestValidateScopedToken(t *testing.T) {
 		{
 			name: "kubernetes token with empty service account allow rule",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.JoinMethod = string(types.JoinMethodKubernetes)
-				tok.Spec.Kubernetes = &joiningv1.Kubernetes{
-					Allow: []*joiningv1.Kubernetes_Rule{{ServiceAccount: ""}},
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodKubernetes))
+				tok.GetSpec().SetKubernetes(joiningv1.Kubernetes_builder{
+					Allow: []*joiningv1.Kubernetes_Rule{joiningv1.Kubernetes_Rule_builder{ServiceAccount: ""}.Build()},
 					Type:  string(types.KubernetesJoinTypeInCluster),
-				}
+				}.Build())
 			},
-			expectedStrongErr: "allow[0].service_account must be set",
-			expectedWeakErr:   "allow[0].service_account must be set",
+			expectedStrongErr: "allow[0]: must specify service_account or (service_account_name and service_account_namespace)",
+			expectedWeakErr:   "allow[0]: must specify service_account or (service_account_name and service_account_namespace)",
+		},
+		{
+			name: "kubernetes token with service_account_name without service_account_namespace",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodKubernetes))
+				tok.GetSpec().SetKubernetes(joiningv1.Kubernetes_builder{
+					Allow: []*joiningv1.Kubernetes_Rule{joiningv1.Kubernetes_Rule_builder{ServiceAccountName: "my-sa"}.Build()},
+					Type:  string(types.KubernetesJoinTypeInCluster),
+				}.Build())
+			},
+			expectedStrongErr: "allow[0]: must specify service_account or (service_account_name and service_account_namespace)",
+			expectedWeakErr:   "allow[0]: must specify service_account or (service_account_name and service_account_namespace)",
+		},
+		{
+			name: "kubernetes token with service_account_namespace without service_account_name",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodKubernetes))
+				tok.GetSpec().SetKubernetes(joiningv1.Kubernetes_builder{
+					Allow: []*joiningv1.Kubernetes_Rule{joiningv1.Kubernetes_Rule_builder{ServiceAccountNamespace: "my-ns"}.Build()},
+					Type:  string(types.KubernetesJoinTypeInCluster),
+				}.Build())
+			},
+			expectedStrongErr: "allow[0]: must specify service_account or (service_account_name and service_account_namespace)",
+			expectedWeakErr:   "allow[0]: must specify service_account or (service_account_name and service_account_namespace)",
 		},
 		{
 			name: "kubernetes token with malformed service account allow rule",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.JoinMethod = string(types.JoinMethodKubernetes)
-				tok.Spec.Kubernetes = &joiningv1.Kubernetes{
-					Allow: []*joiningv1.Kubernetes_Rule{{ServiceAccount: "malformed"}},
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodKubernetes))
+				tok.GetSpec().SetKubernetes(joiningv1.Kubernetes_builder{
+					Allow: []*joiningv1.Kubernetes_Rule{joiningv1.Kubernetes_Rule_builder{ServiceAccount: "malformed"}.Build()},
 					Type:  string(types.KubernetesJoinTypeInCluster),
-				}
+				}.Build())
 			},
 			expectedStrongErr: "allow[0].service_account should be in format \"namespace:service_account\"",
 			expectedWeakErr:   "allow[0].service_account should be in format \"namespace:service_account\"",
@@ -335,11 +562,11 @@ func TestValidateScopedToken(t *testing.T) {
 		{
 			name: "kubernetes token with service account allow rule made up of too many parts",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.JoinMethod = string(types.JoinMethodKubernetes)
-				tok.Spec.Kubernetes = &joiningv1.Kubernetes{
-					Allow: []*joiningv1.Kubernetes_Rule{{ServiceAccount: "too:many:parts"}},
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodKubernetes))
+				tok.GetSpec().SetKubernetes(joiningv1.Kubernetes_builder{
+					Allow: []*joiningv1.Kubernetes_Rule{joiningv1.Kubernetes_Rule_builder{ServiceAccount: "too:many:parts"}.Build()},
 					Type:  string(types.KubernetesJoinTypeInCluster),
-				}
+				}.Build())
 			},
 			expectedStrongErr: "allow[0].service_account should be in format \"namespace:service_account\"",
 			expectedWeakErr:   "allow[0].service_account should be in format \"namespace:service_account\"",
@@ -347,11 +574,11 @@ func TestValidateScopedToken(t *testing.T) {
 		{
 			name: "kubernetes token with service account allow rule with empty account name",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.JoinMethod = string(types.JoinMethodKubernetes)
-				tok.Spec.Kubernetes = &joiningv1.Kubernetes{
-					Allow: []*joiningv1.Kubernetes_Rule{{ServiceAccount: "namespace:"}},
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodKubernetes))
+				tok.GetSpec().SetKubernetes(joiningv1.Kubernetes_builder{
+					Allow: []*joiningv1.Kubernetes_Rule{joiningv1.Kubernetes_Rule_builder{ServiceAccount: "namespace:"}.Build()},
 					Type:  string(types.KubernetesJoinTypeInCluster),
-				}
+				}.Build())
 			},
 			expectedStrongErr: "allow[0].service_account should be in format \"namespace:service_account\"",
 			expectedWeakErr:   "allow[0].service_account should be in format \"namespace:service_account\"",
@@ -359,11 +586,11 @@ func TestValidateScopedToken(t *testing.T) {
 		{
 			name: "kubernetes token with service account allow rule with empty namespace",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.JoinMethod = string(types.JoinMethodKubernetes)
-				tok.Spec.Kubernetes = &joiningv1.Kubernetes{
-					Allow: []*joiningv1.Kubernetes_Rule{{ServiceAccount: ":service_account"}},
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodKubernetes))
+				tok.GetSpec().SetKubernetes(joiningv1.Kubernetes_builder{
+					Allow: []*joiningv1.Kubernetes_Rule{joiningv1.Kubernetes_Rule_builder{ServiceAccount: ":service_account"}.Build()},
 					Type:  string(types.KubernetesJoinTypeInCluster),
-				}
+				}.Build())
 			},
 			expectedStrongErr: "allow[0].service_account should be in format \"namespace:service_account\"",
 			expectedWeakErr:   "allow[0].service_account should be in format \"namespace:service_account\"",
@@ -371,15 +598,15 @@ func TestValidateScopedToken(t *testing.T) {
 		{
 			name: "kubernetes token with unrecognized join type",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.JoinMethod = string(types.JoinMethodKubernetes)
-				tok.Spec.Kubernetes = &joiningv1.Kubernetes{
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodKubernetes))
+				tok.GetSpec().SetKubernetes(joiningv1.Kubernetes_builder{
 					Type: "unknown",
 					Allow: []*joiningv1.Kubernetes_Rule{
-						{
+						joiningv1.Kubernetes_Rule_builder{
 							ServiceAccount: "test:test",
-						},
+						}.Build(),
 					},
-				}
+				}.Build())
 			},
 			expectedStrongErr: "unrecognized type \"unknown\"",
 			expectedWeakErr:   "unrecognized type \"unknown\"",
@@ -387,14 +614,14 @@ func TestValidateScopedToken(t *testing.T) {
 		{
 			name: "kubernetes token with no join type",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.JoinMethod = string(types.JoinMethodKubernetes)
-				tok.Spec.Kubernetes = &joiningv1.Kubernetes{
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodKubernetes))
+				tok.GetSpec().SetKubernetes(joiningv1.Kubernetes_builder{
 					Allow: []*joiningv1.Kubernetes_Rule{
-						{
+						joiningv1.Kubernetes_Rule_builder{
 							ServiceAccount: "test:test",
-						},
+						}.Build(),
 					},
-				}
+				}.Build())
 			},
 			expectedStrongErr: "type must be specified",
 			expectedWeakErr:   "type must be specified",
@@ -402,15 +629,15 @@ func TestValidateScopedToken(t *testing.T) {
 		{
 			name: "kubernetes static_jwks token without configuration",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.JoinMethod = string(types.JoinMethodKubernetes)
-				tok.Spec.Kubernetes = &joiningv1.Kubernetes{
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodKubernetes))
+				tok.GetSpec().SetKubernetes(joiningv1.Kubernetes_builder{
 					Type: "static_jwks",
 					Allow: []*joiningv1.Kubernetes_Rule{
-						{
+						joiningv1.Kubernetes_Rule_builder{
 							ServiceAccount: "test:test",
-						},
+						}.Build(),
 					},
-				}
+				}.Build())
 			},
 			expectedStrongErr: "static_jwks must be set when type is \"static_jwks\"",
 			expectedWeakErr:   "static_jwks must be set when type is \"static_jwks\"",
@@ -418,16 +645,16 @@ func TestValidateScopedToken(t *testing.T) {
 		{
 			name: "kubernetes in_cluster token with static_jwks configuration",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.JoinMethod = string(types.JoinMethodKubernetes)
-				tok.Spec.Kubernetes = &joiningv1.Kubernetes{
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodKubernetes))
+				tok.GetSpec().SetKubernetes(joiningv1.Kubernetes_builder{
 					Type: string(types.KubernetesJoinTypeInCluster),
 					Allow: []*joiningv1.Kubernetes_Rule{
-						{
+						joiningv1.Kubernetes_Rule_builder{
 							ServiceAccount: "test:test",
-						},
+						}.Build(),
 					},
 					StaticJwks: &joiningv1.Kubernetes_StaticJWKSConfig{},
-				}
+				}.Build())
 			},
 			expectedStrongErr: "static_jwks must not be set when type is \"in_cluster\"",
 			expectedWeakErr:   "static_jwks must not be set when type is \"in_cluster\"",
@@ -435,16 +662,16 @@ func TestValidateScopedToken(t *testing.T) {
 		{
 			name: "kubernetes in_cluster token with oidc configuration",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.JoinMethod = string(types.JoinMethodKubernetes)
-				tok.Spec.Kubernetes = &joiningv1.Kubernetes{
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodKubernetes))
+				tok.GetSpec().SetKubernetes(joiningv1.Kubernetes_builder{
 					Type: string(types.KubernetesJoinTypeInCluster),
 					Allow: []*joiningv1.Kubernetes_Rule{
-						{
+						joiningv1.Kubernetes_Rule_builder{
 							ServiceAccount: "test:test",
-						},
+						}.Build(),
 					},
 					Oidc: &joiningv1.Kubernetes_OIDCConfig{},
-				}
+				}.Build())
 			},
 			expectedStrongErr: "oidc must not be set when type is \"in_cluster\"",
 			expectedWeakErr:   "oidc must not be set when type is \"in_cluster\"",
@@ -452,17 +679,17 @@ func TestValidateScopedToken(t *testing.T) {
 		{
 			name: "kubernetes static_jwks token with oidc configuration",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.JoinMethod = string(types.JoinMethodKubernetes)
-				tok.Spec.Kubernetes = &joiningv1.Kubernetes{
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodKubernetes))
+				tok.GetSpec().SetKubernetes(joiningv1.Kubernetes_builder{
 					Type: string(types.KubernetesJoinTypeStaticJWKS),
 					Allow: []*joiningv1.Kubernetes_Rule{
-						{
+						joiningv1.Kubernetes_Rule_builder{
 							ServiceAccount: "test:test",
-						},
+						}.Build(),
 					},
-					StaticJwks: &joiningv1.Kubernetes_StaticJWKSConfig{Jwks: "{\"keys\":[]}"},
+					StaticJwks: joiningv1.Kubernetes_StaticJWKSConfig_builder{Jwks: "{\"keys\":[]}"}.Build(),
 					Oidc:       &joiningv1.Kubernetes_OIDCConfig{},
-				}
+				}.Build())
 			},
 			expectedStrongErr: "oidc must not be set when type is \"static_jwks\"",
 			expectedWeakErr:   "oidc must not be set when type is \"static_jwks\"",
@@ -470,15 +697,15 @@ func TestValidateScopedToken(t *testing.T) {
 		{
 			name: "kubernetes oidc token without configuration",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.JoinMethod = string(types.JoinMethodKubernetes)
-				tok.Spec.Kubernetes = &joiningv1.Kubernetes{
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodKubernetes))
+				tok.GetSpec().SetKubernetes(joiningv1.Kubernetes_builder{
 					Type: "oidc",
 					Allow: []*joiningv1.Kubernetes_Rule{
-						{
+						joiningv1.Kubernetes_Rule_builder{
 							ServiceAccount: "test:test",
-						},
+						}.Build(),
 					},
-				}
+				}.Build())
 			},
 			expectedStrongErr: "oidc.issuer must be set when type is \"oidc\"",
 			expectedWeakErr:   "oidc.issuer must be set when type is \"oidc\"",
@@ -486,17 +713,17 @@ func TestValidateScopedToken(t *testing.T) {
 		{
 			name: "kubernetes oidc token with static_jwks configuration",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.JoinMethod = string(types.JoinMethodKubernetes)
-				tok.Spec.Kubernetes = &joiningv1.Kubernetes{
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodKubernetes))
+				tok.GetSpec().SetKubernetes(joiningv1.Kubernetes_builder{
 					Type: string(types.KubernetesJoinTypeOIDC),
 					Allow: []*joiningv1.Kubernetes_Rule{
-						{
+						joiningv1.Kubernetes_Rule_builder{
 							ServiceAccount: "test:test",
-						},
+						}.Build(),
 					},
-					Oidc:       &joiningv1.Kubernetes_OIDCConfig{Issuer: "https://oidc.example.com"},
+					Oidc:       joiningv1.Kubernetes_OIDCConfig_builder{Issuer: "https://oidc.example.com"}.Build(),
 					StaticJwks: &joiningv1.Kubernetes_StaticJWKSConfig{},
-				}
+				}.Build())
 			},
 			expectedStrongErr: "static_jwks must not be set when type is \"oidc\"",
 			expectedWeakErr:   "static_jwks must not be set when type is \"oidc\"",
@@ -504,16 +731,16 @@ func TestValidateScopedToken(t *testing.T) {
 		{
 			name: "kubernetes oidc token with malformed issuer",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.JoinMethod = string(types.JoinMethodKubernetes)
-				tok.Spec.Kubernetes = &joiningv1.Kubernetes{
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodKubernetes))
+				tok.GetSpec().SetKubernetes(joiningv1.Kubernetes_builder{
 					Type: string(types.KubernetesJoinTypeOIDC),
 					Allow: []*joiningv1.Kubernetes_Rule{
-						{
+						joiningv1.Kubernetes_Rule_builder{
 							ServiceAccount: "test:test",
-						},
+						}.Build(),
 					},
-					Oidc: &joiningv1.Kubernetes_OIDCConfig{Issuer: "://bad-url"},
-				}
+					Oidc: joiningv1.Kubernetes_OIDCConfig_builder{Issuer: "://bad-url"}.Build(),
+				}.Build())
 			},
 			expectedStrongErr: "oidc.issuer must be a valid URL",
 			expectedWeakErr:   "oidc.issuer must be a valid URL",
@@ -521,16 +748,16 @@ func TestValidateScopedToken(t *testing.T) {
 		{
 			name: "kubernetes oidc token with http issuer and insecure flag disabled",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.JoinMethod = string(types.JoinMethodKubernetes)
-				tok.Spec.Kubernetes = &joiningv1.Kubernetes{
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodKubernetes))
+				tok.GetSpec().SetKubernetes(joiningv1.Kubernetes_builder{
 					Type: string(types.KubernetesJoinTypeOIDC),
 					Allow: []*joiningv1.Kubernetes_Rule{
-						{
+						joiningv1.Kubernetes_Rule_builder{
 							ServiceAccount: "test:test",
-						},
+						}.Build(),
 					},
-					Oidc: &joiningv1.Kubernetes_OIDCConfig{Issuer: "http://oidc.example.com"},
-				}
+					Oidc: joiningv1.Kubernetes_OIDCConfig_builder{Issuer: "http://oidc.example.com"}.Build(),
+				}.Build())
 			},
 			expectedStrongErr: "oidc.issuer must be https:// unless insecure_allow_http_issuer is set",
 			expectedWeakErr:   "oidc.issuer must be https:// unless insecure_allow_http_issuer is set",
@@ -538,154 +765,286 @@ func TestValidateScopedToken(t *testing.T) {
 		{
 			name: "valid scoped token",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.Roles = types.SystemRoles{types.RoleNode, types.RoleKube}.StringSlice()
+				tok.GetSpec().SetRoles(types.SystemRoles{types.RoleNode, types.RoleKube}.StringSlice())
 			},
 		},
 		{
 			name: "valid ec2 scoped token with TTL",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.JoinMethod = string(types.JoinMethodEC2)
-				tok.Spec.Aws = &joiningv1.AWS{
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodEC2))
+				tok.GetSpec().SetAws(joiningv1.AWS_builder{
 					Allow: []*joiningv1.AWS_Rule{
-						{
+						joiningv1.AWS_Rule_builder{
 							AwsAccount: "1234567890",
-						},
+						}.Build(),
 					},
 					IidTtl: "6mo",
-				}
+				}.Build())
 			},
 		},
 		{
 			name: "valid ec2 scoped token without TTL",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.JoinMethod = string(types.JoinMethodEC2)
-				tok.Spec.Aws = &joiningv1.AWS{
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodEC2))
+				tok.GetSpec().SetAws(joiningv1.AWS_builder{
 					Allow: []*joiningv1.AWS_Rule{
-						{
+						joiningv1.AWS_Rule_builder{
 							AwsAccount: "1234567890",
-						},
+						}.Build(),
 					},
-				}
+				}.Build())
 			},
 		},
 		{
 			name: "valid iam scoped token",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.JoinMethod = string(types.JoinMethodIAM)
-				tok.Spec.Aws = &joiningv1.AWS{
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodIAM))
+				tok.GetSpec().SetAws(joiningv1.AWS_builder{
 					Allow: []*joiningv1.AWS_Rule{
-						{
+						joiningv1.AWS_Rule_builder{
 							AwsAccount: "1234567890",
-						},
+						}.Build(),
 					},
-				}
+				}.Build())
 			},
 		},
 		{
 			name: "valid gcp scoped token",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.JoinMethod = string(types.JoinMethodGCP)
-				tok.Spec.Gcp = &joiningv1.GCP{
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodGCP))
+				tok.GetSpec().SetGcp(joiningv1.GCP_builder{
 					Allow: []*joiningv1.GCP_Rule{
-						{
+						joiningv1.GCP_Rule_builder{
 							ProjectIds: []string{"1234567890"},
-						},
+						}.Build(),
 					},
-				}
+				}.Build())
 			},
 		},
 		{
 			name: "valid azure scoped token",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.JoinMethod = string(types.JoinMethodAzure)
-				tok.Spec.Azure = &joiningv1.Azure{
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodAzure))
+				tok.GetSpec().SetAzure(joiningv1.Azure_builder{
 					Allow: []*joiningv1.Azure_Rule{
-						{
+						joiningv1.Azure_Rule_builder{
 							Subscription: "1234567890",
-						},
+						}.Build(),
 					},
-				}
+				}.Build())
+			},
+		},
+		{
+			name: "valid azure scoped token with tenant",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodAzure))
+				tok.GetSpec().SetAzure(joiningv1.Azure_builder{
+					Allow: []*joiningv1.Azure_Rule{
+						joiningv1.Azure_Rule_builder{
+							Tenant: "tenant-id",
+						}.Build(),
+					},
+				}.Build())
 			},
 		},
 		{
 			name: "valid azure_devops scoped token",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.JoinMethod = string(types.JoinMethodAzureDevops)
-				tok.Spec.AzureDevops = &joiningv1.AzureDevops{
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodAzureDevops))
+				tok.GetSpec().SetAzureDevops(joiningv1.AzureDevops_builder{
+					OrganizationId: "00000000-0000-0000-0000-000000000000",
 					Allow: []*joiningv1.AzureDevops_Rule{
-						{
+						joiningv1.AzureDevops_Rule_builder{
 							Sub: "1234567890",
-						},
+						}.Build(),
 					},
-				}
+				}.Build())
 			},
 		},
 		{
 			name: "valid oracle scoped token",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.JoinMethod = string(types.JoinMethodOracle)
-				tok.Spec.Oracle = &joiningv1.Oracle{
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodOracle))
+				tok.GetSpec().SetOracle(joiningv1.Oracle_builder{
 					Allow: []*joiningv1.Oracle_Rule{
-						{
+						joiningv1.Oracle_Rule_builder{
 							Tenancy: "1234567890",
-						},
+						}.Build(),
 					},
-				}
+				}.Build())
 			},
 		},
 		{
 			name: "valid kubernetes in_cluster scoped token",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.JoinMethod = string(types.JoinMethodKubernetes)
-				tok.Spec.Kubernetes = &joiningv1.Kubernetes{
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodKubernetes))
+				tok.GetSpec().SetKubernetes(joiningv1.Kubernetes_builder{
 					Allow: []*joiningv1.Kubernetes_Rule{
-						{
+						joiningv1.Kubernetes_Rule_builder{
 							ServiceAccount: "test:test",
-						},
+						}.Build(),
 					},
 					Type: string(types.KubernetesJoinTypeInCluster),
-				}
+				}.Build())
 			},
 		},
 		{
 			name: "valid kubernetes static_jwks scoped token",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.JoinMethod = string(types.JoinMethodKubernetes)
-				tok.Spec.Kubernetes = &joiningv1.Kubernetes{
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodKubernetes))
+				tok.GetSpec().SetKubernetes(joiningv1.Kubernetes_builder{
 					Allow: []*joiningv1.Kubernetes_Rule{
-						{
+						joiningv1.Kubernetes_Rule_builder{
 							ServiceAccount: "test:test",
-						},
+						}.Build(),
 					},
 					Type: string(types.KubernetesJoinTypeStaticJWKS),
-					StaticJwks: &joiningv1.Kubernetes_StaticJWKSConfig{
+					StaticJwks: joiningv1.Kubernetes_StaticJWKSConfig_builder{
 						Jwks: "{\"keys\":[]}",
-					},
-				}
+					}.Build(),
+				}.Build())
 			},
 		},
 		{
 			name: "valid kubernetes oidc scoped token",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.Spec.JoinMethod = string(types.JoinMethodKubernetes)
-				tok.Spec.Kubernetes = &joiningv1.Kubernetes{
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodKubernetes))
+				tok.GetSpec().SetKubernetes(joiningv1.Kubernetes_builder{
 					Allow: []*joiningv1.Kubernetes_Rule{
-						{
+						joiningv1.Kubernetes_Rule_builder{
 							ServiceAccount: "test:test",
-						},
+						}.Build(),
 					},
 					Type: string(types.KubernetesJoinTypeOIDC),
-					Oidc: &joiningv1.Kubernetes_OIDCConfig{
+					Oidc: joiningv1.Kubernetes_OIDCConfig_builder{
 						Issuer: "https://oidc.example.com/my-cluster",
-					},
-				}
+					}.Build(),
+				}.Build())
 			},
+		},
+		{
+			name: "valid kubernetes scoped token with service_account_name and service_account_namespace",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodKubernetes))
+				tok.GetSpec().SetKubernetes(joiningv1.Kubernetes_builder{
+					Allow: []*joiningv1.Kubernetes_Rule{
+						joiningv1.Kubernetes_Rule_builder{
+							ServiceAccountName:      "my-sa",
+							ServiceAccountNamespace: "my-ns",
+						}.Build(),
+					},
+					Type: string(types.KubernetesJoinTypeInCluster),
+				}.Build())
+			},
+		},
+		{
+			name: "valid kubernetes scoped token with service_account, service_account_name, and service_account_namespace",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodKubernetes))
+				tok.GetSpec().SetKubernetes(joiningv1.Kubernetes_builder{
+					Allow: []*joiningv1.Kubernetes_Rule{
+						joiningv1.Kubernetes_Rule_builder{
+							ServiceAccount:          "my-ns:my-sa",
+							ServiceAccountName:      "my-sa",
+							ServiceAccountNamespace: "my-ns",
+						}.Build(),
+					},
+					Type: string(types.KubernetesJoinTypeInCluster),
+				}.Build())
+			},
+		},
+		{
+			name: "non-bot token with bot",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetBot("/aa/bb::foo")
+			},
+			expectedStrongErr: "bot cannot be set",
+		},
+		{
+			name: "non-bot token with bot usage mode",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetUsageMode(joining.TokenUsageModeBot)
+			},
+			expectedStrongErr: "usage_mode cannot be 'bot'",
+		},
+		{
+			name:      "valid bot bound keypair scoped token",
+			baseToken: baseBotToken,
+		},
+		{
+			name:      "bot token without a bot",
+			baseToken: baseBotToken,
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetBot("")
+			},
+			expectedStrongErr: "expected non-empty bot",
+			expectedWeakErr:   "expected non-empty bot",
+		},
+		{
+			name:      "bot token with bot missing scope qualification",
+			baseToken: baseBotToken,
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetBot("test-bot")
+			},
+			expectedStrongErr: "validating scoped token bot",
+			expectedWeakErr:   "validating scoped token bot",
+		},
+		{
+			name:      "bot token with an invalid bot scope",
+			baseToken: baseBotToken,
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetBot("aa/bb}::test-bot")
+			},
+			expectedStrongErr: "validating scoped token bot",
+			expectedWeakErr:   "validating scoped token bot",
+		},
+		{
+			name:      "bot token with invalid usage mode",
+			baseToken: baseBotToken,
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetUsageMode(string(joining.TokenUsageModeSingle))
+			},
+			expectedStrongErr: "usage_mode must be 'bot'",
+		},
+		{
+			name:      "bot token with invalid roles",
+			baseToken: baseBotToken,
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetRoles(append(tok.GetSpec().GetRoles(), types.RoleNode.String()))
+			},
+			expectedStrongErr: "roles must only be '[Bot]'",
+		},
+		{
+			name:      "bot with non-assignable scope of origin",
+			baseToken: baseBotToken,
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.SetScope("/aa/bb")
+				tok.GetSpec().SetBot("/aa/cc::test-bot")
+			},
+			expectedStrongErr: "scoped token bot scope must be a descendant of",
+		},
+		{
+			name:      "bot token with assigned_scope",
+			baseToken: baseBotToken,
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetAssignedScope("/aa/bb")
+			},
+			expectedStrongErr: "scoped tokens for bots cannot have an assigned_scope",
+		},
+		{
+			name:      "bot token with token join method",
+			baseToken: baseBotToken,
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetJoinMethod(string(types.JoinMethodToken))
+				tok.GetStatus().SetSecret("abc123")
+			},
+			expectedStrongErr: "scoped bot tokens do not support the `token` join method",
 		},
 	}
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			tok := proto.CloneOf(baseToken)
+			tok := proto.CloneOf(cmp.Or(c.baseToken, baseToken))
 			if c.modFn != nil {
 				c.modFn(tok)
 			}
@@ -706,25 +1065,175 @@ func TestValidateScopedToken(t *testing.T) {
 	}
 }
 
+// TestScopedTokenAzureRoundTrip tests provision token -> scoped token -> join token
+func TestScopedTokenAzureRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	scopedToken, err := jointest.ScopedTokenFromProvisionTokenSpec(types.ProvisionTokenSpecV2{
+		JoinMethod: types.JoinMethodAzure,
+		Roles:      []types.SystemRole{types.RoleNode},
+		Azure: &types.ProvisionTokenSpecV2Azure{
+			Allow: []*types.ProvisionTokenSpecV2Azure_Rule{
+				{
+					Tenant:         "tenant-id",
+					Subscription:   "subscription-id",
+					ResourceGroups: []string{"resource-group"},
+				},
+			},
+		},
+	}, joiningv1.ScopedToken_builder{
+		Scope: "/test",
+		Metadata: headerv1.Metadata_builder{
+			Name: "test-token",
+		}.Build(),
+		Spec: joiningv1.ScopedTokenSpec_builder{
+			AssignedScope: "/test",
+			UsageMode:     string(joining.TokenUsageModeUnlimited),
+		}.Build(),
+	}.Build())
+	require.NoError(t, err)
+
+	token, err := joining.NewToken(scopedToken)
+	require.NoError(t, err)
+
+	require.Equal(t, &types.ProvisionTokenSpecV2Azure{
+		Allow: []*types.ProvisionTokenSpecV2Azure_Rule{
+			{
+				Tenant:         "tenant-id",
+				Subscription:   "subscription-id",
+				ResourceGroups: []string{"resource-group"},
+			},
+		},
+	}, token.GetAzure())
+}
+
+func TestNewTokenGetBot(t *testing.T) {
+	t.Parallel()
+
+	newBotToken := func() *joiningv1.ScopedToken {
+		return joiningv1.ScopedToken_builder{
+			Kind:    types.KindScopedToken,
+			Scope:   "/aa/bb",
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name: "testtoken",
+			}.Build(),
+			Spec: joiningv1.ScopedTokenSpec_builder{
+				Roles:      []string{types.RoleBot.String()},
+				Bot:        "/aa/bb::test-bot",
+				JoinMethod: string(types.JoinMethodBoundKeypair),
+				UsageMode:  joining.TokenUsageModeBot,
+			}.Build(),
+		}.Build()
+	}
+	newNonBotToken := func() *joiningv1.ScopedToken {
+		return joiningv1.ScopedToken_builder{
+			Kind:    types.KindScopedToken,
+			Scope:   "/aa/bb",
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name: "testtoken",
+			}.Build(),
+			Spec: joiningv1.ScopedTokenSpec_builder{
+				Roles:         []string{types.RoleNode.String()},
+				AssignedScope: "/aa/bb",
+				JoinMethod:    string(types.JoinMethodToken),
+				UsageMode:     string(joining.TokenUsageModeUnlimited),
+			}.Build(),
+		}.Build()
+	}
+
+	cases := []struct {
+		name             string
+		token            *joiningv1.ScopedToken
+		modFn            func(*joiningv1.ScopedToken)
+		expectedBotName  string
+		expectedBotScope string
+		expectedErr      string
+	}{
+		{
+			name:             "bot token",
+			token:            newBotToken(),
+			expectedBotName:  "test-bot",
+			expectedBotScope: "/aa/bb",
+		},
+		{
+			name:  "non-bot token",
+			token: newNonBotToken(),
+		},
+		{
+			// A stray bot field on a non-bot token is rejected by strong
+			// validation at write time but tolerated when wrapping, matching
+			// weak validation; the bot reference is empty.
+			name:  "non-bot token with stray bot field",
+			token: newNonBotToken(),
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetBot("/aa/bb::test-bot")
+			},
+		},
+		{
+			name:  "bot token without bot",
+			token: newBotToken(),
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetBot("")
+			},
+			expectedErr: "expected non-empty bot",
+		},
+		{
+			name:  "bot token with bot missing scope qualification",
+			token: newBotToken(),
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetBot("test-bot")
+			},
+			expectedErr: "validating scoped token bot",
+		},
+		{
+			name:  "bot token with malformed bot scope",
+			token: newBotToken(),
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.GetSpec().SetBot("aa/bb}::test-bot")
+			},
+			expectedErr: "validating scoped token bot",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.modFn != nil {
+				tc.modFn(tc.token)
+			}
+			token, err := joining.NewToken(tc.token)
+			if tc.expectedErr != "" {
+				require.ErrorContains(t, err, tc.expectedErr)
+				return
+			}
+			require.NoError(t, err)
+			botName, botScope := token.GetBot()
+			require.Equal(t, tc.expectedBotName, botName)
+			require.Equal(t, tc.expectedBotScope, botScope)
+		})
+	}
+}
+
 func TestImmutableLabelHashing(t *testing.T) {
-	labels := &joiningv1.ImmutableLabels{
+	labels := joiningv1.ImmutableLabels_builder{
 		Ssh: map[string]string{
 			"one":   "1",
 			"two":   "2",
 			"hello": "world",
 		},
-	}
+	}.Build()
 
 	// assert that the same labels match with their hash
 	initialHash := joining.HashImmutableLabels(labels)
 	require.True(t, joining.VerifyImmutableLabelsHash(proto.CloneOf(labels), initialHash))
 
 	// assert that changing a label value fails the hash check
-	labels.Ssh["hello"] = "other"
+	labels.GetSsh()["hello"] = "other"
 	require.False(t, joining.VerifyImmutableLabelsHash(proto.CloneOf(labels), initialHash))
 
 	// assert that adding a label fails the hash check
-	labels.Ssh["three"] = "3"
+	labels.GetSsh()["three"] = "3"
 	require.False(t, joining.VerifyImmutableLabelsHash(proto.CloneOf(labels), initialHash))
 }
 
@@ -741,34 +1250,34 @@ func TestImmutableLabelHashCollision(t *testing.T) {
 			// guards against map entries being naively concatenated as they're hashed. e.g.
 			// aaa=bbbcccddd should not collide with aaa=bbb,ccc=ddd
 			name: "split label concatenation",
-			labelsA: &joiningv1.ImmutableLabels{
+			labelsA: joiningv1.ImmutableLabels_builder{
 				Ssh: map[string]string{
 					"aaa": "bbbcccddd",
 				},
-			},
+			}.Build(),
 
-			labelsB: &joiningv1.ImmutableLabels{
+			labelsB: joiningv1.ImmutableLabels_builder{
 				Ssh: map[string]string{
 					"aaa": "bbb",
 					"ccc": "ddd",
 				},
-			},
+			}.Build(),
 		},
 		{
 			// guards against single entries being naively concatenated as they're hashed. e.g.
 			// aaa=bbb should not collide with aaab=bb
 			name: "single label concatenation",
-			labelsA: &joiningv1.ImmutableLabels{
+			labelsA: joiningv1.ImmutableLabels_builder{
 				Ssh: map[string]string{
 					"aaa": "bbb",
 				},
-			},
+			}.Build(),
 
-			labelsB: &joiningv1.ImmutableLabels{
+			labelsB: joiningv1.ImmutableLabels_builder{
 				Ssh: map[string]string{
 					"aaab": "bb",
 				},
-			},
+			}.Build(),
 		},
 		// TODO (eriktate): add test case for identical labels applied to different service types once immutable
 		// labels support more than SSH
@@ -792,29 +1301,29 @@ func TestImmutableLabelHashGolden(t *testing.T) {
 	}{
 		{
 			name: "single ssh label",
-			labels: &joiningv1.ImmutableLabels{
+			labels: joiningv1.ImmutableLabels_builder{
 				Ssh: map[string]string{
 					"aaa": "bbb",
 				},
-			},
+			}.Build(),
 			hash: "5dd8fad69587f17535a4dea3ab41400914c3fbecd1972d4e194b1c18c0f4c4ff",
 		},
 		{
 			name: "multiple ssh labels",
-			labels: &joiningv1.ImmutableLabels{
+			labels: joiningv1.ImmutableLabels_builder{
 				Ssh: map[string]string{
 					"aaa": "bbb",
 					"ccc": "ddd",
 					"eee": "fff",
 				},
-			},
+			}.Build(),
 			hash: "b4757712bb94a422f835ca983e9ab3a9ce9925617496e9eeea676fb65b28f2b9",
 		},
 		{
 			name: "empty labels",
-			labels: &joiningv1.ImmutableLabels{
+			labels: joiningv1.ImmutableLabels_builder{
 				Ssh: map[string]string{},
-			},
+			}.Build(),
 		},
 	}
 
@@ -835,19 +1344,19 @@ func FuzzImmutableLabelHash(f *testing.F) {
 	f.Add("aaa", "bbb", "aaab", "bb", "", "", false)            // single label concatenation
 
 	f.Fuzz(func(t *testing.T, key1, value1, key2, value2, key3, value3 string, multiLabel bool) {
-		labelsA := &joiningv1.ImmutableLabels{
+		labelsA := joiningv1.ImmutableLabels_builder{
 			Ssh: map[string]string{
 				key1: value1,
 			},
-		}
-		labelsB := &joiningv1.ImmutableLabels{
+		}.Build()
+		labelsB := joiningv1.ImmutableLabels_builder{
 			Ssh: map[string]string{
 				key2: value2,
 			},
-		}
+		}.Build()
 		// assign a second label only if multiLabel is true
 		if multiLabel {
-			labelsB.Ssh[key3] = value3
+			labelsB.GetSsh()[key3] = value3
 		}
 
 		// assert we can generate hashes for both labels without panicking
@@ -862,7 +1371,7 @@ func FuzzImmutableLabelHash(f *testing.F) {
 
 		// assert that the same labels always result in the same hash and different labels always result in different hashes
 		assertFn := assert.False
-		if maps.Equal(labelsA.Ssh, labelsB.Ssh) {
+		if maps.Equal(labelsA.GetSsh(), labelsB.GetSsh()) {
 			assertFn = assert.True
 		}
 
@@ -872,23 +1381,23 @@ func FuzzImmutableLabelHash(f *testing.F) {
 }
 
 func TestValidateTokenUpdate(t *testing.T) {
-	baseToken := &joiningv1.ScopedToken{
+	baseToken := joiningv1.ScopedToken_builder{
 		Kind:    types.KindScopedToken,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: "test-token",
-		},
+		}.Build(),
 		Scope: "/test",
-		Spec: &joiningv1.ScopedTokenSpec{
+		Spec: joiningv1.ScopedTokenSpec_builder{
 			AssignedScope: "/test/one",
 			JoinMethod:    string(types.JoinMethodToken),
 			Roles:         []string{types.RoleNode.String()},
 			UsageMode:     string(joining.TokenUsageModeUnlimited),
-		},
-		Status: &joiningv1.ScopedTokenStatus{
+		}.Build(),
+		Status: joiningv1.ScopedTokenStatus_builder{
 			Secret: "secret-value",
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	for _, tc := range []struct {
 		name            string
@@ -898,36 +1407,36 @@ func TestValidateTokenUpdate(t *testing.T) {
 		{
 			name: "check scope change",
 			modifyTokenFunc: func(t *joiningv1.ScopedToken) {
-				t.Scope = "/other"
-				t.Spec.AssignedScope = "/other/one"
+				t.SetScope("/other")
+				t.GetSpec().SetAssignedScope("/other/one")
 			},
 			wantErr: "cannot modify scope of existing scoped token test-token with scope /test to /other",
 		},
 		{
 			name: "check usage mode change",
 			modifyTokenFunc: func(t *joiningv1.ScopedToken) {
-				t.Spec.UsageMode = string(joining.TokenUsageModeSingle)
+				t.GetSpec().SetUsageMode(string(joining.TokenUsageModeSingle))
 			},
 			wantErr: fmt.Sprintf("cannot modify usage mode of existing scoped token test-token from usage mode %s to %s", joining.TokenUsageModeUnlimited, joining.TokenUsageModeSingle),
 		},
 		{
 			name: "check secret change",
 			modifyTokenFunc: func(t *joiningv1.ScopedToken) {
-				t.Status.Secret = "new-secret-value"
+				t.GetStatus().SetSecret("new-secret-value")
 			},
 			wantErr: "cannot modify secret of existing scoped token test-token",
 		},
 		{
 			name: "valid update",
 			modifyTokenFunc: func(t *joiningv1.ScopedToken) {
-				t.Metadata.Labels = map[string]string{"env": "production"}
-				t.Spec.AssignedScope = "/test/one/two"
+				t.GetMetadata().SetLabels(map[string]string{"env": "production"})
+				t.GetSpec().SetAssignedScope("/test/one/two")
 			},
 		},
 		{
 			name: "status is nil in update (no change)",
 			modifyTokenFunc: func(t *joiningv1.ScopedToken) {
-				t.Status = nil
+				t.ClearStatus()
 			},
 		},
 	} {
@@ -943,4 +1452,25 @@ func TestValidateTokenUpdate(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestValidateTokenForUse(t *testing.T) {
+	token := joiningv1.ScopedToken_builder{
+		Scope: "/test",
+		Spec: joiningv1.ScopedTokenSpec_builder{
+			Roles:         []string{types.RoleNode.String()},
+			JoinMethod:    string(types.JoinMethodToken),
+			AssignedScope: "/test",
+		}.Build(),
+		Status: joiningv1.ScopedTokenStatus_builder{
+			Secret: "secret",
+		}.Build(),
+	}.Build()
+	// we want to ensure that token validation before use is always the strongest
+	// available, so we confirm that the test token passes weak validation and then
+	// assert that StrongValidateToken and ValidateTokenForUse fail with the same error
+	assert.NoError(t, joining.WeakValidateToken(token))
+	strongValidateErr := joining.StrongValidateToken(token)
+	assert.Error(t, strongValidateErr)
+	assert.ErrorIs(t, strongValidateErr, joining.ValidateTokenForUse(token))
 }

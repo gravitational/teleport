@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/constants"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/scopes"
@@ -254,6 +255,46 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 		return trace.BadParameter("scoped role %q has invalid ssh.max_sessions %d: must be non-negative", role.GetMetadata().GetName(), ms)
 	}
 
+	// verify that session_recording_mode fields are recognized values
+	if mode := role.GetSpec().GetSsh().GetSessionRecording().GetMode(); mode != "" {
+		switch constants.SessionRecordingMode(mode) {
+		case constants.SessionRecordingModeStrict, constants.SessionRecordingModeBestEffort:
+		default:
+			return trace.BadParameter("scoped role %q has invalid ssh.session_recording_mode. %q: must be %q or %q",
+				role.GetMetadata().GetName(), mode, constants.SessionRecordingModeStrict, constants.SessionRecordingModeBestEffort)
+		}
+	}
+
+	if mode := role.GetSpec().GetDefaults().GetSessionRecording().GetMode(); mode != "" {
+		switch constants.SessionRecordingMode(mode) {
+		case constants.SessionRecordingModeStrict, constants.SessionRecordingModeBestEffort:
+		default:
+			return trace.BadParameter("scoped role %q has invalid defaults.session_recording_mode %q: must be %q or %q",
+				role.GetMetadata().GetName(), mode, constants.SessionRecordingModeStrict, constants.SessionRecordingModeBestEffort)
+		}
+	}
+
+	// verify that the lock.Mode is a recognized value for Defaults
+	if lock := role.GetSpec().GetDefaults().GetLock(); lock != nil {
+		if err := validateLock(lock); err != nil {
+			return trace.BadParameter("scoped role %q has invalid defaults.lock.mode %q", role.GetMetadata().GetName(), lock.GetMode())
+		}
+	}
+
+	// verify that lock.Mode is a recognized value for SSH
+	if lock := role.GetSpec().GetSsh().GetLock(); lock != nil {
+		if err := validateLock(lock); err != nil {
+			return trace.BadParameter("scoped role %q has invalid ssh.lock.mode %q", role.GetMetadata().GetName(), lock.GetMode())
+		}
+	}
+
+	// verify that lock.Mode is a recognized value for Kube
+	if lock := role.GetSpec().GetKube().GetLock(); lock != nil {
+		if err := validateLock(lock); err != nil {
+			return trace.BadParameter("scoped role %q has invalid kube.lock.mode %q", role.GetMetadata().GetName(), lock.GetMode())
+		}
+	}
+
 	// verify that kube labels are well-formed
 	for _, label := range role.GetSpec().GetKube().GetLabels() {
 		// we currently don't support any form of wildcard/regex/substitution in scoped role
@@ -302,6 +343,19 @@ func validateDoesNotContain(values []string, invalidSet string) string {
 	}
 
 	return ""
+}
+
+func validateLock(lock *scopedaccessv1.Lock) error {
+	mode := lock.GetMode()
+	switch constants.LockingMode(mode) {
+	// Allow for empty string - we will fall back to the cluster defaults - or best_effort if not set.
+	// This matches current behavior for unscoped lock mode checks.
+	case "":
+	case constants.LockingModeBestEffort, constants.LockingModeStrict:
+	default:
+		return trace.Errorf("invalid lock mode")
+	}
+	return nil
 }
 
 func validateRoleName(name string) error {
@@ -426,23 +480,21 @@ func StrongValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 		return trace.BadParameter("scoped role assignment %q contains too many sub-assignments (max %d)", assignment.GetMetadata().GetName(), MaxRolesPerAssignment)
 	}
 
-	// Assigning to Bot is mutually exclusive with assigning to User. When
-	// assigning to Bot, we also want to ensure Bot's scope is specified.
-	botSet := assignment.GetSpec().GetBotName() != ""
-	botScope := assignment.GetSpec().GetBotScope()
-	if botSet && assignment.GetSpec().GetUser() != "" {
-		return trace.BadParameter("scoped role assignment %q cannot have both spec.bot_name and spec.user set", assignment.GetMetadata().GetName())
-	}
-	if botSet && botScope == "" {
-		return trace.BadParameter("scoped role assignment %q with spec.bot_name set must also have spec.bot_scope set", assignment.GetMetadata().GetName())
-	}
-	if !botSet && botScope != "" {
-		return trace.BadParameter("scoped role assignment %q with spec.bot_scope set must also have spec.bot_name set", assignment.GetMetadata().GetName())
-	}
+	// Assigning to Bot is mutually exclusive with assigning to User.
+	botSet := assignment.GetSpec().GetBot() != ""
+	var botScope string
 	if botSet {
-		if err := scopes.StrongValidate(botScope); err != nil {
-			return trace.BadParameter("scoped role assignment %q has invalid spec.bot_scope: %v", assignment.GetMetadata().GetName(), err)
+		if assignment.GetSpec().GetUser() != "" {
+			return trace.BadParameter("scoped role assignment %q cannot have both spec.bot and spec.user set", assignment.GetMetadata().GetName())
 		}
+		bot, err := scopes.ParseQualifiedName(assignment.GetSpec().GetBot())
+		if err != nil {
+			return trace.BadParameter("scoped role assignment %q has invalid spec.bot: %v", assignment.GetMetadata().GetName(), err)
+		}
+		if err := bot.StrongValidate(); err != nil {
+			return trace.BadParameter("scoped role assignment %q has invalid spec.bot: %v", assignment.GetMetadata().GetName(), err)
+		}
+		botScope = bot.Scope
 	}
 
 	for i, subAssignment := range assignment.GetSpec().GetAssignments() {
@@ -477,7 +529,7 @@ func StrongValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 					assignment.GetMetadata().GetName(),
 					i,
 					subAssignment.GetScope(),
-					assignment.GetSpec().GetBotScope(),
+					botScope,
 				)
 			}
 		}
@@ -511,8 +563,8 @@ func commonValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 		return trace.BadParameter("scoped role assignment %q is missing scope", assignment.GetMetadata().GetName())
 	}
 
-	if assignment.GetSpec().GetUser() == "" && assignment.GetSpec().GetBotName() == "" {
-		return trace.BadParameter("scoped role assignment %q is missing spec.user or spec.bot_name", assignment.GetMetadata().GetName())
+	if assignment.GetSpec().GetUser() == "" && assignment.GetSpec().GetBot() == "" {
+		return trace.BadParameter("scoped role assignment %q is missing spec.user or spec.bot", assignment.GetMetadata().GetName())
 	}
 
 	return nil

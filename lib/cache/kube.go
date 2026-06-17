@@ -19,20 +19,38 @@ package cache
 import (
 	"context"
 	"iter"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/proto"
+	"rsc.io/ordered"
 
+	clientproto "github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/defaults"
 	kubewaitingcontainerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 type kubeServerIndex string
 
 const kubeServerNameIndex kubeServerIndex = "name"
+const kubeServerClusterNameIndex kubeServerIndex = "cluster_name"
+
+func kubeServerByClusterNameKey(s types.KubeServer) string {
+	// Delete events deliver header only resources with a nil Cluster. This
+	// returns "" so the secondary index lookup is a no-op. The primary
+	// index deletion removes the entry from all indexes.
+	cluster := s.GetCluster()
+	if cluster == nil {
+		return ""
+	}
+	return string(ordered.Encode(cluster.GetName(), s.GetHostID(), s.GetName()))
+}
 
 func newKubernetesServerCollection(p services.Presence, w types.WatchKind) (*collection[types.KubeServer, kubeServerIndex], error) {
 	if p == nil {
@@ -47,6 +65,7 @@ func newKubernetesServerCollection(p services.Presence, w types.WatchKind) (*col
 				kubeServerNameIndex: func(u types.KubeServer) string {
 					return u.GetHostID() + "/" + u.GetName()
 				},
+				kubeServerClusterNameIndex: kubeServerByClusterNameKey,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.KubeServer, error) {
 			return p.GetKubernetesServers(ctx)
@@ -89,6 +108,91 @@ func (c *Cache) GetKubernetesServers(ctx context.Context) ([]types.KubeServer, e
 	}
 
 	return out, nil
+}
+
+// RangeKubernetesServersWithName returns an iterator over kubernetes servers for a given cluster name.
+func (c *Cache) RangeKubernetesServersWithName(ctx context.Context, clusterName string) iter.Seq2[types.KubeServer, error] {
+	if clusterName == "" {
+		return stream.Fail[types.KubeServer](trace.BadParameter("missing kubernetes cluster name"))
+	}
+
+	return func(yield func(types.KubeServer, error) bool) {
+		ctx, span := c.Tracer.Start(ctx, "cache/RangeKubernetesServersWithName")
+		defer span.End()
+
+		upstreamListFn := func(ctx context.Context, pageSize int, startToken string) ([]types.KubeServer, string, error) {
+			var tokenClusterName string
+			rest, err := ordered.DecodePrefix([]byte(startToken), &tokenClusterName)
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+
+			// Verify that the token's cluster name matches the requested cluster name.
+			// This ensures that if the token is malformed or belongs to a different
+			// cluster, we don't return incorrect results.
+			if tokenClusterName != clusterName {
+				return nil, "", trace.BadParameter("pagination token does not match the requested kubernetes cluster name")
+			}
+
+			backendKey := ""
+			if len(rest) > 0 {
+				var hostID, serverName string
+				if err := ordered.Decode(rest, &hostID, &serverName); err != nil {
+					return nil, "", trace.Wrap(err)
+				}
+				backendKey = hostID + "/" + serverName
+			}
+
+			resp, err := c.Config.Presence.ListResources(ctx, clientproto.ListResourcesRequest{
+				ResourceType: types.KindKubeServer,
+				Namespace:    defaults.Namespace,
+				Limit:        int32(pageSize),
+				StartKey:     backendKey,
+			})
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+
+			var page []types.KubeServer
+			for _, r := range resp.Resources {
+				server, ok := r.(types.KubeServer)
+				if !ok {
+					c.Logger.WarnContext(ctx, "expected KubeServer but received unexpected type", "resource_type", logutils.TypeAttr(r))
+					continue
+				}
+				if cluster := server.GetCluster(); cluster != nil && cluster.GetName() == clusterName {
+					page = append(page, server)
+				}
+			}
+
+			next := ""
+			if resp.NextKey != "" {
+				hostID, serverName, ok := strings.Cut(resp.NextKey, backend.SeparatorString)
+				if !ok {
+					return nil, "", trace.BadParameter("invalid pagination token: %q", resp.NextKey)
+				}
+				next = string(ordered.Encode(clusterName, hostID, serverName))
+			}
+			return page, next, nil
+		}
+
+		lister := genericLister[types.KubeServer, kubeServerIndex]{
+			cache:           c,
+			collection:      c.collections.kubeServers,
+			index:           kubeServerClusterNameIndex,
+			nextToken:       kubeServerByClusterNameKey,
+			defaultPageSize: defaults.DefaultChunkSize,
+			upstreamList:    upstreamListFn,
+		}
+
+		start := string(ordered.Encode(clusterName))
+		end := string(ordered.Encode(clusterName, ordered.Inf))
+		for item, err := range lister.Range(ctx, start, end) {
+			if !yield(item, err) {
+				return
+			}
+		}
+	}
 }
 
 type kubeClusterIndex string

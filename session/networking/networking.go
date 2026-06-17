@@ -23,6 +23,8 @@
 //   - Start: The parent teleport process creates a unix socket pair and passes one side to the
 //     networking subprocess on start. This is used as a unidirectional pipe for the parent
 //     to make networking requests.
+//   - Ready: The child process signals that it is ready and listening on the unix socket by sending
+//     a single byte message.
 //   - Request: The parent creates a new request-level socket pair and sends one side through the
 //     main pipe, along with the request payload (e.g. dial tcp 8080).
 //   - Handle: The subprocess watches for new requests on the main pipe. When a request is received,
@@ -40,6 +42,8 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -50,10 +54,13 @@ import (
 	"github.com/gravitational/teleport/session/uds"
 )
 
-// RequestBufferSize is the maximum amount of data we're comfortable writing at
-// once through a default unix datagram socket. Should fit comfortably in both
-// linux and darwin with default settings.
-const RequestBufferSize = 1024
+const (
+	stderrMaxRead = 4096
+	// RequestBufferSize is the maximum amount of data we're comfortable writing at
+	// once through a default unix datagram socket. Should fit comfortably in both
+	// linux and darwin with default settings.
+	RequestBufferSize = 1024
+)
 
 // Process represents an instance of a networking process.
 type Process struct {
@@ -65,6 +72,16 @@ type Process struct {
 	done chan struct{}
 	// killed is set to true when the process was killed forcibly.
 	killed atomic.Bool
+	// exitErr is the exit error.
+	exitErr error
+
+	// waitForOutputStreams tracks goroutines that copy stderr/stdout from child
+	// reexec and shell processes. This is necessary due to the use of custom pipes,
+	// which exec.Cmd does not wait for closure of in cmd.Wait().
+	waitForOutputStreams sync.WaitGroup
+	// childStderr is stderr read from the child process which may be populated once
+	// waitForOutputStreams completes.
+	childStderr string
 }
 
 // Request is a networking request.
@@ -106,52 +123,108 @@ type X11Request struct {
 }
 
 // NewProcess starts a new networking process with the given command, which should
-// be pre-configured from a ssh server context with Teleport reexec settings.
-func NewProcess(ctx context.Context, cmd *exec.Cmd) (*Process, error) {
-	// Create the socket to communicate over.
-	remoteConn, localConn, err := uds.NewSocketpair(uds.SocketTypeDatagram)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer remoteConn.Close()
-	remoteFD, err := remoteConn.File()
-	if err != nil {
-		localConn.Close()
-		return nil, trace.Wrap(err)
-	}
-	defer remoteFD.Close()
-	cmd.ExtraFiles = append(cmd.ExtraFiles, remoteFD)
-
+// be pre-configured from a ssh server context with Teleport reexec settings. If an
+// error starting the process occurs, the child error message from stderr is
+// returned with the exit error.
+func NewProcess(ctx context.Context, cmd *exec.Cmd) (*Process, string, error) {
 	proc := &Process{
 		cmd:  cmd,
-		conn: localConn,
 		done: make(chan struct{}),
 	}
 
 	if err := proc.start(ctx); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, "", trace.Wrap(err)
 	}
 
-	return proc, nil
+	if childErr, exitErr := proc.waitReady(ctx); exitErr != nil {
+		return nil, childErr, trace.Wrap(exitErr)
+	}
+
+	return proc, "", nil
 }
 
-// start the the networking process.
+// start the networking process.
 func (p *Process) start(ctx context.Context) error {
+	// Create the socket to communicate over.
+	remoteConn, localConn, err := uds.NewSocketpair(uds.SocketTypeDatagram)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer remoteConn.Close()
+	p.conn = localConn
+
+	remoteFD, err := remoteConn.File()
+	if err != nil {
+		localConn.Close()
+		return trace.Wrap(err)
+	}
+	defer remoteFD.Close()
+	p.cmd.ExtraFiles = append(p.cmd.ExtraFiles, remoteFD)
+
+	stderrReader, stderrWriter, err := os.Pipe()
+	if err != nil {
+		localConn.Close()
+		return trace.Wrap(err)
+	}
+	defer stderrWriter.Close()
+	p.cmd.Stderr = stderrWriter
+
+	p.waitForOutputStreams.Go(func() {
+		defer stderrReader.Close()
+
+		// Read the error msg from stderr.
+		errMsg := new(strings.Builder)
+		if _, err := io.Copy(errMsg, io.LimitReader(stderrReader, stderrMaxRead)); err != nil {
+			slog.WarnContext(ctx, "Failed to read child process error after early exit", "error", err)
+			return
+		}
+
+		p.childStderr = errMsg.String()
+	})
+
 	if err := p.cmd.Start(); err != nil {
-		p.conn.Close()
+		localConn.Close()
+		stderrReader.Close()
 		return trace.Wrap(err)
 	}
 
 	go func() {
 		defer close(p.done)
 		defer p.conn.Close()
-		// Ensure unexpected cmd failures get logged.
-		if err := p.cmd.Wait(); err != nil && !p.killed.Load() {
-			slog.WarnContext(ctx, "Networking process exited early with unexpected error.", "error", err)
+
+		p.exitErr = p.cmd.Wait()
+		p.waitForOutputStreams.Wait()
+		if p.exitErr == nil || p.killed.Load() {
+			return
 		}
+
+		slog.DebugContext(ctx, "Networking process exited with error", "error", p.childStderr, "exit_error", p.exitErr)
 	}()
 
 	return nil
+}
+
+func (p *Process) waitReady(ctx context.Context) (string, error) {
+	readyC := make(chan struct{})
+	go func() {
+		// Wait for the child process to signal ready. A read error indicate a process
+		// failure and can be ignored here.
+		if n, _ := p.conn.Read(make([]byte, 1)); n == 1 {
+			close(readyC)
+		}
+	}()
+
+	// Wait for the child process to be ready and listening or fail.
+	select {
+	case <-readyC:
+		return "", nil
+	case <-ctx.Done():
+		_ = p.Close()
+		return "", trace.Wrap(ctx.Err(), "networking process failed to signal ready")
+	case <-p.done:
+		_ = p.Close()
+		return p.childStderr, trace.Wrap(p.exitErr, "networking process exited before signaling ready")
+	}
 }
 
 // Close stops the process and frees up its related resources.

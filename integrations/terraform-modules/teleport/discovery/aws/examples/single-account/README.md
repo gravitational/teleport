@@ -6,7 +6,7 @@ Configuration in this directory creates AWS and Teleport resources necessary for
 ## Requirements
 
 | Name | Version |
-|------|---------|
+| ---- | ------- |
 | terraform | >= 1.0 |
 | aws | >= 5.0 |
 | teleport | >= 18.5.1 |
@@ -19,7 +19,7 @@ No providers.
 ## Modules
 
 | Name | Source | Version |
-|------|--------|---------|
+| ---- | ------ | ------- |
 | aws\_discovery | ../.. | n/a |
 
 ## Resources
@@ -33,6 +33,6 @@ No inputs.
 ## Outputs
 
 | Name | Description |
-|------|-------------|
+| ---- | ----------- |
 | aws\_discovery | n/a |
 <!-- END_TF_DOCS -->

@@ -15,7 +15,7 @@ locals {
       regions              = var.match_aws_regions
       tags                 = var.match_aws_tags
       setup_access_for_arn = ""
-      kube_app_discovery   = false
+      kube_app_discovery   = null
     }
   ]
 
@@ -57,6 +57,11 @@ locals {
           join_token       = local.teleport_provision_token_name
           script_name      = "default-installer"
           sshd_config      = "/etc/ssh/sshd_config"
+          suffix = (
+            var.teleport_discovery_config_install_suffix != ""
+            ? var.teleport_discovery_config_install_suffix
+            : null
+          )
         }
         ssm = {
           document_name = "AWS-RunShellScript"
@@ -66,7 +71,7 @@ locals {
         setup_access_for_arn = matcher.setup_access_for_arn
       } : {},
       contains(matcher.types, "eks") ? {
-        kube_app_discovery = matcher.kube_app_discovery
+        kube_app_discovery = matcher.kube_app_discovery == false ? null : matcher.kube_app_discovery
       } : {}
     )
   ]

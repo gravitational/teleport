@@ -7,6 +7,7 @@ tags:
  - mwi
  - infrastructure-identity
  - mcp
+page_type: how-to
 ---
 
 Teleport protects and controls access to Model Context Protocol (MCP) servers.
@@ -110,8 +111,7 @@ services:
 
 Ensure that you replace `/opt/machine-id` with the directory you have chosen.
 
-If operating `tbot` as a background service, restart it. If running `tbot` in
-one-shot mode, it must be executed before you attempt to use the credentials.
+(!docs/pages/includes/machine-id/reload-tbot.mdx resource="your credentials"!)
 
 ## Step 3/3. Connect your MCP client
 
@@ -194,7 +194,10 @@ MCP client you are using.
 
         You'll need to configure the MCP client to invoke the `tsh` binary with
         the following arguments:
-        `tsh mcp connect -i /opt/machine-id/identity --proxy example.teleport.sh:443 my-mcp-server`.
+
+        ```code
+        $ tsh mcp connect -i /opt/machine-id/identity --proxy example.teleport.sh:443 my-mcp-server
+        ```
 
         Modify the example values to match your environment:
         - `/opt/machine-id/identity` with the path to the identity file

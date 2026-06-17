@@ -1,0 +1,6 @@
+expires: "2026-01-02T05:06:07Z"
+id: charlie
+owner: alice
+url: tcp://charlie-app.proxy.example.com:8080
+uuid: 33333333-3333-3333-3333-333333333333
+

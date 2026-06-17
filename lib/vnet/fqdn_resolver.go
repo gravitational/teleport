@@ -32,6 +32,8 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
+	"github.com/gravitational/teleport/lib/vnet/db"
+	"github.com/gravitational/teleport/lib/vnet/dns"
 )
 
 // fqdnResolver resolves fully-qualified domain names to possible VNet targets.
@@ -43,6 +45,9 @@ type fqdnResolverConfig struct {
 	clientApplication  ClientApplication
 	clusterConfigCache *ClusterConfigCache
 	leafClusterCache   *leafClusterCache
+	// allowDatabaseAccess gates VNet database FQDN resolution for tsh/Connect.
+	allowDatabaseAccess bool
+	allowAppHTTPSTunnel bool
 }
 
 func newFQDNResolver(cfg *fqdnResolverConfig) *fqdnResolver {
@@ -60,7 +65,7 @@ func (r *fqdnResolver) ResolveFQDN(ctx context.Context, fqdn string) (*vnetv1.Re
 		return nil, trace.Wrap(err, "listing profiles")
 	}
 	for _, profileName := range profileNames {
-		if fqdn == fullyQualify(profileName) {
+		if fqdn == dns.FullyQualify(profileName) {
 			// This is a query for the proxy address, which we'll never want to handle.
 			// The DNS request must be forwarded upstream so that the VNet
 			// process can always dial the proxy address without recursively
@@ -76,6 +81,16 @@ func (r *fqdnResolver) ResolveFQDN(ctx context.Context, fqdn string) (*vnetv1.Re
 		switch {
 		case err == nil:
 			// Found a matching app, return it immediately.
+			return result, nil
+		case !errors.Is(err, errNoMatch):
+			return nil, err
+		}
+
+		// Check if there's a matching database in this cluster.
+		result, err = r.resolveDBInfoForCluster(ctx, candidate, fqdn)
+		switch {
+		case err == nil:
+			// Found a matching database, return it immediately.
 			return result, nil
 		case !errors.Is(err, errNoMatch):
 			return nil, err
@@ -242,7 +257,7 @@ func (r *fqdnResolver) resolveAppInfoForCluster(
 	log := log.With("profile", candidate.profileName, "leaf_cluster", candidate.leafClusterName, "fqdn", fqdn)
 
 	// An app public_addr could technically be fully-qualified or not, match either way.
-	expr := fmt.Sprintf(`resource.spec.public_addr == "%s" || resource.spec.public_addr == "%s"`,
+	expr := fmt.Sprintf(`resource.spec.public_addr == %q || resource.spec.public_addr == %q`,
 		strings.TrimSuffix(fqdn, "."), fqdn)
 
 	// If candidate is a leaf cluster and fqdn possibly points to a leaf
@@ -255,8 +270,8 @@ func (r *fqdnResolver) resolveAppInfoForCluster(
 	// for a web app in a leaf cluster.
 	var potentialAppName string
 	if candidate.leafClusterName != "" && isDirectSubdomain(fqdn, candidate.profileName) {
-		potentialAppName = strings.TrimSuffix(fqdn, "."+fullyQualify(candidate.profileName))
-		expr += fmt.Sprintf(` || name == "%s"`, potentialAppName)
+		potentialAppName = strings.TrimSuffix(fqdn, "."+dns.FullyQualify(candidate.profileName))
+		expr += fmt.Sprintf(` || name == %q`, potentialAppName)
 	}
 
 	resp, err := apiclient.GetResourcePage[types.AppServer](ctx, candidate.client.CurrentCluster(), &proto.ListResourcesRequest{
@@ -283,7 +298,7 @@ func (r *fqdnResolver) resolveAppInfoForCluster(
 			if !ok {
 				return nil, trace.BadParameter("expected *types.AppV3, got %T", resource.GetApp())
 			}
-			matchedByPublicAddr := fullyQualify(app.GetPublicAddr()) == fqdn
+			matchedByPublicAddr := dns.FullyQualify(app.GetPublicAddr()) == fqdn
 			matchedByName := app.GetName() == potentialAppName
 			if !matchedByName && !matchedByPublicAddr {
 				// This shouldn't happen if the backend query worked correctly.
@@ -291,13 +306,13 @@ func (r *fqdnResolver) resolveAppInfoForCluster(
 					"name", app.GetName(), "public_addr", app.GetPublicAddr())
 				continue
 			}
-			if app.IsTCP() {
+			if app.IsTCP() || r.shouldUseAppHTTPSTunnel(app) {
 				if matchedByPublicAddr {
-					// Greedily prefer to match an arbitrary TCP app by public addr.
+					// Greedily prefer to match a VNet-handled app by public addr.
 					return app, nil
 				}
-				// Skip TCP apps that only matched by name, VNet only handles
-				// TCP apps that match a public addr.
+				// Skip apps that only matched by name, VNet only handles
+				// apps that match a public addr.
 			} else {
 				matchedWebApp = app
 			}
@@ -317,15 +332,40 @@ func (r *fqdnResolver) resolveAppInfoForCluster(
 	// At this point we have found a matching app in the cluster, any error is
 	// unexpected and is preventing access to the app and should be returned to
 	// the user.
-	if !app.IsTCP() {
+	switch {
+	case app.IsTCP():
+		log.InfoContext(ctx, "Query matched a TCP app")
+		appInfo, err := r.makeAppInfo(ctx, candidate, app)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return vnetv1.ResolveFQDNResponse_builder{
+			MatchedTcpApp: vnetv1.MatchedTCPApp_builder{
+				AppInfo: appInfo,
+			}.Build(),
+		}.Build(), nil
+
+	case r.shouldUseAppHTTPSTunnel(app):
+		log.InfoContext(ctx, "Query matched an HTTPS tunnel app", "protocol", app.GetProtocol())
+		appInfo, err := r.makeAppInfo(ctx, candidate, app)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return vnetv1.ResolveFQDNResponse_builder{
+			MatchedHttpsTunnelApp: vnetv1.MatchedHTTPSTunnelApp_builder{
+				AppInfo: appInfo,
+			}.Build(),
+		}.Build(), nil
+
+	default:
 		log.InfoContext(ctx, "Query matched a web app")
-		// If not a TCP app this must be a web app and we can return early.
-		return &vnetv1.ResolveFQDNResponse{
-			Match: &vnetv1.ResolveFQDNResponse_MatchedWebApp{
-				MatchedWebApp: &vnetv1.MatchedWebApp{},
-			},
-		}, nil
+		return vnetv1.ResolveFQDNResponse_builder{
+			MatchedWebApp: &vnetv1.MatchedWebApp{},
+		}.Build(), nil
 	}
+}
+
+func (r *fqdnResolver) makeAppInfo(ctx context.Context, candidate clusterResolutionCandidate, app *types.AppV3) (*vnetv1.AppInfo, error) {
 	clusterConfig, err := r.cfg.clusterConfigCache.GetClusterConfig(ctx, candidate.client)
 	if err != nil {
 		log.ErrorContext(ctx, "Failed to get cluster VNet config for matching app", "error", err)
@@ -336,25 +376,86 @@ func (r *fqdnResolver) resolveAppInfoForCluster(
 		log.ErrorContext(ctx, "Failed to get cluster dial options", "error", err)
 		return nil, trace.Wrap(err, "getting dial options for matching app")
 	}
-	log.InfoContext(ctx, "Query matched a TCP app")
-	appInfo := &vnetv1.AppInfo{
-		AppKey: &vnetv1.AppKey{
+	return vnetv1.AppInfo_builder{
+		AppKey: vnetv1.AppKey_builder{
 			Profile:     candidate.profileName,
 			LeafCluster: candidate.leafClusterName,
 			Name:        app.GetName(),
-		},
+		}.Build(),
 		Cluster:       candidate.clusterName,
 		App:           app,
 		Ipv4CidrRange: clusterConfig.IPv4CIDRRange,
 		DialOptions:   dialOpts,
+	}.Build(), nil
+}
+
+func (r *fqdnResolver) resolveDBInfoForCluster(
+	ctx context.Context,
+	candidate clusterResolutionCandidate,
+	fqdn string,
+) (*vnetv1.ResolveFQDNResponse, error) {
+	if !r.cfg.allowDatabaseAccess {
+		return nil, errNoMatch
 	}
-	return &vnetv1.ResolveFQDNResponse{
-		Match: &vnetv1.ResolveFQDNResponse_MatchedTcpApp{
-			MatchedTcpApp: &vnetv1.MatchedTCPApp{
-				AppInfo: appInfo,
-			},
-		},
-	}, nil
+
+	log := log.With("profile", candidate.profileName, "leaf_cluster", candidate.leafClusterName, "fqdn", fqdn)
+
+	// Try to parse the FQDN as a database FQDN against each possible zone.
+	// Use the proxy public addr from the cluster config (which has the port
+	// stripped) as the primary zone. The profileName may contain a port
+	// (e.g. "proxy.example.com:3080") which is not valid in DNS names.
+	clusterConfig, err := r.cfg.clusterConfigCache.GetClusterConfig(ctx, candidate.client)
+	if err != nil {
+		log.ErrorContext(ctx, "Failed to get VNet config for database resolution", "error", err)
+		return nil, errNoMatch
+	}
+	if clusterConfig.ProxyPublicAddr == "" {
+		return nil, errNoMatch
+	}
+	identifier, ok := db.Parse(fqdn, clusterConfig.ProxyPublicAddr)
+	if !ok {
+		return nil, errNoMatch
+	}
+
+	servers, err := db.ListServers(ctx, candidate.client.CurrentCluster(), identifier)
+	if err != nil {
+		if ctx.Err() != nil {
+			return nil, trace.Wrap(err)
+		}
+		log.InfoContext(ctx, "Failed to list database servers", "error", err)
+		return nil, errNoMatch
+	}
+
+	dbResource, ok := db.PickMatch(ctx, log, identifier, servers)
+	if !ok {
+		return nil, errNoMatch
+	}
+	dbName := dbResource.GetName()
+	protocol := dbResource.GetProtocol()
+
+	dialOpts, err := r.cfg.clientApplication.GetDialOptions(ctx, candidate.profileName)
+	if err != nil {
+		log.ErrorContext(ctx, "Failed to get cluster dial options", "error", err)
+		return nil, trace.Wrap(err, "getting dial options for matching database")
+	}
+
+	log.InfoContext(ctx, "Query matched a database", "db_name", dbName, "protocol", protocol)
+	dbInfo := vnetv1.DatabaseInfo_builder{
+		DatabaseKey: vnetv1.DatabaseKey_builder{
+			Profile:     candidate.profileName,
+			LeafCluster: candidate.leafClusterName,
+			Name:        dbName,
+		}.Build(),
+		Cluster:       candidate.clusterName,
+		Protocol:      protocol,
+		Ipv4CidrRange: clusterConfig.IPv4CIDRRange,
+		DialOptions:   dialOpts,
+	}.Build()
+	return vnetv1.ResolveFQDNResponse_builder{
+		MatchedDatabase: vnetv1.MatchedDatabase_builder{
+			DatabaseInfo: dbInfo,
+		}.Build(),
+	}.Build(), nil
 }
 
 // VNet SSH handles SSH hostnames matching "<hostname>.<cluster_name>.", where
@@ -383,40 +484,33 @@ func (r *fqdnResolver) resolveClusterMatch(ctx context.Context, log *slog.Logger
 
 		log.InfoContext(ctx, "Query matched a cluster subdomain and may later resolve to an app or SSH node",
 			"cluster_name", matchedCluster.clusterName)
-		return &vnetv1.ResolveFQDNResponse{
-			Match: &vnetv1.ResolveFQDNResponse_MatchedCluster{
-				MatchedCluster: &vnetv1.MatchedCluster{
-					WebProxyAddr:  rootDialOpts.GetWebProxyAddr(),
-					Ipv4CidrRange: clusterConfig.IPv4CIDRRange,
-					Profile:       matchedCluster.profileName,
-					RootCluster:   matchedCluster.rootClusterName,
-					LeafCluster:   matchedCluster.leafClusterName,
-				},
-			},
-		}, nil
+		return vnetv1.ResolveFQDNResponse_builder{
+			MatchedCluster: vnetv1.MatchedCluster_builder{
+				WebProxyAddr:  rootDialOpts.GetWebProxyAddr(),
+				Ipv4CidrRange: clusterConfig.IPv4CIDRRange,
+				Profile:       matchedCluster.profileName,
+				RootCluster:   matchedCluster.rootClusterName,
+				LeafCluster:   matchedCluster.leafClusterName,
+			}.Build(),
+		}.Build(), nil
 	}
 	return nil, errNoMatch
 }
 
 // isDescendantSubdomain checks if fqdn is a subdomain of zone.
 func isDescendantSubdomain(fqdn, zone string) bool {
-	return strings.HasSuffix(fqdn, "."+fullyQualify(zone))
+	return strings.HasSuffix(fqdn, "."+dns.FullyQualify(zone))
 }
 
 // isDirectSubdomain checks if fqdn is a direct single-level subdomain of zone.
 func isDirectSubdomain(fqdn, zone string) bool {
-	trimmed := strings.TrimSuffix(fqdn, "."+fullyQualify(zone))
+	trimmed := strings.TrimSuffix(fqdn, "."+dns.FullyQualify(zone))
 	if trimmed == fqdn {
 		return false
 	}
 	return !strings.ContainsRune(trimmed, '.')
 }
 
-// fullyQualify returns a fully-qualified domain name from [domain].
-// Fully-qualified domain names always end with a ".".
-func fullyQualify(domain string) string {
-	if strings.HasSuffix(domain, ".") {
-		return domain
-	}
-	return domain + "."
+func (r *fqdnResolver) shouldUseAppHTTPSTunnel(app types.Application) bool {
+	return r.cfg.allowAppHTTPSTunnel && IsHTTPSTunnelApp(app)
 }

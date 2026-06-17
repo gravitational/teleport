@@ -199,17 +199,17 @@ func (env *Env) NewOverrideForCA(
 		overrides = append(overrides, co)
 	}
 
-	return &subcav1.CertAuthorityOverride{
+	return subcav1.CertAuthorityOverride_builder{
 		Kind:    types.KindCertAuthorityOverride,
 		SubKind: string(ca.GetType()),
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: ca.GetName(),
-		},
-		Spec: &subcav1.CertAuthorityOverrideSpec{
+		}.Build(),
+		Spec: subcav1.CertAuthorityOverrideSpec_builder{
 			CertificateOverrides: overrides,
-		},
-	}
+		}.Build(),
+	}.Build()
 }
 
 // NewDisabledCertificateOverride creates a disabled CertificateOverride for the
@@ -235,15 +235,16 @@ func (env *Env) NewDisabledCertificateOverride(
 			Subject: pkix.Name{
 				Organization: cert.Subject.Organization, // ClusterName.
 			},
+			NotAfter: cert.NotAfter, // Cannot expire after the CA certificate.
 		},
 	})
 	require.NoError(t, err)
 
-	return &subcav1.CertificateOverride{
+	return subcav1.CertificateOverride_builder{
 		PublicKey:   subca.HashCertificatePublicKey(overrideCA.Cert),
 		Certificate: string(overrideCA.CertPEM),
 		Disabled:    true,
-	}
+	}.Build()
 }
 
 // MakeCAChain is a convenience wrapper over the standalone [MakeCAChain].

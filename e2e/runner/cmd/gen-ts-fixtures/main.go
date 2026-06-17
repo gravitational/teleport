@@ -23,7 +23,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"text/template"
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 
 	"github.com/gravitational/teleport/e2e/runner/fixtures"
 )
@@ -50,7 +50,7 @@ var tmpl = template.Must(template.New("fixtures.ts").Parse(`/**
 
 import { test as base } from '@playwright/test';
 
-type Fixture =
+export type Fixture =
 {{- range .Fixtures}}
   | '{{.Name}}'
 {{- end}};

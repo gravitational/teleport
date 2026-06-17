@@ -82,7 +82,7 @@ func readCachedDeviceDataUnderLock(mode CollectDataMode) (cdd *devicepb.DeviceCo
 	const maxAgeSeconds = 60
 	cdd = cachedDeviceData.value
 	now := time.Now()
-	if now.Unix()-cdd.CollectTime.Seconds > maxAgeSeconds {
+	if now.Unix()-cdd.GetCollectTime().Seconds > maxAgeSeconds {
 		// "Evict" cache.
 		cachedDeviceData.mode = 0
 		cachedDeviceData.value = nil
@@ -91,7 +91,7 @@ func readCachedDeviceDataUnderLock(mode CollectDataMode) (cdd *devicepb.DeviceCo
 
 	slog.DebugContext(context.Background(), "Device Trust: Using in-process cached device data")
 	cdd = proto.Clone(cachedDeviceData.value).(*devicepb.DeviceCollectedData)
-	cdd.CollectTime = timestamppb.Now()
+	cdd.SetCollectTime(timestamppb.Now())
 	return cdd, true
 }
 

@@ -39,6 +39,9 @@ type WorkloadAPIConfig struct {
 	// Selector is the selector for the WorkloadIdentity resource that
 	// will be used to issue WICs.
 	Selector bot.WorkloadIdentitySelector `yaml:"selector"`
+	// TrustDomainSelector is the selector of trust domains that will be included in
+	// the bundle.
+	TrustDomainSelector bot.TrustDomainsSelector `yaml:"trust_domains,omitempty"`
 
 	// CredentialLifetime contains configuration for how long X.509 SVIDs will
 	// last and the frequency at which they'll be renewed.
@@ -46,7 +49,10 @@ type WorkloadAPIConfig struct {
 }
 
 // CheckAndSetDefaults checks the SPIFFESVIDOutput values and sets any defaults.
-func (o *WorkloadAPIConfig) CheckAndSetDefaults() error {
+func (o *WorkloadAPIConfig) CheckAndSetDefaults(scoped bool) error {
+	if scoped {
+		return trace.BadParameter("service type %q is not supported in scoped mode", WorkloadAPIServiceType)
+	}
 	if o.Listen == "" {
 		return trace.BadParameter("listen: should not be empty")
 	}
@@ -55,6 +61,9 @@ func (o *WorkloadAPIConfig) CheckAndSetDefaults() error {
 	}
 	if err := o.Selector.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err, "validating selector")
+	}
+	if err := o.TrustDomainSelector.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err, "validating trust_domains")
 	}
 	return nil
 }

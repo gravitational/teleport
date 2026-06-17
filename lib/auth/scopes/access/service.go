@@ -40,6 +40,8 @@ type Config struct {
 	Writer           services.ScopedAccessWriter
 	BackendReader    services.ScopedAccessReader
 	Logger           *slog.Logger
+	// ScopesFeatures dictates whether scoped access control RPCs are enabled.
+	ScopesFeatures scopes.Features
 }
 
 // CheckAndSetDefaults checks the config for missing parameters and sets default values.
@@ -87,7 +89,7 @@ func New(cfg Config) (*Server, error) {
 
 // CreateScopedRole implements [scopedaccessv1.ScopedRoleServiceServer].
 func (s *Server) CreateScopedRole(ctx context.Context, req *scopedaccessv1.CreateScopedRoleRequest) (*scopedaccessv1.CreateScopedRoleResponse, error) {
-	if err := scopes.AssertFeatureEnabled(); err != nil {
+	if err := s.cfg.ScopesFeatures.AssertEnabled(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -114,7 +116,7 @@ func (s *Server) CreateScopedRole(ctx context.Context, req *scopedaccessv1.Creat
 
 // CreateScopedRoleAssignment implements [scopedaccessv1.ScopedRoleServiceServer].
 func (s *Server) CreateScopedRoleAssignment(ctx context.Context, req *scopedaccessv1.CreateScopedRoleAssignmentRequest) (*scopedaccessv1.CreateScopedRoleAssignmentResponse, error) {
-	if err := scopes.AssertFeatureEnabled(); err != nil {
+	if err := s.cfg.ScopesFeatures.AssertEnabled(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -137,16 +139,16 @@ func (s *Server) CreateScopedRoleAssignment(ctx context.Context, req *scopedacce
 	}
 
 	if assignment := req.GetAssignment(); assignment.GetMetadata() == nil {
-		assignment.Metadata = &headerv1.Metadata{}
+		assignment.SetMetadata(&headerv1.Metadata{})
 	}
 
 	if req.GetAssignment().GetMetadata().GetName() == "" {
-		req.GetAssignment().GetMetadata().Name = uuid.New().String()
+		req.GetAssignment().GetMetadata().SetName(uuid.New().String())
 	}
 	// Currently, don't allow assignments created via the API to have a status,
 	// as they could impersonate an access-list-materialized assignment.
 	// TODO(nklaassen): set assignment status based on authenticated identity.
-	req.GetAssignment().Status = nil
+	req.GetAssignment().ClearStatus()
 
 	if err := scopedaccess.StrongValidateAssignment(req.GetAssignment()); err != nil {
 		return nil, trace.Wrap(err)
@@ -184,16 +186,11 @@ func (s *Server) DeleteScopedRole(ctx context.Context, req *scopedaccessv1.Delet
 		return s.cfg.Writer.DeleteScopedRole(ctx, req)
 	}
 
-	// load the role so we can determine the resource scope
-	grsp, err := s.cfg.Reader.GetScopedRole(ctx, &scopedaccessv1.GetScopedRoleRequest{
+	// load the role so we can determine the resource scope.
+	grsp, err := s.cfg.BackendReader.GetScopedRole(ctx, scopedaccessv1.GetScopedRoleRequest_builder{
 		Name: req.GetName(),
-	})
+	}.Build())
 	if err != nil {
-		if trace.IsNotFound(err) {
-			// this API deliberately does not distinguish between kinds of concurrent modification
-			// in its error kinds.
-			return nil, trace.CompareFailed("scoped role %q has been concurrently modified and/or deleted", req.GetName())
-		}
 		return nil, trace.Wrap(err)
 	}
 
@@ -218,7 +215,7 @@ func (s *Server) DeleteScopedRole(ctx context.Context, req *scopedaccessv1.Delet
 
 	// set the revision to the current revision to prevent deletion in the event of concurrent modification
 	// that might invalidate the access-control checks we just performed.
-	req.Revision = grsp.GetRole().GetMetadata().GetRevision()
+	req.SetRevision(grsp.GetRole().GetMetadata().GetRevision())
 
 	return s.cfg.Writer.DeleteScopedRole(ctx, req)
 }
@@ -243,17 +240,12 @@ func (s *Server) DeleteScopedRoleAssignment(ctx context.Context, req *scopedacce
 		return s.cfg.Writer.DeleteScopedRoleAssignment(ctx, req)
 	}
 
-	// load the assignment so we can determine the resource scope
-	grsp, err := s.cfg.Reader.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
+	// load the assignment so we can determine the resource scope.
+	grsp, err := s.cfg.BackendReader.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 		Name:    req.GetName(),
 		SubKind: req.GetSubKind(),
-	})
+	}.Build())
 	if err != nil {
-		if trace.IsNotFound(err) {
-			// this API deliberately does not distinguish between kinds of concurrent modification
-			// in its error kinds.
-			return nil, trace.CompareFailed("scoped role assignment %q has been concurrently modified and/or deleted", req.GetName())
-		}
 		return nil, trace.Wrap(err)
 	}
 
@@ -278,7 +270,7 @@ func (s *Server) DeleteScopedRoleAssignment(ctx context.Context, req *scopedacce
 
 	// set the revision to the current revision to prevent deletion in the event of concurrent modification
 	// that might invalidate the access-control checks we just performed.
-	req.Revision = grsp.GetAssignment().GetMetadata().GetRevision()
+	req.SetRevision(grsp.GetAssignment().GetMetadata().GetRevision())
 
 	return s.cfg.Writer.DeleteScopedRoleAssignment(ctx, req)
 }
@@ -381,14 +373,14 @@ func (s *Server) ListScopedRoleAssignments(ctx context.Context, req *scopedacces
 	// can be pre-built once at the beginning of the call.
 	ruleCtx := authzContext.RuleContext()
 
-	if req.AllCallerAssignments {
+	if req.GetAllCallerAssignments() {
 		// the all_caller_assignments flag indicates that the caller is specifically trying to discover
 		// their own assignments. in this mode we do not require resource verb permissions, instead filtering
 		// the results to only those assignments that apply to the caller.
 		if req.GetUser() != "" && req.GetUser() != authzContext.User.GetName() {
 			return nil, trace.AccessDenied("caller %q cannot list assignments for user %q using the all_caller_assignments flag", authzContext.User.GetName(), req.GetUser())
 		}
-		req.User = authzContext.User.GetName()
+		req.SetUser(authzContext.User.GetName())
 	} else {
 		// do a pre-check to weed out requests that definitely won't be authorized.
 		if err := authzContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, scopedaccess.KindScopedRoleAssignment, types.VerbReadNoSecrets, types.VerbList); err != nil {
@@ -398,7 +390,7 @@ func (s *Server) ListScopedRoleAssignments(ctx context.Context, req *scopedacces
 
 	// list scoped role assignments with a filter that only passes assignments the user has access to.
 	rsp, err := s.cfg.Reader.ListScopedRoleAssignmentsWithFilter(ctx, req, func(assignment *scopedaccessv1.ScopedRoleAssignment) bool {
-		if req.AllCallerAssignments {
+		if req.GetAllCallerAssignments() {
 			// note that this short-circuit doesn't just bypass verb checks, it also bypasses scope pinning. this is
 			// intended behavior and an important part of what makes the all_caller_assignments mode useful, as it allows
 			// users to get an overview of their available privileges across all scopes.
@@ -443,7 +435,7 @@ func (s *Server) ListScopedRoles(ctx context.Context, req *scopedaccessv1.ListSc
 
 // UpdateScopedRole implements [scopedaccessv1.ScopedRoleServiceServer].
 func (s *Server) UpdateScopedRole(ctx context.Context, req *scopedaccessv1.UpdateScopedRoleRequest) (*scopedaccessv1.UpdateScopedRoleResponse, error) {
-	if err := scopes.AssertFeatureEnabled(); err != nil {
+	if err := s.cfg.ScopesFeatures.AssertEnabled(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -472,7 +464,7 @@ func (s *Server) UpdateScopedRole(ctx context.Context, req *scopedaccessv1.Updat
 
 // UpdateScopedRoleAssignment implements [scopedaccessv1.ScopedAccessServiceServer].
 func (s *Server) UpdateScopedRoleAssignment(ctx context.Context, req *scopedaccessv1.UpdateScopedRoleAssignmentRequest) (*scopedaccessv1.UpdateScopedRoleAssignmentResponse, error) {
-	if err := scopes.AssertFeatureEnabled(); err != nil {
+	if err := s.cfg.ScopesFeatures.AssertEnabled(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -500,7 +492,7 @@ func (s *Server) UpdateScopedRoleAssignment(ctx context.Context, req *scopedacce
 	// as they could impersonate an access-list-materialized assignment.
 	// TODO(nklaassen): set assignment status based on authenticated identity.
 	if req.GetAssignment().GetStatus() != nil {
-		req.GetAssignment().Status = nil
+		req.GetAssignment().ClearStatus()
 	}
 
 	return s.cfg.Writer.UpdateScopedRoleAssignment(ctx, req)
@@ -508,7 +500,7 @@ func (s *Server) UpdateScopedRoleAssignment(ctx context.Context, req *scopedacce
 
 // UpsertScopedRole implements [scopedaccessv1.ScopedAccessServiceServer].
 func (s *Server) UpsertScopedRole(ctx context.Context, req *scopedaccessv1.UpsertScopedRoleRequest) (*scopedaccessv1.UpsertScopedRoleResponse, error) {
-	if err := scopes.AssertFeatureEnabled(); err != nil {
+	if err := s.cfg.ScopesFeatures.AssertEnabled(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -533,7 +525,7 @@ func (s *Server) UpsertScopedRole(ctx context.Context, req *scopedaccessv1.Upser
 
 // UpsertScopedRoleAssignment implements [scopedaccessv1.ScopedAccessServiceServer].
 func (s *Server) UpsertScopedRoleAssignment(ctx context.Context, req *scopedaccessv1.UpsertScopedRoleAssignmentRequest) (*scopedaccessv1.UpsertScopedRoleAssignmentResponse, error) {
-	if err := scopes.AssertFeatureEnabled(); err != nil {
+	if err := s.cfg.ScopesFeatures.AssertEnabled(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -557,7 +549,7 @@ func (s *Server) UpsertScopedRoleAssignment(ctx context.Context, req *scopedacce
 	// as they could impersonate an access-list-materialized assignment.
 	// TODO(nklaassen): set assignment status based on authenticated identity.
 	if req.GetAssignment().GetStatus() != nil {
-		req.GetAssignment().Status = nil
+		req.GetAssignment().ClearStatus()
 	}
 
 	return s.cfg.Writer.UpsertScopedRoleAssignment(ctx, req)

@@ -35,6 +35,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	workloadidentityv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -302,6 +303,10 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindInferenceSecret, nil
 	case types.KindInferencePolicy, "inference_policies":
 		return types.KindInferencePolicy, nil
+	case types.KindClassifier, types.KindClassifier + "s":
+		return types.KindClassifier, nil
+	case types.KindRetrievalModel:
+		return types.KindRetrievalModel, nil
 	case types.KindRelayServer, types.KindRelayServer + "s":
 		return types.KindRelayServer, nil
 	case types.KindAppAuthConfig, types.KindAppAuthConfig + "s", "aac":
@@ -823,6 +828,29 @@ func init() {
 		}
 		return types.Resource153ToLegacy(wid), nil
 	})
+
+	RegisterResourceMarshaler(types.KindCertAuthorityOverride, func(resource types.Resource, opts ...MarshalOption) ([]byte, error) {
+		unwrapper, ok := resource.(types.Resource153UnwrapperT[*subcav1.CertAuthorityOverride])
+		if !ok {
+			return nil, trace.BadParameter("expected wrapped CertAuthorityOverride resource, got %T", resource)
+		}
+		caOverride := unwrapper.UnwrapT()
+		if caOverride == nil {
+			return nil, trace.BadParameter("nil CertAuthorityOverride resource")
+		}
+		bytes, err := MarshalCertAuthorityOverride(caOverride, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return bytes, nil
+	})
+	RegisterResourceUnmarshaler(types.KindCertAuthorityOverride, func(bytes []byte, opts ...MarshalOption) (types.Resource, error) {
+		caOverride, err := UnmarshalCertAuthorityOverride(bytes, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.ProtoResource153ToLegacy(caOverride), nil
+	})
 }
 
 // CheckAndSetDefaults calls [r.CheckAndSetDefaults] if r implements the method.
@@ -963,7 +991,7 @@ func maybeResetProtoRevisionv2[T ProtoResource](preserveRevision bool, r T) T {
 	}
 
 	cp := proto.Clone(r).(T)
-	cp.GetMetadata().Revision = ""
+	cp.GetMetadata().SetRevision("")
 	return cp
 }
 
@@ -999,10 +1027,10 @@ func UnmarshalProtoResource[T ProtoResourcePtr[U], U any](data []byte, opts ...M
 		return nil, trace.Wrap(err)
 	}
 	if cfg.Revision != "" {
-		resource.GetMetadata().Revision = cfg.Revision
+		resource.GetMetadata().SetRevision(cfg.Revision)
 	}
 	if !cfg.Expires.IsZero() {
-		resource.GetMetadata().Expires = timestamppb.New(cfg.Expires)
+		resource.GetMetadata().SetExpires(timestamppb.New(cfg.Expires))
 	}
 	return resource, nil
 }
@@ -1065,10 +1093,10 @@ func FastUnmarshalProtoResourceDeprecated[T ProtoResourcePtr[U], U any](data []b
 		return nil, trace.Wrap(err)
 	}
 	if cfg.Revision != "" {
-		resource.GetMetadata().Revision = cfg.Revision
+		resource.GetMetadata().SetRevision(cfg.Revision)
 	}
 	if !cfg.Expires.IsZero() {
-		resource.GetMetadata().Expires = timestamppb.New(cfg.Expires)
+		resource.GetMetadata().SetExpires(timestamppb.New(cfg.Expires))
 	}
 	return resource, nil
 }

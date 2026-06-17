@@ -66,12 +66,12 @@ func (p *osConfigProvider) targetOSConfig(ctx context.Context) (*osConfig, error
 	if err != nil {
 		return nil, trace.Wrap(err, "getting target OS configuration from client application")
 	}
-	if p.tunIPv4 == "" && len(targetOSConfig.Ipv4CidrRanges) > 0 {
+	if p.tunIPv4 == "" && len(targetOSConfig.GetIpv4CidrRanges()) > 0 {
 		// Choose an IPv4 address for the TUN interface and the IPv4 DNS server
 		// from the CIDR range of one arbitrary currently logged-in cluster.
 		// We currently only assign one V4 address to the interface and only
 		// advertise DNS on one V4 address.
-		if err := p.setV4IPsFromFirstCIDR(targetOSConfig.Ipv4CidrRanges[0]); err != nil {
+		if err := p.setV4IPsFromFirstCIDR(targetOSConfig.GetIpv4CidrRanges()[0]); err != nil {
 			return nil, trace.Wrap(err, "setting TUN IPv4 address")
 		}
 	}

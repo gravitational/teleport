@@ -21,6 +21,7 @@ package roles
 import (
 	"context"
 
+	"github.com/charlievieth/strcase"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/proto"
 
@@ -67,9 +68,9 @@ func (c *RoleCache) GetScopedRole(ctx context.Context, req *scopedaccessv1.GetSc
 		return nil, trace.NotFound("scoped role %q not found", req.GetName())
 	}
 
-	return &scopedaccessv1.GetScopedRoleResponse{
+	return scopedaccessv1.GetScopedRoleResponse_builder{
 		Role: role,
-	}, nil
+	}.Build(), nil
 }
 
 // ListScopedRoles returns a paginated list of scoped roles.
@@ -125,10 +126,17 @@ func (c *RoleCache) ListScopedRolesWithFilter(ctx context.Context, req *scopedac
 		return nil, trace.NotImplemented("assignable scope filtering for scoped role roles is not yet supported")
 	}
 
+	finalFilter := filter
+	if nameFilter := req.GetNameFilter(); nameFilter != "" {
+		finalFilter = func(role *scopedaccessv1.ScopedRole) bool {
+			return strcase.Contains(role.GetMetadata().GetName(), nameFilter) && filter(role)
+		}
+	}
+
 	var out []*scopedaccessv1.ScopedRole
 	var nextCursor cache.Cursor[string]
 Outer:
-	for scope := range getter(scope, c.cache.WithCursor(cursor), c.cache.WithFilter(filter)) {
+	for scope := range getter(scope, c.cache.WithCursor(cursor), c.cache.WithFilter(finalFilter)) {
 		for role := range scope.Items() {
 			if len(out) == pageSize {
 				nextCursor = cache.Cursor[string]{
@@ -149,10 +157,10 @@ Outer:
 		}
 	}
 
-	return &scopedaccessv1.ListScopedRolesResponse{
+	return scopedaccessv1.ListScopedRolesResponse_builder{
 		Roles:         out,
 		NextPageToken: nextPageToken,
-	}, nil
+	}.Build(), nil
 }
 
 // Put adds a new role to the cache. It will overwrite any existing role with the same name.
@@ -165,7 +173,7 @@ func (c *RoleCache) Put(role *scopedaccessv1.ScopedRole) error {
 	return nil
 }
 
-// Del removes an role from the cache by name.
+// Delete removes a role from the cache by name.
 func (c *RoleCache) Delete(name string) {
 	c.cache.Del(name)
 }

@@ -67,12 +67,13 @@ func TestClearingClientsWithStaleCert(t *testing.T) {
 	cache, err := New(Config{
 		NewClientFunc: func(ctx context.Context, profileName, leafClusterName string) (*client.TeleportClient, error) {
 			config := &client.Config{
-				ClientStore:  clientStore,
-				SSHProxyAddr: "localhost:3080",
-				WebProxyAddr: "localhost:3080",
-				Username:     "testuser",
-				Tracer:       tracing.NoopProvider().Tracer("test"),
-				SiteName:     "root",
+				ClientStore:    clientStore,
+				SSHProxyAddr:   "localhost:3080",
+				WebProxyAddr:   "localhost:3080",
+				Username:       "testuser",
+				Tracer:         tracing.NoopProvider().Tracer("test"),
+				SiteName:       "root",
+				AddKeysToAgent: client.AddKeysToAgentNo,
 			}
 			if leafClusterName != "" {
 				config.SiteName = leafClusterName
@@ -106,7 +107,7 @@ func TestClearingClientsWithStaleCert(t *testing.T) {
 	require.NoError(t, err)
 
 	// Clear stale clients.
-	err = cache.ClearForRoot("root", WithClearingOnlyClientsWithStaleCert())
+	err = cache.ClearStaleClientsForRoot("root")
 	require.NoError(t, err)
 
 	newRootClient, err := cache.Get(t.Context(), "root", "")
@@ -120,6 +121,15 @@ func TestClearingClientsWithStaleCert(t *testing.T) {
 	require.NotEqual(t, newLeaf1Client, leaf1Client)
 	// The client opened after updating the cert should be untouched.
 	require.Equal(t, newLeaf2Client, leaf2Client)
+
+	// Verify that the client is considered "stale" after logging out.
+	err = clientStore.DeleteKeyRing(keyRing.KeyRingIndex)
+	require.NoError(t, err)
+	err = cache.ClearStaleClientsForRoot("root")
+	require.NoError(t, err)
+	_, err = cache.Get(t.Context(), "root", "")
+	// Getting the client should return an error because we are logged out.
+	require.ErrorContains(t, err, "are you logged in?")
 }
 
 // makeCerts makes TSL and SSH certs.
