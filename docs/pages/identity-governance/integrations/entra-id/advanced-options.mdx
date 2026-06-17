@@ -19,9 +19,9 @@ Teleport supports two sync modes - full and delta sync.
 
 ### Full sync
 
-Full sync is the default sync mode in which Teleport pulls full sets of users, 
-groups, group members and owners that exist in your Microsoft Entra ID directory,
-and syncs them to Teleport. 
+Full sync is the default sync mode in which Teleport syncs full sets of users, 
+groups, group members, and group owners that exist in your Microsoft Entra ID 
+directory.
 
 It runs every five minutes. 
 
@@ -31,42 +31,15 @@ In delta sync mode, Teleport only tracks incremental changes made in your Micros
 Entra ID directory and syncs them to Teleport. 
 
 Delta sync is not enabled by default. 
-It is an opt-in feature available only in Teleport version v18.9 and above.
+It is an opt-in feature available only in Teleport `v18.10` and above.
 
-### Choosing between `full` and `delta` sync
+### Configuring sync mode and intervals
 
-The key factor when choosing between full sync or delta sync boils down to 
-how susceptible your Graph API tenant is to throttling.
+Configuring a positive duration for the `full` and `delta` fields of the plugin's
+`sync_intervals` setting enables the respective sync mode. 
 
-The Graph API limit quota is metered based on the number of resources queried in 
-a single API call and the frequency of the API call. For example, in a large Entra 
-ID directory with 1k+ users, 50k+ groups with varying 100-1k group members each, 
-frequent full scans of the directory by the Teleport plugin is susceptible 
-to throttling. 
-
-Further, the Graph API quota is shared amongst all the clients configured in the 
-Entra ID tenant. It's possible for an unrelated 3rd party application to consume all 
-the Graph API quota, in which case Teleport will be throttled too. 
-
-When integrating with a smaller directory or if Teleport is the only API 
-consumer to query the directory, keeping the default full sync is recommended. 
-To ensure additional cushion against throttling, you may wish to increase the full 
-sync interval if instant sync is not important. 
-
-In a large directory, configuring both delta sync and a full sync is recommended
-where delta sync runs on a shorter sync interval (e.g. 2 min) and full sync
-runs on a longer sync interval (e.g. 1 hour).
-
-If your tenant is very sensitive due to multiple clients frequently polling large
-datasets, you can entirely disable the full sync and only run the delta sync. 
-
-### Configure sync mode and intervals
-
-Sync mode and interval configuration is gated behind the `sync_intervals` 
-setting and can only be updated by using `tctl`.
-
-Below is an example to configure both delta and full sync where delta sync
-runs at 2 a minute interval and the full sync runs at 1 hour interval.
+The following example configures `delta` sync at a 2-minute interval and `full` sync 
+at a 1-hour interval:
 ```bash
 $ tctl edit plugins/entra-id-default
 ```
@@ -85,10 +58,10 @@ spec:
 version: v1
 ```
 
-Both `delta` and `full` expect [Golang](https://pkg.go.dev/time#Duration.String) 
-time duration string value. For example, `2m` for two minutes, `1h` for one hour etc. 
+Both `delta` and `full` accept a [Go](https://pkg.go.dev/time#Duration.String) 
+time duration string such as `2m` for two minutes or `1h` for one hour.
 
-Zero (`0`) interval value disables the respective sync mode. 
+A zero (`0`) interval value disables the respective sync mode. 
 If both delta and full sync are disabled, the service falls back to using full sync 
 with a five-minute interval. 
 
@@ -108,6 +81,59 @@ T+66m  DELTA
 T+120m  FULL
 ```
 
+### Choosing between `full` and `delta` sync
+
+The primary consideration when choosing between full sync and delta sync is how 
+susceptible your Graph API tenant is to throttling.
+
+The [Graph API quota](https://learn.microsoft.com/en-us/graph/throttling-limits#identity-and-access-service-limits) 
+is based on the number of resources queried per API call and the frequency of those calls. 
+For example, in a large Entra ID directory with 1,000+ users, 50,000+ groups with varying 
+100-1,000 group members each, Teleport's frequent full scans are susceptible to throttling.
+
+Further, the Graph API quota is shared among all clients configured in the Entra ID 
+tenant. An unrelated third-party application could consume the entire Graph API quota, 
+causing Teleport to be throttled as well.
+
+If you are integrating with a smaller directory or if Teleport is the only API 
+consumer querying the directory, use the default full sync. To reduce the risk of 
+throttling, you may increase the full sync interval if an instant sync is not required. 
+
+For a large directory, configure both delta and full sync where delta sync runs 
+on a shorter sync interval (e.g., 2 minutes) and full sync runs on a longer sync 
+interval (e.g., 1 hour).
+
+If your tenant is sensitive to throttling due to multiple clients frequently polling
+large datasets, you can disable the full sync and run the delta sync only. However,
+configuring both the full and delta sync as described above, offers the best balance 
+between efficient API usage and integration functionality.
+
+### Delta sync limitations
+
+#### Processing delays
+
+Delta sync generally discovers Entra ID changes immediately. However, the delta 
+API is known to have [processing delays](https://learn.microsoft.com/en-us/graph/delta-query-overview#processing-delays).
+
+While uncommon, processing delay is worth noting to avoid confusion emerging from 
+a delayed resource discovery. Running delta sync at a shorter interval (e.g., 2 
+minutes) can reduce the impact.
+
+#### Group owners
+
+If you are using Entra ID as the source of the Access List owners, but the Entra ID
+group does not have any owners, Teleport falls back to using default owners configured 
+in the plugin. 
+
+In a subsequent delta sync, Teleport will not remove such default owners. 
+
+A subsequent `full` sync will reconcile these default owners for integrations 
+running both `delta` and `full` sync.
+
+#### Sync status 
+
+The Entra ID integration status page does not yet display delta sync status.
+Support for delta sync status will be added in a future release.
 
 ## Group filters
 
