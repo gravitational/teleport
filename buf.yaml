@@ -86,7 +86,7 @@ lint:
       - api/proto/teleport/sessionsearch/v1/session_search.proto
       - proto/teleport/web/teleterm/ptyhost/v1/pty_host_service.proto
       - proto/accessgraph/v1/session_search.proto
-
+      - api/proto/teleport/summarizer/v1/summarizer_service.proto
 breaking:
   use:
     - ENUM_VALUE_NO_DELETE
