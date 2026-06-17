@@ -41,7 +41,7 @@ struct EnrollRequestStatusView: View {
 			switch attempt {
 				case .success:
 					Button {
-						// TODO: Navigate to the cluster.
+						// Navigate to the cluster
 					} label: {
 						HStack {
 							Text("Go to Cluster")

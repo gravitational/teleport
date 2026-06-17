@@ -31,7 +31,7 @@ struct ContentView: View {
 	@State
 	private var screen: AppScreen
 	@State
-	private var parseError: DeepLinkParseError?
+	private var parseError: DeepLinkParseError? = nil
 
 	init(initialScreen: AppScreen = .landing) {
 		_screen = State(initialValue: initialScreen)
