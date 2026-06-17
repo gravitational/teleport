@@ -172,7 +172,7 @@ func (c *Command) Initialize(
 		Flag("subject", `Customized certificate subject. Example: "O=MyClusterName,OU=MyOrgUnit,CN=MyCommonName"`).
 		StringVar(&c.createOverrideCSR.subject)
 
-	c.createOverride.CmdClause = parent.Command("create-override", "Create a CA override resource")
+	c.createOverride.CmdClause = parent.Command("create-override", "Add a single certificate override to a CA override resource")
 	c.createOverride.Flag("type", caTypesHelp).
 		Required().
 		StringVar(&c.createOverride.cliCAType)
@@ -183,7 +183,7 @@ func (c *Command) Initialize(
 		SetValue(&c.createOverride.chainFiles)
 	c.createOverride.Flag("disabled", "If true creates a disabled override").
 		BoolVar(&c.createOverride.disabled)
-	c.createOverride.Flag("force", "If true attempts to forces creation, ignoring select state validation").
+	c.createOverride.Flag("force", "If true attempts to force creation, ignoring select state validation").
 		BoolVar(&c.createOverride.force)
 
 	c.pubKeyHash.CmdClause = parent.Command(
