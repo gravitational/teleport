@@ -124,10 +124,9 @@ type Config struct {
 	AccessPoint AccessPoint
 	// HostID is a unique ID of this host.
 	HostID string
-	// AppSessionExpiryService enables the app session expiry task. Must match
-	// the IdentityService option, or sessions written without a backend TTL
-	// will accumulate.
-	AppSessionExpiryService bool
+	// EnableAppSessionExpiryService enables the app session expiry task. Must match
+	// the IdentityService option.
+	EnableAppSessionExpiryService bool
 }
 
 // CheckAndSetDefaults checks required fields and sets default values.
@@ -190,7 +189,7 @@ func New(cfg *Config) (*Service, error) {
 		},
 	}
 
-	if cfg.AppSessionExpiryService {
+	if cfg.EnableAppSessionExpiryService {
 		s.expiryTasks = append(s.expiryTasks, expiryTask{
 			semaphoreName: semaphoreNameAppSession,
 			resourceKind:  types.KindAppSession,
@@ -215,7 +214,7 @@ func (s *Service) Run(ctx context.Context) error {
 	return g.Wait()
 }
 
-// run is there for testing, so a testing interval can be set.
+// run drives a single expiry task.
 func (s *Service) run(ctx context.Context, task expiryTask) error {
 	for {
 		if err := s.runWithLock(ctx, task); err != nil && !errors.Is(err, context.Canceled) {
@@ -232,6 +231,7 @@ func (s *Service) run(ctx context.Context, task expiryTask) error {
 	}
 }
 
+// runWithLock acquires a semaphore lock for the task and runs the loop.
 func (s *Service) runWithLock(ctx context.Context, task expiryTask) error {
 	lease, err := services.AcquireSemaphoreLockWithRetry(
 		ctx,
@@ -268,7 +268,7 @@ func (s *Service) runWithLock(ctx context.Context, task expiryTask) error {
 	return trace.Wrap(err)
 }
 
-// run is for testing so a duration without jitter can be specified.
+// loop processes the expired resources on the configured interval.
 func (s *Service) loop(ctx context.Context, task expiryTask) error {
 	interval := interval.New(task.intervalCfg)
 	defer interval.Stop()
@@ -322,10 +322,15 @@ func (s *Service) processRequests(ctx context.Context) {
 			continue
 		}
 		requestsExpired++
+	}
 
-		if requestsExpired == maxExpiresPerCycle {
-			s.Log.DebugContext(ctx, "Cleaned up maximum amount of expired access requests. Will continue in the next run.", "max", maxExpiresPerCycle)
-		}
+	if expiredBefore > maxExpiresPerCycle {
+		s.Log.WarnContext(ctx,
+			"Expired access request count exceeded per-scan cap. Will continue in the next run.",
+			"expired", expiredBefore,
+			"processed", requestsExpired,
+			"max_per_cycle", maxExpiresPerCycle,
+		)
 	}
 
 	s.Log.DebugContext(ctx, "Successfully cleaned up expired access requests.", "count", requestsExpired)
@@ -364,11 +369,17 @@ func (s *Service) processAppSessions(ctx context.Context) {
 			continue
 		}
 		sessionsExpired++
-
-		if sessionsExpired == maxExpiresPerCycle {
-			s.Log.DebugContext(ctx, "Cleaned up maximum amount of expired application sessions. Will continue in the next run.", "max", maxExpiresPerCycle)
-		}
 	}
+
+	if expiredBefore > maxExpiresPerCycle {
+		s.Log.WarnContext(ctx,
+			"Expired application session count exceeded per-scan cap. Will continue in the next run.",
+			"expired", expiredBefore,
+			"processed", sessionsExpired,
+			"max_per_cycle", maxExpiresPerCycle,
+		)
+	}
+
 	s.Log.DebugContext(ctx, "Successfully cleaned up expired application sessions.", "count", sessionsExpired)
 }
 

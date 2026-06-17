@@ -128,10 +128,6 @@ type AuthConfig struct {
 	// Empty value means the controller uses its default.
 	// Used in tests.
 	AgentRolloutControllerSyncPeriod time.Duration
-
-	// AppSessionExpiryService, when set, has the expiry service delete expired
-	// app sessions and emit an app.session.expire audit event for each.
-	AppSessionExpiryService bool
 }
 
 // AccessMonitoringOptions configures access monitoring.

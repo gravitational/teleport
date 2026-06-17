@@ -5622,6 +5622,9 @@ func (m *AppSessionEnd) XXX_DiscardUnknown() {
 var xxx_messageInfo_AppSessionEnd proto.InternalMessageInfo
 
 // AppSessionExpire is emitted when an application session has expired.
+//
+// This event is not emitted by default. To enable these events, set
+// the TELEPORT_UNSTABLE_ENABLE_APP_SESSION_EXPIRY_EVENTS=yes variable.
 type AppSessionExpire struct {
 	// Metadata is a common event metadata
 	Metadata `protobuf:"bytes,1,opt,name=Metadata,proto3,embedded=Metadata" json:""`
