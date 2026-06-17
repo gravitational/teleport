@@ -84,7 +84,7 @@ CREATE TABLE IF NOT EXISTS teleport_info (
 ) STRICT;
 
 -- We need AUTOINCREMENT here to ensure the recoveryWatermark has a
--- monotonically incrementing index. We need to ensure that the 'id' is never
+-- monotonically incrementing id. We need to ensure that the 'id' is never
 -- re-used for this table. Other tables do not have this requirement, which is
 -- why this is the only table that requires AUTOINCREMENT.
 -- See: https://sqlite.org/autoinc.html
@@ -251,7 +251,6 @@ func (q *sqliteQueue) writeLoop() {
 		var first writeRequest
 		select {
 		case <-q.ctx.Done():
-			q.drainShutdown()
 			return
 		case first = <-q.toBeWritten:
 		}
@@ -587,33 +586,61 @@ func (q *sqliteQueue) deadLetterSweepLoop(ctx context.Context, handler Handler) 
 }
 
 func (q *sqliteQueue) sweepDeadLetter(ctx context.Context, handler Handler) {
-	items, err := q.fetchDeadLetter(dequeueBatchSize)
+	maxID, err := q.maxDeadLetterID()
 	if err != nil {
 		slog.ErrorContext(q.ctx,
-			"Failed to fetch dead-letter audit events.",
+			"Failed to read dead-letter bounds.",
 			"error", err,
 		)
 		return
 	}
-	if len(items) == 0 {
-		return
-	}
-	delivered := handler(ctx, items)
-	if len(delivered) == 0 {
-		return
-	}
-	if err := q.ackDeadLetter(delivered); err != nil {
-		slog.ErrorContext(q.ctx,
-			"Failed to ack dead-letter audit events.",
-			"error", err,
-		)
+
+	var afterID int64
+	for afterID < maxID {
+		if ctx.Err() != nil || q.ctx.Err() != nil {
+			return
+		}
+
+		items, err := q.fetchDeadLetterRange(afterID, maxID, dequeueBatchSize)
+		if err != nil {
+			slog.ErrorContext(q.ctx,
+				"Failed to fetch dead-letter audit events.",
+				"error", err,
+			)
+			return
+		}
+		if len(items) == 0 {
+			return
+		}
+
+		afterID = items[len(items)-1].ID
+
+		delivered := handler(ctx, items)
+		if len(delivered) == 0 {
+			continue
+		}
+		if err := q.ackDeadLetter(delivered); err != nil {
+			slog.ErrorContext(q.ctx,
+				"Failed to ack dead-letter audit events.",
+				"error", err,
+			)
+		}
 	}
 }
 
-// fetchDeadLetter reads up to limit items from audit_dead_letter ordered by id.
-func (q *sqliteQueue) fetchDeadLetter(limit int) ([]Item, error) {
+func (q *sqliteQueue) maxDeadLetterID() (int64, error) {
+	var maxID int64
+	if err := q.db.QueryRowContext(q.ctx,
+		"SELECT COALESCE(MAX(id), 0) FROM audit_dead_letter").Scan(&maxID); err != nil {
+		return 0, trace.Wrap(err)
+	}
+	return maxID, nil
+}
+
+func (q *sqliteQueue) fetchDeadLetterRange(afterID, maxID int64, limit int) ([]Item, error) {
 	rows, err := q.db.QueryContext(q.ctx,
-		"SELECT id, payload FROM audit_dead_letter ORDER BY id ASC LIMIT ?", limit)
+		"SELECT id, payload FROM audit_dead_letter WHERE id > ? AND id <= ? ORDER BY id ASC LIMIT ?",
+		afterID, maxID, limit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
