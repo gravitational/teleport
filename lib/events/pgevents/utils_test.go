@@ -33,16 +33,16 @@ func TestPaginationKeyRoundtrip(t *testing.T) {
 	t.Parallel()
 
 	for i := 0; i < 1000; i++ {
-		var b [24]byte
+		var b [32]byte
 		_, err := rand.Read(b[:])
 		require.NoError(t, err)
 
 		startKey := base64.URLEncoding.EncodeToString(b[:])
 
-		eventTime, eventID, err := fromStartKey(startKey)
+		key, err := fromStartKey(startKey)
 		require.NoError(t, err)
 
-		require.Equal(t, startKey, toNextKey(eventTime, eventID))
+		require.Equal(t, startKey, toNextKey(key.time, key.index, key.id))
 	}
 
 	for i := 0; i < 1000; i++ {
@@ -52,11 +52,29 @@ func TestPaginationKeyRoundtrip(t *testing.T) {
 		n := binary.LittleEndian.Uint64(b[:])
 
 		nextTime := time.UnixMicro(int64(n)).UTC()
+		nextIndex := int64(n >> 1)
 		nextID := uuid.New()
 
-		startTime, startID, err := fromStartKey(toNextKey(nextTime, nextID))
+		key, err := fromStartKey(toNextKey(nextTime, nextIndex, nextID))
 		require.NoError(t, err)
-		require.Equal(t, nextTime, startTime)
-		require.Equal(t, nextID, startID)
+		require.Equal(t, nextTime, key.time)
+		require.Equal(t, nextIndex, key.index)
+		require.Equal(t, nextID, key.id)
+		require.True(t, key.hasIndex)
 	}
+}
+
+func TestPaginationKeyRoundtripLegacy(t *testing.T) {
+	t.Parallel()
+
+	var b [24]byte
+	_, err := rand.Read(b[:])
+	require.NoError(t, err)
+
+	startKey := base64.URLEncoding.EncodeToString(b[:])
+
+	key, err := fromStartKey(startKey)
+	require.NoError(t, err)
+	require.False(t, key.hasIndex)
+	require.Equal(t, time.UnixMicro(int64(binary.LittleEndian.Uint64(b[0:8]))).UTC(), key.time)
 }

@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { SortDir } from '../agents';
+
 // eventGroupTypes contains a map of events that were grouped under the same
 // event type but have different event codes. This is used to filter out duplicate
 // event types when listing event filters and provide modified description of event.
@@ -2603,11 +2605,13 @@ export type Event = Events[EventCode];
 export type SessionEnd = Events[typeof eventCodes.SESSION_END];
 
 export type EventQuery = {
-  from: Date;
-  to: Date;
+  from?: Date;
+  to?: Date;
   limit?: number;
   startKey?: string;
   filterBy?: string;
+  search?: string;
+  order: SortDir;
 };
 
 export type EventResponse = {

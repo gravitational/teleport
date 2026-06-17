@@ -519,6 +519,57 @@ Outer:
 	}
 }
 
+func (s *EventsSuite) SearchEventsBySearchTerm(t *testing.T) {
+	ctx := t.Context()
+	baseTime := time.Now().UTC()
+
+	testUsers := []string{"alice-search-target", "bob-search-target"}
+	for i, user := range testUsers {
+		err := s.Log.EmitAuditEvent(ctx, &apievents.UserLogin{
+			Method:       events.LoginMethodSAML,
+			Status:       apievents.Status{Success: true},
+			UserMetadata: apievents.UserMetadata{User: user},
+			Metadata: apievents.Metadata{
+				ID:   uuid.NewString(),
+				Type: events.UserLoginEvent,
+				Time: baseTime.Add(time.Second * time.Duration(i)),
+			},
+		})
+		require.NoError(t, err)
+	}
+
+	if s.QueryDelay != 0 {
+		time.Sleep(s.QueryDelay)
+	}
+
+	searchAndAssertUsers := func(search string, wantUsers ...string) {
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			history, _, err := s.Log.SearchEvents(ctx, events.SearchEventsRequest{
+				From:   baseTime.Add(-1 * time.Minute),
+				To:     baseTime.Add(time.Hour),
+				Limit:  100,
+				Order:  types.EventOrderAscending,
+				Search: search,
+			})
+			require.NoError(t, err)
+
+			gotUsers := make([]string, 0, len(history))
+			for _, event := range history {
+				loginEvent, ok := event.(*apievents.UserLogin)
+				require.True(t, ok)
+				gotUsers = append(gotUsers, loginEvent.User)
+			}
+
+			require.ElementsMatch(t, wantUsers, gotUsers)
+		}, 30*time.Second, 500*time.Millisecond)
+	}
+
+	searchAndAssertUsers("alice-search-target", "alice-search-target")
+	searchAndAssertUsers("search-target alice", "alice-search-target")
+	searchAndAssertUsers("search-target", "alice-search-target", "bob-search-target")
+	searchAndAssertUsers("search-target carol")
+}
+
 // SessionEventsCRUD covers session events
 func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 	loginTime := s.Clock.Now().UTC()
