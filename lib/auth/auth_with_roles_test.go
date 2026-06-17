@@ -5405,14 +5405,17 @@ func TestIsLocalOrRemoteServerAction(t *testing.T) {
 	mods.TestFeatures.Entitlements[entitlements.K8s] = modules.EntitlementInfo{Enabled: false}
 	modulestest.SetTestModules(t, *mods)
 
+	type listResourcesSrv interface {
+		ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
+	}
 	tts := []struct {
 		name      string
-		getSrvFn  func(t *testing.T) *auth.ServerWithRoles
+		getSrvFn  func(t *testing.T) listResourcesSrv
 		expectErr bool
 	}{
 		{
 			name: "local server builtin",
-			getSrvFn: func(t *testing.T) *auth.ServerWithRoles {
+			getSrvFn: func(t *testing.T) listResourcesSrv {
 				authCtx, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, authtest.TestBuiltin(types.RoleProxy).I))
 				require.NoError(t, err)
 				return auth.NewServerWithRoles(srv.AuthServer, srv.AuditLog, *authCtx)
@@ -5420,7 +5423,7 @@ func TestIsLocalOrRemoteServerAction(t *testing.T) {
 		},
 		{
 			name: "remote server builtin",
-			getSrvFn: func(t *testing.T) *auth.ServerWithRoles {
+			getSrvFn: func(t *testing.T) listResourcesSrv {
 				authCtx, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, authtest.TestRemoteBuiltin(types.RoleProxy, "remote-cluster").I))
 				require.NoError(t, err)
 				return auth.NewServerWithRoles(srv.AuthServer, srv.AuditLog, *authCtx)
@@ -5428,7 +5431,7 @@ func TestIsLocalOrRemoteServerAction(t *testing.T) {
 		},
 		{
 			name: "local wrapped server builtin",
-			getSrvFn: func(t *testing.T) *auth.ServerWithRoles {
+			getSrvFn: func(t *testing.T) listResourcesSrv {
 				authCtx, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, authtest.TestBuiltin(types.RoleProxy).I))
 				require.NoError(t, err)
 				return auth.NewScopedServerWithRoles(srv.AuthServer, srv.AuditLog, authz.ScopedContextFromUnscopedContext(authCtx))
@@ -5436,7 +5439,7 @@ func TestIsLocalOrRemoteServerAction(t *testing.T) {
 		},
 		{
 			name: "remote wrapped server builtin",
-			getSrvFn: func(t *testing.T) *auth.ServerWithRoles {
+			getSrvFn: func(t *testing.T) listResourcesSrv {
 				authCtx, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, authtest.TestRemoteBuiltin(types.RoleProxy, "remote-cluster").I))
 				require.NoError(t, err)
 				return auth.NewScopedServerWithRoles(srv.AuthServer, srv.AuditLog, authz.ScopedContextFromUnscopedContext(authCtx))
@@ -5444,7 +5447,7 @@ func TestIsLocalOrRemoteServerAction(t *testing.T) {
 		},
 		{
 			name: "non-server builtin",
-			getSrvFn: func(t *testing.T) *auth.ServerWithRoles {
+			getSrvFn: func(t *testing.T) listResourcesSrv {
 				authCtx, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, authtest.TestAdmin().I))
 				require.NoError(t, err)
 				return auth.NewServerWithRoles(srv.AuthServer, srv.AuditLog, *authCtx)
@@ -5453,7 +5456,7 @@ func TestIsLocalOrRemoteServerAction(t *testing.T) {
 		},
 		{
 			name: "wrapped non-server builtin",
-			getSrvFn: func(t *testing.T) *auth.ServerWithRoles {
+			getSrvFn: func(t *testing.T) listResourcesSrv {
 				authCtx, err := srv.Authorizer.Authorize(authz.ContextWithUser(ctx, authtest.TestAdmin().I))
 				require.NoError(t, err)
 				return auth.NewScopedServerWithRoles(srv.AuthServer, srv.AuditLog, authz.ScopedContextFromUnscopedContext(authCtx))
@@ -5462,7 +5465,7 @@ func TestIsLocalOrRemoteServerAction(t *testing.T) {
 		},
 		{
 			name: "remote non-builtin",
-			getSrvFn: func(t *testing.T) *auth.ServerWithRoles {
+			getSrvFn: func(t *testing.T) listResourcesSrv {
 				authCtx := authz.Context{
 					Identity: authz.RemoteBuiltinRole{
 						Role:        types.RoleProvisionToken,
@@ -5476,7 +5479,7 @@ func TestIsLocalOrRemoteServerAction(t *testing.T) {
 		},
 		{
 			name: "remote wrapped non-builtin",
-			getSrvFn: func(t *testing.T) *auth.ServerWithRoles {
+			getSrvFn: func(t *testing.T) listResourcesSrv {
 				authCtx := authz.Context{
 					Identity: authz.RemoteBuiltinRole{
 						Role:        types.RoleProvisionToken,
