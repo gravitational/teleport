@@ -116,7 +116,7 @@ func makeQueue(dataDir string) (auditqueue.Queue, error) {
 	queueCfg := auditqueue.Config{
 		Path: queuePath,
 	}
-	queue, err := auditqueue.New(auditqueue.KindSQLite, queueCfg)
+	queue, err := auditqueue.New(auditqueue.KindSQLiteDisk, queueCfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
