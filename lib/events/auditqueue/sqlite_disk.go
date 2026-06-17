@@ -45,6 +45,7 @@ const (
 	tmpDirSuffix              = ".tmp"
 	defaultSoftLimit          = 100 * 1024 * 1024 // 100 MiB
 	softLimitCheckInterval    = time.Minute
+	statsUpdateInterval       = 15 * time.Second
 
 	// walJournalSizeLimit is the number of bytes the `-wal` file gets
 	// truncated to in between checkpoints.
@@ -142,6 +143,7 @@ func newSQLiteQueue(cfg Config) (*sqliteQueue, error) {
 
 	q.wg.Go(q.softLimitLoop)
 	q.wg.Go(q.vacuumLoop)
+	q.wg.Go(q.statsLoop)
 
 	return q, nil
 }
@@ -245,6 +247,32 @@ func (q *sqliteQueue) softLimitLoop() {
 			)
 			softLimitWarnings.Inc()
 		}
+	}
+}
+
+func (q *sqliteQueue) statsLoop() {
+	label := filepath.Base(q.path)
+	ticker := time.NewTicker(statsUpdateInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-q.ctx.Done():
+			return
+		case <-ticker.C:
+		}
+		stats, err := q.Stats(q.ctx)
+		if err != nil {
+			if q.ctx.Err() == nil {
+				slog.ErrorContext(q.ctx,
+					"Failed to read audit queue stats for metrics.",
+					"path", q.path,
+					"error", err,
+				)
+			}
+			continue
+		}
+		queuePending.WithLabelValues(label).Set(float64(stats.PendingCount))
+		queueDeadLetter.WithLabelValues(label).Set(float64(stats.DeadLetterCount))
 	}
 }
 
@@ -720,6 +748,10 @@ func (q *sqliteQueue) Close() error {
 	q.closeOnce.Do(func() {
 		q.cancel()
 		q.wg.Wait()
+
+		label := filepath.Base(q.path)
+		queuePending.DeleteLabelValues(label)
+		queueDeadLetter.DeleteLabelValues(label)
 
 		// Flush the WAL file.
 		if _, err := q.db.Exec("PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {

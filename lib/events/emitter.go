@@ -185,6 +185,15 @@ func (a *AsyncEmitter) Shutdown(ctx context.Context) error {
 	return trace.Wrap(a.Close())
 }
 
+// Stats reports the current depth of the audit queue. It returns a zero Stats
+// when the audit queue is disabled.
+func (a *AsyncEmitter) Stats(ctx context.Context) (auditqueue.Stats, error) {
+	if a.queue == nil {
+		return auditqueue.Stats{}, nil
+	}
+	return a.queue.Stats(ctx)
+}
+
 func (a *AsyncEmitter) forward() {
 	for {
 		select {
@@ -354,6 +363,12 @@ func (c *CheckingAsyncEmitter) Close() error {
 // See AsyncEmitter.Shutdown.
 func (c *CheckingAsyncEmitter) Shutdown(ctx context.Context) error {
 	return c.asyncEmitter.Shutdown(ctx)
+}
+
+// Stats reports the current depth of the underlying audit queue.
+// See AsyncEmitter.Stats.
+func (c *CheckingAsyncEmitter) Stats(ctx context.Context) (auditqueue.Stats, error) {
+	return c.asyncEmitter.Stats(ctx)
 }
 
 // checkAndSetEventFields updates passed event fields with additional information
