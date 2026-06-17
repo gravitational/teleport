@@ -540,7 +540,6 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 		AppName:           req.AppName,
 		AppPublicAddr:     req.PublicAddr,
 		AppClusterName:    req.ClusterName,
-		AppName:           req.AppName,
 		AppTargetPort:     req.AppTargetPort,
 		AWSRoleARN:        req.AWSRoleARN,
 		AzureIdentity:     req.AzureIdentity,

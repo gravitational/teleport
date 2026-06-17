@@ -67,29 +67,31 @@ const (
 // expiryMetrics holds the Prometheus metrics emitted by the expiry service.
 // A new instance is constructed in New() per Service so tests are isolated.
 type expiryMetrics struct {
-	// expiredBeforeScan is the number of expired resources observed at the
-	// start of the most recent scan, partitioned by resource kind.
-	expiredBeforeScan *prometheus.GaugeVec
+	// resourcesAttempted is the number of expired resources the most recent scan
+	// attempted to expire this cycle, capped at maxExpiresPerCycle and
+	// partitioned by resource kind.
+	resourcesAttempted *prometheus.GaugeVec
 
-	// expiredAfterScan is the number of expired resources still awaiting
-	// deletion at the end of the most recent scan.
-	expiredAfterScan *prometheus.GaugeVec
+	// resourcesProcessed is the number of resources the most recent scan
+	// successfully expired this cycle. The gap between attempted and processed
+	// reflects failures encountered during expiration.
+	resourcesProcessed *prometheus.GaugeVec
 }
 
 // newExpiryMetrics constructs a fresh set of unregistered metrics.
 func newExpiryMetrics() *expiryMetrics {
 	return &expiryMetrics{
-		expiredBeforeScan: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		resourcesAttempted: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: teleport.MetricNamespace,
 			Subsystem: metricsSubsystem,
-			Name:      "expired_resources_before_scan",
-			Help:      "Number of expired resources at the start of scan",
+			Name:      "resources_attempted",
+			Help:      "Number of expired resources the last scan attempted to expire, capped per cycle",
 		}, []string{metricLabelResourceKind}),
-		expiredAfterScan: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		resourcesProcessed: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: teleport.MetricNamespace,
 			Subsystem: metricsSubsystem,
-			Name:      "expired_resources_after_scan",
-			Help:      "Number of expired resources remaining at the end of scan",
+			Name:      "resources_processed",
+			Help:      "Number of resources the last scan successfully expired",
 		}, []string{metricLabelResourceKind}),
 	}
 }
@@ -124,10 +126,9 @@ type Config struct {
 	AccessPoint AccessPoint
 	// HostID is a unique ID of this host.
 	HostID string
-	// AppSessionExpiryService enables the app session expiry task. Must match
-	// the IdentityService option, or sessions written without a backend TTL
-	// will accumulate.
-	AppSessionExpiryService bool
+	// EnableAppSessionExpiryService enables the app session expiry task. Must match
+	// the IdentityService option.
+	EnableAppSessionExpiryService bool
 }
 
 // CheckAndSetDefaults checks required fields and sets default values.
@@ -164,8 +165,8 @@ func New(cfg *Config) (*Service, error) {
 
 	m := newExpiryMetrics()
 	if err := metrics.RegisterPrometheusCollectors(
-		m.expiredBeforeScan,
-		m.expiredAfterScan,
+		m.resourcesAttempted,
+		m.resourcesProcessed,
 	); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -190,7 +191,7 @@ func New(cfg *Config) (*Service, error) {
 		},
 	}
 
-	if cfg.AppSessionExpiryService {
+	if cfg.EnableAppSessionExpiryService {
 		s.expiryTasks = append(s.expiryTasks, expiryTask{
 			semaphoreName: semaphoreNameAppSession,
 			resourceKind:  types.KindAppSession,
@@ -215,7 +216,7 @@ func (s *Service) Run(ctx context.Context) error {
 	return g.Wait()
 }
 
-// run is there for testing, so a testing interval can be set.
+// run drives a single expiry task.
 func (s *Service) run(ctx context.Context, task expiryTask) error {
 	for {
 		if err := s.runWithLock(ctx, task); err != nil && !errors.Is(err, context.Canceled) {
@@ -232,6 +233,7 @@ func (s *Service) run(ctx context.Context, task expiryTask) error {
 	}
 }
 
+// runWithLock acquires a semaphore lock for the task and runs the loop.
 func (s *Service) runWithLock(ctx context.Context, task expiryTask) error {
 	lease, err := services.AcquireSemaphoreLockWithRetry(
 		ctx,
@@ -268,7 +270,7 @@ func (s *Service) runWithLock(ctx context.Context, task expiryTask) error {
 	return trace.Wrap(err)
 }
 
-// run is for testing so a duration without jitter can be specified.
+// loop processes the expired resources on the configured interval.
 func (s *Service) loop(ctx context.Context, task expiryTask) error {
 	interval := interval.New(task.intervalCfg)
 	defer interval.Stop()
@@ -286,16 +288,17 @@ func (s *Service) loop(ctx context.Context, task expiryTask) error {
 func (s *Service) processRequests(ctx context.Context) {
 	s.Log.DebugContext(ctx, "Cleaning up expired access requests.")
 
-	// expiredBefore counts requests waiting to be expired
+	// expiredBefore counts requests we attempted to expire this cycle
 	// requestsExpired counts only successful expirations
 	expiredBefore := 0
 	requestsExpired := 0
 	defer func() {
-		s.metrics.expiredBeforeScan.WithLabelValues(types.KindAccessRequest).Set(float64(expiredBefore))
-		s.metrics.expiredAfterScan.WithLabelValues(types.KindAccessRequest).Set(float64(expiredBefore - requestsExpired))
+		s.metrics.resourcesAttempted.WithLabelValues(types.KindAccessRequest).Set(float64(expiredBefore))
+		s.metrics.resourcesProcessed.WithLabelValues(types.KindAccessRequest).Set(float64(requestsExpired))
 	}()
 
 	readTime := time.Now()
+	capReached := false
 	for expiredAccessRequest, err := range clientutils.Resources(ctx, s.AccessPoint.ListExpiredAccessRequests) {
 		if err != nil {
 			s.Log.ErrorContext(ctx, "Error listing expired access requests.", "error", err)
@@ -309,12 +312,14 @@ func (s *Service) processRequests(ctx context.Context) {
 				continue
 			}
 		}
-		expiredBefore++
 
-		// Keep iterating to count remaining requests but stop expiring them.
-		if expiredBefore > maxExpiresPerCycle {
-			continue
+		// Stop scanning once we hit the per-cycle cap; remaining expired requests
+		// will be picked up in the next sweep.
+		if expiredBefore >= maxExpiresPerCycle {
+			capReached = true
+			break
 		}
+		expiredBefore++
 
 		s.Log.DebugContext(ctx, "Expiring access request.", "request", expiredAccessRequest.GetName())
 		if err := s.expireRequest(ctx, expiredAccessRequest); err != nil {
@@ -322,10 +327,14 @@ func (s *Service) processRequests(ctx context.Context) {
 			continue
 		}
 		requestsExpired++
+	}
 
-		if requestsExpired == maxExpiresPerCycle {
-			s.Log.DebugContext(ctx, "Cleaned up maximum amount of expired access requests. Will continue in the next run.", "max", maxExpiresPerCycle)
-		}
+	if capReached {
+		s.Log.WarnContext(ctx,
+			"Expired access request count reached per-scan cap. Additional expired requests will be processed in subsequent runs.",
+			"processed", requestsExpired,
+			"max_per_cycle", maxExpiresPerCycle,
+		)
 	}
 
 	s.Log.DebugContext(ctx, "Successfully cleaned up expired access requests.", "count", requestsExpired)
@@ -334,26 +343,29 @@ func (s *Service) processRequests(ctx context.Context) {
 func (s *Service) processAppSessions(ctx context.Context) {
 	s.Log.DebugContext(ctx, "Cleaning up expired application sessions.")
 
-	// expiredBefore counts app sessions waiting to be expired
+	// expiredBefore counts app sessions we attempted to expire this cycle
 	// sessionsExpired counts only successful expirations
 	expiredBefore := 0
 	sessionsExpired := 0
 	defer func() {
-		s.metrics.expiredBeforeScan.WithLabelValues(types.KindAppSession).Set(float64(expiredBefore))
-		s.metrics.expiredAfterScan.WithLabelValues(types.KindAppSession).Set(float64(expiredBefore - sessionsExpired))
+		s.metrics.resourcesAttempted.WithLabelValues(types.KindAppSession).Set(float64(expiredBefore))
+		s.metrics.resourcesProcessed.WithLabelValues(types.KindAppSession).Set(float64(sessionsExpired))
 	}()
 
+	capReached := false
 	for expiredSession, err := range clientutils.Resources(ctx, s.AccessPoint.ListExpiredAppSessions) {
 		if err != nil {
 			s.Log.ErrorContext(ctx, "Error listing expired application sessions.", "error", err)
 			return
 		}
-		expiredBefore++
 
-		// Keep iterating to count remaining sessions but stop expiring them.
-		if expiredBefore > maxExpiresPerCycle {
-			continue
+		// Stop scanning once we hit the per-cycle cap; remaining expired sessions
+		// will be picked up in the next sweep.
+		if expiredBefore >= maxExpiresPerCycle {
+			capReached = true
+			break
 		}
+		expiredBefore++
 
 		s.Log.DebugContext(ctx, "Expiring application session.",
 			"user", expiredSession.GetUser(),
@@ -364,11 +376,16 @@ func (s *Service) processAppSessions(ctx context.Context) {
 			continue
 		}
 		sessionsExpired++
-
-		if sessionsExpired == maxExpiresPerCycle {
-			s.Log.DebugContext(ctx, "Cleaned up maximum amount of expired application sessions. Will continue in the next run.", "max", maxExpiresPerCycle)
-		}
 	}
+
+	if capReached {
+		s.Log.WarnContext(ctx,
+			"Expired application session count reached per-scan cap. Additional expired sessions will be processed in subsequent runs.",
+			"processed", sessionsExpired,
+			"max_per_cycle", maxExpiresPerCycle,
+		)
+	}
+
 	s.Log.DebugContext(ctx, "Successfully cleaned up expired application sessions.", "count", sessionsExpired)
 }
 

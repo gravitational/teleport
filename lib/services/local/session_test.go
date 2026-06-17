@@ -243,37 +243,35 @@ func TestListExpiredAppSessions(t *testing.T) {
 
 	synctest.Test(t, func(t *testing.T) {
 		ctx := t.Context()
-		backend, _ := memory.New(memory.Config{Context: ctx})
-		identity, _ := NewTestIdentityService(backend, WithAppSessionExpiryService(true))
+		backend, err := memory.New(memory.Config{Context: ctx, Clock: clockwork.NewRealClock()})
+		require.NoError(t, err)
+		identity, err := NewTestIdentityService(backend, WithAppSessionExpiryService(true))
+		require.NoError(t, err)
 
 		const totalExpired = 200
 		const totalValid = 10
 
 		// Create 210 sessions: 5 valid, 100 expired, 5 valid, 100 expired
 		for i := range totalValid / 2 {
-			sess := newTestAppSession(t, fmt.Sprintf("valid-%d", i))
-			sess.SetExpiry(time.Now().Add(1 * time.Hour))
+			sess := newTestAppSession(t, fmt.Sprintf("valid-%d", i), time.Now().Add(1*time.Hour))
 			err := identity.UpsertAppSession(ctx, sess)
 			require.NoError(t, err)
 		}
 
 		for i := range totalExpired / 2 {
-			sess := newTestAppSession(t, fmt.Sprintf("expired-%d", i))
-			sess.SetExpiry(time.Now().Add(-30 * time.Minute))
+			sess := newTestAppSession(t, fmt.Sprintf("expired-%d", i), time.Now().Add(-30*time.Minute))
 			err := identity.UpsertAppSession(ctx, sess)
 			require.NoError(t, err)
 		}
 
 		for i := range totalValid / 2 {
-			sess := newTestAppSession(t, fmt.Sprintf("valid-%d", i+5))
-			sess.SetExpiry(time.Now().Add(1 * time.Hour))
+			sess := newTestAppSession(t, fmt.Sprintf("valid-%d", i+5), time.Now().Add(1*time.Hour))
 			err := identity.UpsertAppSession(ctx, sess)
 			require.NoError(t, err)
 		}
 
 		for i := range totalExpired / 2 {
-			sess := newTestAppSession(t, fmt.Sprintf("expired-%d", i+100))
-			sess.SetExpiry(time.Now().Add(-30 * time.Minute))
+			sess := newTestAppSession(t, fmt.Sprintf("expired-%d", i+100), time.Now().Add(-30*time.Minute))
 			err := identity.UpsertAppSession(ctx, sess)
 			require.NoError(t, err)
 		}
@@ -302,35 +300,31 @@ func TestListExpiredAppSessions(t *testing.T) {
 	})
 }
 
-func TestUpdateAppSession_ExtendsBackendExpiry(t *testing.T) {
+func TestUpdateAppSession_ClearsBackendExpiry(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	mem, err := memory.New(memory.Config{Context: ctx})
 	require.NoError(t, err)
 
 	identity, err := NewTestIdentityService(mem, WithAppSessionExpiryService(true))
 	require.NoError(t, err)
 
-	session := newTestAppSession(t, "updated-session")
+	session := newTestAppSession(t, "updated-session", time.Now().Add(12*time.Hour))
 	require.NoError(t, identity.UpsertAppSession(ctx, session))
-
-	expectedExpiry := session.GetExpiryTime().Add(appSessionBackendBufferTTL)
 
 	item, err := mem.Get(ctx, backend.NewKey(appsPrefix, sessionsPrefix, session.GetName()))
 	require.NoError(t, err)
-	require.True(t, item.Expires.Equal(expectedExpiry), "new app sessions should have extended backend TTL")
+	require.True(t, item.Expires.IsZero(), "new app sessions should have no backend TTL when opt-in")
 
 	session, err = identity.GetAppSession(ctx, types.GetAppSessionRequest{SessionID: session.GetName()})
 	require.NoError(t, err)
 
-	testDBSCPublicKey := []byte("test-dbsc-key")
-	session.SetDBSCPublicKey(testDBSCPublicKey)
 	require.NoError(t, identity.UpdateAppSession(ctx, session))
 
 	item, err = mem.Get(ctx, backend.NewKey(appsPrefix, sessionsPrefix, session.GetName()))
 	require.NoError(t, err)
-	require.True(t, item.Expires.Equal(expectedExpiry), "updated app sessions should keep extended backend TTL")
+	require.True(t, item.Expires.IsZero(), "updated app sessions should have no backend TTL when opt-in")
 }
 
 // TestUpdateAppSession_PreservesBackendExpiry verifies that when the expiry
@@ -339,14 +333,14 @@ func TestUpdateAppSession_ExtendsBackendExpiry(t *testing.T) {
 func TestUpdateAppSession_PreservesBackendExpiry(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	mem, err := memory.New(memory.Config{Context: ctx})
 	require.NoError(t, err)
 
 	identity, err := NewTestIdentityService(mem)
 	require.NoError(t, err)
 
-	session := newTestAppSession(t, "default-session")
+	session := newTestAppSession(t, "default-session", time.Now().Add(12*time.Hour))
 	require.NoError(t, identity.UpsertAppSession(ctx, session))
 
 	item, err := mem.Get(ctx, backend.NewKey(appsPrefix, sessionsPrefix, session.GetName()))
@@ -362,12 +356,12 @@ func TestUpdateAppSession_PreservesBackendExpiry(t *testing.T) {
 	require.True(t, item.Expires.Equal(session.GetExpiryTime()), "backend TTL should match session expiry after update")
 }
 
-// Helper for quick session generation
-func newTestAppSession(t *testing.T, name string) types.WebSession {
+// newTestAppSession constructs an app session with the given Spec.Expires.
+func newTestAppSession(t *testing.T, name string, expires time.Time) types.WebSession {
 	t.Helper()
 	s, err := types.NewWebSession(name, types.KindAppSession, types.WebSessionSpecV2{
 		User:    "alice",
-		Expires: time.Now().Add(12 * time.Hour),
+		Expires: expires,
 	})
 	require.NoError(t, err)
 	return s

@@ -921,10 +921,6 @@ type Auth struct {
 
 	// AccessMonitoring is a set of options related to the Access Monitoring feature.
 	AccessMonitoring *servicecfg.AccessMonitoringOptions `yaml:"access_monitoring,omitempty"`
-
-	// AppSessionExpiryService enables the expiry service to manage app session
-	// expiration and emit an app.session.expire audit event for each.
-	AppSessionExpiryService bool `yaml:"app_session_expiry_service,omitempty"`
 }
 
 // PluginService represents the configuration for the plugin service.

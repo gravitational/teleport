@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/require"
 
@@ -381,8 +382,11 @@ var (
 	}
 )
 
-// TestExpiryMetrics verifies the before-scan and after-scan gauges for both
-// resource kinds and the behavior when expired resources exceed maxExpiresPerCycle.
+// TestExpiryMetrics verifies the resources_attempted and resources_processed
+// gauges for both resource kinds and the behavior when expired resources exceed
+// maxExpiresPerCycle. Attempted counts resources the scan tried to expire this
+// cycle (capped at maxExpiresPerCycle); processed counts successful
+// expirations.
 func TestExpiryMetrics(t *testing.T) {
 	t.Parallel()
 
@@ -405,7 +409,7 @@ func TestExpiryMetrics(t *testing.T) {
 			expectProcessed: 3,
 		},
 		{
-			name:            "access request: cap hit, remainder expected",
+			name:            "access request: cap hit, scan stops at cap",
 			resource:        accessRequestMetricsResource,
 			numCreate:       maxExpiresPerCycle + 5,
 			expectProcessed: maxExpiresPerCycle,
@@ -440,10 +444,10 @@ func TestExpiryMetrics(t *testing.T) {
 				require.Equal(t, expectAfter, tc.resource.remaining(t, authServer))
 				require.Len(t, emitter.Events(), tc.expectProcessed)
 
-				beforeMetric := expiry.metrics.expiredBeforeScan.WithLabelValues(tc.resource.label)
-				afterMetric := expiry.metrics.expiredAfterScan.WithLabelValues(tc.resource.label)
-				require.Equal(t, float64(tc.numCreate), testutil.ToFloat64(beforeMetric))
-				require.Equal(t, float64(expectAfter), testutil.ToFloat64(afterMetric))
+				attemptedMetric := expiry.metrics.resourcesAttempted.WithLabelValues(tc.resource.label)
+				processedMetric := expiry.metrics.resourcesProcessed.WithLabelValues(tc.resource.label)
+				require.InDelta(t, float64(tc.expectProcessed), testutil.ToFloat64(attemptedMetric), 0)
+				require.InDelta(t, float64(tc.expectProcessed), testutil.ToFloat64(processedMetric), 0)
 			})
 		})
 	}
@@ -484,7 +488,8 @@ func setupExpiryService(t *testing.T, appSessionExpiryService bool) (*Service, *
 				RPID: "localhost",
 			},
 		},
-		AppSessionExpiryService: appSessionExpiryService,
+		EnableAppSessionExpiryService: appSessionExpiryService,
+		Clock:                         clockwork.NewRealClock(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { authServer.Close() })
@@ -499,7 +504,7 @@ func setupExpiryService(t *testing.T, appSessionExpiryService bool) (*Service, *
 			Server:      authServer.AuthServer,
 			appSessions: identity,
 		},
-		AppSessionExpiryService: appSessionExpiryService,
+		EnableAppSessionExpiryService: appSessionExpiryService,
 	})
 	require.NoError(t, err)
 
@@ -584,7 +589,6 @@ func mustListAppSessions(t *testing.T, auth *auth.Server) []types.WebSession {
 	return resp
 }
 
-// Helper to extract session names from slice of WebSessions
 func getAppSessionNames(t *testing.T, sessions []types.WebSession) []string {
 	t.Helper()
 	names := make([]string, 0, len(sessions))

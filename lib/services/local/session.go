@@ -202,29 +202,22 @@ func (s *IdentityService) upsertSession(ctx context.Context, session types.WebSe
 	return nil
 }
 
-// appSessionBackendBufferTTL is how much past the session's logical expiry
-// the backend will keep an app session before reaping it on its own.
-const appSessionBackendBufferTTL = 30 * 24 * time.Hour
-
-// appSessionBackendExpiry returns the backend TTL for a session. App sessions
-// extend their TTL by appSessionBackendBufferTTL when the expiry service is
-// enabled so it can emit an app.session.expire audit event before deletion.
+// appSessionBackendExpiry returns the backend TTL for a session. When the
+// app session expiry service is enabled, app sessions are stored without a
+// backend TTL so the expiry servicecan emit an app.session.expire audit event.
 func (s *IdentityService) appSessionBackendExpiry(session types.WebSession) time.Time {
 	if s.appSessionExpiryService && session.GetSubKind() == types.KindAppSession {
-		return session.GetExpiryTime().Add(appSessionBackendBufferTTL)
+		return time.Time{}
 	}
 	return session.GetExpiryTime()
 }
 
-// ListExpiredAppSessions lists all application sessions that are expired. The expiry service
-// calls this when its app session opt-in is enabled, so it can emit an app.session.expire
-// audit event before deletion. When the opt-in is disabled, the backend handles expiration
-// via its TTL and no event is emitted.
+// ListExpiredAppSessions lists all application sessions that are expired.
 func (s *IdentityService) ListExpiredAppSessions(ctx context.Context, limit int, pageToken string) ([]types.WebSession, string, error) {
-	now := time.Now()
+	now := s.Clock().Now()
 	allSessions := s.rangeSessions(ctx, pageToken, "", "", appsPrefix, sessionsPrefix)
 	expired := stream.FilterMap(allSessions, func(session types.WebSession) (types.WebSession, bool) {
-		return session, now.After(session.Expiry())
+		return session, now.After(session.GetExpiryTime())
 	})
 	return generic.CollectPageAndCursor(expired, limit, types.WebSession.GetName)
 }
