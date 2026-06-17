@@ -182,6 +182,19 @@ func (l *Handler) UploadSummary(ctx context.Context, sessionID session.ID, reade
 	return name, nil
 }
 
+// UploadHAR writes the combined HAR archive for a session to a local directory.
+// This function can be called only once for a given sessionID; subsequent calls
+// will return an error.
+func (l *Handler) UploadHAR(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	return uploadFile(l.harPath(sessionID), reader)
+}
+
+// StreamHAR reads the combined HAR archive for a session from a local
+// directory. Returns a "not found" error if there's no such HAR archive.
+func (l *Handler) StreamHAR(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+	return openFile(l.harPath(sessionID))
+}
+
 // UploadMetadata writes session metadata to a local directory.
 func (l *Handler) UploadMetadata(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
 	return uploadFile(l.metadataPath(sessionID), reader)
@@ -255,6 +268,10 @@ func (l *Handler) metadataPath(sessionID session.ID) string {
 
 func (l *Handler) thumbnailPath(sessionID session.ID) string {
 	return filepath.Join(l.Directory, string(sessionID)+thumbnailExt)
+}
+
+func (l *Handler) harPath(sessionID session.ID) string {
+	return filepath.Join(l.Directory, string(sessionID)+harExt)
 }
 
 // sessionIDFromPath extracts session ID from the filename

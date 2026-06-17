@@ -78,6 +78,12 @@ func summaryName(sid session.ID) string {
 	return sid.String() + ".summary.json"
 }
 
+// harName returns the name of the blob that contains the HAR archive for a
+// given session.
+func harName(sid session.ID) string {
+	return sid.String() + ".har"
+}
+
 // metadataName returns the name of the blob that contains the metadata for a
 // given session.
 func metadataName(sid session.ID) string {
@@ -283,6 +289,11 @@ func (h *Handler) summaryBlob(sessionID session.ID) *blockblob.Client {
 	return h.session.NewBlockBlobClient(summaryName(sessionID))
 }
 
+// harBlob returns a BlockBlobClient for the blob of the session HAR archive.
+func (h *Handler) harBlob(sessionID session.ID) *blockblob.Client {
+	return h.session.NewBlockBlobClient(harName(sessionID))
+}
+
 // metadataBlob returns a BlockBlobClient for the blob of the session metadata.
 func (h *Handler) metadataBlob(sessionID session.ID) *blockblob.Client {
 	return h.session.NewBlockBlobClient(metadataName(sessionID))
@@ -334,6 +345,20 @@ func (h *Handler) UploadSummary(ctx context.Context, sessionID session.ID, reade
 	}
 
 	return path, nil
+}
+
+// UploadHAR implements [events.UploadHandler] and uploads the combined HAR
+// archive for a session. This function can be called only once for a given
+// sessionID; subsequent calls will return an error.
+func (h *Handler) UploadHAR(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	path, err := h.uploadBlob(ctx, sessionID, h.harBlob(sessionID), reader)
+	return path, trace.Wrap(err)
+}
+
+// StreamHAR implements [events.UploadHandler] and downloads the combined HAR
+// archive for a session.
+func (h *Handler) StreamHAR(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+	return h.blobRetrier(ctx, sessionID, h.harBlob(sessionID))
 }
 
 // UploadMetadata implements [events.UploadHandler] and uploads the session

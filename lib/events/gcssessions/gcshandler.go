@@ -275,6 +275,15 @@ func (h *Handler) UploadSummary(ctx context.Context, sessionID session.ID, reade
 	return path, nil
 }
 
+// UploadHAR reads the combined HAR archive for a session from a reader and
+// uploads it to a GCS bucket. If successful, it returns URL of the uploaded
+// object. This function can be called only once for a given sessionID;
+// subsequent calls will return an error.
+func (h *Handler) UploadHAR(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	path, err := h.uploadFile(ctx, h.harPath(sessionID), reader)
+	return path, trace.Wrap(err)
+}
+
 // UploadMetadata reads the session metadata from a reader and uploads it to a GCS
 // bucket. If successful, it returns URL of the uploaded object.
 func (h *Handler) UploadMetadata(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
@@ -336,6 +345,13 @@ func (h *Handler) uploadFile(ctx context.Context, path string, reader io.Reader,
 // is not found.
 func (h *Handler) StreamSessionRecording(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
 	return h.gcsRetrier(ctx, h.recordingPath(sessionID))
+}
+
+// StreamHAR downloads the combined HAR archive for a session from a GCS bucket
+// and returns a ReadCloser for the content. Returns trace.NotFound error if the
+// HAR archive is not found.
+func (h *Handler) StreamHAR(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+	return h.gcsRetrier(ctx, h.harPath(sessionID))
 }
 
 // StreamSessionSummary downloads a session summary from a GCS bucket and returns a
@@ -445,6 +461,13 @@ func (h *Handler) thumbnailPath(sessionID session.ID) string {
 		return string(sessionID) + ".thumbnail"
 	}
 	return strings.TrimPrefix(path.Join(h.Path, string(sessionID)+".thumbnail"), slash)
+}
+
+func (h *Handler) harPath(sessionID session.ID) string {
+	if h.Path == "" {
+		return string(sessionID) + ".har"
+	}
+	return strings.TrimPrefix(path.Join(h.Path, string(sessionID)+".har"), slash)
 }
 
 // ensureBucket makes sure bucket exists, and if it does not, creates it

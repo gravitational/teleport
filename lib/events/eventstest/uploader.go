@@ -56,6 +56,7 @@ func NewMemoryUploader(cfg ...MemoryUploaderConfig) *MemoryUploader {
 		pendingSummaries: make(map[session.ID][]byte),
 		metadata:         make(map[session.ID][]byte),
 		thumbnails:       make(map[session.ID][]byte),
+		hars:             make(map[session.ID][]byte),
 	}
 	if len(cfg) != 0 {
 		up.cfg = cfg[0]
@@ -74,6 +75,7 @@ type MemoryUploader struct {
 	pendingSummaries map[session.ID][]byte
 	metadata         map[session.ID][]byte
 	thumbnails       map[session.ID][]byte
+	hars             map[session.ID][]byte
 
 	// Clock is an optional [clockwork.Clock] to determine the time to associate
 	// with uploads and parts.
@@ -120,6 +122,7 @@ func (m *MemoryUploader) Reset() {
 	m.pendingSummaries = make(map[session.ID][]byte)
 	m.metadata = make(map[session.ID][]byte)
 	m.thumbnails = make(map[session.ID][]byte)
+	m.hars = make(map[session.ID][]byte)
 }
 
 // CreateUpload creates a multipart upload
@@ -319,6 +322,37 @@ func (m *MemoryUploader) UploadSummary(ctx context.Context, sessionID session.ID
 	m.summaries[sessionID] = data
 	delete(m.pendingSummaries, sessionID)
 	return string(sessionID), nil
+}
+
+// UploadHAR uploads the combined HAR archive for a session and returns URL with
+// uploaded file in case of success. This function can be called only once for a
+// given sessionID; subsequent calls will return an error.
+func (m *MemoryUploader) UploadHAR(ctx context.Context, sessionID session.ID, readCloser io.Reader) (string, error) {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+	_, ok := m.hars[sessionID]
+	if ok {
+		return "", trace.AlreadyExists("HAR %q already exists", sessionID)
+	}
+	data, err := io.ReadAll(readCloser)
+	if err != nil {
+		return "", trace.ConvertSystemError(err)
+	}
+	m.hars[sessionID] = data
+	return string(sessionID), nil
+}
+
+// StreamHAR streams the combined HAR archive for a session and returns a
+// ReadCloser for the content.
+func (m *MemoryUploader) StreamHAR(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+	m.mtx.RLock()
+	defer m.mtx.RUnlock()
+
+	data, ok := m.hars[sessionID]
+	if !ok {
+		return nil, trace.NotFound("HAR %q is not found", sessionID)
+	}
+	return io.NopCloser(bytes.NewReader(data)), nil
 }
 
 // UploadMetadata uploads session metadata and returns URL with uploaded file in

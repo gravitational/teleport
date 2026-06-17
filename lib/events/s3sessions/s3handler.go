@@ -344,6 +344,15 @@ func (h *Handler) UploadSummary(ctx context.Context, sessionID session.ID, reade
 	return path, trace.Wrap(err)
 }
 
+// UploadHAR reads the content of the combined HAR archive for a session from a
+// reader and uploads it to an S3 bucket. If successful, it returns URL of the
+// uploaded object. This function can be called only once for a given
+// sessionID; subsequent calls will return an error.
+func (h *Handler) UploadHAR(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	path, err := h.uploadFile(ctx, h.harPath(sessionID), reader)
+	return path, trace.Wrap(err)
+}
+
 // UploadMetadata reads the content of a session's metadata from a reader and
 // uploads it to an S3 bucket. If successful, it returns URL of the uploaded
 // object.
@@ -458,6 +467,13 @@ func (h *Handler) StreamSessionRecording(ctx context.Context, sessionID session.
 // summary is not found or is not final.
 func (h *Handler) StreamSessionSummary(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
 	return h.downloadFileRetrier(ctx, h.summaryPath(sessionID), nil /* versionID */)
+}
+
+// StreamHAR downloads the combined HAR archive for a session from an S3 bucket
+// and returns a ReadCloser for the content. Returns trace.NotFound error if the
+// HAR archive is not found.
+func (h *Handler) StreamHAR(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+	return h.downloadFileRetrier(ctx, h.harPath(sessionID), nil /* versionID */)
 }
 
 // StreamSessionMetadata downloads a session's metadata from an S3 bucket and
@@ -621,6 +637,13 @@ func (h *Handler) thumbnailPath(sessionID session.ID) string {
 		return string(sessionID) + ".thumbnail"
 	}
 	return strings.TrimPrefix(path.Join(h.Path, string(sessionID)+".thumbnail"), "/")
+}
+
+func (h *Handler) harPath(sessionID session.ID) string {
+	if h.Path == "" {
+		return string(sessionID) + ".har"
+	}
+	return strings.TrimPrefix(path.Join(h.Path, string(sessionID)+".har"), "/")
 }
 
 func (h *Handler) fromPath(p string) session.ID {

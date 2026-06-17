@@ -469,6 +469,8 @@ const (
 	metadataExt = ".metadata"
 	// thumbnailExt is a suffix for session thumbnails
 	thumbnailExt = ".thumbnail"
+	// harExt is a suffix for HAR archive files
+	harExt = ".har"
 	// checkpointExt is a suffix for checkpoint extensions
 	checkpointExt = ".checkpoint"
 	// errorExt is a suffix for files storing session errors

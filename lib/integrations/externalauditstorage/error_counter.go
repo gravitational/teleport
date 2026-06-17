@@ -429,6 +429,23 @@ func (c *ErrorCountingSessionHandler) StreamSessionSummary(ctx context.Context, 
 	return newErrorReportReader(rc, c.downloads), nil
 }
 
+// UploadHAR calls [c.wrapped.UploadHAR] and counts the error or success.
+func (c *ErrorCountingSessionHandler) UploadHAR(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+	res, err := c.wrapped.UploadHAR(ctx, sessionID, reader)
+	c.uploads.observe(err)
+	return res, err
+}
+
+// StreamHAR calls [c.wrapped.StreamHAR] and counts the error or success.
+func (c *ErrorCountingSessionHandler) StreamHAR(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+	rc, err := c.wrapped.StreamHAR(ctx, sessionID)
+	if err != nil {
+		c.downloads.observe(err)
+		return nil, err
+	}
+	return newErrorReportReader(rc, c.downloads), nil
+}
+
 // StreamSessionMetadata calls [c.wrapped.StreamSessionMetadata] and counts the error or success.
 func (c *ErrorCountingSessionHandler) StreamSessionMetadata(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
 	rc, err := c.wrapped.StreamSessionMetadata(ctx, sessionID)

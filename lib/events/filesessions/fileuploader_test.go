@@ -20,7 +20,9 @@ package filesessions
 
 import (
 	"context"
+	"io"
 	"os"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -29,12 +31,39 @@ import (
 
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/test"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestMain(m *testing.M) {
 	logtest.InitLogger(testing.Verbose)
 	os.Exit(m.Run())
+}
+
+// TestUploadAndStreamHAR verifies a round-trip upload and stream of the HAR archive.
+func TestUploadAndStreamHAR(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	handler, err := NewHandler(Config{
+		Directory: dir,
+		OpenFile:  os.OpenFile,
+	})
+	require.NoError(t, err)
+	defer handler.Close()
+
+	sid := session.NewID()
+	const payload = `{"log":{}}`
+
+	_, err = handler.UploadHAR(context.Background(), sid, strings.NewReader(payload))
+	require.NoError(t, err)
+
+	rc, err := handler.StreamHAR(context.Background(), sid)
+	require.NoError(t, err)
+	defer rc.Close()
+
+	data, err := io.ReadAll(rc)
+	require.NoError(t, err)
+	require.Equal(t, payload, string(data))
 }
 
 // TestStreams tests various streaming upload scenarios

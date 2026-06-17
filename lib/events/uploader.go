@@ -47,6 +47,14 @@ type UploadHandler interface {
 	// StreamSessionSummary streams a session summary and returns a ReadCloser for
 	// the content. Returns a "not found" error if there's no such summary.
 	StreamSessionSummary(ctx context.Context, sessionID session.ID) (io.ReadCloser, error)
+	// UploadHAR uploads the combined HAR archive for a session and returns a URL
+	// with the uploaded file in case of success. This function can be called only
+	// once for a given sessionID; subsequent calls will return an error.
+	UploadHAR(ctx context.Context, sessionID session.ID, readCloser io.Reader) (string, error)
+	// StreamHAR streams the combined HAR archive for a session and returns a
+	// ReadCloser for the content. Returns a "not found" error if there's no such
+	// HAR archive.
+	StreamHAR(ctx context.Context, sessionID session.ID) (io.ReadCloser, error)
 	// UploadMetadata uploads session metadata and returns a URL with the uploaded
 	// file in case of success. Session metadata is a file with a [recordingmetadatav1.SessionRecordingMetadata]
 	// protobuf message containing info about the session (duration, events, etc), as well as
