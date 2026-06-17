@@ -84,8 +84,10 @@ func (m *mockClient) GetResources(_ context.Context, _ *proto.ListResourcesReque
 // newTestCommand creates a Command for testing.
 func newTestCommand(format string) *Command {
 	return &Command{
-		nodesLast:   time.Hour,
-		nodesFormat: format,
+		nodes: nodesArgs{
+			last:   time.Hour,
+			format: format,
+		},
 	}
 }
 
@@ -337,13 +339,13 @@ Azure sub-1   eastus rg-1/vm-on...               Online
 			t.Run(teleport.Text, func(t *testing.T) {
 				var buf bytes.Buffer
 				c := newTestCommand(teleport.Text)
-				require.NoError(t, c.runNodes(t.Context(), tt.client, &buf, time.Now().Add(-time.Hour), time.Now()))
+				require.NoError(t, c.nodes.runWithTimeRange(t.Context(), tt.client, &buf, time.Now().Add(-time.Hour), time.Now()))
 				require.Equal(t, tt.wantText, buf.String())
 			})
 			t.Run(teleport.JSON, func(t *testing.T) {
 				var buf bytes.Buffer
 				c := newTestCommand(teleport.JSON)
-				require.NoError(t, c.runNodes(t.Context(), tt.client, &buf, time.Now().Add(-time.Hour), time.Now()))
+				require.NoError(t, c.nodes.runWithTimeRange(t.Context(), tt.client, &buf, time.Now().Add(-time.Hour), time.Now()))
 				require.Equal(t, tt.wantJSON, buf.String())
 			})
 		})
