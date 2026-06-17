@@ -103,7 +103,7 @@ func (process *TeleportProcess) initDiscoveryService() error {
 		if discoveryService != nil {
 			discoveryService.Stop()
 		}
-		shutdownAsyncEmitter(process, asyncEmitter, payload, logger)
+		shutdownEmitter(process, asyncEmitter, payload, logger)
 		warnOnErr(process.ExitContext(), conn.Close(), logger)
 		logger.InfoContext(process.ExitContext(), "Exited.")
 	})

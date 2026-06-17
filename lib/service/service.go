@@ -3043,7 +3043,9 @@ func (process *TeleportProcess) initAuthService() error {
 				}
 			}
 		}
-		shutdownFallbackEmitter(process, fallbackEmitter, payload, logger)
+		if fallbackEmitter != nil {
+			shutdownEmitter(process, fallbackEmitter, payload, logger)
+		}
 		logger.InfoContext(process.ExitContext(), "Exited.")
 	})
 	return nil
@@ -3876,7 +3878,7 @@ func (process *TeleportProcess) initSSH() error {
 			relayTunnelClient.Close()
 		}
 
-		shutdownAsyncEmitter(process, asyncEmitter, event.Payload, logger)
+		shutdownEmitter(process, asyncEmitter, event.Payload, logger)
 
 		logger.InfoContext(process.ExitContext(), "Exited.")
 		return nil
@@ -5294,7 +5296,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			_ = peerQUICTransport.Close()
 			_ = peerQUICTransport.Conn.Close()
 		}
-		shutdownAsyncEmitter(process, asyncEmitter, payload, logger)
+		shutdownEmitter(process, asyncEmitter, payload, logger)
 		warnOnErr(process.ExitContext(), conn.Close(), logger)
 		logger.InfoContext(process.ExitContext(), "Exited")
 	})
@@ -7060,7 +7062,7 @@ func (process *TeleportProcess) initApps() {
 				warnOnErr(process.ExitContext(), appServer.Shutdown(payloadContext(payload)), logger)
 			}
 			agentPool.Stop()
-			shutdownAsyncEmitter(process, asyncEmitter, payload, logger)
+			shutdownEmitter(process, asyncEmitter, payload, logger)
 			warnOnErr(process.ExitContext(), conn.Close(), logger)
 			logger.InfoContext(process.ExitContext(), "Exited.")
 		})
@@ -7074,27 +7076,16 @@ func (process *TeleportProcess) initApps() {
 	})
 }
 
-// shutdownAsyncEmitter attempts to drain the async emitter's queue.
-// `payload` carries a graceful shutdown context.
-// Blocks up to the duration of the graceful shutdown context.
-func shutdownAsyncEmitter(process *TeleportProcess, emitter *events.CheckingAsyncEmitter, payload any, logger *slog.Logger) {
-	if emitter == nil {
-		return
-	}
-	if payload == nil {
-		warnOnErr(process.ExitContext(), emitter.Close(), logger)
-		return
-	}
-	warnOnErr(process.ExitContext(), emitter.Shutdown(payloadContext(payload)), logger)
+// drainableEmitter is an audit emitter whose queue can be drained on shutdown.
+type drainableEmitter interface {
+	Shutdown(context.Context) error
+	Close() error
 }
 
-// shutdownFallbackEmitter drains the auth fallback emitter's queue to the audit
-// backend when payload carries a graceful shutdown context, otherwise it closes
-// the emitter immediately. Safe to call with a nil emitter.
-func shutdownFallbackEmitter(process *TeleportProcess, emitter *events.FallbackEmitter, payload any, logger *slog.Logger) {
-	if emitter == nil {
-		return
-	}
+// shutdownEmitter drains the emitter's queue to the audit backend when payload
+// carries a graceful shutdown context, otherwise it closes the emitter
+// immediately.
+func shutdownEmitter(process *TeleportProcess, emitter drainableEmitter, payload any, logger *slog.Logger) {
 	if payload == nil {
 		warnOnErr(process.ExitContext(), emitter.Close(), logger)
 		return

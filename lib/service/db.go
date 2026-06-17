@@ -229,7 +229,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		if agentPool != nil {
 			agentPool.Stop()
 		}
-		shutdownAsyncEmitter(process, asyncEmitter, payload, logger)
+		shutdownEmitter(process, asyncEmitter, payload, logger)
 		warnOnErr(process.ExitContext(), conn.Close(), logger)
 		logger.InfoContext(process.ExitContext(), "Exited.")
 	})
