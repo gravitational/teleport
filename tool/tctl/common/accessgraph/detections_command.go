@@ -71,7 +71,7 @@ type detectionsListArgs struct {
 }
 
 func (c *AccessGraphCommand) initDetections(app *kingpin.Application) {
-	detectionsCmd := app.Command("detections", "Investigate security detections and anomalies.").Hidden()
+	detectionsCmd := app.Command("detections", "Investigate security detections and anomalies.")
 	detectionsCmd.Flag("from", fmt.Sprintf("Include activity at or after this time. (Examples: %s, %s, 24h, 7d; negative durations like -1h are future-relative. Default: 30d)", time.RFC3339, time.DateOnly)).
 		Default("30d").
 		SetValue(timeValue{target: &c.detections.from})
