@@ -1,0 +1,31 @@
+# These rules are enabled by default
+disabled_rules:
+  # case statements should be indented one level deeper than its enclosing switch
+  - switch_case_alignment
+  # we shouldn't prohibit TODOs in code, so we disable this rule and enable our own that requires a GitHub reference
+  - todo
+
+# Optional values should always be explicitly initialized with '= nil' for clarity.
+implicit_optional_initialization:
+  style: never
+
+custom_rules:
+  # The next three rules are a little gnarly, but they basically ensure that somewhere in the same comment block as a 
+  # TODO comment, we have a link to some GitHub issue tracking that work.
+  todo_line_comment_requires_github:
+    name: "Missing GitHub URL in TODO"
+    regex: '(?m)(?:\A|^(?![ \t]*//)[^\n]*\n)(?:[ \t]*//[^\n]*\n)*?([ \t]*//[^\n]*\bTODO\b(?![^\n]*(?:\n[ \t]*//[^\n]*)*github\.com)[^\n]*(?:\n[ \t]*//[^\n]*)*)'
+    capture_group: 1
+    message: "TODO comments should include a GitHub reference."
+    severity: warning
+  todo_inline_comment_requires_github:
+    name: "Missing GitHub URL in TODO"
+    regex: '(?m)^(?![ \t]*//)[^\n]*(//[^\n]*\bTODO\b(?![^\n]*github\.com)[^\n]*)'
+    capture_group: 1
+    message: "TODO comments should include a GitHub reference."
+    severity: warning
+  todo_block_comment_requires_github:
+    name: "Missing GitHub URL in TODO"
+    regex: '/\*(?:(?!\*/)[\s\S])*?\bTODO\b(?!(?:(?!\*/)[\s\S])*github\.com)(?:(?!\*/)[\s\S])*\*/'
+    message: "TODO comments should include a GitHub reference."
+    severity: warning
