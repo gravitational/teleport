@@ -160,6 +160,34 @@ pred: |
 				},
 			},
 		},
+		{
+			// A trailing slash in a pattern is significant. It desugars to a
+			// trailing empty literal that matches the trailing empty segment a
+			// request path produces, so the slashed pattern matches only the
+			// slashed request, not the bare one.
+			name: "trailing slash path",
+			sugared: `
+paths: ["/api/v4/health/"]
+methods: [GET]
+`,
+			desugared: `
+pred: |
+  path.match(literal("api/v4/health/")) &&
+  contains(set("GET"), request.method)
+`,
+			probes: []probe{
+				{
+					method: "GET",
+					path:   "/api/v4/health/",
+					allow:  true,
+				},
+				{
+					method: "GET",
+					path:   "/api/v4/health",
+					allow:  false,
+				},
+			},
+		},
 	}
 
 	for _, sc := range scenarios {

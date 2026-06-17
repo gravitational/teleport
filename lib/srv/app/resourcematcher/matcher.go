@@ -168,10 +168,13 @@ func matchChildren(node *Node, tokens []string, i int, caps map[string]string) b
 // `{name}` to Capture, `*` to Glob, `**` to Greedy, and any other segment to
 // Literal.
 //
-// A leading "/" is required and stripped. Empty segments (from "//", a leading
-// "//", or a trailing "/") are a compile error, since the strict URL rules
-// reject the bytes that would produce them. A `**` in any non-final position is
-// a compile error.
+// A leading "/" is required and stripped. An interior or leading empty
+// segment (from "//" or a bare "/") is a compile error, since the strict
+// URL rules reject the request bytes that would produce one. A single
+// trailing "/" is significant: it compiles to a terminal literal matching
+// the trailing empty segment a request path produces, so "/foo/" matches
+// the request "/foo/" but not "/foo". A `**` in any non-final position is a
+// compile error.
 func Compile(pattern string) (*Node, error) {
 	if !strings.HasPrefix(pattern, "/") {
 		return nil, trace.BadParameter("path pattern %q must start with /", pattern)
@@ -179,7 +182,15 @@ func Compile(pattern string) (*Node, error) {
 	segments := strings.Split(strings.TrimPrefix(pattern, "/"), "/")
 	for i, seg := range segments {
 		if seg == "" {
-			return nil, trace.BadParameter("path pattern %q has an empty segment", pattern)
+			// Permit an empty segment only as the final one of a
+			// multi-segment pattern, the trailing slash. Reject a leading
+			// empty segment (from "//" or a bare "/") and an interior empty
+			// segment (from "//"); the strict URL rules reject the request
+			// bytes that would produce one anywhere but the trailing spot.
+			if i == 0 || i != len(segments)-1 {
+				return nil, trace.BadParameter("path pattern %q has an empty segment", pattern)
+			}
+			continue
 		}
 		if seg == "**" && i != len(segments)-1 {
 			return nil, trace.BadParameter("** is only valid as the final segment in %q", pattern)
