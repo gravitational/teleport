@@ -356,3 +356,51 @@ func (r resourceTeleportOIDCConnector) ImportState(ctx context.Context, req tfsd
 		return
 	}
 }
+
+// ModifyPlan modifies the planned value, normalizing null values.
+func (r resourceTeleportOIDCConnector) ModifyPlan(ctx context.Context, req tfsdk.ModifyResourcePlanRequest, resp *tfsdk.ModifyResourcePlanResponse) {
+	// If the entire plan is null, the resource is planned for destruction.
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+
+	// If the state is null, the resource is being created. No need to modify plan.
+	if req.State.Raw.IsNull() {
+		return
+	}
+
+	var config types.Object
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	oidcConnector := &apitypes.OIDCConnectorV3{}
+	resp.Diagnostics.Append(tfschema.CopyOIDCConnectorV3FromTerraform(ctx, config, oidcConnector)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	oidcConnectorResource := oidcConnector
+
+	if err := oidcConnectorResource.CheckAndSetDefaults(); err != nil {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error setting OIDCConnector defaults", trace.Wrap(err), "oidc"))
+		return
+	}
+
+	oidcConnector = oidcConnectorResource
+
+	resp.Diagnostics.Append(tfschema.CopyOIDCConnectorV3ToTerraform(ctx, oidcConnector, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var plan types.Object
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.Attrs["spec"] = config.Attrs["spec"]
+
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
+}

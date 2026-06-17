@@ -329,3 +329,47 @@ func (r resourceTeleportInferenceSecret) Delete(ctx context.Context, req tfsdk.D
 }
 
 
+
+// ModifyPlan modifies the planned value, normalizing null values.
+func (r resourceTeleportInferenceSecret) ModifyPlan(ctx context.Context, req tfsdk.ModifyResourcePlanRequest, resp *tfsdk.ModifyResourcePlanResponse) {
+	// If the entire plan is null, the resource is planned for destruction.
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+
+	// If the state is null, the resource is being created. No need to modify plan.
+	if req.State.Raw.IsNull() {
+		return
+	}
+
+	var config types.Object
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	inferenceSecret := &summarizerv1.InferenceSecret{}
+	resp.Diagnostics.Append(schemav1.CopyInferenceSecretFromTerraform(ctx, config, inferenceSecret)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	inferenceSecretResource := inferenceSecret
+	inferenceSecretResource.Kind = apitypes.KindInferenceSecret
+
+	inferenceSecret = inferenceSecretResource
+
+	resp.Diagnostics.Append(schemav1.CopyInferenceSecretToTerraform(ctx, inferenceSecret, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var plan types.Object
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.Attrs["spec"] = config.Attrs["spec"]
+
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
+}

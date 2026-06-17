@@ -342,3 +342,47 @@ func (r resourceTeleportVnetConfig) ImportState(ctx context.Context, req tfsdk.I
 		return
 	}
 }
+
+// ModifyPlan modifies the planned value, normalizing null values.
+func (r resourceTeleportVnetConfig) ModifyPlan(ctx context.Context, req tfsdk.ModifyResourcePlanRequest, resp *tfsdk.ModifyResourcePlanResponse) {
+	// If the entire plan is null, the resource is planned for destruction.
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+
+	// If the state is null, the resource is being created. No need to modify plan.
+	if req.State.Raw.IsNull() {
+		return
+	}
+
+	var config types.Object
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	vnetConfig := &vnet.VnetConfig{}
+	resp.Diagnostics.Append(schemav1.CopyVnetConfigFromTerraform(ctx, config, vnetConfig)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	vnetConfigResource := vnetConfig
+	vnetConfigResource.Kind = apitypes.KindVnetConfig
+
+	vnetConfig = vnetConfigResource
+
+	resp.Diagnostics.Append(schemav1.CopyVnetConfigToTerraform(ctx, vnetConfig, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var plan types.Object
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.Attrs["spec"] = config.Attrs["spec"]
+
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
+}
