@@ -1293,9 +1293,21 @@ func TestRoleSetForBuiltinRoles(t *testing.T) {
 					if r.GetName() == constants.DefaultImplicitRole {
 						continue
 					}
+					allowedResourceKinds := make(map[string]bool)
+					for _, rule := range r.GetRules(types.Allow) {
+						for _, resource := range rule.Resources {
+							allowedResourceKinds[resource] = true
+						}
+					}
+					// ensure required reosurce kinds are present
+					requiredKinds := []string{types.KindKubernetesCluster}
+					for _, kind := range requiredKinds {
+						assert.True(t, allowedResourceKinds[kind], "expected RoleKube to allow resource kind %s", kind)
+					}
+
+					// ensure resource kinds not yet supporting scopes are not present
 					for _, rule := range r.GetRules(types.Allow) {
 						assert.NotContains(t, rule.Resources, types.KindKubeServer)
-						assert.NotContains(t, rule.Resources, types.KindKubernetesCluster)
 						assert.NotContains(t, rule.Resources, types.KindKubeWaitingContainer)
 					}
 				}
