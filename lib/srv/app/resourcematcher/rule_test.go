@@ -245,10 +245,10 @@ pred: |
 	}
 }
 
-// TestRuleSetUnion pins the additive OR-union within one role: a request is
+// TestRoleSetUnion pins the additive OR-union within one role: a request is
 // allowed if any of the role's rules matches, and captures come from the
 // matching rule.
-func TestRuleSetUnion(t *testing.T) {
+func TestRoleSetUnion(t *testing.T) {
 	set, err := CompileRoles([]Role{{
 		Name: "reader",
 		Rules: []Rule{
@@ -284,11 +284,11 @@ methods: [GET]
 	}
 }
 
-// TestRuleSetUnionAcrossRoles pins the union over several roles: a request is
+// TestRoleSetUnionAcrossRoles pins the union over several roles: a request is
 // allowed if any rule in any role matches, the matching role's allow_code
 // surfaces, and every evaluated role is reported regardless of which one
 // matched.
-func TestRuleSetUnionAcrossRoles(t *testing.T) {
+func TestRoleSetUnionAcrossRoles(t *testing.T) {
 	set, err := CompileRoles([]Role{
 		{
 			Name: "reader",
@@ -335,10 +335,10 @@ allow_code: writer_grant
 	require.Equal(t, roles, got.EvaluatedRoles)
 }
 
-// TestRuleSetInvalidRequest pins that a malformed or unsafe path is denied with
+// TestRoleSetInvalidRequest pins that a malformed or unsafe path is denied with
 // DenyInvalidRequest before any rule runs, distinct from a well-formed request
 // that simply matches no rule.
-func TestRuleSetInvalidRequest(t *testing.T) {
+func TestRoleSetInvalidRequest(t *testing.T) {
 	set, err := CompileRoles([]Role{{
 		Name: "self",
 		Rules: []Rule{ruleFromYAML(t, `
@@ -363,11 +363,11 @@ methods: [GET]
 	require.Equal(t, DenyNotAllowed, got.Deny.Kind)
 }
 
-// TestRuleSetMisconfiguredDefaultDeny pins that an empty EvaluatedRoles on a
+// TestRoleSetMisconfiguredDefaultDeny pins that an empty EvaluatedRoles on a
 // deny marks the case where no role carried any app_resources, as opposed to a
 // request a granting role did not match.
-func TestRuleSetMisconfiguredDefaultDeny(t *testing.T) {
-	set := RuleSet{}
+func TestRoleSetMisconfiguredDefaultDeny(t *testing.T) {
+	set := RoleSet{}
 	got, err := set.Evaluate(Request{Method: "GET", Path: "/api/v4/user"}, Identity{})
 	require.NoError(t, err)
 	require.False(t, got.Allowed)
