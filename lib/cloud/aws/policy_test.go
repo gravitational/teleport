@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"testing"
 	"time"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
@@ -1035,6 +1036,189 @@ func TestEqualStatement(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			require.Equal(t, tt.expected, tt.statementA.EqualStatement(tt.statementB))
+		})
+	}
+}
+
+func TestStatementForAWSOIDCRoleTrustRelationship(t *testing.T) {
+	tests := []struct {
+		name        string
+		partition   string
+		accountID   string
+		providerURL string
+		audiences   []string
+		expected    string
+	}{
+		{
+			name:        "commercial aws partition",
+			partition:   "aws",
+			accountID:   "123456789012",
+			providerURL: "example.com",
+			audiences:   []string{"discover.teleport"},
+			expected:    "arn:aws:iam::123456789012:oidc-provider/example.com",
+		},
+		{
+			name:        "gov cloud partition",
+			partition:   "aws-us-gov",
+			accountID:   "123456789012",
+			providerURL: "example.com",
+			audiences:   []string{"discover.teleport"},
+			expected:    "arn:aws-us-gov:iam::123456789012:oidc-provider/example.com",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			statement := StatementForAWSOIDCRoleTrustRelationship(tt.partition, tt.accountID, tt.providerURL, tt.audiences)
+			require.NotNil(t, statement)
+
+			federated, ok := statement.Principals["Federated"]
+			require.True(t, ok)
+			require.Len(t, federated, 1)
+			require.Equal(t, tt.expected, federated[0])
+		})
+	}
+}
+
+func TestExternalAuditStoragePolicyConfigCheckAndSetDefaults(t *testing.T) {
+	tests := []struct {
+		name              string
+		inputConfig       ExternalAuditStoragePolicyConfig
+		expectedError     bool
+		expectedPartition string
+	}{
+		{
+			name: "default commercial region",
+			inputConfig: ExternalAuditStoragePolicyConfig{
+				Region:              "us-east-1",
+				Account:             "123456789012",
+				S3ARNs:              []string{"arn1", "arn2"},
+				AthenaWorkgroupName: "workgroup",
+				GlueDatabaseName:    "database",
+				GlueTableName:       "table",
+			},
+			expectedError:     false,
+			expectedPartition: "aws",
+		},
+		{
+			name: "gov cloud region",
+			inputConfig: ExternalAuditStoragePolicyConfig{
+				Region:              "us-gov-west-1",
+				Account:             "123456789012",
+				S3ARNs:              []string{"arn1", "arn2"},
+				AthenaWorkgroupName: "workgroup",
+				GlueDatabaseName:    "database",
+				GlueTableName:       "table",
+			},
+			expectedError:     false,
+			expectedPartition: "aws-us-gov",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := tt.inputConfig
+			err := config.CheckAndSetDefaults()
+
+			if tt.expectedError {
+				require.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+			require.Equal(t, tt.expectedPartition, config.Partition)
+		})
+	}
+}
+
+func TestPolicyDocumentForExternalAuditStoragePartitions(t *testing.T) {
+	tests := []struct {
+		name              string
+		config            ExternalAuditStoragePolicyConfig
+		expectedARNPrefix string
+	}{
+		{
+			name: "commercial partition",
+			config: ExternalAuditStoragePolicyConfig{
+				Partition:           "aws",
+				Region:              "us-east-1",
+				Account:             "123456789012",
+				S3ARNs:              []string{"arn1", "arn2"},
+				AthenaWorkgroupName: "workgroup",
+				GlueDatabaseName:    "database",
+				GlueTableName:       "table",
+			},
+			expectedARNPrefix: "arn:aws:",
+		},
+		{
+			name: "gov cloud partition",
+			config: ExternalAuditStoragePolicyConfig{
+				Partition:           "aws-us-gov",
+				Region:              "us-gov-west-1",
+				Account:             "123456789012",
+				S3ARNs:              []string{"arn1", "arn2"},
+				AthenaWorkgroupName: "workgroup",
+				GlueDatabaseName:    "database",
+				GlueTableName:       "table",
+			},
+			expectedARNPrefix: "arn:aws-us-gov:",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			document, err := PolicyDocumentForExternalAuditStorage(&tt.config)
+			require.NoError(t, err)
+
+			// Check Athena statement
+			athenaStatement := document.Statements[1]
+			require.Equal(t, "AllowAthenaQuery", athenaStatement.StatementID)
+			require.True(t, strings.HasPrefix(athenaStatement.Resources[0], tt.expectedARNPrefix),
+				"Expected Athena workgroup ARN to start with %q, got %q",
+				tt.expectedARNPrefix, athenaStatement.Resources[0])
+
+			// Check Glue statement
+			glueStatement := document.Statements[2]
+			require.Equal(t, "FullAccessOnGlueTable", glueStatement.StatementID)
+			for _, resource := range glueStatement.Resources {
+				require.True(t, strings.HasPrefix(resource, tt.expectedARNPrefix),
+					"Expected Glue resource ARN to start with %q, got %q",
+					tt.expectedARNPrefix, resource)
+			}
+		})
+	}
+}
+
+func TestStatementForS3BucketPublicRead(t *testing.T) {
+	tests := []struct {
+		name         string
+		partition    string
+		s3bucketName string
+		objectPrefix string
+		expected     string
+	}{
+		{
+			name:         "commercial partition",
+			partition:    "aws",
+			s3bucketName: "my-bucket",
+			objectPrefix: "my-prefix",
+			expected:     "arn:aws:s3:::my-bucket/my-prefix/*",
+		},
+		{
+			name:         "gov cloud partition",
+			partition:    "aws-us-gov",
+			s3bucketName: "my-bucket",
+			objectPrefix: "my-prefix",
+			expected:     "arn:aws-us-gov:s3:::my-bucket/my-prefix/*",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			statement := StatementForS3BucketPublicRead(tt.partition, tt.s3bucketName, tt.objectPrefix)
+			require.NotNil(t, statement)
+			require.Len(t, statement.Resources, 1)
+			require.Equal(t, tt.expected, statement.Resources[0])
 		})
 	}
 }
