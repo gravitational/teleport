@@ -189,6 +189,19 @@ test('extractIncludePaths: pulls .mdx partial paths from include directives', ()
   ]);
 });
 
+test('extractIncludePaths: handles parameterized includes (props after the path)', () => {
+  const content =
+    '(!docs/pages/includes/aws-credentials.mdx service="the Teleport Auth Service"!)';
+  assert.deepEqual(extractIncludePaths(content), [
+    'docs/pages/includes/aws-credentials.mdx',
+  ]);
+});
+
+test('extractIncludePaths: handles multiple props on one include', () => {
+  const content = '(!docs/pages/includes/foo.mdx service="x" region="us-east-1"!)';
+  assert.deepEqual(extractIncludePaths(content), ['docs/pages/includes/foo.mdx']);
+});
+
 test('extractIncludePaths: returns empty array when there are no includes', () => {
   assert.deepEqual(extractIncludePaths('no includes here'), []);
 });
