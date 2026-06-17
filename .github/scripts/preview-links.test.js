@@ -202,6 +202,18 @@ test('extractIncludePaths: handles multiple props on one include', () => {
   assert.deepEqual(extractIncludePaths(content), ['docs/pages/includes/foo.mdx']);
 });
 
+test('extractIncludePaths: normalizes a leading slash (absolute form)', () => {
+  // Both forms appear in the docs and must resolve to the same repo-root path.
+  const content = [
+    '(!/docs/pages/includes/tctl.mdx!)',
+    '(!docs/pages/includes/edition-prereqs-tabs.mdx!)',
+  ].join('\n');
+  assert.deepEqual(extractIncludePaths(content), [
+    'docs/pages/includes/tctl.mdx',
+    'docs/pages/includes/edition-prereqs-tabs.mdx',
+  ]);
+});
+
 test('extractIncludePaths: returns empty array when there are no includes', () => {
   assert.deepEqual(extractIncludePaths('no includes here'), []);
 });
