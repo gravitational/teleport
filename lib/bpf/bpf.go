@@ -57,11 +57,97 @@ const (
 	// eventSendTimeout is the maximum time to wait for an event to be sent
 	// to be emitted to the Audit log.
 	eventSendTimeout = 10 * time.Second
+
+	// sessionDrainTimeout is a safety net bounding how long CloseSession waits
+	// for in-flight events to drain. The drain normally completes near-instantly.
+	sessionDrainTimeout = 2 * time.Second
 )
 
 type sessionHandler interface {
 	startSession(auditSessionID uint32) error
 	endSession(auditSessionID uint32) error
+	// drainSession blocks until events already emitted for the session have been
+	// processed, so the caller can stop matching it without dropping them.
+	drainSession()
+}
+
+// bpfEvent is an item read off a ring buffer: either a raw event payload or a
+// drain barrier. Sharing one FIFO channel means that when the emitter sees a
+// barrier it has emitted every event ahead of it; it then closes the channel.
+type bpfEvent struct {
+	data    []byte
+	barrier chan struct{}
+}
+
+// drainQueue coordinates flush barriers between the ring buffer reader
+// (sendEvents) and callers draining a session (drainSession).
+type drainQueue struct {
+	mu      sync.Mutex
+	closed  bool
+	pending []chan struct{}
+}
+
+// enqueue registers a barrier. ok is false if the queue is closed (shutting
+// down), in which case the caller must not wait.
+func (d *drainQueue) enqueue() (barrier chan struct{}, ok bool) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.closed {
+		return nil, false
+	}
+	b := make(chan struct{})
+	d.pending = append(d.pending, b)
+	return b, true
+}
+
+// takePending returns and clears the registered barriers. keepGoing is false
+// once closed, telling the reader loop to exit rather than drain.
+func (d *drainQueue) takePending() (barriers []chan struct{}, keepGoing bool) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.closed {
+		return nil, false
+	}
+	barriers, d.pending = d.pending, nil
+	return barriers, true
+}
+
+// close marks the queue closed so the reader loop exits on its next flush.
+func (d *drainQueue) close() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.closed = true
+}
+
+// drainPipelines flushes the queues' ring buffer(s) and waits for their
+// in-flight events to be emitted, bounded by sessionDrainTimeout. The traced
+// process has already exited, so the buffer is finite and ordered.
+func drainPipelines(eventType string, flush func() error, queues ...*drainQueue) {
+	barriers := make([]chan struct{}, 0, len(queues))
+	for _, q := range queues {
+		if b, ok := q.enqueue(); ok {
+			barriers = append(barriers, b)
+		}
+	}
+	if len(barriers) == 0 {
+		// All pipelines closed; nothing to drain.
+		return
+	}
+
+	if err := flush(); err != nil {
+		logger.WarnContext(context.Background(), "Failed to flush ring buffer for session drain", "event_type", eventType, "error", err)
+	}
+
+	timer := time.NewTimer(sessionDrainTimeout)
+	defer timer.Stop()
+	for _, b := range barriers {
+		select {
+		case <-b:
+		case <-timer.C:
+			logger.WarnContext(context.Background(), "Timed out draining BPF events on session close, some events may be missing", "event_type", eventType)
+			return
+		}
+	}
 }
 
 // Service manages BPF and control groups orchestration.
@@ -172,22 +258,38 @@ func New(config *servicecfg.BPFConfig) (bpf BPF, err error) {
 	// Audit Log.
 	s.wg.Go(func() {
 		for event := range s.exec.events() {
-			s.emitCommandEvent(event)
+			if event.barrier != nil {
+				close(event.barrier)
+				continue
+			}
+			s.emitCommandEvent(event.data)
 		}
 	})
 	s.wg.Go(func() {
 		for event := range s.open.events() {
-			s.emitDiskEvent(event)
+			if event.barrier != nil {
+				close(event.barrier)
+				continue
+			}
+			s.emitDiskEvent(event.data)
 		}
 	})
 	s.wg.Go(func() {
 		for event := range s.conn.v4Events() {
-			s.emit4NetworkEvent(event)
+			if event.barrier != nil {
+				close(event.barrier)
+				continue
+			}
+			s.emit4NetworkEvent(event.data)
 		}
 	})
 	s.wg.Go(func() {
 		for event := range s.conn.v6Events() {
-			s.emit6NetworkEvent(event)
+			if event.barrier != nil {
+				close(event.barrier)
+				continue
+			}
+			s.emit6NetworkEvent(event.data)
 		}
 	})
 
@@ -275,11 +377,9 @@ func (s *Service) OpenSession(ctx *SessionContext) error {
 
 // CloseSession will stop monitoring events from a particular session.
 func (s *Service) CloseSession(ctx *SessionContext) error {
-	// Stop watching for events for this session.
-	s.sessions.Delete(ctx.AuditSessionID)
-
 	var errs []error
 
+	monitored := make([]sessionHandler, 0, 3)
 	for _, m := range []struct {
 		eventName string
 		module    sessionHandler
@@ -293,12 +393,22 @@ func (s *Service) CloseSession(ctx *SessionContext) error {
 		if _, ok := ctx.Events[m.eventName]; !ok {
 			continue
 		}
+		monitored = append(monitored, m.module)
 
-		// Remove the audit session ID from BPF module.
+		// Stop the kernel emitting for this session; the process has exited.
 		if err := m.module.endSession(ctx.AuditSessionID); err != nil {
 			errs = append(errs, trace.Wrap(err))
 		}
 	}
+
+	// Drain events still in flight before we stop matching the session below,
+	// or the emitter would fail to look it up and drop them (e.g. on termination).
+	for _, m := range monitored {
+		m.drainSession()
+	}
+
+	// Stop watching for events for this session.
+	s.sessions.Delete(ctx.AuditSessionID)
 
 	return trace.NewAggregate(errs...)
 }
@@ -317,7 +427,7 @@ func (s *Service) LostEvents() EventCount {
 	}
 }
 
-func sendEvents(eventType string, bpfEvents chan []byte, eventBuf *ringbuf.Reader) {
+func sendEvents(eventType string, bpfEvents chan bpfEvent, eventBuf *ringbuf.Reader, drain *drainQueue) {
 	defer eventBuf.Close()
 	defer close(bpfEvents)
 
@@ -327,9 +437,29 @@ func sendEvents(eventType string, bpfEvents chan []byte, eventBuf *ringbuf.Reade
 	for {
 		rec, err := eventBuf.Read()
 		if err != nil {
-			if errors.Is(err, ringbuf.ErrClosed) || errors.Is(err, ringbuf.ErrFlushed) {
-				logger.DebugContext(context.Background(), "Received signal, exiting")
+			if errors.Is(err, ringbuf.ErrClosed) {
+				logger.DebugContext(context.Background(), "Ring buffer closed, exiting")
 				return
+			}
+			if errors.Is(err, ringbuf.ErrFlushed) {
+				// On flush, every record committed beforehand has already been
+				// forwarded, so a barrier posted now sits behind all of them.
+				barriers, keepGoing := drain.takePending()
+				if !keepGoing {
+					logger.DebugContext(context.Background(), "Ring buffer flushed for shutdown, exiting")
+					return
+				}
+				for _, b := range barriers {
+					// Bound the send like the data path below so a stalled
+					// emitter can't wedge the reader; a drop falls back to the drain timeout.
+					timer.Reset(eventSendTimeout)
+					select {
+					case bpfEvents <- bpfEvent{barrier: b}:
+					case <-timer.C:
+						logger.WarnContext(context.Background(), "Timed out posting drain barrier", "event_type", eventType)
+					}
+				}
+				continue
 			}
 			logger.ErrorContext(context.Background(), "Error reading from ring buffer", "error", err)
 			return
@@ -339,7 +469,7 @@ func sendEvents(eventType string, bpfEvents chan []byte, eventBuf *ringbuf.Reade
 		// could prevent the service from shutting down.
 		timer.Reset(eventSendTimeout)
 		select {
-		case bpfEvents <- rec.RawSample[:]:
+		case bpfEvents <- bpfEvent{data: rec.RawSample[:]}:
 		case <-timer.C:
 			logger.WarnContext(context.Background(), "Enhanced session recording event buffer is full, dropping event", "event_type", eventType)
 		}

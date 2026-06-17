@@ -47,12 +47,13 @@ type exec struct {
 	// session
 	objs commandObjects
 
-	bpfEvents   chan []byte
+	bpfEvents   chan bpfEvent
 	lostCounter *Counter
 	toClose     []io.Closer
 
 	closed   bool
 	flushBuf func() error
+	drain    drainQueue
 
 	mtx sync.Mutex
 	wg  sync.WaitGroup
@@ -134,10 +135,15 @@ func startExec(bufferSize int) (*exec, error) {
 		flushBuf:    eventBuf.Flush,
 	}
 
-	e.bpfEvents = make(chan []byte, bufferSize)
-	e.wg.Go(func() { sendEvents("command", e.bpfEvents, eventBuf) })
+	e.bpfEvents = make(chan bpfEvent, bufferSize)
+	e.wg.Go(func() { sendEvents("command", e.bpfEvents, eventBuf, &e.drain) })
 
 	return e, nil
+}
+
+// drainSession waits for in-flight command events to be emitted before close.
+func (e *exec) drainSession() {
+	drainPipelines("command", e.flushBuf, &e.drain)
 }
 
 func (e *exec) startSession(auditSessionID uint32) error {
@@ -181,6 +187,8 @@ func (e *exec) close() {
 	}
 
 	e.closed = true
+	// Close the drain queue so the flush below makes the reader exit, not drain.
+	e.drain.close()
 
 	if err := e.flushBuf(); err != nil {
 		logger.WarnContext(context.Background(), "failed to flush command ring buffer", "error", err)
@@ -211,6 +219,6 @@ func (e *exec) close() {
 }
 
 // events contains raw events off the perf buffer.
-func (e *exec) events() <-chan []byte {
+func (e *exec) events() <-chan bpfEvent {
 	return e.bpfEvents
 }

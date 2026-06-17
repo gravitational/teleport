@@ -1722,22 +1722,15 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 		result := execRequest.Wait()
 		scx.SendExecResult(ctx, result)
 
-		// Wait a little bit to let all events filter through before
-		// closing the BPF session so everything can be recorded.
-		//
-		// TODO: This sleep is also necessary to prevent the SSH server
-		// from closing an SSH session without sending the exit status
-		// to the client. The SSH server code in handleSessionRequests
-		// should be refactored to consistently wait for the exit result
-		// before cleaning up.
-		select {
-		case <-time.After(2 * time.Second):
-		case <-s.registry.clock.After(2 * time.Second):
-		}
+		// Wait for the request handler to deliver the exit status before we tear
+		// down the session (which closes the channel). handleSessionRequests
+		// sends "exit-status" and only then cancels the context, so the client
+		// is guaranteed to receive it first.
+		<-scx.CancelContext().Done()
 
 		if sessionContext != nil {
-			err = scx.srv.GetBPF().CloseSession(sessionContext)
-			if err != nil {
+			// CloseSession drains in-flight events itself, so no delay is needed.
+			if err := scx.srv.GetBPF().CloseSession(sessionContext); err != nil {
 				s.logger.ErrorContext(ctx, "Failed to close enhanced recording (exec) session.", "error", err)
 			}
 		}

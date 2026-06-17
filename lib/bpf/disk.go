@@ -46,12 +46,13 @@ var lostDiskEvents = prometheus.NewCounter(
 type open struct {
 	objs diskObjects
 
-	bpfEvents   chan []byte
+	bpfEvents   chan bpfEvent
 	lostCounter *Counter
 	toClose     []io.Closer
 
 	closed   bool
 	flushBuf func() error
+	drain    drainQueue
 
 	mtx sync.Mutex
 	wg  sync.WaitGroup
@@ -118,10 +119,15 @@ func startOpen(bufferSize int) (*open, error) {
 		flushBuf:    eventBuf.Flush,
 	}
 
-	o.bpfEvents = make(chan []byte, bufferSize)
-	o.wg.Go(func() { sendEvents("disk", o.bpfEvents, eventBuf) })
+	o.bpfEvents = make(chan bpfEvent, bufferSize)
+	o.wg.Go(func() { sendEvents("disk", o.bpfEvents, eventBuf, &o.drain) })
 
 	return o, nil
+}
+
+// drainSession waits for in-flight disk events to be emitted before close.
+func (o *open) drainSession() {
+	drainPipelines("disk", o.flushBuf, &o.drain)
 }
 
 func (o *open) startSession(auditSessionID uint32) error {
@@ -165,6 +171,8 @@ func (o *open) close() {
 	}
 
 	o.closed = true
+	// Close the drain queue so the flush below makes the reader exit, not drain.
+	o.drain.close()
 
 	if err := o.flushBuf(); err != nil {
 		logger.WarnContext(context.Background(), "failed to flush disk ring buffer", "error", err)
@@ -195,6 +203,6 @@ func (o *open) close() {
 }
 
 // events contains raw events off the perf buffer.
-func (o *open) events() <-chan []byte {
+func (o *open) events() <-chan bpfEvent {
 	return o.bpfEvents
 }
