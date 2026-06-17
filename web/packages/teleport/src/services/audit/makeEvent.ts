@@ -1901,18 +1901,14 @@ export const formatters: Formatters = {
   [eventCodes.SPIFFE_SVID_ISSUED]: {
     type: 'spiffe.svid.issued',
     desc: 'SPIFFE SVID Issued',
-    format: ({ user, spiffe_id, workload_identity_scope }) =>
-      `User [${user}] issued SPIFFE SVID [${spiffe_id}]${
-        workload_identity_scope ? ` in scope [${workload_identity_scope}]` : ''
-      }`,
+    format: ({ user, spiffe_id }) =>
+      `User [${user}] issued SPIFFE SVID [${spiffe_id}]`,
   },
   [eventCodes.SPIFFE_SVID_ISSUED_FAILURE]: {
     type: 'spiffe.svid.issued',
     desc: 'SPIFFE SVID Issued Failure',
-    format: ({ user, spiffe_id, workload_identity_scope }) =>
-      `User [${user}] failed to issue SPIFFE SVID [${spiffe_id}]${
-        workload_identity_scope ? ` in scope [${workload_identity_scope}]` : ''
-      }`,
+    format: ({ user, spiffe_id }) =>
+      `User [${user}] failed to issue SPIFFE SVID [${spiffe_id}]`,
   },
   [eventCodes.AUTH_PREFERENCE_UPDATE]: {
     type: 'auth_preference.update',
