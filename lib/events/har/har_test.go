@@ -87,3 +87,44 @@ func TestBuilder_RequestWithoutResponse(t *testing.T) {
 	require.NoError(t, b.Encode(&buf))
 	require.Contains(t, buf.String(), `"status": 0`)
 }
+
+func TestParseAndIndex(t *testing.T) {
+	t.Parallel()
+	b := NewBuilder()
+	b.Add(&apievents.AppSessionHTTPRequest{
+		RequestId: "r1", Method: "POST", Url: "https://x/a",
+		Headers: []*apievents.HTTPHeader{{Name: "Content-Type", Value: "application/json"}},
+	})
+	b.Add(&apievents.AppSessionHTTPRequestBodyChunk{RequestId: "r1", ChunkIndex: 0, Data: []byte(`{"k":1}`)})
+	b.Add(&apievents.AppSessionHTTPResponse{
+		RequestId: "r1", StatusCode: 201,
+		Headers: []*apievents.HTTPHeader{{Name: "Content-Type", Value: "application/json"}},
+	})
+	b.Add(&apievents.AppSessionHTTPResponseBodyChunk{RequestId: "r1", ChunkIndex: 0, Data: []byte(`{"ok":true}`)})
+	b.Add(&apievents.AppSessionHTTPRequest{RequestId: "r2", Method: "GET", Url: "https://x/b"})
+
+	var buf bytes.Buffer
+	require.NoError(t, b.Encode(&buf))
+
+	root, err := Parse(buf.Bytes())
+	require.NoError(t, err)
+
+	idx := root.Index()
+	require.Len(t, idx, 2)
+
+	require.Equal(t, 0, idx[0].Index)
+	require.Equal(t, "POST", idx[0].Method)
+	require.Equal(t, "https://x/a", idx[0].URL)
+	require.Equal(t, 201, idx[0].StatusCode)
+	require.Equal(t, "application/json", idx[0].ResponseMIMEType)
+	require.Equal(t, len(`{"ok":true}`), idx[0].ResponseBodySize)
+	require.Equal(t, len(`{"k":1}`), idx[0].RequestBodySize)
+
+	// r2 has a request but no response.
+	require.Equal(t, 1, idx[1].Index)
+	require.Equal(t, "GET", idx[1].Method)
+	require.Equal(t, 0, idx[1].StatusCode)
+
+	// Entries are retrievable by index for on-demand loading.
+	require.Len(t, root.Log.Entries, 2)
+}

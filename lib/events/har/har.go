@@ -183,6 +183,53 @@ func (b *Builder) Encode(w io.Writer) error {
 	return trace.Wrap(enc.Encode(root))
 }
 
+// Parse decodes a HAR 1.2 document.
+func Parse(data []byte) (Root, error) {
+	var root Root
+	if err := json.Unmarshal(data, &root); err != nil {
+		return Root{}, trace.Wrap(err)
+	}
+	return root, nil
+}
+
+// EntryMeta is lightweight metadata for one HAR entry, used to render an
+// exchange list without loading bodies.
+type EntryMeta struct {
+	Index            int
+	Method           string
+	URL              string
+	StatusCode       int
+	RequestBodySize  int
+	ResponseBodySize int
+	ResponseMIMEType string
+	StartedDateTime  string
+	TotalTimeMs      float64
+}
+
+// Index returns lightweight per-entry metadata for the document's entries, in
+// chronological order. It carries no request/response bodies.
+func (r Root) Index() []EntryMeta {
+	metas := make([]EntryMeta, 0, len(r.Log.Entries))
+	for i, e := range r.Log.Entries {
+		var reqBodySize int
+		if e.Request.PostData != nil {
+			reqBodySize = len(e.Request.PostData.Text)
+		}
+		metas = append(metas, EntryMeta{
+			Index:            i,
+			Method:           e.Request.Method,
+			URL:              e.Request.URL,
+			StatusCode:       e.Response.Status,
+			RequestBodySize:  reqBodySize,
+			ResponseBodySize: e.Response.Content.Size,
+			ResponseMIMEType: e.Response.Content.MimeType,
+			StartedDateTime:  e.StartedDateTime,
+			TotalTimeMs:      e.Time,
+		})
+	}
+	return metas
+}
+
 func buildHAREntry(p *pendingEntry) Entry {
 	req := p.request
 
