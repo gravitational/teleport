@@ -29,10 +29,6 @@ import (
 )
 
 func (s *TerraformSuiteOSS) TestAutoUpdateConfig() {
-	// TODO: Implement ZeroForUnknown plan modifier to allow attributes to be
-	// reset by clearing the config value.
-	s.T().Skip("Failed validating spec.agents.schedules")
-
 	name := "teleport_autoupdate_config.test"
 
 	resource.Test(s.T(), resource.TestCase{
@@ -48,6 +44,12 @@ func (s *TerraformSuiteOSS) TestAutoUpdateConfig() {
 					resource.TestCheckResourceAttr(name, "spec.agents.mode", "enabled"),
 					resource.TestCheckResourceAttr(name, "spec.agents.strategy", "halt-on-error"),
 					resource.TestCheckResourceAttr(name, "spec.agents.schedules.regular.0.name", "dev"),
+					resource.TestCheckResourceAttr(name, "spec.agents.schedules.regular.0.start_hour", "4"),
+					resource.TestCheckResourceAttr(name, "spec.agents.schedules.regular.1.name", "staging"),
+					resource.TestCheckResourceAttr(name, "spec.agents.schedules.regular.1.start_hour", "14"),
+					resource.TestCheckResourceAttr(name, "spec.agents.schedules.regular.2.name", "prod"),
+					resource.TestCheckResourceAttr(name, "spec.agents.schedules.regular.2.start_hour", "14"),
+					resource.TestCheckResourceAttr(name, "spec.agents.schedules.regular.2.wait_hours", "24"),
 				),
 			},
 			{
@@ -62,6 +64,8 @@ func (s *TerraformSuiteOSS) TestAutoUpdateConfig() {
 					resource.TestCheckResourceAttr(name, "spec.agents.mode", "suspended"),
 					resource.TestCheckResourceAttr(name, "spec.agents.strategy", "time-based"),
 					resource.TestCheckResourceAttr(name, "spec.agents.maintenance_window_duration", "45m"),
+					resource.TestCheckResourceAttr(name, "spec.agents.schedules.regular.1.start_hour", "8"),
+					resource.TestCheckResourceAttr(name, "spec.agents.schedules.regular.2.wait_hours", "0"),
 				),
 			},
 			{
