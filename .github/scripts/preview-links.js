@@ -13,6 +13,16 @@ const path = require('path');
 const START_MARKER = '<!-- amplify-per-page-preview:start -->';
 const END_MARKER = '<!-- amplify-per-page-preview:end -->';
 
+// True if a path is a rendered docs page (not a reusable partial under
+// an includes/ directory).
+function isRenderedPage(p) {
+  return (
+    p.startsWith('docs/pages/') &&
+    p.endsWith('.mdx') &&
+    !p.includes('/includes/')
+  );
+}
+
 // Build the public preview URL for a docs/pages/*.mdx file.
 //   previewHost: e.g. "https://my-branch.d123.amplifyapp.com"
 //   p:           e.g. "docs/pages/foo/bar.mdx"
@@ -43,10 +53,11 @@ function getChangedPaths(files) {
     .map((f) => f.filename);
 }
 
-// Split the changed paths into the two categories we care about:
+// Split the changed paths into the categories we care about:
 //   - directlyChangedPages: a Set of docs/pages/**/*.mdx (excluding includes)
 //   - changedImages:        an array of {path, basename, matchSuffix} objects
 //                           for docs/img/**/*.{png,svg}
+//   - changedPartials:      an array of docs/pages/**/includes/**/*.mdx paths
 // matchSuffix is the portion of the path that MDX references contain
 // (e.g. "img/headless/approval.png"), used for substring matching later.
 function categorizeChangedPaths(changedPaths) {
@@ -66,13 +77,66 @@ function categorizeChangedPaths(changedPaths) {
       matchSuffix: p.replace(/^docs\//, ''),
     }));
 
-  return { directlyChangedPages, changedImages };
+  const changedPartials = changedPaths
+    .filter((p) => p.startsWith('docs/pages/'))
+    .filter((p) => p.endsWith('.mdx'))
+    .filter((p) => p.includes('/includes/'));
+
+  return { directlyChangedPages, changedImages, changedPartials };
 }
 
 // Given one MDX file's text content and the list of changed images, return
 // just the changed images whose reference appears in that content.
 function matchedImagesInContent(content, changedImages) {
   return changedImages.filter((img) => content.includes(img.matchSuffix));
+}
+
+// Extract the partial (.mdx) paths referenced by Teleport include directives
+// of the form (!docs/pages/includes/foo.mdx!) in the given content. Optional
+// surrounding whitespace is tolerated. Non-.mdx includes (e.g. code snippets)
+// are ignored, since they are not rendered pages we link to.
+function extractIncludePaths(content) {
+  const paths = [];
+  const re = /\(!\s*([^\s!]+\.mdx)\s*!\)/g;
+  let m;
+  while ((m = re.exec(content)) !== null) {
+    paths.push(m[1]);
+  }
+  return paths;
+}
+
+// Resolve changed partials to the rendered pages that embed them.
+//   changedPartials: array of partial paths that changed in the PR.
+//   includedBy:      Map of partialPath -> Set<includerPath>, where an
+//                    includer is any file that contains (!partialPath!).
+// Returns a Map of renderedPagePath -> Set<changedPartialPath>. Partials can
+// be included by other partials, so this walks the "included-by" graph upward
+// until it reaches rendered pages, guarding against cycles.
+function resolveAffectedPages(changedPartials, includedBy) {
+  const affectedPages = new Map();
+  for (const partial of changedPartials) {
+    const seen = new Set();
+    const stack = [partial];
+    while (stack.length > 0) {
+      const current = stack.pop();
+      const includers = includedBy.get(current);
+      if (!includers) continue;
+      for (const includer of includers) {
+        if (seen.has(includer)) continue;
+        seen.add(includer);
+        if (isRenderedPage(includer)) {
+          if (!affectedPages.has(includer)) {
+            affectedPages.set(includer, new Set());
+          }
+          affectedPages.get(includer).add(partial);
+        } else {
+          // The includer is itself a partial; keep climbing toward pages.
+          stack.push(includer);
+        }
+      }
+    }
+  }
+  return affectedPages;
 }
 
 // Changed images that no page references at all, sorted for stable output.
@@ -84,34 +148,69 @@ function computeOrphanedImages(changedImages, referencedImagePaths) {
     .sort();
 }
 
-// The unified, de-duplicated, sorted list of page paths to link:
-// directly-changed pages plus any page that references a changed image.
-// imageRefMap is a Map of mdxPath -> Set<basename>.
-function buildAllPagePaths(directlyChangedPages, imageRefMap) {
+// Changed partials that no rendered page embeds (directly or transitively),
+// sorted for stable output. affectedPages is the Map from resolveAffectedPages.
+function computeOrphanedPartials(changedPartials, affectedPages) {
+  const reached = new Set();
+  for (const partials of affectedPages.values()) {
+    for (const p of partials) reached.add(p);
+  }
+  return changedPartials.filter((p) => !reached.has(p)).sort();
+}
+
+// The unified, de-duplicated, sorted list of page paths to link: directly
+// changed pages, pages referencing a changed image, and pages embedding a
+// changed partial. imageRefMap/partialRefMap are Maps keyed by page path.
+function buildAllPagePaths(directlyChangedPages, imageRefMap, partialRefMap) {
   return [
-    ...new Set([...directlyChangedPages, ...imageRefMap.keys()]),
+    ...new Set([
+      ...directlyChangedPages,
+      ...(imageRefMap ? imageRefMap.keys() : []),
+      ...(partialRefMap ? partialRefMap.keys() : []),
+    ]),
   ].sort();
 }
 
-// Build the Markdown list items, one per page, with an optional annotation
-// noting which changed image(s) the page references.
-function buildPageEntries(allPagePaths, imageRefMap, previewHost) {
+// Build the parenthetical annotation for a page, noting any changed images it
+// references and any changed partials it embeds. imageRefMap/partialRefMap are
+// Maps of pagePath -> Set<basename>.
+function buildAnnotation(p, imageRefMap, partialRefMap) {
+  const segments = [];
+
+  const imageRefs = imageRefMap && imageRefMap.get(p);
+  if (imageRefs && imageRefs.size > 0) {
+    const sorted = [...imageRefs].sort();
+    segments.push(
+      `${sorted.length === 1 ? 'image change' : 'image changes'}: ` +
+        sorted.map((b) => '`' + b + '`').join(', ')
+    );
+  }
+
+  const partialRefs = partialRefMap && partialRefMap.get(p);
+  if (partialRefs && partialRefs.size > 0) {
+    const sorted = [...partialRefs].sort();
+    segments.push(
+      `${sorted.length === 1 ? 'affected partial' : 'affected partials'}: ` +
+        sorted.map((b) => '`' + b + '`').join(', ')
+    );
+  }
+
+  return segments.length > 0 ? ` — ${segments.join('; ')}` : '';
+}
+
+// Build the Markdown list items, one per page, with optional annotations.
+//   refMaps: { imageRefMap, partialRefMap }, both Maps of page -> Set<basename>
+function buildPageEntries(allPagePaths, previewHost, refMaps = {}) {
+  const { imageRefMap, partialRefMap } = refMaps;
   return allPagePaths.map((p) => {
     const url = pageUrl(previewHost, p);
-    const imageRefs = imageRefMap.get(p);
-    let annotation = '';
-    if (imageRefs && imageRefs.size > 0) {
-      const sorted = [...imageRefs].sort();
-      const label = sorted.length === 1 ? 'image change' : 'image changes';
-      annotation = ` — ${label}: ${sorted.map((b) => '`' + b + '`').join(', ')}`;
-    }
-    return `- [\`${p}\`](${url})${annotation}`;
+    return `- [\`${p}\`](${url})${buildAnnotation(p, imageRefMap, partialRefMap)}`;
   });
 }
 
-// Compose the full Markdown section (including the start/end markers) from
-// the page entries and any orphaned images.
-function composeLinksSection(pageEntries, orphanedImages) {
+// Compose the full Markdown section (including the start/end markers) from the
+// page entries and any orphaned images/partials.
+function composeLinksSection(pageEntries, orphanedImages = [], orphanedPartials = []) {
   const sectionLines = [START_MARKER, '', '### Preview links for changed docs pages', ''];
 
   if (pageEntries.length > 0) {
@@ -123,6 +222,11 @@ function composeLinksSection(pageEntries, orphanedImages) {
   if (orphanedImages.length > 0) {
     sectionLines.push('', '#### Changed images with no associated page', '');
     sectionLines.push(...orphanedImages.map((p) => `- \`${p}\``));
+  }
+
+  if (orphanedPartials.length > 0) {
+    sectionLines.push('', '#### Changed partials not included by any page', '');
+    sectionLines.push(...orphanedPartials.map((p) => `- \`${p}\``));
   }
 
   sectionLines.push('', END_MARKER);
@@ -146,12 +250,17 @@ function upsertLinksSection(body, linksSection) {
 module.exports = {
   START_MARKER,
   END_MARKER,
+  isRenderedPage,
   pageUrl,
   getChangedPaths,
   categorizeChangedPaths,
   matchedImagesInContent,
+  extractIncludePaths,
+  resolveAffectedPages,
   computeOrphanedImages,
+  computeOrphanedPartials,
   buildAllPagePaths,
+  buildAnnotation,
   buildPageEntries,
   composeLinksSection,
   upsertLinksSection,

@@ -18,7 +18,10 @@ const {
   getChangedPaths,
   categorizeChangedPaths,
   matchedImagesInContent,
+  extractIncludePaths,
+  resolveAffectedPages,
   computeOrphanedImages,
+  computeOrphanedPartials,
   buildAllPagePaths,
   buildPageEntries,
   composeLinksSection,
@@ -26,17 +29,20 @@ const {
   START_MARKER,
 } = require('./preview-links.js');
 
-// Recursively list every .mdx file under `dir`, skipping any subdirectory
-// named "includes". Filesystem I/O, so it lives here rather than in the
-// pure module, but it has no GitHub dependency and is covered by a test.
-async function listMdxPages(dir) {
+// Recursively list every .mdx file under `dir`. By default (skipIncludes:
+// true) it skips any subdirectory named "includes", matching the set of
+// rendered pages. Pass { skipIncludes: false } to also list partials, which
+// is needed to build the include graph. Filesystem I/O, so it lives here
+// rather than in the pure module, but it has no GitHub dependency and is
+// covered by a test.
+async function listMdxPages(dir, { skipIncludes = true } = {}) {
   const results = [];
   async function walk(d) {
     const entries = await fs.promises.readdir(d, { withFileTypes: true });
     for (const entry of entries) {
       const full = path.join(d, entry.name);
       if (entry.isDirectory()) {
-        if (entry.name === 'includes') continue;
+        if (skipIncludes && entry.name === 'includes') continue;
         await walk(full);
       } else if (entry.isFile() && full.endsWith('.mdx')) {
         results.push(full);
@@ -75,30 +81,57 @@ async function run({ github, context, core }) {
   });
 
   const changedPaths = getChangedPaths(files);
-  const { directlyChangedPages, changedImages } = categorizeChangedPaths(changedPaths);
+  const { directlyChangedPages, changedImages, changedPartials } =
+    categorizeChangedPaths(changedPaths);
 
-  // --- Map changed images to the pages that reference them (filesystem) ---
-  const imageRefMap = new Map(); // mdx path -> Set<basename>
+  // --- Single filesystem pass: map changed images to the pages that
+  // reference them, and build the include graph used to map changed partials
+  // back to the pages that embed them. We only walk the tree when there is
+  // indirect work to do (an image or partial changed). ---
+  const imageRefMap = new Map(); // page path -> Set<image basename>
   const referencedImagePaths = new Set();
+  const includedBy = new Map(); // partial path -> Set<includer path>
 
-  if (changedImages.length > 0) {
-    const allMdxPages = await listMdxPages('docs/pages');
-    for (const mdxPath of allMdxPages) {
+  if (changedImages.length > 0 || changedPartials.length > 0) {
+    // Partials can include other partials, so build the graph from every mdx
+    // file, not just rendered pages.
+    const allMdxFiles = await listMdxPages('docs/pages', { skipIncludes: false });
+    for (const mdxPath of allMdxFiles) {
       const content = await fs.promises.readFile(mdxPath, 'utf8');
-      for (const img of matchedImagesInContent(content, changedImages)) {
-        if (!imageRefMap.has(mdxPath)) {
-          imageRefMap.set(mdxPath, new Set());
+
+      // Image references only matter on rendered pages (partials are not
+      // linked directly), preserving the existing image behavior.
+      if (changedImages.length > 0 && !mdxPath.includes('/includes/')) {
+        for (const img of matchedImagesInContent(content, changedImages)) {
+          if (!imageRefMap.has(mdxPath)) imageRefMap.set(mdxPath, new Set());
+          imageRefMap.get(mdxPath).add(img.basename);
+          referencedImagePaths.add(img.path);
         }
-        imageRefMap.get(mdxPath).add(img.basename);
-        referencedImagePaths.add(img.path);
+      }
+
+      // Record include edges: this file includes each extracted partial path.
+      if (changedPartials.length > 0) {
+        for (const included of extractIncludePaths(content)) {
+          if (!includedBy.has(included)) includedBy.set(included, new Set());
+          includedBy.get(included).add(mdxPath);
+        }
       }
     }
   }
 
+  // Resolve changed partials to the rendered pages that embed them, then
+  // reduce to a per-page set of partial basenames for display.
+  const affectedPages = resolveAffectedPages(changedPartials, includedBy);
+  const partialRefMap = new Map(); // page path -> Set<partial basename>
+  for (const [pagePath, partials] of affectedPages) {
+    partialRefMap.set(pagePath, new Set([...partials].map((p) => path.basename(p))));
+  }
+
   const orphanedImages = computeOrphanedImages(changedImages, referencedImagePaths);
-  const allPagePaths = buildAllPagePaths(directlyChangedPages, imageRefMap);
-  const pageEntries = buildPageEntries(allPagePaths, imageRefMap, previewHost);
-  const linksSection = composeLinksSection(pageEntries, orphanedImages);
+  const orphanedPartials = computeOrphanedPartials(changedPartials, affectedPages);
+  const allPagePaths = buildAllPagePaths(directlyChangedPages, imageRefMap, partialRefMap);
+  const pageEntries = buildPageEntries(allPagePaths, previewHost, { imageRefMap, partialRefMap });
+  const linksSection = composeLinksSection(pageEntries, orphanedImages, orphanedPartials);
 
   // --- Find the deployment-status comment to append to (GitHub API) ---
   const { data: comments } = await github.rest.issues.listComments({

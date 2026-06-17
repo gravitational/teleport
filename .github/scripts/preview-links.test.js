@@ -16,7 +16,10 @@ const {
   getChangedPaths,
   categorizeChangedPaths,
   matchedImagesInContent,
+  extractIncludePaths,
+  resolveAffectedPages,
   computeOrphanedImages,
+  computeOrphanedPartials,
   buildAllPagePaths,
   buildPageEntries,
   composeLinksSection,
@@ -94,10 +97,10 @@ test('getChangedPaths: drops removed files, keeps the rest', () => {
 
 // --- categorizeChangedPaths ------------------------------------------------
 
-test('categorizeChangedPaths: separates pages from images, excludes includes and non-images', () => {
+test('categorizeChangedPaths: separates pages, images, and partials', () => {
   const changedPaths = [
     'docs/pages/foo.mdx', // page
-    'docs/pages/includes/snippet.mdx', // excluded (includes)
+    'docs/pages/includes/snippet.mdx', // partial (under includes)
     'docs/pages/guide/index.mdx', // page
     'docs/img/headless/approval.png', // image
     'docs/img/diagram.svg', // image
@@ -105,12 +108,15 @@ test('categorizeChangedPaths: separates pages from images, excludes includes and
     'docs/config.yaml', // ignored entirely
   ];
 
-  const { directlyChangedPages, changedImages } = categorizeChangedPaths(changedPaths);
+  const { directlyChangedPages, changedImages, changedPartials } =
+    categorizeChangedPaths(changedPaths);
 
   assert.deepEqual(
     [...directlyChangedPages].sort(),
     ['docs/pages/foo.mdx', 'docs/pages/guide/index.mdx']
   );
+
+  assert.deepEqual(changedPartials, ['docs/pages/includes/snippet.mdx']);
 
   assert.deepEqual(changedImages, [
     {
@@ -166,25 +172,116 @@ test('computeOrphanedImages: returns sorted images not referenced anywhere', () 
   ]);
 });
 
+// --- extractIncludePaths ---------------------------------------------------
+
+test('extractIncludePaths: pulls .mdx partial paths from include directives', () => {
+  const content = [
+    'Some prose.',
+    '(!docs/pages/includes/database-access/connection-timeout-troubleshooting.mdx!)',
+    'More prose, then a code snippet include we ignore:',
+    '(!examples/foo/main.go!)',
+    '(! docs/pages/includes/spaced.mdx !)', // tolerate surrounding whitespace
+  ].join('\n');
+
+  assert.deepEqual(extractIncludePaths(content), [
+    'docs/pages/includes/database-access/connection-timeout-troubleshooting.mdx',
+    'docs/pages/includes/spaced.mdx',
+  ]);
+});
+
+test('extractIncludePaths: returns empty array when there are no includes', () => {
+  assert.deepEqual(extractIncludePaths('no includes here'), []);
+});
+
+// --- resolveAffectedPages --------------------------------------------------
+
+test('resolveAffectedPages: maps a changed partial to the page that includes it', () => {
+  const changedPartials = ['docs/pages/includes/db/timeout.mdx'];
+  const includedBy = new Map([
+    ['docs/pages/includes/db/timeout.mdx', new Set(['docs/pages/db/troubleshooting.mdx'])],
+  ]);
+  const affected = resolveAffectedPages(changedPartials, includedBy);
+  assert.deepEqual(
+    [...affected.keys()],
+    ['docs/pages/db/troubleshooting.mdx']
+  );
+  assert.deepEqual(
+    [...affected.get('docs/pages/db/troubleshooting.mdx')],
+    ['docs/pages/includes/db/timeout.mdx']
+  );
+});
+
+test('resolveAffectedPages: resolves through a nested partial (partial includes partial)', () => {
+  const changedPartials = ['docs/pages/includes/inner.mdx'];
+  const includedBy = new Map([
+    // inner partial is included by an outer partial...
+    ['docs/pages/includes/inner.mdx', new Set(['docs/pages/includes/outer.mdx'])],
+    // ...and the outer partial is included by a real page.
+    ['docs/pages/includes/outer.mdx', new Set(['docs/pages/guide/setup.mdx'])],
+  ]);
+  const affected = resolveAffectedPages(changedPartials, includedBy);
+  assert.deepEqual([...affected.keys()], ['docs/pages/guide/setup.mdx']);
+});
+
+test('resolveAffectedPages: a partial included by nothing yields no pages', () => {
+  const affected = resolveAffectedPages(
+    ['docs/pages/includes/orphan.mdx'],
+    new Map()
+  );
+  assert.equal(affected.size, 0);
+});
+
+test('resolveAffectedPages: guards against include cycles', () => {
+  // a -> b -> a, with neither being a rendered page; should terminate.
+  const includedBy = new Map([
+    ['docs/pages/includes/a.mdx', new Set(['docs/pages/includes/b.mdx'])],
+    ['docs/pages/includes/b.mdx', new Set(['docs/pages/includes/a.mdx'])],
+  ]);
+  const affected = resolveAffectedPages(['docs/pages/includes/a.mdx'], includedBy);
+  assert.equal(affected.size, 0);
+});
+
+// --- computeOrphanedPartials -----------------------------------------------
+
+test('computeOrphanedPartials: returns sorted partials that reach no page', () => {
+  const changedPartials = [
+    'docs/pages/includes/used.mdx',
+    'docs/pages/includes/z-orphan.mdx',
+    'docs/pages/includes/a-orphan.mdx',
+  ];
+  const affectedPages = new Map([
+    ['docs/pages/guide.mdx', new Set(['docs/pages/includes/used.mdx'])],
+  ]);
+  assert.deepEqual(computeOrphanedPartials(changedPartials, affectedPages), [
+    'docs/pages/includes/a-orphan.mdx',
+    'docs/pages/includes/z-orphan.mdx',
+  ]);
+});
+
 // --- buildAllPagePaths -----------------------------------------------------
 
-test('buildAllPagePaths: merges, de-duplicates, and sorts', () => {
+test('buildAllPagePaths: merges direct, image, and partial pages, deduped and sorted', () => {
   const direct = new Set(['docs/pages/b.mdx', 'docs/pages/a.mdx']);
   const imageRefMap = new Map([
     ['docs/pages/a.mdx', new Set(['x.png'])], // also in `direct` -> deduped
     ['docs/pages/c.mdx', new Set(['y.png'])],
   ]);
-  assert.deepEqual(buildAllPagePaths(direct, imageRefMap), [
+  const partialRefMap = new Map([
+    ['docs/pages/c.mdx', new Set(['p.mdx'])], // also via image -> deduped
+    ['docs/pages/d.mdx', new Set(['q.mdx'])],
+  ]);
+  assert.deepEqual(buildAllPagePaths(direct, imageRefMap, partialRefMap), [
     'docs/pages/a.mdx',
     'docs/pages/b.mdx',
     'docs/pages/c.mdx',
+    'docs/pages/d.mdx',
   ]);
 });
 
 // --- buildPageEntries ------------------------------------------------------
 
-test('buildPageEntries: plain page with no image annotation', () => {
-  const entries = buildPageEntries(['docs/pages/foo.mdx'], new Map(), HOST);
+test('buildPageEntries: plain page with no annotation', () => {
+  const entries = buildPageEntries(['docs/pages/foo.mdx'], HOST);
   assert.deepEqual(entries, [
     `- [\`docs/pages/foo.mdx\`](${HOST}/docs/foo/)`,
   ]);
@@ -192,7 +289,7 @@ test('buildPageEntries: plain page with no image annotation', () => {
 
 test('buildPageEntries: single image change annotation', () => {
   const imageRefMap = new Map([['docs/pages/foo.mdx', new Set(['a.png'])]]);
-  const entries = buildPageEntries(['docs/pages/foo.mdx'], imageRefMap, HOST);
+  const entries = buildPageEntries(['docs/pages/foo.mdx'], HOST, { imageRefMap });
   assert.equal(
     entries[0],
     `- [\`docs/pages/foo.mdx\`](${HOST}/docs/foo/) — image change: \`a.png\``
@@ -203,10 +300,32 @@ test('buildPageEntries: multiple image changes are sorted and pluralized', () =>
   const imageRefMap = new Map([
     ['docs/pages/foo.mdx', new Set(['b.png', 'a.png'])],
   ]);
-  const entries = buildPageEntries(['docs/pages/foo.mdx'], imageRefMap, HOST);
+  const entries = buildPageEntries(['docs/pages/foo.mdx'], HOST, { imageRefMap });
   assert.equal(
     entries[0],
     `- [\`docs/pages/foo.mdx\`](${HOST}/docs/foo/) — image changes: \`a.png\`, \`b.png\``
+  );
+});
+
+test('buildPageEntries: affected-partial annotation', () => {
+  const partialRefMap = new Map([['docs/pages/foo.mdx', new Set(['timeout.mdx'])]]);
+  const entries = buildPageEntries(['docs/pages/foo.mdx'], HOST, { partialRefMap });
+  assert.equal(
+    entries[0],
+    `- [\`docs/pages/foo.mdx\`](${HOST}/docs/foo/) — affected partial: \`timeout.mdx\``
+  );
+});
+
+test('buildPageEntries: combined image and partial annotations', () => {
+  const imageRefMap = new Map([['docs/pages/foo.mdx', new Set(['a.png'])]]);
+  const partialRefMap = new Map([['docs/pages/foo.mdx', new Set(['p.mdx'])]]);
+  const entries = buildPageEntries(['docs/pages/foo.mdx'], HOST, {
+    imageRefMap,
+    partialRefMap,
+  });
+  assert.equal(
+    entries[0],
+    `- [\`docs/pages/foo.mdx\`](${HOST}/docs/foo/) — image change: \`a.png\`; affected partial: \`p.mdx\``
   );
 });
 
@@ -229,6 +348,12 @@ test('composeLinksSection: includes an orphaned-images subsection when present',
   const section = composeLinksSection(['- entry'], ['docs/img/orphan.png']);
   assert.ok(section.includes('#### Changed images with no associated page'));
   assert.ok(section.includes('- `docs/img/orphan.png`'));
+});
+
+test('composeLinksSection: includes an orphaned-partials subsection when present', () => {
+  const section = composeLinksSection(['- entry'], [], ['docs/pages/includes/orphan.mdx']);
+  assert.ok(section.includes('#### Changed partials not included by any page'));
+  assert.ok(section.includes('- `docs/pages/includes/orphan.mdx`'));
 });
 
 // --- upsertLinksSection ----------------------------------------------------
@@ -270,6 +395,22 @@ test('listMdxPages: finds .mdx files recursively and skips "includes" dirs', asy
 
     const found = (await listMdxPages(root)).map((p) => path.relative(root, p)).sort();
     assert.deepEqual(found, [path.join('guide', 'nested.mdx'), 'top.mdx']);
+  } finally {
+    await fs.promises.rm(root, { recursive: true, force: true });
+  }
+});
+
+test('listMdxPages: with skipIncludes=false, also lists partials under includes/', async () => {
+  const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'mdx-test-'));
+  try {
+    await fs.promises.mkdir(path.join(root, 'includes'), { recursive: true });
+    await fs.promises.writeFile(path.join(root, 'top.mdx'), '# top');
+    await fs.promises.writeFile(path.join(root, 'includes', 'snippet.mdx'), '# partial');
+
+    const found = (await listMdxPages(root, { skipIncludes: false }))
+      .map((p) => path.relative(root, p))
+      .sort();
+    assert.deepEqual(found, [path.join('includes', 'snippet.mdx'), 'top.mdx']);
   } finally {
     await fs.promises.rm(root, { recursive: true, force: true });
   }
