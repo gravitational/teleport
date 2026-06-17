@@ -62,6 +62,29 @@ func TestParseInvalidYAML(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestParseRejectsNonMappingRoot(t *testing.T) {
+	for _, input := range []string{"scalar", "- a\n- b\n", "42"} {
+		_, err := Parse([]byte(input))
+		require.Error(t, err, "input %q", input)
+	}
+}
+
+func TestSetRejectsNonMappingParent(t *testing.T) {
+	doc, err := Parse([]byte("a: scalar\n"))
+	require.NoError(t, err)
+	// Descending into a scalar value must error rather than silently corrupt it.
+	require.Error(t, Set(doc, "a.b.c", "v"))
+	require.Error(t, SetBool(doc, "a.b", true))
+}
+
+func TestDeleteRemovesDuplicateKeys(t *testing.T) {
+	doc, err := Parse([]byte("dup: one\ndup: two\nkeep: yes\n"))
+	require.NoError(t, err)
+	require.NoError(t, Delete(doc, "dup"))
+	require.False(t, Exists(doc, "dup"))
+	require.True(t, Exists(doc, "keep"))
+}
+
 func TestSet(t *testing.T) {
 	tests := []struct {
 		name     string

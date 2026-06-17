@@ -23,6 +23,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/google/renameio/v2"
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
 
@@ -42,25 +43,16 @@ type modifyFlags struct {
 	unset          []string
 	roles          string
 
-	// Named value flags (mirror configure flags)
-	clusterName   string
-	token         string
-	joinMethod    string
-	authServer    string
-	proxy         string
-	publicAddr    string
-	dataDir       string
-	nodeName      string
-	nodeLabels    string
-	caPin         string
-	certFile      string
-	keyFile       string
-	acmeEnabled   bool
-	acmeEmail     string
-	version       string
-	appName       string
-	appURI        string
-	mcpDemoServer bool
+	// Named value flags for the fields a cluster migration / re-enrollment touches.
+	// Anything not covered here can still be edited via --set/--unset.
+	clusterName string
+	token       string
+	joinMethod  string
+	authServer  string
+	proxy       string
+	dataDir     string
+	caPin       string
+	version     string
 }
 
 // flagPathMap maps CLI flag names to their YAML dot-paths.
@@ -69,16 +61,9 @@ var flagPathMap = map[string]string{
 	"join-method":  "teleport.join_params.method",
 	"auth-server":  "teleport.auth_server",
 	"proxy":        "teleport.proxy_server",
-	"public-addr":  "proxy_service.public_addr",
 	"data-dir":     "teleport.data_dir",
-	"node-name":    "teleport.nodename",
 	"ca-pin":       "teleport.ca_pin",
-	"cert-file":    "proxy_service.https_cert_file",
-	"key-file":     "proxy_service.https_key_file",
-	"acme-email":   "proxy_service.acme.email",
 	"version":      "version",
-	"app-name":     "app_service.apps[0].name",
-	"app-uri":      "app_service.apps[0].uri",
 }
 
 // modifyRoleServiceMap maps role names to their YAML service section keys.
@@ -187,16 +172,9 @@ func applyNamedFlags(doc *yaml.Node, flags modifyFlags) error {
 		"join-method":  flags.joinMethod,
 		"auth-server":  flags.authServer,
 		"proxy":        flags.proxy,
-		"public-addr":  flags.publicAddr,
 		"data-dir":     flags.dataDir,
-		"node-name":    flags.nodeName,
 		"ca-pin":       flags.caPin,
-		"cert-file":    flags.certFile,
-		"key-file":     flags.keyFile,
-		"acme-email":   flags.acmeEmail,
 		"version":      flags.version,
-		"app-name":     flags.appName,
-		"app-uri":      flags.appURI,
 	}
 
 	for flagName, value := range namedValues {
@@ -212,8 +190,15 @@ func applyNamedFlags(doc *yaml.Node, flags modifyFlags) error {
 		}
 	}
 
-	// For v3 configs, auth_server and proxy_server are mutually exclusive.
-	// Delete the opposing field when either is explicitly set to avoid validation errors.
+	// For v3 configs, auth_server and proxy_server are mutually exclusive, and the
+	// legacy plural auth_servers field is rejected entirely (see applyAuthOrProxyAddress).
+	// When either endpoint is explicitly set, drop the opposing endpoint and the legacy
+	// auth_servers field to avoid validation errors on the modified config.
+	if flags.proxy != "" || flags.authServer != "" {
+		if err := yamlmod.Delete(doc, "teleport.auth_servers"); err != nil && !trace.IsNotFound(err) {
+			return trace.Wrap(err, "removing legacy teleport.auth_servers")
+		}
+	}
 	if flags.proxy != "" {
 		if err := yamlmod.Delete(doc, "teleport.auth_server"); err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err, "removing teleport.auth_server when setting proxy_server")
@@ -252,48 +237,7 @@ func applyNamedFlags(doc *yaml.Node, flags modifyFlags) error {
 		}
 	}
 
-	if flags.nodeLabels != "" {
-		labels, err := parseLabels(flags.nodeLabels)
-		if err != nil {
-			return trace.Wrap(err, "parsing --node-labels")
-		}
-		if err := yamlmod.SetMap(doc, "ssh_service.labels", labels); err != nil {
-			return trace.Wrap(err, "setting ssh_service.labels via --node-labels")
-		}
-	}
-
-	if flags.acmeEnabled {
-		if err := yamlmod.SetBool(doc, "proxy_service.acme.enabled", true); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	if flags.mcpDemoServer {
-		if err := yamlmod.SetBool(doc, "app_service.apps[0].mcp_demo_server", true); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
 	return nil
-}
-
-// parseLabels parses a comma-separated list of key=value pairs into a map.
-func parseLabels(s string) (map[string]string, error) {
-	labels := make(map[string]string)
-	for _, pair := range strings.Split(s, ",") {
-		pair = strings.TrimSpace(pair)
-		if pair == "" {
-			continue
-		}
-		k, v, ok := strings.Cut(pair, "=")
-		if !ok {
-			return nil, trace.BadParameter("label %q must be in format key=value", pair)
-		}
-		labels[strings.TrimSpace(k)] = strings.TrimSpace(v)
-	}
-	if len(labels) == 0 {
-		return nil, trace.BadParameter("no valid labels found in %q", s)
-	}
-	return labels, nil
 }
 
 func applyRoles(doc *yaml.Node, rolesStr string) error {
@@ -375,7 +319,10 @@ func writeModifyOutput(flags modifyFlags, data []byte) error {
 	}
 
 	if flags.overwrite {
-		if err := os.WriteFile(path, data, teleport.FileMaskOwnerOnly); err != nil {
+		// Write to a same-directory temp file and atomically rename over the target,
+		// so an interrupted or failed write (ENOSPC, NFS error, signal) never leaves
+		// the live config truncated. This is the intended in-place migration path.
+		if err := renameio.WriteFile(path, data, teleport.FileMaskOwnerOnly, renameio.WithTempDir(dir)); err != nil {
 			return trace.ConvertSystemError(err)
 		}
 		return nil

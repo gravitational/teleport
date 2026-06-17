@@ -55,7 +55,8 @@ func parsePath(path string) ([]segment, error) {
 	return segments, nil
 }
 
-// Parse reads YAML bytes into a *yaml.Node document node.
+// Parse reads YAML bytes into a *yaml.Node document node. The document root must
+// be a mapping, since every operation in this package addresses fields by key.
 func Parse(data []byte) (*yaml.Node, error) {
 	var doc yaml.Node
 	if err := yaml.Unmarshal(data, &doc); err != nil {
@@ -63,6 +64,9 @@ func Parse(data []byte) (*yaml.Node, error) {
 	}
 	if doc.Kind != yaml.DocumentNode || len(doc.Content) == 0 {
 		return nil, trace.BadParameter("expected a YAML document")
+	}
+	if doc.Content[0].Kind != yaml.MappingNode {
+		return nil, trace.BadParameter("expected a YAML mapping at the document root")
 	}
 	return &doc, nil
 }
@@ -152,6 +156,12 @@ func ensureMapping(parent *yaml.Node, seg segment) (*yaml.Node, error) {
 func navigateToParent(doc *yaml.Node, segs []segment) (*yaml.Node, segment, error) {
 	current := doc.Content[0]
 	for i, seg := range segs[:len(segs)-1] {
+		// current must be a mapping to look up or create the next key. Without
+		// this guard, ensureMapping/findKeyIndex would silently append children
+		// to a scalar or sequence node, corrupting the document.
+		if current.Kind != yaml.MappingNode {
+			return nil, segment{}, trace.BadParameter("cannot descend into non-mapping value before segment %d (%q)", i, seg.key)
+		}
 		if seg.index >= 0 {
 			idx := findKeyIndex(current, seg.key)
 			if idx < 0 {
@@ -177,6 +187,10 @@ func navigateToParent(doc *yaml.Node, segs []segment) (*yaml.Node, segment, erro
 			}
 			current = node
 		}
+	}
+	// The final parent must be a mapping so the value can be set under it.
+	if current.Kind != yaml.MappingNode {
+		return nil, segment{}, trace.BadParameter("cannot set value under non-mapping parent")
 	}
 	return current, segs[len(segs)-1], nil
 }
@@ -336,12 +350,20 @@ func Delete(doc *yaml.Node, path string) error {
 		return trace.BadParameter("parent of %q is not a mapping", path)
 	}
 
-	idx := findKeyIndex(parent, finalSeg.key)
-	if idx < 0 {
+	// Remove every occurrence of the key, not just the first: a (malformed)
+	// document may carry duplicate keys, and a delete should leave none behind.
+	found := false
+	for {
+		idx := findKeyIndex(parent, finalSeg.key)
+		if idx < 0 {
+			break
+		}
+		parent.Content = append(parent.Content[:idx], parent.Content[idx+2:]...)
+		found = true
+	}
+	if !found {
 		return trace.NotFound("path %q not found", path)
 	}
-
-	parent.Content = append(parent.Content[:idx], parent.Content[idx+2:]...)
 	return nil
 }
 

@@ -116,26 +116,6 @@ func TestOnConfigModify(t *testing.T) {
 		require.Contains(t, string(got), `enabled: "no"`)
 	})
 
-	t.Run("node-labels produces map", func(t *testing.T) {
-		inputFile := filepath.Join(t.TempDir(), "input.yaml")
-		require.NoError(t, os.WriteFile(inputFile, []byte("ssh_service:\n  enabled: \"yes\"\n"), 0644))
-
-		outputFile := filepath.Join(t.TempDir(), "output.yaml")
-
-		err := onConfigModify(modifyFlags{
-			input:      inputFile,
-			output:     "file://" + outputFile,
-			nodeLabels: "env=staging,cloud=aws",
-		})
-		require.NoError(t, err)
-
-		got, err := os.ReadFile(outputFile)
-		require.NoError(t, err)
-		require.Contains(t, string(got), "labels:")
-		require.Contains(t, string(got), "env: staging")
-		require.Contains(t, string(got), "cloud: aws")
-	})
-
 	t.Run("unset removes field", func(t *testing.T) {
 		inputFile := filepath.Join(t.TempDir(), "input.yaml")
 		require.NoError(t, os.WriteFile(inputFile, []byte("teleport:\n  data_dir: /var/lib/teleport\n  auth_token: old-token\n"), 0644))
@@ -337,6 +317,50 @@ func TestOnConfigModifyBugFixes(t *testing.T) {
 		require.Contains(t, string(got), "auth_server: auth.example.com:3025")
 		require.NotContains(t, string(got), "proxy_server")
 	})
+
+	t.Run("setting proxy clears legacy auth_servers", func(t *testing.T) {
+		inputFile := filepath.Join(t.TempDir(), "input.yaml")
+		require.NoError(t, os.WriteFile(inputFile, []byte("teleport:\n  data_dir: /var/lib/teleport\n  auth_servers:\n  - auth.example.com:3025\n"), 0644))
+
+		outputFile := filepath.Join(t.TempDir(), "output.yaml")
+
+		err := onConfigModify(modifyFlags{
+			input:  inputFile,
+			output: "file://" + outputFile,
+			proxy:  "proxy.example.com:443",
+		})
+		require.NoError(t, err)
+
+		got, err := os.ReadFile(outputFile)
+		require.NoError(t, err)
+		require.Contains(t, string(got), "proxy_server: proxy.example.com:443")
+		require.NotContains(t, string(got), "auth_servers")
+	})
+
+	t.Run("overwrite preserves original config if write target is the input", func(t *testing.T) {
+		dir := t.TempDir()
+		configFile := filepath.Join(dir, "teleport.yaml")
+		require.NoError(t, os.WriteFile(configFile, []byte("teleport:\n  data_dir: /var/lib/teleport\n  auth_server: auth.example.com:3025\n"), 0644))
+
+		err := onConfigModify(modifyFlags{
+			input:     configFile,
+			output:    "file://" + configFile,
+			overwrite: true,
+			proxy:     "proxy.example.com:443",
+		})
+		require.NoError(t, err)
+
+		got, err := os.ReadFile(configFile)
+		require.NoError(t, err)
+		require.Contains(t, string(got), "proxy_server: proxy.example.com:443")
+		require.NotContains(t, string(got), "auth_server")
+
+		// The atomic rename must not leave temp files behind in the target directory.
+		entries, err := os.ReadDir(dir)
+		require.NoError(t, err)
+		require.Len(t, entries, 1)
+		require.Equal(t, "teleport.yaml", entries[0].Name())
+	})
 }
 
 func TestOnConfigModifyRoles(t *testing.T) {
@@ -487,10 +511,11 @@ db_service:
 		outputFile := filepath.Join(t.TempDir(), "output.yaml")
 
 		err := onConfigModify(modifyFlags{
-			input:      inputFile,
-			output:     "file://" + outputFile,
-			token:      "new-cluster-token",
-			nodeLabels: "team=platform,tier=frontend",
+			input:  inputFile,
+			output: "file://" + outputFile,
+			token:  "new-cluster-token",
+			// Labels are no longer a named flag; --set covers arbitrary nested paths.
+			set: []string{"ssh_service.labels.team=platform", "ssh_service.labels.tier=frontend"},
 		})
 		require.NoError(t, err)
 
