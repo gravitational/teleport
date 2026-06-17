@@ -330,20 +330,6 @@ func isSQLiteFullError(err error) bool {
 	return errors.As(err, &e) && (e.Code() == sqlite3.SQLITE_FULL)
 }
 
-func (q *sqliteQueue) drainShutdown() {
-	for {
-		select {
-		case req := <-q.toBeWritten:
-			// During shutdown, respond to all calls to `Enqueue` with an error
-			// to indicate that we are shutting down and are unable to take any
-			// more events.
-			req.resp <- trace.Wrap(ErrClosed)
-		default:
-			return
-		}
-	}
-}
-
 func (q *sqliteQueue) runPollLoop(ctx context.Context, handler Handler) {
 	pollTimer := time.NewTimer(pollInterval)
 	defer pollTimer.Stop()
