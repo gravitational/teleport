@@ -117,10 +117,10 @@ type Decision struct {
 	// if not Allowed.
 	Deny *DenyDetails
 	// EvaluatedRoles lists the roles that carried app_resources for the app, in
-	// the order the caller gathered them. An empty list on a deny marks a
+	// the order they were evaluated. An empty list on a deny marks a
 	// misconfigured default-deny, where no role granted any app_resources, as
-	// opposed to a request that a granting role did not match. The caller
-	// supplies this set, since the union has no role of its own.
+	// opposed to a request that a granting role did not match. The RuleSet
+	// derives this from the roles it was built from.
 	EvaluatedRoles []string
 }
 
@@ -446,32 +446,64 @@ func validateCode(code string) error {
 	return nil
 }
 
-// RuleSet is the additive union of rules, the effective access an app grants a
-// caller across every matching role. A request is allowed if any rule matches.
-type RuleSet []*CompiledRule
+// Role is one role's app_resources, the unit the union is built from. It
+// mirrors how a Teleport role carries app_resources under spec.allow, the same
+// way services.RoleSet gathers its per-role matchers from each role.
+type Role struct {
+	// Name is the role name, surfaced as an evaluated role on a decision.
+	Name string
+	// Rules are the role's app_resources entries, OR-ed within the role.
+	Rules []Rule
+}
 
-// CompileRules compiles a slice of rules into a RuleSet.
-func CompileRules(rules []Rule) (RuleSet, error) {
-	set := make(RuleSet, 0, len(rules))
-	for i, r := range rules {
-		c, err := r.Compile()
-		if err != nil {
-			return nil, trace.Wrap(err, "rule %d", i)
+// RuleSet is the additive-OR union of the app_resources a caller holds, built
+// from one or more roles. A request is allowed if any rule in any role matches.
+// The set remembers its role names, so a decision reports the evaluated roles
+// without a caller-supplied list, the way iterating a services.RoleSet reveals
+// which role granted access.
+type RuleSet []compiledRole
+
+// compiledRole is one role's compiled rules.
+type compiledRole struct {
+	name  string
+	rules []*CompiledRule
+}
+
+// CompileRoles compiles the roles a caller holds into a RuleSet.
+func CompileRoles(roles []Role) (RuleSet, error) {
+	set := make(RuleSet, 0, len(roles))
+	for _, role := range roles {
+		cr := compiledRole{name: role.Name, rules: make([]*CompiledRule, 0, len(role.Rules))}
+		for i, r := range role.Rules {
+			c, err := r.Compile()
+			if err != nil {
+				return nil, trace.Wrap(err, "role %q rule %d", role.Name, i)
+			}
+			cr.rules = append(cr.rules, c)
 		}
-		set = append(set, c)
+		set = append(set, cr)
 	}
 	return set, nil
+}
+
+// EvaluatedRoles returns the names of the roles in the set, the roles that
+// carried app_resources for the app. An empty result marks the misconfigured
+// default-deny, where no role granted any app_resources.
+func (s RuleSet) EvaluatedRoles() []string {
+	names := make([]string, 0, len(s))
+	for _, role := range s {
+		names = append(names, role.name)
+	}
+	return names
 }
 
 // Evaluate returns the first matching rule's decision, or a deny if none match.
 // Because rules are allow-only, the order of evaluation does not affect whether
 // the request is allowed, only which captures and allow_code a caller sees. On
-// a full deny the decision carries every deny hint that fired across all rules.
-//
-// evaluatedRoles names the roles that carried app_resources for the app, which
-// the caller gathered to build the set. It rides every decision so the audit
-// log can tell a misconfigured default-deny, an empty set, from a request that
-// a granting role did not match.
+// a full deny the decision carries every deny hint that fired across all roles.
+// Every decision carries the set's evaluated roles, so the audit log can tell a
+// misconfigured default-deny, an empty set, from a request that a granting role
+// did not match.
 //
 // A request whose path is malformed or unsafe is denied with
 // DenyInvalidRequest before any rule runs, mirroring the agent's pre-rule
@@ -479,28 +511,31 @@ func CompileRules(rules []Rule) (RuleSet, error) {
 // reserved character. A real deployment threads the per-app url_decoding opt-in
 // here; this sketch keeps the set-level floor strict and leaves per-rule
 // URLDecoding to govern only how an admitted path splits within a single rule.
-func (s RuleSet) Evaluate(request Request, identity Identity, evaluatedRoles []string) (Decision, error) {
+func (s RuleSet) Evaluate(request Request, identity Identity) (Decision, error) {
+	roles := s.EvaluatedRoles()
 	if _, err := Tokenize(request.Path, DecodeConfig{}); err != nil {
 		return Decision{
 			Deny:           &DenyDetails{Kind: DenyInvalidRequest},
-			EvaluatedRoles: evaluatedRoles,
+			EvaluatedRoles: roles,
 		}, nil
 	}
 
 	var hints []Hint
-	for _, rule := range s {
-		decision, err := rule.Evaluate(request, identity)
-		if err != nil {
-			return Decision{}, trace.Wrap(err)
+	for _, role := range s {
+		for _, rule := range role.rules {
+			decision, err := rule.Evaluate(request, identity)
+			if err != nil {
+				return Decision{}, trace.Wrap(err)
+			}
+			if decision.Allowed {
+				decision.EvaluatedRoles = roles
+				return decision, nil
+			}
+			hints = append(hints, decision.Deny.Hints...)
 		}
-		if decision.Allowed {
-			decision.EvaluatedRoles = evaluatedRoles
-			return decision, nil
-		}
-		hints = append(hints, decision.Deny.Hints...)
 	}
 	return Decision{
 		Deny:           &DenyDetails{Kind: DenyNotAllowed, Hints: hints},
-		EvaluatedRoles: evaluatedRoles,
+		EvaluatedRoles: roles,
 	}, nil
 }

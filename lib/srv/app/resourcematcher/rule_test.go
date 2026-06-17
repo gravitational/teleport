@@ -245,23 +245,25 @@ pred: |
 	}
 }
 
-// TestRuleSetUnion pins the additive OR-union: a request is allowed if any
-// rule matches, and captures come from the matching rule.
+// TestRuleSetUnion pins the additive OR-union within one role: a request is
+// allowed if any of the role's rules matches, and captures come from the
+// matching rule.
 func TestRuleSetUnion(t *testing.T) {
-	rules := []Rule{
-		ruleFromYAML(t, `
+	set, err := CompileRoles([]Role{{
+		Name: "reader",
+		Rules: []Rule{
+			ruleFromYAML(t, `
 paths: ["/api/v4/projects/{project}/repository/**"]
 methods: [GET]
 `),
-		ruleFromYAML(t, `
+			ruleFromYAML(t, `
 paths: ["/api/v4/user"]
 methods: [GET]
 `),
-	}
-	set, err := CompileRules(rules)
+		},
+	}})
 	require.NoError(t, err)
 
-	roles := []string{"reader", "self"}
 	cases := []probe{
 		{method: "GET", path: "/api/v4/projects/x/repository/tree", allow: true, vars: map[string]string{"project": "x"}},
 		{method: "GET", path: "/api/v4/user", allow: true, vars: map[string]string{}},
@@ -269,12 +271,10 @@ methods: [GET]
 		{method: "DELETE", path: "/api/v4/projects/x/repository/tree", allow: false},
 	}
 	for _, c := range cases {
-		got, err := set.Evaluate(Request{Method: c.method, Path: c.path}, c.identity, roles)
+		got, err := set.Evaluate(Request{Method: c.method, Path: c.path}, c.identity)
 		require.NoError(t, err)
 		require.Equal(t, c.allow, got.Allowed, "%s %s", c.method, c.path)
-		// Every decision carries the evaluated roles, and a deny that reached
-		// the rules carries the not-allowed reason rather than invalid-request.
-		require.Equal(t, roles, got.EvaluatedRoles, "%s %s", c.method, c.path)
+		require.Equal(t, []string{"reader"}, got.EvaluatedRoles, "%s %s", c.method, c.path)
 		if c.allow {
 			require.Equal(t, c.vars, got.Allow.Vars)
 			require.Nil(t, got.Deny, "%s %s", c.method, c.path)
@@ -284,22 +284,73 @@ methods: [GET]
 	}
 }
 
+// TestRuleSetUnionAcrossRoles pins the union over several roles: a request is
+// allowed if any rule in any role matches, the matching role's allow_code
+// surfaces, and every evaluated role is reported regardless of which one
+// matched.
+func TestRuleSetUnionAcrossRoles(t *testing.T) {
+	set, err := CompileRoles([]Role{
+		{
+			Name: "reader",
+			Rules: []Rule{ruleFromYAML(t, `
+paths: ["/api/v4/projects/{project}/repository/**"]
+methods: [GET]
+allow_code: reader_grant
+`)},
+		},
+		{
+			Name: "writer",
+			Rules: []Rule{ruleFromYAML(t, `
+paths: ["/api/v4/projects/{project}/repository/**"]
+methods: [POST]
+allow_code: writer_grant
+`)},
+		},
+	})
+	require.NoError(t, err)
+
+	const path = "/api/v4/projects/x/repository/tree"
+	roles := []string{"reader", "writer"}
+
+	// A GET matches the reader role; the reader's allow_code surfaces.
+	got, err := set.Evaluate(Request{Method: "GET", Path: path}, Identity{})
+	require.NoError(t, err)
+	require.True(t, got.Allowed)
+	require.Equal(t, "reader_grant", got.Allow.Code)
+	require.Equal(t, roles, got.EvaluatedRoles)
+
+	// A POST matches the writer role; the writer's allow_code surfaces.
+	got, err = set.Evaluate(Request{Method: "POST", Path: path}, Identity{})
+	require.NoError(t, err)
+	require.True(t, got.Allowed)
+	require.Equal(t, "writer_grant", got.Allow.Code)
+	require.Equal(t, roles, got.EvaluatedRoles)
+
+	// A DELETE matches no role: a not-allowed deny that still reports both
+	// evaluated roles.
+	got, err = set.Evaluate(Request{Method: "DELETE", Path: path}, Identity{})
+	require.NoError(t, err)
+	require.False(t, got.Allowed)
+	require.Equal(t, DenyNotAllowed, got.Deny.Kind)
+	require.Equal(t, roles, got.EvaluatedRoles)
+}
+
 // TestRuleSetInvalidRequest pins that a malformed or unsafe path is denied with
 // DenyInvalidRequest before any rule runs, distinct from a well-formed request
 // that simply matches no rule.
 func TestRuleSetInvalidRequest(t *testing.T) {
-	rules := []Rule{
-		ruleFromYAML(t, `
+	set, err := CompileRoles([]Role{{
+		Name: "self",
+		Rules: []Rule{ruleFromYAML(t, `
 paths: ["/api/v4/user"]
 methods: [GET]
-`),
-	}
-	set, err := CompileRules(rules)
+`)},
+	}})
 	require.NoError(t, err)
 
 	roles := []string{"self"}
 	for _, path := range []string{"/api/v4/../secret", "/api/v4//user", "/api/v4/user/\x00"} {
-		got, err := set.Evaluate(Request{Method: "GET", Path: path}, Identity{}, roles)
+		got, err := set.Evaluate(Request{Method: "GET", Path: path}, Identity{})
 		require.NoError(t, err)
 		require.False(t, got.Allowed, path)
 		require.Equal(t, DenyInvalidRequest, got.Deny.Kind, path)
@@ -307,7 +358,7 @@ methods: [GET]
 	}
 
 	// A well-formed path that no rule matches is not-allowed, not invalid.
-	got, err := set.Evaluate(Request{Method: "GET", Path: "/api/v4/groups"}, Identity{}, roles)
+	got, err := set.Evaluate(Request{Method: "GET", Path: "/api/v4/groups"}, Identity{})
 	require.NoError(t, err)
 	require.Equal(t, DenyNotAllowed, got.Deny.Kind)
 }
@@ -317,7 +368,7 @@ methods: [GET]
 // request a granting role did not match.
 func TestRuleSetMisconfiguredDefaultDeny(t *testing.T) {
 	set := RuleSet{}
-	got, err := set.Evaluate(Request{Method: "GET", Path: "/api/v4/user"}, Identity{}, nil)
+	got, err := set.Evaluate(Request{Method: "GET", Path: "/api/v4/user"}, Identity{})
 	require.NoError(t, err)
 	require.False(t, got.Allowed)
 	require.Equal(t, DenyNotAllowed, got.Deny.Kind)
