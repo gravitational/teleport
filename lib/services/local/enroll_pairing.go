@@ -46,7 +46,7 @@ func NewEnrollPairingService(b backend.Backend) *EnrollPairingService {
 }
 
 // CreateEnrollPairing creates an EnrollPairing for user in the
-// AWAITING_UNAUTHORIZED_CLIENT state with a 5-minute TTL. Returns AlreadyExists
+// AWAITING_DEVICE state with a 5-minute TTL. Returns AlreadyExists
 // if a pairing already exists for user.
 func (s *EnrollPairingService) CreateEnrollPairing(ctx context.Context, user string) (*devicepb.EnrollPairing, error) {
 	if user == "" {
@@ -70,7 +70,7 @@ func (s *EnrollPairingService) CreateEnrollPairing(ctx context.Context, user str
 		}.Build(),
 		Spec: &devicepb.EnrollPairingSpec{},
 		Status: devicepb.EnrollPairingStatus_builder{
-			State: devicepb.EnrollPairingState_ENROLL_PAIRING_STATE_AWAITING_UNAUTHORIZED_CLIENT,
+			State: devicepb.EnrollPairingState_ENROLL_PAIRING_STATE_AWAITING_DEVICE,
 			Token: token,
 		}.Build(),
 	}.Build()

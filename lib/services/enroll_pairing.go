@@ -27,7 +27,7 @@ import (
 // EnrollPairing manages mobile device enrollment pairings.
 type EnrollPairing interface {
 	// CreateEnrollPairing creates a new EnrollPairing for user in the
-	// AWAITING_UNAUTHORIZED_CLIENT state with a short TTL.
+	// AWAITING_DEVICE state with a short TTL.
 	// Returns AlreadyExists if a pairing already exists for user.
 	CreateEnrollPairing(ctx context.Context, user string) (*devicepb.EnrollPairing, error)
 

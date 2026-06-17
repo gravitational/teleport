@@ -39,21 +39,21 @@ const (
 //
 // The full state machine is:
 //
-//	ENROLL_PAIRING_STATE_AWAITING_UNAUTHORIZED_CLIENT ->
+//	ENROLL_PAIRING_STATE_AWAITING_DEVICE ->
 //	ENROLL_PAIRING_STATE_AWAITING_APPROVAL ->
 //	ENROLL_PAIRING_STATE_APPROVED
 //
-// ENROLL_PAIRING_STATE_AWAITING_UNAUTHORIZED_CLIENT is set by
-// CreateEnrollPairing. Transitions to ENROLL_PAIRING_STATE_AWAITING_APPROVAL
-// and ENROLL_PAIRING_STATE_APPROVED are driven by the mobile app and by
-// user approval respectively.
+// ENROLL_PAIRING_STATE_AWAITING_DEVICE is set by CreateEnrollPairing.
+// Transitions to ENROLL_PAIRING_STATE_AWAITING_APPROVAL and
+// ENROLL_PAIRING_STATE_APPROVED are driven by the mobile app and by user
+// approval respectively.
 type EnrollPairingState int32
 
 const (
 	EnrollPairingState_ENROLL_PAIRING_STATE_UNSPECIFIED EnrollPairingState = 0
 	// Set when the Web UI creates the pairing. The pairing is waiting for the
 	// mobile app to read the token and call the public Device Trust service.
-	EnrollPairingState_ENROLL_PAIRING_STATE_AWAITING_UNAUTHORIZED_CLIENT EnrollPairingState = 1
+	EnrollPairingState_ENROLL_PAIRING_STATE_AWAITING_DEVICE EnrollPairingState = 1
 	// Set when the mobile app has presented the token to the public Device
 	// Trust service. The pairing is waiting for the Web UI user to approve the
 	// request with MFA.
@@ -67,15 +67,15 @@ const (
 var (
 	EnrollPairingState_name = map[int32]string{
 		0: "ENROLL_PAIRING_STATE_UNSPECIFIED",
-		1: "ENROLL_PAIRING_STATE_AWAITING_UNAUTHORIZED_CLIENT",
+		1: "ENROLL_PAIRING_STATE_AWAITING_DEVICE",
 		2: "ENROLL_PAIRING_STATE_AWAITING_APPROVAL",
 		3: "ENROLL_PAIRING_STATE_APPROVED",
 	}
 	EnrollPairingState_value = map[string]int32{
-		"ENROLL_PAIRING_STATE_UNSPECIFIED":                  0,
-		"ENROLL_PAIRING_STATE_AWAITING_UNAUTHORIZED_CLIENT": 1,
-		"ENROLL_PAIRING_STATE_AWAITING_APPROVAL":            2,
-		"ENROLL_PAIRING_STATE_APPROVED":                     3,
+		"ENROLL_PAIRING_STATE_UNSPECIFIED":       0,
+		"ENROLL_PAIRING_STATE_AWAITING_DEVICE":   1,
+		"ENROLL_PAIRING_STATE_AWAITING_APPROVAL": 2,
+		"ENROLL_PAIRING_STATE_APPROVED":          3,
 	}
 )
 
@@ -402,10 +402,10 @@ const file_teleport_devicetrust_v1_enroll_pairing_proto_rawDesc = "" +
 	"\x11EnrollPairingSpec\"n\n" +
 	"\x13EnrollPairingStatus\x12A\n" +
 	"\x05state\x18\x01 \x01(\x0e2+.teleport.devicetrust.v1.EnrollPairingStateR\x05state\x12\x14\n" +
-	"\x05token\x18\x02 \x01(\tR\x05token*\xc0\x01\n" +
+	"\x05token\x18\x02 \x01(\tR\x05token*\xb3\x01\n" +
 	"\x12EnrollPairingState\x12$\n" +
-	" ENROLL_PAIRING_STATE_UNSPECIFIED\x10\x00\x125\n" +
-	"1ENROLL_PAIRING_STATE_AWAITING_UNAUTHORIZED_CLIENT\x10\x01\x12*\n" +
+	" ENROLL_PAIRING_STATE_UNSPECIFIED\x10\x00\x12(\n" +
+	"$ENROLL_PAIRING_STATE_AWAITING_DEVICE\x10\x01\x12*\n" +
 	"&ENROLL_PAIRING_STATE_AWAITING_APPROVAL\x10\x02\x12!\n" +
 	"\x1dENROLL_PAIRING_STATE_APPROVED\x10\x03BZZXgithub.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1;devicetrustv1b\x06proto3"
 

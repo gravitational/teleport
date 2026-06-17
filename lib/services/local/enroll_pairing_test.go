@@ -56,7 +56,7 @@ func TestEnrollPairingService_CreateEnrollPairing(t *testing.T) {
 		assert.Equal(t, "create-ok", pairing.GetMetadata().GetName())
 		assert.NotEmpty(t, pairing.GetMetadata().GetRevision())
 		assert.Equal(t,
-			devicepb.EnrollPairingState_ENROLL_PAIRING_STATE_AWAITING_UNAUTHORIZED_CLIENT,
+			devicepb.EnrollPairingState_ENROLL_PAIRING_STATE_AWAITING_DEVICE,
 			pairing.GetStatus().GetState())
 		assert.NotEmpty(t, pairing.GetStatus().GetToken())
 	})

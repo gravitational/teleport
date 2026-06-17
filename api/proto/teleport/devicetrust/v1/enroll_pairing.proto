@@ -53,20 +53,20 @@ message EnrollPairingStatus {
 //
 // The full state machine is:
 //
-//   ENROLL_PAIRING_STATE_AWAITING_UNAUTHORIZED_CLIENT ->
+//   ENROLL_PAIRING_STATE_AWAITING_DEVICE ->
 //   ENROLL_PAIRING_STATE_AWAITING_APPROVAL ->
 //   ENROLL_PAIRING_STATE_APPROVED
 //
-// ENROLL_PAIRING_STATE_AWAITING_UNAUTHORIZED_CLIENT is set by
-// CreateEnrollPairing. Transitions to ENROLL_PAIRING_STATE_AWAITING_APPROVAL
-// and ENROLL_PAIRING_STATE_APPROVED are driven by the mobile app and by
-// user approval respectively.
+// ENROLL_PAIRING_STATE_AWAITING_DEVICE is set by CreateEnrollPairing.
+// Transitions to ENROLL_PAIRING_STATE_AWAITING_APPROVAL and
+// ENROLL_PAIRING_STATE_APPROVED are driven by the mobile app and by user
+// approval respectively.
 enum EnrollPairingState {
   ENROLL_PAIRING_STATE_UNSPECIFIED = 0;
 
   // Set when the Web UI creates the pairing. The pairing is waiting for the
   // mobile app to read the token and call the public Device Trust service.
-  ENROLL_PAIRING_STATE_AWAITING_UNAUTHORIZED_CLIENT = 1;
+  ENROLL_PAIRING_STATE_AWAITING_DEVICE = 1;
 
   // Set when the mobile app has presented the token to the public Device
   // Trust service. The pairing is waiting for the Web UI user to approve the
