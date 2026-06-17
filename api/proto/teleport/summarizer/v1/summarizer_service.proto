@@ -83,6 +83,14 @@ service SummarizerService {
   // contains the session summary.
   rpc GetSummary(GetSummaryRequest) returns (GetSummaryResponse);
 
+  // StreamSessionHAR is a bidirectional stream for inspecting a session's combined
+  // HAR (HTTP Archive) artifact without loading it all at once. The client first
+  // sends a GetHARIndexRequest (with the session ID) and receives a HARIndex
+  // (lightweight per-entry metadata). It then requests individual entries on
+  // demand by index via GetHAREntryRequest, receiving each entry's full
+  // request/response content. The server parses the artifact once per stream.
+  rpc StreamSessionHAR(stream StreamSessionHARRequest) returns (stream StreamSessionHARResponse);
+
   // BatchGetSummaryMetadata retrieves lightweight summary metadata (state,
   // risk level, and needs-further-review reasons) for multiple sessions in a
   // single call.
@@ -446,6 +454,91 @@ message GetSummaryRequest {
 message GetSummaryResponse {
   // Summary is the session recording summary.
   Summary summary = 1;
+}
+
+// StreamSessionHARRequest is a client message on the StreamSessionHAR stream. The
+// first message must be get_index; subsequent messages request entries.
+message StreamSessionHARRequest {
+  oneof request {
+    // GetIndex requests the HAR index for a session. Must be the first message
+    // on the stream.
+    GetHARIndexRequest get_index = 1;
+    // GetEntry requests the full content of a single entry by its index.
+    GetHAREntryRequest get_entry = 2;
+  }
+}
+
+// GetHARIndexRequest requests the index of a session's HAR.
+message GetHARIndexRequest {
+  // SessionId is the ID of the session whose HAR is being inspected.
+  string session_id = 1;
+}
+
+// GetHAREntryRequest requests one HAR entry by its zero-based index.
+message GetHAREntryRequest {
+  // Index is the zero-based position of the entry within the HAR index.
+  int32 index = 1;
+}
+
+// StreamSessionHARResponse is a server message on the StreamSessionHAR stream.
+message StreamSessionHARResponse {
+  oneof response {
+    // Index is the HAR index, sent in response to GetIndex.
+    HARIndex index = 1;
+    // Entry is a single HAR entry's full content, sent in response to GetEntry.
+    HAREntry entry = 2;
+  }
+}
+
+// HARIndex is the lightweight table of contents of a session's HAR. For HARs
+// with many entries it may be split across several messages to stay under the
+// gRPC max message size; clients accumulate entries until last is true.
+message HARIndex {
+  // TotalEntries is the number of HTTP exchanges in the HAR. It is set on every
+  // index message and is authoritative.
+  int32 total_entries = 1;
+  // Entries holds a batch of per-entry metadata (no bodies), in chronological
+  // order.
+  repeated HAREntryMeta entries = 2;
+  // Last is true on the final index message.
+  bool last = 3;
+}
+
+// HAREntryMeta is lightweight metadata for one HAR entry, used to render the
+// exchange list without loading bodies.
+message HAREntryMeta {
+  // Index is the zero-based position of this entry in the HAR.
+  int32 index = 1;
+  // Method is the HTTP request method.
+  string method = 2;
+  // Url is the request URL.
+  string url = 3;
+  // StatusCode is the HTTP response status code (0 if no response).
+  int32 status_code = 4;
+  // RequestBodySize is the size in bytes of the request body.
+  int64 request_body_size = 5;
+  // ResponseBodySize is the size in bytes of the response body.
+  int64 response_body_size = 6;
+  // ResponseMimeType is the response Content-Type media type.
+  string response_mime_type = 7;
+  // StartedDateTime is the ISO-8601 start time of the request (from the HAR).
+  string started_date_time = 8;
+  // TotalTimeMs is the total time for the exchange in milliseconds.
+  double total_time_ms = 9;
+}
+
+// HAREntry is the content of a single HAR entry. A large entry (e.g. with a big
+// request or response body) is split into multiple messages to stay under the
+// gRPC max message size; clients concatenate entry_json chunks for the same
+// index until last is true.
+message HAREntry {
+  // Index is the zero-based position of this entry in the HAR.
+  int32 index = 1;
+  // EntryJson is a chunk of the raw HAR 1.2 entry object as JSON bytes (request
+  // and response, including headers and bodies).
+  bytes entry_json = 2;
+  // Last is true on the final chunk for this entry.
+  bool last = 3;
 }
 
 // BatchGetSummaryMetadataRequest is a request for retrieving summary metadata

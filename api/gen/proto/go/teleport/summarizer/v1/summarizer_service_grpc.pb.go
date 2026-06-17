@@ -58,6 +58,7 @@ const (
 	SummarizerService_DeleteClassifier_FullMethodName        = "/teleport.summarizer.v1.SummarizerService/DeleteClassifier"
 	SummarizerService_ListClassifiers_FullMethodName         = "/teleport.summarizer.v1.SummarizerService/ListClassifiers"
 	SummarizerService_GetSummary_FullMethodName              = "/teleport.summarizer.v1.SummarizerService/GetSummary"
+	SummarizerService_StreamSessionHAR_FullMethodName        = "/teleport.summarizer.v1.SummarizerService/StreamSessionHAR"
 	SummarizerService_BatchGetSummaryMetadata_FullMethodName = "/teleport.summarizer.v1.SummarizerService/BatchGetSummaryMetadata"
 	SummarizerService_IsEnabled_FullMethodName               = "/teleport.summarizer.v1.SummarizerService/IsEnabled"
 	SummarizerService_TestInferenceModel_FullMethodName      = "/teleport.summarizer.v1.SummarizerService/TestInferenceModel"
@@ -131,6 +132,13 @@ type SummarizerServiceClient interface {
 	// GetSummary retrieves the inference result for a session, which
 	// contains the session summary.
 	GetSummary(ctx context.Context, in *GetSummaryRequest, opts ...grpc.CallOption) (*GetSummaryResponse, error)
+	// StreamSessionHAR is a bidirectional stream for inspecting a session's combined
+	// HAR (HTTP Archive) artifact without loading it all at once. The client first
+	// sends a GetHARIndexRequest (with the session ID) and receives a HARIndex
+	// (lightweight per-entry metadata). It then requests individual entries on
+	// demand by index via GetHAREntryRequest, receiving each entry's full
+	// request/response content. The server parses the artifact once per stream.
+	StreamSessionHAR(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[StreamSessionHARRequest, StreamSessionHARResponse], error)
 	// BatchGetSummaryMetadata retrieves lightweight summary metadata (state,
 	// risk level, and needs-further-review reasons) for multiple sessions in a
 	// single call.
@@ -417,6 +425,19 @@ func (c *summarizerServiceClient) GetSummary(ctx context.Context, in *GetSummary
 	return out, nil
 }
 
+func (c *summarizerServiceClient) StreamSessionHAR(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[StreamSessionHARRequest, StreamSessionHARResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &SummarizerService_ServiceDesc.Streams[0], SummarizerService_StreamSessionHAR_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[StreamSessionHARRequest, StreamSessionHARResponse]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type SummarizerService_StreamSessionHARClient = grpc.BidiStreamingClient[StreamSessionHARRequest, StreamSessionHARResponse]
+
 func (c *summarizerServiceClient) BatchGetSummaryMetadata(ctx context.Context, in *BatchGetSummaryMetadataRequest, opts ...grpc.CallOption) (*BatchGetSummaryMetadataResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(BatchGetSummaryMetadataResponse)
@@ -569,6 +590,13 @@ type SummarizerServiceServer interface {
 	// GetSummary retrieves the inference result for a session, which
 	// contains the session summary.
 	GetSummary(context.Context, *GetSummaryRequest) (*GetSummaryResponse, error)
+	// StreamSessionHAR is a bidirectional stream for inspecting a session's combined
+	// HAR (HTTP Archive) artifact without loading it all at once. The client first
+	// sends a GetHARIndexRequest (with the session ID) and receives a HARIndex
+	// (lightweight per-entry metadata). It then requests individual entries on
+	// demand by index via GetHAREntryRequest, receiving each entry's full
+	// request/response content. The server parses the artifact once per stream.
+	StreamSessionHAR(grpc.BidiStreamingServer[StreamSessionHARRequest, StreamSessionHARResponse]) error
 	// BatchGetSummaryMetadata retrieves lightweight summary metadata (state,
 	// risk level, and needs-further-review reasons) for multiple sessions in a
 	// single call.
@@ -679,6 +707,9 @@ func (UnimplementedSummarizerServiceServer) ListClassifiers(context.Context, *Li
 }
 func (UnimplementedSummarizerServiceServer) GetSummary(context.Context, *GetSummaryRequest) (*GetSummaryResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetSummary not implemented")
+}
+func (UnimplementedSummarizerServiceServer) StreamSessionHAR(grpc.BidiStreamingServer[StreamSessionHARRequest, StreamSessionHARResponse]) error {
+	return status.Errorf(codes.Unimplemented, "method StreamSessionHAR not implemented")
 }
 func (UnimplementedSummarizerServiceServer) BatchGetSummaryMetadata(context.Context, *BatchGetSummaryMetadataRequest) (*BatchGetSummaryMetadataResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method BatchGetSummaryMetadata not implemented")
@@ -1178,6 +1209,13 @@ func _SummarizerService_GetSummary_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SummarizerService_StreamSessionHAR_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(SummarizerServiceServer).StreamSessionHAR(&grpc.GenericServerStream[StreamSessionHARRequest, StreamSessionHARResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type SummarizerService_StreamSessionHARServer = grpc.BidiStreamingServer[StreamSessionHARRequest, StreamSessionHARResponse]
+
 func _SummarizerService_BatchGetSummaryMetadata_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(BatchGetSummaryMetadataRequest)
 	if err := dec(in); err != nil {
@@ -1484,6 +1522,13 @@ var SummarizerService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _SummarizerService_TestRetrievalModel_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "StreamSessionHAR",
+			Handler:       _SummarizerService_StreamSessionHAR_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+	},
 	Metadata: "teleport/summarizer/v1/summarizer_service.proto",
 }

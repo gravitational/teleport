@@ -3395,6 +3395,850 @@ func (b0 GetSummaryResponse_builder) Build() *GetSummaryResponse {
 	return m0
 }
 
+// StreamSessionHARRequest is a client message on the StreamSessionHAR stream. The
+// first message must be get_index; subsequent messages request entries.
+type StreamSessionHARRequest struct {
+	state              protoimpl.MessageState            `protogen:"opaque.v1"`
+	xxx_hidden_Request isStreamSessionHARRequest_Request `protobuf_oneof:"request"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *StreamSessionHARRequest) Reset() {
+	*x = StreamSessionHARRequest{}
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[50]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StreamSessionHARRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StreamSessionHARRequest) ProtoMessage() {}
+
+func (x *StreamSessionHARRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[50]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *StreamSessionHARRequest) GetGetIndex() *GetHARIndexRequest {
+	if x != nil {
+		if x, ok := x.xxx_hidden_Request.(*streamSessionHARRequest_GetIndex); ok {
+			return x.GetIndex
+		}
+	}
+	return nil
+}
+
+func (x *StreamSessionHARRequest) GetGetEntry() *GetHAREntryRequest {
+	if x != nil {
+		if x, ok := x.xxx_hidden_Request.(*streamSessionHARRequest_GetEntry); ok {
+			return x.GetEntry
+		}
+	}
+	return nil
+}
+
+func (x *StreamSessionHARRequest) SetGetIndex(v *GetHARIndexRequest) {
+	if v == nil {
+		x.xxx_hidden_Request = nil
+		return
+	}
+	x.xxx_hidden_Request = &streamSessionHARRequest_GetIndex{v}
+}
+
+func (x *StreamSessionHARRequest) SetGetEntry(v *GetHAREntryRequest) {
+	if v == nil {
+		x.xxx_hidden_Request = nil
+		return
+	}
+	x.xxx_hidden_Request = &streamSessionHARRequest_GetEntry{v}
+}
+
+func (x *StreamSessionHARRequest) HasRequest() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_Request != nil
+}
+
+func (x *StreamSessionHARRequest) HasGetIndex() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.xxx_hidden_Request.(*streamSessionHARRequest_GetIndex)
+	return ok
+}
+
+func (x *StreamSessionHARRequest) HasGetEntry() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.xxx_hidden_Request.(*streamSessionHARRequest_GetEntry)
+	return ok
+}
+
+func (x *StreamSessionHARRequest) ClearRequest() {
+	x.xxx_hidden_Request = nil
+}
+
+func (x *StreamSessionHARRequest) ClearGetIndex() {
+	if _, ok := x.xxx_hidden_Request.(*streamSessionHARRequest_GetIndex); ok {
+		x.xxx_hidden_Request = nil
+	}
+}
+
+func (x *StreamSessionHARRequest) ClearGetEntry() {
+	if _, ok := x.xxx_hidden_Request.(*streamSessionHARRequest_GetEntry); ok {
+		x.xxx_hidden_Request = nil
+	}
+}
+
+const StreamSessionHARRequest_Request_not_set_case case_StreamSessionHARRequest_Request = 0
+const StreamSessionHARRequest_GetIndex_case case_StreamSessionHARRequest_Request = 1
+const StreamSessionHARRequest_GetEntry_case case_StreamSessionHARRequest_Request = 2
+
+func (x *StreamSessionHARRequest) WhichRequest() case_StreamSessionHARRequest_Request {
+	if x == nil {
+		return StreamSessionHARRequest_Request_not_set_case
+	}
+	switch x.xxx_hidden_Request.(type) {
+	case *streamSessionHARRequest_GetIndex:
+		return StreamSessionHARRequest_GetIndex_case
+	case *streamSessionHARRequest_GetEntry:
+		return StreamSessionHARRequest_GetEntry_case
+	default:
+		return StreamSessionHARRequest_Request_not_set_case
+	}
+}
+
+type StreamSessionHARRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof xxx_hidden_Request:
+	// GetIndex requests the HAR index for a session. Must be the first message
+	// on the stream.
+	GetIndex *GetHARIndexRequest
+	// GetEntry requests the full content of a single entry by its index.
+	GetEntry *GetHAREntryRequest
+	// -- end of xxx_hidden_Request
+}
+
+func (b0 StreamSessionHARRequest_builder) Build() *StreamSessionHARRequest {
+	m0 := &StreamSessionHARRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.GetIndex != nil {
+		x.xxx_hidden_Request = &streamSessionHARRequest_GetIndex{b.GetIndex}
+	}
+	if b.GetEntry != nil {
+		x.xxx_hidden_Request = &streamSessionHARRequest_GetEntry{b.GetEntry}
+	}
+	return m0
+}
+
+type case_StreamSessionHARRequest_Request protoreflect.FieldNumber
+
+func (x case_StreamSessionHARRequest_Request) String() string {
+	md := file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[50].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
+type isStreamSessionHARRequest_Request interface {
+	isStreamSessionHARRequest_Request()
+}
+
+type streamSessionHARRequest_GetIndex struct {
+	// GetIndex requests the HAR index for a session. Must be the first message
+	// on the stream.
+	GetIndex *GetHARIndexRequest `protobuf:"bytes,1,opt,name=get_index,json=getIndex,proto3,oneof"`
+}
+
+type streamSessionHARRequest_GetEntry struct {
+	// GetEntry requests the full content of a single entry by its index.
+	GetEntry *GetHAREntryRequest `protobuf:"bytes,2,opt,name=get_entry,json=getEntry,proto3,oneof"`
+}
+
+func (*streamSessionHARRequest_GetIndex) isStreamSessionHARRequest_Request() {}
+
+func (*streamSessionHARRequest_GetEntry) isStreamSessionHARRequest_Request() {}
+
+// GetHARIndexRequest requests the index of a session's HAR.
+type GetHARIndexRequest struct {
+	state                protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_SessionId string                 `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *GetHARIndexRequest) Reset() {
+	*x = GetHARIndexRequest{}
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[51]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetHARIndexRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetHARIndexRequest) ProtoMessage() {}
+
+func (x *GetHARIndexRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[51]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *GetHARIndexRequest) GetSessionId() string {
+	if x != nil {
+		return x.xxx_hidden_SessionId
+	}
+	return ""
+}
+
+func (x *GetHARIndexRequest) SetSessionId(v string) {
+	x.xxx_hidden_SessionId = v
+}
+
+type GetHARIndexRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// SessionId is the ID of the session whose HAR is being inspected.
+	SessionId string
+}
+
+func (b0 GetHARIndexRequest_builder) Build() *GetHARIndexRequest {
+	m0 := &GetHARIndexRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_SessionId = b.SessionId
+	return m0
+}
+
+// GetHAREntryRequest requests one HAR entry by its zero-based index.
+type GetHAREntryRequest struct {
+	state            protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Index int32                  `protobuf:"varint,1,opt,name=index,proto3"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *GetHAREntryRequest) Reset() {
+	*x = GetHAREntryRequest{}
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[52]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetHAREntryRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetHAREntryRequest) ProtoMessage() {}
+
+func (x *GetHAREntryRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[52]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *GetHAREntryRequest) GetIndex() int32 {
+	if x != nil {
+		return x.xxx_hidden_Index
+	}
+	return 0
+}
+
+func (x *GetHAREntryRequest) SetIndex(v int32) {
+	x.xxx_hidden_Index = v
+}
+
+type GetHAREntryRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Index is the zero-based position of the entry within the HAR index.
+	Index int32
+}
+
+func (b0 GetHAREntryRequest_builder) Build() *GetHAREntryRequest {
+	m0 := &GetHAREntryRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_Index = b.Index
+	return m0
+}
+
+// StreamSessionHARResponse is a server message on the StreamSessionHAR stream.
+type StreamSessionHARResponse struct {
+	state               protoimpl.MessageState              `protogen:"opaque.v1"`
+	xxx_hidden_Response isStreamSessionHARResponse_Response `protobuf_oneof:"response"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
+}
+
+func (x *StreamSessionHARResponse) Reset() {
+	*x = StreamSessionHARResponse{}
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[53]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StreamSessionHARResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StreamSessionHARResponse) ProtoMessage() {}
+
+func (x *StreamSessionHARResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[53]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *StreamSessionHARResponse) GetIndex() *HARIndex {
+	if x != nil {
+		if x, ok := x.xxx_hidden_Response.(*streamSessionHARResponse_Index); ok {
+			return x.Index
+		}
+	}
+	return nil
+}
+
+func (x *StreamSessionHARResponse) GetEntry() *HAREntry {
+	if x != nil {
+		if x, ok := x.xxx_hidden_Response.(*streamSessionHARResponse_Entry); ok {
+			return x.Entry
+		}
+	}
+	return nil
+}
+
+func (x *StreamSessionHARResponse) SetIndex(v *HARIndex) {
+	if v == nil {
+		x.xxx_hidden_Response = nil
+		return
+	}
+	x.xxx_hidden_Response = &streamSessionHARResponse_Index{v}
+}
+
+func (x *StreamSessionHARResponse) SetEntry(v *HAREntry) {
+	if v == nil {
+		x.xxx_hidden_Response = nil
+		return
+	}
+	x.xxx_hidden_Response = &streamSessionHARResponse_Entry{v}
+}
+
+func (x *StreamSessionHARResponse) HasResponse() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_Response != nil
+}
+
+func (x *StreamSessionHARResponse) HasIndex() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.xxx_hidden_Response.(*streamSessionHARResponse_Index)
+	return ok
+}
+
+func (x *StreamSessionHARResponse) HasEntry() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.xxx_hidden_Response.(*streamSessionHARResponse_Entry)
+	return ok
+}
+
+func (x *StreamSessionHARResponse) ClearResponse() {
+	x.xxx_hidden_Response = nil
+}
+
+func (x *StreamSessionHARResponse) ClearIndex() {
+	if _, ok := x.xxx_hidden_Response.(*streamSessionHARResponse_Index); ok {
+		x.xxx_hidden_Response = nil
+	}
+}
+
+func (x *StreamSessionHARResponse) ClearEntry() {
+	if _, ok := x.xxx_hidden_Response.(*streamSessionHARResponse_Entry); ok {
+		x.xxx_hidden_Response = nil
+	}
+}
+
+const StreamSessionHARResponse_Response_not_set_case case_StreamSessionHARResponse_Response = 0
+const StreamSessionHARResponse_Index_case case_StreamSessionHARResponse_Response = 1
+const StreamSessionHARResponse_Entry_case case_StreamSessionHARResponse_Response = 2
+
+func (x *StreamSessionHARResponse) WhichResponse() case_StreamSessionHARResponse_Response {
+	if x == nil {
+		return StreamSessionHARResponse_Response_not_set_case
+	}
+	switch x.xxx_hidden_Response.(type) {
+	case *streamSessionHARResponse_Index:
+		return StreamSessionHARResponse_Index_case
+	case *streamSessionHARResponse_Entry:
+		return StreamSessionHARResponse_Entry_case
+	default:
+		return StreamSessionHARResponse_Response_not_set_case
+	}
+}
+
+type StreamSessionHARResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof xxx_hidden_Response:
+	// Index is the HAR index, sent in response to GetIndex.
+	Index *HARIndex
+	// Entry is a single HAR entry's full content, sent in response to GetEntry.
+	Entry *HAREntry
+	// -- end of xxx_hidden_Response
+}
+
+func (b0 StreamSessionHARResponse_builder) Build() *StreamSessionHARResponse {
+	m0 := &StreamSessionHARResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Index != nil {
+		x.xxx_hidden_Response = &streamSessionHARResponse_Index{b.Index}
+	}
+	if b.Entry != nil {
+		x.xxx_hidden_Response = &streamSessionHARResponse_Entry{b.Entry}
+	}
+	return m0
+}
+
+type case_StreamSessionHARResponse_Response protoreflect.FieldNumber
+
+func (x case_StreamSessionHARResponse_Response) String() string {
+	md := file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[53].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
+type isStreamSessionHARResponse_Response interface {
+	isStreamSessionHARResponse_Response()
+}
+
+type streamSessionHARResponse_Index struct {
+	// Index is the HAR index, sent in response to GetIndex.
+	Index *HARIndex `protobuf:"bytes,1,opt,name=index,proto3,oneof"`
+}
+
+type streamSessionHARResponse_Entry struct {
+	// Entry is a single HAR entry's full content, sent in response to GetEntry.
+	Entry *HAREntry `protobuf:"bytes,2,opt,name=entry,proto3,oneof"`
+}
+
+func (*streamSessionHARResponse_Index) isStreamSessionHARResponse_Response() {}
+
+func (*streamSessionHARResponse_Entry) isStreamSessionHARResponse_Response() {}
+
+// HARIndex is the lightweight table of contents of a session's HAR. For HARs
+// with many entries it may be split across several messages to stay under the
+// gRPC max message size; clients accumulate entries until last is true.
+type HARIndex struct {
+	state                   protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_TotalEntries int32                  `protobuf:"varint,1,opt,name=total_entries,json=totalEntries,proto3"`
+	xxx_hidden_Entries      *[]*HAREntryMeta       `protobuf:"bytes,2,rep,name=entries,proto3"`
+	xxx_hidden_Last         bool                   `protobuf:"varint,3,opt,name=last,proto3"`
+	unknownFields           protoimpl.UnknownFields
+	sizeCache               protoimpl.SizeCache
+}
+
+func (x *HARIndex) Reset() {
+	*x = HARIndex{}
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[54]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HARIndex) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HARIndex) ProtoMessage() {}
+
+func (x *HARIndex) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[54]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *HARIndex) GetTotalEntries() int32 {
+	if x != nil {
+		return x.xxx_hidden_TotalEntries
+	}
+	return 0
+}
+
+func (x *HARIndex) GetEntries() []*HAREntryMeta {
+	if x != nil {
+		if x.xxx_hidden_Entries != nil {
+			return *x.xxx_hidden_Entries
+		}
+	}
+	return nil
+}
+
+func (x *HARIndex) GetLast() bool {
+	if x != nil {
+		return x.xxx_hidden_Last
+	}
+	return false
+}
+
+func (x *HARIndex) SetTotalEntries(v int32) {
+	x.xxx_hidden_TotalEntries = v
+}
+
+func (x *HARIndex) SetEntries(v []*HAREntryMeta) {
+	x.xxx_hidden_Entries = &v
+}
+
+func (x *HARIndex) SetLast(v bool) {
+	x.xxx_hidden_Last = v
+}
+
+type HARIndex_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// TotalEntries is the number of HTTP exchanges in the HAR. It is set on every
+	// index message and is authoritative.
+	TotalEntries int32
+	// Entries holds a batch of per-entry metadata (no bodies), in chronological
+	// order.
+	Entries []*HAREntryMeta
+	// Last is true on the final index message.
+	Last bool
+}
+
+func (b0 HARIndex_builder) Build() *HARIndex {
+	m0 := &HARIndex{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_TotalEntries = b.TotalEntries
+	x.xxx_hidden_Entries = &b.Entries
+	x.xxx_hidden_Last = b.Last
+	return m0
+}
+
+// HAREntryMeta is lightweight metadata for one HAR entry, used to render the
+// exchange list without loading bodies.
+type HAREntryMeta struct {
+	state                       protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Index            int32                  `protobuf:"varint,1,opt,name=index,proto3"`
+	xxx_hidden_Method           string                 `protobuf:"bytes,2,opt,name=method,proto3"`
+	xxx_hidden_Url              string                 `protobuf:"bytes,3,opt,name=url,proto3"`
+	xxx_hidden_StatusCode       int32                  `protobuf:"varint,4,opt,name=status_code,json=statusCode,proto3"`
+	xxx_hidden_RequestBodySize  int64                  `protobuf:"varint,5,opt,name=request_body_size,json=requestBodySize,proto3"`
+	xxx_hidden_ResponseBodySize int64                  `protobuf:"varint,6,opt,name=response_body_size,json=responseBodySize,proto3"`
+	xxx_hidden_ResponseMimeType string                 `protobuf:"bytes,7,opt,name=response_mime_type,json=responseMimeType,proto3"`
+	xxx_hidden_StartedDateTime  string                 `protobuf:"bytes,8,opt,name=started_date_time,json=startedDateTime,proto3"`
+	xxx_hidden_TotalTimeMs      float64                `protobuf:"fixed64,9,opt,name=total_time_ms,json=totalTimeMs,proto3"`
+	unknownFields               protoimpl.UnknownFields
+	sizeCache                   protoimpl.SizeCache
+}
+
+func (x *HAREntryMeta) Reset() {
+	*x = HAREntryMeta{}
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[55]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HAREntryMeta) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HAREntryMeta) ProtoMessage() {}
+
+func (x *HAREntryMeta) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[55]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *HAREntryMeta) GetIndex() int32 {
+	if x != nil {
+		return x.xxx_hidden_Index
+	}
+	return 0
+}
+
+func (x *HAREntryMeta) GetMethod() string {
+	if x != nil {
+		return x.xxx_hidden_Method
+	}
+	return ""
+}
+
+func (x *HAREntryMeta) GetUrl() string {
+	if x != nil {
+		return x.xxx_hidden_Url
+	}
+	return ""
+}
+
+func (x *HAREntryMeta) GetStatusCode() int32 {
+	if x != nil {
+		return x.xxx_hidden_StatusCode
+	}
+	return 0
+}
+
+func (x *HAREntryMeta) GetRequestBodySize() int64 {
+	if x != nil {
+		return x.xxx_hidden_RequestBodySize
+	}
+	return 0
+}
+
+func (x *HAREntryMeta) GetResponseBodySize() int64 {
+	if x != nil {
+		return x.xxx_hidden_ResponseBodySize
+	}
+	return 0
+}
+
+func (x *HAREntryMeta) GetResponseMimeType() string {
+	if x != nil {
+		return x.xxx_hidden_ResponseMimeType
+	}
+	return ""
+}
+
+func (x *HAREntryMeta) GetStartedDateTime() string {
+	if x != nil {
+		return x.xxx_hidden_StartedDateTime
+	}
+	return ""
+}
+
+func (x *HAREntryMeta) GetTotalTimeMs() float64 {
+	if x != nil {
+		return x.xxx_hidden_TotalTimeMs
+	}
+	return 0
+}
+
+func (x *HAREntryMeta) SetIndex(v int32) {
+	x.xxx_hidden_Index = v
+}
+
+func (x *HAREntryMeta) SetMethod(v string) {
+	x.xxx_hidden_Method = v
+}
+
+func (x *HAREntryMeta) SetUrl(v string) {
+	x.xxx_hidden_Url = v
+}
+
+func (x *HAREntryMeta) SetStatusCode(v int32) {
+	x.xxx_hidden_StatusCode = v
+}
+
+func (x *HAREntryMeta) SetRequestBodySize(v int64) {
+	x.xxx_hidden_RequestBodySize = v
+}
+
+func (x *HAREntryMeta) SetResponseBodySize(v int64) {
+	x.xxx_hidden_ResponseBodySize = v
+}
+
+func (x *HAREntryMeta) SetResponseMimeType(v string) {
+	x.xxx_hidden_ResponseMimeType = v
+}
+
+func (x *HAREntryMeta) SetStartedDateTime(v string) {
+	x.xxx_hidden_StartedDateTime = v
+}
+
+func (x *HAREntryMeta) SetTotalTimeMs(v float64) {
+	x.xxx_hidden_TotalTimeMs = v
+}
+
+type HAREntryMeta_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Index is the zero-based position of this entry in the HAR.
+	Index int32
+	// Method is the HTTP request method.
+	Method string
+	// Url is the request URL.
+	Url string
+	// StatusCode is the HTTP response status code (0 if no response).
+	StatusCode int32
+	// RequestBodySize is the size in bytes of the request body.
+	RequestBodySize int64
+	// ResponseBodySize is the size in bytes of the response body.
+	ResponseBodySize int64
+	// ResponseMimeType is the response Content-Type media type.
+	ResponseMimeType string
+	// StartedDateTime is the ISO-8601 start time of the request (from the HAR).
+	StartedDateTime string
+	// TotalTimeMs is the total time for the exchange in milliseconds.
+	TotalTimeMs float64
+}
+
+func (b0 HAREntryMeta_builder) Build() *HAREntryMeta {
+	m0 := &HAREntryMeta{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_Index = b.Index
+	x.xxx_hidden_Method = b.Method
+	x.xxx_hidden_Url = b.Url
+	x.xxx_hidden_StatusCode = b.StatusCode
+	x.xxx_hidden_RequestBodySize = b.RequestBodySize
+	x.xxx_hidden_ResponseBodySize = b.ResponseBodySize
+	x.xxx_hidden_ResponseMimeType = b.ResponseMimeType
+	x.xxx_hidden_StartedDateTime = b.StartedDateTime
+	x.xxx_hidden_TotalTimeMs = b.TotalTimeMs
+	return m0
+}
+
+// HAREntry is the content of a single HAR entry. A large entry (e.g. with a big
+// request or response body) is split into multiple messages to stay under the
+// gRPC max message size; clients concatenate entry_json chunks for the same
+// index until last is true.
+type HAREntry struct {
+	state                protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Index     int32                  `protobuf:"varint,1,opt,name=index,proto3"`
+	xxx_hidden_EntryJson []byte                 `protobuf:"bytes,2,opt,name=entry_json,json=entryJson,proto3"`
+	xxx_hidden_Last      bool                   `protobuf:"varint,3,opt,name=last,proto3"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *HAREntry) Reset() {
+	*x = HAREntry{}
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[56]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HAREntry) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HAREntry) ProtoMessage() {}
+
+func (x *HAREntry) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[56]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *HAREntry) GetIndex() int32 {
+	if x != nil {
+		return x.xxx_hidden_Index
+	}
+	return 0
+}
+
+func (x *HAREntry) GetEntryJson() []byte {
+	if x != nil {
+		return x.xxx_hidden_EntryJson
+	}
+	return nil
+}
+
+func (x *HAREntry) GetLast() bool {
+	if x != nil {
+		return x.xxx_hidden_Last
+	}
+	return false
+}
+
+func (x *HAREntry) SetIndex(v int32) {
+	x.xxx_hidden_Index = v
+}
+
+func (x *HAREntry) SetEntryJson(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.xxx_hidden_EntryJson = v
+}
+
+func (x *HAREntry) SetLast(v bool) {
+	x.xxx_hidden_Last = v
+}
+
+type HAREntry_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Index is the zero-based position of this entry in the HAR.
+	Index int32
+	// EntryJson is a chunk of the raw HAR 1.2 entry object as JSON bytes (request
+	// and response, including headers and bodies).
+	EntryJson []byte
+	// Last is true on the final chunk for this entry.
+	Last bool
+}
+
+func (b0 HAREntry_builder) Build() *HAREntry {
+	m0 := &HAREntry{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_Index = b.Index
+	x.xxx_hidden_EntryJson = b.EntryJson
+	x.xxx_hidden_Last = b.Last
+	return m0
+}
+
 // BatchGetSummaryMetadataRequest is a request for retrieving summary metadata
 // for multiple sessions at once.
 type BatchGetSummaryMetadataRequest struct {
@@ -3406,7 +4250,7 @@ type BatchGetSummaryMetadataRequest struct {
 
 func (x *BatchGetSummaryMetadataRequest) Reset() {
 	*x = BatchGetSummaryMetadataRequest{}
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[50]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3418,7 +4262,7 @@ func (x *BatchGetSummaryMetadataRequest) String() string {
 func (*BatchGetSummaryMetadataRequest) ProtoMessage() {}
 
 func (x *BatchGetSummaryMetadataRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[50]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3467,7 +4311,7 @@ type BatchGetSummaryMetadataResponse struct {
 
 func (x *BatchGetSummaryMetadataResponse) Reset() {
 	*x = BatchGetSummaryMetadataResponse{}
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[51]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3479,7 +4323,7 @@ func (x *BatchGetSummaryMetadataResponse) String() string {
 func (*BatchGetSummaryMetadataResponse) ProtoMessage() {}
 
 func (x *BatchGetSummaryMetadataResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[51]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3535,7 +4379,7 @@ type SummaryMetadata struct {
 
 func (x *SummaryMetadata) Reset() {
 	*x = SummaryMetadata{}
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[52]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[59]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3547,7 +4391,7 @@ func (x *SummaryMetadata) String() string {
 func (*SummaryMetadata) ProtoMessage() {}
 
 func (x *SummaryMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[52]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[59]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3637,7 +4481,7 @@ type IsEnabledRequest struct {
 
 func (x *IsEnabledRequest) Reset() {
 	*x = IsEnabledRequest{}
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[53]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[60]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3649,7 +4493,7 @@ func (x *IsEnabledRequest) String() string {
 func (*IsEnabledRequest) ProtoMessage() {}
 
 func (x *IsEnabledRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[53]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[60]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3682,7 +4526,7 @@ type IsEnabledResponse struct {
 
 func (x *IsEnabledResponse) Reset() {
 	*x = IsEnabledResponse{}
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[54]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[61]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3694,7 +4538,7 @@ func (x *IsEnabledResponse) String() string {
 func (*IsEnabledResponse) ProtoMessage() {}
 
 func (x *IsEnabledResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[54]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[61]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3744,7 +4588,7 @@ type TestInferenceModelRequest struct {
 
 func (x *TestInferenceModelRequest) Reset() {
 	*x = TestInferenceModelRequest{}
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[55]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[62]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3756,7 +4600,7 @@ func (x *TestInferenceModelRequest) String() string {
 func (*TestInferenceModelRequest) ProtoMessage() {}
 
 func (x *TestInferenceModelRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[55]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[62]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3842,7 +4686,7 @@ type TestInferenceModelResponse struct {
 
 func (x *TestInferenceModelResponse) Reset() {
 	*x = TestInferenceModelResponse{}
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[56]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[63]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3854,7 +4698,7 @@ func (x *TestInferenceModelResponse) String() string {
 func (*TestInferenceModelResponse) ProtoMessage() {}
 
 func (x *TestInferenceModelResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[56]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[63]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3917,7 +4761,7 @@ type TestRetrievalModelRequest struct {
 
 func (x *TestRetrievalModelRequest) Reset() {
 	*x = TestRetrievalModelRequest{}
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[57]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[64]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3929,7 +4773,7 @@ func (x *TestRetrievalModelRequest) String() string {
 func (*TestRetrievalModelRequest) ProtoMessage() {}
 
 func (x *TestRetrievalModelRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[57]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[64]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4015,7 +4859,7 @@ type TestRetrievalModelResponse struct {
 
 func (x *TestRetrievalModelResponse) Reset() {
 	*x = TestRetrievalModelResponse{}
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[58]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[65]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4027,7 +4871,7 @@ func (x *TestRetrievalModelResponse) String() string {
 func (*TestRetrievalModelResponse) ProtoMessage() {}
 
 func (x *TestRetrievalModelResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[58]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[65]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4090,7 +4934,7 @@ type CreateRetrievalModelRequest struct {
 
 func (x *CreateRetrievalModelRequest) Reset() {
 	*x = CreateRetrievalModelRequest{}
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[59]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[66]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4102,7 +4946,7 @@ func (x *CreateRetrievalModelRequest) String() string {
 func (*CreateRetrievalModelRequest) ProtoMessage() {}
 
 func (x *CreateRetrievalModelRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[59]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[66]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4160,7 +5004,7 @@ type CreateRetrievalModelResponse struct {
 
 func (x *CreateRetrievalModelResponse) Reset() {
 	*x = CreateRetrievalModelResponse{}
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[60]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[67]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4172,7 +5016,7 @@ func (x *CreateRetrievalModelResponse) String() string {
 func (*CreateRetrievalModelResponse) ProtoMessage() {}
 
 func (x *CreateRetrievalModelResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[60]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[67]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4230,7 +5074,7 @@ type GetRetrievalModelRequest struct {
 
 func (x *GetRetrievalModelRequest) Reset() {
 	*x = GetRetrievalModelRequest{}
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[61]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[68]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4242,7 +5086,7 @@ func (x *GetRetrievalModelRequest) String() string {
 func (*GetRetrievalModelRequest) ProtoMessage() {}
 
 func (x *GetRetrievalModelRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[61]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[68]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4275,7 +5119,7 @@ type GetRetrievalModelResponse struct {
 
 func (x *GetRetrievalModelResponse) Reset() {
 	*x = GetRetrievalModelResponse{}
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[62]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[69]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4287,7 +5131,7 @@ func (x *GetRetrievalModelResponse) String() string {
 func (*GetRetrievalModelResponse) ProtoMessage() {}
 
 func (x *GetRetrievalModelResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[62]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[69]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4345,7 +5189,7 @@ type UpdateRetrievalModelRequest struct {
 
 func (x *UpdateRetrievalModelRequest) Reset() {
 	*x = UpdateRetrievalModelRequest{}
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[63]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[70]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4357,7 +5201,7 @@ func (x *UpdateRetrievalModelRequest) String() string {
 func (*UpdateRetrievalModelRequest) ProtoMessage() {}
 
 func (x *UpdateRetrievalModelRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[63]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[70]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4415,7 +5259,7 @@ type UpdateRetrievalModelResponse struct {
 
 func (x *UpdateRetrievalModelResponse) Reset() {
 	*x = UpdateRetrievalModelResponse{}
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[64]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[71]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4427,7 +5271,7 @@ func (x *UpdateRetrievalModelResponse) String() string {
 func (*UpdateRetrievalModelResponse) ProtoMessage() {}
 
 func (x *UpdateRetrievalModelResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[64]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[71]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4486,7 +5330,7 @@ type UpsertRetrievalModelRequest struct {
 
 func (x *UpsertRetrievalModelRequest) Reset() {
 	*x = UpsertRetrievalModelRequest{}
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[65]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[72]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4498,7 +5342,7 @@ func (x *UpsertRetrievalModelRequest) String() string {
 func (*UpsertRetrievalModelRequest) ProtoMessage() {}
 
 func (x *UpsertRetrievalModelRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[65]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[72]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4557,7 +5401,7 @@ type UpsertRetrievalModelResponse struct {
 
 func (x *UpsertRetrievalModelResponse) Reset() {
 	*x = UpsertRetrievalModelResponse{}
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[66]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[73]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4569,7 +5413,7 @@ func (x *UpsertRetrievalModelResponse) String() string {
 func (*UpsertRetrievalModelResponse) ProtoMessage() {}
 
 func (x *UpsertRetrievalModelResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[66]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[73]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4627,7 +5471,7 @@ type DeleteRetrievalModelRequest struct {
 
 func (x *DeleteRetrievalModelRequest) Reset() {
 	*x = DeleteRetrievalModelRequest{}
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[67]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[74]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4639,7 +5483,7 @@ func (x *DeleteRetrievalModelRequest) String() string {
 func (*DeleteRetrievalModelRequest) ProtoMessage() {}
 
 func (x *DeleteRetrievalModelRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[67]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[74]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4671,7 +5515,7 @@ type DeleteRetrievalModelResponse struct {
 
 func (x *DeleteRetrievalModelResponse) Reset() {
 	*x = DeleteRetrievalModelResponse{}
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[68]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[75]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4683,7 +5527,7 @@ func (x *DeleteRetrievalModelResponse) String() string {
 func (*DeleteRetrievalModelResponse) ProtoMessage() {}
 
 func (x *DeleteRetrievalModelResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[68]
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[75]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4833,7 +5677,41 @@ const file_teleport_summarizer_v1_summarizer_service_proto_rawDesc = "" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\"O\n" +
 	"\x12GetSummaryResponse\x129\n" +
-	"\asummary\x18\x01 \x01(\v2\x1f.teleport.summarizer.v1.SummaryR\asummary\"A\n" +
+	"\asummary\x18\x01 \x01(\v2\x1f.teleport.summarizer.v1.SummaryR\asummary\"\xba\x01\n" +
+	"\x17StreamSessionHARRequest\x12I\n" +
+	"\tget_index\x18\x01 \x01(\v2*.teleport.summarizer.v1.GetHARIndexRequestH\x00R\bgetIndex\x12I\n" +
+	"\tget_entry\x18\x02 \x01(\v2*.teleport.summarizer.v1.GetHAREntryRequestH\x00R\bgetEntryB\t\n" +
+	"\arequest\"3\n" +
+	"\x12GetHARIndexRequest\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\"*\n" +
+	"\x12GetHAREntryRequest\x12\x14\n" +
+	"\x05index\x18\x01 \x01(\x05R\x05index\"\x9a\x01\n" +
+	"\x18StreamSessionHARResponse\x128\n" +
+	"\x05index\x18\x01 \x01(\v2 .teleport.summarizer.v1.HARIndexH\x00R\x05index\x128\n" +
+	"\x05entry\x18\x02 \x01(\v2 .teleport.summarizer.v1.HAREntryH\x00R\x05entryB\n" +
+	"\n" +
+	"\bresponse\"\x83\x01\n" +
+	"\bHARIndex\x12#\n" +
+	"\rtotal_entries\x18\x01 \x01(\x05R\ftotalEntries\x12>\n" +
+	"\aentries\x18\x02 \x03(\v2$.teleport.summarizer.v1.HAREntryMetaR\aentries\x12\x12\n" +
+	"\x04last\x18\x03 \x01(\bR\x04last\"\xc7\x02\n" +
+	"\fHAREntryMeta\x12\x14\n" +
+	"\x05index\x18\x01 \x01(\x05R\x05index\x12\x16\n" +
+	"\x06method\x18\x02 \x01(\tR\x06method\x12\x10\n" +
+	"\x03url\x18\x03 \x01(\tR\x03url\x12\x1f\n" +
+	"\vstatus_code\x18\x04 \x01(\x05R\n" +
+	"statusCode\x12*\n" +
+	"\x11request_body_size\x18\x05 \x01(\x03R\x0frequestBodySize\x12,\n" +
+	"\x12response_body_size\x18\x06 \x01(\x03R\x10responseBodySize\x12,\n" +
+	"\x12response_mime_type\x18\a \x01(\tR\x10responseMimeType\x12*\n" +
+	"\x11started_date_time\x18\b \x01(\tR\x0fstartedDateTime\x12\"\n" +
+	"\rtotal_time_ms\x18\t \x01(\x01R\vtotalTimeMs\"S\n" +
+	"\bHAREntry\x12\x14\n" +
+	"\x05index\x18\x01 \x01(\x05R\x05index\x12\x1d\n" +
+	"\n" +
+	"entry_json\x18\x02 \x01(\fR\tentryJson\x12\x12\n" +
+	"\x04last\x18\x03 \x01(\bR\x04last\"A\n" +
 	"\x1eBatchGetSummaryMetadataRequest\x12\x1f\n" +
 	"\vsession_ids\x18\x01 \x03(\tR\n" +
 	"sessionIds\"f\n" +
@@ -4877,7 +5755,7 @@ const file_teleport_summarizer_v1_summarizer_service_proto_rawDesc = "" +
 	"\x1cUpsertRetrievalModelResponse\x12<\n" +
 	"\x05model\x18\x01 \x01(\v2&.teleport.summarizer.v1.RetrievalModelR\x05model\"\x1d\n" +
 	"\x1bDeleteRetrievalModelRequest\"\x1e\n" +
-	"\x1cDeleteRetrievalModelResponse2\xf0!\n" +
+	"\x1cDeleteRetrievalModelResponse2\xeb\"\n" +
 	"\x11SummarizerService\x12\x81\x01\n" +
 	"\x14CreateInferenceModel\x123.teleport.summarizer.v1.CreateInferenceModelRequest\x1a4.teleport.summarizer.v1.CreateInferenceModelResponse\x12x\n" +
 	"\x11GetInferenceModel\x120.teleport.summarizer.v1.GetInferenceModelRequest\x1a1.teleport.summarizer.v1.GetInferenceModelResponse\x12\x81\x01\n" +
@@ -4904,7 +5782,8 @@ const file_teleport_summarizer_v1_summarizer_service_proto_rawDesc = "" +
 	"\x10DeleteClassifier\x12/.teleport.summarizer.v1.DeleteClassifierRequest\x1a0.teleport.summarizer.v1.DeleteClassifierResponse\x12r\n" +
 	"\x0fListClassifiers\x12..teleport.summarizer.v1.ListClassifiersRequest\x1a/.teleport.summarizer.v1.ListClassifiersResponse\x12c\n" +
 	"\n" +
-	"GetSummary\x12).teleport.summarizer.v1.GetSummaryRequest\x1a*.teleport.summarizer.v1.GetSummaryResponse\x12\x8a\x01\n" +
+	"GetSummary\x12).teleport.summarizer.v1.GetSummaryRequest\x1a*.teleport.summarizer.v1.GetSummaryResponse\x12y\n" +
+	"\x10StreamSessionHAR\x12/.teleport.summarizer.v1.StreamSessionHARRequest\x1a0.teleport.summarizer.v1.StreamSessionHARResponse(\x010\x01\x12\x8a\x01\n" +
 	"\x17BatchGetSummaryMetadata\x126.teleport.summarizer.v1.BatchGetSummaryMetadataRequest\x1a7.teleport.summarizer.v1.BatchGetSummaryMetadataResponse\x12`\n" +
 	"\tIsEnabled\x12(.teleport.summarizer.v1.IsEnabledRequest\x1a).teleport.summarizer.v1.IsEnabledResponse\x12{\n" +
 	"\x12TestInferenceModel\x121.teleport.summarizer.v1.TestInferenceModelRequest\x1a2.teleport.summarizer.v1.TestInferenceModelResponse\x12\x81\x01\n" +
@@ -4915,7 +5794,7 @@ const file_teleport_summarizer_v1_summarizer_service_proto_rawDesc = "" +
 	"\x14DeleteRetrievalModel\x123.teleport.summarizer.v1.DeleteRetrievalModelRequest\x1a4.teleport.summarizer.v1.DeleteRetrievalModelResponse\x12{\n" +
 	"\x12TestRetrievalModel\x121.teleport.summarizer.v1.TestRetrievalModelRequest\x1a2.teleport.summarizer.v1.TestRetrievalModelResponseBXZVgithub.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1;summarizerv1b\x06proto3"
 
-var file_teleport_summarizer_v1_summarizer_service_proto_msgTypes = make([]protoimpl.MessageInfo, 69)
+var file_teleport_summarizer_v1_summarizer_service_proto_msgTypes = make([]protoimpl.MessageInfo, 76)
 var file_teleport_summarizer_v1_summarizer_service_proto_goTypes = []any{
 	(*CreateInferenceModelRequest)(nil),     // 0: teleport.summarizer.v1.CreateInferenceModelRequest
 	(*CreateInferenceModelResponse)(nil),    // 1: teleport.summarizer.v1.CreateInferenceModelResponse
@@ -4967,160 +5846,174 @@ var file_teleport_summarizer_v1_summarizer_service_proto_goTypes = []any{
 	(*ListClassifiersResponse)(nil),         // 47: teleport.summarizer.v1.ListClassifiersResponse
 	(*GetSummaryRequest)(nil),               // 48: teleport.summarizer.v1.GetSummaryRequest
 	(*GetSummaryResponse)(nil),              // 49: teleport.summarizer.v1.GetSummaryResponse
-	(*BatchGetSummaryMetadataRequest)(nil),  // 50: teleport.summarizer.v1.BatchGetSummaryMetadataRequest
-	(*BatchGetSummaryMetadataResponse)(nil), // 51: teleport.summarizer.v1.BatchGetSummaryMetadataResponse
-	(*SummaryMetadata)(nil),                 // 52: teleport.summarizer.v1.SummaryMetadata
-	(*IsEnabledRequest)(nil),                // 53: teleport.summarizer.v1.IsEnabledRequest
-	(*IsEnabledResponse)(nil),               // 54: teleport.summarizer.v1.IsEnabledResponse
-	(*TestInferenceModelRequest)(nil),       // 55: teleport.summarizer.v1.TestInferenceModelRequest
-	(*TestInferenceModelResponse)(nil),      // 56: teleport.summarizer.v1.TestInferenceModelResponse
-	(*TestRetrievalModelRequest)(nil),       // 57: teleport.summarizer.v1.TestRetrievalModelRequest
-	(*TestRetrievalModelResponse)(nil),      // 58: teleport.summarizer.v1.TestRetrievalModelResponse
-	(*CreateRetrievalModelRequest)(nil),     // 59: teleport.summarizer.v1.CreateRetrievalModelRequest
-	(*CreateRetrievalModelResponse)(nil),    // 60: teleport.summarizer.v1.CreateRetrievalModelResponse
-	(*GetRetrievalModelRequest)(nil),        // 61: teleport.summarizer.v1.GetRetrievalModelRequest
-	(*GetRetrievalModelResponse)(nil),       // 62: teleport.summarizer.v1.GetRetrievalModelResponse
-	(*UpdateRetrievalModelRequest)(nil),     // 63: teleport.summarizer.v1.UpdateRetrievalModelRequest
-	(*UpdateRetrievalModelResponse)(nil),    // 64: teleport.summarizer.v1.UpdateRetrievalModelResponse
-	(*UpsertRetrievalModelRequest)(nil),     // 65: teleport.summarizer.v1.UpsertRetrievalModelRequest
-	(*UpsertRetrievalModelResponse)(nil),    // 66: teleport.summarizer.v1.UpsertRetrievalModelResponse
-	(*DeleteRetrievalModelRequest)(nil),     // 67: teleport.summarizer.v1.DeleteRetrievalModelRequest
-	(*DeleteRetrievalModelResponse)(nil),    // 68: teleport.summarizer.v1.DeleteRetrievalModelResponse
-	(*InferenceModel)(nil),                  // 69: teleport.summarizer.v1.InferenceModel
-	(*InferenceSecret)(nil),                 // 70: teleport.summarizer.v1.InferenceSecret
-	(*InferencePolicy)(nil),                 // 71: teleport.summarizer.v1.InferencePolicy
-	(*Classifier)(nil),                      // 72: teleport.summarizer.v1.Classifier
-	(*Summary)(nil),                         // 73: teleport.summarizer.v1.Summary
-	(SummaryState)(0),                       // 74: teleport.summarizer.v1.SummaryState
-	(RiskLevel)(0),                          // 75: teleport.summarizer.v1.RiskLevel
-	(NeedsReviewReason)(0),                  // 76: teleport.summarizer.v1.NeedsReviewReason
-	(*InferenceModelSpec)(nil),              // 77: teleport.summarizer.v1.InferenceModelSpec
-	(*InferenceSecretSpec)(nil),             // 78: teleport.summarizer.v1.InferenceSecretSpec
-	(*RetrievalModelSpec)(nil),              // 79: teleport.summarizer.v1.RetrievalModelSpec
-	(*RetrievalModel)(nil),                  // 80: teleport.summarizer.v1.RetrievalModel
+	(*StreamSessionHARRequest)(nil),         // 50: teleport.summarizer.v1.StreamSessionHARRequest
+	(*GetHARIndexRequest)(nil),              // 51: teleport.summarizer.v1.GetHARIndexRequest
+	(*GetHAREntryRequest)(nil),              // 52: teleport.summarizer.v1.GetHAREntryRequest
+	(*StreamSessionHARResponse)(nil),        // 53: teleport.summarizer.v1.StreamSessionHARResponse
+	(*HARIndex)(nil),                        // 54: teleport.summarizer.v1.HARIndex
+	(*HAREntryMeta)(nil),                    // 55: teleport.summarizer.v1.HAREntryMeta
+	(*HAREntry)(nil),                        // 56: teleport.summarizer.v1.HAREntry
+	(*BatchGetSummaryMetadataRequest)(nil),  // 57: teleport.summarizer.v1.BatchGetSummaryMetadataRequest
+	(*BatchGetSummaryMetadataResponse)(nil), // 58: teleport.summarizer.v1.BatchGetSummaryMetadataResponse
+	(*SummaryMetadata)(nil),                 // 59: teleport.summarizer.v1.SummaryMetadata
+	(*IsEnabledRequest)(nil),                // 60: teleport.summarizer.v1.IsEnabledRequest
+	(*IsEnabledResponse)(nil),               // 61: teleport.summarizer.v1.IsEnabledResponse
+	(*TestInferenceModelRequest)(nil),       // 62: teleport.summarizer.v1.TestInferenceModelRequest
+	(*TestInferenceModelResponse)(nil),      // 63: teleport.summarizer.v1.TestInferenceModelResponse
+	(*TestRetrievalModelRequest)(nil),       // 64: teleport.summarizer.v1.TestRetrievalModelRequest
+	(*TestRetrievalModelResponse)(nil),      // 65: teleport.summarizer.v1.TestRetrievalModelResponse
+	(*CreateRetrievalModelRequest)(nil),     // 66: teleport.summarizer.v1.CreateRetrievalModelRequest
+	(*CreateRetrievalModelResponse)(nil),    // 67: teleport.summarizer.v1.CreateRetrievalModelResponse
+	(*GetRetrievalModelRequest)(nil),        // 68: teleport.summarizer.v1.GetRetrievalModelRequest
+	(*GetRetrievalModelResponse)(nil),       // 69: teleport.summarizer.v1.GetRetrievalModelResponse
+	(*UpdateRetrievalModelRequest)(nil),     // 70: teleport.summarizer.v1.UpdateRetrievalModelRequest
+	(*UpdateRetrievalModelResponse)(nil),    // 71: teleport.summarizer.v1.UpdateRetrievalModelResponse
+	(*UpsertRetrievalModelRequest)(nil),     // 72: teleport.summarizer.v1.UpsertRetrievalModelRequest
+	(*UpsertRetrievalModelResponse)(nil),    // 73: teleport.summarizer.v1.UpsertRetrievalModelResponse
+	(*DeleteRetrievalModelRequest)(nil),     // 74: teleport.summarizer.v1.DeleteRetrievalModelRequest
+	(*DeleteRetrievalModelResponse)(nil),    // 75: teleport.summarizer.v1.DeleteRetrievalModelResponse
+	(*InferenceModel)(nil),                  // 76: teleport.summarizer.v1.InferenceModel
+	(*InferenceSecret)(nil),                 // 77: teleport.summarizer.v1.InferenceSecret
+	(*InferencePolicy)(nil),                 // 78: teleport.summarizer.v1.InferencePolicy
+	(*Classifier)(nil),                      // 79: teleport.summarizer.v1.Classifier
+	(*Summary)(nil),                         // 80: teleport.summarizer.v1.Summary
+	(SummaryState)(0),                       // 81: teleport.summarizer.v1.SummaryState
+	(RiskLevel)(0),                          // 82: teleport.summarizer.v1.RiskLevel
+	(NeedsReviewReason)(0),                  // 83: teleport.summarizer.v1.NeedsReviewReason
+	(*InferenceModelSpec)(nil),              // 84: teleport.summarizer.v1.InferenceModelSpec
+	(*InferenceSecretSpec)(nil),             // 85: teleport.summarizer.v1.InferenceSecretSpec
+	(*RetrievalModelSpec)(nil),              // 86: teleport.summarizer.v1.RetrievalModelSpec
+	(*RetrievalModel)(nil),                  // 87: teleport.summarizer.v1.RetrievalModel
 }
 var file_teleport_summarizer_v1_summarizer_service_proto_depIdxs = []int32{
-	69, // 0: teleport.summarizer.v1.CreateInferenceModelRequest.model:type_name -> teleport.summarizer.v1.InferenceModel
-	69, // 1: teleport.summarizer.v1.CreateInferenceModelResponse.model:type_name -> teleport.summarizer.v1.InferenceModel
-	69, // 2: teleport.summarizer.v1.GetInferenceModelResponse.model:type_name -> teleport.summarizer.v1.InferenceModel
-	69, // 3: teleport.summarizer.v1.UpdateInferenceModelRequest.model:type_name -> teleport.summarizer.v1.InferenceModel
-	69, // 4: teleport.summarizer.v1.UpdateInferenceModelResponse.model:type_name -> teleport.summarizer.v1.InferenceModel
-	69, // 5: teleport.summarizer.v1.UpsertInferenceModelRequest.model:type_name -> teleport.summarizer.v1.InferenceModel
-	69, // 6: teleport.summarizer.v1.UpsertInferenceModelResponse.model:type_name -> teleport.summarizer.v1.InferenceModel
-	69, // 7: teleport.summarizer.v1.ListInferenceModelsResponse.models:type_name -> teleport.summarizer.v1.InferenceModel
-	70, // 8: teleport.summarizer.v1.CreateInferenceSecretRequest.secret:type_name -> teleport.summarizer.v1.InferenceSecret
-	70, // 9: teleport.summarizer.v1.CreateInferenceSecretResponse.secret:type_name -> teleport.summarizer.v1.InferenceSecret
-	70, // 10: teleport.summarizer.v1.GetInferenceSecretResponse.secret:type_name -> teleport.summarizer.v1.InferenceSecret
-	70, // 11: teleport.summarizer.v1.UpdateInferenceSecretRequest.secret:type_name -> teleport.summarizer.v1.InferenceSecret
-	70, // 12: teleport.summarizer.v1.UpdateInferenceSecretResponse.secret:type_name -> teleport.summarizer.v1.InferenceSecret
-	70, // 13: teleport.summarizer.v1.UpsertInferenceSecretRequest.secret:type_name -> teleport.summarizer.v1.InferenceSecret
-	70, // 14: teleport.summarizer.v1.UpsertInferenceSecretResponse.secret:type_name -> teleport.summarizer.v1.InferenceSecret
-	70, // 15: teleport.summarizer.v1.ListInferenceSecretsResponse.secrets:type_name -> teleport.summarizer.v1.InferenceSecret
-	71, // 16: teleport.summarizer.v1.CreateInferencePolicyRequest.policy:type_name -> teleport.summarizer.v1.InferencePolicy
-	71, // 17: teleport.summarizer.v1.CreateInferencePolicyResponse.policy:type_name -> teleport.summarizer.v1.InferencePolicy
-	71, // 18: teleport.summarizer.v1.GetInferencePolicyResponse.policy:type_name -> teleport.summarizer.v1.InferencePolicy
-	71, // 19: teleport.summarizer.v1.UpdateInferencePolicyRequest.policy:type_name -> teleport.summarizer.v1.InferencePolicy
-	71, // 20: teleport.summarizer.v1.UpdateInferencePolicyResponse.policy:type_name -> teleport.summarizer.v1.InferencePolicy
-	71, // 21: teleport.summarizer.v1.UpsertInferencePolicyRequest.policy:type_name -> teleport.summarizer.v1.InferencePolicy
-	71, // 22: teleport.summarizer.v1.UpsertInferencePolicyResponse.policy:type_name -> teleport.summarizer.v1.InferencePolicy
-	71, // 23: teleport.summarizer.v1.ListInferencePoliciesResponse.policies:type_name -> teleport.summarizer.v1.InferencePolicy
-	72, // 24: teleport.summarizer.v1.CreateClassifierRequest.classifier:type_name -> teleport.summarizer.v1.Classifier
-	72, // 25: teleport.summarizer.v1.CreateClassifierResponse.classifier:type_name -> teleport.summarizer.v1.Classifier
-	72, // 26: teleport.summarizer.v1.GetClassifierResponse.classifier:type_name -> teleport.summarizer.v1.Classifier
-	72, // 27: teleport.summarizer.v1.UpdateClassifierRequest.classifier:type_name -> teleport.summarizer.v1.Classifier
-	72, // 28: teleport.summarizer.v1.UpdateClassifierResponse.classifier:type_name -> teleport.summarizer.v1.Classifier
-	72, // 29: teleport.summarizer.v1.UpsertClassifierRequest.classifier:type_name -> teleport.summarizer.v1.Classifier
-	72, // 30: teleport.summarizer.v1.UpsertClassifierResponse.classifier:type_name -> teleport.summarizer.v1.Classifier
-	72, // 31: teleport.summarizer.v1.ListClassifiersResponse.classifiers:type_name -> teleport.summarizer.v1.Classifier
-	73, // 32: teleport.summarizer.v1.GetSummaryResponse.summary:type_name -> teleport.summarizer.v1.Summary
-	52, // 33: teleport.summarizer.v1.BatchGetSummaryMetadataResponse.metadata:type_name -> teleport.summarizer.v1.SummaryMetadata
-	74, // 34: teleport.summarizer.v1.SummaryMetadata.state:type_name -> teleport.summarizer.v1.SummaryState
-	75, // 35: teleport.summarizer.v1.SummaryMetadata.risk_level:type_name -> teleport.summarizer.v1.RiskLevel
-	76, // 36: teleport.summarizer.v1.SummaryMetadata.needs_further_review_reasons:type_name -> teleport.summarizer.v1.NeedsReviewReason
-	77, // 37: teleport.summarizer.v1.TestInferenceModelRequest.model:type_name -> teleport.summarizer.v1.InferenceModelSpec
-	78, // 38: teleport.summarizer.v1.TestInferenceModelRequest.secret:type_name -> teleport.summarizer.v1.InferenceSecretSpec
-	79, // 39: teleport.summarizer.v1.TestRetrievalModelRequest.model:type_name -> teleport.summarizer.v1.RetrievalModelSpec
-	78, // 40: teleport.summarizer.v1.TestRetrievalModelRequest.secret:type_name -> teleport.summarizer.v1.InferenceSecretSpec
-	80, // 41: teleport.summarizer.v1.CreateRetrievalModelRequest.model:type_name -> teleport.summarizer.v1.RetrievalModel
-	80, // 42: teleport.summarizer.v1.CreateRetrievalModelResponse.model:type_name -> teleport.summarizer.v1.RetrievalModel
-	80, // 43: teleport.summarizer.v1.GetRetrievalModelResponse.model:type_name -> teleport.summarizer.v1.RetrievalModel
-	80, // 44: teleport.summarizer.v1.UpdateRetrievalModelRequest.model:type_name -> teleport.summarizer.v1.RetrievalModel
-	80, // 45: teleport.summarizer.v1.UpdateRetrievalModelResponse.model:type_name -> teleport.summarizer.v1.RetrievalModel
-	80, // 46: teleport.summarizer.v1.UpsertRetrievalModelRequest.model:type_name -> teleport.summarizer.v1.RetrievalModel
-	80, // 47: teleport.summarizer.v1.UpsertRetrievalModelResponse.model:type_name -> teleport.summarizer.v1.RetrievalModel
-	0,  // 48: teleport.summarizer.v1.SummarizerService.CreateInferenceModel:input_type -> teleport.summarizer.v1.CreateInferenceModelRequest
-	2,  // 49: teleport.summarizer.v1.SummarizerService.GetInferenceModel:input_type -> teleport.summarizer.v1.GetInferenceModelRequest
-	4,  // 50: teleport.summarizer.v1.SummarizerService.UpdateInferenceModel:input_type -> teleport.summarizer.v1.UpdateInferenceModelRequest
-	6,  // 51: teleport.summarizer.v1.SummarizerService.UpsertInferenceModel:input_type -> teleport.summarizer.v1.UpsertInferenceModelRequest
-	8,  // 52: teleport.summarizer.v1.SummarizerService.DeleteInferenceModel:input_type -> teleport.summarizer.v1.DeleteInferenceModelRequest
-	10, // 53: teleport.summarizer.v1.SummarizerService.ListInferenceModels:input_type -> teleport.summarizer.v1.ListInferenceModelsRequest
-	12, // 54: teleport.summarizer.v1.SummarizerService.CreateInferenceSecret:input_type -> teleport.summarizer.v1.CreateInferenceSecretRequest
-	14, // 55: teleport.summarizer.v1.SummarizerService.GetInferenceSecret:input_type -> teleport.summarizer.v1.GetInferenceSecretRequest
-	16, // 56: teleport.summarizer.v1.SummarizerService.UpdateInferenceSecret:input_type -> teleport.summarizer.v1.UpdateInferenceSecretRequest
-	18, // 57: teleport.summarizer.v1.SummarizerService.UpsertInferenceSecret:input_type -> teleport.summarizer.v1.UpsertInferenceSecretRequest
-	20, // 58: teleport.summarizer.v1.SummarizerService.DeleteInferenceSecret:input_type -> teleport.summarizer.v1.DeleteInferenceSecretRequest
-	22, // 59: teleport.summarizer.v1.SummarizerService.ListInferenceSecrets:input_type -> teleport.summarizer.v1.ListInferenceSecretsRequest
-	24, // 60: teleport.summarizer.v1.SummarizerService.CreateInferencePolicy:input_type -> teleport.summarizer.v1.CreateInferencePolicyRequest
-	26, // 61: teleport.summarizer.v1.SummarizerService.GetInferencePolicy:input_type -> teleport.summarizer.v1.GetInferencePolicyRequest
-	28, // 62: teleport.summarizer.v1.SummarizerService.UpdateInferencePolicy:input_type -> teleport.summarizer.v1.UpdateInferencePolicyRequest
-	30, // 63: teleport.summarizer.v1.SummarizerService.UpsertInferencePolicy:input_type -> teleport.summarizer.v1.UpsertInferencePolicyRequest
-	32, // 64: teleport.summarizer.v1.SummarizerService.DeleteInferencePolicy:input_type -> teleport.summarizer.v1.DeleteInferencePolicyRequest
-	34, // 65: teleport.summarizer.v1.SummarizerService.ListInferencePolicies:input_type -> teleport.summarizer.v1.ListInferencePoliciesRequest
-	36, // 66: teleport.summarizer.v1.SummarizerService.CreateClassifier:input_type -> teleport.summarizer.v1.CreateClassifierRequest
-	38, // 67: teleport.summarizer.v1.SummarizerService.GetClassifier:input_type -> teleport.summarizer.v1.GetClassifierRequest
-	40, // 68: teleport.summarizer.v1.SummarizerService.UpdateClassifier:input_type -> teleport.summarizer.v1.UpdateClassifierRequest
-	42, // 69: teleport.summarizer.v1.SummarizerService.UpsertClassifier:input_type -> teleport.summarizer.v1.UpsertClassifierRequest
-	44, // 70: teleport.summarizer.v1.SummarizerService.DeleteClassifier:input_type -> teleport.summarizer.v1.DeleteClassifierRequest
-	46, // 71: teleport.summarizer.v1.SummarizerService.ListClassifiers:input_type -> teleport.summarizer.v1.ListClassifiersRequest
-	48, // 72: teleport.summarizer.v1.SummarizerService.GetSummary:input_type -> teleport.summarizer.v1.GetSummaryRequest
-	50, // 73: teleport.summarizer.v1.SummarizerService.BatchGetSummaryMetadata:input_type -> teleport.summarizer.v1.BatchGetSummaryMetadataRequest
-	53, // 74: teleport.summarizer.v1.SummarizerService.IsEnabled:input_type -> teleport.summarizer.v1.IsEnabledRequest
-	55, // 75: teleport.summarizer.v1.SummarizerService.TestInferenceModel:input_type -> teleport.summarizer.v1.TestInferenceModelRequest
-	59, // 76: teleport.summarizer.v1.SummarizerService.CreateRetrievalModel:input_type -> teleport.summarizer.v1.CreateRetrievalModelRequest
-	61, // 77: teleport.summarizer.v1.SummarizerService.GetRetrievalModel:input_type -> teleport.summarizer.v1.GetRetrievalModelRequest
-	63, // 78: teleport.summarizer.v1.SummarizerService.UpdateRetrievalModel:input_type -> teleport.summarizer.v1.UpdateRetrievalModelRequest
-	65, // 79: teleport.summarizer.v1.SummarizerService.UpsertRetrievalModel:input_type -> teleport.summarizer.v1.UpsertRetrievalModelRequest
-	67, // 80: teleport.summarizer.v1.SummarizerService.DeleteRetrievalModel:input_type -> teleport.summarizer.v1.DeleteRetrievalModelRequest
-	57, // 81: teleport.summarizer.v1.SummarizerService.TestRetrievalModel:input_type -> teleport.summarizer.v1.TestRetrievalModelRequest
-	1,  // 82: teleport.summarizer.v1.SummarizerService.CreateInferenceModel:output_type -> teleport.summarizer.v1.CreateInferenceModelResponse
-	3,  // 83: teleport.summarizer.v1.SummarizerService.GetInferenceModel:output_type -> teleport.summarizer.v1.GetInferenceModelResponse
-	5,  // 84: teleport.summarizer.v1.SummarizerService.UpdateInferenceModel:output_type -> teleport.summarizer.v1.UpdateInferenceModelResponse
-	7,  // 85: teleport.summarizer.v1.SummarizerService.UpsertInferenceModel:output_type -> teleport.summarizer.v1.UpsertInferenceModelResponse
-	9,  // 86: teleport.summarizer.v1.SummarizerService.DeleteInferenceModel:output_type -> teleport.summarizer.v1.DeleteInferenceModelResponse
-	11, // 87: teleport.summarizer.v1.SummarizerService.ListInferenceModels:output_type -> teleport.summarizer.v1.ListInferenceModelsResponse
-	13, // 88: teleport.summarizer.v1.SummarizerService.CreateInferenceSecret:output_type -> teleport.summarizer.v1.CreateInferenceSecretResponse
-	15, // 89: teleport.summarizer.v1.SummarizerService.GetInferenceSecret:output_type -> teleport.summarizer.v1.GetInferenceSecretResponse
-	17, // 90: teleport.summarizer.v1.SummarizerService.UpdateInferenceSecret:output_type -> teleport.summarizer.v1.UpdateInferenceSecretResponse
-	19, // 91: teleport.summarizer.v1.SummarizerService.UpsertInferenceSecret:output_type -> teleport.summarizer.v1.UpsertInferenceSecretResponse
-	21, // 92: teleport.summarizer.v1.SummarizerService.DeleteInferenceSecret:output_type -> teleport.summarizer.v1.DeleteInferenceSecretResponse
-	23, // 93: teleport.summarizer.v1.SummarizerService.ListInferenceSecrets:output_type -> teleport.summarizer.v1.ListInferenceSecretsResponse
-	25, // 94: teleport.summarizer.v1.SummarizerService.CreateInferencePolicy:output_type -> teleport.summarizer.v1.CreateInferencePolicyResponse
-	27, // 95: teleport.summarizer.v1.SummarizerService.GetInferencePolicy:output_type -> teleport.summarizer.v1.GetInferencePolicyResponse
-	29, // 96: teleport.summarizer.v1.SummarizerService.UpdateInferencePolicy:output_type -> teleport.summarizer.v1.UpdateInferencePolicyResponse
-	31, // 97: teleport.summarizer.v1.SummarizerService.UpsertInferencePolicy:output_type -> teleport.summarizer.v1.UpsertInferencePolicyResponse
-	33, // 98: teleport.summarizer.v1.SummarizerService.DeleteInferencePolicy:output_type -> teleport.summarizer.v1.DeleteInferencePolicyResponse
-	35, // 99: teleport.summarizer.v1.SummarizerService.ListInferencePolicies:output_type -> teleport.summarizer.v1.ListInferencePoliciesResponse
-	37, // 100: teleport.summarizer.v1.SummarizerService.CreateClassifier:output_type -> teleport.summarizer.v1.CreateClassifierResponse
-	39, // 101: teleport.summarizer.v1.SummarizerService.GetClassifier:output_type -> teleport.summarizer.v1.GetClassifierResponse
-	41, // 102: teleport.summarizer.v1.SummarizerService.UpdateClassifier:output_type -> teleport.summarizer.v1.UpdateClassifierResponse
-	43, // 103: teleport.summarizer.v1.SummarizerService.UpsertClassifier:output_type -> teleport.summarizer.v1.UpsertClassifierResponse
-	45, // 104: teleport.summarizer.v1.SummarizerService.DeleteClassifier:output_type -> teleport.summarizer.v1.DeleteClassifierResponse
-	47, // 105: teleport.summarizer.v1.SummarizerService.ListClassifiers:output_type -> teleport.summarizer.v1.ListClassifiersResponse
-	49, // 106: teleport.summarizer.v1.SummarizerService.GetSummary:output_type -> teleport.summarizer.v1.GetSummaryResponse
-	51, // 107: teleport.summarizer.v1.SummarizerService.BatchGetSummaryMetadata:output_type -> teleport.summarizer.v1.BatchGetSummaryMetadataResponse
-	54, // 108: teleport.summarizer.v1.SummarizerService.IsEnabled:output_type -> teleport.summarizer.v1.IsEnabledResponse
-	56, // 109: teleport.summarizer.v1.SummarizerService.TestInferenceModel:output_type -> teleport.summarizer.v1.TestInferenceModelResponse
-	60, // 110: teleport.summarizer.v1.SummarizerService.CreateRetrievalModel:output_type -> teleport.summarizer.v1.CreateRetrievalModelResponse
-	62, // 111: teleport.summarizer.v1.SummarizerService.GetRetrievalModel:output_type -> teleport.summarizer.v1.GetRetrievalModelResponse
-	64, // 112: teleport.summarizer.v1.SummarizerService.UpdateRetrievalModel:output_type -> teleport.summarizer.v1.UpdateRetrievalModelResponse
-	66, // 113: teleport.summarizer.v1.SummarizerService.UpsertRetrievalModel:output_type -> teleport.summarizer.v1.UpsertRetrievalModelResponse
-	68, // 114: teleport.summarizer.v1.SummarizerService.DeleteRetrievalModel:output_type -> teleport.summarizer.v1.DeleteRetrievalModelResponse
-	58, // 115: teleport.summarizer.v1.SummarizerService.TestRetrievalModel:output_type -> teleport.summarizer.v1.TestRetrievalModelResponse
-	82, // [82:116] is the sub-list for method output_type
-	48, // [48:82] is the sub-list for method input_type
-	48, // [48:48] is the sub-list for extension type_name
-	48, // [48:48] is the sub-list for extension extendee
-	0,  // [0:48] is the sub-list for field type_name
+	76, // 0: teleport.summarizer.v1.CreateInferenceModelRequest.model:type_name -> teleport.summarizer.v1.InferenceModel
+	76, // 1: teleport.summarizer.v1.CreateInferenceModelResponse.model:type_name -> teleport.summarizer.v1.InferenceModel
+	76, // 2: teleport.summarizer.v1.GetInferenceModelResponse.model:type_name -> teleport.summarizer.v1.InferenceModel
+	76, // 3: teleport.summarizer.v1.UpdateInferenceModelRequest.model:type_name -> teleport.summarizer.v1.InferenceModel
+	76, // 4: teleport.summarizer.v1.UpdateInferenceModelResponse.model:type_name -> teleport.summarizer.v1.InferenceModel
+	76, // 5: teleport.summarizer.v1.UpsertInferenceModelRequest.model:type_name -> teleport.summarizer.v1.InferenceModel
+	76, // 6: teleport.summarizer.v1.UpsertInferenceModelResponse.model:type_name -> teleport.summarizer.v1.InferenceModel
+	76, // 7: teleport.summarizer.v1.ListInferenceModelsResponse.models:type_name -> teleport.summarizer.v1.InferenceModel
+	77, // 8: teleport.summarizer.v1.CreateInferenceSecretRequest.secret:type_name -> teleport.summarizer.v1.InferenceSecret
+	77, // 9: teleport.summarizer.v1.CreateInferenceSecretResponse.secret:type_name -> teleport.summarizer.v1.InferenceSecret
+	77, // 10: teleport.summarizer.v1.GetInferenceSecretResponse.secret:type_name -> teleport.summarizer.v1.InferenceSecret
+	77, // 11: teleport.summarizer.v1.UpdateInferenceSecretRequest.secret:type_name -> teleport.summarizer.v1.InferenceSecret
+	77, // 12: teleport.summarizer.v1.UpdateInferenceSecretResponse.secret:type_name -> teleport.summarizer.v1.InferenceSecret
+	77, // 13: teleport.summarizer.v1.UpsertInferenceSecretRequest.secret:type_name -> teleport.summarizer.v1.InferenceSecret
+	77, // 14: teleport.summarizer.v1.UpsertInferenceSecretResponse.secret:type_name -> teleport.summarizer.v1.InferenceSecret
+	77, // 15: teleport.summarizer.v1.ListInferenceSecretsResponse.secrets:type_name -> teleport.summarizer.v1.InferenceSecret
+	78, // 16: teleport.summarizer.v1.CreateInferencePolicyRequest.policy:type_name -> teleport.summarizer.v1.InferencePolicy
+	78, // 17: teleport.summarizer.v1.CreateInferencePolicyResponse.policy:type_name -> teleport.summarizer.v1.InferencePolicy
+	78, // 18: teleport.summarizer.v1.GetInferencePolicyResponse.policy:type_name -> teleport.summarizer.v1.InferencePolicy
+	78, // 19: teleport.summarizer.v1.UpdateInferencePolicyRequest.policy:type_name -> teleport.summarizer.v1.InferencePolicy
+	78, // 20: teleport.summarizer.v1.UpdateInferencePolicyResponse.policy:type_name -> teleport.summarizer.v1.InferencePolicy
+	78, // 21: teleport.summarizer.v1.UpsertInferencePolicyRequest.policy:type_name -> teleport.summarizer.v1.InferencePolicy
+	78, // 22: teleport.summarizer.v1.UpsertInferencePolicyResponse.policy:type_name -> teleport.summarizer.v1.InferencePolicy
+	78, // 23: teleport.summarizer.v1.ListInferencePoliciesResponse.policies:type_name -> teleport.summarizer.v1.InferencePolicy
+	79, // 24: teleport.summarizer.v1.CreateClassifierRequest.classifier:type_name -> teleport.summarizer.v1.Classifier
+	79, // 25: teleport.summarizer.v1.CreateClassifierResponse.classifier:type_name -> teleport.summarizer.v1.Classifier
+	79, // 26: teleport.summarizer.v1.GetClassifierResponse.classifier:type_name -> teleport.summarizer.v1.Classifier
+	79, // 27: teleport.summarizer.v1.UpdateClassifierRequest.classifier:type_name -> teleport.summarizer.v1.Classifier
+	79, // 28: teleport.summarizer.v1.UpdateClassifierResponse.classifier:type_name -> teleport.summarizer.v1.Classifier
+	79, // 29: teleport.summarizer.v1.UpsertClassifierRequest.classifier:type_name -> teleport.summarizer.v1.Classifier
+	79, // 30: teleport.summarizer.v1.UpsertClassifierResponse.classifier:type_name -> teleport.summarizer.v1.Classifier
+	79, // 31: teleport.summarizer.v1.ListClassifiersResponse.classifiers:type_name -> teleport.summarizer.v1.Classifier
+	80, // 32: teleport.summarizer.v1.GetSummaryResponse.summary:type_name -> teleport.summarizer.v1.Summary
+	51, // 33: teleport.summarizer.v1.StreamSessionHARRequest.get_index:type_name -> teleport.summarizer.v1.GetHARIndexRequest
+	52, // 34: teleport.summarizer.v1.StreamSessionHARRequest.get_entry:type_name -> teleport.summarizer.v1.GetHAREntryRequest
+	54, // 35: teleport.summarizer.v1.StreamSessionHARResponse.index:type_name -> teleport.summarizer.v1.HARIndex
+	56, // 36: teleport.summarizer.v1.StreamSessionHARResponse.entry:type_name -> teleport.summarizer.v1.HAREntry
+	55, // 37: teleport.summarizer.v1.HARIndex.entries:type_name -> teleport.summarizer.v1.HAREntryMeta
+	59, // 38: teleport.summarizer.v1.BatchGetSummaryMetadataResponse.metadata:type_name -> teleport.summarizer.v1.SummaryMetadata
+	81, // 39: teleport.summarizer.v1.SummaryMetadata.state:type_name -> teleport.summarizer.v1.SummaryState
+	82, // 40: teleport.summarizer.v1.SummaryMetadata.risk_level:type_name -> teleport.summarizer.v1.RiskLevel
+	83, // 41: teleport.summarizer.v1.SummaryMetadata.needs_further_review_reasons:type_name -> teleport.summarizer.v1.NeedsReviewReason
+	84, // 42: teleport.summarizer.v1.TestInferenceModelRequest.model:type_name -> teleport.summarizer.v1.InferenceModelSpec
+	85, // 43: teleport.summarizer.v1.TestInferenceModelRequest.secret:type_name -> teleport.summarizer.v1.InferenceSecretSpec
+	86, // 44: teleport.summarizer.v1.TestRetrievalModelRequest.model:type_name -> teleport.summarizer.v1.RetrievalModelSpec
+	85, // 45: teleport.summarizer.v1.TestRetrievalModelRequest.secret:type_name -> teleport.summarizer.v1.InferenceSecretSpec
+	87, // 46: teleport.summarizer.v1.CreateRetrievalModelRequest.model:type_name -> teleport.summarizer.v1.RetrievalModel
+	87, // 47: teleport.summarizer.v1.CreateRetrievalModelResponse.model:type_name -> teleport.summarizer.v1.RetrievalModel
+	87, // 48: teleport.summarizer.v1.GetRetrievalModelResponse.model:type_name -> teleport.summarizer.v1.RetrievalModel
+	87, // 49: teleport.summarizer.v1.UpdateRetrievalModelRequest.model:type_name -> teleport.summarizer.v1.RetrievalModel
+	87, // 50: teleport.summarizer.v1.UpdateRetrievalModelResponse.model:type_name -> teleport.summarizer.v1.RetrievalModel
+	87, // 51: teleport.summarizer.v1.UpsertRetrievalModelRequest.model:type_name -> teleport.summarizer.v1.RetrievalModel
+	87, // 52: teleport.summarizer.v1.UpsertRetrievalModelResponse.model:type_name -> teleport.summarizer.v1.RetrievalModel
+	0,  // 53: teleport.summarizer.v1.SummarizerService.CreateInferenceModel:input_type -> teleport.summarizer.v1.CreateInferenceModelRequest
+	2,  // 54: teleport.summarizer.v1.SummarizerService.GetInferenceModel:input_type -> teleport.summarizer.v1.GetInferenceModelRequest
+	4,  // 55: teleport.summarizer.v1.SummarizerService.UpdateInferenceModel:input_type -> teleport.summarizer.v1.UpdateInferenceModelRequest
+	6,  // 56: teleport.summarizer.v1.SummarizerService.UpsertInferenceModel:input_type -> teleport.summarizer.v1.UpsertInferenceModelRequest
+	8,  // 57: teleport.summarizer.v1.SummarizerService.DeleteInferenceModel:input_type -> teleport.summarizer.v1.DeleteInferenceModelRequest
+	10, // 58: teleport.summarizer.v1.SummarizerService.ListInferenceModels:input_type -> teleport.summarizer.v1.ListInferenceModelsRequest
+	12, // 59: teleport.summarizer.v1.SummarizerService.CreateInferenceSecret:input_type -> teleport.summarizer.v1.CreateInferenceSecretRequest
+	14, // 60: teleport.summarizer.v1.SummarizerService.GetInferenceSecret:input_type -> teleport.summarizer.v1.GetInferenceSecretRequest
+	16, // 61: teleport.summarizer.v1.SummarizerService.UpdateInferenceSecret:input_type -> teleport.summarizer.v1.UpdateInferenceSecretRequest
+	18, // 62: teleport.summarizer.v1.SummarizerService.UpsertInferenceSecret:input_type -> teleport.summarizer.v1.UpsertInferenceSecretRequest
+	20, // 63: teleport.summarizer.v1.SummarizerService.DeleteInferenceSecret:input_type -> teleport.summarizer.v1.DeleteInferenceSecretRequest
+	22, // 64: teleport.summarizer.v1.SummarizerService.ListInferenceSecrets:input_type -> teleport.summarizer.v1.ListInferenceSecretsRequest
+	24, // 65: teleport.summarizer.v1.SummarizerService.CreateInferencePolicy:input_type -> teleport.summarizer.v1.CreateInferencePolicyRequest
+	26, // 66: teleport.summarizer.v1.SummarizerService.GetInferencePolicy:input_type -> teleport.summarizer.v1.GetInferencePolicyRequest
+	28, // 67: teleport.summarizer.v1.SummarizerService.UpdateInferencePolicy:input_type -> teleport.summarizer.v1.UpdateInferencePolicyRequest
+	30, // 68: teleport.summarizer.v1.SummarizerService.UpsertInferencePolicy:input_type -> teleport.summarizer.v1.UpsertInferencePolicyRequest
+	32, // 69: teleport.summarizer.v1.SummarizerService.DeleteInferencePolicy:input_type -> teleport.summarizer.v1.DeleteInferencePolicyRequest
+	34, // 70: teleport.summarizer.v1.SummarizerService.ListInferencePolicies:input_type -> teleport.summarizer.v1.ListInferencePoliciesRequest
+	36, // 71: teleport.summarizer.v1.SummarizerService.CreateClassifier:input_type -> teleport.summarizer.v1.CreateClassifierRequest
+	38, // 72: teleport.summarizer.v1.SummarizerService.GetClassifier:input_type -> teleport.summarizer.v1.GetClassifierRequest
+	40, // 73: teleport.summarizer.v1.SummarizerService.UpdateClassifier:input_type -> teleport.summarizer.v1.UpdateClassifierRequest
+	42, // 74: teleport.summarizer.v1.SummarizerService.UpsertClassifier:input_type -> teleport.summarizer.v1.UpsertClassifierRequest
+	44, // 75: teleport.summarizer.v1.SummarizerService.DeleteClassifier:input_type -> teleport.summarizer.v1.DeleteClassifierRequest
+	46, // 76: teleport.summarizer.v1.SummarizerService.ListClassifiers:input_type -> teleport.summarizer.v1.ListClassifiersRequest
+	48, // 77: teleport.summarizer.v1.SummarizerService.GetSummary:input_type -> teleport.summarizer.v1.GetSummaryRequest
+	50, // 78: teleport.summarizer.v1.SummarizerService.StreamSessionHAR:input_type -> teleport.summarizer.v1.StreamSessionHARRequest
+	57, // 79: teleport.summarizer.v1.SummarizerService.BatchGetSummaryMetadata:input_type -> teleport.summarizer.v1.BatchGetSummaryMetadataRequest
+	60, // 80: teleport.summarizer.v1.SummarizerService.IsEnabled:input_type -> teleport.summarizer.v1.IsEnabledRequest
+	62, // 81: teleport.summarizer.v1.SummarizerService.TestInferenceModel:input_type -> teleport.summarizer.v1.TestInferenceModelRequest
+	66, // 82: teleport.summarizer.v1.SummarizerService.CreateRetrievalModel:input_type -> teleport.summarizer.v1.CreateRetrievalModelRequest
+	68, // 83: teleport.summarizer.v1.SummarizerService.GetRetrievalModel:input_type -> teleport.summarizer.v1.GetRetrievalModelRequest
+	70, // 84: teleport.summarizer.v1.SummarizerService.UpdateRetrievalModel:input_type -> teleport.summarizer.v1.UpdateRetrievalModelRequest
+	72, // 85: teleport.summarizer.v1.SummarizerService.UpsertRetrievalModel:input_type -> teleport.summarizer.v1.UpsertRetrievalModelRequest
+	74, // 86: teleport.summarizer.v1.SummarizerService.DeleteRetrievalModel:input_type -> teleport.summarizer.v1.DeleteRetrievalModelRequest
+	64, // 87: teleport.summarizer.v1.SummarizerService.TestRetrievalModel:input_type -> teleport.summarizer.v1.TestRetrievalModelRequest
+	1,  // 88: teleport.summarizer.v1.SummarizerService.CreateInferenceModel:output_type -> teleport.summarizer.v1.CreateInferenceModelResponse
+	3,  // 89: teleport.summarizer.v1.SummarizerService.GetInferenceModel:output_type -> teleport.summarizer.v1.GetInferenceModelResponse
+	5,  // 90: teleport.summarizer.v1.SummarizerService.UpdateInferenceModel:output_type -> teleport.summarizer.v1.UpdateInferenceModelResponse
+	7,  // 91: teleport.summarizer.v1.SummarizerService.UpsertInferenceModel:output_type -> teleport.summarizer.v1.UpsertInferenceModelResponse
+	9,  // 92: teleport.summarizer.v1.SummarizerService.DeleteInferenceModel:output_type -> teleport.summarizer.v1.DeleteInferenceModelResponse
+	11, // 93: teleport.summarizer.v1.SummarizerService.ListInferenceModels:output_type -> teleport.summarizer.v1.ListInferenceModelsResponse
+	13, // 94: teleport.summarizer.v1.SummarizerService.CreateInferenceSecret:output_type -> teleport.summarizer.v1.CreateInferenceSecretResponse
+	15, // 95: teleport.summarizer.v1.SummarizerService.GetInferenceSecret:output_type -> teleport.summarizer.v1.GetInferenceSecretResponse
+	17, // 96: teleport.summarizer.v1.SummarizerService.UpdateInferenceSecret:output_type -> teleport.summarizer.v1.UpdateInferenceSecretResponse
+	19, // 97: teleport.summarizer.v1.SummarizerService.UpsertInferenceSecret:output_type -> teleport.summarizer.v1.UpsertInferenceSecretResponse
+	21, // 98: teleport.summarizer.v1.SummarizerService.DeleteInferenceSecret:output_type -> teleport.summarizer.v1.DeleteInferenceSecretResponse
+	23, // 99: teleport.summarizer.v1.SummarizerService.ListInferenceSecrets:output_type -> teleport.summarizer.v1.ListInferenceSecretsResponse
+	25, // 100: teleport.summarizer.v1.SummarizerService.CreateInferencePolicy:output_type -> teleport.summarizer.v1.CreateInferencePolicyResponse
+	27, // 101: teleport.summarizer.v1.SummarizerService.GetInferencePolicy:output_type -> teleport.summarizer.v1.GetInferencePolicyResponse
+	29, // 102: teleport.summarizer.v1.SummarizerService.UpdateInferencePolicy:output_type -> teleport.summarizer.v1.UpdateInferencePolicyResponse
+	31, // 103: teleport.summarizer.v1.SummarizerService.UpsertInferencePolicy:output_type -> teleport.summarizer.v1.UpsertInferencePolicyResponse
+	33, // 104: teleport.summarizer.v1.SummarizerService.DeleteInferencePolicy:output_type -> teleport.summarizer.v1.DeleteInferencePolicyResponse
+	35, // 105: teleport.summarizer.v1.SummarizerService.ListInferencePolicies:output_type -> teleport.summarizer.v1.ListInferencePoliciesResponse
+	37, // 106: teleport.summarizer.v1.SummarizerService.CreateClassifier:output_type -> teleport.summarizer.v1.CreateClassifierResponse
+	39, // 107: teleport.summarizer.v1.SummarizerService.GetClassifier:output_type -> teleport.summarizer.v1.GetClassifierResponse
+	41, // 108: teleport.summarizer.v1.SummarizerService.UpdateClassifier:output_type -> teleport.summarizer.v1.UpdateClassifierResponse
+	43, // 109: teleport.summarizer.v1.SummarizerService.UpsertClassifier:output_type -> teleport.summarizer.v1.UpsertClassifierResponse
+	45, // 110: teleport.summarizer.v1.SummarizerService.DeleteClassifier:output_type -> teleport.summarizer.v1.DeleteClassifierResponse
+	47, // 111: teleport.summarizer.v1.SummarizerService.ListClassifiers:output_type -> teleport.summarizer.v1.ListClassifiersResponse
+	49, // 112: teleport.summarizer.v1.SummarizerService.GetSummary:output_type -> teleport.summarizer.v1.GetSummaryResponse
+	53, // 113: teleport.summarizer.v1.SummarizerService.StreamSessionHAR:output_type -> teleport.summarizer.v1.StreamSessionHARResponse
+	58, // 114: teleport.summarizer.v1.SummarizerService.BatchGetSummaryMetadata:output_type -> teleport.summarizer.v1.BatchGetSummaryMetadataResponse
+	61, // 115: teleport.summarizer.v1.SummarizerService.IsEnabled:output_type -> teleport.summarizer.v1.IsEnabledResponse
+	63, // 116: teleport.summarizer.v1.SummarizerService.TestInferenceModel:output_type -> teleport.summarizer.v1.TestInferenceModelResponse
+	67, // 117: teleport.summarizer.v1.SummarizerService.CreateRetrievalModel:output_type -> teleport.summarizer.v1.CreateRetrievalModelResponse
+	69, // 118: teleport.summarizer.v1.SummarizerService.GetRetrievalModel:output_type -> teleport.summarizer.v1.GetRetrievalModelResponse
+	71, // 119: teleport.summarizer.v1.SummarizerService.UpdateRetrievalModel:output_type -> teleport.summarizer.v1.UpdateRetrievalModelResponse
+	73, // 120: teleport.summarizer.v1.SummarizerService.UpsertRetrievalModel:output_type -> teleport.summarizer.v1.UpsertRetrievalModelResponse
+	75, // 121: teleport.summarizer.v1.SummarizerService.DeleteRetrievalModel:output_type -> teleport.summarizer.v1.DeleteRetrievalModelResponse
+	65, // 122: teleport.summarizer.v1.SummarizerService.TestRetrievalModel:output_type -> teleport.summarizer.v1.TestRetrievalModelResponse
+	88, // [88:123] is the sub-list for method output_type
+	53, // [53:88] is the sub-list for method input_type
+	53, // [53:53] is the sub-list for extension type_name
+	53, // [53:53] is the sub-list for extension extendee
+	0,  // [0:53] is the sub-list for field type_name
 }
 
 func init() { file_teleport_summarizer_v1_summarizer_service_proto_init() }
@@ -5129,13 +6022,21 @@ func file_teleport_summarizer_v1_summarizer_service_proto_init() {
 		return
 	}
 	file_teleport_summarizer_v1_summarizer_proto_init()
+	file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[50].OneofWrappers = []any{
+		(*streamSessionHARRequest_GetIndex)(nil),
+		(*streamSessionHARRequest_GetEntry)(nil),
+	}
+	file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[53].OneofWrappers = []any{
+		(*streamSessionHARResponse_Index)(nil),
+		(*streamSessionHARResponse_Entry)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_summarizer_v1_summarizer_service_proto_rawDesc), len(file_teleport_summarizer_v1_summarizer_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   69,
+			NumMessages:   76,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
