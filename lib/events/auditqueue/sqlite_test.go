@@ -65,6 +65,15 @@ func histogramSampleCount(t *testing.T, h prometheus.Histogram) uint64 {
 	return m.Histogram.GetSampleCount()
 }
 
+func fetchDeadLetter(ctx context.Context, db *sql.DB, limit int) ([]Item, error) {
+	rows, err := db.QueryContext(ctx,
+		"SELECT id, payload FROM audit_dead_letter ORDER BY id ASC LIMIT ?", limit)
+	if err != nil {
+		return nil, err
+	}
+	return scanItems(rows)
+}
+
 func TestEnqueueDequeue_FIFO(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
@@ -523,7 +532,7 @@ func TestOrphanAdoption_MigratesDeadLetter(t *testing.T) {
 	go func() { runErrA <- a.Run(runCtx, func(context.Context, []Item) []Item { return nil }) }()
 
 	require.Eventually(t, func() bool {
-		dl, err := a.fetchDeadLetter(10)
+		dl, err := fetchDeadLetter(a.ctx, a.db, 10)
 		return err == nil && len(dl) == 1
 	}, 5*time.Second, 50*time.Millisecond, "expected A's event to land in its dead-letter queue")
 
@@ -550,7 +559,7 @@ func TestOrphanAdoption_MigratesDeadLetter(t *testing.T) {
 	}()
 
 	require.Eventually(t, func() bool {
-		dl, err := b.fetchDeadLetter(10)
+		dl, err := fetchDeadLetter(b.ctx, b.db, 10)
 		return err == nil && len(dl) == 1 && dl[0].Event.GetIndex() == 42
 	}, 5*time.Second, 50*time.Millisecond, "expected B to migrate A's dead-letter row")
 
@@ -762,7 +771,7 @@ func TestProcessFailedDelivery_PromotesExhausted(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, remaining, "audit_queue should be empty after promotion")
 
-	dlItems, err := q.fetchDeadLetter(10)
+	dlItems, err := fetchDeadLetter(q.ctx, q.db, 10)
 	require.NoError(t, err)
 	require.Len(t, dlItems, 2)
 }
@@ -797,7 +806,7 @@ func TestRetry_ExhaustedMovesToDeadLetter(t *testing.T) {
 	}, 10*time.Second, 50*time.Millisecond, "expected item to be promoted out of main queue")
 
 	// Confirm it is in the dead-letter table.
-	dlItems, err := q.fetchDeadLetter(10)
+	dlItems, err := fetchDeadLetter(q.ctx, q.db, 10)
 	require.NoError(t, err)
 	require.Len(t, dlItems, 1)
 	require.Equal(t, int64(42), dlItems[0].Event.GetIndex())
@@ -837,7 +846,7 @@ func TestDeadLetterSweep_RedeliversOnRecovery(t *testing.T) {
 
 	// Wait for item to land in dead-letter.
 	require.Eventually(t, func() bool {
-		items, _ := q.fetchDeadLetter(10)
+		items, _ := fetchDeadLetter(q.ctx, q.db, 10)
 		return len(items) == 1
 	}, 5*time.Second, 50*time.Millisecond)
 
@@ -845,12 +854,54 @@ func TestDeadLetterSweep_RedeliversOnRecovery(t *testing.T) {
 	recovered.Store(true)
 
 	require.Eventually(t, func() bool {
-		items, _ := q.fetchDeadLetter(10)
+		items, _ := fetchDeadLetter(q.ctx, q.db, 10)
 		return len(items) == 0
 	}, 5*time.Second, sweepInterval)
 
 	cancel()
 	require.NoError(t, <-runErr)
+}
+
+func TestDeadLetterSweep_DrainsEntireBacklog(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	q, err := newSQLiteQueue(Config{
+		Path:                    filepath.Join(t.TempDir(), queueDir),
+		MaxAttempts:             1,         // promote on the first failure
+		DeadLetterSweepInterval: time.Hour, // we drive the sweep manually
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = q.Close() })
+
+	const total = dequeueBatchSize*2 + 10
+	for i := int64(0); i < total; i++ {
+		require.NoError(t, q.Enqueue(ctx, newTestEvent(i)))
+	}
+	items, err := q.fetch(total)
+	require.NoError(t, err)
+	require.Len(t, items, total)
+	promoted, err := q.processFailedDeliveries(items)
+	require.NoError(t, err)
+	require.Equal(t, total, promoted)
+
+	dlItems, err := fetchDeadLetter(q.ctx, q.db, total)
+	require.NoError(t, err)
+	require.Len(t, dlItems, total, "all events should be in the dead-letter table before the sweep")
+
+	var delivered atomic.Int64
+	handler := func(_ context.Context, items []Item) []Item {
+		delivered.Add(int64(len(items)))
+		return items
+	}
+	q.sweepDeadLetter(ctx, handler)
+
+	require.Equal(t, int64(total), delivered.Load(),
+		"a single sweep should redeliver the entire dead-letter backlog")
+
+	remaining, err := fetchDeadLetter(q.ctx, q.db, total)
+	require.NoError(t, err)
+	require.Empty(t, remaining, "dead-letter table should be empty after a full sweep")
 }
 
 func TestDeadLetterTTL_ExpiresOldRows(t *testing.T) {
@@ -880,7 +931,7 @@ func TestDeadLetterTTL_ExpiresOldRows(t *testing.T) {
 	_, err = q.db.Exec("UPDATE audit_dead_letter SET failed_at = ?", pastTimestamp)
 	require.NoError(t, err)
 
-	dlItems, err := q.fetchDeadLetter(10)
+	dlItems, err := fetchDeadLetter(q.ctx, q.db, 10)
 	require.NoError(t, err)
 	require.Len(t, dlItems, 1, "row should exist before expiry")
 
@@ -891,7 +942,7 @@ func TestDeadLetterTTL_ExpiresOldRows(t *testing.T) {
 	require.InDelta(t, beforeExpired+1, testutil.ToFloat64(deadLetterExpired), 0.0001,
 		"deadLetterExpired counter should increment by the number of expired rows")
 
-	dlItems, err = q.fetchDeadLetter(10)
+	dlItems, err = fetchDeadLetter(q.ctx, q.db, 10)
 	require.NoError(t, err)
 	require.Empty(t, dlItems, "row should have been deleted by expireDeadLetter")
 }
