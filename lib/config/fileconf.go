@@ -36,6 +36,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dustin/go-humanize"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/ssh"
@@ -53,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events/auditqueue"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -673,6 +675,69 @@ type Global struct {
 
 	// AuthConnectionConfig defines the parameters used to connect to the Auth Service.
 	AuthConnectionConfig AuthConnectionConfig `yaml:"auth_connection_config,omitempty"`
+
+	// AuditQueue is used for configuration options for the audit log event
+	// queue.
+	AuditQueue AuditQueueConfig `yaml:"audit_queue,omitempty"`
+}
+
+// AuditQueueConfig is used to control the audit log event queue.
+type AuditQueueConfig struct {
+	// SoftLimit is the database file size when we start warning.
+	SoftLimit string `yaml:"soft_limit,omitempty"`
+	// HardLimit is the database file size when we start dropping events.
+	HardLimit string `yaml:"hard_limit,omitempty"`
+	// MaxAttempts is the maximum number of times we retry sending an event
+	// before moving it to the dead-letter queue.
+	MaxAttempts int `yaml:"max_attempts,omitempty"`
+	// DeadLetterTTL is the time to live for an event in the dead-letter queue
+	// before we delete it.
+	DeadLetterTTL types.Duration `yaml:"dead_letter_ttl,omitempty"`
+	// DeadLetterSweepInterval is how often the dead-letter sweeper attempts to
+	// redeliver failed events.
+	DeadLetterSweepInterval types.Duration `yaml:"dead_letter_sweep_interval,omitempty"`
+	// OrphanScanInterval is how often the process scans for orphaned queues.
+	OrphanScanInterval types.Duration `yaml:"orphan_scan_interval,omitempty"`
+	// Backend is the ordered list of preferred audit queue backends.
+	Backend []string `yaml:"backend,omitempty"`
+	// Synchronous can either be NORMAL or FULL, depending on the tradeoffs
+	// between durability and performance we want to make
+	Synchronous string `yaml:"synchronous,omitempty"`
+}
+
+// Parse parses the audit log options from the Teleport config.
+func (a *AuditQueueConfig) Parse() (servicecfg.AuditQueueConfig, error) {
+	out := servicecfg.AuditQueueConfig{
+		MaxAttempts:             a.MaxAttempts,
+		DeadLetterTTL:           a.DeadLetterTTL.Value(),
+		DeadLetterSweepInterval: a.DeadLetterSweepInterval.Value(),
+		OrphanScanInterval:      a.OrphanScanInterval.Value(),
+		Backends:                a.Backend,
+	}
+	if a.SoftLimit != "" {
+		v, err := humanize.ParseBytes(a.SoftLimit)
+		if err != nil {
+			return out, trace.BadParameter("invalid audit_queue.soft_limit %q: %v", a.SoftLimit, err)
+		}
+		out.SoftLimit = int64(v)
+	}
+	if a.HardLimit != "" {
+		v, err := humanize.ParseBytes(a.HardLimit)
+		if err != nil {
+			return out, trace.BadParameter("invalid audit_queue.hard_limit %q: %v", a.HardLimit, err)
+		}
+		out.MaxBytes = int64(v)
+	}
+	switch auditqueue.SynchronousMode(a.Synchronous) {
+	case "", auditqueue.SynchronousNormal:
+		out.Synchronous = auditqueue.SynchronousNormal
+	case auditqueue.SynchronousFull:
+		out.Synchronous = auditqueue.SynchronousFull
+	default:
+		return out, trace.BadParameter("invalid audit_queue.synchronous %q: must be %q or %q",
+			a.Synchronous, auditqueue.SynchronousNormal, auditqueue.SynchronousFull)
+	}
+	return out, nil
 }
 
 // CachePolicy is used to control  local cache
