@@ -19,7 +19,7 @@ You'll spin up a single-instance Teleport cluster on a Linux server, ideal for s
 
 ## How it works
 
-The Teleport cluster consists of two services:
+The Teleport cluster we set up in this guide consists of three services:
 
 - **Teleport Auth Service:** The certificate authority for your cluster. It
   issues certificates and conducts authentication challenges. The Auth Service
@@ -30,6 +30,11 @@ The Teleport cluster consists of two services:
 - **Teleport SSH Service:** An SSH server that enforces Teleport access
   controls, records sessions, and logs activity as Teleport audit events,
   enabling you to protect a Linux server with Teleport.
+
+The Teleport Auth Service and Proxy Service are considered the **control
+plane**. In Teleport Cloud, they run on Teleport-managed infrastructure. The
+Teleport SSH Service is an example of a **Teleport Agent** service, which
+proxies connections to and from a resource in your infrastructure.
 
 ![Architecture of the setup you will complete in this
 guide](../../img/linux-server-diagram.png)
