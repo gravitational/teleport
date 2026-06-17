@@ -111,7 +111,7 @@ func TestDrain_RespectsContextDeadline(t *testing.T) {
 			go func() { drainDone <- q.Drain(drainCtx) }()
 			select {
 			case err := <-drainDone:
-				require.NoError(t, err)
+				require.ErrorIs(t, err, context.DeadlineExceeded)
 			case <-time.After(testDefaultTimeout):
 				t.Fatal("Drain did not return after its deadline expired")
 			}

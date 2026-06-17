@@ -419,8 +419,10 @@ func (q *sqliteQueue) Drain(ctx context.Context) error {
 
 	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
+	var lastErr error
 	for {
 		isEmpty, err := isMainQueueEmpty(q.db)
+		lastErr = err
 		if err != nil {
 			slog.ErrorContext(ctx,
 				"Failed to check whether audit queue is empty while draining.",
@@ -432,9 +434,9 @@ func (q *sqliteQueue) Drain(ctx context.Context) error {
 
 		select {
 		case <-ctx.Done():
-			return nil
+			return trace.NewAggregate(ctx.Err(), lastErr)
 		case <-q.ctx.Done():
-			return nil
+			return trace.NewAggregate(q.ctx.Err(), lastErr)
 		case <-ticker.C:
 		}
 	}

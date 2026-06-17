@@ -72,7 +72,8 @@ func fetchDeadLetter(ctx context.Context, db *sql.DB, limit int) ([]Item, error)
 	if err != nil {
 		return nil, err
 	}
-	return scanItems(rows)
+	items, _, err := scanItems(rows)
+	return items, err
 }
 
 func TestEnqueueDequeue_FIFO(t *testing.T) {
@@ -1031,7 +1032,9 @@ func TestFetchDeadLetter_QuarantinesCorrupt(t *testing.T) {
 		corruptPayload, time.Now().Unix())
 	require.NoError(t, err)
 
-	items, err := q.fetchDeadLetter(10)
+	maxID, err := q.maxDeadLetterID()
+	require.NoError(t, err)
+	items, err := q.fetchDeadLetterRange(0, maxID, 10)
 	require.NoError(t, err)
 	require.Empty(t, items)
 
