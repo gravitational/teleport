@@ -135,12 +135,10 @@ func (a *Server) handleJoinFailure(
 		if pt != nil {
 			botJoinEvent.Method = string(pt.GetJoinMethod())
 			botJoinEvent.TokenName = pt.GetSafeName()
-			botJoinEvent.BotName = pt.GetBotName()
-
 			// We don't want to perform a backend fetch here, so we'll use the
 			// bot scope indicated in the token rather than the one embedded in
 			// the user.
-			botJoinEvent.Scope = pt.GetBotScope()
+			botJoinEvent.BotName, botJoinEvent.Scope = pt.GetBot()
 		}
 		evt = botJoinEvent
 	} else {
@@ -361,7 +359,7 @@ func (a *Server) GenerateBotCertsForJoin(
 ) (*proto.Certs, string, error) {
 	// bots use this endpoint but get a user cert
 	// botResourceName must be set, enforced in CheckAndSetDefaults
-	botName := token.GetBotName()
+	botName, tokenBotScope := token.GetBot()
 	joinMethod := token.GetJoinMethod()
 
 	// Check this is a join method for bots we support.
@@ -444,6 +442,10 @@ func (a *Server) GenerateBotCertsForJoin(
 		a.logger.WarnContext(ctx, "Unable to encode struct value for join metadata", "error", err)
 	}
 
+	// TODO(strideynet): scoped bots are currently looked up by their bare name
+	// and scope-checked via the BotScopeLabel below. Once scoped bots are
+	// namespaced by scope in the backend, the bare name is no longer a unique
+	// identifier and this lookup must key on the scope-qualified name instead.
 	user, err := a.GetUserOrLoginState(ctx, machineidv1.BotResourceName(botName))
 	if err != nil {
 		return nil, "", trace.Wrap(err)
@@ -463,13 +465,12 @@ func (a *Server) GenerateBotCertsForJoin(
 			return nil, "", trace.AccessDenied("scoped token usage mode must be 'bot' for bot joining")
 		}
 
-		tokenBotScope := scoped.GetScoped().GetSpec().GetBotScope()
 		if botScope != tokenBotScope {
 			a.logger.WarnContext(ctx, "bot scope must match token scope",
 				"token_scope", tokenBotScope,
 				"bot_scope", botScope,
 			)
-			return nil, "", trace.AccessDenied("bot scope must match token's spec.bot_scope")
+			return nil, "", trace.AccessDenied("bot scope must match token's spec.bot")
 		}
 
 		if !scopes.ResourceScope(botScope).IsSubjectToScopeOfEffect(scoped.GetScoped().GetScope()) {

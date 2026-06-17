@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -332,6 +333,43 @@ func (c *HTTPClient) deleteProxyServerLegacy(ctx context.Context, name string) e
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// ExtendWebSession creates a new web session for a user based on a valid
+// existing web session, e.g. to apply an approved access request, switch back
+// to default roles, or pick up recent user changes. It calls the gRPC
+// AuthService and falls back to the legacy HTTP endpoint if the server does
+// not yet implement the gRPC RPC.
+//
+// TODO(strideynet): DELETE IN v20.0.0 - remove the fallback and call the gRPC
+// RPC directly.
+func (c *Client) ExtendWebSession(ctx context.Context, req WebSessionReq) (types.WebSession, error) {
+	resp, err := c.APIClient.ExtendWebSession(ctx, &proto.ExtendWebSessionRequest{
+		User:            req.User,
+		PrevSessionId:   req.PrevSessionID,
+		AccessRequestId: req.AccessRequestID,
+		Switchback:      req.Switchback,
+		ReloadUser:      req.ReloadUser,
+	})
+	if err != nil {
+		if trace.IsNotImplemented(err) {
+			return c.HTTPClient.extendWebSessionLegacy(ctx, req)
+		}
+		return nil, trace.Wrap(err)
+	}
+	return resp.GetSession(), nil
+}
+
+// extendWebSessionLegacy creates a new web session for a user based on a
+// valid existing web session via the legacy HTTP endpoint.
+//
+// TODO(strideynet): DELETE IN v20.0.0
+func (c *HTTPClient) extendWebSessionLegacy(ctx context.Context, req WebSessionReq) (types.WebSession, error) {
+	out, err := c.PostJSON(ctx, c.Endpoint("users", req.User, "web", "sessions"), req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return services.UnmarshalWebSession(out.Bytes())
 }
 
 // GetProxies returns the list of auth servers registered in the cluster.

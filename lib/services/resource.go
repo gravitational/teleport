@@ -303,6 +303,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindInferenceSecret, nil
 	case types.KindInferencePolicy, "inference_policies":
 		return types.KindInferencePolicy, nil
+	case types.KindClassifier, types.KindClassifier + "s":
+		return types.KindClassifier, nil
 	case types.KindRetrievalModel:
 		return types.KindRetrievalModel, nil
 	case types.KindRelayServer, types.KindRelayServer + "s":
