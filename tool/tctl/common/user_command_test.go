@@ -19,10 +19,9 @@
 package common
 
 import (
+	"bytes"
 	"context"
 	"fmt"
-	"io"
-	"os"
 	"testing"
 	"time"
 
@@ -449,17 +448,19 @@ func TestUserListDisplaysUserIdentity(t *testing.T) {
 		},
 	}
 	process := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
-	ctx := context.Background()
+	ctx := t.Context()
 	client, err := testenv.NewDefaultAuthClient(process)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = client.Close() })
 
-	command := &UserCommand{format: teleport.Text}
-	stdout, err := captureStdout(t, func() error {
-		return command.List(ctx, client)
-	})
+	var stdout bytes.Buffer
+	command := &UserCommand{
+		format: teleport.Text,
+		stdout: &stdout,
+	}
+	err = command.List(ctx, client)
 	require.NoError(t, err)
-	require.Equal(t, "No users found\n", stdout)
+	require.Equal(t, "No users found\n", stdout.String())
 
 	users := []types.User{
 		newUserWithDisplayTraits(t, "display-both", "Alice Adams", "alice@example.com", "access", "editor"),
@@ -474,9 +475,8 @@ func TestUserListDisplaysUserIdentity(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	stdout, err = captureStdout(t, func() error {
-		return command.List(ctx, client)
-	})
+	stdout.Reset()
+	err = command.List(ctx, client)
 	require.NoError(t, err)
 
 	for _, want := range []string{
@@ -490,7 +490,7 @@ func TestUserListDisplaysUserIdentity(t *testing.T) {
 		"alice@example.com",
 		"display-sanitized (Eve Admin) <eve@example.com>",
 	} {
-		require.Contains(t, stdout, want)
+		require.Contains(t, stdout.String(), want)
 	}
 
 	for _, notWant := range []string{
@@ -499,7 +499,7 @@ func TestUserListDisplaysUserIdentity(t *testing.T) {
 		"\r",
 		"Eve\nAdmin",
 	} {
-		require.NotContains(t, stdout, notWant)
+		require.NotContains(t, stdout.String(), notWant)
 	}
 }
 
@@ -519,24 +519,4 @@ func newUserWithDisplayTraits(t *testing.T, username, primary, secondary string,
 	}
 	user.SetTraits(traits)
 	return user
-}
-
-func captureStdout(t *testing.T, fn func() error) (string, error) {
-	t.Helper()
-
-	oldStdout := os.Stdout
-	reader, writer, err := os.Pipe()
-	require.NoError(t, err)
-	defer func() {
-		os.Stdout = oldStdout
-	}()
-	os.Stdout = writer
-
-	fnErr := fn()
-	require.NoError(t, writer.Close())
-	output, err := io.ReadAll(reader)
-	require.NoError(t, err)
-	require.NoError(t, reader.Close())
-
-	return string(output), fnErr
 }
