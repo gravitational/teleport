@@ -83,29 +83,69 @@ type DenyHint struct {
 	DenyReason string `yaml:"deny_reason,omitempty"`
 }
 
+// DenyKind is the structured reason a request was denied. Its values are the
+// top-level reason_code emitted on the app.session.request.deny audit event, so
+// the type reads as a category in Go while it serializes straight to the audit
+// string in JSON.
+type DenyKind string
+
+const (
+	// DenyNotAllowed is the kind for a well-formed request that no allow rule
+	// matched. A fired hint explains the near-miss, and an empty EvaluatedRoles
+	// marks a misconfigured default-deny, where no role carried any
+	// app_resources, as opposed to a request a granting role did not match.
+	DenyNotAllowed DenyKind = "teleport_request_not_allowed"
+	// DenyInvalidRequest is the kind for a request denied before any rule
+	// evaluated, because its path was rejected as malformed or unsafe, such as
+	// a "." or ".." segment, consecutive slashes, an illegal byte, or an
+	// encoded reserved character under the strict default decode.
+	DenyInvalidRequest DenyKind = "teleport_invalid_request"
+)
+
 // Decision is the outcome of evaluating a rule or rule set against a request.
-// It is a struct rather than a bool so a test can assert on the captures a
-// match bound and the codes a match or near-miss emitted, not just allow or
-// deny.
+// Allowed is the verdict; exactly one of AllowDetails or DenyDetails carries
+// the matching detail, so allow-only and deny-only fields cannot be read on the
+// wrong outcome. EvaluatedRoles rides both, since the audit event emits it
+// either way.
 type Decision struct {
 	// Allowed reports whether any rule matched.
 	Allowed bool
-	// Vars holds the segments the matching rule's captures bound. It is nil on
-	// a deny.
-	Vars map[string]string
-	// AllowCode is the matching rule's allow_code, set only on an allow.
-	AllowCode string
-	// AllowReason is the matching rule's allow_reason, set only on an allow.
-	AllowReason string
-	// DenyHints lists every hint that fired on a deny, in rule order. It is
-	// nil on an allow.
-	DenyHints []FiredHint
+	// Allow carries the captures and codes of the matching rule. It is non-nil
+	// if and only if Allowed.
+	Allow *AllowDetails
+	// Deny carries the deny kind and any fired hints. It is non-nil if and only
+	// if not Allowed.
+	Deny *DenyDetails
+	// EvaluatedRoles lists the roles that carried app_resources for the app, in
+	// the order the caller gathered them. An empty list on a deny marks a
+	// misconfigured default-deny, where no role granted any app_resources, as
+	// opposed to a request that a granting role did not match. The caller
+	// supplies this set, since the union has no role of its own.
+	EvaluatedRoles []string
 }
 
-// FiredHint is a deny hint that matched on a deny.
-type FiredHint struct {
-	DenyCode   string
-	DenyReason string
+// AllowDetails carries the detail of an allow.
+type AllowDetails struct {
+	// Vars holds the segments the matching rule's captures bound.
+	Vars map[string]string
+	// Code is the matching rule's allow_code.
+	Code string
+	// Reason is the matching rule's allow_reason.
+	Reason string
+}
+
+// DenyDetails carries the detail of a deny.
+type DenyDetails struct {
+	// Kind is the structured reason for the deny.
+	Kind DenyKind
+	// Hints lists every hint that fired, in rule order.
+	Hints []Hint
+}
+
+// Hint is a deny hint that matched on a deny.
+type Hint struct {
+	Code   string
+	Reason string
 }
 
 // CompiledRule is a parsed, ready-to-evaluate rule.
@@ -348,20 +388,23 @@ func (c *CompiledRule) Evaluate(request Request, identity Identity) (Decision, e
 	// rule to no-match, so an unbound capture can only deny, never widen, no
 	// matter which operator read it.
 	if allowed && !e.state.unboundRead {
-		return Decision{Allowed: true, Vars: e.vars, AllowCode: c.allowCode, AllowReason: c.allowReason}, nil
+		return Decision{
+			Allowed: true,
+			Allow:   &AllowDetails{Vars: e.vars, Code: c.allowCode, Reason: c.allowReason},
+		}, nil
 	}
 
-	var fired []FiredHint
+	var fired []Hint
 	for _, h := range c.denyHints {
 		ok, err := evalPredicate(h.on, request, identity, c.decode)
 		if err != nil {
 			return Decision{}, trace.Wrap(err)
 		}
 		if ok {
-			fired = append(fired, FiredHint{DenyCode: h.denyCode, DenyReason: h.denyReason})
+			fired = append(fired, Hint{Code: h.denyCode, Reason: h.denyReason})
 		}
 	}
-	return Decision{DenyHints: fired}, nil
+	return Decision{Deny: &DenyDetails{Kind: DenyNotAllowed, Hints: fired}}, nil
 }
 
 // newEnv builds a fresh evaluation environment for one request.
@@ -424,17 +467,40 @@ func CompileRules(rules []Rule) (RuleSet, error) {
 // Because rules are allow-only, the order of evaluation does not affect whether
 // the request is allowed, only which captures and allow_code a caller sees. On
 // a full deny the decision carries every deny hint that fired across all rules.
-func (s RuleSet) Evaluate(request Request, identity Identity) (Decision, error) {
-	var hints []FiredHint
+//
+// evaluatedRoles names the roles that carried app_resources for the app, which
+// the caller gathered to build the set. It rides every decision so the audit
+// log can tell a misconfigured default-deny, an empty set, from a request that
+// a granting role did not match.
+//
+// A request whose path is malformed or unsafe is denied with
+// DenyInvalidRequest before any rule runs, mirroring the agent's pre-rule
+// rejection. The check uses the strict default decode, which admits no encoded
+// reserved character. A real deployment threads the per-app url_decoding opt-in
+// here; this sketch keeps the set-level floor strict and leaves per-rule
+// URLDecoding to govern only how an admitted path splits within a single rule.
+func (s RuleSet) Evaluate(request Request, identity Identity, evaluatedRoles []string) (Decision, error) {
+	if _, err := Tokenize(request.Path, DecodeConfig{}); err != nil {
+		return Decision{
+			Deny:           &DenyDetails{Kind: DenyInvalidRequest},
+			EvaluatedRoles: evaluatedRoles,
+		}, nil
+	}
+
+	var hints []Hint
 	for _, rule := range s {
 		decision, err := rule.Evaluate(request, identity)
 		if err != nil {
 			return Decision{}, trace.Wrap(err)
 		}
 		if decision.Allowed {
+			decision.EvaluatedRoles = evaluatedRoles
 			return decision, nil
 		}
-		hints = append(hints, decision.DenyHints...)
+		hints = append(hints, decision.Deny.Hints...)
 	}
-	return Decision{DenyHints: hints}, nil
+	return Decision{
+		Deny:           &DenyDetails{Kind: DenyNotAllowed, Hints: hints},
+		EvaluatedRoles: evaluatedRoles,
+	}, nil
 }

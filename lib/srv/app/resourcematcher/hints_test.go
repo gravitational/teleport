@@ -39,14 +39,13 @@ allow_reason: "User has access to project"
 	got, err := rule.Evaluate(Request{Method: "GET", Path: "/api/v4/projects/x/repository/tree"}, Identity{})
 	require.NoError(t, err)
 	require.True(t, got.Allowed)
-	require.Equal(t, "allowed_project", got.AllowCode)
-	require.Equal(t, "User has access to project", got.AllowReason)
+	require.Equal(t, "allowed_project", got.Allow.Code)
+	require.Equal(t, "User has access to project", got.Allow.Reason)
 
 	denied, err := rule.Evaluate(Request{Method: "POST", Path: "/api/v4/projects/x/repository/tree"}, Identity{})
 	require.NoError(t, err)
 	require.False(t, denied.Allowed)
-	require.Empty(t, denied.AllowCode)
-	require.Empty(t, denied.AllowReason)
+	require.Nil(t, denied.Allow)
 }
 
 func TestAllowCodeValidation(t *testing.T) {
@@ -85,27 +84,27 @@ deny_hint:
 	got, err := rule.Evaluate(Request{Method: "GET", Path: "/api/v4/projects/ok/issues"}, allowed)
 	require.NoError(t, err)
 	require.True(t, got.Allowed)
-	require.Equal(t, "project_read", got.AllowCode)
-	require.Empty(t, got.DenyHints)
+	require.Equal(t, "project_read", got.Allow.Code)
+	require.Nil(t, got.Deny)
 
 	// Near miss: path and method match, where fails. The default-on hint fires.
 	got, err = rule.Evaluate(Request{Method: "GET", Path: "/api/v4/projects/secret/issues"}, allowed)
 	require.NoError(t, err)
 	require.False(t, got.Allowed)
-	require.Equal(t, []FiredHint{{DenyCode: "not_in_allowlist", DenyReason: "Project is not in your allowlist."}}, got.DenyHints)
+	require.Equal(t, []Hint{{Code: "not_in_allowlist", Reason: "Project is not in your allowlist."}}, got.Deny.Hints)
 
 	// Method miss: the path matches but the method does not, so the default-on
 	// hint, which requires both, does not fire.
 	got, err = rule.Evaluate(Request{Method: "POST", Path: "/api/v4/projects/secret/issues"}, allowed)
 	require.NoError(t, err)
 	require.False(t, got.Allowed)
-	require.Empty(t, got.DenyHints)
+	require.Empty(t, got.Deny.Hints)
 
 	// Path miss: outside the rule's territory entirely. No hint.
 	got, err = rule.Evaluate(Request{Method: "GET", Path: "/api/v4/groups/secret"}, allowed)
 	require.NoError(t, err)
 	require.False(t, got.Allowed)
-	require.Empty(t, got.DenyHints)
+	require.Empty(t, got.Deny.Hints)
 }
 
 // TestDenyHintSugaredEqualsDesugared pins that the declarative default-on hint
@@ -149,7 +148,7 @@ deny_hint:
 		gotD, err := desugared.Evaluate(req, id)
 		require.NoError(t, err)
 		require.Equal(t, gotS.Allowed, gotD.Allowed, "%s %s", req.Method, req.Path)
-		require.Equal(t, gotS.DenyHints, gotD.DenyHints, "%s %s", req.Method, req.Path)
+		require.Equal(t, gotS.Deny, gotD.Deny, "%s %s", req.Method, req.Path)
 	}
 }
 
@@ -187,8 +186,8 @@ deny_hint:
 	got, err := rule.Evaluate(Request{Method: "POST", Path: "/api/v4/projects/secret/x"}, Identity{})
 	require.NoError(t, err)
 	require.False(t, got.Allowed)
-	require.Equal(t, []FiredHint{
-		{DenyCode: "writes_need_review", DenyReason: "Writes require a review."},
-		{DenyCode: "project_scope", DenyReason: "Check the project scope."},
-	}, got.DenyHints)
+	require.Equal(t, []Hint{
+		{Code: "writes_need_review", Reason: "Writes require a review."},
+		{Code: "project_scope", Reason: "Check the project scope."},
+	}, got.Deny.Hints)
 }

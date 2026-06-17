@@ -167,8 +167,8 @@ url_decoding:
 	got, err := c.Evaluate(Request{Method: "GET", Path: req}, Identity{})
 	require.NoError(t, err)
 	require.True(t, got.Allowed)
-	require.Equal(t, "group", got.Vars["project"])
-	require.Equal(t, "repo", got.Vars["repo"])
+	require.Equal(t, "group", got.Allow.Vars["project"])
+	require.Equal(t, "repo", got.Allow.Vars["repo"])
 
 	// With no decode pass, the encoded id stays one segment, so {project}
 	// binds the whole encoded value and the two-segment pattern no longer
@@ -184,5 +184,5 @@ url_decoding:
 	gotKept, err := ck.Evaluate(Request{Method: "GET", Path: req}, Identity{})
 	require.NoError(t, err)
 	require.True(t, gotKept.Allowed)
-	require.Equal(t, "group%252Frepo", gotKept.Vars["project"])
+	require.Equal(t, "group%252Frepo", gotKept.Allow.Vars["project"])
 }
