@@ -214,6 +214,13 @@ test('extractIncludePaths: normalizes a leading slash (absolute form)', () => {
   ]);
 });
 
+test('extractIncludePaths: collapses doubled slashes in the path', () => {
+  const content = '(!docs/pages/includes//enterprise/obtainlicense.mdx!)';
+  assert.deepEqual(extractIncludePaths(content), [
+    'docs/pages/includes/enterprise/obtainlicense.mdx',
+  ]);
+});
+
 test('extractIncludePaths: returns empty array when there are no includes', () => {
   assert.deepEqual(extractIncludePaths('no includes here'), []);
 });

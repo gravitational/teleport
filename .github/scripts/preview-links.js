@@ -94,17 +94,18 @@ function matchedImagesInContent(content, changedImages) {
 // Extract the partial (.mdx) paths referenced by Teleport include directives
 // in the given content. Directives look like (!path!) and may carry props
 // after the path, e.g. (!docs/pages/includes/foo.mdx service="x" region="y"!).
-// We capture the leading .mdx path token and ignore any trailing props before
-// the closing !). Optional surrounding whitespace is tolerated. A leading
-// slash is stripped so absolute forms (!/docs/pages/includes/foo.mdx!) match
-// the repo-root-relative paths in the changed-file list. Non-.mdx includes
-// (e.g. code snippets) are ignored, since they are not rendered pages.
+// We capture the leading .mdx path token, ignore any trailing props before the
+// closing !), and normalize the path so it matches the repo-root-relative
+// paths in the changed-file list: doubled slashes are collapsed and a leading
+// slash (absolute form) is stripped. Non-.mdx includes (e.g. code snippets)
+// are ignored, since they are not rendered pages.
 function extractIncludePaths(content) {
   const paths = [];
-  const re = /\(!\s*\/?([^\s!]+\.mdx)(?:\s+[^!]*)?!\)/g;
+  const re = /\(!\s*([^\s!]+\.mdx)(?:\s+[^!]*)?!\)/g;
   let m;
   while ((m = re.exec(content)) !== null) {
-    paths.push(m[1]);
+    const normalized = m[1].replace(/\/{2,}/g, '/').replace(/^\//, '');
+    paths.push(normalized);
   }
   return paths;
 }
