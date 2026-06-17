@@ -124,6 +124,11 @@ func (m *sqliteInMemoryQueue) Drain(ctx context.Context) error {
 	return m.inner.Drain(ctx)
 }
 
+// Stats reports the current depth of the in-memory queue. See Queue.Stats.
+func (m *sqliteInMemoryQueue) Stats(ctx context.Context) (Stats, error) {
+	return m.inner.Stats(ctx)
+}
+
 // Close shuts down the in-memory queue.
 func (m *sqliteInMemoryQueue) Close() error {
 	var err error

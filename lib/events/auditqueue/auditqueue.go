@@ -96,6 +96,14 @@ type Item struct {
 	Event apievents.AuditEvent
 }
 
+// Stats reports the current depth of a Queue.
+type Stats struct {
+	// PendingCount is the number of events waiting in the main queue.
+	PendingCount int64
+	// DeadLetterCount is the number of events in the dead-letter queue.
+	DeadLetterCount int64
+}
+
 // Handler is the function type that the caller of the auditqueue implements.
 // It will take a batch of items to forward to the inner EmitAuditEvent.
 // It will return the slice of items that were successfully delivered.
@@ -118,6 +126,9 @@ type Queue interface {
 	// be done, whichever comes first. Drain does not close the queue. Callers
 	// must still call Close.
 	Drain(ctx context.Context) error
+	// Stats reports the current depth of the queue (pending and dead-letter
+	// counts).
+	Stats(ctx context.Context) (Stats, error)
 	// Close releases resources held by the queue.
 	Close() error
 }
