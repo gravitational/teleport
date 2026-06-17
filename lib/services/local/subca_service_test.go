@@ -399,16 +399,16 @@ func TestSubCAService_ConditionalDeleteCertAuthorityOverride(t *testing.T) {
 	validID := local.CertAuthorityOverrideIDFromResource(caOverride)
 
 	tests := []struct {
-		name      string
-		id        local.CertAuthorityOverrideID
-		revision  string
-		wantErr   string
-		wantErrIs error
+		name        string
+		id          local.CertAuthorityOverrideID
+		revision    string
+		wantErr     string
+		wantErrType any
 	}{
 		{
 			name:     "id empty",
 			revision: rev2,
-			wantErr:  "ClusterName required",
+			wantErr:  "clusterName required",
 		},
 		{
 			name: "id.ClusterName empty",
@@ -418,7 +418,7 @@ func TestSubCAService_ConditionalDeleteCertAuthorityOverride(t *testing.T) {
 				return id
 			}(),
 			revision: rev2,
-			wantErr:  "ClusterName required",
+			wantErr:  "clusterName required",
 		},
 		{
 			name: "id.CAType empty",
@@ -428,7 +428,7 @@ func TestSubCAService_ConditionalDeleteCertAuthorityOverride(t *testing.T) {
 				return id
 			}(),
 			revision: rev2,
-			wantErr:  "CAType required",
+			wantErr:  "caType required",
 		},
 		{
 			name: "CA override not found",
@@ -437,8 +437,9 @@ func TestSubCAService_ConditionalDeleteCertAuthorityOverride(t *testing.T) {
 				id.CAType = string(caTypeOther)
 				return id
 			}(),
-			revision:  rev2,
-			wantErrIs: backend.ErrIncorrectRevision,
+			revision:    rev2,
+			wantErr:     "does not exist or revision does not match",
+			wantErrType: new(*trace.CompareFailedError),
 		},
 		{
 			name:    "revision empty",
@@ -446,10 +447,11 @@ func TestSubCAService_ConditionalDeleteCertAuthorityOverride(t *testing.T) {
 			wantErr: "revision required",
 		},
 		{
-			name:      "revision not found",
-			id:        validID,
-			revision:  rev1, // current revision is rev2
-			wantErrIs: backend.ErrIncorrectRevision,
+			name:        "revision not found",
+			id:          validID,
+			revision:    rev1, // current revision is rev2
+			wantErr:     "does not exist or revision does not match",
+			wantErrType: new(*trace.CompareFailedError),
 		},
 		{
 			name:     "ok",
@@ -464,11 +466,12 @@ func TestSubCAService_ConditionalDeleteCertAuthorityOverride(t *testing.T) {
 			err := service.ConditionalDeleteCertAuthorityOverride(t.Context(), test.id, test.revision)
 			if test.wantErr != "" {
 				assert.ErrorContains(t, err, test.wantErr, "ConditionalDeleteCertAuthorityOverride error mismatch")
-				return
 			}
-			if test.wantErrIs != nil {
-				assert.ErrorIs(t, err, test.wantErrIs, "ConditionalDeleteCertAuthorityOverride error mismatch")
-				return
+			if test.wantErrType != nil {
+				assert.ErrorAs(t, err, test.wantErrType, "ConditionalDeleteCertAuthorityOverride error type mismatch")
+			}
+			if test.wantErr != "" || test.wantErrType != nil {
+				return // Asserted above.
 			}
 			require.NoError(t, err)
 

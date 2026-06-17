@@ -71,7 +71,6 @@ type SubCAServiceParams struct {
 //
 // Follows RFD 153 / generic.Service semantics.
 type SubCAService struct {
-	backend backend.Backend
 	service *generic.ServiceWrapper[*subcav1.CertAuthorityOverride]
 }
 
@@ -96,7 +95,6 @@ func NewSubCAService(p SubCAServiceParams) (*SubCAService, error) {
 	}
 
 	return &SubCAService{
-		backend: p.Backend,
 		service: service,
 	}, nil
 }
@@ -198,24 +196,23 @@ func (s *SubCAService) DeleteCertAuthorityOverride(
 
 // ConditionalDeleteCertAuthorityOverride conditionally deletes a CA override
 // based on its revision.
-//
-// Returns backend.ErrIncorrectRevision if the item is not found or the revision
+// Returns a trace.CompareFailedError if the item is not found or the revision
 // is incorrect.
 func (s *SubCAService) ConditionalDeleteCertAuthorityOverride(
 	ctx context.Context,
 	id CertAuthorityOverrideID,
 	revision string,
 ) error {
-	switch {
-	case id.ClusterName == "":
-		return trace.BadParameter("id.ClusterName required")
-	case id.CAType == "":
-		return trace.BadParameter("id.CAType required")
-	case revision == "":
-		return trace.BadParameter("revision required")
+	service, err := s.serviceForClusterAndType(id.ClusterName, id.CAType)
+	if err != nil {
+		return trace.Wrap(err)
 	}
-	key := newCAOverridesPrefix().AppendKey(backend.NewKey(id.ClusterName, id.CAType))
-	return trace.Wrap(s.backend.ConditionalDelete(ctx, key, revision))
+
+	// Name has no effect on the delete, it's only used for errors.
+	// See serviceForClusterAndType() / generic.Service.WithNameKeyFunc().
+	name := id.FullName()
+
+	return trace.Wrap(service.ConditionalDeleteResource(ctx, name, revision))
 }
 
 func (s *SubCAService) serviceForResource(
