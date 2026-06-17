@@ -35,7 +35,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/operator/controllers"
 )
 
 const (
@@ -91,12 +93,42 @@ type resourceMutator[T Resource] interface {
 	Mutate(ctx context.Context, new, existing T, crKey kclient.ObjectKey) error
 }
 
+type Config struct {
+	// Scoped represents if the controller reconciles scoped resources.
+	// Scoped controllers always run.
+	// Unscoped controllers don't run when the controller runs in scoped mode.
+	Scoped bool
+	// CheckFeatures checks if the reconciler should run against the cluster given its features.
+	// This is used to disable controllers if the cluster doesn't support their resource (e.g.
+	// OSS clusters might not support enterprise resources).
+	CheckFeatures controllers.CheckFeaturesFunc
+}
+
 // resourceReconciler is a Teleport generic reconciler.
 type resourceReconciler[T any, K KubernetesCR[T]] struct {
 	kubeClient     kclient.Client
 	resourceClient resourceClient[T]
 	gvk            schema.GroupVersionKind
 	adapter        Adapter[T]
+	scoped         bool
+	teleportKind   string
+	checkFeatures  controllers.CheckFeaturesFunc
+}
+
+func (r resourceReconciler[T, K]) GVK() schema.GroupVersionKind {
+	return r.gvk
+}
+
+func (r resourceReconciler[T, K]) Scoped() bool {
+	return r.scoped
+}
+
+func (r resourceReconciler[T, K]) CheckFeatures(features *proto.Features) bool {
+	return r.checkFeatures(features)
+}
+
+func (r resourceReconciler[T, K]) TeleportKind() string {
+	return r.teleportKind
 }
 
 // Upsert is the resourceReconciler of the ResourceBaseReconciler UpsertExternal

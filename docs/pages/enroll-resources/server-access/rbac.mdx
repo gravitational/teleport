@@ -47,14 +47,15 @@ spec:
       # regular expressions start with ^ and end with $
       # Teleport uses Go's regexp syntax (https://github.com/google/re2/wiki/Syntax)
       # the list example above can be expressed as:
-      'reg': '^us-west-1|eu-central-1$'
+      'region': '^us-west-1|eu-central-1$'
 
     # List of host groups the created user will be added to. Any that don't
     # already exist are created. Only applies when create_host_user_mode
     # is not 'off'.
     host_groups: [ubuntu, nginx, other]
 
-    # Assign the user to the sudoers group
+    # Host sudoers: entries written to a temporary file in /etc/sudoers.d for
+    # the login user. Applied independently of host user creation.
     host_sudoers:
     - 'ALL=(ALL) NOPASSWD: ALL'
 
@@ -72,6 +73,20 @@ spec:
   attempting to use the "root" server user  account will be rejected.
 </Admonition>
 
+Several of the fields above relate to the SSH Service provisioning host users,
+which is two distinct capabilities:
+
+- **Host user creation** — `host_groups` (above), together with
+  `create_host_user_mode` (see [Server role options](#server-role-options)),
+  control whether and how Teleport creates a local Unix user at login.
+- **Host sudoers** — `host_sudoers` grants the login user temporary sudo
+  permissions, written to a file in `/etc/sudoers.d` for the duration of the
+  session. This is independent of host user creation: the entry is applied
+  whether the login user was created by Teleport or already existed on the host.
+
+For a full walkthrough of both, see
+[Configure Teleport to Create Host Users](guides/host-user-creation.mdx).
+
 ## Template variables
 
 Similar to role fields for accessing other resources in Teleport, server-related fields support template variables.
@@ -88,7 +103,7 @@ server environment types and allowed logins from the user's Okta `environments` 
 spec:
   allow:
     node_labels:
-    - env:  '{{external.environments}}'
+      env:  '{{external.environments}}'
     logins:
     - '{{external.allowedlogins}}'
 ```
@@ -134,7 +149,7 @@ spec:
   allow:
     #....
   options:
-    # Sets the default shell for automatically provisioned SSH users. An absolute path to a shell or a name
+    # Sets the default shell for automatically provisioning SSH users. An absolute path to a shell or a name
     # reachable through the system PATH are both valid values. Only applies when
     # create_host_user_mode is not set to off.
     create_host_user_default_shell: bash

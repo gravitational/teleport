@@ -37,3 +37,24 @@ tests:
           value:
             keyA: valA
             keyB: valB
+
+  - it: should match the snapshot (review.enabled is true)
+    values:
+      - ../.lint/review-enabled.yaml
+    set:
+      teleport:
+        address: teleport.example.com:1234
+      slack:
+        token: test-api-key
+      roleToRecipients:
+        dev:
+          - dev-access-requests
+          - example-user@example.com
+        "*":
+          - dev-access-requests
+      log:
+        output: /var/log/teleport-slack.log
+        severity: DEBUG
+    asserts:
+      - matchSnapshot: {}
+

@@ -227,7 +227,7 @@ func readDMIInfoAccordingToMode(mode CollectDataMode) (*linux.DMIInfo, error) {
 		fallthrough
 
 	case CollectedDataAlwaysEscalate:
-		logger.DebugContext(ctx, "Running escalated `tsh device dmi-info`")
+		logger.DebugContext(ctx, "Running escalated `tsh device dmi-read`")
 
 		dmiInfo, err = cddFuncs.readDMIInfoEscalated()
 		if err != nil {

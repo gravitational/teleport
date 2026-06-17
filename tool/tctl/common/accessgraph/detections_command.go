@@ -336,8 +336,8 @@ func (c *AccessGraphCommand) DetectionsGet(ctx context.Context, client *accessgr
 	})
 }
 
-// eventsFetchErrorStyle paints the events-fetch warning yellow + bold.
-var eventsFetchErrorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("11")).Bold(true)
+// warningStyle paints the events-fetch warning yellow + bold.
+var warningStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("11")).Bold(true)
 
 // fetchAlertEvents fetches the logs referenced by the alert's LogEntries.
 func fetchAlertEvents(ctx context.Context, client *accessgraph.ClientWithResponses, a accessgraph.SecurityAlert) ([]logmodels.AccessgraphStorageV1alphaEvent, error) {
@@ -393,7 +393,7 @@ func displayDetectionText(out io.Writer, a accessgraph.SecurityAlert, events []l
 		fmt.Fprintln(out, "\nLog Entries:")
 		switch {
 		case eventsErr != nil:
-			fmt.Fprintln(out, eventsFetchErrorStyle.Render(eventsErr.Error()))
+			fmt.Fprintln(out, warningStyle.Render(eventsErr.Error()))
 		case len(events) == 0:
 			fmt.Fprintln(out, "Not found.")
 		default:

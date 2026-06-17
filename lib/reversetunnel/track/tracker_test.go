@@ -23,6 +23,7 @@ import (
 	"math/rand/v2"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/require"
@@ -134,19 +135,24 @@ func jitter(t time.Duration) time.Duration {
 	return t + rand.N(t/5)
 }
 
+func newTestTracker(t *testing.T) *Tracker {
+	tracker, err := New(Config{
+		ClusterName: "test-cluster",
+	})
+	require.NoError(t, err)
+	return tracker
+}
+
 func TestBasic(t *testing.T) {
 	const (
 		timeout    = time.Second * 16
 		proxyCount = 16
 	)
 
+	tracker := newTestTracker(t)
 	timeoutC := time.After(timeout)
-	ticker := time.NewTicker(time.Millisecond * 10)
-	t.Cleanup(ticker.Stop)
-	tracker, err := New(Config{ClusterName: "test-cluster"})
-	require.NoError(t, err)
 	min, max := time.Duration(0), timeout
-	var proxies simpleTestProxies
+	proxies := simpleTestProxies{}
 	proxies.AddRandProxies(proxyCount, min, max)
 
 	for {
@@ -162,10 +168,11 @@ func TestBasic(t *testing.T) {
 		}
 
 		select {
-		case <-ticker.C:
-			t.Logf("activeCount: %v", tracker.activeCount())
 		case <-timeoutC:
 			t.Fatal("timeout")
+		default:
+			time.Sleep(10 * time.Millisecond)
+			t.Logf("activeCount: %v", tracker.activeCount())
 		}
 	}
 }
@@ -180,13 +187,9 @@ func TestFullRotation(t *testing.T) {
 		timeout    = time.Second * 30
 	)
 
-	ticker := time.NewTicker(time.Millisecond * 100)
-	t.Cleanup(ticker.Stop)
-
-	var proxies simpleTestProxies
+	tracker := newTestTracker(t)
+	proxies := simpleTestProxies{}
 	proxies.AddRandProxies(proxyCount, minConnA, maxConnA)
-	tracker, err := New(Config{ClusterName: "test-cluster"})
-	require.NoError(t, err)
 
 	timeoutC := time.After(timeout)
 	for {
@@ -208,10 +211,11 @@ func TestFullRotation(t *testing.T) {
 		}
 
 		select {
-		case <-ticker.C:
-			t.Logf("activeCount0: %v", tracker.activeCount())
 		case <-timeoutC:
 			t.Fatal("timeout")
+		default:
+			time.Sleep(100 * time.Millisecond)
+			t.Logf("activeCount0: %v", tracker.activeCount())
 		}
 	}
 	proxies.RemoveRandProxies(proxyCount)
@@ -223,10 +227,11 @@ func TestFullRotation(t *testing.T) {
 		}
 
 		select {
-		case <-ticker.C:
-			t.Logf("activeCount1: %v", tracker.activeCount())
 		case <-timeoutC:
 			t.Fatal("timeout")
+		default:
+			time.Sleep(100 * time.Millisecond)
+			t.Logf("activeCount1: %v", tracker.activeCount())
 		}
 	}
 	proxies.AddRandProxies(proxyCount, minConnB, maxConnB)
@@ -243,10 +248,11 @@ func TestFullRotation(t *testing.T) {
 		}
 
 		select {
-		case <-ticker.C:
-			t.Logf("activeCount2: %v", tracker.activeCount())
 		case <-timeoutC:
 			t.Fatal("timeout")
+		default:
+			time.Sleep(100 * time.Millisecond)
+			t.Logf("activeCount2 %v", tracker.activeCount())
 		}
 	}
 }
@@ -255,8 +261,7 @@ func TestFullRotation(t *testing.T) {
 // from the expected teleport principal format, and that gossip messages
 // consisting only of uuid don't create duplicate entries.
 func TestUUIDHandling(t *testing.T) {
-	tracker, err := New(Config{ClusterName: "test-cluster"})
-	require.NoError(t, err)
+	tracker := newTestTracker(t)
 
 	lease := tracker.TryAcquire()
 	require.NotNil(t, lease)
@@ -269,8 +274,7 @@ func TestUUIDHandling(t *testing.T) {
 }
 
 func TestIsClaimed(t *testing.T) {
-	tracker, err := New(Config{ClusterName: "test-cluster"})
-	require.NoError(t, err)
+	tracker := newTestTracker(t)
 
 	tracker.TrackExpected(Proxy{Name: "proxy1"}, Proxy{Name: "proxy2"})
 	require.False(t, tracker.IsClaimed("proxy1.test-cluster"))
@@ -299,8 +303,7 @@ func (t *Tracker) activeCount() int {
 }
 
 func TestProxyGroups(t *testing.T) {
-	tracker, err := New(Config{ClusterName: "test-cluster"})
-	require.NoError(t, err)
+	tracker := newTestTracker(t)
 
 	tracker.SetConnectionCount(2)
 
@@ -360,4 +363,48 @@ func TestProxyGroups(t *testing.T) {
 	// whereas releasing a proxy from a current generation does
 	yc.Release()
 	requireAcquire()
+}
+
+func TestProxyTTL(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+
+		tracker, err := New(Config{
+			ClusterName: "test-cluster",
+			ProxyExpiry: time.Second,
+		})
+		require.NoError(t, err)
+
+		tracker.TrackExpected(Proxy{
+			Name: "proxy-1",
+			TTL:  100 * time.Millisecond,
+		})
+
+		lease := tracker.TryAcquire()
+		require.NotNil(t, lease)
+		require.True(t, lease.Claim("proxy-1"))
+
+		time.Sleep(200 * time.Millisecond)
+		require.NotNil(t, tracker.TryAcquire())
+	})
+}
+
+func TestDefaultProxyExpiry(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		tracker, err := New(Config{
+			ClusterName: "test-cluster",
+			ProxyExpiry: time.Second,
+		})
+		require.NoError(t, err)
+
+		tracker.TrackExpected(Proxy{Name: "proxy-1"})
+
+		lease := tracker.TryAcquire()
+		require.NotNil(t, lease)
+		require.True(t, lease.Claim("proxy-1"))
+
+		time.Sleep(time.Second / 2)
+		require.Nil(t, tracker.TryAcquire())
+		time.Sleep(time.Second)
+		require.NotNil(t, tracker.TryAcquire())
+	})
 }

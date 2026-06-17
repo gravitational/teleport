@@ -91,6 +91,9 @@ func NewInferencePolicyReconciler(
 	](
 		client,
 		inferencePolicyClient,
+		reconcilers.Config{
+			CheckFeatures: controllers.RequirePolicy,
+		},
 	)
 
 	return resourceReconciler, trace.Wrap(err)

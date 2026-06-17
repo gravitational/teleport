@@ -501,9 +501,11 @@ func (c *BotsCommand) AddBot(ctx context.Context, client botsCommandClient) erro
 			return trace.BadParameter("token %q is not valid for role %q",
 				c.tokenID, types.RoleBot)
 		}
-		if token.GetBotName() != c.botName {
+		// TODO(strideynet): When bots become scope namespaced, ensure this
+		// call site reflects scopedness.
+		if tokenBotName, _ := token.GetBot(); tokenBotName != c.botName {
 			return trace.BadParameter("token %q is valid for bot with name %q, not %q",
-				c.tokenID, token.GetBotName(), c.botName)
+				c.tokenID, tokenBotName, c.botName)
 		}
 	}
 
@@ -954,9 +956,11 @@ func (c *BotsCommand) AddBotInstance(ctx context.Context, client botsCommandClie
 		return trace.BadParameter("token %q is not valid for role %q",
 			c.tokenID, types.RoleBot)
 	}
-	if token.GetBotName() != c.botName {
+	// TODO(strideynet): When bots become scope namespaced, ensure this call
+	// site reflects scopedness.
+	if tokenBotName, _ := token.GetBot(); tokenBotName != c.botName {
 		return trace.BadParameter("token %q is valid for bot with name %q, not %q",
-			c.tokenID, token.GetBotName(), c.botName)
+			c.tokenID, tokenBotName, c.botName)
 	}
 
 	return trace.Wrap(c.outputToken(ctx, client, bot, token))
