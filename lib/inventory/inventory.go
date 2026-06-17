@@ -301,12 +301,13 @@ func (h *downstreamHandle) autoEmitAuditQueueStatus() {
 			return
 		}
 
-		for streamOpen := true; streamOpen; {
+	streamLoop:
+		for {
 			send(sender)
 			select {
 			case <-ticker.Chan():
 			case <-sender.Done():
-				streamOpen = false
+				break streamLoop
 			case <-h.CloseContext().Done():
 				return
 			}
