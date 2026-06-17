@@ -4215,8 +4215,8 @@ func (a *ScopedServerWithRoles) generateUserCerts(ctx context.Context, req proto
 				// Propagate delegation and beam attribution from the caller's identity
 				// so the app-session cert remains linked to the same delegation session
 				// and beam.
-				DelegationSessionID: a.getIdentity().DelegationSessionID,
-				BeamID:              a.getIdentity().BeamID,
+				DelegationSessionID: a.scopedContext.Identity.GetIdentity().DelegationSessionID,
+				BeamID:              a.scopedContext.Identity.GetIdentity().BeamID,
 			},
 			PublicAddr:        req.RouteToApp.PublicAddr,
 			ClusterName:       req.RouteToApp.ClusterName,
@@ -4318,8 +4318,8 @@ func (a *ScopedServerWithRoles) generateUserCerts(ctx context.Context, req proto
 		// Propagate delegation and beam attribution from the current identity so
 		// reissued certificates remain attributed to the same delegation session
 		// and beam.
-		DelegationSessionID: a.getIdentity().DelegationSessionID,
-		BeamID:              a.getIdentity().BeamID,
+		DelegationSessionID: a.scopedContext.Identity.GetIdentity().DelegationSessionID,
+		BeamID:              a.scopedContext.Identity.GetIdentity().BeamID,
 	}
 
 	if user.GetName() != a.scopedContext.User.GetName() {
