@@ -347,3 +347,51 @@ func (r resourceTeleportUIConfig) ImportState(ctx context.Context, req tfsdk.Imp
 		return
 	}
 }
+
+// ModifyPlan modifies the planned value, normalizing null values.
+func (r resourceTeleportUIConfig) ModifyPlan(ctx context.Context, req tfsdk.ModifyResourcePlanRequest, resp *tfsdk.ModifyResourcePlanResponse) {
+	// If the entire plan is null, the resource is planned for destruction.
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+
+	// If the state is null, the resource is being created. No need to modify plan.
+	if req.State.Raw.IsNull() {
+		return
+	}
+
+	var config types.Object
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	uiConfig := &apitypes.UIConfigV1{}
+	resp.Diagnostics.Append(tfschema.CopyUIConfigV1FromTerraform(ctx, config, uiConfig)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	uiConfigResource := uiConfig
+
+	if err := uiConfigResource.CheckAndSetDefaults(); err != nil {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error setting UIConfig defaults", trace.Wrap(err), "ui_config"))
+		return
+	}
+
+	uiConfig = uiConfigResource
+
+	resp.Diagnostics.Append(tfschema.CopyUIConfigV1ToTerraform(ctx, uiConfig, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var plan types.Object
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.Attrs["spec"] = config.Attrs["spec"]
+
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
+}
