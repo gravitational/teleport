@@ -8,16 +8,26 @@ on:
       - .github/scripts/post-preview-links.js
   workflow_dispatch:
 
-permissions:
-  pull-requests: write
-  id-token: write
-  contents: read
+# Default to no permissions; each job grants only what it needs.
+permissions: {}
 
 jobs:
+  # This job holds the privileged work (AWS OIDC + Amplify). It deliberately
+  # does NOT check out or execute any PR-controlled code: it only runs the
+  # SHA-pinned trusted actions and exports the preview branch/app ID as job
+  # outputs for the next job to consume.
   amplify-preview:
     name: Prepare Amplify preview URL
     runs-on: ubuntu-slim
     environment: docs-amplify
+    permissions:
+      id-token: write       # assume the AWS role via OIDC
+      pull-requests: write  # the shared action posts the deployment-status comment
+      contents: read
+    outputs:
+      branch: ${{ steps.amplify_preview.outputs.amplify_branch_name }}
+      app_id: ${{ steps.amplify_preview.outputs.amplify_app_id }}
+      job_id: ${{ steps.amplify_preview.outputs.amplify_job_id }}
     steps:
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@a03048d87541d1d9fcf2ecf528a4a65ba9bd7838 # v4
@@ -34,26 +44,6 @@ jobs:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         wait: "true"
 
-    # Check out the repository so the next step can read docs/pages/ from disk
-    # (to map changed images to the pages that reference them) and load the
-    # helper scripts in .github/scripts/. SHA-pin this to match the rest of
-    # the file once the repo's preferred actions/checkout SHA is confirmed.
-    - name: Check out repository
-      if: success()
-      uses: actions/checkout@v4
-
-    - name: Append per-page preview links to deployment status comment
-      if: success()
-      uses: actions/github-script@v7
-      env:
-        PREVIEW_BRANCH: ${{ steps.amplify_preview.outputs.amplify_branch_name }}
-        PREVIEW_APP_ID: ${{ steps.amplify_preview.outputs.amplify_app_id }}
-      with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        script: |
-          const { run } = require('./.github/scripts/post-preview-links.js');
-          await run({ github, context, core });
-
     - name: Print failure message
       if: failure()
       env:
@@ -64,3 +54,30 @@ jobs:
       run: |
         echo ::error title=$ERR_TITLE::$ERR_MESSAGE
         exit 1
+
+  # This job runs the PR-controlled link script. It has NO AWS credentials and
+  # NO id-token, and is not attached to the docs-amplify environment, so the
+  # only credential available to the checked-out script is a GITHUB_TOKEN
+  # limited to pull-requests: write. It receives the preview branch/app ID as
+  # plain strings via the amplify-preview job outputs.
+  preview-links:
+    name: Post per-page preview links
+    needs: amplify-preview
+    runs-on: ubuntu-slim
+    permissions:
+      pull-requests: write
+      contents: read
+    steps:
+    - name: Check out repository
+      uses: actions/checkout@v4
+
+    - name: Append per-page preview links to deployment status comment
+      uses: actions/github-script@v7
+      env:
+        PREVIEW_BRANCH: ${{ needs.amplify-preview.outputs.branch }}
+        PREVIEW_APP_ID: ${{ needs.amplify-preview.outputs.app_id }}
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const { run } = require('./.github/scripts/post-preview-links.js');
+          await run({ github, context, core });
