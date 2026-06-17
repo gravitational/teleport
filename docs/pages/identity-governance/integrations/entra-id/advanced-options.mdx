@@ -45,16 +45,16 @@ $ tctl edit plugins/entra-id-default
 ```
 ```yaml
 kind: plugin
+metadata:
   name: entra-id-default
 spec:
   Settings:
     entra_id:
       sync_settings:
-        # omitted for brevity
-        ... 
-+       sync_intervals:
-+         delta: 2m
-+         full: 1h
+       sync_intervals:
+         delta: "2m"
+         full: "1h"
+       # Other settings omitted for brevity
 version: v1
 ```
 
