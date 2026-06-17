@@ -62,18 +62,6 @@
       "depNameTemplate": "go",
       "datasourceTemplate": "golang-version",
       "versioningTemplate": "semver"
-    },
-    {
-      "customType": "regex",
-      "managerFilePatterns": [
-        "/^build\\.assets/Dockerfile-grpcbox$/"
-      ],
-      "matchStrings": [
-        "FROM docker\\.io/golang:(?<currentValue>[^\\s]+)"
-      ],
-      "depNameTemplate": "go",
-      "datasourceTemplate": "golang-version",
-      "versioningTemplate": "semver"
     }
   ],
   "packageRules": [

@@ -5,7 +5,7 @@
 # Calling `go` can emit an error if not installed, which we do not
 # want to do if $(ARCH) is never used.
 # https://make.mad-scientist.net/deferred-simple-variable-expansion/
-ARCH = $(eval ARCH := $$(shell GOTOOLCHAIN=local go env GOARCH))$(ARCH)
+ARCH = $(eval ARCH := $$(shell GOTOOLCHAIN=auto go env GOARCH))$(ARCH)
 
 HOST_ARCH := $(shell uname -m)
 
