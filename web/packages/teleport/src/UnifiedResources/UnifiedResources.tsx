@@ -147,11 +147,15 @@ export function ClusterResources({
   bulkActions?: BulkAction[];
   availabilityFilter?: ResourceAvailabilityFilter;
   /**
-   * Optional render-prop, given the number of currently displayed resources,
-   * for rendering content (such as a CTA) that depends on whether any
-   * resources are present.
+   * Optional render-prop for rendering content (such as a CTA) that depends on
+   * the current resource list. It's given the number of currently displayed
+   * resources along with whether any filter or search is active, so the content
+   * can tell a genuinely empty cluster apart from a list emptied by filtering.
    */
-  ctaSlot?: (resourceCount: number) => ReactNode;
+  ctaSlot?: (props: {
+    resourceCount: number;
+    isFilterApplied: boolean;
+  }) => ReactNode;
 }) {
   const teleCtx = useTeleport();
   const flags = teleCtx.getFeatureFlags();
@@ -288,6 +292,13 @@ export function ClusterResources({
     });
   }
 
+  const isFilterApplied =
+    !!params.search ||
+    !!params.query ||
+    !!params.pinnedOnly ||
+    !!params.kinds?.length ||
+    !!params.statuses?.length;
+
   return (
     <>
       {loadClusterError && <Danger>{loadClusterError}</Danger>}
@@ -353,7 +364,7 @@ export function ClusterResources({
           </>
         }
       />
-      {ctaSlot?.(resources.length)}
+      {ctaSlot?.({ resourceCount: resources.length, isFilterApplied })}
     </>
   );
 }

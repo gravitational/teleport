@@ -18,11 +18,13 @@ package resources
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/encoding/protojson"
 
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -40,9 +42,26 @@ type classifierCollection []*summarizerv1.Classifier
 func (c classifierCollection) Resources() []types.Resource {
 	out := make([]types.Resource, 0, len(c))
 	for _, item := range c {
-		out = append(out, types.ProtoResource153ToLegacy(item))
+		out = append(out, classifierResource{
+			Resource:   types.ProtoResource153ToLegacy(item),
+			classifier: item,
+		})
 	}
 	return out
+}
+
+// classifierResource renders a Classifier's spec.actions in friendly form for "tctl get".
+type classifierResource struct {
+	types.Resource
+	classifier *summarizerv1.Classifier
+}
+
+func (r classifierResource) MarshalJSON() ([]byte, error) {
+	data, err := protojson.MarshalOptions{UseProtoNames: true}.Marshal(r.classifier)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return classifierActionsToFriendly(data)
 }
 
 func (c classifierCollection) WriteText(w io.Writer, verbose bool) error {
@@ -85,8 +104,12 @@ func classifierHandler() Handler {
 func createClassifier(
 	ctx context.Context, clt *authclient.Client, raw services.UnknownResource, opts CreateOpts,
 ) error {
+	rawJSON, err := classifierActionsFromFriendly(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	classifier, err := services.UnmarshalProtoResource[*summarizerv1.Classifier](
-		raw.Raw, services.DisallowUnknown())
+		rawJSON, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -114,8 +137,12 @@ func createClassifier(
 func updateClassifier(
 	ctx context.Context, clt *authclient.Client, raw services.UnknownResource, opts CreateOpts,
 ) error {
+	rawJSON, err := classifierActionsFromFriendly(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	classifier, err := services.UnmarshalProtoResource[*summarizerv1.Classifier](
-		raw.Raw, services.DisallowUnknown())
+		rawJSON, services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -173,4 +200,108 @@ func deleteClassifier(
 	}
 	fmt.Printf("classifier %q has been deleted\n", ref.Name)
 	return nil
+}
+
+const (
+	classifierActionModeEnabled  = "CLASSIFIER_ACTION_MODE_ENABLED"
+	classifierActionModeDisabled = "CLASSIFIER_ACTION_MODE_DISABLED"
+)
+
+var classifierActionFields = []string{"emit_audit_event", "flag_for_review", "risk_level_floor"}
+
+var riskLevelToShort = map[string]string{
+	"RISK_LEVEL_LOW":      "low",
+	"RISK_LEVEL_MEDIUM":   "medium",
+	"RISK_LEVEL_HIGH":     "high",
+	"RISK_LEVEL_CRITICAL": "critical",
+}
+
+var riskLevelFromShort = map[string]string{
+	"low":      "RISK_LEVEL_LOW",
+	"medium":   "RISK_LEVEL_MEDIUM",
+	"high":     "RISK_LEVEL_HIGH",
+	"critical": "RISK_LEVEL_CRITICAL",
+}
+
+// classifierActionsToFriendly converts spec.actions enums to booleans and a short risk level.
+func classifierActionsToFriendly(data []byte) ([]byte, error) {
+	return rewriteClassifierActions(data, func(field string, v any) (any, error) {
+		switch field {
+		case "emit_audit_event", "flag_for_review":
+			switch v {
+			case classifierActionModeEnabled:
+				return true, nil
+			case classifierActionModeDisabled:
+				return false, nil
+			}
+		case "risk_level_floor":
+			if s, ok := v.(string); ok {
+				if short, ok := riskLevelToShort[s]; ok {
+					return short, nil
+				}
+			}
+		}
+		return v, nil
+	})
+}
+
+// classifierActionsFromFriendly converts spec.actions booleans and short risk levels back to enums, rejecting any other value.
+func classifierActionsFromFriendly(data []byte) ([]byte, error) {
+	return rewriteClassifierActions(data, func(field string, v any) (any, error) {
+		switch field {
+		case "emit_audit_event", "flag_for_review":
+			b, ok := v.(bool)
+			if !ok {
+				return nil, trace.BadParameter("spec.actions.%s must be true or false", field)
+			}
+			if b {
+				return classifierActionModeEnabled, nil
+			}
+			return classifierActionModeDisabled, nil
+		case "risk_level_floor":
+			if s, ok := v.(string); ok {
+				if enum, ok := riskLevelFromShort[strings.ToLower(s)]; ok {
+					return enum, nil
+				}
+			}
+			return nil, trace.BadParameter(
+				`spec.actions.risk_level_floor must be one of "low", "medium", "high", "critical"`)
+		}
+		return v, nil
+	})
+}
+
+func rewriteClassifierActions(data []byte, convert func(field string, v any) (any, error)) ([]byte, error) {
+	var root map[string]any
+	if err := json.Unmarshal(data, &root); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	spec, ok := root["spec"].(map[string]any)
+	if !ok {
+		return data, nil
+	}
+	actions, ok := spec["actions"].(map[string]any)
+	if !ok {
+		return data, nil
+	}
+	changed := false
+	for _, field := range classifierActionFields {
+		v, ok := actions[field]
+		if !ok {
+			continue
+		}
+		nv, err := convert(field, v)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if nv != v {
+			actions[field] = nv
+			changed = true
+		}
+	}
+	if !changed {
+		return data, nil
+	}
+	out, err := json.Marshal(root)
+	return out, trace.Wrap(err)
 }
