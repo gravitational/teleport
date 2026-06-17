@@ -1,5 +1,18 @@
 # Changelog
 
+## 17.7.26 (TBD)
+
+### Breaking changes
+
+#### Kubernetes API server proxy access
+
+Access to the Kubernetes API server `pods/{name}/proxy/{path}`,
+`services/{name}/proxy/{path}`, and `nodes/{name}/proxy/{path}`
+endpoints now requires the new `proxy` verb in `kubernetes_resources`.
+Previously these endpoints were authorized as the `get` verb. Roles
+that use the Kubernetes API server proxy must add `"proxy"` to the
+relevant `verbs` list.
+
 ## 17.7.25 (06/09/26)
 
 * Fixed minor formatting bug on `tsh request show` output. [#67446](https://github.com/gravitational/teleport/pull/67446)

@@ -156,6 +156,11 @@ func (f *Forwarder) getKubeDetails(ctx context.Context) error {
 func extractKubeCreds(ctx context.Context, component string, cluster string, clientCfg *rest.Config, log logrus.FieldLogger, checkPermissions servicecfg.ImpersonationPermissionsChecker) (*staticKubeCreds, error) {
 	log = log.WithField("cluster", cluster)
 
+	// Disable client-go's client-side rate limiter (default 5 QPS).
+	// The kube exec path fetches pod metadata through this client,
+	// so the default limit caps exec throughput at ~5 QPS per agent.
+	clientCfg.QPS = -1
+
 	log.Debug("Checking Kubernetes impersonation permissions.")
 	client, err := kubernetes.NewForConfig(clientCfg)
 	if err != nil {

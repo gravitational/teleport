@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // AccessService manages roles
@@ -351,34 +352,45 @@ func (s *AccessService) ListLocks(ctx context.Context, limit int, start string, 
 
 	startKey := backend.NewKey(locksPrefix, start)
 	endKey := backend.RangeEnd(backend.NewKey(locksPrefix))
-	result, err := s.GetRange(ctx, startKey, endKey, limit+1)
-	if err != nil {
+
+	out := make([]types.Lock, 0, limit)
+	var nextPage string
+
+	if err := backend.IterateRange(
+		ctx,
+		s,
+		startKey,
+		endKey,
+		limit+1,
+		func(items []backend.Item) (bool, error) {
+			for _, item := range items {
+				lock, err := services.UnmarshalLock(item.Value,
+					services.WithRevision(item.Revision),
+					services.WithExpires(item.Expires))
+				if err != nil {
+					slog.WarnContext(ctx, "Failed to unmarshal lock",
+						"key", logutils.StringerAttr(item.Key),
+						"error", err)
+					continue
+				}
+
+				if _, match := matchLock(lock, filter, s.Clock().Now()); !match {
+					continue
+				}
+
+				if len(out) >= limit {
+					nextPage = lock.GetName()
+					return true, nil
+				} else {
+					out = append(out, lock)
+				}
+			}
+			return false, nil
+		}); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	out := make([]types.Lock, 0, len(result.Items))
-	for _, item := range result.Items {
-		lock, err := services.UnmarshalLock(item.Value,
-			services.WithExpires(item.Expires),
-			services.WithRevision(item.Revision))
-		if err != nil {
-			slog.WarnContext(ctx, "Failed to unmarshal lock",
-				"key", item.Key,
-				"error", err)
-			continue
-		}
-
-		if len(out) >= limit {
-			return out, lock.GetName(), nil
-		}
-
-		if _, match := matchLock(lock, filter, s.Clock().Now()); !match {
-			continue
-		}
-
-		out = append(out, lock)
-	}
-	return out, "", nil
+	return out, nextPage, nil
 }
 
 // UpsertLock upserts a lock.

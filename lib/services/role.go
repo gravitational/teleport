@@ -1824,8 +1824,7 @@ func (set RoleSet) CheckImpersonateRoles(currentUser types.User, impersonateRole
 
 	// check deny: a single match on a deny rule prohibits access
 	for _, role := range set {
-		cond := role.GetImpersonateConditions(types.Deny)
-		matched, err := matchDenyRoleImpersonateCondition(cond, impersonateRoles)
+		matched, err := matchDenyRoleImpersonateCondition(role, impersonateRoles)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1836,8 +1835,7 @@ func (set RoleSet) CheckImpersonateRoles(currentUser types.User, impersonateRole
 
 	// check allow: if any one Role satisfies all the role requests, allow impersonation
 	for _, role := range set {
-		cond := role.GetImpersonateConditions(types.Allow)
-		matched, err := matchAllowRoleImpersonateCondition(ctx, whereParser, cond, impersonateRoles)
+		matched, err := matchAllowRoleImpersonateCondition(ctx, whereParser, role, impersonateRoles)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -2107,7 +2105,8 @@ func matchDenyImpersonateCondition(cond types.ImpersonateConditions, impersonate
 
 // matchAllowRoleImpersonateCondition matches an allow impersonate condition
 // specifically for role-only impersonation, where only roles are matched.
-func matchAllowRoleImpersonateCondition(ctx *impersonateContext, whereParser predicate.Parser, cond types.ImpersonateConditions, impersonateRoles []types.Role) (bool, error) {
+func matchAllowRoleImpersonateCondition(ctx *impersonateContext, whereParser predicate.Parser, role types.Role, impersonateRoles []types.Role) (bool, error) {
+	cond := role.GetImpersonateConditions(types.Allow)
 	// an empty set matches nothing
 	if len(cond.Users) == 0 && len(cond.Roles) == 0 {
 		return false, nil
@@ -2115,6 +2114,10 @@ func matchAllowRoleImpersonateCondition(ctx *impersonateContext, whereParser pre
 
 	// Role impersonation can never apply to users.
 	if len(cond.Users) != 0 {
+		slog.WarnContext(context.Background(),
+			"Allow rule did not match due to users being set. For role-only impersonation, only roles should be set in allow/deny rules.",
+			"role", role.GetName(),
+		)
 		return false, nil
 	}
 
@@ -2148,15 +2151,23 @@ func matchAllowRoleImpersonateCondition(ctx *impersonateContext, whereParser pre
 
 // matchDenyRoleImpersonateCondition matches a deny impersonate condition
 // specifically for role impersonation, where only roles are matched.
-func matchDenyRoleImpersonateCondition(cond types.ImpersonateConditions, impersonateRoles []types.Role) (bool, error) {
+func matchDenyRoleImpersonateCondition(role types.Role, impersonateRoles []types.Role) (bool, error) {
+	cond := role.GetImpersonateConditions(types.Deny)
 	// an empty set matches nothing
 	if len(cond.Users) == 0 && len(cond.Roles) == 0 {
 		return false, nil
 	}
 
-	// Role impersonation can never apply to users.
+	// If any users are defined in a role-impersonation deny rule, it always
+	// matches. This functionally disables role impersonation for rules
+	// containing a `users` deny entry, which is acceptable because only bots
+	// should ever use role impersonation.
 	if len(cond.Users) != 0 {
-		return false, nil
+		slog.WarnContext(context.Background(),
+			"Deny rule matched due to users being set. For role-only impersonation, only roles should be set in allow/deny rules.",
+			"role", role.GetName(),
+		)
+		return true, nil
 	}
 
 	// By this point, at least 1 role is guaranteed.

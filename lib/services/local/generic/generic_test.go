@@ -687,3 +687,83 @@ func TestGenericKeyOverride(t *testing.T) {
 	_, err = memBackend.Get(ctx, backend.NewKey("generic_prefix", "llama"))
 	require.ErrorAs(t, err, new(*trace.NotFoundError))
 }
+
+// TestResourcesSkipsUnmarshalErrorsHittingPageBoundary guards against a regression where hitting a page boundary with a malformed backend item would
+// return less items than the page limit and no next token. This would cause callers to miss resources and fail to paginate properly when malformed items are present in the backend.
+func TestResourcesSkipsUnmarshalErrorsHittingPageBoundary(t *testing.T) {
+	ctx := t.Context()
+
+	memBackend, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clockwork.NewFakeClock(),
+	})
+	require.NoError(t, err)
+
+	const pageLimit = 64
+	const numberOfPages = 5
+	service, err := NewService(&ServiceConfig[*testResource]{
+		Backend:       memBackend,
+		ResourceKind:  "generic resource",
+		PageLimit:     pageLimit,
+		BackendPrefix: backend.NewKey("generic_prefix"),
+		UnmarshalFunc: unmarshalResource,
+		MarshalFunc:   marshalResource,
+	})
+	require.NoError(t, err)
+	var allExpected []*testResource
+	for i := range pageLimit * numberOfPages {
+		key := fmt.Sprintf("r%05d", i)
+		if i%2 == 0 {
+			_, err = memBackend.Put(ctx, backend.Item{
+				Key:   service.MakeKey(backend.NewKey(key)),
+				Value: []byte("not-valid-json"),
+			})
+			require.NoError(t, err)
+		} else {
+			r := newTestResource(key)
+			_, err = service.CreateResource(ctx, r)
+			require.NoError(t, err)
+			allExpected = append(allExpected, r)
+		}
+	}
+
+	page1, next, err := service.ListResources(ctx, pageLimit, "")
+	require.NoError(t, err)
+	require.Len(t, page1, pageLimit)
+	require.NotEmpty(t, next)
+
+	page2, next, err := service.ListResources(ctx, pageLimit, next)
+	require.NoError(t, err)
+	require.Len(t, page2, pageLimit)
+	require.NotEmpty(t, next)
+
+	page3, next, err := service.ListResources(ctx, pageLimit, next)
+	require.NoError(t, err)
+	require.Len(t, page3, pageLimit/2)
+	require.Empty(t, next)
+
+	// Ensure pagination with unmarshal fails works the same way for ListResourcesWithFilter
+	allActual := append(append(page1, page2...), page3...)
+	require.Empty(t, cmp.Diff(allExpected, allActual, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+	matchAll := func(tr *testResource) bool { return true }
+	page1, next, err = service.ListResourcesWithFilter(ctx, pageLimit, "", matchAll)
+	require.NoError(t, err)
+	require.Len(t, page1, pageLimit)
+	require.NotEmpty(t, next)
+
+	page2, next, err = service.ListResourcesWithFilter(ctx, pageLimit, next, matchAll)
+	require.NoError(t, err)
+	require.Len(t, page2, pageLimit)
+	require.NotEmpty(t, next)
+
+	page3, next, err = service.ListResourcesWithFilter(ctx, pageLimit, next, matchAll)
+	require.NoError(t, err)
+	require.Len(t, page3, pageLimit/2)
+	require.Empty(t, next)
+
+	allActual = append(append(page1, page2...), page3...)
+	require.Empty(t, cmp.Diff(allExpected, allActual,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
+}

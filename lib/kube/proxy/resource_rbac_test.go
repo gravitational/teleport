@@ -45,6 +45,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer/streaming"
 	kubetypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/rest"
 	restclientwatch "k8s.io/client-go/rest/watch"
 	controllerclient "sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -1574,6 +1575,134 @@ func TestCustomResourcesRBAC(t *testing.T) {
 				require.Error(t, err)
 				require.ErrorContains(t, err, tt.want.getTestResult.Error())
 			}
+		})
+	}
+}
+
+// TestProxySubresourceRBAC verifies that:
+// - pods/{name}/proxy/{path}
+// - services/{name}/proxy/{path}
+// - nodes/{name}/proxy/{path}
+// subresources require the KubeVerbProxy verb in kubernetes_resources.
+func TestProxySubresourceRBAC(t *testing.T) {
+	t.Parallel()
+
+	kubeMock, err := testingkubemock.NewKubeAPIMock()
+	require.NoError(t, err)
+	t.Cleanup(func() { kubeMock.Close() })
+
+	testCtx := SetupTestContext(
+		context.Background(),
+		t,
+		TestConfig{
+			Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
+		},
+	)
+	t.Cleanup(func() { require.NoError(t, testCtx.Close()) })
+
+	roleSpec := func(name string, resources []types.KubernetesResource) RoleSpec {
+		return RoleSpec{
+			Name:       name,
+			KubeUsers:  roleKubeUsers,
+			KubeGroups: roleKubeGroups,
+			SetupRoleFunc: func(r types.Role) {
+				r.SetKubeResources(types.Allow, resources)
+			},
+		}
+	}
+
+	podGetUser, _ := testCtx.CreateUserAndRole(testCtx.Context, t, "pod-get",
+		roleSpec("pod-get-role", []types.KubernetesResource{{
+			Kind: types.KindKubePod, Namespace: types.Wildcard, Name: types.Wildcard,
+			Verbs: []string{"get", "list"},
+		}}))
+	serviceGetUser, _ := testCtx.CreateUserAndRole(testCtx.Context, t, "service-get",
+		roleSpec("service-get-role", []types.KubernetesResource{{
+			Kind: types.KindKubeService, Namespace: types.Wildcard, Name: types.Wildcard,
+			Verbs: []string{"get", "list"},
+		}}))
+	nodeGetUser, _ := testCtx.CreateUserAndRole(testCtx.Context, t, "node-get",
+		roleSpec("node-get-role", []types.KubernetesResource{{
+			Kind: types.KindKubeNode, Name: types.Wildcard,
+			Verbs: []string{"get", "list"},
+		}}))
+	// Negative control: configmaps allow rule, no pods/services/nodes match.
+	noMatchUser, _ := testCtx.CreateUserAndRole(testCtx.Context, t, "no-match",
+		roleSpec("no-match-role", []types.KubernetesResource{{
+			Kind: types.KindKubeConfigmap, Namespace: types.Wildcard, Name: types.Wildcard,
+			Verbs: []string{"get"},
+		}}))
+
+	sendGet := func(t *testing.T, user types.User, urlPath string) (int, string) {
+		t.Helper()
+		_, cfg := testCtx.GenTestKubeClientTLSCert(t, user.GetName(), kubeCluster)
+		transport, err := rest.TransportFor(cfg)
+		require.NoError(t, err)
+		client := &http.Client{Transport: transport}
+		req, err := http.NewRequestWithContext(testCtx.Context, http.MethodGet, cfg.Host+urlPath, nil)
+		require.NoError(t, err)
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		t.Cleanup(func() { resp.Body.Close() })
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		return resp.StatusCode, string(body)
+	}
+
+	tests := []struct {
+		name         string
+		user         types.User
+		urlPath      string
+		wantCode     int
+		bodyContains string
+	}{
+		{
+			// Sanity check that portforward verb denial still works.
+			name:         "portforward_denied_baseline",
+			user:         podGetUser,
+			urlPath:      "/api/v1/namespaces/default/pods/teleport/portforward",
+			wantCode:     http.StatusForbidden,
+			bodyContains: "cannot portforward resource",
+		},
+		{
+			// podGetUser has get/list on pods but not proxy.
+			name:         "pods_proxy_denied",
+			user:         podGetUser,
+			urlPath:      "/api/v1/namespaces/default/pods/teleport/proxy/8080",
+			wantCode:     http.StatusForbidden,
+			bodyContains: "cannot proxy resource",
+		},
+		{
+			name:         "services_proxy_denied",
+			user:         serviceGetUser,
+			urlPath:      "/api/v1/namespaces/default/services/svc/proxy/path",
+			wantCode:     http.StatusForbidden,
+			bodyContains: "cannot proxy resource",
+		},
+		{
+			name:         "nodes_proxy_denied",
+			user:         nodeGetUser,
+			urlPath:      "/api/v1/nodes/node-1/proxy/pods",
+			wantCode:     http.StatusForbidden,
+			bodyContains: "cannot proxy resource",
+		},
+		{
+			// noMatchUser has no allow rule for pods at all - confirms the
+			// resource matcher is in the request path. The body includes
+			// the user name to make this distinct from the podGetUser case
+			// above.
+			name:         "negative_control_denied",
+			user:         noMatchUser,
+			urlPath:      "/api/v1/namespaces/default/pods/teleport/proxy/8080",
+			wantCode:     http.StatusForbidden,
+			bodyContains: `User \"no-match\" cannot proxy resource`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			code, body := sendGet(t, tt.user, tt.urlPath)
+			require.Equal(t, tt.wantCode, code, "body: %s", body)
+			require.Contains(t, body, tt.bodyContains)
 		})
 	}
 }
