@@ -363,6 +363,39 @@ methods: [GET]
 	require.Equal(t, DenyNotAllowed, got.Deny.Kind)
 }
 
+// TestRoleSetURLDecoding pins that a rule's url_decoding governs the set-level
+// invalid-request floor: an encoded path a rule is configured to decode is
+// admitted and matched, not rejected as invalid before the rule runs. It
+// guards the regression where a strict set-level floor neutered per-rule
+// url_decoding.
+func TestRoleSetURLDecoding(t *testing.T) {
+	set, err := CompileRoles([]Role{{
+		Name: "developer",
+		Rules: []Rule{ruleFromYAML(t, `
+paths: ["/files/{x}/*"]
+url_decoding:
+  decode_iterations: 1
+`)},
+	}})
+	require.NoError(t, err)
+
+	// %2F decodes to a separator under one pass, so the path splits into three
+	// segments and matches with x bound to the first. The strict default floor
+	// would have rejected the percent byte before the rule's decode ran.
+	got, err := set.Evaluate(Request{Method: "GET", Path: "/files/a%2Fb"}, Identity{})
+	require.NoError(t, err)
+	require.True(t, got.Allowed)
+	require.Equal(t, "a", got.Allow.Vars["x"])
+
+	// A path no decode can rescue, an illegal raw byte, is still invalid: the
+	// floor is relaxed for the percent policy, not for genuinely malformed
+	// bytes.
+	got, err = set.Evaluate(Request{Method: "GET", Path: "/files/a\\b"}, Identity{})
+	require.NoError(t, err)
+	require.False(t, got.Allowed)
+	require.Equal(t, DenyInvalidRequest, got.Deny.Kind)
+}
+
 // TestRoleSetMisconfiguredDefaultDeny pins that an empty EvaluatedRoles on a
 // deny marks the case where no role carried any app_resources, as opposed to a
 // request a granting role did not match.

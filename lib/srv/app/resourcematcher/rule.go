@@ -505,15 +505,16 @@ func (s RoleSet) EvaluatedRoles() []string {
 // misconfigured default-deny, an empty set, from a request that a granting role
 // did not match.
 //
-// A request whose path is malformed or unsafe is denied with
-// DenyInvalidRequest before any rule runs, mirroring the agent's pre-rule
-// rejection. The check uses the strict default decode, which admits no encoded
-// reserved character. A real deployment threads the per-app url_decoding opt-in
-// here; this sketch keeps the set-level floor strict and leaves per-rule
-// URLDecoding to govern only how an admitted path splits within a single rule.
+// A request whose path no rule can tokenize under that rule's own url_decoding
+// is malformed or unsafe under every decode policy the set offers, so it is
+// denied with DenyInvalidRequest before any rule runs, mirroring the agent's
+// pre-rule rejection. Checking per rule, rather than at one strict floor, lets
+// a rule's url_decoding admit an encoded path the strict default would reject,
+// while a genuinely malformed path, such as an illegal byte or a "." or ".."
+// segment, still fails under every rule and stays invalid.
 func (s RoleSet) Evaluate(request Request, identity Identity) (Decision, error) {
 	roles := s.EvaluatedRoles()
-	if _, err := Tokenize(request.Path, DecodeConfig{}); err != nil {
+	if hasRules, ok := s.canTokenize(request.Path); hasRules && !ok {
 		return Decision{
 			Deny:           &DenyDetails{Kind: DenyInvalidRequest},
 			EvaluatedRoles: roles,
@@ -538,4 +539,21 @@ func (s RoleSet) Evaluate(request Request, identity Identity) (Decision, error) 
 		Deny:           &DenyDetails{Kind: DenyNotAllowed, Hints: hints},
 		EvaluatedRoles: roles,
 	}, nil
+}
+
+// canTokenize reports whether the set holds any rule, and whether at least one
+// rule can tokenize path under that rule's own url_decoding. A path no rule can
+// tokenize is malformed under every decode policy the set offers; an empty set
+// has no rules and is a misconfigured default-deny rather than an invalid
+// request.
+func (s RoleSet) canTokenize(path string) (hasRules, ok bool) {
+	for _, role := range s {
+		for _, rule := range role.rules {
+			hasRules = true
+			if _, err := Tokenize(path, rule.decode); err == nil {
+				return true, true
+			}
+		}
+	}
+	return hasRules, false
 }
