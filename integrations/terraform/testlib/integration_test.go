@@ -30,9 +30,6 @@ import (
 )
 
 func (s *TerraformSuiteOSS) TestIntegration() {
-	// TODO: Test case should now expect a zero value rather than a null value.
-	s.T().Skip("Attribute 'spec.aws_oidc.audience' found when not expected")
-
 	const (
 		resourceType = "teleport_integration"
 
@@ -82,7 +79,7 @@ func (s *TerraformSuiteOSS) TestIntegration() {
 					resource.TestCheckResourceAttr(awsOIDCResourceName, "metadata.name", "aws-oidc"),
 					resource.TestCheckResourceAttr(awsOIDCResourceName, "metadata.description", "Test integration"),
 					resource.TestCheckResourceAttr(awsOIDCResourceName, "metadata.labels.example", "yes"),
-					resource.TestCheckNoResourceAttr(awsOIDCResourceName, "spec.aws_oidc.audience"),
+					resource.TestCheckResourceAttr(awsOIDCResourceName, "spec.aws_oidc.audience", ""),
 					resource.TestCheckResourceAttr(awsOIDCResourceName, "spec.aws_oidc.issuer_s3_uri", "s3://test-s3-bucket/some-prefix"),
 					resource.TestCheckResourceAttr(awsOIDCResourceName, "spec.aws_oidc.role_arn", "arn:aws:iam::123456789012:role/test-role"),
 					resource.TestCheckNoResourceAttr(awsOIDCResourceName, "spec.credentials"),
@@ -102,7 +99,7 @@ func (s *TerraformSuiteOSS) TestIntegration() {
 					resource.TestCheckResourceAttr(awsOIDCResourceName, "metadata.description", "Test integration"),
 					resource.TestCheckResourceAttr(awsOIDCResourceName, "metadata.labels.example", "yes"),
 					resource.TestCheckResourceAttr(awsOIDCResourceName, "spec.aws_oidc.audience", "aws-identity-center"),
-					resource.TestCheckNoResourceAttr(awsOIDCResourceName, "spec.aws_oidc.issuer_s3_uri"),
+					resource.TestCheckResourceAttr(awsOIDCResourceName, "spec.aws_oidc.issuer_s3_uri", ""),
 					resource.TestCheckResourceAttr(awsOIDCResourceName, "spec.aws_oidc.role_arn", "arn:aws:iam::123456789012:role/test-role-updated"),
 					resource.TestCheckNoResourceAttr(awsOIDCResourceName, "spec.credentials"),
 				),

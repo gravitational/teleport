@@ -60,7 +60,8 @@ func (c *nextAuditDateComparer) TestNextAuditDateUnchanged(ctx context.Context, 
 	}
 }
 
-func (s *TerraformSuiteEnterprise) TestAccessList(ctx context.Context) {
+func (s *TerraformSuiteEnterprise) TestAccessList() {
+	ctx := s.T().Context()
 	require.True(s.T(),
 		s.teleportFeatures.GetAdvancedAccessWorkflows(),
 		"Test requires Advanced Access Workflows",

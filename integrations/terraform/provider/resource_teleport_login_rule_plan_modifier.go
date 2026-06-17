@@ -21,6 +21,7 @@ import (
 
 	loginrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	schemav1 "github.com/gravitational/teleport/integrations/terraform/tfschema/loginrule/v1"
+
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )

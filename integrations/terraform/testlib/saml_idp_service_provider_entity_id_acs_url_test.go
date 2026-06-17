@@ -106,9 +106,6 @@ func (s *TerraformSuiteOSS) TestSAMLIdPServiceProviderEntityIDACSURLMigrationToD
 }
 
 func (s *TerraformSuiteOSS) TestSAMLIdPServiceProviderEntityIDACSURLMigrationToDescriptorChangedEntityID() {
-	// TODO: Test case should now expect a zero value rather than a null value.
-	s.T().Skip("Attribute 'spec.acs_url' found when not expected")
-
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
 
@@ -135,7 +132,7 @@ func (s *TerraformSuiteOSS) TestSAMLIdPServiceProviderEntityIDACSURLMigrationToD
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(samlIDPServiceProviderTFResourceName, "metadata.name", "test-entity-id-acs-url-migration-changed"),
 					resource.TestCheckResourceAttr(samlIDPServiceProviderTFResourceName, "spec.entity_id", "https://sp.example.com/entity-id-acs-url/migration/changed/to/metadata"),
-					resource.TestCheckNoResourceAttr(samlIDPServiceProviderTFResourceName, "spec.acs_url"), // Failure here? Make sure acs_url is NOT a computed field
+					resource.TestCheckResourceAttr(samlIDPServiceProviderTFResourceName, "spec.acs_url", ""),
 				),
 			},
 			{
