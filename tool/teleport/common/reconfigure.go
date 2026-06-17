@@ -19,6 +19,8 @@
 package common
 
 import (
+	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -28,12 +30,13 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/config/yamlmod"
 	"github.com/gravitational/teleport/lib/defaults"
 )
 
-// modifyFlags holds all flags for the "teleport configure-modify" command.
-type modifyFlags struct {
+// reconfigureFlags holds all flags for the "teleport reconfigure" command.
+type reconfigureFlags struct {
 	input          string
 	output         string
 	overwrite      bool
@@ -44,30 +47,25 @@ type modifyFlags struct {
 	roles          string
 
 	// Named value flags for the fields a cluster migration / re-enrollment touches.
-	// Anything not covered here can still be edited via --set/--unset.
-	clusterName string
-	token       string
-	joinMethod  string
-	authServer  string
-	proxy       string
-	dataDir     string
-	caPin       string
-	version     string
+	// Kept intentionally minimal: flags are an API contract that can't be removed
+	// without a breaking change, and anything else is still reachable via --set/--unset.
+	token      string
+	joinMethod string
+	authServer string
+	proxy      string
+	dataDir    string
 }
 
 // flagPathMap maps CLI flag names to their YAML dot-paths.
 var flagPathMap = map[string]string{
-	"cluster-name": "teleport.cluster_name",
-	"join-method":  "teleport.join_params.method",
-	"auth-server":  "teleport.auth_server",
-	"proxy":        "teleport.proxy_server",
-	"data-dir":     "teleport.data_dir",
-	"ca-pin":       "teleport.ca_pin",
-	"version":      "version",
+	"join-method": "teleport.join_params.method",
+	"auth-server": "teleport.auth_server",
+	"proxy":       "teleport.proxy_server",
+	"data-dir":    "teleport.data_dir",
 }
 
-// modifyRoleServiceMap maps role names to their YAML service section keys.
-var modifyRoleServiceMap = map[string]string{
+// roleServiceMap maps role names to their YAML service section keys.
+var roleServiceMap = map[string]string{
 	defaults.RoleNode:           "ssh_service",
 	defaults.RoleProxy:          "proxy_service",
 	defaults.RoleAuthService:    "auth_service",
@@ -91,8 +89,8 @@ var validServices = map[string]bool{
 	"okta_service":            true,
 }
 
-// onConfigModify is the handler for "teleport configure-modify".
-func onConfigModify(flags modifyFlags) error {
+// onReconfigure is the handler for "teleport reconfigure".
+func onReconfigure(flags reconfigureFlags) error {
 	if flags.output == "" {
 		flags.output = teleport.SchemeStdout
 	}
@@ -102,6 +100,12 @@ func onConfigModify(flags modifyFlags) error {
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
+
+	// Record whether the input is already a valid Teleport config. A validation
+	// failure of the modified output is only fatal when the input was valid to
+	// begin with (see validateModifiedConfig).
+	_, inputErr := config.ReadConfig(bytes.NewReader(data))
+	inputValid := inputErr == nil
 
 	doc, err := yamlmod.Parse(data)
 	if err != nil {
@@ -163,18 +167,37 @@ func onConfigModify(flags modifyFlags) error {
 		return trace.Wrap(err)
 	}
 
-	return writeModifyOutput(flags, output)
+	if err := validateModifiedConfig(output, inputValid); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return writeReconfigureOutput(flags, output)
 }
 
-func applyNamedFlags(doc *yaml.Node, flags modifyFlags) error {
+// validateModifiedConfig checks that the rendered config still parses as a valid
+// Teleport configuration, using the same loader Teleport uses at startup
+// (config.ReadConfig). To avoid rejecting edits to configs this binary cannot
+// fully model (for example a config written by a different Teleport version, or
+// one carrying fields this build doesn't know), output validation is only fatal
+// when the input was itself valid. That isolates errors introduced by this
+// command from pre-existing ones, while still catching mistakes (such as a --set
+// with a bad path) that would break an otherwise-valid config.
+func validateModifiedConfig(output []byte, inputValid bool) error {
+	if _, err := config.ReadConfig(bytes.NewReader(output)); err != nil {
+		if inputValid {
+			return trace.Wrap(err, "the requested changes produced an invalid configuration")
+		}
+		fmt.Fprintf(os.Stderr, "warning: modified configuration did not pass validation, but the original was already invalid: %v\n", err)
+	}
+	return nil
+}
+
+func applyNamedFlags(doc *yaml.Node, flags reconfigureFlags) error {
 	namedValues := map[string]string{
-		"cluster-name": flags.clusterName,
-		"join-method":  flags.joinMethod,
-		"auth-server":  flags.authServer,
-		"proxy":        flags.proxy,
-		"data-dir":     flags.dataDir,
-		"ca-pin":       flags.caPin,
-		"version":      flags.version,
+		"join-method": flags.joinMethod,
+		"auth-server": flags.authServer,
+		"proxy":       flags.proxy,
+		"data-dir":    flags.dataDir,
 	}
 
 	for flagName, value := range namedValues {
@@ -244,7 +267,7 @@ func applyRoles(doc *yaml.Node, rolesStr string) error {
 	roles := strings.Split(rolesStr, ",")
 	for _, role := range roles {
 		role = strings.TrimSpace(role)
-		svcKey, ok := modifyRoleServiceMap[role]
+		svcKey, ok := roleServiceMap[role]
 		if !ok {
 			return trace.BadParameter("unknown role %q", role)
 		}
@@ -296,7 +319,7 @@ func generateServiceDefaults(role string) ([]byte, error) {
 	}
 }
 
-func writeModifyOutput(flags modifyFlags, data []byte) error {
+func writeReconfigureOutput(flags reconfigureFlags, data []byte) error {
 	output := flags.output
 	switch output {
 	case teleport.SchemeStdout, "stdout://":

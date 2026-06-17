@@ -26,14 +26,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestOnConfigModify(t *testing.T) {
+func TestReconfigure(t *testing.T) {
 	t.Run("set token via named flag", func(t *testing.T) {
 		inputFile := filepath.Join(t.TempDir(), "input.yaml")
 		require.NoError(t, os.WriteFile(inputFile, []byte("teleport:\n  data_dir: /var/lib/teleport\n"), 0644))
 
 		outputFile := filepath.Join(t.TempDir(), "output.yaml")
 
-		err := onConfigModify(modifyFlags{
+		err := onReconfigure(reconfigureFlags{
 			input:  inputFile,
 			output: "file://" + outputFile,
 			token:  "new-token",
@@ -52,7 +52,7 @@ func TestOnConfigModify(t *testing.T) {
 
 		outputFile := filepath.Join(t.TempDir(), "output.yaml")
 
-		err := onConfigModify(modifyFlags{
+		err := onReconfigure(reconfigureFlags{
 			input:      inputFile,
 			output:     "file://" + outputFile,
 			token:      "new-token",
@@ -73,7 +73,7 @@ func TestOnConfigModify(t *testing.T) {
 
 		outputFile := filepath.Join(t.TempDir(), "output.yaml")
 
-		err := onConfigModify(modifyFlags{
+		err := onReconfigure(reconfigureFlags{
 			input:         inputFile,
 			output:        "file://" + outputFile,
 			enableService: []string{"ssh_service"},
@@ -89,7 +89,7 @@ func TestOnConfigModify(t *testing.T) {
 		inputFile := filepath.Join(t.TempDir(), "input.yaml")
 		require.NoError(t, os.WriteFile(inputFile, []byte("teleport:\n  data_dir: /var/lib/teleport\n"), 0644))
 
-		err := onConfigModify(modifyFlags{
+		err := onReconfigure(reconfigureFlags{
 			input:         inputFile,
 			output:        "stdout",
 			enableService: []string{"ssh_service"},
@@ -104,7 +104,7 @@ func TestOnConfigModify(t *testing.T) {
 
 		outputFile := filepath.Join(t.TempDir(), "output.yaml")
 
-		err := onConfigModify(modifyFlags{
+		err := onReconfigure(reconfigureFlags{
 			input:          inputFile,
 			output:         "file://" + outputFile,
 			disableService: []string{"ssh_service"},
@@ -122,7 +122,7 @@ func TestOnConfigModify(t *testing.T) {
 
 		outputFile := filepath.Join(t.TempDir(), "output.yaml")
 
-		err := onConfigModify(modifyFlags{
+		err := onReconfigure(reconfigureFlags{
 			input:  inputFile,
 			output: "file://" + outputFile,
 			unset:  []string{"teleport.auth_token"},
@@ -141,7 +141,7 @@ func TestOnConfigModify(t *testing.T) {
 
 		outputFile := filepath.Join(t.TempDir(), "output.yaml")
 
-		err := onConfigModify(modifyFlags{
+		err := onReconfigure(reconfigureFlags{
 			input:  inputFile,
 			output: "file://" + outputFile,
 			set:    []string{"teleport.log.severity=DEBUG"},
@@ -160,7 +160,7 @@ func TestOnConfigModify(t *testing.T) {
 		outputFile := filepath.Join(t.TempDir(), "output.yaml")
 		require.NoError(t, os.WriteFile(outputFile, []byte("existing"), 0644))
 
-		err := onConfigModify(modifyFlags{
+		err := onReconfigure(reconfigureFlags{
 			input:  inputFile,
 			output: "file://" + outputFile,
 			token:  "new-token",
@@ -175,7 +175,7 @@ func TestOnConfigModify(t *testing.T) {
 		outputFile := filepath.Join(t.TempDir(), "output.yaml")
 		require.NoError(t, os.WriteFile(outputFile, []byte("existing"), 0644))
 
-		err := onConfigModify(modifyFlags{
+		err := onReconfigure(reconfigureFlags{
 			input:     inputFile,
 			output:    "file://" + outputFile,
 			overwrite: true,
@@ -192,7 +192,7 @@ func TestOnConfigModify(t *testing.T) {
 		inputFile := filepath.Join(t.TempDir(), "input.yaml")
 		require.NoError(t, os.WriteFile(inputFile, []byte("teleport:\n  data_dir: /var/lib/teleport\n"), 0644))
 
-		err := onConfigModify(modifyFlags{
+		err := onReconfigure(reconfigureFlags{
 			input:  inputFile,
 			output: "stdout",
 			token:  "new-token",
@@ -201,7 +201,7 @@ func TestOnConfigModify(t *testing.T) {
 	})
 
 	t.Run("input file does not exist", func(t *testing.T) {
-		err := onConfigModify(modifyFlags{
+		err := onReconfigure(reconfigureFlags{
 			input:  "/nonexistent/path.yaml",
 			output: "stdout",
 			token:  "new-token",
@@ -213,7 +213,7 @@ func TestOnConfigModify(t *testing.T) {
 		inputFile := filepath.Join(t.TempDir(), "input.yaml")
 		require.NoError(t, os.WriteFile(inputFile, []byte("teleport:\n  data_dir: /var/lib/teleport\n"), 0644))
 
-		err := onConfigModify(modifyFlags{
+		err := onReconfigure(reconfigureFlags{
 			input:  inputFile,
 			output: "stdout",
 			set:    []string{"no-equals-sign"},
@@ -227,7 +227,7 @@ func TestOnConfigModify(t *testing.T) {
 
 		outputFile := filepath.Join(t.TempDir(), "output.yaml")
 
-		err := onConfigModify(modifyFlags{
+		err := onReconfigure(reconfigureFlags{
 			input:  inputFile,
 			output: "file://" + outputFile,
 			set:    []string{"teleport.auth_token=https://auth.example.com?token=abc=def"},
@@ -240,14 +240,14 @@ func TestOnConfigModify(t *testing.T) {
 	})
 }
 
-func TestOnConfigModifyBugFixes(t *testing.T) {
+func TestReconfigureBugFixes(t *testing.T) {
 	t.Run("token on config with no join_params sets default method token", func(t *testing.T) {
 		inputFile := filepath.Join(t.TempDir(), "input.yaml")
 		require.NoError(t, os.WriteFile(inputFile, []byte("teleport:\n  data_dir: /var/lib/teleport\n"), 0644))
 
 		outputFile := filepath.Join(t.TempDir(), "output.yaml")
 
-		err := onConfigModify(modifyFlags{
+		err := onReconfigure(reconfigureFlags{
 			input:  inputFile,
 			output: "file://" + outputFile,
 			token:  "my-token",
@@ -266,7 +266,7 @@ func TestOnConfigModifyBugFixes(t *testing.T) {
 
 		outputFile := filepath.Join(t.TempDir(), "output.yaml")
 
-		err := onConfigModify(modifyFlags{
+		err := onReconfigure(reconfigureFlags{
 			input:  inputFile,
 			output: "file://" + outputFile,
 			token:  "new-token",
@@ -286,7 +286,7 @@ func TestOnConfigModifyBugFixes(t *testing.T) {
 
 		outputFile := filepath.Join(t.TempDir(), "output.yaml")
 
-		err := onConfigModify(modifyFlags{
+		err := onReconfigure(reconfigureFlags{
 			input:  inputFile,
 			output: "file://" + outputFile,
 			proxy:  "proxy.example.com:443",
@@ -305,7 +305,7 @@ func TestOnConfigModifyBugFixes(t *testing.T) {
 
 		outputFile := filepath.Join(t.TempDir(), "output.yaml")
 
-		err := onConfigModify(modifyFlags{
+		err := onReconfigure(reconfigureFlags{
 			input:      inputFile,
 			output:     "file://" + outputFile,
 			authServer: "auth.example.com:3025",
@@ -324,7 +324,7 @@ func TestOnConfigModifyBugFixes(t *testing.T) {
 
 		outputFile := filepath.Join(t.TempDir(), "output.yaml")
 
-		err := onConfigModify(modifyFlags{
+		err := onReconfigure(reconfigureFlags{
 			input:  inputFile,
 			output: "file://" + outputFile,
 			proxy:  "proxy.example.com:443",
@@ -342,7 +342,7 @@ func TestOnConfigModifyBugFixes(t *testing.T) {
 		configFile := filepath.Join(dir, "teleport.yaml")
 		require.NoError(t, os.WriteFile(configFile, []byte("teleport:\n  data_dir: /var/lib/teleport\n  auth_server: auth.example.com:3025\n"), 0644))
 
-		err := onConfigModify(modifyFlags{
+		err := onReconfigure(reconfigureFlags{
 			input:     configFile,
 			output:    "file://" + configFile,
 			overwrite: true,
@@ -363,14 +363,55 @@ func TestOnConfigModifyBugFixes(t *testing.T) {
 	})
 }
 
-func TestOnConfigModifyRoles(t *testing.T) {
+func TestReconfigureValidation(t *testing.T) {
+	t.Run("rejects an edit that breaks an otherwise-valid config", func(t *testing.T) {
+		inputFile := filepath.Join(t.TempDir(), "input.yaml")
+		require.NoError(t, os.WriteFile(inputFile, []byte("version: v3\nteleport:\n  data_dir: /var/lib/teleport\n  proxy_server: proxy.example.com:443\nssh_service:\n  enabled: \"yes\"\n"), 0644))
+
+		outputFile := filepath.Join(t.TempDir(), "output.yaml")
+
+		err := onReconfigure(reconfigureFlags{
+			input:  inputFile,
+			output: "file://" + outputFile,
+			set:    []string{"teleport.bogus_field=oops"},
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "invalid configuration")
+
+		// A failed validation must not write any output.
+		_, statErr := os.Stat(outputFile)
+		require.True(t, os.IsNotExist(statErr))
+	})
+
+	t.Run("warns but proceeds when the input was already invalid", func(t *testing.T) {
+		inputFile := filepath.Join(t.TempDir(), "input.yaml")
+		// An unknown top-level field makes the input itself fail strict parsing,
+		// so the edit must still be applied rather than blocked.
+		require.NoError(t, os.WriteFile(inputFile, []byte("teleport:\n  data_dir: /var/lib/teleport\nbogus_service:\n  enabled: \"yes\"\n"), 0644))
+
+		outputFile := filepath.Join(t.TempDir(), "output.yaml")
+
+		err := onReconfigure(reconfigureFlags{
+			input:  inputFile,
+			output: "file://" + outputFile,
+			proxy:  "proxy.example.com:443",
+		})
+		require.NoError(t, err)
+
+		got, err := os.ReadFile(outputFile)
+		require.NoError(t, err)
+		require.Contains(t, string(got), "proxy_server: proxy.example.com:443")
+	})
+}
+
+func TestReconfigureRoles(t *testing.T) {
 	t.Run("creates ssh_service section", func(t *testing.T) {
 		inputFile := filepath.Join(t.TempDir(), "input.yaml")
 		require.NoError(t, os.WriteFile(inputFile, []byte("teleport:\n  data_dir: /var/lib/teleport\n"), 0644))
 
 		outputFile := filepath.Join(t.TempDir(), "output.yaml")
 
-		err := onConfigModify(modifyFlags{
+		err := onReconfigure(reconfigureFlags{
 			input:  inputFile,
 			output: "file://" + outputFile,
 			roles:  "node",
@@ -390,7 +431,7 @@ func TestOnConfigModifyRoles(t *testing.T) {
 
 		outputFile := filepath.Join(t.TempDir(), "output.yaml")
 
-		err := onConfigModify(modifyFlags{
+		err := onReconfigure(reconfigureFlags{
 			input:  inputFile,
 			output: "file://" + outputFile,
 			roles:  "node",
@@ -409,7 +450,7 @@ func TestOnConfigModifyRoles(t *testing.T) {
 
 		outputFile := filepath.Join(t.TempDir(), "output.yaml")
 
-		err := onConfigModify(modifyFlags{
+		err := onReconfigure(reconfigureFlags{
 			input:  inputFile,
 			output: "file://" + outputFile,
 			roles:  "node,proxy,auth",
@@ -427,7 +468,7 @@ func TestOnConfigModifyRoles(t *testing.T) {
 		inputFile := filepath.Join(t.TempDir(), "input.yaml")
 		require.NoError(t, os.WriteFile(inputFile, []byte("teleport:\n  data_dir: /var/lib/teleport\n"), 0644))
 
-		err := onConfigModify(modifyFlags{
+		err := onReconfigure(reconfigureFlags{
 			input:  inputFile,
 			output: "stdout",
 			roles:  "nonexistent",
@@ -437,14 +478,14 @@ func TestOnConfigModifyRoles(t *testing.T) {
 	})
 }
 
-func TestOnConfigModifyPreservesComments(t *testing.T) {
+func TestReconfigurePreservesComments(t *testing.T) {
 	input := "# Main teleport configuration\nteleport:\n  # Data directory for teleport state\n  data_dir: /var/lib/teleport\n  auth_token: old-token\n# SSH service configuration\nssh_service:\n  enabled: \"yes\"\n  listen_addr: 0.0.0.0:3022\n"
 	inputFile := filepath.Join(t.TempDir(), "input.yaml")
 	require.NoError(t, os.WriteFile(inputFile, []byte(input), 0644))
 
 	outputFile := filepath.Join(t.TempDir(), "output.yaml")
 
-	err := onConfigModify(modifyFlags{
+	err := onReconfigure(reconfigureFlags{
 		input:  inputFile,
 		output: "file://" + outputFile,
 		token:  "new-token",
@@ -461,7 +502,7 @@ func TestOnConfigModifyPreservesComments(t *testing.T) {
 	require.NotContains(t, string(got), "old-token")
 }
 
-func TestOnConfigModifyRealisticConfigs(t *testing.T) {
+func TestReconfigureRealisticConfigs(t *testing.T) {
 	const fullConfig = `# Teleport configuration file
 version: v3
 teleport:
@@ -510,7 +551,7 @@ db_service:
 
 		outputFile := filepath.Join(t.TempDir(), "output.yaml")
 
-		err := onConfigModify(modifyFlags{
+		err := onReconfigure(reconfigureFlags{
 			input:  inputFile,
 			output: "file://" + outputFile,
 			token:  "new-cluster-token",
@@ -554,7 +595,7 @@ db_service:
 
 		outputFile := filepath.Join(t.TempDir(), "output.yaml")
 
-		err := onConfigModify(modifyFlags{
+		err := onReconfigure(reconfigureFlags{
 			input:  inputFile,
 			output: "file://" + outputFile,
 			unset:  []string{"teleport.log.severity"},
@@ -584,7 +625,7 @@ db_service:
 
 		outputFile := filepath.Join(t.TempDir(), "output.yaml")
 
-		err := onConfigModify(modifyFlags{
+		err := onReconfigure(reconfigureFlags{
 			input:          inputFile,
 			output:         "file://" + outputFile,
 			enableService:  []string{"db_service"},

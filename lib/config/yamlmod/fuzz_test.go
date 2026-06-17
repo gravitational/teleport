@@ -24,6 +24,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 )
 
@@ -84,7 +85,7 @@ func FuzzModify(f *testing.F) {
 
 		// A successfully parsed, unmodified document must always render to YAML
 		// that parses again.
-		mustRoundTrip(t, doc)
+		requireRoundTrip(t, doc)
 
 		// Read operations must never panic on arbitrary paths, regardless of
 		// whether the path resolves.
@@ -92,41 +93,35 @@ func FuzzModify(f *testing.F) {
 		_ = Exists(doc, path)
 
 		if err := Set(doc, path, value); err == nil {
-			mustRoundTrip(t, doc)
+			requireRoundTrip(t, doc)
 			// A scalar Set with no array index must be observable via Get:
 			// if Set claims success, the value has to actually be there.
 			if !strings.Contains(path, "[") {
 				got, err := Get(doc, path)
-				if err != nil {
-					t.Fatalf("Get after successful Set(%q) failed: %v", path, err)
-				}
-				if got != value {
-					t.Fatalf("Get after Set(%q)=%q returned %q", path, value, got)
-				}
+				require.NoError(t, err, "Get after successful Set(%q)", path)
+				require.Equal(t, value, got, "Get after Set(%q)", path)
 			}
 		}
 
 		if err := SetBool(doc, path, true); err == nil {
-			mustRoundTrip(t, doc)
+			requireRoundTrip(t, doc)
 		}
 
 		if err := Delete(doc, path); err == nil {
-			mustRoundTrip(t, doc)
+			requireRoundTrip(t, doc)
 			// A successful non-indexed Delete must remove the path.
-			if !strings.Contains(path, "[") && Exists(doc, path) {
-				t.Fatalf("path %q still exists after successful Delete", path)
+			if !strings.Contains(path, "[") {
+				require.False(t, Exists(doc, path), "path %q still exists after successful Delete", path)
 			}
 		}
 	})
 }
 
-func mustRoundTrip(t *testing.T, doc *yaml.Node) {
+// requireRoundTrip asserts that the document renders to YAML that parses again.
+func requireRoundTrip(t *testing.T, doc *yaml.Node) {
 	t.Helper()
 	out, err := Render(doc)
-	if err != nil {
-		t.Fatalf("Render failed: %v", err)
-	}
-	if _, err := Parse(out); err != nil {
-		t.Fatalf("rendered output did not round-trip: %v\noutput:\n%s", err, out)
-	}
+	require.NoError(t, err, "Render")
+	_, err = Parse(out)
+	require.NoError(t, err, "rendered output did not round-trip:\n%s", out)
 }

@@ -459,27 +459,22 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dump.Flag("node-name", "Name for the Teleport node.").StringVar(&dumpFlags.NodeName)
 	dump.Flag("node-labels", "Comma-separated list of labels to add to newly created nodes, for example env=staging,cloud=aws.").StringVar(&dumpFlags.NodeLabels)
 
-	// "teleport configure-modify" top-level command for modifying an existing config file.
-	// Registered at the app level (not under "configure") to avoid kingpin inheriting
-	// the parent configure flags and causing duplicate-flag errors.
-	configureModify := app.Command("configure-modify", "Modify an existing Teleport configuration file.").Hidden()
-	var modFlags modifyFlags
-	configureModify.Flag("input", "Path to existing configuration file to modify.").Required().StringVar(&modFlags.input)
-	configureModify.Flag("output", `Output destination. Default stdout. Use file:///path for file output.`).Default(teleport.SchemeStdout).StringVar(&modFlags.output)
-	configureModify.Flag("overwrite", "Allow overwriting an existing output file.").BoolVar(&modFlags.overwrite)
-	configureModify.Flag("enable-service", "Enable a service (must already exist in config).").StringsVar(&modFlags.enableService)
-	configureModify.Flag("disable-service", "Disable a service (must already exist in config).").StringsVar(&modFlags.disableService)
-	configureModify.Flag("set", "Set a field by dot-path (format: path=value).").StringsVar(&modFlags.set)
-	configureModify.Flag("unset", "Remove a field by dot-path.").StringsVar(&modFlags.unset)
-	configureModify.Flag("roles", "Comma-separated list of roles. Creates service sections with defaults if missing.").StringVar(&modFlags.roles)
-	configureModify.Flag("cluster-name", "Set teleport.cluster_name.").StringVar(&modFlags.clusterName)
-	configureModify.Flag("token", "Set the join token. Updates teleport.join_params.token_name, or teleport.auth_token if that field already exists and --join-method is not provided.").StringVar(&modFlags.token)
-	configureModify.Flag("join-method", "Set teleport.join_params.method.").StringVar(&modFlags.joinMethod)
-	configureModify.Flag("auth-server", "Set teleport.auth_server.").StringVar(&modFlags.authServer)
-	configureModify.Flag("proxy", "Set teleport.proxy_server.").StringVar(&modFlags.proxy)
-	configureModify.Flag("data-dir", "Set teleport.data_dir.").StringVar(&modFlags.dataDir)
-	configureModify.Flag("ca-pin", "Set teleport.ca_pin.").StringVar(&modFlags.caPin)
-	configureModify.Flag("version", "Set version field.").StringVar(&modFlags.version)
+	// "teleport reconfigure" command for modifying an existing config file in place.
+	reconfigure := app.Command("reconfigure", "Modify an existing Teleport configuration file.").Hidden()
+	var reconfFlags reconfigureFlags
+	reconfigure.Flag("input", "Path to existing configuration file to modify.").Required().StringVar(&reconfFlags.input)
+	reconfigure.Flag("output", `Output destination. Default stdout. Use file:///path for file output.`).Default(teleport.SchemeStdout).StringVar(&reconfFlags.output)
+	reconfigure.Flag("overwrite", "Allow overwriting an existing output file.").BoolVar(&reconfFlags.overwrite)
+	reconfigure.Flag("enable-service", "Enable a service (must already exist in config).").StringsVar(&reconfFlags.enableService)
+	reconfigure.Flag("disable-service", "Disable a service (must already exist in config).").StringsVar(&reconfFlags.disableService)
+	reconfigure.Flag("set", "Set a field by dot-path (format: path=value).").StringsVar(&reconfFlags.set)
+	reconfigure.Flag("unset", "Remove a field by dot-path.").StringsVar(&reconfFlags.unset)
+	reconfigure.Flag("roles", "Comma-separated list of roles. Creates service sections with defaults if missing.").StringVar(&reconfFlags.roles)
+	reconfigure.Flag("token", "Set the join token. Updates teleport.join_params.token_name, or teleport.auth_token if that field already exists and --join-method is not provided.").StringVar(&reconfFlags.token)
+	reconfigure.Flag("join-method", "Set teleport.join_params.method.").StringVar(&reconfFlags.joinMethod)
+	reconfigure.Flag("auth-server", "Set teleport.auth_server.").StringVar(&reconfFlags.authServer)
+	reconfigure.Flag("proxy", "Set teleport.proxy_server.").StringVar(&reconfFlags.proxy)
+	reconfigure.Flag("data-dir", "Set teleport.data_dir.").StringVar(&reconfFlags.dataDir)
 
 	ver.Flag("raw", "Print the raw teleport version string.").BoolVar(&rawVersion)
 
@@ -780,8 +775,8 @@ Examples:
 	case dumpNodeConfigure.FullCommand():
 		dumpFlags.Roles = defaults.RoleNode
 		err = onConfigDump(dumpFlags)
-	case configureModify.FullCommand():
-		err = onConfigModify(modFlags)
+	case reconfigure.FullCommand():
+		err = onReconfigure(reconfFlags)
 
 	case exec.FullCommand(),
 		networking.FullCommand(),
