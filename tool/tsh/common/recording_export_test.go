@@ -34,6 +34,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/events/har"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
@@ -212,7 +213,7 @@ func TestWriteHAR(t *testing.T) {
 	data, err := os.ReadFile(outputPath)
 	require.NoError(t, err)
 
-	var result harRoot
+	var result har.Root
 	require.NoError(t, json.Unmarshal(data, &result))
 
 	require.Equal(t, "1.2", result.Log.Version)
@@ -280,7 +281,7 @@ func TestWriteHAR_BinaryBody(t *testing.T) {
 
 	data, err := os.ReadFile(outputPath)
 	require.NoError(t, err)
-	var result harRoot
+	var result har.Root
 	require.NoError(t, json.Unmarshal(data, &result))
 
 	resp := result.Log.Entries[0].Response
