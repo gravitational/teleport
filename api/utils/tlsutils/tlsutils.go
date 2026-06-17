@@ -18,6 +18,7 @@ limitations under the License.
 package tlsutils
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -32,24 +33,24 @@ import (
 //
 // It is a strict variant of [ParseCertificatePEM], disallowing trailing data in
 // the PEM block and requiring the block type to be CERTIFICATE.
-func ParseCertificatePEMStrict(bytes []byte) (*x509.Certificate, error) {
-	return parseCertificatePEM(bytes, true /* strict */)
+func ParseCertificatePEMStrict(val []byte) (*x509.Certificate, error) {
+	return parseCertificatePEM(val, true /* strict */)
 }
 
 // ParseCertificatePEM parses a PEM-encoded x509 certificate.
-func ParseCertificatePEM(bytes []byte) (*x509.Certificate, error) {
-	return parseCertificatePEM(bytes, false /* strict */)
+func ParseCertificatePEM(val []byte) (*x509.Certificate, error) {
+	return parseCertificatePEM(val, false /* strict */)
 }
 
-func parseCertificatePEM(bytes []byte, strict bool) (*x509.Certificate, error) {
-	block, rest := pem.Decode(bytes)
+func parseCertificatePEM(val []byte, strict bool) (*x509.Certificate, error) {
+	block, rest := pem.Decode(val)
 	const wantBlockType = "CERTIFICATE"
 	switch {
 	case block == nil:
 		return nil, trace.BadParameter("expected PEM-encoded block")
 	case strict && block.Type != wantBlockType:
 		return nil, trace.BadParameter("certificate PEM has unexpected block type %q (want %q)", block.Type, wantBlockType)
-	case strict && len(rest) > 0:
+	case strict && len(bytes.TrimSpace(rest)) > 0:
 		return nil, trace.BadParameter("certificate PEM has unexpected trailing data")
 	}
 

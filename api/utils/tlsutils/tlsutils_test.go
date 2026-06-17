@@ -15,6 +15,7 @@
 package tlsutils_test
 
 import (
+	"crypto/x509"
 	"encoding/pem"
 	"testing"
 
@@ -41,8 +42,28 @@ uQM=
 -----END CERTIFICATE-----`
 
 	// Start with a successful parse.
-	cert, err := tlsutils.ParseCertificatePEMStrict([]byte(certPEM))
-	require.NoError(t, err)
+	var cert *x509.Certificate
+	if !t.Run("ok", func(t *testing.T) {
+		var err error
+		cert, err = tlsutils.ParseCertificatePEMStrict([]byte(certPEM))
+		require.NoError(t, err)
+	}) {
+		t.Skip("ok test failed, aborting")
+	}
+
+	t.Run("allow leading whitespace", func(t *testing.T) {
+		t.Parallel()
+		// Note: blocks must start at the beginning of a line!
+		in := "\n\n" + certPEM
+		_, err := tlsutils.ParseCertificatePEMStrict([]byte(in))
+		require.NoError(t, err)
+	})
+	t.Run("allow trailing whitespace", func(t *testing.T) {
+		t.Parallel()
+		in := certPEM + "  \n\n"
+		_, err := tlsutils.ParseCertificatePEMStrict([]byte(in))
+		require.NoError(t, err)
+	})
 
 	// Test a few errors.
 	tests := []struct {
@@ -81,7 +102,7 @@ uQM=
 				string(pem.EncodeToMemory(&pem.Block{
 					Type:  "CERTIFICATE",
 					Bytes: cert.Raw,
-				})) + "  "),
+				})) + " trailing data here "),
 			wantErr: "trailing data",
 		},
 	}
