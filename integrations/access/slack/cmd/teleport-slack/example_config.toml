@@ -29,14 +29,23 @@ token = "xoxb-11xx"
 
 [review]
 # Allows for native review of Teleport Access Requests within Slack.
+#
 # Important: enabling this feature reduces the security of the Teleport cluster.
 # Access Request reviews submitted through Slack are bound to a Slack identity rather than
 # the reviewer's Teleport identity, and bypass Teleport authentication
 # (and MFA for admin actions if enabled on cluster).
 # As a result, a compromised Slack account can approve requests from Slack and escalate privileges in Teleport.
 #
+# There are two identity binding models for Slack reviewers:
+# - binding based on Teleport username and Slack email, toggled with `allow_email_username_match`
+# - binding based on Teleport trait and Slack user ID, set by `slack_user_id_trait`
+#
+# The binding based on Teleport trait is stronger, but requires a Teleport user to be given a trait with
+# their Slack user ID, often coming from the Identity Provider/SSO connector.
+
 # Toggles native review feature. Default is false.
 enabled = false
+
 # Slack App-level token.
 # Provides the plugin permissions to receive user interactions from Slack.
 # This is different from the Bot OAuth token, and must be set up separately.
@@ -45,15 +54,15 @@ enabled = false
 # You can also use an absolute path to a token file, e.g.,
 # "/var/lib/teleport/appToken"
 # app_token = "xapp-..."
-#
-# Name of the Teleport trait to resolve Slack user to Teleport user.
-# The trait should hold value of Slack user ID.
-# slack_user_id_trait = "slack_uid"
-#
-# Allows exact Slack email to Teleport username match.
-# This should only be true if `slack_user_id_trait` is not configured in Teleport.
+
+# Allows binding between Teleport username and Slack email.
+# This should only be set to true if `slack_user_id_trait` is not configured in Teleport.
 # We recommend configuring a trait for stronger identity binding. Default is false.
 # allow_email_username_match = false
+
+# Name of the Teleport trait to bind Teleport user and Slack user.
+# The trait should hold value of Slack user ID.
+# slack_user_id_trait = "slack_uid"
 
 [role_to_recipients]
 # Map roles to recipients.

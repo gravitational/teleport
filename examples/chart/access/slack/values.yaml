@@ -63,13 +63,24 @@ slack:
 
 # review -- configures native review of Teleport Access Requests within Slack.
 #
-# Important: enabling this feature reduces the security of the Teleport cluster.
+# Native review is by default disabled.
+#
+# <Admonition type="danger">
+# Enabling this feature reduces the security of the Teleport cluster.
 # Access Request reviews submitted through Slack are bound to a Slack identity rather than
 # the reviewer's Teleport identity, and bypass Teleport authentication
 # (and MFA for admin actions if enabled on cluster).
 # As a result, a compromised Slack account can approve requests from Slack and escalate privileges in Teleport.
+# </Admonition>
 #
-# Native review is by default disabled.
+# <Admonition type="note">
+# There are two identity binding models for Slack reviewers:
+# - binding based on Teleport username and Slack email, toggled with `review.allowEmailUsernameMatch`
+# - binding based on Teleport trait and Slack user ID, set by `review.slackUserIdTrait`
+#
+# The binding based on Teleport trait is stronger, but requires a Teleport user to be given a trait with
+# their Slack user ID, often coming from the Identity Provider/SSO connector.
+# </Admonition>
 #
 # You can pass the Slack App-level token:
 # - via the chart Values by setting `review.appToken`
@@ -93,14 +104,14 @@ review:
   # review.appTokenSecretPath(string) -- is the Kubernetes Secret key
   # containing the Slack App-level token. The secret name is set via `review.appTokenFromSecret`.
   appTokenSecretPath: "slackAppToken"
-  # review.slackUserIdTrait(string) -- is the name of the Teleport trait
-  # to resolve Slack user to Teleport user.
-  # The trait should hold value of Slack user ID.
-  slackUserIdTrait: ""
-  # review.allowEmailUsernameMatch(bool) -- allows exact Slack email to Teleport username match.
-  # This should only be true if `review.slackUserIdTrait` is not configured in Teleport.
+  # review.allowEmailUsernameMatch(bool) -- allows binding between Teleport username and Slack email.
+  # This should only be set to true if `review.slackUserIdTrait` is not configured in Teleport.
   # We recommend configuring a trait for stronger identity binding. Default is false.
   allowEmailUsernameMatch: false
+  # review.slackUserIdTrait(string) -- is the name of the Teleport trait
+  # to bind Teleport user and Slack user.
+  # The trait should hold value of Slack user ID.
+  slackUserIdTrait: ""
 
 # roleToRecipients(object) -- is mapping the requested role name to a list of
 # recipients the plugin will notify.
