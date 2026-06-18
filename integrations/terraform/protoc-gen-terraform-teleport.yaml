@@ -238,6 +238,10 @@ exclude_fields:
     # credentials is excluded intentionally so that we dont have to handle plugin credentials, which are stored separately.
     - "IntegrationV1.Spec.credentials"
     - "IntegrationV1.Spec.GitHub"
+
+    # Lock
+    - "LockV2.Spec.CreatedAt"
+    - "LockV2.Spec.CreatedBy"
     
 name_overrides:
 
