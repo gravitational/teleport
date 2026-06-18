@@ -40,7 +40,7 @@ func TestCommandRequestKind(t *testing.T) {
 
 func TestWithTimeoutDeniesOnSlowApprover(t *testing.T) {
 	slow := approverFunc(func(ctx context.Context, _ CommandRequest) Decision {
-		<-ctx.Done() // never decides on its own
+		<-ctx.Done()                    // never decides on its own
 		return Decision{Approved: true} // would-be approve, must be overridden
 	})
 	a := WithTimeout(slow, 20*time.Millisecond)
