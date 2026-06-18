@@ -978,6 +978,7 @@ type ScopedRoleKube struct {
 	xxx_hidden_Labels                *[]*v11.Label          `protobuf:"bytes,1,rep,name=labels,proto3"`
 	xxx_hidden_Groups                []string               `protobuf:"bytes,2,rep,name=groups,proto3"`
 	xxx_hidden_Users                 []string               `protobuf:"bytes,3,rep,name=users,proto3"`
+	xxx_hidden_Resources             *[]*KubeResource       `protobuf:"bytes,4,rep,name=resources,proto3"`
 	xxx_hidden_ClientIdleTimeout     string                 `protobuf:"bytes,5,opt,name=client_idle_timeout,json=clientIdleTimeout,proto3"`
 	xxx_hidden_DisconnectExpiredCert bool                   `protobuf:"varint,6,opt,name=disconnect_expired_cert,json=disconnectExpiredCert,proto3,oneof"`
 	xxx_hidden_Lock                  *Lock                  `protobuf:"bytes,7,opt,name=lock,proto3"`
@@ -1035,6 +1036,15 @@ func (x *ScopedRoleKube) GetUsers() []string {
 	return nil
 }
 
+func (x *ScopedRoleKube) GetResources() []*KubeResource {
+	if x != nil {
+		if x.xxx_hidden_Resources != nil {
+			return *x.xxx_hidden_Resources
+		}
+	}
+	return nil
+}
+
 func (x *ScopedRoleKube) GetClientIdleTimeout() string {
 	if x != nil {
 		return x.xxx_hidden_ClientIdleTimeout
@@ -1068,13 +1078,17 @@ func (x *ScopedRoleKube) SetUsers(v []string) {
 	x.xxx_hidden_Users = v
 }
 
+func (x *ScopedRoleKube) SetResources(v []*KubeResource) {
+	x.xxx_hidden_Resources = &v
+}
+
 func (x *ScopedRoleKube) SetClientIdleTimeout(v string) {
 	x.xxx_hidden_ClientIdleTimeout = v
 }
 
 func (x *ScopedRoleKube) SetDisconnectExpiredCert(v bool) {
 	x.xxx_hidden_DisconnectExpiredCert = v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 4, 6)
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 5, 7)
 }
 
 func (x *ScopedRoleKube) SetLock(v *Lock) {
@@ -1085,7 +1099,7 @@ func (x *ScopedRoleKube) HasDisconnectExpiredCert() bool {
 	if x == nil {
 		return false
 	}
-	return protoimpl.X.Present(&(x.XXX_presence[0]), 4)
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 5)
 }
 
 func (x *ScopedRoleKube) HasLock() bool {
@@ -1096,7 +1110,7 @@ func (x *ScopedRoleKube) HasLock() bool {
 }
 
 func (x *ScopedRoleKube) ClearDisconnectExpiredCert() {
-	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 4)
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 5)
 	x.xxx_hidden_DisconnectExpiredCert = false
 }
 
@@ -1113,6 +1127,8 @@ type ScopedRoleKube_builder struct {
 	Groups []string
 	// An optional list of impersonatable kubernetes users this role allows.
 	Users []string
+	// The kubernetes resources this role grants access to.
+	Resources []*KubeResource
 	// Overrides the defaults block idle timeout specifically for kube sessions.
 	// Must be a valid Go duration string (e.g. "30m", "1h"). If empty, the defaults block value
 	// (or global default) applies.
@@ -1130,9 +1146,10 @@ func (b0 ScopedRoleKube_builder) Build() *ScopedRoleKube {
 	x.xxx_hidden_Labels = &b.Labels
 	x.xxx_hidden_Groups = b.Groups
 	x.xxx_hidden_Users = b.Users
+	x.xxx_hidden_Resources = &b.Resources
 	x.xxx_hidden_ClientIdleTimeout = b.ClientIdleTimeout
 	if b.DisconnectExpiredCert != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 4, 6)
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 5, 7)
 		x.xxx_hidden_DisconnectExpiredCert = *b.DisconnectExpiredCert
 	}
 	x.xxx_hidden_Lock = b.Lock
@@ -1956,6 +1973,125 @@ func (b0 Lock_builder) Build() *Lock {
 	return m0
 }
 
+// The kube resource identifier.
+type KubeResource struct {
+	state                protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Kind      string                 `protobuf:"bytes,1,opt,name=kind,proto3"`
+	xxx_hidden_Namespace string                 `protobuf:"bytes,2,opt,name=namespace,proto3"`
+	xxx_hidden_Name      string                 `protobuf:"bytes,3,opt,name=name,proto3"`
+	xxx_hidden_Verbs     []string               `protobuf:"bytes,4,rep,name=verbs,proto3"`
+	xxx_hidden_ApiGroup  string                 `protobuf:"bytes,5,opt,name=api_group,json=apiGroup,proto3"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *KubeResource) Reset() {
+	*x = KubeResource{}
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *KubeResource) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*KubeResource) ProtoMessage() {}
+
+func (x *KubeResource) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *KubeResource) GetKind() string {
+	if x != nil {
+		return x.xxx_hidden_Kind
+	}
+	return ""
+}
+
+func (x *KubeResource) GetNamespace() string {
+	if x != nil {
+		return x.xxx_hidden_Namespace
+	}
+	return ""
+}
+
+func (x *KubeResource) GetName() string {
+	if x != nil {
+		return x.xxx_hidden_Name
+	}
+	return ""
+}
+
+func (x *KubeResource) GetVerbs() []string {
+	if x != nil {
+		return x.xxx_hidden_Verbs
+	}
+	return nil
+}
+
+func (x *KubeResource) GetApiGroup() string {
+	if x != nil {
+		return x.xxx_hidden_ApiGroup
+	}
+	return ""
+}
+
+func (x *KubeResource) SetKind(v string) {
+	x.xxx_hidden_Kind = v
+}
+
+func (x *KubeResource) SetNamespace(v string) {
+	x.xxx_hidden_Namespace = v
+}
+
+func (x *KubeResource) SetName(v string) {
+	x.xxx_hidden_Name = v
+}
+
+func (x *KubeResource) SetVerbs(v []string) {
+	x.xxx_hidden_Verbs = v
+}
+
+func (x *KubeResource) SetApiGroup(v string) {
+	x.xxx_hidden_ApiGroup = v
+}
+
+type KubeResource_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The kube resource type.
+	Kind string
+	// The kube resource namespace. It supports wildcards.
+	Namespace string
+	// The kube resource name. It supports wildcards.
+	Name string
+	// The allowed kube verbs for interacting with the kube resource.
+	Verbs []string
+	// The kube API group of the kube resource. It supports wildcards.
+	ApiGroup string
+}
+
+func (b0 KubeResource_builder) Build() *KubeResource {
+	m0 := &KubeResource{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_Kind = b.Kind
+	x.xxx_hidden_Namespace = b.Namespace
+	x.xxx_hidden_Name = b.Name
+	x.xxx_hidden_Verbs = b.Verbs
+	x.xxx_hidden_ApiGroup = b.ApiGroup
+	return m0
+}
+
 var File_teleport_scopes_access_v1_role_proto protoreflect.FileDescriptor
 
 const file_teleport_scopes_access_v1_role_proto_rawDesc = "" +
@@ -2005,15 +2141,16 @@ const file_teleport_scopes_access_v1_role_proto_rawDesc = "" +
 	"\r_max_sessionsB\f\n" +
 	"\n" +
 	"_file_copyB\x1a\n" +
-	"\x18_disconnect_expired_cert\"\xbf\x02\n" +
+	"\x18_disconnect_expired_cert\"\xf5\x02\n" +
 	"\x0eScopedRoleKube\x120\n" +
 	"\x06labels\x18\x01 \x03(\v2\x18.teleport.label.v1.LabelR\x06labels\x12\x16\n" +
 	"\x06groups\x18\x02 \x03(\tR\x06groups\x12\x14\n" +
-	"\x05users\x18\x03 \x03(\tR\x05users\x12.\n" +
+	"\x05users\x18\x03 \x03(\tR\x05users\x12E\n" +
+	"\tresources\x18\x04 \x03(\v2'.teleport.scopes.access.v1.KubeResourceR\tresources\x12.\n" +
 	"\x13client_idle_timeout\x18\x05 \x01(\tR\x11clientIdleTimeout\x12;\n" +
 	"\x17disconnect_expired_cert\x18\x06 \x01(\bH\x00R\x15disconnectExpiredCert\x88\x01\x01\x123\n" +
 	"\x04lock\x18\a \x01(\v2\x1f.teleport.scopes.access.v1.LockR\x04lockB\x1a\n" +
-	"\x18_disconnect_expired_certJ\x04\b\x04\x10\x05R\tresources\"N\n" +
+	"\x18_disconnect_expired_cert\"N\n" +
 	"\x1aScopedRoleWorkloadIdentity\x120\n" +
 	"\x06labels\x18\x01 \x03(\v2\x18.teleport.label.v1.LabelR\x06labels\"l\n" +
 	"\rScopedRoleApp\x120\n" +
@@ -2050,9 +2187,15 @@ const file_teleport_scopes_access_v1_role_proto_rawDesc = "" +
 	"\x10SessionRecording\x12\x12\n" +
 	"\x04mode\x18\x01 \x01(\tR\x04mode\"\x1a\n" +
 	"\x04Lock\x12\x12\n" +
-	"\x04mode\x18\x01 \x01(\tR\x04modeBWZUgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1;accessv1b\x06proto3"
+	"\x04mode\x18\x01 \x01(\tR\x04mode\"\x87\x01\n" +
+	"\fKubeResource\x12\x12\n" +
+	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x1c\n" +
+	"\tnamespace\x18\x02 \x01(\tR\tnamespace\x12\x12\n" +
+	"\x04name\x18\x03 \x01(\tR\x04name\x12\x14\n" +
+	"\x05verbs\x18\x04 \x03(\tR\x05verbs\x12\x1b\n" +
+	"\tapi_group\x18\x05 \x01(\tR\bapiGroupBWZUgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1;accessv1b\x06proto3"
 
-var file_teleport_scopes_access_v1_role_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
+var file_teleport_scopes_access_v1_role_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
 var file_teleport_scopes_access_v1_role_proto_goTypes = []any{
 	(*ScopedRole)(nil),                 // 0: teleport.scopes.access.v1.ScopedRole
 	(*ScopedRoleSpec)(nil),             // 1: teleport.scopes.access.v1.ScopedRoleSpec
@@ -2069,11 +2212,12 @@ var file_teleport_scopes_access_v1_role_proto_goTypes = []any{
 	(*EnhancedRecording)(nil),          // 12: teleport.scopes.access.v1.EnhancedRecording
 	(*SessionRecording)(nil),           // 13: teleport.scopes.access.v1.SessionRecording
 	(*Lock)(nil),                       // 14: teleport.scopes.access.v1.Lock
-	(*v1.Metadata)(nil),                // 15: teleport.header.v1.Metadata
-	(*v11.Label)(nil),                  // 16: teleport.label.v1.Label
+	(*KubeResource)(nil),               // 15: teleport.scopes.access.v1.KubeResource
+	(*v1.Metadata)(nil),                // 16: teleport.header.v1.Metadata
+	(*v11.Label)(nil),                  // 17: teleport.label.v1.Label
 }
 var file_teleport_scopes_access_v1_role_proto_depIdxs = []int32{
-	15, // 0: teleport.scopes.access.v1.ScopedRole.metadata:type_name -> teleport.header.v1.Metadata
+	16, // 0: teleport.scopes.access.v1.ScopedRole.metadata:type_name -> teleport.header.v1.Metadata
 	1,  // 1: teleport.scopes.access.v1.ScopedRole.spec:type_name -> teleport.scopes.access.v1.ScopedRoleSpec
 	2,  // 2: teleport.scopes.access.v1.ScopedRoleSpec.defaults:type_name -> teleport.scopes.access.v1.ScopedRoleDefaults
 	7,  // 3: teleport.scopes.access.v1.ScopedRoleSpec.rules:type_name -> teleport.scopes.access.v1.ScopedRule
@@ -2083,23 +2227,24 @@ var file_teleport_scopes_access_v1_role_proto_depIdxs = []int32{
 	6,  // 7: teleport.scopes.access.v1.ScopedRoleSpec.app:type_name -> teleport.scopes.access.v1.ScopedRoleApp
 	13, // 8: teleport.scopes.access.v1.ScopedRoleDefaults.session_recording:type_name -> teleport.scopes.access.v1.SessionRecording
 	14, // 9: teleport.scopes.access.v1.ScopedRoleDefaults.lock:type_name -> teleport.scopes.access.v1.Lock
-	16, // 10: teleport.scopes.access.v1.ScopedRoleSSH.labels:type_name -> teleport.label.v1.Label
+	17, // 10: teleport.scopes.access.v1.ScopedRoleSSH.labels:type_name -> teleport.label.v1.Label
 	8,  // 11: teleport.scopes.access.v1.ScopedRoleSSH.port_forwarding:type_name -> teleport.scopes.access.v1.SSHPortForwarding
 	11, // 12: teleport.scopes.access.v1.ScopedRoleSSH.host_user_creation:type_name -> teleport.scopes.access.v1.CreateHostUser
 	12, // 13: teleport.scopes.access.v1.ScopedRoleSSH.enhanced_recording:type_name -> teleport.scopes.access.v1.EnhancedRecording
 	13, // 14: teleport.scopes.access.v1.ScopedRoleSSH.session_recording:type_name -> teleport.scopes.access.v1.SessionRecording
 	14, // 15: teleport.scopes.access.v1.ScopedRoleSSH.lock:type_name -> teleport.scopes.access.v1.Lock
-	16, // 16: teleport.scopes.access.v1.ScopedRoleKube.labels:type_name -> teleport.label.v1.Label
-	14, // 17: teleport.scopes.access.v1.ScopedRoleKube.lock:type_name -> teleport.scopes.access.v1.Lock
-	16, // 18: teleport.scopes.access.v1.ScopedRoleWorkloadIdentity.labels:type_name -> teleport.label.v1.Label
-	16, // 19: teleport.scopes.access.v1.ScopedRoleApp.labels:type_name -> teleport.label.v1.Label
-	9,  // 20: teleport.scopes.access.v1.SSHPortForwarding.local:type_name -> teleport.scopes.access.v1.SSHLocalPortForwarding
-	10, // 21: teleport.scopes.access.v1.SSHPortForwarding.remote:type_name -> teleport.scopes.access.v1.SSHRemotePortForwarding
-	22, // [22:22] is the sub-list for method output_type
-	22, // [22:22] is the sub-list for method input_type
-	22, // [22:22] is the sub-list for extension type_name
-	22, // [22:22] is the sub-list for extension extendee
-	0,  // [0:22] is the sub-list for field type_name
+	17, // 16: teleport.scopes.access.v1.ScopedRoleKube.labels:type_name -> teleport.label.v1.Label
+	15, // 17: teleport.scopes.access.v1.ScopedRoleKube.resources:type_name -> teleport.scopes.access.v1.KubeResource
+	14, // 18: teleport.scopes.access.v1.ScopedRoleKube.lock:type_name -> teleport.scopes.access.v1.Lock
+	17, // 19: teleport.scopes.access.v1.ScopedRoleWorkloadIdentity.labels:type_name -> teleport.label.v1.Label
+	17, // 20: teleport.scopes.access.v1.ScopedRoleApp.labels:type_name -> teleport.label.v1.Label
+	9,  // 21: teleport.scopes.access.v1.SSHPortForwarding.local:type_name -> teleport.scopes.access.v1.SSHLocalPortForwarding
+	10, // 22: teleport.scopes.access.v1.SSHPortForwarding.remote:type_name -> teleport.scopes.access.v1.SSHRemotePortForwarding
+	23, // [23:23] is the sub-list for method output_type
+	23, // [23:23] is the sub-list for method input_type
+	23, // [23:23] is the sub-list for extension type_name
+	23, // [23:23] is the sub-list for extension extendee
+	0,  // [0:23] is the sub-list for field type_name
 }
 
 func init() { file_teleport_scopes_access_v1_role_proto_init() }
@@ -2119,7 +2264,7 @@ func file_teleport_scopes_access_v1_role_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_scopes_access_v1_role_proto_rawDesc), len(file_teleport_scopes_access_v1_role_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   15,
+			NumMessages:   16,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
