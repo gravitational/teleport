@@ -143,6 +143,8 @@ type ClusterGetter interface {
 	// Clusters returns all connected clusters
 	Clusters(ctx context.Context) ([]Cluster, error)
 	// Cluster returns the cluster matching the provided name or a trace.NotFoundError.
+	// The cluster's lifecycle is owned by the reverse tunnel server. Callers should not
+	// close the returned cluster.
 	Cluster(ctx context.Context, clusterName string) (Cluster, error)
 }
 

@@ -203,8 +203,8 @@ type ConnectionsHandler struct {
 
 	proxyPort string
 
-	// getAppByPublicAddress returns a types.Application using the public address as matcher.
-	getAppByPublicAddress func(context.Context, string) (types.Application, error)
+	// resolveApp returns a types.Application using the name and public address as matchers.
+	resolveApp func(ctx context.Context, name, addr string) (types.Application, error)
 }
 
 // NewConnectionsHandler returns a new ConnectionsHandler.
@@ -246,7 +246,7 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 		gcpHandler:   gcpHandler,
 		connAuth:     make(map[net.Conn]error),
 		log:          slog.With(teleport.ComponentKey, cfg.ServiceComponent),
-		getAppByPublicAddress: func(ctx context.Context, s string) (types.Application, error) {
+		resolveApp: func(context.Context, string, string) (types.Application, error) {
 			return nil, trace.NotFound("no applications are being proxied")
 		},
 	}
@@ -306,8 +306,9 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 
 // SetApplicationsProvider sets the internal state for the monitored applications.
 // This method must be called before the ConnectionsHandler is able to handle connections.
-func (c *ConnectionsHandler) SetApplicationsProvider(fn func(context.Context, string) (types.Application, error)) {
-	c.getAppByPublicAddress = fn
+func (c *ConnectionsHandler) SetApplicationsProvider(
+	fn func(context.Context, string, string) (types.Application, error)) {
+	c.resolveApp = fn
 }
 
 func (c *ConnectionsHandler) expireSessions() {
@@ -542,7 +543,11 @@ func (c *ConnectionsHandler) authorizeContext(ctx context.Context) (*authz.Conte
 	identity := authContext.Identity.GetIdentity()
 
 	// Fetch the application and check if the identity has access.
-	app, err := c.getAppByPublicAddress(ctx, identity.RouteToApp.PublicAddr)
+	app, err := c.resolveApp(
+		ctx,
+		identity.RouteToApp.Name,
+		identity.RouteToApp.PublicAddr,
+	)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -820,7 +825,11 @@ func (c *ConnectionsHandler) getConnectionInfo(ctx context.Context, conn net.Con
 		return nil, nil, nil, trace.Wrap(err)
 	}
 
-	app, err := c.getAppByPublicAddress(ctx, user.GetIdentity().RouteToApp.PublicAddr)
+	app, err := c.resolveApp(
+		ctx,
+		user.GetIdentity().RouteToApp.Name,
+		user.GetIdentity().RouteToApp.PublicAddr,
+	)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}
