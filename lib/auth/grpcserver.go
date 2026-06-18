@@ -5201,6 +5201,20 @@ func (g *GRPCServer) UpdateSessionTracker(ctx context.Context, req *authpb.Updat
 	return &emptypb.Empty{}, nil
 }
 
+// EvaluateCommand evaluates a single command against the AI moderation policy
+// of an active session and returns the approval decision.
+func (g *GRPCServer) EvaluateCommand(ctx context.Context, req *authpb.EvaluateCommandRequest) (*authpb.EvaluateCommandResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	resp, err := auth.ServerWithRoles.EvaluateCommand(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
 // GetDomainName returns local auth domain of the current auth server.
 func (g *GRPCServer) GetDomainName(ctx context.Context, req *emptypb.Empty) (*authpb.GetDomainNameResponse, error) {
 	auth, err := g.authenticate(ctx)

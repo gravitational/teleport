@@ -675,6 +675,89 @@ func (a *ServerWithRoles) UpdateSessionTracker(ctx context.Context, req *proto.U
 	return a.authServer.UpdateSessionTracker(ctx, req)
 }
 
+// EvaluateCommand evaluates a single command against the AI moderation policy
+// of an active session and returns the approval decision.
+//
+// This is invoked by the node hosting a moderated session before it runs a
+// command. Because it ultimately drives an LLM call, the authorization here is
+// deliberately strict to prevent the auth server from being used as a free LLM
+// proxy:
+//
+//  1. The caller must be a builtin Node role.
+//  2. The caller must host the session it is asking about (the session
+//     tracker's host id must match the caller's server host id).
+//  3. The session must actually carry an AI command-approval policy.
+//
+// When all checks pass the call is delegated to the registered command
+// evaluator. In OSS no evaluator is registered, in which case a NotImplemented
+// error is returned and the node fails closed (denies the command).
+func (a *ServerWithRoles) EvaluateCommand(ctx context.Context, req *proto.EvaluateCommandRequest) (*proto.EvaluateCommandResponse, error) {
+	// 1. The caller must be a builtin Node. This is the mandatory guard that
+	// prevents arbitrary authenticated callers from using auth as an LLM proxy.
+	if !a.hasBuiltinRole(types.RoleNode) {
+		return nil, trace.AccessDenied("command evaluation can only be performed by a node")
+	}
+
+	// 2. The caller must host the session it's asking about.
+	tracker, err := a.authServer.GetSessionTracker(ctx, req.SessionID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	callerServerID, ok := getBuiltinServerID(a.context.Identity)
+	if !ok {
+		return nil, trace.AccessDenied("command evaluation can only be performed by a node")
+	}
+	if tracker.GetHostID() != callerServerID {
+		return nil, trace.AccessDenied("node %q does not host session %q", callerServerID, req.SessionID)
+	}
+
+	// 3. The session must carry an AI command-approval policy, otherwise the
+	// node has no legitimate reason to call this.
+	if !sessionHasAICommandApproval(tracker) {
+		return nil, trace.AccessDenied("session %q does not have an AI command-approval policy", req.SessionID)
+	}
+
+	// Delegate to the registered evaluator. In OSS none is registered, so the
+	// node fails closed.
+	eval := a.authServer.GetCommandEvaluator()
+	if eval == nil {
+		return nil, trace.NotImplemented("AI command moderation is enterprise-only")
+	}
+
+	res, err := eval.EvaluateCommand(ctx, moderation.CommandEvaluationRequest{
+		SessionID:   req.SessionID,
+		Command:     req.Command,
+		Policy:      req.Policy,
+		Model:       req.Model,
+		Participant: req.Participant,
+		Login:       req.Login,
+		ServerID:    req.ServerID,
+		SessionKind: req.SessionKind,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &proto.EvaluateCommandResponse{
+		Approved:  res.Approved,
+		Reasoning: res.Reasoning,
+	}, nil
+}
+
+// sessionHasAICommandApproval reports whether the session tracker carries a
+// host policy that enables AI per-command approval.
+func sessionHasAICommandApproval(tracker types.SessionTracker) bool {
+	for _, policySet := range tracker.GetHostPolicySets() {
+		for _, require := range policySet.RequireSessionJoin {
+			if ca := require.CommandApproval; ca != nil && ca.Enabled && ca.Approver == types.CommandApproverAI {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // AuthenticateWebUser authenticates web user, creates and returns a web session
 // in case authentication is successful
 func (a *ServerWithRoles) AuthenticateWebUser(ctx context.Context, req authclient.AuthenticateUserRequest) (types.WebSession, error) {
