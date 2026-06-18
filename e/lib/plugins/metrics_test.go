@@ -3,28 +3,15 @@ package plugins
 import (
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 )
 
-func testRegistry(nonce string) *prometheus.Registry {
-	registry := prometheus.NewRegistry()
-	counter := prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "test_counter_" + nonce,
-		Help: "test_counter",
-	})
-	counter.Add(1)
-	registry.MustRegister(counter)
-	return registry
-}
-
 func TestPluginMetricGatherer(t *testing.T) {
 	t.Parallel()
 
-	// Test setup: create fixtures
 	pluginA := &types.PluginV1{
 		Metadata: types.Metadata{
 			Name: "my-plugin-A",
@@ -45,7 +32,7 @@ func TestPluginMetricGatherer(t *testing.T) {
 	t.Run("no plugin registered", func(t *testing.T) {
 		pluginRegistry := newHostedPluginsRegistry()
 
-		metrics, err := pluginRegistry.registry.Gather()
+		metrics, err := pluginRegistry.Gather()
 		require.NoError(t, err)
 		require.Empty(t, metrics)
 	})
@@ -53,12 +40,16 @@ func TestPluginMetricGatherer(t *testing.T) {
 	t.Run("several plugins registered", func(t *testing.T) {
 		pluginRegistry := newHostedPluginsRegistry()
 
-		pluginANonce := uuid.NewString()
-		require.NoError(t, pluginRegistry.add(pluginA, testRegistry(pluginANonce)))
-		pluginBNonce := uuid.NewString()
-		require.NoError(t, pluginRegistry.add(pluginB, testRegistry(pluginBNonce)))
+		regA := pluginRegistry.add(pluginA)
+		regA.Register(prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "test_counter_a", Help: "test_counter",
+		}))
+		regB := pluginRegistry.add(pluginB)
+		regB.Register(prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "test_counter_b", Help: "test_counter",
+		}))
 
-		metrics, err := pluginRegistry.registry.Gather()
+		metrics, err := pluginRegistry.Gather()
 		require.NoError(t, err)
 		require.Len(t, metrics, 2)
 	})
@@ -66,11 +57,17 @@ func TestPluginMetricGatherer(t *testing.T) {
 	t.Run("plugin registered twice", func(t *testing.T) {
 		pluginRegistry := newHostedPluginsRegistry()
 
-		pluginANonce := uuid.NewString()
-		require.NoError(t, pluginRegistry.add(pluginA, testRegistry(pluginANonce)))
-		require.Error(t, pluginRegistry.add(pluginA, testRegistry(pluginANonce)))
+		reg1 := pluginRegistry.add(pluginA)
+		reg1.Register(prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "test_counter", Help: "test_counter",
+		}))
 
-		metrics, err := pluginRegistry.registry.Gather()
+		reg2 := pluginRegistry.add(pluginA)
+		reg2.Register(prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "test_counter", Help: "test_counter",
+		}))
+
+		metrics, err := pluginRegistry.Gather()
 		require.NoError(t, err)
 		require.Len(t, metrics, 1)
 	})
@@ -78,11 +75,14 @@ func TestPluginMetricGatherer(t *testing.T) {
 	t.Run("plugin unregistered", func(t *testing.T) {
 		pluginRegistry := newHostedPluginsRegistry()
 
-		pluginANonce := uuid.NewString()
-		require.NoError(t, pluginRegistry.add(pluginA, testRegistry(pluginANonce)))
+		reg := pluginRegistry.add(pluginA)
+		reg.Register(prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "test_counter", Help: "test_counter",
+		}))
+
 		pluginRegistry.remove(pluginA)
 
-		metrics, err := pluginRegistry.registry.Gather()
+		metrics, err := pluginRegistry.Gather()
 		require.NoError(t, err)
 		require.Empty(t, metrics)
 	})
@@ -90,12 +90,61 @@ func TestPluginMetricGatherer(t *testing.T) {
 	t.Run("plugin unregistered twice", func(t *testing.T) {
 		pluginRegistry := newHostedPluginsRegistry()
 
-		pluginANonce := uuid.NewString()
-		require.NoError(t, pluginRegistry.add(pluginA, testRegistry(pluginANonce)))
+		reg := pluginRegistry.add(pluginA)
+		reg.Register(prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "test_counter", Help: "test_counter",
+		}))
+
 		pluginRegistry.remove(pluginA)
 		pluginRegistry.remove(pluginA)
 
-		metrics, err := pluginRegistry.registry.Gather()
+		metrics, err := pluginRegistry.Gather()
+		require.NoError(t, err)
+		require.Empty(t, metrics)
+	})
+
+	// Reproduces the production scenario: per-plugin registry starts empty,
+	// gets metrics later, then is replaced on plugin restart.
+	t.Run("empty registry replaced on plugin restart", func(t *testing.T) {
+		pluginRegistry := newHostedPluginsRegistry()
+
+		// First start: registry is empty initially, metrics added later
+		reg1 := pluginRegistry.add(pluginA)
+		reg1.Register(prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "test_metric", Help: "test metric help",
+		}))
+
+		metrics, err := pluginRegistry.Gather()
+		require.NoError(t, err)
+		require.Len(t, metrics, 1)
+
+		// Plugin restarts: new registry replaces old one
+		reg2 := pluginRegistry.add(pluginA)
+		reg2.Register(prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "test_metric", Help: "test metric help",
+		}))
+
+		// Should succeed without duplicate errors
+		metrics, err = pluginRegistry.Gather()
+		require.NoError(t, err)
+		require.Len(t, metrics, 1)
+	})
+
+	t.Run("empty registry removed", func(t *testing.T) {
+		pluginRegistry := newHostedPluginsRegistry()
+
+		reg := pluginRegistry.add(pluginA)
+		reg.Register(prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "test_metric", Help: "test metric help",
+		}))
+
+		metrics, err := pluginRegistry.Gather()
+		require.NoError(t, err)
+		require.Len(t, metrics, 1)
+
+		pluginRegistry.remove(pluginA)
+
+		metrics, err = pluginRegistry.Gather()
 		require.NoError(t, err)
 		require.Empty(t, metrics)
 	})

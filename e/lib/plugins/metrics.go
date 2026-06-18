@@ -4,6 +4,7 @@ import (
 	"sync"
 
 	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
 
 	"github.com/gravitational/teleport/api/types"
 )
@@ -20,43 +21,51 @@ func pluginMetricKey(p types.Plugin) metricKey {
 	}
 }
 
+// hostedPluginsRegistry manages per-plugin metric registries and implements
+// [prometheus.Gatherer] by delegating to all registered per-plugin registries.
 type hostedPluginsRegistry struct {
 	lock       sync.Mutex
-	registry   *prometheus.Registry
-	collectors map[metricKey]prometheus.Collector
+	registries map[metricKey]*prometheus.Registry
 }
 
 func newHostedPluginsRegistry() *hostedPluginsRegistry {
 	return &hostedPluginsRegistry{
-		registry:   prometheus.NewRegistry(),
-		collectors: make(map[metricKey]prometheus.Collector),
+		registries: make(map[metricKey]*prometheus.Registry),
 	}
 }
 
-func (p *hostedPluginsRegistry) add(plugin types.Plugin, c prometheus.Collector) error {
+// add registers a per-plugin prometheus registry. If a registry already
+// exists for the same plugin, it is replaced.
+// The returned registerer wraps the registry with pluginName/pluginType
+// labels so that all metrics registered through it carry those labels.
+func (p *hostedPluginsRegistry) add(plugin types.Plugin) prometheus.Registerer {
 	p.lock.Lock()
 	defer p.lock.Unlock()
-	pluginLabels := prometheus.Labels{
+
+	key := pluginMetricKey(plugin)
+	registry := prometheus.NewRegistry()
+	p.registries[key] = registry
+
+	return prometheus.WrapRegistererWith(prometheus.Labels{
 		"pluginName": plugin.GetName(),
 		"pluginType": string(plugin.GetType()),
-	}
-
-	// Although prefix and label wrapping is done by the same struct,
-	// the go prometheus lib doesn't allow wrapping with prefix and labels at
-	// the same time. We must chain wrappers.
-	wrapped := prometheus.WrapCollectorWith(pluginLabels, c)
-	p.collectors[pluginMetricKey(plugin)] = wrapped
-	return p.registry.Register(wrapped)
+	}, registry)
 }
 
 func (p *hostedPluginsRegistry) remove(plugin types.Plugin) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
+	delete(p.registries, pluginMetricKey(plugin))
+}
 
-	wrapped, ok := p.collectors[pluginMetricKey(plugin)]
-	if !ok {
-		return
+// Gather implements [prometheus.Gatherer].
+func (p *hostedPluginsRegistry) Gather() ([]*dto.MetricFamily, error) {
+	p.lock.Lock()
+	gatherers := make(prometheus.Gatherers, 0, len(p.registries))
+	for _, c := range p.registries {
+		gatherers = append(gatherers, c)
 	}
-	p.registry.Unregister(wrapped)
-	delete(p.collectors, pluginMetricKey(plugin))
+	p.lock.Unlock()
+
+	return gatherers.Gather()
 }

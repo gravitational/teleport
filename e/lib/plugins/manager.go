@@ -9,7 +9,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -161,7 +160,7 @@ func NewManager(cfg ManagerConfig) (*Manager, error) {
 		metrics:                 newHostedPluginsRegistry(),
 	}
 
-	cfg.ParentProcess.AddGatherer(m.metrics.registry)
+	cfg.ParentProcess.AddGatherer(m.metrics)
 	return m, nil
 }
 
@@ -437,16 +436,11 @@ func (m *Manager) startInstance(ctx context.Context, plugin *types.PluginV1) err
 		return trace.Wrap(err)
 	}
 
-	pluginMetricsRegistry := prometheus.NewRegistry()
-
-	if err := m.metrics.add(plugin, pluginMetricsRegistry); err != nil {
-		m.log.ErrorContext(ctx, "Failed to register plugin metrics", "error", err)
-		// Failure to expose metrics is not bad enough for us to refuse starting the plugin.
-	}
+	pluginRegisterer := m.metrics.add(plugin)
 	// We wrap the metrics registry to prefix every metric reported by the plugin
 	// with the plugin type and name. This avoids conflicts and properly indicates
 	// who registered the metric.
-	reg, err := metrics.NewRegistry(pluginMetricsRegistry, "teleport_plugin", strings.ReplaceAll(string(plugin.GetType()), "-", "_"))
+	reg, err := metrics.NewRegistry(pluginRegisterer, "teleport_plugin", strings.ReplaceAll(string(plugin.GetType()), "-", "_"))
 	if err != nil {
 		return trace.Wrap(err, "building plugin metrics registry")
 	}
