@@ -750,8 +750,15 @@ func forwardNetstackToTUN(ctx context.Context, linkEndpoint *channel.Endpoint, t
 			return trace.Wrap(ctx.Err())
 		}
 		offset := device.MessageTransportHeaderSize
-		for _, s := range packet.AsSlices() {
-			offset += copy(bufs[0][offset:], s)
+		views, pktOffset := packet.AsViewList()
+		view := views.Front()
+		for view != nil && pktOffset >= view.Size() {
+			pktOffset -= view.Size()
+			view = view.Next()
+		}
+		for ; view != nil; view = view.Next() {
+			offset += copy(bufs[0][offset:], view.AsSlice()[pktOffset:])
+			pktOffset = 0
 		}
 		packet.DecRef()
 		bufs[0] = bufs[0][:offset]
