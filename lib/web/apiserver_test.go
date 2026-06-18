@@ -2742,7 +2742,6 @@ func TestTerminalNoHistoryShell(t *testing.T) {
 
 	_, err = io.WriteString(term, `echo "histfile=[$HISTFILE]"`+"\r\n")
 	require.NoError(t, err)
-	// Verify that noHistoryShell ended up making $HISTFILE empty.
 	waitForOutput(t, term, "histfile=[]", "noHistoryShell failed to unset HISTFILE")
 }
 
