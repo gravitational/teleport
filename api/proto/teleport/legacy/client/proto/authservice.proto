@@ -2572,6 +2572,35 @@ message UpdateSessionTrackerRequest {
   }
 }
 
+// EvaluateCommandRequest asks the auth server to evaluate a single command
+// against an AI moderation policy for a moderated session.
+message EvaluateCommandRequest {
+  // SessionID is unique identifier of the moderated session.
+  string SessionID = 1 [(gogoproto.jsontag) = "session_id,omitempty"];
+  // Command is the command to evaluate against the policy.
+  string Command = 2 [(gogoproto.jsontag) = "command,omitempty"];
+  // Policy is the natural-language moderation policy from the role.
+  string Policy = 3 [(gogoproto.jsontag) = "policy,omitempty"];
+  // Model is the name of an existing InferenceModel resource.
+  string Model = 4 [(gogoproto.jsontag) = "model,omitempty"];
+  // Participant is the user whose command is being evaluated.
+  string Participant = 5 [(gogoproto.jsontag) = "participant,omitempty"];
+  // Login is the local login the command runs as.
+  string Login = 6 [(gogoproto.jsontag) = "login,omitempty"];
+  // ServerID is the host serving the moderated session.
+  string ServerID = 7 [(gogoproto.jsontag) = "server_id,omitempty"];
+  // SessionKind is the kind of the moderated session ("ssh" | "k8s").
+  string SessionKind = 8 [(gogoproto.jsontag) = "session_kind,omitempty"];
+}
+
+// EvaluateCommandResponse is the AI moderation decision for a command.
+message EvaluateCommandResponse {
+  // Approved indicates whether the command is approved by the policy.
+  bool Approved = 1 [(gogoproto.jsontag) = "approved,omitempty"];
+  // Reasoning is the model's explanation for the decision.
+  string Reasoning = 2 [(gogoproto.jsontag) = "reasoning,omitempty"];
+}
+
 // PresenceMFAChallengeRequest is a request for a presence MFA challenge.
 message PresenceMFAChallengeRequest {
   // SessionID is unique identifier of the session you want to request presence for.
@@ -3149,6 +3178,11 @@ service AuthService {
 
   // UpdateSessionTracker updates some state of a session tracker.
   rpc UpdateSessionTracker(UpdateSessionTrackerRequest) returns (google.protobuf.Empty);
+
+  // EvaluateCommand evaluates a single command against an AI moderation policy.
+  // Used by nodes hosting AI-moderated sessions; the auth server holds the
+  // inference model configuration and secret.
+  rpc EvaluateCommand(EvaluateCommandRequest) returns (EvaluateCommandResponse);
 
   // SendKeepAlives allows node to send a stream of keep alive requests
   rpc SendKeepAlives(stream types.KeepAlive) returns (google.protobuf.Empty);

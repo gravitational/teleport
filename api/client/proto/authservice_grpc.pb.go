@@ -54,6 +54,7 @@ const (
 	AuthService_GetActiveSessionTrackersWithFilter_FullMethodName  = "/proto.AuthService/GetActiveSessionTrackersWithFilter"
 	AuthService_RemoveSessionTracker_FullMethodName                = "/proto.AuthService/RemoveSessionTracker"
 	AuthService_UpdateSessionTracker_FullMethodName                = "/proto.AuthService/UpdateSessionTracker"
+	AuthService_EvaluateCommand_FullMethodName                     = "/proto.AuthService/EvaluateCommand"
 	AuthService_SendKeepAlives_FullMethodName                      = "/proto.AuthService/SendKeepAlives"
 	AuthService_WatchEvents_FullMethodName                         = "/proto.AuthService/WatchEvents"
 	AuthService_GetNode_FullMethodName                             = "/proto.AuthService/GetNode"
@@ -357,6 +358,10 @@ type AuthServiceClient interface {
 	RemoveSessionTracker(ctx context.Context, in *RemoveSessionTrackerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// UpdateSessionTracker updates some state of a session tracker.
 	UpdateSessionTracker(ctx context.Context, in *UpdateSessionTrackerRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// EvaluateCommand evaluates a single command against an AI moderation policy.
+	// Used by nodes hosting AI-moderated sessions; the auth server holds the
+	// inference model configuration and secret.
+	EvaluateCommand(ctx context.Context, in *EvaluateCommandRequest, opts ...grpc.CallOption) (*EvaluateCommandResponse, error)
 	// SendKeepAlives allows node to send a stream of keep alive requests
 	SendKeepAlives(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[types.KeepAlive, emptypb.Empty], error)
 	// WatchEvents returns a new stream of cluster events
@@ -1286,6 +1291,16 @@ func (c *authServiceClient) UpdateSessionTracker(ctx context.Context, in *Update
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, AuthService_UpdateSessionTracker_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) EvaluateCommand(ctx context.Context, in *EvaluateCommandRequest, opts ...grpc.CallOption) (*EvaluateCommandResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(EvaluateCommandResponse)
+	err := c.cc.Invoke(ctx, AuthService_EvaluateCommand_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -4032,6 +4047,10 @@ type AuthServiceServer interface {
 	RemoveSessionTracker(context.Context, *RemoveSessionTrackerRequest) (*emptypb.Empty, error)
 	// UpdateSessionTracker updates some state of a session tracker.
 	UpdateSessionTracker(context.Context, *UpdateSessionTrackerRequest) (*emptypb.Empty, error)
+	// EvaluateCommand evaluates a single command against an AI moderation policy.
+	// Used by nodes hosting AI-moderated sessions; the auth server holds the
+	// inference model configuration and secret.
+	EvaluateCommand(context.Context, *EvaluateCommandRequest) (*EvaluateCommandResponse, error)
 	// SendKeepAlives allows node to send a stream of keep alive requests
 	SendKeepAlives(grpc.ClientStreamingServer[types.KeepAlive, emptypb.Empty]) error
 	// WatchEvents returns a new stream of cluster events
@@ -4806,6 +4825,9 @@ func (UnimplementedAuthServiceServer) RemoveSessionTracker(context.Context, *Rem
 }
 func (UnimplementedAuthServiceServer) UpdateSessionTracker(context.Context, *UpdateSessionTrackerRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateSessionTracker not implemented")
+}
+func (UnimplementedAuthServiceServer) EvaluateCommand(context.Context, *EvaluateCommandRequest) (*EvaluateCommandResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method EvaluateCommand not implemented")
 }
 func (UnimplementedAuthServiceServer) SendKeepAlives(grpc.ClientStreamingServer[types.KeepAlive, emptypb.Empty]) error {
 	return status.Errorf(codes.Unimplemented, "method SendKeepAlives not implemented")
@@ -5875,6 +5897,24 @@ func _AuthService_UpdateSessionTracker_Handler(srv interface{}, ctx context.Cont
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).UpdateSessionTracker(ctx, req.(*UpdateSessionTrackerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_EvaluateCommand_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(EvaluateCommandRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).EvaluateCommand(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_EvaluateCommand_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).EvaluateCommand(ctx, req.(*EvaluateCommandRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -10452,6 +10492,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateSessionTracker",
 			Handler:    _AuthService_UpdateSessionTracker_Handler,
+		},
+		{
+			MethodName: "EvaluateCommand",
+			Handler:    _AuthService_EvaluateCommand_Handler,
 		},
 		{
 			MethodName: "GetNode",
