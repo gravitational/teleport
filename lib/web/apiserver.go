@@ -69,6 +69,7 @@ import (
 	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
@@ -96,6 +97,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
@@ -106,6 +108,7 @@ import (
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/scopes"
+	scopedutils "github.com/gravitational/teleport/lib/scopes/utils"
 	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
@@ -278,6 +281,9 @@ type Config struct {
 
 	// ClusterFeatures contains flags for supported/unsupported features.
 	ClusterFeatures proto.Features
+
+	// ScopesFeatures dictates which scoped components are enabled for this server.
+	ScopesFeatures scopes.Features
 
 	// ProxySettings allows fetching the current proxy settings.
 	ProxySettings ProxySettingsGetter
@@ -1485,6 +1491,40 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 
 	userContext.ConsumedAccessRequestID = c.cfg.Session.GetConsumedAccessRequestID()
 
+	if h.cfg.ScopesFeatures.Enabled {
+		assignments, err := stream.Collect(scopedutils.RangeScopedRoleAssignments(
+			r.Context(), clt.ScopedAccessServiceClient(), scopedaccessv1.ListScopedRoleAssignmentsRequest_builder{
+				// Note that we are using the AllCallerAssignments flag here rather
+				// than just looking for our assignments by username. This flag
+				// suppresses standard scope-pinning, which allows us to see
+				// assignments in parent/orthogonal scopes. Generally, scoped commands
+				// only show the subset of state subject to the currently pinned scope,
+				// but the purpose of this function is specifically to discover
+				// potential target scopes for logging in, so we want to see everything
+				// regardless of current scope.
+				AllCallerAssignments: true,
+			}.Build(),
+		))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		var assignedScopes []string
+		for _, assignment := range assignments {
+			for _, subAssignment := range assignment.GetSpec().GetAssignments() {
+				assignedScopes = append(assignedScopes, subAssignment.GetScope())
+			}
+		}
+
+		// apply canonical sorting and deduplication
+		slices.SortFunc(assignedScopes, scopes.Sort)
+		assignedScopes = slices.CompactFunc(assignedScopes, func(a, b string) bool {
+			return scopes.Compare(a, b) == scopes.Equivalent
+		})
+
+		userContext.AvailableScopes = assignedScopes
+	}
+
 	return userContext, nil
 }
 
@@ -2198,7 +2238,8 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 			AccessGraphConfigSet:        accessGraphConfigSet,
 			SessionSummarizationEnabled: sessionSummarizerEnabled,
 		},
-		BeamsUI: clusterFeatures.GetBeamsUI(),
+		BeamsUI:       clusterFeatures.GetBeamsUI(),
+		ScopesEnabled: h.cfg.ScopesFeatures.Enabled,
 	}
 
 	if clusterName != nil {

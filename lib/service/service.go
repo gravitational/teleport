@@ -5654,6 +5654,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			StaticFS:                  fs,
 			Modules:                   cfg.Modules,
 			ClusterFeatures:           process.GetClusterFeatures(),
+			ScopesFeatures:            process.scopesFeatures,
 			GetProxyClientCertificate: conn.ClientGetCertificate,
 			UI:                        cfg.Proxy.UI,
 			ProxySettings:             proxySettings,
