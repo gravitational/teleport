@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/session"
 	appcommon "github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -260,8 +261,17 @@ func (s *Server) makeSessionHandler(ctx context.Context, sessionCtx *SessionCtx)
 }
 
 func (s *Server) getSessionHandlerWithJWT(ctx context.Context, sessionCtx *SessionCtx) (*sessionHandler, error) {
+	key := sessionKey{
+		Username:  sessionCtx.Identity.Username,
+		SessionID: sessionCtx.sessionID,
+	}
 	ttl := min(sessionCtx.Identity.Expires.Sub(s.cfg.clock.Now()), appcommon.MaxSessionChunkDuration)
-	return utils.FnCacheGetWithTTL(ctx, s.sessionCache, sessionCtx.sessionID, ttl, func(ctx context.Context) (*sessionHandler, error) {
+	return utils.FnCacheGetWithTTL(ctx, s.sessionCache, key, ttl, func(ctx context.Context) (*sessionHandler, error) {
 		return s.makeSessionHandler(ctx, sessionCtx)
 	})
+}
+
+type sessionKey struct {
+	Username  string
+	SessionID session.ID
 }
