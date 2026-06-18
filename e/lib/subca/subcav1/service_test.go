@@ -77,6 +77,11 @@ func TestService_authz(t *testing.T) {
 		}.Build(),
 	}.Build()
 
+	validLookingCertificateOverride := subcapb.CertificateOverride_builder{
+		PublicKey: "d5be3c43e8ac726dbd982d873defc780a9f420c99b7861383c700fa5f17da71e",
+		Disabled:  true,
+	}.Build()
+
 	tests := []struct {
 		name                   string
 		doRPC                  func(t *testing.T) error
@@ -131,6 +136,24 @@ func TestService_authz(t *testing.T) {
 				_, err := subCA.UpsertCertAuthorityOverride(
 					t.Context(), subcapb.UpsertCertAuthorityOverrideRequest_builder{
 						CaOverride: validLookingCAOverride,
+					}.Build())
+				return err
+			},
+			want: []*authorizeAttempt{
+				// Order is deterministic.
+				{Rule: types.KindCertAuthorityOverride, Verb: types.VerbUpdate},
+				{Rule: types.KindCertAuthorityOverride, Verb: types.VerbCreate},
+			},
+		},
+		{
+			name: "AddCertificateOverride",
+			doRPC: func(t *testing.T) error {
+				_, err := subCA.AddCertificateOverride(
+					t.Context(), subcapb.AddCertificateOverrideRequest_builder{
+						CaId: subcapb.CertAuthorityOverrideID_builder{
+							CaType: caType,
+						}.Build(),
+						CertificateOverride: validLookingCertificateOverride,
 					}.Build())
 				return err
 			},
@@ -1125,7 +1148,7 @@ func TestService_Update_errors(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			caOverride := proto.Clone(baseCAOverride).(*subcapb.CertAuthorityOverride)
+			caOverride := proto.CloneOf(baseCAOverride)
 			req := test.makeReq(caOverride)
 
 			_, err := subCA.UpdateCertAuthorityOverride(t.Context(), req)
@@ -1353,7 +1376,7 @@ func TestService_Upsert_reusesStatusCRLs(t *testing.T) {
 
 	// Update to the initial version, including Status. CRLs should match.
 	// PublicKeyHashToCrl keys are normalized to lowercase by the backend.
-	ca1Upper := proto.Clone(ca1).(*subcapb.CertAuthorityOverride)
+	ca1Upper := proto.CloneOf(ca1)
 	ca1Upper.GetStatus().SetPublicKeyHashToCrl(make(map[string]*subcapb.CertificateRevocationList, len(ca1.GetStatus().GetPublicKeyHashToCrl())))
 	for k, v := range ca1.GetStatus().GetPublicKeyHashToCrl() {
 		ca1Upper.GetStatus().GetPublicKeyHashToCrl()[strings.ToUpper(k)] = v
@@ -1561,7 +1584,7 @@ func TestService_Upsert_inputCRLInvalid(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			caOverride := proto.Clone(caOverride).(*subcapb.CertAuthorityOverride)
+			caOverride := proto.CloneOf(caOverride)
 			test.modifyStatus(caOverride.GetStatus())
 
 			// Upsert. It should not fail.
@@ -1626,7 +1649,7 @@ func TestService_Write_errors(t *testing.T) {
 	}
 
 	runTestCase := func(t *testing.T, tc *testCase, baseCAOverride *subcapb.CertAuthorityOverride) {
-		caOverride := proto.Clone(baseCAOverride).(*subcapb.CertAuthorityOverride)
+		caOverride := proto.CloneOf(baseCAOverride)
 		if tc.makeCAOverride != nil {
 			caOverride = tc.makeCAOverride(caOverride)
 		}
@@ -1972,6 +1995,282 @@ func TestService_ForcedWrites(t *testing.T) {
 			})
 		})
 	}
+}
+
+func TestService_AddCertificateOverride(t *testing.T) {
+	t.Parallel()
+
+	const caType = types.DatabaseClientCA
+	env := subcav1.NewEnv(t, subcav1.EnvParams{
+		StorageParams: subcaenv.EnvParams{
+			CATypesToCreate: []types.CertAuthType{
+				caType,
+			},
+		},
+	})
+
+	subCA := env.SubCAClient
+	emitter := env.MockEmitter
+
+	caID := subcapb.CertAuthorityOverrideID_builder{
+		CaType: string(caType),
+	}.Build()
+	getCA := subcapb.GetCertAuthorityOverrideRequest_builder{
+		CaId: caID,
+	}.Build()
+
+	if !t.Run("create", func(t *testing.T) {
+		// Don't t.Parallel(), "create" needs to happen before the "update"
+		// scenario.
+
+		var co *subcapb.CertificateOverride
+		{
+			caOverride := env.NewOverrideForCAType(t, caType)
+			co = caOverride.GetSpec().GetCertificateOverrides()[0]
+		}
+
+		addResp, err := subCA.AddCertificateOverride(t.Context(), subcapb.AddCertificateOverrideRequest_builder{
+			CaId:                caID,
+			CertificateOverride: co,
+		}.Build())
+		require.NoError(t, err, "AddCertificateOverride")
+
+		// Verify Add.
+		wantResp := subcapb.AddCertificateOverrideResponse_builder{
+			CertificateOverride: co,
+		}.Build()
+		if diff := cmp.Diff(wantResp, addResp, protocmp.Transform()); diff != "" {
+			t.Fatalf("AddCertificateOverride mismatch (-want +got)\n%s", diff)
+		}
+
+		// Verify created CAOverride.
+		getResp, err := subCA.GetCertAuthorityOverride(t.Context(), getCA)
+		require.NoError(t, err)
+
+		got := getResp.GetCaOverride()
+		want := subcapb.CertAuthorityOverride_builder{
+			Kind:    types.KindCertAuthorityOverride,
+			SubKind: string(caType),
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name:     env.ClusterName,
+				Revision: got.GetMetadata().GetRevision(),
+			}.Build(),
+			Spec: subcapb.CertAuthorityOverrideSpec_builder{
+				CertificateOverrides: []*subcapb.CertificateOverride{
+					co,
+				},
+			}.Build(),
+			Status: got.GetStatus(),
+		}.Build()
+		if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
+			t.Errorf("CAOverride mismatch (-want +got)\n%s", diff)
+		}
+
+		// Verify CRLs.
+		assertCRLs(t, got, env.Clock.Now())
+
+		// Verify audit.
+		assertCAOverrideEvent(t, emitter.Events(), &wantEvent{
+			Type:    events.CertAuthOverrideCreateEvent,
+			Code:    events.CertAuthOverrideCreateCode,
+			Success: true,
+		})
+	}) {
+		t.Skip("create failed, stopping")
+	}
+
+	// Add a 2nd certificate to caType, so it's possible to have a 2nd override.
+	addKeysToCA(t, env, addKeysToCAParams{
+		CAType:        caType,
+		NewActiveKeys: 1,
+	})
+
+	t.Run("update", func(t *testing.T) {
+		var co *subcapb.CertificateOverride
+		{
+			caOverride := env.NewOverrideForCAType(t, caType)
+			require.Len(t, caOverride.GetSpec().GetCertificateOverrides(), 2)
+			// Override for the newly added cert.
+			co = caOverride.GetSpec().GetCertificateOverrides()[1]
+		}
+
+		// Query the current override before modifying it.
+		getResp, err := subCA.GetCertAuthorityOverride(t.Context(), getCA)
+		require.NoError(t, err)
+		caOverrideBefore := getResp.GetCaOverride()
+
+		emitter.Reset()
+		addResp, err := subCA.AddCertificateOverride(t.Context(), subcapb.AddCertificateOverrideRequest_builder{
+			CaId:                caID,
+			CertificateOverride: co,
+		}.Build())
+		require.NoError(t, err)
+
+		// Verify response.
+		wantResp := subcapb.AddCertificateOverrideResponse_builder{
+			CertificateOverride: co,
+		}.Build()
+		if diff := cmp.Diff(wantResp, addResp, protocmp.Transform()); diff != "" {
+			t.Fatalf("AddCertificateOverride mismatch (-want +got)\n%s", diff)
+		}
+
+		// Verify updated CAOverride.
+		getResp, err = subCA.GetCertAuthorityOverride(t.Context(), getCA)
+		require.NoError(t, err)
+
+		got := getResp.GetCaOverride()
+		want := caOverrideBefore
+		want.GetMetadata().SetRevision(got.GetMetadata().GetRevision())
+		want.GetSpec().SetCertificateOverrides(append(
+			want.GetSpec().GetCertificateOverrides(),
+			co,
+		))
+		want.SetStatus(got.GetStatus())
+		if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
+			t.Errorf("CAOverride mismatch (-want +got)\n%s", diff)
+		}
+
+		// Verify CRLs.
+		assertCRLs(t, got, env.Clock.Now())
+
+		// Verify audit.
+		assertCAOverrideEvent(t, emitter.Events(), &wantEvent{
+			Type:    events.CertAuthOverrideUpdateEvent,
+			Code:    events.CertAuthOverrideUpdateCode,
+			Success: true,
+		})
+	})
+}
+
+func TestService_AddCertificateOverride_force(t *testing.T) {
+	t.Parallel()
+
+	const caType = types.DatabaseClientCA
+	env := subcav1.NewEnv(t, subcav1.EnvParams{
+		StorageParams: subcaenv.EnvParams{
+			CATypesToCreate: []types.CertAuthType{
+				caType,
+			},
+		},
+	})
+	subCA := env.SubCAClient
+
+	const unknownPublicKey = "d5be3c43e8ac726dbd982d873defc780a9f420c99b7861383c700fa5f17da71e"
+
+	addReq := subcapb.AddCertificateOverrideRequest_builder{
+		CaId: subcapb.CertAuthorityOverrideID_builder{
+			CaType: string(caType),
+		}.Build(),
+		CertificateOverride: subcapb.CertificateOverride_builder{
+			PublicKey: unknownPublicKey,
+			Disabled:  true,
+		}.Build(),
+	}.Build()
+
+	// Attempt and Add without force. It shouldn't work as the public key is
+	// unknown.
+	_, err := subCA.AddCertificateOverride(t.Context(), addReq)
+	require.ErrorContains(t, err, "unknown CA certificate")
+
+	// Add with force skips lateral validation, so it works.
+	addReq.SetForceImmediateDisable(true)
+	_, err = subCA.AddCertificateOverride(t.Context(), addReq)
+	require.NoError(t, err, "AddCertificateOverride")
+}
+
+func TestService_AddCertificateOverride_errors(t *testing.T) {
+	t.Parallel()
+
+	const caType = types.DatabaseClientCA
+	env := subcav1.NewEnv(t, subcav1.EnvParams{
+		StorageParams: subcaenv.EnvParams{
+			CATypesToCreate: []types.CertAuthType{
+				caType,
+			},
+		},
+	})
+	subCA := env.SubCAClient
+
+	caID := subcapb.CertAuthorityOverrideID_builder{
+		CaType: string(caType),
+	}.Build()
+
+	var validCO *subcapb.CertificateOverride
+	{
+		caOverride := env.NewOverrideForCAType(t, caType)
+		validCO = caOverride.GetSpec().GetCertificateOverrides()[0]
+	}
+
+	modifyCO := func(fn func(*subcapb.CertificateOverride)) *subcapb.CertificateOverride {
+		co := proto.CloneOf(validCO)
+		fn(co)
+		return co
+	}
+
+	tests := []struct {
+		name    string
+		req     *subcapb.AddCertificateOverrideRequest
+		wantErr string
+	}{
+		{
+			name: "id nil",
+			req: subcapb.AddCertificateOverrideRequest_builder{
+				CertificateOverride: validCO,
+			}.Build(),
+			wantErr: "ca_id.ca_type required",
+		},
+		{
+			name: "id empty",
+			req: subcapb.AddCertificateOverrideRequest_builder{
+				CaId:                &subcapb.CertAuthorityOverrideID{},
+				CertificateOverride: validCO,
+			}.Build(),
+			wantErr: "ca_id.ca_type required",
+		},
+		{
+			name: "override nil",
+			req: subcapb.AddCertificateOverrideRequest_builder{
+				CaId: caID,
+			}.Build(),
+			wantErr: "certificate_override required",
+		},
+		{
+			name: "override invalid",
+			req: subcapb.AddCertificateOverrideRequest_builder{
+				CaId: caID,
+				CertificateOverride: modifyCO(func(co *subcapb.CertificateOverride) {
+					co.SetPublicKey("not a valid public key")
+				}),
+			}.Build(),
+			wantErr: "invalid public key",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := subCA.AddCertificateOverride(t.Context(), test.req)
+			assert.ErrorContains(t, err, test.wantErr, "AddCertificateOverride error mismatch")
+		})
+	}
+
+	t.Run("duplicate public key", func(t *testing.T) {
+		resp, err := subCA.CreateCertAuthorityOverride(t.Context(), subcapb.CreateCertAuthorityOverrideRequest_builder{
+			CaOverride: env.NewOverrideForCAType(t, caType),
+		}.Build())
+		require.NoError(t, err)
+		created := resp.GetCaOverride()
+
+		// Adding a duplicate override for the same public key is forbidden.
+		_, err = subCA.AddCertificateOverride(t.Context(), subcapb.AddCertificateOverrideRequest_builder{
+			CaId: subcapb.CertAuthorityOverrideID_builder{
+				CaType: string(caType),
+			}.Build(),
+			CertificateOverride: created.GetSpec().GetCertificateOverrides()[0],
+		}.Build())
+		assert.ErrorContains(t, err, "duplicate override for public key")
+	})
 }
 
 func TestService_List(t *testing.T) {

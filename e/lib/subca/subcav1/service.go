@@ -33,6 +33,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"google.golang.org/protobuf/proto"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
@@ -376,13 +377,10 @@ func (s *Service) CreateCertAuthorityOverride(
 	ctx context.Context,
 	req *subcav1.CreateCertAuthorityOverrideRequest,
 ) (*subcav1.CreateCertAuthorityOverrideResponse, error) {
-	const forceImmediateDisable = false
-	created, err := s.writeCAOverride(
-		ctx,
-		req.GetCaOverride(),
-		forceImmediateDisable,
-		writeCreate,
-	)
+	created, err := s.writeCAOverride(ctx, writeCAOverrideParams{
+		mode:          writeCreate,
+		newCAOverride: req.GetCaOverride(),
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -396,12 +394,11 @@ func (s *Service) UpdateCertAuthorityOverride(
 	ctx context.Context,
 	req *subcav1.UpdateCertAuthorityOverrideRequest,
 ) (*subcav1.UpdateCertAuthorityOverrideResponse, error) {
-	updated, err := s.writeCAOverride(
-		ctx,
-		req.GetCaOverride(),
-		req.GetForceImmediateDisable(),
-		writeUpdate,
-	)
+	updated, err := s.writeCAOverride(ctx, writeCAOverrideParams{
+		mode:                  writeUpdate,
+		newCAOverride:         req.GetCaOverride(),
+		forceImmediateDisable: req.GetForceImmediateDisable(),
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -415,12 +412,11 @@ func (s *Service) UpsertCertAuthorityOverride(
 	ctx context.Context,
 	req *subcav1.UpsertCertAuthorityOverrideRequest,
 ) (*subcav1.UpsertCertAuthorityOverrideResponse, error) {
-	updated, err := s.writeCAOverride(
-		ctx,
-		req.GetCaOverride(),
-		req.GetForceImmediateDisable(),
-		writeUpsert,
-	)
+	updated, err := s.writeCAOverride(ctx, writeCAOverrideParams{
+		mode:                  writeUpsert,
+		newCAOverride:         req.GetCaOverride(),
+		forceImmediateDisable: req.GetForceImmediateDisable(),
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -428,6 +424,89 @@ func (s *Service) UpsertCertAuthorityOverride(
 	return subcav1.UpsertCertAuthorityOverrideResponse_builder{
 		CaOverride: updated,
 	}.Build(), nil
+}
+
+func (s *Service) AddCertificateOverride(
+	ctx context.Context,
+	req *subcav1.AddCertificateOverrideRequest,
+) (*subcav1.AddCertificateOverrideResponse, error) {
+	switch {
+	case req.GetCaId().GetCaType() == "":
+		return nil, trace.BadParameter("ca_id.ca_type required")
+	case !req.HasCertificateOverride():
+		return nil, trace.BadParameter("certificate_override required")
+	}
+
+	if err := s.authorizeCAOverride(ctx, adminActionYes, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cn, err := s.cachedClusterNameGetter.GetClusterName(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Discover if the underlying operation is a create or update.
+	id := local.CertAuthorityOverrideID{
+		ClusterName: cn.GetClusterName(),
+		CAType:      req.GetCaId().GetCaType(),
+	}
+	var mode writeMode
+	var newCAOverride *subcav1.CertAuthorityOverride
+	existingCAOverride, err := s.subCA.GetCertAuthorityOverride(ctx, id)
+	switch {
+	case err == nil:
+		mode = writeUpdate
+		// Append new CO. Validation ensures the same public key can't be targeted
+		// twice.
+		newCAOverride = proto.CloneOf(existingCAOverride)
+		newCAOverride.GetSpec().SetCertificateOverrides(append(
+			newCAOverride.GetSpec().GetCertificateOverrides(), req.GetCertificateOverride()))
+	case trace.IsNotFound(err):
+		mode = writeCreate
+		newCAOverride = makeCAOverrideForCertificate(
+			id.CAType,
+			id.ClusterName,
+			req.GetCertificateOverride(),
+		)
+	default:
+		return nil, trace.Wrap(err)
+	}
+
+	// Create or update.
+	if _, err := s.writeCAOverride(ctx, writeCAOverrideParams{
+		mode:          mode,
+		newCAOverride: newCAOverride,
+		// Adds can never be an enabled-to-disabled transition, but --force skips CA
+		// lateral validation as well. To be consistent with other RPCs we pass it
+		// along.
+		forceImmediateDisable: req.GetForceImmediateDisable(),
+		skipAuthorization:     true,
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return subcav1.AddCertificateOverrideResponse_builder{
+		CertificateOverride: req.GetCertificateOverride(),
+	}.Build(), nil
+}
+
+func makeCAOverrideForCertificate(
+	caType, clusterName string,
+	co *subcav1.CertificateOverride,
+) *subcav1.CertAuthorityOverride {
+	return subcav1.CertAuthorityOverride_builder{
+		Kind:    types.KindCertAuthorityOverride,
+		SubKind: caType,
+		Version: types.V1,
+		Metadata: headerv1.Metadata_builder{
+			Name: clusterName,
+		}.Build(),
+		Spec: subcav1.CertAuthorityOverrideSpec_builder{
+			CertificateOverrides: []*subcav1.CertificateOverride{
+				co,
+			},
+		}.Build(),
+	}.Build()
 }
 
 type writeMode int
@@ -438,16 +517,23 @@ const (
 	writeUpsert
 )
 
+type writeCAOverrideParams struct {
+	mode                  writeMode
+	newCAOverride         *subcav1.CertAuthorityOverride
+	forceImmediateDisable bool
+	skipAuthorization     bool
+}
+
 func (s *Service) writeCAOverride(
 	ctx context.Context,
-	caOverride *subcav1.CertAuthorityOverride,
-	forceImmediateDisable bool,
-	mode writeMode,
+	params writeCAOverrideParams,
 ) (*subcav1.CertAuthorityOverride, error) {
+	mode := params.mode
+
 	switch {
-	case caOverride.GetMetadata().GetName() == "":
+	case params.newCAOverride.GetMetadata().GetName() == "":
 		return nil, trace.BadParameter("ca_override.metadata.name required")
-	case caOverride.GetSubKind() == "":
+	case params.newCAOverride.GetSubKind() == "":
 		return nil, trace.BadParameter("ca_override.sub_kind required")
 	}
 
@@ -470,11 +556,13 @@ func (s *Service) writeCAOverride(
 	default:
 		return nil, trace.Wrap(fmt.Errorf("unknown write mode: %d", mode))
 	}
-	if err := s.authorizeCAOverride(ctx, adminActionYes, verbs[0], verbs[1:]...); err != nil {
-		return nil, trace.Wrap(err)
+	if !params.skipAuthorization {
+		if err := s.authorizeCAOverride(ctx, adminActionYes, verbs[0], verbs[1:]...); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
-	parsed, err := subca.ValidateAndParseCAOverride(caOverride)
+	parsed, err := subca.ValidateAndParseCAOverride(params.newCAOverride)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -529,7 +617,7 @@ func (s *Service) writeCAOverride(
 	// The system still needs the CRLs in Status to function, so either the caller
 	// provides the old Status (which we do accept), or we must be able to
 	// re-create the necessary CRLs.
-	if !forceImmediateDisable {
+	if !params.forceImmediateDisable {
 		if err := s.performWriteLateralValidation(getParsedCA, parsed, existingCAOverride); err != nil {
 			return nil, trace.Wrap(err)
 		}
