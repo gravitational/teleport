@@ -52,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/srv/approval"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -81,6 +82,21 @@ type NodeClient struct {
 	// sshLogDir is the directory to log the output of multiple SSH commands to.
 	// If not set, no logs will be created.
 	sshLogDir string
+
+	// pendingApproval holds the single command approval request currently
+	// awaiting a moderator decision (if any). It is written by
+	// handleGlobalRequests when a SessionApprovalRequest arrives and
+	// read/cleared by the moderator key handler in the associated NodeSession.
+	//
+	// A single NodeClient can host multiple NodeSessions, yet this is a single
+	// shared holder. That is safe because (1) the server pauses session input
+	// while a command is pending, so only one command is awaiting approval at a
+	// time, and (2) approval responses carry a correlation ID, so a response
+	// that is somehow matched against the wrong request is a harmless no-op.
+	//
+	// TODO(approval): if one client ever drives multiple concurrent moderated
+	// sessions, key pending approvals by SessionID (or move to NodeSession).
+	pendingApproval pendingApproval
 }
 
 // AddCloser adds an [io.Closer] that will be closed when the
@@ -692,6 +708,29 @@ func (c *NodeClient) handleGlobalRequests(ctx context.Context, requestCh <-chan 
 				if err != nil {
 					log.WarnContext(ctx, "Unable to send event", "event", string(r.Payload), "error", err)
 					continue
+				}
+			case teleport.SessionApprovalRequest:
+				// A moderated session is requesting approval for a command. Store
+				// the pending request so the moderator's key handler can respond,
+				// and render the prompt to the moderator's terminal.
+				var req approval.CommandApprovalRequest
+				if err := json.Unmarshal(r.Payload, &req); err != nil {
+					log.WarnContext(ctx, "Unable to parse command approval request", "error", err)
+					if r.WantReply {
+						if err := r.Reply(false, nil); err != nil {
+							log.WarnContext(ctx, "Unable to reply to request", "request_type", r.Type, "error", err)
+						}
+					}
+					continue
+				}
+
+				c.pendingApproval.set(req)
+				fmt.Fprint(os.Stdout, renderApprovalPrompt(req))
+
+				if r.WantReply {
+					if err := r.Reply(true, nil); err != nil {
+						log.WarnContext(ctx, "Unable to reply to request", "request_type", r.Type, "error", err)
+					}
 				}
 			default:
 				// This handles keep-alive messages and matches the behavior of OpenSSH.

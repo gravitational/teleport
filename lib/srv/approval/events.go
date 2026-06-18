@@ -22,6 +22,10 @@ import (
 	"time"
 )
 
+// TODO(approval): Web UI renderer — moderators in the Web UI will render these
+// approval requests/responses in the browser. This is a fast-follow and is out
+// of scope for the tsh CLI experience.
+
 // CommandApprovalRequest is broadcast from the session host to moderator
 // clients to request a decision on a single command. The ID correlates the
 // request with the moderator's CommandApprovalResponse.

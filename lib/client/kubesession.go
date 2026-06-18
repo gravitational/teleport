@@ -251,6 +251,8 @@ func (s *KubeSession) pipeInOut(ctx context.Context, stdout io.Writer, enableEsc
 					log.DebugContext(ctx, "Error sending force termination request", "error", err)
 					fmt.Print("\n\rError while sending force termination request\n\r")
 				}
+			}, func(approved bool) {
+				// Kubernetes sessions do not support command approval.
 			})
 		}
 	}()

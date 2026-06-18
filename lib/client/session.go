@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/srv/approval"
 	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -674,7 +675,15 @@ func (ns *NodeSession) watchSignals(shell io.Writer) {
 	}()
 }
 
-func handleNonPeerControls(mode types.SessionParticipantMode, term *terminal.Terminal, forceTerminate func()) {
+// handleNonPeerControls reads local control keys for observers and moderators.
+// For moderators, 't' force-terminates the session and 'a'/'d' approve/deny the
+// command currently awaiting approval (if any). These keys are local UI controls
+// and are never injected into the session's stdin stream.
+//
+// approve is called with the moderator's decision (true to approve, false to
+// deny) and is only invoked when a command is actually pending; it is
+// responsible for sending the response and clearing the pending state.
+func handleNonPeerControls(mode types.SessionParticipantMode, term *terminal.Terminal, forceTerminate func(), approve func(approved bool)) {
 	for {
 		buf := make([]byte, 1)
 		_, err := term.Stdin().Read(buf)
@@ -693,6 +702,12 @@ func handleNonPeerControls(mode types.SessionParticipantMode, term *terminal.Ter
 			fmt.Print("\n\rForcefully terminating session\n\r")
 			forceTerminate()
 			break
+		}
+
+		// a / d: approve or deny a pending command. Ignored (not injected into
+		// stdin) when there is no command awaiting approval.
+		if (buf[0] == 'a' || buf[0] == 'd') && mode == types.SessionModeratorMode {
+			approve(buf[0] == 'a')
 		}
 	}
 }
@@ -753,6 +768,37 @@ func (ns *NodeSession) pipeInOut(ctx context.Context, shell io.ReadWriteCloser, 
 				_, err := sess.SendRequest(ctx, teleport.ForceTerminateRequest, true, nil)
 				if err != nil {
 					fmt.Printf("\n\rError while sending force termination request: %v\n\r", err.Error())
+				}
+			}, func(approved bool) {
+				req, ok := ns.nodeClient.pendingApproval.take()
+				if !ok {
+					// No command is awaiting approval; ignore the keypress.
+					return
+				}
+
+				resp := approval.CommandApprovalResponse{
+					ID:       req.ID,
+					Approved: approved,
+				}
+				if !approved {
+					resp.Reason = "denied by moderator"
+				}
+
+				payload, err := json.Marshal(resp)
+				if err != nil {
+					fmt.Printf("\n\rError while encoding command approval response: %v\n\r", err.Error())
+					return
+				}
+
+				if _, err := sess.SendRequest(ctx, teleport.SessionApprovalResponse, false, payload); err != nil {
+					fmt.Printf("\n\rError while sending command approval response: %v\n\r", err.Error())
+					return
+				}
+
+				if approved {
+					fmt.Print("\n\rApproved.\n\r")
+				} else {
+					fmt.Print("\n\rDenied.\n\r")
 				}
 			})
 
