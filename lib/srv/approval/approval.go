@@ -20,6 +20,7 @@ package approval
 
 import (
 	"context"
+	"time"
 
 	"github.com/gravitational/teleport/api/types"
 )
@@ -31,6 +32,9 @@ const (
 	ModeHuman Mode = "human"
 	ModeAI    Mode = "ai"
 )
+
+// ApproverSystem is the Approver value on a fail-closed (system-denied) Decision.
+const ApproverSystem = "system"
 
 // CommandRequest is a single command awaiting an approval decision.
 type CommandRequest struct {
@@ -54,4 +58,36 @@ type Decision struct {
 // fail-closed: any error or timeout yields a denying Decision.
 type CommandApprover interface {
 	Approve(ctx context.Context, req CommandRequest) Decision
+}
+
+// DefaultTimeout is the fail-closed deadline when a role does not set one.
+const DefaultTimeout = 60 * time.Second
+
+// approverFunc adapts a function to the CommandApprover interface.
+type approverFunc func(context.Context, CommandRequest) Decision
+
+func (f approverFunc) Approve(ctx context.Context, r CommandRequest) Decision { return f(ctx, r) }
+
+// WithTimeout wraps an approver so any decision not returned within d denies
+// the command (fail-closed). It also denies if the wrapped approver returns
+// after ctx is cancelled.
+func WithTimeout(inner CommandApprover, d time.Duration) CommandApprover {
+	return approverFunc(func(ctx context.Context, req CommandRequest) Decision {
+		ctx, cancel := context.WithTimeout(ctx, d)
+		defer cancel()
+
+		ch := make(chan Decision, 1)
+		go func() { ch <- inner.Approve(ctx, req) }()
+
+		select {
+		case dec := <-ch:
+			return dec
+		case <-ctx.Done():
+			return Decision{
+				Approved: false,
+				Approver: ApproverSystem,
+				Reason:   "approval unavailable (fail-closed): " + ctx.Err().Error(),
+			}
+		}
+	})
 }

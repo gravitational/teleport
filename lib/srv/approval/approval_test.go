@@ -17,7 +17,9 @@
 package approval
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -34,4 +36,39 @@ func TestDecisionDenied(t *testing.T) {
 func TestCommandRequestKind(t *testing.T) {
 	r := CommandRequest{Command: "ls", Kind: types.SSHSessionKind}
 	require.Equal(t, types.SSHSessionKind, r.Kind)
+}
+
+func TestWithTimeoutDeniesOnSlowApprover(t *testing.T) {
+	slow := approverFunc(func(ctx context.Context, _ CommandRequest) Decision {
+		<-ctx.Done() // never decides on its own
+		return Decision{Approved: true} // would-be approve, must be overridden
+	})
+	a := WithTimeout(slow, 20*time.Millisecond)
+	d := a.Approve(context.Background(), CommandRequest{Command: "rm -rf /"})
+	require.False(t, d.Approved, "timeout must deny")
+	require.Contains(t, d.Reason, "fail-closed")
+}
+
+func TestWithTimeoutDeniesOnParentCancel(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // parent already cancelled
+	blocked := approverFunc(func(ctx context.Context, _ CommandRequest) Decision {
+		<-ctx.Done()
+		return Decision{Approved: true}
+	})
+	a := WithTimeout(blocked, time.Minute)
+	d := a.Approve(ctx, CommandRequest{Command: "ls"})
+	require.False(t, d.Approved)
+	require.Contains(t, d.Reason, "fail-closed")
+	require.Equal(t, ApproverSystem, d.Approver)
+}
+
+func TestWithTimeoutPassesThroughFastDecision(t *testing.T) {
+	fast := approverFunc(func(_ context.Context, _ CommandRequest) Decision {
+		return Decision{Approved: true, Approver: "bob", Mode: ModeHuman}
+	})
+	a := WithTimeout(fast, time.Second)
+	d := a.Approve(context.Background(), CommandRequest{Command: "ls"})
+	require.True(t, d.Approved)
+	require.Equal(t, "bob", d.Approver)
 }
