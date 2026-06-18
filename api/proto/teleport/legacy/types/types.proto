@@ -1097,6 +1097,8 @@ message AppV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "spec"
   ];
+  // The App's scope.
+  string scope = 6;
 }
 
 // CORSPolicy defines the CORS policy for AppSpecV3
