@@ -551,39 +551,39 @@ func (c *TestContext) CreateUserAndScopedRole(t *testing.T, username, scope stri
 	require.NoError(t, err)
 
 	scopedAccess := c.TLSServer.Auth().ScopedAccess()
-	role, err := scopedAccess.CreateScopedRole(t.Context(), &accessv1.CreateScopedRoleRequest{
-		Role: &accessv1.ScopedRole{
+	role, err := scopedAccess.CreateScopedRole(t.Context(), accessv1.CreateScopedRoleRequest_builder{
+		Role: accessv1.ScopedRole_builder{
 			Kind:    access.KindScopedRole,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: username,
-			},
+			}.Build(),
 			Scope: scope,
 			Spec:  roleSpec,
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
-	assignment, err := scopedAccess.CreateScopedRoleAssignment(t.Context(), &accessv1.CreateScopedRoleAssignmentRequest{
-		Assignment: &accessv1.ScopedRoleAssignment{
+	assignment, err := scopedAccess.CreateScopedRoleAssignment(t.Context(), accessv1.CreateScopedRoleAssignmentRequest_builder{
+		Assignment: accessv1.ScopedRoleAssignment_builder{
 			Kind:    access.KindScopedRoleAssignment,
 			Version: types.V1,
 			SubKind: access.SubKindDynamic,
 			Scope:   scope,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: uuid.New().String(),
-			},
-			Spec: &accessv1.ScopedRoleAssignmentSpec{
+			}.Build(),
+			Spec: accessv1.ScopedRoleAssignmentSpec_builder{
 				User: username,
 				Assignments: []*accessv1.Assignment{
-					{
+					accessv1.Assignment_builder{
 						Role:  role.GetRole().GetMetadata().GetName(),
 						Scope: scope,
-					},
+					}.Build(),
 				},
-			},
-		},
-	})
+			}.Build(),
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	return user, assignment
@@ -803,10 +803,10 @@ func (f *fakeCluster) DialTCP(p reversetunnelclient.DialParams) (conn net.Conn, 
 }
 
 func (c *TestContext) GetScopePinForUser(t *testing.T, username, scope string) *scopesv1.Pin {
-	pin := &scopesv1.Pin{
+	pin := scopesv1.Pin_builder{
 		Kind:  scopesv1.PinKind_PIN_KIND_USER,
 		Scope: scope,
-	}
+	}.Build()
 	err := c.AuthServer.ScopedAccessCache.PopulatePinnedAssignmentsForUser(t.Context(), username, pin)
 	require.NoError(t, err)
 

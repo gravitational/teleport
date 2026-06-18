@@ -305,10 +305,10 @@ func updateBot(ctx context.Context, botName string, request updateBotRequestV3, 
 		return nil, trace.Wrap(err)
 	}
 
-	metadata := headerv1.Metadata{
+	metadata := headerv1.Metadata_builder{
 		Name: botName,
-	}
-	spec := machineidv1.BotSpec{}
+	}.Build()
+	spec := &machineidv1.BotSpec{}
 
 	if request.Roles != nil {
 		mask.Append(&machineidv1.Bot{}, "spec.roles")
@@ -352,8 +352,8 @@ func updateBot(ctx context.Context, botName string, request updateBotRequestV3, 
 		Bot: machineidv1.Bot_builder{
 			Kind:     types.KindBot,
 			Version:  types.V1,
-			Metadata: &metadata,
-			Spec:     &spec,
+			Metadata: metadata,
+			Spec:     spec,
 		}.Build(),
 	}.Build())
 	if err != nil {

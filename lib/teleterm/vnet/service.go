@@ -297,7 +297,7 @@ func (s *Service) RunDiagnostics(ctx context.Context, req *api.RunDiagnosticsReq
 
 	// Skip the DNS check if NetworkStack is unavailable we need at least one
 	// of Ipv6Prefix, Ipv4CidrRanges to derive a VNet DNS server address.
-	if ns := nsa.NetworkStack; ns != nil && (ns.Ipv6Prefix != "" || len(ns.Ipv4CidrRanges) > 0) {
+	if ns := nsa.GetNetworkStack(); ns != nil && (ns.GetIpv6Prefix() != "" || len(ns.GetIpv4CidrRanges()) > 0) {
 		dnsDiag, err := s.dnsDiag(ns)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -337,16 +337,16 @@ func (s *Service) sshDiag() (diag.DiagCheck, error) {
 // dnsDiag builds the DNS diagnostic check. It is platform-agnostic.
 func (s *Service) dnsDiag(ns *diagv1.NetworkStack) (diag.DiagCheck, error) {
 	// TODO(tangyatsu): make NetworkStackInfo return DNS server addresses directly.
-	cfg := &diag.DNSConfig{DNSZones: ns.DnsZones}
-	if ns.Ipv6Prefix != "" {
-		s, err := diag.DNSServerForIPv6Prefix(ns.Ipv6Prefix)
+	cfg := &diag.DNSConfig{DNSZones: ns.GetDnsZones()}
+	if ns.GetIpv6Prefix() != "" {
+		s, err := diag.DNSServerForIPv6Prefix(ns.GetIpv6Prefix())
 		if err != nil {
 			return nil, trace.Wrap(err, "computing VNet IPv6 DNS server address for DNS diag check")
 		}
 		cfg.VNetDNSIPv6 = s
 	}
-	if len(ns.Ipv4CidrRanges) > 0 {
-		s, err := diag.DNSServerForIPv4CIDRRange(ns.Ipv4CidrRanges[0])
+	if len(ns.GetIpv4CidrRanges()) > 0 {
+		s, err := diag.DNSServerForIPv4CIDRRange(ns.GetIpv4CidrRanges()[0])
 		if err != nil {
 			return nil, trace.Wrap(err, "computing VNet IPv4 DNS server address for DNS diag check")
 		}
@@ -469,19 +469,19 @@ func (p *clientApplication) ReissueAppCert(ctx context.Context, appInfo *vnetv1.
 	appURI := clusterURI.AppendApp(appKey.GetName())
 
 	routeToApp := vnet.RouteToApp(appInfo, targetPort)
-	apiteletermRouteToApp := apiteleterm.RouteToApp{
+	apiteletermRouteToApp := apiteleterm.RouteToApp_builder{
 		Name:        routeToApp.Name,
 		PublicAddr:  routeToApp.PublicAddr,
 		ClusterName: routeToApp.ClusterName,
 		Uri:         routeToApp.URI,
 		TargetPort:  routeToApp.TargetPort,
-	}
+	}.Build()
 
 	reloginReq := apiteleterm.ReloginRequest_builder{
 		RootClusterUri: clusterURI.GetRootClusterURI().String(),
 		VnetCertExpired: apiteleterm.VnetCertExpired_builder{
 			TargetUri:  appURI.String(),
-			RouteToApp: &apiteletermRouteToApp,
+			RouteToApp: apiteletermRouteToApp,
 		}.Build(),
 	}.Build()
 
@@ -506,7 +506,7 @@ func (p *clientApplication) ReissueAppCert(ctx context.Context, appInfo *vnetv1.
 		notifyErr := p.daemonService.NotifyApp(ctx, apiteleterm.SendNotificationRequest_builder{
 			CannotProxyVnetConnection: apiteleterm.CannotProxyVnetConnection_builder{
 				TargetUri:  appURI.String(),
-				RouteToApp: &apiteletermRouteToApp,
+				RouteToApp: apiteletermRouteToApp,
 				CertReissueError: apiteleterm.CertReissueError_builder{
 					Error: err.Error(),
 				}.Build(),
@@ -638,13 +638,13 @@ func (p *clientApplication) OnInvalidLocalPort(ctx context.Context, appInfo *vne
 		AppendLeafCluster(appKey.GetLeafCluster()).
 		AppendApp(appKey.GetName())
 	routeToApp := vnet.RouteToApp(appInfo, targetPort)
-	apiteletermRouteToApp := apiteleterm.RouteToApp{
+	apiteletermRouteToApp := apiteleterm.RouteToApp_builder{
 		Name:        routeToApp.Name,
 		PublicAddr:  routeToApp.PublicAddr,
 		ClusterName: routeToApp.ClusterName,
 		Uri:         routeToApp.URI,
 		TargetPort:  routeToApp.TargetPort,
-	}
+	}.Build()
 
 	invalidLocalPort := &apiteleterm.InvalidLocalPort{}
 	// Send ports only if there's less than 10 ranges. A bigger number would be difficult to show in
@@ -661,7 +661,7 @@ func (p *clientApplication) OnInvalidLocalPort(ctx context.Context, appInfo *vne
 	err := p.daemonService.NotifyApp(ctx, apiteleterm.SendNotificationRequest_builder{
 		CannotProxyVnetConnection: apiteleterm.CannotProxyVnetConnection_builder{
 			TargetUri:        appURI.String(),
-			RouteToApp:       &apiteletermRouteToApp,
+			RouteToApp:       apiteletermRouteToApp,
 			InvalidLocalPort: proto.ValueOrDefault(invalidLocalPort),
 		}.Build(),
 	}.Build())
