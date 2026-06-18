@@ -1571,3 +1571,119 @@ func makeHTTPSTunnelConnFromAppSession(session types.WebSession, appName string)
 		},
 	}
 }
+
+// newClientCertRequest builds a request authenticated with a client certificate
+// for the given user, whose credential expires at notAfter. certIdentity only
+// reads the certificate Subject and NotAfter, so the certificate need not be
+// signed.
+func newClientCertRequest(t *testing.T, publicAddr, username string, notAfter time.Time) *http.Request {
+	t.Helper()
+	subject, err := (&tlsca.Identity{
+		Username: username,
+		Groups:   []string{"access"},
+		RouteToApp: tlsca.RouteToApp{
+			PublicAddr:  publicAddr,
+			ClusterName: "test-cluster",
+			Name:        "testapp",
+		},
+	}).Subject()
+	require.NoError(t, err)
+
+	r := httptest.NewRequest("GET", "https://"+publicAddr, nil)
+	r.TLS.PeerCertificates = []*x509.Certificate{{Subject: subject, NotAfter: notAfter}}
+	return r
+}
+
+func TestConnectionCredentialExpired(t *testing.T) {
+	const publicAddr = "app.example.com"
+	now := time.Now()
+
+	t.Run("cookie/browser client has no certificate identity", func(t *testing.T) {
+		r := httptest.NewRequest("GET", "https://"+publicAddr, nil)
+		require.Nil(t, certIdentity(r))
+		require.False(t, connectionCredentialExpired(r, now))
+	})
+
+	t.Run("valid certificate is not expired", func(t *testing.T) {
+		r := newClientCertRequest(t, publicAddr, "testuser", now.Add(time.Minute))
+		require.NotNil(t, certIdentity(r))
+		require.False(t, connectionCredentialExpired(r, now))
+	})
+
+	t.Run("expired certificate is reported expired", func(t *testing.T) {
+		r := newClientCertRequest(t, publicAddr, "testuser", now.Add(-time.Second))
+		require.True(t, connectionCredentialExpired(r, now))
+	})
+}
+
+// newExpiryTestHandler builds an app Handler backed by a mock auth client whose
+// app session expires 5 minutes from the fake clock's current time.
+func newExpiryTestHandler(t *testing.T, ctx context.Context, fakeClock *clockwork.FakeClock) (*Handler, *mockAuthClient, string) {
+	t.Helper()
+	clusterName := "test-cluster"
+	publicAddr := "app.example.com"
+	key, cert, err := tlsca.GenerateSelfSignedCA(
+		pkix.Name{CommonName: clusterName},
+		[]string{publicAddr, apiutils.EncodeClusterName(clusterName)},
+		defaults.CATTL,
+	)
+	require.NoError(t, err)
+
+	authClient := &mockAuthClient{
+		clusterName: clusterName,
+		appSession:  createAppSession(t, fakeClock, key, cert, clusterName, publicAddr, "testapp"),
+		appServers:  []types.AppServer{createAppServer(t, publicAddr)},
+		caKey:       key,
+		caCert:      cert,
+	}
+	fakeCluster := startFakeAppServerOnCluster(t, clusterName, authClient, cert, key)
+	appHandler, err := NewHandler(ctx, &HandlerConfig{
+		Clock:       fakeClock,
+		AuthClient:  authClient,
+		AccessPoint: authClient,
+		ClusterGetter: &reversetunnelclient.FakeServer{
+			FakeClusters: []reversetunnelclient.Cluster{fakeCluster},
+		},
+		CipherSuites:          utils.DefaultCipherSuites(),
+		IntegrationAppHandler: &mockIntegrationAppHandler{},
+	})
+	require.NoError(t, err)
+	return appHandler, authClient, publicAddr
+}
+
+func TestWithAuthExpiredConnectionClose(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	t.Run("expired session on a client cert asks the client to reconnect", func(t *testing.T) {
+		fakeClock := clockwork.NewFakeClock()
+		appHandler, authClient, publicAddr := newExpiryTestHandler(t, ctx, fakeClock)
+
+		// The certificate and its app session expire together. Advance past
+		// expiry to reproduce a long-lived connection whose credential lapsed.
+		certExpiry := authClient.appSession.Expiry()
+		fakeClock.Advance(certExpiry.Sub(fakeClock.Now()) + time.Minute)
+
+		r := newClientCertRequest(t, publicAddr, "testuser", certExpiry)
+		w := httptest.NewRecorder()
+		appHandler.ServeHTTP(w, r)
+
+		require.Equal(t, http.StatusForbidden, w.Code)
+		require.Equal(t, "close", w.Header().Get("Connection"))
+	})
+
+	t.Run("denial on a still-valid client cert is left intact", func(t *testing.T) {
+		fakeClock := clockwork.NewFakeClock()
+		appHandler, _, publicAddr := newExpiryTestHandler(t, ctx, fakeClock)
+
+		// Owner mismatch is a genuine denial. The certificate is still valid, so
+		// reconnecting would not help: we must not mislabel it as expired or ask
+		// the client to close the connection.
+		r := newClientCertRequest(t, publicAddr, "wronguser", fakeClock.Now().Add(time.Hour))
+		w := httptest.NewRecorder()
+		appHandler.ServeHTTP(w, r)
+
+		require.Equal(t, http.StatusForbidden, w.Code)
+		require.Empty(t, w.Header().Get("Connection"))
+	})
+}
