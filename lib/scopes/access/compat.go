@@ -57,6 +57,19 @@ func applyKubeBlock(src *scopedaccessv1.ScopedRoleKube, dst *types.RoleCondition
 		}
 		dst.KubernetesLabels[label.GetName()] = apiutils.Strings(label.GetValues())
 	}
+
+	for i, resource := range src.GetResources() {
+		if dst.KubernetesResources == nil {
+			dst.KubernetesResources = make([]types.KubernetesResource, len(src.GetResources()))
+		}
+		dst.KubernetesResources[i] = types.KubernetesResource{
+			Kind:      resource.GetKind(),
+			Namespace: resource.GetNamespace(),
+			Name:      resource.GetName(),
+			Verbs:     resource.GetVerbs(),
+			APIGroup:  resource.GetApiGroup(),
+		}
+	}
 }
 
 // applyWorkloadIdentityBlock writes/converts the relevant subset of the scoped role's workload_identity

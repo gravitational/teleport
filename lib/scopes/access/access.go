@@ -18,6 +18,7 @@ package access
 
 import (
 	"iter"
+	"slices"
 	"strings"
 	"time"
 
@@ -309,6 +310,13 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 		}
 	}
 
+	// verify that kube resources are well-formed
+	for _, resource := range role.GetSpec().GetKube().GetResources() {
+		if err := validateKubeResource(resource); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	// verify that kube groups are well-formed
 	if group := validateDoesNotContain(role.GetSpec().GetKube().GetGroups(), invalidChars); group != "" {
 		// we currently don't support any form of wildcard/regex/substitution in scoped role
@@ -579,6 +587,94 @@ func commonValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 
 	if assignment.GetSpec().GetUser() == "" && assignment.GetSpec().GetBot() == "" {
 		return trace.BadParameter("scoped role assignment %q is missing spec.user or spec.bot", assignment.GetMetadata().GetName())
+	}
+
+	return nil
+}
+
+// kubernetesNamespacedResourceKinds is the list of known Kubernetes resource kinds
+// that are namespaced. It is copied from api/types/constants.go to prevent exporting it
+// from the public API. Any changes should also be made in the original.
+//
+// Generated from `kubectl api-resources --namespaced=true -o name --sort-by=name` (kind k8s v1.32.2).
+// The format is "<plural>.<apigroup>".
+//
+// Only used to validate the api_group field.
+// If we have a match, we know we need a namespaced value, if we don't
+// have a match, we don't know we don't. Best effort basis.
+//
+// Key: resource kind, value: api group.
+var kubernetesNamespacedResourceKinds = map[string]string{
+	"bindings":                  "",
+	"configmaps":                "",
+	"controllerrevisions":       "apps",
+	"cronjobs":                  "batch",
+	"csistoragecapacities":      "storage.k8s.io",
+	"daemonsets":                "apps",
+	"deployments":               "apps",
+	"endpoints":                 "",
+	"endpointslices":            "discovery.k8s.io",
+	"events":                    "events.k8s.io",
+	"horizontalpodautoscalers":  "autoscaling",
+	"ingresses":                 "networking.k8s.io",
+	"jobs":                      "batch",
+	"leases":                    "coordination.k8s.io",
+	"limitranges":               "",
+	"localsubjectaccessreviews": "authorization.k8s.io",
+	"networkpolicies":           "networking.k8s.io",
+	"persistentvolumeclaims":    "",
+	"poddisruptionbudgets":      "policy",
+	"pods":                      "",
+	"podtemplates":              "",
+	"replicasets":               "apps",
+	"replicationcontrollers":    "",
+	"resourcequotas":            "",
+	"rolebindings":              "rbac.authorization.k8s.io",
+	"roles":                     "rbac.authorization.k8s.io",
+	"secrets":                   "",
+	"serviceaccounts":           "",
+	"services":                  "",
+	"statefulsets":              "apps",
+}
+
+// validateKubeResources validates the following rules for each kubeResources entry:
+// - Kind doesn't belong to kubernetesNamespacedResourceKinds
+// - Name is not empty
+// - Namespace is not empty
+// - ApiGroup not empty
+// This validator is copied from the role v8 case of validateKubeResources found in api/types/role.go.
+// It is ported to support scoped roles and any changes should be reflected in the original as well.
+func validateKubeResource(resource *scopedaccessv1.KubeResource) error {
+	for _, verb := range resource.GetVerbs() {
+		if !slices.Contains(types.KubernetesVerbs, verb) && verb != types.Wildcard && !strings.Contains(verb, "{{") {
+			return trace.BadParameter("KubeResource verb %q is invalid or unsupported; Supported: %v", verb, types.KubernetesVerbs)
+		}
+		if verb == types.Wildcard && len(resource.GetVerbs()) > 1 {
+			return trace.BadParameter("KubeResource verb %q cannot be used with other verbs", verb)
+		}
+	}
+
+	if resource.GetKind() == "" {
+		return trace.BadParameter("KubeResource kind %q is required", resource.GetKind())
+	}
+	// If we have a kind that matches role v7, check the api group.
+	if slices.Contains(types.KubernetesResourcesKinds, resource.GetKind()) {
+		// If the api group is a wildcard or matches v7, then it is mostly definitely a mistake. Reject the role.
+		if resource.GetApiGroup() == types.Wildcard || resource.GetApiGroup() == types.KubernetesResourcesV7KindGroups[resource.GetKind()] {
+			return trace.BadParameter("KubeResource kind %q is invalid. Please use plural name", resource.GetKind())
+		}
+	}
+	// Only allow empty string for known core resources.
+	if resource.GetApiGroup() == "" {
+		if _, ok := types.KubernetesCoreResourceKinds[resource.GetKind()]; !ok {
+			return trace.BadParameter("KubeResource api_group is required for resource %q", resource.GetKind())
+		}
+	}
+	// Best effort attempt to validate if the namespace field is needed.
+	if resource.GetNamespace() == "" {
+		if apiGroup, ok := kubernetesNamespacedResourceKinds[resource.GetKind()]; ok && apiGroup == resource.GetApiGroup() {
+			return trace.BadParameter("KubeResource %q must include Namespace", resource.GetKind())
+		}
 	}
 
 	return nil

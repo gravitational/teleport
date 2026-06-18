@@ -1774,8 +1774,9 @@ var KubernetesClusterWideResourceKinds = []string{
 	KindKubeCertificateSigningRequest,
 }
 
-// KubernetesNamespacedResourceKinds is the list of known Kubernetes resource kinds
-// that are namespaced.
+// kubernetesNamespacedResourceKinds is the list of known Kubernetes resource kinds
+// that are namespaced. This map has been duplicated in lib/scopes/access/access.go.
+// Any changes should also be made there.
 //
 // Generated from `kubectl api-resources --namespaced=true -o name --sort-by=name` (kind k8s v1.32.2).
 // The format is "<plural>.<apigroup>".
