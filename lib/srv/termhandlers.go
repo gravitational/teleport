@@ -28,6 +28,7 @@ import (
 	tracingssh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	rsession "github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/srv/approval"
 	"github.com/gravitational/teleport/lib/sshutils"
 )
 
@@ -212,6 +213,40 @@ func (t *TermHandlers) HandleForceTerminate(_ ssh.Channel, _ *ssh.Request, ctx *
 
 	err := t.SessionRegistry.ForceTerminate(p.s)
 	return trace.Wrap(err)
+}
+
+// HandleCommandApprovalResponse processes a moderator's decision on a pending
+// command in a moderated session with per-command approval enabled. The
+// response is routed to the session's command approver, which unblocks the
+// gated command. Only moderators may decide; the approver enforces this
+// server-side, and this handler guards defensively as well.
+func (t *TermHandlers) HandleCommandApprovalResponse(_ ssh.Channel, req *ssh.Request, ctx *ServerContext) error {
+	p := ctx.getParty()
+	if p == nil {
+		// Not party to an active session; nothing to decide.
+		return nil
+	}
+
+	// Defense in depth: never trust a client's claimed mode. Only moderators
+	// may decide commands. The approver's Submit also enforces this.
+	if p.mode != types.SessionModeratorMode {
+		return trace.AccessDenied("only moderators can approve commands")
+	}
+
+	var resp approval.CommandApprovalResponse
+	if err := json.Unmarshal(req.Payload, &resp); err != nil {
+		return trace.Wrap(err)
+	}
+
+	approver := p.s.getCommandApprover()
+	if approver == nil {
+		// The session has no command approver (e.g. command approval not
+		// enabled). Ignore the stray response.
+		return nil
+	}
+
+	approver.Submit(resp.ID, resp.Approved, resp.Reason, p.user, p.mode)
+	return nil
 }
 
 func (t *TermHandlers) HandleTerminalSize(req *ssh.Request) error {

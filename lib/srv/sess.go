@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/srv/approval"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/reexec/reexecsftp"
 )
@@ -716,6 +717,7 @@ type SessionAccessEvaluator interface {
 	FulfilledFor(participants []moderation.SessionAccessContext) (bool, moderation.PolicyOptions, error)
 	PrettyRequirementsList() string
 	CanJoin(user moderation.SessionAccessContext) []types.SessionParticipantMode
+	CommandApproval() *types.CommandApproval
 }
 
 type sessionInitiatorInfo struct {
@@ -780,6 +782,12 @@ type session struct {
 	serverCtx context.Context
 
 	access SessionAccessEvaluator
+
+	// commandApprover, when non-nil, is the human approver that gates each
+	// command in this moderated session. Inbound CommandApprovalResponse
+	// requests from moderators are routed to it. It is set once during
+	// newSession and read-only thereafter.
+	commandApprover *approval.HumanApprover
 
 	tracker *SessionTracker
 
@@ -898,6 +906,27 @@ func newSession(ctx context.Context, r *SessionRegistry, scx *ServerContext, ch 
 	}()
 
 	sess.io.OnWriteError = sess.onWriteErrorCallback(sessionRecordingMode)
+
+	// If the session's policies enable per-command approval, install a command
+	// gate on the TermManager so each command is approved before it runs. Only
+	// the human approver is wired here; the AI approver is wired separately.
+	if cfg := access.CommandApproval(); cfg != nil {
+		switch cfg.Approver {
+		case types.CommandApproverHuman:
+			broadcaster := &sessionApprovalBroadcaster{s: sess}
+			approver := approval.NewHumanApprover(broadcaster)
+			sess.commandApprover = approver
+			gated := approval.WithTimeout(approver, cfg.EffectiveTimeout())
+			sess.io.SetCommandGate(&sessionCommandGate{s: sess, approver: gated})
+		case types.CommandApproverAI:
+			// TODO(approval): replace with real AI approver in Task 6.4.
+			// Until the AI approver lands, an AI-configured session must fail
+			// CLOSED: install a gate that denies every command rather than
+			// leaving the session ungated (fail-open), which would run every
+			// command while the operator believes commands are gated.
+			sess.io.SetCommandGate(&denyAllCommandGate{s: sess})
+		}
+	}
 
 	go func() {
 		if _, open := <-sess.io.TerminateNotifier(); open {
@@ -2232,6 +2261,110 @@ func (s *session) getParties() (parties []*party) {
 		parties = append(parties, p)
 	}
 	return parties
+}
+
+// getCommandApprover returns the session's command approver, if one is
+// installed. It is safe for concurrent use.
+func (s *session) getCommandApprover() *approval.HumanApprover {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.commandApprover
+}
+
+// sessionCommandGate adapts the approval pipeline to the TermManager's
+// commandGate interface. approve is called synchronously from the input
+// goroutine and blocks until a decision is reached.
+type sessionCommandGate struct {
+	s        *session
+	approver approval.CommandApprover
+}
+
+// approve gates a single reconstructed command line on an approval decision.
+// It MUST NOT be called while holding s.mu or any TermManager lock: it blocks
+// until the approver returns (which may involve a network round-trip to
+// moderator clients).
+func (g *sessionCommandGate) approve(cmd string) bool {
+	s := g.s
+
+	// Identify the participant who typed the command, if discoverable. The
+	// initiating peer is the session creator.
+	//
+	// NOTE: this attributes the command to the session initiator, which may
+	// not be the actual typist in a multi-party session. This is best-effort
+	// attribution for v1; precise per-keystroke attribution is not yet
+	// available here.
+	participant := s.initiator.user
+
+	req := approval.CommandRequest{
+		SessionID:   string(s.id),
+		Command:     cmd,
+		Login:       s.login,
+		ServerID:    s.serverMeta.ServerID,
+		Kind:        types.SSHSessionKind,
+		Participant: participant,
+	}
+
+	dec := g.approver.Approve(s.serverCtx, req)
+	if !dec.Approved {
+		s.BroadcastMessage("Command denied by %s: %s", dec.Approver, dec.Reason)
+	}
+	return dec.Approved
+}
+
+// denyAllCommandGate is a fail-closed commandGate used when a session is
+// configured for AI command approval but the AI approver is not yet available
+// on this server. It denies every command and tells participants why, so the
+// session never runs commands ungated (fail-open).
+//
+// TODO(approval): replace with real AI approver in Task 6.4.
+type denyAllCommandGate struct {
+	s *session
+}
+
+// approve always denies the command and broadcasts a clear reason.
+func (g *denyAllCommandGate) approve(cmd string) bool {
+	g.s.BroadcastMessage("Command denied: AI command moderation is not yet available on this server.")
+	return false
+}
+
+// sessionApprovalBroadcaster delivers approval requests to a session's
+// moderator clients. It implements approval.Broadcaster.
+type sessionApprovalBroadcaster struct {
+	s *session
+}
+
+// BroadcastApprovalRequest sends req to every moderator party as an SSH global
+// request and notifies the peer that approval is pending. It is best-effort: if
+// there are no moderators connected, the WithTimeout wrapper around the
+// approver fails closed once the deadline elapses. s.mu is held only while
+// snapshotting the moderator connections, never while blocking on the network.
+func (b *sessionApprovalBroadcaster) BroadcastApprovalRequest(req approval.CommandApprovalRequest) error {
+	payload, err := json.Marshal(req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	s := b.s
+
+	// Snapshot moderator connections under the lock, then release it before
+	// sending so the (potentially blocking) network sends don't hold s.mu.
+	s.mu.RLock()
+	conns := make([]*ssh.ServerConn, 0, len(s.parties))
+	for _, p := range s.parties {
+		if p.mode == types.SessionModeratorMode {
+			conns = append(conns, p.sconn)
+		}
+	}
+	s.mu.RUnlock()
+
+	for _, sconn := range conns {
+		if _, _, err := sconn.SendRequest(teleport.SessionApprovalRequest, false, payload); err != nil {
+			s.logger.WarnContext(s.serverCtx, "Failed to send command approval request to moderator.", "error", err)
+		}
+	}
+
+	s.BroadcastMessage("Waiting for moderator approval to run: %s", req.Command)
+	return nil
 }
 
 type party struct {

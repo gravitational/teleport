@@ -257,6 +257,29 @@ func (e *SessionAccessEvaluator) PrettyRequirementsList() string {
 	return s.String()
 }
 
+// CommandApproval returns the first enabled CommandApproval policy applicable to
+// this session kind across the evaluator's policy sets, or nil if none.
+func (e *SessionAccessEvaluator) CommandApproval() *types.CommandApproval {
+	for _, policySet := range e.policySets {
+		for _, require := range policySet.RequireSessionJoin {
+			if require.CommandApproval == nil || !require.CommandApproval.Enabled {
+				continue
+			}
+			// An empty Kinds list defaults to SSH (the default session kind),
+			// matching the validation in CommandApproval.checkAndSetDefaults.
+			if len(require.Kinds) == 0 {
+				if e.kind != types.SSHSessionKind {
+					continue
+				}
+			} else if !e.matchesKind(require.Kinds) {
+				continue
+			}
+			return require.CommandApproval
+		}
+	}
+	return nil
+}
+
 // extractApplicablePolicies extracts all policies that match the session kind.
 func (e *SessionAccessEvaluator) extractApplicablePolicies(set *types.SessionTrackerPolicySet) []*types.SessionRequirePolicy {
 	var policies []*types.SessionRequirePolicy

@@ -76,11 +76,11 @@ func testRequest() CommandRequest {
 
 func TestHumanApproverFirstResponseWins(t *testing.T) {
 	b := newFakeBroadcaster(nil)
-	a := newHumanApprover(b)
+	a := NewHumanApprover(b)
 
 	go func() {
 		req := b.waitRequest(t)
-		a.submit(req.ID, true, "ok", "bob", types.SessionModeratorMode)
+		a.Submit(req.ID, true, "ok", "bob", types.SessionModeratorMode)
 	}()
 
 	dec := a.Approve(context.Background(), testRequest())
@@ -92,14 +92,14 @@ func TestHumanApproverFirstResponseWins(t *testing.T) {
 
 func TestHumanApproverRejectsNonModeratorResponse(t *testing.T) {
 	b := newFakeBroadcaster(nil)
-	a := newHumanApprover(b)
+	a := NewHumanApprover(b)
 
 	go func() {
 		req := b.waitRequest(t)
 		// A peer's approval must be ignored server-side.
-		a.submit(req.ID, true, "peer-approve", "mallory", types.SessionPeerMode)
+		a.Submit(req.ID, true, "peer-approve", "mallory", types.SessionPeerMode)
 		// The moderator's deny is the first valid response and must win.
-		a.submit(req.ID, false, "denied", "bob", types.SessionModeratorMode)
+		a.Submit(req.ID, false, "denied", "bob", types.SessionModeratorMode)
 	}()
 
 	dec := a.Approve(context.Background(), testRequest())
@@ -111,7 +111,7 @@ func TestHumanApproverRejectsNonModeratorResponse(t *testing.T) {
 
 func TestHumanApproverFailsClosedOnBroadcastError(t *testing.T) {
 	b := newFakeBroadcaster(errors.New("network down"))
-	a := newHumanApprover(b)
+	a := NewHumanApprover(b)
 
 	dec := a.Approve(context.Background(), testRequest())
 	require.False(t, dec.Approved)
@@ -121,14 +121,14 @@ func TestHumanApproverFailsClosedOnBroadcastError(t *testing.T) {
 
 func TestHumanApproverUnknownIDIgnored(t *testing.T) {
 	b := newFakeBroadcaster(nil)
-	a := newHumanApprover(b)
+	a := NewHumanApprover(b)
 
 	go func() {
 		req := b.waitRequest(t)
 		// A bogus ID must not resolve any pending request.
-		a.submit("bogus-id", true, "nope", "bob", types.SessionModeratorMode)
+		a.Submit("bogus-id", true, "nope", "bob", types.SessionModeratorMode)
 		// The real ID resolves it.
-		a.submit(req.ID, true, "ok", "bob", types.SessionModeratorMode)
+		a.Submit(req.ID, true, "ok", "bob", types.SessionModeratorMode)
 	}()
 
 	dec := a.Approve(context.Background(), testRequest())
@@ -138,7 +138,7 @@ func TestHumanApproverUnknownIDIgnored(t *testing.T) {
 
 func TestHumanApproverContextCancelDenies(t *testing.T) {
 	b := newFakeBroadcaster(nil)
-	a := newHumanApprover(b)
+	a := NewHumanApprover(b)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
@@ -154,7 +154,7 @@ func TestHumanApproverContextCancelDenies(t *testing.T) {
 
 func TestHumanApproverSetsExpiresFromDeadline(t *testing.T) {
 	b := newFakeBroadcaster(nil)
-	a := newHumanApprover(b)
+	a := NewHumanApprover(b)
 
 	deadline := time.Now().Add(30 * time.Second)
 	ctx, cancel := context.WithDeadline(context.Background(), deadline)
@@ -163,7 +163,7 @@ func TestHumanApproverSetsExpiresFromDeadline(t *testing.T) {
 	go func() {
 		req := b.waitRequest(t)
 		require.WithinDuration(t, deadline, req.ExpiresAt, time.Second)
-		a.submit(req.ID, true, "ok", "bob", types.SessionModeratorMode)
+		a.Submit(req.ID, true, "ok", "bob", types.SessionModeratorMode)
 	}()
 
 	dec := a.Approve(ctx, testRequest())

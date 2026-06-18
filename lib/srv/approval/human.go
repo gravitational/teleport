@@ -28,14 +28,14 @@ type Broadcaster interface {
 	BroadcastApprovalRequest(req CommandApprovalRequest) error
 }
 
-// humanApprover is a CommandApprover that broadcasts each command to the
+// HumanApprover is a CommandApprover that broadcasts each command to the
 // session's moderator clients and blocks until the first valid moderator
 // response. It is fail-closed: a broadcast failure or context cancellation
 // yields a denying Decision.
 //
 // Responses are accepted only from participants in moderator mode; this guard
 // is enforced server-side and never trusts a client's claimed mode.
-type humanApprover struct {
+type HumanApprover struct {
 	broadcaster Broadcaster
 	ids         approvalIDGen
 
@@ -43,11 +43,11 @@ type humanApprover struct {
 	pending map[string]chan Decision
 }
 
-// newHumanApprover returns a humanApprover that broadcasts approval requests via
-// b. Each humanApprover owns its own ID generator, so IDs are unique only within
-// this instance; callers use one humanApprover per session.
-func newHumanApprover(b Broadcaster) *humanApprover {
-	return &humanApprover{
+// NewHumanApprover returns a HumanApprover that broadcasts approval requests via
+// b. Each HumanApprover owns its own ID generator, so IDs are unique only within
+// this instance; callers use one HumanApprover per session.
+func NewHumanApprover(b Broadcaster) *HumanApprover {
+	return &HumanApprover{
 		broadcaster: b,
 		pending:     make(map[string]chan Decision),
 	}
@@ -56,7 +56,7 @@ func newHumanApprover(b Broadcaster) *humanApprover {
 // Approve broadcasts req to moderator clients and blocks until the first valid
 // moderator response, ctx cancellation, or a broadcast failure. It always
 // removes the pending entry before returning.
-func (h *humanApprover) Approve(ctx context.Context, req CommandRequest) Decision {
+func (h *HumanApprover) Approve(ctx context.Context, req CommandRequest) Decision {
 	id := h.ids.next(req.SessionID)
 
 	bReq := CommandApprovalRequest{
@@ -106,14 +106,14 @@ func (h *humanApprover) Approve(ctx context.Context, req CommandRequest) Decisio
 	}
 }
 
-// submit delivers a moderator's response to the pending Approve call identified
+// Submit delivers a moderator's response to the pending Approve call identified
 // by id. It is the entry point the session calls when a CommandApprovalResponse
 // arrives.
 //
 // Responses are accepted only from participants in moderator mode; any other
 // mode is rejected server-side. Unknown or already-resolved IDs are ignored.
 // The first valid response wins; later responses for the same ID are dropped.
-func (h *humanApprover) submit(id string, approved bool, reason, user string, mode types.SessionParticipantMode) {
+func (h *HumanApprover) Submit(id string, approved bool, reason, user string, mode types.SessionParticipantMode) {
 	// Defense in depth: never trust a client's claimed mode. Only moderators
 	// may decide commands.
 	if mode != types.SessionModeratorMode {

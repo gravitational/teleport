@@ -542,3 +542,126 @@ func TestSessionAccessJoin(t *testing.T) {
 		})
 	}
 }
+
+func TestSessionAccessEvaluatorCommandApproval(t *testing.T) {
+	enabled := &types.CommandApproval{
+		Enabled:  true,
+		Approver: types.CommandApproverHuman,
+	}
+	disabled := &types.CommandApproval{
+		Enabled:  false,
+		Approver: types.CommandApproverHuman,
+	}
+
+	tests := []struct {
+		name       string
+		policySets []*types.SessionTrackerPolicySet
+		kind       types.SessionKind
+		wantNil    bool
+	}{
+		{
+			name:       "no policy sets",
+			policySets: nil,
+			kind:       types.SSHSessionKind,
+			wantNil:    true,
+		},
+		{
+			name: "no command approval",
+			policySets: []*types.SessionTrackerPolicySet{{
+				Name: "p1",
+				RequireSessionJoin: []*types.SessionRequirePolicy{{
+					Name:  "r1",
+					Kinds: []string{string(types.SSHSessionKind)},
+				}},
+			}},
+			kind:    types.SSHSessionKind,
+			wantNil: true,
+		},
+		{
+			name: "disabled command approval",
+			policySets: []*types.SessionTrackerPolicySet{{
+				Name: "p1",
+				RequireSessionJoin: []*types.SessionRequirePolicy{{
+					Name:            "r1",
+					Kinds:           []string{string(types.SSHSessionKind)},
+					CommandApproval: disabled,
+				}},
+			}},
+			kind:    types.SSHSessionKind,
+			wantNil: true,
+		},
+		{
+			name: "enabled command approval for SSH",
+			policySets: []*types.SessionTrackerPolicySet{{
+				Name: "p1",
+				RequireSessionJoin: []*types.SessionRequirePolicy{{
+					Name:            "r1",
+					Kinds:           []string{string(types.SSHSessionKind)},
+					CommandApproval: enabled,
+				}},
+			}},
+			kind:    types.SSHSessionKind,
+			wantNil: false,
+		},
+		{
+			name: "enabled command approval with empty kinds defaults to SSH",
+			policySets: []*types.SessionTrackerPolicySet{{
+				Name: "p1",
+				RequireSessionJoin: []*types.SessionRequirePolicy{{
+					Name:            "r1",
+					CommandApproval: enabled,
+				}},
+			}},
+			kind:    types.SSHSessionKind,
+			wantNil: false,
+		},
+		{
+			name: "empty kinds does not apply to non-SSH kind",
+			policySets: []*types.SessionTrackerPolicySet{{
+				Name: "p1",
+				RequireSessionJoin: []*types.SessionRequirePolicy{{
+					Name:            "r1",
+					CommandApproval: enabled,
+				}},
+			}},
+			kind:    types.KubernetesSessionKind,
+			wantNil: true,
+		},
+		{
+			name: "returns first enabled across policy sets",
+			policySets: []*types.SessionTrackerPolicySet{
+				{
+					Name: "p1",
+					RequireSessionJoin: []*types.SessionRequirePolicy{{
+						Name:            "r1",
+						Kinds:           []string{string(types.SSHSessionKind)},
+						CommandApproval: disabled,
+					}},
+				},
+				{
+					Name: "p2",
+					RequireSessionJoin: []*types.SessionRequirePolicy{{
+						Name:            "r2",
+						Kinds:           []string{string(types.SSHSessionKind)},
+						CommandApproval: enabled,
+					}},
+				},
+			},
+			kind:    types.SSHSessionKind,
+			wantNil: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := NewSessionAccessEvaluator(tt.policySets, tt.kind, "owner")
+			got := e.CommandApproval()
+			if tt.wantNil {
+				require.Nil(t, got)
+				return
+			}
+			require.NotNil(t, got)
+			require.True(t, got.Enabled)
+		})
+	}
+}

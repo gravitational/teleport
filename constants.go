@@ -858,6 +858,16 @@ const (
 	// ForceTerminateRequest is an SSH request to forcefully terminate a session.
 	ForceTerminateRequest = "x-teleport-force-terminate"
 
+	// SessionApprovalRequest is an SSH request sent by the session host to
+	// moderator clients asking for a decision on a single command in a
+	// moderated session with per-command approval enabled.
+	SessionApprovalRequest = "x-teleport-command-approval-request"
+
+	// SessionApprovalResponse is an SSH request sent by a moderator client back
+	// to the session host with its decision on a command identified by the
+	// matching request ID.
+	SessionApprovalResponse = "x-teleport-command-approval-response"
+
 	// TerminalSizeRequest is a request for the terminal size of the session.
 	TerminalSizeRequest = "x-teleport-terminal-size"
 

@@ -806,6 +806,107 @@ func TestStopUnstarted(t *testing.T) {
 	require.Eventually(t, sessionClosed, time.Second*15, time.Millisecond*500)
 }
 
+// TestSessionCommandGate verifies that a command gate is installed on the
+// session's TermManager when (and only when) a human per-command approval
+// policy applies to the session.
+func TestSessionCommandGate(t *testing.T) {
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
+
+	newReg := func(t *testing.T) *SessionRegistry {
+		srv := newMockServer(t)
+		srv.component = teleport.ComponentNode
+		reg, err := NewSessionRegistry(SessionRegistryConfig{
+			Srv:                   srv,
+			SessionTrackerService: srv.auth,
+		})
+		require.NoError(t, err)
+		t.Cleanup(func() { reg.Close() })
+		return reg
+	}
+
+	t.Run("human command approval installs gate", func(t *testing.T) {
+		reg := newReg(t)
+		role, err := types.NewRole("access", types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				RequireSessionJoin: []*types.SessionRequirePolicy{{
+					Name:   "approve",
+					Filter: "contains(user.roles, 'moderator')",
+					Kinds:  []string{string(types.SSHSessionKind)},
+					Modes:  []string{string(types.SessionModeratorMode)},
+					Count:  1,
+					CommandApproval: &types.CommandApproval{
+						Enabled:  true,
+						Approver: types.CommandApproverHuman,
+					},
+				}},
+			},
+		})
+		require.NoError(t, err)
+
+		sess, _ := testOpenSession(t, reg, services.NewRoleSet(role), &decisionpb.SSHAccessPermit{})
+		t.Cleanup(func() { sess.Stop() })
+
+		require.True(t, sess.io.commandGateEnabled(), "expected command gate to be installed")
+		require.NotNil(t, sess.getCommandApprover(), "expected a command approver to be set")
+	})
+
+	t.Run("ai command approval installs a fail-closed gate", func(t *testing.T) {
+		reg := newReg(t)
+		role, err := types.NewRole("access", types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				RequireSessionJoin: []*types.SessionRequirePolicy{{
+					Name:   "approve",
+					Filter: "contains(user.roles, 'moderator')",
+					Kinds:  []string{string(types.SSHSessionKind)},
+					Modes:  []string{string(types.SessionModeratorMode)},
+					Count:  1,
+					CommandApproval: &types.CommandApproval{
+						Enabled:  true,
+						Approver: types.CommandApproverAI,
+						AI:       &types.CommandApprovalAI{Policy: "deny dangerous commands", Model: "claude"},
+					},
+				}},
+			},
+		})
+		require.NoError(t, err)
+
+		sess, _ := testOpenSession(t, reg, services.NewRoleSet(role), &decisionpb.SSHAccessPermit{})
+		t.Cleanup(func() { sess.Stop() })
+
+		// An AI-configured session MUST install a gate so it fails closed
+		// (denies) until the real AI approver lands, rather than running
+		// commands ungated (fail-open).
+		require.True(t, sess.io.commandGateEnabled(), "expected an AI fail-closed command gate to be installed")
+
+		// The installed gate must deny every command.
+		gate := sess.io.commandGate
+		require.NotNil(t, gate)
+		require.False(t, gate.approve("rm -rf /"), "AI gate must deny commands (fail-closed)")
+	})
+
+	t.Run("no command approval installs no gate", func(t *testing.T) {
+		reg := newReg(t)
+		role, err := types.NewRole("access", types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				RequireSessionJoin: []*types.SessionRequirePolicy{{
+					Name:   "join",
+					Filter: "contains(user.roles, 'moderator')",
+					Kinds:  []string{string(types.SSHSessionKind)},
+					Modes:  []string{string(types.SessionModeratorMode)},
+					Count:  1,
+				}},
+			},
+		})
+		require.NoError(t, err)
+
+		sess, _ := testOpenSession(t, reg, services.NewRoleSet(role), &decisionpb.SSHAccessPermit{})
+		t.Cleanup(func() { sess.Stop() })
+
+		require.False(t, sess.io.commandGateEnabled(), "expected no command gate")
+		require.Nil(t, sess.getCommandApprover(), "expected no command approver")
+	})
+}
+
 func TestModeratedSessionPresence(t *testing.T) {
 	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 
