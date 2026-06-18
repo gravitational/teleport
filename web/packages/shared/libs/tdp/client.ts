@@ -676,6 +676,7 @@ export class TdpClient extends EventEmitter<EventMap> {
       const info = await sharedDirectory.stat(path);
       this.sendSharedDirectoryInfoResponse({
         completionId: req.completionId,
+        directoryId: req.directoryId,
         errCode: SharedDirectoryErrCode.Nil,
         fso: this.toFso(info),
       });
@@ -683,6 +684,7 @@ export class TdpClient extends EventEmitter<EventMap> {
       if (e.constructor === PathDoesNotExistError) {
         this.sendSharedDirectoryInfoResponse({
           completionId: req.completionId,
+          directoryId: req.directoryId,
           errCode: SharedDirectoryErrCode.DoesNotExist,
           fso: {
             lastModified: BigInt(0),
@@ -711,12 +713,14 @@ export class TdpClient extends EventEmitter<EventMap> {
       const info = await sharedDirectory.stat(req.path);
       this.sendSharedDirectoryCreateResponse({
         completionId: req.completionId,
+        directoryId: req.directoryId,
         errCode: SharedDirectoryErrCode.Nil,
         fso: this.toFso(info),
       });
     } catch (e) {
       this.sendSharedDirectoryCreateResponse({
         completionId: req.completionId,
+        directoryId: req.directoryId,
         errCode: SharedDirectoryErrCode.Failed,
         fso: {
           lastModified: BigInt(0),
@@ -742,11 +746,13 @@ export class TdpClient extends EventEmitter<EventMap> {
       await sharedDirectory.delete(req.path);
       this.sendSharedDirectoryDeleteResponse({
         completionId: req.completionId,
+        directoryId: req.directoryId,
         errCode: SharedDirectoryErrCode.Nil,
       });
     } catch (e) {
       this.sendSharedDirectoryDeleteResponse({
         completionId: req.completionId,
+        directoryId: req.directoryId,
         errCode: SharedDirectoryErrCode.Failed,
       });
       this.handleWarning(e.message, TdpClientEvent.CLIENT_WARNING);
@@ -767,6 +773,7 @@ export class TdpClient extends EventEmitter<EventMap> {
     );
     this.sendSharedDirectoryReadResponse({
       completionId: req.completionId,
+      directoryId: req.directoryId,
       errCode: SharedDirectoryErrCode.Nil,
       readDataLength: readData.length,
       readData,
@@ -789,6 +796,7 @@ export class TdpClient extends EventEmitter<EventMap> {
 
     this.sendSharedDirectoryWriteResponse({
       completionId: req.completionId,
+      directoryId: req.directoryId,
       errCode: SharedDirectoryErrCode.Nil,
       bytesWritten,
     });
@@ -798,6 +806,7 @@ export class TdpClient extends EventEmitter<EventMap> {
     // Always send back Failed for now, see https://github.com/gravitational/webapps/issues/1064
     this.sendSharedDirectoryMoveResponse({
       completionId: req.completionId,
+      directoryId: req.directoryId,
       errCode: SharedDirectoryErrCode.Failed,
     });
     this.handleWarning(
@@ -821,6 +830,7 @@ export class TdpClient extends EventEmitter<EventMap> {
 
     this.sendSharedDirectoryListResponse({
       completionId: req.completionId,
+      directoryId: req.directoryId,
       errCode: SharedDirectoryErrCode.Nil,
       fsoList,
     });
@@ -836,6 +846,7 @@ export class TdpClient extends EventEmitter<EventMap> {
       );
       this.sendSharedDirectoryTruncateResponse({
         completionId: req.completionId,
+        directoryId: req.directoryId,
         errCode: SharedDirectoryErrCode.Failed,
       });
       return;
@@ -851,6 +862,7 @@ export class TdpClient extends EventEmitter<EventMap> {
     await sharedDirectory.truncate(req.path, Number(req.endOfFile));
     this.sendSharedDirectoryTruncateResponse({
       completionId: req.completionId,
+      directoryId: req.directoryId,
       errCode: SharedDirectoryErrCode.Nil,
     });
   }

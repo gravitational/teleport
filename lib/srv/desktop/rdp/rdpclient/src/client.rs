@@ -979,9 +979,11 @@ impl Client {
     ) -> ClientResult<ClientDeviceListAnnounce> {
         task::spawn_blocking(move || {
             let mut x224_processor = Self::x224_lock(&x224_processor)?;
-            let rdpdr = Self::get_svc_processor_mut::<Rdpdr>(&mut x224_processor)?;
-            let pdu = rdpdr.add_drive(sda.directory_id, sda.name);
-            Ok(pdu)
+            // Make sure the teleport backend knows about this new drive.
+            Self::rdpdr_backend(&mut x224_processor)?.add_device(sda.directory_id)?;
+            // The Base Rdpdr instance must also know about the device.
+            Ok(Self::get_svc_processor_mut::<Rdpdr>(&mut x224_processor)?
+                .add_drive(sda.directory_id, sda.name))
         })
         .await?
     }
@@ -992,9 +994,20 @@ impl Client {
     ) -> ClientResult<ClientDeviceListRemove> {
         task::spawn_blocking(move || {
             let mut x224_processor = Self::x224_lock(&x224_processor)?;
-            let rdpdr = Self::get_svc_processor_mut::<Rdpdr>(&mut x224_processor)?;
-            if let Some(pdu) = rdpdr.remove_device(device_id) {
-                return Ok(pdu);
+            // Remove from the device from the teleport backend. In some cases, the device needs to
+            // respond to outstanding file I/O before we can actually remove it. The filesystem
+            // implementation will synthesize and send a TDP "SharedDirectoryRemove" message when
+            // pending I/O is complete, which will lead us back into this function to try again.
+            let can_remove = Self::rdpdr_backend(&mut x224_processor)?
+                .remove_device(device_id)
+                .inspect_err(|e| warn!("could not remove device from teleport backend: {}", e))?;
+
+            // Check if it's safe to actually remove the device.
+            if can_remove {
+                let rdpdr = Self::get_svc_processor_mut::<Rdpdr>(&mut x224_processor)?;
+                if let Some(pdu) = rdpdr.remove_device(device_id) {
+                    return Ok(pdu);
+                }
             }
             Err(ClientError::UnknownDevice(device_id))
         })
@@ -1591,7 +1604,7 @@ impl Display for ClientError {
             ClientError::InternalError(msg) => Display::fmt(&msg.to_string(), f),
             ClientError::UnknownAddress => Display::fmt("Unknown address", f),
             ClientError::EncodeError(e) => Display::fmt(e, f),
-            ClientError::PduError(e) => Display::fmt(e, f),
+            ClientError::PduError(e) => Display::fmt(&e.report(), f),
             ClientError::UrlError(e) => Display::fmt(e, f),
             ClientError::UnknownDevice(e) => Display::fmt(e, f),
             #[cfg(feature = "fips")]

@@ -588,6 +588,10 @@ export interface SharedDirectoryResponse {
      */
     errorCode: number;
     /**
+     * @generated from protobuf field: uint32 directory_id = 11;
+     */
+    directoryId: number;
+    /**
      * @generated from protobuf oneof: operation
      */
     operation: {
@@ -2782,6 +2786,7 @@ class SharedDirectoryResponse$Type extends MessageType<SharedDirectoryResponse> 
         super("teleport.desktop.v1.SharedDirectoryResponse", [
             { no: 1, name: "completion_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
             { no: 2, name: "error_code", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 11, name: "directory_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
             { no: 3, name: "info", kind: "message", oneof: "operation", T: () => SharedDirectoryResponse_Info },
             { no: 4, name: "create", kind: "message", oneof: "operation", T: () => SharedDirectoryResponse_Create },
             { no: 5, name: "delete", kind: "message", oneof: "operation", T: () => SharedDirectoryResponse_Delete },
@@ -2796,6 +2801,7 @@ class SharedDirectoryResponse$Type extends MessageType<SharedDirectoryResponse> 
         const message = globalThis.Object.create((this.messagePrototype!));
         message.completionId = 0;
         message.errorCode = 0;
+        message.directoryId = 0;
         message.operation = { oneofKind: undefined };
         if (value !== undefined)
             reflectionMergePartial<SharedDirectoryResponse>(this, message, value);
@@ -2811,6 +2817,9 @@ class SharedDirectoryResponse$Type extends MessageType<SharedDirectoryResponse> 
                     break;
                 case /* uint32 error_code */ 2:
                     message.errorCode = reader.uint32();
+                    break;
+                case /* uint32 directory_id */ 11:
+                    message.directoryId = reader.uint32();
                     break;
                 case /* teleport.desktop.v1.SharedDirectoryResponse.Info info */ 3:
                     message.operation = {
@@ -2878,6 +2887,9 @@ class SharedDirectoryResponse$Type extends MessageType<SharedDirectoryResponse> 
         /* uint32 error_code = 2; */
         if (message.errorCode !== 0)
             writer.tag(2, WireType.Varint).uint32(message.errorCode);
+        /* uint32 directory_id = 11; */
+        if (message.directoryId !== 0)
+            writer.tag(11, WireType.Varint).uint32(message.directoryId);
         /* teleport.desktop.v1.SharedDirectoryResponse.Info info = 3; */
         if (message.operation.oneofKind === "info")
             SharedDirectoryResponse_Info.internalBinaryWrite(message.operation.info, writer.tag(3, WireType.LengthDelimited).fork(), options).join();
