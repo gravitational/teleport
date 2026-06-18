@@ -213,29 +213,23 @@ func (s *ScopeAwareService[T]) ListResourcesWithFilter(ctx context.Context, page
 // If the scope is empty, it returns an unscoped resource from the unscoped key range.
 // If the scope is non-empty, it returns a scoped resource from the scoped key range.
 func (s *ScopeAwareService[T]) GetResource(ctx context.Context, scopedName scopes.QualifiedName) (T, error) {
-	if scopedName.Scope == "" {
-		return s.UnscopedService.GetResource(ctx, scopedName.Name)
-	}
-	encodedScope, err := scopes.EncodeForKey(scopedName.Scope)
+	svc, err := s.WithScopePrefix(scopedName.Scope)
 	if err != nil {
 		var nul T
 		return nul, trace.Wrap(err)
 	}
-	return s.ScopedService.WithPrefix(encodedScope).GetResource(ctx, scopedName.Name)
+	return svc.GetResource(ctx, scopedName.Name)
 }
 
 // DeleteResource deletes a resource for the given scope-qualified name.
 // If the scope is empty, it deletes an unscoped resource from the unscoped key range.
 // If the scope is non-empty, it deletes a scoped resource from the scoped key range.
 func (s *ScopeAwareService[T]) DeleteResource(ctx context.Context, scopedName scopes.QualifiedName) error {
-	if scopedName.Scope == "" {
-		return s.UnscopedService.DeleteResource(ctx, scopedName.Name)
-	}
-	encodedScope, err := scopes.EncodeForKey(scopedName.Scope)
+	svc, err := s.WithScopePrefix(scopedName.Scope)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	return s.ScopedService.WithPrefix(encodedScope).DeleteResource(ctx, scopedName.Name)
+	return svc.DeleteResource(ctx, scopedName.Name)
 }
 
 // DeleteAllResources deletes all scoped and unscoped resources.
@@ -250,60 +244,61 @@ func (s *ScopeAwareService[T]) DeleteAllResources(ctx context.Context) error {
 // exist. If the scope is empty, it will be inserted in the unscoped key range,
 // else it will be inserted in the scoped key range.
 func (s *ScopeAwareService[T]) CreateResource(ctx context.Context, resource T) (T, error) {
-	if scope := resource.GetScope(); scope != "" {
-		encodedScope, err := scopes.EncodeForKey(scope)
-		if err != nil {
-			var nul T
-			return nul, trace.Wrap(err)
-		}
-		return s.ScopedService.WithPrefix(encodedScope).CreateResource(ctx, resource)
+	svc, err := s.WithScopePrefix(resource.GetScope())
+	if err != nil {
+		var nul T
+		return nul, trace.Wrap(err)
 	}
-	return s.UnscopedService.CreateResource(ctx, resource)
+	return svc.CreateResource(ctx, resource)
 }
 
 // UpsertResource upserts the given scoped resource. If the scope is empty, it
 // will be inserted in the unscoped key range, else it will be inserted in the
 // scoped key range.
 func (s *ScopeAwareService[T]) UpsertResource(ctx context.Context, resource T) (T, error) {
-	if scope := resource.GetScope(); scope != "" {
-		encodedScope, err := scopes.EncodeForKey(scope)
-		if err != nil {
-			var nul T
-			return nul, trace.Wrap(err)
-		}
-		return s.ScopedService.WithPrefix(encodedScope).UpsertResource(ctx, resource)
+	svc, err := s.WithScopePrefix(resource.GetScope())
+	if err != nil {
+		var nul T
+		return nul, trace.Wrap(err)
 	}
-	return s.UnscopedService.UpsertResource(ctx, resource)
+	return svc.UpsertResource(ctx, resource)
 }
 
 // UpdateResource updates the given scoped resource. If the scope is empty, it
 // will be updated in the unscoped key range, else it will be updated in the
 // scoped key range.
 func (s *ScopeAwareService[T]) UpdateResource(ctx context.Context, resource T) (T, error) {
-	if scope := resource.GetScope(); scope != "" {
-		encodedScope, err := scopes.EncodeForKey(scope)
-		if err != nil {
-			var nul T
-			return nul, trace.Wrap(err)
-		}
-		return s.ScopedService.WithPrefix(encodedScope).UpdateResource(ctx, resource)
+	svc, err := s.WithScopePrefix(resource.GetScope())
+	if err != nil {
+		var nul T
+		return nul, trace.Wrap(err)
 	}
-	return s.UnscopedService.UpdateResource(ctx, resource)
+	return svc.UpdateResource(ctx, resource)
 }
 
 // ConditionalUpdateResource updates the given scoped resource if the revision
 // matches. If the scope is empty, it will be updated in the unscoped key
 // range, else it will be updated in the scoped key range.
 func (s *ScopeAwareService[T]) ConditionalUpdateResource(ctx context.Context, resource T) (T, error) {
-	if scope := resource.GetScope(); scope != "" {
-		encodedScope, err := scopes.EncodeForKey(scope)
-		if err != nil {
-			var nul T
-			return nul, trace.Wrap(err)
-		}
-		return s.ScopedService.WithPrefix(encodedScope).ConditionalUpdateResource(ctx, resource)
+	svc, err := s.WithScopePrefix(resource.GetScope())
+	if err != nil {
+		var nul T
+		return nul, trace.Wrap(err)
 	}
-	return s.UnscopedService.ConditionalUpdateResource(ctx, resource)
+	return svc.ConditionalUpdateResource(ctx, resource)
+}
+
+// WithScopePrefix returns the unscoped service when scope is empty, otherwise
+// returns the scoped service with the encoded scope appended to its backend prefix.
+func (s *ScopeAwareService[T]) WithScopePrefix(scope string) (*Service[T], error) {
+	if scope == "" {
+		return s.UnscopedService, nil
+	}
+	encodedScope, err := scopes.EncodeForKey(scope)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return s.ScopedService.WithPrefix(encodedScope), nil
 }
 
 // WithScopedResourcePrefix returns a [*Service] with a prefix for the given
