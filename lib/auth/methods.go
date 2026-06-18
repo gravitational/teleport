@@ -90,6 +90,7 @@ func (a *Server) AccessCheckerForScope(ctx context.Context, scope string, userSt
 
 	// set up scope pin (invalid until populated)
 	scopePin := &scopesv1.Pin{
+		Kind:  scopesv1.PinKind_PIN_KIND_USER,
 		Scope: scope,
 	}
 

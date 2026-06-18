@@ -34,7 +34,7 @@ func installerScriptChecksFor(proxyAddr string) string {
 	return `command -v bash > /dev/null 2>&1 || { echo "bash is missing"; exit 100; }` +
 		`; command -v sudo > /dev/null 2>&1 || { echo "sudo is missing"; exit 101; }` +
 		`; command -v curl > /dev/null 2>&1 || { echo "curl is missing"; exit 102; }` +
-		`; df -Pm $([ -d /opt ] && echo /opt || echo /) | awk 'NR==2{exit($4<1250)}' || { echo "insufficient disk space"; exit 103; }` +
+		`; df -Pm $(p=/opt/teleport; until [ -e "$p" ]; do p=$(dirname "$p"); done; echo "$p") | awk 'NR==2{exit($4<1250)}' || { echo "insufficient disk space"; exit 103; }` +
 		`; curl --silent --max-time 10 --output /dev/null https://` + proxyAddr + `/webapi/find || { echo "proxy is unreachable"; exit 104; }` +
 		`; `
 }

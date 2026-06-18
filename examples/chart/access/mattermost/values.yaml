@@ -47,7 +47,7 @@ teleport:
 # - via the chart Values by setting `mattermost.token`
 # - via an existing Kubernetes Secret by setting `mattermost.tokenFromSecret`
 mattermost:
-  # mattermost.url(string) -- is the Jira URL. For example: `https://mattermost.example.com`.
+  # mattermost.url(string) -- is the Mattermost URL. For example: `https://mattermost.example.com`.
   url: ""
   # mattermost.token(string) -- is the Mattermost token used by the plugin to interact
   # with Mattermost. When set, the Chart creates a Kubernetes Secret for you.

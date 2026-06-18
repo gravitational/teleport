@@ -430,7 +430,7 @@ func TestBotInstanceServiceSubmitHeartbeat(t *testing.T) {
 			identity: tlsca.Identity{
 				BotName:       botName,
 				BotInstanceID: botInstanceID,
-				ScopePin:      &scopesv1.Pin{Scope: "/scopes/test"},
+				ScopePin:      &scopesv1.Pin{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: "/scopes/test"},
 				BotInternal:   false,
 			},
 			assertErr: func(t assert.TestingT, err error, i ...any) bool {
@@ -448,7 +448,7 @@ func TestBotInstanceServiceSubmitHeartbeat(t *testing.T) {
 			identity: tlsca.Identity{
 				BotName:       botName,
 				BotInstanceID: botInstanceID,
-				ScopePin:      &scopesv1.Pin{Scope: "/scopes/test"},
+				ScopePin:      &scopesv1.Pin{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: "/scopes/test"},
 				BotInternal:   true,
 			},
 			assertErr:     assert.NoError,

@@ -42,6 +42,7 @@ func TestValidate(t *testing.T) {
 		{
 			name: "basic",
 			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/foo",
 				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
 					"/": {"/": {"r1"}, "/foo": {"r2"}, "/foo/bar": {"r3"}},
@@ -63,6 +64,7 @@ func TestValidate(t *testing.T) {
 		{
 			name: "missing assignments",
 			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/foo",
 			},
 			strongOk: false,
@@ -71,6 +73,7 @@ func TestValidate(t *testing.T) {
 		{
 			name: "orthogonal assignment",
 			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/foo",
 				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
 					"/": {"/": {"r1"}, "/bar": {"r2"}},
@@ -82,6 +85,7 @@ func TestValidate(t *testing.T) {
 		{
 			name: "empty assignments",
 			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/foo",
 			},
 			strongOk: false,
@@ -90,6 +94,7 @@ func TestValidate(t *testing.T) {
 		{
 			name: "malformed assignment scope",
 			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/foo",
 				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
 					"/":             {"/": {"r1"}},
@@ -158,6 +163,7 @@ func TestDescendAssignmentTree(t *testing.T) {
 			ok:    true,
 			expect: []RoleAssignment{
 				{
+					RoleKind:      RoleKindUser,
 					ScopeOfOrigin: "/foo",
 					ScopeOfEffect: "/foo",
 					RoleName:      "r1",
@@ -184,11 +190,13 @@ func TestDescendAssignmentTree(t *testing.T) {
 			ok:    true,
 			expect: []RoleAssignment{
 				{
+					RoleKind:      RoleKindUser,
 					ScopeOfOrigin: "/",
 					ScopeOfEffect: "/",
 					RoleName:      "r1",
 				},
 				{
+					RoleKind:      RoleKindUser,
 					ScopeOfOrigin: "/foo",
 					ScopeOfEffect: "/foo",
 					RoleName:      "r2",
@@ -211,11 +219,13 @@ func TestDescendAssignmentTree(t *testing.T) {
 			ok:    true,
 			expect: []RoleAssignment{
 				{
+					RoleKind:      RoleKindUser,
 					ScopeOfOrigin: "/",
 					ScopeOfEffect: "/foo",
 					RoleName:      "r2",
 				},
 				{
+					RoleKind:      RoleKindUser,
 					ScopeOfOrigin: "/",
 					ScopeOfEffect: "/",
 					RoleName:      "r1",
@@ -242,11 +252,13 @@ func TestDescendAssignmentTree(t *testing.T) {
 			ok:    true,
 			expect: []RoleAssignment{
 				{
+					RoleKind:      RoleKindUser,
 					ScopeOfOrigin: "/",
 					ScopeOfEffect: "/",
 					RoleName:      "r1",
 				},
 				{
+					RoleKind:      RoleKindUser,
 					ScopeOfOrigin: "/foo/bar",
 					ScopeOfEffect: "/foo/bar",
 					RoleName:      "r2",
@@ -281,26 +293,31 @@ func TestDescendAssignmentTree(t *testing.T) {
 			ok:    true,
 			expect: []RoleAssignment{
 				{
+					RoleKind:      RoleKindUser,
 					ScopeOfOrigin: "/foo",
 					ScopeOfEffect: "/foo",
 					RoleName:      "a",
 				},
 				{
+					RoleKind:      RoleKindUser,
 					ScopeOfOrigin: "/foo",
 					ScopeOfEffect: "/foo",
 					RoleName:      "b",
 				},
 				{
+					RoleKind:      RoleKindUser,
 					ScopeOfOrigin: "/foo",
 					ScopeOfEffect: "/foo",
 					RoleName:      "c",
 				},
 				{
+					RoleKind:      RoleKindUser,
 					ScopeOfOrigin: "/foo",
 					ScopeOfEffect: "/foo",
 					RoleName:      "q",
 				},
 				{
+					RoleKind:      RoleKindUser,
 					ScopeOfOrigin: "/foo",
 					ScopeOfEffect: "/foo",
 					RoleName:      "x",
@@ -331,31 +348,37 @@ func TestDescendAssignmentTree(t *testing.T) {
 			ok:    true,
 			expect: []RoleAssignment{
 				{
+					RoleKind:      RoleKindUser,
 					ScopeOfOrigin: "/",
 					ScopeOfEffect: "/foo/bar",
 					RoleName:      "rr2",
 				},
 				{
+					RoleKind:      RoleKindUser,
 					ScopeOfOrigin: "/",
 					ScopeOfEffect: "/",
 					RoleName:      "rr1",
 				},
 				{
+					RoleKind:      RoleKindUser,
 					ScopeOfOrigin: "/foo",
 					ScopeOfEffect: "/foo/bar",
 					RoleName:      "rf2",
 				},
 				{
+					RoleKind:      RoleKindUser,
 					ScopeOfOrigin: "/foo",
 					ScopeOfEffect: "/foo/bar",
 					RoleName:      "rf3",
 				},
 				{
+					RoleKind:      RoleKindUser,
 					ScopeOfOrigin: "/foo",
 					ScopeOfEffect: "/foo",
 					RoleName:      "rf1",
 				},
 				{
+					RoleKind:      RoleKindUser,
 					ScopeOfOrigin: "/foo/bar",
 					ScopeOfEffect: "/foo/bar",
 					RoleName:      "rb1",
@@ -537,11 +560,11 @@ func TestGetRolesAtEnforcementPoint(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var got []string
-			for role := range GetRolesAtEnforcementPoint(tt.pin, scopes.EnforcementPoint{
+			for ref := range GetRolesAtEnforcementPoint(tt.pin, scopes.EnforcementPoint{
 				ScopeOfOrigin: tt.scopeOfOrigin,
 				ScopeOfEffect: tt.scopeOfEffect,
 			}) {
-				got = append(got, role)
+				got = append(got, ref.RoleName)
 			}
 
 			if tt.expect == nil {
@@ -589,12 +612,8 @@ func TestRolesAtEnforcementPointComposition(t *testing.T) {
 	// Collect assignments using EnforcementPointsForResourceScope + GetRolesAtEnforcementPoint
 	var gotAssignments []RoleAssignment
 	for point := range scopes.EnforcementPointsForResourceScope(resourceScope) {
-		for role := range GetRolesAtEnforcementPoint(pin, point) {
-			gotAssignments = append(gotAssignments, RoleAssignment{
-				ScopeOfOrigin: point.ScopeOfOrigin,
-				ScopeOfEffect: point.ScopeOfEffect,
-				RoleName:      role,
-			})
+		for ref := range GetRolesAtEnforcementPoint(pin, point) {
+			gotAssignments = append(gotAssignments, ref)
 		}
 	}
 
@@ -631,7 +650,7 @@ func TestEnumerateAllAssignments(t *testing.T) {
 				}),
 			},
 			expect: []RoleAssignment{
-				{ScopeOfOrigin: "/", ScopeOfEffect: "/", RoleName: "role1"},
+				{RoleKind: RoleKindUser, ScopeOfOrigin: "/", ScopeOfEffect: "/", RoleName: "role1"},
 			},
 		},
 		{
@@ -654,12 +673,12 @@ func TestEnumerateAllAssignments(t *testing.T) {
 				}),
 			},
 			expect: []RoleAssignment{
-				{ScopeOfOrigin: "/", ScopeOfEffect: "/", RoleName: "root-root"},
-				{ScopeOfOrigin: "/", ScopeOfEffect: "/staging", RoleName: "root-staging"},
-				{ScopeOfOrigin: "/", ScopeOfEffect: "/staging/west", RoleName: "root-west"},
-				{ScopeOfOrigin: "/staging", ScopeOfEffect: "/staging", RoleName: "staging-staging"},
-				{ScopeOfOrigin: "/staging", ScopeOfEffect: "/staging/west", RoleName: "staging-west"},
-				{ScopeOfOrigin: "/staging/west", ScopeOfEffect: "/staging/west", RoleName: "west-west"},
+				{RoleKind: RoleKindUser, ScopeOfOrigin: "/", ScopeOfEffect: "/", RoleName: "root-root"},
+				{RoleKind: RoleKindUser, ScopeOfOrigin: "/", ScopeOfEffect: "/staging", RoleName: "root-staging"},
+				{RoleKind: RoleKindUser, ScopeOfOrigin: "/", ScopeOfEffect: "/staging/west", RoleName: "root-west"},
+				{RoleKind: RoleKindUser, ScopeOfOrigin: "/staging", ScopeOfEffect: "/staging", RoleName: "staging-staging"},
+				{RoleKind: RoleKindUser, ScopeOfOrigin: "/staging", ScopeOfEffect: "/staging/west", RoleName: "staging-west"},
+				{RoleKind: RoleKindUser, ScopeOfOrigin: "/staging/west", ScopeOfEffect: "/staging/west", RoleName: "west-west"},
 			},
 		},
 		{
@@ -682,12 +701,12 @@ func TestEnumerateAllAssignments(t *testing.T) {
 				}),
 			},
 			expect: []RoleAssignment{
-				{ScopeOfOrigin: "/", ScopeOfEffect: "/staging", RoleName: "root-staging"},
-				{ScopeOfOrigin: "/", ScopeOfEffect: "/staging/west", RoleName: "root-west"},
-				{ScopeOfOrigin: "/", ScopeOfEffect: "/staging/west/rack", RoleName: "root-rack"},
-				{ScopeOfOrigin: "/staging", ScopeOfEffect: "/staging/west", RoleName: "staging-west"},
-				{ScopeOfOrigin: "/staging", ScopeOfEffect: "/staging/west/rack", RoleName: "staging-rack"},
-				{ScopeOfOrigin: "/staging/west", ScopeOfEffect: "/staging/west/rack", RoleName: "west-rack"},
+				{RoleKind: RoleKindUser, ScopeOfOrigin: "/", ScopeOfEffect: "/staging", RoleName: "root-staging"},
+				{RoleKind: RoleKindUser, ScopeOfOrigin: "/", ScopeOfEffect: "/staging/west", RoleName: "root-west"},
+				{RoleKind: RoleKindUser, ScopeOfOrigin: "/", ScopeOfEffect: "/staging/west/rack", RoleName: "root-rack"},
+				{RoleKind: RoleKindUser, ScopeOfOrigin: "/staging", ScopeOfEffect: "/staging/west", RoleName: "staging-west"},
+				{RoleKind: RoleKindUser, ScopeOfOrigin: "/staging", ScopeOfEffect: "/staging/west/rack", RoleName: "staging-rack"},
+				{RoleKind: RoleKindUser, ScopeOfOrigin: "/staging/west", ScopeOfEffect: "/staging/west/rack", RoleName: "west-rack"},
 			},
 		},
 		{
@@ -704,11 +723,11 @@ func TestEnumerateAllAssignments(t *testing.T) {
 				}),
 			},
 			expect: []RoleAssignment{
-				{ScopeOfOrigin: "/", ScopeOfEffect: "/foo", RoleName: "admin"},
-				{ScopeOfOrigin: "/", ScopeOfEffect: "/foo", RoleName: "developer"},
-				{ScopeOfOrigin: "/", ScopeOfEffect: "/foo", RoleName: "viewer"},
-				{ScopeOfOrigin: "/foo", ScopeOfEffect: "/foo", RoleName: "owner"},
-				{ScopeOfOrigin: "/foo", ScopeOfEffect: "/foo", RoleName: "user"},
+				{RoleKind: RoleKindUser, ScopeOfOrigin: "/", ScopeOfEffect: "/foo", RoleName: "admin"},
+				{RoleKind: RoleKindUser, ScopeOfOrigin: "/", ScopeOfEffect: "/foo", RoleName: "developer"},
+				{RoleKind: RoleKindUser, ScopeOfOrigin: "/", ScopeOfEffect: "/foo", RoleName: "viewer"},
+				{RoleKind: RoleKindUser, ScopeOfOrigin: "/foo", ScopeOfEffect: "/foo", RoleName: "owner"},
+				{RoleKind: RoleKindUser, ScopeOfOrigin: "/foo", ScopeOfEffect: "/foo", RoleName: "user"},
 			},
 		},
 		{
@@ -732,13 +751,13 @@ func TestEnumerateAllAssignments(t *testing.T) {
 				}),
 			},
 			expect: []RoleAssignment{
-				{ScopeOfOrigin: "/", ScopeOfEffect: "/", RoleName: "global"},
-				{ScopeOfOrigin: "/", ScopeOfEffect: "/prod", RoleName: "prod-policy"},
-				{ScopeOfOrigin: "/", ScopeOfEffect: "/staging", RoleName: "staging-policy"},
-				{ScopeOfOrigin: "/prod", ScopeOfEffect: "/prod/eu", RoleName: "eu-admin"},
-				{ScopeOfOrigin: "/prod", ScopeOfEffect: "/prod/us", RoleName: "us-admin"},
-				{ScopeOfOrigin: "/staging", ScopeOfEffect: "/staging/east", RoleName: "east-admin"},
-				{ScopeOfOrigin: "/staging", ScopeOfEffect: "/staging/west", RoleName: "west-admin"},
+				{RoleKind: RoleKindUser, ScopeOfOrigin: "/", ScopeOfEffect: "/", RoleName: "global"},
+				{RoleKind: RoleKindUser, ScopeOfOrigin: "/", ScopeOfEffect: "/prod", RoleName: "prod-policy"},
+				{RoleKind: RoleKindUser, ScopeOfOrigin: "/", ScopeOfEffect: "/staging", RoleName: "staging-policy"},
+				{RoleKind: RoleKindUser, ScopeOfOrigin: "/prod", ScopeOfEffect: "/prod/eu", RoleName: "eu-admin"},
+				{RoleKind: RoleKindUser, ScopeOfOrigin: "/prod", ScopeOfEffect: "/prod/us", RoleName: "us-admin"},
+				{RoleKind: RoleKindUser, ScopeOfOrigin: "/staging", ScopeOfEffect: "/staging/east", RoleName: "east-admin"},
+				{RoleKind: RoleKindUser, ScopeOfOrigin: "/staging", ScopeOfEffect: "/staging/west", RoleName: "west-admin"},
 			},
 		},
 	}

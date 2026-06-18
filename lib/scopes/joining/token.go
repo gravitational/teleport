@@ -296,7 +296,7 @@ func validateJoinMethod(token *joiningv1.ScopedToken) error {
 
 // validateBot is used to validate plausibly-bot tokens (if `isBotToken()` has
 // returned true).
-func validateBotToken(token *joiningv1.ScopedToken, roles types.SystemRoles) error {
+func strongValidateBotToken(token *joiningv1.ScopedToken, roles types.SystemRoles) error {
 	spec := token.GetSpec()
 
 	if spec.GetBotName() == "" {
@@ -362,6 +362,30 @@ func validateNonBotToken(token *joiningv1.ScopedToken) error {
 	return nil
 }
 
+// validateBotRef weak-validates the bot reference fields of a scoped token
+// spec and returns the referenced bot's name and scope. Bot tokens must carry
+// both components. For non-bot tokens the bot fields are ignored and empty
+// values are returned: stray bot fields on a non-bot token are rejected by
+// strong validation at write time, but tolerated here to match weak
+// validation's posture toward existing resources.
+func validateBotRef(spec *joiningv1.ScopedTokenSpec, isBotToken bool) (name, scope string, err error) {
+	if !isBotToken {
+		return "", "", nil
+	}
+
+	if spec.GetBotName() == "" {
+		return "", "", trace.BadParameter("expected non-empty bot_name for a scoped bot token")
+	}
+	if spec.GetBotScope() == "" {
+		return "", "", trace.BadParameter("expected non-empty bot_scope for a scoped bot token")
+	}
+	if err := scopes.WeakValidate(spec.GetBotScope()); err != nil {
+		return "", "", trace.Wrap(err, "validating scoped token bot_scope")
+	}
+
+	return spec.GetBotName(), spec.GetBotScope(), nil
+}
+
 // StrongValidateToken checks if the scoped token is well-formed according to
 // all scoped token rules. This function *must* be used to validate any scoped
 // token being created from scratch. When validating existing scoped token
@@ -424,7 +448,7 @@ func StrongValidateToken(token *joiningv1.ScopedToken) error {
 	}
 
 	if roles.Include(types.RoleBot) {
-		if err := validateBotToken(token, roles); err != nil {
+		if err := strongValidateBotToken(token, roles); err != nil {
 			return trace.Wrap(err)
 		}
 	} else {
@@ -456,19 +480,10 @@ func WeakValidateToken(token *joiningv1.ScopedToken) error {
 	// Determine if this is a bot token without potentially trying to validate
 	// other unknown roles.
 	isBotToken := slices.Contains(spec.GetRoles(), string(types.RoleBot))
-	if isBotToken {
-		if token.GetSpec().GetBotName() == "" {
-			return trace.BadParameter("expected non-empty bot_name for a scoped bot token")
-		}
-
-		if token.GetSpec().GetBotScope() == "" {
-			return trace.BadParameter("expected non-empty bot_scope for a scoped bot token")
-		}
-
-		if err := scopes.WeakValidate(spec.GetBotScope()); err != nil {
-			return trace.Wrap(err, "validating scoped token bot_scope")
-		}
-	} else {
+	if _, _, err := validateBotRef(spec, isBotToken); err != nil {
+		return trace.Wrap(err)
+	}
+	if !isBotToken {
 		if err := scopes.WeakValidate(token.GetSpec().GetAssignedScope()); err != nil {
 			return trace.Wrap(err, "validating scoped token assigned scope")
 		}
@@ -492,6 +507,10 @@ var ErrTokenExhausted = &trace.LimitExceededError{Message: "scoped token usage e
 // ValidateTokenForUse checks if a given scoped token can be used for
 // provisioning. Returns a [*trace.LimitExceededError] if the token is expired
 func ValidateTokenForUse(token *joiningv1.ScopedToken) error {
+	if err := scopes.AssertFeatureEnabled(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if err := StrongValidateToken(token); err != nil {
 		return trace.Wrap(err)
 	}
@@ -510,8 +529,26 @@ func ValidateTokenForUse(token *joiningv1.ScopedToken) error {
 			return trace.Wrap(ErrTokenExhausted)
 		}
 	}
+	// if agent scope pins are enabled, all system roles are allowed to join
+	// with a scoped token
+	if scopes.AgentPinEnabled() {
+		return nil
+	}
 
-	return nil
+	// if agent scope pins are disabled, then we need to ensure that only node and
+	// bot roles can be provisioned with a scoped token. Using [slices.ContainsFunc]
+	// to make it easier to fail closed
+	roles, err := types.NewTeleportRoles(token.GetSpec().GetRoles())
+	if err != nil {
+		return trace.Wrap(err, "normalizing system roles")
+	}
+	if !slices.ContainsFunc(roles, func(role types.SystemRole) bool {
+		return role != types.RoleNode && role != types.RoleBot
+	}) {
+		return nil
+	}
+
+	return trace.BadParameter("scoped token cannot be used to join [%s] role(s) without TELEPORT_UNSTABLE_AGENT_SCOPE_PIN=yes", strings.Join(token.GetSpec().GetRoles(), ", "))
 }
 
 // ValidateTokenUpdate checks for invalid updates between two tokens.
@@ -548,13 +585,17 @@ type Token struct {
 	scoped     *joiningv1.ScopedToken
 	joinMethod types.JoinMethod
 	roles      types.SystemRoles
+	botName    string
+	botScope   string
 }
 
 // NewToken returns the wrapped version of the given [joiningv1.ScopedToken].
 // It will return an error if the configured join method is not a valid
-// [types.JoinMethod] or if any of the configured roles are not a valid
-// [types.SystemRole]. The validated join method and roles are cached on the
-// [Scoped] wrapper itself so they can be read without repeating validation.
+// [types.JoinMethod], if any of the configured roles are not a valid
+// [types.SystemRole], or if the bot_name/bot_scope fields are inconsistent
+// with the configured roles. The validated join method, roles, and bot
+// reference are cached on the [Token] wrapper itself so they can be read
+// without repeating validation.
 func NewToken(token *joiningv1.ScopedToken) (*Token, error) {
 	joinMethod := types.JoinMethod(token.GetSpec().GetJoinMethod())
 	if err := types.ValidateJoinMethod(joinMethod); err != nil {
@@ -566,7 +607,18 @@ func NewToken(token *joiningv1.ScopedToken) (*Token, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return &Token{scoped: token, joinMethod: joinMethod, roles: roles}, nil
+	botName, botScope, err := validateBotRef(token.GetSpec(), roles.Include(types.RoleBot))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &Token{
+		scoped:     token,
+		joinMethod: joinMethod,
+		roles:      roles,
+		botName:    botName,
+		botScope:   botScope,
+	}, nil
 }
 
 // GetName returns the name of a [joiningv1.ScopedToken].
@@ -614,16 +666,16 @@ func (t *Token) Expiry() time.Time {
 	return expiry.AsTime()
 }
 
-// GetBotName returns an empty string because scoped tokens do not currently
-// support configuring a bot name.
-func (t *Token) GetBotName() string {
-	return t.scoped.GetSpec().GetBotName()
-}
+// GetBot returns the cached name and scope of the bot that this token can
+// join, validated when the [joiningv1.ScopedToken] was wrapped. An empty name
+// indicates that this is not a bot token; otherwise both components are
+// non-empty.
+func (t *Token) GetBot() (name, scope string) {
+	if t == nil {
+		return "", ""
+	}
 
-// GetBotScope returns the BotScope field which must be set for bots joining
-// with a scoped token. It is empty for unscoped bots.
-func (t *Token) GetBotScope() string {
-	return t.scoped.GetSpec().GetBotScope()
+	return t.botName, t.botScope
 }
 
 // GetAssignedScope returns the scope that will be assigned to resources

@@ -58,6 +58,7 @@ func (m *mockAzureDevopsTokenValidator) Validate(
 }
 
 func TestJoinAzureDevops(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
 	const (
 		validIDToken          = "test.fake.jwt"
 		validOrgID            = "0000-0000-0000-1337"

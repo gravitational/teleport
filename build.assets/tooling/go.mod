@@ -2,6 +2,8 @@ module github.com/gravitational/teleport/build.assets/tooling
 
 go 1.25.11
 
+tool github.com/gravitational/teleport/build.assets/tooling/cmd/helm-janitor
+
 require (
 	buf.build/go/bufplugin v0.9.0
 	github.com/Masterminds/sprig/v3 v3.3.0
@@ -10,6 +12,7 @@ require (
 	github.com/bmatcuk/doublestar/v4 v4.9.0
 	github.com/coreos/go-semver v0.3.1
 	github.com/gogo/protobuf v1.3.2
+	github.com/google/go-cmp v0.7.0
 	github.com/google/go-github/v41 v41.0.0
 	github.com/gravitational/teleport v0.0.0-00010101000000-000000000000
 	github.com/gravitational/trace v1.5.4
@@ -145,7 +148,6 @@ require (
 	github.com/google/certificate-transparency-go v1.3.2 // indirect
 	github.com/google/gnostic-models v0.7.0 // indirect
 	github.com/google/go-attestation v0.5.1 // indirect
-	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/go-containerregistry v0.21.4 // indirect
 	github.com/google/go-github/v70 v70.0.0 // indirect
 	github.com/google/go-querystring v1.2.0 // indirect

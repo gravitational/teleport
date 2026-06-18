@@ -1,6 +1,6 @@
 # Changelog
 
-## 18.9.0-rc.2 (06/08/26)
+## 18.9.0 (06/16/26)
 
 Pre-releases of Teleport (versions with suffixes like -alpha, -beta, -rc) should not be run in production environments.
 
@@ -1752,4 +1752,5 @@ or `alpn-ping` as upgrade types was left as a fallback until v17.
 
 Teleport v18 removes the legacy upgrade mode entirely including the use of the
 `TELEPORT_TLS_ROUTING_CONN_UPGRADE_MODE` environment variable.
+
 

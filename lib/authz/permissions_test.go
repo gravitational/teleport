@@ -38,6 +38,8 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -1171,7 +1173,9 @@ func TestRoleSetForBuiltinRoles(t *testing.T) {
 		clusterName   string
 		recConfig     types.SessionRecordingConfig
 		roles         []types.SystemRole
+		isScoped      bool
 		assertRoleSet func(t *testing.T, rs services.RoleSet)
+		expectErr     string
 	}{
 		{
 			name:        "RoleMDM is mapped",
@@ -1184,13 +1188,83 @@ func TestRoleSetForBuiltinRoles(t *testing.T) {
 				}
 			},
 		},
+		{
+			name:        "RoleKube is mapped",
+			clusterName: clusterName,
+			roles:       []types.SystemRole{types.RoleKube},
+			assertRoleSet: func(t *testing.T, rs services.RoleSet) {
+				for i, r := range rs {
+					assert.NotEmpty(t, r.GetNamespaces(types.Allow), "RoleSetForBuiltinRoles: rs[%v]: role has no namespaces", i)
+					assert.NotEmpty(t, r.GetRules(types.Allow), "RoleSetForBuiltinRoles: rs[%v]: role has no rules", i)
+
+					if r.GetName() == constants.DefaultImplicitRole {
+						continue
+					}
+					allowedResourceKinds := make(map[string]bool)
+					for _, rule := range r.GetRules(types.Allow) {
+						for _, resource := range rule.Resources {
+							allowedResourceKinds[resource] = true
+						}
+					}
+					requiredKinds := []string{types.KindKubeServer, types.KindKubernetesCluster, types.KindKubeWaitingContainer}
+					for _, kind := range requiredKinds {
+						assert.True(t, allowedResourceKinds[kind], "expected RoleKube to allow resource kind %s", kind)
+					}
+				}
+			},
+		},
+		{
+			name:        "Scoped RoleKube is mapped",
+			clusterName: clusterName,
+			roles:       []types.SystemRole{types.RoleKube},
+			isScoped:    true,
+			assertRoleSet: func(t *testing.T, rs services.RoleSet) {
+				for i, r := range rs {
+					assert.NotEmpty(t, r.GetNamespaces(types.Allow), "RoleSetForBuiltinRoles: rs[%v]: role has no namespaces", i)
+					assert.NotEmpty(t, r.GetRules(types.Allow), "RoleSetForBuiltinRoles: rs[%v]: role has no rules", i)
+					if r.GetName() == constants.DefaultImplicitRole {
+						continue
+					}
+					for _, rule := range r.GetRules(types.Allow) {
+						assert.NotContains(t, rule.Resources, types.KindKubeServer)
+						assert.NotContains(t, rule.Resources, types.KindKubernetesCluster)
+						assert.NotContains(t, rule.Resources, types.KindKubeWaitingContainer)
+					}
+				}
+			},
+		},
+		{
+			name:        "Scoped RoleNode is mapped",
+			clusterName: clusterName,
+			roles:       []types.SystemRole{types.RoleNode},
+			isScoped:    true,
+			assertRoleSet: func(t *testing.T, rs services.RoleSet) {
+				for i, r := range rs {
+					assert.NotEmpty(t, r.GetNamespaces(types.Allow), "RoleSetForBuiltinRoles: rs[%v]: role has no namespaces", i)
+					assert.NotEmpty(t, r.GetRules(types.Allow), "RoleSetForBuiltinRoles: rs[%v]: role has no rules", i)
+				}
+			},
+		},
+		{
+			name:        "Scoped RoleMDM is not mapped",
+			clusterName: clusterName,
+			roles:       []types.SystemRole{types.RoleMDM},
+			isScoped:    true,
+			expectErr:   fmt.Sprintf("builtin role for scoped %q is not recognized", types.RoleMDM),
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			rs, err := authz.RoleSetForBuiltinRoles(test.clusterName, test.recConfig, test.roles...)
+			rs, err := authz.RoleSetForBuiltinRoles(test.clusterName, test.recConfig, test.isScoped, test.roles...)
+			if test.expectErr != "" {
+				require.ErrorContains(t, err, test.expectErr)
+				return
+			}
 			require.NoError(t, err, "RoleSetForBuiltinRoles failed")
 			assert.NotEmpty(t, rs, "RoleSetForBuiltinRoles returned a nil RoleSet")
-			test.assertRoleSet(t, rs)
+			if test.assertRoleSet != nil {
+				test.assertRoleSet(t, rs)
+			}
 		})
 	}
 }
@@ -1546,4 +1620,274 @@ func resourceDiff(res1, res2 types.Resource) string {
 	return cmp.Diff(res1, res2,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Namespace"),
 		cmpopts.EquateEmpty())
+}
+
+// TestAuthorizeRejectsScopedAgents verifies that Authorize returns the
+// services.ErrScopedIdentity sentinel when called with a ScopedBuiltinRole.
+func TestAuthorizeRejectsScopedAgents(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	_, _, authorizer := newTestResources(t)
+
+	scopedRole := authz.ScopedBuiltinRole{
+		ScopePin: &scopesv1.Pin{
+			Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
+			Scope: "/some/scope",
+			SystemRoles: &scopesv1.SystemRoles{
+				Primary: string(types.RoleNode),
+			},
+		},
+		ServerFQDN:  "node-uuid." + clusterName,
+		ClusterName: clusterName,
+		Identity: tlsca.Identity{
+			Username: "node-uuid." + clusterName,
+		},
+	}
+
+	_, err := authorizer.Authorize(authz.ContextWithUser(ctx, scopedRole))
+	require.ErrorIs(t, err, services.ErrScopedIdentity)
+}
+
+// TestScopedContextLockTargets verifies that ScopedContext.LockTargets() returns the correct
+// set of targets for scoped agent and scoped user identities.
+func TestScopedContextLockTargets(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ScopedBuiltinRole", func(t *testing.T) {
+		scopedCtx := &authz.ScopedContext{
+			Identity: authz.ScopedBuiltinRole{
+				ScopePin: &scopesv1.Pin{
+					Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
+					Scope: "/test",
+					SystemRoles: &scopesv1.SystemRoles{
+						Primary: string(types.RoleNode),
+					},
+				},
+				ServerFQDN:  "node-uuid." + clusterName,
+				ClusterName: clusterName,
+				Identity: tlsca.Identity{
+					Username:  "node-uuid." + clusterName,
+					JoinToken: "test-token",
+				},
+			},
+		}
+
+		want := []types.LockTarget{
+			{ServerID: "node-uuid"},
+			{ServerID: "node-uuid." + clusterName},
+			{JoinToken: "test-token"},
+		}
+		require.ElementsMatch(t, want, scopedCtx.LockTargets())
+	})
+
+	t.Run("ScopedLocalUser", func(t *testing.T) {
+		scopedCtx := &authz.ScopedContext{
+			Identity: authz.LocalUser{
+				Username: "alice",
+				Identity: tlsca.Identity{
+					Username:    "alice",
+					MFAVerified: "mfa-device-id",
+					ScopePin: &scopesv1.Pin{
+						Kind:  scopesv1.PinKind_PIN_KIND_USER,
+						Scope: "/test",
+					},
+				},
+			},
+		}
+
+		want := []types.LockTarget{
+			{User: "alice"},
+			{MFADevice: "mfa-device-id"},
+		}
+		require.ElementsMatch(t, want, scopedCtx.LockTargets())
+	})
+}
+
+// brokenScopedRoleReader is a minimal ScopedRoleReader for use in tests that need a non-nil reader
+// but aren't expected to actually need any scoped roles.
+type brokenScopedRoleReader struct{}
+
+func (f *brokenScopedRoleReader) GetScopedRole(_ context.Context, _ *scopedaccessv1.GetScopedRoleRequest) (*scopedaccessv1.GetScopedRoleResponse, error) {
+	return nil, trace.NotFound("get scoped role failed due to test")
+}
+
+func (f *brokenScopedRoleReader) ListScopedRoles(_ context.Context, _ *scopedaccessv1.ListScopedRolesRequest) (*scopedaccessv1.ListScopedRolesResponse, error) {
+	return nil, trace.NotFound("list scoped roles failed due to test")
+}
+
+// TestAuthorizeScopedWithLocksForScopedBuiltinRole verifies that a server lock blocks
+// a scoped agent from calling AuthorizeScoped.
+func TestAuthorizeScopedWithLocksForScopedBuiltinRole(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	ctx := t.Context()
+
+	client, watcher, _ := newTestResources(t)
+	authorizer, err := authz.NewScopedAuthorizer(authz.AuthorizerOpts{
+		ClusterName:      clusterName,
+		AccessPoint:      client,
+		LockWatcher:      watcher,
+		ScopedRoleReader: &brokenScopedRoleReader{},
+	})
+	require.NoError(t, err)
+
+	scopedRole := authz.ScopedBuiltinRole{
+		ScopePin: &scopesv1.Pin{
+			Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
+			Scope: "/test/scope",
+			SystemRoles: &scopesv1.SystemRoles{
+				Primary: string(types.RoleNode),
+			},
+		},
+		ServerFQDN:  "node-uuid." + clusterName,
+		ClusterName: clusterName,
+		Identity: tlsca.Identity{
+			Username: "node-uuid." + clusterName,
+		},
+	}
+
+	// Apply a server lock targeting the node UUID.
+	serverLock, err := types.NewLock("server-lock", types.LockSpecV2{
+		Target: types.LockTarget{ServerID: "node-uuid"},
+	})
+	require.NoError(t, err)
+	upsertLockWithPutEvent(ctx, t, client, watcher, serverLock)
+
+	_, err = authorizer.AuthorizeScoped(authz.ContextWithUser(ctx, scopedRole))
+	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err))
+
+	// A different node is not affected by the lock.
+	otherRole := scopedRole
+	otherRole.ServerFQDN = "other-node-uuid." + clusterName
+	otherRole.Identity.Username = "other-node-uuid." + clusterName
+	_, err = authorizer.AuthorizeScoped(authz.ContextWithUser(ctx, otherRole))
+	require.NoError(t, err)
+}
+
+// TestAuthorizeScopedBuiltinRolePartialSkip verifies that AuthorizeScoped succeeds when a scoped agent
+// pin contains a mix of known and unrecognized system roles.
+func TestAuthorizeScopedBuiltinRolePartialSkip(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	ctx := t.Context()
+
+	client, watcher, _ := newTestResources(t)
+	authorizer, err := authz.NewScopedAuthorizer(authz.AuthorizerOpts{
+		ClusterName:      clusterName,
+		AccessPoint:      client,
+		LockWatcher:      watcher,
+		ScopedRoleReader: &brokenScopedRoleReader{},
+	})
+	require.NoError(t, err)
+
+	tests := []struct {
+		desc    string
+		roles   []string
+		wantErr bool
+	}{
+		{
+			desc:  "known role only",
+			roles: []string{string(types.RoleNode)},
+		},
+		{
+			desc:  "known + role unsupported for scoped identities",
+			roles: []string{string(types.RoleNode), string(types.RoleProxy)},
+		},
+		{
+			desc:  "known + truly unknown role",
+			roles: []string{string(types.RoleNode), "Foo"},
+		},
+		{
+			desc:  "known + both types of unknown",
+			roles: []string{string(types.RoleNode), string(types.RoleProxy), "Foo"},
+		},
+		{
+			desc:    "only role unsupported for scoped identities",
+			roles:   []string{string(types.RoleProxy)},
+			wantErr: true,
+		},
+		{
+			desc:    "only truly unknown roles",
+			roles:   []string{"Foo"},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			pin := &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
+				Scope: "/test/scope",
+				SystemRoles: &scopesv1.SystemRoles{
+					Primary:    string(types.RoleInstance),
+					Additional: tt.roles,
+				},
+			}
+			role := authz.ScopedBuiltinRole{
+				ScopePin:    pin,
+				ServerFQDN:  "node-uuid." + clusterName,
+				ClusterName: clusterName,
+				Identity: tlsca.Identity{
+					Username: "node-uuid." + clusterName,
+				},
+			}
+			_, err := authorizer.AuthorizeScoped(authz.ContextWithUser(ctx, role))
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+// TestAuthorizeScopedWithLocksForScopedLocalUser verifies that a user lock blocks
+// a scoped user from calling AuthorizeScoped.
+func TestAuthorizeScopedWithLocksForScopedLocalUser(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	ctx := t.Context()
+
+	client, watcher, _ := newTestResources(t)
+	authorizer, err := authz.NewScopedAuthorizer(authz.AuthorizerOpts{
+		ClusterName:      clusterName,
+		AccessPoint:      client,
+		LockWatcher:      watcher,
+		ScopedRoleReader: &brokenScopedRoleReader{},
+	})
+	require.NoError(t, err)
+
+	user, _, err := authtest.CreateUserAndRole(client, "test-scoped-user", []string{}, nil)
+	require.NoError(t, err)
+
+	scopedPin := &scopesv1.Pin{
+		Kind:  scopesv1.PinKind_PIN_KIND_USER,
+		Scope: "/test/scope",
+	}
+	localUser := authz.LocalUser{
+		Username: user.GetName(),
+		Identity: tlsca.Identity{
+			Username: user.GetName(),
+			ScopePin: scopedPin,
+		},
+	}
+
+	// Apply a user lock.
+	userLock, err := types.NewLock("user-lock", types.LockSpecV2{
+		Target: types.LockTarget{User: user.GetName()},
+	})
+	require.NoError(t, err)
+	upsertLockWithPutEvent(ctx, t, client, watcher, userLock)
+
+	_, err = authorizer.AuthorizeScoped(authz.ContextWithUser(ctx, localUser))
+	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err))
+
+	// A different user is not affected by the lock.
+	user2, _, err := authtest.CreateUserAndRole(client, "test-scoped-user-2", []string{}, nil)
+	require.NoError(t, err)
+	otherUser := localUser
+	otherUser.Username = user2.GetName()
+	otherUser.Identity.Username = user2.GetName()
+	_, err = authorizer.AuthorizeScoped(authz.ContextWithUser(ctx, otherUser))
+	require.NoError(t, err)
 }

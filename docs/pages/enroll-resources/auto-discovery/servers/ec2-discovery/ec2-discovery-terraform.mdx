@@ -189,7 +189,7 @@ The AWS Terraform provider will need the following AWS IAM permissions to manage
 
 ### Step 2/5. Configure Teleport Terraform provider
 
-There are several ways to configure the Teleport Terraform provider depending on how you intend to run Terraform, for example in CI, Spacelift, or some other remote environment, but for a quick start, see the [Local Demo](../../../../zero-trust-access/infrastructure-as-code/terraform-provider/local.mdx) guide.
+There are several ways to configure the Teleport Terraform provider depending on how you intend to run Terraform, for example in CI, Spacelift, or some other remote environment, but for a quick start, see the [Local Demo](../../../../configuration/terraform-provider/local.mdx) guide.
 
 The local demo guide walks through configuring the Teleport Terraform provider with local Teleport credentials, which is typically as simple as logging in with `tsh` and running a `tctl` command from the same shell that you use to run `terraform` commands:
 
@@ -198,7 +198,7 @@ $ tsh login
 $ eval "$(tctl terraform env)"
 ```
 
-If you are running Terraform in a remote environment, such as a cloud VM, an on-prem server, or CI/CD pipelines, refer to [Using the Teleport Terraform Provider](../../../../zero-trust-access/infrastructure-as-code/terraform-provider/terraform-provider.mdx) to find the appropriate guide for your use case.
+If you are running Terraform in a remote environment, such as a cloud VM, an on-prem server, or CI/CD pipelines, refer to [Using the Teleport Terraform Provider](../../../../configuration/terraform-provider/terraform-provider.mdx) to find the appropriate guide for your use case.
 
 ### Step 3/5. Configure the Terraform module inputs
 

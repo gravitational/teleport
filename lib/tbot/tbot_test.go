@@ -1622,6 +1622,7 @@ func TestScopedBotSSH(t *testing.T) {
 
 	t.Run("identity certificates have scope pins", func(t *testing.T) {
 		expectedPin := &scopesv1.Pin{
+			Kind:  scopesv1.PinKind_PIN_KIND_USER,
 			Scope: scopeName,
 			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 				scopeName: {scopeName: {scopedRoleName}},

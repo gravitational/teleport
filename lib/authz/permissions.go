@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -438,6 +439,10 @@ func (a *authorizer) Authorize(ctx context.Context) (authCtx *Context, err error
 	}
 
 	if user, ok := userI.(LocalUser); ok && user.Identity.ScopePin != nil {
+		return nil, trace.Errorf("cannot perform standard authz: %w", services.ErrScopedIdentity)
+	}
+
+	if _, ok := userI.(ScopedBuiltinRole); ok {
 		return nil, trace.Errorf("cannot perform standard authz: %w", services.ErrScopedIdentity)
 	}
 
@@ -944,6 +949,7 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 				types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
 				types.NewRule(types.KindUser, services.RO()),
 				types.NewRule(types.KindRole, services.RO()),
+				types.NewRule(scopedaccess.KindScopedRole, services.RO()),
 				types.NewRule(types.KindClusterAuthPreference, services.RO()),
 				types.NewRule(types.KindClusterName, services.RO()),
 				types.NewRule(types.KindClusterAuditConfig, services.RO()),
@@ -1017,10 +1023,10 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 }
 
 // RoleSetForBuiltinRoles returns RoleSet for embedded builtin role
-func RoleSetForBuiltinRoles(clusterName string, recConfig readonly.SessionRecordingConfig, roles ...types.SystemRole) (services.RoleSet, error) {
+func RoleSetForBuiltinRoles(clusterName string, recConfig readonly.SessionRecordingConfig, isScoped bool, roles ...types.SystemRole) (services.RoleSet, error) {
 	var definitions []types.Role
 	for _, role := range roles {
-		rd, err := definitionForBuiltinRole(clusterName, recConfig, role)
+		rd, err := definitionForBuiltinRole(clusterName, recConfig, role, isScoped)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1054,8 +1060,56 @@ func RoleSetForUnauthenticatedRoles(clusterName string, roles ...types.Unauthent
 	return services.NewRoleSet(definitions...), nil
 }
 
-// definitionForBuiltinRole constructs the appropriate role definition for a given builtin role.
-func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionRecordingConfig, role types.SystemRole) (types.Role, error) {
+// definitionForBuiltinRole constructs the appropriate role definition for a given builtin role with
+// consideration for whether the definition be will be used in a scoped context.
+func definitionForBuiltinRole(clusterName string, recConfig readonly.SessionRecordingConfig, role types.SystemRole, isScoped bool) (types.Role, error) {
+	if isScoped {
+		return scopedDefinitionForBuiltinRole(clusterName, recConfig, role)
+	}
+	return unscopedDefinitionForBuiltinRole(clusterName, recConfig, role)
+}
+
+// scopedDefinitionForBuiltinRole constructs the appropriate role definition for a given builtin role in a scoped context.
+func scopedDefinitionForBuiltinRole(clusterName string, recConfig readonly.SessionRecordingConfig, role types.SystemRole) (types.Role, error) {
+	switch role {
+	case types.RoleNode:
+		return unscopedDefinitionForBuiltinRole(clusterName, recConfig, types.RoleNode)
+	case types.RoleKube:
+		return services.RoleFromSpec(
+			role.String(),
+			types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					Namespaces: []string{types.Wildcard},
+					Rules: []types.Rule{
+						types.NewRule(types.KindEvent, services.RW()),
+						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
+						types.NewRule(types.KindClusterName, services.RO()),
+						types.NewRule(types.KindClusterAuditConfig, services.RO()),
+						types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
+						types.NewRule(types.KindSessionRecordingConfig, services.RO()),
+						types.NewRule(types.KindClusterAuthPreference, services.RO()),
+						types.NewRule(types.KindUser, services.RO()),
+						types.NewRule(types.KindRole, services.RO()),
+						types.NewRule(types.KindNamespace, services.RO()),
+						types.NewRule(types.KindLock, services.RO()),
+						types.NewRule(types.KindSemaphore, services.RW()),
+						types.NewRule(types.KindHealthCheckConfig, services.RO()),
+						// TODO(fspmarshall/scopes): we eventually want to remove blanket scoped role
+						// access in favor of agents only being able to read scoped roles that may affect
+						// access decisions for the given agent specifically. this verb grant will need to
+						// be revisited as part of that work.
+						types.NewRule(scopedaccess.KindScopedRole, services.RO()),
+					},
+				},
+			},
+		)
+	}
+
+	return nil, trace.NotFound("builtin role for scoped %q is not recognized", role.String())
+}
+
+// unscopedDefinitionForBuiltinRole constructs the appropriate role definition for a given builtin role in an unscoped context.
+func unscopedDefinitionForBuiltinRole(clusterName string, recConfig readonly.SessionRecordingConfig, role types.SystemRole) (types.Role, error) {
 	switch role {
 	case types.RoleAuth:
 		return services.RoleFromSpec(
@@ -1456,7 +1510,7 @@ func ContextForBuiltinRole(r BuiltinRole, recConfig readonly.SessionRecordingCon
 		// all other certs encode a single system role
 		systemRoles = []types.SystemRole{r.Role}
 	}
-	roleSet, err := RoleSetForBuiltinRoles(r.ClusterName, recConfig, systemRoles...)
+	roleSet, err := RoleSetForBuiltinRoles(r.ClusterName, recConfig, r.GetIdentity().AgentScope != "", systemRoles...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1830,6 +1884,33 @@ func (r BuiltinRole) GetIdentity() tlsca.Identity {
 	return r.Identity
 }
 
+// ScopedBuiltinRole is the role of a scoped Teleport service — one whose access is constrained to a specific
+// scope via a scope pin. It is intentionally a distinct type from [BuiltinRole] so that code paths
+// handling builtin roles must explicitly opt into supporting scoped agents.
+type ScopedBuiltinRole struct {
+	// ScopePin is the agent scope pin, encoding the target scope and the agent's system roles.
+	ScopePin *scopesv1.Pin
+
+	// ServerFQDN is the host FQDN of the agent, of the form <host-uuid>.<cluster-name>.
+	ServerFQDN string
+
+	// ClusterName is the name of the local cluster.
+	ClusterName string
+
+	// Identity is source x509 used to build this role.
+	Identity tlsca.Identity
+}
+
+// GetServerID extracts the server UUID from the agent's ServerFQDN.
+func (r ScopedBuiltinRole) GetServerID() string {
+	return strings.TrimSuffix(r.ServerFQDN, "."+r.ClusterName)
+}
+
+// GetIdentity returns the client identity.
+func (r ScopedBuiltinRole) GetIdentity() tlsca.Identity {
+	return r.Identity
+}
+
 // RemoteBuiltinRole is the role of the remote (service connecting via trusted cluster link)
 // Teleport service.
 type RemoteBuiltinRole struct {
@@ -2039,6 +2120,12 @@ func IsLocalOrRemoteService(authContext Context) bool {
 // IsCurrentUser checks if the identity is a local user matching the given username
 func IsCurrentUser(authContext Context, username string) bool {
 	return IsLocalUser(authContext) && authContext.User.GetName() == username
+}
+
+// ScopedIsCurrentUser checks if the scoped identity is a local user matching the given username.
+func ScopedIsCurrentUser(scopedContext *ScopedContext, username string) bool {
+	_, isLocal := scopedContext.Identity.(LocalUser)
+	return isLocal && scopedContext.User.GetName() == username
 }
 
 // IsRemoteUser checks if the identity is a remote user.
