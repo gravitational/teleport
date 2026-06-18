@@ -222,7 +222,9 @@ func (s *sessionHandler) onClientNotification(serverRequestWriter mcputils.Messa
 
 func (s *sessionHandler) onClientRequest(clientResponseWriter, serverRequestWriter mcputils.MessageWriter) mcputils.HandleRequestFunc {
 	return func(ctx context.Context, request *mcputils.JSONRPCRequest) error {
-		if errMsg := s.processClientRequest(ctx, request); errMsg != nil {
+		sanitizeMCPRequestParams(request)
+		errMsg := s.processClientRequest(ctx, request)
+		if errMsg != nil {
 			// Respond immediately
 			s.emitRequestEvent(ctx, request, eventWithError(toError(*errMsg)))
 			return trace.Wrap(clientResponseWriter.WriteMessage(ctx, *errMsg))
@@ -270,7 +272,7 @@ func (s *sessionHandler) processClientRequest(ctx context.Context, req *mcputils
 	return nil
 }
 
-func (s *sessionHandler) processClientNotification(ctx context.Context, notification *mcputils.JSONRPCNotification) {
+func (s *sessionHandler) processClientNotification(_ context.Context, notification *mcputils.JSONRPCNotification) {
 	messagesFromClient.WithLabelValues(s.transport, "notification", reportNotificationMethod(notification.Method)).Inc()
 }
 

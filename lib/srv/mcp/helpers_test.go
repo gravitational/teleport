@@ -23,11 +23,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -414,32 +416,14 @@ func checkSessionStartHasExternalSessionID() func(*testing.T, *apievents.MCPSess
 	}
 }
 
-func newAllowAllDenyForbiddenToolRole(t *testing.T, forbiddenTool string) types.Role {
+func newStreamableMCPServer(t *testing.T, upstream *mcpserver.MCPServer, role types.Role) (_ *testRecorder, _ *mcpclienttransport.StreamableHTTP, proxyURL string) {
 	t.Helper()
-	role, err := types.NewRole("allow-all-deny-forbidden", types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			AppLabels: map[string]apiutils.Strings{
-				types.Wildcard: {types.Wildcard},
-			},
-			MCP: &types.MCPPermissions{
-				Tools: []string{types.Wildcard},
-			},
-		},
-		Deny: types.RoleConditions{
-			MCP: &types.MCPPermissions{
-				Tools: []string{forbiddenTool},
-			},
-		},
-	})
-	require.NoError(t, err)
-	return role
-}
 
-func newStreamableMCPServer(t *testing.T, upstream *mcpserver.MCPServer, role types.Role) (*eventstest.MockRecorderEmitter, *mcpclienttransport.StreamableHTTP) {
-	t.Helper()
+	recorder := newTestRecorders()
 
 	remoteMCPServer := mcpserver.NewStreamableHTTPServer(upstream)
 	remoteHTTPServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		recorder.registerHttpRequest(t, r)
 		if r.URL.Path != "/mcp" {
 			w.WriteHeader(http.StatusNotFound)
 			return
@@ -459,9 +443,8 @@ func newStreamableMCPServer(t *testing.T, upstream *mcpserver.MCPServer, role ty
 	)
 	require.NoError(t, err)
 
-	emitter := eventstest.MockRecorderEmitter{}
 	s, err := NewServer(ServerConfig{
-		Emitter:       &emitter,
+		Emitter:       recorder,
 		ParentContext: t.Context(),
 		HostID:        "my-host-id",
 		AccessPoint:   fakeAccessPoint{},
@@ -494,15 +477,131 @@ func newStreamableMCPServer(t *testing.T, upstream *mcpserver.MCPServer, role ty
 		}
 	}()
 
-	mcpClientTransport, err := mcpclienttransport.NewStreamableHTTP("http://" + listener.Addr().String())
+	proxyURL = "http://" + listener.Addr().String()
+	mcpClientTransport, err := mcpclienttransport.NewStreamableHTTP(proxyURL)
 	require.NoError(t, err)
 
-	return &emitter, mcpClientTransport
+	return recorder, mcpClientTransport, proxyURL
 }
 
-func testJSONString(t *testing.T, v any) string {
+func testSendRAWRequest(t *testing.T, method, url, sessionID string, body string) (response []byte) {
+	t.Helper()
+	ctx := t.Context()
+
+	req, err := http.NewRequestWithContext(ctx, method, url, strings.NewReader(body))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json, text/event-stream")
+	req.Header.Set(mcpclienttransport.HeaderKeySessionID, sessionID)
+
+	resp, err := (&http.Client{Timeout: 5 * time.Second}).Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.Contains(t, []int{http.StatusOK, http.StatusAccepted}, resp.StatusCode)
+
+	return respBody
+}
+
+type testRecorder struct {
+	*testHTTPRequestRecorder
+	*eventstest.MockRecorderEmitter
+}
+
+func newTestRecorders() *testRecorder {
+	return &testRecorder{&testHTTPRequestRecorder{}, &eventstest.MockRecorderEmitter{}}
+}
+
+func (r *testRecorder) Reset() {
+	r.testHTTPRequestRecorder.Reset()
+	r.MockRecorderEmitter.Reset()
+}
+
+type testHTTPRequestRecorder struct {
+	mu       sync.RWMutex
+	requests []*http.Request
+}
+
+func (r *testHTTPRequestRecorder) registerHttpRequest(t *testing.T, req *http.Request) {
+	t.Helper()
+
+	data, err := utils.GetAndReplaceRequestBody(req)
+	require.NoError(t, err)
+	req = req.Clone(t.Context())
+	// The requests is now cloned, but it's a shallow clone holding a pointer to the original
+	// body. Let's now set a the cloned body.
+	utils.OverwriteRequestBodyNoDrain(req, data)
+	require.NoError(t, err)
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.requests = append(r.requests, req)
+}
+
+func (r *testHTTPRequestRecorder) Reset() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.requests = r.requests[:0]
+}
+
+func (r *testHTTPRequestRecorder) HTTPRequests() []*http.Request {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.requests
+}
+
+func testGetRequestPayload(t *testing.T, req *http.Request) []byte {
+	t.Helper()
+	defer req.Body.Close()
+	payload, err := io.ReadAll(req.Body)
+	require.NoError(t, err)
+	return payload
+}
+
+func testJSON(t *testing.T, v any) []byte {
 	t.Helper()
 	data, err := json.Marshal(v)
 	require.NoError(t, err)
-	return string(data)
+	return data
+}
+
+func requireDeniedToolResponse(t *testing.T, respJSON []byte) {
+	t.Helper()
+	requireRequestResponseError(t, respJSON, mcp.INVALID_PARAMS, "User does not have permissions")
+}
+
+func requireToolNameMissingResponse(t *testing.T, respJSON []byte) {
+	t.Helper()
+	requireRequestResponseError(t, respJSON, mcp.INVALID_REQUEST, errInvalidRequestMissingName.Error())
+}
+
+func requireRequestResponseError(t *testing.T, respJSON []byte, expectedCode int, includedData string) {
+	t.Helper()
+
+	var baseMessage mcputils.BaseJSONRPCMessage
+	err := json.Unmarshal(respJSON, &baseMessage)
+	require.NoError(t, err, string(respJSON))
+
+	// Case everything to string so it's displayed nicely in case of error.
+	require.Empty(t, string(baseMessage.Result), string(respJSON))
+	require.NotEmpty(t, baseMessage.ID)
+	require.NotEmpty(t, string(baseMessage.Error))
+
+	var messageErrorDetails map[string]json.RawMessage
+	err = json.Unmarshal(baseMessage.Error, &messageErrorDetails)
+	require.NoError(t, err)
+
+	require.Contains(t, messageErrorDetails, "code")
+	var code int
+	err = json.Unmarshal(messageErrorDetails["code"], &code)
+	require.NoError(t, err)
+	require.Equal(t, expectedCode, code)
+
+	require.Contains(t, messageErrorDetails, "data")
+	escapedIncludedData, err := json.Marshal(includedData)
+	escapedIncludedData = escapedIncludedData[1 : len(escapedIncludedData)-1]
+	require.NoError(t, err)
+	require.Contains(t, string(messageErrorDetails["data"]), string(escapedIncludedData))
 }
