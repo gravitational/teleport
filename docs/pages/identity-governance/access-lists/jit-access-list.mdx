@@ -108,7 +108,7 @@ throughout the config wherever it appears:
 - `<Var name="acl-id" initial="unique-access-list-id" />` — a unique identifier
   for the Access List (alphanumerics only). It ties the roles, list, and member
   resources together.
-- `<Var name="acl-title" initial="Example JIT Access List" />` — the display
+- `<Var name="acl-title" initial="Example Access List" />` — the display
   title for the Access List.
 - `<Var name="example-owner" initial="example-owner" />` — the Teleport user to
   add as an owner.
@@ -151,7 +151,7 @@ resource "teleport_role" "access-standard-acl-preset-<Var name="acl-id" />" {
   }
 }
 
-# A role that requires requesting access to resources (assigned to members).
+# A role that allows requesting access to resources (assigned to members).
 resource "teleport_role" "requester-acl-preset-<Var name="acl-id" />" {
   version = "v8"
 

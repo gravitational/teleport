@@ -1,6 +1,9 @@
 <Admonition type="warning" title="Editing the generated roles">
 Avoid directly modifying the roles the guided flow creates for this Access
-List. To change what the list grants, update it through the Web UI Access List editor:
+List. Keep their names and their `teleport.internal/access-list-preset*` labels
+unchanged — the Web UI relies on both to recognize them as the roles generated
+for this Access List.
+To change what the list grants, update it through the Web UI Access List editor:
 
 1. From the sidebar menu, click **Identity Governance** > **Access Lists**.
 2. Click on the target Access List.
@@ -8,7 +11,7 @@ List. To change what the list grants, update it through the Web UI Access List e
 4. Click **Edit Access**.
 
 If you created the list with Terraform produced by the Web UI editor, you can
-still use the editor to update the Access List and copy the updated Terraform it
+still use the web editor to update the Access List and copy the updated Terraform it
 generates.
 
 Editing the roles directly (via Terraform, `tctl`, or the role editor) may
