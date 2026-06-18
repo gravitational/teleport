@@ -242,7 +242,7 @@ func (s *Service) runScheduled(ctx context.Context) error {
 				// directory created by a successful full sync.
 				e.Mode = mdmsync.SyncModeFull
 			}
-			s.log.InfoContext(ctx, "Starting Entra ID directory sync", "sync_mode", e.Mode)
+			s.log.InfoContext(ctx, "Starting Entra ID directory sync", "sync_mode", directory.FriendlySyncMode(e.Mode))
 			result, err := s.directoryReconciler.Reconcile(ctx, e.Mode)
 			if e.Mode == mdmsync.SyncModeFull && !s.deltaSyncEnabled {
 				// TODO(sshah): Stop joining sync warnigns and error
@@ -265,7 +265,7 @@ func (s *Service) runScheduled(ctx context.Context) error {
 				}
 
 				s.log.InfoContext(ctx, "Entra ID directory sync completed",
-					"sync_mode", e.Mode,
+					"sync_mode", directory.FriendlySyncMode(e.Mode),
 					"took", took.String(),
 					"imported_users", result.ImportedUsers,
 					"imported_groups", result.ImportedGroups,
@@ -287,7 +287,7 @@ func (s *Service) handleReconcilerError(ctx context.Context, err error, syncMode
 		s.log.ErrorContext(
 			ctx,
 			"Entra ID directory sync completed with partial success",
-			"sync_mode", syncMode,
+			"sync_mode", directory.FriendlySyncMode(syncMode),
 			"took", took.String(),
 			"imported_users", result.ImportedUsers,
 			"imported_groups", result.ImportedGroups,
@@ -296,7 +296,7 @@ func (s *Service) handleReconcilerError(ctx context.Context, err error, syncMode
 		return
 	}
 
-	s.log.ErrorContext(ctx, "Entra ID directory sync failed", "sync_mode", syncMode, "took", took.String(), "error", err)
+	s.log.ErrorContext(ctx, "Entra ID directory sync failed", "sync_mode", directory.FriendlySyncMode(syncMode), "took", took.String(), "error", err)
 }
 
 func (s *Service) emitStatus(ctx context.Context, err error, result directory.Result) {
@@ -360,7 +360,7 @@ func (s *Service) maybeResetSyncSchedule(ctx context.Context, err error, syncMod
 
 	switch {
 	case isErrDeltaSetup(err) || isErrDeltaAPI(err):
-		s.log.DebugContext(ctx, "Failed to complete Entra ID delta sync, next sync will be a full sync", "sync_mode", syncMode)
+		s.log.DebugContext(ctx, "Failed to complete Entra ID delta sync, next sync will be a full sync", "sync_mode", directory.FriendlySyncMode(syncMode))
 	case isThrottled:
 		// If this was a delta sync (highly unlikely) sync, and
 		// the next sync is also a delta sync, resetting to force full
@@ -375,19 +375,19 @@ func (s *Service) maybeResetSyncSchedule(ctx context.Context, err error, syncMod
 		if retryAfter > DefaultFullSyncInterval {
 			delayInterval = retryAfter
 		}
-		s.log.DebugContext(ctx, "Entra ID graph API requests are being throttled, next sync will be a full sync", "sync_mode", syncMode)
+		s.log.DebugContext(ctx, "Entra ID graph API requests are being throttled, next sync will be a full sync", "sync_mode", directory.FriendlySyncMode(syncMode))
 	case s.deltaSyncEnabled && syncMode == mdmsync.SyncModeFull:
 		// If delta sync is enabled but the full sync fails, delta
 		// sync can either entirely fail or proceed with incomplete
 		// snapshot of the Entra ID directory and bear unwanted results.
-		s.log.DebugContext(ctx, "Failed to complete Entra ID full sync, another full sync will be retried before delta sync", "sync_mode", syncMode)
+		s.log.DebugContext(ctx, "Failed to complete Entra ID full sync, another full sync will be retried before delta sync", "sync_mode", directory.FriendlySyncMode(syncMode))
 	default:
 		return
 	}
 
 	delayFn := func() time.Duration { return delayInterval }
 	if err := s.syncIntervals.Reset(delayFn); err != nil {
-		s.log.ErrorContext(ctx, "Failed to reset Entra ID sync schedule", "sync_mode", syncMode, "error", err)
+		s.log.ErrorContext(ctx, "Failed to reset Entra ID sync schedule", "sync_mode", directory.FriendlySyncMode(syncMode), "error", err)
 	}
 }
 

@@ -223,7 +223,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, syncMode mdmsync.SyncMode) (
 			// resilient to process duplicate items, continued reconciliation
 			// failure may result in a scenario where delta response becomes large
 			// (due to replayed items), stressing the delta sync processor.
-			r.logger.DebugContext(ctx, "Restoring Entra ID delta link on error", "sync_mode", syncMode)
+			r.logger.DebugContext(ctx, "Restoring Entra ID delta link on error", "sync_mode", FriendlySyncMode(syncMode))
 			restoreDeltaLinkFn()
 		}
 
@@ -281,7 +281,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, syncMode mdmsync.SyncMode) (
 	}
 	r.logger.DebugContext(ctx,
 		"Finished listing Entra ID groups and members",
-		"sync_mode", syncMode,
+		"sync_mode", FriendlySyncMode(syncMode),
 		"took", r.clock.Since(start).String(),
 	)
 	entraGroups := entraGroups{
@@ -298,7 +298,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, syncMode mdmsync.SyncMode) (
 
 	r.logger.DebugContext(ctx,
 		"Finished listing Entra ID users",
-		"sync_mode", syncMode,
+		"sync_mode", FriendlySyncMode(syncMode),
 		"took", r.clock.Since(start).String(),
 		"limit", r.graphClient.graphClientLimit,
 	)
@@ -309,7 +309,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, syncMode mdmsync.SyncMode) (
 		return result, trace.Wrap(err)
 	}
 	took = r.clock.Since(start)
-	r.logger.DebugContext(ctx, "Finished reconciling Entra ID and Teleport users", "sync_mode", syncMode, "took", took.String())
+	r.logger.DebugContext(ctx, "Finished reconciling Entra ID and Teleport users", "sync_mode", FriendlySyncMode(syncMode), "took", took.String())
 	r.metrics.reconciliationDuration.With(prometheus.Labels{
 		metricLabelSection: "reconcile_users",
 	}).Observe(took.Seconds())
@@ -329,7 +329,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, syncMode mdmsync.SyncMode) (
 		return result, trace.Wrap(err)
 	}
 	took = r.clock.Since(start)
-	r.logger.DebugContext(ctx, "Finished reconciling Entra ID groups and Teleport Access Lists", "sync_mode", syncMode, "took", took.String())
+	r.logger.DebugContext(ctx, "Finished reconciling Entra ID groups and Teleport Access Lists", "sync_mode", FriendlySyncMode(syncMode), "took", took.String())
 
 	r.metrics.reconciliationDuration.With(prometheus.Labels{
 		metricLabelSection: "reconcile_access_lists",
@@ -340,7 +340,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, syncMode mdmsync.SyncMode) (
 
 	if errDeltaSetup != nil {
 		// Returning error will force the next sync to be a full sync.
-		r.logger.ErrorContext(ctx, "Entra ID delta token setup failed, delta sync will be skipped and the next sync will be a full sync", "sync_mode", syncMode, "error", errDeltaSetup)
+		r.logger.ErrorContext(ctx, "Entra ID delta token setup failed, delta sync will be skipped and the next sync will be a full sync", "sync_mode", FriendlySyncMode(syncMode), "error", errDeltaSetup)
 		return result, trace.Wrap(errDeltaSetup)
 	}
 
@@ -379,7 +379,7 @@ func (r *Reconciler) getEntraGroupsAndMembers(
 	took := r.clock.Since(start)
 	r.logger.DebugContext(ctx,
 		"Finished listing Entra ID groups",
-		"sync_mode", syncMode,
+		"sync_mode", FriendlySyncMode(syncMode),
 		"took", took.String(),
 	)
 	r.metrics.reconciliationDuration.With(prometheus.Labels{
@@ -396,7 +396,7 @@ func (r *Reconciler) getEntraGroupsAndMembers(
 	took = r.clock.Since(start)
 	r.logger.DebugContext(ctx,
 		"Finished listing Entra ID group members",
-		"sync_mode", syncMode,
+		"sync_mode", FriendlySyncMode(syncMode),
 		"took", took.String(),
 	)
 	r.metrics.reconciliationDuration.With(prometheus.Labels{
