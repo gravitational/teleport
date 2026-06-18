@@ -1044,6 +1044,7 @@ func TestPluginEntraIDValidation(t *testing.T) {
 					DefaultOwners:     []string{"admin"},
 					SsoConnectorId:    "myconnector",
 					CredentialsSource: EntraIDCredentialsSource_ENTRAID_CREDENTIALS_SOURCE_OIDC,
+					SyncIntervals:     &PluginEntraIDSyncIntervals{},
 				},
 			},
 		}
@@ -1085,6 +1086,62 @@ func TestPluginEntraIDValidation(t *testing.T) {
 				s.EntraId.SyncSettings.SsoConnectorId = ""
 			},
 			assertErr: requireNamedBadParameterError("sync_settings.sso_connector_id"),
+		},
+		{
+			name: "delta sync interval greater than full",
+			mutateSettings: func(s *PluginSpecV1_EntraId) {
+				s.EntraId.SyncSettings.SyncIntervals.Delta = "4m"
+				s.EntraId.SyncSettings.SyncIntervals.Full = "2m"
+			},
+			assertErr: requireNamedBadParameterError("sync interval value should be less than"),
+		},
+		{
+			name: "negative delta sync interval",
+			mutateSettings: func(s *PluginSpecV1_EntraId) {
+				s.EntraId.SyncSettings.SyncIntervals.Delta = "-1m"
+				s.EntraId.SyncSettings.SyncIntervals.Full = "1h"
+			},
+			assertErr: requireNamedBadParameterError("sync_settings.sync_intervals.delta cannot be a negative value"),
+		},
+		{
+			name: "negative full sync interval",
+			mutateSettings: func(s *PluginSpecV1_EntraId) {
+				s.EntraId.SyncSettings.SyncIntervals.Delta = "1h"
+				s.EntraId.SyncSettings.SyncIntervals.Full = "-1m"
+			},
+			assertErr: requireNamedBadParameterError("sync_settings.sync_intervals.full cannot be a negative value"),
+		},
+		{
+			name: "zero interval values",
+			mutateSettings: func(s *PluginSpecV1_EntraId) {
+				s.EntraId.SyncSettings.SyncIntervals.Delta = "0"
+				s.EntraId.SyncSettings.SyncIntervals.Full = "0"
+			},
+			assertErr: require.NoError,
+		},
+		{
+			name: "empty interval values",
+			mutateSettings: func(s *PluginSpecV1_EntraId) {
+				s.EntraId.SyncSettings.SyncIntervals.Delta = ""
+				s.EntraId.SyncSettings.SyncIntervals.Full = ""
+			},
+			assertErr: require.NoError,
+		},
+		{
+			name: "delta config allowed when full is empty",
+			mutateSettings: func(s *PluginSpecV1_EntraId) {
+				s.EntraId.SyncSettings.SyncIntervals.Delta = "2m"
+				s.EntraId.SyncSettings.SyncIntervals.Full = ""
+			},
+			assertErr: require.NoError,
+		},
+		{
+			name: "delta config allowed when full is zero",
+			mutateSettings: func(s *PluginSpecV1_EntraId) {
+				s.EntraId.SyncSettings.SyncIntervals.Delta = "2m"
+				s.EntraId.SyncSettings.SyncIntervals.Full = "0"
+			},
+			assertErr: require.NoError,
 		},
 	}
 
