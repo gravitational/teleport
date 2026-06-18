@@ -17,14 +17,14 @@
 import SwiftUI
 
 struct LandingView: View {
-    var body: some View {
-        Text("Open the Camera app\nto scan a QR code in the Web UI.")
-            .multilineTextAlignment(.center)
-            .frame(maxWidth: .infinity)
-            .padding()
-    }
+	var body: some View {
+		Text("Open the Camera app\nto scan a QR code in the Web UI.")
+			.multilineTextAlignment(.center)
+			.frame(maxWidth: .infinity)
+			.padding()
+	}
 }
 
 #Preview("In ContentView") {
-    ContentView()
+	ContentView()
 }

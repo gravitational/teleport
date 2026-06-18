@@ -17,99 +17,101 @@
 import SwiftUI
 
 struct EnrollRequestStatusView: View {
-    let attempt: EnrollMobileDeviceViewModel.Attempt
-    let onDismiss: () -> Void
+	let attempt: EnrollMobileDeviceViewModel.Attempt
+	let onDismiss: () -> Void
 
-    var body: some View {
-        VStack(spacing: 24) {
-            Spacer()
-            Image(systemName: iconName)
-                .font(.system(size: 60))
-                .foregroundStyle(.primary)
-                .contentTransition(.symbolEffect(.replace))
-            VStack(spacing: 8) {
-                Text(title)
-                    .font(.title2)
-                    .fontWeight(.semibold)
-                    .contentTransition(.opacity)
-                Text(message)
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(.secondary)
-                    .contentTransition(.opacity)
-            }
-            Spacer()
-            switch attempt {
-            case .success:
-                Button {
-                    // TODO: Navigate to the cluster.
-                } label: {
-                    HStack {
-                        Text("Go to Cluster")
-                        Image(systemName: "arrow.right")
-                    }
-                    .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-            case .failure:
-                Button("Dismiss", action: onDismiss)
-                    .buttonStyle(.bordered)
-                    .controlSize(.large)
-                    .frame(maxWidth: .infinity)
-            case .idle, .loading:
-                EmptyView()
-            }
-        }
-        .padding()
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .animation(.default, value: iconName)
-    }
+	var body: some View {
+		VStack(spacing: 24) {
+			Spacer()
+			Image(systemName: iconName)
+				.font(.system(size: 60))
+				.foregroundStyle(.primary)
+				.contentTransition(.symbolEffect(.replace))
+			VStack(spacing: 8) {
+				Text(title)
+					.font(.title2)
+					.fontWeight(.semibold)
+					.contentTransition(.opacity)
+				Text(message)
+					.multilineTextAlignment(.center)
+					.foregroundStyle(.secondary)
+					.contentTransition(.opacity)
+			}
+			Spacer()
+			switch attempt {
+				case .success:
+					Button {
+						// Navigate to the cluster
+					} label: {
+						HStack {
+							Text("Go to Cluster")
+							Image(systemName: "arrow.right")
+						}
+						.frame(maxWidth: .infinity)
+					}
+					.buttonStyle(.borderedProminent)
+					.controlSize(.large)
+				case .failure:
+					Button("Dismiss", action: onDismiss)
+						.buttonStyle(.bordered)
+						.controlSize(.large)
+						.frame(maxWidth: .infinity)
+				case .idle, .loading:
+					EmptyView()
+			}
+		}
+		.padding()
+		.frame(maxWidth: .infinity, maxHeight: .infinity)
+		.animation(.default, value: iconName)
+	}
 
-    private var iconName: String {
-        switch attempt {
-        case .idle, .loading: "clock"
-        case .success: "checkmark.circle"
-        case .failure: "exclamationmark.triangle"
-        }
-    }
+	private var iconName: String {
+		switch attempt {
+			case .idle, .loading: "clock"
+			case .success: "checkmark.circle"
+			case .failure: "exclamationmark.triangle"
+		}
+	}
 
-    private var title: String {
-        switch attempt {
-        case .idle, .loading: "Request Sent"
-        case .success: "Request Approved"
-        case .failure: "Request Failed"
-        }
-    }
+	private var title: String {
+		switch attempt {
+			case .idle, .loading: "Request Sent"
+			case .success: "Request Approved"
+			case .failure: "Request Failed"
+		}
+	}
 
-    private var message: String {
-        switch attempt {
-        case .idle, .loading:
-            "Your enrollment request has been sent. Approve it from the Web UI to continue."
-        case .success:
-            "This device is now trusted and can access protected resources."
-        case .failure(let error):
-            error.localizedDescription
-        }
-    }
+	private var message: String {
+		switch attempt {
+			case .idle, .loading:
+				"Your enrollment request has been sent. Approve it from the Web UI to continue."
+			case .success:
+				"This device is now trusted and can access protected resources."
+			case let .failure(error):
+				error.localizedDescription
+		}
+	}
 }
 
 #Preview("Request Sent") {
-    EnrollRequestStatusView(attempt: .loading, onDismiss: {})
+	EnrollRequestStatusView(attempt: .loading, onDismiss: {})
 }
 
 #Preview("Request Approved") {
-    EnrollRequestStatusView(
-        attempt: .success(token: "demo-placeholder-token"),
-        onDismiss: {}
-    )
+	EnrollRequestStatusView(
+		attempt: .success(token: "demo-placeholder-token"),
+		onDismiss: {},
+	)
 }
 
 #Preview("Request Failed") {
-    struct DemoError: LocalizedError {
-        var errorDescription: String? { "Network unreachable" }
-    }
-    return EnrollRequestStatusView(
-        attempt: .failure(DemoError()),
-        onDismiss: {}
-    )
+	struct DemoError: LocalizedError {
+		var errorDescription: String? {
+			"Network unreachable"
+		}
+	}
+	return EnrollRequestStatusView(
+		attempt: .failure(DemoError()),
+		onDismiss: {},
+	)
 }
