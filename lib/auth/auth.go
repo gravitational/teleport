@@ -95,6 +95,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
 	"github.com/gravitational/teleport/lib/auth/mfatypes"
+	"github.com/gravitational/teleport/lib/auth/moderation"
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/auth/recordingmetadata"
@@ -1542,6 +1543,11 @@ type Server struct {
 	// sigstorePolicyEvaluator checks workload signatures and attestations
 	// against Sigstore policies.
 	sigstorePolicyEvaluator workloadidentityv1.SigstorePolicyEvaluator
+
+	// commandEvaluator evaluates commands against an AI moderation policy. It's
+	// registered by the enterprise auth plugin; in OSS it is nil and callers
+	// fail closed.
+	commandEvaluator moderation.CommandEvaluator
 
 	// logger is the logger used by the auth server.
 	logger *slog.Logger
@@ -9049,6 +9055,26 @@ func (s *Server) GetSigstorePolicyEvaluator() workloadidentityv1.SigstorePolicyE
 		return e
 	}
 	return workloadidentityv1.OSSSigstorePolicyEvaluator{}
+}
+
+// SetCommandEvaluator sets the CommandEvaluator used for AI command moderation.
+// It's called from the enterprise auth plugin.
+func (s *Server) SetCommandEvaluator(e moderation.CommandEvaluator) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	s.commandEvaluator = e
+}
+
+// GetCommandEvaluator returns the configured CommandEvaluator used for AI
+// command moderation. In OSS no evaluator is registered and nil is returned, in
+// which case callers must fail closed (AI command moderation is an enterprise
+// only feature).
+func (s *Server) GetCommandEvaluator() moderation.CommandEvaluator {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+
+	return s.commandEvaluator
 }
 
 // TODO(tigrato): remove Download* methods once e no longer references them.
