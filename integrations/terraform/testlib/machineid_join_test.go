@@ -553,7 +553,7 @@ func TestTerraformJoinScoped(t *testing.T) {
 			kubernetes_token_path = %q
 			scoped = true
 		}
-	`, tt.addr, testTokenName, types.JoinMethodKubernetes, tokenPath)
+	`, tt.addr, scopes.QualifiedName{Scope: testRootScope, Name: testTokenName}.String(), types.JoinMethodKubernetes, tokenPath)
 
 			terraformProvider := provider.New()
 			terraformProviders := make(map[string]func() (tfprotov6.ProviderServer, error))

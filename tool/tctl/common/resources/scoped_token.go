@@ -119,12 +119,13 @@ func getScopedToken(ctx context.Context, client *authclient.Client, subKind stri
 	}
 
 	if sqn != nil {
-		token, err := client.GetScopedToken(ctx, sqn.Name, opts.WithSecrets)
+		token, err := client.GetScopedToken(ctx, joiningv1.GetScopedTokenRequest_builder{
+			Name:       sqn.Name,
+			Scope:      sqn.Scope,
+			WithSecret: opts.WithSecrets,
+		}.Build())
 		if err != nil {
 			return nil, trace.Wrap(err)
-		}
-		if token.GetScope() != sqn.Scope {
-			return nil, scopeMismatchNotFound(types.KindScopedToken, *sqn, token.GetScope())
 		}
 		if !opts.WithSecrets && token.GetStatus().GetSecret() != "" {
 			token.GetStatus().SetSecret("******")
@@ -172,7 +173,10 @@ func deleteScopedToken(ctx context.Context, client *authclient.Client, subKind s
 	}
 
 	// Fetch first to verify scope before deleting.
-	token, err := client.GetScopedToken(ctx, sqn.Name, false)
+	token, err := client.GetScopedToken(ctx, joiningv1.GetScopedTokenRequest_builder{
+		Name:  sqn.Name,
+		Scope: sqn.Scope,
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -180,7 +184,10 @@ func deleteScopedToken(ctx context.Context, client *authclient.Client, subKind s
 		return scopeMismatchNotFound(types.KindScopedToken, sqn, token.GetScope())
 	}
 
-	if err := client.DeleteScopedToken(ctx, sqn.Name); err != nil {
+	if err := client.DeleteScopedToken(ctx, joiningv1.DeleteScopedTokenRequest_builder{
+		Name:  sqn.Name,
+		Scope: sqn.Scope,
+	}.Build()); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Printf(
@@ -193,7 +200,6 @@ func deleteScopedToken(ctx context.Context, client *authclient.Client, subKind s
 
 func ScopedTokenTextHelper(tokens []*joiningv1.ScopedToken, withSecrets bool) *bytes.Buffer {
 	headers := []string{
-		"ID",
 		"Token",
 		"Type",
 		"Assigns Scope",
@@ -212,14 +218,13 @@ func ScopedTokenTextHelper(tokens []*joiningv1.ScopedToken, withSecrets bool) *b
 			expiry = fmt.Sprintf("%s (%s)", exptime, expdur.String())
 		}
 
-		token := t.GetMetadata().GetName() + ":*****"
+		token := t.GetMetadata().GetName()
 		if withSecrets {
 			token = joining.EncodeScopedToken(t.GetMetadata().GetName(), t.GetStatus().GetSecret())
 		}
 
 		row := []string{
-			scopes.QualifiedName{Scope: t.GetScope(), Name: t.GetMetadata().GetName()}.String(),
-			token,
+			scopes.QualifiedName{Scope: t.GetScope(), Name: token}.String(),
 			strings.Join(t.GetSpec().GetRoles(), ","),
 			t.GetSpec().GetAssignedScope(),
 			PrintMetadataLabels(t.GetMetadata().GetLabels()),

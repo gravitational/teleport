@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/internal/messages"
 	"github.com/gravitational/teleport/lib/join/provision"
 	"github.com/gravitational/teleport/lib/jwt"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	libsshutils "github.com/gravitational/teleport/lib/sshutils"
@@ -539,7 +540,7 @@ func patchToken(ctx context.Context, params *JoinParams, mutators ...boundKeypai
 
 		return patched, nil
 	case *joining.Token:
-		patched, err := params.ScopedTokenService.PatchScopedToken(ctx, token.GetName(), func(st *joiningv1.ScopedToken) (*joiningv1.ScopedToken, error) {
+		patched, err := params.ScopedTokenService.PatchScopedToken(ctx, scopes.QualifiedName{Scope: token.GetScope(), Name: token.GetName()}, func(st *joiningv1.ScopedToken) (*joiningv1.ScopedToken, error) {
 			if st.GetStatus().GetUsage().GetBoundKeypair() == nil {
 				return nil, trace.BadParameter("scoped bound keypair tokens must have non-nil status.usage.bound_keypair")
 			}
@@ -719,7 +720,7 @@ func tryLockTokenInvalidJoinState(
 	// Create a lock against this token.
 	lock, err := types.NewLock(uuid.New().String(), types.LockSpecV2{
 		Target: types.LockTarget{
-			JoinToken: token.GetName(),
+			JoinToken: scopes.QualifiedName{Name: token.GetName(), Scope: token.GetScope()}.String(),
 		},
 		Message:   message,
 		CreatedAt: params.Clock.Now(),
@@ -813,7 +814,9 @@ func verifyLocksForBoundKeypairToken(ctx context.Context, params *JoinParams, to
 
 	return trace.Wrap(params.AuthService.CheckLockInForce(
 		readOnlyAuthPref.GetLockingMode(),
-		[]types.LockTarget{{JoinToken: token.GetName()}},
+		[]types.LockTarget{
+			{JoinToken: scopes.QualifiedName{Scope: token.GetScope(), Name: token.GetName()}.String()},
+		},
 	))
 }
 
@@ -913,7 +916,7 @@ type AuthService interface {
 type ScopedTokenService interface {
 	PatchScopedToken(
 		ctx context.Context,
-		tokenName string,
+		tokenName scopes.QualifiedName,
 		updateFn func(*joiningv1.ScopedToken) (*joiningv1.ScopedToken, error),
 	) (*joiningv1.ScopedToken, error)
 }

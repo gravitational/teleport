@@ -1494,7 +1494,7 @@ func TestRegisterBotWithScopedKubernetesToken(t *testing.T) {
 	require.NoError(t, err)
 
 	result, err := joinclient.Join(ctx, joinclient.JoinParams{
-		Token:      scopedToken.GetMetadata().GetName(),
+		Token:      scopes.QualifiedName{Scope: "/test", Name: scopedToken.GetMetadata().GetName()}.String(),
 		JoinMethod: types.JoinMethodKubernetes,
 		ID: state.IdentityID{
 			Role: types.RoleBot,

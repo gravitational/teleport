@@ -20,7 +20,6 @@ import (
 	"cmp"
 	"context"
 	"crypto/sha256"
-	"errors"
 	"slices"
 	"time"
 
@@ -47,21 +46,21 @@ const (
 
 // ScopedTokenService exposes backend functionality for working with scoped token resources.
 type ScopedTokenService struct {
-	svc            *generic.ServiceWrapper[*joiningv1.ScopedToken]
-	backend        backend.Backend
+	svc            *generic.ScopeAwareServiceWrapper[*joiningv1.ScopedToken]
 	scopesFeatures scopes.Features
 }
 
 // NewScopedTokenService creates a new ScopedTokenService.
 func NewScopedTokenService(b backend.Backend, scopesFeatures scopes.Features) (*ScopedTokenService, error) {
 	const pageLimit = 100
-	svc, err := generic.NewServiceWrapper(generic.ServiceConfig[*joiningv1.ScopedToken]{
-		Backend:       b,
-		PageLimit:     pageLimit,
-		ResourceKind:  types.KindScopedToken,
-		BackendPrefix: backend.NewKey(scopedTokenPrefix),
-		MarshalFunc:   services.MarshalProtoResource[*joiningv1.ScopedToken],
-		UnmarshalFunc: services.UnmarshalProtoResource[*joiningv1.ScopedToken],
+	svc, err := generic.NewScopeAwareServiceWrapper(generic.ScopeAwareServiceWrapperConfig[*joiningv1.ScopedToken]{
+		ScopedOnly:          true,
+		Backend:             b,
+		PageLimit:           pageLimit,
+		ResourceKind:        types.KindScopedToken,
+		ScopedBackendPrefix: backend.NewKey(scopedTokenPrefix),
+		MarshalFunc:         services.MarshalProtoResource[*joiningv1.ScopedToken],
+		UnmarshalFunc:       services.UnmarshalProtoResource[*joiningv1.ScopedToken],
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -69,30 +68,7 @@ func NewScopedTokenService(b backend.Backend, scopesFeatures scopes.Features) (*
 
 	return &ScopedTokenService{
 		svc:            svc,
-		backend:        b,
 		scopesFeatures: scopesFeatures,
-	}, nil
-}
-
-func itemFromScopedToken(token *joiningv1.ScopedToken) (backend.Item, error) {
-	key := backend.NewKey(scopedTokenPrefix, token.GetMetadata().GetName())
-	value, err := services.MarshalProtoResource(token)
-	if err != nil {
-		return backend.Item{}, trace.Wrap(err)
-	}
-
-	// need to make sure expires is the zero value of [time.Time] unless an
-	// expiry is explicitly set, otherwise the backend item will be created
-	// in an expired state
-	var expires time.Time
-	if ex := token.GetMetadata().GetExpires(); ex != nil {
-		expires = ex.AsTime()
-	}
-	return backend.Item{
-		Key:      key,
-		Value:    value,
-		Expires:  expires,
-		Revision: token.GetMetadata().GetRevision(),
 	}, nil
 }
 
@@ -112,35 +88,11 @@ func (s *ScopedTokenService) CreateScopedToken(ctx context.Context, req *joining
 		return nil, trace.Wrap(err)
 	}
 
-	item, err := itemFromScopedToken(token)
+	created, err := s.svc.CreateResource(ctx, token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	revision, err := s.backend.AtomicWrite(ctx, []backend.ConditionalAction{
-		{
-			Key:       backend.NewKey(scopedTokenPrefix, token.GetMetadata().GetName()),
-			Condition: backend.NotExists(),
-			Action:    backend.Put(item),
-		},
-		{
-			Key:       backend.NewKey(tokensPrefix, token.GetMetadata().GetName()),
-			Condition: backend.NotExists(),
-			// the second action is a no-op because we only need to
-			// execute a single action to create the scoped token,
-			// but both conditions must be met
-			Action: backend.Nop(),
-		},
-	})
-	if err != nil {
-		if errors.Is(err, backend.ErrConditionFailed) {
-			return nil, trace.AlreadyExists("scoped token could not be created due to name conflict with an existing scoped or unscoped token, please try again with a different name or delete the conflicting token")
-		}
-		return nil, trace.Wrap(err)
-	}
-
-	created := proto.CloneOf(req.GetToken())
-	created.GetMetadata().SetRevision(revision)
 	return joiningv1.CreateScopedTokenResponse_builder{
 		Token: created,
 	}.Build(), nil
@@ -148,7 +100,12 @@ func (s *ScopedTokenService) CreateScopedToken(ctx context.Context, req *joining
 
 // GetScopedToken finds and returns a scoped token by name.
 func (s *ScopedTokenService) GetScopedToken(ctx context.Context, req *joiningv1.GetScopedTokenRequest) (*joiningv1.GetScopedTokenResponse, error) {
-	token, err := s.svc.GetResource(ctx, req.GetName())
+	qn := scopes.QualifiedName{Scope: req.GetScope(), Name: req.GetName()}
+	if err := qn.WeakValidate(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	token, err := s.svc.GetResource(ctx, qn)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -304,12 +261,21 @@ func (s *ScopedTokenService) ListScopedTokens(ctx context.Context, req *joiningv
 
 // DeleteScopedToken deletes a scoped token by name.
 func (s *ScopedTokenService) DeleteScopedToken(ctx context.Context, req *joiningv1.DeleteScopedTokenRequest) (*joiningv1.DeleteScopedTokenResponse, error) {
-	return nil, trace.Wrap(s.svc.DeleteResource(ctx, req.GetName()))
+	qn := scopes.QualifiedName{Scope: req.GetScope(), Name: req.GetName()}
+	if err := qn.WeakValidate(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return nil, trace.Wrap(s.svc.DeleteResource(ctx, qn))
 }
 
 // UpsertScopedToken updates or creates a scoped token. If updating an existing token, the scope and status must not be modified.
 func (s *ScopedTokenService) UpsertScopedToken(ctx context.Context, req *joiningv1.UpsertScopedTokenRequest) (*joiningv1.UpsertScopedTokenResponse, error) {
 	tokenUpsert := req.GetToken()
+
+	qn := scopes.QualifiedName{Scope: tokenUpsert.GetScope(), Name: tokenUpsert.GetMetadata().GetName()}
+	if err := qn.StrongValidate(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// We handle 4 retry attempts to try and handle some concurrency. Handling more retries than this
 	// indicates that something may be going wrong.
@@ -322,7 +288,7 @@ func (s *ScopedTokenService) UpsertScopedToken(ctx context.Context, req *joining
 			}
 		}
 
-		existingToken, err := s.svc.GetResource(ctx, tokenUpsert.GetMetadata().GetName())
+		existingToken, err := s.svc.GetResource(ctx, qn)
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				return nil, trace.Wrap(err)
@@ -395,7 +361,12 @@ func (s *ScopedTokenService) UpsertScopedToken(ctx context.Context, req *joining
 func (s *ScopedTokenService) UpdateScopedToken(ctx context.Context, req *joiningv1.UpdateScopedTokenRequest) (*joiningv1.UpdateScopedTokenResponse, error) {
 	tokenUpdate := req.GetToken()
 
-	existingToken, err := s.svc.GetResource(ctx, tokenUpdate.GetMetadata().GetName())
+	qn := scopes.QualifiedName{Scope: tokenUpdate.GetScope(), Name: tokenUpdate.GetMetadata().GetName()}
+	if err := qn.StrongValidate(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	existingToken, err := s.svc.GetResource(ctx, qn)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -426,12 +397,16 @@ func (s *ScopedTokenService) UpdateScopedToken(ctx context.Context, req *joining
 // update fails due to a revision comparison failure.
 func (s *ScopedTokenService) PatchScopedToken(
 	ctx context.Context,
-	tokenName string,
+	tokenName scopes.QualifiedName,
 	updateFn func(*joiningv1.ScopedToken) (*joiningv1.ScopedToken, error),
 ) (*joiningv1.ScopedToken, error) {
 	const iterLimit = 3
 
-	for i := 0; i < iterLimit; i++ {
+	if err := tokenName.StrongValidate(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	for range iterLimit {
 		existing, err := s.svc.GetResource(ctx, tokenName)
 		if err != nil {
 			return nil, trace.Wrap(err)

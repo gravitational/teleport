@@ -210,7 +210,7 @@ func (c *TerraformCommand) RunEnvCommand(ctx context.Context, client *authclient
 		}()
 
 		onboard = onboarding.Config{
-			TokenValue: token.GetMetadata().GetName(),
+			TokenValue: scopes.QualifiedName{Scope: token.GetScope(), Name: token.GetMetadata().GetName()}.String(),
 			JoinMethod: types.JoinMethodBoundKeypair,
 			BoundKeypair: onboarding.BoundKeypairOnboardingConfig{
 				RegistrationSecretValue: token.GetStatus().GetUsage().GetBoundKeypair().GetRegistrationSecret(),
