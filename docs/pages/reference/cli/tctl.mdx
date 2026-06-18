@@ -588,6 +588,24 @@ Flags:
 |`--out`|*no default*|If set, writes exported revocation lists to files with the given path prefix|
 |`--type`|*no default* (one of: `host`, `db`, `db_client`, `user`)|Certificate authority type.|
 
+## tctl auth delete-override
+
+Delete a single certificate override from a CA override resource
+
+Usage:
+
+```code
+$ tctl auth delete-override --type=TYPE --public-key=PUBLIC-KEY [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--[no-]force`|`false`|If true attempts to force deletion. May be used to delete live overrides.|
+|`--public-key`|*no default*|Public key hash of the certificate override to be targeted|
+|`--type`|*no default*|CA type (db-client, windows)|
+
 ## tctl auth export
 
 Export public cluster CA certificates to stdout.
