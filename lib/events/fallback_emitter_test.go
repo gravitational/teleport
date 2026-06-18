@@ -139,6 +139,50 @@ func TestFallbackEmitter_QueueDisabled(t *testing.T) {
 	require.Equal(t, 1, primary.count())
 }
 
+func TestFallbackEmitter_ShutdownDrains(t *testing.T) {
+	t.Parallel()
+	primary := &fakePrimary{}
+	primary.setFail(true)
+
+	e, err := events.NewFallbackEmitter(events.FallbackEmitterConfig{
+		Primary:            primary,
+		DataDir:            t.TempDir(),
+		EnableAuditQueue:   true,
+		AuditQueueCfg:      auditqueue.Config{MaxAttempts: 1_000_000},
+		AuditQueueBackends: []auditqueue.Kind{auditqueue.KindSQLiteMemory},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = e.Close() })
+
+	const n = 5
+	for range n {
+		require.NoError(t, e.EmitAuditEvent(t.Context(), testEvent()))
+	}
+	require.Equal(t, 0, primary.count(), "events should be queued while the backend is down")
+
+	primary.setFail(false)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	t.Cleanup(cancel)
+	require.NoError(t, e.Shutdown(ctx))
+	require.Equal(t, n, primary.count(), "Shutdown should flush all queued events to the primary")
+}
+
+func TestFallbackEmitter_CloseDoesNotDrain(t *testing.T) {
+	t.Parallel()
+	primary := &fakePrimary{}
+	primary.setFail(true)
+	e := newFallbackTestEmitter(t, primary, true)
+
+	require.NoError(t, e.EmitAuditEvent(t.Context(), testEvent()))
+	require.Equal(t, 0, primary.count())
+
+	require.NoError(t, e.Close())
+	primary.setFail(false)
+	require.Never(t, func() bool {
+		return primary.count() > 0
+	}, time.Second, 50*time.Millisecond, "Close must not drain queued events")
+}
+
 type authBoundary struct {
 	fallback apievents.Emitter
 }

@@ -107,6 +107,10 @@ type writeRequest struct {
 	resp    chan error
 }
 
+type sweepRequest struct {
+	done chan struct{}
+}
+
 type sqliteQueue struct {
 	db                      *sql.DB
 	path                    string
@@ -117,6 +121,9 @@ type sqliteQueue struct {
 	cancel                  context.CancelFunc
 	wg                      sync.WaitGroup
 	closeOnce               sync.Once
+	drainOnce               sync.Once
+	drainCh                 chan struct{}
+	sweepCh                 chan sweepRequest
 	parentDir               string
 	selfStat                os.FileInfo
 	unlock                  func() error
@@ -175,6 +182,8 @@ func newBaseQueue(db *sql.DB, cfg Config) (*sqliteQueue, error) {
 	q := &sqliteQueue{
 		db:                      db,
 		toBeWritten:             make(chan writeRequest),
+		drainCh:                 make(chan struct{}),
+		sweepCh:                 make(chan sweepRequest),
 		maxBatch:                defaultMaxBatch,
 		ctx:                     ctx,
 		cancel:                  cancel,
@@ -394,6 +403,64 @@ func (q *sqliteQueue) runPollLoop(ctx context.Context, handler Handler) {
 	}
 }
 
+// Drain exits when the audit log queue is empty. It allows one to await the
+// draining of the queue on shutdown. Run is executed in the background and will
+// continue to drain the queue.
+func (q *sqliteQueue) Drain(ctx context.Context) error {
+	q.drainOnce.Do(func() { close(q.drainCh) })
+
+	// Trigger and wait for a dead letter sweep.
+	req := sweepRequest{done: make(chan struct{})}
+	select {
+	case q.sweepCh <- req:
+	case <-ctx.Done():
+		return trace.Wrap(ctx.Err())
+	case <-q.ctx.Done():
+		return trace.Wrap(q.ctx.Err())
+	}
+	select {
+	case <-req.done:
+	case <-ctx.Done():
+		return trace.Wrap(ctx.Err())
+	case <-q.ctx.Done():
+		return trace.Wrap(q.ctx.Err())
+	}
+
+	ticker := time.NewTicker(pollInterval)
+	defer ticker.Stop()
+	var lastErr error
+	for {
+		isEmpty, err := isMainQueueEmpty(q.db)
+		lastErr = err
+		if err != nil {
+			slog.ErrorContext(ctx,
+				"Failed to check whether audit queue is empty while draining.",
+				"error", err,
+			)
+		} else if isEmpty {
+			return nil
+		}
+
+		select {
+		case <-ctx.Done():
+			return trace.NewAggregate(ctx.Err(), lastErr)
+		case <-q.ctx.Done():
+			return trace.NewAggregate(q.ctx.Err(), lastErr)
+		case <-ticker.C:
+		}
+	}
+}
+
+const isMainQueueEmptyQuery = `SELECT NOT EXISTS(SELECT 1 FROM audit_queue)`
+
+func isMainQueueEmpty(db *sql.DB) (bool, error) {
+	var isEmpty bool
+	if err := db.QueryRow(isMainQueueEmptyQuery).Scan(&isEmpty); err != nil {
+		return false, trace.Wrap(err)
+	}
+	return isEmpty, nil
+}
+
 func (q *sqliteQueue) handleDeliveryFailures(ctx context.Context, items []Item, successfullyDelivered []Item) {
 	failed := itemsNotIn(items, successfullyDelivered)
 	if len(failed) == 0 {
@@ -519,14 +586,23 @@ func (q *sqliteQueue) deadLetterSweepLoop(ctx context.Context, handler Handler) 
 			return
 		case <-q.ctx.Done():
 			return
+		case req := <-q.sweepCh:
+			// Trigger a sweep on-demand.
+			q.runSweeps(ctx, handler)
+			close(req.done)
 		case <-timer.C:
-			q.sweepDeadLetter(ctx, handler)
-			q.expireDeadLetter()
-			q.recoverCorruptEvents()
-			q.expireCorruptEvents()
+			// Trigger a sweep on a timer.
+			q.runSweeps(ctx, handler)
 			timer.Reset(q.deadLetterSweepInterval)
 		}
 	}
+}
+
+func (q *sqliteQueue) runSweeps(ctx context.Context, handler Handler) {
+	q.sweepDeadLetter(ctx, handler)
+	q.expireDeadLetter()
+	q.recoverCorruptEvents()
+	q.expireCorruptEvents()
 }
 
 func (q *sqliteQueue) sweepDeadLetter(ctx context.Context, handler Handler) {
