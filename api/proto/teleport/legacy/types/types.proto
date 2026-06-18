@@ -4354,6 +4354,40 @@ message SessionRequirePolicy {
   // OnLeave is the behaviour that's used when the policy is no longer fulfilled
   // for a live session.
   string OnLeave = 6 [(gogoproto.jsontag) = "on_leave"];
+
+  // CommandApproval, when set, gates each command typed in an interactive
+  // session on an approval decision before it runs on the host.
+  CommandApproval CommandApproval = 7 [(gogoproto.jsontag) = "command_approval,omitempty"];
+}
+
+// CommandApproval configures per-command approval for a moderated session.
+message CommandApproval {
+  // Enabled turns on per-command approval.
+  bool Enabled = 1 [(gogoproto.jsontag) = "enabled"];
+
+  // Approver selects who approves: "human" or "ai".
+  string Approver = 2 [(gogoproto.jsontag) = "approver,omitempty"];
+
+  // Timeout is the fail-closed deadline for a decision (default 60s).
+  int64 Timeout = 3 [
+    (gogoproto.jsontag) = "timeout,omitempty",
+    (gogoproto.casttype) = "Duration"
+  ];
+
+  // OnFailure is the action when no decision is obtained. v1 is locked to "deny".
+  string OnFailure = 4 [(gogoproto.jsontag) = "on_failure,omitempty"];
+
+  // AI configures the autonomous AI approver (required when Approver == "ai").
+  CommandApprovalAI AI = 5 [(gogoproto.jsontag) = "ai,omitempty"];
+}
+
+// CommandApprovalAI configures the AI command approver.
+message CommandApprovalAI {
+  // Policy is the natural-language policy the model judges each command against.
+  string Policy = 1 [(gogoproto.jsontag) = "policy,omitempty"];
+
+  // Model is the name of an existing InferenceModel resource to use.
+  string Model = 2 [(gogoproto.jsontag) = "model,omitempty"];
 }
 
 // SessionJoinPolicy defines a policy that allows a user to join sessions.

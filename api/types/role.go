@@ -1589,7 +1589,125 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 		}
 	}
 
+	for i := range r.Spec.Allow.RequireSessionJoin {
+		if err := r.Spec.Allow.RequireSessionJoin[i].CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err, "validating spec.allow.require_session_join[%d]", i)
+		}
+	}
+
 	return nil
+}
+
+const (
+	// CommandApproverHuman selects a human reviewer as the per-command
+	// approver in a SessionRequirePolicy's command_approval block.
+	CommandApproverHuman = "human"
+	// CommandApproverAI selects an autonomous AI reviewer as the per-command
+	// approver in a SessionRequirePolicy's command_approval block.
+	CommandApproverAI = "ai"
+
+	// CommandApprovalOnFailureDeny is the only supported on_failure action in
+	// v1: when no decision is obtained, the command is denied (fail-closed).
+	CommandApprovalOnFailureDeny = "deny"
+
+	// DefaultCommandApprovalTimeout is the default fail-closed deadline applied
+	// to a command_approval block when no timeout is configured.
+	DefaultCommandApprovalTimeout = 60 * time.Second
+)
+
+// CheckAndSetDefaults checks validity of all parameters and sets defaults for
+// the require-session-join policy, including the optional command_approval
+// block. It is backward compatible: a policy without command_approval is left
+// untouched.
+//
+// By design this method validates ONLY the command_approval sub-block. The
+// pre-existing SessionRequirePolicy fields (Filter, Modes, Count, Kinds) are
+// intentionally left unvalidated here: roles created before this method existed
+// were stored without ever passing through such checks, so adding validation of
+// those fields now would risk rejecting previously-accepted stored roles on
+// upgrade. Do not add validation of those fields here without a migration plan.
+func (p *SessionRequirePolicy) CheckAndSetDefaults() error {
+	if p == nil {
+		return nil
+	}
+	if err := p.CommandApproval.checkAndSetDefaults(p.Kinds, p.Modes); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// checkAndSetDefaults validates and defaults the per-command approval
+// configuration. A nil or disabled block is a no-op so that existing roles
+// behave exactly as before. The parent policy's kinds and modes are passed in
+// because command_approval validation depends on them (SSH-only enforcement and
+// the requirement that a human approver have a moderator participant mode).
+func (c *CommandApproval) checkAndSetDefaults(kinds, modes []string) error {
+	if c == nil || !c.Enabled {
+		return nil
+	}
+
+	// An empty Kinds implies SSH (the default session kind), so the loop simply
+	// allows it: there is nothing to reject when no kinds are declared.
+	// v1 only enforces per-command approval for SSH sessions. Reject any other
+	// declared session kind so operators don't assume coverage they don't have.
+	for _, kind := range kinds {
+		if kind != string(SSHSessionKind) {
+			return trace.BadParameter("command_approval for session kind %q is not yet enforced (only %q is supported)", kind, SSHSessionKind)
+		}
+	}
+
+	switch c.Approver {
+	case CommandApproverHuman:
+		// A human approver can only act through a moderator participant, so the
+		// parent policy must permit the moderator mode. Without it the policy is
+		// unsatisfiable: no participant could ever approve a command.
+		if !slices.Contains(modes, string(SessionModeratorMode)) {
+			return trace.BadParameter("command_approval with approver %q requires the policy's modes to include %q", CommandApproverHuman, SessionModeratorMode)
+		}
+	case CommandApproverAI:
+		if c.AI == nil {
+			return trace.BadParameter("command_approval.ai must be set when approver is %q", CommandApproverAI)
+		}
+		if c.AI.Policy == "" {
+			return trace.BadParameter("command_approval.ai.policy must be set when approver is %q", CommandApproverAI)
+		}
+		if c.AI.Model == "" {
+			return trace.BadParameter("command_approval.ai.model must be set when approver is %q", CommandApproverAI)
+		}
+	case "":
+		return trace.BadParameter("command_approval.approver must be set (one of %q or %q) when command_approval is enabled", CommandApproverHuman, CommandApproverAI)
+	default:
+		return trace.BadParameter("command_approval.approver %q is invalid, expected one of %q or %q", c.Approver, CommandApproverHuman, CommandApproverAI)
+	}
+
+	switch c.OnFailure {
+	case "":
+		c.OnFailure = CommandApprovalOnFailureDeny
+	case CommandApprovalOnFailureDeny:
+		// Allowed.
+	default:
+		return trace.BadParameter("command_approval.on_failure %q is invalid, only %q is supported", c.OnFailure, CommandApprovalOnFailureDeny)
+	}
+
+	// A zero timeout means "unset" and gets the default. A negative timeout is a
+	// typo rather than a default request, so reject it.
+	switch {
+	case c.Timeout < 0:
+		return trace.BadParameter("command_approval.timeout must not be negative, got %v", c.Timeout.Duration())
+	case c.Timeout == 0:
+		c.Timeout = Duration(DefaultCommandApprovalTimeout)
+	}
+
+	return nil
+}
+
+// EffectiveTimeout returns the fail-closed decision deadline for the command
+// approval block, falling back to DefaultCommandApprovalTimeout when unset.
+func (c *CommandApproval) EffectiveTimeout() time.Duration {
+	if c == nil || c.Timeout <= 0 {
+		return DefaultCommandApprovalTimeout
+	}
+	return c.Timeout.Duration()
 }
 
 func checkAndSetRoleConditionNamespaces(namespaces *[]string) error {

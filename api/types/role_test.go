@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -27,6 +28,340 @@ import (
 
 	"github.com/gravitational/teleport/api/types/wrappers"
 )
+
+func TestCommandApprovalCheckAndSetDefaults(t *testing.T) {
+	makeRole := func(p *SessionRequirePolicy) *RoleV6 {
+		return &RoleV6{
+			Metadata: Metadata{Name: "test"},
+			Version:  V7,
+			Spec: RoleSpecV6{
+				Allow: RoleConditions{
+					RequireSessionJoin: []*SessionRequirePolicy{p},
+				},
+			},
+		}
+	}
+
+	tests := []struct {
+		name      string
+		policy    *SessionRequirePolicy
+		assertErr require.ErrorAssertionFunc
+		// verify runs additional assertions on the policy after a successful
+		// CheckAndSetDefaults (defaults applied).
+		verify func(t *testing.T, p *SessionRequirePolicy)
+	}{
+		{
+			name: "ai approver valid",
+			policy: &SessionRequirePolicy{
+				Name:  "req",
+				Count: 1,
+				CommandApproval: &CommandApproval{
+					Enabled:  true,
+					Approver: CommandApproverAI,
+					AI:       &CommandApprovalAI{Policy: "x", Model: "m"},
+				},
+			},
+			assertErr: require.NoError,
+		},
+		{
+			name: "ai approver missing policy",
+			policy: &SessionRequirePolicy{
+				Name:  "req",
+				Count: 1,
+				CommandApproval: &CommandApproval{
+					Enabled:  true,
+					Approver: CommandApproverAI,
+					AI:       &CommandApprovalAI{Model: "m"},
+				},
+			},
+			assertErr: func(t require.TestingT, err error, _ ...any) {
+				require.ErrorContains(t, err, "ai.policy")
+			},
+		},
+		{
+			name: "ai approver missing model",
+			policy: &SessionRequirePolicy{
+				Name:  "req",
+				Count: 1,
+				CommandApproval: &CommandApproval{
+					Enabled:  true,
+					Approver: CommandApproverAI,
+					AI:       &CommandApprovalAI{Policy: "x"},
+				},
+			},
+			assertErr: func(t require.TestingT, err error, _ ...any) {
+				require.ErrorContains(t, err, "ai.model")
+			},
+		},
+		{
+			name: "ai approver missing ai block",
+			policy: &SessionRequirePolicy{
+				Name:  "req",
+				Count: 1,
+				CommandApproval: &CommandApproval{
+					Enabled:  true,
+					Approver: CommandApproverAI,
+				},
+			},
+			assertErr: func(t require.TestingT, err error, _ ...any) {
+				require.ErrorContains(t, err, "ai")
+			},
+		},
+		{
+			name: "human approver valid",
+			policy: &SessionRequirePolicy{
+				Name:  "req",
+				Count: 1,
+				Modes: []string{string(SessionModeratorMode)},
+				CommandApproval: &CommandApproval{
+					Enabled:  true,
+					Approver: CommandApproverHuman,
+				},
+			},
+			assertErr: require.NoError,
+		},
+		{
+			name: "human approver requires moderator mode",
+			policy: &SessionRequirePolicy{
+				Name:  "req",
+				Count: 1,
+				Modes: []string{string(SessionPeerMode)},
+				CommandApproval: &CommandApproval{
+					Enabled:  true,
+					Approver: CommandApproverHuman,
+				},
+			},
+			assertErr: func(t require.TestingT, err error, _ ...any) {
+				require.ErrorContains(t, err, "command_approval")
+				require.ErrorContains(t, err, "moderator")
+			},
+		},
+		{
+			name: "human approver with empty modes rejected",
+			policy: &SessionRequirePolicy{
+				Name:  "req",
+				Count: 1,
+				CommandApproval: &CommandApproval{
+					Enabled:  true,
+					Approver: CommandApproverHuman,
+				},
+			},
+			assertErr: func(t require.TestingT, err error, _ ...any) {
+				require.ErrorContains(t, err, "command_approval")
+				require.ErrorContains(t, err, "moderator")
+			},
+		},
+		{
+			name: "ai approver with empty modes valid",
+			policy: &SessionRequirePolicy{
+				Name:  "req",
+				Count: 1,
+				CommandApproval: &CommandApproval{
+					Enabled:  true,
+					Approver: CommandApproverAI,
+					AI:       &CommandApprovalAI{Policy: "x", Model: "m"},
+				},
+			},
+			assertErr: require.NoError,
+		},
+		{
+			name: "enabled requires explicit approver",
+			policy: &SessionRequirePolicy{
+				Name:  "req",
+				Count: 1,
+				CommandApproval: &CommandApproval{
+					Enabled: true,
+				},
+			},
+			assertErr: func(t require.TestingT, err error, _ ...any) {
+				require.ErrorContains(t, err, "approver")
+			},
+		},
+		{
+			name: "invalid approver",
+			policy: &SessionRequirePolicy{
+				Name:  "req",
+				Count: 1,
+				CommandApproval: &CommandApproval{
+					Enabled:  true,
+					Approver: "robot",
+				},
+			},
+			assertErr: func(t require.TestingT, err error, _ ...any) {
+				require.ErrorContains(t, err, "approver")
+			},
+		},
+		{
+			name: "on_failure defaults to deny",
+			policy: &SessionRequirePolicy{
+				Name:  "req",
+				Count: 1,
+				Modes: []string{string(SessionModeratorMode)},
+				CommandApproval: &CommandApproval{
+					Enabled:  true,
+					Approver: CommandApproverHuman,
+				},
+			},
+			assertErr: require.NoError,
+			verify: func(t *testing.T, p *SessionRequirePolicy) {
+				require.Equal(t, CommandApprovalOnFailureDeny, p.CommandApproval.OnFailure)
+			},
+		},
+		{
+			name: "on_failure non-deny rejected",
+			policy: &SessionRequirePolicy{
+				Name:  "req",
+				Count: 1,
+				Modes: []string{string(SessionModeratorMode)},
+				CommandApproval: &CommandApproval{
+					Enabled:   true,
+					Approver:  CommandApproverHuman,
+					OnFailure: "allow",
+				},
+			},
+			assertErr: func(t require.TestingT, err error, _ ...any) {
+				require.ErrorContains(t, err, "on_failure")
+			},
+		},
+		{
+			name: "timeout defaults to 60s",
+			policy: &SessionRequirePolicy{
+				Name:  "req",
+				Count: 1,
+				Modes: []string{string(SessionModeratorMode)},
+				CommandApproval: &CommandApproval{
+					Enabled:  true,
+					Approver: CommandApproverHuman,
+				},
+			},
+			assertErr: require.NoError,
+			verify: func(t *testing.T, p *SessionRequirePolicy) {
+				require.Equal(t, DefaultCommandApprovalTimeout, p.CommandApproval.Timeout.Duration())
+			},
+		},
+		{
+			name: "negative timeout rejected",
+			policy: &SessionRequirePolicy{
+				Name:  "req",
+				Count: 1,
+				Modes: []string{string(SessionModeratorMode)},
+				CommandApproval: &CommandApproval{
+					Enabled:  true,
+					Approver: CommandApproverHuman,
+					Timeout:  Duration(-1 * time.Second),
+				},
+			},
+			assertErr: func(t require.TestingT, err error, _ ...any) {
+				require.ErrorContains(t, err, "timeout")
+			},
+		},
+		{
+			name: "kinds ssh ok",
+			policy: &SessionRequirePolicy{
+				Name:  "req",
+				Count: 1,
+				Kinds: []string{string(SSHSessionKind)},
+				Modes: []string{string(SessionModeratorMode)},
+				CommandApproval: &CommandApproval{
+					Enabled:  true,
+					Approver: CommandApproverHuman,
+				},
+			},
+			assertErr: require.NoError,
+		},
+		{
+			name: "kinds k8s rejected",
+			policy: &SessionRequirePolicy{
+				Name:  "req",
+				Count: 1,
+				Kinds: []string{string(KubernetesSessionKind)},
+				CommandApproval: &CommandApproval{
+					Enabled:  true,
+					Approver: CommandApproverHuman,
+				},
+			},
+			assertErr: func(t require.TestingT, err error, _ ...any) {
+				require.ErrorContains(t, err, "not yet enforced")
+			},
+		},
+		{
+			name: "disabled command approval is a no-op",
+			policy: &SessionRequirePolicy{
+				Name:  "req",
+				Count: 1,
+				CommandApproval: &CommandApproval{
+					Enabled: false,
+				},
+			},
+			assertErr: require.NoError,
+		},
+		{
+			name:      "no command approval is backward compatible",
+			policy:    &SessionRequirePolicy{Name: "req", Count: 1},
+			assertErr: require.NoError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := makeRole(tt.policy)
+			err := r.CheckAndSetDefaults()
+			tt.assertErr(t, err)
+			if err == nil && tt.verify != nil {
+				tt.verify(t, r.Spec.Allow.RequireSessionJoin[0])
+			}
+		})
+	}
+}
+
+// TestCommandApprovalJSONRoundTrip ensures a populated command_approval block
+// survives a JSON marshal/unmarshal cycle, including the Duration Timeout field
+// which uses a custom casttype marshaler.
+func TestCommandApprovalJSONRoundTrip(t *testing.T) {
+	role := &RoleV6{
+		Metadata: Metadata{Name: "test"},
+		Version:  V7,
+		Spec: RoleSpecV6{
+			Allow: RoleConditions{
+				RequireSessionJoin: []*SessionRequirePolicy{{
+					Name:  "req",
+					Count: 1,
+					Modes: []string{string(SessionModeratorMode)},
+					CommandApproval: &CommandApproval{
+						Enabled:   true,
+						Approver:  CommandApproverAI,
+						Timeout:   Duration(90 * time.Second),
+						OnFailure: CommandApprovalOnFailureDeny,
+						AI: &CommandApprovalAI{
+							Policy: "deny all rm -rf",
+							Model:  "my-model",
+						},
+					},
+				}},
+			},
+		},
+	}
+
+	data, err := json.Marshal(role)
+	require.NoError(t, err)
+
+	var got RoleV6
+	require.NoError(t, json.Unmarshal(data, &got))
+
+	require.Len(t, got.Spec.Allow.RequireSessionJoin, 1)
+	gotCA := got.Spec.Allow.RequireSessionJoin[0].CommandApproval
+	require.NotNil(t, gotCA)
+	wantCA := role.Spec.Allow.RequireSessionJoin[0].CommandApproval
+
+	require.Equal(t, wantCA.Enabled, gotCA.Enabled)
+	require.Equal(t, wantCA.Approver, gotCA.Approver)
+	require.Equal(t, wantCA.OnFailure, gotCA.OnFailure)
+	require.Equal(t, wantCA.Timeout, gotCA.Timeout)
+	require.Equal(t, 90*time.Second, gotCA.Timeout.Duration())
+	require.NotNil(t, gotCA.AI)
+	require.Equal(t, wantCA.AI.Policy, gotCA.AI.Policy)
+	require.Equal(t, wantCA.AI.Model, gotCA.AI.Model)
+}
 
 func TestAccessRequestConditionsIsEmpty(t *testing.T) {
 	tests := []struct {
