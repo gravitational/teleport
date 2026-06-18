@@ -403,7 +403,6 @@ func TestAgentSmoothedRTT(t *testing.T) {
 			clock.Advance(100 * time.Millisecond)
 		default:
 			return false, nil, trace.Errorf("err")
-
 		}
 		return true, nil, nil
 	}

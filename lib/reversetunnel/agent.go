@@ -661,7 +661,6 @@ func (a *agent) sendKeepalives() error {
 		const wantReplyTrue = true
 		now := a.clock.Now()
 		_, _, err := a.client.SendRequest(a.ctx, teleport.KeepAliveReqType, wantReplyTrue, nil)
-		ticker.Reset(retryutils.SeventhJitter(a.keepAlive))
 		if err != nil {
 			if !utils.IsOKNetworkError(err) {
 				a.logger.WarnContext(
@@ -686,6 +685,7 @@ func (a *agent) sendKeepalives() error {
 		a.logger.DebugContext(a.ctx, "Computed new SRTT", "srtt", a.smoothedRTT.String())
 		a.mu.Unlock()
 
+		ticker.Reset(retryutils.SeventhJitter(a.keepAlive))
 		if !first {
 			continue
 		}
