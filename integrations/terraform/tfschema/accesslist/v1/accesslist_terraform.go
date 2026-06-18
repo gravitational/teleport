@@ -128,12 +128,6 @@ func GenSchemaAccessList(ctx context.Context) (github_com_hashicorp_terraform_pl
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 				"audit": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-						"next_audit_date": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-							Computed:      true,
-							Description:   "next_audit_date is when the next audit date should be done by.",
-							Optional:      true,
-							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-						}),
 						"notifications": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"start": GenSchemaDuration(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								Computed:      true,
@@ -851,13 +845,6 @@ func CopyAccessListFromTerraform(_ context.Context, tf github_com_hashicorp_terr
 									tf := v
 									obj.Audit = &github_com_gravitational_teleport_api_gen_proto_go_teleport_accesslist_v1.AccessListAudit{}
 									obj := obj.Audit
-									{
-										a, ok := tf.Attrs["next_audit_date"]
-										if !ok {
-											diags.Append(attrReadMissingDiag{"AccessList.spec.audit.next_audit_date"})
-										}
-										CopyFromTimestamp(diags, a, &obj.NextAuditDate)
-									}
 									{
 										a, ok := tf.Attrs["recurrence"]
 										if !ok {
@@ -2141,15 +2128,6 @@ func CopyAccessListToTerraformPreserveUnknown(ctx context.Context, obj *github_c
 									v.Null = false
 									obj := obj.Audit
 									tf := &v
-									{
-										t, ok := tf.AttrTypes["next_audit_date"]
-										if !ok {
-											diags.Append(attrWriteMissingDiag{"AccessList.spec.audit.next_audit_date"})
-										} else {
-											v := CopyToTimestamp(diags, obj.NextAuditDate, t, tf.Attrs["next_audit_date"])
-											tf.Attrs["next_audit_date"] = v
-										}
-									}
 									{
 										a, ok := tf.AttrTypes["recurrence"]
 										if !ok {

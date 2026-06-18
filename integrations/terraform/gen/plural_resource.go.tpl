@@ -939,42 +939,6 @@ func (r resourceTeleport{{.Name}}) ModifyPlan(ctx context.Context, req tfsdk.Mod
 	}
 {{- end }}
 
-{{- if .PropagatedFields }}
-	name := {{.VarName}}Resource.Metadata.Name
-{{- if .RequestWrapper}}
-
-	{{.VarName}}BeforeResp, err := r.p.Client.{{.GetMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.GetRequest}}{
-		Name: name,
-		{{- if .DefaultSubKind}}
-		SubKind: {{.VarName}}Resource.SubKind,
-		{{- end}}
-		{{- if ne .WithSecrets ""}}
-		WithSecrets: {{.WithSecrets}},
-		{{- end}}
-	})
-	if err != nil {
-		resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", err, "{{.Kind}}"))
-		return
-	}
-	{{- if .RequestWrapper.ReturnsUnwrappedResource }}
-	{{.VarName}}Before := {{.VarName}}BeforeResp
-	{{- else }}
-	{{.VarName}}Before := {{.VarName}}BeforeResp.Get{{.RequestWrapper.RequestResourceField}}()
-	{{- end}}
-{{- else}}
-
-	{{.VarName}}Before, err := r.p.Client.{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}{{if .IDPrefix}}idPrefix, {{end}}name{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
-	if err != nil {
-		resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", err, "{{.Kind}}"))
-		return
-	}
-{{- end}}
-	{{- $VarName := .VarName }}
-	{{- range $field := .PropagatedFields }}
-	{{ $VarName }}Resource.{{ $field }} = {{ $VarName }}Before.{{ $field }}
-	{{- end }}
-{{- end }}
-
 {{- if .ConvertPackagePath}}
 
 	{{.VarName}} = convert.{{ if .ConvertToProtoFunc }}{{.ConvertToProtoFunc}}{{ else }}ToProto{{ end }}({{.VarName}}Resource)
