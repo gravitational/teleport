@@ -436,7 +436,8 @@ func (s *Service[T]) ConditionalDeleteResource(ctx context.Context, name, revisi
 	if revision == "" {
 		return trace.BadParameter("revision required")
 	}
-	err := s.backend.ConditionalDelete(ctx, s.resourceKey(name), revision)
+	key := s.MakeKey(backend.NewKey(s.nameKey(name)))
+	err := s.backend.ConditionalDelete(ctx, key, revision)
 	if trace.IsCompareFailed(err) {
 		// Specialize the message from backend.ErrIncorrectRevision so we mention
 		// the resource name and don't mention --force. Deletes often don't have a

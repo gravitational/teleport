@@ -262,13 +262,13 @@ func TestGenericWrapperConditionalDelete(t *testing.T) {
 
 	// Create a couple revisions of a resource.
 	res := newTestResource153("myresource")
-	res.Metadata.SetExpires(nil)
-	res.Metadata.SetDescription("r1")
+	res.Metadata.Expires = nil
+	res.Metadata.Description = "r1"
 	rev1, err := service.CreateResource(t.Context(), cloneResource(res))
 	require.NoError(t, err)
 
-	res.Metadata.SetDescription("r2")
-	res.Metadata.SetRevision(rev1.Metadata.GetRevision())
+	res.Metadata.Description = "r2"
+	res.Metadata.Revision = rev1.Metadata.GetRevision()
 	rev2, err := service.ConditionalUpdateResource(t.Context(), cloneResource(res))
 	require.NoError(t, err)
 
