@@ -107,6 +107,10 @@ type writeRequest struct {
 	resp    chan error
 }
 
+type sweepRequest struct {
+	done chan struct{}
+}
+
 type sqliteQueue struct {
 	db                      *sql.DB
 	path                    string
@@ -119,7 +123,7 @@ type sqliteQueue struct {
 	closeOnce               sync.Once
 	drainOnce               sync.Once
 	drainCh                 chan struct{}
-	deadLetterSweepLoopDone chan struct{}
+	sweepCh                 chan sweepRequest
 	parentDir               string
 	selfStat                os.FileInfo
 	unlock                  func() error
@@ -179,7 +183,7 @@ func newBaseQueue(db *sql.DB, cfg Config) (*sqliteQueue, error) {
 		db:                      db,
 		toBeWritten:             make(chan writeRequest),
 		drainCh:                 make(chan struct{}),
-		deadLetterSweepLoopDone: make(chan struct{}),
+		sweepCh:                 make(chan sweepRequest),
 		maxBatch:                defaultMaxBatch,
 		ctx:                     ctx,
 		cancel:                  cancel,
@@ -403,10 +407,19 @@ func (q *sqliteQueue) runPollLoop(ctx context.Context, handler Handler) {
 // draining of the queue on shutdown. Run is executed in the background and will
 // continue to drain the queue.
 func (q *sqliteQueue) Drain(ctx context.Context) error {
-	// Trigger and wait for a final dead letter sweep.
 	q.drainOnce.Do(func() { close(q.drainCh) })
+
+	// Trigger and wait for a dead letter sweep.
+	req := sweepRequest{done: make(chan struct{})}
 	select {
-	case <-q.deadLetterSweepLoopDone:
+	case q.sweepCh <- req:
+	case <-ctx.Done():
+		return trace.Wrap(ctx.Err())
+	case <-q.ctx.Done():
+		return trace.Wrap(q.ctx.Err())
+	}
+	select {
+	case <-req.done:
 	case <-ctx.Done():
 		return trace.Wrap(ctx.Err())
 	case <-q.ctx.Done():
@@ -565,7 +578,6 @@ func (q *sqliteQueue) processFailedDeliveries(failed []Item) (int, error) {
 // deadLetterSweepLoop periodically re-attempts delivery of dead-letter events
 // and deletes entries that have exceeded the TTL.
 func (q *sqliteQueue) deadLetterSweepLoop(ctx context.Context, handler Handler) {
-	defer close(q.deadLetterSweepLoopDone)
 	timer := time.NewTimer(q.deadLetterSweepInterval)
 	defer timer.Stop()
 	for {
@@ -574,10 +586,12 @@ func (q *sqliteQueue) deadLetterSweepLoop(ctx context.Context, handler Handler) 
 			return
 		case <-q.ctx.Done():
 			return
-		case <-q.drainCh:
+		case req := <-q.sweepCh:
+			// Trigger a sweep on-demand.
 			q.runSweeps(ctx, handler)
-			return
+			close(req.done)
 		case <-timer.C:
+			// Trigger a sweep on a timer.
 			q.runSweeps(ctx, handler)
 			timer.Reset(q.deadLetterSweepInterval)
 		}
