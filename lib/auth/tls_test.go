@@ -80,6 +80,7 @@ import (
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -1523,9 +1524,8 @@ func TestAuthPreferenceSettings(t *testing.T) {
 }
 
 func TestAuthPreferenceSettings_ScopedIdentity(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
-
-	srv := newTestTLSServer(t)
+	t.Parallel()
+	srv := newTestTLSServer(t, withScopesFeatures(scopes.Features{Enabled: true}))
 	ctx := t.Context()
 
 	adminClient, err := srv.NewClient(authtest.TestAdmin())
@@ -2610,9 +2610,8 @@ func TestGetCertAuthority(t *testing.T) {
 }
 
 func TestGetCertAuthority_ScopedIdentity(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
-
-	srv := newTestTLSServer(t)
+	t.Parallel()
+	srv := newTestTLSServer(t, withScopesFeatures(scopes.Features{Enabled: true}))
 	ctx := t.Context()
 
 	adminClient, err := srv.NewClient(authtest.TestAdmin())
@@ -5025,9 +5024,8 @@ func eventsTestKinds(tests []eventTest) []types.WatchKind {
 // WatchEvents RPC to watch CertAuthorities without secrets (implicit permission),
 // and that watching with secrets is correctly denied.
 func TestWatchEvents_ScopedIdentity(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
-
-	srv := newTestTLSServer(t)
+	t.Parallel()
+	srv := newTestTLSServer(t, withScopesFeatures(scopes.Features{Enabled: true}))
 	ctx := t.Context()
 
 	adminClient, err := srv.NewClient(authtest.TestAdmin())
@@ -6031,6 +6029,7 @@ type testTLSServerOptions struct {
 	accessGraph     *auth.AccessGraphConfig
 	clock           clockwork.Clock
 	bufconnListener bool
+	scopesFeatures  scopes.Features
 }
 
 type testTLSServerOption func(*testTLSServerOptions)
@@ -6059,6 +6058,12 @@ func withBufconnListener() testTLSServerOption {
 	}
 }
 
+func withScopesFeatures(scopesFeatures scopes.Features) testTLSServerOption {
+	return func(options *testTLSServerOptions) {
+		options.scopesFeatures = scopesFeatures
+	}
+}
+
 // newTestTLSServer is a helper that returns a *authtest.TLSServer with sensible
 // defaults for most tests that are exercising Auth Service RPCs.
 //
@@ -6073,9 +6078,10 @@ func newTestTLSServer(t testing.TB, opts ...testTLSServerOption) *authtest.TLSSe
 		options.clock = clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC())
 	}
 	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
-		Dir:          t.TempDir(),
-		Clock:        options.clock,
-		CacheEnabled: options.cacheEnabled,
+		Dir:            t.TempDir(),
+		Clock:          options.clock,
+		CacheEnabled:   options.cacheEnabled,
+		ScopesFeatures: options.scopesFeatures,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, as.Close()) })

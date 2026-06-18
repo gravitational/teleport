@@ -506,8 +506,8 @@ var ErrTokenExhausted = &trace.LimitExceededError{Message: "scoped token usage e
 
 // ValidateTokenForUse checks if a given scoped token can be used for
 // provisioning. Returns a [*trace.LimitExceededError] if the token is expired
-func ValidateTokenForUse(token *joiningv1.ScopedToken) error {
-	if err := scopes.AssertFeatureEnabled(); err != nil {
+func ValidateTokenForUse(token *joiningv1.ScopedToken, features scopes.Features) error {
+	if err := features.AssertEnabled(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -531,7 +531,7 @@ func ValidateTokenForUse(token *joiningv1.ScopedToken) error {
 	}
 	// if agent scope pins are enabled, all system roles are allowed to join
 	// with a scoped token
-	if scopes.AgentPinEnabled() {
+	if features.AgentPinEnabled {
 		return nil
 	}
 

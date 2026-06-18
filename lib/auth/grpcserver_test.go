@@ -91,6 +91,7 @@ import (
 	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
@@ -6806,8 +6807,7 @@ func TestGRPCServingStatus(t *testing.T) {
 }
 
 func TestGenerateUserCertsScopedBot(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
-	testServer := newTestTLSServer(t)
+	testServer := newTestTLSServer(t, withScopesFeatures(scopes.Features{Enabled: true}))
 	modulestest.SetTestModules(t, modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise, // required for Device Trust.
 		TestFeatures: modules.Features{
