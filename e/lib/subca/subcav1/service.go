@@ -509,6 +509,93 @@ func makeCAOverrideForCertificate(
 	}.Build()
 }
 
+func (s *Service) UpdateCertificateOverride(
+	ctx context.Context,
+	req *subcav1.UpdateCertificateOverrideRequest,
+) (*subcav1.UpdateCertificateOverrideResponse, error) {
+	switch {
+	case req.GetCaId().GetCaType() == "":
+		return nil, trace.BadParameter("ca_id.ca_type required")
+	case !req.HasCertificateOverride():
+		return nil, trace.BadParameter("certificate_override required")
+	}
+
+	if err := s.authorizeCAOverride(ctx, adminActionYes, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Optimistically determine the target public key hash.
+	// The new override is validated by writeCAOverride.
+	co := req.GetCertificateOverride()
+	pkh := co.GetPublicKey()
+	if pkh == "" {
+		if co.GetCertificate() == "" {
+			return nil, trace.BadParameter("certificate_override must have at least one of public_key or certificate")
+		}
+		cert, err := subca.ParseCertificateOverrideCertificate(co.GetCertificate())
+		if err != nil {
+			return nil, trace.Wrap(err, "certificate_override.certificate")
+		}
+		pkh = subca.HashCertificatePublicKey(cert)
+	}
+
+	// Find the override to update.
+	parsed, index, err := s.findCertificateOverride(ctx, req.GetCaId().GetCaType(), pkh)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	parsed.CAOverride.GetSpec().GetCertificateOverrides()[index] = co
+
+	// Update.
+	if _, err := s.writeCAOverride(ctx, writeCAOverrideParams{
+		mode:                  writeUpdate,
+		newCAOverride:         parsed.CAOverride,
+		forceImmediateDisable: req.GetForceImmediateDisable(),
+		skipAuthorization:     true,
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return subcav1.UpdateCertificateOverrideResponse_builder{
+		CertificateOverride: co,
+	}.Build(), nil
+}
+
+func (s *Service) findCertificateOverride(
+	ctx context.Context,
+	caType string,
+	publicKeyHash string,
+) (parsed *subca.ParsedCertAuthorityOverride, certificateOverrideIndex int, _ error) {
+	cn, err := s.cachedClusterNameGetter.GetClusterName(ctx)
+	if err != nil {
+		return nil, 0, trace.Wrap(err)
+	}
+	id := local.CertAuthorityOverrideID{
+		ClusterName: cn.GetClusterName(),
+		CAType:      caType,
+	}
+	caOverride, err := s.subCA.GetCertAuthorityOverride(ctx, id)
+	if err != nil {
+		return nil, 0, trace.Wrap(err)
+	}
+	parsed, err = subca.ParseCAOverride(caOverride)
+	if err != nil {
+		return nil, 0, trace.Wrap(err, "parse existing override")
+	}
+
+	// Make sure comparisons are case-insensitive.
+	publicKeyHash = strings.ToLower(publicKeyHash)
+
+	for i, parsedCO := range parsed.CertificateOverrides {
+		if parsedCO.PublicKey == publicKeyHash {
+			return parsed, i, nil
+		}
+	}
+
+	return nil, 0, trace.CompareFailed("certificate override not found: %q", publicKeyHash)
+}
+
 type writeMode int
 
 const (
