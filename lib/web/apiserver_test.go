@@ -2723,6 +2723,29 @@ func TestTerminalRequireSessionMFANoRegisteredDevice(t *testing.T) {
 	waitForOutput(t, term, "no supported MFA devices enrolled")
 }
 
+// TestTerminalNoHistoryShell verifies that interactive sessions opened by tests
+// that use [newWebSuite] don't record shell history thanks to [noHistoryShell].
+func TestTerminalNoHistoryShell(t *testing.T) {
+	t.Parallel()
+	s := newWebSuite(t)
+
+	ctx, cancel := context.WithCancel(s.ctx)
+	t.Cleanup(cancel)
+
+	term, err := connectToHost(ctx, connectConfig{
+		pack:  s.authPack(t, "foo"),
+		host:  s.node.ID(),
+		proxy: s.webServer.Listener.Addr().String(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, term.Close()) })
+
+	_, err = io.WriteString(term, `echo "histfile=[$HISTFILE]"`+"\r\n")
+	require.NoError(t, err)
+	// Verify that noHistoryShell ended up making $HISTFILE empty.
+	waitForOutput(t, term, "histfile=[]", "noHistoryShell failed to unset HISTFILE")
+}
+
 type windowsDesktopServiceMock struct {
 	listener net.Listener
 }
