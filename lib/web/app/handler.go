@@ -618,6 +618,42 @@ func HasClientCert(r *http.Request) bool {
 	return r.TLS != nil && len(r.TLS.PeerCertificates) > 0
 }
 
+// certIdentity returns the TLS identity backing a certificate-authenticated
+// request, following the same precedence as [Handler.getAppSession]: the HTTPS
+// tunnel identity first, then a direct client certificate. It returns nil for
+// cookie/browser clients, which don't authenticate with a certificate.
+func certIdentity(r *http.Request) *tlsca.Identity {
+	switch {
+	case IsHTTPSTunnelConn(r):
+		identity, err := getIdentityFromHTTPSTunnelRequest(r)
+		if err != nil {
+			return nil
+		}
+		return identity
+	case HasClientCert(r):
+		cert := r.TLS.PeerCertificates[0]
+		identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+		if err != nil {
+			return nil
+		}
+		return identity
+	default:
+		return nil
+	}
+}
+
+// connectionCredentialExpired reports whether a certificate-authenticated
+// request is backed by a credential that has already expired as of now. Returns
+// false for cookie/browser clients, which don't authenticate with a
+// certificate.
+func connectionCredentialExpired(r *http.Request, now time.Time) bool {
+	identity := certIdentity(r)
+	if identity == nil {
+		return false
+	}
+	return identity.Expires.Before(now)
+}
+
 // isBrowserRequest reports whether the request originated from a browser.
 // Sec-Fetch-Site is sent on every request by all modern browsers, and
 // non-browser clients (curl, SDKs) do not send it.

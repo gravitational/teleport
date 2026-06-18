@@ -49,9 +49,26 @@ func (h *Handler) withRouterAuth(handler routerAuthFunc) httprouter.Handle {
 // handler.
 func (h *Handler) withAuth(handler handlerAuthFunc) http.HandlerFunc {
 	return makeHandler(func(w http.ResponseWriter, r *http.Request) error {
-		// If the caller fails to authenticate, redirect the caller to Teleport.
 		session, err := h.authenticate(r.Context(), r)
 		if err != nil {
+			// A long-lived connection is pinned to the client certificate it
+			// presented at handshake. When that certificate (and the app
+			// session welded to it) expires, every subsequent request over the
+			// still-open connection keeps failing, leaving a "zombie" connection
+			// that returns 403s forever. If the certificate has expired, ask the
+			// client to close the connection so its next request establishes a
+			// fresh one with a renewed certificate. Cookie/browser clients have
+			// no certificate and recover via the launcher redirect instead.
+			// See https://github.com/gravitational/teleport/issues/57697.
+			if connectionCredentialExpired(r, h.c.Clock.Now()) {
+				h.logger.DebugContext(r.Context(),
+					"Closing connection with expired application session so the client can reconnect",
+					"error", err)
+				w.Header().Set("Connection", "close")
+				return trace.Wrap(err)
+			}
+			// Otherwise, if the caller fails to authenticate, redirect the
+			// caller to Teleport.
 			if redirectErr := h.redirectToLauncher(w, r, launcherURLParams{}); redirectErr == nil {
 				return nil
 			}
