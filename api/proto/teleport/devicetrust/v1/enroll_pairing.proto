@@ -27,6 +27,8 @@ option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport
 // One pairing is active per user at a time, with a 5-minute TTL. Pairings are
 // deleted on TTL expiration or successful enrollment. The pairing's
 // metadata.name is the owning user's name.
+//
+// See the "Managing EnrollPairing" section of RFD 32e for more details.
 message EnrollPairing {
   string kind = 1;
   string sub_kind = 2;

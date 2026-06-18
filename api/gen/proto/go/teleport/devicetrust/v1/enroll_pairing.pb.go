@@ -108,6 +108,8 @@ func (x EnrollPairingState) Number() protoreflect.EnumNumber {
 // One pairing is active per user at a time, with a 5-minute TTL. Pairings are
 // deleted on TTL expiration or successful enrollment. The pairing's
 // metadata.name is the owning user's name.
+//
+// See the "Managing EnrollPairing" section of RFD 32e for more details.
 type EnrollPairing struct {
 	state               protoimpl.MessageState `protogen:"opaque.v1"`
 	xxx_hidden_Kind     string                 `protobuf:"bytes,1,opt,name=kind,proto3"`
