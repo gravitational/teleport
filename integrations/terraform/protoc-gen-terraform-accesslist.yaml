@@ -44,6 +44,7 @@ exclude_fields:
     - "AccessList.header.metadata.id"
     - "AccessList.header.metadata.revision"
     # Read only field
+    - "AccessList.spec.audit.next_audit_date"
     - "AccessList.spec.owners.ineligible_status"
     - "AccessList.status"
 
@@ -58,7 +59,6 @@ computed_fields:
     - "AccessList.header.kind"
     - "AccessList.header.metadata.namespace"
     - "AccessList.spec.audit"
-    - "AccessList.spec.audit.next_audit_date"
     - "AccessList.spec.audit.notifications"
     - "AccessList.spec.audit.notifications.start"
     - "AccessList.spec.audit.recurrence"
