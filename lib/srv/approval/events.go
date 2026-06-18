@@ -50,7 +50,10 @@ type approvalIDGen struct {
 	counter uint64
 }
 
-// next returns a unique, monotonically increasing ID scoped to sessionID.
+// next returns a monotonically increasing ID prefixed with sessionID.
+// Uniqueness is guaranteed only per generator instance: callers use one
+// generator per session namespace, so IDs do not collide across the requests a
+// single session generates.
 func (g *approvalIDGen) next(sessionID string) string {
 	g.mu.Lock()
 	defer g.mu.Unlock()
