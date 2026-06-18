@@ -78,8 +78,110 @@ type TermManager struct {
 	lastWasBroadcast  bool
 	terminateNotifier chan struct{}
 
+	// commandGate, when non-nil, gates each completed input line on approval
+	// before its terminating newline is forwarded to the shell.
+	commandGate commandGate
+	lineBuf     lineBuffer
+	// gateLastWasCR tracks whether the last byte processed by gateInput was a
+	// carriage return, so that a \n arriving at the start of a later PTY read
+	// can be collapsed as the second half of a CRLF pair that straddled the
+	// read boundary. It is only ever touched by the single reader goroutine
+	// inside gateInput (which runs lock-free), so it needs no additional
+	// synchronization beyond that goroutine's sequential execution.
+	gateLastWasCR bool
+
 	// called when data is discarded due to multiplexing being disabled, used in tests
 	onDiscard func()
+}
+
+// commandGate decides whether a reconstructed command line may proceed.
+// approve blocks until a decision; true => forward the newline, false => reject.
+type commandGate interface {
+	approve(cmd string) bool
+}
+
+// SetCommandGate installs the command gate used to approve completed input lines
+// before their terminating newline reaches the shell.
+func (g *TermManager) SetCommandGate(cg commandGate) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.commandGate = cg
+}
+
+// commandGateEnabled reports whether a command gate is installed.
+func (g *TermManager) commandGateEnabled() bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.commandGate != nil
+}
+
+// gateInput reconstructs command lines from raw input and gates each one before
+// its terminating newline reaches the shell. Non-terminator bytes (text, and
+// in-line editing like backspace/Ctrl-U) are forwarded as-is so the user's
+// terminal echoes normally. On each terminator the completed command is gated:
+// approve => emit a carriage return (the line runs); deny => emit Ctrl-U (the
+// shell's readline buffer is cleared, the line never executes). A bare/blank
+// terminator forwards a newline (fresh prompt) without gating.
+//
+// SECURITY: this is the gate-bypass boundary. A newline that would execute a
+// command MUST NOT be forwarded before approve() returns true for that exact
+// command. Multi-line input (pasted blocks) is gated line-by-line via feedLines;
+// intermediate lines are never skipped.
+//
+// gateInput reads the gate pointer under a brief lock and then operates entirely
+// lock-free: approve() blocks (the real gate calls out over the network), so it
+// MUST NOT be called while holding g.mu.
+func (g *TermManager) gateInput(p []byte) []byte {
+	g.mu.Lock()
+	cg := g.commandGate
+	g.mu.Unlock()
+	if cg == nil {
+		return p
+	}
+	var out []byte
+	segStart := 0
+	for i := 0; i < len(p); i++ {
+		b := p[i]
+		if b != byteCR && b != byteLF {
+			g.gateLastWasCR = false
+			continue
+		}
+		// Collapse a \n that immediately follows a \r (CRLF) — don't
+		// double-emit. The preceding \r may be in this chunk OR may have ended
+		// the previous PTY read (tracked by gateLastWasCR), so a CRLF that
+		// straddles a read boundary is handled the same as one within a chunk.
+		if b == byteLF && g.gateLastWasCR {
+			g.lineBuf.feedLines(p[segStart : i+1]) // consume; yields blank
+			segStart = i + 1
+			g.gateLastWasCR = false
+			continue
+		}
+		out = append(out, p[segStart:i]...) // echo the segment text
+		lines := g.lineBuf.feedLines(p[segStart : i+1])
+		if len(lines) == 0 {
+			// Blank line: there is no command to gate, so emitting a bare CR
+			// (a fresh prompt) cannot bypass the gate — an empty line executes
+			// nothing — and must not be dropped or the user's Enter is lost.
+			out = append(out, byteCR)
+		}
+		for _, cmd := range lines {
+			if cg.approve(cmd) {
+				out = append(out, byteCR)
+			} else {
+				out = append(out, byteCtrlU)
+			}
+		}
+		segStart = i + 1
+		g.gateLastWasCR = b == byteCR
+	}
+	if segStart < len(p) {
+		out = append(out, p[segStart:]...) // trailing partial: echo + buffer
+		g.lineBuf.feedLines(p[segStart:])
+		// The trailing partial contains no terminator, so its last byte is
+		// neither \r nor \n; reset the CR-collapse state accordingly.
+		g.gateLastWasCR = false
+	}
+	return out
 }
 
 // NewTermManager creates a new TermManager.
@@ -272,7 +374,17 @@ func (g *TermManager) AddReader(name string, r io.Reader) {
 
 			if g.state == dataFlowOn {
 				g.mu.Unlock()
-				g.incoming <- buf[:n]
+				// gateInput must run without g.mu held: the command gate's
+				// approve() blocks (it may call out over the network) and
+				// returns the gated bytes to forward to the shell. When no gate
+				// is installed it returns buf[:n] unchanged.
+				//
+				// Releasing g.mu around the (possibly long) blocking gate
+				// widens the window between the state check above and this send,
+				// so the session may have been turned Off meanwhile. That is
+				// safe: incoming is buffered and Read only drains it while the
+				// state is dataFlowOn, so nothing reaches the shell while paused.
+				g.incoming <- g.gateInput(buf[:n])
 				g.mu.Lock()
 			} else {
 				if g.onDiscard != nil {

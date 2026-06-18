@@ -335,3 +335,226 @@ func TestTermManagerRead(t *testing.T) {
 	}
 
 }
+
+// fakeGate is a test commandGate that records the commands it is asked to
+// approve and answers deterministically.
+type fakeGate struct {
+	deny   bool
+	denyFn func(string) bool
+	seen   []string
+}
+
+func (f *fakeGate) approve(cmd string) bool {
+	f.seen = append(f.seen, cmd)
+	if f.denyFn != nil {
+		return !f.denyFn(cmd)
+	}
+	return !f.deny
+}
+
+// readAllWithin reads from the manager's shell-facing Read until either no more
+// data arrives within a short quiescent window or the overall deadline passes.
+// It is used to drain the gated output of the input path so tests can assert on
+// the exact bytes the shell would receive.
+func readAllWithin(t *testing.T, tm *TermManager, dur time.Duration) []byte {
+	t.Helper()
+
+	var out []byte
+	deadline := time.Now().Add(dur)
+	type readResult struct {
+		n   int
+		err error
+	}
+
+	for time.Now().Before(deadline) {
+		buf := make([]byte, 1024)
+		resCh := make(chan readResult, 1)
+		go func() {
+			n, err := tm.Read(buf)
+			resCh <- readResult{n, err}
+		}()
+
+		select {
+		case res := <-resCh:
+			if res.n > 0 {
+				out = append(out, buf[:res.n]...)
+			}
+			if res.err != nil {
+				return out
+			}
+		case <-time.After(200 * time.Millisecond):
+			// No more data arriving; consider the stream drained. The pending
+			// Read goroutine will unblock when the manager is closed.
+			return out
+		}
+	}
+	return out
+}
+
+func TestTermManagerCommandGateDisabledByDefault(t *testing.T) {
+	t.Parallel()
+
+	tm := NewTermManager()
+	require.False(t, tm.commandGateEnabled())
+}
+
+func TestTermManagerEnableCommandGate(t *testing.T) {
+	t.Parallel()
+
+	tm := NewTermManager()
+	tm.SetCommandGate(&fakeGate{})
+	require.True(t, tm.commandGateEnabled())
+}
+
+func TestTermManagerGateApprovesForwardsNewline(t *testing.T) {
+	t.Parallel()
+
+	tm := NewTermManager()
+	tm.On()
+	gate := &fakeGate{}
+	tm.SetCommandGate(gate)
+	defer tm.Close()
+
+	r, w := io.Pipe()
+	tm.AddReader("reader", r)
+	go w.Write([]byte("ls\r"))
+
+	out := readAllWithin(t, tm, 5*time.Second)
+	require.Equal(t, []byte("ls\r"), out)
+	require.Equal(t, []string{"ls"}, gate.seen)
+}
+
+func TestTermManagerGateDeniesDropsNewline(t *testing.T) {
+	t.Parallel()
+
+	tm := NewTermManager()
+	tm.On()
+	gate := &fakeGate{deny: true}
+	tm.SetCommandGate(gate)
+	defer tm.Close()
+
+	r, w := io.Pipe()
+	tm.AddReader("reader", r)
+	go w.Write([]byte("rm -rf /\r"))
+
+	out := readAllWithin(t, tm, 5*time.Second)
+	require.NotContains(t, out, byte(byteCR))
+	require.Contains(t, out, byte(byteCtrlU))
+	require.Equal(t, []string{"rm -rf /"}, gate.seen)
+}
+
+func TestTermManagerGateMultiLinePaste(t *testing.T) {
+	t.Parallel()
+
+	tm := NewTermManager()
+	tm.On()
+	gate := &fakeGate{denyFn: func(cmd string) bool { return cmd == "rm -rf /" }}
+	tm.SetCommandGate(gate)
+	defer tm.Close()
+
+	r, w := io.Pipe()
+	tm.AddReader("reader", r)
+	go w.Write([]byte("ls\nrm -rf /\nwhoami\n"))
+
+	out := readAllWithin(t, tm, 5*time.Second)
+
+	crCount := 0
+	ctrlUCount := 0
+	for _, b := range out {
+		switch b {
+		case byteCR:
+			crCount++
+		case byteCtrlU:
+			ctrlUCount++
+		}
+	}
+	require.Equal(t, 2, crCount, "expected one CR each for ls and whoami")
+	require.Equal(t, 1, ctrlUCount, "expected one Ctrl-U for the denied rm -rf /")
+	require.Equal(t, []string{"ls", "rm -rf /", "whoami"}, gate.seen)
+}
+
+func TestTermManagerGateCRLF(t *testing.T) {
+	t.Parallel()
+
+	tm := NewTermManager()
+	tm.On()
+	gate := &fakeGate{}
+	tm.SetCommandGate(gate)
+	defer tm.Close()
+
+	r, w := io.Pipe()
+	tm.AddReader("reader", r)
+	go w.Write([]byte("ls\r\n"))
+
+	out := readAllWithin(t, tm, 5*time.Second)
+
+	crCount := 0
+	for _, b := range out {
+		if b == byteCR {
+			crCount++
+		}
+	}
+	require.Equal(t, 1, crCount, "CRLF should yield exactly one CR, not two")
+	require.Equal(t, []string{"ls"}, gate.seen)
+}
+
+func TestTermManagerGateCRLFSplitAcrossReads(t *testing.T) {
+	t.Parallel()
+
+	tm := NewTermManager()
+	tm.On()
+	gate := &fakeGate{}
+	tm.SetCommandGate(gate)
+	defer tm.Close()
+
+	r, w := io.Pipe()
+	tm.AddReader("reader", r)
+	// Split the CRLF across two PTY reads: \r ends the first read, \n begins
+	// the second. The \n must be collapsed as the second half of the CRLF, not
+	// treated as a fresh blank-line terminator.
+	go func() {
+		w.Write([]byte("ls\r"))
+		w.Write([]byte("\n"))
+	}()
+
+	out := readAllWithin(t, tm, 5*time.Second)
+
+	crCount := 0
+	for _, b := range out {
+		if b == byteCR {
+			crCount++
+		}
+	}
+	require.Equal(t, 1, crCount, "CRLF split across reads should yield exactly one CR, not two")
+	require.Equal(t, []string{"ls"}, gate.seen)
+}
+
+func TestTermManagerGateCRLFSplitMultiple(t *testing.T) {
+	t.Parallel()
+
+	tm := NewTermManager()
+	tm.On()
+	gate := &fakeGate{}
+	tm.SetCommandGate(gate)
+	defer tm.Close()
+
+	r, w := io.Pipe()
+	tm.AddReader("reader", r)
+	// Each CRLF is split across read boundaries: "a\r" | "\nb\r" | "\n".
+	go func() {
+		w.Write([]byte("a\r"))
+		w.Write([]byte("\nb\r"))
+		w.Write([]byte("\n"))
+	}()
+
+	out := readAllWithin(t, tm, 5*time.Second)
+
+	crCount := 0
+	for _, b := range out {
+		if b == byteCR {
+			crCount++
+		}
+	}
+	require.Equal(t, 2, crCount, "two CRLFs split across reads should yield exactly two CR, not extras")
+	require.Equal(t, []string{"a", "b"}, gate.seen)
+}
