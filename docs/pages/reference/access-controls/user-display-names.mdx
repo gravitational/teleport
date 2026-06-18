@@ -1,0 +1,40 @@
+---
+title: User Display Names
+description: Explains how Teleport derives human-readable display names for users from identity-provider attributes.
+keywords: [user,display name,idp,sso,scim]
+tags:
+ - reference
+ - zero-trust
+---
+
+A *display name* is a human-readable name that Teleport derives for a user at
+read time from values already present on the user, such as identity-provider
+attributes or a local user's traits.
+Display names are presentation only: the Teleport **username** remains the
+stable identifier and is always shown alongside the display name, so a user is
+never shown by a name alone.
+
+## How Teleport derives a display name
+
+Teleport fills two values independently, a **primary** value (a name) and a
+**secondary** value (an email), from the inputs it finds among the sources
+below. Because the two are resolved separately, a user may show a name with no
+email, an email with no name, or neither.
+
+| Source | Primary (name) | Secondary (email) | Where to set it |
+|--------|----------------|-------------------|-----------------|
+| Okta sync | the Okta profile's `displayName`, or `givenName` + `familyName`, or `firstName` + `lastName` | the profile's `email` | [Okta integration](../../identity-governance/integrations/okta/okta.mdx) |
+| Microsoft Entra ID | the display-name claim, or the [given-name and surname claims](https://learn.microsoft.com/en-us/entra/identity-platform/reference-saml-tokens) | the email-address claim | [Entra ID integration](../../identity-governance/integrations/entra-id/entra-id.mdx) |
+| SAML / OIDC SSO | `displayName`, `name`, `givenName` + `familyName` (or `given_name` + `family_name`), or `firstName` + `lastName` (or `first_name` + `last_name`) | `email` | [authentication connector](../../zero-trust-access/sso/integrate-idp/integrate-idp.mdx) |
+| Local user | the `displayName`, `name`, `givenName` + `familyName` (or `given_name` + `family_name`), or `firstName` + `lastName` (or `first_name` + `last_name`) trait | the `email` trait | edit the user's `spec.traits` (for example, `tctl edit users/alice`) |
+| SCIM | `displayName`, or `name.givenName` + `name.familyName` | the SCIM email marked [`"primary": true`](https://datatracker.ietf.org/doc/html/rfc7643#section-8.2), or the first listed email | [SCIM integration](../../identity-governance/integrations/scim/scim.mdx) |
+
+The Microsoft Entra ID display-name and email-address claims correspond to the
+SAML claim URIs `http://schemas.microsoft.com/identity/claims/displayname` and
+`http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress`.
+
+To change how a user appears, set the attribute you want on the user: map it
+into the user's traits through your SSO connector, provision it through SCIM, or
+edit a local user's traits directly. Because display names are presentation
+only, the username is unchanged and remains the stable reference for roles, RBAC
+and audit logging.

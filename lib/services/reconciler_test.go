@@ -74,7 +74,7 @@ func TestReconciler(t *testing.T) {
 			registeredResources: []testResource{makeDynamicResource("res1", nil)},
 			newResources: []testResource{
 				makeDynamicResource("res1", nil, func(r *testResource) {
-					r.Metadata.Labels = map[string]string{"env": "dev"}
+					r.Metadata.SetLabels(map[string]string{"env": "dev"})
 				}),
 			},
 		},
@@ -207,9 +207,9 @@ func TestReconciler(t *testing.T) {
 				makeDynamicResource("res4", map[string]string{"env": "prod", "updated": "yes"}),
 			},
 			comparator: func(a, b testResource) int {
-				updated, ok := a.Metadata.Labels["updated"]
+				updated, ok := a.Metadata.GetLabels()["updated"]
 				if !ok {
-					updated, ok = b.Metadata.Labels["updated"]
+					updated, ok = b.Metadata.GetLabels()["updated"]
 					if !ok {
 						panic(`neither resource has "updated" label`)
 					}
@@ -243,16 +243,16 @@ func TestReconciler(t *testing.T) {
 
 			cfg := ReconcilerConfig[testResource]{
 				Matcher: func(tr testResource) bool {
-					return MatchResourceLabels(test.selectors, tr.GetMetadata().Labels)
+					return MatchResourceLabels(test.selectors, tr.GetMetadata().GetLabels())
 				},
 				GetCurrentResources: func() map[string]testResource {
 					return utils.FromSlice[testResource](test.registeredResources, func(t testResource) string {
-						return t.Metadata.Name
+						return t.Metadata.GetName()
 					})
 				},
 				GetNewResources: func() map[string]testResource {
 					return utils.FromSlice[testResource](test.newResources, func(t testResource) string {
-						return t.Metadata.Name
+						return t.Metadata.GetName()
 					})
 				},
 				CompareResources: func(tr1, tr2 testResource) int {
@@ -328,7 +328,7 @@ func TestGenericReconciler(t *testing.T) {
 			selectors := []ResourceMatcher{{
 				Labels: types.Labels{"env": []string{"prod"}},
 			}}
-			return MatchResourceLabels(selectors, tr.GetMetadata().Labels)
+			return MatchResourceLabels(selectors, tr.GetMetadata().GetLabels())
 		},
 		CompareResources: func(tr1, tr2 testResource) int {
 			return EqualFromBool(cmp.Equal(tr1, tr2, cmpopts.IgnoreUnexported(headerv1.Metadata{})))
@@ -488,10 +488,10 @@ func makeResource(name string, labels map[string]string, additionalLabels map[st
 	}
 	maps.Copy(labels, additionalLabels)
 	r := testResource{
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name:   name,
 			Labels: labels,
-		},
+		}.Build(),
 	}
 	for _, opt := range opts {
 		opt(&r)

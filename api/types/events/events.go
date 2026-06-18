@@ -483,17 +483,20 @@ func (m *AccessRequestCreate) TrimToMaxSize(maxSize int) AuditEvent {
 	out.Roles = nil
 	out.Reason = ""
 	out.Annotations = nil
+	out.SubmittedBy = ""
 
 	maxSize = adjustedMaxSize(out, maxSize)
 
 	customFieldsCount := nonEmptyStrsInSlice(m.Roles) +
 		nonEmptyStrs(m.Reason) +
-		m.Annotations.nonEmptyStrs()
+		m.Annotations.nonEmptyStrs() +
+		nonEmptyStrs(m.SubmittedBy)
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
 	out.Roles = trimStrSlice(m.Roles, maxFieldsSize)
 	out.Reason = trimStr(m.Reason, maxFieldsSize)
 	out.Annotations = m.Annotations.trimToMaxFieldSize(maxFieldsSize)
+	out.SubmittedBy = trimStr(m.SubmittedBy, maxFieldsSize)
 
 	return out
 }
@@ -3022,4 +3025,28 @@ func (m *AppSessionLLMRequest) TrimToMaxSize(maxSize int) AuditEvent {
 			newStrTrimmer(m.RequestedModel, &out.RequestedModel),
 		}
 	})
+}
+
+func (m *BeamsConfigCreate) TrimToMaxSize(int) AuditEvent {
+	return m
+}
+
+func (m *BeamsConfigUpdate) TrimToMaxSize(int) AuditEvent {
+	return m
+}
+
+func (m *BeamsConfigDelete) TrimToMaxSize(int) AuditEvent {
+	return m
+}
+
+func (m *ClassifierCreate) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *ClassifierUpdate) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *ClassifierDelete) TrimToMaxSize(_ int) AuditEvent {
+	return m
 }

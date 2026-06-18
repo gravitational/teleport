@@ -168,10 +168,10 @@ func updateLabelsOnNode(ctx context.Context, ap ServerInfoAccessPoint, node type
 	for _, si := range serverInfos {
 		maps.Copy(newLabels, si.GetNewLabels())
 	}
-	err := ap.UpdateLabels(ctx, &proto.InventoryUpdateLabelsRequest{
+	err := ap.UpdateLabels(ctx, proto.InventoryUpdateLabelsRequest_builder{
 		ServerID: node.GetName(),
 		Kind:     proto.LabelUpdateKind_SSHServerCloudLabels,
 		Labels:   newLabels,
-	})
+	}.Build())
 	return trace.Wrap(err)
 }

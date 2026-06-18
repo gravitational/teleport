@@ -176,11 +176,10 @@ type ProvisionToken interface {
 	GetAWSIIDTTL() Duration
 	// GetJoinMethod returns joining method that must be used with this token.
 	GetJoinMethod() JoinMethod
-	// GetBotName returns the BotName field which must be set for joining bots.
-	GetBotName() string
-	// GetBotScope returns the BotScope field which must be set for bots joining
-	// with a scoped token. It is empty for unscoped bots.
-	GetBotScope() string
+	// GetBot returns the name and scope of the bot that this token can join.
+	// An empty name indicates that this is not a bot token. Provision tokens
+	// can only refer to unscoped bots, so the scope is always empty.
+	GetBot() (name, scope string)
 	// IsStatic returns true if the token is statically configured
 	IsStatic() bool
 	// GetSuggestedLabels returns the set of labels that the resource should add when adding itself to the cluster
@@ -351,7 +350,7 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 				return trace.BadParameter(`the %q join method does not support the "aws_regions" parameter`, JoinMethodIAM)
 			}
 			if allowRule.AWSAccount == "" && allowRule.AWSARN == "" && allowRule.AWSOrganizationID == "" {
-				return trace.BadParameter(`allow rule for %q join method must set "aws_account", "aws_arn", or "aws_organization"`, JoinMethodIAM)
+				return trace.BadParameter(`allow rule for %q join method must set "aws_account", "aws_arn", or "aws_organization_id"`, JoinMethodIAM)
 			}
 		}
 	case JoinMethodGitHub:
@@ -609,16 +608,11 @@ func (p *ProvisionTokenV2) IsStatic() bool {
 	return p.Origin() == OriginConfigFile
 }
 
-// GetBotName returns the BotName field which must be set for joining bots.
-func (p *ProvisionTokenV2) GetBotName() string {
-	return p.Spec.BotName
-}
-
-// GetBotScope returns the BotScope field which must be set for bots joining
-// with a scoped token. It is empty for unscoped bots.
-func (p *ProvisionTokenV2) GetBotScope() string {
-	// Always empty for ProvisionTokenV2
-	return ""
+// GetBot returns the name and scope of the bot that this token can join. An
+// empty name indicates that this is not a bot token. Provision tokens can
+// only refer to unscoped bots, so the scope is always empty.
+func (p *ProvisionTokenV2) GetBot() (name, scope string) {
+	return p.Spec.BotName, ""
 }
 
 // GetKind returns resource kind
@@ -884,18 +878,24 @@ func (a *ProvisionTokenSpecV2Kubernetes) checkAndSetDefaults() error {
 		return trace.BadParameter("allow: at least one rule must be set")
 	}
 	for i, allowRule := range a.Allow {
-		if allowRule.ServiceAccount == "" {
+		serviceAccountSet := allowRule.ServiceAccount != ""
+		serviceAccountNameSet := allowRule.ServiceAccountName != ""
+		serviceAccountNamespaceSet := allowRule.ServiceAccountNamespace != ""
+
+		if !serviceAccountSet && (!serviceAccountNameSet || !serviceAccountNamespaceSet) {
 			return trace.BadParameter(
-				"allow[%d].service_account: name of service account must be set",
+				"allow[%d]: must specify service_account or (service_account_name and service_account_namespace)",
 				i,
 			)
 		}
-		if len(strings.Split(allowRule.ServiceAccount, ":")) != 2 {
-			return trace.BadParameter(
-				`allow[%d].service_account: name of service account should be in format "namespace:service_account", got %q instead`,
-				i,
-				allowRule.ServiceAccount,
-			)
+		if serviceAccountSet {
+			if len(strings.Split(allowRule.ServiceAccount, ":")) != 2 {
+				return trace.BadParameter(
+					`allow[%d].service_account: name of service account should be in format "namespace:service_account", got %q instead`,
+					i,
+					allowRule.ServiceAccount,
+				)
+			}
 		}
 	}
 

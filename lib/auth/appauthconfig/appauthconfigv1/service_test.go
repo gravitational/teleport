@@ -26,6 +26,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 
 	appauthconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1"
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
@@ -65,9 +66,9 @@ func TestAppAuthConfigCRUD(t *testing.T) {
 		{
 			name: "CreateAppAuthConfig",
 			actionFn: func(t *testing.T, ctx context.Context, clt testClient) error {
-				_, err := clt.ServiceUnderTest.CreateAppAuthConfig(ctx, &appauthconfigv1.CreateAppAuthConfigRequest{
+				_, err := clt.ServiceUnderTest.CreateAppAuthConfig(ctx, appauthconfigv1.CreateAppAuthConfigRequest_builder{
 					Config: newAppAuthConfigJWT(),
-				})
+				}.Build())
 				return err
 			},
 			requiredAccessRules: []types.Rule{appAuthConfigRule(types.VerbCreate)},
@@ -80,9 +81,9 @@ func TestAppAuthConfigCRUD(t *testing.T) {
 				cfg1 := newAppAuthConfigJWT()
 				_, err := clt.CreateAppAuthConfig(ctx, cfg1)
 				require.NoError(t, err)
-				_, err = clt.ServiceUnderTest.GetAppAuthConfig(ctx, &appauthconfigv1.GetAppAuthConfigRequest{
-					Name: cfg1.Metadata.GetName(),
-				})
+				_, err = clt.ServiceUnderTest.GetAppAuthConfig(ctx, appauthconfigv1.GetAppAuthConfigRequest_builder{
+					Name: cfg1.GetMetadata().GetName(),
+				}.Build())
 				return err
 			},
 			requiredAccessRules: []types.Rule{appAuthConfigRule(types.VerbRead)},
@@ -97,7 +98,7 @@ func TestAppAuthConfigCRUD(t *testing.T) {
 				resp, err := clt.ServiceUnderTest.ListAppAuthConfigs(ctx, &appauthconfigv1.ListAppAuthConfigsRequest{})
 				if err == nil {
 					require.NotNil(t, resp)
-					require.Len(t, resp.Configs, 2, "expected 2 inserted")
+					require.Len(t, resp.GetConfigs(), 2, "expected 2 inserted")
 				}
 				return err
 			},
@@ -109,13 +110,13 @@ func TestAppAuthConfigCRUD(t *testing.T) {
 			actionFn: func(t *testing.T, ctx context.Context, clt testClient) error {
 				cfg, err := clt.CreateAppAuthConfig(ctx, newAppAuthConfigJWT())
 				require.NoError(t, err)
-				firstRev := cfg.Metadata.Revision
-				cfg, err = clt.ServiceUnderTest.UpdateAppAuthConfig(ctx, &appauthconfigv1.UpdateAppAuthConfigRequest{
+				firstRev := cfg.GetMetadata().GetRevision()
+				cfg, err = clt.ServiceUnderTest.UpdateAppAuthConfig(ctx, appauthconfigv1.UpdateAppAuthConfigRequest_builder{
 					Config: cfg,
-				})
+				}.Build())
 				if err == nil {
 					require.NotNil(t, cfg, "the updated resource should be returned")
-					require.NotEqual(t, firstRev, cfg.Metadata.Revision, "the resource should have been updated")
+					require.NotEqual(t, firstRev, cfg.GetMetadata().GetRevision(), "the resource should have been updated")
 				}
 				return err
 			},
@@ -126,9 +127,9 @@ func TestAppAuthConfigCRUD(t *testing.T) {
 			name: "UpsertAppAuthConfig",
 			actionFn: func(t *testing.T, ctx context.Context, clt testClient) error {
 				cfg := newAppAuthConfigJWT()
-				_, err := clt.ServiceUnderTest.UpsertAppAuthConfig(ctx, &appauthconfigv1.UpsertAppAuthConfigRequest{
+				_, err := clt.ServiceUnderTest.UpsertAppAuthConfig(ctx, appauthconfigv1.UpsertAppAuthConfigRequest_builder{
 					Config: cfg,
-				})
+				}.Build())
 				return err
 			},
 			requiredAccessRules: []types.Rule{appAuthConfigRule(types.VerbCreate, types.VerbUpdate)},
@@ -140,9 +141,9 @@ func TestAppAuthConfigCRUD(t *testing.T) {
 			actionFn: func(t *testing.T, ctx context.Context, clt testClient) error {
 				cfg, err := clt.CreateAppAuthConfig(ctx, newAppAuthConfigJWT())
 				require.NoError(t, err)
-				_, err = clt.ServiceUnderTest.DeleteAppAuthConfig(ctx, &appauthconfigv1.DeleteAppAuthConfigRequest{
-					Name: cfg.Metadata.GetName(),
-				})
+				_, err = clt.ServiceUnderTest.DeleteAppAuthConfig(ctx, appauthconfigv1.DeleteAppAuthConfigRequest_builder{
+					Name: cfg.GetMetadata().GetName(),
+				}.Build())
 				return err
 			},
 			requiredAccessRules: []types.Rule{appAuthConfigRule(types.VerbDelete)},
@@ -216,14 +217,12 @@ func (c *accessTest) run(t *testing.T) {
 func newAppAuthConfigJWT() *appauthconfigv1.AppAuthConfig {
 	return appauthconfig.NewAppAuthConfigJWT(
 		uuid.NewString(),
-		[]*labelv1.Label{{Name: "*", Values: []string{"*"}}},
-		&appauthconfigv1.AppAuthConfigJWTSpec{
+		[]*labelv1.Label{labelv1.Label_builder{Name: "*", Values: []string{"*"}}.Build()},
+		appauthconfigv1.AppAuthConfigJWTSpec_builder{
 			Issuer:   "https://issuer-url",
 			Audience: "teleport",
-			KeysSource: &appauthconfigv1.AppAuthConfigJWTSpec_JwksUrl{
-				JwksUrl: "https://issuer-url/.well-known/jwks.json",
-			},
-		},
+			JwksUrl:  proto.String("https://issuer-url/.well-known/jwks.json"),
+		}.Build(),
 	)
 }
 

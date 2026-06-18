@@ -99,7 +99,7 @@ level of AWS permissions.
 Firstly, you'll need to clone the Teleport repo to get the Terraform code available on your system:
 
 ```code
-$ git clone https://github.com/gravitational/teleport -b branch/v(=teleport.major_version=)
+$ git clone https://github.com/gravitational/teleport -b branch/v(=teleport.major_version=) --depth=1
 # Cloning into 'teleport'...
 # remote: Enumerating objects: 106, done.
 # remote: Counting objects: 100% (106/106), done.
@@ -597,13 +597,17 @@ To add users to the Teleport cluster, you will need to connect to a Teleport Aut
    # Warning: Permanently added '172.31.0.196' (ECDSA) to the list of known hosts.
    # Last login: Tue Mar  3 18:57:12 2020 from 1.2.3.5
 
-   #       __|  __|_  )
-   #       _|  (     /   Amazon Linux 2 AMI
-   #      ___|\___|___|
+   #   ,     #_
+   #   ~\_  ####_        Amazon Linux 2023
+   #  ~~  \_#####\
+   #  ~~     \###|
+   #  ~~       \#/ ___   https://aws.amazon.com/linux/amazon-linux-2023
+   #   ~~       V~' '->
+   #    ~~~         /
+   #      ~~._.   _/
+   #         _/ _/
+   #       _/m/'
 
-   # https://aws.amazon.com/amazon-linux-2/
-   # 1 package(s) needed for security, out of 6 available
-   # Run "sudo yum update" to apply all updates.
    # [ec2-user@ip-172-31-0-196 ~]$
    ```
 

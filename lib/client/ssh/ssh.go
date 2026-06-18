@@ -53,8 +53,8 @@ func KeyboardInteractive(ctx context.Context, p MFACeremonyPerformer, m ssh.Conn
 					return nil, trace.BadParameter("received sshpb.AuthPrompt with nil Prompt field")
 				}
 
-				switch pr.GetPrompt().(type) {
-				case *sshpb.AuthPrompt_MfaPrompt:
+				switch pr.WhichPrompt() {
+				case sshpb.AuthPrompt_MfaPrompt_case:
 					answer, err := handleMFAPrompt(ctx, p, m)
 					if err != nil {
 						return nil, trace.Wrap(err)
@@ -80,13 +80,11 @@ func handleMFAPrompt(ctx context.Context, p MFACeremonyPerformer, m ssh.ConnMeta
 	}
 
 	// Construct the response referencing the challenge solved by the user.
-	resp := &sshpb.MFAPromptResponse{
-		Response: &sshpb.MFAPromptResponse_Reference{
-			Reference: &sshpb.MFAPromptResponseReference{
-				ChallengeName: name,
-			},
-		},
-	}
+	resp := sshpb.MFAPromptResponse_builder{
+		Reference: sshpb.MFAPromptResponseReference_builder{
+			ChallengeName: name,
+		}.Build(),
+	}.Build()
 
 	// Marshal the response to JSON since the authentication method only supports UTF-8 strings.
 	answerBytes, err := protojson.Marshal(resp)

@@ -122,6 +122,7 @@ func TestDestinationDirectory_ACLs(t *testing.T) {
 		t.Skipf("ACLs were unexpectedly not supported: %+v", err)
 	}
 
+	require.True(t, dd.ACLsEnabled())
 	require.NoError(t, err)
 
 	// An ACL should be configured for the root directory

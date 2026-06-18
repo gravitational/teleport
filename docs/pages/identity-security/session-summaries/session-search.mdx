@@ -5,10 +5,10 @@ description: Configure and use Teleport Identity Security Session Recording Sear
 tags:
   - session-recording
   - how-to
-  - conceptual
   - identity-security
   - ai
 enterprise: Identity Security
+page_type: how-to
 ---
 
 Session Recording Search lets you find relevant session recordings by searching their
@@ -20,6 +20,10 @@ Session Recording Search searches session summaries, not raw recording data. A
 recording appears in search results only after Teleport has generated a
 successful [session recording summary](./session-summaries.mdx) for that
 session.
+
+In this guide, you will configure Teleport session summaries, generate summaries
+from sessions, and use Session Recording Search to find the summaries you
+generated.
 
 ## How it works
 
@@ -280,6 +284,14 @@ Common filters include:
 ## Next steps
 
 - [tctl recordings search reference](../../reference/cli/tctl.mdx#tctl-recordings-search)
+
+## Use Session Recording Search with an AI agent
+
+To let an AI agent drive this command, install the matching Agent Skill:
+
+```code
+$ npx skills add https://github.com/gravitational/teleport/tree/master/skills/teleport-session-review
+```
 
 ## Troubleshooting
 

@@ -24,6 +24,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"maps"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -87,44 +88,40 @@ func TestCertificateStoreClient_Update(t *testing.T) {
 	require.NoError(t, err)
 	overrideCert, overrideCertPEM := overrideCA.Cert, overrideCA.CertPEM
 	publicKeyHash := subca.HashCertificatePublicKey(overrideCert)
-	caOverride := &subcav1.CertAuthorityOverride{
+	caOverride := subcav1.CertAuthorityOverride_builder{
 		Kind:    types.KindCertAuthorityOverride,
 		SubKind: string(types.WindowsCA),
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: clusterName,
-		},
-		Spec: &subcav1.CertAuthorityOverrideSpec{
+		}.Build(),
+		Spec: subcav1.CertAuthorityOverrideSpec_builder{
 			CertificateOverrides: []*subcav1.CertificateOverride{
-				{
+				subcav1.CertificateOverride_builder{
 					PublicKey:   publicKeyHash,
 					Certificate: string(overrideCertPEM),
 					Disabled:    true, // We'll push the CRL even if it's disabled.
-				},
+				}.Build(),
 			},
-		},
-		Status: &subcav1.CertAuthorityOverrideStatus{
+		}.Build(),
+		Status: subcav1.CertAuthorityOverrideStatus_builder{
 			PublicKeyHashToCrl: map[string]*subcav1.CertificateRevocationList{
-				publicKeyHash: {
+				publicKeyHash: subcav1.CertificateRevocationList_builder{
 					Pem: string(pem.EncodeToMemory(&pem.Block{
 						Type:  "X509 CRL",
 						Bytes: []byte(overrideCRL),
 					})),
-				},
+				}.Build(),
 			},
-		},
-	}
+		}.Build(),
+	}.Build()
 
+	ap := &fakeAccessPoint{
+		cas: []types.CertAuthority{ca},
+	}
 	ldap := newFakeLDAP()
 	csc := NewCertificateStoreClient(CertificateStoreConfig{
-		AccessPoint: &fakeAccessPoint{
-			cas: []types.CertAuthority{
-				ca,
-			},
-			caOverrides: []*subcav1.CertAuthorityOverride{
-				caOverride,
-			},
-		},
+		AccessPoint: ap,
 		Domain:      domain,
 		Logger:      logtest.NewLogger(),
 		ClusterName: clusterName,
@@ -134,20 +131,12 @@ func TestCertificateStoreClient_Update(t *testing.T) {
 		},
 	})
 
-	tc := &tls.Config{} // Unused, LDAP is faked.
-	require.NoError(t,
-		csc.Update(t.Context(), tc),
-		"Update errored",
-	)
-
-	// Prepare wanted state.
+	// Prepare wanted state (CAs only).
 	containerDN, err := crlContainerDN(domain, types.WindowsCA)
 	require.NoError(t, err)
 	caCRLDN, err := CRLDN(caCert.Subject.CommonName, caCert.SubjectKeyId, domain, types.WindowsCA)
 	require.NoError(t, err)
-	overrideCRLDN, err := CRLDN(overrideCert.Subject.CommonName, overrideCert.SubjectKeyId, domain, types.WindowsCA)
-	require.NoError(t, err)
-	want := map[string]*ldapEntry{
+	wantCAs := map[string]*ldapEntry{
 		containerDN: {
 			ObjectClass: "container",
 		},
@@ -157,38 +146,68 @@ func TestCertificateStoreClient_Update(t *testing.T) {
 				"certificateRevocationList": {caCRL},
 			},
 		},
-		overrideCRLDN: {
-			ObjectClass: "cRLDistributionPoint",
-			Attrs: map[string][]string{
-				"certificateRevocationList": {overrideCRL},
-			},
+	}
+
+	// Prepare wanted state (CAs + CA overrides).
+	overrideCRLDN, err := CRLDN(overrideCert.Subject.CommonName, overrideCert.SubjectKeyId, domain, types.WindowsCA)
+	require.NoError(t, err)
+	wantOverrides := maps.Clone(wantCAs)
+	wantOverrides[overrideCRLDN] = &ldapEntry{
+		ObjectClass: "cRLDistributionPoint",
+		Attrs: map[string][]string{
+			"certificateRevocationList": {overrideCRL},
 		},
 	}
 
-	// Assert LDAP state.
-	if diff := cmp.Diff(want, ldap.entries); diff != "" {
-		t.Fatalf("LDAP entries mismatch (-want +got)\n%s", diff)
-	}
+	runUpdate := func(t *testing.T, wantEntries map[string]*ldapEntry) {
+		t.Helper()
 
-	// Exercise entry update flow.
-	t.Run("update", func(t *testing.T) {
+		// Reset state after running.
+		defer func() { clear(ldap.entries) }()
+
+		tc := &tls.Config{} // Unused, LDAP is faked.
 		require.NoError(t,
 			csc.Update(t.Context(), tc),
 			"Update errored",
 		)
 
-		// Assert LDAP state.
-		if diff := cmp.Diff(want, ldap.entries); diff != "" {
+		if diff := cmp.Diff(wantEntries, ldap.entries); diff != "" {
 			t.Fatalf("LDAP entries mismatch (-want +got)\n%s", diff)
 		}
+	}
+
+	t.Run("CAs only", func(t *testing.T) {
+		runUpdate(t, wantCAs)
+	})
+
+	// Prepare wanted state (CAs + overrides).
+	ap.caOverrides = []*subcav1.CertAuthorityOverride{caOverride}
+	t.Run("CAs and CA overrides", func(t *testing.T) {
+		runUpdate(t, wantOverrides)
+	})
+
+	// Exercise entry update flow.
+	t.Run("update", func(t *testing.T) {
+		// Same state.
+		runUpdate(t, wantOverrides)
+	})
+
+	// Exercise CA overrides NotImplemented (OSS).
+	t.Run("CA overrides not found", func(t *testing.T) {
+		ap.caOverridesNotImplemented = true
+		t.Cleanup(func() { ap.caOverridesNotImplemented = false })
+
+		// CA overrides not synced.
+		runUpdate(t, wantCAs)
 	})
 }
 
 type fakeAccessPoint struct {
 	CRLGenerator
 
-	cas         []types.CertAuthority
-	caOverrides []*subcav1.CertAuthorityOverride
+	cas                       []types.CertAuthority
+	caOverrides               []*subcav1.CertAuthorityOverride
+	caOverridesNotImplemented bool
 }
 
 func (f *fakeAccessPoint) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error) {
@@ -206,8 +225,12 @@ func (f *fakeAccessPoint) GetCertAuthorities(ctx context.Context, caType types.C
 }
 
 func (f *fakeAccessPoint) GetCertAuthorityOverride(ctx context.Context, id types.CertAuthorityOverrideID) (*subcav1.CertAuthorityOverride, error) {
+	if f.caOverridesNotImplemented {
+		return nil, trace.NotImplemented("not implemented")
+	}
+
 	for _, caOverride := range f.caOverrides {
-		if caOverride.Metadata.Name == id.ClusterName && caOverride.SubKind == id.CAType {
+		if caOverride.GetMetadata().GetName() == id.ClusterName && caOverride.GetSubKind() == id.CAType {
 			return caOverride, nil
 		}
 	}

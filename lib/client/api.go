@@ -1387,7 +1387,8 @@ func (tc *TeleportClient) ProfileStatus() (*ProfileStatus, error) {
 // LoadKeyForCluster fetches a cluster-specific SSH key and loads it into the
 // SSH agent.
 func (tc *TeleportClient) LoadKeyForCluster(ctx context.Context, clusterName string) error {
-	_, span := tc.Tracer.Start(
+	//nolint:ineffassign,staticcheck // ctx is shadowed so future downstream calls inherit the span.
+	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/LoadKeyForCluster",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
@@ -1446,8 +1447,8 @@ func (tc *TeleportClient) LocalAgent() *LocalKeyAgent {
 
 // RootClusterName returns root cluster name.
 func (tc *TeleportClient) RootClusterName(ctx context.Context) (string, error) {
-	_, span := tc.Tracer.Start(
-		ctx,
+	//nolint:ineffassign,staticcheck // ctx is shadowed so future downstream calls inherit the span.
+	ctx, span := tc.Tracer.Start(ctx,
 		"teleportClient/RootClusterName",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 	)
@@ -2391,7 +2392,7 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	if mode == types.SessionModeratorMode {
 		beforeStart = func(out io.Writer) {
 			nc.OnMFA = func() {
-				RunPresenceTask(presenceCtx, out, clt.AuthClient, session.GetSessionID(), tc.NewMFACeremony())
+				RunDefaultPresenceTask(presenceCtx, out, clt.AuthClient, session.GetSessionID(), tc.NewMFACeremony())
 			}
 		}
 	}
@@ -3663,11 +3664,11 @@ func (tc *TeleportClient) AttemptDeviceLogin(ctx context.Context, keyRing *KeyRi
 
 	newCerts, err := tc.DeviceLogin(ctx, &dtauthntypes.CeremonyRunParams{
 		DevicesClient: rootAuthClient.DevicesClient(),
-		Certs: &devicepb.UserCertificates{
+		Certs: devicepb.UserCertificates_builder{
 			// Augment the SSH certificate.
 			// The TLS certificate is already part of the connection.
 			SshAuthorizedKey: keyRing.Cert,
-		},
+		}.Build(),
 		SSHSigner: keyRing.SSHPrivateKey,
 	})
 	switch {
@@ -3687,10 +3688,10 @@ func (tc *TeleportClient) AttemptDeviceLogin(ctx context.Context, keyRing *KeyRi
 
 	log.DebugContext(ctx, "Device Trust: acquired augmented user certificates")
 	cp := *keyRing
-	cp.Cert = newCerts.SshAuthorizedKey
+	cp.Cert = newCerts.GetSshAuthorizedKey()
 	cp.TLSCert = pem.EncodeToMemory(&pem.Block{
 		Type:  "CERTIFICATE",
-		Bytes: newCerts.X509Der,
+		Bytes: newCerts.GetX509Der(),
 	})
 
 	if err := tc.localAgent.AddKeyRing(&cp); err != nil {
@@ -4052,7 +4053,7 @@ func (tc *TeleportClient) SSHLogin(ctx context.Context, sshLoginFunc SSHLoginFun
 	}
 
 	if ident.ScopePin != nil {
-		log.DebugContext(ctx, "got scoped certificate identity", "scope", ident.ScopePin.Scope, "assignments", pinning.AssignmentTreeIntoMap(ident.ScopePin.AssignmentTree))
+		log.DebugContext(ctx, "got scoped certificate identity", "scope", ident.ScopePin.GetScope(), "assignments", pinning.AssignmentTreeIntoMap(ident.ScopePin.GetAssignmentTree()))
 	}
 
 	return keyRing, nil
@@ -4103,7 +4104,7 @@ func (tc *TeleportClient) updatePrivateKeyPolicy(policy keys.PrivateKeyPolicy) e
 
 // GetNewLoginKeyRing gets a KeyRing with new private keys for login.
 func (tc *TeleportClient) GetNewLoginKeyRing(ctx context.Context) (keyRing *KeyRing, err error) {
-	_, span := tc.Tracer.Start(
+	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/GetNewLoginKeyRing",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
@@ -4397,7 +4398,8 @@ func (tc *TeleportClient) ConnectToRootCluster(ctx context.Context, keyRing *Key
 // activateKeyRing saves the target session cert into the local
 // keystore (and into the ssh-agent) for future use.
 func (tc *TeleportClient) activateKeyRing(ctx context.Context, keyRing *KeyRing) error {
-	_, span := tc.Tracer.Start(
+	//nolint:ineffassign,staticcheck // ctx is shadowed so future downstream calls inherit the span.
+	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/activateKey",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
@@ -4885,7 +4887,8 @@ func (tc *TeleportClient) applyAuthSettings(authSettings webclient.Authenticatio
 
 // AddTrustedCA adds a new CA as trusted CA for this client, used in tests
 func (tc *TeleportClient) AddTrustedCA(ctx context.Context, ca types.CertAuthority) error {
-	_, span := tc.Tracer.Start(
+	//nolint:ineffassign,staticcheck // ctx is shadowed so future downstream calls inherit the span.
+	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/AddTrustedCA",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
@@ -5087,50 +5090,6 @@ func (tc *TeleportClient) LoadTLSConfigForClusters(clusters []string) (*tls.Conf
 	}
 	tlsConfig.InsecureSkipVerify = tc.InsecureSkipVerify
 	return tlsConfig, nil
-}
-
-// ParseLabelSpec parses a string like 'name=value,"long name"="quoted value"` into a map like
-// { "name" -> "value", "long name" -> "quoted value" }
-func ParseLabelSpec(spec string) (map[string]string, error) {
-	var tokens []string
-	openQuotes := false
-	var tokenStart, assignCount int
-	specLen := len(spec)
-	// tokenize the label spec:
-	for i, ch := range spec {
-		endOfToken := false
-		// end of line?
-		if i+utf8.RuneLen(ch) == specLen {
-			i += utf8.RuneLen(ch)
-			endOfToken = true
-		}
-		switch ch {
-		case '"':
-			openQuotes = !openQuotes
-		case '=', ',', ';':
-			if !openQuotes {
-				endOfToken = true
-				if ch == '=' {
-					assignCount++
-				}
-			}
-		}
-		if endOfToken && i > tokenStart {
-			tokens = append(tokens, strings.TrimSpace(strings.Trim(spec[tokenStart:i], `"`)))
-			tokenStart = i + 1
-		}
-	}
-	// simple validation of tokenization: must have an even number of tokens (because they're pairs)
-	// and the number of such pairs must be equal the number of assignments
-	if len(tokens)%2 != 0 || assignCount != len(tokens)/2 {
-		return nil, fmt.Errorf("invalid label spec: '%s', should be 'key=value'", spec)
-	}
-	// break tokens in pairs and put into a map:
-	labels := make(map[string]string)
-	for i := 0; i < len(tokens); i += 2 {
-		labels[tokens[i]] = tokens[i+1]
-	}
-	return labels, nil
 }
 
 // ParseSearchKeywords parses a string ie: foo,bar,"quoted value"` into a slice of
@@ -5424,7 +5383,8 @@ func (tc *TeleportClient) IsALPNConnUpgradeRequiredForWebProxy(ctx context.Conte
 
 // RootClusterCACertPool returns a *x509.CertPool with the root cluster CA.
 func (tc *TeleportClient) RootClusterCACertPool(ctx context.Context) (*x509.CertPool, error) {
-	_, span := tc.Tracer.Start(
+	//nolint:ineffassign,staticcheck // ctx is shadowed so future downstream calls inherit the span.
+	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/RootClusterCACertPool",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
@@ -5447,7 +5407,8 @@ func (tc *TeleportClient) RootClusterCACertPool(ctx context.Context) (*x509.Cert
 
 // RootClusterCACertPoolPEM returns a PEM-encoded cert pool with the root cluster CA.
 func (tc *TeleportClient) RootClusterCACertPoolPEM(ctx context.Context) ([]byte, error) {
-	_, span := tc.Tracer.Start(
+	//nolint:ineffassign,staticcheck // ctx is shadowed so future downstream calls inherit the span.
+	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/RootClusterCACertPoolPEM",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),

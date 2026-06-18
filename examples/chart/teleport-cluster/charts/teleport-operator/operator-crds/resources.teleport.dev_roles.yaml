@@ -1542,6 +1542,11 @@ spec:
                             type: boolean
                         type: object
                     type: object
+                  web_terminal_clipboard_mode:
+                    description: WebTerminalClipboardMode determines clipboard behavior
+                      in the Web UI terminal. Valid values are "unrestricted" and
+                      "no-copy". Defaults to "unrestricted" if unspecified.
+                    x-kubernetes-int-or-string: true
                 type: object
             type: object
           status:
@@ -3145,6 +3150,11 @@ spec:
                             type: boolean
                         type: object
                     type: object
+                  web_terminal_clipboard_mode:
+                    description: WebTerminalClipboardMode determines clipboard behavior
+                      in the Web UI terminal. Valid values are "unrestricted" and
+                      "no-copy". Defaults to "unrestricted" if unspecified.
+                    x-kubernetes-int-or-string: true
                 type: object
             type: object
           status:

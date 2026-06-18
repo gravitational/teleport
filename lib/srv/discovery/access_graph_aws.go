@@ -147,8 +147,8 @@ func (s *Server) reconcileAccessGraph(
 			continue
 		}
 		for _, cluster := range result.EKSClusters {
-			clusterTags := make(map[string]string, len(cluster.Tags))
-			for _, tag := range cluster.Tags {
+			clusterTags := make(map[string]string, len(cluster.GetTags()))
+			for _, tag := range cluster.GetTags() {
 				clusterTags[tag.GetKey()] = tag.GetValue().GetValue()
 			}
 			match, _, _ := services.MatchLabels(fetcher.EKSAuditLogs.Tags, clusterTags)
@@ -246,16 +246,14 @@ func pushUpsertInBatches(
 	client accessgraphv1alpha.AccessGraphService_AWSEventsStreamClient,
 	upsert *accessgraphv1alpha.AWSResourceList,
 ) error {
-	for i := 0; i < len(upsert.Resources); i += batchSize {
-		end := min(i+batchSize, len(upsert.Resources))
+	for i := 0; i < len(upsert.GetResources()); i += batchSize {
+		end := min(i+batchSize, len(upsert.GetResources()))
 		err := client.Send(
-			&accessgraphv1alpha.AWSEventsStreamRequest{
-				Operation: &accessgraphv1alpha.AWSEventsStreamRequest_Upsert{
-					Upsert: &accessgraphv1alpha.AWSResourceList{
-						Resources: upsert.Resources[i:end],
-					},
-				},
-			},
+			accessgraphv1alpha.AWSEventsStreamRequest_builder{
+				Upsert: accessgraphv1alpha.AWSResourceList_builder{
+					Resources: upsert.GetResources()[i:end],
+				}.Build(),
+			}.Build(),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -268,16 +266,14 @@ func pushDeleteInBatches(
 	client accessgraphv1alpha.AccessGraphService_AWSEventsStreamClient,
 	toDel *accessgraphv1alpha.AWSResourceList,
 ) error {
-	for i := 0; i < len(toDel.Resources); i += batchSize {
-		end := min(i+batchSize, len(toDel.Resources))
+	for i := 0; i < len(toDel.GetResources()); i += batchSize {
+		end := min(i+batchSize, len(toDel.GetResources()))
 		err := client.Send(
-			&accessgraphv1alpha.AWSEventsStreamRequest{
-				Operation: &accessgraphv1alpha.AWSEventsStreamRequest_Delete{
-					Delete: &accessgraphv1alpha.AWSResourceList{
-						Resources: toDel.Resources[i:end],
-					},
-				},
-			},
+			accessgraphv1alpha.AWSEventsStreamRequest_builder{
+				Delete: accessgraphv1alpha.AWSResourceList_builder{
+					Resources: toDel.GetResources()[i:end],
+				}.Build(),
+			}.Build(),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -300,9 +296,9 @@ func push(
 		return trace.Wrap(err)
 	}
 	err = client.Send(
-		&accessgraphv1alpha.AWSEventsStreamRequest{
-			Operation: &accessgraphv1alpha.AWSEventsStreamRequest_Sync{},
-		},
+		accessgraphv1alpha.AWSEventsStreamRequest_builder{
+			Sync: &accessgraphv1alpha.AWSSyncOperation{},
+		}.Build(),
 	)
 	return trace.Wrap(err)
 }
@@ -720,11 +716,9 @@ func (s *Server) startCloudtrailPoller(ctx context.Context, reloadCh <-chan stru
 		return trace.Wrap(err)
 	}
 	err = stream.Send(
-		&accessgraphv1alpha.AWSCloudTrailStreamRequest{
-			Action: &accessgraphv1alpha.AWSCloudTrailStreamRequest_Config{
-				Config: &accessgraphv1alpha.AWSCloudTrailConfig{},
-			},
-		},
+		accessgraphv1alpha.AWSCloudTrailStreamRequest_builder{
+			Config: &accessgraphv1alpha.AWSCloudTrailConfig{},
+		}.Build(),
 	)
 	if err != nil {
 		err = consumeTillErr(stream)
@@ -844,14 +838,12 @@ func (s *Server) startCloudtrailPoller(ctx context.Context, reloadCh <-chan stru
 			continue
 		case file := <-filePayload:
 			err := stream.Send(
-				&accessgraphv1alpha.AWSCloudTrailStreamRequest{
-					Action: &accessgraphv1alpha.AWSCloudTrailStreamRequest_EventsFile{
-						EventsFile: &accessgraphv1alpha.AWSCloudTrailEventsFile{
-							Payload:      file.payload,
-							AwsAccountId: file.accountID,
-						},
-					},
-				},
+				accessgraphv1alpha.AWSCloudTrailStreamRequest_builder{
+					EventsFile: accessgraphv1alpha.AWSCloudTrailEventsFile_builder{
+						Payload:      file.payload,
+						AwsAccountId: file.accountID,
+					}.Build(),
+				}.Build(),
 			)
 			if err != nil {
 				err = consumeTillErr(stream)

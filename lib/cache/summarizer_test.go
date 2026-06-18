@@ -18,13 +18,16 @@ package cache
 
 import (
 	"context"
+	"iter"
 	"testing"
+	"testing/synctest"
 
-	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
 
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/summarizer"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 func TestInferenceModelCache(t *testing.T) {
@@ -35,13 +38,11 @@ func TestInferenceModelCache(t *testing.T) {
 
 	testResources153(t, p, testFuncs[*summarizerv1.InferenceModel]{
 		newResource: func(name string) (*summarizerv1.InferenceModel, error) {
-			return summarizer.NewInferenceModel(name, &summarizerv1.InferenceModelSpec{
-				Provider: &summarizerv1.InferenceModelSpec_Openai{
-					Openai: &summarizerv1.OpenAIProvider{
-						OpenaiModelId: "gpt-4o",
-					},
-				},
-			}), nil
+			return summarizer.NewInferenceModel(name, summarizerv1.InferenceModelSpec_builder{
+				Openai: summarizerv1.OpenAIProvider_builder{
+					OpenaiModelId: "gpt-4o",
+				}.Build(),
+			}.Build()), nil
 		},
 		create: func(ctx context.Context, item *summarizerv1.InferenceModel) error {
 			_, err := p.summarizer.CreateInferenceModel(ctx, item)
@@ -61,9 +62,9 @@ func TestInferenceSecretCache(t *testing.T) {
 
 	testResources153(t, p, testFuncs[*summarizerv1.InferenceSecret]{
 		newResource: func(name string) (*summarizerv1.InferenceSecret, error) {
-			return summarizer.NewInferenceSecret(name, &summarizerv1.InferenceSecretSpec{
+			return summarizer.NewInferenceSecret(name, summarizerv1.InferenceSecretSpec_builder{
 				Value: "super-secret-value",
-			}), nil
+			}.Build()), nil
 		},
 		create: func(ctx context.Context, item *summarizerv1.InferenceSecret) error {
 			_, err := p.summarizer.CreateInferenceSecret(ctx, item)
@@ -83,10 +84,10 @@ func TestInferencePolicyCache(t *testing.T) {
 
 	testResources153(t, p, testFuncs[*summarizerv1.InferencePolicy]{
 		newResource: func(name string) (*summarizerv1.InferencePolicy, error) {
-			return summarizer.NewInferencePolicy(name, &summarizerv1.InferencePolicySpec{
+			return summarizer.NewInferencePolicy(name, summarizerv1.InferencePolicySpec_builder{
 				Kinds: []string{string(types.SSHSessionKind)},
 				Model: "test-model",
-			}), nil
+			}.Build()), nil
 		},
 		create: func(ctx context.Context, item *summarizerv1.InferencePolicy) error {
 			_, err := p.summarizer.CreateInferencePolicy(ctx, item)
@@ -98,34 +99,160 @@ func TestInferencePolicyCache(t *testing.T) {
 	})
 }
 
-func TestRetrievalModelCache(t *testing.T) {
+func TestClassifierCache(t *testing.T) {
 	t.Parallel()
 
 	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
 
-	testResources153(t, p, testFuncs[*summarizerv1.RetrievalModel]{
-		newResource: func(name string) (*summarizerv1.RetrievalModel, error) {
-			return summarizer.NewRetrievalModel(&summarizerv1.RetrievalModelSpec{
-				EmbeddingsProvider: &summarizerv1.RetrievalModelSpec_Openai{
-					Openai: &summarizerv1.OpenAIProvider{
-						OpenaiModelId:   "text-embedding-3-small",
-						ApiKeySecretRef: "some",
-					},
-				},
-				InferenceModelName: "some",
-			}), nil
+	testResources153(t, p, testFuncs[*summarizerv1.Classifier]{
+		newResource: func(name string) (*summarizerv1.Classifier, error) {
+			return summarizer.NewClassifier(name, summarizerv1.ClassifierSpec_builder{
+				Kinds:    []string{string(types.SSHSessionKind)},
+				Criteria: "sessions that touch production data",
+			}.Build()), nil
 		},
-		create: func(ctx context.Context, item *summarizerv1.RetrievalModel) error {
-			_, err := p.summarizer.CreateRetrievalModel(ctx, item)
+		create: func(ctx context.Context, item *summarizerv1.Classifier) error {
+			_, err := p.summarizer.CreateClassifier(ctx, item)
 			return err
 		},
-		update: func(ctx context.Context, item *summarizerv1.RetrievalModel) error {
-			_, err := p.summarizer.UpdateRetrievalModel(ctx, item)
-			return trace.Wrap(err)
-		},
-		list:      singletonListAdapter(p.summarizer.GetRetrievalModel),
-		cacheList: singletonListAdapter(p.cache.GetRetrievalModel),
-		deleteAll: p.summarizer.DeleteRetrievalModel,
-	}, withSkipPaginationTest()) // skip pagination test because NetworkRestrictions is a singleton resource
+		list:      p.summarizer.ListClassifiers,
+		cacheList: p.cache.ListClassifiers,
+		deleteAll: p.summarizer.DeleteAllClassifiers,
+	})
+}
+
+// collectClassifiers drains a Classifier range into a slice, failing the test
+// on error.
+func collectClassifiers(t require.TestingT, it iter.Seq2[*summarizerv1.Classifier, error]) []*summarizerv1.Classifier {
+	out, err := stream.Collect(it)
+	require.NoError(t, err)
+	return out
+}
+
+// createClassifiers creates classifiers with the given names in the backend
+// and blocks until the cache has observed all of them. Names must be unique.
+func createClassifiers(t *testing.T, ctx context.Context, p *testPack, names []string) {
+	t.Helper()
+	for _, name := range names {
+		classifier := summarizer.NewClassifier(name, summarizerv1.ClassifierSpec_builder{
+			Kinds:    []string{string(types.SSHSessionKind)},
+			Criteria: "sessions that touch production data",
+		}.Build())
+		_, err := p.summarizer.CreateClassifier(ctx, classifier)
+		require.NoError(t, err, "failed to create Classifier %q", name)
+	}
+
+	// Wait for the cache to observe all created classifiers.
+	synctest.Wait()
+	results := collectClassifiers(t, p.cache.RangeClassifiers(ctx, "", ""))
+	require.Len(t, results, len(names))
+}
+
+// TestClassifierCacheRange tests that RangeClassifiers iterates in name order
+// and honors range bounds.
+func TestClassifierCacheRange(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctx := t.Context()
+
+		p := newTestPack(t, ForAuth)
+		t.Cleanup(p.Close)
+
+		createClassifiers(t, ctx, p, []string{
+			"test-classifier-2",
+			"test-classifier-1",
+			"test-classifier-3",
+		})
+
+		names := func(in []*summarizerv1.Classifier) []string {
+			out := make([]string, len(in))
+			for i, c := range in {
+				out[i] = c.GetMetadata().GetName()
+			}
+			return out
+		}
+
+		// Full range is ascending by name. (t.Run subtests are not permitted
+		// inside a synctest bubble, so the cases are inlined.)
+		got := collectClassifiers(t, p.cache.RangeClassifiers(ctx, "", ""))
+		require.Equal(t, []string{
+			"test-classifier-1",
+			"test-classifier-2",
+			"test-classifier-3",
+		}, names(got))
+
+		// Bounded range is exclusive of end.
+		got = collectClassifiers(t, p.cache.RangeClassifiers(ctx, "test-classifier-2", "test-classifier-3"))
+		require.Equal(t, []string{
+			"test-classifier-2",
+		}, names(got))
+
+		// Open-ended range starts at the given name.
+		got = collectClassifiers(t, p.cache.RangeClassifiers(ctx, "test-classifier-2", ""))
+		require.Equal(t, []string{
+			"test-classifier-2",
+			"test-classifier-3",
+		}, names(got))
+	})
+}
+
+// TestClassifierCacheRangeUpstreamFallback tests that RangeClassifiers falls
+// back to the upstream service when the cache is unhealthy.
+func TestClassifierCacheRangeUpstreamFallback(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	// neverOK keeps the cache permanently unhealthy, forcing reads to fall back
+	// to the upstream service.
+	p := newTestPack(t, func(cfg Config) Config {
+		cfg = ForAuth(cfg)
+		cfg.neverOK = true
+		return cfg
+	})
+	t.Cleanup(p.Close)
+
+	want := []string{
+		"test-classifier-2",
+		"test-classifier-1",
+		"test-classifier-3",
+	}
+	for _, name := range want {
+		_, err := p.summarizer.CreateClassifier(ctx, summarizer.NewClassifier(name, summarizerv1.ClassifierSpec_builder{
+			Kinds:    []string{string(types.SSHSessionKind)},
+			Criteria: "sessions that touch production data",
+		}.Build()))
+		require.NoError(t, err, "failed to create Classifier %q", name)
+	}
+
+	got := collectClassifiers(t, p.cache.RangeClassifiers(ctx, "", ""))
+	gotNames := make([]string, len(got))
+	for i, c := range got {
+		gotNames[i] = c.GetMetadata().GetName()
+	}
+	require.ElementsMatch(t, want, gotNames)
+}
+
+func TestRetrievalModelCache(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		p := newTestPack(t, ForAuth)
+		t.Cleanup(p.Close)
+
+		testSingleton153(t, p, testSingletonFuncs153[*summarizerv1.RetrievalModel]{
+			newResource: func() *summarizerv1.RetrievalModel {
+				return summarizer.NewRetrievalModel(summarizerv1.RetrievalModelSpec_builder{
+					Openai: summarizerv1.OpenAIProvider_builder{
+						OpenaiModelId:   "text-embedding-3-small",
+						ApiKeySecretRef: "some",
+					}.Build(),
+					InferenceModelName: "some",
+				}.Build())
+			},
+			create:   p.summarizer.CreateRetrievalModel,
+			update:   p.summarizer.UpdateRetrievalModel,
+			get:      p.summarizer.GetRetrievalModel,
+			cacheGet: p.cache.GetRetrievalModel,
+			delete:   p.summarizer.DeleteRetrievalModel,
+		})
+	})
 }

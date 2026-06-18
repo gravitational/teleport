@@ -75,12 +75,12 @@ func (c *beamsPublishCommand) run(cf *CLIConf) error {
 	}
 
 	// Set the `spec.publish` to trigger the creation of an app.
-	beam.Spec.Publish = &beamsv1.PublishSpec{
+	beam.GetSpec().SetPublish(beamsv1.PublishSpec_builder{
 		Port:     8080,
 		Protocol: beamsv1.Protocol_PROTOCOL_HTTP,
-	}
+	}.Build())
 	if c.tcp {
-		beam.Spec.Publish.Protocol = beamsv1.Protocol_PROTOCOL_TCP
+		beam.GetSpec().GetPublish().SetProtocol(beamsv1.Protocol_PROTOCOL_TCP)
 	}
 
 	updatedBeam, err := c.updateFn(ctx, tc, beam)
@@ -137,7 +137,7 @@ func (c *beamsPublishCommand) updateBeam(ctx context.Context, tc *client.Telepor
 
 		rsp, err := rootClient.
 			BeamServiceClient().
-			UpdateBeam(ctx, &beamsv1.UpdateBeamRequest{Beam: beam})
+			UpdateBeam(ctx, beamsv1.UpdateBeamRequest_builder{Beam: beam}.Build())
 		if err != nil {
 			return trace.Wrap(err)
 		}

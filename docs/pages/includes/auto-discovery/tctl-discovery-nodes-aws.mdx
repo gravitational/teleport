@@ -1,0 +1,43 @@
+### Inspect instance enrollment status
+
+The `tctl discovery nodes` command lists Teleport's recent attempts to enroll
+AWS EC2 instances and reports whether each succeeded. It reads `ssm.run` audit
+events emitted by the Discovery Service.
+
+```code
+$ tctl discovery nodes --cloud=aws
+$ tctl discovery nodes --cloud=aws --failures-only
+$ tctl discovery nodes --cloud=aws --last=24h
+$ tctl discovery nodes --cloud=aws --format=json
+```
+
+Sample output:
+
+```code
+Cloud Account      Region       Instance ID         Time                 Status                 Details
+----- ------------ ------------ ------------------- -------------------- ---------------------- -------------------------------------------------
+AWS   123456789012 eu-central-1 i-0000000000aaaaaa1 2026-04-02T15:16:03Z Online
+AWS   123456789012 eu-central-1 i-0000000000bbbbbb2 2026-04-02T15:00:24Z Failed (exit code=-1)  SSM Agent lost connection
+AWS   123456789012 eu-central-1 i-0000000000cccccc3 2026-04-02T15:00:19Z Failed (exit code=104) SSM Script failure
+AWS   123456789012 eu-central-1 i-0000000000dddddd4 2026-04-02T15:00:15Z Installed (offline)    Script output: "Offloading the installation pa...
+```
+
+Each row's Status column tells you what stage the instance reached:
+
+- `Online`: the instance joined the cluster.
+- `Installed (offline)`: the install script succeeded but the agent isn't
+  currently connected. Either the agent installed but never joined the cluster
+  (bad join token, misconfiguration, or network), or it joined and later went
+  offline.
+- `Failed (exit code=N)`: the install script ran and exited non-zero. The
+  Details column shows the script output. See [Installation script exit
+  codes](#installation-script-exit-codes) above for known values.
+
+Use `--last` to widen the audit-event lookback window past the default one
+hour (e.g. `--last=24h`) when investigating older failures or retries.
+
+Use `--format=json` for machine-readable output that includes the full script
+output, the originating user task ID, and AWS-specific instance metadata.
+
+See [`tctl discovery nodes`](../../reference/cli/tctl.mdx#tctl-discovery-nodes)
+for the full flag reference.

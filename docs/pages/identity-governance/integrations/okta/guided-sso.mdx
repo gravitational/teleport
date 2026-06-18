@@ -59,9 +59,7 @@ If you are using already configured Okta connector, you can skip Okta app config
 
 ## Step 2/4. Create and configure an Okta app
 
-Okta Integration Network support is still in beta. If unsure please proceed with the Custom SAML 2.0 app.
-
-<Tabs groupId="saml-app" defaultValue="legacy">
+<Tabs groupId="saml-app" defaultValue="oin">
 <TabItem label="Okta Integration Network" value="oin">
 
   Add Teleport app to Okta if it hasn't been added previously:
@@ -162,9 +160,17 @@ Okta Integration Network support is still in beta. If unsure please proceed with
 At this point, you have completed the guided flow for the Okta SSO integration. All users assigned
 to the Okta app are now able to log in to Teleport.
 
-To log in using the Okta connector, open the web UI and click the **Okta** button at the bottom of the page.
+To log in using the Okta connector, navigate to your Teleport cluster URL and click the **Okta** button at the bottom of the page to authenticate:
+
+```
+https://<Var name="example.teleport.sh" />
+```
 
 To log in using the `tsh` CLI:
+
+```
+tsh login --proxy=<Var name="example.teleport.sh" /> --auth=<Var name="okta" />
+```
 
 
 ## Supported features

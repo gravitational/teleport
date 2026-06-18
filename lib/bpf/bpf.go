@@ -50,6 +50,9 @@ const (
 	// TruncatedArg is the string used to indicate that the arguments
 	// were truncated.
 	TruncatedArg = "[truncated]"
+	// FailedToReadArg is the string used to indicate that the arguments
+	// could not be read.
+	FailedToReadArg = "[failed to read arguments]"
 
 	// eventSendTimeout is the maximum time to wait for an event to be sent
 	// to be emitted to the Audit log.
@@ -122,10 +125,22 @@ func New(config *servicecfg.BPFConfig) (bpf BPF, err error) {
 		return nil, trace.Wrap(err)
 	}
 	defer func() {
-		if err != nil {
-			if err := s.cgroup.Close(true); err != nil {
-				logger.WarnContext(closeContext, "Failed to close cgroup", "error", err)
-			}
+		if err == nil {
+			return
+		}
+
+		if s.conn != nil {
+			s.conn.close()
+		}
+		if s.open != nil {
+			s.open.close()
+		}
+		if s.exec != nil {
+			s.exec.close()
+		}
+
+		if err := s.cgroup.Close(true); err != nil {
+			logger.WarnContext(closeContext, "Failed to close cgroup", "error", err)
 		}
 	}()
 
@@ -388,7 +403,7 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 		logger.WarnContext(s.closeContext, "Command event argument length is larger than the buffer size, truncating", "args_len", event.ArgsLen)
 		argLen = uint32(len(event.Args))
 	}
-	args := convertArgs(event.Args[:argLen], event.ArgsTruncated)
+	args := convertArgs(event.Args[:argLen], event.ArgsTruncated, event.FailedToReadArgs)
 
 	// Emit "command" event.
 	sessionCommandEvent := &apievents.SessionCommand{
@@ -430,8 +445,11 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 
 // convertArgs converts a large buffer of null-terminated strings from
 // command event arguments into a slice of strings.
-func convertArgs(rawArgs []byte, truncated bool) []string {
+func convertArgs(rawArgs []byte, truncated, failedToRead bool) []string {
 	if len(rawArgs) == 0 {
+		if failedToRead {
+			return []string{FailedToReadArg}
+		}
 		return nil
 	}
 
@@ -450,6 +468,8 @@ func convertArgs(rawArgs []byte, truncated bool) []string {
 
 	if truncated {
 		args = append(args, TruncatedArg)
+	} else if failedToRead {
+		args = append(args, FailedToReadArg)
 	}
 
 	return args

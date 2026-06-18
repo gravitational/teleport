@@ -93,7 +93,7 @@ spec:
           deny: 1
 ```
 
-The `spec.allow.request.roles` field lists the names of other roles that a user with the `reviewee` role can request. When a reviewee requests access to one of these roles, Teleport notifies reviewers via your access plugins. The `spec.allow.requests.roles.thresholds` field indicates how many reviews are required to approve or deny the request.
+The `spec.allow.request.roles` field lists the names of other roles that a user with the `reviewee` role can request. When a reviewee requests access to one of these roles, Teleport notifies reviewers via your access plugins. The `spec.allow.request.roles.thresholds` field indicates how many reviews are required to approve or deny the request.
 
 ## Automatically prevent some roles from requesting others
 A malicious Teleport user could request a more privileged role and trick a reviewer into granting access. You can prevent such a scenario by defining roles that prohibit users from even requesting access to particular roles.

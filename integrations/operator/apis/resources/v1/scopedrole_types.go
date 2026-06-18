@@ -60,17 +60,17 @@ type TeleportScopedRoleV1List struct {
 
 // ToTeleport returns a Teleport representation of this Kubernetes resource.
 func (m *TeleportScopedRoleV1) ToTeleport() *accessv1.ScopedRole {
-	resource := &accessv1.ScopedRole{
+	resource := accessv1.ScopedRole_builder{
 		Kind:    access.KindScopedRole,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name:        m.Name,
 			Description: m.Annotations[teleportcr.DescriptionKey],
 			Labels:      m.Labels,
-		},
+		}.Build(),
 		Scope: m.Scope,
 		Spec:  (*accessv1.ScopedRoleSpec)(m.Spec),
-	}
+	}.Build()
 	return resource
 }
 

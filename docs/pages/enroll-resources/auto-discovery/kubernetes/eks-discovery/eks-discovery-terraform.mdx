@@ -142,10 +142,10 @@ $ tsh login
 $ eval "$(tctl terraform env)"
 ```
 
-See the [Local Demo](../../../../zero-trust-access/infrastructure-as-code/terraform-provider/local.mdx)
+See the [Local Demo](../../../../configuration/terraform-provider/local.mdx)
 guide for more detail on local setup. If you are running Terraform in CI,
 Spacelift, or another remote environment, refer to [Using the Teleport
-Terraform Provider](../../../../zero-trust-access/infrastructure-as-code/terraform-provider/terraform-provider.mdx)
+Terraform Provider](../../../../configuration/terraform-provider/terraform-provider.mdx)
 for the appropriate guide.
 
 ### Step 3/5. Configure the Terraform module inputs
@@ -349,7 +349,7 @@ in the newly-configured regions.
 
 ## Troubleshooting
 
-(!docs/pages/includes/discovery/discovery-service-troubleshooting.mdx resourceKind="Kubernetes cluster" tctlResource="kube_cluster" !)
+(!docs/pages/includes/discovery/discovery-service-troubleshooting.mdx resourceKind="Kubernetes cluster" tctlResource="kube_cluster" cloud="AWS"!)
 
 (!docs/pages/includes/discovery/kubernetes-service-troubleshooting.mdx!)
 

@@ -19,6 +19,7 @@
 package proxy
 
 import (
+	"cmp"
 	"context"
 	"crypto/tls"
 	"encoding/json"
@@ -63,6 +64,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
 	"github.com/gravitational/teleport/api/types"
@@ -82,6 +84,8 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/scopes"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
@@ -181,8 +185,10 @@ type ForwarderConfig struct {
 	// ClusterFeaturesGetter is a function that returns the Teleport cluster licensed features.
 	// It is used to determine if the cluster is licensed for Kubernetes usage.
 	ClusterFeatures ClusterFeaturesGetter
-	// Scope that the forwarder is pinned to.
+	// Scope is the scope the forwarder is pinned to if a full scope pin is not present.
 	Scope string
+	// ScopePin is the scope and scoped role assignments the forwarder is pinned to.
+	ScopePin *scopesv1.Pin
 }
 
 // ClusterFeaturesGetter is a function that returns the Teleport cluster licensed features.
@@ -210,6 +216,9 @@ func (f *ForwarderConfig) CheckAndSetDefaults() error {
 	}
 	if f.ScopedAuthz == nil {
 		return trace.BadParameter("missing parameter ScopedAuthz")
+	}
+	if f.LockWatcher == nil {
+		return trace.BadParameter("missing parameter LockWatcher")
 	}
 	if f.Emitter == nil {
 		return trace.BadParameter("missing parameter Emitter")
@@ -279,7 +288,26 @@ func (f *ForwarderConfig) CheckAndSetDefaults() error {
 	if f.log == nil {
 		f.log = slog.Default()
 	}
+
+	if f.ScopePin != nil {
+		if err := pinning.WeakValidate(f.ScopePin); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if f.Scope != "" {
+		if err := scopes.WeakValidate(f.Scope); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if f.ScopePin.GetScope() != "" && f.Scope != "" {
+		return trace.BadParameter("either a scope pin or a bare scope must be set for a scoped kube forwarder, not both")
+	}
 	return nil
+}
+
+// GetScope returns the scope the forwarder is pinned to whether it's a bare scope or a scope pin.
+func (f *ForwarderConfig) GetScope() string {
+	return cmp.Or(f.ScopePin.GetScope(), f.Scope)
 }
 
 // transportCacheTTL is the TTL for the transport cache.
@@ -470,6 +498,9 @@ type authContext struct {
 	// It is false if the target cluster is served by another teleport service or a different
 	// Teleport cluster.
 	isLocalKubernetesCluster bool
+
+	// LockingMode determines the kubernetes' behavior when locks are stale
+	LockingMode constants.LockingMode
 }
 
 func (c authContext) String() string {
@@ -639,7 +670,7 @@ func (f *Forwarder) acquireConnectionLockWithIdentity(ctx context.Context, ident
 	)
 	defer span.End()
 	user := identity.Identity.GetIdentity().Username
-	roles, err := getRolesByName(f, identity.Identity.GetIdentity().Groups)
+	roles, err := getRolesByName(ctx, f, identity.Identity.GetIdentity().Groups)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -747,11 +778,19 @@ func (f *Forwarder) writeResponseErrorToBody(rw http.ResponseWriter, respErr err
 func (f *Forwarder) formatStatusResponseError(rw http.ResponseWriter, respErr error) {
 	// This detects failed requests that were terminated by the server due to GOAWAY. There
 	// is no direct way to detect these errors. No exported constants or error types exist from the
-	// standard library, see https://github.com/golang/net/blob/5ac9daca088ab4f378d7df849f6c7d28bea86071/http2/transport.go#L694.
+	// standard library, so we have to match on the error message. The two error strings come from:
+	//   - golang.org/x/net/http2 when its internal retry path cannot replay the body:
+	//     https://github.com/golang/net/blob/5ac9daca088ab4f378d7df849f6c7d28bea86071/http2/transport.go#L694
+	//   - net/http (errCannotRewind) when, after the http2 conn pool is drained, the http1 retry
+	//     path tries to rewind the body and fails because Request.GetBody is unset:
+	//     https://github.com/golang/go/blob/go1.26.2/src/net/http/transport.go#L759
 	// When a failed request is found, we return a response that indicates  to clients that they
 	// should retry the request themselves.
-	if errString := respErr.Error(); strings.HasSuffix(errString, `after Request.Body was written; define Request.GetBody to avoid this error`) &&
-		strings.Contains(errString, `http2: Transport: cannot retry err`) {
+	errString := respErr.Error()
+	isHTTP2RetryErr := strings.Contains(errString, `http2: Transport: cannot retry err`) &&
+		strings.HasSuffix(errString, `after Request.Body was written; define Request.GetBody to avoid this error`)
+	isHTTP1RewindErr := strings.Contains(errString, `net/http: cannot rewind body after connection loss`)
+	if isHTTP2RetryErr || isHTTP1RewindErr {
 
 		data, err := runtime.Encode(globalKubeCodecs.LegacyCodec(), &kubeerrors.NewTooManyRequests("Connection closed by upstream Kubernetes server", 1).ErrStatus)
 		if err != nil {
@@ -770,7 +809,7 @@ func (f *Forwarder) formatStatusResponseError(rw http.ResponseWriter, respErr er
 		return
 	}
 
-	code := trace.ErrorToCode(respErr)
+	code, reason := kubeStatusCodeAndReason(respErr)
 	status := &metav1.Status{
 		Status: metav1.StatusFailure,
 		// Don't trace.Unwrap the error, in case it was wrapped with a
@@ -778,7 +817,7 @@ func (f *Forwarder) formatStatusResponseError(rw http.ResponseWriter, respErr er
 		// low-level to be useful.
 		Message: respErr.Error(),
 		Code:    int32(code),
-		Reason:  errorToKubeStatusReason(respErr, code),
+		Reason:  reason,
 	}
 	data, err := runtime.Encode(globalKubeCodecs.LegacyCodec(), status)
 	if err != nil {
@@ -791,10 +830,22 @@ func (f *Forwarder) formatStatusResponseError(rw http.ResponseWriter, respErr er
 	// it correctly. If response code and status.Code drift, kubectl prints
 	// `Error from server (InternalError): an error on the server ("unknown")
 	// has prevented the request from succeeding`` instead of the correct reason.
-	rw.WriteHeader(trace.ErrorToCode(respErr))
+	rw.WriteHeader(code)
 	if _, err := rw.Write(data); err != nil && !utils.IsOKNetworkError(err) {
 		f.log.WarnContext(f.ctx, "Failed writing kube error response body", "error", err)
 	}
+}
+
+// kubeStatusCodeAndReason returns HTTP status code and Kubernetes status reason to use when surfacing error to user.
+// Without this, trace.ErrorToCode falls back to 500 and rewrites the original 403 into an InternalError.
+func kubeStatusCodeAndReason(respErr error) (int, metav1.StatusReason) {
+	var statusErr *kubeerrors.StatusError
+	if errors.As(respErr, &statusErr) && statusErr.ErrStatus.Code != 0 {
+		return int(statusErr.ErrStatus.Code), statusErr.ErrStatus.Reason
+	}
+	code := trace.ErrorToCode(respErr)
+	reason := errorToKubeStatusReason(respErr, code)
+	return code, reason
 }
 
 var errAmbiguousCluster = &trace.AccessDeniedError{Message: "could not disambiguate between two or more scoped kube clusters with the same name, please login with credentials for a narrower scope"}
@@ -1266,6 +1317,27 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		return trace.Wrap(err)
 	}
 
+	authPref, err := f.cfg.CachingAuthClient.GetAuthPreference(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if actx.checker.Kube().AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert()) {
+		actx.disconnectExpiredCert = actx.ScopedContext.GetDisconnectCertExpiryTime()
+	} else {
+		actx.disconnectExpiredCert = time.Time{}
+	}
+
+	// For scoped roles, check for the locking mode here so that we can verify whether users can connect or not when not
+	// when the lock is stale.
+	if isScoped {
+		actx.LockingMode = actx.checker.Kube().LockingMode(authPref.GetLockingMode())
+		// TODO(williamo/scopes): Potentially delete this in favor of checking locks in lib/authz/scoped.go
+		if err := f.cfg.LockWatcher.CheckLockInForce(actx.LockingMode, actx.LockTargets()...); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	// If the user has active Access requests we need to validate that they allow
 	// the kubeResource.
 	// This is required because CheckAccess does not validate the subresource type.
@@ -1387,14 +1459,16 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		client := &websocketClientStreams{uuid.New(), stream}
 		party := newParty(*ctx, stream.Mode, client)
 
-		err = session.join(party, true /* emitSessionJoinEvent */)
+		err = session.join(req.Context(), party, true /* emitSessionJoinEvent */)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		defer func() {
-			if _, err := session.leave(party.ID); err != nil {
-				f.log.DebugContext(req.Context(), "Participant was unable to leave session",
+			// Detach cancellation so leave's moderation rebalance still runs after the websocket closes.
+			leaveCtx := context.WithoutCancel(req.Context())
+			if _, err := session.leave(leaveCtx, party.ID); err != nil {
+				f.log.DebugContext(leaveCtx, "Participant was unable to leave session",
 					"participant_id", party.ID,
 					"session_id", session.id,
 					"error", err,
@@ -1868,14 +1942,16 @@ func (f *Forwarder) exec(authCtx *authContext, w http.ResponseWriter, req *http.
 			}
 
 			f.setSession(session.id, session)
-			if err = session.join(party, true /* emitSessionJoinEvent */); err != nil {
+			if err = session.join(ctx, party, true /* emitSessionJoinEvent */); err != nil {
 				return trace.Wrap(err)
 			}
 
 			err = <-party.closeC
 
-			if _, errLeave := session.leave(party.ID); errLeave != nil {
-				f.log.DebugContext(ctx, "Participant was unable to leave session",
+			// Detach cancellation so leave's moderation rebalance still runs after the client disconnects.
+			leaveCtx := context.WithoutCancel(ctx)
+			if _, errLeave := session.leave(leaveCtx, party.ID); errLeave != nil {
+				f.log.DebugContext(leaveCtx, "Participant was unable to leave session",
 					"participant_id", party.ID,
 					"session_id", session.id,
 					"error", errLeave,
@@ -2603,6 +2679,7 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error, hostID string) (n
 		Emitter:               s.parent.cfg.AuthClient,
 		EmitterContext:        s.parent.ctx,
 		MessageWriter:         formatForwardResponseError(s.sendErrStatus),
+		LockingMode:           s.LockingMode,
 	})
 	if err != nil {
 		tc.CloseWithCause(err)

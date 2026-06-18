@@ -29,6 +29,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
+	utilnet "k8s.io/apimachinery/pkg/util/net"
 
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -171,14 +172,30 @@ func parseResourcePath(p string) apiResource {
 			kind := append([]string{parts[2]}, parts[4:]...)
 			r.resourceKind = strings.Join(kind, "/")
 			r.resourceName = parts[3]
+			if len(parts) > 4 && parts[4] == "proxy" {
+				r.resourceName = stripProxyNamePortScheme(r.resourceName)
+			}
 		} else {
 			// e.g. /api/v1/nodes/{name}/proxy/{path}
 			kind := append([]string{parts[0]}, parts[2:]...)
 			r.resourceKind = strings.Join(kind, "/")
 			r.resourceName = parts[1]
+			if len(parts) > 2 && parts[2] == "proxy" {
+				r.resourceName = stripProxyNamePortScheme(r.resourceName)
+			}
 		}
 	}
 	return r
+}
+
+// stripProxyNamePortScheme extracts the bare resource name from the [scheme:]name[:port] segment that
+// the Kubernetes API server accepts on pods/{name}/proxy, services/{name}/proxy, and nodes/{name}/proxy.
+func stripProxyNamePortScheme(segment string) string {
+	_, name, _, valid := utilnet.SplitSchemeNamePort(segment)
+	if !valid {
+		return segment
+	}
+	return name
 }
 
 func (r apiResource) populateEvent(e *apievents.KubeRequest) {
@@ -263,7 +280,6 @@ func getResourceFromRequest(req *http.Request, kubeDetails *kubeDetails) (metaRe
 // It reads the full body - required because data can be proto encoded -
 // and decodes it into a Kubernetes object. It then extracts the resource name
 // from the object.
-// The body is then reset to the original request body using a new buffer.
 func extractResourceNameFromPostRequest(
 	req *http.Request,
 	codecs *serializer.CodecFactory,
@@ -289,9 +305,20 @@ func extractResourceNameFromPostRequest(
 	if err := req.Body.Close(); err != nil {
 		return "", trace.Wrap(err)
 	}
-	req.Body = io.NopCloser(newBody)
+
+	// The body is replaced with a replayable reader, and [http.Request.GetBody] is
+	// set so the upstream transport can retry the request after a GOAWAY without
+	// failing on the unrewindable network-side body.
+	// See https://github.com/gravitational/teleport/issues/65611
+	bodyBytes := newBody.Bytes()
+	req.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+	req.GetBody = func() (io.ReadCloser, error) {
+		return io.NopCloser(bytes.NewReader(bodyBytes)), nil
+	}
+	req.ContentLength = int64(len(bodyBytes))
+
 	// decode memory rw body.
-	obj, err := decodeAndSetGVK(decoder, newBody.Bytes(), defaults)
+	obj, err := decodeAndSetGVK(decoder, bodyBytes, defaults)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -310,6 +337,22 @@ func getResourceFromAPIResource(resourceKind string) string {
 		return resourceKind[:idx]
 	}
 	return resourceKind
+}
+
+// splitResourceSubresource splits a resourceKind into its base resource and
+// the first subresource segment. The trailing path (if any) is discarded.
+// Examples:
+//
+//	"pods"                -> "pods", ""
+//	"pods/exec"           -> "pods", "exec"
+//	"pods/proxy/8080"     -> "pods", "proxy"
+//	"nodes/proxy/foo/bar" -> "nodes", "proxy"
+func splitResourceSubresource(resourceKind string) (base, sub string) {
+	parts := strings.SplitN(resourceKind, "/", 3)
+	if len(parts) < 2 {
+		return resourceKind, ""
+	}
+	return parts[0], parts[1]
 }
 
 // isKubeWatchRequest returns true if the request is a watch request.
@@ -333,6 +376,12 @@ func (r apiResource) getVerb(req *http.Request) string {
 	case "pods/portforward":
 		verb = types.KubeVerbPortForward
 	default:
+		if base, sub := splitResourceSubresource(r.resourceKind); sub == "proxy" {
+			switch base {
+			case "pods", "services", "nodes":
+				return types.KubeVerbProxy
+			}
+		}
 		switch req.Method {
 		case http.MethodPost:
 			verb = types.KubeVerbCreate

@@ -36,7 +36,9 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/testing/protocmp"
 
+	apiworkloadidentity "github.com/gravitational/teleport/api/workloadidentity"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/utils/testutils/golden"
@@ -95,9 +97,15 @@ func TestSDS_FetchSecrets(t *testing.T) {
 	federatedBundle := spiffebundle.New(spiffeid.RequireTrustDomainFromString("federated.example.com"))
 	federatedBundle.AddX509Authority(ca)
 
+	appClientBundle := spiffebundle.New(spiffeid.RequireTrustDomainFromString(
+		apiworkloadidentity.NewInternalAppTrustDomain("example.com"),
+	))
+	appClientBundle.AddX509Authority(ca)
+
 	mockBundleCache := &mockTrustBundleCache{
 		currentBundle: &workloadidentity.BundleSet{
-			Local: bundle,
+			Local:     bundle,
+			AppClient: appClientBundle,
 			Federated: map[string]*spiffebundle.Bundle{
 				"federated.example.com": federatedBundle,
 			},
@@ -179,6 +187,140 @@ func TestSDS_FetchSecrets(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
+			if golden.ShouldSet() {
+				resBytes, err := protojson.MarshalOptions{
+					Multiline: true,
+				}.Marshal(res)
+				require.NoError(t, err)
+				golden.Set(t, resBytes)
+			}
+
+			want := &discoveryv3pb.DiscoveryResponse{}
+			require.NoError(t, protojson.UnmarshalOptions{}.Unmarshal(golden.Get(t), want))
+			require.Empty(t, cmp.Diff(res, want, protocmp.Transform()))
+		})
+	}
+}
+
+func TestSDS_FetchSecrets_TrustDomainSelector(t *testing.T) {
+	log := logtest.NewLogger()
+	ctx := context.Background()
+
+	td, err := spiffeid.TrustDomainFromString("example.com")
+	require.NoError(t, err)
+
+	b, _ := pem.Decode([]byte(fixtures.TLSCACertPEM))
+	require.NotNil(t, b, "Decode failed")
+	ca, err := x509.ParseCertificate(b.Bytes)
+	require.NoError(t, err)
+
+	clientAuthenticator := func(ctx context.Context) (*slog.Logger, SVIDFetcher, error) {
+		return log, func(ctx context.Context, localBundle *spiffebundle.Bundle) ([]*workloadpb.X509SVID, error) {
+			return []*workloadpb.X509SVID{
+				{
+					SpiffeId:    "spiffe://example.com/default",
+					X509Svid:    []byte("CERT-spiffe://example.com/default"),
+					X509SvidKey: []byte("KEY-spiffe://example.com/default"),
+					Bundle:      workloadidentity.MarshalX509Bundle(localBundle.X509Bundle()),
+				},
+			}, nil
+		}, nil
+	}
+
+	bundle := spiffebundle.New(td)
+	bundle.AddX509Authority(ca)
+
+	federatedBundle := spiffebundle.New(spiffeid.RequireTrustDomainFromString("federated.example.com"))
+	federatedBundle.AddX509Authority(ca)
+
+	appClientBundle := spiffebundle.New(spiffeid.RequireTrustDomainFromString(apiworkloadidentity.NewInternalAppTrustDomain("example.com")))
+	appClientBundle.AddX509Authority(ca)
+
+	defaultBundleSet := &workloadidentity.BundleSet{
+		Local:     bundle,
+		AppClient: appClientBundle,
+		Federated: map[string]*spiffebundle.Bundle{
+			federatedBundle.TrustDomain().Name(): federatedBundle,
+		},
+	}
+	noAppClientBundleSet := &workloadidentity.BundleSet{
+		Local:     bundle,
+		AppClient: nil,
+		Federated: map[string]*spiffebundle.Bundle{
+			federatedBundle.TrustDomain().Name(): federatedBundle,
+		},
+	}
+
+	expectErrContains := func(msg string) require.ErrorAssertionFunc {
+		return func(tt require.TestingT, err error, i ...any) {
+			require.ErrorContains(tt, err, msg, i...)
+		}
+	}
+
+	for name, tc := range map[string]struct {
+		bundleSet     *workloadidentity.BundleSet
+		trustDomains  bot.TrustDomainsSelector
+		resourceNames []string
+		expectedErr   require.ErrorAssertionFunc
+	}{
+		"specific ca app_client without selector errors": {
+			resourceNames: []string{appClientBundle.TrustDomain().IDString()},
+			expectedErr:   expectErrContains("unknown resource names: [" + appClientBundle.TrustDomain().IDString() + "]"),
+		},
+		"specific ca app_client with selector": {
+			trustDomains:  bot.TrustDomainsSelector{bot.TrustDomainAppClient},
+			resourceNames: []string{appClientBundle.TrustDomain().IDString()},
+			expectedErr:   require.NoError,
+		},
+		"special ALL with app_client selector": {
+			trustDomains:  bot.TrustDomainsSelector{bot.TrustDomainAppClient},
+			resourceNames: []string{EnvoyAllBundlesName},
+			expectedErr:   require.NoError,
+		},
+		"all with app_client selector": {
+			trustDomains:  bot.TrustDomainsSelector{bot.TrustDomainAppClient},
+			resourceNames: []string{},
+			expectedErr:   require.NoError,
+		},
+		"specific ca app_client with selector but nil app client errors": {
+			bundleSet:     noAppClientBundleSet,
+			trustDomains:  bot.TrustDomainsSelector{bot.TrustDomainAppClient},
+			resourceNames: []string{appClientBundle.TrustDomain().IDString()},
+			expectedErr:   expectErrContains("unknown resource names: [" + appClientBundle.TrustDomain().IDString() + "]"),
+		},
+		"special ALL with selector but nil app client": {
+			bundleSet:     noAppClientBundleSet,
+			trustDomains:  bot.TrustDomainsSelector{bot.TrustDomainAppClient},
+			resourceNames: []string{EnvoyAllBundlesName},
+			expectedErr:   require.NoError,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			bundleSet := tc.bundleSet
+			if bundleSet == nil {
+				bundleSet = defaultBundleSet
+			}
+
+			sdsHandler, err := NewHandler(HandlerConfig{
+				Logger:              log,
+				RenewalInterval:     time.Minute,
+				TrustBundleCache:    &mockTrustBundleCache{currentBundle: bundleSet},
+				ClientAuthenticator: clientAuthenticator,
+				TrustDomainSelector: tc.trustDomains,
+			})
+			require.NoError(t, err)
+
+			req := &discoveryv3pb.DiscoveryRequest{
+				TypeUrl:       "type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.Secret",
+				ResourceNames: tc.resourceNames,
+			}
+
+			res, err := sdsHandler.FetchSecrets(ctx, req)
+			tc.expectedErr(t, err)
+			if err != nil {
+				return
+			}
+
 			if golden.ShouldSet() {
 				resBytes, err := protojson.MarshalOptions{
 					Multiline: true,

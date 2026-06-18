@@ -22,7 +22,10 @@ import { fileURLToPath } from 'node:url';
 
 import { canonicalUserKey, type UserKeyInput } from './canonicalKey';
 
-const authDir = join(dirname(fileURLToPath(import.meta.url)), '../.auth');
+const authDir = join(
+  process.env.E2E_DIR ?? join(dirname(fileURLToPath(import.meta.url)), '..'),
+  '.auth'
+);
 
 // Duplicated from the Go runner (defaultUsers() in scan.go) because this code
 // runs before the runner produces any mapping — the TS side can't discover the

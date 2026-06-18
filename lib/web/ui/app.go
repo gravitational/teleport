@@ -26,6 +26,7 @@ import (
 
 	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/ui"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/aws"
@@ -201,7 +202,12 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 	}
 
 	if app.IsAWSConsole() && c.AWSRoles != nil {
-		visibleRoles := aws.FilterAWSRoles(c.AWSRoles.All.Elements(), app.GetAWSAccountID())
+		var visibleRoles []aws.Role
+		if componentfeatures.InAllSets(componentfeatures.FeatureResourceConstraintsV1, c.SupportedFeatures) {
+			visibleRoles = aws.FilterAWSRoles(c.AWSRoles.All.Elements(), app.GetAWSAccountID())
+		} else {
+			visibleRoles = aws.FilterAWSRoles(c.AWSRoles.Granted.Elements(), app.GetAWSAccountID())
+		}
 		resultApp.AWSRoles = slices.Map(visibleRoles, func(r aws.Role) aws.Role {
 			r.RequiresRequest = !c.AWSRoles.Granted.Contains(r.ARN)
 			return r

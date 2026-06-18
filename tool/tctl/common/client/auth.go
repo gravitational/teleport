@@ -50,10 +50,11 @@ type InitFunc func(ctx context.Context) (client *authclient.Client, close func(c
 // GetInitFunc wraps lazy loading auth init function for commands which requires the auth client.
 func GetInitFunc(ccf tctlcfg.GlobalCLIFlags, cfg *servicecfg.Config) InitFunc {
 	return func(ctx context.Context) (*authclient.Client, func(context.Context), error) {
-		clientConfig, err := tctlcfg.ApplyConfig(&ccf, cfg)
+		resolved, err := tctlcfg.ApplyConfig(&ccf, cfg)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
+		clientConfig := resolved.Auth
 
 		resolver, err := reversetunnelclient.CachingResolver(
 			ctx,
@@ -68,7 +69,7 @@ func GetInitFunc(ccf tctlcfg.GlobalCLIFlags, cfg *servicecfg.Config) InitFunc {
 			return nil, nil, trace.Wrap(err)
 		}
 
-		dialer, err := reversetunnelclient.NewTunnelAuthDialer(reversetunnelclient.TunnelAuthDialerConfig{
+		dialer, err := reversetunnelclient.NewAuthDialerThroughProxy(reversetunnelclient.AuthDialerThroughProxyConfig{
 			Resolver:              resolver,
 			ClientConfig:          clientConfig.SSH,
 			Log:                   cfg.Logger,

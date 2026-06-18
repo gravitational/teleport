@@ -509,10 +509,10 @@ func TestKubeMiddleware(t *testing.T) {
 	}
 
 	t.Run("expired certificate is still reissued if request context expires", func(t *testing.T) {
+		reqURL, err := url.Parse("https://example.test" + common.KubeLocalProxyPathPrefix(teleportCluster, "kube1") + "/api/v1/namespaces")
+		require.NoError(t, err)
 		req := &http.Request{
-			TLS: &tls.ConnectionState{
-				ServerName: common.KubeLocalProxySNI(teleportCluster, "kube1"),
-			},
+			URL: reqURL,
 		}
 		// we set request context to a context that is already canceled, so handler function will start reissuing
 		// certificate goroutine and then will exit immediately.
@@ -528,7 +528,7 @@ func TestKubeMiddleware(t *testing.T) {
 			Clock:        clockwork.NewFakeClockAt(now.Add(time.Hour * 2)),
 			CloseContext: context.Background(),
 		})
-		err := km.CheckAndSetDefaults()
+		err = km.CheckAndSetDefaults()
 		require.NoError(t, err)
 
 		var rw *responsewriters.MemoryResponseWriter
@@ -601,12 +601,16 @@ func TestKubeMiddleware(t *testing.T) {
 		},
 	}
 
+	mustURL := func(s string) *url.URL {
+		u, err := url.Parse(s)
+		require.NoError(t, err)
+		return u
+	}
+
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
 			req := http.Request{
-				TLS: &tls.ConnectionState{
-					ServerName: common.KubeLocalProxySNI(teleportCluster, tt.reqClusterName),
-				},
+				URL: mustURL("https://example.test" + common.KubeLocalProxyPathPrefix(teleportCluster, tt.reqClusterName) + "/api/v1/namespaces"),
 			}
 			km := NewKubeMiddleware(KubeMiddlewareConfig{
 				Certs:        tt.startCerts,

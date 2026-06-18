@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport/api/constants"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
@@ -62,21 +63,8 @@ func (c *SSHAccessChecker) AdjustClientIdleTimeout(timeout time.Duration) (time.
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.AdjustClientIdleTimeout(timeout), nil
 	}
-	// SSH block takes precedence over defaults block.
-	idleStr := c.checker.role.GetSpec().GetSsh().GetClientIdleTimeout()
-	if idleStr == "" {
-		idleStr = c.checker.role.GetSpec().GetDefaults().GetClientIdleTimeout()
-	}
-	if idleStr != "" {
-		d, err := time.ParseDuration(idleStr)
-		if err != nil {
-			return 0, trace.Errorf("invalid client_idle_timeout %q in scoped role %q: %w", idleStr, c.checker.role.GetMetadata().GetName(), err)
-		}
-		if d > 0 && (timeout == 0 || d < timeout) {
-			return max(d, 0), nil
-		}
-	}
-	return max(timeout, 0), nil
+
+	return c.checker.adjustScopedClientIdleTimeout(c.checker.role.GetSpec().GetSsh().GetClientIdleTimeout(), timeout)
 }
 
 // AdjustDisconnectExpiredCert adjusts whether to disconnect on certificate expiry.
@@ -84,15 +72,37 @@ func (c *SSHAccessChecker) AdjustDisconnectExpiredCert(disconnect bool) bool {
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.AdjustDisconnectExpiredCert(disconnect)
 	}
-	return c.checker.scopedCompatChecker.AdjustDisconnectExpiredCert(disconnect)
+	ssh := c.checker.role.GetSpec().GetSsh()
+	var disconnectExpiredCert *bool
+	if ssh != nil {
+		disconnectExpiredCert = proto.ValueOrNil(ssh.HasDisconnectExpiredCert(), ssh.GetDisconnectExpiredCert)
+	}
+	return c.checker.adjustScopedDisconnectExpiredCert(disconnectExpiredCert, disconnect)
+}
+
+// LockingMode returns the SSH lock enforcement mode to apply.
+func (c *SSHAccessChecker) LockingMode(defaultMode constants.LockingMode) constants.LockingMode {
+	if !c.checker.isScoped() {
+		return c.checker.unscopedChecker.LockingMode(defaultMode)
+	}
+
+	return c.checker.scopedLockingMode(c.checker.role.GetSpec().GetSsh().GetLock(), defaultMode)
 }
 
 // SessionRecordingMode returns the session recording mode for SSH sessions.
+// SSH recording mode takes precedence over the defaults
 func (c *SSHAccessChecker) SessionRecordingMode() constants.SessionRecordingMode {
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.SessionRecordingMode(constants.SessionRecordingServiceSSH)
 	}
-	return c.checker.scopedCompatChecker.SessionRecordingMode(constants.SessionRecordingServiceSSH)
+	sr := c.checker.role.GetSpec().GetSsh().GetSessionRecording()
+	if sr == nil {
+		sr = c.checker.role.GetSpec().GetDefaults().GetSessionRecording()
+	}
+	if sr.GetMode() != "" {
+		return constants.SessionRecordingMode(sr.GetMode())
+	}
+	return constants.SessionRecordingModeBestEffort
 }
 
 // CanPortForward returns true if port forwarding is permitted.
@@ -129,10 +139,10 @@ func (c *SSHAccessChecker) SSHPortForwardMode() decisionpb.SSHPortForwardMode {
 	local := c.checker.role.GetSpec().GetSsh().GetPortForwarding().GetLocal()
 
 	var denyRemote, denyLocal bool
-	if remote != nil && remote.Enabled != nil && !*remote.Enabled {
+	if remote != nil && remote.HasEnabled() && !remote.GetEnabled() {
 		denyRemote = true
 	}
-	if local != nil && local.Enabled != nil && !*local.Enabled {
+	if local != nil && local.HasEnabled() && !local.GetEnabled() {
 		denyLocal = true
 	}
 
@@ -162,7 +172,18 @@ func (c *SSHAccessChecker) EnhancedRecordingSet() map[string]bool {
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.EnhancedRecordingSet()
 	}
-	return c.checker.scopedCompatChecker.EnhancedRecordingSet()
+	events := c.checker.role.GetSpec().GetSsh().GetEnhancedRecording()
+	m := make(map[string]bool)
+	if events.GetCommand() {
+		m[constants.EnhancedRecordingCommand] = true
+	}
+	if events.GetDisk() {
+		m[constants.EnhancedRecordingDisk] = true
+	}
+	if events.GetNetwork() {
+		m[constants.EnhancedRecordingNetwork] = true
+	}
+	return m
 }
 
 // HostUsers returns host user creation information for the server, or nil if host user creation is disabled.
@@ -183,10 +204,10 @@ func (c *SSHAccessChecker) HostUsers(srv types.Server) (*HostUsersDecision, erro
 		hostUserMode == types.CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED {
 		return &HostUsersDecision{
 			Info: nil,
-			DeniedBy: []*decisionpb.Determinant{{
+			DeniedBy: []*decisionpb.Determinant{decisionpb.Determinant_builder{
 				Kind: c.checker.role.GetKind(),
 				Name: c.checker.role.GetMetadata().GetName(),
-			}},
+			}.Build()},
 		}, nil
 	}
 
@@ -211,17 +232,17 @@ func (c *SSHAccessChecker) HostUsers(srv types.Server) (*HostUsersDecision, erro
 	}
 
 	return &HostUsersDecision{
-		Info: &decisionpb.HostUsersInfo{
+		Info: decisionpb.HostUsersInfo_builder{
 			Groups: createHostUser.GetGroups(),
 			Mode:   decisionMode,
 			Uid:    uid,
 			Gid:    gid,
 			Shell:  createHostUser.GetShell(),
-		},
-		AllowedBy: []*decisionpb.Determinant{{
+		}.Build(),
+		AllowedBy: []*decisionpb.Determinant{decisionpb.Determinant_builder{
 			Kind: c.checker.role.GetKind(),
 			Name: c.checker.role.GetMetadata().GetName(),
-		}},
+		}.Build()},
 	}, nil
 }
 
@@ -273,7 +294,7 @@ func (c *SSHAccessChecker) CanCopyFiles() bool {
 	}
 
 	ssh := c.checker.role.GetSpec().GetSsh()
-	if ssh == nil || ssh.FileCopy == nil {
+	if ssh == nil || !ssh.HasFileCopy() {
 		return true
 	}
 	return ssh.GetFileCopy()

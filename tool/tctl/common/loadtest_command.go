@@ -379,7 +379,7 @@ func (c *LoadtestCommand) AuditEvents(ctx context.Context, client *authclient.Cl
 
 	go func() {
 		for event := range outch {
-			s, err := utils.FastMarshal(event.Event.Unstructured)
+			s, err := utils.FastMarshal(event.GetEvent().GetUnstructured())
 			if err != nil {
 				panic(err)
 			}

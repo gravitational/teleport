@@ -22,24 +22,29 @@ interacts with GitHub using the permissions granted to the service account.
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport (v18.3.0 or higher)" clients="\`tsh\` client"!)
+
 - Access to a service account to your GitHub organization.
+
 - A host to run the MCP server that is reachable by the Teleport Application Service.
+
 - A running Teleport Application Service. If you have not yet done this, follow
   the [Getting Started guide](../getting-started.mdx).
+
 - A Teleport user with sufficient permissions (e.g. role `mcp-user`) to access
   MCP servers.
 
-## Step 1/3. Create a personal access token
+- A GitHub personal access token, which requires manual preparation in the
+  GitHub Web UI. To create a token, follow the [GitHub
+  documentation](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens#creating-a-fine-grained-personal-access-token).
 
-Log in to GitHub using your service account. Navigate to Settings > Developer
-Settings > Personal access tokens, then click **Generate new token**.
+  <Admonition type="danger">
 
-When creating the token, grant only the minimal permissions needed. Avoid broad
-scopes such as write or admin access unless absolutely required.
+  When creating the token, grant only the minimal permissions needed. Avoid
+  broad scopes such as write or admin access unless absolutely required.
 
-Once the token is created, save it for use in the next step.
+  </Admonition>
 
-## Step 2/3. Run the GitHub MCP server
+## Step 1/2. Run the GitHub MCP server
 
 First, install `mcp-proxy` on the host that will run the MCP server:
 ```code
@@ -66,7 +71,7 @@ Service.
 After starting, `mcp-proxy` exposes a streamable-HTTP endpoint at `http://<Var
 name="MCP_HOST" initial="localhost" />:8000/mcp`.
 
-## Step 3/3. Connect via Teleport
+## Step 2/2. Connect via Teleport
 
 (!docs/pages/includes/mcp-access/integration-teleport-app.mdx service="github" serviceName="GitHub" port="8000"!)
 
@@ -90,7 +95,7 @@ spec:
 
 ![GitHub Claude](../../../../img/mcp-access/github-claude.png)
 
-## Connect to GitHub without service account
+## Connect to GitHub without a service account
 
 Instead of using a service account's personal access token, you can require each
 Teleport user to supply their own token from the client side. This removes the

@@ -90,7 +90,20 @@ export async function login(
   if (!password) {
     throw new Error('login: password required when username is provided');
   }
-  await page.getByRole('button', { name: 'Connect', exact: true }).click();
+  const connectButton = page.getByRole('button', {
+    name: 'Connect',
+    exact: true,
+  });
+  const addClusterItem = page
+    .getByRole('listitem')
+    .filter({ hasText: 'Add Cluster' });
+
+  // The 'Connect' button is visible only when no clusters are present.
+  if (await connectButton.isVisible()) {
+    await connectButton.click();
+  } else {
+    await addClusterItem.click();
+  }
   const clusterInput = page.getByPlaceholder('teleport.example.com');
   await expect(clusterInput).toBeVisible();
 

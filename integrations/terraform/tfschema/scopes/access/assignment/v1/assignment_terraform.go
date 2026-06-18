@@ -101,9 +101,10 @@ func GenSchemaScopedRoleAssignment(ctx context.Context) (github_com_hashicorp_te
 			Required:    true,
 		},
 		"scope": {
-			Description: "Scope is the scope of the role assignment resource.",
-			Required:    true,
-			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			Description:   "Scope is the scope of the role assignment resource.",
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.RequiresReplace()},
+			Required:      true,
+			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 		"spec": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
@@ -123,18 +124,13 @@ func GenSchemaScopedRoleAssignment(ctx context.Context) (github_com_hashicorp_te
 					Description: "Assignments is a list of individual role @ scope assignments.",
 					Required:    true,
 				},
-				"bot_name": {
-					Description: "Name of the Bot to whom all contained assignments apply. Mutually exclusive with `user`.",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-				},
-				"bot_scope": {
-					Description: "Scope of the Bot to whom all contained assignments apply. Required if `bot_name` is set. If specified, assignment scopes must be equal or descendent of this scope.",
+				"bot": {
+					Description: "The Bot to whom all contained assignments apply, as a scope-qualified name of the form `<scope>::<bot-name>` (e.g. \"/staging/west::mybot\"). Mutually exclusive with `user`.  When specified, assignment scopes must be equal or descendent of the scope indicated by this field.",
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"user": {
-					Description: "User is the user to whom all contained assignments apply. Mutually exclusive with `bot_name`.",
+					Description: "User is the user to whom all contained assignments apply. Mutually exclusive with `bot`.",
 					Optional:    true,
 					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
@@ -441,36 +437,19 @@ func CopyScopedRoleAssignmentFromTerraform(_ context.Context, tf github_com_hash
 						}
 					}
 					{
-						a, ok := tf.Attrs["bot_name"]
+						a, ok := tf.Attrs["bot"]
 						if !ok {
-							diags.Append(attrReadMissingDiag{"ScopedRoleAssignment.spec.bot_name"})
+							diags.Append(attrReadMissingDiag{"ScopedRoleAssignment.spec.bot"})
 						} else {
 							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
-								diags.Append(attrReadConversionFailureDiag{"ScopedRoleAssignment.spec.bot_name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								diags.Append(attrReadConversionFailureDiag{"ScopedRoleAssignment.spec.bot", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 							} else {
 								var t string
 								if !v.Null && !v.Unknown {
 									t = string(v.Value)
 								}
-								obj.BotName = t
-							}
-						}
-					}
-					{
-						a, ok := tf.Attrs["bot_scope"]
-						if !ok {
-							diags.Append(attrReadMissingDiag{"ScopedRoleAssignment.spec.bot_scope"})
-						} else {
-							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								diags.Append(attrReadConversionFailureDiag{"ScopedRoleAssignment.spec.bot_scope", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-							} else {
-								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
-								}
-								obj.BotScope = t
+								obj.Bot = t
 							}
 						}
 					}
@@ -907,47 +886,25 @@ func CopyScopedRoleAssignmentToTerraform(ctx context.Context, obj *github_com_gr
 						}
 					}
 					{
-						t, ok := tf.AttrTypes["bot_name"]
+						t, ok := tf.AttrTypes["bot"]
 						if !ok {
-							diags.Append(attrWriteMissingDiag{"ScopedRoleAssignment.spec.bot_name"})
+							diags.Append(attrWriteMissingDiag{"ScopedRoleAssignment.spec.bot"})
 						} else {
-							v, ok := tf.Attrs["bot_name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+							v, ok := tf.Attrs["bot"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
-									diags.Append(attrWriteGeneralError{"ScopedRoleAssignment.spec.bot_name", err})
+									diags.Append(attrWriteGeneralError{"ScopedRoleAssignment.spec.bot", err})
 								}
 								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
 								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"ScopedRoleAssignment.spec.bot_name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+									diags.Append(attrWriteConversionFailureDiag{"ScopedRoleAssignment.spec.bot", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.BotName) == ""
+								v.Null = string(obj.Bot) == ""
 							}
-							v.Value = string(obj.BotName)
+							v.Value = string(obj.Bot)
 							v.Unknown = false
-							tf.Attrs["bot_name"] = v
-						}
-					}
-					{
-						t, ok := tf.AttrTypes["bot_scope"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"ScopedRoleAssignment.spec.bot_scope"})
-						} else {
-							v, ok := tf.Attrs["bot_scope"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"ScopedRoleAssignment.spec.bot_scope", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"ScopedRoleAssignment.spec.bot_scope", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								v.Null = string(obj.BotScope) == ""
-							}
-							v.Value = string(obj.BotScope)
-							v.Unknown = false
-							tf.Attrs["bot_scope"] = v
+							tf.Attrs["bot"] = v
 						}
 					}
 				}

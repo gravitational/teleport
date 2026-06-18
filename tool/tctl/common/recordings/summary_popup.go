@@ -38,7 +38,7 @@ type summaryLoadedMsg struct {
 	err     error
 }
 
-type closeSummaryMsg struct{}
+type closePopupMsg struct{}
 
 type summaryPopupModel struct {
 	session       *sessionsearchv1pb.SessionSummary
@@ -109,7 +109,7 @@ func (m *summaryPopupModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch {
 		case key.Matches(msg, m.keys.Close):
 			m.close()
-			return m, func() tea.Msg { return closeSummaryMsg{} }
+			return m, func() tea.Msg { return closePopupMsg{} }
 		}
 	}
 
@@ -155,13 +155,17 @@ func (m *summaryPopupModel) View() string {
 	)
 }
 
-func (m *summaryPopupModel) popupWidth() int {
-	width := m.width * 70 / 100
+func (m *summaryPopupModel) popupWidth() int  { return clampPopupWidth(m.width) }
+func (m *summaryPopupModel) popupHeight() int { return clampPopupHeight(m.height) }
+
+// clampPopupWidth returns the popup width for the given terminal width.
+func clampPopupWidth(total int) int {
+	width := total * 70 / 100
 	if width > 100 {
 		width = 100
 	}
 	if width < 48 {
-		width = min(m.width-2, 48)
+		width = min(total-2, 48)
 	}
 	if width < 24 {
 		width = 24
@@ -169,13 +173,14 @@ func (m *summaryPopupModel) popupWidth() int {
 	return width
 }
 
-func (m *summaryPopupModel) popupHeight() int {
-	height := m.height * 70 / 100
+// clampPopupHeight returns the popup height for the given terminal height.
+func clampPopupHeight(total int) int {
+	height := total * 70 / 100
 	if height > 32 {
 		height = 32
 	}
 	if height < 12 {
-		height = min(m.height-2, 12)
+		height = min(total-2, 12)
 	}
 	if height < 8 {
 		height = 8
@@ -219,8 +224,10 @@ func (m *summaryPopupModel) refresh() {
 		if strings.TrimSpace(content) != "" {
 			parts = append(parts, renderMarkdownForTerminal(content, m.viewport.Width, m.palette))
 		}
-		if enh := m.summary.GetEnhancedSummary(); enh != nil && len(enh.GetCommands()) > 0 {
-			parts = append(parts, renderTimeline(enh, m.viewport.Width, m.palette))
+		if enh := m.summary.GetEnhancedSummary(); enh != nil {
+			if timeline := renderTimeline(enh, m.viewport.Width, m.palette); timeline != "" {
+				parts = append(parts, timeline)
+			}
 		}
 		if len(parts) == 0 {
 			m.viewport.SetContent(faintSt.Render("No summary available."))
@@ -238,7 +245,7 @@ func (m *summaryPopupModel) close() {
 
 func loadSummaryCmd(ctx context.Context, getter SummaryGetter, sessionID string) tea.Cmd {
 	return func() tea.Msg {
-		resp, err := getter.GetSummary(ctx, &summarizerv1pb.GetSummaryRequest{SessionId: sessionID})
+		resp, err := getter.GetSummary(ctx, summarizerv1pb.GetSummaryRequest_builder{SessionId: sessionID}.Build())
 		if err != nil {
 			return summaryLoadedMsg{err: err}
 		}
@@ -256,13 +263,69 @@ func defaultSummaryKeyMap() summaryKeyMap {
 	}
 }
 
+type timelineEntry struct {
+	timelineTitle    string
+	timelineSubtitle string
+	command          string
+	startOffset      time.Duration
+	hasStartOffset   bool
+	riskLevel        summarizerv1pb.RiskLevel
+}
+
+// timelineEntries normalises SessionEvents (preferred) or the deprecated
+// Commands field on EnhancedSummary into a flat list for timeline rendering.
+// Auth populates both shapes; the deprecated fallback is for responses from a
+// pre-v19 auth during a rolling upgrade.
+//
+// TODO(ryanclark): DELETE IN v21.0.0; read SessionEvents directly.
+func timelineEntries(enh *summarizerv1pb.EnhancedSummary) []timelineEntry {
+	if events := enh.GetSessionEvents(); len(events) > 0 {
+		out := make([]timelineEntry, len(events))
+		for i, e := range events {
+			cmd := ""
+			if d := e.GetCommandEventDetails(); d != nil {
+				cmd = d.GetCommand()
+			}
+			entry := timelineEntry{
+				timelineTitle:    e.GetTimelineTitle(),
+				timelineSubtitle: e.GetTimelineSubtitle(),
+				command:          cmd,
+				riskLevel:        e.GetRiskLevel(),
+			}
+			if d := e.GetStartOffset(); d != nil {
+				entry.startOffset = d.AsDuration()
+				entry.hasStartOffset = true
+			}
+			out[i] = entry
+		}
+		return out
+	}
+	//nolint:staticcheck // deprecated field read for cross-version compatibility
+	cmds := enh.GetCommands()
+	out := make([]timelineEntry, len(cmds))
+	for i, c := range cmds {
+		entry := timelineEntry{
+			timelineTitle:    c.GetTimelineTitle(),
+			timelineSubtitle: c.GetTimelineSubtitle(),
+			command:          c.GetCommand(),
+			riskLevel:        c.GetRiskLevel(),
+		}
+		if d := c.GetStartOffset(); d != nil {
+			entry.startOffset = d.AsDuration()
+			entry.hasStartOffset = true
+		}
+		out[i] = entry
+	}
+	return out
+}
+
 // renderTimeline builds a timeline section from EnhancedSummary commands.
 // Each entry shows the start offset, title, and optional subtitle. Commands
 // listed in NotableCommandIndexes are prefixed with "*" and their risk level
 // is shown in color.
 func renderTimeline(enh *summarizerv1pb.EnhancedSummary, width int, p palette) string {
-	commands := enh.GetCommands()
-	if len(commands) == 0 {
+	entries := timelineEntries(enh)
+	if len(entries) == 0 {
 		return ""
 	}
 
@@ -286,18 +349,18 @@ func renderTimeline(enh *summarizerv1pb.EnhancedSummary, width int, p palette) s
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s\n", sectionStyle.Render("Timeline"))
 
-	for i, cmd := range commands {
-		title := sanitize(cmd.GetTimelineTitle())
+	for i, entry := range entries {
+		title := sanitize(entry.timelineTitle)
 		if title == "" {
-			title = sanitize(cmd.GetCommand())
+			title = sanitize(entry.command)
 		}
 		if title == "" {
 			continue
 		}
 
 		offset := "     "
-		if d := cmd.GetStartOffset(); d != nil {
-			total := d.AsDuration().Round(time.Second)
+		if entry.hasStartOffset {
+			total := entry.startOffset.Round(time.Second)
 			m := int(total.Minutes())
 			s := int(total.Seconds()) % 60
 			offset = fmt.Sprintf("%02d:%02d", m, s)
@@ -317,13 +380,13 @@ func renderTimeline(enh *summarizerv1pb.EnhancedSummary, width int, p palette) s
 		}
 
 		line := fmt.Sprintf("%s%s  %s", marker, offset, titleStyle.Render(title))
-		if isNotable && cmd.GetRiskLevel() != summarizerv1pb.RiskLevel_RISK_LEVEL_UNSPECIFIED {
-			riskLabel := formatSeverityColored(cmd.GetRiskLevel())
+		if isNotable && entry.riskLevel != summarizerv1pb.RiskLevel_RISK_LEVEL_UNSPECIFIED {
+			riskLabel := formatSeverityColored(entry.riskLevel)
 			line = fmt.Sprintf("%-*s  %s", width-riskWidth, line, riskLabel)
 		}
 		fmt.Fprintf(&b, "%s\n", line)
 
-		if sub := cmd.GetTimelineSubtitle(); sub != "" {
+		if sub := entry.timelineSubtitle; sub != "" {
 			fmt.Fprintf(&b, "%s%s\n", subtitleIndent, faintStyle.Render(sanitize(sub)))
 		}
 	}

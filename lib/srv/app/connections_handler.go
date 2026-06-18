@@ -31,6 +31,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -207,7 +208,8 @@ type ConnectionsHandler struct {
 	// authMiddleware allows wrapping connections with identity information.
 	authMiddleware *authz.Middleware
 
-	proxyPort string
+	proxyPort   string
+	clusterName string
 
 	// getAppByPublicAddress returns a types.Application using the public address as matcher.
 	getAppByPublicAddress func(context.Context, string) (types.Application, error)
@@ -244,6 +246,11 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 		return nil, trace.Wrap(err)
 	}
 
+	clusterName, err := cfg.AccessPoint.GetClusterName(closeContext)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	c := &ConnectionsHandler{
 		cfg:          cfg,
 		closeContext: closeContext,
@@ -252,6 +259,7 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 		gcpHandler:   gcpHandler,
 		connAuth:     make(map[net.Conn]error),
 		log:          slog.With(teleport.ComponentKey, cfg.ServiceComponent),
+		clusterName:  clusterName.GetClusterName(),
 		getAppByPublicAddress: func(ctx context.Context, s string) (types.Application, error) {
 			return nil, trace.NotFound("no applications are being proxied")
 		},
@@ -269,10 +277,6 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	clustername, err := c.cfg.AccessPoint.GetClusterName(closeContext)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
 	// Create limiter for connection and rate limiting. Applied to all
 	// app protocols (HTTP, TCP, MCP) in handleConnection.
@@ -282,7 +286,7 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 	}
 
 	// Create and configure HTTP server with authorizing middleware.
-	c.httpServer = c.newHTTPServer(clustername.GetClusterName())
+	c.httpServer = c.newHTTPServer(clusterName.GetClusterName())
 
 	// TCP server will handle TCP applications.
 	tcpServer, err := c.newTCPServer()
@@ -420,9 +424,13 @@ func (c *ConnectionsHandler) sessionStartTime(ctx context.Context) time.Time {
 // newTCPServer creates a server that proxies TCP applications.
 func (c *ConnectionsHandler) newTCPServer() (*tcpServer, error) {
 	return &tcpServer{
-		emitter: c.cfg.Emitter,
-		hostID:  c.cfg.HostID,
-		log:     c.log,
+		emitter:      c.cfg.Emitter,
+		hostID:       c.cfg.HostID,
+		log:          c.log,
+		caGetter:     c.cfg.AccessPoint,
+		clusterName:  c.clusterName,
+		cipherSuites: c.cfg.CipherSuites,
+		insecureMode: c.cfg.InsecureMode,
 	}, nil
 }
 
@@ -783,24 +791,62 @@ func (c *ConnectionsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// Convert trace error type to HTTP and write response, make sure we close the
 		// connection afterwards so that the monitor is recreated if needed.
 		code := trace.ErrorToCode(err)
+		w.Header().Set("Connection", "close")
 
-		var text string
 		switch {
 		case errors.Is(err, services.ErrTrustedDeviceRequired):
-			text = `A trusted device is required to access this resource but this device has not been registered as a trusted device; use 'tsh device enroll' to register as a trusted device.
-
-See https://goteleport.com/docs/admin-guides/access-controls/device-trust/device-management/#troubleshooting for help.
-`
+			writeTrustedDeviceRequired(w, r, code)
 		case errors.Is(err, services.ErrSessionMFARequired):
-			text = authclient.ErrNoMFADevices.Error()
-
+			http.Error(w, authclient.ErrNoMFADevices.Error(), code)
 		default:
-			text = http.StatusText(code)
+			http.Error(w, http.StatusText(code), code)
 		}
-
-		w.Header().Set("Connection", "close")
-		http.Error(w, text, code)
 	}
+}
+
+const (
+	trustedDeviceRequiredDocsURL          = "https://goteleport.com/docs/zero-trust-access/device-trust/device-management/#troubleshooting"
+	trustedDeviceRequiredWebUIDocsURL     = "https://goteleport.com/docs/zero-trust-access/device-trust/device-management/#web-ui-fails-to-authenticate-trusted-device"
+	trustedDeviceRequiredAppAccessDocsURL = "https://goteleport.com/docs/zero-trust-access/device-trust/device-management/#app-access-and-access-to-this-app-requires-a-trusted-device"
+)
+
+// writeTrustedDeviceRequired writes the response body for a request that failed
+// with [services.ErrTrustedDeviceRequired]. Browsers receive a small HTML page
+// with clickable links to the docs; every other client gets plain text.
+func writeTrustedDeviceRequired(w http.ResponseWriter, r *http.Request, code int) {
+	if isBrowserUserAgent(r.UserAgent()) {
+		const body = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Trusted device required</title></head>
+<body>
+<p>A trusted device is required to access this resource, but this session has not been authorized with Device Trust. Follow <a href="` + trustedDeviceRequiredWebUIDocsURL + `" target="_blank">the Web UI troubleshooting guide</a> to authorize the session with Device Trust.</p>
+<p>If accessing the resource through VNet or a local proxy, make sure the device running Teleport Connect or tsh is registered and enrolled. See <a href="` + trustedDeviceRequiredAppAccessDocsURL + `" target="_blank">the app access troubleshooting guide</a> for help.</p>
+</body>
+</html>
+`
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.WriteHeader(code)
+		_, _ = w.Write([]byte(body))
+		return
+	}
+
+	http.Error(w, `A trusted device is required to access this resource but this device has not been registered as a trusted device; use 'tsh device enroll' to register as a trusted device.
+
+See `+trustedDeviceRequiredDocsURL+` for help.
+`, code)
+}
+
+// isBrowserUserAgent reports whether ua plausibly comes from a web browser, as
+// opposed to a CLI (tsh, curl) or some SDK client. It relies on the historical
+// quirk that essentially every browser UA begins with "Mozilla/" and contains
+// a known engine token. Modern browsers (Chrome, Safari, Edge, Opera, mobile
+// browsers) are all WebKit- or Blink-based and carry "AppleWebKit"; the Firefox
+// family carries "Gecko/".
+func isBrowserUserAgent(ua string) bool {
+	lower := strings.ToLower(ua)
+	return strings.HasPrefix(lower, "mozilla/") &&
+		(strings.Contains(lower, "applewebkit") || strings.Contains(lower, "gecko/"))
 }
 
 // getConnectionInfo extracts identity information from the provided

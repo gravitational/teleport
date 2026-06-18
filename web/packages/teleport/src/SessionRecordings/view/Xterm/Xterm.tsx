@@ -143,5 +143,6 @@ const TerminalAddonsContainer = styled.div`
   flex-direction: column;
   align-items: flex-end;
   gap: ${p => p.theme.space[2]}px;
-  min-width: 500px;
+  width: 100%;
+  max-width: 500px;
 `;

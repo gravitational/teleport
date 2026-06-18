@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
@@ -247,12 +248,12 @@ func (s *Service) GetServiceInfo(ctx context.Context, _ *api.GetServiceInfoReque
 		return nil, trace.Wrap(err, "checking SSH configuration")
 	}
 
-	return &api.GetServiceInfoResponse{
+	return api.GetServiceInfoResponse_builder{
 		AppDnsZones:       unifiedClusterConfig.AppDNSZones(),
 		Clusters:          unifiedClusterConfig.ClusterNames,
 		SshConfigured:     sshConfigured,
 		VnetSshConfigPath: sshConfigChecker.VNetSSHConfigPath,
-	}, nil
+	}.Build(), nil
 }
 
 // RunDiagnostics runs a set of heuristics to determine if VNet actually works
@@ -265,28 +266,52 @@ func (s *Service) RunDiagnostics(ctx context.Context, req *api.RunDiagnosticsReq
 		return nil, trace.CompareFailed("VNet is not running")
 	}
 
-	if s.networkStackInfo.InterfaceName == "" {
+	if s.networkStackInfo.GetInterfaceName() == "" {
 		return nil, trace.BadParameter("no interface name, this is a bug")
 	}
 
-	if s.networkStackInfo.Ipv6Prefix == "" {
+	if s.networkStackInfo.GetIpv6Prefix() == "" {
 		return nil, trace.BadParameter("no IPv6 prefix, this is a bug")
 	}
 
 	nsa := &diagv1.NetworkStackAttempt{}
 	if ns, err := s.getNetworkStack(ctx); err != nil {
-		nsa.Status = diagv1.CheckAttemptStatus_CHECK_ATTEMPT_STATUS_ERROR
-		nsa.Error = err.Error()
+		nsa.SetStatus(diagv1.CheckAttemptStatus_CHECK_ATTEMPT_STATUS_ERROR)
+		nsa.SetError(err.Error())
 	} else {
-		nsa.Status = diagv1.CheckAttemptStatus_CHECK_ATTEMPT_STATUS_OK
-		nsa.NetworkStack = ns
+		nsa.SetStatus(diagv1.CheckAttemptStatus_CHECK_ATTEMPT_STATUS_OK)
+		nsa.SetNetworkStack(ns)
 	}
 
-	diagChecks, err := s.platformDiagChecks(ctx)
+	var diagChecks []diag.DiagCheck
+
+	//nolint:staticcheck // SA4023. routeConflictDiag may be nil on unsupported platforms (see service_other.go).
+	routeConflictDiag, err := s.platformRouteConflictDiag()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	//nolint:staticcheck // SA4023.
+	if routeConflictDiag != nil {
+		diagChecks = append(diagChecks, routeConflictDiag)
+	}
 
+	// Skip the DNS check if NetworkStack is unavailable we need at least one
+	// of Ipv6Prefix, Ipv4CidrRanges to derive a VNet DNS server address.
+	if ns := nsa.NetworkStack; ns != nil && (ns.Ipv6Prefix != "" || len(ns.Ipv4CidrRanges) > 0) {
+		dnsDiag, err := s.dnsDiag(ns)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		diagChecks = append(diagChecks, dnsDiag)
+	}
+
+	sshDiag, err := s.sshDiag()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	diagChecks = append(diagChecks, sshDiag)
+
+	// TODO(tangyatsu): release s.mu before diag checks and cancel them on Stop.
 	report, err := diag.GenerateReport(ctx, diag.ReportPrerequisites{
 		Clock:               s.cfg.Clock,
 		NetworkStackAttempt: nsa,
@@ -296,9 +321,39 @@ func (s *Service) RunDiagnostics(ctx context.Context, req *api.RunDiagnosticsReq
 		return nil, trace.Wrap(err)
 	}
 
-	return &api.RunDiagnosticsResponse{
+	return api.RunDiagnosticsResponse_builder{
 		Report: report,
-	}, nil
+	}.Build(), nil
+}
+
+// sshDiag builds the SSH configuration diagnostic check. It is platform-agnostic.
+func (s *Service) sshDiag() (diag.DiagCheck, error) {
+	sshDiag, err := diag.NewSSHDiag(&diag.SSHConfig{
+		ProfilePath: s.cfg.profilePath,
+	})
+	return sshDiag, trace.Wrap(err)
+}
+
+// dnsDiag builds the DNS diagnostic check. It is platform-agnostic.
+func (s *Service) dnsDiag(ns *diagv1.NetworkStack) (diag.DiagCheck, error) {
+	// TODO(tangyatsu): make NetworkStackInfo return DNS server addresses directly.
+	cfg := &diag.DNSConfig{DNSZones: ns.DnsZones}
+	if ns.Ipv6Prefix != "" {
+		s, err := diag.DNSServerForIPv6Prefix(ns.Ipv6Prefix)
+		if err != nil {
+			return nil, trace.Wrap(err, "computing VNet IPv6 DNS server address for DNS diag check")
+		}
+		cfg.VNetDNSIPv6 = s
+	}
+	if len(ns.Ipv4CidrRanges) > 0 {
+		s, err := diag.DNSServerForIPv4CIDRRange(ns.Ipv4CidrRanges[0])
+		if err != nil {
+			return nil, trace.Wrap(err, "computing VNet IPv4 DNS server address for DNS diag check")
+		}
+		cfg.VNetDNSIPv4 = s
+	}
+	dnsDiag, err := diag.NewDNSDiag(cfg)
+	return dnsDiag, trace.Wrap(err, "constructing DNS diag check")
 }
 
 func (s *Service) getNetworkStack(ctx context.Context) (*diagv1.NetworkStack, error) {
@@ -306,12 +361,12 @@ func (s *Service) getNetworkStack(ctx context.Context) (*diagv1.NetworkStack, er
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &diagv1.NetworkStack{
-		InterfaceName:  s.networkStackInfo.InterfaceName,
-		Ipv6Prefix:     s.networkStackInfo.Ipv6Prefix,
+	return diagv1.NetworkStack_builder{
+		InterfaceName:  s.networkStackInfo.GetInterfaceName(),
+		Ipv6Prefix:     s.networkStackInfo.GetIpv6Prefix(),
 		Ipv4CidrRanges: unifiedClusterConfig.IPv4CidrRanges,
 		DnsZones:       unifiedClusterConfig.AllDNSZones(),
-	}, nil
+	}.Build(), nil
 }
 
 // AutoConfigureSSH automatically configures OpenSSH-compatible clients for
@@ -367,7 +422,7 @@ func (s *Service) isUsageReportingEnabled(ctx context.Context) (bool, error) {
 		return false, trace.Wrap(err)
 	}
 
-	return resp.UsageReportingSettings.Enabled, nil
+	return resp.GetUsageReportingSettings().GetEnabled(), nil
 }
 
 func (s *Service) reportUnexpectedShutdown(ctx context.Context, shutdownErr error) error {
@@ -381,9 +436,9 @@ func (s *Service) reportUnexpectedShutdown(ctx context.Context, shutdownErr erro
 		shutdownErrorMsg = shutdownErr.Error()
 	}
 
-	_, err = tshdEventsClient.ReportUnexpectedVnetShutdown(ctx, &apiteleterm.ReportUnexpectedVnetShutdownRequest{
+	_, err = tshdEventsClient.ReportUnexpectedVnetShutdown(ctx, apiteleterm.ReportUnexpectedVnetShutdownRequest_builder{
 		Error: shutdownErrorMsg,
-	})
+	}.Build())
 	return trace.Wrap(err, "sending shutdown report")
 }
 
@@ -422,15 +477,13 @@ func (p *clientApplication) ReissueAppCert(ctx context.Context, appInfo *vnetv1.
 		TargetPort:  routeToApp.TargetPort,
 	}
 
-	reloginReq := &apiteleterm.ReloginRequest{
+	reloginReq := apiteleterm.ReloginRequest_builder{
 		RootClusterUri: clusterURI.GetRootClusterURI().String(),
-		Reason: &apiteleterm.ReloginRequest_VnetCertExpired{
-			VnetCertExpired: &apiteleterm.VnetCertExpired{
-				TargetUri:  appURI.String(),
-				RouteToApp: &apiteletermRouteToApp,
-			},
-		},
-	}
+		VnetCertExpired: apiteleterm.VnetCertExpired_builder{
+			TargetUri:  appURI.String(),
+			RouteToApp: &apiteletermRouteToApp,
+		}.Build(),
+	}.Build()
 
 	var cert tls.Certificate
 
@@ -450,19 +503,15 @@ func (p *clientApplication) ReissueAppCert(ctx context.Context, appInfo *vnetv1.
 	}
 
 	if err := p.daemonService.RetryWithRelogin(ctx, reloginReq, reissueCert); err != nil {
-		notifyErr := p.daemonService.NotifyApp(ctx, &apiteleterm.SendNotificationRequest{
-			Subject: &apiteleterm.SendNotificationRequest_CannotProxyVnetConnection{
-				CannotProxyVnetConnection: &apiteleterm.CannotProxyVnetConnection{
-					TargetUri:  appURI.String(),
-					RouteToApp: &apiteletermRouteToApp,
-					Reason: &apiteleterm.CannotProxyVnetConnection_CertReissueError{
-						CertReissueError: &apiteleterm.CertReissueError{
-							Error: err.Error(),
-						},
-					},
-				},
-			},
-		})
+		notifyErr := p.daemonService.NotifyApp(ctx, apiteleterm.SendNotificationRequest_builder{
+			CannotProxyVnetConnection: apiteleterm.CannotProxyVnetConnection_builder{
+				TargetUri:  appURI.String(),
+				RouteToApp: &apiteletermRouteToApp,
+				CertReissueError: apiteleterm.CertReissueError_builder{
+					Error: err.Error(),
+				}.Build(),
+			}.Build(),
+		}.Build())
 		if notifyErr != nil {
 			log.ErrorContext(ctx, "Failed to send a notification for an error encountered during VNet cert reissue",
 				"cert_reissue_error", err, "notify_error", notifyErr)
@@ -530,11 +579,11 @@ func (p *clientApplication) GetDialOptions(ctx context.Context, profileName stri
 		return nil, trace.Wrap(err, "resolving cluster by URI")
 	}
 
-	dialOpts := &vnetv1.DialOptions{
+	dialOpts := vnetv1.DialOptions_builder{
 		WebProxyAddr:            cluster.GetProxyHost(),
 		AlpnConnUpgradeRequired: tc.TLSRoutingConnUpgradeRequired,
 		InsecureSkipVerify:      p.insecureSkipVerify,
-	}
+	}.Build()
 	dialOpts.RootClusterCaCertPool, err = tc.RootClusterCACertPoolPEM(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err, "loading root cluster CA cert pool")
@@ -604,22 +653,18 @@ func (p *clientApplication) OnInvalidLocalPort(ctx context.Context, appInfo *vne
 	if len(tcpPorts) <= 10 {
 		apiTCPPorts := make([]*apiteleterm.PortRange, 0, len(tcpPorts))
 		for _, portRange := range tcpPorts {
-			apiTCPPorts = append(apiTCPPorts, &apiteleterm.PortRange{Port: portRange.Port, EndPort: portRange.EndPort})
+			apiTCPPorts = append(apiTCPPorts, apiteleterm.PortRange_builder{Port: portRange.Port, EndPort: portRange.EndPort}.Build())
 		}
-		invalidLocalPort.TcpPorts = apiTCPPorts
+		invalidLocalPort.SetTcpPorts(apiTCPPorts)
 	}
 
-	err := p.daemonService.NotifyApp(ctx, &apiteleterm.SendNotificationRequest{
-		Subject: &apiteleterm.SendNotificationRequest_CannotProxyVnetConnection{
-			CannotProxyVnetConnection: &apiteleterm.CannotProxyVnetConnection{
-				TargetUri:  appURI.String(),
-				RouteToApp: &apiteletermRouteToApp,
-				Reason: &apiteleterm.CannotProxyVnetConnection_InvalidLocalPort{
-					InvalidLocalPort: invalidLocalPort,
-				},
-			},
-		},
-	})
+	err := p.daemonService.NotifyApp(ctx, apiteleterm.SendNotificationRequest_builder{
+		CannotProxyVnetConnection: apiteleterm.CannotProxyVnetConnection_builder{
+			TargetUri:        appURI.String(),
+			RouteToApp:       &apiteletermRouteToApp,
+			InvalidLocalPort: proto.ValueOrDefault(invalidLocalPort),
+		}.Build(),
+	}.Build())
 	if err != nil {
 		log.ErrorContext(ctx, "Could not notify the Electron app about invalid local port",
 			"notify_error", err,
@@ -725,7 +770,7 @@ func (r *daemonUsageReporter) ReportSSHSession(profileName, rootClusterName stri
 	}
 
 	log.DebugContext(context.Background(), "Reporting SSH usage event", "profile", profileName, "root_cluster", rootClusterName)
-	if err := r.cfg.EventConsumer.ReportUsageEvent(&apiteleterm.ReportUsageEventRequest{
+	if err := r.cfg.EventConsumer.ReportUsageEvent(apiteleterm.ReportUsageEventRequest_builder{
 		AuthClusterId: clusterID,
 		PrehogReq: &prehogv1alpha.SubmitConnectEventRequest{
 			DistinctId: r.cfg.InstallationID,
@@ -740,7 +785,7 @@ func (r *daemonUsageReporter) ReportSSHSession(profileName, rootClusterName stri
 				},
 			},
 		},
-	}); err != nil {
+	}.Build()); err != nil {
 		return trace.Wrap(err, "adding SSH usage event to queue")
 	}
 	return nil
@@ -789,7 +834,7 @@ func (r *daemonUsageReporter) ReportApp(appURI uri.ResourceURI) error {
 
 	log.DebugContext(ctx, "Reporting app usage event", "app", appURI.String())
 
-	if err := r.cfg.EventConsumer.ReportUsageEvent(&apiteleterm.ReportUsageEventRequest{
+	if err := r.cfg.EventConsumer.ReportUsageEvent(apiteleterm.ReportUsageEventRequest_builder{
 		AuthClusterId: clusterID,
 		PrehogReq: &prehogv1alpha.SubmitConnectEventRequest{
 			DistinctId: r.cfg.InstallationID,
@@ -804,7 +849,7 @@ func (r *daemonUsageReporter) ReportApp(appURI uri.ResourceURI) error {
 				},
 			},
 		},
-	}); err != nil {
+	}.Build()); err != nil {
 		return trace.Wrap(err, "adding app usage event to queue")
 	}
 

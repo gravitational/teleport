@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { ChildProcess, exec, fork, spawn } from 'node:child_process';
+import { ChildProcess, execFile, fork, spawn } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -490,10 +490,24 @@ export default class MainProcess {
       const target = '/usr/local/bin/tsh';
       const prompt =
         'Teleport Connect wants to create a symlink for tsh in /usr/local/bin.';
-      const command = `osascript -e "do shell script \\"mkdir -p /usr/local/bin && ln -sf '${source}' '${target}'\\" with prompt \\"${prompt}\\" with administrator privileges"`;
+
+      const script = `
+on run argv
+  set src to item 1 of argv
+  set tgt to item 2 of argv
+  set msg to item 3 of argv
+  do shell script "mkdir -p /usr/local/bin && ln -sf " & quoted form of src & " " & quoted form of tgt with prompt msg with administrator privileges
+end run
+  `;
 
       try {
-        await promisify(exec)(command);
+        await promisify(execFile)('osascript', [
+          '-e',
+          script,
+          source,
+          target,
+          prompt,
+        ]);
         this.logger.info(`Created the symlink to ${source} under ${target}`);
         return true;
       } catch (error) {
@@ -511,10 +525,15 @@ export default class MainProcess {
       const target = '/usr/local/bin/tsh';
       const prompt =
         'Teleport Connect wants to remove a symlink for tsh from /usr/local/bin.';
-      const command = `osascript -e "do shell script \\"rm '${target}'\\" with prompt \\"${prompt}\\" with administrator privileges"`;
-
+      const script = `
+on run argv
+  set tgt to item 1 of argv
+  set msg to item 2 of argv
+  do shell script "rm " & quoted form of tgt with prompt msg with administrator privileges
+end run
+  `;
       try {
-        await promisify(exec)(command);
+        await promisify(execFile)('osascript', ['-e', script, target, prompt]);
         this.logger.info(`Removed the symlink under ${target}`);
         return true;
       } catch (error) {
@@ -712,9 +731,11 @@ export default class MainProcess {
     );
 
     ipcHandle(MainProcessIpc.Logout, async (_, args) => {
-      await this.clusterLifecycleManager.logoutAndRemoveCluster(
-        args.clusterUri
-      );
+      await this.clusterLifecycleManager.logoutCluster(args.clusterUri);
+    });
+
+    ipcHandle(MainProcessIpc.ForgetCluster, async (_, args) => {
+      await this.clusterLifecycleManager.forgetCluster(args.clusterUri);
     });
 
     ipcMain.on(MainProcessIpc.InitClusterStoreSubscription, ev => {

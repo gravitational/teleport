@@ -21,7 +21,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"net"
-	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -162,11 +161,6 @@ func DialALPN(ctx context.Context, addr string, cfg ALPNDialerConfig) (*tls.Conn
 		return nil, trace.BadParameter("failed to convert to tls.Conn")
 	}
 	return tlsConn, nil
-}
-
-// IsALPNPingProtocol checks if the provided protocol is suffixed with Ping.
-func IsALPNPingProtocol(protocol string) bool {
-	return strings.HasSuffix(protocol, constants.ALPNSNIProtocolPingSuffix)
 }
 
 // shouldALPNConnUpgradeWithPing returns true if Ping wrapper is required

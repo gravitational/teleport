@@ -300,7 +300,6 @@ func newImpersonatedKubeClient(creds kubeCreds, username string, groups []string
 		UserName: username,
 		Groups:   groups,
 	}
-	// TODO(tigrato): reuse the http client.
 	client, err := dynamic.NewForConfig(&c)
 	return client, trace.Wrap(err)
 }

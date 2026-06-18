@@ -262,6 +262,9 @@ export default function createMainProcessClient(): MainProcessClient {
     logout: (clusterUri: RootClusterUri) => {
       return ipcInvoke(MainProcessIpc.Logout, { clusterUri });
     },
+    forgetCluster: (clusterUri: RootClusterUri) => {
+      return ipcInvoke(MainProcessIpc.ForgetCluster, { clusterUri });
+    },
     registerClusterLifecycleHandler(listener): {
       cleanup: () => void;
     } {

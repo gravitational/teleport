@@ -14,7 +14,16 @@ spec:
     singular: teleportscopedtokenv1
   scope: Namespaced
   versions:
-  - name: v1
+  - additionalPrinterColumns:
+    - description: Resource's scope.
+      jsonPath: .scope
+      name: scope
+      type: string
+    - description: The age of this resource
+      jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1
     schema:
       openAPIV3Schema:
         description: ScopedTokenV1 is the Schema for the scopedtokensv1 API
@@ -34,6 +43,10 @@ spec:
           scope:
             description: Scope is the scope of the token resource.
             type: string
+            x-kubernetes-validations:
+            - message: Scope is immutable. To create the resource in a different scope
+                you must delete it first.
+              rule: self == oldSelf
           spec:
             description: ScopedToken resource definition v1 from Teleport
             properties:
@@ -140,12 +153,11 @@ spec:
                       field.
                     type: string
                 type: object
-              bot_name:
-                description: Name of the bot associated with this join token, if any.
-                type: string
-              bot_scope:
-                description: Scope of the bot associated with this join token. Required
-                  if bot_name is set, and mutually exclusive with assigned_scope.
+              bot:
+                description: The bot associated with this join token, if any, as a
+                  scope-qualified name of the form `<scope>::<bot-name>` (e.g. "/staging/west::mybot").
+                  The scope component must be a descendant of or equivalent to the
+                  token's resource scope.  Mutually exclusive with assigned_scope.
                 type: string
               bound_keypair:
                 description: Configuration specific to the "bound_keypair" join method.
@@ -243,6 +255,10 @@ spec:
                     items:
                       properties:
                         service_account:
+                          type: string
+                        service_account_name:
+                          type: string
+                        service_account_namespace:
                           type: string
                       type: object
                     nullable: true
@@ -382,6 +398,10 @@ spec:
                 type: integer
             type: object
         type: object
+        x-kubernetes-validations:
+        - message: Scope is immutable. To create the resource in a different scope
+            you must delete it first.
+          rule: has(self.scope) == has(oldSelf.scope)
     served: true
     storage: true
     subresources:

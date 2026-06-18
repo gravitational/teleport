@@ -46,6 +46,8 @@ type UpdateServiceRequest struct {
 	TeleportVersionTag string
 	// OwnershipTags specifies ownership tags
 	OwnershipTags tags.AWSTags
+	// TeleportBuildType specifies the type of teleport build in use.
+	TeleportBuildType string
 }
 
 // CheckAndSetDefaults checks and sets default config values.
@@ -62,6 +64,10 @@ func (req *UpdateServiceRequest) CheckAndSetDefaults() error {
 		return trace.BadParameter("ownership tags required")
 	}
 
+	if req.TeleportBuildType == "" {
+		return trace.BadParameter("teleport build type required")
+	}
+
 	return nil
 }
 
@@ -71,7 +77,7 @@ func UpdateDeployService(ctx context.Context, clt DeployServiceClient, log *slog
 		return trace.Wrap(err)
 	}
 
-	teleportImage, err := getDistrolessTeleportImage(req.TeleportVersionTag)
+	teleportImage, err := getDistrolessTeleportImage(req.TeleportVersionTag, req.TeleportBuildType)
 	if err != nil {
 		return trace.Wrap(err)
 	}
