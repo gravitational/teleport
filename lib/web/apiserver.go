@@ -155,7 +155,7 @@ const (
 // healthCheckAppServerFunc defines a function used to perform a health check
 // to AppServer that can handle application requests (based on cluster name and
 // public address).
-type healthCheckAppServerFunc func(ctx context.Context, publicAddr string, clusterName string) error
+type healthCheckAppServerFunc func(ctx context.Context, appName, publicAddr, clusterName string) error
 
 // Handler is HTTP web proxy handler
 type Handler struct {
