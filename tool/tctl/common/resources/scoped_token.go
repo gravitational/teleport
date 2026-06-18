@@ -190,7 +190,6 @@ func deleteScopedToken(ctx context.Context, client *authclient.Client, subKind s
 
 func ScopedTokenTextHelper(tokens []*joiningv1.ScopedToken, withSecrets bool) *bytes.Buffer {
 	headers := []string{
-		"ID",
 		"Token",
 		"Type",
 		"Assigns Scope",
@@ -215,8 +214,7 @@ func ScopedTokenTextHelper(tokens []*joiningv1.ScopedToken, withSecrets bool) *b
 		}
 
 		row := []string{
-			scopes.QualifiedName{Scope: t.GetScope(), Name: t.GetMetadata().GetName()}.String(),
-			token,
+			scopes.QualifiedName{Scope: t.GetScope(), Name: token}.String(),
 			strings.Join(t.GetSpec().GetRoles(), ","),
 			t.GetSpec().GetAssignedScope(),
 			PrintMetadataLabels(t.GetMetadata().GetLabels()),

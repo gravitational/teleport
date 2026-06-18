@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
@@ -254,7 +255,7 @@ func (c *ScopedTokensCommand) Add(ctx context.Context, client *authclient.Client
 
 		return nil
 	case teleport.Text:
-		fmt.Fprintln(c.Stdout, token)
+		fmt.Fprintln(c.Stdout, scopes.QualifiedName{Scope: tok.GetScope(), Name: token})
 		return nil
 	}
 
