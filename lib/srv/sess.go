@@ -919,12 +919,20 @@ func newSession(ctx context.Context, r *SessionRegistry, scx *ServerContext, ch 
 			gated := approval.WithTimeout(approver, cfg.EffectiveTimeout())
 			sess.io.SetCommandGate(&sessionCommandGate{s: sess, approver: gated})
 		case types.CommandApproverAI:
-			// TODO(approval): replace with real AI approver in Task 6.4.
-			// Until the AI approver lands, an AI-configured session must fail
-			// CLOSED: install a gate that denies every command rather than
-			// leaving the session ungated (fail-open), which would run every
-			// command while the operator believes commands are gated.
-			sess.io.SetCommandGate(&denyAllCommandGate{s: sess})
+			// The AI approver delegates each command to the auth server's
+			// EvaluateCommand RPC, which requires the full auth client (the
+			// cached AccessPoint does not expose it). If the auth client is
+			// unavailable on this server, fail CLOSED with a deny-all gate
+			// rather than leaving the session ungated (fail-open).
+			authClient := scx.GetServer().GetAuthClient()
+			evaluator, ok := authClient.(approval.CommandEvaluatorClient)
+			if !ok || authClient == nil || cfg.AI == nil {
+				sess.io.SetCommandGate(&denyAllCommandGate{s: sess})
+				break
+			}
+			approver := approval.NewAIApprover(evaluator, cfg.AI.Policy, cfg.AI.Model)
+			gated := approval.WithTimeout(approver, cfg.EffectiveTimeout())
+			sess.io.SetCommandGate(&sessionCommandGate{s: sess, approver: gated})
 		}
 	}
 
@@ -2311,12 +2319,12 @@ func (g *sessionCommandGate) approve(cmd string) bool {
 	return dec.Approved
 }
 
-// denyAllCommandGate is a fail-closed commandGate used when a session is
-// configured for AI command approval but the AI approver is not yet available
-// on this server. It denies every command and tells participants why, so the
-// session never runs commands ungated (fail-open).
-//
-// TODO(approval): replace with real AI approver in Task 6.4.
+// denyAllCommandGate is the fail-closed commandGate fallback used when a
+// session is configured for AI command approval but the AI approver cannot be
+// constructed on this server: no usable auth client (CommandEvaluatorClient) is
+// available, or the role's AI command-approval config is absent. It denies
+// every command and tells participants why, so the session never runs commands
+// ungated (fail-open).
 type denyAllCommandGate struct {
 	s *session
 }

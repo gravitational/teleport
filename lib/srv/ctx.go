@@ -155,6 +155,12 @@ type Server interface {
 	// GetAccessPoint returns an AccessPoint for this cluster.
 	GetAccessPoint() AccessPoint
 
+	// GetAuthClient returns the full auth client for this server, used for
+	// operations not available on the (cached) AccessPoint such as the
+	// EvaluateCommand RPC for AI command approval. It may return nil on servers
+	// that were constructed without an auth client; callers must fail closed.
+	GetAuthClient() authclient.ClientI
+
 	// GetDataDir returns data directory of the server
 	GetDataDir() string
 

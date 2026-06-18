@@ -475,6 +475,13 @@ func (s *Server) GetAccessPoint() srv.AccessPoint {
 	return s.authService
 }
 
+// GetAuthClient returns the full auth client for this server. Used for
+// operations not available on the cached AccessPoint, such as the
+// EvaluateCommand RPC for AI command approval.
+func (s *Server) GetAuthClient() authclient.ClientI {
+	return s.authClient
+}
+
 // GetPAM returns the PAM configuration for a server. Because the forwarding
 // server runs in-memory, it does not support PAM.
 func (s *Server) GetPAM() *pamcfg.PAMConfig {

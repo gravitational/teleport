@@ -20,6 +20,7 @@ package approval
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/gravitational/teleport/api/types"
@@ -77,7 +78,24 @@ func WithTimeout(inner CommandApprover, d time.Duration) CommandApprover {
 		defer cancel()
 
 		ch := make(chan Decision, 1)
-		go func() { ch <- inner.Approve(ctx, req) }()
+		go func() {
+			// Recover from a panic in the wrapped approver (e.g. a typed-nil
+			// client dereference) and convert it into a denying decision so the
+			// command fails CLOSED rather than crashing the node process. The
+			// channel is buffered (cap 1), so this send never blocks and the
+			// normal send below only runs when inner.Approve returns without
+			// panicking, ensuring exactly one decision is delivered.
+			defer func() {
+				if r := recover(); r != nil {
+					ch <- Decision{
+						Approved: false,
+						Approver: ApproverSystem,
+						Reason:   fmt.Sprintf("approval panicked (fail-closed): %v", r),
+					}
+				}
+			}()
+			ch <- inner.Approve(ctx, req)
+		}()
 
 		select {
 		case dec := <-ch:

@@ -63,6 +63,19 @@ func TestWithTimeoutDeniesOnParentCancel(t *testing.T) {
 	require.Equal(t, ApproverSystem, d.Approver)
 }
 
+func TestWithTimeoutDeniesOnPanic(t *testing.T) {
+	panicker := approverFunc(func(_ context.Context, _ CommandRequest) Decision {
+		var nilClient *struct{ x int }
+		_ = nilClient.x // typed-nil deref: panics
+		return Decision{Approved: true}
+	})
+	a := WithTimeout(panicker, time.Second)
+	d := a.Approve(context.Background(), CommandRequest{Command: "rm -rf /"})
+	require.False(t, d.Approved, "a panicking approver must fail closed (deny)")
+	require.Contains(t, d.Reason, "fail-closed")
+	require.Equal(t, ApproverSystem, d.Approver)
+}
+
 func TestWithTimeoutPassesThroughFastDecision(t *testing.T) {
 	fast := approverFunc(func(_ context.Context, _ CommandRequest) Decision {
 		return Decision{Approved: true, Approver: "bob", Mode: ModeHuman}

@@ -41,6 +41,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -166,13 +167,14 @@ func newMockServer(t *testing.T) *mockServer {
 
 type mockServer struct {
 	*eventstest.MockRecorderEmitter
-	info      types.Server
-	datadir   string
-	auth      *auth.Server
-	component string
-	clock     clocki.FakeClock
-	bpf       bpf.BPF
-	pamCfg    *pamcfg.PAMConfig
+	info       types.Server
+	datadir    string
+	auth       *auth.Server
+	authClient authclient.ClientI
+	component  string
+	clock      clocki.FakeClock
+	bpf        bpf.BPF
+	pamCfg     *pamcfg.PAMConfig
 }
 
 // ID is the unique ID of the server.
@@ -210,6 +212,12 @@ func (m *mockServer) PermitUserEnvironment() bool {
 // GetAccessPoint returns an AccessPoint for this cluster.
 func (m *mockServer) GetAccessPoint() AccessPoint {
 	return m.auth
+}
+
+// GetAuthClient returns the full auth client for this server, or nil if the
+// test did not configure one (in which case AI command approval fails closed).
+func (m *mockServer) GetAuthClient() authclient.ClientI {
+	return m.authClient
 }
 
 // GetDataDir returns data directory of the server

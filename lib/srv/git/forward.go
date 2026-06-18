@@ -721,6 +721,13 @@ func (s *ForwardServer) GetAccessPoint() srv.AccessPoint {
 	return s.cfg.AccessPoint
 }
 
+// GetAuthClient returns the full auth client for this server. Used for
+// operations not available on the cached AccessPoint, such as the
+// EvaluateCommand RPC for AI command approval.
+func (s *ForwardServer) GetAuthClient() authclient.ClientI {
+	return s.cfg.AuthClient
+}
+
 func (s *ForwardServer) GetDataDir() string {
 	return ""
 }

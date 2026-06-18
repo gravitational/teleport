@@ -96,8 +96,12 @@ type Server struct {
 	srv         *sshutils.Server
 	getRotation services.RotationGetter
 	authService srv.AccessPoint
-	reg         *srv.SessionRegistry
-	limiter     *limiter.Limiter
+	// authClient is the full auth client, used for operations not available on
+	// the cached authService (AccessPoint), such as the EvaluateCommand RPC for
+	// AI command approval. Exposed via GetAuthClient.
+	authClient authclient.ClientI
+	reg        *srv.SessionRegistry
+	limiter    *limiter.Limiter
 
 	inventoryHandle inventory.DownstreamHandle
 
@@ -318,6 +322,13 @@ func (s *Server) GetNamespace() string {
 
 func (s *Server) GetAccessPoint() srv.AccessPoint {
 	return s.authService
+}
+
+// GetAuthClient returns the full auth client for this server. Used for
+// operations not available on the cached AccessPoint, such as the
+// EvaluateCommand RPC for AI command approval.
+func (s *Server) GetAuthClient() authclient.ClientI {
+	return s.authClient
 }
 
 // GetUserAccountingPaths returns the optional override of the utmp, wtmp, and btmp paths.
@@ -891,6 +902,7 @@ func New(
 	s := &Server{
 		addr:               addr,
 		authService:        authService,
+		authClient:         auth,
 		hostname:           hostname,
 		proxyPublicAddr:    proxyPublicAddr,
 		cancel:             cancel,

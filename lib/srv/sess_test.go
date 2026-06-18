@@ -37,14 +37,17 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/term"
+	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -806,13 +809,33 @@ func TestStopUnstarted(t *testing.T) {
 	require.Eventually(t, sessionClosed, time.Second*15, time.Millisecond*500)
 }
 
+// fakeEvaluatorAuthClient embeds authclient.ClientI so it satisfies the
+// interface (all other methods are nil and unused) and overrides
+// EvaluateCommand so an AI-moderated session can be exercised without a real
+// auth server. The embedded nil interface would panic only if some other
+// method were called, which these tests do not do.
+type fakeEvaluatorAuthClient struct {
+	authclient.ClientI
+	resp   *proto.EvaluateCommandResponse
+	err    error
+	gotReq *proto.EvaluateCommandRequest
+}
+
+func (f *fakeEvaluatorAuthClient) EvaluateCommand(ctx context.Context, req *proto.EvaluateCommandRequest, opts ...grpc.CallOption) (*proto.EvaluateCommandResponse, error) {
+	f.gotReq = req
+	if f.err != nil {
+		return nil, f.err
+	}
+	return f.resp, nil
+}
+
 // TestSessionCommandGate verifies that a command gate is installed on the
 // session's TermManager when (and only when) a human per-command approval
 // policy applies to the session.
 func TestSessionCommandGate(t *testing.T) {
 	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 
-	newReg := func(t *testing.T) *SessionRegistry {
+	newRegWithServer := func(t *testing.T) (*SessionRegistry, *mockServer) {
 		srv := newMockServer(t)
 		srv.component = teleport.ComponentNode
 		reg, err := NewSessionRegistry(SessionRegistryConfig{
@@ -821,6 +844,10 @@ func TestSessionCommandGate(t *testing.T) {
 		})
 		require.NoError(t, err)
 		t.Cleanup(func() { reg.Close() })
+		return reg, srv
+	}
+	newReg := func(t *testing.T) *SessionRegistry {
+		reg, _ := newRegWithServer(t)
 		return reg
 	}
 
@@ -850,8 +877,7 @@ func TestSessionCommandGate(t *testing.T) {
 		require.NotNil(t, sess.getCommandApprover(), "expected a command approver to be set")
 	})
 
-	t.Run("ai command approval installs a fail-closed gate", func(t *testing.T) {
-		reg := newReg(t)
+	aiRole := func(t *testing.T) types.Role {
 		role, err := types.NewRole("access", types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				RequireSessionJoin: []*types.SessionRequirePolicy{{
@@ -869,19 +895,49 @@ func TestSessionCommandGate(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
+		return role
+	}
 
-		sess, _ := testOpenSession(t, reg, services.NewRoleSet(role), &decisionpb.SSHAccessPermit{})
+	t.Run("ai command approval without auth client fails closed", func(t *testing.T) {
+		// With no auth client available, an AI-configured session MUST install a
+		// gate that denies every command rather than running commands ungated
+		// (fail-open).
+		reg := newReg(t)
+
+		sess, _ := testOpenSession(t, reg, services.NewRoleSet(aiRole(t)), &decisionpb.SSHAccessPermit{})
 		t.Cleanup(func() { sess.Stop() })
 
-		// An AI-configured session MUST install a gate so it fails closed
-		// (denies) until the real AI approver lands, rather than running
-		// commands ungated (fail-open).
 		require.True(t, sess.io.commandGateEnabled(), "expected an AI fail-closed command gate to be installed")
 
-		// The installed gate must deny every command.
 		gate := sess.io.commandGate
 		require.NotNil(t, gate)
-		require.False(t, gate.approve("rm -rf /"), "AI gate must deny commands (fail-closed)")
+		require.False(t, gate.approve("rm -rf /"), "AI gate must deny commands (fail-closed) when no auth client is present")
+	})
+
+	t.Run("ai command approval with auth client installs AI-backed gate", func(t *testing.T) {
+		// When an auth client is present, the AI approver delegates each command
+		// to the EvaluateCommand RPC. Here a fake client approves the command.
+		reg, srv := newRegWithServer(t)
+		fake := &fakeEvaluatorAuthClient{
+			resp: &proto.EvaluateCommandResponse{Approved: true, Reasoning: "ok"},
+		}
+		srv.authClient = fake
+
+		sess, _ := testOpenSession(t, reg, services.NewRoleSet(aiRole(t)), &decisionpb.SSHAccessPermit{})
+		t.Cleanup(func() { sess.Stop() })
+
+		require.True(t, sess.io.commandGateEnabled(), "expected an AI-backed command gate to be installed")
+
+		gate := sess.io.commandGate
+		require.NotNil(t, gate)
+		// The gate is AI-backed (not deny-all): the fake approves, so the
+		// command is allowed and the RPC was invoked with the configured policy
+		// and model.
+		require.True(t, gate.approve("ls"), "AI-backed gate must honor the approver decision")
+		require.NotNil(t, fake.gotReq)
+		require.Equal(t, "ls", fake.gotReq.Command)
+		require.Equal(t, "deny dangerous commands", fake.gotReq.Policy)
+		require.Equal(t, "claude", fake.gotReq.Model)
 	})
 
 	t.Run("no command approval installs no gate", func(t *testing.T) {

@@ -320,6 +320,18 @@ policySetLoop:
 		// Check every require policy to see if it's fulfilled.
 		// Only one needs to be checked to pass the policyset.
 		for _, requirePolicy := range policies {
+			// A require policy configured for autonomous AI command approval is
+			// satisfied by the AI moderator itself: no human participant is
+			// needed for the session to start, because every command is still
+			// gated by the AI at execution time. The AI is configured by the
+			// cluster (not a human subject to the policy's Filter predicate), so
+			// we do not run the Filter here. This auto-satisfy applies ONLY to
+			// AI-approver policies; human-approver and ordinary moderation
+			// policies still require a real matching moderator below.
+			if ca := requirePolicy.CommandApproval; ca != nil && ca.Enabled && ca.Approver == types.CommandApproverAI {
+				continue policySetLoop
+			}
+
 			// Count of how many additional participant matches we need to fulfill the policy.
 			left := requirePolicy.Count
 

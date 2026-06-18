@@ -665,3 +665,138 @@ func TestSessionAccessEvaluatorCommandApproval(t *testing.T) {
 		})
 	}
 }
+
+// TestFulfilledForAICommandApproval verifies that a require policy configured
+// for autonomous AI command approval lets a session start without any human
+// moderator, while a human-approver (or ordinary moderation) policy still
+// requires a real matching moderator.
+func TestFulfilledForAICommandApproval(t *testing.T) {
+	aiPolicy := &types.CommandApproval{
+		Enabled:  true,
+		Approver: types.CommandApproverAI,
+		AI:       &types.CommandApprovalAI{Policy: "deny dangerous commands", Model: "claude"},
+	}
+	humanPolicy := &types.CommandApproval{
+		Enabled:  true,
+		Approver: types.CommandApproverHuman,
+	}
+
+	newEvaluator := func(ca *types.CommandApproval) SessionAccessEvaluator {
+		return NewSessionAccessEvaluator([]*types.SessionTrackerPolicySet{{
+			Name: "p1",
+			RequireSessionJoin: []*types.SessionRequirePolicy{{
+				Name:            "approve",
+				Filter:          "contains(user.roles, 'moderator')",
+				Kinds:           []string{string(types.SSHSessionKind)},
+				Modes:           []string{string(types.SessionModeratorMode)},
+				Count:           1,
+				CommandApproval: ca,
+			}},
+		}}, types.SSHSessionKind, "owner")
+	}
+
+	t.Run("AI approver session starts without a human", func(t *testing.T) {
+		e := newEvaluator(aiPolicy)
+		// No participants at all: the AI moderator satisfies the require policy.
+		ok, _, err := e.FulfilledFor(nil)
+		require.NoError(t, err)
+		require.True(t, ok, "AI-approver policy must be fulfilled without a human moderator")
+	})
+
+	t.Run("AI approver session starts with only a peer", func(t *testing.T) {
+		e := newEvaluator(aiPolicy)
+		ok, _, err := e.FulfilledFor([]SessionAccessContext{{
+			Username: "peer",
+			Mode:     types.SessionPeerMode,
+		}})
+		require.NoError(t, err)
+		require.True(t, ok, "AI-approver policy must be fulfilled by peers only")
+	})
+
+	t.Run("human approver session is NOT fulfilled without a moderator", func(t *testing.T) {
+		e := newEvaluator(humanPolicy)
+		ok, _, err := e.FulfilledFor(nil)
+		require.NoError(t, err)
+		require.False(t, ok, "human-approver policy must still require a real moderator")
+	})
+}
+
+// TestFulfilledForAIDoesNotBypassSeparateHumanRequirement is a security
+// regression lock: when one policy set carries an AI-approver command_approval
+// require policy (auto-satisfied without any human) AND a *separate* policy set
+// carries an ordinary require policy that needs a real human moderator, the AI
+// auto-satisfy must NOT bypass the human requirement coming from the other set.
+// FulfilledFor must return FALSE until a matching human moderator participant is
+// present, and TRUE once it is.
+func TestFulfilledForAIDoesNotBypassSeparateHumanRequirement(t *testing.T) {
+	moderatorRole, err := types.NewRole("moderator", types.RoleSpecV6{})
+	require.NoError(t, err)
+	// The moderator participant must carry a join policy that matches the
+	// session so it counts toward the require policy (FulfilledFor matches both
+	// the require filter and the participant's allow/join policy).
+	moderatorRole.SetSessionJoinPolicies([]*types.SessionJoinPolicy{{
+		Roles: []string{types.Wildcard},
+		Kinds: []string{string(types.SSHSessionKind)},
+		Modes: []string{types.Wildcard},
+	}})
+
+	aiSet := &types.SessionTrackerPolicySet{
+		Name: "ai-set",
+		RequireSessionJoin: []*types.SessionRequirePolicy{{
+			Name:   "ai-approve",
+			Filter: `contains(user.roles, "moderator")`,
+			Kinds:  []string{string(types.SSHSessionKind)},
+			Modes:  []string{string(types.SessionModeratorMode)},
+			Count:  1,
+			CommandApproval: &types.CommandApproval{
+				Enabled:  true,
+				Approver: types.CommandApproverAI,
+				AI:       &types.CommandApprovalAI{Policy: "deny dangerous commands", Model: "claude"},
+			},
+		}},
+	}
+	// Ordinary moderation require policy (no command approval): genuinely needs
+	// a human moderator participant.
+	humanSet := &types.SessionTrackerPolicySet{
+		Name: "human-set",
+		RequireSessionJoin: []*types.SessionRequirePolicy{{
+			Name:   "human-moderator",
+			Filter: `contains(user.roles, "moderator")`,
+			Kinds:  []string{string(types.SSHSessionKind)},
+			Modes:  []string{string(types.SessionModeratorMode)},
+			Count:  1,
+		}},
+	}
+
+	e := NewSessionAccessEvaluator(
+		[]*types.SessionTrackerPolicySet{aiSet, humanSet},
+		types.SSHSessionKind,
+		"owner",
+	)
+
+	t.Run("AI set must NOT bypass the human requirement from the other set", func(t *testing.T) {
+		// No moderator present: the AI set auto-satisfies, but the human set
+		// must remain unfulfilled, so the overall result is FALSE.
+		ok, _, err := e.FulfilledFor(nil)
+		require.NoError(t, err)
+		require.False(t, ok, "AI auto-satisfy must not bypass a human requirement from a separate policy set")
+
+		// A non-moderator peer is not enough either.
+		ok, _, err = e.FulfilledFor([]SessionAccessContext{{
+			Username: "peer",
+			Mode:     types.SessionPeerMode,
+		}})
+		require.NoError(t, err)
+		require.False(t, ok, "a non-moderator participant must not satisfy the human requirement")
+	})
+
+	t.Run("session starts once a real human moderator joins", func(t *testing.T) {
+		ok, _, err := e.FulfilledFor([]SessionAccessContext{{
+			Username: "human-mod",
+			Roles:    []types.Role{moderatorRole},
+			Mode:     types.SessionModeratorMode,
+		}})
+		require.NoError(t, err)
+		require.True(t, ok, "AI set auto-satisfies and human set is satisfied by the moderator participant")
+	})
+}

@@ -1193,6 +1193,16 @@ func (c *Client) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 	return cert, nil
 }
 
+// EvaluateCommand evaluates a single command against an AI moderation policy.
+// It is used by nodes to gate commands in AI-moderated sessions.
+func (c *Client) EvaluateCommand(ctx context.Context, req *proto.EvaluateCommandRequest, opts ...grpc.CallOption) (*proto.EvaluateCommandResponse, error) {
+	resp, err := c.grpc.EvaluateCommand(ctx, req, opts...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
 // AssertSystemRole is used by agents to prove that they have a given system role when their credentials originate
 // from multiple separate join tokens so that they can be issued an instance certificate that encompasses
 // all of their capabilities. This method will be deprecated once we have a more comprehensive
