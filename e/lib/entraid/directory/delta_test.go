@@ -60,6 +60,7 @@ func TestProcessUserDelta(t *testing.T) {
 		expectedTraits     map[string][]string
 		expectedUsersCount int
 		isRemoved          bool
+		errAssertionFunc   require.ErrorAssertionFunc
 	}{
 		{
 			name: "User added",
@@ -93,6 +94,7 @@ func TestProcessUserDelta(t *testing.T) {
 				entraIDSAMLClaimEmail: {"david@example.com"},
 			},
 			expectedUsersCount: 4,
+			errAssertionFunc:   require.NoError,
 		},
 		{
 			name: "User updated",
@@ -129,6 +131,7 @@ func TestProcessUserDelta(t *testing.T) {
 				entraIDSAMLClaimGroups: {"group1", "group2"},
 			},
 			expectedUsersCount: 3,
+			errAssertionFunc:   require.NoError,
 		},
 		{
 			name: "User unchanged", // could be an update replay
@@ -159,6 +162,23 @@ func TestProcessUserDelta(t *testing.T) {
 				entraIDSAMLClaimGroups: {"group1"},
 			},
 			expectedUsersCount: 3,
+			errAssertionFunc:   require.NoError,
+		},
+		{
+			name: "User updated to have unsupported username",
+			userDelta: &models.ListUsersDeltaResponse{
+				User: &models.User{
+					DirectoryObject: models.DirectoryObject{
+						ID:          to.Ptr(bob),
+						DisplayName: to.Ptr("Bob B"),
+					},
+					Mail:              to.Ptr("bo'b@example.com"),
+					UserPrincipalName: to.Ptr("bo'b@example.com"), // single quote is not supported
+				},
+			},
+			expectedUsersCount: 2,
+			isRemoved:          true,
+			errAssertionFunc:   require.Error,
 		},
 		{
 			name: "User removed",
@@ -174,6 +194,7 @@ func TestProcessUserDelta(t *testing.T) {
 			},
 			expectedUsersCount: 2,
 			isRemoved:          true,
+			errAssertionFunc:   require.NoError,
 		},
 	}
 
@@ -197,12 +218,13 @@ func TestProcessUserDelta(t *testing.T) {
 				userCfg,
 			)
 			err := deltaProcessor.apply(tc.userDelta)
-			require.NoError(t, err)
+			tc.errAssertionFunc(t, err)
 
 			result := deltaProcessor.result()
 			require.Len(t, result, tc.expectedUsersCount)
 
 			if tc.isRemoved {
+				require.Empty(t, result[*tc.userDelta.ID])
 				return
 			}
 

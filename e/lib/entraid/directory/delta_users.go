@@ -1,6 +1,8 @@
 package directory
 
 import (
+	"errors"
+
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
@@ -78,8 +80,10 @@ func (u *userDeltaProcessor) apply(in *models.ListUsersDeltaResponse) error {
 		return nil
 	}
 
+	userID := entraUniqueID(*in.GetID())
+
 	if isRemoved(in.Removed) {
-		delete(u.entraUsersMap, entraUniqueID(*in.GetID()))
+		delete(u.entraUsersMap, userID)
 		return nil
 	}
 	// New or updated user.
@@ -89,10 +93,15 @@ func (u *userDeltaProcessor) apply(in *models.ListUsersDeltaResponse) error {
 		u.userConfig,
 	)
 	if err != nil {
+		if errors.Is(err, errUnsupportedUsername) {
+			// Delete if the updated account properties makes the account unsupported.
+			// E.g. username updated to contain single quote which is not supported.
+			delete(u.entraUsersMap, userID)
+		}
 		return trace.Wrap(err)
 	}
 
-	u.entraUsersMap[entraUniqueID(*in.GetID())] = user
+	u.entraUsersMap[userID] = user
 	return nil
 }
 
