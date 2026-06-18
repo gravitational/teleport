@@ -484,6 +484,13 @@ func (c *runCommandClient) Run(ctx context.Context, req RunCommandRequest) (*Run
 	runCommand := armcompute.VirtualMachineRunCommand{
 		Location: to.Ptr(req.Region),
 		Properties: &armcompute.VirtualMachineRunCommandProperties{
+			// NOTE: The AsyncExecution option can be very misleading.
+			// It has no effect on whether BeginCreateOrUpdate blocks.
+			// Instead, it affects poller.PollUntilDone.
+			// If set to true, then calling poller.PollUntilDone will actually
+			// return as soon as the script is "provisioned" even if
+			// the script execution state is still "running".
+			// We always want this option set to false.
 			AsyncExecution: to.Ptr(false),
 			Source: &armcompute.VirtualMachineRunCommandScriptSource{
 				Script: to.Ptr(req.Script),
