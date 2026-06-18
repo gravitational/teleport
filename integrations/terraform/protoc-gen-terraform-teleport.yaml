@@ -243,6 +243,10 @@ exclude_fields:
     # https://github.com/gravitational/protoc-gen-terraform/issues/52)
     - "ProvisionTokenV2.Spec.GenericOIDC.MustMatchFields"
 
+    # Lock
+    - "LockV2.Spec.CreatedAt"
+    - "LockV2.Spec.CreatedBy"
+
 name_overrides:
 
 # These fields will be marked as Computed: true
