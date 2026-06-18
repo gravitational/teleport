@@ -162,6 +162,87 @@ func TestAWS(t *testing.T) {
 	require.NoError(t, err)
 }
 
+const (
+	promptAlphaRoleARN = "arn:aws:iam::123456789012:role/Alpha"
+	promptBetaRoleARN  = "arn:aws:iam::123456789012:role/Beta"
+)
+
+func promptTestAWSApp(t *testing.T) types.Application {
+	t.Helper()
+
+	app, err := types.NewAppV3(types.Metadata{Name: "aws-test"}, types.AppSpecV3{
+		URI: constants.AWSConsoleURL,
+	})
+	require.NoError(t, err)
+	return app
+}
+
+func TestGetARNFromFlagsInteractive(t *testing.T) {
+	t.Parallel()
+
+	testRoleARNs := []string{
+		promptAlphaRoleARN,
+		promptBetaRoleARN,
+	}
+
+	tests := []struct {
+		name          string
+		logins        []string
+		cancelContext bool
+		wantARN       string
+		wantAWSRole   string
+		wantPrompt    bool
+		wantErr       error
+	}{
+		{
+			name:          "multiple roles prompts interactively",
+			logins:        testRoleARNs,
+			cancelContext: true,
+			wantPrompt:    true,
+			wantErr:       context.Canceled,
+		},
+		{
+			name:    "single role skips prompt",
+			logins:  []string{promptAlphaRoleARN},
+			wantARN: promptAlphaRoleARN,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := t.Context()
+			if tt.cancelContext {
+				canceledCtx, cancel := context.WithCancel(ctx)
+				cancel()
+				ctx = canceledCtx
+			}
+
+			stdout := new(bytes.Buffer)
+			cf := &CLIConf{
+				Context:        ctx,
+				Interactive:    true,
+				OverrideStdout: stdout,
+			}
+
+			arn, err := getARNFromFlags(cf, promptTestAWSApp(t), tt.logins)
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, tt.wantARN, arn)
+			require.Equal(t, tt.wantAWSRole, cf.AWSRole)
+			if tt.wantPrompt {
+				require.Contains(t, stdout.String(), "Available AWS roles:")
+				return
+			}
+			require.NotContains(t, stdout.String(), "Select AWS role number")
+		})
+	}
+}
+
 func TestAWSRolesAnywhereBasedAccess(t *testing.T) {
 	ctx := context.Background()
 
@@ -517,7 +598,7 @@ func TestAWSConsoleLogins(t *testing.T) {
 			// are multiple ARN roles.
 			err := Run(
 				context.Background(),
-				[]string{"app", "login", "--insecure", "--cluster", cluster, "awsconsole"},
+				[]string{"app", "login", "--insecure", "--cluster", cluster, "--no-interactive", "awsconsole"},
 				setCopyStdout(commandOutput), setHomePath(tmpHomePath),
 				// TODO(gabrielcorado): Given the `RetryWithRerlLogin` is going
 				//   to perform a relogin for BadParameter error, we need to
