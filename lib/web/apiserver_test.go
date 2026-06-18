@@ -28,6 +28,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	_ "embed"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -203,17 +204,21 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-// noHistoryShell returns the absolute path to a committed wrapper shell script
-// (testdata/no-history-shell.sh) that disables history.
+//go:embed testdata/no-history-shell.sh
+var noHistoryShellScript []byte
+
+// noHistoryShell writes a wrapper shell script that disables history to a temp
+// file and returns its path.
 //
 // Tests in this package open interactive shell sessions on a local node service
 // running as the current OS user. Pointing the node at this shell via
 // [regular.SetTestLoginShell] keeps those sessions from polluting the shell
-// history.
+// history. The script is embedded rather than referenced on disk so the path
+// doesn't depend on the working directory.
 func noHistoryShell(t *testing.T) string {
 	t.Helper()
-	shell, err := filepath.Abs(filepath.Join("testdata", "no-history-shell.sh"))
-	require.NoError(t, err)
+	shell := filepath.Join(t.TempDir(), "no-history-shell.sh")
+	require.NoError(t, os.WriteFile(shell, noHistoryShellScript, 0o700))
 	return shell
 }
 
