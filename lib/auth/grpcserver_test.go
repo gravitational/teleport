@@ -1016,7 +1016,7 @@ func TestCreateAppSession_routesByName(t *testing.T) {
 	require.NoError(t, err)
 
 	// Make sure that the app name is encoded into the app session cert.
-	// The app name is used to disambiguate when mutiple apps share
+	// The app name is used to disambiguate when multiple apps share
 	// the same public address.
 	block, _ := pem.Decode(session.GetTLSCert())
 	require.NotNil(t, block, "PEM decode failed")
