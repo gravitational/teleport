@@ -174,6 +174,61 @@ spec:
 		resources := mustDecodeJSON[[]*workloadidentityv1pb.WorkloadIdentity](t, buf)
 		require.Empty(t, resources)
 	})
+
+	// Scoped workload identities are shown by their scope-qualified name and are
+	// addressable by an SQN for rm. These run after the unscoped lifecycle above
+	// leaves the cluster empty, so the exact-output/golden assertions there stay
+	// valid; they seed their own resources via `tctl create`.
+	createWorkloadIdentity := func(t *testing.T, yamlData string) {
+		yamlPath := filepath.Join(t.TempDir(), "workload_identity.yaml")
+		require.NoError(t, os.WriteFile(yamlPath, []byte(yamlData), 0644))
+		_, err := runResourceCommand(t, rootClient, []string{"create", yamlPath})
+		require.NoError(t, err)
+	}
+
+	t.Run("scoped create", func(t *testing.T) {
+		createWorkloadIdentity(t, `kind: workload_identity
+version: v1
+metadata:
+  name: classic-wi
+spec:
+  spiffe:
+    id: /classic
+`)
+		createWorkloadIdentity(t, `kind: workload_identity
+version: v1
+metadata:
+  name: staging-wi
+scope: /staging
+spec:
+  spiffe:
+    id: /staging/_/svc
+`)
+	})
+
+	t.Run("scoped ls shows scope-qualified name", func(t *testing.T) {
+		buf, err := runWorkloadIdentityCommand(t, rootClient, []string{"workload-identity", "ls"})
+		require.NoError(t, err)
+		out := buf.String()
+		// Scoped identities are shown as a scope-qualified name; unscoped ones
+		// keep their bare name.
+		require.Contains(t, out, "/staging::staging-wi")
+		require.Contains(t, out, "classic-wi")
+	})
+
+	t.Run("scoped rm by scope-qualified name", func(t *testing.T) {
+		_, err := runWorkloadIdentityCommand(t, rootClient, []string{"workload-identity", "rm", "/staging::staging-wi"})
+		require.NoError(t, err)
+
+		buf, err := runWorkloadIdentityCommand(t, rootClient, []string{"workload-identity", "ls"})
+		require.NoError(t, err)
+		require.NotContains(t, buf.String(), "staging-wi")
+	})
+
+	t.Run("rm remaining unscoped by bare name", func(t *testing.T) {
+		_, err := runWorkloadIdentityCommand(t, rootClient, []string{"workload-identity", "rm", "classic-wi"})
+		require.NoError(t, err)
+	})
 }
 
 func TestWorkloadIdentityRevocation(t *testing.T) {
