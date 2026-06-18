@@ -27,7 +27,7 @@
 --equatable-macro none
 --exponent-case lowercase
 --exponent-grouping disabled
---extension-acl on-extension
+--extension-acl on-declarations
 --extension-mark "MARK: - %t + %c"
 --extension-threshold 0
 --file-macro "#file"
@@ -36,7 +36,7 @@
 --func-attributes prev-line
 --generic-types 
 --group-blank-lines true
---grouped-extension "MARK: %c"
+--grouped-extension "MARK: - %t + %c"
 --guard-else auto
 --header ignore
 --hex-grouping 4,8
@@ -59,7 +59,7 @@
 --mark-extension-threshold 0
 --mark-extensions always
 --mark-struct-threshold 0
---mark-types always
+--mark-types never
 --markdown-files ignore
 --max-width 120
 --modifier-order 
@@ -73,6 +73,7 @@
 --organization-mode visibility
 --organize-types actor,class,enum,struct
 --pattern-let hoist
+--prefer-synthesized-init-for-internal-structs never
 --preserve-acronyms 
 --preserve-decls 
 --preserved-property-types Package
@@ -92,8 +93,11 @@
 --stored-var-attributes prev-line
 --strip-unused-args closure-only
 --struct-threshold 0
+--suite-name-format preserve
 --swift-version 6.2
 --tab-width unspecified
+--test-case-access-control internal
+--test-case-name-format raw-identifiers
 --throw-capturing 
 --timezone system
 --trailing-closures 
@@ -124,4 +128,4 @@
 --xctest-symbols 
 --yoda-swap always
 --disable redundantLet,unusedArguments
---enable acronyms,blankLinesBetweenImports,docComments,isEmpty,wrapEnumCases
+--enable acronyms,isEmpty,markTypes,wrapEnumCases
