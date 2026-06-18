@@ -57,6 +57,19 @@ func applyKubeBlock(src *scopedaccessv1.ScopedRoleKube, dst *types.RoleCondition
 		}
 		dst.KubernetesLabels[label.GetName()] = apiutils.Strings(label.GetValues())
 	}
+
+	for i, resource := range src.GetResources() {
+		if dst.KubernetesResources == nil {
+			dst.KubernetesResources = make([]types.KubernetesResource, len(src.GetResources()))
+		}
+		dst.KubernetesResources[i] = types.KubernetesResource{
+			Kind:      resource.GetKind(),
+			Namespace: resource.GetNamespace(),
+			Name:      resource.GetName(),
+			Verbs:     resource.GetVerbs(),
+			APIGroup:  resource.GetApiGroup(),
+		}
+	}
 }
 
 // applyAppBlock writes/converts the relevant subset of the scoped role's app block into the provided
@@ -129,10 +142,16 @@ func applyRules(src []*scopedaccessv1.ScopedRule, dst *types.RoleConditions) {
 
 // ScopedRoleToRole converts a scoped role to an equivalent classic role. Scoped roles do not implement their
 // own access-control logic for the most part, and instead rely on converting to classic roles for the final
-// step of evaluation. This functiona also accepts the assigned scope as a parameter because we conventionally
+// step of evaluation. This function also accepts the assigned scope as a parameter because we conventionally
 // format converted role names as "<role-name>@<assigned-scope>" to help ensure reasonable error messages from
 // role evaluation logic.
 func ScopedRoleToRole(sr *scopedaccessv1.ScopedRole, assignedScope string) (types.Role, error) {
+	// role conversion applies unwanted wildcards for kube resources when left unassigned, so we
+	// explicitly validate the kube block as a sanity check
+	if err := validateKubeBlock(sr.GetSpec().GetKube()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	var conditions types.RoleConditions
 	applySSHBlock(sr.GetSpec().GetSsh(), &conditions)
 	applyKubeBlock(sr.GetSpec().GetKube(), &conditions)
