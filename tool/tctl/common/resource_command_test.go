@@ -3392,6 +3392,18 @@ func TestParseScopedRef(t *testing.T) {
 			id:      "/staging::my role",
 			wantErr: true,
 		},
+		{
+			name: "scoped token with only name",
+			ref:  "scoped_token",
+			id:   "/test::test-token",
+			want: ScopedRef{Kind: "scoped_token", Scope: "/test", Name: "test-token"},
+		},
+		{
+			name: "scoped token with name and secret",
+			ref:  "scoped_token",
+			id:   "/test::test-token:YzZlYzdlYTg1YTZjZTEwZjVjYjAxMTc3Mjc2NTk3NGY",
+			want: ScopedRef{Kind: "scoped_token", Scope: "/test", Name: "test-token"},
+		},
 	}
 
 	for _, tt := range tests {
