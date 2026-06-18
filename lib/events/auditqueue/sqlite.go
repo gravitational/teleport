@@ -100,8 +100,11 @@ type writeRequest struct {
 }
 
 type sqliteQueue struct {
-	db                 *sql.DB
-	path               string
+	db   *sql.DB
+	path string
+	// runMu enforces a single consumer. Run only ever TryLocks it and returns
+	// ErrAlreadyRunning if it's held. The lock is held for the entire lifetime
+	// of Run, so a blocking Lock would hang until shutdown.
 	runMu              sync.Mutex
 	toBeWritten        chan writeRequest
 	maxBatch           int
