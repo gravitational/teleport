@@ -99,6 +99,12 @@ Usage:
 $ tsh apps login [<flags>] <app>
 ```
 
+Environment variables:
+
+|Variable|Default|Description|
+|---|---|---|
+|`TELEPORT_AWS_LOGIN_INTERACTIVE`|`false`|Prompt for AWS Roles interactively (--aws-role takes precedence).|
+
 Flags:
 
 |Flag|Default|Description|
@@ -108,6 +114,7 @@ Flags:
 |`--gcp-service-account`|*no default*|(For GCP CLI access only) GCP service account name.|
 |`-q`, `--[no-]quiet`|`false`|Quiet mode|
 |`--target-port`|*no default*|Port to which connections made using this cert should be routed to. Valid only for multi-port TCP apps.|
+|`-T`, `--[no-]interactive`|`false`|Prompt for AWS Roles interactively (--aws-role takes precedence).|
 
 Arguments:
 
