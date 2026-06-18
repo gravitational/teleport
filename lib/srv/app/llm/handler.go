@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/app/llm/anthropic"
 	"github.com/gravitational/teleport/lib/srv/app/llm/bedrock"
 	llmerrors "github.com/gravitational/teleport/lib/srv/app/llm/errors"
+	"github.com/gravitational/teleport/lib/srv/app/llm/openai"
 	llmrequest "github.com/gravitational/teleport/lib/srv/app/llm/request"
 )
 
@@ -48,6 +49,8 @@ type Handler struct {
 
 	anthropicProviderURL *url.URL
 	anthropicApiKey      string
+	openAIProviderURL    *url.URL
+	openAIApiKey         string
 }
 
 // HandlerConfig configures dependencies for the LLM proxy handler.
@@ -106,6 +109,7 @@ func NewHandler(ctx context.Context, cfg HandlerConfig) (*Handler, error) {
 		// Not much validation can be applied here since some providers might
 		// not require an actual API key.
 		anthropicApiKey: os.Getenv(anthropicApiKeyEnvVarName),
+		openAIApiKey:    os.Getenv(openAIApiKeyEnvVarName),
 	}
 
 	// It ok to leave this value as `nil`, the value receivers must implement a
@@ -113,6 +117,14 @@ func NewHandler(ctx context.Context, cfg HandlerConfig) (*Handler, error) {
 	if rawAnthropicURL := os.Getenv(anthropicAddressEnvVarName); rawAnthropicURL != "" {
 		var err error
 		h.anthropicProviderURL, err = url.Parse(rawAnthropicURL)
+		if err != nil {
+			// Hard failure.
+			return nil, trace.Wrap(err)
+		}
+	}
+	if rawOpenAIURL := os.Getenv(openAIAddressEnvVarName); rawOpenAIURL != "" {
+		var err error
+		h.openAIProviderURL, err = url.Parse(rawOpenAIURL)
 		if err != nil {
 			// Hard failure.
 			return nil, trace.Wrap(err)
@@ -152,7 +164,7 @@ func (h *Handler) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 	case types.LLMFormatAnthropic:
 		h.handleRequest(
 			sessionCtx, w, r,
-			func(app types.Application, r *http.Request) (*http.Request, RequestInfo, error) {
+			func(app types.Application, r *http.Request) (*http.Request, llmrequest.RequestInfo, error) {
 				return anthropic.NewRequest(&llmrequest.Config{
 					App:               app,
 					DownstreamRequest: r,
@@ -163,10 +175,28 @@ func (h *Handler) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 					SignBedrockRequest: h.signBedrockRequest,
 				})
 			},
-			func(l *slog.Logger, w http.ResponseWriter) (UpstreamRecorder, error) {
+			func(l *slog.Logger, _ llmrequest.RequestInfo, w http.ResponseWriter) (UpstreamRecorder, error) {
 				return anthropic.NewResponseRecorder(l, w)
 			},
 			anthropic.WriteError,
+		)
+	case types.LLMFormatOpenAI:
+		h.handleRequest(
+			sessionCtx, w, r,
+			func(app types.Application, r *http.Request) (*http.Request, llmrequest.RequestInfo, error) {
+				return openai.NewRequest(&llmrequest.Config{
+					App:               app,
+					DownstreamRequest: r,
+					ProviderURL:       h.openAIProviderURL,
+					GetAPIKeyFunc: func() string {
+						return h.openAIApiKey
+					},
+				})
+			},
+			func(l *slog.Logger, info llmrequest.RequestInfo, w http.ResponseWriter) (UpstreamRecorder, error) {
+				return openai.NewResponseRecorder(l, info, w)
+			},
+			openai.WriteError,
 		)
 	default:
 		return trace.NotImplemented("llm format %q not supported", llm.Format)
@@ -187,24 +217,12 @@ func (h *Handler) signBedrockRequest(ctx context.Context, app types.Application,
 // WriteErrorFunc is function used to write an error into the downstream request.
 type WriteErrorFunc func(http.ResponseWriter, error) error
 
-// RequestInfo interface that contains the request information.
-type RequestInfo interface {
-	// RequestedModel returns the requested model name.
-	RequestedModel() string
-	// ProviderModel returns the model name sent to the provider.
-	ProviderModel() string
-	// IsStream indicates if the request uses streaming.
-	IsStream() bool
-	// RequestSize contains the total request size in bytes.
-	RequestSize() int
-}
-
 // NewUpstreamRequestFunc function used to create a new upstream request.
-type NewUpstreamRequestFunc func(app types.Application, r *http.Request) (*http.Request, RequestInfo, error)
+type NewUpstreamRequestFunc func(app types.Application, r *http.Request) (*http.Request, llmrequest.RequestInfo, error)
 
 // NewUpstreamRecoderFunc function used to initialize a upstream response
 // recorder.
-type NewUpstreamRecoderFunc func(*slog.Logger, http.ResponseWriter) (UpstreamRecorder, error)
+type NewUpstreamRecoderFunc func(*slog.Logger, llmrequest.RequestInfo, http.ResponseWriter) (UpstreamRecorder, error)
 
 // UpstreamRecorder records upstream results.
 type UpstreamRecorder interface {
@@ -242,7 +260,7 @@ func (h *Handler) handleRequest(
 
 	var (
 		err  error
-		info RequestInfo
+		info llmrequest.RequestInfo
 		rec  UpstreamRecorder
 	)
 
@@ -272,7 +290,7 @@ func (h *Handler) handleRequest(
 		return
 	}
 
-	rec, err = newRecorderFunc(log, w)
+	rec, err = newRecorderFunc(log, info, w)
 	if err != nil {
 		log.ErrorContext(r.Context(), "failed to initialize recorder", "error", err)
 		// This is considered an "internal" error. For downstream connections,
@@ -357,4 +375,10 @@ const (
 	//
 	// https://code.claude.com/docs/en/env-vars#variables
 	anthropicApiKeyEnvVarName = "ANTHROPIC_API_KEY"
+	// openAIAddressEnvVarName is the OpenAI's environment variable used to set
+	// base API address.
+	openAIAddressEnvVarName = "OPENAI_BASE_URL"
+	// openAIApiKeyEnvVarName is the OpenAI's environment variable used to
+	// set API keys.
+	openAIApiKeyEnvVarName = "OPENAI_API_KEY"
 )

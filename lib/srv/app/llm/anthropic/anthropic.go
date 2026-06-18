@@ -37,7 +37,7 @@ import (
 
 // NewRequest creates a new provider request based on the downstream request,
 // and inference endpoint configuration.
-func NewRequest(cfg *llmrequest.Config) (*http.Request, *RequestInfo, error) {
+func NewRequest(cfg *llmrequest.Config) (*http.Request, llmrequest.RequestInfo, error) {
 	var (
 		info            = &RequestInfo{}
 		providerPath    string
