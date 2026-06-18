@@ -562,6 +562,55 @@ func (s *Service) UpdateCertificateOverride(
 	}.Build(), nil
 }
 
+func (s *Service) RemoveCertificateOverride(
+	ctx context.Context,
+	req *subcav1.RemoveCertificateOverrideRequest,
+) (*subcav1.RemoveCertificateOverrideResponse, error) {
+	switch {
+	case req.GetCertificateOverrideId().GetCaType() == "":
+		return nil, trace.BadParameter("certificate_override_id.ca_type required")
+	case req.GetCertificateOverrideId().GetPublicKeyHash().GetValue() == "":
+		return nil, trace.BadParameter("certificate_override_id.public_key_hash required")
+	}
+
+	if err := s.authorizeCAOverride(ctx, adminActionYes, types.VerbUpdate, types.VerbDelete); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	parsed, index, err := s.findCertificateOverride(ctx,
+		req.GetCertificateOverrideId().GetCaType(),
+		req.GetCertificateOverrideId().GetPublicKeyHash().GetValue())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Escalate to Delete if this is the last certificate override in the spec.
+	if len(parsed.CertificateOverrides) == 1 {
+		id := local.CertAuthorityOverrideIDFromResource(parsed.CAOverride)
+		err := s.deleteCAOverride(ctx,
+			id,
+			parsed.CAOverride.GetMetadata().GetRevision(),
+			req.GetForceImmediateDelete(),
+		)
+		return &subcav1.RemoveCertificateOverrideResponse{}, trace.Wrap(err)
+	}
+
+	// Remove target override.
+	overrides := parsed.CAOverride.GetSpec().GetCertificateOverrides()
+	parsed.CAOverride.GetSpec().SetCertificateOverrides(
+		slices.Delete(overrides, index, index+1),
+	)
+
+	// Update.
+	_, err = s.writeCAOverride(ctx, writeCAOverrideParams{
+		mode:                  writeUpdate,
+		newCAOverride:         parsed.CAOverride,
+		forceImmediateDisable: req.GetForceImmediateDelete(),
+		skipAuthorization:     true,
+	})
+	return &subcav1.RemoveCertificateOverrideResponse{}, trace.Wrap(err)
+}
+
 func (s *Service) findCertificateOverride(
 	ctx context.Context,
 	caType string,
@@ -1020,22 +1069,39 @@ func (s *Service) DeleteCertAuthorityOverride(
 	if err != nil {
 		return nil, trace.Wrap(err, "read cluster name")
 	}
-
 	id := local.CertAuthorityOverrideID{
 		ClusterName: cn.GetClusterName(),
 		CAType:      req.GetCaId().GetCaType(),
 	}
 
+	// TODO(codingllama): Query existing override for its revision.
+	const revision = ""
+	if err := s.deleteCAOverride(ctx, id, revision, req.GetForceImmediateDelete()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &subcav1.DeleteCertAuthorityOverrideResponse{}, nil
+}
+
+func (s *Service) deleteCAOverride(
+	ctx context.Context,
+	id local.CertAuthorityOverrideID,
+	revision string,
+	forceImmediateDelete bool,
+) error {
 	// Skip disable validation on forced deletes.
 	// Disables are always allowed if forced.
-	if !req.GetForceImmediateDelete() {
+	if !forceImmediateDelete {
 		if err := s.performDeleteLateralValidation(ctx, id); err != nil {
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 	}
 
+	// TODO(codingllama): Use conditional delete.
+	_ = revision
+
 	if err := s.subCA.DeleteCertAuthorityOverride(ctx, id); err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
 	// Fill in identifying fields for audit.
@@ -1055,7 +1121,7 @@ func (s *Service) DeleteCertAuthorityOverride(
 		events.CertAuthOverrideDeleteCode,
 	)
 
-	return &subcav1.DeleteCertAuthorityOverrideResponse{}, nil
+	return nil
 }
 
 // Delete lateral validation checks the to-be-deleted CA override against its

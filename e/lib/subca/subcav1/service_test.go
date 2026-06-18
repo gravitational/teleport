@@ -180,6 +180,26 @@ func TestService_authz(t *testing.T) {
 			},
 		},
 		{
+			name: "RemoveCertificateOverride",
+			doRPC: func(t *testing.T) error {
+				_, err := subCA.RemoveCertificateOverride(
+					t.Context(), subcapb.RemoveCertificateOverrideRequest_builder{
+						CertificateOverrideId: subcapb.CertificateOverrideID_builder{
+							CaType: caType,
+							PublicKeyHash: subcapb.PublicKeyHash_builder{
+								Value: validLookingCertificateOverride.GetPublicKey(),
+							}.Build(),
+						}.Build(),
+					}.Build())
+				return err
+			},
+			want: []*authorizeAttempt{
+				// Order is deterministic.
+				{Rule: types.KindCertAuthorityOverride, Verb: types.VerbDelete},
+				{Rule: types.KindCertAuthorityOverride, Verb: types.VerbUpdate},
+			},
+		},
+		{
 			name: "GetCertAuthorityOverride",
 			doRPC: func(t *testing.T) error {
 				_, err := subCA.GetCertAuthorityOverride(t.Context(), subcapb.GetCertAuthorityOverrideRequest_builder{
@@ -2570,6 +2590,379 @@ func TestService_UpdateCertificateOverride_errors(t *testing.T) {
 			}
 			if test.wantErrType != nil {
 				assert.ErrorAs(t, err, test.wantErrType, "UpdateCertificateOverride error type mismatch")
+			}
+		})
+	}
+}
+
+func TestService_RemoveCertificateOverride(t *testing.T) {
+	t.Parallel()
+
+	// CAType used for all test cases.
+	const caType = types.DatabaseClientCA
+
+	type makeReqFunc func(
+		t *testing.T,
+		caOverride *subcapb.CertAuthorityOverride,
+	) (_ *subcapb.RemoveCertificateOverrideRequest, want *subcapb.CertAuthorityOverride)
+
+	// makeRemoveIndex creates a `makeReqFunc` that deletes the
+	// CertificateOverride at index.
+	makeRemoveIndex := func(index int) makeReqFunc {
+		return func(
+			t *testing.T,
+			caOverride *subcapb.CertAuthorityOverride,
+		) (_ *subcapb.RemoveCertificateOverrideRequest, want *subcapb.CertAuthorityOverride) {
+			t.Helper()
+
+			overrides := caOverride.GetSpec().GetCertificateOverrides()
+			// Sanity check.
+			require.Greater(t, len(overrides), index, "certificate_overrides index invalid")
+
+			req := subcapb.RemoveCertificateOverrideRequest_builder{
+				CertificateOverrideId: subcapb.CertificateOverrideID_builder{
+					CaType: caOverride.GetSubKind(),
+					PublicKeyHash: subcapb.PublicKeyHash_builder{
+						Value: overrides[index].GetPublicKey(),
+					}.Build(),
+				}.Build(),
+			}.Build()
+
+			if len(overrides) == 1 {
+				return req, nil // nil == want full delete
+			}
+
+			want = proto.CloneOf(caOverride)
+			overrides = want.GetSpec().GetCertificateOverrides()
+			want.GetSpec().SetCertificateOverrides(slices.Delete(overrides, index, index+1))
+			return req, want
+		}
+	}
+
+	// withForce sets the force flag in a `makeReqFunc` request.
+	withForce := func(fn makeReqFunc) makeReqFunc {
+		return func(
+			t *testing.T,
+			caOverride *subcapb.CertAuthorityOverride,
+		) (_ *subcapb.RemoveCertificateOverrideRequest, want *subcapb.CertAuthorityOverride) {
+			req, want := fn(t, caOverride)
+			req.SetForceImmediateDelete(true)
+			return req, want
+		}
+	}
+
+	// withUpperPublicKey sets the public key to uppercase in a `makeReqFunc`
+	// request.
+	withUpperPublicKey := func(fn makeReqFunc) makeReqFunc {
+		return func(
+			t *testing.T,
+			caOverride *subcapb.CertAuthorityOverride,
+		) (_ *subcapb.RemoveCertificateOverrideRequest, want *subcapb.CertAuthorityOverride) {
+			req, want := fn(t, caOverride)
+			pkh := req.GetCertificateOverrideId().GetPublicKeyHash()
+			pkh.SetValue(strings.ToUpper(pkh.GetValue()))
+			return req, want
+		}
+	}
+
+	enableOverrides := func(caOverride *subcapb.CertAuthorityOverride) {
+		for _, co := range caOverride.GetSpec().GetCertificateOverrides() {
+			co.SetDisabled(false)
+		}
+	}
+
+	tests := []struct {
+		name         string
+		makeOverride func(t *testing.T, env *subcav1.Env) *subcapb.CertAuthorityOverride
+		makeReq      makeReqFunc
+		wantErr      string // Optional. Empty means success wanted.
+	}{
+		{
+			name: "remove override 1 of 2",
+			makeOverride: func(t *testing.T, env *subcav1.Env) *subcapb.CertAuthorityOverride {
+				// Make sure CA has 2 active keys.
+				addKeysToCA(t, env, addKeysToCAParams{
+					CAType:        caType,
+					NewActiveKeys: 1,
+				})
+				// Override both keys.
+				return env.NewOverrideForCAType(t, caType)
+			},
+			makeReq: makeRemoveIndex(0),
+		},
+		{
+			name: "remove override 2 of 2",
+			makeOverride: func(t *testing.T, env *subcav1.Env) *subcapb.CertAuthorityOverride {
+				addKeysToCA(t, env, addKeysToCAParams{
+					CAType:        caType,
+					NewActiveKeys: 1,
+				})
+				return env.NewOverrideForCAType(t, caType)
+			},
+			makeReq: makeRemoveIndex(1),
+		},
+		{
+			name: "remove last override",
+			makeOverride: func(t *testing.T, env *subcav1.Env) *subcapb.CertAuthorityOverride {
+				// CA only has one active key.
+				return env.NewOverrideForCAType(t, caType)
+			},
+			makeReq: makeRemoveIndex(0),
+		},
+		{
+			name: "nok: attempt to remove enabled override (update)",
+			makeOverride: func(t *testing.T, env *subcav1.Env) *subcapb.CertAuthorityOverride {
+				addKeysToCA(t, env, addKeysToCAParams{
+					CAType:        caType,
+					NewActiveKeys: 1,
+				})
+				caOverride := env.NewOverrideForCAType(t, caType)
+				enableOverrides(caOverride)
+				return caOverride
+			},
+			makeReq: makeRemoveIndex(0),
+			wantErr: "enabled override",
+		},
+		{
+			name: "nok: attempt to remove enabled override (delete)",
+			makeOverride: func(t *testing.T, env *subcav1.Env) *subcapb.CertAuthorityOverride {
+				caOverride := env.NewOverrideForCAType(t, caType)
+				enableOverrides(caOverride)
+				return caOverride
+			},
+			makeReq: makeRemoveIndex(0),
+			wantErr: "enabled override",
+		},
+		{
+			name: "force remove enabled override (update)",
+			makeOverride: func(t *testing.T, env *subcav1.Env) *subcapb.CertAuthorityOverride {
+				addKeysToCA(t, env, addKeysToCAParams{
+					CAType:        caType,
+					NewActiveKeys: 1,
+				})
+				caOverride := env.NewOverrideForCAType(t, caType)
+				enableOverrides(caOverride)
+				return caOverride
+			},
+			makeReq: withForce(makeRemoveIndex(0)),
+		},
+		{
+			name: "force remove enabled override (delete)",
+			makeOverride: func(t *testing.T, env *subcav1.Env) *subcapb.CertAuthorityOverride {
+				caOverride := env.NewOverrideForCAType(t, caType)
+				enableOverrides(caOverride)
+				return caOverride
+			},
+			makeReq: withForce(makeRemoveIndex(0)),
+		},
+		{
+			name: "public key case insensitive (update)",
+			makeOverride: func(t *testing.T, env *subcav1.Env) *subcapb.CertAuthorityOverride {
+				addKeysToCA(t, env, addKeysToCAParams{
+					CAType:        caType,
+					NewActiveKeys: 1,
+				})
+				return env.NewOverrideForCAType(t, caType)
+			},
+			makeReq: withUpperPublicKey(makeRemoveIndex(0)),
+		},
+		{
+			name: "public key case insensitive (delete)",
+			makeOverride: func(t *testing.T, env *subcav1.Env) *subcapb.CertAuthorityOverride {
+				return env.NewOverrideForCAType(t, caType)
+			},
+			makeReq: withUpperPublicKey(makeRemoveIndex(0)),
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			env := subcav1.NewEnv(t, subcav1.EnvParams{
+				StorageParams: subcaenv.EnvParams{
+					CATypesToCreate: []types.CertAuthType{
+						caType,
+					},
+				},
+			})
+			subCA := env.SubCAClient
+			emitter := env.MockEmitter
+
+			// Create override to be targeted.
+			var caOverride *subcapb.CertAuthorityOverride
+			if test.makeOverride != nil {
+				createResp, err := subCA.CreateCertAuthorityOverride(t.Context(), subcapb.CreateCertAuthorityOverrideRequest_builder{
+					CaOverride: test.makeOverride(t, env),
+				}.Build())
+				require.NoError(t, err)
+				caOverride = createResp.GetCaOverride()
+			}
+
+			req, want := test.makeReq(t, caOverride)
+			emitter.Reset()
+			resp, err := subCA.RemoveCertificateOverride(t.Context(), req)
+			if test.wantErr != "" {
+				assert.ErrorContains(t, err, test.wantErr, "RemoveCertificateOverride error mismatch")
+				return
+			}
+			require.NoError(t, err, "RemoveCertificateOverride")
+			// Assert empty response.
+			if diff := cmp.Diff(
+				&subcapb.RemoveCertificateOverrideResponse{},
+				resp,
+				protocmp.Transform(),
+			); diff != "" {
+				t.Errorf("RemoveCertificateOverride mismatch (-want +got)\n%s", diff)
+			}
+
+			// Verify update/remove.
+			getResp, err := subCA.GetCertAuthorityOverride(t.Context(), subcapb.GetCertAuthorityOverrideRequest_builder{
+				CaId: subcapb.CertAuthorityOverrideID_builder{
+					CaType: string(caType),
+				}.Build(),
+			}.Build())
+			wantDelete := want == nil
+			if wantDelete {
+				assert.ErrorAs(t, err, new(*trace.NotFoundError), "GetCertAuthorityOverride error mismatch (wanted deleted CAOverride)")
+			} else {
+				require.NoError(t, err, "GetCertAuthorityOverride errored unexpectedly")
+
+				// Verify stored override.
+				got := getResp.GetCaOverride()
+				want.GetMetadata().SetRevision(got.GetMetadata().GetRevision())
+				want.SetStatus(got.GetStatus())
+				if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
+					t.Errorf("CAOverride mismatch (-want +got)\n%s", diff)
+				}
+
+				// Verify CLR cleanup.
+				assertCRLs(t, got, env.Clock.Now())
+			}
+
+			// Verify audit.
+			var wantType, wantCode string
+			if wantDelete {
+				wantType = events.CertAuthOverrideDeleteEvent
+				wantCode = events.CertAuthOverrideDeleteCode
+			} else {
+				wantType = events.CertAuthOverrideUpdateEvent
+				wantCode = events.CertAuthOverrideUpdateCode
+			}
+			assertCAOverrideEvent(t, emitter.Events(), &wantEvent{
+				Type:    wantType,
+				Code:    wantCode,
+				Success: true,
+			})
+		})
+	}
+}
+
+func TestService_RemoveCertificateOverride_errors(t *testing.T) {
+	t.Parallel()
+
+	const caType = types.DatabaseClientCA
+	const caTypeOther = types.WindowsCA
+	env := subcav1.NewEnv(t, subcav1.EnvParams{
+		StorageParams: subcaenv.EnvParams{
+			CATypesToCreate: []types.CertAuthType{
+				caType,
+			},
+		},
+	})
+	subCA := env.SubCAClient
+
+	// Create a CA override to serve as target
+	var co *subcapb.CertificateOverride
+	{
+		createResp, err := subCA.CreateCertAuthorityOverride(t.Context(), subcapb.CreateCertAuthorityOverrideRequest_builder{
+			CaOverride: env.NewOverrideForCAType(t, caType),
+		}.Build())
+		require.NoError(t, err)
+
+		overrides := createResp.GetCaOverride().GetSpec().GetCertificateOverrides()
+		co = overrides[0]
+	}
+
+	makeReq := func(modify func(*subcapb.RemoveCertificateOverrideRequest)) *subcapb.RemoveCertificateOverrideRequest {
+		req := subcapb.RemoveCertificateOverrideRequest_builder{
+			CertificateOverrideId: subcapb.CertificateOverrideID_builder{
+				CaType: string(caType),
+				PublicKeyHash: subcapb.PublicKeyHash_builder{
+					Value: co.GetPublicKey(),
+				}.Build(),
+			}.Build(),
+		}.Build()
+		modify(req)
+		return req
+	}
+
+	tests := []struct {
+		name        string
+		req         *subcapb.RemoveCertificateOverrideRequest
+		wantErr     string // Optional.
+		wantErrType any    // Optional.
+	}{
+		{
+			name:    "request nil",
+			wantErr: "ca_type required",
+		},
+		{
+			name:    "request empty",
+			req:     &subcapb.RemoveCertificateOverrideRequest{},
+			wantErr: "ca_type required",
+		},
+		{
+			name: "ca_type empty",
+			req: makeReq(func(req *subcapb.RemoveCertificateOverrideRequest) {
+				req.GetCertificateOverrideId().SetCaType("")
+			}),
+			wantErr: "ca_type required",
+		},
+		{
+			name: "public_key nil",
+			req: makeReq(func(req *subcapb.RemoveCertificateOverrideRequest) {
+				req.GetCertificateOverrideId().SetPublicKeyHash(nil)
+			}),
+			wantErr: "public_key_hash required",
+		},
+		{
+			name: "public_key empty",
+			req: makeReq(func(req *subcapb.RemoveCertificateOverrideRequest) {
+				req.GetCertificateOverrideId().GetPublicKeyHash().SetValue("")
+			}),
+			wantErr: "public_key_hash required",
+		},
+		{
+			name: "CA override not found",
+			req: makeReq(func(req *subcapb.RemoveCertificateOverrideRequest) {
+				req.GetCertificateOverrideId().SetCaType(string(caTypeOther))
+			}),
+			wantErr:     "doesn't exist",
+			wantErrType: new(*trace.NotFoundError),
+		},
+		{
+			name: "public key not found",
+			req: makeReq(func(req *subcapb.RemoveCertificateOverrideRequest) {
+				const badPublicKey = "d5be3c43e8ac726dbd982d873defc780a9f420c99b7861383c700fa5f17da71e"
+				req.GetCertificateOverrideId().GetPublicKeyHash().SetValue(badPublicKey)
+			}),
+			wantErr:     "override not found",
+			wantErrType: new(*trace.CompareFailedError),
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if test.wantErr == "" && test.wantErrType == nil {
+				t.Fatal("Invalid test spec. Set one of wantErr of wantErrType.")
+			}
+			t.Parallel()
+
+			_, err := subCA.RemoveCertificateOverride(t.Context(), test.req)
+			if test.wantErr != "" {
+				assert.ErrorContains(t, err, test.wantErr, "RemoveCertificateOverride error mismatch")
+			}
+			if test.wantErrType != nil {
+				assert.ErrorAs(t, err, test.wantErrType, "RemoveCertificateOverride error type mismatch")
 			}
 		})
 	}
