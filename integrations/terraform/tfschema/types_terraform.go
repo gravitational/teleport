@@ -7055,20 +7055,6 @@ func GenSchemaLockV2(ctx context.Context) (github_com_hashicorp_terraform_plugin
 		},
 		"spec": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-				"created_at": {
-					Computed:      true,
-					Description:   "CreatedAt is the date time that the lock was created.",
-					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-					Type:          UseRFC3339Time(),
-				},
-				"created_by": {
-					Computed:      true,
-					Description:   "CreatedBy is the username of the author of the lock.",
-					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
-				},
 				"expires": {
 					Description: "Expires if set specifies when the lock ceases to be in force.",
 					Optional:    true,
@@ -58894,40 +58880,6 @@ func CopyLockV2FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 							}
 						}
 					}
-					{
-						a, ok := tf.Attrs["created_at"]
-						if !ok {
-							diags.Append(attrReadMissingDiag{"LockV2.Spec.CreatedAt"})
-						} else {
-							v, ok := a.(TimeValue)
-							if !ok {
-								diags.Append(attrReadConversionFailureDiag{"LockV2.Spec.CreatedAt", "TimeValue"})
-							} else {
-								var t time.Time
-								if !v.Null && !v.Unknown {
-									t = time.Time(v.Value)
-								}
-								obj.CreatedAt = t
-							}
-						}
-					}
-					{
-						a, ok := tf.Attrs["created_by"]
-						if !ok {
-							diags.Append(attrReadMissingDiag{"LockV2.Spec.CreatedBy"})
-						} else {
-							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								diags.Append(attrReadConversionFailureDiag{"LockV2.Spec.CreatedBy", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-							} else {
-								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
-								}
-								obj.CreatedBy = t
-							}
-						}
-					}
 				}
 			}
 		}
@@ -59606,58 +59558,6 @@ func CopyLockV2ToTerraform(ctx context.Context, obj *github_com_gravitational_te
 							}
 							v.Unknown = false
 							tf.Attrs["expires"] = v
-						}
-					}
-					{
-						t, ok := tf.AttrTypes["created_at"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"LockV2.Spec.CreatedAt"})
-						} else {
-							v, ok := tf.Attrs["created_at"].(TimeValue)
-							if !ok {
-								if tf.Attrs["created_at"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"LockV2.Spec.CreatedAt", "TimeValue"})
-								}
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"LockV2.Spec.CreatedAt", err})
-								}
-								v, ok = i.(TimeValue)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"LockV2.Spec.CreatedAt", "TimeValue"})
-								}
-							}
-
-							v.Null = false
-							v.Value = time.Time(obj.CreatedAt)
-							v.Unknown = false
-							tf.Attrs["created_at"] = v
-						}
-					}
-					{
-						t, ok := tf.AttrTypes["created_by"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"LockV2.Spec.CreatedBy"})
-						} else {
-							v, ok := tf.Attrs["created_by"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								if tf.Attrs["created_by"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"LockV2.Spec.CreatedBy", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"LockV2.Spec.CreatedBy", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"LockV2.Spec.CreatedBy", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-							}
-
-							v.Null = false
-							v.Value = string(obj.CreatedBy)
-							v.Unknown = false
-							tf.Attrs["created_by"] = v
 						}
 					}
 				}
