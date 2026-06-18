@@ -175,6 +175,25 @@ func TestGetTokens(t *testing.T) {
 			},
 		},
 		{
+			name: "system tokens are hidden from the UI",
+			tokenData: []tokenData{
+				{
+					name: "beam-system-token",
+					spec: types.ProvisionTokenSpecV2{
+						Roles: types.SystemRoles{types.RoleNode},
+					},
+					labels: map[string]string{
+						types.TeleportInternalResourceType: types.SystemResource,
+					},
+					expiry: expiry,
+				},
+			},
+			// The system-labeled token is filtered out, only the static token is returned.
+			expected: []ui.JoinToken{
+				staticUIToken,
+			},
+		},
+		{
 			name: "all tokens",
 			tokenData: []tokenData{
 				{
