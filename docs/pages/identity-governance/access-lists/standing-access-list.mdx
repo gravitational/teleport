@@ -10,6 +10,8 @@ tags:
 enterprise: Identity Governance
 ---
 
+{/* lint disable page-structure remark-lint */}
+
 The **Standing Access Guide** creates an Access List whose members are automatically
 granted access to a defined set of resources when they log in. No Access Request
 is required.
@@ -58,16 +60,20 @@ The guide steps you through:
    when they log in.
 
    (!docs/pages/identity-governance/access-lists/includes/preview-resources-warning.mdx!)
+
 1. **Define Resource Identities or Principals** — for resource types that need
    them (e.g. SSH logins, database users, Kubernetes users/groups, etc.), specify which
    principals members can use to connect.
+
 1. **Basic Information** — confirm the name and description of the Access List,
    and select the next review date. Periodic reviews are how list owners reaffirm
    that the right members are still on the list.
 
    Note: Access Lists deployed through Terraform are "static" lists and do not
    support periodic auditing — the review date is ignored.
+
 1. **Define Membership** — add the users who should receive the access.
+
 1. **Define Ownership** — add the users responsible for managing the list and
    reviewing membership.
 
@@ -258,4 +264,4 @@ to connect to them immediately.
 - Group members by inheriting access from other lists with
   [nested Access Lists](./nested-access-lists.mdx).
 - Learn more about managing Access Lists as code with the
-  [Terraform provider and Kubernetes operator](../../zero-trust-access/infrastructure-as-code/managing-resources/access-list.mdx).
+  [Terraform provider and Kubernetes operator](../../configuration/resource-guides/access-list.mdx).

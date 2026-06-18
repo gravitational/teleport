@@ -18,7 +18,7 @@ This guide walks you through the Teleport Web UI to:
 - Verify permissions granted through the list membership
 
 If you'd rather manage Access Lists as code, follow the
-[Access Lists with Terraform and Kubernetes Operator](../../zero-trust-access/infrastructure-as-code/managing-resources/access-list.mdx)
+[Access Lists with Terraform and Kubernetes Operator](../../configuration/resource-guides/access-list.mdx)
 guide instead.
 
 ## Prerequisites
@@ -33,7 +33,7 @@ guide instead.
 We need at least one resource on the cluster to grant access to. If you already
 have a resource enrolled that you can use for testing, skip to the next step.
 
-Otherwise, follow the <a href="/get-started/connect/" target="_blank" rel="noopener">Connect Infrastructure</a>
+Otherwise, follow the [Connect Infrastructure](../../get-started/connect.mdx)
 guide to enroll a host through the Web UI's guided setup. The linked page uses an
 Ubuntu server as its example, but the same flow works for your own machine
 (Linux or macOS) — just pick your OS during the guided setup and run the
@@ -86,7 +86,7 @@ live. At the final **Deployment** step you can choose to apply the list with Tel
 directly or follow the in-UI instructions to apply it with Terraform.
 </Admonition>
 
-#### 1. Define Access to Resources
+### 1. Define Access to Resources
 
 - Click **Server** from the resource-type column on the left.
 - Click the `env: test` label next to your host (or whichever label you set in
@@ -99,7 +99,7 @@ This gives members of the list access to SSH servers matching the
 
 (!docs/pages/identity-governance/access-lists/includes/preview-resources-warning.mdx!)
 
-#### 2. Define Resource Identities or Principals
+### 2. Define Resource Identities or Principals
 
 - Under Server Identities **Logins**, add the OS user(s) you want members to be
   able to log in as on the host (for example, `ubuntu` on a Linux server or your
@@ -108,12 +108,12 @@ This gives members of the list access to SSH servers matching the
 Note: this screen only asks for SSH logins because Server was the only resource
 type you selected in the previous step.
 
-#### 3. Basic Information
+### 3. Basic Information
 
 - Confirm the title and description.
 - Select a date in the future for the next review.
 
-#### 4. Define Membership
+### 4. Define Membership
 
 - Add your test user as a member.
 - Optionally, expand **Optional Advanced Settings** and select `requester` as a
@@ -121,7 +121,7 @@ type you selected in the previous step.
   `requester` to be granted access; if a member loses the role later, they will
   not be granted the access described in the list.
 
-#### 5. Define Ownership
+### 5. Define Ownership
 
 - Add your admin user as an eligible owner.
 - Optionally, expand **Optional Advanced Settings** and select `editor` as a
@@ -129,7 +129,7 @@ type you selected in the previous step.
   manage the list; if an owner loses the role later, they remain reflected as
   an owner but cannot manage the list.
 
-#### 6. Deployment
+### 6. Deployment
 
 - Review the summary and click **Create Access List Now**.
 
