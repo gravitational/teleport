@@ -772,6 +772,9 @@ func makeAppRedirectURL(r *http.Request, proxyPublicAddr, addr string, req launc
 		}
 		v.Add("path", req.path)
 		v.Add("required-apps", req.requiredAppFQDNs)
+		if req.appName != "" {
+			v.Add("app_name", req.appName)
+		}
 		u.RawQuery = v.Encode()
 
 		urlPath := []string{"web", "launch", addr}

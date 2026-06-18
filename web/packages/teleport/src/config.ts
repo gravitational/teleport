@@ -2061,9 +2061,13 @@ export interface UrlAppParams {
 
 export interface CreateAppSessionParams {
   fqdn: string;
-  // This API requires cluster_name and public_addr with underscores.
+  // This API requires cluster_name, public_addr and app_name with underscores.
   cluster_name?: string;
   public_addr?: string;
+  // app_name disambiguates apps that share a public address. The launcher knows
+  // which app was clicked, so it sends the name to keep the proxy from resolving
+  // the shared address to a different app.
+  app_name?: string;
   arn?: string;
   mfaResponse?: MfaChallengeResponse;
 }

@@ -59,6 +59,12 @@ const launcherPathTestCases: {
       'x-teleport-auth?path=%2Ffoo%2Fbar&cluster=some-cluster-id&addr=some-public-addr&arn=arn%3A%3A123%2Fname',
   },
   {
+    name: 'no state forwards app_name to the auth exchange',
+    path: '/some-cluster-id/some-public-addr?app_name=dup-app-1',
+    expectedPath:
+      'x-teleport-auth?cluster=some-cluster-id&addr=some-public-addr&app_name=dup-app-1',
+  },
+  {
     name: 'with state',
     path: '?state=ABC',
     expectedPath:
@@ -361,6 +367,39 @@ describe('fqdn is matched', () => {
       expect(screen.queryByText(/access denied/i)).not.toBeInTheDocument();
     }
   );
+
+  // Ensure that we send app_name as a query param, which is used
+  // to disambiguate when multiple apps share the same public addr.
+  test('forwards app_name query param to createAppSession', async () => {
+    jest.spyOn(service, 'getAppDetails').mockResolvedValue({
+      fqdn: 'dup.test.teleport',
+    });
+    jest.spyOn(service, 'createAppSession');
+    const windowLocation = {
+      replace: jest.fn(),
+    };
+
+    render(
+      <MemoryRouter
+        initialEntries={[
+          '/web/launch/dup.test.teleport/test.teleport/dup.test.teleport?state=ABC&app_name=dup-app-1',
+        ]}
+      >
+        <Routes>
+          <Route
+            path={appLauncherRoute}
+            element={<AppLauncher windowLocation={windowLocation} />}
+          />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(service.createAppSession).toHaveBeenCalledWith(
+        expect.objectContaining({ app_name: 'dup-app-1' })
+      );
+    });
+  });
 
   test('not matching FQDN throws error', async () => {
     jest.spyOn(service, 'getAppDetails').mockResolvedValue({

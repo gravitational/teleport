@@ -958,6 +958,16 @@ func TestMakeAppRedirectURL(t *testing.T) {
 			expectedURL: "https://proxy.com/web/launch/grafana.localhost/im-a-cluster-name/grafana.localhost/arn:aws:iam::123456789012:role%2Frole-name?path=%2Ffoo%2Fbar%3Fqux%3Dqex&required-apps=api.example.com%2Cgrafana.localhost&state=abc123",
 		},
 		{
+			name: "OK - with clusterId, publicAddr, and appName",
+			launderURLParams: launcherURLParams{
+				stateToken:  "abc123",
+				clusterName: "im-a-cluster-name",
+				publicAddr:  "grafana.localhost",
+				appName:     "dup-app-1",
+			},
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost/im-a-cluster-name/grafana.localhost?app_name=dup-app-1&path=&required-apps=&state=abc123",
+		},
+		{
 			name: "OK - with ARN containing multi-level path",
 			launderURLParams: launcherURLParams{
 				stateToken:  "abc123",
