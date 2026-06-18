@@ -379,7 +379,7 @@ The `AddReader` loop (`lib/srv/termmanager.go:238-290`) pushes bytes to `g.incom
 - Modify: `lib/srv/termmanager.go` (`AddReader` read loop, the `Read`/incoming path)
 - Test: `lib/srv/termmanager_test.go`
 
-**Step 1 — Failing test** (drive bytes through the manager; assert denied command's newline never reaches the shell-side `Read`):
+**Step 1 — Failing test** (drive bytes through the manager; assert no un-approved newline reaches the shell-side `Read`):
 ```go
 func TestTermManagerGateApprovesForwardsNewline(t *testing.T) {
 	tm := NewTermManager()
@@ -390,9 +390,8 @@ func TestTermManagerGateApprovesForwardsNewline(t *testing.T) {
 	tm.AddReader("peer", pr)
 	go pw.Write([]byte("ls\r"))
 
-	out := make([]byte, 16)
-	n := mustReadWithin(t, tm, out, time.Second)
-	require.Equal(t, "ls\r", string(out[:n]))
+	out := readAllWithin(t, tm, time.Second)
+	require.Equal(t, "ls\r", string(out)) // echo + approved terminator
 }
 
 func TestTermManagerGateDeniesDropsNewline(t *testing.T) {
@@ -404,43 +403,105 @@ func TestTermManagerGateDeniesDropsNewline(t *testing.T) {
 	tm.AddReader("peer", pr)
 	go pw.Write([]byte("rm -rf /\r"))
 
-	// The command text may pass through (echo), but the terminating \r must NOT,
-	// and a Ctrl-U (0x15) must be injected to clear the shell line.
-	out := make([]byte, 64)
-	n := mustReadWithin(t, tm, out, time.Second)
-	require.NotContains(t, string(out[:n]), "\r")
-	require.Contains(t, string(out[:n]), string([]byte{byteCtrlU}))
+	// The command text may echo through, but the terminating \r must NOT, and a
+	// Ctrl-U (0x15) must be injected to clear the shell line.
+	out := readAllWithin(t, tm, time.Second)
+	require.NotContains(t, string(out), "\r")
+	require.Contains(t, string(out), string([]byte{byteCtrlU}))
+}
+
+// SECURITY: a multi-line paste must gate EACH line; a denied line in the middle
+// must not execute and must not let later lines' newlines through ungated.
+func TestTermManagerGateMultiLinePaste(t *testing.T) {
+	// deny only "rm -rf /"
+	gate := &fakeGate{denyFn: func(cmd string) bool { return cmd == "rm -rf /" }}
+	tm := NewTermManager()
+	tm.On()
+	tm.SetCommandGate(gate)
+
+	pr, pw := io.Pipe()
+	tm.AddReader("peer", pr)
+	go pw.Write([]byte("ls\nrm -rf /\nwhoami\n"))
+
+	out := string(readAllWithin(t, tm, time.Second))
+	// Exactly two approved newlines (ls, whoami); the denied line gets a Ctrl-U.
+	require.Equal(t, 2, strings.Count(out, "\r"))
+	require.Equal(t, 1, strings.Count(out, string([]byte{byteCtrlU})))
+	require.Equal(t, []string{"ls", "rm -rf /", "whoami"}, gate.seen) // all three gated
 }
 ```
-(Add a `mustReadWithin` helper that reads with a timeout and fails the test otherwise.)
+Update `fakeGate` to support a per-command decision and record what it saw:
+```go
+type fakeGate struct {
+	deny   bool
+	denyFn func(string) bool
+	seen   []string
+}
+
+func (f *fakeGate) approve(cmd string) bool {
+	f.seen = append(f.seen, cmd)
+	if f.denyFn != nil {
+		return !f.denyFn(cmd)
+	}
+	return !f.deny
+}
+```
+(Add a `readAllWithin` helper that reads until the writer's bytes are drained or the deadline passes, and fails the test on timeout.)
 
 **Step 2 — Run, expect FAIL.**
 
-**Step 3 — Implement.** In the `AddReader` goroutine, when `g.commandGate != nil`, route the slice through a new `gateInput` method instead of straight to `incoming`:
+**Step 3 — Implement.** In the `AddReader` goroutine, when `g.commandGate != nil`, route the slice through a new `gateInput` method instead of straight to `incoming`. The gate walks the chunk, splitting at terminators, and **never forwards a newline for a command until it is approved**:
 ```go
-// gateInput feeds raw input through the line buffer. Bytes are forwarded to the
-// shell as-is until a line completes; then input is paused, the gate is asked,
-// and the terminating newline is either forwarded (approve) or replaced with a
-// Ctrl-U line-clear (deny). Returns the bytes to actually forward downstream.
+// gateInput reconstructs command lines from raw input and gates each one before
+// its terminating newline reaches the shell. Non-terminator bytes (text, and
+// in-line editing like backspace/Ctrl-U) are forwarded as-is so the user's
+// terminal echoes normally. On each terminator the completed command is gated:
+// approve => emit a carriage return (the line runs); deny => emit Ctrl-U (the
+// shell's readline buffer is cleared, the line never executes). A bare/blank
+// terminator forwards a newline (fresh prompt) without gating.
+//
+// SECURITY: this is the gate-bypass boundary. A newline that would execute a
+// command MUST NOT be forwarded before approve() returns true for that exact
+// command. Multi-line input (pasted blocks) is handled by gating each line in
+// order via lineBuffer.feedLines — intermediate lines are never skipped.
 func (g *TermManager) gateInput(p []byte) []byte {
 	cg := g.commandGate
 	if cg == nil {
 		return p
 	}
-	cmd, done := g.lineBuf.feed(p)
-	if !done {
-		return p // still typing; let echo through (strip nothing in v1)
+	var out []byte
+	segStart := 0
+	for i, b := range p {
+		if b != byteCR && b != byteLF {
+			continue
+		}
+		// Forward this segment's non-terminator bytes for echo.
+		out = append(out, p[segStart:i]...)
+		// Feed segment+terminator through the buffer: 0 lines (blank) or 1 line.
+		lines := g.lineBuf.feedLines(p[segStart : i+1])
+		if len(lines) == 0 {
+			out = append(out, byteCR) // blank line: fresh prompt, nothing to gate
+		}
+		for _, cmd := range lines {
+			if cg.approve(cmd) {
+				out = append(out, byteCR)
+			} else {
+				out = append(out, byteCtrlU)
+			}
+		}
+		segStart = i + 1
 	}
-	// Forward everything up to but not including the terminator; hold terminator.
-	body := stripTrailingNewline(p)
-	if cg.approve(cmd) {
-		return append(body, byteCR) // approve: deliver the newline, run it
+	// Trailing partial (still typing): echo it and buffer it for the next chunk.
+	if segStart < len(p) {
+		out = append(out, p[segStart:]...)
+		g.lineBuf.feedLines(p[segStart:])
 	}
-	// deny: clear the shell's readline buffer instead of executing.
-	return append(body, byteCtrlU)
+	return out
 }
 ```
-Wire `gateInput` into the read loop so its result is what gets sent to `g.incoming`. Add `stripTrailingNewline`. Keep the existing Ctrl-C-while-paused terminate behavior (`termmanager.go:264-266`) intact — the gate path only runs when `dataFlowOn`.
+Wire `gateInput` into the read loop so its result is what gets sent to `g.incoming`. Keep the existing Ctrl-C-while-paused terminate behavior (`termmanager.go:264-266`) intact — the gate path only runs when `dataFlowOn`.
+
+> Note on CRLF: feeding `p[segStart:i+1]` per terminator means a `\r\n` pair is processed as two segments — the `\r` yields the real line, the following `\n` yields a blank (0 lines). To avoid emitting a spurious extra newline for the `\n` half, skip a `\n` that immediately follows a `\r` (track the previous byte). Add a test `feedLines`-style for `"ls\r\n"` → exactly one approved `\r` in the output.
 
 > Design note: `approve` is called **synchronously inside the read goroutine**, which naturally back-pressures further input until a decision returns — this is the "one command at a time" guarantee from the design. The real gate (Phase 4) must therefore not deadlock on the same mutex; it calls out over the network, not back into `TermManager` locks.
 
