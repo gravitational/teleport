@@ -15,23 +15,15 @@ Teleport Entra ID integration.
 
 ## Sync mode and intervals 
 
-Teleport supports two sync modes - full and delta sync.
-
-### Full sync
+Teleport supports two sync modes: full and delta sync.
 
 Full sync is the default sync mode in which Teleport syncs full sets of users, 
 groups, group members, and group owners that exist in your Microsoft Entra ID 
-directory.
-
-It runs every five minutes. 
-
-### Delta sync
+directory. It runs every five minutes. 
 
 In delta sync mode, Teleport only tracks incremental changes made in your Microsoft
-Entra ID directory and syncs them to Teleport. 
-
-Delta sync is not enabled by default. 
-It is an opt-in feature available only in Teleport `v18.10` and above.
+Entra ID directory and syncs them to Teleport. Delta sync is not enabled by default. 
+It is an opt-in feature available only in Teleport `v18.9.1` and above.
 
 ### Configuring sync mode and intervals
 
@@ -39,10 +31,13 @@ Configuring a positive duration for the `full` and `delta` fields of the plugin'
 `sync_intervals` setting enables the respective sync mode. 
 
 The following example configures `delta` sync at a 2-minute interval and `full` sync 
-at a 1-hour interval:
-```bash
+at a 1-hour interval.
+
+First, open the Entra ID plugin spec in edit mode using `tctl`:
+```code
 $ tctl edit plugins/entra-id-default
 ```
+Next, update the plugin spec with `sync_intervals` fields:
 ```yaml
 kind: plugin
 metadata:
@@ -67,11 +62,11 @@ with a five-minute interval.
 
 When both delta and full sync intervals are configured, delta sync runs between 
 two consecutive full sync intervals. 
-```
+```code
 T+0m   FULL   (initial one)
 T+2m   DELTA
-T+4m  DELTA
-T+6m  DELTA
+T+4m   DELTA
+T+6m   DELTA
 ...
 T+60m  FULL
 T+62m  DELTA
