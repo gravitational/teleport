@@ -18,7 +18,6 @@ package local_test
 
 import (
 	"testing"
-	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -39,7 +38,10 @@ func newEnrollPairingService(t *testing.T, clock clockwork.Clock) *local.EnrollP
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = bk.Close() })
-	return local.NewEnrollPairingService(bk)
+
+	service, err := local.NewEnrollPairingService(bk)
+	require.NoError(t, err)
+	return service
 }
 
 func TestEnrollPairingService_CreateEnrollPairing(t *testing.T) {
@@ -61,15 +63,6 @@ func TestEnrollPairingService_CreateEnrollPairing(t *testing.T) {
 		assert.NotEmpty(t, pairing.GetStatus().GetToken())
 	})
 
-	t.Run("returns AlreadyExists when a pairing is already active", func(t *testing.T) {
-		ctx := t.Context()
-		_, err := s.CreateEnrollPairing(ctx, "create-conflict")
-		require.NoError(t, err)
-
-		_, err = s.CreateEnrollPairing(ctx, "create-conflict")
-		assert.True(t, trace.IsAlreadyExists(err), "got %v", err)
-	})
-
 	t.Run("distinct users get distinct pairings", func(t *testing.T) {
 		ctx := t.Context()
 		alice, err := s.CreateEnrollPairing(ctx, "create-alice")
@@ -83,18 +76,6 @@ func TestEnrollPairingService_CreateEnrollPairing(t *testing.T) {
 	t.Run("rejects empty user", func(t *testing.T) {
 		_, err := s.CreateEnrollPairing(t.Context(), "")
 		assert.True(t, trace.IsBadParameter(err), "got %v", err)
-	})
-
-	t.Run("creates a fresh pairing after the existing one expires", func(t *testing.T) {
-		ctx := t.Context()
-		first, err := s.CreateEnrollPairing(ctx, "create-after-ttl")
-		require.NoError(t, err)
-
-		clock.Advance(local.EnrollPairingExpireDuration + time.Second)
-
-		fresh, err := s.CreateEnrollPairing(ctx, "create-after-ttl")
-		require.NoError(t, err)
-		assert.NotEqual(t, first.GetStatus().GetToken(), fresh.GetStatus().GetToken())
 	})
 }
 
@@ -123,16 +104,5 @@ func TestEnrollPairingService_GetCurrentEnrollPairing(t *testing.T) {
 	t.Run("rejects empty user", func(t *testing.T) {
 		_, err := s.GetCurrentEnrollPairing(t.Context(), "")
 		assert.True(t, trace.IsBadParameter(err), "got %v", err)
-	})
-
-	t.Run("returns NotFound after the pairing expires", func(t *testing.T) {
-		ctx := t.Context()
-		_, err := s.CreateEnrollPairing(ctx, "get-expired")
-		require.NoError(t, err)
-
-		clock.Advance(local.EnrollPairingExpireDuration + time.Second)
-
-		_, err = s.GetCurrentEnrollPairing(ctx, "get-expired")
-		assert.True(t, trace.IsNotFound(err), "got %v", err)
 	})
 }

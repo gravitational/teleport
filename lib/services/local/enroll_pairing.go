@@ -29,7 +29,9 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local/generic"
 )
 
 // EnrollPairingExpireDuration is the TTL of an EnrollPairing.
@@ -37,17 +39,33 @@ const EnrollPairingExpireDuration = 5 * time.Minute
 
 // EnrollPairingService implements [services.EnrollPairing] on a [backend.Backend].
 type EnrollPairingService struct {
+	service *generic.ServiceWrapper[*devicepb.EnrollPairing]
 	backend backend.Backend
 }
 
 // NewEnrollPairingService returns a new [EnrollPairingService] backed by b.
-func NewEnrollPairingService(b backend.Backend) *EnrollPairingService {
-	return &EnrollPairingService{backend: b}
+func NewEnrollPairingService(b backend.Backend) (*EnrollPairingService, error) {
+	service, err := generic.NewServiceWrapper(generic.ServiceConfig[*devicepb.EnrollPairing]{
+		Backend:       b,
+		ResourceKind:  types.KindEnrollPairing,
+		PageLimit:     defaults.MaxIterationLimit,
+		BackendPrefix: backend.NewKey("devices", "enroll_pairing"),
+		MarshalFunc:   services.MarshalEnrollPairing,
+		UnmarshalFunc: services.UnmarshalEnrollPairing,
+		ValidateFunc:  validateEnrollPairing,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &EnrollPairingService{
+		backend: b,
+		service: service,
+	}, nil
 }
 
-// CreateEnrollPairing creates an EnrollPairing for user in the
-// AWAITING_DEVICE state with a 5-minute TTL. Returns AlreadyExists
-// if a pairing already exists for user.
+// CreateEnrollPairing creates an EnrollPairing for user in the AWAITING_DEVICE
+// state with a 5-minute TTL. Returns AlreadyExists if a pairing already exists
+// for user.
 func (s *EnrollPairingService) CreateEnrollPairing(ctx context.Context, user string) (*devicepb.EnrollPairing, error) {
 	if user == "" {
 		return nil, trace.BadParameter("user required")
@@ -75,21 +93,8 @@ func (s *EnrollPairingService) CreateEnrollPairing(ctx context.Context, user str
 		}.Build(),
 	}.Build()
 
-	value, err := services.MarshalEnrollPairing(pairing)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	lease, err := s.backend.Create(ctx, backend.Item{
-		Key:     enrollPairingKey(user),
-		Value:   value,
-		Expires: expires,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	pairing.GetMetadata().SetRevision(lease.Revision)
-	return pairing, nil
+	pairing, err := s.service.CreateResource(ctx, pairing)
+	return pairing, trace.Wrap(err)
 }
 
 // GetCurrentEnrollPairing returns the EnrollPairing for user, or NotFound if no
@@ -99,18 +104,22 @@ func (s *EnrollPairingService) GetCurrentEnrollPairing(ctx context.Context, user
 		return nil, trace.BadParameter("user required")
 	}
 
-	item, err := s.backend.Get(ctx, enrollPairingKey(user))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	pairing, err := services.UnmarshalEnrollPairing(item.Value)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	pairing.GetMetadata().SetRevision(item.Revision)
-	return pairing, nil
+	pairing, err := s.service.GetResource(ctx, user)
+	return pairing, trace.Wrap(err)
 }
 
-func enrollPairingKey(user string) backend.Key {
-	return backend.NewKey("devices", "enroll_pairing", user)
+func validateEnrollPairing(pairing *devicepb.EnrollPairing) error {
+	if pairing.GetMetadata().GetName() == "" {
+		return trace.BadParameter("enroll pairing metadata.name is missing")
+	}
+	if !pairing.HasStatus() {
+		return trace.BadParameter("enroll pairing status is missing")
+	}
+	if pairing.GetStatus().GetToken() == "" {
+		return trace.BadParameter("enroll pairing status.token is missing")
+	}
+	if pairing.GetStatus().GetState() == devicepb.EnrollPairingState_ENROLL_PAIRING_STATE_UNSPECIFIED {
+		return trace.BadParameter("enroll pairing status.state is missing")
+	}
+	return nil
 }

@@ -681,7 +681,10 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 	}
 
 	if cfg.EnrollPairing == nil {
-		cfg.EnrollPairing = local.NewEnrollPairingService(cfg.Backend)
+		cfg.EnrollPairing, err = local.NewEnrollPairingService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating EnrollPairingService")
+		}
 	}
 
 	services := &Services{

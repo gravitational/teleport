@@ -19,8 +19,6 @@ package services
 import (
 	"context"
 
-	"github.com/gravitational/trace"
-
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 )
 
@@ -36,29 +34,8 @@ type EnrollPairing interface {
 	GetCurrentEnrollPairing(ctx context.Context, user string) (*devicepb.EnrollPairing, error)
 }
 
-// ValidateEnrollPairing verifies that the necessary fields are configured
-// for an EnrollPairing resource.
-func ValidateEnrollPairing(pairing *devicepb.EnrollPairing) error {
-	if pairing.GetMetadata().GetName() == "" {
-		return trace.BadParameter("enroll pairing metadata.name is missing")
-	}
-	if !pairing.HasStatus() {
-		return trace.BadParameter("enroll pairing status is missing")
-	}
-	if pairing.GetStatus().GetToken() == "" {
-		return trace.BadParameter("enroll pairing status.token is missing")
-	}
-	if pairing.GetStatus().GetState() == devicepb.EnrollPairingState_ENROLL_PAIRING_STATE_UNSPECIFIED {
-		return trace.BadParameter("enroll pairing status.state is missing")
-	}
-	return nil
-}
-
 // MarshalEnrollPairing marshals an EnrollPairing resource to JSON.
 func MarshalEnrollPairing(pairing *devicepb.EnrollPairing, opts ...MarshalOption) ([]byte, error) {
-	if err := ValidateEnrollPairing(pairing); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	return MarshalProtoResource(pairing, opts...)
 }
 
