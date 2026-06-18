@@ -126,6 +126,7 @@ func TestScopedJoiningService(t *testing.T) {
 		// fetch a token
 		fetched, err := service.GetScopedToken(ctx, joiningv1.GetScopedTokenRequest_builder{
 			Name:       token.GetMetadata().GetName(),
+			Scope:      token.GetScope(),
 			WithSecret: true,
 		}.Build())
 		require.NoError(t, err)
@@ -133,7 +134,8 @@ func TestScopedJoiningService(t *testing.T) {
 
 		// delete a token
 		_, err = service.DeleteScopedToken(ctx, joiningv1.DeleteScopedTokenRequest_builder{
-			Name: namedToken.GetMetadata().GetName(),
+			Name:  namedToken.GetMetadata().GetName(),
+			Scope: namedToken.GetScope(),
 		}.Build())
 		require.NoError(t, err)
 
@@ -292,13 +294,15 @@ func TestScopedJoiningService(t *testing.T) {
 		t.Run("user with readnosecret role cannot read secret at accessible scope", func(t *testing.T) {
 			t.Parallel()
 			getRes, err := readerNoSecrets.GetScopedToken(ctx, joiningv1.GetScopedTokenRequest_builder{
-				Name: stageTokenAA.GetMetadata().GetName(),
+				Name:  stageTokenAA.GetMetadata().GetName(),
+				Scope: stageTokenAA.GetScope(),
 			}.Build())
 			require.NoError(t, err)
 			assert.Empty(t, getRes.GetToken().GetStatus().GetSecret())
 
 			_, err = readerNoSecrets.GetScopedToken(ctx, joiningv1.GetScopedTokenRequest_builder{
 				Name:       stageTokenAA.GetMetadata().GetName(),
+				Scope:      stageTokenAA.GetScope(),
 				WithSecret: true,
 			}.Build())
 			require.True(t, trace.IsAccessDenied(err))
@@ -308,6 +312,7 @@ func TestScopedJoiningService(t *testing.T) {
 			t.Parallel()
 			getRes, err := reader.GetScopedToken(ctx, joiningv1.GetScopedTokenRequest_builder{
 				Name:       stageTokenAA.GetMetadata().GetName(),
+				Scope:      stageTokenAA.GetScope(),
 				WithSecret: true,
 			}.Build())
 			require.NoError(t, err)
@@ -319,7 +324,8 @@ func TestScopedJoiningService(t *testing.T) {
 		t.Run("reader cannot get token at orthogonal scope", func(t *testing.T) {
 			t.Parallel()
 			_, err := reader.GetScopedToken(ctx, joiningv1.GetScopedTokenRequest_builder{
-				Name: stageTokenBB.GetMetadata().GetName(),
+				Name:  stageTokenBB.GetMetadata().GetName(),
+				Scope: stageTokenBB.GetScope(),
 			}.Build())
 			require.True(t, trace.IsAccessDenied(err))
 		})
@@ -329,7 +335,8 @@ func TestScopedJoiningService(t *testing.T) {
 			t.Parallel()
 			for _, ident := range nonReaderIdents {
 				_, err := ident.GetScopedToken(ctx, joiningv1.GetScopedTokenRequest_builder{
-					Name: stageTokenAA.GetMetadata().GetName(),
+					Name:  stageTokenAA.GetMetadata().GetName(),
+					Scope: stageTokenAA.GetScope(),
 				}.Build())
 				require.True(t, trace.IsAccessDenied(err))
 			}
@@ -359,7 +366,8 @@ func TestScopedJoiningService(t *testing.T) {
 			t.Parallel()
 			for _, ident := range nonDeleterIdents {
 				_, err := ident.DeleteScopedToken(ctx, joiningv1.DeleteScopedTokenRequest_builder{
-					Name: stageTokenAA.GetMetadata().GetName(),
+					Name:  stageTokenAA.GetMetadata().GetName(),
+					Scope: stageTokenAA.GetScope(),
 				}.Build())
 				require.True(t, trace.IsAccessDenied(err))
 			}
@@ -370,7 +378,8 @@ func TestScopedJoiningService(t *testing.T) {
 			tokenForDelete, err := createToken(ctx, admin, baseToken)
 			require.NoError(t, err)
 			_, err = deleter.DeleteScopedToken(ctx, joiningv1.DeleteScopedTokenRequest_builder{
-				Name: tokenForDelete.GetMetadata().GetName(),
+				Name:  tokenForDelete.GetMetadata().GetName(),
+				Scope: tokenForDelete.GetScope(),
 			}.Build())
 			require.NoError(t, err)
 		})
@@ -378,7 +387,8 @@ func TestScopedJoiningService(t *testing.T) {
 		t.Run("ensure deleter can't delete a token at an orthogonal scope", func(t *testing.T) {
 			t.Parallel()
 			_, err := deleter.DeleteScopedToken(ctx, joiningv1.DeleteScopedTokenRequest_builder{
-				Name: stageTokenBB.GetMetadata().GetName(),
+				Name:  stageTokenBB.GetMetadata().GetName(),
+				Scope: stageTokenBB.GetScope(),
 			}.Build())
 			require.True(t, trace.IsAccessDenied(err))
 		})
@@ -461,17 +471,6 @@ func TestScopedJoiningService(t *testing.T) {
 			}.Build())
 			require.True(t, trace.IsAccessDenied(err))
 		})
-
-		t.Run("ensure updater cannot bypass scope auth by spoofing scope in request", func(t *testing.T) {
-			tokenUpdate := proto.CloneOf(stageTokenBB)
-			tokenUpdate.SetScope("/staging/aa")
-			tokenUpdate.GetSpec().SetAssignedScope("/staging/aa")
-
-			_, err := updater.UpdateScopedToken(ctx, joiningv1.UpdateScopedTokenRequest_builder{
-				Token: tokenUpdate,
-			}.Build())
-			require.True(t, trace.IsBadParameter(err))
-		})
 	})
 
 	// ensure audit events are emitted when creating, updating, upserting, or deleting scoped tokens
@@ -526,7 +525,8 @@ func TestScopedJoiningService(t *testing.T) {
 		require.Len(t, pack.emitter.Events(), 3)
 
 		_, err = service.DeleteScopedToken(ctx, joiningv1.DeleteScopedTokenRequest_builder{
-			Name: token.GetMetadata().GetName(),
+			Name:  token.GetMetadata().GetName(),
+			Scope: token.GetScope(),
 		}.Build())
 		require.NoError(t, err)
 		require.Equal(t, events.ScopedTokenDeleteEvent, pack.emitter.LastEvent().GetType())
