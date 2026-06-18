@@ -75,7 +75,7 @@ func NewScopedTokenService(b backend.Backend, scopesFeatures scopes.Features) (*
 }
 
 func itemFromScopedToken(token *joiningv1.ScopedToken) (backend.Item, error) {
-	key := backend.NewKey(scopedTokenPrefix, token.GetMetadata().GetName())
+	key := backend.NewKey(scopedTokenPrefix, token.GetScope(), token.GetMetadata().GetName())
 	value, err := services.MarshalProtoResource(token)
 	if err != nil {
 		return backend.Item{}, trace.Wrap(err)
@@ -148,7 +148,16 @@ func (s *ScopedTokenService) CreateScopedToken(ctx context.Context, req *joining
 
 // GetScopedToken finds and returns a scoped token by name.
 func (s *ScopedTokenService) GetScopedToken(ctx context.Context, req *joiningv1.GetScopedTokenRequest) (*joiningv1.GetScopedTokenResponse, error) {
-	token, err := s.svc.GetResource(ctx, req.GetName())
+	qn, err := scopes.ParseQualifiedName(req.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := qn.WeakValidate(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	token, err := s.svc.GetResource(ctx, qn.Name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -660,7 +660,11 @@ func (cfg *Config) ProxyWebAddr() utils.NetAddr {
 func (cfg *Config) Token() (string, error) {
 	token, err := utils.TryReadValueAsFile(cfg.token)
 	if err != nil {
-		return "", trace.Wrap(err)
+		if _, parseErr := scopes.ParseQualifiedName(cfg.token); parseErr != nil {
+			return "", trace.Wrap(err)
+		}
+
+		return cfg.token, nil
 	}
 
 	return token, nil
