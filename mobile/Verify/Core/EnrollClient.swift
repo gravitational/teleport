@@ -33,8 +33,8 @@ public enum EnrollClientError: Error, Sendable {
 	case clientCreationFailed
 }
 
-public extension EnrollClient {
-	static let liveValue = EnrollClient(
+extension EnrollClient {
+	public static let liveValue = EnrollClient(
 		requestEnrollmentToken: { hostName, port, pairingToken in
 			try await Task.detached(priority: .userInitiated) {
 				let proxyServer = "\(hostName):\(port)"
