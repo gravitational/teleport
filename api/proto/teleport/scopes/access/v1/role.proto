@@ -173,8 +173,8 @@ message ScopedRoleKube {
   // An optional list of impersonatable kubernetes users this role allows.
   repeated string users = 3;
 
-  reserved 4; // saving for kube resources
-  reserved "resources"; // saving for kube resources
+  // The kubernetes resources this role grants access to.
+  repeated KubeResource resources = 4;
 
   // Overrides the defaults block idle timeout specifically for kube sessions.
   // Must be a valid Go duration string (e.g. "30m", "1h"). If empty, the defaults block value
@@ -263,4 +263,22 @@ message Lock {
   // Allowed values: strict or best_effort.
   // Defaults to value cluster wide auth preference if not set.
   string mode = 1;
+}
+
+// The kube resource identifier.
+message KubeResource {
+  // The kube resource type.
+  string kind = 1;
+
+  // The kube resource namespace. It supports wildcards.
+  string namespace = 2;
+
+  // The kube resource name. It supports wildcards.
+  string name = 3;
+
+  // The allowed kube verbs for interacting with the kube resource.
+  repeated string verbs = 4;
+
+  // The kube API group of the kube resource. It supports wildcards.
+  string api_group = 5;
 }
