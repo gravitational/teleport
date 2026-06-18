@@ -2729,7 +2729,6 @@ func TestInitScopedAppsFromConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	authC := authProc.GetAuthServer()
-	encodedToken := joining.EncodeScopedToken(tokenName, tokenSecret)
 
 	watchCtx, watchCancel := context.WithTimeout(t.Context(), 30*time.Second)
 	t.Cleanup(watchCancel)
@@ -2754,7 +2753,7 @@ func TestInitScopedAppsFromConfig(t *testing.T) {
 	agentCfg.Version = defaults.TeleportConfigVersionV3
 	agentCfg.DataDir = makeTempDir(t)
 	agentCfg.ProxyServer = utils.NetAddr{AddrNetwork: "tcp", Addr: proxyAddr}
-	agentCfg.SetToken(encodedToken)
+	agentCfg.SetToken(scopes.QualifiedName{Scope: scopes.Root, Name: joining.EncodeScopedToken(tokenName, tokenSecret)}.String())
 	agentCfg.JoinMethod = types.JoinMethodToken
 	agentCfg.ScopesFeatures = scopes.Features{Enabled: true, AgentPinEnabled: true}
 	agentCfg.Auth.Enabled = false

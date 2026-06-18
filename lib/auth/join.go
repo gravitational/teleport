@@ -557,7 +557,7 @@ func (a *Server) GenerateHostCertsForJoin(
 			// plaintext and we don't automatically target locks at `token`-type
 			// tokens. Other join methods (especially bound_keypair) return the
 			// full token name.
-			JoinToken: token.GetSafeName(),
+			JoinToken: scopes.QualifiedName{Scope: token.GetScope(), Name: token.GetSafeName()}.String(),
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
