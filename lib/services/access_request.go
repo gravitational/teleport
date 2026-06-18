@@ -130,7 +130,8 @@ func ValidateAccessRequestClusterNames(cg ClusterGetter, ar types.AccessRequest)
 		return trace.Wrap(err)
 	}
 	var invalidClusters []string
-	for _, resourceID := range ar.GetRequestedResourceIDs() {
+	for _, resourceAccessID := range ar.GetAllRequestedResourceIDs() {
+		resourceID := resourceAccessID.GetResourceID()
 		if resourceID.ClusterName == "" {
 			continue
 		}
@@ -217,8 +218,8 @@ func shouldFilterRequestableRolesByResource(a RequestValidatorGetter, req types.
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	for _, resourceID := range req.ResourceIDs {
-		if resourceID.ClusterName != currentCluster.GetClusterName() {
+	for _, resourceAccessID := range types.CombineAsResourceAccessIDs(req.ResourceIDs, req.ResourceAccessIds) {
+		if resourceAccessID.GetResourceID().ClusterName != currentCluster.GetClusterName() {
 			// Requested resource is from another cluster, so we can't know
 			// all of the roles which would grant access to it.
 			return false, nil
@@ -236,6 +237,7 @@ func CalculateAccessCapabilities(ctx context.Context, clock clockwork.Clock, clt
 	}
 	if !shouldFilter && req.FilterRequestableRolesByResource {
 		req.ResourceIDs = nil
+		req.ResourceAccessIds = nil
 	}
 
 	var caps types.AccessCapabilities
@@ -246,19 +248,21 @@ func CalculateAccessCapabilities(ctx context.Context, clock clockwork.Clock, clt
 		return nil, trace.Wrap(err)
 	}
 
-	if len(req.ResourceIDs) != 0 && !req.FilterRequestableRolesByResource {
-		caps.ApplicableRolesForResources, err = v.applicableSearchAsRoles(ctx, types.ResourceIDsToResourceAccessIDs(req.ResourceIDs), req.Login)
+	resourceAccessIDs := types.CombineAsResourceAccessIDs(req.ResourceIDs, req.ResourceAccessIds)
+
+	if len(resourceAccessIDs) != 0 && !req.FilterRequestableRolesByResource {
+		caps.ApplicableRolesForResources, err = v.applicableSearchAsRoles(ctx, resourceAccessIDs, req.Login)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 
 	if req.RequestableRoles {
-		var resourceIDs []types.ResourceID
+		var requestableResourceAccessIDs []types.ResourceAccessID
 		if req.FilterRequestableRolesByResource {
-			resourceIDs = req.ResourceIDs
+			requestableResourceAccessIDs = resourceAccessIDs
 		}
-		caps.RequestableRoles, err = v.getRequestableRoles(ctx, identity, types.ResourceIDsToResourceAccessIDs(resourceIDs), req.Login)
+		caps.RequestableRoles, err = v.getRequestableRoles(ctx, identity, requestableResourceAccessIDs, req.Login)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1750,11 +1754,18 @@ func (m *RequestValidator) getRequestableRoles(ctx context.Context, identity tls
 		return nil, trace.Wrap(err)
 	}
 
-	// Filter out resources the user requested but doesn't have access to.
+	// Filter out resources the user requested but doesn't have access to and
+	// pair each remaining resource with matchers for any requested constraints.
 	filteredResources := make([]types.ResourceWithLabels, 0, len(underlyingResources))
+	constraintMatchers := make([][]RoleMatcher, 0, len(underlyingResources))
 	for _, resource := range underlyingResources {
 		if err := accessChecker.CheckAccess(resource, AccessState{MFAVerified: true}); err == nil {
+			matchers, err := BuildResourceConstraintMatchers(resourceAccessIDs, resource)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 			filteredResources = append(filteredResources, resource)
+			constraintMatchers = append(constraintMatchers, matchers)
 		}
 	}
 
@@ -1766,25 +1777,8 @@ func (m *RequestValidator) getRequestableRoles(ctx context.Context, identity tls
 		}
 
 		roleAllowsAccess := true
-		for _, resource := range filteredResources {
-			var extraMatchers []RoleMatcher
-			for _, raid := range resourceAccessIDs {
-				if rid := raid.GetResourceID(); rid.Name != resource.GetName() || rid.Kind != resource.GetKind() {
-					continue
-				}
-				if c := raid.GetConstraints(); c != nil {
-					rm, err := MatcherFromConstraints(raid.GetConstraints())
-					if err != nil {
-						return nil, trace.Wrap(err)
-					}
-					if rm != nil {
-						extraMatchers = append(extraMatchers, rm)
-					}
-					break
-				}
-			}
-
-			access, err := m.roleAllowsResource(role, resource, loginHint, extraMatchers...)
+		for i, resource := range filteredResources {
+			access, err := m.roleAllowsResource(role, resource, loginHint, constraintMatchers[i]...)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -2501,11 +2495,23 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 			matchers = append(matchers, NewIdentityCenterAccountAssignmentMatcher(rr.UnwrapT()))
 		}
 
-		// If ResourceConstraints were provided for this Resource, wrap existing matchers.
+		// If ResourceConstraints were provided for this Resource, wrap existing
+		// matchers and add constraint-derived matchers. The wrapping gates
+		// principal-bearing matchers on the constraint's allowed set, while the
+		// constraint-derived matchers ensure roles are pruned to only those
+		// granting at least one of the constrained principals (e.g. SSH logins,
+		// AWS role ARNs).
 		if constraints != nil {
 			guard := WithConstraints(constraints)
 			for i := range matchers {
 				matchers[i] = guard(matchers[i])
+			}
+			constraintMatcher, err := MatcherFromConstraints(constraints)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if constraintMatcher != nil {
+				matchers = append(matchers, constraintMatcher)
 			}
 		}
 
