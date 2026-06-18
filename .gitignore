@@ -134,3 +134,5 @@ unit-tests*.json
 
 # Local Claude config
 .claude
+
+.worktrees/
