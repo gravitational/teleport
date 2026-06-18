@@ -61,6 +61,7 @@ import (
 	grpcmetrics "github.com/gravitational/teleport/lib/observability/metrics/grpc"
 	"github.com/gravitational/teleport/lib/openssh"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 	servicebreaker "github.com/gravitational/teleport/lib/service/breaker"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
@@ -789,14 +790,16 @@ func (process *TeleportProcess) makeJoinParams(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tokenSecret, err := process.Config.TokenSecret()
-	if err != nil {
-		return nil, trace.Wrap(err)
+
+	tokenName, tokenSecret := token, ""
+	if name, secret, ok := joining.DecodeScopedToken(token); ok {
+		tokenName = name
+		tokenSecret = secret
 	}
 
 	dataDir := cmp.Or(process.Config.DataDir, defaults.DataDir)
 	joinParams := &joinclient.JoinParams{
-		Token:                token,
+		Token:                tokenName,
 		TokenSecret:          tokenSecret,
 		ID:                   id,
 		AuthServers:          process.Config.AuthServerAddresses(),

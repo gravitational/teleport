@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"slices"
 	"strings"
 	"time"
 
@@ -33,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/scopes"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -191,13 +191,11 @@ func deleteScopedToken(ctx context.Context, client *authclient.Client, subKind s
 func ScopedTokenTextHelper(tokens []*joiningv1.ScopedToken, withSecrets bool) *bytes.Buffer {
 	headers := []string{
 		"ID",
+		"Token",
 		"Type",
 		"Assigns Scope",
 		"Labels",
 		"Expiry Time (UTC)",
-	}
-	if withSecrets {
-		headers = slices.Insert(headers, 1, "Secret")
 	}
 	table := asciitable.MakeTable(headers)
 
@@ -210,15 +208,19 @@ func ScopedTokenTextHelper(tokens []*joiningv1.ScopedToken, withSecrets bool) *b
 			expdur := expiresAt.Sub(now).Round(time.Second)
 			expiry = fmt.Sprintf("%s (%s)", exptime, expdur.String())
 		}
+
+		token := t.GetMetadata().GetName() + ":*****"
+		if withSecrets {
+			token = joining.EncodeScopedToken(t.GetMetadata().GetName(), t.GetStatus().GetSecret())
+		}
+
 		row := []string{
 			scopes.QualifiedName{Scope: t.GetScope(), Name: t.GetMetadata().GetName()}.String(),
+			token,
 			strings.Join(t.GetSpec().GetRoles(), ","),
 			t.GetSpec().GetAssignedScope(),
 			PrintMetadataLabels(t.GetMetadata().GetLabels()),
 			expiry,
-		}
-		if withSecrets {
-			row = slices.Insert(row, 1, t.GetStatus().GetSecret())
 		}
 		table.AddRow(row)
 	}
