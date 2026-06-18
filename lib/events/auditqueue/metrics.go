@@ -121,6 +121,24 @@ var corruptExpired = prometheus.NewCounter(
 	},
 )
 
+var queuePending = prometheus.NewGaugeVec(
+	prometheus.GaugeOpts{
+		Namespace: teleport.MetricNamespace,
+		Name:      "audit_queue_pending",
+		Help:      "Number of audit events currently pending in the audit queue.",
+	},
+	[]string{"queue"},
+)
+
+var queueDeadLetter = prometheus.NewGaugeVec(
+	prometheus.GaugeOpts{
+		Namespace: teleport.MetricNamespace,
+		Name:      "audit_queue_dead_letter_pending",
+		Help:      "Number of audit events currently waiting in the dead-letter queue.",
+	},
+	[]string{"queue"},
+)
+
 var prometheusCollectors = []prometheus.Collector{
 	batchSize,
 	orphansAdopted,
@@ -134,4 +152,6 @@ var prometheusCollectors = []prometheus.Collector{
 	corruptEvents,
 	corruptRecovered,
 	corruptExpired,
+	queuePending,
+	queueDeadLetter,
 }
