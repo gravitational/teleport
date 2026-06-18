@@ -556,12 +556,13 @@ func (ns *networkStack) assignTCPHandler(handlerSpec *tcpHandlerSpec, fqdn strin
 	return ip, nil
 }
 
-func (ns *networkStack) handleUDP(req *udp.ForwarderRequest) {
+func (ns *networkStack) handleUDP(req *udp.ForwarderRequest) bool {
 	ns.wg.Add(1)
 	go func() {
 		defer ns.wg.Done()
 		ns.handleUDPConcurrent(req)
 	}()
+	return true
 }
 
 func (ns *networkStack) handleUDPConcurrent(req *udp.ForwarderRequest) {
@@ -589,7 +590,7 @@ func (ns *networkStack) handleUDPConcurrent(req *udp.ForwarderRequest) {
 		return
 	}
 
-	conn := gonet.NewUDPConn(ns.stack, &wq, endpoint)
+	conn := gonet.NewUDPConn(&wq, endpoint)
 	defer conn.Close()
 
 	ns.wg.Add(1)
@@ -744,7 +745,7 @@ func forwardNetstackToTUN(ctx context.Context, linkEndpoint *channel.Endpoint, t
 	bufs := [][]byte{make([]byte, device.MessageTransportHeaderSize+mtu)}
 	for {
 		packet := linkEndpoint.ReadContext(ctx)
-		if packet.IsNil() {
+		if packet == nil {
 			// Nil packet is returned when context is canceled.
 			return trace.Wrap(ctx.Err())
 		}
