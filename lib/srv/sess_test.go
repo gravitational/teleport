@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/srv/approval"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/session/reexec/reexecsftp"
@@ -976,6 +977,340 @@ func TestSessionCommandGate(t *testing.T) {
 
 		require.False(t, sess.io.commandGateEnabled(), "expected no command gate")
 		require.Nil(t, sess.getCommandApprover(), "expected no command approver")
+	})
+}
+
+// signalingBroadcaster is a test approval.Broadcaster that records every
+// broadcast request and signals its arrival on a channel. Because HumanApprover
+// registers the pending decision channel BEFORE calling
+// BroadcastApprovalRequest, observing a broadcast guarantees the corresponding
+// Submit will find a registered pending entry — this is the synchronization
+// point that lets the round-trip tests avoid time.Sleep flakiness.
+type signalingBroadcaster struct {
+	requests chan approval.CommandApprovalRequest
+	err      error
+}
+
+func newSignalingBroadcaster() *signalingBroadcaster {
+	return &signalingBroadcaster{requests: make(chan approval.CommandApprovalRequest, 8)}
+}
+
+func (b *signalingBroadcaster) BroadcastApprovalRequest(req approval.CommandApprovalRequest) error {
+	if b.err != nil {
+		return b.err
+	}
+	b.requests <- req
+	return nil
+}
+
+// findCommandApproval returns the last CommandApproval audit event recorded by
+// the emitter, or nil if none was emitted.
+func findCommandApproval(events []apievents.AuditEvent) *apievents.CommandApproval {
+	var found *apievents.CommandApproval
+	for _, e := range events {
+		if ca, ok := e.(*apievents.CommandApproval); ok {
+			found = ca
+		}
+	}
+	return found
+}
+
+// TestCommandApprovalRoundTrip exercises the per-command approval pipeline end
+// to end at the session/TermManager seam: a real session (built via the test
+// harness) gets a sessionCommandGate installed on its TermManager, command
+// bytes are driven through the real TermManager byte path (gateInput), and the
+// approval handshake (HumanApprover.Approve -> Submit, or the WithTimeout
+// fail-closed path) resolves the decision. The gate's emitted CommandApproval
+// audit event is captured via the harness's MockRecorderEmitter.
+//
+// gateInput is the gate-bypass boundary: it returns a carriage return for an
+// approved command (the line runs) and Ctrl-U for a denied/failed command (the
+// readline buffer is cleared and the line never executes). Asserting on the
+// returned bytes therefore proves the security-relevant behavior, not just the
+// boolean decision.
+func TestCommandApprovalRoundTrip(t *testing.T) {
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
+
+	newRegWithServer := func(t *testing.T) (*SessionRegistry, *mockServer) {
+		srv := newMockServer(t)
+		srv.component = teleport.ComponentNode
+		reg, err := NewSessionRegistry(SessionRegistryConfig{
+			Srv:                   srv,
+			SessionTrackerService: srv.auth,
+		})
+		require.NoError(t, err)
+		t.Cleanup(func() { reg.Close() })
+		return reg, srv
+	}
+
+	humanRole := func(t *testing.T) types.Role {
+		role, err := types.NewRole("access", types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				RequireSessionJoin: []*types.SessionRequirePolicy{{
+					Name:   "approve",
+					Filter: "contains(user.roles, 'moderator')",
+					Kinds:  []string{string(types.SSHSessionKind)},
+					Modes:  []string{string(types.SessionModeratorMode)},
+					Count:  1,
+					CommandApproval: &types.CommandApproval{
+						Enabled:  true,
+						Approver: types.CommandApproverHuman,
+					},
+				}},
+			},
+		})
+		require.NoError(t, err)
+		return role
+	}
+
+	// installHumanGate builds a real sessionCommandGate backed by a real
+	// HumanApprover and the supplied broadcaster, wrapped with WithTimeout
+	// exactly as production does, and installs it on the session's TermManager.
+	// It returns the approver so the test can Submit a moderator decision.
+	installHumanGate := func(t *testing.T, sess *session, b approval.Broadcaster, timeout time.Duration) *approval.HumanApprover {
+		approver := approval.NewHumanApprover(b)
+		gate := &sessionCommandGate{
+			s:        sess,
+			approver: approval.WithTimeout(approver, timeout),
+			mode:     string(approval.ModeHuman),
+		}
+		sess.io.SetCommandGate(gate)
+		return approver
+	}
+
+	// drive runs gateInput on a goroutine and returns a channel that yields the
+	// bytes gateInput forwards to the shell. gateInput blocks inside approve()
+	// until the decision resolves, so the caller drives the moderator side while
+	// this is in flight.
+	drive := func(io *TermManager, input string) <-chan []byte {
+		out := make(chan []byte, 1)
+		go func() { out <- io.gateInput([]byte(input)) }()
+		return out
+	}
+
+	t.Run("human approve forwards the command", func(t *testing.T) {
+		reg, srv := newRegWithServer(t)
+		sess, _ := testOpenSession(t, reg, services.NewRoleSet(humanRole(t)), &decisionpb.SSHAccessPermit{})
+		t.Cleanup(func() { sess.Stop() })
+		require.True(t, sess.io.commandGateEnabled(), "harness must install a gate for a human policy")
+
+		b := newSignalingBroadcaster()
+		approver := installHumanGate(t, sess, b, approval.DefaultTimeout)
+
+		out := drive(sess.io, "ls -la\r")
+
+		// Wait for the broadcast (pending entry is registered) then approve.
+		var req approval.CommandApprovalRequest
+		select {
+		case req = <-b.requests:
+		case <-time.After(10 * time.Second):
+			t.Fatal("timed out waiting for approval broadcast")
+		}
+		require.Equal(t, "ls -la", req.Command)
+		approver.Submit(req.ID, true, "looks fine", "moderator-1", types.SessionModeratorMode)
+
+		var forwarded []byte
+		select {
+		case forwarded = <-out:
+		case <-time.After(10 * time.Second):
+			t.Fatal("timed out waiting for gateInput to return")
+		}
+		// Approved: a carriage return is forwarded and NO Ctrl-U appears.
+		require.Contains(t, string(forwarded), string(rune(byteCR)), "approved command must forward a carriage return")
+		require.NotContains(t, forwarded, byte(byteCtrlU), "approved command must not inject Ctrl-U")
+
+		approvalEv := findCommandApproval(srv.MockRecorderEmitter.Events())
+		require.NotNil(t, approvalEv, "expected a CommandApproval audit event")
+		require.Equal(t, events.CommandApprovalApprovedEvent, approvalEv.Metadata.Type)
+		require.Equal(t, events.CommandApprovalApprovedCode, approvalEv.Metadata.Code)
+		require.Equal(t, "ls -la", approvalEv.Command)
+		require.Equal(t, "approved", approvalEv.Decision)
+		require.Equal(t, "human", approvalEv.ApproverMode)
+		require.Equal(t, "moderator-1", approvalEv.Approver)
+	})
+
+	t.Run("human deny injects Ctrl-U", func(t *testing.T) {
+		reg, srv := newRegWithServer(t)
+		sess, _ := testOpenSession(t, reg, services.NewRoleSet(humanRole(t)), &decisionpb.SSHAccessPermit{})
+		t.Cleanup(func() { sess.Stop() })
+
+		b := newSignalingBroadcaster()
+		approver := installHumanGate(t, sess, b, approval.DefaultTimeout)
+
+		out := drive(sess.io, "rm -rf /\r")
+
+		var req approval.CommandApprovalRequest
+		select {
+		case req = <-b.requests:
+		case <-time.After(10 * time.Second):
+			t.Fatal("timed out waiting for approval broadcast")
+		}
+		approver.Submit(req.ID, false, "too dangerous", "moderator-1", types.SessionModeratorMode)
+
+		var forwarded []byte
+		select {
+		case forwarded = <-out:
+		case <-time.After(10 * time.Second):
+			t.Fatal("timed out waiting for gateInput to return")
+		}
+		// Denied: Ctrl-U is injected to clear the line and NO bare CR runs it.
+		require.Contains(t, forwarded, byte(byteCtrlU), "denied command must inject Ctrl-U")
+		require.NotContains(t, forwarded, byte(byteCR), "denied command must not forward a carriage return")
+
+		approvalEv := findCommandApproval(srv.MockRecorderEmitter.Events())
+		require.NotNil(t, approvalEv, "expected a CommandApproval audit event")
+		require.Equal(t, events.CommandApprovalDeniedEvent, approvalEv.Metadata.Type)
+		require.Equal(t, events.CommandApprovalDeniedCode, approvalEv.Metadata.Code)
+		require.Equal(t, "rm -rf /", approvalEv.Command)
+		require.Equal(t, "denied", approvalEv.Decision)
+		require.Equal(t, "human", approvalEv.ApproverMode)
+		require.Equal(t, "moderator-1", approvalEv.Approver)
+	})
+
+	t.Run("no moderator response fails closed (timeout)", func(t *testing.T) {
+		reg, srv := newRegWithServer(t)
+		sess, _ := testOpenSession(t, reg, services.NewRoleSet(humanRole(t)), &decisionpb.SSHAccessPermit{})
+		t.Cleanup(func() { sess.Stop() })
+
+		b := newSignalingBroadcaster()
+		// Short timeout: nobody Submits, so WithTimeout must deny (fail-closed).
+		installHumanGate(t, sess, b, 50*time.Millisecond)
+
+		out := drive(sess.io, "whoami\r")
+
+		// The broadcast still happens; we simply never respond.
+		select {
+		case <-b.requests:
+		case <-time.After(10 * time.Second):
+			t.Fatal("timed out waiting for approval broadcast")
+		}
+
+		var forwarded []byte
+		select {
+		case forwarded = <-out:
+		case <-time.After(10 * time.Second):
+			t.Fatal("timed out waiting for gateInput to return after timeout")
+		}
+		require.Contains(t, forwarded, byte(byteCtrlU), "timed-out command must inject Ctrl-U")
+		require.NotContains(t, forwarded, byte(byteCR), "timed-out command must not forward a carriage return")
+
+		approvalEv := findCommandApproval(srv.MockRecorderEmitter.Events())
+		require.NotNil(t, approvalEv, "expected a CommandApproval audit event")
+		require.Equal(t, events.CommandApprovalFailedEvent, approvalEv.Metadata.Type)
+		require.Equal(t, events.CommandApprovalFailedCode, approvalEv.Metadata.Code)
+		require.Equal(t, "failed", approvalEv.Decision)
+		require.Equal(t, approval.ApproverSystem, approvalEv.Approver)
+	})
+
+	t.Run("broadcast failure fails closed", func(t *testing.T) {
+		reg, srv := newRegWithServer(t)
+		sess, _ := testOpenSession(t, reg, services.NewRoleSet(humanRole(t)), &decisionpb.SSHAccessPermit{})
+		t.Cleanup(func() { sess.Stop() })
+
+		b := newSignalingBroadcaster()
+		b.err = trace.ConnectionProblem(nil, "no moderators reachable")
+		installHumanGate(t, sess, b, approval.DefaultTimeout)
+
+		// Broadcast fails synchronously inside Approve, so the decision returns
+		// immediately without any moderator Submit.
+		forwarded := sess.io.gateInput([]byte("cat /etc/shadow\r"))
+		require.Contains(t, forwarded, byte(byteCtrlU), "broadcast failure must deny (Ctrl-U)")
+		require.NotContains(t, forwarded, byte(byteCR))
+
+		approvalEv := findCommandApproval(srv.MockRecorderEmitter.Events())
+		require.NotNil(t, approvalEv, "expected a CommandApproval audit event")
+		require.Equal(t, events.CommandApprovalFailedEvent, approvalEv.Metadata.Type)
+		require.Equal(t, events.CommandApprovalFailedCode, approvalEv.Metadata.Code)
+		require.Equal(t, approval.ApproverSystem, approvalEv.Approver)
+	})
+
+	t.Run("ai evaluator error denies command (fail-closed)", func(t *testing.T) {
+		// An AI policy with an auth client whose EvaluateCommand returns the
+		// enterprise-only NotImplemented error must fail closed: the command is
+		// denied (Ctrl-U injected, no carriage return) and an audit event is
+		// emitted.
+		//
+		// NOTE on event classification: AIApprover.Approve attributes an
+		// RPC-error deny to the AI moderator (Approver=ai-moderator), so the
+		// gate records a deliberate "denied" event, NOT the "failed" event used
+		// for system fail-closed outcomes (timeout/panic/broadcast failure,
+		// which carry Approver=ApproverSystem). Both are fail-closed at the
+		// byte level; this test pins the actual production attribution. The
+		// "no auth client at all" path (denyAllCommandGate) emits "failed" and
+		// is covered by TestSessionCommandGate.
+		reg, srv := newRegWithServer(t)
+		fake := &fakeEvaluatorAuthClient{
+			err: trace.NotImplemented("per-command AI approval requires Teleport Enterprise"),
+		}
+		srv.authClient = fake
+
+		aiRole, err := types.NewRole("access", types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				RequireSessionJoin: []*types.SessionRequirePolicy{{
+					Name:   "approve",
+					Filter: "contains(user.roles, 'moderator')",
+					Kinds:  []string{string(types.SSHSessionKind)},
+					Modes:  []string{string(types.SessionModeratorMode)},
+					Count:  1,
+					CommandApproval: &types.CommandApproval{
+						Enabled:  true,
+						Approver: types.CommandApproverAI,
+						AI:       &types.CommandApprovalAI{Policy: "deny dangerous commands", Model: "claude"},
+					},
+				}},
+			},
+		})
+		require.NoError(t, err)
+
+		sess, _ := testOpenSession(t, reg, services.NewRoleSet(aiRole), &decisionpb.SSHAccessPermit{})
+		t.Cleanup(func() { sess.Stop() })
+		require.True(t, sess.io.commandGateEnabled(), "expected an AI-backed gate")
+
+		// Drive the full byte path: the evaluator errors, so the AI approver
+		// fails closed and Ctrl-U is injected.
+		forwarded := sess.io.gateInput([]byte("ls\r"))
+		require.Contains(t, forwarded, byte(byteCtrlU), "AI evaluator error must deny (Ctrl-U)")
+		require.NotContains(t, forwarded, byte(byteCR))
+		require.NotNil(t, fake.gotReq, "the evaluator RPC must have been attempted")
+
+		approvalEv := findCommandApproval(srv.MockRecorderEmitter.Events())
+		require.NotNil(t, approvalEv, "expected a CommandApproval audit event")
+		require.Equal(t, events.CommandApprovalDeniedEvent, approvalEv.Metadata.Type)
+		require.Equal(t, events.CommandApprovalDeniedCode, approvalEv.Metadata.Code)
+		require.Equal(t, "denied", approvalEv.Decision)
+		require.Equal(t, approval.AIApproverName, approvalEv.Approver)
+		require.Equal(t, "ai", approvalEv.ApproverMode)
+		require.Contains(t, approvalEv.Reason, "AI evaluation failed")
+	})
+
+	t.Run("backward compatible: no policy gates nothing", func(t *testing.T) {
+		reg, srv := newRegWithServer(t)
+		role, err := types.NewRole("access", types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				RequireSessionJoin: []*types.SessionRequirePolicy{{
+					Name:   "join",
+					Filter: "contains(user.roles, 'moderator')",
+					Kinds:  []string{string(types.SSHSessionKind)},
+					Modes:  []string{string(types.SessionModeratorMode)},
+					Count:  1,
+				}},
+			},
+		})
+		require.NoError(t, err)
+
+		sess, _ := testOpenSession(t, reg, services.NewRoleSet(role), &decisionpb.SSHAccessPermit{})
+		t.Cleanup(func() { sess.Stop() })
+
+		require.False(t, sess.io.commandGateEnabled(), "no command_approval policy must install no gate")
+		require.Nil(t, sess.getCommandApprover())
+
+		// With no gate, gateInput is a pass-through: the input bytes are returned
+		// unchanged (carriage return preserved, no Ctrl-U) and no audit event is
+		// emitted for command approval.
+		forwarded := sess.io.gateInput([]byte("ls\r"))
+		require.Equal(t, "ls\r", string(forwarded), "ungated input must pass through unchanged")
+		require.NotContains(t, forwarded, byte(byteCtrlU))
+		require.Nil(t, findCommandApproval(srv.MockRecorderEmitter.Events()), "ungated session must emit no command approval event")
 	})
 }
 
