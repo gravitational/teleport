@@ -262,6 +262,9 @@ func (s *Service) newDesktopSession(desktopURI uri.ResourceURI, login string) (*
 		defer s.desktopSessionsMu.Unlock()
 
 		delete(s.desktopSessions, key)
+		if err := session.CloseSharedDirectory(); err != nil {
+			s.cfg.Logger.WarnContext(context.Background(), "Failed to close shared directory for desktop session", "error", err)
+		}
 	}
 
 	return session, cleanup, nil
