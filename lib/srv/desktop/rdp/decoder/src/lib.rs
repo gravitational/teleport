@@ -53,17 +53,18 @@ impl RdpDecoder {
             fast_path_processor: ProcessorBuilder {
                 // Enable pointer updates so we can get the state of the cursor for when we create
                 // cropped & zoomed in thumbnails in the session recording metadata generation.
-                //
-                // v18 backport: this IronRDP rev exposes the inverted `no_server_pointer`
-                // field instead of `enable_server_pointer`; we want the pointer enabled,
-                // so `enable_server_pointer: true` == `no_server_pointer: false`.
-                no_server_pointer: false,
+                enable_server_pointer: true,
                 io_channel_id,
                 user_channel_id,
                 // These options only matter in a real RDP session when we have
                 // to send responses back to the server. We can safely leave them
                 // at defaults when decoding session recordings.
                 pointer_software_rendering: false,
+                bulk_decompressor: None,
+                // share_id is important for live RDP sessions
+                // (see https://github.com/Devolutions/IronRDP/pull/1147)
+                // but doesn't need to be set for our decoder.
+                share_id: 0,
             }
             .build(),
             cursor_state: Default::default(),
