@@ -34,8 +34,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |aws|[object](#specaws)|The AWS-specific configuration used with the "ec2" and "iam" join methods.|
 |azure|[object](#specazure)|The Azure-specific configuration used with the "azure" join method.|
 |azure_devops|[object](#specazure_devops)|The Azure Devops-specific configuration used with the "azure_devops" join method.|
-|bot_name|string|Name of the bot associated with this join token, if any.|
-|bot_scope|string|Scope of the bot associated with this join token. Required if bot_name is set, and mutually exclusive with assigned_scope.|
+|bot|string|The bot associated with this join token, if any, as a scope-qualified name of the form `<scope>::<bot-name>` (e.g. "/staging/west::mybot"). The scope component must be a descendant of or equivalent to the token's resource scope.  Mutually exclusive with assigned_scope.|
 |bound_keypair|[object](#specbound_keypair)|Configuration specific to the "bound_keypair" join method.|
 |gcp|[object](#specgcp)|The GCP-specific configuration used with the "gcp" join method.|
 |immutable_labels|[object](#specimmutable_labels)|Immutable labels that should be applied to any resulting resources provisioned using this token.|

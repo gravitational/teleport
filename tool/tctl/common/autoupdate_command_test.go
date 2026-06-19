@@ -658,27 +658,27 @@ Agent Version dev  prod stage
 func TestAutoUpdateAgentStatusStructuredOutput(t *testing.T) {
 	ctx := t.Context()
 	now := time.Date(2026, 5, 28, 12, 0, 0, 0, time.UTC)
-	rollout := &autoupdatepb.AutoUpdateAgentRollout{
-		Spec: &autoupdatepb.AutoUpdateAgentRolloutSpec{
+	rollout := autoupdatepb.AutoUpdateAgentRollout_builder{
+		Spec: autoupdatepb.AutoUpdateAgentRolloutSpec_builder{
 			AutoupdateMode: "enabled",
 			StartVersion:   "1.2.3",
 			TargetVersion:  "1.2.4",
 			Schedule:       "regular",
 			Strategy:       "time-based",
-		},
-		Status: &autoupdatepb.AutoUpdateAgentRolloutStatus{
+		}.Build(),
+		Status: autoupdatepb.AutoUpdateAgentRolloutStatus_builder{
 			StartTime: timestamppb.New(now),
 			State:     autoupdatepb.AutoUpdateAgentRolloutState_AUTO_UPDATE_AGENT_ROLLOUT_STATE_ACTIVE,
 			Groups: []*autoupdatepb.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdatepb.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:          "dev",
 					State:         autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
 					PresentCount:  3,
 					UpToDateCount: 2,
-				},
+				}.Build(),
 			},
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	for _, format := range []string{"json", "yaml"} {
 		t.Run(format, func(t *testing.T) {
@@ -705,22 +705,22 @@ func TestAutoUpdateAgentReportStructuredOutput(t *testing.T) {
 	ctx := t.Context()
 	now := time.Now()
 	reports := []*autoupdatepb.AutoUpdateAgentReport{
-		{
-			Metadata: &headerv1.Metadata{Name: "auth1"},
-			Spec: &autoupdatepb.AutoUpdateAgentReportSpec{
+		autoupdatepb.AutoUpdateAgentReport_builder{
+			Metadata: headerv1.Metadata_builder{Name: "auth1"}.Build(),
+			Spec: autoupdatepb.AutoUpdateAgentReportSpec_builder{
 				Timestamp: timestamppb.New(now),
 				Groups: map[string]*autoupdatepb.AutoUpdateAgentReportSpecGroup{
-					"dev": {
+					"dev": autoupdatepb.AutoUpdateAgentReportSpecGroup_builder{
 						Versions: map[string]*autoupdatepb.AutoUpdateAgentReportSpecGroupVersion{
-							"1.2.3": {Count: 2},
+							"1.2.3": autoupdatepb.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 2}.Build(),
 						},
-					},
+					}.Build(),
 				},
 				Omitted: []*autoupdatepb.AutoUpdateAgentReportSpecOmitted{
-					{Reason: "agent is too old", Count: 1},
+					autoupdatepb.AutoUpdateAgentReportSpecOmitted_builder{Reason: "agent is too old", Count: 1}.Build(),
 				},
-			},
-		},
+			}.Build(),
+		}.Build(),
 	}
 
 	for _, format := range []string{"json", "yaml"} {

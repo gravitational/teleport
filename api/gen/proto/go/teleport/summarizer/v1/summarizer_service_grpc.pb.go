@@ -51,7 +51,10 @@ const (
 	SummarizerService_UpsertInferencePolicy_FullMethodName   = "/teleport.summarizer.v1.SummarizerService/UpsertInferencePolicy"
 	SummarizerService_DeleteInferencePolicy_FullMethodName   = "/teleport.summarizer.v1.SummarizerService/DeleteInferencePolicy"
 	SummarizerService_ListInferencePolicies_FullMethodName   = "/teleport.summarizer.v1.SummarizerService/ListInferencePolicies"
+	SummarizerService_CreateClassifier_FullMethodName        = "/teleport.summarizer.v1.SummarizerService/CreateClassifier"
 	SummarizerService_GetClassifier_FullMethodName           = "/teleport.summarizer.v1.SummarizerService/GetClassifier"
+	SummarizerService_UpdateClassifier_FullMethodName        = "/teleport.summarizer.v1.SummarizerService/UpdateClassifier"
+	SummarizerService_UpsertClassifier_FullMethodName        = "/teleport.summarizer.v1.SummarizerService/UpsertClassifier"
 	SummarizerService_DeleteClassifier_FullMethodName        = "/teleport.summarizer.v1.SummarizerService/DeleteClassifier"
 	SummarizerService_ListClassifiers_FullMethodName         = "/teleport.summarizer.v1.SummarizerService/ListClassifiers"
 	SummarizerService_GetSummary_FullMethodName              = "/teleport.summarizer.v1.SummarizerService/GetSummary"
@@ -113,8 +116,14 @@ type SummarizerServiceClient interface {
 	DeleteInferencePolicy(ctx context.Context, in *DeleteInferencePolicyRequest, opts ...grpc.CallOption) (*DeleteInferencePolicyResponse, error)
 	// ListInferencePolicies lists all InferencePolicies that match the request.
 	ListInferencePolicies(ctx context.Context, in *ListInferencePoliciesRequest, opts ...grpc.CallOption) (*ListInferencePoliciesResponse, error)
+	// CreateClassifier creates a new Classifier.
+	CreateClassifier(ctx context.Context, in *CreateClassifierRequest, opts ...grpc.CallOption) (*CreateClassifierResponse, error)
 	// GetClassifier retrieves an existing Classifier by name.
 	GetClassifier(ctx context.Context, in *GetClassifierRequest, opts ...grpc.CallOption) (*GetClassifierResponse, error)
+	// UpdateClassifier updates an existing Classifier.
+	UpdateClassifier(ctx context.Context, in *UpdateClassifierRequest, opts ...grpc.CallOption) (*UpdateClassifierResponse, error)
+	// UpsertClassifier creates a new Classifier or updates an existing one.
+	UpsertClassifier(ctx context.Context, in *UpsertClassifierRequest, opts ...grpc.CallOption) (*UpsertClassifierResponse, error)
 	// DeleteClassifier deletes an existing Classifier by name.
 	DeleteClassifier(ctx context.Context, in *DeleteClassifierRequest, opts ...grpc.CallOption) (*DeleteClassifierResponse, error)
 	// ListClassifiers lists all Classifiers that match the request.
@@ -338,10 +347,40 @@ func (c *summarizerServiceClient) ListInferencePolicies(ctx context.Context, in 
 	return out, nil
 }
 
+func (c *summarizerServiceClient) CreateClassifier(ctx context.Context, in *CreateClassifierRequest, opts ...grpc.CallOption) (*CreateClassifierResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateClassifierResponse)
+	err := c.cc.Invoke(ctx, SummarizerService_CreateClassifier_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *summarizerServiceClient) GetClassifier(ctx context.Context, in *GetClassifierRequest, opts ...grpc.CallOption) (*GetClassifierResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetClassifierResponse)
 	err := c.cc.Invoke(ctx, SummarizerService_GetClassifier_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *summarizerServiceClient) UpdateClassifier(ctx context.Context, in *UpdateClassifierRequest, opts ...grpc.CallOption) (*UpdateClassifierResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateClassifierResponse)
+	err := c.cc.Invoke(ctx, SummarizerService_UpdateClassifier_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *summarizerServiceClient) UpsertClassifier(ctx context.Context, in *UpsertClassifierRequest, opts ...grpc.CallOption) (*UpsertClassifierResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpsertClassifierResponse)
+	err := c.cc.Invoke(ctx, SummarizerService_UpsertClassifier_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -515,8 +554,14 @@ type SummarizerServiceServer interface {
 	DeleteInferencePolicy(context.Context, *DeleteInferencePolicyRequest) (*DeleteInferencePolicyResponse, error)
 	// ListInferencePolicies lists all InferencePolicies that match the request.
 	ListInferencePolicies(context.Context, *ListInferencePoliciesRequest) (*ListInferencePoliciesResponse, error)
+	// CreateClassifier creates a new Classifier.
+	CreateClassifier(context.Context, *CreateClassifierRequest) (*CreateClassifierResponse, error)
 	// GetClassifier retrieves an existing Classifier by name.
 	GetClassifier(context.Context, *GetClassifierRequest) (*GetClassifierResponse, error)
+	// UpdateClassifier updates an existing Classifier.
+	UpdateClassifier(context.Context, *UpdateClassifierRequest) (*UpdateClassifierResponse, error)
+	// UpsertClassifier creates a new Classifier or updates an existing one.
+	UpsertClassifier(context.Context, *UpsertClassifierRequest) (*UpsertClassifierResponse, error)
 	// DeleteClassifier deletes an existing Classifier by name.
 	DeleteClassifier(context.Context, *DeleteClassifierRequest) (*DeleteClassifierResponse, error)
 	// ListClassifiers lists all Classifiers that match the request.
@@ -614,8 +659,17 @@ func (UnimplementedSummarizerServiceServer) DeleteInferencePolicy(context.Contex
 func (UnimplementedSummarizerServiceServer) ListInferencePolicies(context.Context, *ListInferencePoliciesRequest) (*ListInferencePoliciesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListInferencePolicies not implemented")
 }
+func (UnimplementedSummarizerServiceServer) CreateClassifier(context.Context, *CreateClassifierRequest) (*CreateClassifierResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateClassifier not implemented")
+}
 func (UnimplementedSummarizerServiceServer) GetClassifier(context.Context, *GetClassifierRequest) (*GetClassifierResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetClassifier not implemented")
+}
+func (UnimplementedSummarizerServiceServer) UpdateClassifier(context.Context, *UpdateClassifierRequest) (*UpdateClassifierResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateClassifier not implemented")
+}
+func (UnimplementedSummarizerServiceServer) UpsertClassifier(context.Context, *UpsertClassifierRequest) (*UpsertClassifierResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpsertClassifier not implemented")
 }
 func (UnimplementedSummarizerServiceServer) DeleteClassifier(context.Context, *DeleteClassifierRequest) (*DeleteClassifierResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteClassifier not implemented")
@@ -998,6 +1052,24 @@ func _SummarizerService_ListInferencePolicies_Handler(srv interface{}, ctx conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SummarizerService_CreateClassifier_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateClassifierRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SummarizerServiceServer).CreateClassifier(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SummarizerService_CreateClassifier_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SummarizerServiceServer).CreateClassifier(ctx, req.(*CreateClassifierRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _SummarizerService_GetClassifier_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetClassifierRequest)
 	if err := dec(in); err != nil {
@@ -1012,6 +1084,42 @@ func _SummarizerService_GetClassifier_Handler(srv interface{}, ctx context.Conte
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(SummarizerServiceServer).GetClassifier(ctx, req.(*GetClassifierRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SummarizerService_UpdateClassifier_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateClassifierRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SummarizerServiceServer).UpdateClassifier(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SummarizerService_UpdateClassifier_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SummarizerServiceServer).UpdateClassifier(ctx, req.(*UpdateClassifierRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _SummarizerService_UpsertClassifier_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpsertClassifierRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SummarizerServiceServer).UpsertClassifier(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: SummarizerService_UpsertClassifier_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SummarizerServiceServer).UpsertClassifier(ctx, req.(*UpsertClassifierRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1312,8 +1420,20 @@ var SummarizerService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _SummarizerService_ListInferencePolicies_Handler,
 		},
 		{
+			MethodName: "CreateClassifier",
+			Handler:    _SummarizerService_CreateClassifier_Handler,
+		},
+		{
 			MethodName: "GetClassifier",
 			Handler:    _SummarizerService_GetClassifier_Handler,
+		},
+		{
+			MethodName: "UpdateClassifier",
+			Handler:    _SummarizerService_UpdateClassifier_Handler,
+		},
+		{
+			MethodName: "UpsertClassifier",
+			Handler:    _SummarizerService_UpsertClassifier_Handler,
 		},
 		{
 			MethodName: "DeleteClassifier",

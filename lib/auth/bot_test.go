@@ -1258,9 +1258,9 @@ func TestRegisterBotWithInvalidUserLoginState(t *testing.T) {
 	require.ElementsMatch(t, []string{"bot-" + botName}, ident.Groups)
 
 	// Delete the bot; it should delete the invalid ULS.
-	_, err = client.BotServiceClient().DeleteBot(ctx, &machineidv1pb.DeleteBotRequest{
+	_, err = client.BotServiceClient().DeleteBot(ctx, machineidv1pb.DeleteBotRequest_builder{
 		BotName: botName,
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	_, err = client.UserLoginStateClient().GetUserLoginState(ctx, "bot-"+botName)
@@ -1470,8 +1470,7 @@ func TestRegisterBotWithScopedKubernetesToken(t *testing.T) {
 			JoinMethod: string(types.JoinMethodKubernetes),
 			Roles:      []string{string(types.RoleBot)},
 			UsageMode:  joining.TokenUsageModeBot,
-			BotName:    "test-scoped",
-			BotScope:   "/test",
+			Bot:        scopes.QualifiedName{Scope: "/test", Name: "test-scoped"}.String(),
 			Kubernetes: joiningv1.Kubernetes_builder{
 				Type: string(types.KubernetesJoinTypeStaticJWKS),
 				StaticJwks: joiningv1.Kubernetes_StaticJWKSConfig_builder{

@@ -123,23 +123,24 @@ func TestListPodRBAC(t *testing.T) {
 		},
 	)
 
-	scopedUserWithFullAccess, _ := testCtx.CreateUserAndScopedRole(
+	scopedUserWithFullAccess, scopedRoleWithFullAccess := testCtx.CreateUserAndScopedRole(
 		t,
 		"scoped-"+usernameWithFullAccess,
 		scope,
-		&accessv1.ScopedRoleSpec{
+		accessv1.ScopedRoleSpec_builder{
 			AssignableScopes: []string{scope},
-			Kube: &accessv1.ScopedRoleKube{
+			Kube: accessv1.ScopedRoleKube_builder{
 				Users:  roleKubeUsers,
 				Groups: roleKubeGroups,
 				Labels: []*labelv1.Label{
-					{
+					labelv1.Label_builder{
 						Name:   types.Wildcard,
 						Values: []string{types.Wildcard},
-					},
+					}.Build(),
 				},
-			},
-		})
+			}.Build(),
+		}.Build())
+	waitForSRACache(t, testCtx.TLSServer, scopedRoleWithFullAccess)
 
 	// create a user with full access to kubernetes Pods.
 	// (kubernetes_user and kubernetes_groups specified)
@@ -1182,23 +1183,24 @@ func TestDeletePodCollectionRBAC(t *testing.T) {
 		},
 	)
 
-	scopedUserWithFullAccess, _ := testCtx.CreateUserAndScopedRole(
+	scopedUserWithFullAccess, scopedRoleWithFullAccess := testCtx.CreateUserAndScopedRole(
 		t,
 		"scoped-"+usernameWithFullAccess,
 		scope,
-		&accessv1.ScopedRoleSpec{
+		accessv1.ScopedRoleSpec_builder{
 			AssignableScopes: []string{scope},
-			Kube: &accessv1.ScopedRoleKube{
+			Kube: accessv1.ScopedRoleKube_builder{
 				Users:  roleKubeUsers,
 				Groups: roleKubeGroups,
 				Labels: []*labelv1.Label{
-					{
+					labelv1.Label_builder{
 						Name:   types.Wildcard,
 						Values: []string{types.Wildcard},
-					},
+					}.Build(),
 				},
-			},
-		})
+			}.Build(),
+		}.Build())
+	waitForSRACache(t, testCtx.TLSServer, scopedRoleWithFullAccess)
 
 	// create a user with full access to kubernetes Pods.
 	// (kubernetes_user and kubernetes_groups specified)
@@ -1421,23 +1423,24 @@ func TestDeleteCRDCollectionRBAC(t *testing.T) {
 
 	// create a scoped user with full access to kubernetes Pods.
 	// (kubernetes_user and kubernetes_groups specified)
-	scopedUserWithFullAccess, _ := testCtx.CreateUserAndScopedRole(
+	scopedUserWithFullAccess, scopedRoleWithFullAccess := testCtx.CreateUserAndScopedRole(
 		t,
 		"scoped-"+usernameWithFullAccess,
 		scope,
-		&accessv1.ScopedRoleSpec{
+		accessv1.ScopedRoleSpec_builder{
 			AssignableScopes: []string{scope},
-			Kube: &accessv1.ScopedRoleKube{
+			Kube: accessv1.ScopedRoleKube_builder{
 				Users:  roleKubeUsers,
 				Groups: roleKubeGroups,
 				Labels: []*labelv1.Label{
-					{
+					labelv1.Label_builder{
 						Name:   types.Wildcard,
 						Values: []string{types.Wildcard},
-					},
+					}.Build(),
 				},
-			},
-		})
+			}.Build(),
+		}.Build())
+	waitForSRACache(t, testCtx.TLSServer, scopedRoleWithFullAccess)
 
 	// create a user with full access to kubernetes Pods.
 	// (kubernetes_user and kubernetes_groups specified)
@@ -1665,23 +1668,24 @@ func TestListClusterRoleRBAC(t *testing.T) {
 
 	// create a scoped user with full access to kubernetes Pods.
 	// (kubernetes_user and kubernetes_groups specified)
-	scopedUserWithFullAccess, _ := testCtx.CreateUserAndScopedRole(
+	scopedUserWithFullAccess, scopedRoleWithFullAccess := testCtx.CreateUserAndScopedRole(
 		t,
 		"scoped-"+usernameWithFullAccess,
 		scope,
-		&accessv1.ScopedRoleSpec{
+		accessv1.ScopedRoleSpec_builder{
 			AssignableScopes: []string{scope},
-			Kube: &accessv1.ScopedRoleKube{
+			Kube: accessv1.ScopedRoleKube_builder{
 				Users:  roleKubeUsers,
 				Groups: roleKubeGroups,
 				Labels: []*labelv1.Label{
-					{
+					labelv1.Label_builder{
 						Name:   types.Wildcard,
 						Values: []string{types.Wildcard},
-					},
+					}.Build(),
 				},
-			},
-		})
+			}.Build(),
+		}.Build())
+	waitForSRACache(t, testCtx.TLSServer, scopedRoleWithFullAccess)
 
 	// Create a moderator user with access to kubernetes
 	// (kubernetes_user and kubernetes_groups specified).
@@ -1901,23 +1905,24 @@ func TestGenericCustomResourcesRBAC(t *testing.T) {
 
 	// create a scoped user with full access to all namespaces.
 	// (kubernetes_user and kubernetes_groups specified)
-	scopedUserWithFullAccess, _ := testCtx.CreateUserAndScopedRole(
+	scopedUserWithFullAccess, scopedRoleWithFullAccess := testCtx.CreateUserAndScopedRole(
 		t,
 		"scoped-"+usernameWithFullAccess,
 		scope,
-		&accessv1.ScopedRoleSpec{
+		accessv1.ScopedRoleSpec_builder{
 			AssignableScopes: []string{scope},
-			Kube: &accessv1.ScopedRoleKube{
+			Kube: accessv1.ScopedRoleKube_builder{
 				Users:  roleKubeUsers,
 				Groups: roleKubeGroups,
 				Labels: []*labelv1.Label{
-					{
+					labelv1.Label_builder{
 						Name:   types.Wildcard,
 						Values: []string{types.Wildcard},
-					},
+					}.Build(),
 				},
-			},
-		})
+			}.Build(),
+		}.Build())
+	waitForSRACache(t, testCtx.TLSServer, scopedRoleWithFullAccess)
 
 	// create a user with limited access to kubernetes namespaces.
 	userWithLimitedAccess, _ := testCtx.CreateUserAndRoleVersion(

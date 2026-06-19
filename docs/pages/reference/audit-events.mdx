@@ -1666,6 +1666,217 @@ Example:
 }
 ```
 
+## classifier.create
+
+There are multiple events with the `classifier.create` type.
+
+### INF014I
+
+Classifier Created
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "teleport.dev",
+  "code": "INF014I",
+  "ei": 0,
+  "event": "classifier.create",
+  "name": "my-classifier",
+  "success": true,
+  "time": "2025-03-04T16:01:21.869Z",
+  "uid": "ae973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
+  "user_cluster_name": "teleport.dev",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
+  ],
+  "payload": {
+    "metadata": {
+      "name": "my-classifier"
+    },
+    "spec": {
+      "kinds": [
+        "ssh",
+        "k8s"
+      ],
+      "resource_labels": [
+        {
+          "name": "env",
+          "values": [
+            "prod"
+          ]
+        }
+      ],
+      "v1": {}
+    }
+  }
+}
+```
+
+### INF014E
+
+Classifier Creation Failed
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "teleport.dev",
+  "code": "INF014E",
+  "ei": 0,
+  "event": "classifier.create",
+  "name": "my-classifier",
+  "error": "classifier \"my-classifier\" already exists",
+  "success": false,
+  "time": "2025-03-04T16:01:31.869Z",
+  "uid": "b1973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
+  "user_cluster_name": "teleport.dev",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
+  ]
+}
+```
+
+## classifier.delete
+
+There are multiple events with the `classifier.delete` type.
+
+### INF016I
+
+Classifier Deleted
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "teleport.dev",
+  "code": "INF016I",
+  "ei": 0,
+  "event": "classifier.delete",
+  "name": "my-classifier",
+  "success": true,
+  "time": "2025-03-04T16:03:21.869Z",
+  "uid": "b0973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
+  "user_cluster_name": "teleport.dev",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
+  ]
+}
+```
+
+### INF016E
+
+Classifier Deletion Failed
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "teleport.dev",
+  "code": "INF016E",
+  "ei": 0,
+  "event": "classifier.delete",
+  "name": "my-classifier",
+  "error": "classifier \"my-classifier\" doesn't exist",
+  "success": false,
+  "time": "2025-03-04T16:03:31.869Z",
+  "uid": "b3973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
+  "user_cluster_name": "teleport.dev",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
+  ]
+}
+```
+
+## classifier.update
+
+There are multiple events with the `classifier.update` type.
+
+### INF015I
+
+Classifier Updated
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "teleport.dev",
+  "code": "INF015I",
+  "ei": 0,
+  "event": "classifier.update",
+  "name": "my-classifier",
+  "success": true,
+  "time": "2025-03-04T16:02:21.869Z",
+  "uid": "af973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
+  "user_cluster_name": "teleport.dev",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
+  ],
+  "payload": {
+    "metadata": {
+      "name": "my-classifier"
+    },
+    "spec": {
+      "kinds": [
+        "ssh"
+      ],
+      "resource_labels": [
+        {
+          "name": "env",
+          "values": [
+            "prod",
+            "staging"
+          ]
+        }
+      ],
+      "v1": {}
+    }
+  }
+}
+```
+
+### INF015E
+
+Classifier Update Failed
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "teleport.dev",
+  "code": "INF015E",
+  "ei": 0,
+  "event": "classifier.update",
+  "name": "my-classifier",
+  "error": "classifier \"my-classifier\" doesn't exist",
+  "success": false,
+  "time": "2025-03-04T16:02:31.869Z",
+  "uid": "b2973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "08fcd522-edcb-492d-8752-90494a28b70e.teleport.dev",
+  "user_cluster_name": "teleport.dev",
+  "user_kind": 3,
+  "user_roles": [
+    "Admin"
+  ]
+}
+```
+
 ## client.disconnect
 
 Client Disconnected

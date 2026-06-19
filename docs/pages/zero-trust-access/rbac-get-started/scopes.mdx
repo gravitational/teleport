@@ -310,8 +310,7 @@ Run this on the new node to join the cluster:
 
 > teleport start \
    --roles=node \
-   --token=019ce8f7-f0d5-784d-af3f-075aa79c19cb \
-   --token-secret=d5038b4ea0a733cccfc3f0f48ee04baf \
+   --token=019ce8f7-f0d5-784d-af3f-075aa79c19cb~YzZlYzdlYTg1YTZjZTEwZjVjYjAxMTc3Mjc2NTk3NGY \
    --auth-server=proxy.example.com:443
 ```
 
@@ -334,8 +333,7 @@ spec:
   roles:
   - Node
   usage_mode: unlimited
-status:
-  secret: '******'
+status: {}
 version: v1
 ```
 
@@ -395,7 +393,7 @@ spec:
   - Node
   usage_mode: single_use
 status:
-  secret: '******'
+  secret: {}
   usage:
     single_use:
       reusable_until: "2026-03-13T21:44:05.695268Z"
@@ -710,8 +708,7 @@ spec:
   roles: [Bot]
   join_method: bound_keypair
   usage_mode: bot
-  bot_name: my-scoped-bot
-  bot_scope: /staging
+  bot: /staging::my-scoped-bot
   bound_keypair: {}
 ```
 
