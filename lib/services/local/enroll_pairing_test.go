@@ -20,7 +20,6 @@ import (
 	"testing"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -30,11 +29,10 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 )
 
-func newEnrollPairingService(t *testing.T, clock clockwork.Clock) *local.EnrollPairingService {
+func newEnrollPairingService(t *testing.T) *local.EnrollPairingService {
 	t.Helper()
 	bk, err := memory.New(memory.Config{
 		Context: t.Context(),
-		Clock:   clock,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = bk.Close() })
@@ -47,8 +45,7 @@ func newEnrollPairingService(t *testing.T, clock clockwork.Clock) *local.EnrollP
 func TestEnrollPairingService_CreateEnrollPairing(t *testing.T) {
 	t.Parallel()
 
-	clock := clockwork.NewFakeClock()
-	s := newEnrollPairingService(t, clock)
+	s := newEnrollPairingService(t)
 
 	t.Run("ok", func(t *testing.T) {
 		pairing, err := s.CreateEnrollPairing(t.Context(), "create-ok")
@@ -82,8 +79,7 @@ func TestEnrollPairingService_CreateEnrollPairing(t *testing.T) {
 func TestEnrollPairingService_GetCurrentEnrollPairing(t *testing.T) {
 	t.Parallel()
 
-	clock := clockwork.NewFakeClock()
-	s := newEnrollPairingService(t, clock)
+	s := newEnrollPairingService(t)
 
 	t.Run("returns the existing pairing", func(t *testing.T) {
 		ctx := t.Context()
