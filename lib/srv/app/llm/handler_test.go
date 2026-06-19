@@ -26,8 +26,8 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
