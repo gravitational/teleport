@@ -1,0 +1,138 @@
+/*
+ * Teleport
+ * Copyright (C) 2026  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package resourcematcher
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/require"
+)
+
+// TestRootEval pins that a root node OR-s several first segments by matching
+// each child against the same segment, consuming no token of its own.
+func TestRootEval(t *testing.T) {
+	root := mustNode(Root(
+		Literal("api", Greedy()),
+		Literal("admin", Greedy()),
+		Literal("health"),
+	))
+	tests := []struct {
+		path string
+		want bool
+	}{
+		{"/api/v4/projects", true},
+		{"/admin/users", true},
+		{"/health", true},
+		{"/health/live", false},
+		{"/other/thing", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.path, func(t *testing.T) {
+			tokens, err := Tokenize(tt.path, DecodeConfig{})
+			require.NoError(t, err)
+			ok, _ := Eval(tokens, root)
+			require.Equal(t, tt.want, ok)
+		})
+	}
+}
+
+// TestRootCaptures pins that a capture under one root branch binds when that
+// branch matches.
+func TestRootCaptures(t *testing.T) {
+	root := mustNode(Root(
+		Literal("projects", Capture("project", Greedy())),
+		Literal("groups", Capture("group", Greedy())),
+	))
+	tokens, err := Tokenize("/projects/gitlab-org/tree", DecodeConfig{})
+	require.NoError(t, err)
+	ok, vars := Eval(tokens, root)
+	require.True(t, ok)
+	require.Equal(t, "gitlab-org", vars["project"])
+}
+
+// TestRootConstructorEmpty pins that an empty root matches nothing and is
+// rejected at construction.
+func TestRootConstructorEmpty(t *testing.T) {
+	_, err := Root()
+	require.Error(t, err)
+}
+
+// TestRootSingleMatchRule pins the design goal: several first segments fold into
+// one path.match, so the decode options ride the call once instead of repeating
+// across an || of separate matches.
+func TestRootSingleMatchRule(t *testing.T) {
+	rule := Rule{
+		Pred: `path.match(root(literal("api", greedy()), literal("admin", greedy())))`,
+	}
+	compiled, err := rule.Compile()
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		path string
+		want bool
+	}{
+		{"/api/v4/projects", true},
+		{"/admin/users", true},
+		{"/other/thing", false},
+	} {
+		got, err := compiled.Evaluate(Request{Method: "GET", Path: tc.path}, Identity{})
+		require.NoError(t, err)
+		require.Equal(t, tc.want, got.Allowed, tc.path)
+	}
+}
+
+// TestRootRejectsNesting pins the load-time placement check: root() is valid
+// only as the matcher argument of path.match, so a nested or doubled root is a
+// compile error.
+func TestRootRejectsNesting(t *testing.T) {
+	tests := []struct {
+		name string
+		pred string
+	}{
+		{
+			name: "root nested under a literal",
+			pred: `path.match(literal("files", root(greedy())))`,
+		},
+		{
+			name: "root nested under a root",
+			pred: `path.match(root(root(literal("a"))))`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := Rule{Pred: tt.pred}.Compile()
+			require.Error(t, err)
+		})
+	}
+}
+
+// TestRootAtTopCompiles pins that a well-placed root, with decode options on the
+// one call, compiles.
+func TestRootAtTopCompiles(t *testing.T) {
+	_, err := Rule{
+		Pred: `path.match(root(literal("api", greedy()), literal("admin", greedy())), decode_iterations(1))`,
+	}.Compile()
+	require.NoError(t, err)
+}
+
+// TestRootNodeToSource pins the round-trip rendering of a root node.
+func TestRootNodeToSource(t *testing.T) {
+	node := mustNode(Root(Literal("api", Greedy()), Literal("admin", Greedy())))
+	require.Equal(t, `root(literal("api", greedy()), literal("admin", greedy()))`, nodeToSource(node))
+}

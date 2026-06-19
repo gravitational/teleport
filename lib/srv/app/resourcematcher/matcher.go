@@ -51,6 +51,12 @@ const (
 	// kindGreedy matches zero or more trailing tokens, the `**`
 	// metacharacter. It is terminal and carries no children.
 	kindGreedy
+	// kindRoot is the synthetic top node. It consumes no token and matches
+	// each child against the same segment, so its children are alternative
+	// roots OR-ed together. It is the one place an alternation can sit with no
+	// consuming parent above it, so it is valid only as the matcher argument of
+	// path.match and never nested.
+	kindRoot
 )
 
 // Node is one node in a matcher tree. It is an ordinary Go value, so a matcher
@@ -110,6 +116,20 @@ func Capture(name string, children ...*Node) *Node {
 // the `**` metacharacter. It takes no children.
 func Greedy() *Node {
 	return &Node{kind: kindGreedy}
+}
+
+// Root builds the synthetic top node that matches each child against the same
+// segment, so the children are alternative roots OR-ed together. It is the one
+// way to give a tree several first segments, such as Root(Literal("api"),
+// Literal("admin")), which the bare tree cannot express because a tree has one
+// root node. It consumes no token, so it is valid only as the matcher argument
+// of path.match and never nested; the load-time check and the parent
+// constructors enforce that. An empty Root matches nothing and is a load error.
+func Root(children ...*Node) (*Node, error) {
+	if len(children) == 0 {
+		return nil, trace.BadParameter("root() requires at least one alternative")
+	}
+	return &Node{kind: kindRoot, children: children}, nil
 }
 
 // GlobWithout builds a node that matches exactly one non-empty segment whose
@@ -211,6 +231,16 @@ func Eval(tokens []string, root *Node) (bool, map[string]string) {
 // top-level match returns true.
 func matchNode(node *Node, tokens []string, i int, caps map[string]string) bool {
 	switch node.kind {
+	case kindRoot:
+		// Root consumes no token: each child is matched against the same
+		// segment, so the children are alternative roots. The first that
+		// matches wins.
+		for _, child := range node.children {
+			if matchNode(child, tokens, i, caps) {
+				return true
+			}
+		}
+		return false
 	case kindGreedy:
 		// Greedy is terminal and matches the entire remaining suffix,
 		// including zero tokens. When the node carries exclusions, the suffix

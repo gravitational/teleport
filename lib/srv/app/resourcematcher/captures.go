@@ -166,8 +166,51 @@ func capturesIn(node ast.Node) map[string]bool {
 
 // isGreedyExcept reports whether call is a greedy_except(...) call.
 func isGreedyExcept(call *ast.CallExpr) bool {
+	return isIdentCall(call, "greedy_except")
+}
+
+// isIdentCall reports whether call is a bare name(...) call, such as root(...)
+// or greedy_except(...). It does not match a selector call like path.match(...).
+func isIdentCall(call *ast.CallExpr, name string) bool {
 	id, ok := call.Fun.(*ast.Ident)
-	return ok && id.Name == "greedy_except"
+	return ok && id.Name == name
+}
+
+// validateRoot rejects a root() call anywhere but as the matcher argument of a
+// path.match. root() is non-consuming and only sound at the top of a tree,
+// where it OR-s several first segments; nested it would silently behave as a
+// mid-tree alternation, which the existing sibling children already express.
+// Rejecting it at load keeps root() to its one legal spot.
+func validateRoot(expr string) error {
+	parsed, err := goparser.ParseExpr(expr)
+	if err != nil {
+		return nil
+	}
+	// First pass: every root() that sits as path.match's first argument is the
+	// one legal placement, recorded by AST node identity.
+	allowed := map[ast.Node]bool{}
+	ast.Inspect(parsed, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok || !isPathMatch(call) || len(call.Args) == 0 {
+			return true
+		}
+		if root, ok := call.Args[0].(*ast.CallExpr); ok && isIdentCall(root, "root") {
+			allowed[root] = true
+		}
+		return true
+	})
+	// Second pass: any other root() call is illegal.
+	var bad bool
+	ast.Inspect(parsed, func(n ast.Node) bool {
+		if call, ok := n.(*ast.CallExpr); ok && isIdentCall(call, "root") && !allowed[call] {
+			bad = true
+		}
+		return true
+	})
+	if bad {
+		return trace.BadParameter("root() is only valid as the matcher argument of path.match")
+	}
+	return nil
 }
 
 // validateExclusions rejects a capture inside a greedy_except matcher. An

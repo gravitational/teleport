@@ -172,6 +172,14 @@ func newParser() (*typical.CachedParser[env, bool], error) {
 			"greedy": typical.UnaryVariadicFunction[env](func(_ ...*Node) (*Node, error) {
 				return Greedy(), nil
 			}),
+			// root is the synthetic top node, the one way to give a tree several
+			// first segments. It folds several root paths into one path.match,
+			// so the call carries the decode options once instead of repeating
+			// them across an || of separate matches. It is valid only as the
+			// matcher argument of path.match; validateRoot rejects it elsewhere.
+			"root": typical.UnaryVariadicFunction[env](func(children ...*Node) (*Node, error) {
+				return Root(children...)
+			}),
 			// Carve-out constructors. Each folds an exclusion into one matcher
 			// tree so a deny needs no separate negated path.match, which keeps
 			// the whole rule on one decode policy and avoids the fail-open
