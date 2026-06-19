@@ -27,6 +27,7 @@ import (
 	"crypto"
 	"crypto/tls"
 	"crypto/x509"
+	_ "embed"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -196,6 +197,24 @@ func TestMain(m *testing.M) {
 	code := m.Run()
 	cancel()
 	os.Exit(code)
+}
+
+//go:embed testdata/no-history-shell.sh
+var noHistoryShellScript []byte
+
+// noHistoryShell writes a wrapper shell script that disables history to a temp
+// file and returns its path.
+//
+// Tests in this package open interactive shell sessions on a local node service
+// running as the current OS user. Pointing the node at this shell via
+// [regular.SetTestLoginShell] keeps those sessions from polluting the shell
+// history. The script is embedded rather than referenced on disk so the path
+// doesn't depend on the working directory.
+func noHistoryShell(t *testing.T) string {
+	t.Helper()
+	shell := filepath.Join(t.TempDir(), "no-history-shell.sh")
+	require.NoError(t, os.WriteFile(shell, noHistoryShellScript, 0o700))
+	return shell
 }
 
 func newWebSuite(t *testing.T) *WebSuite {
@@ -383,6 +402,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetEmitter(nodeClient),
 		regular.SetPAMConfig(&pamcfg.PAMConfig{Enabled: false}),
+		regular.SetTestLoginShell(noHistoryShell(t)),
 		regular.SetBPF(&bpf.NOP{}),
 		regular.SetClock(s.clock),
 		regular.SetLockWatcher(nodeLockWatcher),
@@ -713,6 +733,7 @@ func (s *WebSuite) addNode(t *testing.T, uuid string, hostname string, address s
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetEmitter(nodeClient),
 		regular.SetPAMConfig(&pamcfg.PAMConfig{Enabled: false}),
+		regular.SetTestLoginShell(noHistoryShell(t)),
 		regular.SetBPF(&bpf.NOP{}),
 		regular.SetClock(s.clock),
 		regular.SetLockWatcher(nodeLockWatcher),
@@ -2624,6 +2645,28 @@ func TestTerminalRequireSessionMFA(t *testing.T) {
 			require.NoError(t, waitForOutput(term, "teleport"))
 		})
 	}
+}
+
+// TestTerminalNoHistoryShell verifies that interactive sessions opened by tests
+// that use [newWebSuite] don't record shell history thanks to [noHistoryShell].
+func TestTerminalNoHistoryShell(t *testing.T) {
+	t.Parallel()
+	s := newWebSuite(t)
+
+	ctx, cancel := context.WithCancel(s.ctx)
+	t.Cleanup(cancel)
+
+	term, err := connectToHost(ctx, connectConfig{
+		pack:  s.authPack(t, "foo"),
+		host:  s.node.ID(),
+		proxy: s.webServer.Listener.Addr().String(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, term.Close()) })
+
+	_, err = io.WriteString(term, `echo "histfile=[$HISTFILE]"`+"\r\n")
+	require.NoError(t, err)
+	waitForOutput(term, "histfile=[]")
 }
 
 type windowsDesktopServiceMock struct {
@@ -8729,6 +8772,7 @@ func newWebPack(t *testing.T, numProxies int, opts ...webPackOptions) *webPack {
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetEmitter(nodeClient),
 		regular.SetPAMConfig(&pamcfg.PAMConfig{Enabled: false}),
+		regular.SetTestLoginShell(noHistoryShell(t)),
 		regular.SetBPF(&bpf.NOP{}),
 		regular.SetClock(clock),
 		regular.SetLockWatcher(nodeLockWatcher),
