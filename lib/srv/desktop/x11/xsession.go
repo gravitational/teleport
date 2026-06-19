@@ -20,10 +20,9 @@ import (
 	"bufio"
 	"cmp"
 	"context"
-	"fmt"
 	"log/slog"
 	"os"
-	"os/user"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -107,21 +106,27 @@ func StartTeleportExecXSession(ctx context.Context, cfg *XSessionConfig) (*reexe
 		return nil, trace.BadParameter("missing parameter ChildLogConfig")
 	}
 
-	u, err := user.Lookup(cfg.Login)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	runtimeDir := fmt.Sprintf("/run/user/%s", u.Uid)
+	//u, err := user.Lookup(cfg.Login)
+	//if err != nil {
+	//	return nil, trace.Wrap(err)
+	//}
+	//runtimeDir := fmt.Sprintf("/run/user/%s", u.Uid)
 
 	env := envutils.SafeEnv{}
 	env.AddTrusted("DISPLAY", cfg.Display)
 	env.AddTrusted("XAUTHORITY", cfg.AuthorityFile)
-	env.AddTrusted("XDG_RUNTIME_DIR", runtimeDir)
-	env.AddTrusted("DBUS_SESSION_BUS_ADDRESS", fmt.Sprintf("unix:path=%s/bus", runtimeDir))
+	//env.AddTrusted("XDG_RUNTIME_DIR", runtimeDir)
+	//env.AddTrusted("DBUS_SESSION_BUS_ADDRESS", fmt.Sprintf("unix:path=%s/bus", runtimeDir))
 	env.AddTrusted("XDG_SESSION_TYPE", "x11")
 
+	cmdd := cfg.Command
+	_, err := exec.LookPath("dbus-launch")
+	if err == nil {
+		cmdd = "dbus-launch --exit-with-session " + cmdd
+	}
+
 	cmdmsg := &reexec.ExecCommand{
-		Command:         cfg.Command,
+		Command:         cmdd,
 		ForceLoginShell: true,
 		RequestType:     sshutils.ExecRequest,
 		Login:           cfg.Login,
