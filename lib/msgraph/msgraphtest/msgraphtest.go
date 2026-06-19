@@ -116,7 +116,7 @@ func (s *Server) handleListUsersDelta(w http.ResponseWriter, r *http.Request) {
 	s.ListUsersDelta(w, r)
 }
 
-// ListGroupsDelta lists users delta diff.
+// ListUsersDelta lists users delta diff.
 func (s *Server) ListUsersDelta(w http.ResponseWriter, r *http.Request) {
 	currentKey := 0
 	isLatest := false
@@ -125,7 +125,6 @@ func (s *Server) ListUsersDelta(w http.ResponseWriter, r *http.Request) {
 	switch token {
 	case "latest":
 		// latest request is the starting point.
-		s.Storage.UsersDelta = make(map[int][]models.ListUsersDeltaResponse)
 		isLatest = true
 	default:
 		i, err := parseToken(token)
@@ -137,7 +136,9 @@ func (s *Server) ListUsersDelta(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.mu.Lock()
-	if !isLatest {
+	if isLatest {
+		s.Storage.UsersDelta = make(map[int][]models.ListUsersDeltaResponse)
+	} else {
 		users = append(users, s.Storage.UsersDelta[currentKey]...)
 	}
 	currentKey++
@@ -189,7 +190,6 @@ func (s *Server) ListGroupsDelta(w http.ResponseWriter, r *http.Request) {
 	switch token {
 	case "latest":
 		// latest request is the starting point.
-		s.Storage.GroupsDelta = make(map[int][]models.ListGroupsDeltaResponse)
 		isLatest = true
 	default:
 		i, err := parseToken(token)
@@ -201,7 +201,9 @@ func (s *Server) ListGroupsDelta(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.mu.Lock()
-	if !isLatest {
+	if isLatest {
+		s.Storage.GroupsDelta = make(map[int][]models.ListGroupsDeltaResponse)
+	} else {
 		groups = append(groups, s.Storage.GroupsDelta[currentKey]...)
 	}
 	currentKey++
