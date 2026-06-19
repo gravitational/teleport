@@ -242,8 +242,8 @@ func (n *NotificationCommand) Create(ctx context.Context, client *authclient.Cli
 func (n *NotificationCommand) outputCreatedNotification(created any, textMsg string) error {
 	switch n.format {
 	case teleport.Text:
-		fmt.Fprint(n.stdout, textMsg)
-		return nil
+		_, err := fmt.Fprint(n.stdout, textMsg)
+		return trace.Wrap(err)
 	case teleport.JSON:
 		return trace.Wrap(utils.WriteJSON(n.stdout, created))
 	case teleport.YAML:
