@@ -22,11 +22,29 @@ import (
 	"os"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/client/proto"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/services"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
-	"github.com/gravitational/trace"
 )
+
+// discoveryClient abstracts the auth client methods used by discovery commands.
+// It is a strict subset of authclient.Client.
+type discoveryClient interface {
+	// SearchEvents searches audit events.
+	SearchEvents(ctx context.Context, req libevents.SearchEventsRequest) ([]apievents.AuditEvent, string, error)
+	// GetResources lists resources with pagination.
+	GetResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error)
+	// UserTasksClient returns a client for managing user tasks.
+	UserTasksClient() services.UserTasks
+	// DiscoveryConfigClient returns a client for accessing discovery config.
+	DiscoveryConfigClient() services.DiscoveryConfigWithStatusUpdater
+}
 
 // Command implements the "tctl discovery" CLI command group.
 type Command struct {
@@ -43,7 +61,8 @@ func (c *Command) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags
 	}
 
 	discovery := app.Command("discovery", "Troubleshoot auto-discovery issues.")
-	c.nodes.initNodes(discovery, c.stdout)
+	c.nodes.initNodes(discovery)
+	c.summary.initSummary(discovery)
 }
 
 // TryRun attempts to run the matched subcommand.

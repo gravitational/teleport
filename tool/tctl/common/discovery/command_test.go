@@ -69,6 +69,10 @@ func (m *mockClient) UserTasksClient() services.UserTasks {
 	return &mockUserTasks{tasks: m.userTasks}
 }
 
+func (m *mockClient) DiscoveryConfigClient() services.DiscoveryConfigWithStatusUpdater {
+	return nil
+}
+
 func (m *mockClient) GetResources(_ context.Context, _ *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error) {
 	var resources []*proto.PaginatedResource
 	for _, node := range m.nodes {
@@ -401,3 +405,5 @@ func TestBuildNodes_CloudFilter(t *testing.T) {
 		})
 	}
 }
+
+//todo (mpm) add run summary tests
