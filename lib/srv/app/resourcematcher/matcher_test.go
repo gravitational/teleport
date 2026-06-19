@@ -60,14 +60,14 @@ func TestCompileEqualsConstructors(t *testing.T) {
 			want:    Literal("api", Literal("(group)", Literal("a:b@c"))),
 		},
 		{
-			name:    "trailing slash compiles to a terminal empty literal",
+			name:    "trailing slash compiles to a slash node",
 			pattern: "/api/v4/health/",
-			want:    Literal("api", Literal("v4", Literal("health", Literal("")))),
+			want:    Literal("api", Literal("v4", Literal("health", Slash()))),
 		},
 		{
-			name:    "bare root compiles to a terminal empty literal",
+			name:    "bare root compiles to a slash node",
 			pattern: "/",
-			want:    Literal(""),
+			want:    Slash(),
 		},
 	}
 	for _, tt := range tests {

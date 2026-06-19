@@ -176,6 +176,38 @@ func isIdentCall(call *ast.CallExpr, name string) bool {
 	return ok && id.Name == name
 }
 
+// validateLiterals rejects an empty or illegally-encoded segment in a
+// literal("...") call whose text is a string constant. It is the load-time half
+// of the literal check, so a typo such as literal("") or a stray byte fails when
+// the rule compiles rather than per request. A dynamic literal argument cannot
+// be checked until evaluation, where the constructor still rejects it.
+func validateLiterals(expr string) error {
+	parsed, err := goparser.ParseExpr(expr)
+	if err != nil {
+		return nil
+	}
+	var bad error
+	ast.Inspect(parsed, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok || !isIdentCall(call, "literal") || len(call.Args) == 0 {
+			return true
+		}
+		lit, ok := call.Args[0].(*ast.BasicLit)
+		if !ok || lit.Kind != token.STRING {
+			return true
+		}
+		s, err := strconv.Unquote(lit.Value)
+		if err != nil {
+			return true
+		}
+		if err := validateLiteral(s); err != nil {
+			bad = err
+		}
+		return true
+	})
+	return trace.Wrap(bad)
+}
+
 // validateRoot rejects a root() call anywhere but as the matcher argument of a
 // path.match. root() is non-consuming and only sound at the top of a tree,
 // where it OR-s several first segments; nested it would silently behave as a

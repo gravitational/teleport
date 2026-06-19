@@ -161,6 +161,9 @@ func newParser() (*typical.CachedParser[env, bool], error) {
 			// type-check at parse time: every child argument must itself
 			// evaluate to a *Node.
 			"literal": typical.BinaryVariadicFunction[env](func(s string, children ...*Node) (*Node, error) {
+				if err := validateLiteral(s); err != nil {
+					return nil, trace.Wrap(err)
+				}
 				return Literal(s, children...), nil
 			}),
 			"capture": typical.BinaryVariadicFunction[env](func(name string, children ...*Node) (*Node, error) {
@@ -171,6 +174,16 @@ func newParser() (*typical.CachedParser[env, bool], error) {
 			}),
 			"greedy": typical.UnaryVariadicFunction[env](func(_ ...*Node) (*Node, error) {
 				return Greedy(), nil
+			}),
+			// Trailing-slash terminals. slash() matches the empty segment a
+			// final "/" produces, and optional_slash() matches with or without
+			// it. They replace the empty-literal pun, so a literal never carries
+			// empty text.
+			"slash": typical.UnaryVariadicFunction[env](func(_ ...*Node) (*Node, error) {
+				return Slash(), nil
+			}),
+			"optional_slash": typical.UnaryVariadicFunction[env](func(_ ...*Node) (*Node, error) {
+				return OptionalSlash(), nil
 			}),
 			// root is the synthetic top node, the one way to give a tree several
 			// first segments. It folds several root paths into one path.match,

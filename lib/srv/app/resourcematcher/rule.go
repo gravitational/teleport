@@ -209,6 +209,9 @@ func (r Rule) Compile() (*CompiledRule, error) {
 	if err := validateRoot(expr); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := validateLiterals(expr); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// Read the decode options off every path.match in the expression and check
 	// they agree. A carve-out's negated path.match must decode the subject the
@@ -283,6 +286,9 @@ func (r Rule) compileDenyHints() ([]compiledHint, error) {
 			return nil, trace.Wrap(err, "deny_hint %d", i)
 		}
 		if err := validateRoot(on); err != nil {
+			return nil, trace.Wrap(err, "deny_hint %d", i)
+		}
+		if err := validateLiterals(on); err != nil {
 			return nil, trace.Wrap(err, "deny_hint %d", i)
 		}
 		hints = append(hints, compiledHint{on: onPred, denyCode: h.DenyCode, denyReason: h.DenyReason})
@@ -505,6 +511,10 @@ func nodeToSource(n *Node) string {
 		return constructorSource("glob", "", n.children)
 	case kindRoot:
 		return constructorSource("root", "", n.children)
+	case kindSlash:
+		return "slash()"
+	case kindOptionalSlash:
+		return "optional_slash()"
 	case kindGreedy:
 		return "greedy()"
 	default:

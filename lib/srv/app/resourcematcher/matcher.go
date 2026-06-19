@@ -57,6 +57,15 @@ const (
 	// consuming parent above it, so it is valid only as the matcher argument of
 	// path.match and never nested.
 	kindRoot
+	// kindSlash is a terminal node that matches the trailing empty segment a
+	// request path produces after a final "/". It is the named replacement for
+	// the empty literal that once stood in for a trailing slash, so a literal
+	// node never carries empty text.
+	kindSlash
+	// kindOptionalSlash is a terminal node that matches whether or not a
+	// trailing slash is present, so one tree accepts both "/foo" and "/foo/"
+	// without writing the tree twice.
+	kindOptionalSlash
 )
 
 // Node is one node in a matcher tree. It is an ordinary Go value, so a matcher
@@ -91,6 +100,16 @@ type Node struct {
 // globs; use Capture, Glob, and Greedy for those.
 func Literal(s string, children ...*Node) *Node {
 	segments := strings.Split(s, "/")
+	// Every segment must be a non-empty, legal URL path segment. A caller that
+	// passes an empty or illegally-encoded segment has a bug, since the
+	// authoring surfaces (Compile and the predicate literal()) validate and
+	// return an error before reaching here; panic rather than build a node that
+	// can never match a real request path.
+	for _, seg := range segments {
+		if err := validateSegment(seg); err != nil {
+			panic("resourcematcher: " + err.Error())
+		}
+	}
 	// Build from the innermost segment outward so the supplied children hang
 	// off the last segment.
 	node := &Node{kind: kindLiteral, text: segments[len(segments)-1], children: children}
@@ -104,6 +123,54 @@ func Literal(s string, children ...*Node) *Node {
 // metacharacter.
 func Glob(children ...*Node) *Node {
 	return &Node{kind: kindGlob, children: children}
+}
+
+// Slash builds a terminal node that matches the trailing empty segment a
+// request path produces after a final "/", so Literal("files", Slash()) matches
+// "/files/" but not "/files", and Slash() alone matches the bare root "/". It
+// is the named replacement for the empty literal, so an empty literal is never
+// built.
+func Slash() *Node {
+	return &Node{kind: kindSlash}
+}
+
+// OptionalSlash builds a terminal node that matches whether or not a trailing
+// slash is present, so Literal("files", OptionalSlash()) matches both "/files"
+// and "/files/". It exists so a tree need not be written twice to accept an
+// optional trailing slash. It has no string-pattern sugar; the declarative form
+// lists both paths instead.
+func OptionalSlash() *Node {
+	return &Node{kind: kindOptionalSlash}
+}
+
+// validateSegment rejects an empty or illegally-encoded literal segment. A
+// literal can only ever match a real request path segment, so it must be a
+// non-empty, legal URL path segment. An empty segment is the trailing-slash
+// pun that Slash now owns, and an illegal byte would only ever compile a dead
+// rule. Both authoring surfaces, Compile and the predicate literal(), validate
+// through here, so neither can build a segment the other would reject.
+func validateSegment(seg string) error {
+	if seg == "" {
+		return trace.BadParameter("a literal segment cannot be empty; use slash() to match a trailing slash")
+	}
+	for i := range len(seg) {
+		if !isLegalPathByte(seg[i]) {
+			return trace.BadParameter("literal segment %q contains an illegal URL byte %q", seg, string(seg[i]))
+		}
+	}
+	return nil
+}
+
+// validateLiteral validates every segment a literal string splits into on "/".
+// It is the shared check the predicate literal() builder calls so a
+// hand-written literal is held to the same rules as a compiled one.
+func validateLiteral(s string) error {
+	for _, seg := range strings.Split(s, "/") {
+		if err := validateSegment(seg); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
 }
 
 // Capture builds a node that matches one segment and binds it under
@@ -253,6 +320,14 @@ func matchNode(node *Node, tokens []string, i int, caps map[string]string) bool 
 			}
 		}
 		return true
+	case kindSlash:
+		// A trailing slash is the empty segment that ends the token list. It
+		// is terminal: the empty token must exist and be the last one.
+		return i < len(tokens) && tokens[i] == "" && i+1 == len(tokens)
+	case kindOptionalSlash:
+		// Match either the end of the path, where no trailing slash was
+		// present, or the trailing empty segment a final slash produces.
+		return i == len(tokens) || (i < len(tokens) && tokens[i] == "" && i+1 == len(tokens))
 	case kindLiteral:
 		if i >= len(tokens) || tokens[i] != node.text {
 			return false
@@ -304,10 +379,10 @@ func matchChildren(node *Node, tokens []string, i int, caps map[string]string) b
 // A leading "/" is required and stripped. An interior or leading empty
 // segment (from "//") is a compile error, since the strict URL rules reject
 // the request bytes that would produce one. A trailing "/" is significant:
-// it compiles to a terminal literal matching the trailing empty segment a
-// request path produces, so "/foo/" matches the request "/foo/" but not
-// "/foo", and the bare root "/" matches only the request "/". A `**` in any
-// non-final position is a compile error.
+// it compiles to a slash() node matching the trailing empty segment a request
+// path produces, so "/foo/" matches the request "/foo/" but not "/foo", and
+// the bare root "/" matches only the request "/". A `**` in any non-final
+// position is a compile error.
 func Compile(pattern string) (*Node, error) {
 	if !strings.HasPrefix(pattern, "/") {
 		return nil, trace.BadParameter("path pattern %q must start with /", pattern)
@@ -360,6 +435,11 @@ func compileSegment(pattern, seg string) (*Node, error) {
 		return Greedy(), nil
 	case seg == "*":
 		return Glob(), nil
+	case seg == "":
+		// An empty segment. Compile already guaranteed it can only be the final
+		// one, the trailing slash, so it maps to the trailing-slash node rather
+		// than an empty literal.
+		return Slash(), nil
 	case strings.HasPrefix(seg, "{") && strings.HasSuffix(seg, "}"):
 		name := seg[1 : len(seg)-1]
 		if !isIdentifier(name) {
@@ -375,14 +455,11 @@ func compileSegment(pattern, seg string) (*Node, error) {
 		if strings.ContainsAny(seg, "*{}") {
 			return nil, trace.BadParameter("segment %q in %q is not a valid literal, glob (*), greedy (**), or capture ({name})", seg, pattern)
 		}
-		// A literal can only match a request path, so it must itself be a legal
-		// URL path segment. A byte that cannot appear in a request path, such
-		// as "<" or a space, would make the pattern match nothing, so reject it
-		// at load rather than compile a dead rule.
-		for i := range len(seg) {
-			if !isLegalPathByte(seg[i]) {
-				return nil, trace.BadParameter("literal segment %q in %q contains an illegal URL byte %q", seg, pattern, string(seg[i]))
-			}
+		// A literal can only match a request path, so it must itself be a legal,
+		// non-empty URL path segment. Validate through the shared check so the
+		// string and predicate surfaces hold a literal to identical rules.
+		if err := validateSegment(seg); err != nil {
+			return nil, trace.Wrap(err, "in path pattern %q", pattern)
 		}
 		return &Node{kind: kindLiteral, text: seg}, nil
 	}
