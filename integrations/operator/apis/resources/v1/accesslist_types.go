@@ -59,8 +59,7 @@ type TeleportAccessListList struct {
 func (l TeleportAccessList) ToTeleport() *accesslist.AccessList {
 	resource := &accesslist.AccessList{
 		ResourceHeader: header.ResourceHeader{
-			Kind:    "",
-			SubKind: "",
+			Kind:    types.KindAccessList,
 			Version: types.V1,
 			Metadata: header.Metadata{
 				Name:        l.Name,

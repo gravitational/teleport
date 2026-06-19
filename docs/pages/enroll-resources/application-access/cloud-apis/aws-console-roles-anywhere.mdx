@@ -470,6 +470,21 @@ Logged into AWS app "example-read-only-access".
     AWS_PROFILE=example-read-only-access aws s3 ls
 ```
 
+Alternatively, if the `--aws-role` is not provided, the aws role will be prompted interactively.
+
+```code
+$ tsh apps login aws-console
+Available AWS roles:
+
+> ExampleReadOnlyAccess [arn:aws:iam::000000000000:role/ExampleReadOnlyAccess]
+  ExampleAdminAccess [arn:aws:iam::000000000001:role/ExampleAdminAccess]
+
+(Use arrows or hjkl to navigate, enter to select, q to quit)
+```
+
+You can turn interactive prompt off using `--no-interactive` flag. This will make the command return
+an error when no role is provided.
+
 #### Access AWS using the AWS CLI
 
 Pass the `--profile` flag or export `AWS_PROFILE` with the profile name:

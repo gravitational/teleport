@@ -2518,6 +2518,27 @@ export const formatters: Formatters = {
       return `User [${user}] deleted the VNet config`;
     },
   },
+  [eventCodes.BEAMS_CONFIG_CREATE]: {
+    type: 'beams.config.create',
+    desc: 'Beams Config Created',
+    format: ({ user }) => {
+      return `User [${user}] created the Beams config`;
+    },
+  },
+  [eventCodes.BEAMS_CONFIG_UPDATE]: {
+    type: 'beams.config.update',
+    desc: 'Beams Config Updated',
+    format: ({ user }) => {
+      return `User [${user}] updated the Beams config`;
+    },
+  },
+  [eventCodes.BEAMS_CONFIG_DELETE]: {
+    type: 'beams.config.delete',
+    desc: 'Beams Config Deleted',
+    format: ({ user }) => {
+      return `User [${user}] deleted the Beams config`;
+    },
+  },
   [eventCodes.WORKLOAD_CLUSTER_CREATE]: {
     type: 'workload_cluster.create',
     desc: 'Workload Cluster Created',
@@ -2625,6 +2646,39 @@ export const formatters: Formatters = {
     desc: 'Retrieval Model Deleted',
     format: ({ name, user }) =>
       `Retrieval Model [${name}] was deleted by [${user}]`,
+  },
+  [eventCodes.CLASSIFIER_CREATE]: {
+    type: 'classifier.create',
+    desc: 'Classifier Created',
+    format: ({ name, user }) => `Classifier [${name}] was created by [${user}]`,
+  },
+  [eventCodes.CLASSIFIER_CREATE_FAILURE]: {
+    type: 'classifier.create',
+    desc: 'Classifier Creation Failed',
+    format: ({ name, user }) =>
+      `Classifier [${name}] failed to be created by [${user}]`,
+  },
+  [eventCodes.CLASSIFIER_UPDATE]: {
+    type: 'classifier.update',
+    desc: 'Classifier Updated',
+    format: ({ name, user }) => `Classifier [${name}] was updated by [${user}]`,
+  },
+  [eventCodes.CLASSIFIER_UPDATE_FAILURE]: {
+    type: 'classifier.update',
+    desc: 'Classifier Update Failed',
+    format: ({ name, user }) =>
+      `Classifier [${name}] failed to be updated by [${user}]`,
+  },
+  [eventCodes.CLASSIFIER_DELETE]: {
+    type: 'classifier.delete',
+    desc: 'Classifier Deleted',
+    format: ({ name, user }) => `Classifier [${name}] was deleted by [${user}]`,
+  },
+  [eventCodes.CLASSIFIER_DELETE_FAILURE]: {
+    type: 'classifier.delete',
+    desc: 'Classifier Deletion Failed',
+    format: ({ name, user }) =>
+      `Classifier [${name}] failed to be deleted by [${user}]`,
   },
   [eventCodes.SESSION_SUMMARIZED]: {
     type: 'session.summarized',

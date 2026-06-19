@@ -63,11 +63,37 @@ import (
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobject"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobjectimportrule"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
+
+func TestListKindsStructuredOutput(t *testing.T) {
+	rows := resourceKindRows()
+	require.NotEmpty(t, rows)
+
+	var jsonBuf bytes.Buffer
+	rc := ResourceCommand{
+		Stdout: &jsonBuf,
+		format: "json",
+	}
+	require.NoError(t, rc.listKinds())
+	gotJSON := mustDecodeJSON[[]resourceKindRow](t, &jsonBuf)
+	require.Equal(t, rows, gotJSON)
+
+	var yamlBuf bytes.Buffer
+	rc = ResourceCommand{
+		Stdout: &yamlBuf,
+		format: "yaml",
+	}
+	require.NoError(t, rc.listKinds())
+	yamlJSON, err := utils.ToJSON(yamlBuf.Bytes())
+	require.NoError(t, err)
+	gotYAML := mustDecodeJSON[[]resourceKindRow](t, bytes.NewReader(yamlJSON))
+	require.Equal(t, rows, gotYAML)
+}
 
 // TestDatabaseServerResource tests tctl db_server rm/get commands.
 func TestDatabaseServerResource(t *testing.T) {
@@ -392,7 +418,7 @@ version: v1
 	var raw []byte
 	for {
 		// Get the scoped role
-		buff, err := runResourceCommand(t, clt, []string{"get", "scoped_role/some-role", "--format=json"})
+		buff, err := runResourceCommand(t, clt, []string{"get", "scoped_role", "/::some-role", "--format=json"})
 		if err == nil {
 			raw = buff.Bytes()
 			break
@@ -426,6 +452,33 @@ version: v1
 	}.Build()
 
 	require.Empty(t, cmp.Diff(expected, rs[0], protocmp.Transform(), protocmp.IgnoreFields(&headerv1.Metadata{}, "revision")))
+
+	// list-all for scoped_role (no SQN)
+	buff, err := runResourceCommand(t, clt, []string{"get", "scoped_role", "--format=json"})
+	require.NoError(t, err)
+	allRoles, err := services.UnmarshalProtoResourceArray[*scopedaccessv1.ScopedRole](buff.Bytes(), services.DisallowUnknown())
+	require.NoError(t, err)
+	require.Len(t, allRoles, 1)
+	require.Equal(t, "some-role", allRoles[0].GetMetadata().GetName())
+
+	// bare name without SQN separator should require a scope-qualified name
+	_, err = runResourceCommand(t, clt, []string{"get", "scoped_role", "some-role"})
+	require.True(t, trace.IsBadParameter(err), "expected BadParameter for bare name, got %v", err)
+	require.ErrorContains(t, err, "scope-qualified name")
+
+	// sub-kind segment on a type with no sub-kinds should be rejected on get
+	_, err = runResourceCommand(t, clt, []string{"get", "scoped_role/badsubkind", "/::some-role"})
+	require.True(t, trace.IsBadParameter(err), "expected BadParameter for invalid sub-kind on get, got %v", err)
+	require.ErrorContains(t, err, "does not support sub-kinds")
+
+	// sub-kind segment on a type with no sub-kinds should be rejected on delete
+	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role/badsubkind", "/::some-role"})
+	require.True(t, trace.IsBadParameter(err), "expected BadParameter for invalid sub-kind on delete, got %v", err)
+	require.ErrorContains(t, err, "does not support sub-kinds")
+
+	// scope mismatch on delete should return NotFound (role lives at "/", not "/wrong")
+	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role", "/wrong::some-role"})
+	require.True(t, trace.IsNotFound(err), "expected NotFound for scope mismatch on delete, got %v", err)
 
 	// now that a role exists, test commands for assignment creation
 
@@ -473,15 +526,15 @@ version: v1
 	assignmentName := as[0].GetMetadata().GetName()
 
 	// Ensure that retrieving the scoped role assignment with incorrect sub_kind fails.
-	_, err = runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/materialized/" + assignmentName, "--format=json"})
+	_, err = runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/materialized", "/::" + assignmentName, "--format=json"})
 	require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
 
 	// Ensure that trying to retrieve the scoped role assignment without a subkind fails.
-	_, err = runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/" + assignmentName, "--format=json"})
-	require.ErrorContains(t, err, "requires an explicit subkind")
+	_, err = runResourceCommand(t, clt, []string{"get", "scoped_role_assignment", "/::" + assignmentName, "--format=json"})
+	require.ErrorContains(t, err, "requires a sub-kind")
 
 	// Ensure that retrieving the scoped role assignment by name with explicit sub_kind works.
-	buff, err := runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/dynamic/" + assignmentName, "--format=json"})
+	buff, err = runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/dynamic", "/::" + assignmentName, "--format=json"})
 	require.NoError(t, err)
 	var asByName []*scopedaccessv1.ScopedRoleAssignment
 	err = json.Unmarshal(buff.Bytes(), &asByName)
@@ -511,23 +564,33 @@ version: v1
 
 	require.Empty(t, cmp.Diff(expectedAssignment, as[0], protocmp.Transform(), protocmp.IgnoreFields(&headerv1.Metadata{}, "revision")))
 
+	// a bare segment for a scoped-only resource (previously treated as a name)
+	// should now be an explicit error rather than silently returning all resources.
+	_, err = runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/dynamic"})
+	require.True(t, trace.IsBadParameter(err), "expected BadParameter for old-format subkind filter, got %v", err)
+	require.ErrorContains(t, err, "scope-qualified name")
+
+	// scope mismatch on delete should return NotFound (assignment lives at "/", not "/wrong")
+	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role_assignment/dynamic", "/wrong::" + assignmentName})
+	require.True(t, trace.IsNotFound(err), "expected NotFound for scope mismatch on assignment delete, got %v", err)
+
 	// verify delete of assignment fails without subkind
-	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role_assignment/" + assignmentName})
-	require.ErrorContains(t, err, "requires an explicit subkind")
+	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role_assignment", "/::" + assignmentName})
+	require.ErrorContains(t, err, "requires a sub-kind")
 
 	// verify delete of assignment fails without materialized subkind.
-	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role_assignment/materialized/" + assignmentName})
+	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role_assignment/materialized", "/::" + assignmentName})
 	require.ErrorContains(t, err, "cannot be deleted")
 
 	// verify delete of assignment
-	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role_assignment/dynamic/" + assignmentName})
+	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role_assignment/dynamic", "/::" + assignmentName})
 	require.NoError(t, err)
 
 	// wait for delete cache propagation
 	timeout = time.After(time.Second * 30)
 	for {
 		// verify assignment is gone
-		_, err = runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/dynamic/" + assignmentName, "--format=json"})
+		_, err = runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/dynamic", "/::" + assignmentName, "--format=json"})
 		if err != nil {
 			require.True(t, trace.IsNotFound(err), "expected a NotFound error, got %v", err)
 			break
@@ -541,14 +604,14 @@ version: v1
 	}
 
 	// verify delete of role
-	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role/some-role"})
+	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role", "/::some-role"})
 	require.NoError(t, err)
 
 	// wait for delete cache propagation
 	timeout = time.After(time.Second * 30)
 	for {
 		// verify role is gone
-		_, err = runResourceCommand(t, clt, []string{"get", "scoped_role/some-role", "--format=json"})
+		_, err = runResourceCommand(t, clt, []string{"get", "scoped_role", "/::some-role", "--format=json"})
 		if err != nil {
 			require.True(t, trace.IsNotFound(err), "expected a NotFound error, got %v", err)
 			break
@@ -636,7 +699,7 @@ spec:
 	var raw []byte
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		// Get the scoped token by name
-		buff, err := runResourceCommand(t, clt, []string{"get", "scoped_token/test-token", "--format=json"})
+		buff, err := runResourceCommand(t, clt, []string{"get", "scoped_token", "/::test-token", "--format=json"})
 		require.NoError(t, err)
 		raw = buff.Bytes()
 	}, time.Second*30, time.Millisecond*100, "Timed out waiting for scoped token cache propagation")
@@ -656,6 +719,26 @@ spec:
 	require.Equal(t, "unlimited", token.GetSpec().GetUsageMode())
 	// Secret is stripped server-side when not requested with --with-secrets.
 	require.Empty(t, token.GetStatus().GetSecret())
+
+	// A bare name (no :: separator) should produce a helpful "scope-qualified name" error.
+	_, err = runResourceCommand(t, clt, []string{"get", "scoped_token", "test-token"})
+	require.ErrorContains(t, err, "scope-qualified name")
+	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_token", "test-token"})
+	require.ErrorContains(t, err, "scope-qualified name")
+
+	// sub-kind segment on a type with no sub-kinds should be rejected on get
+	_, err = runResourceCommand(t, clt, []string{"get", "scoped_token/badsubkind", "/::test-token"})
+	require.True(t, trace.IsBadParameter(err), "expected BadParameter for invalid sub-kind on get, got %v", err)
+	require.ErrorContains(t, err, "does not support sub-kinds")
+
+	// sub-kind segment on a type with no sub-kinds should be rejected on delete
+	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_token/badsubkind", "/::test-token"})
+	require.True(t, trace.IsBadParameter(err), "expected BadParameter for invalid sub-kind on delete, got %v", err)
+	require.ErrorContains(t, err, "does not support sub-kinds")
+
+	// scope mismatch on delete should return NotFound (token lives at "/", not "/wrong")
+	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_token", "/wrong::test-token"})
+	require.True(t, trace.IsNotFound(err), "expected NotFound for scope mismatch on delete, got %v", err)
 
 	// Get all scoped tokens
 	buff, err := runResourceCommand(t, clt, []string{"get", "scoped_token", "--format=json", "--with-secrets"})
@@ -691,7 +774,7 @@ spec:
 
 	// Wait for cache propagation and verify the update took effect
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
-		buff, err := runResourceCommand(t, clt, []string{"get", "scoped_token/test-token", "--format=json"})
+		buff, err := runResourceCommand(t, clt, []string{"get", "scoped_token", "/::test-token", "--format=json"})
 		require.NoError(t, err)
 		updated, err := services.UnmarshalProtoResourceArray[*joiningv1.ScopedToken](buff.Bytes(), services.DisallowUnknown())
 		require.NoError(t, err)
@@ -702,12 +785,12 @@ spec:
 	}, time.Second*30, time.Millisecond*100, "Timed out waiting for upserted scoped token cache propagation")
 
 	// verify delete of token
-	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_token/test-token"})
+	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_token", "/::test-token"})
 	require.NoError(t, err)
 
 	// wait for delete cache propagation
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
-		_, err = runResourceCommand(t, clt, []string{"get", "scoped_token/test-token", "--format=json"})
+		_, err = runResourceCommand(t, clt, []string{"get", "scoped_token", "/::test-token", "--format=json"})
 		require.True(ct, trace.IsNotFound(err))
 	}, time.Second*30, time.Millisecond*100, "Timed out waiting for scoped token cache propagation")
 
@@ -720,7 +803,7 @@ spec:
 
 	// Wait for cache propagation.
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
-		_, err := runResourceCommand(t, clt, []string{"get", "scoped_token/gcp-test-token", "--format=json"})
+		_, err := runResourceCommand(t, clt, []string{"get", "scoped_token", "/::gcp-test-token", "--format=json"})
 		require.NoError(ct, err)
 	}, time.Second*30, time.Millisecond*100, "Timed out waiting for GCP scoped token cache propagation")
 
@@ -734,6 +817,203 @@ spec:
 	require.Equal(t, "gcp", gcpTokens[0].GetSpec().GetJoinMethod())
 	require.Len(t, gcpTokens[0].GetSpec().GetGcp().GetAllow(), 1)
 	require.Equal(t, []string{"example-project-123456"}, gcpTokens[0].GetSpec().GetGcp().GetAllow()[0].GetProjectIds())
+
+	// Verify scope mismatch: name exists at "/" but a different scope is requested. Must produce
+	// a NotFound error to comply with namespacing behavior. Future iterations may not be able
+	// to provide hints as namespacing may prevent it.
+	_, err = runResourceCommand(t, clt, []string{"get", "scoped_token", "/other-scope::gcp-test-token", "--format=json"})
+	require.True(t, trace.IsNotFound(err), "expected NotFound for scope mismatch, got: %v", err)
+	require.ErrorContains(t, err, "tctl get scoped_token /::gcp-test-token")
+}
+
+// TestScopedAndUnscopedNodeResource exercises tctl get/rm on nodes which are double
+// registered as both a scoped and unscoped resource handler in order to support a
+// mix of scope and classic style interactions. This test is intended specifically
+// to help verify that we are handling double-registration sensibly.
+func TestScopedAndUnscopedNodeResource(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	dynAddr := helpers.NewDynamicServiceAddr(t)
+	fileConfig := &config.FileConfig{
+		Global: config.Global{DataDir: t.TempDir()},
+		Proxy: config.Proxy{
+			Service: config.Service{EnabledFlag: "true"},
+			WebAddr: dynAddr.WebAddr,
+			TunAddr: dynAddr.TunnelAddr,
+		},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: dynAddr.AuthAddr,
+			},
+		},
+	}
+	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
+	clt, err := testenv.NewDefaultAuthClient(auth)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = clt.Close() })
+
+	// classicNode has no explicit scope (scope == "").
+	classicNode, err := types.NewServer("unscoped-node", types.KindNode, types.ServerSpecV2{
+		Hostname: "unscoped-host",
+		Addr:     "127.0.0.1:22",
+	})
+	require.NoError(t, err)
+	_, err = clt.UpsertNode(ctx, classicNode)
+	require.NoError(t, err)
+
+	// scopedNode has scope "/" so SQN lookups with "/::scoped-node" succeed.
+	scopedNode, err := types.NewServer("scoped-node", types.KindNode, types.ServerSpecV2{
+		Hostname: "scoped-host",
+		Addr:     "127.0.0.1:23",
+	})
+	require.NoError(t, err)
+	scopedNode.(*types.ServerV2).Scope = "/staging"
+	_, err = clt.UpsertNode(ctx, scopedNode)
+	require.NoError(t, err)
+
+	// Poll until both nodes appear via the unified-resource list (cache propagation).
+	timeout := time.After(30 * time.Second)
+	for {
+		buf, err := runResourceCommand(t, clt, []string{"get", "node", "--format=json"})
+		if err == nil && strings.Contains(buf.String(), "scoped-node") && strings.Contains(buf.String(), "unscoped-node") {
+			break
+		}
+		select {
+		case <-timeout:
+			require.FailNow(t, "timed out waiting for nodes to appear in list")
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
+
+	t.Run("list all", func(t *testing.T) {
+		buf, err := runResourceCommand(t, clt, []string{"get", "node", "--format=json"})
+		require.NoError(t, err)
+		out := buf.String()
+		require.Contains(t, out, "unscoped-node")
+		require.Contains(t, out, "scoped-node")
+	})
+
+	t.Run("single-arg unscoped get", func(t *testing.T) {
+		buf, err := runResourceCommand(t, clt, []string{"get", "node/unscoped-node", "--format=json"})
+		require.NoError(t, err)
+		require.Contains(t, buf.String(), "unscoped-node")
+	})
+
+	t.Run("two-arg unscoped get", func(t *testing.T) {
+		buf, err := runResourceCommand(t, clt, []string{"get", "node", "unscoped-node", "--format=json"})
+		require.NoError(t, err)
+		require.Contains(t, buf.String(), "unscoped-node")
+	})
+
+	t.Run("scope-qualified get", func(t *testing.T) {
+		buf, err := runResourceCommand(t, clt, []string{"get", "node", "/staging::scoped-node", "--format=json"})
+		require.NoError(t, err)
+		require.Contains(t, buf.String(), "scoped-node")
+	})
+
+	t.Run("scope-qualified get with scope mismatch", func(t *testing.T) {
+		_, err := runResourceCommand(t, clt, []string{"get", "node", "/prod::scoped-node", "--format=json"})
+		require.True(t, trace.IsNotFound(err), "expected NotFound on scope mismatch, got: %v", err)
+	})
+
+	t.Run("scope-qualified delete with scope mismatch", func(t *testing.T) {
+		_, err := runResourceCommand(t, clt, []string{"rm", "node", "/prod::scoped-node"})
+		require.True(t, trace.IsNotFound(err), "expected NotFound on scope mismatch delete, got: %v", err)
+	})
+
+	t.Run("edit via single-arg classic form", func(t *testing.T) {
+		editor := func(name string) error {
+			data, err := os.ReadFile(name)
+			if err != nil {
+				return err
+			}
+			data = bytes.ReplaceAll(data, []byte("unscoped-host"), []byte("unscoped-host-edited"))
+			return os.WriteFile(name, data, 0600)
+		}
+		_, err := runEditCommand(t, clt, []string{"edit", "node/unscoped-node"}, withEditor(editor))
+		require.NoError(t, err)
+
+		timeout := time.After(30 * time.Second)
+		for {
+			node, err := clt.GetNode(ctx, apidefaults.Namespace, "unscoped-node")
+			if err == nil && node.GetHostname() == "unscoped-host-edited" {
+				break
+			}
+			require.NoError(t, err, "unexpected error waiting for unscoped-node edit")
+			select {
+			case <-timeout:
+				require.FailNow(t, "timed out waiting for unscoped-node hostname edit")
+			case <-time.After(100 * time.Millisecond):
+			}
+		}
+	})
+
+	t.Run("edit via two-arg SQN form", func(t *testing.T) {
+		editor := func(name string) error {
+			data, err := os.ReadFile(name)
+			if err != nil {
+				return err
+			}
+			data = bytes.ReplaceAll(data, []byte("scoped-host"), []byte("scoped-host-edited"))
+			return os.WriteFile(name, data, 0600)
+		}
+		_, err := runEditCommand(t, clt, []string{"edit", "node", "/staging::scoped-node"}, withEditor(editor))
+		require.NoError(t, err)
+
+		timeout := time.After(30 * time.Second)
+		for {
+			node, err := clt.GetNode(ctx, apidefaults.Namespace, "scoped-node")
+			if err == nil && node.GetHostname() == "scoped-host-edited" {
+				break
+			}
+			require.NoError(t, err, "unexpected error waiting for scoped-node edit")
+			select {
+			case <-timeout:
+				require.FailNow(t, "timed out waiting for scoped-node hostname edit")
+			case <-time.After(100 * time.Millisecond):
+			}
+		}
+	})
+
+	t.Run("scope-qualified delete", func(t *testing.T) {
+		_, err := runResourceCommand(t, clt, []string{"rm", "node", "/staging::scoped-node"})
+		require.NoError(t, err)
+
+		timeout := time.After(30 * time.Second)
+		for {
+			_, err = clt.GetNode(ctx, apidefaults.Namespace, "scoped-node")
+			if trace.IsNotFound(err) {
+				break
+			}
+			require.NoError(t, err, "unexpected error waiting for scoped-node deletion")
+			select {
+			case <-timeout:
+				require.FailNow(t, "timed out waiting for scoped-node to be deleted")
+			case <-time.After(100 * time.Millisecond):
+			}
+		}
+	})
+
+	t.Run("two-arg unscoped delete", func(t *testing.T) {
+		_, err := runResourceCommand(t, clt, []string{"rm", "node", "unscoped-node"})
+		require.NoError(t, err)
+
+		timeout := time.After(30 * time.Second)
+		for {
+			_, err = clt.GetNode(ctx, apidefaults.Namespace, "unscoped-node")
+			if trace.IsNotFound(err) {
+				break
+			}
+			require.NoError(t, err, "unexpected error waiting for unscoped-node deletion")
+			select {
+			case <-timeout:
+				require.FailNow(t, "timed out waiting for unscoped-node to be deleted")
+			case <-time.After(100 * time.Millisecond):
+			}
+		}
+	})
 }
 
 // TestIntegrationResource tests tctl integration commands.
@@ -3050,6 +3330,92 @@ func TestPluginResourceWrapper(t *testing.T) {
 			err = json.Unmarshal(buff, &item)
 			require.NoError(t, err)
 			require.Empty(t, cmp.Diff(tc.plugin, item.PluginV1))
+		})
+	}
+}
+
+func TestParseScopedRef(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		ref     string
+		id      string
+		want    ScopedRef
+		wantErr bool
+	}{
+		{
+			name: "empty id returns ref unchanged",
+			ref:  "role/myrole",
+			id:   "",
+			want: ScopedRef{Kind: "role", Name: "myrole"},
+		},
+		{
+			name: "bare name, no subkind",
+			ref:  "scoped_role",
+			id:   "myrole",
+			want: ScopedRef{Kind: "scoped_role", Name: "myrole"},
+		},
+		{
+			name: "bare name with subkind promotion",
+			ref:  "scoped_role_assignment/dynamic",
+			id:   "myassignment",
+			want: ScopedRef{Kind: "scoped_role_assignment", SubKind: "dynamic", Name: "myassignment"},
+		},
+		{
+			name: "SQN, no subkind",
+			ref:  "scoped_role",
+			id:   "/staging/west::myrole",
+			want: ScopedRef{Kind: "scoped_role", Scope: "/staging/west", Name: "myrole"},
+		},
+		{
+			name: "SQN with subkind promotion",
+			ref:  "scoped_role_assignment/dynamic",
+			id:   "/staging/west::myassignment",
+			want: ScopedRef{Kind: "scoped_role_assignment", SubKind: "dynamic", Scope: "/staging/west", Name: "myassignment"},
+		},
+		{
+			name: "root scope SQN",
+			ref:  "scoped_token",
+			id:   "/::test-token",
+			want: ScopedRef{Kind: "scoped_token", Scope: "/", Name: "test-token"},
+		},
+		{
+			name:    "three-segment first arg with second arg is an error",
+			ref:     "scoped_role_assignment/dynamic/myassignment",
+			id:      "/staging::extra",
+			wantErr: true,
+		},
+		{
+			name:    "invalid SQN is an error",
+			ref:     "scoped_role",
+			id:      "/staging::my role",
+			wantErr: true,
+		},
+		{
+			name: "scoped token with only name",
+			ref:  "scoped_token",
+			id:   "/test::test-token",
+			want: ScopedRef{Kind: "scoped_token", Scope: "/test", Name: "test-token"},
+		},
+		{
+			name: "scoped token with name and secret",
+			ref:  "scoped_token",
+			id:   "/test::test-token:YzZlYzdlYTg1YTZjZTEwZjVjYjAxMTc3Mjc2NTk3NGY",
+			want: ScopedRef{Kind: "scoped_token", Scope: "/test", Name: "test-token"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := ParseScopedRef(tt.ref, tt.id)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
 		})
 	}
 }

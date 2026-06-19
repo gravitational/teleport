@@ -1045,6 +1045,32 @@ var (
 		ForceSetKind: "apitypes.KindInferencePolicy",
 	}
 
+	classifier = payload{
+		Name:                  "Classifier",
+		VarName:               "classifier",
+		TypeName:              "Classifier",
+		GetMethod:             "SummarizerClient().GetClassifier",
+		CreateMethod:          "SummarizerClient().CreateClassifier",
+		UpdateMethod:          "SummarizerClient().UpsertClassifier",
+		UpsertMethodArity:     2,
+		DeleteMethod:          "SummarizerClient().DeleteClassifier",
+		ID:                    "classifier.Metadata.Name",
+		Kind:                  "classifier",
+		HasStaticID:           false,
+		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1",
+		ProtoPackage:          "summarizerv1",
+		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/summarizer/v1",
+		SchemaPackage:         "schemav1",
+		TerraformResourceType: "teleport_classifier",
+		// Since [RFD 153](https://github.com/gravitational/teleport/blob/master/rfd/0153-resource-guidelines.md)
+		// resources are plain structs
+		IsPlainStruct: true,
+		// As 153-style resources don't have CheckAndSetDefaults, we must set the Kind manually.
+		// We import the package containing kinds, then use ForceSetKind.
+		ExtraImports: []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
+		ForceSetKind: "apitypes.KindClassifier",
+	}
+
 	scopedRole = payload{
 		Name:                  "ScopedRole",
 		TypeName:              "ScopedRole",
@@ -1306,6 +1332,8 @@ func genTFSchema() {
 	generateDataSource(inferenceSecret, pluralDataSource)
 	generateResource(inferencePolicy, pluralResource)
 	generateDataSource(inferencePolicy, pluralDataSource)
+	generateResource(classifier, pluralResource)
+	generateDataSource(classifier, pluralDataSource)
 	generateResource(retrievalModel, singularResource)
 	generateDataSource(retrievalModel, singularDataSource)
 	generateResource(scopedRole, pluralResource)

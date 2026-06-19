@@ -69,7 +69,7 @@ func TestResizeCrop_BeforeServerHello(t *testing.T) {
 
 	s := New()
 	t.Cleanup(s.Release)
-	img, err := s.ResizeCrop(0, 0, 100, 100, 50, 50)
+	img, err := s.ResizeCrop(0, 0, 100, 100, 50, 50, false)
 	require.Error(t, err)
 	require.Nil(t, img)
 }
@@ -97,7 +97,7 @@ func TestResizeCrop_ReturnsCorrectDimensions(t *testing.T) {
 			t.Cleanup(s.Release)
 			require.NoError(t, s.HandleMessage(encodeTDPBServerHello(t, 800, 600)))
 
-			img, err := s.ResizeCrop(tc.cropX, tc.cropY, tc.cropW, tc.cropH, tc.outW, tc.outH)
+			img, err := s.ResizeCrop(tc.cropX, tc.cropY, tc.cropW, tc.cropH, tc.outW, tc.outH, false)
 			require.NoError(t, err)
 			require.NotNil(t, img)
 			require.Equal(t, image.Rect(0, 0, int(tc.outW), int(tc.outH)), img.Bounds())
@@ -117,7 +117,7 @@ func TestResizeCrop_PreservesSolidColor(t *testing.T) {
 	sendPDU(t, s, rdpstatetest.BuildBitmapPDU(0, 0, 100, 100, rdpstatetest.RGB565Red))
 
 	// Crop a 10x10 region from the middle and scale up; every output pixel must still be red.
-	img, err := s.ResizeCrop(45, 45, 10, 10, 50, 50)
+	img, err := s.ResizeCrop(45, 45, 10, 10, 50, 50, false)
 	require.NoError(t, err)
 	require.NotNil(t, img)
 	require.Equal(t, image.Rect(0, 0, 50, 50), img.Bounds())
@@ -155,7 +155,7 @@ func TestResizeCrop_RejectsInvalidInputs(t *testing.T) {
 			t.Cleanup(s.Release)
 			require.NoError(t, s.HandleMessage(encodeTDPBServerHello(t, 100, 100)))
 
-			img, err := s.ResizeCrop(tc.cropX, tc.cropY, tc.cropW, tc.cropH, tc.outW, tc.outH)
+			img, err := s.ResizeCrop(tc.cropX, tc.cropY, tc.cropW, tc.cropH, tc.outW, tc.outH, false)
 			require.Error(t, err)
 			require.Nil(t, img)
 		})

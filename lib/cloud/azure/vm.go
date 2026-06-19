@@ -39,6 +39,9 @@ import (
 // virtual scale set VMs.
 const virtualScaleSetUniformVMResourceType = "virtualMachineScaleSets/virtualMachines"
 
+// runCommandResultPollingFrequency is the time to wait between polling for Azure run-command completion.
+const runCommandResultPollingFrequency = 30 * time.Second
+
 // virtualMachinesLister provides an interface for an Azure virtual machine client.
 type virtualMachinesLister interface {
 	// Get retrieves information about an Azure virtual machine.
@@ -484,6 +487,13 @@ func (c *runCommandClient) Run(ctx context.Context, req RunCommandRequest) (*Run
 	runCommand := armcompute.VirtualMachineRunCommand{
 		Location: to.Ptr(req.Region),
 		Properties: &armcompute.VirtualMachineRunCommandProperties{
+			// NOTE: The AsyncExecution option can be very misleading.
+			// It has no effect on whether BeginCreateOrUpdate blocks.
+			// Instead, it affects poller.PollUntilDone.
+			// If set to true, then calling poller.PollUntilDone will actually
+			// return as soon as the script is "provisioned" even if
+			// the script execution state is still "running".
+			// We always want this option set to false.
 			AsyncExecution: to.Ptr(false),
 			Source: &armcompute.VirtualMachineRunCommandScriptSource{
 				Script: to.Ptr(req.Script),
@@ -521,7 +531,7 @@ func (c *runCommandClient) regularVirtualMachineRunCommand(ctx context.Context, 
 		return nil, trace.Wrap(ConvertResponseError(err))
 	}
 
-	_, err = poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{Frequency: 10 * time.Second})
+	_, err = poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{Frequency: runCommandResultPollingFrequency})
 	if err != nil {
 		return nil, trace.Wrap(ConvertResponseError(err))
 	}
@@ -544,7 +554,7 @@ func (c *runCommandClient) uniformScaleSetVirtualMachineRunCommand(ctx context.C
 		return nil, trace.Wrap(ConvertResponseError(err))
 	}
 
-	_, err = poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{Frequency: 10 * time.Second})
+	_, err = poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{Frequency: runCommandResultPollingFrequency})
 	if err != nil {
 		return nil, trace.Wrap(ConvertResponseError(err))
 	}

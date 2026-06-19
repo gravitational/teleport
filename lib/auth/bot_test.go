@@ -55,6 +55,8 @@ import (
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/api/types/userloginstate"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
@@ -822,7 +824,7 @@ func authClientForRegisterResult(t *testing.T, ctx context.Context, addr *utils.
 	require.NoError(t, err)
 
 	log := logtest.NewLogger()
-	dialer, err := reversetunnelclient.NewTunnelAuthDialer(reversetunnelclient.TunnelAuthDialerConfig{
+	dialer, err := reversetunnelclient.NewAuthDialerThroughProxy(reversetunnelclient.AuthDialerThroughProxyConfig{
 		Resolver:              resolver,
 		ClientConfig:          sshConfig,
 		Log:                   log,
@@ -1158,6 +1160,113 @@ func TestRegisterBotWithInvalidInstanceID(t *testing.T) {
 	require.Equal(t, uint64(1), generation)
 }
 
+// TestRegisterBotWithInvalidUserLoginState ensures bots can register and
+// receive sane certificates even if they have an invalid UserLoginState entry
+// in the backend.
+func TestRegisterBotWithInvalidUserLoginState(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	srv := newTestTLSServer(t)
+	a := srv.Auth()
+
+	botName := "bot"
+	k8sTokenName := "jwks-matching-service-account"
+	a.SetK8sJWKSValidator(func(_ time.Time, _ []byte, _ string, tkn string) (*token.ValidationResult, error) {
+		if tkn == k8sTokenName {
+			return &token.ValidationResult{Username: "system:serviceaccount:static-jwks:matching"}, nil
+		}
+
+		return nil, errMockInvalidToken
+	})
+	token, err := types.NewProvisionTokenFromSpec("static-jwks", time.Now().Add(10*time.Minute), types.ProvisionTokenSpecV2{
+		JoinMethod: types.JoinMethodKubernetes,
+		Roles:      []types.SystemRole{types.RoleBot},
+		BotName:    botName,
+		Kubernetes: &types.ProvisionTokenSpecV2Kubernetes{
+			Type: types.KubernetesJoinTypeStaticJWKS,
+			Allow: []*types.ProvisionTokenSpecV2Kubernetes_Rule{
+				{ServiceAccount: "static-jwks:matching"},
+			},
+			StaticJWKS: &types.ProvisionTokenSpecV2Kubernetes_StaticJWKSConfig{
+				JWKS: "fake-jwks",
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, a.CreateToken(ctx, token))
+
+	roleName := "test-role"
+	_, err = authtest.CreateRole(ctx, a, roleName, types.RoleSpecV6{})
+	require.NoError(t, err)
+
+	_, err = machineidv1.UpsertBot(ctx, a, machineidv1pb.Bot_builder{
+		Kind:    types.KindBot,
+		Version: types.V1,
+		Metadata: headerv1.Metadata_builder{
+			Name: botName,
+		}.Build(),
+		Spec: machineidv1pb.BotSpec_builder{
+			Roles: []string{roleName},
+		}.Build(),
+	}.Build(), a.GetClock().Now(), "", scopes.Features{})
+	require.NoError(t, err)
+
+	client, err := srv.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+
+	// Create an invalid ULS with no labels or roles.
+	_, err = client.UserLoginStateClient().UpsertUserLoginState(ctx, &userloginstate.UserLoginState{
+		ResourceHeader: header.ResourceHeaderFromMetadata(header.Metadata{
+			Name: "bot-" + botName,
+		}),
+		Spec: userloginstate.Spec{},
+	})
+	require.NoError(t, err)
+
+	privateKey, sshPublicKey, err := testauthority.GenerateKeyPair()
+	require.NoError(t, err)
+	sshPrivateKey, err := ssh.ParseRawPrivateKey(privateKey)
+	require.NoError(t, err)
+	tlsPublicKey, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(sshPrivateKey)
+	require.NoError(t, err)
+
+	certs, err := srv.Auth().RegisterUsingToken(ctx, &types.RegisterUsingTokenRequest{
+		Token:        token.GetName(),
+		HostID:       "test-bot",
+		Role:         types.RoleBot,
+		PublicSSHKey: sshPublicKey,
+		PublicTLSKey: tlsPublicKey,
+		IDToken:      k8sTokenName,
+	})
+
+	// Should not generate any errors, especially some variety of "instance not
+	// found" which might indicate improper behavior when encountering a
+	// nonexistent token.
+	require.NoError(t, err)
+
+	// Parse the cert and extract the identity.
+	cert, err := tlsca.ParseCertificatePEM(certs.TLS)
+	require.NoError(t, err)
+	ident, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	require.NoError(t, err)
+
+	// Groups should not be empty - if GetUserOrLoginState() returns the corrupt
+	// ULS, we'd otherwise return unusable certs.
+	require.ElementsMatch(t, []string{"bot-" + botName}, ident.Groups)
+
+	// Delete the bot; it should delete the invalid ULS.
+	_, err = client.BotServiceClient().DeleteBot(ctx, machineidv1pb.DeleteBotRequest_builder{
+		BotName: botName,
+	}.Build())
+	require.NoError(t, err)
+
+	_, err = client.UserLoginStateClient().GetUserLoginState(ctx, "bot-"+botName)
+	require.True(t, trace.IsNotFound(err))
+}
+
 func TestRegisterBotMultipleTokens(t *testing.T) {
 	t.Parallel()
 
@@ -1306,8 +1415,7 @@ func createScopedBot(t *testing.T, srv *authtest.TLSServer, adminClient *authcli
 			SubKind: scopedaccess.SubKindDynamic,
 			Scope:   "/test",
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
-				BotName:  "test-scoped",
-				BotScope: "/test",
+				Bot: scopes.QualifiedName{Scope: "/test", Name: "test-scoped"}.String(),
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{Role: "scoped-example", Scope: "/test"}.Build(),
 				},
@@ -1362,8 +1470,7 @@ func TestRegisterBotWithScopedKubernetesToken(t *testing.T) {
 			JoinMethod: string(types.JoinMethodKubernetes),
 			Roles:      []string{string(types.RoleBot)},
 			UsageMode:  joining.TokenUsageModeBot,
-			BotName:    "test-scoped",
-			BotScope:   "/test",
+			Bot:        scopes.QualifiedName{Scope: "/test", Name: "test-scoped"}.String(),
 			Kubernetes: joiningv1.Kubernetes_builder{
 				Type: string(types.KubernetesJoinTypeStaticJWKS),
 				StaticJwks: joiningv1.Kubernetes_StaticJWKSConfig_builder{

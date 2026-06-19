@@ -1423,11 +1423,11 @@ func TestIdentityService_ListUsers(t *testing.T) {
 
 	// List a few users at a time and validate that all users are eventually returned.
 	var retrieved []*types.UserV2
-	req := userspb.ListUsersRequest{
+	req := userspb.ListUsersRequest_builder{
 		PageSize: 2,
-	}
+	}.Build()
 	for {
-		rsp, err := identity.ListUsers(ctx, &req)
+		rsp, err := identity.ListUsers(ctx, req)
 		require.NoError(t, err, "no error returned when no users exist")
 
 		for _, user := range rsp.GetUsers() {
@@ -1471,12 +1471,12 @@ func TestIdentityService_ListUsers(t *testing.T) {
 
 	// List a few users at a time and validate that all users are eventually returned with their secrets.
 	retrieved = nil
-	req = userspb.ListUsersRequest{
+	req = userspb.ListUsersRequest_builder{
 		PageSize:    2,
 		WithSecrets: true,
-	}
+	}.Build()
 	for {
-		rsp, err := identity.ListUsers(ctx, &req)
+		rsp, err := identity.ListUsers(ctx, req)
 		require.NoError(t, err, "no error returned when no users exist")
 
 		retrieved = append(retrieved, rsp.GetUsers()...)
