@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -593,6 +594,25 @@ func TestAWSConsoleLogins(t *testing.T) {
 		"leaf": append(leafARNs, append(userARNs, rootARNs...)...),
 	} {
 		t.Run(cluster, func(t *testing.T) {
+			listOutput := new(bytes.Buffer)
+			err = Run(
+				context.Background(),
+				[]string{"app", "ls", "--cluster", cluster, "--format", "json"},
+				setOverrideStdout(listOutput), setHomePath(tmpHomePath),
+			)
+			require.NoError(t, err)
+
+			var apps []struct {
+				Metadata struct {
+					Name string `json:"name"`
+				} `json:"metadata"`
+				Logins []string `json:"logins"`
+			}
+			require.NoError(t, json.Unmarshal(listOutput.Bytes(), &apps))
+			require.Len(t, apps, 1)
+			require.Equal(t, "awsconsole", apps[0].Metadata.Name)
+			require.ElementsMatch(t, expectedARNs, apps[0].Logins)
+
 			commandOutput := new(bytes.Buffer)
 			// Don't provide the `--aws-role`. We expect a failure since there
 			// are multiple ARN roles.

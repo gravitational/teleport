@@ -282,6 +282,17 @@ func getARNFromFlags(cf *CLIConf, app types.Application, logins []string) (strin
 	}
 }
 
+func filterAWSAppLoginARNs(app types.Application, logins []string) []string {
+	roles := awsutils.FilterAWSRoles(logins, app.GetAWSAccountID())
+	roles.Sort()
+
+	out := make([]string, 0, len(roles))
+	for _, role := range roles {
+		out = append(out, role.ARN)
+	}
+	return out
+}
+
 // getARNFromRoles fetches the available AWS ARNs logins for given app.
 // If any step of fetching the roles ARNs fail, fallback into returning the
 // profile ARNs.

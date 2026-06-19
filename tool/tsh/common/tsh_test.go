@@ -4781,7 +4781,7 @@ func TestSerializeVersion(t *testing.T) {
 	}
 }
 
-func TestSerializeApps(t *testing.T) {
+func TestSerializeAppListingsWithLogins(t *testing.T) {
 	t.Parallel()
 
 	expected := `
@@ -4789,7 +4789,7 @@ func TestSerializeApps(t *testing.T) {
 		"kind": "app",
 		"version": "v3",
 		"metadata": {
-			"name": "my app",
+			"name": "aws app",
 			"description": "this is the description",
 			"labels": {
 				"a": "1",
@@ -4797,29 +4797,29 @@ func TestSerializeApps(t *testing.T) {
 			}
 		},
 		"spec": {
-			"uri": "https://example.com",
+			"uri": "https://console.aws.amazon.com",
+			"cloud": "AWS",
 			"insecure_skip_verify": false
-		}
+		},
+		"logins": [
+			"arn:aws:iam::123456789012:role/read-only"
+		]
 	}]
 	`
 	app, err := types.NewAppV3(types.Metadata{
-		Name:        "my app",
+		Name:        "aws app",
 		Description: "this is the description",
 		Labels:      map[string]string{"a": "1", "b": "2"},
 	}, types.AppSpecV3{
-		URI: "https://example.com",
+		URI: constants.AWSConsoleURL,
 	})
 	require.NoError(t, err)
+
 	testSerialization(t, expected, func(f string) (string, error) {
-		return serializeApps([]types.Application{app}, f)
-	})
-}
-
-func TestSerializeAppsEmpty(t *testing.T) {
-	t.Parallel()
-
-	testSerialization(t, "[]", func(f string) (string, error) {
-		return serializeApps(nil, f)
+		return serializeAppListingsWithLogins([]appListing{{
+			App:    app,
+			Logins: []string{"arn:aws:iam::123456789012:role/read-only"},
+		}}, f)
 	})
 }
 

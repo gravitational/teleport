@@ -819,6 +819,64 @@ func TestWriteAppTable(t *testing.T) {
 	}
 }
 
+func TestWriteAppTableWithLogins(t *testing.T) {
+	const awsRoleARN = "arn:aws:iam::123456789012:role/read-only"
+
+	appListings := []appListing{
+		appListing{
+			App: mustMakeNewAppV3(t, types.Metadata{Name: "aws-app"}, types.AppSpecV3{
+				PublicAddr: "https://aws-app.example.com",
+				URI:        constants.AWSConsoleURL,
+			}),
+			Logins: []string{awsRoleARN},
+		},
+	}
+
+	tests := []struct {
+		name        string
+		config      appTableConfig
+		wantHeader  string
+		wantValue   string
+		rejectValue string
+	}{
+		{
+			name: "verbose shows logins",
+			config: appTableConfig{
+				verbose: true,
+			},
+			wantHeader: "Logins",
+			wantValue:  awsRoleARN,
+		},
+		{
+			name: "regular list shows logins",
+			config: appTableConfig{
+				verbose: false,
+			},
+			wantHeader: "Logins",
+			wantValue:  "arn:aws:iam:...",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var b bytes.Buffer
+			test.config.includeLogins = true
+			err := writeAppTable(&b, appListings, test.config)
+			require.NoError(t, err)
+
+			if test.wantHeader != "" {
+				require.Contains(t, b.String(), test.wantHeader)
+			}
+			if test.wantValue != "" {
+				require.Contains(t, b.String(), test.wantValue)
+			}
+			if test.rejectValue != "" {
+				require.NotContains(t, b.String(), test.rejectValue)
+			}
+		})
+	}
+}
+
 func mustMakeNewAppV3(t *testing.T, meta types.Metadata, spec types.AppSpecV3) *types.AppV3 {
 	t.Helper()
 	app, err := types.NewAppV3(meta, spec)

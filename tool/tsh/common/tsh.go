@@ -3489,24 +3489,20 @@ func printNodesAsText[T types.Server](output io.Writer, nodes []T, verbose bool)
 	return nil
 }
 
-func showApps(apps []types.Application, active []tlsca.RouteToApp, w io.Writer, format string, verbose bool) error {
+func showApps(appListings []appListing, active []tlsca.RouteToApp, w io.Writer, format string, verbose bool) error {
 	format = strings.ToLower(format)
 	switch format {
 	case teleport.Text, "":
-		appListings := make([]appListing, 0, len(apps))
-		for _, app := range apps {
-			appListings = append(appListings, appListing{App: app})
-		}
-
 		if err := writeAppTable(w, appListings, appTableConfig{
-			listAll: false, // showApps lists apps from a single cluster.
-			active:  active,
-			verbose: verbose,
+			listAll:       false, // showApps lists apps from a single cluster.
+			active:        active,
+			verbose:       verbose,
+			includeLogins: true,
 		}); err != nil {
 			return trace.Wrap(err)
 		}
 	case teleport.JSON, teleport.YAML:
-		out, err := serializeApps(apps, format)
+		out, err := serializeAppListingsWithLogins(appListings, format)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -3519,16 +3515,34 @@ func showApps(apps []types.Application, active []tlsca.RouteToApp, w io.Writer, 
 	return nil
 }
 
-func serializeApps(apps []types.Application, format string) (string, error) {
-	if apps == nil {
-		apps = []types.Application{}
+type appWithLogins struct {
+	*types.AppV3
+	Logins []string `json:"logins,omitempty" yaml:"logins,omitempty"`
+}
+
+func serializeAppListingsWithLogins(appListings []appListing, format string) (string, error) {
+	if appListings == nil {
+		appListings = []appListing{}
 	}
+
+	appsWithLogins := make([]appWithLogins, 0, len(appListings))
+	for _, appListing := range appListings {
+		app, ok := appListing.App.(*types.AppV3)
+		if !ok {
+			return "", trace.BadParameter("unsupported application type %T", appListing.App)
+		}
+		appsWithLogins = append(appsWithLogins, appWithLogins{
+			AppV3:  app,
+			Logins: appListing.Logins,
+		})
+	}
+
 	var out []byte
 	var err error
 	if format == teleport.JSON {
-		out, err = utils.FastMarshalIndent(apps, "", "  ")
+		out, err = utils.FastMarshalIndent(appsWithLogins, "", "  ")
 	} else {
-		out, err = yaml.Marshal(apps)
+		out, err = yaml.Marshal(appsWithLogins)
 	}
 	return string(out), trace.Wrap(err)
 }
@@ -3540,6 +3554,8 @@ type appTableConfig struct {
 	verbose bool
 	// listAll makes the table render two extra columns: Proxy and Cluster.
 	listAll bool
+	// includeLogins makes the table render AWS app login ARNs.
+	includeLogins bool
 }
 
 func writeAppTable(w io.Writer, appListings []appListing, config appTableConfig) error {
@@ -3610,6 +3626,13 @@ func writeAppTable(w io.Writer, appListings []appListing, config appTableConfig)
 		appTableColumn{
 			name: labelsColumn,
 			get:  getLabels,
+		},
+		appTableColumn{
+			name: "Logins",
+			getFromListing: func(listing appListing) string {
+				return listing.GetLogins()
+			},
+			hide: !config.includeLogins,
 		},
 	}
 	columns := slices.DeleteFunc(allColumns, func(column appTableColumn) bool { return column.hide })
@@ -6102,33 +6125,72 @@ func onApps(cf *CLIConf) error {
 	}
 
 	// Get a list of all applications.
-	var apps []types.Application
+	var (
+		apps     []types.Application
+		listings []appListing
+		profile  *client.ProfileStatus
+	)
+
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
 		apps, err = tc.ListApps(cf.Context, nil /* custom filter */)
-		return err
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Retrieve profile to be able to show which apps user is logged into
+		// and to enrich AWS console apps with available role ARN logins.
+		profile, err = tc.ProfileStatus()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Sort by app name.
+		sort.Slice(apps, func(i, j int) bool {
+			return apps[i].GetName() < apps[j].GetName()
+		})
+
+		listings = appListingsFromApps(apps)
+
+		clusterClient, err := tc.ConnectToCluster(cf.Context)
+		if err != nil {
+			logger.DebugContext(cf.Context, "Failed to connect to cluster to enrich AWS app logins", "error", err)
+			return nil
+		}
+		defer clusterClient.Close()
+
+		var accessChecker services.AccessChecker
+		triedAccessChecker := false
+
+		for i := range listings {
+			if !listings[i].App.IsAWSConsole() {
+				continue
+			}
+
+			if !triedAccessChecker {
+				accessChecker, err = services.NewAccessCheckerForRemoteCluster(cf.Context, profile.AccessInfo(), tc.SiteName, clusterClient.AuthClient)
+				if err != nil {
+					logger.DebugContext(cf.Context, "Failed to fetch user roles for AWS app logins", "error", err)
+				}
+				triedAccessChecker = true
+			}
+
+			enrichAppListingWithAWSLogins(cf.Context, &listings[i], accessChecker, profile)
+		}
+
+		return nil
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// Retrieve profile to be able to show which apps user is logged into.
-	profile, err := tc.ProfileStatus()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Sort by app name.
-	sort.Slice(apps, func(i, j int) bool {
-		return apps[i].GetName() < apps[j].GetName()
-	})
-
-	return trace.Wrap(showApps(apps, profile.Apps, cf.Stdout(), cf.Format, cf.Verbose))
+	return trace.Wrap(showApps(listings, profile.Apps, cf.Stdout(), cf.Format, cf.Verbose))
 }
 
 type appListing struct {
 	Proxy   string            `json:"proxy"`
 	Cluster string            `json:"cluster"`
 	App     types.Application `json:"app"`
+	Logins  []string          `json:"logins,omitempty"`
 }
 
 func (al appListing) GetProxy() string {
@@ -6137,6 +6199,39 @@ func (al appListing) GetProxy() string {
 
 func (al appListing) GetCluster() string {
 	return al.Cluster
+}
+
+func (al appListing) GetLogins() string {
+	return strings.Join(al.Logins, ",")
+}
+
+func appListingsFromApps(apps []types.Application) []appListing {
+	listings := make([]appListing, 0, len(apps))
+	for _, app := range apps {
+		listings = append(listings, appListing{App: app})
+	}
+	return listings
+}
+
+func enrichAppListingWithAWSLogins(ctx context.Context, appListing *appListing, accessChecker services.AccessChecker, profile *client.ProfileStatus) {
+	if profile == nil {
+		return
+	}
+
+	app := appListing.App
+	logins := profile.AWSRolesARNs
+
+	if accessChecker != nil {
+		var err error
+		logins, err = accessChecker.GetAllowedLoginsForResource(app)
+		if err != nil {
+			logger.DebugContext(ctx, "Failed to fetch AWS app logins", "app", app.GetName(), "error", err)
+			// fallback to using the logins from the profile if accessChecker fails.
+			logins = profile.AWSRolesARNs
+		}
+	}
+
+	appListing.Logins = filterAWSAppLoginARNs(app, logins)
 }
 
 type appListings []appListing
