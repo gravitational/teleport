@@ -1744,13 +1744,13 @@ func (ap mockAccessPoint) GetCertAuthority(ctx context.Context, id types.CertAut
 
 func (ap mockAccessPoint) GetScopedRole(ctx context.Context, req *scopedaccessv1.GetScopedRoleRequest) (*scopedaccessv1.GetScopedRoleResponse, error) {
 	if role, ok := ap.scopedRoles[req.GetName()]; ok {
-		return &scopedaccessv1.GetScopedRoleResponse{Role: role}, nil
+		return scopedaccessv1.GetScopedRoleResponse_builder{Role: role}.Build(), nil
 	}
 	return nil, trace.NotFound("role %q not found", req.GetName())
 }
 
 func (ap mockAccessPoint) ListScopedRoles(ctx context.Context, req *scopedaccessv1.ListScopedRolesRequest) (*scopedaccessv1.ListScopedRolesResponse, error) {
-	return &scopedaccessv1.ListScopedRolesResponse{Roles: slices.Collect(maps.Values(ap.scopedRoles))}, nil
+	return scopedaccessv1.ListScopedRolesResponse_builder{Roles: slices.Collect(maps.Values(ap.scopedRoles))}.Build(), nil
 }
 
 type mockRevTunnel struct {

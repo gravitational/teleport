@@ -2518,12 +2518,12 @@ func TestResourceService_ListWorkloadIdentities(t *testing.T) {
 		}
 		require.NotEmpty(t, want)
 
-		res, err := client.ListWorkloadIdentitiesV2(ctx, &workloadidentityv1pb.ListWorkloadIdentitiesV2Request{
+		res, err := client.ListWorkloadIdentitiesV2(ctx, workloadidentityv1pb.ListWorkloadIdentitiesV2Request_builder{
 			FilterSearchTerm: "test/1",
-		})
+		}.Build())
 		require.NoError(t, err)
-		require.Len(t, res.WorkloadIdentities, len(want))
-		for _, wi := range res.WorkloadIdentities {
+		require.Len(t, res.GetWorkloadIdentities(), len(want))
+		for _, wi := range res.GetWorkloadIdentities() {
 			require.Contains(t, wi.GetSpec().GetSpiffe().GetId(), "/test/1/")
 		}
 	})

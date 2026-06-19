@@ -2569,13 +2569,13 @@ func TestScopedGetClusterNetworkingConfig(t *testing.T) {
 			scopedAuthorizer: scopedAuthorizerFunc(func(ctx context.Context) (*authz.ScopedContext, error) {
 				// we setup a full scoped checker context to make sure that we're evaluating scoped access rules
 				// and determining that VerbRead is not permitted for KindClusterName
-				checkerCtx, err := services.NewScopedAccessCheckerContextForAgentPin(&scopesv1.Pin{
+				checkerCtx, err := services.NewScopedAccessCheckerContextForAgentPin(scopesv1.Pin_builder{
 					Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
 					Scope: scope,
-					SystemRoles: &scopesv1.SystemRoles{
+					SystemRoles: scopesv1.SystemRoles_builder{
 						Primary: string(systemRole),
-					},
-				}, map[string]*services.ScopedAccessChecker{
+					}.Build(),
+				}.Build(), map[string]*services.ScopedAccessChecker{
 					string(systemRole): services.NewScopedAccessCheckerFromUnscoped(noopChecker{}),
 				})
 				if err != nil {
@@ -2600,13 +2600,13 @@ func TestScopedGetClusterNetworkingConfig(t *testing.T) {
 				checker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
 					Roles: []string{string(systemRole)},
 				}, clusterName, roleSet)
-				checkerCtx, err := services.NewScopedAccessCheckerContextForAgentPin(&scopesv1.Pin{
+				checkerCtx, err := services.NewScopedAccessCheckerContextForAgentPin(scopesv1.Pin_builder{
 					Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
 					Scope: scope,
-					SystemRoles: &scopesv1.SystemRoles{
+					SystemRoles: scopesv1.SystemRoles_builder{
 						Primary: string(systemRole),
-					},
-				}, map[string]*services.ScopedAccessChecker{
+					}.Build(),
+				}.Build(), map[string]*services.ScopedAccessChecker{
 					string(systemRole): services.NewScopedAccessCheckerForSystemRole(string(systemRole), checker),
 				})
 				if err != nil {
@@ -2666,13 +2666,13 @@ func TestScopedGetClusterName(t *testing.T) {
 			scopedAuthorizer: scopedAuthorizerFunc(func(ctx context.Context) (*authz.ScopedContext, error) {
 				// we setup a full scoped checker context to make sure that we're evaluating scoped access rules
 				// and determining that VerbRead is not permitted for KindClusterName
-				checkerCtx, err := services.NewScopedAccessCheckerContextForAgentPin(&scopesv1.Pin{
+				checkerCtx, err := services.NewScopedAccessCheckerContextForAgentPin(scopesv1.Pin_builder{
 					Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
 					Scope: scope,
-					SystemRoles: &scopesv1.SystemRoles{
+					SystemRoles: scopesv1.SystemRoles_builder{
 						Primary: string(systemRole),
-					},
-				}, map[string]*services.ScopedAccessChecker{
+					}.Build(),
+				}.Build(), map[string]*services.ScopedAccessChecker{
 					string(systemRole): services.NewScopedAccessCheckerFromUnscoped(noopChecker{}),
 				})
 				if err != nil {
@@ -2697,13 +2697,13 @@ func TestScopedGetClusterName(t *testing.T) {
 				checker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
 					Roles: []string{string(systemRole)},
 				}, defaultCN.GetClusterName(), roleSet)
-				checkerCtx, err := services.NewScopedAccessCheckerContextForAgentPin(&scopesv1.Pin{
+				checkerCtx, err := services.NewScopedAccessCheckerContextForAgentPin(scopesv1.Pin_builder{
 					Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
 					Scope: scope,
-					SystemRoles: &scopesv1.SystemRoles{
+					SystemRoles: scopesv1.SystemRoles_builder{
 						Primary: string(systemRole),
-					},
-				}, map[string]*services.ScopedAccessChecker{
+					}.Build(),
+				}.Build(), map[string]*services.ScopedAccessChecker{
 					string(systemRole): services.NewScopedAccessCheckerForSystemRole(string(systemRole), checker),
 				})
 				if err != nil {

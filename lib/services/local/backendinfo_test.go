@@ -23,7 +23,6 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -58,7 +57,7 @@ func TestAutoInfoServiceCRUD(t *testing.T) {
 	created, err := service.CreateBackendInfo(ctx, info)
 	require.NoError(t, err)
 	diff := cmp.Diff(info, created,
-		cmpopts.IgnoreFields(headerv1.Metadata{}, "Revision"),
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 		protocmp.Transform(),
 	)
 	require.Empty(t, diff)
@@ -67,7 +66,7 @@ func TestAutoInfoServiceCRUD(t *testing.T) {
 	got, err := service.GetBackendInfo(ctx)
 	require.NoError(t, err)
 	diff = cmp.Diff(info, got,
-		cmpopts.IgnoreFields(headerv1.Metadata{}, "Revision"),
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 		protocmp.Transform(),
 	)
 	require.Empty(t, diff)

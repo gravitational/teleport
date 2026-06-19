@@ -371,6 +371,117 @@ func TestSubCAService_GetDeleteNotFoundError(t *testing.T) {
 	})
 }
 
+func TestSubCAService_ConditionalDeleteCertAuthorityOverride(t *testing.T) {
+	t.Parallel()
+
+	const caType = types.DatabaseClientCA
+	const caTypeOther = types.WindowsCA
+	env := subcaenv.New(t, subcaenv.EnvParams{
+		CATypesToCreate: []types.CertAuthType{caType},
+	})
+	service := env.SubCA
+
+	// Create CA override "rev1".
+	caOverride := env.NewOverrideForCAType(t, caType)
+	caOverride.GetMetadata().SetDescription("rev1")
+	caOverride.GetSpec().SetCertificateOverrides(nil) // not needed for this test
+	caOverride1, err := service.CreateCertAuthorityOverride(t.Context(), caOverride)
+	require.NoError(t, err)
+	rev1 := caOverride1.GetMetadata().GetRevision()
+
+	// "rev2" (current).
+	caOverride.GetMetadata().SetDescription("rev2")
+	caOverride.GetMetadata().SetRevision(rev1)
+	caOverride2, err := service.UpdateCertAuthorityOverride(t.Context(), caOverride)
+	require.NoError(t, err)
+	rev2 := caOverride2.GetMetadata().GetRevision()
+
+	validID := local.CertAuthorityOverrideIDFromResource(caOverride)
+
+	tests := []struct {
+		name        string
+		id          local.CertAuthorityOverrideID
+		revision    string
+		wantErr     string
+		wantErrType any
+	}{
+		{
+			name:     "id empty",
+			revision: rev2,
+			wantErr:  "clusterName required",
+		},
+		{
+			name: "id.ClusterName empty",
+			id: func() local.CertAuthorityOverrideID {
+				id := validID
+				id.ClusterName = ""
+				return id
+			}(),
+			revision: rev2,
+			wantErr:  "clusterName required",
+		},
+		{
+			name: "id.CAType empty",
+			id: func() local.CertAuthorityOverrideID {
+				id := validID
+				id.CAType = ""
+				return id
+			}(),
+			revision: rev2,
+			wantErr:  "caType required",
+		},
+		{
+			name: "CA override not found",
+			id: func() local.CertAuthorityOverrideID {
+				id := validID
+				id.CAType = string(caTypeOther)
+				return id
+			}(),
+			revision:    rev2,
+			wantErr:     "does not exist or revision does not match",
+			wantErrType: new(*trace.CompareFailedError),
+		},
+		{
+			name:    "revision empty",
+			id:      validID,
+			wantErr: "revision required",
+		},
+		{
+			name:        "revision not found",
+			id:          validID,
+			revision:    rev1, // current revision is rev2
+			wantErr:     "does not exist or revision does not match",
+			wantErrType: new(*trace.CompareFailedError),
+		},
+		{
+			name:     "ok",
+			id:       validID,
+			revision: rev2,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := service.ConditionalDeleteCertAuthorityOverride(t.Context(), test.id, test.revision)
+			if test.wantErr != "" {
+				assert.ErrorContains(t, err, test.wantErr, "ConditionalDeleteCertAuthorityOverride error mismatch")
+			}
+			if test.wantErrType != nil {
+				assert.ErrorAs(t, err, test.wantErrType, "ConditionalDeleteCertAuthorityOverride error type mismatch")
+			}
+			if test.wantErr != "" || test.wantErrType != nil {
+				return // Asserted above.
+			}
+			require.NoError(t, err)
+
+			// Verify successful deletion.
+			_, err = service.GetCertAuthorityOverride(t.Context(), test.id)
+			assert.ErrorAs(t, err, new(*trace.NotFoundError), "Get error mismatch after ConditionalDelete")
+		})
+	}
+}
+
 func TestCreateResource_CertAuthorityOverride(t *testing.T) {
 	t.Parallel()
 

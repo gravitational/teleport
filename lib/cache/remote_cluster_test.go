@@ -178,9 +178,9 @@ func TestTunnelConnections(t *testing.T) {
 		require.Len(t, all, 20)
 
 		// Filter by cluster name should only return matching tunnel connections.
-		filtered, next, err := p.cache.ListTunnelConnections(ctx, 0, "", &trustpb.ListTunnelConnectionsFilter{
+		filtered, next, err := p.cache.ListTunnelConnections(ctx, 0, "", trustpb.ListTunnelConnectionsFilter_builder{
 			ClusterName: clusterName,
-		})
+		}.Build())
 		require.NoError(t, err)
 		require.Empty(t, next)
 		require.Len(t, filtered, 17)
@@ -188,9 +188,9 @@ func TestTunnelConnections(t *testing.T) {
 			require.Equal(t, clusterName, tc.GetClusterName())
 		}
 
-		filtered, next, err = p.cache.ListTunnelConnections(ctx, 0, "", &trustpb.ListTunnelConnectionsFilter{
+		filtered, next, err = p.cache.ListTunnelConnections(ctx, 0, "", trustpb.ListTunnelConnectionsFilter_builder{
 			ClusterName: "other-cluster",
-		})
+		}.Build())
 		require.NoError(t, err)
 		require.Empty(t, next)
 		require.Len(t, filtered, 3)
@@ -199,9 +199,9 @@ func TestTunnelConnections(t *testing.T) {
 		}
 
 		// Filter for a cluster with no tunnel connections.
-		filtered, next, err = p.cache.ListTunnelConnections(ctx, 0, "", &trustpb.ListTunnelConnectionsFilter{
+		filtered, next, err = p.cache.ListTunnelConnections(ctx, 0, "", trustpb.ListTunnelConnectionsFilter_builder{
 			ClusterName: "does-not-exist",
-		})
+		}.Build())
 		require.NoError(t, err)
 		require.Empty(t, next)
 		require.Empty(t, filtered)
@@ -211,9 +211,9 @@ func TestTunnelConnections(t *testing.T) {
 		pageToken = ""
 		pages := 0
 		for {
-			page, next, err := p.cache.ListTunnelConnections(ctx, 5, pageToken, &trustpb.ListTunnelConnectionsFilter{
+			page, next, err := p.cache.ListTunnelConnections(ctx, 5, pageToken, trustpb.ListTunnelConnectionsFilter_builder{
 				ClusterName: clusterName,
-			})
+			}.Build())
 			require.NoError(t, err)
 			require.LessOrEqual(t, len(page), 5)
 			pages++

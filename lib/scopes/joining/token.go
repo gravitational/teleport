@@ -19,6 +19,7 @@ package joining
 import (
 	"cmp"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
 	"net/url"
@@ -402,6 +403,8 @@ func StrongValidateToken(token *joiningv1.ScopedToken) error {
 	}
 	if name := token.GetMetadata().GetName(); name == "" {
 		return trace.BadParameter("missing name")
+	} else if strings.Contains(name, ":") {
+		return trace.BadParameter("scoped token names cannot contain colons")
 	}
 
 	if token.GetScope() == "" {
@@ -975,4 +978,28 @@ func HashImmutableLabels(labels *joiningv1.ImmutableLabels) string {
 func VerifyImmutableLabelsHash(labels *joiningv1.ImmutableLabels, hash string) bool {
 	newHash := HashImmutableLabels(labels)
 	return newHash == hash
+}
+
+const tokenNameAndSecretSeparator = ":"
+
+// EncodeScopedToken combines a token name and secret into a single encoded value. The encoded
+// tokens are used when providing tokens externally to end users to ease UX.
+func EncodeScopedToken(name, secret string) string {
+	return name + tokenNameAndSecretSeparator + base64.RawURLEncoding.EncodeToString([]byte(secret))
+}
+
+// DecodeScopedToken produces a token name and secret from an encoded value. If the token
+// is not encoded the return value is token, "", false.
+func DecodeScopedToken(token string) (name string, secret string, ok bool) {
+	name, base64Secret, ok := strings.Cut(token, tokenNameAndSecretSeparator)
+	if !ok {
+		return token, "", false
+	}
+
+	s, err := base64.RawURLEncoding.DecodeString(base64Secret)
+	if err != nil {
+		return token, "", false
+	}
+
+	return name, string(s), true
 }

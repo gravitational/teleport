@@ -260,7 +260,11 @@ func TestX11ForwardingNotInClassicRole(t *testing.T) {
 	t.Parallel()
 
 	sr := baseScopedRole()
-	sr.GetSpec().GetSsh().PermitX11Forwarding = ptr(true)
+	if x := ptr(true); x != nil {
+		sr.GetSpec().GetSsh().SetPermitX11Forwarding(*x)
+	} else {
+		sr.GetSpec().GetSsh().ClearPermitX11Forwarding()
+	}
 
 	role, err := ScopedRoleToRole(sr, "/foo/bar")
 	require.NoError(t, err)
@@ -271,7 +275,11 @@ func TestForwardAgentNotInClassicRole(t *testing.T) {
 	t.Parallel()
 
 	sr := baseScopedRole()
-	sr.GetSpec().GetSsh().ForwardAgent = ptr(true)
+	if x := ptr(true); x != nil {
+		sr.GetSpec().GetSsh().SetForwardAgent(*x)
+	} else {
+		sr.GetSpec().GetSsh().ClearForwardAgent()
+	}
 
 	role, err := ScopedRoleToRole(sr, "/foo/bar")
 	require.NoError(t, err)
@@ -282,7 +290,11 @@ func TestMaxSessionsNotInClassicRole(t *testing.T) {
 	t.Parallel()
 
 	sr := baseScopedRole()
-	sr.GetSpec().GetSsh().MaxSessions = ptr(int64(10))
+	if x := ptr(int64(10)); x != nil {
+		sr.GetSpec().GetSsh().SetMaxSessions(*x)
+	} else {
+		sr.GetSpec().GetSsh().ClearMaxSessions()
+	}
 
 	role, err := ScopedRoleToRole(sr, "/foo/bar")
 	require.NoError(t, err)
@@ -320,7 +332,11 @@ func TestSSHFileCopyNotInClassicRole(t *testing.T) {
 	t.Parallel()
 
 	sr := baseScopedRole()
-	sr.GetSpec().GetSsh().FileCopy = ptr(false)
+	if x := ptr(false); x != nil {
+		sr.GetSpec().GetSsh().SetFileCopy(*x)
+	} else {
+		sr.GetSpec().GetSsh().ClearFileCopy()
+	}
 
 	role, err := ScopedRoleToRole(sr, "/foo/bar")
 	require.NoError(t, err)
@@ -346,7 +362,11 @@ func TestDisconnectExpiredCertNotInClassicRole(t *testing.T) {
 	t.Parallel()
 
 	sr := baseScopedRole()
-	sr.GetSpec().GetSsh().DisconnectExpiredCert = ptr(true)
+	if x := ptr(true); x != nil {
+		sr.GetSpec().GetSsh().SetDisconnectExpiredCert(*x)
+	} else {
+		sr.GetSpec().GetSsh().ClearDisconnectExpiredCert()
+	}
 
 	role, err := ScopedRoleToRole(sr, "/foo/bar")
 	require.NoError(t, err)
