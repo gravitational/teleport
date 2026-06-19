@@ -486,5 +486,3 @@ func TestFilterFailures(t *testing.T) {
 	require.Equal(t, "i-fail", got[0].AWS.InstanceID)
 	require.Equal(t, "i-task", got[1].AWS.InstanceID)
 }
-
-// todo (mpm) see if we need to add tests for new node client, discovery calls

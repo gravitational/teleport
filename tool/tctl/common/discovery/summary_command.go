@@ -37,7 +37,7 @@ type summaryArgs struct {
 }
 
 func (s *summaryArgs) initSummary(app *kingpin.CmdClause) {
-	summaryCmd := app.Command("summary", "") //todo (mpm) get summary help message
+	summaryCmd := app.Command("summary", "Summarize discovery configurations and their enrollment progress grouped by cloud integration.")
 
 	summaryCmd.Flag("format", "Output format.").
 		Default(teleport.Text).
@@ -45,9 +45,9 @@ func (s *summaryArgs) initSummary(app *kingpin.CmdClause) {
 	summaryCmd.Flag("cloud", "Comma-separated list of cloud providers to include (allowed: aws, azure). Empty (default) returns all.").
 		Default("").
 		StringVar(&s.cloudFilter)
-	summaryCmd.Flag("integration", "").
+	summaryCmd.Flag("integration", "Filter results to a single cloud integration by name (e.g. my-aws-integration). Empty (default) returns all.").
 		Default("").
-		StringVar(&s.integration) //todo (mpm) get integration help message
+		StringVar(&s.integration)
 
 	s.cmd = summaryCmd
 }
