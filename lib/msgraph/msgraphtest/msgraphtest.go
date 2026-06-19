@@ -40,9 +40,10 @@ type Server struct {
 	TLSServer *httptest.Server
 	Storage   *Storage
 
-	MonkeyPatch struct {
-		HandleListUsersDelta  func(w http.ResponseWriter, r *http.Request)
-		HandleListGroupsDelta func(w http.ResponseWriter, r *http.Request)
+	monkeyPatchMu sync.RWMutex
+	monkeyPatch   struct {
+		handleListUsersDelta  func(w http.ResponseWriter, r *http.Request)
+		handleListGroupsDelta func(w http.ResponseWriter, r *http.Request)
 	}
 }
 
@@ -88,6 +89,20 @@ func (s *Server) Handler() http.Handler {
 	return r
 }
 
+// SetHandleListUsersDelta monkey patches user delta API handler.
+func (s *Server) SetHandleListUsersDelta(fn func(w http.ResponseWriter, r *http.Request)) {
+	s.monkeyPatchMu.Lock()
+	defer s.monkeyPatchMu.Unlock()
+	s.monkeyPatch.handleListUsersDelta = fn
+}
+
+// SetHandleListGroupsDelta monkey patches group delta API handler.
+func (s *Server) SetHandleListGroupsDelta(fn func(w http.ResponseWriter, r *http.Request)) {
+	s.monkeyPatchMu.Lock()
+	defer s.monkeyPatchMu.Unlock()
+	s.monkeyPatch.handleListGroupsDelta = fn
+}
+
 func (s *Server) handleListUsers(w http.ResponseWriter, r *http.Request) {
 	s.mu.RLock()
 	users := make([]*models.User, 0, len(s.Storage.Users))
@@ -108,8 +123,12 @@ func (s *Server) handleListUsers(w http.ResponseWriter, r *http.Request) {
 // increments delta token counter by one and responds with the
 // new delta token.
 func (s *Server) handleListUsersDelta(w http.ResponseWriter, r *http.Request) {
-	if s.MonkeyPatch.HandleListUsersDelta != nil {
-		s.MonkeyPatch.HandleListUsersDelta(w, r)
+	s.monkeyPatchMu.RLock()
+	fn := s.monkeyPatch.handleListUsersDelta
+	s.monkeyPatchMu.RUnlock()
+
+	if fn != nil {
+		fn(w, r)
 		return
 	}
 
@@ -174,10 +193,15 @@ func (s *Server) handleListGroups(w http.ResponseWriter, r *http.Request) {
 // increments delta token counter by one and responds with the
 // new delta token.
 func (s *Server) handleListGroupsDelta(w http.ResponseWriter, r *http.Request) {
-	if s.MonkeyPatch.HandleListGroupsDelta != nil {
-		s.MonkeyPatch.HandleListGroupsDelta(w, r)
+	s.monkeyPatchMu.RLock()
+	fn := s.monkeyPatch.handleListGroupsDelta
+	s.monkeyPatchMu.RUnlock()
+
+	if fn != nil {
+		fn(w, r)
 		return
 	}
+
 	s.ListGroupsDelta(w, r)
 }
 
