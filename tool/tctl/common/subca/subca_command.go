@@ -455,7 +455,7 @@ func (c *createOverrideCommand) Run(
 	}
 	defer closeFn(ctx)
 
-	_, err = authClient.SubCAClient().AddCertificateOverride(ctx, &subcav1.AddCertificateOverrideRequest{
+	_, err = authClient.SubCAClient().AddCertificateOverride(ctx, subcav1.AddCertificateOverrideRequest_builder{
 		CaId: subcav1.CertAuthorityOverrideID_builder{
 			CaType: caType,
 		}.Build(),
@@ -466,7 +466,7 @@ func (c *createOverrideCommand) Run(
 			Disabled:    c.disabled,
 		}.Build(),
 		ForceImmediateDisable: c.force,
-	})
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err, "create certificate override")
 	}
