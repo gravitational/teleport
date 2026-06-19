@@ -1,0 +1,175 @@
+# This workflow triggers Antithesis runs
+name: Antithesis trigger
+
+on:
+  workflow_dispatch:
+    inputs:
+      sut:
+        description: "SUT name"
+        required: true
+        default: "example"
+        type: choice
+        options:
+          - example
+      ref:
+        description: "Git ref to build (SHA, tag, or branch)"
+        required: false
+        default: ""
+      notebook_name:
+        description: "Antithesis notebook to run"
+        required: false
+        default: "teleport"
+      description:
+        description: "Description shown in report headers"
+        required: false
+        default: ""
+      email_recipients:
+        description: "Semicolon-separated list of report recipients"
+        required: false
+        default: ""
+      antithesis_duration:
+        description: "Antithesis simulation duration in minutes"
+        required: false
+        default: 60
+      additional_parameters:
+        description: "Newline-separated extra parameters (key=value)"
+        required: false
+        default: ""
+
+  schedule:
+    - cron: '0 3 * * 1-5'
+
+env:
+  ANTITHESIS_TENANT: teleport
+  ANTITHESIS_LAUNCHER: teleport
+
+jobs:
+  params:
+    name: Resolve build parameters
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.resolve.outputs.matrix }}
+    steps:
+      - name: Resolve params
+        id: resolve
+        run: |
+          EVENT="${{ github.event_name }}"
+
+          if [[ "$EVENT" == "schedule" ]]; then
+            # All SUTs for all release branches when running on schedule. This can be tweaked in the future.
+            MATRIX=$(jq -cn '
+              {
+                include: [
+                  { sut: "example", ref: "master" },
+                  { sut: "example", ref: "branch/v18" }
+                  { sut: "example", ref: "branch/v17" },
+                ]
+              }
+            ')
+          else
+            # workflow_dispatch: single SUT at the specified ref
+            REF="${{ inputs.ref }}"
+            [[ -z "$REF" ]] && REF="${{ github.ref }}"
+            MATRIX=$(jq -cn \
+              --arg sut "${{ inputs.sut }}" \
+              --arg ref "$REF" \
+              '{include: [{sut: $sut, ref: $ref}]}')
+          fi
+
+          echo "matrix=${MATRIX}" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build ${{ matrix.sut }} @ ${{ matrix.ref }}
+    needs: params
+    runs-on: ubuntu-22.04-16core
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.params.outputs.matrix) }}
+    env:
+      SUT: ${{ matrix.sut }}
+      REGISTRY: ${{ secrets.ANTITHESIS_REGISTRY }}
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - name: Checkout Teleport
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ matrix.ref }}
+          submodules: true
+
+      - name: Compute tag
+        id: tag
+        run: |
+          TAG=$(git rev-parse --short HEAD)
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v3.0.0
+        with:
+          driver: docker
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.ANTITHESIS_GCP_SA_KEY }}
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ secrets.ANTITHESIS_REGISTRY_HOST }} --quiet
+
+      - name: Build and push all images
+        working-directory: e/tests/antithesis
+        run: |
+          make build-all build-config \
+            SUT="${SUT}" \
+            REGISTRY="${REGISTRY}" \
+            TAG="${{ steps.tag.outputs.tag }}" \
+            PUSH=1
+
+  trigger:
+    name: Trigger ${{ matrix.sut }} @ ${{ matrix.ref }}
+    needs: [params, build]
+    runs-on: ubuntu-latest
+    permissions:
+      statuses: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.params.outputs.matrix) }}
+    env:
+      SUT: ${{ matrix.sut }}
+    steps:
+      - name: Checkout Teleport
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ matrix.ref }}
+          submodules: true
+
+      - name: Resolve image references
+        id: images
+        run: |
+          source e/tests/antithesis/.env 2>/dev/null || true
+          source e/tests/antithesis/sut/${SUT}/.env
+          source e/tests/antithesis/sut/${SUT}/images.sh
+
+      - name: Trigger Antithesis run
+        uses: antithesishq/antithesis-trigger-action@v0.5
+        with:
+          notebook_name: teleport
+          tenant: teleport
+          username: ${{ secrets.ANTITHESIS_USERNAME }}
+          password: ${{ secrets.ANTITHESIS_PASSWORD }}
+          github_token: ${{ secrets.ANTITHESIS_GHA_PAT }}
+          config_image: ${{ steps.images.outputs.config_image }}
+          images: ${{ steps.images.outputs.images }}
+          description: >-
+            ${{ inputs.description
+                || format('{0} {1} @ {2} ({3})',
+                     matrix.sut, matrix.ref,
+                     needs.build.outputs.tag,
+                     github.event_name == 'schedule' && 'nightly' || 'manual') }}
+          email_recipients: ${{ inputs.email_recipients }}
+          test_name: teleport-${{ matrix.sut }}-${{ matrix.ref }}
+          additional_parameters: |
+            antithesis.duration=${{ inputs.antithesis_duration || 60 }}
+            ${{ inputs.additional_parameters }}
