@@ -162,7 +162,11 @@ type CompiledRule struct {
 
 // compiledHint is a parsed deny hint.
 type compiledHint struct {
-	on         predicate
+	on predicate
+	// decode is the hint's own decode config, read from the path.match calls in
+	// its on predicate, so the hint tokenizes the path the same way its matches
+	// expect.
+	decode     DecodeConfig
 	denyCode   string
 	denyReason string
 }
@@ -291,7 +295,11 @@ func (r Rule) compileDenyHints() ([]compiledHint, error) {
 		if err := validateLiterals(on); err != nil {
 			return nil, trace.Wrap(err, "deny_hint %d", i)
 		}
-		hints = append(hints, compiledHint{on: onPred, denyCode: h.DenyCode, denyReason: h.DenyReason})
+		decode, err := extractDecodeConfig(on)
+		if err != nil {
+			return nil, trace.Wrap(err, "deny_hint %d", i)
+		}
+		hints = append(hints, compiledHint{on: onPred, decode: decode, denyCode: h.DenyCode, denyReason: h.DenyReason})
 	}
 	return hints, nil
 }
@@ -542,15 +550,16 @@ func constructorSource(name, lead string, children []*Node) string {
 // the rule's allow_code; on a deny it carries every deny hint whose territory
 // matched.
 func (c *CompiledRule) Evaluate(request Request, identity Identity) (Decision, error) {
-	e := newEnv(request, identity)
+	e := newEnv(request, identity, c.decode)
 	allowed, err := c.pred.Evaluate(e)
 	if err != nil {
 		return Decision{}, trace.Wrap(err)
 	}
-	// A read of a capture the matcher did not bind on this request forces the
-	// rule to no-match, so an unbound capture can only deny, never widen, no
-	// matter which operator read it.
-	if allowed && !e.state.unboundRead {
+	// A read of a capture the matcher did not bind, or a path the rule's decode
+	// could not tokenize, forces the rule to no-match. Both can only deny, never
+	// widen, no matter which operator read them, so an unbound capture or an
+	// unreadable path fails closed even behind a negation.
+	if allowed && !e.state.unboundRead && !e.state.tokenizeFailed {
 		return Decision{
 			Allowed: true,
 			Allow:   &AllowDetails{Vars: e.vars, Code: c.allowCode, Reason: c.allowReason},
@@ -559,7 +568,7 @@ func (c *CompiledRule) Evaluate(request Request, identity Identity) (Decision, e
 
 	var fired []Hint
 	for _, h := range c.denyHints {
-		ok, err := evalPredicate(h.on, request, identity)
+		ok, err := evalPredicate(h.on, request, identity, h.decode)
 		if err != nil {
 			return Decision{}, trace.Wrap(err)
 		}
@@ -570,27 +579,29 @@ func (c *CompiledRule) Evaluate(request Request, identity Identity) (Decision, e
 	return Decision{Deny: &DenyDetails{Kind: DenyNotAllowed, Hints: fired}}, nil
 }
 
-// newEnv builds a fresh evaluation environment for one request. Decoding is no
-// longer carried on the environment: each path.match call builds its own decode
-// config from the options it carries.
-func newEnv(request Request, identity Identity) env {
+// newEnv builds a fresh evaluation environment for one request. The decode
+// config rides on the environment so the first path.match can tokenize the path
+// lazily; every path.match in the rule shares it, checked at load.
+func newEnv(request Request, identity Identity, decode DecodeConfig) env {
 	return env{
 		request: request,
 		user:    identity,
+		decode:  decode,
 		vars:    map[string]string{},
 		state:   &evalState{},
 	}
 }
 
 // evalPredicate evaluates a predicate against a fresh environment and applies
-// the unbound-capture guard, returning whether it matched.
-func evalPredicate(p predicate, request Request, identity Identity) (bool, error) {
-	e := newEnv(request, identity)
+// the no-match guards, returning whether it matched. An unbound capture read or
+// a path the decode could not tokenize forces a no-match.
+func evalPredicate(p predicate, request Request, identity Identity, decode DecodeConfig) (bool, error) {
+	e := newEnv(request, identity, decode)
 	ok, err := p.Evaluate(e)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	return ok && !e.state.unboundRead, nil
+	return ok && !e.state.unboundRead && !e.state.tokenizeFailed, nil
 }
 
 // validateCode checks an allow or deny code: 1 to 64 of [a-z0-9_], and not the

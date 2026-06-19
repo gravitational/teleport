@@ -52,8 +52,38 @@ type Identity struct {
 type env struct {
 	request Request
 	user    Identity
-	vars    map[string]string
-	state   *evalState
+	// decode is the rule's decode config, used to tokenize the request path
+	// lazily on the first path.match. Every path.match in a rule carries
+	// identical options, checked at load, so one config tokenizes the path for
+	// the whole evaluation.
+	decode DecodeConfig
+	vars   map[string]string
+	state  *evalState
+}
+
+// pathTokens lazily tokenizes the request path under the environment's decode
+// config and caches the result in the shared state, so several path.match calls
+// in one evaluation tokenize the path once and a rule with no path.match never
+// tokenizes at all. It reports ok=false when the path is not tokenizable under
+// that decode and records tokenizeFailed, which the caller treats as a forced
+// no-match. Returning a flag rather than an error keeps a negated path.match
+// from inverting a tokenize-failure into an allow: tokenizeFailed overrides the
+// boolean no matter which operator read it.
+func (e env) pathTokens() ([]string, bool) {
+	s := e.state
+	if !s.tokenized {
+		s.tokenized = true
+		tokens, err := Tokenize(e.request.Path, e.decode)
+		if err != nil {
+			s.tokenizeFailed = true
+			return nil, false
+		}
+		s.tokens = tokens
+	}
+	if s.tokenizeFailed {
+		return nil, false
+	}
+	return s.tokens, true
 }
 
 // Opt configures URL decoding for a single path.match call. The opt builders
@@ -77,6 +107,16 @@ type evalState struct {
 	// regardless of the operator that read it (a bare vars.x != "admin" cannot
 	// widen).
 	unboundRead bool
+	// tokens caches the request path tokenized under the rule's decode, filled
+	// lazily on the first path.match.
+	tokens []string
+	// tokenized records that the lazy tokenize has run, so it runs at most once
+	// per evaluation even when it produced no tokens.
+	tokenized bool
+	// tokenizeFailed records that the path could not be tokenized under the
+	// rule's decode. The caller forces the rule to no-match when this is set,
+	// so a path the matcher cannot read fails closed even behind a negation.
+	tokenizeFailed bool
 }
 
 // predicate is a parsed, type-checked app-access predicate ready to evaluate.
@@ -115,27 +155,22 @@ func newParser() (*typical.CachedParser[env, bool], error) {
 			}),
 		},
 		Functions: map[string]typical.Function{
-			// Matcher entry point. path.match reads the request path from the
-			// environment, tokenizes it under the decode config its opts build,
-			// and walks it against the matcher root. On a match it records the
-			// bound segments into the environment's vars map so a later
-			// var.<name> read can see them, then returns true. The first
-			// argument is the matcher root; any further arguments are decode
-			// options. Several patterns OR together as several path.match calls
-			// joined by ||, so each call carries one root.
-			"path.match": typical.BinaryVariadicFunctionWithEnv(func(e env, root *Node, opts ...Opt) (bool, error) {
-				var cfg DecodeConfig
-				for _, o := range opts {
-					o(&cfg)
-				}
-				tokens, err := Tokenize(e.request.Path, cfg)
-				if err != nil {
-					// An unsafe path is not this predicate's concern to report;
-					// it simply cannot match. The agent rejects such requests
-					// before any rule runs.
+			// Matcher entry point. path.match walks the request path, tokenized
+			// lazily under the rule's decode, against the matcher root. On a
+			// match it records the bound segments into the environment's vars map
+			// so a later vars.<name> read can see them, then returns true. The
+			// first argument is the matcher root; any further arguments are
+			// decode options, which the load step already folded into the rule's
+			// decode, so they are not re-read here. A path the rule's decode
+			// cannot tokenize records tokenizeFailed and returns false, and the
+			// caller forces the rule to no-match, so a negated path.match cannot
+			// turn an unreadable path into an allow.
+			"path.match": typical.BinaryVariadicFunctionWithEnv(func(e env, root *Node, _ ...Opt) (bool, error) {
+				tokens, ok := e.pathTokens()
+				if !ok {
 					return false, nil
 				}
-				if ok, caps := Eval(tokens, root); ok {
+				if matched, caps := Eval(tokens, root); matched {
 					for k, v := range caps {
 						e.vars[k] = v
 					}
