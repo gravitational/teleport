@@ -67,16 +67,19 @@ export interface ThemedImageProps
  * The dark asset is the default `src`; under the light theme, CSS swaps in the light
  * asset.
  */
-export function ThemedImage({
-  dark,
-  light,
-  alt = '',
-  ...rest
-}: ThemedImageProps) {
+export function ThemedImage({ dark, light, alt, ...rest }: ThemedImageProps) {
   return <StyledImg src={dark} alt={alt} $light={light} {...rest} />;
 }
 
-const StyledImg = styled.img<{ $light: string }>`
+type StyledImgProps = SpaceProps &
+  ColorProps &
+  WidthProps &
+  HeightProps &
+  MaxWidthProps &
+  MaxHeightProps &
+  AlignSelfProps & { $light: string };
+
+const StyledImg = styled.img<StyledImgProps>`
   display: block;
   outline: none;
   ${color} ${space} ${width} ${height} ${maxWidth} ${maxHeight} ${alignSelf}
