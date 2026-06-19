@@ -1935,6 +1935,13 @@ func (r ScopedBuiltinRole) GetIdentity() tlsca.Identity {
 	return r.Identity
 }
 
+// IsServer returns true if the primary role is either RoleInstance, or one of
+// the local service roles (e.g. node).
+func (r ScopedBuiltinRole) IsServer() bool {
+	role := types.SystemRole(r.ScopePin.GetSystemRoles().GetPrimary())
+	return role == types.RoleInstance || role.IsLocalService()
+}
+
 // RemoteBuiltinRole is the role of the remote (service connecting via trusted cluster link)
 // Teleport service.
 type RemoteBuiltinRole struct {

@@ -23,7 +23,15 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 
 	"github.com/gravitational/teleport/api/types/usertasks"
+	"github.com/gravitational/teleport/lib/srv/server"
 )
+
+func classifyAzureInstallResultIssue(installResult server.AzureInstallResult) string {
+	if installResult.CommandResult != nil {
+		return usertasks.AutoDiscoverAzureVMIssueEnrollmentError
+	}
+	return classifyAzureVMEnrollmentError(installResult.APIError)
+}
 
 // classifyAzureVMEnrollmentError classifies Azure API errors into user-facing
 // messages for VM auto-discovery. This is best-effort based on error strings

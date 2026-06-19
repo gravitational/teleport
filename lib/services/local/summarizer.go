@@ -36,6 +36,7 @@ type SummarizerService struct {
 	modelService          *generic.ServiceWrapper[*summarizerv1.InferenceModel]
 	secretService         *generic.ServiceWrapper[*summarizerv1.InferenceSecret]
 	policyService         *generic.ServiceWrapper[*summarizerv1.InferencePolicy]
+	classifierService     *generic.ServiceWrapper[*summarizerv1.Classifier]
 	retrievalModelService *generic.ServiceWrapper[*summarizerv1.RetrievalModel]
 }
 
@@ -233,6 +234,75 @@ func (s *SummarizerService) AllInferencePolicies(
 	return s.policyService.Resources(ctx, "", "")
 }
 
+// CreateClassifier creates a new session summarization classifier in the
+// backend.
+func (s *SummarizerService) CreateClassifier(
+	ctx context.Context, classifier *summarizerv1.Classifier,
+) (*summarizerv1.Classifier, error) {
+	res, err := s.classifierService.CreateResource(ctx, classifier)
+	return res, trace.Wrap(err)
+}
+
+// DeleteClassifier deletes a session summarization classifier from the
+// backend by name.
+func (s *SummarizerService) DeleteClassifier(
+	ctx context.Context, name string,
+) error {
+	return trace.Wrap(s.classifierService.DeleteResource(ctx, name))
+}
+
+// GetClassifier retrieves a session summarization classifier from the backend
+// by name.
+func (s *SummarizerService) GetClassifier(
+	ctx context.Context, name string,
+) (*summarizerv1.Classifier, error) {
+	res, err := s.classifierService.GetResource(ctx, name)
+	return res, trace.Wrap(err)
+}
+
+// ListClassifiers lists session summarization classifiers in the backend with
+// pagination support. Returns a slice of classifiers and a next page token.
+func (s *SummarizerService) ListClassifiers(
+	ctx context.Context, size int, pageToken string,
+) ([]*summarizerv1.Classifier, string, error) {
+	res, nextToken, err := s.classifierService.ListResources(ctx, size, pageToken)
+	return res, nextToken, trace.Wrap(err)
+}
+
+// DeleteAllClassifiers deletes all session summarization classifiers from the
+// backend. This should only be used by the cache.
+func (s *SummarizerService) DeleteAllClassifiers(ctx context.Context) error {
+	return trace.Wrap(s.classifierService.DeleteAllResources(ctx))
+}
+
+// UpdateClassifier updates an existing session summarization classifier in
+// the backend.
+func (s *SummarizerService) UpdateClassifier(
+	ctx context.Context, classifier *summarizerv1.Classifier,
+) (*summarizerv1.Classifier, error) {
+	res, err := s.classifierService.ConditionalUpdateResource(ctx, classifier)
+	return res, trace.Wrap(err)
+}
+
+// UpsertClassifier creates or updates a session summarization classifier in
+// the backend. If the classifier already exists, it will be updated.
+func (s *SummarizerService) UpsertClassifier(
+	ctx context.Context, classifier *summarizerv1.Classifier,
+) (*summarizerv1.Classifier, error) {
+	res, err := s.classifierService.UpsertResource(ctx, classifier)
+	return res, trace.Wrap(err)
+}
+
+// RangeClassifiers returns an iterator that retrieves session summarization
+// classifiers from the backend, without pagination, starting with the
+// resource named start and ending before the resource named end. Empty bounds
+// iterate from the beginning and/or to the end of the collection.
+func (s *SummarizerService) RangeClassifiers(
+	ctx context.Context, start, end string,
+) iter.Seq2[*summarizerv1.Classifier, error] {
+	return s.classifierService.Resources(ctx, start, end)
+}
+
 // CreateRetrievalModel creates the search model in the backend.
 // Only one RetrievalModel can exist per cluster.
 func (s *SummarizerService) CreateRetrievalModel(
@@ -278,6 +348,7 @@ const (
 	inferenceModelPrefix  = "inference_models"
 	inferenceSecretPrefix = "inference_secrets"
 	inferencePolicyPrefix = "inference_policies"
+	classifierPrefix      = "classifiers"
 	retrievalModelPrefix  = "retrieval_model"
 )
 
@@ -353,6 +424,19 @@ func NewSummarizerService(cfg SummarizerServiceConfig) (*SummarizerService, erro
 		return nil, trace.Wrap(err)
 	}
 
+	classifierService, err := generic.NewServiceWrapper(
+		generic.ServiceConfig[*summarizerv1.Classifier]{
+			Backend:       cfg.Backend,
+			ResourceKind:  types.KindClassifier,
+			BackendPrefix: backend.NewKey(classifierPrefix),
+			MarshalFunc:   services.MarshalProtoResource[*summarizerv1.Classifier],
+			UnmarshalFunc: services.UnmarshalProtoResource[*summarizerv1.Classifier],
+			ValidateFunc:  services.ValidateClassifier,
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	validateRetrievalModel := func(m *summarizerv1.RetrievalModel) error {
 		err := summarizer.ValidateRetrievalModel(m)
 		if err != nil {
@@ -379,6 +463,7 @@ func NewSummarizerService(cfg SummarizerServiceConfig) (*SummarizerService, erro
 		modelService:          modelService,
 		secretService:         secretService,
 		policyService:         policyService,
+		classifierService:     classifierService,
 		retrievalModelService: retrievalModelService,
 	}, nil
 }
@@ -499,6 +584,46 @@ func (p *inferenceSecretParser) parse(event backend.Event) (types.Resource, erro
 			return nil, trace.Wrap(err)
 		}
 		return types.Resource153ToLegacy(secret), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newClassifierParser() *classifierParser {
+	return &classifierParser{
+		baseParser: newBaseParser(backend.NewKey(classifierPrefix)),
+	}
+}
+
+type classifierParser struct {
+	baseParser
+}
+
+func (p *classifierParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		components := event.Item.Key.Components()
+		if len(components) != 2 {
+			return nil, trace.NotFound("failed parsing %v: expected 2 components, got %d", event.Item.Key.String(), len(components))
+		}
+		name := components[1]
+		return &types.ResourceHeader{
+			Kind:    types.KindClassifier,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name: name,
+			},
+		}, nil
+	case types.OpPut:
+		classifier, err := services.UnmarshalProtoResource[*summarizerv1.Classifier](
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return types.Resource153ToLegacy(classifier), nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}

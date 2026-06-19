@@ -2623,6 +2623,9 @@ message AgentMeshTunnelStrategy {}
 // ProxyPeeringTunnelStrategy requires reverse tunnels to dial a fixed number of proxies.
 message ProxyPeeringTunnelStrategy {
   int64 AgentConnectionCount = 1 [(gogoproto.jsontag) = "agent_connection_count,omitempty"];
+  // disconnect_threshold_seconds is the duration without connectivity or topology changes
+  // before an agent pool may disconnect excess connections.
+  uint32 disconnect_threshold_seconds = 2;
 }
 
 // ProxyListenerMode represents the cluster proxy listener mode.
@@ -3539,6 +3542,14 @@ message AccessCapabilitiesRequest {
   // list of roles that the user can request should be filtered to only include
   // roles that allow access to the provided ResourceIDs.
   bool FilterRequestableRolesByResource = 6 [(gogoproto.jsontag) = "filter_requestable_roles_by_resource,omitempty"];
+  // resource_access_ids is a list of resources paired with optional constraints
+  // for which we would like to view the necessary roles. When present,
+  // these are deduplicated against provided ResourceIDs to form the full set
+  // of requested resources.
+  repeated ResourceAccessID resource_access_ids = 7 [
+    (gogoproto.jsontag) = "resource_access_ids,omitempty",
+    (gogoproto.nullable) = false
+  ];
 }
 
 // RemoteAccessCapabilities is a summary of the capabilites that a remote cluster
@@ -3565,6 +3576,15 @@ message RemoteAccessCapabilitiesRequest {
   // the necessary roles for.
   repeated ResourceID ResourceIDs = 3 [
     (gogoproto.jsontag) = "resource_ids,omitempty",
+    (gogoproto.nullable) = false
+  ];
+
+  // resource_access_ids is a list of resources paired with optional constraints
+  // for which we would like to view the necessary roles. When present,
+  // these are deduplicated against provided ResourceIDs to form the full set
+  // of requested resources.
+  repeated ResourceAccessID resource_access_ids = 4 [
+    (gogoproto.jsontag) = "resource_access_ids,omitempty",
     (gogoproto.nullable) = false
   ];
 }

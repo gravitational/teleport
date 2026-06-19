@@ -20,7 +20,7 @@ in a cluster, including nodes, users, tokens, certificates, and devices.
 such as creating new user roles or connecting to trusted clusters.
 
 For a conceptual overview of `tctl`, see [Getting Started with
-`tctl`](../../zero-trust-access/infrastructure-as-code/using-tctl.mdx).
+`tctl`](../../configuration/using-tctl.mdx).
 
 ```code
 $ tctl [<flags>] <command> [<args> ...]
@@ -44,6 +44,43 @@ Global environment variables:
 |`TELEPORT_AUTH_SERVER`|*no default*|Attempts to connect to specific auth/proxy address(es) instead of local auth [127.0.0.1:3025]|
 |`TELEPORT_IDENTITY_FILE`|*no default*|Path to an identity file. Must be provided to make remote connections to auth. An identity file can be exported with 'tctl auth sign'|
 |`TELEPORT_MFA_MODE`|`auto` (one of: `auto`, `cross-platform`, `platform`, `sso`, `browser`)|Preferred mode for MFA assertions.|
+
+## tctl access-changes get
+
+Get details about an access path change
+
+Usage:
+
+```code
+$ tctl access-changes get <change-id>
+```
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|change-id|*no default* (required)|The ID of the access path change to retrieve.|
+
+## tctl access-changes ls
+
+List access path changes for your crown jewels
+
+Usage:
+
+```code
+$ tctl access-changes ls [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--filter`|*no default*|Filter by comma-separated key=value pairs (keys: type, kind, source). Pairs within one --filter are AND'd; repeat --filter to OR. Example: --filter kind=resource,source=AWS --filter type=teleport_user.|
+|`--kind`|*no default* (any of (repeatable): `identity`, `resource`)|Filter by change kind (repeatable; each is OR'd). Combine axes with --filter.|
+|`--limit`|`100`|Maximum number of changes to return (0 for unlimited).|
+|`--search`|*no default*|Search term to filter access changes.|
+|`--source`|*no default* (any of (repeatable): `AWS`, `Entra`, `Gitlab`, `Okta`, `TELEPORT`)|Filter by source (repeatable; each is OR'd). Combine axes with --filter.|
+|`--type`|*no default* (any of (repeatable): `aws_ec2`, `aws_eks`, `aws_rds`, `aws_s3`, `aws_user`, `entra_user`, `gitlab_project`, `gitlab_user`, `okta_application`, `okta_user`, `teleport_application`, `teleport_bot`, `teleport_database`, `teleport_desktop`, `teleport_kubernetes`, `teleport_node`, `teleport_user`)|Filter by origin type (repeatable; each is OR'd). Combine axes with --filter.|
 
 ## tctl acl get
 
@@ -488,6 +525,31 @@ Usage:
 ```code
 $ tctl audit schema
 ```
+
+## tctl auth create-override
+
+Add a single certificate override to a CA override resource
+
+Usage:
+
+```code
+$ tctl auth create-override --type=TYPE [<flags>] <cert.pem> [<chain.pem>...]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--[no-]disabled`|`false`|If true creates a disabled override|
+|`--[no-]force`|`false`|If true attempts to force creation, ignoring select state validation|
+|`--type`|*no default*|CA type (db-client, windows)|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|cert.pem|*no default* (required)|CA override certificate file in PEM form|
+|chain.pem|*no default* (optional)|CA override trust chain files in PEM form|
 
 ## tctl auth create-override-csr
 
@@ -1318,6 +1380,77 @@ Flags:
 |---|---|---|
 |`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 |`--[no-]connected`|`false`|Show locally connected instances summary|
+
+## tctl investigate
+
+Search and explore Identity Security activity logs.
+
+To let an AI agent drive this command, install the matching Agent Skill:
+
+`npx skills add
+https://github.com/gravitational/teleport/tree/master/skills/teleport-investigate`
+
+Usage:
+
+```code
+$ tctl investigate [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--aws-account-id`|*no default*|Filter by AWS account ID (repeatable).|
+|`--aws-service`|*no default*|Filter by AWS service name (repeatable).|
+|`--city`|*no default*|Filter by city of origin (repeatable).|
+|`--country`|*no default*|Filter by country of origin (repeatable).|
+|`--event-type`|*no default*|Filter by event type, e.g. session.start (repeatable).|
+|`--exclude-aws-account-id`|*no default*|Exclude aws_account_id values (repeatable).|
+|`--exclude-aws-service`|*no default*|Exclude aws_service values (repeatable).|
+|`--exclude-city`|*no default*|Exclude city values (repeatable).|
+|`--exclude-country`|*no default*|Exclude country values (repeatable).|
+|`--exclude-event-type`|*no default*|Exclude event_type values (repeatable).|
+|`--exclude-github-org`|*no default*|Exclude github_organization values (repeatable).|
+|`--exclude-github-repo`|*no default*|Exclude github_repo values (repeatable).|
+|`--exclude-ip`|*no default*|Exclude ip values (repeatable).|
+|`--exclude-okta-org`|*no default*|Exclude okta_org values (repeatable).|
+|`--exclude-region`|*no default*|Exclude region values (repeatable).|
+|`--exclude-resource`|*no default*|Exclude target_resource values (repeatable).|
+|`--exclude-resource-kind`|*no default*|Exclude target_kind values (repeatable).|
+|`--exclude-source`|*no default*|Exclude event_source values (repeatable).|
+|`--exclude-status`|*no default* (any of (repeatable): `success`, `failure`)|Exclude status values (repeatable).|
+|`--exclude-teleport-cluster`|*no default*|Exclude teleport_cluster values (repeatable).|
+|`--exclude-token`|*no default*|Exclude token values (repeatable).|
+|`--exclude-user`|*no default*|Exclude identity_id values (repeatable).|
+|`--exclude-user-agent`|*no default*|Exclude user_agent values (repeatable).|
+|`--exclude-user-kind`|*no default*|Exclude identity_kind values (repeatable).|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format. (Values: text, json, yaml)|
+|`--from`|`1d`|Include activity at or after this time. (Examples: 2006-01-02T15:04:05Z07:00, 2006-01-02, 24h, 7d; negative durations like -1h are future-relative. Default: 1d)|
+|`--github-org`|*no default*|Filter by GitHub organization (repeatable).|
+|`--github-repo`|*no default*|Filter by GitHub repository (repeatable).|
+|`--ip`|*no default*|Filter by source IP address (repeatable).|
+|`--latitude`|*no default*|Center latitude for geo-filtered search (decimal degrees, e.g. 37.8044). Requires --longitude and --radius.|
+|`--limit`|`100`|Maximum number of events to return (0 for unlimited).|
+|`--longitude`|*no default*|Center longitude for geo-filtered search (decimal degrees, e.g. -122.2712). Requires --latitude and --radius.|
+|`--[no-]all-facets`|`false`|Show every facet value in text output. Without this flag, each facet is truncated to the top 5 values by count. Has no effect on JSON/YAML output.|
+|`--[no-]facets-only`|`false`|Skip fetching events; return only the facet summary. Useful for narrowing a query before pulling logs.|
+|`--[no-]print-query`|`false`|Print the constructed query and exit without contacting the backend.|
+|`--[no-]show-unmatched`|`false`|Include facet values that exist in the time window but did not match the current filter (the backend reports these with count=-1). Useful for discovering filters to broaden.|
+|`--okta-org`|*no default*|Filter by Okta organization (repeatable).|
+|`--order`|`desc` (one of: `asc`, `desc`)|Result order by timestamp. (Values: asc, desc)|
+|`--query`|*no default*|Raw Lucene query. Mutually exclusive with structured filter flags. Example: --query 'identity_id:"alice@example.com" AND NOT status:"failure"'|
+|`--radius`|*no default*|Radius in kilometers around the geo center (e.g. 25). Requires --latitude and --longitude.|
+|`--region`|*no default*|Filter by region (e.g. us-east-1 or a US state code; repeatable).|
+|`--resource`|*no default*|Filter by target resource (repeatable).|
+|`--resource-kind`|*no default*|Filter by resource kind, e.g. ssh, kube, session_recording (repeatable).|
+|`--source`|*no default*|Filter by event source (repeatable).|
+|`--status`|*no default* (any of (repeatable): `success`, `failure`)|Filter by event status (repeatable).|
+|`--teleport-cluster`|*no default*|Filter by Teleport cluster name (repeatable).|
+|`--to`|`now`|Include activity at or before this time. (Examples: 2006-01-02T15:04:05Z07:00, 2006-01-02, 24h, 7d; negative durations like -1h are future-relative. Default: now)|
+|`--token`|*no default*|Filter by token identifier (repeatable).|
+|`--user`|*no default*|Filter by user (email for users, ID for bots; repeatable).|
+|`--user-agent`|*no default*|Filter by user agent string (repeatable). Not populated on every Teleport event — use deliberately.|
+|`--user-kind`|*no default*|Filter by user kind, e.g. user, system (repeatable).|
 
 ## tctl kube ls
 

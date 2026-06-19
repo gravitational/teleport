@@ -307,6 +307,12 @@ export interface SessionStartEvent {
      * @generated from protobuf field: prehog.v1alpha.SessionStartMCPMetadata mcp = 8;
      */
     mcp?: SessionStartMCPMetadata;
+    /**
+     * if set, contains additional information about the beam VM associated with this session.
+     *
+     * @generated from protobuf field: prehog.v1alpha.SessionStartBeamMetadata beam = 9;
+     */
+    beam?: SessionStartBeamMetadata;
 }
 /**
  * SessionStartDatabaseMetadata contains additional information about database session.
@@ -458,6 +464,21 @@ export interface SessionStartMCPMetadata {
      * @generated from protobuf field: string egress_auth_type = 6;
      */
     egressAuthType: string;
+}
+/**
+ * SessionStartBeamMetadata contains additional information about a beam session.
+ *
+ * @generated from protobuf message prehog.v1alpha.SessionStartBeamMetadata
+ */
+export interface SessionStartBeamMetadata {
+    /**
+     * anonymized beam ID
+     *
+     * PostHog property: tp.beam.beam_id
+     *
+     * @generated from protobuf field: string beam_id = 1;
+     */
+    beamId: string;
 }
 /**
  * the issuance of a user certificate from the user CA
@@ -5784,7 +5805,8 @@ class SessionStartEvent$Type extends MessageType<SessionStartEvent> {
             { no: 5, name: "user_kind", kind: "enum", T: () => ["prehog.v1alpha.UserKind", UserKind, "USER_KIND_"] },
             { no: 6, name: "app", kind: "message", T: () => SessionStartAppMetadata },
             { no: 7, name: "git", kind: "message", T: () => SessionStartGitMetadata },
-            { no: 8, name: "mcp", kind: "message", T: () => SessionStartMCPMetadata }
+            { no: 8, name: "mcp", kind: "message", T: () => SessionStartMCPMetadata },
+            { no: 9, name: "beam", kind: "message", T: () => SessionStartBeamMetadata }
         ]);
     }
     create(value?: PartialMessage<SessionStartEvent>): SessionStartEvent {
@@ -5825,6 +5847,9 @@ class SessionStartEvent$Type extends MessageType<SessionStartEvent> {
                 case /* prehog.v1alpha.SessionStartMCPMetadata mcp */ 8:
                     message.mcp = SessionStartMCPMetadata.internalBinaryRead(reader, reader.uint32(), options, message.mcp);
                     break;
+                case /* prehog.v1alpha.SessionStartBeamMetadata beam */ 9:
+                    message.beam = SessionStartBeamMetadata.internalBinaryRead(reader, reader.uint32(), options, message.beam);
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -5861,6 +5886,9 @@ class SessionStartEvent$Type extends MessageType<SessionStartEvent> {
         /* prehog.v1alpha.SessionStartMCPMetadata mcp = 8; */
         if (message.mcp)
             SessionStartMCPMetadata.internalBinaryWrite(message.mcp, writer.tag(8, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.SessionStartBeamMetadata beam = 9; */
+        if (message.beam)
+            SessionStartBeamMetadata.internalBinaryWrite(message.beam, writer.tag(9, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -6210,6 +6238,53 @@ class SessionStartMCPMetadata$Type extends MessageType<SessionStartMCPMetadata> 
  * @generated MessageType for protobuf message prehog.v1alpha.SessionStartMCPMetadata
  */
 export const SessionStartMCPMetadata = new SessionStartMCPMetadata$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class SessionStartBeamMetadata$Type extends MessageType<SessionStartBeamMetadata> {
+    constructor() {
+        super("prehog.v1alpha.SessionStartBeamMetadata", [
+            { no: 1, name: "beam_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<SessionStartBeamMetadata>): SessionStartBeamMetadata {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.beamId = "";
+        if (value !== undefined)
+            reflectionMergePartial<SessionStartBeamMetadata>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: SessionStartBeamMetadata): SessionStartBeamMetadata {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string beam_id */ 1:
+                    message.beamId = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: SessionStartBeamMetadata, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string beam_id = 1; */
+        if (message.beamId !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.beamId);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.SessionStartBeamMetadata
+ */
+export const SessionStartBeamMetadata = new SessionStartBeamMetadata$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class UserCertificateIssuedEvent$Type extends MessageType<UserCertificateIssuedEvent> {
     constructor() {

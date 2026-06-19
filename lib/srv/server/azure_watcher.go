@@ -38,8 +38,8 @@ import (
 
 const azureEventPrefix = "azure/"
 
-// AzureInstances contains information about discovered Azure virtual machines.
-type AzureInstances struct {
+// AzureInstancesMetadata contains information about discovered Azure virtual machines.
+type AzureInstancesMetadata struct {
 	// DiscoveryConfigName is the name of discovery config.
 	DiscoveryConfigName string
 	// Integration is the optional name of the integration to use for auth.
@@ -54,43 +54,37 @@ type AzureInstances struct {
 
 	// InstallerParams are the installer parameters used for installation.
 	InstallerParams *types.InstallerParams
-	// Instances is a list of discovered Azure virtual machines.
-	Instances []*azure.VirtualMachine
 }
 
-func (instances *AzureInstances) LogValue() slog.Value {
-	if instances == nil {
-		return slog.StringValue("<nil>")
-	}
+func (md AzureInstancesMetadata) LogValue() slog.Value {
 	return slog.GroupValue(
-		slog.Int("total_instances", len(instances.Instances)),
-		slog.String("discovery_config", instances.DiscoveryConfigName),
-		slog.String("integration", instances.Integration),
-		slog.String("region", instances.Region),
-		slog.String("resource_group", instances.ResourceGroup),
-		slog.String("subscription_id", instances.SubscriptionID),
+		slog.String("discovery_config", md.DiscoveryConfigName),
+		slog.String("integration", md.Integration),
+		slog.String("region", md.Region),
+		slog.String("resource_group", md.ResourceGroup),
+		slog.String("subscription_id", md.SubscriptionID),
 	)
 }
 
-func (instances *AzureInstances) resourceType() string {
-	if instances.InstallerParams != nil && instances.InstallerParams.ScriptName == installers.InstallerScriptNameAgentless {
+func (md *AzureInstancesMetadata) resourceType() string {
+	if md.InstallerParams != nil && md.InstallerParams.ScriptName == installers.InstallerScriptNameAgentless {
 		return types.DiscoveredResourceAgentlessNode
 	}
 	return types.DiscoveredResourceNode
 }
 
 // MakeUsageEvent builds usage event for a single installation result.
-func (instances *AzureInstances) MakeUsageEvent(instance *azure.VirtualMachine) (string, *usageeventsv1.ResourceCreateEvent) {
+func (md *AzureInstancesMetadata) MakeUsageEvent(instance *azure.VirtualMachine) (string, *usageeventsv1.ResourceCreateEvent) {
 	return azureEventPrefix + instance.ID, &usageeventsv1.ResourceCreateEvent{
-		ResourceType:        instances.resourceType(),
+		ResourceType:        md.resourceType(),
 		ResourceOrigin:      types.OriginCloud,
 		CloudProvider:       types.CloudAzure,
-		DiscoveryConfigName: instances.DiscoveryConfigName,
+		DiscoveryConfigName: md.DiscoveryConfigName,
 	}
 }
 
 // MakeRunEvent builds run event for a single command run.
-func (instances *AzureInstances) MakeRunEvent(result AzureInstallResult) *apievents.AzureRun {
+func (md *AzureInstancesMetadata) MakeRunEvent(result AzureInstallResult) *apievents.AzureRun {
 	eventCode := libevents.AzureRunSuccessCode
 
 	if result.Failure() {
@@ -110,10 +104,10 @@ func (instances *AzureInstances) MakeRunEvent(result AzureInstallResult) *apieve
 			Code: eventCode,
 		},
 		AzureMetadata: apievents.AzureMetadata{
-			SubscriptionID: instances.SubscriptionID,
-			ResourceGroup:  instances.ResourceGroup,
+			SubscriptionID: md.SubscriptionID,
+			ResourceGroup:  md.ResourceGroup,
 			ResourceID:     resourceID,
-			Region:         instances.Region,
+			Region:         md.Region,
 		},
 		AzureVMMetadata: apievents.AzureVMMetadata{
 			VMID:   vmID,
@@ -143,13 +137,30 @@ func (instances *AzureInstances) MakeRunEvent(result AzureInstallResult) *apieve
 	return evt
 }
 
+// AzureInstances contains a list of discovered Azure virtual machines and
+// metadata.
+type AzureInstances struct {
+	Metadata AzureInstancesMetadata
+
+	// Instances is a list of discovered Azure virtual machines.
+	Instances []*azure.VirtualMachine
+}
+
+// LogValue implements [slog.LogValuer].
+func (instances *AzureInstances) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.Int("count", len(instances.Instances)),
+		slog.Any("metadata", instances.Metadata),
+	)
+}
+
 // FilterExistingNodes removes instances matching existing nodes in place.
 func (instances *AzureInstances) FilterExistingNodes(existingNodes []types.Server) {
 	vmIDs := make(map[string]struct{})
 	for _, node := range existingNodes {
 		labels := node.GetAllLabels()
 		subscriptionID := labels[types.SubscriptionIDLabelInternal]
-		if subscriptionID != instances.SubscriptionID {
+		if subscriptionID != instances.Metadata.SubscriptionID {
 			continue
 		}
 		vmID := labels[types.VMIDLabelInternal]
@@ -320,13 +331,15 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]*Azu
 	var instances []*AzureInstances
 	for batchGroup, vms := range instanceGroups {
 		instances = append(instances, &AzureInstances{
-			SubscriptionID:      f.Subscription,
-			Region:              batchGroup.location,
-			ResourceGroup:       batchGroup.resourceGroup,
-			Instances:           vms,
-			Integration:         f.Integration,
-			InstallerParams:     f.InstallerParams,
-			DiscoveryConfigName: f.DiscoveryConfigName,
+			Metadata: AzureInstancesMetadata{
+				SubscriptionID:      f.Subscription,
+				Region:              batchGroup.location,
+				ResourceGroup:       batchGroup.resourceGroup,
+				Integration:         f.Integration,
+				InstallerParams:     f.InstallerParams,
+				DiscoveryConfigName: f.DiscoveryConfigName,
+			},
+			Instances: vms,
 		})
 	}
 

@@ -19,8 +19,13 @@
 package controllers
 
 import (
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 // Reconciler extends the reconcile.Reconciler interface by adding a
@@ -29,4 +34,24 @@ import (
 type Reconciler interface {
 	reconcile.Reconciler
 	SetupWithManager(mgr manager.Manager) error
+	GVK() schema.GroupVersionKind
+	TeleportKind() string
+	Scoped() bool
+	CheckFeatures(features *proto.Features) bool
+}
+
+type CheckFeaturesFunc func(*proto.Features) bool
+
+func AlwaysEnabled(_ *proto.Features) bool {
+	return true
+}
+
+func RequireEnterprise(features *proto.Features) bool {
+	// In previous licenses and features we had no enterprise flags so we used the advanced workflow flag.
+	// We keep doing this for backward compatibility.
+	return features.GetAdvancedAccessWorkflows()
+}
+
+func RequirePolicy(features *proto.Features) bool {
+	return modules.GetProtoEntitlement(features, entitlements.Policy).Enabled
 }

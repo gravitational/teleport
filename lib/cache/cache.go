@@ -224,6 +224,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindInferenceModel},
 		{Kind: types.KindInferencePolicy},
 		{Kind: types.KindInferenceSecret},
+		{Kind: types.KindClassifier},
 		{Kind: types.KindRetrievalModel},
 		{Kind: types.KindValidatedMFAChallenge},
 	}

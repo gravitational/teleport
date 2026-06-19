@@ -264,6 +264,9 @@ message SessionStartEvent {
   // if session_type == "app_mcp" the mcp struct contains additional information
   // about the MCP session.
   SessionStartMCPMetadata mcp = 8;
+
+  // if set, contains additional information about the beam VM associated with this session.
+  SessionStartBeamMetadata beam = 9;
 }
 
 // SessionStartDatabaseMetadata contains additional information about database session.
@@ -332,6 +335,14 @@ message SessionStartMCPMetadata {
   string ingress_auth_type = 5;
   // Indicates how the MCP session is authorized between Teleport and remote MCP server.
   string egress_auth_type = 6;
+}
+
+// SessionStartBeamMetadata contains additional information about a beam session.
+message SessionStartBeamMetadata {
+  // anonymized beam ID
+  //
+  // PostHog property: tp.beam.beam_id
+  string beam_id = 1;
 }
 
 // the issuance of a user certificate from the user CA
