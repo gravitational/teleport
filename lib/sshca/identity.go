@@ -363,6 +363,11 @@ func (i *Identity) Encode(certFormat string) (*ssh.Certificate, error) {
 			extension.Type != types.CertExtensionType_SSH {
 			continue
 		}
+		// Beam IDs are server-derived from delegation sessions and must not be
+		// spoofed or overwritten by role-supplied certificate extensions.
+		if extension.Name == teleport.CertExtensionBeamID {
+			continue
+		}
 		cert.Extensions[extension.Name] = extension.Value
 	}
 
