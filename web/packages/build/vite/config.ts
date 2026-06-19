@@ -82,6 +82,14 @@ export function createViteConfig(
         assetsDir: 'app',
         emptyOutDir: true,
         reportCompressedSize: false,
+        // ResourceIcon SVGs are imported as URLs and must never be inlined as data URIs -
+        // they are served as cacheable asset files and kept out of the JS bundle.
+        // This replaces the per-import `?no-inline` suffix that every icon export used to carry.
+        // Other assets keep Vite's default, size-based inlining (return `undefined`).
+        assetsInlineLimit: (filePath: string) =>
+          /[\\/]ResourceIcon[\\/]assets[\\/].+\.svg$/.test(filePath)
+            ? false
+            : undefined,
         rolldownOptions: {
           checks: {
             // We don't really need rolldown to complain about react/assets/wasm taking a "long"

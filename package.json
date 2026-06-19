@@ -26,7 +26,9 @@
     "optimize-resource-icons": "svgo --multipass --quiet -rf web/packages/design/src/ResourceIcon/assets",
     "format-check": "pnpm format --check",
     "format": "oxfmt 'e/**/*.{ts,tsx,js,jsx,mts}' 'web/**/*.{ts,tsx,js,jsx,mts}' 'e2e/**/*.{ts,tsx,js,jsx,mts}'",
-    "process-icons": "pnpm optimize-resource-icons && node web/packages/design/src/Icon/script/script.js && pnpm oxfmt 'web/packages/design/src/Icon/**/*.tsx'",
+    "process-icons": "pnpm optimize-resource-icons && pnpm process-design-icons && pnpm process-resource-icons",
+    "process-design-icons": "node web/packages/design/src/Icon/script/script.js && pnpm oxfmt 'web/packages/design/src/Icon/**/*.tsx'",
+    "process-resource-icons": "node web/packages/design/src/ResourceIcon/script/script.js && pnpm oxfmt 'web/packages/design/src/ResourceIcon/**/*.{ts,tsx}'",
     "list-installed-versions": "./web/scripts/list-installed-versions.sh",
     "nop": "exit 0"
   },
