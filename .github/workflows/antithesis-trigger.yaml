@@ -2,6 +2,9 @@
 name: Antithesis trigger
 
 on:
+  push:
+    branches:
+      - okraport/antithesis-ci
   workflow_dispatch:
     inputs:
       sut:
