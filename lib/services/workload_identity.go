@@ -144,7 +144,7 @@ func ValidateWorkloadIdentity(s *workloadidentityv1pb.WorkloadIdentity) error {
 		if scopes.Compare(s.GetScope(), scopes.Root) == scopes.Equivalent {
 			return trace.BadParameter("scope: must not be the root scope")
 		}
-		if err := validateScopedSPIFFEID(s.GetScope(), s.GetSpec().GetSpiffe().GetId()); err != nil {
+		if err := ValidateScopedSPIFFEID(s.GetScope(), s.GetSpec().GetSpiffe().GetId()); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -186,7 +186,7 @@ func ValidateWorkloadIdentity(s *workloadidentityv1pb.WorkloadIdentity) error {
 // keeps the boundary between the two sections unambiguous.
 const scopedSPIFFEIDSeparator = "_"
 
-// validateScopedSPIFFEID validates that the given SPIFFE ID path conforms to
+// ValidateScopedSPIFFEID validates that the given SPIFFE ID path conforms to
 // the scoped SPIFFE ID structure for the given scope, as defined in RFD 0229c.
 //
 // A scoped SPIFFE ID path consists of three sections:
@@ -200,7 +200,11 @@ const scopedSPIFFEIDSeparator = "_"
 // scope of /foo matches an ID beginning /foo/... but not /foo-buzz/.... The
 // scope section must match the scope of origin exactly: it may not be an
 // ancestor or descendant of it.
-func validateScopedSPIFFEID(scope, id string) error {
+//
+// It is used both at create/update time (on the unrendered ID) and at issuance
+// time (on the rendered ID) as defense-in-depth against templating that would
+// otherwise escape the WorkloadIdentity's scope.
+func ValidateScopedSPIFFEID(scope, id string) error {
 	if !strings.HasPrefix(id, "/") {
 		return trace.BadParameter("spec.spiffe.id: must begin with a forward slash")
 	}
