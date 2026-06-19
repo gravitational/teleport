@@ -18,12 +18,16 @@ package local_test
 
 import (
 	"testing"
+	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -50,14 +54,29 @@ func TestEnrollPairingService_CreateEnrollPairing(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		pairing, err := s.CreateEnrollPairing(t.Context(), "create-ok")
 		require.NoError(t, err)
-		assert.Equal(t, types.KindEnrollPairing, pairing.GetKind())
-		assert.Equal(t, types.V1, pairing.GetVersion())
-		assert.Equal(t, "create-ok", pairing.GetMetadata().GetName())
+
+		want := devicepb.EnrollPairing_builder{
+			Kind:    types.KindEnrollPairing,
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name: "create-ok",
+			}.Build(),
+			Spec: devicepb.EnrollPairingSpec_builder{}.Build(),
+			Status: devicepb.EnrollPairingStatus_builder{
+				State: devicepb.EnrollPairingState_ENROLL_PAIRING_STATE_AWAITING_DEVICE,
+			}.Build(),
+		}.Build()
+		assert.Empty(t, cmp.Diff(want, pairing,
+			protocmp.IgnoreFields(&headerv1.Metadata{}, "revision", "expires"),
+			protocmp.IgnoreFields(&devicepb.EnrollPairingStatus{}, "token"),
+			protocmp.Transform(),
+		))
 		assert.NotEmpty(t, pairing.GetMetadata().GetRevision())
-		assert.Equal(t,
-			devicepb.EnrollPairingState_ENROLL_PAIRING_STATE_AWAITING_DEVICE,
-			pairing.GetStatus().GetState())
 		assert.NotEmpty(t, pairing.GetStatus().GetToken())
+		assert.WithinDuration(t,
+			time.Now().Add(local.EnrollPairingExpireDuration),
+			pairing.GetMetadata().GetExpires().AsTime(),
+			time.Second)
 	})
 
 	t.Run("distinct users get distinct pairings", func(t *testing.T) {
@@ -83,13 +102,12 @@ func TestEnrollPairingService_GetCurrentEnrollPairing(t *testing.T) {
 
 	t.Run("returns the existing pairing", func(t *testing.T) {
 		ctx := t.Context()
-		created, err := s.CreateEnrollPairing(ctx, "get-existing")
+		want, err := s.CreateEnrollPairing(ctx, "get-existing")
 		require.NoError(t, err)
 
 		got, err := s.GetCurrentEnrollPairing(ctx, "get-existing")
 		require.NoError(t, err)
-		assert.Equal(t, created.GetStatus().GetToken(), got.GetStatus().GetToken())
-		assert.Equal(t, created.GetStatus().GetState(), got.GetStatus().GetState())
+		assert.Empty(t, cmp.Diff(want, got, protocmp.Transform()))
 	})
 
 	t.Run("returns NotFound when no pairing exists", func(t *testing.T) {
