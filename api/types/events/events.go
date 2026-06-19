@@ -359,6 +359,18 @@ func (m *SessionLeave) TrimToMaxSize(maxSize int) AuditEvent {
 	return m
 }
 
+// TrimToMaxSize trims the CommandApproval event to the given maximum size.
+// It trims the free-form Reason (AI/human/system explanation) and Command
+// fields, which are the only fields with unbounded user/AI-provided content.
+func (m *CommandApproval) TrimToMaxSize(maxSize int) AuditEvent {
+	return trimEventToMaxSize(m, maxSize, func(m *CommandApproval, out *CommandApproval) fieldTrimmer {
+		return fieldTrimmers{
+			newStrTrimmer(m.Reason, &out.Reason),
+			newStrTrimmer(m.Command, &out.Command),
+		}
+	})
+}
+
 func (m *SessionData) TrimToMaxSize(maxSize int) AuditEvent {
 	return m
 }

@@ -88,6 +88,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_SessionCommand{
 			SessionCommand: e,
 		}
+	case *CommandApproval:
+		out.Event = &OneOf_CommandApproval{
+			CommandApproval: e,
+		}
 	case *SessionDisk:
 		out.Event = &OneOf_SessionDisk{
 			SessionDisk: e,

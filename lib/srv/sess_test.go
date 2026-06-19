@@ -938,6 +938,22 @@ func TestSessionCommandGate(t *testing.T) {
 		require.Equal(t, "ls", fake.gotReq.Command)
 		require.Equal(t, "deny dangerous commands", fake.gotReq.Policy)
 		require.Equal(t, "claude", fake.gotReq.Model)
+
+		// An approved command must emit a CommandApproval audit event with the
+		// approved code and AI approver details.
+		var approval *apievents.CommandApproval
+		for _, e := range srv.MockRecorderEmitter.Events() {
+			if ca, ok := e.(*apievents.CommandApproval); ok {
+				approval = ca
+			}
+		}
+		require.NotNil(t, approval, "expected a CommandApproval audit event to be emitted")
+		require.Equal(t, events.CommandApprovalApprovedEvent, approval.Metadata.Type)
+		require.Equal(t, events.CommandApprovalApprovedCode, approval.Metadata.Code)
+		require.Equal(t, "ls", approval.Command)
+		require.Equal(t, "approved", approval.Decision)
+		require.Equal(t, "ai", approval.ApproverMode)
+		require.Equal(t, "claude", approval.Model)
 	})
 
 	t.Run("no command approval installs no gate", func(t *testing.T) {

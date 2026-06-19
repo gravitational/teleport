@@ -917,7 +917,7 @@ func newSession(ctx context.Context, r *SessionRegistry, scx *ServerContext, ch 
 			approver := approval.NewHumanApprover(broadcaster)
 			sess.commandApprover = approver
 			gated := approval.WithTimeout(approver, cfg.EffectiveTimeout())
-			sess.io.SetCommandGate(&sessionCommandGate{s: sess, approver: gated})
+			sess.io.SetCommandGate(&sessionCommandGate{s: sess, approver: gated, mode: string(approval.ModeHuman)})
 		case types.CommandApproverAI:
 			// The AI approver delegates each command to the auth server's
 			// EvaluateCommand RPC, which requires the full auth client (the
@@ -932,7 +932,7 @@ func newSession(ctx context.Context, r *SessionRegistry, scx *ServerContext, ch 
 			}
 			approver := approval.NewAIApprover(evaluator, cfg.AI.Policy, cfg.AI.Model)
 			gated := approval.WithTimeout(approver, cfg.EffectiveTimeout())
-			sess.io.SetCommandGate(&sessionCommandGate{s: sess, approver: gated})
+			sess.io.SetCommandGate(&sessionCommandGate{s: sess, approver: gated, mode: string(approval.ModeAI), model: cfg.AI.Model})
 		}
 	}
 
@@ -2285,6 +2285,12 @@ func (s *session) getCommandApprover() *approval.HumanApprover {
 type sessionCommandGate struct {
 	s        *session
 	approver approval.CommandApprover
+	// mode is the approver mode label ("human" or "ai") emitted on the
+	// command approval audit event.
+	mode string
+	// model is the AI inference model name emitted on the command approval
+	// audit event. It is empty for human-moderated gates.
+	model string
 }
 
 // approve gates a single reconstructed command line on an approval decision.
@@ -2316,7 +2322,66 @@ func (g *sessionCommandGate) approve(cmd string) bool {
 	if !dec.Approved {
 		s.BroadcastMessage("Command denied by %s: %s", dec.Approver, dec.Reason)
 	}
+
+	g.emitCommandApproval(cmd, dec)
 	return dec.Approved
+}
+
+// emitCommandApproval emits a CommandApproval audit event for a single command
+// approval decision. It is best-effort: emission failures are logged but never
+// fail the gate.
+func (g *sessionCommandGate) emitCommandApproval(cmd string, dec approval.Decision) {
+	s := g.s
+
+	// Determine the event type/code and decision label from the outcome. A
+	// decision attributed to the system (ApproverSystem) is a fail-closed
+	// result (timeout or internal error), reported as "failed" rather than a
+	// deliberate "denied".
+	var (
+		eventType string
+		eventCode string
+		decision  string
+	)
+	switch {
+	case dec.Approver == approval.ApproverSystem:
+		eventType = events.CommandApprovalFailedEvent
+		eventCode = events.CommandApprovalFailedCode
+		decision = "failed"
+	case dec.Approved:
+		eventType = events.CommandApprovalApprovedEvent
+		eventCode = events.CommandApprovalApprovedCode
+		decision = "approved"
+	default:
+		eventType = events.CommandApprovalDeniedEvent
+		eventCode = events.CommandApprovalDeniedCode
+		decision = "denied"
+	}
+
+	approverMode := g.mode
+	if dec.Mode != "" {
+		approverMode = string(dec.Mode)
+	}
+
+	ev := &apievents.CommandApproval{
+		Metadata: apievents.Metadata{
+			Type:        eventType,
+			Code:        eventCode,
+			ClusterName: s.scx.ClusterName,
+		},
+		ServerMetadata:  s.serverMeta,
+		SessionMetadata: s.scx.GetSessionMetadata(),
+		UserMetadata:    s.scx.Identity.GetUserMetadata(),
+		Command:         cmd,
+		Decision:        decision,
+		Approver:        dec.Approver,
+		ApproverMode:    approverMode,
+		Reason:          dec.Reason,
+		Model:           g.model,
+	}
+
+	if err := s.emitAuditEvent(s.serverCtx, ev); err != nil {
+		s.logger.WarnContext(s.serverCtx, "Failed to emit command approval audit event.", "error", err)
+	}
 }
 
 // denyAllCommandGate is the fail-closed commandGate fallback used when a
@@ -2331,7 +2396,19 @@ type denyAllCommandGate struct {
 
 // approve always denies the command and broadcasts a clear reason.
 func (g *denyAllCommandGate) approve(cmd string) bool {
-	g.s.BroadcastMessage("Command denied: AI command moderation is not yet available on this server.")
+	const reason = "AI command moderation is not yet available on this server."
+	g.s.BroadcastMessage("Command denied: " + reason)
+
+	// Best-effort fail-closed audit event so the denial is observable. Reuse
+	// the sessionCommandGate emitter with a system-attributed decision, which
+	// records a "failed" outcome.
+	gate := &sessionCommandGate{s: g.s, mode: string(approval.ModeAI)}
+	gate.emitCommandApproval(cmd, approval.Decision{
+		Approved: false,
+		Approver: approval.ApproverSystem,
+		Reason:   reason,
+		Mode:     approval.ModeAI,
+	})
 	return false
 }
 

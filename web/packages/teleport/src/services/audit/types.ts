@@ -189,6 +189,9 @@ export const eventCodes = {
   SFTP_DISALLOWED: 'TS020E',
   SFTP_SUMMARY: 'TS021I',
   SESSION_COMMAND: 'T4000I',
+  COMMAND_APPROVAL_APPROVED: 'T4004I',
+  COMMAND_APPROVAL_DENIED: 'T4005W',
+  COMMAND_APPROVAL_FAILED: 'T4006E',
   SESSION_DATA: 'T2006I',
   SESSION_DISK: 'T4001I',
   SESSION_END: 'T2004I',
@@ -594,6 +597,16 @@ export type RawEvents = {
   [eventCodes.SFTP_DISALLOWED]: RawEventSFTP<typeof eventCodes.SFTP_DISALLOWED>;
   [eventCodes.SESSION_COMMAND]: RawEventCommand<
     typeof eventCodes.SESSION_COMMAND
+  >;
+
+  [eventCodes.COMMAND_APPROVAL_APPROVED]: RawEventCommandApproval<
+    typeof eventCodes.COMMAND_APPROVAL_APPROVED
+  >;
+  [eventCodes.COMMAND_APPROVAL_DENIED]: RawEventCommandApproval<
+    typeof eventCodes.COMMAND_APPROVAL_DENIED
+  >;
+  [eventCodes.COMMAND_APPROVAL_FAILED]: RawEventCommandApproval<
+    typeof eventCodes.COMMAND_APPROVAL_FAILED
   >;
 
   [eventCodes.SESSION_DISK]: RawDiskEvent<typeof eventCodes.SESSION_DISK>;
@@ -2463,6 +2476,20 @@ type RawEventCommand<T extends EventCode> = RawEvent<
     return_code: number;
     server_id: string;
     sid: string;
+  }
+>;
+
+type RawEventCommandApproval<T extends EventCode> = RawEvent<
+  T,
+  {
+    sid: string;
+    server_id: string;
+    command: string;
+    decision: string;
+    approver: string;
+    approver_mode: string;
+    reason: string;
+    model: string;
   }
 >;
 

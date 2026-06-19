@@ -181,6 +181,28 @@ export const formatters: Formatters = {
     format: ({ program, sid }) =>
       `Program [${program}] has been executed within a session [${sid}]`,
   },
+  [eventCodes.COMMAND_APPROVAL_APPROVED]: {
+    type: 'command.approval.approved',
+    desc: 'Command Approval Approved',
+    format: ({ command, approver, sid }) =>
+      `Command [${command}] was approved by [${approver}] within a session [${sid}]`,
+  },
+  [eventCodes.COMMAND_APPROVAL_DENIED]: {
+    type: 'command.approval.denied',
+    desc: 'Command Approval Denied',
+    format: ({ command, approver, reason, sid }) =>
+      `Command [${command}] was denied by [${approver}]${
+        reason ? ` (${reason})` : ''
+      } within a session [${sid}]`,
+  },
+  [eventCodes.COMMAND_APPROVAL_FAILED]: {
+    type: 'command.approval.failed',
+    desc: 'Command Approval Failed',
+    format: ({ command, reason, sid }) =>
+      `Command [${command}] approval could not be obtained${
+        reason ? ` (${reason})` : ''
+      } within a session [${sid}]`,
+  },
   [eventCodes.SESSION_DISK]: {
     type: 'session.disk',
     desc: 'Session File Access',

@@ -143,6 +143,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.Resize{}
 	case SessionCommandEvent:
 		e = &events.SessionCommand{}
+	case CommandApprovalApprovedEvent, CommandApprovalDeniedEvent, CommandApprovalFailedEvent:
+		e = &events.CommandApproval{}
 	case SessionDiskEvent:
 		e = &events.SessionDisk{}
 	case SessionNetworkEvent:

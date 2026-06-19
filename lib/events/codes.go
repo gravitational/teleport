@@ -359,6 +359,17 @@ const (
 	// SessionNetworkCode is a session network code.
 	SessionNetworkCode = "T4002I"
 
+	// The CommandApproval* code series intentionally starts at T4004 because
+	// T4003I is already used by the web SESSION_PROCESS_EXIT event code; this
+	// avoids a future collision.
+	//
+	// CommandApprovalApprovedCode is the command approval approved event code.
+	CommandApprovalApprovedCode = "T4004I"
+	// CommandApprovalDeniedCode is the command approval denied event code.
+	CommandApprovalDeniedCode = "T4005W"
+	// CommandApprovalFailedCode is the command approval failed event code.
+	CommandApprovalFailedCode = "T4006E"
+
 	// AccessRequestCreateCode is the access request creation code.
 	AccessRequestCreateCode = "T5000I"
 	// AccessRequestUpdateCode is the access request state update code.

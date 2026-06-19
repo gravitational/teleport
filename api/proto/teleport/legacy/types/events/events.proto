@@ -1290,6 +1290,51 @@ message SessionLeave {
   ];
 }
 
+// CommandApproval is emitted for a per-command approval decision in a
+// moderated session (human or AI moderator).
+message CommandApproval {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // SessionMetadata is a common event session metadata
+  SessionMetadata Session = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ServerMetadata is a common server metadata
+  ServerMetadata Server = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Command is the reconstructed command line that was gated.
+  string Command = 5 [(gogoproto.jsontag) = "command,omitempty"];
+  // Decision is the outcome: "approved", "denied", or "failed".
+  string Decision = 6 [(gogoproto.jsontag) = "decision,omitempty"];
+  // Approver is the moderator username or "ai-moderator"/"system".
+  string Approver = 7 [(gogoproto.jsontag) = "approver,omitempty"];
+  // ApproverMode is "human" or "ai".
+  string ApproverMode = 8 [(gogoproto.jsontag) = "approver_mode,omitempty"];
+  // Reason is the human/AI/system explanation for the decision.
+  string Reason = 9 [(gogoproto.jsontag) = "reason,omitempty"];
+  // Model is the InferenceModel name used (AI decisions only).
+  string Model = 10 [(gogoproto.jsontag) = "model,omitempty"];
+}
+
 // UserLogin records a successfully or failed user login event
 message UserLogin {
   // Metadata is a common event metadata
@@ -5204,6 +5249,7 @@ message OneOf {
     events.ClassifierCreate ClassifierCreate = 260;
     events.ClassifierUpdate ClassifierUpdate = 261;
     events.ClassifierDelete ClassifierDelete = 262;
+    events.CommandApproval CommandApproval = 263;
   }
 }
 

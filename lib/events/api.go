@@ -312,6 +312,13 @@ const (
 	// SessionCommandEvent is emitted when an executable is run within a session.
 	SessionCommandEvent = "session.command"
 
+	// CommandApprovalApprovedEvent is emitted when a gated command is approved.
+	CommandApprovalApprovedEvent = "command.approval.approved"
+	// CommandApprovalDeniedEvent is emitted when a gated command is denied.
+	CommandApprovalDeniedEvent = "command.approval.denied"
+	// CommandApprovalFailedEvent is emitted when a command approval decision could not be obtained (fail-closed).
+	CommandApprovalFailedEvent = "command.approval.failed"
+
 	// SessionDiskEvent is emitted when a file is opened within an session.
 	SessionDiskEvent = "session.disk"
 

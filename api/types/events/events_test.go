@@ -382,6 +382,47 @@ func TestTrimToMaxSize(t *testing.T) {
 	}
 }
 
+// TestCommandApprovalTrimToMaxSize verifies that the free-form Reason and
+// Command fields of a CommandApproval event are trimmed below the limit while
+// the event remains valid (other fields are preserved).
+func TestCommandApprovalTrimToMaxSize(t *testing.T) {
+	const maxSize = 2000
+
+	in := &CommandApproval{
+		Metadata: Metadata{
+			Type:  "command.approval",
+			Code:  "T4004I",
+			Index: 1,
+		},
+		Command:      strings.Repeat("c", 5000),
+		Decision:     "approved",
+		Approver:     "ai-moderator",
+		ApproverMode: "ai",
+		Reason:       strings.Repeat("r", 5000),
+		Model:        "claude",
+	}
+	require.Greater(t, in.Size(), maxSize, "test input should exceed maxSize")
+
+	got, ok := in.TrimToMaxSize(maxSize).(*CommandApproval)
+	require.True(t, ok)
+
+	// The oversized event must now fit under the limit.
+	require.Less(t, got.Size(), maxSize)
+
+	// Free-form fields are trimmed but not emptied.
+	require.NotEmpty(t, got.Reason)
+	require.NotEmpty(t, got.Command)
+	require.Less(t, len(got.Reason), len(in.Reason))
+	require.Less(t, len(got.Command), len(in.Command))
+
+	// Non-free-form fields are preserved.
+	require.Equal(t, in.Metadata, got.Metadata)
+	require.Equal(t, in.Decision, got.Decision)
+	require.Equal(t, in.Approver, got.Approver)
+	require.Equal(t, in.ApproverMode, got.ApproverMode)
+	require.Equal(t, in.Model, got.Model)
+}
+
 func TestTrimStr(t *testing.T) {
 	tests := []struct {
 		have string
