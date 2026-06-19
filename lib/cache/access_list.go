@@ -353,11 +353,13 @@ func (c *Cache) GetAccessListMember(ctx context.Context, accessList string, memb
 	return member.Clone(), nil
 }
 
-type accessListMemberListerStore store[*accesslist.AccessListMember, accessListMemberIndex]
+type accessListMembersListerStore struct {
+	store *store[*accesslist.AccessListMember, accessListMemberIndex]
+}
 
 // ListAccessListMembers implements [accesslists.AccessListMembersLister].
-func (s *accessListMemberListerStore) ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error) {
-	return listAccessListMembers((*store[*accesslist.AccessListMember, accessListMemberIndex])(s), accessListName, pageSize, pageToken)
+func (l accessListMembersListerStore) ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error) {
+	return listAccessListMembers(l.store, accessListName, pageSize, pageToken)
 }
 
 // GetAccessListOwners returns the owners of the specified access list, including those inherited.
@@ -380,7 +382,7 @@ func (c *Cache) GetAccessListOwners(ctx context.Context, accessListName string) 
 		return accesslists.GetOwnersFor(ctx, accessList, c.Config.AccessLists)
 	}
 
-	return accesslists.GetOwnersFor(ctx, accessList, (*accessListMemberListerStore)(rg.store))
+	return accesslists.GetOwnersFor(ctx, accessList, accessListMembersListerStore{store: rg.store})
 }
 
 type accessListReviewIndex string
