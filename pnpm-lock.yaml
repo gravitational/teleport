@@ -4,9 +4,6 @@ settings:
   autoInstallPeers: false
   excludeLinksFromLockfile: false
 
-overrides:
-  yauzl: ^3.3.1
-
 pnpmfileChecksum: sha256-TR6zTaL3sXZMyu+QoRdd27aSUTH6sH0gp+M2XjxgTUI=
 
 importers:
@@ -483,8 +480,8 @@ importers:
         specifier: ^6.0.0
         version: 6.0.0
       electron:
-        specifier: 42.4.0
-        version: 42.4.0
+        specifier: 42.4.1
+        version: 42.4.1
       electron-builder:
         specifier: ^26.15.3
         version: 26.15.3
@@ -4786,8 +4783,8 @@ packages:
       '@swc/core':
         optional: true
 
-  electron@42.4.0:
-    resolution: {integrity: sha512-OXXqh9LD9KxXPv2Fe25EfU9N9AvWTuV6V81sfhQaNvTAXCd9ONA+Q4OWvMe+CmYD6xIwjFxGGtG/ZphDYYC5OQ==}
+  electron@42.4.1:
+    resolution: {integrity: sha512-8CYHJP5O4wFO+ycoJR98yy907MmPeo+vWXrzjxmGGgRNKqv8pOjjm+wphO0CCgQJnBU7+QUPSJS4QXhbKrO50w==}
     engines: {node: '>= 22.12.0'}
     hasBin: true
 
@@ -11560,7 +11557,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  electron@42.4.0:
+  electron@42.4.1:
     dependencies:
       '@electron-internal/extract-zip': 1.0.3
       '@electron/get': 5.0.0
