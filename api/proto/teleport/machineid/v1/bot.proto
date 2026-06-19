@@ -18,6 +18,7 @@ package teleport.machineid.v1;
 
 import "google/protobuf/duration.proto";
 import "teleport/header/v1/metadata.proto";
+import "teleport/legacy/types/delegation.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1;machineidv1";
 
@@ -73,6 +74,9 @@ message BotSpec {
   //
   // Cannot be set for a scoped Bot.
   google.protobuf.Duration max_session_ttl = 3;
+  // Delegation describes the relationship between this bot and the identity who
+  // delegated their access to it.
+  types.Delegation delegation = 4;
 }
 
 // Fields that are set by the server as results of operations. These should not

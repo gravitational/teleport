@@ -923,6 +923,8 @@ func setKindAndVersion(b *pb.Bot) error {
 // StrongValidateBot performs strong validation on scoped and unscoped bots,
 // and is suitable for being called on write operations. This should not be
 // called on read operations.
+//
+// TODO(boxofrad): Prevent users from editing `spec.delegation`.
 func StrongValidateBot(b *pb.Bot) error {
 	if b == nil {
 		return trace.BadParameter("must be non-nil")
@@ -956,6 +958,9 @@ func StrongValidateBot(b *pb.Bot) error {
 		}
 		if len(b.GetSpec().GetTraits()) > 0 {
 			return trace.BadParameter("spec.traits: cannot be set on scoped bot")
+		}
+		if b.GetSpec().GetDelegator() != nil {
+			return trace.BadParameter("spec.delegator: cannot be set on scoped bot")
 		}
 	}
 
@@ -1004,6 +1009,7 @@ func botFromUserAndRole(user types.User, role types.Role) (*pb.Bot, error) {
 		Spec: pb.BotSpec_builder{
 			Roles:         role.GetImpersonateConditions(types.Allow).Roles,
 			MaxSessionTtl: durationpb.New(role.GetOptions().MaxSessionTTL.Duration()),
+			Delegation:    user.GetDelegation(),
 		}.Build(),
 	}.Build()
 
@@ -1150,10 +1156,12 @@ func botToUserAndRole(bot *pb.Bot, now time.Time, createdBy string) (types.User,
 		traits[t.GetName()] = append(traits[t.GetName()], t.GetValues()...)
 	}
 	user.SetTraits(traits)
+	// TODO: figure out what to do with delegator when an admin is creating a bot.
 	user.SetCreatedBy(types.CreatedBy{
 		User: types.UserRef{Name: createdBy},
 		Time: now,
 	})
+	user.SetDelegation(bot.GetSpec().GetDelegation())
 
 	return user, role, nil
 }

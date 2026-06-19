@@ -21,6 +21,7 @@ import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 import "teleport/attestation/v1/attestation.proto";
 import "teleport/componentfeatures/v1/component_features.proto";
+import "teleport/legacy/types/delegation.proto";
 import "teleport/legacy/types/metadata.proto";
 import "teleport/legacy/types/mfa_device.proto";
 import "teleport/legacy/types/resources.proto";
@@ -4731,6 +4732,10 @@ message UserSpecV2 {
   //
   // Managed by the Device Trust subsystem, avoid manual edits.
   repeated string TrustedDeviceIDs = 10 [(gogoproto.jsontag) = "trusted_device_ids,omitempty"];
+
+  // Delegation describes the relationship between this user and the identity
+  // who delegated their access to them.
+  Delegation Delegation = 11 [(gogoproto.jsontag) = "delegation,omitempty"];
 }
 
 // ExternalIdentity is OpenID Connect/SAML or Github identity that is linked

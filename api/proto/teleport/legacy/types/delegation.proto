@@ -1,0 +1,60 @@
+// Copyright 2026 Gravitational, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package types;
+
+import "gogoproto/gogo.proto";
+
+option go_package = "github.com/gravitational/teleport/api/types";
+option (gogoproto.goproto_getters_all) = false;
+option (gogoproto.marshaler_all) = true;
+option (gogoproto.unmarshaler_all) = true;
+
+// Delegation represents the relationship between one identity (the "delegate")
+// and another (the "delegator") on whose behalf the delegate is acting.
+//
+// Delegates can sub-delegate to other delegates, forming a chain, in which each
+// Delegation object is a link. The most deeply nested Delegation (i.e. the tail
+// of the linked-list) represents the original delegator.
+message Delegation {
+  // Identity of the delegator.
+  oneof Delegator {
+    // Human user who delegated their access to the delegate.
+    UserDelegator User = 1 [(gogoproto.jsontag) = "user"];
+
+    // Machine user who delegated their access to the delegate.
+    BotDelegator Bot = 2 [(gogoproto.jsontag) = "bot"];
+  }
+
+  // Previous link in the delegation chain, i.e. the user or bot who delegated
+  // their access to the delegator.
+  Delegation Previous = 3 [(gogoproto.jsontag) = "previous,omitempty"];
+}
+
+// UserDelegator describes a human user who delegated their access.
+message UserDelegator {
+  // Username of the human user who delegated their access.
+  string Username = 1 [(gogoproto.jsontag) = "username"];
+}
+
+// BotDelegator describes a machine user that delegated its access.
+message BotDelegator {
+  // Name of the bot that delegated its access.
+  string Name = 1 [(gogoproto.jsontag) = "name"];
+
+  // Scope of the bot that delegated its access.
+  string Scope = 3 [(gogoproto.jsontag) = "scope,omitempty"];
+}

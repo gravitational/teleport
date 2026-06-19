@@ -24,6 +24,7 @@ package machineidv1
 
 import (
 	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	types "github.com/gravitational/teleport/api/types"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	durationpb "google.golang.org/protobuf/types/known/durationpb"
@@ -335,6 +336,9 @@ type BotSpec struct {
 	//
 	// Cannot be set for a scoped Bot.
 	MaxSessionTtl *durationpb.Duration `protobuf:"bytes,3,opt,name=max_session_ttl,json=maxSessionTtl,proto3" json:"max_session_ttl,omitempty"`
+	// Delegation describes the relationship between this bot and the identity who
+	// delegated their access to it.
+	Delegation    *types.Delegation `protobuf:"bytes,4,opt,name=delegation,proto3" json:"delegation,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -385,6 +389,13 @@ func (x *BotSpec) GetMaxSessionTtl() *durationpb.Duration {
 	return nil
 }
 
+func (x *BotSpec) GetDelegation() *types.Delegation {
+	if x != nil {
+		return x.Delegation
+	}
+	return nil
+}
+
 func (x *BotSpec) SetRoles(v []string) {
 	x.Roles = v
 }
@@ -397,6 +408,10 @@ func (x *BotSpec) SetMaxSessionTtl(v *durationpb.Duration) {
 	x.MaxSessionTtl = v
 }
 
+func (x *BotSpec) SetDelegation(v *types.Delegation) {
+	x.Delegation = v
+}
+
 func (x *BotSpec) HasMaxSessionTtl() bool {
 	if x == nil {
 		return false
@@ -404,8 +419,19 @@ func (x *BotSpec) HasMaxSessionTtl() bool {
 	return x.MaxSessionTtl != nil
 }
 
+func (x *BotSpec) HasDelegation() bool {
+	if x == nil {
+		return false
+	}
+	return x.Delegation != nil
+}
+
 func (x *BotSpec) ClearMaxSessionTtl() {
 	x.MaxSessionTtl = nil
+}
+
+func (x *BotSpec) ClearDelegation() {
+	x.Delegation = nil
 }
 
 type BotSpec_builder struct {
@@ -429,6 +455,9 @@ type BotSpec_builder struct {
 	//
 	// Cannot be set for a scoped Bot.
 	MaxSessionTtl *durationpb.Duration
+	// Delegation describes the relationship between this bot and the identity who
+	// delegated their access to it.
+	Delegation *types.Delegation
 }
 
 func (b0 BotSpec_builder) Build() *BotSpec {
@@ -438,6 +467,7 @@ func (b0 BotSpec_builder) Build() *BotSpec {
 	x.Roles = b.Roles
 	x.Traits = b.Traits
 	x.MaxSessionTtl = b.MaxSessionTtl
+	x.Delegation = b.Delegation
 	return m0
 }
 
@@ -522,7 +552,7 @@ var File_teleport_machineid_v1_bot_proto protoreflect.FileDescriptor
 
 const file_teleport_machineid_v1_bot_proto_rawDesc = "" +
 	"\n" +
-	"\x1fteleport/machineid/v1/bot.proto\x12\x15teleport.machineid.v1\x1a\x1egoogle/protobuf/duration.proto\x1a!teleport/header/v1/metadata.proto\"\x8c\x02\n" +
+	"\x1fteleport/machineid/v1/bot.proto\x12\x15teleport.machineid.v1\x1a\x1egoogle/protobuf/duration.proto\x1a!teleport/header/v1/metadata.proto\x1a&teleport/legacy/types/delegation.proto\"\x8c\x02\n" +
 	"\x03Bot\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
 	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
@@ -533,11 +563,14 @@ const file_teleport_machineid_v1_bot_proto_rawDesc = "" +
 	"\x05scope\x18\a \x01(\tR\x05scope\"3\n" +
 	"\x05Trait\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x16\n" +
-	"\x06values\x18\x02 \x03(\tR\x06values\"\x98\x01\n" +
+	"\x06values\x18\x02 \x03(\tR\x06values\"\xcb\x01\n" +
 	"\aBotSpec\x12\x14\n" +
 	"\x05roles\x18\x01 \x03(\tR\x05roles\x124\n" +
 	"\x06traits\x18\x02 \x03(\v2\x1c.teleport.machineid.v1.TraitR\x06traits\x12A\n" +
-	"\x0fmax_session_ttl\x18\x03 \x01(\v2\x19.google.protobuf.DurationR\rmaxSessionTtl\"V\n" +
+	"\x0fmax_session_ttl\x18\x03 \x01(\v2\x19.google.protobuf.DurationR\rmaxSessionTtl\x121\n" +
+	"\n" +
+	"delegation\x18\x04 \x01(\v2\x11.types.DelegationR\n" +
+	"delegation\"V\n" +
 	"\tBotStatus\x12\x1b\n" +
 	"\tuser_name\x18\x01 \x01(\tR\buserName\x12\x1b\n" +
 	"\trole_name\x18\x03 \x01(\tR\broleNameJ\x04\b\x02\x10\x03R\trole_roleBVZTgithub.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1;machineidv1b\x06proto3"
@@ -550,6 +583,7 @@ var file_teleport_machineid_v1_bot_proto_goTypes = []any{
 	(*BotStatus)(nil),           // 3: teleport.machineid.v1.BotStatus
 	(*v1.Metadata)(nil),         // 4: teleport.header.v1.Metadata
 	(*durationpb.Duration)(nil), // 5: google.protobuf.Duration
+	(*types.Delegation)(nil),    // 6: types.Delegation
 }
 var file_teleport_machineid_v1_bot_proto_depIdxs = []int32{
 	4, // 0: teleport.machineid.v1.Bot.metadata:type_name -> teleport.header.v1.Metadata
@@ -557,11 +591,12 @@ var file_teleport_machineid_v1_bot_proto_depIdxs = []int32{
 	3, // 2: teleport.machineid.v1.Bot.status:type_name -> teleport.machineid.v1.BotStatus
 	1, // 3: teleport.machineid.v1.BotSpec.traits:type_name -> teleport.machineid.v1.Trait
 	5, // 4: teleport.machineid.v1.BotSpec.max_session_ttl:type_name -> google.protobuf.Duration
-	5, // [5:5] is the sub-list for method output_type
-	5, // [5:5] is the sub-list for method input_type
-	5, // [5:5] is the sub-list for extension type_name
-	5, // [5:5] is the sub-list for extension extendee
-	0, // [0:5] is the sub-list for field type_name
+	6, // 5: teleport.machineid.v1.BotSpec.delegation:type_name -> types.Delegation
+	6, // [6:6] is the sub-list for method output_type
+	6, // [6:6] is the sub-list for method input_type
+	6, // [6:6] is the sub-list for extension type_name
+	6, // [6:6] is the sub-list for extension extendee
+	0, // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_teleport_machineid_v1_bot_proto_init() }

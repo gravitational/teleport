@@ -36,6 +36,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/delegation"
 	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -153,6 +154,9 @@ type Identity struct {
 	// DelegationSessionID is the identifier of the Delegation Session this
 	// certificate was created for.
 	DelegationSessionID string
+	// Delegation contains the delegation chain of the identity this certificate
+	// represents.
+	Delegation *types.Delegation
 	// HeadlessAuthenticationID is the ID of the headless authentication
 	// resource this certificate is being generated for.
 	HeadlessAuthenticationID string
@@ -327,6 +331,13 @@ func (i *Identity) Encode(certFormat string) (*ssh.Certificate, error) {
 	}
 	if i.DelegationSessionID != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionDelegationSessionID] = i.DelegationSessionID
+	}
+	if i.Delegation != nil {
+		delegation, err := delegation.Encode(i.Delegation)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cert.Permissions.Extensions[teleport.CertExtensionDelegation] = delegation
 	}
 	if i.GitHubUserID != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionGitHubUserID] = i.GitHubUserID
@@ -589,6 +600,14 @@ func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 	ident.GitHubUserID = takeValue(teleport.CertExtensionGitHubUserID)
 	ident.GitHubUsername = takeValue(teleport.CertExtensionGitHubUsername)
 	ident.HeadlessAuthenticationID = takeValue(teleport.CertExtensionHeadlessAuthenticationID)
+
+	if v := takeValue(teleport.CertExtensionDelegation); v != "" {
+		delegation, err := delegation.Decode(v)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		ident.Delegation = delegation
+	}
 
 	if v, ok := cert.CriticalOptions[teleport.CertCriticalOptionSourceAddress]; ok {
 		parts := strings.Split(v, "/")

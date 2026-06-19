@@ -178,6 +178,10 @@ type User interface {
 	GetWeakestDevice() MFADeviceKind
 	// Clone creats a copy of the user.
 	Clone() User
+	// GetDelegator returns the head of the user's delegation chain.
+	GetDelegation() *Delegation
+	// SetDelegation sets the head of the user's delegation chain.
+	SetDelegation(*Delegation)
 }
 
 // NewUser creates new empty user
@@ -698,6 +702,14 @@ func (u *UserV2) SetWeakestDevice(state MFADeviceKind) {
 
 func (u *UserV2) GetWeakestDevice() MFADeviceKind {
 	return u.Status.MfaWeakestDevice
+}
+
+func (u *UserV2) GetDelegation() *Delegation {
+	return u.Spec.Delegation
+}
+
+func (u *UserV2) SetDelegation(d *Delegation) {
+	u.Spec.Delegation = d
 }
 
 // IsEmpty returns true if there's no info about who created this user

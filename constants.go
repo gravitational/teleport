@@ -547,6 +547,9 @@ const (
 	// CertExtensionDelegationSessionID contains the identifier of the
 	// Delegation Session this certificate was created for.
 	CertExtensionDelegationSessionID = "delegation-session-id@goteleport.com"
+	// CertExtensionDelegation contains the delegation chain of the identity this
+	// certificate was created for.
+	CertExtensionDelegation = "delegation@goteleport.com"
 
 	// CertCriticalOptionSourceAddress is a critical option that defines IP addresses (in CIDR notation)
 	// from which this certificate is accepted for authentication.

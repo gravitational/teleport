@@ -1676,6 +1676,9 @@ type UserState interface {
 	GetGithubIdentities() []types.ExternalIdentity
 	// SetGithubIdentities sets the list of connected GitHub identities
 	SetGithubIdentities(identities []types.ExternalIdentity)
+
+	// GetDelegator returns the head of the user's delegation chain.
+	GetDelegation() *types.Delegation
 }
 
 // AccessInfoFromUserState return a new AccessInfo populated from the roles and
