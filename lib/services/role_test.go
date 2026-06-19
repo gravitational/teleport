@@ -5331,6 +5331,8 @@ func TestGetAllowedLoginsForResource(t *testing.T) {
 		labels         map[string]string
 		roleSet        RoleSet
 		expectedLogins []string
+		// expectedServerLogins overrides expectedLogins for beam nodes.
+		expectedServerLogins []string
 	}{
 		{
 			name: "env dev login is added",
@@ -5472,6 +5474,21 @@ func TestGetAllowedLoginsForResource(t *testing.T) {
 			),
 			expectedLogins: nil,
 		},
+		{
+			name: "beam node is filtered to the beams login",
+			labels: map[string]string{
+				types.BeamIDLabel:    "abc123",
+				types.BeamOwnerLabel: "alice",
+				"env":                "dev",
+			},
+			roleSet: NewRoleSet(
+				newRole(
+					[]string{"root", types.BeamsLogin},
+					types.Labels{types.Wildcard: []string{types.Wildcard}}, []string{}, types.Labels{}),
+			),
+			expectedLogins:       []string{"root", types.BeamsLogin},
+			expectedServerLogins: []string{types.BeamsLogin},
+		},
 	}
 	for _, tc := range tt {
 		accessChecker := makeAccessCheckerWithRoleSet(tc.roleSet)
@@ -5487,7 +5504,11 @@ func TestGetAllowedLoginsForResource(t *testing.T) {
 			awsARNLogins, err := accessChecker.GetAllowedLoginsForResource(app)
 			require.NoError(t, err)
 
-			require.ElementsMatch(t, tc.expectedLogins, serverLogins)
+			expectedServerLogins := tc.expectedLogins
+			if tc.expectedServerLogins != nil {
+				expectedServerLogins = tc.expectedServerLogins
+			}
+			require.ElementsMatch(t, expectedServerLogins, serverLogins)
 			require.ElementsMatch(t, tc.expectedLogins, desktopLogins)
 			require.ElementsMatch(t, tc.expectedLogins, awsARNLogins)
 		})

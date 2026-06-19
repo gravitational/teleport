@@ -1181,7 +1181,25 @@ func (a *accessChecker) GetAllowedLoginsForResource(resource AccessCheckable) ([
 		}
 	}
 
+	// Only show the dedicated "beams" login for beam nodes.
+	if resource.GetKind() == types.KindNode && hasBeamLabel(resource.GetAllLabels()) {
+		allowed = slices.DeleteFunc(allowed, func(login string) bool {
+			return login != types.BeamsLogin
+		})
+	}
+
 	return allowed, nil
+}
+
+// hasBeamLabel reports whether the given labels include any internal beams
+// label, identifying the resource as part of a beam.
+func hasBeamLabel(labels map[string]string) bool {
+	for key := range labels {
+		if strings.HasPrefix(key, types.BeamsInternalLabelPrefix) {
+			return true
+		}
+	}
+	return false
 }
 
 // CheckAccessToRemoteCluster checks if a role has access to remote cluster. Deny rules are

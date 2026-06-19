@@ -1032,6 +1032,114 @@ func TestRBACJoinMFA(t *testing.T) {
 	}
 }
 
+func TestEvaluateSSHAccessBeam(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	const clusterName = "localhost"
+	const username = "testuser"
+
+	userCAPriv, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	userCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.UserCA,
+		ClusterName: clusterName,
+		ActiveKeys: types.CAKeySet{
+			SSH: []*types.SSHKeyPair{{
+				PublicKey:      userCAPriv.MarshalSSHPublicKey(),
+				PrivateKey:     userCAPriv.PrivateKeyPEM(),
+				PrivateKeyType: types.PrivateKeyType_RAW,
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	server := newMockServer(t)
+	cn, err := types.NewClusterName(types.ClusterNameSpecV2{
+		ClusterName: clusterName,
+		ClusterID:   "cluster_id",
+	})
+	require.NoError(t, err)
+	require.NoError(t, server.auth.SetClusterName(cn))
+
+	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		SecondFactor:   constants.SecondFactorOTP,
+		RequireMFAType: types.RequireMFAType_OFF,
+	})
+	require.NoError(t, err)
+
+	accessPoint := &mockCAandAuthPrefGetter{
+		AccessPoint: server.auth,
+		authPref:    authPref,
+		cas: map[types.CertAuthType][]types.CertAuthority{
+			types.UserCA: {userCA},
+		},
+	}
+
+	config := &AuthHandlerConfig{
+		Server:                        server,
+		Emitter:                       &eventstest.MockRecorderEmitter{},
+		AccessPoint:                   accessPoint,
+		ValidatedMFAChallengeVerifier: &mockMFAServiceClient{},
+	}
+	ah, err := NewAuthHandlers(config)
+	require.NoError(t, err)
+
+	_, err = server.auth.CreateClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
+	require.NoError(t, err)
+
+	role, err := types.NewRole("node-access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins:     []string{"root", types.BeamsLogin},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+	})
+	require.NoError(t, err)
+	_, err = server.auth.CreateRole(ctx, role)
+	require.NoError(t, err)
+
+	regularNode, err := types.NewNode("regular", types.SubKindOpenSSHNode, types.ServerSpecV2{
+		Addr:     "1.2.3.4:22",
+		Hostname: "regular",
+	}, map[string]string{"env": "test"})
+	require.NoError(t, err)
+
+	beamNode, err := types.NewNode("beam", types.SubKindOpenSSHNode, types.ServerSpecV2{
+		Addr:     "1.2.3.4:22",
+		Hostname: "beam-abc",
+	}, map[string]string{types.BeamIDLabel: "abc", types.BeamOwnerLabel: username})
+	require.NoError(t, err)
+
+	tests := []struct {
+		name       string
+		target     types.Server
+		osUser     string
+		wantDenied bool
+	}{
+		{name: "root on regular node allowed", target: regularNode, osUser: "root"},
+		{name: "beams on beam node allowed", target: beamNode, osUser: types.BeamsLogin},
+		{name: "root on beam node denied", target: beamNode, osUser: "root", wantDenied: true},
+		{name: "arbitrary login on beam node denied", target: beamNode, osUser: "ubuntu", wantDenied: true},
+	}
+
+	ident := &sshca.Identity{
+		Username: username,
+		Roles:    []string{role.GetName()},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := ah.evaluateSSHAccess(ident, userCA, clusterName, tt.target, tt.osUser)
+			if tt.wantDenied {
+				require.True(t, trace.IsAccessDenied(err), "expected access denied, got %v", err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestAuthorityForCert(t *testing.T) {
 	rawCA1, _, err := ed25519.GenerateKey(rand.Reader)
 	require.NoError(t, err)

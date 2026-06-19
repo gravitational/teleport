@@ -1146,6 +1146,12 @@ func (a *ahLoginChecker) evaluateScopedSSHAccess(ident *sshca.Identity, ca types
 		return nil, trace.BadParameter("expected target to be of type *types.ServerV2, got %T", target)
 	}
 
+	// Only show the dedicated "beams" login for beam nodes.
+	if isBeamServer(target) && osUser != types.BeamsLogin {
+		return nil, trace.AccessDenied("user %s@%s is not authorized to login as %v@%s: beams may only be accessed as %q",
+			ident.Username, ca.GetClusterName(), osUser, clusterName, types.BeamsLogin)
+	}
+
 	agentScope := scopes.Root
 	if serverV2.Scope != "" {
 		agentScope = serverV2.Scope
@@ -1241,6 +1247,16 @@ func (a *ahLoginChecker) evaluateScopedSSHAccess(ident *sshca.Identity, ca types
 	return permit, nil
 }
 
+// isBeamServer reports whether the target server is a beam microVM, identified
+// by the internal beam ID label stamped on the node when the beam is created.
+func isBeamServer(target types.Server) bool {
+	if target == nil {
+		return false
+	}
+	_, ok := target.GetAllLabels()[types.BeamIDLabel]
+	return ok
+}
+
 // evaluateSSHAccess checks the given certificate (supplied by a connected
 // client) to see if this certificate can be allowed to login as user:login
 // pair to requested server and if RBAC rules allow login.
@@ -1286,6 +1302,11 @@ func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertA
 
 	// Perform the primary node access check unless bypass is allowed.
 	if !bypassAccessCheck {
+		if isBeamServer(target) && osUser != types.BeamsLogin {
+			return nil, trace.AccessDenied("user %s@%s is not authorized to login as %v@%s: beams may only be accessed as %q",
+				ident.Username, ca.GetClusterName(), osUser, clusterName, types.BeamsLogin)
+		}
+
 		if preconds, err = accessChecker.CheckConditionalAccess(
 			target,
 			state,
