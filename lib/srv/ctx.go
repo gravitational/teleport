@@ -310,6 +310,9 @@ type IdentityContext struct {
 	// deadline in cases where both require_session_mfa and disconnect_expired_cert
 	// are enabled. See https://github.com/gravitational/teleport/issues/18544.
 	PreviousIdentityExpires time.Time
+
+	// BeamID is the identifier of the Beam this session was created for.
+	BeamID string
 }
 
 // ServerContext holds session specific context, such as SSH auth agents, PTYs,
