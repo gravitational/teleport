@@ -72,10 +72,10 @@ func TestDeviceSourceToString(t *testing.T) {
 // rendering directly with a synthetic token.
 func TestWriteEnrollToken(t *testing.T) {
 	t.Parallel()
-	token := &devicepb.DeviceEnrollToken{
+	token := devicepb.DeviceEnrollToken_builder{
 		Token:      "sometoken",
 		ExpireTime: timestamppb.New(time.Date(2030, 1, 1, 0, 0, 0, 0, time.UTC)),
-	}
+	}.Build()
 
 	t.Run("text", func(t *testing.T) {
 		var buf bytes.Buffer

@@ -762,26 +762,26 @@ func TestAutoUpdateAgentReportStructuredOutput(t *testing.T) {
 // rolloutFixture is the rollout returned by the mocked rollout mutation
 // methods, used to verify structured output of start-update/mark-done/rollback.
 func rolloutFixture() *autoupdatepb.AutoUpdateAgentRollout {
-	return &autoupdatepb.AutoUpdateAgentRollout{
-		Spec: &autoupdatepb.AutoUpdateAgentRolloutSpec{
+	return autoupdatepb.AutoUpdateAgentRollout_builder{
+		Spec: autoupdatepb.AutoUpdateAgentRolloutSpec_builder{
 			AutoupdateMode: "enabled",
 			StartVersion:   "1.2.3",
 			TargetVersion:  "1.2.4",
 			Schedule:       "regular",
 			Strategy:       "time-based",
-		},
-		Status: &autoupdatepb.AutoUpdateAgentRolloutStatus{
+		}.Build(),
+		Status: autoupdatepb.AutoUpdateAgentRolloutStatus_builder{
 			State: autoupdatepb.AutoUpdateAgentRolloutState_AUTO_UPDATE_AGENT_ROLLOUT_STATE_ACTIVE,
 			Groups: []*autoupdatepb.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdatepb.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:          "dev",
 					State:         autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
 					PresentCount:  3,
 					UpToDateCount: 2,
-				},
+				}.Build(),
 			},
-		},
-	}
+		}.Build(),
+	}.Build()
 }
 
 func TestAutoUpdateAgentRolloutMutationStructuredOutput(t *testing.T) {
