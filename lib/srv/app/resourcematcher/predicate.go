@@ -172,6 +172,23 @@ func newParser() (*typical.CachedParser[env, bool], error) {
 			"greedy": typical.UnaryVariadicFunction[env](func(_ ...*Node) (*Node, error) {
 				return Greedy(), nil
 			}),
+			// Carve-out constructors. Each folds an exclusion into one matcher
+			// tree so a deny needs no separate negated path.match, which keeps
+			// the whole rule on one decode policy and avoids the fail-open
+			// inversion a negated match carries. glob_without excludes single
+			// segment values and continues to children; greedy_without excludes
+			// the `<value>/**` subtrees by first segment; greedy_except excludes
+			// arbitrary matcher subtrees, with the exclusion's own terminal-ness
+			// choosing exact-segment versus whole-subtree.
+			"glob_without": typical.BinaryVariadicFunction[env](func(excludes []string, children ...*Node) (*Node, error) {
+				return GlobWithout(excludes, children...)
+			}),
+			"greedy_without": typical.UnaryVariadicFunction[env](func(excludes ...string) (*Node, error) {
+				return GreedyWithout(excludes...)
+			}),
+			"greedy_except": typical.UnaryVariadicFunction[env](func(excludes ...*Node) (*Node, error) {
+				return GreedyExcept(excludes...)
+			}),
 			// Identity helpers, matching the existing predicate language.
 			"set": typical.UnaryVariadicFunction[env](func(args ...string) ([]string, error) {
 				return args, nil

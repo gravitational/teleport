@@ -143,18 +143,68 @@ func isPathMatch(call *ast.CallExpr) bool {
 }
 
 // capturesIn returns the set of capture names bound anywhere in one matcher
-// alternative subtree.
+// alternative subtree. It does not descend into a greedy_except exclusion: an
+// exclusion is a negative test that binds nothing, so a capture written there
+// is discarded at evaluation and must not count as guaranteed.
 func capturesIn(node ast.Node) map[string]bool {
 	out := map[string]bool{}
 	ast.Inspect(node, func(n ast.Node) bool {
-		if call, ok := n.(*ast.CallExpr); ok {
-			if name, ok := captureName(call); ok {
-				out[name] = true
-			}
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		if isGreedyExcept(call) {
+			return false
+		}
+		if name, ok := captureName(call); ok {
+			out[name] = true
 		}
 		return true
 	})
 	return out
+}
+
+// isGreedyExcept reports whether call is a greedy_except(...) call.
+func isGreedyExcept(call *ast.CallExpr) bool {
+	id, ok := call.Fun.(*ast.Ident)
+	return ok && id.Name == "greedy_except"
+}
+
+// validateExclusions rejects a capture inside a greedy_except matcher. An
+// exclusion is a deny test that binds nothing, so a capture there can never be
+// read through vars.<name>; rejecting it at load turns a silent no-op into a
+// clear error. The constructor enforces the same rule as a backstop, but the
+// constructor runs only at evaluation, so the load-time check is what surfaces
+// the mistake when the rule is compiled.
+func validateExclusions(expr string) error {
+	parsed, err := goparser.ParseExpr(expr)
+	if err != nil {
+		return nil
+	}
+	var bad string
+	ast.Inspect(parsed, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok || !isGreedyExcept(call) {
+			return true
+		}
+		for _, arg := range call.Args {
+			ast.Inspect(arg, func(m ast.Node) bool {
+				if inner, ok := m.(*ast.CallExpr); ok {
+					if name, ok := captureName(inner); ok {
+						bad = name
+					}
+				}
+				return true
+			})
+		}
+		return true
+	})
+	if bad != "" {
+		return trace.BadParameter(
+			"a greedy_except matcher cannot bind capture %q: an exclusion is a deny test and binds nothing",
+			bad)
+	}
+	return nil
 }
 
 // referencedVars returns the names read through the vars.<name> namespace.

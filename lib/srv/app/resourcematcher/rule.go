@@ -203,6 +203,9 @@ func (r Rule) Compile() (*CompiledRule, error) {
 	if err := validateCaptures(expr); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := validateExclusions(expr); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// Read the decode options off every path.match in the expression and check
 	// they agree. A carve-out's negated path.match must decode the subject the
@@ -271,6 +274,9 @@ func (r Rule) compileDenyHints() ([]compiledHint, error) {
 			return nil, trace.Wrap(err, "compiling deny_hint %d on %q", i, on)
 		}
 		if err := validateCaptures(on); err != nil {
+			return nil, trace.Wrap(err, "deny_hint %d", i)
+		}
+		if err := validateExclusions(on); err != nil {
 			return nil, trace.Wrap(err, "deny_hint %d", i)
 		}
 		hints = append(hints, compiledHint{on: onPred, denyCode: h.DenyCode, denyReason: h.DenyReason})

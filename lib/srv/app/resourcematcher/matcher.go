@@ -31,6 +31,7 @@
 package resourcematcher
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -63,6 +64,16 @@ type Node struct {
 	// alternatives, OR-ed together. A node with no children is terminal: the
 	// subject must end at this segment for the match to succeed.
 	children []*Node
+	// globExclude holds segment values a kindGlob node must not match. It is set
+	// only by GlobWithout. A token equal to any entry fails the node, so the
+	// glob matches one segment that is none of the excluded values.
+	globExclude []string
+	// greedyExcept holds matcher subtrees a kindGreedy node must not match. It
+	// is set by GreedyWithout and GreedyExcept. The greedy node matches the
+	// trailing segments only when none of these subtrees match the suffix, so
+	// it carves a deny out of an otherwise greedy match. The exclusion is a
+	// pure negative test and binds no captures.
+	greedyExcept []*Node
 }
 
 // Literal builds a node that matches one or more fixed segments. The string is
@@ -101,6 +112,87 @@ func Greedy() *Node {
 	return &Node{kind: kindGreedy}
 }
 
+// GlobWithout builds a node that matches exactly one non-empty segment whose
+// value is none of the excluded strings, then continues to children. It is the
+// negative-set form of Glob: GlobWithout([]string{"private", "secret"}) matches
+// any single segment except "private" or "secret". An empty excluded value is a
+// load error, since a request path segment can never be empty under the strict
+// URL rules and the entry would be dead.
+func GlobWithout(excludes []string, children ...*Node) (*Node, error) {
+	if err := validateExcludeValues(excludes); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &Node{kind: kindGlob, globExclude: excludes, children: children}, nil
+}
+
+// GreedyWithout builds a terminal greedy node that matches the trailing
+// segments unless the first of them equals an excluded string, so it excludes
+// the `<excluded>/**` subtrees. GreedyWithout("private", "secret") matches any
+// tail except one rooted at "private" or "secret". It is the string sugar for
+// GreedyExcept(Literal(s, Greedy())) over each value, so the two collapse to
+// one internal form. An empty excluded value is a load error.
+func GreedyWithout(excludes ...string) (*Node, error) {
+	if err := validateExcludeValues(excludes); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	except := make([]*Node, 0, len(excludes))
+	for _, s := range excludes {
+		except = append(except, Literal(s, Greedy()))
+	}
+	return &Node{kind: kindGreedy, greedyExcept: except}, nil
+}
+
+// GreedyExcept builds a terminal greedy node that matches the trailing segments
+// unless they match one of the excluded matcher subtrees. The excluded
+// matcher's own terminal-ness controls the scope: GreedyExcept(Literal("x"))
+// excludes only the exact segment "x", while GreedyExcept(Literal("x",
+// Greedy())) excludes the whole "x/**" subtree. An exclusion is a pure deny
+// test that binds nothing, so a capture inside an excluded matcher is a load
+// error rather than a silent no-op.
+func GreedyExcept(excludes ...*Node) (*Node, error) {
+	for _, e := range excludes {
+		if containsCapture(e) {
+			return nil, trace.BadParameter(
+				"a greedy_except matcher cannot bind a capture: an exclusion is a deny test and binds nothing")
+		}
+	}
+	return &Node{kind: kindGreedy, greedyExcept: excludes}, nil
+}
+
+// validateExcludeValues rejects an empty excluded segment value. A request path
+// segment can never be empty under the strict URL rules, so an empty exclusion
+// would never match anything and is a likely author mistake.
+func validateExcludeValues(excludes []string) error {
+	for _, s := range excludes {
+		if s == "" {
+			return trace.BadParameter("an excluded segment value cannot be empty")
+		}
+	}
+	return nil
+}
+
+// containsCapture reports whether the node tree binds any capture, walking both
+// the children and the greedy exclusion subtrees.
+func containsCapture(n *Node) bool {
+	if n == nil {
+		return false
+	}
+	if n.kind == kindCapture {
+		return true
+	}
+	for _, c := range n.children {
+		if containsCapture(c) {
+			return true
+		}
+	}
+	for _, e := range n.greedyExcept {
+		if containsCapture(e) {
+			return true
+		}
+	}
+	return false
+}
+
 // Eval walks tokens against the matcher root. On a match it returns true and
 // the segments bound by capture nodes. On no match it returns false and a nil
 // map. Evaluation never mutates shared state and never panics.
@@ -121,7 +213,15 @@ func matchNode(node *Node, tokens []string, i int, caps map[string]string) bool 
 	switch node.kind {
 	case kindGreedy:
 		// Greedy is terminal and matches the entire remaining suffix,
-		// including zero tokens. The match always succeeds from here.
+		// including zero tokens. When the node carries exclusions, the suffix
+		// must match none of them: each exclusion is a negative test, walked
+		// against a throwaway capture map so a binding inside an exclusion never
+		// leaks into the real match.
+		for _, excl := range node.greedyExcept {
+			if matchNode(excl, tokens, i, map[string]string{}) {
+				return false
+			}
+		}
 		return true
 	case kindLiteral:
 		if i >= len(tokens) || tokens[i] != node.text {
@@ -130,6 +230,9 @@ func matchNode(node *Node, tokens []string, i int, caps map[string]string) bool 
 		return matchChildren(node, tokens, i, caps)
 	case kindGlob:
 		if i >= len(tokens) || tokens[i] == "" {
+			return false
+		}
+		if slices.Contains(node.globExclude, tokens[i]) {
 			return false
 		}
 		return matchChildren(node, tokens, i, caps)
