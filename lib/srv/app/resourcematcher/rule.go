@@ -20,6 +20,9 @@ package resourcematcher
 
 import (
 	"fmt"
+	"go/ast"
+	goparser "go/parser"
+	"go/token"
 	"strconv"
 	"strings"
 
@@ -176,6 +179,13 @@ func (r Rule) Compile() (*CompiledRule, error) {
 	if r.Pred == "" && !hasDeclarative {
 		return nil, trace.BadParameter("a rule must set pred or at least one of paths, methods, where")
 	}
+	// url_decoding is sugar for the declarative form: desugar lowers it into the
+	// decode options on the path.match it emits. A pred-form rule sets its
+	// options inline in the predicate instead, so url_decoding alongside pred is
+	// rejected rather than silently ignored.
+	if r.Pred != "" && r.URLDecoding != (DecodeConfig{}) {
+		return nil, trace.BadParameter("url_decoding applies to the declarative form; set decode options inline in pred")
+	}
 
 	expr := r.Pred
 	if hasDeclarative {
@@ -194,6 +204,16 @@ func (r Rule) Compile() (*CompiledRule, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// Read the decode options off every path.match in the expression and check
+	// they agree. A carve-out's negated path.match must decode the subject the
+	// same way as the positive match, or an over-encoded path can slip past the
+	// negation while the positive match still admits it. The single agreed
+	// config also serves the pre-rule tokenize check in RoleSet.Evaluate.
+	decode, err := extractDecodeConfig(expr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if r.AllowCode != "" {
 		if err := validateCode(r.AllowCode); err != nil {
 			return nil, trace.Wrap(err, "invalid allow_code")
@@ -207,7 +227,7 @@ func (r Rule) Compile() (*CompiledRule, error) {
 
 	return &CompiledRule{
 		pred:        pred,
-		decode:      r.URLDecoding,
+		decode:      decode,
 		allowCode:   r.AllowCode,
 		allowReason: r.AllowReason,
 		denyHints:   hints,
@@ -292,21 +312,140 @@ func (r Rule) desugar() (string, error) {
 	return joinClauses(path, r.methodClause(), where), nil
 }
 
-// pathClause renders the Paths as a single path.match call whose arguments are
-// the per-pattern matcher trees, OR-ed. It is empty when no paths are set.
+// pathClause renders the Paths as one path.match call per pattern, OR-ed with
+// ||. Each call carries the same decode options from URLDecoding, so the rule's
+// path.match calls agree as the load check requires. A run of more than one
+// pattern is wrapped in parentheses so the || binds tighter than the && that
+// joins the path clause to a method or where clause. It is empty when no paths
+// are set.
 func (r Rule) pathClause() (string, error) {
 	if len(r.Paths) == 0 {
 		return "", nil
 	}
-	roots := make([]string, 0, len(r.Paths))
+	opts := optsSource(r.URLDecoding)
+	calls := make([]string, 0, len(r.Paths))
 	for _, p := range r.Paths {
 		node, err := Compile(p)
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
-		roots = append(roots, nodeToSource(node))
+		calls = append(calls, fmt.Sprintf("path.match(%s%s)", nodeToSource(node), opts))
 	}
-	return fmt.Sprintf("path.match(%s)", strings.Join(roots, ", ")), nil
+	joined := strings.Join(calls, " || ")
+	if len(calls) > 1 {
+		joined = "(" + joined + ")"
+	}
+	return joined, nil
+}
+
+// optsSource renders a DecodeConfig as the trailing decode option arguments to
+// a path.match call: ", decode_iterations(n)" when n is positive, and
+// ", allow_percent()" when set. The strict zero value renders nothing, so a
+// default rule desugars to a bare path.match(<tree>).
+func optsSource(cfg DecodeConfig) string {
+	var b strings.Builder
+	if cfg.DecodeIterations > 0 {
+		fmt.Fprintf(&b, ", decode_iterations(%d)", cfg.DecodeIterations)
+	}
+	if cfg.AllowPercent {
+		b.WriteString(", allow_percent()")
+	}
+	return b.String()
+}
+
+// extractDecodeConfig reads the decode options off every path.match call in
+// expr and returns the single config they share. Divergent options are a load
+// error: a carve-out's negated path.match must decode the subject the same way
+// as the positive match, or an over-encoded path can slip past the negation
+// while the positive match still admits it. A rule with no path.match call
+// decodes nothing and returns the strict zero value.
+func extractDecodeConfig(expr string) (DecodeConfig, error) {
+	root, err := goparser.ParseExpr(expr)
+	if err != nil {
+		// parsePredicate already accepted expr, so a parse failure here is
+		// unexpected and is reported rather than swallowed.
+		return DecodeConfig{}, trace.Wrap(err, "parsing expression for decode options")
+	}
+	var (
+		cfg      DecodeConfig
+		found    bool
+		mismatch bool
+		walkErr  error
+	)
+	ast.Inspect(root, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+		pkg, ok := sel.X.(*ast.Ident)
+		if !ok || pkg.Name != "path" || sel.Sel.Name != "match" {
+			return true
+		}
+		c, err := parseMatchOpts(call.Args)
+		if err != nil {
+			walkErr = err
+			return false
+		}
+		switch {
+		case !found:
+			cfg, found = c, true
+		case c != cfg:
+			mismatch = true
+		}
+		return true
+	})
+	if walkErr != nil {
+		return DecodeConfig{}, trace.Wrap(walkErr)
+	}
+	if mismatch {
+		return DecodeConfig{}, trace.BadParameter(
+			"all path.match calls in a rule must carry identical decode options, so a negated match decodes the path the same way as the positive match")
+	}
+	return cfg, nil
+}
+
+// parseMatchOpts reads the decode options from one path.match call's arguments.
+// The first argument is the matcher root and is ignored here; each remaining
+// argument must be a decode_iterations(n) or allow_percent() call.
+func parseMatchOpts(args []ast.Expr) (DecodeConfig, error) {
+	var cfg DecodeConfig
+	if len(args) == 0 {
+		return cfg, trace.BadParameter("path.match requires a matcher argument")
+	}
+	for _, a := range args[1:] {
+		call, ok := a.(*ast.CallExpr)
+		if !ok {
+			return cfg, trace.BadParameter("path.match options must be decode_iterations(n) or allow_percent()")
+		}
+		id, ok := call.Fun.(*ast.Ident)
+		if !ok {
+			return cfg, trace.BadParameter("path.match options must be decode_iterations(n) or allow_percent()")
+		}
+		switch id.Name {
+		case "decode_iterations":
+			if len(call.Args) != 1 {
+				return cfg, trace.BadParameter("decode_iterations takes one argument")
+			}
+			lit, ok := call.Args[0].(*ast.BasicLit)
+			if !ok || lit.Kind != token.INT {
+				return cfg, trace.BadParameter("decode_iterations takes an integer literal")
+			}
+			n, err := strconv.Atoi(lit.Value)
+			if err != nil {
+				return cfg, trace.Wrap(err, "parsing decode_iterations argument")
+			}
+			cfg.DecodeIterations = n
+		case "allow_percent":
+			cfg.AllowPercent = true
+		default:
+			return cfg, trace.BadParameter("unknown path.match option %q", id.Name)
+		}
+	}
+	return cfg, nil
 }
 
 // methodClause renders the Methods as a membership test against the request
@@ -379,7 +518,7 @@ func constructorSource(name, lead string, children []*Node) string {
 // the rule's allow_code; on a deny it carries every deny hint whose territory
 // matched.
 func (c *CompiledRule) Evaluate(request Request, identity Identity) (Decision, error) {
-	e := newEnv(request, identity, c.decode)
+	e := newEnv(request, identity)
 	allowed, err := c.pred.Evaluate(e)
 	if err != nil {
 		return Decision{}, trace.Wrap(err)
@@ -396,7 +535,7 @@ func (c *CompiledRule) Evaluate(request Request, identity Identity) (Decision, e
 
 	var fired []Hint
 	for _, h := range c.denyHints {
-		ok, err := evalPredicate(h.on, request, identity, c.decode)
+		ok, err := evalPredicate(h.on, request, identity)
 		if err != nil {
 			return Decision{}, trace.Wrap(err)
 		}
@@ -407,12 +546,13 @@ func (c *CompiledRule) Evaluate(request Request, identity Identity) (Decision, e
 	return Decision{Deny: &DenyDetails{Kind: DenyNotAllowed, Hints: fired}}, nil
 }
 
-// newEnv builds a fresh evaluation environment for one request.
-func newEnv(request Request, identity Identity, decode DecodeConfig) env {
+// newEnv builds a fresh evaluation environment for one request. Decoding is no
+// longer carried on the environment: each path.match call builds its own decode
+// config from the options it carries.
+func newEnv(request Request, identity Identity) env {
 	return env{
 		request: request,
 		user:    identity,
-		decode:  decode,
 		vars:    map[string]string{},
 		state:   &evalState{},
 	}
@@ -420,8 +560,8 @@ func newEnv(request Request, identity Identity, decode DecodeConfig) env {
 
 // evalPredicate evaluates a predicate against a fresh environment and applies
 // the unbound-capture guard, returning whether it matched.
-func evalPredicate(p predicate, request Request, identity Identity, decode DecodeConfig) (bool, error) {
-	e := newEnv(request, identity, decode)
+func evalPredicate(p predicate, request Request, identity Identity) (bool, error) {
+	e := newEnv(request, identity)
 	ok, err := p.Evaluate(e)
 	if err != nil {
 		return false, trace.Wrap(err)

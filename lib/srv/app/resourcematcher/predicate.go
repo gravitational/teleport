@@ -52,10 +52,19 @@ type Identity struct {
 type env struct {
 	request Request
 	user    Identity
-	decode  DecodeConfig
 	vars    map[string]string
 	state   *evalState
 }
+
+// Opt configures URL decoding for a single path.match call. The opt builders
+// decode_iterations(n) and allow_percent() each return one Opt, and a
+// path.match call applies the opts it carries to build its DecodeConfig. The
+// options ride on the call rather than on the rule so a path.match expression
+// is self-contained: it decodes exactly as written, with nothing pulled from a
+// surrounding YAML field. A rule's Compile step checks every path.match in the
+// rule carries identical options, so a carve-out's negated match cannot decode
+// the subject differently from its positive match.
+type Opt func(*DecodeConfig)
 
 // evalState carries side effects of one evaluation back to the caller. It is
 // held by pointer so the same instance is observed across the whole expression
@@ -107,27 +116,46 @@ func newParser() (*typical.CachedParser[env, bool], error) {
 		},
 		Functions: map[string]typical.Function{
 			// Matcher entry point. path.match reads the request path from the
-			// environment, tokenizes it under the decode config, and walks it
-			// against one or more matcher roots, OR-ed. On a match it records
-			// the bound segments into the environment's vars map so a later
-			// var.<name> read can see them, then returns true.
-			"path.match": typical.UnaryVariadicFunctionWithEnv(func(e env, roots ...*Node) (bool, error) {
-				tokens, err := Tokenize(e.request.Path, e.decode)
+			// environment, tokenizes it under the decode config its opts build,
+			// and walks it against the matcher root. On a match it records the
+			// bound segments into the environment's vars map so a later
+			// var.<name> read can see them, then returns true. The first
+			// argument is the matcher root; any further arguments are decode
+			// options. Several patterns OR together as several path.match calls
+			// joined by ||, so each call carries one root.
+			"path.match": typical.BinaryVariadicFunctionWithEnv(func(e env, root *Node, opts ...Opt) (bool, error) {
+				var cfg DecodeConfig
+				for _, o := range opts {
+					o(&cfg)
+				}
+				tokens, err := Tokenize(e.request.Path, cfg)
 				if err != nil {
 					// An unsafe path is not this predicate's concern to report;
 					// it simply cannot match. The agent rejects such requests
 					// before any rule runs.
 					return false, nil
 				}
-				for _, root := range roots {
-					if ok, caps := Eval(tokens, root); ok {
-						for k, v := range caps {
-							e.vars[k] = v
-						}
-						return true, nil
+				if ok, caps := Eval(tokens, root); ok {
+					for k, v := range caps {
+						e.vars[k] = v
 					}
+					return true, nil
 				}
 				return false, nil
+			}),
+			// Decode options for a path.match call. decode_iterations(n) sets
+			// the number of percent-decode passes, and allow_percent() admits a
+			// residual percent byte that survives those passes. Both default to
+			// the strict zero value when omitted: no decode, and reject any
+			// percent byte.
+			"decode_iterations": typical.UnaryFunction[env](func(n int) (Opt, error) {
+				if n < 0 || n > maxDecodeIterations {
+					return nil, trace.BadParameter("decode_iterations must be between 0 and %d", maxDecodeIterations)
+				}
+				return func(c *DecodeConfig) { c.DecodeIterations = n }, nil
+			}),
+			"allow_percent": typical.UnaryVariadicFunction[env](func(_ ...*Node) (Opt, error) {
+				return func(c *DecodeConfig) { c.AllowPercent = true }, nil
 			}),
 			// Matcher constructors. Each returns one Node, so they nest and
 			// type-check at parse time: every child argument must itself

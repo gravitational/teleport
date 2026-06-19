@@ -62,6 +62,11 @@ type DecodeConfig struct {
 // maxPathBytes bounds the path the matcher will consider.
 const maxPathBytes = 8 << 10 // 8 KiB
 
+// maxDecodeIterations bounds the percent-decode passes a path.match call may
+// request, so a malformed rule cannot drive an unbounded decode loop. A handful
+// of passes covers every real upstream; more is a configuration error.
+const maxDecodeIterations = 16
+
 // Tokenize validates and splits an HTTP request path into segments for
 // matching, applying cfg. The path is split on the literal "/" byte. A leading
 // "/" is required and stripped. On any rule violation it returns an error,

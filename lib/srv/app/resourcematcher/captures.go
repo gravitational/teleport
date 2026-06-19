@@ -71,39 +71,64 @@ func validateCaptures(expr string) error {
 	return nil
 }
 
-// guaranteedCaptures returns the capture names bound no matter which path
-// matches. For each path.match(alt...) call, a capture is guaranteed only if
-// every alternative binds it, so the per-call set is the intersection across
-// its arguments. The rule's guaranteed set is the union across path.match
-// calls, since a rule that ANDs two matches binds the captures of both.
+// guaranteedCaptures returns the capture names bound no matter how the
+// predicate evaluates to true. It walks the boolean structure of the
+// expression: an && of two matches binds the captures of both, so its set is
+// the union; an || binds only the captures common to every branch, so its set
+// is the intersection; and a negated match must be false to pass, so it binds
+// nothing. A path.match call binds the captures in its matcher root.
 //
-// The exotic case of two path.match calls joined by || is not modelled exactly
-// here, since that needs the boolean structure; the runtime guard backstops it.
-func guaranteedCaptures(root ast.Node) map[string]bool {
+// This models the cross-path || the declarative multi-path form lowers to: two
+// paths joined by || guarantee only the captures both define, so a
+// vars.<name> read is sound only where every matching path binds it. The
+// runtime guard (evalState.unboundRead) still backstops any case this static
+// walk cannot see.
+func guaranteedCaptures(node ast.Node) map[string]bool {
+	switch n := node.(type) {
+	case *ast.ParenExpr:
+		return guaranteedCaptures(n.X)
+	case *ast.BinaryExpr:
+		switch n.Op {
+		case token.LAND:
+			return unionSets(guaranteedCaptures(n.X), guaranteedCaptures(n.Y))
+		case token.LOR:
+			return intersectSets(guaranteedCaptures(n.X), guaranteedCaptures(n.Y))
+		default:
+			return map[string]bool{}
+		}
+	case *ast.UnaryExpr:
+		// A negated match must be false to pass, so it binds nothing.
+		return map[string]bool{}
+	case *ast.CallExpr:
+		if isPathMatch(n) {
+			return capturesIn(n)
+		}
+		return map[string]bool{}
+	default:
+		return map[string]bool{}
+	}
+}
+
+// unionSets returns the names present in either set.
+func unionSets(a, b map[string]bool) map[string]bool {
 	out := map[string]bool{}
-	ast.Inspect(root, func(n ast.Node) bool {
-		call, ok := n.(*ast.CallExpr)
-		if !ok || !isPathMatch(call) {
-			return true
-		}
-		var intersection map[string]bool
-		for _, arg := range call.Args {
-			argCaptures := capturesIn(arg)
-			if intersection == nil {
-				intersection = argCaptures
-				continue
-			}
-			for name := range intersection {
-				if !argCaptures[name] {
-					delete(intersection, name)
-				}
-			}
-		}
-		for name := range intersection {
+	for name := range a {
+		out[name] = true
+	}
+	for name := range b {
+		out[name] = true
+	}
+	return out
+}
+
+// intersectSets returns the names present in both sets.
+func intersectSets(a, b map[string]bool) map[string]bool {
+	out := map[string]bool{}
+	for name := range a {
+		if b[name] {
 			out[name] = true
 		}
-		return true
-	})
+	}
 	return out
 }
 
