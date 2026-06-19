@@ -162,6 +162,10 @@ message UserMetadata {
 
   // ScopePin specifies the current scope pin of the identity.
   ScopePin scope_pin = 17;
+
+  // BeamID is the identifier of the Beam this action is associated with, if
+  // any. It is derived from the user's certificate.
+  string BeamID = 18 [(gogoproto.jsontag) = "beam_id,omitempty"];
 }
 
 // Server is a server metadata
