@@ -46,7 +46,7 @@
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
     "electron": "42.4.1",
-    "electron-builder": "^26.15.3",
+    "electron-builder": "^26.15.4",
     "electron-updater": "^6.8.9",
     "electron-vite": "^5.0.0",
     "events": "3.3.0",

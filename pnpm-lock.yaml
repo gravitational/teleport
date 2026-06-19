@@ -483,8 +483,8 @@ importers:
         specifier: 42.4.1
         version: 42.4.1
       electron-builder:
-        specifier: ^26.15.3
-        version: 26.15.3
+        specifier: ^26.15.4
+        version: 26.15.4
       electron-updater:
         specifier: ^6.8.9
         version: 6.8.9
@@ -4057,12 +4057,12 @@ packages:
     resolution: {integrity: sha512-KMReFUr0B4t+D+OBkjR3KYqvocp2XaSzO55UcB6mgQMd3KbcE+mWTyvVV7D/zsdEbNnV6acZUutkiHQXvTr1Rw==}
     engines: {node: '>= 8'}
 
-  app-builder-lib@26.15.3:
-    resolution: {integrity: sha512-2VnyWkqsP5v5XbBhL3tD5Syx8iNPBYsoU7kY4S2fz7wg8Rj/nztWKCUzGKaFRTv0Xwf3/H058CR1Kvtd/3lRow==}
+  app-builder-lib@26.15.4:
+    resolution: {integrity: sha512-GQdy7Cc5Vx2QnWP+JL5nEDqGXyeoJlqa5gtdXM6JPtb4yL5iffQhC5bbMZqxEcg0i8nRxPh3ltBPy6uZpW4uRg==}
     engines: {node: '>=14.0.0'}
     peerDependencies:
-      dmg-builder: 26.15.3
-      electron-builder-squirrel-windows: 26.15.3
+      dmg-builder: 26.15.4
+      electron-builder-squirrel-windows: 26.15.4
 
   argparse@1.0.10:
     resolution: {integrity: sha512-o5Roy6tNG4SL/FOkCAN6RzjiakZS25RLYFrcMttJqbdd8BWrnA+fGz57iN5Pb06pvBGvl5gQ0B48dJlslXvoTg==}
@@ -4703,8 +4703,8 @@ packages:
   dir-compare@4.2.0:
     resolution: {integrity: sha512-2xMCmOoMrdQIPHdsTawECdNPwlVFB9zGcz3kuhmBO6U3oU+UQjsue0i8ayLKpgBcm+hcXPMVSGUN9d+pvJ6+VQ==}
 
-  dmg-builder@26.15.3:
-    resolution: {integrity: sha512-O3zJUFUYHJKgzPqioHxfxzBzlSC1eXCSr79gMSBKBP5AgjjpmrydMsMLotEg9fAJF36vdUncb+4ndRNxoPdlSQ==}
+  dmg-builder@26.15.4:
+    resolution: {integrity: sha512-YARkRSxB9tqKETexq2sU7uVvDcIBqiOTMSmjnE2dzZ3m1ynbPUSMBawmZTd6OUQ8mYW4UtbBwaBz9ydJpa1A6w==}
 
   dnd-core@14.0.1:
     resolution: {integrity: sha512-+PVS2VPTgKFPYWo3vAFEA8WPbTf7/xo43TifH9G8S1KqnrQu0o77A3unrF5yOugy4mIz7K5wAVFHUcha7wsz6A==}
@@ -4758,8 +4758,8 @@ packages:
     engines: {node: '>=0.10.0'}
     hasBin: true
 
-  electron-builder@26.15.3:
-    resolution: {integrity: sha512-a1KM5heqS3gQCZzizXEI8RjJy3QVogULPdeSknt76uLDpBIW/HDGsMg/XgP0riP6PI9COsRvFITKKGDqA8fJxA==}
+  electron-builder@26.15.4:
+    resolution: {integrity: sha512-b1wugxc5lj9HO1SKxDUeMj9JPim/7CKB3hqqhwy5iH6ctu8SdIyf98qnKaPiu2rmgq37Zg+r4PlFQRtDUE4XeA==}
     engines: {node: '>=14.0.0'}
     hasBin: true
 
@@ -10680,7 +10680,7 @@ snapshots:
       normalize-path: 3.0.0
       picomatch: 2.3.2
 
-  app-builder-lib@26.15.3(dmg-builder@26.15.3):
+  app-builder-lib@26.15.4(dmg-builder@26.15.4):
     dependencies:
       '@electron/asar': 3.4.1
       '@electron/fuses': 1.8.0
@@ -10701,7 +10701,7 @@ snapshots:
       chromium-pickle-js: 0.2.0
       ci-info: 4.3.1
       debug: 4.4.3
-      dmg-builder: 26.15.3
+      dmg-builder: 26.15.4
       dotenv: 16.5.0
       dotenv-expand: 11.0.7
       ejs: 3.1.10
@@ -11429,9 +11429,9 @@ snapshots:
       minimatch: 3.1.5
       p-limit: 3.1.0
 
-  dmg-builder@26.15.3:
+  dmg-builder@26.15.4:
     dependencies:
-      app-builder-lib: 26.15.3(dmg-builder@26.15.3)
+      app-builder-lib: 26.15.4(dmg-builder@26.15.4)
       builder-util: 26.15.3
       fs-extra: 10.1.0
       js-yaml: 4.1.1
@@ -11498,14 +11498,14 @@ snapshots:
     dependencies:
       jake: 10.9.2
 
-  electron-builder@26.15.3:
+  electron-builder@26.15.4:
     dependencies:
-      app-builder-lib: 26.15.3(dmg-builder@26.15.3)
+      app-builder-lib: 26.15.4(dmg-builder@26.15.4)
       builder-util: 26.15.3
       builder-util-runtime: 9.7.0
       chalk: 4.1.2
       ci-info: 4.4.0
-      dmg-builder: 26.15.3
+      dmg-builder: 26.15.4
       fs-extra: 10.1.0
       lazy-val: 1.0.5
       simple-update-notifier: 2.0.0
