@@ -103,7 +103,11 @@ func TestAIApprover_Approve(t *testing.T) {
 		dec := a.Approve(context.Background(), req)
 
 		require.False(t, dec.Approved, "AI approver must fail closed on RPC error")
-		require.Equal(t, "ai-moderator", dec.Approver)
+		// An RPC/evaluation error is an infrastructure failure, not a deliberate
+		// AI denial: attribute it to the system so it is audited as "failed"
+		// (fail-closed) rather than "denied by ai-moderator". The AI mode is kept
+		// for context.
+		require.Equal(t, ApproverSystem, dec.Approver)
 		require.Equal(t, ModeAI, dec.Mode)
 		require.Contains(t, dec.Reason, "AI evaluation failed")
 		require.Contains(t, dec.Reason, "rpc unavailable")

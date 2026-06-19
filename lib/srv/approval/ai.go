@@ -72,9 +72,15 @@ func (a *AIApprover) Approve(ctx context.Context, req CommandRequest) Decision {
 		SessionKind: string(req.Kind),
 	})
 	if err != nil {
+		// An RPC/evaluation error is an infrastructure failure (e.g. the
+		// enterprise evaluator is not registered, or the model is unreachable),
+		// not a deliberate AI denial. Attribute the fail-closed decision to the
+		// system so it is audited as command.approval.failed rather than
+		// command.approval.denied by the AI moderator; the AI mode is kept for
+		// context.
 		return Decision{
 			Approved: false,
-			Approver: AIApproverName,
+			Approver: ApproverSystem,
 			Mode:     ModeAI,
 			Reason:   "AI evaluation failed: " + err.Error(),
 		}

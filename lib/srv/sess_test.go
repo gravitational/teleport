@@ -1224,20 +1224,22 @@ func TestCommandApprovalRoundTrip(t *testing.T) {
 		require.Equal(t, approval.ApproverSystem, approvalEv.Approver)
 	})
 
-	t.Run("ai evaluator error denies command (fail-closed)", func(t *testing.T) {
+	t.Run("ai evaluator error fails closed (failed)", func(t *testing.T) {
 		// An AI policy with an auth client whose EvaluateCommand returns the
 		// enterprise-only NotImplemented error must fail closed: the command is
 		// denied (Ctrl-U injected, no carriage return) and an audit event is
 		// emitted.
 		//
-		// NOTE on event classification: AIApprover.Approve attributes an
-		// RPC-error deny to the AI moderator (Approver=ai-moderator), so the
-		// gate records a deliberate "denied" event, NOT the "failed" event used
-		// for system fail-closed outcomes (timeout/panic/broadcast failure,
-		// which carry Approver=ApproverSystem). Both are fail-closed at the
-		// byte level; this test pins the actual production attribution. The
-		// "no auth client at all" path (denyAllCommandGate) emits "failed" and
-		// is covered by TestSessionCommandGate.
+		// NOTE on event classification: an RPC/evaluation error is an
+		// infrastructure failure, not a deliberate AI denial, so AIApprover
+		// attributes it to the system (Approver=ApproverSystem) and the gate
+		// records the "failed" event (T4006E / command.approval.failed) used
+		// for system fail-closed outcomes (timeout/panic/broadcast failure).
+		// The AI mode is preserved, so approver_mode=ai for context. This is
+		// distinct from a deliberate AI deny (model returns approved=false),
+		// which is audited as "denied" by ai-moderator. The "no auth client at
+		// all" path (denyAllCommandGate) also emits "failed" and is covered by
+		// TestSessionCommandGate.
 		reg, srv := newRegWithServer(t)
 		fake := &fakeEvaluatorAuthClient{
 			err: trace.NotImplemented("per-command AI approval requires Teleport Enterprise"),
@@ -1275,10 +1277,10 @@ func TestCommandApprovalRoundTrip(t *testing.T) {
 
 		approvalEv := findCommandApproval(srv.MockRecorderEmitter.Events())
 		require.NotNil(t, approvalEv, "expected a CommandApproval audit event")
-		require.Equal(t, events.CommandApprovalDeniedEvent, approvalEv.Metadata.Type)
-		require.Equal(t, events.CommandApprovalDeniedCode, approvalEv.Metadata.Code)
-		require.Equal(t, "denied", approvalEv.Decision)
-		require.Equal(t, approval.AIApproverName, approvalEv.Approver)
+		require.Equal(t, events.CommandApprovalFailedEvent, approvalEv.Metadata.Type)
+		require.Equal(t, events.CommandApprovalFailedCode, approvalEv.Metadata.Code)
+		require.Equal(t, "failed", approvalEv.Decision)
+		require.Equal(t, approval.ApproverSystem, approvalEv.Approver)
 		require.Equal(t, "ai", approvalEv.ApproverMode)
 		require.Contains(t, approvalEv.Reason, "AI evaluation failed")
 	})
