@@ -7,7 +7,7 @@ settings:
 overrides:
   yauzl: ^3.3.1
 
-packageExtensionsChecksum: sha256-quGSUXj6Ss6ptZZPuUSxEgAZKa12K8tRyMxWI2WN/to=
+packageExtensionsChecksum: sha256-wJryviKpT2yBHdvlJDdnwzUQ1C8SWN6MXUeQYXbrNIo=
 
 pnpmfileChecksum: sha256-TR6zTaL3sXZMyu+QoRdd27aSUTH6sH0gp+M2XjxgTUI=
 

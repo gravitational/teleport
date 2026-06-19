@@ -36,13 +36,13 @@ peerDependencyRules:
 # create-react-class and @hookform/resolvers import react/zod without declaring them, which fails to
 # resolve under the global virtual store. Declare the peers so pnpm co-locates them.
 packageExtensions:
-  create-react-class:
+  create-react-class@15:
     peerDependencies:
       react: '*'
-  '@hookform/resolvers':
+  '@hookform/resolvers@5':
     peerDependencies:
       zod: '*'
-  storybook:
+  storybook@10:
     peerDependencies:
       '@storybook/react-vite': '*'
 # shellEmulator enables cross-platform scripting, allowing POSIX-style shell variables to work on Windows.
