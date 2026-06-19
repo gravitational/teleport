@@ -39,6 +39,11 @@ type Server struct {
 	mu        sync.RWMutex
 	TLSServer *httptest.Server
 	Storage   *Storage
+
+	MonkeyPatch struct {
+		HandleListUsersDelta  func(w http.ResponseWriter, r *http.Request)
+		HandleListGroupsDelta func(w http.ResponseWriter, r *http.Request)
+	}
 }
 
 // ServerOption is a custom opt for [NewServer].
@@ -103,6 +108,16 @@ func (s *Server) handleListUsers(w http.ResponseWriter, r *http.Request) {
 // increments delta token counter by one and responds with the
 // new delta token.
 func (s *Server) handleListUsersDelta(w http.ResponseWriter, r *http.Request) {
+	if s.MonkeyPatch.HandleListUsersDelta != nil {
+		s.MonkeyPatch.HandleListUsersDelta(w, r)
+		return
+	}
+
+	s.ListUsersDelta(w, r)
+}
+
+// ListGroupsDelta lists users delta diff.
+func (s *Server) ListUsersDelta(w http.ResponseWriter, r *http.Request) {
 	currentKey := 0
 	isLatest := false
 	users := make([]models.ListUsersDeltaResponse, 0)
@@ -110,6 +125,7 @@ func (s *Server) handleListUsersDelta(w http.ResponseWriter, r *http.Request) {
 	switch token {
 	case "latest":
 		// latest request is the starting point.
+		s.Storage.UsersDelta = make(map[int][]models.ListUsersDeltaResponse)
 		isLatest = true
 	default:
 		i, err := parseToken(token)
@@ -157,6 +173,15 @@ func (s *Server) handleListGroups(w http.ResponseWriter, r *http.Request) {
 // increments delta token counter by one and responds with the
 // new delta token.
 func (s *Server) handleListGroupsDelta(w http.ResponseWriter, r *http.Request) {
+	if s.MonkeyPatch.HandleListGroupsDelta != nil {
+		s.MonkeyPatch.HandleListGroupsDelta(w, r)
+		return
+	}
+	s.ListGroupsDelta(w, r)
+}
+
+// ListGroupsDelta lists groups delta diff.
+func (s *Server) ListGroupsDelta(w http.ResponseWriter, r *http.Request) {
 	currentKey := 0
 	isLatest := false
 	groups := make([]models.ListGroupsDeltaResponse, 0)
@@ -164,6 +189,7 @@ func (s *Server) handleListGroupsDelta(w http.ResponseWriter, r *http.Request) {
 	switch token {
 	case "latest":
 		// latest request is the starting point.
+		s.Storage.GroupsDelta = make(map[int][]models.ListGroupsDeltaResponse)
 		isLatest = true
 	default:
 		i, err := parseToken(token)
