@@ -92,7 +92,7 @@ func TestFetchAccountFilters(t *testing.T) {
 	testCases := []struct {
 		name             string
 		awsAccounts      []*icsdk.Account
-		filters          icfilters.Filters
+		filters          []*types.AWSICResourceFilter
 		expectedAccounts []*identitycenterv1.Account
 	}{
 		{
@@ -113,8 +113,8 @@ func TestFetchAccountFilters(t *testing.T) {
 				{Name: "bravo", ID: "2222222222", ARN: "arn:aws:iam:::account/bravo"},
 				{Name: "charlie", ID: "3333333333", ARN: "arn:aws:iam:::account/charlie"},
 			},
-			filters: icfilters.Filters{
-				&types.AWSICResourceFilter{Include: &types.AWSICResourceFilter_Id{Id: "2222222222"}},
+			filters: []*types.AWSICResourceFilter{
+				{Include: &types.AWSICResourceFilter_Id{Id: "2222222222"}},
 			},
 			expectedAccounts: []*identitycenterv1.Account{
 				test.Account{Name: "bravo", ID: "2222222222", ARN: "arn:aws:iam:::account/bravo"}.Build(),
@@ -127,8 +127,8 @@ func TestFetchAccountFilters(t *testing.T) {
 				{Name: "exclude-bravo", ID: "2222222222", ARN: "arn:aws:iam:::account/bravo"},
 				{Name: "include-charlie", ID: "3333333333", ARN: "arn:aws:iam:::account/charlie"},
 			},
-			filters: icfilters.Filters{
-				&types.AWSICResourceFilter{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: "^include-.*$"}},
+			filters: []*types.AWSICResourceFilter{
+				{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: "^include-.*$"}},
 			},
 			expectedAccounts: []*identitycenterv1.Account{
 				test.Account{Name: "include-alpha", ID: "1111111111", ARN: "arn:aws:iam:::account/alpha"}.Build(),
@@ -142,8 +142,8 @@ func TestFetchAccountFilters(t *testing.T) {
 				{Name: "exclude-bravo", ID: "2222222222", ARN: "arn:aws:iam:::account/bravo"},
 				{Name: "include-charlie", ID: "3333333333", ARN: "arn:aws:iam:::account/charlie"},
 			},
-			filters: icfilters.Filters{
-				&types.AWSICResourceFilter{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: "include-*"}},
+			filters: []*types.AWSICResourceFilter{
+				{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: "include-*"}},
 			},
 			expectedAccounts: []*identitycenterv1.Account{
 				test.Account{Name: "include-alpha", ID: "1111111111", ARN: "arn:aws:iam:::account/alpha"}.Build(),
@@ -158,9 +158,9 @@ func TestFetchAccountFilters(t *testing.T) {
 				{Name: "exclude-charlie", ID: "3333333333", ARN: "arn:aws:iam:::account/charlie"},
 				{Name: "name-match-delta", ID: "4444444444", ARN: "arn:aws:iam:::account/delta"},
 			},
-			filters: icfilters.Filters{
-				&types.AWSICResourceFilter{Include: &types.AWSICResourceFilter_Id{Id: "2222222222"}},
-				&types.AWSICResourceFilter{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: "^name-match-.*$"}},
+			filters: []*types.AWSICResourceFilter{
+				{Include: &types.AWSICResourceFilter_Id{Id: "2222222222"}},
+				{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: "^name-match-.*$"}},
 			},
 			expectedAccounts: []*identitycenterv1.Account{
 				test.Account{Name: "name-match-alpha", ID: "1111111111", ARN: "arn:aws:iam:::account/alpha"}.Build(),
@@ -185,7 +185,9 @@ func TestFetchAccountFilters(t *testing.T) {
 
 			// GIVEN an Identity Center service configured with a set of account
 			// filters
-			icSvc.importConfig.AccountFilters = test.filters
+			accountFilters, err := icfilters.New(test.filters)
+			require.NoError(t, err)
+			icSvc.importConfig.AccountFilters = accountFilters
 
 			// WHEN I fetch the accounts from AWS
 			awsdata, err := icSvc.fetchAccounts(ctx, mockIC.Info.IdentityStoreID)

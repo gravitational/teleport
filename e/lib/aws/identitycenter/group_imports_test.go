@@ -24,7 +24,6 @@ import (
 	icfixture "github.com/gravitational/teleport/e/lib/aws/identitycenter/test"
 	"github.com/gravitational/teleport/e/lib/provisioning"
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
-	icfilters "github.com/gravitational/teleport/lib/aws/identitycenter/filters"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
@@ -48,7 +47,7 @@ func TestGroupImportAndEmitStatus(t *testing.T) {
 		existingList  []listWithMembersAndRoles
 		icData        icData
 		expectedList  []listWithMembersAndRoles
-		groupFilters  icfilters.Filters
+		groupFilters  []*types.AWSICResourceFilter
 	}{
 		{
 			name:          "new integration with a fresh Access List from group and group member imports",
@@ -304,10 +303,10 @@ func TestGroupImportAndEmitStatus(t *testing.T) {
 		{
 			name:          "groups import with filters",
 			rolesSyncMode: RolesSyncModeAll,
-			groupFilters: icfilters.Filters{
-				&types.AWSICResourceFilter{Include: &types.AWSICResourceFilter_Id{Id: "id2"}},
-				&types.AWSICResourceFilter{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: "acl3"}},
-				&types.AWSICResourceFilter{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: "acl7"}},
+			groupFilters: []*types.AWSICResourceFilter{
+				{Include: &types.AWSICResourceFilter_Id{Id: "id2"}},
+				{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: "acl3"}},
+				{Include: &types.AWSICResourceFilter_NameRegex{NameRegex: "acl7"}},
 			},
 			icData: icData{
 				Accounts: []*icsdk.Account{account1, account2},
@@ -411,7 +410,7 @@ func TestGroupImportTriggers(t *testing.T) {
 	fixture := icfixture.NewFixture(t, icfixture.WithStartedCache)
 	ctx := fixture.Ctx
 	fixture.CreatePluginResource(t,
-		icfixture.WithGroupFilters(icfilters.Filters{
+		icfixture.WithGroupFilters([]*types.AWSICResourceFilter{
 			// import exactly one group.
 			{Include: &types.AWSICResourceFilter_Id{Id: "group1"}},
 		}))
@@ -580,7 +579,7 @@ func TestGroupDeletesAreSuppressed(t *testing.T) {
 	// of the downstream groups are imported, and start the service (implicitly
 	// triggering a new import), and re-start the service
 	pr := fixture.MustGetPluginResource(t)
-	pr.Spec.GetAwsIc().GroupSyncFilters = icfilters.Filters{
+	pr.Spec.GetAwsIc().GroupSyncFilters = []*types.AWSICResourceFilter{
 		{Include: &types.AWSICResourceFilter_Id{Id: "bravo"}},
 		{Include: &types.AWSICResourceFilter_Id{Id: "delta"}},
 	}

@@ -15,6 +15,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/provisioning"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/integrations/access/common"
+	icfilters "github.com/gravitational/teleport/lib/aws/identitycenter/filters"
 )
 
 // runNewTestService starts a new IC service instance using resources in the supplied
@@ -80,6 +81,9 @@ func newTestService(t *testing.T, fixture *ictest.Fixture, options ...testServic
 
 	details := plugin.Spec.GetAwsIc()
 
+	groupSyncFilter, err := icfilters.New(details.GroupSyncFilters)
+	require.NoError(t, err, "compiling group sync filters")
+
 	cfg := ServiceConfig{
 		Provisioning: ProvisioningConfig{
 			SCIMClient:           fixture.SCIMClient,
@@ -103,7 +107,7 @@ func newTestService(t *testing.T, fixture *ictest.Fixture, options ...testServic
 		RolesSvc:                   fixture.Auth.Services,
 		ImportConfig: ImportConfig{
 			AccessListDefaultOwners: []string{"user1", "user2"},
-			GroupSyncFilter:         details.GroupSyncFilters,
+			GroupSyncFilter:         groupSyncFilter,
 		},
 		PluginsService:     fixture.PluginService,
 		PluginStatusSink:   fixture.PluginStatusSink,

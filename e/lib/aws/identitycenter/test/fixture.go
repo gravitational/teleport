@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
-	icfilters "github.com/gravitational/teleport/lib/aws/identitycenter/filters"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events/eventstest"
@@ -204,7 +203,7 @@ func WithoutImport(plugin *types.PluginV1) {
 	}
 }
 
-func WithGroupFilters(filters icfilters.Filters) ICOption {
+func WithGroupFilters(filters []*types.AWSICResourceFilter) ICOption {
 	return func(plugin *types.PluginV1) {
 		settings := plugin.Spec.GetAwsIc()
 		settings.GroupSyncFilters = filters
