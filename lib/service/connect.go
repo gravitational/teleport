@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/join/boundkeypair"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/clientversion"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/observability/metrics"
@@ -97,7 +98,7 @@ func (process *TeleportProcess) reconnectToAuthService(role types.SystemRole) (*
 			// Version incompatibilities (the client is too new or too old for
 			// the cluster) are fatal. Retrying is pointless until the client is
 			// up or downgraded, so surface the error and stop reconnecting.
-			case errors.As(connectErr, &invalidVersionErr{}), errors.Is(connectErr, joinclient.ErrClientTooOld):
+			case errors.As(connectErr, &invalidVersionErr{}), errors.Is(connectErr, clientversion.ErrClientTooOld):
 				return nil, trace.Wrap(connectErr)
 			case strings.Contains(connectErr.Error(), auth.TokenExpiredOrNotFound):
 				process.logger.ErrorContext(process.ExitContext(), "Can not join the cluster, the token is expired or not found. Regenerate the token and try again.")
@@ -1453,6 +1454,27 @@ func (process *TeleportProcess) getConnector(clientIdentity, serverIdentity *sta
 // For config v1 and v2, it will attempt to direct dial the auth server, and fallback to trying to tunnel
 // to the Auth Server through the proxy.
 func (process *TeleportProcess) newClient(connector *Connector) (*authclient.Client, *proto.PingResponse, error) {
+	// Fail fast if this instance is older than the cluster's minimum client
+	// version, before connecting, otherwise a too-old agent would be
+	// disconnected by auth with an opaque error.
+	var proxyAddr utils.NetAddr
+	if process.Config.Version == defaults.TeleportConfigVersionV3 && !process.Config.ProxyServer.IsEmpty() {
+		proxyAddr = process.Config.ProxyServer
+	} else {
+		proxyAddr = process.Config.AuthServerAddresses()[0]
+	}
+	if err := clientversion.Check(process.ExitContext(), clientversion.Config{
+		ProxyAddr: proxyAddr.String(),
+		Insecure:  process.Config.InsecureMode,
+		Skip:      process.Config.SkipVersionCheck,
+		Log:       process.logger,
+		Testing: clientversion.TestingConfig{
+			ClientVersion: process.Config.Testing.TeleportVersion,
+		},
+	}); err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
 	tlsConfig := utils.TLSConfig(process.Config.CipherSuites)
 	tlsConfig.GetClientCertificate = func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
 		tlsCert, err := connector.ClientGetCertificate()

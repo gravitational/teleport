@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth/state"
+	"github.com/gravitational/teleport/lib/clientversion"
 	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
@@ -84,7 +85,7 @@ func TestJoinClientVersionCheck(t *testing.T) {
 			Insecure:    true,
 			Testing:     joinclient.JoinTestingParams{TeleportVersion: tooOldVersion},
 		})
-		require.ErrorIs(t, err, joinclient.ErrClientTooOld)
+		require.ErrorIs(t, err, clientversion.ErrClientTooOld)
 		// The error must name the client version and that a minimum exists so a
 		// user knows what to upgrade.
 		require.ErrorContains(t, err, "client v"+tooOldVersion)

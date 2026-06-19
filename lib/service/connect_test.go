@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/clientversion"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/join/joinclient"
@@ -94,7 +95,7 @@ func TestTeleportProcessMinClientVersionCheck(t *testing.T) {
 		t.Cleanup(func() { _ = process.Close() })
 
 		c, err := process.reconnectToAuthService(types.RoleInstance)
-		require.ErrorIs(t, err, joinclient.ErrClientTooOld)
+		require.ErrorIs(t, err, clientversion.ErrClientTooOld)
 		require.Nil(t, c)
 	})
 
@@ -114,8 +115,28 @@ func TestTeleportProcessMinClientVersionCheck(t *testing.T) {
 		// and bypassed the check.
 		c, err := process.connectToAuthService(types.RoleInstance)
 		require.Error(t, err)
-		require.NotErrorIs(t, err, joinclient.ErrClientTooOld)
+		require.NotErrorIs(t, err, clientversion.ErrClientTooOld)
 		require.Nil(t, c)
+	})
+
+	t.Run("previously joined client too old fails creating the auth client", func(t *testing.T) {
+		cfg := newConfig(t)
+		process, err := NewTeleport(cfg)
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = process.Close() })
+
+		// A previously joined agent reconnects via getConnector -> newClient,
+		// not the join path. newClient runs the version check before dialing, so
+		// a minimal connector is enough to exercise it without a real identity.
+		identity := &state.Identity{
+			ID:          state.IdentityID{Role: types.RoleInstance, HostUUID: "test-host"},
+			ClusterName: "test-cluster",
+		}
+		conn, err := newConnector(identity, identity)
+		require.NoError(t, err)
+
+		_, _, err = process.newClient(conn)
+		require.ErrorIs(t, err, clientversion.ErrClientTooOld)
 	})
 }
 
