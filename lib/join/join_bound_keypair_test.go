@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/boundkeypair"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/join/joinclient"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -76,9 +77,14 @@ func parseJoinState(t *testing.T, state []byte) *boundkeypair.JoinState {
 }
 
 func newTestTLSServer(t *testing.T, clock clockwork.Clock, opts ...authtest.TestTLSServerOption) *authtest.TLSServer {
+	return newTestTLSServerWithScopesFeatures(t, clock, scopes.Features{}, opts...)
+}
+
+func newTestTLSServerWithScopesFeatures(t *testing.T, clock clockwork.Clock, scopesFeatures scopes.Features, opts ...authtest.TestTLSServerOption) *authtest.TLSServer {
 	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
-		Dir:   t.TempDir(),
-		Clock: clock,
+		Dir:            t.TempDir(),
+		Clock:          clock,
+		ScopesFeatures: scopesFeatures,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, as.Close()) })
@@ -1885,7 +1891,7 @@ func createScopedBot(t *testing.T, srv *authtest.TLSServer, adminClient *authcli
 }
 
 func TestJoinBoundKeypair_ScopedToken(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	t.Parallel()
 
 	ctx := t.Context()
 
@@ -1896,7 +1902,7 @@ func TestJoinBoundKeypair_ScopedToken(t *testing.T) {
 
 	clock := clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC())
 
-	srv := newTestTLSServer(t, clock)
+	srv := newTestTLSServerWithScopesFeatures(t, clock, scopes.Features{Enabled: true})
 	authServer := srv.Auth()
 
 	_, err := authtest.CreateRole(ctx, authServer, "example", types.RoleSpecV6{})

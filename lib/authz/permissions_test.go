@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/readonly"
@@ -1719,7 +1720,6 @@ func (f *brokenScopedRoleReader) ListScopedRoles(_ context.Context, _ *scopedacc
 // TestAuthorizeScopedWithLocksForScopedBuiltinRole verifies that a server lock blocks
 // a scoped agent from calling AuthorizeScoped.
 func TestAuthorizeScopedWithLocksForScopedBuiltinRole(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
 	ctx := t.Context()
 
 	client, watcher, _ := newTestResources(t)
@@ -1728,6 +1728,7 @@ func TestAuthorizeScopedWithLocksForScopedBuiltinRole(t *testing.T) {
 		AccessPoint:      client,
 		LockWatcher:      watcher,
 		ScopedRoleReader: &brokenScopedRoleReader{},
+		ScopesFeatures:   scopes.Features{Enabled: true},
 	})
 	require.NoError(t, err)
 
@@ -1768,7 +1769,6 @@ func TestAuthorizeScopedWithLocksForScopedBuiltinRole(t *testing.T) {
 // TestAuthorizeScopedBuiltinRolePartialSkip verifies that AuthorizeScoped succeeds when a scoped agent
 // pin contains a mix of known and unrecognized system roles.
 func TestAuthorizeScopedBuiltinRolePartialSkip(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
 	ctx := t.Context()
 
 	client, watcher, _ := newTestResources(t)
@@ -1777,6 +1777,7 @@ func TestAuthorizeScopedBuiltinRolePartialSkip(t *testing.T) {
 		AccessPoint:      client,
 		LockWatcher:      watcher,
 		ScopedRoleReader: &brokenScopedRoleReader{},
+		ScopesFeatures:   scopes.Features{Enabled: true},
 	})
 	require.NoError(t, err)
 
@@ -1844,7 +1845,6 @@ func TestAuthorizeScopedBuiltinRolePartialSkip(t *testing.T) {
 // TestAuthorizeScopedWithLocksForScopedLocalUser verifies that a user lock blocks
 // a scoped user from calling AuthorizeScoped.
 func TestAuthorizeScopedWithLocksForScopedLocalUser(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
 	ctx := t.Context()
 
 	client, watcher, _ := newTestResources(t)
@@ -1853,6 +1853,7 @@ func TestAuthorizeScopedWithLocksForScopedLocalUser(t *testing.T) {
 		AccessPoint:      client,
 		LockWatcher:      watcher,
 		ScopedRoleReader: &brokenScopedRoleReader{},
+		ScopesFeatures:   scopes.Features{Enabled: true},
 	})
 	require.NoError(t, err)
 

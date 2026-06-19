@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/iamjoin"
 	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/join/jointest"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -136,7 +137,7 @@ type iamJoinTestCase struct {
 }
 
 func TestJoinIAM(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	t.Parallel()
 	ctx := t.Context()
 
 	allowedOrgIDUsingAmbientCredentials := "o-allowedorg"
@@ -172,6 +173,7 @@ func TestJoinIAM(t *testing.T) {
 		Auth: authtest.AuthServerConfig{
 			Dir:                          t.TempDir(),
 			AWSOrganizationsClientGetter: organizationsClientGetter,
+			ScopesFeatures:               scopes.Features{Enabled: true},
 		},
 	})
 	require.NoError(t, err)
@@ -179,8 +181,9 @@ func TestJoinIAM(t *testing.T) {
 
 	fipsServer, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
-			Dir:  t.TempDir(),
-			FIPS: true,
+			Dir:            t.TempDir(),
+			FIPS:           true,
+			ScopesFeatures: scopes.Features{Enabled: true},
 		},
 	})
 	require.NoError(t, err)

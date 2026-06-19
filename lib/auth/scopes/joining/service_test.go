@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	jointoken "github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/scopes/pinning"
@@ -542,7 +543,7 @@ func newBackendPack(t *testing.T) *backendPack {
 
 	service := local.NewScopedAccessService(backend)
 	classicService := local.NewAccessService(backend)
-	scopedTokenService, err := local.NewScopedTokenService(backend)
+	scopedTokenService, err := local.NewScopedTokenService(backend, scopes.Features{Enabled: true})
 	require.NoError(t, err)
 
 	roles := []*scopedaccessv1.ScopedRole{

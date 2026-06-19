@@ -1,6 +1,6 @@
 # Changelog
 
-## 18.9.0-rc.2 (06/08/26)
+## 18.9.0 (06/16/26)
 
 Pre-releases of Teleport (versions with suffixes like -alpha, -beta, -rc) should not be run in production environments.
 

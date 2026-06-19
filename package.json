@@ -65,7 +65,7 @@
     "storybook": "^10.4.1",
     "svgo": "^4.0.1",
     "typescript": "^6.0.3",
-    "vite": "^8.0.14"
+    "vite": "^8.0.16"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.2",
@@ -89,7 +89,7 @@
     "immer": "^11.1.8",
     "prop-types": "^15.8.1",
     "react": "^19.2.6",
-    "react-day-picker": "^9.14.0",
+    "react-day-picker": "^10.0.1",
     "react-dom": "^19.2.6",
     "react-error-boundary": "^6.1.2",
     "react-hook-form": "^7.76.1",

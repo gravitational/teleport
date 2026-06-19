@@ -20,6 +20,7 @@ package local
 
 import (
 	"context"
+	"fmt"
 	"iter"
 	"maps"
 	"slices"
@@ -77,11 +78,13 @@ const (
 // consistent view to the rest of the Teleport application. It makes no decisions
 // about granting or withholding list membership.
 type AccessListService struct {
-	backend       backend.Backend
-	modules       modules.Modules
-	service       *generic.Service[*accesslist.AccessList]
-	memberService *generic.Service[*accesslist.AccessListMember]
-	reviewService *generic.Service[*accesslist.Review]
+	backend backend.Backend
+	modules modules.Modules
+	// scopesFeatures dictates whether scoped role grants are enabled.
+	scopesFeatures scopes.Features
+	service        *generic.Service[*accesslist.AccessList]
+	memberService  *generic.Service[*accesslist.AccessListMember]
+	reviewService  *generic.Service[*accesslist.Review]
 }
 
 type accessListAndMembersGetter struct {
@@ -117,6 +120,8 @@ type AccessListServiceConfig struct {
 	// RunWhileLockedRetryInterval alters locking behavior when interacting with the backend.
 	// This allows tests to run faster.
 	RunWhileLockedRetryInterval time.Duration
+	// ScopesFeatures specifies which scopes features are enabled.
+	ScopesFeatures scopes.Features
 }
 
 // NewAccessListServiceV2 creates a new AccessListService.
@@ -165,11 +170,12 @@ func NewAccessListServiceV2(cfg AccessListServiceConfig) (*AccessListService, er
 	}
 
 	return &AccessListService{
-		backend:       cfg.Backend,
-		modules:       cfg.Modules,
-		service:       service,
-		memberService: memberService,
-		reviewService: reviewService,
+		backend:        cfg.Backend,
+		modules:        cfg.Modules,
+		scopesFeatures: cfg.ScopesFeatures,
+		service:        service,
+		memberService:  memberService,
+		reviewService:  reviewService,
 	}, nil
 }
 
@@ -913,7 +919,7 @@ func (a *AccessListService) checkScopedRoleGrants(existingList, newList *accessl
 	}
 
 	// This list has new scoped role grants, the scopes feature must be enabled.
-	return trace.Wrap(scopes.AssertFeatureEnabled())
+	return trace.Wrap(a.scopesFeatures.AssertEnabled())
 }
 
 // UpsertAccessListWithMembers creates or updates an access list resource and its members.
@@ -1449,8 +1455,9 @@ func (a *AccessListService) checkDeletionBlockingMemberRelationships(ctx context
 	}
 
 	if len(memberOfTitles) > 0 {
-		return trace.AccessDenied(`Cannot delete "%s", as it is a member of Access Lists: %s`,
+		errMsg := fmt.Sprintf(`Cannot delete "%s", as it is a member of Access Lists: %s`,
 			accessList.Spec.Title, quoteAndJoin(memberOfTitles))
+		return trace.Wrap(accesslists.ErrDeniedAccessListDeletion, errMsg)
 	}
 
 	return nil

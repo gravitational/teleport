@@ -59,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/jointest"
 	"github.com/gravitational/teleport/lib/join/joinutils"
 	"github.com/gravitational/teleport/lib/join/oraclejoin"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -67,7 +68,7 @@ import (
 
 // TestJoinOracle tests the Oracle join method, with faked OCI IMDS and API servers.
 func TestJoinOracle(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	t.Parallel()
 
 	imdsListener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
@@ -109,7 +110,8 @@ func TestJoinOracle(t *testing.T) {
 
 	server, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
-			Dir: t.TempDir(),
+			Dir:            t.TempDir(),
+			ScopesFeatures: scopes.Features{Enabled: true},
 		},
 		TLS: &authtest.TLSServerConfig{
 			APIConfig: &auth.APIConfig{
