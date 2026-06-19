@@ -299,6 +299,153 @@ all session participants are notified.
 After enough approvals have been given to satisfy the policy used to start the session,
 the file transfer automatically begins.
 
+## Per-command approval
+
+In Teleport Enterprise, you can require that each command typed in a moderated
+interactive SSH session is individually approved before it runs on the host. When
+per-command approval is enabled, the session owner's shell pauses at every
+`Enter`: the command is held and is only sent to the host after an approval
+decision is returned. If no decision is obtained, the command is denied.
+
+Per-command approval is *fail-closed*: any timeout, error, or unavailable
+approver results in the command being denied rather than run.
+
+<Admonition type="note">
+Per-command approval currently supports interactive SSH sessions only.
+Kubernetes (`kubectl exec`) sessions are not yet supported.
+</Admonition>
+
+### Configuration
+
+Per-command approval is configured with a `command_approval` block on a
+`require_session_join` policy. The policy continues to require a moderator to be
+present in the session as described in
+[Moderated sessions](#moderated-sessions); the `command_approval` block adds the
+per-command gate on top of that requirement.
+
+The following fields are available on `command_approval`:
+
+|Option|Type|Description|
+|---|---|---|
+|`enabled`|Boolean|Turns on per-command approval for the policy.|
+|`approver`|String|Who approves each command: `human` or `ai`.|
+|`timeout`|Duration|The fail-closed deadline for a decision. If no decision is returned within the timeout, the command is denied. Defaults to `60s`.|
+|`ai`|Object|Configuration for the AI approver. Required when `approver` is `ai`.|
+
+#### Human approver
+
+With the `human` approver, a moderator who has joined the session decides each
+command. The following role requires one moderator with the `auditor` role and
+gates every command on that moderator's approval:
+
+```yaml
+kind: role
+metadata:
+  name: prod-access
+version: v7
+spec:
+  allow:
+    require_session_join:
+      - name: require-approval
+        filter: 'contains(user.spec.roles, "auditor")'
+        kinds: ['ssh']
+        modes: ['moderator']
+        count: 1
+        command_approval:
+          enabled: true
+          approver: human
+          timeout: 60s
+```
+
+#### AI approver
+
+With the `ai` approver, commands are evaluated autonomously against a
+natural-language policy by an inference model, so a human moderator does not need
+to decide each command. The `ai` block has the following fields:
+
+|Option|Type|Description|
+|---|---|---|
+|`policy`|String|The natural-language policy that the model judges each command against.|
+|`model`|String|The name of an existing `inference_model` resource to use for evaluation.|
+
+```yaml
+kind: role
+metadata:
+  name: prod-access
+version: v7
+spec:
+  allow:
+    require_session_join:
+      - name: require-approval
+        filter: 'contains(user.spec.roles, "auditor")'
+        kinds: ['ssh']
+        modes: ['moderator']
+        count: 1
+        command_approval:
+          enabled: true
+          approver: ai
+          timeout: 60s
+          ai:
+            policy: |
+              Allow read-only inspection (ls, cat, systemctl status, journalctl).
+              Deny anything that deletes data, edits /etc, changes users or
+              permissions, or restarts services outside the app tier. When unsure, deny.
+            model: my-inference-model
+```
+
+<Admonition type="note" title="Enterprise only">
+AI command moderation is a Teleport Enterprise feature: the evaluator that
+decides each command against the AI policy is only available in Teleport
+Enterprise.
+</Admonition>
+
+The `model` field references an existing `inference_model` resource by name. To
+configure an inference model and its associated `inference_secret`, see
+[Configure the inference model](../../identity-security/session-summaries/session-summaries.mdx#step-24-configure-the-inference-model).
+
+### Moderator experience
+
+A moderator joins the session as usual:
+
+```code
+$ tsh join --mode moderator 46e2af03-62d6-4e07-a886-43fe741ca044
+```
+
+When the session owner runs a command, the command is held and the moderator is
+shown an approval prompt with the pending command. The moderator presses `a` to
+approve the command or `d` to deny it. Once a decision is made, the session owner
+either sees the command run (if approved) or sees it rejected (if denied).
+
+With the AI approver, no moderator prompt is shown for each command: the
+inference model returns the decision automatically based on the configured
+policy.
+
+### Behavior and limitations
+
+- **Fail-closed.** Any timeout, evaluation error, or unavailable approver causes
+  the command to be denied. There is no way to configure per-command approval to
+  fail open.
+- **SSH interactive sessions only.** Per-command approval applies to interactive
+  SSH sessions. Kubernetes sessions are not yet supported.
+- **Best-effort command reconstruction.** The command shown for approval is
+  reconstructed from the input stream and may differ from what the shell
+  ultimately runs when tab-completion, shell history, or shell-side line editing
+  is used. The audit log's `session.command` and BPF events remain the ground
+  truth for what executed on the host.
+- **Full-screen applications.** Programs that take over the terminal with an
+  alternate screen buffer (for example `vim` or `less`) are a known limitation;
+  input inside such applications is not reliably gated.
+
+### Audit events
+
+Per-command approval emits the following audit events:
+
+|Event|Code|Description|
+|---|---|---|
+|`command.approval.approved`|`T4004I`|A command was approved and allowed to run.|
+|`command.approval.denied`|`T4005W`|A command was denied and not run.|
+|`command.approval.failed`|`T4006E`|No decision was obtained (timeout, error, or unavailable approver); the command was denied fail-closed.|
+
 ## See also
 
 - [Moderated Sessions](https://github.com/gravitational/teleport/blob/master/rfd/0043-kubeaccess-multiparty.md)
