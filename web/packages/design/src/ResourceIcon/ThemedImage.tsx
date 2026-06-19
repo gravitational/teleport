@@ -79,6 +79,8 @@ type StyledImgProps = SpaceProps &
   MaxHeightProps &
   AlignSelfProps & { $light: string };
 
+// oxfmt tries to replace content("") with content('') which can break the image in Storybook
+/* oxfmt-ignore */
 const StyledImg = styled.img<StyledImgProps>`
   display: block;
   outline: none;
