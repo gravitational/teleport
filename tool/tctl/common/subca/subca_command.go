@@ -523,7 +523,7 @@ func (c *deleteOverrideCommand) Run(
 	}
 	defer closeFn(ctx)
 
-	_, err = authClient.SubCAClient().RemoveCertificateOverride(ctx, &subcav1.RemoveCertificateOverrideRequest{
+	_, err = authClient.SubCAClient().RemoveCertificateOverride(ctx, subcav1.RemoveCertificateOverrideRequest_builder{
 		CertificateOverrideId: subcav1.CertificateOverrideID_builder{
 			CaType: caType,
 			PublicKeyHash: subcav1.PublicKeyHash_builder{
@@ -531,7 +531,7 @@ func (c *deleteOverrideCommand) Run(
 			}.Build(),
 		}.Build(),
 		ForceImmediateDelete: c.force,
-	})
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err, "delete certificate override")
 	}
