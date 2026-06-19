@@ -25,7 +25,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -86,11 +85,6 @@ func (AccessRequestConsistency) Type() protoreflect.EnumType {
 
 func (x AccessRequestConsistency) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use AccessRequestConsistency.Descriptor instead.
-func (AccessRequestConsistency) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_access_request_proto_rawDescGZIP(), []int{0}
 }
 
 // AccessRequestState represents the state of an access request for escalated privilege.
@@ -157,34 +151,21 @@ func (x AccessRequestState) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use AccessRequestState.Descriptor instead.
-func (AccessRequestState) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_access_request_proto_rawDescGZIP(), []int{1}
-}
-
 // AccessRequestSnapshot represents a snapshot of an access request associated with a session, if any. It contains
 // relevant information about the access request that can be used for assessing the session and its consistency with the
 // access request reason.
 type AccessRequestSnapshot struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// ID is the unique identifier of the access request.
-	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	// Reason is the reason provided by the user when creating the access request.
-	Reason string `protobuf:"bytes,2,opt,name=reason,proto3" json:"reason,omitempty"`
-	// CreatedAt is when the access request was created.
-	CreatedAt *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	// Expires is when the access request expires.
-	Expires *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=expires,proto3" json:"expires,omitempty"`
-	// Roles is the list of roles that were requested.
-	Roles []string `protobuf:"bytes,5,rep,name=roles,proto3" json:"roles,omitempty"`
-	// Reviews is the full review history of the access request.
-	Reviews []*AccessRequestReviewSnapshot `protobuf:"bytes,6,rep,name=reviews,proto3" json:"reviews,omitempty"`
-	// User is the user who created the access request.
-	User string `protobuf:"bytes,7,opt,name=user,proto3" json:"user,omitempty"`
-	// RequestedResourceIDs is the set of resources access was requested for (for resource-based requests).
-	RequestedResourceIds []*RequestedResourceID `protobuf:"bytes,8,rep,name=requested_resource_ids,json=requestedResourceIds,proto3" json:"requested_resource_ids,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
+	state                           protoimpl.MessageState          `protogen:"opaque.v1"`
+	xxx_hidden_Id                   string                          `protobuf:"bytes,1,opt,name=id,proto3"`
+	xxx_hidden_Reason               string                          `protobuf:"bytes,2,opt,name=reason,proto3"`
+	xxx_hidden_CreatedAt            *timestamppb.Timestamp          `protobuf:"bytes,3,opt,name=created_at,json=createdAt,proto3"`
+	xxx_hidden_Expires              *timestamppb.Timestamp          `protobuf:"bytes,4,opt,name=expires,proto3"`
+	xxx_hidden_Roles                []string                        `protobuf:"bytes,5,rep,name=roles,proto3"`
+	xxx_hidden_Reviews              *[]*AccessRequestReviewSnapshot `protobuf:"bytes,6,rep,name=reviews,proto3"`
+	xxx_hidden_User                 string                          `protobuf:"bytes,7,opt,name=user,proto3"`
+	xxx_hidden_RequestedResourceIds *[]*RequestedResourceID         `protobuf:"bytes,8,rep,name=requested_resource_ids,json=requestedResourceIds,proto3"`
+	unknownFields                   protoimpl.UnknownFields
+	sizeCache                       protoimpl.SizeCache
 }
 
 func (x *AccessRequestSnapshot) Reset() {
@@ -212,80 +193,165 @@ func (x *AccessRequestSnapshot) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AccessRequestSnapshot.ProtoReflect.Descriptor instead.
-func (*AccessRequestSnapshot) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_access_request_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *AccessRequestSnapshot) GetId() string {
 	if x != nil {
-		return x.Id
+		return x.xxx_hidden_Id
 	}
 	return ""
 }
 
 func (x *AccessRequestSnapshot) GetReason() string {
 	if x != nil {
-		return x.Reason
+		return x.xxx_hidden_Reason
 	}
 	return ""
 }
 
 func (x *AccessRequestSnapshot) GetCreatedAt() *timestamppb.Timestamp {
 	if x != nil {
-		return x.CreatedAt
+		return x.xxx_hidden_CreatedAt
 	}
 	return nil
 }
 
 func (x *AccessRequestSnapshot) GetExpires() *timestamppb.Timestamp {
 	if x != nil {
-		return x.Expires
+		return x.xxx_hidden_Expires
 	}
 	return nil
 }
 
 func (x *AccessRequestSnapshot) GetRoles() []string {
 	if x != nil {
-		return x.Roles
+		return x.xxx_hidden_Roles
 	}
 	return nil
 }
 
 func (x *AccessRequestSnapshot) GetReviews() []*AccessRequestReviewSnapshot {
 	if x != nil {
-		return x.Reviews
+		if x.xxx_hidden_Reviews != nil {
+			return *x.xxx_hidden_Reviews
+		}
 	}
 	return nil
 }
 
 func (x *AccessRequestSnapshot) GetUser() string {
 	if x != nil {
-		return x.User
+		return x.xxx_hidden_User
 	}
 	return ""
 }
 
 func (x *AccessRequestSnapshot) GetRequestedResourceIds() []*RequestedResourceID {
 	if x != nil {
-		return x.RequestedResourceIds
+		if x.xxx_hidden_RequestedResourceIds != nil {
+			return *x.xxx_hidden_RequestedResourceIds
+		}
 	}
 	return nil
 }
 
+func (x *AccessRequestSnapshot) SetId(v string) {
+	x.xxx_hidden_Id = v
+}
+
+func (x *AccessRequestSnapshot) SetReason(v string) {
+	x.xxx_hidden_Reason = v
+}
+
+func (x *AccessRequestSnapshot) SetCreatedAt(v *timestamppb.Timestamp) {
+	x.xxx_hidden_CreatedAt = v
+}
+
+func (x *AccessRequestSnapshot) SetExpires(v *timestamppb.Timestamp) {
+	x.xxx_hidden_Expires = v
+}
+
+func (x *AccessRequestSnapshot) SetRoles(v []string) {
+	x.xxx_hidden_Roles = v
+}
+
+func (x *AccessRequestSnapshot) SetReviews(v []*AccessRequestReviewSnapshot) {
+	x.xxx_hidden_Reviews = &v
+}
+
+func (x *AccessRequestSnapshot) SetUser(v string) {
+	x.xxx_hidden_User = v
+}
+
+func (x *AccessRequestSnapshot) SetRequestedResourceIds(v []*RequestedResourceID) {
+	x.xxx_hidden_RequestedResourceIds = &v
+}
+
+func (x *AccessRequestSnapshot) HasCreatedAt() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_CreatedAt != nil
+}
+
+func (x *AccessRequestSnapshot) HasExpires() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_Expires != nil
+}
+
+func (x *AccessRequestSnapshot) ClearCreatedAt() {
+	x.xxx_hidden_CreatedAt = nil
+}
+
+func (x *AccessRequestSnapshot) ClearExpires() {
+	x.xxx_hidden_Expires = nil
+}
+
+type AccessRequestSnapshot_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ID is the unique identifier of the access request.
+	Id string
+	// Reason is the reason provided by the user when creating the access request.
+	Reason string
+	// CreatedAt is when the access request was created.
+	CreatedAt *timestamppb.Timestamp
+	// Expires is when the access request expires.
+	Expires *timestamppb.Timestamp
+	// Roles is the list of roles that were requested.
+	Roles []string
+	// Reviews is the full review history of the access request.
+	Reviews []*AccessRequestReviewSnapshot
+	// User is the user who created the access request.
+	User string
+	// RequestedResourceIDs is the set of resources access was requested for (for resource-based requests).
+	RequestedResourceIds []*RequestedResourceID
+}
+
+func (b0 AccessRequestSnapshot_builder) Build() *AccessRequestSnapshot {
+	m0 := &AccessRequestSnapshot{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_Id = b.Id
+	x.xxx_hidden_Reason = b.Reason
+	x.xxx_hidden_CreatedAt = b.CreatedAt
+	x.xxx_hidden_Expires = b.Expires
+	x.xxx_hidden_Roles = b.Roles
+	x.xxx_hidden_Reviews = &b.Reviews
+	x.xxx_hidden_User = b.User
+	x.xxx_hidden_RequestedResourceIds = &b.RequestedResourceIds
+	return m0
+}
+
 // RequestedResourceID identifies a specific resource that was requested in an access request.
 type RequestedResourceID struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// ClusterName is the name of the cluster the resource is in.
-	ClusterName string `protobuf:"bytes,1,opt,name=cluster_name,json=clusterName,proto3" json:"cluster_name,omitempty"`
-	// Kind is the resource kind.
-	Kind string `protobuf:"bytes,2,opt,name=kind,proto3" json:"kind,omitempty"`
-	// Name is the name of the specific resource.
-	Name string `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
-	// SubResourceName is the sub-resource name, if any (e.g. "<kube_namespace>/<kube_pod>").
-	SubResourceName string `protobuf:"bytes,4,opt,name=sub_resource_name,json=subResourceName,proto3" json:"sub_resource_name,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	state                      protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_ClusterName     string                 `protobuf:"bytes,1,opt,name=cluster_name,json=clusterName,proto3"`
+	xxx_hidden_Kind            string                 `protobuf:"bytes,2,opt,name=kind,proto3"`
+	xxx_hidden_Name            string                 `protobuf:"bytes,3,opt,name=name,proto3"`
+	xxx_hidden_SubResourceName string                 `protobuf:"bytes,4,opt,name=sub_resource_name,json=subResourceName,proto3"`
+	unknownFields              protoimpl.UnknownFields
+	sizeCache                  protoimpl.SizeCache
 }
 
 func (x *RequestedResourceID) Reset() {
@@ -313,53 +379,84 @@ func (x *RequestedResourceID) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RequestedResourceID.ProtoReflect.Descriptor instead.
-func (*RequestedResourceID) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_access_request_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *RequestedResourceID) GetClusterName() string {
 	if x != nil {
-		return x.ClusterName
+		return x.xxx_hidden_ClusterName
 	}
 	return ""
 }
 
 func (x *RequestedResourceID) GetKind() string {
 	if x != nil {
-		return x.Kind
+		return x.xxx_hidden_Kind
 	}
 	return ""
 }
 
 func (x *RequestedResourceID) GetName() string {
 	if x != nil {
-		return x.Name
+		return x.xxx_hidden_Name
 	}
 	return ""
 }
 
 func (x *RequestedResourceID) GetSubResourceName() string {
 	if x != nil {
-		return x.SubResourceName
+		return x.xxx_hidden_SubResourceName
 	}
 	return ""
+}
+
+func (x *RequestedResourceID) SetClusterName(v string) {
+	x.xxx_hidden_ClusterName = v
+}
+
+func (x *RequestedResourceID) SetKind(v string) {
+	x.xxx_hidden_Kind = v
+}
+
+func (x *RequestedResourceID) SetName(v string) {
+	x.xxx_hidden_Name = v
+}
+
+func (x *RequestedResourceID) SetSubResourceName(v string) {
+	x.xxx_hidden_SubResourceName = v
+}
+
+type RequestedResourceID_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ClusterName is the name of the cluster the resource is in.
+	ClusterName string
+	// Kind is the resource kind.
+	Kind string
+	// Name is the name of the specific resource.
+	Name string
+	// SubResourceName is the sub-resource name, if any (e.g. "<kube_namespace>/<kube_pod>").
+	SubResourceName string
+}
+
+func (b0 RequestedResourceID_builder) Build() *RequestedResourceID {
+	m0 := &RequestedResourceID{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_ClusterName = b.ClusterName
+	x.xxx_hidden_Kind = b.Kind
+	x.xxx_hidden_Name = b.Name
+	x.xxx_hidden_SubResourceName = b.SubResourceName
+	return m0
 }
 
 // AccessRequestReviewSnapshot represents a snapshot of a single review of an access request, containing information
 // about the reviewer, their decision, and their reasoning.
 type AccessRequestReviewSnapshot struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Author is the teleport username of the reviewer.
-	Author string `protobuf:"bytes,1,opt,name=author,proto3" json:"author,omitempty"`
-	// ProposedState is the proposed state (must be APPROVED or DENIED).
-	ProposedState AccessRequestState `protobuf:"varint,2,opt,name=proposed_state,json=proposedState,proto3,enum=teleport.summarizer.v1.AccessRequestState" json:"proposed_state,omitempty"`
-	// Reason is the reviewer's reason.
-	Reason string `protobuf:"bytes,3,opt,name=reason,proto3" json:"reason,omitempty"`
-	// CreatedAt is when the review was submitted.
-	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state                    protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Author        string                 `protobuf:"bytes,1,opt,name=author,proto3"`
+	xxx_hidden_ProposedState AccessRequestState     `protobuf:"varint,2,opt,name=proposed_state,json=proposedState,proto3,enum=teleport.summarizer.v1.AccessRequestState"`
+	xxx_hidden_Reason        string                 `protobuf:"bytes,3,opt,name=reason,proto3"`
+	xxx_hidden_CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=created_at,json=createdAt,proto3"`
+	unknownFields            protoimpl.UnknownFields
+	sizeCache                protoimpl.SizeCache
 }
 
 func (x *AccessRequestReviewSnapshot) Reset() {
@@ -387,47 +484,92 @@ func (x *AccessRequestReviewSnapshot) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AccessRequestReviewSnapshot.ProtoReflect.Descriptor instead.
-func (*AccessRequestReviewSnapshot) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_access_request_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *AccessRequestReviewSnapshot) GetAuthor() string {
 	if x != nil {
-		return x.Author
+		return x.xxx_hidden_Author
 	}
 	return ""
 }
 
 func (x *AccessRequestReviewSnapshot) GetProposedState() AccessRequestState {
 	if x != nil {
-		return x.ProposedState
+		return x.xxx_hidden_ProposedState
 	}
 	return AccessRequestState_ACCESS_REQUEST_STATE_UNSPECIFIED
 }
 
 func (x *AccessRequestReviewSnapshot) GetReason() string {
 	if x != nil {
-		return x.Reason
+		return x.xxx_hidden_Reason
 	}
 	return ""
 }
 
 func (x *AccessRequestReviewSnapshot) GetCreatedAt() *timestamppb.Timestamp {
 	if x != nil {
-		return x.CreatedAt
+		return x.xxx_hidden_CreatedAt
 	}
 	return nil
+}
+
+func (x *AccessRequestReviewSnapshot) SetAuthor(v string) {
+	x.xxx_hidden_Author = v
+}
+
+func (x *AccessRequestReviewSnapshot) SetProposedState(v AccessRequestState) {
+	x.xxx_hidden_ProposedState = v
+}
+
+func (x *AccessRequestReviewSnapshot) SetReason(v string) {
+	x.xxx_hidden_Reason = v
+}
+
+func (x *AccessRequestReviewSnapshot) SetCreatedAt(v *timestamppb.Timestamp) {
+	x.xxx_hidden_CreatedAt = v
+}
+
+func (x *AccessRequestReviewSnapshot) HasCreatedAt() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_CreatedAt != nil
+}
+
+func (x *AccessRequestReviewSnapshot) ClearCreatedAt() {
+	x.xxx_hidden_CreatedAt = nil
+}
+
+type AccessRequestReviewSnapshot_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Author is the teleport username of the reviewer.
+	Author string
+	// ProposedState is the proposed state (must be APPROVED or DENIED).
+	ProposedState AccessRequestState
+	// Reason is the reviewer's reason.
+	Reason string
+	// CreatedAt is when the review was submitted.
+	CreatedAt *timestamppb.Timestamp
+}
+
+func (b0 AccessRequestReviewSnapshot_builder) Build() *AccessRequestReviewSnapshot {
+	m0 := &AccessRequestReviewSnapshot{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_Author = b.Author
+	x.xxx_hidden_ProposedState = b.ProposedState
+	x.xxx_hidden_Reason = b.Reason
+	x.xxx_hidden_CreatedAt = b.CreatedAt
+	return m0
 }
 
 // StoredAccessRequestSnapshots is a storage wrapper for serializing a list of
 // access request snapshots associated with a session.
 type StoredAccessRequestSnapshots struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Snapshots is the list of access request snapshots.
-	Snapshots     []*AccessRequestSnapshot `protobuf:"bytes,1,rep,name=snapshots,proto3" json:"snapshots,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state                protoimpl.MessageState    `protogen:"opaque.v1"`
+	xxx_hidden_Snapshots *[]*AccessRequestSnapshot `protobuf:"bytes,1,rep,name=snapshots,proto3"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *StoredAccessRequestSnapshots) Reset() {
@@ -455,16 +597,32 @@ func (x *StoredAccessRequestSnapshots) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use StoredAccessRequestSnapshots.ProtoReflect.Descriptor instead.
-func (*StoredAccessRequestSnapshots) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_access_request_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *StoredAccessRequestSnapshots) GetSnapshots() []*AccessRequestSnapshot {
 	if x != nil {
-		return x.Snapshots
+		if x.xxx_hidden_Snapshots != nil {
+			return *x.xxx_hidden_Snapshots
+		}
 	}
 	return nil
+}
+
+func (x *StoredAccessRequestSnapshots) SetSnapshots(v []*AccessRequestSnapshot) {
+	x.xxx_hidden_Snapshots = &v
+}
+
+type StoredAccessRequestSnapshots_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Snapshots is the list of access request snapshots.
+	Snapshots []*AccessRequestSnapshot
+}
+
+func (b0 StoredAccessRequestSnapshots_builder) Build() *StoredAccessRequestSnapshots {
+	m0 := &StoredAccessRequestSnapshots{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_Snapshots = &b.Snapshots
+	return m0
 }
 
 var File_teleport_summarizer_v1_access_request_proto protoreflect.FileDescriptor
@@ -507,18 +665,6 @@ const file_teleport_summarizer_v1_access_request_proto_rawDesc = "" +
 	"\x1dACCESS_REQUEST_STATE_APPROVED\x10\x03\x12\x1f\n" +
 	"\x1bACCESS_REQUEST_STATE_DENIED\x10\x04\x12!\n" +
 	"\x1dACCESS_REQUEST_STATE_PROMOTED\x10\x05BXZVgithub.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1;summarizerv1b\x06proto3"
-
-var (
-	file_teleport_summarizer_v1_access_request_proto_rawDescOnce sync.Once
-	file_teleport_summarizer_v1_access_request_proto_rawDescData []byte
-)
-
-func file_teleport_summarizer_v1_access_request_proto_rawDescGZIP() []byte {
-	file_teleport_summarizer_v1_access_request_proto_rawDescOnce.Do(func() {
-		file_teleport_summarizer_v1_access_request_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_summarizer_v1_access_request_proto_rawDesc), len(file_teleport_summarizer_v1_access_request_proto_rawDesc)))
-	})
-	return file_teleport_summarizer_v1_access_request_proto_rawDescData
-}
 
 var file_teleport_summarizer_v1_access_request_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
 var file_teleport_summarizer_v1_access_request_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
