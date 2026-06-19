@@ -109,6 +109,7 @@ func TestIdentityConversion(t *testing.T) {
 		GitHubUsername:           "ghuser",
 		HeadlessAuthenticationID: "headless-auth-id",
 		DelegationSessionID:      "delegation-session-id",
+		BeamID:                   "beam-id",
 		AgentScope:               "/foo",
 		ImmutableLabelHash: joining.HashImmutableLabels(joiningv1.ImmutableLabels_builder{
 			Ssh: map[string]string{

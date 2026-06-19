@@ -264,6 +264,26 @@ func (p *sessionTestPack) createSession(t *testing.T, spec *delegationv1pb.Deleg
 	return session
 }
 
+// createSessionWithLabels is like createSession but also sets the given labels
+// on the delegation session's metadata (e.g. types.BeamIDLabel).
+func (p *sessionTestPack) createSessionWithLabels(t *testing.T, spec *delegationv1pb.DelegationSessionSpec, labels map[string]string) *delegationv1pb.DelegationSession {
+	t.Helper()
+
+	session, err := p.sessions.CreateDelegationSession(t.Context(), delegationv1pb.DelegationSession_builder{
+		Kind:    types.KindDelegationSession,
+		Version: types.V1,
+		Metadata: headerv1.Metadata_builder{
+			Name:    uuid.NewString(),
+			Expires: timestamppb.New(time.Now().Add(time.Hour)),
+			Labels:  labels,
+		}.Build(),
+		Spec: spec,
+	}.Build())
+	require.NoError(t, err)
+
+	return session
+}
+
 type testClusterNameGetter struct {
 	clusterName string
 }
