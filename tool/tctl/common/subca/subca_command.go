@@ -128,6 +128,7 @@ type Command struct {
 
 	createOverrideCSR createOverrideCSRCommand
 	createOverride    createOverrideCommand
+	deleteOverride    deleteOverrideCommand
 	pubKeyHash        pubKeyHashCommand
 }
 
@@ -186,6 +187,16 @@ func (c *Command) Initialize(
 	c.createOverride.Flag("force", "If true attempts to force creation, ignoring select state validation").
 		BoolVar(&c.createOverride.force)
 
+	c.deleteOverride.CmdClause = parent.Command("delete-override", "Delete a single certificate override from a CA override resource")
+	c.deleteOverride.Flag("type", caTypesHelp).
+		Required().
+		StringVar(&c.deleteOverride.cliCAType)
+	c.deleteOverride.Flag("public-key", "Public key hash of the certificate override to be targeted").
+		Required().
+		StringVar(&c.deleteOverride.publicKey)
+	c.deleteOverride.Flag("force", "If true attempts to force deletion. May be used to delete live overrides.").
+		BoolVar(&c.deleteOverride.force)
+
 	c.pubKeyHash.CmdClause = parent.Command(
 		"pub-key-hash", "Extract and print the public key hash of a PEM certificate")
 	c.pubKeyHash.Flag("cert", "Certificate file in PEM format. Use '-' to read from stdin.").
@@ -205,6 +216,7 @@ func (c *Command) TryRun(
 	for _, cmd := range []subCommand{
 		&c.createOverrideCSR,
 		&c.createOverride,
+		&c.deleteOverride,
 		&c.pubKeyHash,
 	} {
 		if selectedCommand == cmd.FullCommand() {
@@ -488,4 +500,42 @@ func readCertFile(certFile string) (pem []byte, _ *x509.Certificate, _ error) {
 		return nil, nil, trace.Wrap(err, "parse certificate")
 	}
 	return certPEM, cert, nil
+}
+
+type deleteOverrideCommand struct {
+	*kingpin.CmdClause
+
+	cliCAType string
+	publicKey string
+	force     bool
+}
+
+func (c *deleteOverrideCommand) Run(
+	ctx context.Context,
+	clientFunc InitFunc,
+	s *commandState,
+) error {
+	caType := cliCATypes.Convert(c.cliCAType)
+
+	authClient, closeFn, err := clientFunc(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer closeFn(ctx)
+
+	_, err = authClient.SubCAClient().RemoveCertificateOverride(ctx, subcav1.RemoveCertificateOverrideRequest_builder{
+		CertificateOverrideId: subcav1.CertificateOverrideID_builder{
+			CaType: caType,
+			PublicKeyHash: subcav1.PublicKeyHash_builder{
+				Value: c.publicKey,
+			}.Build(),
+		}.Build(),
+		ForceImmediateDelete: c.force,
+	}.Build())
+	if err != nil {
+		return trace.Wrap(err, "delete certificate override")
+	}
+	fmt.Fprintf(s.Stdout, "%s/%s: certificate override %s deleted\n", types.KindCertAuthorityOverride, caType, c.publicKey)
+
+	return nil
 }
