@@ -17,6 +17,7 @@
 package joining
 
 import (
+	"bytes"
 	"cmp"
 	"crypto/sha256"
 	"encoding/base64"
@@ -27,7 +28,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gogo/protobuf/jsonpb"
+	gogotypes "github.com/gogo/protobuf/types"
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -823,6 +828,100 @@ func (t *Token) GetBoundKeypair() *types.ProvisionTokenSpecV2BoundKeypair {
 // token.
 func (t *Token) GetBoundKeypairStatus() *types.ProvisionTokenStatusV2BoundKeypair {
 	return BoundKeypairStatusFromScopedToken(t.scoped)
+}
+
+// convertStructPB converts a structpb.Struct to a gogo-compatible
+// `types.Struct`. Inspired by `apievents.Resource153ToStruct()`] but avoiding a
+// potentially heavyweight import.
+func convertStructPB(s *structpb.Struct) (*gogotypes.Struct, error) {
+	encoded, err := protojson.Marshal(s)
+	if err != nil {
+		return nil, trace.Wrap(err, "marshaling protojson")
+	}
+
+	out := &gogotypes.Struct{}
+	if err = (&jsonpb.Unmarshaler{
+		AllowUnknownFields: true,
+	}).Unmarshal(bytes.NewReader(encoded), out); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return out, nil
+}
+
+// convertGenericOIDCCondition converts a scoped generic_oidc condition to a
+// ProvisionTokenV2-style condition (with gogoproto semantics).
+func convertGenericOIDCCondition(c *joiningv1.GenericOIDC_Condition) (*types.ProvisionTokenSpecV2GenericOIDC_Condition, error) {
+	v := &types.ProvisionTokenSpecV2GenericOIDC_Condition{
+		Attribute: c.GetAttribute(),
+	}
+
+	switch t := c.GetOperator().(type) {
+	case *joiningv1.GenericOIDC_Condition_Eq:
+		v.Eq = &types.ProvisionTokenSpecV2GenericOIDC_ConditionEq{
+			Value: t.Eq.GetValue(),
+		}
+	case *joiningv1.GenericOIDC_Condition_NotEq:
+		v.NotEq = &types.ProvisionTokenSpecV2GenericOIDC_ConditionNotEq{
+			Value: t.NotEq.GetValue(),
+		}
+	case *joiningv1.GenericOIDC_Condition_In:
+		v.In = &types.ProvisionTokenSpecV2GenericOIDC_ConditionIn{
+			Values: t.In.GetValues(),
+		}
+	case *joiningv1.GenericOIDC_Condition_NotIn:
+		v.NotIn = &types.ProvisionTokenSpecV2GenericOIDC_ConditionNotIn{
+			Values: t.NotIn.GetValues(),
+		}
+	default:
+		return nil, trace.BadParameter("unexpected condition operator type %T", t)
+	}
+
+	return v, nil
+}
+
+// GetGenericOIDC returns the generic_oidc-specific configuration for this token.
+func (t *Token) GetGenericOIDC() (*types.ProvisionTokenSpecV2GenericOIDC, error) {
+	spec := t.scoped.GetSpec().GetGenericOidc()
+
+	var globalMatchers *gogotypes.Struct
+	if gm := spec.GetMustMatchFields(); gm != nil {
+		gogo, err := convertStructPB(spec.GetMustMatchFields())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		globalMatchers = gogo
+	}
+
+	allow := make([]*types.ProvisionTokenSpecV2GenericOIDC_Rule, len(spec.GetAllowAny()))
+	for i, rule := range spec.GetAllowAny() {
+		conditions := make([]*types.ProvisionTokenSpecV2GenericOIDC_Condition, len(rule.GetConditions()))
+		for j, condition := range rule.GetConditions() {
+			converted, err := convertGenericOIDCCondition(condition)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			conditions[j] = converted
+		}
+
+		allow[i] = &types.ProvisionTokenSpecV2GenericOIDC_Rule{
+			Expression: rule.GetExpression(),
+			Conditions: conditions,
+		}
+	}
+
+	return &types.ProvisionTokenSpecV2GenericOIDC{
+		Issuer:                  spec.GetIssuer(),
+		InsecureAllowHTTPIssuer: spec.GetInsecureAllowHttpIssuer(),
+		Audience:                spec.GetAudience(),
+		StaticJWKS:              spec.GetStaticJwks(),
+		TLSCA:                   spec.GetTlsCa(),
+
+		MustMatchFields: globalMatchers,
+		AllowAny:        allow,
+	}, nil
 }
 
 // GetScoped returns the inner scoped token wrapped by this [provision.Token].
