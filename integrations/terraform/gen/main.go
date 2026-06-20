@@ -55,6 +55,14 @@ type payload struct {
 	UpsertMethodArity int
 	// WithSecrets value for a withSecrets param of Get method (empty means no param used)
 	WithSecrets string
+	// SchemaFunc optionally overrides the generated schema function.
+	SchemaFunc string
+	// StateUpgradeFunc optionally adds a ResourceWithUpgradeState implementation.
+	StateUpgradeFunc string
+	// PreserveConfiguredStateFunc optionally restores configured values into post-apply state.
+	PreserveConfiguredStateFunc string
+	// PreserveStateFunc optionally restores values from prior state into read state.
+	PreserveStateFunc string
 	// ID id value on create and import
 	ID string
 	// IDPrefix is optional for resources which are stored with an prefix in the backend.
@@ -420,20 +428,24 @@ var (
 	}
 
 	samlConnector = payload{
-		Name:                   "SAMLConnector",
-		TypeName:               "SAMLConnectorV2",
-		VarName:                "samlConnector",
-		GetMethod:              "GetSAMLConnector",
-		CreateMethod:           "CreateSAMLConnector",
-		UpdateMethod:           "UpsertSAMLConnector",
-		UpsertMethodArity:      2,
-		DeleteMethod:           "DeleteSAMLConnector",
-		WithSecrets:            "true",
-		ID:                     "samlConnector.Metadata.Name",
-		Kind:                   "saml",
-		HasStaticID:            true,
-		TerraformResourceType:  "teleport_saml_connector",
-		HasCheckAndSetDefaults: true,
+		Name:                        "SAMLConnector",
+		TypeName:                    "SAMLConnectorV2",
+		VarName:                     "samlConnector",
+		GetMethod:                   "GetSAMLConnector",
+		CreateMethod:                "CreateSAMLConnector",
+		UpdateMethod:                "UpsertSAMLConnector",
+		UpsertMethodArity:           2,
+		DeleteMethod:                "DeleteSAMLConnector",
+		WithSecrets:                 "false",
+		SchemaFunc:                  "samlConnectorSchema",
+		StateUpgradeFunc:            "upgradeSAMLConnectorState",
+		PreserveConfiguredStateFunc: "preserveSAMLConnectorConfiguredSecrets",
+		PreserveStateFunc:           "preserveSAMLConnectorStateSecrets",
+		ID:                          "samlConnector.Metadata.Name",
+		Kind:                        "saml",
+		HasStaticID:                 true,
+		TerraformResourceType:       "teleport_saml_connector",
+		HasCheckAndSetDefaults:      true,
 	}
 
 	samlIdPServiceProvider = payload{

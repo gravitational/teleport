@@ -66,7 +66,11 @@ type resourceTeleport{{.Name}} struct {
 
 // GetSchema returns the resource schema
 func (r resourceTeleport{{.Name}}Type) GetSchema(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
+{{- if .SchemaFunc }}
+	return {{.SchemaFunc}}(ctx)
+{{- else }}
 	return {{.SchemaPackage}}.GenSchema{{.TypeName}}(ctx)
+{{- end }}
 }
 
 // NewResource creates the empty resource
@@ -75,6 +79,12 @@ func (r resourceTeleport{{.Name}}Type) NewResource(_ context.Context, p tfsdk.Pr
 		p: *(p.(*Provider)),
 	}, nil
 }
+
+{{ if .StateUpgradeFunc }}
+func (r resourceTeleport{{.Name}}) UpgradeState(ctx context.Context) map[int64]tfsdk.ResourceStateUpgrader {
+	return {{.StateUpgradeFunc}}(ctx)
+}
+{{- end }}
 
 // Create creates the {{.Name}}
 func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateResourceRequest, resp *tfsdk.CreateResourceResponse) {
@@ -89,6 +99,14 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	{{- if .PreserveConfiguredStateFunc}}
+	var config types.Object
+	diags = req.Config.Get(ctx, &config)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	{{- end}}
 
 	{{- if .SaveSpecStateFromPlan}}
 	specFromPlan, ok := plan.Attrs["spec"]
@@ -275,6 +293,9 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 		return
 	}
 	{{- end}}
+	{{- if .PreserveConfiguredStateFunc }}
+	{{.PreserveConfiguredStateFunc}}(config, plan, {{.VarName}}Resource)
+	{{- end}}
 
 	{{- if .ConvertPackagePath}}
 	{{.VarName}} = convert.{{ if .ConvertToProtoFunc }}{{.ConvertToProtoFunc}}{{ else }}ToProto{{ end }}({{.VarName}}Resource)
@@ -453,6 +474,9 @@ func (r resourceTeleport{{.Name}}) Read(ctx context.Context, req tfsdk.ReadResou
 	{{ else }}
 	{{.VarName}} := {{.VarName}}I.(*{{.ProtoPackage}}.{{.TypeName}})
 	{{end -}}
+{{ if .PreserveStateFunc -}}
+	{{.PreserveStateFunc}}(state, {{.VarName}})
+{{ end -}}
 	diags = {{.SchemaPackage}}.Copy{{.TypeName}}ToTerraform(ctx, {{.VarName}}, &state)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -479,6 +503,14 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	{{- if .PreserveConfiguredStateFunc}}
+	var config types.Object
+	diags = req.Config.Get(ctx, &config)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	{{- end}}
 
 	{{.VarName}} := &{{.ProtoPackage}}.{{.TypeName}}{}
 	diags = {{.SchemaPackage}}.Copy{{.TypeName}}FromTerraform(ctx, plan, {{.VarName}})
@@ -637,7 +669,10 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 		return
 	}
 	{{- end}}
-	diags = {{.SchemaPackage}}.Copy{{.TypeName}}ToTerraform(ctx, {{.VarName}}, &plan)
+	{{- if .PreserveConfiguredStateFunc }}
+	{{.PreserveConfiguredStateFunc}}(config, plan, {{.VarName}}Resource)
+	{{- end}}
+	diags = {{.SchemaPackage}}.Copy{{.TypeName}}ToTerraform(ctx, {{.VarName}}Resource, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
