@@ -434,8 +434,8 @@ func TestCachingTokenValidatorCustomKeys(t *testing.T) {
 	bar, err := validator.GetValidatorWithKey(ctx, barKey)
 	require.NoError(t, err)
 
-	require.True(t, foo == foo2, "pointers with same cache key must be equal")
-	require.True(t, foo != bar, "pointers with different cache key must not be equal")
+	require.Same(t, foo, foo2, "pointers with same cache key must be equal")
+	require.NotSame(t, foo, bar, "pointers with different cache key must not be equal")
 }
 
 // countingRoundTripper is an http.RoundTripper that counts requests and
