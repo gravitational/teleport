@@ -17,6 +17,7 @@
 package joinclient
 
 import (
+	"cmp"
 	"context"
 	"crypto"
 	"crypto/x509"
@@ -190,10 +191,7 @@ func checkClientVersionSupported(ctx context.Context, params JoinParams, proxyAd
 		return nil
 	}
 
-	localVersion := api.Version
-	if params.Testing.TeleportVersion != "" {
-		localVersion = params.Testing.TeleportVersion
-	}
+	localVersion := cmp.Or(params.Testing.TeleportVersion, api.Version)
 
 	err = checkClientMeetsMinVersion(localVersion, resp.MinClientVersion)
 	if err == nil {
