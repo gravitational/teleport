@@ -719,6 +719,10 @@ func (s *ServicesTestSuite) SAMLCRUD(t *testing.T) {
 				PrivateKey: fixtures.TLSCAKeyPEM,
 				Cert:       fixtures.TLSCACertPEM,
 			},
+			EncryptionKeyPair: &types.AsymmetricKeyPair{
+				PrivateKey: fixtures.TLSCAKeyPEM,
+				Cert:       fixtures.TLSCACertPEM,
+			},
 			Credentials: &types.SAMLConnectorCredentials{
 				Oauth: &types.OAuthClientCredentials{
 					ClientId:     "test-id",
@@ -743,16 +747,17 @@ func (s *ServicesTestSuite) SAMLCRUD(t *testing.T) {
 
 	out2, err := s.WebS.GetSAMLConnector(ctx, connector.GetName(), false)
 	require.NoError(t, err)
-	connectorNoSecrets := *connector
+	connectorNoSecrets := utils.CloneProtoMsg(connector)
 	connectorNoSecrets.Spec.SigningKeyPair.PrivateKey = ""
+	connectorNoSecrets.Spec.EncryptionKeyPair.PrivateKey = ""
 	oauthNoSecrets := *connectorNoSecrets.GetOAuthClientCredentials()
 	oauthNoSecrets.ClientSecret = ""
 	connectorNoSecrets.SetOAuthClientCredentials(&oauthNoSecrets)
-	require.Empty(t, cmp.Diff(out2, &connectorNoSecrets, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	require.Empty(t, cmp.Diff(out2, connectorNoSecrets, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	connectorsNoSecrets, err := s.WebS.GetSAMLConnectors(ctx, false)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]types.SAMLConnector{&connectorNoSecrets}, connectorsNoSecrets, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+	require.Empty(t, cmp.Diff([]types.SAMLConnector{connectorNoSecrets}, connectorsNoSecrets, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	err = s.WebS.DeleteSAMLConnector(ctx, connector.GetName())
 	require.NoError(t, err)

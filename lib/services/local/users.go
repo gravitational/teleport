@@ -25,6 +25,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
 	"iter"
 	"log/slog"
@@ -1816,16 +1817,11 @@ func (s *IdentityService) GetSAMLConnectorWithValidationOptions(ctx context.Cont
 		return nil, trace.Wrap(err)
 	}
 	if !withSecrets {
-		keyPair := conn.GetSigningKeyPair()
-		if keyPair != nil {
-			keyPair.PrivateKey = ""
-			conn.SetSigningKeyPair(keyPair)
+		connWithoutSecrets, ok := conn.WithoutSecrets().(types.SAMLConnector)
+		if !ok {
+			return nil, trace.BadParameter("unknown SAMLConnector type, expected types.SAMLConnector got %T", conn)
 		}
-		oauthCreds := conn.GetOAuthClientCredentials()
-		if oauthCreds != nil {
-			oauthCreds.ClientSecret = ""
-			conn.SetOAuthClientCredentials(oauthCreds)
-		}
+		conn = connWithoutSecrets
 	}
 	return conn, nil
 }
@@ -1867,16 +1863,15 @@ func (s *IdentityService) RangeSAMLConnectorsWithOptions(ctx context.Context, st
 		}
 
 		if !withSecrets {
-			keyPair := conn.GetSigningKeyPair()
-			if keyPair != nil {
-				keyPair.PrivateKey = ""
-				conn.SetSigningKeyPair(keyPair)
+			connWithoutSecrets, ok := conn.WithoutSecrets().(types.SAMLConnector)
+			if !ok {
+				s.logger.ErrorContext(ctx, "Failed to strip secrets from SAML Connector",
+					"key", item.Key,
+					"connector_type", fmt.Sprintf("%T", conn),
+				)
+				return nil, false
 			}
-			oauthCreds := conn.GetOAuthClientCredentials()
-			if oauthCreds != nil {
-				oauthCreds.ClientSecret = ""
-				conn.SetOAuthClientCredentials(oauthCreds)
-			}
+			conn = connWithoutSecrets
 		}
 
 		return conn, true
