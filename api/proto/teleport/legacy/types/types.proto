@@ -2256,12 +2256,18 @@ message ProvisionTokenSpecV2GenericOIDC {
   // An allow rule condition for simple checks against a specific field.
   message Condition {
     string Attribute = 1 [(gogoproto.jsontag) = "attribute"];
-    oneof operator {
-      ConditionEq Eq = 2 [(gogoproto.jsontag) = "eq"];
-      ConditionNotEq NotEq = 3 [(gogoproto.jsontag) = "not_eq"];
-      ConditionIn In = 4 [(gogoproto.jsontag) = "in"];
-      ConditionNotIn NotIn = 5 [(gogoproto.jsontag) = "not_in"];
-    }
+
+    // An "equals" operator. Only one operator may be set within a condition.
+    ConditionEq Eq = 2 [(gogoproto.jsontag) = "eq"];
+
+    // A "not equals" operator. Only one operator may be set within a condition.
+    ConditionNotEq NotEq = 3 [(gogoproto.jsontag) = "not_eq"];
+
+    // An "in" operator. Only one operator may be set within a condition.
+    ConditionIn In = 4 [(gogoproto.jsontag) = "in"];
+
+    // A "not in" operator. Only one operator may be set within a condition.
+    ConditionNotIn NotIn = 5 [(gogoproto.jsontag) = "not_in"];
   }
 
   // An allow rule, containing either a predict expression or simple field
