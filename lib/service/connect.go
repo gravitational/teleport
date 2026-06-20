@@ -97,7 +97,7 @@ func (process *TeleportProcess) reconnectToAuthService(role types.SystemRole) (*
 			// Version incompatibilities (the client is too new or too old for
 			// the cluster) are fatal. Retrying is pointless until the client is
 			// up or downgraded, so surface the error and stop reconnecting.
-			case errors.As(connectErr, &invalidVersionErr{}), errors.Is(connectErr, joinclient.ErrClientTooOld):
+			case errors.As(connectErr, &invalidVersionErr{}), errors.As(connectErr, &joinclient.ClientTooOldError{}):
 				return nil, trace.Wrap(connectErr)
 			case strings.Contains(connectErr.Error(), auth.TokenExpiredOrNotFound):
 				process.logger.ErrorContext(process.ExitContext(), "Can not join the cluster, the token is expired or not found. Regenerate the token and try again.")

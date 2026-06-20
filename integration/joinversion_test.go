@@ -84,7 +84,7 @@ func TestJoinClientVersionCheck(t *testing.T) {
 			Insecure:    true,
 			Testing:     joinclient.JoinTestingParams{TeleportVersion: tooOldVersion},
 		})
-		require.ErrorIs(t, err, joinclient.ErrClientTooOld)
+		require.ErrorAs(t, err, &joinclient.ClientTooOldError{})
 		// The error must name the client version and that a minimum exists so a
 		// user knows what to upgrade.
 		require.ErrorContains(t, err, "client v"+tooOldVersion)

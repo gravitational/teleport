@@ -172,7 +172,7 @@ func joinNew(ctx context.Context, params JoinParams) (*JoinResult, error) {
 	return nil, trace.NewAggregate(errs...)
 }
 
-// checkClientVersionSupported returns [ErrClientTooOld] when this client is
+// checkClientVersionSupported returns a [ClientTooOldError] when this client is
 // older than the proxy's advertised minimum client version. It is best-effort
 // and fails open, returning nil when the minimum can't be determined. It is
 // bypassed with a warning when too old and [JoinParams.SkipVersionCheck] is set,
@@ -198,7 +198,7 @@ func checkClientVersionSupported(ctx context.Context, params JoinParams, proxyAd
 	if err == nil {
 		return nil
 	}
-	if !errors.Is(err, ErrClientTooOld) {
+	if !errors.As(err, &ClientTooOldError{}) {
 		params.Log.WarnContext(ctx,
 			"Could not parse the cluster's minimum client version, skipping check.",
 			"error", err,
@@ -227,7 +227,7 @@ func checkClientMeetsMinVersion(clientVersion, minVersion string) error {
 		return trace.Wrap(err)
 	}
 	if !utils.MeetsMinVersion(clientVersion, minVersion) {
-		return fmt.Errorf("%w (client v%s, minimum v%s)", ErrClientTooOld, clientVersion, minWithoutPreRelease)
+		return ClientTooOldError{ClientVersion: clientVersion, MinVersion: minWithoutPreRelease}
 	}
 	return nil
 }
@@ -640,6 +640,13 @@ func (e *LegacyJoinError) Unwrap() error {
 	return e.wrapped
 }
 
-// ErrClientTooOld indicates this client is older than the cluster's minimum
+// ClientTooOldError indicates this client is older than the cluster's minimum
 // client version.
-var ErrClientTooOld = errors.New("this client is older than the minimum supported version required by the cluster and will not be able to connect until it is upgraded")
+type ClientTooOldError struct {
+	ClientVersion string
+	MinVersion    string
+}
+
+func (e ClientTooOldError) Error() string {
+	return fmt.Sprintf("this client is older than the minimum supported version required by the cluster and will not be able to connect until it is upgraded (client v%s, minimum v%s)", e.ClientVersion, e.MinVersion)
+}

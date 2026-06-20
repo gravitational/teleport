@@ -39,7 +39,7 @@ import (
 )
 
 func requireClientTooOld(t require.TestingT, err error, _ ...any) {
-	require.ErrorIs(t, err, ErrClientTooOld)
+	require.ErrorAs(t, err, &ClientTooOldError{})
 }
 
 func TestCheckClientMeetsMinVersion(t *testing.T) {
@@ -108,7 +108,7 @@ func TestCheckClientMeetsMinVersion(t *testing.T) {
 			minVersion:    "not-a-version",
 			assertErr: func(t require.TestingT, err error, _ ...any) {
 				require.Error(t, err)
-				require.NotErrorIs(t, err, ErrClientTooOld)
+				require.NotErrorAs(t, err, &ClientTooOldError{})
 			},
 		},
 	}
@@ -204,7 +204,7 @@ func TestCheckClientVersionSupported(t *testing.T) {
 }
 
 // TestJoinFailsFastWhenClientTooOld ensures a confirmed too-old client gets
-// [ErrClientTooOld] back from [Join] itself. If the error were ever classified as
+// a [ClientTooOldError] back from [Join] itself. If the error were ever classified as
 // a connection error anywhere in the chain, [Join] would instead fall back to
 // the legacy join service, which has no version check and discards the
 // original error.

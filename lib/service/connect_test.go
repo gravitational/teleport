@@ -94,7 +94,7 @@ func TestTeleportProcessMinClientVersionCheck(t *testing.T) {
 		t.Cleanup(func() { _ = process.Close() })
 
 		c, err := process.reconnectToAuthService(types.RoleInstance)
-		require.ErrorIs(t, err, joinclient.ErrClientTooOld)
+		require.ErrorAs(t, err, &joinclient.ClientTooOldError{})
 		require.Nil(t, c)
 	})
 
@@ -110,11 +110,11 @@ func TestTeleportProcessMinClientVersionCheck(t *testing.T) {
 		// With the check skipped the join fails against the stub with an
 		// ordinary connection error, which reconnectToAuthService treats as
 		// retryable and would loop on forever. Failing with anything other
-		// than ErrClientTooOld proves SkipVersionCheck was plumbed through
+		// than ClientTooOldError proves SkipVersionCheck was plumbed through
 		// and bypassed the check.
 		c, err := process.connectToAuthService(types.RoleInstance)
 		require.Error(t, err)
-		require.NotErrorIs(t, err, joinclient.ErrClientTooOld)
+		require.NotErrorAs(t, err, &joinclient.ClientTooOldError{})
 		require.Nil(t, c)
 	})
 }
