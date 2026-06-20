@@ -820,24 +820,28 @@ func TestWriteAppTable(t *testing.T) {
 }
 
 func TestWriteAppTableWithLogins(t *testing.T) {
-	const awsRoleARN = "arn:aws:iam::123456789012:role/read-only"
+	awsRoleARNs := []string{
+		"arn:aws:iam::123456789012:role/read-only",
+		"arn:aws:iam::123456789012:role/admin",
+	}
 
 	appListings := []appListing{
-		appListing{
-			App: mustMakeNewAppV3(t, types.Metadata{Name: "aws-app"}, types.AppSpecV3{
+		{
+			App: mustMakeNewAppV3(t, types.Metadata{Name: "awsconsole"}, types.AppSpecV3{
 				PublicAddr: "https://aws-app.example.com",
 				URI:        constants.AWSConsoleURL,
 			}),
-			Logins: []string{awsRoleARN},
+			Logins: awsRoleARNs,
 		},
 	}
 
 	tests := []struct {
-		name        string
-		config      appTableConfig
-		wantHeader  string
-		wantValue   string
-		rejectValue string
+		name            string
+		config          appTableConfig
+		wantHeader      string
+		wantValues      []string
+		wantValueCounts map[string]int
+		rejectValue     string
 	}{
 		{
 			name: "verbose shows logins",
@@ -845,7 +849,7 @@ func TestWriteAppTableWithLogins(t *testing.T) {
 				verbose: true,
 			},
 			wantHeader: "Logins",
-			wantValue:  awsRoleARN,
+			wantValues: awsRoleARNs,
 		},
 		{
 			name: "regular list shows logins",
@@ -853,7 +857,9 @@ func TestWriteAppTableWithLogins(t *testing.T) {
 				verbose: false,
 			},
 			wantHeader: "Logins",
-			wantValue:  "arn:aws:iam:...",
+			wantValueCounts: map[string]int{
+				"arn:aws:iam:...": 2,
+			},
 		},
 	}
 
@@ -867,9 +873,13 @@ func TestWriteAppTableWithLogins(t *testing.T) {
 			if test.wantHeader != "" {
 				require.Contains(t, b.String(), test.wantHeader)
 			}
-			if test.wantValue != "" {
-				require.Contains(t, b.String(), test.wantValue)
+			for _, wantValue := range test.wantValues {
+				require.Contains(t, b.String(), wantValue)
 			}
+			for wantValue, wantCount := range test.wantValueCounts {
+				require.Equal(t, wantCount, strings.Count(b.String(), wantValue))
+			}
+			require.Equal(t, 1, strings.Count(b.String(), "awsconsole"))
 			if test.rejectValue != "" {
 				require.NotContains(t, b.String(), test.rejectValue)
 			}

@@ -3585,54 +3585,60 @@ func writeAppTable(w io.Writer, appListings []appListing, config appTableConfig)
 		return app.GetTCPPorts().String()
 	}
 
+	getLoginFromListing := func(listing appListing) string {
+		logins := listing.GetLogins()
+		if len(logins) > 0 {
+			return logins[0]
+		}
+		return ""
+	}
+
 	const labelsColumn = "Labels"
 	allColumns := []appTableColumn{
-		appTableColumn{
+		{
 			name:           "Proxy",
 			getFromListing: appListing.GetProxy,
 			hide:           !config.listAll,
 		},
-		appTableColumn{
+		{
 			name:           "Cluster",
 			getFromListing: appListing.GetCluster,
 			hide:           !config.listAll,
 		},
-		appTableColumn{
+		{
 			name: "Application",
 			get:  getName,
 		},
-		appTableColumn{
+		{
 			name: "Description",
 			get:  types.Application.GetDescription,
 		},
-		appTableColumn{
+		{
 			name: "Type",
 			get:  types.Application.GetProtocol,
 		},
-		appTableColumn{
+		{
 			name: "Public Address",
 			get:  types.Application.GetPublicAddr,
 		},
-		appTableColumn{
+		{
 			name: "Target Ports",
 			get:  getTargetPorts,
 			hide: !includesMultiPortApp,
 		},
-		appTableColumn{
+		{
 			name: "URI",
 			get:  types.Application.GetURI,
 			hide: !config.verbose,
 		},
-		appTableColumn{
+		{
 			name: labelsColumn,
 			get:  getLabels,
 		},
-		appTableColumn{
-			name: "Logins",
-			getFromListing: func(listing appListing) string {
-				return listing.GetLogins()
-			},
-			hide: !config.includeLogins,
+		{
+			name:           "Logins",
+			getFromListing: getLoginFromListing,
+			hide:           !config.includeLogins,
 		},
 	}
 	columns := slices.DeleteFunc(allColumns, func(column appTableColumn) bool { return column.hide })
@@ -3657,8 +3663,22 @@ func writeAppTable(w io.Writer, appListings []appListing, config appTableConfig)
 
 			appRow = append(appRow, content)
 		}
-
 		rows = append(rows, appRow)
+
+		// If there are multiple logins, print each additional login on a separate row while
+		// keeping the rest of the columns blank.
+		for i := 1; config.includeLogins && i < len(appListing.Logins); i++ {
+			blankRow := make([]string, 0, len(columns))
+			for _, column := range columns {
+				if column.name == "Logins" {
+					blankRow = append(blankRow, appListing.Logins[i])
+					continue
+				}
+
+				blankRow = append(blankRow, "")
+			}
+			rows = append(rows, blankRow)
+		}
 	}
 
 	// In verbose mode, print everything on a single line.
@@ -6201,8 +6221,8 @@ func (al appListing) GetCluster() string {
 	return al.Cluster
 }
 
-func (al appListing) GetLogins() string {
-	return strings.Join(al.Logins, ",")
+func (al appListing) GetLogins() []string {
+	return al.Logins
 }
 
 func appListingsFromApps(apps []types.Application) []appListing {
