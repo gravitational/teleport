@@ -56,7 +56,8 @@ const (
 
 	accessListReviewPrefix      = "access_list_review"
 	accessListReviewMaxPageSize = 200
-	scopedPrefix                = "scoped"
+
+	scopedPrefix = "scoped"
 
 	// This lock is necessary to prevent a race condition between access lists and members and to ensure
 	// consistency of the one-to-many relationship between them.
@@ -98,7 +99,15 @@ func (s *accessListAndMembersGetter) ListAccessListMembers(ctx context.Context, 
 }
 
 func (s *accessListAndMembersGetter) GetAccessList(ctx context.Context, name string) (*accesslist.AccessList, error) {
-	return s.service.GetResource(ctx, accesslists.ToScopesQualifiedName(accesslist.ScopeQualifiedName{Name: name}))
+	return s.getAccessList(ctx, accesslist.ScopeQualifiedName{Name: name})
+}
+
+func (s *accessListAndMembersGetter) GetAccessListV2(ctx context.Context, listName accesslist.ScopeQualifiedName) (*accesslist.AccessList, error) {
+	return s.getAccessList(ctx, listName)
+}
+
+func (s *accessListAndMembersGetter) getAccessList(ctx context.Context, listName accesslist.ScopeQualifiedName) (*accesslist.AccessList, error) {
+	return s.service.GetResource(ctx, accesslists.ToScopesQualifiedName(listName))
 }
 
 // GetAccessListMember returns the specified access list member resource.
@@ -292,25 +301,43 @@ func (a *AccessListService) runOpWithLock(ctx context.Context, accessList *acces
 	}
 
 	reconcileOldOwners := func() error {
-		currentOwnersMap := make(map[string]struct{})
+		if existingAccessList == nil {
+			return nil
+		}
+
+		currentOwnersMap := make(map[accesslist.ScopeQualifiedName]struct{})
 		for _, owner := range accessList.Spec.Owners {
-			if owner.MembershipKind == accesslist.MembershipKindList {
-				currentOwnersMap[owner.Name] = struct{}{}
+			switch owner.MembershipKind {
+			case accesslist.MembershipKindList, accesslist.MembershipKindScopedList:
+			default:
+				continue
 			}
+
+			ownerSQN, err := accesslists.OwnerScopeQualifiedName(owner)
+			if err != nil {
+				return trace.Wrap(err, "getting scope-qualified name of access list owner")
+			}
+			currentOwnersMap[ownerSQN] = struct{}{}
 		}
 
 		// update references for old owners
-		if existingAccessList != nil {
-			for _, owner := range existingAccessList.Spec.Owners {
-				if owner.MembershipKind != accesslist.MembershipKindList {
-					continue
-				}
-				// If this owner access list is not an owner anymore after the
-				// update/upsert, its status.owner_of has to be updated.
-				if _, exists := currentOwnersMap[owner.Name]; !exists {
-					if err := a.updateAccessListOwnerOf(ctx, accessList.GetName(), owner.Name, false); err != nil {
-						return trace.Wrap(err)
-					}
+		for _, owner := range existingAccessList.Spec.Owners {
+			switch owner.MembershipKind {
+			case accesslist.MembershipKindList, accesslist.MembershipKindScopedList:
+			default:
+				continue
+			}
+
+			ownerSQN, err := accesslists.OwnerScopeQualifiedName(owner)
+			if err != nil {
+				return trace.Wrap(err, "getting scope-qualified name of existing access list owner")
+			}
+
+			// If this owner access list is not an owner anymore after the
+			// update/upsert, its status.owner_of has to be updated.
+			if _, exists := currentOwnersMap[ownerSQN]; !exists {
+				if err := a.updateAccessListOwnerOf(ctx, accessList.GetScopeQualifiedName(), ownerSQN, false); err != nil {
+					return trace.Wrap(err)
 				}
 			}
 		}
@@ -325,10 +352,17 @@ func (a *AccessListService) runOpWithLock(ctx context.Context, accessList *acces
 
 	reconcileNewOwners := func() error {
 		for _, owner := range accessList.Spec.Owners {
-			if owner.MembershipKind == accesslist.MembershipKindList {
-				if err := a.updateAccessListOwnerOf(ctx, accessList.GetName(), owner.Name, true); err != nil {
-					return trace.Wrap(err)
-				}
+			switch owner.MembershipKind {
+			case accesslist.MembershipKindList, accesslist.MembershipKindScopedList:
+			default:
+				continue
+			}
+			ownerScopedName, err := accesslists.OwnerScopeQualifiedName(owner)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if err := a.updateAccessListOwnerOf(ctx, accessList.GetScopeQualifiedName(), ownerScopedName, true); err != nil {
+				return trace.Wrap(err)
 			}
 		}
 		return nil
@@ -390,8 +424,9 @@ func (a *AccessListService) DeleteAccessListV2(ctx context.Context, name accessl
 			return trace.Wrap(err)
 		}
 
-		// Delete all associated members.
+		// TODO(nklaassen): support scoped access list members
 		if name.Scope == "" {
+			// Delete all associated members.
 			members, err := a.memberService.WithPrefix(name.Name).GetResources(ctx)
 			if err != nil {
 				return trace.Wrap(err)
@@ -419,10 +454,16 @@ func (a *AccessListService) DeleteAccessListV2(ctx context.Context, name accessl
 
 		// Update ownerOf refs.
 		for _, owner := range accessList.Spec.Owners {
-			if owner.MembershipKind != accesslist.MembershipKindList {
+			switch owner.MembershipKind {
+			case accesslist.MembershipKindList, accesslist.MembershipKindScopedList:
+			default:
 				continue
 			}
-			if err := a.updateAccessListOwnerOf(ctx, name.Name, owner.Name, false); err != nil {
+			ownerSQN, err := accesslists.OwnerScopeQualifiedName(owner)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if err := a.updateAccessListOwnerOf(ctx, name, ownerSQN, false); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -477,7 +518,7 @@ func (a *AccessListService) CountAccessListMembers(ctx context.Context, accessLi
 
 // ListAccessListMembers returns a paginated list of all access list members.
 func (a *AccessListService) ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, nextToken string) ([]*accesslist.AccessListMember, string, error) {
-	_, err := a.service.UnscopedService.GetResource(ctx, accessListName)
+	_, err := a.getAccessList(ctx, accesslist.ScopeQualifiedName{Name: accessListName})
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -504,7 +545,7 @@ func (a *AccessListService) ListAllAccessListMembers(ctx context.Context, pageSi
 
 // GetAccessListMember returns the specified access list member resource.
 func (a *AccessListService) GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error) {
-	_, err := a.service.UnscopedService.GetResource(ctx, accessList)
+	_, err := a.getAccessList(ctx, accesslist.ScopeQualifiedName{Name: accessList})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -516,12 +557,12 @@ func (a *AccessListService) GetAccessListMember(ctx context.Context, accessList 
 // adding or removing the specified accessListName to the field of targetName.
 func (a *AccessListService) updateAccessListRefField(
 	ctx context.Context,
-	accessListName string,
-	targetName string,
+	ref accesslist.ScopeQualifiedName,
+	target accesslist.ScopeQualifiedName,
 	new bool,
 	fieldSelector func(status *accesslist.Status) *[]string,
 ) error {
-	targetAccessList, err := a.service.UnscopedService.GetResource(ctx, targetName)
+	targetAccessList, err := a.getAccessList(ctx, target)
 	if err != nil {
 		if trace.IsNotFound(err) {
 			// If list is not found, it's possible that it was deleted. Regardless, there's nothing to update.
@@ -532,17 +573,19 @@ func (a *AccessListService) updateAccessListRefField(
 
 	field := fieldSelector(&targetAccessList.Status)
 
+	value := accesslists.ScopeQualifiedNameToString(ref)
+
 	// If the field already contains the Access List, and we're adding,
 	// or doesn't contain it, and we're removing, there's nothing to do.
-	if slices.Contains(*field, accessListName) == new {
+	if slices.Contains(*field, value) == new {
 		return nil
 	}
 
 	if new {
-		*field = append(*field, accessListName)
+		*field = append(*field, value)
 	} else {
 		*field = slices.DeleteFunc(*field, func(e string) bool {
-			return e == accessListName
+			return e == value
 		})
 	}
 
@@ -556,16 +599,22 @@ func (a *AccessListService) updateAccessListRefField(
 // updateAccessListMemberOf updates the memberOf field for the specified memberName and accessListName.
 // Should only be called after the relevant member has been successfully upserted or deleted.
 func (a *AccessListService) updateAccessListMemberOf(ctx context.Context, accessListName, memberName string, new bool) error {
-	return a.updateAccessListRefField(ctx, accessListName, memberName, new, func(status *accesslist.Status) *[]string {
+	// TODO(nklaassen): support scoped access list members.
+	listSQN := accesslist.ScopeQualifiedName{Name: accessListName}
+	memberSQN := accesslist.ScopeQualifiedName{Name: memberName}
+	return a.updateAccessListRefField(ctx, listSQN, memberSQN, new, func(status *accesslist.Status) *[]string {
 		return &status.MemberOf
 	})
 }
 
 // updateAccessListOwnerOf updates the ownerOf field for the specified ownerName and accessListName.
 // Should only be called after the relevant owner has been successfully upserted or deleted.
-func (a *AccessListService) updateAccessListOwnerOf(ctx context.Context, accessListName, ownerName string, new bool) error {
+func (a *AccessListService) updateAccessListOwnerOf(ctx context.Context, accessListName, ownerName accesslist.ScopeQualifiedName, new bool) error {
 	return a.updateAccessListRefField(ctx, accessListName, ownerName, new, func(status *accesslist.Status) *[]string {
-		return &status.OwnerOf
+		if accessListName.Scope == "" {
+			return &status.OwnerOf
+		}
+		return &status.ScopedOwnerOf
 	})
 }
 
@@ -573,8 +622,15 @@ func (a *AccessListService) updateAccessListOwnerOf(ctx context.Context, accessL
 //
 // Returned Owners are not validated for ownership requirements – use `IsAccessListOwner` for validation.
 func (a *AccessListService) GetAccessListOwners(ctx context.Context, accessListName string) ([]*accesslist.Owner, error) {
+	return a.GetAccessListOwnersV2(ctx, accesslist.ScopeQualifiedName{Name: accessListName})
+}
+
+// GetAccessListOwnersV2 returns a list of all owners in an Access List, including those inherited from nested Access Lists.
+//
+// Returned Owners are not validated for ownership requirements – use `IsAccessListOwner` for validation.
+func (a *AccessListService) GetAccessListOwnersV2(ctx context.Context, accessListName accesslist.ScopeQualifiedName) ([]*accesslist.Owner, error) {
 	var owners []*accesslist.Owner
-	accessList, err := a.service.UnscopedService.GetResource(ctx, accessListName)
+	accessList, err := a.getAccessList(ctx, accessListName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -586,7 +642,7 @@ func (a *AccessListService) GetAccessListOwners(ctx context.Context, accessListN
 func (a *AccessListService) UpsertAccessListMember(ctx context.Context, member *accesslist.AccessListMember) (*accesslist.AccessListMember, error) {
 	var upserted *accesslist.AccessListMember
 	action := func(ctx context.Context, _ backend.Backend) error {
-		memberList, err := a.service.UnscopedService.GetResource(ctx, member.Spec.AccessList)
+		memberList, err := a.GetAccessList(ctx, member.Spec.AccessList)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -633,7 +689,7 @@ func (a *AccessListService) UpdateAccessListMember(ctx context.Context, member *
 	}
 	err := a.service.RunWhileLocked(ctx, []string{accessListResourceLockName}, accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
 		return a.service.RunWhileLocked(ctx, lockName(member.Spec.AccessList), accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
-			memberList, err := a.service.UnscopedService.GetResource(ctx, member.Spec.AccessList)
+			memberList, err := a.GetAccessList(ctx, member.Spec.AccessList)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -668,7 +724,7 @@ func (a *AccessListService) UpdateAccessListMember(ctx context.Context, member *
 func (a *AccessListService) DeleteAccessListMember(ctx context.Context, accessList string, memberName string) error {
 	err := a.service.RunWhileLocked(ctx, []string{accessListResourceLockName}, accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
 		return a.service.RunWhileLocked(ctx, lockName(accessList), accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
-			_, err := a.service.UnscopedService.GetResource(ctx, accessList)
+			_, err := a.GetAccessList(ctx, accessList)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -701,7 +757,7 @@ func (a *AccessListService) DeleteAccessListMember(ctx context.Context, accessLi
 func (a *AccessListService) DeleteAllAccessListMembersForAccessList(ctx context.Context, accessList string) error {
 	err := a.service.RunWhileLocked(ctx, []string{accessListResourceLockName}, accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
 		return a.service.RunWhileLocked(ctx, lockName(accessList), accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
-			_, err := a.service.UnscopedService.GetResource(ctx, accessList)
+			_, err := a.GetAccessList(ctx, accessList)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -871,13 +927,24 @@ func (a *AccessListService) writeAccessListWithMembers(ctx context.Context, acce
 			return nil
 		}
 		for _, existingOwner := range existingAccessList.Spec.Owners {
-			if existingOwner.MembershipKind == accesslist.MembershipKindList {
-				if !slices.ContainsFunc(accessList.Spec.Owners, func(owner accesslist.Owner) bool {
-					return owner.Name == existingOwner.Name
-				}) {
-					if err := a.updateAccessListOwnerOf(ctx, existingAccessList.GetName(), existingOwner.Name, false); err != nil {
-						return trace.Wrap(err)
-					}
+			switch existingOwner.MembershipKind {
+			case accesslist.MembershipKindList, accesslist.MembershipKindScopedList:
+			default:
+				continue
+			}
+			existingOwnerName, err := accesslists.OwnerScopeQualifiedName(existingOwner)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if !slices.ContainsFunc(accessList.Spec.Owners, func(owner accesslist.Owner) bool {
+				ownerName, err := accesslists.OwnerScopeQualifiedName(owner)
+				if err != nil {
+					return false
+				}
+				return ownerName == existingOwnerName
+			}) {
+				if err := a.updateAccessListOwnerOf(ctx, existingAccessList.GetScopeQualifiedName(), existingOwnerName, false); err != nil {
+					return trace.Wrap(err)
 				}
 			}
 		}
@@ -891,10 +958,17 @@ func (a *AccessListService) writeAccessListWithMembers(ctx context.Context, acce
 
 	reconcileNewOwners := func() error {
 		for _, owner := range accessList.Spec.Owners {
-			if owner.MembershipKind == accesslist.MembershipKindList {
-				if err := a.updateAccessListOwnerOf(ctx, accessList.GetName(), owner.Name, true); err != nil {
-					return trace.Wrap(err)
-				}
+			switch owner.MembershipKind {
+			case accesslist.MembershipKindList, accesslist.MembershipKindScopedList:
+			default:
+				continue
+			}
+			ownerName, err := accesslists.OwnerScopeQualifiedName(owner)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if err := a.updateAccessListOwnerOf(ctx, accessList.GetScopeQualifiedName(), ownerName, true); err != nil {
+				return trace.Wrap(err)
 			}
 		}
 		return nil
@@ -917,8 +991,12 @@ func (a *AccessListService) writeAccessListWithMembers(ctx context.Context, acce
 	// interrupted as we use status.owner_of to calculate hierarchy.
 	actions = append(actions, validateAccessList, reconcileMembers, reconcileOldOwners, writeAccessList, reconcileNewOwners)
 
+	lockName, err := scopeAwareLockName(accessList.GetScopeQualifiedName())
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
 	if err := a.service.RunWhileLocked(ctx, []string{accessListResourceLockName}, 2*accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
-		return a.service.RunWhileLocked(ctx, lockName(accessList.GetName()), 2*accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
+		return a.service.RunWhileLocked(ctx, lockName, 2*accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
 			for _, action := range actions {
 				if err := action(); err != nil {
 					return trace.Wrap(err)
@@ -984,7 +1062,7 @@ func (a *AccessListService) AccessRequestPromote(_ context.Context, _ *accesslis
 
 // ListAccessListReviews will list access list reviews for a particular access list.
 func (a *AccessListService) ListAccessListReviews(ctx context.Context, accessList string, pageSize int, pageToken string) (reviews []*accesslist.Review, nextToken string, err error) {
-	_, err = a.service.UnscopedService.GetResource(ctx, accessList)
+	_, err = a.GetAccessList(ctx, accessList)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -1031,7 +1109,7 @@ func (a *AccessListService) CreateAccessListReview(ctx context.Context, review *
 	var nextAuditDate time.Time
 
 	err = a.service.RunWhileLocked(ctx, lockName(review.Spec.AccessList), accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
-		accessList, err := a.service.UnscopedService.GetResource(ctx, review.Spec.AccessList)
+		accessList, err := a.GetAccessList(ctx, review.Spec.AccessList)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1145,7 +1223,7 @@ func accessListRequiresEqual(a, b accesslist.Requires) bool {
 
 // DeleteAccessListReview will delete an access list review from the backend.
 func (a *AccessListService) DeleteAccessListReview(ctx context.Context, accessListName, reviewName string) error {
-	_, err := a.service.UnscopedService.GetResource(ctx, accessListName)
+	_, err := a.GetAccessList(ctx, accessListName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1218,10 +1296,15 @@ func preserveAccessListFields(existingAccessList, accessList *accesslist.AccessL
 		// Set MemberOf/OwnerOf to the existing values to prevent them from being updated.
 		accessList.Status.MemberOf = existingAccessList.Status.MemberOf
 		accessList.Status.OwnerOf = existingAccessList.Status.OwnerOf
+		accessList.Status.ScopedMemberOf = existingAccessList.Status.ScopedMemberOf
+		accessList.Status.ScopedOwnerOf = existingAccessList.Status.ScopedOwnerOf
 	} else {
 		// For newly created AccessList make sure MemberOf/OwnerOf are empty.
 		accessList.Status.MemberOf = []string{}
 		accessList.Status.OwnerOf = []string{}
+		// Must be nil for the tests in teleport.e to pass.
+		accessList.Status.ScopedMemberOf = nil
+		accessList.Status.ScopedOwnerOf = nil
 	}
 }
 
@@ -1298,15 +1381,41 @@ func (a *AccessListService) updatedMembersNestedRelationships(ctx context.Contex
 
 // CleanupAccessListStatus removes invalid Status.OwnerOf and Status.MemberOf references.
 func (a *AccessListService) CleanupAccessListStatus(ctx context.Context, accessListName string) (*accesslist.AccessList, error) {
+	return a.CleanupAccessListStatusV2(ctx, accesslist.ScopeQualifiedName{Name: accessListName})
+}
+
+// CleanupAccessListStatusV2 removes invalid Status.(Scoped)OwnerOf and Status.(Scoped)MemberOf references.
+func (a *AccessListService) CleanupAccessListStatusV2(ctx context.Context, accessListName accesslist.ScopeQualifiedName) (*accesslist.AccessList, error) {
 	return a.runWithGlobalLockAccessList(ctx, accessListName, func() (*accesslist.AccessList, error) {
-		accessList, err := a.service.UnscopedService.GetResource(ctx, accessListName)
+		accessList, err := a.getAccessList(ctx, accessListName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
+		isActualOwner := func(ownedList *accesslist.AccessList) bool {
+			return slices.ContainsFunc(ownedList.Spec.Owners, func(ownedListOwner accesslist.Owner) bool {
+				switch ownedListOwner.MembershipKind {
+				case accesslist.MembershipKindList, accesslist.MembershipKindScopedList:
+					ownedListOwnerName, err := accesslists.OwnerScopeQualifiedName(ownedListOwner)
+					if err != nil {
+						return false
+					}
+					return ownedListOwnerName == accessListName
+				default:
+					return false
+				}
+			})
+		}
+
 		var ownerRefreshErr error
+
+		// OwnerOf names unscoped access lists that this access list supposedly owns.
 		accessList.Status.OwnerOf = slices.DeleteFunc(accessList.Status.OwnerOf, func(ownerOf string) bool {
-			ownedList, err := a.service.UnscopedService.GetResource(ctx, ownerOf)
+			if accessList.Scope != "" {
+				// Scoped access lists can never own unscoped access lists.
+				return true
+			}
+			ownedList, err := a.GetAccessList(ctx, ownerOf)
 			if err != nil {
 				if trace.IsNotFound(err) {
 					return true
@@ -1314,27 +1423,48 @@ func (a *AccessListService) CleanupAccessListStatus(ctx context.Context, accessL
 				ownerRefreshErr = err
 				return false
 			}
-			isActualOwner := slices.ContainsFunc(ownedList.Spec.Owners, func(ownedListOwner accesslist.Owner) bool {
-				return ownedListOwner.MembershipKind == accesslist.MembershipKindList && ownedListOwner.Name == accessList.GetName()
-			})
-			return !isActualOwner
+			return !isActualOwner(ownedList)
 		})
 		if ownerRefreshErr != nil {
 			return nil, trace.Wrap(ownerRefreshErr)
 		}
 
-		var memberRefreshErr error
-		accessList.Status.MemberOf = slices.DeleteFunc(accessList.Status.MemberOf, func(memberOf string) bool {
-			if _, err := a.memberService.WithPrefix(memberOf).GetResource(ctx, accessList.GetName()); err != nil {
+		// ScopedOwnerOf names scoped access lists that this access list supposedly owns.
+		accessList.Status.ScopedOwnerOf = slices.DeleteFunc(accessList.Status.ScopedOwnerOf, func(scopedOwnerOf string) bool {
+			ownedListName, err := accesslists.ParseScopeQualifiedName(scopedOwnerOf)
+			if err != nil {
+				// If we can't parse the name, it is invalid and should be removed.
+				return true
+			}
+			ownedList, err := a.getAccessList(ctx, ownedListName)
+			if err != nil {
 				if trace.IsNotFound(err) {
 					return true
 				}
-				memberRefreshErr = err
+				ownerRefreshErr = err
+				return false
 			}
-			return false
+			return !isActualOwner(ownedList)
 		})
-		if memberRefreshErr != nil {
-			return nil, trace.Wrap(memberRefreshErr)
+		if ownerRefreshErr != nil {
+			return nil, trace.Wrap(ownerRefreshErr)
+		}
+
+		// TODO(nklaassen): support scoped access list members.
+		if accessListName.Scope == "" {
+			var memberRefreshErr error
+			accessList.Status.MemberOf = slices.DeleteFunc(accessList.Status.MemberOf, func(memberOf string) bool {
+				if _, err := a.memberService.WithPrefix(memberOf).GetResource(ctx, accessList.GetName()); err != nil {
+					if trace.IsNotFound(err) {
+						return true
+					}
+					memberRefreshErr = err
+				}
+				return false
+			})
+			if memberRefreshErr != nil {
+				return nil, trace.Wrap(memberRefreshErr)
+			}
 		}
 
 		accessList, err = a.service.UpdateResource(ctx, accessList)
@@ -1345,28 +1475,44 @@ func (a *AccessListService) CleanupAccessListStatus(ctx context.Context, accessL
 // EnsureNestedAccessListStatuses goes over all nested owners and nested members of the named
 // access list and ensures nested lists' statuses owner_of/member_of contain the access list name.
 func (a *AccessListService) EnsureNestedAccessListStatuses(ctx context.Context, accessListName string) error {
+	return a.EnsureNestedAccessListStatusesV2(ctx, accesslist.ScopeQualifiedName{Name: accessListName})
+}
+
+// EnsureNestedAccessListStatusesV2 goes over all nested owners and nested members of the named
+// access list and ensures nested lists' statuses owner_of/member_of contain the access list name.
+func (a *AccessListService) EnsureNestedAccessListStatusesV2(ctx context.Context, accessListName accesslist.ScopeQualifiedName) error {
 	return a.runWithGlobalLock(ctx, accessListName, func() error {
-		accessList, err := a.service.UnscopedService.GetResource(ctx, accessListName)
+		accessList, err := a.getAccessList(ctx, accessListName)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		for _, owner := range accessList.Spec.Owners {
-			if owner.MembershipKind == accesslist.MembershipKindList {
-				if err := a.updateAccessListOwnerOf(ctx, accessListName, owner.Name, true); err != nil {
-					return trace.Wrap(err)
-				}
+			switch owner.MembershipKind {
+			case accesslist.MembershipKindList, accesslist.MembershipKindScopedList:
+			default:
+				continue
+			}
+			ownerName, err := accesslists.OwnerScopeQualifiedName(owner)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if err := a.updateAccessListOwnerOf(ctx, accessListName, ownerName, true); err != nil {
+				return trace.Wrap(err)
 			}
 		}
 
-		members, err := a.memberService.WithPrefix(accessListName).GetResources(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		for _, member := range members {
-			if member.Spec.MembershipKind == accesslist.MembershipKindList {
-				if err := a.updateAccessListMemberOf(ctx, accessListName, member.GetName(), true); err != nil {
-					return trace.Wrap(err)
+		// TODO(nklaassen): support scoped access list members.
+		if accessListName.Scope == "" {
+			members, err := a.memberService.WithPrefix(accessListName.Name).GetResources(ctx)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			for _, member := range members {
+				if member.Spec.MembershipKind == accesslist.MembershipKindList {
+					if err := a.updateAccessListMemberOf(ctx, accessListName.Name, member.GetName(), true); err != nil {
+						return trace.Wrap(err)
+					}
 				}
 			}
 		}
@@ -1432,6 +1578,7 @@ func (a *AccessListService) collectionToBackendItemsIter(collection *accesslists
 					return
 				}
 			}
+			// TODO(nklaassen): support collections of scoped access lists.
 			item, err := a.service.UnscopedService.MakeBackendItem(acl)
 			if err != nil {
 				yield(backend.Item{}, trace.Wrap(err))
@@ -1444,15 +1591,19 @@ func (a *AccessListService) collectionToBackendItemsIter(collection *accesslists
 	}
 }
 
-func (a *AccessListService) runWithGlobalLock(ctx context.Context, accessListName string, fn func() error) error {
+func (a *AccessListService) runWithGlobalLock(ctx context.Context, accessListName accesslist.ScopeQualifiedName, fn func() error) error {
+	lockName, err := scopeAwareLockName(accessListName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	return a.service.RunWhileLocked(ctx, []string{accessListResourceLockName}, 2*accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
-		return a.service.RunWhileLocked(ctx, lockName(accessListName), 2*accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
+		return a.service.RunWhileLocked(ctx, lockName, 2*accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
 			return trace.Wrap(fn())
 		})
 	})
 }
 
-func (a *AccessListService) runWithGlobalLockAccessList(ctx context.Context, accessListName string, fn func() (*accesslist.AccessList, error)) (*accesslist.AccessList, error) {
+func (a *AccessListService) runWithGlobalLockAccessList(ctx context.Context, accessListName accesslist.ScopeQualifiedName, fn func() (*accesslist.AccessList, error)) (*accesslist.AccessList, error) {
 	var res *accesslist.AccessList
 	err := a.runWithGlobalLock(ctx, accessListName, func() error {
 		var err error
@@ -1482,7 +1633,7 @@ func (a *AccessListService) checkDeletionBlockingMemberRelationships(ctx context
 
 	memberOfTitles := make([]string, 0, len(memberOf))
 	for _, memberOf := range memberOf {
-		parentList, err := a.service.UnscopedService.GetResource(ctx, memberOf)
+		parentList, err := a.GetAccessList(ctx, memberOf)
 		if err != nil {
 			if trace.IsNotFound(err) {
 				continue
@@ -1512,27 +1663,35 @@ func (a *AccessListService) checkDeletionBlockingMemberRelationships(ctx context
 
 // checkDeletionBlockingOwnerRelationships checks if the access list owns any other access lists that would block deletion
 func (a *AccessListService) checkDeletionBlockingOwnerRelationships(ctx context.Context, accessList *accesslist.AccessList) error {
-	ownerOf := accessList.GetStatus().OwnerOf
-	if len(ownerOf) == 0 {
+	allOwnedLists, err := accesslists.AllOwnedLists(accessList)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if len(allOwnedLists) == 0 {
 		return nil
 	}
 
-	ownerOfTitles := make([]string, 0, len(ownerOf))
-	for _, ownerOf := range ownerOf {
-		ownedList, err := a.service.UnscopedService.GetResource(ctx, ownerOf)
+	ownerOfTitles := make([]string, 0, len(allOwnedLists))
+	for _, ownedListName := range allOwnedLists {
+		ownedList, err := a.getAccessList(ctx, ownedListName)
 		if err != nil {
 			if trace.IsNotFound(err) {
 				continue
 			}
-			return trace.Wrap(err, `fetching owned list "%s"`, ownerOf)
+			return trace.Wrap(err, `fetching owned list "%s"`, accesslists.ScopeQualifiedNameToString(ownedListName))
 		}
-		isActualOwner := false
-		for _, owner := range ownedList.Spec.Owners {
-			if owner.Name == accessList.GetName() && owner.MembershipKind == accesslist.MembershipKindList {
-				isActualOwner = true
-				break
+		isActualOwner := slices.ContainsFunc(ownedList.Spec.Owners, func(owner accesslist.Owner) bool {
+			switch owner.MembershipKind {
+			case accesslist.MembershipKindList, accesslist.MembershipKindScopedList:
+			default:
+				return false
 			}
-		}
+			actualOwnerSQN, err := accesslists.OwnerScopeQualifiedName(owner)
+			if err != nil {
+				return false
+			}
+			return actualOwnerSQN == accessList.GetScopeQualifiedName()
+		})
 		if isActualOwner {
 			ownerOfTitles = append(ownerOfTitles, ownedList.Spec.Title)
 		}
