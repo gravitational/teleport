@@ -175,7 +175,8 @@ func joinNew(ctx context.Context, params JoinParams) (*JoinResult, error) {
 // checkClientVersionSupported returns [ErrClientTooOld] when this client is
 // older than the proxy's advertised minimum client version. It is best-effort
 // and fails open, returning nil when the minimum can't be determined. It is
-// bypassed with a warning when too old and [JoinParams.SkipVersionCheck] is set.
+// bypassed with a warning when too old and [JoinParams.SkipVersionCheck] is set,
+// which is generally set by the --set-version-check CLI flag.
 func checkClientVersionSupported(ctx context.Context, params JoinParams, proxyAddr string) error {
 	resp, err := webclient.Find(&webclient.Config{
 		Context:   ctx,
