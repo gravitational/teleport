@@ -138,6 +138,56 @@ func validateKubernetes(kube *joiningv1.Kubernetes) error {
 	return nil
 }
 
+// validates the given Kubernetes configuration. Also implemented by
+// api/types/provisioning.go for unscoped tokens generic_oidc tokens./
+func validateGenericOIDC(spec *joiningv1.GenericOIDC) error {
+	if spec == nil {
+		return trace.BadParameter("generic_oidc configuration must be defined for a scoped token when using the generic_oidc join method")
+	}
+	if spec.GetIssuer() == "" {
+		return trace.BadParameter("generic_oidc: issuer is required")
+	}
+	if spec.GetAudience() == "" {
+		return trace.BadParameter("generic_oidc: audience is required")
+	}
+
+	hasAnyAllowAny := len(spec.GetAllowAny()) > 0
+	hasAnyMustMatchFields := false
+	if spec.GetMustMatchFields() != nil {
+		hasAnyMustMatchFields = len(spec.GetMustMatchFields().GetFields()) > 0
+	}
+
+	// At least one must_match_fields or allow_any rule is required; this check
+	// is a simpler variant of the one in genericoidc's
+	// `validateFieldRulesContainsAnyRule` and won't catch useless nesting
+	// checks; we'll catch those at runtime to avoid an unnecessary api/ import.
+	if !hasAnyAllowAny && !hasAnyMustMatchFields {
+		return trace.BadParameter("generic_oidc: at least one must exist " +
+			"under either `must_match_fields` or `allow_any`")
+	}
+
+	for i, rule := range spec.GetAllowAny() {
+		if rule.Expression != "" && len(rule.Conditions) > 0 {
+			return trace.BadParameter("generico_oidc: allow_any[%d]: only one of `expression` or `conditions` may be set", i)
+		}
+	}
+
+	parsed, err := url.Parse(spec.GetIssuer())
+	if err != nil {
+		return trace.BadParameter("generic_oidc: issuer must be a valid URL")
+	}
+
+	if parsed.Scheme == "http" {
+		if !spec.GetInsecureAllowHttpIssuer() {
+			return trace.BadParameter("generic_oidc: issuer must be https:// unless insecure_allow_http_issuer is set")
+		}
+	} else if parsed.Scheme != "https" {
+		return trace.BadParameter("generic_oidc: issuer invalid URL scheme, must be https://")
+	}
+
+	return nil
+}
+
 func validateJoinMethod(token *joiningv1.ScopedToken) error {
 	switch types.JoinMethod(token.GetSpec().GetJoinMethod()) {
 	case types.JoinMethodToken:
@@ -174,6 +224,8 @@ func validateJoinMethod(token *joiningv1.ScopedToken) error {
 		return trace.Wrap(validateKubernetes(token.GetSpec().GetKubernetes()), "kubernetes join method")
 	case types.JoinMethodBoundKeypair:
 		// Bound keypair tokens are always valid
+	case types.JoinMethodGenericOIDC:
+		return trace.Wrap(validateGenericOIDC(token.GetSpec().GetGenericOidc()), "generic_oidc join method")
 	default:
 		return trace.BadParameter("join method %q does not support scoping", token.GetSpec().GetJoinMethod())
 	}
