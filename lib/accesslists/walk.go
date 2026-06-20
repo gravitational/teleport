@@ -214,7 +214,7 @@ func walk(ctx context.Context, config walkConfig, walkFn walkFunc) error {
 		return trace.Wrap(err)
 	}
 	stack = append(stack, accessPath{firstLeg})
-	seen := map[string]struct{}{config.root.GetName(): {}}
+	seen := map[NormalizedSQN]struct{}{ScopeQualifiedName(config.root): {}}
 
 	var path accessPath
 	var list *accesslist.AccessList
@@ -230,6 +230,11 @@ func walk(ctx context.Context, config walkConfig, walkFn walkFunc) error {
 		var leg accessLeg
 		var member *accesslist.AccessListMember
 
+		// TODO(nklaassen): support scoped access list members.
+		if list.GetScope() != "" {
+			continue
+		}
+
 		// We iterate over every member of the considered list
 		listMembersFn := func(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessListMember, string, error) {
 			r, token, err := config.getter.ListAccessListMembers(ctx, list.GetName(), pageSize, pageToken)
@@ -243,7 +248,10 @@ func walk(ctx context.Context, config walkConfig, walkFn walkFunc) error {
 
 			if member.Spec.MembershipKind == accesslist.MembershipKindList {
 				// The member is a nested list.
-				name := member.GetName()
+				name, err := MemberScopeQualifiedName(member)
+				if err != nil {
+					return trace.Wrap(err)
+				}
 
 				// If we already walked a valid path to this list, skip it.
 				if _, seen := seen[name]; seen {
@@ -254,7 +262,7 @@ func walk(ctx context.Context, config walkConfig, walkFn walkFunc) error {
 				// get the same AL several times if the accessLeg is filtered out.
 				// It's a bit inefficient but should not happen often, it's
 				// more relevant for us to avoid keeping everything in-memory.
-				nestedList, err = config.getter.GetAccessList(ctx, name)
+				nestedList, err = getAccessList(ctx, config.getter, name)
 				if err != nil {
 					// Gracefully handle the missing access list case,
 					// to avoid breaking everything in case of membership inconsistency.
