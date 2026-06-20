@@ -1,4 +1,4 @@
-.version: &version "18.9.0"
+.version: &version "18.9.0-helm-proxy-lib.carheden.2"
 
 apiVersion: v2
 name: teleport-plugin-datadog
