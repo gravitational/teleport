@@ -1,0 +1,12 @@
+clusterName: helm-lint
+auth_server: teleport-auth.example.com
+join_params:
+  method: kubernetes
+  token_name: teleport-proxy
+extraVolumeMounts:
+- name: "my-mount"
+  mountPath: "/path/to/mount"
+extraVolumes:
+- name: "my-mount"
+  secret:
+    secretName: "mySecret"

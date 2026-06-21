@@ -1,0 +1,15 @@
+clusterName: test-azure-cluster
+auth_server: teleport-auth.example.com
+join_params:
+  method: kubernetes
+  token_name: teleport-proxy
+chartMode: azure
+azure:
+  databaseHost: "mypostgresinstance.postgres.database.azure.com"
+  databaseUser: "teleport"
+  backendDatabase: "teleport_backend"
+  auditLogDatabase: "teleport_audit"
+  auditLogMirrorOnStdout: true
+  sessionRecordingStorageAccount: "mystorageaccount.blob.core.windows.net"
+  clientID: "1234"
+  databasePoolMaxConnections: 100

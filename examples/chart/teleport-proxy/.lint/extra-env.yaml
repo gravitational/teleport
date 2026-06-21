@@ -1,0 +1,8 @@
+clusterName: helm-lint.example.com
+auth_server: teleport-auth.example.com
+join_params:
+  method: kubernetes
+  token_name: teleport-proxy
+extraEnv:
+  - name: SOME_ENVIRONMENT_VARIABLE
+    value: "some-value"

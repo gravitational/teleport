@@ -1,0 +1,8 @@
+clusterName: helm-lint
+auth_server: teleport-auth.example.com
+join_params:
+  method: kubernetes
+  token_name: teleport-proxy
+enterprise: true
+licenseSecretName: enterprise-license
+

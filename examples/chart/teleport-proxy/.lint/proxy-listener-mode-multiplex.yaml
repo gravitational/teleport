@@ -1,0 +1,6 @@
+clusterName: test-proxy-listener-mode
+auth_server: teleport-auth.example.com
+join_params:
+  method: kubernetes
+  token_name: teleport-proxy
+proxyListenerMode: multiplex

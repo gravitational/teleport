@@ -1,6 +1,9 @@
 {{- define "teleport-proxy-lib.internal.serviceAccountName" -}}
 {{- coalesce .Values.serviceAccount.name (printf "%s-proxy" .Release.Name) -}}
 {{- end -}}
+{{- define "teleport-proxy-lib.serviceAccountName" -}}
+{{- include "teleport-proxy-lib.internal.serviceAccountName" . -}}
+{{- end -}}
 
 {{/*
 Create the name of the service account to use in the proxy config check hook.
@@ -20,6 +23,9 @@ so we can use the same SA for deployments and hooks.
 -hook
 {{- end -}}
 {{- end -}}
+{{- define "teleport-proxy-lib.hookServiceAccountName" -}}
+{{- include "teleport-proxy-lib.internal.hookServiceAccountName" . -}}
+{{- end -}}
 
 {{/* Proxy all labels */}}
 {{- define "teleport-proxy-lib.internal.labels" -}}
@@ -30,9 +36,17 @@ app.kubernetes.io/version: '{{ include "teleport-util-lib.version" . }}'
 teleport.dev/majorVersion: '{{ include "teleport-util-lib.majorVersion" . }}'
 {{- end -}}
 
+{{- define "teleport-proxy-lib.labels" -}}
+{{- include "teleport-proxy-lib.internal.labels" . -}}
+{{- end -}}
+
 {{/* Proxy selector labels */}}
 {{- define "teleport-proxy-lib.internal.selectorLabels" -}}
 app.kubernetes.io/name: '{{ default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}'
 app.kubernetes.io/instance: '{{ .Release.Name }}'
 app.kubernetes.io/component: 'proxy'
+{{- end -}}
+
+{{- define "teleport-proxy-lib.selectorLabels" -}}
+{{- include "teleport-proxy-lib.internal.selectorLabels" . -}}
 {{- end -}}

@@ -1,0 +1,21 @@
+clusterName: helm-lint
+auth_server: teleport-auth.example.com
+join_params:
+  method: kubernetes
+  token_name: teleport-proxy
+annotations:
+  config:
+    kubernetes.io/config: "test-annotation"
+    kubernetes.io/config-different: 2
+  deployment:
+    kubernetes.io/deployment: "test-annotation"
+    kubernetes.io/deployment-different: 3
+  pod:
+    kubernetes.io/pod: "test-annotation"
+    kubernetes.io/pod-different: 4
+  service:
+    kubernetes.io/service: "test-annotation"
+    kubernetes.io/service-different: 5
+  serviceAccount:
+    kubernetes.io/serviceaccount: "test-annotation"
+    kubernetes.io/serviceaccount-different: 6

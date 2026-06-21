@@ -1,0 +1,12 @@
+clusterName: helm-lint
+auth_server: teleport-auth.example.com
+join_params:
+  method: kubernetes
+  token_name: teleport-proxy
+securityContext:
+  allowPrivilegeEscalation: false
+  privileged: false
+  readOnlyRootFilesystem: false
+  runAsGroup: 99
+  runAsNonRoot: true
+  runAsUser: 99

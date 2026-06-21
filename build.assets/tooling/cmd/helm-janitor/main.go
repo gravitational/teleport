@@ -56,6 +56,12 @@ var charts = []Chart{
 		ReferencePath: "",
 	},
 	{
+		Name: "teleport-proxy",
+		Path: "examples/chart/teleport-proxy",
+		// TODO(adamcarheden): write docs
+		ReferencePath: "",
+	},
+	{
 		Name:          "teleport-kube-agent",
 		Path:          "examples/chart/teleport-kube-agent",
 		ReferencePath: "docs/pages/includes/helm-reference/zz_generated.teleport-kube-agent.mdx",

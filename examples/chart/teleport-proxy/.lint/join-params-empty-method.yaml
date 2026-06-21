@@ -1,0 +1,5 @@
+clusterName: teleport.example.com
+auth_server: teleport-auth.example.com
+join_params:
+  method: ""
+  token_name: teleport-proxy

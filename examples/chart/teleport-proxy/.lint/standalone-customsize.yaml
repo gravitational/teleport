@@ -1,0 +1,13 @@
+clusterName: test-standalone-cluster
+auth_server: teleport-auth.example.com
+join_params:
+  method: kubernetes
+  token_name: teleport-proxy
+chartMode: standalone
+persistence:
+  enabled: true
+  volumeSize: 50Gi
+acme: true
+acmeEmail: test@email.com
+labels:
+  env: standalone

@@ -1,0 +1,12 @@
+clusterName: helm-lint
+auth_server: teleport-auth.example.com
+join_params:
+  method: kubernetes
+  token_name: teleport-proxy
+initContainers:
+- name: "teleport-init"
+  image: "alpine"
+  args: ["echo test"]
+- name: "teleport-init2"
+  image: "alpine"
+  args: ["echo test2"]

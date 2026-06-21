@@ -1,0 +1,713 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema",
+    "type": "object",
+    "required": [
+        "clusterName",
+        "auth_server",
+        "join_params",
+        "enterprise",
+        "podSecurityPolicy",
+        "chartMode",
+        "validateConfigOnDeploy",
+        "highAvailability",
+        "podMonitor",
+        "tls",
+        "image",
+        "enterpriseImage",
+        "log",
+        "affinity",
+        "nodeSelector",
+        "annotations",
+        "extraContainers",
+        "extraVolumes",
+        "extraVolumeMounts",
+        "imagePullPolicy",
+        "initContainers",
+        "resources",
+        "tolerations",
+        "probeTimeoutSeconds"
+    ],
+    "properties": {
+        "clusterName": {
+            "$id": "#/properties/clusterName",
+            "type": "string",
+            "default": ""
+        },
+        "auth_server": {
+            "$id": "#/properties/auth_server",
+            "type": "string",
+            "default": ""
+        },
+        "join_params": {
+            "$id": "#/properties/join_params",
+            "type": "object",
+            "required": [
+                "method",
+                "token_name"
+            ],
+            "properties": {
+                "method": {
+                    "$id": "#/properties/join_params/method",
+                    "type": "string",
+                    "default": ""
+                },
+                "token_name": {
+                    "$id": "#/properties/join_params/token_name",
+                    "type": "string",
+                    "default": ""
+                }
+            },
+            "additionalProperties": true
+        },
+        "nameOverride": {
+            "$id": "#/properties/nameOverride",
+            "type": "string",
+            "default": ""
+        },
+        "proxyProtocol": {
+            "$id": "#/properties/proxyProtocol",
+            "type": "string",
+            "default": "",
+            "enum": [
+                "off",
+                "on"
+            ]
+        },
+        "proxy": {
+            "$id": "#/properties/proxy",
+            "type": "object"
+        },
+        "podMonitor": {
+            "$id": "#/properties/podMonitor",
+            "type": "object",
+            "required": [
+                "enabled"
+            ],
+            "properties": {
+                "enabled": {
+                    "$id": "#/properties/podMonitor/enabled",
+                    "type": "boolean",
+                    "default": false
+                },
+                "additionalLabels": {
+                    "$id": "#/properties/podMonitor/additionalLabels",
+                    "type": "object",
+                    "default": {
+                        "prometheus": "default"
+                    },
+                    "additionalProperties": {
+                        "type": ["null","boolean","integer","number","string","array","object"]
+                    }
+                },
+                "interval": {
+                    "$id": "#/properties/podMonitor/interval",
+                    "type": "string",
+                    "default": "30s"
+                }
+            }
+        },
+        "proxyListenerMode": {
+            "$id": "#/properties/proxyListenerMode",
+            "type": "string",
+            "default": ""
+        },
+        "separatePostgresListener": {
+            "$id": "#/properties/separatePostgresListener",
+            "type": "boolean",
+            "default": false
+        },
+        "separateMongoListener": {
+            "$id": "#/properties/separateMongoListener",
+            "type": "boolean",
+            "default": false
+        },
+        "publicAddr": {
+            "$id": "#/properties/publicAddr",
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "default": []
+        },
+        "kubePublicAddr": {
+            "$id": "#/properties/kubePublicAddr",
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "default": []
+        },
+        "mongoPublicAddr": {
+            "$id": "#/properties/mongoPublicAddr",
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "default": []
+        },
+        "mysqlPublicAddr": {
+            "$id": "#/properties/mysqlPublicAddr",
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "default": []
+        },
+        "postgresPublicAddr": {
+            "$id": "#/properties/postgresPublicAddr",
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "default": []
+        },
+        "sshPublicAddr": {
+            "$id": "#/properties/sshPublicAddr",
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "default": []
+        },
+        "tunnelPublicAddr": {
+            "$id": "#/properties/tunnelPublicAddr",
+            "type": "array",
+            "items": {
+                "type": "string"
+            },
+            "default": []
+        },
+        "teleportVersionOverride": {
+            "$id": "#/properties/teleportVersionOverride",
+            "type": "string",
+            "default": ""
+        },
+        "acme": {
+            "$id": "#/properties/acme",
+            "type": "boolean",
+            "default": false
+        },
+        "acmeEmail": {
+            "$id": "#/properties/acmeEmail",
+            "type": "string",
+            "default": ""
+        },
+        "acmeURI": {
+            "$id": "#/properties/acmeURI",
+            "type": "string",
+            "default": ""
+        },
+        "enterprise": {
+            "$id": "#/properties/enterprise",
+            "type": "boolean",
+            "default": false
+        },
+        "licenseSecretName": {
+            "$id": "#/properties/licenseSecretName",
+            "type": "string",
+            "default": "license"
+        },
+        "podSecurityPolicy": {
+            "$id": "#/properties/podSecurityPolicy",
+            "type": "object",
+            "required": [
+                "enabled"
+            ],
+            "properties": {
+                "enabled": {
+                    "$id": "#/properties/podSecurityPolicy/properties/enabled",
+                    "type": "boolean",
+                    "default": true
+                }
+            }
+        },
+        "chartMode": {
+            "$id": "#/properties/chartMode",
+            "type": "string",
+            "enum": [
+                "standalone",
+                "aws",
+                "azure",
+                "gcp",
+                "scratch"
+            ],
+            "default": "standalone"
+        },
+        "validateConfigOnDeploy": {
+            "$id": "#/properties/validateConfigOnDeploy",
+            "type": "boolean",
+            "default": true
+        },
+        "standalone": {
+            "$id": "#/properties/standalone",
+            "type": "object",
+            "required": [
+                "volumeSize"
+            ],
+            "properties": {
+                "existingClaimName": {
+                    "$id": "#/properties/standalone/properties/existingClaimName",
+                    "type": "string",
+                    "default": ""
+                },
+                "volumeSize": {
+                    "$id": "#/properties/standalone/properties/volumeSize",
+                    "type": "string",
+                    "default": ""
+                }
+            }
+        },
+        "highAvailability": {
+            "$id": "#/properties/highAvailability",
+            "type": "object",
+            "required": [
+                "replicaCount",
+                "requireAntiAffinity",
+                "certManager",
+                "minReadySeconds",
+                "podDisruptionBudget"
+            ],
+            "properties": {
+                "replicaCount": {
+                    "$id": "#/properties/highAvailability/properties/replicaCount",
+                    "type": "integer",
+                    "default": 1
+                },
+                "requireAntiAffinity": {
+                    "$id": "#/properties/highAvailability/properties/requireAntiAffinity",
+                    "type": "boolean",
+                    "default": false
+                },
+                "certManager": {
+                    "$id": "#/properties/highAvailability/properties/certManager",
+                    "type": "object",
+                    "required": [
+                        "enabled",
+                        "issuerName",
+                        "issuerKind",
+                        "issuerGroup"
+                    ],
+                    "properties": {
+                        "addCommonName": {
+                            "$id": "#/properties/highAvailability/properties/certManager/properties/addCommonName",
+                            "type": "boolean",
+                            "default": "false"
+                        },
+                        "addPublicAddrs": {
+                            "$id": "#/properties/highAvailability/properties/certManager/properties/addPublicAddrs",
+                            "type": "boolean",
+                            "default": "false"
+                        },
+                        "enabled": {
+                            "$id": "#/properties/highAvailability/properties/certManager/properties/enabled",
+                            "type": "boolean",
+                            "default": "false"
+                        },
+                        "issuerName": {
+                            "$id": "#/properties/highAvailability/properties/certManager/properties/issuerName",
+                            "type": "string",
+                            "default": ""
+                        },
+                        "issuerKind": {
+                            "$id": "#/properties/highAvailability/properties/certManager/properties/issuerKind",
+                            "type": "string",
+                            "default": "Issuer"
+                        },
+                        "issuerGroup": {
+                            "$id": "#/properties/highAvailability/properties/certManager/properties/issuerGroup",
+                            "type": "string",
+                            "default": "cert-manager.io"
+                        }
+                    }
+                },
+                "minReadySeconds": {
+                    "$id": "#/properties/highAvailability/properties/minReadySeconds",
+                    "type": "integer",
+                    "default": 15
+                },
+                "podDisruptionBudget": {
+                    "$id": "#/properties/highAvailability/properties/podDisruptionBudget",
+                    "type": "object",
+                    "required": [
+                        "enabled",
+                        "minAvailable"
+                    ],
+                    "properties": {
+                        "enabled": {
+                            "$id": "#/properties/highAvailability/properties/podDisruptionBudget/properties/enabled",
+                            "type": "boolean",
+                            "default": false
+                        },
+                        "minAvailable": {
+                            "$id": "#/properties/highAvailability/properties/podDisruptionBudget/properties/minAvailable",
+                            "type": "integer",
+                            "default": 1
+                        }
+                    }
+                }
+            }
+        },
+        "tls": {
+            "$id": "#/properties/tls",
+            "type": "object",
+            "required": [
+                "existingSecretName",
+                "existingCASecretName",
+                "existingCASecretKeyName"
+            ],
+            "properties": {
+                "existingSecretName": {
+                    "$id": "#/properties/tls/properties/existingSecretName",
+                    "type": "string",
+                    "default": ""
+                },
+                "existingCASecretName": {
+                    "$id": "#/properties/tls/properties/existingCASecretName",
+                    "type": "string",
+                    "default": ""
+                },
+                "existingCASecretKeyName": {
+                    "$id": "#/properties/tls/properties/existingCASecretKeyName",
+                    "type": "string",
+                    "default": "ca.pem"
+                }
+            }
+        },
+        "image": {
+            "$id": "#/properties/image",
+            "type": "string",
+            "default": "public.ecr.aws/gravitational/teleport-distroless"
+        },
+        "enterpriseImage": {
+            "$id": "#/properties/enterpriseImage",
+            "type": "string",
+            "default": "public.ecr.aws/gravitational/teleport-ent-distroless"
+        },
+        "imagePullSecrets": {
+            "$id": "#/properties/imagePullSecrets",
+            "type": "array",
+            "default": []
+        },
+        "logLevel": {
+            "$id": "#/properties/logLevel",
+            "type": "string",
+            "enum": [
+                "DEBUG",
+                "INFO",
+                "WARN",
+                "WARNING",
+                "ERROR"
+            ],
+            "default": "INFO"
+        },
+        "log": {
+            "$id": "#/properties/log",
+            "type": "object",
+            "required": [
+                "output",
+                "format",
+                "extraFields"
+            ],
+            "properties": {
+                "level": {
+                    "$id": "#/properties/log/properties/level",
+                    "type": "string",
+                    "enum": [
+                        "DEBUG",
+                        "INFO",
+                        "WARN",
+                        "WARNING",
+                        "ERROR"
+                    ],
+                    "default": "INFO"
+                },
+                "output": {
+                    "$id": "#/properties/log/properties/output",
+                    "type": "string",
+                    "default": "stderr"
+                },
+                "format": {
+                    "$id": "#/properties/log/properties/format",
+                    "type": "string",
+                    "default": "text"
+                },
+                "extraFields": {
+                    "$id": "#/properties/log/properties/extraFields",
+                    "type": "array",
+                    "default": ["timestamp","level","component","caller"]
+                }
+            }
+        },
+        "affinity": {
+            "$id": "#/properties/affinity",
+            "type": "object",
+            "default": {}
+        },
+        "nodeSelector": {
+            "$id": "#/properties/nodeSelector",
+            "type": "object",
+            "default": {}
+        },
+        "annotations": {
+            "$id": "#/properties/annotations",
+            "type": "object",
+            "required": [
+                "config",
+                "deployment",
+                "pod",
+                "service",
+                "serviceAccount",
+                "certSecret",
+                "ingress"
+            ],
+            "properties": {
+                "config": {
+                    "$id": "#/properties/annotations/properties/config",
+                    "type": "object",
+                    "default": {}
+                },
+                "deployment": {
+                    "$id": "#/properties/annotations/properties/deployment",
+                    "type": "object",
+                    "default": {}
+                },
+                "pod": {
+                    "$id": "#/properties/annotations/properties/pod",
+                    "type": "object",
+                    "default": {}
+                },
+                "service": {
+                    "$id": "#/properties/annotations/properties/service",
+                    "type": "object",
+                    "default": {}
+                },
+                "serviceAccount": {
+                    "$id": "#/properties/annotations/properties/serviceAccount",
+                    "type": "object",
+                    "default": {}
+                },
+                "certSecret": {
+                    "$id": "#/properties/annotations/properties/certSecret",
+                    "type": "object",
+                    "default": {}
+                },
+                "ingress": {
+                    "$id": "#/properties/annotations/properties/ingress",
+                    "type": "object",
+                    "default": {}
+                }
+            }
+        },
+        "service": {
+            "$id": "#/properties/service",
+            "type": "object",
+            "required": [
+                "type"
+            ],
+            "properties": {
+                "type": {
+                    "$id": "#properties/service/type",
+                    "type": "string",
+                    "default": "LoadBalancer"
+                },
+                "spec": {
+                    "$id": "#/properties/service/spec",
+                    "type": "object",
+                    "default": {}
+                }
+            }
+        },
+        "ingress": {
+            "enabled": {
+                "$id": "#/properties/ingress/enabled",
+                "type": "boolean",
+                "default": false
+            },
+            "suppressAutomaticWildcards": {
+                "$id": "#/properties/ingress/suppressAutomaticWildcards",
+                "type": "boolean",
+                "default": false
+            },
+            "useExisting": {
+                "$id": "#/properties/ingress/useExisting",
+                "type": "boolean",
+                "default": false
+            },
+            "spec": {
+                "$id": "#/properties/ingress/spec",
+                "type": "object",
+                "default": {}
+            }
+        },
+        "serviceAccount": {
+            "$id": "#/properties/serviceAccount",
+            "type": "object",
+            "required": [],
+            "properties": {
+                "name": {
+                    "$id": "#properties/service/name",
+                    "type": "string",
+                    "default": ""
+                },
+                "create": {
+                    "$id": "#properties/service/create",
+                    "type": "boolean",
+                    "default": true
+                }
+            }
+        },
+        "rbac": {
+            "$id": "#/properties/rbac",
+            "type": "object",
+            "required": [],
+            "properties": {
+                "create": {
+                    "$id": "#properties/rbac/create",
+                    "type": "boolean",
+                    "default": true
+                }
+            }
+        },
+        "extraArgs": {
+            "$id": "#/properties/extraArgs",
+            "type": "array",
+            "default": []
+        },
+        "extraEnv": {
+            "$id": "#/properties/extraEnv",
+            "type": "array",
+            "default": []
+        },
+        "extraContainers": {
+            "$id": "#/properties/extraContainers",
+            "type": "array",
+            "default": []
+        },
+        "extraVolumes": {
+            "$id": "#/properties/extraVolumes",
+            "type": "array",
+            "default": []
+        },
+        "extraVolumeMounts": {
+            "$id": "#/properties/extraVolumeMounts",
+            "type": "array",
+            "default": []
+        },
+        "extraLabels": {
+            "$id": "#/properties/extraLabels",
+            "type": "object",
+            "default": {}
+        },
+        "imagePullPolicy": {
+            "$id": "#/properties/imagePullPolicy",
+            "type": "string",
+            "enum": [
+                "Never",
+                "IfNotPresent",
+                "Always"
+            ],
+            "default": "IfNotPresent"
+        },
+        "initContainers": {
+            "$id": "#/properties/initContainers",
+            "type": "array",
+            "default": []
+        },
+        "postStart": {
+            "$id": "#/properties/postStart",
+            "type": "object",
+            "required": [
+                "command"
+            ],
+            "properties": {
+                "command": {
+                    "$id": "#properties/postStart/command",
+                    "type": "array",
+                    "default": []
+                }
+            }
+        },
+        "resources": {
+            "$id": "#/properties/resources",
+            "type": "object",
+            "default": {}
+        },
+        "jobResources": {
+            "$id": "#/properties/jobResources",
+            "type": "object",
+            "default": {}
+        },
+        "goMemLimitRatio": {
+            "$id": "#/properties/goMemLimitRatio",
+            "type": "number",
+            "default": 0.9
+        },
+        "podSecurityContext": {
+            "$id": "#/properties/podSecurityContext",
+            "type": "object",
+            "default": {}
+        },
+        "securityContext": {
+            "$id": "#/properties/securityContext",
+            "type": "object",
+            "default": {}
+        },
+        "tolerations": {
+            "$id": "#/properties/tolerations",
+            "type": "array",
+            "default": []
+        },
+        "disableTopologySpreadConstraints": {
+            "$id": "#/properties/disableTopologySpreadConstraints",
+            "type": "boolean",
+            "default": false
+        },
+        "priorityClassName": {
+            "$id": "#/properties/priorityClassName",
+            "type": "string",
+            "default": ""
+        },
+        "probeTimeoutSeconds": {
+            "$id": "#/properties/probeTimeoutSeconds",
+            "type": "integer",
+            "default": 1
+        },
+        "terminationGracePeriodSeconds": {
+            "$id": "#/properties/terminationGracePeriodSeconds",
+            "type": "integer",
+            "default": 60
+        },
+        "topologySpreadConstraints": {
+            "$id": "#/properties/topologySpreadConstraints",
+            "type": "array",
+            "default": []
+        },
+        "readinessProbe": {
+            "$id": "#/properties/readinessProbe",
+            "type": "object",
+            "default": {},
+            "properties": {
+                "initialDelaySeconds": {
+                    "$id": "#/properties/readinessProbe/properties/initialDelaySeconds",
+                    "type": "integer",
+                    "default": 5
+                },
+                "periodSeconds": {
+                    "$id": "#/properties/readinessProbe/properties/periodSeconds",
+                    "type": "integer",
+                    "default": 5
+                },
+                "failureThreshold": {
+                    "$id": "#/properties/readinessProbe/properties/failureThreshold",
+                    "type": "integer",
+                    "default": 12
+                },
+                "successThreshold": {
+                    "$id": "#/properties/readinessProbe/properties/successThreshold",
+                    "type": "integer",
+                    "default": 1
+                }
+            }
+        }
+    }
+}

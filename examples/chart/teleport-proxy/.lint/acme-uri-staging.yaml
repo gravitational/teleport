@@ -1,0 +1,8 @@
+clusterName: test-acme-cluster
+auth_server: teleport-auth.example.com
+join_params:
+  method: kubernetes
+  token_name: teleport-proxy
+acme: true
+acmeEmail: test@email.com
+acmeURI: https://acme-staging-v02.api.letsencrypt.org/directory

@@ -1,0 +1,21 @@
+clusterName: test-gcp-cluster
+auth_server: teleport-auth.example.com
+join_params:
+  method: kubernetes
+  token_name: teleport-proxy
+chartMode: gcp
+log:
+  level: DEBUG
+gcp:
+  projectId: gcpproj-123456
+  backendTable: test-teleport-firestore-storage-collection
+  auditLogTable: test-teleport-firestore-auditlog-collection
+  auditLogMirrorOnStdout: true
+  sessionRecordingBucket: test-gcp-session-storage-bucket
+highAvailability:
+  replicaCount: 3
+  certManager:
+    enabled: true
+    issuerName: letsencrypt-production
+labels:
+  env: gcp

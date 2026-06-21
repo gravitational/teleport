@@ -1,0 +1,21 @@
+clusterName: test-aws-cluster
+auth_server: teleport-auth.example.com
+join_params:
+  method: kubernetes
+  token_name: teleport-proxy
+chartMode: aws
+log:
+  level: DEBUG
+aws:
+  region: us-west-2
+  backendTable: test-dynamodb-backend-table
+  auditLogTable: test-dynamodb-auditlog-table
+  auditLogMirrorOnStdout: true
+  sessionRecordingBucket: test-s3-session-storage-bucket
+highAvailability:
+  replicaCount: 2
+  certManager:
+    enabled: true
+    issuerName: letsencrypt-production
+labels:
+  env: aws

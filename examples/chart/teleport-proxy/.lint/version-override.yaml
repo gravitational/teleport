@@ -1,0 +1,9 @@
+clusterName: test-cluster-name
+auth_server: teleport-auth.example.com
+join_params:
+  method: kubernetes
+  token_name: teleport-proxy
+teleportVersionOverride: 5.2.1
+labels:
+  env: test
+  version: 5.2.1
