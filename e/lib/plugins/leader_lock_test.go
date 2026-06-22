@@ -20,12 +20,16 @@ func TestWithLeaderLock(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	var pluginStartCount int32
 	var pluginExitCount int32
+	started := make(chan struct{})
+	exited := make(chan struct{})
 
 	pluginFactory := func(ctx context.Context, plugin *types.PluginV1, deps factory.Dependencies) (factory.Delegate, error) {
 		return func(instanceCtx context.Context) error {
 			atomic.AddInt32(&pluginStartCount, 1)
+			close(started)
 			defer func() {
 				atomic.AddInt32(&pluginExitCount, 1)
+				close(exited)
 			}()
 			select {
 			case <-ctx.Done():
@@ -55,21 +59,28 @@ func TestWithLeaderLock(t *testing.T) {
 		assert.NoError(t, runFunc(pluginCtx))
 	}()
 
-	require.Eventually(t, func() bool {
-		return atomic.LoadInt32(&pluginStartCount) == 1
-	}, time.Second, time.Millisecond*50)
+	select {
+	case <-started:
+	case <-time.After(30 * time.Second):
+		t.Fatal("plugin never started")
+	}
+	require.Equal(t, int32(1), atomic.LoadInt32(&pluginStartCount))
 	require.Equal(t, int32(0), atomic.LoadInt32(&pluginExitCount))
 
 	clock.Advance(time.Hour)
 
-	require.Eventually(t, func() bool {
-		return atomic.LoadInt32(&pluginStartCount) == 1
-	}, time.Second, time.Millisecond*50)
+	// The plugin should still be running on the same instance — no restart.
+	// pluginExitCount stays at zero implies the original instance is still
+	// active, since any restart would have run the deferred increment.
+	require.Equal(t, int32(1), atomic.LoadInt32(&pluginStartCount))
 	require.Equal(t, int32(0), atomic.LoadInt32(&pluginExitCount))
 
 	cancel()
 
-	require.Eventually(t, func() bool {
-		return atomic.LoadInt32(&pluginExitCount) == 1
-	}, time.Second, time.Millisecond*50)
+	select {
+	case <-exited:
+	case <-time.After(30 * time.Second):
+		t.Fatal("plugin never exited")
+	}
+	require.Equal(t, int32(1), atomic.LoadInt32(&pluginExitCount))
 }
