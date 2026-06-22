@@ -784,11 +784,17 @@ func (ns *NodeSession) pipeInOut(ctx context.Context, shell io.ReadWriteCloser, 
 					resp.Reason = "denied by moderator"
 				}
 
-				payload, err := json.Marshal(resp)
-				if err != nil {
-					fmt.Printf("\n\rError while encoding command approval response: %v\n\r", err.Error())
-					return
-				}
+				// Encode with ssh.Marshal (binary), not JSON: the server runs
+				// every session request through tracessh.ContextFromRequest,
+				// which leniently json.Unmarshals any JSON payload as a trace
+				// Envelope and overwrites the payload with the empty envelope
+				// payload. A JSON response would be wiped before the handler
+				// saw it ("unexpected end of JSON input"). ssh.Marshal output
+				// is not valid JSON, so it survives. The request direction
+				// stays JSON because it is delivered as a global request and is
+				// not processed by ContextFromRequest. This mirrors the
+				// file-transfer decision pattern.
+				payload := ssh.Marshal(resp)
 
 				if _, err := sess.SendRequest(ctx, teleport.SessionApprovalResponse, false, payload); err != nil {
 					fmt.Printf("\n\rError while sending command approval response: %v\n\r", err.Error())

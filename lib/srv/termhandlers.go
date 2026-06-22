@@ -233,8 +233,17 @@ func (t *TermHandlers) HandleCommandApprovalResponse(_ ssh.Channel, req *ssh.Req
 		return trace.AccessDenied("only moderators can approve commands")
 	}
 
+	// The response is encoded with ssh.Marshal (binary), not JSON. Every
+	// session request passes through tracessh.ContextFromRequest, which
+	// leniently json.Unmarshals any JSON payload as a trace Envelope and
+	// overwrites req.Payload with the (empty) envelope payload. A JSON response
+	// would therefore be wiped before reaching this handler ("unexpected end of
+	// JSON input"). ssh.Marshal output is not valid JSON, so it survives. The
+	// request direction (server->client) stays JSON because it is sent on the
+	// raw ServerConn and is not processed by ContextFromRequest. This mirrors
+	// the file-transfer decision pattern.
 	var resp approval.CommandApprovalResponse
-	if err := json.Unmarshal(req.Payload, &resp); err != nil {
+	if err := ssh.Unmarshal(req.Payload, &resp); err != nil {
 		return trace.Wrap(err)
 	}
 
