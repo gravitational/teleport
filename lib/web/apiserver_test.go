@@ -8802,7 +8802,7 @@ func (mock authProviderMock) GetRole(_ context.Context, _ string) (types.Role, e
 	return nil, nil
 }
 
-func (mock authProviderMock) MFAServiceClient() mfav1.MFAServiceClient { //nolint:staticcheck // required for interface compatibility
+func (mock authProviderMock) MFAServiceClient() mfav1.MFAServiceClient { //nolint:staticcheck // SA1019. Required for interface compatibility.
 	return nil
 }
 

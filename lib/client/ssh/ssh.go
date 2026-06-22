@@ -30,11 +30,11 @@ import (
 )
 
 // Performer performs a session-bound MFA ceremony with the user and returns the solved challenge name.
-type Performer func(ctx context.Context, sessionID []byte) (string, error)
+type Performer func(ctx context.Context, sessionID []byte) (challengeName string, _ error)
 
 // AuthCallback returns an ssh.ClientAuthCallback that performs in-band MFA via keyboard-interactive when the server
 // responds with partial success after publickey.
-func AuthCallback(ctx context.Context, performerFn func() (Performer, error)) ssh.ClientAuthCallback {
+func AuthCallback(ctx context.Context, createPerformer func() (Performer, error)) ssh.ClientAuthCallback {
 	return func(authCtx *ssh.ClientAuthContext) (ssh.AuthMethod, error) {
 		// If the server responds with partial success for publickey auth method and keyboard-interactive is allowed,
 		// then the server is likely enforcing in-band MFA. In this case, return a keyboard-interactive callback that
@@ -42,7 +42,7 @@ func AuthCallback(ctx context.Context, performerFn func() (Performer, error)) ss
 		if slices.Contains(authCtx.PartialSuccessMethods, "publickey") &&
 			slices.Contains(authCtx.AllowedMethods, "keyboard-interactive") &&
 			!slices.Contains(authCtx.TriedMethods, "keyboard-interactive") {
-			performer, err := performerFn()
+			performer, err := createPerformer()
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
