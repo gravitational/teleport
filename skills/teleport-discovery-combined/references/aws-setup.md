@@ -6,20 +6,19 @@
 |-------|-----------------|---------|
 | `proxy_addr` | `$TSH status --format=json`, `active.profile_url` with the `https://` scheme stripped, such as `example.teleport.sh:443` | Ask |
 | `cluster_version` | `$TCTL status` `Version` field, such as `18.8.0` | Ask |
-| `deployment` | `cloud` when `proxy_addr`'s host ends in `.teleport.sh` or `.cloud.gravitational.io`, else `self-hosted` | none |
-| `services` | none | Ask: `ec2`, `eks`, or both |
-| `regions` | `$AWS_REGION`, then `$AWS_DEFAULT_REGION`, then `aws configure get region` | Ask; `["*"]` matches all regions |
-| `tags` | none | Ask; use `{"*": ["*"]}` only when the user wants every resource |
-| `kube_app_discovery` | none | Off; EKS only |
+| `deployment` | `cloud` when `proxy_addr`'s host ends in `.teleport.sh` or `.cloud.gravitational.io`, else `self-hosted` | Ask |
+| `services` | none | `ec2` and `eks` matchers |
+| `regions` | `$AWS_REGION`, then `$AWS_DEFAULT_REGION`, then `aws configure get region` | `["*"]` |
+| `tags` | none | Ask. Use `{"*": ["*"]}` only when the user wants every resource |
+| `kube_app_discovery` | none | Omit from the plan |
 | `aws_account_id` | `aws sts get-caller-identity --query Account --output text` | Omit from the plan |
-| `existing_oidc_provider` | `aws iam list-open-id-connect-providers`, then `aws iam get-open-id-connect-provider --open-id-connect-provider-arn <arn>` and read `.Url`; `yes` when `.Url`, with any scheme and port removed, equals `proxy_addr`'s host with its port removed | `no` |
+| `existing_oidc_provider` | `aws iam list-open-id-connect-providers`, then `aws iam get-open-id-connect-provider --open-id-connect-provider-arn <arn>` and read `.Url`. `yes` when `.Url`, with any scheme and port removed, equals `proxy_addr`'s host with its port removed | `no` |
 | `existing_integration` | `$TCTL get integrations`; a match has `sub_kind: aws-oidc` | Omit from the plan |
 | `discovery_group` | `cloud`: `cloud-discovery-group`. `self-hosted`: confirm a service runs with `$TCTL inventory list --services=discovery`, and stop if none runs | Ask for the `discovery_group` set in the Discovery Service's `teleport.yaml` |
 | `write_location` | none | A new `teleport-discovery-aws/` directory |
 
-AWS discovery requires the Teleport provider `>= 18.8.0`. If `cluster_version` is below
-`18.8.0`, stop: "AWS discovery requires Teleport 18.8.0 or later. This cluster is
-v`<cluster_version>`."
+If `cluster_version` is below `18.8.0`, stop: "AWS discovery with Terraform requires Teleport
+18.8.0 or later. This cluster is v`<cluster_version>`."
 
 ## Write location
 
@@ -55,8 +54,7 @@ Approve? (y/n)
 
 ## Write the Terraform
 
-Declare the provider requirements and configuration. The teleport provider must be
-`>= 18.8.0`, the discovery module's minimum:
+Declare the provider requirements and configuration:
 
 ```hcl
 terraform {

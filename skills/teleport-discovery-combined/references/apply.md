@@ -1,7 +1,5 @@
 # Apply the Terraform
 
-Apply the Terraform written in the setup file to create the discovery resources.
-
 ## Run environment
 
 Default to a local run unless the user states otherwise.
@@ -19,9 +17,9 @@ environment.
 
 ## Local apply
 
-`eval "$($TCTL terraform env)"` exports short-lived credentials into the current shell and
-may prompt for MFA. Chain it into the same Bash call as `plan` and `apply`, because the
-variables do not persist between calls; `init` does not need them.
+`eval "$($TCTL terraform env)"` exports short-lived credentials and may prompt for MFA. Its
+variables do not persist between Bash calls, so chain it with each `terraform plan` or
+`terraform apply` command.
 
 If the user will apply themselves, present these commands and stop. Do not show the
 `eval ... &&` chaining in commands you present to the user:
@@ -43,8 +41,8 @@ If the user asks you to apply:
    eval "$($TCTL terraform env)" && terraform plan
    ```
 
-2. Review the plan. If it lists any `destroy` or `replace` action, stop, show which
-   resources are affected, and get confirmation before applying.
+2. Review the plan. If it lists any `destroy` or `replace` action, or a matcher change, stop,
+   show what it affects, and get confirmation before applying.
 
 3. Apply. Add `-auto-approve` only after the plan in step 2 is approved, or when the caller
    passed `auto_approve: true`:

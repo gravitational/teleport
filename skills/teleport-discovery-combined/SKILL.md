@@ -29,23 +29,25 @@ allowed-tools:
 
 # Teleport Auto-Discovery
 
-Configure and troubleshoot Teleport auto-discovery for AWS EC2 instances, AWS EKS clusters,
-and Azure VMs.
+## Determine the cloud
+
+Set `CLOUD` before anything else. Infer `aws` when the request names EC2, EKS, or an AWS
+account. Infer `azure` when it names VMs, a subscription, or a resource group. If
+the request implies neither, stop and ask the user which cloud. Do not run `aws` or `az` commands
+and do not write Terraform until `CLOUD` is set.
 
 ## Resolving fields
 
 Resolve every field in this order: take it from the prompt; otherwise run its tool
 derivation; if the tool is unavailable, ambiguous, or errors, use its default or ask the
-user. Run independent tool derivations in parallel. Where a procedure gathers fields, it
-lists them as `| Field | Tool derivation | Default |`.
+user. Where a procedure gathers fields, it lists them as `| Field | Tool derivation | Default |`.
 
 In commands, `$TSH` and `$TCTL` are the tsh and tctl binaries; use the paths the user gives,
 otherwise `tsh` and `tctl`. Do not log `active.traits` from `tsh status`.
 
 ## Procedures
 
-Set `CLOUD` to `aws` for EC2 and EKS, or `azure` for VMs; ask if the prompt names neither.
-Run the procedures the request asks for, in this order; a request often chains several.
+Run the procedures the request asks for, in this order.
 "Set up discovery" with no narrower scope runs all three.
 
 1. **Setup**: write, generate, configure, or extend the discovery Terraform, with `references/aws-setup.md` for `aws` or `references/azure-setup.md` for `azure`.

@@ -2,20 +2,22 @@
 
 Continues from `references/apply.md`, or starts directly for a status request.
 
-## Start: read status
+Run **Read status** first. For a healthy result, follow **Healthy state**. Otherwise, follow
+the matching **Diagnose** scenario.
+
+## Read status
 
 Resolve the config, then read its status. Use the `discovery_config_name` from the apply
-outputs when known; otherwise list configs and pick the one whose matchers are `aws` when
-`CLOUD` is aws, or `azure` when `CLOUD` is azure.
+outputs when known. Otherwise, list configs and pick the one whose matchers correspond to `CLOUD`.
 
 ```bash
 $TCTL get discovery_config --format=json          # only when the name is unknown
 $TCTL get discovery_config/<name> --format=json
 ```
 
-Read these fields, whose JSON keys are camelCase:
-- `.status.state`: `DISCOVERY_CONFIG_STATE_SYNCING` while an iteration runs, `DISCOVERY_CONFIG_STATE_RUNNING` when idle with no error, `DISCOVERY_CONFIG_STATE_ERROR` with `.status.errorMessage` set.
-- `.status.integrationDiscoveredResources.<integration>.<key>`, holding `found`, `enrolled`, and `failed`. `<key>` is `awsEc2` for EC2, `awsEks` for EKS, `azureVms` for Azure VM. `found` counts resources the matcher selected, `enrolled` counts those that joined Teleport, `failed` counts those whose enrollment failed.
+Read these fields:
+- `.status.state`: `DISCOVERY_CONFIG_STATE_SYNCING` while an iteration runs, `DISCOVERY_CONFIG_STATE_RUNNING` when idle with no error, `DISCOVERY_CONFIG_STATE_ERROR` with `.status.error_message` set.
+- `.status.integration_discovered_resources.<integration>.<key>`, holding `found`, `enrolled`, and `failed`. `<key>` is `awsEc2` for EC2, `awsEks` for EKS, `azureVms` for Azure VM.
 
 Summarize for the reader; do not print raw JSON.
 
@@ -24,28 +26,46 @@ Summarize for the reader; do not print raw JSON.
 `state` is `RUNNING`, `enrolled` equals `found`, and `failed` is `0`. Report the counts and
 stop.
 
-While `state` is `SYNCING`, counts are still settling. Offer, but do not auto-run, a poll:
-re-read the config every 30 seconds and print `[<time>] found=<n> enrolled=<n> failed=<n>`
-per line. Stop when `enrolled >= found` and `failed == 0`, when `failed > 0`, or after 15
-minutes.
+While `state` is `SYNCING`, offer, but do not auto-run, a poll: re-read the config every 30
+seconds and print `[<time>] found=<n> enrolled=<n> failed=<n>` per line. Stop when
+`enrolled >= found` and `failed == 0`, when `failed > 0`, or after 10 minutes.
 
-## Scenarios
+## Diagnose
+
+Each scenario reports a diagnosis and the fix it points to. Apply a fix only by following
+**Setup** and **Apply**.
 
 ### state = ERROR
 
-Cause: the Discovery Service rejected the config, or an integration call failed. The reason
-is in `.status.errorMessage`. Read it and act on it. An assume-role or trust error points to
-the AWS OIDC trust scenario below.
+Read `.status.error_message` and report it to the user. An assume-role or trust error means
+the **AWS OIDC trust** requirement is broken: the OIDC provider must be corrected to satisfy
+it and re-applied.
 
 ### Counts never appear
 
-Observed: `state` stays `SYNCING` or `RUNNING` but `.status.integrationDiscoveredResources`
-is empty across reads.
+`.status.integration_discovered_resources` is empty across reads while `state` is `SYNCING`
+or `RUNNING`. Run **List Discovery Services**. If no service runs in the config's
+`discovery_group`, ensure one is started in that group.
 
-Cause: the `discovery_group` matches no running Discovery Service, so nothing processes the
-config.
+### found = 0
 
-Resolve: confirm a service runs.
+Confirm the integration targets the right account or subscription, the regions include the
+resources, and the tags match the intended resources. A matcher that misses them must be
+corrected to match only those resources and re-applied.
+
+### found > 0, enrolled = 0
+
+Run **Check the provision token**, then **Read per-resource failures**. State the matching
+**EC2** or **Azure VM** requirement. A failure naming an OIDC or role error points to the
+**AWS OIDC trust** requirement.
+
+### failed > 0
+
+Run **Read per-resource failures**, then state the matching requirement.
+
+## Procedures
+
+### List Discovery Services
 
 ```bash
 $TCTL inventory list --services=discovery
@@ -54,52 +74,15 @@ $TCTL inventory list --services=discovery
 For `cloud` the group must be `cloud-discovery-group`. For `self-hosted` it must equal a
 running service's `discovery_group`. An empty list means no service is running.
 
-### found = 0
-
-Observed: `found` stays `0`.
-
-Cause: the integration cannot see the resources, or the matcher is too narrow.
-
-Resolve: confirm the right account or subscription, that the regions include the resources,
-and that the tags are not too strict. Set tags to `{"*": ["*"]}` to confirm visibility, then
-re-apply.
-
-### found > 0, enrolled = 0, EC2
-
-Observed: `awsEc2.found` is above `0` and `awsEc2.enrolled` is `0`.
-
-Cause: instances cannot join. The provision token is missing, the instance lacks the
-`AmazonSSMManagedInstanceCore` policy or SSM connectivity, or it has no network path to the
-proxy on 443.
-
-Resolve: confirm the token exists, then read the per-resource detail in the failed-resources
-scenario below.
+### Check the provision token
 
 ```bash
 $TCTL tokens ls
 ```
 
-### found > 0, enrolled = 0, Azure VM
+Confirm a token exists for the matched resources.
 
-Observed: `azureVms.found` is above `0` and `azureVms.enrolled` is `0`.
-
-Cause: VMs cannot join. The VM lacks a managed identity with
-`Microsoft.Compute/virtualMachines/read`, or it has no network path to the proxy.
-
-Resolve: confirm the token exists, then read the per-resource detail in the failed-resources
-scenario below.
-
-```bash
-$TCTL tokens ls
-```
-
-### failed > 0
-
-Observed: `failed` is above `0` for any key.
-
-Cause: matched resources failed to enroll; the per-resource reason is in user tasks.
-
-Resolve: read the failures.
+### Read per-resource failures
 
 ```bash
 $TCTL get user_tasks
@@ -117,7 +100,7 @@ $TCTL discovery nodes --cloud=<CLOUD> --last=24h --format=json
 ```
 
 Status values include `Online`, `Unknown`, `Installed (offline)`, `Failed (exit code=<n>)`,
-and `Failed (API error)`. Render a table, not raw JSON.
+and `Failed (API error)`. Render a table.
 
 For resolution steps on server install failures, fetch the troubleshooting guide and match
 each `issue_type`:
@@ -128,13 +111,10 @@ WebFetch:
   Prompt: "Extract troubleshooting steps for <CLOUD> discovery: exit code meanings, status interpretations, common errors, and resolutions."
 ```
 
-### AWS OIDC trust
+## Requirements
 
-Observed: `state = ERROR` with an assume-role error, or EC2 found with no enrollment and a
-user task naming an OIDC or role error.
+State the matching requirement when a scenario points here.
 
-Cause: the AWS OIDC trust is broken.
-
-Resolve: the provider URL must be the proxy host with no port, and the audience must be
-`discover.teleport`. Re-apply after a proxy TLS certificate rotation to refresh the provider
-thumbprint.
+- **EC2**: a provision token, the `AmazonSSMManagedInstanceCore` policy or SSM connectivity, and a network path to the proxy on 443.
+- **Azure VM**: a managed identity with `Microsoft.Compute/virtualMachines/read`, and a network path to the proxy.
+- **AWS OIDC trust**: the provider URL is the proxy host with no port, and the audience is `discover.teleport`. Re-apply after a proxy TLS certificate rotation to refresh the provider thumbprint.

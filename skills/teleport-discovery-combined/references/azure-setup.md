@@ -20,9 +20,8 @@ State these to the user:
 | `discovery_group` | `cloud`: `cloud-discovery-group`. `self-hosted`: confirm a service runs with `$TCTL inventory list --services=discovery`, and stop if none runs | Ask for the `discovery_group` set in the Discovery Service's `teleport.yaml` |
 | `write_location` | none | A new `teleport-discovery-azure/` directory |
 
-Azure discovery requires the Teleport provider `>= 18.7.6`. If `cluster_version` is below
-`18.7.6`, stop: "Azure discovery requires Teleport 18.7.6 or later. This cluster is
-v`<cluster_version>`."
+If `cluster_version` is below `18.7.6`, stop: "Azure discovery with Terraform requires Teleport
+18.7.6 or later. This cluster is v`<cluster_version>`."
 
 Validate that every subscription ID is a UUID of the form
 `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`. If any fails, ask the user to correct it.
@@ -60,8 +59,7 @@ Approve? (y/n)
 
 ## Write the Terraform
 
-Declare the provider requirements and configuration. The teleport provider must be
-`>= 18.7.6`, the discovery module's minimum:
+Declare the provider requirements and configuration:
 
 ```hcl
 terraform {
@@ -69,6 +67,7 @@ terraform {
   required_providers {
     azurerm = { source = "hashicorp/azurerm", version = ">= 4.0" }
     http    = { source = "hashicorp/http",    version = ">= 3.0" }
+    random  = { source = "hashicorp/random",  version = ">= 3.0" }
     teleport = {
       source  = "terraform.releases.teleport.dev/gravitational/teleport"
       version = ">= 18.7.6"
