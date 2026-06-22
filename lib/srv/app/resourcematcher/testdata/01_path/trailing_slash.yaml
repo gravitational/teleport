@@ -1,0 +1,28 @@
+description: trailing slash
+rules:
+    # A trailing slash is significant: this
+    # matches /api/v4/health/ but not
+    # /api/v4/health.
+    - paths:
+        - /api/v4/health/
+rules_desugared:
+    - pred: |-
+        path.match(
+          literal("api/v4/health",
+            slash()))
+identity:
+    name: bob
+    roles:
+        - developer
+cases:
+    - request:
+        method: GET
+        path: /api/v4/health/
+      expect:
+        allowed: true
+    - request:
+        method: GET
+        path: /api/v4/health
+      expect:
+        allowed: false
+        deny_kind: teleport_request_not_allowed

@@ -1,0 +1,51 @@
+description: path, method, and trait
+rules:
+    - paths:
+        - /teams/{team}/**
+      methods:
+        - GET
+      where: contains(user.traits["teams"], vars.team)
+rules_desugared:
+    - pred: |-
+        path.match(
+          literal("teams",
+            capture("team",
+              greedy()))) &&
+        contains(
+          set("GET"), request.method) &&
+        contains(user.traits["teams"], vars.team)
+identity:
+    name: alice
+    roles:
+        - developer
+    traits:
+        teams:
+            - security
+            - devs
+cases:
+    - request:
+        method: GET
+        path: /teams/security/dashboards
+      expect:
+        allowed: true
+        vars:
+            team: security
+    - request:
+        method: GET
+        path: /teams/devs/board
+      expect:
+        allowed: true
+        vars:
+            team: devs
+    - request:
+        method: GET
+        path: /teams/marketing/board
+      expect:
+        allowed: false
+        deny_kind: teleport_request_not_allowed
+    - request:
+        method: POST
+        path: /teams/security/board
+      expect:
+        allowed: false
+        deny_kind: teleport_request_not_allowed

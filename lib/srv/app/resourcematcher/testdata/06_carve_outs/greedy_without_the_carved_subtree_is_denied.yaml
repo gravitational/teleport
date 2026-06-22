@@ -1,0 +1,32 @@
+description: 'greedy_without: the carved subtree is denied'
+rules:
+    - where: |-
+        path.match(literal("files",
+            greedy_without("secret", "private")))
+rules_desugared:
+    - pred: |-
+        path.match(
+          literal("files",
+            greedy_without("secret", "private")))
+identity:
+    name: bob
+    roles:
+        - developer
+cases:
+    - request:
+        method: GET
+        path: /files/secret/key
+      expect:
+        allowed: false
+        deny_kind: teleport_request_not_allowed
+    - request:
+        method: GET
+        path: /files/private
+      expect:
+        allowed: false
+        deny_kind: teleport_request_not_allowed
+    - request:
+        method: GET
+        path: /files/ok/deep
+      expect:
+        allowed: true

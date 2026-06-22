@@ -1,0 +1,31 @@
+description: 'optional_slash: match with or without a trailing slash'
+rules:
+    - where: |-
+        path.match(literal("files",
+            optional_slash()))
+rules_desugared:
+    - pred: |-
+        path.match(
+          literal("files",
+            optional_slash()))
+identity:
+    name: bob
+    roles:
+        - developer
+cases:
+    - request:
+        method: GET
+        path: /files/
+      expect:
+        allowed: true
+    - request:
+        method: GET
+        path: /files
+      expect:
+        allowed: true
+    - request:
+        method: GET
+        path: /files/x
+      expect:
+        allowed: false
+        deny_kind: teleport_request_not_allowed

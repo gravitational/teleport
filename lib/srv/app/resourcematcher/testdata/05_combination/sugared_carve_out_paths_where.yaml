@@ -1,0 +1,47 @@
+description: sugared carve-out (paths + where)
+rules:
+    # Allow all of /files, then carve out the
+    # /files/secret subtree with a negated
+    # path.match in where. paths set the
+    # territory, where removes a slice.
+    - paths:
+        - /files/**
+      where: |-
+        !path.match(literal("files",
+            literal("secret", greedy())))
+rules_desugared:
+    - pred: |-
+        path.match(
+          literal("files",
+            greedy())) &&
+        !path.match(
+          literal("files/secret",
+            greedy()))
+identity:
+    name: bob
+    roles:
+        - developer
+cases:
+    - request:
+        method: GET
+        path: /files/a
+      expect:
+        allowed: true
+    - request:
+        method: GET
+        path: /files/secret/key
+      expect:
+        allowed: false
+        deny_kind: teleport_request_not_allowed
+    - request:
+        method: GET
+        path: /files/secret
+      expect:
+        allowed: false
+        deny_kind: teleport_request_not_allowed
+    - request:
+        method: GET
+        path: /other
+      expect:
+        allowed: false
+        deny_kind: teleport_request_not_allowed

@@ -1,0 +1,23 @@
+description: 'slash: the bare root path /'
+rules:
+    - where: path.match(slash())
+rules_desugared:
+    - pred: |-
+        path.match(
+          slash())
+identity:
+    name: bob
+    roles:
+        - developer
+cases:
+    - request:
+        method: GET
+        path: /
+      expect:
+        allowed: true
+    - request:
+        method: GET
+        path: /x
+      expect:
+        allowed: false
+        deny_kind: teleport_request_not_allowed

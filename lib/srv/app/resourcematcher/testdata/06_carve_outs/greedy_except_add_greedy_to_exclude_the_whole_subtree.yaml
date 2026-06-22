@@ -1,0 +1,39 @@
+description: 'greedy_except: add greedy() to exclude the whole subtree'
+rules:
+    - where: |-
+        path.match(literal("files",
+            greedy_except(literal("secret", greedy()))))
+rules_desugared:
+    - pred: |-
+        path.match(
+          literal("files",
+            greedy_except(
+              literal("secret",
+                greedy()))))
+identity:
+    name: bob
+    roles:
+        - developer
+cases:
+    - request:
+        method: GET
+        path: /files/secret/key
+      expect:
+        allowed: false
+        deny_kind: teleport_request_not_allowed
+    - request:
+        method: GET
+        path: /files/secret
+      expect:
+        allowed: false
+        deny_kind: teleport_request_not_allowed
+    - request:
+        method: GET
+        path: /files/public/x
+      expect:
+        allowed: true
+    - request:
+        method: GET
+        path: /files
+      expect:
+        allowed: true

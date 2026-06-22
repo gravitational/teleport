@@ -1,0 +1,39 @@
+description: nested literal chain
+rules:
+    # literal() splits its text on "/".
+    # This nested chain is the same matcher
+    # as literal("api/v4/buildinfo").
+    - where: |-
+        path.match(
+          literal(
+            "api",
+            literal(
+              "v4",
+              literal(
+                "buildinfo"))))
+rules_desugared:
+    - pred: |-
+        path.match(
+          literal("api/v4/buildinfo"))
+identity:
+    name: bob
+    roles:
+        - developer
+cases:
+    - request:
+        method: GET
+        path: /api/v4/buildinfo
+      expect:
+        allowed: true
+    - request:
+        method: GET
+        path: /api/v4
+      expect:
+        allowed: false
+        deny_kind: teleport_request_not_allowed
+    - request:
+        method: GET
+        path: /api/v4/buildinfo/extra
+      expect:
+        allowed: false
+        deny_kind: teleport_request_not_allowed

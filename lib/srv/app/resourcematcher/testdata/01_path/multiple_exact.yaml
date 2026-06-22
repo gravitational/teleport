@@ -1,0 +1,32 @@
+description: multiple exact
+rules:
+    - paths:
+        - /api/v4/health
+        - /api/v4/status
+rules_desugared:
+    - pred: |-
+        path.match(
+          root(
+            literal("api/v4/health"),
+            literal("api/v4/status")))
+identity:
+    name: bob
+    roles:
+        - developer
+cases:
+    - request:
+        method: GET
+        path: /api/v4/status
+      expect:
+        allowed: true
+    - request:
+        method: GET
+        path: /api/v4/health
+      expect:
+        allowed: true
+    - request:
+        method: GET
+        path: /api/v4/other
+      expect:
+        allowed: false
+        deny_kind: teleport_request_not_allowed

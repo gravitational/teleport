@@ -1,0 +1,36 @@
+description: carve-out (negation)
+rules:
+    # Quote a where that starts with "!"
+    # so YAML does not read it as a tag.
+    - paths:
+        - /**
+      where: '!path.match(literal("admin", greedy()))'
+rules_desugared:
+    - pred: |-
+        path.match(
+          greedy()) &&
+        !path.match(
+          literal("admin",
+            greedy()))
+identity:
+    name: bob
+    roles:
+        - developer
+cases:
+    - request:
+        method: GET
+        path: /api/users
+      expect:
+        allowed: true
+    - request:
+        method: GET
+        path: /admin/users
+      expect:
+        allowed: false
+        deny_kind: teleport_request_not_allowed
+    - request:
+        method: GET
+        path: /admin
+      expect:
+        allowed: false
+        deny_kind: teleport_request_not_allowed

@@ -1,0 +1,29 @@
+description: equals identity
+rules:
+    - paths:
+        - /api/v4/user/{username}
+      where: user.name == vars.username
+rules_desugared:
+    - pred: |-
+        path.match(
+          literal("api/v4/user",
+            capture("username"))) &&
+        user.name == vars.username
+identity:
+    name: alice
+    roles:
+        - developer
+cases:
+    - request:
+        method: GET
+        path: /api/v4/user/alice
+      expect:
+        allowed: true
+        vars:
+            username: alice
+    - request:
+        method: GET
+        path: /api/v4/user/bob
+      expect:
+        allowed: false
+        deny_kind: teleport_request_not_allowed

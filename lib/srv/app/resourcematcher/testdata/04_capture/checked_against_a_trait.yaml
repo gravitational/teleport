@@ -1,0 +1,51 @@
+description: checked against a trait
+rules:
+    - paths:
+        - /api/v4/projects/{project}/**
+      methods:
+        - GET
+      where: contains(user.traits["allowed_projects"], vars.project)
+rules_desugared:
+    - pred: |-
+        path.match(
+          literal("api/v4/projects",
+            capture("project",
+              greedy()))) &&
+        contains(
+          set("GET"), request.method) &&
+        contains(user.traits["allowed_projects"], vars.project)
+identity:
+    name: alice
+    roles:
+        - developer
+    traits:
+        allowed_projects:
+            - alpha
+            - beta
+cases:
+    - request:
+        method: GET
+        path: /api/v4/projects/alpha/issues
+      expect:
+        allowed: true
+        vars:
+            project: alpha
+    - request:
+        method: GET
+        path: /api/v4/projects/beta/merge_requests
+      expect:
+        allowed: true
+        vars:
+            project: beta
+    - request:
+        method: GET
+        path: /api/v4/projects/gamma/issues
+      expect:
+        allowed: false
+        deny_kind: teleport_request_not_allowed
+    - request:
+        method: POST
+        path: /api/v4/projects/alpha/issues
+      expect:
+        allowed: false
+        deny_kind: teleport_request_not_allowed

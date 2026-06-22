@@ -1,0 +1,36 @@
+description: additive list (two rules)
+rules:
+    - paths:
+        - /public/**
+    - paths:
+        - /static/**
+rules_desugared:
+    - pred: |-
+        path.match(
+          literal("public",
+            greedy()))
+    - pred: |-
+        path.match(
+          literal("static",
+            greedy()))
+identity:
+    name: bob
+    roles:
+        - developer
+cases:
+    - request:
+        method: GET
+        path: /static/css/app.css
+      expect:
+        allowed: true
+    - request:
+        method: GET
+        path: /public/index.html
+      expect:
+        allowed: true
+    - request:
+        method: GET
+        path: /other/x
+      expect:
+        allowed: false
+        deny_kind: teleport_request_not_allowed

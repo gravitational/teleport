@@ -1,0 +1,6 @@
+description: 'greedy_except: a capture inside is a load error'
+rules:
+    - where: |-
+        path.match(literal("files",
+            greedy_except(capture("name"))))
+error: greedy_except matcher cannot bind capture

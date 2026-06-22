@@ -1,0 +1,60 @@
+description: allow code and reason
+rules:
+    - paths:
+        - /api/v4/projects/{project}/**
+      where: contains(user.traits["allowed_projects"], vars.project)
+      allow_code: allowed_project
+      allow_reason: User has access to project
+      deny_hint:
+        - deny_code: denied_project
+          deny_reason: User has NO access to project
+rules_desugared:
+    - pred: |-
+        path.match(
+          literal("api/v4/projects",
+            capture("project",
+              greedy()))) &&
+        contains(user.traits["allowed_projects"], vars.project)
+      allow_code: allowed_project
+      allow_reason: User has access to project
+      deny_hint:
+        - "on": |-
+            path.match(
+              literal("api/v4/projects",
+                capture("project",
+                  greedy())))
+          deny_code: denied_project
+          deny_reason: User has NO access to project
+identity:
+    name: alice
+    roles:
+        - developer
+    traits:
+        allowed_projects:
+            - alpha
+            - beta
+cases:
+    - request:
+        method: GET
+        path: /api/v4/projects/alpha/issues
+      expect:
+        allowed: true
+        vars:
+            project: alpha
+        allow_code: allowed_project
+        allow_reason: User has access to project
+    - request:
+        method: GET
+        path: /api/v4/projects/gamma/issues
+      expect:
+        allowed: false
+        deny_kind: teleport_request_not_allowed
+        deny_hints:
+            - code: denied_project
+              reason: User has NO access to project
+    - request:
+        method: GET
+        path: /other
+      expect:
+        allowed: false
+        deny_kind: teleport_request_not_allowed

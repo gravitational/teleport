@@ -1,0 +1,33 @@
+description: 'glob_without: one segment only, deeper is denied'
+rules:
+    - where: |-
+        path.match(literal("files",
+            glob_without(set("private", "secret"))))
+rules_desugared:
+    - pred: |-
+        path.match(
+          literal("files",
+            glob_without(
+              set("private", "secret"))))
+identity:
+    name: bob
+    roles:
+        - developer
+cases:
+    - request:
+        method: GET
+        path: /files/a/b
+      expect:
+        allowed: false
+        deny_kind: teleport_request_not_allowed
+    - request:
+        method: GET
+        path: /files/ok
+      expect:
+        allowed: true
+    - request:
+        method: GET
+        path: /files/private
+      expect:
+        allowed: false
+        deny_kind: teleport_request_not_allowed

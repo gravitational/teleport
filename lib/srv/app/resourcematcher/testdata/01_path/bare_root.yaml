@@ -1,0 +1,32 @@
+description: bare root
+rules:
+    # The bare root matches only the
+    # request "/".
+    - paths:
+        - /
+rules_desugared:
+    - pred: |-
+        path.match(
+          slash())
+identity:
+    name: bob
+    roles:
+        - developer
+cases:
+    - request:
+        method: GET
+        path: /
+      expect:
+        allowed: true
+    - request:
+        method: GET
+        path: /foo
+      expect:
+        allowed: false
+        deny_kind: teleport_request_not_allowed
+    - request:
+        method: GET
+        path: /api/v4
+      expect:
+        allowed: false
+        deny_kind: teleport_request_not_allowed

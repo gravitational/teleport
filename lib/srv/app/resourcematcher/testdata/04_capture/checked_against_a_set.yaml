@@ -1,0 +1,46 @@
+description: checked against a set
+rules:
+    - paths:
+        - /data/*/{letter}/**
+      where: contains(set("a", "b", "c"), vars.letter)
+rules_desugared:
+    - pred: |-
+        path.match(
+          literal("data",
+            glob(
+              capture("letter",
+                greedy())))) &&
+        contains(
+          set("a", "b", "c"), vars.letter)
+identity:
+    name: bob
+    roles:
+        - developer
+cases:
+    - request:
+        method: GET
+        path: /data/x/b/info
+      expect:
+        allowed: true
+        vars:
+            letter: b
+    - request:
+        method: GET
+        path: /data/x/a/info
+      expect:
+        allowed: true
+        vars:
+            letter: a
+    - request:
+        method: GET
+        path: /data/x/z/info
+      expect:
+        allowed: false
+        deny_kind: teleport_request_not_allowed
+    - request:
+        method: GET
+        path: /data/x/b
+      expect:
+        allowed: true
+        vars:
+            letter: b

@@ -1,0 +1,38 @@
+description: single segment *
+rules:
+    - paths:
+        - /api/*/health
+rules_desugared:
+    - pred: |-
+        path.match(
+          literal("api",
+            glob(
+              literal("health"))))
+identity:
+    name: bob
+    roles:
+        - developer
+cases:
+    - request:
+        method: GET
+        path: /api/v4/health
+      expect:
+        allowed: true
+    - request:
+        method: GET
+        path: /api/health
+      expect:
+        allowed: false
+        deny_kind: teleport_request_not_allowed
+    - request:
+        method: GET
+        path: /api/v4/v5/health
+      expect:
+        allowed: false
+        deny_kind: teleport_request_not_allowed
+    - request:
+        method: GET
+        path: /api/v4/health/extra
+      expect:
+        allowed: false
+        deny_kind: teleport_request_not_allowed

@@ -1,0 +1,35 @@
+description: 'root: a path under no root is denied'
+rules:
+    - where: |-
+        path.match(root(
+            literal("api", greedy()),
+            literal("admin", greedy())))
+rules_desugared:
+    - pred: |-
+        path.match(
+          root(
+            literal("api",
+              greedy()),
+            literal("admin",
+              greedy())))
+identity:
+    name: bob
+    roles:
+        - developer
+cases:
+    - request:
+        method: GET
+        path: /public/x
+      expect:
+        allowed: false
+        deny_kind: teleport_request_not_allowed
+    - request:
+        method: GET
+        path: /api/x
+      expect:
+        allowed: true
+    - request:
+        method: GET
+        path: /admin/y
+      expect:
+        allowed: true

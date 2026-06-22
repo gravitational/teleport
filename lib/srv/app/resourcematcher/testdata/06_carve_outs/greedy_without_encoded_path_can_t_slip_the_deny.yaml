@@ -1,0 +1,34 @@
+description: 'greedy_without: encoded path can''t slip the deny'
+rules:
+    - where: |-
+        path.match(literal("files",
+            greedy_without("secret", "private")),
+        decode_iterations(1))
+rules_desugared:
+    - pred: |-
+        path.match(
+          literal("files",
+            greedy_without("secret", "private")),
+          decode_iterations(1))
+identity:
+    name: bob
+    roles:
+        - developer
+cases:
+    - request:
+        method: GET
+        path: /files/%73ecret/key
+      expect:
+        allowed: false
+        deny_kind: teleport_request_not_allowed
+    - request:
+        method: GET
+        path: /files/secret/key
+      expect:
+        allowed: false
+        deny_kind: teleport_request_not_allowed
+    - request:
+        method: GET
+        path: /files/public/key
+      expect:
+        allowed: true

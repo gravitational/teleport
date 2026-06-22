@@ -1,0 +1,32 @@
+description: 'greedy_without: exclude subtrees (string sugar)'
+rules:
+    - where: |-
+        path.match(literal("files",
+            greedy_without("secret", "private")))
+rules_desugared:
+    - pred: |-
+        path.match(
+          literal("files",
+            greedy_without("secret", "private")))
+identity:
+    name: bob
+    roles:
+        - developer
+cases:
+    - request:
+        method: GET
+        path: /files/reports/q3
+      expect:
+        allowed: true
+    - request:
+        method: GET
+        path: /files/private/x
+      expect:
+        allowed: false
+        deny_kind: teleport_request_not_allowed
+    - request:
+        method: GET
+        path: /files/secret
+      expect:
+        allowed: false
+        deny_kind: teleport_request_not_allowed

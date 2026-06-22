@@ -1,0 +1,41 @@
+description: greedy **
+rules:
+    - paths:
+        - /api/v4/**
+rules_desugared:
+    - pred: |-
+        path.match(
+          literal("api/v4",
+            greedy()))
+identity:
+    name: bob
+    roles:
+        - developer
+cases:
+    - request:
+        method: GET
+        path: /api/v4/users/123
+      expect:
+        allowed: true
+    - request:
+        method: GET
+        path: /api/v4
+      expect:
+        allowed: true
+    - request:
+        method: GET
+        path: /api/v4/a/b/c
+      expect:
+        allowed: true
+    - request:
+        method: GET
+        path: /api/v3/x
+      expect:
+        allowed: false
+        deny_kind: teleport_request_not_allowed
+    - request:
+        method: GET
+        path: /api
+      expect:
+        allowed: false
+        deny_kind: teleport_request_not_allowed
