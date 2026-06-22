@@ -129,6 +129,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/athena"
+	"github.com/gravitational/teleport/lib/events/auditqueue"
 	"github.com/gravitational/teleport/lib/events/azsessions"
 	"github.com/gravitational/teleport/lib/events/dynamoevents"
 	"github.com/gravitational/teleport/lib/events/filesessions"
@@ -705,6 +706,13 @@ type TeleportProcess struct {
 
 	// logger is a process-local slog.Logger.
 	logger *slog.Logger
+
+	// auditQueueStatsMu guards auditQueueStats.
+	auditQueueStatsMu sync.Mutex
+	// auditQueueStats holds an audit-queue depth getter per emitter the process
+	// has created, keyed by the emitter pointer. AuditQueueStatus sums across
+	// them so the instance heartbeat reports the process total.
+	auditQueueStats map[any]auditQueueStatsFn
 
 	// reporter is used to report some in memory stats
 	reporter *backend.Reporter
@@ -1430,6 +1438,7 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		process.makeInventoryControlStreamWhenReady,
 		getHello,
 		inventory.WithDownstreamClock(process.Clock),
+		inventory.WithAuditQueueStatusGetter(process.AuditQueueStatus),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err, "building inventory handle")
@@ -2401,6 +2410,21 @@ func (process *TeleportProcess) initAuthService() error {
 		}
 	}
 
+	// When the audit queue is enabled, wrap the audit backend so that audit
+	// events this auth server originates are queued to disk if the backend
+	// rejects them, and re-delivered later. Events forwarded from
+	// agents/proxies are not queued here (see GRPCServer.EmitAuditEvent). Their
+	// originating instance retries them from its own queue.
+	var fallbackEmitter *events.FallbackEmitter
+	if isAuditQueueEnabled() {
+		fe, err := process.newAuthFallbackEmitter(emitter)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fallbackEmitter = fe
+		emitter = fe
+	}
+
 	checkingEmitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{
 		Inner:       events.NewMultiEmitter(events.NewLoggingEmitter(process.GetClusterFeatures().Cloud), emitter),
 		Clock:       process.Clock,
@@ -3027,6 +3051,9 @@ func (process *TeleportProcess) initAuthService() error {
 				}
 			}
 		}
+		if fallbackEmitter != nil {
+			shutdownEmitter(process, fallbackEmitter, payload, logger)
+		}
 		logger.InfoContext(process.ExitContext(), "Exited.")
 	})
 	return nil
@@ -3377,22 +3404,120 @@ func (process *TeleportProcess) proxyPublicAddr() utils.NetAddr {
 	return process.Config.Proxy.PublicAddrs[0]
 }
 
+func isAuditQueueEnabled() bool {
+	enabled, _ := strconv.ParseBool(os.Getenv("TELEPORT_UNSTABLE_AUDIT_LOG_RELIABILITY"))
+	return enabled
+}
+
 // NewAsyncEmitter wraps client and returns emitter that never blocks, logs some events and checks values.
 // It is caller's responsibility to call Close on the emitter once done.
-func (process *TeleportProcess) NewAsyncEmitter(clt apievents.Emitter) (*events.AsyncEmitter, error) {
-	emitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{
-		Inner: events.NewMultiEmitter(events.NewLoggingEmitter(process.GetClusterFeatures().Cloud), clt),
-		Clock: process.Clock,
+func (process *TeleportProcess) NewAsyncEmitter(clt apievents.Emitter) (*events.CheckingAsyncEmitter, error) {
+	// Wrap the AsyncEmitter in a CheckingEmitter to ensure event fields are
+	// properly set before inserting events into the queue.
+	emitter, err := events.NewCheckingAsyncEmitter(
+		events.CheckingEmitterConfig{
+			Clock: process.Clock,
+		},
+		events.AsyncEmitterConfig{
+			Inner:              events.NewMultiEmitter(events.NewLoggingEmitter(process.GetClusterFeatures().Cloud), clt),
+			DataDir:            process.Config.DataDir,
+			EnableAuditQueue:   isAuditQueueEnabled(),
+			AuditQueueCfg:      process.auditQueueConfig(),
+			AuditQueueBackends: process.auditQueueBackends(),
+		},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	process.registerAuditQueueStats(emitter)
+	return emitter, nil
+}
+
+type auditQueueStatsGetter interface {
+	Stats(ctx context.Context) (auditqueue.Stats, error)
+}
+
+type auditQueueStatsFn func(ctx context.Context) (auditqueue.Stats, error)
+
+func (process *TeleportProcess) registerAuditQueueStats(emitter auditQueueStatsGetter) {
+	process.auditQueueStatsMu.Lock()
+	defer process.auditQueueStatsMu.Unlock()
+	if process.auditQueueStats == nil {
+		process.auditQueueStats = make(map[any]auditQueueStatsFn)
+	}
+	process.auditQueueStats[emitter] = emitter.Stats
+}
+
+func (process *TeleportProcess) unregisterAuditQueueStats(emitter auditQueueStatsGetter) {
+	process.auditQueueStatsMu.Lock()
+	defer process.auditQueueStatsMu.Unlock()
+	delete(process.auditQueueStats, emitter)
+}
+
+func (process *TeleportProcess) auditStatGetters() []auditQueueStatsFn {
+	process.auditQueueStatsMu.Lock()
+	defer process.auditQueueStatsMu.Unlock()
+
+	getters := make([]auditQueueStatsFn, 0, len(process.auditQueueStats))
+	for _, g := range process.auditQueueStats {
+		getters = append(getters, g)
+	}
+
+	return getters
+}
+
+func (process *TeleportProcess) AuditQueueStatus(ctx context.Context) *types.AuditQueueStatus {
+	getters := process.auditStatGetters()
+
+	if len(getters) == 0 {
+		return nil
+	}
+	var status types.AuditQueueStatus
+	for _, g := range getters {
+		stats, err := g(ctx)
+		if err != nil {
+			process.logger.DebugContext(ctx, "Failed to read audit queue stats for heartbeat.", "error", err)
+			continue
+		}
+		status.PendingCount += stats.PendingCount
+		status.DeadLetterCount += stats.DeadLetterCount
+	}
+	return &status
+}
+
+func (process *TeleportProcess) newAuthFallbackEmitter(primary apievents.Emitter) (*events.FallbackEmitter, error) {
+	emitter, err := events.NewFallbackEmitter(events.FallbackEmitterConfig{
+		Primary:            primary,
+		DataDir:            process.Config.DataDir,
+		EnableAuditQueue:   isAuditQueueEnabled(),
+		AuditQueueCfg:      process.auditQueueConfig(),
+		AuditQueueBackends: process.auditQueueBackends(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	process.registerAuditQueueStats(emitter)
+	return emitter, nil
+}
 
-	// asyncEmitter makes sure that sessions do not block
-	// in case if connections are slow
-	return events.NewAsyncEmitter(events.AsyncEmitterConfig{
-		Inner: emitter,
-	})
+func (process *TeleportProcess) auditQueueConfig() auditqueue.Config {
+	return auditqueue.Config{
+		SoftLimit:               process.Config.AuditQueue.SoftLimit,
+		MaxBytes:                process.Config.AuditQueue.MaxBytes,
+		MaxAttempts:             process.Config.AuditQueue.MaxAttempts,
+		DeadLetterTTL:           process.Config.AuditQueue.DeadLetterTTL,
+		DeadLetterSweepInterval: process.Config.AuditQueue.DeadLetterSweepInterval,
+		OrphanScanInterval:      process.Config.AuditQueue.OrphanScanInterval,
+		Synchronous:             process.Config.AuditQueue.Synchronous,
+	}
+}
+
+func (process *TeleportProcess) auditQueueBackends() []auditqueue.Kind {
+	var backends []auditqueue.Kind
+	for _, backend := range process.Config.AuditQueue.Backends {
+		backends = append(backends, auditqueue.Kind(backend))
+	}
+	return backends
 }
 
 // ServerTLSConfig returns a new server-side [*tls.Config] that presents the
@@ -3822,6 +3947,8 @@ func (process *TeleportProcess) initSSH() error {
 		if relayTunnelClient != nil {
 			relayTunnelClient.Close()
 		}
+
+		shutdownEmitter(process, asyncEmitter, event.Payload, logger)
 
 		logger.InfoContext(process.ExitContext(), "Exited.")
 		return nil
@@ -5239,7 +5366,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			_ = peerQUICTransport.Close()
 			_ = peerQUICTransport.Conn.Close()
 		}
-		warnOnErr(process.ExitContext(), asyncEmitter.Close(), logger)
+		shutdownEmitter(process, asyncEmitter, payload, logger)
 		warnOnErr(process.ExitContext(), conn.Close(), logger)
 		logger.InfoContext(process.ExitContext(), "Exited")
 	})
@@ -7004,11 +7131,8 @@ func (process *TeleportProcess) initApps() {
 				logger.InfoContext(process.ExitContext(), "Shutting down gracefully.")
 				warnOnErr(process.ExitContext(), appServer.Shutdown(payloadContext(payload)), logger)
 			}
-			if asyncEmitter != nil {
-				warnOnErr(process.ExitContext(), asyncEmitter.Close(), logger)
-			}
 			agentPool.Stop()
-			warnOnErr(process.ExitContext(), asyncEmitter.Close(), logger)
+			shutdownEmitter(process, asyncEmitter, payload, logger)
 			warnOnErr(process.ExitContext(), conn.Close(), logger)
 			logger.InfoContext(process.ExitContext(), "Exited.")
 		})
@@ -7020,6 +7144,25 @@ func (process *TeleportProcess) initApps() {
 		agentPool.Wait()
 		return nil
 	})
+}
+
+// drainableEmitter is an audit emitter whose queue can be drained on shutdown.
+type drainableEmitter interface {
+	auditQueueStatsGetter
+	Shutdown(context.Context) error
+	Close() error
+}
+
+// shutdownEmitter drains the emitter's queue to the audit backend when payload
+// carries a graceful shutdown context, otherwise it closes the emitter
+// immediately.
+func shutdownEmitter(process *TeleportProcess, emitter drainableEmitter, payload any, logger *slog.Logger) {
+	process.unregisterAuditQueueStats(emitter)
+	if payload == nil {
+		warnOnErr(process.ExitContext(), emitter.Close(), logger)
+		return
+	}
+	warnOnErr(process.ExitContext(), emitter.Shutdown(payloadContext(payload)), logger)
 }
 
 func warnOnErr(ctx context.Context, err error, log *slog.Logger) {
