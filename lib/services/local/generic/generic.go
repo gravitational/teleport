@@ -428,6 +428,28 @@ func (s *Service[T]) DeleteAllResources(ctx context.Context) error {
 	return trace.Wrap(s.backend.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)))
 }
 
+// ConditionalDeleteResource conditionally deletes the resource based on its
+// revision.
+// Returns a trace.CompareFailedError if the item is not found or the revision
+// is incorrect.
+func (s *Service[T]) ConditionalDeleteResource(ctx context.Context, name, revision string) error {
+	if revision == "" {
+		return trace.BadParameter("revision required")
+	}
+	key := s.MakeKey(backend.NewKey(s.nameKey(name)))
+	err := s.backend.ConditionalDelete(ctx, key, revision)
+	if trace.IsCompareFailed(err) {
+		// Specialize the message from backend.ErrIncorrectRevision so we mention
+		// the resource name and don't mention --force. Deletes often don't have a
+		// --force flag.
+		return trace.CompareFailed(
+			"%s %q does not exist or revision does not match, it may have been concurrently created|modified|deleted; please work from the latest state",
+			s.resourceKind, name,
+		)
+	}
+	return trace.Wrap(err)
+}
+
 // UpdateAndSwapResource will get the resource from the backend, modify it, and swap the new value into the backend.
 func (s *Service[T]) UpdateAndSwapResource(ctx context.Context, name string, modify func(T) error) (T, error) {
 	var t T
