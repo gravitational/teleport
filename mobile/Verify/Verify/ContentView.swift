@@ -51,10 +51,7 @@ struct ContentView: View {
 					case .landing:
 						EmptyView()
 					case let .enroll(deepLink):
-						EnrollMobileDeviceView(
-							deepLink: deepLink,
-							onCancel: { screen = .landing },
-						)
+						EmptyView()
 				}
 			}
 			.frame(maxWidth: .infinity, maxHeight: .infinity)

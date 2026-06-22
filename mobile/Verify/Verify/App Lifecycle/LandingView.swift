@@ -35,8 +35,11 @@ struct LandingView: View {
 					.frame(maxHeight: .infinity)
 			}
 			.padding(.horizontal)
-			.alert(item: $viewModel.destination.failedToParseDeepLink, title: { errorString in
-				Text(errorString)
+			.navigationDestination(item: $viewModel.destination.deviceEnrollment, destination: { deviceEnrollmentViewModel in
+				EnrollMobileDeviceView(viewModel: deviceEnrollmentViewModel)
+			})
+			.alert(item: $viewModel.destination.failedToParseDeepLink, title: { errorMessage in
+				Text(errorMessage)
 			}, actions: { _ in
 				Button("OK") {}
 			})

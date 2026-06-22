@@ -17,16 +17,7 @@
 import SwiftUI
 
 struct EnrollMobileDeviceView: View {
-	let onCancel: () -> Void
-	@State
-	private var viewModel: EnrollMobileDeviceViewModel
-
-	init(deepLink: EnrollMobileDeviceDeepLink, onCancel: @escaping () -> Void) {
-		self.onCancel = onCancel
-		_viewModel = State(
-			initialValue: EnrollMobileDeviceViewModel(deepLink: deepLink),
-		)
-	}
+	var viewModel: EnrollMobileDeviceViewModel
 
 	var body: some View {
 		VStack(spacing: 16) {
@@ -81,7 +72,7 @@ struct EnrollMobileDeviceView: View {
 				.animation(.easeInOut, value: viewModel.attempt.isLoading)
 				.disabled(viewModel.attempt.isLoading)
 
-				Button(role: .cancel, action: onCancel) {
+				Button(role: .cancel, action: {}) {
 					Text("Cancel").frame(maxWidth: .infinity)
 				}
 				.buttonStyle(.bordered)
