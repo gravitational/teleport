@@ -241,6 +241,34 @@ func TestMergeUpsertUserTask(t *testing.T) {
 	}
 }
 
+func TestDiscoveryStatusUpdate(t *testing.T) {
+	const (
+		discoveryConfigName = "dc-1"
+		integrationName     = "integration-1"
+	)
+	key := discoveryGroupStatusKey{
+		discoveryConfigName: discoveryConfigName,
+		integration:         integrationName,
+	}
+	statuses := newStatusMap(types.AzureMatcherVM, time.Now())
+	statuses.add(key)
+
+	statuses.updateConcurrently(key, discoveryGroupStatus{
+		found:    4,
+		enrolled: 1,
+		failed:   1,
+	})
+	statuses.updateConcurrently(key, discoveryGroupStatus{
+		found: 1,
+	})
+
+	status := statuses.mergeIntoGlobalStatus(discoveryConfigName, discoveryconfig.Status{})
+	summary := status.IntegrationDiscoveredResources[integrationName].GetAzureVms()
+	require.Equal(t, uint64(5), summary.GetFound())
+	require.Equal(t, uint64(1), summary.GetEnrolled())
+	require.Equal(t, uint64(1), summary.GetFailed())
+}
+
 type mocktaskUpdaterAccessPoint struct {
 	types.Semaphores
 
