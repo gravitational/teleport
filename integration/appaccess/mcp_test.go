@@ -53,6 +53,10 @@ func testMCP(pack *Pack, t *testing.T) {
 		testMCPDialStdioToSSE(t, pack, "test-sse")
 	})
 
+	t.Run("stdio to sse over HTTPS success", func(t *testing.T) {
+		testMCPDialStdioToSSE(t, pack, "test-sse-https")
+	})
+
 	t.Run("proxy streamable HTTP success", func(t *testing.T) {
 		testMCPProxyStreamableHTTP(t, pack, "test-http")
 	})
