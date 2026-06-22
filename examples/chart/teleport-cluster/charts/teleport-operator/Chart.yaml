@@ -1,4 +1,4 @@
-.version: &version "18.9.1"
+.version: &version "18.10.0-dev.kylekloberdanz.2"
 
 name: teleport-operator
 apiVersion: v2

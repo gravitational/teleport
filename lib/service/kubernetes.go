@@ -342,9 +342,7 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 		if relayTunnelClient != nil {
 			relayTunnelClient.Close()
 		}
-		if asyncEmitter != nil {
-			warnOnErr(process.ExitContext(), asyncEmitter.Close(), logger)
-		}
+		shutdownEmitter(process, asyncEmitter, payload, logger)
 		if healthCheckManager != nil {
 			warnOnErr(process.ExitContext(), healthCheckManager.Close(), logger)
 		}

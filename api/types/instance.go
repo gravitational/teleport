@@ -193,6 +193,10 @@ type Instance interface {
 	// GetUpdaterInfo returns information about the instance updater.
 	GetUpdaterInfo() *UpdaterV2Info
 
+	// GetAuditQueueStatus returns the depth of the instance's audit-log queue,
+	// or nil if the instance has not reported it.
+	GetAuditQueueStatus() *AuditQueueStatus
+
 	// Clone performs a deep copy on this instance.
 	Clone() Instance
 }
@@ -319,6 +323,10 @@ func (i *InstanceV1) AppendControlLog(entries ...InstanceControlLogEntry) {
 
 func (i *InstanceV1) GetLastMeasurement() *SystemClockMeasurement {
 	return i.Spec.LastMeasurement
+}
+
+func (i *InstanceV1) GetAuditQueueStatus() *AuditQueueStatus {
+	return i.Spec.AuditQueueStatus
 }
 
 // expireControlLog removes expired entries from the control log relative to the supplied
