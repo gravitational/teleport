@@ -18,9 +18,9 @@ package azuretest
 
 import (
 	"context"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 
 	"github.com/gravitational/teleport/lib/cloud/azure"
 )
@@ -47,7 +47,10 @@ var _ azure.Clients = (*Clients)(nil)
 
 // GetCredential returns default Azure token credential chain.
 func (c *Clients) GetCredential(ctx context.Context) (azcore.TokenCredential, error) {
-	return &azidentity.ChainedTokenCredential{}, nil
+	return azure.NewStaticCredential(azcore.AccessToken{
+		Token:     "mock-token",
+		ExpiresOn: time.Now().Add(time.Hour),
+	}), nil
 }
 
 // GetMySQLClient returns an AzureMySQLClient for the specified subscription

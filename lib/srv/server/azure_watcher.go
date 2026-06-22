@@ -21,8 +21,10 @@ package server
 import (
 	"context"
 	"log/slog"
+	"os"
 	"slices"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/gravitational/trace"
 
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
@@ -31,9 +33,12 @@ import (
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/cloud/azure/azureresourcegraph"
+	"github.com/gravitational/teleport/lib/cloud/azure/azureresourcegraph/queries"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/server/installstatus"
+	libutils "github.com/gravitational/teleport/lib/utils"
 )
 
 const azureEventPrefix = "azure/"
@@ -179,27 +184,31 @@ type azureClientGetter func(ctx context.Context, integration string) (azure.Clie
 
 type listSubscriptionsFunc func(ctx context.Context, integration string) (subscriptions []string, err error)
 
+// AzureMatcherOptions contains options for converting Azure matchers into Fetchers.
+type AzureMatcherOptions struct {
+	Logger              *slog.Logger
+	Matchers            []types.AzureMatcher
+	GetClient           azureClientGetter
+	DiscoveryConfigName string
+	ListSubs            listSubscriptionsFunc
+	HTTPClient          libutils.HTTPDoClient
+}
+
 // MatchersToAzureInstanceFetchers converts a list of Azure VM Matchers into a list of Azure VM Fetchers.
-func MatchersToAzureInstanceFetchers(
-	ctx context.Context,
-	logger *slog.Logger,
-	matchers []types.AzureMatcher,
-	getClient azureClientGetter,
-	discoveryConfigName string,
-	listSubs listSubscriptionsFunc,
-) []Fetcher[*AzureInstances] {
+func MatchersToAzureInstanceFetchers(ctx context.Context, opts AzureMatcherOptions) []Fetcher[*AzureInstances] {
 	ret := make([]Fetcher[*AzureInstances], 0)
-	for _, matcher := range matchers {
-		matcher.Subscriptions = expandAzureMatcherSubscriptions(ctx, logger, matcher.Subscriptions, matcher.Integration, listSubs)
+	for _, matcher := range opts.Matchers {
+		matcher.Subscriptions = expandAzureMatcherSubscriptions(ctx, opts.Logger, matcher.Subscriptions, matcher.Integration, opts.ListSubs)
 		for _, subscription := range matcher.Subscriptions {
 			for _, resourceGroup := range matcher.ResourceGroups {
 				fetcher := newAzureInstanceFetcher(azureFetcherConfig{
 					Matcher:             matcher,
 					Subscription:        subscription,
 					ResourceGroup:       resourceGroup,
-					AzureClientGetter:   getClient,
-					DiscoveryConfigName: discoveryConfigName,
-					Logger:              logger,
+					AzureClientGetter:   opts.GetClient,
+					DiscoveryConfigName: opts.DiscoveryConfigName,
+					Logger:              opts.Logger,
+					HTTPClient:          opts.HTTPClient,
 				})
 				ret = append(ret, fetcher)
 			}
@@ -244,6 +253,7 @@ type azureFetcherConfig struct {
 	AzureClientGetter   azureClientGetter
 	DiscoveryConfigName string
 	Logger              *slog.Logger
+	HTTPClient          libutils.HTTPDoClient
 }
 
 type azureInstanceFetcher struct {
@@ -256,6 +266,7 @@ type azureInstanceFetcher struct {
 	DiscoveryConfigName string
 	Integration         string
 	Logger              *slog.Logger
+	HTTPClient          libutils.HTTPDoClient
 }
 
 func newAzureInstanceFetcher(cfg azureFetcherConfig) *azureInstanceFetcher {
@@ -269,6 +280,7 @@ func newAzureInstanceFetcher(cfg azureFetcherConfig) *azureInstanceFetcher {
 		DiscoveryConfigName: cfg.DiscoveryConfigName,
 		Integration:         cfg.Matcher.Integration,
 		Logger:              cfg.Logger,
+		HTTPClient:          cfg.HTTPClient,
 	}
 }
 
@@ -298,14 +310,24 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]*Azu
 		return nil, trace.Wrap(err)
 	}
 
-	client, err := azureClients.GetVirtualMachinesClient(ctx, f.Subscription)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	var vms []*azure.VirtualMachine
+	switch {
+	case useAzureResourceGraph():
+		vms, err = f.listVMsWithResourceGraph(ctx, azureClients)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 
-	vms, err := client.ListVirtualMachines(ctx, f.ResourceGroup)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	default:
+		client, err := azureClients.GetVirtualMachinesClient(ctx, f.Subscription)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		vms, err = client.ListVirtualMachines(ctx, f.ResourceGroup)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	instanceGroups := make(map[resourceGroupLocation][]*azure.VirtualMachine)
@@ -356,4 +378,97 @@ func (f *azureInstanceFetcher) LogValue() slog.Value {
 		slog.String("resource_group", f.ResourceGroup),
 		slog.String("subscription_id", f.Subscription),
 	)
+}
+
+func (f *azureInstanceFetcher) listVMsWithResourceGraph(ctx context.Context, clientGetter azure.Clients) ([]*azure.VirtualMachine, error) {
+	resourceGroup := f.ResourceGroup
+	if resourceGroup == types.Wildcard {
+		resourceGroup = ""
+	}
+
+	locations := f.Regions
+	if slices.Contains(f.Regions, types.Wildcard) {
+		locations = nil
+	}
+
+	listVMsQuery, err := queries.NewListRunningLinuxVMsQuery(queries.ListRunningLinuxVMsQueryFilters{
+		ResourceGroupFilter: resourceGroup,
+		LocationsFilter:     locations,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to create query")
+	}
+
+	cred, err := clientGetter.GetCredential(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	client, err := azureresourcegraph.NewClient(
+		cred,
+		[]string{f.Subscription},
+		azureresourcegraph.WithLogger(f.Logger),
+		azureresourcegraph.WithHTTPClient(f.HTTPClient),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to create client")
+	}
+
+	var vms []*azure.VirtualMachine
+	for queryVM, err := range azureresourcegraph.Iterator(ctx, client, listVMsQuery, azureresourcegraph.SkipMalformedRows()) {
+		if err != nil {
+			return nil, trace.Wrap(err, "error iterating Azure Resource Graph results")
+		}
+
+		vm, err := convertAzureQueryVM(queryVM)
+		if err != nil {
+			f.Logger.WarnContext(ctx, "Failed to parse resource ID from Azure Resource Graph", "resource_id", queryVM.ID, "error", err)
+			continue
+		}
+
+		vms = append(vms, vm)
+	}
+
+	return vms, nil
+}
+
+func useAzureResourceGraph() bool {
+	return os.Getenv("TELEPORT_UNSTABLE_DISABLE_AZURE_RESOURCEGRAPH") == ""
+}
+
+func convertAzureQueryVM(row queries.VMMetadata) (*azure.VirtualMachine, error) {
+	// Extract meta information from the resource ID.
+	// We could get Subscription and Resource Group from dedicated fields, but there's no dedicated field for Uniform Scale Set name or index.
+	parsedResourceID, err := arm.ParseResourceID(row.ID)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to parse resource ID from Azure Resource Graph row: %s", row.ID)
+	}
+
+	// virtualScaleSetUniformVMResourceType represents the resource type of uniform
+	// virtual scale set VMs.
+	const virtualScaleSetUniformVMResourceType = "virtualMachineScaleSets/virtualMachines"
+
+	var uniformScaleSetName string
+	var uniformScaleSetIndex string
+	if parsedResourceID.ResourceType.Type == virtualScaleSetUniformVMResourceType {
+		uniformScaleSetIndex = parsedResourceID.Name
+
+		if parsedResourceID.Parent == nil {
+			return nil, trace.BadParameter("missing parent resource from uniform scale set VM ID: %s", row.ID)
+		}
+
+		uniformScaleSetName = parsedResourceID.Parent.Name
+	}
+
+	return &azure.VirtualMachine{
+		Subscription:                parsedResourceID.SubscriptionID,
+		ResourceGroup:               parsedResourceID.ResourceGroupName,
+		UniformScaleSetName:         uniformScaleSetName,
+		UniformScaleSetVMInstanceID: uniformScaleSetIndex,
+		ID:                          row.ID,
+		Name:                        row.Name,
+		Location:                    row.Location,
+		VMID:                        row.VMID,
+		Tags:                        row.Tags,
+	}, nil
 }

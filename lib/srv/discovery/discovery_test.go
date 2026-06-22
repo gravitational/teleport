@@ -21,6 +21,7 @@ package discovery
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -3303,10 +3304,54 @@ func (m *mockAzureClient) ListVirtualMachines(_ context.Context, _ string) ([]*a
 	return discoveredVMs, nil
 }
 
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
+
+func azureResourceGraphHTTPClient(t *testing.T, vms []*armcompute.VirtualMachine) *http.Client {
+	t.Helper()
+
+	rows := make([]map[string]any, 0, len(vms))
+	for _, vm := range vms {
+		var vmID string
+		if vm.Properties != nil {
+			vmID = azure.StringVal(vm.Properties.VMID)
+		}
+
+		rows = append(rows, map[string]any{
+			"id":       azure.StringVal(vm.ID),
+			"name":     azure.StringVal(vm.Name),
+			"location": azure.StringVal(vm.Location),
+			"tags":     azure.ConvertTags(vm.Tags),
+			"vmId":     vmID,
+		})
+	}
+
+	body, err := json.Marshal(map[string]any{
+		"count":           len(rows),
+		"totalRecords":    len(rows),
+		"resultTruncated": "false",
+		"data":            rows,
+	})
+	require.NoError(t, err)
+
+	return &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Status:     "200 OK",
+			Body:       io.NopCloser(strings.NewReader(string(body))),
+			Request:    req,
+		}, nil
+	})}
+}
+
 func TestAzureVMDiscovery(t *testing.T) {
 	t.Parallel()
 
 	const defaultDiscoveryGroup = "dc001"
+	const testAzureSubscriptionID = "00000000-0000-0000-0000-000000000000"
 
 	const noIntegration = ""
 	const dummyIntegration = "dummy"
@@ -3319,7 +3364,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 			Azure: []types.AzureMatcher{
 				{
 					Types:          []string{"vm"},
-					Subscriptions:  []string{"testsub"},
+					Subscriptions:  []string{testAzureSubscriptionID},
 					ResourceGroups: []string{"testrg"},
 					Regions:        []string{"westcentralus"},
 					ResourceTags:   types.Labels{noIntegrationLabel: {"yes"}},
@@ -3328,7 +3373,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 				},
 				{
 					Types:          []string{"vm"},
-					Subscriptions:  []string{"testsub"},
+					Subscriptions:  []string{testAzureSubscriptionID},
 					ResourceGroups: []string{"testrg"},
 					Regions:        []string{"westcentralus"},
 					ResourceTags:   types.Labels{integrationLabel: {"yes"}},
@@ -3362,7 +3407,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 		if integration {
 			label = integrationLabel
 		}
-		resourceID := "/subscriptions/testsub/resourceGroups/testrg/providers/Microsoft.Compute/virtualMachines/" + name
+		resourceID := "/subscriptions/" + testAzureSubscriptionID + "/resourceGroups/testrg/providers/Microsoft.Compute/virtualMachines/" + name
 		return &armcompute.VirtualMachine{
 			ID:       aws.String(resourceID),
 			Name:     aws.String(name),
@@ -3403,7 +3448,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 		Metadata: types.Metadata{
 			Name: "name",
 			Labels: map[string]string{
-				"teleport.internal/subscription-id": "testsub",
+				"teleport.internal/subscription-id": testAzureSubscriptionID,
 				"teleport.internal/vm-id":           "testvm-vmid",
 			},
 			Namespace: defaults.Namespace,
@@ -3491,7 +3536,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 					Kind:    types.KindUserTask,
 					Version: types.V1,
 					Metadata: headerv1.Metadata_builder{
-						Name: "d09fef6d-2454-5bdd-80c7-db7edddf2a2e", // stable hash
+						Name: "19454777-a720-53bb-92b3-952ceecf91b5", // stable hash
 					}.Build(),
 					Spec: usertasksv1.UserTaskSpec_builder{
 						Integration: dummyIntegration,
@@ -3501,14 +3546,14 @@ func TestAzureVMDiscovery(t *testing.T) {
 						DiscoverAzureVm: usertasksv1.DiscoverAzureVM_builder{
 							Instances: map[string]*usertasksv1.DiscoverAzureVMInstance{
 								"bad-api0-vmid": usertasksv1.DiscoverAzureVMInstance_builder{
-									ResourceId:      "/subscriptions/testsub/resourceGroups/testrg/providers/Microsoft.Compute/virtualMachines/bad-api0",
+									ResourceId:      "/subscriptions/" + testAzureSubscriptionID + "/resourceGroups/testrg/providers/Microsoft.Compute/virtualMachines/bad-api0",
 									VmId:            "bad-api0-vmid",
 									Name:            "bad-api0",
 									DiscoveryConfig: defaultDiscoveryConfig().GetName(),
 									DiscoveryGroup:  defaultDiscoveryGroup,
 								}.Build(),
 							},
-							SubscriptionId: "testsub",
+							SubscriptionId: testAzureSubscriptionID,
 							ResourceGroup:  "testrg",
 							Region:         "westcentralus",
 						}.Build(),
@@ -3606,6 +3651,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 				})
 
 				require.NoError(t, err)
+				server.azureHTTPClient = azureResourceGraphHTTPClient(t, tc.foundVMS)
 				emitter.server = server
 				emitter.t = t
 

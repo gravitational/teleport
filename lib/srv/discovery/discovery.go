@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"slices"
 	"strings"
 	"sync"
@@ -63,6 +64,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 	gcpimds "github.com/gravitational/teleport/lib/cloud/imds/gcp"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
@@ -477,12 +479,21 @@ type Server struct {
 	// This cache avoids repeated API calls when multiple discovery matchers for
 	// the same integration use a wildcard subscription.
 	azureSubscriptionCache *utils.FnCache
+
+	// azureHTTPClient is used to make API calls to Azure Resource Graph.
+	// Defaults to a real HTTP client, but can be overridden in tests.
+	azureHTTPClient *http.Client
 }
 
 // New initializes a discovery Server
 func New(ctx context.Context, cfg *Config) (*Server, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	httpClient, err := defaults.HTTPClient(defaults.UseProxyFromEnvironment())
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to create HTTP client for Azure client")
 	}
 
 	localCtx, cancelfn := context.WithCancel(ctx)
@@ -500,6 +511,7 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 		awsEC2ResourcesStatus:   newAWSResourceStatusCollector(types.AWSMatcherEC2),
 		awsRDSResourcesStatus:   newAWSResourceStatusCollector(types.AWSMatcherRDS),
 		awsEKSResourcesStatus:   newAWSResourceStatusCollector(types.AWSMatcherEKS),
+		azureHTTPClient:         httpClient,
 	}
 	s.discardUnsupportedMatchers(&s.Matchers)
 
@@ -797,7 +809,14 @@ func (s *Server) azureServerFetchersFromMatchers(matchers []types.AzureMatcher, 
 		return matcherType == types.AzureMatcherVM
 	})
 
-	return server.MatchersToAzureInstanceFetchers(s.ctx, s.Log, serverMatchers, s.getAzureClients, discoveryConfigName, s.getAzureSubscriptionList)
+	return server.MatchersToAzureInstanceFetchers(s.ctx, server.AzureMatcherOptions{
+		Logger:              s.Log,
+		Matchers:            serverMatchers,
+		GetClient:           s.getAzureClients,
+		DiscoveryConfigName: discoveryConfigName,
+		ListSubs:            s.getAzureSubscriptionList,
+		HTTPClient:          s.azureHTTPClient,
+	})
 }
 
 func (s *Server) getAzureSubscriptionListNoCache(ctx context.Context, integration string) ([]string, error) {

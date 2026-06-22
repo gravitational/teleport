@@ -48,7 +48,7 @@ func IsValidResourceGroupName(name string) error {
 			return trace.BadParameter("invalid resource group name")
 		}
 
-		if unicode.IsLetter(r) || unicode.IsNumber(r) || strings.ContainsRune(allowedSymbols, r) {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) || strings.ContainsRune(allowedSymbols, r) {
 			continue
 		}
 
