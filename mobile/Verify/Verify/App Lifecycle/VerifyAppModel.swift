@@ -39,11 +39,11 @@ extension VerifyAppModel {
 			switch try parseDeepLink(url) {
 				case let .enrollMobileDevice(deepLink):
 					Self.logger.debug("Correctly parsed deep link: \(String(describing: deepLink))")
-					landingViewModel.navigate(to: .deviceEnrollment(EnrollDeviceViewModel(deepLink: deepLink)))
+					landingViewModel.navigateToDeviceEnrollment(with: deepLink)
 			}
 		} catch {
 			Self.logger.warning("Failed to parse deep link \"\(url)\", error: \(String(describing: error))")
-			landingViewModel.navigate(to: .failedToParseDeepLink(errorMessage: error.localizedDescription))
+			landingViewModel.showParserError(errorMessage: error.localizedDescription)
 		}
 	}
 }

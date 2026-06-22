@@ -22,14 +22,20 @@ final class LandingViewModel {
 	@CasePathable
 	enum Destination {
 		case deviceEnrollment(EnrollDeviceViewModel)
-		case failedToParseDeepLink(errorMessage: String)
+		case deepLinkParsingAlert(errorMessage: String)
 	}
 
 	var destination: Destination? = nil
 }
 
+// MARK: - Programmatic Navigation
+
 extension LandingViewModel {
-	func navigate(to destination: Destination) {
-		self.destination = destination
+	func navigateToDeviceEnrollment(with deepLink: EnrollMobileDeviceDeepLink) {
+		self.destination = .deviceEnrollment(EnrollDeviceViewModel(deepLink: deepLink))
+	}
+
+	func showParserError(errorMessage: String) {
+		self.destination = .deepLinkParsingAlert(errorMessage: errorMessage)
 	}
 }
