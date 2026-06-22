@@ -16,20 +16,20 @@
 
 import Foundation
 
-func parseDeepLink(_ url: URL) throws -> DeepLink {
-	switch url.path(percentEncoded: false) {
-		case "/enroll_mobile_device":
-			// Make sure to first switch on the path and only then attempt to parse out individual fields
-			// out of the URL. This way this function always returns the most important error first,
-			// which is the error about the unsupported path.
-			return try .enrollMobileDevice(parseEnrollMobileDeviceDeepLink(url))
-		default:
-			throw DeepLinkParseError.unsupportedPath
-	}
-}
-
 enum DeepLink {
 	case enrollMobileDevice(EnrollMobileDeviceDeepLink)
+
+	init(from url: URL) throws {
+		switch url.path(percentEncoded: false) {
+			case "/enroll_mobile_device":
+				// Make sure to first switch on the path and only then attempt to parse out individual fields
+				// out of the URL. This way this function always returns the most important error first,
+				// which is the error about the unsupported path.
+				self = try .enrollMobileDevice(EnrollMobileDeviceDeepLink(from: url))
+			default:
+				throw DeepLinkParseError.unsupportedPath
+		}
+	}
 }
 
 enum DeepLinkParseError: LocalizedError {
@@ -61,26 +61,3 @@ enum DeepLinkParseError: LocalizedError {
 	}
 }
 
-struct EnrollMobileDeviceDeepLink {
-	var hostname: String
-	var port: Int? = nil
-	var enrollPairingToken: String
-}
-
-private func parseEnrollMobileDeviceDeepLink(_ url: URL) throws -> EnrollMobileDeviceDeepLink {
-	guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
-		throw DeepLinkParseError.urlComponentsFailed
-	}
-	guard let hostname = components.host, hostname != "" else {
-		throw DeepLinkParseError.missingPart("hostname")
-	}
-	guard let enrollPairingToken = components.nonEmptyQueryValue(named: "enroll_pairing_token") else {
-		throw DeepLinkParseError.missingPart("enroll pairing token")
-	}
-
-	return EnrollMobileDeviceDeepLink(
-		hostname: hostname,
-		port: components.port,
-		enrollPairingToken: enrollPairingToken,
-	)
-}
