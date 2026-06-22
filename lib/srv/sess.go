@@ -2293,6 +2293,54 @@ type sessionCommandGate struct {
 	model string
 }
 
+// approverDisplayName maps an approval Decision.Approver value to a
+// human-friendly label for peer-facing notices. The AI moderator and the
+// fail-closed system attribution get descriptive names; any other value is a
+// real moderator username and is shown verbatim.
+func approverDisplayName(approver string) string {
+	switch approver {
+	case approval.AIApproverName:
+		return "AI moderator"
+	case approval.ApproverSystem:
+		return "the system"
+	default:
+		return approver
+	}
+}
+
+// approvalJoinHint is the informational continuation line appended to denial
+// and failure notices. It is intentionally unprefixed and indented so it reads
+// as a continuation of the single "Teleport > ..." notice line. It is messaging
+// only: a moderator may join to review the session, but there is no human
+// override of the decision in v1.
+func approvalJoinHint(sessionID string) string {
+	return "\r\n  A moderator can join to review this session: tsh join --mode moderator " + sessionID
+}
+
+// approvalPendingNotice returns the "we are computing a decision" status line
+// shown to the peer the moment evaluation starts, before the (possibly slow)
+// approver call. The copy is mode-aware.
+func approvalPendingNotice(mode, cmd string) string {
+	if mode == string(approval.ModeAI) {
+		return "⧗ Checking command against the approval policy: " + cmd
+	}
+	return "⧗ Waiting for moderator approval: " + cmd
+}
+
+// approvalDecisionNotice returns the peer-facing result line for a resolved
+// decision. Approvals get a single confirmation line; deliberate denials and
+// fail-closed (system) outcomes get a clear result plus the join hint.
+func approvalDecisionNotice(dec approval.Decision, sessionID string) string {
+	display := approverDisplayName(dec.Approver)
+	if dec.Approved {
+		return "✓ Command approved by " + display + "."
+	}
+	if dec.Approver == approval.ApproverSystem {
+		return "✗ Command approval unavailable: " + dec.Reason + approvalJoinHint(sessionID)
+	}
+	return "✗ Command denied by " + display + ": " + dec.Reason + approvalJoinHint(sessionID)
+}
+
 // approve gates a single reconstructed command line on an approval decision.
 // It MUST NOT be called while holding s.mu or any TermManager lock: it blocks
 // until the approver returns (which may involve a network round-trip to
@@ -2318,10 +2366,14 @@ func (g *sessionCommandGate) approve(cmd string) bool {
 		Participant: participant,
 	}
 
+	// Emit the pending status before the (possibly slow) approver call so the
+	// peer sees a clear "we are computing a decision" indicator instead of a
+	// frozen-looking terminal. Use the system broadcast so it is delivered in
+	// all recording modes (including record-at-proxy).
+	s.BroadcastSystemMessage("%s", approvalPendingNotice(g.mode, cmd))
+
 	dec := g.approver.Approve(s.serverCtx, req)
-	if !dec.Approved {
-		s.BroadcastMessage("Command denied by %s: %s", dec.Approver, dec.Reason)
-	}
+	s.BroadcastSystemMessage("%s", approvalDecisionNotice(dec, string(s.id)))
 
 	g.emitCommandApproval(cmd, dec)
 	return dec.Approved
@@ -2397,18 +2449,19 @@ type denyAllCommandGate struct {
 // approve always denies the command and broadcasts a clear reason.
 func (g *denyAllCommandGate) approve(cmd string) bool {
 	const reason = "AI command moderation is not yet available on this server."
-	g.s.BroadcastMessage("Command denied: " + reason)
+	dec := approval.Decision{
+		Approved: false,
+		Approver: approval.ApproverSystem,
+		Reason:   reason,
+		Mode:     approval.ModeAI,
+	}
+	g.s.BroadcastSystemMessage("%s", approvalDecisionNotice(dec, string(g.s.id)))
 
 	// Best-effort fail-closed audit event so the denial is observable. Reuse
 	// the sessionCommandGate emitter with a system-attributed decision, which
 	// records a "failed" outcome.
 	gate := &sessionCommandGate{s: g.s, mode: string(approval.ModeAI)}
-	gate.emitCommandApproval(cmd, approval.Decision{
-		Approved: false,
-		Approver: approval.ApproverSystem,
-		Reason:   reason,
-		Mode:     approval.ModeAI,
-	})
+	gate.emitCommandApproval(cmd, dec)
 	return false
 }
 
@@ -2448,7 +2501,8 @@ func (b *sessionApprovalBroadcaster) BroadcastApprovalRequest(req approval.Comma
 		}
 	}
 
-	s.BroadcastMessage("Waiting for moderator approval to run: %s", req.Command)
+	// The peer-facing pending status is now owned by sessionCommandGate.approve,
+	// so no "waiting" broadcast is emitted here.
 	return nil
 }
 

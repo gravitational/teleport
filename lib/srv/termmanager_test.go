@@ -19,6 +19,7 @@
 package srv
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"io"
@@ -404,6 +405,56 @@ func TestTermManagerEnableCommandGate(t *testing.T) {
 	tm := NewTermManager()
 	tm.SetCommandGate(&fakeGate{})
 	require.True(t, tm.commandGateEnabled())
+}
+
+func TestTermManagerBroadcastMessageFraming(t *testing.T) {
+	t.Parallel()
+
+	t.Run("breaks away from a partial client line", func(t *testing.T) {
+		t.Parallel()
+
+		tm := NewTermManager()
+		tm.On()
+		var buf bytes.Buffer
+		tm.AddWriter("client", &buf)
+
+		// Simulate a shell echo of "echo 1234" with no trailing newline.
+		tm.Write([]byte("echo 1234"))
+		tm.BroadcastMessage("hi")
+
+		got := buf.String()
+		require.Equal(t, "echo 1234\r\nTeleport > hi\r\n", got)
+	})
+
+	t.Run("no blank line when already at line start", func(t *testing.T) {
+		t.Parallel()
+
+		tm := NewTermManager()
+		tm.On()
+		var buf bytes.Buffer
+		tm.AddWriter("client", &buf)
+
+		// Client output ending in a newline: the broadcast must not add a
+		// leading blank line.
+		tm.Write([]byte("done\n"))
+		tm.BroadcastMessage("hi")
+
+		require.Equal(t, "done\nTeleport > hi\r\n", buf.String())
+	})
+
+	t.Run("consecutive broadcasts do not add blank lines", func(t *testing.T) {
+		t.Parallel()
+
+		tm := NewTermManager()
+		tm.On()
+		var buf bytes.Buffer
+		tm.AddWriter("client", &buf)
+
+		tm.BroadcastMessage("one")
+		tm.BroadcastMessage("two")
+
+		require.Equal(t, "Teleport > one\r\nTeleport > two\r\n", buf.String())
+	})
 }
 
 func TestTermManagerGateApprovesForwardsNewline(t *testing.T) {

@@ -73,9 +73,14 @@ type TermManager struct {
 	remaining []byte
 	// stateUpdate signals that a state transition has occurred as a result
 	// of calls to On/Off
-	stateUpdate       chan struct{}
-	closed            chan struct{}
-	lastWasBroadcast  bool
+	stateUpdate chan struct{}
+	closed      chan struct{}
+	// atLineStart tracks whether the last byte written to clients was a line
+	// terminator ('\n'). It governs BroadcastMessage line framing: a broadcast
+	// prepends a "\r\n" only when client output left the cursor mid-line (e.g.
+	// after an echoed command with no trailing newline), so notices never jam
+	// onto a partial line. It starts true (a fresh terminal is at line start).
+	atLineStart       bool
 	terminateNotifier chan struct{}
 
 	// commandGate, when non-nil, gates each completed input line on approval
@@ -193,12 +198,15 @@ func NewTermManager() *TermManager {
 		stateUpdate:       make(chan struct{}, 1),
 		incoming:          make(chan []byte, 100),
 		terminateNotifier: make(chan struct{}, 1),
+		atLineStart:       true,
 	}
 }
 
 // writeToClients writes to underlying clients
 func (g *TermManager) writeToClients(p []byte) {
-	g.lastWasBroadcast = false
+	if len(p) > 0 {
+		g.atLineStart = p[len(p)-1] == '\n'
+	}
 	g.history = truncateFront(append(g.history, p...), maxHistoryBytes)
 
 	atomic.AddUint64(&g.countWritten, uint64(len(p)))
@@ -293,10 +301,11 @@ func (g *TermManager) BroadcastMessage(message string) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	data := []byte("Teleport > " + message + "\r\n")
-	if g.lastWasBroadcast {
+	// If the previous client output left the cursor mid-line (e.g. an echoed
+	// command with no trailing newline), break onto a fresh line first so the
+	// notice never jams onto a partial line.
+	if !g.atLineStart {
 		data = append([]byte("\r\n"), data...)
-	} else {
-		g.lastWasBroadcast = true
 	}
 
 	g.writeToClients(data)

@@ -19,6 +19,7 @@
 package srv
 
 import (
+	"bytes"
 	"context"
 	"crypto/ed25519"
 	"io"
@@ -26,6 +27,7 @@ import (
 	"net"
 	"os/user"
 	"slices"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -1015,6 +1017,96 @@ func findCommandApproval(events []apievents.AuditEvent) *apievents.CommandApprov
 	return found
 }
 
+// syncBuffer is a goroutine-safe bytes.Buffer for capturing TermManager
+// broadcast output that may be written from the gate's blocking goroutine while
+// the test reads it.
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func newSyncBuffer() *syncBuffer { return &syncBuffer{} }
+
+func (b *syncBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *syncBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
+}
+
+func TestApproverDisplayName(t *testing.T) {
+	t.Parallel()
+
+	require.Equal(t, "AI moderator", approverDisplayName(approval.AIApproverName))
+	require.Equal(t, "the system", approverDisplayName(approval.ApproverSystem))
+	require.Equal(t, "moderator-1", approverDisplayName("moderator-1"))
+}
+
+func TestApprovalPendingNotice(t *testing.T) {
+	t.Parallel()
+
+	ai := approvalPendingNotice(string(approval.ModeAI), "rm -rf /")
+	require.Equal(t, "⧗ Checking command against the approval policy: rm -rf /", ai)
+
+	human := approvalPendingNotice(string(approval.ModeHuman), "rm -rf /")
+	require.Equal(t, "⧗ Waiting for moderator approval: rm -rf /", human)
+}
+
+func TestApprovalDecisionNotice(t *testing.T) {
+	t.Parallel()
+
+	const sessionID = "session-xyz"
+	hint := "tsh join --mode moderator " + sessionID
+
+	t.Run("approved by human moderator", func(t *testing.T) {
+		t.Parallel()
+		got := approvalDecisionNotice(approval.Decision{
+			Approved: true,
+			Approver: "moderator-1",
+		}, sessionID)
+		require.Equal(t, "✓ Command approved by moderator-1.", got)
+		require.NotContains(t, got, hint, "approvals must not show the join hint")
+	})
+
+	t.Run("approved by AI moderator", func(t *testing.T) {
+		t.Parallel()
+		got := approvalDecisionNotice(approval.Decision{
+			Approved: true,
+			Approver: approval.AIApproverName,
+		}, sessionID)
+		require.Equal(t, "✓ Command approved by AI moderator.", got)
+	})
+
+	t.Run("denied by AI moderator", func(t *testing.T) {
+		t.Parallel()
+		got := approvalDecisionNotice(approval.Decision{
+			Approved: false,
+			Approver: approval.AIApproverName,
+			Reason:   "destructive command",
+		}, sessionID)
+		require.Contains(t, got, "✗ Command denied by AI moderator: destructive command")
+		require.Contains(t, got, hint, "denial must include the join-to-review hint")
+		require.Contains(t, got, "\r\n  ", "hint must be on its own indented continuation line")
+	})
+
+	t.Run("failed (system-attributed) shows unavailable", func(t *testing.T) {
+		t.Parallel()
+		got := approvalDecisionNotice(approval.Decision{
+			Approved: false,
+			Approver: approval.ApproverSystem,
+			Reason:   "approval timed out",
+		}, sessionID)
+		require.Contains(t, got, "✗ Command approval unavailable: approval timed out")
+		require.NotContains(t, got, "denied by", "failures must not read as deliberate denials")
+		require.Contains(t, got, hint, "failure must include the join-to-review hint")
+	})
+}
+
 // TestCommandApprovalRoundTrip exercises the per-command approval pipeline end
 // to end at the session/TermManager seam: a real session (built via the test
 // harness) gets a sessionCommandGate installed on its TermManager, command
@@ -1094,6 +1186,13 @@ func TestCommandApprovalRoundTrip(t *testing.T) {
 		t.Cleanup(func() { sess.Stop() })
 		require.True(t, sess.io.commandGateEnabled(), "harness must install a gate for a human policy")
 
+		// Capture peer-facing broadcast output. Simulate a partial echoed
+		// command line (no trailing newline) so we can assert notices break
+		// onto their own line rather than jamming after it.
+		notices := newSyncBuffer()
+		sess.io.AddWriter("notices", notices)
+		sess.io.Write([]byte("ls -la"))
+
 		b := newSignalingBroadcaster()
 		approver := installHumanGate(t, sess, b, approval.DefaultTimeout)
 
@@ -1119,6 +1218,14 @@ func TestCommandApprovalRoundTrip(t *testing.T) {
 		require.Contains(t, string(forwarded), string(rune(byteCR)), "approved command must forward a carriage return")
 		require.NotContains(t, forwarded, byte(byteCtrlU), "approved command must not inject Ctrl-U")
 
+		out2 := notices.String()
+		require.Contains(t, out2, "Teleport > ⧗ Waiting for moderator approval: ls -la", "peer must see the pending notice")
+		require.Contains(t, out2, "Command approved by moderator-1.", "peer must see the approval notice")
+		// The pending notice must break onto its own line, not jam onto the
+		// partial echoed command.
+		require.Contains(t, out2, "ls -la\r\nTeleport > ", "notices must start on their own line")
+		require.NotContains(t, out2, "ls -laTeleport >", "notices must not jam onto the echoed command")
+
 		approvalEv := findCommandApproval(srv.MockRecorderEmitter.Events())
 		require.NotNil(t, approvalEv, "expected a CommandApproval audit event")
 		require.Equal(t, events.CommandApprovalApprovedEvent, approvalEv.Metadata.Type)
@@ -1133,6 +1240,10 @@ func TestCommandApprovalRoundTrip(t *testing.T) {
 		reg, srv := newRegWithServer(t)
 		sess, _ := testOpenSession(t, reg, services.NewRoleSet(humanRole(t)), &decisionpb.SSHAccessPermit{})
 		t.Cleanup(func() { sess.Stop() })
+
+		notices := newSyncBuffer()
+		sess.io.AddWriter("notices", notices)
+		sess.io.Write([]byte("rm -rf /"))
 
 		b := newSignalingBroadcaster()
 		approver := installHumanGate(t, sess, b, approval.DefaultTimeout)
@@ -1156,6 +1267,11 @@ func TestCommandApprovalRoundTrip(t *testing.T) {
 		// Denied: Ctrl-U is injected to clear the line and NO bare CR runs it.
 		require.Contains(t, forwarded, byte(byteCtrlU), "denied command must inject Ctrl-U")
 		require.NotContains(t, forwarded, byte(byteCR), "denied command must not forward a carriage return")
+
+		out2 := notices.String()
+		require.Contains(t, out2, "Command denied by moderator-1: too dangerous", "peer must see the denial notice")
+		require.Contains(t, out2, "tsh join --mode moderator "+string(sess.id), "denial must include the join-to-review hint")
+		require.Contains(t, out2, "rm -rf /\r\nTeleport > ", "notices must start on their own line")
 
 		approvalEv := findCommandApproval(srv.MockRecorderEmitter.Events())
 		require.NotNil(t, approvalEv, "expected a CommandApproval audit event")
