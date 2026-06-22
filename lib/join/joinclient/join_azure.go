@@ -172,7 +172,9 @@ func getIntermediateChain(ctx context.Context, httpClient utils.HTTPDoClient, ad
 
 		url, err := validateAzureCertIssuerURL(cert.IssuingCertificateURL[0])
 		if err != nil {
-			return nil, trace.BadParameter("invalid cert issuer URL: %s", cert.IssuingCertificateURL[0])
+			// failing to validate the URL may not guarantee an invalid state, so we log, break out
+			// of the loop, and return the intermediates we've collected so far
+			break
 		}
 		if _, ok := seen[url]; ok {
 			return nil, trace.Errorf("found cycle in intermediate chain")
