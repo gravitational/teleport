@@ -1628,6 +1628,7 @@ func (s *Server) startAzureServerDiscovery() {
 	var vmTasks *azureVMTasks
 	var runStart time.Time
 	var eg *errgroup.Group
+	backoff := newInstallerBackoff(s.PollInterval*2, retryutils.SeventhJitter)
 
 	const (
 		// Limit the number of concurrent Azure VM installations, where each
@@ -1693,7 +1694,7 @@ func (s *Server) startAzureServerDiscovery() {
 					continue
 				}
 				eg.Go(func() error {
-					status := s.installAzureServers(group, vmTasks, status, sem)
+					status := s.installAzureServers(group, vmTasks, status, backoff, sem)
 					sm.updateConcurrently(key, status)
 					return nil
 				})
@@ -1704,12 +1705,15 @@ func (s *Server) startAzureServerDiscovery() {
 			defer fullRefresh()
 
 			_ = eg.Wait()
-			sm.syncEnded(s.clock.Now())
+			now := s.clock.Now()
+			sm.syncEnded(now)
 			// update statuses of relevant discovery configs.
 			s.azureVMStatus.Store(sm)
 			s.updateDiscoveryConfigStatus(sm.discoveryConfigs()...)
 			// upsert user tasks for failed enrollments.
 			vmTasks.upsertAll(s.taskUpdater())
+			backoff.expireEntries(now)
+			backoff.resetLastSeen()
 		}),
 		server.WithPollInterval[*server.AzureInstances](s.PollInterval),
 		server.WithTriggerFetchC[*server.AzureInstances](s.newDiscoveryConfigChangedSub()),
@@ -1753,14 +1757,9 @@ func (s *Server) reconcileAzureServers(instances *server.AzureInstances) (discov
 	return status, nil
 }
 
-func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *azureVMTasks, status discoveryGroupStatus, sem *semaphore.Weighted) discoveryGroupStatus {
+func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *azureVMTasks, status discoveryGroupStatus, backoff *installerBackoff, sem *semaphore.Weighted) discoveryGroupStatus {
 	log := s.Log.With("group", instances)
-	if len(instances.Instances) == 0 {
-		log.DebugContext(s.ctx, "No Azure instances remain to enroll, skipping installation")
-		return status
-	}
-
-	addFailedAzureEnrollment := func(vm *azure.VirtualMachine, issueType string) {
+	addFailedAzureEnrollment := func(entry installerBackoffEntry) {
 		// Static matchers don't have a discovery config resource, so skip creating user tasks
 		// because validation requires a discovery config name.
 		if instances.Metadata.DiscoveryConfigName == noDiscoveryConfig {
@@ -1769,7 +1768,7 @@ func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *
 
 		tg := usertasks.TaskGroup{
 			Integration: instances.Metadata.Integration,
-			IssueType:   issueType,
+			IssueType:   entry.issueType,
 		}
 		vmTasks.addFailedEnrollment(
 			tg,
@@ -1779,14 +1778,34 @@ func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *
 				region:         instances.Metadata.Region,
 			},
 			usertasksv1.DiscoverAzureVMInstance_builder{
-				VmId:            vm.VMID,
-				ResourceId:      vm.ID,
-				Name:            vm.Name,
+				VmId:            entry.vm.VMID,
+				ResourceId:      entry.vm.ID,
+				Name:            entry.vm.Name,
 				DiscoveryConfig: instances.Metadata.DiscoveryConfigName,
 				DiscoveryGroup:  s.DiscoveryGroup,
-				SyncTime:        timestamppb.New(s.clock.Now()),
+				// TODO(gavin): it is not clear whether SyncTime should be the time of the failure or if it should be the time of the last discovery scan. Clarify in PR discussion.
+				// Prior behavior always retried failed installations, so the two were equivalent.
+				// New behavior preserves the time of the latest failed attempt, which may be from a prior discover scan.
+				SyncTime:     timestamppb.New(entry.lastFailureAt),
+				FailureCount: entry.failures,
+				RetryAfter:   timestamppb.New(entry.retryAfter),
 			}.Build(),
 		)
+	}
+
+	skipped := backoff.filter(instances, s.clock.Now())
+	if len(skipped) > 0 {
+		log.DebugContext(s.ctx, "Skipping Azure VMs with an active installation backoff",
+			"skipped", len(skipped),
+		)
+		status.failed += len(skipped)
+		for _, entry := range skipped {
+			addFailedAzureEnrollment(entry)
+		}
+	}
+	if len(instances.Instances) == 0 {
+		log.DebugContext(s.ctx, "No Azure instances remain to enroll, skipping installation")
+		return status
 	}
 
 	log.DebugContext(s.ctx, "Running Teleport installation on virtual machines", "vms", genAzureInstancesLogStr(instances.Instances))
@@ -1797,8 +1816,10 @@ func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *
 		status.failed += len(instances.Instances)
 
 		issueType := classifyAzureVMEnrollmentError(err)
+		now := s.clock.Now()
 		for _, vm := range instances.Instances {
-			addFailedAzureEnrollment(vm, issueType)
+			entry := backoff.recordFailedAttempt(vm, issueType, now)
+			addFailedAzureEnrollment(entry)
 		}
 		return status
 	}
@@ -1811,9 +1832,12 @@ func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *
 	status.failed += len(failures)
 
 	// Record failures as user tasks.
+	now := s.clock.Now()
 	for _, result := range failures {
 		// TODO (Tener): check exit codes and create more detailed user tasks.
-		addFailedAzureEnrollment(result.Instance, classifyAzureInstallResultIssue(result))
+		issueType := classifyAzureInstallResultIssue(result)
+		entry := backoff.recordFailedAttempt(result.Instance, issueType, now)
+		addFailedAzureEnrollment(entry)
 	}
 
 	pendingCount := len(instances.Instances) - len(failures)

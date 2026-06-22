@@ -3217,7 +3217,7 @@ const azureInstallErrorPrefix = "bad-install"
 
 type mockAzureRunCommandClient struct {
 	mu           sync.Mutex
-	attemptedVMs map[string]struct{}
+	attemptedVMs map[string]int
 }
 
 func (m *mockAzureRunCommandClient) Run(_ context.Context, req azure.RunCommandRequest) (*azure.RunCommandResult, error) {
@@ -3225,9 +3225,9 @@ func (m *mockAzureRunCommandClient) Run(_ context.Context, req azure.RunCommandR
 	defer m.mu.Unlock()
 
 	if m.attemptedVMs == nil {
-		m.attemptedVMs = make(map[string]struct{})
+		m.attemptedVMs = make(map[string]int)
 	}
-	m.attemptedVMs[req.VMName] = struct{}{}
+	m.attemptedVMs[req.VMName] = m.attemptedVMs[req.VMName] + 1
 
 	if strings.HasPrefix(req.VMName, azureApiErrorPrefix) {
 		const statusCode = 403
@@ -3264,6 +3264,15 @@ func (m *mockAzureRunCommandClient) getAttempted() []string {
 	elems := slices.Sorted(maps.Keys(m.attemptedVMs))
 	m.mu.Unlock()
 	return elems
+}
+
+func (m *mockAzureRunCommandClient) getAttemptCount(vmName string) int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.attemptedVMs == nil {
+		return 0
+	}
+	return m.attemptedVMs[vmName]
 }
 
 type mockAzureClient struct {
@@ -3413,6 +3422,8 @@ func TestAzureVMDiscovery(t *testing.T) {
 	presentNodeAlt := presentNode.DeepCopy().(*types.ServerV2)
 	presentNodeAlt.Metadata.Labels["teleport.internal/vm-id"] = "alternate-vmid"
 
+	const pollInterval = 5 * time.Minute
+
 	tests := []struct {
 		name                     string
 		presentVMs               []types.Server
@@ -3422,7 +3433,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 		wantInstances            []string
 		wantResources            int
 		expectedIntegrationNames []string
-		userTasksCheck           func(*testing.T, UserTaskLister)
+		checkState               func(*testing.T, UserTaskLister, *mockAzureRunCommandClient)
 	}{
 		{
 			name:           "no nodes present, 2 found",
@@ -3480,7 +3491,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 			wantInstances:   []string{"bad-api0"},
 			wantResources:   0,
 			foundVMS:        makeFaultyVM(true, 1),
-			userTasksCheck: func(t *testing.T, lister UserTaskLister) {
+			checkState: func(t *testing.T, lister UserTaskLister, runClient *mockAzureRunCommandClient) {
 				var tasks []*usertasksv1.UserTask
 				var err error
 				tasks, _, err = lister.ListUserTasks(t.Context(), 200, "", &usertasksv1.ListUserTasksFilters{})
@@ -3506,6 +3517,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 									Name:            "bad-api0",
 									DiscoveryConfig: defaultDiscoveryConfig().GetName(),
 									DiscoveryGroup:  defaultDiscoveryGroup,
+									FailureCount:    1,
 								}.Build(),
 							},
 							SubscriptionId: "testsub",
@@ -3516,11 +3528,65 @@ func TestAzureVMDiscovery(t *testing.T) {
 					Status: nil,
 				}.Build()
 
+				require.Equal(t, 1, runClient.getAttemptCount("bad-api0"))
 				require.Empty(t, cmp.Diff(expectedTask, tasks[0],
 					protocmp.Transform(),
 					protocmp.IgnoreFields(&headerv1.Metadata{}, "expires", "revision"),
-					protocmp.IgnoreFields(&usertasksv1.DiscoverAzureVMInstance{}, "sync_time"),
+					protocmp.IgnoreFields(&usertasksv1.DiscoverAzureVMInstance{}, "sync_time", "retry_after"),
 				))
+				instance := tasks[0].GetSpec().GetDiscoverAzureVm().GetInstances()["bad-api0-vmid"]
+				require.NotNil(t, instance)
+				retryAfter1 := instance.GetRetryAfter().AsTime()
+				syncTime1 := instance.GetSyncTime().AsTime()
+				require.NotZero(t, retryAfter1)
+				require.NotZero(t, syncTime1)
+				require.Greater(t, retryAfter1, syncTime1)
+
+				time.Sleep(pollInterval + time.Second)
+				synctest.Wait()
+
+				require.Equal(t, 1, runClient.getAttemptCount("bad-api0"), "VM install should not have been reattempted during backoff period")
+				tasks, _, err = lister.ListUserTasks(t.Context(), 200, "", &usertasksv1.ListUserTasksFilters{})
+				require.NoError(t, err)
+				require.Len(t, tasks, 1)
+				require.Empty(t, cmp.Diff(expectedTask, tasks[0],
+					protocmp.Transform(),
+					protocmp.IgnoreFields(&headerv1.Metadata{}, "expires", "revision"),
+					protocmp.IgnoreFields(&usertasksv1.DiscoverAzureVMInstance{}, "sync_time", "retry_after"),
+				))
+				instance = tasks[0].GetSpec().GetDiscoverAzureVm().GetInstances()["bad-api0-vmid"]
+				require.NotNil(t, instance)
+				retryAfter2 := instance.GetRetryAfter().AsTime()
+				syncTime2 := instance.GetSyncTime().AsTime()
+				require.NotZero(t, retryAfter2)
+				require.NotZero(t, syncTime2)
+				require.Greater(t, retryAfter2, syncTime2)
+				require.Equal(t, retryAfter1, retryAfter2, "retry time should not change during backoff period")
+				require.Equal(t, syncTime1, syncTime2, "sync time should not change during backoff period")
+
+				time.Sleep(pollInterval + time.Second)
+				synctest.Wait()
+
+				require.Equal(t, 2, runClient.getAttemptCount("bad-api0"), "VM install should have been reattempted after backoff period")
+				tasks, _, err = lister.ListUserTasks(t.Context(), 200, "", &usertasksv1.ListUserTasksFilters{})
+				require.NoError(t, err)
+				require.Len(t, tasks, 1)
+				// another attempt (and failure) should happen after backoff period has elapsed
+				expectedTask.GetSpec().GetDiscoverAzureVm().GetInstances()["bad-api0-vmid"].SetFailureCount(2)
+				require.Empty(t, cmp.Diff(expectedTask, tasks[0],
+					protocmp.Transform(),
+					protocmp.IgnoreFields(&headerv1.Metadata{}, "expires", "revision"),
+					protocmp.IgnoreFields(&usertasksv1.DiscoverAzureVMInstance{}, "sync_time", "retry_after"),
+				))
+				instance = tasks[0].GetSpec().GetDiscoverAzureVm().GetInstances()["bad-api0-vmid"]
+				require.NotNil(t, instance)
+				retryAfter3 := instance.GetRetryAfter().AsTime()
+				syncTime3 := instance.GetSyncTime().AsTime()
+				require.NotZero(t, retryAfter3)
+				require.NotZero(t, syncTime3)
+				require.Greater(t, retryAfter3, syncTime3)
+				require.Greater(t, retryAfter3, retryAfter2, "retry time should change after another failed attempt")
+				require.Greater(t, syncTime3, syncTime2, "sync time should change after another failed attempt")
 			},
 		},
 		{
@@ -3530,7 +3596,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 			wantInstances:  []string{"bad-api0"},
 			wantResources:  0,
 			foundVMS:       makeFaultyVM(true, 1),
-			userTasksCheck: func(t *testing.T, lister UserTaskLister) {
+			checkState: func(t *testing.T, lister UserTaskLister, _ *mockAzureRunCommandClient) {
 				tasks, _, err := lister.ListUserTasks(t.Context(), 200, "", &usertasksv1.ListUserTasksFilters{})
 				require.NoError(t, err)
 				require.Empty(t, tasks)
@@ -3542,10 +3608,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			runClient := &mockAzureRunCommandClient{
-				attemptedVMs: make(map[string]struct{}),
-			}
-
+			runClient := &mockAzureRunCommandClient{}
 			initAzureClients := func(opts ...azure.ClientsOption) (azure.Clients, error) {
 				return &azuretest.Clients{
 					AzureVirtualMachines: &mockAzureClient{
@@ -3603,6 +3666,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 					Emitter:          emitter,
 					Log:              logger,
 					DiscoveryGroup:   defaultDiscoveryGroup,
+					PollInterval:     pollInterval,
 				})
 
 				require.NoError(t, err)
@@ -3645,8 +3709,8 @@ func TestAzureVMDiscovery(t *testing.T) {
 				require.ElementsMatch(t, tc.wantInstances, slices.Collect(maps.Keys(seenVMs)))
 
 				// verify user tasks state
-				if tc.userTasksCheck != nil {
-					tc.userTasksCheck(t, tlsServer.Auth())
+				if tc.checkState != nil {
+					tc.checkState(t, tlsServer.Auth(), runClient)
 				}
 
 				// make sure azure client cache has expected entries
