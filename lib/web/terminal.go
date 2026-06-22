@@ -643,12 +643,7 @@ func newMFACeremony(stream *terminal.WSStream, createAuthenticateChallenge mfa.C
 	}
 }
 
-func newMFACeremonyPerformer(ws terminal.WSConn, mfaClient mfav2.MFAServiceClient, proxyAddr string, targetCluster string) (clientssh.Performer, error) {
-	stream, ok := ws.(*terminal.Stream)
-	if !ok {
-		return nil, trace.BadParameter("expected terminal.Stream type for ws connection (this is a bug)")
-	}
-
+func newMFACeremonyPerformer(stream *terminal.Stream, mfaClient mfav2.MFAServiceClient, proxyAddr string, targetCluster string) (clientssh.Performer, error) {
 	// channelID is used by the front end to differentiate between separate ongoing SSO challenges.
 	channelID := uuid.NewString()
 
@@ -724,13 +719,13 @@ func newMFACallbackCeremony(channelID string, proxyAddr string) (mfa.CallbackCer
 	}, nil
 }
 
-type connectWithMFAFn = func(ctx context.Context, scopePin *scopesv1.Pin, ws terminal.WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent sshagent.ClientGetter, signer agentless.SignerCreator) (*client.NodeClient, error)
+type connectWithMFAFn = func(ctx context.Context, scopePin *scopesv1.Pin, stream *terminal.Stream, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent sshagent.ClientGetter, signer agentless.SignerCreator) (*client.NodeClient, error)
 
 // connectToHost establishes a connection to the target host. It first attempts to connect with the existing
 // certificates, which can succeed if per-session MFA is not required or if the node supports in-band MFA. If that
 // fails, it falls back to the legacy per-session MFA certificate flow. If both attempts fail, it returns the error
 // that is most likely to be helpful to the user.
-func (t *sshBaseHandler) connectToHost(ctx context.Context, ws terminal.WSConn, tc *client.TeleportClient, connectToNodeWithMFA connectWithMFAFn) (*client.NodeClient, error) {
+func (t *sshBaseHandler) connectToHost(ctx context.Context, stream *terminal.Stream, tc *client.TeleportClient, connectToNodeWithMFA connectWithMFAFn) (*client.NodeClient, error) {
 	ctx, span := t.tracer.Start(ctx, "terminal/connectToHost")
 	defer span.End()
 
@@ -759,7 +754,7 @@ func (t *sshBaseHandler) connectToHost(ctx context.Context, ws terminal.WSConn, 
 
 	// Try to connect directly with existing certs. This can succeed if MFA is not required or if the node supports
 	// in-band MFA and the ceremony completes successfully.
-	clt, directErr := t.connectToNode(ctx, ident.ScopePin, ws, tc, accessChecker, getAgent, signer)
+	clt, directErr := t.connectToNode(ctx, ident.ScopePin, stream, tc, accessChecker, getAgent, signer)
 	if directErr == nil {
 		return clt, nil
 	}
@@ -769,7 +764,7 @@ func (t *sshBaseHandler) connectToHost(ctx context.Context, ws terminal.WSConn, 
 	// or if there are any issues during the MFA ceremony.
 	//
 	// TODO(cthach): DELETE IN v20.0 when the legacy per-session MFA with certifcates flow is removed.
-	clt, mfaErr := connectToNodeWithMFA(ctx, ident.ScopePin, ws, tc, accessChecker, getAgent, signer)
+	clt, mfaErr := connectToNodeWithMFA(ctx, ident.ScopePin, stream, tc, accessChecker, getAgent, signer)
 	if mfaErr == nil {
 		return clt, nil
 	}
@@ -931,12 +926,12 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 }
 
 // generateClientConfig creates an [apissh.ClientConfig] for the Teleport client connection.
-func (t *sshBaseHandler) generateClientConfig(ctx context.Context, ws terminal.WSConn, tc *client.TeleportClient) apissh.ClientConfig {
+func (t *sshBaseHandler) generateClientConfig(ctx context.Context, stream *terminal.Stream, tc *client.TeleportClient) apissh.ClientConfig {
 	authCallback := clientssh.AuthCallback(
 		ctx,
 		func() (clientssh.Performer, error) {
 			return newMFACeremonyPerformer(
-				ws,
+				stream,
 				t.userAuthClient.MFAServiceClientV2(),
 				t.proxyPublicAddr,
 				tc.SiteName,
@@ -955,8 +950,8 @@ func (t *sshBaseHandler) generateClientConfig(ctx context.Context, ws terminal.W
 
 // connectToNode attempts to connect to the host with the already
 // provisioned certs for the user.
-func (t *sshBaseHandler) connectToNode(ctx context.Context, scopePin *scopesv1.Pin, ws terminal.WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent sshagent.ClientGetter, signer agentless.SignerCreator) (*client.NodeClient, error) {
-	conn, err := t.router.DialHost(ctx, scopePin, ws.RemoteAddr(), ws.LocalAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker.CheckAccessToRemoteCluster, getAgent, signer)
+func (t *sshBaseHandler) connectToNode(ctx context.Context, scopePin *scopesv1.Pin, stream *terminal.Stream, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent sshagent.ClientGetter, signer agentless.SignerCreator) (*client.NodeClient, error) {
+	conn, err := t.router.DialHost(ctx, scopePin, stream.RemoteAddr(), stream.LocalAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker.CheckAccessToRemoteCluster, getAgent, signer)
 	if err != nil {
 		t.logger.WarnContext(ctx, "Unable to stream terminal - failed to dial host", "error", err)
 
@@ -968,7 +963,7 @@ func (t *sshBaseHandler) connectToNode(ctx context.Context, scopePin *scopesv1.P
 		return nil, trace.Wrap(err)
 	}
 
-	sshConfig := t.generateClientConfig(ctx, ws, tc)
+	sshConfig := t.generateClientConfig(ctx, stream, tc)
 
 	clt, err := client.NewNodeClient(ctx, sshConfig, conn,
 		net.JoinHostPort(t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort)),
@@ -1003,14 +998,14 @@ func (t *sshBaseHandler) connectToNode(ctx context.Context, scopePin *scopesv1.P
 
 // connectToNodeWithMFA attempts to perform the mfa ceremony and then dial the
 // host with the retrieved single use certs.
-func (t *TerminalHandler) connectToNodeWithMFA(ctx context.Context, scopePin *scopesv1.Pin, ws terminal.WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent sshagent.ClientGetter, signer agentless.SignerCreator) (*client.NodeClient, error) {
+func (t *TerminalHandler) connectToNodeWithMFA(ctx context.Context, scopePin *scopesv1.Pin, stream *terminal.Stream, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent sshagent.ClientGetter, signer agentless.SignerCreator) (*client.NodeClient, error) {
 	// perform mfa ceremony and retrieve new certs
-	signers, err := t.issueSessionMFACerts(ctx, tc, t.stream.WSStream)
+	signers, err := t.issueSessionMFACerts(ctx, tc, stream.WSStream)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return t.connectToNodeWithMFABase(ctx, scopePin, ws, tc, accessChecker, getAgent, signer, signers)
+	return t.connectToNodeWithMFABase(ctx, scopePin, stream, tc, accessChecker, getAgent, signer, signers)
 }
 
 // connectToNodeWithMFABase attempts to dial the host with the provided auth
@@ -1018,7 +1013,7 @@ func (t *TerminalHandler) connectToNodeWithMFA(ctx context.Context, scopePin *sc
 func (t *sshBaseHandler) connectToNodeWithMFABase(
 	ctx context.Context,
 	scopePin *scopesv1.Pin,
-	ws terminal.WSConn,
+	stream *terminal.Stream,
 	tc *client.TeleportClient,
 	accessChecker services.AccessChecker,
 	getAgent sshagent.ClientGetter,
@@ -1037,7 +1032,7 @@ func (t *sshBaseHandler) connectToNodeWithMFABase(
 	}
 
 	// connect to the node again with the new certs
-	conn, err := t.router.DialHost(ctx, scopePin, ws.RemoteAddr(), ws.LocalAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker.CheckAccessToRemoteCluster, getAgent, agentlessSigner)
+	conn, err := t.router.DialHost(ctx, scopePin, stream.RemoteAddr(), stream.LocalAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker.CheckAccessToRemoteCluster, getAgent, agentlessSigner)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
