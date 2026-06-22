@@ -39,6 +39,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jezek/xgb"
+	"github.com/jezek/xgb/composite"
 	"github.com/jezek/xgb/damage"
 	"github.com/jezek/xgb/randr"
 	"github.com/jezek/xgb/xfixes"
@@ -81,6 +82,27 @@ type Backend struct {
 	conn   *xgb.Conn
 	setup  *xproto.SetupInfo
 	damage damage.Damage
+
+	// compositeAvailable reports whether the X server supports the Composite
+	// extension, required to capture compositing window managers.
+	compositeAvailable bool
+	// cmAtom is the _NET_WM_CM_Sn selection atom used to detect an active
+	// compositing manager
+	cmAtom xproto.Atom
+	// overlay is the Composite Overlay Window, acquired lazily once a
+	// compositing manager is detected.
+	overlay xproto.Window
+	// captureWindow is the window that frame capture (damage tracking and
+	// GetImage) targets: the root window normally, or the overlay
+	// window when a compositing manager is active.
+	captureWindow xproto.Window
+	// forceFullDamage requests a full-frame capture on the next GetChanges,
+	// used after switching the capture target so the new surface is sent in
+	// full.
+	forceFullDamage bool
+	// framesSinceCompositorCheck throttles compositor detection while capturing
+	// the root window.
+	framesSinceCompositorCheck int
 
 	// Display contains X11 display string (:N) for started backend
 	Display string
@@ -337,25 +359,47 @@ func NewBackend(ctx context.Context, config Config) (*Backend, error) {
 
 	randr.SelectInput(conn, root, randr.NotifyMaskCrtcChange)
 
+	// Set up compositing support. Compositing window managers redirect application
+	// windows to off-screen storage and paint the final image to an overlay window.
+	compositeAvailable := true
+	if err := composite.Init(conn); err != nil {
+		compositeAvailable = false
+		config.Logger.WarnContext(ctx, "Composite extension unavailable, compositing window managers may render a black screen", "error", err)
+	} else if _, err := composite.QueryVersion(conn, 0, 4).Reply(); err != nil {
+		compositeAvailable = false
+		config.Logger.WarnContext(ctx, "Composite version query failed, compositing window managers may render a black screen", "error", err)
+	}
+
+	// _NET_WM_CM_S0 ownership signals an active compositing manager on screen 0
+	cmAtom, err := internAtom(conn, "_NET_WM_CM_S0")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	config.Logger.DebugContext(ctx, "Compositing capture configured", "composite_available", compositeAvailable)
+
 	x := &Backend{
-		ctx:             ctx,
-		config:          config,
-		cmd:             cmd,
-		conn:            conn,
-		setup:           setup,
-		cancel:          cancel,
-		Display:         display,
-		damage:          damageID,
-		clipboardWindow: clipWindow,
-		clipboardAtom:   clipboardAtom,
-		targetsAtom:     targetsAtom,
-		utf8Atom:        utf8Atom,
-		selectionAtom:   selectionAtom,
-		AuthorityFile:   authorityFile.Name(),
-		authorityCookie: cookie,
-		width:           types.MaxRDPScreenWidth,
-		height:          types.MaxRDPScreenHeight,
-		resizeTimestamp: math.MaxInt32,
+		ctx:                ctx,
+		config:             config,
+		cmd:                cmd,
+		conn:               conn,
+		setup:              setup,
+		cancel:             cancel,
+		Display:            display,
+		damage:             damageID,
+		compositeAvailable: compositeAvailable,
+		cmAtom:             cmAtom,
+		captureWindow:      root,
+		clipboardWindow:    clipWindow,
+		clipboardAtom:      clipboardAtom,
+		targetsAtom:        targetsAtom,
+		utf8Atom:           utf8Atom,
+		selectionAtom:      selectionAtom,
+		AuthorityFile:      authorityFile.Name(),
+		authorityCookie:    cookie,
+		width:              types.MaxRDPScreenWidth,
+		height:             types.MaxRDPScreenHeight,
+		resizeTimestamp:    math.MaxInt32,
 	}
 
 	go x.processEvents()
@@ -454,6 +498,9 @@ func (x *Backend) root() xproto.Window {
 
 // Close stops the Backend process and waits for it to exit.
 func (x *Backend) Close() error {
+	if x.overlay != 0 {
+		composite.ReleaseOverlayWindow(x.conn, x.root())
+	}
 	x.conn.Close()
 	x.cancel()
 
@@ -522,8 +569,92 @@ func connectToDisplay(display string, cookie []byte) (*xgb.Conn, *xproto.SetupIn
 	return conn, setup, nil
 }
 
+// compositorPollFrames throttles compositor detection to roughly once per
+// second at the capture frame rate while still capturing the root window.
+const compositorPollFrames = 25
+
+// refreshCaptureTarget detects whether a compositing window manager is active
+// and switches frame capture to the overlay window.
+// For non-compositing window managers (like Xfce) we keep capturing the root window.
+func (x *Backend) refreshCaptureTarget() error {
+	if !x.compositeAvailable {
+		return nil
+	}
+	// Once we have switched to the overlay we stop polling: the compositor runs
+	// for the lifetime of the session. While still on the root window, poll only
+	// periodically to detect a compositor starting up after the session begins.
+	if x.captureWindow == x.overlay && x.overlay != 0 {
+		return nil
+	}
+	x.framesSinceCompositorCheck++
+	if x.captureWindow != x.overlay && x.framesSinceCompositorCheck < compositorPollFrames {
+		return nil
+	}
+	x.framesSinceCompositorCheck = 0
+
+	active, err := x.compositorActive()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	x.config.Logger.DebugContext(x.ctx, "Compositor detection",
+		"compositor_active", active, "overlay", x.overlay, "capture_window", x.captureWindow)
+
+	target := x.root()
+	if active {
+		if x.overlay == 0 {
+			reply, err := composite.GetOverlayWindow(x.conn, x.root()).Reply()
+			if err != nil {
+				return trace.Wrap(err, "getting composite overlay window")
+			}
+			x.overlay = reply.OverlayWin
+		}
+		target = x.overlay
+	}
+	if target == x.captureWindow {
+		return nil
+	}
+
+	if err := x.retargetDamage(target); err != nil {
+		return trace.Wrap(err)
+	}
+	x.config.Logger.InfoContext(x.ctx, "Switched frame capture target", "compositing", active, "window", target)
+	x.captureWindow = target
+	x.forceFullDamage = true
+	return nil
+}
+
+// compositorActive reports whether a compositing manager owns the
+// _NET_WM_CM_Sn selection.
+func (x *Backend) compositorActive() (bool, error) {
+	reply, err := xproto.GetSelectionOwner(x.conn, x.cmAtom).Reply()
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	return reply.Owner != xproto.WindowNone, nil
+}
+
+// retargetDamage moves damage tracking to the given window by destroying the
+// current damage object and creating a new one.
+func (x *Backend) retargetDamage(win xproto.Window) error {
+	id, err := x.conn.NewId()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	newDamage := damage.Damage(id)
+	if err := damage.CreateChecked(x.conn, newDamage, xproto.Drawable(win), damage.ReportLevelNonEmpty).Check(); err != nil {
+		return trace.Wrap(err)
+	}
+	damage.Destroy(x.conn, x.damage)
+	x.damage = newDamage
+	return nil
+}
+
 // GetChanges returns regions changed since the last call of this method
 func (x *Backend) GetChanges() (rectangles []xproto.Rectangle, err error) {
+	if err := x.refreshCaptureTarget(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	id, err := x.conn.NewId()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -540,13 +671,22 @@ func (x *Backend) GetChanges() (rectangles []xproto.Rectangle, err error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// We request a full frame (instead of only changed regions)
+	// after switching the capture target.
+	if x.forceFullDamage {
+		x.forceFullDamage = false
+		x.mu.Lock()
+		full := xproto.Rectangle{Width: x.width, Height: x.height}
+		x.mu.Unlock()
+		return []xproto.Rectangle{full}, nil
+	}
 	return fetched.Rectangles, nil
 }
 
 // GetImage captures image data for the requested rectangle in RGBA format.
 func (x *Backend) GetImage(rect xproto.Rectangle) ([]byte, error) {
-	root := xproto.Drawable(x.root())
-	reply, err := xproto.GetImage(x.conn, xproto.ImageFormatZPixmap, root, rect.X, rect.Y, rect.Width, rect.Height, math.MaxUint32).Reply()
+	drawable := xproto.Drawable(x.captureWindow)
+	reply, err := xproto.GetImage(x.conn, xproto.ImageFormatZPixmap, drawable, rect.X, rect.Y, rect.Width, rect.Height, math.MaxUint32).Reply()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
