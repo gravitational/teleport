@@ -50,7 +50,8 @@ type discoveryClient interface {
 type Command struct {
 	stdout io.Writer
 
-	nodes nodesArgs
+	nodes   nodesArgs
+	summary summaryArgs
 }
 
 // Initialize registers the "discovery" command and its subcommands with the CLI parser.
@@ -61,6 +62,7 @@ func (c *Command) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags
 
 	discovery := app.Command("discovery", "Troubleshoot auto-discovery issues.")
 	c.nodes.initNodes(discovery)
+	c.summary.initSummary(discovery)
 }
 
 // TryRun attempts to run the matched subcommand.
@@ -70,6 +72,8 @@ func (c *Command) TryRun(ctx context.Context, cmd string, clientFunc commonclien
 	switch cmd {
 	case c.nodes.cmd.FullCommand():
 		commandFunc = c.nodes.run
+	case c.summary.cmd.FullCommand():
+		commandFunc = c.summary.run
 	default:
 		return false, nil
 	}

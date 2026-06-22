@@ -1366,6 +1366,24 @@ Flags:
 |`--last`|`1h`|Time window to look back for failures in Teleport audit log (e.g. 1h, 24h, 30m).|
 |`--[no-]failures-only`|`false`|Only show instances with enrollment failures.|
 
+## tctl discovery summary
+
+Summarize AWS and Azure discovery_config resources and their enrollment
+progress.
+
+Usage:
+
+```code
+$ tctl discovery summary [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--cloud`|``|Comma-separated list of cloud providers to include (allowed: aws, azure). Empty (default) returns all.|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
+
 ## tctl edit
 
 Edit a Teleport resource.
