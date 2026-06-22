@@ -103,15 +103,3 @@ struct EnrollDeviceView: View {
 		}
 	}
 }
-
-#Preview("In ContentView") {
-	ContentView(
-		initialScreen: .enroll(
-			EnrollMobileDeviceDeepLink(
-				hostname: "example.com",
-				port: 3080,
-				enrollPairingToken: "abc123",
-			),
-		),
-	)
-}
