@@ -159,9 +159,7 @@ func (a *investigateArgs) luceneToFlagMap() map[string]string {
 
 // initInvestigate registers `tctl investigate` and all its flags.
 func (c *AccessGraphCommand) initInvestigate(app *kingpin.Application) {
-	cmd := app.Command("investigate", "Search and explore Identity Security activity logs.\n\n"+
-		"To let an AI agent drive this command, install the matching Agent Skill:\n\n"+
-		"`npx skills add https://github.com/gravitational/teleport/tree/master/skills/teleport-investigate`")
+	cmd := app.Command("investigate", "Search and explore Identity Security activity logs.")
 
 	cmd.Flag("from", fmt.Sprintf("Include activity at or after this time. (Examples: %s, %s, 24h, 7d; negative durations like -1h are future-relative. Default: 1d)", time.RFC3339, time.DateOnly)).
 		Default("1d").
