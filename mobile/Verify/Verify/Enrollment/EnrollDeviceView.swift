@@ -72,7 +72,7 @@ struct EnrollDeviceView: View {
 				.animation(.easeInOut, value: viewModel.attempt.isLoading)
 				.disabled(viewModel.attempt.isLoading)
 
-				Button(role: .cancel, action: {}) {
+				Button(role: .cancel, action: viewModel.userTappedCancel) {
 					Text("Cancel").frame(maxWidth: .infinity)
 				}
 				.buttonStyle(.bordered)

@@ -36,7 +36,7 @@
 --func-attributes prev-line
 --generic-types 
 --group-blank-lines true
---grouped-extension "MARK: - %t + %c"
+--grouped-extension "MARK: - %c"
 --guard-else auto
 --header ignore
 --hex-grouping 4,8

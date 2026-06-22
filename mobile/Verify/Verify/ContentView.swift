@@ -50,7 +50,7 @@ struct ContentView: View {
 				switch screen {
 					case .landing:
 						EmptyView()
-					case let .enroll(deepLink):
+					case .enroll:
 						EmptyView()
 				}
 			}

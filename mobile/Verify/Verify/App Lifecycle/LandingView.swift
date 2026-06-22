@@ -38,7 +38,7 @@ struct LandingView: View {
 			.navigationDestination(item: $viewModel.destination.deviceEnrollment, destination: { deviceEnrollmentViewModel in
 				EnrollDeviceView(viewModel: deviceEnrollmentViewModel)
 			})
-			.alert(item: $viewModel.destination.failedToParseDeepLink, title: { errorMessage in
+			.alert(item: $viewModel.destination.deepLinkParsingAlert, title: { errorMessage in
 				Text(errorMessage)
 			}, actions: { _ in
 				Button("OK") {}

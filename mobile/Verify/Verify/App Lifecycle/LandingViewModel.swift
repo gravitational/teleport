@@ -32,10 +32,18 @@ final class LandingViewModel {
 
 extension LandingViewModel {
 	func navigateToDeviceEnrollment(with deepLink: EnrollMobileDeviceDeepLink) {
-		self.destination = .deviceEnrollment(EnrollDeviceViewModel(deepLink: deepLink))
+		destination = .deviceEnrollment(EnrollDeviceViewModel(deepLink: deepLink, delegate: self))
 	}
 
 	func showParserError(errorMessage: String) {
-		self.destination = .deepLinkParsingAlert(errorMessage: errorMessage)
+		destination = .deepLinkParsingAlert(errorMessage: errorMessage)
+	}
+}
+
+// MARK: - EnrollDeviceViewModel.Delegate
+
+extension LandingViewModel: EnrollDeviceViewModel.Delegate {
+	func enrollDeviceViewModelDidCancelOperation(_ viewModel: EnrollDeviceViewModel) {
+		destination = nil
 	}
 }

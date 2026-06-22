@@ -24,9 +24,16 @@ class EnrollDeviceViewModel {
 	private let deepLink: EnrollMobileDeviceDeepLink
 	private let enrollClient: EnrollClient
 
-	init(deepLink: EnrollMobileDeviceDeepLink, enrollClient: EnrollClient = .liveValue) {
+	weak var delegate: (any Delegate)? = nil
+
+	init(
+		deepLink: EnrollMobileDeviceDeepLink,
+		enrollClient: EnrollClient = .liveValue,
+		delegate: (any Delegate)? = nil,
+	) {
 		self.deepLink = deepLink
 		self.enrollClient = enrollClient
+		self.delegate = delegate
 	}
 
 	func requestEnrollToken() async {
@@ -42,5 +49,21 @@ class EnrollDeviceViewModel {
 		} catch {
 			attempt = .failure(error)
 		}
+	}
+}
+
+// MARK: - EnrollDeviceViewModel.Delegate
+
+extension EnrollDeviceViewModel {
+	protocol Delegate: AnyObject {
+		func enrollDeviceViewModelDidCancelOperation(_ viewModel: EnrollDeviceViewModel)
+	}
+}
+
+// MARK: - User Actions
+
+extension EnrollDeviceViewModel {
+	func userTappedCancel() {
+		delegate?.enrollDeviceViewModelDidCancelOperation(self)
 	}
 }
