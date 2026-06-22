@@ -19,60 +19,35 @@
 package resourcematcher
 
 import (
-	"net/url"
 	"strings"
 
 	"github.com/gravitational/trace"
 )
 
-// DecodeConfig controls how a request path is normalized before it is split
-// into segments for matching. Both fields default to the zero value, which is
-// maximally strict: do not decode, and reject any percent byte. This keeps the
-// matcher's view byte-identical to the request, so the agent matches on
-// exactly the bytes the upstream receives.
-//
-// Decoding runs first: DecodeIterations percent-decode passes are applied, and
-// then AllowPercent governs whether any percent byte that survives those
-// passes is admitted. So the two fields compose: DecodeIterations sets how deep
-// to decode, AllowPercent decides whether over-encoding beyond that depth is
-// tolerated.
-//
-//   - decode 0, allow_percent false (default): no decode, no percent at all.
-//   - decode 1, allow_percent false: a single-encoded %2F decodes to "/" and
-//     is admitted, but a double-encoded %252F leaves a residual "%" after one
-//     pass and is rejected.
-//   - decode N, allow_percent true: decode N times and admit whatever percent
-//     bytes remain.
-//
-// Loosening is an explicit, deliberate opt-in. The author must align
-// DecodeIterations with how the real upstream decodes the path, or the
-// matcher's view diverges from the upstream's and a rule can match less, or
-// more, than the upstream acts on.
-type DecodeConfig struct {
-	// AllowPercent admits percent bytes that remain after DecodeIterations
-	// passes. When false, any residual "%" is rejected before a rule
-	// evaluates.
-	AllowPercent bool `yaml:"allow_percent"`
-	// DecodeIterations is the number of percent-decode passes applied before
-	// splitting into segments. Zero leaves the path untouched. Set it to match
-	// the upstream's own decoding.
-	DecodeIterations int `yaml:"decode_iterations"`
-}
-
 // maxPathBytes bounds the path the matcher will consider.
 const maxPathBytes = 8 << 10 // 8 KiB
 
-// maxDecodeIterations bounds the percent-decode passes a path.match call may
-// request, so a malformed rule cannot drive an unbounded decode loop. A handful
-// of passes covers every real upstream; more is a configuration error.
-const maxDecodeIterations = 16
-
-// Tokenize validates and splits an HTTP request path into segments for
-// matching, applying cfg. The path is split on the literal "/" byte. A leading
-// "/" is required and stripped. On any rule violation it returns an error,
-// which the caller treats as teleport_invalid_request: the request is denied
-// before any rule runs.
-func Tokenize(path string, cfg DecodeConfig) ([]string, error) {
+// Tokenize validates and splits an HTTP request path into raw segments for
+// matching. The tokenizer never decodes the bytes it splits or forwards:
+// decoding is used only as a throwaway validation view. A leading "/" is
+// required and stripped. On any rule violation it returns an error, which the
+// caller treats as teleport_invalid_request: the request is denied before any
+// rule runs.
+//
+// The slash is the separator, and it is the only character whose encoding
+// changes the matcher's grammar, so it is the only encoding admitted. The steps
+// are:
+//
+//  1. Reject any "%XX" that is not the encoded separator (%2F/%2f). After this,
+//     the only encoding present anywhere is the slash.
+//  2. Build a decode-for-validation view (%2F to "/") and on that view reject
+//     consecutive slashes, a "." or ".." segment, and the bytes the raw form
+//     already excludes. Because the whole path is checked uniformly, a ".."
+//     smuggled between encoded slashes ("a%2F..%2Fadmin" to "a/../admin") and
+//     an empty inner part ("a%2F%2Fb" to "a//b") are caught for free.
+//  3. Split the raw path on real "/" only, so an encoded slash stays one opaque
+//     token forwarded byte-faithfully.
+func Tokenize(path string) ([]string, error) {
 	if len(path) > maxPathBytes {
 		return nil, trace.BadParameter("path exceeds %d bytes", maxPathBytes)
 	}
@@ -83,29 +58,25 @@ func Tokenize(path string, cfg DecodeConfig) ([]string, error) {
 	// RFC 3986 path set: pchar plus the "/" separator and "%" for encoding.
 	// It is deliberately loose, admitting "@", ":", and every sub-delim, but
 	// it refuses what is definitely not a URL path, such as a raw space, a
-	// control byte, or a non-ASCII byte that should have been percent-encoded.
+	// control byte, a backslash, or a non-ASCII byte that should have been
+	// percent-encoded.
 	if err := rejectIllegalPathBytes(path); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// Decode first, then apply every safety check to the decoded form, since
-	// that is the byte sequence that gets split and matched.
-	decoded := path
-	for range cfg.DecodeIterations {
-		next, err := url.PathUnescape(decoded)
-		if err != nil {
-			return nil, trace.BadParameter("invalid percent-escape in %q", path)
-		}
-		decoded = next
+	// The encoded separator is the only percent-escape allowed anywhere. A
+	// double-encoded slash ("%252F") begins "%25", which is not "%2F", so it is
+	// rejected here, and so is every other encoding such as "%40" or "%2e".
+	if err := rejectNonSeparatorPercent(path); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	// AllowPercent governs whatever percent bytes survive the decode passes. A
-	// residual "%" with AllowPercent false means the path was encoded more
-	// deeply than DecodeIterations unwound, such as a double-encoded %252F
-	// under a single pass; reject it.
-	if !cfg.AllowPercent && strings.Contains(decoded, "%") {
-		return nil, trace.BadParameter("percent-encoding remains after %d decode pass(es) and allow_percent is not set", cfg.DecodeIterations)
-	}
+	// Build the decode-for-validation view by unescaping only the separator.
+	// Every safety check runs on this view, which is the byte sequence the
+	// upstream sees after it decodes the slash, so a "." or ".." or "//"
+	// hidden behind an encoded slash is checked the same as a raw one. The raw
+	// path is what gets split and forwarded; this view is thrown away.
+	decoded := decodeSeparators(path)
+
 	// Reject consecutive slashes outright. An empty interior segment would let
 	// a greedy matcher absorb it and could split differently upstream. A
 	// single trailing slash is left intact and significant: it produces a
@@ -114,17 +85,44 @@ func Tokenize(path string, cfg DecodeConfig) ([]string, error) {
 	if strings.Contains(decoded, "//") {
 		return nil, trace.BadParameter("path %q has consecutive slashes", path)
 	}
-	if err := rejectUnsafe(decoded); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	segments := strings.Split(strings.TrimPrefix(decoded, "/"), "/")
-	for _, seg := range segments {
+	for _, seg := range strings.Split(strings.TrimPrefix(decoded, "/"), "/") {
 		if seg == "." || seg == ".." {
 			return nil, trace.BadParameter("path %q has a relative segment", path)
 		}
 	}
-	return segments, nil
+
+	// Split the raw path on real "/" only, so an encoded slash stays one token.
+	return strings.Split(strings.TrimPrefix(path, "/"), "/"), nil
+}
+
+// rejectNonSeparatorPercent rejects any percent-escape that is not the encoded
+// separator %2F or %2f. After it returns, the only encoding left anywhere in
+// the path is the slash, so the decode-for-validation view need only unescape
+// %2F. A "%" without two following bytes is a truncated escape and is rejected.
+func rejectNonSeparatorPercent(path string) error {
+	for i := 0; i < len(path); i++ {
+		if path[i] != '%' {
+			continue
+		}
+		if i+2 >= len(path) {
+			return trace.BadParameter("path %q has a truncated percent-escape", path)
+		}
+		if path[i+1] != '2' || (path[i+2] != 'F' && path[i+2] != 'f') {
+			return trace.BadParameter(
+				"path %q contains the percent-escape %q; only the encoded separator %%2F is allowed",
+				path, path[i:i+3])
+		}
+	}
+	return nil
+}
+
+// decodeSeparators returns the decode-for-validation view of path: the encoded
+// separator %2F/%2f unescaped to a real "/", with every other byte left raw.
+// rejectNonSeparatorPercent has already guaranteed there is no other escape, so
+// after this the view carries no percent byte at all.
+func decodeSeparators(path string) string {
+	decoded := strings.ReplaceAll(path, "%2F", "/")
+	return strings.ReplaceAll(decoded, "%2f", "/")
 }
 
 // legalPathPunct is the non-alphanumeric byte set allowed in a raw URL path:
@@ -144,28 +142,13 @@ func isLegalPathByte(b byte) bool {
 }
 
 // rejectIllegalPathBytes rejects any byte that cannot appear in a raw URL path
-// under RFC 3986. It validates the path as it arrives, before decoding, so a
-// percent-encoded byte ("%XX") is admitted here and governed later by the
-// decode and allow_percent rules.
+// under RFC 3986. It validates the path as it arrives, so a "%" is admitted
+// here as the start of an escape and rejectNonSeparatorPercent then governs
+// which escapes are allowed.
 func rejectIllegalPathBytes(path string) error {
 	for i := range len(path) {
 		if !isLegalPathByte(path[i]) {
 			return trace.BadParameter("path %q contains an illegal URL byte %q", path, string(path[i]))
-		}
-	}
-	return nil
-}
-
-// rejectUnsafe rejects bytes whose interpretation may differ between the agent
-// and the upstream and that decoding can surface even when the raw path was
-// legal, such as a backslash from %5C or a control byte from %00.
-func rejectUnsafe(path string) error {
-	if strings.Contains(path, "\\") {
-		return trace.BadParameter("path contains a backslash")
-	}
-	for _, r := range path {
-		if r < 0x20 || r == 0x7f {
-			return trace.BadParameter("path contains a control byte")
 		}
 	}
 	return nil

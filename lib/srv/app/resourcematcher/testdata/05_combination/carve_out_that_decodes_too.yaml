@@ -1,15 +1,17 @@
-description: carve-out that decodes too
+description: carve-out and the strict tokenizer
 rules:
+    # A negated carve-out denies files/secret. An attempt to reach it with an
+    # encoded "s" (%73) never decodes: the strict tokenizer rejects any escape
+    # that is not the encoded separator, so the request is invalid before a
+    # rule runs rather than slipping past the negation.
     - where: |-
         !path.match(literal("files",
-            literal("secret", greedy())),
-        decode_iterations(1))
+            literal("secret", greedy())))
 rules_desugared:
     - pred: |-
         !path.match(
           literal("files/secret",
-            greedy()),
-          decode_iterations(1))
+            greedy()))
 identity:
     name: bob
     roles:
@@ -20,7 +22,7 @@ cases:
         path: /files/%73ecret/key
       expect:
         allowed: false
-        deny_kind: teleport_request_not_allowed
+        deny_kind: teleport_invalid_request
     - request:
         method: GET
         path: /files/public/key

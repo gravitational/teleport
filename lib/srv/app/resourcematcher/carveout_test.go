@@ -122,7 +122,7 @@ func TestCarveOutEval(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tokens, err := Tokenize(tt.path, DecodeConfig{})
+			tokens, err := Tokenize(tt.path)
 			require.NoError(t, err)
 			ok, _ := Eval(tokens, tt.root)
 			require.Equal(t, tt.want, ok)
@@ -165,7 +165,7 @@ func TestCarveOutCapturesDoNotLeak(t *testing.T) {
 		kind:         kindGreedy,
 		greedyExcept: []*Node{Capture("leaked", Greedy())},
 	})
-	tokens, err := Tokenize("/files/secret", DecodeConfig{})
+	tokens, err := Tokenize("/files/secret")
 	require.NoError(t, err)
 	ok, vars := Eval(tokens, root)
 	// The exclusion matches "secret", so the path is denied, and no capture

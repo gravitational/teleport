@@ -1,9 +1,0 @@
-description: mismatched decode opts is an error
-rules:
-    # Every path.match must decode the same
-    # way, or a negation could decode deeper
-    # than the positive match and slip past.
-    - pred: |-
-        path.match(literal("files", greedy()), decode_iterations(1)) &&
-        !path.match(literal("files", literal("secret", greedy())), decode_iterations(2))
-error: all path.match calls in a rule must carry identical decode options

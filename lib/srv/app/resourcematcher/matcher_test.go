@@ -162,7 +162,7 @@ func TestEval(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			root, err := Compile(tt.pattern)
 			require.NoError(t, err)
-			tokens, err := Tokenize(tt.path, DecodeConfig{})
+			tokens, err := Tokenize(tt.path)
 			require.NoError(t, err)
 			ok, vars := Eval(tokens, root)
 			require.Equal(t, tt.want, ok)
@@ -179,12 +179,12 @@ func TestAlternatives(t *testing.T) {
 		Literal("groups", Greedy()),
 	))
 	for _, path := range []string{"/api/v4/projects/x", "/api/v4/groups/y"} {
-		tokens, err := Tokenize(path, DecodeConfig{})
+		tokens, err := Tokenize(path)
 		require.NoError(t, err)
 		ok, _ := Eval(tokens, root)
 		require.True(t, ok, path)
 	}
-	tokens, err := Tokenize("/api/v4/users/z", DecodeConfig{})
+	tokens, err := Tokenize("/api/v4/users/z")
 	require.NoError(t, err)
 	ok, _ := Eval(tokens, root)
 	require.False(t, ok)

@@ -363,39 +363,6 @@ methods: [GET]
 	require.Equal(t, DenyNotAllowed, got.Deny.Kind)
 }
 
-// TestRoleSetURLDecoding pins that a rule's url_decoding governs the set-level
-// invalid-request floor: an encoded path a rule is configured to decode is
-// admitted and matched, not rejected as invalid before the rule runs. It
-// guards the regression where a strict set-level floor neutered per-rule
-// url_decoding.
-func TestRoleSetURLDecoding(t *testing.T) {
-	set, err := CompileRoles([]Role{{
-		Name: "developer",
-		Rules: []Rule{ruleFromYAML(t, `
-paths: ["/files/{x}/*"]
-url_decoding:
-  decode_iterations: 1
-`)},
-	}})
-	require.NoError(t, err)
-
-	// %2F decodes to a separator under one pass, so the path splits into three
-	// segments and matches with x bound to the first. The strict default floor
-	// would have rejected the percent byte before the rule's decode ran.
-	got, err := set.Evaluate(Request{Method: "GET", Path: "/files/a%2Fb"}, Identity{})
-	require.NoError(t, err)
-	require.True(t, got.Allowed)
-	require.Equal(t, "a", got.Allow.Vars["x"])
-
-	// A path no decode can rescue, an illegal raw byte, is still invalid: the
-	// floor is relaxed for the percent policy, not for genuinely malformed
-	// bytes.
-	got, err = set.Evaluate(Request{Method: "GET", Path: "/files/a\\b"}, Identity{})
-	require.NoError(t, err)
-	require.False(t, got.Allowed)
-	require.Equal(t, DenyInvalidRequest, got.Deny.Kind)
-}
-
 // TestRoleSetMisconfiguredDefaultDeny pins that an empty EvaluatedRoles on a
 // deny marks the case where no role carried any app_resources, as opposed to a
 // request a granting role did not match.
@@ -408,43 +375,67 @@ func TestRoleSetMisconfiguredDefaultDeny(t *testing.T) {
 	require.Empty(t, got.EvaluatedRoles)
 }
 
-// TestURLDecodingFromYAML pins that the url_decoding knob parses from YAML and
-// changes how a percent-encoded path tokenizes. The default rejects percent
-// bytes; allow_percent plus a decode pass admits and decodes them.
-func TestURLDecodingFromYAML(t *testing.T) {
-	// GitLab keeps an encoded slash as one project-id segment: decode 0,
-	// percent allowed. The capture binds the whole encoded id.
-	gitlab := ruleFromYAML(t, `
-paths: ["/api/v4/projects/{project}/**"]
-methods: [GET]
-url_decoding:
-  allow_percent: true
-  decode_iterations: 0
-`)
-	compiled, err := gitlab.Compile()
+// TestEncodedSlashCapture pins the GitLab shape: capture_encoded_slash binds an
+// encoded project id as one raw segment, while a plain capture rejects the same
+// encoded segment and a plain glob never spans it.
+func TestEncodedSlashCapture(t *testing.T) {
+	// capture_encoded_slash admits both a plain id and an encoded id, binding
+	// the raw bytes either way.
+	encoded := Rule{
+		Pred: `path.match(literal("api/v4/projects", capture_encoded_slash("project", greedy())))`,
+	}
+	c, err := encoded.Compile()
 	require.NoError(t, err)
-	got, err := compiled.Evaluate(Request{
-		Method: "GET",
-		Path:   "/api/v4/projects/group%2Frepo/repository/tree",
-	}, Identity{})
+
+	got, err := c.Evaluate(Request{Method: "GET", Path: "/api/v4/projects/mygroup%2Fmyproject/issues"}, Identity{})
 	require.NoError(t, err)
 	require.True(t, got.Allowed)
-	require.Equal(t, "group%2Frepo", got.Allow.Vars["project"], "encoded slash stays one segment")
+	require.Equal(t, "mygroup%2Fmyproject", got.Allow.Vars["project"], "encoded id binds raw as one segment")
 
-	// The strict default rejects the same request: a percent byte is not
-	// admitted, so the path cannot tokenize and nothing matches.
-	strict := ruleFromYAML(t, `
-paths: ["/api/v4/projects/{project}/**"]
-methods: [GET]
-`)
-	compiledStrict, err := strict.Compile()
+	got, err = c.Evaluate(Request{Method: "GET", Path: "/api/v4/projects/123/issues"}, Identity{})
 	require.NoError(t, err)
-	gotStrict, err := compiledStrict.Evaluate(Request{
-		Method: "GET",
-		Path:   "/api/v4/projects/group%2Frepo/repository/tree",
-	}, Identity{})
+	require.True(t, got.Allowed)
+	require.Equal(t, "123", got.Allow.Vars["project"], "plain id matches the same node")
+
+	// A plain capture is safe-only: the encoded id no longer matches, so the
+	// rule denies rather than binding the encoded value.
+	plain := Rule{
+		Pred: `path.match(literal("api/v4/projects", capture("project", greedy())))`,
+	}
+	cp, err := plain.Compile()
 	require.NoError(t, err)
-	require.False(t, gotStrict.Allowed, "strict default rejects percent-encoding")
+	gotPlain, err := cp.Evaluate(Request{Method: "GET", Path: "/api/v4/projects/mygroup%2Fmyproject/issues"}, Identity{})
+	require.NoError(t, err)
+	require.False(t, gotPlain.Allowed, "a plain capture rejects an encoded slash")
+}
+
+// TestDoubleEncodedSlashIsInvalid pins that a double-encoded slash (%252F) is
+// rejected at tokenize, since its first escape is %25, not the encoded
+// separator, so it never reaches a matcher even one that admits an encoded
+// slash.
+func TestDoubleEncodedSlashIsInvalid(t *testing.T) {
+	set, err := CompileRoles([]Role{{
+		Name: "developer",
+		Rules: []Rule{{
+			Pred: `path.match(literal("api/v4/projects", capture_encoded_slash("project", greedy())))`,
+		}},
+	}})
+	require.NoError(t, err)
+	got, err := set.Evaluate(Request{Method: "GET", Path: "/api/v4/projects/a%252Fb/issues"}, Identity{})
+	require.NoError(t, err)
+	require.False(t, got.Allowed)
+	require.Equal(t, DenyInvalidRequest, got.Deny.Kind)
+}
+
+// TestNegatedEncodedIsRejected pins the negation lint: a rule that negates a
+// path.match cannot also use an encoded-slash matcher, since the carve-out can
+// fail open if the negation misses an encoded segment.
+func TestNegatedEncodedIsRejected(t *testing.T) {
+	_, err := Rule{
+		Pred: `path.match(literal("api/v4/projects", capture_encoded_slash("project", greedy()))) && !path.match(literal("api/v4/projects", glob(literal("variables"))))`,
+	}.Compile()
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "encoded-slash matcher")
 }
 
 func TestCompileRejectsBothSurfaces(t *testing.T) {

@@ -1,0 +1,34 @@
+description: a broad ** never spans an encoded slash
+rules:
+    # greedy is repeated safe glob: it spans only segments with no percent
+    # encoding. A broad /files/** therefore matches a plain tail but stops at an
+    # encoded slash, so it cannot silently admit one. The request is well-formed
+    # (the encoded slash tokenizes fine), it just matches no rule.
+    - paths:
+        - /files/**
+rules_desugared:
+    - pred: |-
+        path.match(
+          literal("files",
+            greedy()))
+identity:
+    name: bob
+    roles:
+        - developer
+cases:
+    - request:
+        method: GET
+        path: /files/a/b/c
+      expect:
+        allowed: true
+    - request:
+        method: GET
+        path: /files/a%2Fb
+      expect:
+        allowed: false
+        deny_kind: teleport_request_not_allowed
+    - request:
+        method: GET
+        path: /files
+      expect:
+        allowed: true

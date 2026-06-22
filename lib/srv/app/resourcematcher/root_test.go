@@ -44,7 +44,7 @@ func TestRootEval(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.path, func(t *testing.T) {
-			tokens, err := Tokenize(tt.path, DecodeConfig{})
+			tokens, err := Tokenize(tt.path)
 			require.NoError(t, err)
 			ok, _ := Eval(tokens, root)
 			require.Equal(t, tt.want, ok)
@@ -59,7 +59,7 @@ func TestRootCaptures(t *testing.T) {
 		Literal("projects", Capture("project", Greedy())),
 		Literal("groups", Capture("group", Greedy())),
 	))
-	tokens, err := Tokenize("/projects/gitlab-org/tree", DecodeConfig{})
+	tokens, err := Tokenize("/projects/gitlab-org/tree")
 	require.NoError(t, err)
 	ok, vars := Eval(tokens, root)
 	require.True(t, ok)
@@ -74,8 +74,7 @@ func TestRootConstructorEmpty(t *testing.T) {
 }
 
 // TestRootSingleMatchRule pins the design goal: several first segments fold into
-// one path.match, so the decode options ride the call once instead of repeating
-// across an || of separate matches.
+// one path.match through root(), instead of an || of separate matches.
 func TestRootSingleMatchRule(t *testing.T) {
 	rule := Rule{
 		Pred: `path.match(root(literal("api", greedy()), literal("admin", greedy())))`,
@@ -122,11 +121,11 @@ func TestRootRejectsNesting(t *testing.T) {
 	}
 }
 
-// TestRootAtTopCompiles pins that a well-placed root, with decode options on the
-// one call, compiles.
+// TestRootAtTopCompiles pins that a well-placed root, as the matcher argument of
+// path.match, compiles.
 func TestRootAtTopCompiles(t *testing.T) {
 	_, err := Rule{
-		Pred: `path.match(root(literal("api", greedy()), literal("admin", greedy())), decode_iterations(1))`,
+		Pred: `path.match(root(literal("api", greedy()), literal("admin", greedy())))`,
 	}.Compile()
 	require.NoError(t, err)
 }

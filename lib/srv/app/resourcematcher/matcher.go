@@ -37,20 +37,33 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// kind enumerates the four matcher node kinds.
+// kind enumerates the matcher node kinds.
 type kind int
 
 const (
 	// kindLiteral matches a token equal to its text.
 	kindLiteral kind = iota
-	// kindGlob matches exactly one non-empty token, the `*` metacharacter.
+	// kindGlob matches exactly one non-empty token that carries no percent
+	// encoding, the `*` metacharacter. It is safe-only: an encoded slash is
+	// never admitted, so a `*` cannot silently span one.
 	kindGlob
 	// kindCapture matches one token and binds it under capture.<name>, the
-	// `{name}` metacharacter.
+	// `{name}` metacharacter. Like glob, it is safe-only and rejects a token
+	// that carries percent encoding.
 	kindCapture
 	// kindGreedy matches zero or more trailing tokens, the `**`
-	// metacharacter. It is terminal and carries no children.
+	// metacharacter. It is terminal and carries no children. It is repeated
+	// safe glob: it spans only tokens with no percent encoding, so a broad `**`
+	// never silently absorbs an encoded slash.
 	kindGreedy
+	// kindGlobEncodedSlash matches exactly one non-empty token that is plain or
+	// carries only the encoded separator (%2F/%2f, any count), kept raw. It is
+	// the explicit per-position opt-in that admits an encoded slash where a real
+	// API requires it.
+	kindGlobEncodedSlash
+	// kindCaptureEncodedSlash matches one such token and binds it raw under
+	// capture.<name>, forwarded byte-faithfully with no decode and no re-encode.
+	kindCaptureEncodedSlash
 	// kindRoot is the synthetic top node. It consumes no token and matches
 	// each child against the same segment, so its children are alternative
 	// roots OR-ed together. It is the one place an alternation can sit with no
@@ -179,6 +192,25 @@ func Capture(name string, children ...*Node) *Node {
 	return &Node{kind: kindCapture, text: name, children: children}
 }
 
+// GlobEncodedSlash builds a node that matches exactly one non-empty segment
+// that is plain or carries only the encoded separator (%2F/%2f, any count),
+// kept raw. It is the explicit, per-position opt-in for an encoded slash: a
+// plain glob rejects any percent byte, so a rule names this matcher exactly
+// where a real API requires an encoded slash, such as a GitLab project id.
+func GlobEncodedSlash(children ...*Node) *Node {
+	return &Node{kind: kindGlobEncodedSlash, children: children}
+}
+
+// CaptureEncodedSlash builds a node that matches one such segment and binds it
+// under capture.<name>, the capture form of GlobEncodedSlash. The bound value
+// is the raw bytes, forwarded byte-faithfully with no decode and no re-encode,
+// so the agent's view and the upstream's stay identical. The matcher sees one
+// opaque blob and cannot reach inside it; an inner constraint belongs in a
+// where: check on the captured raw string.
+func CaptureEncodedSlash(name string, children ...*Node) *Node {
+	return &Node{kind: kindCaptureEncodedSlash, text: name, children: children}
+}
+
 // Greedy builds a terminal node that matches zero or more trailing segments,
 // the `**` metacharacter. It takes no children.
 func Greedy() *Node {
@@ -264,7 +296,7 @@ func containsCapture(n *Node) bool {
 	if n == nil {
 		return false
 	}
-	if n.kind == kindCapture {
+	if n.kind == kindCapture || n.kind == kindCaptureEncodedSlash {
 		return true
 	}
 	for _, c := range n.children {
@@ -310,10 +342,18 @@ func matchNode(node *Node, tokens []string, i int, caps map[string]string) bool 
 		return false
 	case kindGreedy:
 		// Greedy is terminal and matches the entire remaining suffix,
-		// including zero tokens. When the node carries exclusions, the suffix
-		// must match none of them: each exclusion is a negative test, walked
-		// against a throwaway capture map so a binding inside an exclusion never
-		// leaks into the real match.
+		// including zero tokens. It is repeated safe glob, so the suffix must
+		// carry no percent encoding: a single encoded segment anywhere in the
+		// tail stops the greedy, which is why a broad `**` never silently
+		// absorbs an encoded slash.
+		for _, tok := range tokens[i:] {
+			if strings.ContainsRune(tok, '%') {
+				return false
+			}
+		}
+		// When the node carries exclusions, the suffix must match none of them:
+		// each exclusion is a negative test, walked against a throwaway capture
+		// map so a binding inside an exclusion never leaks into the real match.
 		for _, excl := range node.greedyExcept {
 			if matchNode(excl, tokens, i, map[string]string{}) {
 				return false
@@ -334,7 +374,9 @@ func matchNode(node *Node, tokens []string, i int, caps map[string]string) bool 
 		}
 		return matchChildren(node, tokens, i, caps)
 	case kindGlob:
-		if i >= len(tokens) || tokens[i] == "" {
+		// Safe-only: a glob matches one segment that carries no percent
+		// encoding, so it never spans an encoded slash.
+		if i >= len(tokens) || tokens[i] == "" || strings.ContainsRune(tokens[i], '%') {
 			return false
 		}
 		if slices.Contains(node.globExclude, tokens[i]) {
@@ -342,10 +384,25 @@ func matchNode(node *Node, tokens []string, i int, caps map[string]string) bool 
 		}
 		return matchChildren(node, tokens, i, caps)
 	case kindCapture:
-		if i >= len(tokens) || tokens[i] == "" {
+		// Safe-only, like glob: a capture binds one segment with no percent
+		// encoding. Use captureEncodedSlash to bind an encoded segment.
+		if i >= len(tokens) || tokens[i] == "" || strings.ContainsRune(tokens[i], '%') {
 			return false
 		}
 		// Bind before descending so a child predicate can read the capture.
+		caps[node.text] = tokens[i]
+		return matchChildren(node, tokens, i, caps)
+	case kindGlobEncodedSlash:
+		// Admit one segment that is plain or carries only the encoded separator.
+		if i >= len(tokens) || tokens[i] == "" || !onlyEncodedSlash(tokens[i]) {
+			return false
+		}
+		return matchChildren(node, tokens, i, caps)
+	case kindCaptureEncodedSlash:
+		if i >= len(tokens) || tokens[i] == "" || !onlyEncodedSlash(tokens[i]) {
+			return false
+		}
+		// Bind the raw bytes so the captured value forwards byte-faithfully.
 		caps[node.text] = tokens[i]
 		return matchChildren(node, tokens, i, caps)
 	default:
@@ -367,6 +424,24 @@ func matchChildren(node *Node, tokens []string, i int, caps map[string]string) b
 		}
 	}
 	return false
+}
+
+// onlyEncodedSlash reports whether token carries no percent-escape other than
+// the encoded separator %2F/%2f. The encoded-slash nodes admit a token only
+// when this holds, so a plain id and an encoded id both match but a token with
+// any other escape does not. Tokenize already guarantees this for every real
+// request token, so the check is a self-contained guard that keeps the node
+// correct even when a token reaches it directly, such as in a unit test.
+func onlyEncodedSlash(token string) bool {
+	for i := 0; i < len(token); i++ {
+		if token[i] != '%' {
+			continue
+		}
+		if i+2 >= len(token) || token[i+1] != '2' || (token[i+2] != 'F' && token[i+2] != 'f') {
+			return false
+		}
+	}
+	return true
 }
 
 // Compile parses a declarative path pattern such as

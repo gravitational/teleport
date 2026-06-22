@@ -45,7 +45,7 @@ func DesugarRoles(roles []Role) ([]Role, error) {
 			// a path or method clause, so materialize each hint's On from the
 			// declarative default when it was left implicit. The decode options
 			// are already baked into the lowered pred by desugar(), so the
-			// predicate-form rule carries no separate URLDecoding.
+			// predicate-form rule carries only the lowered pred.
 			hints, err := desugarHints(rule)
 			if err != nil {
 				return nil, err
@@ -86,13 +86,12 @@ func desugarHints(rule Rule) ([]DenyHint, error) {
 }
 
 // FormatPredicate reformats a predicate so the matcher tree reads as a path. A
-// constructor keeps its scalar arguments, a literal's text, a capture's name, a
-// decode count, on its own line, and breaks onto a new indented line only
-// before an argument that is itself a call, the node's child. Sibling arguments
-// that are calls share one level, and a child is indented one level further. So
-// path.match(literal("files", capture("x", glob())), decode_iterations(1))
-// renders as a single descending path, with decode_iterations a sibling of the
-// literal at the top level.
+// constructor keeps its scalar arguments, a literal's text or a capture's name,
+// on its own line, and breaks onto a new indented line only before an argument
+// that is itself a call, the node's child. Sibling arguments that are calls
+// share one level, and a child is indented one level further. So
+// path.match(literal("files", capture("x", glob()))) renders as a single
+// descending path.
 //
 // The result stays parseable: a line only ever ends in "(", ",", or an
 // operator, never a ")" mid-expression, since the engine parses Go expression

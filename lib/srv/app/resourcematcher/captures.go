@@ -266,6 +266,63 @@ func validateRoot(expr string) error {
 	return nil
 }
 
+// validateNegatedEncoded rejects a rule that combines a negated path.match with
+// an encoded-slash matcher anywhere in the rule. A negated carve-out
+// (&& !path.match(exception)) fails open if the exception matcher silently
+// misses an encoded segment: when the positive grant admits an encoded id but
+// the negation uses a plain matcher, an attacker reaches a denied endpoint via
+// the encoded form (see pathspec-mental-model section 9). Pinning down the
+// exact position mismatch is fragile, so the lint is deliberately broad: any
+// negation together with any encoded position is rejected, which pushes an
+// author toward the positive-only grant the model prefers.
+func validateNegatedEncoded(expr string) error {
+	parsed, err := goparser.ParseExpr(expr)
+	if err != nil {
+		return nil
+	}
+	if hasNegatedMatch(parsed) && hasEncodedNode(parsed) {
+		return trace.BadParameter(
+			"a rule that negates a path.match cannot also use an encoded-slash matcher: " +
+				"the carve-out can fail open if the negated match misses an encoded segment; " +
+				"express the grant positively instead")
+	}
+	return nil
+}
+
+// hasNegatedMatch reports whether expr contains a negated path.match, a "!"
+// applied to an expression that holds a path.match call.
+func hasNegatedMatch(root ast.Node) bool {
+	found := false
+	ast.Inspect(root, func(n ast.Node) bool {
+		unary, ok := n.(*ast.UnaryExpr)
+		if !ok || unary.Op != token.NOT {
+			return true
+		}
+		ast.Inspect(unary.X, func(m ast.Node) bool {
+			if call, ok := m.(*ast.CallExpr); ok && isPathMatch(call) {
+				found = true
+			}
+			return true
+		})
+		return true
+	})
+	return found
+}
+
+// hasEncodedNode reports whether expr contains a glob_encoded_slash or
+// capture_encoded_slash matcher anywhere.
+func hasEncodedNode(root ast.Node) bool {
+	found := false
+	ast.Inspect(root, func(n ast.Node) bool {
+		if call, ok := n.(*ast.CallExpr); ok &&
+			(isIdentCall(call, "glob_encoded_slash") || isIdentCall(call, "capture_encoded_slash")) {
+			found = true
+		}
+		return true
+	})
+	return found
+}
+
 // validateExclusions rejects a capture inside a greedy_except matcher. An
 // exclusion is a deny test that binds nothing, so a capture there can never be
 // read through vars.<name>; rejecting it at load turns a silent no-op into a
@@ -317,12 +374,13 @@ func referencedVars(root ast.Node) []string {
 	return out
 }
 
-// captureName returns the bound name of a capture("name", ...) call. It reports
-// false for any other call, and for a capture call whose first argument is not
-// a string literal, since a dynamic name cannot be checked at load.
+// captureName returns the bound name of a capture("name", ...) or
+// capture_encoded_slash("name", ...) call. It reports false for any other call,
+// and for a capture call whose first argument is not a string literal, since a
+// dynamic name cannot be checked at load.
 func captureName(call *ast.CallExpr) (string, bool) {
 	id, ok := call.Fun.(*ast.Ident)
-	if !ok || id.Name != "capture" || len(call.Args) == 0 {
+	if !ok || (id.Name != "capture" && id.Name != "capture_encoded_slash") || len(call.Args) == 0 {
 		return "", false
 	}
 	lit, ok := call.Args[0].(*ast.BasicLit)

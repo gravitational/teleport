@@ -45,7 +45,7 @@ func TestSlashEval(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tokens, err := Tokenize(tt.path, DecodeConfig{})
+			tokens, err := Tokenize(tt.path)
 			require.NoError(t, err)
 			ok, _ := Eval(tokens, tt.root)
 			require.Equal(t, tt.want, ok)

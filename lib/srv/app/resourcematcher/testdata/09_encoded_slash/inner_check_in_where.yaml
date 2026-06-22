@@ -1,0 +1,34 @@
+description: constrain an encoded id with a where check on the raw value
+rules:
+    # An encoded segment is an opaque blob: the matcher cannot reach inside it
+    # to pin the group. An inner constraint goes in a where check on the raw
+    # captured value, an equality test here, not in the path tree.
+    - pred: |-
+        path.match(literal("api/v4/projects",
+            capture_encoded_slash("project", greedy()))) &&
+        vars.project == "mygroup%2Fmyproject"
+rules_desugared:
+    - pred: |-
+        path.match(
+          literal("api/v4/projects",
+            capture_encoded_slash("project",
+              greedy()))) &&
+        vars.project == "mygroup%2Fmyproject"
+identity:
+    name: bob
+    roles:
+        - developer
+cases:
+    - request:
+        method: GET
+        path: /api/v4/projects/mygroup%2Fmyproject/issues
+      expect:
+        allowed: true
+        vars:
+            project: mygroup%2Fmyproject
+    - request:
+        method: GET
+        path: /api/v4/projects/other%2Fthing/issues
+      expect:
+        allowed: false
+        deny_kind: teleport_request_not_allowed

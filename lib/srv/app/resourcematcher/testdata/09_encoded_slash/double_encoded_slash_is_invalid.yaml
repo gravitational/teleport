@@ -1,0 +1,32 @@
+description: a double-encoded slash is invalid, even under an encoded-slash node
+rules:
+    # capture_encoded_slash admits the encoded separator, but a double-encoded
+    # slash (%252F) begins with the escape %25, which is not the separator, so
+    # the strict tokenizer rejects the whole path before any matcher runs.
+    - pred: |-
+        path.match(literal("api/v4/projects",
+            capture_encoded_slash("project", greedy())))
+rules_desugared:
+    - pred: |-
+        path.match(
+          literal("api/v4/projects",
+            capture_encoded_slash("project",
+              greedy())))
+identity:
+    name: bob
+    roles:
+        - developer
+cases:
+    - request:
+        method: GET
+        path: /api/v4/projects/a%252Fb/issues
+      expect:
+        allowed: false
+        deny_kind: teleport_invalid_request
+    - request:
+        method: GET
+        path: /api/v4/projects/a%2Fb/issues
+      expect:
+        allowed: true
+        vars:
+            project: a%2Fb

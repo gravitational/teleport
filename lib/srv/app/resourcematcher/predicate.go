@@ -52,28 +52,22 @@ type Identity struct {
 type env struct {
 	request Request
 	user    Identity
-	// decode is the rule's decode config, used to tokenize the request path
-	// lazily on the first path.match. Every path.match in a rule carries
-	// identical options, checked at load, so one config tokenizes the path for
-	// the whole evaluation.
-	decode DecodeConfig
-	vars   map[string]string
-	state  *evalState
+	vars    map[string]string
+	state   *evalState
 }
 
-// pathTokens lazily tokenizes the request path under the environment's decode
-// config and caches the result in the shared state, so several path.match calls
-// in one evaluation tokenize the path once and a rule with no path.match never
-// tokenizes at all. It reports ok=false when the path is not tokenizable under
-// that decode and records tokenizeFailed, which the caller treats as a forced
-// no-match. Returning a flag rather than an error keeps a negated path.match
-// from inverting a tokenize-failure into an allow: tokenizeFailed overrides the
-// boolean no matter which operator read it.
+// pathTokens lazily tokenizes the request path and caches the result in the
+// shared state, so several path.match calls in one evaluation tokenize the path
+// once and a rule with no path.match never tokenizes at all. It reports
+// ok=false when the path is not tokenizable and records tokenizeFailed, which
+// the caller treats as a forced no-match. Returning a flag rather than an error
+// keeps a negated path.match from inverting a tokenize-failure into an allow:
+// tokenizeFailed overrides the boolean no matter which operator read it.
 func (e env) pathTokens() ([]string, bool) {
 	s := e.state
 	if !s.tokenized {
 		s.tokenized = true
-		tokens, err := Tokenize(e.request.Path, e.decode)
+		tokens, err := Tokenize(e.request.Path)
 		if err != nil {
 			s.tokenizeFailed = true
 			return nil, false
@@ -86,16 +80,6 @@ func (e env) pathTokens() ([]string, bool) {
 	return s.tokens, true
 }
 
-// Opt configures URL decoding for a single path.match call. The opt builders
-// decode_iterations(n) and allow_percent() each return one Opt, and a
-// path.match call applies the opts it carries to build its DecodeConfig. The
-// options ride on the call rather than on the rule so a path.match expression
-// is self-contained: it decodes exactly as written, with nothing pulled from a
-// surrounding YAML field. A rule's Compile step checks every path.match in the
-// rule carries identical options, so a carve-out's negated match cannot decode
-// the subject differently from its positive match.
-type Opt func(*DecodeConfig)
-
 // evalState carries side effects of one evaluation back to the caller. It is
 // held by pointer so the same instance is observed across the whole expression
 // tree, even though env is passed by value.
@@ -107,15 +91,15 @@ type evalState struct {
 	// regardless of the operator that read it (a bare vars.x != "admin" cannot
 	// widen).
 	unboundRead bool
-	// tokens caches the request path tokenized under the rule's decode, filled
-	// lazily on the first path.match.
+	// tokens caches the tokenized request path, filled lazily on the first
+	// path.match.
 	tokens []string
 	// tokenized records that the lazy tokenize has run, so it runs at most once
 	// per evaluation even when it produced no tokens.
 	tokenized bool
-	// tokenizeFailed records that the path could not be tokenized under the
-	// rule's decode. The caller forces the rule to no-match when this is set,
-	// so a path the matcher cannot read fails closed even behind a negation.
+	// tokenizeFailed records that the path could not be tokenized. The caller
+	// forces the rule to no-match when this is set, so a path the matcher cannot
+	// read fails closed even behind a negation.
 	tokenizeFailed bool
 }
 
@@ -156,16 +140,13 @@ func newParser() (*typical.CachedParser[env, bool], error) {
 		},
 		Functions: map[string]typical.Function{
 			// Matcher entry point. path.match walks the request path, tokenized
-			// lazily under the rule's decode, against the matcher root. On a
-			// match it records the bound segments into the environment's vars map
-			// so a later vars.<name> read can see them, then returns true. The
-			// first argument is the matcher root; any further arguments are
-			// decode options, which the load step already folded into the rule's
-			// decode, so they are not re-read here. A path the rule's decode
-			// cannot tokenize records tokenizeFailed and returns false, and the
-			// caller forces the rule to no-match, so a negated path.match cannot
-			// turn an unreadable path into an allow.
-			"path.match": typical.BinaryVariadicFunctionWithEnv(func(e env, root *Node, _ ...Opt) (bool, error) {
+			// lazily, against the matcher root. On a match it records the bound
+			// segments into the environment's vars map so a later vars.<name>
+			// read can see them, then returns true. A path the tokenizer rejects
+			// records tokenizeFailed and returns false, and the caller forces the
+			// rule to no-match, so a negated path.match cannot turn an unreadable
+			// path into an allow.
+			"path.match": typical.UnaryFunctionWithEnv(func(e env, root *Node) (bool, error) {
 				tokens, ok := e.pathTokens()
 				if !ok {
 					return false, nil
@@ -177,20 +158,6 @@ func newParser() (*typical.CachedParser[env, bool], error) {
 					return true, nil
 				}
 				return false, nil
-			}),
-			// Decode options for a path.match call. decode_iterations(n) sets
-			// the number of percent-decode passes, and allow_percent() admits a
-			// residual percent byte that survives those passes. Both default to
-			// the strict zero value when omitted: no decode, and reject any
-			// percent byte.
-			"decode_iterations": typical.UnaryFunction[env](func(n int) (Opt, error) {
-				if n < 0 || n > maxDecodeIterations {
-					return nil, trace.BadParameter("decode_iterations must be between 0 and %d", maxDecodeIterations)
-				}
-				return func(c *DecodeConfig) { c.DecodeIterations = n }, nil
-			}),
-			"allow_percent": typical.UnaryVariadicFunction[env](func(_ ...*Node) (Opt, error) {
-				return func(c *DecodeConfig) { c.AllowPercent = true }, nil
 			}),
 			// Matcher constructors. Each returns one Node, so they nest and
 			// type-check at parse time: every child argument must itself
@@ -206,6 +173,16 @@ func newParser() (*typical.CachedParser[env, bool], error) {
 			}),
 			"glob": typical.UnaryVariadicFunction[env](func(children ...*Node) (*Node, error) {
 				return Glob(children...), nil
+			}),
+			// Encoded-slash constructors, the explicit per-position opt-in for an
+			// encoded slash. glob and capture are safe-only and reject any
+			// percent byte; these admit a segment that is plain or carries only
+			// the encoded separator, kept raw and forwarded byte-faithfully.
+			"glob_encoded_slash": typical.UnaryVariadicFunction[env](func(children ...*Node) (*Node, error) {
+				return GlobEncodedSlash(children...), nil
+			}),
+			"capture_encoded_slash": typical.BinaryVariadicFunction[env](func(name string, children ...*Node) (*Node, error) {
+				return CaptureEncodedSlash(name, children...), nil
 			}),
 			"greedy": typical.UnaryVariadicFunction[env](func(_ ...*Node) (*Node, error) {
 				return Greedy(), nil
