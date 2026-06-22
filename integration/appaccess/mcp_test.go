@@ -61,8 +61,16 @@ func testMCP(pack *Pack, t *testing.T) {
 		testMCPProxyStreamableHTTP(t, pack, "test-http")
 	})
 
+	t.Run("proxy streamable HTTP over HTTPS success", func(t *testing.T) {
+		testMCPProxyStreamableHTTP(t, pack, "test-https")
+	})
+
 	t.Run("stdio to streamable HTTP success", func(t *testing.T) {
 		testMCPStdioToStreamableHTTP(t, pack, "test-http")
+	})
+
+	t.Run("stdio to streamable HTTP over HTTPS success", func(t *testing.T) {
+		testMCPStdioToStreamableHTTP(t, pack, "test-https")
 	})
 }
 
