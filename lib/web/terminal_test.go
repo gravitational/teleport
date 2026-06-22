@@ -35,6 +35,8 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -122,9 +124,27 @@ func TestGenerateClientConfig(t *testing.T) {
 	}
 
 	cfg := handler.generateClientConfig(t.Context(), &terminal.Stream{}, tc)
-	require.Equal(t, "alice", cfg.User)
-	require.Equal(t, 5*time.Second, cfg.Timeout)
+
+	want := apissh.ClientConfig{
+		User:    "alice",
+		Timeout: 5 * time.Second,
+	}
+
+	require.Empty(
+		t,
+		cmp.Diff(
+			want,
+			cfg,
+			cmpopts.IgnoreFields(
+				apissh.ClientConfig{},
+				"PublicKeyAuth", "HostKeyCallback", "BannerCallback", "AuthCallback", // Must be asserted separately.
+			),
+		),
+		"generateClientConfig mismatch (-want +got)",
+	)
+	require.NotNil(t, cfg.PublicKeyAuth)
 	require.NotNil(t, cfg.HostKeyCallback)
+	require.Nil(t, cfg.BannerCallback)
 	require.NotNil(t, cfg.AuthCallback)
 
 	signers, err := cfg.PublicKeyAuth.Signers()
