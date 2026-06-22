@@ -91,7 +91,7 @@ func TestEnrollPairingService_CreateEnrollPairing(t *testing.T) {
 
 	t.Run("rejects empty user", func(t *testing.T) {
 		_, err := s.CreateEnrollPairing(t.Context(), "")
-		assert.True(t, trace.IsBadParameter(err), "got %v", err)
+		assert.ErrorAs(t, err, new(*trace.BadParameterError))
 	})
 }
 
@@ -112,11 +112,11 @@ func TestEnrollPairingService_GetCurrentEnrollPairing(t *testing.T) {
 
 	t.Run("returns NotFound when no pairing exists", func(t *testing.T) {
 		_, err := s.GetCurrentEnrollPairing(t.Context(), "get-missing")
-		assert.True(t, trace.IsNotFound(err), "got %v", err)
+		assert.ErrorAs(t, err, new(*trace.NotFoundError))
 	})
 
 	t.Run("rejects empty user", func(t *testing.T) {
 		_, err := s.GetCurrentEnrollPairing(t.Context(), "")
-		assert.True(t, trace.IsBadParameter(err), "got %v", err)
+		assert.ErrorAs(t, err, new(*trace.BadParameterError))
 	})
 }
