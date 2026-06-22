@@ -104,6 +104,37 @@ func TestResolveSessionCommand(t *testing.T) {
 	})
 }
 
+func TestWrapWithDBusSession(t *testing.T) {
+	found := func(names ...string) func(string) (string, error) {
+		set := make(map[string]bool, len(names))
+		for _, n := range names {
+			set[n] = true
+		}
+		return func(name string) (string, error) {
+			if set[name] {
+				return "/usr/bin/" + name, nil
+			}
+			return "", exec.ErrNotFound
+		}
+	}
+
+	t.Run("prefers dbus-run-session", func(t *testing.T) {
+		cmd, ok := wrapWithDBusSession("/etc/X11/Xsession 'default'", found("dbus-run-session", "dbus-launch"))
+		require.True(t, ok)
+		require.Equal(t, "/usr/bin/dbus-run-session -- /etc/X11/Xsession 'default'", cmd)
+	})
+	t.Run("falls back to dbus-launch", func(t *testing.T) {
+		cmd, ok := wrapWithDBusSession("startxfce4", found("dbus-launch"))
+		require.True(t, ok)
+		require.Equal(t, "/usr/bin/dbus-launch --exit-with-session startxfce4", cmd)
+	})
+	t.Run("no launcher available", func(t *testing.T) {
+		cmd, ok := wrapWithDBusSession("startxfce4", found())
+		require.False(t, ok)
+		require.Equal(t, "startxfce4", cmd)
+	})
+}
+
 func TestDiscoverSessionWrapper(t *testing.T) {
 	logger := slog.Default()
 

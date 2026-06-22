@@ -143,8 +143,11 @@ func StartTeleportExecXSession(ctx context.Context, cfg *XSessionConfig) (*reexe
 		return nil, trace.Wrap(err)
 	}
 
-	if _, err := exec.LookPath("dbus-launch"); err == nil {
-		cmdd = "dbus-launch --exit-with-session " + cmdd
+	if wrapped, ok := wrapWithDBusSession(cmdd, exec.LookPath); ok {
+		cmdd = wrapped
+	} else {
+		cfg.Logger.WarnContext(ctx, "No D-Bus session launcher (dbus-run-session or dbus-launch) found; "+
+			"the session may fail to start without a D-Bus session bus. Install the 'dbus' or 'dbus-x11' package.")
 	}
 
 	cmdmsg := &reexec.ExecCommand{
@@ -258,4 +261,36 @@ func resolveSessionCommand(execValue, wrapper string) (string, error) {
 	}
 
 	return execValue, nil
+}
+
+// dbusSessionLaunchers lists the tools that start a private D-Bus session bus
+// for the session, in preference order.
+//
+// dbus-run-session is the modern tool, shipped in the base dbus package and
+// present on most current distros.
+// dbus-launch is the legacy tool from the dbus-x11 package, used as a fallback
+// for older distros that lack dbus-run-session.
+//
+// Each launcher runs the rest of the command line as the program to execute on
+// the new bus, so the trailing argument separator differs per tool.
+var dbusSessionLaunchers = []struct {
+	name string
+	args string
+}{
+	{name: "dbus-run-session", args: "--"},
+	{name: "dbus-launch", args: "--exit-with-session"},
+}
+
+// wrapWithDBusSession prefixes cmd with the first available D-Bus session
+// launcher so the session runs on its own private session bus, isolated from
+// any other login session of the same user.
+func wrapWithDBusSession(cmd string, lookPath func(string) (string, error)) (string, bool) {
+	for _, launcher := range dbusSessionLaunchers {
+		path, err := lookPath(launcher.name)
+		if err != nil {
+			continue
+		}
+		return path + " " + launcher.args + " " + cmd, true
+	}
+	return cmd, false
 }
