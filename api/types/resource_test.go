@@ -861,3 +861,164 @@ func newAppServer(t *testing.T, name string) AppServer {
 	require.NoError(t, err)
 	return app
 }
+
+func TestGetLabelWithFallbacks(t *testing.T) {
+	const (
+		primary        = "primary"
+		firstFallback  = "first-fallback"
+		secondFallback = "second-fallback"
+	)
+
+	tests := []struct {
+		name           string
+		server         *ServerV2
+		skipEmptyValue bool
+		key            string
+		fallbacks      []string
+		wantVal        string
+		wantOK         bool
+	}{
+		{
+			name: "uses primary label",
+			server: &ServerV2{
+				Metadata: Metadata{
+					Labels: map[string]string{
+						primary:       "primary-value",
+						firstFallback: "fallback-value",
+					},
+				},
+			},
+			skipEmptyValue: true,
+			key:            primary,
+			fallbacks:      []string{firstFallback},
+			wantVal:        "primary-value",
+			wantOK:         true,
+		},
+		{
+			name: "uses fallback label",
+			server: &ServerV2{
+				Metadata: Metadata{
+					Labels: map[string]string{
+						firstFallback: "fallback-value",
+					},
+				},
+			},
+			skipEmptyValue: true,
+			key:            primary,
+			fallbacks:      []string{firstFallback},
+			wantVal:        "fallback-value",
+			wantOK:         true,
+		},
+		{
+			name: "skips empty primary label",
+			server: &ServerV2{
+				Metadata: Metadata{
+					Labels: map[string]string{
+						primary:       "",
+						firstFallback: "fallback-value",
+					},
+				},
+			},
+			skipEmptyValue: true,
+			key:            primary,
+			fallbacks:      []string{firstFallback},
+			wantVal:        "fallback-value",
+			wantOK:         true,
+		},
+		{
+			name: "keeps empty primary label when not skipping empty values",
+			server: &ServerV2{
+				Metadata: Metadata{
+					Labels: map[string]string{
+						primary:       "",
+						firstFallback: "fallback-value",
+					},
+				},
+			},
+			skipEmptyValue: false,
+			key:            primary,
+			fallbacks:      []string{firstFallback},
+			wantVal:        "",
+			wantOK:         true,
+		},
+		{
+			name: "skips empty fallback label",
+			server: &ServerV2{
+				Metadata: Metadata{
+					Labels: map[string]string{
+						primary:        "",
+						firstFallback:  "",
+						secondFallback: "second-fallback-value",
+					},
+				},
+			},
+			skipEmptyValue: true,
+			key:            primary,
+			fallbacks:      []string{firstFallback, secondFallback},
+			wantVal:        "second-fallback-value",
+			wantOK:         true,
+		},
+		{
+			name: "returns not found when labels are missing",
+			server: &ServerV2{
+				Metadata: Metadata{
+					Labels: map[string]string{},
+				},
+			},
+			skipEmptyValue: true,
+			key:            primary,
+			fallbacks:      []string{firstFallback},
+			wantVal:        "",
+			wantOK:         false,
+		},
+		{
+			name: "returns not found when all labels are empty and skipping empty values",
+			server: &ServerV2{
+				Metadata: Metadata{
+					Labels: map[string]string{
+						primary:       "",
+						firstFallback: "",
+					},
+				},
+			},
+			skipEmptyValue: true,
+			key:            primary,
+			fallbacks:      []string{firstFallback},
+			wantVal:        "",
+			wantOK:         false,
+		},
+		{
+			name: "uses GetLabel precedence for fallback labels",
+			server: &ServerV2{
+				Metadata: Metadata{
+					Labels: map[string]string{
+						firstFallback: "static-value",
+					},
+				},
+				Spec: ServerSpecV2{
+					CmdLabels: map[string]CommandLabelV2{
+						firstFallback: {
+							Result: "cmd-value",
+						},
+					},
+					ImmutableLabels: map[string]string{
+						firstFallback: "immutable-value",
+					},
+				},
+			},
+			skipEmptyValue: true,
+			key:            primary,
+			fallbacks:      []string{firstFallback},
+			wantVal:        "immutable-value",
+			wantOK:         true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := getLabelWithFallbacks(tt.server, tt.skipEmptyValue, tt.key, tt.fallbacks...)
+			require.Equal(t, tt.wantOK, ok)
+			require.Equal(t, tt.wantVal, got)
+		})
+	}
+}

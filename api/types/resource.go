@@ -803,3 +803,20 @@ func GetExpiry(v any) (time.Time, error) {
 	}
 	return time.Time{}, trace.BadParameter("unable to determine expiry from resource of type %T", v)
 }
+
+// getLabelWithFallbacks is a helper to get a label that may have multiple
+// equivalent keys, which is often the case for deprecated labels.
+func getLabelWithFallbacks(r ResourceWithLabels, skipEmptyValue bool, key string, fallbacks ...string) (string, bool) {
+	v, ok := r.GetLabel(key)
+	if v != "" || (ok && !skipEmptyValue) {
+		return v, ok
+	}
+
+	for _, key := range fallbacks {
+		v, ok := r.GetLabel(key)
+		if v != "" || (ok && !skipEmptyValue) {
+			return v, ok
+		}
+	}
+	return "", false
+}
