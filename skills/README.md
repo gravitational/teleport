@@ -20,6 +20,9 @@ npx skills add https://github.com/gravitational/teleport/tree/master/skills/tele
 
 # Investigate Identity Security Logs
 npx skills add https://github.com/gravitational/teleport/tree/master/skills/teleport-investigate
+
+# Review who can access which resources
+npx skills add https://github.com/gravitational/teleport/tree/master/skills/teleport-access-review
 ```
 
 You'll be prompted to pick which agents to install into and whether to install
@@ -73,6 +76,23 @@ Example invocations:
 - What did bot CI-deployer do yesterday?
 - Show me who accessed the production-database resource this month
 - Show me what activity was performed during the following access request <uuid>
+
+### teleport-access-review
+
+Helps review who can reach which resources and whether that access is actually
+used, with `tctl access-review` and the `access_path` SQL query language —
+access list / ACL recertification, "who can access this resource", "what can
+this user access", attesting access for audit, and finding dormant or unused
+standing privileges. Pairs with `teleport-investigate` (standing access vs.
+historical activity).
+
+Example invocations:
+
+- Who can access the prod-db database?
+- Review the Prod Admins access list and flag members who haven't used it in 90 days
+- Does alice@example.com have any unused standing access?
+- What can the junior-dev role reach in production?
+- Attest who can reach prod-db and which grants are dormant
 
 ### teleport-discovery
 
