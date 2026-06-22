@@ -91,9 +91,14 @@ var logger = logutils.NewPackageLogger(teleport.ComponentKey, pluginName)
 
 type getCertFunc = func() (*tls.Certificate, error)
 
-// License is an interface for checking if a license is disabled.
+// License provides access to the license key pair.
 type License interface {
 	GetKeyPair() *liblicense.License
+}
+
+// LicenseChecker reports whether an enterprise license is currently disabled.
+// It is implemented by [*emodules.EnterpriseModules] from e/tool/modules.
+type LicenseChecker interface {
 	IsDisabled() bool
 }
 
@@ -122,6 +127,11 @@ type Config struct {
 
 	// Modules defines build time constraints and licensed features.
 	Modules modules.Modules
+
+	// LicenseChecker is a service capable of checking if the license is valid.
+	// EnterpriseModules implements this interface, but it is kept as a different
+	// entry in the config for ease of testing.
+	LicenseChecker LicenseChecker
 }
 
 // NewPlugin creates an instance of the Enterprise Web Plugin
@@ -129,6 +139,15 @@ func NewPlugin(cfg Config) (*Plugin, error) {
 	logger := cfg.Logger
 	if logger == nil {
 		logger = slog.Default()
+	}
+
+	// If LicenseChecker is not set, fall back to License if it also implements
+	// LicenseChecker. This allows callers that only set License (e.g. tests
+	// using ValidLicense{}) to continue working without explicitly setting both.
+	if cfg.LicenseChecker == nil {
+		if lc, ok := cfg.License.(LicenseChecker); ok {
+			cfg.LicenseChecker = lc
+		}
 	}
 
 	return &Plugin{
@@ -253,9 +272,9 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 
 	// Create a SAMLService and register it with the auth.Server
 	sas, err := NewSAMLAuthService(&SAMLAuthServiceConfig{
-		Auth:    p.authServer.AuthServer,
-		Emitter: p.authServer.Emitter,
-		License: p.Config.License,
+		Auth:           p.authServer.AuthServer,
+		Emitter:        p.authServer.Emitter,
+		LicenseChecker: p.Config.LicenseChecker,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -264,9 +283,9 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 
 	// Create a OIDCService and register it with the auth.Server
 	oas, err := NewOIDCAuthService(&OIDCAuthServiceConfig{
-		Auth:    p.authServer.AuthServer,
-		Emitter: p.authServer.Emitter,
-		License: p.Config.License,
+		Auth:           p.authServer.AuthServer,
+		Emitter:        p.authServer.Emitter,
+		LicenseChecker: p.Config.LicenseChecker,
 	})
 	if err != nil {
 		return trace.Wrap(err)

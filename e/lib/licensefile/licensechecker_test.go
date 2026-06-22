@@ -2,12 +2,10 @@ package licensefile
 
 import (
 	"context"
-	"crypto/x509"
 	"fmt"
 	"testing"
 	"time"
 
-	liblicense "github.com/gravitational/license"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -44,31 +42,31 @@ func (msi *mockStatusInternal) ClearAlertAcks(ctx context.Context, req proto.Cle
 	return nil
 }
 
+type mockLicenseStatusGetter struct {
+	disabled   bool
+	expired    bool
+	expiresIn  time.Duration
+	disabledIn time.Duration
+}
+
+func (m *mockLicenseStatusGetter) IsDisabled() bool          { return m.disabled }
+func (m *mockLicenseStatusGetter) IsExpired() bool           { return m.expired }
+func (m *mockLicenseStatusGetter) ExpiresIn() time.Duration  { return m.expiresIn }
+func (m *mockLicenseStatusGetter) DisabledIn() time.Duration { return m.disabledIn }
+
 func TestCheckLicense(t *testing.T) {
 	tests := map[string]struct {
-		license      *LicenseFile
+		license      LicenseStatusGetter
 		wantSeverity types.AlertSeverity
 		wantMessage  string
 	}{
 		"Disabled": {
-			license: &LicenseFile{
-				KeyPair: &liblicense.License{
-					Cert: &x509.Certificate{
-						NotAfter: time.Now().Add(-constants.LicenseGraceInterval),
-					},
-				},
-			},
+			license:      &mockLicenseStatusGetter{disabled: true},
 			wantSeverity: types.AlertSeverity_HIGH,
 			wantMessage:  constants.LicenseDisabledMessageFormat,
 		},
 		"Expired": {
-			license: &LicenseFile{
-				KeyPair: &liblicense.License{
-					Cert: &x509.Certificate{
-						NotAfter: time.Now().Add(-time.Hour),
-					},
-				},
-			},
+			license:      &mockLicenseStatusGetter{expired: true, disabledIn: constants.LicenseGraceInterval - 1},
 			wantSeverity: types.AlertSeverity_HIGH,
 			wantMessage: fmt.Sprintf(
 				constants.LicenseExpiredMessageFormat,
@@ -76,13 +74,7 @@ func TestCheckLicense(t *testing.T) {
 			),
 		},
 		"Almost expired": {
-			license: &LicenseFile{
-				KeyPair: &liblicense.License{
-					Cert: &x509.Certificate{
-						NotAfter: time.Now().Add(constants.LicenseWarningInterval / 2),
-					},
-				},
-			},
+			license:      &mockLicenseStatusGetter{expiresIn: constants.LicenseWarningInterval/2 - 1},
 			wantSeverity: types.AlertSeverity_MEDIUM,
 			wantMessage: fmt.Sprintf(
 				constants.LicenseWarningMessageFormat,

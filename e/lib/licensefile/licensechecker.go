@@ -15,8 +15,17 @@ import (
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
 
+// LicenseStatusGetter provides the current license state for expiry checking.
+// EnterpriseModules implements this interface.
+type LicenseStatusGetter interface {
+	IsDisabled() bool
+	IsExpired() bool
+	ExpiresIn() time.Duration
+	DisabledIn() time.Duration
+}
+
 // RunLicenseChecker is used for running periodic checks that generate license warning alerts.
-func RunLicenseChecker(ctx context.Context, alertHandler services.Status, license *LicenseFile) {
+func RunLicenseChecker(ctx context.Context, alertHandler services.Status, license LicenseStatusGetter) {
 	if err := checkLicense(ctx, alertHandler, license); err != nil {
 		slog.WarnContext(ctx, "Failed to check the license", "error", err)
 	}
@@ -56,7 +65,7 @@ func RunLicenseChecker(ctx context.Context, alertHandler services.Status, licens
 	}
 }
 
-func checkLicense(ctx context.Context, alertHandler services.Status, license *LicenseFile) error {
+func checkLicense(ctx context.Context, alertHandler services.Status, license LicenseStatusGetter) error {
 	if err := clearOldLicenseAlerts(ctx, alertHandler); err != nil {
 		return trace.Wrap(err)
 	}

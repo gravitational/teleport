@@ -56,9 +56,9 @@ type SAMLAuthService struct {
 	auth                   *auth.Server
 	emitter                apievents.Emitter
 	assertionReplayService *local.AssertionReplayService
-	license                License
 	samlProviders          map[samlProviderKey]*samlProvider
 	lock                   sync.Mutex
+	licenseChecker         LicenseChecker
 
 	// preservedRoles holds a list of roles that must be preserved during SAML
 	// role calculation, based on the user's Origin. These are only applied to
@@ -77,8 +77,8 @@ type SAMLAuthServiceConfig struct {
 	Auth                   *auth.Server
 	Emitter                apievents.Emitter
 	AssertionReplayService *local.AssertionReplayService
-	License                License
 	PreservedRoles         map[string][]string
+	LicenseChecker         LicenseChecker
 }
 
 const maxCompressedBytes = 1024 * 1024 // 1 MB, will error if size is hit
@@ -86,9 +86,6 @@ const maxCompressedBytes = 1024 * 1024 // 1 MB, will error if size is hit
 func (cfg *SAMLAuthServiceConfig) CheckAndSetDefaults() error {
 	if cfg.Auth == nil {
 		return trace.BadParameter("auth.Server not provided")
-	}
-	if cfg.License == nil {
-		return trace.BadParameter("License not provided")
 	}
 	if cfg.AssertionReplayService == nil {
 		cfg.AssertionReplayService = cfg.Auth.Unstable.AssertionReplayService
@@ -100,6 +97,9 @@ func (cfg *SAMLAuthServiceConfig) CheckAndSetDefaults() error {
 		cfg.PreservedRoles = map[string][]string{
 			types.OriginOkta: {teleport.SystemOktaRequesterRoleName},
 		}
+	}
+	if cfg.LicenseChecker == nil {
+		return trace.BadParameter("license checker not provided")
 	}
 	return nil
 }
@@ -115,8 +115,8 @@ func NewSAMLAuthService(cfg *SAMLAuthServiceConfig) (*SAMLAuthService, error) {
 		auth:                   cfg.Auth,
 		emitter:                cfg.Emitter,
 		assertionReplayService: cfg.AssertionReplayService,
-		license:                cfg.License,
 		samlProviders:          make(map[samlProviderKey]*samlProvider),
+		licenseChecker:         cfg.LicenseChecker,
 		entraIDTokenResolver: sync.OnceValues(func() (*entraid.TokenResolver, error) {
 			return entraid.NewTokenResolver(entraid.TokenResolverConfig{
 				Plugins:      cfg.Auth.Plugins,
@@ -167,7 +167,7 @@ func (sas *SAMLAuthService) CreateSAMLAuthRequestForMFA(ctx context.Context, req
 }
 
 func (sas *SAMLAuthService) createSAMLAuthRequest(ctx context.Context, req types.SAMLAuthRequest, forMFA bool) (*types.SAMLAuthRequest, error) {
-	if sas.license.IsDisabled() {
+	if sas.licenseChecker.IsDisabled() {
 		return nil, ErrLicenseExpired
 	}
 
@@ -577,7 +577,7 @@ func SAMLAuthRequestFromProto(req *types.SAMLAuthRequest) authclient.SAMLAuthReq
 
 // ValidateSAMLResponse consumes attribute statements from SAML identity provider
 func (sas *SAMLAuthService) ValidateSAMLResponse(ctx context.Context, samlResponse, connectorID, clientIP string) (*authclient.SAMLAuthResponse, error) {
-	if sas.license.IsDisabled() {
+	if sas.licenseChecker.IsDisabled() {
 		return nil, ErrLicenseExpired
 	}
 

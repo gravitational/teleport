@@ -47,9 +47,11 @@ func startAuthServer(t *testing.T) *client.Client {
 		require.NoError(t, authServer.Close())
 	})
 
+	validLicense := eauth.ValidLicense{}
 	authPlugin, err := eauth.NewPlugin(eauth.Config{
-		License: eauth.ValidLicense{},
-		Modules: testModules,
+		License:        validLicense,
+		LicenseChecker: validLicense,
+		Modules:        testModules,
 	})
 	require.NoError(t, err)
 

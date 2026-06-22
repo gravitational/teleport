@@ -84,7 +84,7 @@ func NewTeleport(cfg *servicecfg.Config) (service.Process, error) {
 		})
 	}
 
-	webPlugin, authPlugin, err := addPlugins(cfg, license, pluginRegistry)
+	webPlugin, authPlugin, err := addPlugins(cfg, license, pluginRegistry, mod)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -158,7 +158,7 @@ func NewTeleport(cfg *servicecfg.Config) (service.Process, error) {
 	return ossProcess, nil
 }
 
-func addPlugins(cfg *servicecfg.Config, license *licensefile.LicenseFile, pluginRegistry plugin.Registry) (webPlugin *web.Plugin, authPlugin *auth.Plugin, err error) {
+func addPlugins(cfg *servicecfg.Config, license *licensefile.LicenseFile, pluginRegistry plugin.Registry, lc auth.LicenseChecker) (webPlugin *web.Plugin, authPlugin *auth.Plugin, err error) {
 	if cfg.Proxy.Enabled {
 		var pluginShimURL *url.URL
 		if urlVal := os.Getenv(pluginShimURLEnvVar); urlVal != "" {
@@ -213,6 +213,7 @@ func addPlugins(cfg *servicecfg.Config, license *licensefile.LicenseFile, plugin
 			AccessGraph:      cfg.AccessGraph,
 			HTTPTransport:    cfg.Testing.HTTPTransport,
 			Modules:          cfg.Modules,
+			LicenseChecker:   lc,
 		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)

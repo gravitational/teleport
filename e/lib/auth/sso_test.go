@@ -7,10 +7,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/auth/authtest"
-	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
-func newTestTLSServer(t *testing.T, license License, m *modulestest.Modules, opts ...authtest.TestTLSServerOption) *authtest.TLSServer {
+func newTestTLSServer(t *testing.T, m modules.Modules, lc LicenseChecker, opts ...authtest.TestTLSServerOption) *authtest.TLSServer {
 	t.Helper()
 	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:     t.TempDir(),
@@ -23,8 +23,8 @@ func newTestTLSServer(t *testing.T, license License, m *modulestest.Modules, opt
 	srv, err := as.NewTestTLSServer(opts...)
 	require.NoError(t, err)
 
-	registerSAMLService(t, &SAMLAuthServiceConfig{Auth: as.AuthServer, License: license})
-	registerOIDCService(t, &OIDCAuthServiceConfig{Auth: as.AuthServer, License: license})
+	registerSAMLService(t, &SAMLAuthServiceConfig{Auth: as.AuthServer, LicenseChecker: lc})
+	registerOIDCService(t, &OIDCAuthServiceConfig{Auth: as.AuthServer, LicenseChecker: lc})
 
 	t.Cleanup(func() { require.NoError(t, srv.Close()) })
 	return srv

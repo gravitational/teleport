@@ -13,10 +13,3 @@ type ValidLicense struct{}
 
 func (vl ValidLicense) IsDisabled() bool                { return false }
 func (vl ValidLicense) GetKeyPair() *liblicense.License { return nil }
-
-// DisabledLicense implements the License interface, for a license that is disabled
-// (is expired for more than the grace period).
-type DisabledLicense struct{}
-
-func (dl DisabledLicense) IsDisabled() bool                { return true }
-func (dl DisabledLicense) GetKeyPair() *liblicense.License { return nil }

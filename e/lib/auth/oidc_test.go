@@ -42,8 +42,10 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys"
 	eauth "github.com/gravitational/teleport/e/lib/auth"
+	"github.com/gravitational/teleport/e/lib/licensefile"
 	"github.com/gravitational/teleport/e/lib/loginrule"
 	loginrulestorage "github.com/gravitational/teleport/e/lib/loginrule/storage"
+	emodules "github.com/gravitational/teleport/e/tool/modules"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
@@ -248,12 +250,12 @@ func (s store) AuthRequestByID(ctx context.Context, id string) (op.AuthRequest, 
 type oidcSuiteOpts struct {
 	users             []user
 	insecure          bool
-	license           eauth.License
 	clock             clocki.FakeClock
 	proxy             func(http.Handler) http.Handler
 	pkceMode          string
 	requestObjectMode constants.OIDCRequestObjectMode
 	signerFactory     eauth.JWTSignerFactory
+	licenseChecker    eauth.LicenseChecker
 }
 
 func overridePKCEMode(mode string) func(*oidcSuiteOpts) {
@@ -274,12 +276,6 @@ func overrideUsers(users []user) func(*oidcSuiteOpts) {
 	}
 }
 
-func overrideLicense(license eauth.License) func(*oidcSuiteOpts) {
-	return func(opts *oidcSuiteOpts) {
-		opts.license = license
-	}
-}
-
 func overrideClock(clock clocki.FakeClock) func(*oidcSuiteOpts) {
 	return func(opts *oidcSuiteOpts) {
 		opts.clock = clock
@@ -291,6 +287,22 @@ func proxyOP(p func(http.Handler) http.Handler) func(*oidcSuiteOpts) {
 		opts.proxy = p
 	}
 }
+
+func withLicenseChecker(m eauth.LicenseChecker) func(*oidcSuiteOpts) {
+	return func(opts *oidcSuiteOpts) {
+		opts.licenseChecker = m
+	}
+}
+
+// alwaysValidLicense is an [eauth.LicenseChecker] that reports the license as never disabled.
+type alwaysValidLicense struct{}
+
+func (alwaysValidLicense) IsDisabled() bool { return false }
+
+// disabledLicenseChecker always reports the license as disabled.
+type disabledLicenseChecker struct{}
+
+func (d *disabledLicenseChecker) IsDisabled() bool { return true }
 
 type OIDCSuite struct {
 	authServer       *auth.Server
@@ -325,11 +337,11 @@ func newOIDCSuite(t *testing.T, opts ...func(*oidcSuiteOpts)) *OIDCSuite {
 	ctx := context.Background()
 
 	o := oidcSuiteOpts{
-		license:           eauth.ValidLicense{},
 		clock:             clockwork.NewFakeClock(),
 		proxy:             func(h http.Handler) http.Handler { return h },
 		pkceMode:          "disabled",
 		requestObjectMode: constants.OIDCRequestObjectModeUnknown,
+		licenseChecker:    alwaysValidLicense{},
 	}
 
 	for _, opt := range opts {
@@ -621,11 +633,11 @@ func newOIDCSuite(t *testing.T, opts ...func(*oidcSuiteOpts)) *OIDCSuite {
 	require.NoError(t, err)
 
 	oidcService, err := eauth.NewOIDCAuthService(&eauth.OIDCAuthServiceConfig{
-		Auth:          authServer,
-		License:       o.license,
-		Emitter:       emitter,
-		Client:        s.Client(),
-		SignerFactory: o.signerFactory,
+		Auth:           authServer,
+		Emitter:        emitter,
+		Client:         s.Client(),
+		SignerFactory:  o.signerFactory,
+		LicenseChecker: o.licenseChecker,
 	})
 	require.NoError(t, err)
 	authServer.SetOIDCService(oidcService)
@@ -1832,28 +1844,31 @@ func TestValidateACRValues(t *testing.T) {
 
 func TestOIDCLicense(t *testing.T) {
 	t.Parallel()
-
 	tests := []struct {
 		name        string
-		license     eauth.License
+		disabled    bool
 		expectError bool
 	}{
 		{
-			name:    "valid license",
-			license: eauth.ValidLicense{},
+			name: "valid license",
 		},
 		{
 			name:        "disabled license",
-			license:     eauth.DisabledLicense{},
+			disabled:    true,
 			expectError: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			ctx := context.Background()
 
-			suite := newOIDCSuite(t, overrideLicense(tt.license))
+			var suiteOpts []func(*oidcSuiteOpts)
+			if tt.disabled {
+				suiteOpts = append(suiteOpts, withLicenseChecker(&disabledLicenseChecker{}))
+			}
+			suite := newOIDCSuite(t, suiteOpts...)
 
 			req := types.OIDCAuthRequest{ConnectorID: suite.connector.GetName(), Type: constants.OIDC}
 			_, err := suite.oidcService.CreateOIDCAuthRequest(ctx, req)
@@ -1865,6 +1880,41 @@ func TestOIDCLicense(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestOIDCLicenseUpdateEnterpriseModules verifies that calling UpdateModules on
+// the real *emodules.EnterpriseModules propagates immediately to the OIDC service,
+// because both hold a pointer to the same struct.
+func TestOIDCLicenseUpdateEnterpriseModules(t *testing.T) {
+	t.Parallel()
+
+	// Build an *EnterpriseModules with a far-future expiry so IsDisabled() = false.
+	validLic := &types.LicenseV3{}
+	validLic.SetExpiry(time.Now().Add(24 * time.Hour))
+	validLicenseFile := &licensefile.LicenseFile{License: validLic}
+	mod := emodules.NewEnterpriseModules(emodules.EnterpriseModulesConfig{
+		License: validLicenseFile,
+	})
+
+	suite := newOIDCSuite(t, withLicenseChecker(mod))
+	req := types.OIDCAuthRequest{ConnectorID: suite.connector.GetName(), Type: constants.OIDC}
+	ctx := context.Background()
+
+	// Initially valid — license has a future expiry.
+	_, err := suite.oidcService.CreateOIDCAuthRequest(ctx, req)
+	require.NoError(t, err)
+
+	// Expire the license well past the 30-day grace period.
+	expiredLic := &types.LicenseV3{}
+	expiredLic.SetExpiry(time.Now().Add(-60 * 24 * time.Hour))
+	mod.UpdateModules(&licensefile.LicenseFile{License: expiredLic}, modules.Features{})
+	_, err = suite.oidcService.CreateOIDCAuthRequest(ctx, req)
+	require.True(t, trace.IsAccessDenied(err), "expected access denied after license expired, got: %v", err)
+
+	// Renew the license — the same pointer, so the OIDC service sees the change immediately.
+	mod.UpdateModules(validLicenseFile, modules.Features{})
+	_, err = suite.oidcService.CreateOIDCAuthRequest(ctx, req)
+	require.NoError(t, err, "expected success after license renewed")
 }
 
 func TestValidateOIDCResponseMFA(t *testing.T) {
@@ -2220,10 +2270,10 @@ func TestAuthorizationRequestObject(t *testing.T) {
 				// the provider's hardcoded RS256 compatibility advertisement
 				suite.oidcService, err = eauth.NewOIDCAuthService(
 					&eauth.OIDCAuthServiceConfig{
-						Auth:    suite.authServer,
-						Emitter: suite.emitter,
-						License: eauth.ValidLicense{},
-						Client:  suite.idpServer.Client(),
+						Auth:           suite.authServer,
+						Emitter:        suite.emitter,
+						Client:         suite.idpServer.Client(),
+						LicenseChecker: alwaysValidLicense{},
 						SignerFactory: func(ctx context.Context) (jose.Signer, string, error) {
 							jwtSigner, err := joseSignerFromCrypto(ecdsaSigner)
 							return jwtSigner, "ES256", err
@@ -2250,10 +2300,10 @@ func TestAuthorizationRequestObject(t *testing.T) {
 				// Validates that signing with ECDSA keys works as well
 				suite.oidcService, err = eauth.NewOIDCAuthService(
 					&eauth.OIDCAuthServiceConfig{
-						Auth:    suite.authServer,
-						Emitter: suite.emitter,
-						License: eauth.ValidLicense{},
-						Client:  suite.idpServer.Client(),
+						Auth:           suite.authServer,
+						Emitter:        suite.emitter,
+						Client:         suite.idpServer.Client(),
+						LicenseChecker: alwaysValidLicense{},
 						SignerFactory: func(ctx context.Context) (jose.Signer, string, error) {
 							jwtSigner, err := joseSignerFromCrypto(ecdsaSigner)
 							return jwtSigner, "RS256", err

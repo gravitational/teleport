@@ -18,6 +18,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/e/lib/accessrequest"
 	"github.com/gravitational/teleport/e/lib/cloud/feature"
+	"github.com/gravitational/teleport/e/lib/constants"
 	ehardwarekey "github.com/gravitational/teleport/e/lib/hardwarekey"
 	"github.com/gravitational/teleport/e/lib/licensefile"
 	"github.com/gravitational/teleport/entitlements"
@@ -147,7 +148,37 @@ func (p *EnterpriseModules) IsOSSBuild() bool {
 
 // LicenseExpiry returns the expiry date of the enterprise license, if applicable.
 func (p *EnterpriseModules) LicenseExpiry() time.Time {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
 	return p.licenseExpiry
+}
+
+// IsExpired returns true if the license expiry time is in the past.
+func (p *EnterpriseModules) IsExpired() bool {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return time.Now().After(p.licenseExpiry)
+}
+
+// IsDisabled returns true if the license has expired past the grace interval.
+func (p *EnterpriseModules) IsDisabled() bool {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return time.Now().After(p.licenseExpiry.Add(constants.LicenseGraceInterval))
+}
+
+// ExpiresIn returns how long until the license expires.
+func (p *EnterpriseModules) ExpiresIn() time.Duration {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return time.Until(p.licenseExpiry)
+}
+
+// DisabledIn returns how long until features are disabled due to license expiry.
+func (p *EnterpriseModules) DisabledIn() time.Duration {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return time.Until(p.licenseExpiry.Add(constants.LicenseGraceInterval))
 }
 
 // PrintVersion prints the Teleport version. For enterprise it includes

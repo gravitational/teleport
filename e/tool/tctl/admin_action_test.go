@@ -394,9 +394,10 @@ func newAdminActionTestSuite(t *testing.T) *adminActionTestSuite {
 			cfg.PluginRegistry = plugin.NewRegistry()
 			cfg.Modules = testModules
 			authPlugin, err := authe.NewPlugin(authe.Config{
-				License:       authe.ValidLicense{},
-				HostedPlugins: cfg.Auth.HostedPlugins,
-				Modules:       testModules,
+				License:        authe.ValidLicense{},
+				LicenseChecker: authe.ValidLicense{},
+				HostedPlugins:  cfg.Auth.HostedPlugins,
+				Modules:        testModules,
 			})
 			require.NoError(t, err)
 

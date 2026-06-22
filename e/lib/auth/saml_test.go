@@ -50,8 +50,10 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/e/lib/licensefile"
 	"github.com/gravitational/teleport/e/lib/loginrule"
 	loginrulestorage "github.com/gravitational/teleport/e/lib/loginrule/storage"
+	emodules "github.com/gravitational/teleport/e/tool/modules"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -135,7 +137,7 @@ func newSAMLTestFixture(t *testing.T) *samlTestFixture {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, a.Close()) })
 
-	sas := registerSAMLService(t, &SAMLAuthServiceConfig{Auth: a, License: ValidLicense{}})
+	sas := registerSAMLService(t, &SAMLAuthServiceConfig{Auth: a, LicenseChecker: ValidLicense{}})
 
 	return &samlTestFixture{
 		testContext: ctx,
@@ -685,7 +687,7 @@ func TestPingSAMLWorkaround(t *testing.T) {
 
 	a, err := auth.NewServer(authConfig)
 	require.NoError(t, err)
-	registerSAMLService(t, &SAMLAuthServiceConfig{Auth: a, License: ValidLicense{}})
+	registerSAMLService(t, &SAMLAuthServiceConfig{Auth: a, LicenseChecker: ValidLicense{}})
 
 	// Create a new SAML connector for Ping.
 	const entityDescriptor = `<md:EntityDescriptor entityID="https://auth.pingone.com/8be7412d-7d2f-4392-90a4-07458d3dee78" ID="DUp57Bcq-y4RtkrRLyYj2fYxtqR" xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata">
@@ -795,7 +797,7 @@ func TestServer_getConnectorAndProvider(t *testing.T) {
 
 	a, err := auth.NewServer(authConfig)
 	require.NoError(t, err)
-	sas := registerSAMLService(t, &SAMLAuthServiceConfig{Auth: a, License: ValidLicense{}})
+	sas := registerSAMLService(t, &SAMLAuthServiceConfig{Auth: a, LicenseChecker: ValidLicense{}})
 
 	_, err = authtest.CreateRole(ctx, a, "baz", types.RoleSpecV6{})
 	require.NoError(t, err)
@@ -996,7 +998,7 @@ func TestServer_ValidateSAMLResponse(t *testing.T) {
 
 	a := testAuthServer.AuthServer
 	mockEmitter := &eventstest.MockRecorderEmitter{}
-	sas := registerSAMLService(t, &SAMLAuthServiceConfig{Auth: a, License: ValidLicense{}, Emitter: mockEmitter})
+	sas := registerSAMLService(t, &SAMLAuthServiceConfig{Auth: a, Emitter: mockEmitter, LicenseChecker: ValidLicense{}})
 
 	// empty response gives error.
 	response, err := a.ValidateSAMLResponse(context.Background(), "", "", "")
@@ -1256,13 +1258,13 @@ func TestParseSAMLInResponseTo(t *testing.T) {
 func TestSAMLAuthRequest(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	srv := newTestTLSServer(t, ValidLicense{}, &modulestest.Modules{
+	srv := newTestTLSServer(t, &modulestest.Modules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 				entitlements.SAML: {Enabled: true},
 			},
 		},
-	})
+	}, ValidLicense{})
 
 	emptyRole, err := authtest.CreateRole(ctx, srv.Auth(), "test-empty", types.RoleSpecV6{})
 	require.NoError(t, err)
@@ -1448,10 +1450,11 @@ func TestSAMLAuthCompat(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	srv := newTestTLSServer(t, ValidLicense{}, testModules, func(cfg *authtest.TLSServerConfig) {
+	srv := newTestTLSServer(t, testModules, ValidLicense{}, func(cfg *authtest.TLSServerConfig) {
 		authPlugin, err := NewPlugin(Config{
-			License: ValidLicense{},
-			Modules: testModules,
+			License:        ValidLicense{},
+			LicenseChecker: ValidLicense{},
+			Modules:        testModules,
 		})
 		require.NoError(t, err)
 		reg := plugin.NewRegistry()
@@ -1621,10 +1624,11 @@ func TestIDPInitiatedReplayProtection(t *testing.T) {
 		}},
 	}
 
-	srv := newTestTLSServer(t, ValidLicense{}, testModules, func(cfg *authtest.TLSServerConfig) {
+	srv := newTestTLSServer(t, testModules, ValidLicense{}, func(cfg *authtest.TLSServerConfig) {
 		authPlugin, err := NewPlugin(Config{
-			License: ValidLicense{},
-			Modules: testModules,
+			License:        ValidLicense{},
+			LicenseChecker: ValidLicense{},
+			Modules:        testModules,
 		})
 		require.NoError(t, err)
 		reg := plugin.NewRegistry()
@@ -1689,40 +1693,57 @@ func TestIDPInitiatedReplayProtection(t *testing.T) {
 }
 
 func TestSAMLLicense(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
-	conn, err := types.NewSAMLConnector("foo", types.SAMLConnectorSpecV2{
-		Issuer:                   "test",
-		SSO:                      "https://example.com",
-		Cert:                     fixtures.TLSCACertPEM,
-		AssertionConsumerService: "test",
-		AttributesToRoles: []types.AttributeMapping{{
-			Name:  "foo",
-			Value: "bar",
-			Roles: []string{"baz"},
-		}},
-	})
-	require.NoError(t, err)
+	newConn := func(t *testing.T) types.SAMLConnector {
+		t.Helper()
+		conn, err := types.NewSAMLConnector("foo", types.SAMLConnectorSpecV2{
+			Issuer:                   "test",
+			SSO:                      "https://example.com",
+			Cert:                     fixtures.TLSCACertPEM,
+			AssertionConsumerService: "test",
+			AttributesToRoles: []types.AttributeMapping{{
+				Name:  "foo",
+				Value: "bar",
+				Roles: []string{"baz"},
+			}},
+		})
+		require.NoError(t, err)
+		return conn
+	}
+
+	validLic := &types.LicenseV3{}
+	validLic.SetExpiry(time.Now().Add(24 * time.Hour))
+
+	expiredLic := &types.LicenseV3{}
+	expiredLic.SetExpiry(time.Now().Add(-60 * 24 * time.Hour))
 
 	tests := []struct {
 		name        string
-		license     License
+		mod         *emodules.EnterpriseModules
 		expectError bool
 	}{
 		{
-			name:    "valid license",
-			license: ValidLicense{},
+			name: "valid license",
+			mod: emodules.NewEnterpriseModules(emodules.EnterpriseModulesConfig{
+				License: &licensefile.LicenseFile{License: validLic},
+			}),
 		},
 		{
-			name:        "disabled license",
-			license:     DisabledLicense{},
+			name: "disabled license",
+			mod: emodules.NewEnterpriseModules(emodules.EnterpriseModulesConfig{
+				License: &licensefile.LicenseFile{License: expiredLic},
+			}),
 			expectError: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			srv := newTestTLSServer(t, tt.license, modulestest.EnterpriseModules())
+			t.Parallel()
+			conn := newConn(t)
+			srv := newTestTLSServer(t, tt.mod, tt.mod)
 			roleName := conn.GetAttributesToRoles()[0].Roles[0]
 			_, err := authtest.CreateRole(ctx, srv.Auth(), roleName, types.RoleSpecV6{})
 			require.NoError(t, err)
@@ -1739,6 +1760,60 @@ func TestSAMLLicense(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestSAMLLicenseUpdateEnterpriseModules verifies that calling UpdateModules on
+// the real *emodules.EnterpriseModules propagates immediately to the SAML service,
+// because both hold a pointer to the same struct.
+func TestSAMLLicenseUpdateEnterpriseModules(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	conn, err := types.NewSAMLConnector("foo", types.SAMLConnectorSpecV2{
+		Issuer:                   "test",
+		SSO:                      "https://example.com",
+		Cert:                     fixtures.TLSCACertPEM,
+		AssertionConsumerService: "test",
+		AttributesToRoles: []types.AttributeMapping{{
+			Name:  "foo",
+			Value: "bar",
+			Roles: []string{"baz"},
+		}},
+	})
+	require.NoError(t, err)
+
+	// Build an *EnterpriseModules with a far-future expiry so IsDisabled() = false.
+	validLic := &types.LicenseV3{}
+	validLic.SetExpiry(time.Now().Add(24 * time.Hour))
+	validLicenseFile := &licensefile.LicenseFile{License: validLic}
+	mod := emodules.NewEnterpriseModules(emodules.EnterpriseModulesConfig{
+		License: validLicenseFile,
+	})
+
+	srv := newTestTLSServer(t, mod, mod)
+	roleName := conn.GetAttributesToRoles()[0].Roles[0]
+	_, err = authtest.CreateRole(ctx, srv.Auth(), roleName, types.RoleSpecV6{})
+	require.NoError(t, err)
+	_, err = srv.Auth().CreateSAMLConnector(ctx, conn)
+	require.NoError(t, err)
+
+	req := types.SAMLAuthRequest{ConnectorID: conn.GetName(), Type: constants.SAML}
+
+	// Initially valid — license has a future expiry.
+	_, err = srv.Auth().CreateSAMLAuthRequest(ctx, req)
+	require.NoError(t, err)
+
+	// Expire the license well past the 30-day grace period.
+	expiredLic := &types.LicenseV3{}
+	expiredLic.SetExpiry(time.Now().Add(-60 * 24 * time.Hour))
+	mod.UpdateModules(&licensefile.LicenseFile{License: expiredLic}, modules.Features{})
+	_, err = srv.Auth().CreateSAMLAuthRequest(ctx, req)
+	require.True(t, trace.IsAccessDenied(err), "expected access denied after license expired, got: %v", err)
+
+	// Renew the license — the same pointer, so the SAML service sees the change immediately.
+	mod.UpdateModules(validLicenseFile, modules.Features{})
+	_, err = srv.Auth().CreateSAMLAuthRequest(ctx, req)
+	require.NoError(t, err, "expected success after license renewed")
 }
 
 func TestServer_ValidateSAMLResponse_MFA(t *testing.T) {
@@ -1766,7 +1841,7 @@ func TestServer_ValidateSAMLResponse_MFA(t *testing.T) {
 	a := srv.GetAuthServer()
 
 	mockEmitter := &eventstest.MockRecorderEmitter{}
-	sas := registerSAMLService(t, &SAMLAuthServiceConfig{Auth: a, License: ValidLicense{}, Emitter: mockEmitter})
+	sas := registerSAMLService(t, &SAMLAuthServiceConfig{Auth: a, Emitter: mockEmitter, LicenseChecker: ValidLicense{}})
 
 	// create role referenced in request.
 	_, err = authtest.CreateRole(ctx, a, "access", types.RoleSpecV6{
@@ -1898,10 +1973,11 @@ func TestSAMLPreferredBinding(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	srv := newTestTLSServer(t, ValidLicense{}, testModules, func(cfg *authtest.TLSServerConfig) {
+	srv := newTestTLSServer(t, testModules, ValidLicense{}, func(cfg *authtest.TLSServerConfig) {
 		authPlugin, err := NewPlugin(Config{
-			License: ValidLicense{},
-			Modules: testModules,
+			License:        ValidLicense{},
+			LicenseChecker: ValidLicense{},
+			Modules:        testModules,
 		})
 		require.NoError(t, err)
 		reg := plugin.NewRegistry()
@@ -1969,7 +2045,7 @@ func TestSAMLPreferredBinding(t *testing.T) {
 
 func TestSAMLRequestSubjectInjection(t *testing.T) {
 	ctx := t.Context()
-	srv := newTestTLSServer(t, ValidLicense{}, modulestest.EnterpriseModules())
+	srv := newTestTLSServer(t, modulestest.EnterpriseModules(), ValidLicense{})
 	_, err := authtest.CreateRole(ctx, srv.Auth(), "test-access", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Logins: []string{"test-user"},

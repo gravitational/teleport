@@ -229,8 +229,9 @@ func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
 	err = pluginRegistry.Add(webPlugin)
 	require.NoError(t, err)
 	authPlugin, err := eauth.NewPlugin(eauth.Config{
-		Logger:  log,
-		License: eauth.ValidLicense{},
+		Logger:         log,
+		License:        eauth.ValidLicense{},
+		LicenseChecker: eauth.ValidLicense{},
 		AccessGraph: servicecfg.AccessGraphConfig{
 			Enabled:  true,
 			Addr:     accessGraphGRPCServerAddr.String(),

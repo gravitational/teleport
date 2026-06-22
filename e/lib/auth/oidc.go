@@ -51,30 +51,27 @@ import (
 const authGracePeriod = time.Minute
 
 type OIDCAuthService struct {
-	auth      *auth.Server
-	emitter   apievents.Emitter
-	license   License
-	client    *http.Client
-	getSigner JWTSignerFactory
+	auth           *auth.Server
+	emitter        apievents.Emitter
+	client         *http.Client
+	getSigner      JWTSignerFactory
+	licenseChecker LicenseChecker
 
 	mu  sync.Mutex
 	rps map[rpKey]relyingParty
 }
 
 type OIDCAuthServiceConfig struct {
-	Auth          *auth.Server
-	Emitter       apievents.Emitter
-	License       License
-	Client        *http.Client
-	SignerFactory JWTSignerFactory
+	Auth           *auth.Server
+	Emitter        apievents.Emitter
+	Client         *http.Client
+	SignerFactory  JWTSignerFactory
+	LicenseChecker LicenseChecker
 }
 
 func (cfg *OIDCAuthServiceConfig) CheckAndSetDefaults() error {
 	if cfg.Auth == nil {
 		return trace.BadParameter("auth.Server not provided")
-	}
-	if cfg.License == nil {
-		return trace.BadParameter("License not provided")
 	}
 	if cfg.Emitter == nil {
 		cfg.Emitter = events.NewDiscardEmitter()
@@ -89,6 +86,9 @@ func (cfg *OIDCAuthServiceConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.SignerFactory == nil {
 		cfg.SignerFactory = DefaultJWTSignerFactory(cfg.Auth)
+	}
+	if cfg.LicenseChecker == nil {
+		return trace.BadParameter("license checker not provided")
 	}
 	return nil
 }
@@ -181,15 +181,15 @@ func NewOIDCAuthService(cfg *OIDCAuthServiceConfig) (*OIDCAuthService, error) {
 	return &OIDCAuthService{
 		auth:    cfg.Auth,
 		emitter: cfg.Emitter,
-		license: cfg.License,
 		client: &http.Client{
 			Transport:     &oidcRoundTripper{rt: cfg.Client.Transport},
 			CheckRedirect: cfg.Client.CheckRedirect,
 			Jar:           cfg.Client.Jar,
 			Timeout:       cfg.Client.Timeout,
 		},
-		rps:       map[rpKey]relyingParty{},
-		getSigner: cfg.SignerFactory,
+		rps:            map[rpKey]relyingParty{},
+		getSigner:      cfg.SignerFactory,
+		licenseChecker: cfg.LicenseChecker,
 	}, nil
 }
 
@@ -341,7 +341,7 @@ func getJWTSignerFromCertAuthority(ctx context.Context, auth *auth.Server) (jose
 }
 
 func (oas *OIDCAuthService) createOIDCAuthRequest(ctx context.Context, req types.OIDCAuthRequest, forMFA bool) (*types.OIDCAuthRequest, error) {
-	if oas.license.IsDisabled() {
+	if oas.licenseChecker.IsDisabled() {
 		return nil, ErrLicenseExpired
 	}
 
@@ -512,7 +512,7 @@ func (oas *OIDCAuthService) createOIDCAuthRequest(ctx context.Context, req types
 // returned by OIDC Provider, if everything checks out, auth server
 // will respond with OIDCAuthResponse, otherwise it will return error
 func (oas *OIDCAuthService) ValidateOIDCAuthCallback(ctx context.Context, q url.Values) (*authclient.OIDCAuthResponse, error) {
-	if oas.license.IsDisabled() {
+	if oas.licenseChecker.IsDisabled() {
 		return nil, ErrLicenseExpired
 	}
 

@@ -28,8 +28,9 @@ func TestSignX509IssuerCSR(t *testing.T) {
 		testenv.WithConfig(func(cfg *servicecfg.Config) {
 			cfg.PluginRegistry = plugin.NewRegistry()
 			authPlugin, err := eauth.NewPlugin(eauth.Config{
-				License: eauth.ValidLicense{},
-				Modules: modulestest.OSSModules(),
+				License:        eauth.ValidLicense{},
+				LicenseChecker: eauth.ValidLicense{},
+				Modules:        modulestest.OSSModules(),
 			})
 			require.NoError(t, err)
 			err = cfg.PluginRegistry.Add(authPlugin)

@@ -56,8 +56,6 @@ func (c *Config) CheckAndSetDefaults() (err error) {
 type Process struct {
 	// TeleportProcess is the OSS process
 	*service.TeleportProcess
-	// LicenseFile is an instance of the LicenseFile
-	LicenseFile *licensefile.LicenseFile
 }
 
 // NewTeleport instantiates a new pro/enterprise teleport process
@@ -69,7 +67,6 @@ func NewTeleport(cfg Config) (*Process, error) {
 
 	process := &Process{
 		TeleportProcess: cfg.OSSProcess,
-		LicenseFile:     cfg.LicenseFile,
 	}
 
 	// if the cloud hostport is set when we don't have a cloud license, we're in
@@ -95,13 +92,13 @@ func NewTeleport(cfg Config) (*Process, error) {
 		return process, nil
 	}
 
-	go licensefile.RunLicenseChecker(process.ExitContext(), process.GetAuthServer(), process.LicenseFile)
+	go licensefile.RunLicenseChecker(process.ExitContext(), process.GetAuthServer(), cfg.Modules)
 
 	// run the license auto update service if the entitlement is enabled
 	if info, ok := cfg.Modules.Features().Entitlements[entitlements.LicenseAutoUpdate]; ok && info.Enabled {
 		updateService, err := newLicenseUpdateService(licenseUpdateServiceConfig{
 			ServerID:    process.GetAuthServer().ServerID,
-			LicenseFile: process.LicenseFile,
+			LicenseFile: cfg.LicenseFile,
 			LicensePath: cfg.LicensePath,
 			Modules:     cfg.Modules,
 		})
