@@ -59,20 +59,6 @@ struct ContentView: View {
 			}
 			.frame(maxWidth: .infinity, maxHeight: .infinity)
 		}
-		.onOpenURL { url in
-			let result = parseDeepLink(url)
-			logger
-				.debug(
-					"Got URL: \(url, privacy: .public), parsed: \(String(describing: result), privacy: .public)",
-				)
-			switch result {
-				case let .success(.enrollMobileDevice(deepURL)):
-					parseError = nil
-					screen = .enroll(deepURL)
-				case let .failure(error):
-					parseError = error
-			}
-		}
 		.alert(
 			"Cannot open the link",
 			isPresented: Binding(

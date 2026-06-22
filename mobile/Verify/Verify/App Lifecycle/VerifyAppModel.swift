@@ -14,9 +14,36 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see http://www.gnu.org/licenses/
 
+import Foundation
 import Observation
+import OSLog
 
 /// The root of our app's view model tree.
 @Observable @MainActor
 final class VerifyAppModel {
+	static var logger = Logger.forType(VerifyAppModel.self)
+
+	enum Destination {
+		case deviceEnrollment
+		case failedToParseDeepLink(errorMessage: String)
+	}
+
+	var destination: Destination? = nil
+}
+
+extension VerifyAppModel {
+	func openDeepLink(_ url: URL) {
+		let parseResult = parseDeepLink(url)
+		switch parseResult {
+			case let .success(.enrollMobileDevice(deepURL)):
+				Self.logger.debug("Correctly parsed deep link: \(String(describing: deepURL))")
+				destination = .deviceEnrollment
+			case let .failure(error):
+				Self.logger.warning("Failed to parse deep link \"\(url)\", error: \(error)")
+				destination = .failedToParseDeepLink(errorMessage: NSLocalizedString(
+					"An unknown error occurred when trying to open the link.",
+					comment: "An error message that appears when a user tries to open a deep link but the link is not valid.",
+				))
+		}
+	}
 }
