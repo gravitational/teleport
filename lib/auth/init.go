@@ -437,9 +437,6 @@ type InitConfig struct {
 	// ScopedTokenService is a service that manages scoped join token resources.
 	ScopedTokenService services.ScopedTokenService
 
-	// WorkloadClusterService is the service that manages WorkloadClusters.
-	WorkloadClusterService services.WorkloadClusterService
-
 	// Beams is the service for reading and writing beams.
 	Beams services.Beams
 
