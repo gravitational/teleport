@@ -16747,7 +16747,6 @@ func (m *ListAccessRequestsRequest) GetIncludeUserDisplays() bool {
 }
 
 // UserDisplay holds read-time display values derived from a user resource.
-// Empty/absent values mean callers render the username instead.
 type UserDisplay struct {
 	Primary              string   `protobuf:"bytes,1,opt,name=Primary,proto3" json:"primary,omitempty"`
 	Secondary            string   `protobuf:"bytes,2,opt,name=Secondary,proto3" json:"secondary,omitempty"`
@@ -16811,8 +16810,6 @@ type ListAccessRequestsResponse struct {
 	NextKey string `protobuf:"bytes,2,opt,name=NextKey,proto3" json:"NextKey,omitempty"`
 	// UserDisplays maps usernames referenced by this page's requests
 	// (requester, review authors, suggested reviewers) to display values.
-	// A present key with empty values is a live user with no distinct display;
-	// an absent key is a user that no longer exists.
 	UserDisplays         map[string]*UserDisplay `protobuf:"bytes,3,rep,name=UserDisplays,proto3" json:"user_displays,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 	XXX_NoUnkeyedLiteral struct{}                `json:"-"`
 	XXX_unrecognized     []byte                  `json:"-"`
