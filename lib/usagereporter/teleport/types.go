@@ -2348,3 +2348,35 @@ func (e *IdentitySecurityAuditLogsIngestedEvent) Anonymize(a utils.Anonymizer) p
 		},
 	}
 }
+
+// BeamsCreatedEvent is emitted when a beam VM is created and becomes ready.
+type BeamsCreatedEvent prehogv1a.BeamsCreatedEvent
+
+// Anonymize anonymizes the event.
+func (e *BeamsCreatedEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_BeamsCreated{
+			BeamsCreated: &prehogv1a.BeamsCreatedEvent{
+				BeamId:            a.AnonymizeString(e.BeamId),
+				Region:            e.Region,
+				StartupDurationMs: e.StartupDurationMs,
+			},
+		},
+	}
+}
+
+// BeamsDestroyedEvent is emitted when a beam VM is destroyed.
+type BeamsDestroyedEvent prehogv1a.BeamsDestroyedEvent
+
+// Anonymize anonymizes the event.
+func (e *BeamsDestroyedEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_BeamsDestroyed{
+			BeamsDestroyed: &prehogv1a.BeamsDestroyedEvent{
+				BeamId: a.AnonymizeString(e.BeamId),
+				Reason: e.Reason,
+				Region: e.Region,
+			},
+		},
+	}
+}
