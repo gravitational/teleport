@@ -269,6 +269,19 @@ Example AWS CLI commands:
     AWS_PROFILE=example-read-only-access aws s3 ls
 ```
 
+The `tsh apps login` command supports interactive login when you pass
+`--interactive` (or `-T`) or set `TELEPORT_AWS_LOGIN_INTERACTIVE=true`.
+
+```code
+$ tsh apps login aws-console --interactive
+Available AWS roles:
+
+> ExampleReadOnlyAccess [arn:aws:iam::000000000000:role/ExampleReadOnlyAccess]
+  ExampleAdminAccess [arn:aws:iam::000000000001:role/ExampleAdminAccess]
+
+(Use arrows or hjkl to navigate, enter to select, q to quit)
+```
+
 #### Access AWS using AWS CLI
 You can now access all your AWS resources from the command line using the `aws` command line tool.
 

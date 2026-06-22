@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/utils/prompt"
 )
 
 const (
@@ -223,10 +224,33 @@ func getARNFromFlags(cf *CLIConf, app types.Application, logins []string) (strin
 	// roles are returned.
 	roles := awsutils.FilterAWSRoles(logins, app.GetAWSAccountID())
 
+	if len(roles) == 0 {
+		return "", trace.NotFound("there are no roles configured for the AWS app")
+	}
+
 	if cf.AWSRole == "" {
 		if len(roles) == 1 {
 			logger.InfoContext(cf.Context, "AWS Role is selected by default as it is the only role configured for this AWS app", "role", roles[0].Display)
 			return roles[0].ARN, nil
+		}
+
+		if cf.Interactive {
+			selectPrompt := prompt.NewSelectPrompt(
+				"Available AWS roles",
+				roles,
+				func(role awsutils.Role) string {
+					return fmt.Sprintf("%s \x1b[35m[%s]\x1b[0m", role.Name, role.ARN)
+				},
+			)
+
+			selected, err := selectPrompt.Run(cf.Context)
+			if err != nil {
+				printAWSRoles(cf.Stdout(), roles)
+				return "", trace.Wrap(err)
+			}
+
+			cf.AWSRole = selected.ARN
+			return selected.ARN, nil
 		}
 
 		printAWSRoles(cf.Stdout(), roles)

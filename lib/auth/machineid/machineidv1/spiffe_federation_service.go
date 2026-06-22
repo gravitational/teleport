@@ -31,6 +31,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 type spiffeFederationReader interface {
@@ -49,6 +50,9 @@ type spiffeFederationReadWriter interface {
 type SPIFFEFederationServiceConfig struct {
 	// Authorizer is the authorizer service which checks access to resources.
 	Authorizer authz.Authorizer
+	// ScopedAuthorizer authorizes the read RPCs, allowing scoped identities to
+	// read SPIFFE federations.
+	ScopedAuthorizer authz.ScopedAuthorizer
 	// Backend will be used reading and writing the SPIFFE Federation resources.
 	Backend spiffeFederationReadWriter
 	// Cache will be used when reading SPIFFE Federation resources.
@@ -72,6 +76,8 @@ func NewSPIFFEFederationService(
 		return nil, trace.BadParameter("cache service is required")
 	case cfg.Authorizer == nil:
 		return nil, trace.BadParameter("authorizer is required")
+	case cfg.ScopedAuthorizer == nil:
+		return nil, trace.BadParameter("scoped authorizer is required")
 	case cfg.Emitter == nil:
 		return nil, trace.BadParameter("emitter is required")
 	}
@@ -84,12 +90,13 @@ func NewSPIFFEFederationService(
 	}
 
 	return &SPIFFEFederationService{
-		authorizer: cfg.Authorizer,
-		backend:    cfg.Backend,
-		cache:      cfg.Cache,
-		clock:      cfg.Clock,
-		emitter:    cfg.Emitter,
-		logger:     cfg.Logger,
+		authorizer:       cfg.Authorizer,
+		scopedAuthorizer: cfg.ScopedAuthorizer,
+		backend:          cfg.Backend,
+		cache:            cfg.Cache,
+		clock:            cfg.Clock,
+		emitter:          cfg.Emitter,
+		logger:           cfg.Logger,
 	}, nil
 }
 
@@ -98,12 +105,13 @@ func NewSPIFFEFederationService(
 type SPIFFEFederationService struct {
 	machineidv1.UnimplementedSPIFFEFederationServiceServer
 
-	authorizer authz.Authorizer
-	backend    spiffeFederationReadWriter
-	cache      spiffeFederationReader
-	clock      clockwork.Clock
-	emitter    apievents.Emitter
-	logger     *slog.Logger
+	authorizer       authz.Authorizer
+	scopedAuthorizer authz.ScopedAuthorizer
+	backend          spiffeFederationReadWriter
+	cache            spiffeFederationReader
+	clock            clockwork.Clock
+	emitter          apievents.Emitter
+	logger           *slog.Logger
 }
 
 // GetSPIFFEFederation returns a SPIFFE Federation by name.
@@ -111,11 +119,13 @@ type SPIFFEFederationService struct {
 func (s *SPIFFEFederationService) GetSPIFFEFederation(
 	ctx context.Context, req *machineidv1.GetSPIFFEFederationRequest,
 ) (*machineidv1.SPIFFEFederation, error) {
-	authCtx, err := s.authorizer.Authorize(ctx)
+	authCtx, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authCtx.CheckAccessToKind(types.KindSPIFFEFederation, types.VerbRead); err != nil {
+	// SPIFFE federations are cluster-global, so reads are an unpinned root read.
+	ruleCtx := authCtx.RuleContext()
+	if err := authCtx.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadSPIFFEFederation, &ruleCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -137,11 +147,13 @@ func (s *SPIFFEFederationService) GetSPIFFEFederation(
 func (s *SPIFFEFederationService) ListSPIFFEFederations(
 	ctx context.Context, req *machineidv1.ListSPIFFEFederationsRequest,
 ) (*machineidv1.ListSPIFFEFederationsResponse, error) {
-	authCtx, err := s.authorizer.Authorize(ctx)
+	authCtx, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authCtx.CheckAccessToKind(types.KindSPIFFEFederation, types.VerbRead, types.VerbList); err != nil {
+	// SPIFFE federations are cluster-global, so reads are an unpinned root read.
+	ruleCtx := authCtx.RuleContext()
+	if err := authCtx.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadSPIFFEFederations, &ruleCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
