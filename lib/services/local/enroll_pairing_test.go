@@ -18,6 +18,7 @@ package local_test
 
 import (
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
@@ -87,6 +88,28 @@ func TestEnrollPairingService_CreateEnrollPairing(t *testing.T) {
 		bob, err := s.CreateEnrollPairing(ctx, "create-bob")
 		require.NoError(t, err)
 		assert.NotEqual(t, alice.GetStatus().GetToken(), bob.GetStatus().GetToken())
+	})
+
+	t.Run("creates a fresh pairing after the existing one expires", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			s := newEnrollPairingService(t)
+
+			ctx := t.Context()
+			want, err := s.CreateEnrollPairing(ctx, "create-after-ttl")
+			require.NoError(t, err)
+
+			time.Sleep(local.EnrollPairingExpireDuration + time.Second)
+
+			got, err := s.CreateEnrollPairing(ctx, "create-after-ttl")
+			require.NoError(t, err)
+			// Verify the pairings are equal except the token and certain metadata.
+			assert.NotEqual(t, want.GetStatus().GetToken(), got.GetStatus().GetToken())
+			assert.Empty(t, cmp.Diff(want, got,
+				protocmp.IgnoreFields(&headerv1.Metadata{}, "revision", "expires"),
+				protocmp.IgnoreFields(&devicepb.EnrollPairingStatus{}, "token"),
+				protocmp.Transform(),
+			))
+		})
 	})
 
 	t.Run("rejects empty user", func(t *testing.T) {
