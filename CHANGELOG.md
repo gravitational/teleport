@@ -1,6 +1,6 @@
 # Changelog
 
-## 17.7.26 (TBD)
+## 17.7.26 (06/22/26)
 
 ### Breaking changes
 
@@ -12,6 +12,17 @@ endpoints now requires the new `proxy` verb in `kubernetes_resources`.
 Previously these endpoints were authorized as the `get` verb. Roles
 that use the Kubernetes API server proxy must add `"proxy"` to the
 relevant `verbs` list.
+
+### Other fixes and improvements
+
+* Fixed Teleport Connect file uploads for empty files. [#67926](https://github.com/gravitational/teleport/pull/67926)
+* Fixed an issue where path separators could be included in scp file names during upload. [#67773](https://github.com/gravitational/teleport/pull/67773)
+* Sanitized AWS console federation transport errors to avoid logging AWS session credential material. [#67708](https://github.com/gravitational/teleport/pull/67708)
+* Fixed an SSRF vulnerability in AWS application access where a crafted X-Forwarded-Host header could divert IAM-signed AWS API requests to an attacker-controlled host. [#67707](https://github.com/gravitational/teleport/pull/67707)
+* Cap AWS STS AssumeRole session duration to the Teleport identity TTL, including query-string AssumeRole requests and requests made with cached assumed-role credentials. [#67705](https://github.com/gravitational/teleport/pull/67705)
+* Fixed role impersonation incorrectly being affected by user allow/deny rules. [#67690](https://github.com/gravitational/teleport/pull/67690)
+* Prevented users with the same name in different clusters from being able to cancel each others' remote port forwards. [#67688](https://github.com/gravitational/teleport/pull/67688)
+* Update golang.org/x/crypto to v0.53.0. [#67641](https://github.com/gravitational/teleport/pull/67641)
 
 ## 17.7.25 (06/09/26)
 
