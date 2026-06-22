@@ -23,7 +23,7 @@ import (
 )
 
 // Cloud provider display names. These double as the Cloud field value in
-// summary output and as the discriminator for cloud-specific behaviour.
+// summary output and as the discriminator for cloud-specific behavior.
 const (
 	cloudAWS   = "AWS"
 	cloudAzure = "Azure"
