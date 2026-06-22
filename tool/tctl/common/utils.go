@@ -25,6 +25,7 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/charlievieth/strcase"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
@@ -89,4 +90,9 @@ func parseProtobufEnum[E concreteEnum](s *string, e *E, shortcuts map[string]E) 
 			),
 		)
 	}
+}
+
+// bold wraps the given text in an ANSI escape to bold it
+func bold(text string) string {
+	return utils.Color(utils.Bold, text)
 }
