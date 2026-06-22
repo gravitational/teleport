@@ -586,12 +586,6 @@ func makeAzureVMID(subscription, resourceGroup, name string) string {
 	)
 }
 
-func makeAzureVMSSVMID(subscription, resourceGroup, name, id string) string {
-	return fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Compute/virtualMachineScaleSets/%s/virtualMachines/%s",
-		subscription, resourceGroup, name, id,
-	)
-}
-
 func TestMakeRunEvent(t *testing.T) {
 	t.Parallel()
 

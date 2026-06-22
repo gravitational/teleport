@@ -23,9 +23,8 @@ import (
 	"testing"
 	"unicode"
 
-	"pgregory.net/rapid"
-
 	"github.com/stretchr/testify/require"
+	"pgregory.net/rapid"
 )
 
 func TestProperty_ListRunningLinuxVMsQuery_Filters(t *testing.T) {
@@ -53,10 +52,6 @@ func TestProperty_ListRunningLinuxVMsQuery_Filters(t *testing.T) {
 		// Unmatched quotes are errors.
 		var quotedTerms []string
 		for {
-			if len(kqlQuery) == 0 {
-				break
-			}
-
 			index := strings.IndexAny(kqlQuery, "'\"")
 			if index == -1 {
 				break
@@ -65,19 +60,21 @@ func TestProperty_ListRunningLinuxVMsQuery_Filters(t *testing.T) {
 			kqlQuery = kqlQuery[index+1:]
 
 			endIndex := strings.Index(kqlQuery, string(quoteChar))
-			if endIndex == -1 {
-				t.Fatalf("unmatched quote %q in query: %s", quoteChar, kqlQuery)
-			}
+			require.NotEqual(t, -1, endIndex, "unmatched quote %q in query: %s", quoteChar, kqlQuery)
+
 			quotedTerms = append(quotedTerms, kqlQuery[:endIndex])
 			kqlQuery = kqlQuery[endIndex+1:]
 		}
 
+		// Check that the resource group is part of the quoted tems.
 		if resourceGroupFilter != "" {
 			require.Contains(t, quotedTerms, resourceGroupFilter)
 		}
+		// Check that all locations are part of the quoted terms.
 		for _, locationsFilter := range locationsFilter {
 			require.Contains(t, quotedTerms, locationsFilter)
 		}
+		// Ensure, no quoted term contains invalid characters.
 		for _, term := range quotedTerms {
 			for _, char := range term {
 				if !charIsAllowed(char) {
