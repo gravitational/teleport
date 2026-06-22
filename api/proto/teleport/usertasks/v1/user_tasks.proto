@@ -195,4 +195,8 @@ message DiscoverAzureVMInstance {
   string discovery_group = 5;
   // SyncTime is the timestamp when the error was produced.
   google.protobuf.Timestamp sync_time = 6;
+  // FailureCount is the number of installation attempt failures.
+  int32 failure_count = 7;
+  // RetryAfter is the timestamp after which the VM installation will be retried.
+  google.protobuf.Timestamp retry_after = 8;
 }
