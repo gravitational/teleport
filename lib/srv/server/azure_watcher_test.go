@@ -21,10 +21,15 @@ package server
 import (
 	"context"
 	"fmt"
+	"io"
+	"net/http"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"github.com/gravitational/trace"
@@ -51,6 +56,64 @@ func (c *mockClients) GetVirtualMachinesClient(ctx context.Context, subscription
 		return nil, trace.NotFound("subscription %s not found", subscription)
 	}
 	return vmClient, nil
+}
+
+func (c *mockClients) GetCredential(ctx context.Context) (azcore.TokenCredential, error) {
+	return &fakeCredential{}, nil
+}
+
+type fakeCredential struct{}
+
+func (c *fakeCredential) GetToken(_ context.Context, opts policy.TokenRequestOptions) (azcore.AccessToken, error) {
+	return azcore.AccessToken{
+		Token:     "fake-token",
+		ExpiresOn: time.Now().Add(time.Hour),
+	}, nil
+}
+
+type mockHTTPDoClient struct {
+	respStatusCode int
+	respBody       string
+}
+
+func (c *mockHTTPDoClient) Do(req *http.Request) (*http.Response, error) {
+	return &http.Response{
+		StatusCode: c.respStatusCode,
+		Body:       io.NopCloser(strings.NewReader(c.respBody)),
+	}, nil
+}
+
+func makeAzureResourceGraphVM(id, name, location string, tags map[string]string) string {
+	return fmt.Sprintf(`{"id": %q, "name": %q, "location": %q, "tags": %s, "vmId": %q}`,
+		id, name, location, makeAzureResourceGraphTags(tags), name,
+	)
+}
+
+func makeAzureResourceGraphTags(tags map[string]string) string {
+	if len(tags) == 0 {
+		return "{}"
+	}
+
+	var tagPairs []string
+	for k, v := range tags {
+		tagPairs = append(tagPairs, fmt.Sprintf("%q: %q", k, v))
+	}
+	return "{" + strings.Join(tagPairs, ", ") + "}"
+}
+
+func makeAzureResourceGraphBody(resources ...string) string {
+	count := len(resources)
+	totalRecords := count
+
+	return fmt.Sprintf(`{
+						"count": %d,
+						"totalRecords": %d,
+						"resultTruncated": "false",
+						"data": [
+							%s
+						]
+					}`, count, totalRecords, strings.Join(resources, ", "),
+	)
 }
 
 func TestAzureWatcher(t *testing.T) {
@@ -150,10 +213,37 @@ func TestAzureWatcher(t *testing.T) {
 		},
 	}
 
+	nodesSub1RG1 := []string{
+		makeAzureResourceGraphVM(makeAzureVMID(sub1, "rg1", "vm1"), "vm1", "location1", map[string]string{}),
+		makeAzureResourceGraphVM(makeAzureVMID(sub1, "rg1", "vm2"), "vm2", "location1", map[string]string{"teleport": "yes"}),
+		makeAzureResourceGraphVM(makeAzureVMID(sub1, "rg1", "vm5"), "vm5", "location2", map[string]string{}),
+	}
+
+	nodesSub1RG2 := []string{
+		makeAzureResourceGraphVM(makeAzureVMID(sub1, "rg2", "vm3"), "vm3", "location1", map[string]string{}),
+		makeAzureResourceGraphVM(makeAzureVMID(sub1, "rg2", "vm4"), "vm4", "location1", map[string]string{"teleport": "yes"}),
+		makeAzureResourceGraphVM(makeAzureVMID(sub1, "rg2", "vm6"), "vm6", "location2", map[string]string{}),
+	}
+	nodesSub1 := append(append([]string{}, nodesSub1RG1...), nodesSub1RG2...)
+
+	nodesSub2RG3 := []string{
+		makeAzureResourceGraphVM(makeAzureVMID(sub2, "rg3", "vm7"), "vm7", "location1", map[string]string{}),
+		makeAzureResourceGraphVM(makeAzureVMID(sub2, "rg3", "vm8"), "vm8", "location1", map[string]string{"teleport": "yes"}),
+		makeAzureResourceGraphVM(makeAzureVMID(sub2, "rg3", "vm9"), "vm9", "location2", map[string]string{}),
+	}
+
+	nodesSub2RG4 := []string{
+		makeAzureResourceGraphVM(makeAzureVMID(sub2, "rg4", "vm10"), "vm10", "location1", map[string]string{}),
+		makeAzureResourceGraphVM(makeAzureVMID(sub2, "rg4", "vm11"), "vm11", "location1", map[string]string{"teleport": "yes"}),
+		makeAzureResourceGraphVM(makeAzureVMID(sub2, "rg4", "vm12"), "vm12", "location2", map[string]string{}),
+	}
+	nodesSub2 := append(append([]string{}, nodesSub2RG3...), nodesSub2RG4...)
+
 	tests := []struct {
-		name    string
-		matcher types.AzureMatcher
-		wantVMs []string
+		name       string
+		matcher    types.AzureMatcher
+		wantVMs    []string
+		httpClient *mockHTTPDoClient
 	}{
 		{
 			name: "all vms in a subscription",
@@ -164,6 +254,12 @@ func TestAzureWatcher(t *testing.T) {
 				Subscriptions:  []string{sub1},
 			},
 			wantVMs: []string{"vm1", "vm2", "vm3", "vm4", "vm5", "vm6"},
+			httpClient: &mockHTTPDoClient{
+				respStatusCode: http.StatusOK,
+				respBody: makeAzureResourceGraphBody(
+					nodesSub1...,
+				),
+			},
 		},
 		{
 			name: "filter by resource group",
@@ -174,6 +270,12 @@ func TestAzureWatcher(t *testing.T) {
 				Subscriptions:  []string{sub1},
 			},
 			wantVMs: []string{"vm1", "vm2", "vm5"},
+			httpClient: &mockHTTPDoClient{
+				respStatusCode: http.StatusOK,
+				respBody: makeAzureResourceGraphBody(
+					nodesSub1RG1...,
+				),
+			},
 		},
 		{
 			name: "filter by location",
@@ -184,6 +286,12 @@ func TestAzureWatcher(t *testing.T) {
 				Subscriptions:  []string{sub1},
 			},
 			wantVMs: []string{"vm5", "vm6"},
+			httpClient: &mockHTTPDoClient{
+				respStatusCode: http.StatusOK,
+				respBody: makeAzureResourceGraphBody(
+					nodesSub1...,
+				),
+			},
 		},
 		{
 			name: "filter by tag",
@@ -194,6 +302,12 @@ func TestAzureWatcher(t *testing.T) {
 				Subscriptions:  []string{sub1},
 			},
 			wantVMs: []string{"vm2", "vm4"},
+			httpClient: &mockHTTPDoClient{
+				respStatusCode: http.StatusOK,
+				respBody: makeAzureResourceGraphBody(
+					nodesSub1...,
+				),
+			},
 		},
 		{
 			name: "location wildcard",
@@ -204,6 +318,12 @@ func TestAzureWatcher(t *testing.T) {
 				Subscriptions:  []string{sub1},
 			},
 			wantVMs: []string{"vm1", "vm2", "vm3", "vm4", "vm5", "vm6"},
+			httpClient: &mockHTTPDoClient{
+				respStatusCode: http.StatusOK,
+				respBody: makeAzureResourceGraphBody(
+					nodesSub1...,
+				),
+			},
 		},
 		{
 			name: "resource group wildcard",
@@ -214,6 +334,12 @@ func TestAzureWatcher(t *testing.T) {
 				Subscriptions:  []string{sub1},
 			},
 			wantVMs: []string{"vm1", "vm2", "vm3", "vm4", "vm5", "vm6"},
+			httpClient: &mockHTTPDoClient{
+				respStatusCode: http.StatusOK,
+				respBody: makeAzureResourceGraphBody(
+					nodesSub1...,
+				),
+			},
 		},
 		{
 			name: "subscription wildcard",
@@ -224,6 +350,12 @@ func TestAzureWatcher(t *testing.T) {
 				Subscriptions:  []string{"*"},
 			},
 			wantVMs: []string{"vm1", "vm2", "vm5", "vm10", "vm11", "vm12"},
+			httpClient: &mockHTTPDoClient{
+				respStatusCode: http.StatusOK,
+				respBody: makeAzureResourceGraphBody(
+					append(append([]string{}, nodesSub1RG1...), nodesSub2RG4...)...,
+				),
+			},
 		},
 		{
 			name: "subscription wildcard with resource group wildcard",
@@ -234,6 +366,12 @@ func TestAzureWatcher(t *testing.T) {
 				Subscriptions:  []string{"*"},
 			},
 			wantVMs: []string{"vm1", "vm2", "vm3", "vm4", "vm5", "vm6", "vm7", "vm8", "vm9", "vm10", "vm11", "vm12"},
+			httpClient: &mockHTTPDoClient{
+				respStatusCode: http.StatusOK,
+				respBody: makeAzureResourceGraphBody(
+					append(append([]string{}, nodesSub1...), nodesSub2...)...,
+				),
+			},
 		},
 	}
 
@@ -248,18 +386,14 @@ func TestAzureWatcher(t *testing.T) {
 
 			const noDiscoveryConfig = ""
 			watcher.SetFetchers(noDiscoveryConfig,
-				MatchersToAzureInstanceFetchers(
-					t.Context(),
-					logger,
-					[]types.AzureMatcher{tc.matcher},
-					func(ctx context.Context, integration string) (azure.Clients, error) {
-						return &clients, nil
-					},
-					noDiscoveryConfig,
-					func(ctx context.Context, integration string) (subscriptions []string, err error) {
-						return []string{sub1, sub2}, nil
-					},
-				),
+				MatchersToAzureInstanceFetchers(t.Context(), AzureMatcherOptions{
+					Logger:              logger,
+					Matchers:            []types.AzureMatcher{tc.matcher},
+					GetClient:           func(ctx context.Context, integration string) (azure.Clients, error) { return &clients, nil },
+					DiscoveryConfigName: noDiscoveryConfig,
+					ListSubs:            func(ctx context.Context, integration string) ([]string, error) { return []string{sub1, sub2}, nil },
+					HTTPClient:          tc.httpClient,
+				}),
 			)
 
 			go watcher.Run()
@@ -449,6 +583,12 @@ func makeAzureNode(t *testing.T, name, subscriptionID, vmID string) types.Server
 func makeAzureVMID(subscription, resourceGroup, name string) string {
 	return fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Compute/virtualMachines/%s",
 		subscription, resourceGroup, name,
+	)
+}
+
+func makeAzureVMSSVMID(subscription, resourceGroup, name, id string) string {
+	return fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Compute/virtualMachineScaleSets/%s/virtualMachines/%s",
+		subscription, resourceGroup, name, id,
 	)
 }
 

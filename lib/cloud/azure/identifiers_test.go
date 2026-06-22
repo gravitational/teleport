@@ -54,6 +54,7 @@ func TestIsValidResourceGroupName(t *testing.T) {
 		{false, "invalid\"name"},
 		{false, "invalid@name"},
 		{false, "invalid$name"},
+		{false, "invalidᛮname"}, // ᛮ is a digit but not a number. This was tested in the Azure UI.
 	} {
 		if err := IsValidResourceGroupName(tc.name); (err == nil) != tc.valid {
 			t.Errorf("IsValidResourceGroupName(%q) = %v, want valid=%v", tc.name, err, tc.valid)
