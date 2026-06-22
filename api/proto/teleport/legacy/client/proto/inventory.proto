@@ -234,6 +234,8 @@ message InventoryHeartbeat {
   types.KubernetesServerV3 KubernetesServer = 4;
   // A relay_server to be heartbeated.
   teleport.presence.v1.RelayServer relay_server = 5;
+  // AuditQueue reports the depth of the instance's audit-log queue.
+  types.AuditQueueStatus audit_queue = 7;
 }
 
 // UpstreamInventoryGoodbye informs the upstream service that instance

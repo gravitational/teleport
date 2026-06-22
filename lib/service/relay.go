@@ -477,6 +477,8 @@ func (process *TeleportProcess) runRelayService() error {
 	})
 	warnOnErr(egCtx, eg.Wait(), log)
 
+	shutdownEmitter(process, asyncEmitter, exitEvent.Payload, log)
+
 	warnOnErr(ctx, hb.Close(), log)
 	warnOnErr(ctx, conn.Close(), log)
 
