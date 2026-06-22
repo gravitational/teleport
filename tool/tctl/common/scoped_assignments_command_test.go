@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/config"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	"github.com/gravitational/teleport/tool/tctl/common/resources"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
@@ -140,12 +141,12 @@ func TestScopedAssignmentListCommand(t *testing.T) {
 	allAssignmentNames := slices.Collect(maps.Keys(assignments))
 	slices.Sort(allAssignmentNames)
 
-	collectExpectedAssignments := func(names []string) *scopedRoleAssignmentCollection {
+	collectExpectedAssignments := func(names []string) resources.Collection {
 		slice := make([]*scopedaccessv1.ScopedRoleAssignment, 0, len(names))
 		for _, name := range names {
 			slice = append(slice, assignments[name])
 		}
-		return newScopedRoleAssignmentCollection(slice)
+		return resources.NewScopedRoleAssignmentCollection(slice)
 	}
 
 	ctx := t.Context()
