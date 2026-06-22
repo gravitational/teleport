@@ -36,9 +36,9 @@ type Performer func(ctx context.Context, sessionID []byte) (challengeName string
 // responds with partial success after publickey.
 func AuthCallback(ctx context.Context, createPerformer func() (Performer, error)) ssh.ClientAuthCallback {
 	return func(authCtx *ssh.ClientAuthContext) (ssh.AuthMethod, error) {
-		// If the server responds with partial success for publickey auth method and keyboard-interactive is allowed,
-		// then the server is likely enforcing in-band MFA. In this case, return a keyboard-interactive callback that
-		// will perform the MFA ceremony when invoked as long as it hasn't already been tried.
+		// Teleport uses keyboard-interactive authentication exclusively for in-band MFA. The partial success with
+		// publickey + keyboard-interactive pattern is unique to this flow and will not occur during normal auth. We
+		// offer it only once, skipping if keyboard-interactive has already been tried.
 		if slices.Contains(authCtx.PartialSuccessMethods, "publickey") &&
 			slices.Contains(authCtx.AllowedMethods, "keyboard-interactive") &&
 			!slices.Contains(authCtx.TriedMethods, "keyboard-interactive") {

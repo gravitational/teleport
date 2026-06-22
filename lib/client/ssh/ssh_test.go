@@ -189,31 +189,28 @@ func TestAuthCallback(t *testing.T) {
 			expectNil: true,
 		},
 	} {
-		t.Run(
-			tt.name,
-			func(t *testing.T) {
-				t.Parallel()
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-				callback := clientssh.AuthCallback(t.Context(), tt.createPerformer)
+			callback := clientssh.AuthCallback(t.Context(), tt.createPerformer)
 
-				authMethod, err := callback(tt.authCtx)
+			authMethod, err := callback(tt.authCtx)
 
-				if tt.expectError != nil {
-					require.ErrorIs(t, err, tt.expectError)
-				} else {
-					require.NoError(t, err)
-				}
+			if tt.expectError != nil {
+				require.ErrorIs(t, err, tt.expectError)
+			} else {
+				require.NoError(t, err)
+			}
 
-				if tt.expectNil {
-					require.Nil(t, authMethod)
-				}
+			if tt.expectNil {
+				require.Nil(t, authMethod)
+			}
 
-				if tt.expectKICallback {
-					_, ok := authMethod.(ssh.KeyboardInteractiveChallenge)
-					require.True(t, ok)
-				}
-			},
-		)
+			if tt.expectKICallback {
+				_, ok := authMethod.(ssh.KeyboardInteractiveChallenge)
+				require.True(t, ok)
+			}
+		})
 	}
 }
 
