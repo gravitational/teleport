@@ -35,17 +35,15 @@ final class VerifyAppModel {
 
 extension VerifyAppModel {
 	func openDeepLink(_ url: URL) {
-		let parseResult = parseDeepLink(url)
-		switch parseResult {
-			case let .success(.enrollMobileDevice(deepURL)):
-				Self.logger.debug("Correctly parsed deep link: \(String(describing: deepURL))")
-				landingViewModel.navigate(to: .deviceEnrollment)
-			case let .failure(error):
-				Self.logger.warning("Failed to parse deep link \"\(url)\", error: \(error)")
-				landingViewModel.navigate(to: .failedToParseDeepLink(errorMessage: NSLocalizedString(
-					"An unknown error occurred when trying to open the link.",
-					comment: "An error message that appears when a user tries to open a deep link but the link is not valid.",
-				)))
+		do {
+			switch try parseDeepLink(url) {
+				case let .enrollMobileDevice(deepLink):
+					Self.logger.debug("Correctly parsed deep link: \(String(describing: deepLink))")
+					landingViewModel.navigate(to: .deviceEnrollment(EnrollMobileDeviceViewModel(deepLink: deepLink)))
+			}
+		} catch {
+			Self.logger.warning("Failed to parse deep link \"\(url)\", error: \(String(describing: error))")
+			landingViewModel.navigate(to: .failedToParseDeepLink(errorMessage: error.localizedDescription))
 		}
 	}
 }

@@ -14,92 +14,74 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import Core
 import Foundation
-import os
 
-private let logger = Logger(
-	subsystem: Bundle.main.bundleIdentifier ?? "com.gravitational.verify",
-	category: "deep_link",
-)
-
-func parseDeepLink(_ url: URL) -> DeepLinkParseResult {
-	let path = url.path(percentEncoded: false)
-	switch path {
+func parseDeepLink(_ url: URL) throws -> DeepLink {
+	switch url.path(percentEncoded: false) {
 		case "/enroll_mobile_device":
 			// Make sure to first switch on the path and only then attempt to parse out individual fields
 			// out of the URL. This way this function always returns the most important error first,
 			// which is the error about the unsupported path.
-			return parseDeepURL(url) { deepURL, parts in
-				guard
-					let enrollPairingToken = getQueryParam(
-						parts,
-						"enroll_pairing_token",
-					)
-				else {
-					return .failure(.missingPart("enroll pairing token"))
-				}
-				return .success(
-					.enrollMobileDevice(
-						EnrollMobileDeviceDeepURL(
-							url: deepURL,
-							enrollPairingToken: enrollPairingToken,
-						),
-					),
-				)
-			}
+			return try .enrollMobileDevice(parseEnrollMobileDeviceDeepLink(url))
 		default:
-			logger.warning("Unsupported path: \(path, privacy: .public)")
-			return .failure(.unsupportedPath)
+			throw DeepLinkParseError.unsupportedPath
 	}
 }
 
-typealias DeepLinkParseResult = Result<ParsedDeepLink, DeepLinkParseError>
-
-enum ParsedDeepLink {
-	case enrollMobileDevice(EnrollMobileDeviceDeepURL)
+enum DeepLink {
+	case enrollMobileDevice(EnrollMobileDeviceDeepLink)
 }
 
-enum DeepLinkParseError: Error {
+enum DeepLinkParseError: LocalizedError {
 	case unsupportedPath
 	case urlComponentsFailed
 	case missingPart(String)
+
+	var errorDescription: String? {
+		switch self {
+			case .unsupportedPath:
+				NSLocalizedString(
+					"This version of the app does not support the action represented by this link.",
+					comment: "An error message that appears when a user tries to open a deep link with an unsupported path.",
+				)
+			case .urlComponentsFailed:
+				NSLocalizedString(
+					"The link appears to be malformed and could not be parsed.",
+					comment: "An error message that appears when a user tries to open a malformed deep link.",
+				)
+			case let .missingPart(part):
+				String(
+					format: NSLocalizedString(
+						"The %@ part of the link is missing.",
+						comment: "An error message that appears when a user tries to open a deep link with a missing required part.",
+					),
+					part,
+				)
+		}
+	}
 }
 
-struct DeepURL {
-	/// hostname is just the name of the host without the port.
+struct EnrollMobileDeviceDeepLink {
 	var hostname: String
-	/// port of the host.
 	var port: Int? = nil
-}
-
-struct EnrollMobileDeviceDeepURL {
-	var url: DeepURL
-	/// user_token query params from the deep link.
 	var enrollPairingToken: String
 }
 
-/// parseDeepURL could return Result<(DeepURL, URLComponents), DeepLinkParseError> instead, but
-/// there's no convienient way to unwrap it, that's why it accepts a trailing closure instead.
-func parseDeepURL(
-	_ url: URL,
-	toParsedDeepLink: (_ deepURL: DeepURL, _ parts: URLComponents) ->
-		DeepLinkParseResult,
-) -> DeepLinkParseResult {
-	guard let parts = URLComponents(string: url.absoluteString) else {
-		return .failure(.urlComponentsFailed)
+private func parseEnrollMobileDeviceDeepLink(_ url: URL) throws -> EnrollMobileDeviceDeepLink {
+	guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+		throw DeepLinkParseError.urlComponentsFailed
 	}
-	guard let hostname = parts.host, hostname != "" else {
-		return .failure(.missingPart("hostname"))
+	guard let hostname = components.host, hostname != "" else {
+		throw DeepLinkParseError.missingPart("hostname")
 	}
-	let port = parts.port
+	guard let enrollPairingToken = components.nonEmptyQueryValue(named: "enroll_pairing_token") else {
+		throw DeepLinkParseError.missingPart("enroll pairing token")
+	}
 
-	return toParsedDeepLink(DeepURL(hostname: hostname, port: port), parts)
+	return EnrollMobileDeviceDeepLink(
+		hostname: hostname,
+		port: components.port,
+		enrollPairingToken: enrollPairingToken,
+	)
 }
 
-func getQueryParam(_ parts: URLComponents, _ param: String) -> String? {
-	parts.queryItems?
-		.first(
-			where: { $0.name == param && $0.value != nil && $0.value != "" },
-		)?.value
-}

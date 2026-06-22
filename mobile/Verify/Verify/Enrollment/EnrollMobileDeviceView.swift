@@ -17,16 +17,14 @@
 import SwiftUI
 
 struct EnrollMobileDeviceView: View {
-	let deepURL: EnrollMobileDeviceDeepURL
 	let onCancel: () -> Void
 	@State
 	private var viewModel: EnrollMobileDeviceViewModel
 
-	init(deepURL: EnrollMobileDeviceDeepURL, onCancel: @escaping () -> Void) {
-		self.deepURL = deepURL
+	init(deepLink: EnrollMobileDeviceDeepLink, onCancel: @escaping () -> Void) {
 		self.onCancel = onCancel
 		_viewModel = State(
-			initialValue: EnrollMobileDeviceViewModel(deepURL: deepURL),
+			initialValue: EnrollMobileDeviceViewModel(deepLink: deepLink),
 		)
 	}
 
@@ -118,8 +116,9 @@ struct EnrollMobileDeviceView: View {
 #Preview("In ContentView") {
 	ContentView(
 		initialScreen: .enroll(
-			EnrollMobileDeviceDeepURL(
-				url: DeepURL(hostname: "example.com", port: 3080),
+			EnrollMobileDeviceDeepLink(
+				hostname: "example.com",
+				port: 3080,
 				enrollPairingToken: "abc123",
 			),
 		),

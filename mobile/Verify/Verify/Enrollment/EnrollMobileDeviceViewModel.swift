@@ -33,11 +33,11 @@ class EnrollMobileDeviceViewModel {
 	}
 
 	var attempt: Attempt = .idle
-	private let deepURL: EnrollMobileDeviceDeepURL
+	private let deepLink: EnrollMobileDeviceDeepLink
 	private let enrollClient: EnrollClient
 
-	init(deepURL: EnrollMobileDeviceDeepURL, enrollClient: EnrollClient = .liveValue) {
-		self.deepURL = deepURL
+	init(deepLink: EnrollMobileDeviceDeepLink, enrollClient: EnrollClient = .liveValue) {
+		self.deepLink = deepLink
 		self.enrollClient = enrollClient
 	}
 
@@ -46,9 +46,9 @@ class EnrollMobileDeviceViewModel {
 		let defaultHTTPSPort = 443
 		do {
 			let token = try await enrollClient.requestEnrollmentToken(
-				hostName: deepURL.url.hostname,
-				port: deepURL.url.port ?? defaultHTTPSPort,
-				pairingToken: deepURL.enrollPairingToken,
+				hostName: deepLink.hostname,
+				port: deepLink.port ?? defaultHTTPSPort,
+				pairingToken: deepLink.enrollPairingToken,
 			)
 			attempt = .success(token: token)
 		} catch {

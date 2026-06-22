@@ -24,7 +24,7 @@ private let logger = Logger(
 
 enum AppScreen {
 	case landing
-	case enroll(EnrollMobileDeviceDeepURL)
+	case enroll(EnrollMobileDeviceDeepLink)
 }
 
 struct ContentView: View {
@@ -50,9 +50,9 @@ struct ContentView: View {
 				switch screen {
 					case .landing:
 						EmptyView()
-					case let .enroll(deepURL):
+					case let .enroll(deepLink):
 						EnrollMobileDeviceView(
-							deepURL: deepURL,
+							deepLink: deepLink,
 							onCancel: { screen = .landing },
 						)
 				}
