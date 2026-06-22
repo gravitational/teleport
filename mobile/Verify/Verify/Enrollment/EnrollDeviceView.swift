@@ -16,8 +16,8 @@
 
 import SwiftUI
 
-struct EnrollMobileDeviceView: View {
-	var viewModel: EnrollMobileDeviceViewModel
+struct EnrollDeviceView: View {
+	var viewModel: EnrollDeviceViewModel
 
 	var body: some View {
 		VStack(spacing: 16) {

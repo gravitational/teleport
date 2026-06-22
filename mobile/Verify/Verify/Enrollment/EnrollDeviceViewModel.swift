@@ -19,7 +19,7 @@ import Observation
 
 @Observable
 @MainActor
-class EnrollMobileDeviceViewModel {
+class EnrollDeviceViewModel {
 	var attempt: LoadingState<String> = .idle
 	private let deepLink: EnrollMobileDeviceDeepLink
 	private let enrollClient: EnrollClient

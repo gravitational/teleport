@@ -21,7 +21,7 @@ import SwiftNavigation
 final class LandingViewModel {
 	@CasePathable
 	enum Destination {
-		case deviceEnrollment(EnrollMobileDeviceViewModel)
+		case deviceEnrollment(EnrollDeviceViewModel)
 		case failedToParseDeepLink(errorMessage: String)
 	}
 
