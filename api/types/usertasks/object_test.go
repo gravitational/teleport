@@ -939,6 +939,7 @@ func TestNewDiscoverAzureVMUserTask(t *testing.T) {
 	userTaskExpirationTime := time.Now()
 	userTaskExpirationTimestamp := timestamppb.New(userTaskExpirationTime)
 	vmSyncTimestamp := userTaskExpirationTimestamp
+	vmRetryTimestamp := timestamppb.New(time.Now().Add(time.Minute))
 
 	exampleVMID := "/subscriptions/sub-123/resourceGroups/my-rg/providers/Microsoft.Compute/virtualMachines/my-vm"
 
@@ -952,6 +953,9 @@ func TestNewDiscoverAzureVMUserTask(t *testing.T) {
 				DiscoveryConfig: "dc01",
 				DiscoveryGroup:  "dg01",
 				SyncTime:        vmSyncTimestamp,
+				LastAttemptTime: timestamppb.New(vmRetryTimestamp.AsTime().Add(-time.Minute)),
+				RetryAfterTime:  vmRetryTimestamp,
+				Attempts:        2,
 			},
 		},
 	}
