@@ -20,19 +20,7 @@ import Observation
 @Observable
 @MainActor
 class EnrollMobileDeviceViewModel {
-	enum Attempt {
-		case idle
-		case loading
-		case success(token: String)
-		case failure(any Error)
-
-		var isLoading: Bool {
-			if case .loading = self { return true }
-			return false
-		}
-	}
-
-	var attempt: Attempt = .idle
+	var attempt: LoadingState<String> = .idle
 	private let deepLink: EnrollMobileDeviceDeepLink
 	private let enrollClient: EnrollClient
 
@@ -50,7 +38,7 @@ class EnrollMobileDeviceViewModel {
 				port: deepLink.port ?? defaultHTTPSPort,
 				pairingToken: deepLink.enrollPairingToken,
 			)
-			attempt = .success(token: token)
+			attempt = .success(token)
 		} catch {
 			attempt = .failure(error)
 		}
