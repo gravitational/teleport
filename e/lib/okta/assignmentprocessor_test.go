@@ -28,6 +28,7 @@ import (
 	oktaplugin "github.com/gravitational/teleport/e/lib/okta/plugin"
 	"github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/utils/set"
 )
 
@@ -974,7 +975,7 @@ func Test_assignmentProcessor_cleanup_after_start(t *testing.T) {
 	ap := newTestAccessPoint(t, clock)
 	oktaClient, oktaData := oktaapitest.NewLocalDataClient(t)
 	oktaClient.OrgURLFunc = func(t *testing.T) string { return oktaapitest.TestOrgURL }
-	svc, _ := newTestService(t, ap, oktaClient, withClock(clock))
+	svc, auditEvents := newTestService(t, ap, oktaClient, withClock(clock))
 
 	const user1, uid1, user2, uid2 = "user1", "user_id_1", "user2", "user_id_2"
 	const application1, group1 = "application_id_1", "group_id_1"
@@ -987,39 +988,35 @@ func Test_assignmentProcessor_cleanup_after_start(t *testing.T) {
 	require.NoError(t, err)
 
 	// Wait for sync.
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		requireUsersExist(t, ap, user1, user2)
-		requireOktaAppServers(t, ap, []string{mustAppName(t, application1, oktaapitest.TestLink1Name)})
-		requireUserGroups(t, ap, []string{group1})
-	}, time.Second*10, time.Millisecond*50)
+	waitForAccessListSync(t, auditEvents)
 
 	// Assert there are no Okta-side assignments before creating okta_assignment.
 	requireOktaSideApplicationAssignments(t, oktaClient, application1, nil)
 	requireOktaSideGroupAssignments(t, oktaClient, group1, nil)
 
+	w := mustCreateWatcher(t, ap, types.KindOktaAssignment)
+
 	cleanupTime := time.Time{} // never
 	finalized := false
 	lastTransitionTime := time.Time{}
+
 	assignment, err := ap.CreateOktaAssignment(ctx, assignment(t, "assignment1", user1, cleanupTime, constants.OktaAssignmentStatusPending, lastTransitionTime, finalized,
 		target(types.OktaAssignmentTargetV1_APPLICATION, mustAppName(t, application1, oktaapitest.TestLink1Name)),
 		target(types.OktaAssignmentTargetV1_GROUP, group1),
 	))
 	require.NoError(t, err)
 
-	// Assert the okta_assignment was reconciled and Okta-side assignments are created.
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		requireOktaSideApplicationAssignments(t, oktaClient, application1, []string{uid1})
-		requireOktaSideGroupAssignments(t, oktaClient, group1, []string{uid1})
-	}, time.Second*10, time.Millisecond*50)
+	// Wait for the assignment to reach "successful" status.
+	assignment = waitForResource(t, w, func(a types.OktaAssignment) bool {
+		return a.GetName() == assignment.GetName() && a.GetStatus() == constants.OktaAssignmentStatusSuccessful
+	})
+
+	requireOktaSideApplicationAssignments(t, oktaClient, application1, []string{uid1})
+	requireOktaSideGroupAssignments(t, oktaClient, group1, []string{uid1})
 
 	err = svc.Shutdown()
 	require.NoError(t, err)
 
-	// Let's now mark the assignment for cleanup before starting the Okta service again.
-	assignment, err = ap.GetOktaAssignment(ctx, assignment.GetName())
-	require.NoError(t, err)
-	// Also make sure it's successful when we are at it.
-	require.Equal(t, constants.OktaAssignmentStatusSuccessful, assignment.GetStatus())
 	assignment.SetCleanupTime(clock.Now().Add(-1))
 	_, err = ap.UpdateOktaAssignment(ctx, assignment)
 	require.NoError(t, err)
@@ -1157,4 +1154,60 @@ type failingAccessListService struct {
 
 func (s failingAccessListService) GetAccessListMember(context.Context, string, string) (*accesslist.AccessListMember, error) {
 	return nil, s.err
+}
+
+// waitForResource reads watcher events until fn returns true for an OpPut event
+// of the expected resource type, then returns that resource. It fails the test
+// if the watcher closes or the test context is canceled first.
+func waitForResource[T types.Resource](t *testing.T, watcher types.Watcher, fn func(T) bool) T {
+	t.Helper()
+	for {
+		select {
+		case event, ok := <-watcher.Events():
+			if !ok {
+				t.Fatal("watcher closed")
+			}
+			if event.Type != types.OpPut {
+				continue
+			}
+			resource, ok := event.Resource.(T)
+			if ok && fn(resource) {
+				return resource
+			}
+		case <-time.After(time.Minute):
+			t.Fatal("timed out waiting for resource")
+		}
+	}
+}
+
+func waitForAccessListSync(t *testing.T, auditEvents *eventstest.ChannelEmitter) {
+	for {
+		select {
+		case e := <-auditEvents.C():
+			if e.GetType() == events.OktaAccessListSyncEvent {
+				return
+			}
+			continue
+		case <-time.After(time.Second * 10):
+			t.Fatal("timed out waiting for OktaAccessListSyncEvent")
+		}
+	}
+}
+
+func mustCreateWatcher(t *testing.T, ap *testAccessPoint, kind string) types.Watcher {
+	t.Helper()
+	w, err := ap.NewWatcher(t.Context(), types.Watch{
+		Name:  kind + "-watcher",
+		Kinds: []types.WatchKind{{Kind: kind}},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { w.Close() })
+
+	select {
+	case e := <-w.Events():
+		require.Equal(t, types.OpInit, e.Type)
+	case <-time.After(time.Second * 10):
+		t.Fatal("context canceled waiting for sync watcher init")
+	}
+	return w
 }

@@ -611,17 +611,6 @@ func requireOktaSideGroupAssignments(t require.TestingT, oktaClient oktaapi.Inte
 	require.ElementsMatch(t, oktaUserIDs, assignedUsers)
 }
 
-func requireUsersExist(t require.TestingT, ap services.UserGetter, users ...string) {
-	testCallHelper(t)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	for _, u := range users {
-		_, err := ap.GetUser(ctx, u, false)
-		require.NoError(t, err, "user = %q", u)
-	}
-}
-
 type testApplicationServerGetter interface {
 	GetApplicationServers(context.Context, string) ([]types.AppServer, error)
 }
@@ -680,21 +669,6 @@ func requireAppServerExists(t *testing.T, ap testApplicationServerGetter, hostID
 		return appServer.GetHostID() == hostID && appServer.GetName() == name
 	})
 	require.True(t, found)
-}
-
-func requireUserGroups(t require.TestingT, ap services.UserGroups, groupIDs []string) {
-	testCallHelper(t)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	userGroups, nextToken, err := ap.ListUserGroups(ctx, 0, "")
-	require.NoError(t, err)
-	require.Empty(t, nextToken)
-	var existingIDs []string
-	for _, g := range userGroups {
-		existingIDs = append(existingIDs, g.GetName())
-	}
-	require.ElementsMatch(t, groupIDs, existingIDs)
 }
 
 func testCallHelper(t assert.TestingT) {
