@@ -661,6 +661,7 @@ func (a *agent) sendKeepalives() error {
 		const wantReplyTrue = true
 		now := a.clock.Now()
 		_, _, err := a.client.SendRequest(a.ctx, teleport.KeepAliveReqType, wantReplyTrue, nil)
+		ticker.Reset(retryutils.SeventhJitter(a.keepAlive))
 		if err != nil {
 			if !utils.IsOKNetworkError(err) {
 				a.logger.WarnContext(
@@ -676,16 +677,10 @@ func (a *agent) sendKeepalives() error {
 		}
 
 		a.mu.Lock()
-		rtt := a.clock.Since(now)
-		if a.smoothedRTT == 0 {
-			a.smoothedRTT = rtt
-		} else {
-			a.smoothedRTT = (7*a.smoothedRTT + rtt) / 8
-		}
+		a.smoothedRTT = calculateSmoothedRTT(a.smoothedRTT, a.clock.Since(now))
 		a.logger.DebugContext(a.ctx, "Computed new SRTT", "srtt", a.smoothedRTT.String())
 		a.mu.Unlock()
 
-		ticker.Reset(retryutils.SeventhJitter(a.keepAlive))
 		if !first {
 			continue
 		}
@@ -747,6 +742,13 @@ func (a *agent) handleDiscovery(ch ssh.Channel, reqC <-chan *ssh.Request) {
 			a.tracker.TrackExpected(r.TrackProxies()...)
 		}
 	}
+}
+
+func calculateSmoothedRTT(srtt time.Duration, rtt time.Duration) time.Duration {
+	if srtt == 0 {
+		return rtt
+	}
+	return (7*srtt + rtt) / 8
 }
 
 const (
