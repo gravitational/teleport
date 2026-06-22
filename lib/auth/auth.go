@@ -656,13 +656,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		}
 	}
 
-	if cfg.WorkloadClusterService == nil {
-		cfg.WorkloadClusterService, err = local.NewWorkloadClusterService(cfg.Backend)
-		if err != nil {
-			return nil, trace.Wrap(err, "creating WorkloadClusterService")
-		}
-	}
-
 	if cfg.Beams == nil {
 		cfg.Beams, err = local.NewBeamService(cfg.Backend)
 		if err != nil {
@@ -743,7 +736,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		ScopedTokenService:              cfg.ScopedTokenService,
 		AppAuthConfig:                   cfg.AppAuthConfig,
 		MFAService:                      cfg.MFAService,
-		WorkloadClusterService:          cfg.WorkloadClusterService,
 		Beams:                           cfg.Beams,
 		SubCAService:                    cfg.SubCAService,
 	}

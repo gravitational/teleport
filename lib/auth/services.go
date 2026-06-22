@@ -98,7 +98,6 @@ type Services struct {
 	services.Summarizer
 	services.ScopedTokenService
 	MFAService
-	services.WorkloadClusterService
 	services.Beams
 	services.SubCAService
 }
