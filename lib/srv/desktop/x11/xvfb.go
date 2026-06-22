@@ -205,7 +205,7 @@ func NewBackend(ctx context.Context, config Config) (*Backend, error) {
 	if config.Logger == nil {
 		return nil, trace.BadParameter("missing parameter config.Logger")
 	}
-	
+
 	if !IsBackendPresent() {
 		return nil, trace.NotFound("Xvfb is not installed")
 	}
@@ -584,11 +584,11 @@ func (x *Backend) refreshCaptureTarget() error {
 	// Once we have switched to the overlay we stop polling: the compositor runs
 	// for the lifetime of the session. While still on the root window, poll only
 	// periodically to detect a compositor starting up after the session begins.
-	if x.captureWindow == x.overlay && x.overlay != 0 {
+	if x.captureWindow == x.overlay {
 		return nil
 	}
 	x.framesSinceCompositorCheck++
-	if x.captureWindow != x.overlay && x.framesSinceCompositorCheck < compositorPollFrames {
+	if x.framesSinceCompositorCheck < compositorPollFrames {
 		return nil
 	}
 	x.framesSinceCompositorCheck = 0
@@ -619,6 +619,9 @@ func (x *Backend) refreshCaptureTarget() error {
 		return trace.Wrap(err)
 	}
 	x.config.Logger.InfoContext(x.ctx, "Switched frame capture target", "compositing", active, "window", target)
+
+	x.mu.Lock()
+	defer x.mu.Unlock()
 	x.captureWindow = target
 	x.forceFullDamage = true
 	return nil
@@ -672,13 +675,15 @@ func (x *Backend) GetChanges() (rectangles []xproto.Rectangle, err error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	x.mu.Lock()
+	defer x.mu.Unlock()
+
 	// We request a full frame (instead of only changed regions)
 	// after switching the capture target.
 	if x.forceFullDamage {
 		x.forceFullDamage = false
-		x.mu.Lock()
 		full := xproto.Rectangle{Width: x.width, Height: x.height}
-		x.mu.Unlock()
 		return []xproto.Rectangle{full}, nil
 	}
 	return fetched.Rectangles, nil
@@ -686,7 +691,10 @@ func (x *Backend) GetChanges() (rectangles []xproto.Rectangle, err error) {
 
 // GetImage captures image data for the requested rectangle in RGBA format.
 func (x *Backend) GetImage(rect xproto.Rectangle) ([]byte, error) {
+	x.mu.Lock()
 	drawable := xproto.Drawable(x.captureWindow)
+	x.mu.Unlock()
+
 	reply, err := xproto.GetImage(x.conn, xproto.ImageFormatZPixmap, drawable, rect.X, rect.Y, rect.Width, rect.Height, math.MaxUint32).Reply()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -903,6 +911,7 @@ func (x *Backend) setScreenSizeLocked(width, height uint16) error {
 	x.width = width
 	x.height = height
 	x.resizeTimestamp = reply.Timestamp
+	x.forceFullDamage = true
 
 	return nil
 }
