@@ -101,7 +101,12 @@ func guaranteedCaptures(node ast.Node) map[string]bool {
 		return map[string]bool{}
 	case *ast.CallExpr:
 		if isPathMatch(n) {
-			return capturesIn(n)
+			if len(n.Args) == 0 {
+				return map[string]bool{}
+			}
+			// Pass the matcher tree, not the whole path.match call, so a
+			// top-level root() is recognised and its alternatives intersected.
+			return capturesIn(n.Args[0])
 		}
 		return map[string]bool{}
 	default:
@@ -147,6 +152,22 @@ func isPathMatch(call *ast.CallExpr) bool {
 // exclusion is a negative test that binds nothing, so a capture written there
 // is discarded at evaluation and must not count as guaranteed.
 func capturesIn(node ast.Node) map[string]bool {
+	// root() children are alternatives, so only a capture bound on every
+	// alternative is guaranteed. The multi-path declarative form now lowers to a
+	// single path.match(root(...)) rather than several path.match calls joined
+	// by ||, so without intersecting here a capture bound on just one
+	// alternative would wrongly read as guaranteed. root() is valid only as the
+	// top matcher node, so the intersection is needed only at this level.
+	if call, ok := node.(*ast.CallExpr); ok && isIdentCall(call, "root") {
+		if len(call.Args) == 0 {
+			return map[string]bool{}
+		}
+		out := capturesIn(call.Args[0])
+		for _, arg := range call.Args[1:] {
+			out = intersectSets(out, capturesIn(arg))
+		}
+		return out
+	}
 	out := map[string]bool{}
 	ast.Inspect(node, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)

@@ -348,20 +348,24 @@ func (r Rule) pathClause() (string, error) {
 	if len(r.Paths) == 0 {
 		return "", nil
 	}
-	opts := optsSource(r.URLDecoding)
-	calls := make([]string, 0, len(r.Paths))
+	nodes := make([]*Node, 0, len(r.Paths))
 	for _, p := range r.Paths {
 		node, err := Compile(p)
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
-		calls = append(calls, fmt.Sprintf("path.match(%s%s)", nodeToSource(node), opts))
+		nodes = append(nodes, node)
 	}
-	joined := strings.Join(calls, " || ")
-	if len(calls) > 1 {
-		joined = "(" + joined + ")"
+	// Emit a single path.match. Several patterns OR through one root() node
+	// rather than several path.match calls joined by ||, so the desugared form
+	// always has exactly one path.match and the decode options live on that one
+	// call. A root() that wraps a single child is redundant, so a lone pattern
+	// passes its tree straight through.
+	tree := nodes[0]
+	if len(nodes) > 1 {
+		tree = &Node{kind: kindRoot, children: nodes}
 	}
-	return joined, nil
+	return fmt.Sprintf("path.match(%s%s)", nodeToSource(tree), optsSource(r.URLDecoding)), nil
 }
 
 // optsSource renders a DecodeConfig as the trailing decode option arguments to
