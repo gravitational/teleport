@@ -31,9 +31,6 @@ import (
 
 func (s *TerraformSuiteEnterprise) TestClassifier() {
 	t := s.T()
-	// TODO(ryan): unskip once the enterprise SummarizerService implements the
-	// Classifier RPCs.
-	t.Skip("the enterprise SummarizerService does not implement Classifier RPCs yet")
 	ctx := t.Context()
 
 	checkDestroyed := func(state *terraform.State) error {
@@ -86,9 +83,6 @@ func (s *TerraformSuiteEnterprise) TestClassifier() {
 
 func (s *TerraformSuiteEnterprise) TestClassifierDataSource() {
 	t := s.T()
-	// TODO(ryan): unskip once the enterprise SummarizerService implements the
-	// Classifier RPCs.
-	t.Skip("the enterprise SummarizerService does not implement Classifier RPCs yet")
 	ctx := t.Context()
 
 	checkDestroyed := func(state *terraform.State) error {
@@ -131,9 +125,6 @@ func (s *TerraformSuiteEnterprise) TestClassifierDataSource() {
 
 func (s *TerraformSuiteEnterprise) TestImportClassifier() {
 	t := s.T()
-	// TODO(ryan): unskip once the enterprise SummarizerService implements the
-	// Classifier RPCs.
-	t.Skip("the enterprise SummarizerService does not implement Classifier RPCs yet")
 	ctx := t.Context()
 
 	r := "teleport_classifier"
