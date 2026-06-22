@@ -2987,6 +2987,10 @@ message ListAccessRequestsRequest {
   // If the previous response had NextKey set then this should be
   // set to its value. Should be empty on the first request.
   string StartKey = 5;
+
+  // IncludeUserDisplays requests read-time display values for users referenced
+  // by the returned access requests.
+  bool IncludeUserDisplays = 6 [(gogoproto.jsontag) = "include_user_displays,omitempty"];
 }
 
 // UserDisplay holds read-time display values derived from a user resource.

@@ -3275,14 +3275,14 @@ func (a *ServerWithRoles) ListAccessRequests(ctx context.Context, req *proto.Lis
 		// nil err means the user has explicit read + list permissions and can
 		// get all requests.
 		rsp, err := a.authServer.ListAccessRequests(ctx, req)
-		return a.addAccessRequestUserDisplays(ctx, rsp, err)
+		return a.addAccessRequestUserDisplays(ctx, req, rsp, err)
 	}
 
 	// users can always view their own access requests unless the read or list
 	// verbs are explicitly denied
 	if req.Filter.User != "" && a.currentUserAction(req.Filter.User) == nil {
 		rsp, err := a.authServer.ListAccessRequests(ctx, req)
-		return a.addAccessRequestUserDisplays(ctx, rsp, err)
+		return a.addAccessRequestUserDisplays(ctx, req, rsp, err)
 	}
 
 	// user does not have read/list permissions and is not specifically requesting only
@@ -3310,7 +3310,7 @@ func (a *ServerWithRoles) ListAccessRequests(ctx context.Context, req *proto.Lis
 		}
 		req.Filter.User = a.context.User.GetName()
 		rsp, err := a.authServer.ListAccessRequests(ctx, req)
-		return a.addAccessRequestUserDisplays(ctx, rsp, err)
+		return a.addAccessRequestUserDisplays(ctx, req, rsp, err)
 	}
 
 	// aggregate all requests that the caller owns and/or is able to review. Note that we perform all filtering via the
@@ -3334,7 +3334,7 @@ func (a *ServerWithRoles) ListAccessRequests(ctx context.Context, req *proto.Lis
 		return canReview
 	})
 
-	return a.addAccessRequestUserDisplays(ctx, rsp, err)
+	return a.addAccessRequestUserDisplays(ctx, req, rsp, err)
 }
 
 func (a *ServerWithRoles) CreateAccessRequestV2(ctx context.Context, req types.AccessRequest) (types.AccessRequest, error) {

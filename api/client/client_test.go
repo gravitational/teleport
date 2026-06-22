@@ -986,16 +986,14 @@ func (p preparedSessionEvent) GetAuditEvent() events.AuditEvent {
 	return p.event
 }
 
-func TestListAllAccessRequestsWithDisplays(t *testing.T) {
+func TestListAccessRequestsIncludesUserDisplays(t *testing.T) {
 	t.Parallel()
 
 	reqA := clientAccessRequest("request-a", "alice")
-	reqB := clientAccessRequest("request-b", "bob")
 	service := &accessRequestListService{
 		pages: []*proto.ListAccessRequestsResponse{
 			{
 				AccessRequests: []*types.AccessRequestV3{reqA},
-				NextKey:        "page-2",
 				UserDisplays: map[string]*proto.UserDisplay{
 					"alice": {
 						Primary:   "Alice",
@@ -1004,15 +1002,6 @@ func TestListAllAccessRequestsWithDisplays(t *testing.T) {
 					"plain": nil,
 				},
 			},
-			{
-				AccessRequests: []*types.AccessRequestV3{reqB},
-				UserDisplays: map[string]*proto.UserDisplay{
-					"bob": {
-						Primary:   "Bob",
-						Secondary: "bob@example.com",
-					},
-				},
-			},
 		},
 	}
 
@@ -1021,54 +1010,32 @@ func TestListAllAccessRequestsWithDisplays(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, clt.Close()) })
 
-	requests, displays, err := clt.ListAllAccessRequestsWithDisplays(t.Context(), &proto.ListAccessRequestsRequest{
-		Limit: 1,
+	rsp, err := clt.ListAccessRequests(t.Context(), &proto.ListAccessRequestsRequest{
+		Limit:               1,
+		IncludeUserDisplays: true,
 	})
 	require.NoError(t, err)
 
-	require.Equal(t, []*types.AccessRequestV3{reqA, reqB}, requests)
-	require.Equal(t, map[string]types.UserDisplay{
+	require.Equal(t, []*types.AccessRequestV3{reqA}, rsp.AccessRequests)
+	require.Equal(t, map[string]*proto.UserDisplay{
 		"alice": {
 			Primary:   "Alice",
 			Secondary: "alice@example.com",
 		},
-		"bob": {
-			Primary:   "Bob",
-			Secondary: "bob@example.com",
-		},
-		"plain": {},
-	}, displays)
-	require.Equal(t, []string{"", "page-2"}, service.startKeys)
-}
-
-func TestListAllAccessRequestsWithDisplaysCompat(t *testing.T) {
-	t.Parallel()
-
-	req := clientAccessRequest("request-a", "alice")
-	service := &accessRequestListService{
-		listErr:        trace.NotImplemented("old control plane"),
-		compatRequests: []*types.AccessRequestV3{req},
-	}
-
-	srv := startMockServer(t, mockServices{auth: service})
-	clt, err := New(t.Context(), srv.clientCfg())
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, clt.Close()) })
-
-	requests, displays, err := clt.ListAllAccessRequestsWithDisplays(t.Context(), &proto.ListAccessRequestsRequest{})
-	require.NoError(t, err)
-
-	require.Equal(t, []*types.AccessRequestV3{req}, requests)
-	require.Empty(t, displays)
+		"plain": nil,
+	}, rsp.UserDisplays)
+	require.Equal(t, []string{""}, service.startKeys)
+	require.Equal(t, []bool{true}, service.includeUserDisplays)
 }
 
 type accessRequestListService struct {
 	proto.UnimplementedAuthServiceServer
 
-	pages          []*proto.ListAccessRequestsResponse
-	startKeys      []string
-	listErr        error
-	compatRequests []*types.AccessRequestV3
+	pages               []*proto.ListAccessRequestsResponse
+	startKeys           []string
+	includeUserDisplays []bool
+	listErr             error
+	compatRequests      []*types.AccessRequestV3
 }
 
 func (s *accessRequestListService) ListAccessRequests(ctx context.Context, req *proto.ListAccessRequestsRequest) (*proto.ListAccessRequestsResponse, error) {
@@ -1077,6 +1044,7 @@ func (s *accessRequestListService) ListAccessRequests(ctx context.Context, req *
 	}
 
 	s.startKeys = append(s.startKeys, req.StartKey)
+	s.includeUserDisplays = append(s.includeUserDisplays, req.IncludeUserDisplays)
 	pageIndex := len(s.startKeys) - 1
 	if pageIndex >= len(s.pages) {
 		return nil, trail.ToGRPC(trace.NotFound("page %d not found", pageIndex))

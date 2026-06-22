@@ -1305,55 +1305,6 @@ func (c *Client) ListAllAccessRequests(ctx context.Context, req *proto.ListAcces
 	return requests, nil
 }
 
-// ListAllAccessRequestsWithDisplays aggregates all access request pages and
-// unions the server-resolved display maps for usernames referenced by each page.
-func (c *Client) ListAllAccessRequestsWithDisplays(ctx context.Context, req *proto.ListAccessRequestsRequest) ([]*types.AccessRequestV3, map[string]types.UserDisplay, error) {
-	var requests []*types.AccessRequestV3
-	displays := make(map[string]types.UserDisplay)
-	for {
-		rsp, err := c.ListAccessRequests(ctx, req)
-		if err != nil {
-			if trace.IsNotImplemented(err) {
-				requests, err := c.listAllAccessRequestsCompat(ctx, req)
-				return requests, displays, trace.Wrap(err)
-			}
-
-			return nil, nil, trace.Wrap(err)
-		}
-
-		requests = append(requests, rsp.AccessRequests...)
-		for username, display := range userDisplaysFromProto(rsp.UserDisplays) {
-			displays[username] = display
-		}
-
-		req.StartKey = rsp.NextKey
-		if req.StartKey == "" {
-			break
-		}
-	}
-
-	return requests, displays, nil
-}
-
-func userDisplaysFromProto(displays map[string]*proto.UserDisplay) map[string]types.UserDisplay {
-	if displays == nil {
-		return nil
-	}
-
-	out := make(map[string]types.UserDisplay, len(displays))
-	for username, display := range displays {
-		if display == nil {
-			out[username] = types.UserDisplay{}
-			continue
-		}
-		out[username] = types.UserDisplay{
-			Primary:   display.Primary,
-			Secondary: display.Secondary,
-		}
-	}
-	return out
-}
-
 // listAllAccessRequestsCompat is a helper that simulates ListAllAccessRequests behavior via the old GetAccessRequests method.
 func (c *Client) listAllAccessRequestsCompat(ctx context.Context, req *proto.ListAccessRequestsRequest) ([]*types.AccessRequestV3, error) {
 	var filter types.AccessRequestFilter

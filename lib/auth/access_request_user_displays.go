@@ -28,11 +28,11 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-func (a *ServerWithRoles) addAccessRequestUserDisplays(ctx context.Context, rsp *proto.ListAccessRequestsResponse, err error) (*proto.ListAccessRequestsResponse, error) {
+func (a *ServerWithRoles) addAccessRequestUserDisplays(ctx context.Context, req *proto.ListAccessRequestsRequest, rsp *proto.ListAccessRequestsResponse, err error) (*proto.ListAccessRequestsResponse, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if len(rsp.AccessRequests) == 0 {
+	if !req.GetIncludeUserDisplays() || len(rsp.AccessRequests) == 0 {
 		return rsp, nil
 	}
 
