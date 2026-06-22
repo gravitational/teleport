@@ -6636,18 +6636,25 @@ func TestFlatten(t *testing.T) {
 	_, err = identityfile.KeyRingFromIdentityFile(identityPath, "proxy.example.com", "")
 	require.NoError(t, err)
 
-	// Test execution: flatten the identity previously obtained in a new home.
+	// Test execution: flatten the identity previously obtained in a new home
+	// via the login command. The login command will update pre-login hooks,
+	// such as determining if an upgrade check should be performed.
 	freshHome := t.TempDir()
+	err = Run(context.Background(), []string{
+		"login",
+		"--insecure",
+		"--proxy", proxyAddr.String(),
+		"-i", identityPath,
+	}, setHomePath(freshHome))
+	require.NoError(t, err)
+
+	// Test execution: validate that the newly created profile can be used to build a valid client.
 	conf = CLIConf{
 		Proxy:              proxyAddr.String(),
 		InsecureSkipVerify: true,
-		IdentityFileIn:     identityPath,
 		HomePath:           freshHome,
 		Context:            context.Background(),
 	}
-	require.NoError(t, flattenIdentity(&conf))
-
-	// Test execution: validate that the newly created profile can be used to build a valid client.
 	clt, err := makeClient(&conf)
 	require.NoError(t, err)
 

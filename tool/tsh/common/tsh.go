@@ -2718,6 +2718,14 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 // maybeCheckLoginManagedUpdate checks for updates if the current profile
 // does not exist or if the profile is expired.
 func maybeCheckLoginManagedUpdate(cf *CLIConf, reExecArgs []string) error {
+	if cf.IdentityFileIn != "" {
+		// Skip the update check if using flattened identities to avoid
+		// initializing the identity store too early. Otherwise, if the identity store
+		// is initialized then later the flattened identity store will fail to be
+		// created since an identity store already exists.
+		return nil
+	}
+
 	profile, _, err := cf.FullProfileStatus()
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
