@@ -27,6 +27,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/google/safetext/shsprintf"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/lib/srv"
@@ -77,6 +78,19 @@ func GetAvailableXSessions(included, excluded *regexp.Regexp) (map[string]string
 	return entries, nil
 }
 
+// knownSessionWrappers are the X session wrapper scripts shipped by
+// major distros, in priority order.
+var knownSessionWrappers = []string{
+	"/etc/X11/Xsession",                // Debian/Ubuntu (x11-common)
+	"/etc/X11/xinit/Xsession",          // Fedora/RHEL/CentOS (xorg-x11-xinit)
+	"/etc/gdm3/Xsession",               // GDM on Debian/Ubuntu
+	"/etc/gdm/Xsession",                // GDM on Fedora/RHEL
+	"/usr/share/sddm/scripts/Xsession", // SDDM
+
+	// TODO(zmb3): confirm the openSUSE/SLES wrapper path on a real system
+	// (under /etc/X11/xinit/ and /etc/X11/xdm/Xsession) and add it here
+}
+
 // XSessionConfig is configuration used for starting xsession for specified user.
 type XSessionConfig struct {
 	Logger *slog.Logger
@@ -86,6 +100,11 @@ type XSessionConfig struct {
 
 	// Command is command to execute to start xsession.
 	Command string
+
+	// SessionWrapper is an optional path to an X session wrapper script used to
+	// launch the session (e.g. /etc/X11/Xsession). When empty, a set of
+	// well-known wrapper paths is probed.
+	SessionWrapper string
 
 	// Username is the username associated with the Teleport identity.
 	Username string
@@ -119,9 +138,12 @@ func StartTeleportExecXSession(ctx context.Context, cfg *XSessionConfig) (*reexe
 	//env.AddTrusted("DBUS_SESSION_BUS_ADDRESS", fmt.Sprintf("unix:path=%s/bus", runtimeDir))
 	env.AddTrusted("XDG_SESSION_TYPE", "x11")
 
-	cmdd := cfg.Command
-	_, err := exec.LookPath("dbus-launch")
-	if err == nil {
+	cmdd, err := resolveSessionCommand(cfg.Command, discoverSessionWrapper(ctx, cfg.Logger, cfg.SessionWrapper))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if _, err := exec.LookPath("dbus-launch"); err == nil {
 		cmdd = "dbus-launch --exit-with-session " + cmdd
 	}
 
@@ -188,4 +210,52 @@ func StartTeleportExecXSession(ctx context.Context, cfg *XSessionConfig) (*reexe
 	}
 
 	return cmd, nil
+}
+
+// discoverSessionWrapper resolves the X session wrapper script to use.
+// Prefers a wrapper explicitly-configured via file config, falling back to a
+// set of well-known wrapper scripts.
+// An empty string means no wrapper was found, in which case the session Exec value is run directly.
+func discoverSessionWrapper(ctx context.Context, logger *slog.Logger, configured string) string {
+	if configured != "" {
+		if !isExecutableFile(configured) {
+			logger.WarnContext(ctx, "Configured X session wrapper is not an executable file, using it anyway", "wrapper", configured)
+		}
+		return configured
+	}
+
+	for _, candidate := range knownSessionWrappers {
+		if isExecutableFile(candidate) {
+			logger.DebugContext(ctx, "Discovered X session wrapper", "wrapper", candidate)
+			return candidate
+		}
+	}
+
+	logger.DebugContext(ctx, "No X session wrapper found, sessions will be executed directly")
+	return ""
+}
+
+// isExecutableFile reports whether path is a regular file with an executable
+// permission bit set.
+func isExecutableFile(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil {
+		return false
+	}
+	return info.Mode().IsRegular() && info.Mode().Perm()&0o111 != 0
+}
+
+// resolveSessionCommand turns the raw Exec value from an xsession .desktop file
+// into the command line to execute.
+func resolveSessionCommand(execValue, wrapper string) (string, error) {
+	execValue = strings.TrimSpace(execValue)
+	if execValue == "" {
+		return "", trace.BadParameter("xsession has an empty Exec value")
+	}
+
+	if wrapper != "" {
+		return wrapper + " " + shsprintf.EscapeDefaultContext(execValue), nil
+	}
+
+	return execValue, nil
 }

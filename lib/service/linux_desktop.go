@@ -202,6 +202,7 @@ func (process *TeleportProcess) initLinuxDesktopServiceRegistered(logger *slog.L
 		Labels:               cfg.LinuxDesktop.Labels,
 		IncludedSessions:     cfg.LinuxDesktop.IncludedSessions,
 		ExcludedSessions:     cfg.LinuxDesktop.ExcludedSessions,
+		SessionWrapper:       cfg.LinuxDesktop.SessionWrapper,
 		ConnectedProxyGetter: proxyGetter,
 		Hostname:             process.Config.Hostname,
 		Heartbeat: desktop.HeartbeatConfig{

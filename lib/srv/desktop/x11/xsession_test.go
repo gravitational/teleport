@@ -82,6 +82,51 @@ func TestGetAvailableXSessions(t *testing.T) {
 	require.Empty(t, entries)
 }
 
+func TestResolveSessionCommand(t *testing.T) {
+	t.Run("wrapper passes Exec as a single quoted argument", func(t *testing.T) {
+		cmd, err := resolveSessionCommand("default", "/etc/X11/Xsession")
+		require.NoError(t, err)
+		require.Equal(t, "/etc/X11/Xsession default", cmd)
+	})
+	t.Run("wrapper escapes embedded single quotes", func(t *testing.T) {
+		cmd, err := resolveSessionCommand("start 'it'", "/etc/X11/Xsession")
+		require.NoError(t, err)
+		require.Equal(t, `/etc/X11/Xsession start\ \'it\'`, cmd)
+	})
+	t.Run("no wrapper runs Exec directly", func(t *testing.T) {
+		cmd, err := resolveSessionCommand("startxfce4", "")
+		require.NoError(t, err)
+		require.Equal(t, "startxfce4", cmd)
+	})
+	t.Run("empty Exec is rejected", func(t *testing.T) {
+		_, err := resolveSessionCommand("   ", "/etc/X11/Xsession")
+		require.Error(t, err)
+	})
+}
+
+func TestDiscoverSessionWrapper(t *testing.T) {
+	logger := slog.Default()
+
+	executable := filepath.Join(t.TempDir(), "Xsession")
+	require.NoError(t, os.WriteFile(executable, []byte("#!/bin/sh\n"), 0o755))
+
+	nonExecutable := filepath.Join(t.TempDir(), "Xsession")
+	require.NoError(t, os.WriteFile(nonExecutable, []byte("#!/bin/sh\n"), 0o644))
+
+	t.Run("configured wrapper is honored verbatim", func(t *testing.T) {
+		require.Equal(t, executable, discoverSessionWrapper(t.Context(), logger, executable))
+	})
+	t.Run("configured wrapper honored even if not executable", func(t *testing.T) {
+		require.Equal(t, nonExecutable, discoverSessionWrapper(t.Context(), logger, nonExecutable))
+	})
+	t.Run("isExecutableFile checks regular executable file", func(t *testing.T) {
+		require.True(t, isExecutableFile(executable))
+		require.False(t, isExecutableFile(nonExecutable))
+		require.False(t, isExecutableFile(filepath.Join(t.TempDir(), "missing")))
+		require.False(t, isExecutableFile(t.TempDir()))
+	})
+}
+
 func TestStartTeleportExecXSession(t *testing.T) {
 	current, err := user.Current()
 	require.NoError(t, err)

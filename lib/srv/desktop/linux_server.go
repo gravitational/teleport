@@ -128,6 +128,11 @@ type LinuxServiceConfig struct {
 	// Filters used to limit available sessions
 	IncludedSessions *regexp.Regexp
 	ExcludedSessions *regexp.Regexp
+
+	// SessionWrapper is an optional path to the X session wrapper script used to
+	// launch sessions (e.g. /etc/X11/Xsession). When empty, a set of well-known
+	// wrapper paths is probed.
+	SessionWrapper string
 }
 
 func (cfg *LinuxServiceConfig) CheckAndSetDefaults() error {
@@ -763,6 +768,7 @@ func (sess *linuxSession) handleSessionSelection(m *tdpbv1.SessionSelection) err
 	cmd, err := x11.StartTeleportExecXSession(sess.ctx, &x11.XSessionConfig{
 		Logger:         sess.log,
 		Command:        xsession,
+		SessionWrapper: sess.service.cfg.SessionWrapper,
 		Username:       sess.identity.Username,
 		Login:          sess.username,
 		ChildLogConfig: sess.service.cfg.ChildLogConfig,
