@@ -49,7 +49,7 @@ struct ContentView: View {
 			Group {
 				switch screen {
 					case .landing:
-						LandingView()
+						EmptyView()
 					case let .enroll(deepURL):
 						EnrollMobileDeviceView(
 							deepURL: deepURL,

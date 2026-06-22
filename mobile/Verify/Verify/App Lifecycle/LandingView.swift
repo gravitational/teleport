@@ -15,19 +15,37 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import SwiftUI
+import SwiftUINavigation
 
 struct LandingView: View {
+	@Bindable
+	var viewModel: LandingViewModel
+
 	var body: some View {
 		NavigationStack {
-			Text("Open the Camera app to scan a QR code in the Web UI.")
-				.font(.title)
-				.fontWeight(.medium)
-				.multilineTextAlignment(.center)
-				.padding()
+			VStack(spacing: .zero) {
+				Image("logo")
+					.resizable()
+					.scaledToFit()
+					.frame(maxWidth: .infinity, maxHeight: 44, alignment: .leading)
+				Text("Open the Camera app to scan a QR code in the Web UI.")
+					.font(.title)
+					.fontWeight(.medium)
+					.multilineTextAlignment(.center)
+					.frame(maxHeight: .infinity)
+			}
+			.padding(.horizontal)
+			.alert(item: $viewModel.destination.failedToParseDeepLink, title: { errorString in
+				Text(errorString)
+			}, actions: { _ in
+				Button("OK") {}
+			})
 		}
 	}
 }
 
 #Preview("In ContentView") {
-	LandingView()
+	@Previewable @State
+	var viewModel = LandingViewModel()
+	LandingView(viewModel: viewModel)
 }

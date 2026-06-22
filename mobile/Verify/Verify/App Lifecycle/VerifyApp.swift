@@ -40,25 +40,25 @@ import SwiftUI
 ///
 /// ```
 ///      ┌─────────────┐                    ┌──────────────────┐
-///      │  VerifyApp  │───────Owns────────▶│  VerifyAppModel  │     
-///      └─────────────┘                    └──────────────────┘     
-///             │                            │                ▲     
-///             │                            │                │     
-///             │                            │                      
-///             │                            │                │     
-///           Owns                         Owns           Delegate 
-///             │                            │                     
-///             │                            │                │    
-///             │                            │                     
-///             ▼                            ▼                │    
-///     ┌───────────────┐                  ┌────────────────────┐    
-///     │  LandingView  │───References────▶│  LandingViewModel  │    
-///     └───────────────┘                  └────────────────────┘    
-///             │                            │                ▲    
-///             │                            │                     
-///             │                            │                │    
-///             │                            │                     
-///             ▼                            ▼                │    
+///      │  VerifyApp  │───────Owns────────▶│  VerifyAppModel  │
+///      └─────────────┘                    └──────────────────┘
+///             │                            │                ▲
+///             │                            │                │
+///             │                            │
+///             │                            │                │
+///           Owns                         Owns           Delegate
+///             │                            │
+///             │                            │                │
+///             │                            │
+///             ▼                            ▼                │
+///     ┌───────────────┐                  ┌────────────────────┐
+///     │  LandingView  │───References────▶│  LandingViewModel  │
+///     └───────────────┘                  └────────────────────┘
+///             │                            │                ▲
+///             │                            │
+///             │                            │                │
+///             │                            │
+///             ▼                            ▼                │
 ///           etc.                                   etc.
 /// ```
 @main
@@ -68,7 +68,7 @@ struct VerifyApp: App {
 
 	var body: some Scene {
 		WindowGroup {
-			ContentView()
+			LandingView(viewModel: appModel.landingViewModel)
 				.onOpenURL { url in
 					appModel.openDeepLink(url)
 				}

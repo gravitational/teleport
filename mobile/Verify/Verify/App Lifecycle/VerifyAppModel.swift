@@ -23,13 +23,15 @@ import OSLog
 final class VerifyAppModel {
 	static var logger = Logger.forType(VerifyAppModel.self)
 
-	enum Destination {
-		case deviceEnrollment
-		case failedToParseDeepLink(errorMessage: String)
-	}
+	// MARK: Child View Models
 
-	var destination: Destination? = nil
+	let landingViewModel = LandingViewModel()
 }
+
+// MARK: - Deep Link Handling
+
+// We keep the deep link handing here at the root-most level of the app because from here we have a bird's eye view of
+// the whole app and can manipulate any pieces we need.
 
 extension VerifyAppModel {
 	func openDeepLink(_ url: URL) {
@@ -37,13 +39,13 @@ extension VerifyAppModel {
 		switch parseResult {
 			case let .success(.enrollMobileDevice(deepURL)):
 				Self.logger.debug("Correctly parsed deep link: \(String(describing: deepURL))")
-				destination = .deviceEnrollment
+				landingViewModel.navigate(to: .deviceEnrollment)
 			case let .failure(error):
 				Self.logger.warning("Failed to parse deep link \"\(url)\", error: \(error)")
-				destination = .failedToParseDeepLink(errorMessage: NSLocalizedString(
+				landingViewModel.navigate(to: .failedToParseDeepLink(errorMessage: NSLocalizedString(
 					"An unknown error occurred when trying to open the link.",
 					comment: "An error message that appears when a user tries to open a deep link but the link is not valid.",
-				))
+				)))
 		}
 	}
 }
