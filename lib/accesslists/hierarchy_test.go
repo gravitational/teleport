@@ -42,12 +42,13 @@ import (
 
 // Mock implementation of AccessListAndMembersGetter.
 type mockAccessListAndMembersGetter struct {
-	accessLists map[string]*accesslist.AccessList
-	members     map[string][]*accesslist.AccessListMember
+	accessLists map[accesslist.ScopeQualifiedName]*accesslist.AccessList
+	members     map[accesslist.ScopeQualifiedName][]*accesslist.AccessListMember
 }
 
 func (m *mockAccessListAndMembersGetter) GetAccessListMember(ctx context.Context, accessListName, memberName string) (*accesslist.AccessListMember, error) {
-	member, exists := m.members[accessListName]
+	// TODO(nklaassen): support scoped access list members.
+	member, exists := m.members[accesslist.ScopeQualifiedName{Name: accessListName}]
 	if !exists {
 		return nil, trace.NotFound("access list %v member %v not found", accessListName, memberName)
 	}
@@ -60,6 +61,10 @@ func (m *mockAccessListAndMembersGetter) GetAccessListMember(ctx context.Context
 }
 
 func (m *mockAccessListAndMembersGetter) GetAccessList(ctx context.Context, accessListName string) (*accesslist.AccessList, error) {
+	return m.GetAccessListV2(ctx, accesslist.ScopeQualifiedName{Name: accessListName})
+}
+
+func (m *mockAccessListAndMembersGetter) GetAccessListV2(ctx context.Context, accessListName accesslist.ScopeQualifiedName) (*accesslist.AccessList, error) {
 	accessList, exists := m.accessLists[accessListName]
 	if !exists {
 		return nil, trace.NotFound("access list %v not found", accessListName)
@@ -68,11 +73,29 @@ func (m *mockAccessListAndMembersGetter) GetAccessList(ctx context.Context, acce
 }
 
 func (m *mockAccessListAndMembersGetter) ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) ([]*accesslist.AccessListMember, string, error) {
-	members, exists := m.members[accessListName]
+	// TODO(nklaassen): support scoped access list members.
+	members, exists := m.members[accesslist.ScopeQualifiedName{Name: accessListName}]
 	if !exists {
 		return nil, "", nil
 	}
 	return members, "", nil
+}
+
+func mockAccessLists(accessLists ...*accesslist.AccessList) map[accesslist.ScopeQualifiedName]*accesslist.AccessList {
+	out := make(map[accesslist.ScopeQualifiedName]*accesslist.AccessList, len(accessLists))
+	for _, accessList := range accessLists {
+		out[accessList.GetScopeQualifiedName()] = accessList
+	}
+	return out
+}
+
+func mockAccessListMembers(members ...*accesslist.AccessListMember) map[accesslist.ScopeQualifiedName][]*accesslist.AccessListMember {
+	out := make(map[accesslist.ScopeQualifiedName][]*accesslist.AccessListMember)
+	for _, member := range members {
+		listName := accesslist.ScopeQualifiedName{Name: member.Spec.AccessList}
+		out[listName] = append(out[listName], member)
+	}
+	return out
 }
 
 type mockLocksGetter struct {
@@ -169,18 +192,8 @@ func TestAccessListHierarchyIsOwner(t *testing.T) {
 	acl1.Status.OwnerOf = append(acl1.Status.OwnerOf, acl4.GetName())
 
 	accessListAndMembersGetter := &mockAccessListAndMembersGetter{
-		members: map[string][]*accesslist.AccessListMember{
-			acl1.GetName(): {acl1m1, acl1m2},
-			acl2.GetName(): {acl2m1},
-			acl3.GetName(): {},
-			acl4.GetName(): {acl4m1},
-		},
-		accessLists: map[string]*accesslist.AccessList{
-			acl1.GetName(): acl1,
-			acl2.GetName(): acl2,
-			acl3.GetName(): acl3,
-			acl4.GetName(): acl4,
-		},
+		members:     mockAccessListMembers(acl1m1, acl1m2, acl2m1, acl4m1),
+		accessLists: mockAccessLists(acl1, acl2, acl3, acl4),
 	}
 
 	// User which does not meet acl1's Membership requirements.
@@ -242,12 +255,8 @@ func TestAccessListIsMember(t *testing.T) {
 		targets: map[string][]types.Lock{},
 	}
 	accessListAndMembersGetter := &mockAccessListAndMembersGetter{
-		members: map[string][]*accesslist.AccessListMember{
-			acl1.GetName(): {acl1m1},
-		},
-		accessLists: map[string]*accesslist.AccessList{
-			acl1.GetName(): acl1,
-		},
+		members:     mockAccessListMembers(acl1m1),
+		accessLists: mockAccessLists(acl1),
 	}
 
 	stubMember1, err := types.NewUser(member1)
@@ -285,8 +294,8 @@ func TestAccessListIsMember_RequirementsAndExpiry(t *testing.T) {
 	// single user member
 	member := newAccessListMember(t, "acl", "u", accesslist.MembershipKindUser, clock)
 	aclGetter := &mockAccessListAndMembersGetter{
-		accessLists: map[string]*accesslist.AccessList{"acl": acl},
-		members:     map[string][]*accesslist.AccessListMember{"acl": {member}},
+		accessLists: mockAccessLists(acl),
+		members:     mockAccessListMembers(member),
 	}
 
 	u, _ := types.NewUser("u")
@@ -343,16 +352,8 @@ func TestAccessListIsMember_NestedRequirements(t *testing.T) {
 		middleInRoot := newAccessListMember(t, rootList.GetName(), middleList.GetName(), accesslist.MembershipKindList, clock)
 
 		aclGetter := &mockAccessListAndMembersGetter{
-			accessLists: map[string]*accesslist.AccessList{
-				"root":   rootList,
-				"middle": middleList,
-				"leaf":   leafList,
-			},
-			members: map[string][]*accesslist.AccessListMember{
-				"root":   {middleInRoot},
-				"middle": {leafInMiddle},
-				"leaf":   {userMember},
-			},
+			accessLists: mockAccessLists(rootList, middleList, leafList),
+			members:     mockAccessListMembers(middleInRoot, leafInMiddle, userMember),
 		}
 
 		user, err := types.NewUser(userName)
@@ -402,16 +403,8 @@ func TestAccessListIsMember_NestedRequirements(t *testing.T) {
 		middleInRoot := newAccessListMember(t, rootList.GetName(), middleList.GetName(), accesslist.MembershipKindList, clock)
 
 		aclGetter := &mockAccessListAndMembersGetter{
-			accessLists: map[string]*accesslist.AccessList{
-				"root":   rootList,
-				"middle": middleList,
-				"leaf":   leafList,
-			},
-			members: map[string][]*accesslist.AccessListMember{
-				"root":   {middleInRoot},
-				"middle": {leafInMiddle},
-				"leaf":   {userMember},
-			},
+			accessLists: mockAccessLists(rootList, middleList, leafList),
+			members:     mockAccessListMembers(middleInRoot, leafInMiddle, userMember),
 		}
 
 		user, err := types.NewUser(userName)
@@ -442,16 +435,8 @@ func TestAccessListIsMember_NestedRequirements(t *testing.T) {
 		thirdArc := newAccessListMember(t, thirdList.GetName(), firstList.GetName(), accesslist.MembershipKindList, clock)
 
 		aclGetter := &mockAccessListAndMembersGetter{
-			accessLists: map[string]*accesslist.AccessList{
-				firstList.GetName():  firstList,
-				secondList.GetName(): secondList,
-				thirdList.GetName():  thirdList,
-			},
-			members: map[string][]*accesslist.AccessListMember{
-				firstList.GetName():  {firstArc},
-				secondList.GetName(): {secondArc},
-				thirdList.GetName():  {thirdArc},
-			},
+			accessLists: mockAccessLists(firstList, secondList, thirdList),
+			members:     mockAccessListMembers(firstArc, secondArc, thirdArc),
 		}
 
 		user, err := types.NewUser("alice")
@@ -491,16 +476,8 @@ func TestAccessListIsMember_NestedRequirements(t *testing.T) {
 		userMembership := newAccessListMember(t, thirdList.GetName(), user.GetName(), accesslist.MembershipKindUser, clock)
 
 		aclGetter := &mockAccessListAndMembersGetter{
-			accessLists: map[string]*accesslist.AccessList{
-				firstList.GetName():  firstList,
-				secondList.GetName(): secondList,
-				thirdList.GetName():  thirdList,
-			},
-			members: map[string][]*accesslist.AccessListMember{
-				firstList.GetName():  {firstArc},
-				secondList.GetName(): {secondArc},
-				thirdList.GetName():  {thirdArc, userMembership},
-			},
+			accessLists: mockAccessLists(firstList, secondList, thirdList),
+			members:     mockAccessListMembers(firstArc, secondArc, thirdArc, userMembership),
 		}
 
 		typ, err := IsAccessListMember(ctx, user, firstList, aclGetter, locks, clock)
@@ -566,10 +543,7 @@ func TestGetOwners(t *testing.T) {
 	acl3m1 := newAccessListMember(t, acl3.GetName(), "memberC", accesslist.MembershipKindUser, clock)
 
 	accessListAndMembersGetter := &mockAccessListAndMembersGetter{
-		members: map[string][]*accesslist.AccessListMember{
-			acl2.GetName(): {acl2m1},
-			acl3.GetName(): {acl3m1},
-		},
+		members: mockAccessListMembers(acl2m1, acl3m1),
 	}
 
 	// Test GetOwners for acl1
@@ -674,11 +648,7 @@ func TestGetInheritedGrants(t *testing.T) {
 	acl1.Status.OwnerOf = append(acl1.Status.OwnerOf, aclroot.GetName())
 
 	accessListAndMembersGetter := &mockAccessListAndMembersGetter{
-		accessLists: map[string]*accesslist.AccessList{
-			aclroot.GetName(): aclroot,
-			acl1.GetName():    acl1,
-			acl2.GetName():    acl2,
-		},
+		accessLists: mockAccessLists(aclroot, acl1, acl2),
 	}
 
 	// acl1 is an Owner of aclroot, and acl2 is a Member of acl1.
@@ -873,7 +843,7 @@ func TestGetInheritedRequires(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			listsByID := make(map[string]*accesslist.AccessList, len(tc.lists))
+			listsByID := make(map[accesslist.ScopeQualifiedName]*accesslist.AccessList, len(tc.lists))
 			listsByName := make(map[string]*accesslist.AccessList, len(tc.lists))
 			for _, ls := range tc.lists {
 				acl, err := accesslist.NewAccessList(
@@ -887,17 +857,17 @@ func TestGetInheritedRequires(t *testing.T) {
 					},
 				)
 				require.NoError(t, err)
-				listsByID[acl.GetName()] = acl
+				listsByID[acl.GetScopeQualifiedName()] = acl
 				listsByName[ls.name] = acl
 			}
 
-			members := make(map[string][]*accesslist.AccessListMember)
+			members := make(map[accesslist.ScopeQualifiedName][]*accesslist.AccessListMember)
 			for _, ls := range tc.lists {
 				child := listsByName[ls.name]
 				for _, parentName := range ls.memberOf {
 					parent := listsByName[parentName]
 					child.Status.MemberOf = append(child.Status.MemberOf, parent.GetName())
-					members[parent.GetName()] = append(members[parent.GetName()], newAccessListMember(t, parent.GetName(), child.GetName(), accesslist.MembershipKindList, clock))
+					members[parent.GetScopeQualifiedName()] = append(members[parent.GetScopeQualifiedName()], newAccessListMember(t, parent.GetName(), child.GetName(), accesslist.MembershipKindList, clock))
 				}
 			}
 
@@ -929,17 +899,15 @@ func TestGetMembersFor_FlattensAndStopsOnCycles(t *testing.T) {
 	c := newAccessList(t, "C", clock)
 
 	getter := &mockAccessListAndMembersGetter{
-		accessLists: map[string]*accesslist.AccessList{
-			"A": a, "B": b, "C": c,
-		},
-		members: map[string][]*accesslist.AccessListMember{
-			"A": {newAccessListMember(t, "A", "userA", accesslist.MembershipKindUser, clock),
-				newAccessListMember(t, "A", "B", accesslist.MembershipKindList, clock)},
-			"B": {newAccessListMember(t, "B", "userB", accesslist.MembershipKindUser, clock),
-				newAccessListMember(t, "B", "C", accesslist.MembershipKindList, clock)},
-			"C": {newAccessListMember(t, "C", "userC", accesslist.MembershipKindUser, clock),
-				newAccessListMember(t, "C", "B", accesslist.MembershipKindList, clock)}, // cycle back
-		},
+		accessLists: mockAccessLists(a, b, c),
+		members: mockAccessListMembers(
+			newAccessListMember(t, "A", "userA", accesslist.MembershipKindUser, clock),
+			newAccessListMember(t, "A", "B", accesslist.MembershipKindList, clock),
+			newAccessListMember(t, "B", "userB", accesslist.MembershipKindUser, clock),
+			newAccessListMember(t, "B", "C", accesslist.MembershipKindList, clock),
+			newAccessListMember(t, "C", "userC", accesslist.MembershipKindUser, clock),
+			newAccessListMember(t, "C", "B", accesslist.MembershipKindList, clock), // cycle back
+		),
 	}
 
 	members, err := GetMembersFor(ctx, "A", getter)
@@ -1031,9 +999,9 @@ func generateAccessList(name string) *accesslist.AccessList {
 	}
 }
 
-func generateNestedALs(level, directMembers int, rootListName, userName string) (map[string]*accesslist.AccessList, map[string][]*accesslist.AccessListMember) {
+func generateNestedALs(level, directMembers int, rootListName, userName string) (map[accesslist.ScopeQualifiedName]*accesslist.AccessList, map[accesslist.ScopeQualifiedName][]*accesslist.AccessListMember) {
 	accesslists := []*accesslist.AccessList{generateAccessList(rootListName)}
-	members := make(map[string][]*accesslist.AccessListMember)
+	members := make(map[accesslist.ScopeQualifiedName][]*accesslist.AccessListMember)
 
 	for i := range level - 1 {
 		parentName := accesslists[i].GetName()
@@ -1067,12 +1035,12 @@ func generateNestedALs(level, directMembers int, rootListName, userName string) 
 			},
 		})
 
-		members[parentName] = listMembers
+		members[accesslist.ScopeQualifiedName{Name: parentName}] = listMembers
 	}
 
-	alMap := make(map[string]*accesslist.AccessList)
+	alMap := make(map[accesslist.ScopeQualifiedName]*accesslist.AccessList)
 	for _, al := range accesslists {
-		alMap[al.GetName()] = al
+		alMap[al.GetScopeQualifiedName()] = al
 	}
 	return alMap, members
 }
@@ -1105,20 +1073,16 @@ func BenchmarkIsAccessListMember(b *testing.B) {
 	clock := clockwork.NewFakeClock()
 
 	b.Run("no accessPaths", func(b *testing.B) {
+		accessList := generateAccessList(mainAccessListName)
 		mock := &mockAccessListAndMembersGetter{
-			accessLists: map[string]*accesslist.AccessList{
-				mainAccessListName: generateAccessList(mainAccessListName),
-			},
-			members: map[string][]*accesslist.AccessListMember{
-				mainAccessListName: {},
-			},
+			accessLists: mockAccessLists(accessList),
 		}
 
 		for b.Loop() {
 			_, err := IsAccessListMember(
 				b.Context(),
 				&types.UserV2{Metadata: types.Metadata{Name: testUserName}},
-				generateAccessList(mainAccessListName),
+				accessList,
 				mock,
 				lockGetter,
 				clock)
@@ -1129,6 +1093,7 @@ func BenchmarkIsAccessListMember(b *testing.B) {
 	})
 
 	b.Run("single-page direct member", func(b *testing.B) {
+		accessList := generateAccessList(mainAccessListName)
 		member := &accesslist.AccessListMember{
 			ResourceHeader: header.ResourceHeader{
 				Metadata: header.Metadata{
@@ -1147,19 +1112,15 @@ func BenchmarkIsAccessListMember(b *testing.B) {
 		members = append(members, generatedMembers[25:]...)
 
 		mock := &mockAccessListAndMembersGetter{
-			accessLists: map[string]*accesslist.AccessList{
-				mainAccessListName: generateAccessList(mainAccessListName),
-			},
-			members: map[string][]*accesslist.AccessListMember{
-				mainAccessListName: members,
-			},
+			accessLists: mockAccessLists(accessList),
+			members:     mockAccessListMembers(members...),
 		}
 
 		for b.Loop() {
 			_, err := IsAccessListMember(
 				b.Context(),
 				&types.UserV2{Metadata: types.Metadata{Name: testUserName}},
-				generateAccessList(mainAccessListName),
+				accessList,
 				mock,
 				lockGetter,
 				clock)
@@ -1170,6 +1131,7 @@ func BenchmarkIsAccessListMember(b *testing.B) {
 	})
 
 	b.Run("multiple-pages direct member", func(b *testing.B) {
+		accessList := generateAccessList(mainAccessListName)
 		member := &accesslist.AccessListMember{
 			ResourceHeader: header.ResourceHeader{
 				Metadata: header.Metadata{
@@ -1188,19 +1150,15 @@ func BenchmarkIsAccessListMember(b *testing.B) {
 		members = append(members, generatedMembers[250:]...)
 
 		mock := &mockAccessListAndMembersGetter{
-			accessLists: map[string]*accesslist.AccessList{
-				mainAccessListName: generateAccessList(mainAccessListName),
-			},
-			members: map[string][]*accesslist.AccessListMember{
-				mainAccessListName: members,
-			},
+			accessLists: mockAccessLists(accessList),
+			members:     mockAccessListMembers(members...),
 		}
 
 		for b.Loop() {
 			_, err := IsAccessListMember(
 				b.Context(),
 				&types.UserV2{Metadata: types.Metadata{Name: testUserName}},
-				generateAccessList(mainAccessListName),
+				accessList,
 				mock,
 				lockGetter,
 				clock)
