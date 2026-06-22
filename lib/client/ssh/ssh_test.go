@@ -120,109 +120,101 @@ func TestKeyboardInteractive_InvalidAuthPrompt_NilPromptField(t *testing.T) {
 	require.Nil(t, answers)
 }
 
-func TestAuthCallback_ReturnsKeyboardInteractive(t *testing.T) {
+const (
+	keyboardInteractiveMethod = "keyboard-interactive"
+	passwordMethod            = "password"
+	publicKeyMethod           = "publickey"
+)
+
+func TestAuthCallback(t *testing.T) {
 	t.Parallel()
 
-	callback := clientssh.AuthCallback(
-		t.Context(),
-		func() (clientssh.Performer, error) {
-			return func(_ context.Context, _ []byte) (string, error) {
-				return "test-challenge", nil
-			}, nil
+	for _, tt := range []struct {
+		name             string
+		createPerformer  func() (clientssh.Performer, error)
+		authCtx          *ssh.ClientAuthContext
+		expectError      error
+		expectNil        bool
+		expectKICallback bool
+	}{
+		{
+			name: "returns keyboard-interactive callback on partial success",
+			createPerformer: func() (clientssh.Performer, error) {
+				return func(_ context.Context, _ []byte) (string, error) {
+					return "test-challenge", nil
+				}, nil
+			},
+			authCtx: &ssh.ClientAuthContext{
+				PartialSuccessMethods: []string{publicKeyMethod},
+				AllowedMethods:        []string{keyboardInteractiveMethod},
+				Metadata:              &mockConnMetadata{sessionID: []byte("test-session-id")},
+			},
+			expectKICallback: true,
 		},
-	)
-
-	authMethod, err := callback(
-		&ssh.ClientAuthContext{
-			PartialSuccessMethods: []string{"publickey"},
-			AllowedMethods:        []string{"keyboard-interactive"},
-			Metadata:              &mockConnMetadata{sessionID: []byte("test-session-id")},
+		{
+			name: "returns nil when keyboard-interactive not allowed",
+			authCtx: &ssh.ClientAuthContext{
+				PartialSuccessMethods: []string{publicKeyMethod},
+				AllowedMethods:        []string{passwordMethod},
+			},
+			expectNil: true,
 		},
-	)
-	require.NoError(t, err)
-
-	_, ok := authMethod.(ssh.KeyboardInteractiveChallenge)
-	require.True(t, ok)
-}
-
-func TestAuthCallback_ReturnsNil_KeyboardInteractiveNotAllowed(t *testing.T) {
-	t.Parallel()
-
-	callback := clientssh.AuthCallback(
-		t.Context(),
-		func() (clientssh.Performer, error) {
-			return nil, nil
+		{
+			name: "returns nil when no publickey partial success",
+			authCtx: &ssh.ClientAuthContext{
+				PartialSuccessMethods: []string{passwordMethod},
+				AllowedMethods:        []string{keyboardInteractiveMethod},
+			},
+			expectNil: true,
 		},
-	)
-
-	authMethod, err := callback(
-		&ssh.ClientAuthContext{
-			PartialSuccessMethods: []string{"publickey"},
-			AllowedMethods:        []string{"password"},
+		{
+			name: "performer error propagates",
+			createPerformer: func() (clientssh.Performer, error) {
+				return nil, trace.BadParameter("some performer error")
+			},
+			authCtx: &ssh.ClientAuthContext{
+				PartialSuccessMethods: []string{publicKeyMethod},
+				AllowedMethods:        []string{keyboardInteractiveMethod},
+			},
+			expectError: trace.BadParameter("some performer error"),
+			expectNil:   true,
 		},
-	)
-	require.NoError(t, err)
-	require.Nil(t, authMethod)
-}
-
-func TestAuthCallback_ReturnsNil_NoPublickeyPartialSuccess(t *testing.T) {
-	t.Parallel()
-
-	callback := clientssh.AuthCallback(
-		t.Context(), func() (clientssh.Performer, error) {
-			return nil, nil
+		{
+			name: "returns nil when keyboard-interactive already tried",
+			authCtx: &ssh.ClientAuthContext{
+				PartialSuccessMethods: []string{publicKeyMethod},
+				AllowedMethods:        []string{keyboardInteractiveMethod},
+				TriedMethods:          []string{keyboardInteractiveMethod},
+			},
+			expectNil: true,
 		},
-	)
+	} {
+		t.Run(
+			tt.name,
+			func(t *testing.T) {
+				t.Parallel()
 
-	authMethod, err := callback(
-		&ssh.ClientAuthContext{
-			PartialSuccessMethods: []string{"password"},
-			AllowedMethods:        []string{"keyboard-interactive"},
-		},
-	)
-	require.NoError(t, err)
-	require.Nil(t, authMethod)
-}
+				callback := clientssh.AuthCallback(t.Context(), tt.createPerformer)
 
-func TestAuthCallback_PerformerErrorPropagates(t *testing.T) {
-	t.Parallel()
+				authMethod, err := callback(tt.authCtx)
 
-	callback := clientssh.AuthCallback(
-		t.Context(),
-		func() (clientssh.Performer, error) {
-			return nil, trace.BadParameter("some performer error")
-		},
-	)
+				if tt.expectError != nil {
+					require.ErrorIs(t, err, tt.expectError)
+				} else {
+					require.NoError(t, err)
+				}
 
-	authMethod, err := callback(
-		&ssh.ClientAuthContext{
-			PartialSuccessMethods: []string{"publickey"},
-			AllowedMethods:        []string{"keyboard-interactive"},
-		},
-	)
-	require.ErrorIs(t, err, trace.BadParameter("some performer error"))
-	require.Nil(t, authMethod)
-}
+				if tt.expectNil {
+					require.Nil(t, authMethod)
+				}
 
-func TestAuthCallback_ReturnsNil_TriedMethods(t *testing.T) {
-	t.Parallel()
-
-	callback := clientssh.AuthCallback(
-		t.Context(),
-		func() (clientssh.Performer, error) {
-			return nil, nil
-		},
-	)
-
-	authMethod, err := callback(
-		&ssh.ClientAuthContext{
-			PartialSuccessMethods: []string{"publickey"},
-			AllowedMethods:        []string{"keyboard-interactive"},
-			TriedMethods:          []string{"keyboard-interactive"},
-		},
-	)
-	require.NoError(t, err)
-	require.Nil(t, authMethod)
+				if tt.expectKICallback {
+					_, ok := authMethod.(ssh.KeyboardInteractiveChallenge)
+					require.True(t, ok)
+				}
+			},
+		)
+	}
 }
 
 type mockConnMetadata struct {
