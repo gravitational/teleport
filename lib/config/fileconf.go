@@ -2958,6 +2958,10 @@ type LinuxDesktopService struct {
 	// Labels are the configured linux desktops service labels.
 	Labels    map[string]string `yaml:"labels,omitempty"`
 	XSessions XSessions         `yaml:"xsessions,omitempty"`
+	// SessionWrapper is an optional path to the X session wrapper script used to
+	// launch sessions (e.g. /etc/X11/Xsession). When empty, a set of well-known
+	// wrapper paths is probed.
+	SessionWrapper string `yaml:"session_wrapper,omitempty"`
 }
 
 // Enabled returns true if the Linux desktop service is enabled.

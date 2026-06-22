@@ -35,4 +35,9 @@ type LinuxDesktopConfig struct {
 	// Filters used to limit available sessions
 	IncludedSessions *regexp.Regexp
 	ExcludedSessions *regexp.Regexp
+
+	// SessionWrapper is an optional path to the X session wrapper script used to
+	// launch sessions (e.g. /etc/X11/Xsession). When empty, a set of well-known
+	// wrapper paths is probed.
+	SessionWrapper string
 }

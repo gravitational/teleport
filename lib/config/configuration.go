@@ -2574,6 +2574,8 @@ func applyLinuxDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		cfg.LinuxDesktop.ExcludedSessions = r
 	}
 
+	cfg.LinuxDesktop.SessionWrapper = fc.LinuxDesktop.SessionWrapper
+
 	return nil
 }
 
