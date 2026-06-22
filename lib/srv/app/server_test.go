@@ -270,6 +270,10 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 
 			err = ws.WriteMessage(websocket.TextMessage, []byte(s.message))
 			require.NoError(t, err)
+
+			// Close the upstream websocket once the message has been written so
+			// the backend->client copy direction reaches EOF promptly.
+			require.NoError(t, ws.Close())
 		} else {
 			fmt.Fprintln(w, s.message)
 		}

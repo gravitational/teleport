@@ -87,6 +87,12 @@ func (d *desktopThumbnailGenerator) handleDesktopRecording(evt *apievents.Deskto
 	return err
 }
 
+// decoderAvailable reports whether the RDP decoder is present. It is false in nop builds, where the decoder returns
+// NotImplemented and the generator disables itself, leaving no frame activity to analyze.
+func (d *desktopThumbnailGenerator) decoderAvailable() bool {
+	return !d.disabled
+}
+
 // produceThumbnail generates a thumbnail from the current RDP state. If the cursor is visible, the thumbnail is zoomed
 // to the area around the cursor. maxDim caps the longer side (in pixels) of the encoded PNG.
 // NOTE: If the decoder is not available (e.g. in nop builds without desktop_access_rdp), this will return nil without
@@ -158,6 +164,53 @@ func (d *desktopThumbnailGenerator) produceThumbnail(maxDim int) (*pb.SessionRec
 
 func (d *desktopThumbnailGenerator) release() {
 	d.rdpstate.Release()
+}
+
+// frameActivity captures the per-frame signals the desktop processor uses to decide whether a frame represents real user
+// activity: how much of the screen changed, where the cursor is, and the screen size.
+type frameActivity struct {
+	changedPixels int
+	// regions are the rectangles that changed this frame; their positions let the processor tell typing
+	// apart from a fixed clock or caret.
+	regions []image.Rectangle
+	// mouseButton is set when this frame carried a mouse button press or release.
+	mouseButton      bool
+	cursorX, cursorY uint16
+	screenW, screenH uint16
+}
+
+// consumeFrameActivity returns the activity signals for the frame just handled and resets the decoder's updated-region
+// accumulator so the next call reflects only the next frame.
+// It returns the zero value when the generator is disabled.
+func (d *desktopThumbnailGenerator) consumeFrameActivity() frameActivity {
+	if d.disabled {
+		return frameActivity{}
+	}
+	defer d.rdpstate.ResetUpdatedRegions()
+	defer d.rdpstate.ResetMouseButtonInput()
+
+	regions := d.rdpstate.UpdatedRegions()
+
+	// UpdatedRegions can overlap, so a pixel changed twice is counted twice and changed
+	// can exceed the true changed area. We accept the overcount as a worthwhile trade-off
+	// for keeping the comparison simple, rather than computing the exact union area.
+	var changed int
+	for _, r := range regions {
+		changed += r.Dx() * r.Dy()
+	}
+
+	cursor := d.rdpstate.CursorState()
+	w, h := d.rdpstate.Dimensions()
+
+	return frameActivity{
+		changedPixels: changed,
+		regions:       regions,
+		mouseButton:   d.rdpstate.MouseButtonInput(),
+		cursorX:       cursor.X,
+		cursorY:       cursor.Y,
+		screenW:       w,
+		screenH:       h,
+	}
 }
 
 func calculateCropBounds(bounds image.Rectangle, cursor decoder.CursorState) image.Rectangle {
