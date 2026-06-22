@@ -443,6 +443,12 @@ func TestValidateWorkloadIdentity(t *testing.T) {
 func TestValidateScopedSPIFFEID(t *testing.T) {
 	t.Parallel()
 
+	var errContains = func(contains string) require.ErrorAssertionFunc {
+		return func(t require.TestingT, err error, msgAndArgs ...any) {
+			require.ErrorContains(t, err, contains, msgAndArgs...)
+		}
+	}
+
 	tests := []struct {
 		name      string
 		scope     string
@@ -468,76 +474,70 @@ func TestValidateScopedSPIFFEID(t *testing.T) {
 			assertErr: require.NoError,
 		},
 		{
-			name:  "missing leading slash",
-			scope: "/security",
-			id:    "security/_/foo",
-			assertErr: func(t require.TestingT, err error, _ ...any) {
-				require.ErrorContains(t, err, "must begin with a forward slash")
-			},
+			name:      "missing leading slash",
+			scope:     "/security",
+			id:        "security/_/foo",
+			assertErr: errContains("must begin with a forward slash"),
 		},
 		{
-			name:  "id not prefixed with scope",
-			scope: "/security",
-			id:    "/other/_/foo",
-			assertErr: func(t require.TestingT, err error, _ ...any) {
-				require.ErrorContains(t, err, "must be prefixed with the scope")
-			},
+			name:      "id not prefixed with scope",
+			scope:     "/security",
+			id:        "/other/_/foo",
+			assertErr: errContains("must be prefixed with the scope"),
 		},
 		{
-			name:  "segment-aware prefix - not a string prefix match",
-			scope: "/foo",
-			id:    "/foo-buzz/_/svc",
-			assertErr: func(t require.TestingT, err error, _ ...any) {
-				require.ErrorContains(t, err, "must be prefixed with the scope")
-			},
+			name:      "segment-aware prefix - not a string prefix match",
+			scope:     "/foo",
+			id:        "/foo-buzz/_/svc",
+			assertErr: errContains("must be prefixed with the scope"),
 		},
 		{
-			name:  "scope section is ancestor of scope",
-			scope: "/foo/bar",
-			id:    "/foo/_/svc",
-			assertErr: func(t require.TestingT, err error, _ ...any) {
-				require.ErrorContains(t, err, "must be prefixed with the scope")
-			},
+			name:      "scope section is ancestor of scope",
+			scope:     "/foo/bar",
+			id:        "/foo/_/svc",
+			assertErr: errContains("must be prefixed with the scope"),
 		},
 		{
-			name:  "scope section is descendant of scope",
-			scope: "/foo/bar",
-			id:    "/foo/bar/baz/_/svc",
-			assertErr: func(t require.TestingT, err error, _ ...any) {
-				require.ErrorContains(t, err, "separator segment immediately after the scope")
-			},
+			name:      "scope section is descendant of scope",
+			scope:     "/foo/bar",
+			id:        "/foo/bar/baz/_/svc",
+			assertErr: errContains("must be prefixed with the scope"),
 		},
 		{
-			name:  "missing separator - too short",
-			scope: "/security",
-			id:    "/security/foo",
-			assertErr: func(t require.TestingT, err error, _ ...any) {
-				require.ErrorContains(t, err, "followed by the")
-			},
+			name:      "missing separator - too short",
+			scope:     "/security",
+			id:        "/security/foo",
+			assertErr: errContains("is missing the"),
 		},
 		{
-			name:  "missing separator - long enough",
-			scope: "/security",
-			id:    "/security/foo/bar",
-			assertErr: func(t require.TestingT, err error, _ ...any) {
-				require.ErrorContains(t, err, "separator segment immediately after the scope")
-			},
+			name:      "missing separator - long enough",
+			scope:     "/security",
+			id:        "/security/foo/bar",
+			assertErr: errContains("is missing the"),
 		},
 		{
-			name:  "separator is last segment - no admin section",
-			scope: "/security/eu",
-			id:    "/security/eu/_",
-			assertErr: func(t require.TestingT, err error, _ ...any) {
-				require.ErrorContains(t, err, "followed by the")
-			},
+			name:      "separator is last segment - no admin section",
+			scope:     "/security/eu",
+			id:        "/security/eu/_",
+			assertErr: errContains("at least one segment after"),
 		},
 		{
-			name:  "separator in admin section",
-			scope: "/security/eu",
-			id:    "/security/eu/_/k8s/_/probes/liveness",
-			assertErr: func(t require.TestingT, err error, _ ...any) {
-				require.ErrorContains(t, err, "administratively-defined section")
-			},
+			name:      "separator in admin section",
+			scope:     "/security/eu",
+			id:        "/security/eu/_/k8s/_/probes/liveness",
+			assertErr: errContains("administratively-defined section"),
+		},
+		{
+			name:      "trailing slash",
+			scope:     "/security",
+			id:        "/security/_/foo/",
+			assertErr: errContains("empty path segments"),
+		},
+		{
+			name:      "empty segment in admin section",
+			scope:     "/security",
+			id:        "/security/_/foo//bar",
+			assertErr: errContains("empty path segments"),
 		},
 		// Templated SPIFFE IDs are validated in their unrendered form at
 		// create/update time; the rendered form is re-validated at issuance.
@@ -555,20 +555,16 @@ func TestValidateScopedSPIFFEID(t *testing.T) {
 			assertErr: require.NoError,
 		},
 		{
-			name:  "template cannot substitute for a scope segment",
-			scope: "/security",
-			id:    "/{{ user.name }}/_/svc",
-			assertErr: func(t require.TestingT, err error, _ ...any) {
-				require.ErrorContains(t, err, "must be prefixed with the scope")
-			},
+			name:      "template cannot substitute for a scope segment",
+			scope:     "/security",
+			id:        "/{{ user.name }}/_/svc",
+			assertErr: errContains("must be prefixed with the scope"),
 		},
 		{
-			name:  "template cannot substitute for the separator",
-			scope: "/security",
-			id:    "/security/{{ user.name }}/svc",
-			assertErr: func(t require.TestingT, err error, _ ...any) {
-				require.ErrorContains(t, err, "separator segment immediately after the scope")
-			},
+			name:      "template cannot substitute for the separator",
+			scope:     "/security",
+			id:        "/security/{{ user.name }}/svc",
+			assertErr: errContains("is missing the"),
 		},
 	}
 	for _, tt := range tests {

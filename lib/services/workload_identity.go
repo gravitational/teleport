@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/base32"
 	"iter"
+	"slices"
 	"strings"
 	"time"
 
@@ -200,46 +201,45 @@ func validateScopedSPIFFEID(scope, id string) error {
 	if !strings.HasPrefix(id, "/") {
 		return trace.BadParameter("spec.spiffe.id: must begin with a forward slash")
 	}
+	// Reject empty path segments (e.g. a trailing slash or "//"), which
+	// splitPathSegments would otherwise silently trim or mishandle.
+	if strings.HasSuffix(id, "/") || strings.Contains(id, "//") {
+		return trace.BadParameter("spec.spiffe.id %q must not contain empty path segments", id)
+	}
 
 	scopeSegments := splitPathSegments(scope)
 	idSegments := splitPathSegments(id)
 
-	// The ID must contain the scope section, the separator, and at least one
-	// administratively-defined segment.
-	if len(idSegments) < len(scopeSegments)+2 {
+	separatorIndex := slices.Index(idSegments, scopedSPIFFEIDSeparator)
+	if separatorIndex < 0 {
 		return trace.BadParameter(
-			"spec.spiffe.id %q must be prefixed with the scope %q, followed by the %q separator and at least one further segment",
+			"spec.spiffe.id %q is missing the %q separator segment that delimits the scope from the administratively-defined section",
+			id, scopedSPIFFEIDSeparator,
+		)
+	}
+
+	scopeSection := idSegments[:separatorIndex]
+	adminSection := idSegments[separatorIndex+1:]
+
+	if !slices.Equal(scopeSection, scopeSegments) {
+		return trace.BadParameter(
+			"spec.spiffe.id %q must be prefixed with the scope %q, immediately followed by the %q separator segment",
 			id, scope, scopedSPIFFEIDSeparator,
 		)
 	}
 
-	// The scope section must strictly match the scope of origin segment-by-segment.
-	for i, seg := range scopeSegments {
-		if idSegments[i] != seg {
-			return trace.BadParameter(
-				"spec.spiffe.id %q must be prefixed with the scope %q", id, scope,
-			)
-		}
-	}
-
-	// The separator must immediately follow the scope section.
-	if idSegments[len(scopeSegments)] != scopedSPIFFEIDSeparator {
+	if len(adminSection) == 0 {
 		return trace.BadParameter(
-			"spec.spiffe.id %q must contain the %q separator segment immediately after the scope %q",
-			id, scopedSPIFFEIDSeparator, scope,
+			"spec.spiffe.id %q must have at least one segment after the %q separator",
+			id, scopedSPIFFEIDSeparator,
 		)
 	}
 
-	// The administratively-defined section must not contain the separator. This
-	// ensures a scoped SPIFFE ID contains exactly one separator segment so the
-	// boundary between sections is unambiguous.
-	for _, seg := range idSegments[len(scopeSegments)+1:] {
-		if seg == scopedSPIFFEIDSeparator {
-			return trace.BadParameter(
-				"spec.spiffe.id %q must not contain the %q separator segment in its administratively-defined section",
-				id, scopedSPIFFEIDSeparator,
-			)
-		}
+	if slices.Contains(adminSection, scopedSPIFFEIDSeparator) {
+		return trace.BadParameter(
+			"spec.spiffe.id %q must not contain the %q separator segment in its administratively-defined section",
+			id, scopedSPIFFEIDSeparator,
+		)
 	}
 
 	return nil
