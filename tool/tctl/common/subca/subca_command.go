@@ -593,21 +593,21 @@ func (c *updateOverrideCommand) Run(
 	}
 	defer closeFn(ctx)
 
-	_, err = authClient.SubCAClient().UpdateCertificateOverride(ctx, &subcav1.UpdateCertificateOverrideRequest{
+	_, err = authClient.SubCAClient().UpdateCertificateOverride(ctx, subcav1.UpdateCertificateOverrideRequest_builder{
 		CaId: subcav1.CertAuthorityOverrideID_builder{
 			CaType: caType,
 		}.Build(),
 		CertificateOverride:   certificateOverride,
 		UpdateMask:            updateMask,
 		ForceImmediateDisable: c.force,
-	})
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err, "update certificate override")
 	}
 	fmt.Fprintf(s.Stdout,
 		"%s/%s: certificate override %s updated\n",
 		types.KindCertAuthorityOverride,
-		caType, certificateOverride.PublicKey,
+		caType, certificateOverride.GetPublicKey(),
 	)
 
 	return nil
