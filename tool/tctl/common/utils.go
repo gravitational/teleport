@@ -25,9 +25,10 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/charlievieth/strcase"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/reflect/protoreflect"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // concreteEnum is a protobuf enum that's backed by an int32 (like regular

@@ -56,6 +56,7 @@ func Commands() []CLICommand {
 		&ResourceCommand{},
 		&EditCommand{},
 		&ExternalAuditStorageCommand{},
+		&AWSCommand{},
 		&LoadtestCommand{},
 		&DevicesCommand{},
 		&SAMLCommand{},
