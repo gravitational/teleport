@@ -176,6 +176,9 @@ func NewLinuxService(cfg LinuxServiceConfig) (*LinuxService, error) {
 	if !rdpclient.EncodeQOIZAvailable() {
 		return nil, trace.BadParameter("Teleport was built without required desktop_access_rdp tag")
 	}
+	if !x11.IsBackendPresent() {
+		cfg.Logger.Warn("Xvfb is not installed, Linux desktops sessions will fail to start until it's fixed")
+	}
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -183,8 +183,9 @@ func NewBackend(ctx context.Context, config Config) (*Backend, error) {
 	if config.Logger == nil {
 		return nil, trace.BadParameter("missing parameter config.Logger")
 	}
+	
 	if !IsBackendPresent() {
-		return nil, trace.NotFound("Backend is not installed")
+		return nil, trace.NotFound("Xvfb is not installed")
 	}
 
 	if !isBackendSafe() {
