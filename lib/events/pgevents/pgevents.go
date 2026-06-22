@@ -392,7 +392,10 @@ func (l *Log) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) er
 		return trace.Wrap(err)
 	}
 
-	eventID := uuid.New()
+	eventID, err := uuid.Parse(event.GetID())
+	if err != nil {
+		eventID = uuid.New()
+	}
 	sessionID := l.deriveSessionID(ctx, events.GetSessionID(event))
 
 	start := time.Now()
