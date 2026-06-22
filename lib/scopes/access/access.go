@@ -227,6 +227,10 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 		return trace.BadParameter("scoped role %q has %s", role.GetMetadata().GetName(), err)
 	}
 
+	if err := validateLabels(role.GetSpec().GetWorkloadIdentity().GetLabels()); err != nil {
+		return trace.BadParameter("scoped role %q's workload_identity %s", role.GetMetadata().GetName(), err)
+	}
+
 	// verify that scoped role converts to a valid unscoped role
 	if _, err := ScopedRoleToRole(role, role.GetScope()); err != nil {
 		return trace.BadParameter("scoped role %q is malformed: %v", role.GetMetadata().GetName(), err)

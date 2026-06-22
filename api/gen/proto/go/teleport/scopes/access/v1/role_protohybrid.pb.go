@@ -227,6 +227,9 @@ type ScopedRoleSpec struct {
 	Ssh *ScopedRoleSSH `protobuf:"bytes,7,opt,name=ssh,proto3" json:"ssh,omitempty"`
 	// The kubernetes specific configuration for a scoped role.
 	Kube *ScopedRoleKube `protobuf:"bytes,8,opt,name=kube,proto3" json:"kube,omitempty"`
+	// WorkloadIdentity specifies controls that govern issuance using
+	// WorkloadIdentity resources.
+	WorkloadIdentity *ScopedRoleWorkloadIdentity `protobuf:"bytes,9,opt,name=workload_identity,json=workloadIdentity,proto3" json:"workload_identity,omitempty"`
 	// The App Access specific configuration for a scoped role.
 	App           *ScopedRoleApp `protobuf:"bytes,10,opt,name=app,proto3" json:"app,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -293,6 +296,13 @@ func (x *ScopedRoleSpec) GetKube() *ScopedRoleKube {
 	return nil
 }
 
+func (x *ScopedRoleSpec) GetWorkloadIdentity() *ScopedRoleWorkloadIdentity {
+	if x != nil {
+		return x.WorkloadIdentity
+	}
+	return nil
+}
+
 func (x *ScopedRoleSpec) GetApp() *ScopedRoleApp {
 	if x != nil {
 		return x.App
@@ -320,6 +330,10 @@ func (x *ScopedRoleSpec) SetKube(v *ScopedRoleKube) {
 	x.Kube = v
 }
 
+func (x *ScopedRoleSpec) SetWorkloadIdentity(v *ScopedRoleWorkloadIdentity) {
+	x.WorkloadIdentity = v
+}
+
 func (x *ScopedRoleSpec) SetApp(v *ScopedRoleApp) {
 	x.App = v
 }
@@ -345,6 +359,13 @@ func (x *ScopedRoleSpec) HasKube() bool {
 	return x.Kube != nil
 }
 
+func (x *ScopedRoleSpec) HasWorkloadIdentity() bool {
+	if x == nil {
+		return false
+	}
+	return x.WorkloadIdentity != nil
+}
+
 func (x *ScopedRoleSpec) HasApp() bool {
 	if x == nil {
 		return false
@@ -362,6 +383,10 @@ func (x *ScopedRoleSpec) ClearSsh() {
 
 func (x *ScopedRoleSpec) ClearKube() {
 	x.Kube = nil
+}
+
+func (x *ScopedRoleSpec) ClearWorkloadIdentity() {
+	x.WorkloadIdentity = nil
 }
 
 func (x *ScopedRoleSpec) ClearApp() {
@@ -383,6 +408,9 @@ type ScopedRoleSpec_builder struct {
 	Ssh *ScopedRoleSSH
 	// The kubernetes specific configuration for a scoped role.
 	Kube *ScopedRoleKube
+	// WorkloadIdentity specifies controls that govern issuance using
+	// WorkloadIdentity resources.
+	WorkloadIdentity *ScopedRoleWorkloadIdentity
 	// The App Access specific configuration for a scoped role.
 	App *ScopedRoleApp
 }
@@ -396,6 +424,7 @@ func (b0 ScopedRoleSpec_builder) Build() *ScopedRoleSpec {
 	x.Rules = b.Rules
 	x.Ssh = b.Ssh
 	x.Kube = b.Kube
+	x.WorkloadIdentity = b.WorkloadIdentity
 	x.App = b.App
 	return m0
 }
@@ -1184,6 +1213,78 @@ func (b0 ScopedRoleKube_builder) Build() *ScopedRoleKube {
 	return m0
 }
 
+// ScopedRoleWorkloadIdentity groups all scoped role fields relevant to issuing
+// SVIDs using WorkloadIdentity resources. These controls govern ISSUANCE (the
+// act of obtaining an SVID from a WorkloadIdentity), which is distinct from the
+// administration of WorkloadIdentity resources (create/read/update/delete/list)
+// granted via the rules block.
+type ScopedRoleWorkloadIdentity struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// Labels is the set of WorkloadIdentity labels used to dynamically select
+	// which WorkloadIdentity resources this role permits issuance with. Issuance
+	// additionally requires the caller to hold read_no_secrets (and, for the
+	// multi-issue RPC, list) rules for the workload_identity kind in the relevant
+	// scope.
+	Labels        []*v11.Label `protobuf:"bytes,1,rep,name=labels,proto3" json:"labels,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ScopedRoleWorkloadIdentity) Reset() {
+	*x = ScopedRoleWorkloadIdentity{}
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ScopedRoleWorkloadIdentity) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ScopedRoleWorkloadIdentity) ProtoMessage() {}
+
+func (x *ScopedRoleWorkloadIdentity) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *ScopedRoleWorkloadIdentity) GetLabels() []*v11.Label {
+	if x != nil {
+		return x.Labels
+	}
+	return nil
+}
+
+func (x *ScopedRoleWorkloadIdentity) SetLabels(v []*v11.Label) {
+	x.Labels = v
+}
+
+type ScopedRoleWorkloadIdentity_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Labels is the set of WorkloadIdentity labels used to dynamically select
+	// which WorkloadIdentity resources this role permits issuance with. Issuance
+	// additionally requires the caller to hold read_no_secrets (and, for the
+	// multi-issue RPC, list) rules for the workload_identity kind in the relevant
+	// scope.
+	Labels []*v11.Label
+}
+
+func (b0 ScopedRoleWorkloadIdentity_builder) Build() *ScopedRoleWorkloadIdentity {
+	m0 := &ScopedRoleWorkloadIdentity{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Labels = b.Labels
+	return m0
+}
+
 // ScopedRoleApp groups all scoped role fields relevant to application access.
 type ScopedRoleApp struct {
 	state protoimpl.MessageState `protogen:"hybrid.v1"`
@@ -1208,7 +1309,7 @@ type ScopedRoleApp struct {
 
 func (x *ScopedRoleApp) Reset() {
 	*x = ScopedRoleApp{}
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[5]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1220,7 +1321,7 @@ func (x *ScopedRoleApp) String() string {
 func (*ScopedRoleApp) ProtoMessage() {}
 
 func (x *ScopedRoleApp) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[5]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1354,7 +1455,7 @@ type ScopedRule struct {
 
 func (x *ScopedRule) Reset() {
 	*x = ScopedRule{}
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[6]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1366,7 +1467,7 @@ func (x *ScopedRule) String() string {
 func (*ScopedRule) ProtoMessage() {}
 
 func (x *ScopedRule) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[6]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1430,7 +1531,7 @@ type SSHPortForwarding struct {
 
 func (x *SSHPortForwarding) Reset() {
 	*x = SSHPortForwarding{}
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[7]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1442,7 +1543,7 @@ func (x *SSHPortForwarding) String() string {
 func (*SSHPortForwarding) ProtoMessage() {}
 
 func (x *SSHPortForwarding) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[7]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1525,7 +1626,7 @@ type SSHLocalPortForwarding struct {
 
 func (x *SSHLocalPortForwarding) Reset() {
 	*x = SSHLocalPortForwarding{}
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[8]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1537,7 +1638,7 @@ func (x *SSHLocalPortForwarding) String() string {
 func (*SSHLocalPortForwarding) ProtoMessage() {}
 
 func (x *SSHLocalPortForwarding) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[8]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1594,7 +1695,7 @@ type SSHRemotePortForwarding struct {
 
 func (x *SSHRemotePortForwarding) Reset() {
 	*x = SSHRemotePortForwarding{}
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[9]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1606,7 +1707,7 @@ func (x *SSHRemotePortForwarding) String() string {
 func (*SSHRemotePortForwarding) ProtoMessage() {}
 
 func (x *SSHRemotePortForwarding) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[9]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1668,7 +1769,7 @@ type CreateHostUser struct {
 
 func (x *CreateHostUser) Reset() {
 	*x = CreateHostUser{}
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[10]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1680,7 +1781,7 @@ func (x *CreateHostUser) String() string {
 func (*CreateHostUser) ProtoMessage() {}
 
 func (x *CreateHostUser) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[10]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1760,7 +1861,7 @@ type EnhancedRecording struct {
 
 func (x *EnhancedRecording) Reset() {
 	*x = EnhancedRecording{}
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[11]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1772,7 +1873,7 @@ func (x *EnhancedRecording) String() string {
 func (*EnhancedRecording) ProtoMessage() {}
 
 func (x *EnhancedRecording) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[11]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1881,7 +1982,7 @@ type SessionRecording struct {
 
 func (x *SessionRecording) Reset() {
 	*x = SessionRecording{}
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[12]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1893,7 +1994,7 @@ func (x *SessionRecording) String() string {
 func (*SessionRecording) ProtoMessage() {}
 
 func (x *SessionRecording) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[12]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1943,7 +2044,7 @@ type Lock struct {
 
 func (x *Lock) Reset() {
 	*x = Lock{}
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[13]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1955,7 +2056,7 @@ func (x *Lock) String() string {
 func (*Lock) ProtoMessage() {}
 
 func (x *Lock) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[13]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2012,7 +2113,7 @@ type KubeResource struct {
 
 func (x *KubeResource) Reset() {
 	*x = KubeResource{}
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[14]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2024,7 +2125,7 @@ func (x *KubeResource) String() string {
 func (*KubeResource) ProtoMessage() {}
 
 func (x *KubeResource) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[14]
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2129,13 +2230,14 @@ const file_teleport_scopes_access_v1_role_proto_rawDesc = "" +
 	"\aversion\x18\x03 \x01(\tR\aversion\x128\n" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12\x14\n" +
 	"\x05scope\x18\x05 \x01(\tR\x05scope\x12=\n" +
-	"\x04spec\x18\x06 \x01(\v2).teleport.scopes.access.v1.ScopedRoleSpecR\x04spec\"\x98\x03\n" +
+	"\x04spec\x18\x06 \x01(\v2).teleport.scopes.access.v1.ScopedRoleSpecR\x04spec\"\xfc\x03\n" +
 	"\x0eScopedRoleSpec\x12+\n" +
 	"\x11assignable_scopes\x18\x01 \x03(\tR\x10assignableScopes\x12I\n" +
 	"\bdefaults\x18\x05 \x01(\v2-.teleport.scopes.access.v1.ScopedRoleDefaultsR\bdefaults\x12;\n" +
 	"\x05rules\x18\x06 \x03(\v2%.teleport.scopes.access.v1.ScopedRuleR\x05rules\x12:\n" +
 	"\x03ssh\x18\a \x01(\v2(.teleport.scopes.access.v1.ScopedRoleSSHR\x03ssh\x12=\n" +
-	"\x04kube\x18\b \x01(\v2).teleport.scopes.access.v1.ScopedRoleKubeR\x04kube\x12:\n" +
+	"\x04kube\x18\b \x01(\v2).teleport.scopes.access.v1.ScopedRoleKubeR\x04kube\x12b\n" +
+	"\x11workload_identity\x18\t \x01(\v25.teleport.scopes.access.v1.ScopedRoleWorkloadIdentityR\x10workloadIdentity\x12:\n" +
 	"\x03app\x18\n" +
 	" \x01(\v2(.teleport.scopes.access.v1.ScopedRoleAppR\x03appJ\x04\b\x02\x10\x03J\x04\b\x03\x10\x04R\x05allowR\aoptions\"\xac\x02\n" +
 	"\x12ScopedRoleDefaults\x12.\n" +
@@ -2176,7 +2278,9 @@ const file_teleport_scopes_access_v1_role_proto_rawDesc = "" +
 	"\x17disconnect_expired_cert\x18\x06 \x01(\bH\x00R\x15disconnectExpiredCert\x88\x01\x01\x123\n" +
 	"\x04lock\x18\a \x01(\v2\x1f.teleport.scopes.access.v1.LockR\x04lock\x12)\n" +
 	"\x10label_expression\x18\b \x01(\tR\x0flabelExpressionB\x1a\n" +
-	"\x18_disconnect_expired_cert\"\xaa\x02\n" +
+	"\x18_disconnect_expired_cert\"N\n" +
+	"\x1aScopedRoleWorkloadIdentity\x120\n" +
+	"\x06labels\x18\x01 \x03(\v2\x18.teleport.label.v1.LabelR\x06labels\"\xaa\x02\n" +
 	"\rScopedRoleApp\x120\n" +
 	"\x06labels\x18\x01 \x03(\v2\x18.teleport.label.v1.LabelR\x06labels\x12)\n" +
 	"\x10label_expression\x18\x02 \x01(\tR\x0flabelExpression\x12.\n" +
@@ -2223,54 +2327,57 @@ const file_teleport_scopes_access_v1_role_proto_rawDesc = "" +
 	"\x05verbs\x18\x04 \x03(\tR\x05verbs\x12\x1b\n" +
 	"\tapi_group\x18\x05 \x01(\tR\bapiGroupBWZUgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1;accessv1b\x06proto3"
 
-var file_teleport_scopes_access_v1_role_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
+var file_teleport_scopes_access_v1_role_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
 var file_teleport_scopes_access_v1_role_proto_goTypes = []any{
-	(*ScopedRole)(nil),              // 0: teleport.scopes.access.v1.ScopedRole
-	(*ScopedRoleSpec)(nil),          // 1: teleport.scopes.access.v1.ScopedRoleSpec
-	(*ScopedRoleDefaults)(nil),      // 2: teleport.scopes.access.v1.ScopedRoleDefaults
-	(*ScopedRoleSSH)(nil),           // 3: teleport.scopes.access.v1.ScopedRoleSSH
-	(*ScopedRoleKube)(nil),          // 4: teleport.scopes.access.v1.ScopedRoleKube
-	(*ScopedRoleApp)(nil),           // 5: teleport.scopes.access.v1.ScopedRoleApp
-	(*ScopedRule)(nil),              // 6: teleport.scopes.access.v1.ScopedRule
-	(*SSHPortForwarding)(nil),       // 7: teleport.scopes.access.v1.SSHPortForwarding
-	(*SSHLocalPortForwarding)(nil),  // 8: teleport.scopes.access.v1.SSHLocalPortForwarding
-	(*SSHRemotePortForwarding)(nil), // 9: teleport.scopes.access.v1.SSHRemotePortForwarding
-	(*CreateHostUser)(nil),          // 10: teleport.scopes.access.v1.CreateHostUser
-	(*EnhancedRecording)(nil),       // 11: teleport.scopes.access.v1.EnhancedRecording
-	(*SessionRecording)(nil),        // 12: teleport.scopes.access.v1.SessionRecording
-	(*Lock)(nil),                    // 13: teleport.scopes.access.v1.Lock
-	(*KubeResource)(nil),            // 14: teleport.scopes.access.v1.KubeResource
-	(*v1.Metadata)(nil),             // 15: teleport.header.v1.Metadata
-	(*v11.Label)(nil),               // 16: teleport.label.v1.Label
+	(*ScopedRole)(nil),                 // 0: teleport.scopes.access.v1.ScopedRole
+	(*ScopedRoleSpec)(nil),             // 1: teleport.scopes.access.v1.ScopedRoleSpec
+	(*ScopedRoleDefaults)(nil),         // 2: teleport.scopes.access.v1.ScopedRoleDefaults
+	(*ScopedRoleSSH)(nil),              // 3: teleport.scopes.access.v1.ScopedRoleSSH
+	(*ScopedRoleKube)(nil),             // 4: teleport.scopes.access.v1.ScopedRoleKube
+	(*ScopedRoleWorkloadIdentity)(nil), // 5: teleport.scopes.access.v1.ScopedRoleWorkloadIdentity
+	(*ScopedRoleApp)(nil),              // 6: teleport.scopes.access.v1.ScopedRoleApp
+	(*ScopedRule)(nil),                 // 7: teleport.scopes.access.v1.ScopedRule
+	(*SSHPortForwarding)(nil),          // 8: teleport.scopes.access.v1.SSHPortForwarding
+	(*SSHLocalPortForwarding)(nil),     // 9: teleport.scopes.access.v1.SSHLocalPortForwarding
+	(*SSHRemotePortForwarding)(nil),    // 10: teleport.scopes.access.v1.SSHRemotePortForwarding
+	(*CreateHostUser)(nil),             // 11: teleport.scopes.access.v1.CreateHostUser
+	(*EnhancedRecording)(nil),          // 12: teleport.scopes.access.v1.EnhancedRecording
+	(*SessionRecording)(nil),           // 13: teleport.scopes.access.v1.SessionRecording
+	(*Lock)(nil),                       // 14: teleport.scopes.access.v1.Lock
+	(*KubeResource)(nil),               // 15: teleport.scopes.access.v1.KubeResource
+	(*v1.Metadata)(nil),                // 16: teleport.header.v1.Metadata
+	(*v11.Label)(nil),                  // 17: teleport.label.v1.Label
 }
 var file_teleport_scopes_access_v1_role_proto_depIdxs = []int32{
-	15, // 0: teleport.scopes.access.v1.ScopedRole.metadata:type_name -> teleport.header.v1.Metadata
+	16, // 0: teleport.scopes.access.v1.ScopedRole.metadata:type_name -> teleport.header.v1.Metadata
 	1,  // 1: teleport.scopes.access.v1.ScopedRole.spec:type_name -> teleport.scopes.access.v1.ScopedRoleSpec
 	2,  // 2: teleport.scopes.access.v1.ScopedRoleSpec.defaults:type_name -> teleport.scopes.access.v1.ScopedRoleDefaults
-	6,  // 3: teleport.scopes.access.v1.ScopedRoleSpec.rules:type_name -> teleport.scopes.access.v1.ScopedRule
+	7,  // 3: teleport.scopes.access.v1.ScopedRoleSpec.rules:type_name -> teleport.scopes.access.v1.ScopedRule
 	3,  // 4: teleport.scopes.access.v1.ScopedRoleSpec.ssh:type_name -> teleport.scopes.access.v1.ScopedRoleSSH
 	4,  // 5: teleport.scopes.access.v1.ScopedRoleSpec.kube:type_name -> teleport.scopes.access.v1.ScopedRoleKube
-	5,  // 6: teleport.scopes.access.v1.ScopedRoleSpec.app:type_name -> teleport.scopes.access.v1.ScopedRoleApp
-	12, // 7: teleport.scopes.access.v1.ScopedRoleDefaults.session_recording:type_name -> teleport.scopes.access.v1.SessionRecording
-	13, // 8: teleport.scopes.access.v1.ScopedRoleDefaults.lock:type_name -> teleport.scopes.access.v1.Lock
-	16, // 9: teleport.scopes.access.v1.ScopedRoleSSH.labels:type_name -> teleport.label.v1.Label
-	7,  // 10: teleport.scopes.access.v1.ScopedRoleSSH.port_forwarding:type_name -> teleport.scopes.access.v1.SSHPortForwarding
-	10, // 11: teleport.scopes.access.v1.ScopedRoleSSH.host_user_creation:type_name -> teleport.scopes.access.v1.CreateHostUser
-	11, // 12: teleport.scopes.access.v1.ScopedRoleSSH.enhanced_recording:type_name -> teleport.scopes.access.v1.EnhancedRecording
-	12, // 13: teleport.scopes.access.v1.ScopedRoleSSH.session_recording:type_name -> teleport.scopes.access.v1.SessionRecording
-	13, // 14: teleport.scopes.access.v1.ScopedRoleSSH.lock:type_name -> teleport.scopes.access.v1.Lock
-	16, // 15: teleport.scopes.access.v1.ScopedRoleKube.labels:type_name -> teleport.label.v1.Label
-	14, // 16: teleport.scopes.access.v1.ScopedRoleKube.resources:type_name -> teleport.scopes.access.v1.KubeResource
-	13, // 17: teleport.scopes.access.v1.ScopedRoleKube.lock:type_name -> teleport.scopes.access.v1.Lock
-	16, // 18: teleport.scopes.access.v1.ScopedRoleApp.labels:type_name -> teleport.label.v1.Label
-	13, // 19: teleport.scopes.access.v1.ScopedRoleApp.lock:type_name -> teleport.scopes.access.v1.Lock
-	8,  // 20: teleport.scopes.access.v1.SSHPortForwarding.local:type_name -> teleport.scopes.access.v1.SSHLocalPortForwarding
-	9,  // 21: teleport.scopes.access.v1.SSHPortForwarding.remote:type_name -> teleport.scopes.access.v1.SSHRemotePortForwarding
-	22, // [22:22] is the sub-list for method output_type
-	22, // [22:22] is the sub-list for method input_type
-	22, // [22:22] is the sub-list for extension type_name
-	22, // [22:22] is the sub-list for extension extendee
-	0,  // [0:22] is the sub-list for field type_name
+	5,  // 6: teleport.scopes.access.v1.ScopedRoleSpec.workload_identity:type_name -> teleport.scopes.access.v1.ScopedRoleWorkloadIdentity
+	6,  // 7: teleport.scopes.access.v1.ScopedRoleSpec.app:type_name -> teleport.scopes.access.v1.ScopedRoleApp
+	13, // 8: teleport.scopes.access.v1.ScopedRoleDefaults.session_recording:type_name -> teleport.scopes.access.v1.SessionRecording
+	14, // 9: teleport.scopes.access.v1.ScopedRoleDefaults.lock:type_name -> teleport.scopes.access.v1.Lock
+	17, // 10: teleport.scopes.access.v1.ScopedRoleSSH.labels:type_name -> teleport.label.v1.Label
+	8,  // 11: teleport.scopes.access.v1.ScopedRoleSSH.port_forwarding:type_name -> teleport.scopes.access.v1.SSHPortForwarding
+	11, // 12: teleport.scopes.access.v1.ScopedRoleSSH.host_user_creation:type_name -> teleport.scopes.access.v1.CreateHostUser
+	12, // 13: teleport.scopes.access.v1.ScopedRoleSSH.enhanced_recording:type_name -> teleport.scopes.access.v1.EnhancedRecording
+	13, // 14: teleport.scopes.access.v1.ScopedRoleSSH.session_recording:type_name -> teleport.scopes.access.v1.SessionRecording
+	14, // 15: teleport.scopes.access.v1.ScopedRoleSSH.lock:type_name -> teleport.scopes.access.v1.Lock
+	17, // 16: teleport.scopes.access.v1.ScopedRoleKube.labels:type_name -> teleport.label.v1.Label
+	15, // 17: teleport.scopes.access.v1.ScopedRoleKube.resources:type_name -> teleport.scopes.access.v1.KubeResource
+	14, // 18: teleport.scopes.access.v1.ScopedRoleKube.lock:type_name -> teleport.scopes.access.v1.Lock
+	17, // 19: teleport.scopes.access.v1.ScopedRoleWorkloadIdentity.labels:type_name -> teleport.label.v1.Label
+	17, // 20: teleport.scopes.access.v1.ScopedRoleApp.labels:type_name -> teleport.label.v1.Label
+	14, // 21: teleport.scopes.access.v1.ScopedRoleApp.lock:type_name -> teleport.scopes.access.v1.Lock
+	9,  // 22: teleport.scopes.access.v1.SSHPortForwarding.local:type_name -> teleport.scopes.access.v1.SSHLocalPortForwarding
+	10, // 23: teleport.scopes.access.v1.SSHPortForwarding.remote:type_name -> teleport.scopes.access.v1.SSHRemotePortForwarding
+	24, // [24:24] is the sub-list for method output_type
+	24, // [24:24] is the sub-list for method input_type
+	24, // [24:24] is the sub-list for extension type_name
+	24, // [24:24] is the sub-list for extension extendee
+	0,  // [0:24] is the sub-list for field type_name
 }
 
 func init() { file_teleport_scopes_access_v1_role_proto_init() }
@@ -2281,17 +2388,17 @@ func file_teleport_scopes_access_v1_role_proto_init() {
 	file_teleport_scopes_access_v1_role_proto_msgTypes[2].OneofWrappers = []any{}
 	file_teleport_scopes_access_v1_role_proto_msgTypes[3].OneofWrappers = []any{}
 	file_teleport_scopes_access_v1_role_proto_msgTypes[4].OneofWrappers = []any{}
-	file_teleport_scopes_access_v1_role_proto_msgTypes[5].OneofWrappers = []any{}
-	file_teleport_scopes_access_v1_role_proto_msgTypes[8].OneofWrappers = []any{}
+	file_teleport_scopes_access_v1_role_proto_msgTypes[6].OneofWrappers = []any{}
 	file_teleport_scopes_access_v1_role_proto_msgTypes[9].OneofWrappers = []any{}
-	file_teleport_scopes_access_v1_role_proto_msgTypes[11].OneofWrappers = []any{}
+	file_teleport_scopes_access_v1_role_proto_msgTypes[10].OneofWrappers = []any{}
+	file_teleport_scopes_access_v1_role_proto_msgTypes[12].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_scopes_access_v1_role_proto_rawDesc), len(file_teleport_scopes_access_v1_role_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   15,
+			NumMessages:   16,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
