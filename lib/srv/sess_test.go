@@ -27,6 +27,7 @@ import (
 	"net"
 	"os/user"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -1082,29 +1083,51 @@ func TestApprovalDecisionNotice(t *testing.T) {
 		require.Equal(t, "✓ Command approved by AI moderator.", got)
 	})
 
-	t.Run("denied by AI moderator", func(t *testing.T) {
+	t.Run("denied by AI moderator (no moderator present) shows hint", func(t *testing.T) {
 		t.Parallel()
 		got := approvalDecisionNotice(approval.Decision{
 			Approved: false,
 			Approver: approval.AIApproverName,
 			Reason:   "destructive command",
+			Mode:     approval.ModeAI,
 		}, sessionID)
 		require.Contains(t, got, "✗ Command denied by AI moderator: destructive command")
-		require.Contains(t, got, hint, "denial must include the join-to-review hint")
+		require.Contains(t, got, hint, "AI denial with no moderator must include the join-to-review hint")
 		require.Contains(t, got, "\r\n  ", "hint must be on its own indented continuation line")
+		require.Contains(t, got, "then re-run", "AI denial hint invites a moderator to join and re-run")
 	})
 
-	t.Run("failed (system-attributed) shows unavailable", func(t *testing.T) {
+	t.Run("denied by human moderator (escalated) has no hint", func(t *testing.T) {
+		t.Parallel()
+		got := approvalDecisionNotice(approval.Decision{
+			Approved: false,
+			Approver: "moderator-1",
+			Reason:   "still too risky",
+			Mode:     approval.ModeHuman,
+		}, sessionID)
+		require.Equal(t, "✗ Command denied by moderator-1: still too risky", got)
+		require.NotContains(t, got, hint, "a human moderator already reviewed; no join hint")
+	})
+
+	t.Run("failed (system-attributed) shows not-approved without doubling unavailable", func(t *testing.T) {
 		t.Parallel()
 		got := approvalDecisionNotice(approval.Decision{
 			Approved: false,
 			Approver: approval.ApproverSystem,
-			Reason:   "approval timed out",
+			Reason:   "approval unavailable (fail-closed): context deadline exceeded",
 		}, sessionID)
-		require.Contains(t, got, "✗ Command approval unavailable: approval timed out")
+		require.Contains(t, got, "✗ Command not approved: approval unavailable (fail-closed): context deadline exceeded")
+		require.NotContains(t, got, "unavailable: approval unavailable", "must not double the word \"unavailable\"")
 		require.NotContains(t, got, "denied by", "failures must not read as deliberate denials")
 		require.Contains(t, got, hint, "failure must include the join-to-review hint")
 	})
+}
+
+func TestApprovalEscalationNotice(t *testing.T) {
+	t.Parallel()
+
+	got := approvalEscalationNotice("destructive command")
+	require.Equal(t, "⧗ AI moderator flagged this command (destructive command). Waiting for a connected moderator to approve…", got)
 }
 
 // TestCommandApprovalRoundTrip exercises the per-command approval pipeline end
@@ -1270,7 +1293,9 @@ func TestCommandApprovalRoundTrip(t *testing.T) {
 
 		out2 := notices.String()
 		require.Contains(t, out2, "Command denied by moderator-1: too dangerous", "peer must see the denial notice")
-		require.Contains(t, out2, "tsh join --mode moderator "+string(sess.id), "denial must include the join-to-review hint")
+		// A human moderator deliberately denied the command, so the join hint
+		// (inviting a moderator to review and re-run) must NOT be shown.
+		require.NotContains(t, out2, "tsh join --mode moderator "+string(sess.id), "human denial must not show the join-to-review hint")
 		require.Contains(t, out2, "rm -rf /\r\nTeleport > ", "notices must start on their own line")
 
 		approvalEv := findCommandApproval(srv.MockRecorderEmitter.Events())
@@ -1401,6 +1426,150 @@ func TestCommandApprovalRoundTrip(t *testing.T) {
 		require.Contains(t, approvalEv.Reason, "AI evaluation failed")
 	})
 
+	// aiDenyRole builds an AI-moderated role whose evaluator denies; combined
+	// with the fakeEvaluatorAuthClient below it exercises the AI-deny path.
+	aiDenyRole := func(t *testing.T) types.Role {
+		role, err := types.NewRole("access", types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				RequireSessionJoin: []*types.SessionRequirePolicy{{
+					Name:   "approve",
+					Filter: "contains(user.roles, 'moderator')",
+					Kinds:  []string{string(types.SSHSessionKind)},
+					Modes:  []string{string(types.SessionModeratorMode)},
+					Count:  1,
+					CommandApproval: &types.CommandApproval{
+						Enabled:  true,
+						Approver: types.CommandApproverAI,
+						AI:       &types.CommandApprovalAI{Policy: "deny dangerous commands", Model: "claude"},
+					},
+				}},
+			},
+		})
+		require.NoError(t, err)
+		return role
+	}
+
+	t.Run("ai deny with no moderator present: denial stands, hint shown", func(t *testing.T) {
+		// The AI denies and no moderator is connected, so the escalating
+		// approver does NOT consult the human path: the AI denial stands
+		// (fail-closed) and the participant sees the join-to-review hint.
+		reg, srv := newRegWithServer(t)
+		fake := &fakeEvaluatorAuthClient{
+			resp: &proto.EvaluateCommandResponse{Approved: false, Reasoning: "destructive command"},
+		}
+		srv.authClient = fake
+
+		sess, _ := testOpenSession(t, reg, services.NewRoleSet(aiDenyRole(t)), &decisionpb.SSHAccessPermit{})
+		t.Cleanup(func() { sess.Stop() })
+		require.True(t, sess.io.commandGateEnabled(), "expected an AI-backed gate")
+		require.False(t, sess.hasModeratorPresent(), "no moderator should be connected")
+
+		notices := newSyncBuffer()
+		sess.io.AddWriter("notices", notices)
+
+		forwarded := sess.io.gateInput([]byte("rm -rf /\r"))
+		require.Contains(t, forwarded, byte(byteCtrlU), "AI deny with no moderator must deny (Ctrl-U)")
+		require.NotContains(t, forwarded, byte(byteCR))
+
+		out := notices.String()
+		require.Contains(t, out, "Command denied by AI moderator: destructive command")
+		require.Contains(t, out, "tsh join --mode moderator "+string(sess.id), "AI deny with no moderator must show the join hint")
+		require.NotContains(t, out, "Waiting for a connected moderator", "must not announce escalation when no moderator is present")
+
+		approvalEv := findCommandApproval(srv.MockRecorderEmitter.Events())
+		require.NotNil(t, approvalEv)
+		require.Equal(t, events.CommandApprovalDeniedEvent, approvalEv.Metadata.Type)
+		require.Equal(t, "denied", approvalEv.Decision)
+		require.Equal(t, approval.AIApproverName, approvalEv.Approver)
+		require.Equal(t, "ai", approvalEv.ApproverMode)
+	})
+
+	t.Run("ai deny with moderator present: escalates to human who approves", func(t *testing.T) {
+		// The AI denies but a moderator IS connected, so the escalating approver
+		// broadcasts the command to the moderator and waits. The moderator
+		// approves, so the command runs and is attributed to the human.
+		//
+		// The escalating gate is assembled here exactly as newSession's AI branch
+		// does (AI approver + HumanApprover + hasModeratorPresent gate + the
+		// escalation notify), differing only in the broadcaster: a
+		// signalingBroadcaster captures the broadcast ID so the test can Submit
+		// the moderator decision deterministically (the production
+		// sessionApprovalBroadcaster fans out over SSH conns, of which there are
+		// none in the harness).
+		reg, srv := newRegWithServer(t)
+		fake := &fakeEvaluatorAuthClient{
+			resp: &proto.EvaluateCommandResponse{Approved: false, Reasoning: "destructive command"},
+		}
+		srv.authClient = fake
+
+		sess, _ := testOpenSession(t, reg, services.NewRoleSet(aiDenyRole(t)), &decisionpb.SSHAccessPermit{})
+		t.Cleanup(func() { sess.Stop() })
+
+		// Simulate a connected moderator. hasModeratorPresent is exercised
+		// directly in TestHasModeratorPresent; here a fixed closure gates the
+		// escalation open without injecting a party (whose teardown would need a
+		// live SSH channel).
+		aiAppr := approval.NewAIApprover(fake, "deny dangerous commands", "claude")
+		b := newSignalingBroadcaster()
+		humanAppr := approval.NewHumanApprover(b)
+		sess.commandApprover = humanAppr
+		escalating := approval.NewEscalatingAIApprover(
+			aiAppr, humanAppr, func() bool { return true },
+			func(reason string) { sess.BroadcastSystemMessage("%s", approvalEscalationNotice(reason)) },
+		)
+		gate := &sessionCommandGate{
+			s:        sess,
+			approver: approval.WithTimeout(escalating, approval.DefaultTimeout),
+			mode:     string(approval.ModeAI),
+			model:    "claude",
+		}
+		sess.io.SetCommandGate(gate)
+
+		notices := newSyncBuffer()
+		sess.io.AddWriter("notices", notices)
+
+		// gateInput blocks inside the escalation's human wait; drive the
+		// moderator response from a goroutine once the broadcast arrives.
+		out := make(chan []byte, 1)
+		go func() { out <- sess.io.gateInput([]byte("rm -rf /\r")) }()
+
+		var req approval.CommandApprovalRequest
+		select {
+		case req = <-b.requests:
+		case <-time.After(10 * time.Second):
+			t.Fatal("timed out waiting for the escalation broadcast")
+		}
+		require.Equal(t, "rm -rf /", req.Command)
+		// The escalation notice must precede the human wait.
+		require.Eventually(t, func() bool {
+			return strings.Contains(notices.String(), "Waiting for a connected moderator to approve")
+		}, 10*time.Second, 5*time.Millisecond, "escalation notice must be broadcast")
+
+		humanAppr.Submit(req.ID, true, "looks ok", "moderator-1", types.SessionModeratorMode)
+
+		var forwarded []byte
+		select {
+		case forwarded = <-out:
+		case <-time.After(10 * time.Second):
+			t.Fatal("timed out waiting for gateInput to return after escalation")
+		}
+		require.Contains(t, string(forwarded), string(rune(byteCR)), "escalated approval must forward a carriage return")
+		require.NotContains(t, forwarded, byte(byteCtrlU))
+
+		out2 := notices.String()
+		require.Contains(t, out2, "AI moderator flagged this command (destructive command)", "participant must see the escalation notice")
+		require.Contains(t, out2, "Command approved by moderator-1.", "participant must see the human approval")
+		require.NotNil(t, fake.gotReq, "the AI evaluator must have been consulted first")
+
+		approvalEv := findCommandApproval(srv.MockRecorderEmitter.Events())
+		require.NotNil(t, approvalEv)
+		require.Equal(t, events.CommandApprovalApprovedEvent, approvalEv.Metadata.Type)
+		require.Equal(t, "approved", approvalEv.Decision)
+		require.Equal(t, "moderator-1", approvalEv.Approver)
+		require.Equal(t, "human", approvalEv.ApproverMode, "escalated approval is attributed to the human moderator")
+		require.Empty(t, approvalEv.Model, "a human made the final decision; no inference model must be recorded")
+	})
+
 	t.Run("backward compatible: no policy gates nothing", func(t *testing.T) {
 		reg, srv := newRegWithServer(t)
 		role, err := types.NewRole("access", types.RoleSpecV6{
@@ -1429,6 +1598,35 @@ func TestCommandApprovalRoundTrip(t *testing.T) {
 		require.Equal(t, "ls\r", string(forwarded), "ungated input must pass through unchanged")
 		require.NotContains(t, forwarded, byte(byteCtrlU))
 		require.Nil(t, findCommandApproval(srv.MockRecorderEmitter.Events()), "ungated session must emit no command approval event")
+	})
+}
+
+func TestHasModeratorPresent(t *testing.T) {
+	t.Parallel()
+
+	newPartyWithMode := func(mode types.SessionParticipantMode) *party {
+		return &party{id: rsession.NewID(), mode: mode}
+	}
+
+	t.Run("no parties", func(t *testing.T) {
+		t.Parallel()
+		s := &session{parties: map[rsession.ID]*party{}}
+		require.False(t, s.hasModeratorPresent())
+	})
+
+	t.Run("only non-moderator parties", func(t *testing.T) {
+		t.Parallel()
+		p := newPartyWithMode(types.SessionPeerMode)
+		s := &session{parties: map[rsession.ID]*party{p.id: p}}
+		require.False(t, s.hasModeratorPresent(), "peer/observer parties do not count as a moderator")
+	})
+
+	t.Run("a moderator party is present", func(t *testing.T) {
+		t.Parallel()
+		peer := newPartyWithMode(types.SessionPeerMode)
+		mod := newPartyWithMode(types.SessionModeratorMode)
+		s := &session{parties: map[rsession.ID]*party{peer.id: peer, mod.id: mod}}
+		require.True(t, s.hasModeratorPresent())
 	})
 }
 

@@ -930,8 +930,25 @@ func newSession(ctx context.Context, r *SessionRegistry, scx *ServerContext, ch 
 				sess.io.SetCommandGate(&denyAllCommandGate{s: sess})
 				break
 			}
-			approver := approval.NewAIApprover(evaluator, cfg.AI.Policy, cfg.AI.Model)
-			gated := approval.WithTimeout(approver, cfg.EffectiveTimeout())
+			// The AI moderator decides each command. If it does not approve
+			// (deliberate deny or evaluation failure) AND a human moderator is
+			// connected, the command is escalated to that moderator for manual
+			// approval. With no moderator present, the AI decision stands
+			// (fail-closed). AI approvals are never escalated.
+			aiAppr := approval.NewAIApprover(evaluator, cfg.AI.Policy, cfg.AI.Model)
+			humanAppr := approval.NewHumanApprover(&sessionApprovalBroadcaster{s: sess})
+			// Route inbound moderator responses (for escalations) to the same
+			// HumanApprover instance the escalating approver calls.
+			sess.commandApprover = humanAppr
+			escalating := approval.NewEscalatingAIApprover(
+				aiAppr,
+				humanAppr,
+				sess.hasModeratorPresent,
+				func(reason string) {
+					sess.BroadcastSystemMessage("%s", approvalEscalationNotice(reason))
+				},
+			)
+			gated := approval.WithTimeout(escalating, cfg.EffectiveTimeout())
 			sess.io.SetCommandGate(&sessionCommandGate{s: sess, approver: gated, mode: string(approval.ModeAI), model: cfg.AI.Model})
 		}
 	}
@@ -2279,6 +2296,19 @@ func (s *session) getCommandApprover() *approval.HumanApprover {
 	return s.commandApprover
 }
 
+// hasModeratorPresent reports whether a moderator participant is currently
+// connected to the session.
+func (s *session) hasModeratorPresent() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, p := range s.parties {
+		if p.mode == types.SessionModeratorMode {
+			return true
+		}
+	}
+	return false
+}
+
 // sessionCommandGate adapts the approval pipeline to the TermManager's
 // commandGate interface. approve is called synchronously from the input
 // goroutine and blocks until a decision is reached.
@@ -2308,13 +2338,21 @@ func approverDisplayName(approver string) string {
 	}
 }
 
-// approvalJoinHint is the informational continuation line appended to denial
-// and failure notices. It is intentionally unprefixed and indented so it reads
-// as a continuation of the single "Teleport > ..." notice line. It is messaging
-// only: a moderator may join to review the session, but there is no human
-// override of the decision in v1.
+// approvalJoinHint is the informational continuation line appended to
+// AI/system non-approval notices when no moderator is connected. It is
+// intentionally unprefixed and indented so it reads as a continuation of the
+// single "Teleport > ..." notice line. It tells the participant a moderator can
+// join to review and re-run the command. It is NOT shown when a human moderator
+// already reviewed the command (an escalated decision).
 func approvalJoinHint(sessionID string) string {
-	return "\r\n  A moderator can join to review this session: tsh join --mode moderator " + sessionID
+	return "\r\n  No moderator is connected. A moderator can join to review, then re-run: tsh join --mode moderator " + sessionID
+}
+
+// approvalEscalationNotice is the intermediate status shown to participants when
+// the AI moderator does not approve a command and it is being escalated to a
+// connected human moderator. reason is the AI's reason for not approving.
+func approvalEscalationNotice(reason string) string {
+	return "⧗ AI moderator flagged this command (" + reason + "). Waiting for a connected moderator to approve…"
 }
 
 // approvalPendingNotice returns the "we are computing a decision" status line
@@ -2328,17 +2366,32 @@ func approvalPendingNotice(mode, cmd string) string {
 }
 
 // approvalDecisionNotice returns the peer-facing result line for a resolved
-// decision. Approvals get a single confirmation line; deliberate denials and
-// fail-closed (system) outcomes get a clear result plus the join hint.
+// decision. The branch is chosen by the decision's attribution:
+//
+//   - approved (any approver) -> a single confirmation line, no hint.
+//   - failed (Approver == ApproverSystem) -> a fail-closed "not approved" line
+//     plus the join hint. The system reason already says "approval unavailable
+//     (fail-closed): ...", so the "not approved" prefix avoids doubling the word
+//     "unavailable".
+//   - denied by a human moderator (Mode == ModeHuman) -> a denial line with NO
+//     join hint: a human has already reviewed the command, so inviting another
+//     moderator to "review, then re-run" would be misleading.
+//   - denied by the AI moderator (no escalation / no moderator present) -> a
+//     denial line plus the join hint, since no human reviewed it.
 func approvalDecisionNotice(dec approval.Decision, sessionID string) string {
 	display := approverDisplayName(dec.Approver)
-	if dec.Approved {
+	switch {
+	case dec.Approved:
 		return "✓ Command approved by " + display + "."
+	case dec.Approver == approval.ApproverSystem:
+		return "✗ Command not approved: " + dec.Reason + approvalJoinHint(sessionID)
+	case dec.Mode == approval.ModeHuman:
+		// A human moderator deliberately denied an escalated command; no hint.
+		return "✗ Command denied by " + display + ": " + dec.Reason
+	default:
+		// Deliberate AI deny with no moderator to escalate to.
+		return "✗ Command denied by " + display + ": " + dec.Reason + approvalJoinHint(sessionID)
 	}
-	if dec.Approver == approval.ApproverSystem {
-		return "✗ Command approval unavailable: " + dec.Reason + approvalJoinHint(sessionID)
-	}
-	return "✗ Command denied by " + display + ": " + dec.Reason + approvalJoinHint(sessionID)
 }
 
 // approve gates a single reconstructed command line on an approval decision.
@@ -2414,6 +2467,15 @@ func (g *sessionCommandGate) emitCommandApproval(cmd string, dec approval.Decisi
 		approverMode = string(dec.Mode)
 	}
 
+	// Model attribution applies to AI decisions only. When an AI-moderated
+	// session escalates to a human moderator, the final decision is made by a
+	// person (approverMode == human), so no inference model was used; recording
+	// one would produce a self-contradictory audit record.
+	model := g.model
+	if approverMode == string(approval.ModeHuman) {
+		model = ""
+	}
+
 	ev := &apievents.CommandApproval{
 		Metadata: apievents.Metadata{
 			Type:        eventType,
@@ -2428,7 +2490,7 @@ func (g *sessionCommandGate) emitCommandApproval(cmd string, dec approval.Decisi
 		Approver:        dec.Approver,
 		ApproverMode:    approverMode,
 		Reason:          dec.Reason,
-		Model:           g.model,
+		Model:           model,
 	}
 
 	if err := s.emitAuditEvent(s.serverCtx, ev); err != nil {
