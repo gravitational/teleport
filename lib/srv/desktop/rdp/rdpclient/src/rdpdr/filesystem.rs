@@ -347,9 +347,10 @@ impl FilesystemBackend {
                 let device_id = req.device_io_request.device_id;
                 let res = self.handle_rdp_device_close_req(req);
                 if device_is_tombstoned {
-                    // HACK: We need to remove this device id from the rdpdr ServiceProcessor, but
-                    // we have no reference to it. Synthesize a new TDP remove message for the client
-                    // to process so that it calls "remove_drive" again.
+                    // HACK(rhammonds): We need to remove this device id from the rdpdr ServiceProcessor,
+                    // but do not (and cannot) obtain a reference to it because the 'rdpdr' instance already
+                    // holds a reference to us. We'll synthesize a new directory removal message for the
+                    // for the client to process which will attempt to remove the device/directory again.
                     let _ = self
                         .client_handle
                         .handle_tdp_sd_remove(SharedDirectoryRemove {
