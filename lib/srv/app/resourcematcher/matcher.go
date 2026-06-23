@@ -86,10 +86,14 @@ const (
 	// the empty literal that once stood in for a trailing slash, so a literal
 	// node never carries empty text.
 	kindSlash
-	// kindOptionalSlash is a terminal node that matches whether or not a
-	// trailing slash is present, so one tree accepts both "/foo" and "/foo/"
-	// without writing the tree twice.
-	kindOptionalSlash
+	// kindOptional is a terminal node that matches whether or not its subtree is
+	// present: the path may end here, or one of the node's children matches the
+	// remainder. It makes a trailing subtree optional, so optional(slash())
+	// accepts "/foo" and "/foo/" alike, and optional(literal("reports")) accepts
+	// "/files" and "/files/reports" from one tree, with no duplicated prefix.
+	// Several children are alternatives. The skip branch binds nothing, so a
+	// capture inside an optional is never guaranteed.
+	kindOptional
 )
 
 // Node is one node in a matcher tree. It is an ordinary Go value, so a matcher
@@ -163,13 +167,19 @@ func Slash() *Node {
 	return &Node{kind: kindSlash}
 }
 
-// OptionalSlash builds a terminal node that matches whether or not a trailing
-// slash is present, so Literal("files", OptionalSlash()) matches both "/files"
-// and "/files/". It exists so a tree need not be written twice to accept an
-// optional trailing slash. It has no string-pattern sugar; the declarative form
-// lists both paths instead.
-func OptionalSlash() *Node {
-	return &Node{kind: kindOptionalSlash}
+// Optional builds a terminal node that makes its subtree optional: the path may
+// end at this node, or one of the children matches the remainder. So
+// Optional(Slash()) matches both "/files" and "/files/", and
+// Optional(Literal("reports")) matches "/files" and "/files/reports" from one
+// tree with no duplicated prefix. Several children are alternatives. It is a
+// tail construct, the alternative to a greedy tail rather than a modifier on
+// one, so it carries no string-pattern sugar and the declarative form lists the
+// alternatives instead. An empty Optional is a load error.
+func Optional(children ...*Node) (*Node, error) {
+	if len(children) == 0 {
+		return nil, trace.BadParameter("optional() requires at least one child subtree")
+	}
+	return &Node{kind: kindOptional, children: children}, nil
 }
 
 // validateSegment rejects an empty or illegally-encoded literal segment. A
@@ -356,6 +366,10 @@ func GreedyExcept(excludes ...*Node) (*Node, error) {
 			return nil, trace.BadParameter(
 				"a greedy_except matcher cannot bind a capture: an exclusion is a deny test and binds nothing")
 		}
+		if containsOptional(e) {
+			return nil, trace.BadParameter(
+				"a greedy_except matcher cannot contain optional: its empty-match branch makes the exclusion match the zero-length tail and silently forbids the bare prefix")
+		}
 	}
 	return &Node{kind: kindGreedy, greedyExcept: excludes}, nil
 }
@@ -388,6 +402,31 @@ func containsCapture(n *Node) bool {
 	}
 	for _, e := range n.greedyExcept {
 		if containsCapture(e) {
+			return true
+		}
+	}
+	return false
+}
+
+// containsOptional reports whether the node tree contains an optional node,
+// walking both the children and the greedy exclusion subtrees. An optional
+// inside a greedy_except exclusion is rejected: its empty-match branch makes the
+// exclusion match the zero-length tail, which refuses greedy's match-zero and
+// silently forbids the bare prefix.
+func containsOptional(n *Node) bool {
+	if n == nil {
+		return false
+	}
+	if n.kind == kindOptional {
+		return true
+	}
+	for _, c := range n.children {
+		if containsOptional(c) {
+			return true
+		}
+	}
+	for _, e := range n.greedyExcept {
+		if containsOptional(e) {
 			return true
 		}
 	}
@@ -446,10 +485,20 @@ func matchNode(node *Node, tokens []string, i int, caps map[string]string) bool 
 		// A trailing slash is the empty segment that ends the token list. It
 		// is terminal: the empty token must exist and be the last one.
 		return i < len(tokens) && tokens[i] == "" && i+1 == len(tokens)
-	case kindOptionalSlash:
-		// Match either the end of the path, where no trailing slash was
-		// present, or the trailing empty segment a final slash produces.
-		return i == len(tokens) || (i < len(tokens) && tokens[i] == "" && i+1 == len(tokens))
+	case kindOptional:
+		// The subtree is optional: match either the end of the path, where it is
+		// absent, or one of the children against the remainder. The end branch
+		// binds nothing, which is why a capture inside an optional is never
+		// guaranteed.
+		if i == len(tokens) {
+			return true
+		}
+		for _, child := range node.children {
+			if matchNode(child, tokens, i, caps) {
+				return true
+			}
+		}
+		return false
 	case kindLiteral:
 		if i >= len(tokens) || tokens[i] != node.text {
 			return false

@@ -24,9 +24,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestSlashEval pins the trailing-slash terminals. slash() requires the
-// trailing empty segment a final "/" produces; optional_slash() matches with or
-// without it; neither admits a further segment.
+// TestSlashEval pins the trailing-slash terminal. slash() requires the trailing
+// empty segment a final "/" produces and admits no further segment.
 func TestSlashEval(t *testing.T) {
 	tests := []struct {
 		name string
@@ -39,9 +38,6 @@ func TestSlashEval(t *testing.T) {
 		{"slash rejects a deeper path", Literal("files", Slash()), "/files/x", false},
 		{"slash alone matches the bare root", Slash(), "/", true},
 		{"slash alone rejects a non-root", Slash(), "/files", false},
-		{"optional_slash matches the bare path", Literal("files", OptionalSlash()), "/files", true},
-		{"optional_slash matches the trailing slash", Literal("files", OptionalSlash()), "/files/", true},
-		{"optional_slash rejects a deeper path", Literal("files", OptionalSlash()), "/files/x", false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -50,27 +46,6 @@ func TestSlashEval(t *testing.T) {
 			ok, _ := Eval(tokens, tt.root)
 			require.Equal(t, tt.want, ok)
 		})
-	}
-}
-
-// TestOptionalSlashRule pins optional_slash() through the predicate surface: one
-// tree accepts both the slashed and unslashed request without writing it twice.
-func TestOptionalSlashRule(t *testing.T) {
-	rule := Rule{Pred: `path.match(literal("files", optional_slash()))`}
-	compiled, err := rule.Compile()
-	require.NoError(t, err)
-
-	for _, tc := range []struct {
-		path string
-		want bool
-	}{
-		{"/files", true},
-		{"/files/", true},
-		{"/files/secret", false},
-	} {
-		got, err := compiled.Evaluate(Request{Method: "GET", Path: tc.path}, Identity{})
-		require.NoError(t, err)
-		require.Equal(t, tc.want, got.Allowed, tc.path)
 	}
 }
 
@@ -109,8 +84,7 @@ func TestLiteralPanicsOnEmpty(t *testing.T) {
 }
 
 // TestSlashNodeToSource pins the round-trip rendering of the trailing-slash
-// terminals.
+// terminal.
 func TestSlashNodeToSource(t *testing.T) {
 	require.Equal(t, `literal("files", slash())`, nodeToSource(Literal("files", Slash())))
-	require.Equal(t, `literal("files", optional_slash())`, nodeToSource(Literal("files", OptionalSlash())))
 }

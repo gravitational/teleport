@@ -271,15 +271,19 @@ func newParser() (*typical.CachedParser[env, bool], error) {
 			"greedy": typical.UnaryVariadicFunction[env](func(_ ...*Node) (*Node, error) {
 				return Greedy(), nil
 			}),
-			// Trailing-slash terminals. slash() matches the empty segment a
-			// final "/" produces, and optional_slash() matches with or without
-			// it. They replace the empty-literal pun, so a literal never carries
-			// empty text.
+			// slash() matches the empty segment a final "/" produces. It replaces
+			// the empty-literal pun, so a literal never carries empty text.
 			"slash": typical.UnaryVariadicFunction[env](func(_ ...*Node) (*Node, error) {
 				return Slash(), nil
 			}),
-			"optional_slash": typical.UnaryVariadicFunction[env](func(_ ...*Node) (*Node, error) {
-				return OptionalSlash(), nil
+			// optional() makes a trailing subtree optional: the path may end at
+			// this node, or one of the children matches the remainder. So
+			// optional(slash()) matches "/foo" and "/foo/" alike, and
+			// optional(literal("reports")) matches "/files" and "/files/reports"
+			// from one tree with no duplicated prefix. The skip branch binds
+			// nothing, so a capture inside an optional is never guaranteed.
+			"optional": typical.UnaryVariadicFunction[env](func(children ...*Node) (*Node, error) {
+				return Optional(children...)
 			}),
 			// root is the synthetic top node, the one way to give a tree several
 			// first segments. It folds several root paths into one path.match,

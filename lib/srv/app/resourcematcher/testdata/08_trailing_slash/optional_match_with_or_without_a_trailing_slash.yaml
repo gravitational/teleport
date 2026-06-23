@@ -1,13 +1,14 @@
-description: 'optional_slash: match with or without a trailing slash'
+description: 'optional: match with or without a trailing slash'
 rules:
     - where: |-
         path.match(literal("files",
-            optional_slash()))
+            optional(slash())))
 rules_desugared:
     - pred: |-
         path.match(
           literal("files",
-            optional_slash()))
+            optional(
+              slash())))
 identity:
     name: bob
     roles:

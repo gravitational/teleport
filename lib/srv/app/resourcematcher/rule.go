@@ -400,8 +400,8 @@ func nodeToSource(n *Node) string {
 		return constructorSource("root", "", n.children)
 	case kindSlash:
 		return "slash()"
-	case kindOptionalSlash:
-		return "optional_slash()"
+	case kindOptional:
+		return constructorSource("optional", "", n.children)
 	case kindGreedy:
 		return "greedy()"
 	default:

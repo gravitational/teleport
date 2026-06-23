@@ -375,18 +375,21 @@ func setLiterals(node ast.Expr) ([]string, bool) {
 	return out, true
 }
 
-// validateExclusions rejects a capture inside a greedy_except matcher. An
-// exclusion is a deny test that binds nothing, so a capture there can never be
-// read through vars.<name>; rejecting it at load turns a silent no-op into a
-// clear error. The constructor enforces the same rule as a backstop, but the
-// constructor runs only at evaluation, so the load-time check is what surfaces
-// the mistake when the rule is compiled.
+// validateExclusions rejects a capture or an optional inside a greedy_except
+// matcher. An exclusion is a deny test that binds nothing, so a capture there
+// can never be read through vars.<name>; an optional there matches the
+// zero-length tail through its empty-match branch, which refuses greedy's
+// match-zero and silently forbids the bare prefix. Rejecting both at load turns
+// a silent no-op or a wrong deny into a clear error. The constructor enforces
+// the same rules as a backstop, but the constructor runs only at evaluation, so
+// the load-time check is what surfaces the mistake when the rule is compiled.
 func validateExclusions(expr string) error {
 	parsed, err := goparser.ParseExpr(expr)
 	if err != nil {
 		return nil
 	}
-	var bad string
+	var badCapture string
+	var hasOptional bool
 	ast.Inspect(parsed, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
 		if !ok || !isGreedyExcept(call) {
@@ -396,7 +399,10 @@ func validateExclusions(expr string) error {
 			ast.Inspect(arg, func(m ast.Node) bool {
 				if inner, ok := m.(*ast.CallExpr); ok {
 					if name, ok := captureName(inner); ok {
-						bad = name
+						badCapture = name
+					}
+					if isIdentCall(inner, "optional") {
+						hasOptional = true
 					}
 				}
 				return true
@@ -404,10 +410,14 @@ func validateExclusions(expr string) error {
 		}
 		return true
 	})
-	if bad != "" {
+	if badCapture != "" {
 		return trace.BadParameter(
 			"a greedy_except matcher cannot bind capture %q: an exclusion is a deny test and binds nothing",
-			bad)
+			badCapture)
+	}
+	if hasOptional {
+		return trace.BadParameter(
+			"a greedy_except matcher cannot contain optional: its empty-match branch makes the exclusion match the zero-length tail and silently forbids the bare prefix")
 	}
 	return nil
 }
