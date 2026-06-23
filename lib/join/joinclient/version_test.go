@@ -42,6 +42,10 @@ func requireClientTooOld(t require.TestingT, err error, _ ...any) {
 	require.ErrorAs(t, err, &ClientTooOldError{})
 }
 
+func requireClientTooNew(t require.TestingT, err error, _ ...any) {
+	require.ErrorAs(t, err, &ClientTooNewError{})
+}
+
 func TestCheckClientMeetsMinVersion(t *testing.T) {
 	t.Parallel()
 
@@ -121,6 +125,46 @@ func TestCheckClientMeetsMinVersion(t *testing.T) {
 	}
 }
 
+func TestCheckClientMeetsMaxVersion(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name          string
+		clientVersion string
+		serverVersion string
+		assertErr     require.ErrorAssertionFunc
+	}{
+		{
+			name:          "client is newer than server",
+			clientVersion: "3.0.0",
+			serverVersion: "2.0.0",
+			assertErr: func(t require.TestingT, err error, _ ...any) {
+				requireClientTooNew(t, err)
+				require.Contains(t, err.Error(), "supports clients on v2 or v1")
+			},
+		},
+		{
+			name:          "client is older than server",
+			clientVersion: "1.0.0",
+			serverVersion: "2.0.0",
+			assertErr:     require.NoError,
+		},
+		{
+			name:          "client and server are the same version",
+			clientVersion: "1.0.0",
+			serverVersion: "1.0.0",
+			assertErr:     require.NoError,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			tc.assertErr(t, checkClientMeetsMaxVersion(tc.clientVersion, tc.serverVersion))
+		})
+	}
+}
+
 func TestCheckClientVersionSupported(t *testing.T) {
 	t.Parallel()
 
@@ -128,6 +172,7 @@ func TestCheckClientVersionSupported(t *testing.T) {
 		name             string
 		clientVersion    string
 		minClientVersion string
+		serverVersion    string
 		findError        bool
 		skipVersionCheck bool
 		assertErr        require.ErrorAssertionFunc
@@ -158,6 +203,51 @@ func TestCheckClientVersionSupported(t *testing.T) {
 			assertErr:        require.NoError,
 		},
 		{
+			name:          "client too new",
+			clientVersion: "3.0.0",
+			serverVersion: "2.0.0",
+			assertErr:     requireClientTooNew,
+		},
+		{
+			name:             "client too new but skip version check",
+			clientVersion:    "3.0.0",
+			serverVersion:    "2.0.0",
+			skipVersionCheck: true,
+			assertErr:        require.NoError,
+		},
+		{
+			name:          "server same major",
+			clientVersion: "2.5.0",
+			serverVersion: "2.0.0",
+			assertErr:     require.NoError,
+		},
+		{
+			name:          "malformed server version fails open",
+			clientVersion: "3.0.0",
+			serverVersion: "not-a-version",
+			assertErr:     require.NoError,
+		},
+		{
+			// A malformed minimum must not mask a real server-too-old verdict.
+			// The min parse error fails open on its own, but the independent
+			// server check must still be honored.
+			name:             "malformed minimum does not mask client too new",
+			clientVersion:    "3.0.0",
+			minClientVersion: "not-a-version",
+			serverVersion:    "2.0.0",
+			assertErr:        requireClientTooNew,
+		},
+		{
+			// A client-too-old verdict stands even when the server version is
+			// unparseable. The bad server version fails open and must not
+			// suppress the client check.
+			name:             "client too old with malformed server version",
+			clientVersion:    "1.0.0",
+			minClientVersion: "2.0.0",
+			serverVersion:    "not-a-version",
+			assertErr:        requireClientTooOld,
+		},
+		{
 			name:          "find error fails open",
 			clientVersion: "1.0.0",
 			findError:     true,
@@ -173,6 +263,13 @@ func TestCheckClientVersionSupported(t *testing.T) {
 			minClientVersion: "9999.0.0",
 			assertErr:        requireClientTooOld,
 		},
+		{
+			name:             "malformed client version",
+			clientVersion:    "not-a-version",
+			minClientVersion: "2.0.0",
+			serverVersion:    "3.0.0",
+			assertErr:        require.NoError,
+		},
 	}
 
 	for _, tc := range cases {
@@ -187,6 +284,7 @@ func TestCheckClientVersionSupported(t *testing.T) {
 				assert.Equal(t, "/webapi/find", r.URL.Path)
 				assert.NoError(t, json.NewEncoder(w).Encode(webclient.PingResponse{
 					MinClientVersion: tc.minClientVersion,
+					ServerVersion:    tc.serverVersion,
 				}))
 			}))
 			t.Cleanup(srv.Close)
@@ -203,12 +301,12 @@ func TestCheckClientVersionSupported(t *testing.T) {
 	}
 }
 
-// TestJoinFailsFastWhenClientTooOld ensures a confirmed too-old client gets
-// a [ClientTooOldError] back from [Join] itself. If the error were ever classified as
-// a connection error anywhere in the chain, [Join] would instead fall back to
-// the legacy join service, which has no version check and discards the
-// original error.
-func TestJoinFailsFastWhenClientTooOld(t *testing.T) {
+// TestJoinFailsFastWhenClientVersionIncompatible ensures a confirmed too-old
+// or too-new client gets a [ClientTooOldError] or [ClientTooNewError] back
+// from [Join] itself. If the error were ever classified as a connection error
+// anywhere in the chain, [Join] would instead fall back to the legacy join
+// service, which has no version check and discards the original error.
+func TestJoinFailsFastWhenClientVersionIncompatible(t *testing.T) {
 	t.Parallel()
 
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -218,26 +316,47 @@ func TestJoinFailsFastWhenClientTooOld(t *testing.T) {
 		}
 		assert.NoError(t, json.NewEncoder(w).Encode(webclient.PingResponse{
 			MinClientVersion: teleport.MinClientSemVer().String(),
+			ServerVersion:    teleport.Version,
 		}))
 	}))
 	t.Cleanup(srv.Close)
 
-	tooOldVersion := semver.Version{Major: teleport.MinClientSemVer().Major - 1}
-
-	_, err := Join(t.Context(), JoinParams{
-		Token:       "token",
-		ID:          state.IdentityID{Role: types.RoleInstance},
-		ProxyServer: utils.NetAddr{AddrNetwork: "tcp", Addr: strings.TrimPrefix(srv.URL, "https://")},
-		JoinMethod:  types.JoinMethodToken,
-		Insecure:    true,
-		Log:         logtest.NewLogger(),
-		Testing:     JoinTestingParams{TeleportVersion: tooOldVersion.String()},
-		// GetHostCredentials is only reached if the version check error is
-		// misclassified and the legacy fallback engages. This stub makes that
-		// regression fail legibly instead of panicking.
-		GetHostCredentials: func(context.Context, string, bool, types.RegisterUsingTokenRequest) (*proto.Certs, error) {
-			return nil, errors.New("host credentials unavailable")
+	cases := []struct {
+		name          string
+		clientVersion string
+		assertErr     require.ErrorAssertionFunc
+	}{
+		{
+			name:          "client too old",
+			clientVersion: semver.Version{Major: teleport.MinClientSemVer().Major - 1}.String(),
+			assertErr:     requireClientTooOld,
 		},
-	})
-	requireClientTooOld(t, err)
+		{
+			name:          "client too new",
+			clientVersion: semver.Version{Major: teleport.SemVer().Major + 1}.String(),
+			assertErr:     requireClientTooNew,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, err := Join(t.Context(), JoinParams{
+				Token:       "token",
+				ID:          state.IdentityID{Role: types.RoleInstance},
+				ProxyServer: utils.NetAddr{AddrNetwork: "tcp", Addr: strings.TrimPrefix(srv.URL, "https://")},
+				JoinMethod:  types.JoinMethodToken,
+				Insecure:    true,
+				Log:         logtest.NewLogger(),
+				Testing:     JoinTestingParams{TeleportVersion: tc.clientVersion},
+				// GetHostCredentials is only reached if the version check error is
+				// misclassified and the legacy fallback engages. This stub makes that
+				// regression fail legibly instead of panicking.
+				GetHostCredentials: func(context.Context, string, bool, types.RegisterUsingTokenRequest) (*proto.Certs, error) {
+					return nil, errors.New("host credentials unavailable")
+				},
+			})
+			tc.assertErr(t, err)
+		})
+	}
 }
