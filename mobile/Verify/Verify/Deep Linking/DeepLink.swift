@@ -16,7 +16,7 @@
 
 import Foundation
 
-enum DeepLink {
+enum DeepLink: Equatable {
 	case enrollMobileDevice(EnrollMobileDeviceDeepLink)
 
 	init(from url: URL) throws {

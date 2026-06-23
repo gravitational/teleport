@@ -16,7 +16,7 @@
 
 import Foundation
 
-struct EnrollMobileDeviceDeepLink {
+struct EnrollMobileDeviceDeepLink: Equatable {
 	var hostname: String
 	var port: Int? = nil
 	var enrollPairingToken: String
