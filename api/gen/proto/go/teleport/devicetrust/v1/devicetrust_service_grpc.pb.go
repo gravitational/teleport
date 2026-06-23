@@ -48,6 +48,8 @@ const (
 	DeviceTrustService_AuthenticateDevice_FullMethodName             = "/teleport.devicetrust.v1.DeviceTrustService/AuthenticateDevice"
 	DeviceTrustService_ConfirmDeviceWebAuthentication_FullMethodName = "/teleport.devicetrust.v1.DeviceTrustService/ConfirmDeviceWebAuthentication"
 	DeviceTrustService_SyncInventory_FullMethodName                  = "/teleport.devicetrust.v1.DeviceTrustService/SyncInventory"
+	DeviceTrustService_CreateEnrollPairing_FullMethodName            = "/teleport.devicetrust.v1.DeviceTrustService/CreateEnrollPairing"
+	DeviceTrustService_GetCurrentEnrollPairing_FullMethodName        = "/teleport.devicetrust.v1.DeviceTrustService/GetCurrentEnrollPairing"
 )
 
 // DeviceTrustServiceClient is the client API for DeviceTrustService service.
@@ -174,6 +176,21 @@ type DeviceTrustServiceClient interface {
 	// Authorized either by a valid MDM service certificate or the appropriate
 	// "device" permissions (create/update/delete).
 	SyncInventory(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[SyncInventoryRequest, SyncInventoryResponse], error)
+	// CreateEnrollPairing creates an enroll pairing for the calling user. The
+	// returned EnrollPairing carries the pairing token that the Web UI encodes
+	// into a QR code.
+	//
+	// Each user can have only one EnrollPairing at a time. The server overwrites
+	// metadata.name with the caller's username.
+	//
+	// Returns AlreadyExists if an EnrollPairing already exists for the caller.
+	//
+	// Requires the "mobile_device.create_enroll_token" permission.
+	CreateEnrollPairing(ctx context.Context, in *CreateEnrollPairingRequest, opts ...grpc.CallOption) (*CreateEnrollPairingResponse, error)
+	// GetCurrentEnrollPairing returns the EnrollPairing for the calling user.
+	//
+	// Returns NotFound if the caller has no EnrollPairing.
+	GetCurrentEnrollPairing(ctx context.Context, in *GetCurrentEnrollPairingRequest, opts ...grpc.CallOption) (*GetCurrentEnrollPairingResponse, error)
 }
 
 type deviceTrustServiceClient struct {
@@ -333,6 +350,26 @@ func (c *deviceTrustServiceClient) SyncInventory(ctx context.Context, opts ...gr
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type DeviceTrustService_SyncInventoryClient = grpc.BidiStreamingClient[SyncInventoryRequest, SyncInventoryResponse]
 
+func (c *deviceTrustServiceClient) CreateEnrollPairing(ctx context.Context, in *CreateEnrollPairingRequest, opts ...grpc.CallOption) (*CreateEnrollPairingResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateEnrollPairingResponse)
+	err := c.cc.Invoke(ctx, DeviceTrustService_CreateEnrollPairing_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *deviceTrustServiceClient) GetCurrentEnrollPairing(ctx context.Context, in *GetCurrentEnrollPairingRequest, opts ...grpc.CallOption) (*GetCurrentEnrollPairingResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetCurrentEnrollPairingResponse)
+	err := c.cc.Invoke(ctx, DeviceTrustService_GetCurrentEnrollPairing_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // DeviceTrustServiceServer is the server API for DeviceTrustService service.
 // All implementations must embed UnimplementedDeviceTrustServiceServer
 // for forward compatibility.
@@ -457,6 +494,21 @@ type DeviceTrustServiceServer interface {
 	// Authorized either by a valid MDM service certificate or the appropriate
 	// "device" permissions (create/update/delete).
 	SyncInventory(grpc.BidiStreamingServer[SyncInventoryRequest, SyncInventoryResponse]) error
+	// CreateEnrollPairing creates an enroll pairing for the calling user. The
+	// returned EnrollPairing carries the pairing token that the Web UI encodes
+	// into a QR code.
+	//
+	// Each user can have only one EnrollPairing at a time. The server overwrites
+	// metadata.name with the caller's username.
+	//
+	// Returns AlreadyExists if an EnrollPairing already exists for the caller.
+	//
+	// Requires the "mobile_device.create_enroll_token" permission.
+	CreateEnrollPairing(context.Context, *CreateEnrollPairingRequest) (*CreateEnrollPairingResponse, error)
+	// GetCurrentEnrollPairing returns the EnrollPairing for the calling user.
+	//
+	// Returns NotFound if the caller has no EnrollPairing.
+	GetCurrentEnrollPairing(context.Context, *GetCurrentEnrollPairingRequest) (*GetCurrentEnrollPairingResponse, error)
 	mustEmbedUnimplementedDeviceTrustServiceServer()
 }
 
@@ -508,6 +560,12 @@ func (UnimplementedDeviceTrustServiceServer) ConfirmDeviceWebAuthentication(cont
 }
 func (UnimplementedDeviceTrustServiceServer) SyncInventory(grpc.BidiStreamingServer[SyncInventoryRequest, SyncInventoryResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method SyncInventory not implemented")
+}
+func (UnimplementedDeviceTrustServiceServer) CreateEnrollPairing(context.Context, *CreateEnrollPairingRequest) (*CreateEnrollPairingResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateEnrollPairing not implemented")
+}
+func (UnimplementedDeviceTrustServiceServer) GetCurrentEnrollPairing(context.Context, *GetCurrentEnrollPairingRequest) (*GetCurrentEnrollPairingResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetCurrentEnrollPairing not implemented")
 }
 func (UnimplementedDeviceTrustServiceServer) mustEmbedUnimplementedDeviceTrustServiceServer() {}
 func (UnimplementedDeviceTrustServiceServer) testEmbeddedByValue()                            {}
@@ -749,6 +807,42 @@ func _DeviceTrustService_SyncInventory_Handler(srv interface{}, stream grpc.Serv
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type DeviceTrustService_SyncInventoryServer = grpc.BidiStreamingServer[SyncInventoryRequest, SyncInventoryResponse]
 
+func _DeviceTrustService_CreateEnrollPairing_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateEnrollPairingRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DeviceTrustServiceServer).CreateEnrollPairing(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DeviceTrustService_CreateEnrollPairing_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DeviceTrustServiceServer).CreateEnrollPairing(ctx, req.(*CreateEnrollPairingRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DeviceTrustService_GetCurrentEnrollPairing_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetCurrentEnrollPairingRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DeviceTrustServiceServer).GetCurrentEnrollPairing(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DeviceTrustService_GetCurrentEnrollPairing_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DeviceTrustServiceServer).GetCurrentEnrollPairing(ctx, req.(*GetCurrentEnrollPairingRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // DeviceTrustService_ServiceDesc is the grpc.ServiceDesc for DeviceTrustService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -799,6 +893,14 @@ var DeviceTrustService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ConfirmDeviceWebAuthentication",
 			Handler:    _DeviceTrustService_ConfirmDeviceWebAuthentication_Handler,
+		},
+		{
+			MethodName: "CreateEnrollPairing",
+			Handler:    _DeviceTrustService_CreateEnrollPairing_Handler,
+		},
+		{
+			MethodName: "GetCurrentEnrollPairing",
+			Handler:    _DeviceTrustService_GetCurrentEnrollPairing_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

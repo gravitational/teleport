@@ -673,6 +673,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		}
 	}
 
+	if cfg.EnrollPairing == nil {
+		cfg.EnrollPairing, err = local.NewEnrollPairingService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err, "creating EnrollPairingService")
+		}
+	}
+
 	services := &Services{
 		TrustInternal:                   cfg.Trust,
 		PresenceInternal:                cfg.Presence,
@@ -738,6 +745,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		MFAService:                      cfg.MFAService,
 		Beams:                           cfg.Beams,
 		SubCAService:                    cfg.SubCAService,
+		EnrollPairing:                   cfg.EnrollPairing,
 	}
 
 	if cfg.FakePasswordHash == nil {
