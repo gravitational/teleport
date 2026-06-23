@@ -20,8 +20,10 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"log/slog"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -41,6 +43,7 @@ const EnrollPairingExpireDuration = 5 * time.Minute
 type EnrollPairingService struct {
 	service *generic.ServiceWrapper[*devicepb.EnrollPairing]
 	clock   clockwork.Clock
+	log     *slog.Logger
 }
 
 // NewEnrollPairingService returns a new [EnrollPairingService] backed by b.
@@ -59,6 +62,7 @@ func NewEnrollPairingService(b backend.Backend) (*EnrollPairingService, error) {
 	return &EnrollPairingService{
 		clock:   b.Clock(),
 		service: service,
+		log:     slog.With(teleport.ComponentKey, teleport.Component("enrollpairing")),
 	}, nil
 }
 
@@ -108,7 +112,7 @@ func (s *EnrollPairingService) CreateEnrollPairing(ctx context.Context, user str
 	//
 	// [1]: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/TTL.html
 	if _, err := s.service.GetResource(ctx, user); err != nil && !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err, "clearing expired pairing if exists")
+		s.log.WarnContext(ctx, "Failed to clear expired pairing if any", "error", err)
 	}
 
 	pairing, err := s.service.CreateResource(ctx, pairing)
