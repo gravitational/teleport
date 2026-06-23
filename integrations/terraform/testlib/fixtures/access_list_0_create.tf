@@ -3,14 +3,33 @@ resource "teleport_access_list" "test" {
     version = "v1"
     metadata = {
       name = "test"
+      labels = {
+        example = "yes"
+      }
     }
   }
   spec = {
-    title = "Hello"
+    description = "test description"
     owners = [
       {
-        name = "gru"
+        name        = "gru"
+        description = "The supervillain."
       }
     ]
+    membership_requires = {
+      roles = ["minion"]
+    }
+    ownership_requires = {
+      roles = ["supervillain"]
+    }
+    grants = {
+      roles = ["crane-operator"]
+    }
+    title = "Hello"
+    audit = {
+      recurrence = {
+        frequency = 3
+      }
+    }
   }
 }
