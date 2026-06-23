@@ -20,6 +20,7 @@ package resources
 
 import (
 	"bytes"
+	"fmt"
 	"testing"
 	"time"
 
@@ -96,4 +97,70 @@ func TestRoundTripProtoResource153(t *testing.T) {
 	require.NoError(t, decoder.Decode(&raw))
 	_, err = services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateConfig](raw.Raw)
 	require.Error(t, err)
+}
+
+func TestNormalizeAutoUpdateConfigDurations(t *testing.T) {
+	// base is a minimal valid autoupdate_config JSON document. Tests that need
+	// a specific maintenance_window_duration value embed it here.
+	const base = `{"kind":"autoupdate_config","version":"v1","metadata":{"name":"autoupdate-config"},"spec":{"agents":{"mode":"enabled","strategy":"time-based","maintenance_window_duration":%q}}}`
+
+	tests := []struct {
+		name     string
+		input    string
+		wantDur  string // expected value of maintenance_window_duration in output
+		passthru bool   // true when input should be returned unchanged
+	}{
+		{
+			name:    "hour string is converted",
+			input:   fmt.Sprintf(base, "1h"),
+			wantDur: "3600s",
+		},
+		{
+			name:    "minute string is converted",
+			input:   fmt.Sprintf(base, "30m"),
+			wantDur: "1800s",
+		},
+		{
+			name:    "compound duration is converted",
+			input:   fmt.Sprintf(base, "1h30m"),
+			wantDur: "5400s",
+		},
+		{
+			name:    "proto seconds format is preserved",
+			input:   fmt.Sprintf(base, "3600s"),
+			wantDur: "3600s",
+		},
+		{
+			name:     "invalid duration is passed through unchanged",
+			input:    fmt.Sprintf(base, "notaduration"),
+			wantDur:  "notaduration",
+			passthru: true,
+		},
+		{
+			name:     "no agents field is a no-op",
+			input:    `{"kind":"autoupdate_config","version":"v1","spec":{"tools":{"mode":"enabled"}}}`,
+			passthru: true,
+		},
+		{
+			name:     "no duration field is a no-op",
+			input:    `{"kind":"autoupdate_config","version":"v1","spec":{"agents":{"mode":"enabled"}}}`,
+			passthru: true,
+		},
+		{
+			name:     "malformed JSON is passed through unchanged",
+			input:    `not valid json`,
+			passthru: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			out := normalizeAutoUpdateConfigDurations([]byte(tt.input))
+			if tt.passthru {
+				require.Equal(t, tt.input, string(out))
+				return
+			}
+			require.Contains(t, string(out), fmt.Sprintf(`"maintenance_window_duration":%q`, tt.wantDur))
+		})
+	}
 }
