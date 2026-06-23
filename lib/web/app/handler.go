@@ -618,28 +618,26 @@ func HasClientCert(r *http.Request) bool {
 	return r.TLS != nil && len(r.TLS.PeerCertificates) > 0
 }
 
-// certIdentity returns the TLS identity backing a certificate-authenticated
-// request, following the same precedence as [Handler.getAppSession]: the HTTPS
-// tunnel identity first, then a direct client certificate. It returns nil for
-// cookie/browser clients, which don't authenticate with a certificate.
-func certIdentity(r *http.Request) *tlsca.Identity {
-	switch {
-	case IsHTTPSTunnelConn(r):
+// appAuthCertificateIdentities returns certificate-backed identities that
+// participate in app auth for the request. HTTPS-tunneled requests validate the
+// outer tunnel identity and, when present, the inner client cert identity.
+// Cookie/browser clients return no identities.
+func appAuthCertificateIdentities(r *http.Request) []*tlsca.Identity {
+	var identities []*tlsca.Identity
+	if IsHTTPSTunnelConn(r) {
 		identity, err := getIdentityFromHTTPSTunnelRequest(r)
-		if err != nil {
-			return nil
+		if err == nil {
+			identities = append(identities, identity)
 		}
-		return identity
-	case HasClientCert(r):
+	}
+	if HasClientCert(r) {
 		cert := r.TLS.PeerCertificates[0]
 		identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
-		if err != nil {
-			return nil
+		if err == nil {
+			identities = append(identities, identity)
 		}
-		return identity
-	default:
-		return nil
 	}
+	return identities
 }
 
 // connectionCredentialExpired reports whether a certificate-authenticated
@@ -647,11 +645,12 @@ func certIdentity(r *http.Request) *tlsca.Identity {
 // false for cookie/browser clients, which don't authenticate with a
 // certificate.
 func connectionCredentialExpired(r *http.Request, now time.Time) bool {
-	identity := certIdentity(r)
-	if identity == nil {
-		return false
+	for _, identity := range appAuthCertificateIdentities(r) {
+		if identity.Expires.Before(now) {
+			return true
+		}
 	}
-	return identity.Expires.Before(now)
+	return false
 }
 
 // isBrowserRequest reports whether the request originated from a browser.

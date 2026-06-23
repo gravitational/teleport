@@ -1466,15 +1466,38 @@ func makeHTTPSTunnelConnFromAppSession(session types.WebSession, appName string)
 					ClusterName: "test-cluster",
 					PublicAddr:  "app.example.com",
 				},
+				Expires: session.Expiry(),
+			},
+		},
+	}
+}
+
+func makeHTTPSTunnelConnWithExpiry(t *testing.T, publicAddr string, expiry time.Time) *httpsTunnelConn {
+	t.Helper()
+
+	return &httpsTunnelConn{
+		TLSConn: &mockTLSConn{},
+		user: authz.LocalUser{
+			Username: "testuser",
+			Identity: tlsca.Identity{
+				Username:        "testuser",
+				TeleportCluster: "test-cluster",
+				RouteToApp: tlsca.RouteToApp{
+					SessionID:   "test-session-id",
+					Name:        "testapp",
+					ClusterName: "test-cluster",
+					PublicAddr:  publicAddr,
+				},
+				Expires: expiry,
 			},
 		},
 	}
 }
 
 // newClientCertRequest builds a request authenticated with a client certificate
-// for the given user, whose credential expires at notAfter. certIdentity only
-// reads the certificate Subject and NotAfter, so the certificate need not be
-// signed.
+// for the given user, whose credential expires at notAfter.
+// appAuthCertificateIdentities only reads the certificate Subject and NotAfter,
+// so the certificate need not be signed.
 func newClientCertRequest(t *testing.T, publicAddr, username string, notAfter time.Time) *http.Request {
 	t.Helper()
 	subject, err := (&tlsca.Identity{
@@ -1499,18 +1522,36 @@ func TestConnectionCredentialExpired(t *testing.T) {
 
 	t.Run("cookie/browser client has no certificate identity", func(t *testing.T) {
 		r := httptest.NewRequest("GET", "https://"+publicAddr, nil)
-		require.Nil(t, certIdentity(r))
+		require.Empty(t, appAuthCertificateIdentities(r))
 		require.False(t, connectionCredentialExpired(r, now))
 	})
 
 	t.Run("valid certificate is not expired", func(t *testing.T) {
 		r := newClientCertRequest(t, publicAddr, "testuser", now.Add(time.Minute))
-		require.NotNil(t, certIdentity(r))
+		require.Len(t, appAuthCertificateIdentities(r), 1)
 		require.False(t, connectionCredentialExpired(r, now))
 	})
 
 	t.Run("expired certificate is reported expired", func(t *testing.T) {
 		r := newClientCertRequest(t, publicAddr, "testuser", now.Add(-time.Second))
+		require.True(t, connectionCredentialExpired(r, now))
+	})
+
+	t.Run("HTTPS tunnel with valid outer identity and expired inner client cert is expired", func(t *testing.T) {
+		tunnelConn := makeHTTPSTunnelConnWithExpiry(t, publicAddr, now.Add(time.Minute))
+		r := newClientCertRequest(t, publicAddr, "testuser", now.Add(-time.Second))
+		r = r.WithContext(authz.ContextWithConn(r.Context(), tunnelConn))
+
+		require.Len(t, appAuthCertificateIdentities(r), 2)
+		require.True(t, connectionCredentialExpired(r, now))
+	})
+
+	t.Run("HTTPS tunnel with expired outer identity and valid inner client cert is expired", func(t *testing.T) {
+		tunnelConn := makeHTTPSTunnelConnWithExpiry(t, publicAddr, now.Add(-time.Second))
+		r := newClientCertRequest(t, publicAddr, "testuser", now.Add(time.Minute))
+		r = r.WithContext(authz.ContextWithConn(r.Context(), tunnelConn))
+
+		require.Len(t, appAuthCertificateIdentities(r), 2)
 		require.True(t, connectionCredentialExpired(r, now))
 	})
 }
