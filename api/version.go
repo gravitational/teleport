@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "18.9.1"
+const Version = "18.9.0-helm-proxy-lib.carheden.3"
 
 const VersionMajor = 18
 const VersionMinor = 9
-const VersionPatch = 1
-const VersionPreRelease = ""
+const VersionPatch = 0
+const VersionPreRelease = "helm-proxy-lib.carheden.3"
 const VersionMetadata = ""
