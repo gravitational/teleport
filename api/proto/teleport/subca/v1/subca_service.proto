@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package teleport.subca.v1;
 
+import "google/protobuf/field_mask.proto";
 import "teleport/subca/v1/cert_authority_override.proto";
 import "teleport/subca/v1/cert_authority_override_id.proto";
 import "teleport/subca/v1/certificate_override.proto";
@@ -237,6 +238,10 @@ message UpdateCertificateOverrideRequest {
   // mint certificate (see CertAuthoritySpecV2.ActiveKeys and
   // CertAuthoritySpecV2.AdditionalTrustedKeys).
   bool force_immediate_disable = 3;
+
+  // Update mask for the certificate override.
+  // Fields are masked according to their proto name.
+  google.protobuf.FieldMask update_mask = 4;
 }
 
 // Response for UpdateCertificateOverride.
