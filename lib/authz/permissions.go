@@ -825,6 +825,7 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 		UserType:          u.Identity.UserType,
 		OriginClusterName: u.Identity.TeleportCluster,
 		DeviceExtensions:  u.Identity.DeviceExtensions,
+		BeamID:            u.Identity.BeamID,
 	}
 	if checker.PinSourceIP() && identity.PinnedIP == "" {
 		return nil, trace.Wrap(ErrIPPinningMissing)

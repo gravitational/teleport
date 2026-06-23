@@ -242,6 +242,10 @@ type Identity struct {
 	// certificate was created for.
 	DelegationSessionID string
 
+	// BeamID is the identifier of the Beam this certificate was created for,
+	// derived from the delegation session's types.BeamIDLabel label.
+	BeamID string
+
 	// ImmutableLabelHash is the hash of the immutable labels that have been
 	// applied to the identity.
 	ImmutableLabelHash string
@@ -667,6 +671,10 @@ var (
 	// encoding the agent's pinned scope and system roles.
 	AgentScopePinASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 31}
 
+	// BeamIDASN1ExtensionOID is an extension OID that contains the identifier of
+	// the Beam this certificate was created for.
+	BeamIDASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 32}
+
 	// CAClusterNameExtensionOID records the cluster name in a Teleport CA
 	// certificate.
 	//
@@ -1054,6 +1062,14 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			})
 	}
 
+	if id.BeamID != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  BeamIDASN1ExtensionOID,
+				Value: id.BeamID,
+			})
+	}
+
 	if id.UserType != "" {
 		subject.ExtraNames = append(subject.ExtraNames,
 			pkix.AttributeTypeAndValue{
@@ -1436,6 +1452,10 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			if val, ok := attr.Value.(string); ok {
 				id.DelegationSessionID = val
 			}
+		case attr.Type.Equal(BeamIDASN1ExtensionOID):
+			if val, ok := attr.Value.(string); ok {
+				id.BeamID = val
+			}
 		case attr.Type.Equal(AllowedResourcesASN1ExtensionOID):
 			allowedResourcesStr, ok := attr.Value.(string)
 			if ok {
@@ -1584,6 +1604,7 @@ func (id Identity) GetUserMetadata() events.UserMetadata {
 		UserTraits:        id.Traits.Clone(),
 		UserClusterName:   userTeleportCluster,
 		ScopePin:          pinning.ToEventsPin(id.ScopePin),
+		BeamID:            id.BeamID,
 	}
 }
 
