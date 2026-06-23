@@ -163,6 +163,14 @@
       "customProps": { "tag": "new" }
     },
     {
+      "type": "doc",
+      "label": "Beams",
+      "id": "beams",
+      "customProps": {
+        "tag": "new"
+      }
+    },
+    {
       "type": "category",
       "label": "User Guides",
       "collapsible": true,
