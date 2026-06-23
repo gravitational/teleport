@@ -326,14 +326,17 @@ func (r Rule) pathClause() (string, error) {
 		}
 		nodes = append(nodes, node)
 	}
-	// Emit a single path.match. Several patterns OR through one root() node
-	// rather than several path.match calls joined by ||, so the desugared form
-	// always has exactly one path.match and the decode options live on that one
-	// call. A root() that wraps a single child is redundant, so a lone pattern
-	// passes its tree straight through.
-	tree := nodes[0]
-	if len(nodes) > 1 {
-		tree = &Node{kind: kindRoot, children: nodes}
+	// Emit a single path.match. Several patterns merge into one tree that shares
+	// any common prefix, so paths branch only where they diverge and the prefix
+	// is never duplicated. Patterns that share no first segment stay distinct
+	// roots, OR-ed through one root() node, the one place an alternation needs a
+	// synthetic parent. A lone pattern, or several that merge to one root, passes
+	// its tree straight through, since a root() wrapping a single child is
+	// redundant.
+	merged := mergeAlternatives(nodes)
+	tree := merged[0]
+	if len(merged) > 1 {
+		tree = &Node{kind: kindRoot, children: merged}
 	}
 	return fmt.Sprintf("path.match(%s)", nodeToSource(tree)), nil
 }

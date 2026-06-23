@@ -6,9 +6,9 @@ rules:
 rules_desugared:
     - pred: |-
         path.match(
-          root(
-            literal("api/v4/health"),
-            literal("api/v4/status")))
+          literal("api/v4",
+            literal("health"),
+            literal("status")))
 identity:
     name: bob
     roles:

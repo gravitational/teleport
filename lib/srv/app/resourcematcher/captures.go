@@ -147,42 +147,63 @@ func isPathMatch(call *ast.CallExpr) bool {
 	return ok && id.Name == "path"
 }
 
-// capturesIn returns the set of capture names bound anywhere in one matcher
-// alternative subtree. It does not descend into a greedy_except exclusion: an
-// exclusion is a negative test that binds nothing, so a capture written there
-// is discarded at evaluation and must not count as guaranteed.
+// capturesIn returns the capture names bound no matter how one matcher subtree
+// matches. A node binds its own capture, if it is one, plus the captures bound
+// on every one of its children. Several children are alternatives, since the
+// subject takes exactly one of them, so only a capture common to all of them is
+// guaranteed; the children are intersected, and the node's own capture is added
+// on top. A single child is the degenerate case of that intersection, which is
+// why a plain chain accumulates every capture along it.
+//
+// This models both the prefix-merged tree, where sibling literals branch the
+// continuation, and the root() of paths that share no first segment: root()
+// binds no capture itself and intersects its alternatives, falling straight out
+// of the general rule. A greedy_except exclusion binds nothing and is a deny
+// test, not a continuation, so childArgs never returns it and a capture written
+// there never counts.
 func capturesIn(node ast.Node) map[string]bool {
-	// root() children are alternatives, so only a capture bound on every
-	// alternative is guaranteed. The multi-path declarative form now lowers to a
-	// single path.match(root(...)) rather than several path.match calls joined
-	// by ||, so without intersecting here a capture bound on just one
-	// alternative would wrongly read as guaranteed. root() is valid only as the
-	// top matcher node, so the intersection is needed only at this level.
-	if call, ok := node.(*ast.CallExpr); ok && isIdentCall(call, "root") {
-		if len(call.Args) == 0 {
-			return map[string]bool{}
-		}
-		out := capturesIn(call.Args[0])
-		for _, arg := range call.Args[1:] {
-			out = intersectSets(out, capturesIn(arg))
-		}
-		return out
+	call, ok := node.(*ast.CallExpr)
+	if !ok {
+		return map[string]bool{}
 	}
 	out := map[string]bool{}
-	ast.Inspect(node, func(n ast.Node) bool {
-		call, ok := n.(*ast.CallExpr)
-		if !ok {
-			return true
+	if name, ok := captureName(call); ok {
+		out[name] = true
+	}
+	children := childArgs(call)
+	if len(children) == 0 {
+		return out
+	}
+	inter := capturesIn(children[0])
+	for _, child := range children[1:] {
+		inter = intersectSets(inter, capturesIn(child))
+	}
+	return unionSets(out, inter)
+}
+
+// childArgs returns the continuation children of a matcher constructor call,
+// the arguments that are themselves matcher subtrees. Several children are
+// alternatives. It returns nil for a terminal matcher (greedy, slash) and for
+// the exclusion arguments of greedy_except, which are deny tests rather than
+// continuations, so a capture inside one never counts as bound.
+func childArgs(call *ast.CallExpr) []ast.Expr {
+	id, ok := call.Fun.(*ast.Ident)
+	if !ok {
+		return nil
+	}
+	switch id.Name {
+	case "literal", "capture", "glob_encoded", "glob_without":
+		if len(call.Args) > 1 {
+			return call.Args[1:]
 		}
-		if isGreedyExcept(call) {
-			return false
+	case "capture_encoded", "encoded_literal":
+		if len(call.Args) > 2 {
+			return call.Args[2:]
 		}
-		if name, ok := captureName(call); ok {
-			out[name] = true
-		}
-		return true
-	})
-	return out
+	case "glob", "root":
+		return call.Args
+	}
+	return nil
 }
 
 // isGreedyExcept reports whether call is a greedy_except(...) call.

@@ -31,6 +31,7 @@
 package resourcematcher
 
 import (
+	"reflect"
 	"slices"
 	"strings"
 
@@ -534,6 +535,57 @@ func onlyEncodedSlash(token string) bool {
 		}
 	}
 	return true
+}
+
+// mergeAlternatives folds a list of alternative matcher trees into the minimal
+// set that shares common prefixes. Two alternatives whose head node matches the
+// same segment the same way collapse into one node whose children are the
+// merged continuations, so paths that share a prefix branch only where they
+// diverge: "/api/v4/health" and "/api/v4/status" become one "api/v4" chain with
+// "health" and "status" as sibling children, never a root() of two full chains
+// that duplicate the prefix. A terminal alternative never merges into a
+// non-terminal one, since a node cannot both end a match and require a
+// continuation, so "/api" and "/api/v4" stay distinct alternatives. The input
+// trees are freshly compiled per path and unshared, so merging mutates them in
+// place.
+func mergeAlternatives(nodes []*Node) []*Node {
+	var out []*Node
+	for _, n := range nodes {
+		merged := false
+		for _, e := range out {
+			if !mergeableHead(e, n) {
+				continue
+			}
+			// Both non-terminal: merge their continuations. Both terminal: they
+			// are identical alternatives, so dropping n dedupes to the one in out.
+			if len(n.children) > 0 {
+				e.children = mergeAlternatives(append(e.children, n.children...))
+			}
+			merged = true
+			break
+		}
+		if !merged {
+			out = append(out, n)
+		}
+	}
+	return out
+}
+
+// mergeableHead reports whether two alternatives can collapse into one node:
+// they must match the same segment the same way, and both end at this node or
+// both continue past it, since a node cannot be terminal and non-terminal at
+// once.
+func mergeableHead(a, b *Node) bool {
+	return sameHead(a, b) && (len(a.children) == 0) == (len(b.children) == 0)
+}
+
+// sameHead reports whether two nodes match a segment identically, ignoring
+// their children. It compares every field but children, so two literals with
+// the same text, or two globs with the same exclusions, share a head.
+func sameHead(a, b *Node) bool {
+	ah, bh := *a, *b
+	ah.children, bh.children = nil, nil
+	return reflect.DeepEqual(ah, bh)
 }
 
 // Compile parses a declarative path pattern such as
