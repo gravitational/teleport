@@ -113,7 +113,6 @@ var JoinMethods = []JoinMethod{
 	JoinMethodOracle,
 	JoinMethodBoundKeypair,
 	JoinMethodEnv0,
-	JoinMethodGenericOIDC,
 }
 
 func ValidateJoinMethod(method JoinMethod) error {
