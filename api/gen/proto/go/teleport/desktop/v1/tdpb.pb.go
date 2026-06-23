@@ -326,14 +326,15 @@ func (b0 ClientHello_builder) Build() *ClientHello {
 
 // Sent by server in response to a 'Client Hello'. Advertises server capabilities.
 type ServerHello struct {
-	state                    protoimpl.MessageState `protogen:"hybrid.v1"`
-	ActivationSpec           *ConnectionActivated   `protobuf:"bytes,1,opt,name=activation_spec,json=activationSpec,proto3" json:"activation_spec,omitempty"`
-	ClipboardEnabled         bool                   `protobuf:"varint,2,opt,name=clipboard_enabled,json=clipboardEnabled,proto3" json:"clipboard_enabled,omitempty"`
-	DirectoryRemoveSupported bool                   `protobuf:"varint,3,opt,name=directory_remove_supported,json=directoryRemoveSupported,proto3" json:"directory_remove_supported,omitempty"`
-	Sessions                 []*SessionIdentifier   `protobuf:"bytes,4,rep,name=sessions,proto3" json:"sessions,omitempty"`
-	HidpiSupported           bool                   `protobuf:"varint,5,opt,name=hidpi_supported,json=hidpiSupported,proto3" json:"hidpi_supported,omitempty"`
-	unknownFields            protoimpl.UnknownFields
-	sizeCache                protoimpl.SizeCache
+	state                          protoimpl.MessageState `protogen:"hybrid.v1"`
+	ActivationSpec                 *ConnectionActivated   `protobuf:"bytes,1,opt,name=activation_spec,json=activationSpec,proto3" json:"activation_spec,omitempty"`
+	ClipboardEnabled               bool                   `protobuf:"varint,2,opt,name=clipboard_enabled,json=clipboardEnabled,proto3" json:"clipboard_enabled,omitempty"`
+	DirectoryRemoveSupported       bool                   `protobuf:"varint,3,opt,name=directory_remove_supported,json=directoryRemoveSupported,proto3" json:"directory_remove_supported,omitempty"`
+	Sessions                       []*SessionIdentifier   `protobuf:"bytes,4,rep,name=sessions,proto3" json:"sessions,omitempty"`
+	HidpiSupported                 bool                   `protobuf:"varint,5,opt,name=hidpi_supported,json=hidpiSupported,proto3" json:"hidpi_supported,omitempty"`
+	MultidirectorySharingSupported bool                   `protobuf:"varint,6,opt,name=multidirectory_sharing_supported,json=multidirectorySharingSupported,proto3" json:"multidirectory_sharing_supported,omitempty"`
+	unknownFields                  protoimpl.UnknownFields
+	sizeCache                      protoimpl.SizeCache
 }
 
 func (x *ServerHello) Reset() {
@@ -396,6 +397,13 @@ func (x *ServerHello) GetHidpiSupported() bool {
 	return false
 }
 
+func (x *ServerHello) GetMultidirectorySharingSupported() bool {
+	if x != nil {
+		return x.MultidirectorySharingSupported
+	}
+	return false
+}
+
 func (x *ServerHello) SetActivationSpec(v *ConnectionActivated) {
 	x.ActivationSpec = v
 }
@@ -416,6 +424,10 @@ func (x *ServerHello) SetHidpiSupported(v bool) {
 	x.HidpiSupported = v
 }
 
+func (x *ServerHello) SetMultidirectorySharingSupported(v bool) {
+	x.MultidirectorySharingSupported = v
+}
+
 func (x *ServerHello) HasActivationSpec() bool {
 	if x == nil {
 		return false
@@ -430,11 +442,12 @@ func (x *ServerHello) ClearActivationSpec() {
 type ServerHello_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
-	ActivationSpec           *ConnectionActivated
-	ClipboardEnabled         bool
-	DirectoryRemoveSupported bool
-	Sessions                 []*SessionIdentifier
-	HidpiSupported           bool
+	ActivationSpec                 *ConnectionActivated
+	ClipboardEnabled               bool
+	DirectoryRemoveSupported       bool
+	Sessions                       []*SessionIdentifier
+	HidpiSupported                 bool
+	MultidirectorySharingSupported bool
 }
 
 func (b0 ServerHello_builder) Build() *ServerHello {
@@ -446,6 +459,7 @@ func (b0 ServerHello_builder) Build() *ServerHello {
 	x.DirectoryRemoveSupported = b.DirectoryRemoveSupported
 	x.Sessions = b.Sessions
 	x.HidpiSupported = b.HidpiSupported
+	x.MultidirectorySharingSupported = b.MultidirectorySharingSupported
 	return m0
 }
 
@@ -5268,13 +5282,14 @@ const file_teleport_desktop_v1_tdpb_proto_rawDesc = "" +
 	"\busername\x18\x01 \x01(\tR\busername\x12F\n" +
 	"\vscreen_spec\x18\x02 \x01(\v2%.teleport.desktop.v1.ClientScreenSpecR\n" +
 	"screenSpec\x12'\n" +
-	"\x0fkeyboard_layout\x18\x03 \x01(\rR\x0ekeyboardLayout\"\xb8\x02\n" +
+	"\x0fkeyboard_layout\x18\x03 \x01(\rR\x0ekeyboardLayout\"\x82\x03\n" +
 	"\vServerHello\x12Q\n" +
 	"\x0factivation_spec\x18\x01 \x01(\v2(.teleport.desktop.v1.ConnectionActivatedR\x0eactivationSpec\x12+\n" +
 	"\x11clipboard_enabled\x18\x02 \x01(\bR\x10clipboardEnabled\x12<\n" +
 	"\x1adirectory_remove_supported\x18\x03 \x01(\bR\x18directoryRemoveSupported\x12B\n" +
 	"\bsessions\x18\x04 \x03(\v2&.teleport.desktop.v1.SessionIdentifierR\bsessions\x12'\n" +
-	"\x0fhidpi_supported\x18\x05 \x01(\bR\x0ehidpiSupported\"'\n" +
+	"\x0fhidpi_supported\x18\x05 \x01(\bR\x0ehidpiSupported\x12H\n" +
+	" multidirectory_sharing_supported\x18\x06 \x01(\bR\x1emultidirectorySharingSupported\"'\n" +
 	"\x11SessionIdentifier\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\"T\n" +
 	"\x10SessionSelection\x12@\n" +

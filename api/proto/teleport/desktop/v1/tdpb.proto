@@ -39,6 +39,7 @@ message ServerHello {
   bool directory_remove_supported = 3;
   repeated SessionIdentifier sessions = 4;
   bool hidpi_supported = 5;
+  bool multidirectory_sharing_supported = 6;
 }
 
 // Used to identify sessions available to and selected by users

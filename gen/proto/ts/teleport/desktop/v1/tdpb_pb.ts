@@ -77,6 +77,10 @@ export interface ServerHello {
      * @generated from protobuf field: bool hidpi_supported = 5;
      */
     hidpiSupported: boolean;
+    /**
+     * @generated from protobuf field: bool multidirectory_sharing_supported = 6;
+     */
+    multidirectorySharingSupported: boolean;
 }
 /**
  * Used to identify sessions available to and selected by users
@@ -1077,7 +1081,8 @@ class ServerHello$Type extends MessageType<ServerHello> {
             { no: 2, name: "clipboard_enabled", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 3, name: "directory_remove_supported", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 4, name: "sessions", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => SessionIdentifier },
-            { no: 5, name: "hidpi_supported", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+            { no: 5, name: "hidpi_supported", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 6, name: "multidirectory_sharing_supported", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
         ]);
     }
     create(value?: PartialMessage<ServerHello>): ServerHello {
@@ -1086,6 +1091,7 @@ class ServerHello$Type extends MessageType<ServerHello> {
         message.directoryRemoveSupported = false;
         message.sessions = [];
         message.hidpiSupported = false;
+        message.multidirectorySharingSupported = false;
         if (value !== undefined)
             reflectionMergePartial<ServerHello>(this, message, value);
         return message;
@@ -1109,6 +1115,9 @@ class ServerHello$Type extends MessageType<ServerHello> {
                     break;
                 case /* bool hidpi_supported */ 5:
                     message.hidpiSupported = reader.bool();
+                    break;
+                case /* bool multidirectory_sharing_supported */ 6:
+                    message.multidirectorySharingSupported = reader.bool();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1137,6 +1146,9 @@ class ServerHello$Type extends MessageType<ServerHello> {
         /* bool hidpi_supported = 5; */
         if (message.hidpiSupported !== false)
             writer.tag(5, WireType.Varint).bool(message.hidpiSupported);
+        /* bool multidirectory_sharing_supported = 6; */
+        if (message.multidirectorySharingSupported !== false)
+            writer.tag(6, WireType.Varint).bool(message.multidirectorySharingSupported);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
