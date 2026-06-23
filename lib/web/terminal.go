@@ -643,7 +643,7 @@ func newMFACeremony(stream *terminal.WSStream, createAuthenticateChallenge mfa.C
 	}
 }
 
-func newMFACeremonyPerformer(stream *terminal.Stream, mfaClient mfav2.MFAServiceClient, proxyAddr string, targetCluster string) (clientssh.Performer, error) {
+func newMFACeremonyPerformer(stream *terminal.Stream, mfaClient mfav2.MFAServiceClient, proxyAddr string, targetCluster string) (clientssh.MFACeremonyPerformer, error) {
 	// channelID is used by the front end to differentiate between separate ongoing SSO challenges.
 	channelID := uuid.NewString()
 
@@ -929,7 +929,7 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 func (t *sshBaseHandler) generateClientConfig(ctx context.Context, stream *terminal.Stream, tc *client.TeleportClient) apissh.ClientConfig {
 	authCallback := clientssh.AuthCallback(
 		ctx,
-		func() (clientssh.Performer, error) {
+		func() (clientssh.MFACeremonyPerformer, error) {
 			return newMFACeremonyPerformer(
 				stream,
 				t.userAuthClient.MFAServiceClientV2(),

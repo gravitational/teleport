@@ -2098,7 +2098,7 @@ func (tc *TeleportClient) connectToNode(ctx context.Context, clt *ClusterClient,
 	sshConfig := clt.ProxyClient.SSHConfig(user)
 	sshConfig.AuthCallback = clientssh.AuthCallback(
 		connectCtx,
-		func() (clientssh.Performer, error) {
+		func() (clientssh.MFACeremonyPerformer, error) {
 			return tc.PerformSessionMFACeremony, nil
 		},
 	)

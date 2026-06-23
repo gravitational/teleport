@@ -131,7 +131,7 @@ func TestAuthCallback(t *testing.T) {
 
 	for _, tt := range []struct {
 		name             string
-		createPerformer  func() (clientssh.Performer, error)
+		createPerformer  func() (clientssh.MFACeremonyPerformer, error)
 		authCtx          *ssh.ClientAuthContext
 		expectError      error
 		expectNil        bool
@@ -139,7 +139,7 @@ func TestAuthCallback(t *testing.T) {
 	}{
 		{
 			name: "returns keyboard-interactive callback on partial success",
-			createPerformer: func() (clientssh.Performer, error) {
+			createPerformer: func() (clientssh.MFACeremonyPerformer, error) {
 				return func(_ context.Context, _ []byte) (string, error) {
 					return "test-challenge", nil
 				}, nil
@@ -169,7 +169,7 @@ func TestAuthCallback(t *testing.T) {
 		},
 		{
 			name: "performer error propagates",
-			createPerformer: func() (clientssh.Performer, error) {
+			createPerformer: func() (clientssh.MFACeremonyPerformer, error) {
 				return nil, trace.BadParameter("some performer error")
 			},
 			authCtx: &ssh.ClientAuthContext{

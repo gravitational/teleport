@@ -29,16 +29,19 @@ import (
 	sshpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/ssh/v1"
 )
 
-// Performer performs a session-bound MFA ceremony with the user and returns the solved challenge name.
-type Performer func(ctx context.Context, sessionID []byte) (challengeName string, _ error)
+// MFACeremonyPerformer performs a session-bound MFA ceremony with the user and returns the solved challenge name.
+type MFACeremonyPerformer func(ctx context.Context, sessionID []byte) (challengeName string, _ error)
 
-// AuthCallback returns an ssh.ClientAuthCallback that performs in-band MFA via keyboard-interactive when the server
-// responds with partial success after publickey.
-func AuthCallback(ctx context.Context, createPerformer func() (Performer, error)) ssh.ClientAuthCallback {
+// AuthCallback returns an ssh.ClientAuthCallback that dynamically selects an auth method based on the server's response
+// during the handshake. When the server signals partial success for publickey, it offers keyboard-interactive to
+// perform additional auth (e.g., in-band MFA). Return (nil, nil) otherwise to let the client fall back to its default
+// auth methods.
+func AuthCallback(ctx context.Context, createPerformer func() (MFACeremonyPerformer, error)) ssh.ClientAuthCallback {
 	return func(authCtx *ssh.ClientAuthContext) (ssh.AuthMethod, error) {
-		// Teleport uses keyboard-interactive authentication exclusively for in-band MFA. The partial success with
-		// publickey + keyboard-interactive pattern is unique to this flow and will not occur during normal auth. We
-		// offer it only once, skipping if keyboard-interactive has already been tried.
+		// We use keyboard-interactive auth exclusively for when some auth-related data needs to be communicated to the
+		// client and back (e.g., in-band MFA). The partial success with publickey + keyboard-interactive pattern is
+		// unique to this flow and will not occur during normal auth. We offer it only once, skipping if
+		// keyboard-interactive has already been tried.
 		if slices.Contains(authCtx.PartialSuccessMethods, "publickey") &&
 			slices.Contains(authCtx.AllowedMethods, "keyboard-interactive") &&
 			!slices.Contains(authCtx.TriedMethods, "keyboard-interactive") {
@@ -58,7 +61,7 @@ func AuthCallback(ctx context.Context, createPerformer func() (Performer, error)
 
 // KeyboardInteractive returns an ssh.AuthMethod that performs any additional verification requested by the server via
 // the keyboard-interactive authentication method.
-func KeyboardInteractive(ctx context.Context, p Performer, m ssh.ConnMetadata) ssh.AuthMethod {
+func KeyboardInteractive(ctx context.Context, p MFACeremonyPerformer, m ssh.ConnMetadata) ssh.AuthMethod {
 	return ssh.KeyboardInteractive(
 		func(_ string, _ string, questions []string, _ []bool) ([]string, error) {
 			answers := make([]string, 0, len(questions))
@@ -95,7 +98,7 @@ func KeyboardInteractive(ctx context.Context, p Performer, m ssh.ConnMetadata) s
 
 // handleMFAPrompt returns an answer to a keyboard-interactive question requiring MFA by performing a session-bound MFA
 // ceremony with the user. The answer is a JSON-marshaled sshpb.MFAPromptResponse referencing the solved challenge.
-func handleMFAPrompt(ctx context.Context, p Performer, m ssh.ConnMetadata) (string, error) {
+func handleMFAPrompt(ctx context.Context, p MFACeremonyPerformer, m ssh.ConnMetadata) (string, error) {
 	name, err := p(ctx, m.SessionID())
 	if err != nil {
 		return "", trace.Wrap(err)
