@@ -6,8 +6,6 @@
 
 ## 18.9.0 (06/16/26)
 
-Pre-releases of Teleport (versions with suffixes like -alpha, -beta, -rc) should not be run in production environments.
-
 ### Device Bound Session Credentials for App Access
 
 Application access session cookies are now compatible with Google's Device Bound
