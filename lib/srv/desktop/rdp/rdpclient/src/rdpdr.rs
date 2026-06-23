@@ -118,6 +118,15 @@ impl TeleportRdpdrBackend {
         }
     }
 
+    pub fn add_device(&mut self, device_id: u32) -> PduResult<()> {
+        self.fs.add_device(device_id)
+    }
+
+    // It's only safe to remove the device if the result is Ok(true)
+    pub fn remove_device(&mut self, device_id: u32) -> PduResult<bool> {
+        self.fs.tombstone_device(device_id)
+    }
+
     pub fn handle_tdp_sd_info_response(
         &mut self,
         tdp_resp: SharedDirectoryInfoResponse,
