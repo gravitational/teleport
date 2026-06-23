@@ -4186,6 +4186,16 @@ func (a *ScopedServerWithRoles) generateUserCerts(ctx context.Context, req proto
 		}
 	}
 
+	// Read delegation and beam attribution from the unmapped identity. For a
+	// remote (trusted-cluster) caller the role remapping rebuilds a fresh
+	// identity that drops these attribution fields, so the original certificate
+	// values survive only on the unmapped identity. For local/scoped callers the
+	// unmapped identity is identical to the mapped one.
+	attributionIdentity := a.scopedContext.Identity.GetIdentity()
+	if unscoped, ok := a.scopedContext.UnscopedContext(); ok {
+		attributionIdentity = unscoped.UnmappedIdentity.GetIdentity()
+	}
+
 	var appSessionID string
 	var webSessionID string
 	if req.RouteToApp.Name != "" {
@@ -4212,6 +4222,11 @@ func (a *ScopedServerWithRoles) generateUserCerts(ctx context.Context, req proto
 				// through the "web_session" attestation. User's will be required to provide
 				// MFA instead.
 				AttestWebSession: true,
+				// Propagate delegation and beam attribution from the caller's
+				// identity so the app-session cert remains linked to the same
+				// delegation session and beam.
+				DelegationSessionID: attributionIdentity.DelegationSessionID,
+				BeamID:              attributionIdentity.BeamID,
 			},
 			PublicAddr:        req.RouteToApp.PublicAddr,
 			ClusterName:       req.RouteToApp.ClusterName,
@@ -4310,6 +4325,11 @@ func (a *ScopedServerWithRoles) generateUserCerts(ctx context.Context, req proto
 		// identity.
 		JoinAttributes: a.scopedContext.Identity.GetIdentity().JoinAttributes,
 		WebSessionID:   webSessionID,
+		// Propagate delegation and beam attribution from the current identity so
+		// reissued certificates remain attributed to the same delegation session
+		// and beam.
+		DelegationSessionID: attributionIdentity.DelegationSessionID,
+		BeamID:              attributionIdentity.BeamID,
 	}
 
 	if user.GetName() != a.scopedContext.User.GetName() {
@@ -6472,7 +6492,7 @@ func (a *ServerWithRoles) CreateAppSession(ctx context.Context, req *proto.Creat
 		return nil, trace.Wrap(err)
 	}
 
-	session, err := a.authServer.CreateAppSession(ctx, req, a.context.Identity.GetIdentity(), a.context.Checker)
+	session, err := a.authServer.CreateAppSession(ctx, req, a.context.Identity.GetIdentity(), a.context.UnmappedIdentity.GetIdentity(), a.context.Checker)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
