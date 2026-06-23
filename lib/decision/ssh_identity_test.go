@@ -120,6 +120,7 @@ func TestSSHIdentityConversion(t *testing.T) {
 			},
 		}.Build()),
 		DelegationSessionID: "delegation-session",
+		BeamID:              "beam-id",
 	}
 
 	ignores := []string{

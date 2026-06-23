@@ -135,7 +135,7 @@ func withDenyToolsRole(t *testing.T) setupTestContextOptionFunc {
 	return withRole(role)
 }
 
-func makeDualPipeNetConn(t *testing.T) (net.Conn, net.Conn) {
+func makeDualPipeNetConn(t testing.TB) (net.Conn, net.Conn) {
 	t.Helper()
 	clientSourceConn, clientDestConn, err := utils.DualPipeNetConn(
 		utils.MustParseAddr("127.0.0.1:1111"),
@@ -156,7 +156,7 @@ type testContext struct {
 	clientSourceConn net.Conn
 }
 
-func setupTestContext(t *testing.T, applyOpts ...setupTestContextOptionFunc) testContext {
+func setupTestContext(t testing.TB, applyOpts ...setupTestContextOptionFunc) testContext {
 	t.Helper()
 
 	var opts setupTestContextOptions
@@ -204,7 +204,7 @@ func setupTestContext(t *testing.T, applyOpts ...setupTestContextOptionFunc) tes
 	}
 }
 
-func makeTestAuthContext(t *testing.T, user types.User, roleSet services.RoleSet, app types.Application) *authz.Context {
+func makeTestAuthContext(t testing.TB, user types.User, roleSet services.RoleSet, app types.Application) *authz.Context {
 	t.Helper()
 	var err error
 

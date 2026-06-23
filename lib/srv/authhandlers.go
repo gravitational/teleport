@@ -282,6 +282,7 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 		Renewable:                           unmappedIdentity.Renewable,
 		BotName:                             unmappedIdentity.BotName,
 		BotInstanceID:                       unmappedIdentity.BotInstanceID,
+		BeamID:                              unmappedIdentity.BeamID,
 		JoinToken:                           unmappedIdentity.JoinToken,
 		PreviousIdentityExpires:             unmappedIdentity.PreviousIdentityExpires,
 		OriginClusterName:                   certAuthority.GetClusterName(),
@@ -488,6 +489,7 @@ func (h *AuthHandlers) PublicKeyCallback(conn ssh.ConnMetadata, key ssh.PublicKe
 				Login:         principal,
 				User:          ident.Username,
 				TrustedDevice: ident.GetDeviceMetadata(),
+				BeamID:        ident.BeamID,
 			},
 			ConnectionMetadata: apievents.ConnectionMetadata{
 				LocalAddr:  conn.LocalAddr().String(),
