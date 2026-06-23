@@ -114,9 +114,10 @@ type Command struct {
 	gitHubOrgs         string
 	awsicAssignments   string
 
-	// removeAccess, when set, removes all resource-access roles from
-	// access list grants or supporting roles (requester/reviewer).
-	// Only applicable to access list created with an access type.
+	// Removes "access related roles" from an access list created with an access type:
+	// - reviewer/requester role specs get emptied
+	// - for long-term access lists, the members grant gets removed
+	// - for short-term access lists, no grants are changed (but their allow specs gets emptied)
 	removeAccess bool
 
 	// Flags to determine if user set resource access related fields.
@@ -228,8 +229,8 @@ func (c *Command) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags
 	// Access list metadata:
 	c.update.Flag("title", "New display name for the access list.").IsSetByUser(&c.titleSet).StringVar(&c.title)
 	c.update.Flag("description", "New description.").IsSetByUser(&c.descriptionSet).StringVar(&c.description)
-	c.update.Flag("audit-frequency", "Audit recurrence in months (1, 3, 6, or 12).").PlaceHolder("6").IsSetByUser(&c.auditFrequencySet).IntVar(&c.auditFrequency)
-	c.update.Flag("audit-day", "Day of month for audit (1, 15, or 31).").PlaceHolder("1").IsSetByUser(&c.auditDaySet).IntVar(&c.auditDay)
+	c.update.Flag("audit-frequency", "Audit recurrence in months (1, 3, 6, or 12). Changing this resets the next audit date to now + frequency.").PlaceHolder("6").IsSetByUser(&c.auditFrequencySet).IntVar(&c.auditFrequency)
+	c.update.Flag("audit-day", "Day of month for audit (1, 15, or 31). Changing this resets the next audit date to now + frequency.").PlaceHolder("1").IsSetByUser(&c.auditDaySet).IntVar(&c.auditDay)
 	// Access list owners:
 	c.update.Flag("owners", "Replace the user owners with this list of usernames or emails.").PlaceHolder("user1,user2,...").IsSetByUser(&c.ownersSet).StringVar(&c.owners)
 	c.update.Flag("owner-access-lists", "Replace the access-list owners with this list of access list names.").PlaceHolder("name1,name2,...").IsSetByUser(&c.ownerAccessListsSet).StringVar(&c.ownerAccessLists)
@@ -238,8 +239,8 @@ func (c *Command) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags
 	c.update.Flag("owner-required-roles", "Roles a user must already have to be an owner of this access list.").PlaceHolder("role1,role2,...").IsSetByUser(&c.ownerRequiredRolesSet).StringVar(&c.ownerRequiredRoles)
 	c.update.Flag("owner-required-traits", "Traits a user must already have to be an owner of this access list.").PlaceHolder("key=value,...").IsSetByUser(&c.ownerRequiredTraitsSet).StringVar(&c.ownerRequiredTraits)
 	// Access list members:
-	c.update.Flag("members", "Replace the user members with this list of usernames or emails.").PlaceHolder("user1,user2,...").IsSetByUser(&c.membersSet).StringVar(&c.members)
-	c.update.Flag("member-access-lists", "Replace the nested access-list members with this list of access list names.").PlaceHolder("name1,name2,...").IsSetByUser(&c.memberAccessListsSet).StringVar(&c.memberAccessLists)
+	c.update.Flag("members", "Replace the user members with this list of usernames or emails. Not combinable with non-member update flags.").PlaceHolder("user1,user2,...").IsSetByUser(&c.membersSet).StringVar(&c.members)
+	c.update.Flag("member-access-lists", "Replace the nested access-list members with this list of access list names. Not combinable with non-member update flags.").PlaceHolder("name1,name2,...").IsSetByUser(&c.memberAccessListsSet).StringVar(&c.memberAccessLists)
 	c.update.Flag("member-grant-roles", "Roles granted to members of this access list.").PlaceHolder("role1,role2,...").IsSetByUser(&c.memberGrantRolesSet).StringVar(&c.memberGrantRoles)
 	c.update.Flag("member-grant-traits", "Traits granted to members of this access list.").PlaceHolder("key=value,...").IsSetByUser(&c.memberGrantTraitsSet).StringVar(&c.memberGrantTraits)
 	c.update.Flag("member-required-roles", "Roles a user must already have to be a member of this access list.").PlaceHolder("role1,role2,...").IsSetByUser(&c.memberRequiredRolesSet).StringVar(&c.memberRequiredRoles)
@@ -272,8 +273,7 @@ func (c *Command) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags
 	// AWS IC
 	c.update.Flag("aws-ic-assignments", "Selects AWS Identity Center apps members may access by AWS account ID + permission set ARN ('accountID:permissionSetARN' pairs).").PlaceHolder("accountID:permSetARN,...").IsSetByUser(&c.awsicAssignmentsSet).StringVar(&c.awsicAssignments)
 
-	// Removes all resource access from an access list created with an access type:
-	c.update.Flag("remove-access", "Remove all resource-access roles (and their grants) from an access list created with an access type. No-op if the list has none. Cannot be combined with the resource access flags above.").BoolVar(&c.removeAccess)
+	c.update.Flag("remove-access", "Remove resource access from an access-typed list. Detaches the resource-access roles from the list's grants and from the supporting reviewer/requester roles.").BoolVar(&c.removeAccess)
 
 	if c.Stdout == nil {
 		c.Stdout = os.Stdout

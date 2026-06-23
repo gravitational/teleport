@@ -1,20 +1,18 @@
-/*
- * Teleport
- * Copyright (C) 2023  Gravitational, Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+// Teleport
+// Copyright (C) 2026 Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 package accesslist
 
@@ -72,17 +70,6 @@ func buildRole(roleName string, allow types.RoleConditions) (*types.RoleV6, erro
 		return nil, trace.BadParameter("unexpected role type %T", role)
 	}
 	return r, nil
-}
-
-// presetType converts user facing accessType value to the expected backend value.
-func presetType(accessType string) string {
-	switch accessType {
-	case accessTypeLongTerm:
-		return string(accesslist.LongTermPresetType)
-	case accessTypeShortTerm:
-		return string(accesslist.ShortTermPresetType)
-	}
-	return ""
 }
 
 // accessType maps the backend value into the user facing accessType value.

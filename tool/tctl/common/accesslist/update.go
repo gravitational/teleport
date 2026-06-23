@@ -1,27 +1,27 @@
-/*
- * Teleport
- * Copyright (C) 2026  Gravitational, Inc.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+// Teleport
+// Copyright (C) 2026 Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 package accesslist
 
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -39,6 +39,14 @@ import (
 func (c *Command) Update(ctx context.Context, client *authclient.Client) error {
 	if !c.anyUpdateFlagSet() {
 		return trace.BadParameter("no update flags are set")
+	}
+
+	// To avoid non-atomic partial writes, member updates are to be run
+	// separately from updates to access list meta/spec. Combining
+	// both means there will be partial failures where grants may be
+	// unintentionally given b/c member update operation failed.
+	if c.anyMemberUpdateFlagSet() && c.anyNonMemberUpdateFlagSet() {
+		return trace.BadParameter("--members/--member-access-lists replaces membership only; run a separate `tctl acl update` to change access list settings")
 	}
 
 	if c.titleSet && c.title == "" {
@@ -66,54 +74,50 @@ func (c *Command) Update(ctx context.Context, client *authclient.Client) error {
 		}
 	}
 
-	// Apply al metadata/specs
-	if err := c.applySpecFlags(al); err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Apply list of owners
+	var updatedAccessList *accesslist.AccessList
+	var updatedRoles []*types.RoleV6
+	var rolesToDelete []string
 	var removedOwners []string
-	if c.ownersSet || c.ownerAccessListsSet {
-		var updatedOwners []accesslist.Owner
-		updatedOwners, removedOwners = c.buildOwnersForUpdate(al)
-		if len(updatedOwners) == 0 {
-			return trace.BadParameter("an access list must have at least one owner")
-		}
-		al.Spec.Owners = updatedOwners
-	}
-
-	// Apply list of members
-	var updatedMembers []*accesslist.AccessListMember
 	var removedMembers []string
-	membersChanged := c.membersSet || c.memberAccessListsSet
-	if membersChanged {
+
+	switch {
+	case c.anyMemberUpdateFlagSet():
+		// Member-only update: replace the membership list without touching
+		// the access list spec.
+		var updatedMembers []*accesslist.AccessListMember
 		updatedMembers, removedMembers, err = c.buildMembersForUpdate(ctx, client, al.GetName())
 		if err != nil {
 			return trace.Wrap(err)
 		}
-	}
-
-	var updatedAccessList *accesslist.AccessList
-	var updatedRoles []*types.RoleV6
-	var rolesToDelete []string
-
-	if al.IsPreset() && (c.anyAccessFlagsSet() || c.removeAccess) {
-		// Updates al, access roles, and members (if any members)
-		updatedAccessList, updatedRoles, rolesToDelete, err = c.updateAccessListWithPreset(ctx, client, al, updatedMembers, membersChanged)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	} else if membersChanged {
-		// Updates al and members
 		updatedAccessList, _, err = client.AccessListClient().UpsertAccessListWithMembers(ctx, al, updatedMembers)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-	} else {
-		// Metadata only update: don't touch members or access roles (preset).
-		updatedAccessList, err = client.AccessListClient().UpsertAccessList(ctx, al)
-		if err != nil {
+
+	// Access list spec/meta only update:
+	default:
+		if err := c.applySpecFlags(al); err != nil {
 			return trace.Wrap(err)
+		}
+		if c.ownersSet || c.ownerAccessListsSet {
+			var updatedOwners []accesslist.Owner
+			updatedOwners, removedOwners = c.buildOwnersForUpdate(al)
+			if len(updatedOwners) == 0 {
+				return trace.BadParameter("an access list must have at least one owner")
+			}
+			al.Spec.Owners = updatedOwners
+		}
+
+		if al.IsPreset() && (c.anyAccessFlagsSet() || c.removeAccess) {
+			updatedAccessList, updatedRoles, rolesToDelete, err = c.updateAccessListWithPreset(ctx, client, al)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		} else {
+			updatedAccessList, err = client.AccessListClient().UpdateAccessList(ctx, al)
+			if err != nil {
+				return trace.Wrap(err)
+			}
 		}
 	}
 
@@ -153,6 +157,11 @@ func (c *Command) applySpecFlags(al *accesslist.AccessList) error {
 			return trace.Wrap(err)
 		}
 		al.Spec.Audit.Recurrence.DayOfMonth = day
+	}
+	// Zero out NextAuditDate so the backend can re-compute this field
+	// automatically.
+	if c.auditFrequencySet || c.auditDaySet {
+		al.Spec.Audit.NextAuditDate = time.Time{}
 	}
 
 	// Owner grants and requirements
@@ -425,8 +434,8 @@ func (c *Command) buildOwnersForUpdate(al *accesslist.AccessList) ([]accesslist.
 	return newOwners, removedOwners
 }
 
-// updateAccessListWithPreset updates an access list, any related access roles, and members.
-func (c *Command) updateAccessListWithPreset(ctx context.Context, client *authclient.Client, al *accesslist.AccessList, newMembers []*accesslist.AccessListMember, membersChanged bool) (*accesslist.AccessList, []*types.RoleV6, []string, error) {
+// updateAccessListWithPreset updates an access list spec/meta and its related access roles.
+func (c *Command) updateAccessListWithPreset(ctx context.Context, client *authclient.Client, al *accesslist.AccessList) (*accesslist.AccessList, []*types.RoleV6, []string, error) {
 	var updatedAccessRoles []*types.RoleV6
 	if !c.removeAccess {
 		var standardRoleUpdateFn applyAccessFlagsToRole
@@ -456,26 +465,18 @@ func (c *Command) updateAccessListWithPreset(ctx context.Context, client *authcl
 	} // else, no roles appended means "remove these access roles from al grants"
 
 	grpcClient := accesslistv1.NewAccessListServiceClient(client.GetConnection())
-	resp, err := grpcClient.UpdateAccessListWithPreset(ctx, &accesslistv1.UpdateAccessListWithPresetRequest{
+	resp, err := grpcClient.UpdateAccessListWithPreset(ctx, accesslistv1.UpdateAccessListWithPresetRequest_builder{
 		AccessList: conv.ToProto(al),
 		Roles:      updatedAccessRoles,
-	})
+	}.Build())
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}
-	updatedAccessList, err := conv.FromProto(resp.AccessList)
+	updatedAcl, err := conv.FromProto(resp.GetAccessList())
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}
-
-	finalAccessList := updatedAccessList
-	if membersChanged {
-		finalAccessList, _, err = client.AccessListClient().UpsertAccessListWithMembers(ctx, updatedAccessList, newMembers)
-		if err != nil {
-			return nil, nil, nil, trace.Wrap(err)
-		}
-	}
-	return finalAccessList, resp.GetRoles(), resp.GetRolesToBeDeleted(), nil
+	return updatedAcl, resp.GetRoles(), resp.GetRolesToBeDeleted(), nil
 }
 
 // printUpdateText renders the human-readable summary of an update.
@@ -501,10 +502,13 @@ func (c *Command) printUpdateText(r UpdateJSONResponse) {
 	c.printRolesToBeDeleted(r.RolesToDelete)
 }
 
-// resolveAccessRole first queries for any existing role by "prefix" and return either:
-// - an existing role regardless if changes are needed (if changes, it will be applied)
-// - a new role resource with any changes applied if no role exist
-// - nil if no role exists and no changes need to be applied
+// resolveAccessRole returns the access role to send for upsert. A role is
+// "attached" when it exists and is listed in al.PresetRoleNames(); "not
+// attached" covers both missing roles and roles not currently referenced
+// by the access list.
+// - attached: return existing role (with updates applied if requested)
+// - not attached + updates requested: return a fresh role with updates applied
+// - not attached + no updates: return nil
 func resolveAccessRole(ctx context.Context, client *authclient.Client, al *accesslist.AccessList, prefix string, applyUpdates applyAccessFlagsToRole) (*types.RoleV6, error) {
 	roleName := accesslist.RoleName(prefix, al.GetName())
 	role, err := getAccessRoleByName(ctx, client, roleName)
@@ -513,25 +517,26 @@ func resolveAccessRole(ctx context.Context, client *authclient.Client, al *acces
 	}
 	roleExists := err == nil
 
-	// Role doesn't exist, and no role building is required.
-	if !roleExists && applyUpdates == nil {
+	// If an update is required and this existing role is attached to the list already,
+	// update the existing role, else assume a fresh role.
+	isAttachedToList := roleExists && slices.Contains(al.PresetRoleNames(), roleName)
+
+	if applyUpdates == nil {
+		if isAttachedToList {
+			return role, nil
+		}
 		return nil, nil
 	}
 
-	// Role doesn't exist, but role building is required.
-	if !roleExists {
+	if !isAttachedToList {
 		role, err = buildRole(prefix, types.RoleConditions{})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
-
-	if applyUpdates != nil {
-		if err := applyUpdates(&role.Spec.Allow); err != nil {
-			return nil, trace.Wrap(err)
-		}
+	if err := applyUpdates(&role.Spec.Allow); err != nil {
+		return nil, trace.Wrap(err)
 	}
-
 	return role, nil
 }
 
