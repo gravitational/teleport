@@ -118,7 +118,8 @@ func (s *Server) DeleteScopedToken(ctx context.Context, req *scopedjoiningv1.Del
 
 	// fetch the token so we can determine the resource scope
 	preAuthzRes, err := s.backend.GetScopedToken(ctx, scopedjoiningv1.GetScopedTokenRequest_builder{
-		Name: req.GetName(),
+		Name:  req.GetName(),
+		Scope: req.GetScope(),
 	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -295,7 +296,8 @@ func (s *Server) UpdateScopedToken(ctx context.Context, req *scopedjoiningv1.Upd
 	}
 
 	extant, err := s.backend.GetScopedToken(ctx, scopedjoiningv1.GetScopedTokenRequest_builder{
-		Name: req.GetToken().GetMetadata().GetName(),
+		Name:  req.GetToken().GetMetadata().GetName(),
+		Scope: req.GetToken().GetScope(),
 	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)

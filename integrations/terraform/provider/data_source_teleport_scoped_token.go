@@ -58,8 +58,14 @@ func (r dataSourceTeleportScopedToken) Read(ctx context.Context, req tfsdk.ReadD
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	var scope types.String
+	diags = req.Config.GetAttribute(ctx, path.Root("scope"), &scope)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
-	scopedTokenI, err := r.p.Client.GetScopedToken(ctx, id.Value, true)
+	scopedTokenI, err := r.p.Client.GetScopedToken(ctx, id.Value, scope.Value, true)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading ScopedToken", trace.Wrap(err), "scoped_token"))
 		return

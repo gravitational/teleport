@@ -62,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/terraformcloud"
 	"github.com/gravitational/teleport/lib/jwt"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/tpm"
 	"github.com/gravitational/teleport/lib/utils"
@@ -318,6 +319,13 @@ func Register(ctx context.Context, params RegisterParams) (result *RegisterResul
 	// on disk.
 	token, err := utils.TryReadValueAsFile(params.Token)
 	if err != nil {
+		// A scoped token with a Scope Qualified Name looks like a file path
+		// and will result in file not found errors. If the provided token is
+		// a SQN, then the request is rejected. Scoped tokens can only be used
+		// in the new join service.
+		if _, err := scopes.ParseQualifiedName(params.Token); err == nil {
+			return nil, trace.AccessDenied("token expired or not found")
+		}
 		return nil, trace.Wrap(err)
 	}
 

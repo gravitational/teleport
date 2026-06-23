@@ -142,6 +142,7 @@ type payload struct {
 	// not specify one in the resource config. The user-provided sub_kind (on
 	// the resource or in state) takes precedence; this is only a fallback.
 	DefaultSubKind string
+	Scoped         bool
 }
 
 // statePoll configures polling for state changes when creating or updating resources.
@@ -1151,6 +1152,7 @@ var (
 		IsPlainStruct:         true,
 		ExtraImports:          []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
 		ForceSetKind:          "apitypes.KindScopedToken",
+		Scoped:                true,
 	}
 
 	workloadCluster = payload{

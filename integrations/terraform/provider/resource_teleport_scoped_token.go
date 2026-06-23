@@ -30,6 +30,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/gravitational/teleport/lib/scopes"
 
 	schemav1 "github.com/gravitational/teleport/integrations/terraform/tfschema/scopes/joining/v1"
 )
@@ -81,8 +82,9 @@ func (r resourceTeleportScopedToken) Create(ctx context.Context, req tfsdk.Creat
 	scopedTokenResource.Kind = apitypes.KindScopedToken
 
 	id := scopedTokenResource.Metadata.Name
+	scope := scopedTokenResource.GetScope()
 
-	_, err = r.p.Client.GetScopedToken(ctx, id, true)
+	_, err = r.p.Client.GetScopedToken(ctx, id, scope, true)
 	if !trace.IsNotFound(err) {
 		if err == nil {
 			existErr := fmt.Sprintf("ScopedToken exists in Teleport. Either remove it (tctl rm scoped_token/%v)"+
@@ -115,7 +117,7 @@ func (r resourceTeleportScopedToken) Create(ctx context.Context, req tfsdk.Creat
 	}
 	for {
 		tries = tries + 1
-		scopedTokenI, err = r.p.Client.GetScopedToken(ctx, id, true)
+		scopedTokenI, err = r.p.Client.GetScopedToken(ctx, id, scope, true)
 		if trace.IsNotFound(err) {
 		    select {
 			case <-ctx.Done():
@@ -172,8 +174,14 @@ func (r resourceTeleportScopedToken) Read(ctx context.Context, req tfsdk.ReadRes
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	var scope types.String
+	diags = req.State.GetAttribute(ctx, path.Root("scope"), &scope)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
-	scopedTokenI, err := r.p.Client.GetScopedToken(ctx, id.Value, true)
+	scopedTokenI, err := r.p.Client.GetScopedToken(ctx, id.Value, scope.Value, true)
 	if trace.IsNotFound(err) {
 		resp.State.RemoveResource(ctx)
 		return
@@ -223,8 +231,9 @@ func (r resourceTeleportScopedToken) Update(ctx context.Context, req tfsdk.Updat
 
 	
 	name := scopedTokenResource.Metadata.Name
+	scope := scopedTokenResource.GetScope()
 
-	scopedTokenBefore, err := r.p.Client.GetScopedToken(ctx, name, true)
+	scopedTokenBefore, err := r.p.Client.GetScopedToken(ctx, name, scope, true)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading ScopedToken", err, "scoped_token"))
 		return
@@ -249,7 +258,7 @@ func (r resourceTeleportScopedToken) Update(ctx context.Context, req tfsdk.Updat
 	}
 	for {
 		tries = tries + 1
-		scopedTokenI, err = r.p.Client.GetScopedToken(ctx, name, true)
+		scopedTokenI, err = r.p.Client.GetScopedToken(ctx, name, scope, true)
 		if err != nil {
 			resp.Diagnostics.Append(diagFromWrappedErr("Error reading ScopedToken", err, "scoped_token"))
 			return
@@ -294,8 +303,14 @@ func (r resourceTeleportScopedToken) Delete(ctx context.Context, req tfsdk.Delet
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	var scope types.String
+	diags = req.State.GetAttribute(ctx, path.Root("scope"), &scope)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
-	err := r.p.Client.DeleteScopedToken(ctx, id.Value)
+	err := r.p.Client.DeleteScopedToken(ctx, id.Value, scope.Value)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error deleting ScopedToken", trace.Wrap(err), "scoped_token"))
 		return
@@ -306,7 +321,12 @@ func (r resourceTeleportScopedToken) Delete(ctx context.Context, req tfsdk.Delet
 
 // ImportState imports ScopedToken state
 func (r resourceTeleportScopedToken) ImportState(ctx context.Context, req tfsdk.ImportResourceStateRequest, resp *tfsdk.ImportResourceStateResponse) {
-	scopedToken, err := r.p.Client.GetScopedToken(ctx, req.ID, true)
+	qn, err := scopes.ParseQualifiedName(req.ID)
+	if err != nil {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error parsing ScopedToken ID", trace.Wrap(err), "scoped_token"))
+		return
+	}
+	scopedToken, err := r.p.Client.GetScopedToken(ctx, qn.Name, qn.Scope, true)
 	if err != nil {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading ScopedToken", trace.Wrap(err), "scoped_token"))
 		return

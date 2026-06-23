@@ -58,6 +58,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/jointest"
 	"github.com/gravitational/teleport/lib/join/joinutils"
 	"github.com/gravitational/teleport/lib/join/oraclejoin"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -360,7 +361,7 @@ func TestJoinOracle(t *testing.T) {
 			scopedToken, err := jointest.ScopedTokenFromProvisionTokenSpec(spec, joiningv1.ScopedToken_builder{
 				Scope: "/test",
 				Metadata: headerv1.Metadata_builder{
-					Name: "scoped_" + token.GetName(),
+					Name: token.GetName(),
 				}.Build(),
 				Spec: joiningv1.ScopedTokenSpec_builder{
 					AssignedScope: "/test/one",
@@ -374,7 +375,8 @@ func TestJoinOracle(t *testing.T) {
 			require.NoError(t, err)
 			t.Cleanup(func() {
 				_, err := server.Auth().DeleteScopedToken(t.Context(), joiningv1.DeleteScopedTokenRequest_builder{
-					Name: scopedToken.GetMetadata().GetName(),
+					Name:  scopedToken.GetMetadata().GetName(),
+					Scope: scopedToken.GetScope(),
 				}.Build())
 				require.NoError(t, err)
 			})
@@ -393,7 +395,8 @@ func TestJoinOracle(t *testing.T) {
 
 			t.Run("scoped", func(t *testing.T) {
 				_, err = joinclient.Join(t.Context(), joinclient.JoinParams{
-					Token: "scoped_" + tc.requestTokenName,
+					Token:       scopes.QualifiedName{Scope: scopedToken.GetScope(), Name: tc.requestTokenName}.String(),
+					TokenSecret: scopedToken.GetStatus().GetSecret(),
 					ID: state.IdentityID{
 						Role: types.RoleInstance,
 					},

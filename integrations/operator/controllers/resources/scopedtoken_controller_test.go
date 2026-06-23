@@ -80,11 +80,11 @@ func (g *scopedTokenTestingPrimitives) CreateTeleportResource(ctx context.Contex
 }
 
 func (g *scopedTokenTestingPrimitives) GetTeleportResource(ctx context.Context, name string) (*tokenv1.ScopedToken, error) {
-	return g.setup.TeleportClient.GetScopedToken(ctx, name, true)
+	return g.setup.TeleportClient.GetScopedToken(ctx, name, "/staging", true)
 }
 
 func (g *scopedTokenTestingPrimitives) DeleteTeleportResource(ctx context.Context, name string) error {
-	return trace.Wrap(g.setup.TeleportClient.DeleteScopedToken(ctx, name))
+	return trace.Wrap(g.setup.TeleportClient.DeleteScopedToken(ctx, name, "/staging", ))
 }
 
 func (g *scopedTokenTestingPrimitives) CreateKubernetesResource(ctx context.Context, name string) error {

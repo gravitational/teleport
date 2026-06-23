@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/iamjoin"
 	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/join/jointest"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -869,7 +870,7 @@ func testIAMJoin(t *testing.T, tc *iamJoinTestCase) {
 	scopedToken, err := jointest.ScopedTokenFromProvisionTokenSpec(tc.tokenSpec, joiningv1.ScopedToken_builder{
 		Scope: "/test",
 		Metadata: headerv1.Metadata_builder{
-			Name: "scoped_" + token.GetName(),
+			Name: token.GetName(),
 		}.Build(),
 		Spec: joiningv1.ScopedTokenSpec_builder{
 			AssignedScope: "/test/one",
@@ -884,7 +885,8 @@ func testIAMJoin(t *testing.T, tc *iamJoinTestCase) {
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_, err := tc.authServer.Auth().DeleteScopedToken(t.Context(), joiningv1.DeleteScopedTokenRequest_builder{
-			Name: scopedToken.GetMetadata().GetName(),
+			Name:  scopedToken.GetMetadata().GetName(),
+			Scope: scopedToken.GetScope(),
 		}.Build())
 		require.NoError(t, err)
 	})
@@ -980,7 +982,8 @@ func testIAMJoin(t *testing.T, tc *iamJoinTestCase) {
 	})
 	t.Run("scoped", func(t *testing.T) {
 		_, err := joinclient.Join(ctx, joinclient.JoinParams{
-			Token: "scoped_" + tc.requestTokenName,
+			Token:       scopes.QualifiedName{Scope: scopedToken.GetScope(), Name: tc.requestTokenName}.String(),
+			TokenSecret: scopedToken.GetStatus().GetSecret(),
 			ID: state.IdentityID{
 				Role:     types.RoleInstance,
 				NodeName: "test-node",
@@ -1018,7 +1021,7 @@ func testIAMJoin(t *testing.T, tc *iamJoinTestCase) {
 					Role:      "Instance",
 					Method:    "iam",
 					NodeName:  "test-node",
-					TokenName: "scoped_test-token",
+					TokenName: "test-token",
 				},
 				evt,
 				protocmp.Transform(),

@@ -149,7 +149,7 @@ endif
 		--plugin=$(PROTOC_GEN_TERRAFORM) \
 		--terraform_out=config=protoc-gen-terraform-discoveryconfig.yaml:./tfschema \
 		teleport/discoveryconfig/v1/discoveryconfig.proto
-	
+
 	@protoc \
 		-I=../../api/proto \
 		-I=$(PROTOBUF_MOD_PATH) \
@@ -280,15 +280,15 @@ test-ent: testlib/plugin_ent_test.go test
 
 .PHONY: apply
 apply: install
-	terraform -chdir=$(TFDIR) init && terraform -chdir=$(TFDIR) apply -auto-approve
+	tofu -chdir=$(TFDIR) init && tofu -chdir=$(TFDIR) apply -auto-approve
 
 .PHONY: reapply
 reapply:
-	terraform -chdir=$(TFDIR) apply
+	tofu -chdir=$(TFDIR) apply
 
 .PHONY: destroy
 destroy:
-	terraform -chdir=$(TFDIR) destroy -auto-approve
+	tofu -chdir=$(TFDIR) destroy -auto-approve
 
 .PHONY: lint
 lint:
@@ -296,7 +296,7 @@ lint:
 
 .PHONY: fmt
 fmt:
-	terraform fmt -no-color -recursive
+	tofu fmt -no-color -recursive
 
 .PHONY: docs
 docs: gen-tfschema install fmt

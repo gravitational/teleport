@@ -38,12 +38,12 @@ func (s *scopedTokenClient) Create(ctx context.Context, token *tokenv1.ScopedTok
 	return trace.Wrap(err)
 }
 
-func (s *scopedTokenClient) Delete(ctx context.Context, name string) error {
-	return s.teleportClient.DeleteScopedToken(ctx, name)
+func (s *scopedTokenClient) Delete(ctx context.Context, name, scope string) error {
+	return s.teleportClient.DeleteScopedToken(ctx, name, scope)
 }
 
-func (s *scopedTokenClient) Get(ctx context.Context, name string) (*tokenv1.ScopedToken, error) {
-	return s.teleportClient.GetScopedToken(ctx, name, false)
+func (s *scopedTokenClient) Get(ctx context.Context, name, scope string) (*tokenv1.ScopedToken, error) {
+	return s.teleportClient.GetScopedToken(ctx, name, scope, false)
 }
 
 func (s *scopedTokenClient) Update(ctx context.Context, token *tokenv1.ScopedToken) error {
@@ -52,7 +52,7 @@ func (s *scopedTokenClient) Update(ctx context.Context, token *tokenv1.ScopedTok
 }
 
 func NewScopedTokenV1Reconciler(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
-	return reconcilers.NewTeleportResource153Reconciler[*tokenv1.ScopedToken, *resourcesv1.TeleportScopedTokenV1](
+	return reconcilers.NewTeleportScopedResource153Reconciler[*tokenv1.ScopedToken, *resourcesv1.TeleportScopedTokenV1](
 		client,
 		&scopedTokenClient{
 			teleportClient: tClient,

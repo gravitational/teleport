@@ -749,7 +749,7 @@ func testEditScopedToken(t *testing.T, clt *authclient.Client) {
 	_, err = runEditCommand(t, clt, []string{"edit", types.KindScopedToken, "/staging::" + created.GetMetadata().GetName()}, withEditor(editor))
 	require.NoError(t, err)
 
-	actual, err := clt.GetScopedToken(ctx, created.GetMetadata().GetName(), true)
+	actual, err := clt.GetScopedToken(ctx, created.GetMetadata().GetName(), created.GetScope(), true)
 	require.NoError(t, err)
 	require.Equal(t, "test", actual.GetMetadata().GetLabels()["env"])
 

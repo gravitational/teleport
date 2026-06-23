@@ -6140,18 +6140,20 @@ func (c *Client) ListScopedTokens(ctx context.Context, req *joiningv1.ListScoped
 	return res, trace.Wrap(err)
 }
 
-func (c *Client) GetScopedToken(ctx context.Context, name string, withSecret bool) (*joiningv1.ScopedToken, error) {
+func (c *Client) GetScopedToken(ctx context.Context, name, scope string, withSecret bool) (*joiningv1.ScopedToken, error) {
 	res, err := c.grpc.GetScopedToken(ctx, &joiningv1.GetScopedTokenRequest{
 		Name:       name,
+		Scope:      scope,
 		WithSecret: withSecret,
 	})
 	return res.GetToken(), trace.Wrap(err)
 }
 
 // DeleteScopedToken deletes an existing scoped token.
-func (c *Client) DeleteScopedToken(ctx context.Context, name string) error {
+func (c *Client) DeleteScopedToken(ctx context.Context, name, scope string) error {
 	_, err := c.grpc.DeleteScopedToken(ctx, &joiningv1.DeleteScopedTokenRequest{
-		Name: name,
+		Name:  name,
+		Scope: scope,
 	})
 	return trace.Wrap(err)
 }

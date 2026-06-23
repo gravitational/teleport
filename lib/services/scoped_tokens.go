@@ -20,6 +20,7 @@ import (
 	"context"
 
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
+	"github.com/gravitational/teleport/lib/scopes"
 )
 
 // ScopedTokenService handles CRUD operations for the ScopedToken resource.
@@ -55,7 +56,7 @@ type ScopedTokenService interface {
 	// update fails due to a revision comparison failure.
 	PatchScopedToken(
 		ctx context.Context,
-		tokenName string,
+		tokenName scopes.QualifiedName,
 		updateFn func(*joiningv1.ScopedToken) (*joiningv1.ScopedToken, error),
 	) (*joiningv1.ScopedToken, error)
 }

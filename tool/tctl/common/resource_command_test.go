@@ -823,7 +823,7 @@ spec:
 	// to provide hints as namespacing may prevent it.
 	_, err = runResourceCommand(t, clt, []string{"get", "scoped_token", "/other-scope::gcp-test-token", "--format=json"})
 	require.True(t, trace.IsNotFound(err), "expected NotFound for scope mismatch, got: %v", err)
-	require.ErrorContains(t, err, "tctl get scoped_token /::gcp-test-token")
+	require.ErrorContains(t, err, `scoped_token "gcp-test-token" doesn't exist`)
 }
 
 // TestScopedAndUnscopedNodeResource exercises tctl get/rm on nodes which are double
