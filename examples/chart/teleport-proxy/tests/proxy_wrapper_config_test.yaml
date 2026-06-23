@@ -122,15 +122,23 @@ tests:
           pattern: 'token_name: teleport-proxy'
 
   - it: fails when join_params.method is empty
-    values:
-      - ../.lint/join-params-empty-method.yaml
+    set:
+      clusterName: teleport.example.com
+      auth_server: teleport-auth.example.com
+      join_params:
+        method: ""
+        token_name: teleport-proxy
     asserts:
       - failedTemplate:
           errorMessage: "join_params.method is required"
 
   - it: fails when join_params.token_name is empty
-    values:
-      - ../.lint/join-params-empty-token-name.yaml
+    set:
+      clusterName: teleport.example.com
+      auth_server: teleport-auth.example.com
+      join_params:
+        method: kubernetes
+        token_name: ""
     asserts:
       - failedTemplate:
           errorMessage: "join_params.token_name is required"
