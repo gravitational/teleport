@@ -476,6 +476,9 @@ type InitConfig struct {
 
 	// ScopesFeatures dictate which scoped components are enabled.
 	ScopesFeatures scopes.Features
+
+	// EnrollPairing manages mobile device enrollment pairings.
+	EnrollPairing services.EnrollPairing
 }
 
 // Init instantiates and configures an instance of AuthServer
