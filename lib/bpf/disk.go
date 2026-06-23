@@ -78,9 +78,9 @@ func startOpen(bufferSize int) (*open, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// The disk eBPF program hooks do_filp_open by default, but it was
-	// renamed to do_file_open in 7.0. Check if do_filp_open is available,
-	// don't rely on the kernel version.
+	// The disk eBPF program hooks do_file_open by default, which was
+	// renamed from do_filp_open in 7.0. Check if do_file_open is available
+	// and use do_filp_open otherwise; don't rely on the kernel version.
 	attachTarget, err := findOpenAttachTarget()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -92,9 +92,9 @@ func startOpen(bufferSize int) (*open, error) {
 		return nil, trace.Wrap(err, "reading disk objects")
 	}
 
-	p, ok := spec.Programs["do_filp_open_exit"]
+	p, ok := spec.Programs["do_file_open_exit"]
 	if !ok {
-		return nil, trace.NotFound("do_filp_open_exit not found in disk objects")
+		return nil, trace.NotFound("do_file_open_exit not found in disk objects")
 	}
 	p.AttachTo = attachTarget
 
@@ -117,7 +117,7 @@ func startOpen(bufferSize int) (*open, error) {
 			attachType: ebpf.AttachTraceFEntry,
 		},
 		{
-			prog:       objs.DoFilpOpenExit,
+			prog:       objs.DoFileOpenExit,
 			attachType: ebpf.AttachTraceFExit,
 		},
 	}
@@ -156,7 +156,7 @@ func findOpenAttachTarget() (string, error) {
 		return "", trace.Wrap(err, "loading kernel BTF spec")
 	}
 
-	for _, target := range []string{doFilpOpenName, doFileOpenName} {
+	for _, target := range []string{doFileOpenName, doFilpOpenName} {
 		var fn *btf.Func
 		if err := kspec.TypeByName(target, &fn); err != nil {
 			if errors.Is(err, btf.ErrNotFound) {
@@ -168,7 +168,7 @@ func findOpenAttachTarget() (string, error) {
 		return target, nil
 	}
 
-	return "", trace.NotFound("do_filp_open and do_file_open not found in kernel BTF spec")
+	return "", trace.NotFound("do_file_open and do_filp_open not found in kernel BTF spec")
 }
 
 func (o *open) startSession(auditSessionID uint32) error {
