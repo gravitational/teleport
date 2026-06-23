@@ -2346,12 +2346,21 @@ type GenericOIDC_builder struct {
 	Issuer string
 	// If set, disables the requirement that the issuer must use HTTPS.
 	InsecureAllowHttpIssuer bool
-	// The expected JWT audience. If unset, this value will be set to the name of
-	// this Teleport cluster (e.g. example.teleport.sh). Where possible, this
-	// value should be unique to the Teleport cluster; issuing JWTs using the
-	// cluster as the audience is preferred. On providers where this is not
-	// possible, you can specify their server-defined value in this field. This
-	// value must match the audience in issued JWTs for join attempts to succeed.
+	// The expected JWT audience value (required). This must match or be included
+	// in the list of `aud` values in the JWT provided by the client when joining.
+	//
+	// For providers that do not allow you to configure this value yourself (this
+	// is technically an OIDC spec violation, but is common), use the value they
+	// provide. Otherwise, we recommend using a value that uniquely identifies the
+	// Teleport cluster and join token. For example, you can use this scheme:
+	//
+	//	$clusterName/$tokenName
+	//
+	// For a cluster named `example.teleport.sh` and a token named `example`, this
+	// would result in an audience of `example.teleport.sh/example`. If you
+	// prefer, you can also use a UUID instead of the token name. Note that you
+	// will need to configure the matching value with the issuer, usually at
+	// request time.
 	Audience string
 	// An optional static JWKS value that can be used to specify JWKS keys when
 	// either OIDC discovery is either not supported by the provider or the
@@ -3689,9 +3698,12 @@ func (b0 GenericOIDC_ConditionNotIn_builder) Build() *GenericOIDC_ConditionNotIn
 
 // An allow rule condition for simple checks against a specific field.
 type GenericOIDC_Condition struct {
-	state                protoimpl.MessageState           `protogen:"opaque.v1"`
-	xxx_hidden_Attribute string                           `protobuf:"bytes,1,opt,name=attribute,proto3"`
-	xxx_hidden_Operator  isGenericOIDC_Condition_Operator `protobuf_oneof:"operator"`
+	state                protoimpl.MessageState      `protogen:"opaque.v1"`
+	xxx_hidden_Attribute string                      `protobuf:"bytes,1,opt,name=attribute,proto3"`
+	xxx_hidden_Eq        *GenericOIDC_ConditionEq    `protobuf:"bytes,2,opt,name=eq,proto3"`
+	xxx_hidden_NotEq     *GenericOIDC_ConditionNotEq `protobuf:"bytes,3,opt,name=not_eq,json=notEq,proto3"`
+	xxx_hidden_In        *GenericOIDC_ConditionIn    `protobuf:"bytes,4,opt,name=in,proto3"`
+	xxx_hidden_NotIn     *GenericOIDC_ConditionNotIn `protobuf:"bytes,5,opt,name=not_in,json=notIn,proto3"`
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache
 }
@@ -3730,36 +3742,28 @@ func (x *GenericOIDC_Condition) GetAttribute() string {
 
 func (x *GenericOIDC_Condition) GetEq() *GenericOIDC_ConditionEq {
 	if x != nil {
-		if x, ok := x.xxx_hidden_Operator.(*genericOIDC_Condition_Eq); ok {
-			return x.Eq
-		}
+		return x.xxx_hidden_Eq
 	}
 	return nil
 }
 
 func (x *GenericOIDC_Condition) GetNotEq() *GenericOIDC_ConditionNotEq {
 	if x != nil {
-		if x, ok := x.xxx_hidden_Operator.(*genericOIDC_Condition_NotEq); ok {
-			return x.NotEq
-		}
+		return x.xxx_hidden_NotEq
 	}
 	return nil
 }
 
 func (x *GenericOIDC_Condition) GetIn() *GenericOIDC_ConditionIn {
 	if x != nil {
-		if x, ok := x.xxx_hidden_Operator.(*genericOIDC_Condition_In); ok {
-			return x.In
-		}
+		return x.xxx_hidden_In
 	}
 	return nil
 }
 
 func (x *GenericOIDC_Condition) GetNotIn() *GenericOIDC_ConditionNotIn {
 	if x != nil {
-		if x, ok := x.xxx_hidden_Operator.(*genericOIDC_Condition_NotIn); ok {
-			return x.NotIn
-		}
+		return x.xxx_hidden_NotIn
 	}
 	return nil
 }
@@ -3769,138 +3773,79 @@ func (x *GenericOIDC_Condition) SetAttribute(v string) {
 }
 
 func (x *GenericOIDC_Condition) SetEq(v *GenericOIDC_ConditionEq) {
-	if v == nil {
-		x.xxx_hidden_Operator = nil
-		return
-	}
-	x.xxx_hidden_Operator = &genericOIDC_Condition_Eq{v}
+	x.xxx_hidden_Eq = v
 }
 
 func (x *GenericOIDC_Condition) SetNotEq(v *GenericOIDC_ConditionNotEq) {
-	if v == nil {
-		x.xxx_hidden_Operator = nil
-		return
-	}
-	x.xxx_hidden_Operator = &genericOIDC_Condition_NotEq{v}
+	x.xxx_hidden_NotEq = v
 }
 
 func (x *GenericOIDC_Condition) SetIn(v *GenericOIDC_ConditionIn) {
-	if v == nil {
-		x.xxx_hidden_Operator = nil
-		return
-	}
-	x.xxx_hidden_Operator = &genericOIDC_Condition_In{v}
+	x.xxx_hidden_In = v
 }
 
 func (x *GenericOIDC_Condition) SetNotIn(v *GenericOIDC_ConditionNotIn) {
-	if v == nil {
-		x.xxx_hidden_Operator = nil
-		return
-	}
-	x.xxx_hidden_Operator = &genericOIDC_Condition_NotIn{v}
-}
-
-func (x *GenericOIDC_Condition) HasOperator() bool {
-	if x == nil {
-		return false
-	}
-	return x.xxx_hidden_Operator != nil
+	x.xxx_hidden_NotIn = v
 }
 
 func (x *GenericOIDC_Condition) HasEq() bool {
 	if x == nil {
 		return false
 	}
-	_, ok := x.xxx_hidden_Operator.(*genericOIDC_Condition_Eq)
-	return ok
+	return x.xxx_hidden_Eq != nil
 }
 
 func (x *GenericOIDC_Condition) HasNotEq() bool {
 	if x == nil {
 		return false
 	}
-	_, ok := x.xxx_hidden_Operator.(*genericOIDC_Condition_NotEq)
-	return ok
+	return x.xxx_hidden_NotEq != nil
 }
 
 func (x *GenericOIDC_Condition) HasIn() bool {
 	if x == nil {
 		return false
 	}
-	_, ok := x.xxx_hidden_Operator.(*genericOIDC_Condition_In)
-	return ok
+	return x.xxx_hidden_In != nil
 }
 
 func (x *GenericOIDC_Condition) HasNotIn() bool {
 	if x == nil {
 		return false
 	}
-	_, ok := x.xxx_hidden_Operator.(*genericOIDC_Condition_NotIn)
-	return ok
-}
-
-func (x *GenericOIDC_Condition) ClearOperator() {
-	x.xxx_hidden_Operator = nil
+	return x.xxx_hidden_NotIn != nil
 }
 
 func (x *GenericOIDC_Condition) ClearEq() {
-	if _, ok := x.xxx_hidden_Operator.(*genericOIDC_Condition_Eq); ok {
-		x.xxx_hidden_Operator = nil
-	}
+	x.xxx_hidden_Eq = nil
 }
 
 func (x *GenericOIDC_Condition) ClearNotEq() {
-	if _, ok := x.xxx_hidden_Operator.(*genericOIDC_Condition_NotEq); ok {
-		x.xxx_hidden_Operator = nil
-	}
+	x.xxx_hidden_NotEq = nil
 }
 
 func (x *GenericOIDC_Condition) ClearIn() {
-	if _, ok := x.xxx_hidden_Operator.(*genericOIDC_Condition_In); ok {
-		x.xxx_hidden_Operator = nil
-	}
+	x.xxx_hidden_In = nil
 }
 
 func (x *GenericOIDC_Condition) ClearNotIn() {
-	if _, ok := x.xxx_hidden_Operator.(*genericOIDC_Condition_NotIn); ok {
-		x.xxx_hidden_Operator = nil
-	}
-}
-
-const GenericOIDC_Condition_Operator_not_set_case case_GenericOIDC_Condition_Operator = 0
-const GenericOIDC_Condition_Eq_case case_GenericOIDC_Condition_Operator = 2
-const GenericOIDC_Condition_NotEq_case case_GenericOIDC_Condition_Operator = 3
-const GenericOIDC_Condition_In_case case_GenericOIDC_Condition_Operator = 4
-const GenericOIDC_Condition_NotIn_case case_GenericOIDC_Condition_Operator = 5
-
-func (x *GenericOIDC_Condition) WhichOperator() case_GenericOIDC_Condition_Operator {
-	if x == nil {
-		return GenericOIDC_Condition_Operator_not_set_case
-	}
-	switch x.xxx_hidden_Operator.(type) {
-	case *genericOIDC_Condition_Eq:
-		return GenericOIDC_Condition_Eq_case
-	case *genericOIDC_Condition_NotEq:
-		return GenericOIDC_Condition_NotEq_case
-	case *genericOIDC_Condition_In:
-		return GenericOIDC_Condition_In_case
-	case *genericOIDC_Condition_NotIn:
-		return GenericOIDC_Condition_NotIn_case
-	default:
-		return GenericOIDC_Condition_Operator_not_set_case
-	}
+	x.xxx_hidden_NotIn = nil
 }
 
 type GenericOIDC_Condition_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
+	// The name of the field this condition should check, separated by "." for
+	// nested fields.
 	Attribute string
-	// Fields of oneof xxx_hidden_Operator:
-	Eq    *GenericOIDC_ConditionEq
+	// An "equals" operator. Only one operator may be set within a condition.
+	Eq *GenericOIDC_ConditionEq
+	// A "not equals" operator. Only one operator may be set within a condition.
 	NotEq *GenericOIDC_ConditionNotEq
-	In    *GenericOIDC_ConditionIn
+	// An "in" operator. Only one operator may be set within a condition.
+	In *GenericOIDC_ConditionIn
+	// A "not in" operator. Only one operator may be set within a condition.
 	NotIn *GenericOIDC_ConditionNotIn
-	// -- end of xxx_hidden_Operator
 }
 
 func (b0 GenericOIDC_Condition_builder) Build() *GenericOIDC_Condition {
@@ -3908,58 +3853,12 @@ func (b0 GenericOIDC_Condition_builder) Build() *GenericOIDC_Condition {
 	b, x := &b0, m0
 	_, _ = b, x
 	x.xxx_hidden_Attribute = b.Attribute
-	if b.Eq != nil {
-		x.xxx_hidden_Operator = &genericOIDC_Condition_Eq{b.Eq}
-	}
-	if b.NotEq != nil {
-		x.xxx_hidden_Operator = &genericOIDC_Condition_NotEq{b.NotEq}
-	}
-	if b.In != nil {
-		x.xxx_hidden_Operator = &genericOIDC_Condition_In{b.In}
-	}
-	if b.NotIn != nil {
-		x.xxx_hidden_Operator = &genericOIDC_Condition_NotIn{b.NotIn}
-	}
+	x.xxx_hidden_Eq = b.Eq
+	x.xxx_hidden_NotEq = b.NotEq
+	x.xxx_hidden_In = b.In
+	x.xxx_hidden_NotIn = b.NotIn
 	return m0
 }
-
-type case_GenericOIDC_Condition_Operator protoreflect.FieldNumber
-
-func (x case_GenericOIDC_Condition_Operator) String() string {
-	md := file_teleport_scopes_joining_v1_token_proto_msgTypes[33].Descriptor()
-	if x == 0 {
-		return "not set"
-	}
-	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
-}
-
-type isGenericOIDC_Condition_Operator interface {
-	isGenericOIDC_Condition_Operator()
-}
-
-type genericOIDC_Condition_Eq struct {
-	Eq *GenericOIDC_ConditionEq `protobuf:"bytes,2,opt,name=eq,proto3,oneof"`
-}
-
-type genericOIDC_Condition_NotEq struct {
-	NotEq *GenericOIDC_ConditionNotEq `protobuf:"bytes,3,opt,name=not_eq,json=notEq,proto3,oneof"`
-}
-
-type genericOIDC_Condition_In struct {
-	In *GenericOIDC_ConditionIn `protobuf:"bytes,4,opt,name=in,proto3,oneof"`
-}
-
-type genericOIDC_Condition_NotIn struct {
-	NotIn *GenericOIDC_ConditionNotIn `protobuf:"bytes,5,opt,name=not_in,json=notIn,proto3,oneof"`
-}
-
-func (*genericOIDC_Condition_Eq) isGenericOIDC_Condition_Operator() {}
-
-func (*genericOIDC_Condition_NotEq) isGenericOIDC_Condition_Operator() {}
-
-func (*genericOIDC_Condition_In) isGenericOIDC_Condition_Operator() {}
-
-func (*genericOIDC_Condition_NotIn) isGenericOIDC_Condition_Operator() {}
 
 // An allow rule, containing either a predict expression or simple field
 // check.
@@ -4190,7 +4089,7 @@ const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
 	"\x0erecovery_count\x18\x04 \x01(\rR\rrecoveryCount\x12F\n" +
 	"\x11last_recovered_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\x0flastRecoveredAt\x12B\n" +
 	"\x0flast_rotated_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\rlastRotatedAt\x12\"\n" +
-	"\rbound_host_id\x18\a \x01(\tR\vboundHostId\"\xc7\a\n" +
+	"\rbound_host_id\x18\a \x01(\tR\vboundHostId\"\xb3\a\n" +
 	"\vGenericOIDC\x12\x16\n" +
 	"\x06issuer\x18\x01 \x01(\tR\x06issuer\x12;\n" +
 	"\x1ainsecure_allow_http_issuer\x18\x02 \x01(\bR\x17insecureAllowHttpIssuer\x12\x1a\n" +
@@ -4207,15 +4106,13 @@ const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
 	"\vConditionIn\x12\x16\n" +
 	"\x06values\x18\x01 \x03(\tR\x06values\x1a(\n" +
 	"\x0eConditionNotIn\x12\x16\n" +
-	"\x06values\x18\x01 \x03(\tR\x06values\x1a\xe5\x02\n" +
+	"\x06values\x18\x01 \x03(\tR\x06values\x1a\xd1\x02\n" +
 	"\tCondition\x12\x1c\n" +
-	"\tattribute\x18\x01 \x01(\tR\tattribute\x12E\n" +
-	"\x02eq\x18\x02 \x01(\v23.teleport.scopes.joining.v1.GenericOIDC.ConditionEqH\x00R\x02eq\x12O\n" +
-	"\x06not_eq\x18\x03 \x01(\v26.teleport.scopes.joining.v1.GenericOIDC.ConditionNotEqH\x00R\x05notEq\x12E\n" +
-	"\x02in\x18\x04 \x01(\v23.teleport.scopes.joining.v1.GenericOIDC.ConditionInH\x00R\x02in\x12O\n" +
-	"\x06not_in\x18\x05 \x01(\v26.teleport.scopes.joining.v1.GenericOIDC.ConditionNotInH\x00R\x05notInB\n" +
-	"\n" +
-	"\boperator\x1ay\n" +
+	"\tattribute\x18\x01 \x01(\tR\tattribute\x12C\n" +
+	"\x02eq\x18\x02 \x01(\v23.teleport.scopes.joining.v1.GenericOIDC.ConditionEqR\x02eq\x12M\n" +
+	"\x06not_eq\x18\x03 \x01(\v26.teleport.scopes.joining.v1.GenericOIDC.ConditionNotEqR\x05notEq\x12C\n" +
+	"\x02in\x18\x04 \x01(\v23.teleport.scopes.joining.v1.GenericOIDC.ConditionInR\x02in\x12M\n" +
+	"\x06not_in\x18\x05 \x01(\v26.teleport.scopes.joining.v1.GenericOIDC.ConditionNotInR\x05notIn\x1ay\n" +
 	"\x04Rule\x12Q\n" +
 	"\n" +
 	"conditions\x18\x01 \x03(\v21.teleport.scopes.joining.v1.GenericOIDC.ConditionR\n" +
@@ -4324,12 +4221,6 @@ func file_teleport_scopes_joining_v1_token_proto_init() {
 	file_teleport_scopes_joining_v1_token_proto_msgTypes[4].OneofWrappers = []any{
 		(*usageStatus_SingleUse)(nil),
 		(*usageStatus_BoundKeypair)(nil),
-	}
-	file_teleport_scopes_joining_v1_token_proto_msgTypes[33].OneofWrappers = []any{
-		(*genericOIDC_Condition_Eq)(nil),
-		(*genericOIDC_Condition_NotEq)(nil),
-		(*genericOIDC_Condition_In)(nil),
-		(*genericOIDC_Condition_NotIn)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{

@@ -2257,6 +2257,8 @@ message ProvisionTokenSpecV2GenericOIDC {
 
   // An allow rule condition for simple checks against a specific field.
   message Condition {
+    // The name of the field this condition should check, separated by "." for
+    // nested fields.
     string Attribute = 1 [(gogoproto.jsontag) = "attribute"];
 
     // An "equals" operator. Only one operator may be set within a condition.

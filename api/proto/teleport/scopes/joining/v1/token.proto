@@ -533,13 +533,21 @@ message GenericOIDC {
 
   // An allow rule condition for simple checks against a specific field.
   message Condition {
+    // The name of the field this condition should check, separated by "." for
+    // nested fields.
     string attribute = 1;
-    oneof operator {
-      ConditionEq eq = 2;
-      ConditionNotEq not_eq = 3;
-      ConditionIn in = 4;
-      ConditionNotIn not_in = 5;
-    }
+
+    // An "equals" operator. Only one operator may be set within a condition.
+    ConditionEq eq = 2;
+
+    // A "not equals" operator. Only one operator may be set within a condition.
+    ConditionNotEq not_eq = 3;
+
+    // An "in" operator. Only one operator may be set within a condition.
+    ConditionIn in = 4;
+
+    // A "not in" operator. Only one operator may be set within a condition.
+    ConditionNotIn not_in = 5;
   }
 
   // An allow rule, containing either a predict expression or simple field
