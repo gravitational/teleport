@@ -96,6 +96,7 @@ func listRoles(clt resourcesAPIGetter, values url.Values) (*listResourcesWithout
 // listRequestableRolesHandle is the web handler for listing requestable roles.
 // Under the hood this just calls the `ListRoles` method with a filter for requestable roles,
 // we have this as a separate endpoint because the response needs to be formatted differently.
+// NOTE: This is the endpoint we're copying.
 func (h *Handler) listRequestableRolesHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (any, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {

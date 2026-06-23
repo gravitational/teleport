@@ -24,6 +24,8 @@
 import type { RpcTransport } from "@protobuf-ts/runtime-rpc";
 import type { ServiceInfo } from "@protobuf-ts/runtime-rpc";
 import { TerminalService } from "./service_pb";
+import type { ListRequestableRolesResponse } from "./service_pb";
+import type { ListRequestableRolesRequest } from "./service_pb";
 import type { SetSharedDirectoryForDesktopSessionResponse } from "./service_pb";
 import type { SetSharedDirectoryForDesktopSessionRequest } from "./service_pb";
 import type { ConnectToDesktopResponse } from "./service_pb";
@@ -424,6 +426,12 @@ export interface ITerminalServiceClient {
      * @generated from protobuf rpc: SetSharedDirectoryForDesktopSession(teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionRequest) returns (teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionResponse);
      */
     setSharedDirectoryForDesktopSession(input: SetSharedDirectoryForDesktopSessionRequest, options?: RpcOptions): UnaryCall<SetSharedDirectoryForDesktopSessionRequest, SetSharedDirectoryForDesktopSessionResponse>;
+    /**
+     * ListRequestableRoles returns a list of roles that the user can request.
+     *
+     * @generated from protobuf rpc: ListRequestableRoles(teleport.lib.teleterm.v1.ListRequestableRolesRequest) returns (teleport.lib.teleterm.v1.ListRequestableRolesResponse);
+     */
+    listRequestableRoles(input: ListRequestableRolesRequest, options?: RpcOptions): UnaryCall<ListRequestableRolesRequest, ListRequestableRolesResponse>;
 }
 /**
  * TerminalService is used by the Electron app to communicate with the tsh daemon.
@@ -876,5 +884,14 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
     setSharedDirectoryForDesktopSession(input: SetSharedDirectoryForDesktopSessionRequest, options?: RpcOptions): UnaryCall<SetSharedDirectoryForDesktopSessionRequest, SetSharedDirectoryForDesktopSessionResponse> {
         const method = this.methods[42], opt = this._transport.mergeOptions(options);
         return stackIntercept<SetSharedDirectoryForDesktopSessionRequest, SetSharedDirectoryForDesktopSessionResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * ListRequestableRoles returns a list of roles that the user can request.
+     *
+     * @generated from protobuf rpc: ListRequestableRoles(teleport.lib.teleterm.v1.ListRequestableRolesRequest) returns (teleport.lib.teleterm.v1.ListRequestableRolesResponse);
+     */
+    listRequestableRoles(input: ListRequestableRolesRequest, options?: RpcOptions): UnaryCall<ListRequestableRolesRequest, ListRequestableRolesResponse> {
+        const method = this.methods[43], opt = this._transport.mergeOptions(options);
+        return stackIntercept<ListRequestableRolesRequest, ListRequestableRolesResponse>("unary", this._transport, method, opt, input);
     }
 }

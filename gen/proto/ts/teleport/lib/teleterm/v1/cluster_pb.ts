@@ -172,8 +172,11 @@ export interface LoggedInUser {
     /**
      * requestable_roles for the given user.
      * Only present when detailed information is queried from the auth server.
+     * Nowadays used just as a backup if the auth service does not implement
+     * ListRequestableRoles.
      *
-     * @generated from protobuf field: repeated string requestable_roles = 7;
+     * @deprecated
+     * @generated from protobuf field: repeated string requestable_roles = 7 [deprecated = true];
      */
     requestableRoles: string[];
     /**
@@ -586,7 +589,7 @@ class LoggedInUser$Type extends MessageType<LoggedInUser> {
                 case /* repeated string suggested_reviewers */ 6:
                     message.suggestedReviewers.push(reader.string());
                     break;
-                case /* repeated string requestable_roles */ 7:
+                case /* repeated string requestable_roles = 7 [deprecated = true];*/ 7:
                     message.requestableRoles.push(reader.string());
                     break;
                 case /* teleport.lib.teleterm.v1.LoggedInUser.UserType user_type */ 8:
@@ -628,7 +631,7 @@ class LoggedInUser$Type extends MessageType<LoggedInUser> {
         /* repeated string suggested_reviewers = 6; */
         for (let i = 0; i < message.suggestedReviewers.length; i++)
             writer.tag(6, WireType.LengthDelimited).string(message.suggestedReviewers[i]);
-        /* repeated string requestable_roles = 7; */
+        /* repeated string requestable_roles = 7 [deprecated = true]; */
         for (let i = 0; i < message.requestableRoles.length; i++)
             writer.tag(7, WireType.LengthDelimited).string(message.requestableRoles[i]);
         /* teleport.lib.teleterm.v1.LoggedInUser.UserType user_type = 8; */

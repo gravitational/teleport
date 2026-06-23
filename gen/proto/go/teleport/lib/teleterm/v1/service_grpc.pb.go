@@ -79,6 +79,7 @@ const (
 	TerminalService_GetApp_FullMethodName                              = "/teleport.lib.teleterm.v1.TerminalService/GetApp"
 	TerminalService_ConnectToDesktop_FullMethodName                    = "/teleport.lib.teleterm.v1.TerminalService/ConnectToDesktop"
 	TerminalService_SetSharedDirectoryForDesktopSession_FullMethodName = "/teleport.lib.teleterm.v1.TerminalService/SetSharedDirectoryForDesktopSession"
+	TerminalService_ListRequestableRoles_FullMethodName                = "/teleport.lib.teleterm.v1.TerminalService/ListRequestableRoles"
 )
 
 // TerminalServiceClient is the client API for TerminalService service.
@@ -227,6 +228,8 @@ type TerminalServiceClient interface {
 	// This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
 	// It only registers file system handlers for processing file system-related TDP events.
 	SetSharedDirectoryForDesktopSession(ctx context.Context, in *SetSharedDirectoryForDesktopSessionRequest, opts ...grpc.CallOption) (*SetSharedDirectoryForDesktopSessionResponse, error)
+	// ListRequestableRoles returns a list of roles that the user can request.
+	ListRequestableRoles(ctx context.Context, in *ListRequestableRolesRequest, opts ...grpc.CallOption) (*ListRequestableRolesResponse, error)
 }
 
 type terminalServiceClient struct {
@@ -682,6 +685,16 @@ func (c *terminalServiceClient) SetSharedDirectoryForDesktopSession(ctx context.
 	return out, nil
 }
 
+func (c *terminalServiceClient) ListRequestableRoles(ctx context.Context, in *ListRequestableRolesRequest, opts ...grpc.CallOption) (*ListRequestableRolesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListRequestableRolesResponse)
+	err := c.cc.Invoke(ctx, TerminalService_ListRequestableRoles_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // TerminalServiceServer is the server API for TerminalService service.
 // All implementations must embed UnimplementedTerminalServiceServer
 // for forward compatibility.
@@ -828,6 +841,8 @@ type TerminalServiceServer interface {
 	// This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
 	// It only registers file system handlers for processing file system-related TDP events.
 	SetSharedDirectoryForDesktopSession(context.Context, *SetSharedDirectoryForDesktopSessionRequest) (*SetSharedDirectoryForDesktopSessionResponse, error)
+	// ListRequestableRoles returns a list of roles that the user can request.
+	ListRequestableRoles(context.Context, *ListRequestableRolesRequest) (*ListRequestableRolesResponse, error)
 	mustEmbedUnimplementedTerminalServiceServer()
 }
 
@@ -966,6 +981,9 @@ func (UnimplementedTerminalServiceServer) ConnectToDesktop(grpc.BidiStreamingSer
 }
 func (UnimplementedTerminalServiceServer) SetSharedDirectoryForDesktopSession(context.Context, *SetSharedDirectoryForDesktopSessionRequest) (*SetSharedDirectoryForDesktopSessionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SetSharedDirectoryForDesktopSession not implemented")
+}
+func (UnimplementedTerminalServiceServer) ListRequestableRoles(context.Context, *ListRequestableRolesRequest) (*ListRequestableRolesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListRequestableRoles not implemented")
 }
 func (UnimplementedTerminalServiceServer) mustEmbedUnimplementedTerminalServiceServer() {}
 func (UnimplementedTerminalServiceServer) testEmbeddedByValue()                         {}
@@ -1733,6 +1751,24 @@ func _TerminalService_SetSharedDirectoryForDesktopSession_Handler(srv interface{
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TerminalService_ListRequestableRoles_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListRequestableRolesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TerminalServiceServer).ListRequestableRoles(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TerminalService_ListRequestableRoles_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TerminalServiceServer).ListRequestableRoles(ctx, req.(*ListRequestableRolesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // TerminalService_ServiceDesc is the grpc.ServiceDesc for TerminalService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1899,6 +1935,10 @@ var TerminalService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SetSharedDirectoryForDesktopSession",
 			Handler:    _TerminalService_SetSharedDirectoryForDesktopSession_Handler,
+		},
+		{
+			MethodName: "ListRequestableRoles",
+			Handler:    _TerminalService_ListRequestableRoles_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

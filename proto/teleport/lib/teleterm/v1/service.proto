@@ -24,6 +24,7 @@ import "google/protobuf/timestamp.proto";
 import "teleport/accesslist/v1/accesslist.proto";
 import "teleport/devicetrust/v1/device_confirmation_token.proto";
 import "teleport/devicetrust/v1/device_web_token.proto";
+import "teleport/legacy/client/proto/requestable_roles.proto";
 import "teleport/legacy/types/resources.proto";
 import "teleport/lib/teleterm/v1/access_request.proto";
 import "teleport/lib/teleterm/v1/app.proto";
@@ -32,6 +33,7 @@ import "teleport/lib/teleterm/v1/cluster.proto";
 import "teleport/lib/teleterm/v1/database.proto";
 import "teleport/lib/teleterm/v1/gateway.proto";
 import "teleport/lib/teleterm/v1/kube.proto";
+import "teleport/lib/teleterm/v1/role.proto";
 import "teleport/lib/teleterm/v1/server.proto";
 import "teleport/lib/teleterm/v1/usage_events.proto";
 import "teleport/lib/teleterm/v1/windows_desktop.proto";
@@ -190,6 +192,9 @@ service TerminalService {
   // This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
   // It only registers file system handlers for processing file system-related TDP events.
   rpc SetSharedDirectoryForDesktopSession(SetSharedDirectoryForDesktopSessionRequest) returns (SetSharedDirectoryForDesktopSessionResponse);
+
+  // ListRequestableRoles returns a list of roles that the user can request.
+  rpc ListRequestableRoles(ListRequestableRolesRequest) returns (ListRequestableRolesResponse);
 }
 
 message EmptyResponse {}
@@ -748,3 +753,23 @@ message SetSharedDirectoryForDesktopSessionRequest {
 
 // Response for SetSharedDirectoryForDesktopSession.
 message SetSharedDirectoryForDesktopSessionResponse {}
+
+// Request for ListRequestableRoles.
+message ListRequestableRolesRequest {
+  string root_cluster_uri = 1;
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 2;
+  // The next_page_token value returned from a previous request, if any.
+  string page_token = 3;
+  // filter is the filtering options for the returned roles.
+  proto.ListRequestableRolesRequest.Filter filter = 4;
+}
+
+// Response for ListRequestableRoles.
+message ListRequestableRolesResponse {
+  repeated Role roles = 1;
+  // Token to retrieve the next page of results, or empty if there are no more
+  // results in the list.
+  string next_page_token = 2;
+}

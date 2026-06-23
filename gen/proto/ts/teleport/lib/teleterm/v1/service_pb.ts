@@ -33,6 +33,8 @@ import type { IBinaryReader } from "@protobuf-ts/runtime";
 import type { PartialMessage } from "@protobuf-ts/runtime";
 import { reflectionMergePartial } from "@protobuf-ts/runtime";
 import { MessageType } from "@protobuf-ts/runtime";
+import { Role } from "./role_pb";
+import { ListRequestableRolesRequest_Filter } from "../../../legacy/client/proto/requestable_roles_pb";
 import { DeviceConfirmationToken } from "../../../devicetrust/v1/device_confirmation_token_pb";
 import { DeviceWebToken } from "../../../devicetrust/v1/device_web_token_pb";
 import { UnifiedResourcePreferences } from "../../../userpreferences/v1/unified_resource_preferences_pb";
@@ -1343,6 +1345,54 @@ export interface SetSharedDirectoryForDesktopSessionRequest {
  * @generated from protobuf message teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionResponse
  */
 export interface SetSharedDirectoryForDesktopSessionResponse {
+}
+/**
+ * Request for ListRequestableRoles.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.v1.ListRequestableRolesRequest
+ */
+export interface ListRequestableRolesRequest {
+    /**
+     * @generated from protobuf field: string root_cluster_uri = 1;
+     */
+    rootClusterUri: string;
+    /**
+     * The maximum number of items to return.
+     * The server may impose a different page size at its discretion.
+     *
+     * @generated from protobuf field: int32 page_size = 2;
+     */
+    pageSize: number;
+    /**
+     * The next_page_token value returned from a previous request, if any.
+     *
+     * @generated from protobuf field: string page_token = 3;
+     */
+    pageToken: string;
+    /**
+     * filter is the filtering options for the returned roles.
+     *
+     * @generated from protobuf field: proto.ListRequestableRolesRequest.Filter filter = 4;
+     */
+    filter?: ListRequestableRolesRequest_Filter;
+}
+/**
+ * Response for ListRequestableRoles.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.v1.ListRequestableRolesResponse
+ */
+export interface ListRequestableRolesResponse {
+    /**
+     * @generated from protobuf field: repeated teleport.lib.teleterm.v1.Role roles = 1;
+     */
+    roles: Role[];
+    /**
+     * Token to retrieve the next page of results, or empty if there are no more
+     * results in the list.
+     *
+     * @generated from protobuf field: string next_page_token = 2;
+     */
+    nextPageToken: string;
 }
 /**
  * PasswordlessPrompt describes different prompts we need from users
@@ -5841,6 +5891,131 @@ class SetSharedDirectoryForDesktopSessionResponse$Type extends MessageType<SetSh
  * @generated MessageType for protobuf message teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionResponse
  */
 export const SetSharedDirectoryForDesktopSessionResponse = new SetSharedDirectoryForDesktopSessionResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ListRequestableRolesRequest$Type extends MessageType<ListRequestableRolesRequest> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.ListRequestableRolesRequest", [
+            { no: 1, name: "root_cluster_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "page_size", kind: "scalar", T: 5 /*ScalarType.INT32*/ },
+            { no: 3, name: "page_token", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "filter", kind: "message", T: () => ListRequestableRolesRequest_Filter }
+        ]);
+    }
+    create(value?: PartialMessage<ListRequestableRolesRequest>): ListRequestableRolesRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.rootClusterUri = "";
+        message.pageSize = 0;
+        message.pageToken = "";
+        if (value !== undefined)
+            reflectionMergePartial<ListRequestableRolesRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ListRequestableRolesRequest): ListRequestableRolesRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string root_cluster_uri */ 1:
+                    message.rootClusterUri = reader.string();
+                    break;
+                case /* int32 page_size */ 2:
+                    message.pageSize = reader.int32();
+                    break;
+                case /* string page_token */ 3:
+                    message.pageToken = reader.string();
+                    break;
+                case /* proto.ListRequestableRolesRequest.Filter filter */ 4:
+                    message.filter = ListRequestableRolesRequest_Filter.internalBinaryRead(reader, reader.uint32(), options, message.filter);
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ListRequestableRolesRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string root_cluster_uri = 1; */
+        if (message.rootClusterUri !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.rootClusterUri);
+        /* int32 page_size = 2; */
+        if (message.pageSize !== 0)
+            writer.tag(2, WireType.Varint).int32(message.pageSize);
+        /* string page_token = 3; */
+        if (message.pageToken !== "")
+            writer.tag(3, WireType.LengthDelimited).string(message.pageToken);
+        /* proto.ListRequestableRolesRequest.Filter filter = 4; */
+        if (message.filter)
+            ListRequestableRolesRequest_Filter.internalBinaryWrite(message.filter, writer.tag(4, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.ListRequestableRolesRequest
+ */
+export const ListRequestableRolesRequest = new ListRequestableRolesRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class ListRequestableRolesResponse$Type extends MessageType<ListRequestableRolesResponse> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.ListRequestableRolesResponse", [
+            { no: 1, name: "roles", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => Role },
+            { no: 2, name: "next_page_token", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<ListRequestableRolesResponse>): ListRequestableRolesResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.roles = [];
+        message.nextPageToken = "";
+        if (value !== undefined)
+            reflectionMergePartial<ListRequestableRolesResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: ListRequestableRolesResponse): ListRequestableRolesResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* repeated teleport.lib.teleterm.v1.Role roles */ 1:
+                    message.roles.push(Role.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* string next_page_token */ 2:
+                    message.nextPageToken = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: ListRequestableRolesResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* repeated teleport.lib.teleterm.v1.Role roles = 1; */
+        for (let i = 0; i < message.roles.length; i++)
+            Role.internalBinaryWrite(message.roles[i], writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        /* string next_page_token = 2; */
+        if (message.nextPageToken !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.nextPageToken);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.ListRequestableRolesResponse
+ */
+export const ListRequestableRolesResponse = new ListRequestableRolesResponse$Type();
 /**
  * @generated ServiceType for protobuf service teleport.lib.teleterm.v1.TerminalService
  */
@@ -5887,5 +6062,6 @@ export const TerminalService = new ServiceType("teleport.lib.teleterm.v1.Termina
     { name: "AuthenticateWebDevice", options: {}, I: AuthenticateWebDeviceRequest, O: AuthenticateWebDeviceResponse },
     { name: "GetApp", options: {}, I: GetAppRequest, O: GetAppResponse },
     { name: "ConnectToDesktop", serverStreaming: true, clientStreaming: true, options: {}, I: ConnectToDesktopRequest, O: ConnectToDesktopResponse },
-    { name: "SetSharedDirectoryForDesktopSession", options: {}, I: SetSharedDirectoryForDesktopSessionRequest, O: SetSharedDirectoryForDesktopSessionResponse }
+    { name: "SetSharedDirectoryForDesktopSession", options: {}, I: SetSharedDirectoryForDesktopSessionRequest, O: SetSharedDirectoryForDesktopSessionResponse },
+    { name: "ListRequestableRoles", options: {}, I: ListRequestableRolesRequest, O: ListRequestableRolesResponse }
 ]);

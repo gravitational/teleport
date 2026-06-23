@@ -138,6 +138,10 @@ func (c *Cluster) GetWithDetails(ctx context.Context, authClient authclient.Clie
 		return trace.Wrap(err)
 	})
 
+	// TODO: Remove this as it's no longer used once we fetch roles from
+	// ListRequestableRoles.
+	// RequestableRoles will likely need to stay until v21, but
+	// SuggestedReviewers can go.
 	var caps *types.AccessCapabilities
 	group.Go(func() error {
 		err := AddMetadataToRetryableError(groupCtx, func() error {

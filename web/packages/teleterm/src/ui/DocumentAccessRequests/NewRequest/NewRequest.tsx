@@ -16,14 +16,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+
 import { Box, Flex, Link } from 'design';
 import { Info } from 'design/Alert';
+import Table from 'design/DataTable';
+import { Page } from 'design/DataTable/types';
 import { ShowResources } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 import { Roles } from 'shared/components/AccessRequests/NewRequest';
 import { useAsync } from 'shared/hooks/useAsync';
 
+import { cloneAbortSignal } from 'teleterm/services/tshd';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
+
+const pageSize = 20;
 
 /**
  * Only allows requesting roles (resources can be requested through the unified
@@ -62,6 +70,37 @@ export function NewRequest() {
     accessRequestsService.addOrRemoveRole(role)
   );
 
+  // TODO: Move this code to a new component (RequestableRoles within this dir?).
+  // TODO: Add search.
+  // TODO: When it's time to fetch the next page (that is, the user clicks the button to go to the
+  // next page), in the event handler we should probably use a single setPage which
+  // both:
+  //   1) increments index
+  //   2) adds next_page_token to keys
+  // This way we can still modify page.keys without firing setState from within useQuery.
+  // https://tkdodo.eu/blog/breaking-react-querys-api-on-purpose#state-syncing
+  const [page, setPage] = useState<Page>({ keys: [], index: 0 });
+  const currentPageToken = page.keys.at(page.index);
+  const { data: reqRolesResp } = useQuery({
+    queryKey: [
+      'requestable-roles',
+      rootClusterUri,
+      page.index,
+      page.keys.at(page.index),
+    ],
+    queryFn: async ({ signal }) => {
+      const { response } = await ctx.tshd.listRequestableRoles(
+        {
+          rootClusterUri,
+          pageSize,
+          pageToken: currentPageToken,
+        },
+        { abort: cloneAbortSignal(signal) }
+      );
+      return response;
+    },
+  });
+
   return (
     <Flex
       mx="auto"
@@ -73,6 +112,28 @@ export function NewRequest() {
       maxWidth="1248px"
     >
       <Box>
+        <Table
+          data={reqRolesResp?.roles}
+          pagination={{
+            pagerPosition: 'top',
+            pageSize,
+          }}
+          isSearchable={true}
+          columns={[
+            // TODO: Make the name column wider.
+            { key: 'name', headerText: 'Name' },
+            { key: 'description', headerText: 'Description' },
+          ]}
+          emptyText="TODO"
+        />
+      </Box>
+      {/* TODO: When a response comes back with NotImplemented, display the old list of roles. */}
+      {/* TODO: Copy tests of the old role list to the new table. */}
+      <Box
+        css={`
+          display: none;
+        `}
+      >
         <Roles
           requestable={requestableRoles}
           requested={

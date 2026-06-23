@@ -99,7 +99,9 @@ message LoggedInUser {
   repeated string suggested_reviewers = 6;
   // requestable_roles for the given user.
   // Only present when detailed information is queried from the auth server.
-  repeated string requestable_roles = 7;
+  // Nowadays used just as a backup if the auth service does not implement
+  // ListRequestableRoles.
+  repeated string requestable_roles = 7 [deprecated = true];
   // UserType indicates whether the user was created through an SSO provider or in Teleport itself.
   // Only present when detailed information is queried from the auth server.
   enum UserType {

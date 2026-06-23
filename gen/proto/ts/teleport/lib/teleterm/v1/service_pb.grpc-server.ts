@@ -21,6 +21,8 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
+import { ListRequestableRolesResponse } from "./service_pb";
+import { ListRequestableRolesRequest } from "./service_pb";
 import { SetSharedDirectoryForDesktopSessionResponse } from "./service_pb";
 import { SetSharedDirectoryForDesktopSessionRequest } from "./service_pb";
 import { ConnectToDesktopResponse } from "./service_pb";
@@ -417,6 +419,12 @@ export interface ITerminalService extends grpc.UntypedServiceImplementation {
      * @generated from protobuf rpc: SetSharedDirectoryForDesktopSession(teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionRequest) returns (teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionResponse);
      */
     setSharedDirectoryForDesktopSession: grpc.handleUnaryCall<SetSharedDirectoryForDesktopSessionRequest, SetSharedDirectoryForDesktopSessionResponse>;
+    /**
+     * ListRequestableRoles returns a list of roles that the user can request.
+     *
+     * @generated from protobuf rpc: ListRequestableRoles(teleport.lib.teleterm.v1.ListRequestableRolesRequest) returns (teleport.lib.teleterm.v1.ListRequestableRolesResponse);
+     */
+    listRequestableRoles: grpc.handleUnaryCall<ListRequestableRolesRequest, ListRequestableRolesResponse>;
 }
 /**
  * @grpc/grpc-js definition for the protobuf service teleport.lib.teleterm.v1.TerminalService.
@@ -859,5 +867,15 @@ export const terminalServiceDefinition: grpc.ServiceDefinition<ITerminalService>
         requestDeserialize: bytes => SetSharedDirectoryForDesktopSessionRequest.fromBinary(bytes),
         responseSerialize: value => Buffer.from(SetSharedDirectoryForDesktopSessionResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(SetSharedDirectoryForDesktopSessionRequest.toBinary(value))
+    },
+    listRequestableRoles: {
+        path: "/teleport.lib.teleterm.v1.TerminalService/ListRequestableRoles",
+        originalName: "ListRequestableRoles",
+        requestStream: false,
+        responseStream: false,
+        responseDeserialize: bytes => ListRequestableRolesResponse.fromBinary(bytes),
+        requestDeserialize: bytes => ListRequestableRolesRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(ListRequestableRolesResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(ListRequestableRolesRequest.toBinary(value))
     }
 };
