@@ -36,7 +36,7 @@ use ironrdp_rdpdr::pdu::{
 use log::{debug, trace, warn};
 use std::convert::TryInto;
 use std::fmt::Debug;
-use std::{collections::HashMap, fmt};
+use std::{collections::HashMap};
 
 pub(crate) fn cast_length<T, S: TryInto<T, Error: Debug>>(
     ctx: &str,
@@ -48,20 +48,18 @@ pub(crate) fn cast_length<T, S: TryInto<T, Error: Debug>>(
     })
 }
 
+#[derive(Debug)]
 struct DirectoryContext {
     /// FileId-indexed cache of [`FileCacheObject`]s.
     ///
     /// See the documentation for [`FileCacheObject`].
     file_cache: FileCache,
+    /// tombstoned indicates that this DirectoryContext has been
+    /// marked for deletion. All inbound requests will be canceled.
     tombstoned: bool,
-    response_handlers: ResponseCache,
-}
-
-// TODO figure out a debug representation
-impl fmt::Debug for DirectoryContext {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Handler(<fn>)")
-    }
+    /// response_cache holds all pending I/O response handlers for
+    /// I/O requests against this DirectoryContext.
+    response_cache: ResponseCache,
 }
 
 impl DirectoryContext {
@@ -69,7 +67,7 @@ impl DirectoryContext {
         DirectoryContext {
             file_cache: FileCache::new(),
             tombstoned: false,
-            response_handlers: ResponseCache::new(),
+            response_cache: ResponseCache::new(),
         }
     }
 
@@ -109,11 +107,11 @@ impl DirectoryContext {
         completion_id: CompletionId,
         handler: ResponseKind,
     ) -> Result<(), FilesystemBackendError> {
-        self.response_handlers.insert(completion_id, handler)
+        self.response_cache.insert(completion_id, handler)
     }
 
     fn remove_handler(&mut self, completion_id: CompletionId) -> Option<ResponseKind> {
-        self.response_handlers.remove(&completion_id)
+        self.response_cache.remove(&completion_id)
     }
 }
 
@@ -262,7 +260,7 @@ impl FilesystemBackend {
     pub fn tombstone_device(&mut self, device_id: u32) -> PduResult<bool> {
         let directory_context = self.cache.get_context_mut(device_id)?;
         let pending_handlers: Vec<(CompletionId, ResponseKind)> =
-            directory_context.response_handlers.drain().collect();
+            directory_context.response_cache.drain().collect();
 
         // Drain the response cache for this directory context and cancel each handler.
         pending_handlers
@@ -2424,6 +2422,7 @@ impl From<SharedDirectoryTruncateResponseHandler> for ResponseKind {
 type CompletionId = u32;
 
 /// A generic cache for storing [`ResponseHandler`]s indexed by [`CompletionId`].
+#[derive(Debug)]
 struct ResponseCache {
     cache: HashMap<CompletionId, ResponseKind>,
 }
