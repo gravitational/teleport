@@ -597,3 +597,82 @@ func TestScopeAwareServiceWrapper_BackendKey(t *testing.T) {
 		)
 	})
 }
+
+func TestScopeAwareServiceWrapper_WithScopePrefix(t *testing.T) {
+	t.Parallel()
+	svc := newScopeAwareWrapperForTest(t)
+	ctx := t.Context()
+
+	const scope = "/security"
+
+	t.Run("scoped view shares the scope-aware key range", func(t *testing.T) {
+		// A resource created through the scope-aware wrapper is addressable by
+		// name alone through the scope-bound view.
+		qn := scopes.QualifiedName{Scope: scope, Name: "via-scope-aware"}
+		_, err := svc.CreateResource(ctx, newScopedTestResource153(qn))
+		require.NoError(t, err)
+
+		scoped, err := svc.WithScopePrefix(scope)
+		require.NoError(t, err)
+
+		got, err := scoped.GetResource(ctx, "via-scope-aware")
+		require.NoError(t, err)
+		requireResourceBody(t, qn, got)
+
+		// And the reverse: a resource created through the scope-bound view is
+		// readable through the scope-aware wrapper by its qualified name.
+		_, err = scoped.CreateResource(ctx, newScopedTestResource153(scopes.QualifiedName{Scope: scope, Name: "via-bound"}))
+		require.NoError(t, err)
+		viaScopeAware, err := svc.GetResource(ctx, scopes.QualifiedName{Scope: scope, Name: "via-bound"})
+		require.NoError(t, err)
+		require.Equal(t, scope, viaScopeAware.GetScope())
+	})
+
+	t.Run("scoped view is isolated from other ranges", func(t *testing.T) {
+		// Seed an unscoped resource and one in a different scope, both sharing a
+		// name with what we'll look up.
+		const shared = "isolated"
+		_, err := svc.CreateResource(ctx, newScopedTestResource153(scopes.QualifiedName{Name: shared}))
+		require.NoError(t, err)
+		_, err = svc.CreateResource(ctx, newScopedTestResource153(scopes.QualifiedName{Scope: "/other", Name: shared}))
+		require.NoError(t, err)
+
+		scoped, err := svc.WithScopePrefix(scope)
+		require.NoError(t, err)
+
+		// The /security view sees neither the unscoped nor the /other resource.
+		_, err = scoped.GetResource(ctx, shared)
+		require.True(t, trace.IsNotFound(err), "expected NotFound, got %v", err)
+	})
+
+	t.Run("empty scope yields the unscoped view", func(t *testing.T) {
+		qn := scopes.QualifiedName{Name: "unscoped-only"}
+		_, err := svc.CreateResource(ctx, newScopedTestResource153(qn))
+		require.NoError(t, err)
+		// A same-named scoped resource that must not be visible to the unscoped view.
+		_, err = svc.CreateResource(ctx, newScopedTestResource153(scopes.QualifiedName{Scope: scope, Name: "unscoped-only"}))
+		require.NoError(t, err)
+
+		unscoped, err := svc.WithScopePrefix("")
+		require.NoError(t, err)
+
+		got, err := unscoped.GetResource(ctx, "unscoped-only")
+		require.NoError(t, err)
+		require.Empty(t, got.GetScope())
+		require.Equal(t, specDataFor(qn), got.Spec.Data)
+	})
+
+	t.Run("backend keys agree with the scope-aware wrapper", func(t *testing.T) {
+		scoped, err := svc.WithScopePrefix(scope)
+		require.NoError(t, err)
+		want, err := svc.BackendKey(scopes.QualifiedName{Scope: scope, Name: "k"})
+		require.NoError(t, err)
+		require.Equal(t, want.String(), scoped.BackendKey("k").String())
+
+		unscoped, err := svc.WithScopePrefix("")
+		require.NoError(t, err)
+		wantUnscoped, err := svc.BackendKey(scopes.QualifiedName{Name: "k"})
+		require.NoError(t, err)
+		require.Equal(t, wantUnscoped.String(), unscoped.BackendKey("k").String())
+	})
+}

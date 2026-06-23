@@ -70,7 +70,39 @@ func NewScopeAwareServiceWrapper[T ScopedResourceMetadata](cfg ScopeAwareService
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &ScopeAwareServiceWrapper[T]{service: service}, nil
+
+	unscopedWrapper, err := NewServiceWrapper(ServiceConfig[T]{
+		Backend:                     cfg.Backend,
+		ResourceKind:                cfg.ResourceKind,
+		PageLimit:                   cfg.PageLimit,
+		BackendPrefix:               cfg.UnscopedBackendPrefix,
+		MarshalFunc:                 cfg.MarshalFunc,
+		UnmarshalFunc:               cfg.UnmarshalFunc,
+		ValidateFunc:                cfg.ValidateFunc,
+		RunWhileLockedRetryInterval: cfg.RunWhileLockedRetryInterval,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	scopedWrapper, err := NewServiceWrapper(ServiceConfig[T]{
+		Backend:                     cfg.Backend,
+		ResourceKind:                cfg.ResourceKind,
+		PageLimit:                   cfg.PageLimit,
+		BackendPrefix:               cfg.ScopedBackendPrefix,
+		MarshalFunc:                 cfg.MarshalFunc,
+		UnmarshalFunc:               cfg.UnmarshalFunc,
+		ValidateFunc:                cfg.ValidateFunc,
+		RunWhileLockedRetryInterval: cfg.RunWhileLockedRetryInterval,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &ScopeAwareServiceWrapper[T]{
+		service:         service,
+		unscopedWrapper: unscopedWrapper,
+		scopedWrapper:   scopedWrapper,
+	}, nil
 }
 
 // ScopeAwareServiceWrapperConfig holds configuration options for a
@@ -107,6 +139,11 @@ type ScopeAwareServiceWrapperConfig[T ScopedResourceMetadata] struct {
 // exported; additional methods may be exported in the future as needed.
 type ScopeAwareServiceWrapper[T ScopedResourceMetadata] struct {
 	service *ScopeAwareService[scopedResourceMetadataAdapter[T]]
+	// unscopedWrapper and scopedWrapper are plain, single-range views over the
+	// unscoped and scoped key ranges respectively, used to implement
+	// WithScopePrefix.
+	unscopedWrapper *ServiceWrapper[T]
+	scopedWrapper   *ServiceWrapper[T]
 }
 
 // CreateResource creates the given resource if it doesn't already exist. The
@@ -211,4 +248,29 @@ func (s *ScopeAwareServiceWrapper[T]) BackendKey(name scopes.QualifiedName) (bac
 		return backend.Key{}, trace.Wrap(err)
 	}
 	return svc.resourceKey(name.Name), nil
+}
+
+// WithScopePrefix returns a plain ServiceWrapper bound to the key range for the
+// given scope: an empty scope yields a view over the unscoped range, and a
+// non-empty scope yields a view over that scope's namespaced range. The returned
+// wrapper addresses resources by name alone within that single range. It mirrors
+// ScopeAwareService.WithScopePrefix.
+//
+// This is convenient for callers that only ever operate within one scope: they
+// can use names directly, without threading a scope.QualifiedName through every
+// call, and without the ability to reach other scopes or the unscoped range.
+//
+// The returned wrapper keys resources by name within the resolved range; like
+// ScopeAwareService.WithScopePrefix, it does not enforce that a resource's own
+// scope field matches the bound scope. Keeping the resource's scope consistent
+// with the range it is written to remains the caller's responsibility.
+func (s *ScopeAwareServiceWrapper[T]) WithScopePrefix(scope string) (*ServiceWrapper[T], error) {
+	if scope == "" {
+		return s.unscopedWrapper, nil
+	}
+	encodedScope, err := scopes.EncodeForKey(scope)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return s.scopedWrapper.WithPrefix(encodedScope), nil
 }
