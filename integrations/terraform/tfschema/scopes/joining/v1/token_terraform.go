@@ -328,7 +328,7 @@ func GenSchemaScopedToken(ctx context.Context) (github_com_hashicorp_terraform_p
 								"conditions": {
 									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 										"attribute": {
-											Description: "",
+											Description: "The name of the field this condition should check, separated by \".\" for nested fields.",
 											Optional:    true,
 											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 										},
@@ -338,7 +338,7 @@ func GenSchemaScopedToken(ctx context.Context) (github_com_hashicorp_terraform_p
 												Optional:    true,
 												Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 											}}),
-											Description: "",
+											Description: "An \"equals\" operator. Only one operator may be set within a condition.",
 											Optional:    true,
 										},
 										"in": {
@@ -347,7 +347,7 @@ func GenSchemaScopedToken(ctx context.Context) (github_com_hashicorp_terraform_p
 												Optional:    true,
 												Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 											}}),
-											Description: "",
+											Description: "An \"in\" operator. Only one operator may be set within a condition.",
 											Optional:    true,
 										},
 										"not_eq": {
@@ -356,7 +356,7 @@ func GenSchemaScopedToken(ctx context.Context) (github_com_hashicorp_terraform_p
 												Optional:    true,
 												Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 											}}),
-											Description: "",
+											Description: "A \"not equals\" operator. Only one operator may be set within a condition.",
 											Optional:    true,
 										},
 										"not_in": {
@@ -365,7 +365,7 @@ func GenSchemaScopedToken(ctx context.Context) (github_com_hashicorp_terraform_p
 												Optional:    true,
 												Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 											}}),
-											Description: "",
+											Description: "A \"not in\" operator. Only one operator may be set within a condition.",
 											Optional:    true,
 										},
 									}),
@@ -2119,7 +2119,6 @@ func CopyScopedTokenFromTerraform(_ context.Context, tf github_com_hashicorp_ter
 																							tf := v
 																							t = &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_joining_v1.GenericOIDC_Condition{}
 																							obj := t
-																							obj.Operator = nil
 																							{
 																								a, ok := tf.Attrs["attribute"]
 																								if !ok {
@@ -2146,11 +2145,11 @@ func CopyScopedTokenFromTerraform(_ context.Context, tf github_com_hashicorp_ter
 																									if !ok {
 																										diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.generic_oidc.allow_any.conditions.eq", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
 																									} else {
+																										obj.Eq = nil
 																										if !v.Null && !v.Unknown {
-																											b := &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_joining_v1.GenericOIDC_ConditionEq{}
-																											obj.Operator = &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_joining_v1.Condition_Eq{Eq: b}
-																											obj := b
 																											tf := v
+																											obj.Eq = &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_joining_v1.GenericOIDC_ConditionEq{}
+																											obj := obj.Eq
 																											{
 																												a, ok := tf.Attrs["value"]
 																												if !ok {
@@ -2181,11 +2180,11 @@ func CopyScopedTokenFromTerraform(_ context.Context, tf github_com_hashicorp_ter
 																									if !ok {
 																										diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.generic_oidc.allow_any.conditions.not_eq", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
 																									} else {
+																										obj.NotEq = nil
 																										if !v.Null && !v.Unknown {
-																											b := &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_joining_v1.GenericOIDC_ConditionNotEq{}
-																											obj.Operator = &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_joining_v1.Condition_NotEq{NotEq: b}
-																											obj := b
 																											tf := v
+																											obj.NotEq = &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_joining_v1.GenericOIDC_ConditionNotEq{}
+																											obj := obj.NotEq
 																											{
 																												a, ok := tf.Attrs["value"]
 																												if !ok {
@@ -2216,11 +2215,11 @@ func CopyScopedTokenFromTerraform(_ context.Context, tf github_com_hashicorp_ter
 																									if !ok {
 																										diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.generic_oidc.allow_any.conditions.in", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
 																									} else {
+																										obj.In = nil
 																										if !v.Null && !v.Unknown {
-																											b := &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_joining_v1.GenericOIDC_ConditionIn{}
-																											obj.Operator = &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_joining_v1.Condition_In{In: b}
-																											obj := b
 																											tf := v
+																											obj.In = &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_joining_v1.GenericOIDC_ConditionIn{}
+																											obj := obj.In
 																											{
 																												a, ok := tf.Attrs["values"]
 																												if !ok {
@@ -2261,11 +2260,11 @@ func CopyScopedTokenFromTerraform(_ context.Context, tf github_com_hashicorp_ter
 																									if !ok {
 																										diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.generic_oidc.allow_any.conditions.not_in", "github.com/hashicorp/terraform-plugin-framework/types.Object"})
 																									} else {
+																										obj.NotIn = nil
 																										if !v.Null && !v.Unknown {
-																											b := &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_joining_v1.GenericOIDC_ConditionNotIn{}
-																											obj.Operator = &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_joining_v1.Condition_NotIn{NotIn: b}
-																											obj := b
 																											tf := v
+																											obj.NotIn = &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_joining_v1.GenericOIDC_ConditionNotIn{}
+																											obj := obj.NotIn
 																											{
 																												a, ok := tf.Attrs["values"]
 																												if !ok {
@@ -4898,10 +4897,6 @@ func CopyScopedTokenToTerraform(ctx context.Context, obj *github_com_gravitation
 																						if !ok {
 																							diags.Append(attrWriteMissingDiag{"ScopedToken.spec.generic_oidc.allow_any.conditions.eq"})
 																						} else {
-																							obj, ok := obj.Operator.(*github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_joining_v1.Condition_Eq)
-																							if !ok {
-																								obj = &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_joining_v1.Condition_Eq{}
-																							}
 																							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 																							if !ok {
 																								diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.generic_oidc.allow_any.conditions.eq", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
@@ -4956,10 +4951,6 @@ func CopyScopedTokenToTerraform(ctx context.Context, obj *github_com_gravitation
 																						if !ok {
 																							diags.Append(attrWriteMissingDiag{"ScopedToken.spec.generic_oidc.allow_any.conditions.not_eq"})
 																						} else {
-																							obj, ok := obj.Operator.(*github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_joining_v1.Condition_NotEq)
-																							if !ok {
-																								obj = &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_joining_v1.Condition_NotEq{}
-																							}
 																							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 																							if !ok {
 																								diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.generic_oidc.allow_any.conditions.not_eq", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
@@ -5014,10 +5005,6 @@ func CopyScopedTokenToTerraform(ctx context.Context, obj *github_com_gravitation
 																						if !ok {
 																							diags.Append(attrWriteMissingDiag{"ScopedToken.spec.generic_oidc.allow_any.conditions.in"})
 																						} else {
-																							obj, ok := obj.Operator.(*github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_joining_v1.Condition_In)
-																							if !ok {
-																								obj = &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_joining_v1.Condition_In{}
-																							}
 																							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 																							if !ok {
 																								diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.generic_oidc.allow_any.conditions.in", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
@@ -5103,10 +5090,6 @@ func CopyScopedTokenToTerraform(ctx context.Context, obj *github_com_gravitation
 																						if !ok {
 																							diags.Append(attrWriteMissingDiag{"ScopedToken.spec.generic_oidc.allow_any.conditions.not_in"})
 																						} else {
-																							obj, ok := obj.Operator.(*github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_joining_v1.Condition_NotIn)
-																							if !ok {
-																								obj = &github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_joining_v1.Condition_NotIn{}
-																							}
 																							o, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 																							if !ok {
 																								diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.generic_oidc.allow_any.conditions.not_in", "github.com/hashicorp/terraform-plugin-framework/types.ObjectType"})
