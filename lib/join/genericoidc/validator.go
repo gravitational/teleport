@@ -123,7 +123,8 @@ func (v *IDTokenValidator) ValidateToken(
 	}
 
 	if err := evaluateGenericOIDCRules(spec, claims); err != nil {
-		return nil, trace.Wrap(err, "validating rules")
+		log.InfoContext(ctx, "denying generic_oidc join attempt due to rules evaluation error", "error", err)
+		return nil, trace.AccessDenied("unable to validate generic_oidc join attempt")
 	}
 
 	return claims, nil
@@ -299,12 +300,16 @@ func allowedAlgorithmsFromJWKS(jwks jose.JSONWebKeySet) []jose.SignatureAlgorith
 func evaluateGenericOIDCRules(spec *types.ProvisionTokenSpecV2GenericOIDC, claims *IDTokenClaims) error {
 	allowAnyHasAny := len(spec.AllowAny) > 0
 
+	var err error
 	mustMatchFieldsHasAny := false
 	if spec.MustMatchFields != nil {
 		// We can't trust non-nil to actually have a useful rule. Instead, we'll
 		// use an explicit helper that traverses the struct to make sure an
 		// actual comparison is made somewhere in the tree.
-		mustMatchFieldsHasAny = validateFieldRulesContainsAnyRule(spec.MustMatchFields)
+		mustMatchFieldsHasAny, err = validateFieldRulesContainsAnyRule(spec.MustMatchFields)
+		if err != nil {
+			return trace.Wrap(err, "validating must_match_fields")
+		}
 	}
 
 	// If no rules were defined, this token is invalid and cannot be used.

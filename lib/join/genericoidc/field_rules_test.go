@@ -37,16 +37,18 @@ func TestValidateFieldRulesContainsAnyRule(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name   string
-		spec   *gogotypes.Struct
-		expect bool
+		name        string
+		spec        *gogotypes.Struct
+		expect      bool
+		expectError require.ErrorAssertionFunc
 	}{
 		{
 			name: "simple",
 			spec: specStruct(t, `{
 				"email": "123456789012-compute@developer.gserviceaccount.com"
 			}`),
-			expect: true,
+			expect:      true,
+			expectError: require.NoError,
 		},
 		{
 			name: "only fields",
@@ -56,7 +58,8 @@ func TestValidateFieldRulesContainsAnyRule(t *testing.T) {
 				},
 				"custom": {}
 			}`),
-			expect: false,
+			expect:      false,
+			expectError: require.NoError,
 		},
 		{
 			name: "one nested check",
@@ -71,13 +74,29 @@ func TestValidateFieldRulesContainsAnyRule(t *testing.T) {
 			// empty checks that only assert a field's existence are allowed,
 			// just not sufficient on their own. at least one value needs to be
 			// compared in some rule.
-			expect: true,
+			expect:      true,
+			expectError: require.NoError,
+		},
+		{
+			name: "contains a list rule",
+			spec: specStruct(t, `{
+				"google": {
+					"compute_engine": {
+						"instance_name": ["hello-world"]
+					}
+				}
+			}`),
+			expect: false,
+			expectError: func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, "list fields cannot be used")
+			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ret := validateFieldRulesContainsAnyRule(tt.spec)
+			ret, err := validateFieldRulesContainsAnyRule(tt.spec)
+			tt.expectError(t, err)
 			require.Equal(t, tt.expect, ret)
 		})
 	}

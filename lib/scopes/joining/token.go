@@ -167,8 +167,28 @@ func validateGenericOIDC(spec *joiningv1.GenericOIDC) error {
 	}
 
 	for i, rule := range spec.GetAllowAny() {
+		if rule.Expression == "" && len(rule.Conditions) == 0 {
+			return trace.BadParameter("generic_oidc: allow_any[%d]: either `expression` or `conditions` must be set", i)
+		}
+
 		if rule.Expression != "" && len(rule.Conditions) > 0 {
-			return trace.BadParameter("generico_oidc: allow_any[%d]: only one of `expression` or `conditions` may be set", i)
+			return trace.BadParameter("generic_oidc: allow_any[%d]: only one of `expression` or `conditions` may be set", i)
+		}
+
+		// Unlike with unscoped tokens, the scoped variant uses `oneof`, so we
+		// don't need to count the individual set conditions.
+		for j, cond := range rule.Conditions {
+			if cond.GetAttribute() == "" {
+				return trace.BadParameter(
+					"generic_oidc: allow_any[%d].conditions[%d]: an attribute "+
+						"is required", i, j)
+			}
+
+			if cond.GetOperator() == nil {
+				return trace.BadParameter(
+					"generic_oidc: allow_any[%d].conditions[%d]: an operator "+
+						"is required (eq, not_eq, in, not_in)", i, j)
+			}
 		}
 	}
 

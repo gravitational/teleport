@@ -66,9 +66,10 @@ func evaluateAllowAnyConditions(conditions []*types.ProvisionTokenSpecV2GenericO
 			return trace.AccessDenied("required claim attribute %q not found on incoming claims", cond.Attribute)
 		}
 
-		// Note, ProvisionTokenV2's checkAndSetDefaults() ensures only one
-		// operator variant is set at creation time, so we can pick and
-		// evaluation order here without exhaustive checking.
+		// Note, ProvisionTokenV2's checkAndSetDefaults() (or the scoped
+		// variant's oneof) ensures only one operator variant is set at creation
+		// time, so we can pick any evaluation order here without exhaustive
+		// checking.
 		switch {
 		case cond.Eq != nil:
 			matches, err := allowClaimMatches(claimValue, cond.Eq.Value)

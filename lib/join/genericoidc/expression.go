@@ -82,14 +82,6 @@ func getByFields(parent map[string]any, fields []string) (any, error) {
 	return field, nil
 }
 
-// ValidateExpression validates that an expression is syntactically valid. It
-// cannot validate that all referenced variables are valid, which can only be
-// done at runtime.
-func ValidateExpression(expr string) error {
-	_, err := booleanExpressionParser.Parse(expr)
-	return err
-}
-
 // evaluateExpression evaluates the given predicate expression using the
 // `booleanExpressionParser` and provided environment.
 func evaluateExpression(expr string, env *Environment) (bool, error) {

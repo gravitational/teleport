@@ -22,6 +22,7 @@ import (
 	"context"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -49,7 +50,7 @@ func (its *IDTokenSource) GetIDTokenFromEnvironment(key string) (string, error) 
 		)
 	}
 
-	return tok, nil
+	return strings.TrimSpace(tok), nil
 }
 
 // GetIDTokenFromCommand executes a command to fetch a JWT. The caller can at
@@ -72,7 +73,7 @@ func (its *IDTokenSource) GetIDTokenFromCommand(ctx context.Context, timeout tim
 		return "", trace.BadParameter("generic_oidc: retrieved token with invalid content")
 	}
 
-	return string(bytes), err
+	return strings.TrimSpace(string(bytes)), err
 }
 
 func DefaultCommandRunner(ctx context.Context, command ...string) ([]byte, error) {

@@ -29,32 +29,35 @@ import (
 // least one true value assertion that isn't just nested structs. Generic rules
 // can be used to evaluate nested structures, so this recurses on the struct
 // field to find at least one valid, supported value comparison.
-func validateFieldRulesContainsAnyRule(str *gogotypes.Struct) bool {
+func validateFieldRulesContainsAnyRule(str *gogotypes.Struct) (bool, error) {
 	for _, v := range str.Fields {
 		switch f := v.Kind.(type) {
 		case *gogotypes.Value_BoolValue:
-			return true
+			return true, nil
 		case *gogotypes.Value_NumberValue:
-			return true
+			return true, nil
 		case *gogotypes.Value_StringValue:
-			return true
+			return true, nil
 		case *gogotypes.Value_NullValue:
 			// Don't treat nulls as sufficient to meet our "one actual value
 			// comparison" rule, since they can only assert nonexistence.
 			continue
 		case *gogotypes.Value_ListValue:
 			// List values not currently supported, skip.
-			continue
+			return false, trace.BadParameter("list fields cannot be used in `must_match_fields`")
 		case *gogotypes.Value_StructValue:
 			// recurse and check the child values to see if there are any actual
 			// rules.
-			if validateFieldRulesContainsAnyRule(f.StructValue) {
-				return true
+			hasAny, err := validateFieldRulesContainsAnyRule(f.StructValue)
+			if err != nil {
+				return false, trace.Wrap(err)
+			} else if hasAny {
+				return true, nil
 			}
 		}
 	}
 
-	return false
+	return false, nil
 }
 
 // evaluateFieldRules evaluates `must_match_fields` rules defined in the given

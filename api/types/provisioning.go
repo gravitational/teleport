@@ -1277,6 +1277,10 @@ func (a *ProvisionTokenSpecV2GenericOIDC) checkAndSetDefaults() error {
 	}
 
 	for i, rule := range a.AllowAny {
+		if rule.Expression == "" && len(rule.Conditions) == 0 {
+			return trace.BadParameter("allow_any[%d]: either `expression` or `conditions` must be set", i)
+		}
+
 		if rule.Expression != "" && len(rule.Conditions) > 0 {
 			return trace.BadParameter("allow_any[%d]: only one of `expression` or `conditions` may be set", i)
 		}

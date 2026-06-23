@@ -67,7 +67,7 @@ func TestGetIDTokenFromEnvironment(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(t.Name(), func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			v := NewIDTokenSource(tt.getEnv, DefaultCommandRunner)
 			str, err := v.GetIDTokenFromEnvironment(keyName)
 			require.Equal(t, tt.wantString, str)
@@ -133,7 +133,7 @@ func TestGetIDTokenFromCommand(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(t.Name(), func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				v := NewIDTokenSource(os.Getenv, tt.runner)
 
