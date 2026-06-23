@@ -32,7 +32,7 @@ enum DeepLink {
 	}
 }
 
-enum DeepLinkParseError: LocalizedError {
+enum DeepLinkParseError: LocalizedError, Equatable {
 	case unsupportedPath
 	case urlComponentsFailed
 	case missingPart(String)
