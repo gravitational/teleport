@@ -23,7 +23,7 @@ cases:
         allowed: true
     - request:
         method: GET
-        path: /api/v4/health/
+        path: /api/v4/health/ # trailing slash
       expect:
         allowed: false
         deny_kind: teleport_request_not_allowed
@@ -36,6 +36,12 @@ cases:
     - request:
         method: GET
         path: /api/v4/health/extra
+      expect:
+        allowed: false
+        deny_kind: teleport_request_not_allowed
+    - request:
+        method: GET
+        path: /api/v4%2fhealth # percent encoded slash
       expect:
         allowed: false
         deny_kind: teleport_request_not_allowed

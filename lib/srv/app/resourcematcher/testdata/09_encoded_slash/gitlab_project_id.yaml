@@ -1,17 +1,21 @@
 description: GitLab project id, plain or encoded, in one node
 rules:
     # A GitLab project id is either a numeric id (123) or a URL-encoded
-    # "group/project" path. capture_encoded_slash binds both forms as one raw
-    # segment, with no OR-doubling between a plain and an encoded matcher.
+    # "group/project" path. capture_encoded binds both forms as one raw
+    # segment, with no OR-doubling between a plain and an encoded matcher. The
+    # match opts into the encoded separator with allow_encoded(set("/")).
     - pred: |-
         path.match(literal("api/v4/projects",
-            capture_encoded_slash("project", greedy())))
+            capture_encoded("project", set("/"), greedy())), allow_encoded(set("/")))
 rules_desugared:
     - pred: |-
         path.match(
           literal("api/v4/projects",
-            capture_encoded_slash("project",
-              greedy())))
+            capture_encoded("project",
+              set("/"),
+              greedy())),
+          allow_encoded(
+            set("/")))
 identity:
     name: bob
     roles:

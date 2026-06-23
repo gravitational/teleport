@@ -1,7 +1,5 @@
 description: carve-out (negation)
 rules:
-    # Quote a where that starts with "!"
-    # so YAML does not read it as a tag.
     - paths:
         - /**
       where: '!path.match(literal("admin", greedy()))'

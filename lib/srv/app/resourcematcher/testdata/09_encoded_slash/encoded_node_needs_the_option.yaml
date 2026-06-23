@@ -1,0 +1,33 @@
+description: an encoded node without allow_encoded fails closed
+rules:
+    # capture_encoded names an encoded position, but the match still admits no
+    # encoding until allow_encoded opts it in. Without the option an
+    # encoded path fails closed, so the node and the option must be paired. A
+    # plain segment still matches, since it carries no encoding to gate.
+    - pred: |-
+        path.match(literal("registry",
+            capture_encoded("package", set("/"))))
+rules_desugared:
+    - pred: |-
+        path.match(
+          literal("registry",
+            capture_encoded("package",
+              set("/"))))
+identity:
+    name: bob
+    roles:
+        - developer
+cases:
+    - request:
+        method: GET
+        path: /registry/@babel%2fcore
+      expect:
+        allowed: false
+        deny_kind: teleport_request_not_allowed
+    - request:
+        method: GET
+        path: /registry/lodash
+      expect:
+        allowed: true
+        vars:
+            package: lodash

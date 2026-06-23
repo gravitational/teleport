@@ -1,16 +1,20 @@
 description: npm scoped package keeps its literal "@" raw
 rules:
     # An npm scoped package is /@scope%2fname. The "@" is a legal pchar and the
-    # slash between scope and name is encoded. capture_encoded_slash binds the
-    # whole id raw, so the "@" is forwarded as "@", never re-encoded to %40.
+    # slash between scope and name is encoded. capture_encoded binds the whole
+    # id raw, so the "@" is forwarded as "@", never re-encoded to %40. The match
+    # opts into the encoded separator with allow_encoded(set("/")).
     - pred: |-
         path.match(literal("registry",
-            capture_encoded_slash("package")))
+            capture_encoded("package", set("/"))), allow_encoded(set("/")))
 rules_desugared:
     - pred: |-
         path.match(
           literal("registry",
-            capture_encoded_slash("package")))
+            capture_encoded("package",
+              set("/"))),
+          allow_encoded(
+            set("/")))
 identity:
     name: bob
     roles:

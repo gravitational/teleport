@@ -198,7 +198,7 @@ func (r Rule) Compile() (*CompiledRule, error) {
 	if err := validateLiterals(expr); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := validateNegatedEncoded(expr); err != nil {
+	if err := validateEncodedSets(expr); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -269,7 +269,7 @@ func (r Rule) compileDenyHints() ([]compiledHint, error) {
 		if err := validateLiterals(on); err != nil {
 			return nil, trace.Wrap(err, "deny_hint %d", i)
 		}
-		if err := validateNegatedEncoded(on); err != nil {
+		if err := validateEncodedSets(on); err != nil {
 			return nil, trace.Wrap(err, "deny_hint %d", i)
 		}
 		hints = append(hints, compiledHint{on: onPred, denyCode: h.DenyCode, denyReason: h.DenyReason})
@@ -381,10 +381,18 @@ func nodeToSource(n *Node) string {
 		return constructorSource("capture", strconv.Quote(n.text), n.children)
 	case kindGlob:
 		return constructorSource("glob", "", n.children)
-	case kindGlobEncodedSlash:
-		return constructorSource("glob_encoded_slash", "", n.children)
-	case kindCaptureEncodedSlash:
-		return constructorSource("capture_encoded_slash", strconv.Quote(n.text), n.children)
+	case kindGlobEncoded:
+		return constructorSource("glob_encoded", encodedSetSource(n.allowedEncoded), n.children)
+	case kindCaptureEncoded:
+		// capture_encoded carries two leading args, the bound name and the
+		// allowed-encoded set, so render the lead as the comma-joined pair.
+		lead := strconv.Quote(n.text) + ", " + encodedSetSource(n.allowedEncoded)
+		return constructorSource("capture_encoded", lead, n.children)
+	case kindEncodedLiteral:
+		// encoded_literal carries the decoded value and the allowed-encoded set
+		// as its two leading args, the same pair form as capture_encoded.
+		lead := strconv.Quote(n.text) + ", " + encodedSetSource(n.allowedEncoded)
+		return constructorSource("encoded_literal", lead, n.children)
 	case kindRoot:
 		return constructorSource("root", "", n.children)
 	case kindSlash:
@@ -396,6 +404,17 @@ func nodeToSource(n *Node) string {
 	default:
 		return ""
 	}
+}
+
+// encodedSetSource renders the allowed-encoded chars of an encoded node as a
+// set(...) call, the form glob_encoded and capture_encoded take as their
+// leading argument, so the rendered source parses back to the same node.
+func encodedSetSource(allowed []string) string {
+	quoted := make([]string, 0, len(allowed))
+	for _, c := range allowed {
+		quoted = append(quoted, strconv.Quote(c))
+	}
+	return "set(" + strings.Join(quoted, ", ") + ")"
 }
 
 // constructorSource renders one matcher constructor call. lead is the quoted
@@ -423,11 +442,12 @@ func (c *CompiledRule) Evaluate(request Request, identity Identity) (Decision, e
 	if err != nil {
 		return Decision{}, trace.Wrap(err)
 	}
-	// A read of a capture the matcher did not bind, or a path the tokenizer
-	// rejected, forces the rule to no-match. Both can only deny, never widen, no
-	// matter which operator read them, so an unbound capture or an unreadable
-	// path fails closed even behind a negation.
-	if allowed && !e.state.unboundRead && !e.state.tokenizeFailed {
+	// A read of a capture the matcher did not bind, a path the tokenizer
+	// rejected, or an encoded char in a match that did not opt in, forces the
+	// rule to no-match. All three can only deny, never widen, no matter which
+	// operator read them, so an unbound capture, an unreadable path, or an
+	// unexpected encoded segment fails closed even behind a negation.
+	if allowed && !e.state.unboundRead && !e.state.tokenizeFailed && !e.state.encodedNotAllowed {
 		return Decision{
 			Allowed: true,
 			Allow:   &AllowDetails{Vars: e.vars, Code: c.allowCode, Reason: c.allowReason},
@@ -459,15 +479,16 @@ func newEnv(request Request, identity Identity) env {
 }
 
 // evalPredicate evaluates a predicate against a fresh environment and applies
-// the no-match guards, returning whether it matched. An unbound capture read or
-// a path the tokenizer rejected forces a no-match.
+// the no-match guards, returning whether it matched. An unbound capture read, a
+// path the tokenizer rejected, or an encoded char in a match that did not opt
+// in forces a no-match.
 func evalPredicate(p predicate, request Request, identity Identity) (bool, error) {
 	e := newEnv(request, identity)
 	ok, err := p.Evaluate(e)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	return ok && !e.state.unboundRead && !e.state.tokenizeFailed, nil
+	return ok && !e.state.unboundRead && !e.state.tokenizeFailed && !e.state.encodedNotAllowed, nil
 }
 
 // validateCode checks an allow or deny code: 1 to 64 of [a-z0-9_], and not the

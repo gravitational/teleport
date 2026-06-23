@@ -197,11 +197,15 @@ func isIdentCall(call *ast.CallExpr, name string) bool {
 	return ok && id.Name == name
 }
 
-// validateLiterals rejects an empty or illegally-encoded segment in a
-// literal("...") call whose text is a string constant. It is the load-time half
-// of the literal check, so a typo such as literal("") or a stray byte fails when
-// the rule compiles rather than per request. A dynamic literal argument cannot
-// be checked until evaluation, where the constructor still rejects it.
+// validateLiterals rejects an empty or illegally-encoded value in a
+// literal("...") or encoded_literal("...", ...) call whose value is a string
+// constant. It is the load-time half of the literal check, so a typo such as
+// literal("") or a stray byte fails when the rule compiles rather than per
+// request. A dynamic value cannot be checked until evaluation, where the
+// constructor still rejects it. literal and encoded_literal both take the value
+// as the first argument, but hold it to different rules: a literal value must
+// be a legal segment after splitting on "/", an encoded_literal value the
+// decoded form with no "%".
 func validateLiterals(expr string) error {
 	parsed, err := goparser.ParseExpr(expr)
 	if err != nil {
@@ -210,7 +214,11 @@ func validateLiterals(expr string) error {
 	var bad error
 	ast.Inspect(parsed, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
-		if !ok || !isIdentCall(call, "literal") || len(call.Args) == 0 {
+		if !ok || len(call.Args) == 0 {
+			return true
+		}
+		check := literalValueCheck(call)
+		if check == nil {
 			return true
 		}
 		lit, ok := call.Args[0].(*ast.BasicLit)
@@ -221,12 +229,26 @@ func validateLiterals(expr string) error {
 		if err != nil {
 			return true
 		}
-		if err := validateLiteral(s); err != nil {
+		if err := check(s); err != nil {
 			bad = err
 		}
 		return true
 	})
 	return trace.Wrap(bad)
+}
+
+// literalValueCheck returns the value validator for a literal or encoded_literal
+// call, or nil for any other call, so validateLiterals holds each to its own
+// rules.
+func literalValueCheck(call *ast.CallExpr) func(string) error {
+	switch {
+	case isIdentCall(call, "literal"):
+		return validateLiteral
+	case isIdentCall(call, "encoded_literal"):
+		return validateEncodedLiteralValue
+	default:
+		return nil
+	}
 }
 
 // validateRoot rejects a root() call anywhere but as the matcher argument of a
@@ -266,61 +288,70 @@ func validateRoot(expr string) error {
 	return nil
 }
 
-// validateNegatedEncoded rejects a rule that combines a negated path.match with
-// an encoded-slash matcher anywhere in the rule. A negated carve-out
-// (&& !path.match(exception)) fails open if the exception matcher silently
-// misses an encoded segment: when the positive grant admits an encoded id but
-// the negation uses a plain matcher, an attacker reaches a denied endpoint via
-// the encoded form (see pathspec-mental-model section 9). Pinning down the
-// exact position mismatch is fragile, so the lint is deliberately broad: any
-// negation together with any encoded position is rejected, which pushes an
-// author toward the positive-only grant the model prefers.
-func validateNegatedEncoded(expr string) error {
+// validateEncodedSets rejects an encoded-char set literal that names any char
+// other than the separator "/". The encoded-char matchers glob_encoded and
+// capture_encoded, and the allow_encoded option, each take a set(...) of
+// the chars they admit, and only "/" is supported today. Checking at load turns
+// a per-request evaluation error into a clear compile failure. A set built from
+// a non-literal cannot be checked here and is backstopped by the constructor at
+// evaluation.
+func validateEncodedSets(expr string) error {
 	parsed, err := goparser.ParseExpr(expr)
 	if err != nil {
 		return nil
 	}
-	if hasNegatedMatch(parsed) && hasEncodedNode(parsed) {
-		return trace.BadParameter(
-			"a rule that negates a path.match cannot also use an encoded-slash matcher: " +
-				"the carve-out can fail open if the negated match misses an encoded segment; " +
-				"express the grant positively instead")
+	var bad error
+	ast.Inspect(parsed, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		var setArg ast.Expr
+		switch {
+		case isIdentCall(call, "glob_encoded") && len(call.Args) >= 1:
+			setArg = call.Args[0]
+		case isIdentCall(call, "allow_encoded") && len(call.Args) >= 1:
+			setArg = call.Args[0]
+		case isIdentCall(call, "capture_encoded") && len(call.Args) >= 2:
+			setArg = call.Args[1]
+		case isIdentCall(call, "encoded_literal") && len(call.Args) >= 2:
+			setArg = call.Args[1]
+		default:
+			return true
+		}
+		chars, ok := setLiterals(setArg)
+		if !ok {
+			return true
+		}
+		if err := validateEncodedChars(chars); err != nil {
+			bad = err
+		}
+		return true
+	})
+	return trace.Wrap(bad)
+}
+
+// setLiterals returns the string-literal members of a set(...) call. It reports
+// false when the node is not a set call or any member is not a string literal,
+// since a dynamic set cannot be checked at load.
+func setLiterals(node ast.Expr) ([]string, bool) {
+	call, ok := node.(*ast.CallExpr)
+	if !ok || !isIdentCall(call, "set") {
+		return nil, false
 	}
-	return nil
-}
-
-// hasNegatedMatch reports whether expr contains a negated path.match, a "!"
-// applied to an expression that holds a path.match call.
-func hasNegatedMatch(root ast.Node) bool {
-	found := false
-	ast.Inspect(root, func(n ast.Node) bool {
-		unary, ok := n.(*ast.UnaryExpr)
-		if !ok || unary.Op != token.NOT {
-			return true
+	out := make([]string, 0, len(call.Args))
+	for _, arg := range call.Args {
+		lit, ok := arg.(*ast.BasicLit)
+		if !ok || lit.Kind != token.STRING {
+			return nil, false
 		}
-		ast.Inspect(unary.X, func(m ast.Node) bool {
-			if call, ok := m.(*ast.CallExpr); ok && isPathMatch(call) {
-				found = true
-			}
-			return true
-		})
-		return true
-	})
-	return found
-}
-
-// hasEncodedNode reports whether expr contains a glob_encoded_slash or
-// capture_encoded_slash matcher anywhere.
-func hasEncodedNode(root ast.Node) bool {
-	found := false
-	ast.Inspect(root, func(n ast.Node) bool {
-		if call, ok := n.(*ast.CallExpr); ok &&
-			(isIdentCall(call, "glob_encoded_slash") || isIdentCall(call, "capture_encoded_slash")) {
-			found = true
+		s, err := strconv.Unquote(lit.Value)
+		if err != nil {
+			return nil, false
 		}
-		return true
-	})
-	return found
+		out = append(out, s)
+	}
+	return out, true
 }
 
 // validateExclusions rejects a capture inside a greedy_except matcher. An
@@ -375,12 +406,12 @@ func referencedVars(root ast.Node) []string {
 }
 
 // captureName returns the bound name of a capture("name", ...) or
-// capture_encoded_slash("name", ...) call. It reports false for any other call,
-// and for a capture call whose first argument is not a string literal, since a
-// dynamic name cannot be checked at load.
+// capture_encoded("name", set(...), ...) call. It reports false for any other
+// call, and for a capture call whose first argument is not a string literal,
+// since a dynamic name cannot be checked at load.
 func captureName(call *ast.CallExpr) (string, bool) {
 	id, ok := call.Fun.(*ast.Ident)
-	if !ok || (id.Name != "capture" && id.Name != "capture_encoded_slash") || len(call.Args) == 0 {
+	if !ok || (id.Name != "capture" && id.Name != "capture_encoded") || len(call.Args) == 0 {
 		return "", false
 	}
 	lit, ok := call.Args[0].(*ast.BasicLit)

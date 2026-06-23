@@ -30,3 +30,8 @@ cases:
       expect:
         allowed: false
         deny_kind: teleport_request_not_allowed
+    - request:
+        method: POST
+        path: /
+      expect:
+        allowed: true

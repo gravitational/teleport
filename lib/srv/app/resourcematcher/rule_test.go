@@ -375,14 +375,14 @@ func TestRoleSetMisconfiguredDefaultDeny(t *testing.T) {
 	require.Empty(t, got.EvaluatedRoles)
 }
 
-// TestEncodedSlashCapture pins the GitLab shape: capture_encoded_slash binds an
+// TestEncodedSlashCapture pins the GitLab shape: capture_encoded binds an
 // encoded project id as one raw segment, while a plain capture rejects the same
 // encoded segment and a plain glob never spans it.
 func TestEncodedSlashCapture(t *testing.T) {
-	// capture_encoded_slash admits both a plain id and an encoded id, binding
-	// the raw bytes either way.
+	// capture_encoded, paired with the allow_encoded option, admits both a
+	// plain id and an encoded id, binding the raw bytes either way.
 	encoded := Rule{
-		Pred: `path.match(literal("api/v4/projects", capture_encoded_slash("project", greedy())))`,
+		Pred: `path.match(literal("api/v4/projects", capture_encoded("project", set("/"), greedy())), allow_encoded(set("/")))`,
 	}
 	c, err := encoded.Compile()
 	require.NoError(t, err)
@@ -397,8 +397,9 @@ func TestEncodedSlashCapture(t *testing.T) {
 	require.True(t, got.Allowed)
 	require.Equal(t, "123", got.Allow.Vars["project"], "plain id matches the same node")
 
-	// A plain capture is safe-only: the encoded id no longer matches, so the
-	// rule denies rather than binding the encoded value.
+	// A plain capture is safe-only, and the match did not opt into encoded
+	// chars, so the encoded id does not match and the rule denies rather than
+	// binding the encoded value.
 	plain := Rule{
 		Pred: `path.match(literal("api/v4/projects", capture("project", greedy())))`,
 	}
@@ -417,7 +418,7 @@ func TestDoubleEncodedSlashIsInvalid(t *testing.T) {
 	set, err := CompileRoles([]Role{{
 		Name: "developer",
 		Rules: []Rule{{
-			Pred: `path.match(literal("api/v4/projects", capture_encoded_slash("project", greedy())))`,
+			Pred: `path.match(literal("api/v4/projects", capture_encoded("project", set("/"), greedy())), allow_encoded(set("/")))`,
 		}},
 	}})
 	require.NoError(t, err)
@@ -425,17 +426,6 @@ func TestDoubleEncodedSlashIsInvalid(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, got.Allowed)
 	require.Equal(t, DenyInvalidRequest, got.Deny.Kind)
-}
-
-// TestNegatedEncodedIsRejected pins the negation lint: a rule that negates a
-// path.match cannot also use an encoded-slash matcher, since the carve-out can
-// fail open if the negation misses an encoded segment.
-func TestNegatedEncodedIsRejected(t *testing.T) {
-	_, err := Rule{
-		Pred: `path.match(literal("api/v4/projects", capture_encoded_slash("project", greedy()))) && !path.match(literal("api/v4/projects", glob(literal("variables"))))`,
-	}.Compile()
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "encoded-slash matcher")
 }
 
 func TestCompileRejectsBothSurfaces(t *testing.T) {

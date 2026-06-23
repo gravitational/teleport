@@ -1,0 +1,47 @@
+description: encoded_literal pins one group/project by its decoded value
+rules:
+    # encoded_literal matches one segment by its decoded value, so it pins an
+    # exact GitLab id in the path tree, in either hex case (%2F or %2f), without
+    # the case-sensitive equality a where check on the raw value would need. The
+    # "/" in the value is content, not a separator: the node is one segment. The
+    # match opts into the encoded separator with allow_encoded(set("/")).
+    - pred: |-
+        path.match(literal("api/v4/projects",
+            encoded_literal("mygroup/myproject", set("/"),
+                literal("issues"))), allow_encoded(set("/")))
+rules_desugared:
+    - pred: |-
+        path.match(
+          literal("api/v4/projects",
+            encoded_literal("mygroup/myproject",
+              set("/"),
+              literal("issues"))),
+          allow_encoded(
+            set("/")))
+identity:
+    name: bob
+    roles:
+        - developer
+cases:
+    - request:
+        method: GET
+        path: /api/v4/projects/mygroup%2Fmyproject/issues
+      expect:
+        allowed: true
+    - request:
+        method: GET
+        path: /api/v4/projects/mygroup%2fmyproject/issues
+      expect:
+        allowed: true
+    - request:
+        method: GET
+        path: /api/v4/projects/other%2Fthing/issues
+      expect:
+        allowed: false
+        deny_kind: teleport_request_not_allowed
+    - request:
+        method: GET
+        path: /api/v4/projects/mygroup/myproject/issues
+      expect:
+        allowed: false
+        deny_kind: teleport_request_not_allowed
