@@ -2024,7 +2024,7 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			desc: "generic oidc sucess with http issuer with opt-in",
+			desc: "generic oidc success with http issuer with opt-in",
 			token: &ProvisionTokenV2{
 				Metadata: Metadata{
 					Name: "test",
