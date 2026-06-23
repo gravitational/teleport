@@ -65,7 +65,9 @@ export const LogoHero = ({
   customSrc?: string;
 }) => {
   const theme = useTheme();
-  const src = customSrc || (cfg.beamsUi ? beamsLogos[theme.type] : logos[cfg.edition][theme.type]);
+  const src =
+    customSrc ||
+    (cfg.beamsUi ? beamsLogos[theme.type] : logos[cfg.edition][theme.type]);
   return (
     <Image src={src} maxHeight="120px" maxWidth="200px" my={my} mx="auto" />
   );
