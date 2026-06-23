@@ -30,7 +30,6 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
 )
@@ -49,7 +48,6 @@ func NewEnrollPairingService(b backend.Backend) (*EnrollPairingService, error) {
 	service, err := generic.NewServiceWrapper(generic.ServiceConfig[*devicepb.EnrollPairing]{
 		Backend:       b,
 		ResourceKind:  types.KindEnrollPairing,
-		PageLimit:     defaults.MaxIterationLimit,
 		BackendPrefix: backend.NewKey("devices", "enroll_pairing"),
 		MarshalFunc:   services.MarshalEnrollPairing,
 		UnmarshalFunc: services.UnmarshalEnrollPairing,
