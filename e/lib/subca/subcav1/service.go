@@ -85,6 +85,11 @@ type SubCAStorage interface {
 		ctx context.Context,
 		id local.CertAuthorityOverrideID,
 	) error
+	ConditionalDeleteCertAuthorityOverride(
+		ctx context.Context,
+		id local.CertAuthorityOverrideID,
+		revision string,
+	) error
 }
 
 // KeystoreManager is a subset of keystore.Manager methods used in CRL and CSR
@@ -586,12 +591,8 @@ func (s *Service) RemoveCertificateOverride(
 
 	// Escalate to Delete if this is the last certificate override in the spec.
 	if len(parsed.CertificateOverrides) == 1 {
-		id := local.CertAuthorityOverrideIDFromResource(parsed.CAOverride)
-		err := s.deleteCAOverride(ctx,
-			id,
-			parsed.CAOverride.GetMetadata().GetRevision(),
-			req.GetForceImmediateDelete(),
-		)
+		const unconditional = false
+		err := s.deleteCAOverride(ctx, parsed, req.GetForceImmediateDelete(), unconditional)
 		return &subcav1.RemoveCertificateOverrideResponse{}, trace.Wrap(err)
 	}
 
@@ -1069,14 +1070,37 @@ func (s *Service) DeleteCertAuthorityOverride(
 	if err != nil {
 		return nil, trace.Wrap(err, "read cluster name")
 	}
-	id := local.CertAuthorityOverrideID{
-		ClusterName: cn.GetClusterName(),
-		CAType:      req.GetCaId().GetCaType(),
+
+	var parsed *subca.ParsedCertAuthorityOverride
+	force := req.GetForceImmediateDelete()
+	if force {
+		// Don't query or parse the override in force mode, proceed to an
+		// unconditional delete.
+		// This lets deletes recover the system from corrupted states.
+		parsed = &subca.ParsedCertAuthorityOverride{
+			CAOverride: subcav1.CertAuthorityOverride_builder{
+				SubKind: req.GetCaId().GetCaType(),
+				Metadata: headerv1.Metadata_builder{
+					Name: cn.GetClusterName(),
+				}.Build(),
+			}.Build(),
+		}
+	} else {
+		caOverride, err := s.subCA.GetCertAuthorityOverride(ctx, local.CertAuthorityOverrideID{
+			ClusterName: cn.GetClusterName(),
+			CAType:      req.GetCaId().GetCaType(),
+		})
+		if err != nil {
+			return nil, trace.Wrap(err, "read CA override")
+		}
+		parsed, err = subca.ParseCAOverride(caOverride)
+		if err != nil {
+			return nil, trace.Wrap(err, "parse CA override")
+		}
 	}
 
-	// TODO(codingllama): Query existing override for its revision.
-	const revision = ""
-	if err := s.deleteCAOverride(ctx, id, revision, req.GetForceImmediateDelete()); err != nil {
+	unconditional := force
+	if err := s.deleteCAOverride(ctx, parsed, force, unconditional); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1085,34 +1109,30 @@ func (s *Service) DeleteCertAuthorityOverride(
 
 func (s *Service) deleteCAOverride(
 	ctx context.Context,
-	id local.CertAuthorityOverrideID,
-	revision string,
+	parsed *subca.ParsedCertAuthorityOverride,
 	forceImmediateDelete bool,
+	unconditional bool,
 ) error {
 	// Skip disable validation on forced deletes.
 	// Disables are always allowed if forced.
 	if !forceImmediateDelete {
-		if err := s.performDeleteLateralValidation(ctx, id); err != nil {
+		if err := s.performDeleteLateralValidation(ctx, parsed); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 
-	// TODO(codingllama): Use conditional delete.
-	_ = revision
-
-	if err := s.subCA.DeleteCertAuthorityOverride(ctx, id); err != nil {
-		return trace.Wrap(err)
+	id := local.CertAuthorityOverrideIDFromResource(parsed.CAOverride)
+	if unconditional {
+		if err := s.subCA.DeleteCertAuthorityOverride(ctx, id); err != nil {
+			return trace.Wrap(err)
+		}
+	} else {
+		revision := parsed.CAOverride.GetMetadata().GetRevision()
+		if err := s.subCA.ConditionalDeleteCertAuthorityOverride(ctx, id, revision); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
-	// Fill in identifying fields for audit.
-	parsed := &subca.ParsedCertAuthorityOverride{
-		CAOverride: subcav1.CertAuthorityOverride_builder{
-			SubKind: id.CAType,
-			Metadata: headerv1.Metadata_builder{
-				Name: id.ClusterName,
-			}.Build(),
-		}.Build(),
-	}
 	s.emitCAOverrideEvent(
 		ctx,
 		parsed,
@@ -1127,12 +1147,18 @@ func (s *Service) deleteCAOverride(
 // Delete lateral validation checks the to-be-deleted CA override against its
 // sibling CA resource and existing CA override, making sure enabled and active
 // overrides aren't being deleted.
-func (s *Service) performDeleteLateralValidation(ctx context.Context, id local.CertAuthorityOverrideID) error {
+func (s *Service) performDeleteLateralValidation(
+	ctx context.Context,
+	parsed *subca.ParsedCertAuthorityOverride,
+) error {
+	caType := parsed.CAOverride.GetSubKind()
+	clusterName := parsed.CAOverride.GetMetadata().GetName()
+
 	// Read CA.
 	const loadKeys = false
 	ca, err := s.trust.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.CertAuthType(id.CAType),
-		DomainName: id.ClusterName,
+		Type:       types.CertAuthType(caType),
+		DomainName: clusterName,
 	}, loadKeys)
 	if err != nil {
 		return trace.Wrap(err, "read CA")
@@ -1142,17 +1168,8 @@ func (s *Service) performDeleteLateralValidation(ctx context.Context, id local.C
 		return trace.Wrap(err, "parse CA")
 	}
 
-	// Read existing CA override.
-	caOverride, err := s.subCA.GetCertAuthorityOverride(ctx, id)
-	if err != nil {
-		return trace.Wrap(err, "read CA override")
-	}
-	parsedCAO, err := subca.ParseCAOverride(caOverride)
-	if err != nil {
-		return trace.Wrap(err, "parse CA override")
-	}
 	correlatedData := &correlateOverrideData{
-		Deleted: parsedCAO.CertificateOverrides, // all about to be deleted
+		Deleted: parsed.CertificateOverrides, // all about to be deleted
 	}
 
 	// Validate disables.
