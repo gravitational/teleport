@@ -1,8 +1,0 @@
-clusterName: test-persistence-cluster
-auth_server: teleport-auth.example.com
-join_params:
-  method: kubernetes
-  token_name: teleport-proxy
-standalone:
-  existingClaimName: ""
-  volumeSize: 10Gi

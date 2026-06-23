@@ -1,8 +1,0 @@
-clusterName: helm-lint
-auth_server: teleport-auth.example.com
-join_params:
-  method: kubernetes
-  token_name: teleport-proxy
-# These are just sample values to test the chart.
-# They are not intended to be guidelines or suggestions for running teleport.
-probeTimeoutSeconds: 5

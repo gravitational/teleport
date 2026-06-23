@@ -1,6 +1,0 @@
-clusterName: test-aws-cluster
-auth_server: teleport-auth.example.com
-join_params:
-  method: kubernetes
-  token_name: teleport-proxy
-kubeClusterName: test-kube-cluster
