@@ -96,21 +96,24 @@ func (s *EnrollPairingService) CreateEnrollPairing(ctx context.Context, user str
 		}.Build(),
 	}.Build()
 
-	// Attempt to clear an existing resource before creating a new one.
+	// HACK(ravicious): Attempt to clear an existing resource before creating a
+	// new one.
 	//
 	// On some backends like DynamoDB and Firestore, expired items are not removed
 	// immediately from the backend. In the case of DynamoDB, expired items are
 	// removed within a few days [1].
 	//
-	// lib/backend/dynamo excludes expired items when listing them with GetRange.
-	// It also removes expired items on direct Get. But it does not remove an
-	// expired item on Create, surfacing AlreadyExists if an expired item with the
-	// same key exists.
+	// Our backends are not consistent when it comes to dealing with expired items
+	// on Create. For DynamoDB, that was just addressed in #68038. [2]
 	//
 	// As a workaround, before creating a resource we first get the resource by
-	// name to trigger removal of an expired item if it exists, ignoring NotFound.
+	// name to trigger removal of an expired item if it exists.
+	//
+	// Once #68038 lands and the issue is addressed in Firestore backend too, we
+	// can remove this workaround.
 	//
 	// [1]: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/TTL.html
+	// [2]: https://github.com/gravitational/teleport/pull/68038
 	if _, err := s.service.GetResource(ctx, user); err != nil && !trace.IsNotFound(err) {
 		s.log.WarnContext(ctx, "Failed to clear expired pairing if any", "error", err)
 	}
