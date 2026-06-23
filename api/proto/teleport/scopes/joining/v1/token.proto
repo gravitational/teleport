@@ -561,12 +561,20 @@ message GenericOIDC {
   // If set, disables the requirement that the issuer must use HTTPS.
   bool insecure_allow_http_issuer = 2;
 
-  // The expected JWT audience. If unset, this value will be set to the name of
-  // this Teleport cluster (e.g. example.teleport.sh). Where possible, this
-  // value should be unique to the Teleport cluster; issuing JWTs using the
-  // cluster as the audience is preferred. On providers where this is not
-  // possible, you can specify their server-defined value in this field. This
-  // value must match the audience in issued JWTs for join attempts to succeed.
+  // The expected JWT audience value (required). This must match or be included
+  // in the list of `aud` values in the JWT provided by the client when joining.
+  //
+  // For providers that do not allow you to configure this value yourself (this
+  // is technically an OIDC spec violation, but is common), use the value they
+  // provide. Otherwise, we recommend using a value that uniquely identifies the
+  // Teleport cluster and join token. For example, you can use this scheme:
+  //   $clusterName/$tokenName
+  //
+  // For a cluster named `example.teleport.sh` and a token named `example`, this
+  // would result in an audience of `example.teleport.sh/example`. If you
+  // prefer, you can also use a UUID instead of the token name. Note that you
+  // will need to configure the matching value with the issuer, usually at
+  // request time.
   string audience = 3;
 
   // An optional static JWKS value that can be used to specify JWKS keys when

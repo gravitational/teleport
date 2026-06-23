@@ -2295,7 +2295,7 @@ message ProvisionTokenSpecV2GenericOIDC {
   // that the issuer must use HTTPS.
   bool InsecureAllowHTTPIssuer = 2 [(gogoproto.jsontag) = "insecure_allow_http_issuer"];
 
-  // Audience The expected audience value (required). This must match or be
+  // Audience is the expected audience value (required). This must match or be
   // included in the list of `aud` values in the JWT provided by the client when
   // joining.
   // For providers that do not allow you to configure this value yourself (this
