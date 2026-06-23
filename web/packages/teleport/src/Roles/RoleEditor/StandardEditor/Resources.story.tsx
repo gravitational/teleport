@@ -25,6 +25,7 @@ import {
   DatabaseAccessSection,
   GitHubOrganizationAccessSection,
   KubernetesAccessSection,
+  LinuxDesktopAccessSection,
   ServerAccessSection,
   WindowsDesktopAccessSection,
 } from './Resources';
@@ -55,6 +56,7 @@ const meta: Meta<StoryProps> = {
         'app',
         'db',
         'windows_desktop',
+        'linux_desktop',
         'git_server',
       ],
     },
@@ -144,6 +146,12 @@ function getResourceSectionStates(kind: ResourceAccessKind) {
       return {
         component: WindowsDesktopAccessSection,
         defaultValue: newResourceAccess('windows_desktop', defaultRoleVersion),
+      };
+
+    case 'linux_desktop':
+      return {
+        component: LinuxDesktopAccessSection,
+        defaultValue: newResourceAccess('linux_desktop', defaultRoleVersion),
       };
 
     default:

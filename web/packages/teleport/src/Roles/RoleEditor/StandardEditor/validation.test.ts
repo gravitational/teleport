@@ -111,6 +111,12 @@ describe('validateRoleEditorModel', () => {
         logins: [],
         hideValidationErrors: false,
       },
+      {
+        kind: 'linux_desktop',
+        labels: [{ name: 'foo', value: 'bar' }],
+        logins: [],
+        hideValidationErrors: false,
+      },
     ];
     model.rules = [
       {
@@ -146,7 +152,14 @@ describe('validateRoleEditorModel', () => {
     ];
     const result = validateRoleEditorModel(model, undefined, undefined);
     expect(result.metadata.valid).toBe(true);
-    expect(validity(result.resources)).toEqual([true, true, true, true, true]);
+    expect(validity(result.resources)).toEqual([
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+    ]);
     expect(validity(result.rules)).toEqual([true, true]);
     expect(result.isValid).toBe(true);
   });
@@ -215,9 +228,16 @@ describe('validateRoleEditorModel', () => {
         logins: [],
         hideValidationErrors: false,
       },
+      {
+        kind: 'linux_desktop',
+        labels: [],
+        logins: [],
+        hideValidationErrors: false,
+      },
     ];
     const result = validateRoleEditorModel(model, undefined, undefined);
     expect(validity(result.resources)).toEqual([
+      false,
       false,
       false,
       false,
