@@ -310,6 +310,9 @@ type IdentityContext struct {
 	// deadline in cases where both require_session_mfa and disconnect_expired_cert
 	// are enabled. See https://github.com/gravitational/teleport/issues/18544.
 	PreviousIdentityExpires time.Time
+
+	// BeamID is the identifier of the Beam this session was created for.
+	BeamID string
 }
 
 // ServerContext holds session specific context, such as SSH auth agents, PTYs,
@@ -1161,8 +1164,10 @@ func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
 	// not support trusted clusters, the scope pin should always be available
 	// on the unmapped identity for all scoped identities.
 	var scopePin *scopesv1.Pin
+	var beamID string
 	if id.UnmappedIdentity != nil {
 		scopePin = id.UnmappedIdentity.ScopePin
+		beamID = id.UnmappedIdentity.BeamID
 	}
 
 	return apievents.UserMetadata{
@@ -1178,6 +1183,7 @@ func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
 		UserRoles:       slices.Clone(id.MappedRoles),
 		UserTraits:      id.Traits.Clone(),
 		ScopePin:        pinning.ToEventsPin(scopePin),
+		BeamID:          beamID,
 	}
 }
 

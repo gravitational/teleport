@@ -122,6 +122,28 @@ Arguments:
 |---|---|---|
 |app|*no default* (required)|App name to retrieve credentials for. Can be obtained from `tsh apps ls` output.|
 
+## tsh apps logins
+
+List available logins for a Cloud console application.
+
+Usage:
+
+```code
+$ tsh apps logins [<flags>] <app>
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`-f`, `--format`|`text` (one of: `text`, `json`, `yaml`)|Format output (text, json, yaml).|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|app|*no default* (required)|App name to list logins for. Currently only AWS is supported.|
+
 ## tsh apps logout
 
 Remove app certificate.
