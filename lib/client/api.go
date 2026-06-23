@@ -1764,18 +1764,6 @@ func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	return result.KeyRing, nil
 }
 
-// PerformSessionMFACeremony performs a session-bound MFA ceremony for an SSH session
-// and returns the challenge name.
-func (tc *TeleportClient) PerformSessionMFACeremony(ctx context.Context, sessionID []byte) (string, error) {
-	clusterClient, err := tc.ConnectToCluster(ctx)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	defer clusterClient.Close()
-
-	return clusterClient.PerformSessionMFACeremony(ctx, sessionID)
-}
-
 // CreateAccessRequestV2 registers a new access request with the auth server.
 func (tc *TeleportClient) CreateAccessRequestV2(ctx context.Context, req types.AccessRequest) (types.AccessRequest, error) {
 	ctx, span := tc.Tracer.Start(
@@ -2099,7 +2087,7 @@ func (tc *TeleportClient) connectToNode(ctx context.Context, clt *ClusterClient,
 	sshConfig.AuthCallback = clientssh.AuthCallback(
 		connectCtx,
 		func() (clientssh.MFACeremonyPerformer, error) {
-			return tc.PerformSessionMFACeremony, nil
+			return clt.PerformSessionMFACeremony, nil
 		},
 	)
 
