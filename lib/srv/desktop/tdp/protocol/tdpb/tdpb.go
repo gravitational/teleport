@@ -138,11 +138,9 @@ func (*SyncKeys) validate() error { return nil }
 type SessionSelection tdpbv1.SessionSelection
 
 func (s *SessionSelection) Encode() ([]byte, error) {
-	return marshalWithHeader(&tdpbv1.Envelope{
-		Payload: &tdpbv1.Envelope_SessionSelection{
-			SessionSelection: (*tdpbv1.SessionSelection)(s),
-		},
-	})
+	return marshalWithHeader(tdpbv1.Envelope_builder{
+		SessionSelection: proto.ValueOrDefault((*tdpbv1.SessionSelection)(s)),
+	}.Build())
 }
 
 func (*SessionSelection) validate() error { return nil }

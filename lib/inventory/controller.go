@@ -612,12 +612,12 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 					}
 				}
 
-				if m.LinuxDesktop != nil {
+				if m.HasLinuxDesktop() {
 					if linuxKeepAliveDelay == nil {
 						linuxKeepAliveDelay = c.createKeepAliveDelay(nil)
 					}
 
-					if err := c.handleLinuxDesktopHB(handle, m.LinuxDesktop, linuxKeepAliveDelay); err != nil {
+					if err := c.handleLinuxDesktopHB(handle, m.GetLinuxDesktop(), linuxKeepAliveDelay); err != nil {
 						handle.CloseWithError(err)
 						return
 					}
@@ -774,7 +774,7 @@ func (c *Controller) doResourceCleanup(handle *upstreamHandle) {
 	if handle.linuxDesktop != nil {
 		if err := c.auth.DeleteLinuxDesktop(cleanupCtx, handle.linuxDesktop.resource.GetMetadata().GetName()); err != nil {
 			if cleanupCtx.Err() != nil {
-				slog.WarnContext(c.closeContext, "halting remaining resource cleanup", "instance_id", handle.Hello().ServerID, "error", err)
+				slog.WarnContext(c.closeContext, "halting remaining resource cleanup", "instance_id", handle.Hello().GetServerID(), "error", err)
 				return
 			}
 			slog.WarnContext(c.closeContext, "Failed to remove Linux desktop on termination",
@@ -1316,8 +1316,8 @@ func (c *Controller) handleLinuxDesktopHB(handle *upstreamHandle, linuxDesktop *
 	if meta == nil {
 		return trace.BadParameter("missing Linux desktop metadata")
 	}
-	if meta.GetName() != handle.Hello().ServerID {
-		return trace.AccessDenied("incorrect linux desktop ID (expected %q, got %q)", handle.Hello().ServerID, meta.GetName())
+	if meta.GetName() != handle.Hello().GetServerID() {
+		return trace.AccessDenied("incorrect linux desktop ID (expected %q, got %q)", handle.Hello().GetServerID(), meta.GetName())
 	}
 
 	if handle.linuxDesktop == nil {
@@ -1333,7 +1333,7 @@ func (c *Controller) handleLinuxDesktopHB(handle *upstreamHandle, linuxDesktop *
 
 	handle.linuxDesktop.resource = linuxDesktop
 
-	meta.Expires = timestamppb.New(time.Now().Add(c.serverTTL).UTC())
+	meta.SetExpires(timestamppb.New(time.Now().Add(c.serverTTL).UTC()))
 
 	if _, err := c.auth.UpsertLinuxDesktop(c.closeContext, handle.linuxDesktop.resource); err == nil {
 		handle.linuxDesktop.keepAliveErrs = 0
@@ -1341,7 +1341,7 @@ func (c *Controller) handleLinuxDesktopHB(handle *upstreamHandle, linuxDesktop *
 		linuxDelay.Reset()
 	} else {
 		slog.WarnContext(c.closeContext, "Failed to announce linux desktop",
-			"server_id", handle.Hello().ServerID,
+			"server_id", handle.Hello().GetServerID(),
 			"error", err,
 		)
 
@@ -1611,14 +1611,14 @@ func (c *Controller) keepAliveLinuxDesktop(handle *upstreamHandle, now time.Time
 		return nil
 	}
 
-	handle.linuxDesktop.resource.Metadata.Expires = timestamppb.New(now.Add(c.serverTTL).UTC())
+	handle.linuxDesktop.resource.GetMetadata().SetExpires(timestamppb.New(now.Add(c.serverTTL).UTC()))
 	if _, err := c.auth.UpsertLinuxDesktop(c.closeContext, handle.linuxDesktop.resource); err == nil {
 		handle.linuxDesktop.keepAliveErrs = 0
 		handle.linuxDesktop.retryUpsert = false
 	} else {
 		if handle.linuxDesktop.retryUpsert {
 			slog.WarnContext(c.closeContext, "Failed to upsert linux desktop on retry",
-				"server_id", handle.Hello().ServerID,
+				"server_id", handle.Hello().GetServerID(),
 				"error", err,
 			)
 			return trace.Wrap(err, "failed to upsert linux desktop on retry")
@@ -1627,7 +1627,7 @@ func (c *Controller) keepAliveLinuxDesktop(handle *upstreamHandle, now time.Time
 		handle.linuxDesktop.keepAliveErrs++
 		closing := handle.linuxDesktop.keepAliveErrs > c.maxKeepAliveErrs
 		slog.WarnContext(c.closeContext, "Failed to upsert linux desktop on keepalive",
-			"server_id", handle.Hello().ServerID,
+			"server_id", handle.Hello().GetServerID(),
 			"error", err,
 			"count", handle.linuxDesktop.keepAliveErrs,
 			"closing", closing,

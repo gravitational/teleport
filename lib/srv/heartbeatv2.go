@@ -900,9 +900,9 @@ func (h *linuxDesktopHeartbeatV2) FallbackAnnounce(ctx context.Context) (ok bool
 func (h *linuxDesktopHeartbeatV2) Announce(ctx context.Context, sender inventory.DownstreamSender) (ok bool) {
 	hello := sender.Hello()
 	switch {
-	case hello.Capabilities == nil:
+	case !hello.HasCapabilities():
 		return false
-	case !hello.Capabilities.LinuxDesktopHeartbeats:
+	case !hello.GetCapabilities().GetLinuxDesktopHeartbeats():
 		return false
 	}
 
@@ -912,7 +912,7 @@ func (h *linuxDesktopHeartbeatV2) Announce(ctx context.Context, sender inventory
 		return false
 	}
 
-	if err := sender.Send(ctx, &proto.InventoryHeartbeat{LinuxDesktop: apiutils.CloneProtoMsg(desktop)}); err != nil {
+	if err := sender.Send(ctx, proto.InventoryHeartbeat_builder{LinuxDesktop: apiutils.CloneProtoMsg(desktop)}.Build()); err != nil {
 		if !errors.Is(err, context.Canceled) && status.Code(err) != codes.Canceled {
 			slog.WarnContext(ctx, "Failed to perform inventory heartbeat for linux desktop", "error", err)
 		}

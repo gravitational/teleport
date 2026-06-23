@@ -33,18 +33,18 @@ func (ctx *Context) ExtendWithSessionEnd(sessionEnd apievents.AuditEvent, checke
 	ctx.Session = sessionEnd
 	ctx.Resource = rebuildResourceFromSessionEndEvent(sessionEnd)
 	if linuxEnd, ok := sessionEnd.(*apievents.LinuxDesktopSessionEnd); ok {
-		ctx.Resource153 = &linuxdesktopv1.LinuxDesktop{
+		ctx.Resource153 = linuxdesktopv1.LinuxDesktop_builder{
 			Kind:    types.KindLinuxDesktop,
 			SubKind: "",
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name:   linuxEnd.DesktopName,
 				Labels: linuxEnd.DesktopLabels,
-			},
-			Spec: &linuxdesktopv1.LinuxDesktopSpec{
+			}.Build(),
+			Spec: linuxdesktopv1.LinuxDesktopSpec_builder{
 				Addr: linuxEnd.DesktopAddr,
-			},
-		}
+			}.Build(),
+		}.Build()
 	}
 	// AccessCheker is set here to allow access checks to other resources
 	// in the where clause.

@@ -223,16 +223,16 @@ func (s *LinuxService) startServiceHeartbeat() error {
 		InventoryHandle: s.cfg.InventoryHandle,
 		Announcer:       s.cfg.AccessPoint,
 		GetResource: func(ctx context.Context) (*linuxdesktopv1pb.LinuxDesktop, error) {
-			desktop, err := linuxdesktopv1.NewLinuxDesktop(s.cfg.Heartbeat.HostUUID, &linuxdesktopv1pb.LinuxDesktopSpec{
+			desktop, err := linuxdesktopv1.NewLinuxDesktop(s.cfg.Heartbeat.HostUUID, linuxdesktopv1pb.LinuxDesktopSpec_builder{
 				Addr:     s.cfg.Heartbeat.PublicAddr,
 				Hostname: s.cfg.Hostname,
 				ProxyIds: s.cfg.ConnectedProxyGetter.GetProxyIDs(),
-			})
+			}.Build())
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			desktop.Metadata.Expires = timestamppb.New(s.cfg.Clock.Now().Add(5 * time.Minute))
-			desktop.Metadata.Labels = s.cfg.Labels
+			desktop.GetMetadata().SetExpires(timestamppb.New(s.cfg.Clock.Now().Add(5 * time.Minute)))
+			desktop.GetMetadata().SetLabels(s.cfg.Labels)
 			return desktop, nil
 		},
 		AnnounceInterval: apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
@@ -686,12 +686,12 @@ func (sess *linuxSession) handleClientHello(m *tdpb.ClientHello) error {
 		return trace.BadParameter("missing screen spec")
 	}
 
-	if m.ScreenSpec.Width > types.MaxRDPScreenWidth || m.ScreenSpec.Height > types.MaxRDPScreenHeight {
-		return trace.BadParameter("invalid screen size %dx%d, maximum is %dx%d", m.ScreenSpec.Width, m.ScreenSpec.Height, types.MaxRDPScreenWidth, types.MaxRDPScreenHeight)
+	if m.ScreenSpec.GetWidth() > types.MaxRDPScreenWidth || m.ScreenSpec.GetHeight() > types.MaxRDPScreenHeight {
+		return trace.BadParameter("invalid screen size %dx%d, maximum is %dx%d", m.ScreenSpec.GetWidth(), m.ScreenSpec.GetHeight(), types.MaxRDPScreenWidth, types.MaxRDPScreenHeight)
 	}
 
-	width := uint16(m.ScreenSpec.Width)
-	height := uint16(m.ScreenSpec.Height)
+	width := uint16(m.ScreenSpec.GetWidth())
+	height := uint16(m.ScreenSpec.GetHeight())
 	sess.screenSize.Width = width
 	sess.screenSize.Height = height
 	if err := sess.backend.Resize(width, height); err != nil {
@@ -699,17 +699,17 @@ func (sess *linuxSession) handleClientHello(m *tdpb.ClientHello) error {
 	}
 	sessions := make([]*tdpbv1.SessionIdentifier, 0, len(sess.xsessions))
 	for _, s := range slices.Sorted(maps.Keys(sess.xsessions)) {
-		sessions = append(sessions, &tdpbv1.SessionIdentifier{
+		sessions = append(sessions, tdpbv1.SessionIdentifier_builder{
 			Name: s,
-		})
+		}.Build())
 	}
 	if err := sess.auditedConn.WriteMessage(&tdpb.ServerHello{
-		ActivationSpec: &tdpbv1.ConnectionActivated{
+		ActivationSpec: tdpbv1.ConnectionActivated_builder{
 			IoChannelId:   0,
 			UserChannelId: 0,
-			ScreenWidth:   m.ScreenSpec.Width,
-			ScreenHeight:  m.ScreenSpec.Height,
-		},
+			ScreenWidth:   m.ScreenSpec.GetWidth(),
+			ScreenHeight:  m.ScreenSpec.GetHeight(),
+		}.Build(),
 		ClipboardEnabled: true,
 		Sessions:         sessions,
 	}); err != nil {
@@ -810,10 +810,10 @@ func (sess *linuxSession) handleClientScreenSpec(m *tdpb.ClientScreenSpec) error
 		return trace.Wrap(err, "Couldn't resize backend")
 	}
 	if err := sess.auditedConn.WriteMessage(&tdpb.ServerHello{
-		ActivationSpec: &tdpbv1.ConnectionActivated{
+		ActivationSpec: tdpbv1.ConnectionActivated_builder{
 			ScreenWidth:  m.Width,
 			ScreenHeight: m.Height,
-		},
+		}.Build(),
 		ClipboardEnabled: true,
 	}); err != nil {
 		return trace.Wrap(err)
