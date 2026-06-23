@@ -139,8 +139,7 @@ func (i invalidVersionErr) Error() string {
 
 func isVersionCompatibilityError(err error) bool {
 	return errors.As(err, &invalidVersionErr{}) ||
-		errors.As(err, &joinclient.ClientTooOldError{}) ||
-		errors.As(err, &joinclient.ClientTooNewError{})
+		joinclient.IsVersionIncompatible(err)
 }
 
 func (process *TeleportProcess) assertSystemRoles(rolesToAssert []types.SystemRole) (assertionID string, err error) {

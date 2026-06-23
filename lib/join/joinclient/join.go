@@ -26,10 +26,10 @@ import (
 	"os"
 
 	"github.com/coreos/go-semver/semver"
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
@@ -202,7 +202,7 @@ func checkClientVersionSupported(ctx context.Context, version string, params Joi
 		}
 		// Only a confirmed version mismatch is fatal. Parsing problems fail open so a
 		// malformed version advertised by the proxy can't block joining.
-		if !errors.As(err, &ClientTooOldError{}) && !errors.As(err, &ClientTooNewError{}) {
+		if !IsVersionIncompatible(err) {
 			params.Log.WarnContext(ctx,
 				"Could not determine version compatibility with the cluster, skipping check.",
 				"error", err,
@@ -238,7 +238,7 @@ func checkClientMeetsMinVersion(clientVersion, minVersion string) error {
 		return trace.Wrap(err)
 	}
 	if !utils.MeetsMinVersion(clientVersion, minVersion) {
-		return ClientTooOldError{ClientVersion: clientVersion, MinVersion: minWithoutPreRelease}
+		return &ClientTooOldError{ClientVersion: clientVersion, MinVersion: minWithoutPreRelease}
 	}
 	return nil
 }
@@ -256,7 +256,7 @@ func checkClientMeetsMaxVersion(clientVersion, serverVersion string) error {
 		return trace.Wrap(err)
 	}
 	if server.Major < client.Major {
-		return ClientTooNewError{LocalMajorVersion: client.Major, ClusterMajorVersion: server.Major}
+		return &ClientTooNewError{LocalMajorVersion: client.Major, ClusterMajorVersion: server.Major}
 	}
 	return nil
 }
@@ -676,7 +676,7 @@ type ClientTooOldError struct {
 	MinVersion    string
 }
 
-func (e ClientTooOldError) Error() string {
+func (e *ClientTooOldError) Error() string {
 	return fmt.Sprintf("this client is older than the minimum supported version required by the cluster and will not be able to connect until it is upgraded (client v%s, minimum v%s). To connect anyway pass the --skip-version-check flag.", e.ClientVersion, e.MinVersion)
 }
 
@@ -686,6 +686,14 @@ type ClientTooNewError struct {
 	ClusterMajorVersion int64
 }
 
-func (e ClientTooNewError) Error() string {
+func (e *ClientTooNewError) Error() string {
 	return fmt.Sprintf("this client is running v%d, but the cluster is running v%d and only supports clients on v%d or v%d. To connect anyway pass the --skip-version-check flag.", e.LocalMajorVersion, e.ClusterMajorVersion, e.ClusterMajorVersion, e.ClusterMajorVersion-1)
+}
+
+// IsVersionIncompatible reports whether err indicates this client's version is
+// incompatible with the cluster, either a [ClientTooOldError] or [ClientTooNewError].
+func IsVersionIncompatible(err error) bool {
+	var tooOld *ClientTooOldError
+	var tooNew *ClientTooNewError
+	return errors.As(err, &tooOld) || errors.As(err, &tooNew)
 }

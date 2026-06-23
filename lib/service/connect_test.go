@@ -100,7 +100,8 @@ func TestTeleportProcessClientVersionCheck(t *testing.T) {
 		t.Cleanup(func() { _ = process.Close() })
 
 		c, err := process.reconnectToAuthService(types.RoleInstance)
-		require.ErrorAs(t, err, &joinclient.ClientTooOldError{})
+		var tooOld *joinclient.ClientTooOldError
+		require.ErrorAs(t, err, &tooOld)
 		require.Nil(t, c)
 	})
 
@@ -120,7 +121,8 @@ func TestTeleportProcessClientVersionCheck(t *testing.T) {
 		// and bypassed the check.
 		c, err := process.connectToAuthService(types.RoleInstance)
 		require.Error(t, err)
-		require.NotErrorAs(t, err, &joinclient.ClientTooOldError{})
+		var tooOld *joinclient.ClientTooOldError
+		require.NotErrorAs(t, err, &tooOld)
 		require.Nil(t, c)
 	})
 
@@ -132,7 +134,8 @@ func TestTeleportProcessClientVersionCheck(t *testing.T) {
 		t.Cleanup(func() { _ = process.Close() })
 
 		c, err := process.reconnectToAuthService(types.RoleInstance)
-		require.ErrorAs(t, err, &joinclient.ClientTooNewError{})
+		var tooNew *joinclient.ClientTooNewError
+		require.ErrorAs(t, err, &tooNew)
 		require.Nil(t, c)
 	})
 
@@ -152,7 +155,8 @@ func TestTeleportProcessClientVersionCheck(t *testing.T) {
 		// and bypassed the check.
 		c, err := process.connectToAuthService(types.RoleInstance)
 		require.Error(t, err)
-		require.NotErrorAs(t, err, &joinclient.ClientTooNewError{})
+		var tooNew *joinclient.ClientTooNewError
+		require.NotErrorAs(t, err, &tooNew)
 		require.Nil(t, c)
 	})
 }

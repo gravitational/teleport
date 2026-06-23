@@ -23,20 +23,22 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
-	"github.com/gravitational/trace"
 )
 
 func requireClientTooOld(t require.TestingT, err error, _ ...any) {
-	require.ErrorAs(t, err, &ClientTooOldError{})
+	var target *ClientTooOldError
+	require.ErrorAs(t, err, &target)
 }
 
 func requireClientTooNew(t require.TestingT, err error, _ ...any) {
-	require.ErrorAs(t, err, &ClientTooNewError{})
+	var target *ClientTooNewError
+	require.ErrorAs(t, err, &target)
 }
 
 func TestCheckClientMeetsMinVersion(t *testing.T) {
@@ -105,7 +107,8 @@ func TestCheckClientMeetsMinVersion(t *testing.T) {
 			minVersion:    "not-a-version",
 			assertErr: func(t require.TestingT, err error, _ ...any) {
 				require.Error(t, err)
-				require.NotErrorAs(t, err, &ClientTooOldError{})
+				var target *ClientTooOldError
+				require.NotErrorAs(t, err, &target)
 			},
 		},
 	}
@@ -290,7 +293,7 @@ func TestCheckClientVersionSupported(t *testing.T) {
 func TestClientVersionErrorsAreFatal(t *testing.T) {
 	t.Parallel()
 
-	for _, err := range []error{ClientTooOldError{}, ClientTooNewError{}} {
+	for _, err := range []error{&ClientTooOldError{}, &ClientTooNewError{}} {
 		assert.False(t, isConnectionError(err), "%T must not be a connection error", err)
 		assert.False(t, trace.IsNotImplemented(err), "%T must not be not-implemented", err)
 	}
