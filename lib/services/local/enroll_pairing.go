@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -40,7 +41,7 @@ const EnrollPairingExpireDuration = 5 * time.Minute
 // EnrollPairingService implements [services.EnrollPairing] on a [backend.Backend].
 type EnrollPairingService struct {
 	service *generic.ServiceWrapper[*devicepb.EnrollPairing]
-	backend backend.Backend
+	clock   clockwork.Clock
 }
 
 // NewEnrollPairingService returns a new [EnrollPairingService] backed by b.
@@ -58,7 +59,7 @@ func NewEnrollPairingService(b backend.Backend) (*EnrollPairingService, error) {
 		return nil, trace.Wrap(err)
 	}
 	return &EnrollPairingService{
-		backend: b,
+		clock:   b.Clock(),
 		service: service,
 	}, nil
 }
@@ -78,7 +79,7 @@ func (s *EnrollPairingService) CreateEnrollPairing(ctx context.Context, user str
 	}
 	token := base64.RawURLEncoding.EncodeToString(tokenRaw)
 
-	expires := s.backend.Clock().Now().UTC().Add(EnrollPairingExpireDuration)
+	expires := s.clock.Now().UTC().Add(EnrollPairingExpireDuration)
 	pairing := devicepb.EnrollPairing_builder{
 		Kind:    types.KindEnrollPairing,
 		Version: types.V1,
