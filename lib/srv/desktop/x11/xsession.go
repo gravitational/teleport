@@ -23,6 +23,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -125,11 +126,9 @@ func StartTeleportExecXSession(ctx context.Context, cfg *XSessionConfig) (*reexe
 		return nil, trace.BadParameter("missing parameter ChildLogConfig")
 	}
 
-	//u, err := user.Lookup(cfg.Login)
-	//if err != nil {
-	//	return nil, trace.Wrap(err)
-	//}
-	//runtimeDir := fmt.Sprintf("/run/user/%s", u.Uid)
+	if _, err := user.Lookup(cfg.Login); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	env := envutils.SafeEnv{}
 	env.AddTrusted("DISPLAY", cfg.Display)
