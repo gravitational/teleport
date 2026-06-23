@@ -22,6 +22,7 @@ import {
   makeErrorAttempt,
   makeSuccessAttempt,
 } from 'shared/hooks/useAsync';
+import { RequestKind } from 'shared/services/accessRequests';
 
 import {
   requestResourcePendingWithConstraints,
@@ -29,6 +30,11 @@ import {
 } from '../../fixtures';
 import { RequestView, RequestViewProps } from './RequestView';
 import { RequestFlags } from './types';
+
+const longTermResourceRequest = {
+  ...requestResourcePendingWithConstraints,
+  requestKind: RequestKind.LongTerm,
+};
 
 const sampleFlags: RequestFlags = {
   canAssume: false,
@@ -75,7 +81,7 @@ test('does not render review box if user cannot review', async () => {
   expect(screen.queryByText(reviewBoxText)).not.toBeInTheDocument();
 });
 
-// When no Access List can be promoted to (e.g. the reviewer doesn't own one that
+// When no Access List can be promoted to (e.g., reviewer doesn't own one that
 // grants every requested resource, including implicitly-added ones), long-term
 // approval is disabled, leaving only Reject. The disabled option explains why.
 test('disables long-term approval and explains why when no Access List is suggested', async () => {
@@ -83,12 +89,12 @@ test('disables long-term approval and explains why when no Access List is sugges
   render(
     <RequestView
       {...props}
-      fetchRequestAttempt={makeSuccessAttempt(
-        requestResourcePendingWithConstraints
-      )}
+      fetchRequestAttempt={makeSuccessAttempt(longTermResourceRequest)}
       fetchSuggestedAccessListsAttempt={makeSuccessAttempt([])}
     />
   );
+
+  expect(screen.getAllByText('aws-console-prod').length).toBeGreaterThan(0);
 
   expect(screen.getByRole('radio', { name: 'Reject request' })).toBeEnabled();
 
@@ -121,9 +127,7 @@ test('shows a permission-specific message when the reviewer cannot view eligible
   render(
     <RequestView
       {...props}
-      fetchRequestAttempt={makeSuccessAttempt(
-        requestResourcePendingWithConstraints
-      )}
+      fetchRequestAttempt={makeSuccessAttempt(longTermResourceRequest)}
       fetchSuggestedAccessListsAttempt={makeErrorAttempt(permissionError)}
     />
   );
@@ -151,9 +155,7 @@ test('surfaces non-permission fetch errors as-is', async () => {
   render(
     <RequestView
       {...props}
-      fetchRequestAttempt={makeSuccessAttempt(
-        requestResourcePendingWithConstraints
-      )}
+      fetchRequestAttempt={makeSuccessAttempt(longTermResourceRequest)}
       fetchSuggestedAccessListsAttempt={makeErrorAttempt(
         new Error('backend exploded')
       )}

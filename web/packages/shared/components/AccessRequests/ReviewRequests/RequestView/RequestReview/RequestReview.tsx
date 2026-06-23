@@ -321,10 +321,10 @@ function makeReviewStateOptions(
     }
     promotedContent = (
       <HoverTooltip tipContent={msg}>
-        <Flex alignItems="center">
+        <Flex alignItems="center" gap={2}>
           <Text>{promotedTxt}</Text>
           {fetchSuggestedAccessListsAttempt.status === 'error' && (
-            <Warning color="warning.active" ml={1} size={20} />
+            <Warning color="warning.active" size={20} />
           )}
         </Flex>
       </HoverTooltip>
