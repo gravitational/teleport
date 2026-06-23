@@ -901,6 +901,50 @@ func TestAddRoleDefaults(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:       "device-admin (missing mobile_device.create_enroll_token)",
+			enterprise: true,
+			role: &types.RoleV6{
+				Kind:    types.KindRole,
+				Version: types.V8,
+				Metadata: types.Metadata{
+					Name:        teleport.PresetDeviceAdminRoleName,
+					Namespace:   apidefaults.Namespace,
+					Description: "Administer trusted devices",
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.PresetResource,
+					},
+				},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Rules: []types.Rule{
+							types.NewRule(types.KindDevice, append(RW(), types.VerbCreateEnrollToken, types.VerbEnroll)),
+						},
+					},
+				},
+			},
+			expectedErr: require.NoError,
+			expected: &types.RoleV6{
+				Kind:    types.KindRole,
+				Version: types.V8,
+				Metadata: types.Metadata{
+					Name:        teleport.PresetDeviceAdminRoleName,
+					Namespace:   apidefaults.Namespace,
+					Description: "Administer trusted devices",
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.PresetResource,
+					},
+				},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Rules: []types.Rule{
+							types.NewRule(types.KindDevice, append(RW(), types.VerbCreateEnrollToken, types.VerbEnroll)),
+							types.NewRule(types.KindMobileDevice, []string{types.VerbCreateEnrollToken}),
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, test := range tests {

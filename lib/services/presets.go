@@ -1148,6 +1148,7 @@ func defaultAllowRules(buildType string) map[string][]types.Rule {
 		NewPresetAccessPluginRole(),
 		NewPresetAccessPluginWithReviewRole(),
 		NewPresetListAccessRequestResourcesRole(),
+		NewPresetDeviceAdminRole(buildType),
 	}
 
 	allowRules := make(map[string][]types.Rule, len(roles))
