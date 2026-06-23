@@ -274,7 +274,20 @@ func (c *ScopedTokensCommand) Del(ctx context.Context, client *authclient.Client
 	if c.name == "" {
 		return trace.BadParameter("Need an argument: token")
 	}
-	if err := client.DeleteScopedToken(ctx, c.name); err != nil {
+
+	qn, err := scopes.ParseQualifiedName(c.name)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := qn.WeakValidate(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := client.DeleteScopedToken(ctx, joiningv1.DeleteScopedTokenRequest_builder{
+		Name:  qn.Name,
+		Scope: qn.Scope,
+	}.Build()); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Fprintf(c.Stdout, "Token %s has been deleted\n", c.name)

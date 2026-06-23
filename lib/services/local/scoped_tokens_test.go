@@ -21,7 +21,6 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"slices"
-	"sync"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -92,7 +91,8 @@ func TestScopedTokenService(t *testing.T) {
 	require.NoError(t, err)
 
 	fetched, err := service.GetScopedToken(ctx, joiningv1.GetScopedTokenRequest_builder{
-		Name: token.GetMetadata().GetName(),
+		Name:  token.GetMetadata().GetName(),
+		Scope: token.GetScope(),
 	}.Build())
 	require.NoError(t, err)
 	require.Equal(t, fetched.GetToken().GetSpec().GetAssignedScope(), updated.GetToken().GetSpec().GetAssignedScope())
@@ -104,6 +104,7 @@ func TestScopedTokenService(t *testing.T) {
 
 	fetched, err = service.GetScopedToken(ctx, joiningv1.GetScopedTokenRequest_builder{
 		Name:       token.GetMetadata().GetName(),
+		Scope:      token.GetScope(),
 		WithSecret: true,
 	}.Build())
 	require.NoError(t, err)
@@ -111,11 +112,13 @@ func TestScopedTokenService(t *testing.T) {
 	assert.Empty(t, gocmp.Diff(updated.GetToken(), fetched.GetToken(), cmpOpts...))
 
 	_, err = service.DeleteScopedToken(ctx, joiningv1.DeleteScopedTokenRequest_builder{
-		Name: fetched.GetToken().GetMetadata().GetName(),
+		Name:  fetched.GetToken().GetMetadata().GetName(),
+		Scope: fetched.GetToken().GetScope(),
 	}.Build())
 	require.NoError(t, err)
 	_, err = service.GetScopedToken(ctx, joiningv1.GetScopedTokenRequest_builder{
-		Name: fetched.GetToken().GetMetadata().GetName(),
+		Name:  fetched.GetToken().GetMetadata().GetName(),
+		Scope: fetched.GetToken().GetScope(),
 	}.Build())
 	require.True(t, trace.IsNotFound(err))
 
@@ -145,12 +148,14 @@ func TestScopedTokenService(t *testing.T) {
 	require.Nil(t, expiredToken)
 
 	_, err = service.GetScopedToken(ctx, joiningv1.GetScopedTokenRequest_builder{
-		Name: expiredRes.GetToken().GetMetadata().GetName(),
+		Name:  expiredRes.GetToken().GetMetadata().GetName(),
+		Scope: expiredRes.GetToken().GetScope(),
 	}.Build())
 	require.True(t, trace.IsNotFound(err))
 
 	fetchedActive, err := service.GetScopedToken(ctx, joiningv1.GetScopedTokenRequest_builder{
 		Name:       activeRes.GetToken().GetMetadata().GetName(),
+		Scope:      activeRes.GetToken().GetScope(),
 		WithSecret: true,
 	}.Build())
 
@@ -163,8 +168,6 @@ func TestScopedTokenList(t *testing.T) {
 	require.NoError(t, err)
 	service, err := local.NewScopedTokenService(bk, scopes.Features{Enabled: true})
 	require.NoError(t, err)
-
-	ctx := t.Context()
 
 	test := joiningv1.ScopedToken_builder{
 		Kind:    types.KindScopedToken,
@@ -226,7 +229,7 @@ func TestScopedTokenList(t *testing.T) {
 
 	allTokens := []*joiningv1.ScopedToken{test, test1, test2, test3, test4, stage, stage1, stage2}
 	for _, token := range allTokens {
-		_, err = service.CreateScopedToken(ctx, joiningv1.CreateScopedTokenRequest_builder{Token: token}.Build())
+		_, err = service.CreateScopedToken(t.Context(), joiningv1.CreateScopedTokenRequest_builder{Token: token}.Build())
 		require.NoError(t, err)
 	}
 
@@ -379,6 +382,7 @@ func TestScopedTokenList(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
+			ctx := t.Context()
 			req := proto.CloneOf(c.req)
 			req.SetLimit(10)
 			res, err := service.ListScopedTokens(ctx, req)
@@ -402,112 +406,6 @@ func TestScopedTokenList(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestScopedTokenNameCollisions(t *testing.T) {
-	bk, err := memory.New(memory.Config{})
-	require.NoError(t, err)
-	service, err := local.NewScopedTokenService(bk, scopes.Features{Enabled: true})
-	require.NoError(t, err)
-
-	provisioningService := local.NewProvisioningService(bk)
-
-	ctx := t.Context()
-
-	token := joiningv1.ScopedToken_builder{
-		Kind:    types.KindScopedToken,
-		Version: types.V1,
-		Metadata: headerv1.Metadata_builder{
-			Name: "testtoken",
-		}.Build(),
-		Scope: "/test",
-		Spec: joiningv1.ScopedTokenSpec_builder{
-			AssignedScope: "/test/one",
-			JoinMethod:    "token",
-			Roles:         []string{types.RoleNode.String()},
-			UsageMode:     string(joining.TokenUsageModeUnlimited),
-		}.Build(),
-		Status: joiningv1.ScopedTokenStatus_builder{
-			Secret: "secret",
-		}.Build(),
-	}.Build()
-
-	t.Run("basic", func(t *testing.T) {
-		// create initial scoped token
-		_, err = service.CreateScopedToken(ctx, joiningv1.CreateScopedTokenRequest_builder{
-			Token: token,
-		}.Build())
-		require.NoError(t, err)
-
-		// assert that creating another scoped token with the same name fails
-		_, err = service.CreateScopedToken(ctx, joiningv1.CreateScopedTokenRequest_builder{
-			Token: token,
-		}.Build())
-		require.True(t, trace.IsAlreadyExists(err))
-
-		// create a 'classic' token
-		classicToken := &types.ProvisionTokenV2{
-			Metadata: types.Metadata{
-				Name: "testtoken2",
-			},
-			Spec: types.ProvisionTokenSpecV2{
-				Roles: []types.SystemRole{
-					types.RoleAdmin,
-				},
-			},
-		}
-		err = provisioningService.CreateToken(ctx, classicToken)
-		require.NoError(t, err)
-
-		// assert that creating a scoped token with a name that conflicts with
-		// a classic token fails
-		conflictWithClassic := proto.CloneOf(token)
-		conflictWithClassic.GetMetadata().SetName(classicToken.GetName())
-		_, err = service.CreateScopedToken(ctx, joiningv1.CreateScopedTokenRequest_builder{
-			Token: conflictWithClassic,
-		}.Build())
-		require.True(t, trace.IsAlreadyExists(err))
-	})
-
-	t.Run("concurrent", func(t *testing.T) {
-		for i := range 50 {
-			name := fmt.Sprintf("testtoken-%d", i)
-			var classicErr error
-			var scopedErr error
-			wg := sync.WaitGroup{}
-			wg.Go(func() {
-				classicErr = provisioningService.CreateToken(ctx, &types.ProvisionTokenV2{
-					Metadata: types.Metadata{
-						Name: name,
-					},
-					Spec: types.ProvisionTokenSpecV2{
-						Roles: []types.SystemRole{
-							types.RoleAdmin,
-						},
-					},
-				})
-			})
-
-			wg.Go(func() {
-				token := proto.CloneOf(token)
-				token.GetMetadata().SetName(name)
-				_, scopedErr = service.CreateScopedToken(ctx, joiningv1.CreateScopedTokenRequest_builder{
-					Token: token,
-				}.Build())
-			})
-			wg.Wait()
-
-			// One token type should always succeed and the other should always fail. When one succeeds,
-			// the other should always be a [trace.AlreadyExistsError] due to the name conflict.
-			if classicErr == nil {
-				require.True(t, trace.IsAlreadyExists(scopedErr))
-			} else if scopedErr == nil {
-				require.True(t, trace.IsAlreadyExists(classicErr))
-			} else {
-				require.Fail(t, "unexpected failure to create either a scoped or classic token", name)
-			}
-		}
-	})
 }
 
 func TestScopedTokenUse(t *testing.T) {
@@ -623,8 +521,6 @@ func TestScopedTokenUpdate(t *testing.T) {
 	service, err := local.NewScopedTokenService(backend.NewSanitizer(bk), scopes.Features{Enabled: true})
 	require.NoError(t, err)
 
-	ctx := t.Context()
-
 	cases := []struct {
 		name   string
 		mutate func(t *testing.T, update *joiningv1.ScopedToken)
@@ -639,16 +535,6 @@ func TestScopedTokenUpdate(t *testing.T) {
 			assert: func(t *testing.T, created, result *joiningv1.ScopedToken, err error) {
 				require.Equal(t, "/test/one/two", result.GetSpec().GetAssignedScope())
 				require.Equal(t, "test", result.GetMetadata().GetLabels()["env"])
-			},
-		},
-		{
-			name: "scope changes result in an error",
-			mutate: func(t *testing.T, update *joiningv1.ScopedToken) {
-				update.SetScope("/other")
-			},
-			assert: func(t *testing.T, created, result *joiningv1.ScopedToken, err error) {
-				require.ErrorContains(t, err, "cannot modify scope of existing scoped token")
-
 			},
 		},
 		{
@@ -683,6 +569,7 @@ func TestScopedTokenUpdate(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+			ctx := t.Context()
 			token := newToken()
 			created, err := service.CreateScopedToken(ctx, joiningv1.CreateScopedTokenRequest_builder{Token: token}.Build())
 			require.NoError(t, err)
@@ -699,12 +586,13 @@ func TestScopedTokenUpdate(t *testing.T) {
 	t.Run("fails for nonexistent token", func(t *testing.T) {
 		t.Parallel()
 		token := newToken()
-		_, err := service.UpdateScopedToken(ctx, joiningv1.UpdateScopedTokenRequest_builder{Token: token}.Build())
+		_, err := service.UpdateScopedToken(t.Context(), joiningv1.UpdateScopedTokenRequest_builder{Token: token}.Build())
 		require.True(t, trace.IsNotFound(err))
 	})
 
 	t.Run("editing concurrently fails since revision doesn't match", func(t *testing.T) {
 		t.Parallel()
+		ctx := t.Context()
 		token := newToken()
 		created, err := service.CreateScopedToken(ctx, joiningv1.CreateScopedTokenRequest_builder{Token: token}.Build())
 		require.NoError(t, err)
@@ -732,8 +620,6 @@ func TestScopedTokenUpsert(t *testing.T) {
 	service, err := local.NewScopedTokenService(backend.NewSanitizer(bk), scopes.Features{Enabled: true})
 	require.NoError(t, err)
 
-	ctx := t.Context()
-
 	cmpOpts := []gocmp.Option{
 		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 		protocmp.Transform(),
@@ -741,6 +627,7 @@ func TestScopedTokenUpsert(t *testing.T) {
 
 	t.Run("upsert creates a new entry", func(t *testing.T) {
 		t.Parallel()
+		ctx := t.Context()
 		token := newToken()
 
 		upsertedToken, err := service.UpsertScopedToken(ctx, joiningv1.UpsertScopedTokenRequest_builder{Token: token}.Build())
@@ -748,6 +635,7 @@ func TestScopedTokenUpsert(t *testing.T) {
 
 		fetched, err := service.GetScopedToken(ctx, joiningv1.GetScopedTokenRequest_builder{
 			Name:       upsertedToken.GetToken().GetMetadata().GetName(),
+			Scope:      upsertedToken.GetToken().GetScope(),
 			WithSecret: true,
 		}.Build())
 		require.NoError(t, err)
@@ -773,7 +661,7 @@ func TestScopedTokenUpsert(t *testing.T) {
 			}.Build(),
 		}.Build()
 
-		upserted, err := service.UpsertScopedToken(ctx, joiningv1.UpsertScopedTokenRequest_builder{Token: token}.Build())
+		upserted, err := service.UpsertScopedToken(t.Context(), joiningv1.UpsertScopedTokenRequest_builder{Token: token}.Build())
 		require.NoError(t, err)
 		require.NotEmpty(t, upserted.GetToken().GetMetadata().GetName(), "name should be generated")
 		require.Equal(t, string(types.JoinMethodToken), upserted.GetToken().GetSpec().GetJoinMethod(), "join method should default to token")
@@ -782,6 +670,7 @@ func TestScopedTokenUpsert(t *testing.T) {
 
 	t.Run("upsert updates existing entry", func(t *testing.T) {
 		t.Parallel()
+		ctx := t.Context()
 		token := newToken()
 		_, err := service.UpsertScopedToken(ctx, joiningv1.UpsertScopedTokenRequest_builder{Token: token}.Build())
 		require.NoError(t, err)
@@ -795,6 +684,7 @@ func TestScopedTokenUpsert(t *testing.T) {
 
 		fetched, err := service.GetScopedToken(ctx, joiningv1.GetScopedTokenRequest_builder{
 			Name:       token.GetMetadata().GetName(),
+			Scope:      token.GetScope(),
 			WithSecret: true,
 		}.Build())
 		require.NoError(t, err)
@@ -807,7 +697,7 @@ func TestScopedTokenUpsert(t *testing.T) {
 		token := newBoundKeypairToken()
 		token.GetSpec().ClearBoundKeypair()
 
-		_, err := service.UpsertScopedToken(ctx, joiningv1.UpsertScopedTokenRequest_builder{Token: token}.Build())
+		_, err := service.UpsertScopedToken(t.Context(), joiningv1.UpsertScopedTokenRequest_builder{Token: token}.Build())
 		require.ErrorContains(t, err, "bound_keypair tokens require a non-nil spec.bound_keypair")
 	})
 
@@ -816,7 +706,7 @@ func TestScopedTokenUpsert(t *testing.T) {
 
 		token := newBoundKeypairToken()
 
-		upserted, err := service.UpsertScopedToken(ctx, joiningv1.UpsertScopedTokenRequest_builder{Token: token}.Build())
+		upserted, err := service.UpsertScopedToken(t.Context(), joiningv1.UpsertScopedTokenRequest_builder{Token: token}.Build())
 		require.NoError(t, err)
 
 		spec := upserted.GetToken().GetSpec().GetBoundKeypair()
@@ -839,7 +729,7 @@ func TestScopedTokenUpsert(t *testing.T) {
 			RegistrationSecret: "abc123",
 		}.Build())
 
-		upserted, err := service.UpsertScopedToken(ctx, joiningv1.UpsertScopedTokenRequest_builder{Token: token}.Build())
+		upserted, err := service.UpsertScopedToken(t.Context(), joiningv1.UpsertScopedTokenRequest_builder{Token: token}.Build())
 		require.NoError(t, err)
 
 		status := upserted.GetToken().GetStatus().GetUsage().GetBoundKeypair()
@@ -854,7 +744,7 @@ func TestScopedTokenUpsert(t *testing.T) {
 			InitialPublicKey: "abc123",
 		}.Build())
 
-		upserted, err := service.UpsertScopedToken(ctx, joiningv1.UpsertScopedTokenRequest_builder{Token: token}.Build())
+		upserted, err := service.UpsertScopedToken(t.Context(), joiningv1.UpsertScopedTokenRequest_builder{Token: token}.Build())
 		require.NoError(t, err)
 
 		status := upserted.GetToken().GetStatus().GetUsage().GetBoundKeypair()
@@ -869,14 +759,6 @@ func TestScopedTokenUpsert(t *testing.T) {
 		wantErr string
 	}{
 		{
-			name: "scope is changed",
-			mutate: func(t *testing.T, update *joiningv1.ScopedToken) {
-				update.SetScope("/other")
-				update.GetSpec().SetAssignedScope("/other/one")
-			},
-			wantErr: "cannot modify scope of existing scoped token",
-		},
-		{
 			name: "usage mode is changed",
 			mutate: func(t *testing.T, update *joiningv1.ScopedToken) {
 				update.SetSpec(proto.CloneOf(update.GetSpec()))
@@ -889,6 +771,7 @@ func TestScopedTokenUpsert(t *testing.T) {
 	for _, tc := range rejectCases {
 		t.Run("upsert fails because "+tc.name, func(t *testing.T) {
 			t.Parallel()
+			ctx := t.Context()
 			token := newToken()
 			_, err := service.UpsertScopedToken(ctx, joiningv1.UpsertScopedTokenRequest_builder{Token: token}.Build())
 			require.NoError(t, err)
@@ -903,6 +786,7 @@ func TestScopedTokenUpsert(t *testing.T) {
 
 	t.Run("secret is preserved when not included", func(t *testing.T) {
 		t.Parallel()
+		ctx := t.Context()
 		token := newToken()
 		created, err := service.UpsertScopedToken(ctx, joiningv1.UpsertScopedTokenRequest_builder{Token: token}.Build())
 		require.NoError(t, err)
@@ -920,6 +804,7 @@ func TestScopedTokenUpsert(t *testing.T) {
 		// confirm the original secret is still in place
 		fetched, err := service.GetScopedToken(ctx, joiningv1.GetScopedTokenRequest_builder{
 			Name:       token.GetMetadata().GetName(),
+			Scope:      token.GetScope(),
 			WithSecret: true,
 		}.Build())
 		require.NoError(t, err)
@@ -928,6 +813,7 @@ func TestScopedTokenUpsert(t *testing.T) {
 
 	t.Run("upsert succeeds when revisions don't match", func(t *testing.T) {
 		t.Parallel()
+		ctx := t.Context()
 		token := newToken()
 
 		_, err := service.UpsertScopedToken(ctx, joiningv1.UpsertScopedTokenRequest_builder{Token: token}.Build())
@@ -935,6 +821,7 @@ func TestScopedTokenUpsert(t *testing.T) {
 
 		fetched1, err := service.GetScopedToken(ctx, joiningv1.GetScopedTokenRequest_builder{
 			Name:       token.GetMetadata().GetName(),
+			Scope:      token.GetScope(),
 			WithSecret: true,
 		}.Build())
 		require.NoError(t, err)
@@ -954,6 +841,7 @@ func TestScopedTokenUpsert(t *testing.T) {
 		// Verify that update2 succeeded and overwrote update1's label
 		final, err := service.GetScopedToken(ctx, joiningv1.GetScopedTokenRequest_builder{
 			Name:       token.GetMetadata().GetName(),
+			Scope:      token.GetScope(),
 			WithSecret: true,
 		}.Build())
 		require.NoError(t, err)
@@ -962,6 +850,7 @@ func TestScopedTokenUpsert(t *testing.T) {
 
 	t.Run("concurrent upserts succeed", func(t *testing.T) {
 		t.Parallel()
+		ctx := t.Context()
 		token := newToken()
 
 		// Simulate 4 users concurrently upserting the same token with
@@ -985,6 +874,7 @@ func TestScopedTokenUpsert(t *testing.T) {
 		// Verify the token still exists and is consistent.
 		final, err := service.GetScopedToken(ctx, joiningv1.GetScopedTokenRequest_builder{
 			Name:       token.GetMetadata().GetName(),
+			Scope:      token.GetScope(),
 			WithSecret: true,
 		}.Build())
 		require.NoError(t, err)
@@ -1019,6 +909,7 @@ func TestScopedTokenCreate(t *testing.T) {
 
 		fetched, err := service.GetScopedToken(ctx, joiningv1.GetScopedTokenRequest_builder{
 			Name:       created.GetToken().GetMetadata().GetName(),
+			Scope:      created.GetToken().GetScope(),
 			WithSecret: true,
 		}.Build())
 		require.NoError(t, err)
@@ -1034,6 +925,7 @@ func TestScopedTokenCreate(t *testing.T) {
 
 		fetched, err := service.GetScopedToken(ctx, joiningv1.GetScopedTokenRequest_builder{
 			Name:       created.GetToken().GetMetadata().GetName(),
+			Scope:      created.GetToken().GetScope(),
 			WithSecret: true,
 		}.Build())
 		require.NoError(t, err)

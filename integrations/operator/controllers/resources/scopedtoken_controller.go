@@ -39,11 +39,17 @@ func (s *scopedTokenClient) Create(ctx context.Context, token *tokenv1.ScopedTok
 }
 
 func (s *scopedTokenClient) Delete(ctx context.Context, key reconcilers.ResourceKey) error {
-	return s.teleportClient.DeleteScopedToken(ctx, key.String())
+	return s.teleportClient.DeleteScopedToken(ctx, tokenv1.DeleteScopedTokenRequest_builder{
+		Name:  key.Name,
+		Scope: key.Scope,
+	}.Build())
 }
 
 func (s *scopedTokenClient) Get(ctx context.Context, key reconcilers.ResourceKey) (*tokenv1.ScopedToken, error) {
-	return s.teleportClient.GetScopedToken(ctx, key.String(), false)
+	return s.teleportClient.GetScopedToken(ctx, tokenv1.GetScopedTokenRequest_builder{
+		Name:  key.Name,
+		Scope: key.Scope,
+	}.Build())
 }
 
 func (s *scopedTokenClient) Update(ctx context.Context, token *tokenv1.ScopedToken) error {
