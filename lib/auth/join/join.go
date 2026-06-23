@@ -1162,7 +1162,11 @@ func generateHostKeysForProxy(ctx context.Context, insecure bool, proxyAddr stri
 			Insecure:  insecure,
 		})
 		if err != nil {
-			return types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED, trace.Wrap(err, "pinging proxy to determine signature algorithm suite")
+			err = trace.Wrap(err, "pinging proxy to determine signature algorithm suite")
+			if hint := ProxyServerHTTPListenPortHint(proxyAddr); hint != "" {
+				err = trace.Wrap(err, hint)
+			}
+			return types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_UNSPECIFIED, err
 		}
 		return pr.Auth.SignatureAlgorithmSuite, nil
 	}
