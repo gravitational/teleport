@@ -470,6 +470,18 @@ Logged into AWS app "example-read-only-access".
     AWS_PROFILE=example-read-only-access aws s3 ls
 ```
 
+To list the AWS roles that you can provide to the `--aws-role` flag, run the following command:
+`tsh apps logins [--format=text|json|yaml] <app>`.
+
+```code
+$ tsh apps logins aws-console
+Available AWS roles:
+Role Name             Role ARN
+--------------------- ----------------------------------------------------
+ExampleAdminAccess    arn:aws:iam::123456789012:role/ExampleReadOnlyAccess
+ExampleReadOnlyAccess arn:aws:iam::123456789012:role/ExampleAdminAccess
+```
+
 Alternatively, if the `--aws-role` is not provided, the aws role will be prompted interactively.
 
 ```code
