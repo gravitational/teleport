@@ -1076,6 +1076,54 @@ matches snapshot for existing-tls-secret.yaml:
           output: stderr
           severity: INFO
       version: v3
+matches snapshot for gcp-database-id.yaml:
+  1: |
+    |-
+      auth_service:
+        authentication:
+          local_auth: true
+          second_factors:
+          - otp
+          - webauthn
+          type: local
+          webauthn:
+            rp_id: test-gcp-cluster
+        cluster_name: test-gcp-cluster
+        enabled: true
+        proxy_listener_mode: separate
+      kubernetes_service:
+        enabled: true
+        kube_cluster_name: test-gcp-cluster
+        labels:
+          env: gcp
+        listen_addr: 0.0.0.0:3026
+        public_addr: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3026
+      proxy_service:
+        enabled: false
+      ssh_service:
+        enabled: false
+      teleport:
+        auth_server: 127.0.0.1:3025
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+        storage:
+          audit_events_uri:
+          - firestore://test-teleport-firestore-auditlog-collection?credentialsPath=/etc/teleport-secrets/gcp-credentials.json&databaseID=customdb&projectID=gcpproj-123456
+          audit_sessions_uri: gs://test-gcp-session-storage-bucket?projectID=gcpproj-123456&credentialsPath=/etc/teleport-secrets/gcp-credentials.json
+          collection_name: test-teleport-firestore-storage-collection
+          credentials_path: /etc/teleport-secrets/gcp-credentials.json
+          database_id: customdb
+          project_id: gcpproj-123456
+          type: firestore
+      version: v3
 matches snapshot for gcp-ha-acme.yaml:
   1: |
     |-
@@ -1116,7 +1164,7 @@ matches snapshot for gcp-ha-acme.yaml:
           severity: INFO
         storage:
           audit_events_uri:
-          - firestore://test-teleport-firestore-auditlog-collection?projectID=gcpproj-123456&credentialsPath=/etc/teleport-secrets/gcp-credentials.json
+          - firestore://test-teleport-firestore-auditlog-collection?credentialsPath=/etc/teleport-secrets/gcp-credentials.json&projectID=gcpproj-123456
           audit_sessions_uri: gs://test-gcp-session-storage-bucket?projectID=gcpproj-123456&credentialsPath=/etc/teleport-secrets/gcp-credentials.json
           collection_name: test-teleport-firestore-storage-collection
           credentials_path: /etc/teleport-secrets/gcp-credentials.json
@@ -1163,7 +1211,7 @@ matches snapshot for gcp-ha-antiaffinity.yaml:
           severity: INFO
         storage:
           audit_events_uri:
-          - firestore://test-teleport-firestore-auditlog-collection?projectID=gcpproj-123456&credentialsPath=/etc/teleport-secrets/gcp-credentials.json
+          - firestore://test-teleport-firestore-auditlog-collection?credentialsPath=/etc/teleport-secrets/gcp-credentials.json&projectID=gcpproj-123456
           audit_sessions_uri: gs://test-gcp-session-storage-bucket?projectID=gcpproj-123456&credentialsPath=/etc/teleport-secrets/gcp-credentials.json
           collection_name: test-teleport-firestore-storage-collection
           credentials_path: /etc/teleport-secrets/gcp-credentials.json
@@ -1210,7 +1258,7 @@ matches snapshot for gcp-ha-log.yaml:
           severity: DEBUG
         storage:
           audit_events_uri:
-          - firestore://test-teleport-firestore-auditlog-collection?projectID=gcpproj-123456&credentialsPath=/etc/teleport-secrets/gcp-credentials.json
+          - firestore://test-teleport-firestore-auditlog-collection?credentialsPath=/etc/teleport-secrets/gcp-credentials.json&projectID=gcpproj-123456
           - stdout://
           audit_sessions_uri: gs://test-gcp-session-storage-bucket?projectID=gcpproj-123456&credentialsPath=/etc/teleport-secrets/gcp-credentials.json
           collection_name: test-teleport-firestore-storage-collection
@@ -1258,7 +1306,7 @@ matches snapshot for gcp.yaml:
           severity: INFO
         storage:
           audit_events_uri:
-          - firestore://test-teleport-firestore-auditlog-collection?projectID=gcpproj-123456&credentialsPath=/etc/teleport-secrets/gcp-credentials.json
+          - firestore://test-teleport-firestore-auditlog-collection?credentialsPath=/etc/teleport-secrets/gcp-credentials.json&projectID=gcpproj-123456
           audit_sessions_uri: gs://test-gcp-session-storage-bucket?projectID=gcpproj-123456&credentialsPath=/etc/teleport-secrets/gcp-credentials.json
           collection_name: test-teleport-firestore-storage-collection
           credentials_path: /etc/teleport-secrets/gcp-credentials.json
