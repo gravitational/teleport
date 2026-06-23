@@ -40,7 +40,7 @@ type ScopedResourceMetadata interface {
 }
 
 // NewScopeAwareServiceWrapper returns a new scope-aware generic service wrapper.
-// It is the RFD 153 analogue of ScopeAwareService: scoped resources are stored
+// It is the RFD 153 analog of ScopeAwareService: scoped resources are stored
 // in a separate, scope-namespaced key range from unscoped resources, and the
 // wrapper transparently routes reads and writes to the correct range.
 func NewScopeAwareServiceWrapper[T ScopedResourceMetadata](cfg ScopeAwareServiceWrapperConfig[T]) (*ScopeAwareServiceWrapper[T], error) {
