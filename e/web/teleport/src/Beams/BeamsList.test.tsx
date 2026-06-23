@@ -23,15 +23,18 @@ import { createTeleportContext } from 'teleport/mocks/contexts';
 import { TeleportProviderBasic } from 'teleport/mocks/providers';
 import { defaultAccess, makeAcl } from 'teleport/services/user/makeAcl';
 
-import { listBeams } from '../services/beams/beams';
+import { beamsService } from '../services/beams/beams';
 import { BeamsList } from './BeamsList';
 
 jest.mock('../services/beams/beams', () => {
   const actual = jest.requireActual('../services/beams/beams');
   return {
-    listBeams: jest.fn((...all) => {
-      return actual.listBeams(...all);
-    }),
+    beamsService: {
+      ...actual.beamsService,
+      listBeams: jest.fn((...all) => {
+        return actual.beamsService.listBeams(...all);
+      }),
+    },
   };
 });
 
@@ -47,7 +50,7 @@ describe('BeamsList', () => {
     server.use(
       listBeamsSuccess({
         items: [],
-        next_page_token: null,
+        next_page_token: '',
       })
     );
 
@@ -131,19 +134,26 @@ describe('BeamsList', () => {
   });
 
   it('allows paging', async () => {
-    jest.mocked(listBeams).mockImplementation(async ({ pageToken }) => ({
-      items: [
-        {
-          name: 'a0f98569-2559-42e0-8ac3-2bc6bf5db6c9',
-          alias: 'cosmic-author',
-          expires: '2026-04-25T16:30:00Z',
-          user: 'user@example.com',
-        },
-      ],
-      next_page_token: pageToken + '.next',
-    }));
+    jest
+      .mocked(beamsService.listBeams)
+      .mockImplementation(async ({ pageToken }) => ({
+        items: [
+          {
+            name: 'a0f98569-2559-42e0-8ac3-2bc6bf5db6c9',
+            alias: 'cosmic-author',
+            expires: '2026-04-25T16:30:00Z',
+            user: 'user@example.com',
+            node_id: '',
+            app_name: '',
+            egress_mode: 'unrestricted',
+            allowed_domains: [],
+            compute_status: 'provision_complete',
+          },
+        ],
+        next_page_token: pageToken + '.next',
+      }));
 
-    expect(listBeams).toHaveBeenCalledTimes(0);
+    expect(beamsService.listBeams).toHaveBeenCalledTimes(0);
 
     render(<BeamsList />, { wrapper: makeWrapper() });
 
@@ -151,38 +161,50 @@ describe('BeamsList', () => {
 
     const [nextButton] = screen.getAllByTitle('Next page');
 
-    expect(listBeams).toHaveBeenCalledTimes(1);
-    expect(listBeams).toHaveBeenLastCalledWith({
-      pageSize: 20,
-      pageToken: '',
-      sortField: 'expires',
-      sortDir: 'ASC',
-      users: ['llama'],
-    });
+    expect(beamsService.listBeams).toHaveBeenCalledTimes(1);
+    expect(beamsService.listBeams).toHaveBeenLastCalledWith(
+      {
+        pageSize: 20,
+        pageToken: '',
+        sortField: 'expires',
+        sortDir: 'ASC',
+        users: ['llama'],
+      },
+      expect.any(String),
+      expect.any(AbortSignal)
+    );
 
     await waitFor(() => expect(nextButton).toBeEnabled());
     fireEvent.click(nextButton);
 
-    expect(listBeams).toHaveBeenCalledTimes(2);
-    expect(listBeams).toHaveBeenLastCalledWith({
-      pageSize: 20,
-      pageToken: '.next',
-      sortField: 'expires',
-      sortDir: 'ASC',
-      users: ['llama'],
-    });
+    expect(beamsService.listBeams).toHaveBeenCalledTimes(2);
+    expect(beamsService.listBeams).toHaveBeenLastCalledWith(
+      {
+        pageSize: 20,
+        pageToken: '.next',
+        sortField: 'expires',
+        sortDir: 'ASC',
+        users: ['llama'],
+      },
+      expect.any(String),
+      expect.any(AbortSignal)
+    );
 
     await waitFor(() => expect(nextButton).toBeEnabled());
     fireEvent.click(nextButton);
 
-    expect(listBeams).toHaveBeenCalledTimes(3);
-    expect(listBeams).toHaveBeenLastCalledWith({
-      pageSize: 20,
-      pageToken: '.next.next',
-      sortField: 'expires',
-      sortDir: 'ASC',
-      users: ['llama'],
-    });
+    expect(beamsService.listBeams).toHaveBeenCalledTimes(3);
+    expect(beamsService.listBeams).toHaveBeenLastCalledWith(
+      {
+        pageSize: 20,
+        pageToken: '.next.next',
+        sortField: 'expires',
+        sortDir: 'ASC',
+        users: ['llama'],
+      },
+      expect.any(String),
+      expect.any(AbortSignal)
+    );
 
     const [prevButton] = screen.getAllByTitle('Previous page');
 
@@ -190,121 +212,159 @@ describe('BeamsList', () => {
     fireEvent.click(prevButton);
 
     // Previous pages are cached
-    expect(listBeams).toHaveBeenCalledTimes(3);
+    expect(beamsService.listBeams).toHaveBeenCalledTimes(3);
 
     await waitFor(() => expect(prevButton).toBeEnabled());
     fireEvent.click(prevButton);
 
     // Previous pages are cached
-    expect(listBeams).toHaveBeenCalledTimes(3);
+    expect(beamsService.listBeams).toHaveBeenCalledTimes(3);
   });
 
   it('allows filtering by own beams', async () => {
-    jest.mocked(listBeams).mockImplementation(async ({ pageToken, users }) => ({
-      items: [
-        {
-          name: `beam-${pageToken || 'root'}-${users?.join(',') || 'all'}`,
-          alias: 'cosmic-author',
-          expires: '2026-04-25T16:30:00Z',
-          user: 'user@example.com',
-        },
-      ],
-      next_page_token: pageToken + '.next',
-    }));
+    jest
+      .mocked(beamsService.listBeams)
+      .mockImplementation(async ({ pageToken, users }) => ({
+        items: [
+          {
+            name: `beam-${pageToken || 'root'}-${users?.join(',') || 'all'}`,
+            alias: 'cosmic-author',
+            expires: '2026-04-25T16:30:00Z',
+            user: 'user@example.com',
+            node_id: '',
+            app_name: '',
+            egress_mode: 'unrestricted',
+            allowed_domains: [],
+            compute_status: 'provision_complete',
+          },
+        ],
+        next_page_token: pageToken + '.next',
+      }));
 
     render(<BeamsList />, { wrapper: makeWrapper() });
 
     await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
 
-    expect(listBeams).toHaveBeenCalledTimes(1);
-    expect(listBeams).toHaveBeenLastCalledWith({
-      pageSize: 20,
-      pageToken: '',
-      sortField: 'expires',
-      sortDir: 'ASC',
-      users: ['llama'],
-    });
+    expect(beamsService.listBeams).toHaveBeenCalledTimes(1);
+    expect(beamsService.listBeams).toHaveBeenLastCalledWith(
+      {
+        pageSize: 20,
+        pageToken: '',
+        sortField: 'expires',
+        sortDir: 'ASC',
+        users: ['llama'],
+      },
+      expect.any(String),
+      expect.any(AbortSignal)
+    );
     expect(screen.queryByText('user@example.com')).not.toBeInTheDocument();
 
     const [nextButton] = screen.getAllByTitle('Next page');
     await waitFor(() => expect(nextButton).toBeEnabled());
     fireEvent.click(nextButton);
 
-    expect(listBeams).toHaveBeenCalledTimes(2);
-    expect(listBeams).toHaveBeenLastCalledWith({
-      pageSize: 20,
-      pageToken: '.next',
-      sortField: 'expires',
-      sortDir: 'ASC',
-      users: ['llama'],
-    });
+    expect(beamsService.listBeams).toHaveBeenCalledTimes(2);
+    expect(beamsService.listBeams).toHaveBeenLastCalledWith(
+      {
+        pageSize: 20,
+        pageToken: '.next',
+        sortField: 'expires',
+        sortDir: 'ASC',
+        users: ['llama'],
+      },
+      expect.any(String),
+      expect.any(AbortSignal)
+    );
 
     fireEvent.click(screen.getByTestId('toggle'));
 
     await waitFor(() => {
-      expect(listBeams).toHaveBeenCalledTimes(3);
+      expect(beamsService.listBeams).toHaveBeenCalledTimes(3);
     });
-    expect(listBeams).toHaveBeenLastCalledWith({
-      pageSize: 20,
-      pageToken: '',
-      sortField: 'expires',
-      sortDir: 'ASC',
-      users: undefined,
-    });
+    expect(beamsService.listBeams).toHaveBeenLastCalledWith(
+      {
+        pageSize: 20,
+        pageToken: '',
+        sortField: 'expires',
+        sortDir: 'ASC',
+        users: undefined,
+      },
+      expect.any(String),
+      expect.any(AbortSignal)
+    );
     expect(screen.getByText('user@example.com')).toBeInTheDocument();
   });
 
   it('allows sorting', async () => {
-    jest.mocked(listBeams).mockImplementation(async ({ pageToken }) => ({
-      items: [
-        {
-          name: 'a0f98569-2559-42e0-8ac3-2bc6bf5db6c9',
-          alias: 'cosmic-author',
-          expires: '2026-04-25T16:30:00Z',
-          user: 'user@example.com',
-        },
-      ],
-      next_page_token: pageToken,
-    }));
+    jest
+      .mocked(beamsService.listBeams)
+      .mockImplementation(async ({ pageToken }) => ({
+        items: [
+          {
+            name: 'a0f98569-2559-42e0-8ac3-2bc6bf5db6c9',
+            alias: 'cosmic-author',
+            expires: '2026-04-25T16:30:00Z',
+            user: 'user@example.com',
+            node_id: '',
+            app_name: '',
+            egress_mode: 'unrestricted',
+            allowed_domains: [],
+            compute_status: 'provision_complete',
+          },
+        ],
+        next_page_token: pageToken,
+      }));
 
     render(<BeamsList />, { wrapper: makeWrapper() });
 
     await waitForElementToBeRemoved(() => screen.queryByTestId('loading'));
 
-    expect(listBeams).toHaveBeenCalledTimes(1);
-    expect(listBeams).toHaveBeenLastCalledWith({
-      pageSize: 20,
-      pageToken: '',
-      sortField: 'expires',
-      sortDir: 'ASC',
-      users: ['llama'],
-    });
+    expect(beamsService.listBeams).toHaveBeenCalledTimes(1);
+    expect(beamsService.listBeams).toHaveBeenLastCalledWith(
+      {
+        pageSize: 20,
+        pageToken: '',
+        sortField: 'expires',
+        sortDir: 'ASC',
+        users: ['llama'],
+      },
+      expect.any(String),
+      expect.any(AbortSignal)
+    );
 
     fireEvent.click(screen.getByText('UUID'));
 
     await waitFor(() => {
-      expect(listBeams).toHaveBeenCalledTimes(2);
+      expect(beamsService.listBeams).toHaveBeenCalledTimes(2);
     });
-    expect(listBeams).toHaveBeenLastCalledWith({
-      pageSize: 20,
-      pageToken: '',
-      sortField: 'name',
-      sortDir: 'DESC',
-      users: ['llama'],
-    });
+    expect(beamsService.listBeams).toHaveBeenLastCalledWith(
+      {
+        pageSize: 20,
+        pageToken: '',
+        sortField: 'name',
+        sortDir: 'DESC',
+        users: ['llama'],
+      },
+      expect.any(String),
+      expect.any(AbortSignal)
+    );
 
     fireEvent.click(screen.getByText('UUID'));
 
     await waitFor(() => {
-      expect(listBeams).toHaveBeenCalledTimes(3);
+      expect(beamsService.listBeams).toHaveBeenCalledTimes(3);
     });
-    expect(listBeams).toHaveBeenLastCalledWith({
-      pageSize: 20,
-      pageToken: '',
-      sortField: 'name',
-      sortDir: 'ASC',
-      users: ['llama'],
-    });
+    expect(beamsService.listBeams).toHaveBeenLastCalledWith(
+      {
+        pageSize: 20,
+        pageToken: '',
+        sortField: 'name',
+        sortDir: 'ASC',
+        users: ['llama'],
+      },
+      expect.any(String),
+      expect.any(AbortSignal)
+    );
   });
 });
 

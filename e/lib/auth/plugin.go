@@ -132,6 +132,15 @@ type Config struct {
 	// EnterpriseModules implements this interface, but it is kept as a different
 	// entry in the config for ease of testing.
 	LicenseChecker LicenseChecker
+	// Beams holds configuration for the Beams feature.
+	Beams BeamsConfig
+}
+
+// BeamsConfig holds configuration for the Beams feature.
+type BeamsConfig struct {
+	// ComputeServiceClient overrides the client that will be used to communicate
+	// with the compute service, primarily in tests.
+	ComputeServiceClient beamservicev1.BeamsOrchestratorServiceClient
 }
 
 // NewPlugin creates an instance of the Enterprise Web Plugin
@@ -600,65 +609,85 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 		return trace.Wrap(err, "register Sub CA service")
 	}
 
-	if p.Config.Modules.Features().GetEntitlement(entitlements.Beams).Enabled {
-		if addr := os.Getenv(envVarNameBeamServiceAddress); addr != "" {
-			clusterName, err := p.authServer.AuthServer.GetDomainName()
-			if err != nil {
-				return trace.Wrap(err, "getting cluster name")
-			}
-			creds, err := beamscompute.TransportCredentials(ctx, beamscompute.TransportCredentialsConfig{
-				ClusterName:          clusterName,
-				AuthPreferenceGetter: p.authServer.AuthServer,
-				CertAuthorityGetter:  p.authServer.AuthServer,
-				Keystore:             p.authServer.AuthServer.GetKeyStore(),
-				Logger:               logger.With(teleport.ComponentKey, "beams-transport-credentials"),
-				Emitter:              p.authServer.Emitter,
-			})
-			if err != nil {
-				return trace.Wrap(err, "creating beams transport credentials")
-			}
-			client, err := grpc.NewClient(addr, grpc.WithTransportCredentials(creds))
-			if err != nil {
-				return trace.Wrap(err, "create beams compute service client")
-			}
-			computeServiceClient := beamservicev1.NewBeamsOrchestratorServiceClient(client)
-
-			srv, err := beamsv1.NewBeamService(beamsv1.BeamsServiceConfig{
-				ClusterName:             clusterName,
-				AuthPreferenceGetter:    p.authServer.AuthServer,
-				BeamReader:              p.authServer.AuthServer,
-				StorageBackend:          p.authServer.GetBackend(),
-				AppWriter:               p.authServer.AuthServer,
-				BeamWriter:              p.authServer.AuthServer,
-				DelegationSessionWriter: p.authServer.AuthServer,
-				ProvisionTokenWriter:    p.authServer.AuthServer,
-				UserWriter:              p.authServer.AuthServer,
-				RoleWriter:              p.authServer.AuthServer,
-				NodeWriter:              p.authServer.AuthServer,
-				WorkloadIdentityWriter:  p.authServer.AuthServer,
-				ComputeServiceClient:    computeServiceClient,
-				Authorizer:              p.authServer.Authorizer,
-				Logger:                  logger.With(teleport.ComponentKey, "beams-service"),
-			})
-			if err != nil {
-				return trace.Wrap(err, "creating beams service")
-			}
-			beamsv1pb.RegisterBeamServiceServer(gRPCServer, srv)
-
-			gc, err := beamsv1.NewGarbageCollector(beamsv1.GarbageCollectorConfig{
-				Cache:       p.authServer.AuthServer,
-				Backend:     p.authServer.AuthServer.Services,
-				BeamService: srv,
-				Semaphores:  p.authServer.AuthServer,
-				HostID:      p.authServer.AuthServer.ServerID,
-				Logger:      logger.With(teleport.ComponentTeleport, "beams-garbage-collector"),
-			})
-			if err != nil {
-				return trace.Wrap(err, "creating beams garbage collector")
-			}
-			go gc.Run(ctx)
-		}
+	if err := p.registerBeamsService(ctx, gRPCServer); err != nil {
+		return trace.Wrap(err)
 	}
+
+	return nil
+}
+
+// registerBeamsService registers the Beams gRPC service and starts its garbage
+// collector. It is a no-op when the cluster is not entitled to Beams or no
+// compute service client is available.
+func (p *Plugin) registerBeamsService(ctx context.Context, grpcServer *grpc.Server) error {
+	if !p.Config.Modules.Features().GetEntitlement(entitlements.Beams).Enabled {
+		return nil
+	}
+
+	client := p.Config.Beams.ComputeServiceClient
+	addr := os.Getenv(envVarNameBeamServiceAddress)
+	if client == nil && addr == "" {
+		return nil
+	}
+
+	clusterName, err := p.authServer.AuthServer.GetDomainName()
+	if err != nil {
+		return trace.Wrap(err, "getting cluster name")
+	}
+
+	if client == nil {
+		creds, err := beamscompute.TransportCredentials(ctx, beamscompute.TransportCredentialsConfig{
+			ClusterName:          clusterName,
+			AuthPreferenceGetter: p.authServer.AuthServer,
+			CertAuthorityGetter:  p.authServer.AuthServer,
+			Keystore:             p.authServer.AuthServer.GetKeyStore(),
+			Logger:               logger.With(teleport.ComponentKey, "beams-transport-credentials"),
+			Emitter:              p.authServer.Emitter,
+		})
+		if err != nil {
+			return trace.Wrap(err, "creating beams transport credentials")
+		}
+		conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(creds))
+		if err != nil {
+			return trace.Wrap(err, "create beams compute service client")
+		}
+		client = beamservicev1.NewBeamsOrchestratorServiceClient(conn)
+	}
+
+	srv, err := beamsv1.NewBeamService(beamsv1.BeamsServiceConfig{
+		ClusterName:             clusterName,
+		AuthPreferenceGetter:    p.authServer.AuthServer,
+		BeamReader:              p.authServer.AuthServer,
+		StorageBackend:          p.authServer.GetBackend(),
+		AppWriter:               p.authServer.AuthServer,
+		BeamWriter:              p.authServer.AuthServer,
+		DelegationSessionWriter: p.authServer.AuthServer,
+		ProvisionTokenWriter:    p.authServer.AuthServer,
+		UserWriter:              p.authServer.AuthServer,
+		RoleWriter:              p.authServer.AuthServer,
+		NodeWriter:              p.authServer.AuthServer,
+		WorkloadIdentityWriter:  p.authServer.AuthServer,
+		ComputeServiceClient:    client,
+		Authorizer:              p.authServer.Authorizer,
+		Logger:                  logger.With(teleport.ComponentKey, "beams-service"),
+	})
+	if err != nil {
+		return trace.Wrap(err, "creating beams service")
+	}
+	beamsv1pb.RegisterBeamServiceServer(grpcServer, srv)
+
+	gc, err := beamsv1.NewGarbageCollector(beamsv1.GarbageCollectorConfig{
+		Cache:       p.authServer.AuthServer,
+		Backend:     p.authServer.AuthServer.Services,
+		BeamService: srv,
+		Semaphores:  p.authServer.AuthServer,
+		HostID:      p.authServer.AuthServer.ServerID,
+		Logger:      logger.With(teleport.ComponentTeleport, "beams-garbage-collector"),
+	})
+	if err != nil {
+		return trace.Wrap(err, "creating beams garbage collector")
+	}
+	go gc.Run(ctx)
 
 	return nil
 }

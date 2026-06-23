@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net"
 	"net/http"
 	"net/http/cookiejar"
@@ -36,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/trait"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	beamservicev1 "github.com/gravitational/teleport/e/api/beamservice/v1"
 	eauth "github.com/gravitational/teleport/e/lib/auth"
 	"github.com/gravitational/teleport/e/lib/idp/saml"
 	"github.com/gravitational/teleport/entitlements"
@@ -133,6 +135,22 @@ type webSuiteOptions struct {
 	uploadHandler               events.MultipartHandler
 	modules                     *modulestest.Modules
 	enableAuthCache             bool
+	beamsComputeClient          beamservicev1.BeamsOrchestratorServiceClient
+	clusterEntitlements         map[string]*proto.EntitlementInfo
+}
+
+func withBeamsComputeClient(c beamservicev1.BeamsOrchestratorServiceClient) webSuiteOption {
+	return func(o *webSuiteOptions) {
+		o.beamsComputeClient = c
+	}
+}
+
+// withClusterEntitlements merges additional entitlements into the proxy's
+// ClusterFeatures, which is what entitlement-gated web handlers consult.
+func withClusterEntitlements(e map[string]*proto.EntitlementInfo) webSuiteOption {
+	return func(o *webSuiteOptions) {
+		o.clusterEntitlements = e
+	}
 }
 
 func withAccessGraphFeatures(features string) webSuiteOption {
@@ -248,6 +266,9 @@ func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
 		},
 		HTTPTransport: options.roundTripper,
 		Modules:       options.modules,
+		Beams: eauth.BeamsConfig{
+			ComputeServiceClient: options.beamsComputeClient,
+		},
 	})
 	require.NoError(t, err)
 
@@ -308,6 +329,17 @@ func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
 	// Create web server with nil handler so we can get its listen address for the handler config
 	s.webServer = httptest.NewUnstartedServer(nil)
 
+	clusterFeatures := proto.Features{
+		// Turn on the enterprise features which impact the endpoint registration.
+		Cloud:         true,
+		RecoveryCodes: true,
+		Entitlements: map[string]*proto.EntitlementInfo{
+			string(entitlements.Policy):      {Enabled: true},
+			string(entitlements.AccessGraph): {Enabled: true},
+		},
+	}
+	maps.Copy(clusterFeatures.Entitlements, options.clusterEntitlements)
+
 	handler, err := web.NewHandler(web.Config{
 		Proxy: &stubTunnel{
 			cluster: &mockCluster{name: "localhost"},
@@ -326,16 +358,8 @@ func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
 		GetProxyClientCertificate: func() (*tls.Certificate, error) {
 			return nil, nil
 		},
-		Modules: options.modules,
-		ClusterFeatures: proto.Features{
-			// Turn on the enterprise features which impact the endpoint registration.
-			Cloud:         true,
-			RecoveryCodes: true,
-			Entitlements: map[string]*proto.EntitlementInfo{
-				string(entitlements.Policy):      {Enabled: true},
-				string(entitlements.AccessGraph): {Enabled: true},
-			},
-		},
+		Modules:               options.modules,
+		ClusterFeatures:       clusterFeatures,
 		IntegrationAppHandler: &mockIntegrationAppHandler{},
 	}, web.SetClock(s.clock))
 	require.NoError(t, err)

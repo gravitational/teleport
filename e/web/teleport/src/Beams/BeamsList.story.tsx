@@ -40,7 +40,7 @@ export const Empty: Story = {
       handlers: [
         listBeamsSuccess({
           items: [],
-          next_page_token: null,
+          next_page_token: '',
         }),
       ],
     },

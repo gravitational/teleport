@@ -24,11 +24,13 @@ import { SortMenu } from 'shared/components/Controls/SortMenu';
 import { CopyButton } from 'shared/components/CopyButton/CopyButton';
 
 import cfg from 'e-teleport/config';
-import { listBeams } from 'e-teleport/services/beams/beams';
+import { beamsService } from 'e-teleport/services/beams/beams';
+import { BeamsSortDir, BeamsSortField } from 'e-teleport/services/beams/types';
 import {
   FeatureBox,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout/Layout';
+import useStickyClusterId from 'teleport/useStickyClusterId';
 import useTeleport from 'teleport/useTeleport';
 
 const DEFAULT_SORT_FIELD = 'expires';
@@ -40,6 +42,7 @@ export function BeamsList() {
     prevPageTokens?: readonly string[];
   }>;
   const { storeUser } = useTeleport();
+  const { clusterId } = useStickyClusterId();
 
   const queryParams = new URLSearchParams(location.search);
   const pageToken = queryParams.get('page') ?? '';
@@ -55,14 +58,18 @@ export function BeamsList() {
   const { isPending, isFetching, isSuccess, isError, error, data } = useQuery({
     enabled: canList,
     queryKey: ['beams', 'list', pageToken, sortField, sortDir, users],
-    queryFn: () =>
-      listBeams({
-        pageSize: 20,
-        pageToken,
-        sortField,
-        sortDir,
-        users,
-      }),
+    queryFn: ({ signal }) =>
+      beamsService.listBeams(
+        {
+          pageSize: 20,
+          pageToken,
+          sortField: sortField as BeamsSortField,
+          sortDir: sortDir as BeamsSortDir,
+          users,
+        },
+        clusterId,
+        signal
+      ),
     placeholderData: keepPreviousData,
     staleTime: 30_000,
   });

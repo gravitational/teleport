@@ -1,20 +1,27 @@
 package web
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"slices"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
+	beamservicev1 "github.com/gravitational/teleport/e/api/beamservice/v1"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/modules"
@@ -22,8 +29,7 @@ import (
 )
 
 func TestListBeams(t *testing.T) {
-	// Required to register the beam grpc service
-	t.Setenv("TELEPORT_BEAM_SERVICE_ADDRESS", "something")
+	t.Parallel()
 
 	t.Run("TestListBeamsWithNoParams", testListBeamsWithNoParams)
 	t.Run("TestListBeamsWithUserFilter", testListBeamsWithUserFilter)
@@ -39,43 +45,26 @@ func testListBeamsWithNoParams(t *testing.T) {
 		t.Run(ternary(enableCache, "with cache", "without cache"), func(t *testing.T) {
 			t.Parallel()
 
-			ctx := t.Context()
-			s := newWebSuite(
-				t,
-				withWebPackAuthCacheEnabled(enableCache),
-				withModules(&modulestest.Modules{
-					TestBuildType: modules.BuildEnterprise,
-					TestFeatures: modules.Features{
-						Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-							entitlements.Beams: {Enabled: true},
-						},
-					},
-				}),
-			)
+			env := newBeamTestEnv(t, true, withWebPackAuthCacheEnabled(enableCache))
+			b := createBeam(t, env.suite, "1")
 
-			createAdminUser(t, s)
-
-			webPack := s.newAuthWebPack(t, "admin", skipUserCreation())
-			clusterName := s.testAuthServer.ClusterName()
-
-			b := createBeam(t, s, "1")
-
-			endpoint := webPack.clt.Endpoint("webapi", "sites", clusterName, "beams")
-			resp, err := webPack.clt.Get(ctx, endpoint, nil)
+			resp, err := env.webPack.clt.Get(env.ctx, env.endpoint(), nil)
 			require.NoError(t, err)
 
 			var got listBeamsResponse
 			err = json.Unmarshal(resp.Bytes(), &got)
 			require.NoError(t, err)
 			assert.Len(t, got.Items, 1)
-			assert.Empty(t, cmp.Diff(got.Items, []beam{
+			assert.Empty(t, cmp.Diff(got.Items, []beamDetails{
 				{
-					Name:    b.GetMetadata().GetName(),
-					Alias:   b.GetStatus().GetAlias(),
-					User:    b.GetStatus().GetUser(),
-					Expires: b.GetSpec().GetExpires().AsTime(),
-					NodeId:  b.GetStatus().GetNodeId(),
-					AppName: b.GetStatus().GetAppName(),
+					Name:           b.GetMetadata().GetName(),
+					Alias:          b.GetStatus().GetAlias(),
+					User:           b.GetStatus().GetUser(),
+					Expires:        b.GetSpec().GetExpires().AsTime(),
+					NodeId:         b.GetStatus().GetNodeId(),
+					AppName:        b.GetStatus().GetAppName(),
+					EgressMode:     "unrestricted",
+					AllowedDomains: []string{},
 				},
 			}))
 		})
@@ -89,30 +78,11 @@ func testListBeamsWithUserFilter(t *testing.T) {
 		t.Run(ternary(enableCache, "with cache", "without cache"), func(t *testing.T) {
 			t.Parallel()
 
-			ctx := t.Context()
-			s := newWebSuite(
-				t,
-				withWebPackAuthCacheEnabled(enableCache),
-				withModules(&modulestest.Modules{
-					TestBuildType: modules.BuildEnterprise,
-					TestFeatures: modules.Features{
-						Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-							entitlements.Beams: {Enabled: true},
-						},
-					},
-				}),
-			)
+			env := newBeamTestEnv(t, true, withWebPackAuthCacheEnabled(enableCache))
+			createBeam(t, env.suite, "1")
+			b2 := createBeam(t, env.suite, "2")
 
-			createAdminUser(t, s)
-
-			webPack := s.newAuthWebPack(t, "admin", skipUserCreation())
-			clusterName := s.testAuthServer.ClusterName()
-
-			createBeam(t, s, "1")
-			b2 := createBeam(t, s, "2")
-
-			endpoint := webPack.clt.Endpoint("webapi", "sites", clusterName, "beams")
-			resp, err := webPack.clt.Get(ctx, endpoint, url.Values{
+			resp, err := env.webPack.clt.Get(env.ctx, env.endpoint(), url.Values{
 				"user": []string{"user-2@example.com"},
 			})
 			require.NoError(t, err)
@@ -121,14 +91,16 @@ func testListBeamsWithUserFilter(t *testing.T) {
 			err = json.Unmarshal(resp.Bytes(), &got)
 			require.NoError(t, err)
 			assert.Len(t, got.Items, 1)
-			assert.Empty(t, cmp.Diff(got.Items, []beam{
+			assert.Empty(t, cmp.Diff(got.Items, []beamDetails{
 				{
-					Name:    b2.GetMetadata().GetName(),
-					Alias:   b2.GetStatus().GetAlias(),
-					User:    b2.GetStatus().GetUser(),
-					Expires: b2.GetSpec().GetExpires().AsTime(),
-					NodeId:  b2.GetStatus().GetNodeId(),
-					AppName: b2.GetStatus().GetAppName(),
+					Name:           b2.GetMetadata().GetName(),
+					Alias:          b2.GetStatus().GetAlias(),
+					User:           b2.GetStatus().GetUser(),
+					Expires:        b2.GetSpec().GetExpires().AsTime(),
+					NodeId:         b2.GetStatus().GetNodeId(),
+					AppName:        b2.GetStatus().GetAppName(),
+					EgressMode:     "unrestricted",
+					AllowedDomains: []string{},
 				},
 			}))
 		})
@@ -142,34 +114,13 @@ func testListBeamsWithPaging(t *testing.T) {
 		t.Run(ternary(enableCache, "with cache", "without cache"), func(t *testing.T) {
 			t.Parallel()
 
-			ctx := t.Context()
-			s := newWebSuite(
-				t,
-				withWebPackAuthCacheEnabled(enableCache),
-				withModules(&modulestest.Modules{
-					TestBuildType: modules.BuildEnterprise,
-					TestFeatures: modules.Features{
-						Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-							entitlements.Beams: {Enabled: true},
-						},
-					},
-				}),
-			)
-
-			createAdminUser(t, s)
-
-			webPack := s.newAuthWebPack(t, "admin", skipUserCreation())
-			clusterName := s.testAuthServer.ClusterName()
-
-			b1 := createBeam(t, s, "1")
-			b2 := createBeam(t, s, "2")
-			b3 := createBeam(t, s, "3")
-
-			endpoint := webPack.clt.Endpoint("webapi", "sites", clusterName, "beams")
+			env := newBeamTestEnv(t, true, withWebPackAuthCacheEnabled(enableCache))
+			b1 := createBeam(t, env.suite, "1")
+			b2 := createBeam(t, env.suite, "2")
+			b3 := createBeam(t, env.suite, "3")
 
 			sortField := ternary(enableCache, "expires", "name")
-
-			resp, err := webPack.clt.Get(ctx, endpoint, url.Values{
+			resp, err := env.webPack.clt.Get(env.ctx, env.endpoint(), url.Values{
 				"page_size":  []string{"2"},
 				"sort_field": []string{sortField},
 				"sort_dir":   []string{"asc"},
@@ -181,26 +132,30 @@ func testListBeamsWithPaging(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, firstPage.Items, 2)
 			require.NotEmpty(t, firstPage.NextPageToken)
-			assert.Equal(t, []beam{
+			assert.Equal(t, []beamDetails{
 				{
-					Name:    b1.GetMetadata().GetName(),
-					Alias:   b1.GetStatus().GetAlias(),
-					User:    b1.GetStatus().GetUser(),
-					Expires: b1.GetSpec().GetExpires().AsTime(),
-					NodeId:  b1.GetStatus().GetNodeId(),
-					AppName: b1.GetStatus().GetAppName(),
+					Name:           b1.GetMetadata().GetName(),
+					Alias:          b1.GetStatus().GetAlias(),
+					User:           b1.GetStatus().GetUser(),
+					Expires:        b1.GetSpec().GetExpires().AsTime(),
+					NodeId:         b1.GetStatus().GetNodeId(),
+					AppName:        b1.GetStatus().GetAppName(),
+					EgressMode:     "unrestricted",
+					AllowedDomains: []string{},
 				},
 				{
-					Name:    b2.GetMetadata().GetName(),
-					Alias:   b2.GetStatus().GetAlias(),
-					User:    b2.GetStatus().GetUser(),
-					Expires: b2.GetSpec().GetExpires().AsTime(),
-					NodeId:  b2.GetStatus().GetNodeId(),
-					AppName: b2.GetStatus().GetAppName(),
+					Name:           b2.GetMetadata().GetName(),
+					Alias:          b2.GetStatus().GetAlias(),
+					User:           b2.GetStatus().GetUser(),
+					Expires:        b2.GetSpec().GetExpires().AsTime(),
+					NodeId:         b2.GetStatus().GetNodeId(),
+					AppName:        b2.GetStatus().GetAppName(),
+					EgressMode:     "unrestricted",
+					AllowedDomains: []string{},
 				},
 			}, firstPage.Items)
 
-			resp, err = webPack.clt.Get(ctx, endpoint, url.Values{
+			resp, err = env.webPack.clt.Get(env.ctx, env.endpoint(), url.Values{
 				"page_size":  []string{"2"},
 				"page_token": []string{firstPage.NextPageToken},
 				"sort_field": []string{sortField},
@@ -211,14 +166,16 @@ func testListBeamsWithPaging(t *testing.T) {
 			var secondPage listBeamsResponse
 			err = json.Unmarshal(resp.Bytes(), &secondPage)
 			require.NoError(t, err)
-			assert.Equal(t, []beam{
+			assert.Equal(t, []beamDetails{
 				{
-					Name:    b3.GetMetadata().GetName(),
-					Alias:   b3.GetStatus().GetAlias(),
-					User:    b3.GetStatus().GetUser(),
-					Expires: b3.GetSpec().GetExpires().AsTime(),
-					NodeId:  b3.GetStatus().GetNodeId(),
-					AppName: b3.GetStatus().GetAppName(),
+					Name:           b3.GetMetadata().GetName(),
+					Alias:          b3.GetStatus().GetAlias(),
+					User:           b3.GetStatus().GetUser(),
+					Expires:        b3.GetSpec().GetExpires().AsTime(),
+					NodeId:         b3.GetStatus().GetNodeId(),
+					AppName:        b3.GetStatus().GetAppName(),
+					EgressMode:     "unrestricted",
+					AllowedDomains: []string{},
 				},
 			}, secondPage.Items)
 			assert.Empty(t, secondPage.NextPageToken)
@@ -229,40 +186,23 @@ func testListBeamsWithPaging(t *testing.T) {
 func testListBeamsWithSorting(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
-	s := newWebSuite(
-		t,
-		withWebPackAuthCacheEnabled(true),
-		withModules(&modulestest.Modules{
-			TestBuildType: modules.BuildEnterprise,
-			TestFeatures: modules.Features{
-				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-					entitlements.Beams: {Enabled: true},
-				},
-			},
-		}),
-	)
-
-	createAdminUser(t, s)
-
-	webPack := s.newAuthWebPack(t, "admin", skipUserCreation())
-	clusterName := s.testAuthServer.ClusterName()
+	env := newBeamTestEnv(t, true, withWebPackAuthCacheEnabled(true))
 
 	expires := time.Now().Add(24 * time.Hour)
 
-	b1 := createBeam(t, s, "1", func(beam *beamsv1.Beam) {
+	b1 := createBeam(t, env.suite, "1", func(beam *beamsv1.Beam) {
 		beam.GetMetadata().SetName("222")
 		beam.GetStatus().SetAlias("beam-alpha")
 		beam.GetStatus().SetUser("user-3@example.com")
 		beam.GetSpec().SetExpires(timestamppb.New(expires.Add(3 * time.Millisecond)))
 	})
-	b2 := createBeam(t, s, "2", func(beam *beamsv1.Beam) {
+	b2 := createBeam(t, env.suite, "2", func(beam *beamsv1.Beam) {
 		beam.GetMetadata().SetName("333")
 		beam.GetStatus().SetAlias("beam-charlie")
 		beam.GetStatus().SetUser("user-2@example.com")
 		beam.GetSpec().SetExpires(timestamppb.New(expires.Add(1 * time.Millisecond)))
 	})
-	b3 := createBeam(t, s, "3", func(beam *beamsv1.Beam) {
+	b3 := createBeam(t, env.suite, "3", func(beam *beamsv1.Beam) {
 		beam.GetMetadata().SetName("111")
 		beam.GetStatus().SetAlias("beam-beta")
 		beam.GetStatus().SetUser("user-1@example.com")
@@ -348,8 +288,7 @@ func testListBeamsWithSorting(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			endpoint := webPack.clt.Endpoint("webapi", "sites", clusterName, "beams")
-			resp, err := webPack.clt.Get(ctx, endpoint, url.Values{
+			resp, err := env.webPack.clt.Get(env.ctx, env.endpoint(), url.Values{
 				"sort_field": []string{tc.field},
 				"sort_dir":   []string{tc.dir},
 			})
@@ -386,39 +325,10 @@ func testListBeamsWithSorting(t *testing.T) {
 func testListBeamsNotEligable(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
-	s := newWebSuite(
-		t,
-		withModules(&modulestest.Modules{
-			TestBuildType: modules.BuildEnterprise,
-			TestFeatures: modules.Features{
-				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-					entitlements.Beams: {Enabled: false},
-				},
-			},
-		}),
-	)
-
-	createAdminUser(t, s)
-
-	webPack := s.newAuthWebPack(t, "admin", skipUserCreation())
-	clusterName := s.testAuthServer.ClusterName()
-
-	// known beams path
-	{
-		endpoint := webPack.clt.Endpoint("webapi", "sites", clusterName, "beams")
-		_, err := webPack.clt.Get(ctx, endpoint, nil)
-		require.Error(t, err)
-		require.ErrorContains(t, err, "not authorized to use beams", endpoint)
-	}
-
-	// unknown beams path
-	{
-		endpoint := webPack.clt.Endpoint("webapi", "sites", clusterName, "beams", "unknown")
-		_, err := webPack.clt.Get(ctx, endpoint, nil)
-		require.Error(t, err)
-		require.ErrorContains(t, err, "path not found", endpoint)
-	}
+	env := newBeamTestEnv(t, false)
+	_, err := env.webPack.clt.Get(env.ctx, env.endpoint(), nil)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "not authorized to use beams")
 }
 
 func createAdminUser(t *testing.T, s *webSuite) {
@@ -525,4 +435,391 @@ func ternary[T any](b bool, t, f T) T {
 		return t
 	}
 	return f
+}
+
+func TestCreateBeam(t *testing.T) {
+	t.Parallel()
+
+	t.Run("entitled creates beam", func(t *testing.T) {
+		t.Parallel()
+		env := newBeamTestEnv(t, true)
+
+		resp, err := env.webPack.clt.PostJSON(env.ctx, env.endpoint(), map[string]any{})
+		require.NoError(t, err)
+
+		var got beamDetails
+		require.NoError(t, json.Unmarshal(resp.Bytes(), &got))
+		assert.NotEmpty(t, got.Name)
+		assert.Equal(t, "unrestricted", got.EgressMode)
+		assert.Equal(t, "provision_complete", got.ComputeStatus)
+		assert.Nil(t, got.Publish)
+
+		provisionReqs := env.compute.getProvisionRequests()
+		require.Len(t, provisionReqs, 1)
+		assert.Equal(t, got.Name, provisionReqs[0].GetBeamId())
+	})
+
+	t.Run("entitled creates restricted beam", func(t *testing.T) {
+		t.Parallel()
+		env := newBeamTestEnv(t, true)
+
+		resp, err := env.webPack.clt.PostJSON(env.ctx, env.endpoint(), map[string]any{
+			"egress_mode":     "restricted",
+			"allowed_domains": []string{"example.com."},
+		})
+		require.NoError(t, err)
+
+		var got beamDetails
+		require.NoError(t, json.Unmarshal(resp.Bytes(), &got))
+		assert.Equal(t, "restricted", got.EgressMode)
+		assert.Equal(t, []string{"example.com."}, got.AllowedDomains)
+	})
+
+	t.Run("invalid egress mode is rejected", func(t *testing.T) {
+		t.Parallel()
+		env := newBeamTestEnv(t, true)
+		_, err := env.webPack.clt.PostJSON(env.ctx, env.endpoint(), map[string]any{
+			"egress_mode": "bogus",
+		})
+		require.Error(t, err)
+		require.ErrorContains(t, err, "unsupported egress mode")
+	})
+
+	t.Run("not entitled", func(t *testing.T) {
+		t.Parallel()
+		env := newBeamTestEnv(t, false)
+		_, err := env.webPack.clt.PostJSON(env.ctx, env.endpoint(), map[string]any{})
+		require.Error(t, err)
+		require.ErrorContains(t, err, "not authorized to use beams")
+	})
+}
+
+func TestGetBeam(t *testing.T) {
+	t.Parallel()
+
+	t.Run("entitled", func(t *testing.T) {
+		t.Parallel()
+		env := newBeamTestEnv(t, true)
+
+		unpublished := createBeam(t, env.suite, "1")
+		published := createBeam(t, env.suite, "2", func(b *beamsv1.Beam) {
+			b.GetSpec().SetPublish(beamsv1.PublishSpec_builder{
+				Port:     beamPublishPort,
+				Protocol: beamsv1.Protocol_PROTOCOL_HTTP,
+			}.Build())
+		})
+
+		tests := []struct {
+			name        string
+			beamName    string
+			wantErr     string
+			wantPublish *beamPublishConfig
+		}{
+			{
+				name:     "unpublished",
+				beamName: unpublished.GetMetadata().GetName(),
+			},
+			{
+				name:        "published HTTP",
+				beamName:    published.GetMetadata().GetName(),
+				wantPublish: &beamPublishConfig{Port: beamPublishPort, Protocol: "http"},
+			},
+			{
+				name:     "not found",
+				beamName: "does-not-exist",
+				wantErr:  `beam "does-not-exist" doesn't exist`,
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				resp, err := env.webPack.clt.Get(env.ctx, env.endpoint(tt.beamName), nil)
+
+				if tt.wantErr != "" {
+					require.Error(t, err)
+					require.ErrorContains(t, err, tt.wantErr)
+					return
+				}
+				require.NoError(t, err)
+
+				var got beamDetails
+				require.NoError(t, json.Unmarshal(resp.Bytes(), &got))
+				assert.Equal(t, tt.beamName, got.Name)
+				assert.Equal(t, "unrestricted", got.EgressMode)
+				assert.Empty(t, got.AllowedDomains)
+				assert.Equal(t, tt.wantPublish, got.Publish)
+				if tt.wantPublish == nil {
+					assert.NotContains(t, string(resp.Bytes()), `"publish"`)
+				}
+			})
+		}
+	})
+
+	t.Run("not entitled", func(t *testing.T) {
+		t.Parallel()
+		env := newBeamTestEnv(t, false)
+		_, err := env.webPack.clt.Get(env.ctx, env.endpoint("any-name"), nil)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "not authorized to use beams")
+	})
+}
+
+func TestUpdateBeam(t *testing.T) {
+	t.Parallel()
+
+	t.Run("entitled", func(t *testing.T) {
+		t.Parallel()
+		env := newBeamTestEnv(t, true)
+
+		tests := []struct {
+			name         string
+			id           string
+			alias        string
+			initialState func(*beamsv1.Beam)
+			body         beamDetails
+			wantPublish  *beamPublishConfig
+			wantErr      string
+		}{
+			{
+				name:  "omitting publish unpublishes the beam",
+				id:    "u1",
+				alias: "unpublish-beam",
+				initialState: func(b *beamsv1.Beam) {
+					b.GetSpec().SetPublish(beamsv1.PublishSpec_builder{
+						Port:     beamPublishPort,
+						Protocol: beamsv1.Protocol_PROTOCOL_HTTP,
+					}.Build())
+				},
+				body:        beamDetails{},
+				wantPublish: nil,
+			},
+			{
+				name:        "publish as HTTP app on port 8080",
+				id:          "u2",
+				alias:       "publish-http",
+				body:        beamDetails{Publish: &beamPublishConfig{Port: 8080, Protocol: "http"}},
+				wantPublish: &beamPublishConfig{Port: beamPublishPort, Protocol: "http"},
+			},
+			{
+				name:        "publish as TCP app on port 8080",
+				id:          "u2-tcp",
+				alias:       "publish-tcp",
+				body:        beamDetails{Publish: &beamPublishConfig{Port: 8080, Protocol: "tcp"}},
+				wantPublish: &beamPublishConfig{Port: beamPublishPort, Protocol: "tcp"},
+			},
+			{
+				name:        "publish defaults protocol and port when omitted",
+				id:          "u2-default",
+				alias:       "publish-default",
+				body:        beamDetails{Publish: &beamPublishConfig{}},
+				wantPublish: &beamPublishConfig{Port: beamPublishPort, Protocol: "http"},
+			},
+			{
+				name:    "publish with unsupported protocol is rejected",
+				id:      "u4",
+				alias:   "publish-bad",
+				body:    beamDetails{Publish: &beamPublishConfig{Protocol: "ftp"}},
+				wantErr: "unsupported protocol",
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				beam := createBeam(t, env.suite, tt.id, func(b *beamsv1.Beam) {
+					b.GetMetadata().ClearExpires()
+					b.GetStatus().SetAlias(tt.alias)
+					b.GetMetadata().GetLabels()[types.BeamAliasLabel] = tt.alias
+					if tt.initialState != nil {
+						tt.initialState(b)
+					}
+				})
+
+				resp, err := env.webPack.clt.PutJSON(env.ctx, env.endpoint(beam.GetMetadata().GetName()), tt.body)
+				if tt.wantErr != "" {
+					require.Error(t, err)
+					require.ErrorContains(t, err, tt.wantErr)
+					return
+				}
+				require.NoError(t, err)
+
+				var got beamDetails
+				require.NoError(t, json.Unmarshal(resp.Bytes(), &got))
+				assert.Equal(t, beam.GetMetadata().GetName(), got.Name)
+				assert.Equal(t, tt.wantPublish, got.Publish)
+			})
+		}
+	})
+
+	t.Run("updates allowed domains for a restricted beam", func(t *testing.T) {
+		t.Parallel()
+		env := newBeamTestEnv(t, true)
+		beam := createBeam(t, env.suite, "1", func(b *beamsv1.Beam) {
+			b.GetMetadata().ClearExpires()
+			b.GetSpec().SetEgress(beamsv1.EgressMode_EGRESS_MODE_RESTRICTED)
+			b.GetSpec().SetAllowedDomains([]string{"old.example.com."})
+		})
+
+		resp, err := env.webPack.clt.PutJSON(env.ctx, env.endpoint(beam.GetMetadata().GetName()), beamDetails{
+			EgressMode:     "restricted",
+			AllowedDomains: []string{"new.example.com."},
+		})
+		require.NoError(t, err)
+
+		var got beamDetails
+		require.NoError(t, json.Unmarshal(resp.Bytes(), &got))
+		assert.Equal(t, "restricted", got.EgressMode)
+		assert.Equal(t, []string{"new.example.com."}, got.AllowedDomains)
+	})
+
+	t.Run("changing egress mode is rejected by the service", func(t *testing.T) {
+		t.Parallel()
+		env := newBeamTestEnv(t, true)
+		beam := createBeam(t, env.suite, "1", func(b *beamsv1.Beam) {
+			b.GetMetadata().ClearExpires()
+		})
+
+		_, err := env.webPack.clt.PutJSON(env.ctx, env.endpoint(beam.GetMetadata().GetName()), beamDetails{
+			EgressMode: "restricted",
+		})
+		require.Error(t, err)
+		require.ErrorContains(t, err, "egress")
+	})
+
+	t.Run("not entitled", func(t *testing.T) {
+		t.Parallel()
+		env := newBeamTestEnv(t, false)
+		_, err := env.webPack.clt.PutJSON(env.ctx, env.endpoint("any-name"), beamDetails{})
+		require.Error(t, err)
+		require.ErrorContains(t, err, "not authorized to use beams")
+	})
+}
+
+func TestDeleteBeam(t *testing.T) {
+	t.Parallel()
+
+	t.Run("entitled deletes beam", func(t *testing.T) {
+		t.Parallel()
+		env := newBeamTestEnv(t, true)
+
+		resp, err := env.webPack.clt.PostJSON(env.ctx, env.endpoint(), map[string]any{})
+		require.NoError(t, err)
+		var created beamDetails
+		require.NoError(t, json.Unmarshal(resp.Bytes(), &created))
+
+		_, err = env.webPack.clt.Delete(env.ctx, env.endpoint(created.Name))
+		require.NoError(t, err)
+
+		destroyReqs := env.compute.getDestroyRequests()
+		require.Len(t, destroyReqs, 1)
+		assert.Equal(t, created.Name, destroyReqs[0].GetBeamId())
+
+		// The beam should no longer exist upon successful deletion.
+		_, err = env.webPack.clt.Get(env.ctx, env.endpoint(created.Name), nil)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "doesn't exist")
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		t.Parallel()
+		env := newBeamTestEnv(t, true)
+		_, err := env.webPack.clt.Delete(env.ctx, env.endpoint("does-not-exist"))
+		require.Error(t, err)
+		require.ErrorContains(t, err, `beam "does-not-exist" doesn't exist`)
+	})
+
+	t.Run("not entitled", func(t *testing.T) {
+		t.Parallel()
+		env := newBeamTestEnv(t, false)
+		_, err := env.webPack.clt.Delete(env.ctx, env.endpoint("any-name"))
+		require.Error(t, err)
+		require.ErrorContains(t, err, "not authorized to use beams")
+	})
+}
+
+type beamTestEnv struct {
+	ctx         context.Context
+	suite       *webSuite
+	webPack     *authWebPack
+	clusterName string
+	compute     *fakeComputeService
+}
+
+// fakeComputeService is an in-memory beam compute service client used to
+// exercise the beam handlers without a real compute service.
+type fakeComputeService struct {
+	mu                sync.Mutex
+	provisionRequests []*beamservicev1.ProvisionBeamRequest
+	destroyRequests   []*beamservicev1.DestroyBeamRequest
+	provisionResponse *beamservicev1.ProvisionBeamResponse
+}
+
+// ProvisionBeam fakes a beam provision request.
+func (f *fakeComputeService) ProvisionBeam(_ context.Context, req *beamservicev1.ProvisionBeamRequest, _ ...grpc.CallOption) (*beamservicev1.ProvisionBeamResponse, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.provisionRequests = append(f.provisionRequests, req)
+	return f.provisionResponse, nil
+}
+
+// DestroyBeam fakes a beam destroy request.
+func (f *fakeComputeService) DestroyBeam(_ context.Context, req *beamservicev1.DestroyBeamRequest, _ ...grpc.CallOption) (*emptypb.Empty, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.destroyRequests = append(f.destroyRequests, req)
+	return &emptypb.Empty{}, nil
+}
+
+// getProvisionRequests returns a copy of the provision requests made to the fake compute service.
+func (f *fakeComputeService) getProvisionRequests() []*beamservicev1.ProvisionBeamRequest {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(f.provisionRequests)
+}
+
+// getDestroyRequests returns a copy of the destroy requests made to the fake compute service.
+func (f *fakeComputeService) getDestroyRequests() []*beamservicev1.DestroyBeamRequest {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(f.destroyRequests)
+}
+
+func (e *beamTestEnv) endpoint(parts ...string) string {
+	return e.webPack.clt.Endpoint(append([]string{"webapi", "sites", e.clusterName, "beams"}, parts...)...)
+}
+
+func newBeamTestEnv(t *testing.T, entitled bool, opts ...webSuiteOption) *beamTestEnv {
+	t.Helper()
+
+	// Injecting a fake compute service so the beam service is registered
+	compute := &fakeComputeService{
+		provisionResponse: &beamservicev1.ProvisionBeamResponse{
+			SshAddr: "127.0.0.1:22",
+		},
+	}
+
+	opts = append(opts,
+		withModules(&modulestest.Modules{
+			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.Beams: {Enabled: entitled},
+				},
+			},
+		}),
+		withBeamsComputeClient(compute),
+	)
+	if entitled {
+		opts = append(opts, withClusterEntitlements(map[string]*proto.EntitlementInfo{
+			string(entitlements.Beams): {Enabled: true},
+		}))
+	}
+	s := newWebSuite(t, opts...)
+	createAdminUser(t, s)
+	return &beamTestEnv{
+		ctx:         t.Context(),
+		suite:       s,
+		webPack:     s.newAuthWebPack(t, "admin", skipUserCreation()),
+		clusterName: s.testAuthServer.ClusterName(),
+		compute:     compute,
+	}
 }

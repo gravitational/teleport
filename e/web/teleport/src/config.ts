@@ -293,6 +293,7 @@ const cfg = {
 
     beams: {
       list: '/v1/webapi/sites/:clusterId/beams',
+      get: '/v1/webapi/sites/:clusterId/beams/:name',
     },
   },
 
@@ -738,17 +739,16 @@ const cfg = {
     return generatePath(cfg.routes.beamsFeedback);
   },
 
-  getBeamsUrl(req: { action: 'list' } & { clusterId?: string }) {
-    const { clusterId = cfg.oss.proxyCluster } = req;
-    switch (req.action) {
-      case 'list':
-        return generatePath(cfg.api.beams.list, {
-          clusterId,
-        });
-      default:
-        req.action satisfies never;
-        return '';
+  getBeamsUrl({ clusterId, name }: { clusterId?: string; name?: string }) {
+    if (name) {
+      return generatePath(cfg.api.beams.get, {
+        clusterId,
+        name,
+      });
     }
+    return generatePath(cfg.api.beams.list, {
+      clusterId,
+    });
   },
 
   init(json: object) {
