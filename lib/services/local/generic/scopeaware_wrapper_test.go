@@ -78,7 +78,7 @@ func newScopedTestResource153(sqn scopes.QualifiedName) *scopedTestResource153 {
 }
 
 func marshalScopedResource153(resource *scopedTestResource153, opts ...services.MarshalOption) ([]byte, error) {
-	// TODO(strideynet): It feels a little janky utilising fast marshal rather
+	// TODO(strideynet): It feels a little janky utilizing fast marshal rather
 	// than Proto marshal (which is what 99.9% of RFD153 resources are going to
 	// use). Could we add a "foo" resource to `/api` for testing?
 	return utils.FastMarshal(resource)
@@ -516,7 +516,7 @@ func TestScopeAwareServiceWrapper_Resources(t *testing.T) {
 		require.Empty(t, collectStream(t, svc.Resources(t.Context(), "", "")))
 	})
 
-	t.Run("orders unscoped before scoped and honours the cursor range", func(t *testing.T) {
+	t.Run("orders unscoped before scoped and honors the cursor range", func(t *testing.T) {
 		svc := newScopeAwareWrapperForTest(t)
 		ctx := t.Context()
 
@@ -567,7 +567,7 @@ func TestScopeAwareServiceWrapper_MakeBackendItem(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, wantKey.String(), item.Key.String())
 
-			// The stored value is the marshalled body and round-trips.
+			// The stored value is the marshaled body and round-trips.
 			require.NotEmpty(t, item.Value)
 			decoded, err := unmarshalScopedResource153(item.Value)
 			require.NoError(t, err)
