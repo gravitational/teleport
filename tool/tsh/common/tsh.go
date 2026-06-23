@@ -1754,12 +1754,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		)
 	}
 
-	if command == login.FullCommand() {
-		if err := maybeCheckLoginManagedUpdate(&cf, args); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
 	switch command {
 	case ver.FullCommand():
 		err = onVersion(&cf)
@@ -2415,6 +2409,15 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 		}()
 	}
 
+	// The user has typed `tsh login`, if the running binary needs to be updated,
+	// update and re-exec. Keep this check inside onLogin so login-specific setup
+	// above like hardware-key and identity-store configuration happens first.
+	// Otherwise, errors will be encountered such as the identity store as already
+	// been set.
+	if err := autoupdatetools.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// client is already logged in and profile is not expired and scope hasn't changed
 	if profile != nil && !profile.IsExpired(time.Now()) && !scopeChanged {
 		switch {
@@ -2425,12 +2428,6 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 		// current status
 		case cf.Proxy == "" && cf.SiteName == "" && cf.DesiredRoles == "" && cf.RequestID == "" && cf.IdentityFileOut == "" ||
 			utils.TryHost(cf.Proxy) == utils.TryHost(profile.ProxyURL.Host) && cf.SiteName == profile.Cluster && cf.DesiredRoles == "" && cf.RequestID == "":
-
-			// The user has typed `tsh login`, if the running binary needs to
-			// be updated, update and re-exec.
-			if err := autoupdatetools.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
-				return trace.Wrap(err)
-			}
 
 			_, err := tc.PingAndShowMOTD(cf.Context)
 			if err != nil {
@@ -2445,12 +2442,6 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 		// if the proxy names match but nothing else is specified; show motd and update active profile and kube configs
 		case utils.TryHost(cf.Proxy) == utils.TryHost(profile.ProxyURL.Host) &&
 			cf.SiteName == "" && cf.DesiredRoles == "" && cf.RequestID == "" && cf.IdentityFileOut == "":
-
-			// The user has typed `tsh login`, if the running binary needs to
-			// be updated, update and re-exec.
-			if err := autoupdatetools.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
-				return trace.Wrap(err)
-			}
 
 			_, err := tc.PingAndShowMOTD(cf.Context)
 			if err != nil {
@@ -2527,13 +2518,6 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 			// Print status to show information of the logged in user.
 			return trace.Wrap(printLoginInformation(cf, profile, profiles))
 
-		// otherwise just pass through to standard login
-		default:
-			// The user is logged in and has typed in `tsh --proxy=... login`, if
-			// the running binary needs to be updated, update and re-exec.
-			if err := autoupdatetools.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
-				return trace.Wrap(err)
-			}
 		}
 	}
 
@@ -2713,35 +2697,6 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 	}
 
 	return nil
-}
-
-// maybeCheckLoginManagedUpdate checks for updates if the current profile
-// does not exist or if the profile is expired.
-func maybeCheckLoginManagedUpdate(cf *CLIConf, reExecArgs []string) error {
-	if cf.IdentityFileIn != "" {
-		// Skip the update check if using flattened identities to avoid
-		// initializing the identity store too early. Otherwise, if the identity store
-		// is initialized then later the flattened identity store will fail to be
-		// created since an identity store already exists.
-		return nil
-	}
-
-	profile, _, err := cf.FullProfileStatus()
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-
-	// NOTE: checking for updates for an active profile is already handled elsewhere
-	if profile != nil && !profile.IsExpired(time.Now()) {
-		return nil
-	}
-
-	tc, err := makeClient(cf)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return trace.Wrap(autoupdatetools.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs))
 }
 
 // onLogout deletes a "session certificate" from ~/.tsh for a given proxy
