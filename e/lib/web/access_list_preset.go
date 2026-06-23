@@ -166,7 +166,7 @@ func (p *Plugin) deleteAccessListWithPreset(_ http.ResponseWriter, r *http.Reque
 		return nil, trace.Wrap(err)
 	}
 	return &ui.DeleteAccessListWithPresetResponse{
-		Roles: preset.ExtractRolesFromLabels(acl.GetAllLabels()),
+		Roles: acl.PresetRoleNames(),
 	}, nil
 }
 

@@ -2997,7 +2997,7 @@ func (s *Service) UpdateAccessListWithPreset(ctx context.Context, req *accesslis
 	builder, err := preset.NewPresetAccessListRolesBuilder(preset.AccessListRolesBuilderConfig{
 		PresetName:     accessList.GetName(),
 		AccessListSpec: accessList,
-		PresetType:     preset.PresetType(accessList.GetAllLabels()[preset.TeleportAccessListPreset]),
+		PresetType:     preset.PresetType(accessList.GetAllLabels()[accesslist.AccessListPresetLabel]),
 		AccessRoles:    accessRoles,
 	})
 	if err != nil {

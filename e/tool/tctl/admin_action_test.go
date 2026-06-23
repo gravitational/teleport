@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	tctl "github.com/gravitational/teleport/tool/tctl/common"
+	aclcommand "github.com/gravitational/teleport/tool/tctl/common/accesslist"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 	loginruleresource "github.com/gravitational/teleport/tool/tctl/common/loginrule"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
@@ -254,13 +255,13 @@ func (s *adminActionTestSuite) testAccessLists(t *testing.T) {
 	for name, tc := range map[string]adminActionTestCase{
 		"tctl acl users add": {
 			command:    fmt.Sprintf("acl users add %v %v", accessList.GetName(), "admin"),
-			cliCommand: &tctl.ACLCommand{},
+			cliCommand: &aclcommand.Command{},
 			setup:      createAccessList,
 			cleanup:    deleteAccessList,
 		},
 		"tctl acl users rm": {
 			command:    fmt.Sprintf("acl users rm %v %v", accessList.GetName(), "admin"),
-			cliCommand: &tctl.ACLCommand{},
+			cliCommand: &aclcommand.Command{},
 			setup: func() error {
 				if err := createAccessList(); err != nil {
 					return trace.Wrap(err)

@@ -17,6 +17,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	tctl "github.com/gravitational/teleport/tool/tctl/common"
+	aclcommand "github.com/gravitational/teleport/tool/tctl/common/accesslist"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
@@ -48,7 +49,7 @@ func runDevicesCommand(t *testing.T, client *authclient.Client, args []string) (
 
 func runACLCommand(t *testing.T, client *authclient.Client, args []string) (*bytes.Buffer, error) {
 	var stdoutBuff bytes.Buffer
-	command := &tctl.ACLCommand{
+	command := &aclcommand.Command{
 		Stdout: &stdoutBuff,
 	}
 

@@ -44,7 +44,7 @@ func TestPresetAccessListRolesBuilder(t *testing.T) {
 	checkAccessListMetadata := func(presetTypeLabel string) check {
 		return func(t *testing.T, result *preset.BuildResult) {
 			require.Equal(t, accessListName, result.AccessList.GetName())
-			require.Equal(t, presetTypeLabel, result.AccessList.GetMetadata().Labels[preset.TeleportAccessListPreset])
+			require.Equal(t, presetTypeLabel, result.AccessList.GetMetadata().Labels[accesslist.AccessListPresetLabel])
 			require.Equal(t, "Test Access List", result.AccessList.Spec.Title)
 		}
 	}
@@ -62,7 +62,7 @@ func TestPresetAccessListRolesBuilder(t *testing.T) {
 
 			role := result.AccessRoles[index]
 			require.Equal(t, name, role.GetName())
-			require.Equal(t, accessListName, role.GetMetadata().Labels[preset.TeleportAccessListPreset])
+			require.Equal(t, accessListName, role.GetMetadata().Labels[accesslist.AccessListPresetLabel])
 			require.Equal(t, preset.RoleDesc, role.GetMetadata().Description)
 
 			// Check app labels if specified
@@ -80,7 +80,7 @@ func TestPresetAccessListRolesBuilder(t *testing.T) {
 	checkReviewerRoleCanReviewRoles := func(roles []string) check {
 		return func(t *testing.T, result *preset.BuildResult) {
 			require.Equal(t, reviewerRoleName, result.ReviewerRole.GetName())
-			require.Equal(t, accessListName, result.ReviewerRole.GetMetadata().Labels[preset.TeleportAccessListPreset])
+			require.Equal(t, accessListName, result.ReviewerRole.GetMetadata().Labels[accesslist.AccessListPresetLabel])
 			require.Equal(t, preset.RoleDesc, result.ReviewerRole.GetMetadata().Description)
 
 			reviewCond := result.ReviewerRole.GetAccessReviewConditions(types.Allow)
@@ -92,7 +92,7 @@ func TestPresetAccessListRolesBuilder(t *testing.T) {
 	checkRequesterRoleCanSearchAsRoles := func(roles []string) check {
 		return func(t *testing.T, result *preset.BuildResult) {
 			require.Equal(t, requesterRoleName, result.RequesterRole.GetName())
-			require.Equal(t, accessListName, result.RequesterRole.GetMetadata().Labels[preset.TeleportAccessListPreset])
+			require.Equal(t, accessListName, result.RequesterRole.GetMetadata().Labels[accesslist.AccessListPresetLabel])
 			require.Equal(t, preset.RoleDesc, result.RequesterRole.GetMetadata().Description)
 
 			requestCond := result.RequesterRole.GetAccessRequestConditions(types.Allow)
@@ -178,7 +178,7 @@ func TestPresetAccessListRolesBuilder(t *testing.T) {
 
 		require.Empty(t, result.AccessList.Spec.Grants.Roles)
 		require.Empty(t, result.AccessList.Spec.OwnerGrants.Roles)
-		require.NotContains(t, result.AccessList.GetStaticLabels(), preset.TeleportAccessListPresetRoles)
+		require.NotContains(t, result.AccessList.GetStaticLabels(), accesslist.AccessListPresetRolesLabel)
 	})
 
 	t.Run("nil access list spec returns error", func(t *testing.T) {
@@ -273,13 +273,13 @@ func TestPresetAccessListRolesBuilderForTerraform(t *testing.T) {
 		staticLabels := result.AccessList.GetStaticLabels()
 		require.Len(t, result.AccessRoles, 2)
 		require.Equal(t, types.IACToolTerraform, staticLabels[types.IACToolLabel])
-		require.Equal(t, rolesLabelValue, staticLabels[preset.TeleportAccessListPresetRoles])
+		require.Equal(t, rolesLabelValue, staticLabels[accesslist.AccessListPresetRolesLabel])
 
 		require.Len(t, result.GetAllRoles(), 4) // 2 access roles + reviewer + requester
 		for _, role := range result.GetAllRoles() {
 			labels := role.GetStaticLabels()
 			require.Equal(t, types.IACToolTerraform, labels[types.IACToolLabel], "role %s missing terraform label", role.GetName())
-			require.Equal(t, accessListName, labels[preset.TeleportAccessListPreset], "role %s missing access list preset label", role.GetName())
+			require.Equal(t, accessListName, labels[accesslist.AccessListPresetLabel], "role %s missing access list preset label", role.GetName())
 			require.Empty(t, role.GetMetadata().Description, "role %s should have no description", role.GetName())
 		}
 	}
@@ -298,7 +298,7 @@ func TestPresetAccessListRolesBuilderForTerraform(t *testing.T) {
 			accessRoles: []types.Role{accessRole1, accessRole2},
 			validate: func(t *testing.T, result *preset.BuildResult) {
 				checkCommonLabelsAndRoles(result)
-				require.Equal(t, string(preset.LongTermPresetType), result.AccessList.GetMetadata().Labels[preset.TeleportAccessListPreset])
+				require.Equal(t, string(preset.LongTermPresetType), result.AccessList.GetMetadata().Labels[accesslist.AccessListPresetLabel])
 				require.ElementsMatch(t, []string{accessRole1Name, accessRole2Name}, result.AccessList.Spec.Grants.Roles)
 			},
 		},
@@ -309,7 +309,7 @@ func TestPresetAccessListRolesBuilderForTerraform(t *testing.T) {
 			accessRoles: []types.Role{accessRole1, accessRole2},
 			validate: func(t *testing.T, result *preset.BuildResult) {
 				checkCommonLabelsAndRoles(result)
-				require.Equal(t, string(preset.ShortTermPresetType), result.AccessList.GetMetadata().Labels[preset.TeleportAccessListPreset])
+				require.Equal(t, string(preset.ShortTermPresetType), result.AccessList.GetMetadata().Labels[accesslist.AccessListPresetLabel])
 				require.ElementsMatch(t, []string{requesterRoleName}, result.AccessList.Spec.Grants.Roles)
 			},
 		},
@@ -349,7 +349,7 @@ func TestPresetAccessListRolesBuilderForTerraform(t *testing.T) {
 		require.NotNil(t, builtAl.AccessList)
 		require.Empty(t, builtAl.AccessList.Spec.Grants.Roles)
 		require.Empty(t, builtAl.AccessList.Spec.OwnerGrants.Roles)
-		require.NotContains(t, builtAl.AccessList.GetStaticLabels(), preset.TeleportAccessListPresetRoles)
+		require.NotContains(t, builtAl.AccessList.GetStaticLabels(), accesslist.AccessListPresetRolesLabel)
 	})
 
 	t.Run("invalid preset type", func(t *testing.T) {
@@ -467,9 +467,9 @@ func TestPresetAccessListRolesBuilder_PreservesExistingRoleLabels(t *testing.T) 
 	)
 	require.NoError(t, err)
 	existingRole.SetStaticLabels(map[string]string{
-		preset.TeleportAccessListPreset: accessListName,
-		"owner":                         "team-foo",
-		"env":                           "dev",
+		accesslist.AccessListPresetLabel: accessListName,
+		"owner":                          "team-foo",
+		"env":                            "dev",
 	})
 
 	t.Run("non-IAC update preserves all existing labels", func(t *testing.T) {
@@ -486,7 +486,7 @@ func TestPresetAccessListRolesBuilder_PreservesExistingRoleLabels(t *testing.T) 
 
 		require.Len(t, result.AccessRoles, 1)
 		labels := result.AccessRoles[0].GetStaticLabels()
-		require.Equal(t, accessListName, labels[preset.TeleportAccessListPreset])
+		require.Equal(t, accessListName, labels[accesslist.AccessListPresetLabel])
 		require.Equal(t, "team-foo", labels["owner"])
 		require.Equal(t, "dev", labels["env"])
 	})
@@ -505,7 +505,7 @@ func TestPresetAccessListRolesBuilder_PreservesExistingRoleLabels(t *testing.T) 
 
 		require.Len(t, result.AccessRoles, 1)
 		labels := result.AccessRoles[0].GetStaticLabels()
-		require.Equal(t, accessListName, labels[preset.TeleportAccessListPreset])
+		require.Equal(t, accessListName, labels[accesslist.AccessListPresetLabel])
 		require.Equal(t, types.IACToolTerraform, labels[types.IACToolLabel])
 		require.Equal(t, "team-foo", labels["owner"])
 		require.Equal(t, "dev", labels["env"])

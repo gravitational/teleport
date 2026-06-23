@@ -11,17 +11,6 @@ import (
 )
 
 const (
-	// TeleportAccessListPreset marks an access list resource (with a label)
-	// that it was created using a preset.
-	TeleportAccessListPreset = types.TeleportInternalLabelPrefix + "access-list-preset"
-	// TeleportAccessListPresetRoles stores the comma-separated list of access role names
-	// managed by this preset access list. This is used to track which roles should be
-	// deleted when they're removed from the configuration.
-	TeleportAccessListPresetRoles = types.TeleportInternalLabelPrefix + "access-list-preset-roles"
-	// roleInfixPreset is used to easily identify roles by name that it was
-	// created for an access list that used a preset.
-	roleInfixPreset = "acl-preset"
-
 	// roleRequesterPrefix describes a role that allows to make access requests
 	// to some resources.
 	roleRequesterPrefix = "requester"
@@ -265,13 +254,13 @@ func (b *AccessListRolesBuilder) prepareAccessRole(roleSpec types.Role) types.Ro
 	role := roleSpec.Clone()
 
 	labels := map[string]string{
-		TeleportAccessListPreset: b.cfg.PresetName,
+		accesslist.AccessListPresetLabel: b.cfg.PresetName,
 	}
 	if b.cfg.ManagedByIAC != "" {
 		labels[types.IACToolLabel] = b.cfg.ManagedByIAC
 	}
 
-	if _, ok := role.GetLabel(TeleportAccessListPreset); !ok {
+	if _, ok := role.GetLabel(accesslist.AccessListPresetLabel); !ok {
 		role.SetName(b.generateRoleName(roleSpec.GetName()))
 		role.SetStaticLabels(labels)
 	} else if b.cfg.ManagedByIAC != "" {
@@ -300,7 +289,7 @@ func (b *AccessListRolesBuilder) constructReviewerRole(accessRoleNames []string)
 		},
 	}
 	labels := map[string]string{
-		TeleportAccessListPreset: b.cfg.PresetName,
+		accesslist.AccessListPresetLabel: b.cfg.PresetName,
 	}
 	if b.cfg.ManagedByIAC != "" {
 		labels[types.IACToolLabel] = b.cfg.ManagedByIAC
@@ -330,7 +319,7 @@ func (b *AccessListRolesBuilder) constructRequesterRole(accessRoleNames []string
 		},
 	}
 	labels := map[string]string{
-		TeleportAccessListPreset: b.cfg.PresetName,
+		accesslist.AccessListPresetLabel: b.cfg.PresetName,
 	}
 	if b.cfg.ManagedByIAC != "" {
 		labels[types.IACToolLabel] = b.cfg.ManagedByIAC
@@ -356,7 +345,7 @@ func setRoleDesc(r types.Role, desc string) {
 // constructAccessList constructs the access list with the appropriate grants based on preset type
 func (b *AccessListRolesBuilder) constructAccessList(reviewerRoleName, requesterRoleName string, accessRoleNames []string) (*accesslist.AccessList, error) {
 	labels := map[string]string{
-		TeleportAccessListPreset: string(b.cfg.PresetType),
+		accesslist.AccessListPresetLabel: string(b.cfg.PresetType),
 	}
 
 	presetRoles := []string{}
@@ -369,7 +358,7 @@ func (b *AccessListRolesBuilder) constructAccessList(reviewerRoleName, requester
 	presetRoles = append(presetRoles, accessRoleNames...)
 
 	if len(presetRoles) > 0 {
-		labels[TeleportAccessListPresetRoles] = strings.Join(presetRoles, ",")
+		labels[accesslist.AccessListPresetRolesLabel] = strings.Join(presetRoles, ",")
 	}
 
 	if b.cfg.ManagedByIAC != "" {
@@ -433,21 +422,7 @@ func (b *AccessListRolesBuilder) constructAccessList(reviewerRoleName, requester
 // computeRolesToBeDeleted identifies roles that were in the previous access list
 // but are not in the new configuration and should be deleted.
 func (b *AccessListRolesBuilder) computeRolesToBeDeleted(old, new *accesslist.AccessList) []string {
-	oldRoles := ExtractRolesFromLabels(old.GetStaticLabels())
-	newRoles := ExtractRolesFromLabels(new.GetStaticLabels())
-	return b.findRolesToDelete(oldRoles, newRoles)
-}
-
-// ExtractRolesFromLabels extracts the list of managed roles from an access list.
-// It checks the TeleportAccessListPresetRoles label first, then falls back to
-// extracting from Grants.Roles for backward compatibility.
-func ExtractRolesFromLabels(labels map[string]string) []string {
-	// First, try to get roles from the metadata label (preferred method)
-	rolesStr, ok := labels[TeleportAccessListPresetRoles]
-	if !ok {
-		return nil
-	}
-	return strings.Split(rolesStr, ",")
+	return b.findRolesToDelete(old.PresetRoleNames(), new.PresetRoleNames())
 }
 
 // findRolesToDelete compares old roles with new roles and returns
@@ -480,5 +455,5 @@ func (r BuildResult) GetAllRoles() []types.Role {
 // The format is: {prefix}-acl-preset-{accessListName}.
 // For example: "reviewer-acl-preset-my-access-list".
 func RoleName(prefix, accessListName string) string {
-	return fmt.Sprintf("%s-%s-%s", prefix, roleInfixPreset, accessListName)
+	return fmt.Sprintf("%s-%s-%s", prefix, accesslist.AccessListPresetRoleInfix, accessListName)
 }
