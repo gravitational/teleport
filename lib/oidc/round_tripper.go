@@ -107,7 +107,8 @@ func (r *limitReadCloser) Close() error {
 	return r.closer.Close()
 }
 
-// NewOIDCRoundTripper returns a round tripper that enforces
+// NewOIDCRoundTripper returns a round tripper that enforces a maximum response
+// size limit ([maxDataSize]).
 func NewOIDCRoundTripper(rt http.RoundTripper) http.RoundTripper {
 	return &OIDCRoundTripper{
 		rt: rt,
