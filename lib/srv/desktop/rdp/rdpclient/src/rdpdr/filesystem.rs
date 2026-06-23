@@ -294,7 +294,7 @@ impl FilesystemBackend {
     pub fn handle_rdp_drive_io_request(&mut self, req: efs::ServerDriveIoRequest) -> PduResult<()> {
         trace!("received {:?}", &req);
 
-        let device_is_tombstoned = self.cache.get_context(DeviceId::from(&req).0)?.tombstoned;
+        let device_is_tombstoned = self.cache.get_context(DeviceId::from(&req).into())?.tombstoned;
         if device_is_tombstoned {
             // A tombstoned device is only allowed to handle device close requests.
             // All other requests are cancelled.
@@ -2092,51 +2092,6 @@ trait Cancel {
     fn cancel(&self, this: &mut FilesystemBackend) -> PduResult<()>;
 }
 
-enum HandlerInput<T> {
-    Response(T),
-    Cancel,
-}
-
-trait HandlerFn<T> : FnOnce(&mut FilesystemBackend, HandlerInput<T>) -> PduResult<()> + Send {}
-
-impl<T, F> HandlerFn<T> for F 
-where 
-    F: FnOnce(&mut FilesystemBackend, HandlerInput<T>) -> PduResult<()> + Send 
-{}
-
-struct ResponseHandler<T> {
-    handler: Box<dyn HandlerFn<T>>,
-}
-
-// ResponseHandler is allowed to either invoke 'call' XOR 'cancel' exactly once.
-impl<T> ResponseHandler<T> {
-    fn new<R: Cancel + Send + 'static>(
-        req: R,
-        handler: impl FnOnce(&mut FilesystemBackend, T, R) -> PduResult<()> + Send + 'static,
-    ) -> Self {
-        Self {
-            handler: Box::new(move |this, input| match input {
-                HandlerInput::Response(res) => handler(this, res, req),
-                HandlerInput::Cancel => req.cancel(this),
-            }),
-        }
-    }
-
-    fn call(self, this: &mut FilesystemBackend, res: T) -> PduResult<()> {
-        (self.handler)(this, HandlerInput::Response(res))
-    }
-
-    fn cancel(self, this: &mut FilesystemBackend) -> PduResult<()> {
-        (self.handler)(this, HandlerInput::Cancel)
-    }
-}
-
-impl<T> std::fmt::Debug for ResponseHandler<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "<{}>", std::any::type_name::<T>())
-    }
-}
-
 impl Cancel for efs::DeviceCreateRequest {
     fn cancel(&self, this: &mut FilesystemBackend) -> PduResult<()> {
         this.send_rdp_device_create_response(self, NtStatus::UNSUCCESSFUL, 0)
@@ -2219,8 +2174,51 @@ impl Cancel for efs::ServerDriveLockControlRequest {
     }
 }
 
-// When handling TDP responses, all I know is that I got a SharedDirectoryInfoResponse. I don't
-// know which type to look for!!
+enum HandlerInput<T> {
+    Response(T),
+    Cancel,
+}
+
+trait HandlerFn<T> : FnOnce(&mut FilesystemBackend, HandlerInput<T>) -> PduResult<()> + Send {}
+
+impl<T, F> HandlerFn<T> for F 
+where 
+    F: FnOnce(&mut FilesystemBackend, HandlerInput<T>) -> PduResult<()> + Send 
+{}
+
+struct ResponseHandler<T> {
+    handler: Box<dyn HandlerFn<T>>,
+}
+
+// ResponseHandler is allowed to either invoke 'call' XOR 'cancel' exactly once.
+impl<T> ResponseHandler<T> {
+    fn new<R: Cancel + Send + 'static>(
+        req: R,
+        handler: impl FnOnce(&mut FilesystemBackend, T, R) -> PduResult<()> + Send + 'static,
+    ) -> Self {
+        Self {
+            handler: Box::new(move |this, input| match input {
+                HandlerInput::Response(res) => handler(this, res, req),
+                HandlerInput::Cancel => req.cancel(this),
+            }),
+        }
+    }
+
+    fn call(self, this: &mut FilesystemBackend, res: T) -> PduResult<()> {
+        (self.handler)(this, HandlerInput::Response(res))
+    }
+
+    fn cancel(self, this: &mut FilesystemBackend) -> PduResult<()> {
+        (self.handler)(this, HandlerInput::Cancel)
+    }
+}
+
+impl<T> std::fmt::Debug for ResponseHandler<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "<{}>", std::any::type_name::<T>())
+    }
+}
+
 type SharedDirectoryInfoResponseHandler = ResponseHandler<tdp::SharedDirectoryInfoResponse>;
 type SharedDirectoryCreateResponseHandler = ResponseHandler<tdp::SharedDirectoryCreateResponse>;
 type SharedDirectoryDeleteResponseHandler = ResponseHandler<tdp::SharedDirectoryDeleteResponse>;
@@ -2414,13 +2412,12 @@ impl ResponseCache {
                 completion_id
             )));
         };
-        warn!("INSERTING COMPLETION HANDLER - current count {}", self.cache.len());
+
         self.cache.insert(completion_id, handler);
         Ok(())
     }
 
     fn remove(&mut self, completion_id: &CompletionId) -> Option<ResponseKind> {
-        warn!("REMOVING COMPLETION HANDLER - current count {}", self.cache.len());
         self.cache.remove(completion_id)
     }
 
@@ -2446,7 +2443,14 @@ impl Cancel for efs::ServerDriveIoRequest {
 }
 
 struct DeviceId(u32);
-// Device IF from an arbitrary IO request
+
+impl From<DeviceId> for u32 {
+    fn from(value: DeviceId) -> Self {
+        value.0
+    }
+}
+
+// Grab the DeviceId from any IO request
 impl From<&efs::ServerDriveIoRequest> for DeviceId {
     fn from(value: &efs::ServerDriveIoRequest) -> Self {
         match value {
@@ -2463,5 +2467,4 @@ impl From<&efs::ServerDriveIoRequest> for DeviceId {
             efs::ServerDriveIoRequest::ServerDriveLockControlRequest(h) => DeviceId(h.device_io_request.device_id),
         }
     }
-    
 }
