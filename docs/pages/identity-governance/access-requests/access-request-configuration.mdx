@@ -723,15 +723,15 @@ UUID as provided by the Access Request.
 ## Submitting for other users
 
 You can configure a Teleport role to submit Access Request reviews on behalf of other users.
-This is primarily used by Teleport Access Request plugins to allow users from the connected integration
+This is used by Teleport Access Request plugins to allow users from the connected integration
 to approve and deny Access Requests natively in the integration.
 
 Currently, only the self-hosted Slack plugin supports native Access Request reviews. We highly
 recommend using the preset role `access-plugin-with-review` which provides the plugin with permissions
 to submit for any other user (via the wildcard `*`).
 
-To grant or deny a user the ability to submit reviews on behalf of other users,
-use the `allow.review_requests.submit_for_users` and `deny.review_requests.submit_for_users` fields in the user's roles:
+To grant or deny a plugin user the ability to submit reviews on behalf of other users,
+use the `allow.review_requests.submit_for_users` and `deny.review_requests.submit_for_users` fields in the plugin user's roles:
 ```yaml
 kind: role
 version: v8
@@ -744,9 +744,10 @@ spec:
         - '*'
 ```
 
-When the condition for `submit_for_users` is matched from a plugin user's role, all other `review_requests` conditions are ignored.
-This is because review permission checks will be performed on the user that the plugin is submitting on behalf of, instead
-of the plugin's own review permissions. This ensures that RBAC is enforced on the correct user identity and not the plugin's identity.
+When an Access Request review matches a plugin user's role with `submit_for_users`, the review will ignore all other
+`review_requests` conditions. This is because the Teleport Auth Service will perform review permission checks against the
+user that the plugin is submitting on behalf of, instead of the plugin's own review permissions.
+This ensures that RBAC is enforced on the correct user identity and not the plugin's identity.
 
 ## Request annotations
 
