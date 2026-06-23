@@ -170,7 +170,7 @@
     {
       "type": "doc",
       "label": "Beams",
-      "id": "beams",
+      "id": "beams/beams",
       "customProps": {
         "tag": "new"
       }
