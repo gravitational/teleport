@@ -88,8 +88,10 @@ func newLimitReadCloser(reader io.Reader, closer io.Closer) *limitReadCloser {
 
 func (r *limitReadCloser) Read(p []byte) (int, error) {
 	if r.n <= 0 {
-		// discard rest of the body to free up connection
-		io.Copy(io.Discard, r.reader)
+		// Return an error immediately without attempting to drain the
+		// connection: a malfunctioning or malicious remote server could slowly
+		// keep writing bytes indefinitely and block our reader. If it exceeds
+		// our max size, just kill the connection.
 		return 0, trace.Errorf("response exceeds maximum size of %d bytes", maxDataSize)
 	}
 
