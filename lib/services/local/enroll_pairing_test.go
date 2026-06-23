@@ -60,18 +60,17 @@ func TestEnrollPairingService_CreateEnrollPairing(t *testing.T) {
 			Kind:    types.KindEnrollPairing,
 			Version: types.V1,
 			Metadata: headerv1.Metadata_builder{
-				Name: "create-ok",
+				Name:     "create-ok",
+				Revision: pairing.GetMetadata().GetRevision(),
+				Expires:  pairing.GetMetadata().GetExpires(),
 			}.Build(),
 			Spec: devicepb.EnrollPairingSpec_builder{}.Build(),
 			Status: devicepb.EnrollPairingStatus_builder{
 				State: devicepb.EnrollPairingState_ENROLL_PAIRING_STATE_AWAITING_DEVICE,
+				Token: pairing.GetStatus().GetToken(),
 			}.Build(),
 		}.Build()
-		assert.Empty(t, cmp.Diff(want, pairing,
-			protocmp.IgnoreFields(&headerv1.Metadata{}, "revision", "expires"),
-			protocmp.IgnoreFields(&devicepb.EnrollPairingStatus{}, "token"),
-			protocmp.Transform(),
-		))
+		assert.Empty(t, cmp.Diff(want, pairing, protocmp.Transform()))
 		assert.NotEmpty(t, pairing.GetMetadata().GetRevision())
 		assert.NotEmpty(t, pairing.GetStatus().GetToken())
 		assert.WithinDuration(t,
