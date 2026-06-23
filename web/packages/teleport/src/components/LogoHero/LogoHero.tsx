@@ -22,6 +22,8 @@ import BeamsLogoDark from 'design/assets/images/beams-dark.svg';
 import BeamsLogoLight from 'design/assets/images/beams-light.svg';
 import Image from 'design/Image';
 
+import cfg from 'teleport/config';
+
 // The logo SVG served at this path is selected at build time to match the
 // edition of the binary. See the Makefile and the per-edition public/ dirs.
 // TODO (avatus): replace the static `v=1` with the Teleport version so the

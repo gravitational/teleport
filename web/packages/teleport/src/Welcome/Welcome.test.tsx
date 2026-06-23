@@ -100,18 +100,18 @@ describe('teleport/components/Welcome', () => {
   it('shows Beams branding on invite when beamsUi is enabled', async () => {
     cfg.beamsUi = true;
     jest.spyOn(history, 'push').mockImplementation();
-    const router = createMemoryRouter(
-      [
-        {
-          path: '*',
-          element: renderWelcomeRoutes(),
-        },
-      ],
-      {
-        initialEntries: [invitePath],
-      }
+
+    const mockHistory = createMemoryHistory({
+      initialEntries: [invitePath],
+    });
+
+    render(
+      <Router history={mockHistory}>
+        <Route path={cfg.routes.userInvite}>
+          <Welcome NewCredentials={NewCredentials} />
+        </Route>
+      </Router>
     );
-    render(<RouterProvider router={router} />);
 
     expect(screen.getByText('Welcome to Beams')).toBeInTheDocument();
     expect(screen.queryByText('Welcome to Teleport')).not.toBeInTheDocument();
