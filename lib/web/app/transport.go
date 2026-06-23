@@ -152,6 +152,15 @@ func newTransport(c *transportConfig) (*transport, error) {
 	return t, nil
 }
 
+// closeIdleConns closes idle keep-alive connections on the underlying HTTP
+// transport. Active and directly-dialed TCP connections are caller-owned and
+// unaffected.
+func (t *transport) closeIdleConns() {
+	if tr, ok := t.tr.(*http.Transport); ok {
+		tr.CloseIdleConnections()
+	}
+}
+
 // RoundTrip will rewrite the request, forward the request to the target
 // application, emit an event to the audit log, then rewrite the response.
 func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {

@@ -82,6 +82,10 @@ type FnCacheConfig struct {
 	// any method on the same FnCache instance because the cache mutex may
 	// be held when the callback is invoked.
 	OnExpiry func(ctx context.Context, key any, value any)
+	// RefreshTTLOnGet makes the TTL an idle timeout: each hit resets the
+	// entry's deadline, so it expires only after a full TTL without access.
+	// The default expires a fixed TTL after load, regardless of access.
+	RefreshTTLOnGet bool
 }
 
 // CheckAndSetDefaults validates the FnCacheConfig is populated
@@ -180,26 +184,50 @@ func (c *FnCache) Remove(key any) {
 	delete(c.entries, key)
 }
 
+// Pop atomically removes the entry for key and returns its loaded value if one
+// was present, even if expired. A still-loading or errored entry is removed and
+// reported absent. Unlike Remove it returns the value so the caller can run the
+// teardown OnExpiry would otherwise do, with no window for a concurrent reuse.
+func (c *FnCache) Pop(key any) (any, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	entry := c.entries[key]
+	delete(c.entries, key)
+	if entry == nil {
+		return nil, false
+	}
+	select {
+	case <-entry.loaded:
+		if entry.e != nil {
+			return nil, false
+		}
+		return entry.v, true
+	default:
+		return nil, false
+	}
+}
+
 // Set places an item in the cache using the default TTL.
 func (c *FnCache) Set(key, value any) {
 	c.SetWithTTL(key, value, c.cfg.TTL)
 }
 
-// GetIfExists retrieves a value from the cache without triggering a load operation.
-// It returns (value, true) if a valid, non-expired entry exists, or (nil, false)
-// otherwise. If an entry is currently being loaded by FnCacheGet, Get will
-// return false immediately without blocking. Get returns false for entries that
-// contain errors.
-// For most of the cases the FnCacheGet function should be used instead.
+// GetIfExists retrieves a value from the cache without triggering a load
+// operation. It returns (value, true) if a valid, non-expired entry exists, or
+// (nil, false) otherwise. A still-loading entry, an errored entry, and an
+// expired entry all return (nil, false) without blocking. GetIfExists is a
+// peek: unlike a FnCacheGet hit it never refreshes the deadline under
+// RefreshTTLOnGet. For most cases FnCacheGet should be used instead.
 func (c *FnCache) GetIfExists(key any) (any, bool) {
+	// Hold the mutex through the entry reads: with RefreshTTLOnGet, get()
+	// mutates a loaded entry's t/ttl under this lock. The select still has a
+	// default case, so a still-loading entry returns without blocking.
 	c.mu.Lock()
+	defer c.mu.Unlock()
 	if c.closed {
-		c.mu.Unlock()
 		return nil, false
 	}
 	entry := c.entries[key]
-	c.mu.Unlock()
-
 	if entry == nil {
 		return nil, false
 	}
@@ -328,6 +356,11 @@ func (c *FnCache) get(ctx context.Context, key any, ttl time.Duration, loadfn fu
 			needsReload = now.After(entry.t.Add(entry.ttl))
 			if c.cfg.ReloadOnErr && entry.e != nil {
 				needsReload = true
+			}
+			// Refresh the deadline on a hit for idle-timeout semantics.
+			if !needsReload && c.cfg.RefreshTTLOnGet {
+				entry.t = now
+				entry.ttl = ttl
 			}
 		default:
 			// reload is already in progress
