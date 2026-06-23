@@ -818,22 +818,35 @@ func (b *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, rep
 
 // Delete deletes item by key
 func (b *Backend) Delete(ctx context.Context, key backend.Key) error {
-	_, err := b.svc.DeleteItem(ctx, &dynamodb.DeleteItemInput{
+	// since dynamodb's built-in deletion of expired items can be very slow,
+	// instead of filtering the point delete here to only delete if the item is
+	// not expired we unconditionally delete the item, and we return the correct
+	// error by checking if the item that was just deleted was expired
+	out, err := b.svc.DeleteItem(ctx, &dynamodb.DeleteItemInput{
 		TableName: aws.String(b.TableName),
 
 		Key: keyToAttributeValueMap(key),
 
-		ConditionExpression: aws.String("attribute_exists(FullPath) AND (attribute_not_exists(Expires) OR Expires >= :now)"),
-		ExpressionAttributeValues: map[string]types.AttributeValue{
-			":now": timeToAttributeValue(b.clock.Now()),
-		},
+		ReturnValues: types.ReturnValueAllOld,
 	})
 	if err != nil {
-		if errors.As(err, new(*types.ConditionalCheckFailedException)) {
-			return trace.NotFound("%+q is not found", key.String())
-		}
 		return trace.Wrap(err)
 	}
+
+	if len(out.Attributes) < 1 {
+		return trace.NotFound("%+q is not found", key.String())
+	}
+
+	var r struct {
+		Expires *attributevalue.UnixTime
+	}
+	if err := attributevalue.UnmarshalMap(out.Attributes, &r); err != nil {
+		return trace.Wrap(err, "checking expiry")
+	}
+	if r.Expires != nil && time.Time(*r.Expires).Before(b.clock.Now().Truncate(time.Second)) {
+		return trace.NotFound("%+q is not found", key.String())
+	}
+
 	return nil
 }
 
