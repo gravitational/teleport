@@ -57,8 +57,7 @@ func AuthCallback(ctx context.Context, createPerformer func() (Performer, error)
 }
 
 // KeyboardInteractive returns an ssh.AuthMethod that performs any additional verification requested by the server via
-// the keyboard-interactive authentication method. This method is intended to be used with the
-// x/crypto/ssh#ClientConfig.AuthCallback field as proposed in https://github.com/golang/go/issues/76146.
+// the keyboard-interactive authentication method.
 func KeyboardInteractive(ctx context.Context, p Performer, m ssh.ConnMetadata) ssh.AuthMethod {
 	return ssh.KeyboardInteractive(
 		func(_ string, _ string, questions []string, _ []bool) ([]string, error) {

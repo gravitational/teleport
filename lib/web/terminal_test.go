@@ -119,7 +119,7 @@ func TestGenerateClientConfig(t *testing.T) {
 					return []ssh.Signer{signer}, nil
 				},
 			},
-			HostKeyCallback: ssh.InsecureIgnoreHostKey(), //nolint:gosec // This is a test.
+			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 		},
 	}
 
