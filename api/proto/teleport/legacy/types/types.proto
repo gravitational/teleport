@@ -7854,12 +7854,12 @@ message PluginOktaSyncSettings {
   string time_between_assignment_process_loops = 15;
 
   // TargetProcessingBackoffStep controls the step value for linear backoff when reprocessing Okta assignment targets.
-  // A blank string results in the default value being used.
+  // Value is parsed as Go duration string, e.g. 1h15m. A blank string results in the default value being used.
   // For most use cases the default value should NOT be changed.
   string target_processing_backoff_step = 16;
 
   // TargetProcessingBackoffMax controls the max duration for linear backoff when reprocessing Okta assignment targets.
-  // A blank string results in the default value being used.
+  // Value is parsed as Go duration string, e.g. 1h15m. A blank string results in the default value being used.
   // For most use cases the default value should NOT be changed.
   string target_processing_backoff_max = 17;
 }
