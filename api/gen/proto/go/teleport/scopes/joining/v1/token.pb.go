@@ -2436,15 +2436,18 @@ func (x *GenericOIDC_ConditionNotIn) GetValues() []string {
 
 // An allow rule condition for simple checks against a specific field.
 type GenericOIDC_Condition struct {
-	state     protoimpl.MessageState `protogen:"open.v1"`
-	Attribute string                 `protobuf:"bytes,1,opt,name=attribute,proto3" json:"attribute,omitempty"`
-	// Types that are valid to be assigned to Operator:
-	//
-	//	*GenericOIDC_Condition_Eq
-	//	*GenericOIDC_Condition_NotEq
-	//	*GenericOIDC_Condition_In
-	//	*GenericOIDC_Condition_NotIn
-	Operator      isGenericOIDC_Condition_Operator `protobuf_oneof:"operator"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The name of the field this condition should check, separated by "." for
+	// nested fields.
+	Attribute string `protobuf:"bytes,1,opt,name=attribute,proto3" json:"attribute,omitempty"`
+	// An "equals" operator. Only one operator may be set within a condition.
+	Eq *GenericOIDC_ConditionEq `protobuf:"bytes,2,opt,name=eq,proto3" json:"eq,omitempty"`
+	// A "not equals" operator. Only one operator may be set within a condition.
+	NotEq *GenericOIDC_ConditionNotEq `protobuf:"bytes,3,opt,name=not_eq,json=notEq,proto3" json:"not_eq,omitempty"`
+	// An "in" operator. Only one operator may be set within a condition.
+	In *GenericOIDC_ConditionIn `protobuf:"bytes,4,opt,name=in,proto3" json:"in,omitempty"`
+	// A "not in" operator. Only one operator may be set within a condition.
+	NotIn         *GenericOIDC_ConditionNotIn `protobuf:"bytes,5,opt,name=not_in,json=notIn,proto3" json:"not_in,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2486,76 +2489,33 @@ func (x *GenericOIDC_Condition) GetAttribute() string {
 	return ""
 }
 
-func (x *GenericOIDC_Condition) GetOperator() isGenericOIDC_Condition_Operator {
-	if x != nil {
-		return x.Operator
-	}
-	return nil
-}
-
 func (x *GenericOIDC_Condition) GetEq() *GenericOIDC_ConditionEq {
 	if x != nil {
-		if x, ok := x.Operator.(*GenericOIDC_Condition_Eq); ok {
-			return x.Eq
-		}
+		return x.Eq
 	}
 	return nil
 }
 
 func (x *GenericOIDC_Condition) GetNotEq() *GenericOIDC_ConditionNotEq {
 	if x != nil {
-		if x, ok := x.Operator.(*GenericOIDC_Condition_NotEq); ok {
-			return x.NotEq
-		}
+		return x.NotEq
 	}
 	return nil
 }
 
 func (x *GenericOIDC_Condition) GetIn() *GenericOIDC_ConditionIn {
 	if x != nil {
-		if x, ok := x.Operator.(*GenericOIDC_Condition_In); ok {
-			return x.In
-		}
+		return x.In
 	}
 	return nil
 }
 
 func (x *GenericOIDC_Condition) GetNotIn() *GenericOIDC_ConditionNotIn {
 	if x != nil {
-		if x, ok := x.Operator.(*GenericOIDC_Condition_NotIn); ok {
-			return x.NotIn
-		}
+		return x.NotIn
 	}
 	return nil
 }
-
-type isGenericOIDC_Condition_Operator interface {
-	isGenericOIDC_Condition_Operator()
-}
-
-type GenericOIDC_Condition_Eq struct {
-	Eq *GenericOIDC_ConditionEq `protobuf:"bytes,2,opt,name=eq,proto3,oneof"`
-}
-
-type GenericOIDC_Condition_NotEq struct {
-	NotEq *GenericOIDC_ConditionNotEq `protobuf:"bytes,3,opt,name=not_eq,json=notEq,proto3,oneof"`
-}
-
-type GenericOIDC_Condition_In struct {
-	In *GenericOIDC_ConditionIn `protobuf:"bytes,4,opt,name=in,proto3,oneof"`
-}
-
-type GenericOIDC_Condition_NotIn struct {
-	NotIn *GenericOIDC_ConditionNotIn `protobuf:"bytes,5,opt,name=not_in,json=notIn,proto3,oneof"`
-}
-
-func (*GenericOIDC_Condition_Eq) isGenericOIDC_Condition_Operator() {}
-
-func (*GenericOIDC_Condition_NotEq) isGenericOIDC_Condition_Operator() {}
-
-func (*GenericOIDC_Condition_In) isGenericOIDC_Condition_Operator() {}
-
-func (*GenericOIDC_Condition_NotIn) isGenericOIDC_Condition_Operator() {}
 
 // An allow rule, containing either a predict expression or simple field
 // check.
@@ -2766,7 +2726,7 @@ const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
 	"\x0erecovery_count\x18\x04 \x01(\rR\rrecoveryCount\x12F\n" +
 	"\x11last_recovered_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\x0flastRecoveredAt\x12B\n" +
 	"\x0flast_rotated_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\rlastRotatedAt\x12\"\n" +
-	"\rbound_host_id\x18\a \x01(\tR\vboundHostId\"\xc7\a\n" +
+	"\rbound_host_id\x18\a \x01(\tR\vboundHostId\"\xb3\a\n" +
 	"\vGenericOIDC\x12\x16\n" +
 	"\x06issuer\x18\x01 \x01(\tR\x06issuer\x12;\n" +
 	"\x1ainsecure_allow_http_issuer\x18\x02 \x01(\bR\x17insecureAllowHttpIssuer\x12\x1a\n" +
@@ -2783,15 +2743,13 @@ const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
 	"\vConditionIn\x12\x16\n" +
 	"\x06values\x18\x01 \x03(\tR\x06values\x1a(\n" +
 	"\x0eConditionNotIn\x12\x16\n" +
-	"\x06values\x18\x01 \x03(\tR\x06values\x1a\xe5\x02\n" +
+	"\x06values\x18\x01 \x03(\tR\x06values\x1a\xd1\x02\n" +
 	"\tCondition\x12\x1c\n" +
-	"\tattribute\x18\x01 \x01(\tR\tattribute\x12E\n" +
-	"\x02eq\x18\x02 \x01(\v23.teleport.scopes.joining.v1.GenericOIDC.ConditionEqH\x00R\x02eq\x12O\n" +
-	"\x06not_eq\x18\x03 \x01(\v26.teleport.scopes.joining.v1.GenericOIDC.ConditionNotEqH\x00R\x05notEq\x12E\n" +
-	"\x02in\x18\x04 \x01(\v23.teleport.scopes.joining.v1.GenericOIDC.ConditionInH\x00R\x02in\x12O\n" +
-	"\x06not_in\x18\x05 \x01(\v26.teleport.scopes.joining.v1.GenericOIDC.ConditionNotInH\x00R\x05notInB\n" +
-	"\n" +
-	"\boperator\x1ay\n" +
+	"\tattribute\x18\x01 \x01(\tR\tattribute\x12C\n" +
+	"\x02eq\x18\x02 \x01(\v23.teleport.scopes.joining.v1.GenericOIDC.ConditionEqR\x02eq\x12M\n" +
+	"\x06not_eq\x18\x03 \x01(\v26.teleport.scopes.joining.v1.GenericOIDC.ConditionNotEqR\x05notEq\x12C\n" +
+	"\x02in\x18\x04 \x01(\v23.teleport.scopes.joining.v1.GenericOIDC.ConditionInR\x02in\x12M\n" +
+	"\x06not_in\x18\x05 \x01(\v26.teleport.scopes.joining.v1.GenericOIDC.ConditionNotInR\x05notIn\x1ay\n" +
 	"\x04Rule\x12Q\n" +
 	"\n" +
 	"conditions\x18\x01 \x03(\v21.teleport.scopes.joining.v1.GenericOIDC.ConditionR\n" +
@@ -2912,12 +2870,6 @@ func file_teleport_scopes_joining_v1_token_proto_init() {
 	file_teleport_scopes_joining_v1_token_proto_msgTypes[4].OneofWrappers = []any{
 		(*UsageStatus_SingleUse)(nil),
 		(*UsageStatus_BoundKeypair)(nil),
-	}
-	file_teleport_scopes_joining_v1_token_proto_msgTypes[33].OneofWrappers = []any{
-		(*GenericOIDC_Condition_Eq)(nil),
-		(*GenericOIDC_Condition_NotEq)(nil),
-		(*GenericOIDC_Condition_In)(nil),
-		(*GenericOIDC_Condition_NotIn)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
