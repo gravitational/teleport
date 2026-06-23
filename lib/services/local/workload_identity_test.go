@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/scopes"
 )
 
 func setupWorkloadIdentityServiceTest(
@@ -242,7 +243,7 @@ func TestWorkloadIdentityService_DeleteWorkloadIdentity(t *testing.T) {
 		_, err = service.GetWorkloadIdentity(ctx, "example")
 		require.NoError(t, err)
 
-		err = service.DeleteWorkloadIdentity(ctx, "example")
+		err = service.DeleteWorkloadIdentity(ctx, scopes.QualifiedName{Name: "example"})
 		require.NoError(t, err)
 
 		_, err = service.GetWorkloadIdentity(ctx, "example")
@@ -250,7 +251,7 @@ func TestWorkloadIdentityService_DeleteWorkloadIdentity(t *testing.T) {
 		require.True(t, trace.IsNotFound(err))
 	})
 	t.Run("not found", func(t *testing.T) {
-		err := service.DeleteWorkloadIdentity(ctx, "foo.example.com")
+		err := service.DeleteWorkloadIdentity(ctx, scopes.QualifiedName{Name: "foo.example.com"})
 		require.Error(t, err)
 		require.True(t, trace.IsNotFound(err))
 	})

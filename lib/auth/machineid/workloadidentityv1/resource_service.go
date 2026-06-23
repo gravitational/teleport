@@ -40,17 +40,27 @@ import (
 	"github.com/gravitational/teleport/lib/services/local/generic"
 )
 
+// workloadIdentityReader is the read interface used to serve reads (satisfied
+// by the cache). The cache is indexed by name and currently serves unscoped
+// reads only; scope-aware reads are handled at the backend until scope-aware
+// caching lands.
 type workloadIdentityReader interface {
 	GetWorkloadIdentity(ctx context.Context, name string) (*workloadidentityv1pb.WorkloadIdentity, error)
 	RangeWorkloadIdentities(ctx context.Context, start, end string, sortField services.WorkloadIdentitySortField, sortDesc bool) iter.Seq2[*workloadidentityv1pb.WorkloadIdentity, error]
 }
 
+// workloadIdentityReadWriter is the interface used to read and mutate the
+// authoritative backend, which namespaces resources by scope. Reads and writes
+// that address an existing resource are scope-qualified; create/update/upsert
+// read the scope from the resource itself.
+//
+// Scoped reads go through the backend (not the cache) because the cache is not
+// yet scope-aware. See the GetWorkloadIdentity handler.
 type workloadIdentityReadWriter interface {
-	workloadIdentityReader
-
+	GetWorkloadIdentityByScopedName(ctx context.Context, name scopes.QualifiedName) (*workloadidentityv1pb.WorkloadIdentity, error)
 	CreateWorkloadIdentity(ctx context.Context, identity *workloadidentityv1pb.WorkloadIdentity) (*workloadidentityv1pb.WorkloadIdentity, error)
 	UpdateWorkloadIdentity(ctx context.Context, identity *workloadidentityv1pb.WorkloadIdentity) (*workloadidentityv1pb.WorkloadIdentity, error)
-	DeleteWorkloadIdentity(ctx context.Context, name string) error
+	DeleteWorkloadIdentity(ctx context.Context, name scopes.QualifiedName) error
 	UpsertWorkloadIdentity(ctx context.Context, identity *workloadidentityv1pb.WorkloadIdentity) (*workloadidentityv1pb.WorkloadIdentity, error)
 }
 
@@ -134,19 +144,18 @@ func (s *ResourceService) GetWorkloadIdentity(
 		return nil, trace.BadParameter("name: must be non-empty")
 	}
 
-	resource, err := s.cache.GetWorkloadIdentity(ctx, req.GetName())
+	// Read scope-aware directly from the backend rather than the cache: the
+	// cache is indexed by name and not yet scope-aware, so it cannot address a
+	// scoped resource. Reading by (scope, name) means a name that does not exist
+	// within the requested scope is legitimately not found, without leaking the
+	// existence of workload identities in other scopes.
+	// TODO(noah): Serve scoped reads from the cache once it is scope-aware.
+	resource, err := s.backend.GetWorkloadIdentityByScopedName(ctx, scopes.QualifiedName{
+		Scope: req.GetScope(),
+		Name:  req.GetName(),
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	// The backend does not yet namespace workload identities by scope, so we
-	// fetch by name and then enforce that the resource belongs to the scope the
-	// caller requested. A mismatch is reported as not found to avoid leaking
-	// the existence of workload identities in other scopes.
-	// TODO(noah): Once backend is namespaced, this is unnecessary since it will
-	// be legitimately not found.
-	if resource.GetScope() != req.GetScope() {
-		return nil, trace.NotFound("workload_identity %q not found", req.GetName())
 	}
 
 	ruleCtx.Resource153 = resource
@@ -296,9 +305,13 @@ func (s *ResourceService) DeleteWorkloadIdentity(
 		}
 	}
 
-	// TODO(strideynet): Backend MUST support scoped namespacing OR we need to
-	// fetch and check resource scope == deletion scope prior to delete op.
-	if err := s.backend.DeleteWorkloadIdentity(ctx, req.GetName()); err != nil {
+	// The backend namespaces workload identities by scope, so the delete is
+	// addressed by (scope, name): a name that does not exist within the
+	// requested scope is a clean not-found.
+	if err := s.backend.DeleteWorkloadIdentity(ctx, scopes.QualifiedName{
+		Scope: req.GetScope(),
+		Name:  req.GetName(),
+	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

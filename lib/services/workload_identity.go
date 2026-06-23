@@ -38,9 +38,22 @@ import (
 // interface may also be implemented by a client to allow remote and local
 // consumers to access the resource in a similar way.
 type WorkloadIdentities interface {
-	// GetWorkloadIdentity gets a SPIFFE Federation by name.
+	// GetWorkloadIdentity gets a WorkloadIdentity by name from the unscoped key
+	// range. It is name-based to remain compatible with the shared read API
+	// (authclient.Cache); use GetWorkloadIdentityByScopedName to address a
+	// scoped resource.
 	GetWorkloadIdentity(
 		ctx context.Context, name string,
+	) (*workloadidentityv1pb.WorkloadIdentity, error)
+	// GetWorkloadIdentityByScopedName gets a WorkloadIdentity by its
+	// scope-qualified name, reading from the unscoped key range when the scope
+	// is empty, else from the scope-namespaced range.
+	//
+	// TODO(strideynet): This reads through to the backend because the cache is
+	// not yet scope-aware. Once scope-aware caching lands, scoped reads should
+	// be served from the cache.
+	GetWorkloadIdentityByScopedName(
+		ctx context.Context, name scopes.QualifiedName,
 	) (*workloadidentityv1pb.WorkloadIdentity, error)
 	// RangeWorkloadIdentities returns WorkloadIdentity resources within the
 	// range [start, end), ordered by the given sort field and direction.
@@ -54,8 +67,9 @@ type WorkloadIdentities interface {
 	CreateWorkloadIdentity(
 		ctx context.Context, workloadIdentity *workloadidentityv1pb.WorkloadIdentity,
 	) (*workloadidentityv1pb.WorkloadIdentity, error)
-	// DeleteWorkloadIdentity deletes a SPIFFE Federation by name.
-	DeleteWorkloadIdentity(ctx context.Context, name string) error
+	// DeleteWorkloadIdentity deletes a WorkloadIdentity by its scope-qualified
+	// name. An empty scope deletes from the unscoped key range.
+	DeleteWorkloadIdentity(ctx context.Context, name scopes.QualifiedName) error
 	// UpdateWorkloadIdentity updates a specific WorkloadIdentity. The resource must
 	// already exist, and, condition update semantics are used - e.g the submitted
 	// resource must have a revision matching the revision of the resource in the
@@ -77,10 +91,10 @@ type WorkloadIdentities interface {
 	) ([]backend.ConditionalAction, error)
 
 	// AppendDeleteWorkloadIdentityActions adds conditional actions to an atomic
-	// write to delete a WorkloadIdentity.
+	// write to delete a WorkloadIdentity given its scope-qualified name.
 	AppendDeleteWorkloadIdentityActions(
 		actions []backend.ConditionalAction,
-		name string,
+		name scopes.QualifiedName,
 		condition backend.Condition,
 	) ([]backend.ConditionalAction, error)
 }

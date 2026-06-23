@@ -2164,7 +2164,10 @@ func TestResourceService_CreateWorkloadIdentity(t *testing.T) {
 				)
 				// Expect the value fetched from the store to match returned
 				// item.
-				fetched, err := srv.Auth().GetWorkloadIdentity(ctx, res.GetMetadata().GetName())
+				fetched, err := srv.Auth().GetWorkloadIdentityByScopedName(ctx, scopes.QualifiedName{
+					Scope: res.GetScope(),
+					Name:  res.GetMetadata().GetName(),
+				})
 				require.NoError(t, err)
 				require.Empty(
 					t,
@@ -2931,7 +2934,10 @@ func TestResourceService_UpdateWorkloadIdentity(t *testing.T) {
 				)
 				// Expect the value fetched from the store to match returned
 				// item.
-				fetched, err := srv.Auth().GetWorkloadIdentity(ctx, res.GetMetadata().GetName())
+				fetched, err := srv.Auth().GetWorkloadIdentityByScopedName(ctx, scopes.QualifiedName{
+					Scope: res.GetScope(),
+					Name:  res.GetMetadata().GetName(),
+				})
 				require.NoError(t, err)
 				require.Empty(
 					t,
@@ -3096,7 +3102,10 @@ func TestResourceService_UpsertWorkloadIdentity(t *testing.T) {
 				)
 				// Expect the value fetched from the store to match returned
 				// item.
-				fetched, err := srv.Auth().GetWorkloadIdentity(ctx, res.GetMetadata().GetName())
+				fetched, err := srv.Auth().GetWorkloadIdentityByScopedName(ctx, scopes.QualifiedName{
+					Scope: res.GetScope(),
+					Name:  res.GetMetadata().GetName(),
+				})
 				require.NoError(t, err)
 				require.Empty(
 					t,
