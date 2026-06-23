@@ -12,6 +12,9 @@ Gemini CLI, and others) using Vercel's [`skills`](https://github.com/vercel-labs
 CLI, which discovers and installs skills straight from this repository:
 
 ```bash
+# Auto-discover and enroll cloud infrastructure
+npx skills add https://github.com/gravitational/teleport/tree/master/skills/teleport-discovery
+
 # Session recording review
 npx skills add https://github.com/gravitational/teleport/tree/master/skills/teleport-session-review
 
