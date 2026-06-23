@@ -7635,6 +7635,16 @@ message PluginOktaSyncSettings {
   // For most use cases the default value should NOT be changed.
   // A blank string results in the default value of 5min.
   string time_between_assignment_process_loops = 15;
+
+  // TargetProcessingBackoffStep controls the step value for linear backoff when reprocessing Okta assignment targets.
+  // Value is parsed as Go duration string, e.g. 1h15m. A blank string results in the default value being used.
+  // For most use cases the default value should NOT be changed.
+  string target_processing_backoff_step = 16;
+
+  // TargetProcessingBackoffMax controls the max duration for linear backoff when reprocessing Okta assignment targets.
+  // Value is parsed as Go duration string, e.g. 1h15m. A blank string results in the default value being used.
+  // For most use cases the default value should NOT be changed.
+  string target_processing_backoff_max = 17;
 }
 
 // Defines a set of discord channel IDs
