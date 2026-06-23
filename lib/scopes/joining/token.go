@@ -17,7 +17,6 @@
 package joining
 
 import (
-	"bytes"
 	"cmp"
 	"crypto/sha256"
 	"encoding/binary"
@@ -27,11 +26,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gogo/protobuf/jsonpb"
 	gogotypes "github.com/gogo/protobuf/types"
 	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/types/known/structpb"
 
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -678,25 +674,6 @@ func (t *Token) GetBoundKeypairStatus() *types.ProvisionTokenStatusV2BoundKeypai
 	return BoundKeypairStatusFromScopedToken(t.scoped)
 }
 
-// convertStructPB converts a structpb.Struct to a gogo-compatible
-// `types.Struct`. Inspired by `apievents.Resource153ToStruct()`] but avoiding a
-// potentially heavyweight import.
-func convertStructPB(s *structpb.Struct) (*gogotypes.Struct, error) {
-	encoded, err := protojson.Marshal(s)
-	if err != nil {
-		return nil, trace.Wrap(err, "marshaling protojson")
-	}
-
-	out := &gogotypes.Struct{}
-	if err = (&jsonpb.Unmarshaler{
-		AllowUnknownFields: true,
-	}).Unmarshal(bytes.NewReader(encoded), out); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return out, nil
-}
-
 // convertGenericOIDCCondition converts a scoped generic_oidc condition to a
 // ProvisionTokenV2-style condition (with gogoproto semantics).
 func convertGenericOIDCCondition(c *joiningv1.GenericOIDC_Condition) (*types.ProvisionTokenSpecV2GenericOIDC_Condition, error) {
@@ -704,25 +681,25 @@ func convertGenericOIDCCondition(c *joiningv1.GenericOIDC_Condition) (*types.Pro
 		Attribute: c.GetAttribute(),
 	}
 
-	switch t := c.GetOperator().(type) {
-	case *joiningv1.GenericOIDC_Condition_Eq:
+	switch {
+	case c.GetEq() != nil:
 		v.Eq = &types.ProvisionTokenSpecV2GenericOIDC_ConditionEq{
-			Value: t.Eq.GetValue(),
+			Value: c.GetEq().GetValue(),
 		}
-	case *joiningv1.GenericOIDC_Condition_NotEq:
+	case c.GetNotEq() != nil:
 		v.NotEq = &types.ProvisionTokenSpecV2GenericOIDC_ConditionNotEq{
-			Value: t.NotEq.GetValue(),
+			Value: c.GetNotEq().GetValue(),
 		}
-	case *joiningv1.GenericOIDC_Condition_In:
+	case c.GetIn() != nil:
 		v.In = &types.ProvisionTokenSpecV2GenericOIDC_ConditionIn{
-			Values: t.In.GetValues(),
+			Values: c.GetIn().GetValues(),
 		}
-	case *joiningv1.GenericOIDC_Condition_NotIn:
+	case c.GetNotIn() != nil:
 		v.NotIn = &types.ProvisionTokenSpecV2GenericOIDC_ConditionNotIn{
-			Values: t.NotIn.GetValues(),
+			Values: c.GetNotIn().GetValues(),
 		}
 	default:
-		return nil, trace.BadParameter("unexpected condition operator type %T", t)
+		return nil, trace.BadParameter("an operator is required but found none")
 	}
 
 	return v, nil
