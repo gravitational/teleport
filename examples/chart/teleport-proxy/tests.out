@@ -1,4 +1,0 @@
-"$( GOWORK=off CGO_ENABLED=0 go -C /Users/adamcarheden/src/github.com/gravitational/teleport/wip/helm-proxy-chart/teleport/build.assets/tooling tool -n helm-janitor )" test --charts=teleport-proxy --root-dir="../.."
-Running tests for chart: teleport-proxy
- ▶️ helm unittest -3 --with-subchart=false ../../examples/chart/teleport-proxy
- ✅ All tests succeeded
