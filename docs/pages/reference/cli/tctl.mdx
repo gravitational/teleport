@@ -459,6 +459,31 @@ Usage:
 $ tctl audit schema
 ```
 
+## tctl auth create-override
+
+Add a single certificate override to a CA override resource
+
+Usage:
+
+```code
+$ tctl auth create-override --type=TYPE [<flags>] <cert.pem> [<chain.pem>...]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--[no-]disabled`|`false`|If true creates a disabled override|
+|`--[no-]force`|`false`|If true attempts to force creation, ignoring select state validation|
+|`--type`|*no default*|CA type (db-client, windows)|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|cert.pem|*no default* (required)|CA override certificate file in PEM form|
+|chain.pem|*no default* (optional)|CA override trust chain files in PEM form|
+
 ## tctl auth create-override-csr
 
 Create a CSR in preparation for CA certificate override

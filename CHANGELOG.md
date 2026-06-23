@@ -1,5 +1,9 @@
 # Changelog
 
+## 18.9.1 (06/19/26)
+
+* Fixed a limitation in Kubernetes Access causing the agent to throttle at 5 exec/second.
+
 ## 18.9.0 (06/16/26)
 
 Pre-releases of Teleport (versions with suffixes like -alpha, -beta, -rc) should not be run in production environments.
