@@ -22,14 +22,14 @@ import (
 	"github.com/gravitational/teleport/lib/join"
 )
 
-// SetEnv0IDTokenValidator sets the validator implementation for generic OIDC
-// tokens, used in tests.
+// SetGenericOIDCIDTokenValidator sets the validator implementation for generic
+// OIDC tokens, used in tests.
 func (a *Server) SetGenericOIDCIDTokenValidator(validator join.GenericOIDCTokenValidator) {
 	a.genericOIDCIDTokenValidator = validator
 }
 
-// GetEnv0IDTokenValidator returns the validator implementation for generic OIDC
-// tokens.
+// GetGenericOIDCIDTokenValidator returns the validator implementation for
+// generic OIDC tokens.
 func (a *Server) GetGenericOIDCIDTokenValidator() join.GenericOIDCTokenValidator {
 	return a.genericOIDCIDTokenValidator
 }
