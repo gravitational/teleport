@@ -269,6 +269,7 @@ message SharedDirectoryResponse {
   // Common fields used for all response types.
   uint32 completion_id = 1;
   uint32 error_code = 2;
+  uint32 directory_id = 11;
 
   // Info response.
   message Info {

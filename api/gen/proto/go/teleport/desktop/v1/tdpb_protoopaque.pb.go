@@ -2397,6 +2397,7 @@ type SharedDirectoryResponse struct {
 	state                   protoimpl.MessageState              `protogen:"opaque.v1"`
 	xxx_hidden_CompletionId uint32                              `protobuf:"varint,1,opt,name=completion_id,json=completionId,proto3"`
 	xxx_hidden_ErrorCode    uint32                              `protobuf:"varint,2,opt,name=error_code,json=errorCode,proto3"`
+	xxx_hidden_DirectoryId  uint32                              `protobuf:"varint,11,opt,name=directory_id,json=directoryId,proto3"`
 	xxx_hidden_Operation    isSharedDirectoryResponse_Operation `protobuf_oneof:"operation"`
 	unknownFields           protoimpl.UnknownFields
 	sizeCache               protoimpl.SizeCache
@@ -2437,6 +2438,13 @@ func (x *SharedDirectoryResponse) GetCompletionId() uint32 {
 func (x *SharedDirectoryResponse) GetErrorCode() uint32 {
 	if x != nil {
 		return x.xxx_hidden_ErrorCode
+	}
+	return 0
+}
+
+func (x *SharedDirectoryResponse) GetDirectoryId() uint32 {
+	if x != nil {
+		return x.xxx_hidden_DirectoryId
 	}
 	return 0
 }
@@ -2519,6 +2527,10 @@ func (x *SharedDirectoryResponse) SetCompletionId(v uint32) {
 
 func (x *SharedDirectoryResponse) SetErrorCode(v uint32) {
 	x.xxx_hidden_ErrorCode = v
+}
+
+func (x *SharedDirectoryResponse) SetDirectoryId(v uint32) {
+	x.xxx_hidden_DirectoryId = v
 }
 
 func (x *SharedDirectoryResponse) SetInfo(v *SharedDirectoryResponse_Info) {
@@ -2750,6 +2762,7 @@ type SharedDirectoryResponse_builder struct {
 	// Common fields used for all response types.
 	CompletionId uint32
 	ErrorCode    uint32
+	DirectoryId  uint32
 	// operation is the particular operation type that
 	// this response is intended for.
 
@@ -2771,6 +2784,7 @@ func (b0 SharedDirectoryResponse_builder) Build() *SharedDirectoryResponse {
 	_, _ = b, x
 	x.xxx_hidden_CompletionId = b.CompletionId
 	x.xxx_hidden_ErrorCode = b.ErrorCode
+	x.xxx_hidden_DirectoryId = b.DirectoryId
 	if b.Info != nil {
 		x.xxx_hidden_Operation = &sharedDirectoryResponse_Info_{b.Info}
 	}
@@ -5289,11 +5303,12 @@ const file_teleport_desktop_v1_tdpb_proto_rawDesc = "" +
 	"\bTruncate\x12\x12\n" +
 	"\x04path\x18\x01 \x01(\tR\x04path\x12\x12\n" +
 	"\x04size\x18\x03 \x01(\x04R\x04sizeJ\x04\b\x02\x10\x03R\vend_of_fileB\v\n" +
-	"\toperation\"\x83\b\n" +
+	"\toperation\"\xa6\b\n" +
 	"\x17SharedDirectoryResponse\x12#\n" +
 	"\rcompletion_id\x18\x01 \x01(\rR\fcompletionId\x12\x1d\n" +
 	"\n" +
-	"error_code\x18\x02 \x01(\rR\terrorCode\x12G\n" +
+	"error_code\x18\x02 \x01(\rR\terrorCode\x12!\n" +
+	"\fdirectory_id\x18\v \x01(\rR\vdirectoryId\x12G\n" +
 	"\x04info\x18\x03 \x01(\v21.teleport.desktop.v1.SharedDirectoryResponse.InfoH\x00R\x04info\x12M\n" +
 	"\x06create\x18\x04 \x01(\v23.teleport.desktop.v1.SharedDirectoryResponse.CreateH\x00R\x06create\x12M\n" +
 	"\x06delete\x18\x05 \x01(\v23.teleport.desktop.v1.SharedDirectoryResponse.DeleteH\x00R\x06delete\x12G\n" +
