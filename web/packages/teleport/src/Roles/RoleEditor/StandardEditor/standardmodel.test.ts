@@ -304,6 +304,34 @@ describe.each<{ name: string; role: Role; model: RoleEditorModel }>([
   },
 
   {
+    name: 'Linux desktop access',
+    role: {
+      ...minimalRole(),
+      spec: {
+        ...minimalRole().spec,
+        allow: {
+          linux_desktop_labels: { os: 'ubuntu' },
+          linux_desktop_logins: ['alice', 'bob'],
+        },
+      },
+    },
+    model: {
+      ...minimalRoleModel(),
+      resources: [
+        {
+          kind: 'linux_desktop',
+          labels: [{ name: 'os', value: 'ubuntu' }],
+          logins: [
+            { label: 'alice', value: 'alice' },
+            { label: 'bob', value: 'bob' },
+          ],
+          hideValidationErrors: false,
+        },
+      ],
+    },
+  },
+
+  {
     name: 'GitHub organizations',
     role: {
       ...minimalRole(),

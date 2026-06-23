@@ -634,6 +634,10 @@ const (
 	// allowed Windows Desktop logins for local accounts.
 	TraitInternalWindowsLoginsVariable = "{{internal.windows_logins}}"
 
+	// TraitInternalLinuxDesktopLoginsVariable is the variable used to store
+	// allowed Linux Desktop logins for local accounts.
+	TraitInternalLinuxDesktopLoginsVariable = "{{internal.linux_desktop_logins}}"
+
 	// TraitInternalKubeGroupsVariable is the variable used to store allowed
 	// kubernetes groups for local accounts.
 	TraitInternalKubeGroupsVariable = "{{internal.kubernetes_groups}}"

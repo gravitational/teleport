@@ -44,6 +44,7 @@ import {
   ServerAccess,
   supportsKubernetesCustomResources,
   VerbModel,
+  LinuxDesktopAccess,
   WindowsDesktopAccess,
 } from './standardmodel';
 
@@ -175,6 +176,8 @@ export function validateResourceAccess(
       return validateDatabaseAccess(resource);
     case 'windows_desktop':
       return validateWindowsDesktopAccess(resource);
+    case 'linux_desktop':
+      return validateLinuxDesktopAccess(resource);
     case 'git_server':
       return runRules(resource, gitHubOrganizationAccessValidationRules);
     default:
@@ -188,6 +191,7 @@ export type ResourceAccessValidationResult =
   | AppAccessValidationResult
   | DatabaseAccessValidationResult
   | WindowsDesktopAccessValidationResult
+  | LinuxDesktopAccessValidationResult
   | GitHubOrganizationAccessValidationResult;
 
 const validKubernetesResource = (res: KubernetesResourceModel) => () => {
@@ -549,6 +553,27 @@ const windowsDesktopAccessValidationRules = {
 };
 export type WindowsDesktopAccessValidationResult = RuleSetValidationResult<
   typeof windowsDesktopAccessValidationRules
+>;
+
+const validateLinuxDesktopAccess = (
+  a: LinuxDesktopAccess
+): LinuxDesktopAccessValidationResult => {
+  const result = runRules(a, linuxDesktopAccessValidationRules);
+  if (a.labels.length === 0 && a.logins.length === 0) {
+    result.valid = false;
+    result.message = 'At least one label or login required';
+    result.fields.labels.valid = false;
+    result.fields.logins.valid = false;
+  }
+  return result;
+};
+
+const linuxDesktopAccessValidationRules = {
+  labels: nonEmptyLabels,
+  logins: alwaysValid,
+};
+export type LinuxDesktopAccessValidationResult = RuleSetValidationResult<
+  typeof linuxDesktopAccessValidationRules
 >;
 
 const gitHubOrganizationAccessValidationRules = {

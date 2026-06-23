@@ -288,6 +288,7 @@ func NewPresetAccessRole() types.Role {
 				AppLabels:             types.Labels{types.Wildcard: []string{types.Wildcard}},
 				KubernetesLabels:      types.Labels{types.Wildcard: []string{types.Wildcard}},
 				WindowsDesktopLabels:  types.Labels{types.Wildcard: []string{types.Wildcard}},
+				LinuxDesktopLabels:    types.Labels{types.Wildcard: []string{types.Wildcard}},
 				DatabaseLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
 				DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 				DatabaseNames:         []string{teleport.TraitInternalDBNamesVariable},
@@ -327,6 +328,7 @@ func NewPresetAccessRole() types.Role {
 	// YAML.
 	role.SetLogins(types.Allow, []string{teleport.TraitInternalLoginsVariable})
 	role.SetWindowsLogins(types.Allow, []string{teleport.TraitInternalWindowsLoginsVariable})
+	role.SetLinuxDesktopLogins(types.Allow, []string{teleport.TraitInternalLinuxDesktopLoginsVariable})
 	role.SetKubeUsers(types.Allow, []string{teleport.TraitInternalKubeUsersVariable})
 	role.SetKubeGroups(types.Allow, []string{teleport.TraitInternalKubeGroupsVariable})
 	role.SetAWSRoleARNs(types.Allow, []string{teleport.TraitInternalAWSRoleARNs})
