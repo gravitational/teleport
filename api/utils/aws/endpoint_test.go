@@ -738,6 +738,18 @@ func TestParseDynamoDBEndpoint(t *testing.T) {
 			desc:     "mismatched china region and non-china partition",
 			endpoint: "streams.dynamodb.cn-north-1.amazonaws.com",
 		},
+		{
+			desc:     "AWS suffix embedded in outer host",
+			endpoint: "dynamodb.us-east-1.amazonaws.com.example.com",
+		},
+		{
+			desc:     "AWS China suffix embedded in outer host",
+			endpoint: "dynamodb.cn-north-1.amazonaws.com.cn.example.com",
+		},
+		{
+			desc:     "AWS-looking service embedded in non-AWS outer host",
+			endpoint: "foo.dynamodb.us-east-1.amazonaws.com.example.com",
+		},
 	}
 	for _, tt := range tests {
 		tt := tt
@@ -847,6 +859,18 @@ func TestParseOpensearchEndpoint(t *testing.T) {
 		{
 			desc:     "mismatched china region and non-china partition",
 			endpoint: "streams.opensearch.cn-north-1.amazonaws.com",
+		},
+		{
+			desc:     "AWS suffix embedded in outer host",
+			endpoint: "opensearch-instance-foo.us-east-1.es.amazonaws.com.example.com",
+		},
+		{
+			desc:     "AWS China suffix embedded in outer host",
+			endpoint: "opensearch-instance-foo.cn-north-1.es.amazonaws.com.cn.example.com",
+		},
+		{
+			desc:     "AWS-looking service embedded in non-AWS outer host",
+			endpoint: "foo.opensearch.us-east-1.amazonaws.com.example.com",
 		},
 	}
 	for _, tt := range tests {
