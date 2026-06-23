@@ -45,6 +45,9 @@ import (
 // ProtocolName is the identifier for the TDP protocol.
 const ProtocolName = "teleport-tdp"
 
+// Re-use the same maximum message length as TDPB for consistency.
+const MaxMessageLength = 2 ^ 24 - 1
+
 // MessageType identifies the type of the message.
 type MessageType byte
 
@@ -331,6 +334,10 @@ func decodeRDPFastPathPDU(in tdp.ByteReader) (RDPFastPathPDU, error) {
 		return RDPFastPathPDU(nil), trace.Wrap(err)
 	}
 
+	if dataLength > MaxMessageLength {
+		return RDPFastPathPDU{}, trace.LimitExceeded("TDP message exceeds maximum length")
+	}
+
 	// Allocate buffer that will fit the data
 	// TODO(isaiah): improve performance by changing
 	// this api to allow buffer re-use.
@@ -369,6 +376,10 @@ func decodeRDPResponsePDU(in tdp.ByteReader) (RDPResponsePDU, error) {
 	var resFrameLength uint32
 	if err := binary.Read(in, binary.BigEndian, &resFrameLength); err != nil {
 		return RDPResponsePDU{}, trace.Wrap(err)
+	}
+
+	if resFrameLength > MaxMessageLength {
+		return RDPResponsePDU{}, trace.LimitExceeded("TDP message exceeds maximum length")
 	}
 
 	resFrame := make([]byte, resFrameLength)
