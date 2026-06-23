@@ -509,6 +509,7 @@ type ancestorOptions struct {
 	validateUserRequirement bool
 	clock                   clockwork.Clock
 	user                    types.User
+	ignoreScoped            bool
 }
 
 func (o *ancestorOptions) validate() error {
@@ -534,12 +535,23 @@ func withUserRequirementsCheck(user types.User, clock clockwork.Clock) ancestorO
 	}
 }
 
+func withIgnoreScoped(ignore bool) ancestorOption {
+	return func(opts *ancestorOptions) {
+		opts.ignoreScoped = ignore
+	}
+}
+
 // HierarchyConfig holds dependencies for building access list hierarchies.
 type HierarchyConfig struct {
 	// AccessListService is used to fetch Access Lists and their members.
 	AccessListsService AccessListAndMembersGetter
 	// Clock is used to check if memberships are expired.
 	Clock clockwork.Clock
+	// IgnoreScoped specifies that the hierarchy should ignore scoped access lists and members.
+	// This should be set during user login state generation, where scoped
+	// access lists should have no effect (scoped access list only affect user
+	// login via materialized scoped role assignments).
+	IgnoreScoped bool
 }
 
 // CheckAndSetDefaults validates the config and sets default values.
@@ -575,6 +587,10 @@ func NewHierarchy(cfg HierarchyConfig) (*Hierarchy, error) {
 // lists where the user satisfies membership or ownership requirements.
 // If the user fails to meet the requirements at any point, that branch is excluded.
 func (s *Hierarchy) GetHierarchyForUser(ctx context.Context, accessList *accesslist.AccessList, user types.User) (memberHierarchy, ownerHierarchy []*accesslist.AccessList, err error) {
+	if s.IgnoreScoped && accessList.Scope != "" {
+		return memberHierarchy, ownerHierarchy, nil
+	}
+
 	if s.validDirectOwner(user, accessList) {
 		// User Is direct owner and meet the ownership requirements
 		// Include access list from the owner hierarchy
@@ -598,7 +614,13 @@ func (s *Hierarchy) GetHierarchyForUser(ctx context.Context, accessList *accessl
 	memberHierarchy = append(memberHierarchy, accessList)
 
 	// Fetch ancestors via MemberOf edges while checking user requirements
-	ancestors, err := getAncestors(ctx, accessList, RelationshipKindMember, s.AccessListsService, withUserRequirementsCheck(user, s.Clock))
+	ancestors, err := getAncestors(
+		ctx,
+		accessList,
+		RelationshipKindMember,
+		s.AccessListsService,
+		withUserRequirementsCheck(user, s.Clock),
+		withIgnoreScoped(s.IgnoreScoped))
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -642,11 +664,11 @@ func (s *Hierarchy) validMembership(ctx context.Context, list *accesslist.Access
 func (s *Hierarchy) expandOwnerOf(ctx context.Context, accessList *accesslist.AccessList, ancestors []*accesslist.AccessList, user types.User) ([]*accesslist.AccessList, error) {
 	var out []*accesslist.AccessList
 	processFn := func(al *accesslist.AccessList) error {
-		allOwnedLists, err := AllOwnedLists(al)
+		ownedListNames, err := ownedListsForTraversal(al, s.IgnoreScoped)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		for _, name := range allOwnedLists {
+		for _, name := range ownedListNames {
 			ownerList, err := getAccessList(ctx, s.AccessListsService, name)
 			if err != nil {
 				return trace.Wrap(err)
@@ -667,6 +689,28 @@ func (s *Hierarchy) expandOwnerOf(ctx context.Context, accessList *accesslist.Ac
 		}
 	}
 	return out, nil
+}
+
+func ownedListsForTraversal(list *accesslist.AccessList, ignoreScoped bool) ([]accesslist.ScopeQualifiedName, error) {
+	if !ignoreScoped {
+		return AllOwnedLists(list)
+	}
+	ownedListNames := make([]accesslist.ScopeQualifiedName, 0, len(list.Status.OwnerOf))
+	for _, ownedListName := range list.Status.OwnerOf {
+		ownedListNames = append(ownedListNames, accesslist.ScopeQualifiedName{Name: ownedListName})
+	}
+	return ownedListNames, nil
+}
+
+func parentListsForTraversal(list *accesslist.AccessList, ignoreScoped bool) ([]accesslist.ScopeQualifiedName, error) {
+	if !ignoreScoped {
+		return AllParentLists(list)
+	}
+	parentListNames := make([]accesslist.ScopeQualifiedName, 0, len(list.Status.MemberOf))
+	for _, parentListName := range list.Status.MemberOf {
+		parentListNames = append(parentListNames, accesslist.ScopeQualifiedName{Name: parentListName})
+	}
+	return parentListNames, nil
 }
 
 func (s *Hierarchy) validDirectOwner(user types.User, acl *accesslist.AccessList) bool {
@@ -746,11 +790,11 @@ func collectAncestors(
 
 	if kind == RelationshipKindOwner {
 		// Add parents where this list is an owner to ancestors
-		allOwnedLists, err := AllOwnedLists(accessList)
+		ownedListNames, err := ownedListsForTraversal(accessList, options.ignoreScoped)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		for _, ownerParent := range allOwnedLists {
+		for _, ownerParent := range ownedListNames {
 			ownerParentAcl, err := getAccessList(ctx, g, ownerParent)
 			if err != nil {
 				return trace.Wrap(err)
@@ -761,11 +805,11 @@ func collectAncestors(
 			ancestors[ownerParent] = ownerParentAcl
 		}
 	}
-	allParentLists, err := AllParentLists(accessList)
+	parentListNames, err := parentListsForTraversal(accessList, options.ignoreScoped)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	for _, memberParent := range allParentLists {
+	for _, memberParent := range parentListNames {
 		memberParentAcl, err := getAccessList(ctx, g, memberParent)
 		if err != nil {
 			return trace.Wrap(err)

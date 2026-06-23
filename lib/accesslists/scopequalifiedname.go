@@ -17,9 +17,10 @@
 package accesslists
 
 import (
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/lib/scopes"
-	"github.com/gravitational/trace"
 )
 
 // ToScopesQualifiedName converts an [accesslist.ScopeQualifiedName] to a [scopes.QualifiedName].
