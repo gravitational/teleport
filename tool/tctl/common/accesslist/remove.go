@@ -48,6 +48,10 @@ func (c *Command) Remove(ctx context.Context, client *authclient.Client) error {
 	}
 
 	resp := RemoveJSONResponse{
+		// TODO(kimlisa): The list of role names from GetAccessList can refer to stale roles
+		// since in between the Get and Delete call, an update may have occurred.
+		// Have a new rpc "DeleteAccessListV2" return the list of role names to delete instead,
+		// and fall back to GetAccessList/DeleteAccessList otherwise.
 		RolesToDelete: al.PresetRoleNames(),
 	}
 
