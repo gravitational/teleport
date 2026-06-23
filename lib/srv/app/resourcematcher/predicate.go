@@ -68,6 +68,22 @@ func allowsEncodedSlash(opts []Option) bool {
 	return false
 }
 
+// encodedBlocked reports whether the path carries an encoded char that no opt
+// admits, in which case a match must fail closed. It is the one gate both
+// path.match and Match consult, so the predicate surface and the Go surface
+// cannot drift on which paths an encoded char rejects.
+func encodedBlocked(tokens []string, opts []Option) bool {
+	if allowsEncodedSlash(opts) {
+		return false
+	}
+	for _, tok := range tokens {
+		if strings.ContainsRune(tok, '%') {
+			return true
+		}
+	}
+	return false
+}
+
 // env is the evaluation environment threaded through one predicate evaluation.
 // The vars map is the channel between a matcher and a later identity condition:
 // a path.match call writes the segments its captures bind, and a vars.<name>
@@ -193,13 +209,9 @@ func newParser() (*typical.CachedParser[env, bool], error) {
 				if !ok {
 					return false, nil
 				}
-				if !allowsEncodedSlash(opts) {
-					for _, tok := range tokens {
-						if strings.ContainsRune(tok, '%') {
-							e.state.encodedNotAllowed = true
-							return false, nil
-						}
-					}
+				if encodedBlocked(tokens, opts) {
+					e.state.encodedNotAllowed = true
+					return false, nil
 				}
 				if matched, caps := Eval(tokens, root); matched {
 					for k, v := range caps {
