@@ -270,6 +270,8 @@ func (r resourceTeleportSAMLConnector) Update(ctx context.Context, req tfsdk.Upd
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading SAMLConnector", trace.Errorf("Can not convert %T to SAMLConnectorV2", samlConnectorI), "saml"))
 		return
 	}
+	samlConnector = samlConnectorResource
+
 	diags = tfschema.CopySAMLConnectorV2ToTerraform(ctx, samlConnector, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -334,4 +336,52 @@ func (r resourceTeleportSAMLConnector) ImportState(ctx context.Context, req tfsd
 	if resp.Diagnostics.HasError() {
 		return
 	}
+}
+
+// ModifyPlan modifies the planned value, normalizing null values.
+func (r resourceTeleportSAMLConnector) ModifyPlan(ctx context.Context, req tfsdk.ModifyResourcePlanRequest, resp *tfsdk.ModifyResourcePlanResponse) {
+	// If the entire plan is null, the resource is planned for destruction.
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+
+	// If the state is null, the resource is being created. No need to modify plan.
+	if req.State.Raw.IsNull() {
+		return
+	}
+
+	var config types.Object
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	samlConnector := &apitypes.SAMLConnectorV2{}
+	resp.Diagnostics.Append(tfschema.CopySAMLConnectorV2FromTerraform(ctx, config, samlConnector)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	samlConnectorResource := samlConnector
+
+	if err := samlConnectorResource.CheckAndSetDefaults(); err != nil {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error setting SAMLConnector defaults", trace.Wrap(err), "saml"))
+		return
+	}
+
+	samlConnector = samlConnectorResource
+
+	resp.Diagnostics.Append(tfschema.CopySAMLConnectorV2ToTerraform(ctx, samlConnector, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var plan types.Object
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.Attrs["spec"] = config.Attrs["spec"]
+
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

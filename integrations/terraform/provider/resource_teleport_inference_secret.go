@@ -68,8 +68,8 @@ func (r resourceTeleportInferenceSecret) Create(ctx context.Context, req tfsdk.C
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	specFromPlan, ok := plan.Attrs["spec"]
-	if !ok {
+	specFromPlan, exist := plan.Attrs["spec"]
+	if !exist {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading InferenceSecret", trace.Wrap(trace.Errorf("spec not found in the plan")), "inference_secret"))
 		return
 	}
@@ -210,6 +210,18 @@ func (r resourceTeleportInferenceSecret) Update(ctx context.Context, req tfsdk.U
 		return
 	}
 
+	specFromPlan, exist := plan.Attrs["spec"]
+	if !exist {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error reading InferenceSecret", trace.Wrap(trace.Errorf("spec not found in the plan")), "inference_secret"))
+		return
+	}
+
+	specFromPlan, err := deepCopyAttrValue(ctx, specFromPlan)
+	if err != nil {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error copying InferenceSecret spec", trace.Wrap(err), "inference_secret"))
+		return
+	}
+
 	inferenceSecret := &summarizerv1.InferenceSecret{}
 	diags = schemav1.CopyInferenceSecretFromTerraform(ctx, plan, inferenceSecret)
 	resp.Diagnostics.Append(diags...)
@@ -262,11 +274,15 @@ func (r resourceTeleportInferenceSecret) Update(ctx context.Context, req tfsdk.U
 
 	inferenceSecretResource = inferenceSecretI
 	
+	inferenceSecret = inferenceSecretResource
+
 	diags = schemav1.CopyInferenceSecretToTerraform(ctx, inferenceSecret, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+	plan.Attrs["spec"] = specFromPlan
 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -294,3 +310,47 @@ func (r resourceTeleportInferenceSecret) Delete(ctx context.Context, req tfsdk.D
 }
 
 
+
+// ModifyPlan modifies the planned value, normalizing null values.
+func (r resourceTeleportInferenceSecret) ModifyPlan(ctx context.Context, req tfsdk.ModifyResourcePlanRequest, resp *tfsdk.ModifyResourcePlanResponse) {
+	// If the entire plan is null, the resource is planned for destruction.
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+
+	// If the state is null, the resource is being created. No need to modify plan.
+	if req.State.Raw.IsNull() {
+		return
+	}
+
+	var config types.Object
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	inferenceSecret := &summarizerv1.InferenceSecret{}
+	resp.Diagnostics.Append(schemav1.CopyInferenceSecretFromTerraform(ctx, config, inferenceSecret)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	inferenceSecretResource := inferenceSecret
+	inferenceSecretResource.Kind = apitypes.KindInferenceSecret
+
+	inferenceSecret = inferenceSecretResource
+
+	resp.Diagnostics.Append(schemav1.CopyInferenceSecretToTerraform(ctx, inferenceSecret, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var plan types.Object
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.Attrs["spec"] = config.Attrs["spec"]
+
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
+}

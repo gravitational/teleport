@@ -281,6 +281,8 @@ func (r resourceTeleportProvisionToken) Update(ctx context.Context, req tfsdk.Up
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading ProvisionToken", trace.Errorf("Can not convert %T to ProvisionTokenV2", provisionTokenI), "token"))
 		return
 	}
+	provisionToken = provisionTokenResource
+
 	diags = token.CopyProvisionTokenV2ToTerraform(ctx, provisionToken, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -345,4 +347,52 @@ func (r resourceTeleportProvisionToken) ImportState(ctx context.Context, req tfs
 	if resp.Diagnostics.HasError() {
 		return
 	}
+}
+
+// ModifyPlan modifies the planned value, normalizing null values.
+func (r resourceTeleportProvisionToken) ModifyPlan(ctx context.Context, req tfsdk.ModifyResourcePlanRequest, resp *tfsdk.ModifyResourcePlanResponse) {
+	// If the entire plan is null, the resource is planned for destruction.
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+
+	// If the state is null, the resource is being created. No need to modify plan.
+	if req.State.Raw.IsNull() {
+		return
+	}
+
+	var config types.Object
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	provisionToken := &apitypes.ProvisionTokenV2{}
+	resp.Diagnostics.Append(token.CopyProvisionTokenV2FromTerraform(ctx, config, provisionToken)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	provisionTokenResource := provisionToken
+
+	if err := provisionTokenResource.CheckAndSetDefaults(); err != nil {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error setting ProvisionToken defaults", trace.Wrap(err), "token"))
+		return
+	}
+
+	provisionToken = provisionTokenResource
+
+	resp.Diagnostics.Append(token.CopyProvisionTokenV2ToTerraform(ctx, provisionToken, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var plan types.Object
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.Attrs["spec"] = config.Attrs["spec"]
+
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

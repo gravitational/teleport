@@ -254,6 +254,8 @@ func (r resourceTeleportHealthCheckConfig) Update(ctx context.Context, req tfsdk
 
 	healthCheckConfigResource = healthCheckConfigI
 	
+	healthCheckConfig = healthCheckConfigResource
+
 	diags = schemav1.CopyHealthCheckConfigToTerraform(ctx, healthCheckConfig, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -318,4 +320,48 @@ func (r resourceTeleportHealthCheckConfig) ImportState(ctx context.Context, req 
 	if resp.Diagnostics.HasError() {
 		return
 	}
+}
+
+// ModifyPlan modifies the planned value, normalizing null values.
+func (r resourceTeleportHealthCheckConfig) ModifyPlan(ctx context.Context, req tfsdk.ModifyResourcePlanRequest, resp *tfsdk.ModifyResourcePlanResponse) {
+	// If the entire plan is null, the resource is planned for destruction.
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+
+	// If the state is null, the resource is being created. No need to modify plan.
+	if req.State.Raw.IsNull() {
+		return
+	}
+
+	var config types.Object
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	healthCheckConfig := &healthcheckconfigv1.HealthCheckConfig{}
+	resp.Diagnostics.Append(schemav1.CopyHealthCheckConfigFromTerraform(ctx, config, healthCheckConfig)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	healthCheckConfigResource := healthCheckConfig
+	healthCheckConfigResource.Kind = apitypes.KindHealthCheckConfig
+
+	healthCheckConfig = healthCheckConfigResource
+
+	resp.Diagnostics.Append(schemav1.CopyHealthCheckConfigToTerraform(ctx, healthCheckConfig, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var plan types.Object
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.Attrs["spec"] = config.Attrs["spec"]
+
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

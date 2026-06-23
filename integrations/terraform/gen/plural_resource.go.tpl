@@ -92,8 +92,8 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 	}
 
 	{{- if .SaveSpecStateFromPlan}}
-	specFromPlan, ok := plan.Attrs["spec"]
-	if !ok {
+	specFromPlan, exist := plan.Attrs["spec"]
+	if !exist {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", trace.Wrap(trace.Errorf("spec not found in the plan")), "{{.Kind}}"))
 		return
 	}
@@ -471,6 +471,22 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 		return
 	}
 
+{{- if .SaveSpecStateFromPlan}}
+
+	specFromPlan, exist := plan.Attrs["spec"]
+	if !exist {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", trace.Wrap(trace.Errorf("spec not found in the plan")), "{{.Kind}}"))
+		return
+	}
+
+	specFromPlan, err := deepCopyAttrValue(ctx, specFromPlan)
+	if err != nil {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error copying {{.Name}} spec", trace.Wrap(err), "{{.Kind}}"))
+		return
+	}
+
+{{- end}}
+
 	{{.VarName}} := &{{.ProtoPackage}}.{{.TypeName}}{}
 	diags = {{.SchemaPackage}}.Copy{{.TypeName}}FromTerraform(ctx, plan, {{.VarName}})
 	resp.Diagnostics.Append(diags...)
@@ -618,11 +634,23 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 		return
 	}
 	{{- end}}
+
+{{- if .ConvertPackagePath}}
+	{{.VarName}} = convert.{{ if .ConvertToProtoFunc }}{{.ConvertToProtoFunc}}{{ else }}ToProto{{ end }}({{.VarName}}Resource)
+{{- else }}
+	{{.VarName}} = {{.VarName}}Resource
+{{- end }}
+
 	diags = {{.SchemaPackage}}.Copy{{.TypeName}}ToTerraform(ctx, {{.VarName}}, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+{{- if .SaveSpecStateFromPlan}}
+
+	plan.Attrs["spec"] = specFromPlan
+{{- end}}
 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
@@ -839,5 +867,115 @@ func (r resourceTeleport{{.Name}}) ImportState(ctx context.Context, req tfsdk.Im
 	if resp.Diagnostics.HasError() {
 		return
 	}
+}
+{{- end}}
+
+{{- if not .WithoutModifyPlan }}
+
+// ModifyPlan modifies the planned value, normalizing null values.
+func (r resourceTeleport{{.Name}}) ModifyPlan(ctx context.Context, req tfsdk.ModifyResourcePlanRequest, resp *tfsdk.ModifyResourcePlanResponse) {
+	// If the entire plan is null, the resource is planned for destruction.
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+
+	// If the state is null, the resource is being created. No need to modify plan.
+	if req.State.Raw.IsNull() {
+		return
+	}
+
+	var config types.Object
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	{{.VarName}} := &{{.ProtoPackage}}.{{.TypeName}}{}
+	resp.Diagnostics.Append({{.SchemaPackage}}.Copy{{.TypeName}}FromTerraform(ctx, config, {{.VarName}})...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+{{- if .ConvertPackagePath }}
+
+	{{.VarName}}Resource, err := convert.{{ if .ConvertFromProtoFunc }}{{.ConvertFromProtoFunc}}{{ else }}FromProto{{ end }}({{.VarName}})
+	if err != nil {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", trace.Errorf("Can not convert %T to {{.TypeName}}: %s", {{.VarName}}Resource, err), "{{.Kind}}"))
+		return
+	}
+{{- else }}
+
+	{{.VarName}}Resource := {{.VarName}}
+{{- end }}
+
+{{- if .ForceSetKind }}
+	{{.VarName}}Resource.Kind = {{.ForceSetKind}}
+{{- end}}
+
+{{- if .HasCheckAndSetDefaults }}
+
+	if err := {{.VarName}}Resource.CheckAndSetDefaults(); err != nil {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error setting {{.Name}} defaults", trace.Wrap(err), "{{.Kind}}"))
+		return
+	}
+{{- end }}
+
+{{- if .PropagatedFields }}
+	name := {{.VarName}}Resource.Metadata.Name
+{{- if .RequestWrapper}}
+
+	{{.VarName}}BeforeResp, err := r.p.Client.{{.GetMethod}}(ctx, &{{.ProtoPackage}}.{{.RequestWrapper.GetRequest}}{
+		Name: name,
+		{{- if .DefaultSubKind}}
+		SubKind: {{.VarName}}Resource.SubKind,
+		{{- end}}
+		{{- if ne .WithSecrets ""}}
+		WithSecrets: {{.WithSecrets}},
+		{{- end}}
+	})
+	if err != nil {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", err, "{{.Kind}}"))
+		return
+	}
+	{{- if .RequestWrapper.ReturnsUnwrappedResource }}
+	{{.VarName}}Before := {{.VarName}}BeforeResp
+	{{- else }}
+	{{.VarName}}Before := {{.VarName}}BeforeResp.Get{{.RequestWrapper.RequestResourceField}}()
+	{{- end}}
+{{- else}}
+
+	{{.VarName}}Before, err := r.p.Client.{{.GetMethod}}(ctx, {{if .Namespaced}}defaults.Namespace, {{end}}{{if .IDPrefix}}idPrefix, {{end}}name{{if ne .WithSecrets ""}}, {{.WithSecrets}}{{end}})
+	if err != nil {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", err, "{{.Kind}}"))
+		return
+	}
+{{- end}}
+	{{- $VarName := .VarName }}
+	{{- range $field := .PropagatedFields }}
+	{{ $VarName }}Resource.{{ $field }} = {{ $VarName }}Before.{{ $field }}
+	{{- end }}
+{{- end }}
+
+{{- if .ConvertPackagePath}}
+
+	{{.VarName}} = convert.{{ if .ConvertToProtoFunc }}{{.ConvertToProtoFunc}}{{ else }}ToProto{{ end }}({{.VarName}}Resource)
+{{- else}}
+
+	{{.VarName}} = {{.VarName}}Resource
+{{- end }}
+
+	resp.Diagnostics.Append({{.SchemaPackage}}.Copy{{.TypeName}}ToTerraform(ctx, {{.VarName}}, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var plan types.Object
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.Attrs["spec"] = config.Attrs["spec"]
+
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }
 {{- end}}

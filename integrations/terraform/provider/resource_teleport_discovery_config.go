@@ -261,6 +261,8 @@ func (r resourceTeleportDiscoveryConfig) Update(ctx context.Context, req tfsdk.U
 
 	discoveryConfigResource = discoveryConfigI
 	
+	discoveryConfig = convert.ToProto(discoveryConfigResource)
+
 	diags = schemav1.CopyDiscoveryConfigToTerraform(ctx, discoveryConfig, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
@@ -325,4 +327,52 @@ func (r resourceTeleportDiscoveryConfig) ImportState(ctx context.Context, req tf
 	if resp.Diagnostics.HasError() {
 		return
 	}
+}
+
+// ModifyPlan modifies the planned value, normalizing null values.
+func (r resourceTeleportDiscoveryConfig) ModifyPlan(ctx context.Context, req tfsdk.ModifyResourcePlanRequest, resp *tfsdk.ModifyResourcePlanResponse) {
+	// If the entire plan is null, the resource is planned for destruction.
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+
+	// If the state is null, the resource is being created. No need to modify plan.
+	if req.State.Raw.IsNull() {
+		return
+	}
+
+	var config types.Object
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	discoveryConfig := &discoveryconfigv1.DiscoveryConfig{}
+	resp.Diagnostics.Append(schemav1.CopyDiscoveryConfigFromTerraform(ctx, config, discoveryConfig)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	discoveryConfigResource, err := convert.FromProto(discoveryConfig)
+	if err != nil {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error reading DiscoveryConfig", trace.Errorf("Can not convert %T to DiscoveryConfig: %s", discoveryConfigResource, err), "discovery_config"))
+		return
+	}
+	discoveryConfigResource.Kind = apitypes.KindDiscoveryConfig
+
+	discoveryConfig = convert.ToProto(discoveryConfigResource)
+
+	resp.Diagnostics.Append(schemav1.CopyDiscoveryConfigToTerraform(ctx, discoveryConfig, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var plan types.Object
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.Attrs["spec"] = config.Attrs["spec"]
+
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

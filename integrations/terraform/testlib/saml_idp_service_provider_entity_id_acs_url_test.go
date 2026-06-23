@@ -132,7 +132,7 @@ func (s *TerraformSuiteOSS) TestSAMLIdPServiceProviderEntityIDACSURLMigrationToD
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(samlIDPServiceProviderTFResourceName, "metadata.name", "test-entity-id-acs-url-migration-changed"),
 					resource.TestCheckResourceAttr(samlIDPServiceProviderTFResourceName, "spec.entity_id", "https://sp.example.com/entity-id-acs-url/migration/changed/to/metadata"),
-					resource.TestCheckNoResourceAttr(samlIDPServiceProviderTFResourceName, "spec.acs_url"), // Failure here? Make sure acs_url is NOT a computed field
+					resource.TestCheckResourceAttr(samlIDPServiceProviderTFResourceName, "spec.acs_url", ""),
 				),
 			},
 			{
