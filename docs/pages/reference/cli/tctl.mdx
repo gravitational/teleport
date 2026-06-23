@@ -129,6 +129,28 @@ Arguments:
 |---|---|---|
 |access-list-name|*no default* (required)|The access list name to fetch review history for.|
 
+## tctl acl rm
+
+Delete an Access List.
+
+Usage:
+
+```code
+$ tctl acl rm [<flags>] <access-list-name>
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--format`|`text` (one of: `text`, `json`)|Output format.|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|access-list-name|*no default* (required)|The Access List name.|
+
 ## tctl acl users add
 
 Add a user to an Access List.
