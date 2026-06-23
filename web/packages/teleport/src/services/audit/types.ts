@@ -1821,12 +1821,14 @@ export type RawEvents = {
     typeof eventCodes.SPIFFE_SVID_ISSUED,
     {
       spiffe_id: string;
+      workload_identity_scope?: string;
     }
   >;
   [eventCodes.SPIFFE_SVID_ISSUED_FAILURE]: RawEvent<
     typeof eventCodes.SPIFFE_SVID_ISSUED_FAILURE,
     {
       spiffe_id: string;
+      workload_identity_scope?: string;
     }
   >;
   [eventCodes.AUTH_PREFERENCE_UPDATE]: RawEvent<

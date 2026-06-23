@@ -673,6 +673,120 @@ func TestValidateRole(t *testing.T) {
 			strongOk: true,
 			weakOk:   true,
 		},
+		{
+			name: "valid workload_identity rule",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					Rules: []*scopedaccessv1.ScopedRule{
+						scopedaccessv1.ScopedRule_builder{
+							Resources: []string{types.KindWorkloadIdentity},
+							Verbs: []string{
+								types.VerbCreate,
+								types.VerbUpdate,
+								types.VerbDelete,
+								types.VerbList,
+								types.VerbReadNoSecrets,
+							},
+						}.Build(),
+					},
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: true,
+			weakOk:   true,
+		},
+		{
+			name: "workload_identity rule with secret read verb",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					Rules: []*scopedaccessv1.ScopedRule{
+						scopedaccessv1.ScopedRule_builder{
+							Resources: []string{types.KindWorkloadIdentity},
+							Verbs:     []string{types.VerbRead},
+						}.Build(),
+					},
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "workload_identity rule with unsupported verb",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					Rules: []*scopedaccessv1.ScopedRule{
+						scopedaccessv1.ScopedRule_builder{
+							Resources: []string{types.KindWorkloadIdentity},
+							Verbs:     []string{types.Wildcard},
+						}.Build(),
+					},
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "invalid workload_identity label name",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					WorkloadIdentity: scopedaccessv1.ScopedRoleWorkloadIdentity_builder{
+						Labels: []*labelv1.Label{
+							labelv1.Label_builder{Name: "env^", Values: []string{"prod"}}.Build(),
+						},
+					}.Build(),
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "invalid workload_identity label value",
+			role: scopedaccessv1.ScopedRole_builder{
+				Kind: KindScopedRole,
+				Metadata: headerv1.Metadata_builder{
+					Name: "test",
+				}.Build(),
+				Scope: "/",
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
+					AssignableScopes: []string{"/foo"},
+					WorkloadIdentity: scopedaccessv1.ScopedRoleWorkloadIdentity_builder{
+						Labels: []*labelv1.Label{
+							labelv1.Label_builder{Name: "env", Values: []string{"pr$od"}}.Build(),
+						},
+					}.Build(),
+				}.Build(),
+				Version: types.V1,
+			}.Build(),
+			strongOk: false,
+			weakOk:   true,
+		},
 	}
 	for _, tt := range tts {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1548,6 +1662,11 @@ func TestStrongValidateRoleSpecAllFieldsValidated(t *testing.T) {
 			Lock: scopedaccessv1.Lock_builder{
 				Mode: "strict",
 			}.Build(),
+		}.Build(),
+		WorkloadIdentity: scopedaccessv1.ScopedRoleWorkloadIdentity_builder{
+			Labels: []*labelv1.Label{
+				labelv1.Label_builder{Name: "env", Values: []string{"prod"}}.Build(),
+			},
 		}.Build(),
 	}.Build()
 

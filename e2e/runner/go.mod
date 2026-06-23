@@ -249,7 +249,7 @@ require (
 	github.com/zitadel/oidc/v3 v3.45.0 // indirect
 	github.com/zitadel/schema v1.3.1 // indirect
 	gitlab.com/gitlab-org/api/client-go v1.25.0 // indirect
-	go.mongodb.org/mongo-driver v1.17.6 // indirect
+	go.mongodb.org/mongo-driver v1.17.9 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.69.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.69.0 // indirect

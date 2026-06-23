@@ -252,17 +252,19 @@ func (s *Service[T]) Resources(ctx context.Context, startKey, endKey string) ite
 		return resource, true
 	}
 
-	return stream.TakeWhile(
-		stream.FilterMap(s.backend.Items(ctx, params), mapFn),
-		func(r T) bool {
-			// We promise the consumers of this function that the returned
-			// results an exclusive of the endkey but the underlying Items
-			// method returns us a stream that's inclusive of the end key - so
-			// if the user has provided us an end-key, we manually filter them
-			// out to convert from inclusive to exclusive.
-			return endKey == "" || r.GetName() < endKey
-		},
-	)
+	items := s.backend.Items(ctx, params)
+	if endKey != "" {
+		exclusiveEndKey := s.backendPrefix.AppendKey(backend.KeyFromString(endKey))
+		items = stream.TakeWhile(items, func(item backend.Item) bool {
+			// We promise consumers that the returned results are exclusive of
+			// endKey, but the underlying Items method returns an inclusive end
+			// key. Compare the full backend key so composite relative keys such
+			// as "<prefix>/<name>" are handled correctly.
+			return item.Key.Compare(exclusiveEndKey) < 0
+		})
+	}
+
+	return stream.FilterMap(items, mapFn)
 }
 
 // ListResources returns a paginated list of resources.
