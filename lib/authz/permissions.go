@@ -1321,6 +1321,7 @@ func unscopedDefinitionForBuiltinRole(clusterName string, recConfig readonly.Ses
 					Rules: []types.Rule{
 						types.NewRule(types.Wildcard, services.RW()),
 						types.NewRule(types.KindDevice, append(services.RW(), types.VerbCreateEnrollToken, types.VerbEnroll)),
+						types.NewRule(types.KindMobileDevice, []string{types.VerbCreateEnrollToken}),
 					},
 				},
 			})
