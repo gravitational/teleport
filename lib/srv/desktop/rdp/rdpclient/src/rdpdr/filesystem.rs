@@ -18,20 +18,25 @@ use super::{
     path::UnixPath,
     tdp::{self, TdpErrCode},
 };
-use crate::{
-    CGOErrCode, CgoHandle, cgo_tdp_sd_acknowledge, cgo_tdp_sd_create_request, cgo_tdp_sd_delete_request, cgo_tdp_sd_info_request, cgo_tdp_sd_list_request, cgo_tdp_sd_move_request, cgo_tdp_sd_read_request, cgo_tdp_sd_truncate_request, cgo_tdp_sd_write_request, client::ClientHandle, rdpdr::{tdp::SharedDirectoryRemove}
-};
 use crate::client::{ClientError, ClientResult};
+use crate::{
+    cgo_tdp_sd_acknowledge, cgo_tdp_sd_create_request, cgo_tdp_sd_delete_request,
+    cgo_tdp_sd_info_request, cgo_tdp_sd_list_request, cgo_tdp_sd_move_request,
+    cgo_tdp_sd_read_request, cgo_tdp_sd_truncate_request, cgo_tdp_sd_write_request,
+    client::ClientHandle, rdpdr::tdp::SharedDirectoryRemove, CGOErrCode, CgoHandle,
+};
 use ironrdp_core::{cast_length, EncodeError};
-use ironrdp_pdu::{pdu_other_err, PduError, PduErrorExt};
 use ironrdp_pdu::PduResult;
+use ironrdp_pdu::{pdu_other_err, PduError, PduErrorExt};
 use ironrdp_rdpdr::pdu::{
-    self, RdpdrPdu, efs::{self, NtStatus}, esc
+    self,
+    efs::{self, NtStatus},
+    esc, RdpdrPdu,
 };
 use log::{debug, trace, warn};
+use std::convert::TryInto;
 use std::fmt::Debug;
 use std::{collections::HashMap, fmt};
-use std::convert::TryInto;
 
 pub(crate) fn cast_length<T, S: TryInto<T, Error: Debug>>(
     ctx: &str,
@@ -69,13 +74,26 @@ impl DirectoryContext {
     }
 
     fn insert_file(&mut self, file: FileCacheObject) -> Result<u32, FilesystemBackendError> {
-        
         let path = file.fso.path.path.clone();
-        self.file_cache.insert(file).inspect(|id| warn!("inserted file id: {}, path: {} file_entries {}", id, path, self.file_cache.cache.len()))
+        self.file_cache.insert(file).inspect(|id| {
+            warn!(
+                "inserted file id: {}, path: {} file_entries {}",
+                id,
+                path,
+                self.file_cache.cache.len()
+            )
+        })
     }
 
-    fn remove_file(&mut self, file_id: u32) -> Option<FileCacheObject> {        
-        self.file_cache.remove(file_id).inspect(|fco| warn!("removed file id: {}, path: {} file_entries {}", file_id, &fco.path().path, self.file_cache.cache.len()))
+    fn remove_file(&mut self, file_id: u32) -> Option<FileCacheObject> {
+        self.file_cache.remove(file_id).inspect(|fco| {
+            warn!(
+                "removed file id: {}, path: {} file_entries {}",
+                file_id,
+                &fco.path().path,
+                self.file_cache.cache.len()
+            )
+        })
     }
 
     fn get_file(&self, file_id: u32) -> Option<&FileCacheObject> {
@@ -236,32 +254,44 @@ impl FilesystemBackend {
         self.cache.add_device(device_id).map_err(|err| err.into())
     }
 
-    // Cancels all pending I/O requests on this device and marks the device as 
+    // Cancels all pending I/O requests on this device and marks the device as
     // "tombstoned", which means all pending I/O requests will be automatically
-    // cancelled. The device will be cleaned up once the server has closed
-    // all open file handles.
-    // The caller is free to immediately remove the device if this function results Ok(true),
-    pub fn tombstone_device(&mut self, device_id: u32) -> PduResult<bool> {        
-        let (is_empty, drain) : (bool, Vec<(u32, ResponseKind)>) = {
-            let ctx = self.cache.get_context_mut(device_id)?;
-            ctx.tombstoned = true;
-            (ctx.file_cache.cache.is_empty(), ctx.response_handlers.cache.drain().collect())
-        };
+    // cancelled. This function returns Ok(true) and actually removes the device
+    // if it has no open file handlers, otherwise it returns Ok(false) and removal
+    // must be retried after closing any open handles.
+    pub fn tombstone_device(&mut self, device_id: u32) -> PduResult<bool> {
+        let directory_context = self.cache.get_context_mut(device_id)?;
+        let pending_handlers: Vec<(CompletionId, ResponseKind)> =
+            directory_context.response_handlers.drain().collect();
 
-        drain.into_iter().for_each(|(completion_id, handler)| {
-             // Best effort. Log the error if something goes wrong
-             // while cancelling.
-            warn!("Cancelling! device_id {}, completion_id: {}, handler: {:?}", device_id, completion_id, &handler);
-                         let _ = handler.cancel(self).inspect_err(|e| warn!("Failed to send cancellation response for deviceId {}, completionId {}: {
-            }", device_id, completion_id, e));
-        });
+        // Drain the response cache for this directory context and cancel each handler.
+        pending_handlers
+            .into_iter()
+            .for_each(|(completion_id, handler)| {
+                let _ = handler.cancel(self).inspect_err(|e| {
+                    warn!(
+                        "Failed to send cancellation response for deviceId {}, completionId {}: {
+            }",
+                        device_id, completion_id, e
+                    )
+                });
+            });
 
-        if is_empty {
-            // Only fails if the device doesn't exist.
-            // We can safely ignore the return value.
-            let _ = self.cache.remove_device(device_id);
+        if self
+            .cache
+            .get_context_mut(device_id)?
+            .file_cache
+            .cache
+            .is_empty()
+        {
+            // File cache is empty. It's safe to remove this device.
+            self.cache.remove_device(device_id)?;
+            Ok(true)
+        } else {
+            // File cache is not empty. We'll need to wait for the server to
+            // close any open file handles first.
+            Ok(false)
         }
-        Ok(is_empty)
     }
 
     /// Handles an RDP [`efs::ServerDeviceAnnounceResponse`] received from the RDP server.
@@ -289,17 +319,19 @@ impl FilesystemBackend {
         })
     }
 
-
     /// Handles an RDP [`efs::ServerDriveIoRequest`] received from the RDP server.
     pub fn handle_rdp_drive_io_request(&mut self, req: efs::ServerDriveIoRequest) -> PduResult<()> {
         trace!("received {:?}", &req);
 
-        let device_is_tombstoned = self.cache.get_context(DeviceId::from(&req).into())?.tombstoned;
+        let device_is_tombstoned = self
+            .cache
+            .get_context(DeviceId::from(&req).into())?
+            .tombstoned;
         if device_is_tombstoned {
             // A tombstoned device is only allowed to handle device close requests.
             // All other requests are cancelled.
             match req {
-                efs::ServerDriveIoRequest::DeviceCloseRequest(_) => {},
+                efs::ServerDriveIoRequest::DeviceCloseRequest(_) => {}
                 _ => return req.cancel(self),
             }
         }
@@ -309,10 +341,9 @@ impl FilesystemBackend {
                 self.handle_rdp_device_create_req(req)
             }
             efs::ServerDriveIoRequest::ServerDriveQueryInformationRequest(req) => {
-
                 self.handle_rdp_query_information_req(req)
             }
-            efs::ServerDriveIoRequest::DeviceCloseRequest(req) => {                
+            efs::ServerDriveIoRequest::DeviceCloseRequest(req) => {
                 // If tombstoned AND this is request closes that final file in the cache,
                 // then we'll finally send the request to remote the device.
                 let device_id = req.device_io_request.device_id;
@@ -321,16 +352,17 @@ impl FilesystemBackend {
                     // HACK: We need to remove this device id from the rdpdr ServiceProcessor, but
                     // we have no reference to it. Synthesize a new TDP remove message for the client
                     // to process so that it calls "remove_drive" again.
-                    let _ = self.client_handle.handle_tdp_sd_remove(SharedDirectoryRemove{
-                        directory_id: device_id
-                    });
-                }                
+                    let _ = self
+                        .client_handle
+                        .handle_tdp_sd_remove(SharedDirectoryRemove {
+                            directory_id: device_id,
+                        });
+                }
                 //Return original close response
                 res
             }
             efs::ServerDriveIoRequest::ServerDriveQueryDirectoryRequest(req) => {
                 self.handle_rdp_query_directory_req(req)
-                
             }
             efs::ServerDriveIoRequest::ServerDriveNotifyChangeDirectoryRequest(req) => {
                 self.handle_rdp_notify_change_directory_req(req)
@@ -599,10 +631,11 @@ impl FilesystemBackend {
             None => {
                 warn!("FILE NOT FOUND IN handle_rdp_query_directory_req ");
                 self.send_rdp_drive_query_dir_response(
-                rdp_req.device_io_request,
-                NtStatus::from(0xC0000120),
-                None,
-            )},
+                    rdp_req.device_io_request,
+                    NtStatus::from(0xC0000120),
+                    None,
+                )
+            }
             Some(dir) => {
                 if dir.fso.file_type != tdp::FileType::Directory {
                     return Err(pdu_other_err!("received ServerDriveQueryDirectoryRequest request for a file rather than a directory"));
@@ -1124,29 +1157,23 @@ impl FilesystemBackend {
                 self.cache.insert_handler(
                     rdp_req.device_io_request.device_id,
                     rdp_req.device_io_request.completion_id,
-                    ResponseKind::Info(
-                        SharedDirectoryInfoResponseHandler::new(
-                            rdp_req,
-                            move |this: &mut FilesystemBackend,
-                                  res: tdp::SharedDirectoryInfoResponse,
-                                  rdp_req: efs::ServerDriveSetInformationRequest|
-                                  -> PduResult<()> {
-                                if res.err_code == TdpErrCode::DoesNotExist {
-                                    // If the file doesn't already exist, send a move request.
-                                    return this.tdp_sd_move(
-                                        rdp_req,
-                                        rename_info.clone(),
-                                        io_status,
-                                    );
-                                }
-                                // If it does, send back a name collision error, as is done in FreeRDP.
-                                this.send_rdp_set_info_response(
-                                    &rdp_req,
-                                    NtStatus::OBJECT_NAME_COLLISION,
-                                )
-                            },
-                        ),
-                    ),
+                    ResponseKind::Info(SharedDirectoryInfoResponseHandler::new(
+                        rdp_req,
+                        move |this: &mut FilesystemBackend,
+                              res: tdp::SharedDirectoryInfoResponse,
+                              rdp_req: efs::ServerDriveSetInformationRequest|
+                              -> PduResult<()> {
+                            if res.err_code == TdpErrCode::DoesNotExist {
+                                // If the file doesn't already exist, send a move request.
+                                return this.tdp_sd_move(rdp_req, rename_info.clone(), io_status);
+                            }
+                            // If it does, send back a name collision error, as is done in FreeRDP.
+                            this.send_rdp_set_info_response(
+                                &rdp_req,
+                                NtStatus::OBJECT_NAME_COLLISION,
+                            )
+                        },
+                    )),
                 )?;
 
                 Ok(())
@@ -1576,7 +1603,11 @@ impl FilesystemBackend {
             ))
         }?;
 
-        warn!("sending efs::DeviceCreateResponse - status: {}, kind: {:?}", u32::from(io_status), &information);
+        warn!(
+            "sending efs::DeviceCreateResponse - status: {}, kind: {:?}",
+            u32::from(io_status),
+            &information
+        );
         self.client_handle.write_rdpdr(
             efs::DeviceCreateResponse {
                 device_io_reply: efs::DeviceIoResponse::new(
@@ -1821,7 +1852,10 @@ impl FilesystemBackend {
         io_status: NtStatus,
         buffer: Option<efs::FileInformationClass>,
     ) -> PduResult<()> {
-        warn!("sending efs::ClientDriveQueryDirectoryResponse to request: {:?}", &device_io_request);
+        warn!(
+            "sending efs::ClientDriveQueryDirectoryResponse to request: {:?}",
+            &device_io_request
+        );
         self.client_handle.write_rdpdr(
             efs::ClientDriveQueryDirectoryResponse {
                 device_io_reply: efs::DeviceIoResponse::new(device_io_request, io_status),
@@ -2138,13 +2172,17 @@ impl Cancel for efs::DeviceCloseRequest {
 
 impl Cancel for efs::ServerDriveNotifyChangeDirectoryRequest {
     fn cancel(&self, this: &mut FilesystemBackend) -> PduResult<()> {
-       this.client_handle.write_rdpdr(
-            RdpdrPdu::ClientDriveQueryDirectoryResponse(
-            efs::ClientDriveQueryDirectoryResponse{
-                device_io_reply: efs::DeviceIoResponse { device_id: self.device_io_request.device_id, completion_id: self.device_io_request.completion_id, io_status: NtStatus::from(0xC0000120) },
-                buffer: None,
-            },)
-        )?;
+        this.client_handle
+            .write_rdpdr(RdpdrPdu::ClientDriveQueryDirectoryResponse(
+                efs::ClientDriveQueryDirectoryResponse {
+                    device_io_reply: efs::DeviceIoResponse {
+                        device_id: self.device_io_request.device_id,
+                        completion_id: self.device_io_request.completion_id,
+                        io_status: NtStatus::from(0xC0000120),
+                    },
+                    buffer: None,
+                },
+            ))?;
         Ok(())
     }
 }
@@ -2157,7 +2195,7 @@ impl Cancel for efs::ServerDriveQueryInformationRequest {
 }
 impl Cancel for efs::ServerDriveQueryVolumeInformationRequest {
     fn cancel(&self, this: &mut FilesystemBackend) -> PduResult<()> {
-       this.handle_rdp_query_volume_req(self.clone())?;
+        this.handle_rdp_query_volume_req(self.clone())?;
         Ok(())
     }
 }
@@ -2179,12 +2217,12 @@ enum HandlerInput<T> {
     Cancel,
 }
 
-trait HandlerFn<T> : FnOnce(&mut FilesystemBackend, HandlerInput<T>) -> PduResult<()> + Send {}
+trait HandlerFn<T>: FnOnce(&mut FilesystemBackend, HandlerInput<T>) -> PduResult<()> + Send {}
 
-impl<T, F> HandlerFn<T> for F 
-where 
-    F: FnOnce(&mut FilesystemBackend, HandlerInput<T>) -> PduResult<()> + Send 
-{}
+impl<T, F> HandlerFn<T> for F where
+    F: FnOnce(&mut FilesystemBackend, HandlerInput<T>) -> PduResult<()> + Send
+{
+}
 
 struct ResponseHandler<T> {
     handler: Box<dyn HandlerFn<T>>,
@@ -2421,8 +2459,10 @@ impl ResponseCache {
         self.cache.remove(completion_id)
     }
 
+    fn drain(&mut self) -> impl std::iter::Iterator<Item = (CompletionId, ResponseKind)> + '_ {
+        self.cache.drain()
+    }
 }
-
 
 impl Cancel for efs::ServerDriveIoRequest {
     fn cancel(&self, this: &mut FilesystemBackend) -> PduResult<()> {
@@ -2432,7 +2472,9 @@ impl Cancel for efs::ServerDriveIoRequest {
             efs::ServerDriveIoRequest::DeviceCloseRequest(h) => h.cancel(this),
             efs::ServerDriveIoRequest::ServerDriveQueryDirectoryRequest(h) => h.cancel(this),
             efs::ServerDriveIoRequest::ServerDriveNotifyChangeDirectoryRequest(h) => h.cancel(this),
-            efs::ServerDriveIoRequest::ServerDriveQueryVolumeInformationRequest(h) => h.cancel(this),
+            efs::ServerDriveIoRequest::ServerDriveQueryVolumeInformationRequest(h) => {
+                h.cancel(this)
+            }
             efs::ServerDriveIoRequest::DeviceControlRequest(h) => h.cancel(this),
             efs::ServerDriveIoRequest::DeviceReadRequest(h) => h.cancel(this),
             efs::ServerDriveIoRequest::DeviceWriteRequest(h) => h.cancel(this),
@@ -2454,17 +2496,37 @@ impl From<DeviceId> for u32 {
 impl From<&efs::ServerDriveIoRequest> for DeviceId {
     fn from(value: &efs::ServerDriveIoRequest) -> Self {
         match value {
-            efs::ServerDriveIoRequest::ServerCreateDriveRequest(h) => DeviceId(h.device_io_request.device_id),
-            efs::ServerDriveIoRequest::ServerDriveQueryInformationRequest(h) => DeviceId(h.device_io_request.device_id),
-            efs::ServerDriveIoRequest::DeviceCloseRequest(h) => DeviceId(h.device_io_request.device_id),
-            efs::ServerDriveIoRequest::ServerDriveQueryDirectoryRequest(h) => DeviceId(h.device_io_request.device_id),
-            efs::ServerDriveIoRequest::ServerDriveNotifyChangeDirectoryRequest(h) => DeviceId(h.device_io_request.device_id),
-            efs::ServerDriveIoRequest::ServerDriveQueryVolumeInformationRequest(h) => DeviceId(h.device_io_request.device_id),
+            efs::ServerDriveIoRequest::ServerCreateDriveRequest(h) => {
+                DeviceId(h.device_io_request.device_id)
+            }
+            efs::ServerDriveIoRequest::ServerDriveQueryInformationRequest(h) => {
+                DeviceId(h.device_io_request.device_id)
+            }
+            efs::ServerDriveIoRequest::DeviceCloseRequest(h) => {
+                DeviceId(h.device_io_request.device_id)
+            }
+            efs::ServerDriveIoRequest::ServerDriveQueryDirectoryRequest(h) => {
+                DeviceId(h.device_io_request.device_id)
+            }
+            efs::ServerDriveIoRequest::ServerDriveNotifyChangeDirectoryRequest(h) => {
+                DeviceId(h.device_io_request.device_id)
+            }
+            efs::ServerDriveIoRequest::ServerDriveQueryVolumeInformationRequest(h) => {
+                DeviceId(h.device_io_request.device_id)
+            }
             efs::ServerDriveIoRequest::DeviceControlRequest(h) => DeviceId(h.header.device_id),
-            efs::ServerDriveIoRequest::DeviceReadRequest(h) => DeviceId(h.device_io_request.device_id),
-            efs::ServerDriveIoRequest::DeviceWriteRequest(h) => DeviceId(h.device_io_request.device_id),
-            efs::ServerDriveIoRequest::ServerDriveSetInformationRequest(h) => DeviceId(h.device_io_request.device_id),
-            efs::ServerDriveIoRequest::ServerDriveLockControlRequest(h) => DeviceId(h.device_io_request.device_id),
+            efs::ServerDriveIoRequest::DeviceReadRequest(h) => {
+                DeviceId(h.device_io_request.device_id)
+            }
+            efs::ServerDriveIoRequest::DeviceWriteRequest(h) => {
+                DeviceId(h.device_io_request.device_id)
+            }
+            efs::ServerDriveIoRequest::ServerDriveSetInformationRequest(h) => {
+                DeviceId(h.device_io_request.device_id)
+            }
+            efs::ServerDriveIoRequest::ServerDriveLockControlRequest(h) => {
+                DeviceId(h.device_io_request.device_id)
+            }
         }
     }
 }
