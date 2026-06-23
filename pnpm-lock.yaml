@@ -96,8 +96,8 @@ importers:
         specifier: ^4.4.5
         version: 4.4.5(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       styled-components:
-        specifier: ^6.4.2
-        version: 6.4.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        specifier: ^6.4.1
+        version: 6.4.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       tslib:
         specifier: ^2.7.0
         version: 2.7.0
@@ -250,7 +250,7 @@ importers:
         version: 3.9.0(vite@6.3.5(@types/node@24.10.10)(jiti@2.6.1))
       babel-plugin-styled-components:
         specifier: ^2.1.4
-        version: 2.1.4(@babel/core@7.26.10)(styled-components@6.4.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))
+        version: 2.1.4(@babel/core@7.26.10)(styled-components@6.4.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))
       jest-environment-jsdom:
         specifier: ^30.2.0
         version: 30.2.0
@@ -290,7 +290,7 @@ importers:
         version: 5.1.22
       jest-styled-components:
         specifier: ^7.2.0
-        version: 7.2.0(styled-components@6.4.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))
+        version: 7.2.0(styled-components@6.4.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1))
 
   web/packages/shared:
     dependencies:
@@ -5801,8 +5801,8 @@ packages:
   style-mod@4.1.2:
     resolution: {integrity: sha512-wnD1HyVqpJUI2+eKZ+eo1UwghftP6yuFheBqqe+bWCotBjC2K1YnteJILRMs3SM4V/0dLEW1SC27MWP5y+mwmw==}
 
-  styled-components@6.4.2:
-    resolution: {integrity: sha512-xZBhBJsMtGqb+aKcwKgaT+BtuFums9VynX2JRvXJGTx5UfZzN12rk5r4nVdhXYvRw+hE7yiYxVrOqJZaK2+Txg==}
+  styled-components@6.4.1:
+    resolution: {integrity: sha512-ADu2dF53esUzzM4I0ewxhxFtsDd6v4V6dNkg3vG0iFKhnt06sJneTZnRvujAosZwW0XD58IKgGMQoqri4wHRqg==}
     engines: {node: '>= 16'}
     peerDependencies:
       react: '>= 16.8.0'
@@ -9563,14 +9563,14 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  babel-plugin-styled-components@2.1.4(@babel/core@7.26.10)(styled-components@6.4.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)):
+  babel-plugin-styled-components@2.1.4(@babel/core@7.26.10)(styled-components@6.4.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)):
     dependencies:
       '@babel/helper-annotate-as-pure': 7.24.7
       '@babel/helper-module-imports': 7.25.9
       '@babel/plugin-syntax-jsx': 7.24.7(@babel/core@7.26.10)
       lodash: 4.18.1
       picomatch: 2.3.2
-      styled-components: 6.4.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      styled-components: 6.4.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
     transitivePeerDependencies:
       - '@babel/core'
       - supports-color
@@ -11238,10 +11238,10 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  jest-styled-components@7.2.0(styled-components@6.4.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)):
+  jest-styled-components@7.2.0(styled-components@6.4.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)):
     dependencies:
       '@adobe/css-tools': 4.4.0
-      styled-components: 6.4.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      styled-components: 6.4.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
 
   jest-util@30.2.0:
     dependencies:
@@ -12463,7 +12463,7 @@ snapshots:
 
   style-mod@4.1.2: {}
 
-  styled-components@6.4.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
+  styled-components@6.4.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
     dependencies:
       '@emotion/is-prop-valid': 1.4.0
       css-to-react-native: 3.2.0
