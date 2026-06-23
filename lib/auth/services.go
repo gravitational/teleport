@@ -100,6 +100,7 @@ type Services struct {
 	MFAService
 	services.Beams
 	services.SubCAService
+	services.EnrollPairing
 }
 
 // MFAService defines the interface for managing MFA resources in the backend.

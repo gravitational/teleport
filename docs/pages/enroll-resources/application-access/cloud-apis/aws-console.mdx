@@ -34,7 +34,7 @@ assume one or more target IAM roles. Teleport users access the AWS Management
 Console and APIs through the Teleport Web UI and `tsh`. When a user visits the
 AWS Management Console or executes a command with an AWS client application, the
 Teleport Application Service checks the user's RBAC permissions and, if they are
-authorized, forwards the user's requests to AWS. 
+authorized, forwards the user's requests to AWS.
 
 ## Prerequisites
 
@@ -98,7 +98,7 @@ Application Service to assume other IAM roles in order to proxy user traffic to
 AWS APIs.
 
 1. Define a trust policy to enable the Teleport Application Service to assume
-   the role you will create. 
+   the role you will create.
 
    <Tabs>
    <TabItem label="EC2">
@@ -110,7 +110,7 @@ AWS APIs.
      "Version": "2012-10-17",
      "Statement": [
        {
-         "Effect": "Allow", 
+         "Effect": "Allow",
          "Principal": {
            "Service": "ec2.amazonaws.com"
          },
@@ -126,18 +126,18 @@ AWS APIs.
    Retrieve your OIDC issuer ID, assigning <Var name="cluster-name" /> to the name
    of your EKS cluster and <Var name="eks-region" /> to the AWS region where your
    EKS cluster is running:
-   
+
    ```code
    $ aws --region=<Var name="eks-region" /> eks describe-cluster --name <Var name="cluster-name"/> --query "cluster.identity.oidc.issuer" --output text | grep -Eo "[A-Z0-9]+$"
 
    AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
    ```
-   
+
    Create a file called `app-service-tp.json` with the following content,
    assigning <Var name="OIDC_ISSUER" /> to the issuer string you retrieved and
    <Var name="EKS_ACCOUNT" /> to the ID of the AWS account that belongs to your
    EKS cluster:
-   
+
    ```json
    {
        "Version": "2012-10-17",
@@ -229,10 +229,10 @@ this role when proxying requests:
            "AWS": "arn:aws:iam::<Var name="AWS_ACCESS_ACCOUNT" />:role/TeleportAWSAccess"
          },
          "Action": "sts:AssumeRole",
-         "Condition": { 
-           "StringEquals": { 
-             "sts:ExternalId": "<Var name="EXTERNAL_ID" />" 
-           } 
+         "Condition": {
+           "StringEquals": {
+             "sts:ExternalId": "<Var name="EXTERNAL_ID" />"
+           }
          }
        }
      ]
@@ -295,7 +295,7 @@ this role when proxying requests:
 ### Associate a role with the Teleport Application Service
 
 Now that you have created a role for the Teleport Application Service, associate
-the role with the service. 
+the role with the service.
 
 <Tabs>
 <TabItem label="EC2">
@@ -322,7 +322,7 @@ Service.
    Application Service.
 
 1. Run the following command to associate the new instance profile with your
-   instance, assigning <Var name="INSTANCE_ID" /> to your instance ID and 
+   instance, assigning <Var name="INSTANCE_ID" /> to your instance ID and
    <Var name="AWS_REGION" /> to your AWS region:
 
    ```code
@@ -366,7 +366,7 @@ In this step, you will define a Teleport role that confers access to the
        aws_role_arns:
        - arn:aws:iam::<Var name="AWS_ACCOUNT" />:role/ExampleReadOnlyAccess
    ```
-   
+
    The Teleport role called `aws-ro-access` enables users to visit the AWS
    Management Console or make requests to AWS APIs with the `ExampleReadOnlyAccess`
    role.
@@ -400,7 +400,7 @@ $ tctl tokens add --type=app --ttl=1h --format=text
 <TabItem label="EC2">
 
 On the host where you will install the Teleport Application Service, create a
-file called `/tmp/token` that consists only of your token, assigning 
+file called `/tmp/token` that consists only of your token, assigning
 <Var name="join-token" /> to the value of the token:
 
 ```code
@@ -447,7 +447,7 @@ Application Service:
    The `app_service` field configures the Teleport Application Service. Each
    item within `app_service.apps` is an application configuration. If self-hosting
    the Teleport cluster, you must have [DNS and a TLS certificate](../getting-started.mdx#subdomains-and-applications)
-   configured for the application domain name associated with the Teleport 
+   configured for the application domain name associated with the Teleport
    Proxy Service, e.g., `awsconsole.teleport.example.com`.
 
 </TabItem>
@@ -594,13 +594,13 @@ to AWS, users can access AWS resources through Teleport.
    ```code
    $ tsh apps login --aws-role ExampleReadOnlyAccess awsconsole
    Logged into AWS app "awsconsole".
-   
+
    Your IAM role:
      arn:aws:iam::000000000000:role/ExampleReadOnlyAccess
-   
+
    Example AWS CLI command:
      tsh aws s3 ls
-   
+
    Or start a local proxy:
      tsh proxy aws --app awsconsole
    ```
@@ -609,6 +609,18 @@ to AWS, users can access AWS resources through Teleport.
    accessing AWS APIs. You can either provide a role name like `--aws-role
    ExampleReadOnlyAccess` or a full role ARN like
    `arn:aws:iam::0000000000:role/ExampleReadOnlyAccess`.
+
+   To list the AWS roles that you can provide to the `--aws-role` flag, run the following command:
+   `tsh apps logins [--format=text|json|yaml] <app>`.
+
+   ```code
+   $ tsh apps logins aws-console
+   Available AWS roles:
+   Role Name             Role ARN
+   --------------------- ----------------------------------------------------
+   ExampleAdminAccess    arn:aws:iam::123456789012:role/ExampleReadOnlyAccess
+   ExampleReadOnlyAccess arn:aws:iam::123456789012:role/ExampleAdminAccess
+   ```
 
    Alternatively, if the `--aws-role` is not provided, the aws role will be
    prompted interactively.
@@ -656,7 +668,7 @@ to AWS, users can access AWS resources through Teleport.
    ```code
    $ tsh proxy aws -p 23456
    Started AWS proxy on http://127.0.0.1:23456.
-   
+
    Use the following credentials and HTTPS proxy setting to connect to the proxy:
      export AWS_ACCESS_KEY_ID=(=aws.aws_access_key=)
      export AWS_SECRET_ACCESS_KEY=(=aws.aws_secret_access_key=)
@@ -676,14 +688,14 @@ to AWS, users can access AWS resources through Teleport.
    >>> ec2 = boto3.resource('ec2')
    >>> for instance in ec2.instances.all():
    ...   print(instance.id)
-   ...   
+   ...
    ```
 
    It is important to check how AWS credentials and HTTPS proxy setting can be
    configured for your application. For example, command line tools like
    `terraform` and `eksctl` support setting AWS credentials and the HTTPS proxy
    using environment variables, as shown above.
-   
+
    However, some AWS SDKs may require extra environment variables (e.g.
    `AWS_SDK_LOAD_CONFIG=true` for AWS SDK for Go v2) or require configuring the
    HTTPS proxy through code (e.g. AWS SDK for JavaScript).
@@ -712,7 +724,7 @@ Read this section if you run into issues while following this guide.
 
 When visiting the AWS Management Console from the Teleport Web UI, you may see
 an `InternalServer Error` message or other connection issues instead of the
-AWS Management Console. 
+AWS Management Console.
 
 If this happens, check the Teleport Application Service logs:
 
@@ -755,7 +767,7 @@ AccessDenied: User: arn:aws:sts::000000000000:assumed-role/ROLE_NAME is not auth
 ```
 
 The `AccessDenied` message contains the principal assumed by the Teleport
-Application Service in order to execute the `sts:AssumeRole` action. 
+Application Service in order to execute the `sts:AssumeRole` action.
 
 If the principal is the `TeleportAWSAccess` role, check the trust policy of the
 `ExampleReadOnlyAccess` role to ensure that it contains that principal.
