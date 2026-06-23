@@ -1,10 +1,14 @@
 import cfg from 'e-teleport/config';
 import api from 'teleport/services/api';
+import auth from 'teleport/services/auth';
 
 import { pluginsService } from './plugins';
 
 beforeEach(() => {
   jest.clearAllMocks();
+  jest
+    .spyOn(auth, 'getMfaChallengeResponseForAdminAction')
+    .mockResolvedValue(undefined);
 });
 
 test('create static auth plugins', async () => {

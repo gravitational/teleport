@@ -18,6 +18,7 @@ import {
   pluginsService,
   PluginUpdateRequest,
 } from 'e-teleport/services/plugins';
+import auth from 'teleport/services/auth';
 import {
   IntegrationStatusCode,
   PluginKind,
@@ -44,6 +45,12 @@ jest.mock('shared/libs/logger', () => {
 });
 
 enableMswServer();
+
+beforeEach(() => {
+  jest
+    .spyOn(auth, 'getMfaChallengeResponseForAdminAction')
+    .mockResolvedValue(undefined);
+});
 
 const defaultIdentityEntitlement = cfg.oss.entitlements.Identity;
 

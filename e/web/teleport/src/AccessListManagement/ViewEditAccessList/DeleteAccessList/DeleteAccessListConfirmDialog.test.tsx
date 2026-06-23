@@ -28,6 +28,7 @@ import {
   ReviewFrequency,
 } from 'e-teleport/services/accessmanagement';
 import { ContextProvider } from 'teleport';
+import auth from 'teleport/services/auth';
 
 import { AccessListModified, modifyAccessList } from '../Shared';
 import { DeleteAccessListConfirmDialog } from './DeleteAccessListConfirmDialog';
@@ -42,6 +43,9 @@ beforeAll(() => {
 });
 
 beforeEach(async () => {
+  jest
+    .spyOn(auth, 'getMfaChallengeResponseForAdminAction')
+    .mockResolvedValue(undefined);
   server.use(
     http.get(unifiedResourcePath, () => {
       return HttpResponse.json({ items: [] });
