@@ -59,7 +59,7 @@ const (
 	// artifactSignatureType is the detached cosign signature extension for Teleport tgzs.
 	artifactSignatureType = "sig"
 	// maxArtifactSignatureSize is the maximum allowed size of a detached artifact signature.
-	maxArtifactSignatureSize = 1_000_000 // 1 MB
+	maxArtifactSignatureSize = 4_096 // 4 KB, ECDSA P256 signatures are ~96 bytes
 )
 
 const (
