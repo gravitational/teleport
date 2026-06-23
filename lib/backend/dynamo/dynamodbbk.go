@@ -958,10 +958,7 @@ func (b *Backend) KeepAlive(ctx context.Context, lease backend.Lease, expires ti
 	input := &dynamodb.UpdateItemInput{
 		TableName: aws.String(b.TableName),
 
-		Key: map[string]types.AttributeValue{
-			hashKeyKey:  &types.AttributeValueMemberS{Value: hashKey},
-			fullPathKey: &types.AttributeValueMemberS{Value: prependPrefix(lease.Key)},
-		},
+		Key: keyToAttributeValueMap(lease.Key),
 
 		UpdateExpression:    aws.String("SET Expires = :expires"),
 		ConditionExpression: aws.String("attribute_exists(FullPath) AND (attribute_not_exists(Expires) OR Expires >= :now)"),
