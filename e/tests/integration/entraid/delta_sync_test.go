@@ -3,7 +3,9 @@ package entraid
 import (
 	"fmt"
 	"maps"
+	"net/http"
 	"slices"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -15,6 +17,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/e/lib/entraid"
 	"github.com/gravitational/teleport/e/tests/common"
 	"github.com/gravitational/teleport/lib/msgraph/models"
 	"github.com/gravitational/teleport/lib/msgraph/msgraphtest"
@@ -837,4 +840,146 @@ func TestGroupFilterAppliesOnGroupDisplayUpdate(t *testing.T) {
 	gotAccesslists, err = listEntraIDAccessLists(ctx, env.authClient.AccessListClient())
 	require.NoError(t, err, "list entra access lists")
 	require.Len(t, gotAccesslists, 2, "group3 not deleted")
+}
+
+func TestSynchronizationReset_DeltaEnabled_FullDisabled(t *testing.T) {
+	ctx := t.Context()
+
+	// Setup.
+	defaultStorage := newDefaultStorage()
+	clock := clockwork.NewFakeClock()
+	env := newTestEnv(t, defaultStorage, common.WithClock(clock))
+	pluginWatcher := env.sut.NewResourceWatcher(t, types.KindPlugin)
+	defer pluginWatcher.Close()
+
+	// Mock sync reset.
+	//
+	// Counter for how many times the "latest" delta API and the incremental
+	// delta API was called. Each call to "latest" endpoint proves that
+	// the sync was a full sync.
+	var latestDeltaRequestCount, incrementalDeltaRequestCount atomic.Int64
+	var resetErrorWritten atomic.Bool
+	env.fakeServer.SetHandleListUsersDelta(func(w http.ResponseWriter, r *http.Request) {
+		token := r.URL.Query().Get("$deltatoken")
+		if token == "latest" {
+			latestDeltaRequestCount.Add(1)
+			env.fakeServer.ListUsersDelta(w, r)
+			return
+		}
+
+		incrementalDeltaRequestCount.Add(1)
+		if !resetErrorWritten.Swap(true) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusGone)
+			const syncResetErr = `{
+			"error": {
+				"code": "resyncRequired",
+				"message":"Exception of type resyncRequired was thrown.",
+				"innerError": {
+				"code": "resyncApplyDifferences",
+				"request-id": "request-id",
+				"date": "date-time"
+				}
+			}
+			}`
+			_, err := w.Write([]byte(syncResetErr))
+			require.NoError(t, err)
+			return
+		}
+		env.fakeServer.ListUsersDelta(w, r)
+	})
+	t.Cleanup(func() {
+		env.fakeServer.SetHandleListUsersDelta(nil)
+	})
+
+	authClient := env.authClient
+	mustCreatePlugin(t,
+		ctx,
+		authClient,
+		withSyncIntervals(&types.PluginEntraIDSyncIntervals{
+			Delta: deltaSyncInterval.String(),
+			Full:  "0", // full sync disabled
+		}),
+	)
+
+	// 1. First sync should be full even though the full interval is disabled.
+	// Should import all users, groups, and group memberships defined in `newDefaultStorage`.
+
+	// Wait for timer to be registered but do not advance the clock as the sync is supposed
+	// to be scheduled instantly.
+	advanceClock(t, ctx, clock, 0)
+	lastSyncTime := waitForPluginStatusUpdate(t, pluginWatcher, time.Time{} /* last sync time empty on first sync */)
+	expectDefaultUserSync(t, env.authClient)
+	expectDefaultGroupSync(t, env.authClient)
+	require.Equal(t, int64(1), latestDeltaRequestCount.Load(), "expected latest delta token request")
+	require.Equal(t, int64(0), incrementalDeltaRequestCount.Load(), "first sync should not hit delta incremental API path")
+
+	gotAccessLists, err := listEntraIDAccessLists(ctx, env.authClient.AccessListClient())
+	require.NoError(t, err, "list entra access lists")
+	require.Len(t, gotAccessLists, 3) // Three groups defined in newDefaultStorage.
+
+	// 2. First delta sync after first full sync.
+	// This sync schedule should hit the reset error.
+	advanceClock(t, ctx, clock, deltaSyncInterval)
+	lastSyncTime = waitForPluginStatusUpdate(t, pluginWatcher, lastSyncTime)
+	// Latest API should not be called, but the incremental API should have been called.
+	require.Equal(t, int64(1), latestDeltaRequestCount.Load(), "expected latest delta API to not be called")
+	require.Equal(t, int64(1), incrementalDeltaRequestCount.Load(), "expected incremental API to have been called")
+
+	// Existing resources should be intact.
+	expectDefaultUserSync(t, env.authClient)
+	expectDefaultGroupSync(t, env.authClient)
+
+	// Previous delta sync was reset, the next sync should be a new full sync again.
+	advanceClock(t, ctx, clock, entraid.DefaultFullSyncInterval)
+	lastSyncTime = waitForPluginStatusUpdate(t, pluginWatcher, lastSyncTime, func(types.Plugin) bool {
+		// expect latest delta count to be increased from 1 -> 2
+		return latestDeltaRequestCount.Load() == 2 &&
+			incrementalDeltaRequestCount.Load() == 1
+	})
+
+	// Existing resources should be intact.
+	expectDefaultUserSync(t, env.authClient)
+	expectDefaultGroupSync(t, env.authClient)
+
+	// 3. Subsequent delta sync should return to normal incremental delta mode.
+	// Add a new aliceN user and delete group1.
+	env.fakeServer.DeleteGroups([]string{group1ID})
+	aliceN := newEntraUser("848f8e0c-2714-4745-b478-1f7b59620ee5", "aliceN@example.com", "Alice N")
+	env.fakeServer.SetUsers([]*models.User{aliceN})
+
+	// Set watchers to wait for events.
+	aclWatcher := env.sut.NewResourceWatcher(t, types.KindAccessList)
+	defer aclWatcher.Close()
+	userWatcher := env.sut.NewResourceWatcher(t, types.KindUser)
+	defer userWatcher.Close()
+	advanceClock(t, ctx, clock, deltaSyncInterval)
+	waitForPluginStatusUpdate(t, pluginWatcher, lastSyncTime, func(types.Plugin) bool {
+		// expect incremental delta count to be increased from 1 -> 2
+		return latestDeltaRequestCount.Load() == 2 &&
+			incrementalDeltaRequestCount.Load() == 2
+	})
+	common.WaitForDeleteEvent(t, aclWatcher, func(r types.Resource) bool {
+		return r.GetName() == gotAccessLists["group1"].GetName()
+	})
+
+	// Group names matches with default payload available in [msgraphtest.PayloadListGroups].
+	expectedAccessListTitles := []string{"group2", "group3"} // Group 1 was deleted.
+	gotAccessLists, err = listEntraIDAccessLists(ctx, authClient.AccessListClient())
+	require.NoError(t, err)
+	require.NotNil(t, gotAccessLists)
+	require.ElementsMatch(t, expectedAccessListTitles, slices.Collect(maps.Keys(gotAccessLists)), "expected access list to be deleted")
+
+	common.WaitForPutEvent(t, userWatcher, func(r types.User) bool {
+		return r.GetName() == "aliceN@example.com"
+	})
+
+	got, err := listEntraIDUsers(ctx, authClient)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []string{
+		"alice@example.com",
+		"bob@example.com",
+		"carol@example.com",
+		"aliceN@example.com",
+	}, got, "expected Entra ID users to be created in Teleport")
 }

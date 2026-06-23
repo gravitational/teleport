@@ -385,6 +385,13 @@ func (s *Service) maybeResetSyncSchedule(ctx context.Context, err error, syncMod
 		return
 	}
 
+	if s.deltaSyncEnabled {
+		// firstSyncCompleted == false forces the next sync to be a full sync.
+		// This is needed because the delta sync depends on the baseline snapshot
+		// of the Entra ID directory created by a successful full sync.
+		s.firstSyncCompleted = false
+	}
+
 	delayFn := func() time.Duration { return delayInterval }
 	if err := s.syncIntervals.Reset(delayFn); err != nil {
 		s.log.ErrorContext(ctx, "Failed to reset Entra ID sync schedule", "sync_mode", directory.FriendlySyncMode(syncMode), "error", err)

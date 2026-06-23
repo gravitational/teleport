@@ -365,59 +365,114 @@ func TestMaybeResetSyncScheduleOnStart(t *testing.T) {
 func TestMaybeResetSyncSchedule_SyncModePartial(t *testing.T) {
 	const deltaSyncInterval = 2 * time.Minute
 	tests := []struct {
-		name      string
-		err       error
-		wantReset bool
+		name         string
+		err          error
+		syncInterval SyncIntervals
+
+		wantReset    bool
+		wantNextMode mdmsync.SyncMode
 	}{
 		{
-			name:      "missing delta link error should reset",
-			err:       msgraph.ErrMissingDeltaLink,
-			wantReset: true,
+			name: "missing delta link error should reset",
+			syncInterval: SyncIntervals{
+				Full:  time.Hour,
+				Delta: deltaSyncInterval,
+			},
+			err:          msgraph.ErrMissingDeltaLink,
+			wantReset:    true,
+			wantNextMode: mdmsync.SyncModeFull,
 		},
 		{
-			name: "delta api error should reset",
+			name: "delta api error should reset when full sync is enabled",
+			syncInterval: SyncIntervals{
+				Full:  time.Hour,
+				Delta: deltaSyncInterval,
+			},
 			err: trace.Wrap(&msgraph.GraphError{
 				Code: msgraph.ErrCodeSyncStateNotFound,
 			}),
-			wantReset: true,
+			wantReset:    true,
+			wantNextMode: mdmsync.SyncModeFull,
 		},
 		{
-			name:      "should not reset on unknown error on partial sync mode",
-			err:       errors.New("random error"),
-			wantReset: false,
+			name: "delta api error should reset when full sync is disabled",
+			syncInterval: SyncIntervals{
+				Full:  0, // disabled
+				Delta: deltaSyncInterval,
+			},
+			err: trace.Wrap(&msgraph.GraphError{
+				Code: msgraph.ErrCodeSyncStateNotFound,
+			}),
+			wantReset:    true,
+			wantNextMode: mdmsync.SyncModeFull,
+		},
+		{
+			name: "should not reset on unknown error on partial sync mode",
+			syncInterval: SyncIntervals{
+				Full:  time.Hour,
+				Delta: deltaSyncInterval,
+			},
+			err:          errors.New("random error"),
+			wantReset:    false,
+			wantNextMode: mdmsync.SyncModePartial,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				clock := clockwork.NewRealClock()
 
-			scheduler, err := newScheduler(SyncIntervals{
-				Full:  time.Hour,
-				Delta: deltaSyncInterval,
+				directoryReconciler := &fakeDirectoryReconciler{}
+
+				schedules, err := newScheduler(tc.syncInterval)
+				require.NoError(t, err)
+				svc := &Service{
+					clock:               clock,
+					log:                 logtest.NewLogger(),
+					pluginStatusSink:    &integration.FakeStatusSink{},
+					directoryReconciler: directoryReconciler,
+					syncIntervals:       schedules,
+					deltaSyncEnabled:    tc.syncInterval.Delta > 0,
+				}
+
+				ctx, cancel := context.WithCancel(t.Context())
+				defer cancel()
+
+				returned := make(chan error, 1)
+				go func() {
+					returned <- svc.runScheduled(ctx)
+				}()
+
+				// First sync mode is always full sync mode.
+				synctest.Wait()
+				require.Equal(t, int64(1), atomic.LoadInt64(&directoryReconciler.timesCalled))
+				require.Equal(t, mdmsync.SyncModeFull, directoryReconciler.getLastSyncMode())
+
+				// Second sync is a delta sync when delta interval is > 0.
+				// Simulate error on the this sync.
+				directoryReconciler.setErr(tc.err)
+				time.Sleep(deltaSyncInterval)
+				synctest.Wait()
+				require.Equal(t, int64(2), atomic.LoadInt64(&directoryReconciler.timesCalled))
+				require.Equal(t, mdmsync.SyncModePartial, directoryReconciler.getLastSyncMode())
+
+				directoryReconciler.setErr(nil)
+				if tc.wantReset {
+					// On known errors, the sync scheduled must be reset.
+					// Reset waits DefaultFullSyncInterval at minimum.
+					time.Sleep(DefaultFullSyncInterval)
+				} else {
+					time.Sleep(deltaSyncInterval)
+				}
+				synctest.Wait()
+				require.Equal(t, int64(3), atomic.LoadInt64(&directoryReconciler.timesCalled))
+				require.Equal(t, tc.wantNextMode, directoryReconciler.getLastSyncMode())
+
+				cancel()
+				synctest.Wait()
+				require.ErrorIs(t, <-returned, context.Canceled)
 			})
-			require.NoError(t, err)
-
-			// Consume first full sync schedule i.e. 0 offset.
-			firstSync := scheduler.Next()
-			require.Equal(t, mdmsync.SyncModeFull, firstSync.Mode)
-
-			svc := &Service{
-				log:              logtest.NewLogger(),
-				deltaSyncEnabled: true,
-				syncIntervals:    scheduler,
-			}
-
-			svc.maybeResetSyncSchedule(t.Context(), tc.err, mdmsync.SyncModePartial)
-
-			if tc.wantReset {
-				require.Equal(t, DefaultFullSyncInterval, scheduler.NextOffset())
-
-				next := scheduler.Next()
-				require.Equal(t, mdmsync.SyncModeFull, next.Mode)
-				return
-			}
-
-			require.Equal(t, deltaSyncInterval, scheduler.NextOffset())
 		})
 	}
 }

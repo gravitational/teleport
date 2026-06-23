@@ -627,7 +627,9 @@ func mustGetAclNames(t *testing.T, ctx context.Context, aclClient services.Acces
 	return out
 }
 
-func waitForPluginStatusUpdate(t *testing.T, w types.Watcher, before time.Time) time.Time {
+type pluginStatusMatcher func(types.Plugin) bool
+
+func waitForPluginStatusUpdate(t *testing.T, w types.Watcher, before time.Time, matchers ...pluginStatusMatcher) time.Time {
 	t.Helper()
 
 	var newLastSyncTime time.Time
@@ -636,7 +638,26 @@ func waitForPluginStatusUpdate(t *testing.T, w types.Watcher, before time.Time) 
 			return false
 		}
 		newLastSyncTime = r.GetStatus().GetLastSyncTime()
-		return !newLastSyncTime.IsZero() && newLastSyncTime.After(before)
+		if newLastSyncTime.IsZero() || !newLastSyncTime.After(before) {
+			return false
+		}
+		for _, matcher := range matchers {
+			if !matcher(r) {
+				return false
+			}
+		}
+		return true
 	})
 	return newLastSyncTime
+}
+
+// advances time duration after a fake clock is registered.
+func advanceClock(t *testing.T, ctx context.Context, clock *clockwork.FakeClock, d time.Duration) {
+	t.Helper()
+
+	waitCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	require.NoError(t, clock.BlockUntilContext(waitCtx, 1))
+
+	clock.Advance(d)
 }
