@@ -88,11 +88,15 @@ func (s *TerraformSuiteEnterprise) TestAccessList() {
 					resource.TestCheckResourceAttr(name, "header.kind", "access_list"),
 					resource.TestCheckResourceAttr(name, "header.version", "v1"),
 					resource.TestCheckResourceAttr(name, "header.metadata.name", "test"),
-					resource.TestCheckResourceAttr(name, "spec.audit.notifications.start", "336h0m0s"),
-					resource.TestCheckResourceAttr(name, "spec.audit.recurrence.day_of_month", "1"),
-					resource.TestCheckResourceAttr(name, "spec.audit.recurrence.frequency", "6"),
+					resource.TestCheckResourceAttr(name, "header.metadata.labels.example", "yes"),
+					resource.TestCheckResourceAttr(name, "spec.description", "test description"),
 					resource.TestCheckResourceAttr(name, "spec.owners.0.name", "gru"),
+					resource.TestCheckResourceAttr(name, "spec.owners.0.description", "The supervillain."),
+					resource.TestCheckResourceAttr(name, "spec.membership_requires.roles.0", "minion"),
+					resource.TestCheckResourceAttr(name, "spec.ownership_requires.roles.0", "supervillain"),
+					resource.TestCheckResourceAttr(name, "spec.grants.roles.0", "crane-operator"),
 					resource.TestCheckResourceAttr(name, "spec.title", "Hello"),
+					resource.TestCheckResourceAttr(name, "spec.audit.recurrence.frequency", "3"),
 					auditDateChecker.CaptureNextAuditDate("test"),
 				),
 			},
@@ -131,6 +135,50 @@ func (s *TerraformSuiteEnterprise) TestAccessList() {
 			},
 			{
 				Config:   s.getFixture("access_list_2_expiring.tf"),
+				PlanOnly: true,
+			},
+		},
+	})
+}
+
+func (s *TerraformSuiteEnterprise) TestAccessListDefaults() {
+	require.True(s.T(),
+		s.teleportFeatures.GetAdvancedAccessWorkflows(),
+		"Test requires Advanced Access Workflows",
+	)
+
+	checkAccessListDestroyed := func(state *terraform.State) error {
+		_, err := s.client.AccessListClient().GetAccessList(context.TODO(), "defaults")
+		if trace.IsNotFound(err) {
+			return nil
+		}
+
+		return err
+	}
+
+	name := "teleport_access_list.defaults"
+	auditDateChecker := nextAuditDateComparer{client: s.client}
+
+	resource.Test(s.T(), resource.TestCase{
+		ProtoV6ProviderFactories: s.terraformProviders,
+		CheckDestroy:             checkAccessListDestroyed,
+		Steps: []resource.TestStep{
+			{
+				Config: s.getFixture("access_list_defaults.tf"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "header.kind", "access_list"),
+					resource.TestCheckResourceAttr(name, "header.version", "v1"),
+					resource.TestCheckResourceAttr(name, "header.metadata.name", "defaults"),
+					resource.TestCheckResourceAttr(name, "spec.audit.notifications.start", "336h0m0s"),
+					resource.TestCheckResourceAttr(name, "spec.audit.recurrence.day_of_month", "1"),
+					resource.TestCheckResourceAttr(name, "spec.audit.recurrence.frequency", "6"),
+					resource.TestCheckResourceAttr(name, "spec.owners.0.name", "gru"),
+					resource.TestCheckResourceAttr(name, "spec.title", "Hello"),
+					auditDateChecker.CaptureNextAuditDate("defaults"),
+				),
+			},
+			{
+				Config:   s.getFixture("access_list_defaults.tf"),
 				PlanOnly: true,
 			},
 		},
