@@ -93,6 +93,7 @@ func Handlers() map[string]Handler {
 		types.KindTrustedCluster:                     trustedClusterHandler(),
 		types.KindUIConfig:                           uiConfigHandler(),
 		types.KindUser:                               userHandler(),
+		types.KindUserLoginState:                     userLoginStateHandler(),
 		types.KindUserTask:                           userTasksHandler(),
 		types.KindVnetConfig:                         vnetConfigHandler(),
 		types.KindWindowsDesktop:                     windowsDesktopHandler(),
