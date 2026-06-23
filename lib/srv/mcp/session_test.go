@@ -446,8 +446,6 @@ func BenchmarkAccessToTool(b *testing.B) {
 	})
 	require.NoError(b, err)
 
-	const testTool = "test_tool"
-
 	requestBuilder := &requestBuilder{}
 
 	requests := make([]*mcputils.JSONRPCRequest, len(tools))
