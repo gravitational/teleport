@@ -17,25 +17,18 @@
 package joinclient
 
 import (
-	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/state"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/trace"
 )
 
 func requireClientTooOld(t require.TestingT, err error, _ ...any) {
@@ -254,16 +247,6 @@ func TestCheckClientVersionSupported(t *testing.T) {
 			assertErr:     require.NoError,
 		},
 		{
-			// An empty version must resolve to api.Version, not "". A minimum
-			// above any real release proves the default kicks in: "" would pass
-			// (an empty version "meets" any minimum), while api.Version is
-			// correctly rejected as too old.
-			name:             "empty version defaults to api.Version",
-			clientVersion:    "",
-			minClientVersion: "9999.0.0",
-			assertErr:        requireClientTooOld,
-		},
-		{
 			name:             "malformed client version",
 			clientVersion:    "not-a-version",
 			minClientVersion: "2.0.0",
@@ -293,70 +276,22 @@ func TestCheckClientVersionSupported(t *testing.T) {
 				Insecure:         true,
 				SkipVersionCheck: tc.skipVersionCheck,
 				Log:              logtest.NewLogger(),
-				Testing:          JoinTestingParams{TeleportVersion: tc.clientVersion},
 			}
 			addr := strings.TrimPrefix(srv.URL, "https://")
-			tc.assertErr(t, checkClientVersionSupported(t.Context(), params, addr))
+			tc.assertErr(t, checkClientVersionSupported(t.Context(), tc.clientVersion, params, addr))
 		})
 	}
 }
 
-// TestJoinFailsFastWhenClientVersionIncompatible ensures a confirmed too-old
-// or too-new client gets a [ClientTooOldError] or [ClientTooNewError] back
-// from [Join] itself. If the error were ever classified as a connection error
-// anywhere in the chain, [Join] would instead fall back to the legacy join
-// service, which has no version check and discards the original error.
-func TestJoinFailsFastWhenClientVersionIncompatible(t *testing.T) {
+// TestClientVersionErrorsAreFatal ensures a confirmed too-old or too-new client
+// error is not misclassified as a connection or not-implemented error. If it
+// were, Join would fall back to the legacy join service (join.go), which has no
+// version check and would discard the original error.
+func TestClientVersionErrorsAreFatal(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/webapi/find" {
-			http.NotFound(w, r)
-			return
-		}
-		assert.NoError(t, json.NewEncoder(w).Encode(webclient.PingResponse{
-			MinClientVersion: teleport.MinClientSemVer().String(),
-			ServerVersion:    teleport.Version,
-		}))
-	}))
-	t.Cleanup(srv.Close)
-
-	cases := []struct {
-		name          string
-		clientVersion string
-		assertErr     require.ErrorAssertionFunc
-	}{
-		{
-			name:          "client too old",
-			clientVersion: semver.Version{Major: teleport.MinClientSemVer().Major - 1}.String(),
-			assertErr:     requireClientTooOld,
-		},
-		{
-			name:          "client too new",
-			clientVersion: semver.Version{Major: teleport.SemVer().Major + 1}.String(),
-			assertErr:     requireClientTooNew,
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			_, err := Join(t.Context(), JoinParams{
-				Token:       "token",
-				ID:          state.IdentityID{Role: types.RoleInstance},
-				ProxyServer: utils.NetAddr{AddrNetwork: "tcp", Addr: strings.TrimPrefix(srv.URL, "https://")},
-				JoinMethod:  types.JoinMethodToken,
-				Insecure:    true,
-				Log:         logtest.NewLogger(),
-				Testing:     JoinTestingParams{TeleportVersion: tc.clientVersion},
-				// GetHostCredentials is only reached if the version check error is
-				// misclassified and the legacy fallback engages. This stub makes that
-				// regression fail legibly instead of panicking.
-				GetHostCredentials: func(context.Context, string, bool, types.RegisterUsingTokenRequest) (*proto.Certs, error) {
-					return nil, errors.New("host credentials unavailable")
-				},
-			})
-			tc.assertErr(t, err)
-		})
+	for _, err := range []error{ClientTooOldError{}, ClientTooNewError{}} {
+		assert.False(t, isConnectionError(err), "%T must not be a connection error", err)
+		assert.False(t, trace.IsNotImplemented(err), "%T must not be not-implemented", err)
 	}
 }

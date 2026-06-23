@@ -823,9 +823,6 @@ func (process *TeleportProcess) makeJoinParams(
 		FIPS:                 process.Config.FIPS,
 		Insecure:             process.Config.InsecureMode,
 		SkipVersionCheck:     process.Config.SkipVersionCheck,
-		Testing: joinclient.JoinTestingParams{
-			TeleportVersion: process.Config.Testing.TeleportVersion,
-		},
 	}
 	if joinParams.JoinMethod == types.JoinMethodAzure {
 		joinParams.AzureParams = joinclient.AzureParams{

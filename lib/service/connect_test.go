@@ -60,21 +60,27 @@ import (
 func TestTeleportProcessClientVersionCheck(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// The skipped-check variant proceeds past the version check and hits
-		// join endpoints this stub doesn't implement before failing.
-		if r.URL.Path != "/webapi/find" {
-			http.NotFound(w, r)
-			return
-		}
-		require.NoError(t, json.NewEncoder(w).Encode(webclient.PingResponse{
-			MinClientVersion: teleport.MinClientSemVer().String(),
-			ServerVersion:    teleport.Version,
-		}))
-	}))
-	t.Cleanup(srv.Close)
+	// The skew is induced from the server side: the stub advertises requirements
+	// the running build can't satisfy, so the client-side check trips against the
+	// real teleport.Version without overriding the local version.
+	tooOldMinVersion := semver.Version{Major: teleport.SemVer().Major + 1}.String()
+	tooNewServerVersion := semver.Version{Major: teleport.SemVer().Major - 1}.String()
 
-	newConfig := func(t *testing.T, version string) *servicecfg.Config {
+	newConfig := func(t *testing.T, minClientVersion, serverVersion string) *servicecfg.Config {
+		srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// The skipped-check variant proceeds past the version check and hits
+			// join endpoints this stub doesn't implement before failing.
+			if r.URL.Path != "/webapi/find" {
+				http.NotFound(w, r)
+				return
+			}
+			require.NoError(t, json.NewEncoder(w).Encode(webclient.PingResponse{
+				MinClientVersion: minClientVersion,
+				ServerVersion:    serverVersion,
+			}))
+		}))
+		t.Cleanup(srv.Close)
+
 		cfg := servicecfg.MakeDefaultConfig()
 		cfg.Version = defaults.TeleportConfigVersionV3
 		cfg.ProxyServer = utils.NetAddr{AddrNetwork: "tcp", Addr: strings.TrimPrefix(srv.URL, "https://")}
@@ -84,15 +90,11 @@ func TestTeleportProcessClientVersionCheck(t *testing.T) {
 		cfg.Auth.Enabled = false
 		cfg.Proxy.Enabled = false
 		cfg.SSH.Enabled = true
-		cfg.Testing.TeleportVersion = version
 		return cfg
 	}
 
-	tooOldVersion := semver.Version{Major: teleport.MinClientSemVer().Major - 1}.String()
-	tooNewVersion := semver.Version{Major: teleport.SemVer().Major + 1}.String()
-
 	t.Run("client too old stops reconnect retries", func(t *testing.T) {
-		cfg := newConfig(t, tooOldVersion)
+		cfg := newConfig(t, tooOldMinVersion, teleport.Version)
 		process, err := NewTeleport(cfg)
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = process.Close() })
@@ -103,7 +105,7 @@ func TestTeleportProcessClientVersionCheck(t *testing.T) {
 	})
 
 	t.Run("client too old with skip version check bypasses the failure", func(t *testing.T) {
-		cfg := newConfig(t, tooOldVersion)
+		cfg := newConfig(t, tooOldMinVersion, teleport.Version)
 		cfg.SkipVersionCheck = true
 
 		process, err := NewTeleport(cfg)
@@ -123,7 +125,7 @@ func TestTeleportProcessClientVersionCheck(t *testing.T) {
 	})
 
 	t.Run("client too new stops reconnect retries", func(t *testing.T) {
-		cfg := newConfig(t, tooNewVersion)
+		cfg := newConfig(t, teleport.MinClientSemVer().String(), tooNewServerVersion)
 
 		process, err := NewTeleport(cfg)
 		require.NoError(t, err)
@@ -135,7 +137,7 @@ func TestTeleportProcessClientVersionCheck(t *testing.T) {
 	})
 
 	t.Run("client too new with skip version check bypasses the failure", func(t *testing.T) {
-		cfg := newConfig(t, tooNewVersion)
+		cfg := newConfig(t, teleport.MinClientSemVer().String(), tooNewServerVersion)
 		cfg.SkipVersionCheck = true
 
 		process, err := NewTeleport(cfg)

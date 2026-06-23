@@ -17,7 +17,6 @@
 package joinclient
 
 import (
-	"cmp"
 	"context"
 	"crypto"
 	"crypto/x509"
@@ -27,10 +26,10 @@ import (
 	"os"
 
 	"github.com/coreos/go-semver/semver"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
@@ -55,11 +54,10 @@ import (
 )
 
 type (
-	JoinParams        = authjoin.RegisterParams
-	JoinTestingParams = authjoin.RegisterTestingParams
-	JoinResult        = authjoin.RegisterResult
-	AzureParams       = authjoin.AzureParams
-	GitlabParams      = authjoin.GitlabParams
+	JoinParams   = authjoin.RegisterParams
+	JoinResult   = authjoin.RegisterResult
+	AzureParams  = authjoin.AzureParams
+	GitlabParams = authjoin.GitlabParams
 )
 
 // Join is used to join a cluster. A host or bot calls this with the name of a
@@ -180,7 +178,7 @@ func joinNew(ctx context.Context, params JoinParams) (*JoinResult, error) {
 // and fails open, returning nil when the versions can't be determined. It is
 // bypassed with a warning on incompatibility when [JoinParams.SkipVersionCheck]
 // is set, which is generally set by the --skip-version-check CLI flag.
-func checkClientVersionSupported(ctx context.Context, params JoinParams, proxyAddr string) error {
+func checkClientVersionSupported(ctx context.Context, version string, params JoinParams, proxyAddr string) error {
 	resp, err := webclient.Find(&webclient.Config{
 		Context:   ctx,
 		ProxyAddr: proxyAddr,
@@ -195,11 +193,9 @@ func checkClientVersionSupported(ctx context.Context, params JoinParams, proxyAd
 		return nil
 	}
 
-	localVersion := cmp.Or(params.Testing.TeleportVersion, api.Version)
-
 	for _, err := range []error{
-		checkClientMeetsMinVersion(localVersion, resp.MinClientVersion),
-		checkClientMeetsMaxVersion(localVersion, resp.ServerVersion),
+		checkClientMeetsMinVersion(version, resp.MinClientVersion),
+		checkClientMeetsMaxVersion(version, resp.ServerVersion),
 	} {
 		if err == nil {
 			continue
@@ -212,7 +208,7 @@ func checkClientVersionSupported(ctx context.Context, params JoinParams, proxyAd
 				"error", err,
 				"min_client_version", resp.MinClientVersion,
 				"server_version", resp.ServerVersion,
-				"client_version", localVersion,
+				"client_version", version,
 			)
 			continue
 		}
@@ -222,7 +218,7 @@ func checkClientVersionSupported(ctx context.Context, params JoinParams, proxyAd
 				"error", err,
 				"min_client_version", resp.MinClientVersion,
 				"server_version", resp.ServerVersion,
-				"client_version", localVersion,
+				"client_version", version,
 			)
 			continue
 		}
@@ -266,7 +262,7 @@ func checkClientMeetsMaxVersion(clientVersion, serverVersion string) error {
 }
 
 func joinViaProxy(ctx context.Context, params JoinParams, proxyAddr string) (*JoinResult, error) {
-	if err := checkClientVersionSupported(ctx, params, proxyAddr); err != nil {
+	if err := checkClientVersionSupported(ctx, teleport.Version, params, proxyAddr); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

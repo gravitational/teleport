@@ -204,14 +204,6 @@ type RegisterParams struct {
 	// SkipVersionCheck bypasses the client-side minimum version check performed
 	// when joining via a proxy.
 	SkipVersionCheck bool
-	// Testing holds parameters that are only set in tests.
-	Testing RegisterTestingParams
-}
-
-// RegisterTestingParams holds fields for [RegisterParams] that are only set in tests.
-type RegisterTestingParams struct {
-	// TeleportVersion is used to control the Teleport version in tests.
-	TeleportVersion string
 }
 
 func (r *RegisterParams) CheckAndSetDefaults() error {
