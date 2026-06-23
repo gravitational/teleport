@@ -91,6 +91,55 @@ func TestWithOwnersIneligibleStatusField(t *testing.T) {
 	}))
 }
 
+func TestUserDisplayProtoConversion(t *testing.T) {
+	t.Parallel()
+
+	require.Equal(t, &accesslistv1.UserDisplay{}, ToUserDisplayProto(types.UserDisplay{}))
+	require.Equal(t, types.UserDisplay{}, FromUserDisplayProto(nil))
+	require.Equal(t, types.UserDisplay{}, FromUserDisplayProto(&accesslistv1.UserDisplay{}))
+
+	display := types.UserDisplay{Primary: "Display Name", Secondary: "display@example.com"}
+	require.Equal(t, display, FromUserDisplayProto(ToUserDisplayProto(display)))
+}
+
+func TestUserDisplaysProtoConversion(t *testing.T) {
+	t.Parallel()
+
+	require.Nil(t, FromUserDisplaysProto(nil))
+
+	displays := map[string]*accesslistv1.UserDisplay{
+		"empty":     {},
+		"populated": {Primary: "Display Name", Secondary: "display@example.com"},
+		"missing":   nil,
+	}
+
+	require.Equal(t, map[string]types.UserDisplay{
+		"empty":     {},
+		"populated": {Primary: "Display Name", Secondary: "display@example.com"},
+		"missing":   {},
+	}, FromUserDisplaysProto(displays))
+}
+
+func TestWithOwnerDisplaysField(t *testing.T) {
+	t.Parallel()
+
+	accessList := newAccessList(t, "access-list")
+	accessList.Status.OwnerDisplays = map[string]types.UserDisplay{
+		"test-user1": {Primary: "Test User", Secondary: "test@example.com"},
+		"test-user2": {},
+	}
+	protoAccessList := ToProto(accessList)
+
+	converted, err := FromProto(protoAccessList)
+	require.NoError(t, err)
+	require.Empty(t, converted.Status.OwnerDisplays)
+	require.Equal(t, accessList.Status.MemberCount, converted.Status.MemberCount)
+
+	converted, err = FromProto(protoAccessList, WithOwnerDisplaysField(protoAccessList.GetStatus()))
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(accessList.Status.OwnerDisplays, converted.Status.OwnerDisplays))
+}
+
 func TestRoundtrip(t *testing.T) {
 	t.Parallel()
 
@@ -503,47 +552,4 @@ func Test_convertGrantsToProto_never_nil(t *testing.T) {
 	// See https://github.com/gravitational/teleport/issues/58948
 	emptyGrants := accesslist.Grants{}
 	require.NotNil(t, ConvertGrantsToProto(emptyGrants))
-}
-
-func TestUserDisplayConversion(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name    string
-		display types.UserDisplay
-	}{
-		{name: "both values", display: types.UserDisplay{Primary: "Alice Doe", Secondary: "alice@example.com"}},
-		{name: "primary only", display: types.UserDisplay{Primary: "Alice Doe"}},
-		{name: "secondary only", display: types.UserDisplay{Secondary: "alice@example.com"}},
-		{name: "empty", display: types.UserDisplay{}},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			msg := ToUserDisplayProto(tc.display)
-			// The zero value must stay a non-nil message so a present-but-empty
-			// map entry remains representable on the wire.
-			require.NotNil(t, msg)
-			require.Equal(t, tc.display, FromUserDisplayProto(msg))
-		})
-	}
-}
-
-func TestUserDisplaysConversion(t *testing.T) {
-	t.Parallel()
-
-	// An absent wire map converts to a nil Go map (the un-enriched response).
-	require.Nil(t, FromUserDisplaysProto(nil))
-
-	// Present keys are preserved, including present-but-empty displays.
-	require.Equal(t,
-		map[string]types.UserDisplay{
-			"alice":      {Primary: "Alice Doe", Secondary: "alice@example.com"},
-			"emptyValue": {},
-			"nilValue":   {},
-		},
-		FromUserDisplaysProto(map[string]*accesslistv1.UserDisplay{
-			"alice":      {Primary: "Alice Doe", Secondary: "alice@example.com"},
-			"emptyValue": {},
-			"nilValue":   nil,
-		}))
 }

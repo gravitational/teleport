@@ -151,6 +151,51 @@ func ConvertGrantsFromProto(protoGrants *accesslistv1.AccessListGrants) accessli
 	}
 }
 
+// ToUserDisplayProto converts display values into the access list proto shape.
+func ToUserDisplayProto(display types.UserDisplay) *accesslistv1.UserDisplay {
+	return &accesslistv1.UserDisplay{
+		Primary:   display.Primary,
+		Secondary: display.Secondary,
+	}
+}
+
+// FromUserDisplayProto converts access list proto display values into the shared type.
+func FromUserDisplayProto(display *accesslistv1.UserDisplay) types.UserDisplay {
+	if display == nil {
+		return types.UserDisplay{}
+	}
+	return types.UserDisplay{
+		Primary:   display.GetPrimary(),
+		Secondary: display.GetSecondary(),
+	}
+}
+
+// ToUserDisplaysProto converts display values keyed by username into proto display values.
+func ToUserDisplaysProto(displays map[string]types.UserDisplay) map[string]*accesslistv1.UserDisplay {
+	if displays == nil {
+		return nil
+	}
+
+	out := make(map[string]*accesslistv1.UserDisplay, len(displays))
+	for username, display := range displays {
+		out[username] = ToUserDisplayProto(display)
+	}
+	return out
+}
+
+// FromUserDisplaysProto converts proto display values keyed by username into the shared type.
+func FromUserDisplaysProto(displays map[string]*accesslistv1.UserDisplay) map[string]types.UserDisplay {
+	if displays == nil {
+		return nil
+	}
+
+	out := make(map[string]types.UserDisplay, len(displays))
+	for username, display := range displays {
+		out[username] = FromUserDisplayProto(display)
+	}
+	return out
+}
+
 func convertScopedRoleGrantsFromProto(scopedRoleGrants []*accesslistv1.ScopedRoleGrant) []accesslist.ScopedRoleGrant {
 	if scopedRoleGrants == nil {
 		return nil
@@ -228,39 +273,6 @@ func WithOwnersIneligibleStatusField(protoOwners []*accesslistv1.AccessListOwner
 	}
 }
 
-// ToUserDisplayProto converts a user display into a v1 user display object.
-// The zero value converts to a non-nil empty message, so a present-but-empty
-// map entry stays representable on the wire.
-func ToUserDisplayProto(display types.UserDisplay) *accesslistv1.UserDisplay {
-	return &accesslistv1.UserDisplay{
-		Primary:   display.Primary,
-		Secondary: display.Secondary,
-	}
-}
-
-// FromUserDisplayProto converts a v1 user display object into an internal user
-// display. A nil message converts to the zero value.
-func FromUserDisplayProto(display *accesslistv1.UserDisplay) types.UserDisplay {
-	return types.UserDisplay{
-		Primary:   display.GetPrimary(),
-		Secondary: display.GetSecondary(),
-	}
-}
-
-// FromUserDisplaysProto converts a v1 username-keyed display map into its
-// internal representation. Nil values under present keys convert to zero
-// values.
-func FromUserDisplaysProto(displays map[string]*accesslistv1.UserDisplay) map[string]types.UserDisplay {
-	if displays == nil {
-		return nil
-	}
-	out := make(map[string]types.UserDisplay, len(displays))
-	for name, display := range displays {
-		out[name] = FromUserDisplayProto(display)
-	}
-	return out
-}
-
 func convertStatusToProto(status *accesslist.Status) *accesslistv1.AccessListStatus {
 	if status == nil {
 		return nil
@@ -273,6 +285,7 @@ func convertStatusToProto(status *accesslist.Status) *accesslistv1.AccessListSta
 		MemberOf:               status.MemberOf,
 		CurrentUserAssignments: toCurrentUserAssignmentsProto(status.CurrentUserAssignments),
 		UserAssignments:        toUserAssignmentsProto(status.UserAssignments),
+		OwnerDisplays:          ToUserDisplaysProto(status.OwnerDisplays),
 	}
 }
 
@@ -289,6 +302,13 @@ func fromStatusProto(msg *accesslistv1.AccessList) *accesslist.Status {
 		MemberOf:               protoStatus.GetMemberOf(),
 		CurrentUserAssignments: fromCurrentUserAssignmentsProto(protoStatus.GetCurrentUserAssignments()),
 		UserAssignments:        fromUserAssignmentsProto(protoStatus.GetUserAssignments()),
+	}
+}
+
+// WithOwnerDisplaysField sets the "status.owner_displays" field to the provided proto value.
+func WithOwnerDisplaysField(protoStatus *accesslistv1.AccessListStatus) AccessListOption {
+	return func(a *accesslist.AccessList) {
+		a.Status.OwnerDisplays = FromUserDisplaysProto(protoStatus.GetOwnerDisplays())
 	}
 }
 

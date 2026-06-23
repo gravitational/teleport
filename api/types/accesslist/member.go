@@ -34,6 +34,18 @@ type AccessListMember struct {
 
 	// Spec is the specification for the access list member.
 	Spec AccessListMemberSpec `json:"spec" yaml:"spec"`
+
+	// Status contains dynamically calculated fields.
+	Status *AccessListMemberStatus `json:"status,omitempty" yaml:"status,omitempty"`
+}
+
+// AccessListMemberStatus contains dynamic fields calculated during retrieval.
+type AccessListMemberStatus struct {
+	// Display contains display values for the member user.
+	Display *types.UserDisplay `json:"display,omitempty" yaml:"display,omitempty"`
+
+	// AddedByDisplay contains display values for the user that added the member.
+	AddedByDisplay *types.UserDisplay `json:"added_by_display,omitempty" yaml:"added_by_display,omitempty"`
 }
 
 // AccessListMemberSpec describes the specification of a member of an access list.

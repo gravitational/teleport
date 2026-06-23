@@ -348,6 +348,9 @@ type Status struct {
 	// MemberOf is a list of Access List UUIDs where this access list is an explicit member.
 	MemberOf []string `json:"member_of" yaml:"member_of"`
 
+	// OwnerDisplays contains display values for owners, keyed by owner username.
+	OwnerDisplays map[string]types.UserDisplay `json:"owner_displays,omitempty" yaml:"owner_displays,omitempty"`
+
 	// CurrentUserAssignments describes the current user's ownership and membership in the access list.
 	CurrentUserAssignments *CurrentUserAssignments `json:"-" yaml:"-"`
 	// UserAssignments describes the requested user's ownership and membership assignment types in the access list.

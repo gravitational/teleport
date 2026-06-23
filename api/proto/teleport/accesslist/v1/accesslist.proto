@@ -181,6 +181,14 @@ message ScopedRoleGrant {
   string scope = 2;
 }
 
+// UserDisplay contains display values derived from a user.
+message UserDisplay {
+  // primary is a human-readable display name when distinct from username.
+  string primary = 1;
+  // secondary is supporting display context when distinct from username.
+  string secondary = 2;
+}
+
 // Member describes a member of an Access List.
 message Member {
   // header is the header for the resource.
@@ -188,6 +196,17 @@ message Member {
 
   // spec is the specification for the Access List member.
   MemberSpec spec = 2;
+
+  // status contains dynamically calculated fields.
+  MemberStatus status = 3;
+}
+
+// MemberStatus contains dynamic fields calculated during retrieval.
+message MemberStatus {
+  // display contains display values for the member user.
+  UserDisplay display = 1;
+  // added_by_display contains display values for the user that added the member.
+  UserDisplay added_by_display = 2;
 }
 
 // MemberSpec is the specification for an Access List member.
@@ -220,16 +239,6 @@ message MemberSpec {
   // membership_kind describes the type of membership, either
   // `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST`.
   MembershipKind membership_kind = 9;
-}
-
-// UserDisplay holds read-time display values for a user, derived from the user
-// resource.
-message UserDisplay {
-  // primary is a display name when distinct from the username.
-  string primary = 1;
-
-  // secondary is extra context, when distinct from the username.
-  string secondary = 2;
 }
 
 // MembershipKind represents the different kinds of list membership
@@ -351,4 +360,6 @@ message AccessListStatus {
   CurrentUserAssignments current_user_assignments = 5;
   // user_assignments describes the requested user's ownership and membership assignment types in the access list.
   UserAssignments user_assignments = 6;
+  // owner_displays contains display values for owners, keyed by owner username.
+  map<string, UserDisplay> owner_displays = 7;
 }

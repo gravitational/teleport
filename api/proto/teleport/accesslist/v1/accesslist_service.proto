@@ -36,9 +36,6 @@ service AccessListService {
   rpc ListAccessListsV2(ListAccessListsV2Request) returns (ListAccessListsV2Response);
   // GetAccessList returns the specified access list resource.
   rpc GetAccessList(GetAccessListRequest) returns (AccessList);
-  // GetAccessListV2 returns the specified access list resource along with
-  // read-time user display values for its owners.
-  rpc GetAccessListV2(GetAccessListV2Request) returns (GetAccessListV2Response);
   // UpsertAccessList creates or updates an access list resource.
   rpc UpsertAccessList(UpsertAccessListRequest) returns (AccessList);
   // UpdateAccessList updates an access list resource.
@@ -201,22 +198,6 @@ message GetAccessListRequest {
   string name = 1;
 }
 
-// GetAccessListV2Request is the request for retrieving an access list along
-// with read-time user display values for its owners.
-message GetAccessListV2Request {
-  // name is the name of the access list to retrieve.
-  string name = 1;
-}
-
-// GetAccessListV2Response is the response for retrieving an access list.
-message GetAccessListV2Response {
-  // access_list is the requested access list.
-  AccessList access_list = 1;
-  // owner_displays maps the access list's owner usernames to read-time display
-  // values derived from the user resource.
-  map<string, UserDisplay> owner_displays = 2;
-}
-
 // UpsertAccessListRequest is the request for upserting an access list.
 message UpsertAccessListRequest {
   // access_list is the access list to upsert.
@@ -275,10 +256,6 @@ message ListAccessListMembersRequest {
 
   // access_list is the name of the access list that the member belongs to.
   string access_list = 3;
-
-  // include_user_displays requests read-time user display values for the
-  // member and added_by usernames of the returned members.
-  bool include_user_displays = 4;
 }
 
 // ListAccessListMembersResponse is the response for getting paginated access
@@ -288,10 +265,6 @@ message ListAccessListMembersResponse {
   repeated Member members = 1;
   // next_page_token is the next page token.
   string next_page_token = 2;
-  // user_displays maps member and added_by usernames appearing in this page's
-  // members to read-time display values derived from the user resource.
-  // Populated only when include_user_displays is set on the request.
-  map<string, UserDisplay> user_displays = 3;
 }
 
 // ListAllAccessListMembersRequest is the request for getting paginated access
