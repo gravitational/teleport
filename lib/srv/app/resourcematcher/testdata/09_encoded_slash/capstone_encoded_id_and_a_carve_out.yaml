@@ -1,0 +1,27 @@
+description: an encoded id, a carved-out subtree, and the encoded-slash opt-in
+app_resources_expression:
+    # allows /api/v4/projects/g%2fp/issues
+    # denies /api/v4/projects/9/secret/key
+    - |-
+      path.match(literal("api/v4/projects",
+          capture_encoded("project", set("/"),
+              greedy_except(literal("secret", greedy())))),
+      allow_encoded(set("/")))
+identity:
+    name: bob
+    roles:
+        - developer
+cases:
+    - request:
+        method: GET
+        path: /api/v4/projects/mygroup%2fmyproject/issues
+      expect:
+        allowed: true
+        vars:
+            project: mygroup%2fmyproject
+    - request:
+        method: GET
+        path: /api/v4/projects/123/secret/key
+      expect:
+        allowed: false
+        deny_kind: teleport_request_not_allowed
