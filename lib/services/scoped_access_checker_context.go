@@ -463,8 +463,8 @@ func (c *ScopedAccessCheckerContext) RiskyAuthorizeUnpinnedEmitEvent(
 		if pin.GetKind() != scopesv1.PinKind_PIN_KIND_AGENT {
 			return trace.AccessDenied("unpinned authorization for audit event emission is only supported for agent pins")
 		}
-
 	}
+
 	return c.decision(
 		c.riskyUnpinnedCheckersForResourceScope(ctx, scopes.Root),
 		func(checker *ScopedAccessChecker) error {
