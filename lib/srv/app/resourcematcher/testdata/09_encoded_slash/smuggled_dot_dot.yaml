@@ -5,7 +5,8 @@ app_resources_expression:
     # sees it: the path is invalid before any matcher runs.
     - |-
       path.match(literal("api/v4/projects",
-          capture_encoded("project", set("/"), greedy())), allow_encoded(set("/")))
+          capture_encoded("project", set("/"), greedy())),
+      allow_encoded(set("/")))
 identity:
     name: bob
     roles:

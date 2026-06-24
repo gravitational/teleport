@@ -6,7 +6,8 @@ app_resources_expression:
     # match opts into the encoded separator with allow_encoded(set("/")).
     - |-
       path.match(literal("api/v4/projects",
-          capture_encoded("project", set("/"), greedy())), allow_encoded(set("/")))
+          capture_encoded("project", set("/"), greedy())),
+      allow_encoded(set("/")))
 identity:
     name: bob
     roles:

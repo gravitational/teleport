@@ -5,7 +5,8 @@ app_resources_expression:
     # captured value, an equality test here, not in the path tree.
     - |-
       path.match(literal("api/v4/projects",
-          capture_encoded("project", set("/"), greedy())), allow_encoded(set("/"))) &&
+          capture_encoded("project", set("/"), greedy())),
+      allow_encoded(set("/"))) &&
       vars.project == "mygroup%2Fmyproject"
 identity:
     name: bob

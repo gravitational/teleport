@@ -6,7 +6,8 @@ app_resources_expression:
     # opts into the encoded separator with allow_encoded(set("/")).
     - |-
       path.match(literal("registry",
-          capture_encoded("package", set("/"))), allow_encoded(set("/")))
+          capture_encoded("package", set("/"))),
+      allow_encoded(set("/")))
 identity:
     name: bob
     roles:
