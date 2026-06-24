@@ -507,6 +507,11 @@ const (
 	// KindDevice represents a registered or trusted device.
 	KindDevice = "device"
 
+	// KindEnrollPairing is the resource kind for a mobile device enrollment
+	// pairing: a short-lived ceremony that pairs a Web UI session with the
+	// Teleport Verify mobile app via a QR-code-encoded token.
+	KindEnrollPairing = "enroll_pairing"
+
 	// KindDownload represents Teleport binaries downloads.
 	KindDownload = "download"
 
@@ -694,6 +699,9 @@ const (
 
 	// KindInferencePolicy is the kind of teleport.summarizer.v1.InferencePolicy.
 	KindInferencePolicy = "inference_policy"
+
+	// KindClassifier is the kind of teleport.summarizer.v1.Classifier.
+	KindClassifier = "classifier"
 
 	// MetaNameAccessGraphSettings is the exact name of the singleton resource holding
 	// access graph settings.

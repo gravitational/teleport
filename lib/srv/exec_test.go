@@ -28,6 +28,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
@@ -57,7 +58,7 @@ func TestEmitExecAuditEvent(t *testing.T) {
 	srv := newMockServer(t)
 	scx := newExecServerContext(t, srv)
 
-	rec, ok := scx.session.recorder.(*mockRecorder)
+	rec, ok := scx.party.s.recorder.(*mockRecorder)
 	require.True(t, ok)
 
 	expectedUsr, err := user.Current()
@@ -143,17 +144,24 @@ func newExecServerContext(t *testing.T, srv Server) *ServerContext {
 	term.SetTermType("xterm")
 
 	rec := &mockRecorder{done: false}
-	scx.session = &session{
+	s := &session{
 		id:       "xxx",
 		term:     term,
 		emitter:  rec,
 		recorder: rec,
 		scx:      scx,
+		registry: &SessionRegistry{
+			SessionRegistryConfig: SessionRegistryConfig{
+				Srv: srv,
+			},
+		},
 	}
+	scx.party = newParty(s, types.SessionPeerMode, nil, scx)
+
 	err = scx.SetSSHRequest(&ssh.Request{Type: sshutils.ExecRequest})
 	require.NoError(t, err)
 
-	t.Cleanup(func() { require.NoError(t, scx.session.term.Close()) })
+	t.Cleanup(func() { require.NoError(t, scx.party.s.term.Close()) })
 
 	return scx
 }

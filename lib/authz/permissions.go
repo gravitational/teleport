@@ -825,6 +825,7 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 		UserType:          u.Identity.UserType,
 		OriginClusterName: u.Identity.TeleportCluster,
 		DeviceExtensions:  u.Identity.DeviceExtensions,
+		BeamID:            u.Identity.BeamID,
 	}
 	if checker.PinSourceIP() && identity.PinnedIP == "" {
 		return nil, trace.Wrap(ErrIPPinningMissing)
@@ -1910,6 +1911,13 @@ func (r ScopedBuiltinRole) GetServerID() string {
 // GetIdentity returns the client identity.
 func (r ScopedBuiltinRole) GetIdentity() tlsca.Identity {
 	return r.Identity
+}
+
+// IsServer returns true if the primary role is either RoleInstance, or one of
+// the local service roles (e.g. node).
+func (r ScopedBuiltinRole) IsServer() bool {
+	role := types.SystemRole(r.ScopePin.GetSystemRoles().GetPrimary())
+	return role == types.RoleInstance || role.IsLocalService()
 }
 
 // RemoteBuiltinRole is the role of the remote (service connecting via trusted cluster link)

@@ -39,6 +39,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -577,4 +578,62 @@ func Test_isAppServerDialable(t *testing.T) {
 			require.Equal(t, tt.match, got, tt.app())
 		})
 	}
+}
+
+func mustNewAppServer(t *testing.T, origin string) func() types.AppServer {
+	t.Helper()
+	return func() types.AppServer {
+		app, err := types.NewAppV3(
+			types.Metadata{
+				Name:      "test-app",
+				Namespace: apidefaults.Namespace,
+				Labels: map[string]string{
+					types.OriginLabel: origin,
+				},
+			},
+			types.AppSpecV3{
+				URI: "https://app.localhost",
+			},
+		)
+		require.NoError(t, err)
+
+		appServer, err := types.NewAppServerV3FromApp(app, "localhost", "123")
+		require.NoError(t, err)
+
+		return appServer
+	}
+}
+
+type mockClusterGetter struct {
+	reversetunnelclient.ClusterGetter
+	cluster *mockCluster
+}
+
+func (p *mockClusterGetter) Cluster(context.Context, string) (reversetunnelclient.Cluster, error) {
+	return p.cluster, nil
+}
+
+type mockCluster struct {
+	reversetunnelclient.Cluster
+	dialErr error
+}
+
+func (r *mockCluster) Dial(_ reversetunnelclient.DialParams) (net.Conn, error) {
+	if r.dialErr != nil {
+		return nil, r.dialErr
+	}
+
+	return &mockDialConn{}, nil
+}
+
+func (r *mockCluster) GetName() string {
+	return "mockCluster"
+}
+
+type mockDialConn struct {
+	net.Conn
+}
+
+func (c *mockDialConn) Close() error {
+	return nil
 }

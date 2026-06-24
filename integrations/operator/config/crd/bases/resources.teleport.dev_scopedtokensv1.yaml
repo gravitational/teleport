@@ -153,12 +153,11 @@ spec:
                       field.
                     type: string
                 type: object
-              bot_name:
-                description: Name of the bot associated with this join token, if any.
-                type: string
-              bot_scope:
-                description: Scope of the bot associated with this join token. Required
-                  if bot_name is set, and mutually exclusive with assigned_scope.
+              bot:
+                description: The bot associated with this join token, if any, as a
+                  scope-qualified name of the form `<scope>::<bot-name>` (e.g. "/staging/west::mybot").
+                  The scope component must be a descendant of or equivalent to the
+                  token's resource scope.  Mutually exclusive with assigned_scope.
                 type: string
               bound_keypair:
                 description: Configuration specific to the "bound_keypair" join method.

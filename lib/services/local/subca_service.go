@@ -176,6 +176,8 @@ func (s *SubCAService) ListCertAuthorityOverrides(
 // DeleteCertAuthorityOverride unconditionally deletes a CA override from the
 // backend.
 // Returns a trace.NotFoundError if the resource cannot be found.
+//
+// Prefer [SubCAService.ConditionalDeleteCertAuthorityOverride].
 func (s *SubCAService) DeleteCertAuthorityOverride(
 	ctx context.Context,
 	id CertAuthorityOverrideID,
@@ -190,6 +192,27 @@ func (s *SubCAService) DeleteCertAuthorityOverride(
 	name := id.FullName()
 
 	return trace.Wrap(service.DeleteResource(ctx, name))
+}
+
+// ConditionalDeleteCertAuthorityOverride conditionally deletes a CA override
+// based on its revision.
+// Returns a trace.CompareFailedError if the item is not found or the revision
+// is incorrect.
+func (s *SubCAService) ConditionalDeleteCertAuthorityOverride(
+	ctx context.Context,
+	id CertAuthorityOverrideID,
+	revision string,
+) error {
+	service, err := s.serviceForClusterAndType(id.ClusterName, id.CAType)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Name has no effect on the delete, it's only used for errors.
+	// See serviceForClusterAndType() / generic.Service.WithNameKeyFunc().
+	name := id.FullName()
+
+	return trace.Wrap(service.ConditionalDeleteResource(ctx, name, revision))
 }
 
 func (s *SubCAService) serviceForResource(

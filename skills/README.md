@@ -17,6 +17,9 @@ npx skills add https://github.com/gravitational/teleport/tree/master/skills/tele
 
 # Access list review
 npx skills add https://github.com/gravitational/teleport/tree/master/skills/teleport-acl-review
+
+# Investigate Identity Security Logs
+npx skills add https://github.com/gravitational/teleport/tree/master/skills/teleport-investigate
 ```
 
 You'll be prompted to pick which agents to install into and whether to install
@@ -57,3 +60,28 @@ Example invocations:
 - What happened in session &lt;id&gt;?
 - Find risky or high-severity sessions from last week
 - Download the recording for session &lt;id&gt;
+
+### teleport-investigate
+
+Helps search and explore Teleport's Identity Security activity log with
+`tctl investigate` — finding who did what, where, and when across users,
+resources, and integrations such as AWS, GitHub, and Okta.
+
+Example invocations:
+
+- Were there any failed authentications from India in the last 7 days?
+- What did bot CI-deployer do yesterday?
+- Show me who accessed the production-database resource this month
+- Show me what activity was performed during the following access request <uuid>
+
+### teleport-discovery
+
+Enroll cloud resources (Azure VMs) into Teleport using Auto-Discovery. Provides
+a guided workflow to generate a Terraform configuration to create an OIDC
+integration. Use for checking status of the Discovery Service or troubleshooting
+resource enrollment.
+
+Example invocations:
+
+- Enroll my Azure resources into Teleport
+- Why are my VMs not enrolling into teleport?

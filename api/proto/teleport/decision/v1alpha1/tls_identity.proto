@@ -171,6 +171,10 @@ message TLSIdentity {
 
   // Delegation session this TLS identity is associated with.
   string delegation_session_id = 39;
+
+  // Beam this TLS identity is associated with, derived from the delegation
+  // session's beam ID label.
+  string beam_id = 40;
 }
 
 // RouteToApp holds routing information for applications.

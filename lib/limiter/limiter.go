@@ -161,8 +161,8 @@ func (l *Limiter) StreamServerInterceptor(srv any, serverStream grpc.ServerStrea
 
 // WrapListener returns a [Listener] that wraps the provided listener
 // with one that limits connections
-func (l *Limiter) WrapListener(ln net.Listener) (*Listener, error) {
-	return NewListener(ln, l.connectionLimiter)
+func (l *Limiter) WrapListener(ln net.Listener, opts ...ListenerOption) (*Listener, error) {
+	return NewListener(ln, l.connectionLimiter, opts...)
 }
 
 type handlerWrapper interface {

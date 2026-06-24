@@ -183,17 +183,6 @@ func (t *ttyRecordingProcessor) handleSessionEnd(evt *apievents.SessionEnd) erro
 	return nil
 }
 
-func (t *ttyRecordingProcessor) addInactivityEvent(start, end time.Time) {
-	inactivityStart := durationpb.New(start.Sub(t.startTime))
-	inactivityEnd := durationpb.New(end.Sub(t.startTime))
-
-	t.metadata.SetEvents(append(t.metadata.GetEvents(), pb.SessionRecordingEvent_builder{
-		StartOffset: inactivityStart,
-		EndOffset:   inactivityEnd,
-		Inactivity:  &pb.SessionRecordingInactivityEvent{},
-	}.Build()))
-}
-
 func (t *ttyRecordingProcessor) collect() (*pb.SessionRecordingMetadata, *pb.SessionRecordingThumbnail) {
 	if t.lastEvent == nil {
 		return nil, nil

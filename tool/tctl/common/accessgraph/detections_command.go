@@ -71,7 +71,7 @@ type detectionsListArgs struct {
 }
 
 func (c *AccessGraphCommand) initDetections(app *kingpin.Application) {
-	detectionsCmd := app.Command("detections", "Investigate security detections and anomalies.").Hidden()
+	detectionsCmd := app.Command("detections", "Investigate security detections and anomalies.")
 	detectionsCmd.Flag("from", fmt.Sprintf("Include activity at or after this time. (Examples: %s, %s, 24h, 7d; negative durations like -1h are future-relative. Default: 30d)", time.RFC3339, time.DateOnly)).
 		Default("30d").
 		SetValue(timeValue{target: &c.detections.from})
@@ -336,8 +336,8 @@ func (c *AccessGraphCommand) DetectionsGet(ctx context.Context, client *accessgr
 	})
 }
 
-// eventsFetchErrorStyle paints the events-fetch warning yellow + bold.
-var eventsFetchErrorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("11")).Bold(true)
+// warningStyle paints the events-fetch warning yellow + bold.
+var warningStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("11")).Bold(true)
 
 // fetchAlertEvents fetches the logs referenced by the alert's LogEntries.
 func fetchAlertEvents(ctx context.Context, client *accessgraph.ClientWithResponses, a accessgraph.SecurityAlert) ([]logmodels.AccessgraphStorageV1alphaEvent, error) {
@@ -393,7 +393,7 @@ func displayDetectionText(out io.Writer, a accessgraph.SecurityAlert, events []l
 		fmt.Fprintln(out, "\nLog Entries:")
 		switch {
 		case eventsErr != nil:
-			fmt.Fprintln(out, eventsFetchErrorStyle.Render(eventsErr.Error()))
+			fmt.Fprintln(out, warningStyle.Render(eventsErr.Error()))
 		case len(events) == 0:
 			fmt.Fprintln(out, "Not found.")
 		default:
