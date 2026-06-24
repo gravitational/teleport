@@ -504,10 +504,12 @@ type MockUploader struct {
 
 	CreateUploadError      error
 	ReserveUploadPartError error
+	UploadPartError        error
 
 	MockListParts      func(ctx context.Context, upload events.StreamUpload) ([]events.StreamPart, error)
 	MockListUploads    func(ctx context.Context) ([]events.StreamUpload, error)
 	MockCompleteUpload func(ctx context.Context, upload events.StreamUpload, parts []events.StreamPart) error
+	MockUploadPart     func(ctx context.Context, upload events.StreamUpload, partNumber int64, partBody io.ReadSeeker) (*events.StreamPart, error)
 }
 
 func (m *MockUploader) CreateUpload(ctx context.Context, sessionID session.ID) (*events.StreamUpload, error) {
@@ -539,6 +541,18 @@ func (m *MockUploader) ListUploads(ctx context.Context) ([]events.StreamUpload, 
 	}
 
 	return nil, nil
+}
+
+func (m *MockUploader) UploadPart(ctx context.Context, upload events.StreamUpload, partNumber int64, partBody io.ReadSeeker) (*events.StreamPart, error) {
+	if m.MockUploadPart != nil {
+		return m.MockUploadPart(ctx, upload, partNumber, partBody)
+	}
+	if m.UploadPartError != nil {
+		return nil, m.UploadPartError
+	}
+	return &events.StreamPart{
+		Number: partNumber,
+	}, nil
 }
 
 func (m *MockUploader) CompleteUpload(ctx context.Context, upload events.StreamUpload, parts []events.StreamPart) error {

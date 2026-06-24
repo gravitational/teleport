@@ -866,12 +866,14 @@ func (w *sliceWriter) completeStream() {
 		"upload", w.proto.cfg.Upload.ID,
 		"session", w.proto.cfg.Upload.SessionID,
 	)
+	var uploadErrors []error
 	for range w.activeUploads {
 		select {
 		case upload := <-w.completedUploadsC:
 			part, err := upload.getPart()
 			if err != nil {
 				log.WarnContext(w.proto.cancelCtx, "Failed to upload part", "error", err)
+				uploadErrors = append(uploadErrors, err)
 				continue
 			}
 			w.updateCompletedParts(*part, upload.lastEventIndex)
@@ -879,6 +881,31 @@ func (w *sliceWriter) completeStream() {
 			return
 		}
 	}
+
+	// If any part failed to upload, abort the stream completion. Calling
+	// CompleteUpload with missing parts would create a corrupted recording
+	// and trigger a misleading session.upload event. The audit log would
+	// show a successful upload when in fact the recording is incomplete or
+	// missing, which is a data-loss scenario.
+	if len(uploadErrors) > 0 {
+		log.ErrorContext(w.proto.cancelCtx, "Stream has parts that failed to upload, aborting completion", "failed_parts", len(uploadErrors), "total_parts", len(w.activeUploads))
+		w.proto.setCompleteResult(trace.Aggregate(uploadErrors...))
+		return
+	}
+
+	// Verify that all expected parts are present before completing.
+	// This is a defense-in-depth check: even if no individual part
+	// reported an error, we should ensure the completed parts match
+	// the expected uploads. A mismatch indicates a logic error or
+	// race condition that could lead to data loss.
+	if len(w.completedParts) != len(w.activeUploads) {
+		log.ErrorContext(w.proto.cancelCtx, "Part count mismatch detected, aborting completion",
+			"completed_parts", len(w.completedParts),
+			"expected_parts", len(w.activeUploads))
+		w.proto.setCompleteResult(trace.BadParameter("part count mismatch: expected %d, got %d", len(w.activeUploads), len(w.completedParts)))
+		return
+	}
+
 	if w.proto.completeType.Load() == completeTypeComplete {
 		// part upload notifications could arrive out of order
 		sort.Slice(w.completedParts, func(i, j int) bool {
@@ -1042,6 +1069,28 @@ func (w *sliceWriter) startUpload(partNumber int64, slice *slice) (*activeUpload
 				return
 			}
 		}
+
+		// If we exhaust all retries without success, record the failure so that
+		// completeStream can detect incomplete uploads and abort rather than
+		// emitting a misleading session.upload event.
+		//
+		// This is the core fix for issue #65895: previously, when a part upload
+		// failed persistently (e.g., S3 returning 500 errors), the retry loop would
+		// exit after MaxIterationLimit (1000) iterations without setting any error
+		// on the activeUpload. The goroutine would then send the activeUpload to
+		// completedUploadsC with no part and no error. completeStream would call
+		// getPart(), get a NotFound error, log a warning, and continue. It would
+		// then call CompleteUpload with whatever parts DID succeed, potentially
+		// creating a corrupted recording. Worse, if no parts succeeded, CompleteUpload
+		// might still succeed (depending on the backend), and the code would proceed
+		// to emit a session.upload event implying success. The agent would then
+		// delete its local copy of the recording, resulting in permanent data loss.
+		//
+		// By setting retryExhausted here, we ensure that completeStream detects
+		// the failure and aborts, preventing both corrupted recordings and the
+		// misleading success event.
+		activeUpload.setRetryExhausted(trace.LimitExceeded("part %d upload failed after %d attempts: storage backend may be experiencing issues", partNumber, defaults.MaxIterationLimit))
+		log.ErrorContext(w.proto.cancelCtx, "part upload exhausted all retries", "part", partNumber, "attempts", defaults.MaxIterationLimit, "action", "aborting_stream_completion")
 	}()
 
 	return activeUpload, nil
@@ -1055,6 +1104,11 @@ type activeUpload struct {
 	part           *StreamPart
 	err            error
 	lastEventIndex int64
+	// retryExhausted is set to true when the upload part has exhausted
+	// all retry attempts. This helps distinguish between transient failures
+	// (which might be retried by the upload completer) and permanent failures
+	// that indicate a deeper issue with the storage backend.
+	retryExhausted bool
 }
 
 func (a *activeUpload) setError(err error) {
@@ -1062,6 +1116,14 @@ func (a *activeUpload) setError(err error) {
 	defer a.mtx.Unlock()
 	a.end = time.Now().UTC()
 	a.err = err
+}
+
+func (a *activeUpload) setRetryExhausted(err error) {
+	a.mtx.Lock()
+	defer a.mtx.Unlock()
+	a.end = time.Now().UTC()
+	a.err = err
+	a.retryExhausted = true
 }
 
 func (a *activeUpload) setPart(part StreamPart) {
