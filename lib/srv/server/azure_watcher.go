@@ -310,6 +310,12 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]*Azu
 	allowAllLocations := slices.Contains(f.Regions, types.Wildcard)
 
 	for _, vm := range vms {
+		// Teleport only supports Linux nodes, so we filter out non-Linux VMs.
+		// If the OS is unknown, we allow it because the OS type might not always be present in the API response.
+		if !vm.IsLinuxOrUnknown() {
+			continue
+		}
+
 		if !slices.Contains(f.Regions, vm.Location) && !allowAllLocations {
 			continue
 		}
