@@ -19,6 +19,6 @@ module "azure_discovery" {
   ]
 }
 
-output "integration_name"      { value = module.azure_discovery.teleport_integration_name }
+output "integration_name" { value = module.azure_discovery.teleport_integration_name }
 output "discovery_config_name" { value = module.azure_discovery.teleport_discovery_config_name }
-output "provision_token_name"  { value = module.azure_discovery.teleport_provision_token_name }
+output "provision_token_name" { value = module.azure_discovery.teleport_provision_token_name }
