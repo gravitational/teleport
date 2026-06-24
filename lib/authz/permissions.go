@@ -1115,6 +1115,8 @@ func scopedDefinitionForBuiltinRole(clusterName string, recConfig readonly.Sessi
 				},
 			},
 		)
+	case types.RoleApp:
+		return unscopedDefinitionForBuiltinRole(clusterName, recConfig, types.RoleApp)
 	}
 
 	return nil, trace.NotFound("builtin role for scoped %q is not recognized", role.String())
@@ -1200,6 +1202,11 @@ func unscopedDefinitionForBuiltinRole(clusterName string, recConfig readonly.Ses
 						types.NewRule(types.KindApp, services.RO()),
 						types.NewRule(types.KindJWT, services.RW()),
 						types.NewRule(types.KindLock, services.RO()),
+						// TODO(fspmarshall/scopes): we eventually want to remove blanket scoped role
+						// access in favor of apps only being able to read scoped roles that may affect
+						// access decisions for the given app specifically. This verb grant will need to
+						// be revisited as part of that work.
+						types.NewRule(scopedaccess.KindScopedRole, services.RO()),
 					},
 				},
 			})
