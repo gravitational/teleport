@@ -34,9 +34,7 @@ import (
 )
 
 func getClientIPRestriction(ctx context.Context, client *authclient.Client, ref services.Ref, opts GetOpts) (Collection, error) {
-	req := &clientiprestrictionv1.GetClientIPRestrictionRequest{}
-	req.SetName(types.MetaNameClientIPRestriction)
-	cir, err := client.ClientIPRestrictionClient().GetClientIPRestriction(ctx, req)
+	cir, err := client.ClientIPRestrictionClient().GetClientIPRestriction(ctx, &clientiprestrictionv1.GetClientIPRestrictionRequest{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -81,9 +79,7 @@ func updateClientIPRestriction(ctx context.Context, client *authclient.Client, r
 }
 
 func deleteClientIPRestriction(ctx context.Context, client *authclient.Client, ref services.Ref) error {
-	req := &clientiprestrictionv1.DeleteClientIPRestrictionRequest{}
-	req.SetName(types.MetaNameClientIPRestriction)
-	_, err := client.ClientIPRestrictionClient().DeleteClientIPRestriction(ctx, req)
+	_, err := client.ClientIPRestrictionClient().DeleteClientIPRestriction(ctx, &clientiprestrictionv1.DeleteClientIPRestrictionRequest{})
 	if err != nil {
 		return trace.Wrap(err)
 	}
