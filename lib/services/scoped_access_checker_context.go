@@ -562,4 +562,11 @@ var (
 		kind:          types.KindUser,
 		verbs:         []string{types.VerbRead},
 	}
+	// UnpinnedReadRole is a special authorization to complete an unscoped access check
+	// to read a role.
+	UnpinnedReadRole = UnpinnedReadAuthorization{
+		resourceScope: scopes.Root,
+		kind:          types.KindRole,
+		verbs:         []string{types.VerbRead},
+	}
 )
