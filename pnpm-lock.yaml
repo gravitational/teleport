@@ -1526,8 +1526,8 @@ packages:
   '@date-fns/tz@1.4.1':
     resolution: {integrity: sha512-P5LUNhtbj6YfI3iJjw5EL9eUAG6OitD0W3fWQcpQjDRc/QIsL0tRNuO1PcDvPccWL1fSTXXdE1ds+l95DV/OFA==}
 
-  '@electron-internal/extract-zip@1.0.3':
-    resolution: {integrity: sha512-OjKpjB7gohtEjZiq6nDx1egqjZJhGPN1iFOIED+NFhB/MMkXw/XRcHjh1DGXKT5z2W9eW7Jy2UKU3gpjvusFTQ==}
+  '@electron-internal/extract-zip@1.0.4':
+    resolution: {integrity: sha512-Zr1Vs7E9tpCNhZHDAbFVXc2gEVCG9RqPDjrno5+bdgB6LRAuvgyMHJut4NCVyYwtAieapMzc3fiQ3CSTi75ARg==}
     engines: {node: '>=22.12.0'}
 
   '@electron/asar@3.4.1':
@@ -8273,7 +8273,7 @@ snapshots:
 
   '@date-fns/tz@1.4.1': {}
 
-  '@electron-internal/extract-zip@1.0.3': {}
+  '@electron-internal/extract-zip@1.0.4': {}
 
   '@electron/asar@3.4.1':
     dependencies:
@@ -11319,7 +11319,7 @@ snapshots:
 
   electron@42.4.1:
     dependencies:
-      '@electron-internal/extract-zip': 1.0.3
+      '@electron-internal/extract-zip': 1.0.4
       '@electron/get': 5.0.0
       '@types/node': 24.10.9
     transitivePeerDependencies:

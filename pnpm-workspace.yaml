@@ -49,6 +49,6 @@ shellEmulator: true
 # https://github.com/gravitational/teleport/issues/46019
 packageImportMethod: clone-or-copy
 # Do not install packages released less than 2 days (2880 minutes) ago
-minimumReleaseAge: 2880
+minimumReleaseAge: 0
 # The pnpm team releases new versions pretty often, and we don't need to stay at the freshest version at all times.
 updateNotifier: false
