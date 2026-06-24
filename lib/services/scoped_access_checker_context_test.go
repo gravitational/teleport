@@ -92,8 +92,7 @@ func newAgentPinCheckerContext(t *testing.T, pin *scopesv1.Pin) *ScopedAccessChe
 }
 
 // newAgentPin is a test helper that builds a [*scopesv1.Pin] for an agent.
-func newAgentPin(t *testing.T, scope string, role types.SystemRole) *scopesv1.Pin {
-	t.Helper()
+func newAgentPin(scope string, role types.SystemRole) *scopesv1.Pin {
 	return scopesv1.Pin_builder{
 		Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
 		Scope: scope,
@@ -127,7 +126,7 @@ func TestScopedAccessCheckerContextAgentPin(t *testing.T) {
 
 	t.Run("constructor rejects empty checkers", func(t *testing.T) {
 		t.Parallel()
-		pin := newAgentPin(t, pinScope, types.RoleNode)
+		pin := newAgentPin(pinScope, types.RoleNode)
 
 		_, err := NewScopedAccessCheckerContextForAgentPin(pin, nil)
 		require.Error(t, err)
@@ -136,7 +135,7 @@ func TestScopedAccessCheckerContextAgentPin(t *testing.T) {
 
 	t.Run("successful construction and accessors", func(t *testing.T) {
 		t.Parallel()
-		pin := newAgentPin(t, pinScope, types.RoleNode)
+		pin := newAgentPin(pinScope, types.RoleNode)
 		checkerCtx := newAgentPinCheckerContext(t, pin)
 
 		// ScopePin returns the pin for agent pin identities.
@@ -150,7 +149,7 @@ func TestScopedAccessCheckerContextAgentPin(t *testing.T) {
 
 	t.Run("Decision at pin scope allows access", func(t *testing.T) {
 		t.Parallel()
-		pin := newAgentPin(t, pinScope, types.RoleNode)
+		pin := newAgentPin(pinScope, types.RoleNode)
 		checkerCtx := newAgentPinCheckerContext(t, pin)
 
 		called := false
@@ -164,7 +163,7 @@ func TestScopedAccessCheckerContextAgentPin(t *testing.T) {
 
 	t.Run("Decision at child of pin scope allows access", func(t *testing.T) {
 		t.Parallel()
-		pin := newAgentPin(t, pinScope, types.RoleNode)
+		pin := newAgentPin(pinScope, types.RoleNode)
 		checkerCtx := newAgentPinCheckerContext(t, pin)
 
 		childScope := pinScope + "/child"
@@ -179,7 +178,7 @@ func TestScopedAccessCheckerContextAgentPin(t *testing.T) {
 
 	t.Run("Decision at root scope is denied when pin is non-root", func(t *testing.T) {
 		t.Parallel()
-		pin := newAgentPin(t, pinScope, types.RoleNode)
+		pin := newAgentPin(pinScope, types.RoleNode)
 		checkerCtx := newAgentPinCheckerContext(t, pin)
 
 		called := false
@@ -194,7 +193,7 @@ func TestScopedAccessCheckerContextAgentPin(t *testing.T) {
 
 	t.Run("RiskyAuthorizeUnpinnedRead bypasses pin enforcement", func(t *testing.T) {
 		t.Parallel()
-		pin := newAgentPin(t, pinScope, types.RoleNode)
+		pin := newAgentPin(pinScope, types.RoleNode)
 		checkerCtx := newAgentPinCheckerContext(t, pin)
 
 		err := checkerCtx.RiskyAuthorizeUnpinnedRead(t.Context(), UnpinnedReadAuthorization{
@@ -207,7 +206,7 @@ func TestScopedAccessCheckerContextAgentPin(t *testing.T) {
 
 	t.Run("RiskyAuthorizeUnpinnedEmitEvent bypasses pin enforcement", func(t *testing.T) {
 		t.Parallel()
-		pin := newAgentPin(t, pinScope, types.RoleNode)
+		pin := newAgentPin(pinScope, types.RoleNode)
 		checkerCtx := newAgentPinCheckerContext(t, pin)
 
 		err := checkerCtx.RiskyAuthorizeUnpinnedEmitEvent(t.Context(), &Context{})
@@ -216,7 +215,7 @@ func TestScopedAccessCheckerContextAgentPin(t *testing.T) {
 
 	t.Run("riskyEnumerateScopedCheckers panics for agent pin context", func(t *testing.T) {
 		t.Parallel()
-		pin := newAgentPin(t, pinScope, types.RoleNode)
+		pin := newAgentPin(pinScope, types.RoleNode)
 		checkerCtx := newAgentPinCheckerContext(t, pin)
 
 		require.Panics(t, func() {
@@ -238,7 +237,7 @@ func TestScopedAccessCheckerContextRiskyAuthorizeEmitEvent(t *testing.T) {
 	}, "test-cluster", emptyScopedRoleReader{})
 	require.NoError(t, err)
 
-	agentPin := newAgentPin(t, "/test/scope", types.RoleNode)
+	agentPin := newAgentPin("/test/scope", types.RoleNode)
 	agentCheckerContext := newAgentPinCheckerContext(t, agentPin)
 
 	ruleCtx := &Context{}
@@ -256,8 +255,7 @@ func TestScopedAccessCheckerContextRiskyAuthorizeEmitEvent(t *testing.T) {
 	err = userCheckerContext.RiskyAuthorizeUnpinnedEmitEvent(ctx, ruleCtx)
 	require.ErrorContains(t, err, "unpinned authorization for audit event emission is only supported for agent pins")
 
-	// RiskyAuthorizeUnpinnedRead bypasses pin enforcement but still requires the
-	// underlying RBAC permission. The node system role grants create on event so this succeeds.
+	// Using an empty UnpinnedReadAuthorization is not allowed.
 	err = agentCheckerContext.RiskyAuthorizeUnpinnedRead(ctx, UnpinnedReadAuthorization{}, ruleCtx)
 	require.ErrorAs(t, err, new(*trace.BadParameterError))
 }
