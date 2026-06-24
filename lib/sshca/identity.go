@@ -31,11 +31,13 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/delegation"
 	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -159,6 +161,10 @@ type Identity struct {
 	// BeamID is the identifier of the Beam this certificate was created for,
 	// derived from the delegation session's types.BeamIDLabel label.
 	BeamID string
+
+	// Delegation contains the delegation chain of the identity this certificate
+	// represents.
+	Delegation *delegationv1.Delegation
 	// HeadlessAuthenticationID is the ID of the headless authentication
 	// resource this certificate is being generated for.
 	HeadlessAuthenticationID string
@@ -339,6 +345,13 @@ func (i *Identity) Encode(certFormat string) (*ssh.Certificate, error) {
 	}
 	if i.BeamID != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionBeamID] = i.BeamID
+	}
+	if i.Delegation != nil {
+		delegation, err := delegation.Encode(i.Delegation)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		cert.Permissions.Extensions[teleport.CertExtensionDelegation] = delegation
 	}
 	if i.GitHubUserID != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionGitHubUserID] = i.GitHubUserID
@@ -608,6 +621,14 @@ func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 	ident.GitHubUserID = takeValue(teleport.CertExtensionGitHubUserID)
 	ident.GitHubUsername = takeValue(teleport.CertExtensionGitHubUsername)
 	ident.HeadlessAuthenticationID = takeValue(teleport.CertExtensionHeadlessAuthenticationID)
+
+	if v := takeValue(teleport.CertExtensionDelegation); v != "" {
+		delegation, err := delegation.Decode(v)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		ident.Delegation = delegation
+	}
 
 	if v, ok := cert.CriticalOptions[teleport.CertCriticalOptionSourceAddress]; ok {
 		parts := strings.Split(v, "/")

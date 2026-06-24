@@ -26,6 +26,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/protobuf/testing/protocmp"
 
+	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -122,6 +123,11 @@ func TestSSHIdentityConversion(t *testing.T) {
 		}.Build()),
 		DelegationSessionID: "delegation-session",
 		BeamID:              "beam-id",
+		Delegation: delegationv1.Delegation_builder{
+			User: delegationv1.UserDelegator_builder{
+				Username: "username",
+			}.Build(),
+		}.Build(),
 	}
 
 	ignores := []string{

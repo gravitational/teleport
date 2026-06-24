@@ -31,6 +31,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -113,6 +114,11 @@ func TestIdentityConversion(t *testing.T) {
 		DelegationSessionID:      "delegation-session-id",
 		BeamID:                   "beam-id",
 		AgentScope:               "/foo",
+		Delegation: delegationv1.Delegation_builder{
+			User: delegationv1.UserDelegator_builder{
+				Username: "bob",
+			}.Build(),
+		}.Build(),
 		ImmutableLabelHash: joining.HashImmutableLabels(joiningv1.ImmutableLabels_builder{
 			Ssh: map[string]string{
 				"one": "1",
