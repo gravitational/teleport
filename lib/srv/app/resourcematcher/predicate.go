@@ -300,18 +300,12 @@ func newParser() (*typical.CachedParser[env, bool], error) {
 			"encoded_literal": typical.TernaryVariadicFunction[env](func(value string, allowed []string, children ...*Node) (*Node, error) {
 				return EncodedLiteral(value, allowed, children...)
 			}),
-			"greedy": typical.UnaryVariadicFunction[env](func(children ...*Node) (*Node, error) {
-				if len(children) > 0 {
-					return nil, trace.BadParameter("greedy() takes no arguments, got %d", len(children))
-				}
+			"greedy": typical.NullaryFunction[env](func() (*Node, error) {
 				return Greedy(), nil
 			}),
 			// slash() matches the empty segment a final "/" produces. It replaces
 			// the empty-literal pun, so a literal never carries empty text.
-			"slash": typical.UnaryVariadicFunction[env](func(children ...*Node) (*Node, error) {
-				if len(children) > 0 {
-					return nil, trace.BadParameter("slash() takes no arguments, got %d", len(children))
-				}
+			"slash": typical.NullaryFunction[env](func() (*Node, error) {
 				return Slash(), nil
 			}),
 			// optional() makes a trailing subtree optional: the path may end at

@@ -434,6 +434,37 @@ func (d dynamicVariable[TEnv, TVar]) Evaluate(env TEnv) (TVar, error) {
 	return result, trace.Wrap(err)
 }
 
+type nullaryFunction[TEnv, TResult any] struct {
+	impl func() (TResult, error)
+}
+
+// NullaryFunction returns a definition for a function that takes no arguments.
+// A call that passes any argument is a parse error, so the parser rejects it at
+// build time rather than the implementation having to check.
+func NullaryFunction[TEnv, TResult any](impl func() (TResult, error)) Function {
+	return nullaryFunction[TEnv, TResult]{impl}
+}
+
+func (f nullaryFunction[TEnv, TResult]) buildExpression(name string, args ...any) (any, error) {
+	if len(args) != 0 {
+		return nil, trace.BadParameter("function (%s) accepts 0 arguments, given %d", name, len(args))
+	}
+	return nullaryFuncExpr[TEnv, TResult]{
+		name: name,
+		impl: f.impl,
+	}, nil
+}
+
+type nullaryFuncExpr[TEnv, TResult any] struct {
+	name string
+	impl func() (TResult, error)
+}
+
+func (e nullaryFuncExpr[TEnv, TResult]) Evaluate(_ TEnv) (TResult, error) {
+	res, err := e.impl()
+	return res, trace.Wrap(err, "evaluating function (%s)", e.name)
+}
+
 type unaryFunction[TEnv, TArg, TResult any] struct {
 	impl func(TArg) (TResult, error)
 }

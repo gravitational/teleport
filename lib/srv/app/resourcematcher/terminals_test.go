@@ -41,6 +41,6 @@ func TestTerminalsTakeNoArguments(t *testing.T) {
 		`path.match(literal("files", slash(literal("x"))))`,
 	} {
 		_, err := compileExpression(pred)
-		require.ErrorContains(t, err, "takes no arguments", pred)
+		require.ErrorContains(t, err, "accepts 0 arguments", pred)
 	}
 }
