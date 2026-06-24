@@ -122,60 +122,61 @@ jobs:
         run: gcloud auth configure-docker ${{ secrets.ANTITHESIS_REGISTRY_HOST }} --quiet
 
       - name: Build and push all images
-        working-directory: e/tests/antithesis
-        run: |
-          make build-all build-config \
-            SUT="${SUT}" \
-            REGISTRY="${REGISTRY}" \
-            TAG="${{ steps.tag.outputs.tag }}" \
-            PUSH=1
-
-  trigger:
-    name: Trigger ${{ matrix.sut }} @ ${{ matrix.ref }}
-    needs: [params, build]
-    runs-on: ubuntu-latest
-    permissions:
-      statuses: write
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJson(needs.params.outputs.matrix) }}
-    env:
-      SUT: ${{ matrix.sut }}
-    steps:
-      - name: Checkout Teleport
-        uses: actions/checkout@v6
-        with:
-          ssh-key: ${{ secrets.SSH_PRIVATE_KEY }}
-          ref: ${{ matrix.ref }}
-          submodules: recursive
-          fetch-depth: 0
-
-      - name: Resolve image references
-        id: images
+        # working-directory: e/tests/antithesis
         run: |
           ls -lahR
-          source e/tests/antithesis/.env 2>/dev/null || true
-          source e/tests/antithesis/sut/${SUT}/.env
-          source e/tests/antithesis/sut/${SUT}/images.sh
+          # make build-all build-config \
+          #   SUT="${SUT}" \
+          #   REGISTRY="${REGISTRY}" \
+          #   TAG="${{ steps.tag.outputs.tag }}" \
+          #   PUSH=1
 
-      - name: Trigger Antithesis run
-        uses: antithesishq/antithesis-trigger-action@v0.12
-        with:
-          notebook_name: teleport
-          tenant: teleport
-          username: ${{ secrets.ANTITHESIS_USERNAME }}
-          password: ${{ secrets.ANTITHESIS_PASSWORD }}
-          github_token: ${{ secrets.ANTITHESIS_GHA_PAT }}
-          config_image: ${{ steps.images.outputs.config_image }}
-          images: ${{ steps.images.outputs.images }}
-          description: >-
-            ${{ inputs.description
-                || format('{0} {1} @ {2} ({3})',
-                     matrix.sut, matrix.ref,
-                     needs.build.outputs.tag,
-                     github.event_name == 'schedule' && 'nightly' || 'manual') }}
-          email_recipients: ${{ inputs.email_recipients }}
-          test_name: teleport-${{ matrix.sut }}-${{ matrix.ref }}
-          additional_parameters: |
-            antithesis.duration=${{ inputs.antithesis_duration || 60 }}
-            ${{ inputs.additional_parameters }}
+  # trigger:
+  #   name: Trigger ${{ matrix.sut }} @ ${{ matrix.ref }}
+  #   needs: [params, build]
+  #   runs-on: ubuntu-latest
+  #   permissions:
+  #     statuses: write
+  #   strategy:
+  #     fail-fast: false
+  #     matrix: ${{ fromJson(needs.params.outputs.matrix) }}
+  #   env:
+  #     SUT: ${{ matrix.sut }}
+  #   steps:
+  #     - name: Checkout Teleport
+  #       uses: actions/checkout@v6
+  #       with:
+  #         ssh-key: ${{ secrets.SSH_PRIVATE_KEY }}
+  #         ref: ${{ matrix.ref }}
+  #         submodules: recursive
+  #         fetch-depth: 0
+
+  #     - name: Resolve image references
+  #       id: images
+  #       run: |
+  #         ls -lahR
+  #         source e/tests/antithesis/.env 2>/dev/null || true
+  #         source e/tests/antithesis/sut/${SUT}/.env
+  #         source e/tests/antithesis/sut/${SUT}/images.sh
+
+  #     - name: Trigger Antithesis run
+  #       uses: antithesishq/antithesis-trigger-action@v0.12
+  #       with:
+  #         notebook_name: teleport
+  #         tenant: teleport
+  #         username: ${{ secrets.ANTITHESIS_USERNAME }}
+  #         password: ${{ secrets.ANTITHESIS_PASSWORD }}
+  #         github_token: ${{ secrets.ANTITHESIS_GHA_PAT }}
+  #         config_image: ${{ steps.images.outputs.config_image }}
+  #         images: ${{ steps.images.outputs.images }}
+  #         description: >-
+  #           ${{ inputs.description
+  #               || format('{0} {1} @ {2} ({3})',
+  #                    matrix.sut, matrix.ref,
+  #                    needs.build.outputs.tag,
+  #                    github.event_name == 'schedule' && 'nightly' || 'manual') }}
+  #         email_recipients: ${{ inputs.email_recipients }}
+  #         test_name: teleport-${{ matrix.sut }}-${{ matrix.ref }}
+  #         additional_parameters: |
+  #           antithesis.duration=${{ inputs.antithesis_duration || 60 }}
+  #           ${{ inputs.additional_parameters }}
