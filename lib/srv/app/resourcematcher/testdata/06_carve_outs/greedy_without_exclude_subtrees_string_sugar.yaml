@@ -1,4 +1,4 @@
-description: 'greedy_without: exclude subtrees (string sugar)'
+description: 'greedy_without: exclude and carve out subtrees'
 app_resources_expression:
     - |-
       path.match(literal("files",
