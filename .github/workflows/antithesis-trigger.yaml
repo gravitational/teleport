@@ -100,6 +100,8 @@ jobs:
       - name: Checkout Teleport
         uses: actions/checkout@v6
         with:
+          ssh-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          submodules: recursive
           ref: ${{ matrix.ref }}
 
       - name: Compute tag
@@ -124,7 +126,8 @@ jobs:
       - name: Build and push all images
         # working-directory: e/tests/antithesis
         run: |
-          ls -lahR
+          ls -lah e
+          pwd
           # make build-all build-config \
           #   SUT="${SUT}" \
           #   REGISTRY="${REGISTRY}" \
