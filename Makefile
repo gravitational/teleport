@@ -440,6 +440,10 @@ $(BUILDDIR)/tbot:
 
 .PHONY: $(BUILDDIR)/teleport-update
 $(BUILDDIR)/teleport-update:
+	@if [[ -z "$(TELEPORT_UPDATE_ARTIFACT_SIGNATURE_PUBLIC_KEY_B64)" ]]; then \
+		echo "TELEPORT_UPDATE_ARTIFACT_SIGNATURE_PUBLIC_KEY_B64 must be set when building teleport-update" >&2; \
+		exit 1; \
+	fi
 	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=0 go build -tags "grpcnotrace $(FIPS_TAG)" -o $(BUILDDIR)/teleport-update $(BUILDFLAGS_TELEPORT_UPDATE) $(TELEPORT_UPDATE_LDFLAGS) ./tool/teleport-update
 
 TELEPORT_ARGS ?= start
