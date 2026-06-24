@@ -133,8 +133,6 @@ func StartTeleportExecXSession(ctx context.Context, cfg *XSessionConfig) (*reexe
 	env := envutils.SafeEnv{}
 	env.AddTrusted("DISPLAY", cfg.Display)
 	env.AddTrusted("XAUTHORITY", cfg.AuthorityFile)
-	//env.AddTrusted("XDG_RUNTIME_DIR", runtimeDir)
-	//env.AddTrusted("DBUS_SESSION_BUS_ADDRESS", fmt.Sprintf("unix:path=%s/bus", runtimeDir))
 	env.AddTrusted("XDG_SESSION_TYPE", "x11")
 
 	cmdd, err := resolveSessionCommand(cfg.Command, discoverSessionWrapper(ctx, cfg.Logger, cfg.SessionWrapper))
