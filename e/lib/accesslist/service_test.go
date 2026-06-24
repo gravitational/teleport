@@ -433,8 +433,10 @@ func TestService_UpsertAccessList(t *testing.T) {
 
 	a5.SetOrigin(types.OriginOkta)
 
-	_, err = c.svc.UpsertAccessList(c.userCtx, accesslistv1.UpsertAccessListRequest_builder{AccessList: conv.ToProto(a1)}.Build())
+	upsertResp, err := c.svc.UpsertAccessList(c.userCtx, accesslistv1.UpsertAccessListRequest_builder{AccessList: conv.ToProto(a1)}.Build())
 	require.NoError(t, err)
+	// The upsert response carries the caller's assignments like the read paths do.
+	require.NotNil(t, upsertResp.GetStatus().GetCurrentUserAssignments())
 	expectEvent(t, events.AccessListCreateSuccessCode, c.emitter, func(event *apievents.AccessListCreate) {
 		require.True(t, event.Success)
 	})
@@ -2271,7 +2273,7 @@ func TestService_UpsertAccessListWithMembers(t *testing.T) {
 			membersDeleted = len(oldMembers)
 		}
 
-		_, err = c.svc.UpsertAccessListWithMembers(ctx, accesslistv1.UpsertAccessListWithMembersRequest_builder{
+		resp, err := c.svc.UpsertAccessListWithMembers(ctx, accesslistv1.UpsertAccessListWithMembersRequest_builder{
 			AccessList: conv.ToProto(accessList),
 			Members:    conv.ToMembersProto(members),
 		}.Build())
@@ -2304,6 +2306,14 @@ func TestService_UpsertAccessListWithMembers(t *testing.T) {
 		if err != nil {
 			return
 		}
+
+		// The upsert response must carry the caller's assignments, matching what
+		// a get returns, so clients can derive their permissions from it without
+		// refetching the access list.
+		getResp, getErr := c.svc.GetAccessList(ctx, accesslistv1.GetAccessListRequest_builder{Name: accessList.GetName()}.Build())
+		require.NoError(t, getErr)
+		require.NotNil(t, resp.GetAccessList().GetStatus().GetCurrentUserAssignments())
+		require.Equal(t, getResp.GetStatus().GetCurrentUserAssignments(), resp.GetAccessList().GetStatus().GetCurrentUserAssignments())
 
 		if checkAccessListModificationEvent {
 			if accessListCreated {

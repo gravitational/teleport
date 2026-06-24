@@ -105,6 +105,9 @@ func TestGetAccessLists(t *testing.T) {
 		[]*accesslist.AccessList{accessListResp.AccessLists[0].AccessList, accessListResp.AccessLists[1].AccessList},
 		[]*accesslist.AccessList{createdAccessList1, createdAccessList2},
 		cmpopts.IgnoreFields(header.Metadata{}, "Revision"),
+		// Computed for the caller of each request, which differs between the
+		// upsert and the list request.
+		cmpopts.IgnoreFields(accesslist.Status{}, "CurrentUserAssignments"),
 	))
 }
 
@@ -525,6 +528,9 @@ func testCreateAccessList(t *testing.T, ownerWebClt *TestWebClient, owner types.
 	require.NoError(t, json.Unmarshal(resp.Bytes(), &accessListResp))
 	require.Empty(t, cmp.Diff(spec, accessListResp.AccessList.Spec,
 		accessListCmpOpts))
+	// The response must include the caller's assignments so clients can derive
+	// their permissions from it without refetching the access list.
+	require.NotNil(t, accessListResp.AccessList.CurrentUserAssignments)
 
 	return accessListResp.AccessList.Metadata.Name, resp, nil
 }
@@ -557,6 +563,11 @@ func testUpdateAccessListRequireOK(t *testing.T, clt *TestWebClient, accessListI
 	var accessListResp ui.AccessListResponse
 	require.NoError(t, json.Unmarshal(resp.Bytes(), &accessListResp))
 	require.Empty(t, cmp.Diff(spec, accessListResp.AccessList.Spec, accessListCmpOpts))
+	// The response must include the caller's assignments so clients can derive
+	// their permissions from it without refetching the access list. The caller
+	// here is always an owner of the list.
+	require.NotNil(t, accessListResp.AccessList.CurrentUserAssignments)
+	require.True(t, accessListResp.AccessList.CurrentUserAssignments.IsOwner())
 	require.Len(t, accessListResp.AccessList.Members, len(memberSpec))
 	for i, member := range memberSpec {
 		require.Equal(t, member.Name, accessListResp.AccessList.Members[i].Name)

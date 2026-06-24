@@ -508,18 +508,30 @@ func (s *Service) userCanReadAccessList(ctx context.Context, authCtx *authz.Cont
 	}
 
 	// Allow the user to access the list if they are an owner or member.
-	if ownershipType, err := accesslists.IsAccessListOwner(ctx, authCtx.User, accessList, s.accessLists, s.lockGetter, s.clock); err == nil {
-		assignments.OwnershipType = ownershipType
-	}
-	if membershipType, err := accesslists.IsAccessListMember(ctx, authCtx.User, accessList, s.accessLists, s.lockGetter, s.clock); err == nil {
-		assignments.MembershipType = membershipType
-	}
+	assignments = s.currentUserAssignments(ctx, authCtx, accessList)
 
 	if assignments.IsOwner() || assignments.IsMember() {
 		return assignments, nil
 	}
 
 	return assignments, trace.Wrap(authErr)
+}
+
+// currentUserAssignments returns the requesting user's ownership and membership
+// assignments for the given access list. Failed checks are reported as
+// unspecified assignment types.
+func (s *Service) currentUserAssignments(ctx context.Context, authCtx *authz.Context, accessList *accesslist.AccessList) accesslist.CurrentUserAssignments {
+	assignments := accesslist.CurrentUserAssignments{
+		OwnershipType:  accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED,
+		MembershipType: accesslistv1.AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED,
+	}
+	if ownershipType, err := accesslists.IsAccessListOwner(ctx, authCtx.User, accessList, s.accessLists, s.lockGetter, s.clock); err == nil {
+		assignments.OwnershipType = ownershipType
+	}
+	if membershipType, err := accesslists.IsAccessListMember(ctx, authCtx.User, accessList, s.accessLists, s.lockGetter, s.clock); err == nil {
+		assignments.MembershipType = membershipType
+	}
+	return assignments
 }
 
 // GetAccessList returns the specified access list resource.
@@ -740,6 +752,9 @@ func (s *Service) upsertAccessList(ctx context.Context, authCtx *authz.Context, 
 		return nil, trace.Wrap(err)
 	}
 
+	currentAssignments := s.currentUserAssignments(ctx, authCtx, responseAccessList)
+	responseAccessList.Status.CurrentUserAssignments = &currentAssignments
+
 	return conv.ToProto(responseAccessList), nil
 }
 
@@ -749,6 +764,9 @@ func (s *Service) updateAccessList(ctx context.Context, authCtx *authz.Context, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	currentAssignments := s.currentUserAssignments(ctx, authCtx, responseAccessList)
+	responseAccessList.Status.CurrentUserAssignments = &currentAssignments
 
 	return conv.ToProto(responseAccessList), nil
 }
@@ -1786,6 +1804,11 @@ func (s *Service) upsertAccessListWithMembers(ctx context.Context, authCtx *auth
 	updatedProtoMembers := applyMembersIneligibleStatus(updatedMembers, updatedAccessList.GetMembershipRequires(), s.clock, userLookup)
 	updatedOwners := applyOwnersIneligibleStatus(updatedAccessList, s.clock, userLookup)
 	updatedAccessList.SetOwners(updatedOwners)
+
+	// Populate the caller's assignments like the read paths do, so clients can
+	// derive their permissions from the upsert response without a refetch.
+	currentAssignments := s.currentUserAssignments(ctx, authCtx, updatedAccessList)
+	updatedAccessList.Status.CurrentUserAssignments = &currentAssignments
 
 	// Return the updated access list and members.
 	return accesslistv1.UpsertAccessListWithMembersResponse_builder{

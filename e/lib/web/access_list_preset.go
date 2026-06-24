@@ -72,8 +72,9 @@ func (p *Plugin) createAccessListWithPreset(_ http.ResponseWriter, r *http.Reque
 
 	return &ui.AccessListWithPresetResponse{
 		AccessList: &ui.AccessList{
-			AccessList: acl,
-			Members:    membersToMembersSpec(updatedMembers),
+			AccessList:             acl,
+			Members:                membersToMembersSpec(updatedMembers),
+			CurrentUserAssignments: acl.GetStatus().CurrentUserAssignments,
 		},
 		AccessRoles: resp.GetRoles(),
 	}, nil
@@ -130,8 +131,9 @@ func (p *Plugin) updateAccessListWithPreset(_ http.ResponseWriter, r *http.Reque
 
 	return &ui.AccessListWithPresetResponse{
 		AccessList: &ui.AccessList{
-			AccessList: acl,
-			Members:    membersToMembersSpec(updatedMembers),
+			AccessList:             acl,
+			Members:                membersToMembersSpec(updatedMembers),
+			CurrentUserAssignments: acl.GetStatus().CurrentUserAssignments,
 		},
 		AccessRoles:      resp.GetRoles(),
 		RolesToBeDeleted: resp.GetRolesToBeDeleted(),

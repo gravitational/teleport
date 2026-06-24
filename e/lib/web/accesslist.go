@@ -323,8 +323,9 @@ func (p *Plugin) upsertAccessList(_ http.ResponseWriter, r *http.Request, params
 
 	return ui.AccessListResponse{
 		AccessList: &ui.AccessList{
-			AccessList: createdAccessList,
-			Members:    memberSpecs,
+			AccessList:             createdAccessList,
+			Members:                memberSpecs,
+			CurrentUserAssignments: createdAccessList.GetStatus().CurrentUserAssignments,
 		},
 	}, nil
 }
