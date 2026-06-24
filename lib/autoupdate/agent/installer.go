@@ -39,7 +39,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sigstore/sigstore/pkg/cryptoutils"
 	"github.com/sigstore/sigstore/pkg/signature"
-	"github.com/sigstore/sigstore/pkg/signature/options"
 
 	"github.com/gravitational/teleport/lib/autoupdate"
 	"github.com/gravitational/teleport/lib/utils"
@@ -230,7 +229,7 @@ func (li *LocalInstaller) Install(ctx context.Context, rev Revision, baseURL str
 	if !bytes.Equal(newSum, pathSum) {
 		return trace.Errorf("mismatched checksum, download possibly corrupt")
 	}
-	if err := li.verifyArtifactSignature(ctx, f, pathSum, uri+"."+artifactSignatureType); err != nil {
+	if err := li.verifyArtifactSignature(ctx, f, uri+"."+artifactSignatureType); err != nil {
 		return trace.Wrap(err)
 	}
 	// Get uncompressed size of the tgz
@@ -375,7 +374,7 @@ func (li *LocalInstaller) getSignature(ctx context.Context, url string) ([]byte,
 	return sig, nil
 }
 
-func (li *LocalInstaller) verifyArtifactSignature(ctx context.Context, artifact io.ReadSeeker, artifactDigest []byte, url string) error {
+func (li *LocalInstaller) verifyArtifactSignature(ctx context.Context, artifact io.ReadSeeker, url string) error {
 	verifier, err := li.artifactSignatureVerifier()
 	if err != nil {
 		return trace.Wrap(err)
@@ -384,11 +383,14 @@ func (li *LocalInstaller) verifyArtifactSignature(ctx context.Context, artifact 
 	if err != nil {
 		return trace.Wrap(err, "failed to download signature from %s", url)
 	}
-	if err := verifier.VerifySignature(bytes.NewReader(sig), bytes.NewReader(nil), options.WithDigest(artifactDigest)); err != nil {
+	if _, err := artifact.Seek(0, io.SeekStart); err != nil {
+		return trace.Wrap(err, "failed to seek artifact for signature verification")
+	}
+	if err := verifier.VerifySignature(bytes.NewReader(sig), artifact); err != nil {
 		return trace.Wrap(err, "artifact signature verification failed")
 	}
 	if _, err := artifact.Seek(0, io.SeekStart); err != nil {
-		return trace.Wrap(err, "failed to reset download after signature verification")
+		return trace.Wrap(err, "failed to reset artifact after signature verification")
 	}
 	return nil
 }
