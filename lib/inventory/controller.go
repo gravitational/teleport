@@ -1056,7 +1056,7 @@ func (c *Controller) handleAppServerHB(handle *upstreamHandle, appServer *types.
 		return trace.AccessDenied("incorrect app server ID (expected %q, got %q)", handle.Hello().ServerID, appServer.GetHostID())
 	}
 
-	// Agent's that don't know about scopes can still have a scoped identity. In that case, we consider an empty
+	// Agents that don't know about scopes can still have a scoped identity. In that case, we consider an empty
 	// scope to defer to what was found in the identity during the initial hello.
 	if appServer.Scope == "" {
 		appServer.Scope = handle.Hello().GetScope()
@@ -1066,6 +1066,16 @@ func (c *Controller) handleAppServerHB(handle *upstreamHandle, appServer *types.
 	if appServer.Scope != handle.Hello().GetScope() {
 		return trace.AccessDenied("incorrect app server scope (expected %q, got %q)", handle.Hello().GetScope(), appServer.Scope)
 	}
+
+	// Require the embedded app scope to equal the server scope.
+	if app := appServer.GetApp(); app != nil && !services.AppServerScopesEqual(appServer.Scope, app.GetScope()) {
+		return trace.AccessDenied("incorrect embedded app scope (server scope %q does not match app scope %q)", appServer.Scope, app.GetScope())
+	}
+
+	// Older agents send mixed-case names and URL-shaped public_addr;
+	// normalize before deriving the cache key so it matches the
+	// backend write.
+	services.NormalizeAppServerForHeartbeat(appServer)
 
 	if handle.appServers == nil {
 		handle.appServers = make(map[resourceKey]*heartBeatInfo[*types.AppServerV3])
