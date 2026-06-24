@@ -28,7 +28,6 @@ allowed-tools:
   - Bash(tctl tokens ls:*)
   - Bash(aws iam list-open-id-connect-providers:*)
   - Bash(aws iam get-open-id-connect-provider:*)
-  - Bash(aws iam add-client-id-to-open-id-connect-provider:*)
   - Bash(aws configure get region:*)
   - Bash(az account show:*)
   - Bash(az group show:*)
