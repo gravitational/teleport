@@ -197,6 +197,9 @@ type RegisterParams struct {
 	// Log is the logger to use for emitting log messages.
 	// If not specified, this defaults to the global logger.
 	Log *slog.Logger
+	// SkipVersionCheck bypasses the client-side minimum version check performed
+	// when joining via a proxy.
+	SkipVersionCheck bool
 }
 
 func (r *RegisterParams) CheckAndSetDefaults() error {
