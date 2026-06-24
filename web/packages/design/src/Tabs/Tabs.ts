@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { MouseEvent } from 'react';
 import { NavLink } from 'react-router';
 import styled from 'styled-components';
 
@@ -46,11 +47,19 @@ export const TabsContainer = styled.div<TabsContainerProps>`
   ${space}
 `;
 
-export const TabContainer = styled.div<{
+export const TabContainer = styled.div.attrs<{
   selected?: boolean;
   size?: 'small';
   disabled?: boolean;
-}>`
+}>(p => ({
+  // The alternative "pointer-events: none" is not used here
+  // to allow hover-based behavior (e.g. tooltips) to work on
+  // disabled tabs. preventDefault is needed (rather than just
+  // undefined) so that TabContainerNavLink (an anchor element)
+  // doesn't follow their href when disabled.
+  onClick: p.disabled ? (e: MouseEvent) => e.preventDefault() : p.onClick,
+  'aria-disabled': p.disabled || undefined,
+}))`
   padding: ${p => p.theme.space[1] + p.theme.space[2]}px
     ${p => p.theme.space[2]}px;
   position: relative;
@@ -82,7 +91,6 @@ export const TabContainer = styled.div<{
     p.disabled &&
     `
     cursor: not-allowed;
-    pointer-events: none;
     opacity: 0.3;
     &:hover {
       opacity: 0.3;

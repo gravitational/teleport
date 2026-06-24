@@ -46,7 +46,7 @@ jobs:
         with:
           repository: gravitational/shared-workflows
           path: .github/shared-workflows
-          ref: dd8f30e8fd5dd1d1655b9d27049e5d0f6f4f9ef2 # workflows/v0.0.3
+          ref: 02af65890b521ecdf79856c00f6d2c875bf40ea3 # workflows/v0.0.5
 
       - name: Setup base cache
         uses: actions/cache/restore@v5
@@ -97,7 +97,7 @@ jobs:
         with:
           repository: gravitational/shared-workflows
           path: .github/shared-workflows
-          ref: dd8f30e8fd5dd1d1655b9d27049e5d0f6f4f9ef2 # workflows/v0.0.3
+          ref: 02af65890b521ecdf79856c00f6d2c875bf40ea3 # workflows/v0.0.5
 
       - name: Build Binaries
         id: build_branch

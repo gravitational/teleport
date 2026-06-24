@@ -2647,6 +2647,39 @@ export const formatters: Formatters = {
     format: ({ name, user }) =>
       `Retrieval Model [${name}] was deleted by [${user}]`,
   },
+  [eventCodes.CLASSIFIER_CREATE]: {
+    type: 'classifier.create',
+    desc: 'Classifier Created',
+    format: ({ name, user }) => `Classifier [${name}] was created by [${user}]`,
+  },
+  [eventCodes.CLASSIFIER_CREATE_FAILURE]: {
+    type: 'classifier.create',
+    desc: 'Classifier Creation Failed',
+    format: ({ name, user }) =>
+      `Classifier [${name}] failed to be created by [${user}]`,
+  },
+  [eventCodes.CLASSIFIER_UPDATE]: {
+    type: 'classifier.update',
+    desc: 'Classifier Updated',
+    format: ({ name, user }) => `Classifier [${name}] was updated by [${user}]`,
+  },
+  [eventCodes.CLASSIFIER_UPDATE_FAILURE]: {
+    type: 'classifier.update',
+    desc: 'Classifier Update Failed',
+    format: ({ name, user }) =>
+      `Classifier [${name}] failed to be updated by [${user}]`,
+  },
+  [eventCodes.CLASSIFIER_DELETE]: {
+    type: 'classifier.delete',
+    desc: 'Classifier Deleted',
+    format: ({ name, user }) => `Classifier [${name}] was deleted by [${user}]`,
+  },
+  [eventCodes.CLASSIFIER_DELETE_FAILURE]: {
+    type: 'classifier.delete',
+    desc: 'Classifier Deletion Failed',
+    format: ({ name, user }) =>
+      `Classifier [${name}] failed to be deleted by [${user}]`,
+  },
   [eventCodes.SESSION_SUMMARIZED]: {
     type: 'session.summarized',
     desc: 'Session Summarized',

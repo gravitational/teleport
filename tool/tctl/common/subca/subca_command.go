@@ -17,6 +17,7 @@
 package subca
 
 import (
+	"bytes"
 	"context"
 	"crypto/x509"
 	"encoding/pem"
@@ -30,12 +31,29 @@ import (
 	"github.com/gravitational/trace"
 
 	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/pkixname"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/subca"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
+
+type pemFileList []string
+
+func (p *pemFileList) Set(val string) error {
+	*p = append(*p, val)
+	return nil
+}
+
+func (p *pemFileList) String() string {
+	return ""
+}
+
+// IsCumulative tells kingpin that it's OK to call Set multiple times.
+func (p *pemFileList) IsCumulative() bool {
+	return true
+}
 
 // cliCATypes maps subca.SupportedCATypes() into their CLI-friendly counterparts
 // (typically by replacing "_" with "-").
@@ -109,6 +127,8 @@ type Command struct {
 	Stdout, Stderr io.Writer
 
 	createOverrideCSR createOverrideCSRCommand
+	createOverride    createOverrideCommand
+	deleteOverride    deleteOverrideCommand
 	pubKeyHash        pubKeyHashCommand
 }
 
@@ -131,15 +151,16 @@ func (c *Command) Initialize(
 		c.Stderr = os.Stderr
 	}
 
-	c.createOverrideCSR.CmdClause = parent.Command(
-		"create-override-csr", "Create a CSR in preparation for CA certificate override")
 	// Don't over-validate CA types on the client. That's the server's responsibility.
-	createCSRHelp := fmt.Sprintf(
+	caTypesHelp := fmt.Sprintf(
 		"CA type (%s)",
 		strings.Join(cliCATypes.Names, ", "),
 	)
+
+	c.createOverrideCSR.CmdClause = parent.Command(
+		"create-override-csr", "Create a CSR in preparation for CA certificate override")
 	c.createOverrideCSR.
-		Flag("type", createCSRHelp). // --type mimics other "tctl auth" commands
+		Flag("type", caTypesHelp). // --type mimics other "tctl auth" commands
 		Required().
 		StringVar(&c.createOverrideCSR.cliCAType)
 	c.createOverrideCSR.
@@ -151,6 +172,30 @@ func (c *Command) Initialize(
 	c.createOverrideCSR.
 		Flag("subject", `Customized certificate subject. Example: "O=MyClusterName,OU=MyOrgUnit,CN=MyCommonName"`).
 		StringVar(&c.createOverrideCSR.subject)
+
+	c.createOverride.CmdClause = parent.Command("create-override", "Add a single certificate override to a CA override resource")
+	c.createOverride.Flag("type", caTypesHelp).
+		Required().
+		StringVar(&c.createOverride.cliCAType)
+	c.createOverride.Arg("cert.pem", "CA override certificate file in PEM form").
+		Required().
+		StringVar(&c.createOverride.certFile)
+	c.createOverride.Arg("chain.pem", "CA override trust chain files in PEM form").
+		SetValue(&c.createOverride.chainFiles)
+	c.createOverride.Flag("disabled", "If true creates a disabled override").
+		BoolVar(&c.createOverride.disabled)
+	c.createOverride.Flag("force", "If true attempts to force creation, ignoring select state validation").
+		BoolVar(&c.createOverride.force)
+
+	c.deleteOverride.CmdClause = parent.Command("delete-override", "Delete a single certificate override from a CA override resource")
+	c.deleteOverride.Flag("type", caTypesHelp).
+		Required().
+		StringVar(&c.deleteOverride.cliCAType)
+	c.deleteOverride.Flag("public-key", "Public key hash of the certificate override to be targeted").
+		Required().
+		StringVar(&c.deleteOverride.publicKey)
+	c.deleteOverride.Flag("force", "If true attempts to force deletion. May be used to delete live overrides.").
+		BoolVar(&c.deleteOverride.force)
 
 	c.pubKeyHash.CmdClause = parent.Command(
 		"pub-key-hash", "Extract and print the public key hash of a PEM certificate")
@@ -170,6 +215,8 @@ func (c *Command) TryRun(
 ) (match bool, err error) {
 	for _, cmd := range []subCommand{
 		&c.createOverrideCSR,
+		&c.createOverride,
+		&c.deleteOverride,
 		&c.pubKeyHash,
 	} {
 		if selectedCommand == cmd.FullCommand() {
@@ -378,5 +425,117 @@ func (c *pubKeyHashCommand) Run(
 	}
 
 	fmt.Fprintln(s.Stdout, subca.HashCertificatePublicKey(cert))
+	return nil
+}
+
+type createOverrideCommand struct {
+	*kingpin.CmdClause
+
+	cliCAType  string
+	certFile   string
+	chainFiles pemFileList
+	disabled   bool
+	force      bool
+}
+
+func (c *createOverrideCommand) Run(
+	ctx context.Context,
+	clientFunc InitFunc,
+	s *commandState,
+) error {
+	caType := cliCATypes.Convert(c.cliCAType)
+
+	certPEM, cert, err := readCertFile(c.certFile)
+	if err != nil {
+		return trace.Wrap(err, "cert.pem")
+	}
+	pkh := subca.HashCertificatePublicKey(cert)
+
+	var chain []string
+	for i, chainFile := range c.chainFiles {
+		// Parse the cert so know it's valid, but otherwise we only need the PEM.
+		chainPEM, _, err := readCertFile(chainFile)
+		if err != nil {
+			return trace.Wrap(err, "chain%d.pem", i)
+		}
+		chain = append(chain, string(chainPEM))
+	}
+
+	authClient, closeFn, err := clientFunc(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer closeFn(ctx)
+
+	_, err = authClient.SubCAClient().AddCertificateOverride(ctx, subcav1.AddCertificateOverrideRequest_builder{
+		CaId: subcav1.CertAuthorityOverrideID_builder{
+			CaType: caType,
+		}.Build(),
+		CertificateOverride: subcav1.CertificateOverride_builder{
+			PublicKey:   pkh,
+			Certificate: string(certPEM),
+			Chain:       chain,
+			Disabled:    c.disabled,
+		}.Build(),
+		ForceImmediateDisable: c.force,
+	}.Build())
+	if err != nil {
+		return trace.Wrap(err, "create certificate override")
+	}
+	fmt.Fprintf(s.Stdout, "%s/%s: certificate override %s created\n", types.KindCertAuthorityOverride, caType, pkh)
+
+	return nil
+}
+
+func readCertFile(certFile string) (pem []byte, _ *x509.Certificate, _ error) {
+	certPEM, err := os.ReadFile(certFile)
+	if err != nil {
+		return nil, nil, trace.Wrap(err, "read certificate file")
+	}
+	// Trim spaces. Strict server validation doesn't allow it.
+	certPEM = bytes.TrimSpace(certPEM)
+
+	cert, err := tlsutils.ParseCertificatePEMStrict(certPEM)
+	if err != nil {
+		return nil, nil, trace.Wrap(err, "parse certificate")
+	}
+	return certPEM, cert, nil
+}
+
+type deleteOverrideCommand struct {
+	*kingpin.CmdClause
+
+	cliCAType string
+	publicKey string
+	force     bool
+}
+
+func (c *deleteOverrideCommand) Run(
+	ctx context.Context,
+	clientFunc InitFunc,
+	s *commandState,
+) error {
+	caType := cliCATypes.Convert(c.cliCAType)
+
+	authClient, closeFn, err := clientFunc(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer closeFn(ctx)
+
+	_, err = authClient.SubCAClient().RemoveCertificateOverride(ctx, subcav1.RemoveCertificateOverrideRequest_builder{
+		CertificateOverrideId: subcav1.CertificateOverrideID_builder{
+			CaType: caType,
+			PublicKeyHash: subcav1.PublicKeyHash_builder{
+				Value: c.publicKey,
+			}.Build(),
+		}.Build(),
+		ForceImmediateDelete: c.force,
+	}.Build())
+	if err != nil {
+		return trace.Wrap(err, "delete certificate override")
+	}
+	fmt.Fprintf(s.Stdout, "%s/%s: certificate override %s deleted\n", types.KindCertAuthorityOverride, caType, c.publicKey)
+
 	return nil
 }

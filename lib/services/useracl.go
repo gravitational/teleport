@@ -138,6 +138,8 @@ type UserACL struct {
 	InferencePolicy ResourceAccess `json:"inferencePolicy"`
 	// InferenceSecret defines access to session summaries inference secret.
 	InferenceSecret ResourceAccess `json:"inferenceSecret"`
+	// Classifier defines access to session summarization classifiers.
+	Classifier ResourceAccess `json:"classifier"`
 	// AutoUpdateConfig defines access to autoupdate config.
 	AutoUpdateConfig ResourceAccess `json:"autoUpdateConfig"`
 	// AutoUpdateVersion defines access to autoupdate version.
@@ -322,6 +324,7 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 		InferenceModel:           newAccess(userRoles, ctx, types.KindInferenceModel),
 		InferencePolicy:          newAccess(userRoles, ctx, types.KindInferencePolicy),
 		InferenceSecret:          newAccess(userRoles, ctx, types.KindInferenceSecret),
+		Classifier:               newAccess(userRoles, ctx, types.KindClassifier),
 		AutoUpdateConfig:         autoUpdateConfig,
 		AutoUpdateVersion:        autoUpdateVersion,
 		AutoUpdateAgentRollout:   autoUpdateAgentRollout,

@@ -26,9 +26,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/rolesanywhere"
 	ratypes "github.com/aws/aws-sdk-go-v2/service/rolesanywhere/types"
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 )
@@ -182,16 +182,13 @@ func TestListRolesAnywhereProfilesPage(t *testing.T) {
 			},
 			expectedResp: func(t *testing.T, page []*integrationv1.RolesAnywhereProfile) {
 				require.Len(t, page, 5)
-				cmpOpts := []cmp.Option{
-					cmpopts.IgnoreUnexported(integrationv1.RolesAnywhereProfile{}),
-				}
 				require.Empty(t, cmp.Diff(page, []*integrationv1.RolesAnywhereProfile{
 					integrationv1.RolesAnywhereProfile_builder{Arn: "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/id2", Name: "TeamA-subteam2", Tags: make(map[string]string)}.Build(),
 					integrationv1.RolesAnywhereProfile_builder{Arn: "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/id3", Name: "TeamA-subteam3", Tags: make(map[string]string)}.Build(),
 					integrationv1.RolesAnywhereProfile_builder{Arn: "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/id4", Name: "TeamB-subteam1", Tags: make(map[string]string)}.Build(),
 					integrationv1.RolesAnywhereProfile_builder{Arn: "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/id5", Name: "TeamB-subteam2", Tags: make(map[string]string)}.Build(),
 					integrationv1.RolesAnywhereProfile_builder{Arn: "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/id6", Name: "TeamB-subteam3", Tags: make(map[string]string)}.Build(),
-				}, cmpOpts...))
+				}, protocmp.Transform()))
 			},
 			expectedErrCheck: require.NoError,
 		},

@@ -3038,3 +3038,15 @@ func (m *BeamsConfigUpdate) TrimToMaxSize(int) AuditEvent {
 func (m *BeamsConfigDelete) TrimToMaxSize(int) AuditEvent {
 	return m
 }
+
+func (m *ClassifierCreate) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *ClassifierUpdate) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}
+
+func (m *ClassifierDelete) TrimToMaxSize(_ int) AuditEvent {
+	return m
+}

@@ -64,7 +64,7 @@ the connection to your Teleport cluster. If the secret has the path,
 
 `slack` contains the configuration used by the plugin to authenticate to Slack.
 
-You can pass the Slack token:
+You can pass the Slack Bot OAuth token:
 - via the chart Values by setting `slack.token`
 - via an existing Kubernetes Secret by setting `slack.tokenFromSecret`
 
@@ -74,7 +74,7 @@ You can pass the Slack token:
 |------|---------|
 | `string` | `""` |
 
-`slack.token` is the Slack token used by the plugin to interact
+`slack.token` is the Slack Bot OAuth token used by the plugin to interact
 with Slack. When set, the Chart creates a Kubernetes Secret for you.
 
 This value has no effect if `slack.tokenFromSecret` is set.
@@ -86,7 +86,7 @@ This value has no effect if `slack.tokenFromSecret` is set.
 | `string` | `""` |
 
 `slack.tokenFromSecret` is the name of the Kubernetes Secret
-containing the Slack token. When this value is set, you must create the
+containing the Slack Bot OAuth token. When this value is set, you must create the
 Secret before creating the chart release.
 
 ### `slack.tokenSecretPath`
@@ -96,7 +96,96 @@ Secret before creating the chart release.
 | `string` | `"slackToken"` |
 
 `slack.tokenSecretPath` is the Kubernetes Secret key
-containing the Slack token. The secret name is set via `slack.tokenFromSecret`.
+containing the Slack Bot OAuth token. The secret name is set via `slack.tokenFromSecret`.
+
+## `review`
+
+`review` configures native review of Teleport Access Requests within Slack.
+
+Native review is by default disabled.
+
+<Admonition type="danger">
+Enabling this feature reduces the security of the Teleport cluster.
+Access Request reviews submitted through Slack are bound to a Slack identity rather than
+the reviewer's Teleport identity, and bypass Teleport authentication
+(and MFA for admin actions if enabled on cluster).
+As a result, a compromised Slack account can approve requests from Slack and escalate privileges in Teleport.
+</Admonition>
+
+<Admonition type="note">
+There are two identity binding models for Slack reviewers:
+- binding based on Teleport username and Slack email, toggled with `review.allowEmailUsernameMatch`
+- binding based on Teleport trait and Slack user ID, set by `review.slackUserIdTrait`
+
+The binding based on Teleport trait is stronger, but requires a Teleport user to be given a trait with
+their Slack user ID, often coming from the Identity Provider/SSO connector.
+</Admonition>
+
+You can pass the Slack App-level token:
+- via the chart Values by setting `review.appToken`
+- via an existing Kubernetes Secret by setting `review.appTokenFromSecret`
+
+### `review.enabled`
+
+| Type | Default |
+|------|---------|
+| `bool` | `false` |
+
+`review.enabled` toggles native review feature. Default is false.
+
+### `review.appToken`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`review.appToken` is the Slack App-level token used by the plugin
+to receive user interactions from Slack.
+This is different from the Bot OAuth token, and must be set up separately.
+Set this up under "Basic Information" in your Slack app settings.
+
+When set, the Chart creates a Kubernetes Secret for you.
+
+This value has no effect if `review.appTokenFromSecret` is set.
+
+### `review.appTokenFromSecret`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`review.appTokenFromSecret` is the name of the Kubernetes Secret
+containing the Slack App-level token. When this value is set, you must create the
+Secret before creating the chart release.
+
+### `review.appTokenSecretPath`
+
+| Type | Default |
+|------|---------|
+| `string` | `"slackAppToken"` |
+
+`review.appTokenSecretPath` is the Kubernetes Secret key
+containing the Slack App-level token. The secret name is set via `review.appTokenFromSecret`.
+
+### `review.allowEmailUsernameMatch`
+
+| Type | Default |
+|------|---------|
+| `bool` | `false` |
+
+`review.allowEmailUsernameMatch` allows binding between Teleport username and Slack email.
+This should only be set to true if `review.slackUserIdTrait` is not configured in Teleport.
+We recommend configuring a trait for stronger identity binding. Default is false.
+
+### `review.slackUserIdTrait`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`review.slackUserIdTrait` is the name of the Teleport trait
+to bind Teleport user and Slack user.
+The trait should hold value of Slack user ID.
 
 ## `roleToRecipients`
 

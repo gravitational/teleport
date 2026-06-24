@@ -138,6 +138,7 @@ func TestTLSIdentity_roundtrip(t *testing.T) {
 		}.Build(),
 		UserType:            "user-type",
 		DelegationSessionId: "delegation-session",
+		BeamId:              "beam-id",
 	}.Build()
 
 	tests := []struct {

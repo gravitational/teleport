@@ -33,6 +33,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
+	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
@@ -482,6 +483,96 @@ func TestPresenceService_ListRemoteClusters(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, pageToken)
 	require.Len(t, rcs, 10)
+}
+
+// TestCA_TunnelConnections_CorruptItem ensures that a single malformed tunnel
+// connection in the backend is skipped rather than failing or truncating the
+// read. For List* this means pagination is not cut short; for Get*/GetAll* this
+// means the bad item is skipped instead of erroring the whole call.
+func TestCA_TunnelConnections_CorruptItem(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, bk.Close()) })
+
+	trustService := NewCAService(bk)
+
+	const cluster = "leaf.example.com"
+	want := []string{"conn-0", "conn-1", "conn-2", "conn-3", "conn-4"}
+	for _, name := range want {
+		conn, err := types.NewTunnelConnection(name, types.TunnelConnectionSpecV2{
+			ClusterName:   cluster,
+			ProxyName:     "proxy",
+			LastHeartbeat: time.Now().UTC(),
+			Type:          types.ProxyTunnel,
+		})
+		require.NoError(t, err)
+		require.NoError(t, trustService.UpsertTunnelConnection(ctx, conn))
+	}
+
+	// Write an unparseable item whose key sorts in the middle of the set
+	// (between conn-2 and conn-3).
+	_, err = bk.Put(ctx, backend.Item{
+		Key:   backend.NewKey(tunnelConnectionsPrefix, cluster, "conn-2x"),
+		Value: []byte("}not a valid tunnel connection{"),
+	})
+	require.NoError(t, err)
+
+	// Page through with a small page size so the corrupt item lands inside a
+	// page window. Before the fix this dropped every connection after the
+	// corrupt one.
+	var got []string
+	var pageToken string
+	for {
+		page, next, err := trustService.ListTunnelConnections(ctx, 2, pageToken, nil)
+		require.NoError(t, err)
+		for _, c := range page {
+			got = append(got, c.GetName())
+		}
+		if next == "" {
+			break
+		}
+		pageToken = next
+	}
+	require.Equal(t, want, got)
+
+	// The cluster filter path must behave identically.
+	got = nil
+	pageToken = ""
+	for {
+		page, next, err := trustService.ListTunnelConnections(ctx, 2, pageToken, trustpb.ListTunnelConnectionsFilter_builder{
+			ClusterName: cluster,
+		}.Build())
+		require.NoError(t, err)
+		for _, c := range page {
+			got = append(got, c.GetName())
+		}
+		if next == "" {
+			break
+		}
+		pageToken = next
+	}
+	require.Equal(t, want, got)
+
+	// GetTunnelConnections and GetAllTunnelConnections skip the corrupt item
+	// rather than returning an error.
+	conns, err := trustService.GetTunnelConnections(ctx, cluster)
+	require.NoError(t, err)
+	gotNames := make([]string, 0, len(conns))
+	for _, c := range conns {
+		gotNames = append(gotNames, c.GetName())
+	}
+	require.ElementsMatch(t, want, gotNames)
+
+	allConns, err := trustService.GetAllTunnelConnections(ctx)
+	require.NoError(t, err)
+	gotNames = gotNames[:0]
+	for _, c := range allConns {
+		gotNames = append(gotNames, c.GetName())
+	}
+	require.ElementsMatch(t, want, gotNames)
 }
 
 func TestTrustedClusterCRUD(t *testing.T) {

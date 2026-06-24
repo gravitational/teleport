@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -29,8 +30,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
@@ -160,6 +163,87 @@ func TestAWS(t *testing.T) {
 		setCmdRunner(validateCmd),
 	)
 	require.NoError(t, err)
+}
+
+const (
+	promptAlphaRoleARN = "arn:aws:iam::123456789012:role/Alpha"
+	promptBetaRoleARN  = "arn:aws:iam::123456789012:role/Beta"
+)
+
+func promptTestAWSApp(t *testing.T) types.Application {
+	t.Helper()
+
+	app, err := types.NewAppV3(types.Metadata{Name: "aws-test"}, types.AppSpecV3{
+		URI: constants.AWSConsoleURL,
+	})
+	require.NoError(t, err)
+	return app
+}
+
+func TestGetARNFromFlagsInteractive(t *testing.T) {
+	t.Parallel()
+
+	testRoleARNs := []string{
+		promptAlphaRoleARN,
+		promptBetaRoleARN,
+	}
+
+	tests := []struct {
+		name          string
+		logins        []string
+		cancelContext bool
+		wantARN       string
+		wantAWSRole   string
+		wantPrompt    bool
+		wantErr       error
+	}{
+		{
+			name:          "multiple roles prompts interactively",
+			logins:        testRoleARNs,
+			cancelContext: true,
+			wantPrompt:    true,
+			wantErr:       context.Canceled,
+		},
+		{
+			name:    "single role skips prompt",
+			logins:  []string{promptAlphaRoleARN},
+			wantARN: promptAlphaRoleARN,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := t.Context()
+			if tt.cancelContext {
+				canceledCtx, cancel := context.WithCancel(ctx)
+				cancel()
+				ctx = canceledCtx
+			}
+
+			stdout := new(bytes.Buffer)
+			cf := &CLIConf{
+				Context:        ctx,
+				Interactive:    true,
+				OverrideStdout: stdout,
+			}
+
+			arn, err := getARNFromFlags(cf, promptTestAWSApp(t), tt.logins)
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, tt.wantARN, arn)
+			require.Equal(t, tt.wantAWSRole, cf.AWSRole)
+			if tt.wantPrompt {
+				require.Contains(t, stdout.String(), "Available AWS roles:")
+				return
+			}
+			require.NotContains(t, stdout.String(), "Select AWS role number")
+		})
+	}
 }
 
 func TestAWSRolesAnywhereBasedAccess(t *testing.T) {
@@ -517,7 +601,7 @@ func TestAWSConsoleLogins(t *testing.T) {
 			// are multiple ARN roles.
 			err := Run(
 				context.Background(),
-				[]string{"app", "login", "--insecure", "--cluster", cluster, "awsconsole"},
+				[]string{"app", "login", "--insecure", "--cluster", cluster, "--no-interactive", "awsconsole"},
 				setCopyStdout(commandOutput), setHomePath(tmpHomePath),
 				// TODO(gabrielcorado): Given the `RetryWithRerlLogin` is going
 				//   to perform a relogin for BadParameter error, we need to
@@ -576,7 +660,7 @@ func SetupTrustedCluster(ctx context.Context, t *testing.T, rootServer, leafServ
 	require.NoError(t, err)
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		rt, err := rootServer.GetAuthServer().GetTunnelConnections(leafServer.Config.Auth.ClusterName.GetClusterName())
+		rt, err := rootServer.GetAuthServer().GetTunnelConnections(ctx, leafServer.Config.Auth.ClusterName.GetClusterName())
 		assert.NoError(t, err)
 		assert.Len(t, rt, 1)
 	}, time.Second*10, time.Second)
@@ -596,4 +680,204 @@ func SetupTrustedCluster(ctx context.Context, t *testing.T, rootServer, leafServ
 
 		require.Equal(t, 1, rts.GetTunnelsCount())
 	}, time.Second*10, time.Second)
+}
+
+// TestAppLogins tests the "tsh app logins" command.
+func TestAppLogins(t *testing.T) {
+	ctx := t.Context()
+
+	tmpHomePath := t.TempDir()
+	connector := mockConnector(t)
+
+	// Create user with multiple AWS roles
+	userARNs := []string{
+		"arn:aws:iam::123456789012:role/admin-role",
+		"arn:aws:iam::123456789012:role/readonly-role",
+	}
+	user, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+
+	awsRole, err := types.NewRole("aws", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			AppLabels:   types.Labels{"env": apiutils.Strings{"dev"}},
+			AWSRoleARNs: userARNs,
+		},
+	})
+	require.NoError(t, err)
+
+	user.SetRoles([]string{"access", awsRole.GetName()})
+
+	// Create Teleport server with AWS Console app
+	authProcess, err := testserver.NewTeleportProcess(
+		t.TempDir(),
+		testserver.WithBootstrap(connector, user, awsRole),
+		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+			cfg.Apps.Enabled = true
+			cfg.Apps.Apps = []servicecfg.App{
+				{
+					Name: "aws-console",
+					URI:  constants.AWSConsoleURL,
+					StaticLabels: map[string]string{
+						"env": "dev",
+					},
+				},
+				{
+					Name: "aws-console-special",
+					URI:  constants.AWSConsoleURL,
+					StaticLabels: map[string]string{
+						"env": "special",
+					},
+				},
+				{
+					Name: "not-aws-app",
+					URI:  "http://localhost:8080",
+				},
+			}
+		}),
+	)
+
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, authProcess.Close())
+		require.NoError(t, authProcess.Wait())
+	})
+
+	authServer := authProcess.GetAuthServer()
+	require.NotNil(t, authServer)
+
+	proxyAddr, err := authProcess.ProxyWebAddr()
+	require.NoError(t, err)
+
+	// Log into Teleport cluster
+	err = Run(ctx, []string{
+		"login", "--insecure", "--debug", "--proxy", proxyAddr.String(),
+	}, setHomePath(tmpHomePath), setMockSSOLogin(authServer, user, connector.GetName()))
+	require.NoError(t, err)
+
+	t.Run("show logins for AWS app (text format)", func(t *testing.T) {
+		commandOutput := new(bytes.Buffer)
+		err := Run(
+			ctx,
+			[]string{"app", "logins", "aws-console"},
+			setCopyStdout(commandOutput),
+			setHomePath(tmpHomePath),
+		)
+		require.NoError(t, err)
+
+		output := commandOutput.String()
+		require.Contains(t, output, "Available AWS roles:")
+		require.Contains(t, output, "admin-role")
+		require.Contains(t, output, "readonly-role")
+		require.Contains(t, output, "arn:aws:iam::123456789012:role/admin-role")
+		require.Contains(t, output, "arn:aws:iam::123456789012:role/readonly-role")
+	})
+
+	t.Run("show logins for AWS app (JSON format)", func(t *testing.T) {
+		commandOutput := new(bytes.Buffer)
+		err := Run(
+			ctx,
+			[]string{"app", "logins", "--format", "json", "aws-console"},
+			setCopyStdout(commandOutput),
+			setHomePath(tmpHomePath),
+		)
+		require.NoError(t, err)
+
+		want := map[string]any{
+			"app_name": "aws-console",
+			"logins": map[string][]map[string]string{
+				"aws_roles": {
+					{
+						"name":       "admin-role",
+						"display":    "admin-role",
+						"arn":        "arn:aws:iam::123456789012:role/admin-role",
+						"account_id": "123456789012",
+					},
+					{
+						"name":       "readonly-role",
+						"display":    "readonly-role",
+						"arn":        "arn:aws:iam::123456789012:role/readonly-role",
+						"account_id": "123456789012",
+					},
+				},
+			},
+		}
+
+		wantBytes, err := json.Marshal(want)
+		require.NoError(t, err)
+		require.JSONEq(t, string(wantBytes), commandOutput.String())
+	})
+
+	t.Run("show logins for AWS app (YAML format)", func(t *testing.T) {
+		commandOutput := new(bytes.Buffer)
+		err := Run(
+			ctx,
+			[]string{"app", "logins", "--format", "yaml", "aws-console"},
+			setCopyStdout(commandOutput),
+			setHomePath(tmpHomePath),
+		)
+		require.NoError(t, err)
+
+		want := map[string]any{
+			"app_name": "aws-console",
+			"logins": map[string][]map[string]string{
+				"aws_roles": {
+					{
+						"name":       "admin-role",
+						"display":    "admin-role",
+						"arn":        "arn:aws:iam::123456789012:role/admin-role",
+						"account_id": "123456789012",
+					},
+					{
+						"name":       "readonly-role",
+						"display":    "readonly-role",
+						"arn":        "arn:aws:iam::123456789012:role/readonly-role",
+						"account_id": "123456789012",
+					},
+				},
+			},
+		}
+
+		wantBytes, err := yaml.Marshal(want)
+		require.NoError(t, err)
+		require.YAMLEq(t, string(wantBytes), commandOutput.String())
+	})
+
+	t.Run("no AWS roles for non-AWS app", func(t *testing.T) {
+		commandOutput := new(bytes.Buffer)
+		err := Run(
+			ctx,
+			[]string{"app", "logins", "not-aws-app"},
+			setCopyStdout(commandOutput),
+			setHomePath(tmpHomePath),
+		)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "only AWS apps are supported at the moment")
+		require.NotContains(t, commandOutput.String(), "Available AWS roles:")
+	})
+
+	t.Run("no AWS roles for AWS app", func(t *testing.T) {
+		commandOutput := new(bytes.Buffer)
+		err := Run(
+			ctx,
+			[]string{"app", "logins", "aws-console-special"},
+			setCopyStdout(commandOutput),
+			setHomePath(tmpHomePath),
+		)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "there are no roles configured for the AWS app \"aws-console-special\"")
+		require.True(t, trace.IsNotFound(err))
+	})
+
+	t.Run("error for non-existent app", func(t *testing.T) {
+		commandOutput := new(bytes.Buffer)
+		err := Run(
+			ctx,
+			[]string{"app", "logins", "non-existent-app"},
+			setCopyStdout(commandOutput),
+			setHomePath(tmpHomePath),
+		)
+		require.Error(t, err)
+		require.True(t, trace.IsNotFound(err))
+	})
 }

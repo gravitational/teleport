@@ -72,6 +72,7 @@ func SSHIdentityToSSHCA(id *decisionpb.SSHIdentity) *sshca.Identity {
 		AgentScope:               id.GetAgentScope(),
 		ImmutableLabelHash:       id.GetImmutableLabelHash(),
 		DelegationSessionID:      id.GetDelegationSessionId(),
+		BeamID:                   id.GetBeamId(),
 		HeadlessAuthenticationID: id.GetHeadlessAuthenticationId(),
 	}
 }
@@ -122,6 +123,7 @@ func SSHIdentityFromSSHCA(id *sshca.Identity) *decisionpb.SSHIdentity {
 		AgentScope:               id.AgentScope,
 		ImmutableLabelHash:       id.ImmutableLabelHash,
 		DelegationSessionId:      id.DelegationSessionID,
+		BeamId:                   id.BeamID,
 		HeadlessAuthenticationId: id.HeadlessAuthenticationID,
 	}.Build()
 }
