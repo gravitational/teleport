@@ -8,7 +8,8 @@ the matching **Diagnose** scenario.
 ## Read status
 
 Resolve the config, then read its status. Use the `discovery_config_name` from the apply
-outputs when known. Otherwise, list configs and pick the one whose matchers correspond to `CLOUD`.
+outputs when known. Otherwise, list configs; if exactly one matches `CLOUD`, use it; if several
+do, list them and ask the user which to check.
 
 ```bash
 $TCTL get discovery_config --format=json          # only when the name is unknown
@@ -17,7 +18,7 @@ $TCTL get discovery_config/<name> --format=json
 
 Read these fields:
 - `.status.state`: `DISCOVERY_CONFIG_STATE_SYNCING` while an iteration runs, `DISCOVERY_CONFIG_STATE_RUNNING` when idle with no error, `DISCOVERY_CONFIG_STATE_ERROR` with `.status.error_message` set.
-- `.status.integration_discovered_resources.<integration>.<key>`, holding `found`, `enrolled`, and `failed`. `<key>` is `awsEc2` for EC2, `awsEks` for EKS, `azureVms` for Azure VM.
+- `.status.integration_discovered_resources.<integration>.<key>`, holding `found`, `enrolled`, and `failed`. `<key>` is `awsEc2` for EC2, `awsEks` for EKS, `azureVms` for Azure VM. A missing count key means `0`. A `<key>` entry with `syncStart` and `syncEnd` but no counts means the last cycle found nothing.
 
 Summarize for the reader; do not print raw JSON.
 
@@ -28,12 +29,12 @@ stop.
 
 While `state` is `SYNCING`, offer, but do not auto-run, a poll: re-read the config every 30
 seconds and print `[<time>] found=<n> enrolled=<n> failed=<n>` per line. Stop when
-`enrolled >= found` and `failed == 0`, when `failed > 0`, or after 10 minutes.
+`found > 0` and `enrolled >= found` and `failed == 0`, when `failed > 0`, or after 10 minutes.
 
 ## Diagnose
 
-Each scenario reports a diagnosis and the fix it points to. Apply a fix only by following
-**Setup** and **Apply**.
+Evaluate the scenarios in order and run the first that matches. Each reports a diagnosis and
+the fix it points to. Apply a fix only by following **Setup** and **Apply**.
 
 ### state = ERROR
 
@@ -89,8 +90,7 @@ $TCTL get user_tasks
 ```
 
 Report only tasks whose `state` is `OPEN`. `task_type` is `discover-ec2`, `discover-eks`, or
-`discover-azure-vm`; `issue_type` names the cause. Remove a resolved task with
-`$TCTL rm user_task/<name>`.
+`discover-azure-vm`; `issue_type` names the cause.
 
 For EC2 and Azure VM, a per-instance view adds exit codes. It does not cover EKS, and it
 requires Teleport v18.7.6+ for `--cloud=aws`, v19.0.0+ for `--cloud=azure`:

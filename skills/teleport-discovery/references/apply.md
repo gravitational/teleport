@@ -1,5 +1,16 @@
 # Apply the Terraform
 
+## Choose how to apply
+
+Applying creates real cloud IAM resources and Teleport resources. Before running any terraform
+command, ask the user once with the AskUserQuestion tool:
+
+- Run environment, from the table below. Default `Local workstation`.
+- Whether you run the apply in this session, or output the commands for the user to run themselves.
+
+Do not run `terraform init`, `plan`, or `apply` until the user answers. Then follow **Local apply**
+for a local run, or the chosen environment's setup guide otherwise.
+
 ## Run environment
 
 Default to a local run unless the user states otherwise.
@@ -17,52 +28,57 @@ environment.
 
 ## Local apply
 
-`eval "$($TCTL terraform env)"` exports short-lived credentials and may prompt for MFA. Its
-variables do not persist between Bash calls, so chain it with each `terraform plan` or
-`terraform apply` command.
+The provider authenticates from credentials in the environment. If a terraform
+command fails due to missing or expired credentials, ask the user to run
+`eval "$(tctl terraform env)"`.
 
-If the user will apply themselves, present these commands and stop. Do not show the
-`eval ... &&` chaining in commands you present to the user:
+If the user will apply themselves, present these commands and stop:
 
 > ```bash
 > cd <write location>
 > terraform init
-> eval "$(tctl terraform env)"
 > terraform apply
 > ```
 
 If the user asks you to apply:
 
-1. Initialize and plan:
+1. Initialize:
 
    ```bash
    cd <write location>
    terraform init
-   eval "$($TCTL terraform env)" && terraform plan
    ```
 
-2. Review the plan. If it lists any `destroy` or `replace` action, or a matcher change, stop,
-   show what it affects, and get confirmation before applying.
-
-3. Apply. Add `-auto-approve` only after the plan in step 2 is approved, or when the caller
-   passed `auto_approve: true`:
+2. Plan:
 
    ```bash
    cd <write location>
-   eval "$($TCTL terraform env)" && terraform apply -auto-approve
+   terraform plan
+   ```
+
+3. Review the plan. If it lists any `destroy` or `replace` action, or a matcher change, stop,
+   show what it affects, and get confirmation before applying.
+
+4. Apply. Add `-auto-approve` only after the plan in step 3 is approved:
+
+   ```bash
+   cd <write location>
+   terraform apply
    ```
 
 ## Confirm the apply
 
-From the apply output, read `integration_name` and `discovery_config_name`. Link the user to the integration in the web UI,
-using the host of `proxy_addr` without the port: `https://<proxy_host>/web/integrations`.
+From the apply output, read `integration_name` and `discovery_config_name`. Link the user to the
+integration's status page in the web UI, using the host of `proxy_addr` without the port:
+`https://<proxy_host>/web/integrations/status/<integration_type>/<integration_name>`, where
+`<integration_type>` is `aws-oidc` for AWS and `azure-oidc` for Azure.
 
 ## Troubleshoot the apply
 
 | Symptom | Cause | Action |
 |---------|-------|--------|
 | `terraform init` reports terraform not found | Terraform is not installed | Install Terraform, or choose a non-local run environment above. |
-| Provider error: credentials expired or not found | The `tctl terraform env` credentials lapsed after one hour, or the apply ran in a different shell | Re-run `eval "$($TCTL terraform env)"` in the shell you apply from. |
+| Provider error: credentials expired or not found | The `tctl terraform env` credentials lapsed after one hour | Ask the user to re-run `! eval "$(tctl terraform env)"` in the session, then retry the terraform command. |
 | Provider error: failed to connect or join (CI, cloud, server) | The bot, token, or provider auth fields are missing or wrong | Follow the environment's setup guide above. Confirm `join_method`/`join_token` or `identity_file_path` match the token created in the cluster. |
 | Provider version incompatible with the cluster | The teleport provider is below the discovery module's minimum | Set the teleport provider to `>= 18.8.0` for AWS or `>= 18.7.6` for Azure. |
 | `terraform apply` returns 409 on the AWS OIDC provider | An AWS OIDC provider for the proxy URL already exists | Set `create_aws_iam_openid_connect_provider = false` and re-apply. |

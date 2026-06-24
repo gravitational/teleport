@@ -36,7 +36,7 @@
         "Wrote Terraform into a new directory under outputs/ with versions.tf and main.tf.",
         "terraform validate passes for the directory.",
         "main.tf module source is exactly terraform.releases.teleport.dev/teleport/discovery/aws.",
-        "An EC2 matcher is present: types [\"ec2\"], regions [\"*\"], tags {team: [\"core\"]}.",
+        "An EC2 matcher is present with types [\"ec2\"] and tags {team: [\"core\"]}, covering all regions: because [\"*\"] is the default, regions is omitted, or written explicitly as [\"*\"].",
         "An EKS matcher is present: types [\"eks\"], regions [\"us-west-2\"], tags {env: [\"staging\"]}, kube_app_discovery = true.",
         "kube_app_discovery is set only on the EKS matcher, never on the EC2 matcher.",
         "teleport_proxy_public_addr is exactly acme.teleport.sh:443 and teleport_discovery_group_name is exactly cloud-discovery-group.",
@@ -76,7 +76,7 @@
         "Wrote Terraform into a new directory under outputs/ with versions.tf and main.tf.",
         "terraform validate passes for the directory.",
         "create_aws_iam_openid_connect_provider = false is set in the module block: the fixture aws returns an existing OIDC provider whose Url is acme.teleport.sh, so the module must not create a second one.",
-        "The agent determined the existing-provider match by comparing the provider Url to the proxy host, not by guessing; the final response or summary states an existing OIDC provider was found for acme.teleport.sh.",
+        "The agent verified the existing provider through the CLI rather than guessing: it ran aws iam list-open-id-connect-providers, then aws iam get-open-id-connect-provider for the ARN ending in oidc-provider/acme.teleport.sh, and confirmed its Url matched the proxy host.",
         "teleport_proxy_public_addr is exactly acme.teleport.sh:443 and teleport_discovery_group_name is exactly cloud-discovery-group.",
         "One matcher: types [\"eks\"], regions [\"us-east-1\"], tags {env: [\"prod\"]}.",
         "The teleport provider version constraint is >= 18.8.0; a major-only pin like ~> 18.0 fails.",
@@ -156,7 +156,6 @@
         "The module block is edited in place inside ./azure-discovery; a separate new directory fails.",
         "teleport_proxy_public_addr remains azure-tenant.teleport.sh:443 and teleport_discovery_group_name remains cloud-discovery-group.",
         "azure_resource_group_name remains my-rg and the matcher types remain [\"vm\"].",
-        "The agent presented the planned configuration (both subscriptions) before writing.",
         "terraform validate passes in ./azure-discovery.",
         "The agent ran no terraform: the directory contains no agent-created .terraform directory, .tfstate, or lock file."
       ]
@@ -271,7 +270,7 @@
       "tier": "e2e-serial",
       "fixture": "live",
       "copy_fixture": null,
-      "prompt": "Set up EC2 auto-discovery on our Teleport Cloud dev tenant wispy-wood.beams.sh for instances in us-west-2 tagged teleport-discovery-eval=true. Write the Terraform, apply it, and verify the resources were created. auto_approve: true",
+      "prompt": "Set up EC2 auto-discovery on our Teleport Cloud dev tenant wispy-wood.beams.sh for instances in us-west-2 tagged teleport-discovery-eval=true. Write the Terraform, apply it, and verify the resources were created.",
       "assertions": [
         "terraform apply exited 0 and printed all four outputs: integration_name, discovery_config_name, oidc_provider_arn, discovery_role_arn.",
         "tctl get integrations shows the aws-oidc integration named in the integration_name output.",
@@ -290,7 +289,7 @@
       "tier": "e2e-parallel",
       "fixture": "live",
       "copy_fixture": null,
-      "prompt": "We already have an AWS OIDC provider registered for our Teleport Cloud tenant wispy-wood.beams.sh in account 278576220453. Set up EC2 auto-discovery for instances in us-west-2 tagged teleport-discovery-eval=true reusing that existing OIDC provider. Write the Terraform, apply it, and verify. auto_approve: true",
+      "prompt": "We already have an AWS OIDC provider registered for our Teleport Cloud tenant wispy-wood.beams.sh in account 278576220453. Set up EC2 auto-discovery for instances in us-west-2 tagged teleport-discovery-eval=true reusing that existing OIDC provider. Write the Terraform, apply it, and verify.",
       "assertions": [
         "create_aws_iam_openid_connect_provider = false is set, so the apply reuses the pre-created OIDC provider rather than creating a new one.",
         "terraform apply exited 0 and printed integration_name, discovery_config_name, and discovery_role_arn.",
@@ -307,7 +306,7 @@
       "tier": "e2e-serial",
       "fixture": "live-azure",
       "copy_fixture": null,
-      "prompt": "Set up Azure VM auto-discovery on our Teleport Cloud dev tenant wispy-wood.beams.sh for VMs in subscription $AZURE_SUBSCRIPTION_ID, managed identity in resource group teleport-discovery-eval in eastus. Write the Terraform, apply it, and verify. auto_approve: true",
+      "prompt": "Set up Azure VM auto-discovery on our Teleport Cloud dev tenant wispy-wood.beams.sh for VMs in subscription $AZURE_SUBSCRIPTION_ID, managed identity in resource group teleport-discovery-eval in eastus. Write the Terraform, apply it, and verify.",
       "assertions": [
         "terraform apply exited 0 and printed integration_name, discovery_config_name, and provision_token_name.",
         "tctl get integrations shows the azure-oidc integration named in the integration_name output.",

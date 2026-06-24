@@ -13,13 +13,21 @@ compatibility: >
   setup uses them when present to detect account, region, and subscription details. Works
   with Teleport Cloud and self-hosted clusters.
 allowed-tools:
+  - Read
+  - Glob
+  - Write(**/*.tf)
+  - Edit(**/*.tf)
+  - AskUserQuestion
+  - WebFetch(domain:goteleport.com)
+  - Bash(terraform init:*)
+  - Bash(terraform plan:*)
+  - Bash(terraform apply:*)
   - Bash(tsh status:*)
   - Bash(tctl status:*)
   - Bash(tctl get:*)
   - Bash(tctl inventory list:*)
   - Bash(tctl discovery nodes:*)
   - Bash(tctl tokens ls:*)
-  - Bash(aws sts get-caller-identity:*)
   - Bash(aws iam list-open-id-connect-providers:*)
   - Bash(aws iam get-open-id-connect-provider:*)
   - Bash(aws configure get region:*)
@@ -43,13 +51,35 @@ derivation; if the tool is unavailable, ambiguous, or errors, use its default or
 user. Where a procedure gathers fields, it lists them as `| Field | Tool derivation | Default |`.
 
 In commands, `$TSH` and `$TCTL` are the tsh and tctl binaries; use the paths the user gives,
-otherwise `tsh` and `tctl`. Do not log `active.traits` from `tsh status`.
+otherwise `tsh` and `tctl`.
 
 ## Procedures
 
-Run the procedures the request asks for, in this order.
-"Set up discovery" with no narrower scope runs all three.
+Run the procedures the request asks for, in order: Setup, Apply, then Monitor. "Set up
+discovery" with no narrower scope runs all three.
 
-1. **Setup**: write, generate, configure, or extend the discovery Terraform, with `references/aws-setup.md` for `aws` or `references/azure-setup.md` for `azure`.
-2. **Apply**: apply the Terraform to create the resources, with `references/apply.md`. Precede it with Setup when the Terraform is not written yet.
-3. **Monitor**: check status, watch a sync, or diagnose why resources are not enrolling, with `references/monitor.md`.
+### Setup
+
+Write, generate, configure, or extend the discovery Terraform. Gather these common fields, then
+the cloud-specific fields in `references/aws-setup.md` for `aws` or `references/azure-setup.md`
+for `azure`. Collect every field that resolves to Ask, including `write_location` when the
+prompt does not specify it, then ask for all of them in a single round with the AskUserQuestion
+tool rather than one at a time.
+
+| Field | Tool derivation | Default |
+|-------|-----------------|---------|
+| `proxy_addr` | `$TSH status --format=json`, `active.profile_url` with the `https://` scheme stripped, such as `example.teleport.sh:443` | Ask |
+| `cluster_version` | `$TCTL status` `Version` field, such as `18.8.0` | Ask |
+| `deployment` | `cloud` when `proxy_addr`'s host ends in `.teleport.sh`, `.cloud.gravitational.io`, or `.beams.sh`, else `self-hosted` | none |
+| `discovery_group` | `cloud`: `cloud-discovery-group`. `self-hosted`: confirm a service runs with `$TCTL inventory list --services=discovery`, and stop if none runs | Ask, with `cloud-discovery-group` as the default |
+| `write_location` | none | Ask, with a new `teleport-discovery/` directory as the default |
+
+### Apply
+
+Apply the Terraform to create the resources, with `references/apply.md`. Precede it with Setup
+when the Terraform is not written yet.
+
+### Monitor and Troubleshoot
+
+Check status, watch a sync, or diagnose why resources are not enrolling, with
+`references/monitor.md`.
