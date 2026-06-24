@@ -184,10 +184,24 @@ func validateGenericOIDC(spec *joiningv1.GenericOIDC) error {
 						"is required", i, j)
 			}
 
-			if cond.GetOperator() == nil {
+			conds := 0
+			if cond.GetEq() != nil {
+				conds++
+			}
+			if cond.GetNotEq() != nil {
+				conds++
+			}
+			if cond.GetIn() != nil {
+				conds++
+			}
+			if cond.GetNotIn() != nil {
+				conds++
+			}
+
+			if conds == 0 || conds > 1 {
 				return trace.BadParameter(
-					"generic_oidc: allow_any[%d].conditions[%d]: an operator "+
-						"is required (eq, not_eq, in, not_in)", i, j)
+					"generic_oidc: allow_any[%d].conditions[%d]: exactly one "+
+						"operator is required", i, j)
 			}
 		}
 	}
