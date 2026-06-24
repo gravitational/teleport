@@ -35,6 +35,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -43,6 +44,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
+	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
@@ -224,6 +226,14 @@ func TestCreateBot(t *testing.T) {
 						},
 						// Note: Deliberately omitting MaxSessionTtl here to verify
 						// the default value.
+					}.Build(),
+					Status: machineidv1pb.BotStatus_builder{
+						// Maliciously set the delegation to check it is ignored.
+						Delegation: delegationv1.Delegation_builder{
+							User: delegationv1.UserDelegator_builder{
+								Username: "random-user@example.com",
+							}.Build(),
+						}.Build(),
 					}.Build(),
 				}.Build(),
 			}.Build(),
@@ -825,14 +835,25 @@ func TestUpdateBot(t *testing.T) {
 	}.Build())
 	require.NoError(t, err)
 
-	// We find the user associated with the Bot and set the generation label. This allows us to ensure that the
-	// generation label is preserved when UpsertBot is called.
+	delegation := delegationv1.Delegation_builder{
+		User: delegationv1.UserDelegator_builder{
+			Username: "david-wallace@dunder-mifflin.com",
+		}.Build(),
+	}.Build()
+
 	{
 		preExistingBotUser, err := srv.Auth().GetUser(ctx, preExistingBot.GetStatus().GetUserName(), false)
 		require.NoError(t, err)
+
+		// Manually set the bot generation label. This allows us to ensure that the
+		// generation label is preserved when UpsertBot is called.
 		meta := preExistingBotUser.GetMetadata()
 		meta.Labels[types.BotGenerationLabel] = "1337"
 		preExistingBotUser.SetMetadata(meta)
+
+		// Set the delegation to make sure it is preserved.
+		preExistingBotUser.SetDelegation(delegation)
+
 		_, err = srv.Auth().UpsertUser(ctx, preExistingBotUser)
 		require.NoError(t, err)
 	}
@@ -905,8 +926,9 @@ func TestUpdateBot(t *testing.T) {
 					MaxSessionTtl: durationpb.New(libdefaults.MaxRenewableCertTTL),
 				}.Build(),
 				Status: machineidv1pb.BotStatus_builder{
-					UserName: preExistingBot.GetStatus().GetUserName(),
-					RoleName: preExistingBot.GetStatus().GetRoleName(),
+					UserName:   preExistingBot.GetStatus().GetUserName(),
+					RoleName:   preExistingBot.GetStatus().GetRoleName(),
+					Delegation: delegation,
 				}.Build(),
 			}.Build(),
 			wantUser: &types.UserV2{
@@ -935,6 +957,7 @@ func TestUpdateBot(t *testing.T) {
 				},
 				Status: types.UserStatusV2{
 					PasswordState: types.PasswordState_PASSWORD_STATE_UNSET,
+					Delegation:    types.DelegationToLegacy(delegation),
 				},
 			},
 			wantRole: &types.RoleV6{
@@ -1232,14 +1255,26 @@ func TestUpsertBot(t *testing.T) {
 	require.NoError(t, err)
 	expiry := time.Now().Add(time.Hour)
 
-	// We find the user associated with the Bot and set the generation label. This allows us to ensure that the
-	// generation label is preserved when UpsertBot is called.
+	delegation := delegationv1.Delegation_builder{
+		User: delegationv1.UserDelegator_builder{
+			Username: "david-wallace@dunder-mifflin.com",
+		}.Build(),
+	}.Build()
+	preExistingBot.GetStatus().SetDelegation(delegation)
+
 	{
 		preExistingBotUser, err := srv.Auth().GetUser(ctx, preExistingBot.GetStatus().GetUserName(), false)
 		require.NoError(t, err)
+
+		// Manually set the bot generation label. This allows us to ensure that the
+		// generation label is preserved when UpsertBot is called.
 		meta := preExistingBotUser.GetMetadata()
 		meta.Labels[types.BotGenerationLabel] = "1337"
 		preExistingBotUser.SetMetadata(meta)
+
+		// Set the delegation to make sure it is not overridden by the caller.
+		preExistingBotUser.SetDelegation(delegation)
+
 		_, err = srv.Auth().UpsertUser(ctx, preExistingBotUser)
 		require.NoError(t, err)
 	}
@@ -1332,6 +1367,14 @@ func TestUpsertBot(t *testing.T) {
 								Values: []string{"root"},
 							}.Build(),
 						},
+					}.Build(),
+					Status: machineidv1pb.BotStatus_builder{
+						// Maliciously set the delegation to check it is ignored.
+						Delegation: delegationv1.Delegation_builder{
+							User: delegationv1.UserDelegator_builder{
+								Username: "random-user@example.com",
+							}.Build(),
+						}.Build(),
 					}.Build(),
 				}.Build(),
 			}.Build(),
@@ -1520,7 +1563,16 @@ func TestUpsertBot(t *testing.T) {
 			name:     "already exists",
 			identity: authtest.TestUser(botCreator.GetName()),
 			req: machineidv1pb.UpsertBotRequest_builder{
-				Bot: preExistingBot,
+				Bot: func() *machineidv1pb.Bot {
+					// Try to override delegation to check it is ignored.
+					bot := proto.CloneOf(preExistingBot)
+					bot.Status.SetDelegation(delegationv1.Delegation_builder{
+						User: delegationv1.UserDelegator_builder{
+							Username: "jim.halpert@dunder-mifflin.com",
+						}.Build(),
+					}.Build())
+					return bot
+				}(),
 			}.Build(),
 
 			assertError: require.NoError,
@@ -1544,6 +1596,9 @@ func TestUpsertBot(t *testing.T) {
 					},
 					Roles:  []string{"bot-pre-existing"},
 					Traits: nil,
+				},
+				Status: types.UserStatusV2{
+					Delegation: types.DelegationToLegacy(delegation),
 				},
 			},
 			wantRole: &types.RoleV6{
@@ -1610,8 +1665,9 @@ func TestUpsertBot(t *testing.T) {
 					MaxSessionTtl: durationpb.New(libdefaults.MaxRenewableCertTTL),
 				}.Build(),
 				Status: machineidv1pb.BotStatus_builder{
-					UserName: "bot-pre-existing",
-					RoleName: "bot-pre-existing",
+					UserName:   "bot-pre-existing",
+					RoleName:   "bot-pre-existing",
+					Delegation: delegation,
 				}.Build(),
 			}.Build(),
 			wantUser: &types.UserV2{
@@ -1633,6 +1689,9 @@ func TestUpsertBot(t *testing.T) {
 					},
 					Roles:  []string{"bot-pre-existing"},
 					Traits: nil,
+				},
+				Status: types.UserStatusV2{
+					Delegation: types.DelegationToLegacy(delegation),
 				},
 			},
 			wantRole: &types.RoleV6{
