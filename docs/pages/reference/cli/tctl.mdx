@@ -808,6 +808,23 @@ Arguments:
 |---|---|---|
 |version|*no default* (optional)|Client tools target version. Clients will be told to update to this version.|
 
+## tctl aws test-oidc
+
+Validate an AWS OIDC integration by calling AWS STS GetCallerIdentity.
+
+Usage:
+
+```code
+$ tctl aws test-oidc --integration=INTEGRATION [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
+|`--integration`|*no default*|Name of the AWS OIDC integration to test.|
+
 ## tctl bots add
 
 Add a new certificate renewal bot to the cluster.
