@@ -34,8 +34,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -294,6 +296,29 @@ func TestCreateUserMaxLength(t *testing.T) {
 	require.Error(t, err, "creating a user with a username too long should fail")
 }
 
+func TestCreateUser_Delegation(t *testing.T) {
+	t.Parallel()
+
+	env, err := newTestEnv()
+	require.NoError(t, err)
+
+	user, err := types.NewUser("michael.scott@dunder-mifflin.com")
+	require.NoError(t, err)
+
+	// Manually setting the delegation should be ignored.
+	user.SetDelegation(delegationv1.Delegation_builder{
+		User: delegationv1.UserDelegator_builder{
+			Username: "david.wallace@dunder-mifflin.com",
+		}.Build(),
+	}.Build())
+
+	rsp, err := env.CreateUser(t.Context(), userspb.CreateUserRequest_builder{
+		User: user.(*types.UserV2),
+	}.Build())
+	require.NoError(t, err)
+	require.Empty(t, rsp.GetUser().GetDelegation())
+}
+
 func TestDeleteUser(t *testing.T) {
 	t.Parallel()
 	env, err := newTestEnv()
@@ -445,6 +470,40 @@ func TestUpdateUser(t *testing.T) {
 	require.Error(t, err, "user allowed to be updated with a role that does not exist")
 }
 
+func TestUpdateUser_Delegation(t *testing.T) {
+	t.Parallel()
+
+	env, err := newTestEnv()
+	require.NoError(t, err)
+
+	user, err := types.NewUser("michael.scott@dunder-mifflin.com")
+	require.NoError(t, err)
+
+	// Set the delegation directly via the backend.
+	realDelegation := delegationv1.Delegation_builder{
+		User: delegationv1.UserDelegator_builder{
+			Username: "david.wallace@dunder-mifflin.com",
+		}.Build(),
+	}.Build()
+	user.SetDelegation(realDelegation)
+
+	created, err := env.backend.CreateUser(t.Context(), user)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(realDelegation, created.GetDelegation(), protocmp.Transform()))
+
+	// Overriding the delegation shouldn't work.
+	user.SetDelegation(delegationv1.Delegation_builder{
+		User: delegationv1.UserDelegator_builder{
+			Username: "jim.halpert@dunder-mifflin.com",
+		}.Build(),
+	}.Build())
+	updateRsp, err := env.UpdateUser(t.Context(), userspb.UpdateUserRequest_builder{
+		User: user.(*types.UserV2),
+	}.Build())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(realDelegation, updateRsp.GetUser().GetDelegation(), protocmp.Transform()))
+}
+
 func TestUpsertUser(t *testing.T) {
 	t.Parallel()
 	env, err := newTestEnv()
@@ -491,6 +550,63 @@ func TestUpsertUser(t *testing.T) {
 	_, err = env.UpsertUser(ctx, userspb.UpsertUserRequest_builder{User: updated.GetUser()}.Build())
 	assert.True(t, trace.IsNotFound(err), "expected a not found error, got %T", err)
 	require.Error(t, err, "user allowed to be upserted with a role that does not exist")
+}
+
+func TestUpsertUser_Delegation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("new user", func(t *testing.T) {
+		env, err := newTestEnv()
+		require.NoError(t, err)
+
+		user, err := types.NewUser("michael.scott@dunder-mifflin.com")
+		require.NoError(t, err)
+
+		// Manually setting the delegation should be ignored.
+		user.SetDelegation(delegationv1.Delegation_builder{
+			User: delegationv1.UserDelegator_builder{
+				Username: "david.wallace@dunder-mifflin.com",
+			}.Build(),
+		}.Build())
+
+		rsp, err := env.UpsertUser(t.Context(), userspb.UpsertUserRequest_builder{
+			User: user.(*types.UserV2),
+		}.Build())
+		require.NoError(t, err)
+		require.Empty(t, rsp.GetUser().GetDelegation())
+	})
+
+	t.Run("existing user", func(t *testing.T) {
+		env, err := newTestEnv()
+		require.NoError(t, err)
+
+		user, err := types.NewUser("michael.scott@dunder-mifflin.com")
+		require.NoError(t, err)
+
+		// Set the delegation directly via the backend.
+		realDelegation := delegationv1.Delegation_builder{
+			User: delegationv1.UserDelegator_builder{
+				Username: "david.wallace@dunder-mifflin.com",
+			}.Build(),
+		}.Build()
+		user.SetDelegation(realDelegation)
+
+		created, err := env.backend.CreateUser(t.Context(), user)
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(realDelegation, created.GetDelegation(), protocmp.Transform()))
+
+		// Upsert carries existing user delegation over.
+		created.SetDelegation(delegationv1.Delegation_builder{
+			User: delegationv1.UserDelegator_builder{
+				Username: "jim.halpert@dunder-mifflin.com",
+			}.Build(),
+		}.Build())
+		upsertRsp, err := env.UpsertUser(t.Context(), userspb.UpsertUserRequest_builder{
+			User: created.(*types.UserV2),
+		}.Build())
+		require.NoError(t, err)
+		require.Empty(t, cmp.Diff(realDelegation, upsertRsp.GetUser().GetDelegation(), protocmp.Transform()))
+	})
 }
 
 func TestListUsers(t *testing.T) {
