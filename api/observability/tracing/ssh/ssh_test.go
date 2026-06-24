@@ -35,6 +35,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/observability/tracing"
 )
 
@@ -488,4 +489,68 @@ func TestNewClientConnTimeout(t *testing.T) {
 		require.ErrorIs(t, err, context.DeadlineExceeded, "expected context deadline exceeded error, got: %v", err)
 	})
 
+}
+
+func TestComputeTimeout(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name          string
+		config        *ssh.ClientConfig
+		wantTimeout   time.Duration
+		wantNoTimeout bool
+	}{
+		{
+			name:        "zero timeout uses default",
+			config:      &ssh.ClientConfig{},
+			wantTimeout: defaults.DefaultIOTimeout,
+		},
+		{
+			name:          "negative timeout disables timeout",
+			config:        &ssh.ClientConfig{Timeout: -time.Second},
+			wantNoTimeout: true,
+		},
+		{
+			name:        "positive timeout is preserved",
+			config:      &ssh.ClientConfig{Timeout: 10 * time.Second},
+			wantTimeout: 10 * time.Second,
+		},
+		{
+			name: "zero timeout with auth callback extends to MFA timeout",
+			config: &ssh.ClientConfig{
+				AuthCallback: func(ctx *ssh.ClientAuthContext) (ssh.AuthMethod, error) { return nil, nil },
+			},
+			wantTimeout: SessionMFAAuthTimeout,
+		},
+		{
+			name: "positive timeout less than MFA extends to MFA timeout",
+			config: &ssh.ClientConfig{
+				Timeout:      10 * time.Second,
+				AuthCallback: func(ctx *ssh.ClientAuthContext) (ssh.AuthMethod, error) { return nil, nil },
+			},
+			wantTimeout: SessionMFAAuthTimeout,
+		},
+		{
+			name: "positive timeout greater than MFA is preserved",
+			config: &ssh.ClientConfig{
+				Timeout:      5 * time.Minute,
+				AuthCallback: func(ctx *ssh.ClientAuthContext) (ssh.AuthMethod, error) { return nil, nil },
+			},
+			wantTimeout: 5 * time.Minute,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			timeout, ok := computeTimeout(tt.config)
+
+			if tt.wantNoTimeout {
+				require.False(t, ok)
+				return
+			}
+
+			require.True(t, ok)
+			require.Equal(t, tt.wantTimeout, timeout)
+		})
+	}
 }
