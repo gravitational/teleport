@@ -87,6 +87,19 @@ func New(cfg Config) (*Server, error) {
 	}, nil
 }
 
+// callerName returns a display name for the calling identity, suitable for logging.
+// authzContext.User is nil for non-user (agent/builtin) identities, so fall back to
+// the identity's username to avoid a nil dereference.
+func callerName(authzContext *authz.ScopedContext) string {
+	if authzContext.User != nil {
+		return authzContext.User.GetName()
+	}
+	if authzContext.Identity != nil {
+		return authzContext.Identity.GetIdentity().Username
+	}
+	return ""
+}
+
 // CreateScopedRole implements [scopedaccessv1.ScopedRoleServiceServer].
 func (s *Server) CreateScopedRole(ctx context.Context, req *scopedaccessv1.CreateScopedRoleRequest) (*scopedaccessv1.CreateScopedRoleResponse, error) {
 	if err := s.cfg.ScopesFeatures.AssertEnabled(); err != nil {
