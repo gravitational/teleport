@@ -355,6 +355,12 @@ func (s *LinuxService) Serve(plainLis net.Listener) error {
 func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 	log := s.cfg.Logger
 
+	// Ensure TLS handshake is complete so that we can the read ALPN result.
+	if err := proxyConn.Handshake(); err != nil {
+		log.ErrorContext(context.Background(), "Failed to complete TLS handshake")
+		return
+	}
+
 	ctx, cancel := context.WithCancel(s.closeCtx)
 	defer cancel()
 
