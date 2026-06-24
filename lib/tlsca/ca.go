@@ -42,6 +42,7 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/gravitational/teleport"
+	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -49,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/delegation"
 	"github.com/gravitational/teleport/lib/scopes/pinning"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
@@ -248,6 +250,10 @@ type Identity struct {
 	// BeamID is the identifier of the Beam this certificate was created for,
 	// derived from the delegation session's types.BeamIDLabel label.
 	BeamID string
+
+	// Delegation contains the delegation chain of the identity this certificate
+	// represents.
+	Delegation *delegationv1.Delegation
 
 	// ImmutableLabelHash is the hash of the immutable labels that have been
 	// applied to the identity.
@@ -683,6 +689,10 @@ var (
 	// the Machine ID bot the certificate was issued to, if any.
 	BotScopeASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 33}
 
+	// DelegationASN1ExtensionOID is an extension OID that contains the
+	// delegation chain of the identity this certificate represents.
+	DelegationASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 34}
+
 	// CAClusterNameExtensionOID records the cluster name in a Teleport CA
 	// certificate.
 	//
@@ -1086,6 +1096,18 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			})
 	}
 
+	if id.Delegation != nil {
+		delegation, err := delegation.Encode(id.Delegation)
+		if err != nil {
+			return pkix.Name{}, trace.Wrap(err)
+		}
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  DelegationASN1ExtensionOID,
+				Value: delegation,
+			})
+	}
+
 	if id.UserType != "" {
 		subject.ExtraNames = append(subject.ExtraNames,
 			pkix.AttributeTypeAndValue{
@@ -1476,6 +1498,14 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 		case attr.Type.Equal(BeamIDASN1ExtensionOID):
 			if val, ok := attr.Value.(string); ok {
 				id.BeamID = val
+			}
+		case attr.Type.Equal(DelegationASN1ExtensionOID):
+			if val, ok := attr.Value.(string); ok {
+				delegation, err := delegation.Decode(val)
+				if err != nil {
+					return nil, trace.Errorf("failed to decode delegation: %w", err)
+				}
+				id.Delegation = delegation
 			}
 		case attr.Type.Equal(AllowedResourcesASN1ExtensionOID):
 			allowedResourcesStr, ok := attr.Value.(string)
