@@ -145,8 +145,10 @@ jobs:
       - name: Checkout Teleport
         uses: actions/checkout@v6
         with:
+          ssh-key: ${{ secrets.SSH_PRIVATE_KEY }}
           ref: ${{ matrix.ref }}
-          submodules: true
+          submodules: recursive
+          fetch-depth: 0
 
       - name: Resolve image references
         id: images
