@@ -1,10 +1,10 @@
-description: encoded_literal pins one group/project by its decoded value
+description: encoded_literal matches one group/project by its decoded value
 app_resources_expression:
-    # encoded_literal matches one segment by its decoded value, so it pins an
-    # exact GitLab id in the path tree, in either hex case (%2F or %2f), without
-    # the case-sensitive equality a where check on the raw value would need. The
-    # "/" in the value is content, not a separator: the node is one segment. The
-    # match opts into the encoded separator with allow_encoded(set("/")).
+    # encoded_literal matches one segment by
+    # its decoded value, in either hex case
+    # (%2F or %2f).
+    # allows project mygroup%2Fmyproject
+    # denies project other%2Fthing
     - |-
       path.match(literal("api/v4/projects",
           encoded_literal("mygroup/myproject", set("/"),

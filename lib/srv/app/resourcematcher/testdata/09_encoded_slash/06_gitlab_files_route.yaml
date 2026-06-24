@@ -1,9 +1,9 @@
 description: GitLab files route, encoded id and encoded file path
 app_resources_expression:
-    # The files API takes an encoded project id and an encoded file path:
-    # GET /api/v4/projects/:id/repository/files/:file_path. Each encoded
-    # position is named explicitly, and both bind raw and forward byte-faithful.
-    # The match opts into the encoded separator with allow_encoded.
+    # The files API takes an encoded id and
+    # an encoded file path. Each position is
+    # named and binds raw, forwarded
+    # byte-faithful.
     - |-
       path.match(literal("api/v4/projects",
           capture_encoded("project", set("/"),

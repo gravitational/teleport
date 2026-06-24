@@ -1,8 +1,8 @@
 description: a double-encoded slash is invalid, even under an encoded-slash node
 app_resources_expression:
-    # capture_encoded admits the encoded separator, but a double-encoded slash
-    # (%252F) begins with the escape %25, which is not the separator, so the
-    # strict tokenizer rejects the whole path before any matcher runs.
+    # A double-encoded slash (%252F) is not
+    # the separator, so the tokenizer
+    # rejects the path before matching.
     - |-
       path.match(literal("api/v4/projects",
           capture_encoded("project", set("/"), greedy())),

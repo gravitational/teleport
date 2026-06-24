@@ -1,5 +1,9 @@
 description: 'greedy_except: add greedy() to exclude the whole subtree'
 app_resources_expression:
+    # same as greedy_without("secret"): the
+    # greedy() excludes the whole subtree.
+    # denies /files/secret/key
+    # allows /files/public/x
     - |-
       path.match(literal("files",
           greedy_except(literal("secret", greedy()))))

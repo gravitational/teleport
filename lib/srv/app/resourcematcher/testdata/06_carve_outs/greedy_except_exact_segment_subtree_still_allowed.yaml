@@ -1,5 +1,7 @@
 description: 'greedy_except: exact segment, subtree still allowed'
 app_resources_expression:
+    # allows /files/secret/other
+    # denies /files/secret
     - |-
       path.match(literal("files",
           greedy_except(literal("secret"))))
@@ -10,7 +12,7 @@ identity:
 cases:
     - request:
         method: GET
-        path: /files/secret/notes
+        path: /files/secret/other
       expect:
         allowed: true
     - request:

@@ -1,0 +1,31 @@
+description: 'greedy_except: re-allow a path inside a denied subtree'
+app_resources_expression:
+    # denies the secret subtree but re-allows
+    # secret/public nested inside it.
+    # allows /files/secret/public/y
+    # denies /files/secret/x
+    - |-
+      path.match(literal("files",
+          greedy_except(literal("secret",
+              greedy_except(literal("public", greedy()))))))
+identity:
+    name: bob
+    roles:
+        - developer
+cases:
+    - request:
+        method: GET
+        path: /files/secret/public/y
+      expect:
+        allowed: true
+    - request:
+        method: GET
+        path: /files/secret/x
+      expect:
+        allowed: false
+        deny_kind: teleport_request_not_allowed
+    - request:
+        method: GET
+        path: /files/a
+      expect:
+        allowed: true
