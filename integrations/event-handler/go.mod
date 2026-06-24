@@ -121,7 +121,7 @@ require (
 	github.com/chai2010/gettext-go v1.0.2 // indirect
 	github.com/charlievieth/strcase v0.0.5 // indirect
 	github.com/chzyer/readline v1.5.1 // indirect
-	github.com/containerd/containerd v1.7.32 // indirect
+	github.com/containerd/containerd v1.7.33 // indirect
 	github.com/containerd/errdefs v1.0.0 // indirect
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/containerd/platforms v1.0.0-rc.1 // indirect
@@ -330,7 +330,7 @@ require (
 	github.com/zitadel/oidc/v3 v3.43.0 // indirect
 	github.com/zitadel/schema v1.3.1 // indirect
 	gitlab.com/gitlab-org/api/client-go v1.25.0 // indirect
-	go.mongodb.org/mongo-driver v1.17.6 // indirect
+	go.mongodb.org/mongo-driver v1.17.9 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.68.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.68.0 // indirect
