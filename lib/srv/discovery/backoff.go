@@ -31,6 +31,12 @@ const (
 	minInstallBackoff = 5 * time.Minute
 )
 
+// installBackoffScalingFactors is a lookup array for the scaling factor to use
+// when calculating the backoff delay.
+// minInstallBackoff * 128 = 640 > maxInstallBackoff, so we only need a scaling
+// factor up to 128.
+var installBackoffScalingFactors = [...]int{1, 2, 4, 8, 16, 32, 64, 128}
+
 type installerBackoffEntry struct {
 	vm *azure.VirtualMachine
 	// issueType is the latest installation issue for this entry.
@@ -52,7 +58,6 @@ func (e *installerBackoffEntry) retryable(t time.Time) bool {
 // installer off to avoid excessive installation attempts.
 type installerBackoff struct {
 	baseDelay time.Duration
-	maxDelay  time.Duration
 	jitter    retryutils.Jitter
 
 	mu sync.Mutex
@@ -73,20 +78,20 @@ func newInstallerBackoff(baseDelay time.Duration, jitter retryutils.Jitter) *ins
 			max(baseDelay, minInstallBackoff),
 			maxInstallBackoff/4,
 		),
-		maxDelay: maxInstallBackoff,
-		jitter:   jitter,
+		jitter: jitter,
 	}
 }
 
+// delay calculates a delay for N failures.
+// The delay is calculated as min(baseDelay*exp(2,N-1), maxInstallBackoff)
 func (b *installerBackoff) delay(failures int32) time.Duration {
 	delay := b.baseDelay
-	for range failures - 1 {
-		if delay >= b.maxDelay {
-			break
-		}
-		delay *= 2
-	}
-	delay = min(delay, b.maxDelay)
+	idx := min(
+		int(max(failures-1, 0)),
+		len(installBackoffScalingFactors)-1,
+	)
+	scaleFactor := installBackoffScalingFactors[idx]
+	delay = min(delay*time.Duration(scaleFactor), maxInstallBackoff)
 	if b.jitter != nil {
 		delay = b.jitter(delay)
 	}
