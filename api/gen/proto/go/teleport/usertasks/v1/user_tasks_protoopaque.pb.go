@@ -747,7 +747,7 @@ type DiscoverEC2Instance_builder struct {
 	DiscoveryConfig string
 	// DiscoveryGroup is the DiscoveryGroup name that originated this task.
 	DiscoveryGroup string
-	// SyncTime is the timestamp when the error was produced.
+	// SyncTime is the timestamp of the latest discovery sync.
 	SyncTime *timestamppb.Timestamp
 }
 
@@ -968,7 +968,7 @@ type DiscoverEKSCluster_builder struct {
 	DiscoveryConfig string
 	// DiscoveryGroup is the DiscoveryGroup name that originated this task.
 	DiscoveryGroup string
-	// SyncTime is the timestamp when the error was produced.
+	// SyncTime is the timestamp of the latest discovery sync.
 	SyncTime *timestamppb.Timestamp
 }
 
@@ -1205,7 +1205,7 @@ type DiscoverRDSDatabase_builder struct {
 	DiscoveryConfig string
 	// DiscoveryGroup is the DiscoveryGroup name that originated this task.
 	DiscoveryGroup string
-	// SyncTime is the timestamp when the error was produced.
+	// SyncTime is the timestamp of the latest discovery sync.
 	SyncTime *timestamppb.Timestamp
 }
 
@@ -1335,8 +1335,9 @@ type DiscoverAzureVMInstance struct {
 	xxx_hidden_DiscoveryConfig string                 `protobuf:"bytes,4,opt,name=discovery_config,json=discoveryConfig,proto3"`
 	xxx_hidden_DiscoveryGroup  string                 `protobuf:"bytes,5,opt,name=discovery_group,json=discoveryGroup,proto3"`
 	xxx_hidden_SyncTime        *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=sync_time,json=syncTime,proto3"`
-	xxx_hidden_FailureCount    int32                  `protobuf:"varint,7,opt,name=failure_count,json=failureCount,proto3"`
-	xxx_hidden_RetryAfter      *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=retry_after,json=retryAfter,proto3"`
+	xxx_hidden_LastFailureTime *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=last_failure_time,json=lastFailureTime,proto3"`
+	xxx_hidden_RetryAfterTime  *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=retry_after_time,json=retryAfterTime,proto3"`
+	xxx_hidden_Failures        int32                  `protobuf:"varint,9,opt,name=failures,proto3"`
 	unknownFields              protoimpl.UnknownFields
 	sizeCache                  protoimpl.SizeCache
 }
@@ -1408,18 +1409,25 @@ func (x *DiscoverAzureVMInstance) GetSyncTime() *timestamppb.Timestamp {
 	return nil
 }
 
-func (x *DiscoverAzureVMInstance) GetFailureCount() int32 {
+func (x *DiscoverAzureVMInstance) GetLastFailureTime() *timestamppb.Timestamp {
 	if x != nil {
-		return x.xxx_hidden_FailureCount
-	}
-	return 0
-}
-
-func (x *DiscoverAzureVMInstance) GetRetryAfter() *timestamppb.Timestamp {
-	if x != nil {
-		return x.xxx_hidden_RetryAfter
+		return x.xxx_hidden_LastFailureTime
 	}
 	return nil
+}
+
+func (x *DiscoverAzureVMInstance) GetRetryAfterTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.xxx_hidden_RetryAfterTime
+	}
+	return nil
+}
+
+func (x *DiscoverAzureVMInstance) GetFailures() int32 {
+	if x != nil {
+		return x.xxx_hidden_Failures
+	}
+	return 0
 }
 
 func (x *DiscoverAzureVMInstance) SetVmId(v string) {
@@ -1446,12 +1454,16 @@ func (x *DiscoverAzureVMInstance) SetSyncTime(v *timestamppb.Timestamp) {
 	x.xxx_hidden_SyncTime = v
 }
 
-func (x *DiscoverAzureVMInstance) SetFailureCount(v int32) {
-	x.xxx_hidden_FailureCount = v
+func (x *DiscoverAzureVMInstance) SetLastFailureTime(v *timestamppb.Timestamp) {
+	x.xxx_hidden_LastFailureTime = v
 }
 
-func (x *DiscoverAzureVMInstance) SetRetryAfter(v *timestamppb.Timestamp) {
-	x.xxx_hidden_RetryAfter = v
+func (x *DiscoverAzureVMInstance) SetRetryAfterTime(v *timestamppb.Timestamp) {
+	x.xxx_hidden_RetryAfterTime = v
+}
+
+func (x *DiscoverAzureVMInstance) SetFailures(v int32) {
+	x.xxx_hidden_Failures = v
 }
 
 func (x *DiscoverAzureVMInstance) HasSyncTime() bool {
@@ -1461,19 +1473,30 @@ func (x *DiscoverAzureVMInstance) HasSyncTime() bool {
 	return x.xxx_hidden_SyncTime != nil
 }
 
-func (x *DiscoverAzureVMInstance) HasRetryAfter() bool {
+func (x *DiscoverAzureVMInstance) HasLastFailureTime() bool {
 	if x == nil {
 		return false
 	}
-	return x.xxx_hidden_RetryAfter != nil
+	return x.xxx_hidden_LastFailureTime != nil
+}
+
+func (x *DiscoverAzureVMInstance) HasRetryAfterTime() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_RetryAfterTime != nil
 }
 
 func (x *DiscoverAzureVMInstance) ClearSyncTime() {
 	x.xxx_hidden_SyncTime = nil
 }
 
-func (x *DiscoverAzureVMInstance) ClearRetryAfter() {
-	x.xxx_hidden_RetryAfter = nil
+func (x *DiscoverAzureVMInstance) ClearLastFailureTime() {
+	x.xxx_hidden_LastFailureTime = nil
+}
+
+func (x *DiscoverAzureVMInstance) ClearRetryAfterTime() {
+	x.xxx_hidden_RetryAfterTime = nil
 }
 
 type DiscoverAzureVMInstance_builder struct {
@@ -1489,12 +1512,14 @@ type DiscoverAzureVMInstance_builder struct {
 	DiscoveryConfig string
 	// DiscoveryGroup is the DiscoveryGroup name that originated this task.
 	DiscoveryGroup string
-	// SyncTime is the timestamp when the error was produced.
+	// SyncTime is the timestamp of the latest discovery sync.
 	SyncTime *timestamppb.Timestamp
-	// FailureCount is the number of installation attempt failures.
-	FailureCount int32
-	// RetryAfter is the timestamp after which the VM installation will be retried.
-	RetryAfter *timestamppb.Timestamp
+	// LastFailureTime is the timestamp of the last failure.
+	LastFailureTime *timestamppb.Timestamp
+	// RetryAfterTime is the timestamp after which the VM installation will be retried.
+	RetryAfterTime *timestamppb.Timestamp
+	// Failures is the number of installation attempt failures.
+	Failures int32
 }
 
 func (b0 DiscoverAzureVMInstance_builder) Build() *DiscoverAzureVMInstance {
@@ -1507,8 +1532,9 @@ func (b0 DiscoverAzureVMInstance_builder) Build() *DiscoverAzureVMInstance {
 	x.xxx_hidden_DiscoveryConfig = b.DiscoveryConfig
 	x.xxx_hidden_DiscoveryGroup = b.DiscoveryGroup
 	x.xxx_hidden_SyncTime = b.SyncTime
-	x.xxx_hidden_FailureCount = b.FailureCount
-	x.xxx_hidden_RetryAfter = b.RetryAfter
+	x.xxx_hidden_LastFailureTime = b.LastFailureTime
+	x.xxx_hidden_RetryAfterTime = b.RetryAfterTime
+	x.xxx_hidden_Failures = b.Failures
 	return m0
 }
 
@@ -1592,7 +1618,7 @@ const file_teleport_usertasks_v1_user_tasks_proto_rawDesc = "" +
 	"\x06region\x18\x04 \x01(\tR\x06region\x1al\n" +
 	"\x0eInstancesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12D\n" +
-	"\x05value\x18\x02 \x01(\v2..teleport.usertasks.v1.DiscoverAzureVMInstanceR\x05value:\x028\x01\"\xd2\x02\n" +
+	"\x05value\x18\x02 \x01(\v2..teleport.usertasks.v1.DiscoverAzureVMInstanceR\x05value:\x028\x01\"\x9a\x03\n" +
 	"\x17DiscoverAzureVMInstance\x12\x13\n" +
 	"\x05vm_id\x18\x01 \x01(\tR\x04vmId\x12\x1f\n" +
 	"\vresource_id\x18\x02 \x01(\tR\n" +
@@ -1600,10 +1626,10 @@ const file_teleport_usertasks_v1_user_tasks_proto_rawDesc = "" +
 	"\x04name\x18\x03 \x01(\tR\x04name\x12)\n" +
 	"\x10discovery_config\x18\x04 \x01(\tR\x0fdiscoveryConfig\x12'\n" +
 	"\x0fdiscovery_group\x18\x05 \x01(\tR\x0ediscoveryGroup\x127\n" +
-	"\tsync_time\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\bsyncTime\x12#\n" +
-	"\rfailure_count\x18\a \x01(\x05R\ffailureCount\x12;\n" +
-	"\vretry_after\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"retryAfterBVZTgithub.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1;usertasksv1b\x06proto3"
+	"\tsync_time\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\bsyncTime\x12F\n" +
+	"\x11last_failure_time\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\x0flastFailureTime\x12D\n" +
+	"\x10retry_after_time\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\x0eretryAfterTime\x12\x1a\n" +
+	"\bfailures\x18\t \x01(\x05R\bfailuresBVZTgithub.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1;usertasksv1b\x06proto3"
 
 var file_teleport_usertasks_v1_user_tasks_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_teleport_usertasks_v1_user_tasks_proto_goTypes = []any{
@@ -1642,16 +1668,17 @@ var file_teleport_usertasks_v1_user_tasks_proto_depIdxs = []int32{
 	16, // 13: teleport.usertasks.v1.DiscoverRDSDatabase.sync_time:type_name -> google.protobuf.Timestamp
 	14, // 14: teleport.usertasks.v1.DiscoverAzureVM.instances:type_name -> teleport.usertasks.v1.DiscoverAzureVM.InstancesEntry
 	16, // 15: teleport.usertasks.v1.DiscoverAzureVMInstance.sync_time:type_name -> google.protobuf.Timestamp
-	16, // 16: teleport.usertasks.v1.DiscoverAzureVMInstance.retry_after:type_name -> google.protobuf.Timestamp
-	4,  // 17: teleport.usertasks.v1.DiscoverEC2.InstancesEntry.value:type_name -> teleport.usertasks.v1.DiscoverEC2Instance
-	6,  // 18: teleport.usertasks.v1.DiscoverEKS.ClustersEntry.value:type_name -> teleport.usertasks.v1.DiscoverEKSCluster
-	8,  // 19: teleport.usertasks.v1.DiscoverRDS.DatabasesEntry.value:type_name -> teleport.usertasks.v1.DiscoverRDSDatabase
-	10, // 20: teleport.usertasks.v1.DiscoverAzureVM.InstancesEntry.value:type_name -> teleport.usertasks.v1.DiscoverAzureVMInstance
-	21, // [21:21] is the sub-list for method output_type
-	21, // [21:21] is the sub-list for method input_type
-	21, // [21:21] is the sub-list for extension type_name
-	21, // [21:21] is the sub-list for extension extendee
-	0,  // [0:21] is the sub-list for field type_name
+	16, // 16: teleport.usertasks.v1.DiscoverAzureVMInstance.last_failure_time:type_name -> google.protobuf.Timestamp
+	16, // 17: teleport.usertasks.v1.DiscoverAzureVMInstance.retry_after_time:type_name -> google.protobuf.Timestamp
+	4,  // 18: teleport.usertasks.v1.DiscoverEC2.InstancesEntry.value:type_name -> teleport.usertasks.v1.DiscoverEC2Instance
+	6,  // 19: teleport.usertasks.v1.DiscoverEKS.ClustersEntry.value:type_name -> teleport.usertasks.v1.DiscoverEKSCluster
+	8,  // 20: teleport.usertasks.v1.DiscoverRDS.DatabasesEntry.value:type_name -> teleport.usertasks.v1.DiscoverRDSDatabase
+	10, // 21: teleport.usertasks.v1.DiscoverAzureVM.InstancesEntry.value:type_name -> teleport.usertasks.v1.DiscoverAzureVMInstance
+	22, // [22:22] is the sub-list for method output_type
+	22, // [22:22] is the sub-list for method input_type
+	22, // [22:22] is the sub-list for extension type_name
+	22, // [22:22] is the sub-list for extension extendee
+	0,  // [0:22] is the sub-list for field type_name
 }
 
 func init() { file_teleport_usertasks_v1_user_tasks_proto_init() }

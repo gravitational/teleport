@@ -1782,12 +1782,10 @@ func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *
 				Name:            entry.vm.Name,
 				DiscoveryConfig: instances.Metadata.DiscoveryConfigName,
 				DiscoveryGroup:  s.DiscoveryGroup,
-				// TODO(gavin): it is not clear whether SyncTime should be the time of the failure or if it should be the time of the last discovery scan. Clarify in PR discussion.
-				// Prior behavior always retried failed installations, so the two were equivalent.
-				// New behavior preserves the time of the latest failed attempt, which may be from a prior discover scan.
-				SyncTime:     timestamppb.New(entry.lastFailureAt),
-				FailureCount: entry.failures,
-				RetryAfter:   timestamppb.New(entry.retryAfter),
+				SyncTime:        timestamppb.New(s.clock.Now()),
+				LastFailureTime: timestamppb.New(entry.lastFailureAt),
+				RetryAfterTime:  timestamppb.New(entry.retryAfter),
+				Failures:        entry.failures,
 			}.Build(),
 		)
 	}
