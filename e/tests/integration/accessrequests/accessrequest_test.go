@@ -2,9 +2,13 @@ package accessrequests
 
 import (
 	"testing"
+	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/constants"
+	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/web/ui"
 	"github.com/gravitational/teleport/e/tests/common"
@@ -228,4 +232,146 @@ func TestAccessRequestWithResourceConstraints(t *testing.T) {
 		ARN:             "arn:aws:iam::123456789012:role/ReadOnly",
 		RequiresRequest: false,
 	}, awsRoles[0])
+}
+
+// TestAgentlessAppServerResourceConstraints verifies that agentless app servers
+// (created statically with integration set and no ComponentFeatures) have features
+// computed at read time, and that the full access request flow works for them.
+func TestAgentlessAppServerResourceConstraints(t *testing.T) {
+	sut := common.InitSUT(t,
+		common.WithLicense("../../../fixtures/license-eub.pem"),
+		common.WithRole(t, "aws-access", func(r *types.RoleV6) {
+			r.Spec.Allow.AppLabels = types.Labels{types.Wildcard: []string{types.Wildcard}}
+			r.Spec.Allow.AWSRoleARNs = []string{"arn:aws:iam::123456789012:role/ReadOnly", "arn:aws:iam::123456789012:role/Admin"}
+		}),
+		common.WithRole(t, "requester", func(r *types.RoleV6) {
+			r.Spec.Allow.Request = &types.AccessRequestConditions{
+				SearchAsRoles: []string{"access", "aws-access"},
+			}
+		}),
+		common.WithRole(t, "reviewer", func(r *types.RoleV6) {
+			r.Spec.Allow.ReviewRequests = &types.AccessReviewConditions{
+				Roles:          []string{"access", "aws-access"},
+				PreviewAsRoles: []string{"access", "aws-access"},
+			}
+		}),
+		common.WithUser(t, "alice", "reviewer"),
+		common.WithUser(t, "bob", "requester"),
+	)
+
+	auth := sut.Teleport.Process.GetAuthServer()
+
+	// Create an agentless AWS Console app server: integration set, no ComponentFeatures.
+	// This simulates the OIDC integration path or tctl/gRPC creation.
+	appServer, err := types.NewAppServerV3(types.Metadata{
+		Name: "aws-console-agentless",
+	}, types.AppServerSpecV3{
+		HostID: "fake-proxy-id",
+		App: &types.AppV3{
+			Metadata: types.Metadata{
+				Name: "aws-console-agentless",
+			},
+			Spec: types.AppSpecV3{
+				URI:         constants.AWSConsoleURL,
+				Cloud:       "AWS",
+				Integration: "test-integration",
+			},
+		},
+	})
+	require.NoError(t, err)
+	// Explicitly do not set ComponentFeatures.
+	_, err = auth.UpsertApplicationServer(t.Context(), appServer)
+	require.NoError(t, err)
+
+	// Create an otherwise-identical AWS Console app server with no integration.
+	// Without an integration it is not "agentless" (it would be served by an app
+	// agent), so its features are read from the stored spec instead of computed.
+	// With no ComponentFeatures set, it must not advertise ResourceConstraintsV1.
+	noIntegrationAppServer, err := types.NewAppServerV3(types.Metadata{
+		Name: "aws-console-no-integration",
+	}, types.AppServerSpecV3{
+		HostID: "fake-proxy-id",
+		App: &types.AppV3{
+			Metadata: types.Metadata{
+				Name: "aws-console-no-integration",
+			},
+			Spec: types.AppSpecV3{
+				URI:   constants.AWSConsoleURL,
+				Cloud: "AWS",
+			},
+		},
+	})
+	require.NoError(t, err)
+	_, err = auth.UpsertApplicationServer(t.Context(), noIntegrationAppServer)
+	require.NoError(t, err)
+
+	bobWebClient := sut.CreateWebClientForUser(t, "bob")
+	aliceWebClient := sut.CreateWebClientForUser(t, "alice")
+
+	// When searching as role, both apps appear as requestable. Only the agentless
+	// app (integration set, no ComponentFeatures) has ResourceConstraintsV1 computed
+	// at read time; the otherwise-identical app with no integration is treated as
+	// agent-backed, so with no ComponentFeatures it advertises no features.
+	//
+	// Retried because end-to-end feature support also depends on the cluster's Auth
+	// and Proxy ComponentFeatures having propagated to the Proxy cache.
+	const resourceConstraintsV1 = int(componentfeaturesv1.ComponentFeatureID_COMPONENT_FEATURE_ID_RESOURCE_CONSTRAINTS_V1)
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		resourcesRequestable := common.MustListUnifedResources(t, bobWebClient, common.WithSearchAsRole(), common.WithIncludeRequestable())
+		if !assert.Len(collect, resourcesRequestable.Items, 2) {
+			return
+		}
+
+		for _, item := range resourcesRequestable.Items {
+			assert.Equal(collect, "app", item.Kind)
+			assert.True(collect, item.RequiresRequest)
+			switch item.Name {
+			case "aws-console-agentless":
+				assert.Contains(collect, item.SupportedFeatureIDs, resourceConstraintsV1)
+			case "aws-console-no-integration":
+				assert.NotContains(collect, item.SupportedFeatureIDs, resourceConstraintsV1)
+			default:
+				assert.Failf(collect, "unexpected resource in list", "name %q", item.Name)
+			}
+		}
+	}, 10*time.Second, 50*time.Millisecond)
+
+	// Bob creates an access request with a specific AWS Role ARN constraint
+	accessRequest, err := common.CreateAccessRequest(t.Context(), bobWebClient, ui.AccessRequestParameters{
+		Roles:       []string{"aws-access"},
+		RequestKind: types.AccessRequestKind_SHORT_TERM,
+		ResourceAccessIDs: []ui.ResourceAccessID{
+			{
+				ID: ui.ResourceID{
+					Kind:        types.KindApp,
+					Name:        "aws-console-agentless",
+					ClusterName: "local-site",
+				},
+				Constraints: &types.ResourceConstraints{
+					Details: &types.ResourceConstraints_AwsConsole{
+						AwsConsole: &types.AWSConsoleResourceConstraints{
+							RoleArns: []string{"arn:aws:iam::123456789012:role/ReadOnly"},
+						},
+					},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, accessRequest.ID)
+
+	// Alice approves
+	common.MustApproveAccessRequest(t, aliceWebClient, accessRequest.ID)
+
+	// Bob assumes the request
+	bobWebJITClient, err := common.AssumeAccessRequestWebClient(t.Context(), bobWebClient, accessRequest.ID)
+	require.NoError(t, err)
+
+	// Bob sees the app with only the approved ARN
+	resources := common.MustListUnifedResources(t, bobWebJITClient)
+	require.Len(t, resources.Items, 1)
+
+	awsRoles := resources.Items[0].AWSRoles
+	require.Len(t, awsRoles, 1)
+	require.Equal(t, "arn:aws:iam::123456789012:role/ReadOnly", awsRoles[0].ARN)
 }

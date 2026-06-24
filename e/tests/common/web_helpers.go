@@ -91,6 +91,8 @@ type unifiedResourceItem struct {
 	SSHLogins []string `json:"sshLogins,omitempty"`
 	// SSHLoginDetails provides per-login metadata for SSH node resources.
 	SSHLoginDetails []ossui.SSHLogin `json:"sshLoginDetails,omitempty"`
+	// SupportedFeatureIDs contains ComponentFeatureIDs supported end-to-end for this resource.
+	SupportedFeatureIDs []int `json:"supportedFeatureIds,omitempty"`
 }
 
 // UnifiedResourcesResponse represents the response from the unified resources API.
