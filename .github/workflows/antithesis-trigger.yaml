@@ -101,7 +101,6 @@ jobs:
         uses: actions/checkout@v6
         with:
           ref: ${{ matrix.ref }}
-          submodules: true
 
       - name: Compute tag
         id: tag
