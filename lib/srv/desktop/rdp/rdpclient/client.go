@@ -751,6 +751,7 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 				defer C.free(unsafe.Pointer(path))
 				if errCode := C.client_handle_tdp_sd_info_response(C.uintptr_t(c.handle), C.CGOSharedDirectoryInfoResponse{
 					completion_id: C.uint32_t(m.CompletionId),
+					directory_id:  C.uint32_t(m.DirectoryId),
 					err_code:      m.ErrorCode,
 					fso: C.CGOFileSystemObject{
 						last_modified: C.uint64_t(op.Info.Fso.LastModified),
@@ -769,6 +770,7 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 				defer C.free(unsafe.Pointer(path))
 				if errCode := C.client_handle_tdp_sd_create_response(C.uintptr_t(c.handle), C.CGOSharedDirectoryCreateResponse{
 					completion_id: C.uint32_t(m.CompletionId),
+					directory_id:  C.uint32_t(m.DirectoryId),
 					err_code:      m.ErrorCode,
 					fso: C.CGOFileSystemObject{
 						last_modified: C.uint64_t(op.Create.Fso.LastModified),
@@ -785,6 +787,7 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 			if c.cfg.AllowDirectorySharing {
 				if errCode := C.client_handle_tdp_sd_delete_response(C.uintptr_t(c.handle), C.CGOSharedDirectoryDeleteResponse{
 					completion_id: C.uint32_t(m.CompletionId),
+					directory_id:  C.uint32_t(m.DirectoryId),
 					err_code:      m.ErrorCode,
 				}); errCode != C.ErrCodeSuccess {
 					return trace.Errorf("SharedDirectoryDeleteResponse failed: %v", errCode)
@@ -796,7 +799,6 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 				for _, fso := range op.List.FsoList {
 					path := C.CString(fso.Path)
 					defer C.free(unsafe.Pointer(path))
-
 					fsoList = append(fsoList, C.CGOFileSystemObject{
 						last_modified: C.uint64_t(fso.LastModified),
 						size:          C.uint64_t(fso.Size),
@@ -817,6 +819,7 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 
 				if errCode := C.client_handle_tdp_sd_list_response(C.uintptr_t(c.handle), C.CGOSharedDirectoryListResponse{
 					completion_id:   C.uint32_t(m.CompletionId),
+					directory_id:    C.uint32_t(m.DirectoryId),
 					err_code:        m.ErrorCode,
 					fso_list_length: C.uint32_t(fsoListLen),
 					fso_list:        cgoFsoList,
@@ -835,6 +838,7 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 
 				if errCode := C.client_handle_tdp_sd_read_response(C.uintptr_t(c.handle), C.CGOSharedDirectoryReadResponse{
 					completion_id:    C.uint32_t(m.CompletionId),
+					directory_id:     C.uint32_t(m.DirectoryId),
 					err_code:         m.ErrorCode,
 					read_data_length: C.uint32_t(len(op.Read.Data)),
 					read_data:        readData,
@@ -846,6 +850,7 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 			if c.cfg.AllowDirectorySharing {
 				if errCode := C.client_handle_tdp_sd_write_response(C.uintptr_t(c.handle), C.CGOSharedDirectoryWriteResponse{
 					completion_id: C.uint32_t(m.CompletionId),
+					directory_id:  C.uint32_t(m.DirectoryId),
 					err_code:      m.ErrorCode,
 					bytes_written: C.uint32_t(op.Write.BytesWritten),
 				}); errCode != C.ErrCodeSuccess {
@@ -856,6 +861,7 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 			if c.cfg.AllowDirectorySharing {
 				if errCode := C.client_handle_tdp_sd_move_response(C.uintptr_t(c.handle), C.CGOSharedDirectoryMoveResponse{
 					completion_id: C.uint32_t(m.CompletionId),
+					directory_id:  C.uint32_t(m.DirectoryId),
 					err_code:      m.ErrorCode,
 				}); errCode != C.ErrCodeSuccess {
 					return trace.Errorf("SharedDirectoryMoveResponse failed: %v", errCode)
@@ -865,6 +871,7 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 			if c.cfg.AllowDirectorySharing {
 				if errCode := C.client_handle_tdp_sd_truncate_response(C.uintptr_t(c.handle), C.CGOSharedDirectoryTruncateResponse{
 					completion_id: C.uint32_t(m.CompletionId),
+					directory_id:  C.uint32_t(m.DirectoryId),
 					err_code:      m.ErrorCode,
 				}); errCode != C.ErrCodeSuccess {
 					return trace.Errorf("SharedDirectoryTruncateResponse failed: %v", errCode)

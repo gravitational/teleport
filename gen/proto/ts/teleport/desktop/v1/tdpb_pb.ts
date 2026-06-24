@@ -76,6 +76,10 @@ export interface ServerHello {
      * @generated from protobuf field: bool hidpi_supported = 5;
      */
     hidpiSupported: boolean;
+    /**
+     * @generated from protobuf field: bool multidirectory_sharing_supported = 6;
+     */
+    multidirectorySharingSupported: boolean;
 }
 /**
  * Defines the boundaries that PNG frame will update.
@@ -565,6 +569,10 @@ export interface SharedDirectoryResponse {
      */
     errorCode: number;
     /**
+     * @generated from protobuf field: uint32 directory_id = 11;
+     */
+    directoryId: number;
+    /**
      * @generated from protobuf oneof: operation
      */
     operation: {
@@ -1043,7 +1051,8 @@ class ServerHello$Type extends MessageType<ServerHello> {
             { no: 1, name: "activation_spec", kind: "message", T: () => ConnectionActivated },
             { no: 2, name: "clipboard_enabled", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 3, name: "directory_remove_supported", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
-            { no: 5, name: "hidpi_supported", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
+            { no: 5, name: "hidpi_supported", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
+            { no: 6, name: "multidirectory_sharing_supported", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
         ]);
     }
     create(value?: PartialMessage<ServerHello>): ServerHello {
@@ -1051,6 +1060,7 @@ class ServerHello$Type extends MessageType<ServerHello> {
         message.clipboardEnabled = false;
         message.directoryRemoveSupported = false;
         message.hidpiSupported = false;
+        message.multidirectorySharingSupported = false;
         if (value !== undefined)
             reflectionMergePartial<ServerHello>(this, message, value);
         return message;
@@ -1071,6 +1081,9 @@ class ServerHello$Type extends MessageType<ServerHello> {
                     break;
                 case /* bool hidpi_supported */ 5:
                     message.hidpiSupported = reader.bool();
+                    break;
+                case /* bool multidirectory_sharing_supported */ 6:
+                    message.multidirectorySharingSupported = reader.bool();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1096,6 +1109,9 @@ class ServerHello$Type extends MessageType<ServerHello> {
         /* bool hidpi_supported = 5; */
         if (message.hidpiSupported !== false)
             writer.tag(5, WireType.Varint).bool(message.hidpiSupported);
+        /* bool multidirectory_sharing_supported = 6; */
+        if (message.multidirectorySharingSupported !== false)
+            writer.tag(6, WireType.Varint).bool(message.multidirectorySharingSupported);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -2652,6 +2668,7 @@ class SharedDirectoryResponse$Type extends MessageType<SharedDirectoryResponse> 
         super("teleport.desktop.v1.SharedDirectoryResponse", [
             { no: 1, name: "completion_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
             { no: 2, name: "error_code", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 11, name: "directory_id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
             { no: 3, name: "info", kind: "message", oneof: "operation", T: () => SharedDirectoryResponse_Info },
             { no: 4, name: "create", kind: "message", oneof: "operation", T: () => SharedDirectoryResponse_Create },
             { no: 5, name: "delete", kind: "message", oneof: "operation", T: () => SharedDirectoryResponse_Delete },
@@ -2666,6 +2683,7 @@ class SharedDirectoryResponse$Type extends MessageType<SharedDirectoryResponse> 
         const message = globalThis.Object.create((this.messagePrototype!));
         message.completionId = 0;
         message.errorCode = 0;
+        message.directoryId = 0;
         message.operation = { oneofKind: undefined };
         if (value !== undefined)
             reflectionMergePartial<SharedDirectoryResponse>(this, message, value);
@@ -2681,6 +2699,9 @@ class SharedDirectoryResponse$Type extends MessageType<SharedDirectoryResponse> 
                     break;
                 case /* uint32 error_code */ 2:
                     message.errorCode = reader.uint32();
+                    break;
+                case /* uint32 directory_id */ 11:
+                    message.directoryId = reader.uint32();
                     break;
                 case /* teleport.desktop.v1.SharedDirectoryResponse.Info info */ 3:
                     message.operation = {
@@ -2748,6 +2769,9 @@ class SharedDirectoryResponse$Type extends MessageType<SharedDirectoryResponse> 
         /* uint32 error_code = 2; */
         if (message.errorCode !== 0)
             writer.tag(2, WireType.Varint).uint32(message.errorCode);
+        /* uint32 directory_id = 11; */
+        if (message.directoryId !== 0)
+            writer.tag(11, WireType.Varint).uint32(message.directoryId);
         /* teleport.desktop.v1.SharedDirectoryResponse.Info info = 3; */
         if (message.operation.oneofKind === "info")
             SharedDirectoryResponse_Info.internalBinaryWrite(message.operation.info, writer.tag(3, WireType.LengthDelimited).fork(), options).join();
