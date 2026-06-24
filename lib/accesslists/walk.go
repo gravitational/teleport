@@ -230,23 +230,19 @@ func walk(ctx context.Context, config walkConfig, walkFn walkFunc) error {
 		var leg accessLeg
 		var member *accesslist.AccessListMember
 
-		// TODO(nklaassen): support scoped access list members.
-		if list.GetScope() != "" {
-			continue
-		}
-
 		// We iterate over every member of the considered list
 		listMembersFn := func(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessListMember, string, error) {
-			r, token, err := config.getter.ListAccessListMembers(ctx, list.GetName(), pageSize, pageToken)
+			r, token, err := listAccessListMembers(ctx, config.getter, list.GetScopeQualifiedName(), pageSize, pageToken)
 			return r, token, trace.Wrap(err)
 		}
 
 		for member, err = range clientutils.Resources(ctx, listMembersFn) {
 			if err != nil {
-				return trace.Wrap(err, "getting access list members for %q", list.GetName())
+				return trace.Wrap(err, "getting access list members for %q", ScopeQualifiedNameToString(list.GetScopeQualifiedName()))
 			}
 
-			if member.Spec.MembershipKind == accesslist.MembershipKindList {
+			switch member.Spec.MembershipKind {
+			case accesslist.MembershipKindList, accesslist.MembershipKindScopedList:
 				// The member is a nested list.
 				name, err := MemberScopeQualifiedName(member)
 				if err != nil {
