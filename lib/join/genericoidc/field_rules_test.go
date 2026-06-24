@@ -19,18 +19,79 @@
 package genericoidc
 
 import (
+	"encoding/json"
+	"fmt"
 	"testing"
 
-	"github.com/gogo/protobuf/jsonpb"
 	gogotypes "github.com/gogo/protobuf/types"
 	"github.com/stretchr/testify/require"
 )
 
 func specStruct(t *testing.T, doc string) *gogotypes.Struct {
 	t.Helper()
-	s := &gogotypes.Struct{}
-	require.NoError(t, jsonpb.UnmarshalString(doc, s))
+
+	// we could just use jsonpb to parse it directly, but depguard and forbidigo
+	// complain, so instead we have this dubious roundabout implementation
+	var m map[string]any
+	require.NoError(t, json.Unmarshal([]byte(doc), &m))
+
+	s, err := mapToGogoStruct(m)
+	require.NoError(t, err)
+
 	return s
+}
+
+// mapToGogoStruct converts a map to a gogo struct
+func mapToGogoStruct(m map[string]any) (*gogotypes.Struct, error) {
+	// dubiously-valued depguard+forbidigo appeasement
+	fields := make(map[string]*gogotypes.Value, len(m))
+	for k, v := range m {
+		val, err := anyToGogoValue(v)
+		if err != nil {
+			return nil, err
+		}
+
+		fields[k] = val
+	}
+
+	return &gogotypes.Struct{Fields: fields}, nil
+}
+
+// anyToGogoValue converts a JSON-compatible primitive type to a gogo value.
+func anyToGogoValue(v any) (*gogotypes.Value, error) {
+	switch t := v.(type) {
+	case nil:
+		return &gogotypes.Value{Kind: &gogotypes.Value_NullValue{}}, nil
+	case bool:
+		return &gogotypes.Value{Kind: &gogotypes.Value_BoolValue{BoolValue: t}}, nil
+	case float64:
+		return &gogotypes.Value{Kind: &gogotypes.Value_NumberValue{NumberValue: t}}, nil
+	case string:
+		return &gogotypes.Value{Kind: &gogotypes.Value_StringValue{StringValue: t}}, nil
+	case map[string]any:
+		s, err := mapToGogoStruct(t)
+		if err != nil {
+			return nil, err
+		}
+
+		return &gogotypes.Value{Kind: &gogotypes.Value_StructValue{StructValue: s}}, nil
+	case []any:
+		vals := make([]*gogotypes.Value, len(t))
+		for i, item := range t {
+			val, err := anyToGogoValue(item)
+			if err != nil {
+				return nil, err
+			}
+
+			vals[i] = val
+		}
+
+		return &gogotypes.Value{Kind: &gogotypes.Value_ListValue{
+			ListValue: &gogotypes.ListValue{Values: vals},
+		}}, nil
+	default:
+		return nil, fmt.Errorf("unsupported json type %T", v)
+	}
 }
 
 func TestValidateFieldRulesContainsAnyRule(t *testing.T) {
