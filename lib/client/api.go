@@ -725,6 +725,7 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, 
 			return trace.Wrap(err)
 		}
 	}
+	defer overrideReloginStdout(tc, opt.loginStdout)()
 	key, err := tc.Login(ctx)
 	if err != nil {
 		if errors.Is(err, prompt.ErrNotTerminal) {
@@ -776,6 +777,8 @@ type retryWithReloginOptions struct {
 	beforeLoginHook func() error
 	// afterLoginHook is a function that will be called after a successful login.
 	afterLoginHook func() error
+	// loginStdout overrides the client's stdout only for the relogin flow.
+	loginStdout io.Writer
 	// makeCurrentProfile determines whether to update the current profile after login.
 	makeCurrentProfile bool
 }
@@ -786,11 +789,33 @@ func defaultRetryWithReloginOptions() *retryWithReloginOptions {
 	}
 }
 
+func overrideReloginStdout(tc *TeleportClient, w io.Writer) func() {
+	if w == nil {
+		return func() {}
+	}
+
+	originalStdout := tc.Stdout
+	tc.Stdout = w
+
+	return func() {
+		tc.Stdout = originalStdout
+	}
+}
+
 // WithBeforeLoginHook is a functional option for configuring a function that will
 // be called before the login attempt.
 func WithBeforeLoginHook(fn func() error) RetryWithReloginOption {
 	return func(o *retryWithReloginOptions) {
 		o.beforeLoginHook = fn
+	}
+}
+
+// WithLoginStdout is a functional option for overriding client stdout during
+// the relogin flow. This is useful for the commands that use stdout for their
+// primary output and need relogin prompts or status messages routed elsewhere.
+func WithLoginStdout(w io.Writer) RetryWithReloginOption {
+	return func(o *retryWithReloginOptions) {
+		o.loginStdout = w
 	}
 }
 
