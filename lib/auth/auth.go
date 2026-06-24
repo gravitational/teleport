@@ -4431,6 +4431,16 @@ func (a *Server) CreateAuthPreference(ctx context.Context, p types.AuthPreferenc
 	return authPrefV2, nil
 }
 
+// isProxyCaller reports whether the identity carried by ctx is a Proxy. It is
+// used to decide whether client-supplied connection metadata can be trusted.
+func isProxyCaller(ctx context.Context) bool {
+	identity, err := authz.UserFromContext(ctx)
+	if err != nil {
+		return false
+	}
+	return authz.IsProxyRole(identity)
+}
+
 // CreateAuthenticateChallenge implements AuthService.CreateAuthenticateChallenge.
 func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
 	var username string
@@ -4492,9 +4502,30 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 		}); err != nil {
 			// This is only ever used as a means to acquire a login challenge, so
 			// let's issue an authentication failure event.
+			//
+			// Record the real client source address. When the caller is a Proxy
+			// (e.g. the Web /webapi/mfa/login/begin path) the RPC arrives over a
+			// shared Proxy->Auth connection, so the gRPC peer is the Proxy rather
+			// than the client; trust the address the Proxy forwarded. For a direct
+			// caller the gRPC peer is the client itself and cannot be spoofed, so
+			// use that and ignore any client-supplied address (this RPC is
+			// reachable unauthenticated).
+			var clientMetadata *authclient.ForwardedClientMetadata
+			if isProxyCaller(ctx) {
+				// Trust only the address the Proxy forwarded; the gRPC peer is the
+				// Proxy, not the client (empty for older proxies that don't send it).
+				if remoteAddr := req.GetClientRemoteAddr(); remoteAddr != "" {
+					clientMetadata = &authclient.ForwardedClientMetadata{RemoteAddr: remoteAddr}
+				}
+			} else if connMeta := authz.ConnectionMetadata(ctx); connMeta.RemoteAddr != "" {
+				// Direct caller: the gRPC peer is the client and cannot be spoofed,
+				// so ignore any client-supplied address and use the peer.
+				clientMetadata = &authclient.ForwardedClientMetadata{RemoteAddr: connMeta.RemoteAddr}
+			}
 			if err := a.emitAuthAuditEvent(ctx, authAuditProps{
-				username: username,
-				authErr:  err,
+				username:       username,
+				authErr:        err,
+				clientMetadata: clientMetadata,
 			}); err != nil {
 				a.logger.WarnContext(ctx, "Failed to emit login event", "error", err)
 				// err swallowed on purpose.

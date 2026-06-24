@@ -84,7 +84,7 @@ func (m *Middleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// without re-signing the client certificate.
 	impersonateUser := r.Header.Get(teleportImpersonateUserHeader)
 	if impersonateUser != "" {
-		if !isProxyRole(user) {
+		if !IsProxyRole(user) {
 			trace.WriteError(w, trace.AccessDenied("Credentials forwarding is only permitted for Proxy"))
 			return
 		}
@@ -336,8 +336,8 @@ func findPrimarySystemRole(roles []string) *types.SystemRole {
 	return nil
 }
 
-// isProxyRole returns true if the certificate role is a proxy role.
-func isProxyRole(identity IdentityGetter) bool {
+// IsProxyRole returns true if the certificate role is a proxy role.
+func IsProxyRole(identity IdentityGetter) bool {
 	switch id := identity.(type) {
 	case RemoteBuiltinRole:
 		return id.Role == types.RoleProxy
