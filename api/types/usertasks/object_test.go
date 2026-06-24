@@ -949,8 +949,9 @@ func TestNewDiscoverAzureVMUserTask(t *testing.T) {
 				DiscoveryConfig: "dc01",
 				DiscoveryGroup:  "dg01",
 				SyncTime:        vmSyncTimestamp,
-				FailureCount:    2,
-				RetryAfter:      vmRetryTimestamp,
+				LastFailureTime: timestamppb.New(vmRetryTimestamp.AsTime().Add(-time.Minute)),
+				RetryAfterTime:  vmRetryTimestamp,
+				Failures:        2,
 			},
 		},
 	}

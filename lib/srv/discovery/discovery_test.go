@@ -3517,7 +3517,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 									Name:            "bad-api0",
 									DiscoveryConfig: defaultDiscoveryConfig().GetName(),
 									DiscoveryGroup:  defaultDiscoveryGroup,
-									FailureCount:    1,
+									Failures:        1,
 								}.Build(),
 							},
 							SubscriptionId: "testsub",
@@ -3528,18 +3528,23 @@ func TestAzureVMDiscovery(t *testing.T) {
 					Status: nil,
 				}.Build()
 
-				require.Equal(t, 1, runClient.getAttemptCount("bad-api0"))
-				require.Empty(t, cmp.Diff(expectedTask, tasks[0],
+				diffTasksOpts := []cmp.Option{
 					protocmp.Transform(),
 					protocmp.IgnoreFields(&headerv1.Metadata{}, "expires", "revision"),
-					protocmp.IgnoreFields(&usertasksv1.DiscoverAzureVMInstance{}, "sync_time", "retry_after"),
-				))
+					protocmp.IgnoreFields(&usertasksv1.DiscoverAzureVMInstance{}, "sync_time", "retry_after_time", "last_failure_time"),
+				}
+				require.Equal(t, 1, runClient.getAttemptCount("bad-api0"))
+				require.Empty(t, cmp.Diff(expectedTask, tasks[0], diffTasksOpts...))
 				instance := tasks[0].GetSpec().GetDiscoverAzureVm().GetInstances()["bad-api0-vmid"]
 				require.NotNil(t, instance)
-				retryAfter1 := instance.GetRetryAfter().AsTime()
 				syncTime1 := instance.GetSyncTime().AsTime()
-				require.NotZero(t, retryAfter1)
+				lastFailureTime1 := instance.GetLastFailureTime().AsTime()
+				retryAfter1 := instance.GetRetryAfterTime().AsTime()
 				require.NotZero(t, syncTime1)
+				require.NotZero(t, lastFailureTime1)
+				require.NotZero(t, retryAfter1)
+				require.Equal(t, syncTime1, lastFailureTime1)
+				require.Greater(t, retryAfter1, lastFailureTime1)
 				require.Greater(t, retryAfter1, syncTime1)
 
 				time.Sleep(pollInterval + time.Second)
@@ -3549,20 +3554,20 @@ func TestAzureVMDiscovery(t *testing.T) {
 				tasks, _, err = lister.ListUserTasks(t.Context(), 200, "", &usertasksv1.ListUserTasksFilters{})
 				require.NoError(t, err)
 				require.Len(t, tasks, 1)
-				require.Empty(t, cmp.Diff(expectedTask, tasks[0],
-					protocmp.Transform(),
-					protocmp.IgnoreFields(&headerv1.Metadata{}, "expires", "revision"),
-					protocmp.IgnoreFields(&usertasksv1.DiscoverAzureVMInstance{}, "sync_time", "retry_after"),
-				))
+				require.Empty(t, cmp.Diff(expectedTask, tasks[0], diffTasksOpts...))
 				instance = tasks[0].GetSpec().GetDiscoverAzureVm().GetInstances()["bad-api0-vmid"]
 				require.NotNil(t, instance)
-				retryAfter2 := instance.GetRetryAfter().AsTime()
 				syncTime2 := instance.GetSyncTime().AsTime()
-				require.NotZero(t, retryAfter2)
+				lastFailureTime2 := instance.GetLastFailureTime().AsTime()
+				retryAfter2 := instance.GetRetryAfterTime().AsTime()
 				require.NotZero(t, syncTime2)
+				require.NotZero(t, lastFailureTime2)
+				require.NotZero(t, retryAfter2)
 				require.Greater(t, retryAfter2, syncTime2)
+				require.Equal(t, lastFailureTime1, lastFailureTime2, "last failure time should not change during backoff period")
 				require.Equal(t, retryAfter1, retryAfter2, "retry time should not change during backoff period")
-				require.Equal(t, syncTime1, syncTime2, "sync time should not change during backoff period")
+				require.Greater(t, syncTime2, syncTime1)
+				require.Greater(t, syncTime2, lastFailureTime2)
 
 				time.Sleep(pollInterval + time.Second)
 				synctest.Wait()
@@ -3572,20 +3577,20 @@ func TestAzureVMDiscovery(t *testing.T) {
 				require.NoError(t, err)
 				require.Len(t, tasks, 1)
 				// another attempt (and failure) should happen after backoff period has elapsed
-				expectedTask.GetSpec().GetDiscoverAzureVm().GetInstances()["bad-api0-vmid"].SetFailureCount(2)
-				require.Empty(t, cmp.Diff(expectedTask, tasks[0],
-					protocmp.Transform(),
-					protocmp.IgnoreFields(&headerv1.Metadata{}, "expires", "revision"),
-					protocmp.IgnoreFields(&usertasksv1.DiscoverAzureVMInstance{}, "sync_time", "retry_after"),
-				))
+				expectedTask.GetSpec().GetDiscoverAzureVm().GetInstances()["bad-api0-vmid"].SetFailures(2)
+				require.Empty(t, cmp.Diff(expectedTask, tasks[0], diffTasksOpts...))
 				instance = tasks[0].GetSpec().GetDiscoverAzureVm().GetInstances()["bad-api0-vmid"]
 				require.NotNil(t, instance)
-				retryAfter3 := instance.GetRetryAfter().AsTime()
 				syncTime3 := instance.GetSyncTime().AsTime()
-				require.NotZero(t, retryAfter3)
+				lastFailureTime3 := instance.GetLastFailureTime().AsTime()
+				retryAfter3 := instance.GetRetryAfterTime().AsTime()
 				require.NotZero(t, syncTime3)
+				require.NotZero(t, lastFailureTime3)
+				require.NotZero(t, retryAfter3)
 				require.Greater(t, retryAfter3, syncTime3)
 				require.Greater(t, retryAfter3, retryAfter2, "retry time should change after another failed attempt")
+				require.Greater(t, lastFailureTime3, lastFailureTime2, "last failure time should change after another failed attempt")
+				require.Equal(t, lastFailureTime3, syncTime3)
 				require.Greater(t, syncTime3, syncTime2, "sync time should change after another failed attempt")
 			},
 		},
