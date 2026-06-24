@@ -408,6 +408,78 @@ func TestCommand_CreateOverride(t *testing.T) {
 	}
 }
 
+func TestCommand_DeleteOverride(t *testing.T) {
+	t.Parallel()
+
+	var certPubKey string
+	{
+		cert, err := tlsutils.ParseCertificatePEM([]byte(overridePEM))
+		require.NoError(t, err)
+		certPubKey = libsubca.HashCertificatePublicKey(cert)
+	}
+
+	coID := subcav1.CertificateOverrideID_builder{
+		CaType: string(types.DatabaseClientCA),
+		PublicKeyHash: subcav1.PublicKeyHash_builder{
+			Value: certPubKey,
+		}.Build(),
+	}.Build()
+
+	tests := []struct {
+		name    string
+		flags   []string // flags after "tctl auth delete-override"
+		wantReq *subcav1.RemoveCertificateOverrideRequest
+	}{
+		{
+			name: "ok",
+			flags: []string{
+				"--type", "db-client",
+				"--public-key", certPubKey,
+			},
+			wantReq: subcav1.RemoveCertificateOverrideRequest_builder{
+				CertificateOverrideId: coID,
+			}.Build(),
+		},
+		{
+			name: "use --force",
+			flags: []string{
+				"--type", "db-client",
+				"--public-key", certPubKey,
+				"--force",
+			},
+			wantReq: subcav1.RemoveCertificateOverrideRequest_builder{
+				CertificateOverrideId: coID,
+				ForceImmediateDelete:  true,
+			}.Build(),
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			fakeClient := &fakeAuthClient{}
+			clientFunc := func(ctx context.Context) (_ subca.SubCAClientSource, closeFn func(context.Context), _ error) {
+				return fakeClient, func(ctx context.Context) {}, nil
+			}
+
+			env := newCommand(t)
+
+			flags := append([]string{"auth", "delete-override"}, test.flags...)
+			selectedCommand, err := env.App.Parse(flags)
+			require.NoError(t, err, "app.Parse()")
+
+			match, err := env.Cmd.TryRun(t.Context(), selectedCommand, clientFunc)
+			assert.True(t, match)
+			require.NoError(t, err, "Command errored")
+
+			// Verify server request.
+			if diff := cmp.Diff(test.wantReq, fakeClient.lastRemoveCertificateRequest, protocmp.Transform()); diff != "" {
+				t.Errorf("RemoveCertificateOverrideRequest mismatch (-want +got)\n%s", diff)
+			}
+		})
+	}
+}
+
 // CSR PEMs for testing.
 // The simplest way to get these is to run the "tctl auth create-override-csr"
 // command.
@@ -518,9 +590,10 @@ gT/2q6LYL8NGcL6ParNRimdwhm+0+xOe
 type fakeAuthClient struct {
 	subcav1.SubCAServiceClient
 
-	csrPEMs                   []string
-	lastCSRRequest            *subcav1.CreateCSRRequest
-	lastAddCertificateRequest *subcav1.AddCertificateOverrideRequest
+	csrPEMs                      []string
+	lastCSRRequest               *subcav1.CreateCSRRequest
+	lastAddCertificateRequest    *subcav1.AddCertificateOverrideRequest
+	lastRemoveCertificateRequest *subcav1.RemoveCertificateOverrideRequest
 }
 
 func (f *fakeAuthClient) SubCAClient() subcav1.SubCAServiceClient {
@@ -553,6 +626,15 @@ func (f *fakeAuthClient) AddCertificateOverride(
 ) (*subcav1.AddCertificateOverrideResponse, error) {
 	f.lastAddCertificateRequest = req
 	return &subcav1.AddCertificateOverrideResponse{}, nil
+}
+
+func (f *fakeAuthClient) RemoveCertificateOverride(
+	ctx context.Context,
+	req *subcav1.RemoveCertificateOverrideRequest,
+	opts ...grpc.CallOption,
+) (*subcav1.RemoveCertificateOverrideResponse, error) {
+	f.lastRemoveCertificateRequest = req
+	return &subcav1.RemoveCertificateOverrideResponse{}, nil
 }
 
 func TestCommand_PubKeyHash(t *testing.T) {
