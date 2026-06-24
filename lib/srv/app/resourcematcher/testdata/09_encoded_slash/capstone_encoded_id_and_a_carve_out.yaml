@@ -1,7 +1,7 @@
 description: an encoded id, a carved-out subtree, and the encoded-slash opt-in
 app_resources_expression:
     # allows /api/v4/projects/g%2fp/issues
-    # denies /api/v4/projects/9/secret/key
+    # denies /api/v4/projects/g%2fp/secret/key
     - |-
       path.match(literal("api/v4/projects",
           capture_encoded("project", set("/"),
