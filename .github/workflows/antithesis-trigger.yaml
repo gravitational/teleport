@@ -64,7 +64,7 @@ jobs:
               {
                 include: [
                   { sut: "example", ref: "master" },
-                  { sut: "example", ref: "branch/v18" }
+                  { sut: "example", ref: "branch/v18" },
                   { sut: "example", ref: "branch/v17" },
                 ]
               }
@@ -74,7 +74,7 @@ jobs:
             REF="${{ inputs.ref }}"
             [[ -z "$REF" ]] && REF="${{ github.ref }}"
             MATRIX=$(jq -cn \
-              --arg sut "${{ inputs.sut }}" \
+              --arg sut "${{ inputs.sut || 'example' }}" \
               --arg ref "$REF" \
               '{include: [{sut: $sut, ref: $ref}]}')
           fi
@@ -100,8 +100,9 @@ jobs:
       - name: Checkout Teleport
         uses: actions/checkout@v6
         with:
-          ssh-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          token: ${{ secrets.ANTITHESIS_GHA_PAT }}
           submodules: recursive
+          persist-credentials: false
           ref: ${{ matrix.ref }}
 
       - name: Compute tag
@@ -149,9 +150,10 @@ jobs:
   #     - name: Checkout Teleport
   #       uses: actions/checkout@v6
   #       with:
-  #         ssh-key: ${{ secrets.SSH_PRIVATE_KEY }}
+  #         token: ${{ secrets.ANTITHESIS_GHA_PAT }}
   #         ref: ${{ matrix.ref }}
   #         submodules: recursive
+  #         persist-credentials: false
   #         fetch-depth: 0
 
   #     - name: Resolve image references
