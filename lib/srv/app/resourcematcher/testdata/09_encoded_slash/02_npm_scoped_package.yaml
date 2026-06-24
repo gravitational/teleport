@@ -1,13 +1,21 @@
 description: npm scoped package keeps its literal "@" raw
-app_resources_expression:
-    # allow_encoded now opts the match in.
-    # capture_encoded binds /@scope%2fname
-    # raw, so "@" stays "@", never %40.
+app_resources:
+    # allow_encoded opts the match in.
+    # {package:/} binds /@scope%2fname raw,
+    # so "@" stays "@", never %40.
     # allows /registry/@babel%2fcore
+    - paths:
+        - /registry/{package:/}
+      allow_encoded:
+        - /
+app_resources_desugared:
     - |-
-      path.match(literal("registry",
-          capture_encoded("package", set("/"))),
-      allow_encoded(set("/")))
+      path.match(
+        literal("registry",
+          capture_encoded("package",
+            set("/"))),
+        allow_encoded(
+          set("/")))
 identity:
     name: bob
     roles:

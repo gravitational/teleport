@@ -1,0 +1,42 @@
+description: 'carve-out: exclude one segment with !'
+app_resources:
+    # !secret matches any one segment except
+    # "secret", then ** matches the rest.
+    # allows /files/report/q4
+    # denies /files/secret/q4
+    - paths:
+        - /files/!secret/**
+app_resources_desugared:
+    - |-
+      path.match(
+        literal("files",
+          glob_without(
+            set("secret"),
+            greedy())))
+identity:
+    name: bob
+    roles:
+        - developer
+cases:
+    - request:
+        method: GET
+        path: /files/report/q4
+      expect:
+        allowed: true
+    - request:
+        method: GET
+        path: /files/secret/q4
+      expect:
+        allowed: false
+        deny_kind: teleport_request_not_allowed
+    - request:
+        method: GET
+        path: /files/report
+      expect:
+        allowed: true
+    - request:
+        method: GET
+        path: /files
+      expect:
+        allowed: false
+        deny_kind: teleport_request_not_allowed

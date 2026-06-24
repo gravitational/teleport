@@ -1,13 +1,23 @@
 description: GitLab project id, plain or encoded, in one node
-app_resources_expression:
-    # One capture_encoded binds a plain id or
-    # an encoded group/project in one node.
+app_resources:
+    # One {project:/} binds a plain id or an
+    # encoded group/project in one node, and
+    # ** matches the rest of the route.
     # allows project 123
     # allows project mygroup%2Fmyproject
+    - paths:
+        - /api/v4/projects/{project:/}/**
+      allow_encoded:
+        - /
+app_resources_desugared:
     - |-
-      path.match(literal("api/v4/projects",
-          capture_encoded("project", set("/"), greedy())),
-      allow_encoded(set("/")))
+      path.match(
+        literal("api/v4/projects",
+          capture_encoded("project",
+            set("/"),
+            greedy())),
+        allow_encoded(
+          set("/")))
 identity:
     name: bob
     roles:

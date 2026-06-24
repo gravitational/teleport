@@ -644,6 +644,15 @@ func sameHead(a, b *Node) bool {
 // `{name}` to Capture, `*` to Glob, `**` to Greedy, and any other segment to
 // Literal.
 //
+// Three further forms admit the encoded separator and carve-outs without
+// dropping to the expression surface. `{name:/}` maps to CaptureEncoded, the
+// capture that binds a segment carrying an encoded slash, with the char after
+// the colon naming the admitted encoded set. `{:/}`, with an empty name, maps
+// to GlobEncoded, its anonymous form. A segment that starts with "!", such as
+// `!secret`, maps to GlobWithout over the rest of the segment, so it matches
+// any one segment except that value and continues to the children. A segment
+// that genuinely needs a leading "!" falls back to the expression surface.
+//
 // A leading "/" is required and stripped. An interior or leading empty
 // segment (from "//") is a compile error, since the strict URL rules reject
 // the request bytes that would produce one. A trailing "/" is significant:
@@ -655,7 +664,7 @@ func Compile(pattern string) (*Node, error) {
 	if !strings.HasPrefix(pattern, "/") {
 		return nil, trace.BadParameter("path pattern %q must start with /", pattern)
 	}
-	segments := strings.Split(strings.TrimPrefix(pattern, "/"), "/")
+	segments := splitPattern(strings.TrimPrefix(pattern, "/"))
 	for i, seg := range segments {
 		if seg == "" {
 			// Permit an empty segment only as the final one. That is the
@@ -674,6 +683,41 @@ func Compile(pattern string) (*Node, error) {
 		}
 	}
 	return compileSegments(pattern, segments)
+}
+
+// splitPattern splits a path pattern into segments on "/", but only at brace
+// depth 0, so the "/" inside a `{name:/}` or `{:/}` encoded form stays part of
+// the one segment rather than splitting it. Outside braces it is exactly
+// strings.Split on "/", so it preserves the empty-segment semantics Compile
+// relies on: "files/" splits to ["files", ""], "" to [""], and "//" to
+// ["", ""]. An unbalanced "}" is left to compileSegment, which rejects the
+// malformed segment.
+func splitPattern(s string) []string {
+	var segs []string
+	var b strings.Builder
+	depth := 0
+	for _, r := range s {
+		switch r {
+		case '{':
+			depth++
+			b.WriteRune(r)
+		case '}':
+			if depth > 0 {
+				depth--
+			}
+			b.WriteRune(r)
+		case '/':
+			if depth == 0 {
+				segs = append(segs, b.String())
+				b.Reset()
+				continue
+			}
+			b.WriteRune(r)
+		default:
+			b.WriteRune(r)
+		}
+	}
+	return append(segs, b.String())
 }
 
 // compileSegments builds the node chain from the last segment back to the
@@ -709,11 +753,21 @@ func compileSegment(pattern, seg string) (*Node, error) {
 		// than an empty literal.
 		return Slash(), nil
 	case strings.HasPrefix(seg, "{") && strings.HasSuffix(seg, "}"):
-		name := seg[1 : len(seg)-1]
-		if !isIdentifier(name) {
-			return nil, trace.BadParameter("capture name %q in %q must be a valid identifier so it reads as vars.<name>", name, pattern)
+		return compileBraceSegment(pattern, seg[1:len(seg)-1])
+	case strings.HasPrefix(seg, "!"):
+		// A leading "!" carves one value out of an otherwise open glob, so
+		// "!secret" matches any one segment except "secret" and continues to the
+		// children. The excluded value is the rest of the segment; a bare "!" has
+		// nothing to exclude and is a malformed pattern.
+		excluded := seg[1:]
+		if excluded == "" {
+			return nil, trace.BadParameter("carve-out %q in %q needs a value after the !, such as !secret", seg, pattern)
 		}
-		return Capture(name), nil
+		node, err := GlobWithout([]string{excluded})
+		if err != nil {
+			return nil, trace.Wrap(err, "in path pattern %q", pattern)
+		}
+		return node, nil
 	default:
 		// A bare segment is a single literal. A metacharacter is only valid as
 		// a whole segment: "*", "**", or "{name}". Any other appearance, such
@@ -731,6 +785,50 @@ func compileSegment(pattern, seg string) (*Node, error) {
 		}
 		return &Node{kind: kindLiteral, text: seg}, nil
 	}
+}
+
+// compileBraceSegment maps the interior of a `{...}` segment to its node kind.
+// A plain interior, "{name}", is a Capture. A ":"-suffixed interior names the
+// admitted encoded set after the colon and the char before it: "{name:/}" is a
+// CaptureEncoded that binds a segment carrying the encoded separator, and
+// "{:/}", with an empty name, is its anonymous GlobEncoded form. The char(s)
+// after the colon spell the encoded set literally, so "/" lowers to set("/"),
+// mirroring the constructor; today only "/" is admitted, which the constructor
+// validates. An empty set, "{name:}", is a malformed pattern.
+func compileBraceSegment(pattern, interior string) (*Node, error) {
+	name, enc, hasEncoded := strings.Cut(interior, ":")
+	if !hasEncoded {
+		if !isIdentifier(name) {
+			return nil, trace.BadParameter("capture name %q in %q must be a valid identifier so it reads as vars.<name>", name, pattern)
+		}
+		return Capture(name), nil
+	}
+	if enc == "" {
+		return nil, trace.BadParameter(
+			"encoded form %q in %q needs a char after the colon naming the admitted encoded set, such as {%s:/}", "{"+interior+"}", pattern, name)
+	}
+	allowed := splitEncoded(enc)
+	if name == "" {
+		node, err := GlobEncoded(allowed)
+		return node, trace.Wrap(err, "in path pattern %q", pattern)
+	}
+	if !isIdentifier(name) {
+		return nil, trace.BadParameter("capture name %q in %q must be a valid identifier so it reads as vars.<name>", name, pattern)
+	}
+	node, err := CaptureEncoded(name, allowed)
+	return node, trace.Wrap(err, "in path pattern %q", pattern)
+}
+
+// splitEncoded turns the encoded-set spelling after a colon into one entry per
+// rune, so "/" becomes []string{"/"}, the form the encoded constructors take.
+// Forward-compatible if another encoded char is ever admitted: "/x" becomes
+// []string{"/", "x"}.
+func splitEncoded(s string) []string {
+	out := make([]string, 0, len(s))
+	for _, r := range s {
+		out = append(out, string(r))
+	}
+	return out
 }
 
 // isIdentifier reports whether s is a non-empty Go-style identifier, the form a

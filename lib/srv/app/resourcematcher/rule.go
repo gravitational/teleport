@@ -50,6 +50,13 @@ type Rule struct {
 	// Where is a condition over the caller identity, the request, and this
 	// rule's captures. It does not match paths and may not call path.match.
 	Where string `yaml:"where,omitempty"`
+	// AllowEncoded opts the rule's path match into the named encoded chars,
+	// lowering to the allow_encoded option on path.match. Today only the
+	// separator "/" is admitted, so it is written allow_encoded: ["/"]. It
+	// gates the whole match and pairs with an encoded node in a path, such as
+	// "{name:/}" or "{:/}"; without it an encoded node fails closed, and with
+	// no paths to gate it is a load error.
+	AllowEncoded []string `yaml:"allow_encoded,omitempty"`
 	// AllowCode is the structured code emitted on the allow audit event when
 	// this rule matches. Without it, an allow emits no code.
 	AllowCode string `yaml:"allow_code,omitempty"`
@@ -310,10 +317,21 @@ func (r Rule) allowCodeClause() string {
 
 // pathClause renders the Paths as one path.match over a root() of the compiled
 // patterns. A lone pattern passes its tree straight through, since a root() that
-// wraps a single child is redundant. It is empty when no paths are set.
+// wraps a single child is redundant. When AllowEncoded is set it appends the
+// allow_encoded option, which gates the whole match into the named encoded
+// chars. It is empty when no paths are set; AllowEncoded with no paths to gate
+// is a load error.
 func (r Rule) pathClause() (string, error) {
 	if len(r.Paths) == 0 {
+		if len(r.AllowEncoded) > 0 {
+			return "", trace.BadParameter("allow_encoded is set but the rule has no paths to gate")
+		}
 		return "", nil
+	}
+	if len(r.AllowEncoded) > 0 {
+		if err := validateEncodedChars(r.AllowEncoded); err != nil {
+			return "", trace.Wrap(err, "invalid allow_encoded")
+		}
 	}
 	nodes := make([]*Node, 0, len(r.Paths))
 	for _, p := range r.Paths {
@@ -334,6 +352,9 @@ func (r Rule) pathClause() (string, error) {
 	tree := merged[0]
 	if len(merged) > 1 {
 		tree = &Node{kind: kindRoot, children: merged}
+	}
+	if len(r.AllowEncoded) > 0 {
+		return fmt.Sprintf("path.match(%s, allow_encoded(%s))", nodeToSource(tree), setSource(r.AllowEncoded)), nil
 	}
 	return fmt.Sprintf("path.match(%s)", nodeToSource(tree)), nil
 }
@@ -380,18 +401,24 @@ func nodeToSource(n *Node) string {
 	case kindCapture:
 		return constructorSource("capture", strconv.Quote(n.text), n.children)
 	case kindGlob:
+		// A glob carrying exclusions is a glob_without: render the excluded set
+		// as its leading argument so the round-trip keeps the carve-out rather
+		// than dropping it back to a plain glob.
+		if len(n.globExclude) > 0 {
+			return constructorSource("glob_without", setSource(n.globExclude), n.children)
+		}
 		return constructorSource("glob", "", n.children)
 	case kindGlobEncoded:
-		return constructorSource("glob_encoded", encodedSetSource(n.allowedEncoded), n.children)
+		return constructorSource("glob_encoded", setSource(n.allowedEncoded), n.children)
 	case kindCaptureEncoded:
 		// capture_encoded carries two leading args, the bound name and the
 		// allowed-encoded set, so render the lead as the comma-joined pair.
-		lead := strconv.Quote(n.text) + ", " + encodedSetSource(n.allowedEncoded)
+		lead := strconv.Quote(n.text) + ", " + setSource(n.allowedEncoded)
 		return constructorSource("capture_encoded", lead, n.children)
 	case kindEncodedLiteral:
 		// encoded_literal carries the decoded value and the allowed-encoded set
 		// as its two leading args, the same pair form as capture_encoded.
-		lead := strconv.Quote(n.text) + ", " + encodedSetSource(n.allowedEncoded)
+		lead := strconv.Quote(n.text) + ", " + setSource(n.allowedEncoded)
 		return constructorSource("encoded_literal", lead, n.children)
 	case kindRoot:
 		return constructorSource("root", "", n.children)
@@ -400,19 +427,28 @@ func nodeToSource(n *Node) string {
 	case kindOptional:
 		return constructorSource("optional", "", n.children)
 	case kindGreedy:
+		// A greedy carrying exclusions is a greedy_except over the rendered
+		// exclusion subtrees, the general form greedy_without also lowers to, so
+		// the round-trip keeps the carve-out rather than dropping it back to a
+		// plain greedy. A greedy never has children, so the exclusions are the
+		// only arguments.
+		if len(n.greedyExcept) > 0 {
+			return constructorSource("greedy_except", "", n.greedyExcept)
+		}
 		return "greedy()"
 	default:
 		return ""
 	}
 }
 
-// encodedSetSource renders the allowed-encoded chars of an encoded node as a
-// set(...) call, the form glob_encoded and capture_encoded take as their
-// leading argument, so the rendered source parses back to the same node.
-func encodedSetSource(allowed []string) string {
-	quoted := make([]string, 0, len(allowed))
-	for _, c := range allowed {
-		quoted = append(quoted, strconv.Quote(c))
+// setSource renders a list of strings as a set(...) call, the form the encoded
+// nodes take for their allowed-encoded chars, glob_without takes for its
+// excluded values, and path.match takes for its allow_encoded option, so the
+// rendered source parses back to the same values.
+func setSource(values []string) string {
+	quoted := make([]string, 0, len(values))
+	for _, v := range values {
+		quoted = append(quoted, strconv.Quote(v))
 	}
 	return "set(" + strings.Join(quoted, ", ") + ")"
 }
