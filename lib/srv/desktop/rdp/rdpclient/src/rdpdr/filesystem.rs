@@ -74,7 +74,7 @@ impl DirectoryContext {
     fn insert_file(&mut self, file: FileCacheObject) -> Result<u32, FilesystemBackendError> {
         let path = file.fso.path.path.clone();
         self.file_cache.insert(file).inspect(|id| {
-            warn!(
+            debug!(
                 "inserted file id: {}, path: {} file_entries {}",
                 id,
                 path,
@@ -85,7 +85,7 @@ impl DirectoryContext {
 
     fn remove_file(&mut self, file_id: u32) -> Option<FileCacheObject> {
         self.file_cache.remove(file_id).inspect(|fco| {
-            warn!(
+            debug!(
                 "removed file id: {}, path: {} file_entries {}",
                 file_id,
                 &fco.path().path,
@@ -1602,11 +1602,6 @@ impl FilesystemBackend {
             ))
         }?;
 
-        warn!(
-            "sending efs::DeviceCreateResponse - status: {}, kind: {:?}",
-            u32::from(io_status),
-            &information
-        );
         self.client_handle.write_rdpdr(
             efs::DeviceCreateResponse {
                 device_io_reply: efs::DeviceIoResponse::new(
@@ -1851,10 +1846,6 @@ impl FilesystemBackend {
         io_status: NtStatus,
         buffer: Option<efs::FileInformationClass>,
     ) -> PduResult<()> {
-        warn!(
-            "sending efs::ClientDriveQueryDirectoryResponse to request: {:?}",
-            &device_io_request
-        );
         self.client_handle.write_rdpdr(
             efs::ClientDriveQueryDirectoryResponse {
                 device_io_reply: efs::DeviceIoResponse::new(device_io_request, io_status),
@@ -1872,7 +1863,6 @@ impl FilesystemBackend {
         io_status: NtStatus,
         buffer: Option<efs::FileSystemInformationClass>,
     ) -> PduResult<()> {
-        warn!("sending efs::ClientDriveQueryVolumeInformationResponse");
         self.client_handle.write_rdpdr(
             efs::ClientDriveQueryVolumeInformationResponse::new(
                 device_io_request,
