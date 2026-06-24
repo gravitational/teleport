@@ -363,21 +363,69 @@ func TestClientConfigSSHClientConfigSetsDefaults(t *testing.T) {
 
 	signer := generateSigner(t)
 
-	cfg := ClientConfig{
-		User: "alice",
-		PublicKeyAuth: PublicKeyAuthConfig{
-			Signers: func() ([]ssh.Signer, error) {
-				return []ssh.Signer{signer}, nil
+	base := func() ClientConfig {
+		return ClientConfig{
+			User: "alice",
+			PublicKeyAuth: PublicKeyAuthConfig{
+				Signers: func() ([]ssh.Signer, error) { return []ssh.Signer{signer}, nil },
 			},
-		},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(), //nolint: gosec // This is a test.
+			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		}
 	}
 
-	sshConfig, err := cfg.sshClientConfig()
-	require.NoError(t, err)
-	require.Equal(t, DefaultClientVersion, sshConfig.ClientVersion)
-	require.Len(t, sshConfig.Auth, 1)
-	require.Equal(t, defaults.DefaultIOTimeout, sshConfig.Timeout)
+	for _, tt := range []struct {
+		name        string
+		mutate      func(ClientConfig) ClientConfig
+		wantVersion string
+		wantAuthLen int
+		wantTimeout time.Duration
+	}{
+		{
+			name:        "defaults",
+			mutate:      func(cfg ClientConfig) ClientConfig { return cfg },
+			wantVersion: DefaultClientVersion,
+			wantAuthLen: 1,
+			wantTimeout: defaults.DefaultIOTimeout,
+		},
+		{
+			name: "AuthCallback extends timeout",
+			mutate: func(cfg ClientConfig) ClientConfig {
+				cfg.AuthCallback = func(ctx *ssh.ClientAuthContext) (ssh.AuthMethod, error) {
+					return nil, nil
+				}
+
+				return cfg
+			},
+			wantVersion: ClientVersionWithFeatures(InBandMFAFeature),
+			wantAuthLen: 1,
+			wantTimeout: SessionMFAAuthTimeout,
+		},
+		{
+			name: "explicit timeout overrides all defaults",
+			mutate: func(cfg ClientConfig) ClientConfig {
+				cfg.AuthCallback = func(ctx *ssh.ClientAuthContext) (ssh.AuthMethod, error) {
+					return nil, nil
+				}
+
+				cfg.Timeout = 5 * time.Minute
+
+				return cfg
+			},
+			wantVersion: ClientVersionWithFeatures(InBandMFAFeature),
+			wantAuthLen: 1,
+			wantTimeout: 5 * time.Minute,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			sshConfig, err := tt.mutate(base()).sshClientConfig()
+			require.NoError(t, err)
+			require.Equal(t, tt.wantVersion, sshConfig.ClientVersion)
+			require.Len(t, sshConfig.Auth, tt.wantAuthLen)
+			require.Equal(t, tt.wantTimeout, sshConfig.Timeout)
+		})
+	}
 }
 
 func TestClientConfigSSHClientConfigClonesAlgorithmsAndPreservesFields(t *testing.T) {

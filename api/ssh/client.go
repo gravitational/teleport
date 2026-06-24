@@ -46,6 +46,11 @@ const (
 
 	// InBandMFAFeature is a flag included in the client version string to indicate support for in-band MFA (RFD 234).
 	InBandMFAFeature = "mfav1"
+
+	// SessionMFAAuthTimeout is the timeout for authentication when in-band MFA may be required. WebAuthn and SSO
+	// ceremonies can take longer than the defaults.DefaultIOTimeout, so this extended timeout prevents premature
+	// connection closure during the interactive handshake.
+	SessionMFAAuthTimeout = 3 * time.Minute
 )
 
 // ClientVersionWithFeatures returns a client version string that includes the specified features. If no features are
@@ -208,6 +213,11 @@ func (c ClientConfig) sshClientConfig() (*ssh.ClientConfig, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	timeout := cmp.Or(c.Timeout, defaults.DefaultIOTimeout)
+	if c.AuthCallback != nil {
+		timeout = cmp.Or(c.Timeout, SessionMFAAuthTimeout)
+	}
+
 	return &ssh.ClientConfig{
 		Config:            c.SSHConfig,
 		User:              c.User,
@@ -217,7 +227,7 @@ func (c ClientConfig) sshClientConfig() (*ssh.ClientConfig, error) {
 		BannerCallback:    c.BannerCallback,
 		ClientVersion:     c.clientVersion(),
 		HostKeyAlgorithms: slices.Clone(c.HostKeyAlgorithms),
-		Timeout:           cmp.Or(c.Timeout, defaults.DefaultIOTimeout),
+		Timeout:           timeout,
 	}, nil
 }
 
