@@ -47,13 +47,15 @@ var lostNetworkEvents = prometheus.NewCounter(
 type conn struct {
 	objs networkObjects
 
-	bpf4Events  chan []byte
-	bpf6Events  chan []byte
+	bpf4Events  chan bpfEvent
+	bpf6Events  chan bpfEvent
 	lostCounter *Counter
 	toClose     []io.Closer
 
 	closed   bool
 	flushBuf func() error
+	drain4   drainQueue
+	drain6   drainQueue
 
 	mtx sync.Mutex
 	wg  sync.WaitGroup
@@ -147,13 +149,19 @@ func startConn(bufferSize int) (*conn, error) {
 		flushBuf:    flush,
 	}
 
-	c.bpf4Events = make(chan []byte, bufferSize)
-	c.wg.Go(func() { sendEvents("network", c.bpf4Events, eventBufV4) })
+	c.bpf4Events = make(chan bpfEvent, bufferSize)
+	c.wg.Go(func() { sendEvents("network", c.bpf4Events, eventBufV4, &c.drain4) })
 
-	c.bpf6Events = make(chan []byte, bufferSize)
-	c.wg.Go(func() { sendEvents("network", c.bpf6Events, eventBufV6) })
+	c.bpf6Events = make(chan bpfEvent, bufferSize)
+	c.wg.Go(func() { sendEvents("network", c.bpf6Events, eventBufV6, &c.drain6) })
 
 	return c, nil
+}
+
+// drainSession waits for in-flight network events to be emitted before close.
+// One flush covers both the IPv4 and IPv6 buffers.
+func (c *conn) drainSession() {
+	drainPipelines("network", c.flushBuf, &c.drain4, &c.drain6)
 }
 
 func (c *conn) startSession(auditSessionID uint32) error {
@@ -197,6 +205,9 @@ func (c *conn) close() {
 	}
 
 	c.closed = true
+	// Close the drain queues so the flush below makes the readers exit, not drain.
+	c.drain4.close()
+	c.drain6.close()
 
 	if err := c.flushBuf(); err != nil {
 		logger.WarnContext(context.Background(), "failed to flush network ring buffer", "error", err)
@@ -227,11 +238,11 @@ func (c *conn) close() {
 }
 
 // v4Events contains raw events off the perf buffer.
-func (c *conn) v4Events() <-chan []byte {
+func (c *conn) v4Events() <-chan bpfEvent {
 	return c.bpf4Events
 }
 
 // v6Events contains raw events off the perf buffer.
-func (c *conn) v6Events() <-chan []byte {
+func (c *conn) v6Events() <-chan bpfEvent {
 	return c.bpf6Events
 }
