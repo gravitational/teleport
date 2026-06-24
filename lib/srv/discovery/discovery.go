@@ -1758,8 +1758,7 @@ func (s *Server) reconcileAzureServers(instances *server.AzureInstances) (discov
 
 func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *azureVMTasks, status discoveryGroupStatus, backoff *installerBackoff, sem *semaphore.Weighted) discoveryGroupStatus {
 	log := s.Log.With("group", instances)
-	syncTime := s.clock.Now()
-	addFailedAzureEnrollment := func(entry installerBackoffEntry) {
+	addFailedAzureEnrollment := func(entry installerBackoffEntry, syncTime time.Time) {
 		// Static matchers don't have a discovery config resource, so skip creating user tasks
 		// because validation requires a discovery config name.
 		if instances.Metadata.DiscoveryConfigName == noDiscoveryConfig {
@@ -1791,23 +1790,32 @@ func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *
 		)
 	}
 
-	skipped := backoff.filter(instances, syncTime)
+	skipped := backoff.filter(instances, s.clock.Now())
 	if len(skipped) > 0 {
 		log.DebugContext(s.ctx, "Skipping Azure VMs with an active installation backoff",
 			"skipped", len(skipped),
 		)
 		status.failed += len(skipped)
-		for _, entry := range skipped {
-			addFailedAzureEnrollment(entry)
-		}
 	}
 	if len(instances.Instances) == 0 {
+		if len(skipped) > 0 {
+			syncTime := s.clock.Now()
+			for _, entry := range skipped {
+				addFailedAzureEnrollment(entry, syncTime)
+			}
+		}
 		log.DebugContext(s.ctx, "No Azure instances remain to enroll, skipping installation")
 		return status
 	}
 
 	log.DebugContext(s.ctx, "Running Teleport installation on virtual machines", "vms", genAzureInstancesLogStr(instances.Instances))
 	failures, err := s.enrollAzureVirtualMachines(log, instances, sem)
+	syncTime := s.clock.Now()
+
+	for _, entry := range skipped {
+		addFailedAzureEnrollment(entry, syncTime)
+	}
+
 	if err != nil {
 		// treat non-nil err as deployment failure affecting all machines.
 		log.WarnContext(s.ctx, "Failed to enroll all discovered Azure VMs", "error", err)
@@ -1816,7 +1824,7 @@ func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *
 		issueType := classifyAzureVMEnrollmentError(err)
 		for _, vm := range instances.Instances {
 			entry := backoff.recordFailedAttempt(vm, issueType, syncTime)
-			addFailedAzureEnrollment(entry)
+			addFailedAzureEnrollment(entry, syncTime)
 		}
 		return status
 	}
@@ -1833,7 +1841,7 @@ func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *
 		// TODO (Tener): check exit codes and create more detailed user tasks.
 		issueType := classifyAzureInstallResultIssue(result)
 		entry := backoff.recordFailedAttempt(result.Instance, issueType, syncTime)
-		addFailedAzureEnrollment(entry)
+		addFailedAzureEnrollment(entry, syncTime)
 	}
 
 	pendingCount := len(instances.Instances) - len(failures)
