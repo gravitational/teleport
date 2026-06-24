@@ -81,7 +81,7 @@ integration's status page in the web UI, using the host of `proxy_addr` without 
 | Provider error: credentials expired or not found | The `tctl terraform env` credentials lapsed after one hour | Ask the user to re-run `! eval "$(tctl terraform env)"` in the session, then retry the terraform command. |
 | Provider error: failed to connect or join (CI, cloud, server) | The bot, token, or provider auth fields are missing or wrong | Follow the environment's setup guide above. Confirm `join_method`/`join_token` or `identity_file_path` match the token created in the cluster. |
 | Provider version incompatible with the cluster | The teleport provider is below the discovery module's minimum | Set the teleport provider to `>= 18.8.0` for AWS or `>= 18.7.6` for Azure. |
-| `terraform apply` returns 409 on the AWS OIDC provider | An AWS OIDC provider for the proxy URL already exists | Set `create_aws_iam_openid_connect_provider = false` and re-apply. |
+| `terraform apply` returns 409 on the AWS OIDC provider | An AWS OIDC provider for the proxy URL already exists | Run **Existing OIDC provider** in `references/aws-setup.md` to add the `discover.teleport` audience if missing, then re-apply with `create_aws_iam_openid_connect_provider = false`. |
 | Matcher validation error | A matcher is missing a required field | Each matcher needs non-empty `types`. Azure matchers also need `subscriptions`. |
 | State lock or stale state | A prior run did not release the lock | Resolve per Terraform's state-lock guidance before re-running. Do not delete state. |
 

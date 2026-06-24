@@ -23,7 +23,10 @@ Let `<host>` be `proxy_addr` without its port. Resolve `existing_oidc_provider`:
 1. Run `aws iam list-open-id-connect-providers`.
 2. Find the provider whose ARN ends in `oidc-provider/<host>`. If none, set `no` and stop.
 3. Run `aws iam get-open-id-connect-provider --open-id-connect-provider-arn <arn>` for that ARN only.
-4. Strip the scheme and port from `.Url`. If it equals `<host>`, set `yes`; otherwise `no`.
+4. Strip the scheme and port from `.Url`. If it does not equal `<host>`, set `no` and stop.
+5. If `.ClientIDList` includes `discover.teleport`, set `yes`. Otherwise add it with
+   `aws iam add-client-id-to-open-id-connect-provider --open-id-connect-provider-arn <arn> --client-id discover.teleport`,
+   then set `yes`.
 
 ## Write location
 

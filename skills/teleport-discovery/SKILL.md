@@ -13,15 +13,13 @@ compatibility: >
   setup uses them when present to detect account, region, and subscription details. Works
   with Teleport Cloud and self-hosted clusters.
 allowed-tools:
-  - Read
+  - Read(**/*.tf)
+  - Read(**/*.md)
   - Glob
-  - Write(**/*.tf)
-  - Edit(**/*.tf)
   - AskUserQuestion
   - WebFetch(domain:goteleport.com)
   - Bash(terraform init:*)
   - Bash(terraform plan:*)
-  - Bash(terraform apply:*)
   - Bash(tsh status:*)
   - Bash(tctl status:*)
   - Bash(tctl get:*)
@@ -30,6 +28,7 @@ allowed-tools:
   - Bash(tctl tokens ls:*)
   - Bash(aws iam list-open-id-connect-providers:*)
   - Bash(aws iam get-open-id-connect-provider:*)
+  - Bash(aws iam add-client-id-to-open-id-connect-provider:*)
   - Bash(aws configure get region:*)
   - Bash(az account show:*)
   - Bash(az group show:*)
